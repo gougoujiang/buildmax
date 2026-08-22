@@ -50,7 +50,7 @@ webhook:
 
 | Status | Meaning |
 |---|---|
-| `202 Accepted` | Run created. Body is `{"task_id": "<task_run_id>"}`. |
+| `202 Accepted` | Run created. Body is `{"task_id": "...", "task_run_id": "..."}`. |
 | `400 Bad Request` | The body could not be mapped to a turn — usually `message_path` does not match the payload. |
 | `401 Unauthorized` | Missing or invalid key. |
 | `409 Conflict` | The target task already has a run in progress. |

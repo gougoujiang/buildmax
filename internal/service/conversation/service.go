@@ -73,7 +73,7 @@ func (s *Service) RerunTask(ctx context.Context, cmd RerunTaskCmd) (Conversation
 	if err != nil {
 		return ConversationResult{}, err
 	}
-	return ConversationResult{TaskRunIDs: []string{run.ID}}, nil
+	return ConversationResult{Runs: []SpawnedRun{{TaskID: cmd.TaskID, RunID: run.ID}}}, nil
 }
 
 func (s *Service) handleConversationTurn(ctx context.Context, cmd HandleTurnCmd) (ConversationResult, error) {

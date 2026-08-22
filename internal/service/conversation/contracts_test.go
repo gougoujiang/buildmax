@@ -28,14 +28,14 @@ func TestConversationTurn_fields(t *testing.T) {
 
 func TestConversationResult_fields(t *testing.T) {
 	result := ConversationResult{
-		Reply:      "Sure, I'll do that.",
-		TaskRunIDs: []string{"r_001", "r_002"},
+		Reply: "Sure, I'll do that.",
+		Runs:  []SpawnedRun{{TaskID: "t_1", RunID: "r_001"}, {TaskID: "t_2", RunID: "r_002"}},
 	}
 	if result.Reply != "Sure, I'll do that." {
 		t.Errorf("Reply: got %q", result.Reply)
 	}
-	if len(result.TaskRunIDs) != 2 || result.TaskRunIDs[0] != "r_001" || result.TaskRunIDs[1] != "r_002" {
-		t.Errorf("TaskRunIDs: got %v", result.TaskRunIDs)
+	if len(result.Runs) != 2 || result.Runs[0].RunID != "r_001" || result.Runs[1].TaskID != "t_2" {
+		t.Errorf("Runs: got %v", result.Runs)
 	}
 }
 
