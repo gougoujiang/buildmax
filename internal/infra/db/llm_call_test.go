@@ -15,10 +15,17 @@ import (
 
 func ptrString(s string) *string { return &s }
 
+// ledgerTeam is the team a ledger fixture bills to. A call references a team
+// row now, so the test creates one rather than naming a handle.
+func ledgerTeam(t *testing.T, s *Store) string {
+	t.Helper()
+	return newTestTeam(t, s, newTestUser(t, s, "ledger"))
+}
+
 func sampleLLMCall() *model.LLMCall {
 	return &model.LLMCall{
-		TeamID:        "tm_ledger",
-		UserID:        ptrString("u_ledger"),
+		TeamID:        "",
+		UserID:        nil,
 		Surface:       model.LLMCallSurfaceCLI,
 		SessionID:     ptrString("session-1"),
 		Alias:         "fast",
@@ -33,11 +40,13 @@ func sampleLLMCall() *model.LLMCall {
 // TestLLMCallRowRoundTrip runs without a database: it is the mapping that
 // silently drops a column when the model grows.
 func TestLLMCallRowRoundTrip(t *testing.T) {
+	// The references are left out: they are row keys now, and resolving them
+	// needs a database. The store integration tests cover that direction.
 	call := sampleLLMCall()
-	call.ID = "lc_example"
+	call.ID = ""
+	call.TeamID = ""
+	call.UserID = nil
 	call.ClientCallID = ptrString("client-key-1")
-	call.TaskID = ptrString("t_one")
-	call.TaskRunID = ptrString("r_one")
 	upstreamStarted := int64(1_700_000_001)
 	firstDelta := int64(1_700_000_002)
 	completed := int64(1_700_000_003)
@@ -53,7 +62,7 @@ func TestLLMCallRowRoundTrip(t *testing.T) {
 	call.TotalTokens = &total
 	call.UsageSource = model.LLMUsageSourceReported
 
-	got := toLLMCall(toLLMCallRow(call))
+	got := toLLMCall(&llmCallReadRow{Row: *llmCallValues(call)})
 	if got == nil {
 		t.Fatal("round trip produced nil")
 	}
@@ -61,8 +70,8 @@ func TestLLMCallRowRoundTrip(t *testing.T) {
 		t.Errorf("round trip changed the record:\n got %+v\nwant %+v", *got, *call)
 	}
 
-	if toLLMCallRow(nil) != nil {
-		t.Error("toLLMCallRow(nil) must be nil")
+	if llmCallValues(nil) != nil {
+		t.Error("llmCallValues(nil) must be nil")
 	}
 	if toLLMCall(nil) != nil {
 		t.Error("toLLMCall(nil) must be nil")
@@ -104,13 +113,14 @@ func TestOpenAndCompleteLLMCall(t *testing.T) {
 	}
 
 	call := sampleLLMCall()
+	call.TeamID = ledgerTeam(t, s)
 	call.ClientCallID = ptrString(util.NewPrefixedID("clientkey"))
 	opened, err := s.OpenLLMCall(ctx, call)
 	if err != nil {
 		t.Fatalf("OpenLLMCall: %v", err)
 	}
 	defer func() {
-		_ = s.db.WithContext(ctx).Delete(&llmCallRow{}, "llm_call_id = ?", opened.ID)
+		_ = s.db.WithContext(ctx).Delete(&llmCallRow{}, "public_id = ?", mustParsePublicID(opened.ID))
 	}()
 
 	if _, ok := util.ParsePublicID(opened.ID); !ok {
@@ -189,12 +199,14 @@ func TestCompleteLLMCallKeepsUnavailableUsage(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 
-	opened, err := s.OpenLLMCall(ctx, sampleLLMCall())
+	call := sampleLLMCall()
+	call.TeamID = ledgerTeam(t, s)
+	opened, err := s.OpenLLMCall(ctx, call)
 	if err != nil {
 		t.Fatalf("OpenLLMCall: %v", err)
 	}
 	defer func() {
-		_ = s.db.WithContext(ctx).Delete(&llmCallRow{}, "llm_call_id = ?", opened.ID)
+		_ = s.db.WithContext(ctx).Delete(&llmCallRow{}, "public_id = ?", mustParsePublicID(opened.ID))
 	}()
 
 	errorClass := "upstream_unavailable"
@@ -239,7 +251,9 @@ func TestOpenLLMCallRejectsADuplicateClientID(t *testing.T) {
 	}
 
 	key := util.NewPrefixedID("clientkey")
+	team := ledgerTeam(t, s)
 	first := sampleLLMCall()
+	first.TeamID = team
 	first.ClientCallID = &key
 	opened, err := s.OpenLLMCall(ctx, first)
 	if err != nil {
@@ -250,6 +264,7 @@ func TestOpenLLMCallRejectsADuplicateClientID(t *testing.T) {
 	}()
 
 	second := sampleLLMCall()
+	second.TeamID = team
 	second.ClientCallID = &key
 	if _, err := s.OpenLLMCall(ctx, second); !errors.Is(err, model.ErrDuplicateLLMCall) {
 		t.Fatalf("want ErrDuplicateLLMCall, got %v", err)
@@ -257,7 +272,7 @@ func TestOpenLLMCallRejectsADuplicateClientID(t *testing.T) {
 
 	// Another team may use the same key: the constraint is team-scoped.
 	other := sampleLLMCall()
-	other.TeamID = "tm_other_ledger"
+	other.TeamID = ledgerTeam(t, s)
 	other.ClientCallID = &key
 	otherOpened, err := s.OpenLLMCall(ctx, other)
 	if err != nil {
@@ -269,12 +284,14 @@ func TestOpenLLMCallRejectsADuplicateClientID(t *testing.T) {
 
 	// A call with no client key is never a duplicate.
 	for range 2 {
-		anonymous, err := s.OpenLLMCall(ctx, sampleLLMCall())
+		anonymous := sampleLLMCall()
+		anonymous.TeamID = team
+		opened, err := s.OpenLLMCall(ctx, anonymous)
 		if err != nil {
 			t.Fatalf("a call with no client key was rejected: %v", err)
 		}
 		defer func() {
-			_ = s.db.WithContext(ctx).Delete(&llmCallRow{}, "llm_call_id = ?", anonymous.ID)
+			_ = s.db.WithContext(ctx).Delete(&llmCallRow{}, "public_id = ?", mustParsePublicID(opened.ID))
 		}()
 	}
 }

@@ -72,6 +72,19 @@ func lookupKey(ctx context.Context, tx *gorm.DB, table, publicID string) (uint64
 	return key, nil
 }
 
+// optionalKey is lookupKey for a nullable reference: no handle resolves to no
+// key rather than to an error.
+func optionalKey(ctx context.Context, tx *gorm.DB, table string, publicID *string) (*uint64, error) {
+	if publicID == nil || *publicID == "" {
+		return nil, nil
+	}
+	key, err := lookupKey(ctx, tx, table, *publicID)
+	if err != nil {
+		return nil, err
+	}
+	return &key, nil
+}
+
 // createWithPublicID inserts row, assigning it a fresh public ID and trying
 // again when the unique index rejects that particular value.
 //

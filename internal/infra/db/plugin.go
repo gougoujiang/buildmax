@@ -10,18 +10,19 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	"github.com/gougoujiang/buildmax/internal/util"
 )
 
 // pluginRow is one catalog entry. It has no team column: the catalog belongs to
 // the deployment, which is what lets a System Administrator manage company
 // capabilities without reaching into any team's content.
 type pluginRow struct {
-	ID          uint   `gorm:"primaryKey;autoIncrement"`
+	ID          uint64 `gorm:"primaryKey;autoIncrement"`
 	Name        string `gorm:"type:varchar(128);uniqueIndex;not null"`
 	DisplayName string `gorm:"type:varchar(255);not null;default:''"`
 	Description string `gorm:"type:varchar(1024);not null;default:''"`
 	ArchivedAt  int64  `gorm:"not null;default:0;index"`
-	CreatedBy   string `gorm:"type:varchar(64);not null"`
+	CreatedBy   uint64 `gorm:"column:created_by;not null"`
 	CreatedAt   int64  `gorm:"autoCreateTime;index"`
 	UpdatedAt   int64  `gorm:"autoUpdateTime"`
 }
@@ -34,9 +35,11 @@ func (pluginRow) TableName() string { return "plugin" }
 // queries inside them: they are written once and read whole, and giving each
 // field a column would freeze the report's shape into the schema.
 type pluginReleaseRow struct {
-	ID uint `gorm:"primaryKey;autoIncrement"`
-	// PluginName is denormalised so a release reads without a join. The unique
-	// index over (plugin_name, version) is what makes a version immutable.
+	ID uint64 `gorm:"primaryKey;autoIncrement"`
+	// PluginID is the parent reference. PluginName is denormalised beside it so
+	// a release reads without a join, and the unique index over
+	// (plugin_name, version) is what makes a version immutable.
+	PluginID           uint64 `gorm:"column:plugin_id;not null;index"`
 	PluginName         string `gorm:"type:varchar(128);not null;uniqueIndex:ux_plugin_release_version,priority:1"`
 	Version            string `gorm:"type:varchar(64);not null;uniqueIndex:ux_plugin_release_version,priority:2"`
 	MinBuildmaxVersion string `gorm:"type:varchar(64);not null;default:''"`
@@ -48,66 +51,101 @@ type pluginReleaseRow struct {
 	Inspection string `gorm:"type:text"`
 	Source     string `gorm:"type:text"`
 
-	PublishedBy string `gorm:"type:varchar(64);not null"`
+	PublishedBy uint64 `gorm:"column:published_by;not null"`
 	PublishedAt int64  `gorm:"autoCreateTime;index"`
 
-	YankedAt     int64  `gorm:"not null;default:0;index"`
-	YankedBy     string `gorm:"type:varchar(64);not null;default:''"`
-	YankedReason string `gorm:"type:varchar(512);not null;default:''"`
+	YankedAt     int64   `gorm:"not null;default:0;index"`
+	YankedBy     *uint64 `gorm:"column:yanked_by"`
+	YankedReason string  `gorm:"type:varchar(512);not null;default:''"`
 }
 
 func (pluginReleaseRow) TableName() string { return "plugin_release" }
 
-func toPlugin(row *pluginRow) *model.Plugin {
+// pluginReadRow and pluginReleaseReadRow carry the handles of the users a
+// catalog record names. Neither record has a handle of its own: an entry is
+// addressed by name and a release by name plus version.
+type pluginReadRow struct {
+	Row               pluginRow `gorm:"embedded"`
+	CreatedByPublicID []byte    `gorm:"column:created_by_public_id"`
+}
+
+type pluginReleaseReadRow struct {
+	Row                 pluginReleaseRow `gorm:"embedded"`
+	PublishedByPublicID []byte           `gorm:"column:published_by_public_id"`
+	YankedByPublicID    []byte           `gorm:"column:yanked_by_public_id"`
+}
+
+func (s *Store) pluginSelect(ctx context.Context) *gorm.DB {
+	return pluginSelectTx(s.db.WithContext(ctx))
+}
+
+func pluginSelectTx(tx *gorm.DB) *gorm.DB {
+	return tx.Model(&pluginRow{}).
+		Select("plugin.*, cb.public_id AS created_by_public_id").
+		Joins("INNER JOIN `user` cb ON cb.id = plugin.created_by")
+}
+
+func (s *Store) pluginReleaseSelect(ctx context.Context) *gorm.DB {
+	return s.db.WithContext(ctx).Model(&pluginReleaseRow{}).
+		Select("plugin_release.*, pb.public_id AS published_by_public_id, yb.public_id AS yanked_by_public_id").
+		Joins("INNER JOIN `user` pb ON pb.id = plugin_release.published_by").
+		Joins("LEFT JOIN `user` yb ON yb.id = plugin_release.yanked_by")
+}
+
+func toPlugin(row *pluginReadRow) *model.Plugin {
 	if row == nil {
 		return nil
 	}
 	return &model.Plugin{
-		Name:        row.Name,
-		DisplayName: row.DisplayName,
-		Description: row.Description,
-		ArchivedAt:  row.ArchivedAt,
-		CreatedBy:   row.CreatedBy,
-		CreatedAt:   row.CreatedAt,
-		UpdatedAt:   row.UpdatedAt,
+		Name:        row.Row.Name,
+		DisplayName: row.Row.DisplayName,
+		Description: row.Row.Description,
+		ArchivedAt:  row.Row.ArchivedAt,
+		CreatedBy:   util.FormatPublicID(row.CreatedByPublicID),
+		CreatedAt:   row.Row.CreatedAt,
+		UpdatedAt:   row.Row.UpdatedAt,
 	}
 }
 
-func toPluginRelease(row *pluginReleaseRow) *model.PluginRelease {
+func toPluginRelease(row *pluginReleaseReadRow) *model.PluginRelease {
 	if row == nil {
 		return nil
 	}
 	out := &model.PluginRelease{
-		PluginName:         row.PluginName,
-		Version:            row.Version,
-		MinBuildmaxVersion: row.MinBuildmaxVersion,
-		Digest:             row.Digest,
-		ObjectKey:          row.ObjectKey,
-		SizeBytes:          row.SizeBytes,
-		PublishedBy:        row.PublishedBy,
-		PublishedAt:        row.PublishedAt,
-		YankedAt:           row.YankedAt,
-		YankedBy:           row.YankedBy,
-		YankedReason:       row.YankedReason,
+		PluginName:         row.Row.PluginName,
+		Version:            row.Row.Version,
+		MinBuildmaxVersion: row.Row.MinBuildmaxVersion,
+		Digest:             row.Row.Digest,
+		ObjectKey:          row.Row.ObjectKey,
+		SizeBytes:          row.Row.SizeBytes,
+		PublishedBy:        util.FormatPublicID(row.PublishedByPublicID),
+		PublishedAt:        row.Row.PublishedAt,
+		YankedAt:           row.Row.YankedAt,
+		YankedBy:           util.FormatPublicID(row.YankedByPublicID),
+		YankedReason:       row.Row.YankedReason,
 	}
 	// A document that will not decode costs the report, not the release: the
 	// bytes and their digest are still exactly what was published.
-	if row.Inspection != "" {
-		_ = json.Unmarshal([]byte(row.Inspection), &out.Inspection)
+	if row.Row.Inspection != "" {
+		_ = json.Unmarshal([]byte(row.Row.Inspection), &out.Inspection)
 	}
-	if row.Source != "" {
-		_ = json.Unmarshal([]byte(row.Source), &out.Source)
+	if row.Row.Source != "" {
+		_ = json.Unmarshal([]byte(row.Row.Source), &out.Source)
 	}
 	return out
 }
 
 // CreatePlugin adds a catalog entry.
 func (s *Store) CreatePlugin(ctx context.Context, in model.CreatePluginInput) (*model.Plugin, error) {
+	creator, err := lookupKey(ctx, s.db, "user", in.CreatedBy)
+	if err != nil {
+		return nil, err
+	}
 	row := pluginRow{
+		CreatedBy:   creator,
 		Name:        in.Name,
 		DisplayName: in.DisplayName,
 		Description: in.Description,
-		CreatedBy:   in.CreatedBy,
 	}
 	if err := s.db.WithContext(ctx).Create(&row).Error; err != nil {
 		if isDuplicateKey(err) {
@@ -115,13 +153,13 @@ func (s *Store) CreatePlugin(ctx context.Context, in model.CreatePluginInput) (*
 		}
 		return nil, err
 	}
-	return toPlugin(&row), nil
+	return toPlugin(&pluginReadRow{Row: row, CreatedByPublicID: mustParsePublicID(in.CreatedBy)}), nil
 }
 
 // GetPlugin returns one entry by name, or (nil, nil) when there is none.
 func (s *Store) GetPlugin(ctx context.Context, name string) (*model.Plugin, error) {
-	var row pluginRow
-	err := s.db.WithContext(ctx).Where("name = ?", name).First(&row).Error
+	var row pluginReadRow
+	err := s.pluginSelect(ctx).Where("plugin.name = ?", name).Take(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
@@ -133,11 +171,11 @@ func (s *Store) GetPlugin(ctx context.Context, name string) (*model.Plugin, erro
 
 // ListPlugins returns entries oldest first.
 func (s *Store) ListPlugins(ctx context.Context, includeArchived bool) ([]model.Plugin, error) {
-	q := s.db.WithContext(ctx).Order("created_at asc")
+	q := s.pluginSelect(ctx).Order("plugin.created_at asc")
 	if !includeArchived {
-		q = q.Where("archived_at = 0")
+		q = q.Where("plugin.archived_at = 0")
 	}
-	var rows []pluginRow
+	var rows []pluginReadRow
 	if err := q.Find(&rows).Error; err != nil {
 		return nil, err
 	}
@@ -199,6 +237,10 @@ func (s *Store) CreatePluginRelease(ctx context.Context, in model.CreatePluginRe
 		return nil, model.ErrPluginArchived
 	}
 
+	publisher, err := lookupKey(ctx, s.db, "user", in.PublishedBy)
+	if err != nil {
+		return nil, err
+	}
 	inspection, err := json.Marshal(in.Inspection)
 	if err != nil {
 		return nil, fmt.Errorf("encode inspection: %w", err)
@@ -217,7 +259,8 @@ func (s *Store) CreatePluginRelease(ctx context.Context, in model.CreatePluginRe
 		SizeBytes:          in.SizeBytes,
 		Inspection:         string(inspection),
 		Source:             string(source),
-		PublishedBy:        in.PublishedBy,
+		PublishedBy:        publisher,
+		PluginID:           entry.ID,
 	}
 	if err := s.db.WithContext(ctx).Create(&row).Error; err != nil {
 		if isDuplicateKey(err) {
@@ -225,13 +268,16 @@ func (s *Store) CreatePluginRelease(ctx context.Context, in model.CreatePluginRe
 		}
 		return nil, err
 	}
-	return toPluginRelease(&row), nil
+	return toPluginRelease(&pluginReleaseReadRow{
+		Row: row, PublishedByPublicID: mustParsePublicID(in.PublishedBy),
+	}), nil
 }
 
 // GetPluginRelease returns one version, or (nil, nil) when there is none.
 func (s *Store) GetPluginRelease(ctx context.Context, name, version string) (*model.PluginRelease, error) {
-	var row pluginReleaseRow
-	err := s.db.WithContext(ctx).Where("plugin_name = ? AND version = ?", name, version).First(&row).Error
+	var row pluginReleaseReadRow
+	err := s.pluginReleaseSelect(ctx).
+		Where("plugin_release.plugin_name = ? AND plugin_release.version = ?", name, version).Take(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
@@ -247,9 +293,9 @@ func (s *Store) GetPluginRelease(ctx context.Context, name, version string) (*mo
 // the version arithmetic, and a store that filtered here would hide the exact
 // version a recovery asks for.
 func (s *Store) ListPluginReleases(ctx context.Context, name string) ([]model.PluginRelease, error) {
-	var rows []pluginReleaseRow
-	err := s.db.WithContext(ctx).Where("plugin_name = ?", name).
-		Order("published_at asc").Find(&rows).Error
+	var rows []pluginReleaseReadRow
+	err := s.pluginReleaseSelect(ctx).Where("plugin_release.plugin_name = ?", name).
+		Order("plugin_release.published_at asc").Find(&rows).Error
 	if err != nil {
 		return nil, err
 	}
@@ -265,11 +311,15 @@ func (s *Store) ListPluginReleases(ctx context.Context, name string) ([]model.Pl
 // Yanking twice is not an error, but it does not rewrite who did it first: the
 // record explains a past installation, so the first withdrawal is the fact.
 func (s *Store) YankPluginRelease(ctx context.Context, name, version, actor, reason string) error {
+	yankedBy, err := lookupKey(ctx, s.db, "user", actor)
+	if err != nil {
+		return err
+	}
 	res := s.db.WithContext(ctx).Model(&pluginReleaseRow{}).
 		Where("plugin_name = ? AND version = ? AND yanked_at = 0", name, version).
 		Updates(map[string]any{
 			"yanked_at":     time.Now().Unix(),
-			"yanked_by":     actor,
+			"yanked_by":     yankedBy,
 			"yanked_reason": reason,
 		})
 	if res.Error != nil {

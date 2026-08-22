@@ -53,8 +53,8 @@ func seedAuditEvents(t *testing.T, s *Store, ctx context.Context, actor, teamID 
 // resolution so ties are ordinary rather than exotic.
 func TestExportTeamAuditEventsWalksEveryEventAcrossTies(t *testing.T) {
 	s, ctx := newTestStore(t)
-	actor := testPublicID(t)
-	teamID := testPublicID(t)
+	actor := newTestUser(t, s, "audit")
+	teamID := newTestTeam(t, s, actor)
 	t.Cleanup(func() { _ = s.db.WithContext(ctx).Delete(&auditEventRow{}, "actor_id = ?", actor).Error })
 
 	seedAuditEvents(t, s, ctx, actor, teamID, []int64{500, 500, 500, 400})
@@ -93,8 +93,8 @@ func TestExportTeamAuditEventsWalksEveryEventAcrossTies(t *testing.T) {
 // screen they took it from.
 func TestExportAuditEventsHonoursTheFilter(t *testing.T) {
 	s, ctx := newTestStore(t)
-	actor := testPublicID(t)
-	teamID := testPublicID(t)
+	actor := newTestUser(t, s, "audit")
+	teamID := newTestTeam(t, s, actor)
 	t.Cleanup(func() { _ = s.db.WithContext(ctx).Delete(&auditEventRow{}, "actor_id = ?", actor).Error })
 
 	seedAuditEvents(t, s, ctx, actor, teamID, []int64{100, 200, 300})
@@ -118,8 +118,8 @@ func TestExportAuditEventsHonoursTheFilter(t *testing.T) {
 // nothing at or after it, and never more than one batch at a time.
 func TestPruneAuditEventsRemovesOnlyWhatExpired(t *testing.T) {
 	s, ctx := newTestStore(t)
-	actor := testPublicID(t)
-	teamID := testPublicID(t)
+	actor := newTestUser(t, s, "audit")
+	teamID := newTestTeam(t, s, actor)
 	t.Cleanup(func() { _ = s.db.WithContext(ctx).Delete(&auditEventRow{}, "actor_id = ?", actor).Error })
 
 	now := time.Now().Unix()
@@ -174,8 +174,8 @@ func TestPruneAuditEventsRemovesOnlyWhatExpired(t *testing.T) {
 // "everything is expired".
 func TestPruneAuditEventsIgnoresAZeroCutoff(t *testing.T) {
 	s, ctx := newTestStore(t)
-	actor := testPublicID(t)
-	teamID := testPublicID(t)
+	actor := newTestUser(t, s, "audit")
+	teamID := newTestTeam(t, s, actor)
 	t.Cleanup(func() { _ = s.db.WithContext(ctx).Delete(&auditEventRow{}, "actor_id = ?", actor).Error })
 
 	seedAuditEvents(t, s, ctx, actor, teamID, []int64{100})

@@ -24,8 +24,8 @@ func TestSearchAuditEvents(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 
-	actor := testPublicID(t)
-	teamID := testPublicID(t)
+	actor := newTestUser(t, s, "audit")
+	teamID := newTestTeam(t, s, actor)
 	t.Cleanup(func() { _ = s.db.WithContext(ctx).Delete(&auditEventRow{}, "actor_id = ?", actor).Error })
 
 	for _, e := range []model.AuditEvent{
