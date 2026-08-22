@@ -1,7 +1,7 @@
 # Plugin Distribution And Private Marketplace
 
 > **Audience:** contributors and operators · **Status:** partly implemented —
-> Phases A and B ship; Portal, Desktop, and worker distribution do not
+> Phases A, B, and C ship; team and worker distribution do not
 >
 > User documentation for what ships:
 > [../guide/plugins.md](../guide/plugins.md)
@@ -9,14 +9,15 @@
 ## Status
 
 - roadmap_priority: `post-Beta, P4 follow-on`
-- status: `partially_implemented` — Phases A and B are shipped: the directory
-  format and manifest, discovery, resolution and merging for skills,
+- status: `partially_implemented` — Phases A, B, and C are shipped: the
+  directory format and manifest, discovery, resolution and merging for skills,
   subagents, MCP, and hooks, collision and shadowing reports,
   `${BUILDMAX_PLUGIN_ROOT}`, per-run provenance in traces, the local CLI
   commands, and the Marketplace itself — packaging, the catalog and its
   releases, package storage, publication, browse, download, and install.
-  Phase C (Portal and Desktop) and Phase D (team and worker distribution) are
-  unstarted
+  publication, browse, download, and install, plus the Portal and Desktop
+  surfaces. Phase D, team and worker distribution, is deferred by design and
+  needs its own record before anything is built
 - follows: [enterprise-deployment.md](./enterprise-deployment.md),
   [team-governance.md](./team-governance.md), and
   [system-administration.md](./system-administration.md)
@@ -902,14 +903,21 @@ drives the released binary against a server it does not share memory with. The
 account that installs holds no grant, so the authority split of §7.1 is tested
 rather than assumed.
 
-### Phase C — Product UI
+### Phase C — Product UI — shipped
 
 - Portal catalog administration and browsing;
 - Desktop Marketplace install and update;
 - clear capability, source, dirty-state, and provenance presentation.
 
 Acceptance: a member can discover and use a Marketplace plugin without editing
-configuration or handling an archive manually.
+configuration or handling an archive manually. Portal's Account area lists what
+the deployment publishes and hands over the command; Desktop resolves a release,
+shows what it contributes, and installs it.
+
+Portal never says a plugin is installed. Installing happens where the agent
+runs, a server cannot see that machine, and a button there would be lying about
+where it ran — so Portal offers a command and Desktop offers a button, each on
+the side of the boundary it can honour.
 
 ### Phase D — Team And Worker Distribution, Deferred
 
