@@ -1,0 +1,14 @@
+# Optional. `mise install` fetches the toolchain versions this repository pins,
+# so a contributor does not have to match them by hand.
+#
+# Nothing in ./make requires mise, and this file is not a source of truth: go.mod
+# and .node-version are, and TestMiseVersionsMatchTheRepositoryPins fails when
+# this drifts from them. Contributors who install Go and Node another way get the
+# same versions from the same two files.
+#
+# npm is not here. Its version is pinned by the `packageManager` field in each
+# frontend package.json, which is Corepack's mechanism — run `corepack enable`
+# once and npm matches the pin on its own.
+[tools]
+go = "1.26.6"
+node = "24.19.0"

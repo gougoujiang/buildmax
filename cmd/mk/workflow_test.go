@@ -230,6 +230,51 @@ func TestNoWorkflowInstallsADifferentKind(t *testing.T) {
 	}
 }
 
+// mise.toml is a convenience, not a source of truth, so it is the file most
+// likely to be forgotten when Go or Node moves — and a contributor who trusts
+// it would then build against a version nothing else in the repository uses.
+func TestMiseVersionsMatchTheRepositoryPins(t *testing.T) {
+	root := filepath.Clean("../..")
+	body, err := os.ReadFile(filepath.Join(root, "mise.toml"))
+	if err != nil {
+		t.Fatalf("read mise.toml: %v", err)
+	}
+	mise := string(body)
+
+	goMod, err := os.ReadFile(filepath.Join(root, "go.mod"))
+	if err != nil {
+		t.Fatalf("read go.mod: %v", err)
+	}
+	wantGo := regexp.MustCompile(`(?m)^go (\S+)`).FindStringSubmatch(string(goMod))
+	if wantGo == nil {
+		t.Fatal("go.mod has no go directive")
+	}
+	node, err := os.ReadFile(filepath.Join(root, ".node-version"))
+	if err != nil {
+		t.Fatalf("read .node-version: %v", err)
+	}
+	wantNode := strings.TrimSpace(string(node))
+
+	for _, tt := range []struct{ tool, want string }{
+		{"go", wantGo[1]},
+		{"node", wantNode},
+	} {
+		got := regexp.MustCompile(tt.tool + `\s*=\s*"([^"]+)"`).FindStringSubmatch(mise)
+		if got == nil {
+			t.Errorf("mise.toml pins no %s; it should carry the version the repository already pins", tt.tool)
+			continue
+		}
+		if got[1] != tt.want {
+			t.Errorf("mise.toml pins %s %s; the repository pins %s", tt.tool, got[1], tt.want)
+		}
+	}
+	// npm is Corepack's job through packageManager, and a version here would be
+	// a third place to keep in step for no gain.
+	if strings.Contains(mise, "npm") && !strings.Contains(mise, "# npm is not here") {
+		t.Error("mise.toml pins npm; packageManager and Corepack already own that")
+	}
+}
+
 func TestFrontendToolchainPinsAgree(t *testing.T) {
 	root := filepath.Clean("../..")
 	node, err := os.ReadFile(filepath.Join(root, ".node-version"))
