@@ -63,6 +63,18 @@ const (
 	// section 9.
 	AuditSystemAdminGranted = "system.admin_granted"
 	AuditSystemAdminRevoked = "system.admin_revoked"
+	// The plugin actions record changes to what a deployment's members can
+	// install. A release is instructions that cause tool use, processes that
+	// start with someone's credentials, and hooks that run local programs, so
+	// publishing one is a change to what every machine that installs it will
+	// do. The detail names the version and a digest prefix — never package
+	// contents or configuration values.
+	AuditPluginCreated    = "plugin.created"
+	AuditPluginUpdated    = "plugin.updated"
+	AuditPluginArchived   = "plugin.archived"
+	AuditPluginUnarchived = "plugin.unarchived"
+	AuditPluginPublished  = "plugin.published"
+	AuditPluginYanked     = "plugin.yanked"
 	// AuditEventsExported records the trail itself being read out in bulk.
 	// Reading every recorded action is a sensitive action, and an export that
 	// left no trace would be the one way to consult the record without

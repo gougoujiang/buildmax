@@ -67,6 +67,10 @@ var DefaultLimits = Limits{
 	MaxPathLength:      512,
 }
 
+// ResolveLimits fills in the zero fields of lim, so a caller outside this
+// package can see the same bounds extraction will apply.
+func ResolveLimits(lim Limits) Limits { return lim.withDefaults() }
+
 func (l Limits) withDefaults() Limits {
 	d := DefaultLimits
 	if l.MaxFiles > 0 {

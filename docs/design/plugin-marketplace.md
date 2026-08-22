@@ -598,6 +598,14 @@ should say so rather than refuse it. Unlike version and digest, this provenance
 is client-reported and the server cannot verify it; it is shown as a claim
 about where the bytes came from, never as proof.
 
+A first publish creates the catalog entry, taking its display name and
+description from the manifest. Requiring a separate create would make the one
+command above fail on its first use, and the authority is the same either way:
+only a System Administrator reaches either route. The creation is recorded as
+its own audit event, so a name that appeared by accident is visible rather than
+inferred. `POST /api/admin/plugins` remains the way to reserve a name or edit
+metadata without publishing.
+
 Publishing the same `(plugin, version)` twice returns `409`, even for identical
 bytes. A correction requires a new version, which means editing and committing
 the manifest — the bump is reviewable rather than typed once into a shell.

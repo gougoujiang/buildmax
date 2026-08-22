@@ -135,6 +135,7 @@ internal/
 │   ├── workflow/       Workflow and workflow-run orchestration
 │   ├── audit/          Records that a sensitive action happened (governance,
 │   │                   not diagnostics — see the package doc)
+│   ├── plugin/         Marketplace publication and catalog lifecycle
 │   ├── team/           Membership: who is in a team and who may change that
 │   ├── quota/          Team quota enforcement
 │   └── llmgateway/     Model catalog, team aliases, routing, and managed calls
