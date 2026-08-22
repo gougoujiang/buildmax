@@ -77,3 +77,10 @@ type Provenance struct {
 	Version           string `json:"version,omitempty"`
 	Digest            string `json:"digest,omitempty"`
 }
+
+// VarPluginRoot is the variable a plugin's own MCP and hook configuration uses
+// to reach files it ships. It resolves to the directory holding plugin.yaml.
+//
+// It names part of the document format, so it lives beside the format rather
+// than beside the code that expands it.
+const VarPluginRoot = "BUILDMAX_PLUGIN_ROOT"

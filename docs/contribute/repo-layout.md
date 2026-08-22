@@ -113,7 +113,9 @@ internal/
 │   ├── mcp/            The mcp.json document shape and its validation rules
 │   ├── agent/          The tool-calling loop, events, hooks, sandbox contract
 │   ├── plugin/         Plugin manifest, version arithmetic, and the layer
-│   │                   vocabulary discovery, resolution, and publication share
+│   │   │               vocabulary discovery, resolution, and publication share
+│   │   └── inspect/    What a plugin package contributes, sanitized for a
+│   │                   catalog record and shared with `plugin validate`
 │   ├── subagent/       The subagent definition file shape and its frontmatter
 │   └── session/        Local session model; persistence lives in agentapp
 │

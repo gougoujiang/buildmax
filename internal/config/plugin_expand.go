@@ -4,16 +4,18 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/gougoujiang/buildmax/internal/core/plugin"
 )
 
-// PluginVarRoot is the variable a plugin's own MCP and hook configuration uses
-// to reach files it ships. It resolves to the directory holding plugin.yaml.
+// PluginVarRoot names the plugin-root variable, defined with the rest of the
+// document format in internal/core/plugin.
 //
 // Each plugin's configuration is expanded with its own root before layers are
 // merged, which is the only order that gives two plugins two different answers
 // for the same text. BuildMax supplies the value; a plugin cannot override it
 // by exporting an environment variable of the same name.
-const PluginVarRoot = "BUILDMAX_PLUGIN_ROOT"
+const PluginVarRoot = plugin.VarPluginRoot
 
 // expandPluginVar replaces $BUILDMAX_PLUGIN_ROOT and ${BUILDMAX_PLUGIN_ROOT}
 // with root and leaves every other variable untouched.

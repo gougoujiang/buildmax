@@ -8,7 +8,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/plugin"
-	tools "github.com/gougoujiang/buildmax/internal/tool"
+	"github.com/gougoujiang/buildmax/internal/core/plugin/inspect"
 )
 
 // invalidPluginExit ends the command non-zero without printing a second time:
@@ -22,21 +22,12 @@ func writePluginValidatePath(w io.Writer, path string) error {
 	if err != nil {
 		return fmt.Errorf("resolve %s: %w", path, err)
 	}
-	data, err := os.ReadFile(filepath.Join(abs, plugin.ManifestFile))
-	if err != nil {
-		if os.IsNotExist(err) {
-			return fmt.Errorf("%s holds no %s, so it is not a plugin", abs, plugin.ManifestFile)
-		}
-		return err
-	}
-	m, findings, err := plugin.Parse(data)
-	if err != nil {
-		return err
-	}
-	findings = append(findings, validatePayload(abs, m)...)
-
 	fmt.Fprintf(w, "%s\n", abs)
-	if !reportFindings(w, m.Name, findings) {
+	ok, err := reportPackage(w, abs)
+	if err != nil {
+		return err
+	}
+	if !ok {
 		return invalidPluginExit()
 	}
 	return nil
@@ -55,9 +46,13 @@ func writePluginValidateAll(w io.Writer, d config.PluginDiscovery) error {
 			fmt.Fprintln(w)
 		}
 		fmt.Fprintf(w, "%s\n", p.Path)
-		findings := append([]plugin.Finding(nil), p.Findings...)
-		findings = append(findings, validatePayload(p.Path, p.Manifest)...)
-		if !reportFindings(w, p.Name(), findings) {
+		ok, err := reportPackage(w, p.Path)
+		if err != nil {
+			fmt.Fprintf(w, "  error: %v\n", err)
+			failed = true
+			continue
+		}
+		if !ok {
 			failed = true
 		}
 	}
@@ -70,77 +65,29 @@ func writePluginValidateAll(w io.Writer, d config.PluginDiscovery) error {
 	return nil
 }
 
-// validatePayload parses everything the directory contributes, so a manifest
-// that is fine but a hooks file that is not still fails validation.
-func validatePayload(dir string, m plugin.Manifest) []plugin.Finding {
-	p := config.DiscoveredPlugin{Dir: filepath.Base(dir), Path: dir, Manifest: m}
-	only := []config.DiscoveredPlugin{p}
-	var findings []plugin.Finding
-
-	if _, err := tools.ResolveAgentDefs([]plugin.Source{
-		{Dir: filepath.Join(dir, config.PluginAgentsSubdir)},
-	}); err != nil {
-		findings = append(findings, plugin.Finding{
-			Severity: plugin.SeverityError, Field: config.PluginAgentsSubdir,
-			Message: err.Error(),
-		})
-	}
-	if _, err := config.ResolveMCPConfig("", only); err != nil {
-		findings = append(findings, plugin.Finding{
-			Severity: plugin.SeverityError, Field: "mcp.json", Message: err.Error(),
-		})
-	}
-	findings = append(findings, config.ResolvePluginHooks(only).Findings...)
-	findings = append(findings, unknownContentFindings(dir)...)
-	return findings
-}
-
-// unknownContentFindings reports files a plugin ships that this build does not
-// read. Silence would let a misplaced directory look like a working feature.
-func unknownContentFindings(dir string) []plugin.Finding {
-	known := map[string]bool{
-		plugin.ManifestFile:       true,
-		config.PluginSkillsSubdir: true,
-		config.PluginAgentsSubdir: true,
-		"mcp.json":                true,
-		"hooks.yaml":              true,
-		"hooks":                   true,
-		"README.md":               true,
-		"LICENSE":                 true,
-	}
-	entries, err := os.ReadDir(dir)
+// reportPackage inspects one directory and prints what it found.
+//
+// The inspection is the same one publication will run, so a plugin that passes
+// here cannot fail there for a reason this command could have named.
+func reportPackage(w io.Writer, dir string) (bool, error) {
+	pkg, err := inspect.Dir(os.DirFS(dir))
 	if err != nil {
-		return nil
+		return false, err
 	}
-	var findings []plugin.Finding
-	for _, e := range entries {
-		name := e.Name()
-		if known[name] || name == ".git" {
-			continue
-		}
-		findings = append(findings, plugin.Finding{
-			Severity: plugin.SeverityWarning, Field: name,
-			Message: "not a supported plugin file; this build ignores it",
-		})
-	}
-	return findings
-}
-
-// reportFindings prints one plugin's findings and reports whether it would load.
-func reportFindings(w io.Writer, name string, findings []plugin.Finding) bool {
-	if len(findings) == 0 {
-		fmt.Fprintf(w, "  %s is valid.\n", displayName(name))
-		return true
-	}
-	for _, f := range findings {
+	for _, f := range pkg.Findings {
 		fmt.Fprintf(w, "  %s\n", f.String())
 	}
-	if errs := plugin.Errors(findings); len(errs) > 0 {
-		fmt.Fprintf(w, "  %s will not load: %s.\n", displayName(name), countLabel(len(errs), "problem"))
-		return false
+	name := displayName(pkg.Manifest.Name)
+	if errs := plugin.Errors(pkg.Findings); len(errs) > 0 {
+		fmt.Fprintf(w, "  %s will not load: %s.\n", name, countLabel(len(errs), "problem"))
+		return false, nil
 	}
-	fmt.Fprintf(w, "  %s is valid, with warnings.\n", displayName(name))
-	return true
+	if len(pkg.Findings) > 0 {
+		fmt.Fprintf(w, "  %s is valid, with warnings.\n", name)
+		return true, nil
+	}
+	fmt.Fprintf(w, "  %s is valid.\n", name)
+	return true, nil
 }
 
 func countLabel(n int, noun string) string {
