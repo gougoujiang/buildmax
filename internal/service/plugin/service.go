@@ -136,6 +136,19 @@ func (s *Service) ListReleases(ctx context.Context, name string) ([]model.Plugin
 	return s.Catalog.ListPluginReleases(ctx, name)
 }
 
+// GetRelease returns one release, or (nil, nil) when there is none.
+func (s *Service) GetRelease(ctx context.Context, name, version string) (*model.PluginRelease, error) {
+	return s.Catalog.GetPluginRelease(ctx, name, version)
+}
+
+// OpenPackage streams one release's bytes.
+//
+// The stream is handed to the caller rather than read here: a download that
+// buffered a package would size the server by its largest plugin.
+func (s *Service) OpenPackage(ctx context.Context, release model.PluginRelease) (io.ReadCloser, int64, error) {
+	return s.Packages.Open(ctx, release.ObjectKey)
+}
+
 // Yank withdraws a release from default selection.
 func (s *Service) Yank(ctx context.Context, name, version, actorID, reason string) error {
 	release, err := s.Catalog.GetPluginRelease(ctx, name, version)

@@ -20,6 +20,14 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	// entities are one story, not four that happen to sit together.
 	h.workHandler().Register(mux)
 
+	// The plugin catalog is deployment-scoped and readable by any active
+	// account: browsing changes nothing, and a release only takes effect when
+	// somebody installs it deliberately. Publishing is the administrator's
+	// half and lives in the admin package.
+	mux.HandleFunc("GET /api/plugins", h.listPluginsHandler)
+	mux.HandleFunc("GET /api/plugins/{plugin_name}", h.getPluginHandler)
+	mux.HandleFunc("GET /api/plugins/{plugin_name}/releases/{version}/download", h.downloadPluginReleaseHandler)
+
 	// Managed LLM gateway
 	mux.HandleFunc("GET /api/teams/{team_id}/llm/models", h.listLLMModelsHandler)
 	mux.HandleFunc("POST /api/teams/{team_id}/llm/completions", h.llmCompletionsHandler)

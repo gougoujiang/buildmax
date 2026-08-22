@@ -674,9 +674,9 @@ design.
 The intended surface is small:
 
 ```text
-GET  /api/plugins                                            planned
-GET  /api/plugins/{plugin_name}                              planned
-GET  /api/plugins/{plugin_name}/releases/{version}/download  planned
+GET  /api/plugins                                            shipped
+GET  /api/plugins/{plugin_name}                              shipped
+GET  /api/plugins/{plugin_name}/releases/{version}/download  shipped
 
 GET  /api/admin/plugins                                      shipped
 POST /api/admin/plugins                                      shipped
@@ -687,12 +687,12 @@ POST /api/admin/plugins/{plugin_name}/archive                shipped
 POST /api/admin/plugins/{plugin_name}/unarchive              shipped
 ```
 
-The administration half is registered in
-`internal/server/handlers/admin`, which is the source of truth for it now that
-it ships; the browse and download half is not written yet. Two routes were added
-while implementing: an administrator listing, because hiding a retired entry
-from the person who retired it leaves no way to restore it, and an unarchive to
-match, following the enable/disable pairs the model routes already use.
+Both halves ship. `internal/server/handlers/routes.go` and
+`internal/server/handlers/admin` are the source of truth for them now. Two
+routes were added while implementing: an administrator listing, because hiding
+a retired entry from the person who retired it leaves no way to restore it, and
+an unarchive to match, following the enable/disable pairs the model routes
+already use.
 
 Publishing sends the archive as the request body rather than as a field inside
 a document, so the bytes stream from the connection to disk with no decoder
@@ -704,6 +704,20 @@ Refusals distinguish the request from its timing: a package this deployment
 could not load is `400`, an upload past the size bound is `413`, and a version
 that is already published or an entry that is retired is `409` — the same
 request would have succeeded a moment earlier, so nothing about it is malformed.
+
+Browsing and downloading need an active account and nothing more. A release
+changes nothing until somebody installs it deliberately, so reading the catalog
+is not a privileged action; publishing to it is, and that half is the
+administrator's.
+
+Which release to install is decided by the client, because only the client
+knows its own version. The detail route returns every release including
+withdrawn ones, marked, and download names one exactly. Downloading a withdrawn
+release answers `409` until the request says `allow_yanked=true`: yanking is a
+default-selection control rather than a deletion, so refusing outright would
+strand the recovery §7.4 allows. The response carries the digest in
+`X-Buildmax-Digest`, so a client verifies what it received without a second
+request.
 
 The audit trail records catalog creation, metadata change, release publication,
 yank, and archive. It records actor, target, version, and digest prefix, never
