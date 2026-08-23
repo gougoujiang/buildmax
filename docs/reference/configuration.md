@@ -520,7 +520,10 @@ destination.
 BuildMax asks before a tool call that changes something, on surfaces where
 somebody can answer — the CLI TUI and Desktop. Out of the box `Write`, `Edit`,
 `Task`, and non-read-only MCP calls prompt; read-only tools do not, and `Bash`
-follows its own risk classifier rather than the category default.
+follows its own risk classifier rather than the category default. A `Task`
+delegated to a read-only agent type such as `explore` counts as read-only and
+does not prompt — it can only reach tools that would not have prompted on
+their own.
 
 Set a rule to change that:
 
@@ -569,10 +572,14 @@ agent:
 ```
 
 Only calls the tool itself declares read-only ever overlap — `Read`, `Glob`,
-`Grep`, `Skill`, and `WebFetch`. Writes, shell commands, `Task`, and MCP calls
-always run alone, and calls are never reordered, so a batch means the same thing
-at any setting: the message history a run produces is identical whatever the
-limit. `buildmax tools status` shows which tools are read-only.
+`Grep`, `Skill`, `WebFetch`, and a `Task` delegated to a read-only agent type
+such as `explore`. Writes, shell commands, a `Task` that can write, and MCP
+calls always run alone, and calls are never reordered, so a batch means the
+same thing at any setting: the message history a run produces is identical
+whatever the limit. `buildmax tools status` shows which tools are read-only.
+
+The limit applies inside a sub-agent too, so a delegated exploration schedules
+its own reads rather than running them one at a time.
 
 Raise it for read-heavy work over slow storage or many `WebFetch` calls. Lower
 it to 1 to make a run reproduce exactly one call at a time. Design:

@@ -158,6 +158,15 @@ that — they write only the agent's own scratch state, which is why they declar
 `DefaultAction() = Allow` for permission, but that state has no lock, so the
 write classification is what keeps them out of a batch.
 
+`Access` takes the call's arguments, so a tool that does different things for
+different arguments answers per call. `Task` is the one that does: it returns
+`AccessReadOnly` when the requested `subagent_type` resolves to a tool set
+whose every member is read-only, which is true of the built-in `explore` and
+of any user-defined agent restricted to reading tools. A type that can reach
+one writing tool, an unknown type, and `run_in_background` are all writes.
+A sub-agent's nested loop also inherits the parent's `max_parallel_tools`, so
+a read-only agent overlaps its own reads as well as its siblings'.
+
 ### Adding a tool
 
 Declare `Access`, and read the concurrency obligation above before choosing

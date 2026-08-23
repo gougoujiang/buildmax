@@ -125,6 +125,13 @@ a shell command, an unknown tool, or a call that failed to parse is a barrier.
 which is the sequential behaviour exactly. The message history a run produces is
 identical at any limit — `TestHistoryIsSchedulerIndependent` pins it.
 
+A tool answers per call, so `Task` is read-only when the requested
+`subagent_type` reaches only read-only tools — the built-in `explore`, or a
+user-defined agent restricted the same way. Two such delegations overlap; a
+`general` or `shell` delegation is a barrier like any other write. The nested
+loop a sub-agent runs inherits the same limit, so it schedules its own calls
+too rather than running them one at a time.
+
 Two asymmetries are deliberate. `EventToolEnd` is emitted from the worker that
 ran the call, because the event stream is live and holding a completion until
 the slowest sibling returns would misreport what is still running; a consumer

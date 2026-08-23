@@ -491,11 +491,23 @@ The P3 proof. Every builtin, before and after, on both surfaces.
 | `Bash` | write | ask if risky, deny if catastrophic | unchanged¹ | deny if risky | unchanged |
 | `TodoWrite` | write | allow | unchanged (§5.2 override) | allow | unchanged |
 | `NoteWrite` | write | allow | unchanged (§5.2 override) | allow | unchanged |
-| `Task` | write | allow | **ask** | allow | unchanged |
+| `Task` | write, or read-only per agent type² | allow | **ask** unless the agent type is read-only | allow | unchanged |
 | `LoadMcpTools` | read-only | allow | unchanged | allow | unchanged |
 | `CallMcpTool` | write | allow | **ask** unless `readOnlyHint` | allow | **deny** unless `readOnlyHint` |
 
 Four new interactive prompts, one autonomous tightening, nothing else moves.
+
+² `Task` was a flat write here. It now answers per call, following
+[parallel-tool-execution.md](./parallel-tool-execution.md) §5.7.1, which needed
+to know whether a delegated run writes: a `subagent_type` whose whole tool set
+declares `AccessReadOnly` — the built-in `explore`, or a user-defined agent
+restricted the same way — is read-only, and the derived tier then allows it.
+The two consumers agree here rather than disagreeing as they do for
+`TodoWrite`: a read-only sub-agent can only reach tools that would not have
+prompted on their own, and its nested loop carries no `ApprovalHandler`, so a
+sensitive path inside it is denied rather than asked. Approving such a
+delegation would be approving reads. Delegations to `general`, `shell`, or any
+type that can reach one writing tool still prompt.
 
 ¹ `Bash` stays untouched only because it declares
 `PolicyProvider.DefaultAction() = Allow`. Implementation showed the derived tier
@@ -609,10 +621,14 @@ Deny is the safe direction to be stuck on in the meantime.
   anywhere for the session), per exact arguments too fine (every path
   re-approved). §5.5 proposes tool plus a stable prefix of the fingerprint; the
   prefix needs to be chosen against real transcripts.
-- **Does `Task` deserve a category prompt?** §6 says yes — a subagent runs an
-  unbounded number of tool calls, and its own gate is the same one, so
-  approving the parent is approving a policy rather than an act. It may prove
-  noisy in practice.
+- **Does `Task` deserve a category prompt?** §6 says yes for a type that can
+  write — a subagent runs an unbounded number of tool calls, and its own gate
+  is the same one, so approving the parent is approving a policy rather than an
+  act. Read-only types are exempt (footnote 2), which answers the noise half of
+  the question for the delegation the model makes most. What is still open is
+  whether the remaining prompt should carry the agent type: it has no
+  `GrantScope`, so approving one `shell` delegation for the session approves
+  every later `general` one too.
 - **Should the sensitivity check fold into `Access`?** Both end in `Ask` and
   the layering is what keeps them apart. Worth revisiting once layer 4 exists,
   and worth *not* doing in the same change.
