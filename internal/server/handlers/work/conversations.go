@@ -116,6 +116,12 @@ func (h *Handler) writeConversationServiceError(w http.ResponseWriter, r *http.R
 		httputil.WriteJSONError(w, http.StatusTooManyRequests, err.Error())
 		return true
 	}
+	// A turn refused because this instance is stopping is retryable somewhere
+	// else, which 503 is the way to say.
+	if errors.Is(err, turnqueue.ErrDraining) {
+		httputil.WriteJSONError(w, http.StatusServiceUnavailable, err.Error())
+		return true
+	}
 	var quotaErr *task.QuotaExceededError
 	if errors.As(err, &quotaErr) {
 		httputil.WriteQuotaExceeded(w, quotaErr.Reason)

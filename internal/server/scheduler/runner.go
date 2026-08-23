@@ -29,7 +29,15 @@ type LocalRunner struct {
 	workerPath     string
 	env            []string
 	runTokenEnvKey string
+	// stopGrace is how long a worker asked to stop may take before it is
+	// killed. Zero uses defaultWorkerStopGrace.
+	stopGrace time.Duration
 }
+
+// defaultWorkerStopGrace bounds an orderly worker stop when the caller names no
+// window. Long enough for a run to upload what it produced and report, short
+// enough that a stuck worker does not outlast the process that spawned it.
+const defaultWorkerStopGrace = 20 * time.Second
 
 // NewLocalRunner returns a runner that exec's the worker binary with
 // --task-run-id.
@@ -44,14 +52,24 @@ type LocalRunner struct {
 // the environment for the same reason: this package cannot import config, which
 // owns every environment variable name. Empty means the deployment delivers no
 // run token.
-func NewLocalRunner(workerPath string, env []string, runTokenEnvKey string) *LocalRunner {
-	return &LocalRunner{workerPath: workerPath, env: env, runTokenEnvKey: runTokenEnvKey}
+//
+// stopGrace is how long a worker gets to stop in order once its dispatch is
+// cancelled. Zero uses defaultWorkerStopGrace.
+func NewLocalRunner(workerPath string, env []string, runTokenEnvKey string, stopGrace time.Duration) *LocalRunner {
+	if stopGrace <= 0 {
+		stopGrace = defaultWorkerStopGrace
+	}
+	return &LocalRunner{workerPath: workerPath, env: env, runTokenEnvKey: runTokenEnvKey, stopGrace: stopGrace}
 }
 
 // Run executes the worker process; on success returns ("local_process", nil, nil, nil). On failure returns error.
 //
 // The run token is placed in the child's environment rather than on its command
 // line, where every process on the machine could read it.
+//
+// Cancelling ctx asks the worker to stop rather than killing it, so the run it
+// is executing can report what it produced. It is killed if it does not manage
+// that inside stopGrace — see docs/design/graceful-shutdown.md §6.1.
 func (r *LocalRunner) Run(ctx context.Context, run model.TaskRun, runToken string) (workerType string, k8sJobName *string, k8sJobCreatedAt *time.Time, err error) {
 	componentLog("worker_runner").InfoContext(ctx, "spawning worker", "task_run_id", run.ID, "task_id", run.TaskID)
 	cmd := exec.CommandContext(ctx, r.workerPath, "--task-run-id", run.ID)
@@ -61,6 +79,7 @@ func (r *LocalRunner) Run(ctx context.Context, run model.TaskRun, runToken strin
 	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	stopWorkerPolitely(cmd, r.stopGrace)
 	if err := cmd.Run(); err != nil {
 		return "", nil, nil, err
 	}

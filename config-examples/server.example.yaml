@@ -43,6 +43,16 @@ refresh_token_ttl: 720h
 # it widens the window in which a stolen token goes unnoticed.
 refresh_rotation_grace: 30s
 
+# The whole budget for stopping this server in order: take it out of the load
+# balancer, end the streams watching a run, let in-flight runs report what they
+# produced, drain the requests already accepted, and stop the background loops.
+# The phases are derived from this one number.
+#
+# It must stay below whatever kills the process if it takes too long —
+# terminationGracePeriodSeconds on Kubernetes, TimeoutStopSec under systemd —
+# or the orderly stop is interrupted partway through.
+shutdown_grace: 25s
+
 cors_origin: http://localhost:5173
 workspaces_dir: /data/buildmax/workspaces
 default_quota_tier: free_trial

@@ -31,6 +31,8 @@ data:
     log_level: info
     port: 5678
     cors_origin: http://localhost:8080
+    # Below terminationGracePeriodSeconds minus the preStop sleep.
+    shutdown_grace: 25s
     workspaces_dir: /buildmax/workspaces
     default_quota_tier: free_trial
 
@@ -152,6 +154,9 @@ spec:
         app: buildmax-server
     spec:
       serviceAccountName: buildmax-server
+      # Must exceed shutdown_grace plus the preStop sleep, the same as the
+      # production reference. See docs/design/graceful-shutdown.md.
+      terminationGracePeriodSeconds: 45
       # The same containment the production reference applies. It lives here
       # too so `./make kind up` exercises it on every run — a hardening setting
       # that only appears in a manifest nobody applies is a guess.
@@ -196,6 +201,13 @@ spec:
               port: http
             initialDelaySeconds: 15
             periodSeconds: 10
+          # Covers endpoint propagation: SIGTERM and endpoint removal happen
+          # concurrently, so a request admitted in that window would otherwise
+          # meet a closed listener.
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sleep", "5"]
           env:
             # Locates server.yaml and holds sessions, logs, and traces.
             - name: BUILDMAX_HOME

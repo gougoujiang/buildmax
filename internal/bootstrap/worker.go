@@ -199,13 +199,19 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 	httpSender := &workerclient.WorkerHTTPStreamSender{BaseURL: serverURL, Token: runToken}
 	streamSender := &workerclient.DebouncedStreamSender{Inner: httpSender}
 
-	// The run's own context, so a cancel recorded on the server reaches the
-	// agent loop. Cancelling by cause rather than plainly is what lets RunTask
-	// tell "someone stopped this" from "the process is shutting down", which
-	// are the same signal but not the same outcome.
-	runCtx, cancelRun := context.WithCancelCause(ctx)
+	// The run's own context, so both ways it can be stopped reach the agent loop
+	// with a cause attached. Cancelling by cause rather than plainly is what
+	// lets RunTask tell "someone stopped this" from "this process is going
+	// away", which arrive as the same dead context but are not the same
+	// outcome.
+	//
+	// It deliberately does not inherit ctx's cancellation. A shutdown would
+	// otherwise reach the run as a plain cancel first and win the race to set
+	// the cause, leaving the run unable to say why it stopped.
+	runCtx, cancelRun := context.WithCancelCause(context.WithoutCancel(ctx))
 	defer cancelRun(nil)
 	go workerclient.WatchCancel(runCtx, apiCfg, taskRunID, 0, func() { cancelRun(model.ErrRunCanceled) })
+	interruptRunOnShutdown(ctx, runCtx, cancelRun)
 
 	err = taskrun.RunTask(runCtx, taskrun.RunTaskInput{
 		Task:                   task,
@@ -220,9 +226,14 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		Managed:                managed,
 		WorkerAPI:              apiCfg,
 		AdditionalSystemPrompt: fetched.AgentInstructions,
+		InterruptGrace:         interruptGraceFromEnv(),
 	})
 	if errors.Is(err, model.ErrRunCanceled) {
 		slog.Info("run canceled on request")
+		return err
+	}
+	if errors.Is(err, model.ErrRunInterrupted) {
+		slog.Info("run interrupted by shutdown")
 		return err
 	}
 	if err != nil {
@@ -230,6 +241,45 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		return err
 	}
 	return nil
+}
+
+// interruptGraceFromEnv reads how long this worker may spend reporting after it
+// is asked to stop.
+//
+// The dispatcher sets it because only the dispatcher knows its own deadline: a
+// local runner kills the worker when its window expires, and a report cut off
+// mid-upload is worse than a shorter one that finished. Zero — no value, or an
+// unreadable one — leaves the runtime's own default, which is what a worker in
+// a Kubernetes Job gets.
+func interruptGraceFromEnv() time.Duration {
+	raw := os.Getenv(config.EnvKeyBuildmaxRunInterruptGrace)
+	if raw == "" {
+		return 0
+	}
+	grace, err := time.ParseDuration(raw)
+	if err != nil || grace <= 0 {
+		slog.Warn("ignoring an unusable interrupt grace", "env", config.EnvKeyBuildmaxRunInterruptGrace, "value", raw)
+		return 0
+	}
+	return grace
+}
+
+// interruptRunOnShutdown ends the run with ErrRunInterrupted when the process
+// is asked to stop, and stops watching once the run is over.
+//
+// The signal has to be turned into a cause the run can read, which is why the
+// process context is watched rather than inherited: an inherited cancellation
+// would reach the run first as a plain one, and a context's cause is set once —
+// leaving the run unable to say why it stopped.
+func interruptRunOnShutdown(processCtx, runCtx context.Context, cancelRun context.CancelCauseFunc) {
+	go func() {
+		select {
+		case <-processCtx.Done():
+			slog.Info("worker asked to stop; interrupting the run")
+			cancelRun(model.ErrRunInterrupted)
+		case <-runCtx.Done():
+		}
+	}()
 }
 
 // reportCanceledBeforeStart finishes a run that was canceled between dispatch

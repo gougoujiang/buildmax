@@ -39,6 +39,10 @@ type readinessResponse struct {
 // nothing: a liveness probe that fails on a dependency outage restarts a
 // healthy server and turns a recoverable outage into a crash loop. Readiness is
 // what reflects dependencies.
+//
+// It keeps answering 200 while the server drains, for the same reason. The
+// process is alive and finishing its work; asking the kubelet to restart it
+// would only interrupt an orderly stop.
 func healthzHandler(w http.ResponseWriter, _ *http.Request) {
 	httputil.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
@@ -53,6 +57,17 @@ func healthzHandler(w http.ResponseWriter, _ *http.Request) {
 // An empty check list answers ready with an empty list rather than inventing
 // confidence: a caller can see that nothing was verified.
 func (s *Server) readyzHandler(w http.ResponseWriter, r *http.Request) {
+	// A draining server is not ready whatever its dependencies say, and probing
+	// them on the way out spends budget on an answer that cannot change the
+	// verdict. Reported before the probes for both reasons.
+	if s.Draining() {
+		httputil.WriteJSON(w, http.StatusServiceUnavailable, readinessResponse{
+			Status: "draining",
+			Checks: []readinessCheckResult{},
+		})
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), readinessTimeout)
 	defer cancel()
 

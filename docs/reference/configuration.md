@@ -43,6 +43,7 @@ anything not listed here is not read by BuildMax.
 | `BUILDMAX_SANDBOX_ENABLED` | — | Overrides `sandbox.enabled`. Accepts `1/true/yes/on` or `0/false/no/off`. |
 | `BUILDMAX_TRACE_DISABLED` | — | Disables durable run traces when truthy. Traces are on by default. |
 | `BUILDMAX_RUN_TOKEN` | — | One task run's credential for every `/api/worker/*` route. Minted per run by the scheduler and placed in the worker process or Job pod — not something an operator sets. |
+| `BUILDMAX_RUN_INTERRUPT_GRACE` | — | How long a worker asked to stop may spend reporting what its run produced. Set per dispatch by the scheduler from `shutdown_grace`, so the two windows nest — not something an operator sets. |
 | `BUILDMAX_TEST_DSN` | — | MySQL DSN for store integration tests. Unset skips those tests. |
 | `BUILDMAX_CACHE_QUALIFY_PROVIDER` | — | Provider for `./make cache-qualify`, which calls a real paid provider. Unset skips the suite. |
 | `BUILDMAX_CACHE_QUALIFY_MODEL` | — | Model identifier for that suite. |
@@ -597,6 +598,7 @@ jwt_secret: ""                       # inject via BUILDMAX_JWT_SECRET in product
 access_token_ttl: 168h               # signed, unstored — this is how long a leaked one works
 refresh_token_ttl: 720h              # a stored row, so a session can be revoked before it expires
 refresh_rotation_grace: 30s          # window for processes sharing one credentials file to refresh at once
+shutdown_grace: 25s                  # whole budget for an orderly stop; keep below the orchestrator's kill deadline
 cors_origin: http://localhost:5173
 workspaces_dir: /data/buildmax/workspaces
 default_quota_tier: free_trial
@@ -661,6 +663,19 @@ never stored, so nothing can retire one early — `access_token_ttl` is the wind
 in which a leaked one still works. A refresh token is a database row, so
 `refresh_token_ttl` is how long a session can be renewed, not how long it is
 beyond reach. See [deploy/authentication.md](../deploy/authentication.md).
+
+`shutdown_grace` is the whole budget for stopping the server in order, and
+defaults to **25s**. On SIGINT or SIGTERM the server stops reporting ready so a
+load balancer takes it out, ends the streams watching a run so the Portal
+resubscribes elsewhere, drains the requests it already accepted, and then stops
+its background loops. The phases are derived from this number rather than
+configured one by one.
+
+Keep it below whatever kills the process if the stop takes too long —
+`terminationGracePeriodSeconds` on Kubernetes, `TimeoutStopSec` under systemd —
+including any `preStop` hook. The reference manifests in
+[`deployment/`](../../deployment/) set both together. Design:
+[design/graceful-shutdown.md](../design/graceful-shutdown.md).
 
 People sign in with an email address and a password. `allow_signup` defaults to
 **false**, so nobody registers themselves; create accounts from the server and
@@ -858,7 +873,7 @@ instead, and the worker stops needing an upstream key:
 | `worker.llm.model` | Which catalog model a run calls, by `--name`. Empty uses `llm.default_model`. |
 | `worker.llm.context_window`, `worker.llm.call_timeout` | Describe the model to the run; the protocol does not report them per call. |
 | `worker.run_token_ttl` | How long a run's credential stays valid. Defaults to 24h. Every run gets one, managed or not. |
-| `worker.run_timeout` | How long a run may stay `SCHEDULED` or `RUNNING` before the server records it as abandoned. Defaults to 6h. |
+| `worker.run_timeout` | How long a run may stay `SCHEDULED` or `RUNNING` before the server records it as abandoned. Defaults to 6h. It covers a worker that vanished — killed, or its node lost; a worker that is asked to stop reports its own outcome instead. |
 
 The server states the transport and model; a worker never chooses its own model,
 and is told nothing else about it — endpoint, upstream identifier, and

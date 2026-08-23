@@ -44,7 +44,7 @@ func runOnce(t *testing.T, spy *spyTaskRunStore, runner WorkerRunner, mint MintR
 	}
 	s.Start()
 	time.Sleep(40 * time.Millisecond)
-	s.Stop()
+	s.Stop(context.Background())
 }
 
 // TestRunTokenClaimsComeFromTheTask is the property the whole credential rests
