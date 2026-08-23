@@ -72,7 +72,7 @@ func (c *NoteCheckpointer) Checkpoint(ctx context.Context, discarded []llm.Messa
 	}
 
 	messages := []llm.Message{{Role: "system", Content: checkpointSystemPrompt}}
-	if live := agent.RenderSessionState("", store.Notes(), store.Todos(), 0); live != "" {
+	if live := agent.RenderSessionState("", store.Notes(), store.Todos()); live != "" {
 		messages = append(messages, llm.Message{Role: "user", Content: "What you have stored so far:\n\n" + live})
 	}
 	messages = append(messages, llm.Message{

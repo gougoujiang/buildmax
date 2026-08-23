@@ -324,7 +324,7 @@ Storage — a new field on `session.Session`, persisted in the session file:
 // re-rendered on every model call.
 type Note struct {
     Text             string `json:"text"`
-    WrittenIteration int    `json:"written_iteration"` // iteration index, for staleness judgement
+    WrittenIteration int    `json:"written_iteration"` // iteration index; recorded, not rendered
 }
 ```
 
@@ -604,9 +604,16 @@ Coverage in `internal/core/agent/notes_test.go`,
 
 Two things the plan did not anticipate. Writes go through the context rather
 than the history, for the registry-caching reason recorded in §5.3. And
-`TodoWrite` now rejects a list with more than one `in_progress` entry: the
-anchoring block reports "in progress for N iterations" against a single active
-task, and a list with two of them has no such answer.
+`TodoWrite` now rejects a list with more than one `in_progress` entry: one
+active task is the discipline the block exists to hold, and a list with two of
+them has no single answer to "what is being worked on".
+
+The block was later stripped of its age markers. Notes carried the absolute
+iteration they were written at, and the in-progress todo carried a relative
+"in progress for N iterations"; neither was ever shown to change what the model
+did, and the block is re-rendered into every request, so an unproven line is a
+permanent cost. `WrittenIteration` is still recorded — the drift detection
+below reads it rather than prints it.
 
 Scope note: `NoteWrite` and `TodoWrite` are part of the workspace agent's tool
 set. Tier 1 conversation runs (`internal/service/conversation/runtime`) build

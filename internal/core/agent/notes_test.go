@@ -31,10 +31,10 @@ func (h *statefulHistory) SetTodos(todos []Todo, iter int) {
 var _ NotesHistory = (*statefulHistory)(nil)
 
 func TestRenderSessionState_EmptyRendersNothing(t *testing.T) {
-	if got := RenderSessionState("", nil, nil, 5); got != "" {
+	if got := RenderSessionState("", nil, nil); got != "" {
 		t.Errorf("empty state rendered %q, want \"\"", got)
 	}
-	if got := RenderSessionState("", []Note{}, []Todo{}, 5); got != "" {
+	if got := RenderSessionState("", []Note{}, []Todo{}); got != "" {
 		t.Errorf("empty slices rendered %q, want \"\"", got)
 	}
 }
@@ -50,13 +50,13 @@ func TestRenderSessionState_NotesAndTodos(t *testing.T) {
 		{Content: "read the lease", Status: TodoCompleted, WrittenIteration: 3},
 	}
 
-	got := RenderSessionState("", notes, todos, 78)
+	got := RenderSessionState("", notes, todos)
 
 	for _, want := range []string{
 		"<session-state>", "</session-state>",
 		"## Notes", "## Todo",
-		"[i12] matter is governed by New York law",
-		"[in progress, 38 iterations] draft the notice of default",
+		"- matter is governed by New York law",
+		"- [in progress] draft the notice of default",
 		"[pending] check the cure period",
 		"(1 completed)",
 	} {
@@ -70,16 +70,22 @@ func TestRenderSessionState_NotesAndTodos(t *testing.T) {
 	}
 }
 
-func TestRenderSessionState_AgeOmittedWhenUnknown(t *testing.T) {
-	got := RenderSessionState("", []Note{{Text: "a fact"}}, []Todo{{Content: "task", Status: TodoInProgress}}, 0)
-	if strings.Contains(got, "[i0]") {
-		t.Errorf("unstamped note rendered an age marker:\n%s", got)
-	}
-	if strings.Contains(got, "iterations") {
-		t.Errorf("unstamped todo rendered an age:\n%s", got)
+// The block reports no ages. WrittenIteration is recorded, but printing it into every request
+// was never shown to change what the model did, and the block cannot be trimmed.
+func TestRenderSessionState_CarriesNoAges(t *testing.T) {
+	got := RenderSessionState("",
+		[]Note{{Text: "a fact", WrittenIteration: 12}},
+		[]Todo{{Content: "task", Status: TodoInProgress, WrittenIteration: 40}})
+	for _, unwanted := range []string{"[i12]", "[i40]", "iterations"} {
+		if strings.Contains(got, unwanted) {
+			t.Errorf("rendered block leaks an iteration marker %q:\n%s", unwanted, got)
+		}
 	}
 	if !strings.Contains(got, "- a fact") {
 		t.Errorf("note text missing:\n%s", got)
+	}
+	if !strings.Contains(got, "- [in progress] task") {
+		t.Errorf("in-progress todo missing:\n%s", got)
 	}
 }
 
@@ -97,7 +103,7 @@ func TestRenderSessionState_BudgetKeepsHighestPriority(t *testing.T) {
 		todos = append(todos, Todo{Content: strings.Repeat("z", 180), Status: TodoPending, WrittenIteration: 1})
 	}
 
-	got := RenderSessionState("", notes, todos, 2)
+	got := RenderSessionState("", notes, todos)
 
 	if len(got) > anchorBlockBudgetChars+200 {
 		t.Errorf("block is %d chars, budget is %d", len(got), anchorBlockBudgetChars)
@@ -276,7 +282,7 @@ func TestNotesSurviveCompaction(t *testing.T) {
 // with tool output, so the author-marked constraints are restated here — and they are the last
 // thing dropped when the block does not fit.
 func TestRenderSessionState_InvariantsLeadAndSurvive(t *testing.T) {
-	got := RenderSessionState("- Never push to main.", []Note{{Text: "a note", WrittenIteration: 1}}, nil, 2)
+	got := RenderSessionState("- Never push to main.", []Note{{Text: "a note", WrittenIteration: 1}}, nil)
 	if !strings.Contains(got, "## Invariants") || !strings.Contains(got, "- Never push to main.") {
 		t.Fatalf("invariants missing:\n%s", got)
 	}
@@ -293,7 +299,7 @@ func TestRenderSessionState_InvariantsLeadAndSurvive(t *testing.T) {
 	for i := 0; i < MaxTodos; i++ {
 		todos = append(todos, Todo{Content: strings.Repeat("z", 180), Status: TodoPending, WrittenIteration: 1})
 	}
-	crowded := RenderSessionState("- Never push to main.", notes, todos, 2)
+	crowded := RenderSessionState("- Never push to main.", notes, todos)
 	if !strings.Contains(crowded, "Never push to main") {
 		t.Errorf("invariants dropped before lower-priority entries:\n%s", crowded)
 	}
@@ -302,7 +308,7 @@ func TestRenderSessionState_InvariantsLeadAndSurvive(t *testing.T) {
 // TestRenderSessionState_InvariantsAloneStillRender asserts a role with invariants but no notes
 // produces a block: the constraint is the point, not the notes.
 func TestRenderSessionState_InvariantsAloneStillRender(t *testing.T) {
-	if got := RenderSessionState("- Never push to main.", nil, nil, 0); got == "" {
+	if got := RenderSessionState("- Never push to main.", nil, nil); got == "" {
 		t.Error("invariants alone rendered nothing")
 	}
 }
