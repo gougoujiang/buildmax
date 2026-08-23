@@ -26,12 +26,17 @@ type SpawnedRun struct {
 }
 
 const (
-	ChannelPortal   = convchannel.ChannelPortal
-	ChannelTelegram = convchannel.ChannelTelegram
-	ChannelCron     = convchannel.ChannelCron
-	ChannelWebhook  = convchannel.ChannelWebhook
-	ChannelSystem   = convchannel.ChannelSystem
+	ChannelPortal     = convchannel.ChannelPortal
+	ChannelTelegram   = convchannel.ChannelTelegram
+	ChannelCron       = convchannel.ChannelCron
+	ChannelWebhook    = convchannel.ChannelWebhook
+	ChannelSystem     = convchannel.ChannelSystem
+	ChannelWorkflow   = convchannel.ChannelWorkflow
+	ChannelIssueAgent = convchannel.ChannelIssueAgent
 )
+
+// SyntheticChannels are conversations nobody holds; see convchannel.
+var SyntheticChannels = convchannel.SyntheticChannels
 
 var ValidChannels = convchannel.ValidChannels
 

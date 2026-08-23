@@ -116,6 +116,7 @@ var teamRoutes = []authzCase{
 	{"GET", "/api/teams/{team_id}/tasks/{task_id}/conversation", model.TeamRoleMember, false},
 	{"GET", "/api/teams/{team_id}/tasks/{task_id}/stream", model.TeamRoleMember, false},
 
+	{"GET", "/api/teams/{team_id}/task-runs/{task_run_id}", model.TeamRoleMember, false},
 	{"GET", "/api/teams/{team_id}/task-runs/{task_run_id}/artifacts/items", model.TeamRoleMember, false},
 	{"GET", "/api/teams/{team_id}/task-runs/{task_run_id}/artifacts/content", model.TeamRoleMember, false},
 	{"GET", "/api/teams/{team_id}/task-runs/{task_run_id}/trace", model.TeamRoleMember, false},

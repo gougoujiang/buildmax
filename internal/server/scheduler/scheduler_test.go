@@ -126,6 +126,10 @@ func (s *spyTaskRunStore) UpdateTaskRunWorkerInfo(_ context.Context, _ string, _
 	return nil
 }
 
+func (s *spyTaskRunStore) RecordTaskRunAgentRevision(_ context.Context, _ string, _ int) error {
+	return nil
+}
+
 func (s *spyTaskRunStore) OnRunComplete(_ context.Context, _ string, _ []string) error {
 	return nil
 }

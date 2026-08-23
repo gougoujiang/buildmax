@@ -64,3 +64,56 @@ func TestGetConversationMessagesHandler_HidesSystemMessages(t *testing.T) {
 		t.Fatalf("roles = [%q, %q], want [user, assistant]", out.Messages[0].Role, out.Messages[1].Role)
 	}
 }
+
+// A workflow step and an issue agent run each create a conversation because
+// Task requires one. They are not conversations anyone holds, and a team that
+// runs either would otherwise find its own pushed off the first page.
+func TestListConversationsHidesTheOnesNobodyHolds(t *testing.T) {
+	secret := "test-synthetic-conversations-secret"
+	teamID := "tm_personal_u1"
+	h := New(Config{
+		JWTSecret: secret,
+		Teams: &mock.MockTeamStore{
+			Teams:   []model.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}},
+			Members: []model.TeamMember{{TeamID: teamID, UserID: "u1", Role: model.TeamRoleOwner}},
+		},
+		Conversations: &mock.MockConversationStore{Conversations: []model.Conversation{
+			{ID: "conv_portal", UserID: "u1", TeamID: teamID, Channel: model.ChannelWorkflow, CreatedBy: "u1"},
+			{ID: "conv_mine", UserID: "u1", TeamID: teamID, Channel: "portal", CreatedBy: "u1"},
+			{ID: "conv_issue", UserID: "u1", TeamID: teamID, Channel: model.ChannelIssueAgent, CreatedBy: "u1"},
+			{ID: "conv_hook", UserID: "u1", TeamID: teamID, Channel: "webhook", CreatedBy: "u1"},
+		}},
+	})
+	mux := http.NewServeMux()
+	h.Register(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/teams/"+teamID+"/conversations", nil)
+	req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", secret))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+	}
+
+	var out conversationListResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	ids := make([]string, len(out.Conversations))
+	for i := range out.Conversations {
+		ids[i] = out.Conversations[i].ID
+	}
+	if len(ids) != 2 {
+		t.Fatalf("conversations = %v, want the portal and webhook ones only", ids)
+	}
+	// The total has to agree with the page: a count that included the hidden
+	// ones would make the list look paginated when it is not.
+	if out.Total != 2 {
+		t.Errorf("total = %d, want 2", out.Total)
+	}
+	for _, id := range ids {
+		if id == "conv_portal" || id == "conv_issue" {
+			t.Errorf("a conversation nobody holds is in the list: %s", id)
+		}
+	}
+}

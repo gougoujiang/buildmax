@@ -213,3 +213,17 @@ func (m *MockTaskRunStore) SyncTaskFromRun(_ context.Context, taskRunID string) 
 	}
 	return nil
 }
+
+func (m *MockTaskRunStore) RecordTaskRunAgentRevision(_ context.Context, taskRunID string, revision int) error {
+	for i := range m.Runs {
+		if m.Runs[i].ID != taskRunID {
+			continue
+		}
+		// First write wins, as in the store: a worker polls its run more than once.
+		if m.Runs[i].AgentRevision == nil {
+			m.Runs[i].AgentRevision = &revision
+		}
+		return nil
+	}
+	return nil
+}

@@ -31,13 +31,12 @@ their context.
 
 | Proposal | Question |
 |---|---|
-| [Portal interaction and execution model](portal-interaction-execution-model.md) | How should a full foreground Tier 1 Agent coordinate a potentially specialized Tier 2 execution Agent plane without owning durable state and delivery? |
 | [Enterprise identity and access](enterprise-identity-and-access.md) | How should a private deployment connect corporate identity to BuildMax teams and roles? |
 | [Durable Agent sessions](durable-agent-sessions.md) | Should authenticated local Agent sessions become revisioned Server resources for recovery, provenance, sharing, and cross-device continuation? |
 | [Local Issue work bridge](local-issue-work-bridge.md) | How should connected CLI/TUI and Desktop handle Team Issues locally without becoming Portal clones or weakening direct local use? |
 | [Session tree, agent mailbox, and branched workspaces](session-tree-and-agent-mailbox.md) | Should interactive sessions fork isolated workspaces, return structured child reports, and resume their parent through a durable mailbox? |
 
-Eight papers have been retired. Four were accepted into a design
+Nine papers have been retired. Five were accepted into a design
 record. *System administration* asked how a private
 deployment should authorize and audit System Administrators; the direction was
 accepted and is now the [system administration
@@ -52,6 +51,14 @@ and Desktop should share a process-scoped job manager for detached commands,
 subagents, and event-driven monitors; the direction was accepted and is now the
 [local background jobs design](../design/local-background-jobs.md), which
 commits the staged delivery and its prerequisites.
+
+*Portal interaction and execution model* asked how a full foreground Tier 1
+Agent should coordinate a potentially specialized Tier 2 execution Agent plane
+without owning durable state and delivery; the direction was accepted and is now
+the [Portal execution design](../design/portal-execution-model.md), which
+separates the two Agent tiers from the substrate that carries them and from the
+projection derived off it, and records which of its phases shipped, which are
+evidence-gated, and which are deferred behind a storage migration.
 
 *Plugin scope for background runs* asked whether a team's plugin set is decided
 once for the team or per agent definition; the answer is both, and §5.3 of the
@@ -83,7 +90,7 @@ by, and records all became settled behaviour while it was open, leaving one
 question that belongs to an existing plan — it is now §3.9 of the [trust harness
 design](../design/trust-harness.md), with the egress half it blocks.
 
-Git history holds all eight papers.
+Git history holds all nine papers.
 
 ## Starting A Proposal
 

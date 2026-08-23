@@ -249,3 +249,41 @@
   color: var(--color-text-subtle);
   font-size: 0.8rem;
 }
+
+/* Origin — where the run came from, and the two texts a reader compares. */
+.run-trace__origin-text {
+  margin: 0 0 0.75rem;
+  color: var(--color-text);
+  font-size: 0.9rem;
+}
+
+.run-trace__origin-label {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-subtle);
+}
+
+.run-trace__quote {
+  margin: 0 0 0.75rem;
+  max-height: 12rem;
+  overflow: auto;
+  padding: 0.6rem 0.75rem;
+  border-radius: 8px;
+  background: var(--color-bg-muted);
+  color: var(--color-text);
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* The definition has moved on since the run. Reading the agent's page today
+   would show text this run never saw, which is worth marking. */
+.run-trace__origin-text--drifted {
+  color: var(--color-text-muted);
+  border-left: 2px solid var(--color-text-subtle);
+  padding-left: 0.6rem;
+}

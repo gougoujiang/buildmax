@@ -41,6 +41,7 @@ func (h *Handler) getTaskRun(w http.ResponseWriter, r *http.Request) {
 			componentLog().Warn("worker handler: agent instructions unavailable", "task_run_id", taskRunID, "agent_id", *task.AgentID, "err", aerr)
 		} else if a != nil && a.TeamID == task.TeamID {
 			agentInstructions = a.Instructions
+			h.recordAgentRevision(r, run, a.Revision)
 		}
 	}
 
@@ -199,3 +200,18 @@ func (h *Handler) patchTaskRun(w http.ResponseWriter, r *http.Request) {
 
 // Identity belongs in an attr, not in every message string.
 func componentLog() *slog.Logger { return slog.With("component", "worker_api") }
+
+// recordAgentRevision notes which definition this run was handed.
+//
+// Instructions are resolved on every poll so an edit takes effect on the next
+// run; the record is written once so an edit during this one cannot rewrite what
+// already ran. A failure to record is logged and dropped: a worker waiting for
+// its instructions must not be held up by bookkeeping.
+func (h *Handler) recordAgentRevision(r *http.Request, run *model.TaskRun, revision int) {
+	if run.AgentRevision != nil || revision <= 0 || h.cfg.TaskRuns == nil {
+		return
+	}
+	if err := h.cfg.TaskRuns.RecordTaskRunAgentRevision(r.Context(), run.ID, revision); err != nil {
+		componentLog().Warn("worker handler: agent revision not recorded", "task_run_id", run.ID, "revision", revision, "err", err)
+	}
+}

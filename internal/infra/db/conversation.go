@@ -153,7 +153,17 @@ func (s *Store) ListConversationsByUser(ctx context.Context, userID string, limi
 	return toConversations(list), int(total), err
 }
 
-// ListConversationsByTeam returns conversations for the team ordered by created_at DESC.
+// ListConversationsByTeam returns the team's conversations, newest first.
+//
+// Synthetic conversations are excluded. A workflow step and an issue agent run
+// each create one because Task requires a conversation, not because anyone is
+// talking through it, and a team that runs either would otherwise find its own
+// conversations pushed off the first page by machinery. They are still there
+// and a link straight to one still opens it — see model.SyntheticChannels.
+//
+// The filter is here rather than in the caller because the page is cut here:
+// dropping the rows after the limit would leave a short page with a total that
+// disagrees with it.
 func (s *Store) ListConversationsByTeam(ctx context.Context, teamID string, limit, offset int) ([]model.Conversation, int, error) {
 	limit, offset = capPage(limit, offset)
 	teamKey, err := lookupKey(ctx, s.db, "team", teamID)
@@ -164,11 +174,14 @@ func (s *Store) ListConversationsByTeam(ctx context.Context, teamID string, limi
 		return nil, 0, err
 	}
 	var total int64
-	if err := s.db.WithContext(ctx).Model(&conversationRow{}).Where("team_id = ?", teamKey).Count(&total).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(&conversationRow{}).
+		Where("team_id = ? AND channel NOT IN ?", teamKey, model.SyntheticChannels).
+		Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 	var list []conversationReadRow
-	err = s.conversationSelect(ctx).Where("conversation.team_id = ?", teamKey).
+	err = s.conversationSelect(ctx).
+		Where("conversation.team_id = ? AND conversation.channel NOT IN ?", teamKey, model.SyntheticChannels).
 		Order("conversation.created_at DESC").
 		Limit(limit).Offset(offset).
 		Find(&list).Error

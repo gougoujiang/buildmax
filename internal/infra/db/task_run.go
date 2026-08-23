@@ -45,7 +45,11 @@ type taskRunRow struct {
 	// Nullable because most origins are not a message: a workflow step, an
 	// issue agent run, a retry, and a task created from the API all have none.
 	SourceMessageID *uint64 `gorm:"column:source_message_id;index"`
-	CreatedAt       int64   `gorm:"autoCreateTime;index:idx_task_run_task_created,priority:2"`
+	// AgentRevision numbers the agent definition served to this run's worker.
+	// Not a reference to agent_revision.id: the pair (task.agent_id, this) is
+	// what addresses a revision, and the task already holds the agent.
+	AgentRevision *int  `gorm:"column:agent_revision"`
+	CreatedAt     int64 `gorm:"autoCreateTime;index:idx_task_run_task_created,priority:2"`
 }
 
 func (taskRunRow) TableName() string { return "task_run" }
@@ -105,6 +109,7 @@ func toTaskRun(row *taskRunReadRow) *model.TaskRun {
 		PromptTokens:      row.Row.PromptTokens,
 		CompletionTokens:  row.Row.CompletionTokens,
 		TracePath:         row.Row.TracePath,
+		AgentRevision:     row.Row.AgentRevision,
 		CancelRequestedAt: row.Row.CancelRequestedAt,
 		CreatedAt:         row.Row.CreatedAt,
 	}
@@ -241,6 +246,21 @@ func (s *Store) CreateTaskRun(ctx context.Context, in model.CreateTaskRunInput) 
 		RetryOfPublicID:       retryOf,
 		SourceMessagePublicID: sourceMessage,
 	}), nil
+}
+
+// RecordTaskRunAgentRevision stores which agent definition a run was given.
+//
+// The `agent_revision IS NULL` guard is what makes the first write win. A worker
+// polls its run repeatedly, and an agent edited mid-run would otherwise rewrite
+// the record of what actually ran on the next poll.
+func (s *Store) RecordTaskRunAgentRevision(ctx context.Context, taskRunID string, revision int) error {
+	id, ok := util.CanonicalPublicID(taskRunID)
+	if !ok {
+		return model.ErrNotFound
+	}
+	return s.db.WithContext(ctx).Model(&taskRunRow{}).
+		Where("public_id = ? AND agent_revision IS NULL", id).
+		Update("agent_revision", revision).Error
 }
 
 // CountTaskRunsByStatus implements model.TaskRunStore.

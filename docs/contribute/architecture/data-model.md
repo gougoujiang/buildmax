@@ -577,7 +577,7 @@ the user.
 | `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
 | `user_id` | `bigint unsigned` | no | Owning user |
 | `team_id` | `bigint unsigned` | yes | Owning team |
-| `channel` | `varchar(32)` | no | `portal`, `telegram`, `cron`, or `webhook` |
+| `channel` | `varchar(32)` | no | `portal`, `telegram`, `cron`, `webhook`, or a synthetic `workflow` / `issue_agent` |
 | `title` | `varchar(256)` | yes | Generated from the first turn |
 | `created_by` | `bigint unsigned` | no | `user.id` |
 | `created_at` | `bigint` | yes | `autoCreateTime` |
@@ -586,9 +586,19 @@ Indexes: PK `id`; index `idx_conversation_team_created` on (`team_id`,
 `created_at`); index `idx_conversation_user_created` on (`user_id`,
 `created_at`); unique `public_id`.
 
-Channel constants are in `internal/service/conversation/channel/types.go`.
-`system` exists as a constant but is not in `ValidChannels`, so it cannot be
-supplied by a caller.
+Transport channel constants are in
+`internal/service/conversation/channel/types.go`. `system` exists as a constant
+but is not in `ValidChannels`, so it cannot be supplied by a caller.
+
+`workflow` and `issue_agent` are not transports and are defined in
+`internal/core/model` with the column, as `model.SyntheticChannels`. Nobody
+talks through them: a workflow step and an issue agent run each create a
+conversation because Task requires one. `ListConversationsByTeam` excludes them,
+count and page together, so machinery cannot push a team's own conversations off
+a page. They are still stored and still reachable by handle — this hides them
+from a list, it does not make them unreadable. Removing the need for them is
+deferred; see
+[../../design/portal-execution-model.md](../../design/portal-execution-model.md).
 
 ### `conversation_message`
 
@@ -688,11 +698,18 @@ One execution attempt. This is the row quota and token accounting read.
 | `cancel_requested_by` | `bigint unsigned` | yes | `user.id` of whoever asked |
 | `retry_of_task_run_id` | `bigint unsigned` | yes | The run this one repeats; `NULL` for a run that carries its own instructions |
 | `source_message_id` | `bigint unsigned` | yes | `conversation_message.id` this run was asked for in; `NULL` when no message asked for it |
+| `agent_revision` | `int` | yes | Which revision of `task.agent_id` this run was served; `NULL` for a run with no agent or one that never reached a worker |
 | `created_at` | `bigint` | yes | `autoCreateTime` |
 
 Indexes: PK `id`; index `cancel_requested_at`; index `created_by`; index
 `retry_of_task_run_id`; index `source_message_id`; index
 `idx_task_run_task_created` on (`task_id`, `created_at`); unique `public_id`.
+
+`agent_revision` is not a reference to `agent_revision.id`: a revision is
+addressed by its agent plus its number, and the task already holds the agent. It
+is written when a worker asks for its run, and the first write wins — instructions
+are resolved per dispatch so an edit takes effect on the next run, and the record
+exists so an edit during a run cannot rewrite what that run was given.
 
 `source_message_id` is what a person actually said; `input` is what Tier 1
 decided to send a worker. They are different texts and keeping both is the
@@ -754,6 +771,44 @@ table; both migrations are in `internal/infra/db/migration.go`.
 
 It is not `artifact`, below. This is a run's index of the files it left in its
 own output directory; that is a durable object a team keeps.
+
+### `task_result_delivery`
+
+One report the server owes: a run that finished and a conversation that has not
+yet been told. One row per run.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | `bigint unsigned` | no | Internal primary key |
+| `task_run_id` | `bigint unsigned` | no | `task_run.id`, unique — one run owes one report |
+| `conversation_id` | `bigint unsigned` | no | `conversation.id` the report is owed to |
+| `status` | `varchar(16)` | no | `PENDING`, `DELIVERED`, or `ABANDONED` |
+| `attempts` | `int` | no | Claims, not failures: an attempt that died mid-flight still counts |
+| `last_error` | `text` | yes | Why the last attempt did not succeed |
+| `next_attempt_at` | `bigint` | no | Both the backoff and the claim lease |
+| `created_at` | `bigint` | yes | `autoCreateTime` |
+| `updated_at` | `bigint` | yes | `autoUpdateTime` |
+
+Indexes: PK `id`; unique `uq_task_result_delivery_run` on `task_run_id`; index
+`idx_task_result_delivery_due` on (`status`, `next_attempt_at`).
+
+No public handle: nothing addresses a delivery from outside. It is machinery the
+server owes itself.
+
+What the report says is not stored. It is derived from the run on each attempt,
+so a retry reports the run as it is rather than as it was when the first attempt
+was made, and there is one copy of the outcome rather than two that can disagree.
+
+`next_attempt_at` does double duty. Claiming a delivery pushes it out by a lease
+long enough to cover a turn still running, which is what stops two servers
+reporting one run; a failed attempt then pulls it back in by the backoff, since
+an attempt that has already failed no longer needs the protection. A process
+that dies mid-attempt leaves the lease in place and the delivery is retried when
+it expires.
+
+`ABANDONED` is a bounded give-up, not a lost result. The outcome is on
+`task_run` and a conversation's task card reads it directly; what is abandoned
+is the sentence Tier 1 would have written about it.
 
 ### `artifact`
 

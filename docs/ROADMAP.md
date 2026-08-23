@@ -92,12 +92,15 @@ the cards survive a refresh, a dropped socket, and a summary that never arrives.
 The transcript excludes the system channel, so a `[Task Result]` message is no
 longer drawn as the user's own.
 
-One thing that repair deliberately did not do: the Tier 1 turn that summarizes a
-finished run is submitted to an in-process queue, so a server restart between a
-run finishing and its turn running still loses the summary. The result is not
-lost with it — the card reads it from `task_run`. Durable delivery is a later
-phase of
-[proposals/portal-interaction-execution-model.md](proposals/portal-interaction-execution-model.md).
+Delivery of the summary is durable too: the report a finished run owes its
+conversation is recorded in `task_result_delivery` and retried by a sweep, so a
+failed model call, a full queue, and a restart between the run finishing and the
+turn starting are all recoverable rather than silent. A report is given up on
+after a bounded number of attempts, with the reason recorded; the result is not
+given up with it, because the card reads it from `task_run`.
+
+What was deliberately not done, and why, is in the [Portal execution
+design](design/portal-execution-model.md).
 
 ### P0.5. Agent Core Trust Harness
 

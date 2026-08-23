@@ -82,17 +82,43 @@ the message is refused with `conversation.error` carrying `code: "queue_full"`
 (HTTP: `429`), which does not end the turn in flight. Queues are in memory. See
 [Queued messages](../../design/queued-messages.md).
 
+## Where A Run Came From
+
+`GET /api/teams/{team_id}/task-runs/{task_run_id}` answers one run's
+provenance: who or what asked, through which trigger, repeating which earlier
+attempt, and the conversation message it was asked for in, quoted next to the
+instruction the worker was given. Those last two are different texts — the
+instruction is what Tier 1 decided to send — and holding both is the only way to
+tell a constraint the model dropped from one the user never gave.
+
+It also names the agent definition the run executed under, by revision. An
+agent's instructions are resolved when its worker asks for the run, so editing
+an agent changes what its next run does; the recorded revision is what says
+which text produced a given outcome, and the response reports the definition's
+current revision alongside it so a reader can see when the two have diverged.
+
+It is a separate route from the trace because it survives a different absence: a
+run that failed before an agent started wrote no trace and still came from
+somewhere. A message that cannot be read, or that belongs to another
+conversation, is left out rather than failing the request.
+
 ## Reporting A Finished Run
 
 A run that reaches a terminal status does two independent things
 (`internal/server/handlers/task_result.go`). Every WebSocket connection on the
 task's team receives `task.status.changed`, which is an invalidation and not the
-outcome: a client answers it by re-reading the task. Separately, one Tier 1 turn
-is submitted to the turn queue to report the outcome in the conversation that
-started the task. That turn belongs to no connection, so a run finishing while
-nobody is watching still leaves its reply in the conversation. The queue is in
-memory, so a restart before the turn runs loses the reply — not the result,
-which stays on `task_run`.
+outcome: a client answers it by re-reading the task. Separately, the report owed
+to the conversation is recorded in `task_result_delivery` and attempted — one
+Tier 1 turn submitted to the turn queue, belonging to no connection, so a run
+finishing while nobody is watching still leaves its reply in the conversation.
+
+The report is a model call, so it can fail, be refused because the
+conversation's queue is full, or be interrupted by a restart between the run
+finishing and the turn starting. The delivery row is what survives all three: a
+sweep every minute retries what is due, claiming each delivery so two servers
+cannot report one run twice, and giving up after a bounded number of attempts
+with the reason recorded. Giving up does not lose the result — that is on
+`task_run` and the conversation's task card reads it directly.
 
 ## Cancelling A Run
 
