@@ -782,9 +782,12 @@ Reusing it needs one architecture change made deliberately rather than by omissi
 `internal/architecture/architecture_test.go` keeps `internal/testsupport` out of shipped code by
 scanning the `internal`, `cmd`, and `deployment` trees; a new top-level `evaluation` tree escapes
 that rule by not being listed, which is the wrong reason to be allowed. The slice adds
-`evaluation` to the scanned trees and to the exemption beside `deployment/smoke`, for the same
-stated reason: the tree is never released, so importing the mock model there is the point rather
-than a mistake.
+`evaluation` to the scanned trees.
+
+It adds no exemption beside `deployment/smoke`, which an earlier draft of this section expected.
+The rule already skips `_test.go`, so evaluation's end-to-end tests import the mock model without
+one, and exempting the tree would additionally permit what must stay forbidden: a runner or
+adapter answering its own model would report on the mock rather than on the subject.
 
 ### 18.6 Delivery increments
 
