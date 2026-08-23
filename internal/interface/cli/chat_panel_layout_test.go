@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -34,7 +35,7 @@ func TestSlashPanelsFitTerminalHeight(t *testing.T) {
 	t.Setenv(config.EnvKeyBuildmaxHome, home)
 	writeTestSettings(t, manyModelsSettings(20))
 
-	sessionsDir := t.TempDir()
+	sessionsDir := filepath.Join(home, "sessions")
 	for i := range 20 {
 		item := session.SessionItem{
 			ID:        fmt.Sprintf("sess-%02d", i),

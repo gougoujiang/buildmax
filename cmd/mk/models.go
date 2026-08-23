@@ -225,18 +225,34 @@ func formatContext(n int) string {
 	return formatCount(n)
 }
 
-// settingsModel is the slice of a settings.local.yaml model entry this
-// command needs. The full shape is internal/config.ModelEntry, but mk
-// depends only on the standard library, so this reads the file with a small
-// parser tailored to the fixed "models: - key: value" shape the file
-// actually has, rather than pulling in a YAML library or the config package.
+// settingsModel is the slice of a settings.local.yaml model entry mk needs.
+// The full shape is internal/config.ModelEntry, but mk depends only on the
+// standard library, so this reads the file with a small parser tailored to the
+// fixed "models: - key: value" shape the file actually has, rather than pulling
+// in a YAML library or the config package.
+//
+// keep_alive is absent because it has no catalog column: it tunes how long a
+// local daemon holds a model in memory for the client that called it, which is
+// a property of this machine rather than of the target.
 type settingsModel struct {
 	id            string
 	name          string
+	provider      string
+	transport     string
 	apiURL        string
 	apiKey        string
 	contextWindow int
+	callTimeout   int
+	maxTokens     int
+	reasoning     string
+	promptCache   bool
+	vision        bool
 }
+
+// isManaged reports whether the entry already calls a BuildMax gateway rather
+// than a provider. Such an entry names a team alias, not an upstream, so there
+// is nothing in it to put in a catalog.
+func (m settingsModel) isManaged() bool { return m.transport == "buildmax" }
 
 // readLocalModels reads settings.local.yaml from the repository root. main's
 // dispatch already chdirs there before running any command, so the bare
@@ -311,6 +327,20 @@ func parseSettingsModels(text string) []settingsModel {
 			current.apiKey = value
 		case "context_window":
 			current.contextWindow, _ = strconv.Atoi(value)
+		case "call_timeout":
+			current.callTimeout, _ = strconv.Atoi(value)
+		case "max_tokens":
+			current.maxTokens, _ = strconv.Atoi(value)
+		case "provider":
+			current.provider = value
+		case "transport":
+			current.transport = value
+		case "reasoning":
+			current.reasoning = value
+		case "prompt_cache":
+			current.promptCache = value == "true"
+		case "vision":
+			current.vision = value == "true"
 		}
 	}
 	flush()
