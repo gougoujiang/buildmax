@@ -3,9 +3,11 @@ package work
 import (
 	"context"
 	"errors"
-	agentsvc "github.com/gougoujiang/buildmax/internal/service/agent"
 	"net/http"
 	"strings"
+	"time"
+
+	agentsvc "github.com/gougoujiang/buildmax/internal/service/agent"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/server/access"
@@ -16,18 +18,18 @@ import (
 )
 
 type IssueResponse struct {
-	ID            string  `json:"id"`
-	UserID        string  `json:"user_id"`
-	TeamID        string  `json:"team_id,omitempty"`
-	ParentIssueID *string `json:"parent_issue_id,omitempty"`
-	Title         string  `json:"title"`
-	Description   string  `json:"description"`
-	Status        string  `json:"status"`
-	AssigneeKind  *string `json:"assignee_kind,omitempty"`
-	AssigneeID    *string `json:"assignee_id,omitempty"`
-	CreatedBy     string  `json:"created_by"`
-	CreatedAt     int64   `json:"created_at"`
-	UpdatedAt     int64   `json:"updated_at"`
+	ID            string    `json:"id"`
+	UserID        string    `json:"user_id"`
+	TeamID        string    `json:"team_id,omitempty"`
+	ParentIssueID *string   `json:"parent_issue_id,omitempty"`
+	Title         string    `json:"title"`
+	Description   string    `json:"description"`
+	Status        string    `json:"status"`
+	AssigneeKind  *string   `json:"assignee_kind,omitempty"`
+	AssigneeID    *string   `json:"assignee_id,omitempty"`
+	CreatedBy     string    `json:"created_by"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 	// ChildCount, DoneChildCount, and CommentCount are derived per response,
 	// never stored. They are zero on responses that do not compute them.
 	ChildCount     int `json:"child_count"`

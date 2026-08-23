@@ -49,9 +49,12 @@ func FormatDuration(d time.Duration) string {
 	return fmt.Sprintf("%dm%ds", m, s)
 }
 
-// FormatUnixMinute formats a unix timestamp as YYYY-MM-DD HH:MM.
-func FormatUnixMinute(unixSec int64) string {
-	return time.Unix(unixSec, 0).Format("2006-01-02 15:04")
+// FormatMinute formats an instant as YYYY-MM-DD HH:MM in local time.
+//
+// The reader is a person — a tool result or a listing — so local time is the
+// useful rendering. Stored and transported instants stay UTC.
+func FormatMinute(t time.Time) string {
+	return t.Local().Format("2006-01-02 15:04")
 }
 
 // TruncateRunes truncates s to at most maxRunes runes and appends an ellipsis

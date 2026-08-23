@@ -14,7 +14,7 @@ export interface Task {
   status: "pending" | "running" | "success" | "failed" | "canceled"
   timeLabel: string
   summary: string
-  createdAt: number
+  createdAt: string
   /** Set when the task was started from an agent. */
   agentId?: string
   /** Set when the task was started from an issue. */
@@ -26,7 +26,7 @@ export interface Conversation {
   id: string
   channel: string
   title: string
-  createdAt: number
+  createdAt: string
   timeLabel: string
 }
 
@@ -56,7 +56,7 @@ export interface Agent {
   description?: string
   instructions?: string
   revision: number
-  createdAt: number
+  createdAt: string
 }
 
 export interface AgentRevision {
@@ -67,7 +67,7 @@ export interface AgentRevision {
   description: string
   instructions: string
   createdBy: string
-  createdAt: number
+  createdAt: string
   createdLabel: string
 }
 
@@ -81,8 +81,8 @@ export interface Issue {
   assigneeKind?: "person" | "agent" | "workflow" | null
   assigneeId?: string | null
   createdBy: string
-  createdAt: number
-  updatedAt: number
+  createdAt: string
+  updatedAt: string
   updatedLabel: string
   /** Derived server-side per response, never stored. */
   childCount: number
@@ -99,8 +99,8 @@ export interface Workflow {
   status: "draft" | "published" | "archived"
   revision: number
   createdBy: string
-  createdAt: number
-  updatedAt: number
+  createdAt: string
+  updatedAt: string
   updatedLabel: string
 }
 
@@ -113,7 +113,7 @@ export interface WorkflowRevision {
   definition: string
   status: string
   createdBy: string
-  createdAt: number
+  createdAt: string
   createdLabel: string
 }
 
@@ -125,9 +125,9 @@ export interface WorkflowRun {
   conversationId: string
   status: "pending" | "running" | "succeeded" | "failed" | "canceled"
   createdBy: string
-  createdAt: number
-  startedAt?: number | null
-  endedAt?: number | null
+  createdAt: string
+  startedAt?: string | null
+  endedAt?: string | null
   errorMessage?: string | null
   createdLabel: string
 }
@@ -149,9 +149,9 @@ export interface WorkflowStepRun {
   taskRunId?: string | null
   outputSummary?: string | null
   errorMessage?: string | null
-  createdAt: number
-  startedAt?: number | null
-  endedAt?: number | null
+  createdAt: string
+  startedAt?: string | null
+  endedAt?: string | null
 }
 
 export interface IssueFlowRun {
@@ -182,7 +182,7 @@ export interface IssueOutput {
   preview?: string
   previewTruncated: boolean
   source: OutputSource
-  createdAt: number
+  createdAt: string
 }
 
 export interface IssueFlow {

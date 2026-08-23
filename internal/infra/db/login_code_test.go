@@ -57,8 +57,8 @@ func TestLoginCodeLifecycle(t *testing.T) {
 	if !strings.HasPrefix(code, loginCodePrefix) {
 		t.Errorf("code %q does not carry the %q prefix that makes a leak recognizable", code, loginCodePrefix)
 	}
-	if expiresAt <= time.Now().Unix() {
-		t.Errorf("expires_at %d is not in the future", expiresAt)
+	if !expiresAt.After(time.Now()) {
+		t.Errorf("expires_at %v is not in the future", expiresAt)
 	}
 
 	// The plaintext must not be recoverable from the row.
@@ -75,7 +75,7 @@ func TestLoginCodeLifecycle(t *testing.T) {
 	}
 
 	// Somebody else's address does not redeem it, and does not spend it either.
-	redeemed, err := s.ConsumeLoginCode(ctx, code, newTestUser(t, s, "logincode"), time.Now().Unix())
+	redeemed, err := s.ConsumeLoginCode(ctx, code, newTestUser(t, s, "logincode"), time.Now().UTC())
 	if err != nil {
 		t.Fatalf("ConsumeLoginCode for another user: %v", err)
 	}
@@ -83,7 +83,7 @@ func TestLoginCodeLifecycle(t *testing.T) {
 		t.Fatal("a code redeemed for a user it was not issued to")
 	}
 
-	redeemed, err = s.ConsumeLoginCode(ctx, code, userID, time.Now().Unix())
+	redeemed, err = s.ConsumeLoginCode(ctx, code, userID, time.Now().UTC())
 	if err != nil {
 		t.Fatalf("ConsumeLoginCode: %v", err)
 	}
@@ -92,7 +92,7 @@ func TestLoginCodeLifecycle(t *testing.T) {
 	}
 
 	// Single use: the second redemption reports nothing, without an error.
-	redeemed, err = s.ConsumeLoginCode(ctx, code, userID, time.Now().Unix())
+	redeemed, err = s.ConsumeLoginCode(ctx, code, userID, time.Now().UTC())
 	if err != nil {
 		t.Fatalf("second ConsumeLoginCode: %v", err)
 	}
@@ -110,7 +110,7 @@ func TestLoginCodeRejectsExpiredAndUnknown(t *testing.T) {
 		t.Fatalf("CreateLoginCode: %v", err)
 	}
 	// Redeem as if the clock had passed the expiry, rather than sleeping.
-	redeemed, err := s.ConsumeLoginCode(ctx, code, userID, expiresAt+1)
+	redeemed, err := s.ConsumeLoginCode(ctx, code, userID, expiresAt.Add(time.Second))
 	if err != nil {
 		t.Fatalf("ConsumeLoginCode: %v", err)
 	}
@@ -118,7 +118,7 @@ func TestLoginCodeRejectsExpiredAndUnknown(t *testing.T) {
 		t.Error("an expired code redeemed")
 	}
 
-	redeemed, err = s.ConsumeLoginCode(ctx, "bmxlogin_never-issued", userID, time.Now().Unix())
+	redeemed, err = s.ConsumeLoginCode(ctx, "bmxlogin_never-issued", userID, time.Now().UTC())
 	if err != nil {
 		t.Fatalf("ConsumeLoginCode on unknown code: %v", err)
 	}
@@ -149,7 +149,7 @@ func TestLoginCodeConcurrentRedemptionHasOneWinner(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			<-start
-			results[i], errs[i] = s.ConsumeLoginCode(ctx, code, userID, time.Now().Unix())
+			results[i], errs[i] = s.ConsumeLoginCode(ctx, code, userID, time.Now().UTC())
 		}()
 	}
 	close(start)

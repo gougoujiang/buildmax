@@ -102,10 +102,10 @@ func (llmDenyQuota) Check(context.Context, string, int, int) (bool, string) {
 func llmTestTeamStore() *mock.MockTeamStore {
 	return &mock.MockTeamStore{
 		Teams: []model.Team{
-			{ID: llmTestTeam, Name: "LLM Team", CreatedBy: llmTestUser, CreatedAt: time.Now().Unix()},
+			{ID: llmTestTeam, Name: "LLM Team", CreatedBy: llmTestUser, CreatedAt: time.Now().UTC()},
 		},
 		Members: []model.TeamMember{
-			{TeamID: llmTestTeam, UserID: llmTestUser, Role: model.TeamRoleOwner, CreatedAt: time.Now().Unix()},
+			{TeamID: llmTestTeam, UserID: llmTestUser, Role: model.TeamRoleOwner, CreatedAt: time.Now().UTC()},
 		},
 	}
 }

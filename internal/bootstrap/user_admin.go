@@ -139,7 +139,7 @@ func runUserSetPassword(ctx context.Context, args []string, out io.Writer, in io
 	if user == nil {
 		return fmt.Errorf("no account for %s; create one with: buildmax-server user create %s", email, email)
 	}
-	if err := store.SetPassword(ctx, user.ID, hash, time.Now().Unix()); err != nil {
+	if err := store.SetPassword(ctx, user.ID, hash, time.Now().UTC()); err != nil {
 		return fmt.Errorf("set password: %w", err)
 	}
 	recordOperatorUserAudit(ctx, store, model.AuditPasswordSet, user.ID)
@@ -176,7 +176,7 @@ func runUserLoginCode(ctx context.Context, args []string, out io.Writer, store u
 	recordOperatorUserAudit(ctx, store, model.AuditLoginCodeIssued, user.ID)
 	fmt.Fprintf(out, "Login code for %s:\n\n  %s\n\n", user.Email, code)
 	fmt.Fprintf(out, "Valid until %s, and only once. It is not stored anywhere it can be read back,\n",
-		time.Unix(expiresAt, 0).Format(time.RFC3339))
+		expiresAt.Local().Format(time.RFC3339))
 	fmt.Fprintf(out, "so a lost code means issuing another. Deliver it over a channel you trust.\n")
 	return nil
 }

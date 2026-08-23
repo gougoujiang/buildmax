@@ -55,15 +55,15 @@ func (m *MockTeamStore) CreateTeam(_ context.Context, name, createdBy, quotaTier
 		Name:      name,
 		QuotaTier: quotaTier,
 		CreatedBy: createdBy,
-		CreatedAt: time.Now().Unix(),
-		UpdatedAt: time.Now().Unix(),
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
 	}
 	m.Teams = append(m.Teams, team)
 	m.Members = append(m.Members, model.TeamMember{
 		TeamID:    id,
 		UserID:    createdBy,
 		Role:      model.TeamRoleOwner,
-		CreatedAt: time.Now().Unix(),
+		CreatedAt: time.Now().UTC(),
 	})
 	return &m.Teams[len(m.Teams)-1], nil
 }
@@ -79,7 +79,7 @@ func (m *MockTeamStore) AddTeamMember(_ context.Context, teamID, userID, role st
 		TeamID:    teamID,
 		UserID:    userID,
 		Role:      role,
-		CreatedAt: time.Now().Unix(),
+		CreatedAt: time.Now().UTC(),
 	}
 	m.Members = append(m.Members, member)
 	return &m.Members[len(m.Members)-1], nil

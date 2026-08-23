@@ -112,7 +112,7 @@ func (a *AuditRetainer) sweep(ctx context.Context) int64 {
 	if a == nil {
 		return 0
 	}
-	cutoff := a.now().Add(-a.window).Unix()
+	cutoff := a.now().Add(-a.window)
 
 	// Read the oldest timestamp before deleting, so the recorded event can say
 	// what the sweep actually removed rather than only what it was permitted
@@ -124,7 +124,7 @@ func (a *AuditRetainer) sweep(ctx context.Context) int64 {
 		a.log().WarnContext(ctx, "read oldest event failed", "err", err)
 		// Not fatal: the count below is still exact, and only the message is
 		// poorer for it.
-		oldest = 0
+		oldest = time.Time{}
 	}
 
 	var removed int64
@@ -155,16 +155,16 @@ func (a *AuditRetainer) sweep(ctx context.Context) int64 {
 // and by the time the window moves past it a later sweep has said the same
 // thing about a later stretch. What a reader must never find is a trail that
 // silently starts partway through.
-func (a *AuditRetainer) recordPrune(ctx context.Context, removed, oldest, cutoff int64) {
+func (a *AuditRetainer) recordPrune(ctx context.Context, removed int64, oldest, cutoff time.Time) {
 	if a.writer == nil {
 		return
 	}
-	detail := fmt.Sprintf("%d events before %s", removed, time.Unix(cutoff, 0).UTC().Format(time.RFC3339))
-	if oldest > 0 {
+	detail := fmt.Sprintf("%d events before %s", removed, cutoff.UTC().Format(time.RFC3339))
+	if !oldest.IsZero() {
 		detail = fmt.Sprintf("%d events from %s to %s",
 			removed,
-			time.Unix(oldest, 0).UTC().Format(time.RFC3339),
-			time.Unix(cutoff, 0).UTC().Format(time.RFC3339),
+			oldest.UTC().Format(time.RFC3339),
+			cutoff.UTC().Format(time.RFC3339),
 		)
 	}
 	if err := a.writer.RecordAuditEvent(ctx, model.AuditEvent{

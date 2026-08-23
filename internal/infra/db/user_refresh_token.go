@@ -22,17 +22,17 @@ type userRefreshTokenRow struct {
 	// format -- an "as_" prefixed ID minted with the token, not a row handle --
 	// because it names a chain, not a row, and it is a claim in every access
 	// token already issued under it.
-	SessionID string `gorm:"type:varchar(64);not null;index"`
-	Platform  string `gorm:"type:varchar(32)"`
-	ExpiresAt int64  `gorm:"not null;index"`
-	UsedAt    *int64
-	RevokedAt *int64
+	SessionID string    `gorm:"type:varchar(64);not null;index"`
+	Platform  string    `gorm:"type:varchar(32)"`
+	ExpiresAt time.Time `gorm:"not null;index"`
+	UsedAt    *time.Time
+	RevokedAt *time.Time
 	// ReplacedBy holds the hash of the token most recently issued in exchange
 	// for this one. It is never read by the exchange itself — it exists so that
 	// an operator investigating a reuse report can walk the chain back to the
 	// login.
-	ReplacedBy string `gorm:"type:varchar(128)"`
-	CreatedAt  int64  `gorm:"autoCreateTime"`
+	ReplacedBy string    `gorm:"type:varchar(128)"`
+	CreatedAt  time.Time `gorm:"autoCreateTime"`
 }
 
 func (userRefreshTokenRow) TableName() string { return "user_refresh_token" }
@@ -72,12 +72,12 @@ func newRefreshTokenPlaintext() (string, error) {
 }
 
 // CreateRefreshToken implements model.RefreshTokenStore.
-func (s *Store) CreateRefreshToken(ctx context.Context, in model.NewRefreshToken) (string, int64, error) {
+func (s *Store) CreateRefreshToken(ctx context.Context, in model.NewRefreshToken) (string, time.Time, error) {
 	if in.UserID == "" {
-		return "", 0, errors.New("refresh token: user id required")
+		return "", time.Time{}, errors.New("refresh token: user id required")
 	}
 	if in.SessionID == "" {
-		return "", 0, errors.New("refresh token: session id required")
+		return "", time.Time{}, errors.New("refresh token: session id required")
 	}
 	ttl := in.TTL
 	if ttl <= 0 {
@@ -85,13 +85,13 @@ func (s *Store) CreateRefreshToken(ctx context.Context, in model.NewRefreshToken
 	}
 	plaintext, err := newRefreshTokenPlaintext()
 	if err != nil {
-		return "", 0, err
+		return "", time.Time{}, err
 	}
 	userKey, err := lookupKey(ctx, s.db, "user", in.UserID)
 	if err != nil {
-		return "", 0, err
+		return "", time.Time{}, err
 	}
-	expiresAt := time.Now().Add(ttl).Unix()
+	expiresAt := time.Now().UTC().Add(ttl)
 	row := userRefreshTokenRow{
 		TokenHash: hashRefreshToken(plaintext),
 		UserID:    userKey,
@@ -100,7 +100,7 @@ func (s *Store) CreateRefreshToken(ctx context.Context, in model.NewRefreshToken
 		ExpiresAt: expiresAt,
 	}
 	if err := s.db.WithContext(ctx).Create(&row).Error; err != nil {
-		return "", 0, err
+		return "", time.Time{}, err
 	}
 	return plaintext, expiresAt, nil
 }
@@ -112,7 +112,7 @@ func (s *Store) CreateRefreshToken(ctx context.Context, in model.NewRefreshToken
 // both be treated as the first. Exactly one wins that UPDATE. Everyone else
 // falls through to the slower path below, which decides whether they are a
 // racing sibling process or a replay.
-func (s *Store) RotateRefreshToken(ctx context.Context, plaintext string, now int64, ttl, grace time.Duration) (model.RotatedRefreshToken, error) {
+func (s *Store) RotateRefreshToken(ctx context.Context, plaintext string, now time.Time, ttl, grace time.Duration) (model.RotatedRefreshToken, error) {
 	if plaintext == "" {
 		return model.RotatedRefreshToken{}, model.ErrRefreshTokenInvalid
 	}
@@ -163,7 +163,7 @@ func (s *Store) RotateRefreshToken(ctx context.Context, plaintext string, now in
 
 		if res.RowsAffected == 0 {
 			// Not the winner. Work out why.
-			if row.RevokedAt != nil || row.ExpiresAt <= now {
+			if row.RevokedAt != nil || !row.ExpiresAt.After(now) {
 				return model.ErrRefreshTokenInvalid
 			}
 			if row.UsedAt == nil {
@@ -172,7 +172,7 @@ func (s *Store) RotateRefreshToken(ctx context.Context, plaintext string, now in
 				// guess.
 				return model.ErrRefreshTokenInvalid
 			}
-			if now-*row.UsedAt > int64(grace.Seconds()) {
+			if now.Sub(*row.UsedAt) > grace {
 				// Spent long enough ago that a second presentation is not a
 				// racing sibling. Retire the whole chain before reporting it:
 				// if there are two holders, neither keeps access.
@@ -201,7 +201,7 @@ func (s *Store) RotateRefreshToken(ctx context.Context, plaintext string, now in
 			UserID:    row.UserID,
 			SessionID: row.SessionID,
 			Platform:  row.Platform,
-			ExpiresAt: time.Unix(now, 0).Add(ttl).Unix(),
+			ExpiresAt: now.Add(ttl),
 		}
 		if err := tx.Create(&nextRow).Error; err != nil {
 			return err
@@ -229,7 +229,7 @@ func (s *Store) RotateRefreshToken(ctx context.Context, plaintext string, now in
 }
 
 // RevokeRefreshTokenSession implements model.RefreshTokenStore.
-func (s *Store) RevokeRefreshTokenSession(ctx context.Context, plaintext string, now int64) (string, string, error) {
+func (s *Store) RevokeRefreshTokenSession(ctx context.Context, plaintext string, now time.Time) (string, string, error) {
 	if plaintext == "" {
 		return "", "", nil
 	}
@@ -249,7 +249,7 @@ func (s *Store) RevokeRefreshTokenSession(ctx context.Context, plaintext string,
 }
 
 // RevokeSession implements model.RefreshTokenStore.
-func (s *Store) RevokeSession(ctx context.Context, sessionID string, now int64) (int64, error) {
+func (s *Store) RevokeSession(ctx context.Context, sessionID string, now time.Time) (int64, error) {
 	if sessionID == "" {
 		return 0, nil
 	}
@@ -260,7 +260,7 @@ func (s *Store) RevokeSession(ctx context.Context, sessionID string, now int64) 
 }
 
 // RevokeUserSessions implements model.RefreshTokenStore.
-func (s *Store) RevokeUserSessions(ctx context.Context, userID string, now int64) (int64, error) {
+func (s *Store) RevokeUserSessions(ctx context.Context, userID string, now time.Time) (int64, error) {
 	if userID == "" {
 		return 0, nil
 	}
@@ -283,7 +283,7 @@ func (s *Store) RevokeUserSessions(ctx context.Context, userID string, now int64
 // one chain during the grace window, and reporting those as separate sessions
 // would tell an operator someone is signed in three times when they are signed
 // in once.
-func (s *Store) CountUserSessions(ctx context.Context, userID string, now int64) (int, error) {
+func (s *Store) CountUserSessions(ctx context.Context, userID string, now time.Time) (int, error) {
 	if userID == "" {
 		return 0, nil
 	}
@@ -304,7 +304,7 @@ func (s *Store) CountUserSessions(ctx context.Context, userID string, now int64)
 	return int(n), nil
 }
 
-func revokeSessionTx(tx *gorm.DB, sessionID string, now int64) error {
+func revokeSessionTx(tx *gorm.DB, sessionID string, now time.Time) error {
 	if sessionID == "" {
 		return nil
 	}
@@ -318,7 +318,7 @@ func revokeSessionTx(tx *gorm.DB, sessionID string, now int64) error {
 // Revoked rows are kept until they expire rather than deleted on revocation:
 // a reuse report is worth investigating, and the chain it points at should
 // still be there when someone looks.
-func (s *Store) DeleteExpiredRefreshTokens(ctx context.Context, before int64) (int64, error) {
+func (s *Store) DeleteExpiredRefreshTokens(ctx context.Context, before time.Time) (int64, error) {
 	res := s.db.WithContext(ctx).
 		Where("expires_at <= ?", before).
 		Delete(&userRefreshTokenRow{})

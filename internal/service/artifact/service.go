@@ -106,7 +106,7 @@ type CreateInput struct {
 	CreatedByType string
 	CreatedByID   string
 	Content       io.Reader
-	ExpiresAt     *int64
+	ExpiresAt     *time.Time
 }
 
 // Create stores the content, then records the artifact.
@@ -259,7 +259,7 @@ func (s *Service) Delete(ctx context.Context, rec *model.Artifact, actorType, ac
 	if rec == nil {
 		return ErrNotFound
 	}
-	changed, err := s.Artifacts.SoftDeleteArtifact(ctx, rec.ID, s.now().Unix())
+	changed, err := s.Artifacts.SoftDeleteArtifact(ctx, rec.ID, s.now().UTC())
 	if err != nil {
 		return err
 	}

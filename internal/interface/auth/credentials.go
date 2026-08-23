@@ -25,11 +25,11 @@ type Credentials struct {
 	// RefreshToken renews the access token without another login code. Empty
 	// means this login ends when Token expires — either an old file or a server
 	// that stores no refresh tokens.
-	RefreshToken string `json:"refresh_token,omitempty"`
-	UserID       string `json:"user_id"`
-	Email        string `json:"email"`
-	Name         string `json:"name"`
-	SavedAt      int64  `json:"saved_at"`
+	RefreshToken string    `json:"refresh_token,omitempty"`
+	UserID       string    `json:"user_id"`
+	Email        string    `json:"email"`
+	Name         string    `json:"name"`
+	SavedAt      time.Time `json:"saved_at"`
 }
 
 const (
@@ -66,7 +66,7 @@ func (c *Credentials) IsValid() bool {
 	if err != nil {
 		return false
 	}
-	return time.Now().Unix() < exp
+	return time.Now().Before(exp)
 }
 
 // IsUsable reports whether these credentials can still authenticate a call,
@@ -93,31 +93,34 @@ func (c *Credentials) needsRefresh(skew time.Duration) bool {
 		// An unparseable token is not one to keep sending.
 		return true
 	}
-	return time.Now().Add(skew).Unix() >= exp
+	return !time.Now().Add(skew).Before(exp)
 }
 
-// extractJWTExp decodes the JWT payload (middle segment) and returns
-// the exp claim as a unix timestamp. Returns an error if the token is
-// not a three-segment JWT or the exp claim is missing.
-func extractJWTExp(tokenStr string) (int64, error) {
+// extractJWTExp decodes the JWT payload (middle segment) and returns the exp
+// claim. Returns an error if the token is not a three-segment JWT or the exp
+// claim is missing.
+//
+// The claim stays a NumericDate on the wire — that is RFC 7519's format, not
+// ours — and becomes an instant here, at the boundary.
+func extractJWTExp(tokenStr string) (time.Time, error) {
 	parts := strings.SplitN(tokenStr, ".", 3)
 	if len(parts) != 3 {
-		return 0, errors.New("not a JWT")
+		return time.Time{}, errors.New("not a JWT")
 	}
 	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
-		return 0, err
+		return time.Time{}, err
 	}
 	var claims struct {
 		Exp *float64 `json:"exp"`
 	}
 	if err := json.Unmarshal(payload, &claims); err != nil {
-		return 0, err
+		return time.Time{}, err
 	}
 	if claims.Exp == nil || *claims.Exp <= 0 {
-		return 0, errors.New("missing exp claim")
+		return time.Time{}, errors.New("missing exp claim")
 	}
-	return int64(*claims.Exp), nil
+	return time.Unix(int64(*claims.Exp), 0).UTC(), nil
 }
 
 // Save marshals creds to JSON and writes them to path, creating parent
@@ -130,8 +133,8 @@ func extractJWTExp(tokenStr string) (int64, error) {
 func Save(creds *Credentials, path string) error {
 	credentialsMu.Lock()
 	defer credentialsMu.Unlock()
-	if creds.SavedAt == 0 {
-		creds.SavedAt = time.Now().Unix()
+	if creds.SavedAt.IsZero() {
+		creds.SavedAt = time.Now().UTC()
 	}
 	data, err := json.MarshalIndent(creds, "", "  ")
 	if err != nil {

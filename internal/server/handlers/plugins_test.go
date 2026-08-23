@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/core/plugin/archive"
@@ -33,8 +34,8 @@ type catalogFixture struct {
 func newCatalogFixture(t *testing.T, withMarketplace bool) *catalogFixture {
 	t.Helper()
 	users := &mock.MockUserStore{
-		ByID:    map[string]*model.User{catalogUser: {ID: catalogUser, Email: "reader@example.com", CreatedAt: 1}},
-		ByEmail: map[string]*model.User{"reader@example.com": {ID: catalogUser, Email: "reader@example.com", CreatedAt: 1}},
+		ByID:    map[string]*model.User{catalogUser: {ID: catalogUser, Email: "reader@example.com", CreatedAt: time.Unix(1, 0).UTC()}},
+		ByEmail: map[string]*model.User{"reader@example.com": {ID: catalogUser, Email: "reader@example.com", CreatedAt: time.Unix(1, 0).UTC()}},
 	}
 	audits := &mock.MockAuditStore{}
 	cfg := Config{

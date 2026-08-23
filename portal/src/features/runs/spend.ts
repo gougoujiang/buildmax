@@ -131,10 +131,11 @@ export function describeSpend(options: {
   return "This run called no model through the managed gateway."
 }
 
-/** Seconds a call took, at the ledger's one-second resolution. */
+/** How long a call took, to the second. */
 export function callElapsed(call: ApiTaskRunLLMCall): string {
   if (!call.completed_at) return "—"
-  const seconds = call.completed_at - call.accepted_at
+  const ms = new Date(call.completed_at).getTime() - new Date(call.accepted_at).getTime()
+  const seconds = Math.floor(ms / 1000)
   if (seconds <= 0) return "<1 s"
   return `${seconds} s`
 }

@@ -1,6 +1,9 @@
 package model
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // Artifact is a durable file BuildMax holds on a team's behalf.
 //
@@ -34,9 +37,9 @@ type Artifact struct {
 	// DeletedAt tombstones the artifact. Metadata and content stop being
 	// served the moment it is set; removing the object itself is a later,
 	// separate step under retention policy.
-	DeletedAt *int64 `json:"deleted_at,omitempty"`
-	ExpiresAt *int64 `json:"expires_at,omitempty"`
-	CreatedAt int64  `json:"created_at"`
+	DeletedAt *time.Time `json:"deleted_at,omitempty"`
+	ExpiresAt *time.Time `json:"expires_at,omitempty"`
+	CreatedAt time.Time  `json:"created_at"`
 }
 
 // Deleted reports whether the artifact has been tombstoned.
@@ -81,7 +84,7 @@ type CreateArtifactInput struct {
 	SourceType    string
 	SourceID      string
 	Title         string
-	ExpiresAt     *int64
+	ExpiresAt     *time.Time
 }
 
 // ArtifactStore persists artifact metadata.
@@ -103,7 +106,7 @@ type ArtifactStore interface {
 	ListArtifactsBySource(ctx context.Context, sourceIDs []string) (map[string][]Artifact, error)
 	// SoftDeleteArtifact tombstones the artifact and reports whether it changed
 	// anything, so a repeat delete is distinguishable from a first one.
-	SoftDeleteArtifact(ctx context.Context, artifactID string, deletedAt int64) (bool, error)
+	SoftDeleteArtifact(ctx context.Context, artifactID string, deletedAt time.Time) (bool, error)
 }
 
 // TaskRunArtifact is one output file (artifact) for a task run.
@@ -115,11 +118,11 @@ type TaskRunArtifact struct {
 // ArtifactWithTask is a DTO for listing run outputs (artifacts) with task/run context.
 // ArtifactID holds task_run_id for API compatibility.
 type ArtifactWithTask struct {
-	ArtifactID       string `json:"artifact_id"`
-	TaskID           string `json:"task_id"`
-	TaskRunID        string `json:"task_run_id"`
-	ConversationID   string `json:"conversation_id"`
-	UserID           string `json:"user_id"`
-	CreatedAt        int64  `json:"created_at"`
-	TaskInputSnippet string `json:"task_input_snippet"`
+	ArtifactID       string    `json:"artifact_id"`
+	TaskID           string    `json:"task_id"`
+	TaskRunID        string    `json:"task_run_id"`
+	ConversationID   string    `json:"conversation_id"`
+	UserID           string    `json:"user_id"`
+	CreatedAt        time.Time `json:"created_at"`
+	TaskInputSnippet string    `json:"task_input_snippet"`
 }

@@ -3,6 +3,7 @@ package worker
 import (
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -12,11 +13,11 @@ import (
 // getTaskRunHandler builds and discards.
 func revisionFixture(agentID *string, agents *mock.MockAgentStore) (http.Handler, *mock.MockTaskRunStore) {
 	runs := &mock.MockTaskRunStore{
-		Runs: []model.TaskRun{{ID: "r_1", TaskID: "t_1", Status: string(model.RunStatusScheduled), CreatedAt: 1}},
+		Runs: []model.TaskRun{{ID: "r_1", TaskID: "t_1", Status: string(model.RunStatusScheduled), CreatedAt: time.Unix(1, 0).UTC()}},
 		TaskList: []model.Task{{
 			ID: "t_1", ConversationID: "c_1", TeamID: llmTestTeam,
 			Status: string(model.RunStatusScheduled), Input: "in", CreatedBy: llmTestUser,
-			AgentID: agentID, CreatedAt: 1,
+			AgentID: agentID, CreatedAt: time.Unix(1, 0).UTC(),
 		}},
 	}
 	cfg := Config{JWTSecret: llmTestSecret, TaskRuns: runs, WorkerToken: workerTestToken}

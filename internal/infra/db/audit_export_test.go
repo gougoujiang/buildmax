@@ -14,7 +14,11 @@ import (
 // The timestamps are set after the insert because RecordAuditEvent stamps
 // created_at itself — which is right for a governance record and inconvenient
 // for a test that needs to control the ordering the cursor walks.
-func seedAuditEvents(t *testing.T, s *Store, ctx context.Context, actor, teamID string, at []int64) {
+// at builds a distinct, ordered instant from a small seed number, so a test can
+// keep writing 100/200/300 and still be talking about times.
+func at(seconds int) time.Time { return time.Unix(1_700_000_000+int64(seconds), 0).UTC() }
+
+func seedAuditEvents(t *testing.T, s *Store, ctx context.Context, actor, teamID string, at []time.Time) {
 	t.Helper()
 	for range at {
 		if err := s.RecordAuditEvent(ctx, model.AuditEvent{
@@ -57,7 +61,7 @@ func TestExportTeamAuditEventsWalksEveryEventAcrossTies(t *testing.T) {
 	teamID := newTestTeam(t, s, actor)
 	t.Cleanup(func() { _ = s.db.WithContext(ctx).Delete(&auditEventRow{}, "actor_id = ?", actor).Error })
 
-	seedAuditEvents(t, s, ctx, actor, teamID, []int64{500, 500, 500, 400})
+	seedAuditEvents(t, s, ctx, actor, teamID, []time.Time{at(500), at(500), at(500), at(400)})
 
 	var seen []string
 	var cursor model.AuditCursor
@@ -97,9 +101,9 @@ func TestExportAuditEventsHonoursTheFilter(t *testing.T) {
 	teamID := newTestTeam(t, s, actor)
 	t.Cleanup(func() { _ = s.db.WithContext(ctx).Delete(&auditEventRow{}, "actor_id = ?", actor).Error })
 
-	seedAuditEvents(t, s, ctx, actor, teamID, []int64{100, 200, 300})
+	seedAuditEvents(t, s, ctx, actor, teamID, []time.Time{at(100), at(200), at(300)})
 
-	events, err := s.ExportAuditEvents(ctx, model.AuditFilter{ActorID: actor, Since: 200}, model.AuditCursor{}, 100)
+	events, err := s.ExportAuditEvents(ctx, model.AuditFilter{ActorID: actor, Since: at(200)}, model.AuditCursor{}, 100)
 	if err != nil {
 		t.Fatalf("ExportAuditEvents: %v", err)
 	}
@@ -107,8 +111,8 @@ func TestExportAuditEventsHonoursTheFilter(t *testing.T) {
 		t.Fatalf("got %d events, want 2", len(events))
 	}
 	for _, e := range events {
-		if e.CreatedAt < 200 {
-			t.Errorf("event at %d is outside the filter", e.CreatedAt)
+		if e.CreatedAt.Before(at(200)) {
+			t.Errorf("event at %v is outside the filter", e.CreatedAt)
 		}
 	}
 }
@@ -122,35 +126,35 @@ func TestPruneAuditEventsRemovesOnlyWhatExpired(t *testing.T) {
 	teamID := newTestTeam(t, s, actor)
 	t.Cleanup(func() { _ = s.db.WithContext(ctx).Delete(&auditEventRow{}, "actor_id = ?", actor).Error })
 
-	now := time.Now().Unix()
+	now := time.Now().UTC()
 	// Retention is deployment-wide, so the counts below are over the whole
 	// table and cannot tolerate a row this test did not write -- a sign-in from
 	// a stack sharing this database, or an earlier run that was interrupted
 	// before its cleanup. Everything the prune would reach is removed first,
 	// which is what makes an absolute count mean anything here.
-	if err := s.db.WithContext(ctx).Where("created_at < ?", now-100).Delete(&auditEventRow{}).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("created_at < ?", now.Add(-100*time.Second)).Delete(&auditEventRow{}).Error; err != nil {
 		t.Fatalf("clear events older than the cutoff: %v", err)
 	}
-	seedAuditEvents(t, s, ctx, actor, teamID, []int64{now - 400, now - 300, now - 200, now - 50})
+	seedAuditEvents(t, s, ctx, actor, teamID, []time.Time{now.Add(-400 * time.Second), now.Add(-300 * time.Second), now.Add(-200 * time.Second), now.Add(-50 * time.Second)})
 
 	oldest, err := s.OldestAuditEventAt(ctx)
 	if err != nil {
 		t.Fatalf("OldestAuditEventAt: %v", err)
 	}
-	if oldest > now-400 {
-		t.Errorf("OldestAuditEventAt = %d, want at most %d", oldest, now-400)
+	if oldest.After(now.Add(-400 * time.Second)) {
+		t.Errorf("OldestAuditEventAt = %v, want at most %v", oldest, now.Add(-400*time.Second))
 	}
 
 	// A bounded prune stops at the batch size rather than taking everything it
 	// is allowed to, so one sweep cannot hold the table.
-	removed, err := s.PruneAuditEvents(ctx, now-100, 2)
+	removed, err := s.PruneAuditEvents(ctx, now.Add(-100*time.Second), 2)
 	if err != nil {
 		t.Fatalf("PruneAuditEvents: %v", err)
 	}
 	if removed != 2 {
 		t.Fatalf("first batch removed %d, want 2", removed)
 	}
-	removed, err = s.PruneAuditEvents(ctx, now-100, 100)
+	removed, err = s.PruneAuditEvents(ctx, now.Add(-100*time.Second), 100)
 	if err != nil {
 		t.Fatalf("PruneAuditEvents: %v", err)
 	}
@@ -165,8 +169,8 @@ func TestPruneAuditEventsRemovesOnlyWhatExpired(t *testing.T) {
 	if len(remaining) != 1 {
 		t.Fatalf("%d events left, want 1", len(remaining))
 	}
-	if remaining[0].CreatedAt != now-50 {
-		t.Errorf("kept the event at %d, want the one at %d", remaining[0].CreatedAt, now-50)
+	if !remaining[0].CreatedAt.Equal(now.Add(-50 * time.Second)) {
+		t.Errorf("kept the event at %v, want the one at %v", remaining[0].CreatedAt, now.Add(-50*time.Second))
 	}
 }
 
@@ -178,9 +182,9 @@ func TestPruneAuditEventsIgnoresAZeroCutoff(t *testing.T) {
 	teamID := newTestTeam(t, s, actor)
 	t.Cleanup(func() { _ = s.db.WithContext(ctx).Delete(&auditEventRow{}, "actor_id = ?", actor).Error })
 
-	seedAuditEvents(t, s, ctx, actor, teamID, []int64{100})
+	seedAuditEvents(t, s, ctx, actor, teamID, []time.Time{at(100)})
 
-	removed, err := s.PruneAuditEvents(ctx, 0, 100)
+	removed, err := s.PruneAuditEvents(ctx, time.Time{}, 100)
 	if err != nil {
 		t.Fatalf("PruneAuditEvents: %v", err)
 	}

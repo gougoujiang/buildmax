@@ -118,10 +118,7 @@ func Stream(w http.ResponseWriter, r *http.Request, page PageFunc, name string) 
 func exportRow(e model.AuditEvent) []string {
 	return []string{
 		e.ID,
-		// RFC 3339 rather than the stored Unix seconds: the CSV is meant to be
-		// opened, and a column of epoch integers is not readable by the person
-		// opening it. The JSONL form keeps the raw field.
-		time.Unix(e.CreatedAt, 0).UTC().Format(time.RFC3339),
+		e.CreatedAt.UTC().Format(time.RFC3339),
 		e.TeamID,
 		e.ActorType,
 		e.ActorID,
@@ -148,8 +145,8 @@ func AdminFilter(q url.Values) model.AuditFilter {
 		TeamID:  q.Get("team_id"),
 		ActorID: q.Get("actor_id"),
 		Action:  q.Get("action"),
-		Since:   parseUnixParam(q.Get("since")),
-		Until:   parseUnixParam(q.Get("until")),
+		Since:   parseTimeParam(q.Get("since")),
+		Until:   parseTimeParam(q.Get("until")),
 	}
 	// team_id=none asks for the events no team-scoped reader can ever see:
 	// logins, grants, account actions. An empty team_id already means "any
@@ -161,13 +158,17 @@ func AdminFilter(q url.Values) model.AuditFilter {
 	return filter
 }
 
-func parseUnixParam(v string) int64 {
+// parseTimeParam reads an RFC 3339 bound. An unparseable value is no bound
+// rather than an error: a filter that rejects the whole request because a
+// timestamp was malformed makes an investigation harder than one that returns a
+// wider window.
+func parseTimeParam(v string) time.Time {
 	if v == "" {
-		return 0
+		return time.Time{}
 	}
-	n, err := strconv.ParseInt(v, 10, 64)
-	if err != nil || n < 0 {
-		return 0
+	t, err := time.Parse(time.RFC3339, v)
+	if err != nil {
+		return time.Time{}
 	}
-	return n
+	return t.UTC()
 }

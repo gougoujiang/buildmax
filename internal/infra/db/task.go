@@ -18,23 +18,23 @@ type taskRow struct {
 	// The team index carries created_at: a team's task list is always ordered
 	// by it, and the single-column index the string model left could not serve
 	// the sort.
-	ConversationID        uint64  `gorm:"column:conversation_id;not null;index"`
-	TeamID                uint64  `gorm:"column:team_id;index:idx_task_team_created,priority:1"`
-	IssueID               *uint64 `gorm:"column:issue_id;index"`
-	Status                string  `gorm:"type:varchar(32);not null"`
-	Input                 string  `gorm:"type:text;not null"`
-	Title                 string  `gorm:"type:varchar(256)"`
-	TitlePromptTokens     int     `gorm:""`
-	TitleCompletionTokens int     `gorm:""`
-	Output                *string `gorm:"type:text"`
-	CreatedBy             uint64  `gorm:"column:created_by;not null"`
-	CreatedAt             int64   `gorm:"autoCreateTime;index:idx_task_team_created,priority:2"`
-	StartedAt             *int64  `gorm:""`
-	EndedAt               *int64  `gorm:""`
-	ErrorMessage          *string `gorm:"type:text"`
-	SessionID             *string `gorm:"type:varchar(36)"`
-	LastRunID             *uint64 `gorm:"column:last_run_id;index"`
-	AgentID               *uint64 `gorm:"column:agent_id;index"`
+	ConversationID        uint64     `gorm:"column:conversation_id;not null;index"`
+	TeamID                uint64     `gorm:"column:team_id;index:idx_task_team_created,priority:1"`
+	IssueID               *uint64    `gorm:"column:issue_id;index"`
+	Status                string     `gorm:"type:varchar(32);not null"`
+	Input                 string     `gorm:"type:text;not null"`
+	Title                 string     `gorm:"type:varchar(256)"`
+	TitlePromptTokens     int        `gorm:""`
+	TitleCompletionTokens int        `gorm:""`
+	Output                *string    `gorm:"type:text"`
+	CreatedBy             uint64     `gorm:"column:created_by;not null"`
+	CreatedAt             time.Time  `gorm:"autoCreateTime;index:idx_task_team_created,priority:2"`
+	StartedAt             *time.Time `gorm:""`
+	EndedAt               *time.Time `gorm:""`
+	ErrorMessage          *string    `gorm:"type:text"`
+	SessionID             *string    `gorm:"type:varchar(36)"`
+	LastRunID             *uint64    `gorm:"column:last_run_id;index"`
+	AgentID               *uint64    `gorm:"column:agent_id;index"`
 }
 
 func (taskRow) TableName() string { return "task" }
@@ -215,7 +215,7 @@ func (s *Store) CreateTask(ctx context.Context, in *model.CreateTaskInput) (*mod
 	if in == nil {
 		return nil, errors.New("model.CreateTaskInput is required")
 	}
-	now := time.Now().Unix()
+	now := time.Now().UTC()
 	sessionID := session.NewID() // UUID for buildmax CLI (session not exposed to user)
 	taskDB := &taskRow{
 		Status:                "PENDING",
@@ -323,7 +323,7 @@ func defaultString(v, fallback string) string {
 	return fallback
 }
 
-func buildTaskUpdates(status string, startedAt, endedAt *int64, output, errorMessage, sessionID *string) map[string]interface{} {
+func buildTaskUpdates(status string, startedAt, endedAt *time.Time, output, errorMessage, sessionID *string) map[string]interface{} {
 	updates := map[string]interface{}{"status": status}
 	if startedAt != nil {
 		updates["started_at"] = *startedAt

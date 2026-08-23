@@ -3,8 +3,9 @@ package db
 import (
 	"context"
 	"errors"
-	"github.com/gougoujiang/buildmax/internal/core/model"
 	"time"
+
+	"github.com/gougoujiang/buildmax/internal/core/model"
 
 	"github.com/gougoujiang/buildmax/internal/util"
 	"gorm.io/gorm"
@@ -19,16 +20,16 @@ type userRow struct {
 	// operator and not yet claimed, or signing in with login codes only. It
 	// stays nullable so that an account authenticated somewhere else — an
 	// identity provider, when there is one — needs no local password to exist.
-	PasswordHash      *string `gorm:"type:varchar(255)"`
-	PasswordSetAt     *int64  `gorm:""`
-	QuotaTier         string  `gorm:"type:varchar(64)"`
-	LastLoginAt       *int64  `gorm:""`
-	LastLoginPlatform *string `gorm:"type:varchar(32)"`
+	PasswordHash      *string    `gorm:"type:varchar(255)"`
+	PasswordSetAt     *time.Time `gorm:""`
+	QuotaTier         string     `gorm:"type:varchar(64)"`
+	LastLoginAt       *time.Time `gorm:""`
+	LastLoginPlatform *string    `gorm:"type:varchar(32)"`
 	// DisabledAt is NULL for an ordinary account. Non-NULL is checked on every
 	// authenticated request, which is why it lives on this row rather than in a
 	// side table: the check has to be one primary-key read.
-	DisabledAt *int64 `gorm:""`
-	CreatedAt  int64  `gorm:"autoCreateTime"`
+	DisabledAt *time.Time `gorm:""`
+	CreatedAt  time.Time  `gorm:"autoCreateTime"`
 }
 
 func (userRow) TableName() string { return "user" }
@@ -97,7 +98,7 @@ func (s *Store) ListUsers(ctx context.Context, query string, limit, offset int) 
 //
 // Enabling reverses the state and nothing else: sessions revoked by the disable
 // stay revoked, and runs it stopped stay stopped. Undo is not a goal.
-func (s *Store) SetUserDisabled(ctx context.Context, userID string, disabledAt *int64) error {
+func (s *Store) SetUserDisabled(ctx context.Context, userID string, disabledAt *time.Time) error {
 	id, ok := util.CanonicalPublicID(userID)
 	if !ok {
 		return model.ErrUserNotFound
@@ -155,7 +156,7 @@ func (s *Store) GetUser(ctx context.Context, userID string) (*model.User, error)
 }
 
 // UpdateLoginMeta records the last login timestamp and platform for the user.
-func (s *Store) UpdateLoginMeta(ctx context.Context, userID string, loginAt int64, platform string) error {
+func (s *Store) UpdateLoginMeta(ctx context.Context, userID string, loginAt time.Time, platform string) error {
 	id, ok := util.CanonicalPublicID(userID)
 	if !ok {
 		return model.ErrUserNotFound
@@ -183,7 +184,7 @@ func (s *Store) CreateUser(ctx context.Context, email string, defaultQuotaTier s
 	u := model.User{
 		Email:     email,
 		Name:      "",
-		CreatedAt: time.Now().Unix(),
+		CreatedAt: time.Now().UTC(),
 	}
 	if defaultQuotaTier != "" {
 		u.QuotaTier = defaultQuotaTier
@@ -252,7 +253,7 @@ func (s *Store) PasswordHash(ctx context.Context, userID string) (string, error)
 }
 
 // SetPassword implements model.PasswordStore.
-func (s *Store) SetPassword(ctx context.Context, userID, encodedHash string, setAt int64) error {
+func (s *Store) SetPassword(ctx context.Context, userID, encodedHash string, setAt time.Time) error {
 	if userID == "" {
 		return errors.New("set password: user id required")
 	}

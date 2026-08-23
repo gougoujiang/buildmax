@@ -2,6 +2,7 @@ package team
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/server/access"
@@ -10,24 +11,24 @@ import (
 )
 
 type AgentResponse struct {
-	ID           string `json:"id"`
-	UserID       string `json:"user_id"`
-	TeamID       string `json:"team_id,omitempty"`
-	Name         string `json:"name"`
-	Description  string `json:"description"`
-	Instructions string `json:"instructions"`
-	Revision     int    `json:"revision"`
-	CreatedAt    int64  `json:"created_at"`
+	ID           string    `json:"id"`
+	UserID       string    `json:"user_id"`
+	TeamID       string    `json:"team_id,omitempty"`
+	Name         string    `json:"name"`
+	Description  string    `json:"description"`
+	Instructions string    `json:"instructions"`
+	Revision     int       `json:"revision"`
+	CreatedAt    time.Time `json:"created_at"`
 }
 
 type agentRevisionResponse struct {
-	AgentID      string `json:"agent_id"`
-	Revision     int    `json:"revision"`
-	Name         string `json:"name"`
-	Description  string `json:"description"`
-	Instructions string `json:"instructions"`
-	CreatedBy    string `json:"created_by"`
-	CreatedAt    int64  `json:"created_at"`
+	AgentID      string    `json:"agent_id"`
+	Revision     int       `json:"revision"`
+	Name         string    `json:"name"`
+	Description  string    `json:"description"`
+	Instructions string    `json:"instructions"`
+	CreatedBy    string    `json:"created_by"`
+	CreatedAt    time.Time `json:"created_at"`
 }
 
 type agentRevisionListResponse struct {

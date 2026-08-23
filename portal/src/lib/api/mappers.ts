@@ -30,9 +30,9 @@ import type {
   WorkflowStepRun,
 } from "../types"
 
-/** Format a Unix timestamp (seconds) as "Today HH:MM", "Yesterday HH:MM", or full locale string. */
-function formatRelativeTime(secondsSinceEpoch: number): string {
-  const d = new Date(secondsSinceEpoch * 1000)
+/** Format an RFC 3339 instant as "Today HH:MM", "Yesterday HH:MM", or full locale string. */
+function formatRelativeTime(rfc3339: string): string {
+  const d = new Date(rfc3339)
   const today = new Date()
   if (d.toDateString() === today.toDateString()) {
     return `Today ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`

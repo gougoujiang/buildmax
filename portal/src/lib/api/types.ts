@@ -29,7 +29,7 @@ export interface ApiWorkspace {
   id: string
   name: string
   owner_user_id?: string
-  created_at?: number
+  created_at?: string
 }
 
 /** Agent as returned by team-scoped agent endpoints. */
@@ -41,7 +41,7 @@ export interface ApiAgent {
   description: string
   instructions: string
   revision: number
-  created_at: number
+  created_at: string
 }
 
 export interface ApiAgentRevision {
@@ -51,7 +51,7 @@ export interface ApiAgentRevision {
   description: string
   instructions: string
   created_by: string
-  created_at: number
+  created_at: string
 }
 
 export interface ApiAgentRevisionListResponse {
@@ -70,8 +70,8 @@ export interface ApiIssue {
   assignee_kind?: string | null
   assignee_id?: string | null
   created_by: string
-  created_at: number
-  updated_at: number
+  created_at: string
+  updated_at: string
   /** Derived per response, never stored. Absent on older servers. */
   child_count?: number
   done_child_count?: number
@@ -86,9 +86,9 @@ export interface ApiIssueComment {
   body: string
   source_task_id?: string | null
   source_task_run_id?: string | null
-  created_at: number
+  created_at: string
   /** Absent until the comment is edited. */
-  edited_at?: number | null
+  edited_at?: string | null
 }
 
 export interface ApiIssueCommentsResponse {
@@ -105,8 +105,8 @@ export interface ApiWorkflow {
   status: string
   revision: number
   created_by: string
-  created_at: number
-  updated_at: number
+  created_at: string
+  updated_at: string
 }
 
 export interface ApiWorkflowRevision {
@@ -117,7 +117,7 @@ export interface ApiWorkflowRevision {
   definition: string
   status: string
   created_by: string
-  created_at: number
+  created_at: string
 }
 
 export interface ApiWorkflowRevisionListResponse {
@@ -137,9 +137,9 @@ export interface ApiWorkflowRun {
   conversation_id: string
   status: string
   created_by: string
-  created_at: number
-  started_at?: number | null
-  ended_at?: number | null
+  created_at: string
+  started_at?: string | null
+  ended_at?: string | null
   error_message?: string | null
 }
 
@@ -160,9 +160,9 @@ export interface ApiWorkflowStepRun {
   task_run_id?: string | null
   output_summary?: string | null
   error_message?: string | null
-  created_at: number
-  started_at?: number | null
-  ended_at?: number | null
+  created_at: string
+  started_at?: string | null
+  ended_at?: string | null
 }
 
 export interface ApiWorkflowRunListResponse {
@@ -203,7 +203,7 @@ export interface ApiIssueOutput {
   preview?: string
   preview_truncated: boolean
   source: ApiOutputSource
-  created_at: number
+  created_at: string
 }
 
 export interface ApiIssueFlowResponse {
@@ -240,9 +240,9 @@ export interface ApiTask {
   title?: string
   output: string | null
   created_by: string
-  created_at: number
-  started_at: number | null
-  ended_at: number | null
+  created_at: string
+  started_at: string | null
+  ended_at: string | null
   error_message: string | null
   agent_id?: string | null
   issue_id?: string | null
@@ -263,7 +263,7 @@ export interface ApiRunProvenance {
   created_by_type?: string
   trigger_source?: string
   retry_of_task_run_id?: string | null
-  created_at: number
+  created_at: string
   source_message?: ApiRunSourceMessage | null
   agent?: ApiRunAgent | null
 }
@@ -284,7 +284,7 @@ export interface ApiRunSourceMessage {
   id: string
   content: string
   truncated: boolean
-  created_at: number
+  created_at: string
 }
 
 /** Conversation as returned by the team-scoped task conversation endpoint. */
@@ -350,8 +350,8 @@ export interface ApiArtifact {
   source_id?: string
   /** Whether the server will serve this content for display rather than download. */
   inline: boolean
-  expires_at?: number
-  created_at: number
+  expires_at?: string
+  created_at: string
 }
 
 export interface ApiArtifactList {
@@ -430,9 +430,9 @@ export interface ApiTaskRunLLMCall {
   /** The operator-approved alias the run was allowed to call. */
   alias?: string
   streaming: boolean
-  accepted_at: number
-  first_delta_at?: number
-  completed_at?: number
+  accepted_at: string
+  first_delta_at?: string
+  completed_at?: string
   status: string
   error_class?: string
   attempts?: number
@@ -460,7 +460,7 @@ export interface ApiAuditEvent {
   target_id?: string
   /** A short non-sensitive note — a role name, a model alias. */
   detail?: string
-  created_at: number
+  created_at: string
 }
 
 export interface ApiAuditEventsResponse {
@@ -480,8 +480,8 @@ export interface ApiSystemGrant {
   user_id: string
   role: string
   granted_by: string
-  granted_at: number
-  revoked_at?: number
+  granted_at: string
+  revoked_at?: string
   /** Resolved on the grants list so a reader does not see only ids. */
   email?: string
 }
@@ -505,10 +505,10 @@ export interface ApiAdminUser {
   quota_tier?: string
   has_password: boolean
   /** Non-null means every credential this account holds is refused. */
-  disabled_at?: number
-  last_login_at?: number
+  disabled_at?: string
+  last_login_at?: string
   last_login_platform?: string
-  created_at: number
+  created_at: string
 }
 
 export interface ApiAdminUsersResponse {
@@ -531,7 +531,7 @@ export interface ApiAdminUserDetail extends ApiAdminUser {
 
 export interface ApiAdminLoginCode {
   code: string
-  expires_at: number
+  expires_at: string
 }
 
 export interface ApiAdminSessionsRevoked {
@@ -551,7 +551,7 @@ export interface ApiAdminDependency {
 
 export interface ApiAdminSchemaMigration {
   id: string
-  applied_at: number
+  applied_at: string
 }
 
 export interface ApiAdminSystem {
@@ -588,8 +588,8 @@ export interface ApiAdminModel {
   vision?: boolean
   capabilities?: string[]
   enabled: boolean
-  created_at: number
-  updated_at: number
+  created_at: string
+  updated_at: string
   /** Deployment aliases pointing here. None means no team can call it. */
   aliases: string[]
 }
@@ -605,10 +605,10 @@ export interface ApiPlugin {
   display_name?: string
   description?: string
   /** Non-zero means retired: out of the default catalog, and no new releases. */
-  archived_at?: number
+  archived_at?: string
   created_by: string
-  created_at: number
-  updated_at: number
+  created_at: string
+  updated_at: string
 }
 
 /**
@@ -660,9 +660,9 @@ export interface ApiPluginRelease {
   inspection: ApiPluginInspection
   source: ApiPluginReleaseSource
   published_by: string
-  published_at: number
+  published_at: string
   /** Non-zero means withdrawn from default selection. Nothing is deleted. */
-  yanked_at?: number
+  yanked_at?: string
   yanked_by?: string
   yanked_reason?: string
 }
@@ -693,7 +693,7 @@ export interface ApiAdminTeam {
   quota_tier?: string
   member_count: number
   created_by?: string
-  created_at: number
+  created_at: string
 }
 
 export interface ApiAdminTeamsResponse {
@@ -734,7 +734,7 @@ export interface ApiConversation {
   team_id: string
   channel: string
   title?: string
-  created_at: number
+  created_at: string
   created_by: string
 }
 
@@ -742,14 +742,14 @@ export interface ApiTeam {
   id: string
   name: string
   personal_for_user_id?: string | null
-  created_at?: number
+  created_at?: string
 }
 
 export interface ApiTeamMember {
   team_id: string
   user_id: string
   role: string
-  created_at?: number
+  created_at?: string
   user_name?: string
   user_email?: string
 }
@@ -772,7 +772,7 @@ export interface ApiConversationMessage {
   role: string
   content: string
   channel?: string | null
-  created_at: number
+  created_at: string
 }
 
 /** Response from the team-scoped list conversation messages endpoint. */

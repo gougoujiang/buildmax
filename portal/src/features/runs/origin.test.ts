@@ -8,7 +8,7 @@ function provenance(over: Partial<ApiRunProvenance> = {}): ApiRunProvenance {
     task_id: "tk_1",
     status: "SUCCEEDED",
     input: "investigate the flaky test",
-    created_at: 1000,
+    created_at: "1970-01-01T00:16:40Z",
     ...over,
   }
 }
@@ -57,7 +57,7 @@ describe("describeOrigin", () => {
     const described = describeOrigin(
       provenance({
         trigger_source: "portal_conversation",
-        source_message: { id: "cm_1", content: "look into it", truncated: false, created_at: 1 },
+        source_message: { id: "cm_1", content: "look into it", truncated: false, created_at: "1970-01-01T00:00:01Z" },
       })
     )
     expect(described.quote).toBe("quoted")
@@ -70,7 +70,7 @@ describe("inputMatchesMessage", () => {
       inputMatchesMessage(
         provenance({
           input: "look into it",
-          source_message: { id: "cm_1", content: "look into it", truncated: false, created_at: 1 },
+          source_message: { id: "cm_1", content: "look into it", truncated: false, created_at: "1970-01-01T00:00:01Z" },
         })
       )
     ).toBe(true)
@@ -82,7 +82,7 @@ describe("inputMatchesMessage", () => {
             id: "cm_1",
             content: "look into the flaky test, but leave CI alone",
             truncated: false,
-            created_at: 1,
+            created_at: "1970-01-01T00:00:01Z",
           },
         })
       )
@@ -94,7 +94,7 @@ describe("inputMatchesMessage", () => {
       inputMatchesMessage(
         provenance({
           input: "same",
-          source_message: { id: "cm_1", content: "same", truncated: true, created_at: 1 },
+          source_message: { id: "cm_1", content: "same", truncated: true, created_at: "1970-01-01T00:00:01Z" },
         })
       )
     ).toBe(false)

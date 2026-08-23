@@ -1,12 +1,13 @@
 package worker
 
 import (
-	"github.com/gougoujiang/buildmax/internal/server/access"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gougoujiang/buildmax/internal/server/access"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -60,8 +61,8 @@ func workerRouteConfig() Config {
 		JWTSecret:   runRouteSecret,
 		WorkerToken: "shared-worker-token",
 		TaskRuns: &mock.MockTaskRunStore{
-			Runs:     []model.TaskRun{{ID: "r_1", TaskID: "t_1", Status: string(model.RunStatusScheduled), CreatedAt: 1}},
-			TaskList: []model.Task{{ID: "t_1", ConversationID: "c_1", TeamID: "tm_1", CreatedBy: "u_1", CreatedAt: 1}},
+			Runs:     []model.TaskRun{{ID: "r_1", TaskID: "t_1", Status: string(model.RunStatusScheduled), CreatedAt: time.Unix(1, 0).UTC()}},
+			TaskList: []model.Task{{ID: "t_1", ConversationID: "c_1", TeamID: "tm_1", CreatedBy: "u_1", CreatedAt: time.Unix(1, 0).UTC()}},
 		},
 	}
 }

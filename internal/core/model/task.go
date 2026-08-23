@@ -1,6 +1,9 @@
 package model
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // RunStatus is the canonical lifecycle status for task runs.
 type RunStatus string
@@ -61,45 +64,45 @@ const (
 
 // Task holds the user-visible state for a background task.
 type Task struct {
-	ID                    string  `json:"id"`
-	ConversationID        string  `json:"conversation_id"`
-	TeamID                string  `json:"team_id,omitempty"`
-	IssueID               *string `json:"issue_id,omitempty"`
-	Status                string  `json:"status"`
-	Input                 string  `json:"input"`
-	Title                 string  `json:"title,omitempty"`
-	TitlePromptTokens     int     `json:"title_prompt_tokens,omitempty"`
-	TitleCompletionTokens int     `json:"title_completion_tokens,omitempty"`
-	Output                *string `json:"output,omitempty"`
-	CreatedBy             string  `json:"created_by"`
-	CreatedAt             int64   `json:"created_at"`
-	StartedAt             *int64  `json:"started_at,omitempty"`
-	EndedAt               *int64  `json:"ended_at,omitempty"`
-	ErrorMessage          *string `json:"error_message,omitempty"`
-	SessionID             *string `json:"session_id,omitempty"`
-	LastRunID             *string `json:"last_run_id,omitempty"`
-	AgentID               *string `json:"agent_id,omitempty"`
+	ID                    string     `json:"id"`
+	ConversationID        string     `json:"conversation_id"`
+	TeamID                string     `json:"team_id,omitempty"`
+	IssueID               *string    `json:"issue_id,omitempty"`
+	Status                string     `json:"status"`
+	Input                 string     `json:"input"`
+	Title                 string     `json:"title,omitempty"`
+	TitlePromptTokens     int        `json:"title_prompt_tokens,omitempty"`
+	TitleCompletionTokens int        `json:"title_completion_tokens,omitempty"`
+	Output                *string    `json:"output,omitempty"`
+	CreatedBy             string     `json:"created_by"`
+	CreatedAt             time.Time  `json:"created_at"`
+	StartedAt             *time.Time `json:"started_at,omitempty"`
+	EndedAt               *time.Time `json:"ended_at,omitempty"`
+	ErrorMessage          *string    `json:"error_message,omitempty"`
+	SessionID             *string    `json:"session_id,omitempty"`
+	LastRunID             *string    `json:"last_run_id,omitempty"`
+	AgentID               *string    `json:"agent_id,omitempty"`
 }
 
 // TaskRun is one execution (initial or follow-up) of a task.
 type TaskRun struct {
-	ID               string  `json:"id"`
-	TaskID           string  `json:"task_id"`
-	Input            string  `json:"input"`
-	CreatedBy        string  `json:"created_by,omitempty"`
-	CreatedByType    string  `json:"created_by_type,omitempty"`
-	TriggerSource    string  `json:"trigger_source,omitempty"`
-	Status           string  `json:"status"`
-	Output           *string `json:"output,omitempty"`
-	ErrorMessage     *string `json:"error_message,omitempty"`
-	StartedAt        *int64  `json:"started_at,omitempty"`
-	EndedAt          *int64  `json:"ended_at,omitempty"`
-	SessionID        *string `json:"session_id,omitempty"`
-	WorkerType       string  `json:"worker_type,omitempty"`
-	K8sJobName       *string `json:"k8s_job_name,omitempty"`
-	K8sJobCreatedAt  *int64  `json:"k8s_job_created_at,omitempty"`
-	PromptTokens     *int    `json:"prompt_tokens,omitempty"`
-	CompletionTokens *int    `json:"completion_tokens,omitempty"`
+	ID               string     `json:"id"`
+	TaskID           string     `json:"task_id"`
+	Input            string     `json:"input"`
+	CreatedBy        string     `json:"created_by,omitempty"`
+	CreatedByType    string     `json:"created_by_type,omitempty"`
+	TriggerSource    string     `json:"trigger_source,omitempty"`
+	Status           string     `json:"status"`
+	Output           *string    `json:"output,omitempty"`
+	ErrorMessage     *string    `json:"error_message,omitempty"`
+	StartedAt        *time.Time `json:"started_at,omitempty"`
+	EndedAt          *time.Time `json:"ended_at,omitempty"`
+	SessionID        *string    `json:"session_id,omitempty"`
+	WorkerType       string     `json:"worker_type,omitempty"`
+	K8sJobName       *string    `json:"k8s_job_name,omitempty"`
+	K8sJobCreatedAt  *time.Time `json:"k8s_job_created_at,omitempty"`
+	PromptTokens     *int       `json:"prompt_tokens,omitempty"`
+	CompletionTokens *int       `json:"completion_tokens,omitempty"`
 	// TracePath locates this run's durable trace inside run-global storage,
 	// e.g. "traces/<session>/rt_….jsonl". Nil when no trace was written — the
 	// run failed before an agent started, or tracing was disabled.
@@ -108,7 +111,7 @@ type TaskRun struct {
 	// recorded rather than applied because the only thing that can stop a
 	// started run is its own worker: the server states the intent, the worker
 	// honors it and reports CANCELED. Nil means nobody has asked.
-	CancelRequestedAt *int64 `json:"cancel_requested_at,omitempty"`
+	CancelRequestedAt *time.Time `json:"cancel_requested_at,omitempty"`
 	// CancelRequestedBy is the user who asked. A team's runs can be stopped by
 	// anyone on the team, so "why did this stop" needs a name to answer.
 	CancelRequestedBy *string `json:"cancel_requested_by,omitempty"`
@@ -133,8 +136,8 @@ type TaskRun struct {
 	// without it, nobody can tell a constraint the model dropped from one the
 	// user never gave. Nil for a run with no message behind it — a workflow
 	// step, an issue agent run, a retry, or a task created straight from the API.
-	SourceMessageID *string `json:"source_message_id,omitempty"`
-	CreatedAt       int64   `json:"created_at"`
+	SourceMessageID *string   `json:"source_message_id,omitempty"`
+	CreatedAt       time.Time `json:"created_at"`
 }
 
 // TaskRunTerminalInfo describes a task run that reached a terminal state.
@@ -175,8 +178,8 @@ type ClaimTaskRunInput struct {
 	TaskRunID      string
 	ExpectedStatus RunStatus
 	NewStatus      RunStatus
-	StartedAt      *int64
-	EndedAt        *int64
+	StartedAt      *time.Time
+	EndedAt        *time.Time
 	Output         *string
 	ErrorMessage   *string
 	SessionID      *string
@@ -186,8 +189,8 @@ type ClaimTaskRunInput struct {
 type UpdateTaskInput struct {
 	TaskID       string
 	Status       string
-	StartedAt    *int64
-	EndedAt      *int64
+	StartedAt    *time.Time
+	EndedAt      *time.Time
 	Output       *string
 	ErrorMessage *string
 	SessionID    *string
@@ -198,8 +201,8 @@ type ClaimTaskInput struct {
 	TaskID         string
 	ExpectedStatus string
 	NewStatus      string
-	StartedAt      *int64
-	EndedAt        *int64
+	StartedAt      *time.Time
+	EndedAt        *time.Time
 	Output         *string
 	ErrorMessage   *string
 	SessionID      *string
@@ -209,8 +212,8 @@ type ClaimTaskInput struct {
 type UpdateTaskRunInput struct {
 	TaskRunID        string
 	Status           RunStatus
-	StartedAt        *int64
-	EndedAt          *int64
+	StartedAt        *time.Time
+	EndedAt          *time.Time
 	Output           *string
 	ErrorMessage     *string
 	SessionID        *string
@@ -275,12 +278,12 @@ type TaskRunStore interface {
 	// already terminal or already carries a request, so a second cancel
 	// neither resets the clock the backstop measures nor overwrites the name
 	// of whoever asked first.
-	RequestTaskRunCancel(ctx context.Context, taskRunID, requestedBy string, requestedAt int64) (bool, error)
+	RequestTaskRunCancel(ctx context.Context, taskRunID, requestedBy string, requestedAt time.Time) (bool, error)
 	// ClaimTaskRun atomically updates a run when current status matches ExpectedStatus.
 	ClaimTaskRun(ctx context.Context, in ClaimTaskRunInput) (bool, error)
 	// UpdateRun updates a run's status and optional fields.
 	UpdateRun(ctx context.Context, in UpdateTaskRunInput) error
-	UpdateTaskRunWorkerInfo(ctx context.Context, taskRunID, workerType string, k8sJobName *string, k8sJobCreatedAt *int64) error
+	UpdateTaskRunWorkerInfo(ctx context.Context, taskRunID, workerType string, k8sJobName *string, k8sJobCreatedAt *time.Time) error
 	// RecordTaskRunAgentRevision stores which agent definition a run was given.
 	// The first write wins: a run executes under the instructions it was handed
 	// at dispatch, and a later edit does not retroactively change what ran.

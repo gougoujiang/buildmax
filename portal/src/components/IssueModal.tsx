@@ -154,8 +154,8 @@ export function IssueModal({
           ) : null}
           {mode === "edit" && issue ? (
             <div className="issues-page__meta-row">
-              <div className="page-activity__meta">Created: {new Date(issue.createdAt * 1000).toLocaleString()}</div>
-              <div className="page-activity__meta">Updated: {new Date(issue.updatedAt * 1000).toLocaleString()}</div>
+              <div className="page-activity__meta">Created: {new Date(issue.createdAt).toLocaleString()}</div>
+              <div className="page-activity__meta">Updated: {new Date(issue.updatedAt).toLocaleString()}</div>
             </div>
           ) : null}
           {error ? (

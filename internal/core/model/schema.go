@@ -1,6 +1,9 @@
 package model
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // SchemaMigration is one applied schema step.
 //
@@ -8,8 +11,8 @@ import "context"
 // matches the binary talking to it — the question behind "we upgraded and
 // something is wrong".
 type SchemaMigration struct {
-	ID        string `json:"id"`
-	AppliedAt int64  `json:"applied_at"`
+	ID        string    `json:"id"`
+	AppliedAt time.Time `json:"applied_at"`
 }
 
 // SchemaStore reports what has been done to the database.

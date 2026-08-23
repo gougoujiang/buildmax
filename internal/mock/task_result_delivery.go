@@ -4,6 +4,7 @@ import (
 	"context"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 )
@@ -26,7 +27,7 @@ func (m *MockTaskResultDeliveryStore) ensure() {
 	}
 }
 
-func (m *MockTaskResultDeliveryStore) EnqueueTaskResultDelivery(_ context.Context, taskRunID, conversationID string, now int64) error {
+func (m *MockTaskResultDeliveryStore) EnqueueTaskResultDelivery(_ context.Context, taskRunID, conversationID string, now time.Time) error {
 	if m.EnqueueErr != nil {
 		return m.EnqueueErr
 	}
@@ -46,29 +47,29 @@ func (m *MockTaskResultDeliveryStore) EnqueueTaskResultDelivery(_ context.Contex
 	return nil
 }
 
-func (m *MockTaskResultDeliveryStore) ListDueTaskResultDeliveries(_ context.Context, now int64, limit int) ([]model.TaskResultDelivery, error) {
+func (m *MockTaskResultDeliveryStore) ListDueTaskResultDeliveries(_ context.Context, now time.Time, limit int) ([]model.TaskResultDelivery, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.ensure()
 	var out []model.TaskResultDelivery
 	for _, d := range m.Deliveries {
-		if d.Status == model.DeliveryPending && d.NextAttemptAt <= now {
+		if d.Status == model.DeliveryPending && !d.NextAttemptAt.After(now) {
 			out = append(out, *d)
 		}
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].NextAttemptAt < out[j].NextAttemptAt })
+	sort.Slice(out, func(i, j int) bool { return out[i].NextAttemptAt.Before(out[j].NextAttemptAt) })
 	if limit > 0 && len(out) > limit {
 		out = out[:limit]
 	}
 	return out, nil
 }
 
-func (m *MockTaskResultDeliveryStore) ClaimTaskResultDelivery(_ context.Context, taskRunID string, now, nextAttemptAt int64) (*model.TaskResultDelivery, error) {
+func (m *MockTaskResultDeliveryStore) ClaimTaskResultDelivery(_ context.Context, taskRunID string, now, nextAttemptAt time.Time) (*model.TaskResultDelivery, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.ensure()
 	d, ok := m.Deliveries[taskRunID]
-	if !ok || d.Status != model.DeliveryPending || d.NextAttemptAt > now {
+	if !ok || d.Status != model.DeliveryPending || d.NextAttemptAt.After(now) {
 		return nil, nil
 	}
 	d.Attempts++
@@ -92,7 +93,7 @@ func (m *MockTaskResultDeliveryStore) FinishTaskResultDelivery(_ context.Context
 	return nil
 }
 
-func (m *MockTaskResultDeliveryStore) RecordTaskResultDeliveryFailure(_ context.Context, taskRunID, lastError string, nextAttemptAt int64) error {
+func (m *MockTaskResultDeliveryStore) RecordTaskResultDeliveryFailure(_ context.Context, taskRunID, lastError string, nextAttemptAt time.Time) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.ensure()

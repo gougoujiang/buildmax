@@ -30,7 +30,7 @@ func TestPluginStateRoundTrip(t *testing.T) {
 		CatalogID:         "pl_00000000000000000000",
 		ReleaseVersion:    "1.2.0",
 		Digest:            "sha256:abc",
-		InstalledAt:       time.Now().Unix(),
+		InstalledAt:       time.Now().UTC(),
 	}
 	if err := UpdatePluginStates(dir, func(s *PluginStates) error {
 		s.Set("code-review", want)

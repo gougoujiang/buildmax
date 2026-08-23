@@ -3,6 +3,7 @@ package artifact
 import (
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
@@ -31,9 +32,9 @@ type ArtifactResponse struct {
 	// Inline reports whether this deployment will render the content in a
 	// browser. The client uses it to decide between a preview and a download
 	// action instead of guessing from the media type itself.
-	Inline    bool  `json:"inline"`
-	ExpiresAt int64 `json:"expires_at,omitempty"`
-	CreatedAt int64 `json:"created_at"`
+	Inline    bool       `json:"inline"`
+	ExpiresAt *time.Time `json:"expires_at,omitempty"`
+	CreatedAt time.Time  `json:"created_at"`
 }
 
 type artifactListResponse struct {
@@ -59,9 +60,7 @@ func ToResponse(a *model.Artifact) ArtifactResponse {
 		Inline:        inlineAllowed(a.MediaType),
 		CreatedAt:     a.CreatedAt,
 	}
-	if a.ExpiresAt != nil {
-		out.ExpiresAt = *a.ExpiresAt
-	}
+	out.ExpiresAt = a.ExpiresAt
 	return out
 }
 

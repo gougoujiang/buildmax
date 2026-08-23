@@ -12,7 +12,7 @@ function release(version: string, overrides: Partial<ApiPluginRelease> = {}): Ap
     inspection: {},
     source: {},
     published_by: "u_admin",
-    published_at: 1,
+    published_at: "1970-01-01T00:00:01Z",
     ...overrides,
   }
 }
@@ -30,12 +30,12 @@ describe("newestInstallable", () => {
   })
 
   it("skips withdrawn releases", () => {
-    const got = newestInstallable([release("1.0.0"), release("1.1.0", { yanked_at: 1 })])
+    const got = newestInstallable([release("1.0.0"), release("1.1.0", { yanked_at: "1970-01-01T00:00:01Z" })])
     expect(got?.version).toBe("1.0.0")
   })
 
   it("has nothing to offer when every release was withdrawn", () => {
-    expect(newestInstallable([release("1.0.0", { yanked_at: 1 })])).toBeNull()
+    expect(newestInstallable([release("1.0.0", { yanked_at: "1970-01-01T00:00:01Z" })])).toBeNull()
   })
 
   it("skips a version it cannot order", () => {

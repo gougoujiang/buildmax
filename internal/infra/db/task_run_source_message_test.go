@@ -2,6 +2,7 @@ package db
 
 import (
 	"testing"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -52,7 +53,7 @@ func TestCreateTaskRunPersistsSourceMessage(t *testing.T) {
 		t.Fatalf("first run source_message_id = %v, want %s", first.SourceMessageID, asked.ID)
 	}
 
-	endedAt := int64(1_800_000_000)
+	endedAt := time.Unix(1_800_000_000, 0).UTC()
 	if err := s.UpdateRun(ctx, model.UpdateTaskRunInput{
 		TaskRunID: first.ID,
 		Status:    model.RunStatusSucceeded,

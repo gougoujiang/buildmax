@@ -64,14 +64,14 @@ func (m *MockUserStore) CreateUser(_ context.Context, email string, defaultQuota
 		Email:     email,
 		QuotaTier: defaultQuotaTier,
 		Name:      "",
-		CreatedAt: time.Now().Unix(),
+		CreatedAt: time.Now().UTC(),
 	}
 	m.ByEmail[email] = u
 	m.ByID[u.ID] = u
 	return u, nil
 }
 
-func (m *MockUserStore) UpdateLoginMeta(_ context.Context, userID string, loginAt int64, platform string) error {
+func (m *MockUserStore) UpdateLoginMeta(_ context.Context, userID string, loginAt time.Time, platform string) error {
 	if u, ok := m.ByID[userID]; ok {
 		u.LastLoginAt = &loginAt
 		u.LastLoginPlatform = &platform
@@ -91,7 +91,7 @@ func (m *MockUserStore) ListUsers(_ context.Context, query string, limit, offset
 	// tiebreaker seeded ids do not otherwise have.
 	sort.Slice(all, func(i, j int) bool {
 		if all[i].CreatedAt != all[j].CreatedAt {
-			return all[i].CreatedAt > all[j].CreatedAt
+			return all[i].CreatedAt.After(all[j].CreatedAt)
 		}
 		return all[i].ID > all[j].ID
 	})
@@ -99,7 +99,7 @@ func (m *MockUserStore) ListUsers(_ context.Context, query string, limit, offset
 	return page, total, nil
 }
 
-func (m *MockUserStore) SetUserDisabled(_ context.Context, userID string, disabledAt *int64) error {
+func (m *MockUserStore) SetUserDisabled(_ context.Context, userID string, disabledAt *time.Time) error {
 	u, ok := m.ByID[userID]
 	if !ok || u == nil {
 		return model.ErrUserNotFound
@@ -109,7 +109,7 @@ func (m *MockUserStore) SetUserDisabled(_ context.Context, userID string, disabl
 }
 
 // DisableForTest disables a seeded account. Test setup, not a store method.
-func (m *MockUserStore) DisableForTest(userID string, at int64) {
+func (m *MockUserStore) DisableForTest(userID string, at time.Time) {
 	if u, ok := m.ByID[userID]; ok {
 		u.DisabledAt = &at
 	}
@@ -130,7 +130,7 @@ func (m *MockPasswordStore) PasswordHash(_ context.Context, userID string) (stri
 	return m.Hashes[userID], nil
 }
 
-func (m *MockPasswordStore) SetPassword(_ context.Context, userID, encodedHash string, _ int64) error {
+func (m *MockPasswordStore) SetPassword(_ context.Context, userID, encodedHash string, _ time.Time) error {
 	if m.SetErr != nil {
 		return m.SetErr
 	}

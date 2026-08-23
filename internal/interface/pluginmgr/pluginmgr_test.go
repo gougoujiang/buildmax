@@ -149,7 +149,7 @@ func TestPluginInstallEndToEnd(t *testing.T) {
 		installed.State.ReleaseVersion != "1.2.0" || installed.State.Digest != release.Digest {
 		t.Errorf("state = %+v", installed.State)
 	}
-	if installed.State.MarketplaceServer != m.server.URL || installed.State.InstalledAt == 0 {
+	if installed.State.MarketplaceServer != m.server.URL || installed.State.InstalledAt.IsZero() {
 		t.Errorf("state = %+v", installed.State)
 	}
 	// Nothing is left staged.

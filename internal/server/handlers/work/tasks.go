@@ -17,20 +17,20 @@ import (
 )
 
 type TaskResponse struct {
-	ID             string  `json:"id"`
-	ConversationID string  `json:"conversation_id"`
-	SessionID      *string `json:"session_id,omitempty"`
-	Status         string  `json:"status"`
-	Input          string  `json:"input"`
-	Title          string  `json:"title,omitempty"`
-	Output         *string `json:"output,omitempty"`
-	CreatedBy      string  `json:"created_by"`
-	CreatedAt      int64   `json:"created_at"`
-	StartedAt      *int64  `json:"started_at,omitempty"`
-	EndedAt        *int64  `json:"ended_at,omitempty"`
-	ErrorMessage   *string `json:"error_message,omitempty"`
-	AgentID        *string `json:"agent_id,omitempty"`
-	IssueID        *string `json:"issue_id,omitempty"`
+	ID             string     `json:"id"`
+	ConversationID string     `json:"conversation_id"`
+	SessionID      *string    `json:"session_id,omitempty"`
+	Status         string     `json:"status"`
+	Input          string     `json:"input"`
+	Title          string     `json:"title,omitempty"`
+	Output         *string    `json:"output,omitempty"`
+	CreatedBy      string     `json:"created_by"`
+	CreatedAt      time.Time  `json:"created_at"`
+	StartedAt      *time.Time `json:"started_at,omitempty"`
+	EndedAt        *time.Time `json:"ended_at,omitempty"`
+	ErrorMessage   *string    `json:"error_message,omitempty"`
+	AgentID        *string    `json:"agent_id,omitempty"`
+	IssueID        *string    `json:"issue_id,omitempty"`
 	// LastRunID names the run behind the task's current status. The run-scoped
 	// routes -- trace, artifact items, LLM calls -- are keyed by it, so a caller
 	// that can see a task can reach what that task actually did.
@@ -395,7 +395,7 @@ func (h *Handler) cancelTaskHandler(w http.ResponseWriter, r *http.Request) {
 	// Record the request first. It names who asked and starts the clock the
 	// backstop measures, and it stays true whichever of the two paths below the
 	// run turns out to be on.
-	now := time.Now().Unix()
+	now := time.Now().UTC()
 	requested, err := h.cfg.TaskRuns.RequestTaskRunCancel(r.Context(), run.ID, userID, now)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "cancel_task", "task_run_id", run.ID)
@@ -438,7 +438,7 @@ func (h *Handler) cancelTaskHandler(w http.ResponseWriter, r *http.Request) {
 // it did. The claim is conditional on PENDING, so a run the scheduler picked up
 // in the meantime is left to its worker rather than being marked over while it
 // runs.
-func (h *Handler) finishUndispatchedRun(r *http.Request, taskRunID string, endedAt int64) bool {
+func (h *Handler) finishUndispatchedRun(r *http.Request, taskRunID string, endedAt time.Time) bool {
 	message := "this run was canceled before it started"
 	claimed, err := h.cfg.TaskRuns.ClaimTaskRun(r.Context(), model.ClaimTaskRunInput{
 		TaskRunID:      taskRunID,

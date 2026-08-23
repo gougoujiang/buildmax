@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -42,7 +43,7 @@ func systemMux(t *testing.T, probes []DependencyProbe, redacted any) *http.Serve
 		Users:     users,
 		Teams:     &mock.MockTeamStore{},
 		TaskRuns:  runs,
-		Schema:    stubSchemaStore{migrations: []model.SchemaMigration{{ID: "0001_first", AppliedAt: 100}}},
+		Schema:    stubSchemaStore{migrations: []model.SchemaMigration{{ID: "0001_first", AppliedAt: time.Unix(100, 0).UTC()}}},
 		Audits:    audits,
 		Audit:     audit.NewRecorder(audits),
 		Deployment: DeploymentInfo{

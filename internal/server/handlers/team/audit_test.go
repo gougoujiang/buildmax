@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -66,7 +67,7 @@ func TestDenialIsRecorded(t *testing.T) {
 func TestAuditTrailIsOwnerOnly(t *testing.T) {
 	mux, store, _ := auditFixture(t)
 	store.Events = []model.AuditEvent{
-		{ID: "ae_1", TeamID: matrixTeam, ActorType: model.AuditActorUser, ActorID: matrixOwner, Action: model.AuditTeamMemberAdded, CreatedAt: 1},
+		{ID: "ae_1", TeamID: matrixTeam, ActorType: model.AuditActorUser, ActorID: matrixOwner, Action: model.AuditTeamMemberAdded, CreatedAt: time.Unix(1, 0).UTC()},
 	}
 
 	for _, tc := range []struct {
@@ -94,7 +95,7 @@ func TestAuditTrailCarriesNoContent(t *testing.T) {
 	store.Events = []model.AuditEvent{{
 		ID: "ae_1", TeamID: matrixTeam, ActorType: model.AuditActorUser,
 		ActorID: matrixOwner, Action: model.AuditModelCreated,
-		TargetType: "llm_model", TargetID: "lm_1", Detail: "fast", CreatedAt: 1,
+		TargetType: "llm_model", TargetID: "lm_1", Detail: "fast", CreatedAt: time.Unix(1, 0).UTC(),
 	}}
 
 	req := httptest.NewRequest(http.MethodGet, "/api/teams/"+matrixTeam+"/audit-events", nil)

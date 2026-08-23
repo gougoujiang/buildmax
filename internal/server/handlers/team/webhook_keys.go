@@ -3,6 +3,7 @@ package team
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 )
@@ -21,9 +22,9 @@ type listWebhookKeysResponse struct {
 }
 
 type webhookKeyMetaResponse struct {
-	ID        string `json:"id"`
-	Name      string `json:"name,omitempty"`
-	CreatedAt int64  `json:"created_at"`
+	ID        string    `json:"id"`
+	Name      string    `json:"name,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 func (h *Handler) createWebhookKeyHandler(w http.ResponseWriter, r *http.Request) {

@@ -3,8 +3,10 @@ package work
 import (
 	"encoding/json"
 	"errors"
-	"github.com/gougoujiang/buildmax/internal/server/turnqueue"
 	"net/http"
+	"time"
+
+	"github.com/gougoujiang/buildmax/internal/server/turnqueue"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
@@ -18,13 +20,13 @@ type conversationListResponse struct {
 }
 
 type conversationResponse struct {
-	ID        string `json:"id"`
-	UserID    string `json:"user_id"`
-	TeamID    string `json:"team_id,omitempty"`
-	Channel   string `json:"channel"`
-	Title     string `json:"title,omitempty"`
-	CreatedAt int64  `json:"created_at"`
-	CreatedBy string `json:"created_by"`
+	ID        string    `json:"id"`
+	UserID    string    `json:"user_id"`
+	TeamID    string    `json:"team_id,omitempty"`
+	Channel   string    `json:"channel"`
+	Title     string    `json:"title,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
+	CreatedBy string    `json:"created_by"`
 }
 
 type createConversationRequest struct {
@@ -38,11 +40,11 @@ type createConversationResponse struct {
 }
 
 type conversationMessageResponse struct {
-	ID        string  `json:"id"`
-	Role      string  `json:"role"`
-	Content   string  `json:"content"`
-	Channel   *string `json:"channel,omitempty"`
-	CreatedAt int64   `json:"created_at"`
+	ID        string    `json:"id"`
+	Role      string    `json:"role"`
+	Content   string    `json:"content"`
+	Channel   *string   `json:"channel,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type messagesResponse struct {

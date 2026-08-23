@@ -67,11 +67,18 @@ for keeping consistent. Deleting a parent row does not cascade. Numeric
 references did not change that: adding constraints is a separate decision that
 needs deletion semantics specified first.
 
-**Timestamps are Unix seconds in `bigint` columns**, never `DATETIME` and never
-milliseconds. Columns tagged `autoCreateTime` / `autoUpdateTime` are filled by
-GORM; the rest are set explicitly with `time.Now().Unix()`. A nullable
-timestamp is a `*int64` in Go, and its absence is meaningful — `ended_at IS
-NULL` means still running, not unknown.
+**Timestamps are `DATETIME(6)` columns**, never `TIMESTAMP`, never an integer,
+and never `DATE` unless the value genuinely has no time of day. In Go they are
+`time.Time`, and on the wire RFC 3339. Columns tagged `autoCreateTime` /
+`autoUpdateTime` are filled by GORM; the rest are set explicitly with
+`time.Now().UTC()`. A nullable timestamp is a `*time.Time`, and its absence is
+meaningful — `ended_at IS NULL` means still running, not unknown, and there are
+no sentinel zeros. Every connection speaks UTC: `db.New` forces `loc=UTC` and a
+`time_zone` of `+00:00` on whatever DSN it is given, so a `DATETIME` written by
+the server and one read by an operator's shell are the same instant. Durations,
+quotas, and counts are not instants and stay `bigint`, with the unit in the
+name. The reasoning is in
+[timestamp representation](../../design/timestamp-representation.md).
 
 **Nullability is narrower than the Go type suggests.** `AutoMigrate` only emits
 `NOT NULL` where a tag says so. A non-pointer Go field without `not null` maps
@@ -161,12 +168,12 @@ default (see [../../deploy/authentication.md](../../deploy/authentication.md)).
 | `email` | `varchar(255)` | no | Unique; the login identifier |
 | `name` | `varchar(255)` | yes | Display name |
 | `password_hash` | `varchar(255)` | yes | argon2id, PHC-encoded. `NULL` until a password is set |
-| `password_set_at` | `bigint` | yes | Unix seconds |
+| `password_set_at` | `datetime(6)` | yes |  |
 | `quota_tier` | `varchar(64)` | yes | References `quota_tier.tier_name` |
-| `last_login_at` | `bigint` | yes | Unix seconds |
+| `last_login_at` | `datetime(6)` | yes |  |
 | `last_login_platform` | `varchar(32)` | yes | Where the last login came from |
-| `disabled_at` | `bigint` | yes | Non-`NULL` means every credential this account holds is refused |
-| `created_at` | `bigint` | yes | `autoCreateTime` |
+| `disabled_at` | `datetime(6)` | yes | Non-`NULL` means every credential this account holds is refused |
+| `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 
 Indexes: PK `id`; unique `email`; unique `public_id`.
 
@@ -199,8 +206,8 @@ The ownership and authorization boundary for every Portal resource.
 | `personal_for_user_id` | `bigint unsigned` | yes | Set on a user's personal team; unique, so a user has at most one |
 | `quota_tier` | `varchar(64)` | yes | References `quota_tier.tier_name` |
 | `created_by` | `bigint unsigned` | no | `user.id` |
-| `created_at` | `bigint` | yes | `autoCreateTime` |
-| `updated_at` | `bigint` | yes | `autoUpdateTime` |
+| `created_at` | `datetime(6)` | yes | `autoCreateTime` |
+| `updated_at` | `datetime(6)` | yes | `autoUpdateTime` |
 
 Indexes: PK `id`; unique `personal_for_user_id`; unique `public_id`.
 
@@ -237,7 +244,7 @@ The membership join table, and the row every authorization check looks for.
 | `team_id` | `bigint unsigned` | no | `team.id` |
 | `user_id` | `bigint unsigned` | no | `user.id` |
 | `role` | `varchar(32)` | no | `owner`, `admin`, or `member` |
-| `created_at` | `bigint` | yes | `autoCreateTime` |
+| `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 
 Indexes: PK `id`; unique `uq_team_member_team_user` on (`team_id`, `user_id`).
 
@@ -259,8 +266,8 @@ operation of the deployment rather than access to its contents — see
 | `user_id` | `bigint unsigned` | no | `user.id` |
 | `role` | `varchar(32)` | no | `system_admin` is the only value this build accepts |
 | `granted_by` | `varchar(64)` | no | Opaque: a user's handle, or `buildmax-server` when the operator command made the grant — the same string the matching audit event carries |
-| `granted_at` | `bigint` | no | Unix seconds |
-| `revoked_at` | `bigint` | yes | `NULL` while the grant is in force |
+| `granted_at` | `datetime(6)` | no |  |
+| `revoked_at` | `datetime(6)` | yes | `NULL` while the grant is in force |
 
 Indexes: PK `id`; index `granted_at`; unique `idx_system_grant_live` on
 (`user_id`, `role`, `revoked_at`); index `user_id`; unique `public_id`.
@@ -284,9 +291,9 @@ Single-use email login codes. Rows are consumed, not deleted on use.
 | `id` | `bigint unsigned` | no | Internal primary key |
 | `code_hash` | `varchar(128)` | no | Hash of the emailed code, unique — the plaintext is never stored |
 | `user_id` | `bigint unsigned` | no | `user.id` |
-| `expires_at` | `bigint` | no | Unix seconds; default TTL is one hour (`model.LoginCodeTTLDefault`) |
-| `used_at` | `bigint` | yes | Non-`NULL` means already redeemed; a second attempt fails |
-| `created_at` | `bigint` | yes | `autoCreateTime` |
+| `expires_at` | `datetime(6)` | no | default TTL is one hour (`model.LoginCodeTTLDefault`) |
+| `used_at` | `datetime(6)` | yes | Non-`NULL` means already redeemed; a second attempt fails |
+| `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 
 Indexes: PK `id`; unique `code_hash`; index `expires_at`; index `user_id`.
 
@@ -308,11 +315,11 @@ retires the chain however many times it has been renewed.
 | `user_id` | `bigint unsigned` | no | `user.id` |
 | `session_id` | `varchar(64)` | no | `as_` prefix; one login chain, preserved across every rotation |
 | `platform` | `varchar(32)` | yes | Which surface logged in — a label for the reader, not enforced |
-| `expires_at` | `bigint` | no | Unix seconds; default TTL is 30 days (`model.RefreshTokenTTLDefault`) |
-| `used_at` | `bigint` | yes | Non-`NULL` means already exchanged |
-| `revoked_at` | `bigint` | yes | Non-`NULL` means retired by a logout or a reuse report |
+| `expires_at` | `datetime(6)` | no | default TTL is 30 days (`model.RefreshTokenTTLDefault`) |
+| `used_at` | `datetime(6)` | yes | Non-`NULL` means already exchanged |
+| `revoked_at` | `datetime(6)` | yes | Non-`NULL` means retired by a logout or a reuse report |
 | `replaced_by` | `varchar(128)` | yes | Hash of the token issued in exchange; lets an operator walk a chain back to its login |
-| `created_at` | `bigint` | yes | `autoCreateTime` |
+| `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 
 Indexes: PK `id`; index `expires_at`; index `session_id`; unique `token_hash`;
 index `user_id`.
@@ -336,7 +343,7 @@ API keys for the inbound webhook surface documented in
 | `user_id` | `bigint unsigned` | no | `user.id` — keys are user-scoped, not team-scoped |
 | `key_hash` | `varchar(128)` | no | Unique; the secret is shown once at creation and never again |
 | `name` | `varchar(255)` | yes | Human label |
-| `created_at` | `bigint` | yes | `autoCreateTime` |
+| `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 
 Indexes: PK `id`; unique `key_hash`; index `user_id`; unique `public_id`.
 
@@ -376,7 +383,7 @@ record that can be edited is not evidence.
 | `id` | `bigint unsigned` | no | Internal primary key |
 | `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
 | `team_id` | `bigint unsigned` | yes | Empty for actions with no team, such as a login |
-| `created_at` | `bigint` | no | Unix seconds |
+| `created_at` | `datetime(6)` | no |  |
 | `actor_type` | `varchar(16)` | no | `user`, `worker`, or `system` |
 | `actor_id` | `varchar(64)` | no | User ID, or a process name for `system` |
 | `action` | `varchar(64)` | no | `user.login`, `user.logout`, `user.password_set`, `auth.refresh_reuse`, `team.member_added`, `llm_model.created`, `access.denied`, … |
@@ -409,7 +416,7 @@ database, and the reason each migration runs at most once.
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `varchar(191)` | no | Primary key; the migration's permanent identifier. 191 is MySQL's longest indexable `varchar` under `utf8mb4` |
-| `applied_at` | `bigint` | no | Unix seconds |
+| `applied_at` | `datetime(6)` | no |  |
 
 Indexes: PK `id`.
 
@@ -440,8 +447,8 @@ The primary user-facing work object.
 | `assignee_kind` | `varchar(32)` | yes | `person`, `agent`, or `workflow` |
 | `assignee_id` | `varchar(64)` | yes | Interpreted according to `assignee_kind`: a `user_id`, `agent_id`, or `workflow_id` |
 | `created_by` | `bigint unsigned` | no | `user.id` |
-| `created_at` | `bigint` | yes | `autoCreateTime` |
-| `updated_at` | `bigint` | yes | `autoUpdateTime` |
+| `created_at` | `datetime(6)` | yes | `autoCreateTime` |
+| `updated_at` | `datetime(6)` | yes | `autoUpdateTime` |
 
 Indexes: PK `id`; index `parent_issue_id`; index `idx_issue_team_updated` on
 (`team_id`, `updated_at`); index `user_id`; unique `public_id`.
@@ -473,8 +480,8 @@ One statement about an issue, addressed to people.
 | `body` | `text` | no | Markdown source, stored raw; capped at 16 KiB by the service |
 | `source_task_id` | `bigint unsigned` | yes | Set on an agent comment |
 | `source_task_run_id` | `bigint unsigned` | yes | Set on an agent comment |
-| `created_at` | `bigint` | yes | `autoCreateTime` |
-| `edited_at` | `bigint` | yes | `NULL` until the body is changed |
+| `created_at` | `datetime(6)` | yes | `autoCreateTime` |
+| `edited_at` | `datetime(6)` | yes | `NULL` until the body is changed |
 
 Indexes: PK `id`; index `idx_issue_comment_issue_created` on (`issue_id`,
 `created_at`); unique `public_id`.
@@ -507,8 +514,8 @@ under.
 | `description` | `text` | yes | Shown in pickers |
 | `instructions` | `text` | yes | Appended to the system prompt for runs using this agent |
 | `revision` | `bigint` | no | Number of the `agent_revision` row holding this content; starts at 1 |
-| `deleted_at` | `bigint` | yes | Set when the agent was deleted; the row stays |
-| `created_at` | `bigint` | yes | `autoCreateTime` |
+| `deleted_at` | `datetime(6)` | yes | Set when the agent was deleted; the row stays |
+| `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 
 Indexes: PK `id`; index `deleted_at`; index `team_id`; index `user_id`; unique
 `public_id`.
@@ -545,7 +552,7 @@ deleted.
 | `description` | `text` | yes | |
 | `instructions` | `text` | yes | |
 | `created_by` | `bigint unsigned` | no | The user who wrote this revision, not necessarily the agent's owner |
-| `created_at` | `bigint` | yes | `autoCreateTime` |
+| `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 
 Indexes: PK `id`; unique `idx_agent_revision` on (`agent_id`, `revision`).
 
@@ -580,7 +587,7 @@ the user.
 | `channel` | `varchar(32)` | no | `portal`, `telegram`, `cron`, `webhook`, or a synthetic `workflow` / `issue_agent` |
 | `title` | `varchar(256)` | yes | Generated from the first turn |
 | `created_by` | `bigint unsigned` | no | `user.id` |
-| `created_at` | `bigint` | yes | `autoCreateTime` |
+| `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 
 Indexes: PK `id`; index `idx_conversation_team_created` on (`team_id`,
 `created_at`); index `idx_conversation_user_created` on (`user_id`,
@@ -616,7 +623,7 @@ One message in a Tier 1 conversation, including tool traffic.
 | `tool_calls` | `text` | yes | JSON array of tool calls on an assistant message; the Go field is `ToolCallsJSON` but the column is `tool_calls` |
 | `provider_state` | `text` | yes | Opaque reasoning state on an assistant message, stored and replayed but never read here; the Go field is `ProviderStateJSON` |
 | `parts` | `mediumtext` | yes | Non-text content on the message, such as an image a tool returned; `content` stays the text describing it. The Go field is `PartsJSON` |
-| `created_at` | `bigint` | yes | `autoCreateTime` |
+| `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 
 Indexes: PK `id`; index `idx_conversation_message_conversation` on
 (`conversation_id`, `created_at`); unique `public_id`.
@@ -655,9 +662,9 @@ The durable unit of background work. One task, many attempts.
 | `title_completion_tokens` | `bigint` | yes | Same |
 | `output` | `text` | yes | Result of the latest successful run |
 | `created_by` | `bigint unsigned` | no | `user.id` |
-| `created_at` | `bigint` | yes | `autoCreateTime` |
-| `started_at` | `bigint` | yes | First run start |
-| `ended_at` | `bigint` | yes | Terminal-status time |
+| `created_at` | `datetime(6)` | yes | `autoCreateTime` |
+| `started_at` | `datetime(6)` | yes | First run start |
+| `ended_at` | `datetime(6)` | yes | Terminal-status time |
 | `error_message` | `text` | yes | |
 | `session_id` | `varchar(36)` | yes | UUID of the agent session file, not a table reference |
 | `last_run_id` | `bigint unsigned` | yes | `task_run.id` of the most recent attempt |
@@ -685,21 +692,21 @@ One execution attempt. This is the row quota and token accounting read.
 | `status` | `varchar(32)` | no | Same `model.RunStatus` values as `task` |
 | `output` | `text` | yes | |
 | `error_message` | `text` | yes | |
-| `started_at` | `bigint` | yes | |
-| `ended_at` | `bigint` | yes | `NULL` while running |
+| `started_at` | `datetime(6)` | yes | |
+| `ended_at` | `datetime(6)` | yes | `NULL` while running |
 | `session_id` | `varchar(36)` | yes | UUID of this run's session file |
 | `worker_type` | `varchar(32)` | yes | Reserved; see below |
 | `k8s_job_name` | `varchar(128)` | yes | Reserved; see below |
-| `k8s_job_created_at` | `bigint` | yes | Reserved; see below |
+| `k8s_job_created_at` | `datetime(6)` | yes | Reserved; see below |
 | `prompt_tokens` | `bigint` | yes | Quota input |
 | `completion_tokens` | `bigint` | yes | Quota input |
 | `trace_path` | `varchar(512)` | yes | This run's durable trace inside run-global storage, e.g. `traces/<session>/rt_….jsonl`; `NULL` when none was written |
-| `cancel_requested_at` | `bigint` | yes | When someone asked this run to stop; `NULL` when nobody has |
+| `cancel_requested_at` | `datetime(6)` | yes | When someone asked this run to stop; `NULL` when nobody has |
 | `cancel_requested_by` | `bigint unsigned` | yes | `user.id` of whoever asked |
 | `retry_of_task_run_id` | `bigint unsigned` | yes | The run this one repeats; `NULL` for a run that carries its own instructions |
 | `source_message_id` | `bigint unsigned` | yes | `conversation_message.id` this run was asked for in; `NULL` when no message asked for it |
 | `agent_revision` | `int` | yes | Which revision of `task.agent_id` this run was served; `NULL` for a run with no agent or one that never reached a worker |
-| `created_at` | `bigint` | yes | `autoCreateTime` |
+| `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 
 Indexes: PK `id`; index `cancel_requested_at`; index `created_by`; index
 `retry_of_task_run_id`; index `source_message_id`; index
@@ -785,9 +792,9 @@ yet been told. One row per run.
 | `status` | `varchar(16)` | no | `PENDING`, `DELIVERED`, or `ABANDONED` |
 | `attempts` | `int` | no | Claims, not failures: an attempt that died mid-flight still counts |
 | `last_error` | `text` | yes | Why the last attempt did not succeed |
-| `next_attempt_at` | `bigint` | no | Both the backoff and the claim lease |
-| `created_at` | `bigint` | yes | `autoCreateTime` |
-| `updated_at` | `bigint` | yes | `autoUpdateTime` |
+| `next_attempt_at` | `datetime(6)` | no | Both the backoff and the claim lease |
+| `created_at` | `datetime(6)` | yes | `autoCreateTime` |
+| `updated_at` | `datetime(6)` | yes | `autoUpdateTime` |
 
 Indexes: PK `id`; unique `uq_task_result_delivery_run` on `task_run_id`; index
 `idx_task_result_delivery_due` on (`status`, `next_attempt_at`).
@@ -836,9 +843,9 @@ a legacy `task_run_id` column before touching either table. See
 | `source_type` | `varchar(32)` | no | `agent`, `task_run`, `user_upload`, `system` |
 | `source_id` | `varchar(64)` | yes | The producing operation |
 | `title` | `varchar(255)` | yes | Display label |
-| `deleted_at` | `bigint` | yes | Tombstone; set means hidden and unreadable |
-| `expires_at` | `bigint` | yes | Retention hook |
-| `created_at` | `bigint` | yes | Unix seconds |
+| `deleted_at` | `datetime(6)` | yes | Tombstone; set means hidden and unreadable |
+| `expires_at` | `datetime(6)` | yes | Retention hook |
+| `created_at` | `datetime(6)` | yes |  |
 
 Indexes: PK `id`; index `deleted_at`; index `expires_at`; index `source_id`;
 index `idx_artifact_team_created` on (`team_id`, `created_at`); unique
@@ -870,8 +877,8 @@ definition into one step run per step, and each agent step delegates to a task.
 | `status` | `varchar(32)` | no | `draft` (default), `published`, `archived` |
 | `revision` | `bigint` | no | Number of the `workflow_revision` row holding this content; starts at 1 |
 | `created_by` | `bigint unsigned` | no | `user.id` |
-| `created_at` | `bigint` | yes | `autoCreateTime` |
-| `updated_at` | `bigint` | yes | `autoUpdateTime` |
+| `created_at` | `datetime(6)` | yes | `autoCreateTime` |
+| `updated_at` | `datetime(6)` | yes | `autoUpdateTime` |
 
 Indexes: PK `id`; index `team_id`; unique `public_id`.
 
@@ -894,7 +901,7 @@ seeded first revision for workflows that predate the table.
 | `definition` | `longtext` | no | |
 | `status` | `varchar(32)` | no | The lifecycle state this revision was written with |
 | `created_by` | `bigint unsigned` | no | `user.id` |
-| `created_at` | `bigint` | yes | `autoCreateTime` |
+| `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 
 Indexes: PK `id`; unique `idx_workflow_revision` on (`workflow_id`, `revision`).
 
@@ -916,9 +923,9 @@ revision cannot unpublish a workflow teams are running.
 | `conversation_id` | `bigint unsigned` | no | Tier 1 conversation that reports progress |
 | `status` | `varchar(32)` | no | `pending`, `running`, `succeeded`, `failed`, `canceled` — lowercase, unlike `task` |
 | `created_by` | `bigint unsigned` | no | `user.id` |
-| `created_at` | `bigint` | yes | `autoCreateTime` |
-| `started_at` | `bigint` | yes | |
-| `ended_at` | `bigint` | yes | |
+| `created_at` | `datetime(6)` | yes | `autoCreateTime` |
+| `started_at` | `datetime(6)` | yes | |
+| `ended_at` | `datetime(6)` | yes | |
 | `error_message` | `text` | yes | |
 
 Indexes: PK `id`; index `conversation_id`; index `issue_id`; index
@@ -948,9 +955,9 @@ One step of one workflow run. The bridge between the workflow engine and Tier 2.
 | `task_run_id` | `bigint unsigned` | yes | The specific attempt |
 | `output_summary` | `text` | yes | First 500 runes of the step output, for display; it is not passed to the next step |
 | `error_message` | `text` | yes | |
-| `created_at` | `bigint` | yes | `autoCreateTime` |
-| `started_at` | `bigint` | yes | |
-| `ended_at` | `bigint` | yes | |
+| `created_at` | `datetime(6)` | yes | `autoCreateTime` |
+| `started_at` | `datetime(6)` | yes | |
+| `ended_at` | `datetime(6)` | yes | |
 
 Indexes: PK `id`; index `idx_step_run_run_index` on (`workflow_run_id`,
 `step_index`); index `target_agent_id`; index `task_id`; index `task_run_id`;
@@ -996,8 +1003,8 @@ on the machine that holds the database credentials.
 | `vision` | `tinyint(1)` | no | Default `false`; the upstream accepts image input |
 | `capabilities` | `varchar(255)` | yes | Comma-separated: `text_chat`, `tool_calls`, `streaming_text`, `usage_reporting` |
 | `enabled` | `tinyint(1)` | no | Default `true` |
-| `created_at` | `bigint` | yes | `autoCreateTime`, indexed for listing order |
-| `updated_at` | `bigint` | yes | `autoUpdateTime` |
+| `created_at` | `datetime(6)` | yes | `autoCreateTime`, indexed for listing order |
+| `updated_at` | `datetime(6)` | yes | `autoUpdateTime` |
 
 Indexes: PK `id`; index `created_at`; unique `name`; unique `public_id`.
 
@@ -1033,10 +1040,10 @@ One managed inference call. The metering and debugging record.
 | `provider_type` | `varchar(32)` | no | Denormalized from the catalog at call time |
 | `upstream_model` | `varchar(128)` | no | Denormalized from the catalog at call time |
 | `streaming` | `tinyint(1)` | no | Default `false` |
-| `accepted_at` | `bigint` | no | When the gateway accepted the request; indexed |
-| `upstream_started_at` | `bigint` | yes | |
-| `first_delta_at` | `bigint` | yes | Time to first token, on streaming calls |
-| `completed_at` | `bigint` | yes | |
+| `accepted_at` | `datetime(6)` | no | When the gateway accepted the request; indexed |
+| `upstream_started_at` | `datetime(6)` | yes | |
+| `first_delta_at` | `datetime(6)` | yes | Time to first token, on streaming calls |
+| `completed_at` | `datetime(6)` | yes | |
 | `status` | `varchar(16)` | no | `ACCEPTED`, `SUCCEEDED`, `FAILED`, `CANCELED`; indexed |
 | `error_class` | `varchar(64)` | yes | Stable BuildMax error code, not the upstream message |
 | `attempts` | `bigint` | no | Default `0` |
@@ -1086,10 +1093,10 @@ One catalog entry — the stable identity releases are published under.
 | `name` | `varchar(128)` | no | The manifest name, unique; every route addresses the plugin by it |
 | `display_name` | `varchar(255)` | no | Default `''` |
 | `description` | `varchar(1024)` | no | Default `''` |
-| `archived_at` | `bigint` | no | Default `0`; non-zero hides the entry and refuses new releases |
+| `archived_at` | `datetime(6)` | yes | Non-`NULL` hides the entry and refuses new releases |
 | `created_by` | `bigint unsigned` | no | `user.id` |
-| `created_at` | `bigint` | yes | `autoCreateTime`, indexed for listing order |
-| `updated_at` | `bigint` | yes | `autoUpdateTime` |
+| `created_at` | `datetime(6)` | yes | `autoCreateTime`, indexed for listing order |
+| `updated_at` | `datetime(6)` | yes | `autoUpdateTime` |
 
 Indexes: PK `id`; index `archived_at`; index `created_at`; unique `name`.
 
@@ -1113,8 +1120,8 @@ One immutable published version.
 | `inspection` | `text` | yes | JSON: the sanitized capability report |
 | `source` | `text` | yes | JSON: the publisher's claim about the checkout the bytes came from |
 | `published_by` | `bigint unsigned` | no | `user.id` |
-| `published_at` | `bigint` | yes | `autoCreateTime`, indexed for listing order |
-| `yanked_at` | `bigint` | no | Default `0`; non-zero withdraws it from default selection |
+| `published_at` | `datetime(6)` | yes | `autoCreateTime`, indexed for listing order |
+| `yanked_at` | `datetime(6)` | yes | Non-`NULL` withdraws it from default selection |
 | `yanked_by` | `bigint unsigned` | yes | Default `''` |
 | `yanked_reason` | `varchar(512)` | no | Default `''` |
 

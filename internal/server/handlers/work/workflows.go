@@ -2,6 +2,7 @@ package work
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/server/access"
@@ -10,28 +11,28 @@ import (
 )
 
 type workflowResponse struct {
-	ID          string `json:"id"`
-	TeamID      string `json:"team_id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Definition  string `json:"definition"`
-	Status      string `json:"status"`
-	Revision    int    `json:"revision"`
-	CreatedBy   string `json:"created_by"`
-	CreatedAt   int64  `json:"created_at"`
-	UpdatedAt   int64  `json:"updated_at"`
+	ID          string    `json:"id"`
+	TeamID      string    `json:"team_id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	Definition  string    `json:"definition"`
+	Status      string    `json:"status"`
+	Revision    int       `json:"revision"`
+	CreatedBy   string    `json:"created_by"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 type workflowRevisionResponse struct {
-	ID          string `json:"id"`
-	WorkflowID  string `json:"workflow_id"`
-	Revision    int    `json:"revision"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Definition  string `json:"definition"`
-	Status      string `json:"status"`
-	CreatedBy   string `json:"created_by"`
-	CreatedAt   int64  `json:"created_at"`
+	ID          string    `json:"id"`
+	WorkflowID  string    `json:"workflow_id"`
+	Revision    int       `json:"revision"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	Definition  string    `json:"definition"`
+	Status      string    `json:"status"`
+	CreatedBy   string    `json:"created_by"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 type workflowRevisionListResponse struct {
@@ -40,39 +41,39 @@ type workflowRevisionListResponse struct {
 }
 
 type workflowRunResponse struct {
-	ID               string  `json:"id"`
-	WorkflowID       string  `json:"workflow_id"`
-	WorkflowRevision int     `json:"workflow_revision,omitempty"`
-	IssueID          *string `json:"issue_id,omitempty"`
-	ConversationID   string  `json:"conversation_id"`
-	Status           string  `json:"status"`
-	CreatedBy        string  `json:"created_by"`
-	CreatedAt        int64   `json:"created_at"`
-	StartedAt        *int64  `json:"started_at,omitempty"`
-	EndedAt          *int64  `json:"ended_at,omitempty"`
-	ErrorMessage     *string `json:"error_message,omitempty"`
+	ID               string     `json:"id"`
+	WorkflowID       string     `json:"workflow_id"`
+	WorkflowRevision int        `json:"workflow_revision,omitempty"`
+	IssueID          *string    `json:"issue_id,omitempty"`
+	ConversationID   string     `json:"conversation_id"`
+	Status           string     `json:"status"`
+	CreatedBy        string     `json:"created_by"`
+	CreatedAt        time.Time  `json:"created_at"`
+	StartedAt        *time.Time `json:"started_at,omitempty"`
+	EndedAt          *time.Time `json:"ended_at,omitempty"`
+	ErrorMessage     *string    `json:"error_message,omitempty"`
 }
 
 type workflowStepRunResponse struct {
-	ID                string  `json:"id"`
-	WorkflowRunID     string  `json:"workflow_run_id"`
-	StepID            string  `json:"step_id"`
-	StepIndex         int     `json:"step_index"`
-	StepType          string  `json:"step_type"`
-	TargetAgentID     *string `json:"target_agent_id,omitempty"`
-	AgentName         string  `json:"agent_name,omitempty"`
-	AgentDescription  string  `json:"agent_description,omitempty"`
-	AgentInstructions string  `json:"agent_instructions,omitempty"`
-	AgentRevision     int     `json:"agent_revision,omitempty"`
-	Prompt            string  `json:"prompt"`
-	Status            string  `json:"status"`
-	TaskID            *string `json:"task_id,omitempty"`
-	TaskRunID         *string `json:"task_run_id,omitempty"`
-	OutputSummary     *string `json:"output_summary,omitempty"`
-	ErrorMessage      *string `json:"error_message,omitempty"`
-	CreatedAt         int64   `json:"created_at"`
-	StartedAt         *int64  `json:"started_at,omitempty"`
-	EndedAt           *int64  `json:"ended_at,omitempty"`
+	ID                string     `json:"id"`
+	WorkflowRunID     string     `json:"workflow_run_id"`
+	StepID            string     `json:"step_id"`
+	StepIndex         int        `json:"step_index"`
+	StepType          string     `json:"step_type"`
+	TargetAgentID     *string    `json:"target_agent_id,omitempty"`
+	AgentName         string     `json:"agent_name,omitempty"`
+	AgentDescription  string     `json:"agent_description,omitempty"`
+	AgentInstructions string     `json:"agent_instructions,omitempty"`
+	AgentRevision     int        `json:"agent_revision,omitempty"`
+	Prompt            string     `json:"prompt"`
+	Status            string     `json:"status"`
+	TaskID            *string    `json:"task_id,omitempty"`
+	TaskRunID         *string    `json:"task_run_id,omitempty"`
+	OutputSummary     *string    `json:"output_summary,omitempty"`
+	ErrorMessage      *string    `json:"error_message,omitempty"`
+	CreatedAt         time.Time  `json:"created_at"`
+	StartedAt         *time.Time `json:"started_at,omitempty"`
+	EndedAt           *time.Time `json:"ended_at,omitempty"`
 }
 
 type workflowListResponse struct {

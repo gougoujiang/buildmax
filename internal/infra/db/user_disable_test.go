@@ -50,7 +50,7 @@ func TestSetUserDisabled(t *testing.T) {
 	if user.Disabled() {
 		t.Fatal("a new account should not be disabled")
 	}
-	now := time.Now().Unix()
+	now := time.Now().UTC()
 	if err := s.SetUserDisabled(ctx, user.ID, &now); err != nil {
 		t.Fatalf("SetUserDisabled: %v", err)
 	}
@@ -114,7 +114,7 @@ func TestListUsers(t *testing.T) {
 func TestRevokeUserSessionsAndCount(t *testing.T) {
 	s, ctx := openUserAdminStore(t)
 	user := createTestUser(t, s, ctx)
-	now := time.Now().Unix()
+	now := time.Now().UTC()
 
 	for _, sessionID := range []string{"as_one", "as_two"} {
 		if _, _, err := s.CreateRefreshToken(ctx, model.NewRefreshToken{

@@ -9,7 +9,7 @@ function event(partial: Partial<ApiAuditEvent>): ApiAuditEvent {
     actor_type: "user",
     actor_id: "u_1",
     action: "user.login",
-    created_at: 1_786_875_000,
+    created_at: "2026-08-16T10:10:00Z",
     ...partial,
   }
 }
@@ -110,6 +110,6 @@ describe("actorLabel", () => {
 
 describe("formatEventTime", () => {
   it("shows a dash rather than the epoch when there is no time", () => {
-    expect(formatEventTime(0)).toBe("—")
+    expect(formatEventTime("")).toBe("—")
   })
 })

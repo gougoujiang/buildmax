@@ -21,8 +21,8 @@ func llmCallsFixture(ledger *llmStubLedger) Config {
 		JWTSecret: llmTestSecret,
 		Teams:     llmTestTeamStore(),
 		TaskRuns: &mock.MockTaskRunStore{
-			Runs:     []model.TaskRun{{ID: "r_1", TaskID: "t_1", Status: string(model.RunStatusSucceeded), CreatedAt: 1}},
-			TaskList: []model.Task{{ID: "t_1", ConversationID: "c_1", TeamID: llmTestTeam, CreatedBy: llmTestUser, CreatedAt: 1}},
+			Runs:     []model.TaskRun{{ID: "r_1", TaskID: "t_1", Status: string(model.RunStatusSucceeded), CreatedAt: time.Unix(1, 0).UTC()}},
+			TaskList: []model.Task{{ID: "t_1", ConversationID: "c_1", TeamID: llmTestTeam, CreatedBy: llmTestUser, CreatedAt: time.Unix(1, 0).UTC()}},
 		},
 		Conversations: &mock.MockConversationStore{
 			Conversations: []model.Conversation{{ID: "c_1", TeamID: llmTestTeam, CreatedBy: llmTestUser}},
@@ -56,7 +56,7 @@ func stagedCall() model.LLMCall {
 		TargetID:      "SECRET-CATALOG-ID",
 		ProviderType:  "openai_compatible",
 		UpstreamModel: "SECRET-UPSTREAM-MODEL",
-		AcceptedAt:    time.Now().Unix(),
+		AcceptedAt:    time.Now().UTC(),
 		Status:        model.LLMCallStatusSucceeded,
 		PromptTokens:  ptr(10),
 		UsageSource:   model.LLMUsageSourceReported,

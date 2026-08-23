@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	"errors"
+	"time"
 )
 
 // ErrDuplicateLLMCall is returned when a team reuses a client call ID. The
@@ -64,10 +65,10 @@ type LLMCall struct {
 	Streaming     bool   `json:"streaming"`
 
 	// Timing, in unix seconds like every other table.
-	AcceptedAt        int64  `json:"accepted_at"`
-	UpstreamStartedAt *int64 `json:"upstream_started_at,omitempty"`
-	FirstDeltaAt      *int64 `json:"first_delta_at,omitempty"`
-	CompletedAt       *int64 `json:"completed_at,omitempty"`
+	AcceptedAt        time.Time  `json:"accepted_at"`
+	UpstreamStartedAt *time.Time `json:"upstream_started_at,omitempty"`
+	FirstDeltaAt      *time.Time `json:"first_delta_at,omitempty"`
+	CompletedAt       *time.Time `json:"completed_at,omitempty"`
 
 	// Outcome.
 	Status string `json:"status"`
@@ -104,9 +105,9 @@ type LLMCallOutcome struct {
 	Status            string
 	ErrorClass        *string
 	Attempts          int
-	UpstreamStartedAt *int64
-	FirstDeltaAt      *int64
-	CompletedAt       int64
+	UpstreamStartedAt *time.Time
+	FirstDeltaAt      *time.Time
+	CompletedAt       time.Time
 	// Usage is nil when the provider reported none; the record then keeps
 	// LLMUsageSourceUnavailable rather than zero counts.
 	Usage *LLMCallUsage

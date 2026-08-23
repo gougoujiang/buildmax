@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -30,8 +31,8 @@ func TestIssueHandlers(t *testing.T) {
 				Description:  "Initial description",
 				Status:       model.IssueStatusTodo,
 				CreatedBy:    "u1",
-				CreatedAt:    100,
-				UpdatedAt:    100,
+				CreatedAt:    time.Unix(100, 0).UTC(),
+				UpdatedAt:    time.Unix(100, 0).UTC(),
 				AssigneeKind: nil,
 				AssigneeID:   nil,
 			},

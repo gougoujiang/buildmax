@@ -37,7 +37,7 @@ func TestK8sJobRunner_Run_SetsJobNamePattern(t *testing.T) {
 	if k8sName == nil || *k8sName == "" {
 		t.Error("k8sJobName should be set")
 	}
-	if k8sAt == nil || *k8sAt <= 0 {
+	if k8sAt == nil || k8sAt.IsZero() {
 		t.Error("k8sJobCreatedAt should be set")
 	}
 	pattern := regexp.MustCompile(`^buildmax-worker-[a-z0-9-]+-\d+$`)

@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"time"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -220,14 +221,14 @@ func (r *K8sJobRunner) podVolumes() ([]corev1.Volume, []corev1.VolumeMount) {
 	return volumes, mounts
 }
 
-// Run creates a Job for the task run; on success returns ("k8s_job", &jobName, &createdAtUnix, nil). On failure returns error.
+// Run creates a Job for the task run; on success returns ("k8s_job", &jobName, &createdAt, nil). On failure returns error.
 //
 // runToken is this run's managed-gateway credential, or "" when the deployment
 // mints none.
-func (r *K8sJobRunner) Run(ctx context.Context, run model.TaskRun, runToken string) (workerType string, k8sJobName *string, k8sJobCreatedAt *int64, err error) {
+func (r *K8sJobRunner) Run(ctx context.Context, run model.TaskRun, runToken string) (workerType string, k8sJobName *string, k8sJobCreatedAt *time.Time, err error) {
 	jobName := util.WorkerJobNameForTaskRun(run.ID)
 	now := metav1.Now()
-	createdAtUnix := now.Unix()
+	createdAt := now.UTC()
 
 	volumes, mounts := r.podVolumes()
 	job := &batchv1.Job{
@@ -265,7 +266,7 @@ func (r *K8sJobRunner) Run(ctx context.Context, run model.TaskRun, runToken stri
 		return "", nil, nil, err
 	}
 	componentLog().Info("created k8s Job", "task_run_id", run.ID, "job_name", jobName, "namespace", r.namespace)
-	return "k8s_job", &jobName, &createdAtUnix, nil
+	return "k8s_job", &jobName, &createdAt, nil
 }
 
 // jobCreatorImpl implements JobCreator using a Kubernetes clientset.

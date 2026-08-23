@@ -190,7 +190,7 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 		}
 	}
 
-	acceptedAt := s.now().Unix()
+	acceptedAt := s.now().UTC()
 	call, err := s.Ledger.OpenLLMCall(ctx, &model.LLMCall{
 		ClientCallID:  req.ClientCallID,
 		TeamID:        req.TeamID,
@@ -214,8 +214,8 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 		return CompleteResult{}, fmt.Errorf("open call ledger: %w", err)
 	}
 
-	upstreamStartedAt := s.now().Unix()
-	var firstDeltaAt *int64
+	upstreamStartedAt := s.now().UTC()
+	var firstDeltaAt *time.Time
 
 	var completion cllm.Completion
 	var callErr error
@@ -223,7 +223,7 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 	if streaming {
 		observed := func(delta string) {
 			if firstDeltaAt == nil {
-				at := s.now().Unix()
+				at := s.now().UTC()
 				firstDeltaAt = &at
 			}
 			onDelta(delta)
@@ -237,7 +237,7 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 		Attempts:          1,
 		UpstreamStartedAt: &upstreamStartedAt,
 		FirstDeltaAt:      firstDeltaAt,
-		CompletedAt:       s.now().Unix(),
+		CompletedAt:       s.now().UTC(),
 	}
 	if callErr != nil {
 		class := ErrorClassFor(callErr)

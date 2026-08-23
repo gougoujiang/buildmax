@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -20,11 +21,11 @@ func auditSearchMux(t *testing.T) (*http.ServeMux, *mock.MockAuditStore) {
 
 	audits := &mock.MockAuditStore{Events: []model.AuditEvent{
 		// Deployment-scoped: no team-scoped reader can ever see these.
-		{ID: "ae_1", ActorType: model.AuditActorUser, ActorID: "u_alice", Action: model.AuditUserLogin, CreatedAt: 100},
-		{ID: "ae_2", ActorType: model.AuditActorSystem, ActorID: model.AuditActorOperator, Action: model.AuditSystemAdminGranted, TargetID: "u_bob", CreatedAt: 200},
+		{ID: "ae_1", ActorType: model.AuditActorUser, ActorID: "u_alice", Action: model.AuditUserLogin, CreatedAt: time.Unix(100, 0).UTC()},
+		{ID: "ae_2", ActorType: model.AuditActorSystem, ActorID: model.AuditActorOperator, Action: model.AuditSystemAdminGranted, TargetID: "u_bob", CreatedAt: time.Unix(200, 0).UTC()},
 		// Team-scoped, in two different teams.
-		{ID: "ae_3", TeamID: "tm_one", ActorType: model.AuditActorUser, ActorID: "u_alice", Action: model.AuditTeamMemberAdded, CreatedAt: 300},
-		{ID: "ae_4", TeamID: "tm_two", ActorType: model.AuditActorUser, ActorID: "u_carol", Action: model.AuditAccessDenied, CreatedAt: 400},
+		{ID: "ae_3", TeamID: "tm_one", ActorType: model.AuditActorUser, ActorID: "u_alice", Action: model.AuditTeamMemberAdded, CreatedAt: time.Unix(300, 0).UTC()},
+		{ID: "ae_4", TeamID: "tm_two", ActorType: model.AuditActorUser, ActorID: "u_carol", Action: model.AuditAccessDenied, CreatedAt: time.Unix(400, 0).UTC()},
 	}}
 
 	h := New(Config{
@@ -75,6 +76,12 @@ func TestAdminAuditSearchSeesWhatTheTeamRouteCannot(t *testing.T) {
 	}
 }
 
+// rfc3339 renders a seeded instant the way the route reads its bounds. The
+// query carries RFC 3339, not epoch seconds.
+func rfc3339(unix int64) string {
+	return time.Unix(unix, 0).UTC().Format(time.RFC3339)
+}
+
 func TestAdminAuditSearchFilters(t *testing.T) {
 	mux, _ := auditSearchMux(t)
 
@@ -86,9 +93,9 @@ func TestAdminAuditSearchFilters(t *testing.T) {
 		{"by team", "?team_id=tm_two", []string{"ae_4"}},
 		{"by actor across teams", "?actor_id=u_alice", []string{"ae_1", "ae_3"}},
 		{"by action", "?action=" + model.AuditSystemAdminGranted, []string{"ae_2"}},
-		{"since", "?since=300", []string{"ae_3", "ae_4"}},
-		{"until", "?until=300", []string{"ae_1", "ae_2"}},
-		{"a window", "?since=200&until=400", []string{"ae_2", "ae_3"}},
+		{"since", "?since=" + rfc3339(300), []string{"ae_3", "ae_4"}},
+		{"until", "?until=" + rfc3339(300), []string{"ae_1", "ae_2"}},
+		{"a window", "?since=" + rfc3339(200) + "&until=" + rfc3339(400), []string{"ae_2", "ae_3"}},
 		// The events no team-scoped reader can see, asked for on purpose. An
 		// empty team_id already means "any team", so this needs its own word.
 		{"deployment-scoped only", "?team_id=none", []string{"ae_1", "ae_2"}},

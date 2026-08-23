@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
@@ -17,11 +18,11 @@ func getTaskRunHandler(agentID *string, agents *mock.MockAgentStore) http.Handle
 	cfg := Config{
 		JWTSecret: llmTestSecret,
 		TaskRuns: &mock.MockTaskRunStore{
-			Runs: []model.TaskRun{{ID: "r_1", TaskID: "t_1", Status: string(model.RunStatusScheduled), CreatedAt: 1}},
+			Runs: []model.TaskRun{{ID: "r_1", TaskID: "t_1", Status: string(model.RunStatusScheduled), CreatedAt: time.Unix(1, 0).UTC()}},
 			TaskList: []model.Task{{
 				ID: "t_1", ConversationID: "c_1", TeamID: llmTestTeam,
 				Status: string(model.RunStatusScheduled), Input: "in", CreatedBy: llmTestUser,
-				AgentID: agentID, CreatedAt: 1,
+				AgentID: agentID, CreatedAt: time.Unix(1, 0).UTC(),
 			}},
 		},
 		WorkerToken: workerTestToken,

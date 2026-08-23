@@ -22,7 +22,7 @@ func TestLoginHandler(t *testing.T) {
 	// deployment recovers an account; password login has its own test file.
 
 	// Far enough ahead that these codes never expire mid-run.
-	farFuture := time.Now().Add(time.Hour).Unix()
+	farFuture := time.Now().Add(time.Hour)
 
 	tests := []struct {
 		name           string
@@ -97,7 +97,7 @@ func TestLoginHandler(t *testing.T) {
 			name:      "expired code is rejected",
 			userStore: &mock.MockUserStore{ByEmail: map[string]*model.User{"a@b.c": userExists}},
 			loginCodeStore: &mock.MockLoginCodeStore{Codes: map[string]*mock.MockLoginCode{
-				"code-1": {UserID: "u1", ExpiresAt: 1},
+				"code-1": {UserID: "u1", ExpiresAt: time.Unix(1, 0).UTC()},
 			}},
 			jwtSecret:      secret,
 			body:           `{"email":"a@b.c","otp":"code-1"}`,
@@ -231,7 +231,7 @@ func TestWrongEmailLeavesTheCodeSpendable(t *testing.T) {
 	alice := &model.User{ID: "u1", Email: "a@b.c", Name: "Alice"}
 	bob := &model.User{ID: "u2", Email: "b@b.c", Name: "Bob"}
 	codes := &mock.MockLoginCodeStore{Codes: map[string]*mock.MockLoginCode{
-		"code-1": {UserID: "u1", ExpiresAt: time.Now().Add(time.Hour).Unix()},
+		"code-1": {UserID: "u1", ExpiresAt: time.Now().Add(time.Hour).UTC()},
 	}}
 	mux := http.NewServeMux()
 	New(Config{
@@ -390,7 +390,7 @@ func TestOtpRequestHandler(t *testing.T) {
 func TestLoginHandlerConsumesCodeOnUse(t *testing.T) {
 	user := &model.User{ID: "u1", Email: "a@b.c", Name: "Alice"}
 	codes := &mock.MockLoginCodeStore{Codes: map[string]*mock.MockLoginCode{
-		"code-1": {UserID: "u1", ExpiresAt: time.Now().Add(time.Hour).Unix()},
+		"code-1": {UserID: "u1", ExpiresAt: time.Now().Add(time.Hour).UTC()},
 	}}
 	mux := http.NewServeMux()
 	New(Config{

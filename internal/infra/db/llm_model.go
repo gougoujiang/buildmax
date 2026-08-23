@@ -32,10 +32,10 @@ type llmModelRow struct {
 	Vision        bool   `gorm:"not null;default:false"`
 	// Capabilities is a comma-separated list. The set is small, closed, and only
 	// ever read whole, so a join table would buy nothing.
-	Capabilities string `gorm:"type:varchar(255)"`
-	Enabled      bool   `gorm:"not null;default:true"`
-	CreatedAt    int64  `gorm:"autoCreateTime;index"`
-	UpdatedAt    int64  `gorm:"autoUpdateTime"`
+	Capabilities string    `gorm:"type:varchar(255)"`
+	Enabled      bool      `gorm:"not null;default:true"`
+	CreatedAt    time.Time `gorm:"autoCreateTime;index"`
+	UpdatedAt    time.Time `gorm:"autoUpdateTime"`
 }
 
 func (llmModelRow) TableName() string { return "llm_model" }
@@ -102,7 +102,7 @@ var llmModelColumns = []string{
 // CreateLLMModel stores a new model. The name is unique so an operator cannot
 // end up with two catalog entries that look identical in a listing.
 func (s *Store) CreateLLMModel(ctx context.Context, in model.CreateLLMModelInput) (*model.LLMModel, error) {
-	now := time.Now().Unix()
+	now := time.Now().UTC()
 	row := &llmModelRow{
 		Name:          in.Name,
 		ProviderType:  in.ProviderType,
@@ -165,7 +165,7 @@ func (s *Store) ListLLMModels(ctx context.Context) ([]model.LLMModel, error) {
 func (s *Store) SetLLMModelEnabled(ctx context.Context, llmModelID string, enabled bool) error {
 	res := s.db.WithContext(ctx).Model(&llmModelRow{}).
 		Where("public_id = ?", canonicalPublicID(llmModelID)).
-		Updates(map[string]any{"enabled": enabled, "updated_at": time.Now().Unix()})
+		Updates(map[string]any{"enabled": enabled, "updated_at": time.Now().UTC()})
 	if res.Error != nil {
 		return res.Error
 	}

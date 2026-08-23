@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	"errors"
+	"time"
 )
 
 // System roles are deployment-scoped: they are held by a user and attached to
@@ -44,12 +45,12 @@ type SystemGrant struct {
 	// with database credentials and no signed-in identity. It is deliberately
 	// the same string the matching audit event carries in ActorID: one act
 	// should not have two names across two tables.
-	GrantedBy string `json:"granted_by"`
-	GrantedAt int64  `json:"granted_at"`
+	GrantedBy string    `json:"granted_by"`
+	GrantedAt time.Time `json:"granted_at"`
 	// RevokedAt is nil while the grant is active. Revoking sets it rather than
 	// deleting the row: who held authority and when is the question an
 	// investigation asks, and a deleted row cannot answer it.
-	RevokedAt *int64 `json:"revoked_at,omitempty"`
+	RevokedAt *time.Time `json:"revoked_at,omitempty"`
 }
 
 // Active reports whether the grant is currently in force.
@@ -67,11 +68,11 @@ type SystemGrantStore interface {
 	// GrantSystemRole grants role to userID. It returns ErrSystemGrantExists
 	// when an active grant is already there, so a caller can report "already
 	// an admin" rather than silently creating a second row.
-	GrantSystemRole(ctx context.Context, userID, role, grantedBy string, now int64) (*SystemGrant, error)
+	GrantSystemRole(ctx context.Context, userID, role, grantedBy string, now time.Time) (*SystemGrant, error)
 	// RevokeSystemRole revokes the active grant and reports whether one was
 	// found. Revoking an absent grant is not an error: the end state is what
 	// was asked for.
-	RevokeSystemRole(ctx context.Context, userID, role string, now int64) (bool, error)
+	RevokeSystemRole(ctx context.Context, userID, role string, now time.Time) (bool, error)
 	// CountActiveSystemGrants counts live grants for role. It is what the API
 	// checks before revoking the last one — see
 	// docs/design/system-administration.md section 6.

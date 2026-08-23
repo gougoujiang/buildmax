@@ -143,7 +143,7 @@ export function WebhookKeysSection({ token }: WebhookKeysSectionProps) {
             <li key={k.id} className="settings-webhook__key-item">
               <span className="settings-webhook__key-name">{k.name || k.id}</span>
               <span className="settings-webhook__key-meta">
-                {new Date(k.created_at * 1000).toLocaleString()}
+                {new Date(k.created_at).toLocaleString()}
               </span>
               <button
                 type="button"

@@ -3,8 +3,9 @@ package db
 import (
 	"context"
 	"errors"
-	"github.com/gougoujiang/buildmax/internal/core/model"
 	"time"
+
+	"github.com/gougoujiang/buildmax/internal/core/model"
 
 	"github.com/gougoujiang/buildmax/internal/util"
 	"gorm.io/gorm"
@@ -17,26 +18,26 @@ type taskRunRow struct {
 	Input    string `gorm:"type:text;not null"`
 	// CreatedBy stays an opaque handle: created_by_type admits "webhook" and
 	// "system", neither of which is a user row.
-	CreatedBy        string  `gorm:"type:varchar(64);index"`
-	CreatedByType    string  `gorm:"type:varchar(32)"`
-	TriggerSource    string  `gorm:"type:varchar(64)"`
-	Status           string  `gorm:"type:varchar(32);not null"`
-	Output           *string `gorm:"type:text"`
-	ErrorMessage     *string `gorm:"type:text"`
-	StartedAt        *int64  `gorm:""`
-	EndedAt          *int64  `gorm:""`
-	SessionID        *string `gorm:"type:varchar(36)"`
-	WorkerType       string  `gorm:"type:varchar(32)"`
-	K8sJobName       *string `gorm:"type:varchar(128)"`
-	K8sJobCreatedAt  *int64  `gorm:"column:k8s_job_created_at"`
-	PromptTokens     *int    `gorm:""`
-	CompletionTokens *int    `gorm:""`
-	TracePath        *string `gorm:"column:trace_path;type:varchar(512)"`
+	CreatedBy        string     `gorm:"type:varchar(64);index"`
+	CreatedByType    string     `gorm:"type:varchar(32)"`
+	TriggerSource    string     `gorm:"type:varchar(64)"`
+	Status           string     `gorm:"type:varchar(32);not null"`
+	Output           *string    `gorm:"type:text"`
+	ErrorMessage     *string    `gorm:"type:text"`
+	StartedAt        *time.Time `gorm:""`
+	EndedAt          *time.Time `gorm:""`
+	SessionID        *string    `gorm:"type:varchar(36)"`
+	WorkerType       string     `gorm:"type:varchar(32)"`
+	K8sJobName       *string    `gorm:"type:varchar(128)"`
+	K8sJobCreatedAt  *time.Time `gorm:"column:k8s_job_created_at"`
+	PromptTokens     *int       `gorm:""`
+	CompletionTokens *int       `gorm:""`
+	TracePath        *string    `gorm:"column:trace_path;type:varchar(512)"`
 	// CancelRequestedAt is when someone asked this run to stop. It is a
 	// separate column rather than a status because a started run stays RUNNING
 	// until its own worker reports the outcome.
-	CancelRequestedAt *int64  `gorm:"column:cancel_requested_at;index"`
-	CancelRequestedBy *uint64 `gorm:"column:cancel_requested_by"`
+	CancelRequestedAt *time.Time `gorm:"column:cancel_requested_at;index"`
+	CancelRequestedBy *uint64    `gorm:"column:cancel_requested_by"`
 	// RetryOfTaskRunID names the run this one repeats. A nullable column rather
 	// than a trigger_source detail because the question a reader asks is which
 	// run this repeated, and a source string cannot answer it.
@@ -48,8 +49,8 @@ type taskRunRow struct {
 	// AgentRevision numbers the agent definition served to this run's worker.
 	// Not a reference to agent_revision.id: the pair (task.agent_id, this) is
 	// what addresses a revision, and the task already holds the agent.
-	AgentRevision *int  `gorm:"column:agent_revision"`
-	CreatedAt     int64 `gorm:"autoCreateTime;index:idx_task_run_task_created,priority:2"`
+	AgentRevision *int      `gorm:"column:agent_revision"`
+	CreatedAt     time.Time `gorm:"autoCreateTime;index:idx_task_run_task_created,priority:2"`
 }
 
 func (taskRunRow) TableName() string { return "task_run" }
@@ -150,8 +151,8 @@ func toTaskRunArtifacts(rows []taskRunArtifactRow) []model.TaskRunArtifact {
 // transposing two of them would still compile.
 type taskRunUpdate struct {
 	status           string
-	startedAt        *int64
-	endedAt          *int64
+	startedAt        *time.Time
+	endedAt          *time.Time
 	output           *string
 	errorMessage     *string
 	sessionID        *string
@@ -213,7 +214,7 @@ func (s *Store) CreateTaskRun(ctx context.Context, in model.CreateTaskRunInput) 
 		CreatedByType: defaultString(in.CreatedByType, model.RunCreatedByTypeUser),
 		TriggerSource: defaultString(in.TriggerSource, model.RunTriggerSourceTaskRerun),
 		Status:        "PENDING",
-		CreatedAt:     time.Now().Unix(),
+		CreatedAt:     time.Now().UTC(),
 	}
 	var retryOf *string
 	if in.RetryOfTaskRunID != nil && *in.RetryOfTaskRunID != "" {
@@ -361,7 +362,7 @@ func (s *Store) GetActiveTaskRunByTask(ctx context.Context, taskID string) (*mod
 // worker reports an outcome, so writing CANCELED here would describe a run that
 // is still executing, and the worker's own report would overwrite it moments
 // later.
-func (s *Store) RequestTaskRunCancel(ctx context.Context, taskRunID, requestedBy string, requestedAt int64) (bool, error) {
+func (s *Store) RequestTaskRunCancel(ctx context.Context, taskRunID, requestedBy string, requestedAt time.Time) (bool, error) {
 	id, ok := util.CanonicalPublicID(taskRunID)
 	if !ok {
 		return false, nil
@@ -383,19 +384,19 @@ func (s *Store) RequestTaskRunCancel(ctx context.Context, taskRunID, requestedBy
 }
 
 // ListCancelRequestedTaskRuns returns runs that were asked to stop before
-// cutoffUnix and are still active.
+// cutoff and are still active.
 //
 // A cancel is honored by the run's worker, and a worker can be gone — killed,
 // evicted, or built before cancellation existed. Nothing else would ever move
 // those runs, which is why this query exists; see StaleRunReaper.
-func (s *Store) ListCancelRequestedTaskRuns(ctx context.Context, cutoffUnix int64, limit int) ([]model.TaskRun, error) {
+func (s *Store) ListCancelRequestedTaskRuns(ctx context.Context, cutoff time.Time, limit int) ([]model.TaskRun, error) {
 	if limit <= 0 {
 		limit = 100
 	}
 	var rows []taskRunReadRow
 	err := s.taskRunSelect(ctx).
 		Where("task_run.status IN ?", model.ActiveRunStatuses).
-		Where("task_run.cancel_requested_at IS NOT NULL AND task_run.cancel_requested_at <= ?", cutoffUnix).
+		Where("task_run.cancel_requested_at IS NOT NULL AND task_run.cancel_requested_at <= ?", cutoff).
 		Order("task_run.cancel_requested_at ASC").
 		Limit(limit).
 		Find(&rows).Error
@@ -462,7 +463,7 @@ func (s *Store) UpdateRun(ctx context.Context, in model.UpdateTaskRunInput) erro
 }
 
 // syncTaskStatusFromRun updates the task row (denormalized status) for the run's task_id to match the run's status.
-func (s *Store) syncTaskStatusFromRun(ctx context.Context, taskRunID, status string, startedAt, endedAt *int64) error {
+func (s *Store) syncTaskStatusFromRun(ctx context.Context, taskRunID, status string, startedAt, endedAt *time.Time) error {
 	id, ok := util.CanonicalPublicID(taskRunID)
 	if !ok {
 		return model.ErrNotFound
@@ -487,7 +488,7 @@ func (s *Store) syncTaskStatusFromRun(ctx context.Context, taskRunID, status str
 }
 
 // UpdateTaskRunWorkerInfo updates worker_type, k8s_job_name, k8s_job_created_at for the run.
-func (s *Store) UpdateTaskRunWorkerInfo(ctx context.Context, taskRunID, workerType string, k8sJobName *string, k8sJobCreatedAt *int64) error {
+func (s *Store) UpdateTaskRunWorkerInfo(ctx context.Context, taskRunID, workerType string, k8sJobName *string, k8sJobCreatedAt *time.Time) error {
 	updates := map[string]interface{}{"worker_type": workerType}
 	if k8sJobName != nil {
 		updates["k8s_job_name"] = *k8sJobName
@@ -596,21 +597,21 @@ func (s *Store) SyncTaskFromRun(ctx context.Context, taskRunID string) error {
 	return s.db.WithContext(ctx).Model(&taskRow{}).Where("id = ?", run.TaskID).Updates(updates).Error
 }
 
-// ListStaleTaskRuns returns runs that were dispatched before cutoffUnix and have
+// ListStaleTaskRuns returns runs that were dispatched before cutoff and have
 // not reached a terminal status.
 //
 // A run leaves SCHEDULED or RUNNING when its worker reports the outcome, so a
 // run still in one of those states long after dispatch has no worker coming for
 // it: the process died, the pod was evicted, or its credential expired before it
 // could report. Nothing else notices, which is why this query exists.
-func (s *Store) ListStaleTaskRuns(ctx context.Context, cutoffUnix int64, limit int) ([]model.TaskRun, error) {
+func (s *Store) ListStaleTaskRuns(ctx context.Context, cutoff time.Time, limit int) ([]model.TaskRun, error) {
 	if limit <= 0 {
 		limit = 100
 	}
 	var rows []taskRunReadRow
 	err := s.taskRunSelect(ctx).
 		Where("task_run.status IN ?", []string{string(model.RunStatusScheduled), string(model.RunStatusRunning)}).
-		Where("task_run.created_at <= ?", cutoffUnix).
+		Where("task_run.created_at <= ?", cutoff).
 		Order("task_run.created_at ASC").
 		Limit(limit).
 		Find(&rows).Error

@@ -4,8 +4,10 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	"github.com/gougoujiang/buildmax/internal/util"
 )
 
 func release(version string, opts ...func(*model.PluginRelease)) model.PluginRelease {
@@ -17,7 +19,7 @@ func release(version string, opts ...func(*model.PluginRelease)) model.PluginRel
 }
 
 func yanked(reason string) func(*model.PluginRelease) {
-	return func(r *model.PluginRelease) { r.YankedAt, r.YankedReason = 1, reason }
+	return func(r *model.PluginRelease) { r.YankedAt, r.YankedReason = util.Ptr(time.Unix(1, 0).UTC()), reason }
 }
 
 func needs(v string) func(*model.PluginRelease) {

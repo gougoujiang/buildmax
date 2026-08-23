@@ -1,6 +1,9 @@
 package model
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 const (
 	// TeamRoleOwner is the initial role for the user who creates a team.
@@ -16,21 +19,21 @@ const (
 // Team is the ownership and collaboration boundary for working resources.
 // A user's default personal team is represented by personal_for_user_id.
 type Team struct {
-	ID                string  `json:"id"`
-	Name              string  `json:"name"`
-	PersonalForUserID *string `json:"personal_for_user_id,omitempty"`
-	QuotaTier         string  `json:"quota_tier,omitempty"`
-	CreatedBy         string  `json:"created_by"`
-	CreatedAt         int64   `json:"created_at"`
-	UpdatedAt         int64   `json:"updated_at"`
+	ID                string    `json:"id"`
+	Name              string    `json:"name"`
+	PersonalForUserID *string   `json:"personal_for_user_id,omitempty"`
+	QuotaTier         string    `json:"quota_tier,omitempty"`
+	CreatedBy         string    `json:"created_by"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
 }
 
 // TeamMember is one user's membership in a team.
 type TeamMember struct {
-	TeamID    string `json:"team_id"`
-	UserID    string `json:"user_id"`
-	Role      string `json:"role"`
-	CreatedAt int64  `json:"created_at"`
+	TeamID    string    `json:"team_id"`
+	UserID    string    `json:"user_id"`
+	Role      string    `json:"role"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // TeamStore provides team persistence and membership lookup.

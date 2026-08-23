@@ -84,7 +84,7 @@ func TestAdminCannotDisableThemselves(t *testing.T) {
 // nothing would read to the operator as "they can sign in now".
 func TestLoginCodeForADisabledAccountIsRefused(t *testing.T) {
 	f := newDisableFixture(t)
-	f.users.DisableForTest(f.target.ID, 1)
+	f.users.DisableForTest(f.target.ID, time.Unix(1, 0).UTC())
 
 	rec := f.do(t, "POST", "/api/admin/users/"+f.target.ID+"/login-code", adminUser, "")
 	if rec.Code != http.StatusConflict {

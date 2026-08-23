@@ -3,8 +3,9 @@ package db
 import (
 	"context"
 	"errors"
-	"github.com/gougoujiang/buildmax/internal/core/model"
 	"time"
+
+	"github.com/gougoujiang/buildmax/internal/core/model"
 
 	"github.com/gougoujiang/buildmax/internal/util"
 	"gorm.io/gorm"
@@ -21,7 +22,7 @@ type conversationRow struct {
 	// The two composite indexes carry created_at because every listing of a
 	// conversation is ordered by it. The single-column indexes the string model
 	// left behind could not serve the sort.
-	CreatedAt int64 `gorm:"autoCreateTime;index:idx_conversation_user_created,priority:2;index:idx_conversation_team_created,priority:2"`
+	CreatedAt time.Time `gorm:"autoCreateTime;index:idx_conversation_user_created,priority:2;index:idx_conversation_team_created,priority:2"`
 }
 
 func (conversationRow) TableName() string { return "conversation" }
@@ -78,7 +79,7 @@ func (s *Store) CreateConversation(ctx context.Context, userID, channel, created
 
 // CreateConversationInTeam creates a new team-scoped Tier 1 conversation.
 func (s *Store) CreateConversationInTeam(ctx context.Context, teamID, userID, channel, createdBy string) (*model.Conversation, error) {
-	now := time.Now().Unix()
+	now := time.Now().UTC()
 	row := &conversationRow{Channel: channel, CreatedAt: now}
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		userKey, err := lookupKey(ctx, tx, "user", userID)

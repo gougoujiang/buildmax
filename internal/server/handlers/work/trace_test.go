@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
@@ -56,11 +57,11 @@ func traceTestFixture(t *testing.T, tracePath *string, persist blob.PersistStora
 			Members: []model.TeamMember{{TeamID: teamID, UserID: userID, Role: model.TeamRoleOwner}},
 		},
 		TaskRuns: &mock.MockTaskRunStore{
-			Runs:     []model.TaskRun{{ID: taskRunID, TaskID: taskID, Status: "FAILED", TracePath: tracePath, CreatedAt: 1}},
-			TaskList: []model.Task{{ID: taskID, ConversationID: conversationID, TeamID: teamID, Status: "FAILED", Input: "in", CreatedBy: userID, CreatedAt: 1}},
+			Runs:     []model.TaskRun{{ID: taskRunID, TaskID: taskID, Status: "FAILED", TracePath: tracePath, CreatedAt: time.Unix(1, 0).UTC()}},
+			TaskList: []model.Task{{ID: taskID, ConversationID: conversationID, TeamID: teamID, Status: "FAILED", Input: "in", CreatedBy: userID, CreatedAt: time.Unix(1, 0).UTC()}},
 		},
 		Conversations: &mock.MockConversationStore{
-			Conversations: []model.Conversation{{ID: conversationID, UserID: userID, TeamID: teamID, Channel: "portal", CreatedBy: userID, CreatedAt: 1}},
+			Conversations: []model.Conversation{{ID: conversationID, UserID: userID, TeamID: teamID, Channel: "portal", CreatedBy: userID, CreatedAt: time.Unix(1, 0).UTC()}},
 		},
 		PersistStorage: persist,
 	})

@@ -16,15 +16,15 @@ import (
 // No public handle: nothing addresses a delivery from outside. It is machinery
 // the server owes itself, keyed by the run it reports.
 type taskResultDeliveryRow struct {
-	ID             uint64  `gorm:"primaryKey;autoIncrement"`
-	TaskRunID      uint64  `gorm:"column:task_run_id;not null;uniqueIndex:uq_task_result_delivery_run"`
-	ConversationID uint64  `gorm:"column:conversation_id;not null"`
-	Status         string  `gorm:"type:varchar(16);not null;index:idx_task_result_delivery_due,priority:1"`
-	Attempts       int     `gorm:"not null"`
-	LastError      *string `gorm:"type:text"`
-	NextAttemptAt  int64   `gorm:"column:next_attempt_at;not null;index:idx_task_result_delivery_due,priority:2"`
-	CreatedAt      int64   `gorm:"autoCreateTime"`
-	UpdatedAt      int64   `gorm:"autoUpdateTime"`
+	ID             uint64    `gorm:"primaryKey;autoIncrement"`
+	TaskRunID      uint64    `gorm:"column:task_run_id;not null;uniqueIndex:uq_task_result_delivery_run"`
+	ConversationID uint64    `gorm:"column:conversation_id;not null"`
+	Status         string    `gorm:"type:varchar(16);not null;index:idx_task_result_delivery_due,priority:1"`
+	Attempts       int       `gorm:"not null"`
+	LastError      *string   `gorm:"type:text"`
+	NextAttemptAt  time.Time `gorm:"column:next_attempt_at;not null;index:idx_task_result_delivery_due,priority:2"`
+	CreatedAt      time.Time `gorm:"autoCreateTime"`
+	UpdatedAt      time.Time `gorm:"autoUpdateTime"`
 }
 
 func (taskResultDeliveryRow) TableName() string { return "task_result_delivery" }
@@ -60,7 +60,7 @@ func toTaskResultDelivery(row *taskResultDeliveryReadRow) model.TaskResultDelive
 // Idempotent per run: the unique index does the deduplicating, and a conflict
 // is left alone rather than resetting a delivery that may already have been
 // attempted or finished.
-func (s *Store) EnqueueTaskResultDelivery(ctx context.Context, taskRunID, conversationID string, now int64) error {
+func (s *Store) EnqueueTaskResultDelivery(ctx context.Context, taskRunID, conversationID string, now time.Time) error {
 	runKey, err := lookupKey(ctx, s.db, "task_run", taskRunID)
 	if err != nil {
 		return err
@@ -80,7 +80,7 @@ func (s *Store) EnqueueTaskResultDelivery(ctx context.Context, taskRunID, conver
 }
 
 // ListDueTaskResultDeliveries returns pending reports whose next attempt is due.
-func (s *Store) ListDueTaskResultDeliveries(ctx context.Context, now int64, limit int) ([]model.TaskResultDelivery, error) {
+func (s *Store) ListDueTaskResultDeliveries(ctx context.Context, now time.Time, limit int) ([]model.TaskResultDelivery, error) {
 	if limit <= 0 {
 		return nil, nil
 	}
@@ -105,7 +105,7 @@ func (s *Store) ListDueTaskResultDeliveries(ctx context.Context, now int64, limi
 // The status and due-time conditions are in the UPDATE rather than checked
 // first: two servers sweeping at once both see the same due row, and only the
 // one whose update matched may report it.
-func (s *Store) ClaimTaskResultDelivery(ctx context.Context, taskRunID string, now, nextAttemptAt int64) (*model.TaskResultDelivery, error) {
+func (s *Store) ClaimTaskResultDelivery(ctx context.Context, taskRunID string, now, nextAttemptAt time.Time) (*model.TaskResultDelivery, error) {
 	runKey, err := lookupKey(ctx, s.db, "task_run", taskRunID)
 	if err != nil {
 		return nil, err
@@ -115,7 +115,7 @@ func (s *Store) ClaimTaskResultDelivery(ctx context.Context, taskRunID string, n
 		Updates(map[string]interface{}{
 			"attempts":        gorm.Expr("attempts + 1"),
 			"next_attempt_at": nextAttemptAt,
-			"updated_at":      time.Now().Unix(),
+			"updated_at":      time.Now().UTC(),
 		})
 	if res.Error != nil {
 		return nil, res.Error
@@ -142,7 +142,7 @@ func (s *Store) FinishTaskResultDelivery(ctx context.Context, taskRunID, status 
 	if err != nil {
 		return err
 	}
-	updates := map[string]interface{}{"status": status, "updated_at": time.Now().Unix()}
+	updates := map[string]interface{}{"status": status, "updated_at": time.Now().UTC()}
 	if lastError != nil {
 		updates["last_error"] = util.TruncateRunes(*lastError, deliveryErrorMaxLen)
 	}
@@ -160,7 +160,7 @@ const deliveryErrorMaxLen = 1000
 // It also brings the next attempt forward. The claim pushed that time out far
 // enough to cover a turn still running; once the attempt has failed, waiting out
 // the rest of that window would delay a retry for no reason.
-func (s *Store) RecordTaskResultDeliveryFailure(ctx context.Context, taskRunID, lastError string, nextAttemptAt int64) error {
+func (s *Store) RecordTaskResultDeliveryFailure(ctx context.Context, taskRunID, lastError string, nextAttemptAt time.Time) error {
 	runKey, err := lookupKey(ctx, s.db, "task_run", taskRunID)
 	if err != nil {
 		return err
@@ -170,6 +170,6 @@ func (s *Store) RecordTaskResultDeliveryFailure(ctx context.Context, taskRunID, 
 		Updates(map[string]interface{}{
 			"last_error":      util.TruncateRunes(lastError, deliveryErrorMaxLen),
 			"next_attempt_at": nextAttemptAt,
-			"updated_at":      time.Now().Unix(),
+			"updated_at":      time.Now().UTC(),
 		}).Error
 }

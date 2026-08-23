@@ -55,7 +55,7 @@ func (c *Service) GetUsage(ctx context.Context, teamID string) (*UsageInfo, erro
 	if tierName == "" {
 		tierName = c.DefaultTier
 	}
-	now := c.now().Unix()
+	now := c.now().UTC()
 
 	// Resolve tier limits; if not found, still return usage for default window with limits nil
 	tier, err := c.TierStore.GetQuotaTier(ctx, tierName)
@@ -64,7 +64,7 @@ func (c *Service) GetUsage(ctx context.Context, teamID string) (*UsageInfo, erro
 	}
 	if tier == nil {
 		periodDays := defaultUsagePeriodDays
-		since := now - int64(periodDays)*86400
+		since := now.Add(-time.Duration(periodDays) * 24 * time.Hour)
 		runCount, totalTokens, err := c.UsageReader.TeamUsageInWindow(ctx, teamID, since, now)
 		if err != nil {
 			return &UsageInfo{}, err
@@ -77,8 +77,7 @@ func (c *Service) GetUsage(ctx context.Context, teamID string) (*UsageInfo, erro
 		}, nil
 	}
 
-	periodSec := int64(tier.PeriodDays) * 86400
-	since := now - periodSec
+	since := now.Add(-time.Duration(tier.PeriodDays) * 24 * time.Hour)
 	runCount, totalTokens, err := c.UsageReader.TeamUsageInWindow(ctx, teamID, since, now)
 	if err != nil {
 		return nil, err
@@ -112,9 +111,8 @@ func (c *Service) Check(ctx context.Context, teamID string, addRuns, addTokens i
 	if err != nil || tier == nil {
 		return true, "" // unknown tier => allow (no limit)
 	}
-	now := c.now().Unix()
-	periodSec := int64(tier.PeriodDays) * 86400
-	since := now - periodSec
+	now := c.now().UTC()
+	since := now.Add(-time.Duration(tier.PeriodDays) * 24 * time.Hour)
 	runCount, totalTokens, err := c.UsageReader.TeamUsageInWindow(ctx, teamID, since, now)
 	if err != nil {
 		return true, "" // aggregation error => allow to avoid blocking
@@ -137,7 +135,7 @@ func (c *Service) Check(ctx context.Context, teamID string, addRuns, addTokens i
 }
 
 // warnIfNear records a threshold crossing, and does nothing below it.
-func (c *Service) warnIfNear(ctx context.Context, teamID string, limit quotaLimit, used, max int, windowStart int64) {
+func (c *Service) warnIfNear(ctx context.Context, teamID string, limit quotaLimit, used, max int, windowStart time.Time) {
 	if c.Audit == nil || max <= 0 {
 		return
 	}

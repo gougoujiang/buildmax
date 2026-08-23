@@ -176,7 +176,7 @@ func refreshTokenForServer(serverURL string) (string, error) {
 	if rr.RefreshToken != "" {
 		creds.RefreshToken = rr.RefreshToken
 	}
-	creds.SavedAt = time.Now().Unix()
+	creds.SavedAt = time.Now().UTC()
 	if err := SaveCredentials(creds); err != nil {
 		// The exchange succeeded, so the token in hand is good even though the
 		// next process will not see it. Failing the call over a write error

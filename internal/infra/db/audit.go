@@ -25,8 +25,8 @@ type auditEventRow struct {
 	// TeamID is NULL for actions with no team, such as a login -- a pointer
 	// rather than a zero, because zero is a row key someone owns. The composite
 	// index leads with it because reading is always "this team, newest first".
-	TeamID    *uint64 `gorm:"column:team_id;index:idx_audit_team_time,priority:1"`
-	CreatedAt int64   `gorm:"not null;index:idx_audit_team_time,priority:2"`
+	TeamID    *uint64   `gorm:"column:team_id;index:idx_audit_team_time,priority:1"`
+	CreatedAt time.Time `gorm:"not null;index:idx_audit_team_time,priority:2"`
 
 	// The actor and the target stay opaque handles. Their type is in a column
 	// beside them and admits values that are not rows at all -- an operator, a
@@ -99,7 +99,7 @@ func (s *Store) RecordAuditEvent(ctx context.Context, in model.AuditEvent) error
 		TargetType: in.TargetType,
 		TargetID:   in.TargetID,
 		Detail:     truncateDetail(in.Detail),
-		CreatedAt:  time.Now().Unix(),
+		CreatedAt:  time.Now().UTC(),
 	}
 	return s.db.WithContext(ctx).Create(&row).Error
 }
@@ -205,10 +205,10 @@ func applyAuditFilter(q *gorm.DB, col string, filter model.AuditFilter, teamKey 
 	if filter.Action != "" {
 		q = q.Where(col+"action = ?", filter.Action)
 	}
-	if filter.Since > 0 {
+	if !filter.Since.IsZero() {
 		q = q.Where(col+"created_at >= ?", filter.Since)
 	}
-	if filter.Until > 0 {
+	if !filter.Until.IsZero() {
 		q = q.Where(col+"created_at < ?", filter.Until)
 	}
 	return q
@@ -301,8 +301,8 @@ func (s *Store) ExportAuditEvents(ctx context.Context, filter model.AuditFilter,
 // particular record. The sweep that calls it records what it removed, so a
 // trail that starts partway through says why it does — see
 // model.AuditEventsPruned.
-func (s *Store) PruneAuditEvents(ctx context.Context, before int64, limit int) (int64, error) {
-	if before <= 0 {
+func (s *Store) PruneAuditEvents(ctx context.Context, before time.Time, limit int) (int64, error) {
+	if before.IsZero() {
 		return 0, nil
 	}
 	if limit <= 0 {
@@ -329,16 +329,16 @@ func (s *Store) PruneAuditEvents(ctx context.Context, before int64, limit int) (
 
 // OldestAuditEventAt returns the timestamp of the oldest event, or zero when
 // there are none.
-func (s *Store) OldestAuditEventAt(ctx context.Context) (int64, error) {
-	var oldest []int64
+func (s *Store) OldestAuditEventAt(ctx context.Context) (time.Time, error) {
+	var oldest []time.Time
 	if err := s.db.WithContext(ctx).Model(&auditEventRow{}).
 		Order("created_at ASC, id ASC").
 		Limit(1).
 		Pluck("created_at", &oldest).Error; err != nil {
-		return 0, err
+		return time.Time{}, err
 	}
 	if len(oldest) == 0 {
-		return 0, nil
+		return time.Time{}, nil
 	}
 	return oldest[0], nil
 }

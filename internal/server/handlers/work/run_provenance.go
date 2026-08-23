@@ -2,6 +2,7 @@ package work
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
@@ -29,7 +30,7 @@ type RunProvenanceResponse struct {
 	CreatedByType    string                 `json:"created_by_type,omitempty"`
 	TriggerSource    string                 `json:"trigger_source,omitempty"`
 	RetryOfTaskRunID *string                `json:"retry_of_task_run_id,omitempty"`
-	CreatedAt        int64                  `json:"created_at"`
+	CreatedAt        time.Time              `json:"created_at"`
 	SourceMessage    *SourceMessageResponse `json:"source_message,omitempty"`
 	Agent            *RunAgentResponse      `json:"agent,omitempty"`
 }
@@ -52,10 +53,10 @@ type RunAgentResponse struct {
 
 // SourceMessageResponse is what the person actually said.
 type SourceMessageResponse struct {
-	ID        string `json:"id"`
-	Content   string `json:"content"`
-	Truncated bool   `json:"truncated"`
-	CreatedAt int64  `json:"created_at"`
+	ID        string    `json:"id"`
+	Content   string    `json:"content"`
+	Truncated bool      `json:"truncated"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // getTaskRunProvenanceHandler serves GET

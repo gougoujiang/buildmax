@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -50,9 +51,9 @@ func teamAuditExport(t *testing.T, audits *mock.MockAuditStore, teamID, userID s
 // exportBody runs an admin export and returns the raw response.
 func TestTeamAuditExportStaysInsideTheTeam(t *testing.T) {
 	audits := &mock.MockAuditStore{Events: []model.AuditEvent{
-		{ID: "ae_1", TeamID: matrixTeam, ActorType: model.AuditActorUser, ActorID: matrixOwner, Action: model.AuditTeamMemberAdded, CreatedAt: 100},
-		{ID: "ae_2", TeamID: matrixOther, ActorType: model.AuditActorUser, ActorID: "u_elsewhere", Action: model.AuditTeamMemberAdded, CreatedAt: 200},
-		{ID: "ae_3", ActorType: model.AuditActorUser, ActorID: matrixOwner, Action: model.AuditUserLogin, CreatedAt: 300},
+		{ID: "ae_1", TeamID: matrixTeam, ActorType: model.AuditActorUser, ActorID: matrixOwner, Action: model.AuditTeamMemberAdded, CreatedAt: time.Unix(100, 0).UTC()},
+		{ID: "ae_2", TeamID: matrixOther, ActorType: model.AuditActorUser, ActorID: "u_elsewhere", Action: model.AuditTeamMemberAdded, CreatedAt: time.Unix(200, 0).UTC()},
+		{ID: "ae_3", ActorType: model.AuditActorUser, ActorID: matrixOwner, Action: model.AuditUserLogin, CreatedAt: time.Unix(300, 0).UTC()},
 	}}
 	rec := teamAuditExport(t, audits, matrixTeam, matrixOwner)
 	if rec.Code != http.StatusOK {

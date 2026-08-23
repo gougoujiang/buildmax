@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -27,14 +28,14 @@ type artifactRow struct {
 	// The creator and the source stay opaque handles under their type columns:
 	// an artifact can come from a run, a conversation, or an upload, and the
 	// producer can be a worker rather than a user.
-	CreatedByType string `gorm:"column:created_by_type;type:varchar(32);not null"`
-	CreatedByID   string `gorm:"column:created_by_id;type:varchar(64)"`
-	SourceType    string `gorm:"column:source_type;type:varchar(32);not null"`
-	SourceID      string `gorm:"column:source_id;type:varchar(64);index"`
-	Title         string `gorm:"type:varchar(255)"`
-	DeletedAt     *int64 `gorm:"column:deleted_at;index"`
-	ExpiresAt     *int64 `gorm:"column:expires_at;index"`
-	CreatedAt     int64  `gorm:"autoCreateTime;index:idx_artifact_team_created,priority:2"`
+	CreatedByType string     `gorm:"column:created_by_type;type:varchar(32);not null"`
+	CreatedByID   string     `gorm:"column:created_by_id;type:varchar(64)"`
+	SourceType    string     `gorm:"column:source_type;type:varchar(32);not null"`
+	SourceID      string     `gorm:"column:source_id;type:varchar(64);index"`
+	Title         string     `gorm:"type:varchar(255)"`
+	DeletedAt     *time.Time `gorm:"column:deleted_at;index"`
+	ExpiresAt     *time.Time `gorm:"column:expires_at;index"`
+	CreatedAt     time.Time  `gorm:"autoCreateTime;index:idx_artifact_team_created,priority:2"`
 }
 
 func (artifactRow) TableName() string { return "artifact" }
@@ -188,7 +189,7 @@ func (s *Store) ListArtifactsBySource(ctx context.Context, sourceIDs []string) (
 //
 // The update is conditional on the row still being live, so two concurrent
 // deletes produce one audit-worthy change and one no-op rather than two.
-func (s *Store) SoftDeleteArtifact(ctx context.Context, artifactID string, deletedAt int64) (bool, error) {
+func (s *Store) SoftDeleteArtifact(ctx context.Context, artifactID string, deletedAt time.Time) (bool, error) {
 	id, ok := util.CanonicalPublicID(artifactID)
 	if !ok {
 		return false, nil

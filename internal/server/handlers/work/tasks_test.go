@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -21,11 +22,11 @@ func TestListConversationTasksHandler(t *testing.T) {
 	teamID := "tm_personal_u1"
 	mockConversations := &mock.MockConversationStore{
 		Conversations: []model.Conversation{
-			{ID: conversationID, UserID: "u1", TeamID: teamID, Channel: "portal", CreatedBy: "u1", CreatedAt: 123},
+			{ID: conversationID, UserID: "u1", TeamID: teamID, Channel: "portal", CreatedBy: "u1", CreatedAt: time.Unix(123, 0).UTC()},
 		},
 	}
-	task1 := model.Task{ID: "t1", ConversationID: conversationID, TeamID: teamID, Status: "PENDING", Input: "Do something", CreatedBy: "u1", CreatedAt: 1000}
-	task2 := model.Task{ID: "t2", ConversationID: conversationID, TeamID: teamID, Status: "PENDING", Input: "Explore", CreatedBy: "u1", CreatedAt: 1001}
+	task1 := model.Task{ID: "t1", ConversationID: conversationID, TeamID: teamID, Status: "PENDING", Input: "Do something", CreatedBy: "u1", CreatedAt: time.Unix(1000, 0).UTC()}
+	task2 := model.Task{ID: "t2", ConversationID: conversationID, TeamID: teamID, Status: "PENDING", Input: "Explore", CreatedBy: "u1", CreatedAt: time.Unix(1001, 0).UTC()}
 
 	tests := []struct {
 		name         string
@@ -115,7 +116,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 	teamID := "tm_personal_u1"
 	mockConversations := &mock.MockConversationStore{
 		Conversations: []model.Conversation{
-			{ID: conversationID, UserID: "u1", TeamID: teamID, Channel: "portal", CreatedBy: "u1", CreatedAt: 123},
+			{ID: conversationID, UserID: "u1", TeamID: teamID, Channel: "portal", CreatedBy: "u1", CreatedAt: time.Unix(123, 0).UTC()},
 		},
 	}
 
@@ -162,7 +163,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 			taskStore: &mock.MockTaskStore{
 				Create: &model.Task{
 					ID: "new-task-id", ConversationID: conversationID, TeamID: teamID, Status: "PENDING",
-					Input: "Do X", CreatedBy: "u1", CreatedAt: 99999,
+					Input: "Do X", CreatedBy: "u1", CreatedAt: time.Unix(99999, 0).UTC(),
 				},
 			},
 			authHeader:   "Bearer " + testsupport.SignJWT("u1", secret),
@@ -177,7 +178,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 			taskStore: &mock.MockTaskStore{},
 			agentStore: &mock.MockAgentStore{
 				Agents: []model.Agent{
-					{ID: "a_1", UserID: "u1", TeamID: teamID, Name: "TestAgent", Description: "A desc", Instructions: "Do things", CreatedAt: 100},
+					{ID: "a_1", UserID: "u1", TeamID: teamID, Name: "TestAgent", Description: "A desc", Instructions: "Do things", CreatedAt: time.Unix(100, 0).UTC()},
 				},
 			},
 			authHeader:   "Bearer " + testsupport.SignJWT("u1", secret),
@@ -264,15 +265,15 @@ func TestListConversationTasksCarriesRunAndArtifacts(t *testing.T) {
 	secret := "test-task-cards-secret"
 	conversationID := "conv1"
 	teamID := "tm_personal_u1"
-	task1 := model.Task{ID: "t1", ConversationID: conversationID, TeamID: teamID, Status: "SUCCEEDED", Input: "Do something", CreatedBy: "u1", CreatedAt: 1000, LastRunID: util.Ptr("tr_1")}
-	task2 := model.Task{ID: "t2", ConversationID: conversationID, TeamID: teamID, Status: "PENDING", Input: "Explore", CreatedBy: "u1", CreatedAt: 1001}
+	task1 := model.Task{ID: "t1", ConversationID: conversationID, TeamID: teamID, Status: "SUCCEEDED", Input: "Do something", CreatedBy: "u1", CreatedAt: time.Unix(1000, 0).UTC(), LastRunID: util.Ptr("tr_1")}
+	task2 := model.Task{ID: "t2", ConversationID: conversationID, TeamID: teamID, Status: "PENDING", Input: "Explore", CreatedBy: "u1", CreatedAt: time.Unix(1001, 0).UTC()}
 
 	h := New(Config{
 		JWTSecret: secret,
 		Teams:     &mock.MockTeamStore{Teams: []model.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}}, Members: []model.TeamMember{{TeamID: teamID, UserID: "u1", Role: model.TeamRoleOwner}}},
 		Tasks:     &mock.MockTaskStore{List: []model.Task{task1, task2}},
 		Conversations: &mock.MockConversationStore{
-			Conversations: []model.Conversation{{ID: conversationID, UserID: "u1", TeamID: teamID, Channel: "portal", CreatedBy: "u1", CreatedAt: 123}},
+			Conversations: []model.Conversation{{ID: conversationID, UserID: "u1", TeamID: teamID, Channel: "portal", CreatedBy: "u1", CreatedAt: time.Unix(123, 0).UTC()}},
 		},
 		RunOutputs: &mock.MockRunOutputLister{List: []model.ArtifactWithTask{
 			{ArtifactID: "tr_1", TaskID: "t1", TaskRunID: "tr_1", ConversationID: conversationID},

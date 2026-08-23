@@ -61,7 +61,7 @@ func (h *Handler) reportTaskRunTerminal(ctx context.Context, info model.TaskRunT
 		h.submitTaskResultTurn(reportCtx, info, nil)
 		return
 	}
-	if err := h.cfg.TaskResultDeliveries.EnqueueTaskResultDelivery(reportCtx, info.TaskRunID, info.ConversationID, time.Now().Unix()); err != nil {
+	if err := h.cfg.TaskResultDeliveries.EnqueueTaskResultDelivery(reportCtx, info.TaskRunID, info.ConversationID, time.Now().UTC()); err != nil {
 		slog.Warn("task result delivery not recorded", "task_run_id", info.TaskRunID, "err", err)
 	}
 	h.attemptTaskResultDelivery(reportCtx, info.TaskRunID, time.Now())
@@ -73,7 +73,7 @@ func (h *Handler) reportTaskRunTerminal(ctx context.Context, info model.TaskRunT
 // callback and a sweep can both reach the same delivery, and only the claim
 // that matched proceeds.
 func (h *Handler) attemptTaskResultDelivery(ctx context.Context, taskRunID string, now time.Time) {
-	claimed, err := h.cfg.TaskResultDeliveries.ClaimTaskResultDelivery(ctx, taskRunID, now.Unix(), now.Add(deliveryLease).Unix())
+	claimed, err := h.cfg.TaskResultDeliveries.ClaimTaskResultDelivery(ctx, taskRunID, now, now.Add(deliveryLease))
 	if err != nil {
 		slog.Warn("task result delivery not claimed", "task_run_id", taskRunID, "err", err)
 		return
@@ -99,7 +99,7 @@ func (h *Handler) attemptTaskResultDelivery(ctx context.Context, taskRunID strin
 		}
 		// Left pending, and brought forward: the claim pushed the next attempt
 		// out to cover a turn still running, and this one is no longer running.
-		next := now.Add(deliveryBackoff).Unix()
+		next := now.Add(deliveryBackoff)
 		if err := h.cfg.TaskResultDeliveries.RecordTaskResultDeliveryFailure(ctx, taskRunID, turnErr.Error(), next); err != nil {
 			slog.Warn("task result delivery failure not recorded", "task_run_id", taskRunID, "err", err)
 		}

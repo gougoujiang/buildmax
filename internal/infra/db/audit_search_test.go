@@ -45,7 +45,7 @@ func TestSearchAuditEvents(t *testing.T) {
 	// Newest first, and the ordering is stable rather than whatever the engine
 	// returns: an investigation reads down a page.
 	for i := 1; i < len(all); i++ {
-		if all[i-1].CreatedAt < all[i].CreatedAt {
+		if all[i-1].CreatedAt.Before(all[i].CreatedAt) {
 			t.Errorf("results are not newest first: %+v", all)
 			break
 		}

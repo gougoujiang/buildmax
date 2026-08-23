@@ -98,7 +98,7 @@ func (h *Handler) SweepTaskResultDeliveries(ctx context.Context, now time.Time) 
 	if h == nil || h.cfg.TaskResultDeliveries == nil {
 		return
 	}
-	due, err := h.cfg.TaskResultDeliveries.ListDueTaskResultDeliveries(ctx, now.Unix(), deliverySweepLimit)
+	due, err := h.cfg.TaskResultDeliveries.ListDueTaskResultDeliveries(ctx, now, deliverySweepLimit)
 	if err != nil {
 		slog.Warn("task result delivery sweep failed", "err", err)
 		return

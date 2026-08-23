@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -20,13 +21,13 @@ func TestTeamHandlers(t *testing.T) {
 	sharedTeamID := "tm_shared"
 	teamStore := &mock.MockTeamStore{
 		Teams: []model.Team{
-			{ID: personalTeamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1", CreatedAt: 100, UpdatedAt: 100},
-			{ID: sharedTeamID, Name: "Ops", CreatedBy: "u1", CreatedAt: 200, UpdatedAt: 200},
+			{ID: personalTeamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1", CreatedAt: time.Unix(100, 0).UTC(), UpdatedAt: time.Unix(100, 0).UTC()},
+			{ID: sharedTeamID, Name: "Ops", CreatedBy: "u1", CreatedAt: time.Unix(200, 0).UTC(), UpdatedAt: time.Unix(200, 0).UTC()},
 		},
 		Members: []model.TeamMember{
-			{TeamID: personalTeamID, UserID: "u1", Role: model.TeamRoleOwner, CreatedAt: 100},
-			{TeamID: sharedTeamID, UserID: "u1", Role: model.TeamRoleOwner, CreatedAt: 200},
-			{TeamID: sharedTeamID, UserID: "u2", Role: model.TeamRoleMember, CreatedAt: 201},
+			{TeamID: personalTeamID, UserID: "u1", Role: model.TeamRoleOwner, CreatedAt: time.Unix(100, 0).UTC()},
+			{TeamID: sharedTeamID, UserID: "u1", Role: model.TeamRoleOwner, CreatedAt: time.Unix(200, 0).UTC()},
+			{TeamID: sharedTeamID, UserID: "u2", Role: model.TeamRoleMember, CreatedAt: time.Unix(201, 0).UTC()},
 		},
 	}
 	userStore := &mock.MockUserStore{

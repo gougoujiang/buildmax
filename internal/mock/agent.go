@@ -24,7 +24,7 @@ func (m *MockAgentStore) appendRevision(a *model.Agent, createdBy string) {
 		Description:  a.Description,
 		Instructions: a.Instructions,
 		CreatedBy:    createdBy,
-		CreatedAt:    time.Now().Unix(),
+		CreatedAt:    time.Now().UTC(),
 	})
 }
 
@@ -94,7 +94,7 @@ func (m *MockAgentStore) CreateAgentInTeam(_ context.Context, teamID, userID, na
 		Description:  description,
 		Instructions: instructions,
 		Revision:     1,
-		CreatedAt:    time.Now().Unix(),
+		CreatedAt:    time.Now().UTC(),
 	}
 	m.Agents = append(m.Agents, a)
 	created := &m.Agents[len(m.Agents)-1]
@@ -142,7 +142,7 @@ func (m *MockAgentStore) GetAgentRevision(_ context.Context, agentID string, rev
 func (m *MockAgentStore) DeleteAgent(_ context.Context, agentID, userID string) error {
 	for i := range m.Agents {
 		if m.Agents[i].ID == agentID && m.Agents[i].UserID == userID && m.Agents[i].DeletedAt == nil {
-			m.Agents[i].DeletedAt = util.Ptr(time.Now().Unix())
+			m.Agents[i].DeletedAt = util.Ptr(time.Now().UTC())
 			return nil
 		}
 	}
@@ -152,7 +152,7 @@ func (m *MockAgentStore) DeleteAgent(_ context.Context, agentID, userID string) 
 func (m *MockAgentStore) DeleteAgentInTeam(_ context.Context, agentID, teamID string) error {
 	for i := range m.Agents {
 		if m.Agents[i].ID == agentID && m.Agents[i].TeamID == teamID && m.Agents[i].DeletedAt == nil {
-			m.Agents[i].DeletedAt = util.Ptr(time.Now().Unix())
+			m.Agents[i].DeletedAt = util.Ptr(time.Now().UTC())
 			return nil
 		}
 	}

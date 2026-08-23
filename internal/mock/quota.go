@@ -2,6 +2,7 @@ package mock
 
 import (
 	"context"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 )
@@ -13,7 +14,7 @@ type MockUsageReader struct {
 	Err         error
 }
 
-func (m *MockUsageReader) TeamUsageInWindow(_ context.Context, _ string, _, _ int64) (int, int, error) {
+func (m *MockUsageReader) TeamUsageInWindow(_ context.Context, _ string, _, _ time.Time) (int, int, error) {
 	if m.Err != nil {
 		return 0, 0, m.Err
 	}
@@ -75,7 +76,7 @@ type DenyQuotaUsageReader struct {
 	TotalTokens int
 }
 
-func (d *DenyQuotaUsageReader) TeamUsageInWindow(_ context.Context, _ string, _, _ int64) (int, int, error) {
+func (d *DenyQuotaUsageReader) TeamUsageInWindow(_ context.Context, _ string, _, _ time.Time) (int, int, error) {
 	return d.RunCount, d.TotalTokens, nil
 }
 

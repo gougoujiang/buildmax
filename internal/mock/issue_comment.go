@@ -29,7 +29,7 @@ func (m *MockIssueCommentStore) CreateIssueComment(_ context.Context, in model.C
 		Body:            in.Body,
 		SourceTaskID:    in.SourceTaskID,
 		SourceTaskRunID: in.SourceTaskRunID,
-		CreatedAt:       time.Now().Unix(),
+		CreatedAt:       time.Now().UTC(),
 	}
 	m.Comments = append(m.Comments, comment)
 	return &m.Comments[len(m.Comments)-1], nil
@@ -67,7 +67,7 @@ func (m *MockIssueCommentStore) UpdateIssueComment(_ context.Context, commentID,
 		if m.Comments[i].ID != commentID {
 			continue
 		}
-		now := time.Now().Unix()
+		now := time.Now().UTC()
 		m.Comments[i].Body = body
 		m.Comments[i].EditedAt = &now
 		return &m.Comments[i], nil

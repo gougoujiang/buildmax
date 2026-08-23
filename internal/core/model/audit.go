@@ -1,6 +1,9 @@
 package model
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // Audit actions. These strings are persisted, so they are permanent: renaming
 // one rewrites history for every reader that filters on it.
@@ -138,8 +141,8 @@ type AuditEvent struct {
 	TargetID   string `json:"target_id,omitempty"`
 	// Detail is a short, non-sensitive note — a role name, a model alias. It
 	// is not a place for request bodies.
-	Detail    string `json:"detail,omitempty"`
-	CreatedAt int64  `json:"created_at"`
+	Detail    string    `json:"detail,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // AuditFilter narrows an audit search. Every field is optional; the zero value
@@ -161,8 +164,8 @@ type AuditFilter struct {
 	Action      string
 	// Since and Until bound created_at, inclusive and exclusive respectively.
 	// Zero means unbounded.
-	Since int64
-	Until int64
+	Since time.Time
+	Until time.Time
 }
 
 // AuditCursor is a position in the trail, used to walk it in bounded pages.
@@ -175,19 +178,19 @@ type AuditFilter struct {
 // no matter what the table did meanwhile.
 //
 // The zero value starts at the newest event. `CreatedAt` alone is not enough to
-// resume from: it has one-second resolution and several actions can share a
-// second, so the event's own identity breaks the tie.
+// resume from: microsecond resolution narrows collisions but does not remove
+// them, so the event's own identity breaks the tie.
 //
 // That identity is the public one. The row key that actually orders a tie lives
 // below the store boundary, so a store resolves this handle to it rather than
 // handing a database key to a caller.
 type AuditCursor struct {
-	CreatedAt int64
+	CreatedAt time.Time
 	ID        string
 }
 
 // Zero reports whether the cursor is a fresh start rather than a resumption.
-func (c AuditCursor) Zero() bool { return c.CreatedAt == 0 && c.ID == "" }
+func (c AuditCursor) Zero() bool { return c.CreatedAt.IsZero() && c.ID == "" }
 
 // AuditWriter appends audit events.
 //
@@ -247,9 +250,9 @@ type AuditPruneStore interface {
 	// limit of them, and returns how many went. A bounded delete keeps one
 	// sweep from holding the table while a backlog of an old deployment's
 	// events is removed; the caller repeats until it returns fewer than limit.
-	PruneAuditEvents(ctx context.Context, before int64, limit int) (int64, error)
+	PruneAuditEvents(ctx context.Context, before time.Time, limit int) (int64, error)
 	// OldestAuditEventAt reports the timestamp of the oldest event, or zero
 	// when the table is empty. The sweep uses it to say what a prune actually
 	// removed rather than only what it was allowed to.
-	OldestAuditEventAt(ctx context.Context) (int64, error)
+	OldestAuditEventAt(ctx context.Context) (time.Time, error)
 }

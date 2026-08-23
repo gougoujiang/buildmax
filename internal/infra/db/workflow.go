@@ -3,25 +3,26 @@ package db
 import (
 	"context"
 	"errors"
-	"github.com/gougoujiang/buildmax/internal/core/model"
 	"time"
+
+	"github.com/gougoujiang/buildmax/internal/core/model"
 
 	"github.com/gougoujiang/buildmax/internal/util"
 	"gorm.io/gorm"
 )
 
 type workflowRow struct {
-	ID          uint64 `gorm:"primaryKey;autoIncrement"`
-	PublicID    string `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_workflow_public_id;not null"`
-	TeamID      uint64 `gorm:"column:team_id;not null;index"`
-	Name        string `gorm:"type:varchar(255);not null"`
-	Description string `gorm:"type:text;not null"`
-	Definition  string `gorm:"type:longtext;not null"`
-	Status      string `gorm:"type:varchar(32);not null;default:'draft'"`
-	Revision    int    `gorm:"column:revision;not null;default:1"`
-	CreatedBy   uint64 `gorm:"column:created_by;not null"`
-	CreatedAt   int64  `gorm:"autoCreateTime"`
-	UpdatedAt   int64  `gorm:"autoUpdateTime"`
+	ID          uint64    `gorm:"primaryKey;autoIncrement"`
+	PublicID    string    `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_workflow_public_id;not null"`
+	TeamID      uint64    `gorm:"column:team_id;not null;index"`
+	Name        string    `gorm:"type:varchar(255);not null"`
+	Description string    `gorm:"type:text;not null"`
+	Definition  string    `gorm:"type:longtext;not null"`
+	Status      string    `gorm:"type:varchar(32);not null;default:'draft'"`
+	Revision    int       `gorm:"column:revision;not null;default:1"`
+	CreatedBy   uint64    `gorm:"column:created_by;not null"`
+	CreatedAt   time.Time `gorm:"autoCreateTime"`
+	UpdatedAt   time.Time `gorm:"autoUpdateTime"`
 }
 
 func (workflowRow) TableName() string { return "workflow" }
@@ -47,15 +48,15 @@ func workflowSelectTx(tx *gorm.DB) *gorm.DB {
 // workflowRevisionRow is one recorded version of a workflow. Rows are appended,
 // never updated or deleted.
 type workflowRevisionRow struct {
-	ID          uint64 `gorm:"primaryKey;autoIncrement"`
-	WorkflowID  uint64 `gorm:"column:workflow_id;not null;index:idx_workflow_revision,unique,priority:1"`
-	Revision    int    `gorm:"column:revision;not null;index:idx_workflow_revision,unique,priority:2"`
-	Name        string `gorm:"type:varchar(255);not null"`
-	Description string `gorm:"type:text;not null"`
-	Definition  string `gorm:"type:longtext;not null"`
-	Status      string `gorm:"type:varchar(32);not null"`
-	CreatedBy   uint64 `gorm:"column:created_by;not null"`
-	CreatedAt   int64  `gorm:"autoCreateTime"`
+	ID          uint64    `gorm:"primaryKey;autoIncrement"`
+	WorkflowID  uint64    `gorm:"column:workflow_id;not null;index:idx_workflow_revision,unique,priority:1"`
+	Revision    int       `gorm:"column:revision;not null;index:idx_workflow_revision,unique,priority:2"`
+	Name        string    `gorm:"type:varchar(255);not null"`
+	Description string    `gorm:"type:text;not null"`
+	Definition  string    `gorm:"type:longtext;not null"`
+	Status      string    `gorm:"type:varchar(32);not null"`
+	CreatedBy   uint64    `gorm:"column:created_by;not null"`
+	CreatedAt   time.Time `gorm:"autoCreateTime"`
 }
 
 func (workflowRevisionRow) TableName() string { return "workflow_revision" }
@@ -76,18 +77,18 @@ func (s *Store) workflowRevisionSelect(ctx context.Context) *gorm.DB {
 }
 
 type workflowRunRow struct {
-	ID               uint64  `gorm:"primaryKey;autoIncrement"`
-	PublicID         string  `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_workflow_run_public_id;not null"`
-	WorkflowID       uint64  `gorm:"column:workflow_id;not null;index:idx_workflow_run_workflow_created,priority:1"`
-	WorkflowRevision int     `gorm:"column:workflow_revision;not null;default:0"`
-	IssueID          *uint64 `gorm:"column:issue_id;index"`
-	ConversationID   uint64  `gorm:"column:conversation_id;not null;index"`
-	Status           string  `gorm:"type:varchar(32);not null"`
-	CreatedBy        uint64  `gorm:"column:created_by;not null"`
-	CreatedAt        int64   `gorm:"autoCreateTime;index:idx_workflow_run_workflow_created,priority:2"`
-	StartedAt        *int64  `gorm:""`
-	EndedAt          *int64  `gorm:""`
-	ErrorMessage     *string `gorm:"type:text"`
+	ID               uint64     `gorm:"primaryKey;autoIncrement"`
+	PublicID         string     `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_workflow_run_public_id;not null"`
+	WorkflowID       uint64     `gorm:"column:workflow_id;not null;index:idx_workflow_run_workflow_created,priority:1"`
+	WorkflowRevision int        `gorm:"column:workflow_revision;not null;default:0"`
+	IssueID          *uint64    `gorm:"column:issue_id;index"`
+	ConversationID   uint64     `gorm:"column:conversation_id;not null;index"`
+	Status           string     `gorm:"type:varchar(32);not null"`
+	CreatedBy        uint64     `gorm:"column:created_by;not null"`
+	CreatedAt        time.Time  `gorm:"autoCreateTime;index:idx_workflow_run_workflow_created,priority:2"`
+	StartedAt        *time.Time `gorm:""`
+	EndedAt          *time.Time `gorm:""`
+	ErrorMessage     *string    `gorm:"type:text"`
 }
 
 func (workflowRunRow) TableName() string { return "workflow_run" }
@@ -122,19 +123,19 @@ type workflowStepRunRow struct {
 	TargetAgentID *uint64 `gorm:"column:target_agent_id;index"`
 	// Agent definition captured when the run started; empty on rows written before
 	// step runs snapshotted their agent.
-	AgentName         string  `gorm:"column:agent_name;type:varchar(255);not null"`
-	AgentDescription  string  `gorm:"column:agent_description;type:text;not null"`
-	AgentInstructions string  `gorm:"column:agent_instructions;type:longtext;not null"`
-	AgentRevision     int     `gorm:"column:agent_revision;not null;default:0"`
-	Prompt            string  `gorm:"type:text;not null"`
-	Status            string  `gorm:"type:varchar(32);not null"`
-	TaskID            *uint64 `gorm:"column:task_id;index"`
-	TaskRunID         *uint64 `gorm:"column:task_run_id;index"`
-	OutputSummary     *string `gorm:"type:text"`
-	ErrorMessage      *string `gorm:"type:text"`
-	CreatedAt         int64   `gorm:"autoCreateTime"`
-	StartedAt         *int64  `gorm:""`
-	EndedAt           *int64  `gorm:""`
+	AgentName         string     `gorm:"column:agent_name;type:varchar(255);not null"`
+	AgentDescription  string     `gorm:"column:agent_description;type:text;not null"`
+	AgentInstructions string     `gorm:"column:agent_instructions;type:longtext;not null"`
+	AgentRevision     int        `gorm:"column:agent_revision;not null;default:0"`
+	Prompt            string     `gorm:"type:text;not null"`
+	Status            string     `gorm:"type:varchar(32);not null"`
+	TaskID            *uint64    `gorm:"column:task_id;index"`
+	TaskRunID         *uint64    `gorm:"column:task_run_id;index"`
+	OutputSummary     *string    `gorm:"type:text"`
+	ErrorMessage      *string    `gorm:"type:text"`
+	CreatedAt         time.Time  `gorm:"autoCreateTime"`
+	StartedAt         *time.Time `gorm:""`
+	EndedAt           *time.Time `gorm:""`
 }
 
 func (workflowStepRunRow) TableName() string { return "workflow_step_run" }
@@ -300,7 +301,7 @@ func (s *Store) ListWorkflowsByTeam(ctx context.Context, teamID string) ([]model
 }
 
 func (s *Store) CreateWorkflow(ctx context.Context, teamID, createdBy, name, description, definition string) (*model.Workflow, error) {
-	now := time.Now().Unix()
+	now := time.Now().UTC()
 	workflow := &model.Workflow{
 		TeamID:      teamID,
 		Name:        name,
@@ -358,7 +359,7 @@ func appendWorkflowRevision(tx *gorm.DB, workflowKey, createdBy uint64, w *model
 		Definition:  w.Definition,
 		Status:      w.Status,
 		CreatedBy:   createdBy,
-		CreatedAt:   time.Now().Unix(),
+		CreatedAt:   time.Now().UTC(),
 	}).Error
 }
 
@@ -407,7 +408,7 @@ func (s *Store) UpdateWorkflow(ctx context.Context, workflowID, teamID string, i
 		return workflow, nil
 	}
 	updated.Revision = nextRevision(workflow.Revision)
-	updated.UpdatedAt = time.Now().Unix()
+	updated.UpdatedAt = time.Now().UTC()
 	updates := map[string]interface{}{
 		"name":        updated.Name,
 		"description": updated.Description,
@@ -472,7 +473,7 @@ func (s *Store) GetWorkflowRevision(ctx context.Context, workflowID string, revi
 }
 
 func (s *Store) CreateWorkflowRun(ctx context.Context, in model.CreateWorkflowRunInput) (*model.WorkflowRun, error) {
-	now := time.Now().Unix()
+	now := time.Now().UTC()
 	run := &model.WorkflowRun{
 		WorkflowID:       in.WorkflowID,
 		WorkflowRevision: in.WorkflowRevision,
@@ -605,7 +606,7 @@ func (s *Store) CreateWorkflowStepRuns(ctx context.Context, workflowRunID string
 	if len(steps) == 0 {
 		return []model.WorkflowStepRun{}, nil
 	}
-	now := time.Now().Unix()
+	now := time.Now().UTC()
 	runKey, err := lookupKey(ctx, s.db, "workflow_run", workflowRunID)
 	if err != nil {
 		return nil, err

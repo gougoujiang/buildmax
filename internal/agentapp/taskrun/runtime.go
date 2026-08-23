@@ -41,7 +41,7 @@ type RunScope struct {
 
 // RunResult holds the outcome of a successful run (output and paths) for reportRunSuccess.
 type RunResult struct {
-	EndTime          int64
+	EndTime          time.Time
 	OutputStr        string
 	RunArtifactsDir  string
 	Output           []byte
@@ -221,8 +221,8 @@ func runCanceled(ctx context.Context) bool {
 func reportCanceledRun(ctx context.Context, scope RunScope, result RunResult, dirs runDirs, input RunTaskInput) error {
 	reportCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), reportFinishTimeout)
 	defer cancel()
-	if result.EndTime == 0 {
-		result.EndTime = time.Now().Unix()
+	if result.EndTime.IsZero() {
+		result.EndTime = time.Now().UTC()
 	}
 	reportPersistedRunState(reportCtx, input.Persist, scope, dirs, result)
 	if err := reportRunOutcome(reportCtx, scope, result, model.RunStatusCanceled, input.RunOutputStorage, input.Updater); err != nil {
@@ -266,7 +266,7 @@ func executeRunTask(ctx context.Context, input RunTaskInput, task *model.Task, r
 	agentRun, err := runAgentTask(ctx, run, dirs.runDir, dirs.runGlobal, effectiveSessionID, input.StreamSender, input.Model, input.Managed, input.AdditionalSystemPrompt,
 		artifactPublisher(input.WorkerAPI, run.ID))
 	result := RunResult{
-		EndTime:          time.Now().Unix(),
+		EndTime:          time.Now().UTC(),
 		OutputStr:        string(agentRun.output),
 		RunArtifactsDir:  dirs.runArtifacts,
 		Output:           agentRun.output,
@@ -441,7 +441,7 @@ func persistRunResult(runArtifactsDir string, output []byte) {
 // fail before an agent ever starts — but when a trace exists it is recorded
 // here too: diagnosing a failure is the trace's main job.
 func reportRunFailure(ctx context.Context, taskRunID string, err error, tracePath string, updater TaskRunUpdater) {
-	endTime := time.Now().Unix()
+	endTime := time.Now().UTC()
 	errMsg := fmt.Sprintf("%v", err)
 	req := &workerclient.PatchTaskRunRequest{
 		Status:       string(model.RunStatusFailed),

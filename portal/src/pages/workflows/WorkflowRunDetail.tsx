@@ -139,8 +139,8 @@ export function WorkflowRunDetail({ token, workflowRunId }: WorkflowRunDetailPro
                 <div><strong>Workflow version:</strong> v{run.workflowRevision}</div>
               ) : null}
               <div><strong>Created:</strong> {run.createdLabel}</div>
-              {run.startedAt ? <div><strong>Started:</strong> {new Date(run.startedAt * 1000).toLocaleString()}</div> : null}
-              {run.endedAt ? <div><strong>Ended:</strong> {new Date(run.endedAt * 1000).toLocaleString()}</div> : null}
+              {run.startedAt ? <div><strong>Started:</strong> {new Date(run.startedAt).toLocaleString()}</div> : null}
+              {run.endedAt ? <div><strong>Ended:</strong> {new Date(run.endedAt).toLocaleString()}</div> : null}
               {run.issueId ? <div><strong>Issue ID:</strong> {run.issueId}</div> : null}
               <div><strong>Conversation:</strong> {run.conversationId}</div>
               <div>

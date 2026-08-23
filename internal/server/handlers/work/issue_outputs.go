@@ -6,6 +6,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
@@ -43,7 +44,7 @@ type issueOutputResponse struct {
 	Preview          string               `json:"preview,omitempty"`
 	PreviewTruncated bool                 `json:"preview_truncated"`
 	Source           outputSourceResponse `json:"source"`
-	CreatedAt        int64                `json:"created_at"`
+	CreatedAt        time.Time            `json:"created_at"`
 }
 
 func cleanOutputID(taskRunID, relPath string) string {
@@ -133,7 +134,7 @@ func (h *Handler) aggregateIssueOutputs(
 		}
 	}
 	sort.SliceStable(outputs, func(i, j int) bool {
-		return outputs[i].CreatedAt > outputs[j].CreatedAt
+		return outputs[i].CreatedAt.After(outputs[j].CreatedAt)
 	})
 	var latest *issueOutputResponse
 	if len(outputs) > 0 {

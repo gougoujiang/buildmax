@@ -108,7 +108,7 @@ func (m *MockTaskStore) CreateTask(_ context.Context, in *model.CreateTaskInput)
 		Input:          in.Input,
 		Title:          in.Title,
 		CreatedBy:      in.CreatedBy,
-		CreatedAt:      12345,
+		CreatedAt:      seqTime(12345),
 		AgentID:        in.AgentID,
 		IssueID:        in.IssueID,
 	}

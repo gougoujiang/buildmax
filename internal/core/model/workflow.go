@@ -1,6 +1,9 @@
 package model
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 const (
 	WorkflowStatusDraft     = "draft"
@@ -34,10 +37,10 @@ type Workflow struct {
 	// Revision numbers the workflow_revision row holding this content. It
 	// starts at 1 and advances every time the name, description, definition,
 	// or status changes.
-	Revision  int    `json:"revision"`
-	CreatedBy string `json:"created_by"`
-	CreatedAt int64  `json:"created_at"`
-	UpdatedAt int64  `json:"updated_at"`
+	Revision  int       `json:"revision"`
+	CreatedBy string    `json:"created_by"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // WorkflowRevision is one recorded version of a workflow.
@@ -45,14 +48,14 @@ type Workflow struct {
 // Revisions are append-only: an edit adds one, nothing rewrites or deletes one,
 // and restoring an older revision is itself an edit that appends a new one.
 type WorkflowRevision struct {
-	WorkflowID  string `json:"workflow_id"`
-	Revision    int    `json:"revision"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Definition  string `json:"definition"`
-	Status      string `json:"status"`
-	CreatedBy   string `json:"created_by"`
-	CreatedAt   int64  `json:"created_at"`
+	WorkflowID  string    `json:"workflow_id"`
+	Revision    int       `json:"revision"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	Definition  string    `json:"definition"`
+	Status      string    `json:"status"`
+	CreatedBy   string    `json:"created_by"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 // WorkflowRun is one execution attempt of a workflow.
@@ -61,15 +64,15 @@ type WorkflowRun struct {
 	WorkflowID string `json:"workflow_id"`
 	// WorkflowRevision is the workflow revision this run expanded. It is 0 for
 	// runs started before workflows recorded revisions.
-	WorkflowRevision int     `json:"workflow_revision,omitempty"`
-	IssueID          *string `json:"issue_id,omitempty"`
-	ConversationID   string  `json:"conversation_id"`
-	Status           string  `json:"status"`
-	CreatedBy        string  `json:"created_by"`
-	CreatedAt        int64   `json:"created_at"`
-	StartedAt        *int64  `json:"started_at,omitempty"`
-	EndedAt          *int64  `json:"ended_at,omitempty"`
-	ErrorMessage     *string `json:"error_message,omitempty"`
+	WorkflowRevision int        `json:"workflow_revision,omitempty"`
+	IssueID          *string    `json:"issue_id,omitempty"`
+	ConversationID   string     `json:"conversation_id"`
+	Status           string     `json:"status"`
+	CreatedBy        string     `json:"created_by"`
+	CreatedAt        time.Time  `json:"created_at"`
+	StartedAt        *time.Time `json:"started_at,omitempty"`
+	EndedAt          *time.Time `json:"ended_at,omitempty"`
+	ErrorMessage     *string    `json:"error_message,omitempty"`
 }
 
 // WorkflowStepRun is one durable step execution record under a workflow run.
@@ -83,19 +86,19 @@ type WorkflowStepRun struct {
 	// AgentName, AgentDescription, and AgentInstructions capture the target agent
 	// definition as it was when the run started, so later edits to the agent cannot
 	// change what a step in flight sends to the model.
-	AgentName         string  `json:"agent_name,omitempty"`
-	AgentDescription  string  `json:"agent_description,omitempty"`
-	AgentInstructions string  `json:"agent_instructions,omitempty"`
-	AgentRevision     int     `json:"agent_revision,omitempty"`
-	Prompt            string  `json:"prompt"`
-	Status            string  `json:"status"`
-	TaskID            *string `json:"task_id,omitempty"`
-	TaskRunID         *string `json:"task_run_id,omitempty"`
-	OutputSummary     *string `json:"output_summary,omitempty"`
-	ErrorMessage      *string `json:"error_message,omitempty"`
-	CreatedAt         int64   `json:"created_at"`
-	StartedAt         *int64  `json:"started_at,omitempty"`
-	EndedAt           *int64  `json:"ended_at,omitempty"`
+	AgentName         string     `json:"agent_name,omitempty"`
+	AgentDescription  string     `json:"agent_description,omitempty"`
+	AgentInstructions string     `json:"agent_instructions,omitempty"`
+	AgentRevision     int        `json:"agent_revision,omitempty"`
+	Prompt            string     `json:"prompt"`
+	Status            string     `json:"status"`
+	TaskID            *string    `json:"task_id,omitempty"`
+	TaskRunID         *string    `json:"task_run_id,omitempty"`
+	OutputSummary     *string    `json:"output_summary,omitempty"`
+	ErrorMessage      *string    `json:"error_message,omitempty"`
+	CreatedAt         time.Time  `json:"created_at"`
+	StartedAt         *time.Time `json:"started_at,omitempty"`
+	EndedAt           *time.Time `json:"ended_at,omitempty"`
 }
 
 // WorkflowDefinition is the parsed structure of a workflow definition JSON.
@@ -118,7 +121,7 @@ type CreateWorkflowRunInput struct {
 	ConversationID   string
 	Status           string
 	CreatedBy        string
-	StartedAt        *int64
+	StartedAt        *time.Time
 }
 
 type UpdateWorkflowInput struct {
@@ -145,8 +148,8 @@ type CreateWorkflowStepRunInput struct {
 
 type UpdateWorkflowRunInput struct {
 	Status       string
-	StartedAt    *int64
-	EndedAt      *int64
+	StartedAt    *time.Time
+	EndedAt      *time.Time
 	ErrorMessage *string
 }
 
@@ -156,8 +159,8 @@ type UpdateWorkflowStepRunInput struct {
 	TaskRunID     *string
 	OutputSummary *string
 	ErrorMessage  *string
-	StartedAt     *int64
-	EndedAt       *int64
+	StartedAt     *time.Time
+	EndedAt       *time.Time
 }
 
 // WorkflowStore provides workflow and workflow execution persistence.

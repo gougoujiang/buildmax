@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -26,8 +27,8 @@ func TestWorkflowHandlers(t *testing.T) {
 			Definition:  `{"steps":[{"step_id":"s1","type":"agent_task","target_agent_id":"a_1","prompt":"do it"}]}`,
 			Status:      model.WorkflowStatusPublished,
 			CreatedBy:   "u1",
-			CreatedAt:   100,
-			UpdatedAt:   100,
+			CreatedAt:   time.Unix(100, 0).UTC(),
+			UpdatedAt:   time.Unix(100, 0).UTC(),
 		}},
 	}
 	agentStore := &mock.MockAgentStore{

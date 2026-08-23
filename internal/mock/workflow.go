@@ -26,7 +26,7 @@ func (m *MockWorkflowStore) appendRevision(w *model.Workflow, createdBy string) 
 		Definition:  w.Definition,
 		Status:      w.Status,
 		CreatedBy:   createdBy,
-		CreatedAt:   time.Now().Unix(),
+		CreatedAt:   time.Now().UTC(),
 	})
 }
 
@@ -50,8 +50,8 @@ func (m *MockWorkflowStore) CreateWorkflow(_ context.Context, teamID, createdBy,
 		Status:      model.WorkflowStatusDraft,
 		Revision:    1,
 		CreatedBy:   createdBy,
-		CreatedAt:   time.Now().Unix(),
-		UpdatedAt:   time.Now().Unix(),
+		CreatedAt:   time.Now().UTC(),
+		UpdatedAt:   time.Now().UTC(),
 	}
 	m.Workflows = append(m.Workflows, workflow)
 	created := &m.Workflows[len(m.Workflows)-1]
@@ -94,7 +94,7 @@ func (m *MockWorkflowStore) UpdateWorkflow(_ context.Context, workflowID, teamID
 			updated.Revision = 1
 		}
 		updated.Revision++
-		updated.UpdatedAt = time.Now().Unix()
+		updated.UpdatedAt = time.Now().UTC()
 		m.Workflows[i] = updated
 		m.appendRevision(&m.Workflows[i], in.UpdatedBy)
 		return &m.Workflows[i], nil
@@ -130,7 +130,7 @@ func (m *MockWorkflowStore) CreateWorkflowRun(_ context.Context, in model.Create
 		ConversationID:   in.ConversationID,
 		Status:           in.Status,
 		CreatedBy:        in.CreatedBy,
-		CreatedAt:        time.Now().Unix(),
+		CreatedAt:        time.Now().UTC(),
 		StartedAt:        in.StartedAt,
 	}
 	m.Runs = append(m.Runs, run)
@@ -206,7 +206,7 @@ func (m *MockWorkflowStore) CreateWorkflowStepRuns(_ context.Context, workflowRu
 			AgentRevision:     steps[i].AgentRevision,
 			Prompt:            steps[i].Prompt,
 			Status:            steps[i].Status,
-			CreatedAt:         time.Now().Unix(),
+			CreatedAt:         time.Now().UTC(),
 		}
 		m.StepRuns = append(m.StepRuns, out[i])
 	}

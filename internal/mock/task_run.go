@@ -36,7 +36,7 @@ func (m *MockTaskRunStore) CreateTaskRun(_ context.Context, in model.CreateTaskR
 		Status:           string(model.RunStatusPending),
 		RetryOfTaskRunID: in.RetryOfTaskRunID,
 		SourceMessageID:  in.SourceMessageID,
-		CreatedAt:        time.Now().Unix(),
+		CreatedAt:        time.Now().UTC(),
 	}
 	m.Runs = append(m.Runs, run)
 	return &m.Runs[len(m.Runs)-1], nil
@@ -106,7 +106,7 @@ func (m *MockTaskRunStore) GetActiveTaskRunByTask(_ context.Context, taskID stri
 	return nil, nil
 }
 
-func (m *MockTaskRunStore) RequestTaskRunCancel(_ context.Context, taskRunID, requestedBy string, requestedAt int64) (bool, error) {
+func (m *MockTaskRunStore) RequestTaskRunCancel(_ context.Context, taskRunID, requestedBy string, requestedAt time.Time) (bool, error) {
 	for i := range m.Runs {
 		if m.Runs[i].ID != taskRunID {
 			continue
@@ -175,7 +175,7 @@ func (m *MockTaskRunStore) UpdateRun(ctx context.Context, in model.UpdateTaskRun
 	}
 	return nil
 }
-func (m *MockTaskRunStore) UpdateTaskRunWorkerInfo(_ context.Context, taskRunID, workerType string, k8sJobName *string, k8sJobCreatedAt *int64) error {
+func (m *MockTaskRunStore) UpdateTaskRunWorkerInfo(_ context.Context, taskRunID, workerType string, k8sJobName *string, k8sJobCreatedAt *time.Time) error {
 	return nil
 }
 

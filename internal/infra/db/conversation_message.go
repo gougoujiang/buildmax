@@ -16,15 +16,15 @@ type conversationMessageRow struct {
 	PublicID string `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_conversation_message_public_id;not null"`
 	// The composite index is what serves a transcript read: every listing is
 	// one conversation's messages in created_at order.
-	ConversationID    uint64  `gorm:"column:conversation_id;not null;index:idx_conversation_message_conversation,priority:1"`
-	Role              string  `gorm:"type:varchar(16);not null"`
-	Content           string  `gorm:"type:text;not null"`
-	Channel           *string `gorm:"type:varchar(32)"`
-	ToolCallID        *string `gorm:"type:varchar(64);column:tool_call_id"`
-	ToolCallsJSON     *string `gorm:"type:text;column:tool_calls"`
-	ProviderStateJSON *string `gorm:"type:text;column:provider_state"`
-	PartsJSON         *string `gorm:"type:mediumtext;column:parts"`
-	CreatedAt         int64   `gorm:"autoCreateTime;index:idx_conversation_message_conversation,priority:2"`
+	ConversationID    uint64    `gorm:"column:conversation_id;not null;index:idx_conversation_message_conversation,priority:1"`
+	Role              string    `gorm:"type:varchar(16);not null"`
+	Content           string    `gorm:"type:text;not null"`
+	Channel           *string   `gorm:"type:varchar(32)"`
+	ToolCallID        *string   `gorm:"type:varchar(64);column:tool_call_id"`
+	ToolCallsJSON     *string   `gorm:"type:text;column:tool_calls"`
+	ProviderStateJSON *string   `gorm:"type:text;column:provider_state"`
+	PartsJSON         *string   `gorm:"type:mediumtext;column:parts"`
+	CreatedAt         time.Time `gorm:"autoCreateTime;index:idx_conversation_message_conversation,priority:2"`
 }
 
 func (conversationMessageRow) TableName() string { return "conversation_message" }
@@ -84,7 +84,7 @@ func (s *Store) AppendMessage(ctx context.Context, in model.AppendMessageInput) 
 		ToolCallsJSON:     in.ToolCallsJSON,
 		ProviderStateJSON: in.ProviderStateJSON,
 		PartsJSON:         in.PartsJSON,
-		CreatedAt:         time.Now().Unix(),
+		CreatedAt:         time.Now().UTC(),
 	}
 	if err := createWithPublicID(ctx, s.db, "uq_conversation_message_public_id",
 		func(id string) { row.PublicID = id }, row); err != nil {

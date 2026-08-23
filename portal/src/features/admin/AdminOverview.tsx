@@ -177,7 +177,7 @@ export function AdminOverview({ token }: { token: string | null }) {
               <li key={migration.id} className="admin-list__row">
                 <span className="admin-list__main">{migration.id}</span>
                 <time className="admin-list__meta">
-                  {new Date(migration.applied_at * 1000).toLocaleString()}
+                  {new Date(migration.applied_at).toLocaleString()}
                 </time>
               </li>
             ))}

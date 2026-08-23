@@ -1,6 +1,9 @@
 package model
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 const (
 	// ChannelWorkflow and ChannelIssueAgent mark a conversation nobody holds. A
@@ -29,13 +32,13 @@ var SyntheticChannels = []string{ChannelWorkflow, ChannelIssueAgent}
 
 // Conversation is the Tier 1 conversation container.
 type Conversation struct {
-	ID        string `json:"id"`
-	UserID    string `json:"user_id"`
-	TeamID    string `json:"team_id,omitempty"`
-	Channel   string `json:"channel"`
-	Title     string `json:"title,omitempty"`
-	CreatedBy string `json:"created_by"`
-	CreatedAt int64  `json:"created_at"`
+	ID        string    `json:"id"`
+	UserID    string    `json:"user_id"`
+	TeamID    string    `json:"team_id,omitempty"`
+	Channel   string    `json:"channel"`
+	Title     string    `json:"title,omitempty"`
+	CreatedBy string    `json:"created_by"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // ConversationMessage is one message in a Tier 1 conversation.
@@ -52,8 +55,8 @@ type ConversationMessage struct {
 	ProviderStateJSON *string `json:"provider_state,omitempty"`
 	// PartsJSON is non-text content on the message, stored as the canonical
 	// part list. Content remains the text describing it.
-	PartsJSON *string `json:"parts,omitempty"`
-	CreatedAt int64   `json:"created_at"`
+	PartsJSON *string   `json:"parts,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // AppendMessageInput is one message to store.

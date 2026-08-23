@@ -2,6 +2,7 @@ package db
 
 import (
 	"testing"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 )
@@ -43,7 +44,7 @@ func TestTaskRunCancelQueries(t *testing.T) {
 		t.Fatalf("active run = %+v, want the task's pending run %s", active, runID)
 	}
 
-	requested, err := s.RequestTaskRunCancel(ctx, runID, cancelTestUser, 1_800_000_000)
+	requested, err := s.RequestTaskRunCancel(ctx, runID, cancelTestUser, time.Unix(1_800_000_000, 0).UTC())
 	if err != nil {
 		t.Fatalf("RequestTaskRunCancel: %v", err)
 	}
@@ -52,7 +53,7 @@ func TestTaskRunCancelQueries(t *testing.T) {
 	}
 	// A second request must not overwrite the first: the stored name is whoever
 	// asked, and the stored time is what the backstop measures against.
-	again, err := s.RequestTaskRunCancel(ctx, runID, newTestUser(t, s, "cancel-other"), 1_800_009_999)
+	again, err := s.RequestTaskRunCancel(ctx, runID, newTestUser(t, s, "cancel-other"), time.Unix(1_800_009_999, 0).UTC())
 	if err != nil {
 		t.Fatalf("RequestTaskRunCancel again: %v", err)
 	}
@@ -63,7 +64,7 @@ func TestTaskRunCancelQueries(t *testing.T) {
 	if err != nil || stored == nil {
 		t.Fatalf("GetTaskRun: %v", err)
 	}
-	if stored.CancelRequestedAt == nil || *stored.CancelRequestedAt != 1_800_000_000 {
+	if stored.CancelRequestedAt == nil || !stored.CancelRequestedAt.Equal(time.Unix(1_800_000_000, 0).UTC()) {
 		t.Errorf("cancel_requested_at = %v, want the first request's time", stored.CancelRequestedAt)
 	}
 	if stored.CancelRequestedBy == nil || *stored.CancelRequestedBy != cancelTestUser {
@@ -75,7 +76,7 @@ func TestTaskRunCancelQueries(t *testing.T) {
 
 	// The backstop only sees requests older than the cutoff, so a run asked to
 	// stop a moment ago is still its worker's to end.
-	early, err := s.ListCancelRequestedTaskRuns(ctx, 1_799_999_999, 10)
+	early, err := s.ListCancelRequestedTaskRuns(ctx, time.Unix(1_799_999_999, 0).UTC(), 10)
 	if err != nil {
 		t.Fatalf("ListCancelRequestedTaskRuns: %v", err)
 	}
@@ -84,7 +85,7 @@ func TestTaskRunCancelQueries(t *testing.T) {
 			t.Error("a cancel request newer than the cutoff was swept")
 		}
 	}
-	due, err := s.ListCancelRequestedTaskRuns(ctx, 1_800_000_000, 10)
+	due, err := s.ListCancelRequestedTaskRuns(ctx, time.Unix(1_800_000_000, 0).UTC(), 10)
 	if err != nil {
 		t.Fatalf("ListCancelRequestedTaskRuns: %v", err)
 	}
@@ -94,16 +95,16 @@ func TestTaskRunCancelQueries(t *testing.T) {
 
 	// Once the run is terminal nothing may cancel it again, and the backstop
 	// must stop seeing it.
-	endedAt := int64(1_800_000_100)
+	endedAt := time.Unix(1_800_000_100, 0).UTC()
 	if err := s.UpdateRun(ctx, model.UpdateTaskRunInput{
 		TaskRunID: runID, Status: model.RunStatusCanceled, EndedAt: &endedAt,
 	}); err != nil {
 		t.Fatalf("UpdateRun: %v", err)
 	}
-	if got, err := s.RequestTaskRunCancel(ctx, runID, cancelTestUser, 1_800_000_200); err != nil || got {
+	if got, err := s.RequestTaskRunCancel(ctx, runID, cancelTestUser, time.Unix(1_800_000_200, 0).UTC()); err != nil || got {
 		t.Errorf("RequestTaskRunCancel on a finished run = %v, %v; want false, nil", got, err)
 	}
-	after, err := s.ListCancelRequestedTaskRuns(ctx, 1_800_000_300, 10)
+	after, err := s.ListCancelRequestedTaskRuns(ctx, time.Unix(1_800_000_300, 0).UTC(), 10)
 	if err != nil {
 		t.Fatalf("ListCancelRequestedTaskRuns: %v", err)
 	}

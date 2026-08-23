@@ -2,6 +2,7 @@ package db
 
 import (
 	"testing"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 )
@@ -34,7 +35,7 @@ func TestCreateTaskRunPersistsRetryLineage(t *testing.T) {
 		t.Fatal("CreateTask should create the first run")
 	}
 	failed := *task.LastRunID
-	endedAt := int64(1_800_000_000)
+	endedAt := time.Unix(1_800_000_000, 0).UTC()
 	if err := s.UpdateRun(ctx, model.UpdateTaskRunInput{
 		TaskRunID: failed,
 		Status:    model.RunStatusFailed,

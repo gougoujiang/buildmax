@@ -3,11 +3,12 @@ package auth
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/gougoujiang/buildmax/internal/server/access"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/gougoujiang/buildmax/internal/server/access"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -33,7 +34,7 @@ func newAuthTestMux(t *testing.T, cfg Config) (*http.ServeMux, *mock.MockRefresh
 	}
 	if cfg.LoginCodes == nil {
 		cfg.LoginCodes = &mock.MockLoginCodeStore{Codes: map[string]*mock.MockLoginCode{
-			"code-1": {UserID: "u1", ExpiresAt: time.Now().Add(time.Hour).Unix()},
+			"code-1": {UserID: "u1", ExpiresAt: time.Now().Add(time.Hour).UTC()},
 		}}
 	}
 	if cfg.RefreshTokens == nil {
@@ -119,7 +120,7 @@ func TestLoginWithoutRefreshStoreStillIssuesAnAccessToken(t *testing.T) {
 			ByID:    map[string]*model.User{"u1": user},
 		},
 		LoginCodes: &mock.MockLoginCodeStore{Codes: map[string]*mock.MockLoginCode{
-			"code-1": {UserID: "u1", ExpiresAt: time.Now().Add(time.Hour).Unix()},
+			"code-1": {UserID: "u1", ExpiresAt: time.Now().Add(time.Hour).UTC()},
 		}},
 		JWTSecret: refreshTestSecret,
 	}).Register(mux)
@@ -217,8 +218,8 @@ func TestRefreshKeepsTheSession(t *testing.T) {
 func TestEachLoginOpensItsOwnSession(t *testing.T) {
 	mux, _ := newAuthTestMux(t, Config{
 		LoginCodes: &mock.MockLoginCodeStore{Codes: map[string]*mock.MockLoginCode{
-			"code-1": {UserID: "u1", ExpiresAt: time.Now().Add(time.Hour).Unix()},
-			"code-2": {UserID: "u1", ExpiresAt: time.Now().Add(time.Hour).Unix()},
+			"code-1": {UserID: "u1", ExpiresAt: time.Now().Add(time.Hour).UTC()},
+			"code-2": {UserID: "u1", ExpiresAt: time.Now().Add(time.Hour).UTC()},
 		}},
 	})
 	firstAccess, firstRefresh := login(t, mux)

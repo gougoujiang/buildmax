@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -169,7 +170,7 @@ func TestPatchAgentHandler(t *testing.T) {
 	personalTeamID := "tm_personal_u1"
 	agentStore := &mock.MockAgentStore{
 		Agents: []model.Agent{
-			{ID: "a_1", UserID: "u1", TeamID: personalTeamID, Name: "Old", Description: "d1", Instructions: "i1", CreatedAt: 100},
+			{ID: "a_1", UserID: "u1", TeamID: personalTeamID, Name: "Old", Description: "d1", Instructions: "i1", CreatedAt: time.Unix(100, 0).UTC()},
 		},
 	}
 	teamStore := &mock.MockTeamStore{
@@ -304,7 +305,7 @@ func TestDeleteAgentHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			store := &mock.MockAgentStore{
 				Agents: []model.Agent{
-					{ID: "a_1", UserID: "u1", TeamID: personalTeamID, Name: "ToDelete", CreatedAt: 100},
+					{ID: "a_1", UserID: "u1", TeamID: personalTeamID, Name: "ToDelete", CreatedAt: time.Unix(100, 0).UTC()},
 				},
 			}
 			teamStore := &mock.MockTeamStore{

@@ -7,6 +7,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"time"
+
 	"github.com/gougoujiang/buildmax/internal/core/model"
 
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -15,12 +17,12 @@ import (
 )
 
 type userWebhookKeyRow struct {
-	ID        uint64 `gorm:"primaryKey;autoIncrement"`
-	PublicID  string `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_user_webhook_key_public_id;not null"`
-	UserID    uint64 `gorm:"column:user_id;not null;index"`
-	KeyHash   string `gorm:"type:varchar(128);not null;uniqueIndex"`
-	Name      string `gorm:"type:varchar(255)"`
-	CreatedAt int64  `gorm:"autoCreateTime"`
+	ID        uint64    `gorm:"primaryKey;autoIncrement"`
+	PublicID  string    `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_user_webhook_key_public_id;not null"`
+	UserID    uint64    `gorm:"column:user_id;not null;index"`
+	KeyHash   string    `gorm:"type:varchar(128);not null;uniqueIndex"`
+	Name      string    `gorm:"type:varchar(255)"`
+	CreatedAt time.Time `gorm:"autoCreateTime"`
 }
 
 func (userWebhookKeyRow) TableName() string { return "user_webhook_key" }

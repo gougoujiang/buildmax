@@ -27,7 +27,7 @@ func TestSchedulerDoesNotDispatchForADisabledAccount(t *testing.T) {
 	spy.pendingRun.CreatedBy = "u_disabled"
 
 	users := &mock.MockUserStore{}
-	disabledAt := int64(1)
+	disabledAt := time.Unix(1, 0).UTC()
 	users.ByID = map[string]*model.User{
 		"u_disabled": {ID: "u_disabled", Email: "gone@example.com", DisabledAt: &disabledAt},
 	}

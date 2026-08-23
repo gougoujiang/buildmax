@@ -12,7 +12,7 @@ function release(inspection: ApiPluginRelease["inspection"]): ApiPluginRelease {
     inspection,
     source: {},
     published_by: "u_admin",
-    published_at: 1,
+    published_at: "1970-01-01T00:00:01Z",
   }
 }
 

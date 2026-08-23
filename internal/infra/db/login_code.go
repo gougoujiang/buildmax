@@ -12,12 +12,12 @@ import (
 )
 
 type loginCodeRow struct {
-	ID        uint64 `gorm:"primaryKey;autoIncrement"`
-	CodeHash  string `gorm:"type:varchar(128);uniqueIndex;not null"`
-	UserID    uint64 `gorm:"column:user_id;not null;index"`
-	ExpiresAt int64  `gorm:"not null;index"`
-	UsedAt    *int64
-	CreatedAt int64 `gorm:"autoCreateTime"`
+	ID        uint64    `gorm:"primaryKey;autoIncrement"`
+	CodeHash  string    `gorm:"type:varchar(128);uniqueIndex;not null"`
+	UserID    uint64    `gorm:"column:user_id;not null;index"`
+	ExpiresAt time.Time `gorm:"not null;index"`
+	UsedAt    *time.Time
+	CreatedAt time.Time `gorm:"autoCreateTime"`
 }
 
 func (loginCodeRow) TableName() string { return "login_code" }
@@ -37,30 +37,30 @@ func hashLoginCode(plaintext string) string {
 }
 
 // CreateLoginCode implements model.LoginCodeStore.
-func (s *Store) CreateLoginCode(ctx context.Context, userID string, ttl time.Duration) (string, int64, error) {
+func (s *Store) CreateLoginCode(ctx context.Context, userID string, ttl time.Duration) (string, time.Time, error) {
 	if userID == "" {
-		return "", 0, errors.New("login code: user id required")
+		return "", time.Time{}, errors.New("login code: user id required")
 	}
 	if ttl <= 0 {
 		ttl = model.LoginCodeTTLDefault
 	}
 	b := make([]byte, loginCodeBytes)
 	if _, err := rand.Read(b); err != nil {
-		return "", 0, err
+		return "", time.Time{}, err
 	}
 	userKey, err := lookupKey(ctx, s.db, "user", userID)
 	if err != nil {
-		return "", 0, err
+		return "", time.Time{}, err
 	}
 	plaintext := loginCodePrefix + hex.EncodeToString(b)
-	expiresAt := time.Now().Add(ttl).Unix()
+	expiresAt := time.Now().UTC().Add(ttl)
 	row := loginCodeRow{
 		CodeHash:  hashLoginCode(plaintext),
 		UserID:    userKey,
 		ExpiresAt: expiresAt,
 	}
 	if err := s.db.WithContext(ctx).Create(&row).Error; err != nil {
-		return "", 0, err
+		return "", time.Time{}, err
 	}
 	return plaintext, expiresAt, nil
 }
@@ -73,7 +73,7 @@ func (s *Store) CreateLoginCode(ctx context.Context, userID string, ttl time.Dur
 //
 // user_id is part of that condition, so a code submitted with somebody else's
 // address matches nothing, changes nothing, and stays spendable.
-func (s *Store) ConsumeLoginCode(ctx context.Context, plaintext, userID string, now int64) (bool, error) {
+func (s *Store) ConsumeLoginCode(ctx context.Context, plaintext, userID string, now time.Time) (bool, error) {
 	if plaintext == "" || userID == "" {
 		return false, nil
 	}
@@ -99,7 +99,7 @@ func (s *Store) ConsumeLoginCode(ctx context.Context, plaintext, userID string, 
 // DeleteExpiredLoginCodes removes codes that can no longer be redeemed. Spent
 // and expired rows have no security value — the hash is not reversible — but
 // letting them accumulate forever serves nobody either.
-func (s *Store) DeleteExpiredLoginCodes(ctx context.Context, before int64) (int64, error) {
+func (s *Store) DeleteExpiredLoginCodes(ctx context.Context, before time.Time) (int64, error) {
 	res := s.db.WithContext(ctx).
 		Where("expires_at <= ? OR used_at IS NOT NULL", before).
 		Delete(&loginCodeRow{})

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/model"
@@ -42,7 +43,7 @@ func TestSystemGrantLifecycle(t *testing.T) {
 		t.Fatalf("CountActiveSystemGrants: %v", err)
 	}
 
-	grant, err := s.GrantSystemRole(ctx, userID, model.SystemRoleAdmin, model.AuditActorOperator, 100)
+	grant, err := s.GrantSystemRole(ctx, userID, model.SystemRoleAdmin, model.AuditActorOperator, time.Unix(100, 0).UTC())
 	if err != nil {
 		t.Fatalf("GrantSystemRole: %v", err)
 	}
@@ -64,11 +65,11 @@ func TestSystemGrantLifecycle(t *testing.T) {
 
 	// A second grant of a role already held is refused rather than silently
 	// creating a second row, so a caller can say "already an admin".
-	if _, err := s.GrantSystemRole(ctx, userID, model.SystemRoleAdmin, "u_other", 101); !errors.Is(err, model.ErrSystemGrantExists) {
+	if _, err := s.GrantSystemRole(ctx, userID, model.SystemRoleAdmin, "u_other", time.Unix(101, 0).UTC()); !errors.Is(err, model.ErrSystemGrantExists) {
 		t.Fatalf("second grant err = %v, want ErrSystemGrantExists", err)
 	}
 
-	found, err := s.RevokeSystemRole(ctx, userID, model.SystemRoleAdmin, 200)
+	found, err := s.RevokeSystemRole(ctx, userID, model.SystemRoleAdmin, time.Unix(200, 0).UTC())
 	if err != nil || !found {
 		t.Fatalf("RevokeSystemRole = %v, %v; want true, nil", found, err)
 	}
@@ -81,13 +82,13 @@ func TestSystemGrantLifecycle(t *testing.T) {
 	}
 
 	// Revoking again is not an error: the end state is what was asked for.
-	if found, err := s.RevokeSystemRole(ctx, userID, model.SystemRoleAdmin, 201); err != nil || found {
+	if found, err := s.RevokeSystemRole(ctx, userID, model.SystemRoleAdmin, time.Unix(201, 0).UTC()); err != nil || found {
 		t.Fatalf("second revoke = %v, %v; want false, nil", found, err)
 	}
 
 	// The revoked row stays, and a re-grant does not collide with it. This is
 	// what the (user_id, role, revoked_at) unique index has to allow.
-	regrant, err := s.GrantSystemRole(ctx, userID, model.SystemRoleAdmin, "u_admin", 300)
+	regrant, err := s.GrantSystemRole(ctx, userID, model.SystemRoleAdmin, "u_admin", time.Unix(300, 0).UTC())
 	if err != nil {
 		t.Fatalf("re-grant after revoke: %v", err)
 	}
@@ -132,7 +133,7 @@ func TestGrantSystemRoleRejectsUnknownRole(t *testing.T) {
 	s, ctx := openGrantStore(t)
 	userID := newTestUser(t, s, "grant")
 
-	if _, err := s.GrantSystemRole(ctx, userID, "system_observer", model.AuditActorOperator, 100); !errors.Is(err, model.ErrSystemRoleUnknown) {
+	if _, err := s.GrantSystemRole(ctx, userID, "system_observer", model.AuditActorOperator, time.Unix(100, 0).UTC()); !errors.Is(err, model.ErrSystemRoleUnknown) {
 		t.Fatalf("GrantSystemRole(system_observer) err = %v, want ErrSystemRoleUnknown", err)
 	}
 	roles, err := s.ActiveSystemRoles(ctx, userID)

@@ -21,10 +21,10 @@ func TestUsageHandler(t *testing.T) {
 	teamID := "tm_personal_u1"
 	teamStore := &mock.MockTeamStore{
 		Teams: []model.Team{
-			{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr(userID), QuotaTier: "free_trial", CreatedBy: userID, CreatedAt: time.Now().Unix()},
+			{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr(userID), QuotaTier: "free_trial", CreatedBy: userID, CreatedAt: time.Now().UTC()},
 		},
 		Members: []model.TeamMember{
-			{TeamID: teamID, UserID: userID, Role: model.TeamRoleOwner, CreatedAt: time.Now().Unix()},
+			{TeamID: teamID, UserID: userID, Role: model.TeamRoleOwner, CreatedAt: time.Now().UTC()},
 		},
 	}
 	usageReader := &mock.MockUsageReader{RunCount: 2, TotalTokens: 5000}

@@ -6,7 +6,7 @@ function call(overrides: Partial<ApiTaskRunLLMCall> = {}): ApiTaskRunLLMCall {
   return {
     id: "lc_1",
     streaming: false,
-    accepted_at: 1000,
+    accepted_at: "1970-01-01T00:16:40Z",
     status: "SUCCEEDED",
     ...overrides,
   }
@@ -129,10 +129,10 @@ describe("callElapsed", () => {
 
   it("does not round a sub-second call down to zero", () => {
     // The ledger stamps seconds, so a fast call and an instant one look alike.
-    expect(callElapsed(call({ accepted_at: 1000, completed_at: 1000 }))).toBe("<1 s")
+    expect(callElapsed(call({ accepted_at: "1970-01-01T00:16:40Z", completed_at: "1970-01-01T00:16:40Z" }))).toBe("<1 s")
   })
 
   it("reports elapsed seconds", () => {
-    expect(callElapsed(call({ accepted_at: 1000, completed_at: 1007 }))).toBe("7 s")
+    expect(callElapsed(call({ accepted_at: "1970-01-01T00:16:40Z", completed_at: "1970-01-01T00:16:47Z" }))).toBe("7 s")
   })
 })

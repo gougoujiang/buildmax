@@ -32,7 +32,7 @@ type spyTaskRunStore struct {
 	lastUpdateStatus *struct {
 		taskRunID    string
 		status       string
-		endedAt      *int64
+		endedAt      *time.Time
 		errorMessage *string
 	}
 	syncTaskFromRunCalls []string
@@ -45,7 +45,7 @@ func newSpyTaskRunStore(taskRunID string) *spyTaskRunStore {
 			TaskID:    "t_test",
 			Input:     "input",
 			Status:    "PENDING",
-			CreatedAt: time.Now().Unix(),
+			CreatedAt: time.Now().UTC(),
 		},
 		task: &model.Task{
 			ID:        "t_test",
@@ -96,7 +96,7 @@ func (s *spyTaskRunStore) GetActiveTaskRunByTask(_ context.Context, _ string) (*
 	return nil, nil
 }
 
-func (s *spyTaskRunStore) RequestTaskRunCancel(_ context.Context, _, _ string, _ int64) (bool, error) {
+func (s *spyTaskRunStore) RequestTaskRunCancel(_ context.Context, _, _ string, _ time.Time) (bool, error) {
 	return false, nil
 }
 
@@ -116,13 +116,13 @@ func (s *spyTaskRunStore) UpdateRun(_ context.Context, in model.UpdateTaskRunInp
 	s.lastUpdateStatus = &struct {
 		taskRunID    string
 		status       string
-		endedAt      *int64
+		endedAt      *time.Time
 		errorMessage *string
 	}{in.TaskRunID, string(in.Status), in.EndedAt, in.ErrorMessage}
 	return nil
 }
 
-func (s *spyTaskRunStore) UpdateTaskRunWorkerInfo(_ context.Context, _ string, _ string, _ *string, _ *int64) error {
+func (s *spyTaskRunStore) UpdateTaskRunWorkerInfo(_ context.Context, _ string, _ string, _ *string, _ *time.Time) error {
 	return nil
 }
 
@@ -144,7 +144,7 @@ func (s *spyTaskRunStore) SyncTaskFromRun(_ context.Context, taskRunID string) e
 // failingRunner implements WorkerRunner and always returns an error.
 type failingRunner struct{ err error }
 
-func (f *failingRunner) Run(_ context.Context, _ model.TaskRun, _ string) (string, *string, *int64, error) {
+func (f *failingRunner) Run(_ context.Context, _ model.TaskRun, _ string) (string, *string, *time.Time, error) {
 	if f.err != nil {
 		return "", nil, nil, f.err
 	}
