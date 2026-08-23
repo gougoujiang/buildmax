@@ -124,3 +124,15 @@ func (m *MockConversationMessageStore) ListMessages(_ context.Context, conversat
 	}
 	return out, nil
 }
+
+func (m *MockConversationMessageStore) GetMessage(_ context.Context, messageID string) (*model.ConversationMessage, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for i := range m.Messages {
+		if m.Messages[i].ID == messageID {
+			msg := m.Messages[i]
+			return &msg, nil
+		}
+	}
+	return nil, nil
+}

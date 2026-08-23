@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"sync"
 	"testing"
 	"time"
 
@@ -21,43 +20,9 @@ import (
 	gws "github.com/gorilla/websocket"
 )
 
-// lockedMessageStore is the message store for a turn that runs on the turn
-// queue's goroutine while the test reads from its own.
-type lockedMessageStore struct {
-	mu       sync.Mutex
-	messages []model.ConversationMessage
-}
-
-func (m *lockedMessageStore) AppendMessage(ctx context.Context, in model.AppendMessageInput) (*model.ConversationMessage, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	msg := model.ConversationMessage{
-		ID:             "cm_mock",
-		ConversationID: in.ConversationID,
-		Role:           in.Role,
-		Content:        in.Content,
-		Channel:        in.Channel,
-		ToolCallID:     in.ToolCallID,
-		ToolCallsJSON:  in.ToolCallsJSON,
-	}
-	m.messages = append(m.messages, msg)
-	return &msg, nil
-}
-
-func (m *lockedMessageStore) ListMessages(ctx context.Context, conversationID string) ([]model.ConversationMessage, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	out := make([]model.ConversationMessage, 0, len(m.messages))
-	for _, msg := range m.messages {
-		if msg.ConversationID == conversationID {
-			out = append(out, msg)
-		}
-	}
-	return out, nil
-}
-
-// waitForMessages polls until the store holds want messages, or fails.
-func (m *lockedMessageStore) waitForMessages(t *testing.T, want int) []model.ConversationMessage {
+// waitForMessages polls until the store holds want messages, or fails. The turn
+// runs on the queue's goroutine while the test reads from its own.
+func waitForMessages(t *testing.T, m *mock.MockConversationMessageStore, want int) []model.ConversationMessage {
 	t.Helper()
 	deadline := time.Now().Add(3 * time.Second)
 	for {
@@ -101,7 +66,7 @@ func terminalInfo() model.TaskRunTerminalInfo {
 // turn that reports it must not need a connection to run. It used to be skipped
 // outright when the creator had no socket open.
 func TestTaskResultTurnRunsWithNobodyConnected(t *testing.T) {
-	messages := &lockedMessageStore{}
+	messages := &mock.MockConversationMessageStore{}
 	h := NewHandler(Config{
 		JWTSecret:                wsTestSecret,
 		ConversationStore:        &mock.MockConversationStore{},
@@ -111,7 +76,7 @@ func TestTaskResultTurnRunsWithNobodyConnected(t *testing.T) {
 
 	h.reportTaskRunTerminal(context.Background(), terminalInfo())
 
-	stored := messages.waitForMessages(t, 2)
+	stored := waitForMessages(t, messages, 2)
 	if stored[0].Channel == nil || *stored[0].Channel != conversation.ChannelSystem {
 		t.Fatalf("incoming message channel = %v, want %q", stored[0].Channel, conversation.ChannelSystem)
 	}
@@ -192,7 +157,7 @@ func TestTaskRunTerminalBroadcastsToEveryTeamConnection(t *testing.T) {
 // A conversation busy with the user's own turn does not lose the report: it
 // queues behind that turn like any other.
 func TestTaskResultTurnQueuesBehindARunningTurn(t *testing.T) {
-	messages := &lockedMessageStore{}
+	messages := &mock.MockConversationMessageStore{}
 	h := NewHandler(Config{
 		JWTSecret:                wsTestSecret,
 		ConversationStore:        &mock.MockConversationStore{},
@@ -214,7 +179,7 @@ func TestTaskResultTurnQueuesBehindARunningTurn(t *testing.T) {
 	h.reportTaskRunTerminal(context.Background(), terminalInfo())
 	close(release)
 
-	messages.waitForMessages(t, 2)
+	waitForMessages(t, messages, 2)
 }
 
 func sharedTeamStore(teamID string) *mock.MockTeamStore {

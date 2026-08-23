@@ -206,7 +206,7 @@ func TestWSConversationMessageQueuesWhileBusy(t *testing.T) {
 		CORSOrigin:               "*",
 		TeamStore:                &mock.MockTeamStore{Teams: []model.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}}, Members: []model.TeamMember{{TeamID: teamID, UserID: "u1", Role: model.TeamRoleOwner}}},
 		ConversationStore:        &mock.MockConversationStore{},
-		ConversationMessageStore: &mockConversationMessageStore{},
+		ConversationMessageStore: &mock.MockConversationMessageStore{},
 		ConversationLLMClient:    client,
 	})
 	mux := http.NewServeMux()

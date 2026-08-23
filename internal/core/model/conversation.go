@@ -64,4 +64,9 @@ type ConversationStore interface {
 type ConversationMessageStore interface {
 	AppendMessage(ctx context.Context, in AppendMessageInput) (*ConversationMessage, error)
 	ListMessages(ctx context.Context, conversationID string) ([]ConversationMessage, error)
+	// GetMessage returns one message by handle, or (nil, nil) when there is no
+	// such row. It exists because a run names the message that asked for it,
+	// and reading a whole transcript to resolve one handle is the wrong shape
+	// for a question about one run.
+	GetMessage(ctx context.Context, messageID string) (*ConversationMessage, error)
 }
