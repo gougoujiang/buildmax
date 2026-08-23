@@ -10,7 +10,7 @@ import type {
 import { getErrorMessage } from "../../lib/errorMessage"
 import { getTaskRunProvenance, getTaskRunTrace, listTaskRunLLMCalls } from "./api"
 import { describeAgent, describeOrigin, inputMatchesMessage } from "./origin"
-import { callElapsed, describeSpend, summarizeSpend } from "./spend"
+import { cacheSaving, callElapsed, describeSpend, formatAmount, summarizeSpend } from "./spend"
 import { describeBoundary, formatDuration, runElapsed } from "./summary"
 
 interface RunTraceModalProps {
@@ -161,6 +161,14 @@ function SpendCallRow({ call }: { call: ApiTaskRunLLMCall }) {
       ) : (
         <span className="run-trace__call-duration">{callElapsed(call)}</span>
       )}
+      {/* A per-call cache note appears only where the provider sent one, so a
+          row without it means "not reported", not "missed". */}
+      {(call.cache_read_tokens ?? 0) > 0 || (call.cache_write_tokens ?? 0) > 0 ? (
+        <span className="run-trace__call-cache">
+          cache {(call.cache_read_tokens ?? 0).toLocaleString()} r /{" "}
+          {(call.cache_write_tokens ?? 0).toLocaleString()} w
+        </span>
+      ) : null}
       {typeof call.attempts === "number" && call.attempts > 1 ? (
         <span className="run-trace__call-attempts">{call.attempts} attempts</span>
       ) : null}
@@ -215,6 +223,61 @@ function SpendSection({
                 ) : null}
               </dd>
             </div>
+            {/* Shown only once a provider has reported cache counts. A
+                permanent "0 / 0" would read as a measured miss on the many
+                providers that report nothing at all. */}
+            {summary.cacheReadTokens > 0 || summary.cacheWriteTokens > 0 ? (
+              <div>
+                <dt>Cached prompt (read / write)</dt>
+                <dd>
+                  {summary.cacheReadTokens.toLocaleString()} /{" "}
+                  {summary.cacheWriteTokens.toLocaleString()}
+                  {summary.cacheUnreported > 0 ? (
+                    <span className="run-trace__unreported">
+                      {" "}
+                      · {summary.cacheUnreported} call
+                      {summary.cacheUnreported === 1 ? "" : "s"} reported no cache
+                    </span>
+                  ) : null}
+                </dd>
+              </div>
+            ) : null}
+            {/* Cost is shown only where every rate needed for it was recorded.
+                An estimate assembled from half a price list looks
+                authoritative and is not. */}
+            <div>
+              <dt>Estimated cost</dt>
+              <dd>
+                {summary.cost ? (
+                  <>
+                    {formatAmount(summary.cost.total, summary.cost.currency)}
+                    {summary.unpriced > 0 ? (
+                      <span className="run-trace__unreported">
+                        {" "}
+                        · {summary.unpriced} call{summary.unpriced === 1 ? "" : "s"} unpriced
+                      </span>
+                    ) : null}
+                  </>
+                ) : (
+                  <span className="run-trace__unreported">unavailable</span>
+                )}
+              </dd>
+            </div>
+            {/* Reported only when positive. A run that wrote cache entries
+                nothing read back paid more than it would have uncached, and
+                calling that a small saving would be a false claim. */}
+            {summary.cost && cacheSaving(summary.cost) !== null ? (
+              <div>
+                <dt>Saved by caching</dt>
+                <dd>
+                  {formatAmount(cacheSaving(summary.cost) ?? 0, summary.cost.currency)}
+                  <span className="run-trace__unreported">
+                    {" "}
+                    · {formatAmount(summary.cost.baseline, summary.cost.currency)} uncached
+                  </span>
+                </dd>
+              </div>
+            ) : null}
             {summary.failed > 0 ? (
               <div>
                 <dt>Failed calls</dt>

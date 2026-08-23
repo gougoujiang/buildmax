@@ -21,11 +21,16 @@ import (
 // trimming, compaction, and session persistence; server-side conversation state
 // would compete with all four.
 type openAIResponsesAdapter struct {
-	client    *openai.Client
-	model     string
-	maxTokens int
-	reasoning string
-	vision    bool
+	client     *openai.Client
+	model      string
+	maxTokens  int
+	reasoning  string
+	cache      config.CacheControl
+	capability cacheCapability
+	// credential is held only to fingerprint the cache bucket. It is hashed
+	// before it influences anything and never leaves this process.
+	credential string
+	vision     bool
 }
 
 func newOpenAIResponsesAdapter(cfg Config) *openAIResponsesAdapter {
@@ -35,11 +40,14 @@ func newOpenAIResponsesAdapter(cfg Config) *openAIResponsesAdapter {
 	}
 	clientConfig.HTTPClient = withBuildMaxUserAgent(cfg.HTTPClient, cfg.Surface)
 	return &openAIResponsesAdapter{
-		client:    openai.NewClientWithConfig(clientConfig),
-		model:     cfg.Model,
-		maxTokens: cfg.MaxTokens,
-		reasoning: cfg.Reasoning,
-		vision:    cfg.Vision,
+		client:     openai.NewClientWithConfig(clientConfig),
+		model:      cfg.Model,
+		maxTokens:  cfg.MaxTokens,
+		reasoning:  cfg.Reasoning,
+		cache:      cfg.CacheControl,
+		capability: cacheCapabilityFor(config.LLMProviderOpenAI),
+		credential: cfg.APIKey,
+		vision:     cfg.Vision,
 	}
 }
 
@@ -49,7 +57,8 @@ func (a *openAIResponsesAdapter) name() string { return config.LLMProviderOpenAI
 //
 // System messages become top-level instructions, because this protocol has no
 // system role. Everything else keeps its order.
-func (a *openAIResponsesAdapter) buildRequest(messages []cllm.Message, tools []cllm.ToolDef) openai.CreateResponseRequest {
+func (a *openAIResponsesAdapter) buildRequest(call cllm.Request) openai.CreateResponseRequest {
+	messages, tools := call.Messages, call.Tools
 	var instructions []string
 	input := make([]any, 0, len(messages))
 	for _, m := range messages {
@@ -117,6 +126,7 @@ func (a *openAIResponsesAdapter) buildRequest(messages []cllm.Message, tools []c
 	// conversation itself, so opt out rather than leave copies behind.
 	store := false
 	req.Store = &store
+	a.applyCacheControls(&req, call, strings.Join(instructions, "\n\n"), tools)
 	if config.ReasoningEnabled(a.reasoning) {
 		req.Reasoning = &openai.ResponseReasoning{Effort: a.reasoning}
 		// Reasoning items are only returned in a form that can be replayed when
@@ -260,8 +270,8 @@ func responsesUsage(usage *openai.ResponseUsage) cllm.Usage {
 	return out
 }
 
-func (a *openAIResponsesAdapter) blocking(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef) (cllm.Completion, error) {
-	resp, err := a.client.CreateResponse(ctx, a.buildRequest(messages, tools))
+func (a *openAIResponsesAdapter) blocking(ctx context.Context, req cllm.Request) (cllm.Completion, error) {
+	resp, err := a.client.CreateResponse(ctx, a.buildRequest(req))
 	if err != nil {
 		return cllm.Completion{}, fmt.Errorf("create response: %w", openAIAPIError(err))
 	}
@@ -280,8 +290,8 @@ func (a *openAIResponsesAdapter) blocking(ctx context.Context, messages []cllm.M
 	}, nil
 }
 
-func (a *openAIResponsesAdapter) streaming(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef, onDelta func(string)) (cllm.Completion, error) {
-	stream, err := a.client.CreateResponseStream(ctx, a.buildRequest(messages, tools))
+func (a *openAIResponsesAdapter) streaming(ctx context.Context, req cllm.Request, onDelta func(string)) (cllm.Completion, error) {
+	stream, err := a.client.CreateResponseStream(ctx, a.buildRequest(req))
 	if err != nil {
 		return cllm.Completion{}, fmt.Errorf("create response stream: %w", openAIAPIError(err))
 	}
@@ -349,4 +359,28 @@ func (a *openAIResponsesAdapter) streaming(ctx context.Context, messages []cllm.
 		Usage:         usage,
 		ProviderState: reasoning,
 	}, nil
+}
+
+// applyCacheControls puts this call's cache decision into a Responses request.
+//
+// This protocol caches on its own, so the controls here do not turn caching on
+// or off — they say which bucket a prefix belongs in and how long it should
+// survive. The key is what keeps unrelated populations apart; without it two
+// callers sharing a credential share a bucket, and a bucket shared by prefixes
+// that never match is a bucket that never hits.
+//
+// Nothing is sent on a call the policy declined. A one-shot call put in the
+// agent loop's bucket would dilute it with a prefix nothing reuses, and the
+// retention this deployment pays for is not something a title should extend.
+func (a *openAIResponsesAdapter) applyCacheControls(
+	req *openai.CreateResponseRequest, call cllm.Request, instructions string, tools []cllm.ToolDef,
+) {
+	decision := resolveCacheDecision(a.cache, a.capability, call.Profile)
+	if !decision.send {
+		return
+	}
+	req.PromptCacheKey = deriveCacheKey(a.credential, a.model, call.CacheScope, instructions, tools)
+	if decision.ttl != "" {
+		req.PromptCacheRetention = decision.ttl
+	}
 }

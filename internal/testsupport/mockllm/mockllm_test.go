@@ -68,7 +68,7 @@ func TestEveryProtocolReplaysTheScenario(t *testing.T) {
 				"required":   []string{"file_path", "content"},
 			}}}
 
-			first, err := c.ChatCompletionBlocking(context.Background(), history, tools)
+			first, err := c.ChatCompletionBlocking(context.Background(), cllm.Request{Messages: history, Tools: tools})
 			if err != nil {
 				t.Fatalf("first call: %v", err)
 			}
@@ -97,7 +97,7 @@ func TestEveryProtocolReplaysTheScenario(t *testing.T) {
 				cllm.Message{Role: "assistant", Content: first.Content, ToolCalls: first.ToolCalls, ProviderState: first.ProviderState},
 				cllm.Message{Role: "tool", ToolCallID: call.ID, Content: "wrote notes.txt"},
 			)
-			second, err := c.ChatCompletionBlocking(context.Background(), history, tools)
+			second, err := c.ChatCompletionBlocking(context.Background(), cllm.Request{Messages: history, Tools: tools})
 			if err != nil {
 				t.Fatalf("second call: %v", err)
 			}
@@ -135,7 +135,7 @@ func TestOneTurnCarriesEveryScriptedCall(t *testing.T) {
 		t.Run(protocol, func(t *testing.T) {
 			server := start(t, scenario)
 			completion, err := client(t, server, protocol).ChatCompletionBlocking(
-				context.Background(), []cllm.Message{{Role: "user", Content: "read them"}}, nil)
+				context.Background(), cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "read them"}}})
 			if err != nil {
 				t.Fatalf("call: %v", err)
 			}
@@ -169,8 +169,7 @@ func TestEveryProtocolStreamsTheSameReply(t *testing.T) {
 			var deltas []string
 			completion, err := client(t, server, protocol).ChatCompletionStreaming(
 				context.Background(),
-				[]cllm.Message{{Role: "user", Content: "answer"}},
-				nil,
+				cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "answer"}}},
 				func(delta string) { deltas = append(deltas, delta) },
 			)
 			if err != nil {
@@ -211,11 +210,11 @@ func TestStreamingAndBlockingAgreeOnTheSameStep(t *testing.T) {
 	for _, protocol := range protocols {
 		t.Run(protocol, func(t *testing.T) {
 			history := []cllm.Message{{Role: "user", Content: "go"}}
-			blocking, err := client(t, start(t, scenario), protocol).ChatCompletionBlocking(context.Background(), history, nil)
+			blocking, err := client(t, start(t, scenario), protocol).ChatCompletionBlocking(context.Background(), cllm.Request{Messages: history})
 			if err != nil {
 				t.Fatalf("blocking call: %v", err)
 			}
-			streamed, err := client(t, start(t, scenario), protocol).ChatCompletionStreaming(context.Background(), history, nil, nil)
+			streamed, err := client(t, start(t, scenario), protocol).ChatCompletionStreaming(context.Background(), cllm.Request{Messages: history}, nil)
 			if err != nil {
 				t.Fatalf("streaming call: %v", err)
 			}
@@ -243,10 +242,10 @@ func TestExhaustedScenarioFailsTheCall(t *testing.T) {
 	server := start(t, mockllm.Scenario{Steps: []mockllm.Step{{Text: "only reply"}}})
 	c := client(t, server, mockllm.ProtocolOpenAIChat)
 	history := []cllm.Message{{Role: "user", Content: "hi"}}
-	if _, err := c.ChatCompletionBlocking(context.Background(), history, nil); err != nil {
+	if _, err := c.ChatCompletionBlocking(context.Background(), cllm.Request{Messages: history}); err != nil {
 		t.Fatalf("first call: %v", err)
 	}
-	if _, err := c.ChatCompletionBlocking(context.Background(), history, nil); err == nil {
+	if _, err := c.ChatCompletionBlocking(context.Background(), cllm.Request{Messages: history}); err == nil {
 		t.Fatal("a call past the end of the scenario should fail")
 	}
 }
@@ -254,7 +253,7 @@ func TestExhaustedScenarioFailsTheCall(t *testing.T) {
 func TestUnconsumedStepsAreVisible(t *testing.T) {
 	server := start(t, mockllm.Scenario{Steps: []mockllm.Step{{Text: "one"}, {Text: "two"}}})
 	if _, err := client(t, server, mockllm.ProtocolOpenAIChat).ChatCompletionBlocking(
-		context.Background(), []cllm.Message{{Role: "user", Content: "hi"}}, nil); err != nil {
+		context.Background(), cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "hi"}}}); err != nil {
 		t.Fatalf("call: %v", err)
 	}
 	if server.Remaining() != 1 {
@@ -274,7 +273,7 @@ func TestRepeatAnswersEveryCallPastTheEnd(t *testing.T) {
 	history := []cllm.Message{{Role: "user", Content: "hi"}}
 	want := []string{"first", "always this", "always this", "always this"}
 	for i, expected := range want {
-		completion, err := c.ChatCompletionBlocking(context.Background(), history, nil)
+		completion, err := c.ChatCompletionBlocking(context.Background(), cllm.Request{Messages: history})
 		if err != nil {
 			t.Fatalf("call %d: %v", i, err)
 		}
@@ -290,7 +289,7 @@ func TestRepeatAnswersEveryCallPastTheEnd(t *testing.T) {
 func TestScriptedProviderErrorReachesTheCaller(t *testing.T) {
 	server := start(t, mockllm.Scenario{Steps: []mockllm.Step{{Status: 400, Error: "scripted refusal"}}})
 	_, err := client(t, server, mockllm.ProtocolOpenAIChat).ChatCompletionBlocking(
-		context.Background(), []cllm.Message{{Role: "user", Content: "hi"}}, nil)
+		context.Background(), cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "hi"}}})
 	if err == nil {
 		t.Fatal("a scripted provider error should fail the call")
 	}

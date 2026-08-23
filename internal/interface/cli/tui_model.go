@@ -60,6 +60,8 @@ type llmEndMsg struct {
 	Content          string
 	PromptTokens     int
 	CompletionTokens int
+	CacheReadTokens  int
+	CacheWriteTokens int
 }
 
 type runStatusMsg struct {
@@ -194,10 +196,18 @@ func eventSinkToChannel(channel chan tea.Msg) func(agent.Event) {
 				ContextWindow:    e.ContextWindow,
 				PromptTokens:     e.PromptTokens,
 				CompletionTokens: e.CompletionTokens,
+				CacheReadTokens:  e.CacheReadTokens,
+				CacheWriteTokens: e.CacheWriteTokens,
 			}}
 			channel <- llmStartMsg{}
 		case agent.EventLLMEnd:
-			channel <- llmEndMsg{Content: e.Content, PromptTokens: e.PromptTokens, CompletionTokens: e.CompletionTokens}
+			channel <- llmEndMsg{
+				Content:          e.Content,
+				PromptTokens:     e.PromptTokens,
+				CompletionTokens: e.CompletionTokens,
+				CacheReadTokens:  e.CacheReadTokens,
+				CacheWriteTokens: e.CacheWriteTokens,
+			}
 		case agent.EventToolStart:
 			channel <- toolStartMsg{CallID: e.ToolCallID, Name: e.ToolName, Args: e.ToolArgs}
 		case agent.EventToolEnd:
@@ -541,6 +551,10 @@ func handleAgentDone(m *Model, msg agentDoneMsg) (tea.Model, tea.Cmd) {
 		CompletionTokens:      msg.Result.CompletionTokens,
 		TotalPromptTokens:     msg.Result.TotalPromptTokens,
 		TotalCompletionTokens: msg.Result.TotalCompletionTokens,
+		CacheReadTokens:       msg.Result.CacheReadTokens,
+		CacheWriteTokens:      msg.Result.CacheWriteTokens,
+		TotalCacheReadTokens:  msg.Result.TotalCacheReadTokens,
+		TotalCacheWriteTokens: msg.Result.TotalCacheWriteTokens,
 	}
 	if strings.TrimSpace(text) == "" {
 		return m, drainQueueCmd()
@@ -572,6 +586,8 @@ func handleLLMEnd(m *Model, msg llmEndMsg) (tea.Model, tea.Cmd) {
 	m.runStatus = mergeRunStatus(m.runStatus, agentapp.RunStatus{
 		PromptTokens:     msg.PromptTokens,
 		CompletionTokens: msg.CompletionTokens,
+		CacheReadTokens:  msg.CacheReadTokens,
+		CacheWriteTokens: msg.CacheWriteTokens,
 	})
 	text := m.streamingBuffer
 	if strings.TrimSpace(text) == "" {
@@ -603,6 +619,18 @@ func mergeRunStatus(prev, next agentapp.RunStatus) agentapp.RunStatus {
 			next.TotalCompletionTokens += next.CompletionTokens - prev.CompletionTokens
 		}
 	}
+	if next.TotalCacheReadTokens == 0 {
+		next.TotalCacheReadTokens = prev.TotalCacheReadTokens
+		if next.CacheReadTokens > prev.CacheReadTokens {
+			next.TotalCacheReadTokens += next.CacheReadTokens - prev.CacheReadTokens
+		}
+	}
+	if next.TotalCacheWriteTokens == 0 {
+		next.TotalCacheWriteTokens = prev.TotalCacheWriteTokens
+		if next.CacheWriteTokens > prev.CacheWriteTokens {
+			next.TotalCacheWriteTokens += next.CacheWriteTokens - prev.CacheWriteTokens
+		}
+	}
 	return next
 }
 
@@ -616,6 +644,10 @@ func updateRunStatusContext(prev, next agentapp.RunStatus) agentapp.RunStatus {
 	next.CompletionTokens = prev.CompletionTokens
 	next.TotalPromptTokens = prev.TotalPromptTokens
 	next.TotalCompletionTokens = prev.TotalCompletionTokens
+	next.CacheReadTokens = prev.CacheReadTokens
+	next.CacheWriteTokens = prev.CacheWriteTokens
+	next.TotalCacheReadTokens = prev.TotalCacheReadTokens
+	next.TotalCacheWriteTokens = prev.TotalCacheWriteTokens
 	return next
 }
 
@@ -842,7 +874,18 @@ func formatRunStatus(st agentapp.RunStatus) string {
 		}
 		ctx = fmt.Sprintf("ctx: %d%% (%s/%s)", percent, formatTokenCount(st.ContextTokens), formatTokenCount(st.ContextWindow))
 	}
-	return ctx + " | " + formatTokenUsage(st.PromptTokens, st.CompletionTokens, st.TotalPromptTokens, st.TotalCompletionTokens)
+	return ctx + " | " + formatTokenUsage(st.PromptTokens, st.CompletionTokens, st.TotalPromptTokens, st.TotalCompletionTokens) +
+		formatCacheUsageSuffix(st.CacheReadTokens, st.CacheWriteTokens)
+}
+
+// formatCacheUsageSuffix appends the cached breakdown of the prompt, and only
+// when a provider actually reported one. A permanent "cache: 0/0" beside every
+// run would read as a proven miss on providers that report nothing at all.
+func formatCacheUsageSuffix(cacheRead, cacheWrite int) string {
+	if cacheRead == 0 && cacheWrite == 0 {
+		return ""
+	}
+	return fmt.Sprintf(" | cache(r/w): %s/%s", formatTokenCount(cacheRead), formatTokenCount(cacheWrite))
 }
 
 func formatTokenUsage(promptTokens, completionTokens, totalPromptTokens, totalCompletionTokens int) string {

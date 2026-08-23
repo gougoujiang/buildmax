@@ -101,6 +101,11 @@ type CompleteRequest struct {
 	Alias    string
 	Messages []cllm.Message
 	Tools    []cllm.ToolDef
+	// CallProfile is what the caller says the call is for. It is operational
+	// input, never authorization input: the gateway combines it with the
+	// operator's own target policy, and a client cannot use it to select a
+	// stronger cache request than the deployment allows.
+	CallProfile cllm.CallProfile
 }
 
 // CompleteResult is a finished managed call.
@@ -191,7 +196,7 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 	}
 
 	acceptedAt := s.now().UTC()
-	call, err := s.Ledger.OpenLLMCall(ctx, &model.LLMCall{
+	ledgerEntry := &model.LLMCall{
 		ClientCallID:  req.ClientCallID,
 		TeamID:        req.TeamID,
 		UserID:        req.UserID,
@@ -206,7 +211,13 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 		Streaming:     streaming,
 		AcceptedAt:    acceptedAt,
 		Status:        model.LLMCallStatusAccepted,
-	})
+	}
+	// The rates are copied onto the row at acceptance, not looked up when
+	// someone reads it back. A catalog price changes; what a team spent last
+	// month does not, and a spend report recomputed from today's rates would
+	// quietly restate an invoice that has already been paid.
+	applyRateSnapshot(ledgerEntry, routed.Resolution.Target)
+	call, err := s.Ledger.OpenLLMCall(ctx, ledgerEntry)
 	if err != nil {
 		if errors.Is(err, model.ErrDuplicateLLMCall) {
 			return CompleteResult{}, &DuplicateCallError{}
@@ -220,6 +231,17 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 	var completion cllm.Completion
 	var callErr error
 	upstreamCtx := cllm.WithCallOrigin(ctx, upstreamCallOrigin(req.Surface))
+	upstreamCall := cllm.Request{
+		Messages: req.Messages,
+		Tools:    req.Tools,
+		Profile:  req.CallProfile,
+		// Teams sharing one approved model share one provider credential, and
+		// therefore one provider cache bucket unless something separates them.
+		// The team is that separator, and it comes from authentication rather
+		// than from the request: a caller that could name its own scope could
+		// aim at another team's bucket.
+		CacheScope: req.TeamID,
+	}
 	if streaming {
 		observed := func(delta string) {
 			if firstDeltaAt == nil {
@@ -228,9 +250,9 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 			}
 			onDelta(delta)
 		}
-		completion, callErr = routed.Client.ChatCompletionStreaming(upstreamCtx, req.Messages, req.Tools, observed)
+		completion, callErr = routed.Client.ChatCompletionStreaming(upstreamCtx, upstreamCall, observed)
 	} else {
-		completion, callErr = routed.Client.ChatCompletionBlocking(upstreamCtx, req.Messages, req.Tools)
+		completion, callErr = routed.Client.ChatCompletionBlocking(upstreamCtx, upstreamCall)
 	}
 
 	outcome := model.LLMCallOutcome{
@@ -337,3 +359,21 @@ func (s *Service) rejectDuplicate(ctx context.Context, req CompleteRequest) erro
 
 // Identity belongs in an attr, not in every message string.
 func gatewayLog() *slog.Logger { return slog.With("component", "llm_gateway") }
+
+// applyRateSnapshot copies the target's current prices onto a ledger row.
+//
+// An unpriced target leaves every field nil, which reads back as "cost
+// unavailable" rather than as a call that cost nothing. A zero rate on a priced
+// target is a real price and is stored as one.
+func applyRateSnapshot(call *model.LLMCall, target Target) {
+	if target.Currency == "" {
+		return
+	}
+	input, cacheRead, cacheWrite, output :=
+		target.InputPerMTok, target.CacheReadPerMTok, target.CacheWritePerMTok, target.OutputPerMTok
+	call.Currency = target.Currency
+	call.RateInputPerMTok = &input
+	call.RateCacheReadPerMTok = &cacheRead
+	call.RateCacheWritePerMTok = &cacheWrite
+	call.RateOutputPerMTok = &output
+}

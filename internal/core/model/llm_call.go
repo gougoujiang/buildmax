@@ -85,6 +85,18 @@ type LLMCall struct {
 	CacheReadTokens  *int   `json:"cache_read_tokens,omitempty"`
 	CacheWriteTokens *int   `json:"cache_write_tokens,omitempty"`
 	UsageSource      string `json:"usage_source,omitempty"`
+
+	// Pricing is the rate snapshot taken when the call was accepted, in
+	// nano-currency-units per million tokens. It is a snapshot rather than a
+	// reference: a model's price changes, and recomputing an old call from the
+	// new rates would rewrite what a team already spent. An empty Currency
+	// means the model was unpriced then, which is not the same fact as a call
+	// that cost nothing.
+	Currency              string `json:"currency,omitempty"`
+	RateInputPerMTok      *int64 `json:"rate_input_per_mtok,omitempty"`
+	RateCacheReadPerMTok  *int64 `json:"rate_cache_read_per_mtok,omitempty"`
+	RateCacheWritePerMTok *int64 `json:"rate_cache_write_per_mtok,omitempty"`
+	RateOutputPerMTok     *int64 `json:"rate_output_per_mtok,omitempty"`
 }
 
 // LLMCallUsage is the token usage reported for one call.

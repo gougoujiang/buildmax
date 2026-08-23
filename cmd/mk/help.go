@@ -63,6 +63,7 @@ func allHelpSections() []helpSection {
 			{"fmt", "Format every tracked Go file with gofmt"},
 			{"lint", "Run pinned golangci-lint and govulncheck"},
 			{"agent-smoke", "Drive the agent's tools with a real model (needs an API key; not a deterministic test)"},
+			{"cache-qualify", "Qualify prompt caching against a real provider (needs an API key; not a test)"},
 			{"eval", "Run the agent benchmark (requires a model API key)"},
 			{"models <list|info|check>", "List, look up on OpenRouter, or check settings.local.yaml models"},
 		}},
@@ -225,6 +226,28 @@ func helpTopics() []helpTopic {
 				"It needs a usable api_key in " + sandboxDir + "/settings.yaml and it calls a paid\n" +
 					"provider. Missing configuration is reported before anything starts.",
 			},
+		},
+		{
+			name:    "cache-qualify",
+			usage:   "cache-qualify [go test flags]",
+			summary: "Qualify prompt caching against a real provider. Not a test.",
+			details: []string{
+				"Every other cache test in the tree proves what BuildMax sends and nothing\n" +
+					"about what a provider does with it, and a cache is where those two come\n" +
+					"apart: a request can be perfectly shaped and the provider can still decline\n" +
+					"to cache it, for a minimum prefix length, an unsupported model, or a\n" +
+					"retention window that expired.",
+				"It runs the scenarios docs/design/prompt-cache-control.md gates on — first\n" +
+					"write, sequential read, changed prefix, long-history lookback, streaming,\n" +
+					"concurrent cold starts, and retention — and prints what the provider\n" +
+					"reported for each. A provider is not described as cache-capable until it\n" +
+					"passes.",
+				"Name the target with BUILDMAX_CACHE_QUALIFY_PROVIDER, _MODEL, _API_KEY, and\n" +
+					"optionally _BASE_URL. It calls a paid provider. Set\n" +
+					"BUILDMAX_CACHE_QUALIFY_SLOW to include the scenarios that wait out a\n" +
+					"retention window, which take minutes of wall clock.",
+			},
+			examples: []string{"cache-qualify"},
 		},
 		{
 			name:    "eval",

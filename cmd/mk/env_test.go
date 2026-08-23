@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -92,6 +93,23 @@ func TestParseVersion(t *testing.T) {
 		if major != tc.major || minor != tc.minor || patch != tc.patch {
 			t.Errorf("parseVersion(%q) = %d.%d.%d, want %d.%d.%d",
 				tc.tag, major, minor, patch, tc.major, tc.minor, tc.patch)
+		}
+	}
+}
+
+// mk imports nothing from internal, so the qualification variables it names are
+// a copy. A copy that drifts sends an operator to set a variable nothing reads,
+// which is worse than not offering the command at all.
+func TestCacheQualifyEnvNamesMatchTheSpec(t *testing.T) {
+	spec, err := os.ReadFile(filepath.Join("..", "..", "internal", "config", "env_spec.go"))
+	if err != nil {
+		t.Fatalf("read env_spec.go: %v", err)
+	}
+	for _, name := range []string{
+		envCacheQualifyProvider, envCacheQualifyModel, envCacheQualifyAPIKey, envCacheQualifyBaseURL,
+	} {
+		if !strings.Contains(string(spec), `"`+name+`"`) {
+			t.Errorf("%s is not declared in internal/config/env_spec.go", name)
 		}
 	}
 }

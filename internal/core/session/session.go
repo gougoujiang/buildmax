@@ -42,6 +42,21 @@ type Session struct {
 	Messages         []llm.Message `json:"messages,omitempty"`
 	PromptTokens     int           `json:"prompt_tokens,omitempty"`
 	CompletionTokens int           `json:"completion_tokens,omitempty"`
+	// CacheReadTokens and CacheWriteTokens are the session's provider-reported
+	// cached prompt. They break PromptTokens down rather than add to it, so a
+	// reader totalling a session must not sum all three.
+	CacheReadTokens  int `json:"cache_read_tokens,omitempty"`
+	CacheWriteTokens int `json:"cache_write_tokens,omitempty"`
+	// Cost is what this session is estimated to have spent, accumulated as it
+	// ran. It is a running total rather than something recomputed on read,
+	// because the rates that applied to an earlier turn are not necessarily
+	// the ones configured now. Nil means nothing here was priced.
+	Cost *llm.Cost `json:"cost,omitempty"`
+	// CostIncomplete says the total above is missing part of the session: a
+	// turn ran against an unpriced model, or against one quoted in a different
+	// currency, which BuildMax does not convert. A number that silently
+	// dropped half a session is worse than one labelled incomplete.
+	CostIncomplete bool `json:"cost_incomplete,omitempty"`
 	// CompactionIdx is the index into Messages where the latest compaction boundary falls.
 	// Messages before this index have been summarized into CompactionSummary.
 	// Zero means no compaction has occurred.

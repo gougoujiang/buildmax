@@ -52,6 +52,20 @@ type llmCallRow struct {
 	CacheReadTokens  *int   `gorm:""`
 	CacheWriteTokens *int   `gorm:""`
 	UsageSource      string `gorm:"type:varchar(16)"`
+
+	// The rates that applied when this call ran, in nano-currency-units per
+	// million tokens. They are a snapshot rather than a reference to the
+	// catalog: a model's price changes, and recomputing an old call from the
+	// new rates would rewrite what a team already spent. An empty Currency
+	// means the model was unpriced at the time, which is not the same fact as
+	// a call that cost nothing.
+	// Column names pinned for the same reason as on llm_model: the naming
+	// strategy renders MTok as "m_tok".
+	Currency              string `gorm:"type:varchar(8)"`
+	RateInputPerMTok      *int64 `gorm:"column:rate_input_per_mtok"`
+	RateCacheReadPerMTok  *int64 `gorm:"column:rate_cache_read_per_mtok"`
+	RateCacheWritePerMTok *int64 `gorm:"column:rate_cache_write_per_mtok"`
+	RateOutputPerMTok     *int64 `gorm:"column:rate_output_per_mtok"`
 }
 
 func (llmCallRow) TableName() string { return "llm_call" }
@@ -104,6 +118,12 @@ func toLLMCall(row *llmCallReadRow) *model.LLMCall {
 		CacheReadTokens:   row.Row.CacheReadTokens,
 		CacheWriteTokens:  row.Row.CacheWriteTokens,
 		UsageSource:       row.Row.UsageSource,
+
+		Currency:              row.Row.Currency,
+		RateInputPerMTok:      row.Row.RateInputPerMTok,
+		RateCacheReadPerMTok:  row.Row.RateCacheReadPerMTok,
+		RateCacheWritePerMTok: row.Row.RateCacheWritePerMTok,
+		RateOutputPerMTok:     row.Row.RateOutputPerMTok,
 	}
 	if row.Row.UserID != nil {
 		user := derefPublicID(row.UserPublicID)
@@ -151,6 +171,12 @@ func llmCallValues(call *model.LLMCall) *llmCallRow {
 		CacheReadTokens:   call.CacheReadTokens,
 		CacheWriteTokens:  call.CacheWriteTokens,
 		UsageSource:       call.UsageSource,
+
+		Currency:              call.Currency,
+		RateInputPerMTok:      call.RateInputPerMTok,
+		RateCacheReadPerMTok:  call.RateCacheReadPerMTok,
+		RateCacheWritePerMTok: call.RateCacheWritePerMTok,
+		RateOutputPerMTok:     call.RateOutputPerMTok,
 	}
 }
 

@@ -39,11 +39,11 @@ func waitForMessages(t *testing.T, m *mock.MockConversationMessageStore, want in
 
 type replyLLMClient struct{ reply string }
 
-func (c *replyLLMClient) ChatCompletionBlocking(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (llm.Completion, error) {
+func (c *replyLLMClient) ChatCompletionBlocking(ctx context.Context, req llm.Request) (llm.Completion, error) {
 	return llm.Completion{Content: c.reply}, nil
 }
 
-func (c *replyLLMClient) ChatCompletionStreaming(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (llm.Completion, error) {
+func (c *replyLLMClient) ChatCompletionStreaming(ctx context.Context, req llm.Request, onDelta func(string)) (llm.Completion, error) {
 	onDelta(c.reply)
 	return llm.Completion{Content: c.reply}, nil
 }

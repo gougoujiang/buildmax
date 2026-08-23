@@ -27,7 +27,10 @@ func TestSummarize_RoundTripsARealTrace(t *testing.T) {
 	rec.Record(agent.Event{Kind: agent.EventToolEnd, ToolName: "Write", ToolArgs: `{"file_path":"/ws/out.md","content":"hi"}`, ToolDuration: 0})
 	rec.Record(agent.Event{Kind: agent.EventToolDenied, ToolName: "Bash", DenyReason: "hook"})
 	rec.Record(agent.Event{Kind: agent.EventContextCompacted, Summarized: 3, Kept: 2})
-	rec.Record(agent.Event{Kind: agent.EventRunEnd, Stats: agent.RunStats{ToolCalls: 2, PromptTokens: 120, CompletionTokens: 30}})
+	rec.Record(agent.Event{Kind: agent.EventRunEnd, Stats: agent.RunStats{
+		ToolCalls: 2, PromptTokens: 120, CompletionTokens: 30,
+		CacheReadTokens: 80, CacheWriteTokens: 10,
+	}})
 	if err := rec.Close(); err != nil {
 		t.Fatalf("close: %v", err)
 	}
@@ -53,6 +56,9 @@ func TestSummarize_RoundTripsARealTrace(t *testing.T) {
 	}
 	if got.PromptTokens != 120 || got.CompletionTokens != 30 {
 		t.Errorf("tokens wrong: %d/%d", got.PromptTokens, got.CompletionTokens)
+	}
+	if got.CacheReadTokens != 80 || got.CacheWriteTokens != 10 {
+		t.Errorf("cache tokens wrong: %d/%d", got.CacheReadTokens, got.CacheWriteTokens)
 	}
 	if got.Boundary == nil || !got.Boundary.Sandboxed || got.Boundary.Backend != "bwrap" {
 		t.Errorf("boundary wrong: %+v", got.Boundary)

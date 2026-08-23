@@ -20,47 +20,65 @@ log_level: info
 # bug another one's tool-calling or streaming behavior would expose. Recheck
 # them periodically: `./make models check` flags entries whose
 # context_window has drifted from what OpenRouter reports now.
+#
+# `pricing` is what lets a run report what it cost; without it the run reports
+# `unavailable` rather than guessing. Three entries below carry it, one per
+# protocol, with OpenRouter's published rates in USD per million tokens. Copy
+# the block onto the models you actually use — `./make models info <model>`
+# prints current rates, which move.
 models:
   - model: openai/gpt-5.6-luna
     name: GPT-5.6 Luna
-    provider: openai_compatible
+    provider: openai
     api_url: https://openrouter.ai/api/v1
     api_key: your-openrouter-api-key
     context_window: 1050000
     # call_timeout: 300  # per-call timeout in seconds (default 300)
+    pricing:
+      currency: USD
+      input_per_mtok: "0.2"
+      cache_read_per_mtok: "0.02"
+      cache_write_per_mtok: "0.25"
+      output_per_mtok: "1.2"
 
   - model: openai/gpt-5.6-sol
     name: GPT-5.6 Sol
-    provider: openai_compatible
+    provider: openai
     api_url: https://openrouter.ai/api/v1
     api_key: your-openrouter-api-key
     context_window: 1050000
 
   - model: openai/gpt-5.6-terra
     name: GPT-5.6 Terra
-    provider: openai_compatible
+    provider: openai
     api_url: https://openrouter.ai/api/v1
     api_key: your-openrouter-api-key
     context_window: 1050000
 
   - model: anthropic/claude-haiku-4.5
     name: Claude Haiku 4.5
-    provider: openai_compatible
-    api_url: https://openrouter.ai/api/v1
+    provider: anthropic
+    api_url: https://openrouter.ai/api/
     api_key: your-openrouter-api-key
     context_window: 200000
+    pricing:
+      currency: USD
+      input_per_mtok: "1"
+      cache_read_per_mtok: "0.1"
+      cache_write_per_mtok: "1.25"
+      output_per_mtok: "5"
 
   - model: anthropic/claude-sonnet-5
     name: Claude Sonnet 5
-    provider: openai_compatible
-    api_url: https://openrouter.ai/api/v1
+    provider: anthropic
+    api_url: https://openrouter.ai/api/
     api_key: your-openrouter-api-key
     context_window: 1000000
 
   - model: anthropic/claude-opus-5
     name: Claude Opus 5
-    provider: openai_compatible
-    api_url: https://openrouter.ai/api/v1
+    provider: anthropic
+    api_url: https://openrouter.ai/api/
     api_key: your-openrouter-api-key
     context_window: 1000000
 
@@ -91,6 +109,11 @@ models:
     api_url: https://openrouter.ai/api/v1
     api_key: your-openrouter-api-key
     context_window: 1048576
+    pricing:
+      currency: USD
+      input_per_mtok: "1.4"
+      cache_read_per_mtok: "0.26"
+      output_per_mtok: "4.4"
 
   - model: moonshotai/kimi-k3
     name: Kimi K3
@@ -108,10 +131,21 @@ models:
 
   # `provider` is the wire protocol the endpoint speaks, not a vendor name:
   #   openai_compatible  OpenAI Chat Completions — OpenRouter, LiteLLM, vLLM,
-  #                      LM Studio. The default; every entry above uses it.
-  #   openai             OpenAI's own Responses API
+  #                      LM Studio. The default.
+  #   openai             the OpenAI Responses API
   #   anthropic          the Anthropic Messages API
   #   ollama             a local Ollama daemon's own API
+  #
+  # One gateway can speak several of them, which is why the entries above reach
+  # one OpenRouter key three ways. The protocol decides what a request can
+  # carry: Anthropic caches nothing unless the request marks where, and Chat
+  # Completions has nowhere to put that mark, so a Claude model reached as
+  # openai_compatible cannot use a prompt cache at all. Everything else caches
+  # implicitly, so openai_compatible costs it nothing. Note the api_url differs
+  # too — Messages hangs off /api/, the other two off /api/v1.
+
+  # Reaching Anthropic directly rather than through a gateway: same protocol as
+  # the Claude entries above, different endpoint and credential.
   #
   # `max_tokens` caps one response. The Anthropic protocol requires the field,
   # so leaving it 0 there uses the built-in default (8192) rather than the
@@ -127,9 +161,23 @@ models:
                                    # level but off also replays the reasoning
                                    # on later turns. No effect on
                                    # openai_compatible, which carries none.
-  #   prompt_cache: true           # cache the tool definitions and system
-                                   # prompt so later calls in a run pay less
-                                   # for them
+  #   cache_control:               # cache the tool definitions and system
+  #     mode: auto                 # prompt so later calls in a run pay less.
+  #     ttl: provider_default      # auto (the default) asks on an agent turn
+                                   # and not on a one-shot call such as title
+                                   # generation, because a cache write costs
+                                   # more than ordinary input and only repays
+                                   # itself when a later call reads it. off
+                                   # never asks, force always does. ttl beyond
+                                   # provider_default only where the provider
+                                   # documents one: 5m and 1h on anthropic,
+                                   # 24h on openai. See the configuration
+                                   # reference for the full rules.
+  #   integration: openrouter      # a gateway whose cache behaviour BuildMax
+                                   # has qualified, for openai_compatible only.
+                                   # None is qualified, so any value is refused
+                                   # today: speaking a protocol is not a promise
+                                   # to implement its cache fields.
   #   vision: true                 # this model accepts image input. Leave it
                                    # off and an image an MCP tool returns is
                                    # described in text instead of sent.
@@ -143,12 +191,18 @@ models:
   # `buildmax init --ollama` writes this entry for a model you already have, and
   # `buildmax models --local` lists what the daemon holds, including which
   # models can call tools. A model that cannot is unusable as an agent.
-  # - model: qwen3:8b
-  #   name: Qwen3 8B (local)
-  #   provider: ollama
-  #   api_url: http://localhost:11434   # the daemon root, not its /v1 endpoint
-  #   context_window: 32000             # sent as num_ctx; costs memory to raise
-  #   keep_alive: 30m                   # how long the daemon keeps the model
+  #
+  # Active rather than commented out: it needs no credential, and an entry for a
+  # model the daemon does not hold costs nothing until you select it. It carries
+  # no `pricing` because there is no per-token rate to state, so a run against it
+  # reports its cost as unavailable rather than as free.
+
+  - model: qwen3:8b
+    name: Qwen3 8B (local)
+    provider: ollama
+    api_url: http://localhost:11434     # the daemon root, not its /v1 endpoint
+    context_window: 32000               # sent as num_ctx; costs memory to raise
+    keep_alive: 30m                     # how long the daemon keeps the model
                                         # loaded between calls. "0" unloads at
                                         # once, "-1" keeps it resident. Only a
                                         # local provider has one to keep.

@@ -28,8 +28,22 @@ type llmModelRow struct {
 	CallTimeout   int    `gorm:"not null;default:0"`
 	MaxTokens     int    `gorm:"not null;default:0"`
 	Reasoning     string `gorm:"type:varchar(16);not null;default:''"`
-	PromptCache   bool   `gorm:"not null;default:false"`
-	Vision        bool   `gorm:"not null;default:false"`
+	// CacheMode and CacheTTL are the prompt-cache policy. Empty means unset,
+	// which takes the default.
+	CacheMode string `gorm:"size:16;not null;default:''"`
+	CacheTTL  string `gorm:"size:16;not null;default:''"`
+	// Rates are nano-currency-units per million tokens, held as integers
+	// because a float would round a published price before anything read it.
+	// An empty Currency means unpriced.
+	// The column names are pinned because the naming strategy would render
+	// MTok as "m_tok", which is nobody's idea of the name and would disagree
+	// with every other place these rates are written.
+	Currency          string `gorm:"size:8;not null;default:''"`
+	InputPerMTok      int64  `gorm:"column:input_per_mtok;not null;default:0"`
+	CacheReadPerMTok  int64  `gorm:"column:cache_read_per_mtok;not null;default:0"`
+	CacheWritePerMTok int64  `gorm:"column:cache_write_per_mtok;not null;default:0"`
+	OutputPerMTok     int64  `gorm:"column:output_per_mtok;not null;default:0"`
+	Vision            bool   `gorm:"not null;default:false"`
 	// Capabilities is a comma-separated list. The set is small, closed, and only
 	// ever read whole, so a join table would buy nothing.
 	Capabilities string    `gorm:"type:varchar(255)"`
@@ -45,21 +59,27 @@ func toLLMModel(row *llmModelRow) *model.LLMModel {
 		return nil
 	}
 	return &model.LLMModel{
-		ID:            row.PublicID,
-		Name:          row.Name,
-		ProviderType:  row.ProviderType,
-		APIURL:        row.APIURL,
-		Model:         row.Model,
-		ContextWindow: row.ContextWindow,
-		CallTimeout:   row.CallTimeout,
-		MaxTokens:     row.MaxTokens,
-		Reasoning:     row.Reasoning,
-		PromptCache:   row.PromptCache,
-		Vision:        row.Vision,
-		Capabilities:  splitCapabilities(row.Capabilities),
-		Enabled:       row.Enabled,
-		CreatedAt:     row.CreatedAt,
-		UpdatedAt:     row.UpdatedAt,
+		ID:                row.PublicID,
+		Name:              row.Name,
+		ProviderType:      row.ProviderType,
+		APIURL:            row.APIURL,
+		Model:             row.Model,
+		ContextWindow:     row.ContextWindow,
+		CallTimeout:       row.CallTimeout,
+		MaxTokens:         row.MaxTokens,
+		Reasoning:         row.Reasoning,
+		CacheMode:         row.CacheMode,
+		CacheTTL:          row.CacheTTL,
+		Currency:          row.Currency,
+		InputPerMTok:      row.InputPerMTok,
+		CacheReadPerMTok:  row.CacheReadPerMTok,
+		CacheWritePerMTok: row.CacheWritePerMTok,
+		OutputPerMTok:     row.OutputPerMTok,
+		Vision:            row.Vision,
+		Capabilities:      splitCapabilities(row.Capabilities),
+		Enabled:           row.Enabled,
+		CreatedAt:         row.CreatedAt,
+		UpdatedAt:         row.UpdatedAt,
 	}
 }
 
@@ -94,7 +114,10 @@ func joinCapabilities(in []string) string {
 // explicitly so adding a column later cannot silently start returning the key.
 var llmModelColumns = []string{
 	"id", "public_id", "name", "provider_type", "api_url", "model",
-	"context_window", "call_timeout", "max_tokens", "reasoning", "prompt_cache",
+	"context_window", "call_timeout", "max_tokens", "reasoning",
+	"cache_mode", "cache_ttl",
+	"currency", "input_per_mtok", "cache_read_per_mtok", "cache_write_per_mtok",
+	"output_per_mtok",
 	"vision", "capabilities", "enabled",
 	"created_at", "updated_at",
 }
@@ -104,21 +127,27 @@ var llmModelColumns = []string{
 func (s *Store) CreateLLMModel(ctx context.Context, in model.CreateLLMModelInput) (*model.LLMModel, error) {
 	now := time.Now().UTC()
 	row := &llmModelRow{
-		Name:          in.Name,
-		ProviderType:  in.ProviderType,
-		APIURL:        in.APIURL,
-		APIKey:        in.APIKey,
-		Model:         in.Model,
-		ContextWindow: in.ContextWindow,
-		CallTimeout:   in.CallTimeout,
-		MaxTokens:     in.MaxTokens,
-		Reasoning:     in.Reasoning,
-		PromptCache:   in.PromptCache,
-		Vision:        in.Vision,
-		Capabilities:  joinCapabilities(in.Capabilities),
-		Enabled:       true,
-		CreatedAt:     now,
-		UpdatedAt:     now,
+		Name:              in.Name,
+		ProviderType:      in.ProviderType,
+		APIURL:            in.APIURL,
+		APIKey:            in.APIKey,
+		Model:             in.Model,
+		ContextWindow:     in.ContextWindow,
+		CallTimeout:       in.CallTimeout,
+		MaxTokens:         in.MaxTokens,
+		Reasoning:         in.Reasoning,
+		CacheMode:         in.CacheMode,
+		CacheTTL:          in.CacheTTL,
+		Currency:          in.Currency,
+		InputPerMTok:      in.InputPerMTok,
+		CacheReadPerMTok:  in.CacheReadPerMTok,
+		CacheWritePerMTok: in.CacheWritePerMTok,
+		OutputPerMTok:     in.OutputPerMTok,
+		Vision:            in.Vision,
+		Capabilities:      joinCapabilities(in.Capabilities),
+		Enabled:           true,
+		CreatedAt:         now,
+		UpdatedAt:         now,
 	}
 	if err := createWithPublicID(ctx, s.db, "uq_llm_model_public_id",
 		func(id string) { row.PublicID = id }, row); err != nil {

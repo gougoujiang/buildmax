@@ -454,10 +454,75 @@ func TestStoredModelOutputCapReachesTheUpstream(t *testing.T) {
 		t.Fatalf("ClientFor: %v", err)
 	}
 	if _, err := routed.Client.ChatCompletionBlocking(context.Background(),
-		[]cllm.Message{{Role: "user", Content: "hi"}}, nil); err != nil {
+		cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "hi"}}}); err != nil {
 		t.Fatalf("ChatCompletionBlocking: %v", err)
 	}
 	if !strings.Contains(string(body), `"max_tokens":1234`) {
 		t.Errorf("request %s does not carry the catalog's output cap", body)
+	}
+}
+
+// Tier 1 is the third managed path, and the design asks that it reach the same
+// decision as the other two by calling the same code rather than by issuing an
+// HTTP request back to the server. It does: the conversation client is built
+// from the same catalog target through the same factory, so a policy set on the
+// row is a policy Tier 1 honours.
+func TestConversationModelCachePolicyReachesTheUpstream(t *testing.T) {
+	tests := []struct {
+		name      string
+		cacheMode string
+		profile   cllm.CallProfile
+		wantCache bool
+	}{
+		{name: "an agent turn caches under the default policy", profile: cllm.ProfileAgentTurn, wantCache: true},
+		{name: "a title does not", profile: cllm.ProfileTitle},
+		{name: "an operator opt-out is honoured", cacheMode: "off", profile: cllm.ProfileAgentTurn},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var body []byte
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				body, _ = io.ReadAll(r.Body)
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"id":"msg_1","type":"message","role":"assistant","model":"m",` +
+					`"content":[{"type":"text","text":"ok"}],"usage":{"input_tokens":1,"output_tokens":1}}`))
+			}))
+			defer upstream.Close()
+
+			row := catalogRow("lm_tier1")
+			row.ProviderType = llmgateway.ProviderAnthropic
+			row.APIURL = upstream.URL
+			row.CacheMode = tc.cacheMode
+
+			sc := config.ServerConfig{
+				Conversation: config.ServerConvConfig{Model: conversationModel(), ModelTarget: "lm_tier1"},
+				LLM: config.ServerLLMConfig{
+					DefaultAlias: "default",
+					Aliases:      map[string]string{"default": "lm_tier1"},
+				},
+			}
+			routing, err := buildLLMRouting(sc, newFakeModels(row))
+			if err != nil {
+				t.Fatalf("buildLLMRouting: %v", err)
+			}
+			if routing.Tier1TargetID != "lm_tier1" {
+				t.Fatalf("Tier1TargetID = %q, want the catalog row", routing.Tier1TargetID)
+			}
+			routed, err := routing.Router.ClientForTarget(context.Background(),
+				routing.Tier1TargetID, llmgateway.BaselineCapabilities())
+			if err != nil {
+				t.Fatalf("ClientForTarget: %v", err)
+			}
+			if _, err := routed.Client.ChatCompletionBlocking(context.Background(), cllm.Request{
+				Messages: []cllm.Message{{Role: "system", Content: "be brief"}, {Role: "user", Content: "hi"}},
+				Profile:  tc.profile,
+			}); err != nil {
+				t.Fatalf("ChatCompletionBlocking: %v", err)
+			}
+			cached := strings.Contains(string(body), "cache_control")
+			if cached != tc.wantCache {
+				t.Errorf("cache_control present = %v, want %v: %s", cached, tc.wantCache, body)
+			}
+		})
 	}
 }

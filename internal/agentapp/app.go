@@ -219,11 +219,26 @@ type RunResult struct {
 	CompletionTokens      int
 	TotalPromptTokens     int
 	TotalCompletionTokens int
-	ContextTokens         int
-	ContextWindow         int
-	SessionID             string
-	Workspace             string
-	ModelName             string
+	// Cache counts are the provider-reported cached parts of the prompt totals
+	// beside them, not extra tokens. Zero means the provider reported none,
+	// which is not the same fact as a cache miss.
+	CacheReadTokens       int
+	CacheWriteTokens      int
+	TotalCacheReadTokens  int
+	TotalCacheWriteTokens int
+	// Cost is the session's estimated spend so far, nil when nothing in it
+	// could be priced. It is the session total rather than this turn's,
+	// because that is what the session file accumulates: a per-turn figure
+	// would need rates that may have changed since the turn ran.
+	Cost *cllm.Cost
+	// CostIncomplete says part of the session could not be priced, so the
+	// total above understates it.
+	CostIncomplete bool
+	ContextTokens  int
+	ContextWindow  int
+	SessionID      string
+	Workspace      string
+	ModelName      string
 	// TraceID identifies the durable run trace written for this run, or "" when
 	// tracing is disabled or failed to start. Points at
 	// <DataDir>/traces/<session_id>/<trace_id>.jsonl.
@@ -242,12 +257,24 @@ type RunStatus struct {
 	CompletionTokens      int `json:"completion_tokens"`
 	TotalPromptTokens     int `json:"total_prompt_tokens"`
 	TotalCompletionTokens int `json:"total_completion_tokens"`
+	// Cache counts break the prompt counts beside them down; summing them with
+	// the prompt total counts the same tokens twice.
+	CacheReadTokens       int `json:"cache_read_tokens"`
+	CacheWriteTokens      int `json:"cache_write_tokens"`
+	TotalCacheReadTokens  int `json:"total_cache_read_tokens"`
+	TotalCacheWriteTokens int `json:"total_cache_write_tokens"`
+	// Cost is the session's estimated spend, absent when nothing could be
+	// priced. CostIncomplete says the figure is missing part of the session.
+	Cost           *cllm.Cost `json:"cost,omitempty"`
+	CostIncomplete bool       `json:"cost_incomplete,omitempty"`
 }
 
 type TurnFinalizeResult struct {
 	Title            string
 	PromptTokens     int
 	CompletionTokens int
+	CacheReadTokens  int
+	CacheWriteTokens int
 }
 
 // ModelConfig is one resolved model entry usable for client creation.
@@ -261,8 +288,23 @@ type ModelConfig struct {
 	MaxTokens     int // 0 = the adapter's own default
 	// Reasoning is the effort level (config.Reasoning*); off means none.
 	Reasoning string
-	// PromptCache caches the stable prefix of a request.
-	PromptCache bool
+	// CacheControl is the resolved prompt-cache policy: which calls ask the
+	// provider to cache the stable prefix, and for how long. Resolved here
+	// rather than in the client so one place folds the deprecated
+	// prompt_cache shorthand.
+	CacheControl config.CacheControl
+	// Pricing is what this model charges. Zero means the entry configured no
+	// prices, and a run against it reports its cost as unavailable rather than
+	// as zero — BuildMax does not know what any provider charges.
+	Pricing cllm.Pricing
+	// PricingErr is why an entry's prices could not be read, empty when they
+	// could. Carried rather than returned because a malformed price must not
+	// stop a model from answering: the run still works, it just cannot be
+	// costed, and the surface says so instead of failing the turn.
+	PricingErr string
+	// Integration names a qualified OpenAI-compatible gateway; empty is the
+	// normal case.
+	Integration string
 	// Vision says this model accepts image input.
 	Vision bool
 	// KeepAlive is how long a local runtime keeps the model loaded between
@@ -761,6 +803,10 @@ func (a *AgentApp) estimateRunStatus(sess *SessionContext, modelName string, con
 		ContextWindow:         contextWindow,
 		TotalPromptTokens:     sess.PromptTokens,
 		TotalCompletionTokens: sess.CompletionTokens,
+		TotalCacheReadTokens:  sess.CacheReadTokens,
+		TotalCacheWriteTokens: sess.CacheWriteTokens,
+		Cost:                  sess.Cost,
+		CostIncomplete:        sess.CostIncomplete,
 	}
 }
 
@@ -912,6 +958,10 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 				Duration:              time.Since(start),
 				TotalPromptTokens:     sess.PromptTokens,
 				TotalCompletionTokens: sess.CompletionTokens,
+				TotalCacheReadTokens:  sess.CacheReadTokens,
+				TotalCacheWriteTokens: sess.CacheWriteTokens,
+				Cost:                  sess.Cost,
+				CostIncomplete:        sess.CostIncomplete,
 				ContextTokens:         status.ContextTokens,
 				ContextWindow:         status.ContextWindow,
 				SessionID:             sess.ID,
@@ -936,6 +986,7 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 	// <context_compaction> blocks in the prompt after the first in-run compaction.
 	reply, stats, err := agent.RunLoop(ctx, agent.RunLoopOpts{
 		LLMClient:    client,
+		Pricing:      a.pricingFor(sess),
 		SystemPrompt: systemPrompt,
 		ToolRegistry: registry,
 		MaxIter:      agent.DefaultMaxIterations,
@@ -971,8 +1022,14 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 		ToolCalls:             stats.ToolCalls,
 		PromptTokens:          stats.PromptTokens,
 		CompletionTokens:      stats.CompletionTokens,
+		CacheReadTokens:       stats.CacheReadTokens,
+		CacheWriteTokens:      stats.CacheWriteTokens,
 		TotalPromptTokens:     sess.PromptTokens,
 		TotalCompletionTokens: sess.CompletionTokens,
+		TotalCacheReadTokens:  sess.CacheReadTokens,
+		TotalCacheWriteTokens: sess.CacheWriteTokens,
+		Cost:                  sess.Cost,
+		CostIncomplete:        sess.CostIncomplete,
 		ContextTokens:         status.ContextTokens,
 		ContextWindow:         status.ContextWindow,
 		SessionID:             sess.ID,
@@ -1010,7 +1067,23 @@ func (a *AgentApp) GenerateSessionTitle(ctx context.Context, sess *SessionContex
 }
 
 func (a *AgentApp) finalizeTurn(sess *SessionContext, client cllm.LLMClient, stats agent.RunStats) (TurnFinalizeResult, error) {
-	return a.sessionManager.Finalize(context.Background(), client, sess, a.workspaceRoot, stats)
+	return a.sessionManager.Finalize(context.Background(), client, sess, a.workspaceRoot, stats, a.pricingFor(sess))
+}
+
+// pricingFor is the price list of the model this session is running against, or
+// the zero Pricing when the entry configured none. A managed entry has none
+// here on purpose: the server holds the rates for a managed call and records
+// what it charged on the ledger, so a local guess would be a second answer to a
+// question that already has one.
+func (a *AgentApp) pricingFor(sess *SessionContext) cllm.Pricing {
+	if a == nil || sess == nil {
+		return cllm.Pricing{}
+	}
+	cfg, ok := FindModelConfig(a.settings, sess.ModelName(a.DefaultModelName()))
+	if !ok || cfg.IsManaged() {
+		return cllm.Pricing{}
+	}
+	return cfg.Pricing
 }
 
 func resolveWorkspaceRoot(dir string) (string, error) {
@@ -1155,7 +1228,8 @@ func (r *LLMClientCache) build(cfg ModelConfig) (cllm.LLMClient, error) {
 		ContextWindow: cfg.ContextWindow,
 		MaxTokens:     cfg.MaxTokens,
 		Reasoning:     cfg.Reasoning,
-		PromptCache:   cfg.PromptCache,
+		CacheControl:  cfg.CacheControl,
+		Integration:   cfg.Integration,
 		Vision:        cfg.Vision,
 		Surface:       r.surface,
 		KeepAlive:     cfg.KeepAlive,
@@ -1300,6 +1374,11 @@ func toModelConfig(entry config.ModelEntry) ModelConfig {
 	if name == "" {
 		name = entry.Model
 	}
+	pricing, err := config.ResolvePricing(entry.Pricing)
+	var pricingErr string
+	if err != nil {
+		pricingErr = err.Error()
+	}
 	return ModelConfig{
 		Name:          name,
 		ProviderModel: entry.Model,
@@ -1309,7 +1388,10 @@ func toModelConfig(entry config.ModelEntry) ModelConfig {
 		CallTimeout:   entry.CallTimeout,
 		MaxTokens:     entry.MaxTokens,
 		Reasoning:     entry.Reasoning,
-		PromptCache:   entry.PromptCache,
+		CacheControl:  config.ResolveCacheControl(entry.CacheControl),
+		Pricing:       pricing,
+		PricingErr:    pricingErr,
+		Integration:   entry.Integration,
 		Vision:        entry.Vision,
 		KeepAlive:     entry.KeepAlive,
 		Provider:      entry.Provider,

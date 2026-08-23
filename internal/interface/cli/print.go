@@ -158,6 +158,16 @@ func emitTextSummary(stdout, stderr io.Writer, out agentapp.RunResult, runErr er
 	if out.PromptTokens > 0 || out.CompletionTokens > 0 || out.TotalPromptTokens > 0 || out.TotalCompletionTokens > 0 {
 		fmt.Fprintf(stdout, "Tokens(in/out): %s\n", formatTokenUsageValue(out.PromptTokens, out.CompletionTokens, out.TotalPromptTokens, out.TotalCompletionTokens))
 	}
+	// Printed only when a provider reported cached tokens: a "0/0" line on a
+	// provider that reports nothing would claim a miss nobody measured.
+	if out.CacheReadTokens > 0 || out.CacheWriteTokens > 0 || out.TotalCacheReadTokens > 0 || out.TotalCacheWriteTokens > 0 {
+		fmt.Fprintf(stdout, "Cache(read/write): %s\n", formatTokenUsageValue(out.CacheReadTokens, out.CacheWriteTokens, out.TotalCacheReadTokens, out.TotalCacheWriteTokens))
+	}
+	// Only where the model was priced. BuildMax does not know what a provider
+	// charges, and a line reading "0.000000" would be a claim, not a silence.
+	if line := formatSessionCost(out.Cost, out.CostIncomplete); line != "" {
+		fmt.Fprintf(stdout, "Cost(session):  %s\n", line)
+	}
 }
 
 // printFatal handles errors that occur before the agent has run (setup
@@ -179,4 +189,25 @@ func printFatal(format OutputFormat, code int, err error) error {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 	}
 	return &ExitError{Code: code, Err: err}
+}
+
+// formatSessionCost renders a session's estimated spend, or "" when there is
+// nothing honest to say.
+//
+// A saving is shown only when caching actually saved. A run that wrote cache
+// entries nothing read back paid more than it would have uncached, and calling
+// that a small win would be the false claim this whole path avoids.
+func formatSessionCost(cost *cllm.Cost, incomplete bool) string {
+	if cost == nil {
+		return ""
+	}
+	line := cllm.FormatAmount(cost.Total) + " " + cost.Currency
+	if saved := cost.Saved(); saved > 0 {
+		line += fmt.Sprintf(" (saved %s vs %s uncached)",
+			cllm.FormatAmount(saved), cllm.FormatAmount(cost.Baseline))
+	}
+	if incomplete {
+		line += " (partial: some calls were unpriced)"
+	}
+	return line
 }

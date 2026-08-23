@@ -33,9 +33,15 @@ Rationale and the phases beyond this one:
 ```go
 // internal/core/llm
 type LLMClient interface {
-    ChatCompletionBlocking(ctx, messages []Message, tools []ToolDef) (Completion, error)
-    ChatCompletionStreaming(ctx, messages []Message, tools []ToolDef, onDelta func(string)) (Completion, error)
+    ChatCompletionBlocking(ctx, req Request) (Completion, error)
+    ChatCompletionStreaming(ctx, req Request, onDelta func(string)) (Completion, error)
     ContextWindow() int   // 0 = no windowing configured
+}
+
+type Request struct {
+    Messages []Message
+    Tools    []ToolDef
+    Profile  CallProfile      // what the call is for
 }
 
 type Completion struct {
@@ -56,6 +62,26 @@ capability the contract has gained wanted another slot, and a fifth positional
 value is where that stops being readable. `Completion.AssistantMessage()` is the
 history entry a turn becomes, so the agent loop appends it verbatim and no layer
 in between has to know reasoning state exists.
+
+`Request` is a struct for the mirror-image reason on the way in. It exists to
+carry `CallProfile`: what the call is *for*, which the request itself cannot
+show. A title generation and the first turn of a long tool-calling run send the
+same shape of messages, and prompt caching charges them differently — a cache
+write costs more than ordinary input and only repays itself if a later call
+reads it. The profile is the caller's answer to "will anything read this again".
+
+| Profile | Set by |
+|---|---|
+| `agent_turn` | `core/agent.RunLoop` — the prefix goes out again next iteration |
+| `title` | `agentapp.SessionManager.GenerateTitle` |
+| `compaction` | `agentapp.LLMCompactor` and the note checkpointer |
+| `evaluation` | a harness calling *about* a run rather than *as* one |
+| `probe` | a single question with no reuse: `WebFetch`, a hook's model call |
+
+It is a typed field rather than a `context.Context` value because a charged
+provider behavior has to be visible to the callers and tests that reason about
+it. `CallProfile.Valid()` refuses an unknown value rather than defaulting: the
+default it would fall to is the one that spends money.
 
 ## Construction
 
@@ -161,12 +187,78 @@ does anyway.
 
 ## Prompt Caching
 
-`Config.PromptCache` only changes a request on Anthropic, which needs explicit
-breakpoints: one after the system prompt, which covers the tools and system
-prompt that are identical on every call in a run, and one at the end of the
-request, so the next turn reads the whole prefix rather than only the part before
-the conversation. Both OpenAI protocols cache on their own; the flag does nothing
-there.
+`Config.CacheControl` is the target's policy — `auto` (the default), `off`, or
+`force`, plus a retention — and `Request.Profile` is what the individual call is
+for. `resolveCacheDecision` combines them with the protocol's capability, and
+only the result reaches a request.
+
+The profile is the half configuration cannot supply. Under `auto`, only an
+`agent_turn` asks for caching: its prefix goes out again on the next iteration,
+which is the case a cache write is priced for. A title, a compaction summary, or
+a probe is asked once and never asked again with the same prefix, so a write
+bought for one is a straight loss. A profile this build does not recognise is
+treated as unknown reuse, which does not justify a write; a caller that means to
+pay for one says `force`.
+
+Capability belongs to a target, and a direct entry has only its provider to go
+on:
+
+| Provider | Request controls | Reported as | Retention |
+|---|---|---|---|
+| `anthropic` | Breakpoints — nothing is cached unless the request says where | `supported` | `5m`, `1h` |
+| `openai` | A scoped `prompt_cache_key`; Responses caches on its own either way | `supported` | `24h` |
+| `openai_compatible` | None — speaking the protocol is not a promise to implement its cache fields | `unsupported` | — |
+| `ollama` | None — a local runtime reuses its own cache | `unsupported` | — |
+
+Retention vocabulary is per protocol. `5m` and `1h` mean something to Anthropic
+and nothing to the Responses API, and `24h` the other way round, so each refuses
+the other's rather than passing it through to be ignored.
+
+`force` on a target with no request controls is refused at construction: serving
+it as no caching at all would answer a question nobody asked. `auto` is accepted
+everywhere, because most targets are like this and erroring would make the
+default mode unusable. A retention the protocol does not document is refused for
+the same reason — better a named failure than a field silently served at some
+other length.
+
+### The OpenAI cache key
+
+The Responses API caches whether or not it is asked to, so the key BuildMax
+sends does not turn caching on — it decides which prefixes are looked up
+together. That makes it a correctness concern rather than a security one, and
+the failure mode is a bucket shared by prompts that never match, which is a
+bucket that never hits.
+
+`deriveCacheKey` hashes exactly the things that all have to match for a hit to
+be possible: the credential, the model, the caller's scope, and fingerprints of
+the system prompt and the tool definitions in the order they are sent. Fields
+are length-delimited so two different splits of the same bytes cannot collide,
+and the whole thing carries a version prefix so a build that changes the
+derivation cannot share a bucket with one that has not.
+
+Nothing goes in that would leak or fragment for no reason. The credential is
+hashed rather than carried; raw prompts, messages, workspace paths, and
+usernames stay out entirely. The result is derived per request and never
+persisted, logged, or returned — it appears in one outbound field and nowhere
+else.
+
+`Request.CacheScope` is the caller's bucket discriminator. It is empty for a
+direct call, where the credential is already the user's own account. For a
+managed call the gateway sets it from the authenticated team, because teams
+granted the same approved model share one credential and would otherwise share
+one bucket. It is never accepted from a client: a caller that could name its own
+scope could aim at another team's.
+
+### Anthropic breakpoint placement
+
+On Anthropic the resulting request carries two breakpoints: a static one on the
+system prompt, which covers the tools and instructions that are identical on
+every call in a run, and the top-level rolling one, so the next turn reads the
+whole prefix rather than only the part before the conversation. The second does
+not replace the first — automatic lookback only finds a prefix that was
+previously written near the rolling endpoint. With no system prompt the static
+breakpoint moves to the last tool definition, because otherwise the only
+cacheable boundary left lands after a user message that changes every turn.
 
 Cached counts are reported by all three and land on `core/llm.Usage` as
 `CacheReadTokens` and `CacheWriteTokens`. They are a **breakdown of
@@ -174,6 +266,18 @@ Cached counts are reported by all three and land on `core/llm.Usage` as
 from `input_tokens`, so its adapter adds it back before reporting a prompt total;
 the OpenAI protocols already include it. Getting that wrong in either direction
 misreports what a run cost.
+
+From there the counts follow the same path as the prompt and completion totals:
+`agent.RunStats` accumulates them across a run, `agent.Event` carries the running
+figures on `llm_start`/`llm_end`, the JSONL trace records them on `llm_end` and
+`run_end`, the session file keeps the per-session totals, and `agentapp.RunResult`
+and `RunStatus` hand them to the CLI, Desktop, and any other surface. A managed
+call carries the same counts over `llmwire.Usage` and onto the `llm_call` ledger
+row, which the team run-ledger route and Portal's run-spend view read back.
+
+Zero is not a miss. A provider that reports no cache counts is indistinguishable
+from one that missed, so surfaces show the breakdown only where a provider
+actually sent one rather than printing a `0 / 0` nobody measured.
 
 ## Image Input
 
@@ -230,8 +334,9 @@ adapters read usage from their own event streams and need nothing like it.
 
 Usage is normalized to `core/llm.Usage` by each adapter. The Anthropic protocol
 reports no total, so its adapter computes one — metering reads `TotalTokens`,
-and leaving it zero would report a call that cost nothing. Cache-read and
-cache-write counters have no home in the canonical shape yet.
+and leaving it zero would report a call that cost nothing. `CacheReadTokens` and
+`CacheWriteTokens` are part of that canonical shape and travel with every result,
+blocking and streamed alike.
 
 ## Per-Call Timeout
 

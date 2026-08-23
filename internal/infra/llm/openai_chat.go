@@ -198,7 +198,8 @@ func openAIAPIError(err error) error {
 	return &apiError{err: err}
 }
 
-func (a *openAIChatAdapter) blocking(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef) (cllm.Completion, error) {
+func (a *openAIChatAdapter) blocking(ctx context.Context, req cllm.Request) (cllm.Completion, error) {
+	messages, tools := req.Messages, req.Tools
 	resp, err := a.client.CreateChatCompletion(ctx, a.buildRequest(messages, tools))
 	if err != nil {
 		return cllm.Completion{}, fmt.Errorf("chat completion: %w", openAIAPIError(err))
@@ -216,7 +217,8 @@ func (a *openAIChatAdapter) blocking(ctx context.Context, messages []cllm.Messag
 	}, nil
 }
 
-func (a *openAIChatAdapter) streaming(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef, onDelta func(string)) (cllm.Completion, error) {
+func (a *openAIChatAdapter) streaming(ctx context.Context, req cllm.Request, onDelta func(string)) (cllm.Completion, error) {
+	messages, tools := req.Messages, req.Tools
 	var streamUsage cllm.Usage
 	ctx = context.WithValue(ctx, streamUsageKey, &streamUsage)
 	stream, err := a.client.CreateChatCompletionStream(ctx, a.buildRequest(messages, tools))

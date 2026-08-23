@@ -180,6 +180,31 @@ func WireProviderState(in *cllm.ProviderState) *llmwire.ProviderState {
 }
 
 // CoreMessages converts wire messages to the core contract.
+// CallProfile validates the profile a managed caller named.
+//
+// Shared by the team route, the worker route, and any other endpoint that
+// serves a managed call, because a profile that means one thing on one route
+// and another on the next is exactly the drift the gateway exists to prevent.
+//
+// An empty profile is accepted: the field is additive, and a client that
+// predates it is not a client making a bad request. It stays empty rather than
+// being promoted to a default, so the policy resolver sees "no evidence of
+// reuse" instead of a claim the caller never made.
+//
+// A non-empty value this build does not know is rejected. The alternative —
+// quietly treating it as something else — would let a newer client believe it
+// had asked for one thing while being charged for another.
+func CallProfile(named string) (cllm.CallProfile, error) {
+	if named == "" {
+		return "", nil
+	}
+	profile := cllm.CallProfile(named)
+	if !profile.Valid() {
+		return "", fmt.Errorf("unknown call_profile %q", named)
+	}
+	return profile, nil
+}
+
 func CoreMessages(in []llmwire.Message) ([]cllm.Message, error) {
 	if len(in) == 0 {
 		return nil, errors.New("messages required")

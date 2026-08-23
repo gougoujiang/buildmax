@@ -35,6 +35,10 @@ type Summary struct {
 	Compactions      int `json:"compactions"`
 	PromptTokens     int `json:"prompt_tokens"`
 	CompletionTokens int `json:"completion_tokens"`
+	// CacheReadTokens and CacheWriteTokens are the cached parts of
+	// PromptTokens, not extra tokens on top of it.
+	CacheReadTokens  int `json:"cache_read_tokens"`
+	CacheWriteTokens int `json:"cache_write_tokens"`
 
 	Tools []ToolSummary `json:"tools,omitempty"`
 	// ToolsTruncated reports that Tools holds only the first maxSummaryTools
@@ -147,6 +151,8 @@ func (s *Summary) apply(rec Record) {
 		// a retried call.
 		s.PromptTokens = rec.PromptTokens
 		s.CompletionTokens = rec.CompletionTokens
+		s.CacheReadTokens = rec.CacheReadTokens
+		s.CacheWriteTokens = rec.CacheWriteTokens
 		if rec.ToolCalls > 0 {
 			s.ToolCalls = rec.ToolCalls
 		}

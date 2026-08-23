@@ -94,8 +94,23 @@ type Target struct {
 	// Reasoning is the effort level the upstream is asked for; off means none.
 	// The gateway carries the resulting state without reading it.
 	Reasoning string
-	// PromptCache caches the stable prefix of a request.
-	PromptCache bool
+	// CacheMode and CacheTTL are the operator's prompt-cache policy: which
+	// calls ask the upstream to cache the stable prefix of a request, and for
+	// how long. They are carried as plain strings for the same reason the
+	// provider constants above are redefined here — this package resolves what
+	// a team may call without depending on how a process reads configuration.
+	// A managed caller never supplies either: the operator's target does.
+	CacheMode string
+	CacheTTL  string
+	// Pricing is what this upstream charges, in nano-currency-units per
+	// million tokens, carried as plain fields for the same reason the cache
+	// policy is. An empty Currency means unpriced, and a call against it
+	// reports cost as unavailable rather than as zero.
+	Currency          string
+	InputPerMTok      int64
+	CacheReadPerMTok  int64
+	CacheWritePerMTok int64
+	OutputPerMTok     int64
 	// Vision says the upstream accepts image input.
 	Vision bool
 	// Capabilities is what this target declares it can do.

@@ -999,12 +999,21 @@ on the machine that holds the database credentials.
 | `call_timeout` | `bigint` | no | Seconds; default `0`, meaning unspecified |
 | `max_tokens` | `bigint` | no | Cap on one response; default `0`, meaning the client default |
 | `reasoning` | `varchar(16)` | no | Effort level: empty or `off`, `low`, `medium`, `high` |
-| `prompt_cache` | `tinyint(1)` | no | Default `false`; cache the stable prefix of a request |
+| `cache_mode` | `varchar(16)` | no | Default `''`; prompt-cache policy: `auto`, `off`, `force` |
+| `cache_ttl` | `varchar(16)` | no | Default `''`; prompt-cache retention: `provider_default`, `5m`, `1h` |
+| `currency` | `varchar(8)` | no | Default `''`; ISO 4217 code the rates below are quoted in. Empty means unpriced |
+| `input_per_mtok` | `bigint` | no | Nano-currency-units per million fresh prompt tokens |
+| `cache_read_per_mtok` | `bigint` | no | Per million cached prompt tokens read |
+| `cache_write_per_mtok` | `bigint` | no | Per million prompt tokens written to cache |
+| `output_per_mtok` | `bigint` | no | Per million generated tokens |
 | `vision` | `tinyint(1)` | no | Default `false`; the upstream accepts image input |
 | `capabilities` | `varchar(255)` | yes | Comma-separated: `text_chat`, `tool_calls`, `streaming_text`, `usage_reporting` |
 | `enabled` | `tinyint(1)` | no | Default `true` |
 | `created_at` | `datetime(6)` | yes | `autoCreateTime`, indexed for listing order |
 | `updated_at` | `datetime(6)` | yes | `autoUpdateTime` |
+
+An empty `cache_mode` means nobody chose, and takes the default policy. An
+operator who wants caching off writes `cache_mode = off`.
 
 Indexes: PK `id`; index `created_at`; unique `name`; unique `public_id`.
 
@@ -1052,6 +1061,11 @@ One managed inference call. The metering and debugging record.
 | `total_tokens` | `bigint` | yes | |
 | `cache_read_tokens` | `bigint` | yes | Part of the prompt served from the provider's cache |
 | `cache_write_tokens` | `bigint` | yes | Part of the prompt written into it |
+| `currency` | `varchar(8)` | yes | The rate snapshot's currency; empty when the model was unpriced |
+| `rate_input_per_mtok` | `bigint` | yes | Fresh-input rate in force when the call was accepted |
+| `rate_cache_read_per_mtok` | `bigint` | yes | Cache-read rate in force then |
+| `rate_cache_write_per_mtok` | `bigint` | yes | Cache-write rate in force then |
+| `rate_output_per_mtok` | `bigint` | yes | Output rate in force then |
 | `usage_source` | `varchar(16)` | yes | `reported`, `estimated`, or `unavailable` |
 
 Indexes: PK `id`; index `accepted_at`; unique `idx_llm_call_client` on
@@ -1068,6 +1082,17 @@ spend report that summed all three would count the same tokens twice.
 `provider_type` and `upstream_model` are copied onto the row rather than joined
 from `llm_model`, so a completed call still describes what actually ran after
 the catalog entry is edited or deleted.
+
+The rate columns are copied for the same reason, and one more: a model gets
+repriced, and a spend report recomputed from today's rates would restate an
+invoice that has already been paid. They are written when the call is accepted
+and never updated. A row whose `currency` is empty was run against an unpriced
+model, or predates these columns; either way its cost is unknown, which is not
+the same fact as a call that cost nothing.
+
+Amounts are nano-currency-units — one currency unit is 1e9 of them — held as
+integers because a float would round a published price before anything read it
+and drift a few hundred calls into a figure someone compares against a bill.
 
 Note that `llm_call` is *not* what quota reads. Quota aggregates `task_run`
 tokens; `llm_call` records gateway traffic including calls with no task behind

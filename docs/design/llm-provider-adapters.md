@@ -22,7 +22,7 @@
 > `Content`, with `MultimodalTool` letting the MCP gateway forward what a server
 > returns. Reasoning also became an effort level rather than a boolean.
 >
-> The three capability knobs — `reasoning`, `prompt_cache`, `vision` — are all
+> The three capability knobs — `reasoning`, `cache_control`, `vision` — are all
 > opt-in, because each changes either what a call costs or whether a model
 > accepts it at all.
 >

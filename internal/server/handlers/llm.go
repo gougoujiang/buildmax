@@ -74,6 +74,12 @@ func (h *Handler) llmCompletionsHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	profile, err := llmhttp.CallProfile(req.CallProfile)
+	if err != nil {
+		httputil.WriteJSONError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
 	cmd := llmgateway.CompleteRequest{
 		TeamID:       teamID,
 		UserID:       &userID,
@@ -81,6 +87,7 @@ func (h *Handler) llmCompletionsHandler(w http.ResponseWriter, r *http.Request) 
 		Alias:        req.Model,
 		Messages:     messages,
 		Tools:        llmhttp.CoreTools(req.Tools),
+		CallProfile:  profile,
 	}
 	if req.Metadata != nil {
 		cmd.Surface = req.Metadata.Surface

@@ -10,6 +10,16 @@ import (
 
 const wailsCLIPkg = "github.com/wailsapp/wails/v2/cmd/wails@v2.15.0"
 
+// The prompt-cache qualification suite's variables, mirrored here because mk
+// imports nothing from internal. internal/config/env_spec.go is the source of
+// truth; env_test.go fails if these drift from it.
+const (
+	envCacheQualifyProvider = "BUILDMAX_CACHE_QUALIFY_PROVIDER"
+	envCacheQualifyModel    = "BUILDMAX_CACHE_QUALIFY_MODEL"
+	envCacheQualifyAPIKey   = "BUILDMAX_CACHE_QUALIFY_API_KEY"
+	envCacheQualifyBaseURL  = "BUILDMAX_CACHE_QUALIFY_BASE_URL"
+)
+
 func cmdBuild(args []string) error {
 	if len(args) > 1 {
 		return usageErrorf("build", "build takes at most one target")
@@ -296,6 +306,37 @@ func cmdAgentSmoke() error {
 	fmt.Println("Running the agent tool smoke. A real model executes the checks and reports its own")
 	fmt.Println("PASS/FAIL table, so read the output: the exit code only says the process finished.")
 	return runCmd(filepath.Join(binDir, exe(cliBinary)), "-p", "/smoke 0")
+}
+
+// cmdCacheQualify runs the prompt-cache qualification suite against a real
+// provider.
+//
+// Like agent-smoke it is not a test and no check runs it. It exists because
+// every other cache test in the tree proves what BuildMax sends and nothing
+// about what a provider does with it, and a cache is exactly where those two
+// come apart: the request can be perfectly shaped and the provider can still
+// decline to cache it. See docs/design/prompt-cache-control.md section 9.
+func cmdCacheQualify(args []string) error {
+	provider := os.Getenv(envCacheQualifyProvider)
+	model := os.Getenv(envCacheQualifyModel)
+	if provider == "" || model == "" {
+		return fmt.Errorf("%s calls a real, paid provider and needs one named.\nSet %s and %s, plus %s; %s overrides the endpoint",
+			mk()+" cache-qualify",
+			envCacheQualifyProvider, envCacheQualifyModel,
+			envCacheQualifyAPIKey, envCacheQualifyBaseURL)
+	}
+	if _, err := useSandboxHome(); err != nil {
+		return err
+	}
+	fmt.Printf("Qualifying prompt caching against provider %q model %q. This calls a paid provider.\n",
+		provider, model)
+	fmt.Println("Read the scenario output: a skip means the provider takes no controls, and a")
+	fmt.Println("failure names what the provider did rather than what BuildMax sent.")
+	// Verbose because the value is in the per-scenario usage lines, not the
+	// exit code: a reader is deciding whether a target is cache-capable.
+	run := []string{"test", "-count=1", "-v", "-timeout=30m",
+		"-run", "TestCacheQualification", "./internal/infra/llm"}
+	return runCmd("go", append(run, args...)...)
 }
 
 // requireModelKey reports whether the sandbox home has a model that could

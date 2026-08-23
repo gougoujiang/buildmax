@@ -1,8 +1,12 @@
 # Prompt Cache Control
 
-> **Audience:** contributors · **Status:** planned — Anthropic breakpoints and
-> cache-token accounting exist; default policy, provider-specific controls, and
-> end-to-end observability do not.
+> **Audience:** contributors · **Status:** in progress — phases 1 to 3 shipped
+> and phase 4's mechanism with them: cache counts reach every surface, caching
+> is a per-call policy that defaults on for Anthropic agent turns and sends a
+> scoped key on OpenAI Responses, and a priced model reports what a run cost.
+> `./make cache-qualify` exists; no provider has been run through it, so no
+> compatible gateway is qualified and the section 6 diagnostics are not yet
+> carried to the surfaces.
 
 Extends [llm-provider-adapters.md](llm-provider-adapters.md) and
 [llm-gateway.md](llm-gateway.md). The provider-adapter design owns protocol
@@ -20,11 +24,11 @@ The current implementation is a useful base but not a complete policy:
 
 | Area | Current behavior | Gap |
 |---|---|---|
-| Anthropic | `prompt_cache: true` marks the system block and sends top-level automatic caching. | Opt-in per model, no TTL policy, and applies to one-shot utility calls too. |
-| OpenAI Responses | Relies on automatic caching and records reported cache usage. | No `prompt_cache_key`, cache options, or retention/TTL control. |
-| OpenAI-compatible | Treats the protocol family as automatically caching. | Compatibility is not a cache capability; an endpoint may ignore fields or report nothing. |
-| Accounting | `core/llm.Usage` and the managed ledger hold cache read/write tokens. | Run stats, traces, local results, and Portal run-ledger responses drop them. |
-| Cost control | Prompt and completion tokens are displayed and quota is token-based. | No cache-hit ratio, cache-write cost, billable-cost estimate, or miss explanation. |
+| Anthropic | `auto` by default on agent turns, with static and rolling breakpoints and an explicit 1-hour opt-in (phase 2). | — |
+| OpenAI Responses | Sends a derived, scoped `prompt_cache_key` and optional 24h retention (phase 3). | `prompt_cache_options` unverified and deliberately unsent. |
+| OpenAI-compatible | Declares no cache capability and sends no controls; a named `integration` may opt in once qualified (phase 4). | No gateway has been through the qualification suite, so every integration name is refused. |
+| Accounting | `core/llm.Usage`, run stats, traces, session totals, local results, the managed ledger, and Portal all carry cache read/write tokens (phase 1). | Nothing distinguishes a requested strategy from a provider that reports nothing. |
+| Cost control | A priced model reports per-call and per-run cost, split by token class, against an uncached baseline (phase 3). | No miss explanation: the section 6 diagnostics are resolved per call but do not leave `internal/infra/llm`. |
 
 The repository must not claim a saving it cannot demonstrate. A cache write can
 cost more than ordinary input, a short one-shot request cannot repay it, and
@@ -81,8 +85,7 @@ model request into a cache write or silently enable extended retention.
 
 ## 4. Policy Model
 
-The existing `models[].prompt_cache: bool` remains a deprecated compatibility
-shorthand. New configuration uses a structured policy:
+Configuration uses a structured policy:
 
 ```yaml
 models:
@@ -102,9 +105,13 @@ explicit and `snake_case`; the wire shape is an implementation detail.
 | `off` | Send no control. | Send no control. | Send no control. |
 | `force` | Request caching even when reuse cannot be established. | Request caching. | Reject configuration rather than pretend it worked. |
 
-`prompt_cache: true` migrates to `mode: force`; `false` migrates to `off`.
-An absent legacy field becomes `auto`. This preserves explicit opt-outs and
-does not reinterpret existing `true` as a weaker request.
+The `prompt_cache: bool` this replaces is removed rather than kept as a
+shorthand. It was written up here as a compatibility path, and that was the
+wrong call for a pre-release project: nothing is deployed that has to keep
+working, and the two stores could not agree on what `false` meant — a
+`*bool` in a settings file distinguishes absent from false, and a non-null
+column does not, so the same word would have meant "off" in one place and
+"default" in the other. Removing it removes the disagreement.
 
 ### 4.1 Per-call intent
 
@@ -267,7 +274,7 @@ local performance flag.
 
 ## 9. Delivery Plan and Acceptance
 
-### Phase 1 — truthful baseline and telemetry
+### Phase 1 — truthful baseline and telemetry (shipped)
 
 - Correct stale cache documentation.
 - Propagate existing cache counters to stats, events, traces, local results,
@@ -280,7 +287,18 @@ local performance flag.
 **Acceptance:** a provider-reported cache read/write is visible from Agent turn
 to surface without double-counting prompt tokens.
 
-### Phase 2 — policy and Anthropic default
+Counts travel `llm.Usage` → `agent.RunStats` and `agent.Event` → trace `llm_end`
+and `run_end` → `session.Session` totals → `agentapp.RunResult`/`RunStatus` →
+CLI, Desktop, and — for a managed call — `llmwire.Usage` → the `llm_call` ledger
+row → the team run-ledger route → Portal's run-spend view. Every surface prints
+the breakdown only where a provider reported one: a permanent `0 / 0` would read
+as a measured miss on the many providers that report nothing.
+
+The diagnostics of section 6 — requested mode, capability, strategy, effective
+TTL, outcome — are not part of phase 1. Phase 2 resolves them per call; carrying
+them out to the surfaces is tracked below.
+
+### Phase 2 — policy and Anthropic default (shipped)
 
 - Add structured policy, compatibility parsing, call profile, and capability
   validation.
@@ -294,7 +312,29 @@ to surface without double-counting prompt tokens.
 target-policy decision; a qualified sequential tool loop with unchanged static
 input observes a write then read; an `auto` title-only call sends no control.
 
-### Phase 3 — OpenAI native controls and cost estimates
+Two decisions were settled in implementation and are recorded here because the
+plan above did not:
+
+The `prompt_cache` shorthand section 4 originally kept is gone. Implementing it
+showed why: a settings file can distinguish absent from `false` with a pointer
+and a non-null column cannot, so the same field would have meant "off" in one
+store and "default" in the other. A pre-release project has no reason to carry
+that. `cache_mode` is the only way either store states this, and an unset row
+takes the default.
+
+`force` is refused where a target takes no cache instructions, and `auto` is
+not. Refusing `auto` there would make the default mode unusable on the majority
+of targets; serving `force` there silently as no caching would answer a question
+nobody asked.
+
+The section 6 diagnostics — requested mode, capability, strategy, effective TTL,
+outcome — are resolved per call but do not yet leave `internal/infra/llm`.
+Carrying them to the surfaces is the remaining debt, and it belongs with phase 4:
+what a reader needs them for is the explanation behind a miss, and until the
+qualification suite establishes what a real miss looks like there is nothing
+truthful to say beyond the counts.
+
+### Phase 3 — OpenAI native controls and cost estimates (shipped)
 
 - Upgrade the native client/library as necessary for supported cache fields.
 - Derive isolated `prompt_cache_key` values and validate cache options.
@@ -303,7 +343,30 @@ input observes a write then read; an `auto` title-only call sends no control.
 **Acceptance:** request-shape tests pin key/options, keys change across
 team/static-prefix boundaries, and reported counters produce reproducible cost.
 
-### Phase 4 — compatible profiles and qualification
+Where the pricing record lives was left open above and is settled here. There is
+no separate temporal price table. Current rates sit on the thing they describe —
+`llm_model` for a managed catalog entry, the `pricing` block on a settings model
+entry for a direct one — and history is kept where the spend is: the gateway
+copies the rates in force onto each `llm_call` row when it accepts the call, and
+a local session accumulates its cost turn by turn as it runs. That gives
+immutability exactly where it is needed, on the record of what was actually
+charged, without a versioned catalog nobody would maintain. Repricing a model
+changes what the next call costs and not what an old one did.
+
+Rates are integers — nano-currency-units per million tokens — written as decimal
+strings in configuration. A published rate has no exact binary form and a few
+hundred calls accumulate float error into a figure someone compares against an
+invoice.
+
+`prompt_cache_options` is not sent. The library exposes it, but BuildMax has not
+established what its `mode` values mean on a live account, and sending a field
+whose vocabulary is unverified is the same mistake as assuming an
+OpenAI-compatible gateway implements OpenAI's cache fields. The explicit/implicit
+choice stays out until the phase 4 qualification suite can confirm it against a
+real provider; `24h` retention is taken from the vocabulary section 4 fixes and
+is on the same list to confirm.
+
+### Phase 4 — compatible profiles and qualification (mechanism shipped)
 
 - Add named profiles only for tested compatible gateways.
 - Qualify first write, sequential hit, TTL expiry, changed prefix, long-history
@@ -311,6 +374,89 @@ team/static-prefix boundaries, and reported counters produce reproducible cost.
 
 **Acceptance:** no model or endpoint is described as cache-capable until its
 request shape and usage response pass the qualification suite.
+
+The suite exists as `./make cache-qualify`, which runs those scenarios against a
+provider named by `BUILDMAX_CACHE_QUALIFY_*` and reports what the provider
+actually did. Like `agent-smoke` it is not a test and no check runs it: it calls
+a paid provider, and it skips when none is named.
+
+#### What the qualification runs found
+
+Run against OpenRouter on 2026-08-23, reaching it three ways: as
+`openai_compatible` (its Chat Completions endpoint), as `anthropic` (its
+Messages endpoint at `/api/v1/messages`), and as `openai` (its Responses
+endpoint at `/api/v1/responses`).
+
+**Native Anthropic Messages — qualified.** Cold prefix wrote 11793 tokens; the
+next call over an unchanged prefix read 11421 back; a conversation grown by
+eight turns still read the static prefix; a streamed call read 11250, which is
+the first evidence those counts survive the event stream on this protocol; a
+changed prefix read nothing. Both `5m` and `1h` retention were accepted.
+
+**Native OpenAI Responses — qualified.** Cold prefix wrote 10865; the next call
+read 10517 and wrote only the 14-token increment; a grown conversation read
+10800 and wrote 136; streaming read 11068; a changed prefix read nothing. `24h`
+retention was accepted, which discharges the value this document had fixed by
+vocabulary alone.
+
+**The cache key isolates buckets at the provider.** Two calls sending
+byte-identical prompts under different `CacheScope` values: the first wrote
+10788, the second wrote 10788 of its own and read *none* of the first's, and the
+first scope then read its own 10788 back. This is the only way to test what
+section 5.2 asserts — on a protocol that caches implicitly a read proves nothing
+about the key, and only a miss under a different scope does.
+
+**Through the compatible endpoint, only Anthropic reports nothing:**
+
+| Upstream model | Cache reads via `openai_compatible` |
+|---|---|
+| `openai/gpt-5.6-luna` | Yes |
+| `google/gemini-3.7-flash` | Yes — 12243, streaming 12250 |
+| `deepseek/deepseek-v4-flash` | Yes — 10496, streaming 11264 |
+| `z-ai/glm-5.3` | Yes — 12160, streaming 12416 |
+| `anthropic/claude-haiku-4.5` | No — zero on every scenario |
+
+That last row is not a gateway defect. Anthropic caches nothing implicitly, and
+a Chat Completions adapter sends no breakpoints, so there is nothing to report.
+The same model through the same gateway on the Messages endpoint qualifies
+outright. The lesson is the routing one: an Anthropic model reached over an
+OpenAI-compatible protocol cannot cache at all, whoever is in front of it.
+
+**Caveat on all of it.** This qualifies OpenRouter's *implementations* of the
+Messages and Responses protocols, not `api.anthropic.com` or `api.openai.com`.
+It is strong evidence for BuildMax's request shapes and usage parsing, since a
+gateway that emulates a protocol has no reason to invent cache semantics, but it
+is not the vendor endpoint and should not be reported as such.
+
+**This still settles the profile question, for a sharper reason than expected.**
+The first draft of these results suggested capability varied arbitrarily by
+upstream model. With a large enough prefix it does not: everything that caches
+implicitly reports through the gateway, and the one family that does not is the
+one that needs a request field the compatible adapter never sends. A
+gateway-level `integration: openrouter` profile is still wrong — it would speak
+for Anthropic models that cannot cache on that protocol — but the fix for those
+is to route them natively, which BuildMax already supports and which this run
+verified end to end, tool calling included.
+
+`compatibleProfiles` therefore stays empty, and every `integration` value is
+still refused. Nothing needs one: the compatible path already reports what its
+upstreams do, and the family that needs more has a native adapter.
+
+**Proposal, not yet decided.** Two findings above came from the suite being
+wrong rather than a provider: a prefix near a model's minimum cached
+intermittently, and fixed prefixes meant a second run inside the retention
+window was not cold. Both are fixed. The remaining sharp edge is that
+`cacheCapabilityFor` keys on the protocol, while what actually decides caching
+is the protocol *and* the upstream. Since a model entry already names exactly
+one upstream, the natural place for a capability claim is the entry itself, made
+by an operator who has run `./make cache-qualify` against their own target. That
+is a change to section 5's capability contract and should be decided before
+being built.
+
+The section 6 diagnostics belong to the same run. Their value is explaining a
+miss, and until the suite establishes what a real miss looks like on each target
+there is nothing truthful to put in a `strategy` or `outcome` field beyond what
+the counts already say.
 
 ## 10. Sources and Follow-up Documents
 

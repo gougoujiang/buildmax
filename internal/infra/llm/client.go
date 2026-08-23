@@ -36,9 +36,15 @@ type Config struct {
 	// off also replays reasoning state on later turns. It does nothing on a
 	// protocol that has none.
 	Reasoning string
-	// PromptCache asks the protocol to cache the stable prefix of a request.
-	// It does nothing on a protocol that caches automatically.
-	PromptCache bool
+	// CacheControl is the resolved prompt-cache policy. Whether a given call
+	// acts on it also depends on that call's core/llm.CallProfile: a mode is
+	// what to ask for, and a profile is whether asking is worth its price.
+	CacheControl config.CacheControl
+	// Integration names a qualified OpenAI-compatible gateway whose cache
+	// behaviour is known. Empty is the normal case: the protocol family makes
+	// no promise about cache fields, so nothing is sent unless a named profile
+	// says this endpoint was tested.
+	Integration string
 	// Vision says the model accepts image input. When false, an adapter drops
 	// image parts and sends only the text describing them.
 	Vision bool
@@ -59,8 +65,8 @@ type Config struct {
 type adapter interface {
 	// name is the provider value this adapter implements.
 	name() string
-	blocking(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef) (cllm.Completion, error)
-	streaming(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef, onDelta func(string)) (cllm.Completion, error)
+	blocking(ctx context.Context, req cllm.Request) (cllm.Completion, error)
+	streaming(ctx context.Context, req cllm.Request, onDelta func(string)) (cllm.Completion, error)
 }
 
 // LLMClient calls one model through one wire protocol and holds the
@@ -117,6 +123,20 @@ func NewClient(cfg Config) (*LLMClient, error) {
 		return nil, fmt.Errorf("unknown reasoning effort %q: use one of %s",
 			cfg.Reasoning, strings.Join(config.ReasoningEfforts(), ", "))
 	}
+	// Checked here rather than per call: a policy the target cannot honour is a
+	// configuration mistake, and finding it at construction names the model
+	// entry instead of failing the first turn of a run.
+	provider := cfg.Provider
+	if provider == "" {
+		provider = config.LLMProviderOpenAICompatible
+	}
+	capability, cacheErr := cacheCapabilityForIntegration(provider, cfg.Integration)
+	if cacheErr != nil {
+		return nil, cacheErr
+	}
+	if cacheErr := validateCachePolicy(cfg.CacheControl, capability, provider); cacheErr != nil {
+		return nil, cacheErr
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -146,7 +166,7 @@ func resolveContextWindow(cfg Config) int {
 // ChatCompletionBlocking sends messages and tool definitions, returns assistant content, any tool calls, and usage.
 // Retries on rate-limit and transient server errors up to maxRetryAttempts times.
 // Errors are wrapped with a human-readable classification before being returned.
-func (c *LLMClient) ChatCompletionBlocking(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef) (completion cllm.Completion, err error) {
+func (c *LLMClient) ChatCompletionBlocking(ctx context.Context, req cllm.Request) (completion cllm.Completion, err error) {
 	for attempt := range maxRetryAttempts {
 		if attempt > 0 {
 			logRetry(attempt, err)
@@ -155,7 +175,7 @@ func (c *LLMClient) ChatCompletionBlocking(ctx context.Context, messages []cllm.
 			}
 		}
 		callCtx, cancel := c.withCallTimeout(ctx)
-		completion, err = c.adapter.blocking(callCtx, messages, tools)
+		completion, err = c.adapter.blocking(callCtx, req)
 		cancel()
 		if err == nil || !isRetryableError(err) {
 			break
@@ -172,7 +192,7 @@ func (c *LLMClient) ChatCompletionBlocking(ctx context.Context, messages []cllm.
 // Retries on transient errors only when no delta has been emitted yet, to avoid duplicate output.
 // Errors are wrapped with a human-readable classification before being returned.
 // If onDelta is nil, it is not called.
-func (c *LLMClient) ChatCompletionStreaming(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef, onDelta func(delta string)) (completion cllm.Completion, err error) {
+func (c *LLMClient) ChatCompletionStreaming(ctx context.Context, req cllm.Request, onDelta func(delta string)) (completion cllm.Completion, err error) {
 	for attempt := range maxRetryAttempts {
 		if attempt > 0 {
 			logRetry(attempt, err)
@@ -188,7 +208,7 @@ func (c *LLMClient) ChatCompletionStreaming(ctx context.Context, messages []cllm
 			}
 		}
 		callCtx, cancel := c.withCallTimeout(ctx)
-		completion, err = c.adapter.streaming(callCtx, messages, tools, guardedDelta)
+		completion, err = c.adapter.streaming(callCtx, req, guardedDelta)
 		cancel()
 		if err == nil || !isRetryableError(err) || deltaEmitted {
 			break

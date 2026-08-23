@@ -227,7 +227,8 @@
 /* Trails whatever ended the row rather than claiming the right edge itself:
    attempts follow either a duration or a failure, and two elements competing
    for `margin-left: auto` collapse the gap between them. */
-.run-trace__call-attempts {
+.run-trace__call-attempts,
+.run-trace__call-cache {
   flex: 0 0 auto;
   color: var(--color-text-subtle);
   font-variant-numeric: tabular-nums;

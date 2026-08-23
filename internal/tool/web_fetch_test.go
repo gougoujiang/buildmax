@@ -19,14 +19,14 @@ type mockWebFetchLLM struct {
 	callCount int
 }
 
-func (m *mockWebFetchLLM) ChatCompletionBlocking(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (llm.Completion, error) {
+func (m *mockWebFetchLLM) ChatCompletionBlocking(ctx context.Context, req llm.Request) (llm.Completion, error) {
 	m.mu.Lock()
 	m.callCount++
 	m.mu.Unlock()
 	return llm.Completion{Content: m.reply}, nil
 }
 
-func (m *mockWebFetchLLM) ChatCompletionStreaming(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (llm.Completion, error) {
+func (m *mockWebFetchLLM) ChatCompletionStreaming(ctx context.Context, req llm.Request, onDelta func(string)) (llm.Completion, error) {
 	m.mu.Lock()
 	m.callCount++
 	m.mu.Unlock()

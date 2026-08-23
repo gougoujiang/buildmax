@@ -79,7 +79,7 @@ func (s *SessionManager) GenerateTitle(ctx context.Context, client llm.LLMClient
 		return "", llm.Usage{}, nil
 	}
 	slog.Debug("generating session title via LLM")
-	completion, err := client.ChatCompletionBlocking(ctx, msgs, nil)
+	completion, err := client.ChatCompletionBlocking(ctx, llm.Request{Messages: msgs, Profile: llm.ProfileTitle})
 	if err != nil {
 		return "", llm.Usage{}, err
 	}
@@ -91,12 +91,18 @@ func (s *SessionManager) GenerateTitle(ctx context.Context, client llm.LLMClient
 
 // Finalize runs the post-turn flow: accumulate token usage, persist the session,
 // and generate a title via LLM if one is not yet set.
-func (s *SessionManager) Finalize(ctx context.Context, client llm.LLMClient, sess *SessionContext, workspace string, stats agent.RunStats) (TurnFinalizeResult, error) {
+func (s *SessionManager) Finalize(ctx context.Context, client llm.LLMClient, sess *SessionContext, workspace string, stats agent.RunStats, pricing llm.Pricing) (TurnFinalizeResult, error) {
 	if sess == nil {
 		return TurnFinalizeResult{}, nil
 	}
 	sess.PromptTokens += stats.PromptTokens
 	sess.CompletionTokens += stats.CompletionTokens
+	sess.CacheReadTokens += stats.CacheReadTokens
+	sess.CacheWriteTokens += stats.CacheWriteTokens
+	// The run already priced itself call by call, at the rates in force for
+	// each. Re-pricing its totals here would be a second answer to the same
+	// question, and a different one whenever a run spanned a rate change.
+	addRunCost(sess, stats.Cost, stats.CostIncomplete)
 	if err := s.Save(sess, workspace); err != nil {
 		return TurnFinalizeResult{}, fmt.Errorf("persist session: %w", err)
 	}
@@ -114,6 +120,9 @@ func (s *SessionManager) Finalize(ctx context.Context, client llm.LLMClient, ses
 	sess.Title = title
 	sess.PromptTokens += usage.PromptTokens
 	sess.CompletionTokens += usage.CompletionTokens
+	sess.CacheReadTokens += usage.CacheReadTokens
+	sess.CacheWriteTokens += usage.CacheWriteTokens
+	addSessionCost(sess, usage, pricing)
 	if err := s.Save(sess, workspace); err != nil {
 		slog.Error("re-persist session with title failed", "err", err)
 	}
@@ -121,6 +130,8 @@ func (s *SessionManager) Finalize(ctx context.Context, client llm.LLMClient, ses
 		Title:            title,
 		PromptTokens:     usage.PromptTokens,
 		CompletionTokens: usage.CompletionTokens,
+		CacheReadTokens:  usage.CacheReadTokens,
+		CacheWriteTokens: usage.CacheWriteTokens,
 	}, nil
 }
 
@@ -347,4 +358,65 @@ func writeSessionList(dir string, entries []session.SessionItem) error {
 	}
 	path := filepath.Join(dir, "sessions.json")
 	return os.WriteFile(path, data, 0644)
+}
+
+// addSessionCost folds one turn's spend into the session's running total.
+//
+// It accumulates rather than recomputing on read because the model, and
+// therefore the rates, can change between turns of the same session: a total
+// derived later from whatever is configured then would restate turns that were
+// already paid for at a different price.
+//
+// Anything it cannot price marks the total incomplete rather than adding zero.
+// An unpriced turn is an unknown, and a total that absorbed it as free would be
+// a claim about money that nobody made.
+func addSessionCost(sess *SessionContext, usage llm.Usage, pricing llm.Pricing) {
+	turn, ok := llm.EstimateCost(usage, pricing)
+	if !ok {
+		// A turn with no usage at all is already reported as unmeasured by the
+		// token counts; only a turn that did work and could not be priced
+		// leaves a hole in the money.
+		if usage.PromptTokens != 0 || usage.CompletionTokens != 0 {
+			sess.CostIncomplete = true
+		}
+		return
+	}
+	if sess.Cost == nil {
+		sess.Cost = &turn
+		return
+	}
+	summed, ok := sess.Cost.Add(turn)
+	if !ok {
+		// Two currencies, and BuildMax holds no exchange rate. The earlier
+		// total stands and is labelled incomplete; inventing a conversion
+		// would produce a figure that is wrong in both.
+		sess.CostIncomplete = true
+		return
+	}
+	*sess.Cost = summed
+}
+
+// addRunCost folds a finished run's own total into the session.
+//
+// The run priced each of its calls as they completed, so this only carries the
+// answer up rather than recomputing it. incomplete propagates: a session
+// containing one partial run is itself partial.
+func addRunCost(sess *SessionContext, cost *llm.Cost, incomplete bool) {
+	if incomplete {
+		sess.CostIncomplete = true
+	}
+	if cost == nil {
+		return
+	}
+	if sess.Cost == nil {
+		total := *cost
+		sess.Cost = &total
+		return
+	}
+	summed, ok := sess.Cost.Add(*cost)
+	if !ok {
+		sess.CostIncomplete = true
+		return
+	}
+	*sess.Cost = summed
 }

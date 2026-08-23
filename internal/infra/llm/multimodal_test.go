@@ -56,8 +56,8 @@ func TestEveryProtocolSendsAToolImage(t *testing.T) {
 			up := newUpstreamWithBody(t, p.blocking(reply{text: "ok"}))
 			client := newVisionClient(t, p.provider, up.server.URL)
 
-			if _, err := client.ChatCompletionBlocking(
-				context.Background(), imageToolHistory(), conformanceTools()); err != nil {
+			if _, err := client.ChatCompletionBlocking(context.Background(),
+				cllm.Request{Messages: imageToolHistory(), Tools: conformanceTools()}); err != nil {
 				t.Fatalf("ChatCompletionBlocking: %v", err)
 			}
 			body := up.bodies[0]
@@ -93,8 +93,8 @@ func TestToolImagePlacementFollowsTheProtocol(t *testing.T) {
 			up := newUpstreamWithBody(t, p.blocking(reply{text: "ok"}))
 			client := newVisionClient(t, tc.provider, up.server.URL)
 
-			if _, err := client.ChatCompletionBlocking(
-				context.Background(), imageToolHistory(), conformanceTools()); err != nil {
+			if _, err := client.ChatCompletionBlocking(context.Background(),
+				cllm.Request{Messages: imageToolHistory(), Tools: conformanceTools()}); err != nil {
 				t.Fatalf("ChatCompletionBlocking: %v", err)
 			}
 			gotFollowUp := strings.Contains(up.bodies[0], imageFollowUpPreamble)
@@ -115,8 +115,8 @@ func TestWithoutVisionAnImageIsDescribedNotSent(t *testing.T) {
 			up := newUpstreamWithBody(t, p.blocking(reply{text: "ok"}))
 			client := newTestClient(t, p.provider, up.server.URL)
 
-			if _, err := client.ChatCompletionBlocking(
-				context.Background(), imageToolHistory(), conformanceTools()); err != nil {
+			if _, err := client.ChatCompletionBlocking(context.Background(),
+				cllm.Request{Messages: imageToolHistory(), Tools: conformanceTools()}); err != nil {
 				t.Fatalf("ChatCompletionBlocking: %v", err)
 			}
 			if strings.Contains(up.bodies[0], onePixelPNG) {
@@ -143,7 +143,7 @@ func TestEveryProtocolSendsAUserImage(t *testing.T) {
 			up := newUpstreamWithBody(t, p.blocking(reply{text: "ok"}))
 			client := newVisionClient(t, p.provider, up.server.URL)
 
-			if _, err := client.ChatCompletionBlocking(context.Background(), history, nil); err != nil {
+			if _, err := client.ChatCompletionBlocking(context.Background(), cllm.Request{Messages: history}); err != nil {
 				t.Fatalf("ChatCompletionBlocking: %v", err)
 			}
 			if !strings.Contains(up.bodies[0], onePixelPNG) {

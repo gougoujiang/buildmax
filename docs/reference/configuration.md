@@ -44,6 +44,11 @@ anything not listed here is not read by BuildMax.
 | `BUILDMAX_TRACE_DISABLED` | — | Disables durable run traces when truthy. Traces are on by default. |
 | `BUILDMAX_RUN_TOKEN` | — | One task run's credential for every `/api/worker/*` route. Minted per run by the scheduler and placed in the worker process or Job pod — not something an operator sets. |
 | `BUILDMAX_TEST_DSN` | — | MySQL DSN for store integration tests. Unset skips those tests. |
+| `BUILDMAX_CACHE_QUALIFY_PROVIDER` | — | Provider for `./make cache-qualify`, which calls a real paid provider. Unset skips the suite. |
+| `BUILDMAX_CACHE_QUALIFY_MODEL` | — | Model identifier for that suite. |
+| `BUILDMAX_CACHE_QUALIFY_API_KEY` | — | Credential for that suite. |
+| `BUILDMAX_CACHE_QUALIFY_BASE_URL` | — | Endpoint override for that suite. |
+| `BUILDMAX_CACHE_QUALIFY_SLOW` | — | Include the qualification scenarios that wait out a retention window. Truthy values only; they take minutes of wall clock. |
 
 ### Credential Overrides
 
@@ -199,7 +204,9 @@ sandbox: {}                          # see guide/sandbox.md
 | `models[].provider` | `openai_compatible` | The wire protocol the endpoint speaks — see below. Ignored by a `buildmax` entry, where the deployment's catalog decides. |
 | `models[].max_tokens` | `0` | Cap on one response. `0` means the protocol's default; `anthropic` requires the field, so `0` there sends the built-in 8192. |
 | `models[].reasoning` | `off` | How much the model reasons before answering: `off`, `low`, `medium`, or `high` — see below. No effect on `openai_compatible`, which carries none. |
-| `models[].prompt_cache` | `false` | Cache the stable prefix of a request — the tool definitions and system prompt — so later calls in a run pay less for them. |
+| `models[].cache_control` | `auto` | Which calls ask the provider to cache the stable prefix of a request, and for how long — see below. |
+| `models[].pricing` | — | What this model charges, so a run can report its cost — see below. |
+| `models[].integration` | — | A qualified OpenAI-compatible gateway. None is qualified, so any value is refused today. |
 | `models[].vision` | `false` | This model accepts image input. Leave it off and an image a tool returns is described in text rather than sent. |
 | `models[].keep_alive` | — | How long a local runtime keeps the model loaded after a call: a duration such as `30m`, `0` to unload at once, `-1` to stay resident. Only `ollama` reads it. |
 | `models[].transport` | `direct` | `direct` calls a provider from this machine. `buildmax` calls a server's managed gateway. |
@@ -253,25 +260,134 @@ carries it, so a run that resumes after a restart keeps its continuity.
 
 ### Prompt caching
 
-`prompt_cache: true` asks the provider to cache the part of a request that does
-not change between calls — the tool definitions and system prompt — so the rest
-of a run pays a reduced rate for them.
+`cache_control` asks the provider to cache the part of a request that does not
+change between calls — the tool definitions and system prompt — so the rest of a
+run pays a reduced rate for them.
 
-| Provider | What it does |
-|---|---|
-| `openai_compatible`, `openai` | Nothing to the request: these cache automatically. Cached tokens are reported either way. |
-| `anthropic` | Places cache breakpoints after the system prompt and at the end of the request. |
-| `ollama` | Nothing. A local runtime reuses its own cache between calls, with no request-side control and no counts to report. |
+```yaml
+models:
+  - name: sonnet
+    provider: anthropic
+    model: claude-sonnet-5
+    cache_control:
+      mode: auto             # auto (default), off, force
+      ttl: provider_default  # provider_default (default), 5m, 1h
+```
 
-It is off by default because caching changes what a call costs: writing a cache
-entry is more expensive than not caching, and it only pays back if later calls
-read it. A single short call is worse off; an agent run of many calls is better
-off.
+`mode` decides **which calls** ask:
+
+| Mode | Agent turns | One-shot calls (title, compaction, probes) |
+|---|---|---|
+| `auto` (default) | Ask | Do not ask |
+| `off` | Do not ask | Do not ask |
+| `force` | Ask | Ask |
+
+The split is what makes `auto` safe as a default. Writing a cache entry costs
+more than not caching and only pays back if a later call reads it, so a run of
+many calls over one stable prefix is better off and a single short call is worse
+off. An agent turn's prefix goes out again on the next iteration; a generated
+title's never does. `force` is for a caller that knows something the runtime
+cannot see.
+
+`ttl` selects retention, and only where the provider documents it. Anything
+other than `provider_default` on a provider that does not document it is
+refused at startup rather than sent and ignored.
+
+| Provider | What a request carries | Retention |
+|---|---|---|
+| `anthropic` | Breakpoints after the tools and system prompt and at the end of the request. Nothing is cached unless the request says where. | `provider_default`, `5m`, `1h` |
+| `openai` | A scoped `prompt_cache_key`. Responses caches on its own, so the key does not turn caching on — it says which bucket the prefix belongs in. | `provider_default`, `24h` |
+| `openai_compatible` | Nothing. Speaking the protocol is not a promise to implement its cache fields, and an untested gateway may reject or ignore them. | `provider_default` only |
+| `ollama` | Nothing. A local runtime reuses its own cache between calls, with no request-side control and no counts to report. | `provider_default` only |
+
+Retention vocabulary is per provider, not global: `5m` and `1h` mean something
+to Anthropic and nothing to the Responses API, and `24h` the other way round.
+Asking for one where it is not documented is refused at startup rather than sent
+and ignored.
+
+The `prompt_cache_key` is derived, not configured. It is an opaque digest of the
+credential, the model, the team (managed calls only), and fingerprints of the
+system prompt and tool definitions — the things that all have to match for the
+provider to hit. It carries none of them in readable form, changes when any of
+them changes, and is never written to the ledger, a trace, a log, or the CLI.
+Two teams granted the same model share a credential, and the team in the key is
+what keeps their prompts out of one another's bucket.
+
+`mode: force` is refused at startup on any provider that takes no cache
+instructions. Serving it as no caching at all would answer a question nobody
+asked. `mode: auto` is accepted everywhere, because most models are like this.
 
 Cached tokens are reported as `cache_read_tokens` and `cache_write_tokens`,
 which **break the prompt count down rather than adding to it**. A spend report
 that summed all of them alongside `prompt_tokens` would count the same tokens
-twice. Managed deployments record both on the `llm_call` ledger row.
+twice.
+
+They are visible wherever a run's tokens are: the CLI prints a `Cache(read/write)`
+line and shows the same figures in the TUI status bar, `--format json` carries
+them under `usage`, the run trace records them, the session file keeps the
+per-session totals, and a managed deployment records them on the `llm_call`
+ledger row for Portal's run-spend view.
+
+Each of those shows the breakdown only when a provider reported one. Most
+providers report nothing at all, and a permanent `0 / 0` would read as a
+measured miss rather than an absent measurement.
+
+### Model pricing
+
+`pricing` is what a model charges, so a run can say what it cost. Without it a
+run reports its cost as `unavailable` rather than as zero — BuildMax does not
+know what any provider charges, and a guess dressed as a number is worse than
+silence.
+
+```yaml
+models:
+  - name: sonnet
+    provider: anthropic
+    model: claude-sonnet-5
+    pricing:
+      currency: USD
+      input_per_mtok: "3.00"
+      cache_read_per_mtok: "0.30"
+      cache_write_per_mtok: "3.75"
+      output_per_mtok: "15.00"
+```
+
+Rates are decimal strings quoted per million tokens, written the way providers
+publish them so a configured value can be checked against a price page without
+arithmetic. The four are separate because caching prices them differently: a
+cache read is cheaper than fresh input and a cache write is dearer, which is the
+whole reason caching is a decision rather than a free win.
+
+A price list must be complete enough to be trusted. Rates with no `currency`, or
+a `currency` with no rate, are refused at load — an estimate assembled from half
+a price list looks authoritative and is not. A rate of `"0"` is a real price and
+is accepted.
+
+Where the cost appears:
+
+| Surface | What it shows |
+|---|---|
+| CLI | A `Cost(session)` line after a run, with what caching saved when it saved anything |
+| CLI `--format json` | `usage.cost`, in nano-units of the currency |
+| Session file | A running total, accumulated as the session ran |
+| Run trace | Each call's own cost on `llm_end`, and the run's on `run_end` — which turn was expensive, not just the total |
+| Portal run view | Per-run estimated cost and the saving against an uncached baseline |
+
+The session total is accumulated turn by turn rather than recomputed on read,
+because the model — and so the rates — can change mid-session. A total derived
+later from whatever is configured then would restate turns already paid for at a
+different price. When part of a session cannot be priced, or a second currency
+appears, the total is labelled partial rather than quietly understating the run.
+
+For a managed deployment the operator sets the same four rates per catalog
+model, with `--currency`, `--input-price`, `--cache-read-price`,
+`--cache-write-price`, and `--output-price` on `buildmax-server model add`. The
+rates in force are copied onto each `llm_call` row when the call is accepted, so
+repricing a model does not restate what a team already spent.
+
+A saving is reported only when caching actually saved. A run that wrote cache
+entries nothing read back paid more than it would have uncached, and that is
+shown as the cost it was, not as a small win.
 
 ### Image input
 
@@ -337,7 +453,8 @@ cannot call tools at all, which no amount of prompting works around. Pick one
 whose capabilities include `tools` in `buildmax models --local`.
 
 Everything else behaves as it does elsewhere: `max_tokens`, `vision`, and
-`reasoning` mean the same, `prompt_cache` does nothing, and `keep_alive`
+`reasoning` mean the same, `cache_control` does nothing because a local runtime
+takes no cache instructions, and `keep_alive`
 controls how long the daemon keeps the model in memory between calls — worth
 setting on a machine where reloading a large model costs more than the turn.
 

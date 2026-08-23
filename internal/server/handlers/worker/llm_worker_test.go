@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/server/authtoken"
@@ -232,4 +233,59 @@ func TestWorkerLLMCompletions(t *testing.T) {
 			t.Errorf("status = %d, want 404", rec.Code)
 		}
 	})
+}
+
+// The worker route resolves a profile the same way the team route does. Two
+// endpoints reaching different conclusions about the same word is the drift the
+// shared resolver exists to prevent, and here it would mean a run's caching
+// depended on which door it came through.
+func TestWorkerLLMCompletionCarriesTheCallProfile(t *testing.T) {
+	client := &llmStubClient{content: "answer"}
+	gateway := llmTestService(t, client, nil)
+
+	rec := workerLLMRequest(t, gateway, string(model.RunStatusRunning),
+		`{"model":"default","messages":[{"role":"user","content":"hi"}],"call_profile":"agent_turn"}`,
+		validWorkerRunToken(t))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	if client.gotProfile != cllm.ProfileAgentTurn {
+		t.Errorf("provider saw profile %q, want %q", client.gotProfile, cllm.ProfileAgentTurn)
+	}
+}
+
+func TestWorkerLLMCompletionRefusesAnUnknownProfile(t *testing.T) {
+	client := &llmStubClient{content: "answer"}
+	gateway := llmTestService(t, client, nil)
+
+	rec := workerLLMRequest(t, gateway, string(model.RunStatusRunning),
+		`{"model":"default","messages":[{"role":"user","content":"hi"}],"call_profile":"cache_everything"}`,
+		validWorkerRunToken(t))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400: %s", rec.Code, rec.Body.String())
+	}
+	if client.gotProfile != "" {
+		t.Error("a refused request still reached the provider")
+	}
+}
+
+// A worker cannot name a cache policy any more than a CLI can. The wire
+// contract has no field for one, and an unknown field is refused rather than
+// ignored.
+func TestWorkerLLMCompletionRefusesACachePolicy(t *testing.T) {
+	client := &llmStubClient{content: "answer"}
+	gateway := llmTestService(t, client, nil)
+
+	for _, body := range []string{
+		`{"messages":[{"role":"user","content":"hi"}],"cache_control":{"mode":"force"}}`,
+		`{"messages":[{"role":"user","content":"hi"}],"cache_ttl":"1h"}`,
+	} {
+		rec := workerLLMRequest(t, gateway, string(model.RunStatusRunning), body, validWorkerRunToken(t))
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("body %s produced status %d, want 400", body, rec.Code)
+		}
+	}
+	if client.gotProfile != "" {
+		t.Error("a refused request still reached the provider")
+	}
 }

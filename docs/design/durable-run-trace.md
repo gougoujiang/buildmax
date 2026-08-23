@@ -108,8 +108,22 @@ omitted.
 {"ts":"…","type":"llm_start","iter":1,"context_tokens":1234,"context_window":128000}
 
 // llm_end     (EventLLMEnd) — content bounded
+// The cache counts are a breakdown of prompt_tokens, not an addition to it, and
+// are omitted entirely when the provider reported none.
+//
+// prompt_tokens and friends are the run's totals so far; the call_* fields are
+// what this one call did. Both are here because subtracting consecutive
+// records to get the second goes wrong as soon as a call in between failed.
+// cost is this call's, in nano-currency-units, and is absent when the model
+// was unpriced — which is not the same fact as a call that cost nothing.
 {"ts":"…","type":"llm_end","iter":1,"has_tool_calls":true,
- "prompt_tokens":1200,"completion_tokens":80,"content":"…"}
+ "prompt_tokens":1200,"completion_tokens":80,
+ "cache_read_tokens":900,"cache_write_tokens":100,
+ "call_prompt_tokens":1200,"call_completion_tokens":80,
+ "call_cache_read_tokens":900,"call_cache_write_tokens":0,
+ "cost":{"currency":"USD","uncached":900000,"cache_read":270000,"cache_write":0,
+         "output":1200000,"total":2370000,"baseline":4800000},
+ "content":"…"}
 
 // tool_start  (EventToolStart) — args bounded + redacted
 {"ts":"…","type":"tool_start","tool":"writefile","tool_call_id":"call_1","args":"{…}"}
@@ -133,8 +147,12 @@ omitted.
 {"ts":"…","type":"user_input_blocked","iter":3,"content":"…","deny_reason":"no secrets"}
 
 // run_end     (EventRunEnd)
+// cost here is the run's, summed from the calls above. cost_incomplete says a
+// call did work that could not be priced, so the total understates the run.
 {"ts":"…","type":"run_end","tool_calls":2,"prompt_tokens":1200,
- "completion_tokens":80,"error":""}
+ "completion_tokens":80,"cache_read_tokens":900,"cache_write_tokens":100,
+ "cost":{"currency":"USD","total":2370000,"baseline":4800000},
+ "error":""}
 ```
 
 `EventLLMDelta` is **not** persisted — streaming deltas are redundant with the

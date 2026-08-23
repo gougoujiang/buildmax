@@ -337,7 +337,7 @@ an unusable one. It is a per-entry knob rather than a global because a machine
 may run a small resident model and a large occasional one.
 
 `reasoning`, `vision`, `max_tokens`, `context_window`, and `call_timeout` keep
-their existing meanings. `prompt_cache` is accepted and does nothing, as it does
+their existing meanings. `cache_control` is accepted and does nothing, as it does
 on `openai_compatible`.
 
 The configuration reference gains the row and the provider table gains

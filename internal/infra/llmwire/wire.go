@@ -105,6 +105,19 @@ type CompletionRequest struct {
 	Tools    []Tool    `json:"tools,omitempty"`
 	Stream   bool      `json:"stream,omitempty"`
 	Metadata *Metadata `json:"metadata,omitempty"`
+	// CallProfile is what the caller says the call is for — a core/llm
+	// CallProfile value such as "agent_turn" or "title".
+	//
+	// It is operational input, not authorization input. The server combines it
+	// with the approved target's own cache policy, so naming a profile cannot
+	// select a mode, a retention, or a cache key the operator did not approve;
+	// the strongest thing a client can do with it is describe its own call
+	// wrongly and get the caching that description deserves.
+	//
+	// The field is additive. A client that predates it omits it, and the server
+	// then has no evidence that anything will read the prefix back, which is
+	// not a reason to buy a cache write.
+	CallProfile string `json:"call_profile,omitempty"`
 }
 
 // Usage is the token usage for one call.

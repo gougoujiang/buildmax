@@ -67,10 +67,19 @@ type ModelEntry struct {
 	// returns is described in text rather than sent, because a model that
 	// cannot read images rejects the request rather than ignoring the image.
 	Vision bool `mapstructure:"vision"`
-	// PromptCache asks the provider to cache the stable prefix of a request —
-	// the tool definitions and system prompt — so later calls in the same run
-	// pay less for them.
-	PromptCache bool `mapstructure:"prompt_cache"`
+	// CacheControl is this model's prompt-cache policy: which calls ask the
+	// provider to cache the stable prefix of a request — the tool definitions
+	// and system prompt — and for how long.
+	CacheControl *CacheControl `mapstructure:"cache_control"`
+	// Pricing is what this model charges. Optional: without it a run reports
+	// its cost as unavailable rather than as zero, because BuildMax does not
+	// know what any provider charges and guessing would be worse than silence.
+	Pricing *ModelPricing `mapstructure:"pricing"`
+	// Integration names a qualified OpenAI-compatible gateway, for the cache
+	// fields that gateway is known to honour. Empty is the normal case:
+	// speaking the protocol is not a promise to implement its cache behaviour,
+	// so nothing is sent unless a named profile says the endpoint was tested.
+	Integration string `mapstructure:"integration"`
 	// KeepAlive is how long a local runtime keeps the model loaded after a
 	// call — a duration string, "0" to unload at once, "-1" to stay resident.
 	// Only LLMProviderOllama reads it; on a hosted provider there is no model

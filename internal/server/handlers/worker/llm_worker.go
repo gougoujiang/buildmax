@@ -81,6 +81,11 @@ func (h *Handler) workerLLMCompletionsHandler(w http.ResponseWriter, r *http.Req
 	// created it, and a ledger that only says "some worker" cannot answer whose
 	// work spent the tokens.
 	userID := claims.UserID
+	profile, err := llmhttp.CallProfile(req.CallProfile)
+	if err != nil {
+		httputil.WriteJSONError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	cmd := llmgateway.CompleteRequest{
 		TeamID:       claims.TeamID,
 		UserID:       &userID,
@@ -91,6 +96,7 @@ func (h *Handler) workerLLMCompletionsHandler(w http.ResponseWriter, r *http.Req
 		Messages:     messages,
 		Tools:        llmhttp.CoreTools(req.Tools),
 		Surface:      workerSurface,
+		CallProfile:  profile,
 	}
 	if req.Metadata != nil {
 		cmd.SessionID = req.Metadata.SessionID

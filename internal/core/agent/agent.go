@@ -23,10 +23,54 @@ const denyMsgHook = "error: tool call %q denied by hook: %s"
 const DefaultMaxIterations = 200
 
 // RunStats holds statistics collected during a single agent run.
+//
+// CacheReadTokens and CacheWriteTokens break PromptTokens down rather than add
+// to it, matching llm.Usage. A surface that sums all three reports a run that
+// read more prompt than it sent.
 type RunStats struct {
 	ToolCalls        int
 	PromptTokens     int
 	CompletionTokens int
+	CacheReadTokens  int
+	CacheWriteTokens int
+	// Cost is the run's estimated spend, nil when no call in it could be
+	// priced. CostIncomplete says a call did work that could not be priced, so
+	// the total understates the run rather than covering it.
+	Cost           *llm.Cost
+	CostIncomplete bool
+}
+
+// addCall folds one completed call into the run's totals.
+func (s *RunStats) addCall(usage llm.Usage, pricing llm.Pricing) *llm.Cost {
+	s.PromptTokens += usage.PromptTokens
+	s.CompletionTokens += usage.CompletionTokens
+	s.CacheReadTokens += usage.CacheReadTokens
+	s.CacheWriteTokens += usage.CacheWriteTokens
+
+	call, ok := llm.EstimateCost(usage, pricing)
+	if !ok {
+		// A call the provider reported no usage for is already unmeasured in
+		// the counts above; only one that did work and could not be priced
+		// leaves a hole in the money.
+		if usage.PromptTokens != 0 || usage.CompletionTokens != 0 {
+			s.CostIncomplete = true
+		}
+		return nil
+	}
+	if s.Cost == nil {
+		total := call
+		s.Cost = &total
+		return &call
+	}
+	summed, ok := s.Cost.Add(call)
+	if !ok {
+		// Two currencies in one run, and there is no exchange rate here to
+		// reconcile them with. The earlier total stands and says it is partial.
+		s.CostIncomplete = true
+		return &call
+	}
+	*s.Cost = summed
+	return &call
 }
 
 // MessageHistory is the minimal interface for the agent loop: read the conversation so far and append one message.
@@ -88,6 +132,14 @@ type StateCheckpointer interface {
 type RunLoopOpts struct {
 	LLMClient    llm.LLMClient
 	SystemPrompt string
+	// Pricing prices each call as it completes. Zero leaves every cost nil,
+	// which is what a model nobody priced — or a managed one, where the server
+	// holds the rates and records what it charged — reports.
+	//
+	// It is priced here rather than after the run because a run is where the
+	// rates are known to still be the ones that applied: recomputing later from
+	// whatever is configured then restates money already spent.
+	Pricing      llm.Pricing
 	ToolRegistry llm.ToolRegistry
 	MaxIter      int
 	History      MessageHistory
@@ -246,8 +298,7 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 			fireRunEndHook(ctx, opts, s, runErr)
 			return "", s, runErr
 		}
-		s.PromptTokens += completion.Usage.PromptTokens
-		s.CompletionTokens += completion.Usage.CompletionTokens
+		callCost := s.addCall(completion.Usage, opts.Pricing)
 
 		if content != "" {
 			lastContent = content
@@ -260,6 +311,10 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 			HasToolCalls:     len(toolCalls) > 0,
 			PromptTokens:     s.PromptTokens,
 			CompletionTokens: s.CompletionTokens,
+			CacheReadTokens:  s.CacheReadTokens,
+			CacheWriteTokens: s.CacheWriteTokens,
+			CallUsage:        completion.Usage,
+			CallCost:         callCost,
 		})
 
 		if len(toolCalls) == 0 {
@@ -410,10 +465,14 @@ func callLLM(ctx context.Context, opts RunLoopOpts, history []llm.Message, syste
 		ContextWindow:    contextWindow,
 		PromptTokens:     stats.PromptTokens,
 		CompletionTokens: stats.CompletionTokens,
+		CacheReadTokens:  stats.CacheReadTokens,
+		CacheWriteTokens: stats.CacheWriteTokens,
 	})
 	messages := append([]llm.Message{{Role: "system", Content: systemPrompt}}, history...)
 	messages = append(messages, stateMsg...)
-	defs := opts.ToolRegistry.GetDefs()
+	// The loop is the one caller whose prefix is sent again on the next
+	// iteration, which is what makes a cache write here worth its price.
+	call := llm.Request{Messages: messages, Tools: opts.ToolRegistry.GetDefs(), Profile: llm.ProfileAgentTurn}
 	if opts.StreamSink != nil {
 		onDelta := opts.StreamSink.OnDelta
 		if opts.EventSink != nil {
@@ -423,9 +482,9 @@ func callLLM(ctx context.Context, opts RunLoopOpts, history []llm.Message, syste
 				sink(Event{Kind: EventLLMDelta, Content: delta})
 			}
 		}
-		return opts.LLMClient.ChatCompletionStreaming(ctx, messages, defs, onDelta)
+		return opts.LLMClient.ChatCompletionStreaming(ctx, call, onDelta)
 	}
-	return opts.LLMClient.ChatCompletionBlocking(ctx, messages, defs)
+	return opts.LLMClient.ChatCompletionBlocking(ctx, call)
 }
 
 // pendingCall is one tool call moving through the four stages below. Workers

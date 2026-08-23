@@ -67,7 +67,7 @@ func TestAnthropicCapturesThinkingAsProviderState(t *testing.T) {
 	client := newReasoningClient(t, config.LLMProviderAnthropic, up.server.URL)
 
 	completion, err := client.ChatCompletionBlocking(context.Background(),
-		[]cllm.Message{{Role: "user", Content: "where is it"}}, nil)
+		cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "where is it"}}})
 	if err != nil {
 		t.Fatalf("ChatCompletionBlocking: %v", err)
 	}
@@ -110,7 +110,7 @@ func TestAnthropicReplaysThinkingOnTheNextTurn(t *testing.T) {
 	client := newReasoningClient(t, config.LLMProviderAnthropic, up.server.URL)
 
 	first, err := client.ChatCompletionBlocking(context.Background(),
-		[]cllm.Message{{Role: "user", Content: "where is it"}}, nil)
+		cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "where is it"}}})
 	if err != nil {
 		t.Fatalf("first call: %v", err)
 	}
@@ -120,7 +120,7 @@ func TestAnthropicReplaysThinkingOnTheNextTurn(t *testing.T) {
 		first.AssistantMessage(),
 		{Role: "user", Content: "are you sure"},
 	}
-	if _, err := client.ChatCompletionBlocking(context.Background(), history, nil); err != nil {
+	if _, err := client.ChatCompletionBlocking(context.Background(), cllm.Request{Messages: history}); err != nil {
 		t.Fatalf("second call: %v", err)
 	}
 
@@ -153,11 +153,11 @@ func TestForeignReasoningStateIsNotReplayed(t *testing.T) {
 			up := reasoningUpstream(t, p.body)
 			client := newReasoningClient(t, p.provider, up.server.URL)
 
-			if _, err := client.ChatCompletionBlocking(context.Background(), []cllm.Message{
+			if _, err := client.ChatCompletionBlocking(context.Background(), cllm.Request{Messages: []cllm.Message{
 				{Role: "user", Content: "hi"},
 				{Role: "assistant", Content: "hello", ProviderState: foreign},
 				{Role: "user", Content: "again"},
-			}, nil); err != nil {
+			}}); err != nil {
 				t.Fatalf("ChatCompletionBlocking: %v", err)
 			}
 			if strings.Contains(up.bodies[0], encryptedReasonig) {
@@ -172,7 +172,7 @@ func TestResponsesCapturesAndReplaysReasoning(t *testing.T) {
 	client := newReasoningClient(t, config.LLMProviderOpenAI, up.server.URL)
 
 	first, err := client.ChatCompletionBlocking(context.Background(),
-		[]cllm.Message{{Role: "user", Content: "where is it"}}, nil)
+		cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "where is it"}}})
 	if err != nil {
 		t.Fatalf("first call: %v", err)
 	}
@@ -194,11 +194,11 @@ func TestResponsesCapturesAndReplaysReasoning(t *testing.T) {
 		t.Errorf("request %s did not ask for encrypted reasoning", up.bodies[0])
 	}
 
-	if _, err := client.ChatCompletionBlocking(context.Background(), []cllm.Message{
+	if _, err := client.ChatCompletionBlocking(context.Background(), cllm.Request{Messages: []cllm.Message{
 		{Role: "user", Content: "where is it"},
 		first.AssistantMessage(),
 		{Role: "user", Content: "are you sure"},
-	}, nil); err != nil {
+	}}); err != nil {
 		t.Fatalf("second call: %v", err)
 	}
 	if !strings.Contains(up.bodies[1], encryptedReasonig) {
@@ -214,7 +214,7 @@ func TestReasoningIsOffByDefault(t *testing.T) {
 	client := newTestClient(t, config.LLMProviderAnthropic, up.server.URL)
 
 	if _, err := client.ChatCompletionBlocking(context.Background(),
-		[]cllm.Message{{Role: "user", Content: "hi"}}, nil); err != nil {
+		cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "hi"}}}); err != nil {
 		t.Fatalf("ChatCompletionBlocking: %v", err)
 	}
 	if strings.Contains(up.bodies[0], "thinking") {

@@ -590,8 +590,8 @@ func TestAdaptersAgreeOnBlockingReplies(t *testing.T) {
 				up := newUpstream(t, p, scenario.reply, 0)
 				client := newTestClient(t, p.provider, up.server.URL)
 
-				completion, err := client.ChatCompletionBlocking(
-					context.Background(), conformanceHistory(), conformanceTools())
+				completion, err := client.ChatCompletionBlocking(context.Background(),
+					cllm.Request{Messages: conformanceHistory(), Tools: conformanceTools()})
 				if err != nil {
 					t.Fatalf("ChatCompletionBlocking: %v", err)
 				}
@@ -606,7 +606,8 @@ func TestAdaptersIdentifyAsBuildMax(t *testing.T) {
 		t.Run(p.provider, func(t *testing.T) {
 			up := newUpstream(t, p, reply{text: "ok"}, 0)
 			client := newTestClient(t, p.provider, up.server.URL)
-			if _, err := client.ChatCompletionBlocking(context.Background(), []cllm.Message{{Role: "user", Content: "hello"}}, nil); err != nil {
+			if _, err := client.ChatCompletionBlocking(
+				context.Background(), cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "hello"}}}); err != nil {
 				t.Fatalf("ChatCompletionBlocking: %v", err)
 			}
 			if len(up.userAgents) != 1 || up.userAgents[0] != config.UserAgent("cli", false) {
@@ -624,8 +625,8 @@ func TestAdaptersAgreeOnStreamedReplies(t *testing.T) {
 				client := newTestClient(t, p.provider, up.server.URL)
 
 				var delivered strings.Builder
-				completion, err := client.ChatCompletionStreaming(
-					context.Background(), conformanceHistory(), conformanceTools(),
+				completion, err := client.ChatCompletionStreaming(context.Background(),
+					cllm.Request{Messages: conformanceHistory(), Tools: conformanceTools()},
 					func(delta string) { delivered.WriteString(delta) })
 				if err != nil {
 					t.Fatalf("ChatCompletionStreaming: %v", err)
@@ -685,8 +686,8 @@ func TestAdaptersAgreeOnErrorClassification(t *testing.T) {
 				restore := shortenRetryBackoff()
 				defer restore()
 
-				_, err := client.ChatCompletionBlocking(
-					context.Background(), conformanceHistory(), conformanceTools())
+				_, err := client.ChatCompletionBlocking(context.Background(),
+					cllm.Request{Messages: conformanceHistory(), Tools: conformanceTools()})
 				if err == nil {
 					t.Fatal("expected an error")
 				}
@@ -752,8 +753,8 @@ func TestToolCallIDsSurviveAcrossProtocols(t *testing.T) {
 					}},
 					{Role: "tool", ToolCallID: id, Content: "package a"},
 				}
-				if _, err := client.ChatCompletionBlocking(
-					context.Background(), history, conformanceTools()); err != nil {
+				if _, err := client.ChatCompletionBlocking(context.Background(),
+					cllm.Request{Messages: history, Tools: conformanceTools()}); err != nil {
 					t.Fatalf("ChatCompletionBlocking: %v", err)
 				}
 				if len(up.bodies) != 1 {
@@ -783,10 +784,10 @@ func TestSystemPromptReachesEveryProtocol(t *testing.T) {
 			up := newUpstream(t, p, reply{text: "ok"}, 0)
 			client := newTestClient(t, p.provider, up.server.URL)
 
-			if _, err := client.ChatCompletionBlocking(context.Background(), []cllm.Message{
+			if _, err := client.ChatCompletionBlocking(context.Background(), cllm.Request{Messages: []cllm.Message{
 				{Role: "system", Content: prompt},
 				{Role: "user", Content: "Hello"},
-			}, nil); err != nil {
+			}}); err != nil {
 				t.Fatalf("ChatCompletionBlocking: %v", err)
 			}
 			if !strings.Contains(up.bodies[0], prompt) {

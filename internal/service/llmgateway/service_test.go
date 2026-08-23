@@ -28,9 +28,9 @@ type scriptedClient struct {
 	gotOrigin   cllm.CallOrigin
 }
 
-func (c *scriptedClient) ChatCompletionBlocking(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef) (cllm.Completion, error) {
-	c.gotMessages = messages
-	c.gotTools = tools
+func (c *scriptedClient) ChatCompletionBlocking(ctx context.Context, req cllm.Request) (cllm.Completion, error) {
+	c.gotMessages = req.Messages
+	c.gotTools = req.Tools
 	c.gotOrigin, _ = cllm.CallOriginFromContext(ctx)
 	if c.err != nil {
 		return cllm.Completion{}, c.err
@@ -43,7 +43,9 @@ func (c *scriptedClient) ChatCompletionBlocking(ctx context.Context, messages []
 	}, nil
 }
 
-func (c *scriptedClient) ChatCompletionStreaming(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef, onDelta func(string)) (cllm.Completion, error) {
+func (c *scriptedClient) ChatCompletionStreaming(ctx context.Context, req cllm.Request, onDelta func(string)) (cllm.Completion, error) {
+	messages := req.Messages
+	tools := req.Tools
 	c.gotMessages = messages
 	c.gotTools = tools
 	c.gotOrigin, _ = cllm.CallOriginFromContext(ctx)
@@ -552,3 +554,134 @@ func TestErrorClassFor(t *testing.T) {
 		}
 	}
 }
+
+// The rates are copied onto the ledger row when the call is accepted, not
+// looked up when someone reads it back. A catalog price changes; what a team
+// spent last month does not, and a spend report recomputed from today's rates
+// would restate an invoice that has already been paid.
+func TestCompleteSnapshotsTheTargetRates(t *testing.T) {
+	priced := validTarget()
+	priced.Currency = "USD"
+	priced.InputPerMTok = 3_000_000_000
+	priced.CacheReadPerMTok = 300_000_000
+	priced.CacheWritePerMTok = 3_750_000_000
+	priced.OutputPerMTok = 15_000_000_000
+
+	catalog, err := llmgateway.NewStaticCatalog([]llmgateway.Target{priced})
+	if err != nil {
+		t.Fatalf("NewStaticCatalog: %v", err)
+	}
+	ledger := newFakeLedger()
+	svc := &llmgateway.Service{
+		Router: &llmgateway.Router{
+			Resolver: &llmgateway.Resolver{
+				Catalog:  catalog,
+				Policies: teamPolicies{"tm_one": {DefaultAlias: "default", Aliases: map[string]string{"default": "mt_fast"}}},
+			},
+			Factory: func(context.Context, llmgateway.Target) (cllm.LLMClient, error) {
+				return &scriptedClient{content: "hi"}, nil
+			},
+		},
+		Ledger: ledger,
+	}
+	if _, err := svc.Complete(context.Background(), userRequest()); err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+
+	call, _ := ledger.only(t)
+	if call.Currency != "USD" {
+		t.Fatalf("currency = %q, want USD", call.Currency)
+	}
+	rates := map[string]struct {
+		got  *int64
+		want int64
+	}{
+		"input":       {call.RateInputPerMTok, 3_000_000_000},
+		"cache read":  {call.RateCacheReadPerMTok, 300_000_000},
+		"cache write": {call.RateCacheWritePerMTok, 3_750_000_000},
+		"output":      {call.RateOutputPerMTok, 15_000_000_000},
+	}
+	for name, r := range rates {
+		if r.got == nil || *r.got != r.want {
+			t.Errorf("%s rate = %v, want %d", name, r.got, r.want)
+		}
+	}
+}
+
+// An unpriced target leaves the row unpriced. A zero rate would read as a model
+// that charges nothing, which is a claim about money nobody made.
+func TestCompleteLeavesAnUnpricedTargetUnpriced(t *testing.T) {
+	ledger := newFakeLedger()
+	svc := serviceWith(t, &scriptedClient{content: "hi"}, ledger, nil)
+	if _, err := svc.Complete(context.Background(), userRequest()); err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+	call, _ := ledger.only(t)
+	if call.Currency != "" || call.RateInputPerMTok != nil {
+		t.Errorf("an unpriced target recorded rates: currency %q input %v", call.Currency, call.RateInputPerMTok)
+	}
+}
+
+// Two teams granted the same approved model share one provider credential, and
+// therefore one provider cache bucket unless something separates them. The
+// scope is that separator, and it comes from the resolved team rather than from
+// the request: a caller that could name its own scope could aim at another
+// team's bucket.
+func TestCompleteScopesTheCacheBucketByTeam(t *testing.T) {
+	client := &profileClient{}
+	catalog, err := llmgateway.NewStaticCatalog([]llmgateway.Target{validTarget()})
+	if err != nil {
+		t.Fatalf("NewStaticCatalog: %v", err)
+	}
+	// Two teams, one approved model, therefore one credential between them.
+	policy := llmgateway.TeamPolicy{DefaultAlias: "default", Aliases: map[string]string{"default": "mt_fast"}}
+	svc := &llmgateway.Service{
+		Router: &llmgateway.Router{
+			Resolver: &llmgateway.Resolver{
+				Catalog:  catalog,
+				Policies: teamPolicies{"tm_one": policy, "tm_two": policy},
+			},
+			Factory: func(context.Context, llmgateway.Target) (cllm.LLMClient, error) { return client, nil },
+		},
+		Ledger: newFakeLedger(),
+	}
+
+	first := userRequest()
+	first.TeamID = "tm_one"
+	if _, err := svc.Complete(context.Background(), first); err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+	second := userRequest()
+	second.TeamID = "tm_two"
+	if _, err := svc.Complete(context.Background(), second); err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+
+	if len(client.scopes) != 2 {
+		t.Fatalf("saw %d calls, want 2", len(client.scopes))
+	}
+	if client.scopes[0] == client.scopes[1] {
+		t.Errorf("two teams shared a cache scope: %q", client.scopes[0])
+	}
+	if client.scopes[0] != "tm_one" || client.scopes[1] != "tm_two" {
+		t.Errorf("scopes = %v, want the resolved teams", client.scopes)
+	}
+}
+
+// profileClient records the scope and profile each call arrived with.
+type profileClient struct {
+	scopes   []string
+	profiles []cllm.CallProfile
+}
+
+func (c *profileClient) ChatCompletionBlocking(_ context.Context, req cllm.Request) (cllm.Completion, error) {
+	c.scopes = append(c.scopes, req.CacheScope)
+	c.profiles = append(c.profiles, req.Profile)
+	return cllm.Completion{Content: "ok"}, nil
+}
+
+func (c *profileClient) ChatCompletionStreaming(_ context.Context, req cllm.Request, onDelta func(string)) (cllm.Completion, error) {
+	return c.ChatCompletionBlocking(context.Background(), req)
+}
+
+func (c *profileClient) ContextWindow() int { return 0 }

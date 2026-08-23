@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { ApiTaskRunLLMCall, ApiTaskRunTrace } from "../../lib/api/types"
-import { callElapsed, describeSpend, summarizeSpend } from "./spend"
+import { cacheSaving, callElapsed, describeSpend, formatAmount, summarizeSpend } from "./spend"
 
 function call(overrides: Partial<ApiTaskRunLLMCall> = {}): ApiTaskRunLLMCall {
   return {
@@ -44,6 +44,97 @@ describe("summarizeSpend", () => {
     expect(got.unreported).toBe(0)
     expect(got.promptTokens).toBe(120)
     expect(got.completionTokens).toBe(30)
+  })
+
+  it("totals cached prompt without adding it to the prompt count", () => {
+    // The cache counts are a breakdown of prompt_tokens. A summary that added
+    // them would report 190 tokens of input for a call that sent 100.
+    const got = summarizeSpend([
+      call({ prompt_tokens: 100, completion_tokens: 4, cache_read_tokens: 80, cache_write_tokens: 10 }),
+    ])
+    expect(got.promptTokens).toBe(100)
+    expect(got.cacheReadTokens).toBe(80)
+    expect(got.cacheWriteTokens).toBe(10)
+    expect(got.cacheUnreported).toBe(0)
+  })
+
+  it("separates a provider that reported no cache from one that reported zero", () => {
+    const got = summarizeSpend([
+      call({ id: "lc_1", prompt_tokens: 100, cache_read_tokens: 0, cache_write_tokens: 0 }),
+      call({ id: "lc_2", prompt_tokens: 100 }),
+    ])
+    expect(got.cacheReadTokens).toBe(0)
+    expect(got.cacheUnreported).toBe(1)
+  })
+
+  it("does not count a call with no usage at all as a cache silence", () => {
+    // It is already counted as unreported. Counting it twice would present one
+    // silent call as two separate gaps in the record.
+    const got = summarizeSpend([call()])
+    expect(got.unreported).toBe(1)
+    expect(got.cacheUnreported).toBe(0)
+  })
+
+  it("totals cost from the rates each call recorded", () => {
+    const got = summarizeSpend([
+      call({
+        id: "lc_1",
+        prompt_tokens: 100,
+        cost: { currency: "USD", uncached: 300, cache_read: 27, cache_write: 0, output: 15, total: 342, baseline: 400 },
+      }),
+      call({
+        id: "lc_2",
+        prompt_tokens: 100,
+        cost: { currency: "USD", uncached: 100, cache_read: 3, cache_write: 0, output: 5, total: 108, baseline: 200 },
+      }),
+    ])
+    expect(got.cost?.currency).toBe("USD")
+    expect(got.cost?.total).toBe(342 + 108)
+    expect(got.cost?.baseline).toBe(600)
+    expect(got.unpriced).toBe(0)
+    expect(cacheSaving(got.cost)).toBe(600 - 450)
+  })
+
+  it("counts a call the operator never priced rather than treating it as free", () => {
+    const got = summarizeSpend([
+      call({ id: "lc_1", prompt_tokens: 100, cost: { currency: "USD", uncached: 300, cache_read: 0, cache_write: 0, output: 15, total: 315, baseline: 315 } }),
+      call({ id: "lc_2", prompt_tokens: 100 }),
+    ])
+    expect(got.cost?.total).toBe(315)
+    expect(got.unpriced).toBe(1)
+  })
+
+  it("does not count an unmeasured call as unpriced", () => {
+    // It reported no usage at all, which is already surfaced as unreported.
+    // Counting it twice would present one gap as two.
+    const got = summarizeSpend([call()])
+    expect(got.unreported).toBe(1)
+    expect(got.unpriced).toBe(0)
+  })
+
+  it("refuses to add two currencies rather than invent an exchange rate", () => {
+    const got = summarizeSpend([
+      call({ id: "lc_1", prompt_tokens: 100, cost: { currency: "USD", uncached: 300, cache_read: 0, cache_write: 0, output: 0, total: 300, baseline: 300 } }),
+      call({ id: "lc_2", prompt_tokens: 100, cost: { currency: "EUR", uncached: 200, cache_read: 0, cache_write: 0, output: 0, total: 200, baseline: 200 } }),
+    ])
+    expect(got.cost?.currency).toBe("USD")
+    expect(got.cost?.total).toBe(300)
+    expect(got.unpriced).toBe(1)
+  })
+
+  it("reports no saving when caching cost more than it saved", () => {
+    // A run that wrote a cache entry nothing read back paid more than it would
+    // have uncached. Reporting that as a small win is the false claim this
+    // view exists to avoid.
+    const got = summarizeSpend([
+      call({
+        id: "lc_1",
+        prompt_tokens: 100,
+        cost: { currency: "USD", uncached: 30, cache_read: 0, cache_write: 375, output: 15, total: 420, baseline: 315 },
+      }),
+    ])
+    expect(got.cost?.total).toBe(420)
+    expect(cacheSaving(got.cost)).toBeNull()
   })
 
   it("counts a call with no terminal status as neither succeeded nor failed", () => {
@@ -134,5 +225,14 @@ describe("callElapsed", () => {
 
   it("reports elapsed seconds", () => {
     expect(callElapsed(call({ accepted_at: "1970-01-01T00:16:40Z", completed_at: "1970-01-01T00:16:47Z" }))).toBe("7 s")
+  })
+})
+
+describe("formatAmount", () => {
+  it("shows six places so a cheap call does not read as free", () => {
+    expect(formatAmount(1_000_000_000, "USD")).toBe("1.000000 USD")
+    expect(formatAmount(72_000_000, "USD")).toBe("0.072000 USD")
+    // Two places would show this as 0.00, which a reader takes for nothing.
+    expect(formatAmount(4_000, "USD")).toBe("0.000004 USD")
   })
 })

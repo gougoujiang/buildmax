@@ -209,10 +209,10 @@ func TestAnthropicUnrepresentableHistoryIsNotRetried(t *testing.T) {
 	up := newUpstream(t, protocols[2], reply{text: "unused"}, 0)
 	client := newTestClient(t, "anthropic", up.server.URL)
 
-	_, err := client.ChatCompletionBlocking(t.Context(), []cllm.Message{
+	_, err := client.ChatCompletionBlocking(t.Context(), cllm.Request{Messages: []cllm.Message{
 		{Role: "system", Content: "prompt"},
 		{Role: "assistant", Content: "orphan"},
-	}, nil)
+	}})
 	if err == nil {
 		t.Fatal("expected an error")
 	}

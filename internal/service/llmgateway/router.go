@@ -40,8 +40,12 @@ type clientKey struct {
 	callTimeout   time.Duration
 	maxTokens     int
 	reasoning     string
-	promptCache   bool
-	vision        bool
+	// The cache policy is part of the key because it changes what a client
+	// puts in every request. An operator edit that left an old policy attached
+	// to a cached client would keep serving the policy they just replaced.
+	cacheMode string
+	cacheTTL  string
+	vision    bool
 }
 
 func keyOf(target Target) clientKey {
@@ -54,7 +58,8 @@ func keyOf(target Target) clientKey {
 		callTimeout:   target.CallTimeout,
 		maxTokens:     target.MaxTokens,
 		reasoning:     target.Reasoning,
-		promptCache:   target.PromptCache,
+		cacheMode:     target.CacheMode,
+		cacheTTL:      target.CacheTTL,
 		vision:        target.Vision,
 	}
 }

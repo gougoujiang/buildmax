@@ -72,7 +72,7 @@ type mockResponse struct {
 	usage     llm.Usage
 }
 
-func (m *mockLLMClient) ChatCompletionBlocking(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (llm.Completion, error) {
+func (m *mockLLMClient) ChatCompletionBlocking(ctx context.Context, req llm.Request) (llm.Completion, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.calls >= len(m.responses) {
@@ -83,8 +83,8 @@ func (m *mockLLMClient) ChatCompletionBlocking(ctx context.Context, messages []l
 	return llm.Completion{Content: r.content, ToolCalls: r.toolCalls, Usage: r.usage}, nil
 }
 
-func (m *mockLLMClient) ChatCompletionStreaming(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (llm.Completion, error) {
-	completion, err := m.ChatCompletionBlocking(ctx, messages, tools)
+func (m *mockLLMClient) ChatCompletionStreaming(ctx context.Context, req llm.Request, onDelta func(string)) (llm.Completion, error) {
+	completion, err := m.ChatCompletionBlocking(ctx, req)
 	if err == nil && onDelta != nil && completion.Content != "" {
 		onDelta(completion.Content)
 	}
@@ -251,6 +251,40 @@ func TestProcessWithSession_AccumulatesUsage(t *testing.T) {
 	}
 }
 
+// A run's cache counts accumulate the same way its prompt does, and stay a
+// breakdown of it. Reporting them as extra input would make a cached run look
+// more expensive than the uncached one it replaced, which is the opposite of
+// what caching does.
+func TestRunStatsAccumulatesCacheUsageAsPartOfThePrompt(t *testing.T) {
+	ctx := context.Background()
+	mock := &mockLLMClient{
+		responses: []mockResponse{
+			// First call writes the prefix, second reads it back.
+			{content: "", toolCalls: []llm.ToolCall{{ID: "1", Name: "echo", Arguments: "{}"}},
+				usage: llm.Usage{PromptTokens: 100, CompletionTokens: 5, CacheWriteTokens: 90}},
+			{content: "Done.",
+				usage: llm.Usage{PromptTokens: 120, CompletionTokens: 8, CacheReadTokens: 90}},
+		},
+	}
+	mockTool := &mockTool{name: "echo", description: "Echo", params: map[string]any{"type": "object"}, result: "ok"}
+	_, stats, err := runLoopWithUserMsg(ctx, mock, newTestToolRegistry(mockTool), newTestBuffer(), "Hi")
+	if err != nil {
+		t.Fatalf("RunLoop: %v", err)
+	}
+	if stats.CacheWriteTokens != 90 {
+		t.Errorf("stats.CacheWriteTokens = %d, want 90", stats.CacheWriteTokens)
+	}
+	if stats.CacheReadTokens != 90 {
+		t.Errorf("stats.CacheReadTokens = %d, want 90", stats.CacheReadTokens)
+	}
+	if stats.PromptTokens != 220 {
+		t.Errorf("stats.PromptTokens = %d, want 220", stats.PromptTokens)
+	}
+	if stats.CacheReadTokens+stats.CacheWriteTokens > stats.PromptTokens {
+		t.Error("cached tokens exceed the prompt they are part of")
+	}
+}
+
 // recordingLLMClient wraps an llm.LLMClient and records the messages from the first ChatCompletionBlocking call.
 type recordingLLMClient struct {
 	inner    *mockLLMClient
@@ -258,16 +292,16 @@ type recordingLLMClient struct {
 	once     sync.Once
 }
 
-func (r *recordingLLMClient) ChatCompletionBlocking(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (llm.Completion, error) {
+func (r *recordingLLMClient) ChatCompletionBlocking(ctx context.Context, req llm.Request) (llm.Completion, error) {
 	r.once.Do(func() {
-		r.firstMsg = make([]llm.Message, len(messages))
-		copy(r.firstMsg, messages)
+		r.firstMsg = make([]llm.Message, len(req.Messages))
+		copy(r.firstMsg, req.Messages)
 	})
-	return r.inner.ChatCompletionBlocking(ctx, messages, tools)
+	return r.inner.ChatCompletionBlocking(ctx, req)
 }
 
-func (r *recordingLLMClient) ChatCompletionStreaming(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (llm.Completion, error) {
-	return r.inner.ChatCompletionStreaming(ctx, messages, tools, onDelta)
+func (r *recordingLLMClient) ChatCompletionStreaming(ctx context.Context, req llm.Request, onDelta func(string)) (llm.Completion, error) {
+	return r.inner.ChatCompletionStreaming(ctx, req, onDelta)
 }
 
 func (r *recordingLLMClient) ContextWindow() int { return 0 }
@@ -279,16 +313,16 @@ type lastCallLLMClient struct {
 	lastMu  sync.Mutex
 }
 
-func (r *lastCallLLMClient) ChatCompletionBlocking(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (llm.Completion, error) {
+func (r *lastCallLLMClient) ChatCompletionBlocking(ctx context.Context, req llm.Request) (llm.Completion, error) {
 	r.lastMu.Lock()
-	r.lastMsg = make([]llm.Message, len(messages))
-	copy(r.lastMsg, messages)
+	r.lastMsg = make([]llm.Message, len(req.Messages))
+	copy(r.lastMsg, req.Messages)
 	r.lastMu.Unlock()
-	return r.inner.ChatCompletionBlocking(ctx, messages, tools)
+	return r.inner.ChatCompletionBlocking(ctx, req)
 }
 
-func (r *lastCallLLMClient) ChatCompletionStreaming(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (llm.Completion, error) {
-	return r.inner.ChatCompletionStreaming(ctx, messages, tools, onDelta)
+func (r *lastCallLLMClient) ChatCompletionStreaming(ctx context.Context, req llm.Request, onDelta func(string)) (llm.Completion, error) {
+	return r.inner.ChatCompletionStreaming(ctx, req, onDelta)
 }
 
 func (r *lastCallLLMClient) ContextWindow() int { return 0 }
@@ -540,7 +574,7 @@ type cancelOnSecondCallClient struct {
 	mu       sync.Mutex
 }
 
-func (c *cancelOnSecondCallClient) ChatCompletionBlocking(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (llm.Completion, error) {
+func (c *cancelOnSecondCallClient) ChatCompletionBlocking(ctx context.Context, req llm.Request) (llm.Completion, error) {
 	c.mu.Lock()
 	n := c.calls
 	c.calls++
@@ -552,8 +586,8 @@ func (c *cancelOnSecondCallClient) ChatCompletionBlocking(ctx context.Context, m
 	return llm.Completion{}, context.Canceled
 }
 
-func (c *cancelOnSecondCallClient) ChatCompletionStreaming(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (llm.Completion, error) {
-	return c.ChatCompletionBlocking(ctx, messages, tools)
+func (c *cancelOnSecondCallClient) ChatCompletionStreaming(ctx context.Context, req llm.Request, onDelta func(string)) (llm.Completion, error) {
+	return c.ChatCompletionBlocking(ctx, req)
 }
 
 func (c *cancelOnSecondCallClient) ContextWindow() int { return 0 }
@@ -647,5 +681,133 @@ func TestTextOnlyToolResultCarriesNoParts(t *testing.T) {
 		if msg.Role == "tool" && len(msg.Parts) != 0 {
 			t.Errorf("tool message = %+v, want no parts", msg)
 		}
+	}
+}
+
+// profileClient records the call profile every request arrived with.
+type profileClient struct {
+	mu       sync.Mutex
+	profiles []llm.CallProfile
+	replies  []mockResponse
+}
+
+func (c *profileClient) ChatCompletionBlocking(ctx context.Context, req llm.Request) (llm.Completion, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.profiles = append(c.profiles, req.Profile)
+	if len(c.profiles) > len(c.replies) {
+		return llm.Completion{}, nil
+	}
+	r := c.replies[len(c.profiles)-1]
+	return llm.Completion{Content: r.content, ToolCalls: r.toolCalls, Usage: r.usage}, nil
+}
+
+func (c *profileClient) ChatCompletionStreaming(ctx context.Context, req llm.Request, onDelta func(string)) (llm.Completion, error) {
+	return c.ChatCompletionBlocking(ctx, req)
+}
+
+func (c *profileClient) ContextWindow() int { return 0 }
+
+// Every iteration of the loop is an agent turn, including the ones that only
+// carry tool results. The profile decides whether the call asks a provider to
+// write a cache entry, and a turn labelled anything else would either pay for a
+// write nothing reads or skip the one write the rest of the run reads back.
+func TestRunLoopLabelsEveryIterationAnAgentTurn(t *testing.T) {
+	client := &profileClient{replies: []mockResponse{
+		{toolCalls: []llm.ToolCall{{ID: "1", Name: "echo", Arguments: "{}"}}},
+		{content: "Done."},
+	}}
+	mockTool := &mockTool{name: "echo", description: "Echo", params: map[string]any{"type": "object"}, result: "ok"}
+	if _, _, err := runLoopWithUserMsg(context.Background(), client,
+		newTestToolRegistry(mockTool), newTestBuffer(), "Hi"); err != nil {
+		t.Fatalf("RunLoop: %v", err)
+	}
+	if len(client.profiles) != 2 {
+		t.Fatalf("saw %d calls, want 2", len(client.profiles))
+	}
+	for i, got := range client.profiles {
+		if got != llm.ProfileAgentTurn {
+			t.Errorf("call %d profile = %q, want %q", i+1, got, llm.ProfileAgentTurn)
+		}
+	}
+}
+
+func testRunPricing() llm.Pricing {
+	return llm.Pricing{
+		Currency: "USD", InputPerMTok: 3_000_000_000, CacheReadPerMTok: 300_000_000,
+		CacheWritePerMTok: 3_750_000_000, OutputPerMTok: 15_000_000_000,
+	}
+}
+
+// A run prices each call as it completes, at the rates in force then. Pricing
+// the run's totals afterwards would give a different answer the moment a run
+// spanned a rate change, and the per-call figure is what says which turn was
+// expensive.
+func TestRunStatsPricesEachCall(t *testing.T) {
+	mock := &mockLLMClient{responses: []mockResponse{
+		// A turn that writes the cache, then one that reads it back.
+		{toolCalls: []llm.ToolCall{{ID: "1", Name: "echo", Arguments: "{}"}},
+			usage: llm.Usage{PromptTokens: 100_000, CompletionTokens: 1_000, CacheWriteTokens: 90_000}},
+		{content: "Done.",
+			usage: llm.Usage{PromptTokens: 100_000, CompletionTokens: 1_000, CacheReadTokens: 90_000}},
+	}}
+	tool := &mockTool{name: "echo", description: "Echo", params: map[string]any{"type": "object"}, result: "ok"}
+	_, stats, err := runLoopWithUserMsg(context.Background(), mock,
+		newTestToolRegistry(tool), newTestBuffer(), "Hi", func(o *RunLoopOpts) { o.Pricing = testRunPricing() })
+	if err != nil {
+		t.Fatalf("RunLoop: %v", err)
+	}
+	if stats.Cost == nil {
+		t.Fatal("a priced run produced no cost")
+	}
+	if stats.CostIncomplete {
+		t.Error("a fully priced run should not be marked incomplete")
+	}
+	write, _ := llm.EstimateCost(mock.responses[0].usage, testRunPricing())
+	read, _ := llm.EstimateCost(mock.responses[1].usage, testRunPricing())
+	if stats.Cost.Total != write.Total+read.Total {
+		t.Errorf("total = %d, want the two calls summed (%d)", stats.Cost.Total, write.Total+read.Total)
+	}
+	// The write cost more than the same call uncached; the read more than made
+	// it back. Only the run as a whole is ahead, which is the fact a per-run
+	// figure alone would hide.
+	if write.Total <= write.Baseline {
+		t.Errorf("a cache write should cost more than the same call uncached: %d vs %d", write.Total, write.Baseline)
+	}
+	if stats.Cost.Total >= stats.Cost.Baseline {
+		t.Errorf("the run should be ahead overall: %d vs %d", stats.Cost.Total, stats.Cost.Baseline)
+	}
+}
+
+// An unpriced model leaves the cost nil rather than zero, and says the total is
+// missing work rather than covering it.
+func TestRunStatsLeavesAnUnpricedRunUnpriced(t *testing.T) {
+	mock := &mockLLMClient{responses: []mockResponse{
+		{content: "Done.", usage: llm.Usage{PromptTokens: 100, CompletionTokens: 10}},
+	}}
+	_, stats, err := runLoopWithUserMsg(context.Background(), mock,
+		newTestToolRegistry(), newTestBuffer(), "Hi")
+	if err != nil {
+		t.Fatalf("RunLoop: %v", err)
+	}
+	if stats.Cost != nil {
+		t.Errorf("an unpriced run produced a cost: %+v", stats.Cost)
+	}
+	if !stats.CostIncomplete {
+		t.Error("a run that did work it could not price should say the total is partial")
+	}
+}
+
+// A call the provider reported nothing for is already unmeasured in the token
+// counts. Marking the money partial as well would present one gap as two.
+func TestRunStatsDoesNotCallAnUnmeasuredTurnUnpriced(t *testing.T) {
+	mock := &mockLLMClient{responses: []mockResponse{{content: "Done."}}}
+	_, stats, err := runLoopWithUserMsg(context.Background(), mock,
+		newTestToolRegistry(), newTestBuffer(), "Hi", func(o *RunLoopOpts) { o.Pricing = testRunPricing() })
+	if err != nil {
+		t.Fatalf("RunLoop: %v", err)
+	}
+	if stats.Cost != nil || stats.CostIncomplete {
+		t.Errorf("an unmeasured turn produced cost=%v incomplete=%v", stats.Cost, stats.CostIncomplete)
 	}
 }

@@ -64,7 +64,15 @@ conversation:
                                    # the host's localhost)
     # max_tokens: 0                # cap on one response; 0 = the adapter default
     # reasoning: off               # off (default), low, medium, or high
-    # prompt_cache: false          # cache the stable prefix of a request
+    # cache_control:               # prompt cache policy for this model
+    #   mode: auto                 #   auto (default), off, force
+    #   ttl: provider_default      #   provider_default (default), 5m, 1h
+    # pricing:                     # what this model charges; without it a call
+    #   currency: USD              # reports its cost as unavailable
+    #   input_per_mtok: "3.00"
+    #   cache_read_per_mtok: "0.30"
+    #   cache_write_per_mtok: "3.75"
+    #   output_per_mtok: "15.00"
     # vision: false                # this model accepts image input
 
   # Use a catalog model for Tier 1 instead of the model above. This is an
