@@ -464,7 +464,9 @@ the counts already say.
   TTLs, prices, minimums, and lookback behavior.
 - [OpenAI Responses reference](https://developers.openai.com/api/reference/cli/resources/responses/methods/create): `prompt_cache_key`, options,
   retention, and usage fields.
-- [Configuration reference](../reference/configuration.md): update when
-  Phase 2 ships.
-- [LLM client architecture](../contribute/architecture/llm-client.md): correct
-  the stale cache-counter note in Phase 1.
+- [Configuration reference](../reference/configuration.md): documents
+  `models[].cache_control`, the per-protocol vocabulary, and the pricing rates a
+  run is costed from.
+- [LLM client architecture](../contribute/architecture/llm-client.md): records
+  the capability table, the derived OpenAI cache key, and that cached counts are
+  a breakdown of `PromptTokens` rather than an addition to them.

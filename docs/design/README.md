@@ -32,11 +32,11 @@ reference, then delete the plan.
 | [Context durability](context-durability.md) | P0.5 | Implemented: accumulating compaction, durable session notes, the pre-compaction checkpoint, and the additional system prompt |
 | [Local background jobs](local-background-jobs.md) | P0.5 | Stages 1–3 shipped: background `Bash`/`Task` jobs, `Monitor`, typed delivery with parked wake-up on both surfaces, durable job logs. Stage 4 durability open |
 | [Evaluation and qualification](evaluation-system.md) | P0.6 | Direction accepted; contract and black-box vertical slice not implemented |
-| [Issue model](issue-model.md) | P2 follow-on | Sub-issues and comments implemented; mentions and realtime push open |
-| [Enterprise deployment](enterprise-deployment.md) | P3 | M1 shipped; M2–M5 open |
+| [Issue model](issue-model.md) | P2 follow-on | Implemented: the backend and frontend plans in full. Typed links, threaded replies, mentions, and realtime push are out of scope, not pending |
+| [Enterprise deployment](enterprise-deployment.md) | P3 | M1 and M4 shipped, M3 mostly done; M2 and M5 open |
 | [Managed LLM gateway](llm-gateway.md) | P3 | Shipped for CLI/TUI/Desktop and task runs; per-team database policy and strict quota open |
 | [LLM provider adapters](llm-provider-adapters.md) | P3 follow-on | Complete: three wire protocols, reasoning, prompt caching, and image input |
-| [Prompt cache control](prompt-cache-control.md) | P3 follow-on | Planned: make provider cache controls default-safe, capability-gated, and observable end to end |
+| [Prompt cache control](prompt-cache-control.md) | P3 follow-on | Phases 1–3 shipped: cache policy, the Anthropic and OpenAI native paths, usage and cost telemetry. The qualification suite exists; per-model capability claims are an open proposal |
 | [Local Ollama provider](local-ollama-provider.md) | P1 follow-on | Complete: the adapter, local inventory, the CLI surface, and credential-free managed targets |
 | [Worker run token](worker-run-token.md) | P3 | Shipped on every worker route; the shared worker token is a deprecated fallback awaiting removal |
 | [Team governance](team-governance.md) | P4 | Roles, quota, workflow lifecycle, the audit trail, its retention and export, and quota alerting shipped; the second slice of actions and audit-to-run correlation open |
@@ -48,9 +48,9 @@ reference, then delete the plan.
 | [Timestamp representation](timestamp-representation.md) | Beta gate | Implemented: every persisted instant is `time.Time`, `DATETIME(6)`, and RFC 3339, with a UTC-pinned connection and an architecture guard |
 | [Tool permissions](tool-permissions.md) | unscheduled | Implemented; operator control over autonomous surfaces open (§7) |
 | [Parallel tool execution](parallel-tool-execution.md) | unscheduled | Implemented for read-only tools; `Task` and argument-aware `Bash` open (§6) |
-| [Local end-to-end verification](end-to-end-testing.md) | unscheduled | Harness, CLI, Desktop bridge, CI policy, named suites, and the runbook done; some Portal paths and the packaged-app smoke open |
-| [Unified artifacts](unified-artifacts.md) | P2 follow-on | Phase 1 implemented: durable team artifacts with stable `ar_` references, upload/preview/download, and tombstoned deletion; the agent tool, worker producers, and external sharing open |
-| [Portal execution model](portal-execution-model.md) | P2 follow-on | Outcome projection, durable result delivery, and run provenance shipped; the Tier 2 catalog is evidence-gated and removing Conversation ownership is deferred |
+| [Local end-to-end verification](end-to-end-testing.md) | unscheduled | Harness, CLI, Desktop bridge, CI policy, named suites, and the runbook done; some Portal paths, the deployment cancellation and failure-recovery paths, and the packaged-app smoke open |
+| [Unified artifacts](unified-artifacts.md) | P2 follow-on | Phases 1–2 implemented: durable team artifacts with stable `ar_` references, upload/preview/download, tombstoned deletion, and `UploadArtifact` on every surface with a server; registering a run's whole output directory, external sharing, and the follow-ons open |
+| [Portal execution model](portal-execution-model.md) | P2 follow-on | Phases 0 and 3 shipped and phase 1 half shipped: outcome projection, durable result delivery, and run provenance. Phase 2 is reduced to what evidence supports; phases 4 and 5, including removing Conversation ownership, are deferred |
 
 ## Subsystem Specifications
 
