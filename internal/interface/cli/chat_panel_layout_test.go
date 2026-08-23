@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/agentapp"
 	"github.com/gougoujiang/buildmax/internal/agentapp/job"
@@ -227,4 +228,98 @@ func TestSlashModelPanelSurvivesShrinking(t *testing.T) {
 	if !strings.Contains(content, "Model 20") {
 		t.Errorf("the selected model should still be listed after the terminal shrank:\n%s", content)
 	}
+}
+
+// TestSlashJobsPanelScrollsToTheSelection is the model panel's defect in the
+// one place it can do damage: `s` stops the selected job, and a selection the
+// panel never drew is a job the user cannot see being stopped.
+func TestSlashJobsPanelScrollsToTheSelection(t *testing.T) {
+	// Enough to overflow the row budget at this height and no more: every job
+	// here is a real process, and Windows CI is slow to release the files one
+	// leaves behind.
+	const total = 8
+	home := t.TempDir()
+	t.Setenv(config.EnvKeyBuildmaxHome, home)
+	writeTestSettings(t, manyModelsSettings(1))
+
+	// The manager caps concurrent commands, and a panel long enough to scroll
+	// is mostly finished jobs anyway — that is what a task list looks like
+	// after a working session.
+	app := testAgentAppWithJobs(t, home)
+	for i := range total {
+		// "exit 0" is the one immediate-success command both shells take: the
+		// Windows spec wraps it in `cmd /c`, where `true` is not a command.
+		started, err := app.Jobs().StartCommand(testShellJobSpec("exit 0"), job.Provenance{SessionID: fmt.Sprintf("s%d", i)})
+		if err != nil {
+			t.Fatalf("StartCommand: %v", err)
+		}
+		waitForJobToFinish(t, app, started.ID)
+	}
+
+	m := NewModel(TUIOpts{App: app, Session: testSessionContext(), Workspace: home})
+	sized, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
+	opened, _ := dispatchSlashCommand(sized.(*Model), "/tasks")
+	mod := opened.(*Model)
+	panel, ok := mod.activePanel.(*slashJobsPanel)
+	if !ok {
+		t.Fatalf("active panel = %T, want *slashJobsPanel", mod.activePanel)
+	}
+	jobs := panel.jobs(mod)
+	if rows := panel.rowBudget(mod); rows >= len(jobs) {
+		t.Fatalf("row budget %d fits all %d jobs, so this test proves nothing", rows, len(jobs))
+	}
+
+	// Walk to the last job. Every step must leave the selected row drawn —
+	// that row is what `s` acts on.
+	for range len(jobs) - 1 {
+		next, _ := mod.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+		mod = next.(*Model)
+		content := panel.Render(mod, 100)
+		selected := panel.jobs(mod)[panel.selected].ID
+		if !strings.Contains(jobsCursorRow(content), selected) {
+			t.Fatalf("selection %q is off screen:\n%s", selected, content)
+		}
+	}
+	if panel.selected != len(jobs)-1 {
+		t.Fatalf("selected = %d, want the last job %d", panel.selected, len(jobs)-1)
+	}
+	if strings.Contains(panel.Render(mod, 100), "more") {
+		t.Errorf("panel still claims jobs below the last one:\n%s", panel.Render(mod, 100))
+	}
+
+	// Selection does not wrap here, so the window must stay where it is.
+	atEnd := panel.offset
+	// The panel is shared with the returned model, so the assertions below read
+	// the state this key press left behind.
+	mod.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	if panel.offset != atEnd || panel.selected != len(jobs)-1 {
+		t.Errorf("down at the last job moved to offset %d selected %d, want %d and %d",
+			panel.offset, panel.selected, atEnd, len(jobs)-1)
+	}
+}
+
+// waitForJobToFinish keeps the manager's concurrency cap from rejecting the
+// next start, and makes the list deterministic to render.
+func waitForJobToFinish(t *testing.T, app *agentapp.AgentApp, id string) {
+	t.Helper()
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		if snap, ok := app.Jobs().Get(id); ok && !snap.Running() {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("job %s never finished", id)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+// jobsCursorRow returns the row the jobs panel drew its selection marker on.
+func jobsCursorRow(content string) string {
+	for _, line := range strings.Split(content, "\n") {
+		if strings.HasPrefix(line, "> ") {
+			return line
+		}
+	}
+	return ""
 }

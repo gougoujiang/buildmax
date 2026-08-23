@@ -177,6 +177,11 @@ func formatJobEventForScrollback(j job.Job) string {
 // progress without its own refresh plumbing.
 type slashJobsPanel struct {
 	selected int
+	// offset is the first job the panel draws. The list is longer than the
+	// terminal allows more often than it looks — one `s` on a row that was
+	// never drawn stops a job the user cannot see — so the drawn rows are a
+	// window that follows the selection rather than the first N.
+	offset int
 }
 
 func openSlashJobs(m *Model) (tea.Model, tea.Cmd) {
@@ -203,11 +208,13 @@ func (p *slashJobsPanel) HandleKey(m *Model, msg tea.KeyPressMsg) (bool, tea.Cmd
 	case tea.KeyUp:
 		if p.selected > 0 {
 			p.selected--
+			p.scrollIntoView(m, len(jobs))
 		}
 		return true, nil
 	case tea.KeyDown:
 		if p.selected < len(jobs)-1 {
 			p.selected++
+			p.scrollIntoView(m, len(jobs))
 		}
 		return true, nil
 	}
@@ -226,6 +233,35 @@ func (p *slashJobsPanel) FooterHint() string {
 
 func (p *slashJobsPanel) OnClose(_ *Model) {}
 
+// rowBudget is how many jobs the panel may draw.
+func (p *slashJobsPanel) rowBudget(m *Model) int {
+	return m.panelListBudget(slashJobsInlinePanelMaxLines, slashJobsPanelChromeLines)
+}
+
+// scrollIntoView moves the window the least it can to contain the selection.
+func (p *slashJobsPanel) scrollIntoView(m *Model, total int) {
+	rows := p.rowBudget(m)
+	if p.selected < p.offset {
+		p.offset = p.selected
+	} else if p.selected >= p.offset+rows {
+		p.offset = p.selected - rows + 1
+	}
+	p.clampOffset(total, rows)
+}
+
+// clampOffset keeps the window inside the list. Unlike the other panels this
+// one lists live state: a job finishing does not shorten the list, but the
+// manager's history does not grow forever, and the row budget shrinks when the
+// terminal does under a panel that is already open and already scrolled.
+func (p *slashJobsPanel) clampOffset(total, rows int) {
+	if last := total - rows; p.offset > last {
+		p.offset = last
+	}
+	if p.offset < 0 {
+		p.offset = 0
+	}
+}
+
 func (p *slashJobsPanel) Render(m *Model, maxLineWidth int) string {
 	jobs := p.jobs(m)
 	if p.selected >= len(jobs) && len(jobs) > 0 {
@@ -238,13 +274,11 @@ func (p *slashJobsPanel) Render(m *Model, maxLineWidth int) string {
 		b.WriteString("No background jobs. Ask for a command with run_in_background to start one.")
 		return strings.TrimRight(b.String(), "\n") + "\n\nesc: close"
 	}
-	budget := m.panelListBudget(slashJobsInlinePanelMaxLines, slashJobsPanelChromeLines)
-	shown := 0
-	for i, j := range jobs {
-		if shown >= budget {
-			fmt.Fprintf(&b, "… %d more\n", len(jobs)-shown)
-			break
-		}
+	rows := p.rowBudget(m)
+	p.clampOffset(len(jobs), rows)
+	end := min(p.offset+rows, len(jobs))
+	for i := p.offset; i < end; i++ {
+		j := jobs[i]
 		marker := "  "
 		if i == p.selected {
 			marker = "> "
@@ -256,7 +290,9 @@ func (p *slashJobsPanel) Render(m *Model, maxLineWidth int) string {
 		line := fmt.Sprintf("%s%s  %-9s  %6s  %s", marker, j.ID, state, jobAge(j), jobCommandSummary(j.Command, 40))
 		b.WriteString(truncateRunes(line, maxLineWidth))
 		b.WriteByte('\n')
-		shown++
+	}
+	if remaining := len(jobs) - end; remaining > 0 {
+		fmt.Fprintf(&b, "… %d more\n", remaining)
 	}
 	b.WriteString("\nJobs share this workspace and stop when the app exits.")
 	return strings.TrimRight(b.String(), "\n") + "\n\n↑/↓ select · s stop · esc close"
