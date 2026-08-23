@@ -274,6 +274,13 @@ func (s *Store) CreateTask(ctx context.Context, in *model.CreateTaskInput) (*mod
 			}
 			taskDB.IssueID = &key
 		}
+		// See CreateTaskRun: an unresolvable message leaves the run
+		// unattributed rather than refusing to create the task.
+		sourceKey, err := optionalKey(ctx, tx, "conversation_message", in.InitialRunSourceMessageID)
+		if err != nil && !errors.Is(err, model.ErrNotFound) {
+			return err
+		}
+		runDB.SourceMessageID = sourceKey
 		if err := createWithPublicID(ctx, tx, "uq_task_public_id",
 			func(id string) { taskDB.PublicID = id }, taskDB); err != nil {
 			return err

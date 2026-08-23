@@ -41,7 +41,11 @@ type taskRunRow struct {
 	// than a trigger_source detail because the question a reader asks is which
 	// run this repeated, and a source string cannot answer it.
 	RetryOfTaskRunID *uint64 `gorm:"column:retry_of_task_run_id;index"`
-	CreatedAt        int64   `gorm:"autoCreateTime;index:idx_task_run_task_created,priority:2"`
+	// SourceMessageID names the conversation message this run was asked for in.
+	// Nullable because most origins are not a message: a workflow step, an
+	// issue agent run, a retry, and a task created from the API all have none.
+	SourceMessageID *uint64 `gorm:"column:source_message_id;index"`
+	CreatedAt       int64   `gorm:"autoCreateTime;index:idx_task_run_task_created,priority:2"`
 }
 
 func (taskRunRow) TableName() string { return "task_run" }
@@ -57,10 +61,11 @@ func (taskRunArtifactRow) TableName() string { return "task_run_artifact" }
 // taskRunReadRow is the row plus the handles its references resolve to. A
 // pointer field is one a LEFT JOIN may leave NULL.
 type taskRunReadRow struct {
-	Row                  taskRunRow `gorm:"embedded"`
-	TaskPublicID         string     `gorm:"column:task_public_id"`
-	RetryOfPublicID      *string    `gorm:"column:retry_of_public_id"`
-	CancelRequestedByPub *string    `gorm:"column:cancel_requested_by_public_id"`
+	Row                   taskRunRow `gorm:"embedded"`
+	TaskPublicID          string     `gorm:"column:task_public_id"`
+	RetryOfPublicID       *string    `gorm:"column:retry_of_public_id"`
+	CancelRequestedByPub  *string    `gorm:"column:cancel_requested_by_public_id"`
+	SourceMessagePublicID *string    `gorm:"column:source_message_public_id"`
 }
 
 func (s *Store) taskRunSelect(ctx context.Context) *gorm.DB {
@@ -70,10 +75,11 @@ func (s *Store) taskRunSelect(ctx context.Context) *gorm.DB {
 func taskRunSelectTx(tx *gorm.DB) *gorm.DB {
 	return tx.Model(&taskRunRow{}).
 		Select("task_run.*, t.public_id AS task_public_id, ro.public_id AS retry_of_public_id, " +
-			"cb.public_id AS cancel_requested_by_public_id").
+			"cb.public_id AS cancel_requested_by_public_id, sm.public_id AS source_message_public_id").
 		Joins("INNER JOIN task t ON t.id = task_run.task_id").
 		Joins("LEFT JOIN task_run ro ON ro.id = task_run.retry_of_task_run_id").
-		Joins("LEFT JOIN `user` cb ON cb.id = task_run.cancel_requested_by")
+		Joins("LEFT JOIN `user` cb ON cb.id = task_run.cancel_requested_by").
+		Joins("LEFT JOIN conversation_message sm ON sm.id = task_run.source_message_id")
 }
 
 func toTaskRun(row *taskRunReadRow) *model.TaskRun {
@@ -109,6 +115,10 @@ func toTaskRun(row *taskRunReadRow) *model.TaskRun {
 	if row.Row.RetryOfTaskRunID != nil {
 		of := derefPublicID(row.RetryOfPublicID)
 		out.RetryOfTaskRunID = &of
+	}
+	if row.Row.SourceMessageID != nil {
+		from := derefPublicID(row.SourceMessagePublicID)
+		out.SourceMessageID = &from
 	}
 	return out
 }
@@ -209,14 +219,27 @@ func (s *Store) CreateTaskRun(ctx context.Context, in model.CreateTaskRunInput) 
 		row.RetryOfTaskRunID = &key
 		retryOf = optionalCanonicalPublicID(in.RetryOfTaskRunID)
 	}
+	// A message that cannot be resolved leaves the run unattributed rather than
+	// refusing it. Losing the provenance of work someone asked for is bad;
+	// refusing to do the work because its provenance would not resolve is worse.
+	sourceKey, err := optionalKey(ctx, s.db, "conversation_message", in.SourceMessageID)
+	if err != nil && !errors.Is(err, model.ErrNotFound) {
+		return nil, err
+	}
+	row.SourceMessageID = sourceKey
 	if err := createWithPublicID(ctx, s.db, "uq_task_run_public_id",
 		func(id string) { row.PublicID = id }, row); err != nil {
 		return nil, err
 	}
+	var sourceMessage *string
+	if sourceKey != nil {
+		sourceMessage = optionalCanonicalPublicID(in.SourceMessageID)
+	}
 	return toTaskRun(&taskRunReadRow{
-		Row:             *row,
-		TaskPublicID:    canonicalPublicID(in.TaskID),
-		RetryOfPublicID: retryOf,
+		Row:                   *row,
+		TaskPublicID:          canonicalPublicID(in.TaskID),
+		RetryOfPublicID:       retryOf,
+		SourceMessagePublicID: sourceMessage,
 	}), nil
 }
 

@@ -117,7 +117,15 @@ type TaskRun struct {
 	// unbounded by use: retrying a retry points at the run it repeated, not at
 	// the first of the chain.
 	RetryOfTaskRunID *string `json:"retry_of_task_run_id,omitempty"`
-	CreatedAt        int64   `json:"created_at"`
+	// SourceMessageID names the conversation message this run was asked for in.
+	//
+	// Input is what Tier 1 decided to send a worker; this is what the person
+	// actually said. They are not the same text and the difference is the point:
+	// without it, nobody can tell a constraint the model dropped from one the
+	// user never gave. Nil for a run with no message behind it — a workflow
+	// step, an issue agent run, a retry, or a task created straight from the API.
+	SourceMessageID *string `json:"source_message_id,omitempty"`
+	CreatedAt       int64   `json:"created_at"`
 }
 
 // TaskRunTerminalInfo describes a task run that reached a terminal state.
@@ -145,10 +153,12 @@ type CreateTaskInput struct {
 	InitialRunCreatedBy     string
 	InitialRunCreatedByType string
 	InitialRunTriggerSource string
-	TitlePromptTokens       int
-	TitleCompletionTokens   int
-	AgentID                 *string
-	IssueID                 *string
+	// InitialRunSourceMessageID names the message that asked for this task.
+	InitialRunSourceMessageID *string
+	TitlePromptTokens         int
+	TitleCompletionTokens     int
+	AgentID                   *string
+	IssueID                   *string
 }
 
 // ClaimTaskRunInput atomically transitions a run from ExpectedStatus to NewStatus.
@@ -225,6 +235,8 @@ type CreateTaskRunInput struct {
 	TriggerSource string
 	// RetryOfTaskRunID names the run this one repeats, when it repeats one.
 	RetryOfTaskRunID *string
+	// SourceMessageID names the conversation message that asked for this run.
+	SourceMessageID *string
 }
 
 // TaskRunStore provides task run persistence.

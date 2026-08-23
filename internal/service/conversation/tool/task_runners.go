@@ -10,15 +10,21 @@ import (
 	"github.com/gougoujiang/buildmax/internal/util"
 )
 
-func NewStartTaskServiceRunner(taskService *task.Service, conversationID, teamID, userID string) StartTaskRunner {
+// NewStartTaskServiceRunner builds the StartTask runner for one turn.
+//
+// sourceMessageID is the message this turn is answering. It is bound per turn
+// rather than passed per call because the model chooses the tool arguments and
+// must not be able to choose, or omit, the message the work is attributed to.
+func NewStartTaskServiceRunner(taskService *task.Service, conversationID, teamID, userID string, sourceMessageID *string) StartTaskRunner {
 	if taskService == nil {
 		return nil
 	}
 	return &startTaskServiceRunner{
-		taskService:    taskService,
-		userID:         userID,
-		conversationID: conversationID,
-		teamID:         teamID,
+		taskService:     taskService,
+		userID:          userID,
+		conversationID:  conversationID,
+		teamID:          teamID,
+		sourceMessageID: sourceMessageID,
 	}
 }
 
@@ -36,18 +42,22 @@ func NewGetTaskStoreRunner(tasks model.TaskStore) GetTaskRunner {
 	return &getTaskStoreRunner{tasks: tasks}
 }
 
-func NewContinueTaskServiceRunner(taskService *task.Service) ContinueTaskRunner {
+// NewContinueTaskServiceRunner builds the ContinueTask runner for one turn.
+// sourceMessageID is bound per turn for the same reason as StartTask: a
+// continuation run is asked for by a message too, and each run records its own.
+func NewContinueTaskServiceRunner(taskService *task.Service, sourceMessageID *string) ContinueTaskRunner {
 	if taskService == nil {
 		return nil
 	}
-	return &continueTaskServiceRunner{taskService: taskService}
+	return &continueTaskServiceRunner{taskService: taskService, sourceMessageID: sourceMessageID}
 }
 
 type startTaskServiceRunner struct {
-	taskService    *task.Service
-	userID         string
-	conversationID string
-	teamID         string
+	taskService     *task.Service
+	userID          string
+	conversationID  string
+	teamID          string
+	sourceMessageID *string
 }
 
 func (r *startTaskServiceRunner) StartTask(ctx context.Context, input string, agentID *string) (taskID, runID string, err error) {
@@ -55,13 +65,14 @@ func (r *startTaskServiceRunner) StartTask(ctx context.Context, input string, ag
 		return "", "", fmt.Errorf("conversation has no team")
 	}
 	result, err := r.taskService.StartBackgroundTask(ctx, task.CreateTaskCmd{
-		ConversationID: r.conversationID,
-		UserID:         r.userID,
-		TeamID:         r.teamID,
-		Input:          input,
-		AgentID:        agentID,
-		CreatedByType:  model.RunCreatedByTypeUser,
-		TriggerSource:  model.RunTriggerSourcePortalConversation,
+		ConversationID:  r.conversationID,
+		UserID:          r.userID,
+		TeamID:          r.teamID,
+		Input:           input,
+		AgentID:         agentID,
+		CreatedByType:   model.RunCreatedByTypeUser,
+		TriggerSource:   model.RunTriggerSourcePortalConversation,
+		SourceMessageID: r.sourceMessageID,
 	})
 	if err != nil {
 		return "", "", err
@@ -119,7 +130,8 @@ func (r *getTaskStoreRunner) GetTask(ctx context.Context, conversationID, taskID
 }
 
 type continueTaskServiceRunner struct {
-	taskService *task.Service
+	taskService     *task.Service
+	sourceMessageID *string
 }
 
 func (r *continueTaskServiceRunner) ContinueTask(ctx context.Context, conversationID, userID, taskID, input string) (runID string, err error) {
@@ -134,11 +146,12 @@ func (r *continueTaskServiceRunner) ContinueTask(ctx context.Context, conversati
 		return "", fmt.Errorf("task not found or not in this conversation")
 	}
 	run, err := r.taskService.CreateRun(ctx, task.CreateRunCmd{
-		UserID:        userID,
-		TaskID:        taskID,
-		Input:         input,
-		CreatedByType: model.RunCreatedByTypeUser,
-		TriggerSource: model.RunTriggerSourcePortalConversation,
+		UserID:          userID,
+		TaskID:          taskID,
+		Input:           input,
+		CreatedByType:   model.RunCreatedByTypeUser,
+		TriggerSource:   model.RunTriggerSourcePortalConversation,
+		SourceMessageID: r.sourceMessageID,
 	})
 	if err != nil {
 		return "", err
