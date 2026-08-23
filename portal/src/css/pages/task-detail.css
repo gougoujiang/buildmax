@@ -275,3 +275,118 @@
 .page-chat__markdown a:hover {
   text-decoration: underline;
 }
+
+/* Task card — a background task projected into the conversation. It is a full
+   width panel, not a chat bubble: it is execution state, not something said. */
+.bm-chat-thread__row--task {
+  align-self: stretch;
+}
+
+.bm-chat-thread__bubble--task {
+  max-width: 100%;
+  width: 100%;
+  padding: 0;
+}
+
+.task-card {
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-text-subtle);
+  border-radius: 10px;
+  background: var(--color-bg-elevated);
+  padding: 0.7rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.task-card--running {
+  border-left-color: #b45309;
+}
+
+.task-card--done {
+  border-left-color: #15803d;
+}
+
+.task-card--failed {
+  border-left-color: #b91c1c;
+}
+
+.task-card__head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.task-card__status {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+.task-card__status--running {
+  color: #b45309;
+}
+
+.task-card__status--done {
+  color: #15803d;
+}
+
+.task-card__status--failed {
+  color: #b91c1c;
+}
+
+.task-card__title {
+  font-weight: 600;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.task-card__meta {
+  margin: 0;
+  color: var(--color-text-subtle);
+  font-size: 0.85rem;
+}
+
+.task-card__error {
+  margin: 0;
+  color: #b91c1c;
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.task-card__preview {
+  margin: 0;
+  max-height: 18rem;
+  overflow: auto;
+  padding: 0.5rem 0.6rem;
+  border-radius: 8px;
+  background: var(--color-bg-muted);
+  color: var(--color-text);
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.task-card__actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+/* The file being read, among the run's files. */
+.page-activity__action-btn--active {
+  border-color: var(--color-text-muted);
+  background: var(--color-bg-muted);
+  font-weight: 600;
+}
+
+.task-card__file-list {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}

@@ -3,12 +3,18 @@ import remarkGfm from "remark-gfm"
 import { ChatComposer, ChatThread, type ChatThreadItem } from "@buildmax/gui"
 import { AgentAvatar, UserAvatar } from "../../../components/UserAvatar"
 import type { ApiConversationMessage, LoginUser } from "../../../lib/api"
+import type { ConversationTaskCards } from "../hooks/useConversationTasks"
+import { buildConversationThread } from "../thread"
+import { TaskCard } from "./TaskCard"
 
 interface ConversationDetailViewProps {
   historyRef: React.RefObject<HTMLElement | null>
   messages: ApiConversationMessage[]
   messagesLoading: boolean
   messagesError: string | null
+  /** Background tasks this conversation started, shown as cards in the thread. */
+  taskCards: ConversationTaskCards
+  onOpenIssue?: (issueId: string) => void
   input: string
   setInput: (value: string) => void
   sending: boolean
@@ -27,6 +33,8 @@ export function ConversationDetailView({
   messages,
   messagesLoading,
   messagesError,
+  taskCards,
+  onOpenIssue,
   input,
   setInput,
   sending,
@@ -37,9 +45,32 @@ export function ConversationDetailView({
   user,
   onSend,
 }: ConversationDetailViewProps) {
-  const items: ChatThreadItem[] = messages.map((msg) => {
+  // Messages and task cards are separate records ordered against each other by
+  // when each was created; see thread.ts.
+  const items: ChatThreadItem[] = buildConversationThread(messages, taskCards.tasks).map((entry) => {
+    if (entry.kind === "task") {
+      const { task } = entry
+      return {
+        id: task.id,
+        role: "task",
+        label: "Background task",
+        hideAvatar: true,
+        body: (
+          <TaskCard
+            task={task}
+            busy={taskCards.busyTaskId === task.id}
+            error={taskCards.busyTaskId === task.id ? taskCards.actionError : null}
+            onStop={taskCards.stop}
+            onRetry={taskCards.retry}
+            onOpenFiles={taskCards.openFiles}
+            onOpenTrace={taskCards.openTrace}
+            onOpenIssue={onOpenIssue}
+          />
+        ),
+      }
+    }
+    const msg = entry.message
     const isUser = msg.role === "user"
-
     return {
       id: msg.id,
       role: msg.role,

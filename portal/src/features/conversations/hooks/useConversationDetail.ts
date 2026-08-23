@@ -13,6 +13,11 @@ interface UseConversationDetailOptions {
   token: string | null
   initialMessage?: string
   onMessageSent?: () => void
+  /**
+   * Anything else drawn in the thread. The history scrolls to the bottom when
+   * it changes, so a task card arriving is not left below the fold.
+   */
+  scrollSignal?: unknown
 }
 
 interface MessageDeltaPayload {
@@ -42,6 +47,7 @@ export function useConversationDetail({
   token,
   initialMessage,
   onMessageSent,
+  scrollSignal,
 }: UseConversationDetailOptions) {
   const historyRef = useRef<HTMLElement | null>(null)
   const ws = useWebSocket()
@@ -169,7 +175,7 @@ export function useConversationDetail({
     const el = historyRef.current
     if (!el) return
     el.scrollTop = el.scrollHeight
-  }, [messagesData?.messages, streamingContent, optimisticUserMessage, queuedMessages])
+  }, [messagesData?.messages, streamingContent, optimisticUserMessage, queuedMessages, scrollSignal])
 
   function handleSend() {
     const content = input.trim()

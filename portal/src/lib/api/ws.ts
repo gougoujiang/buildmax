@@ -11,6 +11,15 @@ export interface WsEnvelope {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type EventHandler = (payload: any) => void
 
+/**
+ * Dispatched to `on` handlers when the socket opens, including every reconnect.
+ *
+ * A socket that was down missed whatever the server broadcast while it was, so
+ * a view holding server state reloads it here rather than trusting what it last
+ * saw. It is a local event: no server message carries this type.
+ */
+export const SOCKET_OPEN_EVENT = "socket.open"
+
 const RECONNECT_MIN = 1000
 const RECONNECT_MAX = 30000
 const STABLE_CONNECTION_MS = 10000
@@ -78,6 +87,7 @@ export class BuildMaxWebSocket {
       this.reconnectDelay = RECONNECT_MIN
       this.flushQueue()
       this.onOpen?.()
+      this.dispatch(SOCKET_OPEN_EVENT, {})
     }
 
     this.ws.onmessage = (event) => {
