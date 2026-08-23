@@ -222,6 +222,11 @@ agentapp.RunPrompt(ctx, sess, prompt, stream, approval, eventSink)
   `hook_*` / `approval_*` records need new events and are deferred.
 - File-change records, sandbox-decision records, retry records — deferred until
   the event stream surfaces them.
+- Distinguishing *why* a run failed. `run_end.error` carries a message, but a
+  run that failed because a dependency was down reads the same as one whose
+  model or task failed. `/readyz` answers whether a dependency is down now; it
+  cannot answer why one run failed then. Classifying the failure needs a typed
+  cause on `run_end`, which the event stream does not carry.
 - Retention/rotation/GC of the traces directory. **Consequence to accept
   knowingly:** tracing is on by default and nothing ever deletes a trace, so
   `<BUILDMAX_HOME>/traces` grows without bound — one file per run, each capped

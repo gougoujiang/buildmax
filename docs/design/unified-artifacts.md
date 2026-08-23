@@ -527,6 +527,18 @@ model and the user one legible publishing event.
    `UploadArtifact`; a run's output directory stays the reproducible record of
    what the run left behind. See section 5.3.
 
+7. **A run's output can be silently short.** Not an artifact question — run
+   output is deliberately not artifacts (question 6) — but it is the other half
+   of "what a run left behind", so it is recorded here until someone fixes it.
+   `walkAndUploadFiles` in `internal/agentapp/taskrun/runtime.go` logs a failed
+   upload at `Warn` and skips the file, appending to the returned relative paths
+   only on success. The record stays consistent with storage, which is why this
+   is not a corruption bug; what is missing is that the run still reports
+   `SUCCEEDED` and nothing tells the reader that fewer files arrived than the
+   agent produced. A dependency failure is therefore indistinguishable from a
+   run that simply produced less. Deciding between failing the run, recording a
+   partial-output marker, or surfacing the count is open.
+
 ## 13. Acceptance Criteria
 
 The first usable increment is complete when:
