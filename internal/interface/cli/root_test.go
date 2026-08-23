@@ -100,3 +100,31 @@ func TestTUIAppConfigWithoutWorkspaceLeavesTheDefault(t *testing.T) {
 		t.Errorf("WorkspaceDir = %q, want empty so the runtime falls back to the working directory", cfg.WorkspaceDir)
 	}
 }
+
+// Cobra re-adds the default completion command on every Execute, so hiding it has to survive
+// that, and the generated script has to keep working for anyone who already installed one.
+func TestRootCommand_CompletionStaysOutOfHelp(t *testing.T) {
+	var out strings.Builder
+	root := NewRootCommand()
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs([]string{"--help"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("Execute(--help): %v", err)
+	}
+	if strings.Contains(out.String(), "completion") {
+		t.Errorf("help should not list the completion command:\n%s", out.String())
+	}
+
+	out.Reset()
+	root = NewRootCommand()
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs([]string{"completion", "zsh"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("Execute(completion zsh): %v", err)
+	}
+	if !strings.Contains(out.String(), "compdef") {
+		t.Error("completion zsh should still print a usable script")
+	}
+}
