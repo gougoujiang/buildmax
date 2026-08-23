@@ -11,6 +11,7 @@ import (
 
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/infra/llmremote"
+	"github.com/gougoujiang/buildmax/internal/infra/llmwire"
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
 )
@@ -54,16 +55,9 @@ func profileServer(t *testing.T, client cllm.LLMClient) *httptest.Server {
 	if err != nil {
 		t.Fatalf("NewStaticCatalog: %v", err)
 	}
-	policies, err := llmgateway.NewStaticPolicySource(llmgateway.TeamPolicy{
-		DefaultAlias: "default",
-		Aliases:      map[string]string{"default": "mt_fast"},
-	}, catalog.IDs())
-	if err != nil {
-		t.Fatalf("NewStaticPolicySource: %v", err)
-	}
 	svc := &llmgateway.Service{
 		Router: &llmgateway.Router{
-			Resolver: &llmgateway.Resolver{Catalog: catalog, Policies: policies},
+			Resolver: &llmgateway.Resolver{Catalog: catalog, DefaultModel: "Fast"},
 			Factory: func(context.Context, llmgateway.Target) (cllm.LLMClient, error) {
 				return client, nil
 			},
@@ -91,7 +85,6 @@ func TestTeamCompletionCarriesTheCallProfile(t *testing.T) {
 			remote := llmremote.NewClient(llmremote.Config{
 				ServerURL:   server.URL,
 				Token:       testsupport.SignJWT(llmTestUser, llmTestSecret),
-				TeamID:      llmTestTeam,
 				CallTimeout: 10 * time.Second,
 			})
 			if _, err := remote.ChatCompletionBlocking(context.Background(), cllm.Request{
@@ -174,7 +167,7 @@ func TestTeamCompletionRefusesACachePolicy(t *testing.T) {
 func postCompletion(t *testing.T, server *httptest.Server, body string) *http.Response {
 	t.Helper()
 	req, err := http.NewRequest(http.MethodPost,
-		server.URL+"/api/teams/"+llmTestTeam+"/llm/completions", strings.NewReader(body))
+		server.URL+llmwire.CompletionsPath, strings.NewReader(body))
 	if err != nil {
 		t.Fatalf("build request: %v", err)
 	}

@@ -151,7 +151,7 @@ function SpendCallRow({ call }: { call: ApiTaskRunLLMCall }) {
         "usage not reported"
   return (
     <li className={failed ? "run-trace__call run-trace__call--failed" : "run-trace__call"}>
-      <span className="run-trace__call-alias">{call.alias || "—"}</span>
+      <span className="run-trace__call-model">{call.model || "—"}</span>
       <span className="run-trace__call-tokens">{tokens}</span>
       {failed ? (
         <span className="run-trace__call-failed">
@@ -177,8 +177,7 @@ function SpendCallRow({ call }: { call: ApiTaskRunLLMCall }) {
 }
 
 /**
- * What the deployment was asked to serve for this run, and on which approved
- * alias.
+ * What the deployment was asked to serve for this run, and on which model.
  *
  * This is a different record from the trace above it. The trace is what the
  * agent did, written by the run itself; this is the governance ledger, written
@@ -298,12 +297,12 @@ function SpendSection({
             ) : null}
           </dl>
 
-          {/* Named even when there is one, because which approved alias a run
-              was allowed to spend on is the governance question. */}
-          <ul className="run-trace__aliases">
-            {summary.byAlias.map((entry) => (
-              <li key={entry.alias}>
-                <span className="run-trace__call-alias">{entry.alias}</span>
+          {/* Named even when there is one, because which model a run spent on
+              is the governance question. */}
+          <ul className="run-trace__models">
+            {summary.byModel.map((entry) => (
+              <li key={entry.model}>
+                <span className="run-trace__call-model">{entry.model}</span>
                 <span className="run-trace__call-tokens">
                   {entry.calls} call{entry.calls === 1 ? "" : "s"} ·{" "}
                   {entry.totalTokens.toLocaleString()} tokens

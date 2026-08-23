@@ -43,12 +43,15 @@ const (
 // detail belongs to durable local traces. See docs/design/llm-gateway.md.
 type LLMCall struct {
 	ID string `json:"id"`
-	// ClientCallID is the caller's idempotency key, unique within a team. It is
-	// absent for calls the server makes on its own behalf.
+	// ClientCallID is the caller's idempotency key, unique within one user's
+	// calls. It is absent for calls the server makes on its own behalf.
 	ClientCallID *string `json:"client_call_id,omitempty"`
 
 	// Identity — derived from authentication, never from the request body.
-	TeamID    string  `json:"team_id"`
+	//
+	// A call is attributed to a person. There is no team column: a foreground
+	// call belongs to no team, and a run's team is reached through TaskRunID.
+	// See docs/design/client-modes.md section 9.
 	UserID    *string `json:"user_id,omitempty"`
 	TaskRunID *string `json:"task_run_id,omitempty"`
 
@@ -58,7 +61,7 @@ type LLMCall struct {
 	TaskID    *string `json:"task_id,omitempty"`
 
 	// Model — what the caller asked for and what it resolved to.
-	Alias         string `json:"alias,omitempty"`
+	Model         string `json:"model,omitempty"`
 	TargetID      string `json:"target_id"`
 	ProviderType  string `json:"provider_type"`
 	UpstreamModel string `json:"upstream_model"`
@@ -134,12 +137,14 @@ type LLMCallStore interface {
 	CompleteLLMCall(ctx context.Context, llmCallID string, outcome LLMCallOutcome) error
 	// GetLLMCall returns one call by ID, or (nil, nil) when not found.
 	GetLLMCall(ctx context.Context, llmCallID string) (*LLMCall, error)
-	// GetLLMCallByClientID returns a team's call by the caller's idempotency
-	// key, or (nil, nil) when not found.
-	GetLLMCallByClientID(ctx context.Context, teamID, clientCallID string) (*LLMCall, error)
+	// GetLLMCallByClientID returns one user's call by their idempotency key, or
+	// (nil, nil) when not found. The key is scoped to the user who sent it, so
+	// one caller's key can never resolve another's call.
+	GetLLMCallByClientID(ctx context.Context, userID, clientCallID string) (*LLMCall, error)
 	// ListLLMCallsByTaskRun returns a run's calls, oldest first, so a reader
-	// follows the run in the order it happened. The team is part of the query
-	// rather than a check afterwards: a caller authorized for one team must not
-	// be able to read another's ledger by naming a run id.
-	ListLLMCallsByTaskRun(ctx context.Context, teamID, taskRunID string) ([]LLMCall, error)
+	// follows the run in the order it happened.
+	//
+	// A run belongs to exactly one team, so authorizing the run authorizes its
+	// ledger; the caller must have established that before asking.
+	ListLLMCallsByTaskRun(ctx context.Context, taskRunID string) ([]LLMCall, error)
 }

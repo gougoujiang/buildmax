@@ -82,10 +82,15 @@ func (s *Service) now() time.Time {
 // Identity fields are derived from authentication by the caller of this
 // service; nothing here may be taken from a client request body.
 type CompleteRequest struct {
+	// TeamID is what the call is metered against, and is set only on a worker
+	// call, where the run names the team it was scheduled for. A foreground call
+	// belongs to no team and is not counted against one — see
+	// docs/design/client-modes.md section 9.
 	TeamID string
-	// UserID is who the call is for. A user-authenticated call takes it from the
-	// login; a worker call takes it from the run token, which names the task's
-	// owner — a run is somebody's work even though no person is at the keyboard.
+	// UserID is who the call is for, and what the ledger attributes it to. A
+	// user-authenticated call takes it from the login; a worker call takes it
+	// from the run token, which names the task's owner — a run is somebody's
+	// work even though no person is at the keyboard.
 	UserID *string
 	// TaskRunID and TaskID are set on worker calls, from the run token.
 	TaskRunID *string
@@ -97,8 +102,8 @@ type CompleteRequest struct {
 	Surface   string
 	SessionID *string
 
-	// Alias is the team-facing model alias. Empty selects the team default.
-	Alias    string
+	// Model is the catalog model name. Empty selects the deployment default.
+	Model    string
 	Messages []cllm.Message
 	Tools    []cllm.ToolDef
 	// CallProfile is what the caller says the call is for. It is operational
@@ -111,7 +116,7 @@ type CompleteRequest struct {
 // CompleteResult is a finished managed call.
 type CompleteResult struct {
 	LLMCallID string
-	Alias     string
+	Model     string
 	Content   string
 	ToolCalls []cllm.ToolCall
 	Usage     cllm.Usage
@@ -123,12 +128,12 @@ type CompleteResult struct {
 	ProviderState *cllm.ProviderState
 }
 
-// Models lists the aliases a team may use.
-func (s *Service) Models(ctx context.Context, teamID string) ([]AvailableModel, error) {
+// Models lists the models this deployment offers.
+func (s *Service) Models(ctx context.Context) ([]AvailableModel, error) {
 	if s == nil || s.Router == nil {
 		return nil, ErrCatalogNotConfigured
 	}
-	return s.Router.Available(ctx, teamID)
+	return s.Router.Available(ctx)
 }
 
 // Complete runs one blocking managed call.
@@ -161,9 +166,6 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 	if s.Ledger == nil {
 		return CompleteResult{}, ErrLedgerNotConfigured
 	}
-	if req.TeamID == "" {
-		return CompleteResult{}, ErrTeamRequired
-	}
 	if len(req.Messages) == 0 {
 		return CompleteResult{}, ErrMessagesRequired
 	}
@@ -177,8 +179,7 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 	}
 
 	routed, err := s.Router.ClientFor(ctx, ResolveRequest{
-		TeamID:   req.TeamID,
-		Alias:    req.Alias,
+		Name:     req.Model,
 		Requires: requiredCapabilities(req, streaming),
 	})
 	if err != nil {
@@ -188,7 +189,10 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 	// Soft enforcement: a team already over its limit is refused. Concurrent
 	// calls can still overshoot, because the size of a completion is unknown
 	// before it exists. See docs/design/llm-gateway.md section 10.
-	if s.Quota != nil {
+	//
+	// Only a call that belongs to a team is metered against one; a foreground
+	// call names no team and passes.
+	if s.Quota != nil && req.TeamID != "" {
 		allowed, reason := s.Quota.Check(ctx, req.TeamID, 0, 0)
 		if !allowed {
 			return CompleteResult{}, &QuotaError{Reason: reason}
@@ -198,13 +202,12 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 	acceptedAt := s.now().UTC()
 	ledgerEntry := &model.LLMCall{
 		ClientCallID:  req.ClientCallID,
-		TeamID:        req.TeamID,
 		UserID:        req.UserID,
 		TaskRunID:     req.TaskRunID,
 		TaskID:        req.TaskID,
 		Surface:       req.Surface,
 		SessionID:     req.SessionID,
-		Alias:         routed.Resolution.Alias,
+		Model:         routed.Resolution.Name,
 		TargetID:      routed.Resolution.Target.ID,
 		ProviderType:  routed.Resolution.Target.ProviderType,
 		UpstreamModel: routed.Resolution.Target.UpstreamModel,
@@ -292,7 +295,7 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 
 	return CompleteResult{
 		LLMCallID:     call.ID,
-		Alias:         routed.Resolution.Alias,
+		Model:         routed.Resolution.Name,
 		Content:       completion.Content,
 		ToolCalls:     completion.ToolCalls,
 		Usage:         usage,
@@ -341,7 +344,7 @@ func requiredCapabilities(req CompleteRequest, streaming bool) []Capability {
 	return capabilities
 }
 
-// rejectDuplicate reports a client call ID this team has already used.
+// rejectDuplicate reports a client call ID this caller has already used.
 //
 // The unique index is what actually decides duplication; this lookup exists to
 // answer with the original call ID instead of a bare constraint violation. A
@@ -350,7 +353,12 @@ func (s *Service) rejectDuplicate(ctx context.Context, req CompleteRequest) erro
 	if req.ClientCallID == nil || *req.ClientCallID == "" {
 		return nil
 	}
-	existing, err := s.Ledger.GetLLMCallByClientID(ctx, req.TeamID, *req.ClientCallID)
+	// The key is scoped to the person who sent it, so a caller with no user
+	// identity has no key namespace to be duplicated within.
+	if req.UserID == nil || *req.UserID == "" {
+		return nil
+	}
+	existing, err := s.Ledger.GetLLMCallByClientID(ctx, *req.UserID, *req.ClientCallID)
 	if err != nil || existing == nil {
 		return nil
 	}

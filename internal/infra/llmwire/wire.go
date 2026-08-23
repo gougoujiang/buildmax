@@ -22,10 +22,11 @@ const Version = "1"
 
 // Paths, relative to the server base URL.
 const (
-	// ModelsPath lists the aliases a team may use.
-	ModelsPath = "/api/teams/%s/llm/models"
+	// ModelsPath lists the models this deployment offers. Every model in the
+	// catalog is available to every signed-in user, so the path names no team.
+	ModelsPath = "/api/llm/models"
 	// CompletionsPath runs one managed call.
-	CompletionsPath = "/api/teams/%s/llm/completions"
+	CompletionsPath = "/api/llm/completions"
 	// WorkerCompletionsPath runs one managed call on behalf of a task run.
 	// The team comes from the run rather than the path, so a worker cannot
 	// name a team it was not scheduled for.
@@ -177,16 +178,25 @@ type ErrorEvent struct {
 	Retryable bool   `json:"retryable"`
 }
 
-// Model is one alias a team may use. It carries no endpoint, credential,
-// provider type, or upstream model identifier.
+// Model is one model a client may call. Name is what a completion request puts
+// in its model field. It carries no endpoint, credential, provider type, or
+// upstream model identifier.
+//
+// ContextWindow and Vision are here because the client acts on them before any
+// call: it compacts a session against the window, and sends an image only to a
+// model that can read one. Everything else about how the call is made —
+// reasoning effort, output cap, cache policy, price — is the operator's target
+// policy and stays on the server, which is also what records the cost.
 type Model struct {
-	Alias        string   `json:"alias"`
-	Name         string   `json:"name"`
-	Capabilities []string `json:"capabilities"`
-	Default      bool     `json:"default"`
+	Name string `json:"name"`
+	// ContextWindow is the usable context size; 0 means the client's default.
+	ContextWindow int      `json:"context_window,omitempty"`
+	Vision        bool     `json:"vision,omitempty"`
+	Capabilities  []string `json:"capabilities"`
+	Default       bool     `json:"default"`
 }
 
-// ModelsResponse lists a team's available models.
+// ModelsResponse lists the models this deployment offers.
 type ModelsResponse struct {
 	Models []Model `json:"models"`
 }

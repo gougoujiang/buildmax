@@ -19,9 +19,9 @@ var ErrFactoryNotConfigured = errors.New("model client factory is not configured
 // diagnostics, and keeps provider packages out of the service layer.
 type ClientFactory func(ctx context.Context, target Target) (cllm.LLMClient, error)
 
-// RoutedClient is a resolved alias together with the client that calls it.
+// RoutedClient is a resolved model together with the client that calls it.
 type RoutedClient struct {
-	// Resolution is the alias and target this request resolved to. Metering and
+	// Resolution is the model and target this request resolved to. Metering and
 	// the call ledger attribute the call with it.
 	Resolution Resolution
 	// Client calls the upstream target.
@@ -69,13 +69,13 @@ type cachedClient struct {
 	client cllm.LLMClient
 }
 
-// Router turns a team's model alias into a client for the approved upstream.
+// Router turns a model name into a client for the approved upstream.
 //
 // It caches one client per catalog target. A cached client is rebuilt when the
 // target's connection details change, so a catalog that becomes editable later
 // does not serve calls through a retired endpoint or a rotated credential.
 type Router struct {
-	// Resolver maps (team, alias) to an approved target.
+	// Resolver maps a model name to an approved target.
 	Resolver *Resolver
 	// Factory builds a client for a resolved target.
 	Factory ClientFactory
@@ -104,8 +104,8 @@ func (r *Router) ClientFor(ctx context.Context, req ResolveRequest) (RoutedClien
 }
 
 // ClientForTarget returns a client for a catalog target the deployment itself
-// selected, bypassing team policy. Resolution.Alias is empty in the result
-// because no alias was involved.
+// selected by ID. Resolution.Name is empty in the result because no client
+// named a model.
 //
 // This is the path for Server-owned inference. It shares the resolver's
 // capability checks and the router's client cache with managed calls, so
@@ -128,13 +128,13 @@ func (r *Router) ClientForTarget(ctx context.Context, targetID string, requires 
 	return RoutedClient{Resolution: Resolution{Target: target}, Client: client}, nil
 }
 
-// Available lists the aliases a team may use. It delegates to the resolver so
+// Available lists the models a client may call. It delegates to the resolver so
 // callers depend on one type for both routing and discovery.
-func (r *Router) Available(ctx context.Context, teamID string) ([]AvailableModel, error) {
+func (r *Router) Available(ctx context.Context) ([]AvailableModel, error) {
 	if r == nil {
 		return nil, ErrCatalogNotConfigured
 	}
-	return r.Resolver.Available(ctx, teamID)
+	return r.Resolver.Available(ctx)
 }
 
 func (r *Router) clientForTarget(ctx context.Context, target Target) (cllm.LLMClient, error) {

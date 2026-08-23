@@ -1,32 +1,44 @@
 # Managed LLM Gateway
 
-> **Audience:** contributors · **Status:** shipped for every surface; per-team
-> policy and strict quota remain open
+> **Audience:** contributors · **Status:** shipped for every surface; strict
+> quota remains open
 >
-> Shipped: `internal/service/llmgateway` (catalog, team policy, alias
-> resolution, capability set, router, error classes), the `llm_model` catalog
-> and `llm_call` ledger rows in `internal/infra/db`, the
-> `internal/infra/llmremote` client, `buildmax-server model`, and all three
-> routes in `internal/server/handlers/routes.go` including SSE streaming. A
-> catalog target may declare any of the three wire protocols in
-> [llm-provider-adapters.md](llm-provider-adapters.md). CLI,
-> TUI, and Desktop reach managed models through `AppConfig.ManagedToken`. Quota
-> runs at the §10 visibility/soft-enforcement stage.
+> Shipped: `internal/service/llmgateway` (catalog, name resolution, capability
+> set, router, error classes), the `llm_model` catalog and `llm_call` ledger rows
+> in `internal/infra/db`, the `internal/infra/llmremote` client,
+> `buildmax-server model`, and all three routes in
+> `internal/server/handlers/routes.go` including SSE streaming. A catalog target
+> may declare any of the three wire protocols in
+> [llm-provider-adapters.md](llm-provider-adapters.md). Quota runs at the §10
+> visibility/soft-enforcement stage.
 >
-> Task runs reach it too, under `worker.llm.transport: buildmax`. The worker
+> **Sections 1, 4.2, 7, 10, and 12 were revised after this was written**, and the
+> text below still describes the earlier shape in places. What replaced it:
+>
+> - A client is in one of two mutually exclusive modes, decided by whether
+>   `auth.json` exists. Transport is a property of the session, not of a model
+>   entry, and the two lists are never merged. `settings.yaml` describes only
+>   what a signed-out session runs on.
+> - Models are global to a deployment. Per-team model policy is **withdrawn**,
+>   not pending, and the alias layer is gone: a client names a model by
+>   `llm_model.name`, and `server.yaml` `llm.default_model` names the default.
+> - The gateway routes are `/api/llm/models` and `/api/llm/completions`. Being
+>   signed in is their whole authorization.
+> - The `llm_call` ledger is attributed to a user. A run's team is reached
+>   through `task_run_id`; a foreground call belongs to no team and is metered
+>   against none.
+>
+> Task runs reach the gateway under `worker.llm.transport: buildmax`. The worker
 > entry point `POST /api/worker/task-runs/{task_run_id}/llm/completions`
 > authenticates with a run token — see
 > [worker-run-token.md](worker-run-token.md) — so user, team, task, and run all
 > come from the credential, and it accepts a call only while the run is
 > executing. Such a worker is handed no upstream provider key. The server states
-> the transport and alias in the run's worker-API response; a run never chooses
+> the transport and model in the run's worker-API response; a run never chooses
 > its own model.
 >
-> Not shipped: team policy remains the deployment-wide `server.yaml`
-> `llm.aliases` map described in §7, not the per-team database policy, and a
-> task's approved alias is not pinned at creation time — a run may name any
-> alias its team is granted. Reserved quota enforcement and concurrency control
-> (§10) do not exist; do not claim a strict spending ceiling.
+> Not shipped: reserved quota enforcement and concurrency control (§10) do not
+> exist; do not claim a strict spending ceiling.
 
 This is an active P3 design. It follows the deployment direction in
 [enterprise-deployment.md](enterprise-deployment.md), depends on worker trust

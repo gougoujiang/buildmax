@@ -325,15 +325,19 @@ func assertManagedSmokeConfig(t *testing.T, root, file string) {
 	if !cfg.Worker.LLM.Managed() {
 		t.Fatalf("worker.llm.transport = %q, want %q", cfg.Worker.LLM.Transport, config.TransportBuildMax)
 	}
-	// The server refuses to start when the worker's alias is not one a team may
-	// call, so the smoke stack would never come up. Catch it here instead, where
-	// the failure names the file.
-	alias := cfg.Worker.LLM.Alias
-	if alias == "" {
-		alias = cfg.LLM.DefaultAlias
+	// A run with no model of its own falls back to llm.default_model, and the
+	// server refuses to start when that names nothing. The catalog is a table
+	// this test cannot read, so what it checks is that the two files agree: the
+	// default names the model conversation.model derives into.
+	want := cfg.Conversation.Model.Name
+	if want == "" {
+		want = cfg.Conversation.Model.Model
 	}
-	if _, ok := cfg.LLM.Aliases[alias]; !ok {
-		t.Errorf("worker alias %q is not granted by llm.aliases %v", alias, cfg.LLM.Aliases)
+	if model := cfg.Worker.LLM.Model; model != "" && model != want {
+		t.Errorf("worker.llm.model = %q, but the only catalog target this file creates is %q", model, want)
+	}
+	if cfg.LLM.DefaultModel != want {
+		t.Errorf("llm.default_model = %q, want %q — the target derived from conversation.model", cfg.LLM.DefaultModel, want)
 	}
 	// A managed worker is given no provider key, so this file must not carry one
 	// for it to find on disk either.

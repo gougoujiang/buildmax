@@ -7,18 +7,18 @@ import { getApp } from './lib/app';
 const DEFAULT_SERVER_URL = 'http://localhost:5678';
 
 /**
- * Sign in to a server, or skip it.
+ * Sign in to a server.
  *
- * A server is optional: the agent runs on this machine either way, and local
- * mode is the single-user install — the same thing `buildmax` does in a
- * terminal without `buildmax login`. Signing in adds the account: managed
- * models and a team's work.
+ * This is an action, not a gate: the app already works without it, running the
+ * agent here against the models in settings.yaml. Signing in switches to that
+ * deployment's models and connects the account to a team's work, and signing
+ * out switches back. See docs/design/client-modes.md.
  *
  * Of the two ways in, a password is the everyday one. A login code is how a new
  * account is claimed and how a forgotten password is recovered — BuildMax has
  * no mail channel, so an operator issues that code by hand.
  */
-export default function LoginPage({ onLogin }) {
+export default function LoginPage({ onLogin, onCancel, expiredDetail = '' }) {
   const [mode, setMode] = useState('password');
   const [serverURL, setServerURL] = useState(DEFAULT_SERVER_URL);
   const [email, setEmail] = useState('');
@@ -26,20 +26,6 @@ export default function LoginPage({ onLogin }) {
   const [otp, setOtp] = useState('');
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
-
-  async function handleUseLocalMode() {
-    if (loading || !app) return;
-    setError(null);
-    setLoading(true);
-    try {
-      const status = await app.UseLocalMode();
-      if (onLogin) onLogin(status);
-    } catch (err) {
-      setError(err?.message ?? String(err));
-    } finally {
-      setLoading(false);
-    }
-  }
 
   const app = getApp();
   const credential = mode === 'password' ? password : otp.trim();
@@ -84,9 +70,15 @@ export default function LoginPage({ onLogin }) {
     <div className="login-page">
       <div className="login-page__card">
         <h1 className="login-page__title">BuildMax</h1>
+        {expiredDetail ? (
+          <p className="login-page__error" role="alert">
+            Your session has ended, so this app cannot reach its models. Sign in
+            again, or return to using this machine on its own.
+          </p>
+        ) : null}
         <p className="login-page__subtitle">
           {mode === 'password'
-            ? 'Sign in to a BuildMax server, or use this machine on its own'
+            ? 'Sign in to a BuildMax server to use the models it offers'
             : 'Sign in with a login code from your administrator'}
         </p>
         <form onSubmit={handleSubmit} className="login-page__form">
@@ -172,14 +164,16 @@ export default function LoginPage({ onLogin }) {
         <button
           type="button"
           className="login-page__local"
-          onClick={handleUseLocalMode}
+          onClick={onCancel}
           disabled={loading}
         >
-          Use BuildMax without a server
+          {expiredDetail ? 'Sign out and use this machine on its own' : 'Keep using this machine on its own'}
         </button>
         <p className="login-page__local-hint">
-          The agent runs on this machine, with the models in your settings.yaml.
-          You can connect to a server later.
+          The agent runs here, with the models in your settings.yaml.
+          {expiredDetail
+            ? ' Signing out removes the ended session; nothing local is discarded.'
+            : ' Nothing is lost by staying — you can sign in whenever you want.'}
         </p>
       </div>
     </div>

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/internal/agentapp"
 	"github.com/gougoujiang/buildmax/internal/infra/git"
 	tools "github.com/gougoujiang/buildmax/internal/tool"
 )
@@ -16,16 +15,20 @@ type SlashModelEntry struct {
 	Name          string `json:"name"`
 	ProviderModel string `json:"provider_model,omitempty"`
 	IsCurrent     bool   `json:"is_current"`
-	// Managed and Destination say where this model sends prompts. Two entries
-	// can share a display name and reach different places, so the selector has
-	// to be able to tell them apart.
-	Managed     bool   `json:"managed"`
+	// Destination is the provider endpoint a local model is called at. Empty in
+	// managed mode, where the deployment on the result says where every prompt
+	// goes and no model has an endpoint of its own.
 	Destination string `json:"destination,omitempty"`
 }
 
 type SlashModelsResult struct {
-	Current string            `json:"current"`
-	Models  []SlashModelEntry `json:"models"`
+	Current string `json:"current"`
+	// Managed and ServerURL say where every prompt in this session goes. It is
+	// the app's mode, not a property of one model, so the picker states it once
+	// above the list. See docs/design/client-modes.md.
+	Managed   bool              `json:"managed"`
+	ServerURL string            `json:"server_url,omitempty"`
+	Models    []SlashModelEntry `json:"models"`
 }
 
 // GetSlashModels returns configured models and the active model for a project.
@@ -35,6 +38,7 @@ func (a *App) GetSlashModels(projectID string) (SlashModelsResult, error) {
 		return SlashModelsResult{}, err
 	}
 	current := ag.DefaultModelName()
+	serverURL := ag.ManagedServerURL()
 	configs := ag.ModelConfigs()
 	models := make([]SlashModelEntry, len(configs))
 	for i, c := range configs {
@@ -42,27 +46,18 @@ func (a *App) GetSlashModels(projectID string) (SlashModelsResult, error) {
 			Name:          c.Name,
 			ProviderModel: c.ProviderModel,
 			IsCurrent:     c.Name == current || c.ProviderModel == current,
-			Managed:       c.IsManaged(),
-			Destination:   modelDestination(c),
+			Destination:   c.BaseURL,
 		}
 	}
-	return SlashModelsResult{Current: current, Models: models}, nil
-}
-
-// modelDestination is where a model entry sends prompts, shown next to the
-// name so a managed entry is never mistaken for a local one.
-func modelDestination(c agentapp.ModelConfig) string {
-	if !c.IsManaged() {
-		return c.BaseURL
-	}
-	server := strings.TrimPrefix(strings.TrimPrefix(c.ServerURL, "https://"), "http://")
-	if server == "" {
-		server = "no server_url"
-	}
-	if c.TeamID == "" {
-		return server
-	}
-	return server + " " + c.TeamID
+	// Where prompts go is the app's mode, so it is reported once for the list
+	// rather than per entry: in managed mode every one of them goes to the same
+	// deployment, and in local mode none of them does.
+	return SlashModelsResult{
+		Current:   current,
+		Managed:   serverURL != "",
+		ServerURL: strings.TrimPrefix(strings.TrimPrefix(serverURL, "https://"), "http://"),
+		Models:    models,
+	}, nil
 }
 
 // SetProjectModel switches the active model for a project's agent.

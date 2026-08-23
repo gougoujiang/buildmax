@@ -29,25 +29,22 @@ func adminModelsMux(t *testing.T) (*http.ServeMux, *mock.MockLLMModelStore, *moc
 		t.Fatalf("CreateLLMModel: %v", err)
 	}
 	if _, err := models.CreateLLMModel(t.Context(), model.CreateLLMModelInput{
-		Name: "Unaliased", ProviderType: "openai_compatible", APIURL: "https://example.test/v1",
-		APIKey: modelSecret, Model: "provider/unaliased",
+		Name: "Deep", ProviderType: "openai_compatible", APIURL: "https://example.test/v1",
+		APIKey: modelSecret, Model: "provider/deep",
 	}); err != nil {
 		t.Fatalf("CreateLLMModel: %v", err)
 	}
 
 	audits := &mock.MockAuditStore{}
 	h := New(Config{
-		JWTSecret: testSecret,
-		Grants:    grants,
-		Users:     users,
-		Teams:     &mock.MockTeamStore{},
-		Models:    models,
-		Audits:    audits,
-		Audit:     audit.NewRecorder(audits),
-		Deployment: DeploymentInfo{
-			ModelAliases:      map[string]string{"default": fast.ID, "fast": fast.ID},
-			DefaultModelAlias: "default",
-		},
+		JWTSecret:  testSecret,
+		Grants:     grants,
+		Users:      users,
+		Teams:      &mock.MockTeamStore{},
+		Models:     models,
+		Audits:     audits,
+		Audit:      audit.NewRecorder(audits),
+		Deployment: DeploymentInfo{DefaultModel: fast.Name},
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)
@@ -78,22 +75,11 @@ func TestAdminModelsReportWhichAreReachable(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if out.DefaultAlias != "default" {
-		t.Errorf("default_alias = %q", out.DefaultAlias)
+	if out.DefaultModel != "Fast" {
+		t.Errorf("default_model = %q, want %q", out.DefaultModel, "Fast")
 	}
-	byName := map[string]AdminModel{}
-	for _, m := range out.Models {
-		byName[m.Name] = m
-	}
-	if got := byName["Fast"].Aliases; len(got) != 2 || got[0] != "default" || got[1] != "fast" {
-		t.Errorf("Fast aliases = %v, want [default fast] sorted", got)
-	}
-	if got := byName["Unaliased"].Aliases; len(got) != 0 {
-		t.Errorf("Unaliased aliases = %v, want none", got)
-	}
-	// Empty serializes as [] rather than null, so a reader does not branch.
-	if !strings.Contains(rec.Body.String(), `"aliases":[]`) {
-		t.Errorf("an unaliased model should report []: %s", rec.Body.String())
+	if len(out.Models) != 2 {
+		t.Fatalf("models = %d, want 2", len(out.Models))
 	}
 }
 

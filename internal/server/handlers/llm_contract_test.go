@@ -53,17 +53,9 @@ func managedGateway(t *testing.T, upstreamURL string) *llmremote.Client {
 	if err != nil {
 		t.Fatalf("NewStaticCatalog: %v", err)
 	}
-	policies, err := llmgateway.NewStaticPolicySource(llmgateway.TeamPolicy{
-		DefaultAlias: "default",
-		Aliases:      map[string]string{"default": "mt_fast"},
-	}, catalog.IDs())
-	if err != nil {
-		t.Fatalf("NewStaticPolicySource: %v", err)
-	}
-
 	svc := &llmgateway.Service{
 		Router: &llmgateway.Router{
-			Resolver: &llmgateway.Resolver{Catalog: catalog, Policies: policies},
+			Resolver: &llmgateway.Resolver{Catalog: catalog, DefaultModel: "Fast"},
 			Factory: func(_ context.Context, target llmgateway.Target) (cllm.LLMClient, error) {
 				return directClient(t, target.Endpoint), nil
 			},
@@ -84,7 +76,6 @@ func managedGateway(t *testing.T, upstreamURL string) *llmremote.Client {
 	return llmremote.NewClient(llmremote.Config{
 		ServerURL:   server.URL,
 		Token:       testsupport.SignJWT(llmTestUser, llmTestSecret),
-		TeamID:      llmTestTeam,
 		CallTimeout: 10 * time.Second,
 	})
 }
@@ -347,10 +338,10 @@ func TestManagedCallHidesTheUpstream(t *testing.T) {
 	if len(models) != 1 {
 		t.Fatalf("got %d models, want 1", len(models))
 	}
-	// The alias is what a client learns. The catalog ID and the provider's own
-	// model identifier are not.
-	if models[0].Alias != "default" {
-		t.Errorf("alias = %q", models[0].Alias)
+	// The catalog name is what a client learns. The catalog ID and the
+	// provider's own model identifier are not.
+	if models[0].Name != "Fast" {
+		t.Errorf("name = %q", models[0].Name)
 	}
 	if models[0].Name == "vendor/x" || models[0].Name == "mt_fast" {
 		t.Errorf("listing exposed an internal identifier: %q", models[0].Name)

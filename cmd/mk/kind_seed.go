@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -19,9 +18,11 @@ import (
 //
 // The cluster's own inference is left alone: conversation.model and the worker
 // keep answering from the in-cluster mock, so `kind smoke` stays deterministic
-// and costs nothing after a seed. What this adds is `llm.aliases`, the one
-// binding that has to name a catalog ID — and an ID exists only once the row
-// does, which is why this runs after the deployment rather than inside it.
+// and costs nothing after a seed.
+//
+// A seeded row is callable as soon as it exists — every catalog model is
+// available to every user, and a client names one by the row's own name — so
+// this touches no configuration and needs no server restart.
 //
 // Rows are added through `buildmax-server model add` rather than by writing the
 // table. The command already owns public ID generation, the default capability
@@ -29,11 +30,6 @@ import (
 // nothing keeps in step with the schema.
 
 const (
-	// kindSeedBaseConfig is the ConfigMap body the aliases are appended to. It
-	// is the direct variant `kind up` applies: seeding grants the deployment's
-	// teams a model, it does not switch how the deployment itself infers.
-	kindSeedBaseConfig = "deployment/smoke/server.kind.yaml"
-
 	// kindHostAddress is how a pod reaches a daemon on this machine. Docker
 	// Desktop resolves it inside the cluster, which is what makes a local Ollama
 	// usable from the deployment; on Linux the equivalent is the bridge gateway,
@@ -41,8 +37,8 @@ const (
 	kindHostAddress = "host.docker.internal"
 )
 
-// addedModelPattern reads the ID back out of `model add`. The alias has to name
-// it and nothing else prints it, so a change to that line is a change to this.
+// addedModelPattern reads the ID back out of `model add`. Nothing else prints
+// it, so a change to that line is a change to this.
 var addedModelPattern = regexp.MustCompile(`(?m)^Added model (\S+) \((.*)\)$`)
 
 // publicIDPattern is the text form of a public ID: 20 lowercase base32
@@ -52,17 +48,13 @@ var publicIDPattern = regexp.MustCompile(`^[a-z2-7]{20}$`)
 
 // kindSeedEntry is one settings.local.yaml model as the cluster will hold it.
 type kindSeedEntry struct {
-	// alias is the name a team calls it by, and what a managed model entry in a
-	// contributor's settings.yaml puts in its `model` field. It is derived from
-	// the provider's own model id rather than the display name, so it is unique
-	// in the file and recognisable on both sides.
-	alias string
-	// source is the settings.local.yaml model id the alias was derived from, so
-	// the printed entries say which model each one is.
+	// source is the settings.local.yaml model id the row was built from, so the
+	// printed entries say which model each one is.
 	source string
 	// name is the catalog row's operator-facing name, unique in the deployment.
+	// It is what a client puts in a managed entry's `model` field.
 	name string
-	// id is the catalog ID the alias binds to.
+	// id is the catalog ID the row was created with.
 	id string
 }
 
@@ -85,7 +77,7 @@ func kindSeed() error {
 	}
 	direct := directSettingsModels(configured)
 	if len(direct) == 0 {
-		return fmt.Errorf("%s configures no provider model to seed; a managed entry names a team alias, which is what this command creates", localSettingsPath)
+		return fmt.Errorf("%s configures no provider model to seed; a managed entry names a catalog model, which is what this command creates", localSettingsPath)
 	}
 
 	target := kindSmokeTarget()
@@ -100,17 +92,6 @@ func kindSeed() error {
 	}
 	if len(entries) == 0 {
 		return errors.New("no model could be seeded")
-	}
-
-	fmt.Println("\nGranting the deployment's teams these models...")
-	if err := applyKindSeedConfig(entries); err != nil {
-		return err
-	}
-	if err := kindKubectl("rollout", "restart", "deployment/buildmax-server", "-n", "buildmax"); err != nil {
-		return err
-	}
-	if err := kindKubectl("rollout", "status", "deployment/buildmax-server", "-n", "buildmax", "--timeout=180s"); err != nil {
-		return err
 	}
 
 	return printKindSeedUsage(entries)
@@ -146,13 +127,11 @@ func seedKindCatalog(target smokeTarget, models []settingsModel, existing map[st
 		if name == "" {
 			name = m.id
 		}
-		alias := aliasFromModelID(m.id)
-		if alias == "" {
-			fmt.Printf("Skipping %q: %q yields no usable alias.\n", name, m.id)
-			continue
-		}
-		if other, taken := claimed[alias]; taken {
-			fmt.Printf("Skipping %q: %q already claims the alias %s.\n", name, other, alias)
+		// The catalog's name column is unique, and a name is how a client
+		// addresses a model, so two local entries sharing a display name would
+		// make the second unreachable rather than merely duplicated.
+		if other, taken := claimed[name]; taken {
+			fmt.Printf("Skipping %q: %q already claims that name.\n", m.id, other)
 			continue
 		}
 
@@ -167,36 +146,10 @@ func seedKindCatalog(target smokeTarget, models []settingsModel, existing map[st
 			id = added
 			fmt.Printf("  %s added as %s\n", name, id)
 		}
-		claimed[alias] = name
-		entries = append(entries, kindSeedEntry{alias: alias, source: m.id, name: name, id: id})
+		claimed[name] = m.id
+		entries = append(entries, kindSeedEntry{source: m.id, name: name, id: id})
 	}
 	return entries, nil
-}
-
-// aliasFromModelID turns a provider model id into a name the server can
-// actually be configured with.
-//
-// server.yaml is read through viper, which treats a dot as a path separator: an
-// alias of "openai/gpt-5.6-luna" arrives as a nested map rather than a name and
-// the server refuses to start. Quoting the key does not help — the split
-// happens after YAML parsing — so every character outside [a-z0-9] becomes a
-// dash. The vendor prefix is kept, because two vendors serving the same model
-// name are what would otherwise collide.
-func aliasFromModelID(id string) string {
-	var b strings.Builder
-	dashed := false
-	for _, r := range strings.ToLower(id) {
-		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
-			b.WriteRune(r)
-			dashed = false
-			continue
-		}
-		if !dashed && b.Len() > 0 {
-			b.WriteByte('-')
-			dashed = true
-		}
-	}
-	return strings.TrimRight(b.String(), "-")
 }
 
 func addKindCatalogModel(target smokeTarget, m settingsModel, name string) (string, error) {
@@ -321,60 +274,15 @@ func catalogNameColumn(line string) (int, int) {
 	return len([]rune(line[:start])), len([]rune(line[:provider]))
 }
 
-// applyKindSeedConfig rewrites the server ConfigMap with an alias per seeded
-// model. Aliases are startup configuration, unlike the catalog itself, which is
-// why this is the step that costs a restart.
-func applyKindSeedConfig(entries []kindSeedEntry) error {
-	base, err := os.ReadFile(kindSeedBaseConfig)
-	if err != nil {
-		return fmt.Errorf("read %s: %w", kindSeedBaseConfig, err)
-	}
-	rendered := string(base) + renderKindSeedAliases(entries)
-
-	// The ConfigMap is created from a file, and the body only exists in memory,
-	// so it is staged next to the source it was rendered from.
-	staged, err := os.CreateTemp("", "buildmax-kind-seed-*.yaml")
-	if err != nil {
-		return fmt.Errorf("stage the seeded server config: %w", err)
-	}
-	path := staged.Name()
-	defer func() { _ = os.Remove(path) }()
-	if _, err := staged.WriteString(rendered); err != nil {
-		_ = staged.Close()
-		return fmt.Errorf("stage the seeded server config: %w", err)
-	}
-	if err := staged.Close(); err != nil {
-		return fmt.Errorf("stage the seeded server config: %w", err)
-	}
-	return applyKindSmokeConfigFrom(path)
-}
-
-func renderKindSeedAliases(entries []kindSeedEntry) string {
-	var b strings.Builder
-	b.WriteString("\n# Aliases for the models in " + localSettingsPath + ", written by `" + mk() + " kind seed`.\n")
-	b.WriteString("# `" + mk() + " kind up` renders this file without them again.\n")
-	b.WriteString("llm:\n")
-	b.WriteString("  default_alias: " + entries[0].alias + "\n")
-	b.WriteString("  aliases:\n")
-	for _, entry := range entries {
-		b.WriteString("    " + entry.alias + ": " + entry.id + "  # " + entry.source + "\n")
-	}
-	return b.String()
-}
-
 // printKindSeedUsage prints the managed model entries a contributor pastes into
-// their own settings.yaml. A managed entry needs a team, and the team is the
-// personal one of the account `kind up` and `kind info` already sign in as.
+// their own settings.yaml. A managed entry names a model and a server; the
+// credential comes from the login, and no team is involved.
 func printKindSeedUsage(entries []kindSeedEntry) error {
 	target := kindSmokeTarget()
 	client := &http.Client{Timeout: 10 * time.Second}
 	ctx := context.Background()
 	if err := waitForHTTP(ctx, client, target.apiBase+"/healthz", 90*time.Second); err != nil {
 		return err
-	}
-	_, teamID, err := smokeSignIn(ctx, client, target, smokeEmail)
-	if err != nil {
-		return fmt.Errorf("find the team to use these models: %w", err)
 	}
 
 	fmt.Printf("\nSeeded %d model(s) into cluster %s.\n", len(entries), kindClusterName())
@@ -383,14 +291,13 @@ func printKindSeedUsage(entries []kindSeedEntry) error {
 	fmt.Printf("\nAdd these to your BUILDMAX_HOME/settings.yaml to drive them from the CLI or Desktop:\n\n")
 	fmt.Println("models:")
 	for _, entry := range entries {
-		fmt.Printf("  - model: %s  # %s\n", entry.alias, entry.source)
+		fmt.Printf("  - model: %s  # %s\n", entry.name, entry.source)
 		fmt.Printf("    name: %s (kind)\n", entry.name)
 		fmt.Printf("    transport: buildmax\n")
 		fmt.Printf("    server_url: %s\n", target.apiBase)
-		fmt.Printf("    team_id: %s\n", teamID)
 	}
 	fmt.Printf("\nThe credential comes from the login, not the file: sign in first with\n")
 	fmt.Printf("  buildmax login --server %s   (as %s)\n", target.apiBase, smokeEmail)
-	fmt.Printf("Run `%s kind info` for a single-use code, then `buildmax models --team %s` to check.\n", mk(), teamID)
+	fmt.Printf("Run `%s kind info` for a single-use code, then `buildmax models --server` to check.\n", mk())
 	return nil
 }

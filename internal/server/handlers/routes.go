@@ -33,9 +33,11 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/plugins/{plugin_name}", h.getPluginHandler)
 	mux.HandleFunc("GET /api/plugins/{plugin_name}/releases/{version}/download", h.downloadPluginReleaseHandler)
 
-	// Managed LLM gateway
-	mux.HandleFunc("GET /api/teams/{team_id}/llm/models", h.listLLMModelsHandler)
-	mux.HandleFunc("POST /api/teams/{team_id}/llm/completions", h.llmCompletionsHandler)
+	// Managed LLM gateway. Not team-scoped: every catalog model is available to
+	// every signed-in user, and a call is attributed to the person who made it.
+	// See docs/design/client-modes.md.
+	mux.HandleFunc("GET /api/llm/models", h.listLLMModelsHandler)
+	mux.HandleFunc("POST /api/llm/completions", h.llmCompletionsHandler)
 
 	// WebSocket
 	mux.HandleFunc("GET /api/teams/{team_id}/ws", h.wsUpgradeHandler)

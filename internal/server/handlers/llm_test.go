@@ -12,6 +12,7 @@ import (
 
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	"github.com/gougoujiang/buildmax/internal/infra/llmwire"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
@@ -77,15 +78,16 @@ func (l *llmStubLedger) GetLLMCallByClientID(context.Context, string, string) (*
 	return nil, nil
 }
 
-// ListLLMCallsByTaskRun returns whatever the test staged, filtered the way the
-// real store filters, so a handler test cannot pass by ignoring the team.
-func (l *llmStubLedger) ListLLMCallsByTaskRun(_ context.Context, teamID, taskRunID string) ([]model.LLMCall, error) {
+// ListLLMCallsByTaskRun returns whatever the test staged, filtered by run the
+// way the real store does. The team is authorized by the handler before this is
+// reached, so there is nothing team-shaped to filter on here.
+func (l *llmStubLedger) ListLLMCallsByTaskRun(_ context.Context, taskRunID string) ([]model.LLMCall, error) {
 	if l.listErr != nil {
 		return nil, l.listErr
 	}
 	var out []model.LLMCall
 	for _, call := range l.calls {
-		if call.TeamID == teamID && call.TaskRunID != nil && *call.TaskRunID == taskRunID {
+		if call.TaskRunID != nil && *call.TaskRunID == taskRunID {
 			out = append(out, call)
 		}
 	}
@@ -127,16 +129,9 @@ func llmTestService(t *testing.T, client cllm.LLMClient, quota llmgateway.QuotaC
 	if err != nil {
 		t.Fatalf("NewStaticCatalog: %v", err)
 	}
-	policies, err := llmgateway.NewStaticPolicySource(llmgateway.TeamPolicy{
-		DefaultAlias: "default",
-		Aliases:      map[string]string{"default": "mt_fast"},
-	}, catalog.IDs())
-	if err != nil {
-		t.Fatalf("NewStaticPolicySource: %v", err)
-	}
 	return &llmgateway.Service{
 		Router: &llmgateway.Router{
-			Resolver: &llmgateway.Resolver{Catalog: catalog, Policies: policies},
+			Resolver: &llmgateway.Resolver{Catalog: catalog, DefaultModel: "Fast"},
 			Factory: func(context.Context, llmgateway.Target) (cllm.LLMClient, error) {
 				return client, nil
 			},
@@ -170,8 +165,8 @@ func llmRequest(t *testing.T, method, path, body string, gateway *llmgateway.Ser
 	return rec
 }
 
-func completionsPath() string { return "/api/teams/" + llmTestTeam + "/llm/completions" }
-func modelsPath() string      { return "/api/teams/" + llmTestTeam + "/llm/models" }
+func completionsPath() string { return llmwire.CompletionsPath }
+func modelsPath() string      { return llmwire.ModelsPath }
 
 const helloBody = `{"messages":[{"role":"user","content":"hello"}]}`
 
@@ -200,8 +195,8 @@ func TestLLMCompletionsSucceeds(t *testing.T) {
 	if resp.Content != "hi there" {
 		t.Errorf("content = %q, want %q", resp.Content, "hi there")
 	}
-	if resp.Model != "default" {
-		t.Errorf("model = %q, want the alias %q", resp.Model, "default")
+	if resp.Model != "Fast" {
+		t.Errorf("model = %q, want the catalog name %q", resp.Model, "Fast")
 	}
 	if resp.LLMCallID != "lc_stub" {
 		t.Errorf("llm_call_id = %q", resp.LLMCallID)
@@ -249,22 +244,12 @@ func TestLLMCompletionsErrorMapping(t *testing.T) {
 			wantStatus: http.StatusServiceUnavailable,
 		},
 		{
-			name:       "unknown alias",
-			body:       `{"model":"reasoning","messages":[{"role":"user","content":"hi"}]}`,
+			name:       "unknown model",
+			body:       `{"model":"Reasoning","messages":[{"role":"user","content":"hi"}]}`,
 			gateway:    func(t *testing.T) *llmgateway.Service { return llmTestService(t, &llmStubClient{}, nil) },
 			auth:       true,
 			wantStatus: http.StatusBadRequest,
-			wantCode:   llmgateway.ErrorClassUnknownAlias,
-		},
-		{
-			name: "over quota",
-			body: helloBody,
-			gateway: func(t *testing.T) *llmgateway.Service {
-				return llmTestService(t, &llmStubClient{content: "hi"}, llmDenyQuota{})
-			},
-			auth:       true,
-			wantStatus: http.StatusTooManyRequests,
-			wantCode:   llmgateway.ErrorClassQuotaExceeded,
+			wantCode:   llmgateway.ErrorClassTargetNotFound,
 		},
 		{
 			name: "upstream failure",
@@ -339,8 +324,16 @@ func TestLLMCompletionsHidesProviderDetail(t *testing.T) {
 	}
 }
 
-func TestLLMCompletionsRejectsNonMembers(t *testing.T) {
-	svc := llmTestService(t, &llmStubClient{content: "hi"}, nil)
+// TestLLMCompletionsAcceptsAnySignedInUser records the authorization this route
+// actually has: being signed in. Every catalog model is available to every user
+// of the deployment, so belonging to no team is not a reason to refuse — see
+// docs/design/client-modes.md section 5.
+//
+// A foreground call is also metered against no team, which is why quota does not
+// appear in this route's tests; the worker route carries a run's team and is
+// where quota is enforced.
+func TestLLMCompletionsAcceptsAnySignedInUser(t *testing.T) {
+	svc := llmTestService(t, &llmStubClient{content: "hi"}, llmDenyQuota{})
 	h := NewHandler(Config{
 		JWTSecret:  llmTestSecret,
 		TeamStore:  llmTestTeamStore(),
@@ -354,8 +347,8 @@ func TestLLMCompletionsRejectsNonMembers(t *testing.T) {
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
-	if rec.Code == http.StatusOK {
-		t.Fatalf("a non-member reached the gateway: %s", rec.Body)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("a signed-in user in no team was refused: %d %s", rec.Code, rec.Body)
 	}
 }
 
@@ -369,7 +362,6 @@ func TestLLMModelsListing(t *testing.T) {
 
 	var resp struct {
 		Models []struct {
-			Alias        string   `json:"alias"`
 			Name         string   `json:"name"`
 			Capabilities []string `json:"capabilities"`
 			Default      bool     `json:"default"`
@@ -381,7 +373,7 @@ func TestLLMModelsListing(t *testing.T) {
 	if len(resp.Models) != 1 {
 		t.Fatalf("got %d models, want 1", len(resp.Models))
 	}
-	if resp.Models[0].Alias != "default" || !resp.Models[0].Default {
+	if resp.Models[0].Name != "Fast" || !resp.Models[0].Default {
 		t.Errorf("model = %+v", resp.Models[0])
 	}
 	if len(resp.Models[0].Capabilities) != 4 {
@@ -436,13 +428,15 @@ func TestLLMStreamingEmitsTypedEvents(t *testing.T) {
 
 // TestLLMStreamingRefusalBeforeOutputIsAPlainError keeps a call refused before
 // any output on the normal HTTP error path, where the status still means
-// something to a client.
+// something to a client. An unknown model is the refusal used here because it,
+// like quota on the worker route, is decided before the upstream is reached.
 func TestLLMStreamingRefusalBeforeOutputIsAPlainError(t *testing.T) {
-	svc := llmTestService(t, &llmStubClient{content: "hi"}, llmDenyQuota{})
+	svc := llmTestService(t, &llmStubClient{content: "hi"}, nil)
+	body := `{"model":"Reasoning","stream":true,"messages":[{"role":"user","content":"hi"}]}`
 
-	rec := llmRequest(t, http.MethodPost, completionsPath(), streamBody, svc, true)
-	if rec.Code != http.StatusTooManyRequests {
-		t.Fatalf("status = %d, want 429: %s", rec.Code, rec.Body)
+	rec := llmRequest(t, http.MethodPost, completionsPath(), body, svc, true)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400: %s", rec.Code, rec.Body)
 	}
 	if ct := rec.Header().Get("Content-Type"); strings.Contains(ct, "event-stream") {
 		t.Errorf("a pre-output refusal opened a stream: %q", ct)

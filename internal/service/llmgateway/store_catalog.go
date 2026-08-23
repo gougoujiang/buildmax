@@ -35,6 +35,48 @@ func (c *StoreCatalog) Target(ctx context.Context, id string) (Target, error) {
 	return targetFromModel(*stored)
 }
 
+// TargetByName returns one approved upstream by its operator-facing name.
+//
+// The name column is unique, so this addresses exactly one row — which is what
+// lets a client name a model without learning its catalog ID.
+func (c *StoreCatalog) TargetByName(ctx context.Context, name string) (Target, error) {
+	if c == nil || c.Models == nil {
+		return Target{}, ErrCatalogNotConfigured
+	}
+	stored, err := c.Models.GetLLMModelByName(ctx, name)
+	if err != nil {
+		return Target{}, err
+	}
+	if stored == nil {
+		return Target{}, ErrTargetNotFound
+	}
+	return targetFromModel(*stored)
+}
+
+// List returns every stored target, oldest first.
+//
+// A row that cannot be converted is skipped rather than failing the listing: a
+// half-written row must not hide every other model from a client, and it still
+// fails its own calls in TargetByName.
+func (c *StoreCatalog) List(ctx context.Context) ([]Target, error) {
+	if c == nil || c.Models == nil {
+		return nil, ErrCatalogNotConfigured
+	}
+	stored, err := c.Models.ListLLMModels(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Target, 0, len(stored))
+	for _, m := range stored {
+		target, err := targetFromModel(m)
+		if err != nil {
+			continue
+		}
+		out = append(out, target)
+	}
+	return out, nil
+}
+
 // IDs returns every catalog ID, for callers that need to check a reference.
 func (c *StoreCatalog) IDs(ctx context.Context) ([]string, error) {
 	if c == nil || c.Models == nil {

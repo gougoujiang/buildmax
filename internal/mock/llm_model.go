@@ -67,6 +67,22 @@ func (m *MockLLMModelStore) GetLLMModel(_ context.Context, llmModelID string) (*
 	return nil, nil
 }
 
+func (m *MockLLMModelStore) GetLLMModelByName(_ context.Context, name string) (*model.LLMModel, error) {
+	if m.Err != nil {
+		return nil, m.Err
+	}
+	if name == "" {
+		return nil, nil
+	}
+	for i := range m.Models {
+		if m.Models[i].Name == name {
+			found := m.Models[i]
+			return &found, nil
+		}
+	}
+	return nil, nil
+}
+
 func (m *MockLLMModelStore) ListLLMModels(_ context.Context) ([]model.LLMModel, error) {
 	if m.Err != nil {
 		return nil, m.Err

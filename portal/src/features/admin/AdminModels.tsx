@@ -6,9 +6,9 @@ import { listAdminModels, setAdminModelEnabled } from "./api"
 /**
  * AdminModels shows which models this deployment will call.
  *
- * A model is only usable when it is enabled *and* an alias points at it, and a
- * catalog that showed only the first would leave the most common failure
- * — "the model is on and nothing can call it" — invisible.
+ * Every enabled model is callable by every user of the deployment, so enabled
+ * state is the whole answer to whether a row can be used. One of them is the
+ * default, which is what a caller that names no model gets.
  *
  * Adding a model is a command rather than a form. The catalog holds provider
  * credentials, and a key typed into a browser travels through a request body
@@ -16,7 +16,7 @@ import { listAdminModels, setAdminModelEnabled } from "./api"
  */
 export function AdminModels({ token }: { token: string | null }) {
   const [models, setModels] = useState<ApiAdminModel[]>([])
-  const [defaultAlias, setDefaultAlias] = useState<string | undefined>()
+  const [defaultModel, setDefaultModel] = useState<string | undefined>()
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -28,7 +28,7 @@ export function AdminModels({ token }: { token: string | null }) {
     listAdminModels(token)
       .then((res) => {
         setModels(res.models)
-        setDefaultAlias(res.default_alias)
+        setDefaultModel(res.default_model)
       })
       .catch((err) => setError(getErrorMessage(err, "Failed to load the model catalog")))
       .finally(() => setLoading(false))
@@ -42,7 +42,7 @@ export function AdminModels({ token }: { token: string | null }) {
       entry.enabled &&
       !window.confirm(
         `Retire ${entry.name}?\n\n` +
-          "Teams stop being able to call it. Nothing is deleted and no credential " +
+          "Callers stop being able to name it. Nothing is deleted and no credential " +
           "changes — enabling it again restores it.",
       )
     )
@@ -63,7 +63,7 @@ export function AdminModels({ token }: { token: string | null }) {
             <h2 className="settings-page__section-title">Models</h2>
             <p className="settings-page__section-copy">
               The upstreams this deployment will call.
-              {defaultAlias ? ` Callers that name no alias get “${defaultAlias}”.` : ""}
+              {defaultModel ? ` Callers that name no model get “${defaultModel}”.` : ""}
             </p>
           </div>
         </div>
@@ -89,13 +89,9 @@ export function AdminModels({ token }: { token: string | null }) {
                 <span className={entry.enabled ? "admin-pill admin-pill--ok" : "admin-pill"}>
                   {entry.enabled ? "enabled" : "retired"}
                 </span>
-                {entry.aliases.length > 0 ? (
-                  <span className="admin-list__meta">{entry.aliases.join(", ")}</span>
-                ) : (
-                  // Enabled and unreachable is a state worth naming, because
-                  // nothing else in the product reports it.
-                  <span className="admin-pill admin-pill--bad">no alias</span>
-                )}
+                {entry.name === defaultModel ? (
+                  <span className="admin-list__meta">default</span>
+                ) : null}
                 <button
                   type="button"
                   className={entry.enabled ? "admin-button admin-button--danger" : "admin-button"}

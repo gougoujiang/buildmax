@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 
@@ -58,10 +59,32 @@ func (m *fakeModels) GetLLMModel(_ context.Context, id string) (*model.LLMModel,
 	return &row, nil
 }
 
+func (m *fakeModels) GetLLMModelByName(_ context.Context, name string) (*model.LLMModel, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	for _, row := range m.rows {
+		if row.Name == name {
+			return &row, nil
+		}
+	}
+	return nil, nil
+}
+
+// Sorted by ID, so a listing and the default it implies do not move between
+// calls the way ranging over a map would.
 func (m *fakeModels) ListLLMModels(context.Context) ([]model.LLMModel, error) {
-	out := make([]model.LLMModel, 0, len(m.rows))
-	for _, r := range m.rows {
-		out = append(out, r)
+	if m.err != nil {
+		return nil, m.err
+	}
+	ids := make([]string, 0, len(m.rows))
+	for id := range m.rows {
+		ids = append(ids, id)
+	}
+	slices.Sort(ids)
+	out := make([]model.LLMModel, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, m.rows[id])
 	}
 	return out, nil
 }
@@ -126,8 +149,8 @@ func TestBuildLLMRoutingDerivesConversationTarget(t *testing.T) {
 	if got := routed.Resolution.Target.UpstreamModel; got != "openai/gpt-4o" {
 		t.Errorf("UpstreamModel = %q, want %q", got, "openai/gpt-4o")
 	}
-	if routed.Resolution.Alias != "" {
-		t.Errorf("Alias = %q, want empty for a deployment-owned target", routed.Resolution.Alias)
+	if routed.Resolution.Name != "" {
+		t.Errorf("Name = %q, want empty for a deployment-owned target", routed.Resolution.Name)
 	}
 }
 
@@ -136,10 +159,7 @@ func TestBuildLLMRoutingDerivesConversationTarget(t *testing.T) {
 func TestBuildLLMRoutingServesStoredModels(t *testing.T) {
 	sc := config.ServerConfig{
 		Conversation: config.ServerConvConfig{Model: conversationModel()},
-		LLM: config.ServerLLMConfig{
-			DefaultAlias: "default",
-			Aliases:      map[string]string{"default": "lm_fast"},
-		},
+		LLM:          config.ServerLLMConfig{DefaultModel: "LM_FAST"},
 	}
 
 	routing, err := buildLLMRouting(sc, newFakeModels(catalogRow("lm_fast")))
@@ -147,7 +167,7 @@ func TestBuildLLMRoutingServesStoredModels(t *testing.T) {
 		t.Fatalf("buildLLMRouting: %v", err)
 	}
 
-	routed, err := routing.Router.ClientFor(context.Background(), llmgateway.ResolveRequest{TeamID: "tm_one"})
+	routed, err := routing.Router.ClientFor(context.Background(), llmgateway.ResolveRequest{})
 	if err != nil {
 		t.Fatalf("ClientFor: %v", err)
 	}
@@ -165,47 +185,75 @@ func TestBuildLLMRoutingServesStoredModels(t *testing.T) {
 }
 
 // TestBuildLLMRoutingSurvivesAnEmptyCatalog records the state a fresh
-// deployment is in before an operator runs `buildmax-server model add`.
+// deployment is in before an operator runs `buildmax-server model add`: the
+// model derived from conversation.model is the whole catalog, and it answers.
 func TestBuildLLMRoutingSurvivesAnEmptyCatalog(t *testing.T) {
-	sc := config.ServerConfig{
-		Conversation: config.ServerConvConfig{Model: conversationModel()},
-		LLM: config.ServerLLMConfig{
-			DefaultAlias: "default",
-			Aliases:      map[string]string{"default": "lm_missing"},
-		},
-	}
+	sc := config.ServerConfig{Conversation: config.ServerConvConfig{Model: conversationModel()}}
 
 	routing, err := buildLLMRouting(sc, newFakeModels())
 	if err != nil {
-		t.Fatalf("an alias with no model row failed startup: %v", err)
+		t.Fatalf("an empty catalog failed startup: %v", err)
 	}
 	// Tier 1 still works.
 	if _, err := routing.Router.ClientForTarget(context.Background(), conversationTargetID, nil); err != nil {
 		t.Errorf("ClientForTarget: %v", err)
 	}
-	// The dangling alias fails its own call and is skipped in listings.
-	if _, err := routing.Router.ClientFor(context.Background(), llmgateway.ResolveRequest{TeamID: "tm_one"}); !errors.Is(err, llmgateway.ErrTargetNotFound) {
-		t.Errorf("want ErrTargetNotFound, got %v", err)
+	routed, err := routing.Router.ClientFor(context.Background(), llmgateway.ResolveRequest{})
+	if err != nil {
+		t.Fatalf("ClientFor: %v", err)
 	}
-	models, err := routing.Router.Available(context.Background(), "tm_one")
+	if routed.Resolution.Name != "GPT-4o" {
+		t.Errorf("Name = %q, want the derived conversation model", routed.Resolution.Name)
+	}
+	models, err := routing.Router.Available(context.Background())
 	if err != nil {
 		t.Fatalf("Available: %v", err)
 	}
-	if len(models) != 0 {
-		t.Errorf("Available returned %d models for a dangling alias", len(models))
+	if len(models) != 1 || models[0].Name != "GPT-4o" || !models[0].Default {
+		t.Errorf("Available = %+v, want the derived model marked default", models)
 	}
 }
 
-// TestBuildLLMRoutingDeniesTeamsByDefault records that a catalog is not a grant.
-func TestBuildLLMRoutingDeniesTeamsByDefault(t *testing.T) {
+// TestBuildLLMRoutingConfiguredDefaultMustExist is the startup guard: a name in
+// server.yaml that resolves to nothing is a configuration mistake.
+func TestBuildLLMRoutingConfiguredDefaultMustExist(t *testing.T) {
+	sc := config.ServerConfig{
+		Conversation: config.ServerConvConfig{Model: conversationModel()},
+		LLM:          config.ServerLLMConfig{DefaultModel: "Gone"},
+	}
+
+	routing, err := buildLLMRouting(sc, newFakeModels(catalogRow("lm_fast")))
+	if err != nil {
+		t.Fatalf("buildLLMRouting: %v", err)
+	}
+	// buildLLMRouting itself does not read the catalog; the wiring step does.
+	if err := validateConfiguredModels(context.Background(), routing, sc); err == nil {
+		t.Fatal("a default_model naming no row was accepted")
+	} else if !strings.Contains(err.Error(), "llm.default_model") {
+		t.Errorf("the error does not name the field: %v", err)
+	}
+
+	sc.LLM.DefaultModel = "LM_FAST"
+	if err := validateConfiguredModels(context.Background(), routing, sc); err != nil {
+		t.Errorf("a default_model naming a real row was rejected: %v", err)
+	}
+}
+
+// TestBuildLLMRoutingServesEveryCatalogModel records that the catalog is the
+// grant: every model in it is callable, with no per-team policy in between.
+func TestBuildLLMRoutingServesEveryCatalogModel(t *testing.T) {
 	sc := config.ServerConfig{Conversation: config.ServerConvConfig{Model: conversationModel()}}
 
 	routing, err := buildLLMRouting(sc, newFakeModels(catalogRow("lm_fast")))
 	if err != nil {
 		t.Fatalf("buildLLMRouting: %v", err)
 	}
-	if _, err := routing.Router.ClientFor(context.Background(), llmgateway.ResolveRequest{TeamID: "tm_one"}); !errors.Is(err, llmgateway.ErrTeamNotAuthorized) {
-		t.Errorf("want ErrTeamNotAuthorized, got %v", err)
+	routed, err := routing.Router.ClientFor(context.Background(), llmgateway.ResolveRequest{Name: "LM_FAST"})
+	if err != nil {
+		t.Fatalf("ClientFor: %v", err)
+	}
+	if routed.Resolution.Target.ID != "lm_fast" {
+		t.Errorf("Target.ID = %q, want %q", routed.Resolution.Target.ID, "lm_fast")
 	}
 	if _, err := routing.Router.ClientForTarget(context.Background(), conversationTargetID, nil); err != nil {
 		t.Errorf("the deployment's own model stopped resolving: %v", err)
@@ -233,50 +281,17 @@ func TestBuildLLMRoutingTier1UsesAStoredModel(t *testing.T) {
 	}
 }
 
-func TestBuildLLMRoutingRejectsBadAliases(t *testing.T) {
-	tests := []struct {
-		name    string
-		llm     config.ServerLLMConfig
-		wantErr string
-	}{
-		{
-			name:    "alias maps to nothing",
-			llm:     config.ServerLLMConfig{Aliases: map[string]string{"default": ""}},
-			wantErr: "maps to no target",
-		},
-		{
-			name:    "several aliases without a default",
-			llm:     config.ServerLLMConfig{Aliases: map[string]string{"a": "lm_fast", "b": "lm_fast"}},
-			wantErr: "no default alias",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			_, err := buildLLMRouting(config.ServerConfig{LLM: tc.llm}, newFakeModels())
-			if err == nil {
-				t.Fatal("buildLLMRouting accepted the config")
-			}
-			if !strings.Contains(err.Error(), tc.wantErr) {
-				t.Errorf("error %q does not mention %q", err, tc.wantErr)
-			}
-		})
-	}
-}
-
 // TestStoredModelWithoutACredentialFails keeps a half-written catalog row from
 // producing a client pointed at a provider with no key.
 func TestStoredModelWithoutACredentialFails(t *testing.T) {
 	models := newFakeModels(catalogRow("lm_fast"))
 	models.credentials["lm_fast"] = ""
 
-	routing, err := buildLLMRouting(config.ServerConfig{
-		LLM: config.ServerLLMConfig{Aliases: map[string]string{"only": "lm_fast"}},
-	}, models)
+	routing, err := buildLLMRouting(config.ServerConfig{}, models)
 	if err != nil {
 		t.Fatalf("buildLLMRouting: %v", err)
 	}
-	_, err = routing.Router.ClientFor(context.Background(), llmgateway.ResolveRequest{TeamID: "tm_one"})
+	_, err = routing.Router.ClientFor(context.Background(), llmgateway.ResolveRequest{Name: "LM_FAST"})
 	if err == nil || !strings.Contains(err.Error(), "no credential stored") {
 		t.Fatalf("want a missing-credential error, got %v", err)
 	}
@@ -288,13 +303,11 @@ func TestStoredModelRowIsValidatedOnRead(t *testing.T) {
 	broken := catalogRow("lm_broken")
 	broken.APIURL = ""
 
-	routing, err := buildLLMRouting(config.ServerConfig{
-		LLM: config.ServerLLMConfig{Aliases: map[string]string{"only": "lm_broken"}},
-	}, newFakeModels(broken))
+	routing, err := buildLLMRouting(config.ServerConfig{}, newFakeModels(broken))
 	if err != nil {
 		t.Fatalf("buildLLMRouting: %v", err)
 	}
-	if _, err := routing.Router.ClientFor(context.Background(), llmgateway.ResolveRequest{TeamID: "tm_one"}); !errors.Is(err, llmgateway.ErrInvalidCatalog) {
+	if _, err := routing.Router.ClientFor(context.Background(), llmgateway.ResolveRequest{Name: "LM_BROKEN"}); !errors.Is(err, llmgateway.ErrInvalidCatalog) {
 		t.Fatalf("want ErrInvalidCatalog, got %v", err)
 	}
 }
@@ -361,13 +374,11 @@ func TestLLMRoutingErrorsCarryNoCredential(t *testing.T) {
 	models.credentials["lm_fast"] = secret
 	models.err = errors.New("catalog unavailable")
 
-	routing, err := buildLLMRouting(config.ServerConfig{
-		LLM: config.ServerLLMConfig{Aliases: map[string]string{"only": "lm_fast"}},
-	}, models)
+	routing, err := buildLLMRouting(config.ServerConfig{}, models)
 	if err != nil {
 		t.Fatalf("buildLLMRouting: %v", err)
 	}
-	if _, err := routing.Router.ClientFor(context.Background(), llmgateway.ResolveRequest{TeamID: "tm_one"}); err == nil {
+	if _, err := routing.Router.ClientFor(context.Background(), llmgateway.ResolveRequest{Name: "LM_FAST"}); err == nil {
 		t.Fatal("a failing catalog produced a client")
 	} else if strings.Contains(err.Error(), secret) {
 		t.Errorf("the error leaked the credential: %v", err)
@@ -404,15 +415,17 @@ func TestWireLLMPreservesExistingDeployments(t *testing.T) {
 	}
 }
 
-func TestWireLLMFailsStartupOnBadAliases(t *testing.T) {
+// A default_model that names nothing must stop the server, not surface later as
+// a model outage on every session's first call.
+func TestWireLLMFailsStartupOnAnUnknownDefaultModel(t *testing.T) {
 	var cfg httpserver.Config
 	sc := config.ServerConfig{
 		Conversation: config.ServerConvConfig{Model: conversationModel()},
-		LLM:          config.ServerLLMConfig{Aliases: map[string]string{"default": ""}},
+		LLM:          config.ServerLLMConfig{DefaultModel: "Gone"},
 	}
 
 	if err := wireLLM(&cfg, sc, nil, nil); err == nil {
-		t.Fatal("an alias mapping to nothing did not fail startup")
+		t.Fatal("a default_model naming nothing did not fail startup")
 	}
 	if cfg.Conv.ConversationLLMClient != nil {
 		t.Error("a failed wiring left a client behind")
@@ -440,16 +453,13 @@ func TestStoredModelOutputCapReachesTheUpstream(t *testing.T) {
 
 	sc := config.ServerConfig{
 		Conversation: config.ServerConvConfig{Model: conversationModel()},
-		LLM: config.ServerLLMConfig{
-			DefaultAlias: "default",
-			Aliases:      map[string]string{"default": "lm_capped"},
-		},
+		LLM:          config.ServerLLMConfig{DefaultModel: "LM_CAPPED"},
 	}
 	routing, err := buildLLMRouting(sc, newFakeModels(row))
 	if err != nil {
 		t.Fatalf("buildLLMRouting: %v", err)
 	}
-	routed, err := routing.Router.ClientFor(context.Background(), llmgateway.ResolveRequest{TeamID: "tm_one"})
+	routed, err := routing.Router.ClientFor(context.Background(), llmgateway.ResolveRequest{})
 	if err != nil {
 		t.Fatalf("ClientFor: %v", err)
 	}
@@ -496,10 +506,7 @@ func TestConversationModelCachePolicyReachesTheUpstream(t *testing.T) {
 
 			sc := config.ServerConfig{
 				Conversation: config.ServerConvConfig{Model: conversationModel(), ModelTarget: "lm_tier1"},
-				LLM: config.ServerLLMConfig{
-					DefaultAlias: "default",
-					Aliases:      map[string]string{"default": "lm_tier1"},
-				},
+				LLM:          config.ServerLLMConfig{DefaultModel: "LM_TIER1"},
 			}
 			routing, err := buildLLMRouting(sc, newFakeModels(row))
 			if err != nil {

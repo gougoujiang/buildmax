@@ -93,10 +93,6 @@ func RunServer(ctx context.Context, portOverride int) error {
 		port = 5678
 	}
 
-	if err := validateWorkerLLM(sc); err != nil {
-		return err
-	}
-
 	workspacesDir, err := resolveWorkspacesDir(sc.WorkspacesDir)
 	if err != nil {
 		return err
@@ -357,8 +353,7 @@ func deploymentInfoFor(sc config.ServerConfig) admin.DeploymentInfo {
 	}
 	return admin.DeploymentInfo{
 		Version:            config.VersionString(),
-		ModelAliases:       sc.LLM.Aliases,
-		DefaultModelAlias:  sc.LLM.DefaultAlias,
+		DefaultModel:       sc.LLM.DefaultModel,
 		WorkerRunMode:      runMode,
 		WorkerLLMTransport: transport,
 		AllowSignup:        sc.AllowSignup,
@@ -397,6 +392,12 @@ func wireLLM(cfg *httpserver.Config, sc config.ServerConfig, st *db.Store, quota
 	if routing == nil {
 		return nil
 	}
+	// Startup, not first call: a name in server.yaml that resolves to nothing is
+	// a configuration mistake, and it should stop the server rather than surface
+	// later as a model outage.
+	if err := validateConfiguredModels(context.Background(), routing, sc); err != nil {
+		return err
+	}
 
 	// The gateway needs a ledger. Without a store there is nowhere to account
 	// managed calls, so it stays off rather than serving unmetered inference.
@@ -429,7 +430,7 @@ func runTokenMinter(sc config.ServerConfig, jwtSecret string) scheduler.MintRunT
 	ttl := sc.Worker.RunTokenTTL
 	if sc.Worker.LLM.Managed() {
 		slog.Info("task runs use managed inference and hold no provider credential",
-			"alias", sc.Worker.LLM.Alias, "run_token_ttl", ttl)
+			"model", sc.Worker.LLM.Model, "run_token_ttl", ttl)
 	}
 	return func(claims authtoken.RunClaims) (string, error) {
 		return authtoken.MintRun(jwtSecret, claims, ttl, time.Now())
@@ -437,8 +438,8 @@ func runTokenMinter(sc config.ServerConfig, jwtSecret string) scheduler.MintRunT
 }
 
 // workerLLMDescriptor is what a worker is told about models for its run. It
-// carries an alias and nothing else — the endpoint, the upstream model, and the
-// credential stay on the server.
+// carries a model name and nothing else — the endpoint, the upstream model, and
+// the credential stay on the server.
 //
 // Nil means direct, so a deployment that has not enabled managed inference sends
 // the field at all.
@@ -448,33 +449,40 @@ func workerLLMDescriptor(wc config.ServerWorkerLLMConfig) *workerclient.TaskRunL
 	}
 	return &workerclient.TaskRunLLM{
 		Transport:     config.TransportBuildMax,
-		Alias:         wc.Alias,
+		Model:         wc.Model,
 		ContextWindow: wc.ContextWindow,
 		CallTimeout:   wc.CallTimeout,
 	}
 }
 
-// validateWorkerLLM rejects a deployment that asks for managed worker inference
-// it cannot serve.
+// validateConfiguredModels rejects a server.yaml that names a model the catalog
+// does not have.
 //
-// Without this, `worker.llm.transport: buildmax` with no `llm.aliases` parses
-// cleanly and then fails every run at its first model call, which reads as a
-// model outage rather than a configuration mistake.
-func validateWorkerLLM(sc config.ServerConfig) error {
-	if !sc.Worker.LLM.Managed() {
+// It runs against the assembled catalog rather than against configuration alone
+// because the catalog is a table: only a lookup can tell a real name from a
+// typo. An empty catalog is not an error — an operator may add rows after
+// starting the server — but a name that was written down and resolves to
+// nothing is, since it parses cleanly and would then fail every call that
+// relied on it.
+func validateConfiguredModels(ctx context.Context, routing *llmRouting, sc config.ServerConfig) error {
+	if routing == nil || routing.Router == nil || routing.Router.Resolver == nil {
 		return nil
 	}
-	if len(sc.LLM.Aliases) == 0 {
-		return fmt.Errorf("worker.llm.transport is %q but llm.aliases is empty, so no team may call the gateway",
-			config.TransportBuildMax)
-	}
-	if alias := sc.Worker.LLM.Alias; alias != "" {
-		if _, ok := sc.LLM.Aliases[alias]; !ok {
-			return fmt.Errorf("worker.llm.alias %q is not one of llm.aliases", alias)
+	catalog := routing.Router.Resolver.Catalog
+	check := func(field, name string) error {
+		if name == "" {
+			return nil
 		}
-	} else if sc.LLM.DefaultAlias == "" && len(sc.LLM.Aliases) > 1 {
-		return fmt.Errorf("worker.llm.alias is unset and llm.default_alias does not say which of %d aliases a run should use",
-			len(sc.LLM.Aliases))
+		if _, err := catalog.TargetByName(ctx, name); err != nil {
+			return fmt.Errorf("%s names %q, which is not in the model catalog: %w", field, name, err)
+		}
+		return nil
+	}
+	if err := check("llm.default_model", sc.LLM.DefaultModel); err != nil {
+		return err
+	}
+	if sc.Worker.LLM.Managed() {
+		return check("worker.llm.model", sc.Worker.LLM.Model)
 	}
 	return nil
 }

@@ -178,7 +178,7 @@
   color: var(--color-text-muted);
 }
 
-.run-trace__aliases,
+.run-trace__models,
 .run-trace__calls {
   margin: 0;
   padding: 0;
@@ -193,7 +193,7 @@
   overflow-y: auto;
 }
 
-.run-trace__aliases li,
+.run-trace__models li,
 .run-trace__call {
   display: flex;
   align-items: baseline;
@@ -202,7 +202,7 @@
   color: var(--color-text-muted);
 }
 
-.run-trace__call-alias {
+.run-trace__call-model {
   font-weight: 600;
   color: var(--color-text);
   flex: 0 0 auto;
@@ -234,7 +234,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-.run-trace__call--failed .run-trace__call-alias {
+.run-trace__call--failed .run-trace__call-model {
   color: var(--color-warning);
 }
 

@@ -137,7 +137,11 @@ func checkSettings(ctx context.Context) (config.Settings, []doctorCheck) {
 		Title:    "settings.yaml",
 		Detail:   path,
 	}}
+	checks = append(checks, checkMode(ctx))
 	checks = append(checks, checkModels(ctx, settings)...)
+	if check, ok := checkDefaultModel(settings); ok {
+		checks = append(checks, check)
+	}
 	return settings, checks
 }
 
@@ -166,10 +170,6 @@ func checkModels(ctx context.Context, settings config.Settings) []doctorCheck {
 				Detail:   "model id is empty",
 				Next:     "Set the model field, for example `openai/gpt-4o-mini`.",
 			})
-			continue
-		}
-		if m.IsManaged() {
-			checks = append(checks, checkManagedModel(i, title, display, sev, m))
 			continue
 		}
 		if m.LLMProvider() == config.LLMProviderOllama {
@@ -207,44 +207,71 @@ func checkModels(ctx context.Context, settings config.Settings) []doctorCheck {
 	return checks
 }
 
-// checkManagedModel reports whether a transport: buildmax entry can actually be
-// used. It checks the login too, because an entry that looks complete still
-// fails at the first call when the stored credential belongs elsewhere or has
-// expired.
-func checkManagedModel(index int, title, display string, sev doctorSeverity, m config.ModelEntry) doctorCheck {
-	if strings.TrimSpace(m.ServerURL) == "" {
+// checkMode reports which mode this machine is in and whether it works.
+//
+// It comes before the settings.yaml model checks because it decides whether
+// those models are the ones a session will actually use. In managed mode they
+// are not — but they are still checked, because `buildmax logout` is one command
+// away and a broken local file should not be a surprise waiting there.
+func checkMode(ctx context.Context) doctorCheck {
+	creds, err := auth.StoredLogin()
+	if err != nil {
 		return doctorCheck{
-			Severity: sev,
-			Title:    title,
-			Detail:   fmt.Sprintf("%s uses transport %s but has no server_url", display, config.TransportBuildMax),
-			Next:     "Set server_url to the BuildMax server this model runs on.",
+			Severity: doctorWarn,
+			Title:    "mode",
+			Detail:   fmt.Sprintf("cannot read the stored login: %v", err),
+			Next:     "Run `buildmax login` to sign in again, or `buildmax logout` to use local models.",
 		}
 	}
-	if strings.TrimSpace(m.TeamID) == "" {
+	if creds == nil {
 		return doctorCheck{
-			Severity: sev,
-			Title:    title,
-			Detail:   fmt.Sprintf("%s uses transport %s but has no team_id", display, config.TransportBuildMax),
-			Next:     "Set team_id, then run `buildmax models --team <team_id>` to see its aliases.",
+			Severity: doctorOK,
+			Title:    "mode",
+			Detail:   "local: models come from settings.yaml and prompts go straight to their providers",
 		}
 	}
-	if err := auth.CanAuthenticate(m.ServerURL); err != nil {
+	if _, err := auth.ResolveModelSource(ctx); err != nil {
 		return doctorCheck{
-			Severity: sev,
-			Title:    title,
-			Detail:   fmt.Sprintf("%s cannot authenticate: %v", display, err),
-			Next:     fmt.Sprintf("Run `buildmax login` against %s.", m.ServerURL),
+			Severity: doctorFail,
+			Title:    "mode",
+			Detail:   fmt.Sprintf("signed in to %s, but its models cannot be read: %v", creds.ServerURL, err),
+			Next:     fmt.Sprintf("Run `buildmax login` against %s, or `buildmax logout` to use the models in settings.yaml.", creds.ServerURL),
 		}
-	}
-	suffix := ""
-	if index == 0 {
-		suffix = " (default)"
 	}
 	return doctorCheck{
 		Severity: doctorOK,
-		Title:    title,
-		Detail:   fmt.Sprintf("%s -> %s team %s%s", display, m.ServerURL, m.TeamID, suffix),
+		Title:    "mode",
+		Detail:   fmt.Sprintf("signed in to %s: its models serve every prompt", creds.ServerURL),
 	}
+}
+
+// checkDefaultModel reports a default_model that names no entry. It resolves to
+// the first entry instead, which is a working session against a model the file
+// says is not the default — worth naming rather than leaving to be noticed.
+func checkDefaultModel(settings config.Settings) (doctorCheck, bool) {
+	name := strings.TrimSpace(settings.DefaultModel)
+	if name == "" {
+		return doctorCheck{}, false
+	}
+	for _, m := range settings.Models {
+		display := m.Name
+		if display == "" {
+			display = m.Model
+		}
+		if display == name || m.Model == name {
+			return doctorCheck{
+				Severity: doctorOK,
+				Title:    "default_model",
+				Detail:   fmt.Sprintf("%s starts every new session", name),
+			}, true
+		}
+	}
+	return doctorCheck{
+		Severity: doctorWarn,
+		Title:    "default_model",
+		Detail:   fmt.Sprintf("%q matches no entry in models, so the first one is used instead", name),
+		Next:     "Set default_model to one of the names `buildmax models` lists, or remove it.",
+	}, true
 }
 
 // doctorOllamaTimeout bounds the two calls this check makes to a local daemon.

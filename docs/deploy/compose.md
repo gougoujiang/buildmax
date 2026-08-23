@@ -43,7 +43,7 @@ instead of a provider:
 
 That variant proves the thing the default one cannot: the worker completes a
 real task while holding no provider credential. It checks the run's trace
-records the team alias as its model, which a worker that had quietly used a
+records the catalog model name as its model, which a worker that had quietly used a
 provider key could not produce. The two are separate stacks because transport
 is startup configuration — one server cannot serve both — and both modes need
 end-to-end coverage. Switching between them recreates the server container.

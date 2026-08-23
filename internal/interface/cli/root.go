@@ -13,6 +13,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/agentapp"
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/session"
+	"github.com/gougoujiang/buildmax/internal/interface/auth"
 
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
@@ -177,6 +178,13 @@ func parseOutputFormat(s string) (OutputFormat, error) {
 // one has a different next step, and "No model configured" answered none of
 // them for a first-time user.
 func checkModelConfig() error {
+	// A session with stored credentials runs on the deployment's models, so
+	// settings.yaml having none is not a reason to refuse. Whether that
+	// deployment answers — and whether the login still works — is checked where
+	// its list is fetched, which reports what actually failed.
+	if creds, err := auth.StoredLogin(); err == nil && creds != nil {
+		return nil
+	}
 	path := config.SettingsPath()
 	s, err := config.LoadSettings()
 	if err != nil {
@@ -197,8 +205,7 @@ func checkModelConfig() error {
 	// A local provider carries no credential, so an empty key there is the
 	// configured state rather than an unfinished one.
 	first := s.Models[0]
-	if !first.IsManaged() && config.LLMProviderNeedsAPIKey(first.LLMProvider()) &&
-		strings.TrimSpace(first.APIKey) == "" {
+	if config.LLMProviderNeedsAPIKey(first.LLMProvider()) && strings.TrimSpace(first.APIKey) == "" {
 		fmt.Fprintf(os.Stderr, "The first model in %s has no api_key.\n\n"+
 			"Add one, or use a local model with `buildmax init --ollama`.\n", path)
 		return errors.New("api key not set")
