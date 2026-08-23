@@ -108,3 +108,123 @@ func TestSlashPopupStaysDismissedUntilInputChanges(t *testing.T) {
 		t.Fatal("typing after a dismissal should open the popup again")
 	}
 }
+
+// TestSlashModelPanelScrollsToTheSelection is the defect a trimmed list has
+// that a short one does not: selection walks the whole list, so an entry past
+// the fold could be switched to without ever being on screen — and the "… N
+// more" row said so without offering any way to reach them.
+func TestSlashModelPanelScrollsToTheSelection(t *testing.T) {
+	const total = 20
+	home := t.TempDir()
+	t.Setenv(config.EnvKeyBuildmaxHome, home)
+	writeTestSettings(t, manyModelsSettings(total))
+
+	m := NewModel(TUIOpts{
+		App:       testAgentApp(t, home),
+		Session:   testSessionContext(),
+		ModelName: "Model 01",
+	})
+	sized, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 24})
+	opened, _ := dispatchSlashCommand(sized.(*Model), "/model")
+	mod := opened.(*Model)
+	if len(mod.slashModel.Entries) != total {
+		t.Fatalf("entries = %d, want %d", len(mod.slashModel.Entries), total)
+	}
+	rows := mod.modelRowBudget(mod.slashModel)
+	if rows >= total {
+		t.Fatalf("row budget %d fits all %d models, so this test proves nothing", rows, total)
+	}
+
+	// Walk to the last entry. Every step must leave the selected row visible.
+	for range total - 1 {
+		next, _ := mod.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+		mod = next.(*Model)
+		content := mod.buildSlashModelContent(100)
+		selected := mod.slashModel.Entries[mod.slashModel.Selected].Name
+		if !strings.Contains(cursorRow(content), selected) {
+			t.Fatalf("selection %q is off screen:\n%s", selected, content)
+		}
+	}
+	if got := mod.slashModel.Selected; got != total-1 {
+		t.Fatalf("selected = %d, want the last entry %d", got, total-1)
+	}
+	// At the bottom there is nothing below, so the panel says nothing about it.
+	if strings.Contains(mod.buildSlashModelContent(100), "more") {
+		t.Errorf("panel still claims entries below the last one:\n%s", mod.buildSlashModelContent(100))
+	}
+
+	// One more step wraps to the top, and the window has to come back with it.
+	wrapped, _ := mod.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	mod = wrapped.(*Model)
+	if mod.slashModel.Offset != 0 {
+		t.Errorf("offset = %d, want 0 after wrapping to the first entry", mod.slashModel.Offset)
+	}
+}
+
+// cursorRow returns the row the panel drew its selection cursor on, or "" when
+// it drew none — which is the failure these tests are looking for.
+func cursorRow(content string) string {
+	for _, line := range strings.Split(content, "\n") {
+		if strings.HasPrefix(line, "› ") {
+			return line
+		}
+	}
+	return ""
+}
+
+// TestSlashModelPanelOpensOnTheCurrentModel keeps the panel useful when the
+// model in use is one of the ones past the fold: it opens showing the cursor,
+// not the top of a list the cursor is not on.
+func TestSlashModelPanelOpensOnTheCurrentModel(t *testing.T) {
+	const total = 20
+	home := t.TempDir()
+	t.Setenv(config.EnvKeyBuildmaxHome, home)
+	writeTestSettings(t, manyModelsSettings(total))
+
+	m := NewModel(TUIOpts{
+		App:       testAgentApp(t, home),
+		Session:   testSessionContext(),
+		ModelName: "Model 20",
+	})
+	sized, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 24})
+	opened, _ := dispatchSlashCommand(sized.(*Model), "/model")
+	mod := opened.(*Model)
+
+	content := mod.buildSlashModelContent(100)
+	if !strings.Contains(cursorRow(content), "Model 20") {
+		t.Fatalf("panel should open on the model in use:\n%s", content)
+	}
+	if !strings.Contains(cursorRow(content), "*") {
+		t.Errorf("the model in use should still be marked as current:\n%s", content)
+	}
+}
+
+// TestSlashModelPanelSurvivesShrinking covers a panel that is open and scrolled
+// when the terminal gets shorter: the window has to move back inside the list
+// rather than leaving the bottom rows blank.
+func TestSlashModelPanelSurvivesShrinking(t *testing.T) {
+	const total = 20
+	home := t.TempDir()
+	t.Setenv(config.EnvKeyBuildmaxHome, home)
+	writeTestSettings(t, manyModelsSettings(total))
+
+	m := NewModel(TUIOpts{
+		App:       testAgentApp(t, home),
+		Session:   testSessionContext(),
+		ModelName: "Model 20",
+	})
+	sized, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
+	opened, _ := dispatchSlashCommand(sized.(*Model), "/model")
+	mod := opened.(*Model)
+
+	shrunk, _ := mod.Update(tea.WindowSizeMsg{Width: 100, Height: 16})
+	mod = shrunk.(*Model)
+	content := mod.buildSlashModelContent(100)
+	rows := mod.modelRowBudget(mod.slashModel)
+	if mod.slashModel.Offset+rows > total {
+		t.Errorf("window [%d,%d) runs past the %d entries", mod.slashModel.Offset, mod.slashModel.Offset+rows, total)
+	}
+	if !strings.Contains(content, "Model 20") {
+		t.Errorf("the selected model should still be listed after the terminal shrank:\n%s", content)
+	}
+}
