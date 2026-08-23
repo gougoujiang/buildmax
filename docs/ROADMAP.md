@@ -299,8 +299,11 @@ currently unbounded: no `NetworkPolicy` or evidenced allow-list is shipped. A
 Beta release may state those limits; it may not imply containment it does not
 enforce.
 
-Deliberately outside the Beta gate: Desktop polish, SSO, team/worker plugin
-distribution, additional model providers, and general durable Session sync.
+Deliberately outside the Beta gate: Desktop polish, SSO, executable team plugin
+content, additional model providers, and general durable Session sync. The
+instruction half of team plugin distribution — a team activating skill and
+subagent releases, and a worker materializing exactly what it pinned — is
+implemented; releases contributing hooks or MCP servers cannot be activated.
 
 ## Suggested Order
 
@@ -329,14 +332,18 @@ recovers. The immediate work is therefore evidence-first.
    then add the backend to the image, prove the pod supports it, select
    `SandboxSurfaceWorker`, add rlimits, sandbox hook transports, and test the
    result. Treat egress as a separate threat-model and operator-policy decision;
-   do not guess an allow-list. This track unblocks executable team plugins, but
-   does not hide steps 1–3 behind it.
+   do not guess an allow-list. Sandboxing hook and MCP transports is the piece
+   that bounds an activated plugin's own processes — the Bash sandbox never
+   covered them, on any surface — so it is what makes executable team plugins
+   contained rather than what permits them; see
+   [design/plugin-team-distribution.md](design/plugin-team-distribution.md) §9.
+   None of it hides steps 1–3 behind it.
 5. **Choose one post-Beta product bet from evidence.** The lowest-risk candidate
    is the local Issue work bridge. Durable Agent Sessions require a decision on
    local session storage, privacy, retention, and synchronization first. Session
    trees/mailboxes additionally require a workspace/change-set ownership design.
-   SSO and team/worker plugin distribution remain post-Beta unless a deployment
-   partner supplies the evidence to reprioritize them.
+   SSO and the executable half of team plugin distribution remain post-Beta
+   unless a deployment partner supplies the evidence to reprioritize them.
 
 ## Avoid For Now
 
