@@ -61,11 +61,15 @@ different thing again: an `as_`-prefixed login chain, carried as a claim in
 every access token issued under it.
 
 **No database-level foreign keys.** No row struct declares a GORM relation, so
-`AutoMigrate` emits no `FOREIGN KEY` constraints. Every reference described in
+`AutoMigrate` emits no `FOREIGN KEY` constraints, and a test in
+`internal/architecture` fails when one does. Every reference described in
 this document is a plain indexed column that application code is responsible
-for keeping consistent. Deleting a parent row does not cascade. Numeric
-references did not change that: adding constraints is a separate decision that
-needs deletion semantics specified first.
+for keeping consistent. Deleting a parent row does not cascade, and a numeric
+reference must not be read as implying that it would. That is decided rather
+than deferred: [entity identity](../../design/entity-identity.md) §8 reviewed
+the store's deletion semantics — no hard delete removes a referenced parent —
+and leaves the constraints to the change that first ships a real deletion
+feature, where the order has to be written down anyway.
 
 **Timestamps are `DATETIME(6)` columns**, never `TIMESTAMP`, never an integer,
 and never `DATE` unless the value genuinely has no time of day. In Go they are

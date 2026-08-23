@@ -86,8 +86,8 @@ coherent schema change with no dual-read path.
 instants and do not change (§3, D7). The session and trace file formats already
 use RFC 3339 and are untouched. Ordering semantics do not change: microsecond
 precision is not a licence to sort on a timestamp alone (D6). No database
-foreign keys — that remains the separate decision recorded in
-[entity identity](entity-identity.md) §8. No timezone-aware "local wall time"
+foreign keys — [entity identity](entity-identity.md) §8 owns that decision and
+this record does not reopen it. No timezone-aware "local wall time"
 type: BuildMax stores instants, and a user's timezone is a presentation
 concern.
 

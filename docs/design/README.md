@@ -44,7 +44,7 @@ reference, then delete the plan.
 | [System administration](system-administration.md) | P4 | Implemented: grant model, operator command, admin API, Portal area, and model catalog surface |
 | [Plugin distribution and private marketplace](plugin-marketplace.md) | post-Beta, P4 follow-on | Phases A–C shipped: plugins load, the Marketplace publishes and installs, Portal and Desktop manage it. Team and worker distribution deferred |
 | [Team and worker plugin distribution](plugin-team-distribution.md) | post-Beta, after the Marketplace | Design ready for review; implementation not started. The executable half waits on the worker sandbox being wired |
-| [Entity identity and relational keys](entity-identity.md) | Beta gate | Implemented: opaque public handles, numeric relational keys, and the store boundary between them. Database foreign keys remain a separate decision |
+| [Entity identity and relational keys](entity-identity.md) | Beta gate | Implemented: opaque public handles, numeric relational keys, and the store boundary between them. §8 decided database foreign keys: none, until a real deletion feature adds them |
 | [Timestamp representation](timestamp-representation.md) | Beta gate | Implemented: every persisted instant is `time.Time`, `DATETIME(6)`, and RFC 3339, with a UTC-pinned connection and an architecture guard |
 | [Tool permissions](tool-permissions.md) | unscheduled | Implemented; operator control over autonomous surfaces open (§7) |
 | [Parallel tool execution](parallel-tool-execution.md) | unscheduled | Implemented for read-only tools; `Task` and argument-aware `Bash` open (§6) |
