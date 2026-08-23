@@ -97,6 +97,9 @@ type TaskTool struct {
 	// workspace names the workspace a background subagent shares, recorded in
 	// the job's provenance.
 	workspace string
+	// readOnlyTypes marks the agent types whose whole tool set is read-only,
+	// computed once at construction because the sets never change afterwards.
+	readOnlyTypes map[string]bool
 }
 
 // WithJobs returns a copy of t that can detach subagents to the given job
@@ -135,16 +138,57 @@ func NewTask(runner SubAgentRunner, agentTypes map[string]AgentTypeConfig) (*Tas
 	sort.Strings(userDefined)
 	typeOrder := append(builtins, userDefined...)
 
+	readOnlyTypes := make(map[string]bool, len(agentTypes))
+	for name, cfg := range agentTypes {
+		readOnlyTypes[name] = subAgentToolsAreReadOnly(cfg.Tools)
+	}
+
 	return &TaskTool{
-		runner:     runner,
-		agentTypes: agentTypes,
-		typeOrder:  typeOrder,
+		runner:        runner,
+		agentTypes:    agentTypes,
+		typeOrder:     typeOrder,
+		readOnlyTypes: readOnlyTypes,
 	}, nil
 }
 
+// subAgentToolsAreReadOnly reports whether every tool the type can reach
+// declares itself read-only. Task is skipped because Execute strips it from
+// the sub-agent's registry, and an empty set answers false: a type that
+// resolved to nothing must not become eligible by having no counterexample.
+func subAgentToolsAreReadOnly(list []llm.Tool) bool {
+	found := 0
+	for _, tl := range list {
+		if tl.Name() == ToolNameTask {
+			continue
+		}
+		if agent.DeclaredAccess(tl, nil) != llm.AccessReadOnly {
+			return false
+		}
+		found++
+	}
+	return found > 0
+}
+
+// Access implements llm.AccessDeclarer. A sub-agent writes whatever its tools
+// write, so the answer is the requested type's tool set rather than the Task
+// tool itself: a type restricted to read-only tools runs a nested loop that
+// cannot write, and may overlap its neighbours.
+//
+// Everything else is a write — an unknown type, a background run (which
+// mutates the job manager and outlives the call), and a nil-args capability
+// listing, which is asking about the tool and not about a call.
+func (t *TaskTool) Access(args map[string]any) llm.Access {
+	if background, _ := args["run_in_background"].(bool); background {
+		return llm.AccessWrite
+	}
+	name, _ := args["subagent_type"].(string)
+	if t.readOnlyTypes[strings.TrimSpace(name)] {
+		return llm.AccessReadOnly
+	}
+	return llm.AccessWrite
+}
+
 // Name returns the tool name for the LLM.
-// Access implements llm.AccessDeclarer. A subagent writes whatever its tools write.
-func (t *TaskTool) Access(_ map[string]any) llm.Access { return llm.AccessWrite }
 
 func (t *TaskTool) Name() string { return ToolNameTask }
 

@@ -27,7 +27,10 @@ type permissionCase struct {
 func permissionTable(t *testing.T) []permissionCase {
 	t.Helper()
 	ws := testWorkspace(t, t.TempDir())
-	task, err := NewTask(nil2Runner{}, map[string]AgentTypeConfig{"general-purpose": {}})
+	task, err := NewTask(nil2Runner{}, map[string]AgentTypeConfig{
+		"general-purpose": {},
+		"explore":         {Tools: []llm.Tool{NewReadFile(ws), NewGrep(ws)}},
+	})
 	if err != nil {
 		t.Fatalf("NewTask: %v", err)
 	}
@@ -41,6 +44,10 @@ func permissionTable(t *testing.T) []permissionCase {
 		{"Skill", NewSkillFromEntries(nil), map[string]any{"skill": "s"}, llm.AccessReadOnly, llm.ToolActionAllow, llm.ToolActionAllow},
 		{"WebFetch", NewWebFetch(nil, 0), map[string]any{"url": "https://example.com"}, llm.AccessReadOnly, llm.ToolActionAllow, llm.ToolActionAllow},
 		{"LoadMcpTools", loadMCP, map[string]any{"server": "s", "tool_name": "t"}, llm.AccessReadOnly, llm.ToolActionAllow, llm.ToolActionAllow},
+		// A delegation whose agent type reaches only read-only tools — §6
+		// footnote 2. It does not prompt, because nothing it can reach would
+		// have prompted on its own.
+		{"Task/read-only type", task, map[string]any{"subagent_type": "explore"}, llm.AccessReadOnly, llm.ToolActionAllow, llm.ToolActionAllow},
 
 		// Writes: the rows that gain an interactive prompt. CallMcpTool is the
 		// one row that also tightens on autonomous surfaces — see §6.
