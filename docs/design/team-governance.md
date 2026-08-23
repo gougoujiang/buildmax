@@ -205,9 +205,12 @@ write arbitrary strings; and `access.denied` is the one action written on
 failure, because a denial is what shows someone probing at a boundary.
 
 A failed write is logged and dropped rather than failing the action that
-triggered it. That is a real limit and is stated in `docs/start/support.md`:
-the trail records what happened while the database was reachable, which is not
-the same as guaranteeing every action was recorded. See open question 2.
+triggered it. That is the decision, not a gap: refusing the action would turn a
+logging outage into an outage of the thing being logged. It is a real limit and
+`docs/start/support.md` states it — the trail records what happened while the
+database was reachable, which is not the same as guaranteeing every action was
+recorded. Whether any one action should instead be recorded transactionally is
+the residue of open question 2.
 
 The remaining actions from §4.4 are the second slice.
 
@@ -466,10 +469,18 @@ Manual scenarios:
 1. ~~Should members be able to view Team Activity, or is it admin-only?~~
    **Decided: owner-only**, narrower than either option. The trail records who
    was refused a request, and that is administrative information — see §5.5.
-2. Should event writes be best-effort or required for sensitive actions? Still
-   open, and now a shipped behaviour rather than a design choice: writes are
-   best-effort. Making one required means deciding what the user sees when the
-   action succeeded and the record did not.
+2. ~~Should event writes be best-effort or required for sensitive actions?~~
+   **Decided: best-effort**, and `internal/service/audit` carries the reason:
+   refusing a login because an audit insert failed turns a logging outage into
+   an authentication outage. A failed write is logged at error with the action
+   and the actor, so a dropped event still leaves a mark somewhere. What
+   remains open is narrower — whether any *single* action deserves a
+   must-succeed record written in the same transaction as the action it
+   describes. [system-administration.md](./system-administration.md) §9 argues
+   the grant actions are where the best-effort case is weakest, because a grant
+   that was made and not recorded is the one an investigation most needs.
+   Answering that means deciding what the caller sees when the action succeeded
+   and the record did not. See §5.4.
 3. Should workflow publish/archive require owner or allow admin?
 4. Should quota tier changes be implemented in P4 or only documented?
 5. Should webhook key creation/revocation require owner/admin only?

@@ -429,12 +429,13 @@ narrower question and must not accidentally acquire the wider one.
 
 The failure policy does not change. A failed audit write is logged and dropped
 rather than failing the action, exactly as `internal/service/audit` documents
-today. That is a real limit and this design does not fix it — but it is worth
-noting that the actions added here are the ones where the argument for
-best-effort is weakest, because a grant that was made and not recorded is the
-case an investigation most needs. Team governance open question 2 is now the
-blocker for a stronger answer, and this design makes it more urgent rather than
-resolving it.
+today. That policy is decided rather than pending — see
+[team-governance.md](./team-governance.md) §12 question 2 — and this design
+does not reopen it. What it does is sharpen the one part still open: the
+actions added here are where the argument for best-effort is weakest, because a
+grant that was made and not recorded is the case an investigation most needs.
+Whether a grant is the action that earns a transactional record is that
+residue, and this design makes it more urgent rather than answering it.
 
 ## 10. Portal Administration Surface
 
@@ -749,8 +750,10 @@ Manual scenarios, each of which is a claim in this document:
   it is convenient in a Helm chart. §6 is the answer, and the cost is a second
   authority the trail cannot describe.
 - **A best-effort audit write on a grant.** The weakest point in this design
-  (§9). It is inherited rather than introduced, and it should be raised again
-  when team-governance question 2 is settled.
+  (§9). It is inherited rather than introduced: the best-effort policy itself
+  is settled, and what should be raised again is the residue of team-governance
+  question 2 — whether a grant is the action that earns a transactional
+  record.
 - **Disable is not delete.** Nothing here deletes an account or its data, and
   an operator who reads "disable" as "remove" will be wrong. Deletion belongs
   with team-governance question 10, which has no answer today.
@@ -760,11 +763,17 @@ Manual scenarios, each of which is a claim in this document:
 1. Does a `system_observer` role have a real caller? The column exists (§5.1);
    the role should not, until someone needs to give a person status and audit
    without account control.
-2. Should `disabled_at` also block a personal team's existing task runs from
-   being retried by a *teammate*? Today a team's work outlives its author's
-   access, which is probably right and is not obviously right. The scheduler
-   guard keys on the run's own `created_by`, so a rerun by someone else is
-   dispatched — that is the answer today, not a considered decision.
+2. ~~Should `disabled_at` also block a personal team's existing task runs from
+   being retried by a *teammate*?~~ **Decided: no**, by the principle §8
+   already commits to for a running run — the team owns the work, and the
+   departing user is not the party harmed by losing it. Disabling withdraws
+   that account's ability to ask for work; it does not quarantine the backlog
+   of a team whose remaining members are in good standing. The scheduler guard
+   keys on the run's own `created_by`, so a rerun by someone else is a new run
+   by a non-disabled actor and dispatches. What is genuinely unsettled sits a
+   level down and is a team-model question rather than an administration one:
+   nothing stops an owner adding members to a *personal* team, which is the
+   only reason this case is reachable.
 3. Does the admin API need rate limiting before it needs anything else? Login
    is unthrottled today ([deploy/authentication.md](../deploy/authentication.md)),
    and account enumeration through `GET /api/admin/users?q=` is a much smaller
