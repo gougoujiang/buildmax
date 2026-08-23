@@ -255,3 +255,44 @@ func TestRecorder_ReportsPromptLayersWhenBare(t *testing.T) {
 		t.Errorf("no prompt_layers record for a run with no extra layers: %+v", recs)
 	}
 }
+
+// TestRecorder_RecordsAreDurableWithoutClose is the regression guard for a run
+// that never gets to Close: a kill, a crash, or a hang the user gave up on.
+// Buffering the tail there does not merely lose records, it moves the last one
+// on disk earlier than the last one that happened and sends whoever reads the
+// trace to the wrong place.
+func TestRecorder_RecordsAreDurableWithoutClose(t *testing.T) {
+	dir := t.TempDir()
+	rec := NewRecorder(dir, Meta{RunID: "rt_kill01", SessionID: "c_sess1", Workspace: "/ws", Model: "m"})
+	if rec == nil {
+		t.Fatal("expected recorder")
+	}
+	// Deferred, so it runs after the assertions below and never explains them:
+	// what is asserted is what reached disk with no Close at all. Windows
+	// cannot delete a file another handle still holds, so leaking it here
+	// would fail TempDir cleanup rather than the test's actual subject.
+	defer rec.Close()
+	rec.Record(agent.Event{Kind: agent.EventToolStart, ToolName: "NoteWrite", ToolCallID: "call_1"})
+	rec.Record(agent.Event{Kind: agent.EventToolEnd, ToolName: "NoteWrite", ToolCallID: "call_1", ToolResult: "Stored 1 note"})
+
+	// Read while the recorder is still open — the abandoned-run path.
+	path := filepath.Join(dir, "c_sess1", "rt_kill01.jsonl")
+	recs := readRecords(t, path)
+	// run_start, sandbox_boundary, prompt_layers, plugins, tool_start, tool_end
+	if len(recs) != 6 {
+		t.Fatalf("got %d records before Close, want 6: %+v", len(recs), recs)
+	}
+	last := recs[len(recs)-1]
+	if last.Type != "tool_end" || last.Tool != "NoteWrite" {
+		t.Errorf("last record on disk is %+v; want the tool_end that actually happened", last)
+	}
+
+	// The file must also be complete lines, not a record cut at a buffer edge.
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read trace: %v", err)
+	}
+	if len(body) == 0 || body[len(body)-1] != '\n' {
+		t.Errorf("trace does not end on a record boundary; last byte %q", body[len(body)-1:])
+	}
+}

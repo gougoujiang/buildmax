@@ -194,6 +194,17 @@ func (r *Recorder) write(rec Record) {
 		componentLog().Warn("write record failed", "run_id", r.runID, "type", rec.Type, "err", err)
 		return
 	}
+	// Flush per record rather than letting bufio decide. A trace earns its
+	// keep on the runs that end badly — a kill, a crash, a hang someone gave
+	// up on — and those are exactly the runs where Close never gets to flush.
+	// Buffering there does not just lose the tail, it moves the last recorded
+	// event minutes before the real one and points the reader at the wrong
+	// place. Trace volume is a handful of records per model call, so the extra
+	// write costs nothing next to what it is recording.
+	if err := r.w.Flush(); err != nil {
+		componentLog().Warn("flush record failed", "run_id", r.runID, "type", rec.Type, "err", err)
+		return
+	}
 	r.count++
 }
 

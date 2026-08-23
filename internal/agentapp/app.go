@@ -102,6 +102,55 @@ type AgentApp struct {
 	// jobTraceDone closes once the job trace subscriber has drained the last
 	// event. Close waits on it so no record is written after shutdown.
 	jobTraceDone chan struct{}
+	// openTraces holds the recorders of runs still in flight. A run closes its
+	// own on the way out; this exists for the run that never gets there —
+	// quitting the TUI mid-turn abandons the run goroutine, and its trace file
+	// would otherwise stay open with no run_end.
+	tracesMu   sync.Mutex
+	openTraces map[*trace.Recorder]struct{}
+}
+
+// trackTrace registers a recorder as belonging to a run in flight.
+func (a *AgentApp) trackTrace(r *trace.Recorder) {
+	if a == nil || r == nil {
+		return
+	}
+	a.tracesMu.Lock()
+	defer a.tracesMu.Unlock()
+	if a.openTraces == nil {
+		a.openTraces = make(map[*trace.Recorder]struct{})
+	}
+	a.openTraces[r] = struct{}{}
+}
+
+// releaseTrace closes a recorder and forgets it. Safe to call twice: Recorder
+// Close is idempotent, and the second call finds nothing registered.
+func (a *AgentApp) releaseTrace(r *trace.Recorder) {
+	if a == nil || r == nil {
+		return
+	}
+	a.tracesMu.Lock()
+	delete(a.openTraces, r)
+	a.tracesMu.Unlock()
+	r.Close()
+}
+
+// closeOpenTraces closes every trace whose run never finished.
+func (a *AgentApp) closeOpenTraces() {
+	if a == nil {
+		return
+	}
+	a.tracesMu.Lock()
+	pending := make([]*trace.Recorder, 0, len(a.openTraces))
+	for r := range a.openTraces {
+		pending = append(pending, r)
+	}
+	a.openTraces = nil
+	a.tracesMu.Unlock()
+	for _, r := range pending {
+		r.RecordRunEnd("run abandoned: application shut down before the turn finished")
+		r.Close()
+	}
 }
 
 // Jobs returns the app's background job manager, or nil where background
@@ -396,6 +445,9 @@ func (a *AgentApp) Close() error {
 			firstErr = err
 		}
 	}
+	// Last, so a run still unwinding has had every chance to close its own
+	// trace first and record a real run_end rather than the abandoned one.
+	a.closeOpenTraces()
 	return firstErr
 }
 
@@ -830,7 +882,8 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 			PromptLayers: promptLayers,
 			Plugins:      a.plugins.Provenance(ctx),
 		})
-		defer recorder.Close()
+		a.trackTrace(recorder)
+		defer a.releaseTrace(recorder)
 		ctx = withTraceRunContext(ctx, recorder.RunID(), modelName)
 	}
 
