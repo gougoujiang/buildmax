@@ -794,9 +794,16 @@ adapter answering its own model would report on the mock rather than on the subj
 | Step | Delivers | Resolves |
 |---|---|---|
 | 1. Contract — **done** | `evaluation/contract`: versioned task, subject manifest, trial bundle, grader result, and experiment types with the failure taxonomy, in Go against the standard library alone per section 15.3; the trace audit above recorded in the repository | The physical trial-bundle encoding, settled on a directory in section 15.4; section 20 items 2 and 3 |
-| 2. CLI adapter | `trace_id`/`trace_path` in the print envelope; subject-built trial home; the hidden-grader boundary; deterministic state and trace graders; one canonical trial bundle per attempt | Whether the contract is sufficient for a real execution path |
+| 2. CLI adapter — **done** | `trace_id`/`trace_path` in the print envelope; subject-built trial home; the hidden-grader boundary; deterministic state and trace graders; one canonical trial bundle per attempt | The contract holds for a real execution path: `evaluation/adapter` runs the built binary against a scripted model and returns a gradable bundle |
 | 3. Experiment | Repetition, paired baseline comparison, uncertainty, failure classification, and a local report; the mockllm pull-request gate | Whether section 15.3's Go controller holds once experiment control is written; the report renderer |
 | 4. Retirement | Delete `eval/`, `internal/agenteval`, and `cmd/buildmax-eval`; rewrite `./make eval`; update `docs/contribute/repo-layout.md`, `docs/contribute/testing.md`, `docs/design/end-to-end-testing.md`, and `docs/design/llm-gateway.md` where they cite the old harness | The last roadmap acceptance criterion |
+
+Two things the slice found are worth carrying forward. Killing a subject at its budget does not
+end the call: the process dies but its output pipes stay open through any grandchild it started,
+so an unbounded wait turns the one status designed to bound a run into the thing that never
+returns. And the durable trace does not distinguish a hook denial from a policy denial, so a
+trust grader asserting on one has to read the reason string; section 18.2 lists that gap, and the
+first real trust suite is where it stops being tolerable.
 
 The Inspect and Harbor spikes follow step 3. Section 14.1 already places framework selection
 downstream of the slice, and a spike run before a canonical bundle exists would compare
