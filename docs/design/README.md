@@ -34,7 +34,7 @@ reference, then delete the plan.
 | [Local background jobs](local-background-jobs.md) | P0.5 | Stages 1–3 shipped: background `Bash`/`Task` jobs, `Monitor`, typed delivery with parked wake-up on both surfaces, durable job logs. Durability beyond the process — spool, supervisor, scheduling — is decided against, not pending |
 | [Evaluation and qualification](evaluation-system.md) | P0.6 | Direction accepted; contract and black-box vertical slice not implemented |
 | [Issue model](issue-model.md) | P2 follow-on | Implemented: the backend and frontend plans in full. Typed links, threaded replies, mentions, and realtime push are out of scope, not pending |
-| [Enterprise deployment](enterprise-deployment.md) | P3 | M1 and M4 shipped, M3 mostly done; M2 and M5 open |
+| [Enterprise deployment](enterprise-deployment.md) | P3 | M1, M2, M4, and M5 shipped; M3 mostly done. Operating evidence and configuration checks remain. |
 | [Managed LLM gateway](llm-gateway.md) | P3 | Shipped for CLI/TUI/Desktop and task runs; per-team database policy and strict quota open |
 | [LLM provider adapters](llm-provider-adapters.md) | P3 follow-on | Complete: three wire protocols, reasoning, prompt caching, and image input |
 | [Prompt cache control](prompt-cache-control.md) | P3 follow-on | Phases 1–3 shipped: cache policy, the Anthropic and OpenAI native paths, usage and cost telemetry. The qualification suite has been run and both native paths qualified; compatible profiles stay empty by decision. The per-entry capability claim and the section 6 diagnostics are open |
