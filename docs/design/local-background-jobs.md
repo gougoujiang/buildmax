@@ -4,8 +4,9 @@
 > `Bash` and `Task` jobs, the `Monitor` tool with line events and
 > backpressure, typed non-user provenance, serialized wake-up
 > (`deliver_result`, per-monitor `react`) with per-session parking on both
-> TUI and Desktop, and durable job event logs under `<traces>/jobs/`. Stage 4
-> (output spool, supervisor, worktree writers, scheduling) open
+> TUI and Desktop, and durable job event logs under `<traces>/jobs/`.
+> Durability beyond the process — spool, supervisor, worktree writers,
+> scheduling — is not planned
 
 Related: [durable run trace](durable-run-trace.md); [queued
 messages](queued-messages.md); [tool permissions](tool-permissions.md); [hook
@@ -43,8 +44,9 @@ and `@buildmax/gui` presentation, but never storage or service ownership.
 Explicitly out of scope for the first version:
 
 - Requiring a BuildMax Server for local background work.
-- Jobs that survive the BuildMax process. Stage 4 below names what that would
-  take; accepting stages 1–3 does not imply it.
+- Jobs that survive the BuildMax process. [Durability Is Not
+  Planned](#durability-is-not-planned) says what that would take and why it
+  stayed out.
 - Background start from `buildmax -p`, eval, or worker execution. Print mode
   has no host process to own a job; eval and workers get background tools only
   with an explicit unattended lifecycle and policy.
@@ -73,16 +75,16 @@ and their verdicts:
 
 | Axis | Chosen | Strongest alternative | Verdict |
 |---|---|---|---|
-| Manager topology | In-process manager owned by `AgentApp` | Local daemon behind a unix socket (the docker / tmux-server shape), which gives cross-UI job survival for free | Deferred, not rejected — it is the stage 4 supervisor. The manager contract stays transport-agnostic so the move needs no rewrite above it |
+| Manager topology | In-process manager owned by `AgentApp` | Local daemon behind a unix socket (the docker / tmux-server shape), which gives cross-UI job survival for free | Deferred, not rejected — it is the supervisor a process-surviving job would need, and that is [not planned](#durability-is-not-planned). The manager contract stays transport-agnostic anyway, so the move needs no rewrite above it if the case ever arrives |
 | Event delivery | Session inbox with serialized wake-up, layered over queryable job tools | A run loop that never exits, blocking on an event channel (actor model) | Rejected: it rewrites the `RunLoop` contract, run-scoped traces, and compaction timing for elegance the inbox already buys. Hook-based delivery is an observation point, never the primary channel |
 | Process adapter | `exec` with process groups / Job Objects | PTY hosting (ConPTY on Windows), so line-buffered programs emit output in real time | Deferred as a stated limitation of the first version; add a PTY adapter when a real case forces it |
 | Monitor form | One generic command whose stdout lines are events | Typed native watchers (file watch, HTTP poll), bounded by construction | Later sugar, not a rival: if most monitors watch one file, add a typed kind on the same job and event pipeline. Snapshot-and-diff sampling survives as one coalescing strategy |
 
 Also considered on the topology axis and rejected: orphan processes with
 pidfiles (PID reuse, no live event stream — though its disk format is exactly
-the stage 4 spool), and delegating to tmux or OS service managers (an external
-dependency against the single-binary rule, and three platforms with three
-semantics).
+what an output spool would need), and delegating to tmux or OS service
+managers (an external dependency against the single-binary rule, and three
+platforms with three semantics).
 
 Terminology: this design uses **job** for the local runtime object so it does
 not collide with Portal's `Task` entity or the `Task` subagent tool.
@@ -113,9 +115,8 @@ per-session subscribe, and close.
 
 That contract is deliberately transport-agnostic: no request contexts, shared
 objects, or callback closures cross it, and subscriptions are streams. The
-constraint costs nothing now and keeps the stage 4 option open of moving the
-manager behind a local socket without rewriting `internal/tool` or either
-surface.
+constraint costs nothing now and keeps open the option of moving the manager
+behind a local socket without rewriting `internal/tool` or either surface.
 
 Package ownership follows the existing boundaries: `internal/agentapp`
 coordinates jobs and sessions; process creation and process-tree termination
@@ -189,7 +190,8 @@ parent's view can go stale. The first version **states the shared-workspace
 boundary in tool output and UI and recommends rather than requires
 isolation**; requiring worktree isolation would gate the capability on
 infrastructure it does not need for read-mostly delegation. Worktree-isolated
-writers are the stage 4 follow-up.
+writers would have made it a guarantee; they are [not
+planned](#durability-is-not-planned).
 
 ## Monitor Jobs
 
@@ -287,9 +289,9 @@ Backgrounding changes when a call finishes, not whether it is allowed.
 ## Output, Retention, And Traces
 
 Raw job output does not belong in conversation history. Each job keeps a
-bounded ring of recent output with cursor-based incremental reads; whether the
-ring is memory-only or spooled beneath `BUILDMAX_HOME` is open, and either way
-the contract states what survives shutdown (in the first version: nothing).
+bounded ring of recent output with cursor-based incremental reads. The ring is
+memory-only, and nothing about a job's output survives the process. That is
+[settled, not pending](#durability-is-not-planned).
 
 A parent run trace cannot stay open after the launching call returns, so
 background work gets its own job-event stream linked by owning session ID,
@@ -321,9 +323,10 @@ resource evidence supports larger defaults.
 
 ## Delivery Stages
 
-Stage 1 is the committed first slice: command jobs alone are useful with no
+Stage 1 was the committed first slice: command jobs alone are useful with no
 model wake-up at all, and they force the heaviest foundations — the manager,
 state machine, process trees, and shutdown — that later kinds reuse cheaply.
+All three stages shipped.
 
 1. **Local job foundation.** Shared manager, job identity, state machine,
    bounded output, list/get/stop, shutdown, process-tree tests; background
@@ -339,17 +342,45 @@ state machine, process trees, and shutdown — that later kinds reuse cheaply.
    rate limits, coalescing, stop; typed event provenance in history and
    traces; serialized wake-up with per-monitor `notify`/`react`; TUI/Desktop
    controls for noisy or paused monitors.
-4. **Durability and automation, only with evidence.** Output spool and job
-   metadata recovery; a local supervisor if jobs must survive UI exit; Desktop
-   system notifications; worktree-isolated writers; scheduling on the same
-   inbox and job model. Within this stage the spool precedes the supervisor:
-   durable output and metadata are useful alone after a crash, and the
-   supervisor — the deferred local-daemon topology from [Alternatives by
-   axis](#alternatives-by-axis) — builds on them. Process-surviving execution
-   is a product and security boundary of its own, not implied by stages 1–3.
 
 Shared presentation may live in `@buildmax/gui`; lifecycle and process
 behavior must not.
+
+## Durability Is Not Planned
+
+A fourth stage was named here as the durability follow-up: an output spool
+and job metadata recovery, a local supervisor if jobs must survive UI exit,
+Desktop system notifications, worktree-isolated writers, and scheduling on
+the same inbox and job model. It is not being built and it is not queued.
+
+The spool was the piece that looked independently useful, on the argument
+that durable output and metadata help after a crash whether or not a
+supervisor ever follows. Against this design they do not. `Manager.Close`
+cancels every running job and waits out a grace period, so the process
+exiting *is* the job ending, and a spool would only let someone read the
+output of a job that no longer exists. Most of that post-mortem already
+exists: `<traces>/jobs/<id>.jsonl` records every job's start, boundary, exit
+code, and stop reason, and a monitor's lines with it. The one thing missing
+is a command job's stdout body — and if that is ever wanted, the
+proportionate answer is a bounded tail on the existing `job_end` record, not
+a second storage system carrying its own retention, cursor semantics, and
+recovery path.
+
+The rest of the stage stands on the supervisor, and the supervisor stands on
+demand nobody has shown. Process-surviving execution is a product and
+security boundary of its own — the deferred local-daemon topology from
+[Alternatives by axis](#alternatives-by-axis) — and taking it on means owning
+job lifetime across UI exit, upgrade, and crash. Persisting job metadata also
+promotes a job into an entity, which brings the rules in
+[entity-identity.md](entity-identity.md) with it; today's `jb_` identifier is
+argued from a job living exactly one process.
+
+What reopens this is the last item under [Evidence Before
+Widening](#evidence-before-widening): people actually doing foreground work
+while jobs run, rather than using the activity view as a second terminal.
+That evidence is what would justify the supervisor, and the supervisor is
+what would give the spool the purpose it was argued from. The order does not
+reverse — a spool built first is storage with no capability attached to it.
 
 ## Prerequisites
 
@@ -369,9 +400,12 @@ Independently reviewable work that stages above depend on:
 - Exact tool and event names. Tool names are public contract in hook matchers
   and subagent `tools:` fields; choose once, update
   `internal/tool/names.go` and the docs the enforcement tests check.
-- Job ID format: a documented prefix if jobs become persisted entities, or an
-  internal UUID like sessions while they remain transient.
-- Memory-only output ring versus a `BUILDMAX_HOME` spool in the first version.
+- ~~Job ID format~~ — decided: the readable `jb_` prefix, earned by the ID
+  reaching the model as a bare string in tool output rather than by a job
+  being persisted. Jobs stay transient.
+- ~~Memory-only output ring versus a `BUILDMAX_HOME` spool~~ — decided:
+  memory-only, per [Durability Is Not
+  Planned](#durability-is-not-planned).
 - Safe default concurrency and event-rate limits on a laptop.
 - Which hooks observe job lifecycle beyond the launch gate.
 - Plugin-declared monitors, and their trust level, after the interactive tool
