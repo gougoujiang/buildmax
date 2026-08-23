@@ -63,6 +63,7 @@ client, err := llm.NewClient(llm.Config{
     APIKey:        m.APIKey,
     BaseURL:       m.APIURL,
     Model:         m.Model,
+    Surface:       "cli",            // cli, desktop, server, or worker
     ContextWindow: m.ContextWindow,   // 0 = no windowing
     MaxTokens:     m.MaxTokens,       // 0 = the adapter's own default
     CallTimeout:   d,                 // 0 = DefaultCallTimeoutSecs
@@ -79,6 +80,13 @@ needs `context_window` set explicitly.
 An unknown provider is an error rather than a fallback: a model that cannot be
 reached the way it was configured fails at selection instead of sending its
 prompt somewhere the operator did not name.
+
+Every provider request identifies BuildMax as `buildmax/<version> (<surface>)`
+in its `User-Agent`. The surface is runtime-owned rather than user-configurable:
+CLI, Desktop, the managed server, and workers send their respective origin. A
+managed gateway preserves the original CLI, Desktop, or worker surface and adds
+`; gateway`, so its upstream request reads, for example,
+`buildmax/0.1.0 (cli; gateway)`.
 
 ## Normalizing History
 

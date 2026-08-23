@@ -44,9 +44,7 @@ func newAnthropicAdapter(cfg Config) (*anthropicAdapter, error) {
 	if cfg.BaseURL != "" {
 		opts = append(opts, option.WithBaseURL(cfg.BaseURL))
 	}
-	if cfg.HTTPClient != nil {
-		opts = append(opts, option.WithHTTPClient(cfg.HTTPClient))
-	}
+	opts = append(opts, option.WithHTTPClient(withBuildMaxUserAgent(cfg.HTTPClient, cfg.Surface)))
 	return &anthropicAdapter{
 		client:      anthropic.NewClient(opts...),
 		model:       cfg.Model,

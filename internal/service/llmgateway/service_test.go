@@ -25,11 +25,13 @@ type scriptedClient struct {
 
 	gotMessages []cllm.Message
 	gotTools    []cllm.ToolDef
+	gotOrigin   cllm.CallOrigin
 }
 
-func (c *scriptedClient) ChatCompletionBlocking(_ context.Context, messages []cllm.Message, tools []cllm.ToolDef) (cllm.Completion, error) {
+func (c *scriptedClient) ChatCompletionBlocking(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef) (cllm.Completion, error) {
 	c.gotMessages = messages
 	c.gotTools = tools
+	c.gotOrigin, _ = cllm.CallOriginFromContext(ctx)
 	if c.err != nil {
 		return cllm.Completion{}, c.err
 	}
@@ -41,9 +43,10 @@ func (c *scriptedClient) ChatCompletionBlocking(_ context.Context, messages []cl
 	}, nil
 }
 
-func (c *scriptedClient) ChatCompletionStreaming(_ context.Context, messages []cllm.Message, tools []cllm.ToolDef, onDelta func(string)) (cllm.Completion, error) {
+func (c *scriptedClient) ChatCompletionStreaming(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef, onDelta func(string)) (cllm.Completion, error) {
 	c.gotMessages = messages
 	c.gotTools = tools
+	c.gotOrigin, _ = cllm.CallOriginFromContext(ctx)
 	for _, delta := range c.deltas {
 		onDelta(delta)
 	}
@@ -204,6 +207,17 @@ func TestCompleteRecordsASuccessfulCall(t *testing.T) {
 	}
 	if outcome.Attempts != 1 {
 		t.Errorf("attempts = %d, want 1", outcome.Attempts)
+	}
+}
+
+func TestCompletePreservesClientSurfaceForTheUpstream(t *testing.T) {
+	client := &scriptedClient{content: "ok"}
+	svc := serviceWith(t, client, newFakeLedger(), &allowQuota{})
+	if _, err := svc.Complete(context.Background(), userRequest()); err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+	if want := (cllm.CallOrigin{Surface: model.LLMCallSurfaceCLI, ViaGateway: true}); client.gotOrigin != want {
+		t.Errorf("upstream origin = %+v, want %+v", client.gotOrigin, want)
 	}
 }
 

@@ -194,6 +194,7 @@ func newClientFactory(conversationKey string, models model.LLMModelStore) llmgat
 			Reasoning:     target.Reasoning,
 			PromptCache:   target.PromptCache,
 			Vision:        target.Vision,
+			Surface:       model.LLMCallSurfaceServer,
 			CallTimeout:   target.CallTimeout,
 		})
 		if err != nil {

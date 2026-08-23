@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gougoujiang/buildmax/internal/config"
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
 )
 
@@ -15,6 +16,40 @@ import (
 type contextKey struct{}
 
 var streamUsageKey = &contextKey{}
+
+// withBuildMaxUserAgent returns a shallow copy of client whose transport adds
+// BuildMax's identity at the last possible point, after a protocol SDK has
+// assembled its request. The caller's client and transport are left untouched.
+func withBuildMaxUserAgent(client *http.Client, surface string) *http.Client {
+	if client == nil {
+		client = http.DefaultClient
+	}
+	clone := *client
+	base := client.Transport
+	if base == nil {
+		base = http.DefaultTransport
+	}
+	clone.Transport = buildMaxUserAgentTransport{base: base, surface: surface}
+	return &clone
+}
+
+type buildMaxUserAgentTransport struct {
+	base    http.RoundTripper
+	surface string
+}
+
+func (t buildMaxUserAgentTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	clone := req.Clone(req.Context())
+	if clone.Header == nil {
+		clone.Header = make(http.Header)
+	}
+	origin, ok := cllm.CallOriginFromContext(clone.Context())
+	if !ok || origin.Surface == "" {
+		origin.Surface = t.surface
+	}
+	clone.Header.Set("User-Agent", config.UserAgent(origin.Surface, origin.ViaGateway))
+	return t.base.RoundTrip(clone)
+}
 
 // httpDoer is the subset of http.Client used by go-openai's HTTP client hook.
 type httpDoer interface {

@@ -30,6 +30,23 @@ var (
 // always wins over the build info.
 const devPlaceholder = "dev"
 
+// UserAgent identifies BuildMax and the calling surface in outbound requests.
+// viaGateway says BuildMax forwarded the call through its managed gateway.
+func UserAgent(surface string, viaGateway bool) string {
+	value := "buildmax/" + Version
+	details := make([]string, 0, 2)
+	if surface != "" {
+		details = append(details, surface)
+	}
+	if viaGateway {
+		details = append(details, "gateway")
+	}
+	if len(details) == 0 {
+		return value
+	}
+	return value + " (" + strings.Join(details, "; ") + ")"
+}
+
 // pseudoVersion matches the tail of a Go pseudo-version: a build timestamp and
 // a commit prefix, which the toolchain synthesizes for a commit that carries no
 // release tag. Every pseudo-version form ends this way, whether the base is a

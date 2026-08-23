@@ -219,6 +219,7 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 
 	var completion cllm.Completion
 	var callErr error
+	upstreamCtx := cllm.WithCallOrigin(ctx, upstreamCallOrigin(req.Surface))
 	if streaming {
 		observed := func(delta string) {
 			if firstDeltaAt == nil {
@@ -227,9 +228,9 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 			}
 			onDelta(delta)
 		}
-		completion, callErr = routed.Client.ChatCompletionStreaming(ctx, req.Messages, req.Tools, observed)
+		completion, callErr = routed.Client.ChatCompletionStreaming(upstreamCtx, req.Messages, req.Tools, observed)
 	} else {
-		completion, callErr = routed.Client.ChatCompletionBlocking(ctx, req.Messages, req.Tools)
+		completion, callErr = routed.Client.ChatCompletionBlocking(upstreamCtx, req.Messages, req.Tools)
 	}
 
 	outcome := model.LLMCallOutcome{
@@ -276,6 +277,20 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 		UsageReported: reported,
 		ProviderState: completion.ProviderState,
 	}, nil
+}
+
+// upstreamCallOrigin preserves only runtime-owned surfaces. CompleteRequest is
+// assembled by handlers, but its metadata may have crossed the network and
+// must not become an arbitrary HTTP header value at an upstream provider.
+func upstreamCallOrigin(surface string) cllm.CallOrigin {
+	switch surface {
+	case model.LLMCallSurfaceCLI, model.LLMCallSurfaceDesktop, model.LLMCallSurfaceWorker:
+		return cllm.CallOrigin{Surface: surface, ViaGateway: true}
+	case model.LLMCallSurfaceServer:
+		return cllm.CallOrigin{Surface: surface}
+	default:
+		return cllm.CallOrigin{Surface: model.LLMCallSurfaceServer}
+	}
 }
 
 // closeLedger writes the terminal record. A write failure does not discard work
