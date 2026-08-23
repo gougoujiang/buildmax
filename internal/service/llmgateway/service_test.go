@@ -111,7 +111,7 @@ func (l *fakeLedger) GetLLMCallByClientID(context.Context, string, string) (*mod
 	return l.existing, nil
 }
 
-func (l *fakeLedger) ListLLMCallsByTaskRun(context.Context, string, string) ([]model.LLMCall, error) {
+func (l *fakeLedger) ListLLMCallsByTaskRun(context.Context, string) ([]model.LLMCall, error) {
 	return nil, nil
 }
 
@@ -189,8 +189,8 @@ func TestCompleteRecordsASuccessfulCall(t *testing.T) {
 	}
 
 	call, outcome := ledger.only(t)
-	if call.TeamID != "tm_one" || call.UserID == nil || *call.UserID != "u_one" {
-		t.Errorf("ledger identity = team %q user %v", call.TeamID, call.UserID)
+	if call.UserID == nil || *call.UserID != "u_one" {
+		t.Errorf("ledger identity = user %v, want u_one", call.UserID)
 	}
 	if call.TargetID != "mt_fast" || call.UpstreamModel != "vendor/fast-1" {
 		t.Errorf("ledger model = %q / %q", call.TargetID, call.UpstreamModel)
@@ -324,7 +324,6 @@ func TestCompleteValidatesRequest(t *testing.T) {
 		req  llmgateway.CompleteRequest
 		want error
 	}{
-		{name: "no team", req: llmgateway.CompleteRequest{Messages: []cllm.Message{{Role: "user"}}}, want: llmgateway.ErrTeamRequired},
 		{name: "no messages", req: llmgateway.CompleteRequest{TeamID: "tm_one"}, want: llmgateway.ErrMessagesRequired},
 	}
 	for _, tc := range tests {
@@ -527,7 +526,7 @@ func TestErrorClassFor(t *testing.T) {
 		want string
 	}{
 		{err: nil, want: ""},
-		{err: llmgateway.ErrTeamRequired, want: llmgateway.ErrorClassInvalidRequest},
+		{err: llmgateway.ErrMessagesRequired, want: llmgateway.ErrorClassInvalidRequest},
 		{err: llmgateway.ErrCatalogEmpty, want: llmgateway.ErrorClassTargetNotFound},
 		{err: llmgateway.ErrTargetNotFound, want: llmgateway.ErrorClassTargetNotFound},
 		{err: llmgateway.ErrTargetDisabled, want: llmgateway.ErrorClassTargetDisabled},

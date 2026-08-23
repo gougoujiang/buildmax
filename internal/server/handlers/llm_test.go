@@ -77,15 +77,16 @@ func (l *llmStubLedger) GetLLMCallByClientID(context.Context, string, string) (*
 	return nil, nil
 }
 
-// ListLLMCallsByTaskRun returns whatever the test staged, filtered the way the
-// real store filters, so a handler test cannot pass by ignoring the team.
-func (l *llmStubLedger) ListLLMCallsByTaskRun(_ context.Context, teamID, taskRunID string) ([]model.LLMCall, error) {
+// ListLLMCallsByTaskRun returns whatever the test staged, filtered by run the
+// way the real store does. The team is authorized by the handler before this is
+// reached, so there is nothing team-shaped to filter on here.
+func (l *llmStubLedger) ListLLMCallsByTaskRun(_ context.Context, taskRunID string) ([]model.LLMCall, error) {
 	if l.listErr != nil {
 		return nil, l.listErr
 	}
 	var out []model.LLMCall
 	for _, call := range l.calls {
-		if call.TeamID == teamID && call.TaskRunID != nil && *call.TaskRunID == taskRunID {
+		if call.TaskRunID != nil && *call.TaskRunID == taskRunID {
 			out = append(out, call)
 		}
 	}

@@ -147,7 +147,6 @@ erDiagram
     user ||--o{ login_code : "authenticates with"
     user ||--o{ user_refresh_token : "keeps sessions in"
     user ||--o{ system_grant : "holds deployment authority via"
-    team ||--o{ llm_call : "billed to"
     llm_model ||--o{ llm_call : serves
     task_run ||--o{ llm_call : attributes
 ```
@@ -391,8 +390,8 @@ record that can be edited is not evidence.
 | `actor_type` | `varchar(16)` | no | `user`, `worker`, or `system` |
 | `actor_id` | `varchar(64)` | no | User ID, or a process name for `system` |
 | `action` | `varchar(64)` | no | `user.login`, `user.logout`, `user.password_set`, `auth.refresh_reuse`, `team.member_added`, `llm_model.created`, `access.denied`, … |
-| `target_type` / `target_id` | `varchar(32)` / `varchar(64)` | yes | What the action was performed on. Opaque: the type admits a permission name and a model alias as well as a row |
-| `detail` | `varchar(255)` | yes | A short non-sensitive note — a role name, a model alias |
+| `target_type` / `target_id` | `varchar(32)` / `varchar(64)` | yes | What the action was performed on. Opaque: the type admits a permission name and a model name as well as a row |
+| `detail` | `varchar(255)` | yes | A short non-sensitive note — a role name, a model name |
 
 Indexes: PK `id`; index `action`; index `actor_id`; index `idx_audit_team_time`
 on (`team_id`, `created_at`); unique `public_id`.
@@ -1029,9 +1028,11 @@ credentials** and must be handled accordingly. See [../../../SECURITY.md](../../
 `capabilities` is a comma-separated list rather than a join table: the set is
 small, closed, and only ever read whole.
 
-Team policy in `server.yaml` maps stable aliases (`default`, `fast`, …) to
-catalog entries. An alias naming a missing model fails its own calls rather
-than stopping the server, because catalog and policy are edited independently.
+Every enabled row is callable by every user of the deployment: a team is a
+collaboration boundary, not a model authorization boundary. A client names a
+model by its `name`, which is unique across the deployment; `server.yaml`
+`llm.default_model` names the one a caller that names none gets, and a name
+there that matches no row stops the server at startup.
 
 ### `llm_call`
 
@@ -1042,14 +1043,13 @@ One managed inference call. The metering and debugging record.
 | `id` | `bigint unsigned` | no | Internal primary key |
 | `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
 | `client_call_id` | `varchar(128)` | yes | Caller's idempotency key; part of the composite unique index |
-| `team_id` | `bigint unsigned` | no | Billed team; leads the composite unique index |
-| `user_id` | `bigint unsigned` | yes | |
+| `user_id` | `bigint unsigned` | yes | Who the call is attributed to; leads the composite unique index |
 | `task_run_id` | `bigint unsigned` | yes | Attributes the call to a Tier 2 run |
 | `surface` | `varchar(32)` | yes | `server`, `cli`, `desktop`, `worker` |
 | `session_id` | `varchar(64)` | yes | |
 | `task_id` | `bigint unsigned` | yes | |
-| `alias` | `varchar(64)` | yes | The stable alias the caller asked for |
-| `target_id` | `varchar(64)` | no | Catalog entry the alias resolved to — `llm_model.id` |
+| `model` | `varchar(128)` | yes | The catalog name the caller asked for |
+| `target_id` | `varchar(64)` | no | Catalog entry the name resolved to — `llm_model.id` |
 | `provider_type` | `varchar(32)` | no | Denormalized from the catalog at call time |
 | `upstream_model` | `varchar(128)` | no | Denormalized from the catalog at call time |
 | `streaming` | `tinyint(1)` | no | Default `false` |
@@ -1073,12 +1073,15 @@ One managed inference call. The metering and debugging record.
 | `usage_source` | `varchar(16)` | yes | `reported`, `estimated`, or `unavailable` |
 
 Indexes: PK `id`; index `accepted_at`; unique `idx_llm_call_client` on
-(`team_id`, `client_call_id`); index `status`; index `task_id`; index
-`task_run_id`; index `user_id`; unique `public_id`.
+(`user_id`, `client_call_id`); index `status`; index `task_id`; index
+`task_run_id`; unique `public_id`.
 
-The composite unique index leads with `team_id`, which both scopes idempotency
-per team and serves team-scoped lookups — so there is deliberately no second
-index on `team_id` alone.
+A call is attributed to a person, not a team: a foreground CLI or Desktop call
+belongs to no team, and a run's team is reached through `task_run_id`. The
+composite unique index leads with `user_id`, which both scopes idempotency per
+caller and serves per-user lookups — so there is deliberately no second index on
+`user_id` alone. See
+[../../design/client-modes.md](../../design/client-modes.md) section 9.
 
 The cache counts **break `prompt_tokens` down rather than adding to it**. A
 spend report that summed all three would count the same tokens twice.

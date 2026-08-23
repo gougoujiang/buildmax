@@ -102,12 +102,13 @@ func (h *Handler) listTaskRunLLMCallsHandler(w http.ResponseWriter, r *http.Requ
 	}
 	// The run has to belong to this team's conversations before its ledger is
 	// read, so a member of one team cannot enumerate another's spending by
-	// guessing run ids.
+	// guessing run ids. This check is the whole authorization: ledger rows carry
+	// no team of their own, and a run belongs to exactly one.
 	if _, _, ok = h.getArtifactRunAndTaskForTeam(w, r, teamID, taskRunID); !ok {
 		return
 	}
 
-	calls, err := h.cfg.LLMCalls.ListLLMCallsByTaskRun(r.Context(), teamID, taskRunID)
+	calls, err := h.cfg.LLMCalls.ListLLMCallsByTaskRun(r.Context(), taskRunID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "task_run_llm_calls", "task_run_id", taskRunID)
 		return

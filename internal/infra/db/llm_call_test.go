@@ -16,16 +16,15 @@ import (
 
 func ptrString(s string) *string { return &s }
 
-// ledgerTeam is the team a ledger fixture bills to. A call references a team
-// row now, so the test creates one rather than naming a handle.
-func ledgerTeam(t *testing.T, s *Store) string {
+// ledgerUser is the person a ledger fixture attributes to. A call references a
+// user row, so the test creates one rather than naming a handle.
+func ledgerUser(t *testing.T, s *Store) string {
 	t.Helper()
-	return newTestTeam(t, s, newTestUser(t, s, "ledger"))
+	return newTestUser(t, s, "ledger")
 }
 
 func sampleLLMCall() *model.LLMCall {
 	return &model.LLMCall{
-		TeamID:        "",
 		UserID:        nil,
 		Surface:       model.LLMCallSurfaceCLI,
 		SessionID:     ptrString("session-1"),
@@ -45,7 +44,6 @@ func TestLLMCallRowRoundTrip(t *testing.T) {
 	// needs a database. The store integration tests cover that direction.
 	call := sampleLLMCall()
 	call.ID = ""
-	call.TeamID = ""
 	call.UserID = nil
 	call.ClientCallID = ptrString("client-key-1")
 	upstreamStarted := time.Unix(1_700_000_001, 0).UTC()
@@ -122,7 +120,7 @@ func TestOpenAndCompleteLLMCall(t *testing.T) {
 	}
 
 	call := sampleLLMCall()
-	call.TeamID = ledgerTeam(t, s)
+	call.UserID = ptrString(ledgerUser(t, s))
 	call.ClientCallID = ptrString(testPublicID(t))
 	opened, err := s.OpenLLMCall(ctx, call)
 	if err != nil {
@@ -180,20 +178,20 @@ func TestOpenAndCompleteLLMCall(t *testing.T) {
 		t.Errorf("CompletedAt = %v, want %v", got.CompletedAt, completedAt)
 	}
 
-	byClient, err := s.GetLLMCallByClientID(ctx, call.TeamID, *call.ClientCallID)
+	byClient, err := s.GetLLMCallByClientID(ctx, *call.UserID, *call.ClientCallID)
 	if err != nil {
 		t.Fatalf("GetLLMCallByClientID: %v", err)
 	}
 	if byClient == nil || byClient.ID != opened.ID {
 		t.Errorf("GetLLMCallByClientID returned %v, want %q", byClient, opened.ID)
 	}
-	// Another team's identical key must not resolve this call.
-	other, err := s.GetLLMCallByClientID(ctx, "tm_other", *call.ClientCallID)
+	// Another person's identical key must not resolve this call.
+	other, err := s.GetLLMCallByClientID(ctx, ledgerUser(t, s), *call.ClientCallID)
 	if err != nil {
-		t.Fatalf("GetLLMCallByClientID for another team: %v", err)
+		t.Fatalf("GetLLMCallByClientID for another user: %v", err)
 	}
 	if other != nil {
-		t.Error("a client call ID resolved across teams")
+		t.Error("a client call ID resolved across users")
 	}
 }
 
@@ -209,7 +207,7 @@ func TestCompleteLLMCallKeepsUnavailableUsage(t *testing.T) {
 	}
 
 	call := sampleLLMCall()
-	call.TeamID = ledgerTeam(t, s)
+	call.UserID = ptrString(ledgerUser(t, s))
 	opened, err := s.OpenLLMCall(ctx, call)
 	if err != nil {
 		t.Fatalf("OpenLLMCall: %v", err)
@@ -260,9 +258,9 @@ func TestOpenLLMCallRejectsADuplicateClientID(t *testing.T) {
 	}
 
 	key := testPublicID(t)
-	team := ledgerTeam(t, s)
+	user := ledgerUser(t, s)
 	first := sampleLLMCall()
-	first.TeamID = team
+	first.UserID = &user
 	first.ClientCallID = &key
 	opened, err := s.OpenLLMCall(ctx, first)
 	if err != nil {
@@ -273,19 +271,20 @@ func TestOpenLLMCallRejectsADuplicateClientID(t *testing.T) {
 	}()
 
 	second := sampleLLMCall()
-	second.TeamID = team
+	second.UserID = &user
 	second.ClientCallID = &key
 	if _, err := s.OpenLLMCall(ctx, second); !errors.Is(err, model.ErrDuplicateLLMCall) {
 		t.Fatalf("want ErrDuplicateLLMCall, got %v", err)
 	}
 
-	// Another team may use the same key: the constraint is team-scoped.
+	// Another person may use the same key: the constraint is user-scoped.
+	otherUser := ledgerUser(t, s)
 	other := sampleLLMCall()
-	other.TeamID = ledgerTeam(t, s)
+	other.UserID = &otherUser
 	other.ClientCallID = &key
 	otherOpened, err := s.OpenLLMCall(ctx, other)
 	if err != nil {
-		t.Fatalf("another team was blocked by the key: %v", err)
+		t.Fatalf("another user was blocked by the key: %v", err)
 	}
 	if otherOpened.ID == opened.ID {
 		t.Error("two calls share one id")
@@ -294,7 +293,7 @@ func TestOpenLLMCallRejectsADuplicateClientID(t *testing.T) {
 	// A call with no client key is never a duplicate.
 	for range 2 {
 		anonymous := sampleLLMCall()
-		anonymous.TeamID = team
+		anonymous.UserID = &user
 		opened, err := s.OpenLLMCall(ctx, anonymous)
 		if err != nil {
 			t.Fatalf("a call with no client key was rejected: %v", err)

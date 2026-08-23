@@ -162,9 +162,6 @@ func TestWorkerLLMCompletions(t *testing.T) {
 			t.Fatalf("unexpected ledger type %T", attributed.Ledger)
 		}
 		call := ledger.last
-		if call.TeamID != llmTestTeam {
-			t.Errorf("team = %q, want %q", call.TeamID, llmTestTeam)
-		}
 		if call.UserID == nil || *call.UserID != llmTestUser {
 			t.Errorf("user = %v, want %q", call.UserID, llmTestUser)
 		}

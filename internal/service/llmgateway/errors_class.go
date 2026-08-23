@@ -43,7 +43,7 @@ func ErrorClassFor(err error) string {
 		return ErrorClassQuotaExceeded
 	case errors.Is(err, ErrDuplicateCall):
 		return ErrorClassDuplicateCall
-	case errors.Is(err, ErrMessagesRequired), errors.Is(err, ErrTeamRequired):
+	case errors.Is(err, ErrMessagesRequired):
 		return ErrorClassInvalidRequest
 	case errors.Is(err, ErrCatalogNotConfigured),
 		errors.Is(err, ErrFactoryNotConfigured),

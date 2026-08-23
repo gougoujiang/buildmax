@@ -47,7 +47,6 @@ func getLLMCalls(t *testing.T, cfg Config, teamID, taskRunID string, auth bool) 
 func stagedCall() model.LLMCall {
 	return model.LLMCall{
 		ID:            "lc_1",
-		TeamID:        llmTestTeam,
 		UserID:        ptr(llmTestUser),
 		TaskRunID:     ptr("r_1"),
 		TaskID:        ptr("t_1"),
