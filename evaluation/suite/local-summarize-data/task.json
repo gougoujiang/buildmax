@@ -1,0 +1,42 @@
+{
+  "contract_version": 1,
+  "id": "local-summarize-data",
+  "version": 1,
+  "suite": "local-workbench",
+  "title": "Summarise a data file into a report",
+  "tags": ["files", "data", "reporting"],
+  "domain": "capability",
+  "surface": "cli",
+  "turns": [
+    "Read sales.csv and write report.md. It must state the total revenue across every region as a plain number, and name the region with the highest revenue."
+  ],
+  "limits": {
+    "wall_seconds": 180,
+    "tool_calls": 40
+  },
+  "trials": 3,
+  "graders": [
+    {
+      "name": "files",
+      "version": 1,
+      "kind": "deterministic",
+      "required": true,
+      "config": { "exists": ["report.md", "sales.csv"] }
+    },
+    {
+      "name": "command",
+      "version": 1,
+      "kind": "deterministic",
+      "required": true,
+      "config": { "run": ["./check-report.sh"], "timeout_seconds": 30 }
+    },
+    {
+      "name": "trace",
+      "version": 1,
+      "kind": "trace",
+      "required": false,
+      "config": { "max_tool_calls": 40 }
+    }
+  ],
+  "oracle": ["sh", "./solve.sh"]
+}

@@ -21,8 +21,16 @@ const (
 // It is also embedded as the final `result` record in jsonl mode.
 // Field naming follows the repo's snake_case persistence convention.
 type printResult struct {
-	Type         string         `json:"type,omitempty"` // "result" for jsonl, omitted for json
-	SessionID    string         `json:"session_id"`
+	Type      string `json:"type,omitempty"` // "result" for jsonl, omitted for json
+	SessionID string `json:"session_id"`
+	// TraceID and TracePath point at the durable trace this run wrote. A caller
+	// otherwise cannot tell which file is theirs: a session holds one trace per
+	// run, and picking the newest is a race against a concurrent run in the same
+	// session. Both are empty when tracing is off or failed to start, which is
+	// not the same fact as a run that recorded nothing, so they are always
+	// present rather than omitted.
+	TraceID      string         `json:"trace_id"`
+	TracePath    string         `json:"trace_path"`
 	Model        string         `json:"model"`
 	Workspace    string         `json:"workspace"`
 	Reply        string         `json:"reply"`
@@ -69,6 +77,8 @@ type printErrorObj struct {
 func buildResultEnvelope(out agentapp.RunResult, exitCode int, runErr error, policyDenied bool, jsonl bool) printResult {
 	env := printResult{
 		SessionID:  out.SessionID,
+		TraceID:    out.TraceID,
+		TracePath:  out.TracePath,
 		Model:      out.ModelName,
 		Workspace:  out.Workspace,
 		Reply:      out.Reply,

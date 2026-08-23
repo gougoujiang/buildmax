@@ -134,7 +134,12 @@ var testOnlyPackages = []string{
 
 // The rule covers cmd/ and deployment/ as well as internal/, because "must not
 // ship" is a statement about the binaries, and those are where they are built.
-var testOnlyImportTrees = []string{"internal", "cmd", "deployment"}
+//
+// evaluation/ is listed even though it ships nothing. Its tests drive the real
+// binary against a scripted model and so import mockllm legitimately — test
+// files are skipped below — but its runner and adapters must reach a real
+// subject. An evaluation that answered its own model would report on the mock.
+var testOnlyImportTrees = []string{"internal", "cmd", "deployment", "evaluation"}
 
 // deployment/smoke exists only to make a smoke deterministic and is never
 // released, so it is where a test-only import is the point rather than a

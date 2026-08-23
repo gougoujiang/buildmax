@@ -87,8 +87,8 @@ larger than it looks.
   CLI suite: that is `internal/e2e/cli`, which drives the built binary against a
   scripted model. It was called `./make smoke` until the name collided with two
   deterministic things, and it now says what it needs before it starts.
-- `./make eval` and `internal/agenteval` run the real agent against the task
-  catalog in `eval/`. This is behavioral evaluation of agent quality, not
+- `./make eval` runs the built binary against the task suite in
+  `evaluation/suite/`. This is behavioral evaluation of agent quality, not
   boundary verification, and it is deliberately outside the suites below — but
   it runs the same binary in a temporary workspace, so the CLI suite and the
   eval runner must share their process-launch and isolation helpers rather than

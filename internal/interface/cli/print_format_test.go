@@ -82,6 +82,8 @@ func TestBuildResultEnvelope_FieldsAndShape(t *testing.T) {
 		SessionID:             "sess-1",
 		Workspace:             "/tmp/ws",
 		ModelName:             "test-model",
+		TraceID:               "run-1",
+		TracePath:             "/tmp/home/traces/sess-1/run-1.jsonl",
 	}
 	env := buildResultEnvelope(out, ExitOK, nil, false, false)
 	b, err := json.Marshal(env)
@@ -91,6 +93,8 @@ func TestBuildResultEnvelope_FieldsAndShape(t *testing.T) {
 	got := string(b)
 	wantSubs := []string{
 		`"session_id":"sess-1"`,
+		`"trace_id":"run-1"`,
+		`"trace_path":"/tmp/home/traces/sess-1/run-1.jsonl"`,
 		`"model":"test-model"`,
 		`"workspace":"/tmp/ws"`,
 		`"reply":"hello"`,
@@ -105,6 +109,22 @@ func TestBuildResultEnvelope_FieldsAndShape(t *testing.T) {
 	for _, sub := range wantSubs {
 		if !strings.Contains(got, sub) {
 			t.Errorf("envelope missing %s\nin: %s", sub, got)
+		}
+	}
+}
+
+// A run with tracing off must still carry the trace fields, empty. Omitting
+// them would leave a caller unable to tell "this build wrote no trace" from
+// "this build is too old to report one".
+func TestBuildResultEnvelope_TraceFieldsPresentWhenUntraced(t *testing.T) {
+	env := buildResultEnvelope(agentapp.RunResult{SessionID: "s"}, ExitOK, nil, false, false)
+	b, err := json.Marshal(env)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	for _, sub := range []string{`"trace_id":""`, `"trace_path":""`} {
+		if !strings.Contains(string(b), sub) {
+			t.Errorf("envelope missing %s\nin: %s", sub, b)
 		}
 	}
 }

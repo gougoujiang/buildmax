@@ -358,11 +358,35 @@ func cmdEval(args []string) error {
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
 		return err
 	}
-	out := filepath.Join(binDir, exe(evalBinary))
-	if err := runCmd("go", "build", "-o", out, "./cmd/buildmax-eval"); err != nil {
+	// Evaluation is black-box, so the CLI is built too and becomes the artifact
+	// under test. Building it with the release ldflags matters: the subject
+	// manifest records the version and commit the binary reports, and an
+	// unstamped build would be identified as "dev" in every result.
+	if err := buildGo("eval", cliBinary, "./cmd/buildmax"); err != nil {
 		return err
 	}
+	out := filepath.Join(binDir, exe(evalBinary))
+	if err := runCmd("go", "build", "-ldflags", ldflags(), "-o", out, "./cmd/buildmax-eval"); err != nil {
+		return err
+	}
+
+	// The runner refuses to guess which artifact to measure, so unless the
+	// caller named one, point it at the CLI just built.
+	if !hasFlag(args, "--binary") {
+		args = append([]string{"--binary", filepath.Join(binDir, exe(cliBinary))}, args...)
+	}
 	return runCmd(out, args...)
+}
+
+// hasFlag reports whether args already carries a flag, in either the "--x v" or
+// "--x=v" form.
+func hasFlag(args []string, name string) bool {
+	for _, a := range args {
+		if a == name || strings.HasPrefix(a, name+"=") {
+			return true
+		}
+	}
+	return false
 }
 
 // useSandboxHome points BUILDMAX_HOME at testing-sandbox for this process and

@@ -189,7 +189,8 @@ Acceptance:
 - no private prompt, trace, workspace snapshot, or grader body must leave the
   owning environment
 - the legacy `eval/` catalog and `internal/agenteval` are retired rather than
-  preserved behind compatibility code
+  preserved behind compatibility code — **done**: both are deleted, and
+  `./make eval` now measures a built binary against `evaluation/suite/`
 
 The black-box vertical slice is enabling work before substantial new Agent
 capability. Framework selection is deliberately downstream of that slice; see

@@ -619,7 +619,7 @@ tags it `json:"id"`. Revision structs lose their public ID field.
 Ripples: `internal/infra/db` mappers (row structs unchanged — the existing
 `task_id` column now maps to `model.Task.ID`), `internal/mock`,
 `internal/service`, `internal/server/handlers`, `websocket/protocol.go`,
-`workerclient/api_types.go`, `internal/agenteval`, Portal `lib/api/types.ts`,
+`workerclient/api_types.go`, Portal `lib/api/types.ts`,
 `lib/api/mappers.ts` and its 172 `*_id` references, and Desktop.
 
 - This is the largest diff of the six and the only one that changes the API's

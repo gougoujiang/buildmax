@@ -77,6 +77,17 @@ real provider named by `BUILDMAX_CACHE_QUALIFY_*`, and no provider or gateway is
 described as cache-capable until it passes. Unset, it skips like the
 MySQL-backed store tests do.
 
+`./make eval` is the third, and it measures something the suites deliberately do
+not. It builds the CLI and evaluates it as a black box against the tasks in
+`evaluation/suite/`: a real model, repeated trials, graders that read the final
+workspace and the run's trace, and a report of pass rate with its uncertainty.
+That is agent quality, not boundary verification — a suite above proves a
+behavior is wired, and evaluation asks how reliably a model drives it. It needs
+a key and spends tokens. Everything it can check without one — task validity,
+oracles, graders, and the adapter — runs in `./make test` instead, so a task
+that measures nothing is caught before it costs anything. See
+[design/evaluation-system.md](../design/evaluation-system.md).
+
 If a prerequisite is missing, the suite says which one before it starts. The two
 that catch people out:
 
