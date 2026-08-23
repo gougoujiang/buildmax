@@ -341,8 +341,10 @@ Everything else behaves as it does elsewhere: `max_tokens`, `vision`, and
 controls how long the daemon keeps the model in memory between calls — worth
 setting on a machine where reloading a large model costs more than the turn.
 
-A local model is a `direct` entry only. A BuildMax deployment's managed catalog
-does not serve this provider.
+A deployment can serve a local model too: `--provider ollama` on a catalog
+target, or `provider: ollama` under `conversation.model` in `server.yaml`, with
+no credential in either case. See
+[a local model in a deployment](#a-local-model-in-a-deployment).
 
 ### Managed models
 
@@ -671,6 +673,54 @@ the one that builds a provider client. They are never returned by a model
 listing, an API response, or an error. Note what that implies for operations:
 database backups and read replicas carry provider keys, so treat them the way
 you treat the database password.
+
+### A local model in a deployment
+
+A deployment can point at an Ollama daemon the same way the CLI does, with one
+difference that decides everything else: **the daemon has to be reachable from
+the server, and inside a container `localhost` is the container.**
+
+Either place accepts it, and neither takes a credential:
+
+```bash
+# a catalog target teams can be granted
+buildmax-server model add --name "Local Qwen" --provider ollama     --api-url http://ollama.ollama.svc.cluster.local:11434     --model qwen3:8b --context-window 32000
+```
+
+```yaml
+# or Tier 1 conversation, in server.yaml
+conversation:
+  model:
+    model: qwen3:8b
+    provider: ollama
+    api_url: http://ollama.ollama.svc.cluster.local:11434
+    context_window: 32000
+```
+
+`--api-key` is not required for this provider and nothing is stored for it. A
+key given anyway is ignored.
+
+**Reaching a daemon on the host machine.** For a local Kubernetes cluster,
+running the daemon on the host and pointing the deployment at it is usually
+better than running it in a pod: a pod cannot use the host's GPU, so inference
+falls back to the CPU of whatever VM the cluster runs in.
+
+| Host | Address that reaches it from a pod | Also needed |
+|---|---|---|
+| Docker Desktop (macOS, Windows) | `http://host.docker.internal:11434` | nothing — the gateway forwards to the host's loopback |
+| Linux, cluster in Docker (kind, k3d) | the bridge gateway, `http://172.x.0.1:11434` — `docker network inspect <net>` prints it | `OLLAMA_HOST=0.0.0.0`, or the daemon listens on loopback only |
+| A real cluster | the daemon's own Service or an address that routes to it | — |
+
+Two properties worth stating rather than discovering:
+
+- **The endpoint is operator-supplied and is never taken from a client
+  request.** A target pointing at a loopback or link-local address means the
+  *server's* network, which is a deployment decision. Only a system
+  administrator can add one.
+- **Managed calls are still metered.** A local target has no cost per token, but
+  it lands in the `llm_call` ledger like any other, which is what makes it a
+  usable way to exercise the gateway, quota, and audit paths without paying for
+  them.
 
 ### Managed models for task runs — the `worker.llm` block
 

@@ -35,9 +35,10 @@ Commands:
 Flags for add:
   --name string           Operator-facing name, unique in the deployment (required)
   --api-url string        Upstream base URL (required)
-  --api-key string        Upstream credential (required)
+  --api-key string        Upstream credential (required, except for ollama)
   --model string          The provider's own model identifier (required)
-  --provider string       Wire protocol: openai_compatible (default), openai, anthropic
+  --provider string       Wire protocol: openai_compatible (default), openai,
+                          anthropic, ollama (a local daemon, no credential)
   --context-window int    Usable context size; 0 uses the client default
   --call-timeout int      Per-call timeout in seconds; 0 uses the client default
   --max-tokens int        Cap on one response; 0 uses the client default
@@ -50,7 +51,8 @@ Flags for enable and disable:
   --id string             Model ID (required)
 
 A model is not usable by a team until an alias in server.yaml points at its ID.
-See docs/design/llm-gateway.md.
+An ollama target's --api-url must be reachable from the server, which inside a
+container is not the host's localhost. See docs/design/llm-gateway.md.
 `
 
 // RunModelCommand executes `buildmax-server model ...`. args excludes the
@@ -207,7 +209,9 @@ func validateModelInput(in model.CreateLLMModelInput) error {
 		return errors.New("model add: --name is required")
 	case in.APIURL == "":
 		return errors.New("model add: --api-url is required")
-	case in.APIKey == "":
+	// A local runtime has no credential, and requiring a placeholder for it
+	// would put a meaningless secret in the catalog and in the audit trail.
+	case in.APIKey == "" && llmgateway.ProviderNeedsCredential(in.ProviderType):
 		return errors.New("model add: --api-key is required")
 	case in.Model == "":
 		return errors.New("model add: --model is required")
@@ -220,11 +224,6 @@ func validateModelInput(in model.CreateLLMModelInput) error {
 	case !config.KnownReasoningEffort(in.Reasoning):
 		return fmt.Errorf("model add: --reasoning %q is not a level; use one of %s",
 			in.Reasoning, strings.Join(config.ReasoningEfforts(), ", "))
-	case in.ProviderType == config.LLMProviderOllama:
-		// The adapter exists; what a catalog target cannot yet be is
-		// credential-free. Saying "not implemented" here would read as a typo.
-		return fmt.Errorf("model add: --provider %s is available for a direct settings.yaml entry, not for a catalog target",
-			config.LLMProviderOllama)
 	case !llmgateway.KnownProvider(in.ProviderType):
 		return fmt.Errorf("model add: --provider %q is not implemented; use one of %s",
 			in.ProviderType, strings.Join(llmgateway.Providers(), ", "))

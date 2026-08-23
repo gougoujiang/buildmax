@@ -312,19 +312,44 @@ func TestClientFactoryRejectsUnsupportedProvider(t *testing.T) {
 	}
 }
 
-// TestClientFactoryRejectsLocalProvider keeps a deferred combination legible.
-// The adapter exists, so the generic "unsupported provider" message would send
-// an operator looking for a typo instead of reading the deferral.
-func TestClientFactoryRejectsLocalProvider(t *testing.T) {
-	factory := newClientFactory("conversation-key", nil)
+// TestClientFactoryBuildsALocalTargetWithoutACredential is the exemption the
+// managed path needs for a local runtime: there is no secret to hold, and
+// demanding one would make the provider unusable through the gateway.
+func TestClientFactoryBuildsALocalTargetWithoutACredential(t *testing.T) {
+	factory := newClientFactory("", nil)
 
-	_, err := factory(context.Background(), llmgateway.Target{
+	client, err := factory(context.Background(), llmgateway.Target{
 		Name:          "Local",
 		ProviderType:  config.LLMProviderOllama,
+		Endpoint:      "http://ollama.test:11434",
+		UpstreamModel: "qwen3:8b",
+		// Set so building the client asks the daemon nothing.
+		ContextWindow: 32_000,
 		CredentialRef: conversationCredentialRef,
 	})
-	if err == nil || !strings.Contains(err.Error(), "not for a managed catalog target") {
-		t.Errorf("want a message saying the provider is direct-only, got %v", err)
+	if err != nil {
+		t.Fatalf("factory: %v", err)
+	}
+	if client == nil {
+		t.Fatal("factory returned no client")
+	}
+}
+
+// TestClientFactoryStillDemandsACredentialForHostedTargets keeps that exemption
+// narrow. A hosted target with no key must fail at selection rather than send
+// an unauthenticated request upstream.
+func TestClientFactoryStillDemandsACredentialForHostedTargets(t *testing.T) {
+	factory := newClientFactory("", nil)
+
+	_, err := factory(context.Background(), llmgateway.Target{
+		Name:          "Hosted",
+		ProviderType:  llmgateway.ProviderOpenAICompatible,
+		Endpoint:      "https://api.example.test/v1",
+		UpstreamModel: "gpt-4o-mini",
+		CredentialRef: conversationCredentialRef,
+	})
+	if err == nil || !strings.Contains(err.Error(), "api_key is not set") {
+		t.Errorf("want a missing-credential error, got %v", err)
 	}
 }
 

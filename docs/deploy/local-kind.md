@@ -140,6 +140,31 @@ baseline, create `buildmax-secret` from
 `deployment/buildmax-secret.example.yaml`, and configure a real model endpoint.
 Do not use the generated smoke Secret or mock model outside local verification.
 
+### A real model without a provider key
+
+Between the mock and a hosted provider there is a third option: point the
+deployment at an Ollama daemon **on this machine**. Real inference, real tool
+calls, no credential, no bill — and the gateway, the `llm_call` ledger, and
+quota all run for real.
+
+Do not put the daemon in the cluster. A pod cannot reach the host's GPU, so
+inference falls back to the CPU of the VM the cluster runs in. Leave it on the
+host and give the deployment an address that reaches it — under Docker Desktop
+that is `host.docker.internal`, which resolves inside pods and forwards even to
+a daemon bound to the host's loopback:
+
+```bash
+# a catalog target, then point an alias at the printed ID in server.yaml
+kubectl --context kind-buildmaxdev -n buildmax exec deployment/buildmax-server -- \
+  buildmax-server model add --name "Host Ollama" --provider ollama \
+      --api-url http://host.docker.internal:11434 \
+      --model qwen3:8b --context-window 32000
+```
+
+`deployment/buildmax-deploy.yaml` carries the same thing for `conversation.model`
+as a commented block. On a Linux host the address is the Docker bridge gateway
+(`docker network inspect kind`) and the daemon needs `OLLAMA_HOST=0.0.0.0`.
+
 ## Why Compose Still Exists
 
 Compose and kind verify the same user-visible flow but different execution

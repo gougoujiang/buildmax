@@ -3,8 +3,9 @@
 > **Audience:** contributors · **Status:** phases 1 and 2 shipped. The adapter,
 > the always-sent `num_ctx`, minted tool-call identifiers, local inventory,
 > `buildmax init --ollama`, `buildmax models --local`, the `doctor` branch, the
-> credential exemption, and `keep_alive` are in. Managed catalog targets remain
-> deferred (§12).
+> credential exemption, and `keep_alive` are in. Phase 3 added managed targets:
+> a catalog row or `conversation.model` may name this provider and carry no
+> credential (§12).
 >
 > Two things the implementation settled that the plan below left open. `think`
 > is a switch rather than a scale on this protocol, so every level above `off`
@@ -168,8 +169,8 @@ the adapter does not already have, and its callers — `doctor` and `models` in
 The same two that already exist, both gaining one `case`:
 
 - `internal/agentapp/app.go` `LLMClientCache.build` — direct path;
-- `internal/bootstrap/llmgateway.go` `newClientFactory` — managed path, deferred
-  by §12; until then the value is rejected there with a message saying so.
+- `internal/bootstrap/llmgateway.go` `newClientFactory` — managed path, which
+  needs the credential exemption in §12 and nothing else.
 
 ### 5.3 Dependency
 
@@ -369,25 +370,40 @@ TUI's existing streaming-wait state covers the rest.
 model because a run needed one. The failure names the command; the user runs it.
 Pulling on demand turns a wrong `model:` line into a filled disk.
 
-## 12. The Managed Gateway, Deferred
+## 12. The Managed Gateway
 
-Phase 1 is direct-only. `newClientFactory` rejects `ollama` with a message
-saying it is not available for managed targets.
+A deployment serves this provider too, as a catalog target or as
+`conversation.model`. The obstacle was never the adapter: it was the catalog's
+credential invariant — `model add --api-key` required, `resolveCredential`
+failing on an empty credential — which is load-bearing for every provider that
+has a key.
 
-The obstacle is not the adapter, it is the catalog's credential invariant:
-`model add --api-key` is required, `resolveCredential` fails on an empty
-credential, and both are load-bearing for every provider that has one. Making
-the credential conditional is a change to the part of the server that decides
-where prompts go and what pays for them, and it is worth its own review rather
-than a subsection here.
+The invariant is now stated rather than assumed.
+`llmgateway.ProviderNeedsCredential` is the one place that says which protocols
+authenticate, and both `validateModelInput` and `resolveCredential` ask it. The
+exemption is deliberately one provider wide: a hosted target missing its key is
+a misconfiguration that must fail at selection, not a call sent unauthenticated.
 
-What it would take, recorded so the next reader does not re-derive it: the
-constant and `KnownProvider` in `internal/service/llmgateway/catalog.go`,
-a provider-level "needs no credential" predicate honored by both
-`validateModelInput` and `resolveCredential`, and a deployment decision about a
-server-side target whose endpoint is loopback — an operator pointing a catalog
-target at `localhost` is describing the *server's* localhost, which is an egress
-and isolation question the catalog does not currently ask.
+Three things follow that are worth stating rather than discovering:
+
+- **The endpoint is the deployment's network, not the caller's.** A target
+  naming `localhost` means the *server's* localhost, and a container's localhost
+  is the container. Only a system administrator can add a target, and no client
+  request has ever been able to supply an endpoint — that is what keeps an
+  operator-supplied loopback address a deployment decision rather than a request
+  forgery surface.
+- **A local target is metered like any other.** It costs nothing per token and
+  still lands in the `llm_call` ledger with `provider_type: ollama`, which is
+  what makes it a way to exercise the gateway, quota, and audit paths without
+  paying for them.
+- **Reaching a host daemon from a cluster is the operator's problem, and it has
+  one right answer per platform.** Under Docker Desktop `host.docker.internal`
+  resolves inside pods and forwards even to a daemon bound to the host's
+  loopback; on Linux it is the Docker bridge gateway plus `OLLAMA_HOST=0.0.0.0`.
+  Running the daemon *in* the cluster is the wrong default: a pod cannot reach
+  the host's GPU, so inference falls back to the CPU of whatever VM the cluster
+  runs in. This belongs in the deployment guide, not in the code, and is in
+  [../deploy/local-kind.md](../deploy/local-kind.md).
 
 ## 13. Delivery Plan
 
@@ -405,7 +421,11 @@ discovers.
 Splitting them this way keeps the risky half — a wire protocol — behind tests
 that do not need a daemon, and the half that needs a daemon out of the adapter.
 
-**Deferred:** managed targets (§12).
+**Phase 3 — managed targets — shipped.** `ProviderNeedsCredential` in
+`internal/service/llmgateway`, honored by `validateModelInput` and
+`resolveCredential`; the deployment example and the kind guide. Verified against
+a live kind cluster: a credential-free catalog target reached a daemon on the
+host through `host.docker.internal`, and the call landed in the ledger.
 
 ## 14. Validation
 
@@ -462,7 +482,7 @@ model routing or automatic selection between a local and a hosted entry;
 per-model prompt or tool-set profiles for small models — a small model's
 tool-calling quality is the model's property, and hiding it behind a trimmed
 tool set would make evaluation dishonest; native adapters for LM Studio,
-llama.cpp, or vLLM; managed catalog targets (§12).
+llama.cpp, or vLLM.
 
 ## 17. Open Questions
 
