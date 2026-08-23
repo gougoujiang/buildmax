@@ -25,11 +25,13 @@ func TestAgentRevisionEndpoints(t *testing.T) {
 		Teams:   []model.Team{{ID: teamID, Name: "Team", CreatedBy: "u1"}},
 		Members: []model.TeamMember{{TeamID: teamID, UserID: "u1", Role: model.TeamRoleOwner}},
 	}
-	created, err := agentStore.CreateAgentInTeam(t.Context(), teamID, "u1", "Collector", "collects", "collect carefully")
+	created, err := agentStore.CreateAgentInTeam(t.Context(), model.CreateAgentInput{TeamID: teamID, UserID: "u1",
+		Def: model.AgentDefinition{Name: "Collector", Description: "collects", Instructions: "collect carefully"}})
 	if err != nil {
 		t.Fatalf("CreateAgentInTeam: %v", err)
 	}
-	if _, err := agentStore.UpdateAgentInTeam(t.Context(), created.ID, teamID, "u1", "Collector", "collects", "collect faster"); err != nil {
+	if _, err := agentStore.UpdateAgentInTeam(t.Context(), model.UpdateAgentInput{AgentID: created.ID, TeamID: teamID, UpdatedBy: "u1",
+		Def: model.AgentDefinition{Name: "Collector", Description: "collects", Instructions: "collect faster"}}); err != nil {
 		t.Fatalf("UpdateAgentInTeam: %v", err)
 	}
 

@@ -33,6 +33,7 @@ func writePluginActivationError(w http.ResponseWriter, err error) bool {
 	switch {
 	case errors.Is(err, pluginsvc.ErrExecutableContent),
 		errors.Is(err, pluginsvc.ErrNoActivatableRelease),
+		errors.Is(err, pluginsvc.ErrNotActivated),
 		errors.Is(err, pluginsvc.ErrInvalidCuration):
 		httputil.WriteJSONError(w, http.StatusUnprocessableEntity, err.Error())
 		return true

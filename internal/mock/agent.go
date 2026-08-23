@@ -3,6 +3,7 @@ package mock
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
@@ -23,18 +24,21 @@ func (m *MockAgentStore) appendRevision(a *model.Agent, createdBy string) {
 		Name:         a.Name,
 		Description:  a.Description,
 		Instructions: a.Instructions,
+		Plugins:      a.Plugins,
 		CreatedBy:    createdBy,
 		CreatedAt:    time.Now().UTC(),
 	})
 }
 
-func (m *MockAgentStore) updateAgentAt(i int, updatedBy, name, description, instructions string) *model.Agent {
-	if m.Agents[i].Name == name && m.Agents[i].Description == description && m.Agents[i].Instructions == instructions {
+func (m *MockAgentStore) updateAgentAt(i int, updatedBy string, def model.AgentDefinition) *model.Agent {
+	if m.Agents[i].Name == def.Name && m.Agents[i].Description == def.Description &&
+		m.Agents[i].Instructions == def.Instructions && slices.Equal(m.Agents[i].Plugins, def.Plugins) {
 		return &m.Agents[i]
 	}
-	m.Agents[i].Name = name
-	m.Agents[i].Description = description
-	m.Agents[i].Instructions = instructions
+	m.Agents[i].Name = def.Name
+	m.Agents[i].Description = def.Description
+	m.Agents[i].Instructions = def.Instructions
+	m.Agents[i].Plugins = def.Plugins
 	if m.Agents[i].Revision < 1 {
 		m.Agents[i].Revision = 1
 	}
@@ -81,40 +85,32 @@ func (m *MockAgentStore) GetAgentIncludingDeleted(_ context.Context, agentID str
 	return nil, nil
 }
 
-func (m *MockAgentStore) CreateAgent(_ context.Context, userID, name, description, instructions string) (*model.Agent, error) {
-	return m.CreateAgentInTeam(context.Background(), "tm_personal", userID, name, description, instructions)
-}
-
-func (m *MockAgentStore) CreateAgentInTeam(_ context.Context, teamID, userID, name, description, instructions string) (*model.Agent, error) {
+func (m *MockAgentStore) CreateAgentInTeam(_ context.Context, in model.CreateAgentInput) (*model.Agent, error) {
+	teamID := in.TeamID
+	if teamID == "" {
+		teamID = "tm_personal"
+	}
 	a := model.Agent{
 		ID:           fmt.Sprintf("a_%d", len(m.Agents)+1),
-		UserID:       userID,
+		UserID:       in.UserID,
 		TeamID:       teamID,
-		Name:         name,
-		Description:  description,
-		Instructions: instructions,
+		Name:         in.Def.Name,
+		Description:  in.Def.Description,
+		Instructions: in.Def.Instructions,
+		Plugins:      in.Def.Plugins,
 		Revision:     1,
 		CreatedAt:    time.Now().UTC(),
 	}
 	m.Agents = append(m.Agents, a)
 	created := &m.Agents[len(m.Agents)-1]
-	m.appendRevision(created, userID)
+	m.appendRevision(created, in.UserID)
 	return created, nil
 }
 
-func (m *MockAgentStore) UpdateAgent(_ context.Context, agentID, userID, name, description, instructions string) (*model.Agent, error) {
+func (m *MockAgentStore) UpdateAgentInTeam(_ context.Context, in model.UpdateAgentInput) (*model.Agent, error) {
 	for i := range m.Agents {
-		if m.Agents[i].ID == agentID && m.Agents[i].UserID == userID && m.Agents[i].DeletedAt == nil {
-			return m.updateAgentAt(i, userID, name, description, instructions), nil
-		}
-	}
-	return nil, nil
-}
-
-func (m *MockAgentStore) UpdateAgentInTeam(_ context.Context, agentID, teamID, updatedBy, name, description, instructions string) (*model.Agent, error) {
-	for i := range m.Agents {
-		if m.Agents[i].ID == agentID && m.Agents[i].TeamID == teamID && m.Agents[i].DeletedAt == nil {
-			return m.updateAgentAt(i, updatedBy, name, description, instructions), nil
+		if m.Agents[i].ID == in.AgentID && m.Agents[i].TeamID == in.TeamID && m.Agents[i].DeletedAt == nil {
+			return m.updateAgentAt(i, in.UpdatedBy, in.Def), nil
 		}
 	}
 	return nil, nil

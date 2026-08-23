@@ -519,6 +519,7 @@ under.
 | `name` | `varchar(255)` | no | |
 | `description` | `text` | yes | Shown in pickers |
 | `instructions` | `text` | yes | Appended to the system prompt for runs using this agent |
+| `plugins` | `text` | yes | JSON array of catalog plugin names this agent loads |
 | `revision` | `bigint` | no | Number of the `agent_revision` row holding this content; starts at 1 |
 | `deleted_at` | `datetime(6)` | yes | Set when the agent was deleted; the row stays |
 | `created_at` | `datetime(6)` | yes | `autoCreateTime` |
@@ -536,6 +537,15 @@ an agent a `published` workflow still names is refused with `409` — that
 workflow could still be run, and the failure would otherwise surface at the next
 run rather than at the delete. Draft and archived workflows do not block it,
 because neither can start a run and publishing revalidates its agents.
+
+`plugins` names catalog plugins, never releases: the version and digest come
+from the team's `plugin_activation` row, so moving a plugin to a new release
+stays one edit in one place. Nothing is inherited from the team's activations —
+an agent that names none loads none — and the list is stored trimmed,
+deduplicated, and sorted, so reordering the same set does not append a revision.
+It is a JSON column rather than a join table because nothing queries inside it:
+the selection is written and read whole, and "which agents name this plugin" is
+a scan of one team's agents.
 
 There is no undelete route. The row exists so references resolve, not as a
 recycle bin.
@@ -557,6 +567,7 @@ deleted.
 | `name` | `varchar(255)` | no | |
 | `description` | `text` | yes | |
 | `instructions` | `text` | yes | |
+| `plugins` | `text` | yes | JSON array; the selection this revision recorded |
 | `created_by` | `bigint unsigned` | no | The user who wrote this revision, not necessarily the agent's owner |
 | `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 

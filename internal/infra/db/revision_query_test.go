@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/gougoujiang/buildmax/internal/core/model"
 )
 
 // listRevisions and getRevision resolve their table from a type parameter, so
@@ -30,12 +31,14 @@ func TestAgentRevisionsPageNewestFirst(t *testing.T) {
 	userID := newTestUser(t, s, "revision")
 	teamID := newTestTeam(t, s, userID)
 
-	agent, err := s.CreateAgentInTeam(ctx, teamID, userID, "first", "d", "i")
+	agent, err := s.CreateAgentInTeam(ctx, model.CreateAgentInput{TeamID: teamID, UserID: userID,
+		Def: model.AgentDefinition{Name: "first", Description: "d", Instructions: "i"}})
 	if err != nil {
 		t.Fatalf("CreateAgentInTeam: %v", err)
 	}
 	for _, name := range []string{"second", "third"} {
-		if _, err := s.UpdateAgentInTeam(ctx, agent.ID, teamID, userID, name, "d", "i"); err != nil {
+		if _, err := s.UpdateAgentInTeam(ctx, model.UpdateAgentInput{AgentID: agent.ID, TeamID: teamID, UpdatedBy: userID,
+			Def: model.AgentDefinition{Name: name, Description: "d", Instructions: "i"}}); err != nil {
 			t.Fatalf("UpdateAgentInTeam %s: %v", name, err)
 		}
 	}
@@ -68,7 +71,8 @@ func TestGetAgentRevisionReportsMissingAsNil(t *testing.T) {
 	userID := newTestUser(t, s, "revision")
 	teamID := newTestTeam(t, s, userID)
 
-	agent, err := s.CreateAgentInTeam(ctx, teamID, userID, "only", "d", "i")
+	agent, err := s.CreateAgentInTeam(ctx, model.CreateAgentInput{TeamID: teamID, UserID: userID,
+		Def: model.AgentDefinition{Name: "only", Description: "d", Instructions: "i"}})
 	if err != nil {
 		t.Fatalf("CreateAgentInTeam: %v", err)
 	}

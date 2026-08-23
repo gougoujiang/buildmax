@@ -17,6 +17,7 @@ type AgentResponse struct {
 	Name         string    `json:"name"`
 	Description  string    `json:"description"`
 	Instructions string    `json:"instructions"`
+	Plugins      []string  `json:"plugins,omitempty"`
 	Revision     int       `json:"revision"`
 	CreatedAt    time.Time `json:"created_at"`
 }
@@ -27,6 +28,7 @@ type agentRevisionResponse struct {
 	Name         string    `json:"name"`
 	Description  string    `json:"description"`
 	Instructions string    `json:"instructions"`
+	Plugins      []string  `json:"plugins,omitempty"`
 	CreatedBy    string    `json:"created_by"`
 	CreatedAt    time.Time `json:"created_at"`
 }
@@ -40,12 +42,19 @@ type createAgentRequest struct {
 	Name         string `json:"name"`
 	Description  string `json:"description"`
 	Instructions string `json:"instructions"`
+	// Plugins names catalog plugins, never releases: the version comes from
+	// the team's activation.
+	Plugins []string `json:"plugins,omitempty"`
 }
 
+// patchAgentRequest replaces the whole definition, plugins included. An absent
+// list is an empty one, because a patch that could not clear the selection
+// would leave no way to stop an agent loading a plugin.
 type patchAgentRequest struct {
-	Name         string `json:"name"`
-	Description  string `json:"description"`
-	Instructions string `json:"instructions"`
+	Name         string   `json:"name"`
+	Description  string   `json:"description"`
+	Instructions string   `json:"instructions"`
+	Plugins      []string `json:"plugins,omitempty"`
 }
 
 func agentToResponse(a model.Agent) AgentResponse {
@@ -56,6 +65,7 @@ func agentToResponse(a model.Agent) AgentResponse {
 		Name:         a.Name,
 		Description:  a.Description,
 		Instructions: a.Instructions,
+		Plugins:      a.Plugins,
 		Revision:     a.Revision,
 		CreatedAt:    a.CreatedAt,
 	}
@@ -68,6 +78,7 @@ func agentRevisionToResponse(rev model.AgentRevision) agentRevisionResponse {
 		Name:         rev.Name,
 		Description:  rev.Description,
 		Instructions: rev.Instructions,
+		Plugins:      rev.Plugins,
 		CreatedBy:    rev.CreatedBy,
 		CreatedAt:    rev.CreatedAt,
 	}
@@ -78,11 +89,20 @@ func (h *Handler) agentService() *agent.Service {
 	if h.cfg.Workflows != nil {
 		svc.Workflows = h.workflowUsage()
 	}
+	// Nil when the deployment has no Marketplace, which is what makes naming a
+	// plugin a refusal there rather than a stored selection nothing resolves.
+	if h.cfg.Plugins != nil && h.cfg.Plugins.Activations != nil {
+		svc.Plugins = h.cfg.Plugins
+	}
 	return svc
 }
 
+// writeAgentServiceError maps what an agent write can refuse. It routes through
+// the activation mapping because an edit that names a plugin can fail for that
+// plugin's reasons — the release contributes a hook, the team has not activated
+// it — and those answers belong to the caller, not in a 500.
 func (h *Handler) writeAgentServiceError(w http.ResponseWriter, err error) bool {
-	return httputil.WriteServiceError(w, err)
+	return writePluginActivationError(w, err)
 }
 
 func (h *Handler) listAgentsHandler(w http.ResponseWriter, r *http.Request) {
@@ -123,6 +143,7 @@ func (h *Handler) createAgentHandler(w http.ResponseWriter, r *http.Request) {
 		Name:         req.Name,
 		Description:  req.Description,
 		Instructions: req.Instructions,
+		Plugins:      req.Plugins,
 	})
 	if err != nil {
 		if h.writeAgentServiceError(w, err) {
@@ -177,6 +198,7 @@ func (h *Handler) patchAgentHandler(w http.ResponseWriter, r *http.Request) {
 		Name:         req.Name,
 		Description:  req.Description,
 		Instructions: req.Instructions,
+		Plugins:      req.Plugins,
 	})
 	if err != nil {
 		if h.writeAgentServiceError(w, err) {
