@@ -311,6 +311,47 @@ func TestWorkspaceMCPPathsExist(t *testing.T) {
 	}
 }
 
+// The checked-in workspace configuration is executable input, so exercise the
+// same parsers used by an agent run instead of relying only on documentation
+// shape checks above.
+func TestWorkspaceAgentConfigLoadsWithRuntimeParsers(t *testing.T) {
+	root := repoRoot(t)
+	t.Setenv(config.EnvKeyBuildmaxHome, t.TempDir())
+
+	skills := tool.DiscoverSkillEntries([]string{filepath.Join(root, ".buildmax", "skills")})
+	if len(skills) != 2 || skills[0].Name != "smoke" || skills[1].Name != "vibe" {
+		t.Fatalf("workspace skills = %v, want smoke and vibe", skills)
+	}
+
+	defs, err := tool.LoadAgentDefs(filepath.Join(root, ".buildmax", "agents"))
+	if err != nil {
+		t.Fatalf("load workspace agents: %v", err)
+	}
+	if len(defs) != 1 || defs[0].Name != "sample-researcher" {
+		t.Fatalf("workspace agents = %v, want sample-researcher", defs)
+	}
+	wantTools := []string{"Glob", "Grep", "Read", "WebFetch"}
+	if strings.Join(defs[0].ToolNames, ",") != strings.Join(wantTools, ",") {
+		t.Fatalf("sample-researcher tools = %v, want %v", defs[0].ToolNames, wantTools)
+	}
+
+	mcpConfig, err := config.LoadMCPConfigForWorkspace(root)
+	if err != nil {
+		t.Fatalf("load workspace MCP config: %v", err)
+	}
+	if mcpConfig == nil || len(mcpConfig.MCPServers) != 1 {
+		t.Fatalf("workspace MCP servers = %v, want only local-test", mcpConfig)
+	}
+	server, ok := mcpConfig.MCPServers["local-test"]
+	if !ok {
+		t.Fatal("workspace MCP config did not load local-test")
+	}
+	wantServerPath := filepath.Join(root, "cmd", "local-test-mcp-server")
+	if len(server.Args) != 2 || server.Args[0] != "run" || filepath.Clean(server.Args[1]) != wantServerPath {
+		t.Fatalf("local-test args = %v, want [run %s]", server.Args, wantServerPath)
+	}
+}
+
 // The three checks below extend the ones above from AGENTS.md to every
 // document, and from paths to the two other things a reader can act on and get
 // wrong: a task-runner command, and the command list a user looks up.
