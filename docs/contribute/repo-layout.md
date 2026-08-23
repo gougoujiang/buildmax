@@ -19,7 +19,8 @@ buildmax/
 ├── docs/                 Documentation
 ├── config-examples/      settings.yaml / server.yaml / hooks.yaml examples
 ├── deployment/           Deployment manifests, Compose, Dockerfiles, dev-kind
-├── eval/                 Agent benchmark task catalog
+├── eval/                 Agent benchmark task catalog (retiring; see evaluation/)
+├── evaluation/           Evaluation and qualification system
 ├── sample-data/          Seed datasets to upload into a workspace or point the CLI at
 ├── .github/              CI workflows, issue and PR templates, community health files
 ├── .buildmax/            This repository's own workspace agent config — see .buildmax/README.md
@@ -204,6 +205,30 @@ internal/
 └── util/               Public ID codec, prefixed IDs, workspace path resolution,
                         small string and time helpers
 ```
+
+## `evaluation/`
+
+The evaluation and qualification system. It sits outside `internal/` because it
+is contributor and operator tooling rather than product code, and it reaches no
+product binary.
+
+```text
+evaluation/
+└── contract/           Task, subject, trial-bundle, grader-result, and
+                        experiment types, the failure taxonomy, and the bundle
+                        directory layout
+```
+
+The package uses the standard library alone, so evaluation adds nothing to the
+product's `go.mod`. Being inside the root module, it is covered by `./make test`,
+`vet`, `lint`, and `govulncheck` without a second pipeline.
+
+A trial bundle is a directory rather than a file: most of its evidence — the
+JSONL trace, workspace state, produced artifacts — is already files, and keeping
+one failure's evidence together is the reproduction path a failed trial owes a
+contributor. The remaining ownership areas, and what `eval/` and
+`internal/agenteval` are being replaced by, are in
+[design/evaluation-system.md](../design/evaluation-system.md).
 
 ## Dependency Direction
 

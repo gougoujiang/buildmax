@@ -585,9 +585,14 @@ The vertical slice must resolve these choices with evidence rather than
 preference:
 
 - Harbor's exact adapter mechanism;
-- JSON, JSONL, or a directory manifest as the physical trial-bundle encoding;
 - the report renderer, given that the statistics above are implemented rather than imported; and
 - Phoenix, Langfuse, or no external viewer.
+
+The physical trial-bundle encoding is no longer among them. Step 1 settled it on a directory
+rather than a single document: most of a bundle is already files — the JSONL trace, workspace
+state, produced artifacts — so inlining them would contradict the bounded-evidence rule they
+exist to serve, while one directory per attempt is the reproduction path section 17 requires.
+`evaluation/contract` implements that layout.
 
 Each follows from the black-box vertical slice and must preserve the contract and privacy decisions
 above.
@@ -785,7 +790,7 @@ than a mistake.
 
 | Step | Delivers | Resolves |
 |---|---|---|
-| 1. Contract | `evaluation/contract`: versioned task, subject manifest, trial bundle, grader result, and experiment types with the failure taxonomy, in Go against the standard library alone per section 15.3; the trace audit above recorded in the repository | The physical trial-bundle encoding from section 15.4; section 20 items 2 and 3 |
+| 1. Contract — **done** | `evaluation/contract`: versioned task, subject manifest, trial bundle, grader result, and experiment types with the failure taxonomy, in Go against the standard library alone per section 15.3; the trace audit above recorded in the repository | The physical trial-bundle encoding, settled on a directory in section 15.4; section 20 items 2 and 3 |
 | 2. CLI adapter | `trace_id`/`trace_path` in the print envelope; subject-built trial home; the hidden-grader boundary; deterministic state and trace graders; one canonical trial bundle per attempt | Whether the contract is sufficient for a real execution path |
 | 3. Experiment | Repetition, paired baseline comparison, uncertainty, failure classification, and a local report; the mockllm pull-request gate | Whether section 15.3's Go controller holds once experiment control is written; the report renderer |
 | 4. Retirement | Delete `eval/`, `internal/agenteval`, and `cmd/buildmax-eval`; rewrite `./make eval`; update `docs/contribute/repo-layout.md`, `docs/contribute/testing.md`, `docs/design/end-to-end-testing.md`, and `docs/design/llm-gateway.md` where they cite the old harness | The last roadmap acceptance criterion |
