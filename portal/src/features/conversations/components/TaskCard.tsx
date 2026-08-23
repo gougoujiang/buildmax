@@ -5,7 +5,7 @@ const previewMaxLen = 600
 
 interface TaskCardProps {
   task: ApiTask
-  /** Null while the card's own action is not available (no token yet). */
+  /** True while this card's own stop or retry is in flight. */
   busy: boolean
   onStop: (taskId: string) => void
   onRetry: (taskId: string) => void
