@@ -114,6 +114,10 @@ func TestSaveLoad_UsageRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	s.PromptTokens, s.CompletionTokens = 50, 30
+	// A resumed session keeps its cached breakdown too. Losing it on restart
+	// would make a long cached session report the same totals as an uncached
+	// one, which is exactly the comparison caching exists to change.
+	s.CacheReadTokens, s.CacheWriteTokens = 40, 10
 	if err := saveSession(s, dir); err != nil {
 		t.Fatalf("saveSession: %v", err)
 	}
@@ -123,6 +127,9 @@ func TestSaveLoad_UsageRoundTrip(t *testing.T) {
 	}
 	if loaded.PromptTokens != 50 || loaded.CompletionTokens != 30 {
 		t.Errorf("loaded usage: prompt=%d completion=%d, want 50, 30", loaded.PromptTokens, loaded.CompletionTokens)
+	}
+	if loaded.CacheReadTokens != 40 || loaded.CacheWriteTokens != 10 {
+		t.Errorf("loaded cache usage: read=%d write=%d, want 40, 10", loaded.CacheReadTokens, loaded.CacheWriteTokens)
 	}
 }
 

@@ -23,10 +23,16 @@ const denyMsgHook = "error: tool call %q denied by hook: %s"
 const DefaultMaxIterations = 200
 
 // RunStats holds statistics collected during a single agent run.
+//
+// CacheReadTokens and CacheWriteTokens break PromptTokens down rather than add
+// to it, matching llm.Usage. A surface that sums all three reports a run that
+// read more prompt than it sent.
 type RunStats struct {
 	ToolCalls        int
 	PromptTokens     int
 	CompletionTokens int
+	CacheReadTokens  int
+	CacheWriteTokens int
 }
 
 // MessageHistory is the minimal interface for the agent loop: read the conversation so far and append one message.
@@ -248,6 +254,8 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 		}
 		s.PromptTokens += completion.Usage.PromptTokens
 		s.CompletionTokens += completion.Usage.CompletionTokens
+		s.CacheReadTokens += completion.Usage.CacheReadTokens
+		s.CacheWriteTokens += completion.Usage.CacheWriteTokens
 
 		if content != "" {
 			lastContent = content
@@ -260,6 +268,8 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 			HasToolCalls:     len(toolCalls) > 0,
 			PromptTokens:     s.PromptTokens,
 			CompletionTokens: s.CompletionTokens,
+			CacheReadTokens:  s.CacheReadTokens,
+			CacheWriteTokens: s.CacheWriteTokens,
 		})
 
 		if len(toolCalls) == 0 {
@@ -410,6 +420,8 @@ func callLLM(ctx context.Context, opts RunLoopOpts, history []llm.Message, syste
 		ContextWindow:    contextWindow,
 		PromptTokens:     stats.PromptTokens,
 		CompletionTokens: stats.CompletionTokens,
+		CacheReadTokens:  stats.CacheReadTokens,
+		CacheWriteTokens: stats.CacheWriteTokens,
 	})
 	messages := append([]llm.Message{{Role: "system", Content: systemPrompt}}, history...)
 	messages = append(messages, stateMsg...)

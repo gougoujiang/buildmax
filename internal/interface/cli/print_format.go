@@ -39,6 +39,13 @@ type printUsage struct {
 	Completion      int `json:"completion"`
 	TotalPrompt     int `json:"total_prompt"`
 	TotalCompletion int `json:"total_completion"`
+	// Cache counts break the prompt counts above down; a consumer that adds
+	// them to prompt counts the same tokens twice. Zero is what a provider
+	// without cache reporting sends, not a proven miss.
+	CacheRead       int `json:"cache_read"`
+	CacheWrite      int `json:"cache_write"`
+	TotalCacheRead  int `json:"total_cache_read"`
+	TotalCacheWrite int `json:"total_cache_write"`
 }
 
 type printContext struct {
@@ -54,13 +61,22 @@ type printErrorObj struct {
 // buildResultEnvelope converts a RunResult plus run metadata into the wire envelope.
 func buildResultEnvelope(out agentapp.RunResult, exitCode int, runErr error, policyDenied bool, jsonl bool) printResult {
 	env := printResult{
-		SessionID:    out.SessionID,
-		Model:        out.ModelName,
-		Workspace:    out.Workspace,
-		Reply:        out.Reply,
-		ToolCalls:    out.ToolCalls,
-		DurationMS:   out.Duration.Milliseconds(),
-		Usage:        printUsage{Prompt: out.PromptTokens, Completion: out.CompletionTokens, TotalPrompt: out.TotalPromptTokens, TotalCompletion: out.TotalCompletionTokens},
+		SessionID:  out.SessionID,
+		Model:      out.ModelName,
+		Workspace:  out.Workspace,
+		Reply:      out.Reply,
+		ToolCalls:  out.ToolCalls,
+		DurationMS: out.Duration.Milliseconds(),
+		Usage: printUsage{
+			Prompt:          out.PromptTokens,
+			Completion:      out.CompletionTokens,
+			TotalPrompt:     out.TotalPromptTokens,
+			TotalCompletion: out.TotalCompletionTokens,
+			CacheRead:       out.CacheReadTokens,
+			CacheWrite:      out.CacheWriteTokens,
+			TotalCacheRead:  out.TotalCacheReadTokens,
+			TotalCacheWrite: out.TotalCacheWriteTokens,
+		},
 		Context:      printContext{Tokens: out.ContextTokens, Window: out.ContextWindow},
 		ExitCode:     exitCode,
 		PolicyDenied: policyDenied,
@@ -136,6 +152,8 @@ func eventToJSON(ev agent.Event, includeDeltas bool) ([]byte, bool) {
 		rec["has_tool_calls"] = ev.HasToolCalls
 		rec["prompt_tokens"] = ev.PromptTokens
 		rec["completion_tokens"] = ev.CompletionTokens
+		rec["cache_read_tokens"] = ev.CacheReadTokens
+		rec["cache_write_tokens"] = ev.CacheWriteTokens
 	case agent.EventToolStart:
 		rec["type"] = "tool_start"
 		rec["tool"] = ev.ToolName
@@ -161,6 +179,8 @@ func eventToJSON(ev agent.Event, includeDeltas bool) ([]byte, bool) {
 		rec["tool_calls"] = ev.Stats.ToolCalls
 		rec["prompt_tokens"] = ev.Stats.PromptTokens
 		rec["completion_tokens"] = ev.Stats.CompletionTokens
+		rec["cache_read_tokens"] = ev.Stats.CacheReadTokens
+		rec["cache_write_tokens"] = ev.Stats.CacheWriteTokens
 		if ev.Err != nil {
 			rec["error"] = ev.Err.Error()
 		}

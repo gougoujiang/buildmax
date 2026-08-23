@@ -79,6 +79,13 @@ type Record struct {
 	HasToolCalls     bool `json:"has_tool_calls,omitempty"`
 	PromptTokens     int  `json:"prompt_tokens,omitempty"`
 	CompletionTokens int  `json:"completion_tokens,omitempty"`
+	// CacheReadTokens and CacheWriteTokens are the provider-reported cached
+	// parts of the prompt so far. They break PromptTokens down rather than add
+	// to it. Absent means the provider reported none, which a reader must not
+	// read as a cache miss: a provider that reports nothing is not a provider
+	// that missed.
+	CacheReadTokens  int `json:"cache_read_tokens,omitempty"`
+	CacheWriteTokens int `json:"cache_write_tokens,omitempty"`
 
 	// llm_end
 	Content string `json:"content,omitempty"`
@@ -141,6 +148,8 @@ func recordFromEvent(e agent.Event, maxField int) (Record, bool) {
 		r.HasToolCalls = e.HasToolCalls
 		r.PromptTokens = e.PromptTokens
 		r.CompletionTokens = e.CompletionTokens
+		r.CacheReadTokens = e.CacheReadTokens
+		r.CacheWriteTokens = e.CacheWriteTokens
 		r.ContextTokens = e.ContextTokens
 		r.ContextWindow = e.ContextWindow
 		r.Content = bound(Redact(e.Content), maxField)
@@ -174,6 +183,8 @@ func recordFromEvent(e agent.Event, maxField int) (Record, bool) {
 		r.ToolCalls = e.Stats.ToolCalls
 		r.PromptTokens = e.Stats.PromptTokens
 		r.CompletionTokens = e.Stats.CompletionTokens
+		r.CacheReadTokens = e.Stats.CacheReadTokens
+		r.CacheWriteTokens = e.Stats.CacheWriteTokens
 		if e.Err != nil {
 			r.Error = e.Err.Error()
 		}

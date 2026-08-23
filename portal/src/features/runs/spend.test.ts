@@ -46,6 +46,35 @@ describe("summarizeSpend", () => {
     expect(got.completionTokens).toBe(30)
   })
 
+  it("totals cached prompt without adding it to the prompt count", () => {
+    // The cache counts are a breakdown of prompt_tokens. A summary that added
+    // them would report 190 tokens of input for a call that sent 100.
+    const got = summarizeSpend([
+      call({ prompt_tokens: 100, completion_tokens: 4, cache_read_tokens: 80, cache_write_tokens: 10 }),
+    ])
+    expect(got.promptTokens).toBe(100)
+    expect(got.cacheReadTokens).toBe(80)
+    expect(got.cacheWriteTokens).toBe(10)
+    expect(got.cacheUnreported).toBe(0)
+  })
+
+  it("separates a provider that reported no cache from one that reported zero", () => {
+    const got = summarizeSpend([
+      call({ id: "lc_1", prompt_tokens: 100, cache_read_tokens: 0, cache_write_tokens: 0 }),
+      call({ id: "lc_2", prompt_tokens: 100 }),
+    ])
+    expect(got.cacheReadTokens).toBe(0)
+    expect(got.cacheUnreported).toBe(1)
+  })
+
+  it("does not count a call with no usage at all as a cache silence", () => {
+    // It is already counted as unreported. Counting it twice would present one
+    // silent call as two separate gaps in the record.
+    const got = summarizeSpend([call()])
+    expect(got.unreported).toBe(1)
+    expect(got.cacheUnreported).toBe(0)
+  })
+
   it("counts a call with no terminal status as neither succeeded nor failed", () => {
     const got = summarizeSpend([
       call({ id: "lc_1", status: "ACCEPTED" }),

@@ -440,6 +440,12 @@ export interface ApiTaskRunLLMCall {
   completion_tokens?: number
   total_tokens?: number
   /**
+   * The cached parts of `prompt_tokens`, not tokens on top of it. A reader that
+   * adds them to the prompt count counts the same tokens twice.
+   */
+  cache_read_tokens?: number
+  cache_write_tokens?: number
+  /**
    * Separates a provider that reported nothing from one that reported zero.
    * Without it an absent count reads as a free call.
    */

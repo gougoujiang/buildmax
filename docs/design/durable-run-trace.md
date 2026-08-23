@@ -108,8 +108,11 @@ omitted.
 {"ts":"…","type":"llm_start","iter":1,"context_tokens":1234,"context_window":128000}
 
 // llm_end     (EventLLMEnd) — content bounded
+// The cache counts are a breakdown of prompt_tokens, not an addition to it, and
+// are omitted entirely when the provider reported none.
 {"ts":"…","type":"llm_end","iter":1,"has_tool_calls":true,
- "prompt_tokens":1200,"completion_tokens":80,"content":"…"}
+ "prompt_tokens":1200,"completion_tokens":80,
+ "cache_read_tokens":900,"cache_write_tokens":100,"content":"…"}
 
 // tool_start  (EventToolStart) — args bounded + redacted
 {"ts":"…","type":"tool_start","tool":"writefile","tool_call_id":"call_1","args":"{…}"}
@@ -134,7 +137,8 @@ omitted.
 
 // run_end     (EventRunEnd)
 {"ts":"…","type":"run_end","tool_calls":2,"prompt_tokens":1200,
- "completion_tokens":80,"error":""}
+ "completion_tokens":80,"cache_read_tokens":900,"cache_write_tokens":100,
+ "error":""}
 ```
 
 `EventLLMDelta` is **not** persisted — streaming deltas are redundant with the

@@ -158,6 +158,11 @@ func emitTextSummary(stdout, stderr io.Writer, out agentapp.RunResult, runErr er
 	if out.PromptTokens > 0 || out.CompletionTokens > 0 || out.TotalPromptTokens > 0 || out.TotalCompletionTokens > 0 {
 		fmt.Fprintf(stdout, "Tokens(in/out): %s\n", formatTokenUsageValue(out.PromptTokens, out.CompletionTokens, out.TotalPromptTokens, out.TotalCompletionTokens))
 	}
+	// Printed only when a provider reported cached tokens: a "0/0" line on a
+	// provider that reports nothing would claim a miss nobody measured.
+	if out.CacheReadTokens > 0 || out.CacheWriteTokens > 0 || out.TotalCacheReadTokens > 0 || out.TotalCacheWriteTokens > 0 {
+		fmt.Fprintf(stdout, "Cache(read/write): %s\n", formatTokenUsageValue(out.CacheReadTokens, out.CacheWriteTokens, out.TotalCacheReadTokens, out.TotalCacheWriteTokens))
+	}
 }
 
 // printFatal handles errors that occur before the agent has run (setup

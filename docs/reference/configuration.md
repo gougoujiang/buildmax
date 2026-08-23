@@ -271,7 +271,17 @@ off.
 Cached tokens are reported as `cache_read_tokens` and `cache_write_tokens`,
 which **break the prompt count down rather than adding to it**. A spend report
 that summed all of them alongside `prompt_tokens` would count the same tokens
-twice. Managed deployments record both on the `llm_call` ledger row.
+twice.
+
+They are visible wherever a run's tokens are: the CLI prints a `Cache(read/write)`
+line and shows the same figures in the TUI status bar, `--format json` carries
+them under `usage`, the run trace records them, the session file keeps the
+per-session totals, and a managed deployment records them on the `llm_call`
+ledger row for Portal's run-spend view.
+
+Each of those shows the breakdown only when a provider reported one. Most
+providers report nothing at all, and a permanent `0 / 0` would read as a
+measured miss rather than an absent measurement.
 
 ### Image input
 

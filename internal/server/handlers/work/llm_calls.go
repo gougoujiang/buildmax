@@ -38,6 +38,11 @@ type LLMCallSummary struct {
 	PromptTokens     *int `json:"prompt_tokens,omitempty"`
 	CompletionTokens *int `json:"completion_tokens,omitempty"`
 	TotalTokens      *int `json:"total_tokens,omitempty"`
+	// Cache counts are the cached parts of PromptTokens, not tokens on top of
+	// it. The ledger already recorded them; leaving them out of this view was
+	// what made a cache-heavy run indistinguishable from an uncached one.
+	CacheReadTokens  *int `json:"cache_read_tokens,omitempty"`
+	CacheWriteTokens *int `json:"cache_write_tokens,omitempty"`
 	// UsageSource separates a provider that reported nothing from one that
 	// reported zero. Without it an absent count reads as a free call.
 	UsageSource string `json:"usage_source,omitempty"`
@@ -103,6 +108,8 @@ func toLLMCallSummary(call model.LLMCall) LLMCallSummary {
 		PromptTokens:     call.PromptTokens,
 		CompletionTokens: call.CompletionTokens,
 		TotalTokens:      call.TotalTokens,
+		CacheReadTokens:  call.CacheReadTokens,
+		CacheWriteTokens: call.CacheWriteTokens,
 		UsageSource:      call.UsageSource,
 	}
 }

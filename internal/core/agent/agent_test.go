@@ -251,6 +251,40 @@ func TestProcessWithSession_AccumulatesUsage(t *testing.T) {
 	}
 }
 
+// A run's cache counts accumulate the same way its prompt does, and stay a
+// breakdown of it. Reporting them as extra input would make a cached run look
+// more expensive than the uncached one it replaced, which is the opposite of
+// what caching does.
+func TestRunStatsAccumulatesCacheUsageAsPartOfThePrompt(t *testing.T) {
+	ctx := context.Background()
+	mock := &mockLLMClient{
+		responses: []mockResponse{
+			// First call writes the prefix, second reads it back.
+			{content: "", toolCalls: []llm.ToolCall{{ID: "1", Name: "echo", Arguments: "{}"}},
+				usage: llm.Usage{PromptTokens: 100, CompletionTokens: 5, CacheWriteTokens: 90}},
+			{content: "Done.",
+				usage: llm.Usage{PromptTokens: 120, CompletionTokens: 8, CacheReadTokens: 90}},
+		},
+	}
+	mockTool := &mockTool{name: "echo", description: "Echo", params: map[string]any{"type": "object"}, result: "ok"}
+	_, stats, err := runLoopWithUserMsg(ctx, mock, newTestToolRegistry(mockTool), newTestBuffer(), "Hi")
+	if err != nil {
+		t.Fatalf("RunLoop: %v", err)
+	}
+	if stats.CacheWriteTokens != 90 {
+		t.Errorf("stats.CacheWriteTokens = %d, want 90", stats.CacheWriteTokens)
+	}
+	if stats.CacheReadTokens != 90 {
+		t.Errorf("stats.CacheReadTokens = %d, want 90", stats.CacheReadTokens)
+	}
+	if stats.PromptTokens != 220 {
+		t.Errorf("stats.PromptTokens = %d, want 220", stats.PromptTokens)
+	}
+	if stats.CacheReadTokens+stats.CacheWriteTokens > stats.PromptTokens {
+		t.Error("cached tokens exceed the prompt they are part of")
+	}
+}
+
 // recordingLLMClient wraps an llm.LLMClient and records the messages from the first ChatCompletionBlocking call.
 type recordingLLMClient struct {
 	inner    *mockLLMClient

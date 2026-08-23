@@ -19,6 +19,19 @@ export interface SpendSummary {
   completionTokens: number
   totalTokens: number
   /**
+   * The cached parts of `promptTokens`, not tokens on top of it. A cache read
+   * is prompt the provider served from its own store; a cache write is prompt
+   * it stored. Adding either to the prompt total double-counts.
+   */
+  cacheReadTokens: number
+  cacheWriteTokens: number
+  /**
+   * Calls that reported usage but no cache counts at all. Providers without
+   * cache reporting are the common case, so zero reads must not be shown as a
+   * measured miss.
+   */
+  cacheUnreported: number
+  /**
    * Calls whose usage the provider never reported. Kept separate from a zero
    * count: summing an unreported call as zero turns an unknown into a claim.
    */
@@ -53,6 +66,9 @@ export function summarizeSpend(calls: ApiTaskRunLLMCall[]): SpendSummary {
     promptTokens: 0,
     completionTokens: 0,
     totalTokens: 0,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
+    cacheUnreported: 0,
     unreported: 0,
     retried: 0,
     byAlias: [],
@@ -87,6 +103,18 @@ export function summarizeSpend(calls: ApiTaskRunLLMCall[]): SpendSummary {
       summary.unreported += 1
     } else {
       summary.totalTokens += tokens
+    }
+
+    const cacheRead = call.cache_read_tokens
+    const cacheWrite = call.cache_write_tokens
+    if (typeof cacheRead !== "number" && typeof cacheWrite !== "number") {
+      // Only a call that reported usage can be said to have reported no cache
+      // counts. One that reported nothing at all is already counted above, and
+      // counting it twice would read as two separate silences.
+      if (tokens !== null) summary.cacheUnreported += 1
+    } else {
+      summary.cacheReadTokens += cacheRead ?? 0
+      summary.cacheWriteTokens += cacheWrite ?? 0
     }
 
     const key = call.alias || "—"

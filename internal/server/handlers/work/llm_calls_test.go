@@ -90,6 +90,49 @@ func TestListTaskRunLLMCalls(t *testing.T) {
 	}
 }
 
+// The ledger recorded cache counts from the start and this view dropped them,
+// which left a cache-heavy run looking identical to an uncached one to everyone
+// without the database password. A reported zero must survive as a zero, not as
+// an absent field: "the provider cached nothing" and "the provider said
+// nothing" are different facts about what a run cost.
+func TestListTaskRunLLMCallsReportsCacheTokens(t *testing.T) {
+	call := stagedCall()
+	call.CacheReadTokens = ptr(80)
+	call.CacheWriteTokens = ptr(0)
+	rec := getLLMCalls(t, llmCallsFixture(&llmStubLedger{calls: []model.LLMCall{call}}), llmTestTeam, "r_1", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body)
+	}
+	var out []LLMCallSummary
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(out) != 1 {
+		t.Fatalf("returned %d calls, want 1", len(out))
+	}
+	got := out[0]
+	if got.CacheReadTokens == nil || *got.CacheReadTokens != 80 {
+		t.Errorf("cache read = %v, want 80", got.CacheReadTokens)
+	}
+	if got.CacheWriteTokens == nil || *got.CacheWriteTokens != 0 {
+		t.Errorf("cache write = %v, want a reported 0", got.CacheWriteTokens)
+	}
+	if !strings.Contains(rec.Body.String(), `"cache_write_tokens":0`) {
+		t.Errorf("a reported zero was omitted rather than sent: %s", rec.Body)
+	}
+}
+
+// A call the provider reported no cache for omits the fields entirely, so a
+// reader is never handed a zero nobody measured.
+func TestListTaskRunLLMCallsOmitsUnreportedCacheTokens(t *testing.T) {
+	rec := getLLMCalls(t, llmCallsFixture(&llmStubLedger{calls: []model.LLMCall{stagedCall()}}), llmTestTeam, "r_1", true)
+	for _, field := range []string{"cache_read_tokens", "cache_write_tokens"} {
+		if strings.Contains(rec.Body.String(), field) {
+			t.Errorf("unreported %s was sent as a count: %s", field, rec.Body)
+		}
+	}
+}
+
 // TestListTaskRunLLMCallsHidesOperatorRouting keeps the reader inside the team
 // boundary. A team is granted aliases; which catalog entry an alias resolves to,
 // and which upstream model that is, belong to the operator.

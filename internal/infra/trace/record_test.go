@@ -42,6 +42,25 @@ func TestRecordFromEvent_Mapping(t *testing.T) {
 				t.Errorf("bad run_end: %+v", r)
 			}
 		}},
+		// A trace is where a run's cost is read back after the fact, so the
+		// cached breakdown has to be in it: without the counts, a reader cannot
+		// tell a cheap cached run from an expensive uncached one.
+		{"llm_end_cache", agent.Event{
+			Kind: agent.EventLLMEnd, Iter: 1, PromptTokens: 100, CompletionTokens: 5,
+			CacheReadTokens: 80, CacheWriteTokens: 10,
+		}, "llm_end", func(t *testing.T, r Record) {
+			if r.CacheReadTokens != 80 || r.CacheWriteTokens != 10 {
+				t.Errorf("bad llm_end cache counts: %+v", r)
+			}
+		}},
+		{"run_end_cache", agent.Event{
+			Kind:  agent.EventRunEnd,
+			Stats: agent.RunStats{ToolCalls: 1, PromptTokens: 100, CacheReadTokens: 80, CacheWriteTokens: 10},
+		}, "run_end", func(t *testing.T, r Record) {
+			if r.CacheReadTokens != 80 || r.CacheWriteTokens != 10 {
+				t.Errorf("bad run_end cache counts: %+v", r)
+			}
+		}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

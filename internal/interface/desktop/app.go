@@ -40,6 +40,12 @@ type ReplyPayload struct {
 	CompletionTokens      int    `json:"completion_tokens"`
 	TotalPromptTokens     int    `json:"total_prompt_tokens"`
 	TotalCompletionTokens int    `json:"total_completion_tokens"`
+	// Cache counts are the cached parts of the prompt counts above, not extra
+	// tokens to add to them.
+	CacheReadTokens       int `json:"cache_read_tokens"`
+	CacheWriteTokens      int `json:"cache_write_tokens"`
+	TotalCacheReadTokens  int `json:"total_cache_read_tokens"`
+	TotalCacheWriteTokens int `json:"total_cache_write_tokens"`
 }
 
 // StreamErrorPayload is emitted when streaming fails (event desktop/stream-error).
@@ -71,6 +77,10 @@ type RunStatusPayload struct {
 	CompletionTokens      int `json:"completion_tokens"`
 	TotalPromptTokens     int `json:"total_prompt_tokens"`
 	TotalCompletionTokens int `json:"total_completion_tokens"`
+	CacheReadTokens       int `json:"cache_read_tokens"`
+	CacheWriteTokens      int `json:"cache_write_tokens"`
+	TotalCacheReadTokens  int `json:"total_cache_read_tokens"`
+	TotalCacheWriteTokens int `json:"total_cache_write_tokens"`
 }
 
 // MessageDequeuedPayload is emitted just before a queued prompt starts its own turn
@@ -426,6 +436,10 @@ func (a *App) GetRunStatus(projectID, sessionID string) (RunStatusPayload, error
 		CompletionTokens:      st.CompletionTokens,
 		TotalPromptTokens:     st.TotalPromptTokens,
 		TotalCompletionTokens: st.TotalCompletionTokens,
+		CacheReadTokens:       st.CacheReadTokens,
+		CacheWriteTokens:      st.CacheWriteTokens,
+		TotalCacheReadTokens:  st.TotalCacheReadTokens,
+		TotalCacheWriteTokens: st.TotalCacheWriteTokens,
 	}, nil
 }
 
@@ -616,11 +630,15 @@ func desktopEventSink(emit uiEmitter, ctx context.Context, queue *agent.MessageQ
 				ContextWindow:    e.ContextWindow,
 				PromptTokens:     e.PromptTokens,
 				CompletionTokens: e.CompletionTokens,
+				CacheReadTokens:  e.CacheReadTokens,
+				CacheWriteTokens: e.CacheWriteTokens,
 			})
 		case agent.EventLLMEnd:
 			emit(ctx, eventRunStatus, &RunStatusPayload{
 				PromptTokens:     e.PromptTokens,
 				CompletionTokens: e.CompletionTokens,
+				CacheReadTokens:  e.CacheReadTokens,
+				CacheWriteTokens: e.CacheWriteTokens,
 			})
 		case agent.EventToolStart:
 			emit(ctx, eventToolStart, &ToolStartPayload{ToolCallID: e.ToolCallID, ToolName: e.ToolName, Args: e.ToolArgs})
@@ -782,6 +800,10 @@ func replyPayload(out agentapp.RunResult) *ReplyPayload {
 		CompletionTokens:      out.CompletionTokens,
 		TotalPromptTokens:     out.TotalPromptTokens,
 		TotalCompletionTokens: out.TotalCompletionTokens,
+		CacheReadTokens:       out.CacheReadTokens,
+		CacheWriteTokens:      out.CacheWriteTokens,
+		TotalCacheReadTokens:  out.TotalCacheReadTokens,
+		TotalCacheWriteTokens: out.TotalCacheWriteTokens,
 	}
 }
 

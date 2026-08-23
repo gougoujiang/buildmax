@@ -175,6 +175,18 @@ from `input_tokens`, so its adapter adds it back before reporting a prompt total
 the OpenAI protocols already include it. Getting that wrong in either direction
 misreports what a run cost.
 
+From there the counts follow the same path as the prompt and completion totals:
+`agent.RunStats` accumulates them across a run, `agent.Event` carries the running
+figures on `llm_start`/`llm_end`, the JSONL trace records them on `llm_end` and
+`run_end`, the session file keeps the per-session totals, and `agentapp.RunResult`
+and `RunStatus` hand them to the CLI, Desktop, and any other surface. A managed
+call carries the same counts over `llmwire.Usage` and onto the `llm_call` ledger
+row, which the team run-ledger route and Portal's run-spend view read back.
+
+Zero is not a miss. A provider that reports no cache counts is indistinguishable
+from one that missed, so surfaces show the breakdown only where a provider
+actually sent one rather than printing a `0 / 0` nobody measured.
+
 ## Image Input
 
 `Config.Vision` says the model accepts images. It exists because a model without
@@ -230,8 +242,9 @@ adapters read usage from their own event streams and need nothing like it.
 
 Usage is normalized to `core/llm.Usage` by each adapter. The Anthropic protocol
 reports no total, so its adapter computes one — metering reads `TotalTokens`,
-and leaving it zero would report a call that cost nothing. Cache-read and
-cache-write counters have no home in the canonical shape yet.
+and leaving it zero would report a call that cost nothing. `CacheReadTokens` and
+`CacheWriteTokens` are part of that canonical shape and travel with every result,
+blocking and streamed alike.
 
 ## Per-Call Timeout
 

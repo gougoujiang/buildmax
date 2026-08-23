@@ -542,3 +542,72 @@ func TestManagedCallCarriesReasoningState(t *testing.T) {
 		t.Errorf("request %s did not carry the reasoning state back", gateway.gotRaw)
 	}
 }
+
+// A managed caller never sees the provider, so the gateway's usage report is
+// the only cache evidence it will ever get. Dropping the counts here would make
+// every managed run look uncached no matter what the provider actually did.
+func TestManagedRoundTripCarriesCacheCounts(t *testing.T) {
+	for _, mode := range []struct {
+		name string
+		cfg  llmremote.Config
+	}{
+		{name: "team", cfg: llmremote.Config{Token: "tok", TeamID: "tm_one"}},
+		{name: "worker", cfg: llmremote.Config{Token: "tok", TaskRunID: "tr_one"}},
+	} {
+		t.Run(mode.name, func(t *testing.T) {
+			gateway := newFakeGateway(t)
+			gateway.body = `{
+				"llm_call_id":"lc_1",
+				"model":"fast",
+				"content":"hi",
+				"usage":{"prompt_tokens":100,"completion_tokens":4,"total_tokens":104,
+					"cache_read_tokens":80,"cache_write_tokens":10}
+			}`
+
+			client := gateway.client(mode.cfg)
+			completion, err := client.ChatCompletionBlocking(context.Background(),
+				[]cllm.Message{{Role: "user", Content: "hello"}}, nil)
+			if err != nil {
+				t.Fatalf("ChatCompletionBlocking: %v", err)
+			}
+			want := cllm.Usage{
+				PromptTokens: 100, CompletionTokens: 4, TotalTokens: 104,
+				CacheReadTokens: 80, CacheWriteTokens: 10,
+			}
+			if completion.Usage != want {
+				t.Errorf("usage = %+v, want %+v", completion.Usage, want)
+			}
+			// The counts are a breakdown of the prompt. A caller adding them to
+			// it would report 190 tokens of input for a call that sent 100.
+			if completion.Usage.CacheReadTokens+completion.Usage.CacheWriteTokens > completion.Usage.PromptTokens {
+				t.Error("cached tokens exceed the prompt they are part of")
+			}
+		})
+	}
+}
+
+// The streaming result event carries the same usage block as the blocking
+// response, and a run that streams is the normal case.
+func TestManagedStreamingCarriesCacheCounts(t *testing.T) {
+	gateway := newFakeGateway(t)
+	gateway.body = sse(
+		[2]string{"delta", `{"content":"hi"}`},
+		[2]string{"result", `{"llm_call_id":"lc_1","model":"fast","content":"hi",` +
+			`"usage":{"prompt_tokens":100,"completion_tokens":4,"total_tokens":104,` +
+			`"cache_read_tokens":80,"cache_write_tokens":10}}`},
+	)
+
+	client := gateway.client(llmremote.Config{Token: "tok"})
+	completion, err := client.ChatCompletionStreaming(context.Background(),
+		[]cllm.Message{{Role: "user", Content: "hello"}}, nil, func(string) {})
+	if err != nil {
+		t.Fatalf("ChatCompletionStreaming: %v", err)
+	}
+	want := cllm.Usage{
+		PromptTokens: 100, CompletionTokens: 4, TotalTokens: 104,
+		CacheReadTokens: 80, CacheWriteTokens: 10,
+	}
+	if completion.Usage != want {
+		t.Errorf("usage = %+v, want %+v", completion.Usage, want)
+	}
+}

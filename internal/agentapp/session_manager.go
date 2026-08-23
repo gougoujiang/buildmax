@@ -97,6 +97,8 @@ func (s *SessionManager) Finalize(ctx context.Context, client llm.LLMClient, ses
 	}
 	sess.PromptTokens += stats.PromptTokens
 	sess.CompletionTokens += stats.CompletionTokens
+	sess.CacheReadTokens += stats.CacheReadTokens
+	sess.CacheWriteTokens += stats.CacheWriteTokens
 	if err := s.Save(sess, workspace); err != nil {
 		return TurnFinalizeResult{}, fmt.Errorf("persist session: %w", err)
 	}
@@ -114,6 +116,8 @@ func (s *SessionManager) Finalize(ctx context.Context, client llm.LLMClient, ses
 	sess.Title = title
 	sess.PromptTokens += usage.PromptTokens
 	sess.CompletionTokens += usage.CompletionTokens
+	sess.CacheReadTokens += usage.CacheReadTokens
+	sess.CacheWriteTokens += usage.CacheWriteTokens
 	if err := s.Save(sess, workspace); err != nil {
 		slog.Error("re-persist session with title failed", "err", err)
 	}
@@ -121,6 +125,8 @@ func (s *SessionManager) Finalize(ctx context.Context, client llm.LLMClient, ses
 		Title:            title,
 		PromptTokens:     usage.PromptTokens,
 		CompletionTokens: usage.CompletionTokens,
+		CacheReadTokens:  usage.CacheReadTokens,
+		CacheWriteTokens: usage.CacheWriteTokens,
 	}, nil
 }
 

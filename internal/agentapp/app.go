@@ -219,6 +219,13 @@ type RunResult struct {
 	CompletionTokens      int
 	TotalPromptTokens     int
 	TotalCompletionTokens int
+	// Cache counts are the provider-reported cached parts of the prompt totals
+	// beside them, not extra tokens. Zero means the provider reported none,
+	// which is not the same fact as a cache miss.
+	CacheReadTokens       int
+	CacheWriteTokens      int
+	TotalCacheReadTokens  int
+	TotalCacheWriteTokens int
 	ContextTokens         int
 	ContextWindow         int
 	SessionID             string
@@ -242,12 +249,20 @@ type RunStatus struct {
 	CompletionTokens      int `json:"completion_tokens"`
 	TotalPromptTokens     int `json:"total_prompt_tokens"`
 	TotalCompletionTokens int `json:"total_completion_tokens"`
+	// Cache counts break the prompt counts beside them down; summing them with
+	// the prompt total counts the same tokens twice.
+	CacheReadTokens       int `json:"cache_read_tokens"`
+	CacheWriteTokens      int `json:"cache_write_tokens"`
+	TotalCacheReadTokens  int `json:"total_cache_read_tokens"`
+	TotalCacheWriteTokens int `json:"total_cache_write_tokens"`
 }
 
 type TurnFinalizeResult struct {
 	Title            string
 	PromptTokens     int
 	CompletionTokens int
+	CacheReadTokens  int
+	CacheWriteTokens int
 }
 
 // ModelConfig is one resolved model entry usable for client creation.
@@ -761,6 +776,8 @@ func (a *AgentApp) estimateRunStatus(sess *SessionContext, modelName string, con
 		ContextWindow:         contextWindow,
 		TotalPromptTokens:     sess.PromptTokens,
 		TotalCompletionTokens: sess.CompletionTokens,
+		TotalCacheReadTokens:  sess.CacheReadTokens,
+		TotalCacheWriteTokens: sess.CacheWriteTokens,
 	}
 }
 
@@ -912,6 +929,8 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 				Duration:              time.Since(start),
 				TotalPromptTokens:     sess.PromptTokens,
 				TotalCompletionTokens: sess.CompletionTokens,
+				TotalCacheReadTokens:  sess.CacheReadTokens,
+				TotalCacheWriteTokens: sess.CacheWriteTokens,
 				ContextTokens:         status.ContextTokens,
 				ContextWindow:         status.ContextWindow,
 				SessionID:             sess.ID,
@@ -971,8 +990,12 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 		ToolCalls:             stats.ToolCalls,
 		PromptTokens:          stats.PromptTokens,
 		CompletionTokens:      stats.CompletionTokens,
+		CacheReadTokens:       stats.CacheReadTokens,
+		CacheWriteTokens:      stats.CacheWriteTokens,
 		TotalPromptTokens:     sess.PromptTokens,
 		TotalCompletionTokens: sess.CompletionTokens,
+		TotalCacheReadTokens:  sess.CacheReadTokens,
+		TotalCacheWriteTokens: sess.CacheWriteTokens,
 		ContextTokens:         status.ContextTokens,
 		ContextWindow:         status.ContextWindow,
 		SessionID:             sess.ID,

@@ -42,6 +42,11 @@ type Session struct {
 	Messages         []llm.Message `json:"messages,omitempty"`
 	PromptTokens     int           `json:"prompt_tokens,omitempty"`
 	CompletionTokens int           `json:"completion_tokens,omitempty"`
+	// CacheReadTokens and CacheWriteTokens are the session's provider-reported
+	// cached prompt. They break PromptTokens down rather than add to it, so a
+	// reader totalling a session must not sum all three.
+	CacheReadTokens  int `json:"cache_read_tokens,omitempty"`
+	CacheWriteTokens int `json:"cache_write_tokens,omitempty"`
 	// CompactionIdx is the index into Messages where the latest compaction boundary falls.
 	// Messages before this index have been summarized into CompactionSummary.
 	// Zero means no compaction has occurred.

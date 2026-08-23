@@ -77,6 +77,10 @@ type Event struct {
 	ContextWindow    int
 	PromptTokens     int
 	CompletionTokens int
+	// CacheReadTokens and CacheWriteTokens are the run's cached prompt so far.
+	// They are a breakdown of PromptTokens, not an addition to it.
+	CacheReadTokens  int
+	CacheWriteTokens int
 
 	// EventToolStart, EventToolEnd, EventToolDenied
 	ToolName   string

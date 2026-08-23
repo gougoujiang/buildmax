@@ -7,6 +7,9 @@ package llm
 import (
 	"context"
 	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -163,4 +166,156 @@ func TestUnknownReasoningEffortIsRejected(t *testing.T) {
 			t.Errorf("error %q should name the supported level %q", err.Error(), level)
 		}
 	}
+}
+
+// The streaming path reports usage from a different place in every protocol —
+// a trailing chunk, a completed event, a message_start — so the blocking table
+// above proves nothing about it. A run that streams is the normal case, and a
+// cache count that only survives the blocking path would leave every real turn
+// looking uncached.
+func TestCacheTokensSurviveStreaming(t *testing.T) {
+	tests := []struct {
+		provider string
+		body     string
+		want     cllm.Usage
+	}{
+		{
+			provider: config.LLMProviderAnthropic,
+			body:     anthropicCacheSSE(),
+			// 10 fresh + 80 read + 10 written, the same addition the blocking
+			// path makes.
+			want: cllm.Usage{
+				PromptTokens: 100, CompletionTokens: 4, TotalTokens: 104,
+				CacheReadTokens: 80, CacheWriteTokens: 10,
+			},
+		},
+		{
+			provider: config.LLMProviderOpenAI,
+			body:     responsesCacheSSE(),
+			want: cllm.Usage{
+				PromptTokens: 100, CompletionTokens: 4, TotalTokens: 104,
+				CacheReadTokens: 80,
+			},
+		},
+		{
+			provider: config.LLMProviderOpenAICompatible,
+			body:     openAIChatCacheSSE(),
+			want: cllm.Usage{
+				PromptTokens: 100, CompletionTokens: 4, TotalTokens: 104,
+				CacheReadTokens: 80,
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.provider, func(t *testing.T) {
+			up := newStreamingUpstream(t, tc.body)
+			client := newTestClient(t, tc.provider, up.server.URL)
+
+			completion, err := client.ChatCompletionStreaming(context.Background(),
+				[]cllm.Message{{Role: "user", Content: "hi"}}, nil, func(string) {})
+			if err != nil {
+				t.Fatalf("ChatCompletionStreaming: %v", err)
+			}
+			if completion.Usage != tc.want {
+				t.Errorf("usage = %+v, want %+v", completion.Usage, tc.want)
+			}
+			if completion.Usage.CacheReadTokens+completion.Usage.CacheWriteTokens > completion.Usage.PromptTokens {
+				t.Error("cached tokens exceed the prompt they are part of")
+			}
+		})
+	}
+}
+
+// newStreamingUpstream answers with one fixed SSE body regardless of the
+// request, so a fixture can pin a usage shape the shared harness does not
+// produce.
+func newStreamingUpstream(t *testing.T, body string) *upstream {
+	t.Helper()
+	up := &upstream{}
+	up.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		up.requests++
+		requestBody, err := io.ReadAll(req.Body)
+		if err != nil {
+			t.Errorf("read request body: %v", err)
+		}
+		up.bodies = append(up.bodies, string(requestBody))
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(body))
+	}))
+	t.Cleanup(up.server.Close)
+	return up
+}
+
+// anthropicCacheSSE carries the cached counts on message_start, which is where
+// this protocol reports input tokens for a streamed message.
+func anthropicCacheSSE() string {
+	var b strings.Builder
+	event := func(name string, payload map[string]any) {
+		payload["type"] = name
+		b.WriteString("event: " + name + "\ndata: " + mustJSON(payload) + "\n\n")
+	}
+	event("message_start", map[string]any{"message": map[string]any{
+		"id": "msg_1", "type": "message", "role": "assistant", "model": "m",
+		"content": []any{},
+		"usage": map[string]any{
+			"input_tokens": 10, "output_tokens": 0,
+			"cache_read_input_tokens": 80, "cache_creation_input_tokens": 10,
+		},
+	}})
+	event("content_block_start", map[string]any{
+		"index": 0, "content_block": map[string]any{"type": "text", "text": ""},
+	})
+	event("content_block_delta", map[string]any{
+		"index": 0, "delta": map[string]any{"type": "text_delta", "text": "ok"},
+	})
+	event("content_block_stop", map[string]any{"index": 0})
+	event("message_delta", map[string]any{
+		"delta": map[string]any{"stop_reason": "end_turn"},
+		"usage": map[string]any{"output_tokens": 4},
+	})
+	event("message_stop", map[string]any{})
+	return b.String()
+}
+
+// responsesCacheSSE reports usage on the terminal response.completed event.
+func responsesCacheSSE() string {
+	var b strings.Builder
+	b.WriteString("data: " + mustJSON(map[string]any{
+		"type": "response.output_text.delta", "delta": "ok",
+	}) + "\n\n")
+	b.WriteString("data: " + mustJSON(map[string]any{
+		"type": "response.completed",
+		"response": map[string]any{
+			"id": "resp_1", "object": "response", "status": "completed", "model": "m",
+			"output": []any{map[string]any{
+				"type": "message", "role": "assistant",
+				"content": []any{map[string]any{"type": "output_text", "text": "ok"}},
+			}},
+			"usage": map[string]any{
+				"input_tokens": 100, "output_tokens": 4, "total_tokens": 104,
+				"input_tokens_details": map[string]any{"cached_tokens": 80},
+			},
+		},
+	}) + "\n\n")
+	return b.String()
+}
+
+// openAIChatCacheSSE reports usage on a trailing chunk with no choices, which
+// the usage-capturing transport reads off the raw stream.
+func openAIChatCacheSSE() string {
+	var b strings.Builder
+	b.WriteString("data: " + mustJSON(map[string]any{
+		"id": "chatcmpl-1", "object": "chat.completion.chunk",
+		"choices": []any{map[string]any{"index": 0, "delta": map[string]any{"content": "ok"}}},
+	}) + "\n\n")
+	b.WriteString("data: " + mustJSON(map[string]any{
+		"id": "chatcmpl-1", "object": "chat.completion.chunk", "choices": []any{},
+		"usage": map[string]any{
+			"prompt_tokens": 100, "completion_tokens": 4, "total_tokens": 104,
+			"prompt_tokens_details": map[string]any{"cached_tokens": 80},
+		},
+	}) + "\n\n")
+	b.WriteString("data: [DONE]\n\n")
+	return b.String()
 }

@@ -1,8 +1,8 @@
 # Prompt Cache Control
 
-> **Audience:** contributors · **Status:** planned — Anthropic breakpoints and
-> cache-token accounting exist; default policy, provider-specific controls, and
-> end-to-end observability do not.
+> **Audience:** contributors · **Status:** in progress — phase 1 shipped:
+> provider-reported cache counts now reach every surface. Default policy,
+> provider-specific controls, and cost estimates do not exist yet.
 
 Extends [llm-provider-adapters.md](llm-provider-adapters.md) and
 [llm-gateway.md](llm-gateway.md). The provider-adapter design owns protocol
@@ -23,7 +23,7 @@ The current implementation is a useful base but not a complete policy:
 | Anthropic | `prompt_cache: true` marks the system block and sends top-level automatic caching. | Opt-in per model, no TTL policy, and applies to one-shot utility calls too. |
 | OpenAI Responses | Relies on automatic caching and records reported cache usage. | No `prompt_cache_key`, cache options, or retention/TTL control. |
 | OpenAI-compatible | Treats the protocol family as automatically caching. | Compatibility is not a cache capability; an endpoint may ignore fields or report nothing. |
-| Accounting | `core/llm.Usage` and the managed ledger hold cache read/write tokens. | Run stats, traces, local results, and Portal run-ledger responses drop them. |
+| Accounting | `core/llm.Usage`, run stats, traces, session totals, local results, the managed ledger, and Portal all carry cache read/write tokens (phase 1). | Nothing distinguishes a requested strategy from a provider that reports nothing. |
 | Cost control | Prompt and completion tokens are displayed and quota is token-based. | No cache-hit ratio, cache-write cost, billable-cost estimate, or miss explanation. |
 
 The repository must not claim a saving it cannot demonstrate. A cache write can
@@ -267,7 +267,7 @@ local performance flag.
 
 ## 9. Delivery Plan and Acceptance
 
-### Phase 1 — truthful baseline and telemetry
+### Phase 1 — truthful baseline and telemetry (shipped)
 
 - Correct stale cache documentation.
 - Propagate existing cache counters to stats, events, traces, local results,
@@ -279,6 +279,18 @@ local performance flag.
 
 **Acceptance:** a provider-reported cache read/write is visible from Agent turn
 to surface without double-counting prompt tokens.
+
+Counts travel `llm.Usage` → `agent.RunStats` and `agent.Event` → trace `llm_end`
+and `run_end` → `session.Session` totals → `agentapp.RunResult`/`RunStatus` →
+CLI, Desktop, and — for a managed call — `llmwire.Usage` → the `llm_call` ledger
+row → the team run-ledger route → Portal's run-spend view. Every surface prints
+the breakdown only where a provider reported one: a permanent `0 / 0` would read
+as a measured miss on the many providers that report nothing.
+
+The diagnostics of section 6 — requested mode, capability, strategy, effective
+TTL, outcome — are not part of phase 1. They arrive with the policy that
+produces them in phase 2; until then a surface reports counts and says nothing
+about why they are what they are.
 
 ### Phase 2 — policy and Anthropic default
 
