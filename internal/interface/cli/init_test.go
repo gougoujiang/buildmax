@@ -212,3 +212,94 @@ func TestCheckModelConfigWithEmptyModels(t *testing.T) {
 		t.Errorf("error = %q, want it to name the empty-models case", err)
 	}
 }
+
+// TestInitOllamaWritesAKeylessEntry is the shape a local setup needs: a
+// provider, a daemon URL, and no credential line at all. A placeholder there
+// would send the user looking for a secret that does not exist.
+func TestInitOllamaWritesAKeylessEntry(t *testing.T) {
+	daemon := fakeOllama{installed: []string{"qwen3:8b"}, capabilities: []string{"tools"}, contextLen: 131_072}
+	home := t.TempDir()
+	out, path, err := initWithHome(t, home, "--ollama", "--api-url", daemon.start(t))
+	if err != nil {
+		t.Fatalf("init: %v\n%s", err, out)
+	}
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read settings.yaml: %v", err)
+	}
+	if strings.Contains(string(body), "api_key") {
+		t.Errorf("a local entry should carry no api_key line:\n%s", body)
+	}
+
+	settings, err := config.LoadSettings()
+	if err != nil {
+		t.Fatalf("generated settings do not load: %v", err)
+	}
+	m := settings.Models[0]
+	switch {
+	case m.LLMProvider() != config.LLMProviderOllama:
+		t.Errorf("provider = %q, want %q", m.LLMProvider(), config.LLMProviderOllama)
+	case m.Model != "qwen3:8b":
+		t.Errorf("model = %q, want the one the daemon holds", m.Model)
+	// The daemon reports what the model was trained for; the file gets a window
+	// the machine can be expected to allocate.
+	case m.ContextWindow != config.DefaultContextWindow:
+		t.Errorf("context_window = %d, want it capped at %d", m.ContextWindow, config.DefaultContextWindow)
+	}
+	// The key gate must accept this file: it is finished, not half-written.
+	if err := checkModelConfig(); err != nil {
+		t.Errorf("checkModelConfig() rejected a complete local setup: %v", err)
+	}
+}
+
+// TestInitOllamaWithoutADaemonStillWritesTheFile keeps `init` useful on a
+// machine where nothing is running yet: the file is the point, and the next
+// steps say what to start and what to pull.
+func TestInitOllamaWithoutADaemonStillWritesTheFile(t *testing.T) {
+	home := t.TempDir()
+	out, _, err := initWithHome(t, home, "--ollama", "--api-url", "http://127.0.0.1:1")
+	if err != nil {
+		t.Fatalf("init: %v\n%s", err, out)
+	}
+	settings, err := config.LoadSettings()
+	if err != nil {
+		t.Fatalf("generated settings do not load: %v", err)
+	}
+	if settings.Models[0].Model != initDefaultOllamaModel {
+		t.Errorf("model = %q, want %q", settings.Models[0].Model, initDefaultOllamaModel)
+	}
+	for _, want := range []string{"ollama serve", "ollama pull " + initDefaultOllamaModel} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output missing %q:\n%s", want, out)
+		}
+	}
+}
+
+// TestInitStatesTheProvider keeps the generated file explicit about which wire
+// protocol it speaks, rather than relying on the default.
+func TestInitStatesTheProvider(t *testing.T) {
+	_, path, err := initInHome(t, "--api-key", "sk-test-key")
+	if err != nil {
+		t.Fatalf("init: %v", err)
+	}
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read settings.yaml: %v", err)
+	}
+	if !strings.Contains(string(body), config.LLMProviderOpenAICompatible) {
+		t.Errorf("generated file does not state its provider:\n%s", body)
+	}
+}
+
+// TestCheckModelConfigRejectsAKeylessHostedEntry keeps the exemption narrow: a
+// hosted entry with no key is still unfinished, and the message points at the
+// path that needs no key rather than only at the one that does.
+func TestCheckModelConfigRejectsAKeylessHostedEntry(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv(config.EnvKeyBuildmaxHome, home)
+	writeSettings(t, home, "models:\n"+
+		"  - model: openai/gpt-4o-mini\n    api_url: https://openrouter.ai/api/v1\n")
+	if err := checkModelConfig(); err == nil {
+		t.Fatal("checkModelConfig() accepted a hosted entry with no key")
+	}
+}

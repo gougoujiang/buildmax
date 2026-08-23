@@ -17,11 +17,24 @@ buildmax init --api-key sk-your-key-here
 
 That configures `openai/gpt-4o-mini` through OpenRouter. Point it somewhere
 else with `--model` and `--api-url`, which is how you reach OpenAI directly, a
-local vLLM, or an Ollama gateway — any OpenAI-compatible endpoint works:
+local vLLM, or LM Studio — any OpenAI-compatible endpoint works:
 
 ```bash
-buildmax init --model llama3.1 --api-url http://localhost:11434/v1
+buildmax init --model llama3.1 --api-url http://localhost:8000/v1
 ```
+
+For a local [Ollama](https://ollama.com) model there is a shorter path, and no
+key at all:
+
+```bash
+buildmax init --ollama          # configures a model your daemon already holds
+buildmax models --local         # what is installed, and which can call tools
+```
+
+Use that rather than pointing `--api-url` at Ollama's `/v1` endpoint: only the
+native API can set the context window, and without it the daemon quietly
+truncates longer prompts. See
+[local models](../reference/configuration.md#local-models-with-ollama).
 
 Run it without `--api-key` and the file lands with a placeholder to fill in.
 Either way the result is an ordinary YAML file you can keep editing:

@@ -19,6 +19,8 @@ var retryBackoff = []time.Duration{time.Second, 2 * time.Second, 4 * time.Second
 //   - a request that could not be built (deterministic)
 //   - auth errors (401, 403) — user action required
 //   - bad request (400) — model/request bug, retrying won't help
+//   - a failure an adapter marked permanent (a local daemon that is not
+//     running, a model that is not pulled) — a command fixes it, not a wait
 //
 // Retried:
 //   - rate limit (429)
@@ -38,6 +40,9 @@ func isRetryableError(err error) bool {
 	}
 	var apiErr *apiError
 	if errors.As(err, &apiErr) {
+		if apiErr.permanent {
+			return false
+		}
 		switch apiErr.status {
 		case 429, 500, 502, 503, 504:
 			return true

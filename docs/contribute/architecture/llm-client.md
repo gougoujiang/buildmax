@@ -4,7 +4,7 @@
 
 ## Purpose
 
-`internal/infra/llm` implements the `llm.LLMClient` contract over the three LLM
+`internal/infra/llm` implements the `llm.LLMClient` contract over the four LLM
 wire protocols BuildMax speaks. It translates between BuildMax types and each
 protocol's wire format, and owns everything that makes a real network call
 survivable: timeouts, retries, error classification, and usage capture.
@@ -17,14 +17,16 @@ implementation of it. The agent loop only ever sees the interface.
 | `openai_compatible` (default) | OpenAI Chat Completions | `openai_chat.go` |
 | `openai` | OpenAI Responses | `openai_responses.go` |
 | `anthropic` | Anthropic Messages | `anthropic.go` |
+| `ollama` | Ollama `/api/chat` (local) | `ollama.go`, `ollama_inventory.go` |
 
 `client.go` is the only entry point: it selects an adapter and owns the parts a
 caller depends on — the per-call timeout, the retry loop, and error
-classification — so three protocols cannot drift apart on them. An adapter
+classification — so four protocols cannot drift apart on them. An adapter
 performs one attempt and nothing else.
 
 Rationale and the phases beyond this one:
-[design/llm-provider-adapters.md](../../design/llm-provider-adapters.md).
+[design/llm-provider-adapters.md](../../design/llm-provider-adapters.md) and
+[design/local-ollama-provider.md](../../design/local-ollama-provider.md).
 
 ## The Contract It Implements
 
@@ -75,7 +77,9 @@ client, err := llm.NewClient(llm.Config{
 target resolved by `internal/service/llmgateway`. When `ContextWindow` is zero,
 `lookupContextWindow` falls back to a built-in table of known model sizes — that
 table is keyed by OpenRouter-style identifiers, so a native model id normally
-needs `context_window` set explicitly.
+needs `context_window` set explicitly. The Ollama provider is the exception: it
+asks the daemon instead, because a local daemon can answer for the model it
+actually holds.
 
 An unknown provider is an error rather than a fallback: a model that cannot be
 reached the way it was configured fails at selection instead of sending its
@@ -105,6 +109,28 @@ for constraints they do not have.
 The Responses adapter runs **stateless**: it sends the whole input every call and
 sets `store: false`. BuildMax owns history, trimming, compaction, and session
 persistence, so server-side conversation state would compete with all four.
+
+The Ollama adapter carries the other repair. Its protocol has no tool-call
+identifiers: a result is answered by tool name, so the adapter resolves each
+`ToolCallID` against the calls of the assistant message before it and drops a
+result whose call is gone. Identifiers on the way back are minted by position in
+the conversation — `call_<n>` continuing past whatever the request already
+contained — so a session it writes stays unambiguous for a protocol that does
+pair by identifier.
+
+## The Local Context Window
+
+The Ollama protocol is the one that silently truncates rather than refusing an
+over-long prompt, so its adapter sends `num_ctx` on **every** call, and it is
+the same number `ContextWindow()` reports. An entry that sets `context_window`
+decides it; one that does not gets the daemon's answer for that model, capped at
+`config.DefaultContextWindow`, because a model's full trained length can exceed
+what the machine can allocate. A failed probe falls back to the default and logs
+— what it must never do is leave the field out.
+
+`ollama_inventory.go` also serves diagnostics rather than runs: `OllamaInventory`
+lists what is pulled and `OllamaShow` reports one model's window and
+capabilities, which is what `buildmax doctor` and `buildmax models --local` read.
 
 ## Reasoning State
 
@@ -163,7 +189,7 @@ still a complete tool result. When it is true, placement follows the protocol:
 | Protocol | Where a tool's image goes |
 |---|---|
 | Anthropic | Inside the `tool_result` block, where the protocol accepts it |
-| Chat Completions, Responses | A short user turn immediately after the tool result, because neither accepts image content on a tool message |
+| Chat Completions, Responses, Ollama | A short user turn immediately after the tool result, because none accepts image content on a tool message |
 
 The follow-up turn carries a one-line preamble. Without it the images arrive as a
 user turn with no explanation, which reads as though the user sent them.
@@ -178,6 +204,7 @@ Both call methods retry up to `maxRetryAttempts` (3) with a backoff of 1s, 2s,
 | Rate limit (429) | Context cancellation or deadline — the caller gave up |
 | Server errors (500, 502, 503, 504) | Auth errors (401, 403) — needs user action |
 | Network-level errors (connection refused, DNS) | Bad request (400) — retrying cannot help |
+| | A failure an adapter marked permanent: a local daemon that is not running, a model that is not pulled |
 
 **Streaming stops retrying once a delta has been emitted.** Retrying after the
 user has already seen partial output would duplicate it, so a mid-stream failure
@@ -216,15 +243,19 @@ by `MaxIter` in the agent loop, not here.
 
 - **Uses**: `internal/core/llm` (contract and message types),
   `github.com/sashabaranov/go-openai` (both OpenAI protocols),
-  `github.com/anthropics/anthropic-sdk-go`
+  `github.com/anthropics/anthropic-sdk-go`. The Ollama adapter needs no client
+  library: three endpoints and one newline-delimited stream are not worth a
+  module dependency.
 - **Used by**: `internal/agentapp` (client cache), `internal/bootstrap`
   (Tier 1 conversation client)
 
 ## Notes
 
 - Any OpenAI-compatible endpoint works by changing `BaseURL` alone — OpenRouter,
-  Azure, a local vLLM or Ollama gateway. `Provider` is only needed when the
-  endpoint speaks a different protocol.
+  Azure, a local vLLM or LM Studio. `Provider` is only needed when the endpoint
+  speaks a different protocol. A local Ollama daemon serves one of those too,
+  but `ollama` is the right value for it: the compatible endpoint cannot set the
+  context window.
 - The load-bearing test is the cross-adapter conformance suite in
   `conformance_test.go`: one logical reply is encoded by each protocol's fixture
   and read back through each adapter, and the canonical content, tool calls, and

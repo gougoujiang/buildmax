@@ -177,7 +177,7 @@ func newClientFactory(conversationKey string, models model.LLMModelStore) llmgat
 			return nil, fmt.Errorf("model %q uses unsupported provider %q; use one of %s",
 				target.Name, target.ProviderType, strings.Join(llmgateway.Providers(), ", "))
 		}
-		apiKey, err := resolveCredential(ctx, target.CredentialRef, conversationKey, models)
+		apiKey, err := resolveCredential(ctx, target, conversationKey, models)
 		if err != nil {
 			return nil, fmt.Errorf("model %q: %w", target.Name, err)
 		}
@@ -204,9 +204,17 @@ func newClientFactory(conversationKey string, models model.LLMModelStore) llmgat
 	}
 }
 
-func resolveCredential(ctx context.Context, ref, conversationKey string, models model.LLMModelStore) (string, error) {
-	if ref == conversationCredentialRef {
-		if conversationKey == "" {
+// resolveCredential turns a target's reference into the secret behind it.
+//
+// A missing credential is an error for every protocol that authenticates, so a
+// half-configured target fails at selection rather than sending an
+// unauthenticated request upstream. A local runtime has none by definition, and
+// for it an empty key is the configured state — the target is authorized by the
+// deployment being able to reach the daemon, not by a secret.
+func resolveCredential(ctx context.Context, target llmgateway.Target, conversationKey string, models model.LLMModelStore) (string, error) {
+	required := llmgateway.ProviderNeedsCredential(target.ProviderType)
+	if target.CredentialRef == conversationCredentialRef {
+		if conversationKey == "" && required {
 			return "", fmt.Errorf("conversation.model.api_key is not set")
 		}
 		return conversationKey, nil
@@ -214,11 +222,11 @@ func resolveCredential(ctx context.Context, ref, conversationKey string, models 
 	if models == nil {
 		return "", fmt.Errorf("no model store to read a credential from")
 	}
-	key, err := models.LLMModelCredential(ctx, ref)
+	key, err := models.LLMModelCredential(ctx, target.CredentialRef)
 	if err != nil {
 		return "", err
 	}
-	if key == "" {
+	if key == "" && required {
 		return "", fmt.Errorf("no credential stored")
 	}
 	return key, nil

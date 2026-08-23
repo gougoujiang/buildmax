@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -9,9 +10,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/infra/git"
+	"github.com/gougoujiang/buildmax/internal/infra/llm"
 	"github.com/gougoujiang/buildmax/internal/infra/sandbox"
 	"github.com/gougoujiang/buildmax/internal/interface/auth"
 
@@ -37,11 +40,13 @@ func newDoctorCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "doctor",
 		Short: "Check local setup before the first run",
-		Long: `Check the local BuildMax setup without contacting an LLM provider.
+		Long: `Check the local BuildMax setup without contacting a hosted LLM provider.
 
 Doctor verifies the app data directory, settings.yaml, model entries, workspace
-state, git availability, and sandbox dependencies. It exits 2 only when a
-required first-run prerequisite is missing.`,
+state, git availability, and sandbox dependencies. A model entry served by a
+local runtime is checked against that runtime — which model is pulled and what
+it can do — because those are the answers no configuration file holds. It exits
+2 only when a required first-run prerequisite is missing.`,
 		Args:         cobra.NoArgs,
 		RunE:         runDoctor,
 		SilenceUsage: true,
@@ -52,7 +57,7 @@ required first-run prerequisite is missing.`,
 
 func runDoctor(cmd *cobra.Command, _ []string) error {
 	workspace, _ := cmd.Flags().GetString("workspace")
-	checks := collectDoctorChecks(workspace)
+	checks := collectDoctorChecks(cmd.Context(), workspace)
 	writeDoctorReport(cmd.OutOrStdout(), checks)
 	if doctorHasFailure(checks) {
 		return &ExitError{Code: ExitUsage, Err: errors.New("doctor found setup problems")}
@@ -60,12 +65,12 @@ func runDoctor(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-func collectDoctorChecks(workspace string) []doctorCheck {
+func collectDoctorChecks(ctx context.Context, workspace string) []doctorCheck {
 	checks := []doctorCheck{
 		checkDataDir(),
 		checkGitAvailable(),
 	}
-	settings, settingsChecks := checkSettings()
+	settings, settingsChecks := checkSettings(ctx)
 	checks = append(checks, settingsChecks...)
 	checks = append(checks, checkWorkspace(workspace))
 	checks = append(checks, checkSandboxDeps(settings))
@@ -99,7 +104,7 @@ func checkDataDir() doctorCheck {
 	}
 }
 
-func checkSettings() (config.Settings, []doctorCheck) {
+func checkSettings(ctx context.Context) (config.Settings, []doctorCheck) {
 	path := config.SettingsPath()
 	if _, err := os.Stat(path); err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
@@ -132,11 +137,11 @@ func checkSettings() (config.Settings, []doctorCheck) {
 		Title:    "settings.yaml",
 		Detail:   path,
 	}}
-	checks = append(checks, checkModels(settings)...)
+	checks = append(checks, checkModels(ctx, settings)...)
 	return settings, checks
 }
 
-func checkModels(settings config.Settings) []doctorCheck {
+func checkModels(ctx context.Context, settings config.Settings) []doctorCheck {
 	if len(settings.Models) == 0 {
 		return []doctorCheck{{
 			Severity: doctorFail,
@@ -165,6 +170,10 @@ func checkModels(settings config.Settings) []doctorCheck {
 		}
 		if m.IsManaged() {
 			checks = append(checks, checkManagedModel(i, title, display, sev, m))
+			continue
+		}
+		if m.LLMProvider() == config.LLMProviderOllama {
+			checks = append(checks, checkOllamaModel(ctx, i, title, display, sev, m))
 			continue
 		}
 		if strings.TrimSpace(m.APIKey) == "" || m.APIKey == APIKeyPlaceholder {
@@ -236,6 +245,113 @@ func checkManagedModel(index int, title, display string, sev doctorSeverity, m c
 		Title:    title,
 		Detail:   fmt.Sprintf("%s -> %s team %s%s", display, m.ServerURL, m.TeamID, suffix),
 	}
+}
+
+// doctorOllamaTimeout bounds the two calls this check makes to a local daemon.
+// A diagnostic that hangs is worse than one that reports the daemon as slow.
+const doctorOllamaTimeout = 3 * time.Second
+
+// checkOllamaModel reports whether a local entry can actually run.
+//
+// It asks the daemon rather than the file, because everything that makes this
+// provider fail is state the file cannot hold: whether the daemon is up,
+// whether the model is pulled, and whether it can call tools at all. Each
+// answer comes with the command that fixes it.
+func checkOllamaModel(ctx context.Context, index int, title, display string, sev doctorSeverity, m config.ModelEntry) doctorCheck {
+	baseURL := strings.TrimSpace(m.APIURL)
+	if baseURL == "" {
+		baseURL = config.DefaultOllamaBaseURL
+	}
+	ctx, cancel := context.WithTimeout(ctx, doctorOllamaTimeout)
+	defer cancel()
+
+	installed, err := llm.OllamaInventory(ctx, baseURL)
+	if err != nil {
+		return doctorCheck{
+			Severity: sev,
+			Title:    title,
+			Detail:   fmt.Sprintf("%s cannot reach a daemon at %s: %v", display, baseURL, err),
+			Next:     "Start it with `ollama serve`, or set api_url to where it listens.",
+		}
+	}
+	if !ollamaHolds(installed, m.Model) {
+		return doctorCheck{
+			Severity: sev,
+			Title:    title,
+			Detail:   fmt.Sprintf("%s is not pulled on %s", m.Model, baseURL),
+			Next:     fmt.Sprintf("Run `ollama pull %s`, or `buildmax models --local` to see what is installed.", m.Model),
+		}
+	}
+	shown, err := llm.OllamaShow(ctx, baseURL, m.Model)
+	if err != nil {
+		// The model is there; only its details are missing. That is not worth
+		// failing a first run over.
+		return doctorCheck{
+			Severity: doctorWarn,
+			Title:    title,
+			Detail:   fmt.Sprintf("%s is installed, but the daemon did not describe it: %v", display, err),
+			Next:     "Check the daemon logs; the model may still run.",
+		}
+	}
+	if !shown.HasCapability(llm.OllamaCapabilityTools) {
+		return doctorCheck{
+			Severity: sev,
+			Title:    title,
+			Detail:   fmt.Sprintf("%s does not support tool calling, so it cannot run the agent loop", display),
+			Next:     "Pick a model whose capabilities include tools: `buildmax models --local`.",
+		}
+	}
+	if shown.ContextWindow > 0 && m.ContextWindow > shown.ContextWindow {
+		return doctorCheck{
+			Severity: doctorWarn,
+			Title:    title,
+			Detail: fmt.Sprintf("%s sets context_window %d, above the %d this model was trained for",
+				display, m.ContextWindow, shown.ContextWindow),
+			Next: "Lower context_window, or expect the runtime to truncate the oldest messages.",
+		}
+	}
+	if strings.TrimSpace(m.APIKey) != "" {
+		return doctorCheck{
+			Severity: doctorWarn,
+			Title:    title,
+			Detail:   fmt.Sprintf("%s carries an api_key, which a local runtime ignores", display),
+			Next:     "Remove the api_key line.",
+		}
+	}
+	suffix := ""
+	if index == 0 {
+		suffix = " (default)"
+	}
+	return doctorCheck{
+		Severity: doctorOK,
+		Title:    title,
+		Detail:   fmt.Sprintf("%s -> %s%s%s", display, baseURL, ollamaModelSummary(shown), suffix),
+	}
+}
+
+func ollamaHolds(installed []llm.OllamaModel, model string) bool {
+	for _, m := range installed {
+		if m.Model == model {
+			return true
+		}
+	}
+	return false
+}
+
+// ollamaModelSummary renders what the daemon reported, or nothing when it
+// reported neither size nor window.
+func ollamaModelSummary(m llm.OllamaModel) string {
+	var parts []string
+	if m.ParameterSize != "" {
+		parts = append(parts, m.ParameterSize)
+	}
+	if m.ContextWindow > 0 {
+		parts = append(parts, fmt.Sprintf("ctx %d", m.ContextWindow))
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return " (" + strings.Join(parts, ", ") + ")"
 }
 
 func optionalModelSeverity(index int) doctorSeverity {

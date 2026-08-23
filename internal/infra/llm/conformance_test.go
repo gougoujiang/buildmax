@@ -331,6 +331,70 @@ func anthropicSSE(r reply) string {
 	return b.String()
 }
 
+// ollamaMessagePayload encodes a reply the way /api/chat carries one. Tool
+// calls have no identifier on this protocol and their arguments are an object,
+// which is exactly what the adapter has to repair.
+func ollamaMessagePayload(r reply) map[string]any {
+	message := map[string]any{"role": "assistant", "content": r.text}
+	if len(r.toolCalls) > 0 {
+		calls := make([]any, 0, len(r.toolCalls))
+		for _, tc := range r.toolCalls {
+			calls = append(calls, map[string]any{
+				"function": map[string]any{
+					"name":      tc.Name,
+					"arguments": json.RawMessage(tc.Arguments),
+				},
+			})
+		}
+		message["tool_calls"] = calls
+	}
+	return message
+}
+
+func ollamaBody(r reply) string {
+	body := map[string]any{
+		"model":       "m",
+		"message":     ollamaMessagePayload(r),
+		"done":        true,
+		"done_reason": "stop",
+	}
+	if r.usage != nil {
+		body["prompt_eval_count"] = r.usage.PromptTokens
+		body["eval_count"] = r.usage.CompletionTokens
+	}
+	return mustJSON(body)
+}
+
+// ollamaNDJSON is a stream of whole JSON objects rather than SSE, and tool
+// calls arrive complete inside one of them rather than as argument deltas.
+func ollamaNDJSON(r reply) string {
+	var b strings.Builder
+	for _, piece := range splitForStream(r.text) {
+		b.WriteString(mustJSON(map[string]any{
+			"model":   "m",
+			"message": map[string]any{"role": "assistant", "content": piece},
+			"done":    false,
+		}) + "\n")
+	}
+	if len(r.toolCalls) > 0 {
+		message := ollamaMessagePayload(reply{toolCalls: r.toolCalls})
+		message["content"] = ""
+		b.WriteString(mustJSON(map[string]any{"model": "m", "message": message, "done": false}) + "\n")
+	}
+	final := map[string]any{
+		"model":       "m",
+		"message":     map[string]any{"role": "assistant", "content": ""},
+		"done":        true,
+		"done_reason": "stop",
+	}
+	if r.usage != nil {
+		final["prompt_eval_count"] = r.usage.PromptTokens
+		final["eval_count"] = r.usage.CompletionTokens
+	}
+	b.WriteString(mustJSON(final) + "\n")
+	return b.String()
+}
+
 // splitForStream cuts a value into two pieces so streaming fixtures deliver it
 // in more than one event, which is how a real provider sends it.
 func splitForStream(s string) []string {
@@ -371,6 +435,30 @@ type protocol struct {
 	stream   func(reply) string
 	// errorBody is how this protocol reports a failure.
 	errorBody func(status int) string
+	// toolCallID is set by a protocol that carries no identifiers of its own
+	// and whose adapter therefore mints them. It maps a scenario's identifier
+	// to the one that protocol will produce for the same reply.
+	toolCallID func(history []cllm.Message, index int) string
+	// pairsCallWithResult reports whether an outgoing request still links a
+	// tool call to the result answering it. Set only by a protocol that does
+	// not link them by identifier.
+	pairsCallWithResult func(body, id, name string) bool
+}
+
+// want restates a canonical scenario as this protocol will deliver it. Only the
+// identifiers move; content, arguments, and usage must survive unchanged, which
+// is what the suite is for.
+func (p protocol) want(r reply, history []cllm.Message) reply {
+	if p.toolCallID == nil {
+		return r
+	}
+	out := r
+	out.toolCalls = make([]cllm.ToolCall, len(r.toolCalls))
+	copy(out.toolCalls, r.toolCalls)
+	for i := range out.toolCalls {
+		out.toolCalls[i].ID = p.toolCallID(history, i)
+	}
+	return out
 }
 
 var protocols = []protocol{
@@ -396,6 +484,24 @@ var protocols = []protocol{
 		stream:   anthropicSSE,
 		errorBody: func(int) string {
 			return `{"type":"error","error":{"type":"authentication_error","message":"upstream refused"}}`
+		},
+	},
+	{
+		provider: config.LLMProviderOllama,
+		blocking: ollamaBody,
+		stream:   ollamaNDJSON,
+		errorBody: func(int) string {
+			return `{"error":"upstream refused"}`
+		},
+		toolCallID: func(history []cllm.Message, index int) string {
+			return fmt.Sprintf("call_%d", priorToolCalls(history)+index+1)
+		},
+		// This protocol answers a call by name, so the identifier is resolved
+		// on the way out and must not appear on the wire at all.
+		pairsCallWithResult: func(body, id, name string) bool {
+			return strings.Contains(body, `"tool_name":"`+name+`"`) &&
+				strings.Contains(body, `"name":"`+name+`"`) &&
+				!strings.Contains(body, id)
 		},
 	},
 }
@@ -489,7 +595,7 @@ func TestAdaptersAgreeOnBlockingReplies(t *testing.T) {
 				if err != nil {
 					t.Fatalf("ChatCompletionBlocking: %v", err)
 				}
-				assertReply(t, scenario.reply, completion)
+				assertReply(t, p.want(scenario.reply, conformanceHistory()), completion)
 			})
 		}
 	}
@@ -524,7 +630,7 @@ func TestAdaptersAgreeOnStreamedReplies(t *testing.T) {
 				if err != nil {
 					t.Fatalf("ChatCompletionStreaming: %v", err)
 				}
-				assertReply(t, scenario.reply, completion)
+				assertReply(t, p.want(scenario.reply, conformanceHistory()), completion)
 				if delivered.String() != scenario.reply.text {
 					t.Errorf("deltas delivered %q, want %q", delivered.String(), scenario.reply.text)
 				}
@@ -602,7 +708,7 @@ func TestUnknownProviderIsRejected(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected an error for an unknown provider")
 	}
-	for _, known := range []string{"openai_compatible", "openai", "anthropic"} {
+	for _, known := range config.LLMProviders() {
 		if !strings.Contains(err.Error(), known) {
 			t.Errorf("error %q should name the supported provider %q", err.Error(), known)
 		}
@@ -624,7 +730,9 @@ func TestDefaultProviderIsChatCompletions(t *testing.T) {
 // the tool call identifiers it recorded are echoed back unchanged.
 //
 // The identifiers are opaque strings each provider mints in its own shape, so
-// the test replays every shape through every adapter.
+// the test replays every shape through every adapter. Ollama is the one
+// protocol with no identifier field: it pairs by tool name, so what survives
+// there is the link rather than the string.
 func TestToolCallIDsSurviveAcrossProtocols(t *testing.T) {
 	mintedIDs := map[string]string{
 		"openai_compatible": "call_abc123",
@@ -653,8 +761,12 @@ func TestToolCallIDsSurviveAcrossProtocols(t *testing.T) {
 				}
 				// Twice: once naming the call, once answering it. A protocol
 				// that dropped either half would strand the turn.
-				if strings.Count(up.bodies[0], id) != 2 {
-					t.Errorf("request %s should carry %q as both the call and its result",
+				paired := strings.Count(up.bodies[0], id) == 2
+				if p.pairsCallWithResult != nil {
+					paired = p.pairsCallWithResult(up.bodies[0], id, "read_file")
+				}
+				if !paired {
+					t.Errorf("request %s should link the call %q to its result",
 						up.bodies[0], id)
 				}
 			})

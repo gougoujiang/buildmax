@@ -174,3 +174,34 @@ func TestNewStaticCatalogAcceptsEmpty(t *testing.T) {
 		t.Errorf("IDs() = %v, want nil", ids)
 	}
 }
+
+// TestProviderNeedsCredential pins the one exemption the catalog has. Every
+// hosted protocol authenticates, and a target missing its key must fail at
+// selection rather than send an unauthenticated request upstream; a local
+// runtime has no key to miss.
+func TestProviderNeedsCredential(t *testing.T) {
+	for _, provider := range []string{llmgateway.ProviderOpenAICompatible, llmgateway.ProviderOpenAI, llmgateway.ProviderAnthropic} {
+		if !llmgateway.ProviderNeedsCredential(provider) {
+			t.Errorf("provider %q authenticates and must need a credential", provider)
+		}
+	}
+	if llmgateway.ProviderNeedsCredential(llmgateway.ProviderOllama) {
+		t.Errorf("provider %q is a local runtime with no credential to hold", llmgateway.ProviderOllama)
+	}
+	// An unknown name is not an exemption: it reaches KnownProvider first, and
+	// answering "needs none" here would be the wrong default if that changed.
+	if !llmgateway.ProviderNeedsCredential("bedrock") {
+		t.Error("an unrecognized provider should not be exempt")
+	}
+}
+
+func TestProvidersAndKnownProviderAgree(t *testing.T) {
+	for _, provider := range llmgateway.Providers() {
+		if !llmgateway.KnownProvider(provider) {
+			t.Errorf("Providers lists %q, which KnownProvider rejects", provider)
+		}
+	}
+	if llmgateway.KnownProvider("") {
+		t.Error("an empty provider is not known: a target must state its protocol")
+	}
+}

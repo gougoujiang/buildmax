@@ -213,6 +213,9 @@ type ModelConfig struct {
 	PromptCache bool
 	// Vision says this model accepts image input.
 	Vision bool
+	// KeepAlive is how long a local runtime keeps the model loaded between
+	// calls. Only a local provider has one to keep.
+	KeepAlive string
 	// Provider is the wire protocol a direct entry speaks. Empty means
 	// config.LLMProviderOpenAICompatible. A managed entry ignores it: the
 	// operator's catalog decides which protocol serves the call.
@@ -1073,7 +1076,9 @@ func (r *LLMClientCache) build(cfg ModelConfig) (cllm.LLMClient, error) {
 		}), nil
 	}
 
-	if cfg.APIKey == "" {
+	// A local runtime has no credential, and demanding one would make the
+	// provider unusable without inventing a fake key.
+	if cfg.APIKey == "" && config.LLMProviderNeedsAPIKey(cfg.Provider) {
 		return nil, fmt.Errorf("api_key is required for model %q in settings.yaml", cfg.Name)
 	}
 	client, err := llm.NewClient(llm.Config{
@@ -1087,6 +1092,7 @@ func (r *LLMClientCache) build(cfg ModelConfig) (cllm.LLMClient, error) {
 		PromptCache:   cfg.PromptCache,
 		Vision:        cfg.Vision,
 		Surface:       r.surface,
+		KeepAlive:     cfg.KeepAlive,
 		CallTimeout:   time.Duration(cfg.CallTimeout) * time.Second,
 	})
 	if err != nil {
@@ -1239,6 +1245,7 @@ func toModelConfig(entry config.ModelEntry) ModelConfig {
 		Reasoning:     entry.Reasoning,
 		PromptCache:   entry.PromptCache,
 		Vision:        entry.Vision,
+		KeepAlive:     entry.KeepAlive,
 		Provider:      entry.Provider,
 		Transport:     entry.Transport,
 		ServerURL:     entry.ServerURL,

@@ -498,10 +498,20 @@ silently redirect governed traffic to a personal provider key.
 ## 13. Provider Strategy
 
 The model router constructs a client for the protocol the resolved target
-declares — `openai_compatible`, `openai`, or `anthropic`. Operators may point a
-compatible target at OpenRouter, LiteLLM, a compatible provider endpoint, or
-local inference. BuildMax does not promise that every provider-specific feature
-survives an OpenAI-compatible intermediary.
+declares — `openai_compatible`, `openai`, `anthropic`, or `ollama`. Operators
+may point a compatible target at OpenRouter, LiteLLM, a compatible provider
+endpoint, or local inference. BuildMax does not promise that every
+provider-specific feature survives an OpenAI-compatible intermediary.
+
+`ollama` is the one target type with **no credential**: it names a local runtime
+the deployment reaches directly, and what authorizes the call is being able to
+reach the daemon, which is a property of the deployment's network rather than of
+the catalog. `llmgateway.ProviderNeedsCredential` is where that exemption is
+stated, and it is deliberately one provider wide — a hosted target missing its
+key is a misconfiguration that must fail at selection rather than send an
+unauthenticated request. Everything else about such a target is unchanged: an
+operator adds it, a team reaches it only through an alias, and every call lands
+in the ledger. See [local-ollama-provider.md](local-ollama-provider.md).
 
 The adapters are specified in
 [llm-provider-adapters.md](llm-provider-adapters.md). They changed nothing about

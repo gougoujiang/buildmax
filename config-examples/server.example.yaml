@@ -57,7 +57,11 @@ conversation:
     context_window: 128000
     call_timeout: 300            # per-call timeout in seconds (0 = default 300)
     # provider: openai_compatible  # wire protocol: openai_compatible (default),
-                                   # openai (Responses API), or anthropic
+                                   # openai (Responses API), anthropic, or
+                                   # ollama (a local daemon; needs no api_key,
+                                   # and api_url must be reachable from the
+                                   # server — inside a container that is not
+                                   # the host's localhost)
     # max_tokens: 0                # cap on one response; 0 = the adapter default
     # reasoning: off               # off (default), low, medium, or high
     # prompt_cache: false          # cache the stable prefix of a request
@@ -78,6 +82,12 @@ conversation:
 #       --api-key your-openrouter-api-key \
 #       --model openai/gpt-4o-mini --context-window 128000
 #   buildmax-server model list
+#
+# A local runtime is a target like any other, minus the credential:
+#
+#   buildmax-server model add --name "Local Qwen" --provider ollama \
+#       --api-url http://host.docker.internal:11434 \
+#       --model qwen3:8b --context-window 32000
 #
 # This block only says which of those models each team may name, and under what
 # alias. Leaving it out means no team may call the gateway: a catalog says which

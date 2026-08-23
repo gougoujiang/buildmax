@@ -201,6 +201,7 @@ sandbox: {}                          # see guide/sandbox.md
 | `models[].reasoning` | `off` | How much the model reasons before answering: `off`, `low`, `medium`, or `high` — see below. No effect on `openai_compatible`, which carries none. |
 | `models[].prompt_cache` | `false` | Cache the stable prefix of a request — the tool definitions and system prompt — so later calls in a run pay less for them. |
 | `models[].vision` | `false` | This model accepts image input. Leave it off and an image a tool returns is described in text rather than sent. |
+| `models[].keep_alive` | — | How long a local runtime keeps the model loaded after a call: a duration such as `30m`, `0` to unload at once, `-1` to stay resident. Only `ollama` reads it. |
 | `models[].transport` | `direct` | `direct` calls a provider from this machine. `buildmax` calls a server's managed gateway. |
 | `models[].server_url` | — | Required for `buildmax` transport: which deployment serves the call. |
 | `models[].team_id` | — | Required for `buildmax` transport: which team the call is billed and authorized against. |
@@ -214,11 +215,12 @@ Claude served through OpenRouter is `openai_compatible`, and Claude served from
 
 | Value | API | Typical endpoint |
 |---|---|---|
-| `openai_compatible` | OpenAI Chat Completions | OpenRouter, LiteLLM, vLLM, Ollama, and other compatible gateways. The default, and what every entry written before this option existed keeps using. |
+| `openai_compatible` | OpenAI Chat Completions | OpenRouter, LiteLLM, vLLM, LM Studio, and other compatible gateways. The default, and what every entry written before this option existed keeps using. |
 | `openai` | OpenAI Responses | OpenAI's own `api.openai.com`. Runs stateless: BuildMax sends the whole conversation on each call and stores nothing server-side. |
 | `anthropic` | Anthropic Messages | `api.anthropic.com` |
+| `ollama` | Ollama's own `/api/chat` | A local Ollama daemon, by default `http://localhost:11434`. Needs no `api_key`. See [local models](#local-models-with-ollama). |
 
-Text, tool calling, streaming, and token usage work the same on all three. So do
+Text, tool calling, streaming, and token usage work the same on all four. So do
 reasoning, prompt caching, and image input, each described below — what differs
 is only how much a given protocol can do.
 
@@ -234,6 +236,7 @@ of starting over on each one. The levels are `off` (the default), `low`,
 | `openai_compatible` | Nothing. The protocol has no reasoning state. |
 | `openai` | Sets the reasoning effort, requests encrypted reasoning content, and replays it on later turns. |
 | `anthropic` | Enables adaptive extended thinking at that effort and replays the thinking blocks. |
+| `ollama` | Turns thinking on for a model that supports it. This protocol's switch has no levels, so `low`, `medium`, and `high` all mean on, and it carries no state to replay. |
 
 It is off by default, because it changes what a call costs and some older models
 reject the request outright. Turning it on for a model that does not support it
@@ -258,6 +261,7 @@ of a run pays a reduced rate for them.
 |---|---|
 | `openai_compatible`, `openai` | Nothing to the request: these cache automatically. Cached tokens are reported either way. |
 | `anthropic` | Places cache breakpoints after the system prompt and at the end of the request. |
+| `ollama` | Nothing. A local runtime reuses its own cache between calls, with no request-side control and no counts to report. |
 
 It is off by default because caching changes what a call costs: writing a cache
 entry is more expensive than not caching, and it only pays back if later calls
@@ -285,9 +289,62 @@ carrying one rather than ignoring it. Both branches send a usable tool result,
 so turning it on is a capability statement, not a repair.
 
 Where the image lands depends on the protocol: `anthropic` puts it inside the
-tool result, while both OpenAI protocols cannot and send it as a short user turn
-immediately after. Managed deployments declare this with the `image_input`
-capability on a catalog model.
+tool result, while the OpenAI protocols and `ollama` cannot and send it as a
+short user turn immediately after. Managed deployments declare this with the
+`image_input` capability on a catalog model.
+
+### Local models with Ollama
+
+`provider: ollama` runs against a local [Ollama](https://ollama.com) daemon: no
+key, no network, no bill. Write the entry with:
+
+```bash
+buildmax init --ollama          # configure a model the daemon already holds
+buildmax models --local         # list what is installed, and what it can do
+buildmax doctor                 # daemon up? model pulled? can it call tools?
+```
+
+The entry it writes carries no `api_key` line, because there is no credential
+to hold:
+
+```yaml
+models:
+  - model: qwen3:8b
+    name: Qwen3 8B (local)
+    provider: ollama
+    api_url: http://localhost:11434   # the daemon root, not its /v1 endpoint
+    context_window: 32000
+```
+
+**Use `ollama`, not `openai_compatible`, for a local daemon.** The same daemon
+also serves an OpenAI-compatible endpoint at `/v1`, and that endpoint cannot set
+the context window: the runtime then applies its own default and truncates a
+longer prompt rather than refusing it. What it drops is the *front* of the
+request — the system prompt and the tool definitions — so the model stops
+calling tools and starts describing what it would do. `provider: ollama` sends
+the window on every call, so the number BuildMax trims history against and the
+number the daemon uses are the same one.
+
+`context_window` is that number. Leave it unset and BuildMax asks the daemon
+what the model was trained for and takes the smaller of that and the built-in
+default, because a full-length window can be more than the machine can allocate.
+Raising it is one edit; `buildmax doctor` prints the model's maximum next to
+what is configured.
+
+Two things a local model can be wrong about, both reported by `doctor` with the
+command that fixes them: the model is not pulled (`ollama pull <model>`), or it
+cannot call tools at all, which no amount of prompting works around. Pick one
+whose capabilities include `tools` in `buildmax models --local`.
+
+Everything else behaves as it does elsewhere: `max_tokens`, `vision`, and
+`reasoning` mean the same, `prompt_cache` does nothing, and `keep_alive`
+controls how long the daemon keeps the model in memory between calls — worth
+setting on a machine where reloading a large model costs more than the turn.
+
+A deployment can serve a local model too: `--provider ollama` on a catalog
+target, or `provider: ollama` under `conversation.model` in `server.yaml`, with
+no credential in either case. See
+[a local model in a deployment](#a-local-model-in-a-deployment).
 
 ### Managed models
 
@@ -616,6 +673,54 @@ the one that builds a provider client. They are never returned by a model
 listing, an API response, or an error. Note what that implies for operations:
 database backups and read replicas carry provider keys, so treat them the way
 you treat the database password.
+
+### A local model in a deployment
+
+A deployment can point at an Ollama daemon the same way the CLI does, with one
+difference that decides everything else: **the daemon has to be reachable from
+the server, and inside a container `localhost` is the container.**
+
+Either place accepts it, and neither takes a credential:
+
+```bash
+# a catalog target teams can be granted
+buildmax-server model add --name "Local Qwen" --provider ollama     --api-url http://ollama.ollama.svc.cluster.local:11434     --model qwen3:8b --context-window 32000
+```
+
+```yaml
+# or Tier 1 conversation, in server.yaml
+conversation:
+  model:
+    model: qwen3:8b
+    provider: ollama
+    api_url: http://ollama.ollama.svc.cluster.local:11434
+    context_window: 32000
+```
+
+`--api-key` is not required for this provider and nothing is stored for it. A
+key given anyway is ignored.
+
+**Reaching a daemon on the host machine.** For a local Kubernetes cluster,
+running the daemon on the host and pointing the deployment at it is usually
+better than running it in a pod: a pod cannot use the host's GPU, so inference
+falls back to the CPU of whatever VM the cluster runs in.
+
+| Host | Address that reaches it from a pod | Also needed |
+|---|---|---|
+| Docker Desktop (macOS, Windows) | `http://host.docker.internal:11434` | nothing — the gateway forwards to the host's loopback |
+| Linux, cluster in Docker (kind, k3d) | the bridge gateway, `http://172.x.0.1:11434` — `docker network inspect <net>` prints it | `OLLAMA_HOST=0.0.0.0`, or the daemon listens on loopback only |
+| A real cluster | the daemon's own Service or an address that routes to it | — |
+
+Two properties worth stating rather than discovering:
+
+- **The endpoint is operator-supplied and is never taken from a client
+  request.** A target pointing at a loopback or link-local address means the
+  *server's* network, which is a deployment decision. Only a system
+  administrator can add one.
+- **Managed calls are still metered.** A local target has no cost per token, but
+  it lands in the `llm_call` ledger like any other, which is what makes it a
+  usable way to exercise the gateway, quota, and audit paths without paying for
+  them.
 
 ### Managed models for task runs — the `worker.llm` block
 
