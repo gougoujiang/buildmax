@@ -115,7 +115,12 @@ func RunServer(ctx context.Context, portOverride int) error {
 		return err
 	}
 
-	runner, err := buildWorkerRunner(sc.Worker)
+	// The budget is resolved before anything starts, because the scheduler's
+	// runner needs the worker's share of it at construction: how long a worker
+	// gets to report is part of how it is spawned.
+	budget := httpserver.NewShutdownBudget(sc.ShutdownGrace)
+
+	runner, err := buildWorkerRunner(sc.Worker, budget.Workers)
 	if err != nil {
 		return err
 	}
@@ -157,7 +162,7 @@ func RunServer(ctx context.Context, portOverride int) error {
 	case err := <-serveErr:
 		// The listener failed before any signal — a taken port, a bad address.
 		// Nothing has started serving, so there is nothing to drain.
-		shutdownServer(context.Background(), targetsFor(s, sched, cleaner, reaper, retainer), httpserver.NewShutdownBudget(0))
+		shutdownServer(context.Background(), targetsFor(s, sched, cleaner, reaper, retainer), budget)
 		return err
 	case <-signalCtx.Done():
 	}
@@ -167,7 +172,7 @@ func RunServer(ctx context.Context, portOverride int) error {
 	// handler that is already running one.
 	stopSignals()
 	slog.Info("shutdown requested", "grace", sc.ShutdownGrace)
-	shutdownServer(ctx, targetsFor(s, sched, cleaner, reaper, retainer), httpserver.NewShutdownBudget(sc.ShutdownGrace))
+	shutdownServer(ctx, targetsFor(s, sched, cleaner, reaper, retainer), budget)
 
 	slog.Info("server stopped")
 	return <-serveErr
@@ -182,11 +187,12 @@ type serverLifecycle interface {
 	StopBackground(ctx context.Context)
 }
 
-// namedStop is a background loop and the name it is reported under when it
-// overruns its share of the budget.
+// namedStop is a component's stop and the name it is reported under when it
+// overruns its share of the budget. The context is the budget: a stop that can
+// observe it stops early rather than being abandoned.
 type namedStop struct {
 	name string
-	stop func()
+	stop func(context.Context)
 }
 
 // shutdownTargets is everything RunServer started, in one value so the ladder
@@ -204,13 +210,19 @@ type shutdownTargets struct {
 func targetsFor(s *httpserver.Server, sched *scheduler.Scheduler, cleaner *scheduler.CredentialCleaner, reaper *scheduler.StaleRunReaper, retainer *scheduler.AuditRetainer) shutdownTargets {
 	return shutdownTargets{
 		server:    s,
-		scheduler: namedStop{name: "scheduler", stop: sched.Stop},
+		scheduler: namedStop{name: "scheduler", stop: func(ctx context.Context) { sched.Stop(ctx) }},
 		loops: []namedStop{
-			{name: "audit retainer", stop: retainer.Stop},
-			{name: "stale run reaper", stop: reaper.Stop},
-			{name: "credential cleaner", stop: cleaner.Stop},
+			{name: "audit retainer", stop: ignoringContext(retainer.Stop)},
+			{name: "stale run reaper", stop: ignoringContext(reaper.Stop)},
+			{name: "credential cleaner", stop: ignoringContext(cleaner.Stop)},
 		},
 	}
+}
+
+// ignoringContext adapts a stop that ends its own loop promptly and has nothing
+// to shorten. stopWithin still bounds the wait.
+func ignoringContext(stop func()) func(context.Context) {
+	return func(context.Context) { stop() }
 }
 
 // shutdownServer walks the shutdown ladder from docs/design/graceful-shutdown.md §3.
@@ -225,14 +237,9 @@ func shutdownServer(ctx context.Context, t shutdownTargets, budget httpserver.Sh
 	// elsewhere. Immediate, and everything below is quieter for it.
 	t.server.Drain()
 
-	// Rungs 2-3: no new run is claimed, and the runs already dispatched get
-	// their window — while the API they report to is still listening.
-	//
-	// The window is not yet honoured in local_process mode: Stop blocks until
-	// the worker process it spawned exits, and nothing signals that process
-	// yet. Phase 3 of the design record makes this bounded; until then the
-	// timeout below is what keeps a local deployment from hanging forever, at
-	// the cost of leaving an orphan worker behind.
+	// Rungs 2-3: no new run is claimed, and the runs already dispatched are
+	// asked to stop and given their window to report — while the API they
+	// report to is still listening. That is what the whole order is for.
 	stopWithin(ctx, budget.Workers, t.scheduler.name, t.scheduler.stop)
 
 	// Rungs 4-6: streams have already been told (rung 1) and get their moment
@@ -258,10 +265,12 @@ func shutdownServer(ctx context.Context, t shutdownTargets, budget httpserver.Sh
 // waiting after limit. Giving up leaks the goroutine, which is acceptable
 // exactly here: the process is about to exit anyway, and the alternative is a
 // shutdown that never completes.
-func stopWithin(ctx context.Context, limit time.Duration, name string, stop func()) {
+func stopWithin(ctx context.Context, limit time.Duration, name string, stop func(context.Context)) {
+	stopCtx, cancel := context.WithTimeout(ctx, limit)
+	defer cancel()
 	done := make(chan struct{})
 	go func() {
-		stop()
+		stop(stopCtx)
 		close(done)
 	}()
 	timer := time.NewTimer(limit)
@@ -621,7 +630,7 @@ func validateConfiguredModels(ctx context.Context, routing *llmRouting, sc confi
 	return nil
 }
 
-func buildWorkerRunner(wc config.ServerWorkerConfig) (scheduler.WorkerRunner, error) {
+func buildWorkerRunner(wc config.ServerWorkerConfig, stopGrace time.Duration) (scheduler.WorkerRunner, error) {
 	switch wc.RunMode {
 	case "k8s_job":
 		jobClient, err := k8s.BuildK8sJobCreator()
@@ -652,8 +661,21 @@ func buildWorkerRunner(wc config.ServerWorkerConfig) (scheduler.WorkerRunner, er
 		if wc.Binary == "" {
 			return nil, fmt.Errorf("worker.binary is required in server.yaml for local_process mode")
 		}
-		return scheduler.NewLocalRunner(wc.Binary, config.FilterWorkerEnv(os.Environ(), wc.LLM.Managed()), config.EnvKeyBuildmaxRunToken), nil
+		// The two windows have to nest: a worker asked to stop reports over
+		// this server's API, so it must finish inside the window the server
+		// spends waiting for it. Derived from one budget rather than configured
+		// separately, so an operator raising shutdown_grace moves both.
+		env := config.FilterWorkerEnv(os.Environ(), wc.LLM.Managed())
+		env = append(env, fmt.Sprintf("%s=%s", config.EnvKeyBuildmaxRunInterruptGrace, workerReportWindow(stopGrace)))
+		return scheduler.NewLocalRunner(wc.Binary, env, config.EnvKeyBuildmaxRunToken, stopGrace), nil
 	}
+}
+
+// workerReportWindow is how long a worker gets to report, given how long the
+// server will wait for it. The margin covers the signal reaching the process and
+// the process exiting after its last write.
+func workerReportWindow(stopGrace time.Duration) time.Duration {
+	return stopGrace * 80 / 100
 }
 
 // toWorkspaceStorageConfig converts ServerStorageConfig to the shared WorkspaceStorageConfig

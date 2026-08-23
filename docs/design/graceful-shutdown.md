@@ -1,11 +1,11 @@
 # Graceful Shutdown
 
-> **Audience:** contributors · **Status:** phases 1 and 2 implemented — the
-> ladder, the draining state, watcher-stream drain, turn quiescing, the managed
-> terminal callbacks, HTTP timeouts, the manifests, and a worker that reports
-> what it produced when it is asked to stop. Phase 3 — a bounded scheduler stop
-> — is open, so a `local_process` deployment still waits on the run it
-> dispatched rather than signalling it.
+> **Audience:** contributors · **Status:** implemented. The ladder, the draining
+> state, watcher-stream drain, turn quiescing, the managed terminal callbacks,
+> HTTP timeouts, the manifests, a worker that reports what it produced when it
+> is asked to stop, and a scheduler stop bounded by that same budget. What is
+> deliberately not here: re-dispatching an interrupted run, which belongs to run
+> retry, and durable workflow advance (§9).
 
 Related: [enterprise deployment](enterprise-deployment.md) M3,
 [worker run token](worker-run-token.md), [Portal execution
@@ -78,7 +78,7 @@ Each is described as it was found, because the failure is what justifies the
 design. The heading says where it stands now; §3 onward describe the shape that
 is built, and §10 says which phase each belongs to.
 
-### 2.1 The scheduler's stop is unbounded — open, phase 3
+### 2.1 The scheduler's stop is unbounded — fixed
 
 `LocalRunner.Run`
 ([`internal/server/scheduler/runner.go`](../../internal/server/scheduler/runner.go))
@@ -301,13 +301,20 @@ waiting for, and closing them would defeat the wait.
 
 ### 6.1 Two-phase scheduler stop
 
-`Stop()` becomes `Stop(ctx context.Context)` with two phases:
+`Stop()` becomes `Stop(ctx context.Context) bool` with two phases:
 
-1. **Stop claiming.** Signal the loop; it finishes at most the iteration it is
-   in and claims nothing new. A run already claimed but not yet dispatched is
-   released back to `PENDING` — it has not started, and nothing about it needs
-   this process.
-2. **Drain dispatch.** Wait, bounded by `ctx`, for in-flight dispatches.
+1. **Stop claiming.** Signal the loop; it finishes at most the poll it is in and
+   claims nothing new.
+2. **Drain dispatch.** Cancel the dispatch context, then wait — bounded by
+   `ctx` — for the dispatches already in flight. It reports whether they all
+   finished.
+
+The two are separable only because dispatch no longer runs on the poll loop. It
+did, which is what made the old `Stop` unbounded: the loop *was* the running
+agent. It now runs on its own goroutine, one at a time, which is the concurrency
+the inline version had. Claiming and dispatching still happen in the same poll,
+with nothing between them a stop could interrupt, so there is no
+claimed-but-not-dispatched state to release.
 
 For `K8sJobRunner` phase 2 is instant: dispatch is a `CreateJob` call, and the
 Job outlives the server that created it, which is correct — a run does not need
@@ -324,9 +331,15 @@ cmd.WaitDelay = workerHardKillGrace
 Cancelling the dispatch context then asks the worker to stop the way §6.2
 defines, and `WaitDelay` kills it if it does not. On Windows, where
 [`internal/infra/proc/kill_windows.go`](../../internal/infra/proc/kill_windows.go)
-already records that there is no polite signal, `Cancel` kills directly; a local
-Windows worker loses its in-flight run to §2.2's fallback, and the reference
-deployment is not local process mode.
+already records that there is no polite signal, no `Cancel` is set and the
+default kill stands; a local Windows worker loses its in-flight run to §2.2's
+fallback, and the reference deployment is not local process mode.
+
+One more thing the dispatch has to know: a worker that stopped because *this*
+process is stopping has already reported its own outcome, and `cmd.Run` returns
+an error for it either way. Recording that as a dispatch failure would replace
+what the run produced with a message about the server, so a dispatch whose
+context was cancelled records nothing.
 
 ### 6.2 The worker honours SIGTERM
 
@@ -379,8 +392,10 @@ listening. Derived, not configured: the worker uses 80% of the worker phase of
 `shutdown_grace`, delivered through the environment the runner already builds.
 
 Kubernetes has the same constraint between the worker pod's own
-`terminationGracePeriodSeconds` and its drain window; the Job spec will set it
-explicitly rather than inherit 30s by accident.
+`terminationGracePeriodSeconds` and its drain window; the Job spec sets it
+explicitly rather than inheriting 30s by accident. A worker pod is dispatched by
+a runner that will not be waiting for it, so it gets no window from the
+environment and uses the runtime default — chosen to fit inside that 30s.
 
 ## 7. Deployment
 
@@ -452,10 +467,15 @@ the status deciding whether the work was kept. Registration now follows the
 report: a run that sends files gets them registered whatever status it sends,
 and a run that failed at its own work sends none.
 
-**Phase 3 — the scheduler's stop.** Two-phase `Stop`, the `Cancel`/`WaitDelay`
-runner, and the nested windows. Fixes §2.1. Depends on both — phase 2 for the
-worker to have something to do with the signal, phase 1 for the API to still be
-listening when it does.
+**Phase 3 — the scheduler's stop. Done.** Two-phase `Stop`, the
+`Cancel`/`WaitDelay` runner, and the nested windows. Fixes §2.1. Depends on
+both — phase 2 for the worker to have something to do with the signal, phase 1
+for the API to still be listening when it does.
+
+Dispatch moved off the poll loop to make the two phases separable, capped at one
+at a time — which is what the loop did when it dispatched inline. The cap is a
+throughput decision this record does not make; it only refuses to change it by
+accident.
 
 **Later, not here.** Releasing an interrupted run for re-dispatch (run retry),
 and durable workflow advance.
@@ -473,7 +493,10 @@ and durable workflow advance.
 | The Portal resubscribes on `draining` rather than reporting completion | `portal/src/features/tasks/api.test.ts` | done |
 | Every `text/event-stream` handler is classified watcher or work | `internal/architecture/shutdown_test.go` | done |
 | A manifest's kill deadline outlasts its own `shutdown_grace` | `internal/architecture/shutdown_test.go` | done |
-| A blocked dispatch does not extend `Stop` past its deadline | scheduler test with a runner that never returns | phase 3 |
+| Stopping asks an in-flight dispatch to stop rather than waiting for the run | `internal/server/scheduler/stop_test.go` | done |
+| A dispatch that will not stop does not extend `Stop` past its deadline | `internal/server/scheduler/stop_test.go` | done |
+| A cancelled dispatch signals the worker instead of killing it, and kills it if it does not go | `internal/server/scheduler/runner_stop_test.go` | done |
+| Moving dispatch off the poll loop did not make it concurrent | `internal/server/scheduler/stop_test.go` | done |
 | An interrupted run reports FAILED, names the shutdown, and keeps its artifacts | `internal/agentapp/taskrun/interrupt_test.go` | done |
 | A cancel already recorded is not rewritten by a shutdown arriving after it | `internal/agentapp/taskrun/interrupt_test.go`, `internal/bootstrap/worker_interrupt_test.go` | done |
 | The signal reaches the run as a cause it can report on | `internal/bootstrap/worker_interrupt_test.go` | done |

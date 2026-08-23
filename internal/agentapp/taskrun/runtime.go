@@ -135,6 +135,11 @@ type RunTaskInput struct {
 	// zero value leaves the run without the artifact capability, so the agent
 	// gets no artifact tool rather than one that always fails.
 	WorkerAPI workerclient.WorkerAPIClientConfig
+	// InterruptGrace is how long this run may spend reporting after its process
+	// is asked to stop. Zero uses interruptReportTimeout. A dispatcher that will
+	// kill the worker on its own deadline passes that deadline here, so the run
+	// stops reporting before it is killed mid-upload rather than after.
+	InterruptGrace time.Duration
 }
 
 // artifactPublisher gives a run the artifact capability, or nil when it has no
@@ -268,7 +273,11 @@ func reportCanceledRun(ctx context.Context, scope RunScope, result RunResult, di
 // "retry it" costs more than it buys until retry exists. The error message is
 // what tells a reader this was the cluster and not the agent.
 func reportInterruptedRun(ctx context.Context, scope RunScope, result RunResult, dirs runDirs, input RunTaskInput) error {
-	if err := finishStoppedRun(ctx, scope, result, dirs, input, model.RunStatusFailed, model.ErrRunInterrupted.Error(), interruptReportTimeout); err != nil {
+	grace := input.InterruptGrace
+	if grace <= 0 {
+		grace = interruptReportTimeout
+	}
+	if err := finishStoppedRun(ctx, scope, result, dirs, input, model.RunStatusFailed, model.ErrRunInterrupted.Error(), grace); err != nil {
 		componentLog().Error("could not report an interrupted run", "task_run_id", scope.TaskRunID, "err", err)
 		return err
 	}

@@ -226,6 +226,7 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		Managed:                managed,
 		WorkerAPI:              apiCfg,
 		AdditionalSystemPrompt: fetched.AgentInstructions,
+		InterruptGrace:         interruptGraceFromEnv(),
 	})
 	if errors.Is(err, model.ErrRunCanceled) {
 		slog.Info("run canceled on request")
@@ -240,6 +241,27 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		return err
 	}
 	return nil
+}
+
+// interruptGraceFromEnv reads how long this worker may spend reporting after it
+// is asked to stop.
+//
+// The dispatcher sets it because only the dispatcher knows its own deadline: a
+// local runner kills the worker when its window expires, and a report cut off
+// mid-upload is worse than a shorter one that finished. Zero — no value, or an
+// unreadable one — leaves the runtime's own default, which is what a worker in
+// a Kubernetes Job gets.
+func interruptGraceFromEnv() time.Duration {
+	raw := os.Getenv(config.EnvKeyBuildmaxRunInterruptGrace)
+	if raw == "" {
+		return 0
+	}
+	grace, err := time.ParseDuration(raw)
+	if err != nil || grace <= 0 {
+		slog.Warn("ignoring an unusable interrupt grace", "env", config.EnvKeyBuildmaxRunInterruptGrace, "value", raw)
+		return 0
+	}
+	return grace
 }
 
 // interruptRunOnShutdown ends the run with ErrRunInterrupted when the process

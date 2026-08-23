@@ -167,7 +167,7 @@ func TestScheduler_Loop_KeepsAnOutcomeTheWorkerAlreadyReported(t *testing.T) {
 	}
 	s.Start()
 	time.Sleep(25 * time.Millisecond)
-	s.Stop()
+	s.Stop(context.Background())
 
 	spy.mu.Lock()
 	defer spy.mu.Unlock()
@@ -188,7 +188,7 @@ func TestScheduler_Loop_SpawnFailure_MarksRunFailed(t *testing.T) {
 	s.Start()
 	// Wait for at least one tick (10ms) so the loop picks the run and runner fails
 	time.Sleep(25 * time.Millisecond)
-	s.Stop()
+	s.Stop(context.Background())
 
 	spy.mu.Lock()
 	defer spy.mu.Unlock()

@@ -47,10 +47,10 @@ func TestShutdownLadderStopsTheSchedulerBeforeTheListener(t *testing.T) {
 	srv := &recordingServer{steps: &steps}
 	targets := shutdownTargets{
 		server:    srv,
-		scheduler: namedStop{name: "scheduler", stop: func() { srv.record("stop-scheduler") }},
+		scheduler: namedStop{name: "scheduler", stop: func(context.Context) { srv.record("stop-scheduler") }},
 		loops: []namedStop{
-			{name: "reaper", stop: func() { srv.record("stop-reaper") }},
-			{name: "cleaner", stop: func() { srv.record("stop-cleaner") }},
+			{name: "reaper", stop: func(context.Context) { srv.record("stop-reaper") }},
+			{name: "cleaner", stop: func(context.Context) { srv.record("stop-cleaner") }},
 		},
 	}
 
@@ -72,11 +72,11 @@ func TestShutdownLadderIsBoundedByItsBudget(t *testing.T) {
 
 	targets := shutdownTargets{
 		server: srv,
-		scheduler: namedStop{name: "scheduler", stop: func() {
+		scheduler: namedStop{name: "scheduler", stop: func(context.Context) {
 			srv.record("stop-scheduler")
 			<-blocked // a local worker still running its task
 		}},
-		loops: []namedStop{{name: "reaper", stop: func() { srv.record("stop-reaper") }}},
+		loops: []namedStop{{name: "reaper", stop: func(context.Context) { srv.record("stop-reaper") }}},
 	}
 
 	budget := httpserver.NewShutdownBudget(2 * time.Second)
@@ -103,7 +103,7 @@ func TestShutdownLadderGivesUpOnACancelledContext(t *testing.T) {
 
 	targets := shutdownTargets{
 		server:    srv,
-		scheduler: namedStop{name: "scheduler", stop: func() { srv.record("stop-scheduler") }},
+		scheduler: namedStop{name: "scheduler", stop: func(context.Context) { srv.record("stop-scheduler") }},
 	}
 
 	start := time.Now()
@@ -118,7 +118,7 @@ func TestStopWithinReturnsAtItsLimit(t *testing.T) {
 	defer close(never)
 
 	start := time.Now()
-	stopWithin(context.Background(), 100*time.Millisecond, "test", func() { <-never })
+	stopWithin(context.Background(), 100*time.Millisecond, "test", func(context.Context) { <-never })
 	elapsed := time.Since(start)
 
 	if elapsed < 100*time.Millisecond {
