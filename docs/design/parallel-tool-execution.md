@@ -4,7 +4,8 @@
 
 - roadmap_priority: `unscheduled` — performance work, not yet placed in
   [../ROADMAP.md](../ROADMAP.md)
-- status: `implemented` (§8 phases 1-4 landed; §6 items and §11 open)
+- status: `implemented` (§8 phases 1-5 landed; the presentation and trace
+  questions in §11 remain open)
 - depends on: [tool-permissions.md](./tool-permissions.md), which defines the
   `Access` classification this design schedules on. That record ships first —
   see §11.
@@ -12,6 +13,7 @@
   [durable-run-trace.md](./durable-run-trace.md),
   [trust-harness.md](./trust-harness.md)
 - touches: `internal/core/llm`, `internal/core/agent`, `internal/tool`,
+  `internal/agentapp`, `internal/service/conversation`,
   `internal/interface/cli`, `internal/interface/desktop`, `internal/config`
 - created_at: `2026-08-20`
 
@@ -60,7 +62,7 @@ CLI TUI is the one consumer that throws the id away.
 | Component | Shared state | Concurrency-safe today |
 |---|---|---|
 | `trace.Recorder.Record` | file, buffer, counter | yes — `r.mu` guards every write |
-| `HookManager.Run` | matcher cache | yes — documented and mutex-guarded |
+| `HookManager.Run` | matcher cache, config | the cache yes; the config no — corrected in §5.7.1 |
 | `Read`, `Glob`, `Grep`, `Skill` | none | yes — stateless over a workspace root |
 | `WebFetch` | response cache | yes — `cacheMu sync.RWMutex` |
 | `Bash` | none (`WithSandbox` returns a copy) | yes for the struct, no for the effects |
@@ -364,7 +366,7 @@ correctness one — see §11.
 | `Bash` | write | no | arbitrary side effects, not knowable from the command string |
 | `TodoWrite` | write | no | mutates `Session`, which has no mutex |
 | `NoteWrite` | write | no | mutates `Session`, which has no mutex |
-| `Task` | write | no | a nested `RunLoop` writes whatever its subagent writes — §6 |
+| `Task` | depends on the agent type | sometimes | a nested `RunLoop` writes whatever its sub-agent's tools write, and the tool set is declared — §5.7.1 |
 | MCP gateway calls | write | no | a third-party server promises nothing on either axis |
 
 The two interesting rows are the ones that show why the axis is *effect* and
@@ -379,9 +381,66 @@ not *touches the filesystem*:
 
 `Bash` is the honest loss. Most agent shell commands are reads — `git status`,
 `ls`, `cat`, a test run's first half — and none of them can be classified from
-the command string with the confidence this scheduler requires. The
-argument-aware signature in §5.1 leaves the door open; §6 keeps it shut for
-now.
+the command string with the confidence this scheduler requires. It runs alone.
+
+#### 5.7.1 `Task` answers per agent type
+
+`Task` was written above as a flat write, deferred to §6 because a nested
+`RunLoop` writes whatever its sub-agent writes. That is true and it is also
+answerable: the sub-agent's tools are not guessed from a prompt, they are
+resolved by name into `AgentTypeConfig.Tools` before the run starts. Asking
+each of them what it declares gives the same answer the scheduler needs about
+the whole nested loop.
+
+`TaskTool.Access(args)` therefore reads the requested `subagent_type` and
+returns `AccessReadOnly` when every tool that type can reach declares itself
+read-only. Built-in `explore` (`Read`, `Glob`, `Grep`) qualifies; `general`
+and `shell` do not, and neither does a user-defined agent whose `tools:` list
+includes one writer. Three cases are deliberately writes:
+
+- **An unknown type**, because the call is about to fail and a failing call
+  should not have overlapped anything.
+- **`run_in_background: true`**, because it mutates the job manager and starts
+  work that outlives the call. Its speed argument is also already answered —
+  it returns immediately.
+- **`nil` args**, which is a capability listing (`internal/agentapp/app.go`
+  reports a tool's access with no call in hand), not a call to schedule.
+
+An empty tool set is a write for the same reason: a type whose names all
+failed to resolve must not become eligible by having no counterexample.
+
+What makes this safe is where the answer comes from. Nothing here infers an
+effect from an argument string; the classification reads a declaration each
+tool already makes, so it is only as wrong as those declarations are — and they
+are the same ones the sequential path already trusts for permission.
+
+The concurrency half of §5.1's rule is satisfied by what a sub-agent run
+already is. Each run builds its own `session.NewSession`, its own registry,
+and its own `NoteStore`; its `EventSink` goes to its own trace recorder rather
+than the parent's sink; and its `RunLoopOpts` carries no `Approval`, so
+`interactive()` is false and no prompt is reachable. Nested runs already
+overlap the parent in production — `run_in_background` has detached sub-agents
+to the job manager since local-background-jobs stage 1. Making that overlap
+synchronous and bounded is a smaller step than the original text implies.
+
+One shared seam did have to be fixed: `HookManager.Run` read `m.cfg` without
+holding `m.mu`, which `Refresh` writes under it. Sequential gating hid it;
+overlapping sub-agent runs reach `Run` from several goroutines and the race
+detector finds it. Run now takes the config under the lock and dispatches from
+that copy. This closes the last item of §11.
+
+#### 5.7.2 Sub-agents schedule too
+
+`MaxParallelTools` reached exactly one `RunLoop`. A sub-agent's nested loop got
+zero, which means every group held one call, which means the read-only agent
+types — the ones this design just made eligible — ran their own reads and
+searches strictly one at a time. The runner now carries the parent's limit
+(`WithSubAgentMaxParallelTools`).
+
+The Portal conversation runtime had the same gap for the same reason. Its
+read-only tools are `ListTasks` and `GetTask`; both now declare `Access`, and
+the turn runs at the default limit. `StartTask` and `ContinueTask` stay writes
+and stay barriers.
 
 ### 5.8 Configuration
 
@@ -416,16 +475,16 @@ nearly all of the available win while keeping the failure modes boring.
 
 ## 6. Out Of Scope
 
-- **Parallel `Task` subagents.** The highest-value follow-up and the largest
-  one: a nested `RunLoop` brings its own event stream, approval prompts, and
-  session state, and needs an attribution model in the trace before several
-  can run at once. Deliberately deferred to its own phase.
+- ~~**Parallel `Task` subagents.**~~ Shipped — see §5.7.1 and §8 phase 5. The
+  original reasoning has not aged well and is worth recording as wrong: the
+  three blockers named here (a nested run's own event stream, its approval
+  prompts, its session state) were each already solved by the sub-agent runner,
+  and the fourth — trace attribution — was delivered by durable-run-trace and
+  local-background-jobs while this record sat unscheduled. What remained was
+  the honest question, "does the nested loop write", and that turned out to be
+  a property of a declared tool set rather than something to be inferred.
 - **Parallel `Bash` or `Edit` behind file-level locking.** Predicting the file
   set of a shell command is not something the runtime can do honestly.
-- **Argument-aware `Bash` classification** (returning `AccessReadOnly` for a
-  `git status`-shaped command). The signature in §5.1 permits it; nothing
-  implements it, because a command classifier that is wrong once is worse than
-  one that never existed.
 - **Overlapping the next LLM call with tool execution.** Speculative
   execution is a different design with a different risk profile.
 - **Cross-iteration parallelism.** One assistant message is the unit.
@@ -516,6 +575,19 @@ any concurrency limit.
   member executes; post hooks fire at the join, still in call order.
 - `CHANGELOG.md` under `## [Unreleased]`.
 
+### Phase 5 — sub-agents — shipped ✅
+
+- `TaskTool.Access` answers from the requested agent type's tool set (§5.7.1).
+  The classification is computed once in `NewTask`, because the sets do not
+  change afterwards and a per-call walk would be work repeated on every call.
+- `WithSubAgentMaxParallelTools` carries the parent's limit into the nested
+  loop, and the Portal conversation runtime runs at the default (§5.7.2).
+  `ListTasks` and `GetTask` declare `AccessReadOnly`, without which that limit
+  would have been a setting with nothing to schedule.
+- `HookManager.Run` reads its config under the lock, closing the last §11 item.
+  The test fails under `-race` against the previous code, which is the only
+  way to know a lock is load-bearing.
+
 ## 9. Acceptance — met ✅
 
 Every condition below has a test. Names are in `internal/core/agent`.
@@ -532,6 +604,10 @@ Every condition below has a test. Names are in `internal/core/agent`.
 | Cancelling mid-group still commits one result per call | `TestParallel_CancellationStillCommitsEveryCall` |
 | A panicking tool neither kills the run nor strands siblings | `TestParallel_PanicIsContained` |
 | Grouping never reorders, and groups are windows not copies | `TestGroupCalls_NeverReorders`, `TestGroupCalls_GroupsAreWindows` |
+| A read-only agent type is eligible; a type with one writer, an unknown type, a background run, and nil args are not | `TestTaskTool_Access` (`internal/tool`) |
+| The real built-in and user-defined types classify as expected off a live registry | `TestAgentTypeAccess` (`internal/agentapp`) |
+| A sub-agent's own loop overlaps its reads, and does not without the option | `TestSubAgentRunner_MaxParallelToolsReachesTheNestedLoop` (`internal/tool`) |
+| `HookManager.Run` is clean under `-race` alongside `Refresh` | `TestHookManager_RunIsSafeAlongsideRefresh` (`internal/agentapp`) |
 
 ## 10. Sequencing
 
@@ -566,6 +642,10 @@ tool-permissions.md phase 2 adds a third outcome to the same approval prompt.
   `tool_group` record would make it obvious at the cost of a schema bump.
 - **MCP.** Concurrency could be declared per server rather than blanket-denied
   once the gateway grows a capability descriptor.
-- **`HookManager.Run` reads `m.cfg` without holding `m.mu`,** which `Refresh`
-  writes under it. Pre-existing and unrelated to this design, but this is the
-  work that will point a race detector at that code.
+- **Should a sub-agent's limit be its own setting?** It inherits the parent's
+  today. Four parent calls each running four nested tools is sixteen in
+  flight, which is the clamp ceiling reached without anyone asking for it.
+  Real batches are far smaller, so this is a question to answer with a
+  measurement rather than a guess.
+- ~~`HookManager.Run` reads `m.cfg` without holding `m.mu`.~~ Fixed in phase 5;
+  overlapping sub-agent runs are what made it reachable.

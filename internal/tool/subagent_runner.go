@@ -49,6 +49,7 @@ type defaultSubAgentRunner struct {
 	hooks         coreagent.HookRunner
 	modelResolver func(string) (llm.LLMClient, error) // nil = always use client
 	traceFactory  SubAgentTraceFactory
+	maxParallel   int // 0 = sequential, as RunLoop reads it
 }
 
 // SubAgentRunnerOption configures a SubAgentRunner.
@@ -64,6 +65,14 @@ func WithSubAgentHooks(h coreagent.HookRunner) SubAgentRunnerOption {
 // layer. A nil factory leaves subagent execution unchanged.
 func WithSubAgentTraceFactory(factory SubAgentTraceFactory) SubAgentRunnerOption {
 	return func(r *defaultSubAgentRunner) { r.traceFactory = factory }
+}
+
+// WithSubAgentMaxParallelTools gives sub-agent runs the same tool-scheduling
+// limit as the parent. Without it a sub-agent runs every call sequentially,
+// which loses the setting exactly where it pays best: an exploration agent
+// batches reads and searches for a living.
+func WithSubAgentMaxParallelTools(n int) SubAgentRunnerOption {
+	return func(r *defaultSubAgentRunner) { r.maxParallel = n }
 }
 
 // NewDefaultSubAgentRunner returns a SubAgentRunner backed by the given LLM client.
@@ -134,17 +143,18 @@ func (r *defaultSubAgentRunner) RunSubAgent(ctx context.Context, opts SubAgentRu
 	}
 
 	reply, _, err := coreagent.RunLoop(ctx, coreagent.RunLoopOpts{
-		LLMClient:    client,
-		SystemPrompt: opts.SystemPrompt,
-		ToolRegistry: registry,
-		MaxIter:      maxIter,
-		History:      sess,
-		Policy:       r.policy,
-		Hooks:        r.hooks,
-		SessionID:    sess.ID,
-		IsSubagent:   true,
-		AgentType:    opts.Description,
-		EventSink:    eventSink,
+		LLMClient:        client,
+		SystemPrompt:     opts.SystemPrompt,
+		ToolRegistry:     registry,
+		MaxIter:          maxIter,
+		History:          sess,
+		Policy:           r.policy,
+		Hooks:            r.hooks,
+		SessionID:        sess.ID,
+		IsSubagent:       true,
+		AgentType:        opts.Description,
+		EventSink:        eventSink,
+		MaxParallelTools: r.maxParallel,
 	})
 	if err != nil {
 		return "", err

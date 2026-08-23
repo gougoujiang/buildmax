@@ -18,6 +18,10 @@ type getTaskTool struct {
 	runner  GetTaskRunner
 }
 
+// Access implements llm.AccessDeclarer. Reading one task's detail changes
+// nothing, so it may overlap its neighbours.
+func (t *getTaskTool) Access(_ map[string]any) llm.Access { return llm.AccessReadOnly }
+
 func (t *getTaskTool) Name() string { return ToolNameGetTask }
 
 func (t *getTaskTool) Description() string {

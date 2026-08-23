@@ -57,9 +57,10 @@ started. A background subagent's final reply appears in `JobOutput` when it
 completes.
 
 When the agent asks for several tools at once, the read-only ones run at the
-same time: `Read`, `Glob`, `Grep`, `Skill`, and `WebFetch`. Anything that
-changes something runs alone and in order, so a batch does the same thing
-however it is scheduled. Tune it with `agent.max_parallel_tools`
+same time: `Read`, `Glob`, `Grep`, `Skill`, `WebFetch`, and a `Task` handed to
+a read-only sub-agent such as `explore`. Anything that changes something runs
+alone and in order, so a batch does the same thing however it is scheduled.
+Tune it with `agent.max_parallel_tools`
 ([reference/configuration.md](../reference/configuration.md)).
 
 ## Behavior Worth Knowing

@@ -15,7 +15,12 @@ import (
 )
 
 const (
-	maxIterations         = 10
+	maxIterations = 10
+	// maxParallelTools matches config.DefaultMaxParallelTools by value rather
+	// than by import: agent.max_parallel_tools is a local surface setting and
+	// no service package reads config. A Portal turn's read-only tools are
+	// ListTasks and GetTask, so the practical ceiling is well under this.
+	maxParallelTools      = 4
 	internalSystemChannel = "system"
 )
 
@@ -223,13 +228,14 @@ func executeRun(ctx context.Context, llmClient llm.LLMClient, in TurnRunInput, p
 	tools.AppendTools(prepared.toolsList...)
 
 	reply, _, err := agent.RunLoop(ctx, agent.RunLoopOpts{
-		LLMClient:    llmClient,
-		SystemPrompt: currentSystemPrompt(),
-		ToolRegistry: tools,
-		MaxIter:      maxIterations,
-		History:      prepared.buffer,
-		StreamSink:   in.StreamSink,
-		Policy:       agentapp.NewNonInteractivePolicy(),
+		LLMClient:        llmClient,
+		SystemPrompt:     currentSystemPrompt(),
+		ToolRegistry:     tools,
+		MaxIter:          maxIterations,
+		History:          prepared.buffer,
+		StreamSink:       in.StreamSink,
+		Policy:           agentapp.NewNonInteractivePolicy(),
+		MaxParallelTools: maxParallelTools,
 	})
 	if err != nil {
 		return "", err
