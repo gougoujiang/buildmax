@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/gougoujiang/buildmax/internal/core/agent"
+	"github.com/gougoujiang/buildmax/internal/core/llm"
 )
 
 func TestRecordFromEvent_Mapping(t *testing.T) {
@@ -51,6 +52,49 @@ func TestRecordFromEvent_Mapping(t *testing.T) {
 		}, "llm_end", func(t *testing.T, r Record) {
 			if r.CacheReadTokens != 80 || r.CacheWriteTokens != 10 {
 				t.Errorf("bad llm_end cache counts: %+v", r)
+			}
+		}},
+		// A reader asking which turn was expensive gets the call's own figures
+		// rather than having to subtract consecutive records — which goes wrong
+		// the moment a call in between failed and wrote none.
+		{"llm_end_cost", agent.Event{
+			Kind: agent.EventLLMEnd, Iter: 2, PromptTokens: 200, CacheReadTokens: 90,
+			CallUsage: llm.Usage{PromptTokens: 100, CompletionTokens: 5, CacheReadTokens: 90},
+			CallCost:  &llm.Cost{Currency: "USD", Uncached: 30, CacheRead: 27, Output: 75, Total: 132, Baseline: 375},
+		}, "llm_end", func(t *testing.T, r Record) {
+			if r.CallPromptTokens != 100 || r.CallCacheReadTokens != 90 {
+				t.Errorf("call counts wrong: %+v", r)
+			}
+			if r.PromptTokens != 200 {
+				t.Errorf("the run total should still be the run total, got %d", r.PromptTokens)
+			}
+			if r.Cost == nil || r.Cost.Total != 132 || r.Cost.Baseline != 375 {
+				t.Errorf("bad llm_end cost: %+v", r.Cost)
+			}
+		}},
+		// An unpriced model leaves the field out. A zero would read as a call
+		// that cost nothing.
+		{"llm_end_unpriced", agent.Event{
+			Kind: agent.EventLLMEnd, Iter: 1,
+			CallUsage: llm.Usage{PromptTokens: 100, CompletionTokens: 5},
+		}, "llm_end", func(t *testing.T, r Record) {
+			if r.Cost != nil {
+				t.Errorf("an unpriced call recorded a cost: %+v", r.Cost)
+			}
+		}},
+		{"run_end_cost", agent.Event{
+			Kind: agent.EventRunEnd,
+			Stats: agent.RunStats{
+				ToolCalls: 2, PromptTokens: 200,
+				Cost:           &llm.Cost{Currency: "USD", Total: 264, Baseline: 750},
+				CostIncomplete: true,
+			},
+		}, "run_end", func(t *testing.T, r Record) {
+			if r.Cost == nil || r.Cost.Total != 264 {
+				t.Fatalf("bad run_end cost: %+v", r.Cost)
+			}
+			if !r.CostIncomplete {
+				t.Error("a partial total must say so; a figure that quietly dropped a call is worse than none")
 			}
 		}},
 		{"run_end_cache", agent.Event{

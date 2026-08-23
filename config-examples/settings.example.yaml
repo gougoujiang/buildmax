@@ -21,10 +21,11 @@ log_level: info
 # them periodically: `./make models check` flags entries whose
 # context_window has drifted from what OpenRouter reports now.
 #
-# The `pricing` rates are OpenRouter's published prices when this file was
-# written, in USD per million tokens; without them a run reports its cost as
-# `unavailable` rather than guessing. They go stale like the rest:
-# `./make models info <model>` prints the current ones.
+# `pricing` is what lets a run report what it cost; without it the run reports
+# `unavailable` rather than guessing. Three entries below carry it, one per
+# protocol, with OpenRouter's published rates in USD per million tokens. Copy
+# the block onto the models you actually use — `./make models info <model>`
+# prints current rates, which move.
 models:
   - model: openai/gpt-5.6-luna
     name: GPT-5.6 Luna
@@ -46,12 +47,6 @@ models:
     api_url: https://openrouter.ai/api/v1
     api_key: your-openrouter-api-key
     context_window: 1050000
-    pricing:
-      currency: USD
-      input_per_mtok: "2"
-      cache_read_per_mtok: "0.2"
-      cache_write_per_mtok: "2.5"
-      output_per_mtok: "10"
 
   - model: openai/gpt-5.6-terra
     name: GPT-5.6 Terra
@@ -59,12 +54,6 @@ models:
     api_url: https://openrouter.ai/api/v1
     api_key: your-openrouter-api-key
     context_window: 1050000
-    pricing:
-      currency: USD
-      input_per_mtok: "2"
-      cache_read_per_mtok: "0.2"
-      cache_write_per_mtok: "2.5"
-      output_per_mtok: "12"
 
   - model: anthropic/claude-haiku-4.5
     name: Claude Haiku 4.5
@@ -85,12 +74,6 @@ models:
     api_url: https://openrouter.ai/api/
     api_key: your-openrouter-api-key
     context_window: 1000000
-    pricing:
-      currency: USD
-      input_per_mtok: "2"
-      cache_read_per_mtok: "0.2"
-      cache_write_per_mtok: "2.5"
-      output_per_mtok: "10"
 
   - model: anthropic/claude-opus-5
     name: Claude Opus 5
@@ -98,12 +81,6 @@ models:
     api_url: https://openrouter.ai/api/
     api_key: your-openrouter-api-key
     context_window: 1000000
-    pricing:
-      currency: USD
-      input_per_mtok: "5"
-      cache_read_per_mtok: "0.5"
-      cache_write_per_mtok: "6.25"
-      output_per_mtok: "25"
 
   - model: google/gemini-3.7-flash
     name: Gemini 3.7 Flash
@@ -111,12 +88,6 @@ models:
     api_url: https://openrouter.ai/api/v1
     api_key: your-openrouter-api-key
     context_window: 1048576
-    pricing:
-      currency: USD
-      input_per_mtok: "0.375"
-      cache_read_per_mtok: "0.0375"
-      cache_write_per_mtok: "0.020833333"
-      output_per_mtok: "1.875"
 
   - model: x-ai/grok-4.6
     name: Grok 4.6
@@ -124,11 +95,6 @@ models:
     api_url: https://openrouter.ai/api/v1
     api_key: your-openrouter-api-key
     context_window: 500000
-    pricing:
-      currency: USD
-      input_per_mtok: "2"
-      cache_read_per_mtok: "0.5"
-      output_per_mtok: "6"
 
   - model: deepseek/deepseek-v4-flash
     name: DeepSeek V4 Flash
@@ -136,11 +102,6 @@ models:
     api_url: https://openrouter.ai/api/v1
     api_key: your-openrouter-api-key
     context_window: 1024000
-    pricing:
-      currency: USD
-      input_per_mtok: "0.05166"
-      cache_read_per_mtok: "0.010332"
-      output_per_mtok: "0.10332"
 
   - model: z-ai/glm-5.3
     name: GLM 5.3
@@ -160,11 +121,6 @@ models:
     api_url: https://openrouter.ai/api/v1
     api_key: your-openrouter-api-key
     context_window: 1048576
-    pricing:
-      currency: USD
-      input_per_mtok: "3"
-      cache_read_per_mtok: "0.3"
-      output_per_mtok: "15"
 
   - model: qwen/qwen3-max
     name: Qwen3 Max

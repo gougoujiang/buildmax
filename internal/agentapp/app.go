@@ -986,6 +986,7 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 	// <context_compaction> blocks in the prompt after the first in-run compaction.
 	reply, stats, err := agent.RunLoop(ctx, agent.RunLoopOpts{
 		LLMClient:    client,
+		Pricing:      a.pricingFor(sess),
 		SystemPrompt: systemPrompt,
 		ToolRegistry: registry,
 		MaxIter:      agent.DefaultMaxIterations,

@@ -6,6 +6,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/gougoujiang/buildmax/internal/core/agent"
+	"github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/plugin"
 )
 
@@ -88,6 +89,23 @@ type Record struct {
 	CacheWriteTokens int `json:"cache_write_tokens,omitempty"`
 
 	// llm_end
+	//
+	// The token fields above are the run's totals so far; these are what this
+	// one call did. Both are recorded because a reader asking which turn was
+	// expensive would otherwise have to subtract consecutive records, which
+	// goes wrong the moment a call in between failed and wrote none.
+	CallPromptTokens     int `json:"call_prompt_tokens,omitempty"`
+	CallCompletionTokens int `json:"call_completion_tokens,omitempty"`
+	CallCacheReadTokens  int `json:"call_cache_read_tokens,omitempty"`
+	CallCacheWriteTokens int `json:"call_cache_write_tokens,omitempty"`
+
+	// llm_end (this call), run_end (the run)
+	//
+	// Absent when the model was unpriced, which is not the same fact as a call
+	// that cost nothing.
+	Cost *RecordCost `json:"cost,omitempty"`
+
+	// llm_end
 	Content string `json:"content,omitempty"`
 
 	// tool_start, tool_end, tool_denied
@@ -107,8 +125,45 @@ type Record struct {
 	Kept       int `json:"kept,omitempty"`
 
 	// run_end
-	ToolCalls int    `json:"tool_calls,omitempty"`
-	Error     string `json:"error,omitempty"`
+	ToolCalls int `json:"tool_calls,omitempty"`
+	// CostIncomplete says a call in this run did work that could not be
+	// priced, so Cost understates it rather than covering it.
+	CostIncomplete bool   `json:"cost_incomplete,omitempty"`
+	Error          string `json:"error,omitempty"`
+}
+
+// RecordCost is an estimated spend, in nano-units of Currency: one currency
+// unit is 1e9 of them, held as integers so a reader sums a run exactly.
+//
+// It is declared here rather than reusing core/llm.Cost because this is a
+// durable file format. A field added to the domain type should not silently
+// change what a trace written last month is expected to contain.
+type RecordCost struct {
+	Currency   string `json:"currency"`
+	Uncached   int64  `json:"uncached"`
+	CacheRead  int64  `json:"cache_read"`
+	CacheWrite int64  `json:"cache_write"`
+	Output     int64  `json:"output"`
+	Total      int64  `json:"total"`
+	// Baseline is what the same tokens would have cost with no caching at all.
+	// It is what makes the saving readable: comparing Total against zero would
+	// report a win on a call that only ever wrote.
+	Baseline int64 `json:"baseline"`
+}
+
+func recordCost(cost *llm.Cost) *RecordCost {
+	if cost == nil {
+		return nil
+	}
+	return &RecordCost{
+		Currency:   cost.Currency,
+		Uncached:   cost.Uncached,
+		CacheRead:  cost.CacheRead,
+		CacheWrite: cost.CacheWrite,
+		Output:     cost.Output,
+		Total:      cost.Total,
+		Baseline:   cost.Baseline,
+	}
 }
 
 // recordTypes maps each agent.EventKind to its trace record type string.
@@ -150,6 +205,11 @@ func recordFromEvent(e agent.Event, maxField int) (Record, bool) {
 		r.CompletionTokens = e.CompletionTokens
 		r.CacheReadTokens = e.CacheReadTokens
 		r.CacheWriteTokens = e.CacheWriteTokens
+		r.CallPromptTokens = e.CallUsage.PromptTokens
+		r.CallCompletionTokens = e.CallUsage.CompletionTokens
+		r.CallCacheReadTokens = e.CallUsage.CacheReadTokens
+		r.CallCacheWriteTokens = e.CallUsage.CacheWriteTokens
+		r.Cost = recordCost(e.CallCost)
 		r.ContextTokens = e.ContextTokens
 		r.ContextWindow = e.ContextWindow
 		r.Content = bound(Redact(e.Content), maxField)
@@ -185,6 +245,8 @@ func recordFromEvent(e agent.Event, maxField int) (Record, bool) {
 		r.CompletionTokens = e.Stats.CompletionTokens
 		r.CacheReadTokens = e.Stats.CacheReadTokens
 		r.CacheWriteTokens = e.Stats.CacheWriteTokens
+		r.Cost = recordCost(e.Stats.Cost)
+		r.CostIncomplete = e.Stats.CostIncomplete
 		if e.Err != nil {
 			r.Error = e.Err.Error()
 		}

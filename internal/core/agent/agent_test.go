@@ -731,3 +731,83 @@ func TestRunLoopLabelsEveryIterationAnAgentTurn(t *testing.T) {
 		}
 	}
 }
+
+func testRunPricing() llm.Pricing {
+	return llm.Pricing{
+		Currency: "USD", InputPerMTok: 3_000_000_000, CacheReadPerMTok: 300_000_000,
+		CacheWritePerMTok: 3_750_000_000, OutputPerMTok: 15_000_000_000,
+	}
+}
+
+// A run prices each call as it completes, at the rates in force then. Pricing
+// the run's totals afterwards would give a different answer the moment a run
+// spanned a rate change, and the per-call figure is what says which turn was
+// expensive.
+func TestRunStatsPricesEachCall(t *testing.T) {
+	mock := &mockLLMClient{responses: []mockResponse{
+		// A turn that writes the cache, then one that reads it back.
+		{toolCalls: []llm.ToolCall{{ID: "1", Name: "echo", Arguments: "{}"}},
+			usage: llm.Usage{PromptTokens: 100_000, CompletionTokens: 1_000, CacheWriteTokens: 90_000}},
+		{content: "Done.",
+			usage: llm.Usage{PromptTokens: 100_000, CompletionTokens: 1_000, CacheReadTokens: 90_000}},
+	}}
+	tool := &mockTool{name: "echo", description: "Echo", params: map[string]any{"type": "object"}, result: "ok"}
+	_, stats, err := runLoopWithUserMsg(context.Background(), mock,
+		newTestToolRegistry(tool), newTestBuffer(), "Hi", func(o *RunLoopOpts) { o.Pricing = testRunPricing() })
+	if err != nil {
+		t.Fatalf("RunLoop: %v", err)
+	}
+	if stats.Cost == nil {
+		t.Fatal("a priced run produced no cost")
+	}
+	if stats.CostIncomplete {
+		t.Error("a fully priced run should not be marked incomplete")
+	}
+	write, _ := llm.EstimateCost(mock.responses[0].usage, testRunPricing())
+	read, _ := llm.EstimateCost(mock.responses[1].usage, testRunPricing())
+	if stats.Cost.Total != write.Total+read.Total {
+		t.Errorf("total = %d, want the two calls summed (%d)", stats.Cost.Total, write.Total+read.Total)
+	}
+	// The write cost more than the same call uncached; the read more than made
+	// it back. Only the run as a whole is ahead, which is the fact a per-run
+	// figure alone would hide.
+	if write.Total <= write.Baseline {
+		t.Errorf("a cache write should cost more than the same call uncached: %d vs %d", write.Total, write.Baseline)
+	}
+	if stats.Cost.Total >= stats.Cost.Baseline {
+		t.Errorf("the run should be ahead overall: %d vs %d", stats.Cost.Total, stats.Cost.Baseline)
+	}
+}
+
+// An unpriced model leaves the cost nil rather than zero, and says the total is
+// missing work rather than covering it.
+func TestRunStatsLeavesAnUnpricedRunUnpriced(t *testing.T) {
+	mock := &mockLLMClient{responses: []mockResponse{
+		{content: "Done.", usage: llm.Usage{PromptTokens: 100, CompletionTokens: 10}},
+	}}
+	_, stats, err := runLoopWithUserMsg(context.Background(), mock,
+		newTestToolRegistry(), newTestBuffer(), "Hi")
+	if err != nil {
+		t.Fatalf("RunLoop: %v", err)
+	}
+	if stats.Cost != nil {
+		t.Errorf("an unpriced run produced a cost: %+v", stats.Cost)
+	}
+	if !stats.CostIncomplete {
+		t.Error("a run that did work it could not price should say the total is partial")
+	}
+}
+
+// A call the provider reported nothing for is already unmeasured in the token
+// counts. Marking the money partial as well would present one gap as two.
+func TestRunStatsDoesNotCallAnUnmeasuredTurnUnpriced(t *testing.T) {
+	mock := &mockLLMClient{responses: []mockResponse{{content: "Done."}}}
+	_, stats, err := runLoopWithUserMsg(context.Background(), mock,
+		newTestToolRegistry(), newTestBuffer(), "Hi", func(o *RunLoopOpts) { o.Pricing = testRunPricing() })
+	if err != nil {
+		t.Fatalf("RunLoop: %v", err)
+	}
+	if stats.Cost != nil || stats.CostIncomplete {
+		t.Errorf("an unmeasured turn produced cost=%v incomplete=%v", stats.Cost, stats.CostIncomplete)
+	}
+}

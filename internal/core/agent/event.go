@@ -3,6 +3,8 @@ package agent
 import (
 	"sync"
 	"time"
+
+	"github.com/gougoujiang/buildmax/internal/core/llm"
 )
 
 // EventKind identifies the type of a runtime event emitted during a RunLoop execution.
@@ -81,6 +83,18 @@ type Event struct {
 	// They are a breakdown of PromptTokens, not an addition to it.
 	CacheReadTokens  int
 	CacheWriteTokens int
+
+	// EventLLMEnd
+	//
+	// The counts above are the run's totals so far; these are what this one
+	// call did. Both are carried because they answer different questions —
+	// what the run has spent, and which turn spent it — and deriving the
+	// second by subtracting consecutive records is a trap for anyone reading a
+	// trace where a call failed in between.
+	CallUsage llm.Usage
+	// CallCost is what this call is estimated to have cost, nil when the model
+	// was unpriced. Zero would read as a free call.
+	CallCost *llm.Cost
 
 	// EventToolStart, EventToolEnd, EventToolDenied
 	ToolName   string

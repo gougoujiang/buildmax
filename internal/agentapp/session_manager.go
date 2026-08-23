@@ -99,12 +99,10 @@ func (s *SessionManager) Finalize(ctx context.Context, client llm.LLMClient, ses
 	sess.CompletionTokens += stats.CompletionTokens
 	sess.CacheReadTokens += stats.CacheReadTokens
 	sess.CacheWriteTokens += stats.CacheWriteTokens
-	addSessionCost(sess, llm.Usage{
-		PromptTokens:     stats.PromptTokens,
-		CompletionTokens: stats.CompletionTokens,
-		CacheReadTokens:  stats.CacheReadTokens,
-		CacheWriteTokens: stats.CacheWriteTokens,
-	}, pricing)
+	// The run already priced itself call by call, at the rates in force for
+	// each. Re-pricing its totals here would be a second answer to the same
+	// question, and a different one whenever a run spanned a rate change.
+	addRunCost(sess, stats.Cost, stats.CostIncomplete)
 	if err := s.Save(sess, workspace); err != nil {
 		return TurnFinalizeResult{}, fmt.Errorf("persist session: %w", err)
 	}
@@ -392,6 +390,31 @@ func addSessionCost(sess *SessionContext, usage llm.Usage, pricing llm.Pricing) 
 		// Two currencies, and BuildMax holds no exchange rate. The earlier
 		// total stands and is labelled incomplete; inventing a conversion
 		// would produce a figure that is wrong in both.
+		sess.CostIncomplete = true
+		return
+	}
+	*sess.Cost = summed
+}
+
+// addRunCost folds a finished run's own total into the session.
+//
+// The run priced each of its calls as they completed, so this only carries the
+// answer up rather than recomputing it. incomplete propagates: a session
+// containing one partial run is itself partial.
+func addRunCost(sess *SessionContext, cost *llm.Cost, incomplete bool) {
+	if incomplete {
+		sess.CostIncomplete = true
+	}
+	if cost == nil {
+		return
+	}
+	if sess.Cost == nil {
+		total := *cost
+		sess.Cost = &total
+		return
+	}
+	summed, ok := sess.Cost.Add(*cost)
+	if !ok {
 		sess.CostIncomplete = true
 		return
 	}

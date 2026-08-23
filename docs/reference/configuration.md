@@ -372,6 +372,7 @@ Where the cost appears:
 | CLI | A `Cost(session)` line after a run, with what caching saved when it saved anything |
 | CLI `--format json` | `usage.cost`, in nano-units of the currency |
 | Session file | A running total, accumulated as the session ran |
+| Run trace | Each call's own cost on `llm_end`, and the run's on `run_end` — which turn was expensive, not just the total |
 | Portal run view | Per-run estimated cost and the saving against an uncached baseline |
 
 The session total is accumulated turn by turn rather than recomputed on read,
