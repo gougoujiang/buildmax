@@ -335,6 +335,11 @@ func (c *Client) post(ctx context.Context, stream bool, call cllm.Request) (*htt
 		Tools:    toWireTools(call.Tools),
 		Stream:   stream,
 		Metadata: c.metadata(),
+		// What the call is for, and nothing about what to do with it. The
+		// server owns the cache policy for a managed call; sending a mode or a
+		// retention from here would let a client spend the operator's money on
+		// retention the operator did not choose.
+		CallProfile: string(call.Profile),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("encode managed request: %w", err)

@@ -292,6 +292,7 @@ The versioned request DTO contains only fields BuildMax understands:
   "messages": [],
   "tools": [],
   "stream": true,
+  "call_profile": "agent_turn",
   "metadata": {
     "surface": "desktop",
     "session_id": "optional correlation value"
@@ -307,6 +308,17 @@ credentials, URLs, and arbitrary generation parameters are not accepted.
 `call_id` identifies one logical invocation. It supports duplicate detection
 when a connection fails before a client knows whether the Server accepted the
 call. It is not permission to replay a partially streamed generation.
+
+`call_profile` is what the caller says the call is for — `agent_turn`, `title`,
+`compaction`, `evaluation`, or `probe`. It is operational input, not
+authorization input: the Server combines it with the approved target's own cache
+policy, so naming a profile cannot select a cache mode, a retention, or a cache
+key the operator did not approve. The field is additive and may be omitted; the
+Server then has no evidence the prefix will be read back, which is not a reason
+to buy a cache write. A non-empty value the Server does not know is rejected
+rather than absorbed, so a newer client cannot believe it asked for one thing
+and be charged for another. See
+[prompt-cache-control.md](prompt-cache-control.md).
 
 Metadata is correlation context, not authorization input. The Server derives
 user ID and team ID from authentication, and derives task-run identity on the

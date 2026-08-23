@@ -611,3 +611,56 @@ func TestManagedStreamingCarriesCacheCounts(t *testing.T) {
 		t.Errorf("usage = %+v, want %+v", completion.Usage, want)
 	}
 }
+
+// The profile travels, and nothing else about caching does. What the call is
+// for is the client's to say; what to do about it is the operator's, and a
+// request that could name a mode, a retention, or a cache key would let a local
+// client spend the operator's money on retention the operator never chose.
+func TestManagedRequestCarriesTheProfileAndNoCachePolicy(t *testing.T) {
+	for _, mode := range []struct {
+		name string
+		cfg  llmremote.Config
+	}{
+		{name: "team", cfg: llmremote.Config{Token: "tok", TeamID: "tm_one"}},
+		{name: "worker", cfg: llmremote.Config{Token: "tok", TaskRunID: "tr_one"}},
+	} {
+		t.Run(mode.name, func(t *testing.T) {
+			gateway := newFakeGateway(t)
+			gateway.body = `{"llm_call_id":"lc_1","model":"fast","content":"hi"}`
+
+			client := gateway.client(mode.cfg)
+			if _, err := client.ChatCompletionBlocking(context.Background(), cllm.Request{
+				Messages: []cllm.Message{{Role: "user", Content: "hello"}},
+				Profile:  cllm.ProfileAgentTurn,
+			}); err != nil {
+				t.Fatalf("ChatCompletionBlocking: %v", err)
+			}
+			if gateway.gotBody.CallProfile != string(cllm.ProfileAgentTurn) {
+				t.Errorf("call_profile = %q, want %q", gateway.gotBody.CallProfile, cllm.ProfileAgentTurn)
+			}
+			for _, forbidden := range []string{"cache_control", "cache_mode", "cache_ttl", "prompt_cache", "ttl"} {
+				if strings.Contains(string(gateway.gotRaw), forbidden) {
+					t.Errorf("request %s carries %q; cache policy is the server's decision",
+						gateway.gotRaw, forbidden)
+				}
+			}
+		})
+	}
+}
+
+// A caller that names no profile sends no field at all, so a server that
+// predates the field is unaffected and one that has it sees an absence rather
+// than a claim.
+func TestAnAbsentProfileIsOmittedFromTheRequest(t *testing.T) {
+	gateway := newFakeGateway(t)
+	gateway.body = `{"llm_call_id":"lc_1","model":"fast","content":"hi"}`
+
+	client := gateway.client(llmremote.Config{Token: "tok"})
+	if _, err := client.ChatCompletionBlocking(context.Background(),
+		cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "hello"}}}); err != nil {
+		t.Fatalf("ChatCompletionBlocking: %v", err)
+	}
+	if strings.Contains(string(gateway.gotRaw), "call_profile") {
+		t.Errorf("request %s carries an empty call_profile", gateway.gotRaw)
+	}
+}

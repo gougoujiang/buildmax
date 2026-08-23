@@ -11,4 +11,7 @@
   means `auto`. Managed deployments get the same policy per catalog model
   through `--cache-mode` and `--cache-ttl` on `buildmax-server model add`; an
   existing catalog row with `prompt_cache` unset now defaults to `auto`, so set
-  `--cache-mode off` on any model that should not cache.
+  `--cache-mode off` on any model that should not cache. A managed request
+  carries only what the call is for; the cache policy is resolved server-side
+  from the approved model, so a client cannot select retention the operator did
+  not choose.

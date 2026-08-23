@@ -62,15 +62,20 @@ type llmStubClient struct {
 	deltas  []string
 	usage   cllm.Usage
 	err     error
+	// gotProfile is what the gateway passed the provider client, so a test can
+	// check that a worker's stated intent survived the route.
+	gotProfile cllm.CallProfile
 }
 
-func (c *llmStubClient) ChatCompletionBlocking(context.Context, cllm.Request) (cllm.Completion, error) {
+func (c *llmStubClient) ChatCompletionBlocking(_ context.Context, req cllm.Request) (cllm.Completion, error) {
+	c.gotProfile = req.Profile
 	if c.err != nil {
 		return cllm.Completion{}, c.err
 	}
 	return cllm.Completion{Content: c.content, Usage: c.usage}, nil
 }
 func (c *llmStubClient) ChatCompletionStreaming(_ context.Context, req cllm.Request, onDelta func(string)) (cllm.Completion, error) {
+	c.gotProfile = req.Profile
 	for _, delta := range c.deltas {
 		onDelta(delta)
 	}
