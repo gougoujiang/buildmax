@@ -21,11 +21,10 @@ log_level: info
 # them periodically: `./make models check` flags entries whose
 # context_window has drifted from what OpenRouter reports now.
 #
-# The `pricing` rates below are OpenRouter's published prices at the time this
-# file was written, in USD per million tokens. They are what lets a run report
-# what it cost; without them it reports `unavailable`, because BuildMax does not
-# know what any provider charges and a guess would be worse than silence. Rates
-# move — `./make models info <model>` prints the current ones.
+# The `pricing` rates are OpenRouter's published prices when this file was
+# written, in USD per million tokens; without them a run reports its cost as
+# `unavailable` rather than guessing. They go stale like the rest:
+# `./make models info <model>` prints the current ones.
 models:
   - model: openai/gpt-5.6-luna
     name: GPT-5.6 Luna
@@ -181,27 +180,20 @@ models:
   #   anthropic          the Anthropic Messages API
   #   ollama             a local Ollama daemon's own API
   #
-  # One gateway can speak more than one of them, which is why the entries above
-  # reach the same OpenRouter key three ways. It is worth doing because the
-  # protocol decides what a request can carry, not just how it is spelled:
-  #
-  #   - Anthropic caches nothing unless the request marks where. Over Chat
-  #     Completions there is nowhere to put that mark, so a Claude model reached
-  #     as openai_compatible cannot use a prompt cache at all. Reached as
-  #     `anthropic` it caches the tools and system prompt on every turn.
-  #   - The Responses API takes a scoped prompt_cache_key, which keeps one
-  #     caller's prefixes out of another's bucket on a shared credential.
-  #   - Everything else caches implicitly and reports what it cached, so
-  #     openai_compatible loses nothing.
-  #
-  # Note the api_url differs by protocol: the Messages endpoint hangs off
-  # /api/ and the other two off /api/v1.
+  # One gateway can speak several of them, which is why the entries above reach
+  # one OpenRouter key three ways. The protocol decides what a request can
+  # carry: Anthropic caches nothing unless the request marks where, and Chat
+  # Completions has nowhere to put that mark, so a Claude model reached as
+  # openai_compatible cannot use a prompt cache at all. Everything else caches
+  # implicitly, so openai_compatible costs it nothing. Note the api_url differs
+  # too — Messages hangs off /api/, the other two off /api/v1.
+
+  # Reaching Anthropic directly rather than through a gateway: same protocol as
+  # the Claude entries above, different endpoint and credential.
   #
   # `max_tokens` caps one response. The Anthropic protocol requires the field,
   # so leaving it 0 there uses the built-in default (8192) rather than the
   # provider's.
-  # Reaching Anthropic directly rather than through a gateway. Same protocol
-  # as the Claude entries above, different endpoint and credential.
   # - model: claude-sonnet-4-5
   #   name: Claude Sonnet 4.5
   #   provider: anthropic
@@ -214,39 +206,24 @@ models:
                                    # on later turns. No effect on
                                    # openai_compatible, which carries none.
   #   cache_control:               # cache the tool definitions and system
-  #     mode: auto                 # prompt so later calls in a run pay less
-  #     ttl: provider_default      # for them.
-                                   #
-                                   # mode: auto (default) asks on an agent turn,
-                                   # whose prefix goes out again next iteration,
-                                   # and never on a one-shot call such as title
-                                   # generation — a cache write costs more than
-                                   # ordinary input and only repays itself if a
-                                   # later call reads it. off never asks. force
-                                   # asks on every call.
-                                   #
-                                   # ttl: provider_default (default), 5m, or 1h,
-                                   # and only where the provider documents it.
-                                   # anthropic takes all three; the rest take
-                                   # only provider_default.
-  #   prompt_cache: true           # deprecated: true means mode force, false
-                                   # means mode off. cache_control wins when
-                                   # both are set.
-  #   integration: openrouter    # names a gateway whose prompt-cache behaviour
-                                   # BuildMax has qualified, for openai_compatible
-                                   # only. None is qualified yet, so any value is
-                                   # currently refused: speaking the protocol is
-                                   # not a promise to implement its cache fields.
-  #   pricing:                     # what this model charges, so a run can show
-  #     currency: USD              # what it cost. Rates are decimal strings per
-  #     input_per_mtok: "3.00"     # million tokens, written the way the
-  #     cache_read_per_mtok: "0.30"   # provider publishes them.
-  #     cache_write_per_mtok: "3.75"  #
-  #     output_per_mtok: "15.00"   # The four are separate because caching
-                                   # prices them differently: a read is cheaper
-                                   # than fresh input and a write is dearer.
-                                   # Without this block a run reports its cost
-                                   # as unavailable rather than as zero.
+  #     mode: auto                 # prompt so later calls in a run pay less.
+  #     ttl: provider_default      # auto (the default) asks on an agent turn
+                                   # and not on a one-shot call such as title
+                                   # generation, because a cache write costs
+                                   # more than ordinary input and only repays
+                                   # itself when a later call reads it. off
+                                   # never asks, force always does. ttl beyond
+                                   # provider_default only where the provider
+                                   # documents one: 5m and 1h on anthropic,
+                                   # 24h on openai. See the configuration
+                                   # reference for the full rules.
+  #   prompt_cache: true           # deprecated: true means force, false means
+                                   # off. cache_control wins over both.
+  #   integration: openrouter      # a gateway whose cache behaviour BuildMax
+                                   # has qualified, for openai_compatible only.
+                                   # None is qualified, so any value is refused
+                                   # today: speaking a protocol is not a promise
+                                   # to implement its cache fields.
   #   vision: true                 # this model accepts image input. Leave it
                                    # off and an image an MCP tool returns is
                                    # described in text instead of sent.
@@ -261,13 +238,10 @@ models:
   # `buildmax models --local` lists what the daemon holds, including which
   # models can call tools. A model that cannot is unusable as an agent.
   #
-  # Left active rather than commented out: it needs no credential, and an entry
-  # for a model the daemon does not hold costs nothing until you select it.
-  #
-  # No `pricing` either. A local model runs on hardware you already pay for, and
-  # there is no per-token rate to state; a run against it reports its cost as
-  # unavailable, which is the truthful answer rather than a zero that would
-  # claim the electricity was free.
+  # Active rather than commented out: it needs no credential, and an entry for a
+  # model the daemon does not hold costs nothing until you select it. It carries
+  # no `pricing` because there is no per-token rate to state, so a run against it
+  # reports its cost as unavailable rather than as free.
 
   - model: qwen3:8b
     name: Qwen3 8B (local)
