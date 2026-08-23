@@ -312,6 +312,22 @@ func TestClientFactoryRejectsUnsupportedProvider(t *testing.T) {
 	}
 }
 
+// TestClientFactoryRejectsLocalProvider keeps a deferred combination legible.
+// The adapter exists, so the generic "unsupported provider" message would send
+// an operator looking for a typo instead of reading the deferral.
+func TestClientFactoryRejectsLocalProvider(t *testing.T) {
+	factory := newClientFactory("conversation-key", nil)
+
+	_, err := factory(context.Background(), llmgateway.Target{
+		Name:          "Local",
+		ProviderType:  config.LLMProviderOllama,
+		CredentialRef: conversationCredentialRef,
+	})
+	if err == nil || !strings.Contains(err.Error(), "not for a managed catalog target") {
+		t.Errorf("want a message saying the provider is direct-only, got %v", err)
+	}
+}
+
 // TestLLMRoutingErrorsCarryNoCredential keeps call diagnostics safe to log.
 func TestLLMRoutingErrorsCarryNoCredential(t *testing.T) {
 	const secret = "SUPER-SECRET-KEY"

@@ -173,6 +173,15 @@ func teamPolicySource(cfg config.ServerLLMConfig) (llmgateway.PolicySource, erro
 // place a credential reference becomes a real credential.
 func newClientFactory(conversationKey string, models model.LLMModelStore) llmgateway.ClientFactory {
 	return func(ctx context.Context, target llmgateway.Target) (cllm.LLMClient, error) {
+		// Named rather than left to the generic rejection below: the adapter
+		// exists, so "unsupported provider" would read as a typo. What is
+		// missing is a catalog target without a credential, which is a change
+		// to how the server decides where prompts go — see
+		// docs/design/local-ollama-provider.md.
+		if target.ProviderType == config.LLMProviderOllama {
+			return nil, fmt.Errorf("model %q uses provider %s, which is available for a direct settings.yaml entry but not for a managed catalog target",
+				target.Name, config.LLMProviderOllama)
+		}
 		if !llmgateway.KnownProvider(target.ProviderType) {
 			return nil, fmt.Errorf("model %q uses unsupported provider %q; use one of %s",
 				target.Name, target.ProviderType, strings.Join(llmgateway.Providers(), ", "))

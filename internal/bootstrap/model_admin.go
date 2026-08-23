@@ -220,6 +220,11 @@ func validateModelInput(in model.CreateLLMModelInput) error {
 	case !config.KnownReasoningEffort(in.Reasoning):
 		return fmt.Errorf("model add: --reasoning %q is not a level; use one of %s",
 			in.Reasoning, strings.Join(config.ReasoningEfforts(), ", "))
+	case in.ProviderType == config.LLMProviderOllama:
+		// The adapter exists; what a catalog target cannot yet be is
+		// credential-free. Saying "not implemented" here would read as a typo.
+		return fmt.Errorf("model add: --provider %s is available for a direct settings.yaml entry, not for a catalog target",
+			config.LLMProviderOllama)
 	case !llmgateway.KnownProvider(in.ProviderType):
 		return fmt.Errorf("model add: --provider %q is not implemented; use one of %s",
 			in.ProviderType, strings.Join(llmgateway.Providers(), ", "))

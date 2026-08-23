@@ -2,16 +2,20 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	_ "embed"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
 	"text/template"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/gougoujiang/buildmax/internal/infra/llm"
 
 	"github.com/spf13/cobra"
 )
@@ -30,15 +34,25 @@ const (
 	initDefaultContextWindow = 128000
 	openRouterKeysURL        = "https://openrouter.ai/keys"
 	quickstartURL            = "https://github.com/gougoujiang/buildmax/blob/main/docs/start/quickstart.md"
+	// initDefaultOllamaModel is written when --ollama finds no daemon to ask.
+	// A model that is not pulled yet is still the right thing to configure: the
+	// next step printed is the command that pulls it.
+	initDefaultOllamaModel = "qwen3:8b"
+	// initOllamaProbeTimeout bounds the one call `init` makes to a daemon. The
+	// file must be written whether or not anything answers.
+	initOllamaProbeTimeout = 2 * time.Second
 )
 
 //go:embed templates/settings.yaml.tmpl
 var settingsTemplate string
 
-// settingsValues fills templates/settings.yaml.tmpl.
+// settingsValues fills templates/settings.yaml.tmpl. An empty APIKey writes no
+// api_key line at all, which is what a local provider needs: a placeholder
+// there would be a secret that does not exist.
 type settingsValues struct {
 	Model         string
 	Name          string
+	Provider      string
 	APIURL        string
 	APIKey        string
 	ContextWindow int
@@ -73,9 +87,11 @@ immediately, or edit the api_key line afterwards.
 
   buildmax init                          # write the file, fill in the key later
   buildmax init --api-key sk-or-v1-...   # write a ready-to-use file
-  buildmax init --model llama3.1 --api-url http://localhost:11434/v1
+  buildmax init --ollama                 # a local Ollama model, no key needed
 
-Any OpenAI-compatible endpoint works. An existing file is never overwritten
+With --ollama the entry points at a local daemon and carries no credential;
+the model defaults to one the daemon already holds. Otherwise any
+OpenAI-compatible endpoint works. An existing file is never overwritten
 without --force.`, initDefaultModel),
 		RunE:         runInit,
 		SilenceUsage: true,
@@ -87,6 +103,7 @@ without --force.`, initDefaultModel),
 	cmd.Flags().String("name", "", "display name for the model (default: the model id)")
 	cmd.Flags().Int("context-window", 0, "context window in tokens (default: provider-appropriate)")
 	cmd.Flags().Bool("force", false, "overwrite an existing settings.yaml")
+	cmd.Flags().Bool("ollama", false, "configure a local Ollama model instead of a hosted provider")
 	return cmd
 }
 
@@ -97,6 +114,27 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	name, _ := cmd.Flags().GetString("name")
 	contextWindow, _ := cmd.Flags().GetInt("context-window")
 	force, _ := cmd.Flags().GetBool("force")
+	ollama, _ := cmd.Flags().GetBool("ollama")
+
+	provider := config.LLMProviderOpenAICompatible
+	var local llm.OllamaModel
+	if ollama {
+		provider = config.LLMProviderOllama
+		// Flags win over the daemon: --model names what the user wants
+		// configured even if it is not pulled yet.
+		local = resolveOllamaDefaults(cmd, apiURL, model, contextWindow)
+		if !cmd.Flags().Changed("api-url") {
+			apiURL = config.DefaultOllamaBaseURL
+		}
+		if !cmd.Flags().Changed("model") {
+			model = local.Model
+		}
+		if contextWindow == 0 {
+			contextWindow = local.ContextWindow
+		}
+		// A local model has no key, and the placeholder below must not apply.
+		apiKey = ""
+	}
 
 	if model == "" {
 		return &ExitError{Code: ExitUsage, Err: errors.New("--model cannot be empty")}
@@ -107,6 +145,7 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	values := settingsValues{
 		Model:         model,
 		Name:          name,
+		Provider:      provider,
 		APIURL:        apiURL,
 		APIKey:        apiKey,
 		ContextWindow: contextWindow,
@@ -116,8 +155,11 @@ func runInit(cmd *cobra.Command, _ []string) error {
 		if model == initDefaultModel {
 			values.Name = initDefaultName
 		}
+		if ollama {
+			values.Name = model + " (local)"
+		}
 	}
-	if values.APIKey == "" {
+	if values.APIKey == "" && config.LLMProviderNeedsAPIKey(provider) {
 		values.APIKey = APIKeyPlaceholder
 	}
 	if values.ContextWindow == 0 {
@@ -149,6 +191,11 @@ func runInit(cmd *cobra.Command, _ []string) error {
 
 	out := cmd.OutOrStdout()
 	fmt.Fprintf(out, "Wrote %s\n\n", path)
+	if ollama {
+		printOllamaNextSteps(out, values, local)
+		fmt.Fprintf(out, "Quickstart: %s\n", quickstartURL)
+		return nil
+	}
 	if values.APIKey == APIKeyPlaceholder {
 		fmt.Fprintf(out, "Next:\n")
 		fmt.Fprintf(out, "  1. Replace %s on the api_key line with a real key.\n", APIKeyPlaceholder)
@@ -162,4 +209,61 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	}
 	fmt.Fprintf(out, "Quickstart: %s\n", quickstartURL)
 	return nil
+}
+
+// resolveOllamaDefaults asks the daemon what to configure. It never fails the
+// command: a machine without a running daemon still gets a file, and the next
+// steps printed say what to start and what to pull.
+func resolveOllamaDefaults(cmd *cobra.Command, apiURL, model string, contextWindow int) llm.OllamaModel {
+	baseURL := apiURL
+	if !cmd.Flags().Changed("api-url") {
+		baseURL = config.DefaultOllamaBaseURL
+	}
+	ctx, cancel := context.WithTimeout(cmd.Context(), initOllamaProbeTimeout)
+	defer cancel()
+
+	chosen := model
+	if !cmd.Flags().Changed("model") {
+		chosen = initDefaultOllamaModel
+		installed, err := llm.OllamaInventory(ctx, baseURL)
+		if err != nil {
+			return llm.OllamaModel{Model: chosen}
+		}
+		if len(installed) > 0 {
+			chosen = installed[0].Model
+		}
+	}
+	if contextWindow != 0 {
+		return llm.OllamaModel{Model: chosen}
+	}
+	shown, err := llm.OllamaShow(ctx, baseURL, chosen)
+	if err != nil {
+		return llm.OllamaModel{Model: chosen}
+	}
+	shown.Model = chosen
+	// The daemon reports what the model was trained for, which can be more than
+	// the machine can allocate; the default is the ceiling, and the file is
+	// where someone raises it.
+	shown.ContextWindow = min(shown.ContextWindow, config.DefaultContextWindow)
+	return shown
+}
+
+// printOllamaNextSteps says what is missing rather than what was written.
+// Everything this provider can be wrong about — no daemon, no model, a model
+// that cannot call tools — is fixed by one command.
+func printOllamaNextSteps(out io.Writer, values settingsValues, local llm.OllamaModel) {
+	fmt.Fprintf(out, "Next:\n")
+	if len(local.Capabilities) == 0 {
+		fmt.Fprintf(out, "  1. Start the daemon:  ollama serve\n")
+		fmt.Fprintf(out, "  2. Pull the model:    ollama pull %s\n", values.Model)
+		fmt.Fprintf(out, "  3. Check it:          buildmax doctor\n\n")
+		return
+	}
+	if !local.HasCapability(llm.OllamaCapabilityTools) {
+		fmt.Fprintf(out, "  1. %s does not support tool calling, so it cannot run the agent loop.\n", values.Model)
+		fmt.Fprintf(out, "     Pick another with `buildmax models --local`, then edit %s.\n\n", config.SettingsPath())
+		return
+	}
+	fmt.Fprintf(out, "Ready. Try it in a directory you can revert:\n")
+	fmt.Fprintf(out, "  buildmax -p \"Summarize what this project does\"\n\n")
 }

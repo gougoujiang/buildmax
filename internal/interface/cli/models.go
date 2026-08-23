@@ -3,14 +3,18 @@ package cli
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
+	"strconv"
 	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/gougoujiang/buildmax/internal/agentapp"
 	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/gougoujiang/buildmax/internal/infra/llm"
 	"github.com/gougoujiang/buildmax/internal/interface/auth"
 	"github.com/gougoujiang/buildmax/internal/interface/client"
 )
@@ -18,13 +22,17 @@ import (
 func newModelsCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "models",
-		Short: "List configured models, and the team models a server offers",
+		Short: "List configured models, the local models a daemon holds, and the team models a server offers",
 		Long: "Lists the models in settings.yaml and where each one sends prompts.\n\n" +
 			"With --team, also lists the aliases that team may use through a BuildMax\n" +
-			"server, which are the values a transport: buildmax entry names.",
+			"server, which are the values a transport: buildmax entry names.\n\n" +
+			"With --local, also lists what a local Ollama daemon has pulled, including\n" +
+			"whether each model can call tools, and prints an entry ready to paste.",
 		RunE: runModels,
 	}
 	cmd.Flags().String("team", "", "list the managed model aliases available to this team")
+	cmd.Flags().Bool("local", false, "list the models a local Ollama daemon holds")
+	cmd.Flags().String("ollama-url", config.DefaultOllamaBaseURL, "where the local daemon listens, for --local")
 	return cmd
 }
 
@@ -33,7 +41,14 @@ func runModels(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return fmt.Errorf("load settings: %w", err)
 	}
-	printLocalModels(settings)
+	printConfiguredModels(settings)
+
+	if local, _ := cmd.Flags().GetBool("local"); local {
+		baseURL, _ := cmd.Flags().GetString("ollama-url")
+		if err := printOllamaModels(cmd.Context(), cmd.OutOrStdout(), baseURL); err != nil {
+			return err
+		}
+	}
 
 	teamID, _ := cmd.Flags().GetString("team")
 	if teamID == "" {
@@ -42,7 +57,7 @@ func runModels(cmd *cobra.Command, _ []string) error {
 	return printTeamModels(cmd.Context(), teamID)
 }
 
-func printLocalModels(settings config.Settings) {
+func printConfiguredModels(settings config.Settings) {
 	if len(settings.Models) == 0 {
 		fmt.Fprintln(os.Stdout, "No models configured. Run `buildmax init` to write a starter settings.yaml.")
 		return
@@ -82,9 +97,123 @@ func modelDestination(cfg agentapp.ModelConfig) string {
 		return server + " team " + team
 	}
 	if cfg.BaseURL == "" {
+		if cfg.Provider == config.LLMProviderOllama {
+			return config.DefaultOllamaBaseURL
+		}
 		return config.DefaultOpenRouterBaseURL
 	}
 	return cfg.BaseURL
+}
+
+// ollamaListTimeout bounds the daemon calls behind --local. The listing asks
+// the daemon about each model it holds, and a slow one must not hang the
+// command.
+const ollamaListTimeout = 10 * time.Second
+
+// printOllamaModels lists what a local daemon holds.
+//
+// Capabilities are the column that matters: a model without tool calling
+// cannot run the agent loop, and that is invisible in the model name. The
+// paste-ready entry at the end mirrors what --team prints, so configuring a
+// local model is the same gesture as configuring a team one.
+func printOllamaModels(ctx context.Context, out io.Writer, baseURL string) error {
+	ctx, cancel := context.WithTimeout(ctx, ollamaListTimeout)
+	defer cancel()
+
+	installed, err := llm.OllamaInventory(ctx, baseURL)
+	if err != nil {
+		return fmt.Errorf("list local models: %w", err)
+	}
+	fmt.Fprintf(out, "\nLocal models on %s:\n", baseURL)
+	if len(installed) == 0 {
+		fmt.Fprintln(out, "  none — pull one, for example `ollama pull qwen3:8b`")
+		return nil
+	}
+
+	described := make([]llm.OllamaModel, 0, len(installed))
+	for _, m := range installed {
+		// /api/tags carries neither the context length nor, on older daemons,
+		// the capabilities. Asking per model is what makes the columns true.
+		if shown, err := llm.OllamaShow(ctx, baseURL, m.Model); err == nil {
+			shown.SizeBytes = m.SizeBytes
+			if shown.ParameterSize == "" {
+				shown.ParameterSize = m.ParameterSize
+			}
+			described = append(described, shown)
+			continue
+		}
+		described = append(described, m)
+	}
+
+	w := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(w, "  MODEL\tSIZE\tPARAMS\tCONTEXT\tCAPABILITIES")
+	for _, m := range described {
+		fmt.Fprintf(w, "  %s\t%s\t%s\t%s\t%s\n",
+			m.Model, humanSize(m.SizeBytes), orDash(m.ParameterSize),
+			orDash(contextLabel(m.ContextWindow)), orDash(strings.Join(m.Capabilities, ",")))
+	}
+	_ = w.Flush()
+
+	usable := firstToolCallingModel(described)
+	if usable.Model == "" {
+		fmt.Fprintln(out, "\nNone of these can call tools, which the agent loop needs.")
+		fmt.Fprintln(out, "Pull one that can, for example `ollama pull qwen3:8b`.")
+		return nil
+	}
+	fmt.Fprintf(out, "\nTo use one, add to settings.yaml:\n\n"+
+		"  - model: %s\n    name: %s (local)\n    provider: %s\n    api_url: %s\n    context_window: %d\n",
+		usable.Model, usable.Model, config.LLMProviderOllama, baseURL, suggestedContextWindow(usable))
+	return nil
+}
+
+// firstToolCallingModel picks what to show in the paste-ready entry. A model
+// that cannot call tools would be a suggestion that does not work.
+func firstToolCallingModel(models []llm.OllamaModel) llm.OllamaModel {
+	for _, m := range models {
+		if m.HasCapability(llm.OllamaCapabilityTools) {
+			return m
+		}
+	}
+	return llm.OllamaModel{}
+}
+
+// suggestedContextWindow keeps the daemon's answer as a ceiling: a model's full
+// trained length can be more than the machine can allocate.
+func suggestedContextWindow(m llm.OllamaModel) int {
+	if m.ContextWindow <= 0 {
+		return config.DefaultContextWindow
+	}
+	return min(m.ContextWindow, config.DefaultContextWindow)
+}
+
+func contextLabel(window int) string {
+	if window <= 0 {
+		return ""
+	}
+	return strconv.Itoa(window)
+}
+
+func orDash(value string) string {
+	if value == "" {
+		return "-"
+	}
+	return value
+}
+
+func humanSize(bytes int64) string {
+	if bytes <= 0 {
+		return "-"
+	}
+	const unit = 1000
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
+	}
+	div, exp := int64(unit), 0
+	for n := bytes / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "kMGT"[exp])
 }
 
 func printTeamModels(ctx context.Context, teamID string) error {

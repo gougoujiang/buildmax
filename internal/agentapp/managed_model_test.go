@@ -220,3 +220,30 @@ func TestRunScopedDirectEntryIsUnaffected(t *testing.T) {
 		t.Errorf("direct entry produced %T", client)
 	}
 }
+
+// TestBuildsALocalClientWithoutACredential is the other half of the credential
+// exemption: a local entry must build, and a hosted one with the same gap must
+// still fail here rather than at the first prompt.
+func TestBuildsALocalClientWithoutACredential(t *testing.T) {
+	local := config.ModelEntry{
+		Model:    "qwen3:8b",
+		Name:     "Local",
+		Provider: config.LLMProviderOllama,
+		APIURL:   "http://127.0.0.1:11434",
+		// Set so building the client asks the daemon nothing.
+		ContextWindow: 32_000,
+	}
+	cache := cacheFor([]config.ModelEntry{local}, nil)
+	client, err := cache.Get("Local")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if got := client.(*llm.LLMClient).Provider(); got != config.LLMProviderOllama {
+		t.Errorf("provider = %q, want %q", got, config.LLMProviderOllama)
+	}
+
+	hosted := config.ModelEntry{Model: "openai/gpt-4o-mini", Name: "Hosted", APIURL: "https://example.test/v1"}
+	if _, err := cacheFor([]config.ModelEntry{hosted}, nil).Get("Hosted"); err == nil {
+		t.Error("a hosted entry with no api_key should fail at selection")
+	}
+}
