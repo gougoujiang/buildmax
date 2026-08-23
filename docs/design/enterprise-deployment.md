@@ -153,10 +153,11 @@ access on the dedicated bucket/prefix, while `/readyz` deliberately verifies
 only read-only dependency availability. Writing from every readiness interval
 would make the kubelet probe own objects and their retention policy.
 
-The remaining gap is an explicit deployment-validation step that proves the
-configured workload identity can write and list in the operator's actual bucket
-before accepting work. The kind smoke proves that path against its development
-MinIO instance; it does not validate an adapted production manifest.
+BuildMax does not prove those permissions itself, and will not. The bucket, its
+policy, and the workload identity are provisioned by whoever runs the
+deployment, and their own tooling establishes that grant better than a startup
+probe restating it. The kind smoke exercises the path against a development
+MinIO instance; an adapted production manifest is the operator's to verify.
 
 ### 4.4 Worker End-To-End Path Needs A Single Verification
 

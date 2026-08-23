@@ -280,8 +280,9 @@ Do not include these in the current P0.5 scope:
 - container/seccomp implementation in Go
 - broad versioned workspace implementation
 
-Checkpoint and rollback can be revisited later with the P5 versioned workspace
-work, but they should not block this P0.5 pass.
+Checkpoint and rollback can be revisited if a versioned workspace capability is
+ever taken up — there is no current plan or design record for one — but they
+should not block this P0.5 pass.
 
 ## 5. Suggested Priority
 

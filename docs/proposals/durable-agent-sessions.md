@@ -10,8 +10,7 @@ Related: [roadmap](../ROADMAP.md) P0.5, P3, P4, and Desktop polish;
 [sessions and traces guide](../guide/sessions-and-traces.md),
 [durable run trace](../design/durable-run-trace.md),
 [context durability](../design/context-durability.md),
-[team governance](../design/team-governance.md),
-[versioned workspace](../design/versioned-workspace.md), and
+[team governance](../design/team-governance.md), and
 [data model](../contribute/architecture/data-model.md).
 
 ## 1. Decision Question
@@ -792,8 +791,9 @@ The client should make its guarantee explicit:
 
 The first cross-device release should support View and Context fork. Compatible
 resume follows once repository matching and single-writer UX are proven.
-Reconstructed resume depends on the versioned-workspace design and should not
-be smuggled into session synchronization.
+Reconstructed resume depends on a versioned workspace capability BuildMax has
+neither built nor planned, and should not be smuggled into session
+synchronization.
 
 ### 12.4 Dirty workspaces
 
@@ -802,8 +802,8 @@ cannot recreate them unless BuildMax also stores a change bundle or workspace
 snapshot. The client must offer an honest choice:
 
 - continue against the current B-device workspace with a mismatch warning;
-- acquire the referenced change bundle through an authorized Artifact or
-  versioned-workspace operation;
+- acquire the referenced change bundle through an authorized Artifact
+  operation;
 - clone or check out the recorded commit; or
 - stop and ask the user to prepare the workspace.
 
@@ -1223,8 +1223,8 @@ No cross-device write, Team sharing, search, or PR automation is required.
 - Introduce a short writer lease only if exact resume needs it.
 - Support compatible exact resume for the same owner and repository.
 
-Workspace snapshot materialization remains outside this phase unless the P5
-design has shipped the required service.
+Workspace snapshot materialization remains outside this phase. Nothing in
+BuildMax provides the service it would need, and no plan does either.
 
 ### Phase 4: Search, insights, and stronger capture
 
@@ -1411,8 +1411,9 @@ strengthen Artifact and TaskRun views rather than retaining every local
 session. If required capture is the dominant requirement, design the stronger
 append-time evidence mode before claiming local session history is an audit
 record. If cross-device resume repeatedly fails on workspace mismatch, keep
-context fork and stop promising exact continuation until versioned workspace
-can reconstruct state.
+context fork and stop promising exact continuation until something can
+reconstruct workspace state — nothing in BuildMax does, and nothing is planned
+to.
 
 ## 26. Candidate Conclusion
 

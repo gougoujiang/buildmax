@@ -2,7 +2,7 @@
 
 > **Audience:** contributors · **Status:** implemented. Turn-boundary queueing on
 > CLI/TUI, Desktop, and Portal; mid-run injection on CLI/TUI and Desktop.
-> Persistence and Portal injection open.
+> Persistence and Portal injection are decided against.
 
 ## Problem
 
@@ -165,11 +165,16 @@ Portal keeps turn-boundary queueing:
 This follows the repository's own rule: the capability lives in the shared
 runtime, and each surface exposes it in the way that fits its job.
 
-## Not done yet
+## Deliberately Not Done
 
-**Persistence.** Nothing above survives a restart. Whether queued Portal turns
-should be durable is open, and depends on whether a queued message should also be
-visible to other sessions watching the conversation.
+**Persistence.** A queue stays process state. A restart loses turns that had not
+begun, and the person who queued them is still there to send them again. Making
+them durable would also decide a larger question by accident: a queued message
+written before its own turn starts is a message every other session watching the
+conversation can see, which is a different feature from holding one user's
+next turn.
 
-**Portal injection.** Open, for the reasons above, not for lack of a mechanism —
-the core seam is there the day Tier 1 turns get long enough to need it.
+**Portal injection.** Not built, for the reasons in
+[Why Portal does not inject](#why-portal-does-not-inject) — the wait it would
+remove is small, and it would fold two user messages into one turn. The core
+seam is there the day Tier 1 turns get long enough to need it.
