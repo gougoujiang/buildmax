@@ -23,7 +23,7 @@ log_level: info
 models:
   - model: openai/gpt-5.6-luna
     name: GPT-5.6 Luna
-    provider: openai_compatible
+    provider: openai
     api_url: https://openrouter.ai/api/v1
     api_key: your-openrouter-api-key
     context_window: 1050000
@@ -31,36 +31,36 @@ models:
 
   - model: openai/gpt-5.6-sol
     name: GPT-5.6 Sol
-    provider: openai_compatible
+    provider: openai
     api_url: https://openrouter.ai/api/v1
     api_key: your-openrouter-api-key
     context_window: 1050000
 
   - model: openai/gpt-5.6-terra
     name: GPT-5.6 Terra
-    provider: openai_compatible
+    provider: openai
     api_url: https://openrouter.ai/api/v1
     api_key: your-openrouter-api-key
     context_window: 1050000
 
   - model: anthropic/claude-haiku-4.5
     name: Claude Haiku 4.5
-    provider: openai_compatible
-    api_url: https://openrouter.ai/api/v1
+    provider: anthropic
+    api_url: https://openrouter.ai/api/
     api_key: your-openrouter-api-key
     context_window: 200000
 
   - model: anthropic/claude-sonnet-5
     name: Claude Sonnet 5
-    provider: openai_compatible
-    api_url: https://openrouter.ai/api/v1
+    provider: anthropic
+    api_url: https://openrouter.ai/api/
     api_key: your-openrouter-api-key
     context_window: 1000000
 
   - model: anthropic/claude-opus-5
     name: Claude Opus 5
-    provider: openai_compatible
-    api_url: https://openrouter.ai/api/v1
+    provider: anthropic
+    api_url: https://openrouter.ai/api/
     api_key: your-openrouter-api-key
     context_window: 1000000
 
@@ -108,14 +108,32 @@ models:
 
   # `provider` is the wire protocol the endpoint speaks, not a vendor name:
   #   openai_compatible  OpenAI Chat Completions — OpenRouter, LiteLLM, vLLM,
-  #                      LM Studio. The default; every entry above uses it.
-  #   openai             OpenAI's own Responses API
+  #                      LM Studio. The default.
+  #   openai             the OpenAI Responses API
   #   anthropic          the Anthropic Messages API
   #   ollama             a local Ollama daemon's own API
+  #
+  # One gateway can speak more than one of them, which is why the entries above
+  # reach the same OpenRouter key three ways. It is worth doing because the
+  # protocol decides what a request can carry, not just how it is spelled:
+  #
+  #   - Anthropic caches nothing unless the request marks where. Over Chat
+  #     Completions there is nowhere to put that mark, so a Claude model reached
+  #     as openai_compatible cannot use a prompt cache at all. Reached as
+  #     `anthropic` it caches the tools and system prompt on every turn.
+  #   - The Responses API takes a scoped prompt_cache_key, which keeps one
+  #     caller's prefixes out of another's bucket on a shared credential.
+  #   - Everything else caches implicitly and reports what it cached, so
+  #     openai_compatible loses nothing.
+  #
+  # Note the api_url differs by protocol: the Messages endpoint hangs off
+  # /api/ and the other two off /api/v1.
   #
   # `max_tokens` caps one response. The Anthropic protocol requires the field,
   # so leaving it 0 there uses the built-in default (8192) rather than the
   # provider's.
+  # Reaching Anthropic directly rather than through a gateway. Same protocol
+  # as the Claude entries above, different endpoint and credential.
   # - model: claude-sonnet-4-5
   #   name: Claude Sonnet 4.5
   #   provider: anthropic
@@ -174,12 +192,15 @@ models:
   # `buildmax init --ollama` writes this entry for a model you already have, and
   # `buildmax models --local` lists what the daemon holds, including which
   # models can call tools. A model that cannot is unusable as an agent.
-  # - model: qwen3:8b
-  #   name: Qwen3 8B (local)
-  #   provider: ollama
-  #   api_url: http://localhost:11434   # the daemon root, not its /v1 endpoint
-  #   context_window: 32000             # sent as num_ctx; costs memory to raise
-  #   keep_alive: 30m                   # how long the daemon keeps the model
+  #
+  # Left active rather than commented out: it needs no credential, and an entry
+  # for a model the daemon does not hold costs nothing until you select it.
+  - model: qwen3:8b
+    name: Qwen3 8B (local)
+    provider: ollama
+    api_url: http://localhost:11434     # the daemon root, not its /v1 endpoint
+    context_window: 32000               # sent as num_ctx; costs memory to raise
+    keep_alive: 30m                     # how long the daemon keeps the model
                                         # loaded between calls. "0" unloads at
                                         # once, "-1" keeps it resident. Only a
                                         # local provider has one to keep.
