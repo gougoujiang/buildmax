@@ -214,6 +214,20 @@ func (m *MockTaskRunStore) SyncTaskFromRun(_ context.Context, taskRunID string) 
 	return nil
 }
 
+func (m *MockTaskRunStore) RecordTaskRunPluginPins(_ context.Context, taskRunID string, pins []model.PluginPin) error {
+	for i := range m.Runs {
+		if m.Runs[i].ID != taskRunID {
+			continue
+		}
+		// First write wins, as in the store.
+		if len(m.Runs[i].PluginPins) == 0 {
+			m.Runs[i].PluginPins = pins
+		}
+		return nil
+	}
+	return nil
+}
+
 func (m *MockTaskRunStore) RecordTaskRunAgentRevision(_ context.Context, taskRunID string, revision int) error {
 	for i := range m.Runs {
 		if m.Runs[i].ID != taskRunID {

@@ -75,7 +75,21 @@ func (h *Handler) workerHandler() *worker.Handler {
 		Artifacts:  h.artifactService(),
 		Hub:        h.hub,
 		OnTerminal: h.terminalListeners,
+		// The activation store rather than the plugin service: this route
+		// resolves what a team already activated and must not be able to
+		// activate anything on a run token's behalf.
+		Activations: h.activationStore(),
+		Plugins:     h.cfg.PluginService,
 	})
+}
+
+// activationStore is the plugin service's activation store, or nil when this
+// deployment has no Marketplace.
+func (h *Handler) activationStore() model.PluginActivationStore {
+	if h.cfg.PluginService == nil {
+		return nil
+	}
+	return h.cfg.PluginService.Activations
 }
 
 func (h *Handler) terminalListeners(ctx context.Context, info model.TaskRunTerminalInfo) {

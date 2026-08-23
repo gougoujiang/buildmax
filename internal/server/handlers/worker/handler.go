@@ -17,6 +17,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/server/websocket"
 	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
+	pluginsvc "github.com/gougoujiang/buildmax/internal/service/plugin"
 )
 
 type Config struct {
@@ -28,8 +29,15 @@ type Config struct {
 
 	TaskRuns model.TaskRunStore
 	Agents   model.AgentStore
-	Gateway  *llmgateway.Service
-	Hub      websocket.StreamHub
+	// Activations resolves what a run's team activated. Nil means this
+	// deployment cannot, which is a refusal only for an agent that names a
+	// plugin.
+	Activations model.PluginActivationStore
+	// Plugins serves the package bytes a run's pins name. Nil answers 503 on
+	// the download route.
+	Plugins *pluginsvc.Service
+	Gateway *llmgateway.Service
+	Hub     websocket.StreamHub
 	// Artifacts lets a run's agent keep a file for the team. Nil means this
 	// deployment has no artifact store, and the route answers 503 — which is
 	// also what makes the worker leave the tool unregistered.
@@ -66,6 +74,10 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	// attributes the call to the token's user and team rather than only
 	// admitting it.
 	mux.HandleFunc("POST /api/worker/task-runs/{task_run_id}/llm/completions", h.workerLLMCompletionsHandler)
+	// The bytes of a release this run is pinned to. Scoped like everything else
+	// here, and to the run's own pins besides.
+	mux.Handle("GET /api/worker/task-runs/{task_run_id}/plugins/{plugin_name}/{version}/download",
+		h.runScopedWorkerMiddleware(http.HandlerFunc(h.downloadPluginPackage)))
 }
 
 func (h *Handler) announcer() *runterminal.Announcer {

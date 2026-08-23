@@ -77,6 +77,17 @@ type PluginActivation struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
+// PluginPin is one resolved activation as a run receives it.
+//
+// It is the activation reduced to what materializing needs — which package, and
+// the digest to check it against — because a worker has no business holding a
+// team's activation record.
+type PluginPin struct {
+	PluginName string `json:"plugin_name"`
+	Version    string `json:"version"`
+	Digest     string `json:"digest"`
+}
+
 // ActivatePluginInput pins one release for one team.
 //
 // Version and Digest are supplied rather than resolved here. The caller has

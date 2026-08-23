@@ -723,6 +723,7 @@ One execution attempt. This is the row quota and token accounting read.
 | `retry_of_task_run_id` | `bigint unsigned` | yes | The run this one repeats; `NULL` for a run that carries its own instructions |
 | `source_message_id` | `bigint unsigned` | yes | `conversation_message.id` this run was asked for in; `NULL` when no message asked for it |
 | `agent_revision` | `int` | yes | Which revision of `task.agent_id` this run was served; `NULL` for a run with no agent or one that never reached a worker |
+| `plugin_pins` | `text` | yes | JSON array of `{plugin_name, version, digest}`: the releases this run was given |
 | `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 
 Indexes: PK `id`; index `cancel_requested_at`; index `created_by`; index
@@ -734,6 +735,17 @@ addressed by its agent plus its number, and the task already holds the agent. It
 is written when a worker asks for its run, and the first write wins — instructions
 are resolved per dispatch so an edit takes effect on the next run, and the record
 exists so an edit during a run cannot rewrite what that run was given.
+
+`plugin_pins` is written at that same moment and under the same rule, because it
+answers the same question about the same run. The server resolves the team's
+`plugin_activation` rows against the agent's selection and sends a finished list;
+a worker never reads activations itself. Resolving at claim time rather than at
+dispatch is safe because an activation names an exact version and digest — the
+pin, not the timing, is what stops a release published in between from changing
+what a run loads. The trace carries the same inventory, but a trace is fail-open
+and lives in run-global storage, so this column is the queryable fact and what a
+retry reads. Empty for a run whose agent named no plugin, for a run with no
+agent, and for one that never reached a worker.
 
 `source_message_id` is what a person actually said; `input` is what Tier 1
 decided to send a worker. They are different texts and keeping both is the

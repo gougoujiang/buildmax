@@ -129,6 +129,14 @@ type TaskRun struct {
 	// record says which text produced this outcome. Nil for a run with no agent
 	// and for runs that predate the column.
 	AgentRevision *int `json:"agent_revision,omitempty"`
+	// PluginPins are the releases this run was given, resolved when its worker
+	// claimed it and fixed from that moment.
+	//
+	// Recorded for the reason AgentRevision is: afterwards nothing else can say
+	// which versions this run actually had. The trace says so too, but a trace
+	// is fail-open and lives in run-global storage, while this is the queryable
+	// fact and what a retry reads. Nil for a run that resolved no plugins.
+	PluginPins []PluginPin `json:"plugin_pins,omitempty"`
 	// SourceMessageID names the conversation message this run was asked for in.
 	//
 	// Input is what Tier 1 decided to send a worker; this is what the person
@@ -288,6 +296,10 @@ type TaskRunStore interface {
 	// The first write wins: a run executes under the instructions it was handed
 	// at dispatch, and a later edit does not retroactively change what ran.
 	RecordTaskRunAgentRevision(ctx context.Context, taskRunID string, revision int) error
+	// RecordTaskRunPluginPins stores the releases a run was given. Like the
+	// agent revision, the first write wins: a worker polls its run, and a
+	// team's activation edited mid-run must not rewrite what actually ran.
+	RecordTaskRunPluginPins(ctx context.Context, taskRunID string, pins []PluginPin) error
 	// OnRunComplete creates task_run_artifact rows (one per relativePath) and updates task denormalized fields. Use for SUCCEEDED runs.
 	OnRunComplete(ctx context.Context, taskRunID string, relativePaths []string) error
 	// SyncTaskFromRun updates task denormalized fields and last_run_id from the run (no output). Use for FAILED runs.

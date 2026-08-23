@@ -34,6 +34,7 @@ func (h *Handler) getTaskRun(w http.ResponseWriter, r *http.Request) {
 	// which is what someone editing the field expects. A deleted agent still answers, because
 	// a run that already names it has to finish under the identity it was started with.
 	agentInstructions := ""
+	var runAgent *model.Agent
 	if task.AgentID != nil && *task.AgentID != "" && h.cfg.Agents != nil {
 		if a, aerr := h.cfg.Agents.GetAgentIncludingDeleted(r.Context(), *task.AgentID); aerr != nil {
 			// A run missing its instructions is worse than a run that never had any, but
@@ -41,9 +42,16 @@ func (h *Handler) getTaskRun(w http.ResponseWriter, r *http.Request) {
 			componentLog().Warn("worker handler: agent instructions unavailable", "task_run_id", taskRunID, "agent_id", *task.AgentID, "err", aerr)
 		} else if a != nil && a.TeamID == task.TeamID {
 			agentInstructions = a.Instructions
+			runAgent = a
 			h.recordAgentRevision(r, run, a.Revision)
 		}
 	}
+
+	// Resolved here, beside the agent revision, and against the run's team
+	// rather than the agent's: an agent that failed the team check above is
+	// treated as no agent, plugins included.
+	pins, pluginRefusal := h.resolvePluginPins(r, run, task, runAgent)
+	h.recordPluginPins(r, run, pins)
 
 	httputil.WriteJSON(w, http.StatusOK, workerclient.GetTaskRunResponse{
 		Run: workerclient.TaskRunRun{
@@ -65,6 +73,8 @@ func (h *Handler) getTaskRun(w http.ResponseWriter, r *http.Request) {
 			LastRunID:         task.LastRunID,
 			AgentInstructions: agentInstructions,
 		},
+		Plugins:     toWirePlugins(pins),
+		PluginError: pluginRefusal,
 		// The server decides how the run reaches a model. A worker executes
 		// model-chosen code, so it is told the transport and alias rather than
 		// choosing them — and it is told nothing else about the model, because
