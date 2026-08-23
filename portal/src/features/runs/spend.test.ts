@@ -160,22 +160,22 @@ describe("summarizeSpend", () => {
     expect(got.retried).toBe(2)
   })
 
-  it("breaks spend down by approved alias, heaviest first", () => {
+  it("breaks spend down by model, heaviest first", () => {
     const got = summarizeSpend([
-      call({ id: "lc_1", alias: "fast", total_tokens: 10 }),
-      call({ id: "lc_2", alias: "deep", total_tokens: 900 }),
-      call({ id: "lc_3", alias: "deep", total_tokens: 100 }),
+      call({ id: "lc_1", model: "Fast", total_tokens: 10 }),
+      call({ id: "lc_2", model: "Deep", total_tokens: 900 }),
+      call({ id: "lc_3", model: "Deep", total_tokens: 100 }),
     ])
-    expect(got.byAlias.map((entry) => entry.alias)).toEqual(["deep", "fast"])
-    expect(got.byAlias[0]).toMatchObject({ calls: 2, totalTokens: 1000, unreported: 0 })
+    expect(got.byModel.map((entry) => entry.model)).toEqual(["Deep", "Fast"])
+    expect(got.byModel[0]).toMatchObject({ calls: 2, totalTokens: 1000, unreported: 0 })
   })
 
-  it("orders equal aliases by name so two runs do not disagree about order", () => {
+  it("orders equal models by name so two runs do not disagree about order", () => {
     const got = summarizeSpend([
-      call({ id: "lc_1", alias: "zeta", total_tokens: 5 }),
-      call({ id: "lc_2", alias: "alpha", total_tokens: 5 }),
+      call({ id: "lc_1", model: "Zeta", total_tokens: 5 }),
+      call({ id: "lc_2", model: "Alpha", total_tokens: 5 }),
     ])
-    expect(got.byAlias.map((entry) => entry.alias)).toEqual(["alpha", "zeta"])
+    expect(got.byModel.map((entry) => entry.model)).toEqual(["Alpha", "Zeta"])
   })
 })
 
