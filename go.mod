@@ -159,3 +159,9 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.3 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
+
+// lipgloss v2.0.6 pulls ultraviolet 20260811, whose inline (non-altscreen)
+// renderer stops erasing the lines a shrinking frame vacates: closing a TUI
+// panel leaves its box on screen. Pin the revision bubbletea v2.0.8 is built
+// against until upstream fixes it; ultraviolet main still has the bug.
+replace github.com/charmbracelet/ultraviolet => github.com/charmbracelet/ultraviolet v0.0.0-20260703014108-f5a850f9c2b7

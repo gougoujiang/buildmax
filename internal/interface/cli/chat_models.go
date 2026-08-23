@@ -11,6 +11,10 @@ import (
 
 const slashModelInlinePanelMaxContentLines = 12
 
+// slashModelPanelChromeLines are the panel's own lines: box border, title, the
+// current-model line, the "… N more" row, and the key hints.
+const slashModelPanelChromeLines = 9
+
 // slashModelState is the /model panel above the input.
 type slashModelState struct {
 	Current   string
@@ -138,7 +142,7 @@ func (m *Model) buildSlashModelContent(maxLineWidth int) string {
 	return m.slashModel.Render(m, maxLineWidth)
 }
 
-func (p *slashModelState) Render(_ *Model, maxLineWidth int) string {
+func (p *slashModelState) Render(m *Model, maxLineWidth int) string {
 	var b strings.Builder
 	b.WriteString(slashPanelTitleStyle.Render("Models"))
 	b.WriteString("\n\n")
@@ -163,9 +167,14 @@ func (p *slashModelState) Render(_ *Model, maxLineWidth int) string {
 		out := strings.TrimRight(b.String(), "\n")
 		return out + "\n\nesc: close"
 	}
+	chrome := slashModelPanelChromeLines
+	if p.Note != "" {
+		chrome += 2
+	}
+	budget := m.panelListBudget(slashModelInlinePanelMaxContentLines, chrome)
 	linesOut := 0
 	for i, entry := range p.Entries {
-		if linesOut >= slashModelInlinePanelMaxContentLines {
+		if linesOut >= budget {
 			remaining := len(p.Entries) - i
 			if remaining > 0 {
 				fmt.Fprintf(&b, "… %d more\n", remaining)

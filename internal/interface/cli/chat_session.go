@@ -15,6 +15,11 @@ import (
 
 const slashSessionInlinePanelMaxContentLines = 14
 
+// slashSessionPanelChromeLines are the panel's own lines: box border, title,
+// the search bar, the "… N more" row, and the key hints. Renaming adds its own
+// prompt line and the blank line under it.
+const slashSessionPanelChromeLines = 9
+
 type slashSessionState struct {
 	LoadError string
 	Empty     bool
@@ -45,7 +50,7 @@ func openSlashSession(m *Model) (tea.Model, tea.Cmd) {
 			for i, e := range entries {
 				if e.ID == m.opts.Session.ID {
 					st.Selected = i
-					scrollSessionIntoView(st)
+					scrollSessionIntoView(m, st)
 					break
 				}
 			}
@@ -87,13 +92,13 @@ func (p *slashSessionState) HandleKey(m *Model, msg tea.KeyPressMsg) (bool, tea.
 	case tea.KeyUp:
 		if n > 0 && p.Selected > 0 {
 			p.Selected--
-			scrollSessionIntoView(p)
+			scrollSessionIntoView(m, p)
 		}
 		return true, nil
 	case tea.KeyDown:
 		if n > 0 && p.Selected < n-1 {
 			p.Selected++
-			scrollSessionIntoView(p)
+			scrollSessionIntoView(m, p)
 		}
 		return true, nil
 	case tea.KeyEnter:
@@ -131,12 +136,23 @@ func (p *slashSessionState) HandleKey(m *Model, msg tea.KeyPressMsg) (bool, tea.
 	return true, nil
 }
 
+// sessionRowBudget is how many session rows fit on screen. Scrolling and
+// rendering both read it so the window that moves is the window that prints.
+func (m *Model) sessionRowBudget(st *slashSessionState) int {
+	chrome := slashSessionPanelChromeLines
+	if st != nil && st.Renaming {
+		chrome += 2
+	}
+	return m.panelListBudget(slashSessionInlinePanelMaxContentLines, chrome)
+}
+
 // scrollSessionIntoView adjusts Offset so that Selected is within the visible window.
-func scrollSessionIntoView(st *slashSessionState) {
+func scrollSessionIntoView(m *Model, st *slashSessionState) {
+	rows := m.sessionRowBudget(st)
 	if st.Selected < st.Offset {
 		st.Offset = st.Selected
-	} else if st.Selected >= st.Offset+slashSessionInlinePanelMaxContentLines {
-		st.Offset = st.Selected - slashSessionInlinePanelMaxContentLines + 1
+	} else if st.Selected >= st.Offset+rows {
+		st.Offset = st.Selected - rows + 1
 	}
 }
 
@@ -214,7 +230,7 @@ func confirmSlashSessionRename(m *Model) {
 			break
 		}
 	}
-	scrollSessionIntoView(st)
+	scrollSessionIntoView(m, st)
 	m.slashSession = st
 	m.activePanel = st
 }
@@ -292,7 +308,7 @@ func deleteSlashSessionEntry(m *Model) {
 		newSelected = 0
 	}
 	st.Selected = newSelected
-	scrollSessionIntoView(st)
+	scrollSessionIntoView(m, st)
 	m.slashSession = st
 	m.activePanel = st
 }
@@ -356,7 +372,7 @@ func humanAgo(d time.Duration) string {
 	}
 }
 
-func (p *slashSessionState) Render(_ *Model, maxLineWidth int) string {
+func (p *slashSessionState) Render(m *Model, maxLineWidth int) string {
 	var b strings.Builder
 	b.WriteString(slashSessionTitleStyle.Render("Sessions"))
 	b.WriteString("\n\n")
@@ -385,7 +401,7 @@ func (p *slashSessionState) Render(_ *Model, maxLineWidth int) string {
 		}
 		return strings.TrimRight(b.String(), "\n") + "\n\nesc: close"
 	}
-	end := p.Offset + slashSessionInlinePanelMaxContentLines
+	end := p.Offset + m.sessionRowBudget(p)
 	if end > len(p.Filtered) {
 		end = len(p.Filtered)
 	}

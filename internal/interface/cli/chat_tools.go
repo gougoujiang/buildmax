@@ -12,6 +12,10 @@ import (
 const slashToolsDescriptionMaxRunes = 100
 const slashToolsInlinePanelMaxLines = 14
 
+// slashToolsPanelChromeLines are the panel's own lines: box border, title, the
+// "… N more" row, and the key hint.
+const slashToolsPanelChromeLines = 7
+
 // slashToolsPanel implements slashPanel for the /tools overlay.
 type slashToolsPanel struct {
 	Entries []agentapp.ToolEntry
@@ -37,7 +41,7 @@ func (p *slashToolsPanel) FooterHint() string { return "esc: close tools panel" 
 
 func (p *slashToolsPanel) OnClose(_ *Model) {}
 
-func (p *slashToolsPanel) Render(_ *Model, maxLineWidth int) string {
+func (p *slashToolsPanel) Render(m *Model, maxLineWidth int) string {
 	var b strings.Builder
 	b.WriteString(slashPanelTitleStyle.Render("Tools"))
 	b.WriteString("\n\n")
@@ -45,10 +49,11 @@ func (p *slashToolsPanel) Render(_ *Model, maxLineWidth int) string {
 		b.WriteString("No tools available.")
 		return strings.TrimRight(b.String(), "\n") + "\n\nesc: close"
 	}
+	budget := m.panelListBudget(slashToolsInlinePanelMaxLines, slashToolsPanelChromeLines)
 	linesOut := 0
 	shown := 0
 	for _, e := range p.Entries {
-		if linesOut+2 > slashToolsInlinePanelMaxLines {
+		if linesOut+2 > budget {
 			rem := len(p.Entries) - shown
 			if rem > 0 {
 				fmt.Fprintf(&b, "… %d more\n", rem)
