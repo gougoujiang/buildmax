@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react"
 import { BaseModal } from "@buildmax/gui"
 import type {
+  ApiRunProvenance,
   ApiTaskRunLLMCall,
   ApiTaskRunTrace,
   ApiTraceBoundary,
   ApiTraceToolCall,
 } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
-import { getTaskRunTrace, listTaskRunLLMCalls } from "./api"
+import { getTaskRunProvenance, getTaskRunTrace, listTaskRunLLMCalls } from "./api"
+import { describeOrigin, inputMatchesMessage } from "./origin"
 import { callElapsed, describeSpend, summarizeSpend } from "./spend"
 import { describeBoundary, formatDuration, runElapsed } from "./summary"
 
@@ -259,11 +261,81 @@ function SpendSection({
 }
 
 /**
- * RunTraceModal answers what a run used, touched, spent, why it ended, and what
- * confined it.
+ * Where the run came from, and what was actually asked for.
+ *
+ * This sits above the trace because it is the question that comes first and the
+ * one that survives every absence below it: a run that failed before an agent
+ * started wrote no trace and still came from somewhere.
+ *
+ * The message and the instruction are shown together on purpose. The run input
+ * is what Tier 1 decided to send a worker; the quote is what the person said. A
+ * constraint present in one and missing from the other is exactly what a reader
+ * is here to find, and it cannot be seen unless both are in front of them.
+ */
+function OriginSection({
+  provenance,
+  error,
+}: {
+  provenance: ApiRunProvenance | null
+  error: string | null
+}) {
+  if (!provenance) {
+    return (
+      <section className="run-trace__section">
+        <h3 className="run-trace__heading">Origin</h3>
+        <p className="run-trace__spend-note" role={error ? "alert" : undefined}>
+          {error ?? "Where this run came from was not recorded."}
+        </p>
+      </section>
+    )
+  }
+  const origin = describeOrigin(provenance)
+  const said = provenance.source_message
+  const verbatim = inputMatchesMessage(provenance)
+  return (
+    <section className="run-trace__section">
+      <h3 className="run-trace__heading">Origin</h3>
+      <p className="run-trace__origin-text">{origin.text}</p>
+      {said ? (
+        <>
+          <span className="run-trace__origin-label">Asked for as</span>
+          <pre className="run-trace__quote">{said.content}</pre>
+          {said.truncated ? (
+            <p className="run-trace__truncated">
+              Quoted to the first part of the message; the conversation has the rest.
+            </p>
+          ) : null}
+        </>
+      ) : (
+        <p className="run-trace__spend-note">
+          {origin.quote === "none-expected"
+            ? origin.isRepeat
+              ? "Nothing was said for this run — it repeats an earlier one with the same input."
+              : "No message asked for this run; a runtime dispatched it."
+            : "No message is recorded for this run, so what was asked for cannot be compared."}
+        </p>
+      )}
+      <span className="run-trace__origin-label">Sent to the worker</span>
+      <pre className="run-trace__quote">{provenance.input}</pre>
+      {said && !said.truncated ? (
+        <p className="run-trace__truncated">
+          {verbatim
+            ? "The request was passed through unchanged."
+            : "The instruction was rewritten from the message above."}
+        </p>
+      ) : null}
+    </section>
+  )
+}
+
+/**
+ * RunTraceModal answers where a run came from, what it used, touched, spent,
+ * why it ended, and what confined it.
  */
 export function RunTraceModal({ open, teamId, token, taskRunId, onClose }: RunTraceModalProps) {
   const [trace, setTrace] = useState<ApiTaskRunTrace | null>(null)
+  const [provenance, setProvenance] = useState<ApiRunProvenance | null>(null)
+  const [provenanceError, setProvenanceError] = useState<string | null>(null)
   const [calls, setCalls] = useState<ApiTaskRunLLMCall[]>([])
   const [callsError, setCallsError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -279,6 +351,8 @@ export function RunTraceModal({ open, teamId, token, taskRunId, onClose }: RunTr
     setTrace(null)
     setCalls([])
     setCallsError(null)
+    setProvenance(null)
+    setProvenanceError(null)
 
     // The two records are fetched together and fail apart. A run whose trace
     // expired from storage still has a ledger, and a deployment that accounts
@@ -303,7 +377,17 @@ export function RunTraceModal({ open, teamId, token, taskRunId, onClose }: RunTr
         }
       })
 
-    void Promise.all([traceRequest, callsRequest]).finally(() => {
+    const provenanceRequest = getTaskRunProvenance(teamId, taskRunId, token)
+      .then((result) => {
+        if (!cancelled) setProvenance(result)
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setProvenanceError(getErrorMessage(err, "Failed to load where this run came from"))
+        }
+      })
+
+    void Promise.all([traceRequest, callsRequest, provenanceRequest]).finally(() => {
       if (!cancelled) setLoading(false)
     })
     return () => {
@@ -325,6 +409,9 @@ export function RunTraceModal({ open, teamId, token, taskRunId, onClose }: RunTr
           <p className="page-activity__empty">Loading…</p>
         ) : (
           <>
+            {/* First and unconditional: a run that wrote no trace still came
+                from somewhere, and that is the question a reader opens with. */}
+            <OriginSection provenance={provenance} error={provenanceError} />
             {error ? (
               <p className="modal__error" role="alert">{error}</p>
             ) : trace ? (

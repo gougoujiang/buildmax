@@ -1,6 +1,6 @@
 import { getApiBase, requestJson } from "../../lib/api/client"
 import { authHeaders } from "../../lib/api/common"
-import type { ApiTaskRunLLMCall, ApiTaskRunTrace } from "../../lib/api/types"
+import type { ApiRunProvenance, ApiTaskRunLLMCall, ApiTaskRunTrace } from "../../lib/api/types"
 
 /**
  * Fetch a task run's trace summary.
@@ -34,4 +34,20 @@ export async function listTaskRunLLMCalls(
 ): Promise<ApiTaskRunLLMCall[]> {
   const url = `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/task-runs/${encodeURIComponent(taskRunId)}/llm-calls`
   return requestJson<ApiTaskRunLLMCall[]>(url, { headers: authHeaders(token) })
+}
+
+/**
+ * Fetch where one task run came from.
+ *
+ * Separate from the trace because it answers a different question and survives
+ * a different absence: a run that failed before an agent started has no trace
+ * at all, and still came from somewhere.
+ */
+export async function getTaskRunProvenance(
+  teamId: string,
+  taskRunId: string,
+  token: string
+): Promise<ApiRunProvenance> {
+  const url = `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/task-runs/${encodeURIComponent(taskRunId)}`
+  return requestJson<ApiRunProvenance>(url, { headers: authHeaders(token) })
 }

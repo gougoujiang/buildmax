@@ -82,6 +82,20 @@ the message is refused with `conversation.error` carrying `code: "queue_full"`
 (HTTP: `429`), which does not end the turn in flight. Queues are in memory. See
 [Queued messages](../../design/queued-messages.md).
 
+## Where A Run Came From
+
+`GET /api/teams/{team_id}/task-runs/{task_run_id}` answers one run's
+provenance: who or what asked, through which trigger, repeating which earlier
+attempt, and the conversation message it was asked for in, quoted next to the
+instruction the worker was given. Those last two are different texts — the
+instruction is what Tier 1 decided to send — and holding both is the only way to
+tell a constraint the model dropped from one the user never gave.
+
+It is a separate route from the trace because it survives a different absence: a
+run that failed before an agent started wrote no trace and still came from
+somewhere. A message that cannot be read, or that belongs to another
+conversation, is left out rather than failing the request.
+
 ## Reporting A Finished Run
 
 A run that reaches a terminal status does two independent things

@@ -252,6 +252,29 @@ export interface ApiTask {
   artifact_run_ids?: string[]
 }
 
+/** Where one task run came from, as returned by the run provenance endpoint. */
+export interface ApiRunProvenance {
+  task_run_id: string
+  task_id: string
+  status: string
+  /** What the worker was given. Compare with source_message. */
+  input: string
+  created_by?: string
+  created_by_type?: string
+  trigger_source?: string
+  retry_of_task_run_id?: string | null
+  created_at: number
+  source_message?: ApiRunSourceMessage | null
+}
+
+/** What the person actually said, quoted for comparison with the run input. */
+export interface ApiRunSourceMessage {
+  id: string
+  content: string
+  truncated: boolean
+  created_at: number
+}
+
 /** Conversation as returned by the team-scoped task conversation endpoint. */
 export interface ApiSession {
   id: string
