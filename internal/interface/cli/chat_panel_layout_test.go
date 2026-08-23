@@ -31,15 +31,11 @@ func manyModelsSettings(n int) string {
 // off the top, taking the input and the footer with it, and no key can scroll
 // it back. Every panel has to fit what it lists into the height it was given.
 func TestSlashPanelsFitTerminalHeight(t *testing.T) {
-	tmpDir := t.TempDir()
-	home := tmpDir
+	home := t.TempDir()
 	t.Setenv(config.EnvKeyBuildmaxHome, home)
 	writeTestSettings(t, manyModelsSettings(20))
 
-	sessionsDir := filepath.Join(tmpDir, "sessions")
-	if err := agentapp.UpsertSessionItem(sessionsDir, session.SessionItem{}); err != nil {
-		// Just ensure the directory exists
-	}
+	sessionsDir := filepath.Join(home, "sessions")
 	for i := range 20 {
 		item := session.SessionItem{
 			ID:        fmt.Sprintf("sess-%02d", i),
@@ -243,8 +239,7 @@ func TestSlashJobsPanelScrollsToTheSelection(t *testing.T) {
 	// here is a real process, and Windows CI is slow to release the files one
 	// leaves behind.
 	const total = 8
-	tmpDir := t.TempDir()
-	home := tmpDir
+	home := t.TempDir()
 	t.Setenv(config.EnvKeyBuildmaxHome, home)
 	writeTestSettings(t, manyModelsSettings(1))
 
