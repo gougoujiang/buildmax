@@ -22,6 +22,7 @@ export default function App() {
   const [error, setError] = useState(null);
   const [wailsReady, setWailsReady] = useState(false);
   const [authStatus, setAuthStatus] = useState(null);
+  const [signInOpen, setSignInOpen] = useState(false);
 
   const [projects, setProjects] = useState([]);
   const [projectsLoaded, setProjectsLoaded] = useState(false);
@@ -300,13 +301,14 @@ export default function App() {
     if (!wailsReady || !app) return;
     app.GetAuthStatus()
       .then((status) => setAuthStatus(status))
-      .catch(() => setAuthStatus({ mode: '', logged_in: false }));
+      .catch(() => setAuthStatus({ logged_in: false }));
   }, [wailsReady, app]);
 
-  // Local mode runs the agent here with no server, so the workbench opens on a
-  // remembered local choice exactly as it does on a login.
-  const localMode = authStatus?.mode === 'local';
-  const workbenchReady = !!authStatus && (authStatus.logged_in || localMode);
+  // The login is the mode. Without one the agent runs here against the models in
+  // settings.yaml, which needs no server and therefore no sign-in first — so the
+  // workbench opens as soon as the status is known, either way.
+  const localMode = !authStatus?.logged_in;
+  const workbenchReady = !!authStatus;
 
   useEffect(() => {
     if (!wailsReady || !app || !workbenchReady) return;
@@ -329,20 +331,14 @@ export default function App() {
       .catch(() => setRunStatus(null));
   }, [wailsReady, app, currentProject, selectedId]);
 
+  // Signing out returns the app to local mode, which is a working state rather
+  // than a locked door: the workbench stays open on settings.yaml's models.
   function handleLogout() {
     if (!app) return;
-    const signedOut = { mode: '', logged_in: false };
+    const signedOut = { logged_in: false };
     app.Logout()
       .then(() => setAuthStatus(signedOut))
       .catch(() => setAuthStatus(signedOut));
-  }
-
-  // Leaving local mode shows the sign-in form again; nothing local is discarded.
-  function handleConnectToServer() {
-    if (!app) return;
-    app.ConnectToServer()
-      .then((status) => setAuthStatus(status))
-      .catch(() => setAuthStatus({ mode: '', logged_in: false }));
   }
 
   useEffect(() => {
@@ -575,10 +571,16 @@ export default function App() {
       </ThemeProvider>
     );
   }
-  if (!workbenchReady) {
+  if (signInOpen) {
     return (
       <ThemeProvider>
-        <LoginPage onLogin={(status) => setAuthStatus(status)} />
+        <LoginPage
+          onLogin={(status) => {
+            setAuthStatus(status);
+            setSignInOpen(false);
+          }}
+          onCancel={() => setSignInOpen(false)}
+        />
       </ThemeProvider>
     );
   }
@@ -765,11 +767,11 @@ export default function App() {
                     role="menuitem"
                     onClick={() => {
                       setUserMenuOpen(false);
-                      if (localMode) handleConnectToServer();
+                      if (localMode) setSignInOpen(true);
                       else handleLogout();
                     }}
                   >
-                    {localMode ? 'Connect to a server' : 'Sign out'}
+                    {localMode ? 'Sign in to a server' : 'Sign out'}
                   </button>
                 </div>
               )}

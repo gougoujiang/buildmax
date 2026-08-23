@@ -445,12 +445,13 @@ func (a *App) GetRunStatus(projectID, sessionID string) (RunStatusPayload, error
 
 // --- Mode and auth bindings ---
 
-// AuthStatus is what the frontend needs to decide which surface to show: the
-// mode the app is in, and who is signed in when that mode is server.
+// AuthStatus is who is signed in, and therefore which mode the app is in.
 //
-// Mode is empty only before anyone has chosen, which is what makes the app ask.
+// There is no mode field. A login is the mode: with one the app is managed and
+// its models come from that server, without one it is local and they come from
+// settings.yaml. Anything remembered alongside the credentials would be a second
+// source of truth for one fact. See docs/design/client-modes.md section 3.
 type AuthStatus struct {
-	Mode      string `json:"mode"`
 	LoggedIn  bool   `json:"logged_in"`
 	ServerURL string `json:"server_url,omitempty"`
 	UserID    string `json:"user_id,omitempty"`
@@ -458,27 +459,22 @@ type AuthStatus struct {
 	Name      string `json:"name,omitempty"`
 }
 
-// GetAuthStatus returns the current mode and authentication state.
-//
-// A usable login wins over a remembered local choice: the credentials are the
-// stronger statement, and someone who signed in should not land in local mode
-// because they once picked it.
+// GetAuthStatus reports the stored login, if there is one.
 func (a *App) GetAuthStatus() (*AuthStatus, error) {
 	info, err := auth.Info()
 	if err != nil {
 		return nil, fmt.Errorf("load auth: %w", err)
 	}
-	if info.LoggedIn {
-		return &AuthStatus{
-			Mode:      ModeServer,
-			LoggedIn:  true,
-			ServerURL: info.ServerURL,
-			UserID:    info.UserID,
-			Email:     info.Email,
-			Name:      info.Name,
-		}, nil
+	if !info.LoggedIn {
+		return &AuthStatus{}, nil
 	}
-	return &AuthStatus{Mode: readDesktopState().Mode, LoggedIn: false}, nil
+	return &AuthStatus{
+		LoggedIn:  true,
+		ServerURL: info.ServerURL,
+		UserID:    info.UserID,
+		Email:     info.Email,
+		Name:      info.Name,
+	}, nil
 }
 
 // GetDefaultServerURL is what the sign-in form starts with. It reads the same
@@ -491,24 +487,6 @@ func (a *App) GetDefaultServerURL() string {
 		return s.ServerURL
 	}
 	return client.DefaultServerURL
-}
-
-// UseLocalMode runs the agent here, against the models in settings.yaml, with
-// no server involved.
-func (a *App) UseLocalMode() (*AuthStatus, error) {
-	if err := writeDesktopState(desktopState{Mode: ModeLocal}); err != nil {
-		return nil, fmt.Errorf("save mode: %w", err)
-	}
-	return &AuthStatus{Mode: ModeLocal, LoggedIn: false}, nil
-}
-
-// ConnectToServer leaves local mode so the sign-in form is shown again. It
-// touches no credentials — there are none to touch in local mode.
-func (a *App) ConnectToServer() (*AuthStatus, error) {
-	if err := writeDesktopState(desktopState{}); err != nil {
-		return nil, fmt.Errorf("save mode: %w", err)
-	}
-	return a.GetAuthStatus()
 }
 
 // RequestOTP calls the server's OTP endpoint.
@@ -552,13 +530,7 @@ func (a *App) saveLogin(serverURL string, lr *client.LoginResponse) (*AuthStatus
 	if err := auth.SaveCredentials(creds); err != nil {
 		return nil, fmt.Errorf("save credentials: %w", err)
 	}
-	// Remember the mode as well as the credentials, so signing out returns to
-	// the sign-in form rather than to a mode chosen before this login.
-	if err := writeDesktopState(desktopState{Mode: ModeServer}); err != nil {
-		return nil, fmt.Errorf("save mode: %w", err)
-	}
 	return &AuthStatus{
-		Mode:      ModeServer,
 		LoggedIn:  true,
 		ServerURL: serverURL,
 		UserID:    lr.User.ID,
@@ -572,14 +544,11 @@ func (a *App) saveLogin(serverURL string, lr *client.LoginResponse) (*AuthStatus
 // A server that cannot be reached is not a failed logout: the credentials are
 // gone from this machine either way, and returning an error would leave the UI
 // showing someone as signed in when they are not.
+// Signing out is what returns the app to local mode: the credentials are the
+// mode, so removing them is the whole switch.
 func (a *App) Logout() error {
 	if err := auth.LogoutAndRevoke(); err != nil {
 		slog.Warn("logout could not revoke the session on the server", "err", err)
-	}
-	// Signing out is not a vote for local mode: clear the remembered mode so the
-	// app asks again.
-	if err := writeDesktopState(desktopState{}); err != nil {
-		slog.Warn("logout could not clear the saved mode", "err", err)
 	}
 	return nil
 }
