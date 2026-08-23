@@ -1,10 +1,12 @@
 # Prompt Cache Control
 
-> **Audience:** contributors · **Status:** in progress — phases 1 to 3 shipped:
-> cache counts reach every surface, caching is a per-call policy that defaults
-> on for Anthropic agent turns and sends a scoped key on OpenAI Responses, and a
-> priced model reports what a run cost. Named profiles for compatible gateways
-> and the on-provider qualification suite do not exist yet.
+> **Audience:** contributors · **Status:** in progress — phases 1 to 3 shipped
+> and phase 4's mechanism with them: cache counts reach every surface, caching
+> is a per-call policy that defaults on for Anthropic agent turns and sends a
+> scoped key on OpenAI Responses, and a priced model reports what a run cost.
+> `./make cache-qualify` exists; no provider has been run through it, so no
+> compatible gateway is qualified and the section 6 diagnostics are not yet
+> carried to the surfaces.
 
 Extends [llm-provider-adapters.md](llm-provider-adapters.md) and
 [llm-gateway.md](llm-gateway.md). The provider-adapter design owns protocol
@@ -24,7 +26,7 @@ The current implementation is a useful base but not a complete policy:
 |---|---|---|
 | Anthropic | `auto` by default on agent turns, with static and rolling breakpoints and an explicit 1-hour opt-in (phase 2). | — |
 | OpenAI Responses | Sends a derived, scoped `prompt_cache_key` and optional 24h retention (phase 3). | `prompt_cache_options` unverified and deliberately unsent. |
-| OpenAI-compatible | Declares no cache capability and sends no controls (phase 2). | No named profile for a tested gateway yet. |
+| OpenAI-compatible | Declares no cache capability and sends no controls; a named `integration` may opt in once qualified (phase 4). | No gateway has been through the qualification suite, so every integration name is refused. |
 | Accounting | `core/llm.Usage`, run stats, traces, session totals, local results, the managed ledger, and Portal all carry cache read/write tokens (phase 1). | Nothing distinguishes a requested strategy from a provider that reports nothing. |
 | Cost control | A priced model reports per-call and per-run cost, split by token class, against an uncached baseline (phase 3). | No miss explanation: the section 6 diagnostics are resolved per call but do not leave `internal/infra/llm`. |
 
@@ -362,7 +364,7 @@ choice stays out until the phase 4 qualification suite can confirm it against a
 real provider; `24h` retention is taken from the vocabulary section 4 fixes and
 is on the same list to confirm.
 
-### Phase 4 — compatible profiles and qualification
+### Phase 4 — compatible profiles and qualification (mechanism shipped)
 
 - Add named profiles only for tested compatible gateways.
 - Qualify first write, sequential hit, TTL expiry, changed prefix, long-history
@@ -370,6 +372,30 @@ is on the same list to confirm.
 
 **Acceptance:** no model or endpoint is described as cache-capable until its
 request shape and usage response pass the qualification suite.
+
+The suite exists as `./make cache-qualify`, which runs those scenarios against a
+provider named by `BUILDMAX_CACHE_QUALIFY_*` and reports what the provider
+actually did. Like `agent-smoke` it is not a test and no check runs it: it calls
+a paid provider, and it skips when none is named.
+
+No compatible gateway is qualified. `compatibleProfiles` in
+`internal/infra/llm` is empty, and a test asserts it stays that way — an entry
+added on the strength of reading a gateway's documentation is the assumption the
+capability contract exists to refuse. A model entry may name an `integration`,
+and every value is currently rejected, which is the honest state: the mechanism
+to opt in exists and nothing has earned it.
+
+What remains is running the suite against real providers, which needs
+credentials this repository does not hold. Until someone does, the Anthropic and
+Responses capabilities above rest on their published contracts and BuildMax's
+own request-shape tests, not on observed provider behaviour. The `24h` retention
+value and the decision to leave `prompt_cache_options` unsent are both on that
+list.
+
+The section 6 diagnostics belong to the same run. Their value is explaining a
+miss, and until the suite establishes what a real miss looks like on each target
+there is nothing truthful to put in a `strategy` or `outcome` field beyond what
+the counts already say.
 
 ## 10. Sources and Follow-up Documents
 

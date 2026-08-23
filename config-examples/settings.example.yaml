@@ -146,6 +146,11 @@ models:
   #   prompt_cache: true           # deprecated: true means mode force, false
                                    # means mode off. cache_control wins when
                                    # both are set.
+  #   integration: openrouter    # names a gateway whose prompt-cache behaviour
+                                   # BuildMax has qualified, for openai_compatible
+                                   # only. None is qualified yet, so any value is
+                                   # currently refused: speaking the protocol is
+                                   # not a promise to implement its cache fields.
   #   pricing:                     # what this model charges, so a run can show
   #     currency: USD              # what it cost. Rates are decimal strings per
   #     input_per_mtok: "3.00"     # million tokens, written the way the

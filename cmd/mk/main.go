@@ -80,6 +80,8 @@ func dispatch(args []string) error {
 		return cmdLint()
 	case "agent-smoke":
 		return cmdAgentSmoke()
+	case "cache-qualify":
+		return cmdCacheQualify(rest)
 	case "e2e":
 		return cmdE2E(rest)
 	case "eval":

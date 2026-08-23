@@ -80,6 +80,11 @@ type ModelEntry struct {
 	// its cost as unavailable rather than as zero, because BuildMax does not
 	// know what any provider charges and guessing would be worse than silence.
 	Pricing *ModelPricing `mapstructure:"pricing"`
+	// Integration names a qualified OpenAI-compatible gateway, for the cache
+	// fields that gateway is known to honour. Empty is the normal case:
+	// speaking the protocol is not a promise to implement its cache behaviour,
+	// so nothing is sent unless a named profile says the endpoint was tested.
+	Integration string `mapstructure:"integration"`
 	// KeepAlive is how long a local runtime keeps the model loaded after a
 	// call — a duration string, "0" to unload at once, "-1" to stay resident.
 	// Only LLMProviderOllama reads it; on a hosted provider there is no model

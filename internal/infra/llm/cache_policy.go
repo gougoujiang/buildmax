@@ -42,6 +42,22 @@ type cacheCapability struct {
 	reported string
 }
 
+// compatibleProfiles is the set of OpenAI-compatible gateways whose cache
+// behaviour BuildMax has qualified, keyed by the name a model entry names in
+// its `integration` field.
+//
+// It is empty, and that is the current state of the world rather than a
+// placeholder. `openai_compatible` is a protocol family, not a product: an
+// endpoint that speaks the JSON may ignore a cache field, reject it, or accept
+// it and report nothing, and there is no way to tell from the outside. A
+// profile says BuildMax has run `./make cache-qualify` against that gateway and
+// watched it work.
+//
+// Adding one without that run is the failure this map exists to prevent, which
+// is why a test asserts it stays empty until a qualification result justifies
+// an entry. See docs/design/prompt-cache-control.md section 9, phase 4.
+var compatibleProfiles = map[string]cacheCapability{}
+
 // cacheCapabilityFor returns what the named protocol supports.
 func cacheCapabilityFor(provider string) cacheCapability {
 	switch provider {
@@ -73,6 +89,30 @@ func cacheCapabilityFor(provider string) cacheCapability {
 	// feature guarantee; the second is a local runtime that reuses its own
 	// cache with no request-side control and nothing to report.
 	return cacheCapability{strategy: cacheStrategyNone, reported: cacheCapabilityUnsupported}
+}
+
+// cacheCapabilityForIntegration resolves a named compatible gateway, falling
+// back to the protocol's own answer.
+//
+// A name this build does not know is refused rather than ignored. An operator
+// who named a gateway expects its behaviour, and silently giving them the
+// unqualified default would leave them believing they had opted into something.
+func cacheCapabilityForIntegration(provider, integration string) (cacheCapability, error) {
+	if integration == "" {
+		return cacheCapabilityFor(provider), nil
+	}
+	if provider != config.LLMProviderOpenAICompatible {
+		return cacheCapability{}, fmt.Errorf(
+			"integration %q applies to provider %q only; provider %q declares its own cache behaviour",
+			integration, config.LLMProviderOpenAICompatible, provider)
+	}
+	capability, ok := compatibleProfiles[integration]
+	if !ok {
+		return cacheCapability{}, fmt.Errorf(
+			"unknown gateway integration %q: no compatible gateway has been qualified for prompt caching yet",
+			integration)
+	}
+	return capability, nil
 }
 
 // supportsTTL reports whether the protocol documents this retention.

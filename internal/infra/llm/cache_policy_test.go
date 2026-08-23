@@ -1,6 +1,7 @@
 package llm
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/config"
@@ -238,6 +239,76 @@ func TestRetentionIsRefusedOutsideItsOwnProtocol(t *testing.T) {
 				}); err == nil {
 					t.Errorf("ttl %q should be refused on %s", ttl, tc.provider)
 				}
+			}
+		})
+	}
+}
+
+// The acceptance criterion from docs/design/prompt-cache-control.md section 9,
+// phase 4, made executable: no endpoint is described as cache-capable until it
+// passes the qualification suite.
+//
+// The registry is empty because no compatible gateway has been run through
+// `./make cache-qualify` yet. This test is the thing standing between "we could
+// add openrouter here" and doing it: an entry added on the strength of reading
+// a gateway's documentation is exactly the assumption the whole capability
+// contract exists to refuse, and it would ship a request field to an endpoint
+// nobody watched accept it.
+//
+// Adding a profile means adding a qualification result alongside it and
+// updating this test to name it.
+func TestNoCompatibleGatewayIsQualifiedYet(t *testing.T) {
+	if len(compatibleProfiles) != 0 {
+		t.Errorf("compatibleProfiles has %d entries; each one needs a `%s` run behind it, "+
+			"and this test updated to name the gateways that passed",
+			len(compatibleProfiles), "./make cache-qualify")
+	}
+}
+
+// An integration nobody has qualified is refused at construction rather than
+// quietly downgraded. An operator who named a gateway expects its behaviour;
+// handing them the unqualified default would leave them believing they had
+// opted into something.
+func TestUnknownIntegrationIsRefused(t *testing.T) {
+	_, err := NewClient(Config{
+		Provider: config.LLMProviderOpenAICompatible, APIKey: "k", BaseURL: "http://localhost:1",
+		Model: "m", Integration: "openrouter",
+	})
+	if err == nil {
+		t.Fatal("an unqualified gateway integration was accepted")
+	}
+	if !strings.Contains(err.Error(), "openrouter") {
+		t.Errorf("error %q does not name the integration that was wrong", err)
+	}
+}
+
+// An integration on a protocol that declares its own cache behaviour is a
+// mistake, not an override: Anthropic and Responses are not gateways whose
+// quirks need naming, and accepting one would suggest it changed something.
+func TestIntegrationIsRefusedOnANativeProtocol(t *testing.T) {
+	for _, provider := range []string{config.LLMProviderAnthropic, config.LLMProviderOpenAI} {
+		t.Run(provider, func(t *testing.T) {
+			if _, err := NewClient(Config{
+				Provider: provider, APIKey: "k", BaseURL: "http://localhost:1",
+				Model: "m", Integration: "somegateway",
+			}); err == nil {
+				t.Error("an integration was accepted on a protocol that declares its own behaviour")
+			}
+		})
+	}
+}
+
+// An entry that names no integration is the normal case and must keep working.
+func TestNoIntegrationIsTheNormalCase(t *testing.T) {
+	for _, provider := range []string{
+		config.LLMProviderOpenAICompatible, config.LLMProviderAnthropic,
+		config.LLMProviderOpenAI, config.LLMProviderOllama,
+	} {
+		t.Run(provider, func(t *testing.T) {
+			if _, err := NewClient(Config{
+				Provider: provider, APIKey: "k", BaseURL: "http://localhost:1", Model: "m",
+			}); err != nil {
+				t.Errorf("an entry with no integration was refused: %v", err)
 			}
 		})
 	}

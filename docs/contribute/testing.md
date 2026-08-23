@@ -66,6 +66,17 @@ agent's tools with a real model, needs a key, and reports a PASS/FAIL table the
 model wrote about itself. Read its output; its exit code says only that the
 process finished.
 
+`./make cache-qualify` is the second exception, for the same reason and a
+sharper one. Every cache test in the tree runs against a fake upstream, which
+proves what BuildMax sends and nothing about what a provider does with it — and
+a request can be perfectly shaped while the provider declines to cache it, for a
+minimum prefix length, an unsupported model, or an expired retention window.
+The suite runs the scenarios
+[prompt-cache-control.md](../design/prompt-cache-control.md) gates on against a
+real provider named by `BUILDMAX_CACHE_QUALIFY_*`, and no provider or gateway is
+described as cache-capable until it passes. Unset, it skips like the
+MySQL-backed store tests do.
+
 If a prerequisite is missing, the suite says which one before it starts. The two
 that catch people out:
 

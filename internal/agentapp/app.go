@@ -302,6 +302,9 @@ type ModelConfig struct {
 	// stop a model from answering: the run still works, it just cannot be
 	// costed, and the surface says so instead of failing the turn.
 	PricingErr string
+	// Integration names a qualified OpenAI-compatible gateway; empty is the
+	// normal case.
+	Integration string
 	// Vision says this model accepts image input.
 	Vision bool
 	// KeepAlive is how long a local runtime keeps the model loaded between
@@ -1225,6 +1228,7 @@ func (r *LLMClientCache) build(cfg ModelConfig) (cllm.LLMClient, error) {
 		MaxTokens:     cfg.MaxTokens,
 		Reasoning:     cfg.Reasoning,
 		CacheControl:  cfg.CacheControl,
+		Integration:   cfg.Integration,
 		Vision:        cfg.Vision,
 		Surface:       r.surface,
 		KeepAlive:     cfg.KeepAlive,
@@ -1386,6 +1390,7 @@ func toModelConfig(entry config.ModelEntry) ModelConfig {
 		CacheControl:  config.ResolveCacheControl(entry.CacheControl, entry.PromptCache),
 		Pricing:       pricing,
 		PricingErr:    pricingErr,
+		Integration:   entry.Integration,
 		Vision:        entry.Vision,
 		KeepAlive:     entry.KeepAlive,
 		Provider:      entry.Provider,

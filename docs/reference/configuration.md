@@ -44,6 +44,11 @@ anything not listed here is not read by BuildMax.
 | `BUILDMAX_TRACE_DISABLED` | — | Disables durable run traces when truthy. Traces are on by default. |
 | `BUILDMAX_RUN_TOKEN` | — | One task run's credential for every `/api/worker/*` route. Minted per run by the scheduler and placed in the worker process or Job pod — not something an operator sets. |
 | `BUILDMAX_TEST_DSN` | — | MySQL DSN for store integration tests. Unset skips those tests. |
+| `BUILDMAX_CACHE_QUALIFY_PROVIDER` | — | Provider for `./make cache-qualify`, which calls a real paid provider. Unset skips the suite. |
+| `BUILDMAX_CACHE_QUALIFY_MODEL` | — | Model identifier for that suite. |
+| `BUILDMAX_CACHE_QUALIFY_API_KEY` | — | Credential for that suite. |
+| `BUILDMAX_CACHE_QUALIFY_BASE_URL` | — | Endpoint override for that suite. |
+| `BUILDMAX_CACHE_QUALIFY_SLOW` | — | Include the qualification scenarios that wait out a retention window. Truthy values only; they take minutes of wall clock. |
 
 ### Credential Overrides
 

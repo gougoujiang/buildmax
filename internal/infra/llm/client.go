@@ -40,6 +40,11 @@ type Config struct {
 	// acts on it also depends on that call's core/llm.CallProfile: a mode is
 	// what to ask for, and a profile is whether asking is worth its price.
 	CacheControl config.CacheControl
+	// Integration names a qualified OpenAI-compatible gateway whose cache
+	// behaviour is known. Empty is the normal case: the protocol family makes
+	// no promise about cache fields, so nothing is sent unless a named profile
+	// says this endpoint was tested.
+	Integration string
 	// Vision says the model accepts image input. When false, an adapter drops
 	// image parts and sends only the text describing them.
 	Vision bool
@@ -125,7 +130,11 @@ func NewClient(cfg Config) (*LLMClient, error) {
 	if provider == "" {
 		provider = config.LLMProviderOpenAICompatible
 	}
-	if cacheErr := validateCachePolicy(cfg.CacheControl, cacheCapabilityFor(provider), provider); cacheErr != nil {
+	capability, cacheErr := cacheCapabilityForIntegration(provider, cfg.Integration)
+	if cacheErr != nil {
+		return nil, cacheErr
+	}
+	if cacheErr := validateCachePolicy(cfg.CacheControl, capability, provider); cacheErr != nil {
 		return nil, cacheErr
 	}
 	if err != nil {

@@ -27,6 +27,19 @@ const (
 
 	// Test only.
 	EnvKeyBuildmaxTestDSN = "BUILDMAX_TEST_DSN"
+
+	// BUILDMAX_CACHE_QUALIFY_* name the provider the prompt-cache qualification
+	// suite runs against. The suite calls a real, paid provider and is not part
+	// of any check; unset, it skips. See docs/design/prompt-cache-control.md
+	// section 9, phase 4.
+	EnvKeyBuildmaxCacheQualifyProvider = "BUILDMAX_CACHE_QUALIFY_PROVIDER"
+	EnvKeyBuildmaxCacheQualifyModel    = "BUILDMAX_CACHE_QUALIFY_MODEL"
+	EnvKeyBuildmaxCacheQualifyAPIKey   = "BUILDMAX_CACHE_QUALIFY_API_KEY"
+	EnvKeyBuildmaxCacheQualifyBaseURL  = "BUILDMAX_CACHE_QUALIFY_BASE_URL"
+	// BUILDMAX_CACHE_QUALIFY_SLOW opts into the scenarios that must wait out a
+	// retention window. They take minutes of wall clock, so they are off by
+	// default rather than silently making a run look hung.
+	EnvKeyBuildmaxCacheQualifySlow = "BUILDMAX_CACHE_QUALIFY_SLOW"
 )
 
 // Note: EnvKeyBuildmaxSandboxEnabled lives in sandbox.go alongside the
@@ -67,6 +80,11 @@ var EnvVars = []EnvVar{
 	// token a worker can find is the one minted for its own run.
 	{Name: EnvKeyBuildmaxRunToken, Description: "Per-run credential for the managed LLM gateway; minted by the scheduler, not set by an operator"},
 	{Name: EnvKeyBuildmaxTestDSN, Description: "MySQL DSN for store integration tests; unset skips those tests"},
+	{Name: EnvKeyBuildmaxCacheQualifyProvider, Description: "Provider for the prompt-cache qualification suite; unset skips it"},
+	{Name: EnvKeyBuildmaxCacheQualifyModel, Description: "Model identifier for the prompt-cache qualification suite"},
+	{Name: EnvKeyBuildmaxCacheQualifyAPIKey, Description: "Credential for the prompt-cache qualification suite; a real, paid provider"},
+	{Name: EnvKeyBuildmaxCacheQualifyBaseURL, Description: "Base URL override for the prompt-cache qualification suite"},
+	{Name: EnvKeyBuildmaxCacheQualifySlow, Description: "Include the qualification scenarios that wait out a retention window (1/true/yes/on)"},
 	{Name: EnvKeyBuildmaxSandboxEnabled, Description: "Override sandbox.enabled in settings; values: 1/true/yes/on or 0/false/no/off", WorkerNeeds: true},
 	{Name: EnvKeyBuildmaxTraceDisabled, Description: "Disable durable run traces when truthy (1/true/yes/on); traces are on by default", WorkerNeeds: true},
 }
