@@ -10,6 +10,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/server/access"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
+	"github.com/gougoujiang/buildmax/internal/service/conversation"
 	"github.com/gougoujiang/buildmax/internal/service/issue"
 	"github.com/gougoujiang/buildmax/internal/service/task"
 )
@@ -347,7 +348,7 @@ func (h *Handler) createIssueAgentRunHandler(w http.ResponseWriter, r *http.Requ
 		httputil.WriteInternalError(w, err, "handler error", "handler", "get_agent_for_issue_run", "issue_id", issueID, "agent_id", *issue.AssigneeID)
 		return
 	}
-	conv, err := h.cfg.Conversations.CreateConversationInTeam(r.Context(), teamID, userID, "issue_agent", userID)
+	conv, err := h.cfg.Conversations.CreateConversationInTeam(r.Context(), teamID, userID, conversation.ChannelIssueAgent, userID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "create_issue_agent_conversation", "issue_id", issueID)
 		return

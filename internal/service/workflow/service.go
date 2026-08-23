@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
+	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
 	"strings"
 	"time"
 
@@ -287,7 +288,7 @@ func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd)
 	if err := s.validateIssueForRun(ctx, cmd.TeamID, workflow.ID, cmd.IssueID); err != nil {
 		return nil, nil, err
 	}
-	conv, err := s.Conversations.CreateConversationInTeam(ctx, cmd.TeamID, cmd.UserID, "workflow", cmd.UserID)
+	conv, err := s.Conversations.CreateConversationInTeam(ctx, cmd.TeamID, cmd.UserID, convchannel.ChannelWorkflow, cmd.UserID)
 	if err != nil {
 		return nil, nil, err
 	}

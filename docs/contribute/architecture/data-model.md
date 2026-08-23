@@ -577,7 +577,7 @@ the user.
 | `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
 | `user_id` | `bigint unsigned` | no | Owning user |
 | `team_id` | `bigint unsigned` | yes | Owning team |
-| `channel` | `varchar(32)` | no | `portal`, `telegram`, `cron`, or `webhook` |
+| `channel` | `varchar(32)` | no | `portal`, `telegram`, `cron`, `webhook`, or a synthetic `workflow` / `issue_agent` |
 | `title` | `varchar(256)` | yes | Generated from the first turn |
 | `created_by` | `bigint unsigned` | no | `user.id` |
 | `created_at` | `bigint` | yes | `autoCreateTime` |
@@ -586,9 +586,19 @@ Indexes: PK `id`; index `idx_conversation_team_created` on (`team_id`,
 `created_at`); index `idx_conversation_user_created` on (`user_id`,
 `created_at`); unique `public_id`.
 
-Channel constants are in `internal/service/conversation/channel/types.go`.
-`system` exists as a constant but is not in `ValidChannels`, so it cannot be
-supplied by a caller.
+Transport channel constants are in
+`internal/service/conversation/channel/types.go`. `system` exists as a constant
+but is not in `ValidChannels`, so it cannot be supplied by a caller.
+
+`workflow` and `issue_agent` are not transports and are defined in
+`internal/core/model` with the column, as `model.SyntheticChannels`. Nobody
+talks through them: a workflow step and an issue agent run each create a
+conversation because Task requires one. `ListConversationsByTeam` excludes them,
+count and page together, so machinery cannot push a team's own conversations off
+a page. They are still stored and still reachable by handle — this hides them
+from a list, it does not make them unreadable. Removing the need for them is
+deferred; see
+[../../design/portal-execution-model.md](../../design/portal-execution-model.md).
 
 ### `conversation_message`
 

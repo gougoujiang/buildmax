@@ -60,7 +60,7 @@ func (m *MockConversationStore) ListConversationsByUser(_ context.Context, userI
 func (m *MockConversationStore) ListConversationsByTeam(_ context.Context, teamID string, limit, offset int) ([]model.Conversation, int, error) {
 	var out []model.Conversation
 	for _, conv := range m.Conversations {
-		if conv.TeamID == teamID {
+		if conv.TeamID == teamID && !syntheticChannel(conv.Channel) {
 			out = append(out, conv)
 		}
 	}
@@ -135,4 +135,15 @@ func (m *MockConversationMessageStore) GetMessage(_ context.Context, messageID s
 		}
 	}
 	return nil, nil
+}
+
+// syntheticChannel mirrors the store: a conversation nobody holds is not in the
+// list. A double that returned them would let a regression pass here.
+func syntheticChannel(channel string) bool {
+	for _, c := range model.SyntheticChannels {
+		if c == channel {
+			return true
+		}
+	}
+	return false
 }
