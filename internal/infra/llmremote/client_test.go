@@ -77,7 +77,7 @@ func TestBlockingCallShapesTheRequest(t *testing.T) {
 	gateway := newFakeGateway(t)
 	gateway.body = `{"llm_call_id":"lc_1","model":"fast","content":"hi"}`
 
-	client := gateway.client(llmremote.Config{Token: "tok", Alias: "fast", Surface: "cli"})
+	client := gateway.client(llmremote.Config{Token: "tok", Model: "Fast", Surface: "cli"})
 	_, err := client.ChatCompletionBlocking(context.Background(), cllm.Request{
 		Messages: []cllm.Message{{Role: "user", Content: "hello"}},
 		Tools:    []cllm.ToolDef{{Name: "read_file", Description: "reads", Parameters: map[string]any{"type": "object"}}},
@@ -98,8 +98,8 @@ func TestBlockingCallShapesTheRequest(t *testing.T) {
 	if gateway.gotUserAgent != config.UserAgent("cli", false) {
 		t.Errorf("user-agent = %q, want %q", gateway.gotUserAgent, config.UserAgent("cli", false))
 	}
-	if gateway.gotBody.Model != "fast" {
-		t.Errorf("model = %q, want the alias", gateway.gotBody.Model)
+	if gateway.gotBody.Model != "Fast" {
+		t.Errorf("model = %q, want the catalog name", gateway.gotBody.Model)
 	}
 	if len(gateway.gotBody.Messages) != 1 || gateway.gotBody.Messages[0].Content != "hello" {
 		t.Errorf("messages = %+v", gateway.gotBody.Messages)
@@ -116,12 +116,12 @@ func TestBlockingCallShapesTheRequest(t *testing.T) {
 }
 
 // TestRequestCarriesNoRoutingDetail is the client half of the rule that a
-// managed caller names an alias and nothing about where the call goes.
+// managed caller names a model and nothing about where the call goes.
 func TestRequestCarriesNoRoutingDetail(t *testing.T) {
 	gateway := newFakeGateway(t)
 	gateway.body = `{"llm_call_id":"lc_1","model":"fast","content":"hi"}`
 
-	client := gateway.client(llmremote.Config{Token: "tok", Alias: "fast"})
+	client := gateway.client(llmremote.Config{Token: "tok", Model: "Fast"})
 	if _, err := client.ChatCompletionBlocking(context.Background(),
 		cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "hello"}}}); err != nil {
 		t.Fatalf("ChatCompletionBlocking: %v", err)
@@ -407,7 +407,7 @@ func TestContextWindowIsConfigured(t *testing.T) {
 
 func TestModelsListing(t *testing.T) {
 	gateway := newFakeGateway(t)
-	gateway.body = `{"models":[{"alias":"default","name":"Fast","capabilities":["text_chat"],"default":true}]}`
+	gateway.body = `{"models":[{"name":"Fast","capabilities":["text_chat"],"default":true}]}`
 
 	client := gateway.client(llmremote.Config{Token: "tok"})
 	models, err := client.Models(context.Background())
@@ -417,7 +417,7 @@ func TestModelsListing(t *testing.T) {
 	if gateway.gotPath != "/api/teams/tm_one/llm/models" {
 		t.Errorf("path = %q", gateway.gotPath)
 	}
-	if len(models) != 1 || models[0].Alias != "default" || !models[0].Default {
+	if len(models) != 1 || models[0].Name != "Fast" || !models[0].Default {
 		t.Errorf("models = %+v", models)
 	}
 }
@@ -520,7 +520,7 @@ func TestManagedCallCarriesReasoningState(t *testing.T) {
 	gateway.body = `{"llm_call_id":"lc_1","model":"fast","content":"ok",` +
 		`"provider_state":{"protocol":"anthropic","data":[{"type":"thinking","signature":"sig-1"}]}}`
 
-	client := gateway.client(llmremote.Config{Token: "tok", Alias: "fast"})
+	client := gateway.client(llmremote.Config{Token: "tok", Model: "Fast"})
 	completion, err := client.ChatCompletionBlocking(context.Background(),
 		cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "hi"}}})
 	if err != nil {

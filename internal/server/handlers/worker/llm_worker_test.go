@@ -66,7 +66,7 @@ func workerLLMRequest(t *testing.T, gateway *llmgateway.Service, runStatus, body
 	return rec
 }
 
-const workerLLMBody = `{"model":"default","messages":[{"role":"user","content":"hi"}]}`
+const workerLLMBody = `{"model":"Fast","messages":[{"role":"user","content":"hi"}]}`
 
 func TestWorkerLLMCompletions(t *testing.T) {
 	gateway := llmTestService(t, &llmStubClient{content: "answer"}, nil)
@@ -193,7 +193,7 @@ func TestWorkerLLMCompletions(t *testing.T) {
 	t.Run("rejects a body carrying fields it does not define", func(t *testing.T) {
 		rec := workerLLMRequest(t, gateway,
 			string(model.RunStatusRunning),
-			`{"model":"default","messages":[{"role":"user","content":"hi"}],"team_id":"tm_other"}`,
+			`{"model":"Fast","messages":[{"role":"user","content":"hi"}],"team_id":"tm_other"}`,
 			validWorkerRunToken(t))
 		if rec.Code != http.StatusBadRequest {
 			t.Errorf("status = %d, want 400 for an unknown field", rec.Code)
@@ -230,7 +230,7 @@ func TestWorkerLLMCompletionCarriesTheCallProfile(t *testing.T) {
 	gateway := llmTestService(t, client, nil)
 
 	rec := workerLLMRequest(t, gateway, string(model.RunStatusRunning),
-		`{"model":"default","messages":[{"role":"user","content":"hi"}],"call_profile":"agent_turn"}`,
+		`{"model":"Fast","messages":[{"role":"user","content":"hi"}],"call_profile":"agent_turn"}`,
 		validWorkerRunToken(t))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
@@ -245,7 +245,7 @@ func TestWorkerLLMCompletionRefusesAnUnknownProfile(t *testing.T) {
 	gateway := llmTestService(t, client, nil)
 
 	rec := workerLLMRequest(t, gateway, string(model.RunStatusRunning),
-		`{"model":"default","messages":[{"role":"user","content":"hi"}],"call_profile":"cache_everything"}`,
+		`{"model":"Fast","messages":[{"role":"user","content":"hi"}],"call_profile":"cache_everything"}`,
 		validWorkerRunToken(t))
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400: %s", rec.Code, rec.Body.String())

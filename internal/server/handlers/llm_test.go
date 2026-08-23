@@ -127,16 +127,9 @@ func llmTestService(t *testing.T, client cllm.LLMClient, quota llmgateway.QuotaC
 	if err != nil {
 		t.Fatalf("NewStaticCatalog: %v", err)
 	}
-	policies, err := llmgateway.NewStaticPolicySource(llmgateway.TeamPolicy{
-		DefaultAlias: "default",
-		Aliases:      map[string]string{"default": "mt_fast"},
-	}, catalog.IDs())
-	if err != nil {
-		t.Fatalf("NewStaticPolicySource: %v", err)
-	}
 	return &llmgateway.Service{
 		Router: &llmgateway.Router{
-			Resolver: &llmgateway.Resolver{Catalog: catalog, Policies: policies},
+			Resolver: &llmgateway.Resolver{Catalog: catalog, DefaultModel: "Fast"},
 			Factory: func(context.Context, llmgateway.Target) (cllm.LLMClient, error) {
 				return client, nil
 			},
@@ -200,8 +193,8 @@ func TestLLMCompletionsSucceeds(t *testing.T) {
 	if resp.Content != "hi there" {
 		t.Errorf("content = %q, want %q", resp.Content, "hi there")
 	}
-	if resp.Model != "default" {
-		t.Errorf("model = %q, want the alias %q", resp.Model, "default")
+	if resp.Model != "Fast" {
+		t.Errorf("model = %q, want the catalog name %q", resp.Model, "Fast")
 	}
 	if resp.LLMCallID != "lc_stub" {
 		t.Errorf("llm_call_id = %q", resp.LLMCallID)
@@ -249,12 +242,12 @@ func TestLLMCompletionsErrorMapping(t *testing.T) {
 			wantStatus: http.StatusServiceUnavailable,
 		},
 		{
-			name:       "unknown alias",
-			body:       `{"model":"reasoning","messages":[{"role":"user","content":"hi"}]}`,
+			name:       "unknown model",
+			body:       `{"model":"Reasoning","messages":[{"role":"user","content":"hi"}]}`,
 			gateway:    func(t *testing.T) *llmgateway.Service { return llmTestService(t, &llmStubClient{}, nil) },
 			auth:       true,
 			wantStatus: http.StatusBadRequest,
-			wantCode:   llmgateway.ErrorClassUnknownAlias,
+			wantCode:   llmgateway.ErrorClassTargetNotFound,
 		},
 		{
 			name: "over quota",
@@ -369,7 +362,6 @@ func TestLLMModelsListing(t *testing.T) {
 
 	var resp struct {
 		Models []struct {
-			Alias        string   `json:"alias"`
 			Name         string   `json:"name"`
 			Capabilities []string `json:"capabilities"`
 			Default      bool     `json:"default"`
@@ -381,7 +373,7 @@ func TestLLMModelsListing(t *testing.T) {
 	if len(resp.Models) != 1 {
 		t.Fatalf("got %d models, want 1", len(resp.Models))
 	}
-	if resp.Models[0].Alias != "default" || !resp.Models[0].Default {
+	if resp.Models[0].Name != "Fast" || !resp.Models[0].Default {
 		t.Errorf("model = %+v", resp.Models[0])
 	}
 	if len(resp.Models[0].Capabilities) != 4 {

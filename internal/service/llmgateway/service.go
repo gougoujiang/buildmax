@@ -15,8 +15,13 @@ import (
 var (
 	ErrLedgerNotConfigured = errors.New("call ledger is not configured")
 	ErrMessagesRequired    = errors.New("messages are required")
-	ErrQuotaExceeded       = errors.New("team quota exceeded")
-	ErrDuplicateCall       = errors.New("client call id has already been used")
+	// ErrTeamRequired is a ledger requirement, not an authorization one: every
+	// catalog model is available to every user, and the team is only what the
+	// call is booked against. It goes when the ledger becomes user-scoped, see
+	// docs/design/client-modes.md section 9.
+	ErrTeamRequired  = errors.New("team is required")
+	ErrQuotaExceeded = errors.New("team quota exceeded")
+	ErrDuplicateCall = errors.New("client call id has already been used")
 	// ErrUpstream wraps a provider failure. The wrapped error stays inside the
 	// server: callers receive the classification, not the provider's body.
 	ErrUpstream = errors.New("upstream model call failed")
@@ -97,8 +102,8 @@ type CompleteRequest struct {
 	Surface   string
 	SessionID *string
 
-	// Alias is the team-facing model alias. Empty selects the team default.
-	Alias    string
+	// Model is the catalog model name. Empty selects the deployment default.
+	Model    string
 	Messages []cllm.Message
 	Tools    []cllm.ToolDef
 	// CallProfile is what the caller says the call is for. It is operational
@@ -111,7 +116,7 @@ type CompleteRequest struct {
 // CompleteResult is a finished managed call.
 type CompleteResult struct {
 	LLMCallID string
-	Alias     string
+	Model     string
 	Content   string
 	ToolCalls []cllm.ToolCall
 	Usage     cllm.Usage
@@ -123,12 +128,12 @@ type CompleteResult struct {
 	ProviderState *cllm.ProviderState
 }
 
-// Models lists the aliases a team may use.
-func (s *Service) Models(ctx context.Context, teamID string) ([]AvailableModel, error) {
+// Models lists the models this deployment offers.
+func (s *Service) Models(ctx context.Context) ([]AvailableModel, error) {
 	if s == nil || s.Router == nil {
 		return nil, ErrCatalogNotConfigured
 	}
-	return s.Router.Available(ctx, teamID)
+	return s.Router.Available(ctx)
 }
 
 // Complete runs one blocking managed call.
@@ -177,8 +182,7 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 	}
 
 	routed, err := s.Router.ClientFor(ctx, ResolveRequest{
-		TeamID:   req.TeamID,
-		Alias:    req.Alias,
+		Name:     req.Model,
 		Requires: requiredCapabilities(req, streaming),
 	})
 	if err != nil {
@@ -204,7 +208,7 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 		TaskID:        req.TaskID,
 		Surface:       req.Surface,
 		SessionID:     req.SessionID,
-		Alias:         routed.Resolution.Alias,
+		Model:         routed.Resolution.Name,
 		TargetID:      routed.Resolution.Target.ID,
 		ProviderType:  routed.Resolution.Target.ProviderType,
 		UpstreamModel: routed.Resolution.Target.UpstreamModel,
@@ -292,7 +296,7 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 
 	return CompleteResult{
 		LLMCallID:     call.ID,
-		Alias:         routed.Resolution.Alias,
+		Model:         routed.Resolution.Name,
 		Content:       completion.Content,
 		ToolCalls:     completion.ToolCalls,
 		Usage:         usage,

@@ -22,7 +22,7 @@ const Version = "1"
 
 // Paths, relative to the server base URL.
 const (
-	// ModelsPath lists the aliases a team may use.
+	// ModelsPath lists the models this deployment offers.
 	ModelsPath = "/api/teams/%s/llm/models"
 	// CompletionsPath runs one managed call.
 	CompletionsPath = "/api/teams/%s/llm/completions"
@@ -177,16 +177,16 @@ type ErrorEvent struct {
 	Retryable bool   `json:"retryable"`
 }
 
-// Model is one alias a team may use. It carries no endpoint, credential,
-// provider type, or upstream model identifier.
+// Model is one model a client may call. Name is what a completion request puts
+// in its model field. It carries no endpoint, credential, provider type, or
+// upstream model identifier.
 type Model struct {
-	Alias        string   `json:"alias"`
 	Name         string   `json:"name"`
 	Capabilities []string `json:"capabilities"`
 	Default      bool     `json:"default"`
 }
 
-// ModelsResponse lists a team's available models.
+// ModelsResponse lists the models this deployment offers.
 type ModelsResponse struct {
 	Models []Model `json:"models"`
 }

@@ -14,8 +14,8 @@ import (
 // It is the ledger row minus nothing, because the ledger already holds no
 // prompts, tool arguments, or generated content — it was built as an accounting
 // record. What it does hold and this deliberately drops is `target_id`, the
-// catalog entry the alias resolved to: a team is granted aliases, and the
-// operator's routing behind one is not the team's business.
+// catalog entry the name resolved to: the operator's routing behind a model
+// name is not the caller's business.
 type LLMCallSummary struct {
 	ID string `json:"id"`
 	// UserID is the run's owner. A task run is somebody's work even though no
@@ -25,7 +25,7 @@ type LLMCallSummary struct {
 	Surface   string  `json:"surface,omitempty"`
 	SessionID *string `json:"session_id,omitempty"`
 
-	Alias     string `json:"alias,omitempty"`
+	Model     string `json:"model,omitempty"`
 	Streaming bool   `json:"streaming"`
 
 	AcceptedAt   time.Time  `json:"accepted_at"`
@@ -126,7 +126,7 @@ func toLLMCallSummary(call model.LLMCall) LLMCallSummary {
 		TaskID:           call.TaskID,
 		Surface:          call.Surface,
 		SessionID:        call.SessionID,
-		Alias:            call.Alias,
+		Model:            call.Model,
 		Streaming:        call.Streaming,
 		AcceptedAt:       call.AcceptedAt,
 		FirstDeltaAt:     call.FirstDeltaAt,

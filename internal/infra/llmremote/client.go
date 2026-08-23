@@ -65,9 +65,10 @@ type Config struct {
 	// is calling. Setting both is a caller that has not decided, not a caller
 	// being thorough.
 	TaskRunID string
-	// Alias is the team model alias to call. Empty uses the team default.
-	Alias string
-	// ContextWindow is the usable context size for this alias; 0 disables
+	// Model is the catalog model name to call. Empty uses the deployment
+	// default.
+	Model string
+	// ContextWindow is the usable context size for this model; 0 disables
 	// windowing. The protocol does not report it per call, so it comes from
 	// model discovery or local configuration.
 	ContextWindow int
@@ -330,7 +331,7 @@ func (c *Client) post(ctx context.Context, stream bool, call cllm.Request) (*htt
 		return nil, err
 	}
 	body, err := json.Marshal(llmwire.CompletionRequest{
-		Model:    c.cfg.Alias,
+		Model:    c.cfg.Model,
 		Messages: toWireMessages(call.Messages),
 		Tools:    toWireTools(call.Tools),
 		Stream:   stream,
@@ -501,7 +502,7 @@ func toWireTools(in []cllm.ToolDef) []llmwire.Tool {
 	return out
 }
 
-// Models lists the aliases this client's team may use.
+// Models lists the models this client's deployment offers.
 //
 // Discovery is a team capability, so a worker-mode client refuses it. A task run
 // is told which model to use at dispatch; letting it browse the team's catalog

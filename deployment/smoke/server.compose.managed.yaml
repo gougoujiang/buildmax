@@ -34,14 +34,11 @@ conversation:
     api_url: http://mock-llm:8080/v1
     context_window: 32000
 
-# `conversation` is the bootstrap catalog target derived from the model above,
-# so this smoke needs no llm_model row and no ID to discover at deploy time. A
-# real deployment points aliases at rows created with `buildmax-server model
-# add` instead.
+# The model above is derived into a catalog target named after it, so this smoke
+# needs no llm_model row and no ID to discover at deploy time. A real deployment
+# names a row created with `buildmax-server model add` instead.
 llm:
-  aliases:
-    default: conversation
-  default_alias: default
+  default_model: BuildMax smoke
 
 worker:
   binary: buildmax-worker
@@ -49,7 +46,8 @@ worker:
   server_url: http://127.0.0.1:5678
   llm:
     transport: buildmax
-    alias: default
+    # Left unset on purpose: a run then uses llm.default_model, which is the
+    # path a deployment with one model takes.
     context_window: 32000
   run_token_ttl: 1h
 

@@ -17,7 +17,7 @@ func TestWorkerModeCallsTheRunRoute(t *testing.T) {
 	gateway := newFakeGateway(t)
 	gateway.body = `{"llm_call_id":"lc_1","model":"default","content":"hi"}`
 
-	client := gateway.client(llmremote.Config{Token: "run-token", TaskRunID: "r_1", Alias: "default"})
+	client := gateway.client(llmremote.Config{Token: "run-token", TaskRunID: "r_1", Model: "Fast"})
 	if _, err := client.ChatCompletionBlocking(context.Background(),
 		cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "hello"}}}); err != nil {
 		t.Fatalf("ChatCompletionBlocking: %v", err)

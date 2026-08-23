@@ -12,8 +12,8 @@ type GetTaskRunResponse struct {
 
 // TaskRunLLM tells a worker how to reach a model for this run.
 //
-// It is deliberately thin. A managed run learns an alias and nothing else — no
-// endpoint, no upstream model identifier, no credential — because those stay
+// It is deliberately thin. A managed run learns a model name and nothing else —
+// no endpoint, no upstream model identifier, no credential — because those stay
 // inside the server's authorization boundary. A direct run learns nothing here
 // and reads its model from the server.yaml it already mounts.
 //
@@ -22,9 +22,9 @@ type GetTaskRunResponse struct {
 type TaskRunLLM struct {
 	// Transport is "direct" or "buildmax".
 	Transport string `json:"transport"`
-	// Alias is the team model alias to call. Empty uses the team default.
-	Alias string `json:"alias,omitempty"`
-	// ContextWindow is the usable context size for the alias; 0 disables
+	// Model is the catalog model to call. Empty uses the deployment default.
+	Model string `json:"model,omitempty"`
+	// ContextWindow is the usable context size for the model; 0 disables
 	// windowing.
 	ContextWindow int `json:"context_window,omitempty"`
 	// CallTimeout bounds one call, in seconds; 0 uses the client default.

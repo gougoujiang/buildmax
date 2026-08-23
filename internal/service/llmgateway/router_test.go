@@ -67,6 +67,21 @@ func (c *mutableCatalog) Target(_ context.Context, id string) (llmgateway.Target
 	return c.target, nil
 }
 
+func (c *mutableCatalog) TargetByName(_ context.Context, name string) (llmgateway.Target, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if name != c.target.Name {
+		return llmgateway.Target{}, llmgateway.ErrTargetNotFound
+	}
+	return c.target, nil
+}
+
+func (c *mutableCatalog) List(_ context.Context) ([]llmgateway.Target, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return []llmgateway.Target{c.target}, nil
+}
+
 func (c *mutableCatalog) set(target llmgateway.Target) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -82,12 +97,12 @@ func TestClientForReturnsResolutionAndClient(t *testing.T) {
 	factory := &countingFactory{}
 	router := testRouter(t, factory)
 
-	routed, err := router.ClientFor(context.Background(), llmgateway.ResolveRequest{TeamID: "tm_one", Alias: "deep"})
+	routed, err := router.ClientFor(context.Background(), llmgateway.ResolveRequest{Name: "Deep"})
 	if err != nil {
 		t.Fatalf("ClientFor: %v", err)
 	}
-	if routed.Resolution.Alias != "deep" {
-		t.Errorf("Alias = %q, want %q", routed.Resolution.Alias, "deep")
+	if routed.Resolution.Name != "Deep" {
+		t.Errorf("Name = %q, want %q", routed.Resolution.Name, "Deep")
 	}
 	if routed.Resolution.Target.ID != "mt_deep" {
 		t.Errorf("Target.ID = %q, want %q", routed.Resolution.Target.ID, "mt_deep")
@@ -106,11 +121,11 @@ func TestClientForCachesPerTarget(t *testing.T) {
 	router := testRouter(t, factory)
 	ctx := context.Background()
 
-	first, err := router.ClientFor(ctx, llmgateway.ResolveRequest{TeamID: "tm_one", Alias: "default"})
+	first, err := router.ClientFor(ctx, llmgateway.ResolveRequest{Name: "Fast"})
 	if err != nil {
 		t.Fatalf("ClientFor: %v", err)
 	}
-	second, err := router.ClientFor(ctx, llmgateway.ResolveRequest{TeamID: "tm_one"})
+	second, err := router.ClientFor(ctx, llmgateway.ResolveRequest{})
 	if err != nil {
 		t.Fatalf("ClientFor: %v", err)
 	}
@@ -121,7 +136,7 @@ func TestClientForCachesPerTarget(t *testing.T) {
 		t.Errorf("factory called %d times, want 1", factory.count())
 	}
 
-	other, err := router.ClientFor(ctx, llmgateway.ResolveRequest{TeamID: "tm_one", Alias: "deep"})
+	other, err := router.ClientFor(ctx, llmgateway.ResolveRequest{Name: "Deep"})
 	if err != nil {
 		t.Fatalf("ClientFor: %v", err)
 	}
@@ -139,17 +154,15 @@ func TestClientForRebuildsWhenTargetChanges(t *testing.T) {
 	catalog.set(target)
 
 	factory := &countingFactory{}
+	// No configured default, so every request resolves to the catalog's only
+	// row whatever it is currently named — this test is about the client cache,
+	// not about name resolution, and it renames the target part-way through.
 	router := &llmgateway.Router{
-		Resolver: &llmgateway.Resolver{
-			Catalog: catalog,
-			Policies: teamPolicies{
-				"tm_one": {DefaultAlias: "default", Aliases: map[string]string{"default": "mt_fast"}},
-			},
-		},
-		Factory: factory.build,
+		Resolver: &llmgateway.Resolver{Catalog: catalog},
+		Factory:  factory.build,
 	}
 	ctx := context.Background()
-	req := llmgateway.ResolveRequest{TeamID: "tm_one"}
+	req := llmgateway.ResolveRequest{}
 
 	first, err := router.ClientFor(ctx, req)
 	if err != nil {
@@ -250,25 +263,19 @@ func TestClientForPropagatesResolutionErrors(t *testing.T) {
 		want error
 	}{
 		{
-			name: "unknown alias",
-			req:  llmgateway.ResolveRequest{TeamID: "tm_one", Alias: "reasoning"},
-			want: llmgateway.ErrUnknownAlias,
+			name: "unknown model",
+			req:  llmgateway.ResolveRequest{Name: "Reasoning"},
+			want: llmgateway.ErrTargetNotFound,
 		},
 		{
 			name: "disabled target",
-			req:  llmgateway.ResolveRequest{TeamID: "tm_one", Alias: "retired"},
+			req:  llmgateway.ResolveRequest{Name: "Retired"},
 			want: llmgateway.ErrTargetDisabled,
-		},
-		{
-			name: "team without policy",
-			req:  llmgateway.ResolveRequest{TeamID: "tm_unknown"},
-			want: llmgateway.ErrTeamNotAuthorized,
 		},
 		{
 			name: "unsupported capability",
 			req: llmgateway.ResolveRequest{
-				TeamID:   "tm_one",
-				Alias:    "deep",
+				Name:     "Deep",
 				Requires: []llmgateway.Capability{llmgateway.CapabilityToolCalls},
 			},
 			want: llmgateway.ErrCapabilityUnsupported,
@@ -291,33 +298,33 @@ func TestClientForPropagatesResolutionErrors(t *testing.T) {
 func TestClientForFactoryFailures(t *testing.T) {
 	boom := errors.New("no credential for upstream_key")
 	failing := testRouter(t, &countingFactory{err: boom})
-	if _, err := failing.ClientFor(context.Background(), llmgateway.ResolveRequest{TeamID: "tm_one"}); !errors.Is(err, boom) {
+	if _, err := failing.ClientFor(context.Background(), llmgateway.ResolveRequest{}); !errors.Is(err, boom) {
 		t.Errorf("want the factory error, got %v", err)
 	}
 
 	// A factory that returns nothing must not hand a nil client to the caller.
 	empty := testRouter(t, &countingFactory{nilOK: true})
-	if _, err := empty.ClientFor(context.Background(), llmgateway.ResolveRequest{TeamID: "tm_one"}); !errors.Is(err, llmgateway.ErrFactoryNotConfigured) {
+	if _, err := empty.ClientFor(context.Background(), llmgateway.ResolveRequest{}); !errors.Is(err, llmgateway.ErrFactoryNotConfigured) {
 		t.Errorf("want ErrFactoryNotConfigured, got %v", err)
 	}
 }
 
 func TestRouterNotConfigured(t *testing.T) {
 	var nilRouter *llmgateway.Router
-	if _, err := nilRouter.ClientFor(context.Background(), llmgateway.ResolveRequest{TeamID: "tm_one"}); !errors.Is(err, llmgateway.ErrCatalogNotConfigured) {
+	if _, err := nilRouter.ClientFor(context.Background(), llmgateway.ResolveRequest{}); !errors.Is(err, llmgateway.ErrCatalogNotConfigured) {
 		t.Errorf("nil router: want ErrCatalogNotConfigured, got %v", err)
 	}
-	if _, err := nilRouter.Available(context.Background(), "tm_one"); !errors.Is(err, llmgateway.ErrCatalogNotConfigured) {
+	if _, err := nilRouter.Available(context.Background()); !errors.Is(err, llmgateway.ErrCatalogNotConfigured) {
 		t.Errorf("nil router Available: want ErrCatalogNotConfigured, got %v", err)
 	}
 
 	noFactory := &llmgateway.Router{Resolver: testResolver(t)}
-	if _, err := noFactory.ClientFor(context.Background(), llmgateway.ResolveRequest{TeamID: "tm_one"}); !errors.Is(err, llmgateway.ErrFactoryNotConfigured) {
+	if _, err := noFactory.ClientFor(context.Background(), llmgateway.ResolveRequest{}); !errors.Is(err, llmgateway.ErrFactoryNotConfigured) {
 		t.Errorf("want ErrFactoryNotConfigured, got %v", err)
 	}
 
 	noResolver := &llmgateway.Router{Factory: (&countingFactory{}).build}
-	if _, err := noResolver.ClientFor(context.Background(), llmgateway.ResolveRequest{TeamID: "tm_one"}); !errors.Is(err, llmgateway.ErrCatalogNotConfigured) {
+	if _, err := noResolver.ClientFor(context.Background(), llmgateway.ResolveRequest{}); !errors.Is(err, llmgateway.ErrCatalogNotConfigured) {
 		t.Errorf("want ErrCatalogNotConfigured, got %v", err)
 	}
 }
@@ -327,7 +334,7 @@ func TestClientForTargetSharesTheClientCache(t *testing.T) {
 	router := testRouter(t, factory)
 	ctx := context.Background()
 
-	byAlias, err := router.ClientFor(ctx, llmgateway.ResolveRequest{TeamID: "tm_one", Alias: "deep"})
+	byAlias, err := router.ClientFor(ctx, llmgateway.ResolveRequest{Name: "Deep"})
 	if err != nil {
 		t.Fatalf("ClientFor: %v", err)
 	}
@@ -344,8 +351,8 @@ func TestClientForTargetSharesTheClientCache(t *testing.T) {
 	if factory.count() != 1 {
 		t.Errorf("factory called %d times, want 1", factory.count())
 	}
-	if byTarget.Resolution.Alias != "" {
-		t.Errorf("Alias = %q, want empty for a deployment-owned target", byTarget.Resolution.Alias)
+	if byTarget.Resolution.Name != "" {
+		t.Errorf("Alias = %q, want empty for a deployment-owned target", byTarget.Resolution.Name)
 	}
 }
 
@@ -376,15 +383,12 @@ func TestClientForTargetErrors(t *testing.T) {
 func TestRouterAvailableDelegates(t *testing.T) {
 	router := testRouter(t, &countingFactory{})
 
-	models, err := router.Available(context.Background(), "tm_one")
+	models, err := router.Available(context.Background())
 	if err != nil {
 		t.Fatalf("Available: %v", err)
 	}
 	if len(models) != 2 {
 		t.Fatalf("Available returned %d models, want 2", len(models))
-	}
-	if _, err := router.Available(context.Background(), ""); !errors.Is(err, llmgateway.ErrTeamRequired) {
-		t.Errorf("want ErrTeamRequired, got %v", err)
 	}
 }
 
@@ -396,7 +400,7 @@ func TestClientForIsSafeUnderConcurrency(t *testing.T) {
 	clients := make([]cllm.LLMClient, 16)
 	for i := range clients {
 		wg.Go(func() {
-			routed, err := router.ClientFor(context.Background(), llmgateway.ResolveRequest{TeamID: "tm_one"})
+			routed, err := router.ClientFor(context.Background(), llmgateway.ResolveRequest{})
 			if err != nil {
 				t.Errorf("ClientFor: %v", err)
 				return

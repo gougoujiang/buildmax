@@ -2,7 +2,6 @@ package admin
 
 import (
 	"net/http"
-	"sort"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
@@ -12,21 +11,21 @@ import (
 //
 // model.LLMModel carries no credential by construction — the key lives in the
 // same table but leaves the store only through LLMModelCredential — so this
-// embeds it rather than copying field by field. What is added is the operator's
-// actual question: whether any team can call this model.
+// embeds it rather than copying field by field.
+//
+// Nothing is added: every enabled model is callable by every user, so a row's
+// name and enabled state are the whole answer to "can this be used".
 type AdminModel struct {
 	model.LLMModel
-	// Aliases are the deployment aliases pointing at this model. A model with
-	// none is not reachable by any team however enabled it is, which is the
-	// most common reason an operator's model "does not work".
-	Aliases []string `json:"aliases"`
 }
 
 // AdminModelsResponse is the managed catalog.
 type AdminModelsResponse struct {
 	Models []AdminModel `json:"models"`
-	// DefaultAlias is the alias a managed caller gets when it names none.
-	DefaultAlias string `json:"default_alias,omitempty"`
+	// DefaultModel is the model name a caller gets when it names none. Empty
+	// means llm.default_model was not configured and the first enabled model
+	// serves as the default.
+	DefaultModel string `json:"default_model,omitempty"`
 }
 
 // listAdminModelsHandler serves GET /api/admin/llm/models.
@@ -44,18 +43,11 @@ func (h *Handler) listAdminModelsHandler(w http.ResponseWriter, r *http.Request)
 	}
 	out := make([]AdminModel, 0, len(models))
 	for _, m := range models {
-		row := AdminModel{LLMModel: m, Aliases: []string{}}
-		for alias, target := range h.cfg.Deployment.ModelAliases {
-			if target == m.ID {
-				row.Aliases = append(row.Aliases, alias)
-			}
-		}
-		sort.Strings(row.Aliases)
-		out = append(out, row)
+		out = append(out, AdminModel{LLMModel: m})
 	}
 	httputil.WriteJSON(w, http.StatusOK, AdminModelsResponse{
 		Models:       out,
-		DefaultAlias: h.cfg.Deployment.DefaultModelAlias,
+		DefaultModel: h.cfg.Deployment.DefaultModel,
 	})
 }
 
@@ -114,6 +106,6 @@ func (h *Handler) setAdminModelEnabledHandler(enabled bool) http.HandlerFunc {
 			httputil.WriteInternalError(w, err, "handler error", "handler", "admin_set_model_enabled", "reload")
 			return
 		}
-		httputil.WriteJSON(w, http.StatusOK, AdminModel{LLMModel: *updated, Aliases: []string{}})
+		httputil.WriteJSON(w, http.StatusOK, AdminModel{LLMModel: *updated})
 	}
 }

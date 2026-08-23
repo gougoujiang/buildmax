@@ -118,18 +118,21 @@ func (m ServerModelEntry) RuntimeModelEntry() ModelEntry {
 	}
 }
 
-// ServerLLMConfig is the deployment-wide team model policy for the managed LLM
-// gateway. The catalog itself lives in the llm_model table, edited with
-// `buildmax-server model`, because it changes while the server runs.
+// ServerLLMConfig is the deployment's managed-model configuration. The catalog
+// itself lives in the llm_model table, edited with `buildmax-server model`,
+// because it holds provider credentials and changes while the server runs.
 //
-// It is optional. A server with no llm section still serves Tier 1
-// conversations from conversation.model, and grants no team any managed model.
+// Every catalog model is available to every user of the deployment: a team is a
+// collaboration boundary, not a model authorization boundary. See
+// docs/design/client-modes.md section 5.
+//
+// It is optional. A server with no llm section serves Tier 1 conversations from
+// conversation.model and lets callers name any catalog model.
 type ServerLLMConfig struct {
-	// DefaultAlias is the alias used when a managed caller names none.
-	DefaultAlias string `mapstructure:"default_alias"`
-	// Aliases maps a stable alias such as "fast" to a target id in Targets.
-	// Leaving it empty means no team may call the gateway.
-	Aliases map[string]string `mapstructure:"aliases"`
+	// DefaultModel names the catalog model a caller gets when it names none.
+	// Empty falls back to the first model in the catalog, so a single-model
+	// deployment needs no configuration at all.
+	DefaultModel string `mapstructure:"default_model"`
 }
 
 // ServerDBConfig holds MySQL connection settings.
@@ -260,9 +263,9 @@ type ServerWorkerLLMConfig struct {
 	// Transport is TransportDirect or TransportBuildMax. Empty means direct,
 	// which is what every existing deployment gets.
 	Transport string `mapstructure:"transport"`
-	// Alias is the team model alias a managed run calls. Empty uses the team's
-	// default alias.
-	Alias string `mapstructure:"alias"`
+	// Model is the catalog model a managed run calls. Empty uses the
+	// deployment's llm.default_model.
+	Model string `mapstructure:"model"`
 	// ContextWindow and CallTimeout describe the alias to the run. The protocol
 	// does not report them per call, so they come from configuration or stay
 	// unset.

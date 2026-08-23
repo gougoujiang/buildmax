@@ -58,7 +58,7 @@ type LLMCall struct {
 	TaskID    *string `json:"task_id,omitempty"`
 
 	// Model — what the caller asked for and what it resolved to.
-	Alias         string `json:"alias,omitempty"`
+	Model         string `json:"model,omitempty"`
 	TargetID      string `json:"target_id"`
 	ProviderType  string `json:"provider_type"`
 	UpstreamModel string `json:"upstream_model"`

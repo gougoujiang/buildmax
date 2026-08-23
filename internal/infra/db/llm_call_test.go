@@ -29,7 +29,7 @@ func sampleLLMCall() *model.LLMCall {
 		UserID:        nil,
 		Surface:       model.LLMCallSurfaceCLI,
 		SessionID:     ptrString("session-1"),
-		Alias:         "fast",
+		Model:         "fast",
 		TargetID:      "mt_fast",
 		ProviderType:  "openai_compatible",
 		UpstreamModel: "vendor/fast-1",

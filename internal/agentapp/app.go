@@ -318,7 +318,7 @@ type ModelConfig struct {
 	// means direct.
 	Transport string
 	// ServerURL and TeamID are set on a managed entry. ProviderModel then holds
-	// the team alias rather than a provider's model identifier.
+	// the deployment's catalog name rather than a provider's model identifier.
 	ServerURL string
 	TeamID    string
 }
@@ -1208,7 +1208,7 @@ func (r *LLMClientCache) build(cfg ModelConfig) (cllm.LLMClient, error) {
 			TokenFunc:     func() (string, error) { return r.managedToken(serverURL) },
 			TeamID:        teamID,
 			TaskRunID:     r.managedTaskRunID,
-			Alias:         cfg.ProviderModel,
+			Model:         cfg.ProviderModel,
 			ContextWindow: cfg.ContextWindow,
 			Surface:       r.surface,
 			CallTimeout:   time.Duration(cfg.CallTimeout) * time.Second,

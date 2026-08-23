@@ -27,7 +27,7 @@ func (h *Handler) listLLMModelsHandler(w http.ResponseWriter, r *http.Request) {
 	if !llmhttp.RequireGateway(w, h.cfg.LLMGateway) {
 		return
 	}
-	models, err := h.cfg.LLMGateway.Models(r.Context(), teamID)
+	models, err := h.cfg.LLMGateway.Models(r.Context())
 	if err != nil {
 		llmhttp.WriteError(w, err, "llm_models", teamID)
 		return
@@ -39,7 +39,6 @@ func (h *Handler) listLLMModelsHandler(w http.ResponseWriter, r *http.Request) {
 			capabilities = append(capabilities, string(c))
 		}
 		out = append(out, llmwire.Model{
-			Alias:        m.Alias,
 			Name:         m.Name,
 			Capabilities: capabilities,
 			Default:      m.Default,
@@ -84,7 +83,7 @@ func (h *Handler) llmCompletionsHandler(w http.ResponseWriter, r *http.Request) 
 		TeamID:       teamID,
 		UserID:       &userID,
 		ClientCallID: req.CallID,
-		Alias:        req.Model,
+		Model:        req.Model,
 		Messages:     messages,
 		Tools:        llmhttp.CoreTools(req.Tools),
 		CallProfile:  profile,
@@ -107,7 +106,7 @@ func (h *Handler) llmCompletionsHandler(w http.ResponseWriter, r *http.Request) 
 
 	resp := llmwire.CompletionResponse{
 		LLMCallID:     result.LLMCallID,
-		Model:         result.Alias,
+		Model:         result.Model,
 		Content:       result.Content,
 		ToolCalls:     llmhttp.WireToolCalls(result.ToolCalls),
 		ProviderState: llmhttp.WireProviderState(result.ProviderState),

@@ -58,16 +58,9 @@ func llmTestService(t *testing.T, client cllm.LLMClient, quota llmgateway.QuotaC
 	if err != nil {
 		t.Fatalf("NewStaticCatalog: %v", err)
 	}
-	policies, err := llmgateway.NewStaticPolicySource(llmgateway.TeamPolicy{
-		DefaultAlias: "default",
-		Aliases:      map[string]string{"default": "mt_fast"},
-	}, catalog.IDs())
-	if err != nil {
-		t.Fatalf("NewStaticPolicySource: %v", err)
-	}
 	return &llmgateway.Service{
 		Router: &llmgateway.Router{
-			Resolver: &llmgateway.Resolver{Catalog: catalog, Policies: policies},
+			Resolver: &llmgateway.Resolver{Catalog: catalog, DefaultModel: "Fast"},
 			Factory: func(context.Context, llmgateway.Target) (cllm.LLMClient, error) {
 				return client, nil
 			},

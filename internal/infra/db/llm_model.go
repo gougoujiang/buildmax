@@ -176,6 +176,27 @@ func (s *Store) GetLLMModel(ctx context.Context, llmModelID string) (*model.LLMM
 	return toLLMModel(&row), nil
 }
 
+// GetLLMModelByName returns one model by name, or (nil, nil) when not found.
+//
+// The name column is uniquely indexed, so this is a single-row lookup rather
+// than a scan — which is what lets the call path address a model by the name an
+// operator gave it.
+func (s *Store) GetLLMModelByName(ctx context.Context, name string) (*model.LLMModel, error) {
+	if name == "" {
+		return nil, nil
+	}
+	var row llmModelRow
+	err := s.db.WithContext(ctx).Select(llmModelColumns).
+		Where("name = ?", name).First(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return toLLMModel(&row), nil
+}
+
 // ListLLMModels returns every model, enabled or not, oldest first.
 func (s *Store) ListLLMModels(ctx context.Context) ([]model.LLMModel, error) {
 	var rows []llmModelRow

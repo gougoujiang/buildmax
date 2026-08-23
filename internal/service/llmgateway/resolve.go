@@ -12,23 +12,18 @@ import (
 // model identifiers.
 var (
 	ErrCatalogNotConfigured  = errors.New("model catalog is not configured")
-	ErrPolicyNotConfigured   = errors.New("team model policy is not configured")
-	ErrTeamRequired          = errors.New("team is required")
-	ErrTeamNotAuthorized     = errors.New("team has no model policy")
-	ErrNoDefaultAlias        = errors.New("team model policy has no default alias")
-	ErrUnknownAlias          = errors.New("model alias is not available to this team")
-	ErrTargetNotFound        = errors.New("model target not found in catalog")
-	ErrTargetDisabled        = errors.New("model target is disabled")
-	ErrCapabilityUnsupported = errors.New("model target does not support a required capability")
+	ErrCatalogEmpty          = errors.New("model catalog has no usable model")
+	ErrTargetNotFound        = errors.New("model not found in catalog")
+	ErrTargetDisabled        = errors.New("model is disabled")
+	ErrCapabilityUnsupported = errors.New("model does not support a required capability")
 	ErrInvalidCatalog        = errors.New("invalid model catalog")
-	ErrInvalidPolicy         = errors.New("invalid team model policy")
 )
 
 // CapabilityError reports which required capabilities a target does not
 // declare. It satisfies errors.Is(err, ErrCapabilityUnsupported) so callers can
 // classify the failure without inspecting the detail.
 type CapabilityError struct {
-	Alias   string
+	Model   string
 	Missing []Capability
 }
 
@@ -37,95 +32,103 @@ func (e *CapabilityError) Error() string {
 	for _, capability := range e.Missing {
 		names = append(names, string(capability))
 	}
-	return fmt.Sprintf("model alias %q does not support: %s", e.Alias, strings.Join(names, ", "))
+	return fmt.Sprintf("model %q does not support: %s", e.Model, strings.Join(names, ", "))
 }
 
 // Is reports whether the error matches the ErrCapabilityUnsupported sentinel.
 func (e *CapabilityError) Is(target error) bool { return target == ErrCapabilityUnsupported }
 
-// ResolveRequest names the model a caller wants, in the only terms a managed
-// client may use.
+// ResolveRequest names the model a caller wants.
+//
+// Every catalog model is available to every user of the deployment, so a
+// request carries no team: authorization is being signed in. See
+// docs/design/client-modes.md section 5.
 type ResolveRequest struct {
-	// TeamID is derived from authentication, never from the request body.
-	TeamID string
-	// Alias is a stable team alias. Empty selects the team's default.
-	Alias string
+	// Name is the operator-facing model name. Empty selects the deployment
+	// default.
+	Name string
 	// Requires is the capability set the call needs.
 	Requires []Capability
 }
 
-// Resolution is a successful alias resolution.
+// Resolution is a successful model resolution.
 type Resolution struct {
-	// Alias is the alias actually used, with the default already applied.
-	Alias string
+	// Name is the model actually used, with the default already applied.
+	Name string
 	// Target is the operator-approved upstream to call.
 	Target Target
 }
 
-// AvailableModel is one alias a team may use. It deliberately omits the
+// AvailableModel is one model a client may call. It deliberately omits the
 // endpoint, credential reference, provider type, and upstream model identifier:
 // listing models must not disclose how the deployment reaches a provider.
 type AvailableModel struct {
-	Alias        string
 	Name         string
 	Capabilities []Capability
 	Default      bool
 }
 
-// Resolver maps (team, alias) to an operator-approved target.
+// Resolver maps a model name to an operator-approved target.
 type Resolver struct {
-	Catalog  Catalog
-	Policies PolicySource
+	Catalog Catalog
+	// DefaultModel is the name used when a request names none. Empty falls back
+	// to the first enabled model in the catalog, so a deployment with one model
+	// needs no configuration.
+	DefaultModel string
 }
 
-// Resolve returns the target for a request, applying the team default and
-// rejecting anything the team is not permitted to use.
+// Resolve returns the target for a request, applying the deployment default.
 func (r *Resolver) Resolve(ctx context.Context, req ResolveRequest) (Resolution, error) {
 	if r == nil || r.Catalog == nil {
 		return Resolution{}, ErrCatalogNotConfigured
 	}
-	if r.Policies == nil {
-		return Resolution{}, ErrPolicyNotConfigured
-	}
-	if req.TeamID == "" {
-		return Resolution{}, ErrTeamRequired
+
+	name := req.Name
+	if name == "" {
+		resolved, err := r.defaultName(ctx)
+		if err != nil {
+			return Resolution{}, err
+		}
+		name = resolved
 	}
 
-	policy, err := r.Policies.PolicyForTeam(ctx, req.TeamID)
+	target, err := r.Catalog.TargetByName(ctx, name)
 	if err != nil {
 		return Resolution{}, err
 	}
-	if policy.IsEmpty() {
-		return Resolution{}, ErrTeamNotAuthorized
-	}
-
-	alias := req.Alias
-	if alias == "" {
-		alias = policy.DefaultAlias
-	}
-	if alias == "" {
-		return Resolution{}, ErrNoDefaultAlias
-	}
-
-	targetID, ok := policy.TargetID(alias)
-	if !ok {
-		return Resolution{}, ErrUnknownAlias
-	}
-
-	target, err := r.targetByID(ctx, targetID, alias, req.Requires)
-	if err != nil {
+	if err := checkTarget(target, name, req.Requires); err != nil {
 		return Resolution{}, err
 	}
-	return Resolution{Alias: alias, Target: target}, nil
+	return Resolution{Name: name, Target: target}, nil
 }
 
-// ResolveTargetByID returns a catalog target the deployment itself selected,
-// without consulting team policy.
+// defaultName is the model a request that names none gets.
+//
+// A configured default that names nothing is not silently replaced: an operator
+// stated which model this deployment answers with, and quietly using a
+// different one would be worse than failing. Falling back to the first enabled
+// model applies only when nothing was configured.
+func (r *Resolver) defaultName(ctx context.Context) (string, error) {
+	if r.DefaultModel != "" {
+		return r.DefaultModel, nil
+	}
+	targets, err := r.Catalog.List(ctx)
+	if err != nil {
+		return "", err
+	}
+	for _, target := range targets {
+		if target.Enabled {
+			return target.Name, nil
+		}
+	}
+	return "", ErrCatalogEmpty
+}
+
+// ResolveTargetByID returns a catalog target the deployment itself selected.
 //
 // Server-owned inference — Tier 1 conversation and title generation — is
-// configured by an operator rather than granted to a team, so it names a
-// catalog entry directly. Aliases stay a team-facing concept: nothing a
-// managed client submits reaches this path.
+// configured by an operator rather than requested by a client, so it names a
+// catalog entry by ID. Nothing a client submits reaches this path.
 func (r *Resolver) ResolveTargetByID(ctx context.Context, targetID string, requires []Capability) (Target, error) {
 	if r == nil || r.Catalog == nil {
 		return Target{}, ErrCatalogNotConfigured
@@ -133,68 +136,66 @@ func (r *Resolver) ResolveTargetByID(ctx context.Context, targetID string, requi
 	if targetID == "" {
 		return Target{}, ErrTargetNotFound
 	}
-	return r.targetByID(ctx, targetID, targetID, requires)
-}
-
-// targetByID loads a target and applies the checks every caller needs. The
-// label names the target the way the caller asked for it, so an alias-based
-// failure talks about the alias and a deployment-owned one talks about the ID.
-func (r *Resolver) targetByID(ctx context.Context, targetID, label string, requires []Capability) (Target, error) {
 	target, err := r.Catalog.Target(ctx, targetID)
 	if err != nil {
 		return Target{}, err
 	}
-	if !target.Enabled {
-		return Target{}, ErrTargetDisabled
-	}
-	if missing := target.Capabilities.Missing(requires); len(missing) > 0 {
-		return Target{}, &CapabilityError{Alias: label, Missing: missing}
+	if err := checkTarget(target, targetID, requires); err != nil {
+		return Target{}, err
 	}
 	return target, nil
 }
 
-// Available lists the aliases a team may use, in a stable order.
+// checkTarget applies the checks every caller needs. The label names the target
+// the way the caller asked for it, so a client failure talks about the model
+// name and a deployment-owned one talks about the ID.
+func checkTarget(target Target, label string, requires []Capability) error {
+	if !target.Enabled {
+		return ErrTargetDisabled
+	}
+	if missing := target.Capabilities.Missing(requires); len(missing) > 0 {
+		return &CapabilityError{Model: label, Missing: missing}
+	}
+	return nil
+}
+
+// Available lists the models a client may call, in a stable order.
 //
-// An alias whose target is missing or disabled is skipped rather than
-// reported: a listing stays usable when part of the catalog is retired, while
-// Resolve still fails loudly for a caller that asks for that alias by name.
-func (r *Resolver) Available(ctx context.Context, teamID string) ([]AvailableModel, error) {
+// A disabled model is skipped rather than reported: a listing stays usable when
+// part of the catalog is retired, while Resolve still fails loudly for a caller
+// that asks for that model by name.
+func (r *Resolver) Available(ctx context.Context) ([]AvailableModel, error) {
 	if r == nil || r.Catalog == nil {
 		return nil, ErrCatalogNotConfigured
 	}
-	if r.Policies == nil {
-		return nil, ErrPolicyNotConfigured
-	}
-	if teamID == "" {
-		return nil, ErrTeamRequired
-	}
 
-	policy, err := r.Policies.PolicyForTeam(ctx, teamID)
+	targets, err := r.Catalog.List(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if policy.IsEmpty() {
-		return nil, ErrTeamNotAuthorized
+
+	// The default is resolved once against the same listing, so exactly one row
+	// is marked even when the configured default is disabled or missing — in
+	// which case none is, and the client falls back to the first entry itself.
+	defaultName := r.DefaultModel
+	if defaultName == "" {
+		for _, target := range targets {
+			if target.Enabled {
+				defaultName = target.Name
+				break
+			}
+		}
 	}
 
-	var models []AvailableModel
-	for _, alias := range policy.AliasNames() {
-		targetID := policy.Aliases[alias]
-		target, err := r.Catalog.Target(ctx, targetID)
-		if errors.Is(err, ErrTargetNotFound) {
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
+	models := make([]AvailableModel, 0, len(targets))
+	for _, target := range targets {
 		if !target.Enabled {
 			continue
 		}
 		models = append(models, AvailableModel{
-			Alias:        alias,
 			Name:         target.Name,
 			Capabilities: target.Capabilities.List(),
-			Default:      alias == policy.DefaultAlias,
+			Default:      target.Name == defaultName,
 		})
 	}
 	return models, nil

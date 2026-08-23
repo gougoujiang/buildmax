@@ -46,15 +46,15 @@ func resolveRunModel(sc config.ServerConfig, llm *workerclient.TaskRunLLM, serve
 		return config.ModelEntry{}, taskrun.ManagedInference{},
 			fmt.Errorf("this run uses managed inference but was given no %s", config.EnvKeyBuildmaxRunToken)
 	}
-	alias := llm.Alias
-	if alias == "" {
-		// The gateway resolves an empty alias to the team default. Naming it
-		// here would be this worker choosing a model.
-		slog.Info("using the team's default model alias")
+	modelName := llm.Model
+	if modelName == "" {
+		// The gateway resolves an empty name to the deployment default. Naming
+		// it here would be this worker choosing a model.
+		slog.Info("using the deployment's default model")
 	}
 	return config.ModelEntry{
-			Model:         alias,
-			Name:          managedModelDisplayName(alias),
+			Model:         modelName,
+			Name:          managedModelDisplayName(modelName),
 			Transport:     config.TransportBuildMax,
 			ServerURL:     serverURL,
 			ContextWindow: llm.ContextWindow,
@@ -66,14 +66,14 @@ func resolveRunModel(sc config.ServerConfig, llm *workerclient.TaskRunLLM, serve
 }
 
 // managedModelDisplayName is what the run's trace records as its model. The
-// alias is the only model identity a run has — the upstream model stays on the
-// server — so a trace that showed anything else would name something the run
-// never chose.
-func managedModelDisplayName(alias string) string {
-	if alias == "" {
-		return "team default"
+// catalog name is the only model identity a run has — the upstream model stays
+// on the server — so a trace that showed anything else would name something the
+// run never chose.
+func managedModelDisplayName(name string) string {
+	if name == "" {
+		return "deployment default"
 	}
-	return alias
+	return name
 }
 
 // RunWorker reads server.yaml for connection and storage config, fetches the task run

@@ -242,12 +242,12 @@ func TestGetWorkerTaskRunHandler_TellsTheRunHowToReachAModel(t *testing.T) {
 		got := get(t, Config{
 			JWTSecret: workerTestSecret,
 			TaskRuns:  store,
-			WorkerLLM: &workerclient.TaskRunLLM{Transport: "buildmax", Alias: "deep", ContextWindow: 128000},
+			WorkerLLM: &workerclient.TaskRunLLM{Transport: "buildmax", Model: "Deep", ContextWindow: 128000},
 		})
 		if got.LLM == nil {
 			t.Fatal("a managed deployment told the run nothing about models")
 		}
-		if got.LLM.Transport != "buildmax" || got.LLM.Alias != "deep" {
+		if got.LLM.Transport != "buildmax" || got.LLM.Model != "Deep" {
 			t.Errorf("llm = %+v", *got.LLM)
 		}
 	})

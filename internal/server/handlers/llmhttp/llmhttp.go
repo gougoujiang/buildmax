@@ -52,7 +52,7 @@ func (s *sseWriter) send(event string, payload any) error {
 }
 
 // Response headers are written on the first event, not up front. A call refused
-// before any output — an unknown alias, quota, a duplicate call ID — is still a
+// before any output — an unknown model, quota, a duplicate call ID — is still a
 // plain HTTP error with a status the client can act on; only a failure after
 // the stream has started becomes an error event.
 // Stream runs one managed call and frames it as server-sent events.
@@ -88,7 +88,7 @@ func Stream(w http.ResponseWriter, r *http.Request, gateway *llmgateway.Service,
 
 	final := llmwire.CompletionResponse{
 		LLMCallID:     result.LLMCallID,
-		Model:         result.Alias,
+		Model:         result.Model,
 		Content:       result.Content,
 		ToolCalls:     WireToolCalls(result.ToolCalls),
 		ProviderState: WireProviderState(result.ProviderState),
@@ -130,12 +130,10 @@ func WriteError(w http.ResponseWriter, err error, handlerName, teamID string) {
 }
 func statusFor(class string, err error) (int, string) {
 	switch class {
-	case llmgateway.ErrorClassTeamRequired, llmgateway.ErrorClassInvalidRequest:
+	case llmgateway.ErrorClassInvalidRequest:
 		return http.StatusBadRequest, err.Error()
-	case llmgateway.ErrorClassTeamNotAuthorized:
-		return http.StatusForbidden, "no model is available to this team"
-	case llmgateway.ErrorClassUnknownAlias, llmgateway.ErrorClassTargetNotFound:
-		return http.StatusBadRequest, "model is not available to this team"
+	case llmgateway.ErrorClassTargetNotFound:
+		return http.StatusBadRequest, "model is not in this deployment's catalog"
 	case llmgateway.ErrorClassTargetDisabled:
 		return http.StatusBadRequest, "model is disabled"
 	case llmgateway.ErrorClassCapability:

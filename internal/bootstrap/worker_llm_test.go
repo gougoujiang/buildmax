@@ -11,88 +11,10 @@ import (
 
 func managedServerConfig() config.ServerConfig {
 	return config.ServerConfig{
-		LLM: config.ServerLLMConfig{
-			DefaultAlias: "default",
-			Aliases:      map[string]string{"default": "lm_1", "deep": "lm_2"},
-		},
+		LLM: config.ServerLLMConfig{DefaultModel: "Fast"},
 		Worker: config.ServerWorkerConfig{
-			LLM: config.ServerWorkerLLMConfig{Transport: config.TransportBuildMax, Alias: "default"},
+			LLM: config.ServerWorkerLLMConfig{Transport: config.TransportBuildMax, Model: "Fast"},
 		},
-	}
-}
-
-// TestValidateWorkerLLMRejectsUnservableConfig is the difference between config
-// that parses and a deployment that works. Every case here loads cleanly today
-// and then fails at each run's first model call, where the cause reads as a
-// model outage rather than a configuration mistake.
-func TestValidateWorkerLLMRejectsUnservableConfig(t *testing.T) {
-	tests := []struct {
-		name    string
-		mutate  func(*config.ServerConfig)
-		wantErr string
-	}{
-		{
-			name:    "no aliases granted to anyone",
-			mutate:  func(sc *config.ServerConfig) { sc.LLM.Aliases = nil },
-			wantErr: "llm.aliases is empty",
-		},
-		{
-			name:    "the worker's alias is not one a team may call",
-			mutate:  func(sc *config.ServerConfig) { sc.Worker.LLM.Alias = "nonexistent" },
-			wantErr: "not one of llm.aliases",
-		},
-		{
-			name: "nothing says which alias a run should use",
-			mutate: func(sc *config.ServerConfig) {
-				sc.Worker.LLM.Alias = ""
-				sc.LLM.DefaultAlias = ""
-			},
-			wantErr: "does not say which",
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			sc := managedServerConfig()
-			tc.mutate(&sc)
-			err := validateWorkerLLM(sc)
-			if err == nil {
-				t.Fatal("the server started with a managed worker configuration it cannot serve")
-			}
-			if !strings.Contains(err.Error(), tc.wantErr) {
-				t.Errorf("error %q does not mention %q", err, tc.wantErr)
-			}
-		})
-	}
-}
-
-func TestValidateWorkerLLMAcceptsWorkableConfig(t *testing.T) {
-	tests := []struct {
-		name string
-		sc   config.ServerConfig
-	}{
-		{"a named alias", managedServerConfig()},
-		{"falling back to the default alias", func() config.ServerConfig {
-			sc := managedServerConfig()
-			sc.Worker.LLM.Alias = ""
-			return sc
-		}()},
-		{"one alias and no default named", func() config.ServerConfig {
-			sc := managedServerConfig()
-			sc.Worker.LLM.Alias = ""
-			sc.LLM.DefaultAlias = ""
-			sc.LLM.Aliases = map[string]string{"only": "lm_1"}
-			return sc
-		}()},
-		// Direct mode is not validated against the gateway at all: it never
-		// touches it.
-		{"direct mode with no gateway configured", config.ServerConfig{}},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			if err := validateWorkerLLM(tc.sc); err != nil {
-				t.Errorf("validateWorkerLLM: %v", err)
-			}
-		})
 	}
 }
 
@@ -122,17 +44,17 @@ func TestEveryRunGetsAToken(t *testing.T) {
 	}
 }
 
-// TestWorkerLLMDescriptorTellsARunTheAliasAndNothingElse is the boundary the
-// descriptor exists to hold: a worker learns which alias to name, never where
-// the model lives or what pays for it.
-func TestWorkerLLMDescriptorTellsARunTheAliasAndNothingElse(t *testing.T) {
+// TestWorkerLLMDescriptorTellsARunTheModelAndNothingElse is the boundary the
+// descriptor exists to hold: a worker learns which model to name, never where
+// it lives or what pays for it.
+func TestWorkerLLMDescriptorTellsARunTheModelAndNothingElse(t *testing.T) {
 	if got := workerLLMDescriptor(config.ServerWorkerLLMConfig{}); got != nil {
 		t.Errorf("direct mode produced a descriptor: %+v", got)
 	}
 
 	got := workerLLMDescriptor(config.ServerWorkerLLMConfig{
 		Transport:     config.TransportBuildMax,
-		Alias:         "deep",
+		Model:         "Deep",
 		ContextWindow: 128000,
 		CallTimeout:   300,
 	})
@@ -141,7 +63,7 @@ func TestWorkerLLMDescriptorTellsARunTheAliasAndNothingElse(t *testing.T) {
 	}
 	want := workerclient.TaskRunLLM{
 		Transport:     config.TransportBuildMax,
-		Alias:         "deep",
+		Model:         "Deep",
 		ContextWindow: 128000,
 		CallTimeout:   300,
 	}
@@ -151,11 +73,11 @@ func TestWorkerLLMDescriptorTellsARunTheAliasAndNothingElse(t *testing.T) {
 }
 
 // TestResolveRunModelManagedCarriesNoProviderCredential is the outcome the whole
-// change is for: a managed run holds an alias and a run token, and no upstream
-// key.
+// change is for: a managed run holds a model name and a run token, and no
+// upstream key.
 func TestResolveRunModelManagedCarriesNoProviderCredential(t *testing.T) {
 	sc := serverConfigWithDirectModel()
-	llm := &workerclient.TaskRunLLM{Transport: config.TransportBuildMax, Alias: "deep", ContextWindow: 128000}
+	llm := &workerclient.TaskRunLLM{Transport: config.TransportBuildMax, Model: "Deep", ContextWindow: 128000}
 
 	entry, managed, err := resolveRunModel(sc, llm, "https://buildmax.example.com", "run-token")
 	if err != nil {
@@ -167,8 +89,8 @@ func TestResolveRunModelManagedCarriesNoProviderCredential(t *testing.T) {
 	if entry.APIURL != "" {
 		t.Errorf("a managed run was given a provider endpoint: %q", entry.APIURL)
 	}
-	if !entry.IsManaged() || entry.Model != "deep" {
-		t.Errorf("entry = %+v, want a managed entry naming the alias", entry)
+	if !entry.IsManaged() || entry.Model != "Deep" {
+		t.Errorf("entry = %+v, want a managed entry naming the model", entry)
 	}
 	if !managed.Enabled() || managed.RunToken != "run-token" {
 		t.Errorf("managed = %+v", managed)
@@ -180,7 +102,7 @@ func TestResolveRunModelManagedCarriesNoProviderCredential(t *testing.T) {
 // must stop, not reach for whatever provider credential is around.
 func TestResolveRunModelManagedWithoutATokenFails(t *testing.T) {
 	sc := serverConfigWithDirectModel()
-	llm := &workerclient.TaskRunLLM{Transport: config.TransportBuildMax, Alias: "deep"}
+	llm := &workerclient.TaskRunLLM{Transport: config.TransportBuildMax, Model: "Deep"}
 
 	_, _, err := resolveRunModel(sc, llm, "https://buildmax.example.com", "")
 	if err == nil {

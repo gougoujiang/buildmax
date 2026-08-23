@@ -240,18 +240,18 @@ func printTeamModels(ctx context.Context, teamID string) error {
 		return nil
 	}
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "  ALIAS\tNAME\tCAPABILITIES\tDEFAULT")
+	fmt.Fprintln(w, "  NAME\tCAPABILITIES\tDEFAULT")
 	for _, m := range models {
 		def := ""
 		if m.Default {
 			def = "yes"
 		}
-		fmt.Fprintf(w, "  %s\t%s\t%s\t%s\n", m.Alias, m.Name, strings.Join(m.Capabilities, ","), def)
+		fmt.Fprintf(w, "  %s\t%s\t%s\n", m.Name, strings.Join(m.Capabilities, ","), def)
 	}
 	_ = w.Flush()
 
 	fmt.Fprintf(os.Stdout, "\nTo use one, add to settings.yaml:\n\n"+
-		"  - name: Team %s\n    model: %s\n    transport: %s\n    server_url: %s\n    team_id: %s\n",
-		models[0].Alias, models[0].Alias, config.TransportBuildMax, info.ServerURL, teamID)
+		"  - name: %s\n    model: %s\n    transport: %s\n    server_url: %s\n    team_id: %s\n",
+		models[0].Name, models[0].Name, config.TransportBuildMax, info.ServerURL, teamID)
 	return nil
 }

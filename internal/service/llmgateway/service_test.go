@@ -181,8 +181,8 @@ func TestCompleteRecordsASuccessfulCall(t *testing.T) {
 	if result.Content != "hi there" {
 		t.Errorf("Content = %q, want %q", result.Content, "hi there")
 	}
-	if result.Alias != "default" {
-		t.Errorf("Alias = %q, want the team default", result.Alias)
+	if result.Model != "Fast" {
+		t.Errorf("Model = %q, want the deployment default", result.Model)
 	}
 	if !result.UsageReported || result.Usage.TotalTokens != 14 {
 		t.Errorf("usage = %+v, reported=%v", result.Usage, result.UsageReported)
@@ -289,13 +289,13 @@ func TestCompleteChecksQuotaAfterResolution(t *testing.T) {
 	svc := serviceWith(t, &scriptedClient{content: "hi"}, ledger, quota)
 
 	req := userRequest()
-	req.Alias = "reasoning"
-	if _, err := svc.Complete(context.Background(), req); !errors.Is(err, llmgateway.ErrUnknownAlias) {
-		t.Fatalf("want ErrUnknownAlias, got %v", err)
+	req.Model = "Reasoning"
+	if _, err := svc.Complete(context.Background(), req); !errors.Is(err, llmgateway.ErrTargetNotFound) {
+		t.Fatalf("want ErrTargetNotFound, got %v", err)
 	}
-	// An unusable alias is rejected before the quota query runs.
+	// An unusable model is rejected before the quota query runs.
 	if quota.calls != 0 {
-		t.Errorf("quota consulted %d times for an unknown alias, want 0", quota.calls)
+		t.Errorf("quota consulted %d times for an unknown model, want 0", quota.calls)
 	}
 }
 
@@ -304,7 +304,7 @@ func TestCompleteRequiresToolCapability(t *testing.T) {
 	svc := serviceWith(t, &scriptedClient{content: "hi"}, ledger, nil)
 
 	req := userRequest()
-	req.Alias = "deep" // declares text_chat only
+	req.Model = "Deep" // declares text_chat only
 	req.Tools = []cllm.ToolDef{{Name: "read_file"}}
 
 	_, err := svc.Complete(context.Background(), req)
@@ -394,15 +394,12 @@ func TestCompletePassesMessagesAndToolsThrough(t *testing.T) {
 func TestModelsDelegatesToTheRouter(t *testing.T) {
 	svc := serviceWith(t, &scriptedClient{}, newFakeLedger(), nil)
 
-	models, err := svc.Models(context.Background(), "tm_one")
+	models, err := svc.Models(context.Background())
 	if err != nil {
 		t.Fatalf("Models: %v", err)
 	}
 	if len(models) != 2 {
 		t.Fatalf("Models returned %d, want 2", len(models))
-	}
-	if _, err := svc.Models(context.Background(), "tm_unknown"); !errors.Is(err, llmgateway.ErrTeamNotAuthorized) {
-		t.Errorf("want ErrTeamNotAuthorized, got %v", err)
 	}
 }
 
@@ -456,7 +453,7 @@ func TestStreamRequiresTheStreamingCapability(t *testing.T) {
 	svc := serviceWith(t, &scriptedClient{content: "hi"}, ledger, nil)
 
 	req := userRequest()
-	req.Alias = "deep" // declares text_chat only
+	req.Model = "Deep" // declares text_chat only
 
 	_, err := svc.Stream(context.Background(), req, nil)
 	if !errors.Is(err, llmgateway.ErrCapabilityUnsupported) {
@@ -513,7 +510,7 @@ func TestRetryableClass(t *testing.T) {
 	}
 	for _, class := range []string{
 		llmgateway.ErrorClassQuotaExceeded,
-		llmgateway.ErrorClassUnknownAlias,
+		llmgateway.ErrorClassTargetNotFound,
 		llmgateway.ErrorClassDuplicateCall,
 		llmgateway.ErrorClassCapability,
 		llmgateway.ErrorClassInternal,
@@ -530,13 +527,11 @@ func TestErrorClassFor(t *testing.T) {
 		want string
 	}{
 		{err: nil, want: ""},
-		{err: llmgateway.ErrTeamRequired, want: llmgateway.ErrorClassTeamRequired},
-		{err: llmgateway.ErrTeamNotAuthorized, want: llmgateway.ErrorClassTeamNotAuthorized},
-		{err: llmgateway.ErrUnknownAlias, want: llmgateway.ErrorClassUnknownAlias},
-		{err: llmgateway.ErrNoDefaultAlias, want: llmgateway.ErrorClassUnknownAlias},
+		{err: llmgateway.ErrTeamRequired, want: llmgateway.ErrorClassInvalidRequest},
+		{err: llmgateway.ErrCatalogEmpty, want: llmgateway.ErrorClassTargetNotFound},
 		{err: llmgateway.ErrTargetNotFound, want: llmgateway.ErrorClassTargetNotFound},
 		{err: llmgateway.ErrTargetDisabled, want: llmgateway.ErrorClassTargetDisabled},
-		{err: &llmgateway.CapabilityError{Alias: "deep"}, want: llmgateway.ErrorClassCapability},
+		{err: &llmgateway.CapabilityError{Model: "Deep"}, want: llmgateway.ErrorClassCapability},
 		{err: &llmgateway.QuotaError{Reason: "over"}, want: llmgateway.ErrorClassQuotaExceeded},
 		{err: llmgateway.ErrMessagesRequired, want: llmgateway.ErrorClassInvalidRequest},
 		{err: llmgateway.ErrCatalogNotConfigured, want: llmgateway.ErrorClassNotConfigured},
@@ -575,8 +570,8 @@ func TestCompleteSnapshotsTheTargetRates(t *testing.T) {
 	svc := &llmgateway.Service{
 		Router: &llmgateway.Router{
 			Resolver: &llmgateway.Resolver{
-				Catalog:  catalog,
-				Policies: teamPolicies{"tm_one": {DefaultAlias: "default", Aliases: map[string]string{"default": "mt_fast"}}},
+				Catalog:      catalog,
+				DefaultModel: "Fast",
 			},
 			Factory: func(context.Context, llmgateway.Target) (cllm.LLMClient, error) {
 				return &scriptedClient{content: "hi"}, nil
@@ -633,15 +628,11 @@ func TestCompleteScopesTheCacheBucketByTeam(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewStaticCatalog: %v", err)
 	}
-	// Two teams, one approved model, therefore one credential between them.
-	policy := llmgateway.TeamPolicy{DefaultAlias: "default", Aliases: map[string]string{"default": "mt_fast"}}
+	// Two teams, one catalog model, therefore one credential between them.
 	svc := &llmgateway.Service{
 		Router: &llmgateway.Router{
-			Resolver: &llmgateway.Resolver{
-				Catalog:  catalog,
-				Policies: teamPolicies{"tm_one": policy, "tm_two": policy},
-			},
-			Factory: func(context.Context, llmgateway.Target) (cllm.LLMClient, error) { return client, nil },
+			Resolver: &llmgateway.Resolver{Catalog: catalog, DefaultModel: "Fast"},
+			Factory:  func(context.Context, llmgateway.Target) (cllm.LLMClient, error) { return client, nil },
 		},
 		Ledger: newFakeLedger(),
 	}

@@ -29,9 +29,10 @@ type llmCallRow struct {
 	SessionID *string `gorm:"type:varchar(64)"`
 	TaskID    *uint64 `gorm:"column:task_id;index"`
 
-	// Alias and TargetID name a catalog entry whose namespace may be owned by
-	// configuration rather than by llm_model, so neither becomes a reference.
-	Alias         string `gorm:"type:varchar(64)"`
+	// Model and TargetID name a catalog entry that may have been renamed or
+	// retired since, so neither becomes a reference. Model is what the caller
+	// asked for; TargetID is what served it.
+	Model         string `gorm:"type:varchar(128)"`
 	TargetID      string `gorm:"type:varchar(64);not null"`
 	ProviderType  string `gorm:"type:varchar(32);not null"`
 	UpstreamModel string `gorm:"type:varchar(128);not null"`
@@ -100,7 +101,7 @@ func toLLMCall(row *llmCallReadRow) *model.LLMCall {
 		TeamID:            row.TeamPublicID,
 		Surface:           row.Row.Surface,
 		SessionID:         row.Row.SessionID,
-		Alias:             row.Row.Alias,
+		Model:             row.Row.Model,
 		TargetID:          row.Row.TargetID,
 		ProviderType:      row.Row.ProviderType,
 		UpstreamModel:     row.Row.UpstreamModel,
@@ -153,7 +154,7 @@ func llmCallValues(call *model.LLMCall) *llmCallRow {
 		ClientCallID:      call.ClientCallID,
 		Surface:           call.Surface,
 		SessionID:         call.SessionID,
-		Alias:             call.Alias,
+		Model:             call.Model,
 		TargetID:          call.TargetID,
 		ProviderType:      call.ProviderType,
 		UpstreamModel:     call.UpstreamModel,
