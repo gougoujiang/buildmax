@@ -39,9 +39,9 @@ Activation is split by what the content can do rather than by who wrote it:
   It starts processes and opens connections on infrastructure the operator
   owns, and the operator is the only party who can weigh that across teams.
 
-Activation is a team decision; an agent definition then narrows it. An agent
-inherits the team's inert content when it names none, and loads executable
-content only when it names it. See §5.3.
+Activation is a team decision about what may be used; an agent definition
+decides what is used. An agent loads exactly the plugins it names, and nothing
+reaches a run because a team activated it. See §5.3.
 
 Secret delivery is deliberately not in this design. An activation names the
 environment variables a release reads; supplying them is a separate record with
@@ -173,63 +173,80 @@ does and does not bound it.
 
 Absorbed from the retired *Plugin scope for background runs* proposal, which
 disputed the granularity this record originally assumed. **Decided: two levels.**
-A team's activation is the allow-list and the pin; an agent definition narrows
-it. Neither level alone was right. A team-wide list gives every agent one
-privilege level. An agent-only list has nowhere to check operator eligibility,
-no team-level answer to "what may our background runs use", and no answer at all
-for a run with no agent (§13).
-
-The two levels split by what an unwanted item costs, reusing the split §1 makes
-one level up:
+A team's activation says what its background runs *may* use; an agent definition
+says what a run *does* use. Neither level alone was right. A team-wide list gives
+every agent one privilege level. An agent-only list has nowhere to check operator
+eligibility and no team-level answer to "what may our background runs use" (§13).
 
 | Content | Team activation | Agent definition |
 |---|---|---|
-| Skills, subagents | Allow-list and pin | Narrows when it names any; inherits the team's set when it names none |
-| Hooks, MCP servers | Allow-list, pin, and operator eligibility | Named explicitly, or not loaded |
+| Skills, subagents | Allow-list and pin | Loaded only when the agent names it |
+| Hooks, MCP servers | Allow-list, pin, and operator eligibility | Loaded only when the agent names it |
 
-Inert content is inherited; executable content is opted into. The asymmetry is
-the whole point. A skill an agent did not need costs tokens in a tool listing
-and a chance the model invokes it. A hook fires on **every** tool call whether
-the agent asked for anything or not, so a documentation agent inheriting a
-deployment's `pre_tool_use` hook is not a nuisance — it is the least-privilege
-failure activation exists to prevent.
+**Nothing is inherited.** An earlier draft of this record made inert content
+inherit — an agent naming no plugin got every skill and subagent its team had
+activated — on the argument that an unwanted skill costs only tokens while an
+unwanted hook fires on every tool call. The asymmetry was rejected. An agent is
+where a run's behavior is declared, and a capability that arrives because
+somebody else edited a team setting is not declared anywhere a reader of the
+agent can see. Cheap is not the same as invisible.
+
+Two things follow, and both are improvements.
+
+**Activation is purely permissive.** Activating a release changes no existing
+agent's behavior; it changes what an agent may be edited to name. That makes
+activation a safe action with no blast radius to warn about, and it keeps the
+question "why did this run have X" answerable from the agent alone.
+
+**A run with no agent loads no plugin.** `Task.AgentID` is `*string`, so this is
+a live state rather than a hypothetical, and under a name-it-or-lose-it rule it
+has only one coherent answer: nothing declared a need. A workflow step that
+targets an agent uses that agent's selection; a step that targets none is the
+agentless case.
 
 **An agent names plugins, not releases.** The version and digest come from the
 team's activation; an agent's selection is a set of catalog identities. This is
-what stops the second level from re-creating the defect that disqualifies an
+what keeps the second level from re-creating the defect that disqualifies an
 agent-only list: moving a plugin to a new release stays one edit in one place,
 so reading the new capability report stays a real step rather than a dialog
-people click through.
+people click through. It is also why naming a plugin in N agents is an
+acceptable cost while pinning a version in N agents is not.
 
-**A run with no agent is defined, not a gap.** `Task.AgentID` is `*string`, so
-this is a live state rather than a hypothetical. Such a run gets the inherited
-half — everything inert its team activated — and none of the executable half,
-because nothing named it. A workflow step that targets an agent uses that
-agent's selection; a step that targets none is the agentless case.
-
-**The team's list is a ceiling.** An agent definition may narrow it and may not
-widen it. Operator eligibility (§5.1) is checked once, against the team's
+**The team's list is a ceiling.** An agent may name only what its team has
+activated. Operator eligibility (§5.1) is checked once, against the team's
 activation; an agent able to name a release its team has not activated would
 route around that check.
+
+**The activation set is the run's team's, not the agent's.** A worker already
+refuses an agent whose team is not the task's team — `a.TeamID == task.TeamID`
+in the worker run route, where the agent's instructions are resolved. Plugin
+selection follows that rule rather than inventing a second one: the pins resolve
+against `Task.TeamID`, and an agent that fails the team check takes the agentless
+path above.
 
 **A plugin an agent named but its team has not activated fails the run.** Not
 loaded-with-a-warning, and not skipped: §7 already refuses to start a run whose
 pinned package fails verification, because a background run's output is acted on
 by somebody who was not watching it. An agent that names a plugin has declared it
 needs one, and a run that quietly does less than its definition says is the same
-wrong failure. The operational consequence is intended and belongs in the error
-text: suspending an activation stops the agents that name it, visibly, rather
-than silently changing what they do.
+wrong failure. The check runs three times for one reason — the picker offers only
+activated plugins, the write refuses an unactivated name, and the run refuses
+again — because an agent revision is append-only, so a team suspending an
+activation after the agent was saved is drift that cannot be edited away. The
+operational consequence is intended and belongs in the error text: suspending an
+activation stops the agents that name it, visibly, rather than silently changing
+what they do.
 
-The cost of two levels is two places to look when a plugin is not where somebody
-expected. §10 pays that down by showing a team's activated set and which agents
-narrow it in one place, and §8 makes a single run's trace answer "why did this
-run not have X" from the same record that answers "why did it have Y".
+The cost of two levels is that activating a plugin does not make it usable until
+an agent names it. That is the price of the paragraph above, and §10 pays down
+its other half — two places to look when a plugin is not where somebody expected
+— by showing a team's activated set and which agents name each entry in one
+place.
 
 **Granularity stops here.** The plugin is the unit at both levels: neither an
 activation nor an agent selection names part of a release. A third,
-within-release level would have to be paid for by the same test, and for inert
-content the answer is tokens, which does not buy it (§15).
+within-release level would have to be paid for by the same test that bought the
+second one, and no case has been made for it (§15).
 
 ## 6. Secrets Are Not In This Design
 
@@ -252,28 +269,40 @@ subagents, and MCP servers that need no credential.
 ## 7. Materializing A Run
 
 ```text
-scheduler                        worker
-  │                                │
-  ├─ read the team's activations   │
-  ├─ narrow by the agent's selection (§5.3)
-  ├─ resolve each to (name, version, digest, object key)
-  ├─ dispatch with the pins ──────►│
-  │                                ├─ for each pin:
-  │                                │    GET the package with the run token
-  │                                │    verify the digest before extraction
-  │                                │    extract with the hardened reader
-  │                                │    inspect; refuse what would not load
-  │                                └─ place under <global>/plugins/<name>/
+server                                        worker
+  │                                             │
+  │                    claims the run ◄─────────┤  GET /worker/task-runs/{id}
+  ├─ read the run's team's activations          │
+  ├─ intersect with the agent's named set (§5.3)│
+  ├─ resolve each to (name, version, digest)    │
+  ├─ record the pins on the run ────────────────►
+  │                                             ├─ for each pin:
+  │                                             │    GET the package with the run token
+  │                                             │    verify the digest before extraction
+  │                                             │    extract with the hardened reader
+  │                                             │    inspect; refuse what would not load
+  │                                             └─ place under <global>/plugins/<name>/
 ```
 
-Pins are resolved **before dispatch** and travel with it. A worker that resolved
-its own activations could pick up a release published in the interval, which is
-exactly the "latest at start" §10 forbids.
+**The server resolves; the worker never does.** Resolution happens in the route
+where a worker claims its run — the same place, and the same moment, that the
+agent revision is resolved and recorded today. A worker that read its team's
+activations would be a run token reading team state, which §13 rejects; what it
+receives instead is a finished list.
 
-The narrowing happens with the resolution, for the same reason. The agent
-revision a run uses is fixed at dispatch, so editing an agent cannot change what
-an already-dispatched run loads. What the scheduler sends is a resolved set,
-not a team list plus a rule for reading it.
+An earlier draft resolved before dispatch instead, on the reasoning that a later
+resolution could pick up a release published in the interval. It cannot: an
+activation names an exact version and digest, so publishing a release changes
+nothing until somebody moves a pin. The pin, not the timing, is what forbids
+"latest at start". Resolving where the agent revision is already resolved avoids
+a second, contradictory answer to "when is a run's definition fixed", and it
+means suspending an activation still stops a run that was dispatched but has not
+yet started — which is the behaviour §5.3 promises.
+
+The resolved pins are recorded on the run, for the reason `TaskRun.AgentRevision`
+is recorded: afterwards, nothing else can say which versions this run actually
+had. The trace says so too (§8), but a trace is fail-open and lives in run-global
+storage; the run's own row is the queryable fact, and a retry reads it.
 
 The bytes come over a worker-scoped route authorized by the run token, serving
 only the packages that run's pins name. The browse and download routes stay
@@ -305,11 +334,10 @@ answers a question a local one does not:
 That is what turns "this run had a hook that posted somewhere" into "this team
 activated this release on this date, and that is the decision to revisit".
 
-The inventory also records, once per run, whether an agent's selection narrowed
-the team's set, naming the agent and the revision that was in force — or that
-the run had no agent and took the inherited inert half (§5.3). Without it, an
-inventory explains what a run had and cannot explain what it did not have, which
-is the question a two-level model creates.
+The inventory also records, once per run, the agent and the revision whose
+selection produced it — or that the run had no agent and therefore loaded no
+plugin (§5.3). Without it, an inventory explains what a run had and cannot
+explain what it did not have, which is the question a two-level model creates.
 
 None of it carries package content, configuration values, or secrets, in keeping
 with §10 of the Marketplace design.
@@ -363,12 +391,17 @@ same sanitized report an install shows locally. A release that is not eligible
 for unattended use says so, and says that an administrator decides that, rather
 than offering a button that would fail.
 
-Because narrowing lives on the agent (§5.3), that section also answers the
+Because selection lives on the agent (§5.3), that section also answers the
 question two levels create: for each activated release it says which of the
-team's agents name it, and an agent's own page says which of the team's
-activations it uses and which it leaves behind. Two levels are affordable when
-both are visible from one place; they are not when finding out means reading
-every agent definition.
+team's agents name it, and — because nothing is inherited — an activation no
+agent names is shown as activated and unused rather than silently in force. An
+agent's own page lists what it names and what its team activated that it does
+not. Two levels are affordable when both are visible from one place; they are
+not when finding out means reading every agent definition.
+
+An agent's plugin field offers exactly what its team has activated. It offers no
+version: the version is the team's (§5.3), and a selector that implied otherwise
+would put the same pin in as many places as there are agents.
 
 Portal continues not to claim anything about a local machine. A team activation
 is about that team's background runs; what somebody installed on their laptop is
@@ -388,12 +421,17 @@ already are.
 - `internal/service/plugin` — activation lifecycle and the eligibility flag,
   beside publication.
 - `internal/core/model` and `internal/service/agent` — the agent definition's
-  plugin selection, carried on `AgentRevision` so it versions with the rest of
-  the definition and an old revision still answers what that agent named.
+  plugin selection, one JSON array of catalog names on `AgentRevision` so it
+  versions with the rest of the definition and an old revision still answers
+  what that agent named.
+- `internal/core/model` and `internal/infra/db` — the resolved pins on
+  `TaskRun`, beside `AgentRevision` and written at the same moment (§7).
 - `internal/server/handlers/team` — team-scoped activation routes, under the
   authority §5 names.
 - `internal/server/handlers/admin` — unattended eligibility on a release.
-- `internal/server/handlers/worker` — the run-token-scoped package download.
+- `internal/server/handlers/worker` — resolving and recording the run's pins
+  where the agent revision is already resolved, returning them with the run, and
+  the run-token-scoped package download that serves only what those pins name.
 - `internal/agentapp/taskrun` — resolving pins into the run's plugins
   directory before the runtime is assembled.
 - `internal/core/plugin/archive` and `.../inspect` — reused unchanged.
@@ -407,12 +445,14 @@ than after.
 ### Phase D1 — Team Activation Of Instructions
 
 - the activation record, its store, and the team-scoped routes;
-- pins resolved before dispatch and materialized into the run;
+- pins resolved server-side when the worker claims its run, recorded on the
+  run, and materialized into it (§7);
 - skills and subagents only; a release contributing anything executable cannot
   be activated, and a pin cannot be moved onto one — a plugin whose next version
   adds a hook stops at the version before it;
-- the agent definition's plugin selection, which at this phase only narrows:
-  inert content inherits when an agent names nothing (§5.3);
+- the agent definition's plugin selection, checked at the picker, at the write,
+  and again at the run (§5.3); an agent that names nothing loads nothing, and so
+  does a run with no agent;
 - activation and provenance in the audit trail and the run trace;
 - Portal's team plugin section.
 
@@ -427,9 +467,9 @@ trace says so. A release contributing a hook is refused with the reason.
 - activation of releases contributing hooks and MCP servers;
 - moving a pin onto a release that newly contributes executable content is
   refused on the same terms as a first activation;
-- the executable half of §5.3: a hook or MCP server loads only for an agent that
-  names it, an agentless run gets none, and naming one the team has not
-  activated fails the run.
+- hooks and MCP servers materialized only for the agents that name them, which
+  is the same rule §5.3 applies to everything else — this phase widens what may
+  be named, not how naming works.
 
 Acceptance: a release contributing a hook cannot be activated until an
 administrator marks it eligible; an activated hook fires in a background run for
@@ -460,16 +500,20 @@ pin in a revision answers exactly what an agent had at any point — something a
 mutable team list cannot. Authority would not weaken either: editing an agent is
 `ActionManageAgents`, the same authority §5 gives activation.
 
-It is rejected on three grounded objections. A task can run with no agent
-(`Task.AgentID` is `*string`), and such a run would have no definition of what it
-gets. The pin would live in N places, so moving one release to a new version
-means editing every agent that names it, each supposedly preceded by reading the
-new capability report — the friction that erodes the review it exists to force.
-And there would be no team-level answer to "what may our background runs use",
-which is exactly where operator eligibility is checked.
+It is rejected on two grounded objections. The pin would live in N places, so
+moving one release to a new version means editing every agent that names it,
+each supposedly preceded by reading the new capability report — the friction
+that erodes the review it exists to force. And there would be no team-level
+answer to "what may our background runs use", which is exactly where operator
+eligibility is checked.
 
-What is rejected is an agent definition *instead of* a team list. Narrowing a
-team list from an agent definition is the other half of the decision and is
+A third objection this record used to make no longer holds and is withdrawn
+rather than quietly kept: that a run with no agent would have no definition of
+what it gets. Under §5.3 it has one — it loads nothing. That answer is available
+to an agent-only model too, so it is not an argument for the team level.
+
+What is rejected is an agent definition *instead of* a team list. Selecting from
+a team list in an agent definition is the other half of the decision and is
 adopted; see §5.3.
 
 ### Activation Without Operator Involvement
@@ -527,15 +571,21 @@ Implementation is not complete until tests prove:
 - the audit trail records activation, deactivation, pin changes, and
   eligibility, naming actor, team, plugin, version, and digest prefix, and no
   configuration value;
-- an agent that names no plugin loads every skill and subagent its team
-  activated, and no hook or MCP server;
+- an agent that names no plugin loads no plugin, whatever its team activated;
 - an agent that names a subset loads that subset and nothing else;
+- activating a release changes no already-defined agent's behavior until an
+  agent names it;
 - an agent naming a plugin its team has not activated fails the run, and the
   error names the plugin;
-- a run with no agent loads the inherited inert half and no executable content;
-- an agent edited after dispatch does not change what the dispatched run loads;
+- a run with no agent loads no plugin;
+- an agent whose team is not the run's team is treated as no agent, matching the
+  worker route's existing handling of its instructions;
+- an agent edited after its run resolved its pins does not change what that run
+  loads, and an agent edited between dispatch and that resolution does — the
+  same rule the agent revision already follows (§7);
 - a run's trace names the activation and who made it, and names the agent
-  revision that narrowed the team's set — or records that there was none;
+  revision whose selection produced the set — or records that there was no
+  agent;
 - Tier 1 conversations still load no plugins;
 - a team's declared environment variables that are unset are reported by the
   run rather than silently ignored.
@@ -546,8 +596,8 @@ Implementation is not complete until tests prove:
    and if so does that need a different word than "update" in Portal?
 2. ~~Should an activation be able to name a subset of a release's content — this
    skill but not that subagent — or is a plugin the unit a team accepts?~~
-   **Decided: the plugin is the unit**, at both levels §5.3 defines. Narrowing is
-   the agent definition's job and it names plugins. A third, within-release level
+   **Decided: the plugin is the unit**, at both levels §5.3 defines. Selecting
+   is the agent definition's job and it names plugins. A third, within-release level
    would have to be paid for by the same test that bought the second one, and
    for inert content the answer is tokens, which does not buy it.
 3. Does an eligible release need re-reading when the deployment changes the
@@ -557,6 +607,12 @@ Implementation is not complete until tests prove:
    activation record serve them, or is a conversation a different scope?
 5. What does a team see when a release it pinned is yanked — a warning it can
    dismiss, or a state that blocks the next dispatch until somebody looks?
+6. Should a team be able to mark an activation *mandatory*, so that every agent
+   loads it whether or not it names it? Deliberately not in this design: it is
+   the inheritance §5.3 rejected, reintroduced as an explicit team choice rather
+   than a default, and it is not worth its complexity until a deployment asks
+   for it. The question is recorded so that answering it later does not read as
+   reversing §5.3.
 
 ## Related Documents
 
