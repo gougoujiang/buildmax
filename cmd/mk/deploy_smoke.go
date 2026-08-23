@@ -226,47 +226,16 @@ func runDeploymentSmoke(ctx context.Context, target smokeTarget) error {
 		return fmt.Errorf("portal runtime config does not contain %q: %s", wantAPIBase, strings.TrimSpace(portalConfig))
 	}
 
-	if output, err := target.admin("user", "create", smokeEmail); err != nil && !strings.Contains(output, "already has an account") {
-		return fmt.Errorf("create smoke account: %w", err)
-	}
-	codeOutput, err := target.admin("user", "login-code", smokeEmail)
+	token, teamID, err := smokeSignIn(ctx, client, target, smokeEmail)
 	if err != nil {
-		return fmt.Errorf("issue smoke login code: %w", err)
-	}
-	code := loginCodePattern.FindString(codeOutput)
-	if code == "" {
-		return errors.New("login code command returned no bmxlogin_ code")
-	}
-
-	var login struct {
-		Token string `json:"token"`
-	}
-	if err := requestJSON(ctx, client, http.MethodPost, target.apiBase+"/api/login", "", map[string]string{
-		"email": smokeEmail, "otp": code, "platform": "deployment-smoke",
-	}, &login, http.StatusOK); err != nil {
 		return err
 	}
-	if login.Token == "" {
-		return errors.New("login response contained no token")
-	}
 
-	var teams []struct {
-		ID   string `json:"id"`
-		Name string `json:"name"`
-	}
-	if err := requestJSON(ctx, client, http.MethodGet, target.apiBase+"/api/teams", login.Token, nil, &teams, http.StatusOK); err != nil {
-		return err
-	}
-	if len(teams) == 0 || teams[0].ID == "" {
-		return errors.New("smoke account has no personal team")
-	}
-	teamID := teams[0].ID
-
-	if err := uploadSmokeFile(ctx, client, target.apiBase, teamID, login.Token); err != nil {
+	if err := uploadSmokeFile(ctx, client, target.apiBase, teamID, token); err != nil {
 		return err
 	}
 	fileURL := target.apiBase + "/api/teams/" + url.PathEscape(teamID) + "/files/deployment-smoke.txt"
-	content, err := requestText(ctx, client, http.MethodGet, fileURL, login.Token, nil, http.StatusOK)
+	content, err := requestText(ctx, client, http.MethodGet, fileURL, token, nil, http.StatusOK)
 	if err != nil {
 		return err
 	}
@@ -278,19 +247,19 @@ func runDeploymentSmoke(ctx context.Context, target smokeTarget) error {
 		ID string `json:"conversation_id"`
 	}
 	conversationsURL := target.apiBase + "/api/teams/" + url.PathEscape(teamID) + "/conversations"
-	if err := requestJSON(ctx, client, http.MethodPost, conversationsURL, login.Token, map[string]string{"channel": "portal"}, &conversation, http.StatusCreated); err != nil {
+	if err := requestJSON(ctx, client, http.MethodPost, conversationsURL, token, map[string]string{"channel": "portal"}, &conversation, http.StatusCreated); err != nil {
 		return err
 	}
 	var task struct {
 		ID string `json:"id"`
 	}
 	tasksURL := conversationsURL + "/" + url.PathEscape(conversation.ID) + "/tasks"
-	if err := requestJSON(ctx, client, http.MethodPost, tasksURL, login.Token, map[string]string{"input": "Reply with exactly deployment smoke ok."}, &task, http.StatusCreated); err != nil {
+	if err := requestJSON(ctx, client, http.MethodPost, tasksURL, token, map[string]string{"input": "Reply with exactly deployment smoke ok."}, &task, http.StatusCreated); err != nil {
 		return err
 	}
 
 	taskURL := target.apiBase + "/api/teams/" + url.PathEscape(teamID) + "/tasks/" + url.PathEscape(task.ID)
-	output, err := waitForTaskSuccess(ctx, client, taskURL, login.Token)
+	output, err := waitForTaskSuccess(ctx, client, taskURL, token)
 	if err != nil {
 		return err
 	}
@@ -301,14 +270,14 @@ func runDeploymentSmoke(ctx context.Context, target smokeTarget) error {
 	var artifacts []struct {
 		TaskRunID string `json:"task_run_id"`
 	}
-	if err := requestJSON(ctx, client, http.MethodGet, taskURL+"/artifacts", login.Token, nil, &artifacts, http.StatusOK); err != nil {
+	if err := requestJSON(ctx, client, http.MethodGet, taskURL+"/artifacts", token, nil, &artifacts, http.StatusOK); err != nil {
 		return err
 	}
 	if len(artifacts) == 0 || artifacts[0].TaskRunID == "" {
 		return errors.New("successful task has no artifact")
 	}
 	artifactURL := target.apiBase + "/api/teams/" + url.PathEscape(teamID) + "/task-runs/" + url.PathEscape(artifacts[0].TaskRunID) + "/artifacts/content"
-	artifact, err := requestText(ctx, client, http.MethodGet, artifactURL, login.Token, nil, http.StatusOK)
+	artifact, err := requestText(ctx, client, http.MethodGet, artifactURL, token, nil, http.StatusOK)
 	if err != nil {
 		return err
 	}
@@ -316,10 +285,10 @@ func runDeploymentSmoke(ctx context.Context, target smokeTarget) error {
 		return fmt.Errorf("artifact content = %q, want %q", strings.TrimSpace(artifact), smokeReply)
 	}
 
-	if err := assertManagedRun(ctx, client, target, teamID, artifacts[0].TaskRunID, login.Token); err != nil {
+	if err := assertManagedRun(ctx, client, target, teamID, artifacts[0].TaskRunID, token); err != nil {
 		return err
 	}
-	if err := assertRetryRunsAgain(ctx, client, target, teamID, task.ID, artifacts[0].TaskRunID, login.Token); err != nil {
+	if err := assertRetryRunsAgain(ctx, client, target, teamID, task.ID, artifacts[0].TaskRunID, token); err != nil {
 		return err
 	}
 	if err := assertTeamBoundaryHolds(ctx, client, target, teamID); err != nil {
@@ -441,24 +410,36 @@ func assertTeamBoundaryHolds(ctx context.Context, client *http.Client, target sm
 // smokeOutsider signs in an account that belongs to no team of the smoke
 // account's, returning its token and its own team id.
 func smokeOutsider(ctx context.Context, client *http.Client, target smokeTarget) (string, string, error) {
-	if output, err := target.admin("user", "create", smokeOutsiderEmail); err != nil && !strings.Contains(output, "already has an account") {
-		return "", "", fmt.Errorf("create the outsider account: %w", err)
+	return smokeSignIn(ctx, client, target, smokeOutsiderEmail)
+}
+
+// smokeSignIn creates the account if it is new, spends a login code, and
+// returns the token together with the personal team every account is given.
+//
+// The account is addressed by email throughout, so the failures name which one
+// could not sign in: a smoke run drives two, and they prove different things.
+func smokeSignIn(ctx context.Context, client *http.Client, target smokeTarget, email string) (string, string, error) {
+	if output, err := target.admin("user", "create", email); err != nil && !strings.Contains(output, "already has an account") {
+		return "", "", fmt.Errorf("create the account for %s: %w", email, err)
 	}
-	codeOutput, err := target.admin("user", "login-code", smokeOutsiderEmail)
+	codeOutput, err := target.admin("user", "login-code", email)
 	if err != nil {
-		return "", "", fmt.Errorf("issue the outsider login code: %w", err)
+		return "", "", fmt.Errorf("issue a login code for %s: %w", email, err)
 	}
 	code := loginCodePattern.FindString(codeOutput)
 	if code == "" {
-		return "", "", errors.New("the outsider login-code command returned no bmxlogin_ code")
+		return "", "", fmt.Errorf("the login-code command for %s returned no bmxlogin_ code", email)
 	}
 	var login struct {
 		Token string `json:"token"`
 	}
 	if err := requestJSON(ctx, client, http.MethodPost, target.apiBase+"/api/login", "", map[string]string{
-		"email": smokeOutsiderEmail, "otp": code, "platform": "deployment-smoke",
+		"email": email, "otp": code, "platform": "deployment-smoke",
 	}, &login, http.StatusOK); err != nil {
-		return "", "", fmt.Errorf("sign the outsider in: %w", err)
+		return "", "", fmt.Errorf("sign %s in: %w", email, err)
+	}
+	if login.Token == "" {
+		return "", "", fmt.Errorf("the login response for %s contained no token", email)
 	}
 	var teams []struct {
 		ID string `json:"id"`
@@ -467,7 +448,7 @@ func smokeOutsider(ctx context.Context, client *http.Client, target smokeTarget)
 		return "", "", err
 	}
 	if len(teams) == 0 || teams[0].ID == "" {
-		return "", "", errors.New("the outsider account has no personal team")
+		return "", "", fmt.Errorf("%s has no personal team", email)
 	}
 	return login.Token, teams[0].ID, nil
 }
