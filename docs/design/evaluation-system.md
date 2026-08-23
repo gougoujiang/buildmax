@@ -1,8 +1,8 @@
 # BuildMax Evaluation And Qualification System
 
 > **Audience:** contributors, operators, and product designers · **Status:**
-> planned — direction accepted and the vertical slice planned in [section 18](#18-vertical-slice-implementation-plan);
-> contract and slice not implemented
+> partly implemented — the [section 18](#18-vertical-slice-implementation-plan) vertical slice has
+> shipped for the CLI surface; phase 2 onward is planned
 >
 > **Accepted:** 2026-08-22 · **Roadmap:** P0.6
 
@@ -795,15 +795,26 @@ adapter answering its own model would report on the mock rather than on the subj
 |---|---|---|
 | 1. Contract — **done** | `evaluation/contract`: versioned task, subject manifest, trial bundle, grader result, and experiment types with the failure taxonomy, in Go against the standard library alone per section 15.3; the trace audit above recorded in the repository | The physical trial-bundle encoding, settled on a directory in section 15.4; section 20 items 2 and 3 |
 | 2. CLI adapter — **done** | `trace_id`/`trace_path` in the print envelope; subject-built trial home; the hidden-grader boundary; deterministic state and trace graders; one canonical trial bundle per attempt | The contract holds for a real execution path: `evaluation/adapter` runs the built binary against a scripted model and returns a gradable bundle |
-| 3. Experiment | Repetition, paired baseline comparison, uncertainty, failure classification, and a local report; the mockllm pull-request gate | Whether section 15.3's Go controller holds once experiment control is written; the report renderer |
-| 4. Retirement | Delete `eval/`, `internal/agenteval`, and `cmd/buildmax-eval`; rewrite `./make eval`; update `docs/contribute/repo-layout.md`, `docs/contribute/testing.md`, `docs/design/end-to-end-testing.md`, and `docs/design/llm-gateway.md` where they cite the old harness | The last roadmap acceptance criterion |
+| 3. Experiment — **done** | Repetition, paired baseline comparison, uncertainty, failure classification, preflight, and a local report; the mockllm pull-request gate | Section 15.3's Go controller holds: repetition, limits, cancellation, and the statistics came to roughly 700 lines with no new dependency. The report renderer is written rather than imported |
+| 4. Retirement — **done** | `eval/` and `internal/agenteval` deleted; `cmd/buildmax-eval` rewritten around the contract rather than removed, since the entry point is still where a run starts; `./make eval` builds the CLI and measures it | The last roadmap acceptance criterion |
 
-Two things the slice found are worth carrying forward. Killing a subject at its budget does not
+Four things the slice found are worth carrying forward. Killing a subject at its budget does not
 end the call: the process dies but its output pipes stay open through any grandchild it started,
 so an unbounded wait turns the one status designed to bound a run into the thing that never
 returns. And the durable trace does not distinguish a hook denial from a policy denial, so a
 trust grader asserting on one has to read the reason string; section 18.2 lists that gap, and the
 first real trust suite is where it stops being tolerable.
+
+A grader command and an oracle both resolve against the task directory and both run with the
+workspace as their working directory, so a relative suite path resolved against the workspace —
+the one place a grader must never be satisfied from. Any future adapter that runs task-supplied
+material inherits this.
+
+And section 8.1's rule that a task's initial state must not already satisfy its required outcome
+does not hold for a negative task, whose outcome is that nothing happened. Tasks declare
+`negative` rather than being exempted case by case, and a negative task must carry a required
+trace or model grader: without one it asserts only that nothing happened, and a subject that
+never ran would satisfy it. This is a contract addition the slice earned, not one it assumed.
 
 The Inspect and Harbor spikes follow step 3. Section 14.1 already places framework selection
 downstream of the slice, and a spike run before a canonical bundle exists would compare
