@@ -95,6 +95,104 @@ func TestEntityRelationshipsAreNumeric(t *testing.T) {
 	}
 }
 
+// TestNoDatabaseForeignKeys fails when a row struct declares a GORM relation.
+//
+// docs/design/entity-identity.md §8 decided this rather than deferring it
+// again: no hard delete in the store removes a referenced parent, so RESTRICT
+// would guard a hazard that does not exist and charge every fixture a teardown
+// in dependency order for it. The constraints arrive with the first real
+// deletion feature, where that order has to be written down anyway.
+//
+// Numeric references are what make the rule worth a test. A bigint column
+// beside a row struct is one tag away from a constraint AutoMigrate will
+// happily emit, and nothing else in the tree would notice it had appeared.
+func TestNoDatabaseForeignKeys(t *testing.T) {
+	root := moduleRoot(t)
+	var paths []string
+	for _, path := range goFiles(t, filepath.Join(root, "internal/infra/db")) {
+		if !strings.HasSuffix(path, "_test.go") {
+			paths = append(paths, path)
+		}
+	}
+	files := make([]*ast.File, 0, len(paths))
+	rowStructs := map[string]bool{}
+	for _, path := range paths {
+		file := parseFile(t, path)
+		files = append(files, file)
+		for name := range tableNames(file) {
+			rowStructs[name] = true
+		}
+	}
+	if len(rowStructs) == 0 {
+		t.Fatal("found no row structs; the parser stopped matching TableName methods")
+	}
+
+	// The tag keys that declare an association, and so the ones AutoMigrate
+	// reads before emitting a FOREIGN KEY.
+	relationTags := map[string]bool{
+		"foreignkey":  true,
+		"references":  true,
+		"many2many":   true,
+		"constraint":  true,
+		"polymorphic": true,
+	}
+
+	for i, file := range files {
+		path := rel(root, paths[i])
+		tables := tableNames(file)
+		ast.Inspect(file, func(n ast.Node) bool {
+			spec, ok := n.(*ast.TypeSpec)
+			if !ok {
+				return true
+			}
+			st, ok := spec.Type.(*ast.StructType)
+			if !ok || tables[spec.Name.Name] == "" {
+				return true
+			}
+			for _, field := range st.Fields.List {
+				name := spec.Name.Name
+				if len(field.Names) > 0 {
+					name += "." + field.Names[0].Name
+				}
+				if field.Tag != nil {
+					raw, err := strconv.Unquote(field.Tag.Value)
+					if err != nil {
+						t.Fatalf("unquote tag in %s: %v", path, err)
+					}
+					for _, part := range strings.Split(reflect.StructTag(raw).Get("gorm"), ";") {
+						key, _, _ := strings.Cut(strings.ToLower(strings.TrimSpace(part)), ":")
+						if relationTags[key] {
+							t.Errorf("%s: %s declares gorm %q; a reference is a plain "+
+								"indexed column and AutoMigrate must emit no FOREIGN KEY",
+								path, name, key)
+						}
+					}
+				}
+				if base := baseTypeName(exprString(field.Type)); rowStructs[base] {
+					t.Errorf("%s: %s is typed %s, another row struct; GORM infers an "+
+						"association from that and AutoMigrate emits its FOREIGN KEY",
+						path, name, base)
+				}
+			}
+			return true
+		})
+	}
+}
+
+// baseTypeName strips pointers and slices from a type expression.
+func baseTypeName(s string) string {
+	for {
+		switch {
+		case strings.HasPrefix(s, "*"):
+			s = s[1:]
+		case strings.HasPrefix(s, "[]"):
+			s = s[2:]
+		default:
+			return s
+		}
+	}
+}
+
 // TestPublicIDsAreCanonicalText fails when a handle is stored as anything but
 // char(20) ascii_bin.
 //

@@ -373,6 +373,9 @@ in the same change, where the order is being written down anyway. Adding them
 first would only mean writing the order twice.
 
 Numeric references must not be read as implying `CASCADE` in the meantime.
+`TestNoDatabaseForeignKeys` in `internal/architecture` keeps that true: a
+bigint column beside a row struct is one relation tag away from a constraint
+`AutoMigrate` would emit, and nothing else in the tree would notice.
 
 ## 9. The Store Boundary
 
