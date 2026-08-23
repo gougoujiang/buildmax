@@ -47,6 +47,7 @@ reference, then delete the plan.
 | [Parallel tool execution](parallel-tool-execution.md) | unscheduled | Implemented for read-only tools; `Task` and argument-aware `Bash` open (§6) |
 | [Local end-to-end verification](end-to-end-testing.md) | unscheduled | Harness, CLI, Desktop bridge, CI policy, named suites, and the runbook done; some Portal paths and the packaged-app smoke open |
 | [Unified artifacts](unified-artifacts.md) | P2 follow-on | Phase 1 implemented: durable team artifacts with stable `ar_` references, upload/preview/download, and tombstoned deletion; the agent tool, worker producers, and external sharing open |
+| [Portal execution model](portal-execution-model.md) | P2 follow-on | Outcome projection, durable result delivery, and run provenance shipped; the Tier 2 catalog is evidence-gated and removing Conversation ownership is deferred |
 
 ## Subsystem Specifications
 

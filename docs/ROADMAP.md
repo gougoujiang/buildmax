@@ -99,6 +99,9 @@ turn starting are all recoverable rather than silent. A report is given up on
 after a bounded number of attempts, with the reason recorded; the result is not
 given up with it, because the card reads it from `task_run`.
 
+What was deliberately not done, and why, is in the [Portal execution
+design](design/portal-execution-model.md).
+
 ### P0.5. Agent Core Trust Harness
 
 After Portal outcomes are visible, return to the shared Agent Core and close the
