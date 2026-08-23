@@ -16,32 +16,39 @@ import (
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/infra/llm"
 	"github.com/gougoujiang/buildmax/internal/interface/auth"
-	"github.com/gougoujiang/buildmax/internal/interface/client"
 )
 
 func newModelsCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "models",
-		Short: "List configured models, the local models a daemon holds, and the models a server offers",
-		Long: "Lists the models in settings.yaml and where each one sends prompts.\n\n" +
-			"With --server, also lists the models the deployment you are signed in to\n" +
-			"offers, which are the names a transport: buildmax entry puts in `model`.\n\n" +
+		Short: "List the models this machine can run, and where each one sends prompts",
+		Long: "Lists the models available to you and where each one sends prompts.\n\n" +
+			"Which models those are follows from whether you are signed in: with a\n" +
+			"login they are the ones that deployment offers, without one they are the\n" +
+			"ones in settings.yaml. `buildmax login` and `buildmax logout` switch.\n\n" +
 			"With --local, also lists what a local Ollama daemon has pulled, including\n" +
 			"whether each model can call tools, and prints an entry ready to paste.",
 		RunE: runModels,
 	}
-	cmd.Flags().Bool("server", false, "list the models the signed-in deployment offers")
 	cmd.Flags().Bool("local", false, "list the models a local Ollama daemon holds")
 	cmd.Flags().String("ollama-url", config.DefaultOllamaBaseURL, "where the local daemon listens, for --local")
 	return cmd
 }
 
 func runModels(cmd *cobra.Command, _ []string) error {
-	settings, err := config.LoadSettings()
+	source, err := resolveModelSource(cmd.Context())
 	if err != nil {
-		return fmt.Errorf("load settings: %w", err)
+		return err
 	}
-	printConfiguredModels(settings)
+	if source.Managed() {
+		printManagedModels(source)
+	} else {
+		settings, err := config.LoadSettings()
+		if err != nil {
+			return fmt.Errorf("load settings: %w", err)
+		}
+		printLocalModels(settings)
+	}
 
 	if local, _ := cmd.Flags().GetBool("local"); local {
 		baseURL, _ := cmd.Flags().GetString("ollama-url")
@@ -49,48 +56,58 @@ func runModels(cmd *cobra.Command, _ []string) error {
 			return err
 		}
 	}
-
-	if server, _ := cmd.Flags().GetBool("server"); server {
-		return printServerModels(cmd.Context())
-	}
 	return nil
 }
 
-func printConfiguredModels(settings config.Settings) {
+// printManagedModels lists what the signed-in deployment offers. Prompts go
+// there, so the destination is stated once for the whole list rather than
+// repeated on every row: in managed mode there is only one.
+func printManagedModels(source auth.ModelSource) {
+	fmt.Fprintf(os.Stdout, "Signed in to %s. Prompts, tool schemas, and tool results go there.\n",
+		source.ServerURL)
+	fmt.Fprintln(os.Stdout, "\nModels this deployment offers:")
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(w, "  NAME\tCONTEXT\tDEFAULT")
+	for _, entry := range source.Entries {
+		def := ""
+		if entry.Name == source.Default {
+			def = "yes"
+		}
+		window := "server default"
+		if entry.ContextWindow > 0 {
+			window = strconv.Itoa(entry.ContextWindow)
+		}
+		fmt.Fprintf(w, "  %s\t%s\t%s\n", entry.Name, window, def)
+	}
+	_ = w.Flush()
+	fmt.Fprintln(os.Stdout, "\nRun `buildmax logout` to use the models in settings.yaml instead.")
+}
+
+// printLocalModels lists settings.yaml, which is what a session with no login
+// runs against. Every one of them is called from this machine.
+func printLocalModels(settings config.Settings) {
 	if len(settings.Models) == 0 {
 		fmt.Fprintln(os.Stdout, "No models configured. Run `buildmax init` to write a starter settings.yaml.")
 		return
 	}
-	fmt.Fprintln(os.Stdout, "Models in settings.yaml:")
+	fmt.Fprintln(os.Stdout, "Not signed in. Prompts go straight from this machine to each provider.")
+	fmt.Fprintln(os.Stdout, "\nModels in settings.yaml:")
+	defaultName := agentapp.DefaultModelName(settings)
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "  NAME\tMODEL\tTRANSPORT\tDESTINATION")
+	fmt.Fprintln(w, "  NAME\tMODEL\tDESTINATION\tDEFAULT")
 	for _, entry := range settings.Models {
 		cfg := agentapp.ModelConfigFromEntry(entry)
-		fmt.Fprintf(w, "  %s\t%s\t%s\t%s\n",
-			cfg.Name, cfg.ProviderModel, modelTransportLabel(cfg), modelDestination(cfg))
+		def := ""
+		if cfg.Name == defaultName {
+			def = "yes"
+		}
+		fmt.Fprintf(w, "  %s\t%s\t%s\t%s\n", cfg.Name, cfg.ProviderModel, modelDestination(cfg), def)
 	}
 	_ = w.Flush()
 }
 
-// modelTransportLabel names the connection mode. It is always shown, including
-// for direct entries, so "where does this send my prompts" never depends on a
-// field being absent.
-func modelTransportLabel(cfg agentapp.ModelConfig) string {
-	if cfg.IsManaged() {
-		return config.TransportBuildMax
-	}
-	return config.TransportDirect
-}
-
-// modelDestination is where prompts actually go.
+// modelDestination is where prompts actually go for a local entry.
 func modelDestination(cfg agentapp.ModelConfig) string {
-	if cfg.IsManaged() {
-		server := cfg.ServerURL
-		if server == "" {
-			server = "(no server_url)"
-		}
-		return server
-	}
 	if cfg.BaseURL == "" {
 		if cfg.Provider == config.LLMProviderOllama {
 			return config.DefaultOllamaBaseURL
@@ -109,8 +126,8 @@ const ollamaListTimeout = 10 * time.Second
 //
 // Capabilities are the column that matters: a model without tool calling
 // cannot run the agent loop, and that is invisible in the model name. The
-// paste-ready entry at the end mirrors what --team prints, so configuring a
-// local model is the same gesture as configuring a team one.
+// paste-ready entry at the end goes in settings.yaml, which is what local mode
+// runs against.
 func printOllamaModels(ctx context.Context, out io.Writer, baseURL string) error {
 	ctx, cancel := context.WithTimeout(ctx, ollamaListTimeout)
 	defer cancel()
@@ -209,47 +226,4 @@ func humanSize(bytes int64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "kMGT"[exp])
-}
-
-// printServerModels lists what the deployment this machine is signed in to
-// offers. Every model in its catalog is available to every user, so there is
-// nothing to scope the listing by beyond the login itself.
-func printServerModels(ctx context.Context) error {
-	info, err := auth.Info()
-	if err != nil {
-		return fmt.Errorf("load auth: %w", err)
-	}
-	if !info.LoggedIn {
-		return fmt.Errorf("not logged in: run `buildmax login`")
-	}
-	token, err := auth.TokenForServer(info.ServerURL)
-	if err != nil {
-		return err
-	}
-
-	models, err := client.NewClient(info.ServerURL).ListServerModels(ctx, token)
-	if err != nil {
-		return fmt.Errorf("list server models: %w", err)
-	}
-
-	fmt.Fprintf(os.Stdout, "\nManaged models on %s:\n", info.ServerURL)
-	if len(models) == 0 {
-		fmt.Fprintln(os.Stdout, "  none — this deployment's catalog is empty")
-		return nil
-	}
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "  NAME\tCAPABILITIES\tDEFAULT")
-	for _, m := range models {
-		def := ""
-		if m.Default {
-			def = "yes"
-		}
-		fmt.Fprintf(w, "  %s\t%s\t%s\n", m.Name, strings.Join(m.Capabilities, ","), def)
-	}
-	_ = w.Flush()
-
-	fmt.Fprintf(os.Stdout, "\nTo use one, add to settings.yaml:\n\n"+
-		"  - name: %s\n    model: %s\n    transport: %s\n    server_url: %s\n",
-		models[0].Name, models[0].Name, config.TransportBuildMax, info.ServerURL)
-	return nil
 }

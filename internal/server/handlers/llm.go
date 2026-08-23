@@ -39,9 +39,11 @@ func (h *Handler) listLLMModelsHandler(w http.ResponseWriter, r *http.Request) {
 			capabilities = append(capabilities, string(c))
 		}
 		out = append(out, llmwire.Model{
-			Name:         m.Name,
-			Capabilities: capabilities,
-			Default:      m.Default,
+			Name:          m.Name,
+			ContextWindow: m.ContextWindow,
+			Vision:        m.Vision,
+			Capabilities:  capabilities,
+			Default:       m.Default,
 		})
 	}
 	httputil.WriteJSON(w, http.StatusOK, llmwire.ModelsResponse{Models: out})

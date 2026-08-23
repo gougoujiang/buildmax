@@ -51,14 +51,14 @@ func openSlashModel(m *Model, note string, selector string) (tea.Model, tea.Cmd)
 	return m.openPanel(st)
 }
 
-// managedModelLabel names the deployment a managed entry calls, so the panel
-// distinguishes two same-named models by where the prompt goes.
-func managedModelLabel(entry agentapp.ModelConfig) string {
-	server := entry.ServerURL
-	if server == "" {
-		server = "no server_url"
+// modeLabel says where this session's prompts go. It is shown whichever mode is
+// in effect, so the answer never depends on a label being absent.
+func modeLabel(serverURL string) string {
+	if serverURL == "" {
+		return "local, straight to each provider"
 	}
-	return strings.TrimPrefix(strings.TrimPrefix(server, "https://"), "http://")
+	host := strings.TrimPrefix(strings.TrimPrefix(serverURL, "https://"), "http://")
+	return "all prompts go to " + host
 }
 
 func selectedModelIndex(entries []agentapp.ModelConfig, current string, selector string) int {
@@ -183,7 +183,14 @@ func clampModelOffset(st *slashModelState, rows int) {
 
 func (p *slashModelState) Render(m *Model, maxLineWidth int) string {
 	var b strings.Builder
-	b.WriteString(slashPanelTitleStyle.Render("Models"))
+	// The mode rides on the title rather than taking a line of its own: in
+	// either mode every model in the list sends prompts to the same place, and
+	// the panel has to fit a short terminal.
+	title := "Models"
+	if m != nil && m.opts.App != nil {
+		title += " — " + modeLabel(m.opts.App.ManagedServerURL())
+	}
+	b.WriteString(slashPanelTitleStyle.Render(truncateRunes(title, maxLineWidth)))
 	b.WriteString("\n\n")
 	if p.Current != "" {
 		b.WriteString("Current: ")
@@ -222,11 +229,6 @@ func (p *slashModelState) Render(m *Model, maxLineWidth int) string {
 		line := prefix + currentMark + entry.Name
 		if entry.ProviderModel != "" && entry.ProviderModel != entry.Name {
 			line += " -> " + entry.ProviderModel
-		}
-		// Two entries can share a display name while sending prompts to
-		// completely different places, so a managed one always says where.
-		if entry.IsManaged() {
-			line += " [" + managedModelLabel(entry) + "]"
 		}
 		b.WriteString(truncateRunes(line, maxLineWidth))
 		b.WriteByte('\n')

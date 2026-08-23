@@ -52,11 +52,11 @@ func resolveRunModel(sc config.ServerConfig, llm *workerclient.TaskRunLLM, serve
 		// it here would be this worker choosing a model.
 		slog.Info("using the deployment's default model")
 	}
+	// The entry says which model, and ManagedInference says where: a run's
+	// transport is a property of the run, not of the entry.
 	return config.ModelEntry{
 			Model:         modelName,
 			Name:          managedModelDisplayName(modelName),
-			Transport:     config.TransportBuildMax,
-			ServerURL:     serverURL,
 			ContextWindow: llm.ContextWindow,
 			CallTimeout:   llm.CallTimeout,
 		}, taskrun.ManagedInference{

@@ -913,47 +913,34 @@ func TestUnknownToolEndDoesNotDropAnotherCall(t *testing.T) {
 	}
 }
 
-// The footer says where prompts go, because a session can hold both kinds of
-// entry and switch between them with /model.
-func TestModelTransportTag(t *testing.T) {
-	entries := []agentapp.ModelConfig{
-		{Name: "local", ProviderModel: "qwen3:8b"},
-		{Name: "team", ProviderModel: "Fast", Transport: config.TransportBuildMax, ServerURL: "http://localhost:5678"},
-		{Name: "broken", Transport: config.TransportBuildMax},
-	}
+// The footer says where prompts go. It is the session's mode rather than the
+// model's, so it does not move when /model switches models.
+func TestModeTag(t *testing.T) {
 	cases := []struct {
-		name  string
-		model string
-		want  string
+		name      string
+		serverURL string
+		want      string
 	}{
-		{"direct entry", "local", "direct"},
-		{"managed entry names its deployment", "team", "buildmax localhost:5678"},
-		// The provider model, not the display name: that is what a session
-		// records when someone passes -m.
-		{"matched by provider model", "qwen3:8b", "direct"},
-		{"managed entry with no server", "broken", "buildmax, no server_url"},
-		// No entry claims it, so nothing is claimed about it either.
-		{"unknown model", "gpt-5", ""},
-		{"no model", "", ""},
+		{"local mode", "", "local"},
+		{"managed names its deployment", "http://localhost:5678", "localhost:5678"},
+		{"https is stripped too", "https://buildmax.example.com", "buildmax.example.com"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := modelTransportTag(entries, tc.model); got != tc.want {
-				t.Errorf("modelTransportTag(_, %q) = %q, want %q", tc.model, got, tc.want)
+			if got := modeTag(tc.serverURL); got != tc.want {
+				t.Errorf("modeTag(%q) = %q, want %q", tc.serverURL, got, tc.want)
 			}
 		})
 	}
 }
 
 // The footer renders without an app, which is what a test model and an early
-// failure both have.
-func TestFooterWithoutAnAppHasNoTransportTag(t *testing.T) {
+// failure both have. ManagedServerURL answers "" for a nil app, so the tag is
+// local — the mode a session with nothing configured is actually in.
+func TestFooterWithoutAnAppSaysLocal(t *testing.T) {
 	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir(), ModelName: "local"})
 	footer := m.renderFooterView()
-	if !strings.Contains(footer, "model: local") {
-		t.Fatalf("footer = %q, want it to name the model", footer)
-	}
-	if strings.Contains(footer, "(direct)") {
-		t.Errorf("footer = %q, want no transport claim without an app", footer)
+	if !strings.Contains(footer, "model: local (local)") {
+		t.Errorf("footer = %q, want it to name the model and the mode", footer)
 	}
 }

@@ -503,6 +503,17 @@
   max-width: 10rem;
 }
 
+/* Where every model in this list sends prompts. Stated once, above them. */
+.model-selector__mode {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.75rem;
+  color: var(--color-text-subtle);
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .model-selector__option-check {
   flex-shrink: 0;
   color: var(--color-text-muted);

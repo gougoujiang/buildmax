@@ -12,6 +12,8 @@ import (
 	"github.com/gougoujiang/buildmax/internal/infra/llmremote"
 )
 
+const testServerURL = "https://buildmax.example.com"
+
 func directEntry() config.ModelEntry {
 	return config.ModelEntry{
 		Model:  "openai/gpt-4o-mini",
@@ -21,26 +23,40 @@ func directEntry() config.ModelEntry {
 	}
 }
 
+// managedEntry is what a deployment's model looks like once fetched: a name and
+// a context window, and no endpoint or credential — the server holds both.
 func managedEntry() config.ModelEntry {
 	return config.ModelEntry{
-		Model:     "Fast",
-		Name:      "Team Default",
-		Transport: config.TransportBuildMax,
-		ServerURL: "https://buildmax.example.com",
+		Model:         "Fast",
+		Name:          "Fast",
+		ContextWindow: 128_000,
 	}
 }
 
-func cacheFor(entries []config.ModelEntry, token ManagedTokenFunc) *LLMClientCache {
+// localCacheFor is a cache in local mode: no server, every model called from
+// this machine with its own credential.
+func localCacheFor(entries []config.ModelEntry) *LLMClientCache {
 	return &LLMClientCache{
-		settings:     config.Settings{Models: entries},
-		managedToken: token,
-		surface:      "cli",
-		clients:      make(map[string]cllm.LLMClient),
+		settings: config.Settings{Models: entries},
+		surface:  "cli",
+		clients:  make(map[string]cllm.LLMClient),
+	}
+}
+
+// managedCacheFor is a cache in managed mode: one deployment serves every model
+// in the list.
+func managedCacheFor(entries []config.ModelEntry, token ManagedTokenFunc) *LLMClientCache {
+	return &LLMClientCache{
+		settings:         config.Settings{Models: entries},
+		managedServerURL: testServerURL,
+		managedToken:     token,
+		surface:          "cli",
+		clients:          make(map[string]cllm.LLMClient),
 	}
 }
 
 func TestBuildsADirectClient(t *testing.T) {
-	cache := cacheFor([]config.ModelEntry{directEntry()}, nil)
+	cache := localCacheFor([]config.ModelEntry{directEntry()})
 
 	client, err := cache.Get("Direct")
 	if err != nil {
@@ -53,42 +69,71 @@ func TestBuildsADirectClient(t *testing.T) {
 
 func TestBuildsAManagedClient(t *testing.T) {
 	var askedFor string
-	cache := cacheFor([]config.ModelEntry{managedEntry()}, func(serverURL string) (string, error) {
+	cache := managedCacheFor([]config.ModelEntry{managedEntry()}, func(serverURL string) (string, error) {
 		askedFor = serverURL
 		return "token", nil
 	})
 
-	client, err := cache.Get("Team Default")
+	client, err := cache.Get("Fast")
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
 	if _, ok := client.(*llmremote.Client); !ok {
-		t.Fatalf("managed entry produced %T", client)
+		t.Fatalf("managed mode produced %T", client)
 	}
-	if askedFor != "https://buildmax.example.com" {
+	if askedFor != testServerURL {
 		t.Errorf("the token was requested for %q", askedFor)
 	}
 }
 
-// TestManagedEntryNeverFallsBackToDirect is the invariant behind having two
-// named transports: a managed call that cannot be authorized must fail, not
-// quietly reach a provider by some other route.
-func TestManagedEntryNeverFallsBackToDirect(t *testing.T) {
+// TestTheModeDecidesTheTransport is what replaced a per-entry transport: the
+// same entry builds a direct client in one mode and a remote one in the other,
+// because where a prompt goes is a property of the app, not of the model.
+func TestTheModeDecidesTheTransport(t *testing.T) {
+	entry := managedEntry()
+	entry.APIURL = "https://openrouter.ai/api/v1"
+	entry.APIKey = "provider-key"
+
+	local, err := localCacheFor([]config.ModelEntry{entry}).Get("Fast")
+	if err != nil {
+		t.Fatalf("local Get: %v", err)
+	}
+	if _, ok := local.(*llm.LLMClient); !ok {
+		t.Errorf("local mode produced %T", local)
+	}
+
+	managed, err := managedCacheFor([]config.ModelEntry{entry},
+		func(string) (string, error) { return "token", nil }).Get("Fast")
+	if err != nil {
+		t.Fatalf("managed Get: %v", err)
+	}
+	if _, ok := managed.(*llmremote.Client); !ok {
+		t.Errorf("managed mode produced %T", managed)
+	}
+}
+
+// TestManagedModeNeverFallsBackToDirect is the invariant behind having two
+// modes: a managed call that cannot be authorized must fail, not quietly reach
+// a provider by some other route.
+func TestManagedModeNeverFallsBackToDirect(t *testing.T) {
+	// An entry carrying a usable provider endpoint and key, so a fallback would
+	// succeed if one existed.
+	entry := managedEntry()
+	entry.APIURL = "https://openrouter.ai/api/v1"
+	entry.APIKey = "provider-key"
+
 	tests := []struct {
 		name   string
-		entry  config.ModelEntry
 		token  ManagedTokenFunc
 		wantIn string
 	}{
 		{
-			name:   "surface offers no managed inference",
-			entry:  managedEntry(),
+			name:   "surface cannot authenticate at all",
 			token:  nil,
-			wantIn: "does not support",
+			wantIn: "cannot authenticate",
 		},
 		{
 			name:   "login belongs elsewhere",
-			entry:  managedEntry(),
 			token:  func(string) (string, error) { return "", errors.New("logged in to another server") },
 			wantIn: "another server",
 		},
@@ -96,10 +141,10 @@ func TestManagedEntryNeverFallsBackToDirect(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			cache := cacheFor([]config.ModelEntry{tc.entry}, tc.token)
-			client, err := cache.Get(tc.entry.Name)
+			cache := managedCacheFor([]config.ModelEntry{entry}, tc.token)
+			client, err := cache.Get(entry.Name)
 			if err == nil {
-				t.Fatalf("a broken managed entry produced %T", client)
+				t.Fatalf("a managed mode that cannot authenticate produced %T", client)
 			}
 			if !strings.Contains(err.Error(), tc.wantIn) {
 				t.Errorf("error %q does not mention %q", err, tc.wantIn)
@@ -108,35 +153,25 @@ func TestManagedEntryNeverFallsBackToDirect(t *testing.T) {
 	}
 }
 
-// TestManagedEntryCarriesNoProviderCredential records that a managed entry is
-// configuration only: the credential arrives from the login state.
+// TestManagedEntryCarriesNoProviderCredential records what a fetched model is:
+// a name and a window. The credential arrives from the login state.
 func TestManagedEntryCarriesNoProviderCredential(t *testing.T) {
 	cfg := toModelConfig(managedEntry())
 	if cfg.APIKey != "" {
 		t.Errorf("a managed entry carries an api_key: %q", cfg.APIKey)
 	}
-	if !cfg.IsManaged() {
-		t.Error("the entry did not resolve as managed")
+	if cfg.BaseURL != "" {
+		t.Errorf("a managed entry carries an endpoint: %q", cfg.BaseURL)
 	}
 	if cfg.ProviderModel != "Fast" {
 		t.Errorf("ProviderModel = %q, want the catalog name", cfg.ProviderModel)
-	}
-
-	// A direct entry stays direct, including when transport is unset.
-	if toModelConfig(directEntry()).IsManaged() {
-		t.Error("a direct entry resolved as managed")
-	}
-	explicit := directEntry()
-	explicit.Transport = config.TransportDirect
-	if toModelConfig(explicit).IsManaged() {
-		t.Error("an explicitly direct entry resolved as managed")
 	}
 }
 
 func TestDirectEntryStillRequiresAnAPIKey(t *testing.T) {
 	entry := directEntry()
 	entry.APIKey = ""
-	cache := cacheFor([]config.ModelEntry{entry}, nil)
+	cache := localCacheFor([]config.ModelEntry{entry})
 
 	if _, err := cache.Get(entry.Name); err == nil {
 		t.Error("a direct entry with no api_key built a client")
@@ -144,10 +179,11 @@ func TestDirectEntryStillRequiresAnAPIKey(t *testing.T) {
 }
 
 // runScopedCacheFor builds the cache a task run gets: managed calls carry a run
-// token and name a run rather than a team.
+// token and name a run rather than a user.
 func runScopedCacheFor(entries []config.ModelEntry, taskRunID string) *LLMClientCache {
 	return &LLMClientCache{
 		settings:         config.Settings{Models: entries},
+		managedServerURL: testServerURL,
 		managedToken:     func(string) (string, error) { return "run-token", nil },
 		managedTaskRunID: taskRunID,
 		surface:          "worker",
@@ -160,7 +196,7 @@ func runScopedCacheFor(entries []config.ModelEntry, taskRunID string) *LLMClient
 // route, so it cannot list models and the server derives user, team, and task
 // from the credential rather than from configuration.
 func TestRunScopedManagedEntryCallsAsItsRun(t *testing.T) {
-	client, err := runScopedCacheFor([]config.ModelEntry{managedEntry()}, "r_1").Get("Team Default")
+	client, err := runScopedCacheFor([]config.ModelEntry{managedEntry()}, "r_1").Get("Fast")
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
@@ -176,7 +212,7 @@ func TestRunScopedManagedEntryCallsAsItsRun(t *testing.T) {
 // TestRunScopedDirectEntryIsUnaffected keeps the direct path intact: a worker
 // with a provider key behaves exactly as before, run scope or not.
 func TestRunScopedDirectEntryIsUnaffected(t *testing.T) {
-	client, err := runScopedCacheFor([]config.ModelEntry{directEntry()}, "r_1").Get("Direct")
+	client, err := localCacheFor([]config.ModelEntry{directEntry()}).Get("Direct")
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
@@ -197,7 +233,7 @@ func TestBuildsALocalClientWithoutACredential(t *testing.T) {
 		// Set so building the client asks the daemon nothing.
 		ContextWindow: 32_000,
 	}
-	cache := cacheFor([]config.ModelEntry{local}, nil)
+	cache := localCacheFor([]config.ModelEntry{local})
 	client, err := cache.Get("Local")
 	if err != nil {
 		t.Fatalf("Get: %v", err)
@@ -207,7 +243,40 @@ func TestBuildsALocalClientWithoutACredential(t *testing.T) {
 	}
 
 	hosted := config.ModelEntry{Model: "openai/gpt-4o-mini", Name: "Hosted", APIURL: "https://example.test/v1"}
-	if _, err := cacheFor([]config.ModelEntry{hosted}, nil).Get("Hosted"); err == nil {
+	if _, err := localCacheFor([]config.ModelEntry{hosted}).Get("Hosted"); err == nil {
 		t.Error("a hosted entry with no api_key should fail at selection")
+	}
+}
+
+// TestDefaultModelSelectsByName is the local half of section 7: a new session
+// starts on the model default_model names, not on the first entry.
+func TestDefaultModelSelectsByName(t *testing.T) {
+	fast := directEntry()
+	deep := directEntry()
+	deep.Name = "Deep"
+	deep.Model = "openai/gpt-5"
+
+	settings := config.Settings{Models: []config.ModelEntry{fast, deep}, DefaultModel: "Deep"}
+	if got := DefaultModelName(settings); got != "Deep" {
+		t.Errorf("DefaultModelName = %q, want %q", got, "Deep")
+	}
+
+	// By provider model id as well, which is what --model already accepts.
+	settings.DefaultModel = "openai/gpt-5"
+	if got := DefaultModelName(settings); got != "Deep" {
+		t.Errorf("DefaultModelName by model id = %q, want %q", got, "Deep")
+	}
+
+	// Naming nothing falls through to the first entry rather than to no model:
+	// a picker that returns nothing is worse than one that returns the wrong
+	// first choice, and `buildmax doctor` reports the mismatch.
+	settings.DefaultModel = "Gone"
+	if got := DefaultModelName(settings); got != "Direct" {
+		t.Errorf("DefaultModelName with an unknown default = %q, want the first entry", got)
+	}
+
+	settings.DefaultModel = ""
+	if got := DefaultModelName(settings); got != "Direct" {
+		t.Errorf("DefaultModelName with no default = %q, want the first entry", got)
 	}
 }

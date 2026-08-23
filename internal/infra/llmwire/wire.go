@@ -181,10 +181,19 @@ type ErrorEvent struct {
 // Model is one model a client may call. Name is what a completion request puts
 // in its model field. It carries no endpoint, credential, provider type, or
 // upstream model identifier.
+//
+// ContextWindow and Vision are here because the client acts on them before any
+// call: it compacts a session against the window, and sends an image only to a
+// model that can read one. Everything else about how the call is made —
+// reasoning effort, output cap, cache policy, price — is the operator's target
+// policy and stays on the server, which is also what records the cost.
 type Model struct {
-	Name         string   `json:"name"`
-	Capabilities []string `json:"capabilities"`
-	Default      bool     `json:"default"`
+	Name string `json:"name"`
+	// ContextWindow is the usable context size; 0 means the client's default.
+	ContextWindow int      `json:"context_window,omitempty"`
+	Vision        bool     `json:"vision,omitempty"`
+	Capabilities  []string `json:"capabilities"`
+	Default       bool     `json:"default"`
 }
 
 // ModelsResponse lists the models this deployment offers.

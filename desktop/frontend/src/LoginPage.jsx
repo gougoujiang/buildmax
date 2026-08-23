@@ -18,7 +18,7 @@ const DEFAULT_SERVER_URL = 'http://localhost:5678';
  * account is claimed and how a forgotten password is recovered — BuildMax has
  * no mail channel, so an operator issues that code by hand.
  */
-export default function LoginPage({ onLogin, onCancel }) {
+export default function LoginPage({ onLogin, onCancel, expiredDetail = '' }) {
   const [mode, setMode] = useState('password');
   const [serverURL, setServerURL] = useState(DEFAULT_SERVER_URL);
   const [email, setEmail] = useState('');
@@ -70,6 +70,12 @@ export default function LoginPage({ onLogin, onCancel }) {
     <div className="login-page">
       <div className="login-page__card">
         <h1 className="login-page__title">BuildMax</h1>
+        {expiredDetail ? (
+          <p className="login-page__error" role="alert">
+            Your session has ended, so this app cannot reach its models. Sign in
+            again, or return to using this machine on its own.
+          </p>
+        ) : null}
         <p className="login-page__subtitle">
           {mode === 'password'
             ? 'Sign in to a BuildMax server to use the models it offers'
@@ -161,11 +167,13 @@ export default function LoginPage({ onLogin, onCancel }) {
           onClick={onCancel}
           disabled={loading}
         >
-          Keep using this machine on its own
+          {expiredDetail ? 'Sign out and use this machine on its own' : 'Keep using this machine on its own'}
         </button>
         <p className="login-page__local-hint">
-          The agent runs here, with the models in your settings.yaml. Nothing is
-          lost by staying — you can sign in whenever you want.
+          The agent runs here, with the models in your settings.yaml.
+          {expiredDetail
+            ? ' Signing out removes the ended session; nothing local is discarded.'
+            : ' Nothing is lost by staying — you can sign in whenever you want.'}
         </p>
       </div>
     </div>

@@ -207,11 +207,18 @@ func (a *App) agentAppForProject(projectID string) (*agentapp.AgentApp, error) {
 		return nil, fmt.Errorf("project not found: %s", projectID)
 	}
 
+	source, err := auth.ResolveModelSource(context.Background())
+	if err != nil {
+		return nil, err
+	}
 	handler := newDesktopApprovalHandler(a, projectID)
 	ag, err = agentapp.NewAgentApp(agentapp.AppConfig{
 		WorkspaceDir:         proj.FolderPath,
 		EnableMCP:            true,
 		Policy:               agentapp.NewInteractivePolicy(),
+		ModelEntries:         source.Entries,
+		DefaultModel:         source.Default,
+		ManagedServerURL:     source.ServerURL,
 		ManagedToken:         auth.TokenForServer,
 		ArtifactPublisher:    auth.ArtifactPublisherForSession(),
 		Surface:              model.LLMCallSurfaceDesktop,
@@ -457,24 +464,42 @@ type AuthStatus struct {
 	UserID    string `json:"user_id,omitempty"`
 	Email     string `json:"email,omitempty"`
 	Name      string `json:"name,omitempty"`
+	// Expired means the stored login no longer works. The app stays in managed
+	// mode and refuses to run rather than quietly using local models, which
+	// would send prompts somewhere the user did not choose. Signing in again or
+	// signing out are the two ways out — see docs/design/client-modes.md
+	// section 8.
+	Expired bool `json:"expired,omitempty"`
+	// ExpiredDetail is what to tell the user, set only when Expired.
+	ExpiredDetail string `json:"expired_detail,omitempty"`
 }
 
-// GetAuthStatus reports the stored login, if there is one.
+// GetAuthStatus reports the stored login, if there is one, and whether it still
+// works. The check runs here rather than on the first prompt so the answer
+// arrives while the user is still deciding what to do.
 func (a *App) GetAuthStatus() (*AuthStatus, error) {
-	info, err := auth.Info()
+	// The stored credentials, not auth.Info: Info reports a spent login as
+	// signed out, and the app would then open in local mode on its own rather
+	// than saying the session ended.
+	creds, err := auth.StoredLogin()
 	if err != nil {
 		return nil, fmt.Errorf("load auth: %w", err)
 	}
-	if !info.LoggedIn {
+	if creds == nil {
 		return &AuthStatus{}, nil
 	}
-	return &AuthStatus{
+	status := &AuthStatus{
 		LoggedIn:  true,
-		ServerURL: info.ServerURL,
-		UserID:    info.UserID,
-		Email:     info.Email,
-		Name:      info.Name,
-	}, nil
+		ServerURL: creds.ServerURL,
+		UserID:    creds.UserID,
+		Email:     creds.Email,
+		Name:      creds.Name,
+	}
+	if _, err := auth.ResolveModelSource(context.Background()); err != nil {
+		status.Expired = true
+		status.ExpiredDetail = err.Error()
+	}
+	return status, nil
 }
 
 // GetDefaultServerURL is what the sign-in form starts with. It reads the same

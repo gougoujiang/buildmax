@@ -63,9 +63,14 @@ type Resolution struct {
 // endpoint, credential reference, provider type, and upstream model identifier:
 // listing models must not disclose how the deployment reaches a provider.
 type AvailableModel struct {
-	Name         string
-	Capabilities []Capability
-	Default      bool
+	Name string
+	// ContextWindow and Vision are what a client needs before it calls: it
+	// compacts against the window and sends an image only to a model that reads
+	// one. Neither says anything about how the deployment reaches the provider.
+	ContextWindow int
+	Vision        bool
+	Capabilities  []Capability
+	Default       bool
 }
 
 // Resolver maps a model name to an operator-approved target.
@@ -193,9 +198,11 @@ func (r *Resolver) Available(ctx context.Context) ([]AvailableModel, error) {
 			continue
 		}
 		models = append(models, AvailableModel{
-			Name:         target.Name,
-			Capabilities: target.Capabilities.List(),
-			Default:      target.Name == defaultName,
+			Name:          target.Name,
+			ContextWindow: target.ContextWindow,
+			Vision:        target.Vision,
+			Capabilities:  target.Capabilities.List(),
+			Default:       target.Name == defaultName,
 		})
 	}
 	return models, nil

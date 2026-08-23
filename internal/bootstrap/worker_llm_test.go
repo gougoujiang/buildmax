@@ -89,8 +89,8 @@ func TestResolveRunModelManagedCarriesNoProviderCredential(t *testing.T) {
 	if entry.APIURL != "" {
 		t.Errorf("a managed run was given a provider endpoint: %q", entry.APIURL)
 	}
-	if !entry.IsManaged() || entry.Model != "Deep" {
-		t.Errorf("entry = %+v, want a managed entry naming the model", entry)
+	if entry.Model != "Deep" {
+		t.Errorf("entry = %+v, want an entry naming the model", entry)
 	}
 	if !managed.Enabled() || managed.RunToken != "run-token" {
 		t.Errorf("managed = %+v", managed)
@@ -123,9 +123,6 @@ func TestResolveRunModelDirectIsUnchanged(t *testing.T) {
 		entry, managed, err := resolveRunModel(sc, llm, "https://buildmax.example.com", "run-token")
 		if err != nil {
 			t.Fatalf("resolveRunModel: %v", err)
-		}
-		if entry.IsManaged() {
-			t.Errorf("descriptor %+v produced a managed entry", llm)
 		}
 		if entry.APIKey != "provider-key" || entry.Model != "openai/gpt-4o" {
 			t.Errorf("entry = %+v, want the server's own model", entry)

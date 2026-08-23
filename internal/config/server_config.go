@@ -96,10 +96,9 @@ type ServerModelEntry struct {
 // the model shape used by the shared agent runtime. Environment overrides have
 // already been applied before this conversion, so credentials stay in memory.
 //
-// The result is always a direct entry: a worker runs the server's own model
-// with the server's own credential, and does not call the gateway. Worker
-// adoption of managed inference is separate work — see
-// docs/design/llm-gateway.md section 15.
+// This is the direct path: the entry carries the server's own credential and
+// the run calls the provider itself. A managed run is assembled elsewhere, from
+// what the server told it at dispatch — see internal/bootstrap.resolveRunModel.
 func (m ServerModelEntry) RuntimeModelEntry() ModelEntry {
 	return ModelEntry{
 		Model:         m.Model,
@@ -114,7 +113,6 @@ func (m ServerModelEntry) RuntimeModelEntry() ModelEntry {
 		CacheControl:  m.CacheControl,
 		Pricing:       m.Pricing,
 		Vision:        m.Vision,
-		Transport:     TransportDirect,
 	}
 }
 

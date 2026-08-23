@@ -571,15 +571,22 @@ export default function App() {
       </ThemeProvider>
     );
   }
-  if (signInOpen) {
+  // An expired login is not silently swapped for local models: that would send
+  // prompts somewhere nobody chose. Signing in again or signing out are the two
+  // ways on, and signing out is what returns this app to local mode.
+  if (authStatus?.expired || signInOpen) {
     return (
       <ThemeProvider>
         <LoginPage
+          expiredDetail={authStatus?.expired ? authStatus.expired_detail : ''}
           onLogin={(status) => {
             setAuthStatus(status);
             setSignInOpen(false);
           }}
-          onCancel={() => setSignInOpen(false)}
+          onCancel={() => {
+            if (authStatus?.expired) handleLogout();
+            setSignInOpen(false);
+          }}
         />
       </ThemeProvider>
     );
