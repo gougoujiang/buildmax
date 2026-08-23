@@ -42,7 +42,7 @@ func NewLLMCompactor(client llm.LLMClient) *LLMCompactor {
 }
 
 // Compact summarizes msgs into a short text suitable for injection into the system prompt.
-func (c *LLMCompactor) Compact(ctx context.Context, msgs []llm.Message) (string, error) {
+func (c *LLMCompactor) Compact(ctx context.Context, msgs []llm.Message) (string, llm.Usage, error) {
 	messages := make([]llm.Message, 0, len(msgs)+2)
 	messages = append(messages, llm.Message{Role: "system", Content: compactionSystemPrompt})
 	// The run's durable state travels on the context, so the summarizer can be told what is
@@ -54,5 +54,5 @@ func (c *LLMCompactor) Compact(ctx context.Context, msgs []llm.Message) (string,
 	}
 	messages = append(messages, msgs...)
 	completion, err := c.client.ChatCompletionBlocking(ctx, llm.Request{Messages: messages, Profile: llm.ProfileCompaction})
-	return completion.Content, err
+	return completion.Content, completion.Usage, err
 }

@@ -1284,6 +1284,9 @@ func (a *AgentApp) buildToolRegistry(client cllm.LLMClient) (cllm.ToolRegistry, 
 // When the parent trace is unavailable, no child trace is created either: a
 // trace with a missing link would misrepresent the relationship, and tracing
 // must never become a reason for a subagent to fail.
+//
+// sessionID is the parent's, so a subagent run lands in the traces directory
+// of a session that still exists and is_subagent tells the two apart.
 func (a *AgentApp) newSubAgentTrace(ctx context.Context, sessionID string, opts tools.SubAgentRunOpts) tools.SubAgentTrace {
 	parent := traceRunFromContext(ctx)
 	if parent.runID == "" {

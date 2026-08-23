@@ -69,7 +69,8 @@ type Record struct {
 	// "nobody looked".
 	Plugins []plugin.Provenance `json:"plugins,omitempty"`
 
-	// iter_start, llm_start, llm_end
+	// iter_start, llm_start, llm_end, context_compacted, user_input,
+	// user_input_blocked
 	Iter int `json:"iter,omitempty"`
 
 	// llm_start, llm_end
@@ -116,16 +117,29 @@ type Record struct {
 	// tool_end
 	Result     string `json:"result,omitempty"`
 	DurationMS int64  `json:"duration_ms,omitempty"`
+	// ErrorKind names how the call failed, absent when it did not. It reports
+	// a call that could not complete, never a task that completed badly: a
+	// command exiting non-zero is a successful Bash call here.
+	ErrorKind string `json:"error_kind,omitempty"`
 
 	// tool_denied
 	DenyReason string `json:"deny_reason,omitempty"`
 
 	// context_compacted
+	//
+	// The call_* token fields and cost above are also written here: compaction
+	// is a model call the run paid for, and a trace that recorded only that it
+	// happened would leave the money unaccounted.
 	Summarized int `json:"summarized,omitempty"`
 	Kept       int `json:"kept,omitempty"`
 
 	// run_end
 	ToolCalls int `json:"tool_calls,omitempty"`
+	// Delegated is what subagent runs this one started spent. Its token and
+	// cost figures are a breakdown of the run totals above, not an addition to
+	// them; its tool calls are additional, because a delegation is one call of
+	// the parent and the child's calls are counted nowhere else.
+	Delegated *RecordDelegated `json:"delegated,omitempty"`
 	// CostIncomplete says a call in this run did work that could not be
 	// priced, so Cost understates it rather than covering it.
 	CostIncomplete bool   `json:"cost_incomplete,omitempty"`
@@ -149,6 +163,37 @@ type RecordCost struct {
 	// It is what makes the saving readable: comparing Total against zero would
 	// report a win on a call that only ever wrote.
 	Baseline int64 `json:"baseline"`
+}
+
+// RecordDelegated is the delegated-spend breakdown of one run, declared here
+// rather than reusing the domain type for the same reason as RecordCost: this
+// is a durable file format, and a field added to the domain should not change
+// what a trace written last month is expected to contain.
+type RecordDelegated struct {
+	Runs             int         `json:"runs"`
+	PromptTokens     int         `json:"prompt_tokens,omitempty"`
+	CompletionTokens int         `json:"completion_tokens,omitempty"`
+	CacheReadTokens  int         `json:"cache_read_tokens,omitempty"`
+	CacheWriteTokens int         `json:"cache_write_tokens,omitempty"`
+	ToolCalls        int         `json:"tool_calls,omitempty"`
+	Cost             *RecordCost `json:"cost,omitempty"`
+	CostIncomplete   bool        `json:"cost_incomplete,omitempty"`
+}
+
+func recordDelegated(d *agent.DelegatedStats) *RecordDelegated {
+	if d == nil {
+		return nil
+	}
+	return &RecordDelegated{
+		Runs:             d.Runs,
+		PromptTokens:     d.PromptTokens,
+		CompletionTokens: d.CompletionTokens,
+		CacheReadTokens:  d.CacheReadTokens,
+		CacheWriteTokens: d.CacheWriteTokens,
+		ToolCalls:        d.ToolCalls,
+		Cost:             recordCost(d.Cost),
+		CostIncomplete:   d.CostIncomplete,
+	}
 }
 
 func recordCost(cost *llm.Cost) *RecordCost {
@@ -223,13 +268,23 @@ func recordFromEvent(e agent.Event, maxField int) (Record, bool) {
 		r.Args = bound(Redact(e.ToolArgs), maxField)
 		r.Result = bound(Redact(e.ToolResult), maxField)
 		r.DurationMS = e.ToolDuration.Milliseconds()
+		r.ErrorKind = e.ToolErrorKind
 	case agent.EventToolDenied:
 		r.Tool = e.ToolName
 		r.ToolCallID = e.ToolCallID
 		r.DenyReason = e.DenyReason
 	case agent.EventContextCompacted:
+		r.Iter = e.Iter
 		r.Summarized = e.Summarized
 		r.Kept = e.Kept
+		// Compaction is a model call the run paid for. It is recorded here
+		// rather than as an llm_end because it is not a turn: the summary it
+		// produced never entered the conversation as a reply.
+		r.CallPromptTokens = e.CallUsage.PromptTokens
+		r.CallCompletionTokens = e.CallUsage.CompletionTokens
+		r.CallCacheReadTokens = e.CallUsage.CacheReadTokens
+		r.CallCacheWriteTokens = e.CallUsage.CacheWriteTokens
+		r.Cost = recordCost(e.CallCost)
 	case agent.EventUserInput:
 		// A message that entered the run after it started is part of what the run
 		// was told to do, so a trace that omitted it would misreport its instructions.
@@ -247,6 +302,7 @@ func recordFromEvent(e agent.Event, maxField int) (Record, bool) {
 		r.CacheWriteTokens = e.Stats.CacheWriteTokens
 		r.Cost = recordCost(e.Stats.Cost)
 		r.CostIncomplete = e.Stats.CostIncomplete
+		r.Delegated = recordDelegated(e.Stats.Delegated)
 		if e.Err != nil {
 			r.Error = e.Err.Error()
 		}
