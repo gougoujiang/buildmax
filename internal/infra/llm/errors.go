@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+	"syscall"
 )
 
 // apiError is a provider failure reduced to what every caller of this package
@@ -17,9 +19,16 @@ type apiError struct {
 	// status is the HTTP status the provider returned, or 0 when the failure
 	// happened below HTTP (DNS, connection reset, TLS).
 	status int
-	// message is the provider's own description, when it gave a safe one.
+	// message is the provider's own description, when it gave a safe one, or
+	// this package's own when it knows the next step better than the provider
+	// stated it.
 	message string
-	err     error
+	// permanent marks a failure that trying again cannot fix even though its
+	// status would normally allow a retry — a local daemon that is not running,
+	// or a model that is not pulled. Both are fixed by a command, and three
+	// backed-off attempts only delay saying so.
+	permanent bool
+	err       error
 }
 
 func (e *apiError) Error() string {
@@ -28,6 +37,8 @@ func (e *apiError) Error() string {
 		return fmt.Sprintf("provider error (HTTP %d): %s", e.status, e.message)
 	case e.status != 0:
 		return fmt.Sprintf("provider error (HTTP %d)", e.status)
+	case e.message != "":
+		return e.message
 	case e.err != nil:
 		return e.err.Error()
 	default:
@@ -91,4 +102,16 @@ func wrapLLMError(err error) error {
 	}
 	msg := classifyLLMError(err)
 	return fmt.Errorf("%s: %w", msg, err)
+}
+
+// isConnectionRefused reports whether a dial failed because nothing is
+// listening. errors.Is covers the Unix errno; Windows reports its own, so the
+// message is matched there rather than importing a platform-specific code.
+func isConnectionRefused(err error) bool {
+	if errors.Is(err, syscall.ECONNREFUSED) {
+		return true
+	}
+	text := err.Error()
+	return strings.Contains(text, "connection refused") ||
+		strings.Contains(text, "actively refused")
 }

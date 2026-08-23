@@ -469,3 +469,51 @@ func TestLogLevel(t *testing.T) {
 		t.Errorf("LogLevel(empty) = %q, want info", got)
 	}
 }
+
+// TestLLMProviderNeedsAPIKey pins which providers a credential is demanded for.
+// The exemption is what makes a local entry complete rather than half-written,
+// and widening it by accident would let a hosted entry fail at the first call
+// instead of at the diagnostic.
+func TestLLMProviderNeedsAPIKey(t *testing.T) {
+	for _, provider := range []string{"", LLMProviderOpenAICompatible, LLMProviderOpenAI, LLMProviderAnthropic} {
+		if !LLMProviderNeedsAPIKey(provider) {
+			t.Errorf("provider %q should still need a credential", provider)
+		}
+	}
+	if LLMProviderNeedsAPIKey(LLMProviderOllama) {
+		t.Errorf("provider %q runs locally and has no credential to hold", LLMProviderOllama)
+	}
+}
+
+func TestKnownLLMProviderCoversEveryListedProvider(t *testing.T) {
+	for _, provider := range LLMProviders() {
+		if !KnownLLMProvider(provider) {
+			t.Errorf("LLMProviders lists %q, which KnownLLMProvider rejects", provider)
+		}
+	}
+	if KnownLLMProvider("bedrock") {
+		t.Error("KnownLLMProvider accepted a provider with no adapter")
+	}
+}
+
+func TestLoadSettings_LocalEntryNeedsNoKey(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv(EnvKeyBuildmaxHome, dir)
+	body := "models:\n  - model: qwen3:8b\n    provider: ollama\n    api_url: http://localhost:11434\n    keep_alive: 30m\n"
+	if err := os.WriteFile(filepath.Join(dir, "settings.yaml"), []byte(body), 0o600); err != nil {
+		t.Fatalf("write settings.yaml: %v", err)
+	}
+	settings, err := LoadSettings()
+	if err != nil {
+		t.Fatalf("LoadSettings: %v", err)
+	}
+	m := settings.Models[0]
+	switch {
+	case m.LLMProvider() != LLMProviderOllama:
+		t.Errorf("provider = %q", m.LLMProvider())
+	case m.APIKey != "":
+		t.Errorf("api_key = %q, want none", m.APIKey)
+	case m.KeepAlive != "30m":
+		t.Errorf("keep_alive = %q, want 30m", m.KeepAlive)
+	}
+}

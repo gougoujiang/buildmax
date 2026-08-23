@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/agentapp"
@@ -188,7 +189,16 @@ func checkModelConfig() error {
 			"Quickstart: %s\n", path, quickstartURL)
 		return errors.New("no model configured")
 	}
-	if s.Models[0].APIKey == APIKeyPlaceholder {
+	// A local provider carries no credential, so an empty key there is the
+	// configured state rather than an unfinished one.
+	first := s.Models[0]
+	if !first.IsManaged() && config.LLMProviderNeedsAPIKey(first.LLMProvider()) &&
+		strings.TrimSpace(first.APIKey) == "" {
+		fmt.Fprintf(os.Stderr, "The first model in %s has no api_key.\n\n"+
+			"Add one, or use a local model with `buildmax init --ollama`.\n", path)
+		return errors.New("api key not set")
+	}
+	if first.APIKey == APIKeyPlaceholder {
 		fmt.Fprintf(os.Stderr, "The first model in %s still has the placeholder API key.\n\n"+
 			"Replace %s on the api_key line with a real key.\n", path, APIKeyPlaceholder)
 		return errors.New("api key not set")

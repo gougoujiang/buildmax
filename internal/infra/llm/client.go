@@ -1,6 +1,6 @@
 // Package llm implements the core/llm.LLMClient contract over the LLM wire
-// protocols BuildMax speaks: OpenAI Chat Completions, OpenAI Responses, and
-// Anthropic Messages.
+// protocols BuildMax speaks: OpenAI Chat Completions, OpenAI Responses,
+// Anthropic Messages, and Ollama's native local API.
 //
 // One package, one entry point. Config.Provider selects an adapter; everything
 // a real network call needs to survive — the per-call timeout, the retry loop,
@@ -42,6 +42,10 @@ type Config struct {
 	// Vision says the model accepts image input. When false, an adapter drops
 	// image parts and sends only the text describing them.
 	Vision bool
+	// KeepAlive is how long a local runtime keeps the model loaded after a
+	// call. Only the Ollama adapter has a model to keep loaded; the hosted
+	// protocols ignore it.
+	KeepAlive string
 	// HTTPClient overrides the transport. Tests use it; production leaves it nil.
 	HTTPClient *http.Client
 }
@@ -79,10 +83,7 @@ func (c *LLMClient) Provider() string { return c.adapter.name() }
 func NewClient(cfg Config) (*LLMClient, error) {
 	cw := cfg.ContextWindow
 	if cw == 0 {
-		cw = lookupContextWindow(cfg.Model)
-	}
-	if cw == 0 {
-		cw = config.DefaultContextWindow
+		cw = resolveContextWindow(cfg)
 	}
 	callTimeout := cfg.CallTimeout
 	if callTimeout == 0 {
@@ -100,12 +101,14 @@ func NewClient(cfg Config) (*LLMClient, error) {
 		impl = newOpenAIResponsesAdapter(cfg)
 	case config.LLMProviderAnthropic:
 		impl, err = newAnthropicAdapter(cfg)
+	case config.LLMProviderOllama:
+		// The window is passed in rather than read from cfg: this protocol
+		// sends it on every call, and it must be the same number the caller
+		// trims history against.
+		impl, err = newOllamaAdapter(cfg, cw)
 	default:
-		return nil, fmt.Errorf("unknown llm provider %q: use %s, %s, or %s",
-			cfg.Provider,
-			config.LLMProviderOpenAICompatible,
-			config.LLMProviderOpenAI,
-			config.LLMProviderAnthropic)
+		return nil, fmt.Errorf("unknown llm provider %q: use one of %s",
+			cfg.Provider, strings.Join(config.LLMProviders(), ", "))
 	}
 	if !config.KnownReasoningEffort(cfg.Reasoning) {
 		return nil, fmt.Errorf("unknown reasoning effort %q: use one of %s",
@@ -120,6 +123,21 @@ func NewClient(cfg Config) (*LLMClient, error) {
 		contextWindow: cw,
 		callTimeout:   callTimeout,
 	}, nil
+}
+
+// resolveContextWindow finds the window for an entry that did not state one.
+//
+// A local model is asked rather than looked up: the fallback table is a
+// snapshot of a hosted catalog keyed by its identifiers, and a daemon can
+// answer the same question about the model actually installed.
+func resolveContextWindow(cfg Config) int {
+	if cfg.Provider == config.LLMProviderOllama {
+		return ollamaContextWindow(cfg)
+	}
+	if cw := lookupContextWindow(cfg.Model); cw > 0 {
+		return cw
+	}
+	return config.DefaultContextWindow
 }
 
 // ChatCompletionBlocking sends messages and tool definitions, returns assistant content, any tool calls, and usage.

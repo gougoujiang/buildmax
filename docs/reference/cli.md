@@ -18,7 +18,7 @@ buildmax <command> [flags]
 | `buildmax login` | Log in to a BuildMax server and store credentials |
 | `buildmax logout` | Clear stored credentials |
 | `buildmax whoami` | Show current login status |
-| `buildmax models` | List configured models and prompt destinations; use `--team` to list server-side aliases |
+| `buildmax models` | List configured models and prompt destinations; `--local` lists what a local Ollama daemon holds, `--team` lists server-side aliases |
 | `buildmax tools status` | Inspect the tools currently available to the agent |
 | `buildmax sandbox status` | Print the resolved sandbox config and which layer set each value |
 | `buildmax sandbox deps` | Check host-side sandbox dependencies (`bwrap`, `sandbox-exec`, `socat`) |
@@ -99,10 +99,17 @@ ran under. Passing one replaces it for that run onward.
 | `--api-url URL` | `https://openrouter.ai/api/v1` | OpenAI-compatible base URL |
 | `--name NAME` | the model id | Display name shown in the TUI and `--model` |
 | `--context-window N` | provider-appropriate | Context window in tokens |
+| `--ollama` | off | Configure a local Ollama model instead of a hosted provider |
 | `--force` | off | Replace an existing `settings.yaml` |
 
 The file is written with mode `600` because it holds an API key. Without
 `--force`, an existing file is left untouched and the command exits `2`.
+
+`--ollama` writes an entry with no `api_key` at all, pointed at
+`http://localhost:11434`. When the daemon is running it configures a model that
+is already pulled and reads that model's context window; when it is not, the
+file is still written and the output names what to start and what to pull. See
+[configuration.md](configuration.md#local-models-with-ollama).
 
 ### `buildmax plugin`
 
@@ -171,6 +178,10 @@ the last queued message when the input is already empty.
 # first run: write ~/.buildmax/settings.yaml with a working key
 buildmax init --api-key sk-your-key-here
 buildmax doctor
+
+# or run against a local model, with no key and no network
+buildmax init --ollama
+buildmax models --local
 
 # one-shot question, quiet, in another directory
 buildmax -p "list the exported symbols" --workspace ../lib -q
