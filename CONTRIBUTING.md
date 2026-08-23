@@ -47,6 +47,42 @@ issue. Look for issues labeled `good first issue`, `help wanted`, or
 `documentation`; if none are available, start with a bug report, documentation
 gap, or discussion instead of opening a large speculative PR.
 
+## AI-First Development And Accountability
+
+BuildMax is an Alpha project that evolves quickly and is developed with
+AI-first workflows. Agent-native contribution is welcome, whether it produces a
+small test, a documentation update, or a larger code change. The project aims
+to make those workflows effective: architecture, task scripts, documentation,
+tests, and issue acceptance criteria should let an Agent discover its boundary,
+make a focused change, and verify the result without guesswork.
+
+The person opening a pull request must be able to explain the change, assess its
+effects, run the relevant checks, and address review feedback. AI-generated code
+and documentation do not change that responsibility; they meet the same
+requirements as any other contribution:
+
+- tests and checks appropriate to the change;
+- accurate user and contributor documentation;
+- dependency-license and security requirements; and
+- a focused, reviewable pull request with its limitations stated plainly.
+
+Changes to security boundaries, permissions, credentials, data migrations, or
+public APIs need deliberate human review in addition to automated checks. Open
+an Issue or Discussion before starting one when the direction is not already
+settled.
+
+Disclosure of AI assistance in a pull request is encouraged when it helps
+reviewers understand the scope or validation performed, but it is not a
+separate quality label. Do not add generated-by footers, assistant-session
+links, or attribution trailers; the pull request description must still explain
+the problem, approach, verification, and remaining limitations.
+
+When improving contributor tooling, prefer changes that make the repository
+more legible and verifiable to both people and Agents: a named source of truth,
+deterministic checks, bounded task scope, and actionable failures. Do not add a
+second agent implementation or a workflow that bypasses the shared runtime just
+to optimize one surface.
+
 Before picking work, read the [support matrix](docs/start/support.md). It names
 the surfaces and deployment paths the project supports today, plus the alpha
 non-goals that should not become surprise PR scope. Documentation fixes, focused
