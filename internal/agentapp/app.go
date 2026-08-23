@@ -99,6 +99,9 @@ type AgentApp struct {
 	grants                 map[string]*agent.SessionGrants
 	turns                  turnCoordinator
 	jobs                   *job.Manager
+	// jobTraceDone closes once the job trace subscriber has drained the last
+	// event. Close waits on it so no record is written after shutdown.
+	jobTraceDone chan struct{}
 }
 
 // Jobs returns the app's background job manager, or nil where background
@@ -350,7 +353,11 @@ func NewAgentApp(cfg AppConfig) (*AgentApp, error) {
 		app.jobs = job.NewManager()
 		if config.TraceEnabled() {
 			events, _ := app.jobs.Subscribe("")
-			go logJobEvents(config.TracesDir(), events)
+			app.jobTraceDone = make(chan struct{})
+			go func() {
+				defer close(app.jobTraceDone)
+				logJobEvents(config.TracesDir(), events)
+			}()
 		}
 	}
 	return app, nil
@@ -372,6 +379,12 @@ func (a *AgentApp) Close() error {
 			firstErr = err
 		}
 		cancel()
+		// The manager releases the subscription, but the trace writer drains
+		// what is still buffered. Returning before that lands leaves the last
+		// job_end record racing whatever runs next against the traces dir.
+		if a.jobTraceDone != nil {
+			<-a.jobTraceDone
+		}
 	}
 	if a.mcpManager != nil {
 		if err := a.mcpManager.Close(); err != nil && firstErr == nil {
