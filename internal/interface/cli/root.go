@@ -50,6 +50,10 @@ func NewRootCommand() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
+	// Cobra auto-adds `completion` to any root with subcommands. The generated
+	// script is free to keep working, but the entry reads as noise next to ten
+	// commands people can remember, so it stays out of the help listing.
+	root.CompletionOptions.HiddenDefaultCmd = true
 	root.Flags().BoolP("help", "h", false, "help for buildmax")
 	root.Flags().StringP("print", "p", "", "send QUERY to the LLM and print the response (no TUI)")
 	root.Flags().StringP("resume", "r", "", "session id to resume (TUI or print mode)")
