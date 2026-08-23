@@ -57,7 +57,17 @@ type addMessageResponse struct {
 	Reply string `json:"reply"`
 }
 
+// isVisibleConversationMessage reports whether a stored message belongs in the
+// Portal transcript.
+//
+// Tool traffic is excluded by role. The system channel is excluded by channel: a
+// "[Task Result]" message is stored with role "user" so the model replays it as
+// input, but nobody typed it, and showing it as the user's own message is a lie
+// about who said what. The run's card is what reports the outcome.
 func isVisibleConversationMessage(m model.ConversationMessage) bool {
+	if m.Channel != nil && *m.Channel == conversation.ChannelSystem {
+		return false
+	}
 	return m.Role == "user" || m.Role == "assistant"
 }
 
