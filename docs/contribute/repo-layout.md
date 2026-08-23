@@ -214,9 +214,13 @@ product binary.
 
 ```text
 evaluation/
-└── contract/           Task, subject, trial-bundle, grader-result, and
-                        experiment types, the failure taxonomy, and the bundle
-                        directory layout
+├── contract/           Task, subject, trial-bundle, grader-result, and
+│                       experiment types, the failure taxonomy, and the bundle
+│                       directory layout
+├── adapter/            Black-box execution: runs a trial through a built
+│                       binary and collects its evidence
+└── grader/             Deterministic outcome, task-supplied command, and
+                        trace/policy graders
 ```
 
 The package uses the standard library alone, so evaluation adds nothing to the
