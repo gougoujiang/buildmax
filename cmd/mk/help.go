@@ -64,6 +64,7 @@ func allHelpSections() []helpSection {
 			{"lint", "Run pinned golangci-lint and govulncheck"},
 			{"agent-smoke", "Drive the agent's tools with a real model (needs an API key; not a deterministic test)"},
 			{"eval", "Run the agent benchmark (requires a model API key)"},
+			{"models <list|info|check>", "List, look up on OpenRouter, or check settings.local.yaml models"},
 		}},
 		{"Deployment", []helpRow{
 			{"compose <action>", "Manage the Compose quickstart (up|smoke [managed]|status|logs|down)"},
@@ -236,6 +237,38 @@ func helpTopics() []helpTopic {
 					"sandbox, and it needs a model API key.",
 			},
 			examples: []string{"eval --help", "eval --task 004-fix-bug"},
+		},
+		{
+			name:    "models",
+			usage:   "models <list|info [model or search term]|check>",
+			summary: "List locally configured models, look up one on OpenRouter, or check for drift.",
+			details: []string{
+				"Reads " + localSettingsPath + " at the repository root: a gitignored file in\n" +
+					"the same shape as BUILDMAX_HOME/settings.yaml, kept separate so this never\n" +
+					"touches your real runtime configuration. Copy " + localSettingsExample + "\n" +
+					"to " + localSettingsPath + " to get started.",
+				"`list` prints the models configured there — no network. `info` with no\n" +
+					"argument prints the full info block for every model configured in\n" +
+					"" + localSettingsPath + ", in file order. With a model id or search term,\n" +
+					"it fetches the live catalog from " + openRouterModelsURL + " and prints\n" +
+					"context window, modality, supported parameters, and full pricing. An exact\n" +
+					"model id (as it appears in " + localSettingsPath + ", e.g. openai/gpt-4o-mini)\n" +
+					"matches that one model; anything else is matched as a case-insensitive\n" +
+					"substring against every id and display name, and every match is printed.\n" +
+					"When a configured model has an api_key, `info` sends it, since OpenRouter\n" +
+					"can return an account-specific rate; the public catalog still answers with\n" +
+					"no key.",
+				"`check` compares every configured context_window against OpenRouter's\n" +
+					"current value and exits non-zero if any model has drifted or has\n" +
+					"disappeared from the catalog — provider catalogs change without notice.",
+			},
+			args: []helpRow{
+				{"list", "List the models in " + localSettingsPath},
+				{"info", "OpenRouter details for every model in " + localSettingsPath},
+				{"info <model or search term>", "OpenRouter details for a model"},
+				{"check", "Diff configured context_window against OpenRouter"},
+			},
+			examples: []string{"models list", "models info", "models info openai/gpt-4o-mini", "models check"},
 		},
 		{
 			name:    "compose",

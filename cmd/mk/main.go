@@ -88,6 +88,8 @@ func dispatch(args []string) error {
 		return cmdRun(rest)
 	case "changelog":
 		return cmdChangelog(rest)
+	case "models":
+		return cmdModels(rest)
 	case "release":
 		return cmdRelease(rest)
 	case "install":

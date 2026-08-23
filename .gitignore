@@ -27,6 +27,9 @@ go.work.sum
 # env file
 .env
 
+# ./make models reads model configuration from this file; see config-examples/settings.example.yaml.
+/settings.local.yaml
+
 # Local deployment credentials (see deployment/buildmax-secret.example.yaml)
 deployment/*.local.yaml
 
