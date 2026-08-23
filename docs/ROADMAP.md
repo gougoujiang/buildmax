@@ -27,8 +27,7 @@ The near-term goal is:
 
 ## Near-Term Priorities
 
-P0 and P1 are **complete**. P2 met its acceptance on the Issue surface and left
-its Conversation half unbuilt — see the note under it. Active work starts at
+P0, P1, and P2 are **complete**. Active work starts at
 P0.5, P0.6, and P3. The completed sections are kept because their focus and
 acceptance criteria are the standard the surfaces are held to, not because the
 work is outstanding.
@@ -68,7 +67,7 @@ Acceptance:
 
 - a user can get a complete useful Agent experience without deploying Portal
 
-### P2. Portal Outcome Surface — complete on the Issue surface
+### P2. Portal Outcome Surface — complete
 
 Portal already has issues, workflows, tasks, runs, and artifacts. The next step
 is to make results the first-class user surface.
@@ -85,26 +84,20 @@ Acceptance:
 
 - opening an issue makes it obvious what was produced, without reading raw run or step internals
 
-That acceptance is met: `issue_outputs.go` serves the aggregation, the API
-returns `latest_result`, and `IssueDetail.tsx` renders it. One focus bullet is
-not: **conversation-visible result cards and artifact links do not exist.**
-`ConversationDetailView.tsx` renders user and assistant text and nothing else —
-no task, run, artifact, cancel, retry, or trace state. Two consequences follow
-and neither should be read as done because the section is otherwise complete:
+Both surfaces are built. `issue_outputs.go` serves the aggregation, the API
+returns `latest_result`, and `IssueDetail.tsx` renders it. A Conversation now
+carries a card per task — status, output, files, run details, stop and run again
+— ordered against the messages by creation time and read from the database, so
+the cards survive a refresh, a dropped socket, and a summary that never arrives.
+The transcript excludes the system channel, so a `[Task Result]` message is no
+longer drawn as the user's own.
 
-- A `[Task Result]` reply is persisted with `role: "user"` and
-  `channel: "system"`, the messages route passes any `user` row through, and the
-  view labels every `user` row "You". A task result therefore renders as the
-  user's own message.
-- Delivering that reply at all is best effort. `ConnRegistry.OnTaskRunTerminal`
-  skips when the creator has no live WebSocket, picks `conns[0]` when there are
-  several, and drops the turn when the in-memory queue is full. `task_run` is
-  durable and an Issue aggregates its result; the Conversation reply is not.
-
-The direction for this is
-[proposals/portal-interaction-execution-model.md](proposals/portal-interaction-execution-model.md);
-its phase 0 is repair rather than redesign and does not depend on accepting the
-rest of that paper.
+One thing that repair deliberately did not do: the Tier 1 turn that summarizes a
+finished run is submitted to an in-process queue, so a server restart between a
+run finishing and its turn running still loses the summary. The result is not
+lost with it — the card reads it from `task_run`. Durable delivery is a later
+phase of
+[proposals/portal-interaction-execution-model.md](proposals/portal-interaction-execution-model.md).
 
 ### P0.5. Agent Core Trust Harness
 

@@ -120,7 +120,7 @@ Tier 1 conversation LLM
       TaskRun terminal callback
          |
          v
-  trigger a Tier 1 system turn through a live WebSocket connection
+  broadcast the invalidation; submit a Tier 1 system turn
          |
          v
       Tier 1 summarizes Task output
@@ -146,18 +146,20 @@ back into server requests.
 
 ### Result Delivery Is Not Durable
 
-When a TaskRun finishes, the current terminal callback looks for an active
-WebSocket connection belonging to `created_by`:
+Phase 0 took the terminal callback off the socket. It no longer looks for a
+connection belonging to `created_by`, no longer skips when there is none, and no
+longer picks the first of several; the invalidation is broadcast to the team and
+the Tier 1 turn is submitted to the server's turn queue. What remains is the
+durability half:
 
-- with no live connection, it logs and skips the Conversation turn;
-- with several connections, it chooses only the first one;
 - the system turn uses an in-memory queue and is dropped when the queue is full;
 - a server restart loses turns that have not started;
 - no outbox, delivery row, or reconciler repairs a missed result reply.
 
 The documented promise that a result always returns to the originating
-Conversation is therefore not true. TaskRun itself is durable, and an Issue can
-aggregate its result, but the natural-language Chat reply is best effort.
+Conversation is therefore still not true for the natural-language reply. The
+result itself is no longer at risk: TaskRun is durable and the Conversation now
+reads its card from the database.
 
 ### The Original Intent Is Not Traceably Connected To Execution
 
@@ -180,19 +182,20 @@ copy of the original intent.
 
 ### Task Results Masquerade As User Messages
 
-The current system turn appends `[Task Result] ...` to `conversation_message`
-with `role=user`. The messages API returns user and assistant rows, and Portal
-renders every user row as "You."
-
-This conflates three separate questions:
+The system turn appends `[Task Result] ...` to `conversation_message` with
+`role=user`. Three separate questions are answered by that one column:
 
 - who produced the content;
 - whether it belongs in the visible transcript;
 - whether it is trusted instruction that should be replayed to a model.
 
-The system channel disables Task tools, which reduces the risk of a result
-injection starting more work, but does not fix provenance, display semantics,
-or the prompt-injection boundary.
+Phase 0 separated the second: the messages route excludes the system channel, so
+a task result is no longer drawn as the user's own message, and the run's card
+reports the outcome instead. The first and third are unchanged. The row still
+says `user`, so provenance is carried by a channel rather than stated, and the
+content is still replayed to the model as user input. The system channel
+disables Task tools, which keeps an injected result from starting more work, but
+it is not the prompt-injection boundary this needs.
 
 ### Successful Work Requires An Unnecessary Additional Model Call
 
@@ -713,18 +716,22 @@ In particular:
 
 ## Phased Migration
 
-### Phase 0: Repair The Current Contract
+### Phase 0: Repair The Current Contract — shipped
 
-- load and render related Task/TaskRun cards in Conversation;
-- broadcast invalidation on terminal state instead of choosing the creator's
-  first connection;
-- recover cards from the database after refresh and reconnect;
-- stop displaying a system Task Result as "You";
-- keep results visible when Presenter fails;
-- correct the roadmap's completion claim until Conversation result-card
-  acceptance is actually met.
+- Conversation loads its tasks and renders one card each, ordered against the
+  messages by creation time;
+- a terminal run broadcasts its invalidation to every connection on the team;
+- the cards are read from the database on mount and on every invalidation,
+  including a reconnect, so a refresh and a dropped socket both recover;
+- the transcript excludes the system channel, so a Task Result is no longer
+  displayed as the user's own message;
+- the card is independent of the Presenter, so a summary that fails or never
+  runs costs a sentence rather than the result;
+- the roadmap's completion claim was corrected while this was open and updated
+  when it shipped.
 
-This phase avoids changing Task ownership and object-storage paths.
+It changed no Task ownership and no object-storage path, and it did not make
+delivery durable: the Tier 1 turn still runs from an in-process queue.
 
 ### Phase 1: Expand Tier 1 And Preserve Original Intent
 

@@ -37,6 +37,11 @@ Portal owns the cloud/team lane:
   conversation streaming.
 - The HTTP layer is `portal/src/lib/api/` (`client`, `mappers`, `types`, plus
   `sse` and `ws` for streaming transports).
+- `portal/src/features/conversations/` draws the transcript and, in the same
+  thread, one card per background task the conversation started. The cards are
+  read from the tasks route and reloaded on every invalidation the socket
+  reports, so what a run produced does not depend on the summary Tier 1 writes
+  about it. `thread.ts` decides the order.
 - `portal/src/features/runs/` reads a task run's trace summary and the managed
   model calls the deployment served for it, and `portal/src/features/audit/`
   reads the space audit trail. Both keep their
@@ -54,8 +59,8 @@ Portal owns the cloud/team lane:
 Unit tests are Vitest over pure modules; `vite.config.ts` excludes `e2e/` from
 them. Portal has no DOM test environment, so display decisions live in pure
 modules — `features/runs/summary.ts`, `features/runs/spend.ts`,
-`features/audit/describe.ts`, `features/usage/pressure.ts` — where they can be
-asserted without one.
+`features/audit/describe.ts`, `features/usage/pressure.ts`,
+`features/conversations/thread.ts` — where they can be asserted without one.
 
 `portal/e2e/` holds Playwright specs, run by `./make e2e` against a deployment.
 They cover only what a browser can show: that the published bundle works
