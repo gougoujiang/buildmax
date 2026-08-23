@@ -43,6 +43,12 @@ Activation is a team decision about what may be used; an agent definition
 decides what is used. An agent loads exactly the plugins it names, and nothing
 reaches a run because a team activated it. See §5.3.
 
+Not every team wants to curate. A team chooses between two modes: **curated**,
+where an admin activates each plugin, and **open**, where the whole catalog may
+be named and the activation is created automatically the first time an agent
+names one. Open is the default. Both modes produce the same pinned record — the
+difference is who fills the list, not whether there is one. See §4.1.
+
 Secret delivery is deliberately not in this design. An activation names the
 environment variables a release reads; supplying them is a separate record with
 its own trust boundary.
@@ -97,6 +103,11 @@ The team is the right owner because Team is already the ownership and
 authorization boundary for Portal resources, and because a run is dispatched in
 a team's name against a team's files.
 
+A team that does not want to make this decision per plugin still makes it: it
+chooses open mode, once, and that choice is itself recorded and attributable.
+What §4.1 refuses to do is let the absence of curation become the absence of a
+record.
+
 ## 4. The Activation Record
 
 One row per team and plugin:
@@ -107,6 +118,7 @@ One row per team and plugin:
 | plugin | Catalog identity |
 | version, digest | The exact release, pinned |
 | enabled | Activated or suspended without losing the pin |
+| origin | `curated` — an admin activated it — or `automatic` (§4.1) |
 | activated_by, activated_at | Who decided, and when |
 | updated_by, updated_at | Who last moved the pin |
 
@@ -124,6 +136,47 @@ so the team can move deliberately.
 
 Archiving a plugin behaves the same way. Neither deletes.
 
+### 4.1 Curated And Open Teams
+
+Curating a list is work, and a team that will not do it should not be forced to
+choose between doing it badly and having no plugins. So curation is a team
+setting with two values, and it is the *only* thing the two modes differ in:
+
+| | Curated | Open |
+|---|---|---|
+| What an agent may name | What the team has activated | The whole catalog |
+| Who creates the activation | An admin, deliberately | The system, when an agent first names the plugin |
+| Pinned to | The release the admin chose | The latest eligible, unyanked release at that moment |
+| `activated_by` | That admin | Whoever saved the agent revision that named it |
+| Operator eligibility (§5.1) | Enforced | **Enforced, unchanged** |
+| The pin, the digest, the audit event, the trace | Same | Same |
+
+Open is the default, because the gate that matters across teams is eligibility,
+not curation, and a deployment that wants curation everywhere can say so rather
+than making every team say so.
+
+**Open mode is auto-activation, not no-activation.** The row is created the
+moment an agent names the plugin, not when the run starts, so by resolution
+(§7) there is always a pinned row to resolve. A team's list therefore exists in
+both modes: in curated mode it is a gate, in open mode it is a ledger. Switching
+a team from open to curated later needs no reconstruction — the list is already
+accurate and complete.
+
+**An automatic pin does not move on its own.** Once created it behaves exactly
+like a curated one: a newer release changes nothing until a person moves the
+pin. This is not an oversight to be optimized away later. "A pin moves only when
+somebody moves it" is the invariant §4 rests on and the reason §7 can stop
+worrying about timing; making it conditional on a team setting would put an
+"unless the team is open" exception under every argument in this record. What
+open mode buys is that nobody had to *create* the pin; keeping it current is the
+same deliberate act it is for everyone, and §10 makes it a visible one rather
+than something a team has to go looking for.
+
+**The authority does not change.** Naming a plugin in an agent already requires
+`ActionManageAgents`, which is the same owner-or-admin authority §5 gives
+activation. Open mode removes a step, not a permission: nobody who could not
+already have activated the plugin can cause it to be activated.
+
 ## 5. Who May Activate What
 
 | Content | Authority |
@@ -133,7 +186,9 @@ Archiving a plugin behaves the same way. Neither deletes.
 
 Team owner-or-admin matches `ActionManageAgents` and `ActionManageWorkflows` in
 `internal/server/access`: managing shared automation assets is already this
-authority, and an activation is that shape of decision.
+authority, and an activation is that shape of decision. Setting the team's
+curation mode (§4.1) is the same authority for the same reason, and in open mode
+the automatic activation is caused by an agent edit that already required it.
 
 ### 5.1 Unattended Eligibility
 
@@ -142,6 +197,12 @@ sets it on a release they already control. That is one flag rather than a
 per-team approval queue, and it puts the decision where the knowledge is: an
 operator can reason about what starting that process on their infrastructure
 costs; a team admin usually cannot.
+
+Curation mode does not reach this flag. An open-mode team may name any plugin in
+the catalog; it may not name one contributing hooks or MCP servers that no
+administrator has marked eligible, and auto-activation refuses such a release
+exactly as a curated activation does. Open mode relaxes the team's own
+housekeeping, never the operator's gate.
 
 The word is "unattended" rather than "worker" because the property is *nobody is
 present*, and three surfaces have that shape today: workers, print mode, and
@@ -212,10 +273,11 @@ so reading the new capability report stays a real step rather than a dialog
 people click through. It is also why naming a plugin in N agents is an
 acceptable cost while pinning a version in N agents is not.
 
-**The team's list is a ceiling.** An agent may name only what its team has
-activated. Operator eligibility (§5.1) is checked once, against the team's
-activation; an agent able to name a release its team has not activated would
-route around that check.
+**The team's ceiling is what an agent may name.** In curated mode that is the
+team's activated list; in open mode it is the catalog, and naming creates the
+activation (§4.1). Either way the agent names a plugin its team's record then
+pins, and operator eligibility (§5.1) is checked against that record — which is
+why no mode lets an agent reach a release the check has not seen.
 
 **The activation set is the run's team's, not the agent's.** A worker already
 refuses an agent whose team is not the task's team — `a.TeamID == task.TeamID`
@@ -229,10 +291,11 @@ loaded-with-a-warning, and not skipped: §7 already refuses to start a run whose
 pinned package fails verification, because a background run's output is acted on
 by somebody who was not watching it. An agent that names a plugin has declared it
 needs one, and a run that quietly does less than its definition says is the same
-wrong failure. The check runs three times for one reason — the picker offers only
-activated plugins, the write refuses an unactivated name, and the run refuses
-again — because an agent revision is append-only, so a team suspending an
-activation after the agent was saved is drift that cannot be edited away. The
+wrong failure. The check runs at all three points for one reason — the picker
+offers what the team's mode allows, the write either refuses an unactivated name
+or activates it (§4.1), and the run refuses again — because an agent revision is
+append-only, so a team suspending an activation, or switching to curated mode,
+after the agent was saved is drift that cannot be edited away. The
 operational consequence is intended and belongs in the error text: suspending an
 activation stops the agents that name it, visibly, rather than silently changing
 what they do.
@@ -283,6 +346,10 @@ server                                        worker
   │                                             │    inspect; refuse what would not load
   │                                             └─ place under <global>/plugins/<name>/
 ```
+
+Every pin this resolves already exists, in both curation modes: an open-mode
+activation is created when an agent names the plugin, not when a run starts
+(§4.1), so resolution never has to invent one.
 
 **The server resolves; the worker never does.** Resolution happens in the route
 where a worker claims its run — the same place, and the same moment, that the
@@ -391,6 +458,19 @@ same sanitized report an install shows locally. A release that is not eligible
 for unattended use says so, and says that an administrator decides that, rather
 than offering a button that would fail.
 
+The section also carries the team's curation mode (§4.1) and says plainly what
+each value means: in curated mode an admin activates before an agent may name;
+in open mode naming activates. An entry activated automatically is labelled as
+such, with the agent and the person whose edit caused it, so an open-mode team's
+list reads as the history it is rather than as a list somebody curated.
+
+Because a pin never moves on its own in either mode, this section is also where
+staleness has to be visible: an activation with a newer release available says
+so, next to what that release changes, with the update as a deliberate action.
+A team that chose not to curate did not choose to run last quarter's plugin
+forever — it chose not to be asked before first use. Leaving it to notice on its
+own is how open mode would rot.
+
 Because selection lives on the agent (§5.3), that section also answers the
 question two levels create: for each activated release it says which of the
 team's agents name it, and — because nothing is inherited — an activation no
@@ -399,9 +479,12 @@ agent's own page lists what it names and what its team activated that it does
 not. Two levels are affordable when both are visible from one place; they are
 not when finding out means reading every agent definition.
 
-An agent's plugin field offers exactly what its team has activated. It offers no
-version: the version is the team's (§5.3), and a selector that implied otherwise
-would put the same pin in as many places as there are agents.
+An agent's plugin field offers what its team's mode allows — the activated list
+when curated, the catalog when open — and says which it is showing, because
+"this name will activate a plugin for the whole team" is not something to learn
+afterwards. It offers no version in either mode: the version is the team's
+(§5.3), and a selector that implied otherwise would put the same pin in as many
+places as there are agents.
 
 Portal continues not to claim anything about a local machine. A team activation
 is about that team's background runs; what somebody installed on their laptop is
@@ -418,8 +501,10 @@ already are.
 - `internal/infra/db` — one table, `plugin_activation`, singular, its public
   identifier from `util.NewPublicID` (prefixes are retired; see
   [entity-identity.md](./entity-identity.md) §4.4).
-- `internal/service/plugin` — activation lifecycle and the eligibility flag,
-  beside publication.
+- `internal/service/plugin` — activation lifecycle, the eligibility flag, and
+  auto-activation for open-mode teams, beside publication.
+- `internal/core/model` and `internal/service/team` — the team's curation mode,
+  defaulting to open.
 - `internal/core/model` and `internal/service/agent` — the agent definition's
   plugin selection, one JSON array of catalog names on `AgentRevision` so it
   versions with the rest of the definition and an old revision still answers
@@ -445,6 +530,8 @@ than after.
 ### Phase D1 — Team Activation Of Instructions
 
 - the activation record, its store, and the team-scoped routes;
+- the team's curation mode, defaulting to open, and auto-activation on first
+  naming (§4.1);
 - pins resolved server-side when the worker claims its run, recorded on the
   run, and materialized into it (§7);
 - skills and subagents only; a release contributing anything executable cannot
@@ -459,7 +546,10 @@ than after.
 Acceptance: a team admin activates a release contributing a skill, a background
 run for that team loads it, and the run's trace names the activation, the
 version, and the digest. An agent that names a subset loads that subset and the
-trace says so. A release contributing a hook is refused with the reason.
+trace says so. A release contributing a hook is refused with the reason. On an
+open-mode team the same run works with no admin having activated anything, and
+its activation reads as automatic, pinned, and attributed to the person who
+saved the agent.
 
 ### Phase D2 — Executable Content
 
@@ -541,6 +631,34 @@ selection" — which is what would then stop administrators from using it. The
 kill switch that does exist is the deployment's: mark the release ineligible,
 which stops the executable half immediately.
 
+### Open Mode Resolving The Latest Release Per Run
+
+Letting an open-mode team skip the pin entirely — resolve the newest eligible
+release each time a run starts — is what "we do not want to maintain this"
+sounds like it is asking for, and it would keep such a team permanently current
+for free.
+
+It is rejected because it makes the pin conditional. §4's guarantee that a
+release published five minutes ago cannot change what a run is about to do would
+hold for curated teams and not for open ones, and every argument built on it —
+§5.1's re-reading, §7's freedom to resolve late, §13's rejection of a shared
+directory — would need an "unless the team is open" clause. Two teams would get
+different answers to "why did this run behave differently from the last one",
+which is the question the whole record exists to answer. Currency is worth
+buying with a visible prompt (§10), not with the invariant.
+
+### Making Curation Mandatory For Every Team
+
+Requiring curation everywhere is the safer-sounding default and was rejected as
+the default rather than as a capability. Most teams' plugin use is skills and
+subagents, which §2 shows are the kind of content a team can already put in
+front of a worker through `AGENTS.md` with no ceremony at all. Requiring an
+activation step for them and not for `AGENTS.md` would be ceremony where the
+product already decided there is none, and the predictable result is teams that
+do not use plugins rather than teams that curate. What must not be optional is
+operator eligibility, and that is a separate control that open mode does not
+touch (§5.1).
+
 ### Resolving Activations On The Worker
 
 Letting a worker read its team's activations at start would remove a field from
@@ -560,7 +678,17 @@ Implementation is not complete until tests prove:
   starting it without that plugin;
 - a run token can download only the packages its own run's pins name, and
   cannot read the catalog;
-- a team member without owner or admin cannot activate anything;
+- a team member without owner or admin cannot activate anything, and cannot
+  change the team's curation mode;
+- an open-mode team's agent naming an unactivated plugin creates the activation,
+  pinned to the latest eligible unyanked release, attributed to the person who
+  saved that revision;
+- a curated-mode team's agent naming an unactivated plugin is refused at the
+  write instead;
+- an automatic pin does not advance when a newer release is published, in either
+  mode;
+- open mode does not permit naming a release contributing hooks or MCP servers
+  that no administrator has marked eligible;
 - a release contributing a hook or an MCP server cannot be activated until an
   administrator marks it eligible, and moving a pin onto such a release is
   refused on the same terms as a first activation;
@@ -607,7 +735,12 @@ Implementation is not complete until tests prove:
    activation record serve them, or is a conversation a different scope?
 5. What does a team see when a release it pinned is yanked — a warning it can
    dismiss, or a state that blocks the next dispatch until somebody looks?
-6. Should a team be able to mark an activation *mandatory*, so that every agent
+6. Should a deployment be able to force curated mode for every team, overriding
+   §4.1's per-team choice? It is defensible where a deployment's teams are
+   separate customers, and it is not built: eligibility already holds the line
+   that crosses teams, and no deployment has asked. Adding it later is a setting,
+   not a redesign.
+7. Should a team be able to mark an activation *mandatory*, so that every agent
    loads it whether or not it names it? Deliberately not in this design: it is
    the inheritance §5.3 rejected, reintroduced as an explicit team choice rather
    than a default, and it is not worth its complexity until a deployment asks
