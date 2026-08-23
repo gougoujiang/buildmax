@@ -90,11 +90,11 @@ func TestRenderKindSeedAliases(t *testing.T) {
 // alias carrying the dot from a model version stops the server from starting.
 func TestAliasFromModelID(t *testing.T) {
 	cases := map[string]string{
-		"openai/gpt-5.6-luna":       "openai-gpt-5-6-luna",
+		"openai/gpt-5.6-luna":        "openai-gpt-5-6-luna",
 		"anthropic/claude-haiku-4.5": "anthropic-claude-haiku-4-5",
-		"qwen3:8b":                  "qwen3-8b",
-		"z-ai/glm-5.3":              "z-ai-glm-5-3",
-		"...":                       "",
+		"qwen3:8b":                   "qwen3-8b",
+		"z-ai/glm-5.3":               "z-ai-glm-5-3",
+		"...":                        "",
 	}
 	for in, want := range cases {
 		if got := aliasFromModelID(in); got != want {
