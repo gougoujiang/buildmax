@@ -68,6 +68,10 @@ deployment/*.local.yaml
 testing-sandbox/
 testing-workspaces/
 
+# Scratch directory the /smoke skill writes to. It cleans up after itself; this
+# line is here so an interrupted run does not leave untracked files behind.
+/smoke-test-tmp/
+
 # Server/portal workspace dirs created by tests or local runs when WorkspacesDir is unset
 internal/server/**/testing-workspaces/
 internal/server/**/ws-1/
