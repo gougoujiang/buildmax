@@ -115,6 +115,7 @@ func (h *Handler) teamHandler() *teamroutes.Handler {
 		Workflows:        h.cfg.WorkflowStore,
 		Quota:            h.cfg.QuotaService,
 		Audit:            h.cfg.Audit,
+		Plugins:          h.cfg.PluginService,
 	})
 }
 

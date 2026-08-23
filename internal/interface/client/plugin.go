@@ -35,6 +35,21 @@ func (c *Client) GetPlugin(ctx context.Context, token, name string) (*pluginwire
 	return &out, nil
 }
 
+// ListTeamActivations returns what a team has activated for its background
+// runs, and who fills that list.
+//
+// It is a read only. Changing an activation stays in Portal, where the audit
+// trail and the team's other shared automation already are; what this serves is
+// somebody debugging a run who wants the answer without a browser.
+func (c *Client) ListTeamActivations(ctx context.Context, token, teamID string) (*pluginwire.ActivationsResponse, error) {
+	var out pluginwire.ActivationsResponse
+	path := fmt.Sprintf(pluginwire.TeamActivationsPath, url.PathEscape(teamID))
+	if err := c.getJSON(ctx, token, path, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // DownloadRelease streams one release's bytes into w and returns the digest the
 // server sent with them.
 //

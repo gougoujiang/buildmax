@@ -79,3 +79,45 @@ type CreatePluginRequest struct {
 type YankReleaseRequest struct {
 	Reason string `json:"reason,omitempty"`
 }
+
+// Team activation paths. An activation belongs to a team, so these are
+// team-scoped where the catalog routes above are deployment-scoped.
+const (
+	// TeamActivationsPath lists a team's activations and creates one.
+	TeamActivationsPath = "/api/teams/%s/plugin-activations"
+	// TeamActivationPath changes one activation: its pin, or whether it is
+	// suspended.
+	TeamActivationPath = "/api/teams/%s/plugin-activations/%s"
+	// TeamPluginCurationPath sets who fills the team's activation list.
+	TeamPluginCurationPath = "/api/teams/%s/plugin-curation"
+)
+
+// ActivationsResponse is what a team has activated and who fills the list.
+//
+// The curation mode travels with the activations because reading one without
+// the other misleads: an empty list means "nothing activated yet" in open mode
+// and "nothing may be named" in curated mode.
+type ActivationsResponse struct {
+	Curation    model.PluginCuration     `json:"curation"`
+	Activations []model.PluginActivation `json:"activations"`
+}
+
+// ActivateRequest pins a release for a team. An empty Version takes the newest
+// release the team could be pinned to.
+type ActivateRequest struct {
+	PluginName string `json:"plugin_name"`
+	Version    string `json:"version,omitempty"`
+}
+
+// UpdateActivationRequest changes one activation. Both fields are optional and
+// they are separate decisions: moving a pin is not suspending, and a request
+// naming neither changes nothing.
+type UpdateActivationRequest struct {
+	Version *string `json:"version,omitempty"`
+	Enabled *bool   `json:"enabled,omitempty"`
+}
+
+// SetCurationRequest chooses who fills the team's activation list.
+type SetCurationRequest struct {
+	Curation model.PluginCuration `json:"curation"`
+}
