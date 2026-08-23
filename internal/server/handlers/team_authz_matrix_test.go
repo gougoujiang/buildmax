@@ -135,8 +135,9 @@ var teamRoutes = []authzCase{
 	{"GET", "/api/teams/{team_id}/audit-events", model.TeamRoleOwner, false},
 	// The export is the same read in a file, so it is the same reader.
 	{"GET", "/api/teams/{team_id}/audit-events/export", model.TeamRoleOwner, false},
-	{"GET", "/api/teams/{team_id}/llm/models", model.TeamRoleMember, false},
-	{"POST", "/api/teams/{team_id}/llm/completions", model.TeamRoleMember, false},
+	// The managed gateway is deliberately absent: it is not team-scoped. Every
+	// catalog model is available to every signed-in user, so its routes carry no
+	// team and are covered by the gateway's own tests.
 
 	{"GET", "/api/teams/{team_id}/ws", model.TeamRoleMember, true},
 }

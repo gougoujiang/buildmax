@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -218,7 +219,29 @@ func TestWorkerLLMCompletions(t *testing.T) {
 	})
 }
 
-// The worker route resolves a profile the same way the team route does. Two
+// workerDenyQuota refuses every team.
+type workerDenyQuota struct{}
+
+func (workerDenyQuota) Check(context.Context, string, int, int) (bool, string) {
+	return false, "quota exceeded: token limit"
+}
+
+// TestWorkerLLMCompletionRespectsQuota is where quota is enforced now that a
+// foreground call names no team: a run belongs to exactly one, taken from its
+// run token, so this is the route that can be metered against a limit.
+func TestWorkerLLMCompletionRespectsQuota(t *testing.T) {
+	gateway := llmTestService(t, &llmStubClient{content: "answer"}, workerDenyQuota{})
+
+	rec := workerLLMRequest(t, gateway, string(model.RunStatusRunning), workerLLMBody, validWorkerRunToken(t))
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("status = %d, want 429: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), llmgateway.ErrorClassQuotaExceeded) {
+		t.Errorf("body does not carry the quota code: %s", rec.Body.String())
+	}
+}
+
+// The worker route resolves a profile the same way the user route does. Two
 // endpoints reaching different conclusions about the same word is the drift the
 // shared resolver exists to prevent, and here it would mean a run's caching
 // depended on which door it came through.

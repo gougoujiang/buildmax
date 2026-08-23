@@ -192,11 +192,10 @@ models:                              # first entry is the default model
   #   context_window: 200000
   #   max_tokens: 8192               # 0 = built-in default (8192)
 
-  # - model: default                 # a team alias, not a provider model id
+  # - model: Fast                    # a catalog name, not a provider model id
   #   name: Team Default
   #   transport: buildmax
   #   server_url: https://buildmax.example.com
-  #   team_id: tm_example
 
 hooks: {}                            # see guide/hooks.md
 sandbox: {}                          # see guide/sandbox.md
@@ -217,7 +216,6 @@ sandbox: {}                          # see guide/sandbox.md
 | `models[].keep_alive` | — | How long a local runtime keeps the model loaded after a call: a duration such as `30m`, `0` to unload at once, `-1` to stay resident. Only `ollama` reads it. |
 | `models[].transport` | `direct` | `direct` calls a provider from this machine. `buildmax` calls a server's managed gateway. |
 | `models[].server_url` | — | Required for `buildmax` transport: which deployment serves the call. |
-| `models[].team_id` | — | Required for `buildmax` transport: which team the call is billed and authorized against. |
 
 ### Model providers
 
@@ -472,17 +470,19 @@ no credential in either case. See
 ### Managed models
 
 A `transport: buildmax` entry calls a BuildMax deployment instead of a provider,
-so the server holds the provider credential and decides which models the team
-may use. Its `model` field is a **team alias**, not a provider model id. List a
-team's aliases with:
+so the server holds the provider credential and decides which models it offers.
+Its `model` field is the **catalog name** an operator added the model under, not
+a provider model id. Every model a deployment offers is available to every user
+of it — a team is a collaboration boundary, not a model authorization boundary.
+List what a deployment offers with:
 
 ```bash
-buildmax models --team <team_id>
+buildmax models --server
 ```
 
 `buildmax models` also prints where every configured model sends prompts, and
-`buildmax doctor` reports a managed entry that is missing `server_url` or
-`team_id`, or whose login is absent, expired, or for a different server.
+`buildmax doctor` reports a managed entry that is missing `server_url`, or whose
+login is absent, expired, or for a different server.
 
 The credential is never written into `settings.yaml`. It comes from
 `buildmax login` and is only used when the stored login belongs to that entry's
@@ -615,10 +615,8 @@ conversation:                        # Tier 1 model used by the Portal agent loo
   # max_tokens: 0                    # cap on one response; 0 = protocol default
   # model_target: fast               # use an llm.targets id for Tier 1 instead
 
-# llm:                               # team model policy; catalog is in the DB
-#   aliases:
-#     default: lm_xxxxxxxxxxxxxxxxxxxx
-#   default_alias: default
+# llm:                               # catalog is in the DB; this names a default
+#   default_model: Fast              # a --name from `model list`
 
 database:                            # MySQL
   host: localhost
@@ -745,8 +743,9 @@ purpose:
 - **The catalog** is the `llm_model` database table: which models exist, where
   each is reached, and with what credential. It is not in `server.yaml` because
   it holds provider keys and changes while the server runs.
-- **The policy** is the `llm` block below: which of those models each team may
-  name, and under what alias.
+- **The `llm` block** below says which of them a caller gets when it names none.
+  It is not an authorization list: every enabled model is available to every
+  user of the deployment.
 
 Edit the catalog with `buildmax-server model`, on the machine that already holds
 the database credentials:
@@ -781,18 +780,18 @@ connection details changed.
 
 | Key | Meaning |
 |---|---|
-| `llm.aliases` | Maps a team-facing alias to an `llm_model` ID. **Leaving it empty means no team may use the gateway** — a catalog says which models exist, not who may call them. |
-| `llm.default_alias` | Alias used when a caller names none. Required when more than one alias exists. |
-| `conversation.model_target` | Runs Tier 1 on a catalog model instead of `conversation.model`. An `llm_model` ID, not an alias: the server picks its own model rather than being granted one. |
+| `llm.default_model` | The `--name` a caller gets when it names none. Empty uses the first enabled model in the catalog, so a single-model deployment needs nothing here. |
+| `conversation.model_target` | Runs Tier 1 on a catalog model instead of `conversation.model`. An `llm_model` ID, not a name: the server picks its own model rather than naming one the way a client does. |
 
-A server with no `llm` block behaves exactly as before: `conversation.model`
-serves Tier 1, and no team has managed access. `conversation.model` also stays
-the bootstrap path — a fresh deployment answers conversations before its catalog
-has a single row.
+A server with no `llm` block serves the catalog with its first enabled model as
+the default. `conversation.model` stays the bootstrap path — a fresh deployment
+answers conversations, and offers that model by name, before its catalog has a
+single row.
 
-An alias naming a model that does not exist does **not** stop the server. The
-catalog is edited independently of the policy, so such an alias fails its own
-calls and is skipped in model listings while every other alias keeps working.
+A `default_model` naming a model that does not exist **stops the server at
+startup**. It parses cleanly and would otherwise fail every session at its first
+call, which reads as a model outage rather than a typo. An empty catalog is not
+an error: rows are added while the server runs.
 
 Managed calls need a database for two reasons: the catalog lives there, and
 every call is recorded in the `llm_call` ledger. Without a store the routes
@@ -860,12 +859,12 @@ instead, and the worker stops needing an upstream key:
 | Key | Meaning |
 |---|---|
 | `worker.llm.transport` | `direct` (default) or `buildmax`. Under `buildmax`, `BUILDMAX_CONVERSATION_MODEL_API_KEY` is withheld from the worker. |
-| `worker.llm.alias` | Which alias a run calls. Empty uses `llm.default_alias`. Must be one of `llm.aliases`. |
-| `worker.llm.context_window`, `worker.llm.call_timeout` | Describe the alias to the run; the protocol does not report them per call. |
+| `worker.llm.model` | Which catalog model a run calls, by `--name`. Empty uses `llm.default_model`. |
+| `worker.llm.context_window`, `worker.llm.call_timeout` | Describe the model to the run; the protocol does not report them per call. |
 | `worker.run_token_ttl` | How long a run's credential stays valid. Defaults to 24h. Every run gets one, managed or not. |
 | `worker.run_timeout` | How long a run may stay `SCHEDULED` or `RUNNING` before the server records it as abandoned. Defaults to 6h. |
 
-The server states the transport and alias; a worker never chooses its own model,
+The server states the transport and model; a worker never chooses its own model,
 and is told nothing else about it — endpoint, upstream identifier, and
 credential all stay server-side. Each run is dispatched with its own credential
 in `BUILDMAX_RUN_TOKEN`, which authorizes that run and nothing else.
@@ -875,9 +874,9 @@ needs no provider key.
 
 Two things to know before enabling it:
 
-- `transport: buildmax` with an empty `llm.aliases`, or an alias no team may
-  call, **stops the server at startup**. That configuration parses cleanly and
-  would otherwise fail every run at its first model call.
+- `worker.llm.model` naming a model the catalog does not have **stops the server
+  at startup**, the same way `llm.default_model` does. That configuration parses
+  cleanly and would otherwise fail every run at its first model call.
 - The run token is not renewable. `run_token_ttl` must outlast your longest
   run; a run that outlives it loses its remaining model calls.
 

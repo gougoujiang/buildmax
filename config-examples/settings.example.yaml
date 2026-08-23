@@ -213,9 +213,8 @@ models:
   #
   # `model` is the catalog name an operator added the model under, not a
   # provider model id. List what a deployment offers with
-  # `buildmax models --team <team_id>`. The credential is not copied here: it
-  # comes from `buildmax login`, and only when the stored login belongs to this
-  # server_url.
+  # `buildmax models --server`. The credential is not copied here: it comes from
+  # `buildmax login`, and only when the stored login belongs to this server_url.
   #
   # There is no automatic fallback between the two modes. Configure both entries
   # and choose, rather than expecting one to cover for the other.
@@ -223,7 +222,6 @@ models:
   #   name: Team Default
   #   transport: buildmax        # omit or use "direct" for a provider call
   #   server_url: https://buildmax.example.com
-  #   team_id: tm_example
   #   context_window: 128000
 
 # Bash sandbox. Confines the subprocesses started by the Bash tool by filesystem

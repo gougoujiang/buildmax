@@ -275,18 +275,14 @@ func catalogNameColumn(line string) (int, int) {
 }
 
 // printKindSeedUsage prints the managed model entries a contributor pastes into
-// their own settings.yaml. A managed entry needs a team, and the team is the
-// personal one of the account `kind up` and `kind info` already sign in as.
+// their own settings.yaml. A managed entry names a model and a server; the
+// credential comes from the login, and no team is involved.
 func printKindSeedUsage(entries []kindSeedEntry) error {
 	target := kindSmokeTarget()
 	client := &http.Client{Timeout: 10 * time.Second}
 	ctx := context.Background()
 	if err := waitForHTTP(ctx, client, target.apiBase+"/healthz", 90*time.Second); err != nil {
 		return err
-	}
-	_, teamID, err := smokeSignIn(ctx, client, target, smokeEmail)
-	if err != nil {
-		return fmt.Errorf("find the team to use these models: %w", err)
 	}
 
 	fmt.Printf("\nSeeded %d model(s) into cluster %s.\n", len(entries), kindClusterName())
@@ -299,10 +295,9 @@ func printKindSeedUsage(entries []kindSeedEntry) error {
 		fmt.Printf("    name: %s (kind)\n", entry.name)
 		fmt.Printf("    transport: buildmax\n")
 		fmt.Printf("    server_url: %s\n", target.apiBase)
-		fmt.Printf("    team_id: %s\n", teamID)
 	}
 	fmt.Printf("\nThe credential comes from the login, not the file: sign in first with\n")
 	fmt.Printf("  buildmax login --server %s   (as %s)\n", target.apiBase, smokeEmail)
-	fmt.Printf("Run `%s kind info` for a single-use code, then `buildmax models --team %s` to check.\n", mk(), teamID)
+	fmt.Printf("Run `%s kind info` for a single-use code, then `buildmax models --server` to check.\n", mk())
 	return nil
 }

@@ -49,8 +49,13 @@ callbacks, and scheduler startup. Business workflows are delegated to
   `/api/teams/{team_id}/task-runs/{task_run_id}/artifacts...`
 - Run trace: `/api/teams/{team_id}/task-runs/{task_run_id}/trace`
 - Managed model calls: `/api/teams/{team_id}/task-runs/{task_run_id}/llm-calls` —
-  what a run spent and on which approved alias, without prompts or the
-  operator's catalog routing
+  what a run spent and on which model, without prompts or the operator's catalog
+  routing. Authorizing the run authorizes its ledger: the rows carry no team of
+  their own
+- Managed gateway (**not** team-scoped): `/api/llm/models` and
+  `/api/llm/completions`. Every catalog model is available to every signed-in
+  user, and a call is attributed to the person who made it. See
+  [../../design/client-modes.md](../../design/client-modes.md)
 - Usage: `/api/usage`, `/api/teams/{team_id}/usage`
 - Audit trail (owner only): `/api/teams/{team_id}/audit-events`, and
   `/audit-events/export` for the whole trail as CSV or JSONL. The export is

@@ -91,11 +91,13 @@ type ModelEntry struct {
 	Provider string `mapstructure:"provider"`
 	// Transport is "direct" (the default) or "buildmax".
 	Transport string `mapstructure:"transport"`
-	// ServerURL and TeamID apply to a "buildmax" entry. The credential is not
-	// copied here: the remote client reads it from the login state in
-	// auth.json, and only when it belongs to this server.
+	// ServerURL applies to a "buildmax" entry. The credential is not copied
+	// here: the remote client reads it from the login state in auth.json, and
+	// only when it belongs to this server.
+	//
+	// There is no team: every model a deployment offers is available to every
+	// user of it. See docs/design/client-modes.md section 5.
 	ServerURL string `mapstructure:"server_url"`
-	TeamID    string `mapstructure:"team_id"`
 }
 
 // IsManaged reports whether this entry calls a BuildMax gateway.

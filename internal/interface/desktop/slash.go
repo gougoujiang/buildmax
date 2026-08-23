@@ -59,10 +59,7 @@ func modelDestination(c agentapp.ModelConfig) string {
 	if server == "" {
 		server = "no server_url"
 	}
-	if c.TeamID == "" {
-		return server
-	}
-	return server + " " + c.TeamID
+	return server
 }
 
 // SetProjectModel switches the active model for a project's agent.

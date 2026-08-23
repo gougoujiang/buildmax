@@ -918,7 +918,7 @@ func TestUnknownToolEndDoesNotDropAnotherCall(t *testing.T) {
 func TestModelTransportTag(t *testing.T) {
 	entries := []agentapp.ModelConfig{
 		{Name: "local", ProviderModel: "qwen3:8b"},
-		{Name: "team", ProviderModel: "default", Transport: config.TransportBuildMax, ServerURL: "http://localhost:5678", TeamID: "t_abc"},
+		{Name: "team", ProviderModel: "Fast", Transport: config.TransportBuildMax, ServerURL: "http://localhost:5678"},
 		{Name: "broken", Transport: config.TransportBuildMax},
 	}
 	cases := []struct {

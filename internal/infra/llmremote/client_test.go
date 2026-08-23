@@ -65,11 +65,6 @@ func newFakeGateway(t *testing.T) *fakeGateway {
 
 func (g *fakeGateway) client(cfg llmremote.Config) *llmremote.Client {
 	cfg.ServerURL = g.server.URL
-	// A team is the usual identity, but not when the caller already gave a task
-	// run: the two select different routes and cannot both be set.
-	if cfg.TeamID == "" && cfg.TaskRunID == "" {
-		cfg.TeamID = "tm_one"
-	}
 	return llmremote.NewClient(cfg)
 }
 
@@ -89,7 +84,7 @@ func TestBlockingCallShapesTheRequest(t *testing.T) {
 	if gateway.gotMethod != http.MethodPost {
 		t.Errorf("method = %q, want POST", gateway.gotMethod)
 	}
-	if gateway.gotPath != "/api/teams/tm_one/llm/completions" {
+	if gateway.gotPath != llmwire.CompletionsPath {
 		t.Errorf("path = %q", gateway.gotPath)
 	}
 	if gateway.gotAuth != "Bearer tok" {
@@ -414,7 +409,7 @@ func TestModelsListing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Models: %v", err)
 	}
-	if gateway.gotPath != "/api/teams/tm_one/llm/models" {
+	if gateway.gotPath != llmwire.ModelsPath {
 		t.Errorf("path = %q", gateway.gotPath)
 	}
 	if len(models) != 1 || models[0].Name != "Fast" || !models[0].Default {
@@ -428,14 +423,13 @@ func TestServerURLTrailingSlashIsTolerated(t *testing.T) {
 
 	client := llmremote.NewClient(llmremote.Config{
 		ServerURL: gateway.server.URL + "/",
-		TeamID:    "tm_one",
 		Token:     "tok",
 	})
 	if _, err := client.ChatCompletionBlocking(context.Background(),
 		cllm.Request{Messages: []cllm.Message{{Role: "user"}}}); err != nil {
 		t.Fatalf("ChatCompletionBlocking: %v", err)
 	}
-	if gateway.gotPath != "/api/teams/tm_one/llm/completions" {
+	if gateway.gotPath != llmwire.CompletionsPath {
 		t.Errorf("path = %q, want no doubled slash", gateway.gotPath)
 	}
 }
@@ -551,7 +545,7 @@ func TestManagedRoundTripCarriesCacheCounts(t *testing.T) {
 		name string
 		cfg  llmremote.Config
 	}{
-		{name: "team", cfg: llmremote.Config{Token: "tok", TeamID: "tm_one"}},
+		{name: "user", cfg: llmremote.Config{Token: "tok"}},
 		{name: "worker", cfg: llmremote.Config{Token: "tok", TaskRunID: "tr_one"}},
 	} {
 		t.Run(mode.name, func(t *testing.T) {
@@ -621,7 +615,7 @@ func TestManagedRequestCarriesTheProfileAndNoCachePolicy(t *testing.T) {
 		name string
 		cfg  llmremote.Config
 	}{
-		{name: "team", cfg: llmremote.Config{Token: "tok", TeamID: "tm_one"}},
+		{name: "user", cfg: llmremote.Config{Token: "tok"}},
 		{name: "worker", cfg: llmremote.Config{Token: "tok", TaskRunID: "tr_one"}},
 	} {
 		t.Run(mode.name, func(t *testing.T) {

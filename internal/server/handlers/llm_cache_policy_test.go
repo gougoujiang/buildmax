@@ -11,6 +11,7 @@ import (
 
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/infra/llmremote"
+	"github.com/gougoujiang/buildmax/internal/infra/llmwire"
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
 )
@@ -84,7 +85,6 @@ func TestTeamCompletionCarriesTheCallProfile(t *testing.T) {
 			remote := llmremote.NewClient(llmremote.Config{
 				ServerURL:   server.URL,
 				Token:       testsupport.SignJWT(llmTestUser, llmTestSecret),
-				TeamID:      llmTestTeam,
 				CallTimeout: 10 * time.Second,
 			})
 			if _, err := remote.ChatCompletionBlocking(context.Background(), cllm.Request{
@@ -167,7 +167,7 @@ func TestTeamCompletionRefusesACachePolicy(t *testing.T) {
 func postCompletion(t *testing.T, server *httptest.Server, body string) *http.Response {
 	t.Helper()
 	req, err := http.NewRequest(http.MethodPost,
-		server.URL+"/api/teams/"+llmTestTeam+"/llm/completions", strings.NewReader(body))
+		server.URL+llmwire.CompletionsPath, strings.NewReader(body))
 	if err != nil {
 		t.Fatalf("build request: %v", err)
 	}

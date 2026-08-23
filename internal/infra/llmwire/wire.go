@@ -22,10 +22,11 @@ const Version = "1"
 
 // Paths, relative to the server base URL.
 const (
-	// ModelsPath lists the models this deployment offers.
-	ModelsPath = "/api/teams/%s/llm/models"
+	// ModelsPath lists the models this deployment offers. Every model in the
+	// catalog is available to every signed-in user, so the path names no team.
+	ModelsPath = "/api/llm/models"
 	// CompletionsPath runs one managed call.
-	CompletionsPath = "/api/teams/%s/llm/completions"
+	CompletionsPath = "/api/llm/completions"
 	// WorkerCompletionsPath runs one managed call on behalf of a task run.
 	// The team comes from the run rather than the path, so a worker cannot
 	// name a team it was not scheduled for.

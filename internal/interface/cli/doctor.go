@@ -220,14 +220,6 @@ func checkManagedModel(index int, title, display string, sev doctorSeverity, m c
 			Next:     "Set server_url to the BuildMax server this model runs on.",
 		}
 	}
-	if strings.TrimSpace(m.TeamID) == "" {
-		return doctorCheck{
-			Severity: sev,
-			Title:    title,
-			Detail:   fmt.Sprintf("%s uses transport %s but has no team_id", display, config.TransportBuildMax),
-			Next:     "Set team_id, then run `buildmax models --team <team_id>` to see its aliases.",
-		}
-	}
 	if err := auth.CanAuthenticate(m.ServerURL); err != nil {
 		return doctorCheck{
 			Severity: sev,
@@ -243,7 +235,7 @@ func checkManagedModel(index int, title, display string, sev doctorSeverity, m c
 	return doctorCheck{
 		Severity: doctorOK,
 		Title:    title,
-		Detail:   fmt.Sprintf("%s -> %s team %s%s", display, m.ServerURL, m.TeamID, suffix),
+		Detail:   fmt.Sprintf("%s -> %s%s", display, m.ServerURL, suffix),
 	}
 }
 

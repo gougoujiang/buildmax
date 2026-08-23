@@ -207,16 +207,14 @@ func (c *Client) Logout(ctx context.Context, refreshToken, accessToken string) e
 	return httpclient.DecodeError(resp, "")
 }
 
-// ListTeamModels calls GET /api/teams/{team_id}/llm/models and returns the
-// model aliases the team may use through the managed gateway.
+// ListServerModels calls GET /api/llm/models and returns the models this
+// deployment offers through the managed gateway. Being signed in is the whole
+// authorization: every catalog model is available to every user.
 //
-// The reply names aliases only. Which provider serves one, and with whose
+// The reply names models only. Which provider serves one, and with whose
 // credential, stays on the server.
-func (c *Client) ListTeamModels(ctx context.Context, token, teamID string) ([]llmwire.Model, error) {
-	if teamID == "" {
-		return nil, errors.New("team is required")
-	}
-	url := c.BaseURL + fmt.Sprintf(llmwire.ModelsPath, teamID)
+func (c *Client) ListServerModels(ctx context.Context, token string) ([]llmwire.Model, error) {
+	url := c.BaseURL + llmwire.ModelsPath
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err

@@ -23,11 +23,10 @@ func directEntry() config.ModelEntry {
 
 func managedEntry() config.ModelEntry {
 	return config.ModelEntry{
-		Model:     "default",
+		Model:     "Fast",
 		Name:      "Team Default",
 		Transport: config.TransportBuildMax,
 		ServerURL: "https://buildmax.example.com",
-		TeamID:    "tm_example",
 	}
 }
 
@@ -88,16 +87,6 @@ func TestManagedEntryNeverFallsBackToDirect(t *testing.T) {
 			wantIn: "does not support",
 		},
 		{
-			name: "no team",
-			entry: func() config.ModelEntry {
-				e := managedEntry()
-				e.TeamID = ""
-				return e
-			}(),
-			token:  func(string) (string, error) { return "token", nil },
-			wantIn: "team_id is required",
-		},
-		{
 			name:   "login belongs elsewhere",
 			entry:  managedEntry(),
 			token:  func(string) (string, error) { return "", errors.New("logged in to another server") },
@@ -129,8 +118,8 @@ func TestManagedEntryCarriesNoProviderCredential(t *testing.T) {
 	if !cfg.IsManaged() {
 		t.Error("the entry did not resolve as managed")
 	}
-	if cfg.ProviderModel != "default" {
-		t.Errorf("ProviderModel = %q, want the team alias", cfg.ProviderModel)
+	if cfg.ProviderModel != "Fast" {
+		t.Errorf("ProviderModel = %q, want the catalog name", cfg.ProviderModel)
 	}
 
 	// A direct entry stays direct, including when transport is unset.
@@ -166,36 +155,11 @@ func runScopedCacheFor(entries []config.ModelEntry, taskRunID string) *LLMClient
 	}
 }
 
-// TestRunScopedManagedEntryNeedsNoTeam is the difference between a worker and
-// every other surface. A person picks a team to spend against; a task run
-// already belongs to one, and the server reads it from the run token — so
-// requiring team_id here would ask the worker to assert an identity the server
-// is supposed to derive.
-func TestRunScopedManagedEntryNeedsNoTeam(t *testing.T) {
-	entry := managedEntry()
-	entry.TeamID = ""
-
-	client, err := runScopedCacheFor([]config.ModelEntry{entry}, "r_1").Get(entry.Name)
-	if err != nil {
-		t.Fatalf("Get: %v", err)
-	}
-	if _, ok := client.(*llmremote.Client); !ok {
-		t.Fatalf("a run-scoped managed entry produced %T", client)
-	}
-
-	// The same entry on a team-scoped surface still needs one.
-	if _, err := cacheFor([]config.ModelEntry{entry}, func(string) (string, error) {
-		return "token", nil
-	}).Get(entry.Name); err == nil {
-		t.Error("a managed entry with no team built a team-scoped client")
-	}
-}
-
-// TestRunScopedManagedEntryDropsATeam records that a run never calls as a team
-// even when configuration supplies one. The two identities select different
-// gateway routes, and llmremote refuses a client holding both — so leaving the
-// team in place would turn a stale config value into a failed run.
-func TestRunScopedManagedEntryDropsATeam(t *testing.T) {
+// TestRunScopedManagedEntryCallsAsItsRun is the difference between a worker and
+// every other surface: a run authenticates with its run token on the worker
+// route, so it cannot list models and the server derives user, team, and task
+// from the credential rather than from configuration.
+func TestRunScopedManagedEntryCallsAsItsRun(t *testing.T) {
 	client, err := runScopedCacheFor([]config.ModelEntry{managedEntry()}, "r_1").Get("Team Default")
 	if err != nil {
 		t.Fatalf("Get: %v", err)

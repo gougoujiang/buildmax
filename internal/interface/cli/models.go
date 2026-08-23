@@ -22,15 +22,15 @@ import (
 func newModelsCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "models",
-		Short: "List configured models, the local models a daemon holds, and the team models a server offers",
+		Short: "List configured models, the local models a daemon holds, and the models a server offers",
 		Long: "Lists the models in settings.yaml and where each one sends prompts.\n\n" +
-			"With --team, also lists the aliases that team may use through a BuildMax\n" +
-			"server, which are the values a transport: buildmax entry names.\n\n" +
+			"With --server, also lists the models the deployment you are signed in to\n" +
+			"offers, which are the names a transport: buildmax entry puts in `model`.\n\n" +
 			"With --local, also lists what a local Ollama daemon has pulled, including\n" +
 			"whether each model can call tools, and prints an entry ready to paste.",
 		RunE: runModels,
 	}
-	cmd.Flags().String("team", "", "list the managed model aliases available to this team")
+	cmd.Flags().Bool("server", false, "list the models the signed-in deployment offers")
 	cmd.Flags().Bool("local", false, "list the models a local Ollama daemon holds")
 	cmd.Flags().String("ollama-url", config.DefaultOllamaBaseURL, "where the local daemon listens, for --local")
 	return cmd
@@ -50,11 +50,10 @@ func runModels(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
-	teamID, _ := cmd.Flags().GetString("team")
-	if teamID == "" {
-		return nil
+	if server, _ := cmd.Flags().GetBool("server"); server {
+		return printServerModels(cmd.Context())
 	}
-	return printTeamModels(cmd.Context(), teamID)
+	return nil
 }
 
 func printConfiguredModels(settings config.Settings) {
@@ -90,11 +89,7 @@ func modelDestination(cfg agentapp.ModelConfig) string {
 		if server == "" {
 			server = "(no server_url)"
 		}
-		team := cfg.TeamID
-		if team == "" {
-			team = "(no team_id)"
-		}
-		return server + " team " + team
+		return server
 	}
 	if cfg.BaseURL == "" {
 		if cfg.Provider == config.LLMProviderOllama {
@@ -216,7 +211,10 @@ func humanSize(bytes int64) string {
 	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "kMGT"[exp])
 }
 
-func printTeamModels(ctx context.Context, teamID string) error {
+// printServerModels lists what the deployment this machine is signed in to
+// offers. Every model in its catalog is available to every user, so there is
+// nothing to scope the listing by beyond the login itself.
+func printServerModels(ctx context.Context) error {
 	info, err := auth.Info()
 	if err != nil {
 		return fmt.Errorf("load auth: %w", err)
@@ -229,14 +227,14 @@ func printTeamModels(ctx context.Context, teamID string) error {
 		return err
 	}
 
-	models, err := client.NewClient(info.ServerURL).ListTeamModels(ctx, token, teamID)
+	models, err := client.NewClient(info.ServerURL).ListServerModels(ctx, token)
 	if err != nil {
-		return fmt.Errorf("list team models: %w", err)
+		return fmt.Errorf("list server models: %w", err)
 	}
 
-	fmt.Fprintf(os.Stdout, "\nManaged models for team %s on %s:\n", teamID, info.ServerURL)
+	fmt.Fprintf(os.Stdout, "\nManaged models on %s:\n", info.ServerURL)
 	if len(models) == 0 {
-		fmt.Fprintln(os.Stdout, "  none — this team has no managed models")
+		fmt.Fprintln(os.Stdout, "  none — this deployment's catalog is empty")
 		return nil
 	}
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
@@ -251,7 +249,7 @@ func printTeamModels(ctx context.Context, teamID string) error {
 	_ = w.Flush()
 
 	fmt.Fprintf(os.Stdout, "\nTo use one, add to settings.yaml:\n\n"+
-		"  - name: %s\n    model: %s\n    transport: %s\n    server_url: %s\n    team_id: %s\n",
-		models[0].Name, models[0].Name, config.TransportBuildMax, info.ServerURL, teamID)
+		"  - name: %s\n    model: %s\n    transport: %s\n    server_url: %s\n",
+		models[0].Name, models[0].Name, config.TransportBuildMax, info.ServerURL)
 	return nil
 }

@@ -317,10 +317,9 @@ type ModelConfig struct {
 	// Transport is config.TransportDirect or config.TransportBuildMax. Empty
 	// means direct.
 	Transport string
-	// ServerURL and TeamID are set on a managed entry. ProviderModel then holds
-	// the deployment's catalog name rather than a provider's model identifier.
+	// ServerURL is set on a managed entry. ProviderModel then holds the
+	// deployment's catalog name rather than a provider's model identifier.
 	ServerURL string
-	TeamID    string
 }
 
 // IsManaged reports whether this model calls a BuildMax gateway.
@@ -1186,16 +1185,6 @@ func (r *LLMClientCache) build(cfg ModelConfig) (cllm.LLMClient, error) {
 			return nil, fmt.Errorf("model %q uses transport %q, which this surface does not support",
 				cfg.Name, config.TransportBuildMax)
 		}
-		// A run-scoped app calls as its task run, so it needs no team: the server
-		// reads user and team from the run token. Any team on the entry is
-		// dropped rather than sent, because the two identities select different
-		// routes and the client refuses to hold both.
-		teamID := cfg.TeamID
-		if r.managedTaskRunID != "" {
-			teamID = ""
-		} else if teamID == "" {
-			return nil, fmt.Errorf("team_id is required for model %q in settings.yaml", cfg.Name)
-		}
 		// Resolved once here so a model that cannot authenticate fails at
 		// selection rather than at the first prompt, and again per request
 		// below so a session outlasting its access token keeps working.
@@ -1206,7 +1195,6 @@ func (r *LLMClientCache) build(cfg ModelConfig) (cllm.LLMClient, error) {
 		return llmremote.NewClient(llmremote.Config{
 			ServerURL:     cfg.ServerURL,
 			TokenFunc:     func() (string, error) { return r.managedToken(serverURL) },
-			TeamID:        teamID,
 			TaskRunID:     r.managedTaskRunID,
 			Model:         cfg.ProviderModel,
 			ContextWindow: cfg.ContextWindow,
@@ -1398,6 +1386,5 @@ func toModelConfig(entry config.ModelEntry) ModelConfig {
 		Provider:      entry.Provider,
 		Transport:     entry.Transport,
 		ServerURL:     entry.ServerURL,
-		TeamID:        entry.TeamID,
 	}
 }

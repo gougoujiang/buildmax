@@ -58,11 +58,7 @@ func managedModelLabel(entry agentapp.ModelConfig) string {
 	if server == "" {
 		server = "no server_url"
 	}
-	server = strings.TrimPrefix(strings.TrimPrefix(server, "https://"), "http://")
-	if entry.TeamID == "" {
-		return server
-	}
-	return server + " " + entry.TeamID
+	return strings.TrimPrefix(strings.TrimPrefix(server, "https://"), "http://")
 }
 
 func selectedModelIndex(entries []agentapp.ModelConfig, current string, selector string) int {

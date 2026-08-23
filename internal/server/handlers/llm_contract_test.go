@@ -76,7 +76,6 @@ func managedGateway(t *testing.T, upstreamURL string) *llmremote.Client {
 	return llmremote.NewClient(llmremote.Config{
 		ServerURL:   server.URL,
 		Token:       testsupport.SignJWT(llmTestUser, llmTestSecret),
-		TeamID:      llmTestTeam,
 		CallTimeout: 10 * time.Second,
 	})
 }
