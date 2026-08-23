@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-const wailsCLIPkg = "github.com/wailsapp/wails/v2/cmd/wails@v2.14.0"
+const wailsCLIPkg = "github.com/wailsapp/wails/v2/cmd/wails@v2.15.0"
 
 func cmdBuild(args []string) error {
 	if len(args) > 1 {
