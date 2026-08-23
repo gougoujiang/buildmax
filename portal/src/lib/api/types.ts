@@ -40,6 +40,11 @@ export interface ApiAgent {
   name: string
   description: string
   instructions: string
+  /**
+   * Catalog plugin names this agent loads for a background run. Nothing is
+   * inherited from the team's activations: an agent that names none loads none.
+   */
+  plugins?: string[]
   revision: number
   created_at: string
 }
@@ -674,6 +679,44 @@ export interface ApiPluginInspection {
  * Unlike the digest, the server cannot verify any of it, so it is shown as a
  * claim rather than as proof.
  */
+/** Who fills a team's plugin activation list. */
+export type ApiPluginCuration = "open" | "curated"
+
+/** How an activation came to exist. */
+export type ApiPluginActivationOrigin = "curated" | "automatic"
+
+/**
+ * One team's pinned use of one catalog plugin.
+ *
+ * The pin is the point: a release published after this row was written cannot
+ * change what a run loads until somebody moves it.
+ */
+export interface ApiPluginActivation {
+  id: string
+  team_id: string
+  plugin_name: string
+  version: string
+  digest: string
+  enabled: boolean
+  origin: ApiPluginActivationOrigin
+  activated_by: string
+  activated_at: string
+  updated_by?: string
+  updated_at: string
+}
+
+/**
+ * What a team has activated, and who fills the list.
+ *
+ * The mode travels with the activations because reading one without the other
+ * misleads: an empty list means "nothing activated yet" when open and "nothing
+ * may be named" when curated.
+ */
+export interface ApiPluginActivationsResponse {
+  curation: ApiPluginCuration
+  activations: ApiPluginActivation[]
+}
+
 export interface ApiPluginReleaseSource {
   remote_url?: string
   commit?: string

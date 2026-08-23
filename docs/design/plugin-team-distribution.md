@@ -1,7 +1,8 @@
 # Team And Worker Plugin Distribution
 
 > **Audience:** contributors and operators · **Status:** partly implemented —
-> D1 works end to end except Portal's surface; D2 and D3 are not started
+> D1 works end to end and Portal manages a team's activations; the agent
+> definition's plugin field is not in Portal yet. D2 and D3 are not started
 >
 > Follows [plugin-marketplace.md](./plugin-marketplace.md), whose §12 Phase D
 > asks for this record before anything here is built.
@@ -11,9 +12,11 @@
 - roadmap_priority: `post-Beta, after the Marketplace`
 - status: `partially_implemented` — D1 ships the activation record, the team
   routes and the CLI read path, the agent's selection, server-side resolution
-  when a worker claims its run, and materialization into the run. Portal's
-  section (§10) is not built. D2, executable content, and D3, secrets, are not
-  started
+  when a worker claims its run, materialization into the run, and Portal's team
+  plugin section. What §10 still lacks is the agent's own plugin field: a
+  selection can be set through the API but not yet in Portal's agent modal,
+  whose form takes text fields only. D2, executable content, and D3, secrets,
+  are not started
 - follows: [plugin-marketplace.md](./plugin-marketplace.md)
 - depends_on: nothing unbuilt. An earlier draft made the executable half wait
   on the worker sandbox surface being wired; §9 retires that, because the Bash
