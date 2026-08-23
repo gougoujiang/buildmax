@@ -247,7 +247,7 @@ Not every SSE response is a watcher. The distinction is whether the connection
 |---|---|---|
 | `GET /api/teams/{id}/tasks/{id}/stream` | watcher — a Portal tab following a run that lives in the database | 4, closed with a `draining` event |
 | `POST /api/teams/{id}/conversations?stream=1` and the message variant | work — a Tier 1 turn producing its answer | 5, drained normally |
-| `POST /api/teams/{id}/llm/completions` | work — a worker's inference call | 5, drained normally |
+| `POST /api/llm/completions` and the worker's own `POST /api/worker/task-runs/{id}/llm/completions` | work — an inference call in progress | 5, drained normally |
 
 Closing the two work streams at rung 4 would destroy exactly what draining is
 meant to protect. The gateway one is worse than it looks: `llmremote` never

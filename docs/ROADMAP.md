@@ -229,7 +229,8 @@ Code state:
 - shipped: the production reference manifest, the local Compose and kind
   deployment paths, `/healthz` plus dependency-aware `/readyz`, database schema
   migrations, operator `user` and `admin` commands, System Administration UI,
-  managed inference for local clients and workers, per-run worker tokens, and
+  managed inference for local clients and workers, per-run worker tokens, an
+  ordered shutdown across server, scheduler, and worker, and
   post-merge/scheduled Compose and kind smoke workflows;
 - the smoke paths exercise account bootstrap, login, team authorization,
   worker execution, artifacts, retry, managed inference, the call ledger, and
