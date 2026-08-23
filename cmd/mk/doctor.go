@@ -218,6 +218,11 @@ func optionalVersion(label, command string, args []string, want, note string) {
 // e2ePreflight checks both before a run, but doctor is the command that answers
 // "am I set up", and it did not know either of them existed.
 func optionalPortalBrowserTests() {
+	if !have("npm") {
+		fmt.Println("[WARN] Portal test deps: unavailable (npm is not installed; ./make e2e cannot run)")
+		fmt.Println("[WARN] Playwright browsers: unavailable (npm is not installed; ./make e2e cannot run)")
+		return
+	}
 	if exists(filepath.Join("portal", "node_modules", "@playwright", "test")) {
 		fmt.Println("[OK]   Portal test deps: installed (needed by ./make e2e)")
 	} else {
