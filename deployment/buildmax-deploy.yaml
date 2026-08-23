@@ -41,6 +41,20 @@ data:
         context_window: 128000
         # api_key comes from BUILDMAX_CONVERSATION_MODEL_API_KEY
 
+        # To run Tier 1 on a local Ollama daemon instead, replace the four lines
+        # above with these. No credential is involved, so the secret's
+        # BUILDMAX_CONVERSATION_MODEL_API_KEY goes unused.
+        #
+        # api_url must be reachable from this pod, and localhost is the pod:
+        #   Docker Desktop     http://host.docker.internal:11434
+        #   Linux + kind/k3d   http://172.x.0.1:11434 (docker network inspect kind)
+        #                      plus OLLAMA_HOST=0.0.0.0 on the host daemon
+        #
+        # model: qwen3:8b
+        # provider: ollama
+        # api_url: http://host.docker.internal:11434
+        # context_window: 32000
+
     database:
       host: mysql.db.svc.cluster.local
       port: 3306

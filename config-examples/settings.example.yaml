@@ -108,9 +108,10 @@ models:
 
   # `provider` is the wire protocol the endpoint speaks, not a vendor name:
   #   openai_compatible  OpenAI Chat Completions — OpenRouter, LiteLLM, vLLM,
-  #                      local inference. The default; every entry above uses it.
+  #                      LM Studio. The default; every entry above uses it.
   #   openai             OpenAI's own Responses API
   #   anthropic          the Anthropic Messages API
+  #   ollama             a local Ollama daemon's own API
   #
   # `max_tokens` caps one response. The Anthropic protocol requires the field,
   # so leaving it 0 there uses the built-in default (8192) rather than the
@@ -132,6 +133,25 @@ models:
   #   vision: true                 # this model accepts image input. Leave it
                                    # off and an image an MCP tool returns is
                                    # described in text instead of sent.
+
+  # A local model runs on this machine, so the entry carries no api_key at all.
+  # Use `provider: ollama` rather than the daemon's OpenAI-compatible endpoint:
+  # only the native API can set the context window, and without it the daemon
+  # applies its own default and truncates a longer prompt instead of refusing
+  # it — quietly dropping the system prompt and the tool definitions.
+  #
+  # `buildmax init --ollama` writes this entry for a model you already have, and
+  # `buildmax models --local` lists what the daemon holds, including which
+  # models can call tools. A model that cannot is unusable as an agent.
+  # - model: qwen3:8b
+  #   name: Qwen3 8B (local)
+  #   provider: ollama
+  #   api_url: http://localhost:11434   # the daemon root, not its /v1 endpoint
+  #   context_window: 32000             # sent as num_ctx; costs memory to raise
+  #   keep_alive: 30m                   # how long the daemon keeps the model
+                                        # loaded between calls. "0" unloads at
+                                        # once, "-1" keeps it resident. Only a
+                                        # local provider has one to keep.
 
   # A managed entry calls a BuildMax server instead of a provider, so the
   # deployment holds the provider credential and decides which models the team

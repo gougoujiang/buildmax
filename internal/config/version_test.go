@@ -149,3 +149,19 @@ func TestVersionStringIsNeverEmpty(t *testing.T) {
 		t.Error("VersionString() is empty")
 	}
 }
+
+func TestUserAgentUsesTheBuildVersionAndSurface(t *testing.T) {
+	original := Version
+	t.Cleanup(func() { Version = original })
+
+	Version = "0.1.0"
+	if got, want := UserAgent("cli", false), "buildmax/0.1.0 (cli)"; got != want {
+		t.Errorf("UserAgent(\"cli\", false) = %q, want %q", got, want)
+	}
+	if got, want := UserAgent("cli", true), "buildmax/0.1.0 (cli; gateway)"; got != want {
+		t.Errorf("UserAgent(\"cli\", true) = %q, want %q", got, want)
+	}
+	if got, want := UserAgent("", false), "buildmax/0.1.0"; got != want {
+		t.Errorf("UserAgent(\"\", false) = %q, want %q", got, want)
+	}
+}

@@ -10,8 +10,11 @@ log_level: info
 models:
   - model: {{ q .Model }}
     name: {{ q .Name }}
+    provider: {{ q .Provider }}
     api_url: {{ q .APIURL }}
+{{- if .APIKey }}
     api_key: {{ q .APIKey }}
+{{- end }}
     context_window: {{ .ContextWindow }}
 
 # Add more models by repeating the block above.

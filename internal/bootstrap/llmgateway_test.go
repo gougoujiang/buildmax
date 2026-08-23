@@ -312,6 +312,47 @@ func TestClientFactoryRejectsUnsupportedProvider(t *testing.T) {
 	}
 }
 
+// TestClientFactoryBuildsALocalTargetWithoutACredential is the exemption the
+// managed path needs for a local runtime: there is no secret to hold, and
+// demanding one would make the provider unusable through the gateway.
+func TestClientFactoryBuildsALocalTargetWithoutACredential(t *testing.T) {
+	factory := newClientFactory("", nil)
+
+	client, err := factory(context.Background(), llmgateway.Target{
+		Name:          "Local",
+		ProviderType:  config.LLMProviderOllama,
+		Endpoint:      "http://ollama.test:11434",
+		UpstreamModel: "qwen3:8b",
+		// Set so building the client asks the daemon nothing.
+		ContextWindow: 32_000,
+		CredentialRef: conversationCredentialRef,
+	})
+	if err != nil {
+		t.Fatalf("factory: %v", err)
+	}
+	if client == nil {
+		t.Fatal("factory returned no client")
+	}
+}
+
+// TestClientFactoryStillDemandsACredentialForHostedTargets keeps that exemption
+// narrow. A hosted target with no key must fail at selection rather than send
+// an unauthenticated request upstream.
+func TestClientFactoryStillDemandsACredentialForHostedTargets(t *testing.T) {
+	factory := newClientFactory("", nil)
+
+	_, err := factory(context.Background(), llmgateway.Target{
+		Name:          "Hosted",
+		ProviderType:  llmgateway.ProviderOpenAICompatible,
+		Endpoint:      "https://api.example.test/v1",
+		UpstreamModel: "gpt-4o-mini",
+		CredentialRef: conversationCredentialRef,
+	})
+	if err == nil || !strings.Contains(err.Error(), "api_key is not set") {
+		t.Errorf("want a missing-credential error, got %v", err)
+	}
+}
+
 // TestLLMRoutingErrorsCarryNoCredential keeps call diagnostics safe to log.
 func TestLLMRoutingErrorsCarryNoCredential(t *testing.T) {
 	const secret = "SUPER-SECRET-KEY"

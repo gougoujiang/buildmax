@@ -20,6 +20,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gougoujiang/buildmax/internal/config"
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/infra/llmwire"
 )
@@ -350,6 +351,11 @@ func (c *Client) post(ctx context.Context, stream bool, messages []cllm.Message,
 		return nil, fmt.Errorf("build managed request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	origin, ok := cllm.CallOriginFromContext(ctx)
+	if !ok || origin.Surface == "" {
+		origin.Surface = c.cfg.Surface
+	}
+	req.Header.Set("User-Agent", config.UserAgent(origin.Surface, origin.ViaGateway))
 	if stream {
 		req.Header.Set("Accept", "text/event-stream")
 	}

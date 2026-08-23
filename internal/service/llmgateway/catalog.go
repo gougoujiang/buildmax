@@ -32,13 +32,17 @@ const (
 	ProviderOpenAI = "openai"
 	// ProviderAnthropic is the Anthropic Messages API.
 	ProviderAnthropic = "anthropic"
+	// ProviderOllama is a local Ollama daemon's own API. A target naming it
+	// points at a runtime the deployment reaches directly, which is why it is
+	// the one provider with no credential.
+	ProviderOllama = "ollama"
 )
 
 // KnownProvider reports whether name is a provider type BuildMax implements.
 // An empty name is not known: a target must state the protocol it speaks.
 func KnownProvider(name string) bool {
 	switch name {
-	case ProviderOpenAICompatible, ProviderOpenAI, ProviderAnthropic:
+	case ProviderOpenAICompatible, ProviderOpenAI, ProviderAnthropic, ProviderOllama:
 		return true
 	}
 	return false
@@ -47,7 +51,19 @@ func KnownProvider(name string) bool {
 // Providers returns every implemented provider type, for help text and error
 // messages that must not drift from the list above.
 func Providers() []string {
-	return []string{ProviderOpenAICompatible, ProviderOpenAI, ProviderAnthropic}
+	return []string{ProviderOpenAICompatible, ProviderOpenAI, ProviderAnthropic, ProviderOllama}
+}
+
+// ProviderNeedsCredential reports whether a target speaking this protocol must
+// have a secret behind its CredentialRef.
+//
+// Every hosted protocol does, and a catalog entry without one is a
+// misconfiguration that must fail at the first call rather than send an
+// unauthenticated request. A local runtime has no credential to hold: what
+// authorizes the call is being able to reach the daemon at all, which is a
+// property of the deployment's network rather than of the catalog.
+func ProviderNeedsCredential(name string) bool {
+	return name != ProviderOllama
 }
 
 // Target is one operator-approved upstream in the model catalog.

@@ -71,9 +71,14 @@ type ModelEntry struct {
 	// the tool definitions and system prompt — so later calls in the same run
 	// pay less for them.
 	PromptCache bool `mapstructure:"prompt_cache"`
+	// KeepAlive is how long a local runtime keeps the model loaded after a
+	// call — a duration string, "0" to unload at once, "-1" to stay resident.
+	// Only LLMProviderOllama reads it; on a hosted provider there is no model
+	// to keep loaded. Empty means the runtime's own default.
+	KeepAlive string `mapstructure:"keep_alive"`
 	// Provider is the wire protocol a direct entry speaks: LLMProviderOpenAICompatible
-	// (the default), LLMProviderOpenAI, or LLMProviderAnthropic. It is ignored by a
-	// "buildmax" entry, where the operator's catalog decides.
+	// (the default), LLMProviderOpenAI, LLMProviderAnthropic, or LLMProviderOllama.
+	// It is ignored by a "buildmax" entry, where the operator's catalog decides.
 	Provider string `mapstructure:"provider"`
 	// Transport is "direct" (the default) or "buildmax".
 	Transport string `mapstructure:"transport"`
@@ -99,7 +104,30 @@ const (
 	LLMProviderOpenAI = "openai"
 	// LLMProviderAnthropic is the Anthropic Messages API.
 	LLMProviderAnthropic = "anthropic"
+	// LLMProviderOllama is Ollama's own /api/chat, spoken by a local daemon.
+	// Its compatibility endpoint would answer LLMProviderOpenAICompatible, but
+	// that path cannot set the context window the runtime otherwise defaults
+	// and silently truncates to.
+	LLMProviderOllama = "ollama"
 )
+
+// LLMProviders returns every wire protocol a direct model entry may name, for
+// help text and error messages that must not drift from the list above.
+func LLMProviders() []string {
+	return []string{
+		LLMProviderOpenAICompatible,
+		LLMProviderOpenAI,
+		LLMProviderAnthropic,
+		LLMProviderOllama,
+	}
+}
+
+// LLMProviderNeedsAPIKey reports whether an entry naming this provider must
+// carry a credential. A local runtime has none, and demanding a placeholder for
+// it turns a working setup into a diagnostic failure.
+func LLMProviderNeedsAPIKey(provider string) bool {
+	return provider != LLMProviderOllama
+}
 
 // LLMProvider returns the wire protocol this entry speaks, defaulting to
 // LLMProviderOpenAICompatible so a configuration written before providers
@@ -147,7 +175,7 @@ func ReasoningEfforts() []string {
 // The empty string is known: it means the default.
 func KnownLLMProvider(name string) bool {
 	switch name {
-	case "", LLMProviderOpenAICompatible, LLMProviderOpenAI, LLMProviderAnthropic:
+	case "", LLMProviderOpenAICompatible, LLMProviderOpenAI, LLMProviderAnthropic, LLMProviderOllama:
 		return true
 	}
 	return false
@@ -155,6 +183,11 @@ func KnownLLMProvider(name string) bool {
 
 // DefaultOpenRouterBaseURL is the OpenRouter OpenAI-compatible API base URL.
 const DefaultOpenRouterBaseURL = "https://openrouter.ai/api/v1"
+
+// DefaultOllamaBaseURL is where a local Ollama daemon listens. It is the daemon
+// root, not the /v1 compatibility endpoint, because LLMProviderOllama speaks the
+// native API under /api.
+const DefaultOllamaBaseURL = "http://localhost:11434"
 
 // Model names on OpenRouter (switch DefaultModel to use one).
 const (

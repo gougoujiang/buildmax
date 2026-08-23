@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
 	"strings"
 
 	"github.com/gougoujiang/buildmax/internal/config"
@@ -34,12 +33,7 @@ func newOpenAIResponsesAdapter(cfg Config) *openAIResponsesAdapter {
 	if cfg.BaseURL != "" {
 		clientConfig.BaseURL = cfg.BaseURL
 	}
-	if cfg.HTTPClient != nil {
-		clientConfig.HTTPClient = cfg.HTTPClient
-	}
-	if clientConfig.HTTPClient == nil {
-		clientConfig.HTTPClient = http.DefaultClient
-	}
+	clientConfig.HTTPClient = withBuildMaxUserAgent(cfg.HTTPClient, cfg.Surface)
 	return &openAIResponsesAdapter{
 		client:    openai.NewClientWithConfig(clientConfig),
 		model:     cfg.Model,
