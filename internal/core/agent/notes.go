@@ -261,8 +261,14 @@ const (
 // note pays nothing.
 //
 // invariants is the restated hard-constraint section of the run's additional system prompt;
-// pass "" when there is none. iter is the current loop iteration, used to report entry ages; pass 0 when unknown.
-func RenderSessionState(invariants string, notes []Note, todos []Todo, iter int) string {
+// pass "" when there is none.
+//
+// The block carries no ages. Entries were once stamped with the iteration they were written at
+// — an absolute [i12] on a note, a relative ", 38 iterations" on the in-progress todo — and
+// neither was ever shown to change what the model did. The block is re-rendered into every
+// request, so an unproven line is a permanent cost; WrittenIteration is still recorded for the
+// drift detection in docs/design/context-durability.md, which will read it rather than print it.
+func RenderSessionState(invariants string, notes []Note, todos []Todo) string {
 	var entries []anchorEntry
 	add := func(prio, section int, text string) {
 		entries = append(entries, anchorEntry{priority: prio, section: section, order: len(entries), text: text})
@@ -275,14 +281,14 @@ func RenderSessionState(invariants string, notes []Note, todos []Todo, iter int)
 	}
 
 	for _, n := range notes {
-		add(prioNote, sectionNotes, "- "+stamp(n.WrittenIteration)+n.Text)
+		add(prioNote, sectionNotes, "- "+n.Text)
 	}
 
 	completed := 0
 	for _, td := range todos {
 		switch td.Status {
 		case TodoInProgress:
-			add(prioInProgress, sectionTodo, "- [in progress"+age(td.WrittenIteration, iter)+"] "+td.Content)
+			add(prioInProgress, sectionTodo, "- [in progress] "+td.Content)
 		case TodoPending:
 			add(prioPending, sectionTodo, "- [pending] "+td.Content)
 		case TodoCompleted:
@@ -349,20 +355,4 @@ func writeSection(b *strings.Builder, title string, kept []anchorEntry, section 
 		}
 		b.WriteString(e.text)
 	}
-}
-
-// stamp renders a note's age marker, or "" when the iteration is unknown.
-func stamp(written int) string {
-	if written <= 0 {
-		return ""
-	}
-	return "[i" + strconv.Itoa(written) + "] "
-}
-
-// age renders how long a todo has held its current status, when that is known and non-trivial.
-func age(written, iter int) string {
-	if written <= 0 || iter <= written {
-		return ""
-	}
-	return ", " + strconv.Itoa(iter-written) + " iterations"
 }

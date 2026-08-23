@@ -48,7 +48,7 @@ func (c *LLMCompactor) Compact(ctx context.Context, msgs []llm.Message) (string,
 	// The run's durable state travels on the context, so the summarizer can be told what is
 	// still live without widening the ContextCompactor interface.
 	if store, ok := agent.NoteStoreFromContext(ctx); ok {
-		if live := agent.RenderSessionState("", store.Notes(), store.Todos(), 0); live != "" {
+		if live := agent.RenderSessionState("", store.Notes(), store.Todos()); live != "" {
 			messages = append(messages, llm.Message{Role: "user", Content: liveStatePreamble + "\n\n" + live})
 		}
 	}

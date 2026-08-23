@@ -393,7 +393,7 @@ func callLLM(ctx context.Context, opts RunLoopOpts, history []llm.Message, syste
 		notes, todos = nh.Notes(), nh.Todos()
 	}
 	var stateMsg []llm.Message
-	if block := RenderSessionState(opts.Invariants, notes, todos, iter); block != "" {
+	if block := RenderSessionState(opts.Invariants, notes, todos); block != "" {
 		stateMsg = []llm.Message{{Role: "user", Content: block}}
 	}
 
