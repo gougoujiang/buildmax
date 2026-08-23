@@ -31,6 +31,13 @@ type TaskResponse struct {
 	ErrorMessage   *string `json:"error_message,omitempty"`
 	AgentID        *string `json:"agent_id,omitempty"`
 	IssueID        *string `json:"issue_id,omitempty"`
+	// LastRunID names the run behind the task's current status. The run-scoped
+	// routes -- trace, artifact items, LLM calls -- are keyed by it, so a caller
+	// that can see a task can reach what that task actually did.
+	LastRunID *string `json:"last_run_id,omitempty"`
+	// ArtifactRunIDs names this task's runs that stored output files, newest
+	// first. Set only where the handler looked them up.
+	ArtifactRunIDs []string `json:"artifact_run_ids,omitempty"`
 }
 
 type createTaskRequest struct {
@@ -54,6 +61,7 @@ func taskToResponse(task model.Task) TaskResponse {
 		ErrorMessage:   task.ErrorMessage,
 		AgentID:        task.AgentID,
 		IssueID:        task.IssueID,
+		LastRunID:      task.LastRunID,
 	}
 }
 
@@ -141,10 +149,7 @@ func (h *Handler) listConversationTasksHandler(w http.ResponseWriter, r *http.Re
 			httputil.WriteInternalError(w, err, "handler error", "handler", "list_tasks", "conversation_id", conversationID)
 			return
 		}
-		out := make([]TaskResponse, len(list))
-		for i := range list {
-			out[i] = taskToResponse(list[i])
-		}
+		out := h.conversationTaskResponses(r.Context(), conversationID, list)
 		httputil.WriteJSON(w, http.StatusOK, tasksListResponse{Tasks: out, Total: total})
 		return
 	}
@@ -157,11 +162,33 @@ func (h *Handler) listConversationTasksHandler(w http.ResponseWriter, r *http.Re
 		httputil.WriteInternalError(w, err, "handler error", "handler", "list_tasks", "conversation_id", conversationID)
 		return
 	}
+	httputil.WriteJSON(w, http.StatusOK, h.conversationTaskResponses(r.Context(), conversationID, list))
+}
+
+// conversationTaskResponses answers a conversation's tasks with what a card
+// needs to stand on its own: the run behind each status, and the runs that left
+// files behind.
+//
+// The artifacts come from one query for the whole conversation rather than one
+// per task, and a failure to read them drops the links rather than the tasks --
+// a task whose card cannot offer a download is still a task worth showing.
+func (h *Handler) conversationTaskResponses(ctx context.Context, conversationID string, list []model.Task) []TaskResponse {
+	byTask := map[string][]string{}
+	if h.cfg.RunOutputs != nil {
+		outputs, err := h.cfg.RunOutputs.ListRunOutputsByConversation(ctx, conversationID, nil)
+		if err != nil {
+			slog.Warn("conversation artifacts not listed", "conversation_id", conversationID, "err", err)
+		}
+		for _, a := range outputs {
+			byTask[a.TaskID] = append(byTask[a.TaskID], a.ArtifactID)
+		}
+	}
 	out := make([]TaskResponse, len(list))
 	for i := range list {
 		out[i] = taskToResponse(list[i])
+		out[i].ArtifactRunIDs = byTask[list[i].ID]
 	}
-	httputil.WriteJSON(w, http.StatusOK, out)
+	return out
 }
 
 func (h *Handler) createConversationTaskHandler(w http.ResponseWriter, r *http.Request) {

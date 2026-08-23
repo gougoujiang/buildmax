@@ -257,3 +257,56 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 		})
 	}
 }
+
+// A card in the conversation needs to reach what its task did without a second
+// round trip per task: the run behind the status, and the runs that left files.
+func TestListConversationTasksCarriesRunAndArtifacts(t *testing.T) {
+	secret := "test-task-cards-secret"
+	conversationID := "conv1"
+	teamID := "tm_personal_u1"
+	task1 := model.Task{ID: "t1", ConversationID: conversationID, TeamID: teamID, Status: "SUCCEEDED", Input: "Do something", CreatedBy: "u1", CreatedAt: 1000, LastRunID: util.Ptr("tr_1")}
+	task2 := model.Task{ID: "t2", ConversationID: conversationID, TeamID: teamID, Status: "PENDING", Input: "Explore", CreatedBy: "u1", CreatedAt: 1001}
+
+	h := New(Config{
+		JWTSecret: secret,
+		Teams:     &mock.MockTeamStore{Teams: []model.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}}, Members: []model.TeamMember{{TeamID: teamID, UserID: "u1", Role: model.TeamRoleOwner}}},
+		Tasks:     &mock.MockTaskStore{List: []model.Task{task1, task2}},
+		Conversations: &mock.MockConversationStore{
+			Conversations: []model.Conversation{{ID: conversationID, UserID: "u1", TeamID: teamID, Channel: "portal", CreatedBy: "u1", CreatedAt: 123}},
+		},
+		RunOutputs: &mock.MockRunOutputLister{List: []model.ArtifactWithTask{
+			{ArtifactID: "tr_1", TaskID: "t1", TaskRunID: "tr_1", ConversationID: conversationID},
+		}},
+	})
+	mux := http.NewServeMux()
+	h.Register(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/teams/"+teamID+"/conversations/"+conversationID+"/tasks", nil)
+	req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", secret))
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+	}
+
+	var out []TaskResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatalf("decode body: %v", err)
+	}
+	if len(out) != 2 {
+		t.Fatalf("len(tasks) = %d, want 2", len(out))
+	}
+	byID := map[string]TaskResponse{}
+	for _, task := range out {
+		byID[task.ID] = task
+	}
+	if got := byID["t1"]; got.LastRunID == nil || *got.LastRunID != "tr_1" {
+		t.Errorf("last_run_id = %v, want tr_1", got.LastRunID)
+	}
+	if got := byID["t1"].ArtifactRunIDs; len(got) != 1 || got[0] != "tr_1" {
+		t.Errorf("artifact_run_ids = %v, want [tr_1]", got)
+	}
+	if got := byID["t2"].ArtifactRunIDs; len(got) != 0 {
+		t.Errorf("task with no artifacts got %v", got)
+	}
+}
