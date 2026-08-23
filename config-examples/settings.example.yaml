@@ -9,19 +9,90 @@ log_level: info
 # LLM models available in the CLI and desktop app.
 # The first entry is the default model.
 # context_window: 0 uses the built-in default (32 000 tokens).
+#
+# The entries below are a broad-compatibility set, checked with
+# `./make models info <model>` (see cmd/mk's help): a tool-calling model per
+# major lab behind current OpenRouter coding/agent usage, with OpenAI and
+# Anthropic's fast/mid/premium tiers each represented rather than just one
+# model. Swap in whatever you actually use — any OpenRouter model id works
+# the same way — but these are a reasonable baseline to test an agent runtime
+# against, since a single lab's model — or a single tier of it — can hide a
+# bug another one's tool-calling or streaming behavior would expose. Recheck
+# them periodically: `./make models check` flags entries whose
+# context_window has drifted from what OpenRouter reports now.
 models:
-  - model: openai/gpt-3.5-turbo
-    name: GPT-3.5-turbo
+  - model: openai/gpt-5.6-luna
+    name: GPT-5.6 Luna
     api_url: https://openrouter.ai/api/v1
     api_key: your-openrouter-api-key
-    context_window: 16385
+    context_window: 1050000
     # call_timeout: 300  # per-call timeout in seconds (default 300)
 
-  - model: google/gemma-3-27b-it:free
-    name: Gemma 3 27B (free)
+  - model: openai/gpt-5.6-sol
+    name: GPT-5.6 Sol
     api_url: https://openrouter.ai/api/v1
     api_key: your-openrouter-api-key
-    context_window: 8192
+    context_window: 1050000
+
+  - model: openai/gpt-5.6-terra
+    name: GPT-5.6 Terra
+    api_url: https://openrouter.ai/api/v1
+    api_key: your-openrouter-api-key
+    context_window: 1050000
+
+  - model: anthropic/claude-haiku-4.5
+    name: Claude Haiku 4.5
+    api_url: https://openrouter.ai/api/v1
+    api_key: your-openrouter-api-key
+    context_window: 200000
+
+  - model: anthropic/claude-sonnet-5
+    name: Claude Sonnet 5
+    api_url: https://openrouter.ai/api/v1
+    api_key: your-openrouter-api-key
+    context_window: 1000000
+
+  - model: anthropic/claude-opus-5
+    name: Claude Opus 5
+    api_url: https://openrouter.ai/api/v1
+    api_key: your-openrouter-api-key
+    context_window: 1000000
+
+  - model: google/gemini-3.7-flash
+    name: Gemini 3.7 Flash
+    api_url: https://openrouter.ai/api/v1
+    api_key: your-openrouter-api-key
+    context_window: 1048576
+
+  - model: x-ai/grok-4.6
+    name: Grok 4.6
+    api_url: https://openrouter.ai/api/v1
+    api_key: your-openrouter-api-key
+    context_window: 500000
+
+  - model: deepseek/deepseek-v4-flash
+    name: DeepSeek V4 Flash
+    api_url: https://openrouter.ai/api/v1
+    api_key: your-openrouter-api-key
+    context_window: 1024000
+
+  - model: z-ai/glm-5.3
+    name: GLM 5.3
+    api_url: https://openrouter.ai/api/v1
+    api_key: your-openrouter-api-key
+    context_window: 1048576
+
+  - model: moonshotai/kimi-k3
+    name: Kimi K3
+    api_url: https://openrouter.ai/api/v1
+    api_key: your-openrouter-api-key
+    context_window: 1048576
+
+  - model: qwen/qwen3-max
+    name: Qwen3 Max
+    api_url: https://openrouter.ai/api/v1
+    api_key: your-openrouter-api-key
+    context_window: 262144
 
   # `provider` is the wire protocol the endpoint speaks, not a vendor name:
   #   openai_compatible  OpenAI Chat Completions — OpenRouter, LiteLLM, vLLM,
