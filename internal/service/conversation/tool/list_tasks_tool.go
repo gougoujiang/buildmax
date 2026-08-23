@@ -18,6 +18,10 @@ type listTasksTool struct {
 	runner  ListTasksRunner
 }
 
+// Access implements llm.AccessDeclarer. Listing reads the task store and
+// returns; it changes nothing, so it may overlap its neighbours.
+func (t *listTasksTool) Access(_ map[string]any) llm.Access { return llm.AccessReadOnly }
+
 func (t *listTasksTool) Name() string { return ToolNameListTasks }
 
 func (t *listTasksTool) Description() string {

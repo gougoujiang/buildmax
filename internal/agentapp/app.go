@@ -1258,7 +1258,8 @@ func (a *AgentApp) buildToolRegistry(client cllm.LLMClient) (cllm.ToolRegistry, 
 	agentTypes := BuildAgentTypes(registry, a.subagentsRegistry.Definitions())
 	runner, err := tools.NewDefaultSubAgentRunner(client, a.policy, func(modelName string) (cllm.LLMClient, error) {
 		return a.llmClients.Get(modelName)
-	}, tools.WithSubAgentHooks(a.hooks), tools.WithSubAgentTraceFactory(a.newSubAgentTrace))
+	}, tools.WithSubAgentHooks(a.hooks), tools.WithSubAgentTraceFactory(a.newSubAgentTrace),
+		tools.WithSubAgentMaxParallelTools(config.ResolveMaxParallelTools(a.settings.Agent)))
 	if err == nil {
 		taskTool, err := tools.NewTask(runner, agentTypes)
 		if err == nil {
