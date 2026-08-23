@@ -126,10 +126,13 @@ type TaskRunTerminalInfo struct {
 	TaskRunID      string
 	TaskID         string
 	ConversationID string
-	UserID         string
-	Status         string
-	Output         *string
-	ErrorMessage   *string
+	// TeamID is the team that owns the task. Empty on a task created before
+	// tasks carried one, which is why UserID is still here to fall back to.
+	TeamID       string
+	UserID       string
+	Status       string
+	Output       *string
+	ErrorMessage *string
 }
 
 // CreateTaskInput is the input for CreateTask.

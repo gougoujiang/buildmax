@@ -336,18 +336,6 @@ func (wc *Conn) runConversationTurn(ctx context.Context, conversationID, message
 	}
 }
 
-// RunSystemConversationTurn runs a system-triggered conversation turn (e.g. task
-// completion). It queues behind whatever the user is doing in that conversation
-// instead of blocking the caller's goroutine until the conversation is free.
-func (wc *Conn) RunSystemConversationTurn(ctx context.Context, conversationID, message string) {
-	job := turnqueue.NewJob(func() {
-		wc.executeConversationTurn(ctx, conversationID, message, conversation.ChannelSystem)
-	})
-	if _, err := wc.deps.Turns.Submit(conversationID, job); err != nil {
-		componentLog().Warn("system turn dropped: queue full", "user_id", wc.userID, "conversation_id", conversationID, "err", err)
-	}
-}
-
 func (wc *Conn) executeConversationTurn(ctx context.Context, conversationID, message, channel string) {
 	componentLog().Info("turn start", "user_id", wc.userID, "conversation_id", conversationID, "channel", channel)
 	sink := &wsSink{c: wc, conversationID: conversationID}
