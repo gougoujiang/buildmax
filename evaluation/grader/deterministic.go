@@ -134,7 +134,16 @@ func (Command) Grade(ctx context.Context, in Input) contract.GraderResult {
 		// against the graders directory rather than the workspace: resolving
 		// it against the workspace would let the subject supply its own grader
 		// by writing a file at the right path.
-		name = filepath.Join(in.TaskDir, contract.GradersDir, filepath.FromSlash(name))
+		//
+		// It is then made absolute, because the command runs with the workspace
+		// as its working directory. A task directory given relatively — which
+		// is how a suite path arrives on the command line — would otherwise be
+		// resolved against the workspace, the one place it must not come from.
+		resolved, err := filepath.Abs(filepath.Join(in.TaskDir, contract.GradersDir, filepath.FromSlash(name)))
+		if err != nil {
+			return broken(fmt.Errorf("resolve grader command: %w", err))
+		}
+		name = resolved
 	}
 
 	cmd := exec.CommandContext(runCtx, name, cfg.Run[1:]...)

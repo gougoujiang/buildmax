@@ -27,7 +27,6 @@
     // is generated markdown nobody edits and every generator formats its own way.
     ".claude/**",
     "docs/design/**",
-    "eval/**",
     "testing-sandbox/**",
     "AGENTS.md",
     "CLAUDE.md"

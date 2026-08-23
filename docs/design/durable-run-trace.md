@@ -37,7 +37,7 @@ traceability), §3.8 (worker diagnostics), and Portal run diagnostics.
   cannot already express something (this pass adds none — it maps the existing
   9 `EventKind`s plus a synthetic `run_start`).
 - **One chokepoint.** `agentapp.RunPrompt` is the single call site for CLI
-  (`print.go`, `tui_model.go`), Desktop, `agenteval`, and the worker
+  (`print.go`, `tui_model.go`), Desktop, evaluation, and the worker
   (`agentapp/taskrun`). Wiring the recorder there covers every surface.
 - **Fail open, always.** A trace failure (disk full, permission denied, encode
   error) must never break or slow a run. Every recorder error is logged at warn

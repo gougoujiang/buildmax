@@ -646,9 +646,10 @@ documents when they ship.
 The implementation is not complete until the following behaviors are covered:
 
 - direct mode runs with no Server URL or login state;
-- evaluation runs under `eval/` and `internal/agenteval` use direct mode, so
-  benchmark results are not influenced by team model policy, alias resolution,
-  quota state, or Server availability;
+- evaluation runs under `evaluation/` use direct mode, so results are not
+  influenced by team model policy, alias resolution, quota state, or Server
+  availability — the CLI adapter refuses a managed subject outright rather than
+  measuring a different transport than the manifest claims;
 - managed blocking and streaming calls produce the same core content, tool
   calls, and usage shape as a direct call to the same target;
 - a user cannot invoke an alias outside the selected team's policy;

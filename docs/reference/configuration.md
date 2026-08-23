@@ -506,8 +506,8 @@ Three things worth knowing before you rely on this:
 - **Workers follow the deployment, and the evaluation harness stays direct.** A
   task-run worker uses `worker.llm.transport`: `buildmax` gives it a run-scoped
   credential and no provider key, while `direct` gives it the deployment's
-  configured provider access. `eval/` stays direct so benchmark results do not
-  move with a deployment's catalog or quota.
+  configured provider access. Evaluation stays direct so results do not move
+  with a deployment's catalog or quota.
 
 Prompts, tool schemas, and tool results pass through the server in managed mode.
 That is the point of it, and it is a real change in where your data goes — which

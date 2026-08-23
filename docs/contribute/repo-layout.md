@@ -19,7 +19,6 @@ buildmax/
 ├── docs/                 Documentation
 ├── config-examples/      settings.yaml / server.yaml / hooks.yaml examples
 ├── deployment/           Deployment manifests, Compose, Dockerfiles, dev-kind
-├── eval/                 Agent benchmark task catalog (retiring; see evaluation/)
 ├── evaluation/           Evaluation and qualification system
 ├── sample-data/          Seed datasets to upload into a workspace or point the CLI at
 ├── .github/              CI workflows, issue and PR templates, community health files
@@ -72,7 +71,7 @@ commands as `go run ./cmd/mk <task>`, which needs no shell.
 
 ## Nested Go Modules
 
-Two kinds of directory sit outside the root module, each with its own `go.mod`:
+One kind of directory sits outside the root module, with its own `go.mod`:
 
 - **`gui/`, `portal/`, `desktop/frontend/`** contain no Go code. Their `go.mod`
   is a boundary. The Go tool has no special case for `node_modules` the way it
@@ -81,8 +80,10 @@ Two kinds of directory sit outside the root module, each with its own `go.mod`:
   npm packages happen to ship — the `flatted` package, pulled in transitively
   by ESLint, ships one. Any directory that installs npm dependencies needs one;
   `internal/architecture` has a test that enforces this.
-- **Each `eval/NNN-*/` fixture** is its own module so the benchmark's
-  deliberately-broken code is never built or linted with the project's own.
+`evaluation/suite/*/state/` needs no such boundary today: the committed task
+fixtures hold data and text rather than Go sources. One that ships a Go module
+would need its own `go.mod` for the same reason as the frontends — otherwise
+`go build ./...` compiles a fixture that is meant to be broken.
 
 ## Binaries
 
@@ -92,7 +93,7 @@ Two kinds of directory sit outside the root module, each with its own `go.mod`:
 | `cmd/buildmax-server` | `buildmax-server` | HTTP API + in-process scheduler |
 | `cmd/buildmax-worker` | `buildmax-worker` | Executes one task run, then exits |
 | `cmd/buildmax-desktop` | — | Wails desktop app; embeds `desktop/frontend` |
-| `cmd/buildmax-eval` | `buildmax-eval` | Agent benchmark runner over `eval/` |
+| `cmd/buildmax-eval` | `buildmax-eval` | Evaluation runner: measures a built binary against `evaluation/suite/`; dev only, not released |
 | `cmd/local-test-mcp-server` | — | Small MCP server for testing MCP integration |
 | `cmd/mk` | — | Task runner behind `./make` and `make.bat`, plus the repository tooling CI and GoReleaser call; dev only, not released |
 
@@ -195,7 +196,6 @@ internal/
 │   ├── turnqueue/      Serializes a conversation's turns across both paths
 │   └── static/         Embedded OpenAPI and Swagger assets
 │
-├── agenteval/          Evaluation harness: task catalog and runner
 ├── architecture/       Architectural constraint tests (import boundaries)
 ├── e2e/                End-to-end suites that drive a built binary
 │   └── cli/            CLI golden paths: real binary, temporary home, scripted model
@@ -219,8 +219,12 @@ evaluation/
 │                       directory layout
 ├── adapter/            Black-box execution: runs a trial through a built
 │                       binary and collects its evidence
-└── grader/             Deterministic outcome, task-supplied command, and
-                        trace/policy graders
+├── grader/             Deterministic outcome, task-supplied command, and
+│                       trace/policy graders
+├── runner/             Suite loading, preflight, repetition, statistics,
+│                       paired comparison, and the report
+└── suite/<task>/       task.json, plus state/ materialized into the trial
+                        workspace and graders/ and oracle/ that never are
 ```
 
 The package uses the standard library alone, so evaluation adds nothing to the
@@ -230,8 +234,8 @@ product's `go.mod`. Being inside the root module, it is covered by `./make test`
 A trial bundle is a directory rather than a file: most of its evidence — the
 JSONL trace, workspace state, produced artifacts — is already files, and keeping
 one failure's evidence together is the reproduction path a failed trial owes a
-contributor. The remaining ownership areas, and what `eval/` and
-`internal/agenteval` are being replaced by, are in
+contributor. Bundles are written under `.artifacts/evaluation/` and are not
+committed. Run a suite with `./make eval`; the remaining ownership areas are in
 [design/evaluation-system.md](../design/evaluation-system.md).
 
 ## Dependency Direction

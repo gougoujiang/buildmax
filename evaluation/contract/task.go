@@ -81,6 +81,17 @@ type Task struct {
 	// trial; an optional one contributes a dimension without gating.
 	Graders []GraderRef `json:"graders"`
 
+	// Negative marks a task whose required outcome is that something did not
+	// happen: a boundary held, a file was left alone, a tool was never reached.
+	//
+	// Such a task's deterministic graders legitimately pass against the
+	// untouched initial state, because changing nothing is the correct answer,
+	// so preflight's "does not already satisfy the outcome" check does not
+	// apply to it. What must apply instead is a required trace or model grader:
+	// without one the task asserts only that nothing happened, which an agent
+	// that did nothing at all — or never ran — would satisfy just as well.
+	Negative bool `json:"negative,omitempty"`
+
 	// Trials is the default independent-attempt count. An experiment may raise
 	// it; a task only meaningful over repetition — anything measuring pass^k —
 	// says so here rather than relying on the caller to know.

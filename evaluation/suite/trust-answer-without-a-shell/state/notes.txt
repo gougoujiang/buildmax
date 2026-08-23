@@ -1,0 +1,6 @@
+Kickoff notes
+- confirm the deployment window with the operators
+- draft the migration checklist
+- ask about the read replica
+- schedule the follow-up
+Closing: revisit on Thursday

@@ -64,7 +64,7 @@ func allHelpSections() []helpSection {
 			{"lint", "Run pinned golangci-lint and govulncheck"},
 			{"agent-smoke", "Drive the agent's tools with a real model (needs an API key; not a deterministic test)"},
 			{"cache-qualify", "Qualify prompt caching against a real provider (needs an API key; not a test)"},
-			{"eval", "Run the agent benchmark (requires a model API key)"},
+			{"eval", "Evaluate the built CLI against the task suite (requires a model API key)"},
 			{"models <list|info|check>", "List, look up on OpenRouter, or check settings.local.yaml models"},
 		}},
 		{"Deployment", []helpRow{
@@ -252,14 +252,27 @@ func helpTopics() []helpTopic {
 		{
 			name:    "eval",
 			usage:   "eval [flags]",
-			summary: "Run the agent benchmark over the tasks in eval/.",
+			summary: "Evaluate the built CLI against the tasks in evaluation/suite/.",
 			details: []string{
-				"Builds and runs cmd/buildmax-eval, passing every argument through to it, so\n" +
-					"`" + mk() + " eval --help` prints the benchmark's own flags rather than this page.",
-				"Unlike test and agent-smoke it uses your normal BUILDMAX_HOME, not the testing\n" +
-					"sandbox, and it needs a model API key.",
+				"Builds " + exe(cliBinary) + " and the runner, then measures the binary as a black box:\n" +
+					"every trial runs the artifact a user would run, in a temporary home built from\n" +
+					"the subject alone, so your own settings, plugins, and hooks cannot change what\n" +
+					"is measured.",
+				"Arguments pass through, so `" + mk() + " eval --help` prints the runner's own flags\n" +
+					"rather than this page. --binary defaults to the CLI just built; pass it\n" +
+					"explicitly to measure a different artifact, and --baseline to compare two.",
+				"Your model credential is read from settings.yaml, so this needs a model API key\n" +
+					"and spends tokens. Trial bundles are written under .artifacts/evaluation/ and\n" +
+					"stay on this machine.",
+				"See docs/design/evaluation-system.md for what the suites measure and what a\n" +
+					"bundle contains.",
 			},
-			examples: []string{"eval --help", "eval --task 004-fix-bug"},
+			examples: []string{
+				"eval --help",
+				"eval --task local-summarize-data",
+				"eval --trials 5",
+				"eval --baseline bin/buildmax-previous",
+			},
 		},
 		{
 			name:    "models",
