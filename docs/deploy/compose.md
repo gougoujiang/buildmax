@@ -13,6 +13,12 @@ Portal. No MinIO — the server and its workers share one container and one
 volume, so the local filesystem backend is enough here. A deployment where
 workers run elsewhere needs blob storage both can reach.
 
+Sharing that container is also the security deal this stack makes: a task run is
+a child process of the server it was scheduled by, under the same uid, so the
+two are one trust domain. That is fine for a team that already trusts everyone
+who can submit work. If you need the server separated from the code a model
+chooses, run workers as Kubernetes Jobs instead — [overview.md](overview.md).
+
 ## Run It
 
 For contribution work, one command starts the stack with a deterministic mock

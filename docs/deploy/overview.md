@@ -80,6 +80,9 @@ buildmax-server                 # honours port from server.yaml, or --port
 The scheduler starts with the server. It launches `worker.binary`, so
 `buildmax-worker` must be on `PATH` or next to the server binary, and workers
 must be able to reach `worker.server_url` with the run token the server issues it.
+In this default `local_process` mode a worker is a child of the server under the
+same uid, which puts both in one trust domain — see [Operating
+Boundaries](#operating-boundaries).
 
 Set `worker.run_mode: k8s_job` to have the scheduler create a Kubernetes Job per
 run instead of a local process, using `worker.k8s.namespace` and
@@ -174,12 +177,16 @@ every deployment as an execution boundary:
 - decide the network policy for workers explicitly; the
   [sandbox](../guide/sandbox.md) can restrict egress but is **off by default**
 - never commit credentials to `server.yaml` in version control
+- know which boundary you have: `local_process` runs workers as children of the
+  server on one host, one trust domain, and narrowing what they inherit does not
+  change that; `k8s_job` is where the server is separated from model-chosen code
 
 Vulnerability disclosure: [SECURITY.md](../../SECURITY.md).
 
 ## Related
 
-- [compose.md](compose.md) — the whole stack on one machine, for evaluating it
+- [compose.md](compose.md) — the whole stack on one machine, server and workers
+  in one trust domain
 - [authentication.md](authentication.md) — creating accounts and issuing login codes
 - [local-kind.md](local-kind.md) — one-command local cluster for development
 - [reference/webhook.md](../reference/webhook.md) — triggering runs from

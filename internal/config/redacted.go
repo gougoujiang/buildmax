@@ -194,7 +194,7 @@ func (sc ServerConfig) configWarnings() []string {
 		warnings = append(warnings, "worker.llm.transport is buildmax but llm.aliases is empty: no team can call a managed model")
 	}
 	if sc.Worker.RunMode != "k8s_job" {
-		warnings = append(warnings, "worker.run_mode is not k8s_job: runs execute as local processes on the server, which is a development path rather than a deployment topology")
+		warnings = append(warnings, "worker.run_mode is not k8s_job: runs execute as child processes of the server under its uid, so a task run shares the server's trust domain rather than being separated from it")
 	}
 	if sc.Worker.RunTokenTTL > 0 && sc.Worker.RunTimeout > sc.Worker.RunTokenTTL {
 		warnings = append(warnings, "worker.run_timeout is longer than worker.run_token_ttl: a run can outlive its credential and then cannot report an outcome")

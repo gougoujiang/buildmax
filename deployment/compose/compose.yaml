@@ -13,7 +13,9 @@
 # What this is not: there is no MinIO here, because the server and the workers
 # it spawns share one container and one volume, so the local filesystem backend
 # is enough. A deployment where workers run elsewhere needs blob storage both
-# can reach — see docs/deploy/overview.md.
+# can reach — see docs/deploy/overview.md. That shared container is one trust
+# domain: a task run is a child of the server under the same uid, not something
+# separated from it. Kubernetes Jobs are where that boundary exists.
 
 name: buildmax
 

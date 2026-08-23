@@ -310,13 +310,22 @@ at the end:
    dropped-capability security context, resource limits, and no automounted
    service-account token.
 
-   Two things are still open. The network: a task run's reachable egress is
+   One thing is still open: the network. A task run's reachable egress is
    unbounded, and the Beta gate says so rather than implying a boundary that
-   does not exist. And `LocalRunner`, which is weaker than the pod path by
-   construction — `config.FilterWorkerEnv` removes the `BUILDMAX_*` variables a
-   worker must not see, but every other variable in the server's environment is
-   inherited by the child process. That is a development topology, and the
-   deployment documentation should say so.
+   does not exist.
+
+   `LocalRunner` is closed by decision rather than by work. It is weaker than
+   the pod path by construction — `config.FilterWorkerEnv` removes the
+   `BUILDMAX_*` variables a worker must not see, but every other variable in
+   the server's environment is inherited by the child process. Narrowing that
+   would not buy a boundary: a local worker is a child of the server under the
+   same uid on the same filesystem, so it can read the server's environment and
+   `server.yaml` whichever variables it was handed. `local_process` is one trust
+   domain and stays one; the isolation investment goes to `k8s_job`, which is
+   what a deployment that needs the boundary runs. The deployment documentation
+   states that trust domain instead of implying a boundary, and so does the
+   startup warning. That covers the Compose stack, which is a single-machine
+   team deployment on exactly those terms.
 3. Enterprise deployment loop — **mostly done**. `deployment/production/`
    carries a Kubernetes reference distinct from the kind smoke overlay, `/readyz`
    reports dependency health in place of the fixed-200 `/healthz`, and
