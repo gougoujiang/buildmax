@@ -3,9 +3,9 @@ import type { ApiLLMCallCost, ApiTaskRunLLMCall, ApiTaskRunTrace } from "../../l
 /** One currency unit, in the nano-units the API reports amounts as. */
 const NANO_PER_UNIT = 1_000_000_000
 
-/** Per-alias accounting, so a run that called two approved models is legible. */
-export interface AliasSpend {
-  alias: string
+/** Per-model accounting, so a run that called two models is legible. */
+export interface ModelSpend {
+  model: string
   calls: number
   totalTokens: number
   /** Calls whose provider reported no usage. They are not free, only unmeasured. */
@@ -51,7 +51,7 @@ export interface SpendSummary {
    */
   unreported: number
   retried: number
-  byAlias: AliasSpend[]
+  byModel: ModelSpend[]
 }
 
 /** Tokens a call is known to have used, or null when nothing was reported. */
@@ -68,7 +68,7 @@ function callTokens(call: ApiTaskRunLLMCall): number | null {
 /**
  * Aggregate a run's ledger rows.
  *
- * Aliases are ordered by spend and then by name, so the model a run leaned on
+ * Models are ordered by spend and then by name, so the model a run leaned on
  * is first and the order does not move between two runs that spent the same.
  */
 export function summarizeSpend(calls: ApiTaskRunLLMCall[]): SpendSummary {
@@ -87,10 +87,10 @@ export function summarizeSpend(calls: ApiTaskRunLLMCall[]): SpendSummary {
     unpriced: 0,
     unreported: 0,
     retried: 0,
-    byAlias: [],
+    byModel: [],
   }
 
-  const aliases = new Map<string, AliasSpend>()
+  const models = new Map<string, ModelSpend>()
   for (const call of calls) {
     switch (call.status) {
       case "SUCCEEDED":
@@ -146,16 +146,16 @@ export function summarizeSpend(calls: ApiTaskRunLLMCall[]): SpendSummary {
       summary.unpriced += 1
     }
 
-    const key = call.alias || "—"
-    const entry = aliases.get(key) ?? { alias: key, calls: 0, totalTokens: 0, unreported: 0 }
+    const key = call.model || "—"
+    const entry = models.get(key) ?? { model: key, calls: 0, totalTokens: 0, unreported: 0 }
     entry.calls += 1
     if (tokens === null) entry.unreported += 1
     else entry.totalTokens += tokens
-    aliases.set(key, entry)
+    models.set(key, entry)
   }
 
-  summary.byAlias = [...aliases.values()].sort(
-    (a, b) => b.totalTokens - a.totalTokens || a.alias.localeCompare(b.alias)
+  summary.byModel = [...models.values()].sort(
+    (a, b) => b.totalTokens - a.totalTokens || a.model.localeCompare(b.model)
   )
   return summary
 }

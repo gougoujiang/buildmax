@@ -47,12 +47,11 @@ func getLLMCalls(t *testing.T, cfg Config, teamID, taskRunID string, auth bool) 
 func stagedCall() model.LLMCall {
 	return model.LLMCall{
 		ID:            "lc_1",
-		TeamID:        llmTestTeam,
 		UserID:        ptr(llmTestUser),
 		TaskRunID:     ptr("r_1"),
 		TaskID:        ptr("t_1"),
 		Surface:       "worker",
-		Alias:         "default",
+		Model:         "default",
 		TargetID:      "SECRET-CATALOG-ID",
 		ProviderType:  "openai_compatible",
 		UpstreamModel: "SECRET-UPSTREAM-MODEL",
@@ -79,7 +78,7 @@ func TestListTaskRunLLMCalls(t *testing.T) {
 		t.Fatalf("returned %d calls, want 1", len(out))
 	}
 	call := out[0]
-	if call.ID != "lc_1" || call.Alias != "default" || call.Surface != "worker" {
+	if call.ID != "lc_1" || call.Model != "default" || call.Surface != "worker" {
 		t.Errorf("call = %+v", call)
 	}
 	if call.UserID == nil || *call.UserID != llmTestUser {
@@ -134,8 +133,8 @@ func TestListTaskRunLLMCallsOmitsUnreportedCacheTokens(t *testing.T) {
 }
 
 // TestListTaskRunLLMCallsHidesOperatorRouting keeps the reader inside the team
-// boundary. A team is granted aliases; which catalog entry an alias resolves to,
-// and which upstream model that is, belong to the operator.
+// boundary. A caller names a model; which catalog entry that resolves to, and
+// which upstream model it is, belong to the operator.
 func TestListTaskRunLLMCallsHidesOperatorRouting(t *testing.T) {
 	rec := getLLMCalls(t, llmCallsFixture(&llmStubLedger{calls: []model.LLMCall{stagedCall()}}), llmTestTeam, "r_1", true)
 	for _, secret := range []string{"SECRET-CATALOG-ID", "SECRET-UPSTREAM-MODEL"} {

@@ -17,7 +17,7 @@ func TestWorkerModeCallsTheRunRoute(t *testing.T) {
 	gateway := newFakeGateway(t)
 	gateway.body = `{"llm_call_id":"lc_1","model":"default","content":"hi"}`
 
-	client := gateway.client(llmremote.Config{Token: "run-token", TaskRunID: "r_1", Alias: "default"})
+	client := gateway.client(llmremote.Config{Token: "run-token", TaskRunID: "r_1", Model: "Fast"})
 	if _, err := client.ChatCompletionBlocking(context.Background(),
 		cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "hello"}}}); err != nil {
 		t.Fatalf("ChatCompletionBlocking: %v", err)
@@ -57,49 +57,24 @@ func TestWorkerModeStreams(t *testing.T) {
 	}
 }
 
-// TestTeamAndTaskRunAreMutuallyExclusive keeps a confused caller from silently
-// picking a route. Both fields set means the caller has not decided which
-// identity it is asserting, and guessing for it would hide the mistake until it
-// showed up as somebody else's ledger entry.
-func TestTeamAndTaskRunAreMutuallyExclusive(t *testing.T) {
-	gateway := newFakeGateway(t)
-
-	client := gateway.client(llmremote.Config{Token: "tok", TeamID: "tm_one", TaskRunID: "r_1"})
-	_, err := client.ChatCompletionBlocking(context.Background(),
-		cllm.Request{Messages: []cllm.Message{{Role: "user"}}})
-	if err == nil {
-		t.Fatal("a client holding both a team and a task run made a call")
-	}
-	if !strings.Contains(err.Error(), "only call as one") {
-		t.Errorf("error %q does not explain the conflict", err)
-	}
-	if gateway.requests != 0 {
-		t.Errorf("the gateway was reached %d times; the check must be client-side", gateway.requests)
-	}
-}
-
-func TestClientWithNoIdentityMakesNoCall(t *testing.T) {
-	gateway := newFakeGateway(t)
-
-	client := llmremote.NewClient(llmremote.Config{ServerURL: gateway.server.URL, Token: "tok"})
+// A client with no server URL cannot address anything, and says so rather than
+// building a request against an empty host.
+func TestClientWithNoServerMakesNoCall(t *testing.T) {
+	client := llmremote.NewClient(llmremote.Config{Token: "tok"})
 	if _, err := client.ChatCompletionBlocking(context.Background(),
 		cllm.Request{Messages: []cllm.Message{{Role: "user"}}}); err == nil {
-		t.Fatal("a client with neither a team nor a task run made a call")
-	}
-	if gateway.requests != 0 {
-		t.Errorf("the gateway was reached %d times", gateway.requests)
+		t.Fatal("a client with no server URL made a call")
 	}
 }
 
 // TestWorkerModeRefusesModelDiscovery records that choosing a model is not a
-// task run's decision. It is told which alias to use at dispatch; browsing the
-// team's catalog is a team capability.
+// task run's decision. It is told which model to use at dispatch.
 func TestWorkerModeRefusesModelDiscovery(t *testing.T) {
 	gateway := newFakeGateway(t)
 
 	client := gateway.client(llmremote.Config{Token: "run-token", TaskRunID: "r_1"})
 	if _, err := client.Models(context.Background()); err == nil {
-		t.Fatal("a worker-mode client listed team models")
+		t.Fatal("a worker-mode client listed models")
 	}
 	if gateway.requests != 0 {
 		t.Errorf("the gateway was reached %d times", gateway.requests)

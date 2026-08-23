@@ -83,18 +83,17 @@ type RedactedWorkerConfig struct {
 	RunTokenTTL  string `json:"run_token_ttl,omitempty"`
 	RunTimeout   string `json:"run_timeout,omitempty"`
 	LLMTransport string `json:"llm_transport,omitempty"`
-	LLMAlias     string `json:"llm_alias,omitempty"`
+	LLMModel     string `json:"llm_model,omitempty"`
 	K8sNamespace string `json:"k8s_namespace,omitempty"`
 	K8sImage     string `json:"k8s_image,omitempty"`
 }
 
-// RedactedLLMConfig shows the deployment's model policy. Aliases name catalog
-// ids, which are identifiers rather than credentials; the credentials are in
-// the llm_model table and are never served anywhere.
+// RedactedLLMConfig shows which model this deployment defaults to. The name is
+// an identifier rather than a credential; the credentials are in the llm_model
+// table and are never served anywhere.
 type RedactedLLMConfig struct {
-	DefaultAlias  string            `json:"default_alias,omitempty"`
-	Aliases       map[string]string `json:"aliases,omitempty"`
-	ConversationM RedactedModel     `json:"conversation_model"`
+	DefaultModel  string        `json:"default_model,omitempty"`
+	ConversationM RedactedModel `json:"conversation_model"`
 }
 
 // RedactedModel describes the Tier 1 model without its credential.
@@ -138,13 +137,12 @@ func (sc ServerConfig) Redacted() RedactedServerConfig {
 			RunMode:      sc.Worker.RunMode,
 			ServerURL:    sc.Worker.ServerURL,
 			LLMTransport: sc.Worker.LLM.Transport,
-			LLMAlias:     sc.Worker.LLM.Alias,
+			LLMModel:     sc.Worker.LLM.Model,
 			K8sNamespace: sc.Worker.K8s.Namespace,
 			K8sImage:     sc.Worker.K8s.Image,
 		},
 		LLM: RedactedLLMConfig{
-			DefaultAlias: sc.LLM.DefaultAlias,
-			Aliases:      sc.LLM.Aliases,
+			DefaultModel: sc.LLM.DefaultModel,
 			ConversationM: RedactedModel{
 				Name:        sc.Conversation.Model.Name,
 				Model:       sc.Conversation.Model.Model,
@@ -189,9 +187,6 @@ func (sc ServerConfig) configWarnings() []string {
 	warnings := []string{}
 	if sc.AllowSignup {
 		warnings = append(warnings, "allow_signup is on: anyone who can reach the server can create an account")
-	}
-	if sc.Worker.LLM.Managed() && len(sc.LLM.Aliases) == 0 {
-		warnings = append(warnings, "worker.llm.transport is buildmax but llm.aliases is empty: no team can call a managed model")
 	}
 	if sc.Worker.RunMode != "k8s_job" {
 		warnings = append(warnings, "worker.run_mode is not k8s_job: runs execute as child processes of the server under its uid, so a task run shares the server's trust domain rather than being separated from it")

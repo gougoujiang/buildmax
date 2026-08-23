@@ -65,10 +65,17 @@ func (s *jsonlEventSink) OnEvent(ev agent.Event) {
 }
 
 func runPrintMode(opts printOptions) error {
+	source, err := resolveModelSource(context.Background())
+	if err != nil {
+		return printFatal(opts.Format, ExitModelError, err)
+	}
 	app, err := agentapp.NewAgentApp(agentapp.AppConfig{
 		WorkspaceDir:           opts.Workspace,
 		EnableMCP:              true,
 		Policy:                 agentapp.NewNonInteractivePolicy(),
+		ModelEntries:           source.Entries,
+		DefaultModel:           source.Default,
+		ManagedServerURL:       source.ServerURL,
 		ManagedToken:           auth.TokenForServer,
 		ArtifactPublisher:      auth.ArtifactPublisherForSession(),
 		Surface:                model.LLMCallSurfaceCLI,

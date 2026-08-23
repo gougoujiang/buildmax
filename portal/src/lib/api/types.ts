@@ -423,8 +423,8 @@ export interface ApiTaskRunTrace {
  * itself and the server never saw it.
  *
  * It carries no prompts, tool payloads, or generated content, and omits the
- * catalog entry an alias resolved to: that is the operator's routing, not the
- * team's.
+ * catalog entry the model name resolved to: that is the operator's routing, not
+ * the caller's.
  */
 export interface ApiTaskRunLLMCall {
   id: string
@@ -432,8 +432,8 @@ export interface ApiTaskRunLLMCall {
   task_id?: string
   surface?: string
   session_id?: string
-  /** The operator-approved alias the run was allowed to call. */
-  alias?: string
+  /** The catalog model the run named. */
+  model?: string
   streaming: boolean
   accepted_at: string
   first_delta_at?: string
@@ -627,13 +627,12 @@ export interface ApiAdminModel {
   enabled: boolean
   created_at: string
   updated_at: string
-  /** Deployment aliases pointing here. None means no team can call it. */
-  aliases: string[]
 }
 
 export interface ApiAdminModelsResponse {
   models: ApiAdminModel[]
-  default_alias?: string
+  /** Model name callers get when they name none. Empty means the first enabled one. */
+  default_model?: string
 }
 
 /** One catalog entry in the private plugin Marketplace. */

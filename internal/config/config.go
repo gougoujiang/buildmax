@@ -23,13 +23,22 @@ type LLM struct {
 // Settings is the root structure for settings.yaml (BUILDMAX_HOME/settings.yaml).
 // Used by the CLI and desktop app.
 type Settings struct {
-	LogLevel  string          `mapstructure:"log_level"`
-	ServerURL string          `mapstructure:"server_url"`
-	Models    []ModelEntry    `mapstructure:"models"`
-	Hooks     corehook.Config `mapstructure:"hooks"`
-	Sandbox   SandboxConfig   `mapstructure:"sandbox"`
-	Tools     ToolsConfig     `mapstructure:"tools"`
-	Agent     AgentConfig     `mapstructure:"agent"`
+	LogLevel  string       `mapstructure:"log_level"`
+	ServerURL string       `mapstructure:"server_url"`
+	Models    []ModelEntry `mapstructure:"models"`
+	// DefaultModel names the entry in Models a new session starts with, by name
+	// or by model id. Empty uses the first entry, so a single-model file needs
+	// nothing here. A name matching nothing is reported by `buildmax doctor`
+	// rather than silently falling back, because the fallback would answer with
+	// a model the file says is not the default.
+	//
+	// It applies to local mode only: in managed mode the deployment says which
+	// of its models is the default. See docs/design/client-modes.md section 7.
+	DefaultModel string          `mapstructure:"default_model"`
+	Hooks        corehook.Config `mapstructure:"hooks"`
+	Sandbox      SandboxConfig   `mapstructure:"sandbox"`
+	Tools        ToolsConfig     `mapstructure:"tools"`
+	Agent        AgentConfig     `mapstructure:"agent"`
 }
 
 // LLM connection modes for a model entry.
@@ -85,21 +94,10 @@ type ModelEntry struct {
 	// Only LLMProviderOllama reads it; on a hosted provider there is no model
 	// to keep loaded. Empty means the runtime's own default.
 	KeepAlive string `mapstructure:"keep_alive"`
-	// Provider is the wire protocol a direct entry speaks: LLMProviderOpenAICompatible
+	// Provider is the wire protocol this endpoint speaks: LLMProviderOpenAICompatible
 	// (the default), LLMProviderOpenAI, LLMProviderAnthropic, or LLMProviderOllama.
-	// It is ignored by a "buildmax" entry, where the operator's catalog decides.
 	Provider string `mapstructure:"provider"`
-	// Transport is "direct" (the default) or "buildmax".
-	Transport string `mapstructure:"transport"`
-	// ServerURL and TeamID apply to a "buildmax" entry. The credential is not
-	// copied here: the remote client reads it from the login state in
-	// auth.json, and only when it belongs to this server.
-	ServerURL string `mapstructure:"server_url"`
-	TeamID    string `mapstructure:"team_id"`
 }
-
-// IsManaged reports whether this entry calls a BuildMax gateway.
-func (m ModelEntry) IsManaged() bool { return m.Transport == TransportBuildMax }
 
 // LLM wire protocols a direct model entry can speak. The value names a protocol
 // family, not a vendor: Claude served through an OpenAI-compatible gateway is

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -145,6 +146,7 @@ func TestStaticCatalogNilIsNotConfigured(t *testing.T) {
 func TestStaticCatalogIDsAreStableAndCopied(t *testing.T) {
 	second := validTarget()
 	second.ID = "mt_deep"
+	second.Name = "Deep"
 	catalog, err := llmgateway.NewStaticCatalog([]llmgateway.Target{validTarget(), second})
 	if err != nil {
 		t.Fatalf("NewStaticCatalog: %v", err)
@@ -162,10 +164,43 @@ func TestStaticCatalogIDsAreStableAndCopied(t *testing.T) {
 	}
 }
 
+// A name is how a client addresses a model, so a duplicate would make the
+// second target unreachable rather than merely redundant.
+func TestNewStaticCatalogRejectsDuplicateNames(t *testing.T) {
+	second := validTarget()
+	second.ID = "mt_deep"
+
+	_, err := llmgateway.NewStaticCatalog([]llmgateway.Target{validTarget(), second})
+	if !errors.Is(err, llmgateway.ErrInvalidCatalog) {
+		t.Fatalf("want ErrInvalidCatalog, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "Fast") {
+		t.Errorf("the error does not name the duplicate: %v", err)
+	}
+}
+
+func TestStaticCatalogTargetByName(t *testing.T) {
+	catalog, err := llmgateway.NewStaticCatalog([]llmgateway.Target{validTarget()})
+	if err != nil {
+		t.Fatalf("NewStaticCatalog: %v", err)
+	}
+
+	got, err := catalog.TargetByName(context.Background(), "Fast")
+	if err != nil {
+		t.Fatalf("TargetByName: %v", err)
+	}
+	if got.ID != "mt_fast" {
+		t.Errorf("ID = %q, want %q", got.ID, "mt_fast")
+	}
+	if _, err := catalog.TargetByName(context.Background(), "Gone"); !errors.Is(err, llmgateway.ErrTargetNotFound) {
+		t.Errorf("want ErrTargetNotFound, got %v", err)
+	}
+}
+
 func TestNewStaticCatalogAcceptsEmpty(t *testing.T) {
 	// An empty catalog is a valid deployment state: the gateway is simply not
-	// offering managed models yet. Policy validation is what rejects an alias
-	// with nothing behind it.
+	// offering managed models yet. A resolve against it fails with
+	// ErrCatalogEmpty rather than the catalog refusing to exist.
 	catalog, err := llmgateway.NewStaticCatalog(nil)
 	if err != nil {
 		t.Fatalf("NewStaticCatalog(nil): %v", err)

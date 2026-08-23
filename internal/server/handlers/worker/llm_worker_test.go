@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -66,7 +67,7 @@ func workerLLMRequest(t *testing.T, gateway *llmgateway.Service, runStatus, body
 	return rec
 }
 
-const workerLLMBody = `{"model":"default","messages":[{"role":"user","content":"hi"}]}`
+const workerLLMBody = `{"model":"Fast","messages":[{"role":"user","content":"hi"}]}`
 
 func TestWorkerLLMCompletions(t *testing.T) {
 	gateway := llmTestService(t, &llmStubClient{content: "answer"}, nil)
@@ -162,9 +163,6 @@ func TestWorkerLLMCompletions(t *testing.T) {
 			t.Fatalf("unexpected ledger type %T", attributed.Ledger)
 		}
 		call := ledger.last
-		if call.TeamID != llmTestTeam {
-			t.Errorf("team = %q, want %q", call.TeamID, llmTestTeam)
-		}
 		if call.UserID == nil || *call.UserID != llmTestUser {
 			t.Errorf("user = %v, want %q", call.UserID, llmTestUser)
 		}
@@ -193,7 +191,7 @@ func TestWorkerLLMCompletions(t *testing.T) {
 	t.Run("rejects a body carrying fields it does not define", func(t *testing.T) {
 		rec := workerLLMRequest(t, gateway,
 			string(model.RunStatusRunning),
-			`{"model":"default","messages":[{"role":"user","content":"hi"}],"team_id":"tm_other"}`,
+			`{"model":"Fast","messages":[{"role":"user","content":"hi"}],"team_id":"tm_other"}`,
 			validWorkerRunToken(t))
 		if rec.Code != http.StatusBadRequest {
 			t.Errorf("status = %d, want 400 for an unknown field", rec.Code)
@@ -221,7 +219,29 @@ func TestWorkerLLMCompletions(t *testing.T) {
 	})
 }
 
-// The worker route resolves a profile the same way the team route does. Two
+// workerDenyQuota refuses every team.
+type workerDenyQuota struct{}
+
+func (workerDenyQuota) Check(context.Context, string, int, int) (bool, string) {
+	return false, "quota exceeded: token limit"
+}
+
+// TestWorkerLLMCompletionRespectsQuota is where quota is enforced now that a
+// foreground call names no team: a run belongs to exactly one, taken from its
+// run token, so this is the route that can be metered against a limit.
+func TestWorkerLLMCompletionRespectsQuota(t *testing.T) {
+	gateway := llmTestService(t, &llmStubClient{content: "answer"}, workerDenyQuota{})
+
+	rec := workerLLMRequest(t, gateway, string(model.RunStatusRunning), workerLLMBody, validWorkerRunToken(t))
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("status = %d, want 429: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), llmgateway.ErrorClassQuotaExceeded) {
+		t.Errorf("body does not carry the quota code: %s", rec.Body.String())
+	}
+}
+
+// The worker route resolves a profile the same way the user route does. Two
 // endpoints reaching different conclusions about the same word is the drift the
 // shared resolver exists to prevent, and here it would mean a run's caching
 // depended on which door it came through.
@@ -230,7 +250,7 @@ func TestWorkerLLMCompletionCarriesTheCallProfile(t *testing.T) {
 	gateway := llmTestService(t, client, nil)
 
 	rec := workerLLMRequest(t, gateway, string(model.RunStatusRunning),
-		`{"model":"default","messages":[{"role":"user","content":"hi"}],"call_profile":"agent_turn"}`,
+		`{"model":"Fast","messages":[{"role":"user","content":"hi"}],"call_profile":"agent_turn"}`,
 		validWorkerRunToken(t))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
@@ -245,7 +265,7 @@ func TestWorkerLLMCompletionRefusesAnUnknownProfile(t *testing.T) {
 	gateway := llmTestService(t, client, nil)
 
 	rec := workerLLMRequest(t, gateway, string(model.RunStatusRunning),
-		`{"model":"default","messages":[{"role":"user","content":"hi"}],"call_profile":"cache_everything"}`,
+		`{"model":"Fast","messages":[{"role":"user","content":"hi"}],"call_profile":"cache_everything"}`,
 		validWorkerRunToken(t))
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400: %s", rec.Code, rec.Body.String())

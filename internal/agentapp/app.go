@@ -26,10 +26,22 @@ import (
 type AppConfig struct {
 	WorkspaceDir string
 	EnableMCP    bool
-	// ModelEntries overrides settings.yaml models for this AgentApp. Workers use
-	// this to receive the server's resolved model without writing credentials to
+	// ModelEntries overrides settings.yaml models for this AgentApp. It is how a
+	// surface in managed mode supplies what the deployment offers, and how a
+	// worker receives the server's resolved model without writing credentials to
 	// a run directory that is later persisted as an artifact.
 	ModelEntries []config.ModelEntry
+	// DefaultModel names the entry in ModelEntries a new session starts with.
+	// Read only when ModelEntries is set; otherwise settings.yaml says.
+	DefaultModel string
+	// ManagedServerURL says these models are served by that deployment rather
+	// than called from this machine. Empty means direct: the models are the ones
+	// in settings.yaml and each carries its own provider credential.
+	//
+	// It is a property of the app rather than of an entry because a list has one
+	// source. A surface is in one mode or the other, and the mode decides where
+	// every prompt goes. See docs/design/client-modes.md section 4.
+	ManagedServerURL string
 	// Policy sets the tool permission policy for all runs in this AgentApp.
 	// Nil defaults to AllowAllPolicy for backward compatibility.
 	Policy agent.ToolPolicy
@@ -198,12 +210,15 @@ type SubAgentRegistry struct {
 
 type LLMClientCache struct {
 	settings config.Settings
-	// managedToken supplies the BuildMax credential for a managed entry. Nil
-	// means this surface does not offer managed inference — the worker and the
-	// evaluation harness deliberately do not.
+	// managedServerURL is set when this app's models are served by a deployment.
+	// Empty means every model here is called directly with its own credential.
+	managedServerURL string
+	// managedToken supplies the BuildMax credential. Nil means this surface
+	// cannot authenticate to a deployment — the evaluation harness deliberately
+	// does not.
 	managedToken ManagedTokenFunc
-	// managedTaskRunID scopes managed calls to one task run. Empty means they
-	// are team-scoped.
+	// managedTaskRunID scopes managed calls to one task run, which sends them to
+	// the worker route. Empty means they carry the user's own login.
 	managedTaskRunID string
 	// surface labels managed calls for correlation only.
 	surface string
@@ -310,21 +325,24 @@ type ModelConfig struct {
 	// KeepAlive is how long a local runtime keeps the model loaded between
 	// calls. Only a local provider has one to keep.
 	KeepAlive string
-	// Provider is the wire protocol a direct entry speaks. Empty means
-	// config.LLMProviderOpenAICompatible. A managed entry ignores it: the
+	// Provider is the wire protocol this model speaks. Empty means
+	// config.LLMProviderOpenAICompatible. In managed mode it is ignored: the
 	// operator's catalog decides which protocol serves the call.
+	//
+	// There is no transport here. Where a prompt goes is a property of the app's
+	// mode, not of one model — see AppConfig.ManagedServerURL.
 	Provider string
-	// Transport is config.TransportDirect or config.TransportBuildMax. Empty
-	// means direct.
-	Transport string
-	// ServerURL and TeamID are set on a managed entry. ProviderModel then holds
-	// the team alias rather than a provider's model identifier.
-	ServerURL string
-	TeamID    string
 }
 
-// IsManaged reports whether this model calls a BuildMax gateway.
-func (c ModelConfig) IsManaged() bool { return c.Transport == config.TransportBuildMax }
+// ManagedServerURL is the deployment serving this app's models, or empty when
+// they are called directly from this machine. It is the app's mode, and a
+// surface names it wherever it tells the user where a prompt goes.
+func (a *AgentApp) ManagedServerURL() string {
+	if a == nil || a.llmClients == nil {
+		return ""
+	}
+	return a.llmClients.managedServerURL
+}
 
 // effectiveAdditionalPrompt returns the additional system prompt a run uses: the one this app
 // was configured with, or — when it was given none — the one the session already ran under. A
@@ -357,7 +375,11 @@ func NewAgentApp(cfg AppConfig) (*AgentApp, error) {
 		return nil, fmt.Errorf("load settings: %w", err)
 	}
 	if len(cfg.ModelEntries) > 0 {
+		// A supplied list replaces settings.yaml's outright, default included:
+		// in managed mode the deployment says which of its models is the
+		// default, and a name from the local file would select nothing here.
 		settings.Models = append([]config.ModelEntry(nil), cfg.ModelEntries...)
+		settings.DefaultModel = cfg.DefaultModel
 	}
 	// Resolved once, here: every layer below reads the same inventory, and a
 	// plugin installed later must not change a runtime already assembled.
@@ -405,6 +427,7 @@ func NewAgentApp(cfg AppConfig) (*AgentApp, error) {
 	}
 	app.llmClients = &LLMClientCache{
 		settings:         app.settings,
+		managedServerURL: cfg.ManagedServerURL,
 		managedToken:     cfg.ManagedToken,
 		managedTaskRunID: cfg.ManagedTaskRunID,
 		surface:          cfg.Surface,
@@ -1079,8 +1102,11 @@ func (a *AgentApp) pricingFor(sess *SessionContext) cllm.Pricing {
 	if a == nil || sess == nil {
 		return cllm.Pricing{}
 	}
+	if a.ManagedServerURL() != "" {
+		return cllm.Pricing{}
+	}
 	cfg, ok := FindModelConfig(a.settings, sess.ModelName(a.DefaultModelName()))
-	if !ok || cfg.IsManaged() {
+	if !ok {
 		return cllm.Pricing{}
 	}
 	return cfg.Pricing
@@ -1181,34 +1207,22 @@ func (r *LLMClientCache) Get(modelName string) (cllm.LLMClient, error) {
 // entry that cannot authenticate fails rather than quietly calling a provider
 // with some other credential.
 func (r *LLMClientCache) build(cfg ModelConfig) (cllm.LLMClient, error) {
-	if cfg.IsManaged() {
+	if serverURL := r.managedServerURL; serverURL != "" {
 		if r.managedToken == nil {
-			return nil, fmt.Errorf("model %q uses transport %q, which this surface does not support",
-				cfg.Name, config.TransportBuildMax)
-		}
-		// A run-scoped app calls as its task run, so it needs no team: the server
-		// reads user and team from the run token. Any team on the entry is
-		// dropped rather than sent, because the two identities select different
-		// routes and the client refuses to hold both.
-		teamID := cfg.TeamID
-		if r.managedTaskRunID != "" {
-			teamID = ""
-		} else if teamID == "" {
-			return nil, fmt.Errorf("team_id is required for model %q in settings.yaml", cfg.Name)
+			return nil, fmt.Errorf("model %q is served by %s, which this surface cannot authenticate to",
+				cfg.Name, serverURL)
 		}
 		// Resolved once here so a model that cannot authenticate fails at
 		// selection rather than at the first prompt, and again per request
 		// below so a session outlasting its access token keeps working.
-		if _, err := r.managedToken(cfg.ServerURL); err != nil {
+		if _, err := r.managedToken(serverURL); err != nil {
 			return nil, fmt.Errorf("model %q: %w", cfg.Name, err)
 		}
-		serverURL := cfg.ServerURL
 		return llmremote.NewClient(llmremote.Config{
-			ServerURL:     cfg.ServerURL,
+			ServerURL:     serverURL,
 			TokenFunc:     func() (string, error) { return r.managedToken(serverURL) },
-			TeamID:        teamID,
 			TaskRunID:     r.managedTaskRunID,
-			Alias:         cfg.ProviderModel,
+			Model:         cfg.ProviderModel,
 			ContextWindow: cfg.ContextWindow,
 			Surface:       r.surface,
 			CallTimeout:   time.Duration(cfg.CallTimeout) * time.Second,
@@ -1284,6 +1298,9 @@ func (a *AgentApp) buildToolRegistry(client cllm.LLMClient) (cllm.ToolRegistry, 
 // When the parent trace is unavailable, no child trace is created either: a
 // trace with a missing link would misrepresent the relationship, and tracing
 // must never become a reason for a subagent to fail.
+//
+// sessionID is the parent's, so a subagent run lands in the traces directory
+// of a session that still exists and is_subagent tells the two apart.
 func (a *AgentApp) newSubAgentTrace(ctx context.Context, sessionID string, opts tools.SubAgentRunOpts) tools.SubAgentTrace {
 	parent := traceRunFromContext(ctx)
 	if parent.runID == "" {
@@ -1340,9 +1357,23 @@ func DefaultModelName(settings config.Settings) string {
 	return cfg.Name
 }
 
+// DefaultModelConfig is the model a new session starts with: the one
+// default_model names, or the first entry when it names none.
+//
+// A default_model matching nothing falls through to the first entry rather than
+// failing here, because a model picker that returns nothing is worse than one
+// that returns the wrong first choice. `buildmax doctor` reports the mismatch.
 func DefaultModelConfig(settings config.Settings) (ModelConfig, bool) {
 	if len(settings.Models) == 0 {
 		return ModelConfig{}, false
+	}
+	if name := settings.DefaultModel; name != "" {
+		for _, entry := range settings.Models {
+			cfg := toModelConfig(entry)
+			if cfg.Name == name || cfg.ProviderModel == name {
+				return cfg, true
+			}
+		}
 	}
 	return toModelConfig(settings.Models[0]), true
 }
@@ -1396,8 +1427,5 @@ func toModelConfig(entry config.ModelEntry) ModelConfig {
 		Vision:        entry.Vision,
 		KeepAlive:     entry.KeepAlive,
 		Provider:      entry.Provider,
-		Transport:     entry.Transport,
-		ServerURL:     entry.ServerURL,
-		TeamID:        entry.TeamID,
 	}
 }

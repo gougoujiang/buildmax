@@ -18,10 +18,11 @@ type llmCallRow struct {
 	PublicID     string  `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_llm_call_public_id;not null"`
 	ClientCallID *string `gorm:"type:varchar(128);uniqueIndex:idx_llm_call_client,priority:2"`
 
-	// The composite unique index leads with team_id, so team-scoped lookups do
-	// not need a second index on this column.
-	TeamID    uint64  `gorm:"column:team_id;not null;uniqueIndex:idx_llm_call_client,priority:1"`
-	UserID    *uint64 `gorm:"column:user_id;index"`
+	// A call is attributed to a person, not a team: a foreground call belongs to
+	// no team, and a run's team is reached through task_run_id. The composite
+	// unique index leads with user_id, which is both the idempotency scope and
+	// the column usage is grouped by.
+	UserID    *uint64 `gorm:"column:user_id;uniqueIndex:idx_llm_call_client,priority:1"`
 	TaskRunID *uint64 `gorm:"column:task_run_id;index"`
 
 	// SessionID names a file under a run's BUILDMAX_HOME, not a row.
@@ -29,9 +30,10 @@ type llmCallRow struct {
 	SessionID *string `gorm:"type:varchar(64)"`
 	TaskID    *uint64 `gorm:"column:task_id;index"`
 
-	// Alias and TargetID name a catalog entry whose namespace may be owned by
-	// configuration rather than by llm_model, so neither becomes a reference.
-	Alias         string `gorm:"type:varchar(64)"`
+	// Model and TargetID name a catalog entry that may have been renamed or
+	// retired since, so neither becomes a reference. Model is what the caller
+	// asked for; TargetID is what served it.
+	Model         string `gorm:"type:varchar(128)"`
 	TargetID      string `gorm:"type:varchar(64);not null"`
 	ProviderType  string `gorm:"type:varchar(32);not null"`
 	UpstreamModel string `gorm:"type:varchar(128);not null"`
@@ -74,7 +76,6 @@ func (llmCallRow) TableName() string { return "llm_call" }
 // pointer field is one a LEFT JOIN may leave NULL.
 type llmCallReadRow struct {
 	Row             llmCallRow `gorm:"embedded"`
-	TeamPublicID    string     `gorm:"column:team_public_id"`
 	UserPublicID    *string    `gorm:"column:user_public_id"`
 	TaskPublicID    *string    `gorm:"column:task_public_id"`
 	TaskRunPublicID *string    `gorm:"column:task_run_public_id"`
@@ -82,9 +83,8 @@ type llmCallReadRow struct {
 
 func (s *Store) llmCallSelect(ctx context.Context) *gorm.DB {
 	return s.db.WithContext(ctx).Model(&llmCallRow{}).
-		Select("llm_call.*, t.public_id AS team_public_id, u.public_id AS user_public_id, " +
+		Select("llm_call.*, u.public_id AS user_public_id, " +
 			"tk.public_id AS task_public_id, r.public_id AS task_run_public_id").
-		Joins("INNER JOIN team t ON t.id = llm_call.team_id").
 		Joins("LEFT JOIN `user` u ON u.id = llm_call.user_id").
 		Joins("LEFT JOIN task tk ON tk.id = llm_call.task_id").
 		Joins("LEFT JOIN task_run r ON r.id = llm_call.task_run_id")
@@ -97,10 +97,9 @@ func toLLMCall(row *llmCallReadRow) *model.LLMCall {
 	out := &model.LLMCall{
 		ID:                row.Row.PublicID,
 		ClientCallID:      row.Row.ClientCallID,
-		TeamID:            row.TeamPublicID,
 		Surface:           row.Row.Surface,
 		SessionID:         row.Row.SessionID,
-		Alias:             row.Row.Alias,
+		Model:             row.Row.Model,
 		TargetID:          row.Row.TargetID,
 		ProviderType:      row.Row.ProviderType,
 		UpstreamModel:     row.Row.UpstreamModel,
@@ -153,7 +152,7 @@ func llmCallValues(call *model.LLMCall) *llmCallRow {
 		ClientCallID:      call.ClientCallID,
 		Surface:           call.Surface,
 		SessionID:         call.SessionID,
-		Alias:             call.Alias,
+		Model:             call.Model,
 		TargetID:          call.TargetID,
 		ProviderType:      call.ProviderType,
 		UpstreamModel:     call.UpstreamModel,
@@ -184,10 +183,6 @@ func llmCallValues(call *model.LLMCall) *llmCallRow {
 // dropping one: the ledger is an accounting record, and a call attributed to
 // nothing is worse than a refused write.
 func (s *Store) toLLMCallRow(ctx context.Context, call *model.LLMCall) (*llmCallRow, error) {
-	teamKey, err := lookupKey(ctx, s.db, "team", call.TeamID)
-	if err != nil {
-		return nil, err
-	}
 	userKey, err := optionalKey(ctx, s.db, "user", call.UserID)
 	if err != nil {
 		return nil, err
@@ -201,7 +196,6 @@ func (s *Store) toLLMCallRow(ctx context.Context, call *model.LLMCall) (*llmCall
 		return nil, err
 	}
 	row := llmCallValues(call)
-	row.TeamID = teamKey
 	row.UserID = userKey
 	row.TaskID = taskKey
 	row.TaskRunID = runKey
@@ -237,7 +231,6 @@ func (s *Store) OpenLLMCall(ctx context.Context, call *model.LLMCall) (*model.LL
 	}
 	return toLLMCall(&llmCallReadRow{
 		Row:             *row,
-		TeamPublicID:    canonicalPublicID(stored.TeamID),
 		UserPublicID:    optionalCanonicalPublicID(stored.UserID),
 		TaskPublicID:    optionalCanonicalPublicID(stored.TaskID),
 		TaskRunPublicID: optionalCanonicalPublicID(stored.TaskRunID),
@@ -298,13 +291,13 @@ func (s *Store) GetLLMCall(ctx context.Context, llmCallID string) (*model.LLMCal
 	return toLLMCall(&row), nil
 }
 
-// GetLLMCallByClientID returns a team's call by the caller's idempotency key.
-// The lookup is team-scoped: one team's key can never resolve another's call.
-func (s *Store) GetLLMCallByClientID(ctx context.Context, teamID, clientCallID string) (*model.LLMCall, error) {
-	if teamID == "" || clientCallID == "" {
+// GetLLMCallByClientID returns one user's call by their idempotency key.
+// The lookup is user-scoped: one caller's key can never resolve another's call.
+func (s *Store) GetLLMCallByClientID(ctx context.Context, userID, clientCallID string) (*model.LLMCall, error) {
+	if userID == "" || clientCallID == "" {
 		return nil, nil
 	}
-	teamKey, err := lookupKey(ctx, s.db, "team", teamID)
+	userKey, err := lookupKey(ctx, s.db, "user", userID)
 	if errors.Is(err, model.ErrNotFound) {
 		return nil, nil
 	}
@@ -313,7 +306,7 @@ func (s *Store) GetLLMCallByClientID(ctx context.Context, teamID, clientCallID s
 	}
 	var row llmCallReadRow
 	err = s.llmCallSelect(ctx).
-		Where("llm_call.team_id = ? AND llm_call.client_call_id = ?", teamKey, clientCallID).
+		Where("llm_call.user_id = ? AND llm_call.client_call_id = ?", userKey, clientCallID).
 		Take(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
@@ -324,19 +317,12 @@ func (s *Store) GetLLMCallByClientID(ctx context.Context, teamID, clientCallID s
 	return toLLMCall(&row), nil
 }
 
-// ListLLMCallsByTaskRun returns one run's calls for a team, oldest first.
+// ListLLMCallsByTaskRun returns one run's calls, oldest first.
 //
-// Both identifiers are in the WHERE clause. Filtering by run alone and checking
-// the team afterwards would still have read another team's row first, and the
-// difference matters for a table that records what each team spent.
-func (s *Store) ListLLMCallsByTaskRun(ctx context.Context, teamID, taskRunID string) ([]model.LLMCall, error) {
-	teamKey, err := lookupKey(ctx, s.db, "team", teamID)
-	if errors.Is(err, model.ErrNotFound) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
+// A run belongs to exactly one team, so authorizing the run authorizes every
+// row this returns. The caller establishes that before asking; there is no team
+// column here to filter on afterwards.
+func (s *Store) ListLLMCallsByTaskRun(ctx context.Context, taskRunID string) ([]model.LLMCall, error) {
 	runKey, err := lookupKey(ctx, s.db, "task_run", taskRunID)
 	if errors.Is(err, model.ErrNotFound) {
 		return nil, nil
@@ -346,7 +332,7 @@ func (s *Store) ListLLMCallsByTaskRun(ctx context.Context, teamID, taskRunID str
 	}
 	var rows []llmCallReadRow
 	err = s.llmCallSelect(ctx).
-		Where("llm_call.team_id = ? AND llm_call.task_run_id = ?", teamKey, runKey).
+		Where("llm_call.task_run_id = ?", runKey).
 		Order("llm_call.accepted_at ASC").
 		Find(&rows).Error
 	if err != nil {

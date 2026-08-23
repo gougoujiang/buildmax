@@ -249,7 +249,7 @@ func TestLLMCompactor_AnchorsOnLiveState(t *testing.T) {
 	sess := session.NewSession("")
 	sess.SetNotes([]agent.Note{{Text: "jurisdiction is New York"}}, 1)
 
-	if _, err := NewLLMCompactor(client).Compact(storeContext(sess), discardedSample); err != nil {
+	if _, _, err := NewLLMCompactor(client).Compact(storeContext(sess), discardedSample); err != nil {
 		t.Fatalf("Compact: %v", err)
 	}
 
@@ -266,7 +266,7 @@ func TestLLMCompactor_AnchorsOnLiveState(t *testing.T) {
 func TestLLMCompactor_NoLiveStateAddsNothing(t *testing.T) {
 	client := &scriptedClient{replies: []scriptedReply{{content: "a summary"}}}
 
-	if _, err := NewLLMCompactor(client).Compact(context.Background(), discardedSample); err != nil {
+	if _, _, err := NewLLMCompactor(client).Compact(context.Background(), discardedSample); err != nil {
 		t.Fatalf("Compact: %v", err)
 	}
 
@@ -320,7 +320,7 @@ func TestUtilityCallsAreNotLabelledAgentTurns(t *testing.T) {
 			name: "compaction",
 			want: llm.ProfileCompaction,
 			run: func(t *testing.T, client *scriptedClient) {
-				if _, err := NewLLMCompactor(client).Compact(t.Context(),
+				if _, _, err := NewLLMCompactor(client).Compact(t.Context(),
 					[]llm.Message{{Role: "user", Content: "a long history"}}); err != nil {
 					t.Fatalf("Compact: %v", err)
 				}

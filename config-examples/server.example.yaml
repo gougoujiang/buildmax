@@ -97,17 +97,17 @@ conversation:
 #       --api-url http://host.docker.internal:11434 \
 #       --model qwen3:8b --context-window 32000
 #
-# This block only says which of those models each team may name, and under what
-# alias. Leaving it out means no team may call the gateway: a catalog says which
-# models exist, not who may use them.
+# Every model in the catalog is available to every user of this deployment: a
+# team is a collaboration boundary, not a model authorization boundary. A client
+# names a model by the --name it was added with.
 #
-# See docs/design/llm-gateway.md.
+# This block only says which one a caller gets when it names none. Leaving it out
+# uses the first enabled model in the catalog, so a single-model deployment needs
+# nothing here. A name that is not in the catalog stops the server at startup.
+#
+# See docs/design/client-modes.md.
 # llm:
-#   aliases:
-#     default: ivyoh5qcfu6ypfkhyedq   # a model ID from `model list`
-#     deep: 2l73hqqx6fcl7eecggda
-#   # Alias used when a caller names none. Required when more than one exists.
-#   default_alias: default
+#   default_model: Fast          # a --name from `model list`
 
 database:
   host: localhost
@@ -136,14 +136,14 @@ worker:
   # "direct" (the default) means the worker calls a provider itself, using
   # conversation.model and its api_key. "buildmax" means the run calls this
   # server's managed gateway with a per-run credential, and no provider key is
-  # given to the worker at all — which requires the llm.aliases block above.
+  # given to the worker at all.
   #
-  # The alias is the only model identity a run gets: the endpoint, the upstream
-  # model, and the credential stay on the server. Leave it empty to use
-  # llm.default_alias.
+  # The model name is the only model identity a run gets: the endpoint, the
+  # upstream model, and the credential stay on the server. Leave it empty to use
+  # llm.default_model.
   llm:
     transport: direct          # or buildmax
-    alias: ""                  # e.g. default
+    model: ""                  # e.g. Fast
     context_window: 0
     call_timeout: 0            # per-call timeout in seconds (0 = client default)
 

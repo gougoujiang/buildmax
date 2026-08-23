@@ -31,11 +31,12 @@ reference, then delete the plan.
 | [Agent Core trust harness](trust-harness.md) | P0.5 | Hooks shipped; sandbox worker hardening and trace follow-ups open |
 | [Context durability](context-durability.md) | P0.5 | Implemented: accumulating compaction, durable session notes, the pre-compaction checkpoint, and the additional system prompt |
 | [Local session storage](local-session-storage.md) | unscheduled | Design ready for review; implementation not started |
+| [Session usage stats](session-usage-stats.md) | P1 follow-on | Per-session `buildmax stats` and the TUI `/stats` panel shipped, with the subagent and compaction metering fixes they required. Cross-session aggregation and the Desktop surface are designed and not built |
 | [Local background jobs](local-background-jobs.md) | P0.5 | Stages 1–3 shipped: background `Bash`/`Task` jobs, `Monitor`, typed delivery with parked wake-up on both surfaces, durable job logs. Durability beyond the process — spool, supervisor, scheduling — is decided against, not pending |
 | [Evaluation and qualification](evaluation-system.md) | P0.6 | Direction accepted; contract and black-box vertical slice not implemented |
 | [Issue model](issue-model.md) | P2 follow-on | Implemented: the backend and frontend plans in full. Typed links, threaded replies, mentions, and realtime push are out of scope, not pending |
-| [Enterprise deployment](enterprise-deployment.md) | P3 | M1 and M4 shipped, M3 mostly done; M2 and M5 open |
-| [Managed LLM gateway](llm-gateway.md) | P3 | Shipped for CLI/TUI/Desktop and task runs; per-team database policy and strict quota open |
+| [Enterprise deployment](enterprise-deployment.md) | P3 | M1, M2, M4, and M5 shipped; M3 mostly done. Operating evidence and configuration checks remain. |
+| [Managed LLM gateway](llm-gateway.md) | P3 | Shipped for CLI/TUI/Desktop and task runs; strict quota open. Sections 1, 4.2, 7, 10, and 12 are revised by [client modes](client-modes.md), summarised in its status block |
 | [LLM provider adapters](llm-provider-adapters.md) | P3 follow-on | Complete: three wire protocols, reasoning, prompt caching, and image input |
 | [Prompt cache control](prompt-cache-control.md) | P3 follow-on | Phases 1–3 shipped: cache policy, the Anthropic and OpenAI native paths, usage and cost telemetry. The qualification suite has been run and both native paths qualified; compatible profiles stay empty by decision. The per-entry capability claim and the section 6 diagnostics are open |
 | [Local Ollama provider](local-ollama-provider.md) | P1 follow-on | Complete: the adapter, local inventory, the CLI surface, and credential-free managed targets |
@@ -59,6 +60,7 @@ aligned with code and link user-facing behavior to `guide/` or `reference/`.
 
 | Document | Current state | User docs |
 |---|---|---|
+| [Client modes: local and managed](client-modes.md) | Implemented: the mode is whether `auth.json` exists, models come from one source, the alias layer and per-team model policy are gone, and the call ledger is user-scoped | [guide/models-and-modes.md](../guide/models-and-modes.md) |
 | [Hook system](hook-system.md) | 13 events and 4 transports implemented | [guide/hooks.md](../guide/hooks.md) |
 | [Sandbox boundaries](sandbox-boundaries.md) | Local phases A–E implemented; worker hardening open | [guide/sandbox.md](../guide/sandbox.md) |
 | [Durable run trace](durable-run-trace.md) | Phase 1 implemented; richer events and retention open | [guide/sessions-and-traces.md](../guide/sessions-and-traces.md) |

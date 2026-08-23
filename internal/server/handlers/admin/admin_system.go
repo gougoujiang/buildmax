@@ -40,12 +40,10 @@ type DeploymentInfo struct {
 	// means none was passed, which is what every deployment has today — the
 	// admin API says so rather than implying a boundary that is not applied.
 	SandboxSurface string
-	// ModelAliases maps a deployment alias to a catalog model id, and
-	// DefaultModelAlias is the one a managed caller gets when it names none.
-	// A catalog model no alias points at is unreachable by every team however
-	// enabled it is, and the catalog route says so.
-	ModelAliases      map[string]string
-	DefaultModelAlias string
+	// DefaultModel is the catalog model a caller gets when it names none.
+	// Empty means the first enabled model in the catalog, so the admin view
+	// reports what was configured rather than what it resolves to.
+	DefaultModel string
 }
 
 // AdminSystemResponse is what an operator opens first: is this deployment all

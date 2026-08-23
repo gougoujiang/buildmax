@@ -30,9 +30,11 @@ Each session is one JSON file, `sessions/<id>.json`, plus an index in
 }
 ```
 
+Token counts and cost cover the whole session: every turn, the title-generation
+call, each compaction, and any work the run delegated to a subagent.
+
 Titles are generated from the first exchange, which is why `/sessions` is
-readable rather than a list of ids. Token counts accumulate across the whole
-session, including the title-generation call.
+readable rather than a list of ids.
 
 ### Resuming
 
@@ -77,8 +79,8 @@ terminal `run_end`:
 | `llm_start` / `llm_end` | Each model call |
 | `tool_start` / `tool_end` | Each tool call |
 | `tool_denied` | A tool call was blocked — by a hook, or by permission |
-| `context_compacted` | The conversation was compacted |
-| `run_end` | The run finished, with an error message if it failed |
+| `context_compacted` | The conversation was compacted, with what the summarization itself cost |
+| `run_end` | The run finished, with its totals, an error message if it failed, and a `delegated` breakdown when it started subagent runs |
 
 Because it is JSONL, ordinary tools work:
 
@@ -115,6 +117,31 @@ BUILDMAX_TRACE_DISABLED=1 buildmax -p "…"
 
 On by default. Turn it off if you have a reason; it is the record you will want
 when a run does something surprising.
+
+A subagent's run is traced beside its parent's, in the same session directory,
+with `is_subagent: true` and `parent_run_id` naming the run that delegated to it.
+
+## Statistics
+
+`buildmax stats` folds both records into one answer for a session:
+
+```bash
+buildmax stats                  # the most recent session
+buildmax stats <session-id>     # a specific one
+buildmax stats --json           # the full record, including the truncated tail
+```
+
+It reports spend with the cache breakdown and what caching saved, how close the
+session came to its context window, how many bytes each tool put back into that
+window, the split between model time and tool time, and how much of the run a
+delegation did.
+
+In the TUI, `/stats` shows the same figures for the session on screen, from the
+live session rather than the last saved copy.
+
+Tokens and cost come from the session file; timings and per-tool detail come
+from the traces. Where a trace is missing, those lines say so rather than
+reporting zero — see [reference/cli.md](../reference/cli.md).
 
 ## Related
 

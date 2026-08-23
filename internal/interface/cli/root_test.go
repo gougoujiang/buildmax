@@ -3,6 +3,8 @@ package cli
 import (
 	"strings"
 	"testing"
+
+	"github.com/gougoujiang/buildmax/internal/interface/auth"
 )
 
 func TestRootCommand_InvalidSessionIDReturnsError(t *testing.T) {
@@ -78,7 +80,7 @@ func TestRootCommand_PassesWorkspaceToTUI(t *testing.T) {
 }
 
 func TestTUIAppConfigCarriesWorkspace(t *testing.T) {
-	cfg := tuiAppConfig("/tmp/some-workspace", "extra prompt")
+	cfg := tuiAppConfig("/tmp/some-workspace", "extra prompt", auth.ModelSource{})
 	if cfg.WorkspaceDir != "/tmp/some-workspace" {
 		t.Errorf("WorkspaceDir = %q, want %q", cfg.WorkspaceDir, "/tmp/some-workspace")
 	}
@@ -96,7 +98,7 @@ func TestTUIAppConfigCarriesWorkspace(t *testing.T) {
 // An empty --workspace still means "current directory"; the fix must not turn the
 // default into an empty path handed to the runtime.
 func TestTUIAppConfigWithoutWorkspaceLeavesTheDefault(t *testing.T) {
-	if cfg := tuiAppConfig("", ""); cfg.WorkspaceDir != "" {
+	if cfg := tuiAppConfig("", "", auth.ModelSource{}); cfg.WorkspaceDir != "" {
 		t.Errorf("WorkspaceDir = %q, want empty so the runtime falls back to the working directory", cfg.WorkspaceDir)
 	}
 }

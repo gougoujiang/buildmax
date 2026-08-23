@@ -73,41 +73,8 @@ func TestKindReachableURL(t *testing.T) {
 	}
 }
 
-func TestRenderKindSeedAliases(t *testing.T) {
-	rendered := renderKindSeedAliases([]kindSeedEntry{
-		{alias: "openai-gpt-5-6-luna", source: "openai/gpt-5.6-luna", name: "GPT-5.6 Luna", id: "gsyt7at6cjfr33d73mta"},
-		{alias: "qwen3-8b", source: "qwen3:8b", name: "Qwen3 8B", id: "a2b3c4d5e6f7g2h3i4j5"},
-	})
-	if !strings.Contains(rendered, "  default_alias: openai-gpt-5-6-luna\n") {
-		t.Errorf("the first model is not the default alias:\n%s", rendered)
-	}
-	if !strings.Contains(rendered, "    qwen3-8b: a2b3c4d5e6f7g2h3i4j5  # qwen3:8b\n") {
-		t.Errorf("an alias does not name the model it came from:\n%s", rendered)
-	}
-}
-
-// server.yaml is read through viper, which splits a dotted key into a path: an
-// alias carrying the dot from a model version stops the server from starting.
-func TestAliasFromModelID(t *testing.T) {
-	cases := map[string]string{
-		"openai/gpt-5.6-luna":        "openai-gpt-5-6-luna",
-		"anthropic/claude-haiku-4.5": "anthropic-claude-haiku-4-5",
-		"qwen3:8b":                   "qwen3-8b",
-		"z-ai/glm-5.3":               "z-ai-glm-5-3",
-		"...":                        "",
-	}
-	for in, want := range cases {
-		if got := aliasFromModelID(in); got != want {
-			t.Errorf("aliasFromModelID(%q) = %q, want %q", in, got, want)
-		}
-		if strings.ContainsAny(aliasFromModelID(in), "./:") {
-			t.Errorf("aliasFromModelID(%q) left a character viper reads as a path", in)
-		}
-	}
-}
-
-// A managed entry names a team alias, which is what seeding creates; there is
-// nothing in it for a catalog to hold.
+// A managed entry names a catalog model, which is what seeding creates; there
+// is nothing in it for a catalog to hold.
 func TestDirectSettingsModelsDropsManaged(t *testing.T) {
 	direct := directSettingsModels([]settingsModel{
 		{id: "openai/gpt-5.6-luna", name: "Luna"},

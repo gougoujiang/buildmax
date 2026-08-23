@@ -87,13 +87,15 @@ func TestConfigWarnings(t *testing.T) {
 		}
 	})
 
-	t.Run("managed worker inference with no aliases is reported", func(t *testing.T) {
+	// Managed worker inference is no longer a warning of its own: what it needs
+	// is a catalog row, which is data rather than configuration, so the startup
+	// check reads the catalog instead of guessing from server.yaml.
+	t.Run("managed worker inference alone warns about nothing", func(t *testing.T) {
 		sc := ServerConfig{}
 		sc.Worker.RunMode = "k8s_job"
 		sc.Storage.PersistBackend = "minio"
 		sc.Worker.LLM.Transport = TransportBuildMax
-		got := sc.configWarnings()
-		if len(got) != 1 || !strings.Contains(got[0], "no team can call a managed model") {
+		if got := sc.configWarnings(); len(got) != 0 {
 			t.Errorf("warnings = %v", got)
 		}
 	})

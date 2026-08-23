@@ -3,7 +3,6 @@ package bootstrap
 import (
 	"context"
 	"fmt"
-	"maps"
 	"strings"
 	"time"
 
@@ -36,19 +35,6 @@ type llmRouting struct {
 	Tier1TargetID string
 }
 
-// denyAllPolicies grants no team any alias.
-//
-// Managed team access is opt-in: a deployment with models in the catalog but no
-// llm.aliases has told us which models exist, not who may call them.
-type denyAllPolicies struct{}
-
-func (denyAllPolicies) PolicyForTeam(_ context.Context, teamID string) (llmgateway.TeamPolicy, error) {
-	if teamID == "" {
-		return llmgateway.TeamPolicy{}, llmgateway.ErrTeamRequired
-	}
-	return llmgateway.TeamPolicy{}, nil
-}
-
 // bootstrapCatalog serves the stored model catalog plus the one model derived
 // from server.yaml.
 //
@@ -70,6 +56,47 @@ func (c *bootstrapCatalog) Target(ctx context.Context, id string) (llmgateway.Ta
 	return c.stored.Target(ctx, id)
 }
 
+// TargetByName checks the derived model before the store, so a deployment whose
+// only model is conversation.model can still be addressed by name.
+func (c *bootstrapCatalog) TargetByName(ctx context.Context, name string) (llmgateway.Target, error) {
+	if c.derived != nil && c.derived.Name == name {
+		return *c.derived, nil
+	}
+	if c.stored == nil {
+		return llmgateway.Target{}, llmgateway.ErrTargetNotFound
+	}
+	return c.stored.TargetByName(ctx, name)
+}
+
+// List puts the derived model first, which makes it the fallback default for a
+// deployment that has configured no llm.default_model and added no rows.
+//
+// A stored row that has taken the derived model's name is dropped from the
+// listing rather than shown twice: TargetByName would never reach it, and a
+// listing that offers a name resolving to something else is worse than a
+// listing missing one entry. The operator sees it in `buildmax-server model
+// list`, where the catalog is edited.
+func (c *bootstrapCatalog) List(ctx context.Context) ([]llmgateway.Target, error) {
+	var out []llmgateway.Target
+	if c.derived != nil {
+		out = append(out, *c.derived)
+	}
+	if c.stored == nil {
+		return out, nil
+	}
+	stored, err := c.stored.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, target := range stored {
+		if c.derived != nil && target.Name == c.derived.Name {
+			continue
+		}
+		out = append(out, target)
+	}
+	return out, nil
+}
+
 // buildLLMRouting assembles the catalog, team policy, and router.
 //
 // It returns nil when the deployment has neither a database nor a conversation
@@ -87,11 +114,6 @@ func buildLLMRouting(sc config.ServerConfig, models model.LLMModelStore) (*llmRo
 		return nil, nil
 	}
 
-	policies, err := teamPolicySource(sc.LLM)
-	if err != nil {
-		return nil, err
-	}
-
 	tier1 := sc.Conversation.ModelTarget
 	if tier1 == "" && catalog.derived != nil {
 		tier1 = conversationTargetID
@@ -99,8 +121,11 @@ func buildLLMRouting(sc config.ServerConfig, models model.LLMModelStore) (*llmRo
 
 	return &llmRouting{
 		Router: &llmgateway.Router{
-			Resolver: &llmgateway.Resolver{Catalog: catalog, Policies: policies},
-			Factory:  newClientFactory(sc.Conversation.Model.APIKey, models),
+			Resolver: &llmgateway.Resolver{
+				Catalog:      catalog,
+				DefaultModel: sc.LLM.DefaultModel,
+			},
+			Factory: newClientFactory(sc.Conversation.Model.APIKey, models),
 		},
 		Tier1TargetID: tier1,
 	}, nil
@@ -141,34 +166,6 @@ func derivedConversationTarget(entry config.ServerModelEntry) llmgateway.Target 
 		Capabilities:  llmgateway.NewCapabilitySet(llmgateway.BaselineCapabilities()...),
 		Enabled:       true,
 	}
-}
-
-// teamPolicySource builds the deployment-wide policy.
-//
-// It does not cross-check the catalog: models are added and retired through the
-// database while the server runs, so an alias naming a model that does not
-// exist yet fails its own calls rather than stopping the server.
-func teamPolicySource(cfg config.ServerLLMConfig) (llmgateway.PolicySource, error) {
-	if len(cfg.Aliases) == 0 {
-		return denyAllPolicies{}, nil
-	}
-	aliases := make(map[string]string, len(cfg.Aliases))
-	maps.Copy(aliases, cfg.Aliases)
-
-	defaultAlias := cfg.DefaultAlias
-	if defaultAlias == "" && len(aliases) == 1 {
-		for alias := range aliases {
-			defaultAlias = alias
-		}
-	}
-	source, err := llmgateway.NewPolicySource(llmgateway.TeamPolicy{
-		DefaultAlias: defaultAlias,
-		Aliases:      aliases,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("llm.aliases: %w", err)
-	}
-	return source, nil
 }
 
 // newClientFactory builds provider clients for approved targets. It is the only

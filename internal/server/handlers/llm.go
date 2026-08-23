@@ -14,22 +14,22 @@ import (
 // handler and the remote client marshal one definition rather than two that can
 // drift. See docs/design/llm-gateway.md section 8.
 
-// listLLMModelsHandler serves GET /api/teams/{team_id}/llm/models.
+// listLLMModelsHandler serves GET /api/llm/models.
 func (h *Handler) listLLMModelsHandler(w http.ResponseWriter, r *http.Request) {
-	// Team membership is checked before the gateway, so an unauthenticated
-	// caller learns nothing about whether this deployment offers managed
-	// inference. Every other team-scoped route authenticates first, and an
-	// authorization matrix is only meaningful if they all agree.
-	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.TeamStore, "teams not configured")
+	// Being signed in is the whole authorization: every catalog model is
+	// available to every user of the deployment. Identity is still resolved
+	// before the gateway is touched, so an unauthenticated caller learns nothing
+	// about whether this deployment offers managed inference.
+	userID, ok := h.guard().ActiveUser(w, r)
 	if !ok {
 		return
 	}
 	if !llmhttp.RequireGateway(w, h.cfg.LLMGateway) {
 		return
 	}
-	models, err := h.cfg.LLMGateway.Models(r.Context(), teamID)
+	models, err := h.cfg.LLMGateway.Models(r.Context())
 	if err != nil {
-		llmhttp.WriteError(w, err, "llm_models", teamID)
+		llmhttp.WriteError(w, err, "llm_models", userID)
 		return
 	}
 	out := make([]llmwire.Model, 0, len(models))
@@ -39,19 +39,20 @@ func (h *Handler) listLLMModelsHandler(w http.ResponseWriter, r *http.Request) {
 			capabilities = append(capabilities, string(c))
 		}
 		out = append(out, llmwire.Model{
-			Alias:        m.Alias,
-			Name:         m.Name,
-			Capabilities: capabilities,
-			Default:      m.Default,
+			Name:          m.Name,
+			ContextWindow: m.ContextWindow,
+			Vision:        m.Vision,
+			Capabilities:  capabilities,
+			Default:       m.Default,
 		})
 	}
 	httputil.WriteJSON(w, http.StatusOK, llmwire.ModelsResponse{Models: out})
 }
 
-// llmCompletionsHandler serves POST /api/teams/{team_id}/llm/completions.
+// llmCompletionsHandler serves POST /api/llm/completions.
 func (h *Handler) llmCompletionsHandler(w http.ResponseWriter, r *http.Request) {
 	// Authorize before the gateway check; see listLLMModelsHandler.
-	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.TeamStore, "teams not configured")
+	userID, ok := h.guard().ActiveUser(w, r)
 	if !ok {
 		return
 	}
@@ -80,11 +81,12 @@ func (h *Handler) llmCompletionsHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// No TeamID: a foreground call is somebody's own work and is metered against
+	// no team. See docs/design/client-modes.md section 9.
 	cmd := llmgateway.CompleteRequest{
-		TeamID:       teamID,
 		UserID:       &userID,
 		ClientCallID: req.CallID,
-		Alias:        req.Model,
+		Model:        req.Model,
 		Messages:     messages,
 		Tools:        llmhttp.CoreTools(req.Tools),
 		CallProfile:  profile,
@@ -95,19 +97,19 @@ func (h *Handler) llmCompletionsHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if req.Stream {
-		llmhttp.Stream(w, r, h.cfg.LLMGateway, cmd, teamID)
+		llmhttp.Stream(w, r, h.cfg.LLMGateway, cmd, userID)
 		return
 	}
 
 	result, err := h.cfg.LLMGateway.Complete(r.Context(), cmd)
 	if err != nil {
-		llmhttp.WriteError(w, err, "llm_completions", teamID)
+		llmhttp.WriteError(w, err, "llm_completions", userID)
 		return
 	}
 
 	resp := llmwire.CompletionResponse{
 		LLMCallID:     result.LLMCallID,
-		Model:         result.Alias,
+		Model:         result.Model,
 		Content:       result.Content,
 		ToolCalls:     llmhttp.WireToolCalls(result.ToolCalls),
 		ProviderState: llmhttp.WireProviderState(result.ProviderState),

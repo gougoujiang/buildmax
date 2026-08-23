@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 
@@ -24,11 +25,14 @@ func detectGlamourStyle() string {
 // tuiAppConfig is the runtime assembly for an interactive session. It is separate
 // from runTUI so the wiring can be asserted without starting Bubble Tea — the
 // workspace reaching it is exactly what was missing before.
-func tuiAppConfig(workspace, additionalSystemPrompt string) agentapp.AppConfig {
+func tuiAppConfig(workspace, additionalSystemPrompt string, source auth.ModelSource) agentapp.AppConfig {
 	return agentapp.AppConfig{
 		WorkspaceDir:           workspace,
 		EnableMCP:              true,
 		Policy:                 agentapp.NewInteractivePolicy(),
+		ModelEntries:           source.Entries,
+		DefaultModel:           source.Default,
+		ManagedServerURL:       source.ServerURL,
 		ManagedToken:           auth.TokenForServer,
 		ArtifactPublisher:      auth.ArtifactPublisherForSession(),
 		Surface:                model.LLMCallSurfaceCLI,
@@ -44,7 +48,11 @@ func tuiAppConfig(workspace, additionalSystemPrompt string) agentapp.AppConfig {
 var runTUIFunc = runTUI
 
 func runTUI(resumeID, modelName, additionalSystemPrompt, workspace string) error {
-	app, err := agentapp.NewAgentApp(tuiAppConfig(workspace, additionalSystemPrompt))
+	source, err := resolveModelSource(context.Background())
+	if err != nil {
+		return err
+	}
+	app, err := agentapp.NewAgentApp(tuiAppConfig(workspace, additionalSystemPrompt, source))
 	if err != nil {
 		return err
 	}

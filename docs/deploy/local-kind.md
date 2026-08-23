@@ -144,30 +144,25 @@ Do not use the generated smoke Secret or mock model outside local verification.
 ### Drive The Cluster With Your Own Models
 
 `./make kind seed` puts every provider model in the repository-root
-`settings.local.yaml` into the cluster's catalog and grants the deployment's
-teams an alias for each. It exists so the CLI and Desktop can exercise the
-managed transport — `transport: buildmax` — against real inference without a
-hosted deployment to point at.
+`settings.local.yaml` into the cluster's catalog. It exists so the CLI and
+Desktop can exercise the managed transport — `transport: buildmax` — against
+real inference without a hosted deployment to point at.
 
 ```bash
 ./make kind up      # the stack, still answering from the mock
-./make kind seed    # your models in its catalog, with an alias each
+./make kind seed    # your models in its catalog
 ```
 
-The command adds each model with `buildmax-server model add`, reads back the
-catalog ID it prints, and rewrites the `buildmax-config` ConfigMap with the
-matching `llm.aliases` before restarting the server. Aliases have to name a
-catalog ID, and an ID exists only once the row does, which is why the binding
-cannot be written ahead of time. It then prints the managed model entries to
-paste into your own `BUILDMAX_HOME/settings.yaml`, including the team ID; sign
-in with `buildmax login` against <http://localhost:8080> first, because a
-managed entry takes its credential from the login rather than from the file.
+The command adds each model with `buildmax-server model add` and stops there: a
+catalog row is callable as soon as it exists, so nothing needs restarting and no
+configuration changes. It then prints the managed model entries to paste into
+your own `BUILDMAX_HOME/settings.yaml`; sign in with `buildmax login` against
+<http://localhost:8080> first, because a managed entry takes its credential from
+the login rather than from the file.
 
-The alias is the model id with every character outside `[a-z0-9]` turned into a
-dash — `openai/gpt-5.6-luna` becomes `openai-gpt-5-6-luna`. server.yaml is read
-through viper, which splits a dotted key into a path, so an alias carrying a
-model's version dot stops the server from starting. The printed entries and
-`buildmax models --team <id>` both show the alias to use.
+A model is named by the `name` it was added under, which is its display name in
+`settings.local.yaml`, or its model id when it has none. The printed entries and
+`buildmax models --server` both show the name to use.
 
 What it deliberately does not touch is the cluster's own inference.
 `conversation.model` and the worker keep answering from the in-cluster mock, so
@@ -175,8 +170,7 @@ Portal conversations and `./make kind smoke` stay deterministic and cost
 nothing. A rerun is safe: a model whose name is already in the catalog keeps
 its row and its ID. Changing a seeded model's endpoint or credential means
 renaming it in `settings.local.yaml`, or rebuilding the cluster — `add` does not
-update a row. `./make kind up` renders the ConfigMap from
-`deployment/smoke/server.kind.yaml` again, which removes the aliases.
+update a row.
 
 A real credential in `settings.local.yaml` reaches the cluster's MySQL in plain
 text. That database is thrown away with the cluster, and this path is for local
@@ -197,7 +191,7 @@ a daemon bound to the host's loopback. `kind seed` rewrites a loopback address
 to that name for you; by hand it is:
 
 ```bash
-# a catalog target, then point an alias at the printed ID in server.yaml
+# a catalog target; it is callable by name as soon as the row exists
 kubectl --context kind-buildmaxdev -n buildmax exec deployment/buildmax-server -- \
   buildmax-server model add --name "Host Ollama" --provider ollama \
       --api-url http://host.docker.internal:11434 \

@@ -16,6 +16,7 @@ Organized by what you are trying to do.
 
 | | |
 |---|---|
+| [guide/models-and-modes.md](guide/models-and-modes.md) | Which models a session runs on, and switching between your own and a deployment's |
 | [guide/tools.md](guide/tools.md) | The built-in tools, their arguments, and the path boundary |
 | [guide/agents-md.md](guide/agents-md.md) | Give the agent project instructions on every run |
 | [guide/skills-and-subagents.md](guide/skills-and-subagents.md) | Reusable workflows, and delegating with a restricted tool set |

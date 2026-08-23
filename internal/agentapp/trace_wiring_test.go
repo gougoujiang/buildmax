@@ -239,38 +239,42 @@ func TestAgentApp_SubagentTraceLinksToImmediateParent(t *testing.T) {
 		t.Errorf("top-level run_start has parent_run_id = %v, want absent", parent[0]["parent_run_id"])
 	}
 
-	var child []map[string]any
+	// The child belongs to the parent's session directory, not one of its own:
+	// the subagent's session is discarded when it returns, so a directory
+	// keyed by that id would be reachable from nothing.
 	sessionDirs, err := os.ReadDir(config.TracesDir())
 	if err != nil {
 		t.Fatalf("read traces dir: %v", err)
 	}
 	for _, sessionDir := range sessionDirs {
-		if !sessionDir.IsDir() || sessionDir.Name() == sess.ID {
+		if sessionDir.IsDir() && sessionDir.Name() != sess.ID {
+			t.Errorf("trace directory %q exists beside the session's own", sessionDir.Name())
+		}
+	}
+
+	var child []map[string]any
+	files, err := os.ReadDir(filepath.Join(config.TracesDir(), sess.ID))
+	if err != nil {
+		t.Fatalf("read trace session %s: %v", sess.ID, err)
+	}
+	for _, file := range files {
+		if file.IsDir() || !strings.HasSuffix(file.Name(), ".jsonl") {
 			continue
 		}
-		files, err := os.ReadDir(filepath.Join(config.TracesDir(), sessionDir.Name()))
+		data, err := os.ReadFile(filepath.Join(config.TracesDir(), sess.ID, file.Name()))
 		if err != nil {
-			t.Fatalf("read trace session %s: %v", sessionDir.Name(), err)
+			t.Fatalf("read child trace %s: %v", file.Name(), err)
 		}
-		for _, file := range files {
-			if file.IsDir() || !strings.HasSuffix(file.Name(), ".jsonl") {
-				continue
+		var records []map[string]any
+		for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+			var record map[string]any
+			if err := json.Unmarshal([]byte(line), &record); err != nil {
+				t.Fatalf("decode child trace %s: %v", file.Name(), err)
 			}
-			data, err := os.ReadFile(filepath.Join(config.TracesDir(), sessionDir.Name(), file.Name()))
-			if err != nil {
-				t.Fatalf("read child trace %s: %v", file.Name(), err)
-			}
-			var records []map[string]any
-			for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
-				var record map[string]any
-				if err := json.Unmarshal([]byte(line), &record); err != nil {
-					t.Fatalf("decode child trace %s: %v", file.Name(), err)
-				}
-				records = append(records, record)
-			}
-			if len(records) > 0 && records[0]["parent_run_id"] == result.TraceID {
-				child = records
-			}
+			records = append(records, record)
+		}
+		if len(records) > 0 && records[0]["parent_run_id"] == result.TraceID {
+			child = records
 		}
 	}
 	if len(child) == 0 {

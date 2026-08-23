@@ -37,11 +37,11 @@ type orderedCompactor struct {
 	store          NoteStore
 }
 
-func (c *orderedCompactor) Compact(ctx context.Context, msgs []llm.Message) (string, error) {
+func (c *orderedCompactor) Compact(ctx context.Context, msgs []llm.Message) (string, llm.Usage, error) {
 	if c.store != nil {
 		c.notesAtCompact = append(c.notesAtCompact, append([]Note(nil), c.store.Notes()...))
 	}
-	return "summary", nil
+	return "summary", llm.Usage{}, nil
 }
 
 func runWithCheckpointer(t *testing.T, client llm.LLMClient, h MessageHistory, comp ContextCompactor, cp StateCheckpointer) {

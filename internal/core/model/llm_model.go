@@ -95,6 +95,10 @@ type LLMModelStore interface {
 	CreateLLMModel(ctx context.Context, in CreateLLMModelInput) (*LLMModel, error)
 	// GetLLMModel returns one model by ID, or (nil, nil) when not found.
 	GetLLMModel(ctx context.Context, llmModelID string) (*LLMModel, error)
+	// GetLLMModelByName returns one model by its operator-facing name, or
+	// (nil, nil) when not found. Name is unique across the deployment and is
+	// what a client names a model by, so this is the lookup on the call path.
+	GetLLMModelByName(ctx context.Context, name string) (*LLMModel, error)
 	// ListLLMModels returns every model, enabled or not, oldest first.
 	ListLLMModels(ctx context.Context) ([]LLMModel, error)
 	// SetLLMModelEnabled retires or restores a model.

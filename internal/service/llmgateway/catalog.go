@@ -119,24 +119,37 @@ type Target struct {
 	Enabled bool
 }
 
-// Catalog provides operator-approved targets by catalog ID. Implementations
-// return ErrTargetNotFound for an unknown ID.
+// Catalog provides operator-approved targets. Implementations return
+// ErrTargetNotFound for an unknown ID or name.
+//
+// Name is the addressing a client uses; ID stays for deployment-owned
+// selection, where the server names a target it configured itself.
 type Catalog interface {
 	Target(ctx context.Context, id string) (Target, error)
+	TargetByName(ctx context.Context, name string) (Target, error)
+	// List returns every target in a stable order, for discovery and for
+	// resolving the default when no model is configured as such.
+	List(ctx context.Context) ([]Target, error)
 }
 
 // StaticCatalog is an immutable in-memory catalog, used for deployment-wide
 // configuration before a database-backed catalog exists.
 type StaticCatalog struct {
 	targets map[string]Target
+	byName  map[string]Target
 	ids     []string
+	ordered []Target
 }
 
 // NewStaticCatalog validates the targets and builds a catalog. Validation
 // happens once at startup so an operator misconfiguration surfaces there
 // rather than on a user's first call.
+//
+// Names must be unique as well as IDs: a name is how a client addresses a
+// model, so two targets sharing one would make the second unreachable.
 func NewStaticCatalog(targets []Target) (*StaticCatalog, error) {
 	byID := make(map[string]Target, len(targets))
+	byName := make(map[string]Target, len(targets))
 	ids := make([]string, 0, len(targets))
 	for i, target := range targets {
 		if err := validateTarget(i, target); err != nil {
@@ -145,11 +158,19 @@ func NewStaticCatalog(targets []Target) (*StaticCatalog, error) {
 		if _, duplicate := byID[target.ID]; duplicate {
 			return nil, fmt.Errorf("%w: duplicate target id %q", ErrInvalidCatalog, target.ID)
 		}
+		if _, duplicate := byName[target.Name]; duplicate {
+			return nil, fmt.Errorf("%w: duplicate target name %q", ErrInvalidCatalog, target.Name)
+		}
 		byID[target.ID] = target
+		byName[target.Name] = target
 		ids = append(ids, target.ID)
 	}
 	slices.Sort(ids)
-	return &StaticCatalog{targets: byID, ids: ids}, nil
+	ordered := make([]Target, 0, len(ids))
+	for _, id := range ids {
+		ordered = append(ordered, byID[id])
+	}
+	return &StaticCatalog{targets: byID, byName: byName, ids: ids, ordered: ordered}, nil
 }
 
 func validateTarget(index int, target Target) error {
@@ -186,8 +207,30 @@ func (c *StaticCatalog) Target(_ context.Context, id string) (Target, error) {
 	return target, nil
 }
 
-// IDs returns every catalog ID in a stable order. Policy validation uses it to
-// reject an alias pointing at a target that does not exist.
+// TargetByName returns the target an operator gave this name.
+func (c *StaticCatalog) TargetByName(_ context.Context, name string) (Target, error) {
+	if c == nil {
+		return Target{}, ErrCatalogNotConfigured
+	}
+	target, ok := c.byName[name]
+	if !ok {
+		return Target{}, ErrTargetNotFound
+	}
+	return target, nil
+}
+
+// List returns every target, ordered by ID so the default and the listing are
+// stable across calls.
+func (c *StaticCatalog) List(_ context.Context) ([]Target, error) {
+	if c == nil {
+		return nil, ErrCatalogNotConfigured
+	}
+	out := make([]Target, len(c.ordered))
+	copy(out, c.ordered)
+	return out, nil
+}
+
+// IDs returns every catalog ID in a stable order.
 func (c *StaticCatalog) IDs() []string {
 	if c == nil || len(c.ids) == 0 {
 		return nil

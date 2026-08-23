@@ -331,10 +331,11 @@ func helpTopics() []helpTopic {
 					"A target whose host port is already taken is skipped, not fatal.",
 				"A login code is single-use and printed once, so `info` issues a fresh one\n" +
 					"rather than trying to show a code that is already spent.",
-				"`seed` grants the cluster's teams the models in " + localSettingsPath + ", so the CLI\n" +
-					"and Desktop can drive it over the managed transport with real inference. The\n" +
-					"cluster's own Portal conversations and task runs keep answering from the mock,\n" +
-					"so `smoke` stays deterministic and free. `up` renders the aliases away again.",
+				"`seed` puts the models in " + localSettingsPath + " into the cluster's catalog, so\n" +
+					"the CLI and Desktop can drive it over the managed transport with real inference.\n" +
+					"A seeded row is callable at once and needs no restart. The cluster's own Portal\n" +
+					"conversations and task runs keep answering from the mock, so `smoke` stays\n" +
+					"deterministic and free.",
 			},
 			args: []helpRow{
 				{"up", "Create the cluster and apply the reference deployment"},

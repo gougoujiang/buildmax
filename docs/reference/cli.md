@@ -20,6 +20,7 @@ buildmax <command> [flags]
 | `buildmax whoami` | Show current login status |
 | `buildmax models` | List configured models and prompt destinations; `--local` lists what a local Ollama daemon holds, `--team` lists server-side aliases |
 | `buildmax tools status` | Inspect the tools currently available to the agent |
+| `buildmax stats [session-id]` | Show what a session spent, what it did, and where its context went; `--json` for the full record |
 | `buildmax sandbox status` | Print the resolved sandbox config and which layer set each value |
 | `buildmax sandbox deps` | Check host-side sandbox dependencies (`bwrap`, `sandbox-exec`, `socat`) |
 | `buildmax sandbox enable` / `disable` | Set `sandbox.enabled` in `settings.yaml` |
@@ -147,6 +148,36 @@ It exits `2` when a required first-run prerequisite is missing. Warnings, such
 as running outside a git branch or leaving the local sandbox disabled, are
 reported but do not make the command fail.
 
+### `buildmax stats`
+
+`stats` reports one session: what it spent, what it did, and where its context
+went. With no argument it reads the most recent session by creation time.
+
+It reads two records, and says which is which because they answer different
+questions:
+
+- The **session file** holds tokens and cost. They accumulated turn by turn at
+  the rates in force for each, so nothing recomputes them on read. It is also
+  where the per-tool output bytes come from — the number that says which tool
+  is filling the context window.
+- The **run traces** hold everything time-shaped: run count, wall clock, the
+  model-versus-tools split, per-tool duration, denials, tool calls that could
+  not complete, and how much of the run a delegation did.
+
+Where a trace is missing — tracing failed open, or the run was killed before it
+wrote an end record — the affected lines say so instead of reporting zero, and
+a warning at the bottom names what the totals do not cover. The same applies to
+money: a session no model priced says `not priced` rather than `0.000000`, and
+a saving is reported only where caching actually saved.
+
+`--json` emits the whole record, including the tools the table truncates.
+
+In the TUI, `/stats` shows the same statistics for the session on screen,
+condensed to fit an overlay. It folds the **live** session rather than the file
+— a session is persisted after each assistant reply, so reading it back would
+answer about the turn before the one you are looking at — and it is a snapshot
+taken when the panel opens, not a live counter.
+
 ## TUI Slash Commands
 
 Typed into the input line:
@@ -159,6 +190,7 @@ Typed into the input line:
 | `/skills` | Discovered skills |
 | `/mcp` | Connected MCP servers and their status |
 | `/diff` | Working-tree diff for the workspace |
+| `/stats` | This session's spend, context use, and heaviest tools |
 | `/tasks` | Background jobs: state, age, command; `s` stops the selected one |
 
 Slash commands are unavailable while the agent is running.

@@ -12,19 +12,16 @@ import (
 // provider said, so a provider's error body cannot leak account identifiers,
 // endpoints, or request fragments through them.
 const (
-	ErrorClassTeamRequired      = "team_required"
-	ErrorClassTeamNotAuthorized = "team_not_authorized"
-	ErrorClassUnknownAlias      = "unknown_alias"
-	ErrorClassTargetNotFound    = "target_not_found"
-	ErrorClassTargetDisabled    = "target_disabled"
-	ErrorClassCapability        = "capability_unsupported"
-	ErrorClassQuotaExceeded     = "quota_exceeded"
-	ErrorClassDuplicateCall     = "duplicate_call"
-	ErrorClassInvalidRequest    = "invalid_request"
-	ErrorClassNotConfigured     = "not_configured"
-	ErrorClassCanceled          = "canceled"
-	ErrorClassUpstream          = "upstream_error"
-	ErrorClassInternal          = "internal_error"
+	ErrorClassTargetNotFound = "target_not_found"
+	ErrorClassTargetDisabled = "target_disabled"
+	ErrorClassCapability     = "capability_unsupported"
+	ErrorClassQuotaExceeded  = "quota_exceeded"
+	ErrorClassDuplicateCall  = "duplicate_call"
+	ErrorClassInvalidRequest = "invalid_request"
+	ErrorClassNotConfigured  = "not_configured"
+	ErrorClassCanceled       = "canceled"
+	ErrorClassUpstream       = "upstream_error"
+	ErrorClassInternal       = "internal_error"
 )
 
 // ErrorClassFor maps an error to its stable classification. Anything
@@ -36,13 +33,7 @@ func ErrorClassFor(err error) string {
 		return ""
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 		return ErrorClassCanceled
-	case errors.Is(err, ErrTeamRequired):
-		return ErrorClassTeamRequired
-	case errors.Is(err, ErrTeamNotAuthorized):
-		return ErrorClassTeamNotAuthorized
-	case errors.Is(err, ErrUnknownAlias), errors.Is(err, ErrNoDefaultAlias):
-		return ErrorClassUnknownAlias
-	case errors.Is(err, ErrTargetNotFound):
+	case errors.Is(err, ErrTargetNotFound), errors.Is(err, ErrCatalogEmpty):
 		return ErrorClassTargetNotFound
 	case errors.Is(err, ErrTargetDisabled):
 		return ErrorClassTargetDisabled
@@ -55,7 +46,6 @@ func ErrorClassFor(err error) string {
 	case errors.Is(err, ErrMessagesRequired):
 		return ErrorClassInvalidRequest
 	case errors.Is(err, ErrCatalogNotConfigured),
-		errors.Is(err, ErrPolicyNotConfigured),
 		errors.Is(err, ErrFactoryNotConfigured),
 		errors.Is(err, ErrLedgerNotConfigured):
 		return ErrorClassNotConfigured

@@ -3,9 +3,10 @@
 ## Status
 
 - roadmap_priority: `P3`
-- status: `in_progress` — M1 (config contract cleanup) and M4 (production
-  reference) are done, M3 (health and readiness) is mostly done; M2 and M5 are
-  open
+- status: `in_progress` — M1 (config contract cleanup), M2 (kind end-to-end
+  path), M4 (production reference), and M5 (operator bootstrap) are done; M3
+  (health and readiness) is mostly done. The remaining work is operating
+  evidence and the configuration checks named in §4.3 and §12.
 - follows: P2 Portal outcome surface (complete; plan retired)
 - roadmap: [../ROADMAP.md](../ROADMAP.md)
 - created_at: `2026-05-17`
@@ -376,22 +377,22 @@ Acceptance, both met:
 - `deployment/buildmax-deploy.yaml` matches `internal/config/server_config.go`,
   now enforced by a test rather than by review
 
-### M2. Kind End-To-End Path
+### M2. Kind End-To-End Path — DONE
 
-- Ensure `./make deploy` creates/mounts valid config for server and worker.
-- Ensure server and worker containers share the same image/config assumptions.
-- Add a smoke checklist or script for:
-  - `/healthz`
-  - login
-  - create conversation or issue
-  - create task run
-  - wait for worker
-  - fetch result/artifact
-- Keep the script idempotent where possible.
+`./make kind up` owns the current local Kubernetes path: it creates or reuses
+the pinned kind cluster, installs its backing MySQL/MinIO/ingress, builds and
+loads the images, applies the deployment and deterministic model configuration,
+then runs the smoke. The smoke signs in, proves a team boundary, creates and
+runs work, reads its artifact, and proves that retry creates a second executed
+run. The managed variant also proves the run-scoped credential and call ledger.
 
-Acceptance:
+The old `./make setup && ./make deploy` spelling is retained only as hidden
+compatibility plumbing; it is not the contributor or operator path to document.
 
-- `./make setup && ./make deploy` reaches a visible task result in Portal
+Acceptance met:
+
+- `./make kind up` reaches a visible Portal and a successful worker result;
+- post-merge and scheduled CI run the same kind and Compose smoke paths.
 
 ### M3. Health And Readiness
 
@@ -422,19 +423,17 @@ reading Go bootstrap code. Not met, and tracked as open questions rather than
 as part of this milestone: the reference has never been applied against a real
 managed database or object store.
 
-### M5. Admin Bootstrap Story
+### M5. Admin Bootstrap Story — DONE
 
-- Document current signup/team creation behavior.
-- Decide whether private deployments need:
-  - invite-only signup
-  - first-user-is-admin
-  - bootstrap admin config
-- Implement the smallest required control if public signup is not acceptable.
+Private deployments close self-registration by default. An operator creates an
+account and its personal Team with `buildmax-server user create`, issues a
+single-use login code, and grants deployment authority separately with
+`buildmax-server admin grant`. The commands audit their actions; the Portal then
+handles ordinary Team administration. The exact procedure and its recovery
+semantics are in [deployment authentication](../deploy/authentication.md).
 
-Acceptance:
-
-- operators understand how the first user, team, role, and quota tier are
-  created
+Acceptance met: operators can create the first user, Team, role, quota tier,
+and System Administrator without modifying the database.
 
 ## 10. Validation
 

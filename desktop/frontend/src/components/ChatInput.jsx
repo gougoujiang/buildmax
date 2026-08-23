@@ -53,6 +53,9 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
 
   // Status bar state (loaded per project)
   const [models, setModels] = useState([]);
+  // Where this session's prompts go. It is the app's mode rather than a property
+  // of one model, so the picker says it once above the list.
+  const [modelMode, setModelMode] = useState('');
   const [currentModel, setCurrentModel] = useState('');
   const [gitBranch, setGitBranch] = useState('');
   const [showModelDropdown, setShowModelDropdown] = useState(false);
@@ -98,6 +101,11 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
       if (modelsRes.status === 'fulfilled') {
         setModels(modelsRes.value.models ?? []);
         setCurrentModel(modelsRes.value.current ?? '');
+        setModelMode(
+          modelsRes.value.managed
+            ? `Prompts go to ${modelsRes.value.server_url}`
+            : 'Prompts go from this machine to each provider',
+        );
       }
       if (skillsRes.status === 'fulfilled') setSkills(skillsRes.value.skills ?? []);
       if (branchRes.status === 'fulfilled') setGitBranch(branchRes.value ?? '');
@@ -228,6 +236,9 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
           </button>
           {showModelDropdown && models.length > 0 && (
             <div className="model-selector__dropdown" role="listbox">
+              {modelMode && (
+                <div className="model-selector__mode">{modelMode}</div>
+              )}
               {models.map((m) => (
                 <button
                   key={m.name}
@@ -241,8 +252,8 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
                   {m.provider_model && m.provider_model !== m.name && (
                     <span className="model-selector__option-sub">{m.provider_model}</span>
                   )}
-                  {m.managed && (
-                    <span className="model-selector__option-sub">via {m.destination}</span>
+                  {m.destination && (
+                    <span className="model-selector__option-sub">{m.destination}</span>
                   )}
                   {m.is_current && <span className="model-selector__option-check" aria-hidden>✓</span>}
                 </button>

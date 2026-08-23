@@ -16,12 +16,13 @@ var builtinSlashCommands = []string{
 	"/model",
 	"/sessions",
 	"/skills",
+	"/stats",
 	"/tasks",
 	"/tools",
 }
 
 // slashPanel is the abstraction shared by all "/" overlays (sessions, models,
-// tools, skills, mcp, diff). The Model holds at most one active panel; key
+// tools, skills, mcp, diff, stats). The Model holds at most one active panel; key
 // dispatch, footer hints, and rendering all funnel through this interface so
 // adding a new panel only requires implementing the methods and registering an
 // open factory in dispatchSlashCommand.
@@ -222,12 +223,14 @@ func dispatchSlashCommand(m *Model, cmd string, args ...string) (tea.Model, tea.
 		return openSlashSession(m)
 	case "/skills":
 		return openSlashSkills(m)
+	case "/stats":
+		return openSlashStats(m)
 	case "/tasks":
 		return openSlashJobs(m)
 	case "/tools":
 		return openSlashTools(m)
 	default:
-		m.err = "unknown command " + cmd + " (try /diff, /mcp, /model, /sessions, /skills, /tasks, /tools)"
+		m.err = "unknown command " + cmd + " (try /diff, /mcp, /model, /sessions, /skills, /stats, /tasks, /tools)"
 		return m, nil
 	}
 }

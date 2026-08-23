@@ -92,7 +92,7 @@ func (h *Handler) workerLLMCompletionsHandler(w http.ResponseWriter, r *http.Req
 		TaskRunID:    &run.ID,
 		TaskID:       &task.ID,
 		ClientCallID: req.CallID,
-		Alias:        req.Model,
+		Model:        req.Model,
 		Messages:     messages,
 		Tools:        llmhttp.CoreTools(req.Tools),
 		Surface:      workerSurface,
@@ -115,7 +115,7 @@ func (h *Handler) workerLLMCompletionsHandler(w http.ResponseWriter, r *http.Req
 
 	resp := llmwire.CompletionResponse{
 		LLMCallID:     result.LLMCallID,
-		Model:         result.Alias,
+		Model:         result.Model,
 		Content:       result.Content,
 		ToolCalls:     llmhttp.WireToolCalls(result.ToolCalls),
 		ProviderState: llmhttp.WireProviderState(result.ProviderState),

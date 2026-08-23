@@ -19,6 +19,12 @@ shared runtime first, then each surface exposes it in the way that fits its job.
 
 Plan by platform maturity, not by piling features onto one surface.
 
+This is a status-bearing document, not a record of intended work. "Shipped"
+means the behavior is present in the repository and covered by its relevant
+automated tests. It does **not** mean that a real customer deployment, upgrade,
+or recovery exercise has happened; those are called out separately as operating
+evidence. When the code and this document disagree, update this document.
+
 The near-term goal is:
 
 > A company can privately deploy BuildMax and immediately use the same Agent
@@ -102,7 +108,7 @@ given up with it, because the card reads it from `task_run`.
 What was deliberately not done, and why, is in the [Portal execution
 design](design/portal-execution-model.md).
 
-### P0.5. Agent Core Trust Harness
+### P0.5. Agent Core Trust Harness — partly shipped
 
 After Portal outcomes are visible, return to the shared Agent Core and close the
 trust gaps that separate a working agent from a serious execution harness.
@@ -119,6 +125,19 @@ Focus:
 - subagent trace linkage and optional isolation groundwork
 - safer non-interactive worker execution
 
+Code state:
+
+- shipped: hook configuration and transports, tool permissions, local OS
+  sandboxing, bounded redacted traces, session notes/todos and compaction
+  checkpoints, local background jobs, subagent trace parents, and the Portal
+  run-trace view;
+- still absent: a worker selecting `SandboxSurfaceWorker`, process rlimits,
+  sandboxing of command/HTTP hook transports, trace retention, and typed
+  command-level boundary, file-change, hook, approval, retry, and failure-cause
+  records;
+- deliberately not covered by the shipped context work: general cross-session
+  user/workspace/team memory and a UI for editing every memory source.
+
 Acceptance:
 
 - users can inspect and explain Agent runs without leaving the local surfaces
@@ -127,10 +146,12 @@ Acceptance:
 - memory sources are visible, scoped, and user-controllable
 - local and worker runtime differences are explicit, not hidden in surface-specific code
 
-Enabling the OS sandbox on workers is not a Beta gate. It continues after Beta
-as defense in depth; see [Beta Gate](#beta-gate) for the boundary Beta does
-require and for what deferring the sandbox costs. The visibility half of this
-priority is still a gate: a run must report the boundary it actually ran under.
+Worker OS sandboxing remains defense in depth rather than a Beta gate. A
+`k8s_job` worker runs in a constrained Kubernetes pod and reports that it is
+unsandboxed; it does **not** receive the stricter in-process sandbox baseline.
+`local_process` remains one trust domain with the Server. See
+[Beta Gate](#beta-gate) for the narrower boundary Beta requires and for the
+cost of deferring OS sandboxing.
 
 ### P0.6. Evaluation And Qualification System
 
@@ -174,7 +195,11 @@ The black-box vertical slice is enabling work before substantial new Agent
 capability. Framework selection is deliberately downstream of that slice; see
 [design/evaluation-system.md](design/evaluation-system.md).
 
-### P3. Enterprise Deployment Loop
+Code state: **not started**. `cmd/buildmax-eval` and `internal/agenteval` are
+the legacy evaluator that this priority is intended to replace, not evidence
+that the new evaluation contract or black-box slice exists.
+
+### P3. Enterprise Deployment Loop — implementation mostly shipped; operating evidence open
 
 The product promise depends on private deployment being boring and repeatable.
 
@@ -195,12 +220,28 @@ Focus:
   (see [design/llm-gateway.md](design/llm-gateway.md) for what is and is not
   implemented)
 
+Code state:
+
+- shipped: the production reference manifest, the local Compose and kind
+  deployment paths, `/healthz` plus dependency-aware `/readyz`, database schema
+  migrations, operator `user` and `admin` commands, System Administration UI,
+  managed inference for local clients and workers, per-run worker tokens, and
+  post-merge/scheduled Compose and kind smoke workflows;
+- the smoke paths exercise account bootstrap, login, team authorization,
+  worker execution, artifacts, retry, managed inference, the call ledger, and
+  Portal browser views;
+- still unproven or incomplete: a deployment against real external MySQL/S3 and
+  TLS, backup/restore and schema-upgrade exercises, deployment-level
+  cancellation and worker-failure recovery, worker-launch and LLM-config
+  readiness checks, credential rotation, and a supported dependency-version
+  matrix.
+
 Acceptance:
 
 - a new environment can reach login, create work, run a worker task, and view the result without reading code
 - a deployment can serve approved models to CLI, Desktop, and worker runs without distributing provider keys, while direct mode still runs with no server
 
-### P4. Team Governance Foundation
+### P4. Team Governance Foundation — first slice shipped
 
 Keep this practical. The near-term need is basic enterprise confidence, not a
 full policy platform.
@@ -222,157 +263,80 @@ Acceptance:
 - admins understand who can do what, what resources are used, and what state shared automation is in
 - an operator runs routine account and deployment work through an audited surface rather than through the database
 
+Code state: role-route matrix tests, quota visibility/enforcement, workflow
+lifecycle, audit retention/export, audit UI, System Administrator grants and
+administration routes are implemented. Audit-to-run correlation and a broader
+set of audited actions remain follow-ups; neither should be presented as a
+missing Beta prerequisite.
+
 ## Beta Gate
 
-Alpha to Beta is not more agent capability. It is one trusted team using the
-capability that already exists, stably, explainably, and recoverably.
+Alpha to Beta is not more Agent capability. It is an **operating proof** for one
+trusted team. The former gate mixed code already present with evidence the
+repository cannot provide (a real restore or a customer cluster). The gate now
+names both, so a green unit suite is never misrepresented as production proof.
 
-Beta is reached when this sentence is true and tested:
+Beta is reached only after this is demonstrated and the resulting evidence is
+recorded in the release or deployment runbook:
 
-> A new team deploys BuildMax to a private Kubernetes cluster by following the
-> documentation, then signs in safely, uses operator-approved models, submits
-> work, has it executed inside a constrained worker, and reads the result and
-> the audit record. Common dependency failures, timeouts, and upgrades can be
-> diagnosed, recovered, or rolled back.
+> An operator can bootstrap a private Kubernetes deployment, sign in, use an
+> approved managed model, execute and retry work in a constrained worker, read
+> its result, trace, model usage, and audit history, and recover from the
+> documented dependency, cancellation, worker-loss, and upgrade cases.
 
-Five gates, each with the surface that proves it:
+| Gate | Code and automated-test state | Still needed for Beta |
+|---|---|---|
+| Worker boundary | Per-run JWT, minimized Job environment, non-root/read-only/capability-dropped pod, resource limits, no service-account token, and an explicit trace boundary are implemented. | Demonstrate the boundary in a clean cluster and state the policy for unsandboxed execution. Worker OS sandbox and egress restriction are not claimed. |
+| Private deployment | Production manifest, migration ledger, `/readyz`, Compose/kind smoke, account bootstrap, and managed worker inference are implemented. | Apply the reference against real external MySQL/S3/TLS; exercise backup/restore and an N-1-compatible upgrade/rollback. |
+| Explainable runs | Portal can read a stored run trace and managed-call ledger; traces contain model/tool timing and usage, artifacts, and the resolved sandbox boundary. Retry is deployment-smoke tested. | Deployment tests for cancellation, worker loss, and a dependency failure; typed failure classification and trace retention are follow-up hardening. |
+| Minimum governance | Route authorization matrix, audit writes/export/retention, quota controls, and System Administration are implemented and tested. | Run the workflow with a real operator; audit-to-run correlation is useful follow-up work, not a duplicate event requirement. |
+| Continuous verification | Post-merge/scheduled Compose and kind workflows plus Portal browser E2E are configured; support policy is published. | Treat the latest CI result as evidence at release time. Repository configuration alone cannot prove an external run passed. |
 
-| Gate | Proven by |
-|---|---|
-| Worker execution boundary is real, visible, and operator-controlled | A task run holds only the credentials that run needs, executes in a hardened pod, and records which boundary was actually in effect — including when it was not sandboxed. Bounded egress is **not** part of this gate: see below |
-| The recommended private deployment is operable | Kubernetes reference with external MySQL, S3, TLS, secrets, resource limits, and a versioned schema migration with a rollback path. The schema that migration starts from is the one the [entity identity](design/entity-identity.md) change left: numeric relational keys, opaque public handles, and a migration list that restarts at that cutover |
-| A run explains itself | Portal answers model, tools, files, duration, tokens, and failure cause for any task run, with stable cancel/retry/timeout semantics |
-| The minimum governance loop closes | Role and team authorization covered end to end by tests; audit events for sign-in, configuration, model use, and credential change; a task run's own record reachable from Portal, joined to the models it called |
-| Beta claims are continuously verified | CI, Compose, and kind checks running again; Portal browser E2E; a published support and compatibility matrix (see [start/support.md](start/support.md)) |
+The first gate deliberately does not require the OS sandbox. Without it, the
+worker's Bash path remains protected only by the in-process risky-command gate,
+and a trace/Portal must say that no OS sandbox applied. Network egress is also
+currently unbounded: no `NetworkPolicy` or evidenced allow-list is shipped. A
+Beta release may state those limits; it may not imply containment it does not
+enforce.
 
-The first gate deliberately does not require the OS sandbox. Enabling it on
-workers is P0.5 work that continues past Beta; the Beta boundary is the pod and
-the credential scope. That trade is only defensible once the credential scope is
-actually small, because the fallback boundary is weak: without the sandbox, a
-worker's `Bash` is gated by the first-token deny list in `internal/tool/safety.go`,
-which stops an unintended `curl` but not a deliberate `bash -c` or `python -c`.
-Two consequences follow, and neither may be left implicit in documentation:
-
-- A run that is not sandboxed must say so — in its trace and in Portal. An
-  unreported boundary is worse than a missing one.
-- Workers stay unable to run `curl`, `npm`, `pip`, `rm`, and the rest of the
-  risky-prefix list: those resolve to Ask, and Ask collapses to Deny where no
-  approval handler exists. The sandbox is what would demote them to Allow, so
-  deferring it is a capability decision as much as a security one.
-
-Bounded egress was removed from the first gate for the same kind of reason. A
-default-deny policy permitting only the Server and the object store would stop a
-task run reaching the internet at all — `git` is not on the risky-prefix list
-and `WebFetch` is unrestricted while the sandbox is off — and no evidenced
-allow-list exists yet to replace it with. Until one does, a task run's reachable
-network is unbounded, and Beta must say so rather than imply a boundary it does
-not have.
-
-Task execution was likewise removed from the governance gate. A run's actor,
-trigger, timing, and outcome are already durable in `task_run`, and the models
-it called are in `llm_call`; copying them into `audit_event` would duplicate
-records without adding evidence, against the rule in
-[design/llm-gateway.md](design/llm-gateway.md) §10 that a governance log is for
-configuration and authorization actions rather than operational records. What
-the gate needs instead is that those existing records are reachable and joined —
-which is a route, not a new write.
-
-Deliberately outside the Beta gate: Desktop polish, SSO, plugin distribution,
-and additional model providers. None of them block a private server deployment
-reaching Beta.
+Deliberately outside the Beta gate: Desktop polish, SSO, team/worker plugin
+distribution, additional model providers, and general durable Session sync.
 
 ## Suggested Order
 
-Steps 1-3 of the original sequence — documentation and config cleanup, Agent
-Core stability, and the Portal outcome surface — are done. What remains is
-ordered so that each step can be verified when it lands, rather than verified
-at the end:
+The previous sequence treated worker OS sandboxing as the next universal
+dependency. That is not consistent with the Beta gate above: it is important
+defense in depth, but it does not prove that the existing deployment works or
+recovers. The immediate work is therefore evidence-first.
 
-0. Restore continuous verification — **done**. `ci`, `deployment-smoke`,
-   `codeql`, and `portal-image` gate merges again. It was never a Beta gate of
-   its own, only the precondition that makes every claim below checkable.
-1. Make the boundary observable before changing it — **done**. Every run writes
-   a `sandbox_boundary` record naming the resolved mode, backend, and source
-   chain, and a run nothing confined is recorded as `sandboxed: false` rather
-   than as unknown. Portal reads it beside the run's trace, artifacts, spend,
-   and failure cause. Still open from this step, and tracked in
-   [design/durable-run-trace.md](design/durable-run-trace.md): per-command
-   boundary decisions and violations, hook and file-change events, and
-   retention of the traces directory. Subagent traces now carry an immediate
-   `parent_run_id` link.
-2. Shrink what a task run can reach — **done for credentials, open for egress**.
-   `config.WorkerNeedsEnv` now decides what a worker is given: `k8s.WorkerEnvFromEnviron`
-   builds the Job pod's environment from the `BUILDMAX_*` variables that pass it
-   and nothing else, so the JWT secret, the database password, and the
-   object-storage keys stay server-side. Each run authenticates with its own
-   run-scoped credential, and it is now the only one a worker holds: the shared
-   worker token is removed. The Job pod runs as non-root with a
-   dropped-capability security context, resource limits, and no automounted
-   service-account token.
-
-   One thing is still open: the network. A task run's reachable egress is
-   unbounded, and the Beta gate says so rather than implying a boundary that
-   does not exist.
-
-   `LocalRunner` is closed by decision rather than by work. It is weaker than
-   the pod path by construction — `config.FilterWorkerEnv` removes the
-   `BUILDMAX_*` variables a worker must not see, but every other variable in
-   the server's environment is inherited by the child process. Narrowing that
-   would not buy a boundary: a local worker is a child of the server under the
-   same uid on the same filesystem, so it can read the server's environment and
-   `server.yaml` whichever variables it was handed. `local_process` is one trust
-   domain and stays one; the isolation investment goes to `k8s_job`, which is
-   what a deployment that needs the boundary runs. The deployment documentation
-   states that trust domain instead of implying a boundary, and so does the
-   startup warning. That covers the Compose stack, which is a single-machine
-   team deployment on exactly those terms.
-3. Enterprise deployment loop — **mostly done**. `deployment/production/`
-   carries a Kubernetes reference distinct from the kind smoke overlay, `/readyz`
-   reports dependency health in place of the fixed-200 `/healthz`, and
-   `schema_migration` records what a database has applied. Schema change is
-   deliberately forward-only: every migration is additive and a rollback is a
-   rollback of the binary, which the schema it left behind must keep serving —
-   so there is no down path to write, but the compatibility rule has to hold in
-   review. The production storage contract requires read, write, and list access,
-   and proving those permissions against the operator's actual bucket and
-   identity is an operations task rather than an application one — BuildMax
-   ships no deployment-initialization check for it. Readiness stays a read-only
-   dependency-availability check, and it also does not check worker launch mode
-   or the LLM configuration the conversation paths need.
-4. Minimum team governance — **done, with one gap named**. The role and team
-   authorization matrix is covered end to end by tests, the audit trail records
-   sign-in, configuration, model, and credential actions, and deployment
-   administration followed rather than preceded it, as the ordering required.
-   Since then: `audit.retention_days` expires the trail on a window that
-   defaults to keeping everything, and every sweep records what it removed, so
-   a trail that starts partway through says why; a team owner and a System
-   Administrator can each download their trail as CSV or JSONL, and the
-   download is itself recorded; and quota records a warning at 80% of a limit
-   and a refusal at the limit, once per limit per period. Portal shows a run's
-   trace beside the managed model calls the deployment served for it.
-
-   The gap that remains is correlation, tracked in
-   [design/team-governance.md](design/team-governance.md) as open question 7:
-   the trace and the `llm_call` ledger are joined, and the audit trail is
-   joined to neither, because no audit action names a run. An investigation
-   that starts at an audit event still cannot mechanically reach the run.
-5. Close the trust harness, as defense in depth rather than the only boundary:
-   ship `bwrap` in the runtime image, confirm the pod permits unprivileged user
-   namespaces, then pass `SandboxSurfaceWorker` from the task-run runtime, add
-   process rlimits, ship `buildmax sandbox overrides`, and sandbox hook
-   transports. Order matters here: the worker baseline sets
-   `FailIfUnavailable: true`, so passing that surface before the image and pod
-   can support a backend turns every worker run into a refusal. This step also
-   restores `curl`, `npm`, and the rest of the risky-prefix list to workers.
-6. Establish the evaluation and qualification vertical slice: define the
-   canonical contracts, run representative local, worker, conversation, and
-   trust scenarios against built artifacts, and compare an Inspect-backed
-   controller with a thin BuildMax controller. Add Harbor only as an execution
-   and public-benchmark adapter. This step precedes substantial new Agent
-   capability, but can proceed alongside the remaining P0.5 and P3 hardening.
-7. Desktop local workbench polish: sessions, project selection, local
-   results, and the local background job manager shared with the TUI
-   ([design/local-background-jobs.md](design/local-background-jobs.md)).
+1. **Make the existing deployment proof complete.** Extend the deterministic
+   Compose/kind smoke so it verifies cancellation, a worker that dies mid-run,
+   and a dependency failure, in addition to the existing login, worker,
+   artifact, retry, managed-model, authorization, and Portal checks. Keep these
+   as deployment-level tests; unit tests already cover parts of the state
+   machine but cannot prove the launched worker actually stops or reports.
+2. **Run and record the operating exercises.** Against a real private-cluster
+   dependency set, verify bucket permissions, backup/restore, and a migration
+   upgrade followed by binary rollback. Add only the smallest product diagnostics
+   exposed by those exercises; do not turn readiness into a destructive storage
+   probe or invent metrics before deciding what an operator needs.
+3. **Start P0.6 with a small black-box contract and slice.** Define the trial
+   bundle/failure taxonomy first, then run built local, worker, conversation,
+   and boundary subjects repeatedly. This can run alongside step 2, and it
+   replaces the legacy evaluator only after it produces a useful failure bundle.
+4. **Finish worker hardening as a parallel security track.** First decide and
+   document fail-closed versus recorded downgrade when `bwrap` is unavailable;
+   then add the backend to the image, prove the pod supports it, select
+   `SandboxSurfaceWorker`, add rlimits, sandbox hook transports, and test the
+   result. Treat egress as a separate threat-model and operator-policy decision;
+   do not guess an allow-list. This track unblocks executable team plugins, but
+   does not hide steps 1–3 behind it.
+5. **Choose one post-Beta product bet from evidence.** The lowest-risk candidate
+   is the local Issue work bridge. Durable Agent Sessions require a decision on
+   local session storage, privacy, retention, and synchronization first. Session
+   trees/mailboxes additionally require a workspace/change-set ownership design.
+   SSO and team/worker plugin distribution remain post-Beta unless a deployment
+   partner supplies the evidence to reprioritize them.
 
 ## Avoid For Now
 

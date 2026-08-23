@@ -12,7 +12,6 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/agentapp"
 	"github.com/gougoujiang/buildmax/internal/agentapp/job"
-	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	"github.com/gougoujiang/buildmax/internal/infra/git"
 	"github.com/gougoujiang/buildmax/internal/interface/auth"
@@ -800,32 +799,17 @@ func (m *Model) renderBusyHint() string {
 	return toolGlyphPendingStyle.Render(line)
 }
 
-// modelTransportTag says where the current model sends its prompts: straight to
-// a provider from this machine, or through a BuildMax deployment.
+// modeTag says where this session's prompts go: straight to a provider from
+// this machine, or through the deployment it is signed in to.
 //
-// The CLI has no app-level mode — transport is a property of the model entry,
-// and /model switches entries mid-session — so the answer belongs next to the
-// model name rather than only in `buildmax models`. A name no entry claims gets
-// no tag: the run resolves it elsewhere, and a guess here would be a claim about
-// where prompts go.
-func modelTransportTag(entries []agentapp.ModelConfig, modelName string) string {
-	if modelName == "" {
-		return ""
+// It is the app's mode rather than the model's, so it is stated once and does
+// not move when /model switches models. It is always shown: "where does this
+// send my prompts" must never depend on a tag being absent.
+func modeTag(serverURL string) string {
+	if serverURL == "" {
+		return "local"
 	}
-	for _, entry := range entries {
-		if entry.Name != modelName && entry.ProviderModel != modelName {
-			continue
-		}
-		if !entry.IsManaged() {
-			return config.TransportDirect
-		}
-		server := entry.ServerURL
-		if server == "" {
-			return config.TransportBuildMax + ", no server_url"
-		}
-		return config.TransportBuildMax + " " + strings.TrimPrefix(strings.TrimPrefix(server, "https://"), "http://")
-	}
-	return ""
+	return strings.TrimPrefix(strings.TrimPrefix(serverURL, "https://"), "http://")
 }
 
 func (m *Model) renderFooterView() string {
@@ -837,10 +821,7 @@ func (m *Model) renderFooterView() string {
 	if m.opts.Session != nil {
 		currentModel = m.opts.Session.ModelName(currentModel)
 	}
-	modelPart := "model: " + currentModel
-	if tag := modelTransportTag(m.opts.App.ModelConfigs(), currentModel); tag != "" {
-		modelPart += " (" + tag + ")"
-	}
+	modelPart := "model: " + currentModel + " (" + modeTag(m.opts.App.ManagedServerURL()) + ")"
 	line1 := footerModelStyle.Render(modelPart) + " | " +
 		footerBranchStyle.Render(workspacePart)
 	if tag := sandboxFooterTag(m.opts.App); tag != "" {
