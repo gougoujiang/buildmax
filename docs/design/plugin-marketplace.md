@@ -926,9 +926,8 @@ the side of the boundary it can honour.
 The follow-on design this asked for is
 [plugin-team-distribution.md](./plugin-team-distribution.md). It decides team
 ownership, who may enable active hooks or stdio MCP, package materialization,
-version pinning, and sandbox/egress reporting; it puts secret scope in a
-further record of its own, and it makes the executable half wait on the worker
-sandbox surface actually being wired.
+version pinning, and what bounds executable content once it reaches a worker;
+it puts secret scope in a further record of its own.
 
 ## 13. Alternatives Rejected
 

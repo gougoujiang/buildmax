@@ -12,12 +12,13 @@
 - status: `ready_for_review` — §5.3 decides the granularity: team activation,
   agent selection
 - follows: [plugin-marketplace.md](./plugin-marketplace.md)
-- depends_on: [sandbox-boundaries.md](./sandbox-boundaries.md) §3.2, whose
-  worker surface is written and not wired — §9 explains why half of this
-  waits on it
+- depends_on: nothing unbuilt. An earlier draft made the executable half wait
+  on the worker sandbox surface being wired; §9 retires that, because the Bash
+  sandbox never bounded the processes in question
 - relates_to: [team-governance.md](./team-governance.md),
-  [trust-harness.md](./trust-harness.md), and
-  [worker-run-token.md](./worker-run-token.md)
+  [trust-harness.md](./trust-harness.md),
+  [worker-run-token.md](./worker-run-token.md), and
+  [sandbox-boundaries.md](./sandbox-boundaries.md)
 - roadmap: [../ROADMAP.md](../ROADMAP.md)
 - created_at: `2026-08-22`
 
@@ -56,6 +57,13 @@ run directory, and `WriteRunAgentsMd` promotes that home's `AGENTS.md` into the
 workspace one. A team can already put arbitrary instructions in front of every
 background run it dispatches, with no activation, no review, and no record
 beyond the file itself.
+
+That promotion is the whole of it, and the limit is worth stating because the
+rest of this record rests on it. The team's files land in `<run>/home`, while
+workspace hooks are read from `<run>/.buildmax/hooks.yaml`, so a team's home
+cannot contribute a hook to a run today even though it can contribute the
+prompt. Instructions reaching a worker are not new. Executable content reaching
+one is.
 
 So the boundary this design guards is not "team content reaches a worker". It
 is **team content that executes reaches a worker**. A skill is prose that an
@@ -149,10 +157,17 @@ formality.
 
 ### 5.2 What Eligibility Does Not Do
 
-It does not grant permission. Tool permissions, hook gating, sensitive-path
-checks, and the sandbox apply to an activated plugin's contributions exactly as
-they apply to a team's own configuration. A plugin cannot widen what a run may
-do; it can only bring more things that ask.
+It does not grant permission. A skill, a subagent, and an MCP server's tools
+reach the model as things that ask: tool permissions, hook gating, and
+sensitive-path checks apply to them exactly as they apply to a team's own
+configuration, and none of them widens what a run may do.
+
+A hook command is the exception, and it is why eligibility exists. It runs
+whether the agent asks for anything or not, and it is not itself subject to tool
+permissions. It still cannot widen the agent's permissions — a hook may block a
+tool call and has no way to approve one — but it does run code with the run's
+own privileges. That is what an administrator accepts in §5.1, and §9 says what
+does and does not bound it.
 
 ### 5.3 Granularity: Team Activation, Agent Selection
 
@@ -299,30 +314,43 @@ is the question a two-level model creates.
 None of it carries package content, configuration values, or secrets, in keeping
 with §10 of the Marketplace design.
 
-## 9. Sandbox And Egress
+## 9. What Bounds Executable Content
 
-The Bash sandbox defaults off on every surface, and `config.defaultSandbox`
-defines a stricter `SandboxSurfaceWorker` baseline that no worker path passes:
-`internal/agentapp/taskrun` leaves `AppConfig.SandboxSurface` empty, so a worker
-resolves to the CLI baseline. The baseline is written and not wired.
+Not the Bash sandbox. An earlier draft of this record made the executable half
+wait on the worker sandbox surface being wired, and that was wrong about what
+the sandbox covers.
 
-That gap costs little today, because a worker runs a team's own files under a
-non-interactive policy. It costs considerably more once a team can activate a
-release that starts a process and opens a connection: the thing that would
-bound what that process reaches is precisely the boundary that is not wired.
+The sandbox wraps one thing: a child of the Bash tool. `internal/tool/bash.go`
+applies it in `spawnArgs` and injects the filtering proxy through `childEnv`.
+A hook command spawns from `internal/infra/hook/command.go`, and an MCP stdio
+server from `internal/infra/mcp/transport.go`, each with a plain `exec.Command`
+that carries neither. This is true on every surface, sandboxed or not. Wiring
+`SandboxSurfaceWorker` would change the baseline a worker's *Bash tool* runs
+under; it would not touch a hook process or an MCP server, which are precisely
+the two things activation gates.
 
-So this design makes the dependency explicit rather than discovering it later:
+The same fact retires an egress claim this record used to make. The in-agent
+proxy filters hostnames for a sandboxed bash child, and
+[sandbox-boundaries.md](./sandbox-boundaries.md) says outright that it is not a
+pod egress boundary. An activated MCP server's connections would not appear in
+it, so "egress is reported once the worker surface is wired" was not something
+this design could promise.
 
-- **The instruction half does not need it.** Skills and subagents cause tool
-  calls, which the non-interactive policy already refuses or allows on the same
-  terms as a team's own configuration.
-- **The executable half does.** Unattended eligibility must not be extended to
-  hooks or MCP servers until the worker sandbox surface is wired, and the
-  eligibility flag should be inert until it is.
+What actually bounds the executable half is two things, and neither is deferred:
 
-Egress reporting follows from the same wiring: once a worker runs under the
-worker surface, its egress proxy already reports what a run reached, and an
-activated plugin's connections appear there with everything else.
+- **The operator's reading.** §5.1 is the control: a named administrator accepts
+  a specific release's capability report — the executables it starts, the hosts
+  it reaches, the events it registers — before it may run where nobody is
+  present.
+- **The deployment's own isolation.** A worker runs inside whatever container,
+  pod, and network policy the operator gave it. That boundary is the operator's
+  and applies to an activated plugin's processes the same way it applies to
+  everything else the run does.
+
+Two consequences. Phase D2 is not blocked on sandbox work; the eligibility flag
+is meaningful the day it ships. And confining hook and MCP processes is a real
+gap — it exists on the local CLI today, not only on workers — which belongs to
+[sandbox-boundaries.md](./sandbox-boundaries.md) rather than to this record.
 
 ## 10. Product Surfaces
 
@@ -354,8 +382,9 @@ already are.
 ## 11. Implementation Ownership
 
 - `internal/core/model` — the activation record and its store contract.
-- `internal/infra/db` — one table, `plugin_activation`, singular, with a new
-  prefixed public ID.
+- `internal/infra/db` — one table, `plugin_activation`, singular, its public
+  identifier from `util.NewPublicID` (prefixes are retired; see
+  [entity-identity.md](./entity-identity.md) §4.4).
 - `internal/service/plugin` — activation lifecycle and the eligibility flag,
   beside publication.
 - `internal/core/model` and `internal/service/agent` — the agent definition's
@@ -380,7 +409,8 @@ than after.
 - the activation record, its store, and the team-scoped routes;
 - pins resolved before dispatch and materialized into the run;
 - skills and subagents only; a release contributing anything executable cannot
-  be activated;
+  be activated, and a pin cannot be moved onto one — a plugin whose next version
+  adds a hook stops at the version before it;
 - the agent definition's plugin selection, which at this phase only narrows:
   inert content inherits when an agent names nothing (§5.3);
 - activation and provenance in the audit trail and the run trace;
@@ -391,20 +421,20 @@ run for that team loads it, and the run's trace names the activation, the
 version, and the digest. An agent that names a subset loads that subset and the
 trace says so. A release contributing a hook is refused with the reason.
 
-### Phase D2 — Executable Content, Gated On The Worker Sandbox
+### Phase D2 — Executable Content
 
 - unattended eligibility on a release, set by a System Administrator;
 - activation of releases contributing hooks and MCP servers;
-- the worker sandbox surface actually wired, which §9 makes a precondition
-  rather than a companion;
+- moving a pin onto a release that newly contributes executable content is
+  refused on the same terms as a first activation;
 - the executable half of §5.3: a hook or MCP server loads only for an agent that
   names it, an agentless run gets none, and naming one the team has not
   activated fails the run.
 
-Acceptance: eligibility cannot be granted while a worker resolves to the CLI
-sandbox baseline, an activated hook runs under the worker boundary with its
-egress reported, and a second agent on the same team — one that did not name
-that hook — runs without it.
+Acceptance: a release contributing a hook cannot be activated until an
+administrator marks it eligible; an activated hook fires in a background run for
+the agent that named it, and a second agent on the same team — one that did not
+name it — runs without it.
 
 ### Phase D3 — Secret Delivery, Deferred
 
@@ -488,9 +518,11 @@ Implementation is not complete until tests prove:
   cannot read the catalog;
 - a team member without owner or admin cannot activate anything;
 - a release contributing a hook or an MCP server cannot be activated until an
-  administrator marks it eligible, and eligibility cannot be granted while the
-  worker sandbox surface is unwired;
+  administrator marks it eligible, and moving a pin onto such a release is
+  refused on the same terms as a first activation;
 - eligibility does not carry from one release to the next;
+- suspending an activation fails the runs of the agents that name that plugin,
+  naming the plugin in the error, rather than running them without it;
 - yanking or archiving leaves an activation working and reports its state;
 - the audit trail records activation, deactivation, pin changes, and
   eligibility, naming actor, team, plugin, version, and digest prefix, and no
@@ -518,8 +550,9 @@ Implementation is not complete until tests prove:
    the agent definition's job and it names plugins. A third, within-release level
    would have to be paid for by the same test that bought the second one, and
    for inert content the answer is tokens, which does not buy it.
-3. Does an eligible release need re-reading when a deployment's sandbox policy
-   changes, given the administrator accepted it under the old boundary?
+3. Does an eligible release need re-reading when the deployment changes the
+   boundary a worker runs inside — a different container or network policy —
+   given the administrator accepted it under the old one?
 4. Should Tier 1 conversations ever load plugins, and if so does the same
    activation record serve them, or is a conversation a different scope?
 5. What does a team see when a release it pinned is yanked — a warning it can
@@ -529,6 +562,7 @@ Implementation is not complete until tests prove:
 
 - [plugin-marketplace.md](./plugin-marketplace.md) — the catalog it builds on
 - [team-governance.md](./team-governance.md) — the authority model §5 reuses
-- [sandbox-boundaries.md](./sandbox-boundaries.md) — the boundary §9 needs
+- [sandbox-boundaries.md](./sandbox-boundaries.md) — the boundary §9 says is
+  *not* this one, and where confining hook and MCP processes belongs
 - [worker-run-token.md](./worker-run-token.md) — the credential §7 uses
 - [guide/plugins.md](../guide/plugins.md) — what ships today

@@ -43,7 +43,7 @@ reference, then delete the plan.
 | [Team governance](team-governance.md) | P4 | Roles, quota, workflow lifecycle, the audit trail, its retention and export, and quota alerting shipped; the second slice of actions and audit-to-run correlation open |
 | [System administration](system-administration.md) | P4 | Implemented: grant model, operator command, admin API, Portal area, and model catalog surface |
 | [Plugin distribution and private marketplace](plugin-marketplace.md) | post-Beta, P4 follow-on | Phases A–C shipped: plugins load, the Marketplace publishes and installs, Portal and Desktop manage it. Team and worker distribution deferred |
-| [Team and worker plugin distribution](plugin-team-distribution.md) | post-Beta, after the Marketplace | Design ready for review; implementation not started. The executable half waits on the worker sandbox being wired |
+| [Team and worker plugin distribution](plugin-team-distribution.md) | post-Beta, after the Marketplace | Design ready for review; implementation not started. Two phases: team activation of instructions, then executable content behind operator eligibility |
 | [Entity identity and relational keys](entity-identity.md) | Beta gate | Implemented: opaque public handles, numeric relational keys, and the store boundary between them. §8 decided database foreign keys: none, until a real deletion feature adds them |
 | [Timestamp representation](timestamp-representation.md) | Beta gate | Implemented: every persisted instant is `time.Time`, `DATETIME(6)`, and RFC 3339, with a UTC-pinned connection and an architecture guard |
 | [Tool permissions](tool-permissions.md) | unscheduled | Implemented; operator control over autonomous surfaces open (§7) |
