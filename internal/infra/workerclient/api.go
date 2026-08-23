@@ -5,13 +5,17 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/infra/httpclient"
+	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
 )
 
 // StreamSender sends run output deltas to the server (e.g. for live streaming). Optional; when nil, run output is not streamed.
@@ -78,6 +82,13 @@ type WorkerTaskRun struct {
 	// this worker picked it up — a cancel that landed between dispatch and
 	// start. Such a run is finished without executing anything.
 	CancelRequested bool
+	// Plugins are the releases this run materializes, resolved by the server.
+	// A worker fetches and verifies exactly these and never resolves its own.
+	Plugins []model.PluginPin
+	// PluginError is why this run cannot proceed. A worker that receives one
+	// fails the run rather than starting it without the plugin: an agent that
+	// names a plugin has declared it needs one.
+	PluginError string
 }
 
 // GetWorkerTaskRun fetches the run from the server (GET /api/worker/task-runs/{task_run_id}). Returns nil, nil if not found.
@@ -117,7 +128,42 @@ func GetWorkerTaskRun(ctx context.Context, cfg WorkerAPIClientConfig, taskRunID 
 		LLM:               got.LLM,
 		AgentInstructions: got.Task.AgentInstructions,
 		CancelRequested:   got.Run.CancelRequested,
+		Plugins:           toPluginPins(got.Plugins),
+		PluginError:       got.PluginError,
 	}, nil
+}
+
+func toPluginPins(wire []TaskRunPlugin) []model.PluginPin {
+	if len(wire) == 0 {
+		return nil
+	}
+	out := make([]model.PluginPin, 0, len(wire))
+	for _, p := range wire {
+		out = append(out, model.PluginPin{PluginName: p.Name, Version: p.Version, Digest: p.Digest})
+	}
+	return out
+}
+
+// DownloadPluginPackage streams one pinned release into w and returns the
+// digest the server sent with it.
+//
+// The route is scoped to this run and serves only the releases its own pins
+// name, so a worker cannot reach the catalog or another run's packages.
+func DownloadPluginPackage(ctx context.Context, cfg WorkerAPIClientConfig, taskRunID, name, version string, w io.Writer) (string, error) {
+	pathSuffix := fmt.Sprintf("/api/worker/task-runs/%s/plugins/%s/%s/download",
+		taskRunID, url.PathEscape(name), url.PathEscape(version))
+	resp, err := workerDo(ctx, cfg, http.MethodGet, pathSuffix, nil)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", httpclient.DecodeError(resp, "worker API GET "+cfg.BaseURL+pathSuffix)
+	}
+	if _, err := io.Copy(w, resp.Body); err != nil {
+		return "", fmt.Errorf("read package: %w", err)
+	}
+	return resp.Header.Get(pluginwire.DigestHeader), nil
 }
 
 // WorkerHTTPUpdater implements TaskRunUpdater by calling the server's worker API (PATCH /api/worker/task-runs/{task_run_id}).

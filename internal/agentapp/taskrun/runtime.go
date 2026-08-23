@@ -135,6 +135,10 @@ type RunTaskInput struct {
 	// zero value leaves the run without the artifact capability, so the agent
 	// gets no artifact tool rather than one that always fails.
 	WorkerAPI workerclient.WorkerAPIClientConfig
+	// Plugins are the releases the server resolved for this run. They are
+	// materialized into the run's BUILDMAX_HOME before the runtime is
+	// assembled; a pin that cannot be materialized fails the run.
+	Plugins []model.PluginPin
 	// InterruptGrace is how long this run may spend reporting after its process
 	// is asked to stop. Zero uses interruptReportTimeout. A dispatcher that will
 	// kill the worker on its own deadline passes that deadline here, so the run
@@ -178,7 +182,7 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 	dirs := resolveRunDirs(input.Paths, task, run)
 	scope := RunScope{CreatedBy: task.CreatedBy, ConversationID: task.ConversationID, TaskID: task.ID, TaskRunID: run.ID}
 
-	if err := prepareRunWorkspace(ctx, input.Persist, task, run, dirs); err != nil {
+	if err := prepareRunWorkspace(ctx, input, task, run, dirs); err != nil {
 		if stopped, stopErr := reportStoppedRun(ctx, scope, RunResult{RunArtifactsDir: dirs.runArtifacts}, dirs, input); stopped {
 			return stopErr
 		}
@@ -310,8 +314,16 @@ func resolveRunDirs(paths RuntimePaths, task *model.Task, run *model.TaskRun) ru
 	}
 }
 
-func prepareRunWorkspace(ctx context.Context, persist blob.PersistStorage, task *model.Task, run *model.TaskRun, dirs runDirs) error {
+func prepareRunWorkspace(ctx context.Context, input RunTaskInput, task *model.Task, run *model.TaskRun, dirs runDirs) error {
+	persist := input.Persist
 	if err := ensureRunDirs(dirs.runHome, dirs.runArtifacts, dirs.runGlobal); err != nil {
+		return err
+	}
+	// Before the runtime is assembled, because agentapp discovers plugins from
+	// BUILDMAX_HOME once and keeps that snapshot.
+	if err := materializePlugins(ctx, dirs.runGlobal, input.Plugins,
+		httpPackageFetcher(input.WorkerAPI, run.ID)); err != nil {
+		componentLog().Error("failed to materialize this run's plugins", "task_run_id", run.ID, "err", err)
 		return err
 	}
 	restoreSessionFromPreviousRun(ctx, task, run, dirs.runGlobal, persist)

@@ -10,6 +10,7 @@ import {
 import { navigate } from "../../router"
 import { SpaceArtifactsSection } from "../../features/artifacts"
 import { SpaceAuditSection } from "../../features/audit"
+import { TeamPlugins } from "../../features/teamPlugins"
 import { useAuth } from "../../contexts/AuthContext"
 import { useTeam } from "../../contexts/TeamContext"
 
@@ -117,6 +118,17 @@ export function SpaceSettings({ section }: { section: SpaceSection }) {
             currentUserId={user?.id}
             currentUserIsOwner={currentUserIsOwner}
             currentUserRole={currentUserMember?.role ?? null}
+          />
+        ) : null}
+        {section === "plugins" ? (
+          <TeamPlugins
+            token={token}
+            teamId={currentTeamId}
+            // Changing an activation is owner-or-admin, the authority the
+            // team's other shared automation already needs. Reading is not.
+            canManage={
+              currentUserMember?.role === "owner" || currentUserMember?.role === "admin"
+            }
           />
         ) : null}
         {section === "audit" ? (

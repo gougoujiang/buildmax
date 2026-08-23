@@ -380,10 +380,12 @@ func buildOptionalS3Client(ctx context.Context, wsCfg config.WorkspaceStorageCon
 
 func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, workspacesDir string, st *db.Store, storage blobStorage) (httpserver.Config, error) {
 	pluginService := &pluginsvc.Service{
-		Catalog:   st,
-		Packages:  storage.packages,
-		KeyPrefix: storage.packageKeyPrefix,
-		Audit:     audit.NewRecorder(st),
+		Catalog:     st,
+		Activations: st,
+		Teams:       st,
+		Packages:    storage.packages,
+		KeyPrefix:   storage.packageKeyPrefix,
+		Audit:       audit.NewRecorder(st),
 	}
 	quotaService := &quota.Service{
 		TeamStore:   st,

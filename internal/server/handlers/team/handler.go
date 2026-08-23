@@ -13,6 +13,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/server/access"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
+	"github.com/gougoujiang/buildmax/internal/service/plugin"
 	"github.com/gougoujiang/buildmax/internal/service/quota"
 	"github.com/gougoujiang/buildmax/internal/service/workflow"
 )
@@ -34,6 +35,10 @@ type Config struct {
 
 	Quota *quota.Service
 	Audit *audit.Recorder
+	// Plugins carries the team half of plugin distribution: which releases a
+	// team's background runs may use. Nil in a deployment without a
+	// Marketplace, which is why every route here checks before using it.
+	Plugins *plugin.Service
 }
 
 type Handler struct{ cfg Config }
@@ -82,6 +87,12 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/webhook-keys", h.createWebhookKeyHandler)
 	mux.HandleFunc("GET /api/webhook-keys", h.listWebhookKeysHandler)
 	mux.HandleFunc("DELETE /api/webhook-keys/{key_id}", h.revokeWebhookKeyHandler)
+
+	// Plugin activation
+	mux.HandleFunc("GET /api/teams/{team_id}/plugin-activations", h.listPluginActivationsHandler)
+	mux.HandleFunc("POST /api/teams/{team_id}/plugin-activations", h.activatePluginHandler)
+	mux.HandleFunc("PATCH /api/teams/{team_id}/plugin-activations/{plugin_name}", h.patchPluginActivationHandler)
+	mux.HandleFunc("PUT /api/teams/{team_id}/plugin-curation", h.setPluginCurationHandler)
 
 	// Usage and the audit trail
 	mux.HandleFunc("GET /api/usage", h.usageHandler)

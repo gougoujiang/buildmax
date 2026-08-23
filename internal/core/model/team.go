@@ -19,13 +19,16 @@ const (
 // Team is the ownership and collaboration boundary for working resources.
 // A user's default personal team is represented by personal_for_user_id.
 type Team struct {
-	ID                string    `json:"id"`
-	Name              string    `json:"name"`
-	PersonalForUserID *string   `json:"personal_for_user_id,omitempty"`
-	QuotaTier         string    `json:"quota_tier,omitempty"`
-	CreatedBy         string    `json:"created_by"`
-	CreatedAt         time.Time `json:"created_at"`
-	UpdatedAt         time.Time `json:"updated_at"`
+	ID                string  `json:"id"`
+	Name              string  `json:"name"`
+	PersonalForUserID *string `json:"personal_for_user_id,omitempty"`
+	QuotaTier         string  `json:"quota_tier,omitempty"`
+	// PluginCuration is who fills this team's plugin activation list; empty
+	// reads as PluginCurationOpen. See plugin_activation.go.
+	PluginCuration PluginCuration `json:"plugin_curation,omitempty"`
+	CreatedBy      string         `json:"created_by"`
+	CreatedAt      time.Time      `json:"created_at"`
+	UpdatedAt      time.Time      `json:"updated_at"`
 }
 
 // TeamMember is one user's membership in a team.
@@ -64,4 +67,7 @@ type TeamStore interface {
 	// team id. It exists so listing teams is two queries rather than one per
 	// row.
 	CountTeamMembers(ctx context.Context, teamIDs []string) (map[string]int, error)
+	// SetTeamPluginCuration records who fills the team's plugin activation
+	// list, or returns ErrNotFound. The value is validated above this layer.
+	SetTeamPluginCuration(ctx context.Context, teamID string, mode PluginCuration) error
 }

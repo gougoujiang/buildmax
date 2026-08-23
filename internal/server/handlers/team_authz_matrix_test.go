@@ -62,6 +62,14 @@ var teamRoutes = []authzCase{
 	{"GET", "/api/teams/{team_id}/agents/{agent_id}/revisions", model.TeamRoleMember, false},
 	{"POST", "/api/teams/{team_id}/agents/{agent_id}/revisions/{revision}/restore", model.TeamRoleAdmin, false},
 
+	// Reading what a team activated answers "why did this run have this
+	// plugin", which is any member's question. Changing an activation is the
+	// same authority the team's other shared automation needs.
+	{"GET", "/api/teams/{team_id}/plugin-activations", model.TeamRoleMember, false},
+	{"POST", "/api/teams/{team_id}/plugin-activations", model.TeamRoleAdmin, false},
+	{"PATCH", "/api/teams/{team_id}/plugin-activations/{plugin_name}", model.TeamRoleAdmin, false},
+	{"PUT", "/api/teams/{team_id}/plugin-curation", model.TeamRoleAdmin, false},
+
 	{"GET", "/api/teams/{team_id}/members", model.TeamRoleMember, false},
 	{"POST", "/api/teams/{team_id}/members", model.TeamRoleOwner, false},
 	{"DELETE", "/api/teams/{team_id}/members/{user_id}", model.TeamRoleOwner, false},

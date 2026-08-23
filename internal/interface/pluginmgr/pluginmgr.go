@@ -22,6 +22,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/plugin/archive"
 	"github.com/gougoujiang/buildmax/internal/core/plugin/inspect"
 	"github.com/gougoujiang/buildmax/internal/infra/git"
+	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
 	"github.com/gougoujiang/buildmax/internal/interface/auth"
 	"github.com/gougoujiang/buildmax/internal/interface/client"
 	pluginsvc "github.com/gougoujiang/buildmax/internal/service/plugin"
@@ -430,4 +431,12 @@ func recordInstalled(pluginsDir, name, serverURL string, release model.PluginRel
 		s.Set(name, st)
 		return nil
 	})
+}
+
+// ListActivations reads what a team has activated for its background runs.
+//
+// It sits here rather than in the CLI so Desktop can show the same thing: a
+// team's activations are a property of the deployment, not of this machine.
+func (s *Session) ListActivations(ctx context.Context, teamID string) (*pluginwire.ActivationsResponse, error) {
+	return s.client.ListTeamActivations(ctx, s.token, teamID)
 }

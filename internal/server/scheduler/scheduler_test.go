@@ -130,6 +130,10 @@ func (s *spyTaskRunStore) RecordTaskRunAgentRevision(_ context.Context, _ string
 	return nil
 }
 
+func (s *spyTaskRunStore) RecordTaskRunPluginPins(_ context.Context, _ string, _ []model.PluginPin) error {
+	return nil
+}
+
 func (s *spyTaskRunStore) OnRunComplete(_ context.Context, _ string, _ []string) error {
 	return nil
 }

@@ -40,8 +40,13 @@ const digestPrefixLen = 12
 
 // Service publishes releases and manages catalog entries.
 type Service struct {
-	Catalog  model.PluginStore
-	Packages objectstore.PluginPackageStorage
+	Catalog model.PluginStore
+	// Activations and Teams carry the team half of distribution: which
+	// releases a team's background runs may use, and who fills that list.
+	// They are nil in a deployment that only publishes and installs locally.
+	Activations model.PluginActivationStore
+	Teams       model.TeamStore
+	Packages    objectstore.PluginPackageStorage
 	// KeyPrefix scopes package keys inside the object store.
 	KeyPrefix string
 	Audit     *audit.Recorder

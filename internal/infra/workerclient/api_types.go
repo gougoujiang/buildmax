@@ -8,6 +8,25 @@ type GetTaskRunResponse struct {
 	Run  TaskRunRun  `json:"run"`
 	Task TaskRunTask `json:"task"`
 	LLM  *TaskRunLLM `json:"llm,omitempty"`
+	// Plugins are the releases this run materializes, resolved by the server
+	// when the worker claimed the run. A worker does not resolve its own: it
+	// receives a finished list. Empty when the run's agent names none, or when
+	// there is no agent.
+	Plugins []TaskRunPlugin `json:"plugins,omitempty"`
+	// PluginError is why this run cannot proceed — a named plugin its team has
+	// not activated, or whose activation is suspended. A worker that receives
+	// it must fail the run rather than start it: an agent that names a plugin
+	// has declared it needs one, and a background run doing quietly less than
+	// its definition says is read by somebody who was not watching it.
+	PluginError string `json:"plugin_error,omitempty"`
+}
+
+// TaskRunPlugin is one release a run will fetch and verify. The digest is what
+// the worker checks the bytes against before it extracts them.
+type TaskRunPlugin struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
+	Digest  string `json:"digest"`
 }
 
 // TaskRunLLM tells a worker how to reach a model for this run.

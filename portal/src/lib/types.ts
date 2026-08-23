@@ -40,7 +40,10 @@ export type Route =
   | { name: "explore" }
   | { name: "agents" }
   | { name: "account"; section?: "general" | "usage" | "webhook" | "plugins" }
-  | { name: "space"; section?: "overview" | "members" | "artifacts" | "audit" | "memberNew" }
+  | {
+      name: "space"
+      section?: "overview" | "members" | "artifacts" | "plugins" | "audit" | "memberNew"
+    }
   | { name: "admin"; section?: "overview" | "accounts" | "teams" | "models" | "plugins" | "audit" }
   | { name: "workflows" }
   | { name: "workflow"; workflowId: string }

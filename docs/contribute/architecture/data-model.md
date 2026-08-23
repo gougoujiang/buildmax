@@ -123,6 +123,7 @@ erDiagram
     workflow ||--o{ workflow_revision : "versioned by"
 
     plugin ||--o{ plugin_release : "published as"
+    team ||--o{ plugin_activation : activates
 
     task ||--o{ task_run : "attempted as"
     task_run ||--o{ task_run_artifact : produces
@@ -208,6 +209,7 @@ The ownership and authorization boundary for every Portal resource.
 | `name` | `varchar(255)` | no | Display name |
 | `personal_for_user_id` | `bigint unsigned` | yes | Set on a user's personal team; unique, so a user has at most one |
 | `quota_tier` | `varchar(64)` | yes | References `quota_tier.tier_name` |
+| `plugin_curation` | `varchar(16)` | no | Default `'open'`; `open` or `curated`, see `plugin_activation` |
 | `created_by` | `bigint unsigned` | no | `user.id` |
 | `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 | `updated_at` | `datetime(6)` | yes | `autoUpdateTime` |
@@ -516,6 +518,7 @@ under.
 | `name` | `varchar(255)` | no | |
 | `description` | `text` | yes | Shown in pickers |
 | `instructions` | `text` | yes | Appended to the system prompt for runs using this agent |
+| `plugins` | `text` | yes | JSON array of catalog plugin names this agent loads |
 | `revision` | `bigint` | no | Number of the `agent_revision` row holding this content; starts at 1 |
 | `deleted_at` | `datetime(6)` | yes | Set when the agent was deleted; the row stays |
 | `created_at` | `datetime(6)` | yes | `autoCreateTime` |
@@ -533,6 +536,15 @@ an agent a `published` workflow still names is refused with `409` — that
 workflow could still be run, and the failure would otherwise surface at the next
 run rather than at the delete. Draft and archived workflows do not block it,
 because neither can start a run and publishing revalidates its agents.
+
+`plugins` names catalog plugins, never releases: the version and digest come
+from the team's `plugin_activation` row, so moving a plugin to a new release
+stays one edit in one place. Nothing is inherited from the team's activations —
+an agent that names none loads none — and the list is stored trimmed,
+deduplicated, and sorted, so reordering the same set does not append a revision.
+It is a JSON column rather than a join table because nothing queries inside it:
+the selection is written and read whole, and "which agents name this plugin" is
+a scan of one team's agents.
 
 There is no undelete route. The row exists so references resolve, not as a
 recycle bin.
@@ -554,6 +566,7 @@ deleted.
 | `name` | `varchar(255)` | no | |
 | `description` | `text` | yes | |
 | `instructions` | `text` | yes | |
+| `plugins` | `text` | yes | JSON array; the selection this revision recorded |
 | `created_by` | `bigint unsigned` | no | The user who wrote this revision, not necessarily the agent's owner |
 | `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 
@@ -709,6 +722,7 @@ One execution attempt. This is the row quota and token accounting read.
 | `retry_of_task_run_id` | `bigint unsigned` | yes | The run this one repeats; `NULL` for a run that carries its own instructions |
 | `source_message_id` | `bigint unsigned` | yes | `conversation_message.id` this run was asked for in; `NULL` when no message asked for it |
 | `agent_revision` | `int` | yes | Which revision of `task.agent_id` this run was served; `NULL` for a run with no agent or one that never reached a worker |
+| `plugin_pins` | `text` | yes | JSON array of `{plugin_name, version, digest}`: the releases this run was given |
 | `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 
 Indexes: PK `id`; index `cancel_requested_at`; index `created_by`; index
@@ -720,6 +734,17 @@ addressed by its agent plus its number, and the task already holds the agent. It
 is written when a worker asks for its run, and the first write wins — instructions
 are resolved per dispatch so an edit takes effect on the next run, and the record
 exists so an edit during a run cannot rewrite what that run was given.
+
+`plugin_pins` is written at that same moment and under the same rule, because it
+answers the same question about the same run. The server resolves the team's
+`plugin_activation` rows against the agent's selection and sends a finished list;
+a worker never reads activations itself. Resolving at claim time rather than at
+dispatch is safe because an activation names an exact version and digest — the
+pin, not the timing, is what stops a release published in between from changing
+what a run loads. The trace carries the same inventory, but a trace is fail-open
+and lives in run-global storage, so this column is the queryable fact and what a
+retry reads. Empty for a run whose agent named no plugin, for a run with no
+agent, and for one that never reached a worker.
 
 `source_message_id` is what a person actually said; `input` is what Tier 1
 decided to send a worker. They are different texts and keeping both is the
@@ -1176,6 +1201,49 @@ verified, so it is presented as a claim rather than as proof.
 
 Package bytes are not in either table. They sit behind the plugin package
 storage interface, so a query that lists or inspects releases cannot carry one.
+
+### `plugin_activation`
+
+One team's pinned use of one catalog plugin. The catalog belongs to the
+deployment; an activation belongs to a team, which is why this is a separate
+table rather than a column on `plugin_release`.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | `bigint unsigned` | no | Internal primary key |
+| `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
+| `team_id` | `bigint unsigned` | no | `team.id` |
+| `plugin_name` | `varchar(128)` | no | Catalog identity, as on `plugin_release` |
+| `version` | `varchar(64)` | no | The pinned release |
+| `digest` | `varchar(128)` | no | The pinned release's digest |
+| `enabled` | `boolean` | no | Default `true`; `false` suspends without losing the pin |
+| `origin` | `varchar(16)` | no | Default `'curated'`; `curated` or `automatic` |
+| `activated_by` | `bigint unsigned` | no | `user.id` |
+| `activated_at` | `datetime(6)` | yes | `autoCreateTime`, indexed for listing order |
+| `updated_by` | `bigint unsigned` | no | `user.id` of the last change |
+| `updated_at` | `datetime(6)` | yes | `autoUpdateTime` |
+
+Indexes: PK `id`; unique `uq_plugin_activation_public_id`; index
+`activated_at`; unique `ux_plugin_activation_team_plugin` on (`team_id`,
+`plugin_name`).
+
+The unique index over (`team_id`, `plugin_name`) is what makes an activation
+one row per pair rather than a history, which is why suspension is the
+`enabled` flag: the pin survives it, and a suspended activation still explains
+why a run failed. Moving to another release updates `version` and `digest` in
+place; the trail of who moved what lives in the audit events, not here.
+
+`version` and `digest` together are the pin, and nothing advances them on its
+own. A release published after this row was written cannot change what a run
+loads until a person moves it.
+
+`origin` records which of the two ways the row appeared. `curated` is a team
+admin activating deliberately; `automatic` is the row created because an agent
+named the plugin in a team whose `team.plugin_curation` is `open`. Both are
+real pins with the same digest and the same audit event, and `activated_by`
+names a person either way. See
+[../../design/plugin-team-distribution.md](../../design/plugin-team-distribution.md)
+§4.1.
 
 ## Changing The Schema
 

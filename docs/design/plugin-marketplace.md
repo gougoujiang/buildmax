@@ -17,7 +17,8 @@
   commands, and the Marketplace itself — packaging, the catalog and its
   releases, package storage, publication, browse, download, and install, plus
   the Portal and Desktop surfaces. Phase D, team and worker distribution, is
-  deferred by design; its record exists and is
+  under way: a team activates releases and a worker materializes them, with
+  Portal's surface still to come. Its record is
   [plugin-team-distribution.md](./plugin-team-distribution.md), which is ready
   for review with nothing built
 - follows: [enterprise-deployment.md](./enterprise-deployment.md),
@@ -921,14 +922,13 @@ runs, a server cannot see that machine, and a button there would be lying about
 where it ran — so Portal offers a command and Desktop offers a button, each on
 the side of the boundary it can honour.
 
-### Phase D — Team And Worker Distribution, Deferred
+### Phase D — Team And Worker Distribution, Under Way
 
 The follow-on design this asked for is
 [plugin-team-distribution.md](./plugin-team-distribution.md). It decides team
 ownership, who may enable active hooks or stdio MCP, package materialization,
-version pinning, and sandbox/egress reporting; it puts secret scope in a
-further record of its own, and it makes the executable half wait on the worker
-sandbox surface actually being wired.
+version pinning, and what bounds executable content once it reaches a worker;
+it puts secret scope in a further record of its own.
 
 ## 13. Alternatives Rejected
 

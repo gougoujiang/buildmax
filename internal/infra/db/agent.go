@@ -2,7 +2,9 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"slices"
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
@@ -12,16 +14,21 @@ import (
 )
 
 type agentRow struct {
-	ID           uint64     `gorm:"primaryKey;autoIncrement"`
-	PublicID     string     `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_agent_public_id;not null"`
-	UserID       uint64     `gorm:"column:user_id;not null;index"`
-	TeamID       uint64     `gorm:"column:team_id;index"`
-	Name         string     `gorm:"type:varchar(255);not null"`
-	Description  string     `gorm:"type:text"`
-	Instructions string     `gorm:"type:text"`
-	Revision     int        `gorm:"column:revision;not null;default:1"`
-	DeletedAt    *time.Time `gorm:"column:deleted_at;index"`
-	CreatedAt    time.Time  `gorm:"autoCreateTime"`
+	ID           uint64 `gorm:"primaryKey;autoIncrement"`
+	PublicID     string `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_agent_public_id;not null"`
+	UserID       uint64 `gorm:"column:user_id;not null;index"`
+	TeamID       uint64 `gorm:"column:team_id;index"`
+	Name         string `gorm:"type:varchar(255);not null"`
+	Description  string `gorm:"type:text"`
+	Instructions string `gorm:"type:text"`
+	// Plugins is a JSON array of catalog names. A JSON column rather than a
+	// join table because nothing queries inside it: the selection is written
+	// and read whole, and "which agents name this plugin" is a scan of a
+	// team's agents, which is a small set.
+	Plugins   string     `gorm:"type:text"`
+	Revision  int        `gorm:"column:revision;not null;default:1"`
+	DeletedAt *time.Time `gorm:"column:deleted_at;index"`
+	CreatedAt time.Time  `gorm:"autoCreateTime"`
 }
 
 func (agentRow) TableName() string { return "agent" }
@@ -55,11 +62,40 @@ type agentRevisionRow struct {
 	Name         string    `gorm:"type:varchar(255);not null"`
 	Description  string    `gorm:"type:text"`
 	Instructions string    `gorm:"type:text"`
+	Plugins      string    `gorm:"type:text"`
 	CreatedBy    uint64    `gorm:"column:created_by;not null"`
 	CreatedAt    time.Time `gorm:"autoCreateTime"`
 }
 
 func (agentRevisionRow) TableName() string { return "agent_revision" }
+
+// encodePluginSelection and decodePluginSelection are the column's two ends.
+//
+// An empty selection is stored as the empty string rather than "[]" so a row
+// written before the column existed and one saved with no plugins read the
+// same. A document that will not decode costs the selection, not the agent:
+// the definition is still what somebody wrote.
+func encodePluginSelection(names []string) string {
+	if len(names) == 0 {
+		return ""
+	}
+	encoded, err := json.Marshal(names)
+	if err != nil {
+		return ""
+	}
+	return string(encoded)
+}
+
+func decodePluginSelection(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+	var out []string
+	if err := json.Unmarshal([]byte(raw), &out); err != nil {
+		return nil
+	}
+	return out
+}
 
 // agentRevisionReadRow is the row plus the handles its references resolve to.
 // The revision itself has none: it is addressed by its agent plus its number.
@@ -87,6 +123,7 @@ func toAgent(row *agentReadRow) *model.Agent {
 		Name:         row.Row.Name,
 		Description:  row.Row.Description,
 		Instructions: row.Row.Instructions,
+		Plugins:      decodePluginSelection(row.Row.Plugins),
 		Revision:     row.Row.Revision,
 		DeletedAt:    row.Row.DeletedAt,
 		CreatedAt:    row.Row.CreatedAt,
@@ -103,6 +140,7 @@ func toAgentRevision(row *agentRevisionReadRow) *model.AgentRevision {
 		Name:         row.Row.Name,
 		Description:  row.Row.Description,
 		Instructions: row.Row.Instructions,
+		Plugins:      decodePluginSelection(row.Row.Plugins),
 		CreatedBy:    row.CreatedByPublicID,
 		CreatedAt:    row.Row.CreatedAt,
 	}
@@ -139,6 +177,7 @@ func appendAgentRevision(ctx context.Context, tx *gorm.DB, agentKey uint64, a *m
 		Name:         a.Name,
 		Description:  a.Description,
 		Instructions: a.Instructions,
+		Plugins:      encodePluginSelection(a.Plugins),
 		CreatedBy:    creator,
 		CreatedAt:    time.Now().UTC(),
 	}).Error
@@ -204,35 +243,39 @@ func (s *Store) ListAgentsByTeam(ctx context.Context, teamID string) ([]model.Ag
 	return toAgents(list), err
 }
 
-// CreateAgent inserts a new agent and returns it.
-func (s *Store) CreateAgent(ctx context.Context, userID, name, description, instructions string) (*model.Agent, error) {
-	teamID, err := s.personalTeamIDForUser(ctx, userID)
-	if err != nil {
-		return nil, err
-	}
-	return s.CreateAgentInTeam(ctx, teamID, userID, name, description, instructions)
-}
-
 // CreateAgentInTeam inserts a new team-scoped agent and returns it.
-func (s *Store) CreateAgentInTeam(ctx context.Context, teamID, userID, name, description, instructions string) (*model.Agent, error) {
+//
+// An empty TeamID puts the agent in the user's personal team, which is what a
+// non-team caller means by "my agent".
+func (s *Store) CreateAgentInTeam(ctx context.Context, in model.CreateAgentInput) (*model.Agent, error) {
+	teamID := in.TeamID
+	if teamID == "" {
+		resolved, err := s.personalTeamIDForUser(ctx, in.UserID)
+		if err != nil {
+			return nil, err
+		}
+		teamID = resolved
+	}
 	a := &model.Agent{
-		UserID:       userID,
+		UserID:       in.UserID,
 		TeamID:       teamID,
-		Name:         name,
-		Description:  description,
-		Instructions: instructions,
+		Name:         in.Def.Name,
+		Description:  in.Def.Description,
+		Instructions: in.Def.Instructions,
+		Plugins:      in.Def.Plugins,
 		Revision:     1,
 		CreatedAt:    time.Now().UTC(),
 	}
 	row := &agentRow{
-		Name:         name,
-		Description:  description,
-		Instructions: instructions,
+		Name:         a.Name,
+		Description:  a.Description,
+		Instructions: a.Instructions,
+		Plugins:      encodePluginSelection(a.Plugins),
 		Revision:     1,
 		CreatedAt:    a.CreatedAt,
 	}
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		userKey, err := lookupKey(ctx, tx, "user", userID)
+		userKey, err := lookupKey(ctx, tx, "user", in.UserID)
 		if err != nil {
 			return err
 		}
@@ -248,7 +291,7 @@ func (s *Store) CreateAgentInTeam(ctx context.Context, teamID, userID, name, des
 			func(id string) { row.PublicID = id }, row); err != nil {
 			return err
 		}
-		return appendAgentRevision(ctx, tx, row.ID, a, userID)
+		return appendAgentRevision(ctx, tx, row.ID, a, in.UserID)
 	})
 	if err != nil {
 		return nil, err
@@ -257,41 +300,32 @@ func (s *Store) CreateAgentInTeam(ctx context.Context, teamID, userID, name, des
 	return a, nil
 }
 
-// UpdateAgent updates name, description, and instructions for the agent. Returns the updated agent, or (nil, nil) if not found or user does not match.
-func (s *Store) UpdateAgent(ctx context.Context, agentID, userID, name, description, instructions string) (*model.Agent, error) {
-	a, err := s.GetAgent(ctx, agentID)
+// UpdateAgentInTeam updates a team-scoped agent. Returns (nil, nil) if not
+// found or the team does not match.
+func (s *Store) UpdateAgentInTeam(ctx context.Context, in model.UpdateAgentInput) (*model.Agent, error) {
+	a, err := s.GetAgent(ctx, in.AgentID)
 	if err != nil || a == nil {
 		return nil, err
 	}
-	if a.UserID != userID {
+	if a.TeamID != in.TeamID {
 		return nil, nil
 	}
-	return s.updateAgent(ctx, a, userID, name, description, instructions)
-}
-
-// UpdateAgentInTeam updates a team-scoped agent. Returns (nil, nil) if not found or team does not match.
-func (s *Store) UpdateAgentInTeam(ctx context.Context, agentID, teamID, updatedBy, name, description, instructions string) (*model.Agent, error) {
-	a, err := s.GetAgent(ctx, agentID)
-	if err != nil || a == nil {
-		return nil, err
-	}
-	if a.TeamID != teamID {
-		return nil, nil
-	}
-	return s.updateAgent(ctx, a, updatedBy, name, description, instructions)
+	return s.updateAgent(ctx, a, in.UpdatedBy, in.Def)
 }
 
 // updateAgent writes new content and records it as the next revision. An update
 // that changes nothing is not a revision: a save with no edit should not add a
 // row that a reader has to compare against its predecessor to dismiss.
-func (s *Store) updateAgent(ctx context.Context, a *model.Agent, updatedBy, name, description, instructions string) (*model.Agent, error) {
-	if a.Name == name && a.Description == description && a.Instructions == instructions {
+func (s *Store) updateAgent(ctx context.Context, a *model.Agent, updatedBy string, def model.AgentDefinition) (*model.Agent, error) {
+	if a.Name == def.Name && a.Description == def.Description &&
+		a.Instructions == def.Instructions && slices.Equal(a.Plugins, def.Plugins) {
 		return a, nil
 	}
 	updated := *a
-	updated.Name = name
-	updated.Description = description
-	updated.Instructions = instructions
+	updated.Name = def.Name
+	updated.Description = def.Description
+	updated.Instructions = def.Instructions
+	updated.Plugins = def.Plugins
 	updated.Revision = nextRevision(a.Revision)
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Addressed by its handle rather than by saving a row built from the
@@ -305,6 +339,7 @@ func (s *Store) updateAgent(ctx context.Context, a *model.Agent, updatedBy, name
 			"name":         updated.Name,
 			"description":  updated.Description,
 			"instructions": updated.Instructions,
+			"plugins":      encodePluginSelection(updated.Plugins),
 			"revision":     updated.Revision,
 		})
 		if res.Error != nil {

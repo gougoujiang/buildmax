@@ -2,7 +2,9 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
@@ -49,8 +51,13 @@ type taskRunRow struct {
 	// AgentRevision numbers the agent definition served to this run's worker.
 	// Not a reference to agent_revision.id: the pair (task.agent_id, this) is
 	// what addresses a revision, and the task already holds the agent.
-	AgentRevision *int      `gorm:"column:agent_revision"`
-	CreatedAt     time.Time `gorm:"autoCreateTime;index:idx_task_run_task_created,priority:2"`
+	AgentRevision *int `gorm:"column:agent_revision"`
+	// PluginPins is a JSON array of the releases this run was given, written
+	// beside AgentRevision and at the same moment. A JSON column for the reason
+	// plugin_release.inspection is one: written once, read whole, and nothing
+	// queries inside it.
+	PluginPins string    `gorm:"column:plugin_pins;type:text"`
+	CreatedAt  time.Time `gorm:"autoCreateTime;index:idx_task_run_task_created,priority:2"`
 }
 
 func (taskRunRow) TableName() string { return "task_run" }
@@ -111,6 +118,7 @@ func toTaskRun(row *taskRunReadRow) *model.TaskRun {
 		CompletionTokens:  row.Row.CompletionTokens,
 		TracePath:         row.Row.TracePath,
 		AgentRevision:     row.Row.AgentRevision,
+		PluginPins:        decodePluginPins(row.Row.PluginPins),
 		CancelRequestedAt: row.Row.CancelRequestedAt,
 		CreatedAt:         row.Row.CreatedAt,
 	}
@@ -262,6 +270,39 @@ func (s *Store) RecordTaskRunAgentRevision(ctx context.Context, taskRunID string
 	return s.db.WithContext(ctx).Model(&taskRunRow{}).
 		Where("public_id = ? AND agent_revision IS NULL", id).
 		Update("agent_revision", revision).Error
+}
+
+// RecordTaskRunPluginPins stores the releases a run was given.
+//
+// The `plugin_pins = ”` guard is what makes the first write win, for the same
+// reason the agent revision has one: a worker polls its run, and a team's
+// activation edited mid-run must not rewrite the record of what actually ran.
+func (s *Store) RecordTaskRunPluginPins(ctx context.Context, taskRunID string, pins []model.PluginPin) error {
+	id, ok := util.CanonicalPublicID(taskRunID)
+	if !ok {
+		return model.ErrNotFound
+	}
+	encoded, err := json.Marshal(pins)
+	if err != nil {
+		return fmt.Errorf("encode plugin pins: %w", err)
+	}
+	return s.db.WithContext(ctx).Model(&taskRunRow{}).
+		Where("public_id = ? AND (plugin_pins IS NULL OR plugin_pins = '')", id).
+		Update("plugin_pins", string(encoded)).Error
+}
+
+// decodePluginPins reads the column. A document that will not decode costs the
+// record of what a run had, not the run: the pins it actually used were sent to
+// it at claim time.
+func decodePluginPins(raw string) []model.PluginPin {
+	if raw == "" {
+		return nil
+	}
+	var out []model.PluginPin
+	if err := json.Unmarshal([]byte(raw), &out); err != nil {
+		return nil
+	}
+	return out
 }
 
 // CountTaskRunsByStatus implements model.TaskRunStore.

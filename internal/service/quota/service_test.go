@@ -153,3 +153,7 @@ func TestCheck_EmptyTeamTier_UsesDefault(t *testing.T) {
 		t.Error("Check: expected deny when default tier limit reached")
 	}
 }
+
+func (m *mockTeamStore) SetTeamPluginCuration(_ context.Context, _ string, _ model.PluginCuration) error {
+	return nil
+}

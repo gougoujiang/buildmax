@@ -84,6 +84,15 @@ const (
 	AuditPluginUnarchived = "plugin.unarchived"
 	AuditPluginPublished  = "plugin.published"
 	AuditPluginYanked     = "plugin.yanked"
+
+	// A team activating a release is the record that answers "why did this run
+	// have this capability". The pin moves and the suspension are separate
+	// actions because each is a different decision about a team's runs.
+	AuditPluginActivated    = "plugin.activated"
+	AuditPluginPinMoved     = "plugin.pin_moved"
+	AuditPluginSuspended    = "plugin.suspended"
+	AuditPluginResumed      = "plugin.resumed"
+	AuditTeamPluginCuration = "team.plugin_curation_set"
 	// AuditEventsExported records the trail itself being read out in bulk.
 	// Reading every recorded action is a sensitive action, and an export that
 	// left no trace would be the one way to consult the record without
