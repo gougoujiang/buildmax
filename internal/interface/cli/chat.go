@@ -6,6 +6,7 @@ import (
 
 	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 // builtinSlashCommands is sorted; add new system commands here for completion.
@@ -59,16 +60,50 @@ func (m *Model) closeActivePanel() (tea.Model, tea.Cmd) {
 	return m, tea.Batch(textarea.Blink, m.inputBlock.Focus())
 }
 
+// slashPanelBoxChrome is what the box borders and horizontal padding take out
+// of the width a panel may print in. A panel that writes lines as wide as the
+// box wraps them, which silently doubles the height it budgeted for, so panels
+// are handed the inner width instead.
+const slashPanelBoxChrome = 4
+
+// panelBoxWidth is the width of the box drawn around a panel, and
+// panelContentWidth is what is left for the panel to print in.
+func (m *Model) panelBoxWidth() int {
+	return max(12, m.width-2)
+}
+
+func (m *Model) panelContentWidth() int {
+	return m.panelBoxWidth() - slashPanelBoxChrome
+}
+
 // renderActivePanel returns the boxed panel content, or "" if no panel is open.
 func (m *Model) renderActivePanel() string {
 	if m.activePanel == nil {
 		return ""
 	}
-	boxW := m.width - 2
-	if boxW < 12 {
-		boxW = 12
+	return slashPanelBoxStyle.Width(m.panelBoxWidth()).Render(m.activePanel.Render(m, m.panelContentWidth()))
+}
+
+// panelListBudget caps how many rows a panel may list so its box, the input,
+// and the footer all fit the terminal. static is the panel's own preferred
+// maximum and chrome counts the lines the panel spends on its border, title,
+// and hints. Height 0 means no WindowSizeMsg has arrived yet — in tests, and
+// for the first frame — so the static cap stands.
+//
+// A panel that cannot fit still lists one row rather than none: the input has
+// to stay on screen, but a panel with nothing in it says nothing.
+func (m *Model) panelListBudget(static, chrome int) int {
+	if m.height <= 0 {
+		return static
 	}
-	return slashPanelBoxStyle.Width(boxW).Render(m.activePanel.Render(m, boxW))
+	fits := m.height - m.bottomStripHeight() - chrome
+	return max(1, min(static, fits))
+}
+
+// bottomStripHeight is what the input box and footer take, measured rather than
+// assumed so a footer that grows a line does not push a panel off screen.
+func (m *Model) bottomStripHeight() int {
+	return lipgloss.Height(m.renderInputView()) + lipgloss.Height(m.renderFooterView())
 }
 
 // slashPopupState is the inline command-completion popup shown above the input
@@ -81,9 +116,24 @@ type slashPopupState struct {
 
 const slashPopupMaxLines = 6
 
+// slashPopupChromeLines are the popup's own lines: box border, title, the "…"
+// overflow row, and the key hints.
+const slashPopupChromeLines = 5
+
 // syncSlashPopupFromInput updates or clears the slash completion popup from the current input (first line only).
+// The popup is rebuilt on every message, not only on keys, so an esc dismissal
+// has to survive until the input itself changes — otherwise the next cursor
+// blink brings the popup straight back.
 func (m *Model) syncSlashPopupFromInput() {
 	raw := m.inputBlock.Value()
+	if raw != m.slashPopupInput {
+		m.slashPopupInput = raw
+		m.slashPopupDismissed = false
+	}
+	if m.slashPopupDismissed {
+		m.slashPopup = nil
+		return
+	}
 	first := raw
 	if idx := strings.IndexByte(raw, '\n'); idx >= 0 {
 		first = raw[:idx]
@@ -122,25 +172,22 @@ func (m *Model) renderSlashPopupPanel() string {
 	if m.slashPopup == nil || len(m.slashPopup.matches) == 0 {
 		return ""
 	}
-	boxW := m.width - 2
-	if boxW < 12 {
-		boxW = 12
-	}
 	var b strings.Builder
 	b.WriteString(slashPopupTitleStyle.Render("Commands"))
 	b.WriteByte('\n')
 	all := m.slashPopup.matches
+	budget := m.panelListBudget(slashPopupMaxLines, slashPopupChromeLines)
 	start := 0
 	show := all
-	if len(all) > slashPopupMaxLines {
-		start = m.slashPopup.selected - slashPopupMaxLines/2
+	if len(all) > budget {
+		start = m.slashPopup.selected - budget/2
 		if start < 0 {
 			start = 0
 		}
-		if start+slashPopupMaxLines > len(all) {
-			start = len(all) - slashPopupMaxLines
+		if start+budget > len(all) {
+			start = len(all) - budget
 		}
-		show = all[start : start+slashPopupMaxLines]
+		show = all[start : start+budget]
 	}
 	for i, name := range show {
 		global := start + i
@@ -153,13 +200,13 @@ func (m *Model) renderSlashPopupPanel() string {
 		b.WriteString(st.Render(prefix + name))
 		b.WriteByte('\n')
 	}
-	if len(m.slashPopup.matches) > slashPopupMaxLines {
+	if len(m.slashPopup.matches) > budget {
 		b.WriteString(slashPopupLineStyle.Render("  …"))
 		b.WriteByte('\n')
 	}
 	b.WriteString(slashPopupLineStyle.Render("↑↓ select · enter run · esc dismiss"))
 	inner := strings.TrimRight(b.String(), "\n")
-	return slashPanelBoxStyle.Width(boxW).Render(inner)
+	return slashPanelBoxStyle.Width(m.panelBoxWidth()).Render(inner)
 }
 
 // dispatchSlashCommand runs a resolved system command (no session append).
