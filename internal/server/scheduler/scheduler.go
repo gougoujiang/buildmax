@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
@@ -43,7 +44,22 @@ type Scheduler struct {
 	pollInterval time.Duration
 	stopCh       chan struct{}
 	doneCh       chan struct{}
+	// dispatchCtx is what a dispatch in flight is cancelled through. In
+	// local_process mode the runner blocks for the whole run, so this is the
+	// only way to tell that worker the process it lives in is going away.
+	dispatchCtx    context.Context
+	cancelDispatch context.CancelFunc
+	// inflight counts dispatches that have started and not returned, so a stop
+	// can wait for them while the poll loop exits immediately.
+	inflight sync.WaitGroup
+	// slots caps concurrent dispatches. One: it is what this scheduler has
+	// always done — the loop dispatched inline — and raising it is a throughput
+	// decision, not a shutdown one.
+	slots chan struct{}
 }
+
+// maxConcurrentDispatch is how many runs one scheduler dispatches at a time.
+const maxConcurrentDispatch = 1
 
 // NewScheduler creates a Scheduler that polls for pending task runs and runs the worker via the given runner. Call Start() to begin polling.
 //
@@ -65,13 +81,17 @@ func NewSchedulerWithPollInterval(taskRunStore model.TaskRunStore, runner Worker
 	if pollInterval == 0 {
 		pollInterval = defaultPollInterval
 	}
+	dispatchCtx, cancelDispatch := context.WithCancel(context.Background())
 	return &Scheduler{
-		taskRuns:     taskRunStore,
-		runner:       runner,
-		mintRunToken: mint,
-		pollInterval: pollInterval,
-		stopCh:       make(chan struct{}),
-		doneCh:       make(chan struct{}),
+		taskRuns:       taskRunStore,
+		runner:         runner,
+		mintRunToken:   mint,
+		pollInterval:   pollInterval,
+		stopCh:         make(chan struct{}),
+		doneCh:         make(chan struct{}),
+		dispatchCtx:    dispatchCtx,
+		cancelDispatch: cancelDispatch,
+		slots:          make(chan struct{}, maxConcurrentDispatch),
 	}, nil
 }
 
@@ -112,15 +132,43 @@ func (s *Scheduler) Start() {
 	s.log().Info("started", "poll_interval", s.pollInterval)
 }
 
-// Stop signals the loop to exit and blocks until it has finished.
-func (s *Scheduler) Stop() {
+// Stop stops claiming runs, then gives the dispatches already in flight until
+// ctx expires to finish. It reports whether they all finished.
+//
+// Two phases because they need different answers. Claiming must stop at once —
+// a run started by a process that is going away is a run nobody will report on.
+// A dispatch already made is the opposite: in local_process mode it *is* the
+// running agent, and the worker it holds needs the server's API alive long
+// enough to say what it produced. Cancelling the dispatch context is what asks
+// that worker to stop; see docs/design/graceful-shutdown.md §6.1.
+func (s *Scheduler) Stop(ctx context.Context) bool {
 	close(s.stopCh)
 	<-s.doneCh
-	s.log().Info("stopped")
+	s.log().Info("no longer claiming runs")
+
+	s.cancelDispatch()
+	drained := make(chan struct{})
+	go func() {
+		s.inflight.Wait()
+		close(drained)
+	}()
+	select {
+	case <-drained:
+		s.log().Info("stopped")
+		return true
+	case <-ctx.Done():
+		s.log().Warn("a dispatched run did not stop within the shutdown budget")
+		return false
+	}
 }
 
-// loop is the main poll loop: on each tick it fetches the next PENDING run, claims it (PENDING→SCHEDULED), runs the worker, and persists worker info on success.
+// loop is the main poll loop: on each tick it fetches the next PENDING run, claims it (PENDING→SCHEDULED), and hands it to a dispatch.
 // State machine: PENDING → SCHEDULED → RUNNING → SUCCEEDED/FAILED. If spawn fails, run is set to FAILED (no revert to PENDING).
+//
+// Dispatch runs on its own goroutine, bounded by slots, so that a runner which
+// blocks for the whole run — which local_process does — cannot hold the loop.
+// Holding it would mean a stop request waits for an agent to finish, which is
+// the case this design exists to remove.
 func (s *Scheduler) loop() {
 	defer close(s.doneCh)
 	ticker := time.NewTicker(s.pollInterval)
@@ -131,60 +179,109 @@ func (s *Scheduler) loop() {
 		case <-s.stopCh:
 			return
 		case <-ticker.C:
-			ctx := context.Background()
-			run, err := s.taskRuns.GetNextPendingTaskRun(ctx)
-			if err != nil {
-				s.log().WarnContext(ctx, "poll failed", "err", err)
-				continue
-			}
-			if run == nil {
-				continue
-			}
-			updated, err := s.taskRuns.ClaimTaskRun(ctx, model.ClaimTaskRunInput{
-				TaskRunID:      run.ID,
-				ExpectedStatus: model.RunStatusPending,
-				NewStatus:      model.RunStatusScheduled,
-			})
-			if err != nil {
-				s.log().WarnContext(ctx, "claim failed", "err", err)
-				continue
-			}
-			if !updated {
-				continue // another scheduler claimed it
-			}
-			// From here the run is ours, so its id goes on the context once and
-			// every record below -- including failRun's -- carries it.
-			ctx = buildmaxlog.With(ctx, "task_run_id", run.ID)
-			// Work queued by an account that has since been disabled does not
-			// start. It fails here rather than being left PENDING for the same
-			// reason the credential failure below does: a run nobody will ever
-			// dispatch, sitting in a queue with no explanation, is worse than a
-			// terminal one that says why. There is no CANCELED status to use —
-			// see docs/design/system-administration.md section 8.
-			if s.creatorIsDisabled(ctx, run) {
-				s.log().WarnContext(ctx, "run creator is disabled; marking run FAILED", "user_id", run.CreatedBy)
-				s.failRun(ctx, run.ID, errCreatorDisabled)
-				continue
-			}
-			// A run that cannot be given its credential fails here rather than
-			// starting and failing at its first inference call, where the cause
-			// would read as a model error instead of a dispatch one.
-			runToken, err := s.runTokenFor(ctx, run)
-			if err != nil {
-				s.log().ErrorContext(ctx, "could not mint a run token; marking run FAILED", "err", err)
-				s.failRun(ctx, run.ID, err)
-				continue
-			}
-			workerType, k8sName, k8sAt, err := s.runner.Run(ctx, *run, runToken)
-			if err != nil {
-				s.log().ErrorContext(ctx, "worker spawn failed; marking run FAILED", "err", err)
-				s.failRun(ctx, run.ID, err)
-				continue
-			}
-			if err := s.taskRuns.UpdateTaskRunWorkerInfo(ctx, run.ID, workerType, k8sName, k8sAt); err != nil {
-				s.log().WarnContext(ctx, "could not persist worker info", "err", err)
-			}
+			s.pollOnce()
 		}
+	}
+}
+
+// pollOnce claims at most one run and dispatches it. It returns as soon as the
+// dispatch has started, or immediately when every slot is busy.
+func (s *Scheduler) pollOnce() {
+	select {
+	case s.slots <- struct{}{}:
+	default:
+		return // a dispatch is already running; the next tick tries again
+	}
+	released := false
+	release := func() {
+		if !released {
+			released = true
+			<-s.slots
+		}
+	}
+	defer func() {
+		if !released {
+			release()
+		}
+	}()
+
+	ctx := context.Background()
+	run, err := s.taskRuns.GetNextPendingTaskRun(ctx)
+	if err != nil {
+		s.log().WarnContext(ctx, "poll failed", "err", err)
+		return
+	}
+	if run == nil {
+		return
+	}
+	updated, err := s.taskRuns.ClaimTaskRun(ctx, model.ClaimTaskRunInput{
+		TaskRunID:      run.ID,
+		ExpectedStatus: model.RunStatusPending,
+		NewStatus:      model.RunStatusScheduled,
+	})
+	if err != nil {
+		s.log().WarnContext(ctx, "claim failed", "err", err)
+		return
+	}
+	if !updated {
+		return // another scheduler claimed it
+	}
+	// From here the run is ours, so its id goes on the context once and
+	// every record below -- including failRun's -- carries it.
+	ctx = buildmaxlog.With(ctx, "task_run_id", run.ID)
+	// Work queued by an account that has since been disabled does not
+	// start. It fails here rather than being left PENDING for the same
+	// reason the credential failure below does: a run nobody will ever
+	// dispatch, sitting in a queue with no explanation, is worse than a
+	// terminal one that says why. There is no CANCELED status to use —
+	// see docs/design/system-administration.md section 8.
+	if s.creatorIsDisabled(ctx, run) {
+		s.log().WarnContext(ctx, "run creator is disabled; marking run FAILED", "user_id", run.CreatedBy)
+		s.failRun(ctx, run.ID, errCreatorDisabled)
+		return
+	}
+	// A run that cannot be given its credential fails here rather than
+	// starting and failing at its first inference call, where the cause
+	// would read as a model error instead of a dispatch one.
+	runToken, err := s.runTokenFor(ctx, run)
+	if err != nil {
+		s.log().ErrorContext(ctx, "could not mint a run token; marking run FAILED", "err", err)
+		s.failRun(ctx, run.ID, err)
+		return
+	}
+
+	s.inflight.Add(1)
+	released = true // the dispatch owns the slot from here
+	go func() {
+		defer s.inflight.Done()
+		defer func() { <-s.slots }()
+		s.dispatch(ctx, *run, runToken)
+	}()
+}
+
+// dispatch starts the worker and records what ran it.
+//
+// It runs on the dispatch context rather than the poll one so that stopping the
+// scheduler reaches the worker: a local process is asked to stop, and a Job that
+// has already been created is unaffected, which is right — it outlives the
+// server that dispatched it.
+func (s *Scheduler) dispatch(ctx context.Context, run model.TaskRun, runToken string) {
+	dispatchCtx := buildmaxlog.With(s.dispatchCtx, "task_run_id", run.ID)
+	workerType, k8sName, k8sAt, err := s.runner.Run(dispatchCtx, run, runToken)
+	if err != nil {
+		// A worker stopped because this process is going away has already
+		// reported its own outcome. Overwriting that with a dispatch failure
+		// would replace what the run produced with a message about the server.
+		if s.dispatchCtx.Err() != nil {
+			s.log().InfoContext(ctx, "worker stopped with the server", "err", err)
+			return
+		}
+		s.log().ErrorContext(ctx, "worker spawn failed; marking run FAILED", "err", err)
+		s.failRun(ctx, run.ID, err)
+		return
+	}
+	if err := s.taskRuns.UpdateTaskRunWorkerInfo(ctx, run.ID, workerType, k8sName, k8sAt); err != nil {
+		s.log().WarnContext(ctx, "could not persist worker info", "err", err)
 	}
 }
 

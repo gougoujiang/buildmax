@@ -112,6 +112,16 @@ The rollout sets `maxUnavailable: 0`, so the new pod must pass readiness before
 an old one goes away. The `startupProbe` gives the first pod room to finish
 migrations before liveness starts counting.
 
+Going away is its own sequence. A pod that receives SIGTERM stops reporting
+ready, ends the streams watching a run so the Portal reopens them against
+another pod, refuses new conversation turns while waiting for the ones already
+running, and drains the requests it accepted — all inside `shutdown_grace`,
+which the ConfigMap sets to 25s. `terminationGracePeriodSeconds: 45` and the
+five-second `preStop` pause exist to contain that: raising one without the
+others is what turns an orderly stop back into a kill. What a task run does
+when its own pod is stopped is a separate and still-open question — see
+[`docs/design/graceful-shutdown.md`](../../docs/design/graceful-shutdown.md).
+
 ## What This Reference Does Not Cover
 
 Stated rather than left to be discovered:

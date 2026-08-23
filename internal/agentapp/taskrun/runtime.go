@@ -139,6 +139,11 @@ type RunTaskInput struct {
 	// materialized into the run's BUILDMAX_HOME before the runtime is
 	// assembled; a pin that cannot be materialized fails the run.
 	Plugins []model.PluginPin
+	// InterruptGrace is how long this run may spend reporting after its process
+	// is asked to stop. Zero uses interruptReportTimeout. A dispatcher that will
+	// kill the worker on its own deadline passes that deadline here, so the run
+	// stops reporting before it is killed mid-upload rather than after.
+	InterruptGrace time.Duration
 }
 
 // artifactPublisher gives a run the artifact capability, or nil when it has no
@@ -158,10 +163,14 @@ func artifactPublisher(cfg workerclient.WorkerAPIClientConfig, taskRunID string)
 // RunTask runs a single task run: materialize workspace, optionally restore session from previous run, execute agent in-process, upload run state to blob, update run and task via updater.
 // If input.StreamSender is non-nil, stdout is streamed to the server as deltas; full output is still accumulated for persist and PATCH.
 //
-// A ctx canceled with cause model.ErrRunCanceled means someone asked this run
-// to stop: the run is recorded as CANCELED, keeps the output and artifacts it
-// had produced, and RunTask returns model.ErrRunCanceled. Any other end of ctx
-// is the process going away, which is not this run's outcome to report.
+// The cause on a dead ctx says which of three things happened. ErrRunCanceled
+// means someone asked this run to stop: it is recorded as CANCELED, keeps the
+// output and artifacts it had produced, and RunTask returns ErrRunCanceled.
+// ErrRunInterrupted means the process was asked to stop while the run was
+// working: it keeps the same evidence but is recorded as FAILED, because
+// nothing chose to stop it and it did not finish. Any other end of ctx is the
+// process going away without warning, which is not this run's outcome to
+// report — the stale-run reaper closes those.
 func RunTask(ctx context.Context, input RunTaskInput) error {
 	task, run := input.Task, input.Run
 	if task == nil || run == nil {
@@ -174,18 +183,18 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 	scope := RunScope{CreatedBy: task.CreatedBy, ConversationID: task.ConversationID, TaskID: task.ID, TaskRunID: run.ID}
 
 	if err := prepareRunWorkspace(ctx, input, task, run, dirs); err != nil {
-		if runCanceled(ctx) {
-			return reportCanceledRun(ctx, scope, RunResult{RunArtifactsDir: dirs.runArtifacts}, dirs, input)
+		if stopped, stopErr := reportStoppedRun(ctx, scope, RunResult{RunArtifactsDir: dirs.runArtifacts}, dirs, input); stopped {
+			return stopErr
 		}
 		reportRunFailure(ctx, run.ID, err, "", input.Updater)
 		return err
 	}
 	result, err := executeRunTask(ctx, input, task, run, dirs)
-	// The cancel check comes first because the agent loop treats cancellation
-	// as an ordinary end: it returns what it had produced and no error. Judging
-	// by err alone would file a stopped run as a completed one.
-	if runCanceled(ctx) {
-		return reportCanceledRun(ctx, scope, result, dirs, input)
+	// The stop check comes first because the agent loop treats cancellation as
+	// an ordinary end: it returns what it had produced and no error. Judging by
+	// err alone would file a stopped run as a completed one.
+	if stopped, stopErr := reportStoppedRun(ctx, scope, result, dirs, input); stopped {
+		return stopErr
 	}
 	if err != nil {
 		reportPersistedRunState(ctx, input.Persist, scope, dirs, result)
@@ -195,7 +204,7 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 	}
 
 	reportPersistedRunState(ctx, input.Persist, scope, dirs, result)
-	if err := reportRunOutcome(ctx, scope, result, model.RunStatusSucceeded, input.RunOutputStorage, input.Updater); err != nil {
+	if err := reportRunOutcome(ctx, scope, result, model.RunStatusSucceeded, "", input.RunOutputStorage, input.Updater); err != nil {
 		return err
 	}
 	componentLog().Info("run succeeded", "task_run_id", run.ID)
@@ -208,10 +217,38 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 // actually stops.
 const reportFinishTimeout = 60 * time.Second
 
+// interruptReportTimeout is the same window for a run whose process is being
+// shut down, and it is much shorter for a reason it does not choose: something
+// else is already counting. Kubernetes gives a pod 30 seconds by default before
+// SIGKILL, so a run that spends a cancel's full minute reporting is killed
+// mid-upload and reports nothing at all. See docs/design/graceful-shutdown.md §6.3.
+const interruptReportTimeout = 15 * time.Second
+
 // runCanceled reports whether this run's context was ended by a cancel request
 // rather than by the process shutting down or a deadline passing.
 func runCanceled(ctx context.Context) bool {
 	return errors.Is(context.Cause(ctx), model.ErrRunCanceled)
+}
+
+// runInterrupted reports whether this run's context was ended because the
+// process executing it was asked to stop.
+func runInterrupted(ctx context.Context) bool {
+	return errors.Is(context.Cause(ctx), model.ErrRunInterrupted)
+}
+
+// reportStoppedRun finishes a run that stopped for a reason it can name, and
+// reports whether it was one. Cancellation is checked first: a run that was
+// cancelled and then caught a shutdown was still cancelled, and that is the
+// outcome someone is waiting to see.
+func reportStoppedRun(ctx context.Context, scope RunScope, result RunResult, dirs runDirs, input RunTaskInput) (bool, error) {
+	switch {
+	case runCanceled(ctx):
+		return true, reportCanceledRun(ctx, scope, result, dirs, input)
+	case runInterrupted(ctx):
+		return true, reportInterruptedRun(ctx, scope, result, dirs, input)
+	default:
+		return false, nil
+	}
 }
 
 // reportCanceledRun finishes a run that was stopped on request.
@@ -223,18 +260,49 @@ func runCanceled(ctx context.Context) bool {
 // reporting gets a fresh, bounded one, or the cancel would also destroy the
 // evidence of what the run had done.
 func reportCanceledRun(ctx context.Context, scope RunScope, result RunResult, dirs runDirs, input RunTaskInput) error {
-	reportCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), reportFinishTimeout)
-	defer cancel()
-	if result.EndTime.IsZero() {
-		result.EndTime = time.Now().UTC()
-	}
-	reportPersistedRunState(reportCtx, input.Persist, scope, dirs, result)
-	if err := reportRunOutcome(reportCtx, scope, result, model.RunStatusCanceled, input.RunOutputStorage, input.Updater); err != nil {
+	if err := finishStoppedRun(ctx, scope, result, dirs, input, model.RunStatusCanceled, "", reportFinishTimeout); err != nil {
 		componentLog().Error("could not report a canceled run", "task_run_id", scope.TaskRunID, "err", err)
 		return err
 	}
 	componentLog().Info("run canceled", "task_run_id", scope.TaskRunID, "output_len", len(result.OutputStr))
 	return model.ErrRunCanceled
+}
+
+// reportInterruptedRun finishes a run whose process is shutting down.
+//
+// It keeps everything a canceled run keeps, and differs in the status and in
+// what the record says happened. FAILED rather than a status of its own:
+// terminal is what the Portal, the report path, the workflow step machine, and
+// quota all need, and a fourth terminal status whose only correct handling is
+// "retry it" costs more than it buys until retry exists. The error message is
+// what tells a reader this was the cluster and not the agent.
+func reportInterruptedRun(ctx context.Context, scope RunScope, result RunResult, dirs runDirs, input RunTaskInput) error {
+	grace := input.InterruptGrace
+	if grace <= 0 {
+		grace = interruptReportTimeout
+	}
+	if err := finishStoppedRun(ctx, scope, result, dirs, input, model.RunStatusFailed, model.ErrRunInterrupted.Error(), grace); err != nil {
+		componentLog().Error("could not report an interrupted run", "task_run_id", scope.TaskRunID, "err", err)
+		return err
+	}
+	componentLog().Info("run interrupted by shutdown", "task_run_id", scope.TaskRunID, "output_len", len(result.OutputStr))
+	return model.ErrRunInterrupted
+}
+
+// finishStoppedRun uploads what a stopped run produced and records its outcome
+// on a context of its own.
+//
+// The detached context is the whole point: the run's own is dead by definition
+// here, and reporting on it would destroy the evidence of the work along with
+// the run.
+func finishStoppedRun(ctx context.Context, scope RunScope, result RunResult, dirs runDirs, input RunTaskInput, status model.RunStatus, errMessage string, timeout time.Duration) error {
+	reportCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
+	defer cancel()
+	if result.EndTime.IsZero() {
+		result.EndTime = time.Now().UTC()
+	}
+	reportPersistedRunState(reportCtx, input.Persist, scope, dirs, result)
+	return reportRunOutcome(reportCtx, scope, result, status, errMessage, input.RunOutputStorage, input.Updater)
 }
 
 func resolveRunDirs(paths RuntimePaths, task *model.Task, run *model.TaskRun) runDirs {
@@ -469,11 +537,12 @@ func reportRunFailure(ctx context.Context, taskRunID string, err error, tracePat
 
 // reportRunOutcome uploads a run's artifacts and records its terminal status.
 //
-// SUCCEEDED and CANCELED share it because they leave the same thing behind: a
-// result file, whatever artifacts the run wrote, and the tokens it spent. Only
-// the status differs, and it is what tells a reader whether the output is the
-// answer or as far as the run got.
-func reportRunOutcome(ctx context.Context, scope RunScope, result RunResult, status model.RunStatus, runOutputStorage blob.RunOutputStorage, updater TaskRunUpdater) error {
+// Every outcome that leaves something behind shares it — succeeded, canceled,
+// and interrupted — because they leave the same thing: a result file, whatever
+// artifacts the run wrote, and the tokens it spent. The status is what tells a
+// reader whether the output is the answer or as far as the run got, and
+// errMessage, when there is one, is what tells them why it is the latter.
+func reportRunOutcome(ctx context.Context, scope RunScope, result RunResult, status model.RunStatus, errMessage string, runOutputStorage blob.RunOutputStorage, updater TaskRunUpdater) error {
 	if putErr := runOutputStorage.PutResult(ctx, blob.RunRef(scope), result.Output); putErr != nil {
 		componentLog().Error("failed to write result to artifact storage", "task_run_id", scope.TaskRunID, "err", putErr)
 	}
@@ -495,6 +564,9 @@ func reportRunOutcome(ctx context.Context, scope RunScope, result RunResult, sta
 	}
 	if result.TracePath != "" {
 		req.TracePath = &result.TracePath
+	}
+	if errMessage != "" {
+		req.ErrorMessage = &errMessage
 	}
 	return updater.UpdateRunStatus(ctx, scope.TaskRunID, req)
 }

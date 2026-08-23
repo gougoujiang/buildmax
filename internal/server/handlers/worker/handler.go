@@ -47,6 +47,9 @@ type Config struct {
 	// has been told. The server supplies it; this package does not know who is
 	// listening.
 	OnTerminal func(ctx context.Context, info model.TaskRunTerminalInfo)
+	// TerminalGroup owns those callbacks so a shutdown waits for them instead
+	// of dropping them.
+	TerminalGroup *runterminal.Group
 }
 
 type Handler struct{ cfg Config }
@@ -81,5 +84,5 @@ func (h *Handler) Register(mux *http.ServeMux) {
 }
 
 func (h *Handler) announcer() *runterminal.Announcer {
-	return &runterminal.Announcer{Runs: h.cfg.TaskRuns, Hub: h.cfg.Hub, On: h.cfg.OnTerminal}
+	return &runterminal.Announcer{Runs: h.cfg.TaskRuns, Hub: h.cfg.Hub, On: h.cfg.OnTerminal, Group: h.cfg.TerminalGroup}
 }

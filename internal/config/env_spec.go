@@ -25,6 +25,13 @@ const (
 	// below. See docs/design/worker-run-token.md.
 	EnvKeyBuildmaxRunToken = "BUILDMAX_RUN_TOKEN"
 
+	// BUILDMAX_RUN_INTERRUPT_GRACE — how long a worker asked to stop may spend
+	// uploading what its run produced and reporting the outcome. The scheduler
+	// sets it from the server's own shutdown budget so the two windows nest;
+	// unset, the worker uses its own default. See
+	// docs/design/graceful-shutdown.md §6.3.
+	EnvKeyBuildmaxRunInterruptGrace = "BUILDMAX_RUN_INTERRUPT_GRACE"
+
 	// Test only.
 	EnvKeyBuildmaxTestDSN = "BUILDMAX_TEST_DSN"
 
@@ -78,6 +85,10 @@ var EnvVars = []EnvVar{
 	// is what strips a stale value the server happens to be holding, so the only
 	// token a worker can find is the one minted for its own run.
 	{Name: EnvKeyBuildmaxRunToken, Description: "Per-run credential for the managed LLM gateway; minted by the scheduler, not set by an operator"},
+	// Deliberately not WorkerNeeds, for the same reason as the run token: the
+	// scheduler sets it per dispatch from its own shutdown budget, and a stale
+	// value inherited from the server would describe the wrong window.
+	{Name: EnvKeyBuildmaxRunInterruptGrace, Description: "How long a worker asked to stop may spend reporting what its run produced; set by the scheduler, not by an operator"},
 	{Name: EnvKeyBuildmaxTestDSN, Description: "MySQL DSN for store integration tests; unset skips those tests"},
 	{Name: EnvKeyBuildmaxCacheQualifyProvider, Description: "Provider for the prompt-cache qualification suite; unset skips it"},
 	{Name: EnvKeyBuildmaxCacheQualifyModel, Description: "Model identifier for the prompt-cache qualification suite"},

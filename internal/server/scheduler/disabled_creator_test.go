@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -39,7 +40,7 @@ func TestSchedulerDoesNotDispatchForADisabledAccount(t *testing.T) {
 	}
 	s.WithUserStore(users).Start()
 	time.Sleep(25 * time.Millisecond)
-	s.Stop()
+	s.Stop(context.Background())
 
 	if runnerCalls(runner) != 0 {
 		t.Errorf("a worker was spawned for a disabled account: %d", runnerCalls(runner))
@@ -82,7 +83,7 @@ func TestSchedulerDispatchesForAnEnabledAccount(t *testing.T) {
 			}
 			s.WithUserStore(tc.users).Start()
 			time.Sleep(25 * time.Millisecond)
-			s.Stop()
+			s.Stop(context.Background())
 
 			if runnerCalls(runner) == 0 {
 				t.Error("the run was not dispatched")

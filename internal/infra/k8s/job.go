@@ -238,7 +238,14 @@ func (r *K8sJobRunner) Run(ctx context.Context, run model.TaskRun, runToken stri
 			Template: corev1.PodTemplateSpec{
 				Spec: corev1.PodSpec{
 					RestartPolicy: corev1.RestartPolicyOnFailure,
-					Volumes:       volumes,
+					// A drained or evicted worker stops its agent, uploads what
+					// the run produced, and reports the outcome. That window is
+					// bounded by taskrun.interruptReportTimeout; this is the
+					// deadline it has to fit inside, set explicitly rather than
+					// inherited so the two are visible together. See
+					// docs/design/graceful-shutdown.md §6.3.
+					TerminationGracePeriodSeconds: util.Ptr(int64(30)),
+					Volumes:                       volumes,
 					// A worker never calls the Kubernetes API, so a mounted
 					// service-account token is only a credential for
 					// model-chosen commands to find.

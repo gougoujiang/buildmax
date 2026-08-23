@@ -23,6 +23,12 @@ const MaxQueued = agent.DefaultMaxQueuedMessages
 // ErrQueueFull is returned by the registry when a conversation is at its cap.
 var ErrQueueFull = errors.New("too many turns are already queued for this conversation")
 
+// ErrDraining is returned once the server has begun shutting down. A turn is a
+// model call that writes message history, so starting one this process cannot
+// finish is worse than refusing it: the caller retries against an instance that
+// will still be here.
+var ErrDraining = errors.New("this server is shutting down; retry the turn")
+
 // Job is one conversation turn waiting for its conversation to be free.
 type Job struct {
 	// run executes the turn. It is called on the registry's goroutine for the
@@ -57,6 +63,13 @@ type convQueue struct {
 type Registry struct {
 	mu     sync.Mutex
 	queues map[string]*convQueue
+	// draining refuses new turns from the moment the server starts stopping.
+	draining bool
+	// active counts the queue goroutines currently running turns, so a shutdown
+	// can wait for them. A WebSocket carries a turn on a hijacked connection,
+	// which http.Server.Shutdown does not wait for — without this, an answer
+	// being written would simply vanish when the process exits.
+	active sync.WaitGroup
 }
 
 func NewRegistry() *Registry {
@@ -67,9 +80,24 @@ func NewRegistry() *Registry {
 // started immediately, or the job's 1-based position when it had to wait. Submit
 // never blocks; the turn runs on a goroutine the registry owns.
 func (r *Registry) Submit(conversationID string, job *Job) (int, error) {
-	q := r.queue(conversationID)
+	// The draining check and the Add share one critical section with Drain, so
+	// a turn admitted here is always counted before Wait can start waiting.
+	r.mu.Lock()
+	if r.draining {
+		r.mu.Unlock()
+		return 0, ErrDraining
+	}
+	r.active.Add(1)
+	q, ok := r.queues[conversationID]
+	if !ok {
+		q = &convQueue{}
+		r.queues[conversationID] = q
+	}
+	r.mu.Unlock()
+
 	q.mu.Lock()
 	if q.running {
+		defer r.active.Done() // the goroutine already running this queue owns the count
 		if len(q.pending) >= MaxQueued {
 			q.mu.Unlock()
 			return 0, ErrQueueFull
@@ -81,8 +109,36 @@ func (r *Registry) Submit(conversationID string, job *Job) (int, error) {
 	}
 	q.running = true
 	q.mu.Unlock()
-	go r.drain(conversationID, q, job)
+	go func() {
+		defer r.active.Done()
+		r.drain(conversationID, q, job)
+	}()
 	return 0, nil
+}
+
+// Drain refuses new turns. Turns already running are left alone — Wait is what
+// gives them their moment to finish.
+func (r *Registry) Drain() {
+	r.mu.Lock()
+	r.draining = true
+	r.mu.Unlock()
+}
+
+// Wait blocks until every running turn has finished or ctx expires, and reports
+// whether they all finished. Call Drain first, or a new turn can keep it
+// waiting indefinitely.
+func (r *Registry) Wait(ctx context.Context) bool {
+	done := make(chan struct{})
+	go func() {
+		r.active.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return true
+	case <-ctx.Done():
+		return false
+	}
 }
 
 // RunSync submits a turn and waits for it to finish. It is what a request that has
@@ -116,17 +172,6 @@ func (r *Registry) Waiting(conversationID string) int {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	return len(q.pending)
-}
-
-func (r *Registry) queue(conversationID string) *convQueue {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	q, ok := r.queues[conversationID]
-	if !ok {
-		q = &convQueue{}
-		r.queues[conversationID] = q
-	}
-	return q
 }
 
 // drain runs job, then every turn queued behind it, one at a time.

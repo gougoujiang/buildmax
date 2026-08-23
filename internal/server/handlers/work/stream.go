@@ -29,6 +29,12 @@ func (h *Handler) getChatStreamHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 	w.WriteHeader(http.StatusOK)
 	flusher, _ := w.(http.Flusher)
+	// Flush the headers now. Without this the response is buffered until the
+	// first event, so a client watching a quiet run waits for the stream to
+	// open instead of being told it is open and then waiting for output.
+	if flusher != nil {
+		flusher.Flush()
+	}
 
 	events, unsub := h.cfg.Hub.Subscribe(taskID)
 	defer unsub()
@@ -43,6 +49,16 @@ func (h *Handler) getChatStreamHandler(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case <-r.Context().Done():
+			return
+		case <-h.cfg.Drain:
+			// This server is going away and the run is not: it lives in the
+			// database and keeps streaming into whichever instance the client
+			// reconnects to. Saying so is what stops the client from reading a
+			// closed connection as a finished run.
+			writeSSEEvent(w, streamEventDraining, "")
+			if flusher != nil {
+				flusher.Flush()
+			}
 			return
 		case msg, ok := <-events:
 			if !ok {
@@ -61,6 +77,18 @@ func (h *Handler) getChatStreamHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+}
+
+// streamEventDraining names the SSE event this server sends before it stops.
+// It is a named event rather than a reserved data payload because the data
+// frames carry agent output, which can say anything.
+const streamEventDraining = "draining"
+
+// writeSSEEvent writes a named event. An empty payload still gets a data line,
+// because an event with no data is not delivered by every SSE parser.
+func writeSSEEvent(w http.ResponseWriter, event, payload string) {
+	_, _ = w.Write([]byte("event: " + event + "\n"))
+	writeSSE(w, payload)
 }
 
 func writeSSE(w http.ResponseWriter, payload string) {

@@ -34,7 +34,17 @@ type ServerConfig struct {
 	// AllowSignup opens POST /api/otp/request to self-registration. It defaults
 	// to false, and the zero value is the safe one on purpose: a server that
 	// forgets to configure this is closed, not open.
-	AllowSignup      bool                `mapstructure:"allow_signup"`
+	AllowSignup bool `mapstructure:"allow_signup"`
+	// ShutdownGrace is the whole budget for stopping: draining connections,
+	// letting interrupted runs report, and stopping the background loops. The
+	// phases are derived from it rather than configured separately, because two
+	// knobs that must agree are a way to get them to disagree.
+	//
+	// It must stay below the orchestrator's own kill deadline —
+	// terminationGracePeriodSeconds on Kubernetes, TimeoutStopSec under systemd
+	// — or the process is killed partway through an orderly stop. See
+	// docs/design/graceful-shutdown.md.
+	ShutdownGrace    time.Duration       `mapstructure:"shutdown_grace"`
 	CORSOrigin       string              `mapstructure:"cors_origin"`
 	WorkspacesDir    string              `mapstructure:"workspaces_dir"`
 	DefaultQuotaTier string              `mapstructure:"default_quota_tier"`
@@ -371,6 +381,7 @@ func LoadServerConfig() (ServerConfig, error) {
 	v.SetDefault("access_token_ttl", "168h")
 	v.SetDefault("refresh_token_ttl", "720h")
 	v.SetDefault("refresh_rotation_grace", "30s")
+	v.SetDefault("shutdown_grace", "25s")
 	v.SetDefault("default_quota_tier", "free_trial")
 	v.SetDefault("webhook.message_path", "message")
 	v.SetDefault("webhook.user_id", "webhook")
