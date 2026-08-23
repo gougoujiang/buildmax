@@ -196,7 +196,7 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 	}
 
 	acceptedAt := s.now().UTC()
-	call, err := s.Ledger.OpenLLMCall(ctx, &model.LLMCall{
+	ledgerEntry := &model.LLMCall{
 		ClientCallID:  req.ClientCallID,
 		TeamID:        req.TeamID,
 		UserID:        req.UserID,
@@ -211,7 +211,13 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 		Streaming:     streaming,
 		AcceptedAt:    acceptedAt,
 		Status:        model.LLMCallStatusAccepted,
-	})
+	}
+	// The rates are copied onto the row at acceptance, not looked up when
+	// someone reads it back. A catalog price changes; what a team spent last
+	// month does not, and a spend report recomputed from today's rates would
+	// quietly restate an invoice that has already been paid.
+	applyRateSnapshot(ledgerEntry, routed.Resolution.Target)
+	call, err := s.Ledger.OpenLLMCall(ctx, ledgerEntry)
 	if err != nil {
 		if errors.Is(err, model.ErrDuplicateLLMCall) {
 			return CompleteResult{}, &DuplicateCallError{}
@@ -343,3 +349,21 @@ func (s *Service) rejectDuplicate(ctx context.Context, req CompleteRequest) erro
 
 // Identity belongs in an attr, not in every message string.
 func gatewayLog() *slog.Logger { return slog.With("component", "llm_gateway") }
+
+// applyRateSnapshot copies the target's current prices onto a ledger row.
+//
+// An unpriced target leaves every field nil, which reads back as "cost
+// unavailable" rather than as a call that cost nothing. A zero rate on a priced
+// target is a real price and is stored as one.
+func applyRateSnapshot(call *model.LLMCall, target Target) {
+	if target.Currency == "" {
+		return
+	}
+	input, cacheRead, cacheWrite, output :=
+		target.InputPerMTok, target.CacheReadPerMTok, target.CacheWritePerMTok, target.OutputPerMTok
+	call.Currency = target.Currency
+	call.RateInputPerMTok = &input
+	call.RateCacheReadPerMTok = &cacheRead
+	call.RateCacheWritePerMTok = &cacheWrite
+	call.RateOutputPerMTok = &output
+}

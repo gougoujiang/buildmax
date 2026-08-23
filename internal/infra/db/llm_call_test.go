@@ -84,8 +84,16 @@ func TestLLMCallRowRoundTrip(t *testing.T) {
 // payloads, or generated content.
 func TestLLMCallCarriesNoContent(t *testing.T) {
 	forbidden := []string{"prompt", "message", "content", "tool", "input", "output", "text", "body"}
-	// PromptTokens is a count, not a payload.
-	allowed := map[string]bool{"PromptTokens": true}
+	// Counts and prices, not payloads. The rate fields name the token class
+	// they price — input, output — which is what trips the word list; they hold
+	// nano-currency-units per million tokens and no call content.
+	allowed := map[string]bool{
+		"PromptTokens":          true,
+		"RateInputPerMTok":      true,
+		"RateOutputPerMTok":     true,
+		"RateCacheReadPerMTok":  true,
+		"RateCacheWritePerMTok": true,
+	}
 
 	rowType := reflect.TypeOf(llmCallRow{})
 	for i := range rowType.NumField() {

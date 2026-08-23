@@ -316,6 +316,62 @@ Each of those shows the breakdown only when a provider reported one. Most
 providers report nothing at all, and a permanent `0 / 0` would read as a
 measured miss rather than an absent measurement.
 
+### Model pricing
+
+`pricing` is what a model charges, so a run can say what it cost. Without it a
+run reports its cost as `unavailable` rather than as zero — BuildMax does not
+know what any provider charges, and a guess dressed as a number is worse than
+silence.
+
+```yaml
+models:
+  - name: sonnet
+    provider: anthropic
+    model: claude-sonnet-5
+    pricing:
+      currency: USD
+      input_per_mtok: "3.00"
+      cache_read_per_mtok: "0.30"
+      cache_write_per_mtok: "3.75"
+      output_per_mtok: "15.00"
+```
+
+Rates are decimal strings quoted per million tokens, written the way providers
+publish them so a configured value can be checked against a price page without
+arithmetic. The four are separate because caching prices them differently: a
+cache read is cheaper than fresh input and a cache write is dearer, which is the
+whole reason caching is a decision rather than a free win.
+
+A price list must be complete enough to be trusted. Rates with no `currency`, or
+a `currency` with no rate, are refused at load — an estimate assembled from half
+a price list looks authoritative and is not. A rate of `"0"` is a real price and
+is accepted.
+
+Where the cost appears:
+
+| Surface | What it shows |
+|---|---|
+| CLI | A `Cost(session)` line after a run, with what caching saved when it saved anything |
+| CLI `--format json` | `usage.cost`, in nano-units of the currency |
+| Session file | A running total, accumulated as the session ran |
+| Portal run view | Per-run estimated cost and the saving against an uncached baseline |
+
+The session total is accumulated turn by turn rather than recomputed on read,
+because the model — and so the rates — can change mid-session. A total derived
+later from whatever is configured then would restate turns already paid for at a
+different price. When part of a session cannot be priced, or a second currency
+appears, the total is labelled partial rather than quietly understating the run.
+
+For a managed deployment the operator sets the same four rates per catalog
+model, with `--currency`, `--input-price`, `--cache-read-price`,
+`--cache-write-price`, and `--output-price` on `buildmax-server model add`. The
+rates in force are copied onto each `llm_call` row when the call is accepted, so
+repricing a model does not restate what a team already spent.
+
+A saving is reported only when caching actually saved. A run that wrote cache
+entries nothing read back paid more than it would have uncached, and that is
+shown as the cost it was, not as a small win.
+
 ### Image input
 
 `vision: true` says the model accepts images. It matters because an MCP server

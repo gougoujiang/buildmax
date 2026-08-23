@@ -76,6 +76,10 @@ type ModelEntry struct {
 	// provider to cache the stable prefix of a request — the tool definitions
 	// and system prompt — and for how long.
 	CacheControl *CacheControl `mapstructure:"cache_control"`
+	// Pricing is what this model charges. Optional: without it a run reports
+	// its cost as unavailable rather than as zero, because BuildMax does not
+	// know what any provider charges and guessing would be worse than silence.
+	Pricing *ModelPricing `mapstructure:"pricing"`
 	// KeepAlive is how long a local runtime keeps the model loaded after a
 	// call — a duration string, "0" to unload at once, "-1" to stay resident.
 	// Only LLMProviderOllama reads it; on a hosted provider there is no model

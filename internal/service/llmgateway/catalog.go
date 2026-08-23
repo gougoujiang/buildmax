@@ -108,6 +108,15 @@ type Target struct {
 	// A managed caller never supplies either: the operator's target does.
 	CacheMode string
 	CacheTTL  string
+	// Pricing is what this upstream charges, in nano-currency-units per
+	// million tokens, carried as plain fields for the same reason the cache
+	// policy is. An empty Currency means unpriced, and a call against it
+	// reports cost as unavailable rather than as zero.
+	Currency          string
+	InputPerMTok      int64
+	CacheReadPerMTok  int64
+	CacheWritePerMTok int64
+	OutputPerMTok     int64
 	// Vision says the upstream accepts image input.
 	Vision bool
 	// Capabilities is what this target declares it can do.

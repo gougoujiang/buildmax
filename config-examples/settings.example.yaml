@@ -146,6 +146,16 @@ models:
   #   prompt_cache: true           # deprecated: true means mode force, false
                                    # means mode off. cache_control wins when
                                    # both are set.
+  #   pricing:                     # what this model charges, so a run can show
+  #     currency: USD              # what it cost. Rates are decimal strings per
+  #     input_per_mtok: "3.00"     # million tokens, written the way the
+  #     cache_read_per_mtok: "0.30"   # provider publishes them.
+  #     cache_write_per_mtok: "3.75"  #
+  #     output_per_mtok: "15.00"   # The four are separate because caching
+                                   # prices them differently: a read is cheaper
+                                   # than fresh input and a write is dearer.
+                                   # Without this block a run reports its cost
+                                   # as unavailable rather than as zero.
   #   vision: true                 # this model accepts image input. Leave it
                                    # off and an image an MCP tool returns is
                                    # described in text instead of sent.

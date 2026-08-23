@@ -5,6 +5,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/agentapp"
 	"github.com/gougoujiang/buildmax/internal/core/agent"
+	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
 )
 
 // OutputFormat is the print-mode output format selected by --output.
@@ -46,6 +47,12 @@ type printUsage struct {
 	CacheWrite      int `json:"cache_write"`
 	TotalCacheRead  int `json:"total_cache_read"`
 	TotalCacheWrite int `json:"total_cache_write"`
+	// Cost is the session's estimated spend, absent when the model was
+	// unpriced. Amounts are nano-units of Currency — one unit is 1e9 of them —
+	// so a consumer sums them exactly. Incomplete says part of the session
+	// could not be priced and the figure understates it.
+	Cost           *cllm.Cost `json:"cost,omitempty"`
+	CostIncomplete bool       `json:"cost_incomplete,omitempty"`
 }
 
 type printContext struct {
@@ -76,6 +83,8 @@ func buildResultEnvelope(out agentapp.RunResult, exitCode int, runErr error, pol
 			CacheWrite:      out.CacheWriteTokens,
 			TotalCacheRead:  out.TotalCacheReadTokens,
 			TotalCacheWrite: out.TotalCacheWriteTokens,
+			Cost:            out.Cost,
+			CostIncomplete:  out.CostIncomplete,
 		},
 		Context:      printContext{Tokens: out.ContextTokens, Window: out.ContextWindow},
 		ExitCode:     exitCode,

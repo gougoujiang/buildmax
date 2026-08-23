@@ -1,4 +1,7 @@
-import type { ApiTaskRunLLMCall, ApiTaskRunTrace } from "../../lib/api/types"
+import type { ApiLLMCallCost, ApiTaskRunLLMCall, ApiTaskRunTrace } from "../../lib/api/types"
+
+/** One currency unit, in the nano-units the API reports amounts as. */
+const NANO_PER_UNIT = 1_000_000_000
 
 /** Per-alias accounting, so a run that called two approved models is legible. */
 export interface AliasSpend {
@@ -31,6 +34,17 @@ export interface SpendSummary {
    * measured miss.
    */
   cacheUnreported: number
+  /**
+   * What the run is estimated to have cost, or null when nothing in it could
+   * be priced. Amounts are nano-units of `currency`.
+   */
+  cost: SpendCost | null
+  /**
+   * Calls that did work and could not be priced — an unpriced model, or one
+   * quoted in a currency the rest of the run was not. The total above is then
+   * missing part of the run and must be labelled, not shown as if complete.
+   */
+  unpriced: number
   /**
    * Calls whose usage the provider never reported. Kept separate from a zero
    * count: summing an unreported call as zero turns an unknown into a claim.
@@ -69,6 +83,8 @@ export function summarizeSpend(calls: ApiTaskRunLLMCall[]): SpendSummary {
     cacheReadTokens: 0,
     cacheWriteTokens: 0,
     cacheUnreported: 0,
+    cost: null,
+    unpriced: 0,
     unreported: 0,
     retried: 0,
     byAlias: [],
@@ -117,6 +133,19 @@ export function summarizeSpend(calls: ApiTaskRunLLMCall[]): SpendSummary {
       summary.cacheWriteTokens += cacheWrite ?? 0
     }
 
+    if (call.cost) {
+      const added = addCost(summary.cost, call.cost)
+      // Two currencies, and the Portal holds no exchange rate. Inventing one
+      // would produce a total that is wrong in both, so the call is counted as
+      // unpriced and the earlier total stands, labelled incomplete.
+      if (added) summary.cost = added
+      else summary.unpriced += 1
+    } else if (tokens !== null) {
+      // A call that did work and carries no cost was run against a model
+      // nobody priced. One with no usage at all is already counted above.
+      summary.unpriced += 1
+    }
+
     const key = call.alias || "—"
     const entry = aliases.get(key) ?? { alias: key, calls: 0, totalTokens: 0, unreported: 0 }
     entry.calls += 1
@@ -129,6 +158,66 @@ export function summarizeSpend(calls: ApiTaskRunLLMCall[]): SpendSummary {
     (a, b) => b.totalTokens - a.totalTokens || a.alias.localeCompare(b.alias)
   )
   return summary
+}
+
+/** A run's accumulated spend, in nano-units of one currency. */
+export interface SpendCost {
+  currency: string
+  uncached: number
+  cacheRead: number
+  cacheWrite: number
+  output: number
+  total: number
+  /** What the same tokens would have cost with no caching at all. */
+  baseline: number
+}
+
+/** Add one call's cost to a running total, or null when the currencies differ. */
+function addCost(into: SpendCost | null, call: ApiLLMCallCost): SpendCost | null {
+  if (!into) {
+    return {
+      currency: call.currency,
+      uncached: call.uncached,
+      cacheRead: call.cache_read,
+      cacheWrite: call.cache_write,
+      output: call.output,
+      total: call.total,
+      baseline: call.baseline,
+    }
+  }
+  if (into.currency !== call.currency) return null
+  return {
+    currency: into.currency,
+    uncached: into.uncached + call.uncached,
+    cacheRead: into.cacheRead + call.cache_read,
+    cacheWrite: into.cacheWrite + call.cache_write,
+    output: into.output + call.output,
+    total: into.total + call.total,
+    baseline: into.baseline + call.baseline,
+  }
+}
+
+/**
+ * What caching saved, or null when it cost more than it saved.
+ *
+ * A negative saving is not a saving. A run that wrote cache entries nothing
+ * read back genuinely paid more than it would have uncached, and dressing that
+ * up as a small win is the claim this view exists not to make.
+ */
+export function cacheSaving(cost: SpendCost | null): number | null {
+  if (!cost || cost.baseline <= cost.total) return null
+  return cost.baseline - cost.total
+}
+
+/**
+ * Render nano-units as an amount.
+ *
+ * Six decimal places, because a single cheap call rounds to zero at two and a
+ * reader would take that for free.
+ */
+export function formatAmount(nano: number, currency: string): string {
+  const value = nano / NANO_PER_UNIT
+  return `${value.toFixed(6)} ${currency}`
 }
 
 /**

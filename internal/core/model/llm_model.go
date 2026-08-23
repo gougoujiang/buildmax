@@ -42,6 +42,19 @@ type LLMModel struct {
 	// how long. Empty means unset and resolves from PromptCache.
 	CacheMode string `json:"cache_mode,omitempty"`
 	CacheTTL  string `json:"cache_ttl,omitempty"`
+	// Pricing is what this upstream charges, in nano-currency-units per
+	// million tokens. The four rates are separate because caching prices them
+	// differently; an empty currency means the model is unpriced and its calls
+	// report cost as unavailable rather than as zero.
+	//
+	// These are the *current* rates. What a past call cost is not recomputed
+	// from them — the ledger row keeps the rates that applied when it ran, so
+	// a price change does not rewrite history.
+	Currency          string `json:"currency,omitempty"`
+	InputPerMTok      int64  `json:"input_per_mtok,omitempty"`
+	CacheReadPerMTok  int64  `json:"cache_read_per_mtok,omitempty"`
+	CacheWritePerMTok int64  `json:"cache_write_per_mtok,omitempty"`
+	OutputPerMTok     int64  `json:"output_per_mtok,omitempty"`
 	// Vision says the upstream accepts image input.
 	Vision bool `json:"vision,omitempty"`
 	// Capabilities is what this model supports, e.g. "text_chat".
@@ -55,20 +68,25 @@ type LLMModel struct {
 // CreateLLMModelInput is a new catalog row, including the credential that the
 // record itself never carries afterwards.
 type CreateLLMModelInput struct {
-	Name          string
-	ProviderType  string
-	APIURL        string
-	APIKey        string
-	Model         string
-	ContextWindow int
-	CallTimeout   int
-	MaxTokens     int
-	Reasoning     string
-	PromptCache   bool
-	CacheMode     string
-	CacheTTL      string
-	Vision        bool
-	Capabilities  []string
+	Name              string
+	ProviderType      string
+	APIURL            string
+	APIKey            string
+	Model             string
+	ContextWindow     int
+	CallTimeout       int
+	MaxTokens         int
+	Reasoning         string
+	PromptCache       bool
+	CacheMode         string
+	CacheTTL          string
+	Vision            bool
+	Currency          string
+	InputPerMTok      int64
+	CacheReadPerMTok  int64
+	CacheWritePerMTok int64
+	OutputPerMTok     int64
+	Capabilities      []string
 }
 
 // LLMModelStore persists the managed model catalog.

@@ -198,3 +198,89 @@ func TestListTaskRunLLMCallsEmptyIsAList(t *testing.T) {
 		t.Errorf("body = %q, want an empty array", body)
 	}
 }
+
+// A ledger row is priced from the rates it recorded, not from whatever the
+// catalog says now. That is the whole reason the rates are on the row: a model
+// gets repriced, and recomputing an old call from the new rates would restate
+// an invoice that has already been paid.
+func TestListTaskRunLLMCallsPricesFromTheRecordedRates(t *testing.T) {
+	call := stagedCall()
+	call.PromptTokens = ptr(100_000)
+	call.CompletionTokens = ptr(1_000)
+	call.CacheReadTokens = ptr(90_000)
+	call.CacheWriteTokens = ptr(0)
+	call.Currency = "USD"
+	call.RateInputPerMTok = ptr(int64(3_000_000_000))
+	call.RateCacheReadPerMTok = ptr(int64(300_000_000))
+	call.RateCacheWritePerMTok = ptr(int64(3_750_000_000))
+	call.RateOutputPerMTok = ptr(int64(15_000_000_000))
+
+	out := listCalls(t, call)
+	cost := out[0].Cost
+	if cost == nil {
+		t.Fatal("a priced row produced no cost")
+	}
+	// 10k fresh at $3/M + 90k read at $0.30/M + 1k out at $15/M.
+	if cost.Currency != "USD" || cost.Uncached != 30_000_000 ||
+		cost.CacheRead != 27_000_000 || cost.Output != 15_000_000 {
+		t.Errorf("cost = %+v", *cost)
+	}
+	if cost.Total != cost.Uncached+cost.CacheRead+cost.CacheWrite+cost.Output {
+		t.Errorf("total %d does not match its parts: %+v", cost.Total, *cost)
+	}
+	// Uncached the same 100k prompt would have billed at $3/M throughout.
+	if cost.Baseline != 300_000_000+15_000_000 {
+		t.Errorf("baseline = %d", cost.Baseline)
+	}
+	if cost.Baseline <= cost.Total {
+		t.Error("a read-heavy call should cost less than the same call uncached")
+	}
+}
+
+// Two absences that must not become a zero cost: a model nobody priced, and a
+// row written before the rate snapshot existed. Both are unknowns, and a zero
+// would read as a free call.
+func TestListTaskRunLLMCallsOmitsCostWhenItCannotBeKnown(t *testing.T) {
+	unpriced := stagedCall()
+	unpriced.PromptTokens = ptr(100_000)
+
+	priced := stagedCall()
+	priced.Currency = "USD"
+	priced.RateInputPerMTok = ptr(int64(3_000_000_000))
+	// No usage reported, so there is nothing to multiply.
+	priced.PromptTokens = nil
+
+	for name, call := range map[string]model.LLMCall{"unpriced model": unpriced, "unreported usage": priced} {
+		t.Run(name, func(t *testing.T) {
+			out := listCalls(t, call)
+			if out[0].Cost != nil {
+				t.Errorf("cost = %+v, want absent", *out[0].Cost)
+			}
+			if strings.Contains(rawBody(t, call), `"cost"`) {
+				t.Error("an absent cost was serialized")
+			}
+		})
+	}
+}
+
+func listCalls(t *testing.T, call model.LLMCall) []LLMCallSummary {
+	t.Helper()
+	rec := getLLMCalls(t, llmCallsFixture(&llmStubLedger{calls: []model.LLMCall{call}}), llmTestTeam, "r_1", true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body)
+	}
+	var out []LLMCallSummary
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(out) != 1 {
+		t.Fatalf("returned %d calls, want 1", len(out))
+	}
+	return out
+}
+
+func rawBody(t *testing.T, call model.LLMCall) string {
+	t.Helper()
+	rec := getLLMCalls(t, llmCallsFixture(&llmStubLedger{calls: []model.LLMCall{call}}), llmTestTeam, "r_1", true)
+	return rec.Body.String()
+}

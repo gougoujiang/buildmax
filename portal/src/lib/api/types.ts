@@ -450,6 +450,32 @@ export interface ApiTaskRunLLMCall {
    * Without it an absent count reads as a free call.
    */
   usage_source?: string
+  /**
+   * What the call is estimated to have cost, priced at the rates recorded when
+   * it ran rather than at whatever the catalog says now. Absent when the model
+   * was unpriced or the provider reported no usage — an unpriced call is an
+   * unknown, and a zero would read as a free one.
+   */
+  cost?: ApiLLMCallCost
+}
+
+/**
+ * One call's estimated spend, in nano-units of `currency`: one currency unit is
+ * 1e9 of them. Integers so a run sums exactly instead of accumulating float
+ * error across hundreds of calls.
+ *
+ * `baseline` is what the same tokens would have cost with no caching at all.
+ * It is the only honest way to say whether caching helped: comparing `total`
+ * against zero would report a saving on a call that only ever wrote.
+ */
+export interface ApiLLMCallCost {
+  currency: string
+  uncached: number
+  cache_read: number
+  cache_write: number
+  output: number
+  total: number
+  baseline: number
 }
 
 /**

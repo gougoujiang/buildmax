@@ -554,3 +554,70 @@ func TestErrorClassFor(t *testing.T) {
 		}
 	}
 }
+
+// The rates are copied onto the ledger row when the call is accepted, not
+// looked up when someone reads it back. A catalog price changes; what a team
+// spent last month does not, and a spend report recomputed from today's rates
+// would restate an invoice that has already been paid.
+func TestCompleteSnapshotsTheTargetRates(t *testing.T) {
+	priced := validTarget()
+	priced.Currency = "USD"
+	priced.InputPerMTok = 3_000_000_000
+	priced.CacheReadPerMTok = 300_000_000
+	priced.CacheWritePerMTok = 3_750_000_000
+	priced.OutputPerMTok = 15_000_000_000
+
+	catalog, err := llmgateway.NewStaticCatalog([]llmgateway.Target{priced})
+	if err != nil {
+		t.Fatalf("NewStaticCatalog: %v", err)
+	}
+	ledger := newFakeLedger()
+	svc := &llmgateway.Service{
+		Router: &llmgateway.Router{
+			Resolver: &llmgateway.Resolver{
+				Catalog:  catalog,
+				Policies: teamPolicies{"tm_one": {DefaultAlias: "default", Aliases: map[string]string{"default": "mt_fast"}}},
+			},
+			Factory: func(context.Context, llmgateway.Target) (cllm.LLMClient, error) {
+				return &scriptedClient{content: "hi"}, nil
+			},
+		},
+		Ledger: ledger,
+	}
+	if _, err := svc.Complete(context.Background(), userRequest()); err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+
+	call, _ := ledger.only(t)
+	if call.Currency != "USD" {
+		t.Fatalf("currency = %q, want USD", call.Currency)
+	}
+	rates := map[string]struct {
+		got  *int64
+		want int64
+	}{
+		"input":       {call.RateInputPerMTok, 3_000_000_000},
+		"cache read":  {call.RateCacheReadPerMTok, 300_000_000},
+		"cache write": {call.RateCacheWritePerMTok, 3_750_000_000},
+		"output":      {call.RateOutputPerMTok, 15_000_000_000},
+	}
+	for name, r := range rates {
+		if r.got == nil || *r.got != r.want {
+			t.Errorf("%s rate = %v, want %d", name, r.got, r.want)
+		}
+	}
+}
+
+// An unpriced target leaves the row unpriced. A zero rate would read as a model
+// that charges nothing, which is a claim about money nobody made.
+func TestCompleteLeavesAnUnpricedTargetUnpriced(t *testing.T) {
+	ledger := newFakeLedger()
+	svc := serviceWith(t, &scriptedClient{content: "hi"}, ledger, nil)
+	if _, err := svc.Complete(context.Background(), userRequest()); err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+	call, _ := ledger.only(t)
+	if call.Currency != "" || call.RateInputPerMTok != nil {
+		t.Errorf("an unpriced target recorded rates: currency %q input %v", call.Currency, call.RateInputPerMTok)
+	}
+}

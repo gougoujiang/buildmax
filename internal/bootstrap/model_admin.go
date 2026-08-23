@@ -47,6 +47,11 @@ Flags for add:
   --cache-mode string     Prompt cache policy: auto (default), off, force
   --cache-ttl string      Prompt cache retention: provider_default (default),
                           5m, 1h; only where the provider documents it
+  --currency string       ISO 4217 code the prices below are quoted in
+  --input-price string    Price per million fresh prompt tokens, e.g. 3.00
+  --cache-read-price string    Price per million cached prompt tokens read
+  --cache-write-price string   Price per million prompt tokens cached
+  --output-price string   Price per million generated tokens
   --vision                The upstream accepts image input
   --capabilities string   Comma-separated; defaults to the provider contract
 
@@ -98,10 +103,26 @@ func runModelAdd(ctx context.Context, args []string, out io.Writer) error {
 	promptCache := fs.Bool("prompt-cache", false, "deprecated shorthand for --cache-mode force")
 	cacheMode := fs.String("cache-mode", "", "prompt cache policy: auto (default), off, force")
 	cacheTTL := fs.String("cache-ttl", "", "prompt cache retention: provider_default (default), 5m, 1h")
+	currency := fs.String("currency", "", "ISO 4217 code the prices are quoted in")
+	inputPrice := fs.String("input-price", "", "price per million fresh prompt tokens")
+	cacheReadPrice := fs.String("cache-read-price", "", "price per million cached prompt tokens read")
+	cacheWritePrice := fs.String("cache-write-price", "", "price per million prompt tokens cached")
+	outputPrice := fs.String("output-price", "", "price per million generated tokens")
 	vision := fs.Bool("vision", false, "the upstream accepts image input")
 	capabilities := fs.String("capabilities", "", "comma-separated capability list")
 	if err := fs.Parse(args); err != nil {
 		return err
+	}
+
+	pricing, err := config.ResolvePricing(&config.ModelPricing{
+		Currency:          strings.TrimSpace(*currency),
+		InputPerMTok:      strings.TrimSpace(*inputPrice),
+		CacheReadPerMTok:  strings.TrimSpace(*cacheReadPrice),
+		CacheWritePerMTok: strings.TrimSpace(*cacheWritePrice),
+		OutputPerMTok:     strings.TrimSpace(*outputPrice),
+	})
+	if err != nil {
+		return fmt.Errorf("model add: %w", err)
 	}
 
 	in := model.CreateLLMModelInput{
@@ -117,8 +138,14 @@ func runModelAdd(ctx context.Context, args []string, out io.Writer) error {
 		PromptCache:   *promptCache,
 		CacheMode:     strings.TrimSpace(*cacheMode),
 		CacheTTL:      strings.TrimSpace(*cacheTTL),
-		Vision:        *vision,
-		Capabilities:  parseCapabilityList(*capabilities),
+
+		Currency:          pricing.Currency,
+		InputPerMTok:      pricing.InputPerMTok,
+		CacheReadPerMTok:  pricing.CacheReadPerMTok,
+		CacheWritePerMTok: pricing.CacheWritePerMTok,
+		OutputPerMTok:     pricing.OutputPerMTok,
+		Vision:            *vision,
+		Capabilities:      parseCapabilityList(*capabilities),
 	}
 	if err := validateModelInput(in); err != nil {
 		return err

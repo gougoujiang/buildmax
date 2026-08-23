@@ -89,6 +89,8 @@ type ServerModelEntry struct {
 	PromptCache *bool `mapstructure:"prompt_cache"`
 	// CacheControl is this model's prompt-cache policy.
 	CacheControl *CacheControl `mapstructure:"cache_control"`
+	// Pricing is what this model charges; without it cost is unavailable.
+	Pricing *ModelPricing `mapstructure:"pricing"`
 	// Vision says this model accepts image input.
 	Vision bool `mapstructure:"vision"`
 }
@@ -114,6 +116,7 @@ func (m ServerModelEntry) RuntimeModelEntry() ModelEntry {
 		Reasoning:     m.Reasoning,
 		PromptCache:   m.PromptCache,
 		CacheControl:  m.CacheControl,
+		Pricing:       m.Pricing,
 		Vision:        m.Vision,
 		Transport:     TransportDirect,
 	}
