@@ -1,10 +1,11 @@
 # Graceful Shutdown
 
-> **Audience:** contributors · **Status:** phase 1 implemented — the ladder, the
-> draining state, watcher-stream drain, turn quiescing, the managed terminal
-> callbacks, HTTP timeouts, and the manifests. Phases 2 and 3 — the worker
-> honouring SIGTERM, and a bounded scheduler stop — are not implemented, so an
-> in-flight run still says nothing when its process goes away.
+> **Audience:** contributors · **Status:** phases 1 and 2 implemented — the
+> ladder, the draining state, watcher-stream drain, turn quiescing, the managed
+> terminal callbacks, HTTP timeouts, the manifests, and a worker that reports
+> what it produced when it is asked to stop. Phase 3 — a bounded scheduler stop
+> — is open, so a `local_process` deployment still waits on the run it
+> dispatched rather than signalling it.
 
 Related: [enterprise deployment](enterprise-deployment.md) M3,
 [worker run token](worker-run-token.md), [Portal execution
@@ -95,7 +96,7 @@ expectation of what stopping does.
 The loop's context is `context.Background()`, so even a scheduler that wanted to
 abandon the dispatch has no way to signal the child.
 
-### 2.2 The worker ignores signals entirely — open, phase 2
+### 2.2 The worker ignores signals entirely — fixed
 
 [`cmd/buildmax-worker/main.go`](../../cmd/buildmax-worker/main.go) runs on
 `context.Background()`. SIGTERM kills the process with Go's default disposition:
@@ -439,10 +440,17 @@ in `local_process` mode `Scheduler.Stop` still waits for the worker process it
 spawned, and the ladder's timeout is all that keeps a stop from hanging — at the
 cost of leaving an orphan worker behind. Phase 3 closes that.
 
-**Phase 2 — the worker's stop.** `ErrRunInterrupted`, the signal handler,
+**Phase 2 — the worker's stop. Done.** `ErrRunInterrupted`, the signal handler,
 `RunTask`'s interrupted path, and exit 0. Fixes §2.2. Independent of phase 1,
 and valuable without it: a node-drained worker pod stops lying about its run
 whatever the server does.
+
+It carried one server-side change that was not in the original plan. The worker
+API registered a run's files only for SUCCEEDED and CANCELED, so an interrupted
+run reporting FAILED would have uploaded its output and then had it dropped —
+the status deciding whether the work was kept. Registration now follows the
+report: a run that sends files gets them registered whatever status it sends,
+and a run that failed at its own work sends none.
 
 **Phase 3 — the scheduler's stop.** Two-phase `Stop`, the `Cancel`/`WaitDelay`
 runner, and the nested windows. Fixes §2.1. Depends on both — phase 2 for the
@@ -466,8 +474,11 @@ and durable workflow advance.
 | Every `text/event-stream` handler is classified watcher or work | `internal/architecture/shutdown_test.go` | done |
 | A manifest's kill deadline outlasts its own `shutdown_grace` | `internal/architecture/shutdown_test.go` | done |
 | A blocked dispatch does not extend `Stop` past its deadline | scheduler test with a runner that never returns | phase 3 |
-| An interrupted run reports a terminal status and keeps its artifacts | `taskrun` test alongside `cancel_test.go` | phase 2 |
-| An interrupted worker exits 0 | worker test | phase 2 |
+| An interrupted run reports FAILED, names the shutdown, and keeps its artifacts | `internal/agentapp/taskrun/interrupt_test.go` | done |
+| A cancel already recorded is not rewritten by a shutdown arriving after it | `internal/agentapp/taskrun/interrupt_test.go`, `internal/bootstrap/worker_interrupt_test.go` | done |
+| The signal reaches the run as a cause it can report on | `internal/bootstrap/worker_interrupt_test.go` | done |
+| A run that reported its own outcome exits 0, whatever that outcome was | `cmd/buildmax-worker/main_test.go` | done |
+| The server keeps the files an interrupted run reported | `internal/server/handlers/worker/worker_test.go` | done |
 
 End to end, the `local` suite ([end-to-end testing](end-to-end-testing.md)) is
 where the ladder can be exercised for real: start a run, stop the stack, and

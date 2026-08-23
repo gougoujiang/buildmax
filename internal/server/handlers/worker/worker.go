@@ -139,12 +139,15 @@ func (h *Handler) handlePatchTerminalStatus(w http.ResponseWriter, r *http.Reque
 		httputil.WriteInternalError(w, err, "worker handler error", "handler", "patch_worker_task_run", "task_run_id", taskRunID)
 		return false
 	}
-	// A canceled run is registered exactly like a finished one. It stopped
-	// early, but whatever it produced before stopping is real work, and
-	// discarding it would make cancelling more expensive than waiting.
-	registersArtifacts := req.Status == string(model.RunStatusSucceeded) || req.Status == string(model.RunStatusCanceled)
+	// What a run left behind is registered whenever it reports any, whatever
+	// status it reports. A run that stopped early — cancelled, or interrupted
+	// because its worker was being shut down — produced real work, and
+	// discarding it would make stopping more expensive than waiting. The status
+	// is not the test because a run that failed at its work sends no artifact
+	// and so registers none; OnRunComplete also does everything SyncTaskFromRun
+	// below does, so the task record stays correct either way.
 	switch {
-	case registersArtifacts && req.Artifact != nil:
+	case req.Artifact != nil:
 		relativePaths := req.Artifact.RelativePaths
 		if len(relativePaths) == 0 && req.Artifact.RelativePath != "" {
 			relativePaths = []string{req.Artifact.RelativePath}

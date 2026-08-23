@@ -872,7 +872,7 @@ instead, and the worker stops needing an upstream key:
 | `worker.llm.model` | Which catalog model a run calls, by `--name`. Empty uses `llm.default_model`. |
 | `worker.llm.context_window`, `worker.llm.call_timeout` | Describe the model to the run; the protocol does not report them per call. |
 | `worker.run_token_ttl` | How long a run's credential stays valid. Defaults to 24h. Every run gets one, managed or not. |
-| `worker.run_timeout` | How long a run may stay `SCHEDULED` or `RUNNING` before the server records it as abandoned. Defaults to 6h. |
+| `worker.run_timeout` | How long a run may stay `SCHEDULED` or `RUNNING` before the server records it as abandoned. Defaults to 6h. It covers a worker that vanished — killed, or its node lost; a worker that is asked to stop reports its own outcome instead. |
 
 The server states the transport and model; a worker never chooses its own model,
 and is told nothing else about it — endpoint, upstream identifier, and

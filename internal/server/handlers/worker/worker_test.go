@@ -130,6 +130,86 @@ func TestPatchWorkerTaskRun_CanceledKeepsArtifactsAndSyncsTheTask(t *testing.T) 
 	}
 }
 
+// A run interrupted by its worker shutting down reports FAILED, because nothing
+// chose to stop it and it did not finish — but it produced real work first, and
+// the status must not be what decides whether that work is kept.
+func TestPatchWorkerTaskRun_InterruptedFailedKeepsArtifacts(t *testing.T) {
+	taskRunID := "run-interrupted"
+	runs := &mock.MockTaskRunStore{
+		Runs:     []model.TaskRun{{ID: taskRunID, TaskID: "task-1", Status: string(model.RunStatusRunning)}},
+		TaskList: []model.Task{{ID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1", Status: string(model.RunStatusRunning)}},
+	}
+	h := New(Config{JWTSecret: workerTestSecret, TaskRuns: runs})
+	mux := http.NewServeMux()
+	h.Register(mux)
+
+	endedAt := time.Unix(1_800_000_010, 0).UTC()
+	body, err := json.Marshal(workerclient.PatchTaskRunRequest{
+		Status:       string(model.RunStatusFailed),
+		EndedAt:      &endedAt,
+		Output:       util.Ptr("as far as I got"),
+		ErrorMessage: util.Ptr(model.ErrRunInterrupted.Error()),
+		Artifact:     &workerclient.ArtifactPayload{RelativePaths: []string{"result.md", "notes.md"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPatch, "/api/worker/task-runs/"+taskRunID, bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+runTokenFor(t, taskRunID, "task-1"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", w.Code, w.Body.String())
+	}
+	if runs.Runs[0].Status != string(model.RunStatusFailed) {
+		t.Errorf("run status = %q, want FAILED", runs.Runs[0].Status)
+	}
+	if runs.TaskList[0].Status != string(model.RunStatusFailed) {
+		t.Errorf("task status = %q, want FAILED", runs.TaskList[0].Status)
+	}
+	if got := runs.Artifacts[taskRunID]; len(got) != 2 {
+		t.Errorf("registered artifacts = %v, want both files the run wrote before it was stopped", got)
+	}
+}
+
+// A run that failed at its own work reports no artifact, and must not have one
+// invented for it.
+func TestPatchWorkerTaskRun_PlainFailureRegistersNothing(t *testing.T) {
+	taskRunID := "run-failed"
+	runs := &mock.MockTaskRunStore{
+		Runs:     []model.TaskRun{{ID: taskRunID, TaskID: "task-1", Status: string(model.RunStatusRunning)}},
+		TaskList: []model.Task{{ID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1", Status: string(model.RunStatusRunning)}},
+	}
+	h := New(Config{JWTSecret: workerTestSecret, TaskRuns: runs})
+	mux := http.NewServeMux()
+	h.Register(mux)
+
+	body, err := json.Marshal(workerclient.PatchTaskRunRequest{
+		Status:       string(model.RunStatusFailed),
+		ErrorMessage: util.Ptr("the model refused"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodPatch, "/api/worker/task-runs/"+taskRunID, bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+runTokenFor(t, taskRunID, "task-1"))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", w.Code, w.Body.String())
+	}
+	if got := runs.Artifacts[taskRunID]; len(got) != 0 {
+		t.Errorf("registered artifacts = %v, want none", got)
+	}
+	if runs.TaskList[0].Status != string(model.RunStatusFailed) {
+		t.Errorf("task status = %q, want FAILED", runs.TaskList[0].Status)
+	}
+}
+
 func TestGetWorkerTaskRunHandler_NotFound(t *testing.T) {
 	cfg := Config{
 		JWTSecret: workerTestSecret,
