@@ -172,6 +172,12 @@ a saving is reported only where caching actually saved.
 
 `--json` emits the whole record, including the tools the table truncates.
 
+In the TUI, `/stats` shows the same statistics for the session on screen,
+condensed to fit an overlay. It folds the **live** session rather than the file
+— a session is persisted after each assistant reply, so reading it back would
+answer about the turn before the one you are looking at — and it is a snapshot
+taken when the panel opens, not a live counter.
+
 ## TUI Slash Commands
 
 Typed into the input line:
@@ -184,6 +190,7 @@ Typed into the input line:
 | `/skills` | Discovered skills |
 | `/mcp` | Connected MCP servers and their status |
 | `/diff` | Working-tree diff for the workspace |
+| `/stats` | This session's spend, context use, and heaviest tools |
 | `/tasks` | Background jobs: state, age, command; `s` stops the selected one |
 
 Slash commands are unavailable while the agent is running.

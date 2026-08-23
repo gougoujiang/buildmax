@@ -53,28 +53,42 @@ func LoadSessionStats(sessionsDir, tracesDir, id string) (SessionStats, error) {
 	if err != nil {
 		return SessionStats{}, err
 	}
+	workspace := ""
+	if items, err := LoadSessionList(sessionsDir); err == nil {
+		for _, it := range items {
+			if it.ID == id {
+				workspace = it.Workspace
+				break
+			}
+		}
+	}
+	return NewSessionStats(sess, workspace, tracesDir)
+}
+
+// NewSessionStats assembles statistics for a session already in memory.
+//
+// A surface holding the live session uses this rather than LoadSessionStats:
+// a session is persisted after each assistant reply, so reading it back from
+// disk mid-turn answers about the turn before the one on screen.
+func NewSessionStats(sess *session.Session, workspace, tracesDir string) (SessionStats, error) {
+	if sess == nil {
+		return SessionStats{}, fmt.Errorf("session stats: no session")
+	}
 	out := SessionStats{
 		ID:             sess.ID,
 		Title:          sess.Title,
+		Workspace:      workspace,
 		CreatedAt:      sess.CreatedAt,
 		Usage:          sess.Usage(),
 		Cost:           sess.Cost,
 		CostIncomplete: sess.CostIncomplete,
 		Conversation:   session.Stats(sess),
 	}
-	if items, err := LoadSessionList(sessionsDir); err == nil {
-		for _, it := range items {
-			if it.ID == id {
-				out.Workspace = it.Workspace
-				break
-			}
-		}
-	}
 	// A trace read that fails leaves the run fold empty rather than failing
 	// the whole answer: the session half is already complete and useful.
-	runs, err := trace.SummarizeSession(tracesDir, id)
+	runs, err := trace.SummarizeSession(tracesDir, sess.ID)
 	if err != nil {
-		return out, fmt.Errorf("read traces for session %s: %w", id, err)
+		return out, fmt.Errorf("read traces for session %s: %w", sess.ID, err)
 	}
 	out.Runs = runs
 	return out, nil

@@ -136,6 +136,9 @@ session came to its context window, how many bytes each tool put back into that
 window, the split between model time and tool time, and how much of the run a
 delegation did.
 
+In the TUI, `/stats` shows the same figures for the session on screen, from the
+live session rather than the last saved copy.
+
 Tokens and cost come from the session file; timings and per-tool detail come
 from the traces. Where a trace is missing, those lines say so rather than
 reporting zero — see [reference/cli.md](../reference/cli.md).

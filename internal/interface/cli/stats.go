@@ -125,8 +125,8 @@ func writeStatsSpend(w io.Writer, s agentapp.SessionStats) {
 		}
 	}
 	if d := s.Runs.Delegated; d != nil && d.Runs > 0 {
-		line := fmt.Sprintf("  Of which delegated\t%d run(s), %s in / %s out",
-			d.Runs, formatCount(d.PromptTokens), formatCount(d.CompletionTokens))
+		line := fmt.Sprintf("  Of which delegated\t%s, %s in / %s out",
+			countLabel(d.Runs, "run"), formatCount(d.PromptTokens), formatCount(d.CompletionTokens))
 		if d.Cost != nil {
 			line += fmt.Sprintf(", %s %s", cllm.FormatAmount(d.Cost.Total), d.Cost.Currency)
 		}
@@ -146,7 +146,7 @@ func writeStatsContext(w io.Writer, s agentapp.SessionStats) {
 	}
 	fmt.Fprintf(tw, "  Compactions\t%d", s.Runs.Compactions)
 	if s.Conversation.CompactedMessages > 0 {
-		fmt.Fprintf(tw, " (%d message(s) summarized away)", s.Conversation.CompactedMessages)
+		fmt.Fprintf(tw, " (%s summarized away)", countLabel(s.Conversation.CompactedMessages, "message"))
 	}
 	fmt.Fprintln(tw)
 	// The share is only meaningful where a provider reported cache usage at
@@ -167,7 +167,7 @@ func writeStatsWork(w io.Writer, s agentapp.SessionStats) {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	fmt.Fprintf(tw, "  Your messages\t%d", c.UserMessages)
 	if c.BackgroundMessages > 0 {
-		fmt.Fprintf(tw, " (plus %d background event(s))", c.BackgroundMessages)
+		fmt.Fprintf(tw, " (plus %s)", countLabel(c.BackgroundMessages, "background event"))
 	}
 	fmt.Fprintln(tw)
 	fmt.Fprintf(tw, "  Assistant turns\t%d\n", c.AssistantTurns)
@@ -190,7 +190,7 @@ func writeStatsWork(w io.Writer, s agentapp.SessionStats) {
 	}
 	fmt.Fprintf(tw, "  Runs\t%d", s.Runs.Runs)
 	if s.Runs.Subagents > 0 {
-		fmt.Fprintf(tw, " (plus %d subagent run(s))", s.Runs.Subagents)
+		fmt.Fprintf(tw, " (plus %s)", countLabel(s.Runs.Subagents, "subagent run"))
 	}
 	fmt.Fprintln(tw)
 	fmt.Fprintf(tw, "  Time spent waiting\t%s\n", util.FormatDuration(s.Runs.Wall))
@@ -227,7 +227,8 @@ func writeStatsTools(w io.Writer, s agentapp.SessionStats) {
 	}
 
 	fmt.Fprintf(w, "\nTools, heaviest first\n")
-	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	var table strings.Builder
+	tw := tabwriter.NewWriter(&table, 0, 0, 2, ' ', 0)
 	header := "  TOOL\tCALLS\tOUTPUT\tTIME"
 	if notes {
 		header += "\tNOTE"
@@ -253,6 +254,7 @@ func writeStatsTools(w io.Writer, s agentapp.SessionStats) {
 		fmt.Fprintln(tw, row)
 	}
 	_ = tw.Flush()
+	fmt.Fprint(w, trimRowPadding(table.String()))
 	if len(tools) > len(shown) {
 		fmt.Fprintf(w, "  … and %d more; --json lists them all\n", len(tools)-len(shown))
 	}
@@ -319,22 +321,31 @@ func mergeToolStats(s agentapp.SessionStats) []statsTool {
 	return out
 }
 
-// writeStatsCaveats names what these numbers do not cover. A total that
-// silently dropped a killed run is worse than one that says it did.
-func writeStatsCaveats(w io.Writer, s agentapp.SessionStats) {
+// statsCaveats names what these numbers do not cover. A total that silently
+// dropped a killed run is worse than one that says it did.
+//
+// Shared by the command and the TUI panel. The two lay their reports out
+// differently, but what they are allowed to claim is one answer, and a warning
+// that appeared on only one surface would be a warning nobody trusted.
+func statsCaveats(s agentapp.SessionStats) []string {
 	var lines []string
 	if s.CostIncomplete {
 		lines = append(lines, "Part of this session ran against an unpriced model or a different currency, so the cost understates it.")
 	}
 	if s.Runs.Incomplete > 0 {
-		lines = append(lines, fmt.Sprintf("%d run(s) ended without writing a trace end record — killed or crashed — so their timings are missing here.", s.Runs.Incomplete))
+		lines = append(lines, fmt.Sprintf("%s ended without writing a trace end record — killed or crashed — so their timings are missing here.", countLabel(s.Runs.Incomplete, "run")))
 	}
 	if s.Runs.Failed > 0 {
-		lines = append(lines, fmt.Sprintf("%d run(s) ended with an error.", s.Runs.Failed))
+		lines = append(lines, fmt.Sprintf("%s ended with an error.", countLabel(s.Runs.Failed, "run")))
 	}
 	if s.Conversation.ToolCalls > 0 && s.Runs.Runs == 0 {
 		lines = append(lines, "No run trace was found for this session, so every timing above is unavailable rather than zero.")
 	}
+	return lines
+}
+
+func writeStatsCaveats(w io.Writer, s agentapp.SessionStats) {
+	lines := statsCaveats(s)
 	if len(lines) == 0 {
 		return
 	}
@@ -342,6 +353,18 @@ func writeStatsCaveats(w io.Writer, s agentapp.SessionStats) {
 	for _, l := range lines {
 		fmt.Fprintf(w, "! %s\n", l)
 	}
+}
+
+// trimRowPadding strips the padding tabwriter leaves after a row whose last
+// cell is empty. The column has to be there for the rows that do use it; the
+// spaces it leaves behind on the rows that do not are noise in a terminal and
+// in anything that diffs the output.
+func trimRowPadding(s string) string {
+	lines := strings.Split(s, "\n")
+	for i, l := range lines {
+		lines[i] = strings.TrimRight(l, " ")
+	}
+	return strings.Join(lines, "\n")
 }
 
 // formatCount groups a token count so six- and seven-figure numbers stay

@@ -1,8 +1,8 @@
 # Session Usage Stats
 
 > **Audience:** contributors · **Status:** partly implemented — per-session
-> statistics and the metering fixes they required are shipped; cross-session
-> aggregation is designed and not built
+> statistics on the CLI and in the TUI, and the metering fixes they required,
+> are shipped; cross-session aggregation is designed and not built
 >
 > Related: [durable run trace](durable-run-trace.md),
 > [prompt cache control](prompt-cache-control.md) §6,
@@ -28,7 +28,8 @@ Two of those records were also wrong, in the same direction. See §3.
 ## 2. Decision
 
 A **stats** view: a read-only fold over what sessions and traces already
-record, per session, on the CLI first.
+record, per session, on the local surfaces — `buildmax stats` and a TUI
+`/stats` overlay.
 
 Stats is a reader. It introduces no durable state that is not a rebuildable
 projection and does not change how a run executes. Where it needed a number
@@ -125,7 +126,14 @@ to miss.
   and is the only layer that may; `internal/service/*` is server-domain and is
   the wrong home. The architecture test enforces the direction — core may not
   import infra — so the combiner cannot drift downward.
-- `interface/cli` renders. `buildmax stats [session-id]`, `--json`.
+- `interface/cli` renders twice: `buildmax stats [session-id]` with `--json`,
+  and the `/stats` TUI overlay. The two layouts are separate on purpose — a
+  boxed overlay a few dozen columns wide and a full terminal want different
+  shapes — but the data and the caveat list are shared, because what a surface
+  is allowed to claim is one answer and a warning that appeared on only one of
+  them would be a warning nobody trusted. The panel folds the **live** session
+  rather than the file, since a session is persisted after each assistant reply
+  and reading it back mid-turn would answer about the previous turn.
 
 ## 5. Honesty Rules
 
@@ -165,9 +173,8 @@ numbers.
   lands its requested-mode / capability / strategy / outcome fields in the
   trace, the cache section should report the recorded outcome instead of
   inferring one from counts.
-- **Desktop and TUI surfaces.** A `/stats` panel fits the existing slash-panel
-  set, and a Desktop binding needs nothing the aggregation does not already
-  expose. Neither is built.
+- **Desktop.** A binding needs nothing the aggregation does not already
+  expose. Not built.
 - **Worker runs contribute nothing**, by construction: a worker assembles
   inside a run-scoped `BUILDMAX_HOME`. That is correct — worker spend is the
   ledger's job — and is recorded here so it is stated rather than discovered.
