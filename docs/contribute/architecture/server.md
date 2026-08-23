@@ -82,6 +82,18 @@ the message is refused with `conversation.error` carrying `code: "queue_full"`
 (HTTP: `429`), which does not end the turn in flight. Queues are in memory. See
 [Queued messages](../../design/queued-messages.md).
 
+## Reporting A Finished Run
+
+A run that reaches a terminal status does two independent things
+(`internal/server/handlers/task_result.go`). Every WebSocket connection on the
+task's team receives `task.status.changed`, which is an invalidation and not the
+outcome: a client answers it by re-reading the task. Separately, one Tier 1 turn
+is submitted to the turn queue to report the outcome in the conversation that
+started the task. That turn belongs to no connection, so a run finishing while
+nobody is watching still leaves its reply in the conversation. The queue is in
+memory, so a restart before the turn runs loses the reply — not the result,
+which stays on `task_run`.
+
 ## Cancelling A Run
 
 `POST /api/teams/{team_id}/tasks/{task_id}/cancel` stops the task's run. What

@@ -40,6 +40,7 @@ func (a *Announcer) Announce(ctx context.Context, taskRunID, status string, outp
 		TaskRunID:      run.ID,
 		TaskID:         run.TaskID,
 		ConversationID: task.ConversationID,
+		TeamID:         task.TeamID,
 		UserID:         task.CreatedBy,
 		Status:         status,
 		Output:         output,

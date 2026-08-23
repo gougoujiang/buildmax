@@ -2,8 +2,10 @@ package db
 
 import (
 	"context"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	"errors"
 	"time"
+
+	"github.com/gougoujiang/buildmax/internal/core/model"
 
 	"github.com/gougoujiang/buildmax/internal/util"
 	"gorm.io/gorm"
@@ -91,6 +93,23 @@ func (s *Store) AppendMessage(ctx context.Context, in model.AppendMessageInput) 
 	return toConversationMessage(&conversationMessageReadRow{
 		Row: *row, ConversationPublicID: canonicalPublicID(in.ConversationID),
 	}), nil
+}
+
+// GetMessage returns one message by handle, or (nil, nil) when there is none.
+func (s *Store) GetMessage(ctx context.Context, messageID string) (*model.ConversationMessage, error) {
+	id, ok := util.CanonicalPublicID(messageID)
+	if !ok {
+		return nil, nil
+	}
+	var row conversationMessageReadRow
+	err := s.conversationMessageSelect(ctx).Where("conversation_message.public_id = ?", id).Take(&row).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return toConversationMessage(&row), nil
 }
 
 // ListMessages returns all messages for the conversation ordered by created_at ASC.

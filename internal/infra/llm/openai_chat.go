@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
 	"strings"
 
 	"github.com/gougoujiang/buildmax/internal/config"
@@ -29,13 +28,7 @@ func newOpenAIChatAdapter(cfg Config) *openAIChatAdapter {
 	if cfg.BaseURL != "" {
 		clientConfig.BaseURL = cfg.BaseURL
 	}
-	var base httpDoer = clientConfig.HTTPClient
-	if cfg.HTTPClient != nil {
-		base = cfg.HTTPClient
-	}
-	if base == nil {
-		base = http.DefaultClient
-	}
+	base := withBuildMaxUserAgent(cfg.HTTPClient, cfg.Surface)
 	// This protocol's library does not surface usage from stream chunks, so the
 	// transport reads it off the raw SSE. The workaround stays here rather than
 	// in the shared layer: the other two protocols report usage in their own

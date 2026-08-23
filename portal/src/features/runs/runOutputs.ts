@@ -1,4 +1,4 @@
-import { getApiBase, requestText } from "../../lib/api/client"
+import { getApiBase, requestJson, requestText } from "../../lib/api/client"
 import { authHeaders } from "../../lib/api/common"
 
 /**
@@ -19,4 +19,23 @@ export async function getRunOutputContent(
     url += `?path=${encodeURIComponent(path)}`
   }
   return requestText(url, { headers: authHeaders(token) })
+}
+
+export interface RunOutputFile {
+  relative_path: string
+}
+
+/**
+ * List the files one task run left behind.
+ *
+ * Separate from reading one because a caller usually wants to know whether
+ * there is anything to open before it offers to open it.
+ */
+export async function listRunOutputFiles(
+  teamId: string,
+  taskRunId: string,
+  token: string
+): Promise<RunOutputFile[]> {
+  const url = `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/task-runs/${encodeURIComponent(taskRunId)}/artifacts/items`
+  return requestJson<RunOutputFile[]>(url, { headers: authHeaders(token) })
 }

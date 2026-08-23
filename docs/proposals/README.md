@@ -33,14 +33,12 @@ their context.
 |---|---|
 | [Portal interaction and execution model](portal-interaction-execution-model.md) | How should a full foreground Tier 1 Agent coordinate a potentially specialized Tier 2 execution Agent plane without owning durable state and delivery? |
 | [Enterprise identity and access](enterprise-identity-and-access.md) | How should a private deployment connect corporate identity to BuildMax teams and roles? |
-| [Agent execution policy](agent-execution-policy.md) | Who chooses a worker's execution boundary, and what happens when the chosen one cannot be applied? |
-| [Trusted private execution loop](trusted-private-execution-loop.md) | Should the next cross-cutting milestone prove one constrained, managed, auditable private team task before broader product expansion? |
 | [Durable Agent sessions](durable-agent-sessions.md) | Should authenticated local Agent sessions become revisioned Server resources for recovery, provenance, sharing, and cross-device continuation? |
 | [Local Issue work bridge](local-issue-work-bridge.md) | How should connected CLI/TUI and Desktop handle Team Issues locally without becoming Portal clones or weakening direct local use? |
 | [Session tree, agent mailbox, and branched workspaces](session-tree-and-agent-mailbox.md) | Should interactive sessions fork isolated workspaces, return structured child reports, and resume their parent through a durable mailbox? |
-| [Plugin scope for background runs](plugin-scope-for-background-runs.md) | Is a team's plugin set decided once for the team, or per agent definition? |
 
-Five papers have been retired. *System administration* asked how a private
+Eight papers have been retired. Four were accepted into a design
+record. *System administration* asked how a private
 deployment should authorize and audit System Administrators; the direction was
 accepted and is now the [system administration
 design](../design/system-administration.md), which decides the grant model,
@@ -55,16 +53,37 @@ subagents, and event-driven monitors; the direction was accepted and is now the
 [local background jobs design](../design/local-background-jobs.md), which
 commits the staged delivery and its prerequisites.
 
-The other two were retired because the work they proposed shipped. *Private
-production operations* asked for an operating contract for private deployment;
+*Plugin scope for background runs* asked whether a team's plugin set is decided
+once for the team or per agent definition; the answer is both, and §5.3 of the
+[team and worker plugin distribution design](../design/plugin-team-distribution.md)
+now decides it. A team's activation is the allow-list and the pin, an agent
+definition narrows it, and the two levels split by what an unwanted item costs:
+inert content is inherited when an agent names none, executable content is
+loaded only when an agent names it.
+
+Three were retired because the work they proposed shipped. *Private production
+operations* asked for an operating contract for private deployment;
 `deployment/production/` and the compatibility section of
 [../start/support.md](../start/support.md) are that contract, and what it still
 lacks is operational evidence, now recorded as open questions in the
 [enterprise deployment design](../design/enterprise-deployment.md). *Audit and
 data governance* asked for the smallest useful evidence model; the append-only
 audit trail is it, and retention, export, and correlation remain open in the
-[team governance design](../design/team-governance.md). Git history holds all
-five papers.
+[team governance design](../design/team-governance.md). *Trusted private
+execution loop* asked whether one constrained, managed, auditable private team
+task should be proven before broader expansion; managed inference in the worker
+and the run-scoped credential shipped, the Beta gate was restated so it no
+longer claims a bounded egress it does not have, and the reachability the paper
+called its remaining work is the
+`GET /api/teams/{team_id}/task-runs/{task_run_id}/llm-calls` route.
+
+One was narrowed rather than answered. *Agent execution policy* asked who
+chooses a worker's execution boundary; what a run holds, runs inside, is bounded
+by, and records all became settled behaviour while it was open, leaving one
+question that belongs to an existing plan — it is now §3.9 of the [trust harness
+design](../design/trust-harness.md), with the egress half it blocks.
+
+Git history holds all eight papers.
 
 ## Starting A Proposal
 

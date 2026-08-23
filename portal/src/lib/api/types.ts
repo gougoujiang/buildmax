@@ -246,6 +246,10 @@ export interface ApiTask {
   error_message: string | null
   agent_id?: string | null
   issue_id?: string | null
+  /** The run behind the current status. Keys the trace and file routes. */
+  last_run_id?: string | null
+  /** Runs of this task that stored output files, newest first. */
+  artifact_run_ids?: string[]
 }
 
 /** Conversation as returned by the team-scoped task conversation endpoint. */

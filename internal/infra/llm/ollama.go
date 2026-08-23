@@ -45,14 +45,10 @@ func newOllamaAdapter(cfg Config, contextWindow int) (*ollamaAdapter, error) {
 	if cfg.Model == "" {
 		return nil, errors.New("ollama provider needs a model, for example qwen3:8b")
 	}
-	client := cfg.HTTPClient
-	if client == nil {
-		// No client-level timeout: the per-call deadline comes from the
-		// context, and a cold model can spend most of one loading.
-		client = &http.Client{}
-	}
 	return &ollamaAdapter{
-		http:          client,
+		// The per-call deadline comes from the context, and a cold model can
+		// spend most of one loading, so this transport adds no client timeout.
+		http:          withBuildMaxUserAgent(cfg.HTTPClient, cfg.Surface),
 		baseURL:       ollamaBaseURL(cfg.BaseURL),
 		model:         cfg.Model,
 		maxTokens:     cfg.MaxTokens,

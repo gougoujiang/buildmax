@@ -687,11 +687,23 @@ One execution attempt. This is the row quota and token accounting read.
 | `cancel_requested_at` | `bigint` | yes | When someone asked this run to stop; `NULL` when nobody has |
 | `cancel_requested_by` | `bigint unsigned` | yes | `user.id` of whoever asked |
 | `retry_of_task_run_id` | `bigint unsigned` | yes | The run this one repeats; `NULL` for a run that carries its own instructions |
+| `source_message_id` | `bigint unsigned` | yes | `conversation_message.id` this run was asked for in; `NULL` when no message asked for it |
 | `created_at` | `bigint` | yes | `autoCreateTime` |
 
 Indexes: PK `id`; index `cancel_requested_at`; index `created_by`; index
-`retry_of_task_run_id`; index `idx_task_run_task_created` on (`task_id`,
-`created_at`); unique `public_id`.
+`retry_of_task_run_id`; index `source_message_id`; index
+`idx_task_run_task_created` on (`task_id`, `created_at`); unique `public_id`.
+
+`source_message_id` is what a person actually said; `input` is what Tier 1
+decided to send a worker. They are different texts and keeping both is the
+point: a constraint missing from `input` is either one the model dropped or one
+the user never gave, and nothing else in the schema can tell those apart. Each
+run records its own — a task's first run names the message that created it, a
+continuation names the message that asked for it. It is `NULL` for every origin
+that is not a message: a workflow step, an issue agent run, a retry, and a task
+created straight from the API. A handle that does not resolve leaves the column
+`NULL` rather than refusing the run; losing provenance is better than refusing
+work someone asked for.
 
 `retry_of_task_run_id` points at the run a retry repeats, one link per row: a
 retry of a retry names the run it repeated, not the first of the chain. It is

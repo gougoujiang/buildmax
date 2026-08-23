@@ -81,7 +81,7 @@ lets the frontend re-read a queue it was not mounted for.
 
 ### Portal: the registry moved off the connection
 
-`turnRegistry` (`internal/server/handlers/conversation_turns.go`) is server-scoped
+`turnqueue.Registry` (`internal/server/turnqueue`) is server-scoped
 and keyed by conversation. It replaced a `map[string]*sync.Mutex` that lived on
 the WebSocket connection, which was the wrong owner: a conversation outlives any
 one socket, and it is reachable from a reconnected socket, a second tab, the HTTP

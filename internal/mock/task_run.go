@@ -35,6 +35,7 @@ func (m *MockTaskRunStore) CreateTaskRun(_ context.Context, in model.CreateTaskR
 		TriggerSource:    in.TriggerSource,
 		Status:           string(model.RunStatusPending),
 		RetryOfTaskRunID: in.RetryOfTaskRunID,
+		SourceMessageID:  in.SourceMessageID,
 		CreatedAt:        time.Now().Unix(),
 	}
 	m.Runs = append(m.Runs, run)

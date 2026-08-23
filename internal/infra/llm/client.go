@@ -42,6 +42,9 @@ type Config struct {
 	// Vision says the model accepts image input. When false, an adapter drops
 	// image parts and sends only the text describing them.
 	Vision bool
+	// Surface identifies where the request originated, such as cli, desktop,
+	// server, or worker. It appears in the User-Agent and is not user input.
+	Surface string
 	// KeepAlive is how long a local runtime keeps the model loaded after a
 	// call. Only the Ollama adapter has a model to keep loaded; the hosted
 	// protocols ignore it.

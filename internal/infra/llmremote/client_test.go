@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gougoujiang/buildmax/internal/config"
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/infra/llmremote"
 	"github.com/gougoujiang/buildmax/internal/infra/llmwire"
@@ -18,13 +19,14 @@ import (
 type fakeGateway struct {
 	server *httptest.Server
 
-	gotPath   string
-	gotAuth   string
-	gotAccept string
-	gotMethod string
-	gotBody   llmwire.CompletionRequest
-	gotRaw    []byte
-	requests  int
+	gotPath      string
+	gotAuth      string
+	gotAccept    string
+	gotUserAgent string
+	gotMethod    string
+	gotBody      llmwire.CompletionRequest
+	gotRaw       []byte
+	requests     int
 
 	status int
 	body   string
@@ -38,6 +40,7 @@ func newFakeGateway(t *testing.T) *fakeGateway {
 		g.gotPath = r.URL.Path
 		g.gotAuth = r.Header.Get("Authorization")
 		g.gotAccept = r.Header.Get("Accept")
+		g.gotUserAgent = r.Header.Get("User-Agent")
 		g.gotMethod = r.Method
 		if r.Body != nil {
 			raw := make([]byte, 0)
@@ -91,6 +94,9 @@ func TestBlockingCallShapesTheRequest(t *testing.T) {
 	}
 	if gateway.gotAuth != "Bearer tok" {
 		t.Errorf("authorization = %q", gateway.gotAuth)
+	}
+	if gateway.gotUserAgent != config.UserAgent("cli", false) {
+		t.Errorf("user-agent = %q, want %q", gateway.gotUserAgent, config.UserAgent("cli", false))
 	}
 	if gateway.gotBody.Model != "fast" {
 		t.Errorf("model = %q, want the alias", gateway.gotBody.Model)

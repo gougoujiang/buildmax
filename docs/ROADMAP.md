@@ -27,9 +27,10 @@ The near-term goal is:
 
 ## Near-Term Priorities
 
-P0, P1, and P2 are **complete**. Active work starts at P0.5, P0.6, and P3. The
-completed sections are kept because their focus and acceptance criteria are the
-standard the surfaces are held to, not because the work is outstanding.
+P0, P1, and P2 are **complete**. Active work starts at
+P0.5, P0.6, and P3. The completed sections are kept because their focus and
+acceptance criteria are the standard the surfaces are held to, not because the
+work is outstanding.
 
 ### P0. Agent Core Stability — complete
 
@@ -82,6 +83,21 @@ Focus:
 Acceptance:
 
 - opening an issue makes it obvious what was produced, without reading raw run or step internals
+
+Both surfaces are built. `issue_outputs.go` serves the aggregation, the API
+returns `latest_result`, and `IssueDetail.tsx` renders it. A Conversation now
+carries a card per task — status, output, files, run details, stop and run again
+— ordered against the messages by creation time and read from the database, so
+the cards survive a refresh, a dropped socket, and a summary that never arrives.
+The transcript excludes the system channel, so a `[Task Result]` message is no
+longer drawn as the user's own.
+
+One thing that repair deliberately did not do: the Tier 1 turn that summarizes a
+finished run is submitted to an in-process queue, so a server restart between a
+run finishing and its turn running still loses the summary. The result is not
+lost with it — the card reads it from `task_run`. Durable delivery is a later
+phase of
+[proposals/portal-interaction-execution-model.md](proposals/portal-interaction-execution-model.md).
 
 ### P0.5. Agent Core Trust Harness
 

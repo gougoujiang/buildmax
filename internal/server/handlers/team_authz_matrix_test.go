@@ -183,7 +183,7 @@ func matrixMuxWithGrants(t *testing.T, grants model.SystemGrantStore) *http.Serv
 		TaskRunStore:             &mock.MockTaskRunStore{},
 		RunOutputLister:          &mock.MockRunOutputLister{},
 		ConversationStore:        conversations,
-		ConversationMessageStore: &mockConversationMessageStore{},
+		ConversationMessageStore: &mock.MockConversationMessageStore{},
 		AuditStore:               &mock.MockAuditStore{},
 		SystemGrantStore:         grants,
 		PersistStorage:           mock.NewMockPersistStorage(),

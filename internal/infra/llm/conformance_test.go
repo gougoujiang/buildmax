@@ -508,9 +508,10 @@ var protocols = []protocol{
 
 // upstream is a fake provider that answers whichever protocol is asked of it.
 type upstream struct {
-	server   *httptest.Server
-	requests int
-	bodies   []string
+	server     *httptest.Server
+	requests   int
+	bodies     []string
+	userAgents []string
 }
 
 // newUpstreamWithBody answers every request with one fixed body, for a test
@@ -520,6 +521,7 @@ func newUpstreamWithBody(t *testing.T, body string) *upstream {
 	up := &upstream{}
 	up.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		up.requests++
+		up.userAgents = append(up.userAgents, req.Header.Get("User-Agent"))
 		requestBody, err := io.ReadAll(req.Body)
 		if err != nil {
 			t.Errorf("read request body: %v", err)
@@ -537,6 +539,7 @@ func newUpstream(t *testing.T, p protocol, r reply, failStatus int) *upstream {
 	up := &upstream{}
 	up.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		up.requests++
+		up.userAgents = append(up.userAgents, req.Header.Get("User-Agent"))
 		body, err := io.ReadAll(req.Body)
 		if err != nil {
 			t.Errorf("read request body: %v", err)
@@ -570,6 +573,7 @@ func newTestClient(t *testing.T, provider, baseURL string) *LLMClient {
 		BaseURL:       baseURL,
 		Model:         "test-model",
 		ContextWindow: 32_000,
+		Surface:       "cli",
 	})
 	if err != nil {
 		t.Fatalf("NewClient(%s): %v", provider, err)
@@ -594,6 +598,21 @@ func TestAdaptersAgreeOnBlockingReplies(t *testing.T) {
 				assertReply(t, p.want(scenario.reply, conformanceHistory()), completion)
 			})
 		}
+	}
+}
+
+func TestAdaptersIdentifyAsBuildMax(t *testing.T) {
+	for _, p := range protocols {
+		t.Run(p.provider, func(t *testing.T) {
+			up := newUpstream(t, p, reply{text: "ok"}, 0)
+			client := newTestClient(t, p.provider, up.server.URL)
+			if _, err := client.ChatCompletionBlocking(context.Background(), []cllm.Message{{Role: "user", Content: "hello"}}, nil); err != nil {
+				t.Fatalf("ChatCompletionBlocking: %v", err)
+			}
+			if len(up.userAgents) != 1 || up.userAgents[0] != config.UserAgent("cli", false) {
+				t.Errorf("User-Agent = %q, want %q", up.userAgents, config.UserAgent("cli", false))
+			}
+		})
 	}
 }
 

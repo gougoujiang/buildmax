@@ -73,6 +73,8 @@ type CreateTaskCmd struct {
 	IssueID        *string
 	CreatedByType  string
 	TriggerSource  string
+	// SourceMessageID names the conversation message that asked for this task.
+	SourceMessageID *string
 }
 
 // CreateRunCmd creates a new run on an existing task.
@@ -84,6 +86,8 @@ type CreateRunCmd struct {
 	TriggerSource string
 	// RetryOfTaskRunID names the run this one repeats, when it repeats one.
 	RetryOfTaskRunID *string
+	// SourceMessageID names the conversation message that asked for this run.
+	SourceMessageID *string
 }
 
 // RetryRunCmd repeats a task's most recent run.
@@ -119,18 +123,19 @@ func (s *Service) CreateTask(ctx context.Context, cmd CreateTaskCmd) (*model.Tas
 		return nil, err
 	}
 	return s.Tasks.CreateTask(ctx, &model.CreateTaskInput{
-		ConversationID:          cmd.ConversationID,
-		TeamID:                  cmd.TeamID,
-		Input:                   input,
-		Title:                   title,
-		CreatedBy:               cmd.UserID,
-		InitialRunCreatedBy:     cmd.UserID,
-		InitialRunCreatedByType: createdByType,
-		InitialRunTriggerSource: triggerSource,
-		TitlePromptTokens:       promptTokens,
-		TitleCompletionTokens:   completionTokens,
-		AgentID:                 agentID,
-		IssueID:                 cmd.IssueID,
+		ConversationID:            cmd.ConversationID,
+		TeamID:                    cmd.TeamID,
+		Input:                     input,
+		Title:                     title,
+		CreatedBy:                 cmd.UserID,
+		InitialRunCreatedBy:       cmd.UserID,
+		InitialRunCreatedByType:   createdByType,
+		InitialRunTriggerSource:   triggerSource,
+		InitialRunSourceMessageID: cmd.SourceMessageID,
+		TitlePromptTokens:         promptTokens,
+		TitleCompletionTokens:     completionTokens,
+		AgentID:                   agentID,
+		IssueID:                   cmd.IssueID,
 	})
 }
 
@@ -161,6 +166,7 @@ func (s *Service) CreateRun(ctx context.Context, cmd CreateRunCmd) (*model.TaskR
 		CreatedByType:    createdByType,
 		TriggerSource:    triggerSource,
 		RetryOfTaskRunID: cmd.RetryOfTaskRunID,
+		SourceMessageID:  cmd.SourceMessageID,
 	})
 }
 

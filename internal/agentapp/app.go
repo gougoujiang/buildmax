@@ -1091,6 +1091,7 @@ func (r *LLMClientCache) build(cfg ModelConfig) (cllm.LLMClient, error) {
 		Reasoning:     cfg.Reasoning,
 		PromptCache:   cfg.PromptCache,
 		Vision:        cfg.Vision,
+		Surface:       r.surface,
 		KeepAlive:     cfg.KeepAlive,
 		CallTimeout:   time.Duration(cfg.CallTimeout) * time.Second,
 	})

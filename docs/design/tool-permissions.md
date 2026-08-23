@@ -9,9 +9,9 @@
 - follows: [trust-harness.md](./trust-harness.md),
   [sandbox-boundaries.md](./sandbox-boundaries.md),
   [hook-system.md](./hook-system.md)
-- relates: [../proposals/agent-execution-policy.md](../proposals/agent-execution-policy.md)
-  decides the OS boundary a worker runs inside; this record decides the
-  in-process gate in front of every tool call. They meet in §5.7.
+- relates: [trust-harness.md](./trust-harness.md) §3.9 decides who chooses the
+  boundary a worker runs inside; this record decides the in-process gate in
+  front of every tool call. They meet in §5.7.
 - precedes: [parallel-tool-execution.md](./parallel-tool-execution.md), which
   consumes the `Access` classification defined here in §5.1;
   [team-governance.md](./team-governance.md), which is where operator control
@@ -470,10 +470,10 @@ purpose is to contain writes *outside* the workspace; a write inside the
 workspace is precisely what it permits. Containment that does not contain the
 act in question cannot stand in for asking about it.
 
-Which boundary a worker runs inside — and who chooses it — is
-[../proposals/agent-execution-policy.md](../proposals/agent-execution-policy.md).
-This record assumes whatever boundary is in force and gates the call in front
-of it.
+Which boundary a worker runs inside is
+[sandbox-boundaries.md](./sandbox-boundaries.md); who chooses it is open in
+[trust-harness.md](./trust-harness.md) §3.9. This record assumes whatever
+boundary is in force and gates the call in front of it.
 
 ## 6. Effective Behavior
 

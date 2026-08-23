@@ -131,6 +131,14 @@ this design.
   `BUILDMAX_RUN_TOKEN` and `BUILDMAX_WORKER_TOKEN` from its own environment once
   configuration is loaded, keeping them in memory only. That is the protection,
   not the scrub list.
+- **It does not narrow object storage.** `BUILDMAX_MINIO_ACCESS_KEY` and
+  `BUILDMAX_MINIO_SECRET_KEY` are marked `WorkerNeeds` in
+  `internal/config/env_spec.go`, so a Job pod still receives the deployment's
+  long-lived bucket credentials alongside its run-scoped token. Removing them
+  needs a server-issued or workload-identity credential scoped to the run's own
+  prefix, without moving arbitrary file access into the server. That is the
+  remaining half of "a run holds only the credentials it needs", and it is not
+  designed.
 - **It does not pin the model.** A run token authorizes a run, not an alias. A
   worker may still name any alias its team is granted. Pinning an approved alias
   to the run and rejecting others is a later step.

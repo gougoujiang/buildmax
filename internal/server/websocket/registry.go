@@ -1,10 +1,9 @@
 package websocket
 
 import (
-	"context"
 	"sync"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	"github.com/gougoujiang/buildmax/internal/core/llm"
 )
 
 // ConnRegistry tracks active WebSocket connections per user.
@@ -47,45 +46,60 @@ func (r *ConnRegistry) ForUser(userID string) []*Conn {
 	return out
 }
 
-const taskResultMaxOutputLen = 4000
-
-// OnTaskRunTerminal is called when a task run reaches terminal status. It finds the user's active
-// WebSocket connection and triggers a system Tier 1 conversation turn with the task result.
-func (r *ConnRegistry) OnTaskRunTerminal(ctx context.Context, info model.TaskRunTerminalInfo) {
-	conns := r.ForUser(info.UserID)
-	if len(conns) == 0 {
-		componentLog().Info("user not connected, skipping", "user_id", info.UserID, "task_id", info.TaskID)
-		return
+// audience returns every connection that may be looking at a team's resources.
+//
+// A team is the authorization boundary for what a Portal page can read, so it is
+// also the right audience for a change to something that page shows. userID is
+// the fallback for a task created before tasks carried a team: it still has an
+// owner, and losing the event entirely is worse than telling only them.
+func (r *ConnRegistry) audience(teamID, userID string) []*Conn {
+	if teamID == "" {
+		return r.ForUser(userID)
 	}
-	msg := formatTaskResultMessage(info)
-	wc := conns[0]
-	componentLog().Info("triggering system turn", "user_id", info.UserID, "conversation_id", info.ConversationID, "task_id", info.TaskID, "status", info.Status)
-	wc.RunSystemConversationTurn(ctx, info.ConversationID, msg)
+	r.mu.RLock()
+	var out []*Conn
+	for _, list := range r.conns {
+		for _, c := range list {
+			if c.teamID == teamID {
+				out = append(out, c)
+			}
+		}
+	}
+	r.mu.RUnlock()
+	return out
 }
 
-func formatTaskResultMessage(info model.TaskRunTerminalInfo) string {
-	if info.Status == string(model.RunStatusCanceled) {
-		// A cancel is an instruction, not a fault. Saying so keeps Tier 1 from
-		// treating the stop as a failure worth retrying or apologising for.
-		note := ""
-		if info.ErrorMessage != nil && *info.ErrorMessage != "" {
-			note = "\n\n" + *info.ErrorMessage
-		}
-		return "[Task Result] task_id: " + info.TaskID + " | status: canceled\n\nThis task was stopped on request." + note
+// Broadcast sends one event to every connection watching the team.
+//
+// Nothing here picks a single connection. A person reads the Portal from as many
+// tabs as they like and from none at all, and a teammate reads the same
+// conversation from their own; an event that reaches one of those and not the
+// rest leaves the others showing state that has already changed.
+func (r *ConnRegistry) Broadcast(teamID, userID, eventType string, payload any) {
+	for _, c := range r.audience(teamID, userID) {
+		c.sendEvent(eventType, payload)
 	}
-	if info.Status == string(model.RunStatusSucceeded) {
-		output := ""
-		if info.Output != nil {
-			output = *info.Output
-		}
-		if len(output) > taskResultMaxOutputLen {
-			output = output[:taskResultMaxOutputLen] + "\n...(truncated)"
-		}
-		return "[Task Result] task_id: " + info.TaskID + " | status: succeeded\n\n" + output
-	}
-	errMsg := "unknown error"
-	if info.ErrorMessage != nil && *info.ErrorMessage != "" {
-		errMsg = *info.ErrorMessage
-	}
-	return "[Task Result] task_id: " + info.TaskID + " | status: failed\n\nError: " + errMsg
+}
+
+// BroadcastSink streams one turn's deltas to everyone watching the team.
+//
+// A turn the server starts on its own — reporting a finished run, say — has no
+// socket of its own to write to. This is what it streams through instead, and it
+// costs nothing when nobody is connected.
+func (r *ConnRegistry) BroadcastSink(teamID, userID, conversationID string) llm.StreamSink {
+	return &broadcastSink{registry: r, teamID: teamID, userID: userID, conversationID: conversationID}
+}
+
+type broadcastSink struct {
+	registry       *ConnRegistry
+	teamID         string
+	userID         string
+	conversationID string
+}
+
+func (s *broadcastSink) OnDelta(delta string) {
+	s.registry.Broadcast(s.teamID, s.userID, TypeMessageDelta, MessageDelta{
+		ConversationID: s.conversationID,
+		Delta:          delta,
+	})
 }

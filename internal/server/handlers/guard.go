@@ -80,7 +80,7 @@ func (h *Handler) workerHandler() *worker.Handler {
 }
 
 func (h *Handler) terminalListeners(ctx context.Context, info model.TaskRunTerminalInfo) {
-	h.connRegistry.OnTaskRunTerminal(ctx, info)
+	h.reportTaskRunTerminal(ctx, info)
 	if h.cfg.OnTaskRunTerminal != nil {
 		h.cfg.OnTaskRunTerminal(ctx, info)
 	}

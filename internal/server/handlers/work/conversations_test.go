@@ -1,7 +1,6 @@
 package work
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -13,45 +12,19 @@ import (
 	"github.com/gougoujiang/buildmax/internal/util"
 )
 
-type mockConversationMessageStore struct {
-	messages []model.ConversationMessage
-}
-
-func (m *mockConversationMessageStore) AppendMessage(ctx context.Context, in model.AppendMessageInput) (*model.ConversationMessage, error) {
-	msg := model.ConversationMessage{
-		ID:                "cm_mock",
-		ConversationID:    in.ConversationID,
-		Role:              in.Role,
-		Content:           in.Content,
-		Channel:           in.Channel,
-		ToolCallID:        in.ToolCallID,
-		ToolCallsJSON:     in.ToolCallsJSON,
-		ProviderStateJSON: in.ProviderStateJSON,
-	}
-	m.messages = append(m.messages, msg)
-	return &msg, nil
-}
-
-func (m *mockConversationMessageStore) ListMessages(ctx context.Context, conversationID string) ([]model.ConversationMessage, error) {
-	var out []model.ConversationMessage
-	for _, msg := range m.messages {
-		if msg.ConversationID == conversationID {
-			out = append(out, msg)
-		}
-	}
-	return out, nil
-}
-
 func TestGetConversationMessagesHandler_HidesSystemMessages(t *testing.T) {
 	secret := "test-conversation-secret"
 	conversationID := "conv1"
 	teamID := "tm_personal_u1"
 	channel := "system"
-	messageStore := &mockConversationMessageStore{
-		messages: []model.ConversationMessage{
+	messageStore := &mock.MockConversationMessageStore{
+		Messages: []model.ConversationMessage{
 			{ID: "cm_1", ConversationID: conversationID, Role: "user", Content: "hello", CreatedAt: 1},
 			{ID: "cm_tool", ConversationID: conversationID, Role: "tool", Content: "tool output", CreatedAt: 2},
 			{ID: "cm_2", ConversationID: conversationID, Role: "system", Content: "[Task Result] internal", Channel: &channel, CreatedAt: 2},
+			// What the runtime writes today: role "user" so the model replays it,
+			// system channel so the transcript knows the user did not type it.
+			{ID: "cm_task_result", ConversationID: conversationID, Role: "user", Content: "[Task Result] task_id: tk_1 | status: succeeded", Channel: &channel, CreatedAt: 2},
 			{ID: "cm_3", ConversationID: conversationID, Role: "assistant", Content: "final reply", CreatedAt: 3},
 		},
 	}

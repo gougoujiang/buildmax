@@ -55,14 +55,19 @@ type TurnRunInput struct {
 	StreamSink     llm.StreamSink
 }
 
-func buildConversationTools(in TurnRunInput) []llm.Tool {
+// buildConversationTools builds this turn's task tools.
+//
+// sourceMessageID is the message the turn is answering, already stored. Every
+// run these tools create records it, so the request a worker was given can be
+// compared with what the person actually asked for.
+func buildConversationTools(in TurnRunInput, sourceMessageID *string) []llm.Tool {
 	if in.Channel == internalSystemChannel || in.TaskService == nil {
 		return nil
 	}
 	svc := in.TaskService
 	tools := []llm.Tool{
 		convtool.NewStartTaskTool(
-			convtool.NewStartTaskServiceRunner(svc, in.ConversationID, in.TeamID, in.UserID),
+			convtool.NewStartTaskServiceRunner(svc, in.ConversationID, in.TeamID, in.UserID, sourceMessageID),
 			in.AgentSummaries,
 		),
 	}
@@ -72,7 +77,7 @@ func buildConversationTools(in TurnRunInput) []llm.Tool {
 	if r := convtool.NewGetTaskStoreRunner(svc.Tasks); r != nil {
 		tools = append(tools, convtool.NewGetTaskTool(in.ConversationID, r))
 	}
-	if r := convtool.NewContinueTaskServiceRunner(svc); r != nil {
+	if r := convtool.NewContinueTaskServiceRunner(svc, sourceMessageID); r != nil {
 		tools = append(tools, convtool.NewContinueTaskTool(in.ConversationID, in.UserID, r))
 	}
 	return tools
@@ -182,13 +187,18 @@ func prepareRun(ctx context.Context, msgStore model.ConversationMessageStore, in
 	}
 	firstRound := len(msgs) == 0
 	channelPtr := &in.Channel
-	if _, err := msgStore.AppendMessage(ctx, model.AppendMessageInput{
+	incoming, err := msgStore.AppendMessage(ctx, model.AppendMessageInput{
 		ConversationID: in.ConversationID,
 		Role:           "user",
 		Content:        in.Message,
 		Channel:        channelPtr,
-	}); err != nil {
+	})
+	if err != nil {
 		return nil, fmt.Errorf("append incoming message: %w", err)
+	}
+	var sourceMessageID *string
+	if incoming != nil && incoming.ID != "" {
+		sourceMessageID = &incoming.ID
 	}
 	llmMsgs := make([]llm.Message, 0, len(msgs)+2)
 	for _, m := range msgs {
@@ -204,7 +214,7 @@ func prepareRun(ctx context.Context, msgStore model.ConversationMessageStore, in
 			msgStore:       msgStore,
 			msgs:           llmMsgs,
 		},
-		toolsList: buildConversationTools(in),
+		toolsList: buildConversationTools(in, sourceMessageID),
 	}, nil
 }
 

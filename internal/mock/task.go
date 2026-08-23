@@ -13,6 +13,9 @@ type MockTaskStore struct {
 	ListErr   error
 	Create    *model.Task
 	CreateErr error
+	// Created records what each CreateTask was asked for. The returned Task
+	// drops most of it, so provenance a caller set can only be asserted here.
+	Created []model.CreateTaskInput
 }
 
 func (m *MockTaskStore) ListTasksByConversation(_ context.Context, conversationID string, order string) ([]model.Task, error) {
@@ -93,6 +96,7 @@ func (m *MockTaskStore) CreateTask(_ context.Context, in *model.CreateTaskInput)
 	if in == nil {
 		return nil, nil
 	}
+	m.Created = append(m.Created, *in)
 	id := len(m.List) + 1
 	taskID := fmt.Sprintf("t_mock_%d", id)
 	lastRunID := fmt.Sprintf("r_mock_%d", id)

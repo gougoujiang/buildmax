@@ -3,6 +3,7 @@ package mock
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
@@ -81,4 +82,57 @@ func (m *MockConversationStore) UpdateConversationTitle(_ context.Context, conve
 		}
 	}
 	return nil
+}
+
+// MockConversationMessageStore is an in-memory ConversationMessageStore.
+//
+// Every appended message gets its own handle. That matters more than it looks:
+// a run records the message that asked for it, and a store handing out one
+// shared ID would let that assertion pass on any message at all.
+type MockConversationMessageStore struct {
+	mu       sync.Mutex
+	Messages []model.ConversationMessage
+}
+
+func (m *MockConversationMessageStore) AppendMessage(_ context.Context, in model.AppendMessageInput) (*model.ConversationMessage, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	msg := model.ConversationMessage{
+		ID:                fmt.Sprintf("cm_mock_%d", len(m.Messages)+1),
+		ConversationID:    in.ConversationID,
+		Role:              in.Role,
+		Content:           in.Content,
+		Channel:           in.Channel,
+		ToolCallID:        in.ToolCallID,
+		ToolCallsJSON:     in.ToolCallsJSON,
+		ProviderStateJSON: in.ProviderStateJSON,
+		PartsJSON:         in.PartsJSON,
+		CreatedAt:         int64(len(m.Messages) + 1),
+	}
+	m.Messages = append(m.Messages, msg)
+	return &msg, nil
+}
+
+func (m *MockConversationMessageStore) ListMessages(_ context.Context, conversationID string) ([]model.ConversationMessage, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]model.ConversationMessage, 0, len(m.Messages))
+	for _, msg := range m.Messages {
+		if msg.ConversationID == conversationID {
+			out = append(out, msg)
+		}
+	}
+	return out, nil
+}
+
+func (m *MockConversationMessageStore) GetMessage(_ context.Context, messageID string) (*model.ConversationMessage, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for i := range m.Messages {
+		if m.Messages[i].ID == messageID {
+			msg := m.Messages[i]
+			return &msg, nil
+		}
+	}
+	return nil, nil
 }

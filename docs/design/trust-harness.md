@@ -3,8 +3,8 @@
 ## Status
 
 - roadmap_priority: `P0.5`
-- status: `in_progress` — hooks are implemented; sandbox worker hardening and
-  trace follow-ups remain open
+- status: `in_progress` — hooks are implemented; sandbox worker hardening,
+  trace follow-ups, and the §3.9 worker-boundary authority question remain open
 - follows: P0 Agent Core stability, P1 Local agent experience, and P2 Portal outcome surface — all complete; their plans were retired (see git history)
 - roadmap: [../ROADMAP.md](../ROADMAP.md)
 - created_at: `2026-05-23`
@@ -222,6 +222,50 @@ Worker runs should:
 - load only the memory and instructions appropriate for the team/run scope
 - make denied actions understandable
 - avoid hiding local/remote capability drift
+
+### 3.9 Who Chooses A Worker's Boundary — open
+
+Absorbed from the retired *Agent execution policy* proposal. Four things about
+worker execution are settled and described above or in
+[sandbox-boundaries.md](./sandbox-boundaries.md): what a run holds, what it runs
+inside, its resource bounds, and what it records. What is not settled is
+**authority**. The boundary is fixed by the deployment's manifests rather than
+chosen: a cluster operator hardens every worker equally or not at all, no team
+can be given a different one, and nothing defines what happens when a requested
+constraint is unavailable. The sandbox is off on every surface today, so the
+question does not yet arise — wiring the worker surface (§3.2) is what raises it.
+
+The concrete gap this leaves is network egress. A worker pod reaches anything
+the cluster allows, and `deployment/production/README.md` states that absence
+rather than implying a boundary it does not have.
+
+Four shapes were considered. Per-user runtime settings are disqualified: they
+cannot give an operator an authoritative worker boundary. Leaving it entirely to
+cluster manifests is coherent, but leaves BuildMax unable to record or explain a
+boundary it does not model, which the Beta gate requires. So the live choice is
+one deployment-wide profile in `server.yaml` against layered operator/team/task
+profiles, and **deployment-wide holds until evidence says otherwise** — it is
+materially cheaper, and a per-team boundary should be paid for by an operator
+who asks for it rather than assumed.
+
+What remains open, and what each needs:
+
+| Question | What would settle it |
+|---|---|
+| Is a per-team boundary a real requirement? | An operator statement either way. Until there is one, deployment-wide stands |
+| Does an inapplicable profile fail the run or downgrade it with a recorded warning? | Downgrade is defensible now that a trace reports an unsandboxed run as unsandboxed (§3.3). It must be decided before the worker surface is passed, because that baseline sets `FailIfUnavailable: true` |
+| Which destinations does a worker legitimately need? | A default-deny NetworkPolicy in the production reference, proven by a kind smoke run that still completes a task. The allow-list has to be grounded in what real runs reach — package registries, Git hosts, whatever a team configures — not assumed. Whether it is a NetworkPolicy alone or a proxy enforcing the host allow-list the sandbox contract already models with `HostAllowed`/`ProxyAddress` is part of the same question |
+| Does an approval gate belong here at all? | Unattended scheduled work is a primary use and nothing gates it today, so the burden is on adding one |
+| How is a profile change versioned and attached to an existing TaskRun record? | Falls out of whichever shape wins |
+
+Out of scope whichever way it lands: a general policy language, and replacing
+operating-system, Kubernetes, cloud, or network controls — a profile should
+*drive* a NetworkPolicy, not reimplement one.
+
+The cheapest missing input is a threat model covering a malicious prompt and a
+model-chosen shell command, evaluated against the containment that now exists
+rather than against the state before it. It is what would make the egress
+allow-list an evidenced decision instead of a guess.
 
 ## 4. Explicitly Out Of Scope For Now
 
