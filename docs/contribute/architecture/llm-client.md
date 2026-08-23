@@ -205,14 +205,14 @@ on:
 
 | Provider | Request controls | Reported as | Retention |
 |---|---|---|---|
-| `anthropic` | Yes — nothing is cached unless the request says where | `supported` | `5m`, `1h` |
-| `openai` | No — Responses caches on its own | `implicit` | — |
-| `openai_compatible` | No — speaking the protocol is not a promise to implement its cache fields | `unsupported` | — |
-| `ollama` | No — a local runtime reuses its own cache | `unsupported` | — |
+| `anthropic` | Breakpoints — nothing is cached unless the request says where | `supported` | `5m`, `1h` |
+| `openai` | A scoped `prompt_cache_key`; Responses caches on its own either way | `supported` | `24h` |
+| `openai_compatible` | None — speaking the protocol is not a promise to implement its cache fields | `unsupported` | — |
+| `ollama` | None — a local runtime reuses its own cache | `unsupported` | — |
 
-`implicit` and `unsupported` are kept apart because a provider that caches
-without being asked is not a provider that does not cache, and a reader working
-out why a call cost what it did needs the difference.
+Retention vocabulary is per protocol. `5m` and `1h` mean something to Anthropic
+and nothing to the Responses API, and `24h` the other way round, so each refuses
+the other's rather than passing it through to be ignored.
 
 `force` on a target with no request controls is refused at construction: serving
 it as no caching at all would answer a question nobody asked. `auto` is accepted
@@ -220,6 +220,36 @@ everywhere, because most targets are like this and erroring would make the
 default mode unusable. A retention the protocol does not document is refused for
 the same reason — better a named failure than a field silently served at some
 other length.
+
+### The OpenAI cache key
+
+The Responses API caches whether or not it is asked to, so the key BuildMax
+sends does not turn caching on — it decides which prefixes are looked up
+together. That makes it a correctness concern rather than a security one, and
+the failure mode is a bucket shared by prompts that never match, which is a
+bucket that never hits.
+
+`deriveCacheKey` hashes exactly the things that all have to match for a hit to
+be possible: the credential, the model, the caller's scope, and fingerprints of
+the system prompt and the tool definitions in the order they are sent. Fields
+are length-delimited so two different splits of the same bytes cannot collide,
+and the whole thing carries a version prefix so a build that changes the
+derivation cannot share a bucket with one that has not.
+
+Nothing goes in that would leak or fragment for no reason. The credential is
+hashed rather than carried; raw prompts, messages, workspace paths, and
+usernames stay out entirely. The result is derived per request and never
+persisted, logged, or returned — it appears in one outbound field and nowhere
+else.
+
+`Request.CacheScope` is the caller's bucket discriminator. It is empty for a
+direct call, where the credential is already the user's own account. For a
+managed call the gateway sets it from the authenticated team, because teams
+granted the same approved model share one credential and would otherwise share
+one bucket. It is never accepted from a client: a caller that could name its own
+scope could aim at another team's.
+
+### Anthropic breakpoint placement
 
 On Anthropic the resulting request carries two breakpoints: a static one on the
 system prompt, which covers the tools and instructions that are identical on

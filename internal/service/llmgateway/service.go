@@ -231,7 +231,17 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 	var completion cllm.Completion
 	var callErr error
 	upstreamCtx := cllm.WithCallOrigin(ctx, upstreamCallOrigin(req.Surface))
-	upstreamCall := cllm.Request{Messages: req.Messages, Tools: req.Tools, Profile: req.CallProfile}
+	upstreamCall := cllm.Request{
+		Messages: req.Messages,
+		Tools:    req.Tools,
+		Profile:  req.CallProfile,
+		// Teams sharing one approved model share one provider credential, and
+		// therefore one provider cache bucket unless something separates them.
+		// The team is that separator, and it comes from authentication rather
+		// than from the request: a caller that could name its own scope could
+		// aim at another team's bucket.
+		CacheScope: req.TeamID,
+	}
 	if streaming {
 		observed := func(delta string) {
 			if firstDeltaAt == nil {

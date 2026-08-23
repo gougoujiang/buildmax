@@ -289,9 +289,22 @@ refused at startup rather than sent and ignored.
 | Provider | What a request carries | Retention |
 |---|---|---|
 | `anthropic` | Breakpoints after the tools and system prompt and at the end of the request. Nothing is cached unless the request says where. | `provider_default`, `5m`, `1h` |
-| `openai` | Nothing: Responses caches automatically. Cached tokens are reported either way. | `provider_default` only |
+| `openai` | A scoped `prompt_cache_key`. Responses caches on its own, so the key does not turn caching on — it says which bucket the prefix belongs in. | `provider_default`, `24h` |
 | `openai_compatible` | Nothing. Speaking the protocol is not a promise to implement its cache fields, and an untested gateway may reject or ignore them. | `provider_default` only |
 | `ollama` | Nothing. A local runtime reuses its own cache between calls, with no request-side control and no counts to report. | `provider_default` only |
+
+Retention vocabulary is per provider, not global: `5m` and `1h` mean something
+to Anthropic and nothing to the Responses API, and `24h` the other way round.
+Asking for one where it is not documented is refused at startup rather than sent
+and ignored.
+
+The `prompt_cache_key` is derived, not configured. It is an opaque digest of the
+credential, the model, the team (managed calls only), and fingerprints of the
+system prompt and tool definitions — the things that all have to match for the
+provider to hit. It carries none of them in readable form, changes when any of
+them changes, and is never written to the ledger, a trace, a log, or the CLI.
+Two teams granted the same model share a credential, and the team in the key is
+what keeps their prompts out of one another's bucket.
 
 `mode: force` is refused at startup on any provider that takes no cache
 instructions. Serving it as no caching at all would answer a question nobody

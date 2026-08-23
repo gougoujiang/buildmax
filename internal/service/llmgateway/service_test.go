@@ -621,3 +621,67 @@ func TestCompleteLeavesAnUnpricedTargetUnpriced(t *testing.T) {
 		t.Errorf("an unpriced target recorded rates: currency %q input %v", call.Currency, call.RateInputPerMTok)
 	}
 }
+
+// Two teams granted the same approved model share one provider credential, and
+// therefore one provider cache bucket unless something separates them. The
+// scope is that separator, and it comes from the resolved team rather than from
+// the request: a caller that could name its own scope could aim at another
+// team's bucket.
+func TestCompleteScopesTheCacheBucketByTeam(t *testing.T) {
+	client := &profileClient{}
+	catalog, err := llmgateway.NewStaticCatalog([]llmgateway.Target{validTarget()})
+	if err != nil {
+		t.Fatalf("NewStaticCatalog: %v", err)
+	}
+	// Two teams, one approved model, therefore one credential between them.
+	policy := llmgateway.TeamPolicy{DefaultAlias: "default", Aliases: map[string]string{"default": "mt_fast"}}
+	svc := &llmgateway.Service{
+		Router: &llmgateway.Router{
+			Resolver: &llmgateway.Resolver{
+				Catalog:  catalog,
+				Policies: teamPolicies{"tm_one": policy, "tm_two": policy},
+			},
+			Factory: func(context.Context, llmgateway.Target) (cllm.LLMClient, error) { return client, nil },
+		},
+		Ledger: newFakeLedger(),
+	}
+
+	first := userRequest()
+	first.TeamID = "tm_one"
+	if _, err := svc.Complete(context.Background(), first); err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+	second := userRequest()
+	second.TeamID = "tm_two"
+	if _, err := svc.Complete(context.Background(), second); err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+
+	if len(client.scopes) != 2 {
+		t.Fatalf("saw %d calls, want 2", len(client.scopes))
+	}
+	if client.scopes[0] == client.scopes[1] {
+		t.Errorf("two teams shared a cache scope: %q", client.scopes[0])
+	}
+	if client.scopes[0] != "tm_one" || client.scopes[1] != "tm_two" {
+		t.Errorf("scopes = %v, want the resolved teams", client.scopes)
+	}
+}
+
+// profileClient records the scope and profile each call arrived with.
+type profileClient struct {
+	scopes   []string
+	profiles []cllm.CallProfile
+}
+
+func (c *profileClient) ChatCompletionBlocking(_ context.Context, req cllm.Request) (cllm.Completion, error) {
+	c.scopes = append(c.scopes, req.CacheScope)
+	c.profiles = append(c.profiles, req.Profile)
+	return cllm.Completion{Content: "ok"}, nil
+}
+
+func (c *profileClient) ChatCompletionStreaming(_ context.Context, req cllm.Request, onDelta func(string)) (cllm.Completion, error) {
+	return c.ChatCompletionBlocking(context.Background(), req)
+}
+
+func (c *profileClient) ContextWindow() int { return 0 }

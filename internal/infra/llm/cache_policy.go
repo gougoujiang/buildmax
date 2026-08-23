@@ -15,6 +15,7 @@ const (
 	cacheStrategyNone            = "none"
 	cacheStrategyAnthropicStatic = "anthropic_static_and_rolling"
 	cacheStrategyOpenAIImplicit  = "openai_implicit"
+	cacheStrategyOpenAIExplicit  = "openai_scoped_key"
 	cacheCapabilitySupported     = "supported"
 	cacheCapabilityUnsupported   = "unsupported"
 	cacheCapabilityImplicitOnly  = "implicit"
@@ -56,12 +57,17 @@ func cacheCapabilityFor(provider string) cacheCapability {
 			reported:        cacheCapabilitySupported,
 		}
 	case config.LLMProviderOpenAI:
-		// Responses caches on its own and reports what it cached. The native
-		// controls — prompt_cache_key, cache options, retention — are not wired
-		// yet, so there is nothing to put in the request and no retention to
-		// select. Reported as implicit rather than supported: a caller must not
-		// read "supported" as "BuildMax asked for this".
-		return cacheCapability{strategy: cacheStrategyOpenAIImplicit, reported: cacheCapabilityImplicitOnly}
+		// Responses caches on its own, so the controls here do not turn caching
+		// on — they say which bucket a prefix belongs in and how long it
+		// survives. 24h is this protocol's extended retention; the shorter
+		// windows are Anthropic's vocabulary and are refused rather than sent
+		// where they mean nothing.
+		return cacheCapability{
+			requestControls: true,
+			ttls:            []string{config.CacheTTL24h},
+			strategy:        cacheStrategyOpenAIExplicit,
+			reported:        cacheCapabilitySupported,
+		}
 	}
 	// openai_compatible and ollama. The first is a protocol family, not a
 	// feature guarantee; the second is a local runtime that reuses its own

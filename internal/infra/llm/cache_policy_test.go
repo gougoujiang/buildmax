@@ -81,10 +81,21 @@ func TestResolveCacheDecision(t *testing.T) {
 			capability: anthropic, profile: cllm.ProfileAgentTurn, wantSend: true,
 		},
 		{
-			// Responses caches on its own; there is nothing to put in a request.
-			name:       "a protocol without request controls sends nothing",
+			// Responses caches on its own, but still takes a scoped key that
+			// says which bucket the prefix belongs in.
+			name:       "responses scopes an agent turn",
 			policy:     config.CacheControl{Mode: config.CacheModeAuto},
-			capability: responses, profile: cllm.ProfileAgentTurn,
+			capability: responses, profile: cllm.ProfileAgentTurn, wantSend: true,
+		},
+		{
+			name:       "responses leaves a title unscoped",
+			policy:     config.CacheControl{Mode: config.CacheModeAuto},
+			capability: responses, profile: cllm.ProfileTitle,
+		},
+		{
+			name:       "responses takes its own extended retention",
+			policy:     config.CacheControl{Mode: config.CacheModeAuto, TTL: config.CacheTTL24h},
+			capability: responses, profile: cllm.ProfileAgentTurn, wantSend: true, wantTTL: config.CacheTTL24h,
 		},
 		{
 			name:       "an untested compatible endpoint sends nothing",
@@ -116,7 +127,7 @@ func TestCacheCapabilityReporting(t *testing.T) {
 		wantControls bool
 	}{
 		config.LLMProviderAnthropic:        {cacheCapabilitySupported, true},
-		config.LLMProviderOpenAI:           {cacheCapabilityImplicitOnly, false},
+		config.LLMProviderOpenAI:           {cacheCapabilitySupported, true},
 		config.LLMProviderOpenAICompatible: {cacheCapabilityUnsupported, false},
 		config.LLMProviderOllama:           {cacheCapabilityUnsupported, false},
 	}
@@ -138,7 +149,7 @@ func TestCacheCapabilityReporting(t *testing.T) {
 // not refused: most targets are like this, and erroring on them would make the
 // default mode unusable.
 func TestForceIsRefusedWhereItCannotBeHonoured(t *testing.T) {
-	for _, provider := range []string{config.LLMProviderOpenAICompatible, config.LLMProviderOpenAI, config.LLMProviderOllama} {
+	for _, provider := range []string{config.LLMProviderOpenAICompatible, config.LLMProviderOllama} {
 		t.Run(provider, func(t *testing.T) {
 			_, err := NewClient(Config{
 				Provider: provider, APIKey: "k", BaseURL: "http://localhost:1", Model: "m",
@@ -186,5 +197,48 @@ func TestOffToleratesAnUnsupportedTTL(t *testing.T) {
 		CacheControl: config.CacheControl{Mode: config.CacheModeOff, TTL: config.CacheTTL1h},
 	}); err != nil {
 		t.Errorf("off with an inert ttl should be accepted: %v", err)
+	}
+}
+
+// Retention vocabulary is per protocol, not global. Anthropic documents 5m and
+// 1h; the Responses API documents 24h. Sending one protocol's window to the
+// other would ask for a retention it has never heard of, so each refuses the
+// other's rather than passing it through to be ignored.
+func TestRetentionIsRefusedOutsideItsOwnProtocol(t *testing.T) {
+	tests := []struct {
+		provider  string
+		supported []string
+		refused   []string
+	}{
+		{
+			provider:  config.LLMProviderAnthropic,
+			supported: []string{config.CacheTTL5m, config.CacheTTL1h},
+			refused:   []string{config.CacheTTL24h},
+		},
+		{
+			provider:  config.LLMProviderOpenAI,
+			supported: []string{config.CacheTTL24h},
+			refused:   []string{config.CacheTTL5m, config.CacheTTL1h},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.provider, func(t *testing.T) {
+			for _, ttl := range tc.supported {
+				if _, err := NewClient(Config{
+					Provider: tc.provider, APIKey: "k", BaseURL: "http://localhost:1", Model: "m",
+					CacheControl: config.CacheControl{Mode: config.CacheModeAuto, TTL: ttl},
+				}); err != nil {
+					t.Errorf("ttl %q should be accepted: %v", ttl, err)
+				}
+			}
+			for _, ttl := range tc.refused {
+				if _, err := NewClient(Config{
+					Provider: tc.provider, APIKey: "k", BaseURL: "http://localhost:1", Model: "m",
+					CacheControl: config.CacheControl{Mode: config.CacheModeAuto, TTL: ttl},
+				}); err == nil {
+					t.Errorf("ttl %q should be refused on %s", ttl, tc.provider)
+				}
+			}
+		})
 	}
 }

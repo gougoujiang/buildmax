@@ -1,9 +1,10 @@
 # Prompt Cache Control
 
-> **Audience:** contributors · **Status:** in progress — phases 1 and 2 shipped:
-> cache counts reach every surface, and caching is a per-call policy that
-> defaults on for Anthropic agent turns. OpenAI native controls, cost estimates,
-> and compatible-gateway profiles do not exist yet.
+> **Audience:** contributors · **Status:** in progress — phases 1 to 3 shipped:
+> cache counts reach every surface, caching is a per-call policy that defaults
+> on for Anthropic agent turns and sends a scoped key on OpenAI Responses, and a
+> priced model reports what a run cost. Named profiles for compatible gateways
+> and the on-provider qualification suite do not exist yet.
 
 Extends [llm-provider-adapters.md](llm-provider-adapters.md) and
 [llm-gateway.md](llm-gateway.md). The provider-adapter design owns protocol
@@ -22,10 +23,10 @@ The current implementation is a useful base but not a complete policy:
 | Area | Current behavior | Gap |
 |---|---|---|
 | Anthropic | `auto` by default on agent turns, with static and rolling breakpoints and an explicit 1-hour opt-in (phase 2). | — |
-| OpenAI Responses | Relies on automatic caching and records reported cache usage. | No `prompt_cache_key`, cache options, or retention/TTL control. |
+| OpenAI Responses | Sends a derived, scoped `prompt_cache_key` and optional 24h retention (phase 3). | `prompt_cache_options` unverified and deliberately unsent. |
 | OpenAI-compatible | Declares no cache capability and sends no controls (phase 2). | No named profile for a tested gateway yet. |
 | Accounting | `core/llm.Usage`, run stats, traces, session totals, local results, the managed ledger, and Portal all carry cache read/write tokens (phase 1). | Nothing distinguishes a requested strategy from a provider that reports nothing. |
-| Cost control | Prompt and completion tokens are displayed and quota is token-based. | No cache-hit ratio, cache-write cost, billable-cost estimate, or miss explanation. |
+| Cost control | A priced model reports per-call and per-run cost, split by token class, against an uncached baseline (phase 3). | No miss explanation: the section 6 diagnostics are resolved per call but do not leave `internal/infra/llm`. |
 
 The repository must not claim a saving it cannot demonstrate. A cache write can
 cost more than ordinary input, a short one-shot request cannot repay it, and
@@ -324,10 +325,12 @@ nobody asked.
 
 The section 6 diagnostics — requested mode, capability, strategy, effective TTL,
 outcome — are resolved per call but do not yet leave `internal/infra/llm`.
-Carrying them to the surfaces is the remaining phase 2 debt, tracked with the
-cost work in phase 3.
+Carrying them to the surfaces is the remaining debt, and it belongs with phase 4:
+what a reader needs them for is the explanation behind a miss, and until the
+qualification suite establishes what a real miss looks like there is nothing
+truthful to say beyond the counts.
 
-### Phase 3 — OpenAI native controls and cost estimates
+### Phase 3 — OpenAI native controls and cost estimates (shipped)
 
 - Upgrade the native client/library as necessary for supported cache fields.
 - Derive isolated `prompt_cache_key` values and validate cache options.
@@ -335,6 +338,29 @@ cost work in phase 3.
 
 **Acceptance:** request-shape tests pin key/options, keys change across
 team/static-prefix boundaries, and reported counters produce reproducible cost.
+
+Where the pricing record lives was left open above and is settled here. There is
+no separate temporal price table. Current rates sit on the thing they describe —
+`llm_model` for a managed catalog entry, the `pricing` block on a settings model
+entry for a direct one — and history is kept where the spend is: the gateway
+copies the rates in force onto each `llm_call` row when it accepts the call, and
+a local session accumulates its cost turn by turn as it runs. That gives
+immutability exactly where it is needed, on the record of what was actually
+charged, without a versioned catalog nobody would maintain. Repricing a model
+changes what the next call costs and not what an old one did.
+
+Rates are integers — nano-currency-units per million tokens — written as decimal
+strings in configuration. A published rate has no exact binary form and a few
+hundred calls accumulate float error into a figure someone compares against an
+invoice.
+
+`prompt_cache_options` is not sent. The library exposes it, but BuildMax has not
+established what its `mode` values mean on a live account, and sending a field
+whose vocabulary is unverified is the same mistake as assuming an
+OpenAI-compatible gateway implements OpenAI's cache fields. The explicit/implicit
+choice stays out until the phase 4 qualification suite can confirm it against a
+real provider; `24h` retention is taken from the vocabulary section 4 fixes and
+is on the same list to confirm.
 
 ### Phase 4 — compatible profiles and qualification
 
