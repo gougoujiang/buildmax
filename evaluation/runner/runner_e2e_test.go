@@ -170,7 +170,9 @@ func TestRunnerComparesTwoSubjectsOverRepeatedTrials(t *testing.T) {
 		t.Helper()
 		root := t.TempDir()
 		r := &Runner{
-			Adapter:    &adapter.CLI{Binary: binary, Credential: cred},
+			Adapters: map[contract.Surface]adapter.Executor{
+				contract.SurfaceCLI: &adapter.CLI{Binary: binary, Credential: cred},
+			},
 			BundleRoot: root,
 		}
 		res, err := r.Run(context.Background(), tasks, subjectNamed(t, name), "ex_"+name)
@@ -258,9 +260,11 @@ func TestRunnerRecordsAHarnessFaultWithoutFailingTheSubject(t *testing.T) {
 	// Port 1 refuses at once: the model was never reached, so nothing about the
 	// subject's capability was measured.
 	r := &Runner{
-		Adapter: &adapter.CLI{
-			Binary:     binary,
-			Credential: adapter.Credential{APIURL: "http://127.0.0.1:1/v1", APIKey: "k"},
+		Adapters: map[contract.Surface]adapter.Executor{
+			contract.SurfaceCLI: &adapter.CLI{
+				Binary:     binary,
+				Credential: adapter.Credential{APIURL: "http://127.0.0.1:1/v1", APIKey: "k"},
+			},
 		},
 		BundleRoot: t.TempDir(),
 	}

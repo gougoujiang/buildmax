@@ -755,11 +755,22 @@ several. The slice adds `trace_id` and `trace_path` to the print-mode envelope. 
 user-visible beyond evaluation, since it is also how a person finds the trace for a run they
 just made, so it carries a changelog entry and a `docs/reference/cli.md` update.
 
-The worker adapter is sketched but not built in the slice. `internal/agentapp/taskrun` already
-executes in a run-scoped `BUILDMAX_HOME` and writes artifacts, which is the isolation an
-adapter needs; what is missing is a way to submit a trial and collect its bundle without a
-Portal user. The contract reserves the surface field so worker and conversation trials do not
-require a contract version bump later.
+The worker adapter followed the slice and is built. What was described as missing — a way to
+submit a trial and collect its bundle without a Portal user — turned out not to need one. A
+worker reaches its server over HTTP and nothing else: it fetches the run, reports status,
+streams output, and polls for cancellation. So the adapter serves that API itself, on a
+loopback port, for exactly one run. No database, no team, no scheduler, and no Portal user is
+involved, which is the same move `mockllm` makes for the model side.
+
+The dispatch is a scheduler's: a run id on the command line, a run token in the environment,
+and a `server.yaml` naming the control plane. What it exercises that the CLI cannot is the part
+of the product only a worker has — materializing the team's persistent workspace into a
+run-scoped directory, executing with no interactive surface, and reporting an outcome over the
+API rather than to a terminal. The outcome is read from what the worker reported, not from its
+exit code: a worker that failed the run reports FAILED and exits non-zero, while one that was
+killed reports nothing at all, and only the control plane separates those.
+
+The conversation and deployment adapters remain unbuilt.
 
 ### 18.4 Hidden grader boundary
 
@@ -798,7 +809,7 @@ adapter answering its own model would report on the mock rather than on the subj
 | 3. Experiment — **done** | Repetition, paired baseline comparison, uncertainty, failure classification, preflight, and a local report; the mockllm pull-request gate | Section 15.3's Go controller holds: repetition, limits, cancellation, and the statistics came to roughly 700 lines with no new dependency. The report renderer is written rather than imported |
 | 4. Retirement — **done** | `eval/` and `internal/agenteval` deleted; `cmd/buildmax-eval` rewritten around the contract rather than removed, since the entry point is still where a run starts; `./make eval` builds the CLI and measures it | The last roadmap acceptance criterion |
 
-Four things the slice found are worth carrying forward. Killing a subject at its budget does not
+Five things the slice found are worth carrying forward. Killing a subject at its budget does not
 end the call: the process dies but its output pipes stay open through any grandchild it started,
 so an unbounded wait turns the one status designed to bound a run into the thing that never
 returns. And the durable trace does not distinguish a hook denial from a policy denial, so a
@@ -816,14 +827,26 @@ does not hold for a negative task, whose outcome is that nothing happened. Tasks
 trace or model grader: without one it asserts only that nothing happened, and a subject that
 never ran would satisfy it. This is a contract addition the slice earned, not one it assumed.
 
+And the two surfaces do not put a task's initial state in the same place. A CLI run is given
+the workspace directly; a worker materializes the team's files into a `home` subdirectory of
+the run directory it works in. A path assertion is therefore surface-specific, which section
+11's "parity is two tasks stating the same goal, not one task run twice" already implies but
+which is easy to violate by copying a task between surfaces. Preflight materializes into the
+layout the task's own surface uses, so a worker task whose assertions were written for the CLI
+fails before it costs anything.
+
+The subject follows from this too: a build reached through two adapters is two subjects, so the
+runner stamps the execution path onto the subject per trial. Sharing one identity would let a
+CLI result and a worker result pair as the same configuration measured twice.
+
 The Inspect and Harbor spikes follow step 3. Section 14.1 already places framework selection
 downstream of the slice, and a spike run before a canonical bundle exists would compare
 adapters against a contract that is still moving.
 
 ### 18.7 Deliberately outside the slice
 
-Naming these prevents the plan from reading as a commitment: worker, conversation, and
-deployment adapters; model-grader calibration; the private or rotating holdout; any external
+Naming these prevents the plan from reading as a commitment: conversation and deployment
+adapters; model-grader calibration; the private or rotating holdout; any external
 viewer; Terminal-Bench and every other public benchmark; and the hook-execution and file-change
 trace events. Each has a home in section 17 or in another design record.
 

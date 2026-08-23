@@ -34,22 +34,25 @@ func main() {
 }
 
 type options struct {
-	suite     string
-	binary    string
-	baseline  string
-	model     string
-	trials    int
-	out       string
-	seed      uint64
-	keep      bool
-	taskID    string
-	retention string
+	suite        string
+	binary       string
+	workerBinary string
+	baseline     string
+	model        string
+	trials       int
+	out          string
+	seed         uint64
+	keep         bool
+	taskID       string
+	retention    string
 }
 
 func run() error {
 	var opt options
 	flag.StringVar(&opt.suite, "suite", filepath.Join("evaluation", "suite"), "directory of task directories to run")
 	flag.StringVar(&opt.binary, "binary", "", "buildmax binary to evaluate (required)")
+	flag.StringVar(&opt.workerBinary, "worker-binary", "",
+		"buildmax-worker binary, required when the suite holds worker tasks")
 	flag.StringVar(&opt.baseline, "baseline", "", "a second binary to compare the first against")
 	flag.StringVar(&opt.model, "model", "", "model id or name from settings.yaml (default: the first entry)")
 	flag.IntVar(&opt.trials, "trials", 0, "minimum independent attempts per task; raises each task's own count")
@@ -134,12 +137,18 @@ func evaluate(ctx context.Context, opt options, binary, name string, model confi
 	bundleRoot := filepath.Join(opt.out, experimentID, name)
 
 	fmt.Printf("%s: %s over %d task(s)\n", name, subject.Model.Target, len(tasks))
+	retention := contract.RetentionLevel(opt.retention)
+	adapters := map[contract.Surface]adapter.Executor{
+		contract.SurfaceCLI: &adapter.CLI{Binary: binary, Credential: cred, Retention: retention},
+	}
+	if opt.workerBinary != "" {
+		adapters[contract.SurfaceWorker] = &adapter.Worker{
+			Binary: opt.workerBinary, Credential: cred, Retention: retention,
+		}
+	}
+
 	r := &runner.Runner{
-		Adapter: &adapter.CLI{
-			Binary:     binary,
-			Credential: cred,
-			Retention:  contract.RetentionLevel(opt.retention),
-		},
+		Adapters:     adapters,
 		BundleRoot:   bundleRoot,
 		Trials:       opt.trials,
 		KeepFailures: opt.keep,
@@ -182,10 +191,6 @@ func describeSubject(binary, name string, model config.ModelEntry, dataset contr
 			// this process: the two are built separately, and reporting the
 			// runner's identity would name something that was never measured.
 			ArtifactDigest: digest,
-		},
-		Execution: contract.ExecutionIdentity{
-			Surface:        contract.SurfaceCLI,
-			AdapterVersion: adapter.CLIAdapterVersion,
 		},
 		Model: contract.ModelIdentity{
 			Transport:     transport,

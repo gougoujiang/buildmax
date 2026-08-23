@@ -252,9 +252,12 @@ func helpTopics() []helpTopic {
 		{
 			name:    "eval",
 			usage:   "eval [flags]",
-			summary: "Evaluate the built CLI against the tasks in evaluation/suite/.",
+			summary: "Evaluate the built binaries against the tasks in evaluation/suite/.",
 			details: []string{
-				"Builds " + exe(cliBinary) + " and the runner, then measures the binary as a black box:\n" +
+				"Builds " + exe(cliBinary) + ", " + exe(workerBinary) + ", and the runner, then measures them as\n" +
+					"a black box: each task names the surface it runs on, and a worker task is\n" +
+					"dispatched the way a scheduler dispatches one.\n" +
+					"Every trial runs the artifact a user would run:\n" +
 					"every trial runs the artifact a user would run, in a temporary home built from\n" +
 					"the subject alone, so your own settings, plugins, and hooks cannot change what\n" +
 					"is measured.",

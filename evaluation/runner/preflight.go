@@ -52,7 +52,12 @@ func Preflight(ctx context.Context, entry TaskEntry) error {
 	}
 	defer func() { _ = os.RemoveAll(workspace) }()
 
-	if err := adapter.Materialize(entry.Dir, workspace); err != nil {
+	// The state goes where the task's own surface puts it. A worker materializes
+	// into a subdirectory of the workspace, so preflighting a worker task
+	// against the CLI's layout would check paths no real run ever produces —
+	// and would pass a task whose assertions are wrong for the surface it names.
+	stateRoot := adapter.MaterializedRoot(workspace, entry.Task.Surface)
+	if err := adapter.Materialize(entry.Dir, stateRoot); err != nil {
 		return fmt.Errorf("task %s: materialize: %w", entry.Task.ID, err)
 	}
 	leaked, err := adapter.VerifyBoundary(entry.Dir, workspace)

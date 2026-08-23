@@ -218,7 +218,9 @@ evaluation/
 │                       experiment types, the failure taxonomy, and the bundle
 │                       directory layout
 ├── adapter/            Black-box execution: runs a trial through a built
-│                       binary and collects its evidence
+│                       binary and collects its evidence. The CLI adapter drives
+│                       `buildmax -p`; the worker adapter dispatches
+│                       `buildmax-worker` against a control plane it serves
 ├── grader/             Deterministic outcome, task-supplied command, and
 │                       trace/policy graders
 ├── runner/             Suite loading, preflight, repetition, statistics,

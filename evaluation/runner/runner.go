@@ -16,8 +16,11 @@ const DefaultResamples = 2000
 
 // Runner executes an experiment against one subject.
 type Runner struct {
-	Adapter *adapter.CLI
-	Graders grader.Registry
+	// Adapters maps each surface to the executor that runs it. A suite may hold
+	// tasks for more than one surface, and a task states the surface it
+	// measures, so dispatch is per task rather than per experiment.
+	Adapters map[contract.Surface]adapter.Executor
+	Graders  grader.Registry
 	// BundleRoot is where trial evidence is written.
 	BundleRoot string
 	// Trials overrides each task's own repetition count when higher. Section 12
@@ -43,8 +46,18 @@ type Result struct {
 // result. It writes each trial's bundle under BundleRoot as it goes, so an
 // interrupted experiment leaves the evidence it already gathered.
 func (r *Runner) Run(ctx context.Context, tasks []TaskEntry, subject contract.SubjectManifest, experimentID string) (Result, error) {
-	if r.Adapter == nil {
-		return Result{}, fmt.Errorf("runner has no adapter")
+	if len(r.Adapters) == 0 {
+		return Result{}, fmt.Errorf("runner has no adapters")
+	}
+	// Every surface the suite needs is checked before the first trial. A task
+	// whose surface has no adapter cannot be measured, and discovering that
+	// halfway through would leave an experiment that spent real tokens and
+	// still cannot report on the dataset it names.
+	for _, entry := range tasks {
+		if _, ok := r.Adapters[entry.Task.Surface]; !ok {
+			return Result{}, fmt.Errorf("task %s needs the %s surface, which this runner has no adapter for",
+				entry.Task.ID, entry.Task.Surface)
+		}
 	}
 	graders := r.Graders
 	if graders == nil {
@@ -118,10 +131,20 @@ func (r *Runner) Run(ctx context.Context, tasks []TaskEntry, subject contract.Su
 func (r *Runner) runOne(ctx context.Context, entry TaskEntry, subject contract.SubjectManifest,
 	experimentID string, index int, graders grader.Registry) (contract.TrialBundle, error) {
 
-	res, err := r.Adapter.Run(ctx, adapter.Trial{
+	executor := r.Adapters[entry.Task.Surface]
+	// The subject is stamped with the execution path before the trial runs. A
+	// build reached through two adapters is two subjects, so a bundle that
+	// named the base subject would let a CLI result and a worker result compare
+	// as if they were the same configuration measured twice.
+	surfaceSubject, err := subjectFor(subject, executor)
+	if err != nil {
+		return contract.TrialBundle{}, fmt.Errorf("task %s trial %d: %w", entry.Task.ID, index, err)
+	}
+
+	res, err := executor.Run(ctx, adapter.Trial{
 		Task:         entry.Task,
 		TaskDir:      entry.Dir,
-		Subject:      subject,
+		Subject:      surfaceSubject,
 		ExperimentID: experimentID,
 		TrialID:      fmt.Sprintf("%s-%s-%d", experimentID, entry.Task.ID, index),
 		Index:        index,
@@ -154,6 +177,13 @@ func (r *Runner) runOne(ctx context.Context, entry TaskEntry, subject contract.S
 		return contract.TrialBundle{}, fmt.Errorf("task %s trial %d: %w", entry.Task.ID, index, err)
 	}
 	return bundle, nil
+}
+
+// subjectFor returns the subject as it applies to one execution path.
+func subjectFor(base contract.SubjectManifest, executor adapter.Executor) (contract.SubjectManifest, error) {
+	surface, version := executor.Describe()
+	base.Execution = contract.ExecutionIdentity{Surface: surface, AdapterVersion: version}
+	return base.WithID()
 }
 
 // addUsage accumulates a trial's consumption into a suite total. Cost is summed
