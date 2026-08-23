@@ -305,8 +305,8 @@ at the end:
    builds the Job pod's environment from the `BUILDMAX_*` variables that pass it
    and nothing else, so the JWT secret, the database password, and the
    object-storage keys stay server-side. Each run authenticates with its own
-   run-scoped credential; the shared worker token survives only as a deprecated
-   fallback awaiting removal. The Job pod runs as non-root with a
+   run-scoped credential, and it is now the only one a worker holds: the shared
+   worker token is removed. The Job pod runs as non-root with a
    dropped-capability security context, resource limits, and no automounted
    service-account token.
 
@@ -328,8 +328,8 @@ at the end:
    and proving those permissions against the operator's actual bucket and
    identity is an operations task rather than an application one — BuildMax
    ships no deployment-initialization check for it. Readiness stays a read-only
-   dependency-availability check, and it also does not check worker launch mode,
-   worker token, or the LLM configuration the conversation paths need.
+   dependency-availability check, and it also does not check worker launch mode
+   or the LLM configuration the conversation paths need.
 4. Minimum team governance — **done, with one gap named**. The role and team
    authorization matrix is covered end to end by tests, the audit trail records
    sign-in, configuration, model, and credential actions, and deployment

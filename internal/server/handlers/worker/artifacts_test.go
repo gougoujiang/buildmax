@@ -15,16 +15,14 @@ import (
 	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
 )
 
-const workerArtifactToken = "worker-token-123"
-
 func artifactWorkerMux(t *testing.T, store *mock.MockArtifactStore, teamID string) *http.ServeMux {
 	t.Helper()
 	run := model.TaskRun{ID: "run-1", TaskID: "task-1", Status: "RUNNING", CreatedAt: time.Unix(1, 0).UTC()}
 	task := model.Task{ID: "task-1", ConversationID: "conv-1", TeamID: teamID, CreatedBy: "u1"}
 	h := New(Config{
-		WorkerToken: workerArtifactToken,
-		TaskRuns:    &mock.MockTaskRunStore{Runs: []model.TaskRun{run}, TaskList: []model.Task{task}},
-		Artifacts:   &artifactsvc.Service{Artifacts: store, Storage: mock.NewMockArtifactStorage()},
+		JWTSecret: workerTestSecret,
+		TaskRuns:  &mock.MockTaskRunStore{Runs: []model.TaskRun{run}, TaskList: []model.Task{task}},
+		Artifacts: &artifactsvc.Service{Artifacts: store, Storage: mock.NewMockArtifactStorage()},
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)
@@ -60,7 +58,7 @@ func TestWorkerArtifactTakesTheTeamFromTheRun(t *testing.T) {
 	store := &mock.MockArtifactStore{}
 	mux := artifactWorkerMux(t, store, "tm_1")
 
-	rec := workerUpload(t, mux, "/api/worker/task-runs/run-1/artifacts?title=Result", workerArtifactToken)
+	rec := workerUpload(t, mux, "/api/worker/task-runs/run-1/artifacts?title=Result", runTokenFor(t, "run-1", "task-1"))
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want 201: %s", rec.Code, rec.Body.String())
 	}
@@ -112,7 +110,7 @@ func TestWorkerArtifactRequiresTheRunCredential(t *testing.T) {
 func TestWorkerArtifactUnknownRunIsNotFound(t *testing.T) {
 	store := &mock.MockArtifactStore{}
 	mux := artifactWorkerMux(t, store, "tm_1")
-	if code := workerUpload(t, mux, "/api/worker/task-runs/run-missing/artifacts", workerArtifactToken).Code; code != http.StatusNotFound {
+	if code := workerUpload(t, mux, "/api/worker/task-runs/run-missing/artifacts", runTokenFor(t, "run-missing", "task-1")).Code; code != http.StatusNotFound {
 		t.Errorf("status = %d, want 404", code)
 	}
 }
@@ -122,7 +120,7 @@ func TestWorkerArtifactUnknownRunIsNotFound(t *testing.T) {
 func TestWorkerArtifactRefusesARunWithNoTeam(t *testing.T) {
 	store := &mock.MockArtifactStore{}
 	mux := artifactWorkerMux(t, store, "")
-	if code := workerUpload(t, mux, "/api/worker/task-runs/run-1/artifacts", workerArtifactToken).Code; code != http.StatusConflict {
+	if code := workerUpload(t, mux, "/api/worker/task-runs/run-1/artifacts", runTokenFor(t, "run-1", "task-1")).Code; code != http.StatusConflict {
 		t.Errorf("status = %d, want 409", code)
 	}
 	if store.Count() != 0 {
@@ -134,12 +132,12 @@ func TestWorkerArtifactUnconfiguredDeploymentRefuses(t *testing.T) {
 	run := model.TaskRun{ID: "run-1", TaskID: "task-1", Status: "RUNNING", CreatedAt: time.Unix(1, 0).UTC()}
 	task := model.Task{ID: "task-1", TeamID: "tm_1", CreatedBy: "u1"}
 	h := New(Config{
-		WorkerToken: workerArtifactToken,
-		TaskRuns:    &mock.MockTaskRunStore{Runs: []model.TaskRun{run}, TaskList: []model.Task{task}},
+		JWTSecret: workerTestSecret,
+		TaskRuns:  &mock.MockTaskRunStore{Runs: []model.TaskRun{run}, TaskList: []model.Task{task}},
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)
-	if code := workerUpload(t, mux, "/api/worker/task-runs/run-1/artifacts", workerArtifactToken).Code; code != http.StatusServiceUnavailable {
+	if code := workerUpload(t, mux, "/api/worker/task-runs/run-1/artifacts", runTokenFor(t, "run-1", "task-1")).Code; code != http.StatusServiceUnavailable {
 		t.Errorf("status = %d, want 503", code)
 	}
 }

@@ -462,13 +462,13 @@ Required controls are:
 - cancellation propagation and bounded stream queues;
 - explicit retention policy for call metadata.
 
-The shared worker token is not an adequate credential for a model gateway
-because it is not scoped to one run, so the worker route does not accept it. It
+The shared worker token was not an adequate credential for a model gateway
+because it was not scoped to one run, so the worker route never accepted it. It
 takes a run token instead: a short-lived credential naming the user, team, and
 run, minted when the run is dispatched. See
-[worker-run-token.md](worker-run-token.md). The shared token no longer serves
-any worker route either; it is accepted for one release as an upgrade fallback
-and then removed.
+[worker-run-token.md](worker-run-token.md). The shared token has since been
+removed from every worker route, so a run token is the only credential a worker
+holds.
 
 The existing 24-hour user JWT is acceptable for early trusted-deployment
 experiments but not a complete managed-client lifecycle. Before the feature is

@@ -92,7 +92,7 @@ What shipped:
 - `deployment/buildmax-deploy.yaml` carries a `buildmax-config` ConfigMap with
   `server.yaml`, mounted by subPath so the rest of `BUILDMAX_HOME` stays writable
 - credentials come from `buildmax-secret` through env overrides on
-  `database.password`, `storage.minio.access_key`/`secret_key`, `worker.token`,
+  `database.password`, `storage.minio.access_key`/`secret_key`,
   and `conversation.model.api_key`
 - worker pods mount the same ConfigMap via `worker.k8s.config_map`, with
   `BUILDMAX_HOME` set to `worker.k8s.home_dir`
@@ -121,7 +121,7 @@ The architecture it fixes:
 - external MySQL
 - external S3-compatible storage
 - ConfigMap for non-secret `server.yaml`
-- Secret for JWT, worker token, LLM API key, DB password, S3 secret
+- Secret for JWT, LLM API key, DB password, S3 secret
 - Ingress for Portal and API on one origin
 
 What the shape does *not* yet have is operational evidence: no restore
@@ -144,7 +144,6 @@ Shipped:
 Still open:
 
 - worker launch mode valid
-- worker token configured
 - LLM config available for conversation title/runtime paths where required
 
 Storage write permission is a **deployment-initialization** concern, not a
@@ -350,7 +349,6 @@ before mount, or supplied through supported env overrides. The clean target is:
 Secret values:
 
 - `jwt_secret`
-- `worker.token`
 - DB password
 - S3 access key and secret key
 - conversation model API key
@@ -406,7 +404,7 @@ Acceptance:
 
 Acceptance:
 
-- a broken DB, missing bucket, missing worker token, or invalid worker mode has
+- a broken DB, missing bucket, or invalid worker mode has
   a clear failing check
 
 ### M4. Production Reference Guide — DONE

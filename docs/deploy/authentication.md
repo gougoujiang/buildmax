@@ -218,7 +218,6 @@ immediately and signing out one device does not.
 |---|---|---|
 | **JWT secret** | `jwt_secret` / `BUILDMAX_JWT_SECRET` | Signing for all user access tokens. Required. Generate with `openssl rand -hex 32` and inject at deploy time rather than committing it. |
 | **Run token** | minted per run, delivered as `BUILDMAX_RUN_TOKEN` | The `/api/worker/*` routes. Signed with the JWT secret, it names one run's user, team, and task, and authorizes that run alone. Not an operator setting — the scheduler issues one for every dispatched run. Lifetime is `worker.run_token_ttl`; there is no renewal, so it must outlast your longest run. |
-| **Worker token** | `worker.token` | Deprecated. Still accepted on `/api/worker/*` for one release, for the upgrade window where a server that has not restarted dispatches a worker expecting a run token. It names no run, so a holder can read any team's task input and write any run's result — which is why it is going away. |
 | **Webhook keys** | created per user via the API | Inbound `POST /api/webhook`. Stored as a SHA-256 hash; the plaintext is shown once at creation. See [reference/webhook.md](../reference/webhook.md). |
 
 Rotating the JWT secret invalidates every issued access token at once. Refresh

@@ -14,7 +14,7 @@ import (
 // itself refuses to forward them.
 var secretEnvDenyExact = []string{
 	"BUILDMAX_API_KEY",
-	"BUILDMAX_WORKER_TOKEN",
+	"BUILDMAX_RUN_TOKEN",
 	"BUILDMAX_JWT_SECRET",
 	"AWS_SECRET_ACCESS_KEY",
 	"AWS_SESSION_TOKEN",

@@ -20,7 +20,7 @@ func revisionFixture(agentID *string, agents *mock.MockAgentStore) (http.Handler
 			AgentID: agentID, CreatedAt: time.Unix(1, 0).UTC(),
 		}},
 	}
-	cfg := Config{JWTSecret: llmTestSecret, TaskRuns: runs, WorkerToken: workerTestToken}
+	cfg := Config{JWTSecret: workerTestSecret, TaskRuns: runs}
 	if agents != nil {
 		cfg.Agents = agents
 	}

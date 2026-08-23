@@ -7,17 +7,38 @@ package worker
 import (
 	"context"
 	"testing"
+	"time"
 
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	"github.com/gougoujiang/buildmax/internal/server/authtoken"
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
 )
 
 const (
-	llmTestSecret = "test-llm-secret"
-	llmTestUser   = "u_llm"
-	llmTestTeam   = "tm_llm"
+	// One secret signs every credential this package presents, because one
+	// credential now opens every worker route.
+	workerTestSecret = "test-worker-secret"
+	llmTestUser      = "u_llm"
+	llmTestTeam      = "tm_llm"
 )
+
+// runTokenFor mints what the scheduler would have handed the worker executing
+// this run. Every worker route is scoped to the run named in its path, so a
+// test that calls one needs that run's own token and no other.
+func runTokenFor(t *testing.T, taskRunID, taskID string) string {
+	t.Helper()
+	token, err := authtoken.MintRun(workerTestSecret, authtoken.RunClaims{
+		UserID:    llmTestUser,
+		TeamID:    llmTestTeam,
+		TaskRunID: taskRunID,
+		TaskID:    taskID,
+	}, time.Hour, time.Now())
+	if err != nil {
+		t.Fatalf("MintRun: %v", err)
+	}
+	return token
+}
 
 // llmStubClient answers every call the same way.
 func llmTestService(t *testing.T, client cllm.LLMClient, quota llmgateway.QuotaChecker) *llmgateway.Service {

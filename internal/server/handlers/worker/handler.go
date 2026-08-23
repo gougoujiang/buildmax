@@ -20,13 +20,9 @@ import (
 )
 
 type Config struct {
-	// JWTSecret verifies the run token. Empty means this deployment mints none,
-	// and the run-scoped routes fall back to WorkerToken.
+	// JWTSecret verifies the run token every route here requires. Empty means
+	// this deployment mints none, so no worker call can be authenticated.
 	JWTSecret string
-	// WorkerToken is the deployment-wide credential, accepted for one release
-	// while runs dispatched without a run token drain. See
-	// docs/design/worker-run-token.md.
-	WorkerToken string
 	// WorkerLLM tells a worker how to reach a model. Nil means direct.
 	WorkerLLM *workerclient.TaskRunLLM
 
@@ -66,9 +62,9 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.Handle("PATCH /api/worker/task-runs/{task_run_id}", h.runScopedWorkerMiddleware(http.HandlerFunc(h.patchTaskRun)))
 	mux.Handle("POST /api/worker/task-runs/{task_run_id}/stream", h.runScopedWorkerMiddleware(http.HandlerFunc(h.postStream)))
 	mux.Handle("POST /api/worker/task-runs/{task_run_id}/artifacts", h.runScopedWorkerMiddleware(http.HandlerFunc(h.postArtifact)))
-	// Managed inference takes the run token only. It never accepted the shared
-	// worker token, so it has no upgrade window to keep open and no reason to
-	// grow a fallback the other three are already shedding.
+	// Inference authenticates the same way but reads the claims itself: it
+	// attributes the call to the token's user and team rather than only
+	// admitting it.
 	mux.HandleFunc("POST /api/worker/task-runs/{task_run_id}/llm/completions", h.workerLLMCompletionsHandler)
 }
 

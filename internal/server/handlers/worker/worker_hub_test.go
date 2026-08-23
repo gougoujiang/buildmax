@@ -16,7 +16,7 @@ func TestPostWorkerStreamHandler_AppendsToHub(t *testing.T) {
 	taskID := "t_task1"
 	hub := streamhub.NewStreamHub()
 	cfg := Config{
-		WorkerToken: "worker-tok",
+		JWTSecret: workerTestSecret,
 		TaskRuns: &mock.MockTaskRunStore{
 			Runs:     []model.TaskRun{{ID: taskRunID, TaskID: taskID}},
 			TaskList: []model.Task{{ID: taskID}},
@@ -30,7 +30,7 @@ func TestPostWorkerStreamHandler_AppendsToHub(t *testing.T) {
 	body := bytes.NewReader([]byte(`{"delta":"hello "}`))
 	req := httptest.NewRequest(http.MethodPost, "/api/worker/task-runs/"+taskRunID+"/stream", body)
 	req.SetPathValue("task_run_id", taskRunID)
-	req.Header.Set("Authorization", "Bearer worker-tok")
+	req.Header.Set("Authorization", "Bearer "+runTokenFor(t, taskRunID, taskID))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
@@ -45,7 +45,7 @@ func TestPostWorkerStreamHandler_AppendsToHub(t *testing.T) {
 	body2 := bytes.NewReader([]byte(`{"delta":"world"}`))
 	req2 := httptest.NewRequest(http.MethodPost, "/api/worker/task-runs/"+taskRunID+"/stream", body2)
 	req2.SetPathValue("task_run_id", taskRunID)
-	req2.Header.Set("Authorization", "Bearer worker-tok")
+	req2.Header.Set("Authorization", "Bearer "+runTokenFor(t, taskRunID, taskID))
 	req2.Header.Set("Content-Type", "application/json")
 	w2 := httptest.NewRecorder()
 	mux.ServeHTTP(w2, req2)

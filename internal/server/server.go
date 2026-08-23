@@ -103,10 +103,10 @@ type StorageConfig struct {
 	WorkspacesDir    string // Overrides config.WorkspacesDir() for workspace file operations
 }
 
-// WorkerConfig holds worker-to-server auth and what a worker is told about
-// models for its run.
+// WorkerConfig holds what a worker is told about models for its run. Worker
+// authentication is not here: it is the run token the scheduler mints, verified
+// with the deployment's JWT secret.
 type WorkerConfig struct {
-	WorkerToken string // If set, required for /api/worker/*
 	// LLM tells a worker how to reach a model. Nil means direct.
 	LLM *workerclient.TaskRunLLM
 }
@@ -216,7 +216,6 @@ func buildHandlersConfig(cfg Config) handlers.Config {
 		AccessTokenTTL:           cfg.Auth.AccessTokenTTL,
 		RefreshTokenTTL:          cfg.Auth.RefreshTokenTTL,
 		RefreshRotationGrace:     cfg.Auth.RefreshRotationGrace,
-		WorkerToken:              cfg.Worker.WorkerToken,
 		WorkerLLM:                cfg.Worker.LLM,
 		UserStore:                cfg.Stores.UserStore,
 		AuditStore:               cfg.Stores.AuditStore,

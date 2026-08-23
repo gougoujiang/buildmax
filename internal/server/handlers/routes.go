@@ -4,7 +4,7 @@ import (
 	"net/http"
 )
 
-// Register adds all routes to mux: auth (unauthenticated), user API (JWT), worker API (worker token), inbound webhook.
+// Register adds all routes to mux: auth (unauthenticated), user API (JWT), worker API (run token), inbound webhook.
 func (h *Handler) Register(mux *http.ServeMux) {
 	// Establishing a session lives in its own package: those routes run before a
 	// caller has one, and its Config holds no team store, so nothing there can

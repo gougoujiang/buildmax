@@ -72,7 +72,6 @@ var EnvVars = []EnvVar{
 	{Name: EnvKeyBuildmaxDatabasePassword, Description: "Override for database.password in server.yaml"},
 	{Name: EnvKeyBuildmaxMinIOAccessKey, Description: "Override for storage.minio.access_key in server.yaml", WorkerNeeds: true},
 	{Name: EnvKeyBuildmaxMinIOSecretKey, Description: "Override for storage.minio.secret_key in server.yaml", WorkerNeeds: true},
-	{Name: EnvKeyBuildmaxWorkerToken, Description: "Override for worker.token in server.yaml; shared secret for /api/worker/*", WorkerNeeds: true},
 	{Name: EnvKeyBuildmaxConversationAPIKey, Description: "Override for conversation.model.api_key in server.yaml", WorkerNeeds: true, DirectLLMOnly: true},
 	// Deliberately not WorkerNeeds: a worker reads this, but it is injected per
 	// run by the scheduler, never inherited from the server. Leaving it unmarked

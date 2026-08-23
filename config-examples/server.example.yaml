@@ -130,7 +130,6 @@ worker:
   binary: buildmax-worker
   run_mode: local_process   # or k8s_job
   server_url: http://localhost:5678
-  token: your-worker-token
 
   # How a task run reaches a model.
   #

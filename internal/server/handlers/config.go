@@ -28,9 +28,8 @@ type RunOutputLister interface {
 
 // Config holds all dependencies for the unified handler (auth, user API, worker API, inbound webhook).
 type Config struct {
-	JWTSecret   string
-	CORSOrigin  string
-	WorkerToken string // required for /api/worker/* endpoints
+	JWTSecret  string
+	CORSOrigin string
 	// WorkerLLM tells a worker how to reach a model for its run. Nil means
 	// direct, which is what a deployment that has not enabled managed worker
 	// inference reports.

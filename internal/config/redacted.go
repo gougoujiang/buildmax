@@ -78,15 +78,14 @@ type RedactedStorageConfig struct {
 
 // RedactedWorkerConfig shows how runs are launched.
 type RedactedWorkerConfig struct {
-	RunMode      string       `json:"run_mode,omitempty"`
-	ServerURL    string       `json:"server_url,omitempty"`
-	RunTokenTTL  string       `json:"run_token_ttl,omitempty"`
-	RunTimeout   string       `json:"run_timeout,omitempty"`
-	LLMTransport string       `json:"llm_transport,omitempty"`
-	LLMAlias     string       `json:"llm_alias,omitempty"`
-	K8sNamespace string       `json:"k8s_namespace,omitempty"`
-	K8sImage     string       `json:"k8s_image,omitempty"`
-	SharedToken  SecretStatus `json:"shared_token"`
+	RunMode      string `json:"run_mode,omitempty"`
+	ServerURL    string `json:"server_url,omitempty"`
+	RunTokenTTL  string `json:"run_token_ttl,omitempty"`
+	RunTimeout   string `json:"run_timeout,omitempty"`
+	LLMTransport string `json:"llm_transport,omitempty"`
+	LLMAlias     string `json:"llm_alias,omitempty"`
+	K8sNamespace string `json:"k8s_namespace,omitempty"`
+	K8sImage     string `json:"k8s_image,omitempty"`
 }
 
 // RedactedLLMConfig shows the deployment's model policy. Aliases name catalog
@@ -142,7 +141,6 @@ func (sc ServerConfig) Redacted() RedactedServerConfig {
 			LLMAlias:     sc.Worker.LLM.Alias,
 			K8sNamespace: sc.Worker.K8s.Namespace,
 			K8sImage:     sc.Worker.K8s.Image,
-			SharedToken:  secretStatus(sc.Worker.Token),
 		},
 		LLM: RedactedLLMConfig{
 			DefaultAlias: sc.LLM.DefaultAlias,
@@ -191,9 +189,6 @@ func (sc ServerConfig) configWarnings() []string {
 	warnings := []string{}
 	if sc.AllowSignup {
 		warnings = append(warnings, "allow_signup is on: anyone who can reach the server can create an account")
-	}
-	if sc.Worker.Token != "" {
-		warnings = append(warnings, "worker.token is set: the deployment-wide worker token is deprecated and names no run; remove it once every server has restarted")
 	}
 	if sc.Worker.LLM.Managed() && len(sc.LLM.Aliases) == 0 {
 		warnings = append(warnings, "worker.llm.transport is buildmax but llm.aliases is empty: no team can call a managed model")

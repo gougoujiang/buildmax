@@ -75,7 +75,7 @@
 | Public internet server exposure | Not supported | Password and operator-issued login-code flows exist, but login is not rate limited and there is no SSO or second factor. Put an identity-aware and rate-limiting boundary in front before wider exposure. |
 | Operator-issued login codes | **Beta** | Single-use account-claim and recovery credential, delivered out of band because BuildMax has no mail channel. |
 | JWT user API and team membership authorization | **Beta** | User API uses JWT; team membership is the resource boundary. |
-| Run-token worker auth | **Beta** | Every dispatched worker receives a credential scoped to one task run. The old shared worker token is a deprecated upgrade fallback. |
+| Run-token worker auth | **Beta** | Every dispatched worker receives a credential scoped to one task run, and it is the only credential the worker routes accept. The old shared worker token is removed. |
 | Bash sandbox | **Beta** | Off by default on every surface. Covers `Bash` subprocesses, not every tool or process on the host. |
 | Worker pod containment | **Beta** | Worker Jobs run non-root with no service-account token, all capabilities dropped, and a read-only root filesystem. This — not the sandbox — is the boundary a Kubernetes deployment relies on. Workers still receive object-storage credentials. |
 | Runtime hooks | **Beta** | Can observe or block selected lifecycle/tool events. Hook failures fail open. |

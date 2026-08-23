@@ -33,8 +33,6 @@ storage:
   minio:
     access_key: from-file
     secret_key: from-file
-worker:
-  token: from-file
 conversation:
   model:
     api_key: from-file
@@ -42,7 +40,6 @@ conversation:
 	t.Setenv(config.EnvKeyBuildmaxDatabasePassword, "from-env")
 	t.Setenv(config.EnvKeyBuildmaxMinIOAccessKey, "from-env")
 	t.Setenv(config.EnvKeyBuildmaxMinIOSecretKey, "from-env")
-	t.Setenv(config.EnvKeyBuildmaxWorkerToken, "from-env")
 	t.Setenv(config.EnvKeyBuildmaxConversationAPIKey, "from-env")
 
 	cfg, err := config.LoadServerConfig()
@@ -54,7 +51,6 @@ conversation:
 		"database.password":          cfg.Database.Password,
 		"storage.minio.access_key":   cfg.Storage.MinIO.AccessKey,
 		"storage.minio.secret_key":   cfg.Storage.MinIO.SecretKey,
-		"worker.token":               cfg.Worker.Token,
 		"conversation.model.api_key": cfg.Conversation.Model.APIKey,
 	}
 	for field, got := range cases {
@@ -77,14 +73,14 @@ conversation:
 // credentials supplied entirely by the environment.
 func TestServerConfigEnvOnly(t *testing.T) {
 	writeServerYAML(t, "")
-	t.Setenv(config.EnvKeyBuildmaxWorkerToken, "token-from-env")
+	t.Setenv(config.EnvKeyBuildmaxJWTSecret, "secret-from-env")
 
 	cfg, err := config.LoadServerConfig()
 	if err != nil {
 		t.Fatalf("LoadServerConfig: %v", err)
 	}
-	if cfg.Worker.Token != "token-from-env" {
-		t.Errorf("worker.token = %q, want %q", cfg.Worker.Token, "token-from-env")
+	if cfg.JWTSecret != "secret-from-env" {
+		t.Errorf("jwt_secret = %q, want %q", cfg.JWTSecret, "secret-from-env")
 	}
 	if cfg.Worker.Binary != "buildmax-worker" {
 		t.Errorf("worker.binary = %q, want the default to survive", cfg.Worker.Binary)

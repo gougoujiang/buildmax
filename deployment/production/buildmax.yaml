@@ -81,7 +81,6 @@ data:
       # In-cluster address of the Service below. Workers call the server's
       # worker API; they never reach the database.
       server_url: http://buildmax.buildmax.svc.cluster.local:5678
-      # token comes from BUILDMAX_WORKER_TOKEN
       k8s:
         namespace: buildmax
         image: REPLACE_ME_IMAGE
@@ -127,8 +126,6 @@ stringData:
   # Signs user JWTs. Generate with: openssl rand -base64 32
   # Rotating it invalidates every session, which is the intended effect.
   BUILDMAX_JWT_SECRET: REPLACE_ME
-  # Shared secret for /api/worker/*. Generate with: openssl rand -hex 24
-  BUILDMAX_WORKER_TOKEN: REPLACE_ME
   BUILDMAX_DATABASE_PASSWORD: REPLACE_ME
   BUILDMAX_CONVERSATION_MODEL_API_KEY: REPLACE_ME
   # BUILDMAX_STORAGE_MINIO_ACCESS_KEY: REPLACE_ME
@@ -263,11 +260,6 @@ spec:
                 secretKeyRef:
                   name: buildmax-secret
                   key: BUILDMAX_DATABASE_PASSWORD
-            - name: BUILDMAX_WORKER_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: buildmax-secret
-                  key: BUILDMAX_WORKER_TOKEN
             - name: BUILDMAX_CONVERSATION_MODEL_API_KEY
               valueFrom:
                 secretKeyRef:

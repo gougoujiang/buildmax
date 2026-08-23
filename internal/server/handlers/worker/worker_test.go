@@ -21,8 +21,8 @@ func TestGetWorkerTaskRunHandler_RequiresWorkerAuth(t *testing.T) {
 	task := model.Task{ID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1"}
 	mockRun := &mock.MockTaskRunStore{Runs: []model.TaskRun{run}, TaskList: []model.Task{task}}
 	cfg := Config{
-		WorkerToken: "worker-token-123",
-		TaskRuns:    mockRun,
+		JWTSecret: workerTestSecret,
+		TaskRuns:  mockRun,
 	}
 	h := New(cfg)
 	mux := http.NewServeMux()
@@ -40,7 +40,7 @@ func TestGetWorkerTaskRunHandler_RequiresWorkerAuth(t *testing.T) {
 	// With correct token: 200 and run+chat body
 	req = httptest.NewRequest(http.MethodGet, "/api/worker/task-runs/"+taskRunID, nil)
 	req.SetPathValue("task_run_id", taskRunID)
-	req.Header.Set("Authorization", "Bearer worker-token-123")
+	req.Header.Set("Authorization", "Bearer "+runTokenFor(t, taskRunID, "task-1"))
 	w = httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
@@ -66,12 +66,12 @@ func TestGetWorkerTaskRunHandler_ReportsACancelRequest(t *testing.T) {
 		}},
 		TaskList: []model.Task{{ID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1"}},
 	}
-	h := New(Config{WorkerToken: "worker-token-123", TaskRuns: runs})
+	h := New(Config{JWTSecret: workerTestSecret, TaskRuns: runs})
 	mux := http.NewServeMux()
 	h.Register(mux)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/worker/task-runs/"+taskRunID, nil)
-	req.Header.Set("Authorization", "Bearer worker-token-123")
+	req.Header.Set("Authorization", "Bearer "+runTokenFor(t, taskRunID, "task-1"))
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -96,7 +96,7 @@ func TestPatchWorkerTaskRun_CanceledKeepsArtifactsAndSyncsTheTask(t *testing.T) 
 		Runs:     []model.TaskRun{{ID: taskRunID, TaskID: "task-1", Status: string(model.RunStatusRunning)}},
 		TaskList: []model.Task{{ID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1", Status: string(model.RunStatusRunning)}},
 	}
-	h := New(Config{WorkerToken: "worker-token-123", TaskRuns: runs})
+	h := New(Config{JWTSecret: workerTestSecret, TaskRuns: runs})
 	mux := http.NewServeMux()
 	h.Register(mux)
 
@@ -111,7 +111,7 @@ func TestPatchWorkerTaskRun_CanceledKeepsArtifactsAndSyncsTheTask(t *testing.T) 
 		t.Fatal(err)
 	}
 	req := httptest.NewRequest(http.MethodPatch, "/api/worker/task-runs/"+taskRunID, bytes.NewReader(body))
-	req.Header.Set("Authorization", "Bearer worker-token-123")
+	req.Header.Set("Authorization", "Bearer "+runTokenFor(t, taskRunID, "task-1"))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
@@ -132,8 +132,8 @@ func TestPatchWorkerTaskRun_CanceledKeepsArtifactsAndSyncsTheTask(t *testing.T) 
 
 func TestGetWorkerTaskRunHandler_NotFound(t *testing.T) {
 	cfg := Config{
-		WorkerToken: "token",
-		TaskRuns:    &mock.MockTaskRunStore{Runs: []model.TaskRun{}},
+		JWTSecret: workerTestSecret,
+		TaskRuns:  &mock.MockTaskRunStore{Runs: []model.TaskRun{}},
 	}
 	h := New(cfg)
 	mux := http.NewServeMux()
@@ -141,7 +141,7 @@ func TestGetWorkerTaskRunHandler_NotFound(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodGet, "/api/worker/task-runs/nonexistent", nil)
 	req.SetPathValue("task_run_id", "nonexistent")
-	req.Header.Set("Authorization", "Bearer token")
+	req.Header.Set("Authorization", "Bearer "+runTokenFor(t, "nonexistent", "task-1"))
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 	if w.Code != http.StatusNotFound {
@@ -155,8 +155,8 @@ func TestPatchWorkerTaskRun_RUNNING_WhenScheduled_Returns200(t *testing.T) {
 	task := model.Task{ID: "task1", ConversationID: "conv-1"}
 	mockRun := &mock.MockTaskRunStore{Runs: []model.TaskRun{run}, TaskList: []model.Task{task}}
 	cfg := Config{
-		WorkerToken: "token",
-		TaskRuns:    mockRun,
+		JWTSecret: workerTestSecret,
+		TaskRuns:  mockRun,
 	}
 	h := New(cfg)
 	mux := http.NewServeMux()
@@ -166,7 +166,7 @@ func TestPatchWorkerTaskRun_RUNNING_WhenScheduled_Returns200(t *testing.T) {
 	raw, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPatch, "/api/worker/task-runs/"+taskRunID, bytes.NewReader(raw))
 	req.SetPathValue("task_run_id", taskRunID)
-	req.Header.Set("Authorization", "Bearer token")
+	req.Header.Set("Authorization", "Bearer "+runTokenFor(t, taskRunID, "task1"))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
@@ -185,8 +185,8 @@ func TestPatchWorkerTaskRun_RUNNING_WhenPending_Returns409(t *testing.T) {
 	task := model.Task{ID: "task1", ConversationID: "conv-1"}
 	mockRun := &mock.MockTaskRunStore{Runs: []model.TaskRun{run}, TaskList: []model.Task{task}}
 	cfg := Config{
-		WorkerToken: "token",
-		TaskRuns:    mockRun,
+		JWTSecret: workerTestSecret,
+		TaskRuns:  mockRun,
 	}
 	h := New(cfg)
 	mux := http.NewServeMux()
@@ -196,7 +196,7 @@ func TestPatchWorkerTaskRun_RUNNING_WhenPending_Returns409(t *testing.T) {
 	raw, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPatch, "/api/worker/task-runs/"+taskRunID, bytes.NewReader(raw))
 	req.SetPathValue("task_run_id", taskRunID)
-	req.Header.Set("Authorization", "Bearer token")
+	req.Header.Set("Authorization", "Bearer "+runTokenFor(t, taskRunID, "task1"))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
@@ -225,7 +225,7 @@ func TestGetWorkerTaskRunHandler_TellsTheRunHowToReachAModel(t *testing.T) {
 		mux := http.NewServeMux()
 		New(cfg).Register(mux)
 		req := httptest.NewRequest(http.MethodGet, "/api/worker/task-runs/run-1", nil)
-		req.Header.Set("Authorization", "Bearer worker-token-123")
+		req.Header.Set("Authorization", "Bearer "+runTokenFor(t, "run-1", "task-1"))
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 		if w.Code != http.StatusOK {
@@ -240,9 +240,9 @@ func TestGetWorkerTaskRunHandler_TellsTheRunHowToReachAModel(t *testing.T) {
 
 	t.Run("managed", func(t *testing.T) {
 		got := get(t, Config{
-			WorkerToken: "worker-token-123",
-			TaskRuns:    store,
-			WorkerLLM:   &workerclient.TaskRunLLM{Transport: "buildmax", Alias: "deep", ContextWindow: 128000},
+			JWTSecret: workerTestSecret,
+			TaskRuns:  store,
+			WorkerLLM: &workerclient.TaskRunLLM{Transport: "buildmax", Alias: "deep", ContextWindow: 128000},
 		})
 		if got.LLM == nil {
 			t.Fatal("a managed deployment told the run nothing about models")
@@ -256,9 +256,9 @@ func TestGetWorkerTaskRunHandler_TellsTheRunHowToReachAModel(t *testing.T) {
 	// always did.
 	t.Run("direct omits the field entirely", func(t *testing.T) {
 		mux := http.NewServeMux()
-		New(Config{WorkerToken: "worker-token-123", TaskRuns: store}).Register(mux)
+		New(Config{JWTSecret: workerTestSecret, TaskRuns: store}).Register(mux)
 		req := httptest.NewRequest(http.MethodGet, "/api/worker/task-runs/run-1", nil)
-		req.Header.Set("Authorization", "Bearer worker-token-123")
+		req.Header.Set("Authorization", "Bearer "+runTokenFor(t, "run-1", "task-1"))
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, req)
 		if strings.Contains(w.Body.String(), `"llm"`) {

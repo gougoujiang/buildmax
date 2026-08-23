@@ -234,7 +234,6 @@ type ServerWebhookConfig struct {
 type ServerWorkerConfig struct {
 	Binary    string                `mapstructure:"binary"`
 	RunMode   string                `mapstructure:"run_mode"`
-	Token     string                `mapstructure:"token"`
 	ServerURL string                `mapstructure:"server_url"`
 	LLM       ServerWorkerLLMConfig `mapstructure:"llm"`
 	K8s       ServerK8sConfig       `mapstructure:"k8s"`
@@ -353,8 +352,6 @@ const (
 	EnvKeyBuildmaxMinIOAccessKey = "BUILDMAX_STORAGE_MINIO_ACCESS_KEY"
 	// BUILDMAX_STORAGE_MINIO_SECRET_KEY overrides storage.minio.secret_key.
 	EnvKeyBuildmaxMinIOSecretKey = "BUILDMAX_STORAGE_MINIO_SECRET_KEY"
-	// BUILDMAX_WORKER_TOKEN overrides worker.token, the shared secret for /api/worker/*.
-	EnvKeyBuildmaxWorkerToken = "BUILDMAX_WORKER_TOKEN"
 	// BUILDMAX_CONVERSATION_MODEL_API_KEY overrides conversation.model.api_key.
 	EnvKeyBuildmaxConversationAPIKey = "BUILDMAX_CONVERSATION_MODEL_API_KEY"
 )
@@ -407,7 +404,6 @@ func LoadServerConfig() (ServerConfig, error) {
 	_ = v.BindEnv("database.password", EnvKeyBuildmaxDatabasePassword)
 	_ = v.BindEnv("storage.minio.access_key", EnvKeyBuildmaxMinIOAccessKey)
 	_ = v.BindEnv("storage.minio.secret_key", EnvKeyBuildmaxMinIOSecretKey)
-	_ = v.BindEnv("worker.token", EnvKeyBuildmaxWorkerToken)
 	_ = v.BindEnv("conversation.model.api_key", EnvKeyBuildmaxConversationAPIKey)
 
 	if err := v.ReadInConfig(); err != nil && !errors.Is(err, os.ErrNotExist) {

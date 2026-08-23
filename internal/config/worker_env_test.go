@@ -15,6 +15,9 @@ func TestWorkerEnv_WithholdsServerOnlyCredentials(t *testing.T) {
 		EnvKeyBuildmaxJWTSecret,
 		EnvKeyBuildmaxDatabasePassword,
 		EnvKeyBuildmaxTestDSN,
+		// The run token is read by a worker but never inherited: the scheduler
+		// injects the one that names this run, so a stale value must not travel.
+		EnvKeyBuildmaxRunToken,
 	}
 	for _, name := range withheld {
 		if WorkerNeedsEnv(name, false) {
@@ -32,7 +35,6 @@ func TestWorkerEnv_WithholdsServerOnlyCredentials(t *testing.T) {
 func TestWorkerEnv_KeepsWhatTheWorkerReads(t *testing.T) {
 	needed := []string{
 		EnvKeyBuildmaxHome,
-		EnvKeyBuildmaxWorkerToken,
 		EnvKeyBuildmaxMinIOAccessKey,
 		EnvKeyBuildmaxMinIOSecretKey,
 		EnvKeyBuildmaxConversationAPIKey,
@@ -64,7 +66,8 @@ func TestFilterWorkerEnv(t *testing.T) {
 		"PATH=/usr/bin",
 		"HOME=/root",
 		EnvKeyBuildmaxHome + "=/run/home",
-		EnvKeyBuildmaxWorkerToken + "=wt-secret",
+		EnvKeyBuildmaxMinIOAccessKey + "=minio-key",
+		EnvKeyBuildmaxRunToken + "=some-other-runs-token",
 		EnvKeyBuildmaxJWTSecret + "=jwt-secret",
 		EnvKeyBuildmaxDatabasePassword + "=db-secret",
 		"BUILDMAX_UNKNOWN=whatever",
@@ -73,13 +76,13 @@ func TestFilterWorkerEnv(t *testing.T) {
 	got := FilterWorkerEnv(in, false)
 	joined := strings.Join(got, "\n")
 
-	for _, banned := range []string{"jwt-secret", "db-secret", "BUILDMAX_UNKNOWN"} {
+	for _, banned := range []string{"jwt-secret", "db-secret", "BUILDMAX_UNKNOWN", "some-other-runs-token"} {
 		if strings.Contains(joined, banned) {
 			t.Errorf("filtered environment still carries %q: %v", banned, got)
 		}
 	}
 	// Non-BUILDMAX variables are what let the binary run at all.
-	for _, kept := range []string{"PATH=/usr/bin", "HOME=/root", EnvKeyBuildmaxHome + "=/run/home", EnvKeyBuildmaxWorkerToken + "=wt-secret"} {
+	for _, kept := range []string{"PATH=/usr/bin", "HOME=/root", EnvKeyBuildmaxHome + "=/run/home", EnvKeyBuildmaxMinIOAccessKey + "=minio-key"} {
 		if !slices.Contains(got, kept) {
 			t.Errorf("filtered environment dropped %q: %v", kept, got)
 		}
@@ -105,7 +108,6 @@ func TestManagedRunsGetNoProviderKey(t *testing.T) {
 
 	filtered := FilterWorkerEnv([]string{
 		EnvKeyBuildmaxConversationAPIKey + "=provider-key",
-		EnvKeyBuildmaxWorkerToken + "=wt-secret",
 		EnvKeyBuildmaxMinIOAccessKey + "=minio-key",
 	}, true)
 	joined := strings.Join(filtered, "\n")
@@ -114,7 +116,7 @@ func TestManagedRunsGetNoProviderKey(t *testing.T) {
 	}
 	// Everything else a worker reads is unaffected: managed inference changes
 	// where prompts go, not how a run reports results or writes artifacts.
-	for _, kept := range []string{"wt-secret", "minio-key"} {
+	for _, kept := range []string{"minio-key"} {
 		if !strings.Contains(joined, kept) {
 			t.Errorf("managed filtering dropped %q: %v", kept, filtered)
 		}
