@@ -61,6 +61,13 @@ traceability), §3.8 (worker diagnostics), and Portal run diagnostics.
   ("run trace"): `rt_<20 base36 chars>`.
 - JSONL: one self-describing record per line, append-only. JSONL survives a
   crash mid-run (every completed line is valid) and streams cheaply.
+- Each record is flushed as it is written, not buffered until close. The
+  survives-a-crash property above is the whole point of the format, and a
+  buffered tail silently takes it away: the records are lost precisely on the
+  runs that ended badly, and the last event left on disk is an earlier one than
+  the last event that happened — which sends a reader diagnosing the failure to
+  the wrong place. Trace volume is a handful of records per model call, so the
+  per-record write is not a cost worth trading that for.
 
 ### 3.2 Record schema
 
