@@ -1,8 +1,9 @@
 # Prompt Cache Control
 
-> **Audience:** contributors · **Status:** in progress — phase 1 shipped:
-> provider-reported cache counts now reach every surface. Default policy,
-> provider-specific controls, and cost estimates do not exist yet.
+> **Audience:** contributors · **Status:** in progress — phases 1 and 2 shipped:
+> cache counts reach every surface, and caching is a per-call policy that
+> defaults on for Anthropic agent turns. OpenAI native controls, cost estimates,
+> and compatible-gateway profiles do not exist yet.
 
 Extends [llm-provider-adapters.md](llm-provider-adapters.md) and
 [llm-gateway.md](llm-gateway.md). The provider-adapter design owns protocol
@@ -20,9 +21,9 @@ The current implementation is a useful base but not a complete policy:
 
 | Area | Current behavior | Gap |
 |---|---|---|
-| Anthropic | `prompt_cache: true` marks the system block and sends top-level automatic caching. | Opt-in per model, no TTL policy, and applies to one-shot utility calls too. |
+| Anthropic | `auto` by default on agent turns, with static and rolling breakpoints and an explicit 1-hour opt-in (phase 2). | — |
 | OpenAI Responses | Relies on automatic caching and records reported cache usage. | No `prompt_cache_key`, cache options, or retention/TTL control. |
-| OpenAI-compatible | Treats the protocol family as automatically caching. | Compatibility is not a cache capability; an endpoint may ignore fields or report nothing. |
+| OpenAI-compatible | Declares no cache capability and sends no controls (phase 2). | No named profile for a tested gateway yet. |
 | Accounting | `core/llm.Usage`, run stats, traces, session totals, local results, the managed ledger, and Portal all carry cache read/write tokens (phase 1). | Nothing distinguishes a requested strategy from a provider that reports nothing. |
 | Cost control | Prompt and completion tokens are displayed and quota is token-based. | No cache-hit ratio, cache-write cost, billable-cost estimate, or miss explanation. |
 
@@ -288,11 +289,10 @@ the breakdown only where a provider reported one: a permanent `0 / 0` would read
 as a measured miss on the many providers that report nothing.
 
 The diagnostics of section 6 — requested mode, capability, strategy, effective
-TTL, outcome — are not part of phase 1. They arrive with the policy that
-produces them in phase 2; until then a surface reports counts and says nothing
-about why they are what they are.
+TTL, outcome — are not part of phase 1. Phase 2 resolves them per call; carrying
+them out to the surfaces is tracked below.
 
-### Phase 2 — policy and Anthropic default
+### Phase 2 — policy and Anthropic default (shipped)
 
 - Add structured policy, compatibility parsing, call profile, and capability
   validation.
@@ -305,6 +305,27 @@ about why they are what they are.
 **Acceptance:** direct CLI/Desktop and each managed endpoint make the same
 target-policy decision; a qualified sequential tool loop with unchanged static
 input observes a write then read; an `auto` title-only call sends no control.
+
+Two decisions were settled in implementation and are recorded here because the
+plan above did not:
+
+The catalog's `prompt_cache` column cannot hold what section 4 asks of the
+settings file. There, absent and `false` are different requests and a pointer
+keeps them apart; a non-null bool column with a `false` default has no such room,
+and almost every existing row holds a `false` nobody chose. Reading those as
+opt-outs would leave every managed target uncached, which is the outcome this
+document exists to change, so an unset catalog row resolves to `auto` and an
+operator who wants caching off writes `cache_mode: off`.
+
+`force` is refused where a target takes no cache instructions, and `auto` is
+not. Refusing `auto` there would make the default mode unusable on the majority
+of targets; serving `force` there silently as no caching would answer a question
+nobody asked.
+
+The section 6 diagnostics — requested mode, capability, strategy, effective TTL,
+outcome — are resolved per call but do not yet leave `internal/infra/llm`.
+Carrying them to the surfaces is the remaining phase 2 debt, tracked with the
+cost work in phase 3.
 
 ### Phase 3 — OpenAI native controls and cost estimates
 

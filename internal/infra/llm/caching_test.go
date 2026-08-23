@@ -438,3 +438,105 @@ func openAIChatCacheSSE() string {
 	b.WriteString("data: [DONE]\n\n")
 	return b.String()
 }
+
+// The acceptance criterion from docs/design/prompt-cache-control.md section 9,
+// phase 2: a sequential tool loop over unchanged static input sees a write and
+// then a read.
+//
+// What it protects is the property that makes the write worth buying. The
+// static breakpoint has to land on the same bytes both times — if the system
+// prompt or the tool definitions moved between turns, the second call would
+// write a second entry rather than read the first, and the run would pay twice
+// for a saving it never gets.
+func TestASequentialLoopWritesThenReads(t *testing.T) {
+	var bodies []string
+	// The first call writes the prefix; the second reads it back.
+	usages := []string{
+		`"usage":{"input_tokens":12,"output_tokens":4,"cache_creation_input_tokens":900}`,
+		`"usage":{"input_tokens":30,"output_tokens":4,"cache_read_input_tokens":900}`,
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Errorf("read request body: %v", err)
+		}
+		bodies = append(bodies, string(body))
+		usage := usages[min(len(bodies)-1, len(usages)-1)]
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"msg_1","type":"message","role":"assistant","model":"m",` +
+			`"content":[{"type":"text","text":"ok"}],` + usage + `}`))
+	}))
+	t.Cleanup(server.Close)
+
+	client := newTestClient(t, config.LLMProviderAnthropic, server.URL)
+	history := []cllm.Message{
+		{Role: "system", Content: "you are a careful assistant"},
+		{Role: "user", Content: "start"},
+	}
+
+	first, err := client.ChatCompletionBlocking(context.Background(), cllm.Request{
+		Messages: history, Tools: conformanceTools(), Profile: cllm.ProfileAgentTurn,
+	})
+	if err != nil {
+		t.Fatalf("first call: %v", err)
+	}
+	if first.Usage.CacheWriteTokens != 900 || first.Usage.CacheReadTokens != 0 {
+		t.Errorf("first call usage = %+v, want a write and no read", first.Usage)
+	}
+
+	// The next iteration of a loop: the same system prompt and tools, more
+	// history behind them.
+	history = append(history,
+		cllm.Message{Role: "assistant", Content: "ok"},
+		cllm.Message{Role: "user", Content: "continue"})
+	second, err := client.ChatCompletionBlocking(context.Background(), cllm.Request{
+		Messages: history, Tools: conformanceTools(), Profile: cllm.ProfileAgentTurn,
+	})
+	if err != nil {
+		t.Fatalf("second call: %v", err)
+	}
+	if second.Usage.CacheReadTokens != 900 || second.Usage.CacheWriteTokens != 0 {
+		t.Errorf("second call usage = %+v, want a read and no write", second.Usage)
+	}
+
+	if len(bodies) != 2 {
+		t.Fatalf("upstream saw %d requests, want 2", len(bodies))
+	}
+	for i, body := range bodies {
+		var request map[string]any
+		if err := json.Unmarshal([]byte(body), &request); err != nil {
+			t.Fatalf("decode request %d: %v", i+1, err)
+		}
+		system, ok := request["system"].([]any)
+		if !ok || len(system) == 0 {
+			t.Fatalf("request %d has no system blocks: %s", i+1, body)
+		}
+		if _, marked := system[len(system)-1].(map[string]any)["cache_control"]; !marked {
+			t.Errorf("request %d carries no static breakpoint: %s", i+1, body)
+		}
+		if _, marked := request["cache_control"]; !marked {
+			t.Errorf("request %d carries no rolling breakpoint: %s", i+1, body)
+		}
+	}
+	if cacheablePrefix(t, bodies[0]) != cacheablePrefix(t, bodies[1]) {
+		t.Error("the cacheable prefix moved between turns, so the second call writes rather than reads")
+	}
+}
+
+// cacheablePrefix is everything before the conversation: the parts a reused
+// cache entry is keyed on.
+func cacheablePrefix(t *testing.T, body string) string {
+	t.Helper()
+	var request map[string]any
+	if err := json.Unmarshal([]byte(body), &request); err != nil {
+		t.Fatalf("decode request: %v", err)
+	}
+	prefix, err := json.Marshal(map[string]any{
+		"system": request["system"],
+		"tools":  request["tools"],
+	})
+	if err != nil {
+		t.Fatalf("encode prefix: %v", err)
+	}
+	return string(prefix)
+}
