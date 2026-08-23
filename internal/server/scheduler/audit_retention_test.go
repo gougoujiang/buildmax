@@ -19,7 +19,7 @@ type fakeAuditPruner struct {
 	calls     int
 }
 
-func (f *fakeAuditPruner) PruneAuditEvents(_ context.Context, before int64, limit int) (int64, error) {
+func (f *fakeAuditPruner) PruneAuditEvents(_ context.Context, before time.Time, limit int) (int64, error) {
 	f.calls++
 	if f.pruneErr != nil {
 		return 0, f.pruneErr
@@ -27,7 +27,7 @@ func (f *fakeAuditPruner) PruneAuditEvents(_ context.Context, before int64, limi
 	kept := make([]model.AuditEvent, 0, len(f.events))
 	var removed int64
 	for _, e := range f.events {
-		if e.CreatedAt < before && removed < int64(limit) {
+		if e.CreatedAt.Before(before) && removed < int64(limit) {
 			removed++
 			continue
 		}
@@ -37,13 +37,13 @@ func (f *fakeAuditPruner) PruneAuditEvents(_ context.Context, before int64, limi
 	return removed, nil
 }
 
-func (f *fakeAuditPruner) OldestAuditEventAt(context.Context) (int64, error) {
+func (f *fakeAuditPruner) OldestAuditEventAt(context.Context) (time.Time, error) {
 	if f.oldestErr != nil {
-		return 0, f.oldestErr
+		return time.Time{}, f.oldestErr
 	}
-	var oldest int64
+	var oldest time.Time
 	for _, e := range f.events {
-		if oldest == 0 || e.CreatedAt < oldest {
+		if oldest.IsZero() || e.CreatedAt.Before(oldest) {
 			oldest = e.CreatedAt
 		}
 	}
@@ -55,8 +55,8 @@ func (f *fakeAuditPruner) RecordAuditEvent(_ context.Context, in model.AuditEven
 	return nil
 }
 
-func at(now time.Time, daysAgo int) int64 {
-	return now.AddDate(0, 0, -daysAgo).Unix()
+func at(now time.Time, daysAgo int) time.Time {
+	return now.AddDate(0, 0, -daysAgo)
 }
 
 func retainerAt(store *fakeAuditPruner, days int, now time.Time) *AuditRetainer {
@@ -84,8 +84,8 @@ func TestAuditRetainerRemovesOnlyExpiredEvents(t *testing.T) {
 		t.Fatalf("removed %d events, want 2", removed)
 	}
 	for _, e := range store.events {
-		if e.Action == model.AuditUserLogin && e.CreatedAt < at(now, 90) {
-			t.Errorf("event at %d survived the 90-day window", e.CreatedAt)
+		if e.Action == model.AuditUserLogin && e.CreatedAt.Before(at(now, 90)) {
+			t.Errorf("event at %v survived the 90-day window", e.CreatedAt)
 		}
 	}
 }

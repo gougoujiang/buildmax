@@ -37,13 +37,17 @@ func New(ctx context.Context, dsn string) (*Store, error) {
 	gormLogger := logger.New(log.New(os.Stdout, "\r\n", log.LstdFlags), logger.Config{
 		IgnoreRecordNotFoundError: true,
 	})
-	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{Logger: gormLogger})
+	dsn, err := utcDSN(dsn)
+	if err != nil {
+		return nil, err
+	}
+	db, err := gorm.Open(mysqlDialector(dsn), &gorm.Config{Logger: gormLogger})
 	if err != nil && missingDatabase(err) {
 		// The schema, not just the tables: see ensureDatabase.
 		if createErr := ensureDatabase(ctx, dsn); createErr != nil {
 			return nil, fmt.Errorf("open mysql: %w (creating the database failed too: %v)", err, createErr)
 		}
-		db, err = gorm.Open(mysql.Open(dsn), &gorm.Config{Logger: gormLogger})
+		db, err = gorm.Open(mysqlDialector(dsn), &gorm.Config{Logger: gormLogger})
 	}
 	if err != nil {
 		return nil, fmt.Errorf("open mysql: %w", err)
@@ -78,4 +82,17 @@ func (s *Store) Close() error {
 		return err
 	}
 	return sqlDB.Close()
+}
+
+// datetimePrecision is the fractional-second precision of every instant column.
+//
+// GORM's MySQL driver defaults to DATETIME(3); 6 is what
+// docs/design/timestamp-representation.md chose, so that a burst of rows inside
+// one millisecond still carries distinguishable times. It costs nothing: a
+// DATETIME(6) is 8 bytes, the same as the bigint it replaced.
+const datetimePrecision = 6
+
+func mysqlDialector(dsn string) gorm.Dialector {
+	precision := datetimePrecision
+	return mysql.New(mysql.Config{DSN: dsn, DefaultDatetimePrecision: &precision})
 }

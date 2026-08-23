@@ -3,6 +3,7 @@ package team
 import (
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
@@ -10,21 +11,21 @@ import (
 )
 
 type teamResponse struct {
-	ID                string  `json:"id"`
-	Name              string  `json:"name"`
-	PersonalForUserID *string `json:"personal_for_user_id,omitempty"`
-	CreatedBy         string  `json:"created_by"`
-	CreatedAt         int64   `json:"created_at"`
-	UpdatedAt         int64   `json:"updated_at"`
+	ID                string    `json:"id"`
+	Name              string    `json:"name"`
+	PersonalForUserID *string   `json:"personal_for_user_id,omitempty"`
+	CreatedBy         string    `json:"created_by"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
 }
 
 type teamMemberResponse struct {
-	TeamID    string  `json:"team_id"`
-	UserID    string  `json:"user_id"`
-	Role      string  `json:"role"`
-	CreatedAt int64   `json:"created_at"`
-	UserName  *string `json:"user_name,omitempty"`
-	UserEmail *string `json:"user_email,omitempty"`
+	TeamID    string    `json:"team_id"`
+	UserID    string    `json:"user_id"`
+	Role      string    `json:"role"`
+	CreatedAt time.Time `json:"created_at"`
+	UserName  *string   `json:"user_name,omitempty"`
+	UserEmail *string   `json:"user_email,omitempty"`
 }
 
 type addTeamMemberRequest struct {

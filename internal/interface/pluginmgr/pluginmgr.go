@@ -413,7 +413,7 @@ func swapIn(stagedDir, active string) error {
 }
 
 func recordInstalled(pluginsDir, name, serverURL string, release model.PluginRelease) error {
-	now := time.Now().Unix()
+	now := time.Now().UTC()
 	return config.UpdatePluginStates(pluginsDir, func(s *config.PluginStates) error {
 		st, _ := s.Get(name)
 		st.Source = config.PluginSourceMarketplace
@@ -423,7 +423,7 @@ func recordInstalled(pluginsDir, name, serverURL string, release model.PluginRel
 		st.Digest = release.Digest
 		// Repository fields would describe a checkout this copy is not.
 		st.RepositoryURL, st.LastCommit = "", ""
-		if st.InstalledAt == 0 {
+		if st.InstalledAt.IsZero() {
 			st.InstalledAt = now
 		}
 		st.UpdatedAt = now

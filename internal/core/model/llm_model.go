@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	"errors"
+	"time"
 )
 
 // ErrLLMModelNameTaken is returned when an operator reuses a model name.
@@ -40,9 +41,9 @@ type LLMModel struct {
 	// Capabilities is what this model supports, e.g. "text_chat".
 	Capabilities []string `json:"capabilities,omitempty"`
 	// Enabled lets an operator retire a model without deleting it.
-	Enabled   bool  `json:"enabled"`
-	CreatedAt int64 `json:"created_at"`
-	UpdatedAt int64 `json:"updated_at"`
+	Enabled   bool      `json:"enabled"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // CreateLLMModelInput is a new catalog row, including the credential that the

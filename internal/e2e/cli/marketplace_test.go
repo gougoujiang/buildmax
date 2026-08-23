@@ -45,7 +45,7 @@ func startMarketplace(t *testing.T) *httptest.Server {
 		publisherID: "publisher@example.com",
 		consumerID:  "consumer@example.com",
 	} {
-		u := &model.User{ID: id, Email: email, CreatedAt: 1}
+		u := &model.User{ID: id, Email: email, CreatedAt: time.Unix(1, 0).UTC()}
 		users.ByID[id] = u
 		users.ByEmail[email] = u
 	}
@@ -85,7 +85,7 @@ func signedInHome(t *testing.T, serverURL, userID string) string {
 		"token":      testsupport.SignJWT(userID, marketplaceSecret),
 		"user_id":    userID,
 		"email":      userID + "@example.com",
-		"saved_at":   time.Now().Unix(),
+		"saved_at":   time.Now().UTC(),
 	}
 	data, err := json.Marshal(creds)
 	if err != nil {

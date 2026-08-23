@@ -58,8 +58,8 @@ type PluginState struct {
 	ReleaseVersion    string `json:"release_version,omitempty"`
 	Digest            string `json:"digest,omitempty"`
 
-	InstalledAt int64 `json:"installed_at,omitempty"`
-	UpdatedAt   int64 `json:"updated_at,omitempty"`
+	InstalledAt time.Time `json:"installed_at,omitempty"`
+	UpdatedAt   time.Time `json:"updated_at,omitempty"`
 }
 
 // PluginStates is the on-disk shape of .state.json.

@@ -1,6 +1,9 @@
 package model
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // QuotaTier defines limits for a tier (e.g. free_trial, pro).
 type QuotaTier struct {
@@ -19,5 +22,5 @@ type QuotaTierStore interface {
 // UsageInWindowReader provides usage aggregation for a team in a time window.
 type UsageInWindowReader interface {
 	// TeamUsageInWindow returns run count and total tokens for the team in [sinceUnix, untilUnix].
-	TeamUsageInWindow(ctx context.Context, teamID string, sinceUnix, untilUnix int64) (runCount, totalTokens int, err error)
+	TeamUsageInWindow(ctx context.Context, teamID string, since, until time.Time) (runCount, totalTokens int, err error)
 }

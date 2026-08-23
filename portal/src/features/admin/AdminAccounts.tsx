@@ -18,8 +18,8 @@ function accountState(user: ApiAdminUser): { label: string; disabled: boolean } 
   return { label: "Active", disabled: false }
 }
 
-function whenever(unix?: number): string {
-  return unix ? new Date(unix * 1000).toLocaleString() : "never"
+function whenever(rfc3339?: string): string {
+  return rfc3339 ? new Date(rfc3339).toLocaleString() : "never"
 }
 
 /**

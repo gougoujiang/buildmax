@@ -35,7 +35,7 @@ func TestPasswordLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("HashPassword: %v", err)
 	}
-	if err := s.SetPassword(ctx, user.ID, encoded, time.Now().Unix()); err != nil {
+	if err := s.SetPassword(ctx, user.ID, encoded, time.Now().UTC()); err != nil {
 		t.Fatalf("SetPassword: %v", err)
 	}
 
@@ -76,7 +76,7 @@ func TestPasswordHashFitsItsColumn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("HashPassword: %v", err)
 	}
-	if err := s.SetPassword(ctx, user.ID, encoded, time.Now().Unix()); err != nil {
+	if err := s.SetPassword(ctx, user.ID, encoded, time.Now().UTC()); err != nil {
 		t.Fatalf("SetPassword: %v", err)
 	}
 	stored, err := s.PasswordHash(ctx, user.ID)
@@ -97,7 +97,7 @@ func TestSetPasswordRejectsAnUnknownAccount(t *testing.T) {
 	if err != nil {
 		t.Fatalf("HashPassword: %v", err)
 	}
-	if err := s.SetPassword(ctx, "u_doesnotexist", encoded, time.Now().Unix()); !errors.Is(err, model.ErrUserNotFound) {
+	if err := s.SetPassword(ctx, "u_doesnotexist", encoded, time.Now().UTC()); !errors.Is(err, model.ErrUserNotFound) {
 		t.Errorf("SetPassword = %v, want ErrUserNotFound", err)
 	}
 }

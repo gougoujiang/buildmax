@@ -22,13 +22,13 @@ type issueCommentRow struct {
 	IssueID  uint64 `gorm:"column:issue_id;not null;index:idx_issue_comment_issue_created,priority:1"`
 	// AuthorID stays an opaque handle under author_kind, and the two source
 	// columns record where a comment came from rather than a live relation.
-	AuthorKind      string  `gorm:"type:varchar(16);not null"`
-	AuthorID        string  `gorm:"type:varchar(64);not null"`
-	Body            string  `gorm:"type:text;not null"`
-	SourceTaskID    *uint64 `gorm:"column:source_task_id"`
-	SourceTaskRunID *uint64 `gorm:"column:source_task_run_id"`
-	CreatedAt       int64   `gorm:"autoCreateTime;index:idx_issue_comment_issue_created,priority:2"`
-	EditedAt        *int64  `gorm:"column:edited_at"`
+	AuthorKind      string     `gorm:"type:varchar(16);not null"`
+	AuthorID        string     `gorm:"type:varchar(64);not null"`
+	Body            string     `gorm:"type:text;not null"`
+	SourceTaskID    *uint64    `gorm:"column:source_task_id"`
+	SourceTaskRunID *uint64    `gorm:"column:source_task_run_id"`
+	CreatedAt       time.Time  `gorm:"autoCreateTime;index:idx_issue_comment_issue_created,priority:2"`
+	EditedAt        *time.Time `gorm:"column:edited_at"`
 }
 
 func (issueCommentRow) TableName() string { return "issue_comment" }
@@ -94,7 +94,7 @@ func (s *Store) CreateIssueComment(ctx context.Context, in model.CreateIssueComm
 		AuthorKind: in.AuthorKind,
 		AuthorID:   in.AuthorID,
 		Body:       in.Body,
-		CreatedAt:  time.Now().Unix(),
+		CreatedAt:  time.Now().UTC(),
 	}
 	read := &issueCommentReadRow{IssuePublicID: canonicalPublicID(in.IssueID)}
 	if in.SourceTaskID != nil && *in.SourceTaskID != "" {
@@ -171,7 +171,7 @@ func (s *Store) GetIssueComment(ctx context.Context, commentID string) (*model.I
 func (s *Store) UpdateIssueComment(ctx context.Context, commentID, body string) (*model.IssueComment, error) {
 	updates := map[string]interface{}{
 		"body":      body,
-		"edited_at": time.Now().Unix(),
+		"edited_at": time.Now().UTC(),
 	}
 	id, ok := util.CanonicalPublicID(commentID)
 	if !ok {

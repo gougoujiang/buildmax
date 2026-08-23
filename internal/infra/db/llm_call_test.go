@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/model"
@@ -33,7 +34,7 @@ func sampleLLMCall() *model.LLMCall {
 		ProviderType:  "openai_compatible",
 		UpstreamModel: "vendor/fast-1",
 		Streaming:     true,
-		AcceptedAt:    1_700_000_000,
+		AcceptedAt:    time.Unix(1_700_000_000, 0).UTC(),
 	}
 }
 
@@ -47,9 +48,9 @@ func TestLLMCallRowRoundTrip(t *testing.T) {
 	call.TeamID = ""
 	call.UserID = nil
 	call.ClientCallID = ptrString("client-key-1")
-	upstreamStarted := int64(1_700_000_001)
-	firstDelta := int64(1_700_000_002)
-	completed := int64(1_700_000_003)
+	upstreamStarted := time.Unix(1_700_000_001, 0).UTC()
+	firstDelta := time.Unix(1_700_000_002, 0).UTC()
+	completed := time.Unix(1_700_000_003, 0).UTC()
 	call.UpstreamStartedAt = &upstreamStarted
 	call.FirstDeltaAt = &firstDelta
 	call.CompletedAt = &completed
@@ -136,8 +137,8 @@ func TestOpenAndCompleteLLMCall(t *testing.T) {
 		t.Error("an accepted call must not carry token counts yet")
 	}
 
-	completedAt := opened.AcceptedAt + 3
-	upstreamStarted := opened.AcceptedAt + 1
+	completedAt := opened.AcceptedAt.Add(3 * time.Second)
+	upstreamStarted := opened.AcceptedAt.Add(1 * time.Second)
 	err = s.CompleteLLMCall(ctx, opened.ID, model.LLMCallOutcome{
 		Status:            model.LLMCallStatusSucceeded,
 		Attempts:          1,
@@ -167,8 +168,8 @@ func TestOpenAndCompleteLLMCall(t *testing.T) {
 	if got.TotalTokens == nil || *got.TotalTokens != 120 {
 		t.Errorf("TotalTokens = %v, want 120", got.TotalTokens)
 	}
-	if got.CompletedAt == nil || *got.CompletedAt != completedAt {
-		t.Errorf("CompletedAt = %v, want %d", got.CompletedAt, completedAt)
+	if got.CompletedAt == nil || !got.CompletedAt.Equal(completedAt) {
+		t.Errorf("CompletedAt = %v, want %v", got.CompletedAt, completedAt)
 	}
 
 	byClient, err := s.GetLLMCallByClientID(ctx, call.TeamID, *call.ClientCallID)
@@ -214,7 +215,7 @@ func TestCompleteLLMCallKeepsUnavailableUsage(t *testing.T) {
 		Status:      model.LLMCallStatusFailed,
 		ErrorClass:  &errorClass,
 		Attempts:    3,
-		CompletedAt: opened.AcceptedAt + 5,
+		CompletedAt: opened.AcceptedAt.Add(5 * time.Second),
 	})
 	if err != nil {
 		t.Fatalf("CompleteLLMCall: %v", err)

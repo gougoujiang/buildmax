@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -102,8 +103,8 @@ func adminTeamsMux(t *testing.T) *http.ServeMux {
 	personalOf := "u_alice"
 	teams := &mock.MockTeamStore{
 		Teams: []model.Team{
-			{ID: "tm_shared", Name: "Platform", CreatedBy: "u_alice", QuotaTier: "free_trial", CreatedAt: 200},
-			{ID: "tm_personal", Name: "My Space", PersonalForUserID: &personalOf, CreatedBy: "u_alice", CreatedAt: 100},
+			{ID: "tm_shared", Name: "Platform", CreatedBy: "u_alice", QuotaTier: "free_trial", CreatedAt: time.Unix(200, 0).UTC()},
+			{ID: "tm_personal", Name: "My Space", PersonalForUserID: &personalOf, CreatedBy: "u_alice", CreatedAt: time.Unix(100, 0).UTC()},
 		},
 		Members: []model.TeamMember{
 			{TeamID: "tm_shared", UserID: "u_alice", Role: model.TeamRoleOwner},

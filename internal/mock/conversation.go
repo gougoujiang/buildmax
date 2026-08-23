@@ -25,7 +25,7 @@ func (m *MockConversationStore) CreateConversationInTeam(_ context.Context, team
 		TeamID:    teamID,
 		Channel:   channel,
 		CreatedBy: createdBy,
-		CreatedAt: time.Now().Unix(),
+		CreatedAt: time.Now().UTC(),
 	}
 	m.Conversations = append(m.Conversations, conv)
 	return &m.Conversations[len(m.Conversations)-1], nil
@@ -107,7 +107,7 @@ func (m *MockConversationMessageStore) AppendMessage(_ context.Context, in model
 		ToolCallsJSON:     in.ToolCallsJSON,
 		ProviderStateJSON: in.ProviderStateJSON,
 		PartsJSON:         in.PartsJSON,
-		CreatedAt:         int64(len(m.Messages) + 1),
+		CreatedAt:         seqTime(len(m.Messages) + 1),
 	}
 	m.Messages = append(m.Messages, msg)
 	return &msg, nil

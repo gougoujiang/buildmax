@@ -4,10 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
 	"strings"
 	"time"
+
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
+	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/service/task"
@@ -292,7 +293,7 @@ func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd)
 	if err != nil {
 		return nil, nil, err
 	}
-	now := time.Now().Unix()
+	now := time.Now().UTC()
 	run, err := s.Workflows.CreateWorkflowRun(ctx, model.CreateWorkflowRunInput{
 		WorkflowID:       workflow.ID,
 		WorkflowRevision: workflow.Revision,
@@ -361,7 +362,7 @@ func (s *Service) HandleTaskRunTerminal(ctx context.Context, info model.TaskRunT
 		}
 		return err
 	}
-	now := time.Now().Unix()
+	now := time.Now().UTC()
 	if info.Status == string(model.RunStatusSucceeded) {
 		summary := summarizeOutput(info.Output)
 		status := model.WorkflowStepRunStatusSucceeded
@@ -435,7 +436,7 @@ func (s *Service) dispatchNextStep(ctx context.Context, teamID, userID string, r
 			}
 			teamID = workflow.TeamID
 		}
-		startedAt := time.Now().Unix()
+		startedAt := time.Now().UTC()
 		running := model.WorkflowStepRunStatusRunning
 		taskItem, taskRunID, err := s.createStepTask(ctx, teamID, userID, run.ConversationID, steps[i])
 		if err != nil {
@@ -465,7 +466,7 @@ func (s *Service) dispatchNextStep(ctx context.Context, teamID, userID string, r
 		}
 		return &steps[i], nil
 	}
-	endedAt := time.Now().Unix()
+	endedAt := time.Now().UTC()
 	status := model.WorkflowRunStatusSucceeded
 	_, err := s.Workflows.UpdateWorkflowRun(ctx, run.ID, model.UpdateWorkflowRunInput{
 		Status:  status,

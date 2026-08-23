@@ -45,11 +45,6 @@ func (h *Handler) listAdminAuditEventsHandler(w http.ResponseWriter, r *http.Req
 	httputil.WriteJSON(w, http.StatusOK, AdminAuditEventsResponse{Events: events, Total: total})
 }
 
-// parseUnixParam reads a Unix-seconds query parameter. An unparseable value is
-// no bound rather than an error: a filter that rejects the whole request
-// because a timestamp was malformed makes an investigation harder than one
-// that returns a wider window.
-
 func (h *Handler) exportAdminAuditEventsHandler(w http.ResponseWriter, r *http.Request) {
 	adminID, ok := h.guard().SystemAdmin(w, r)
 	if !ok {

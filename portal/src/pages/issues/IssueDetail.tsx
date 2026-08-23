@@ -39,7 +39,7 @@ interface TimelineEvent {
   id: string
   label: string
   detail: string
-  timestamp: number
+  timestamp: string
   status?: string
 }
 
@@ -60,8 +60,8 @@ function mapIssueFlow(api: ApiIssueFlowResponse): IssueFlow {
   }
 }
 
-function formatTimestamp(seconds: number): string {
-  return new Date(seconds * 1000).toLocaleString()
+function formatTimestamp(rfc3339: string): string {
+  return new Date(rfc3339).toLocaleString()
 }
 
 function latestRun(flow: IssueFlow | null): IssueFlowRun | null {
@@ -221,7 +221,7 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
         timestamp: comment.created_at,
       })
     }
-    return events.sort((a, b) => b.timestamp - a.timestamp)
+    return events.sort((a, b) => (a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0))
   }, [flow, comments])
 
   function memberLabel(member: ApiTeamMember): string {

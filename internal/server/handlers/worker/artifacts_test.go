@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -18,7 +19,7 @@ const workerArtifactToken = "worker-token-123"
 
 func artifactWorkerMux(t *testing.T, store *mock.MockArtifactStore, teamID string) *http.ServeMux {
 	t.Helper()
-	run := model.TaskRun{ID: "run-1", TaskID: "task-1", Status: "RUNNING", CreatedAt: 1}
+	run := model.TaskRun{ID: "run-1", TaskID: "task-1", Status: "RUNNING", CreatedAt: time.Unix(1, 0).UTC()}
 	task := model.Task{ID: "task-1", ConversationID: "conv-1", TeamID: teamID, CreatedBy: "u1"}
 	h := New(Config{
 		WorkerToken: workerArtifactToken,
@@ -130,7 +131,7 @@ func TestWorkerArtifactRefusesARunWithNoTeam(t *testing.T) {
 }
 
 func TestWorkerArtifactUnconfiguredDeploymentRefuses(t *testing.T) {
-	run := model.TaskRun{ID: "run-1", TaskID: "task-1", Status: "RUNNING", CreatedAt: 1}
+	run := model.TaskRun{ID: "run-1", TaskID: "task-1", Status: "RUNNING", CreatedAt: time.Unix(1, 0).UTC()}
 	task := model.Task{ID: "task-1", TeamID: "tm_1", CreatedBy: "u1"}
 	h := New(Config{
 		WorkerToken: workerArtifactToken,

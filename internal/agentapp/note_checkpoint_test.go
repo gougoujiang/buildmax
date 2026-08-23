@@ -76,8 +76,8 @@ func TestNoteCheckpointer_WritesNotesFromDiscardedMessages(t *testing.T) {
 	if len(sess.Notes()) != 1 || sess.Notes()[0].Text != "cure period is 14 days from notice" {
 		t.Fatalf("notes = %+v, want the checkpointed note", sess.Notes())
 	}
-	if sess.Notes()[0].WrittenAt != 9 {
-		t.Errorf("WrittenAt = %d, want 9 — the checkpoint must stamp like any other write", sess.Notes()[0].WrittenAt)
+	if sess.Notes()[0].WrittenIteration != 9 {
+		t.Errorf("WrittenIteration = %d, want 9 — the checkpoint must stamp like any other write", sess.Notes()[0].WrittenIteration)
 	}
 }
 

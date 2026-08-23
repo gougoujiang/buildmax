@@ -115,7 +115,7 @@ func runAdminGrant(ctx context.Context, args []string, out io.Writer, store admi
 		return fmt.Errorf("no account for %s; create one first with: buildmax-server user create %s", email, email)
 	}
 
-	grant, err := store.GrantSystemRole(ctx, user.ID, model.SystemRoleAdmin, model.AuditActorOperator, time.Now().Unix())
+	grant, err := store.GrantSystemRole(ctx, user.ID, model.SystemRoleAdmin, model.AuditActorOperator, time.Now().UTC())
 	if err != nil {
 		if errors.Is(err, model.ErrSystemGrantExists) {
 			return fmt.Errorf("%s already holds %s", email, model.SystemRoleAdmin)
@@ -146,7 +146,7 @@ func runAdminRevoke(ctx context.Context, args []string, out io.Writer, store adm
 		return fmt.Errorf("no account for %s", email)
 	}
 
-	revoked, err := store.RevokeSystemRole(ctx, user.ID, model.SystemRoleAdmin, time.Now().Unix())
+	revoked, err := store.RevokeSystemRole(ctx, user.ID, model.SystemRoleAdmin, time.Now().UTC())
 	if err != nil {
 		return fmt.Errorf("revoke %s: %w", model.SystemRoleAdmin, err)
 	}
@@ -213,11 +213,11 @@ func runAdminList(ctx context.Context, args []string, out io.Writer, store admin
 	return w.Flush()
 }
 
-func formatGrantTime(unix int64) string {
-	if unix == 0 {
+func formatGrantTime(t time.Time) string {
+	if t.IsZero() {
 		return "-"
 	}
-	return time.Unix(unix, 0).Format(time.RFC3339)
+	return t.Local().Format(time.RFC3339)
 }
 
 // recordSystemGrantAudit writes a change of deployment authority to the trail.

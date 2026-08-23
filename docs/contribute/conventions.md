@@ -18,6 +18,21 @@ the same naming style.
 - Give every struct that is serialized to disk explicit `json:"snake_case"`
   tags. Do not rely on Go's default, which is the Go field name.
 
+## Instants Are `time.Time`, `DATETIME(6)`, RFC 3339
+
+A persisted moment in time is a `time.Time` in Go, a `DATETIME(6)` column in
+MySQL, and an RFC 3339 string on the wire. Optional means `*time.Time` and a
+`NULL` column; absence is never a sentinel zero. Write with
+`time.Now().UTC()`.
+
+A duration, a quota, a retry count, and a token count are not instants: they
+stay `int64` / `bigint` / a JSON number, and the field name carries the unit —
+`TimeoutSeconds`, `duration_ms`. A value with no meaningful time of day is a
+`DATE` and `"2026-08-23"`.
+
+The reasoning, and what the rule replaced, are in
+[../design/timestamp-representation.md](../design/timestamp-representation.md).
+
 ## Database Tables Are Singular
 
 One table per entity type, named in the singular: `user`, `agent`,
@@ -51,7 +66,9 @@ adding a table.
 
 In JSON, a resource names its own handle `id` and keeps semantic names for
 relationships — `{"id": ..., "team_id": ..., "conversation_id": ...}`. Order
-rows by `created_at`, never by ID.
+rows by `created_at` with the row key as tie-breaker, never by a public handle:
+microsecond timestamps narrow collisions but do not remove them, and a page
+boundary that compares only a timestamp can still skip or repeat a row.
 
 There is one identifier format. A login chain, a trace file, and a Desktop
 project use it unprefixed, the same as any entity. The single exception is a

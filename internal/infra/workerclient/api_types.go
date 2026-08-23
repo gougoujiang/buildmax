@@ -1,6 +1,8 @@
 // Package workerclient defines the worker API client and HTTP contract types.
 package workerclient
 
+import "time"
+
 // GetTaskRunResponse is the JSON response for GET /api/worker/task-runs/{task_run_id} (snake_case).
 type GetTaskRunResponse struct {
 	Run  TaskRunRun  `json:"run"`
@@ -39,8 +41,8 @@ type TaskRunRun struct {
 	// worker polls for it and is what actually stops: the server records the
 	// intent, the run's own process ends it. Absent means no request, so a
 	// worker built before cancellation existed reads what it always did.
-	CancelRequested bool  `json:"cancel_requested,omitempty"`
-	CreatedAt       int64 `json:"created_at"`
+	CancelRequested bool      `json:"cancel_requested,omitempty"`
+	CreatedAt       time.Time `json:"created_at"`
 }
 
 // TaskRunTask is the task portion of the GET response.
@@ -69,8 +71,8 @@ type TaskRunTask struct {
 type PatchTaskRunRequest struct {
 	Status           string           `json:"status"`
 	SessionID        *string          `json:"session_id,omitempty"`
-	StartedAt        *int64           `json:"started_at,omitempty"`
-	EndedAt          *int64           `json:"ended_at,omitempty"`
+	StartedAt        *time.Time       `json:"started_at,omitempty"`
+	EndedAt          *time.Time       `json:"ended_at,omitempty"`
 	Output           *string          `json:"output,omitempty"`
 	ErrorMessage     *string          `json:"error_message,omitempty"`
 	Artifact         *ArtifactPayload `json:"artifact,omitempty"`

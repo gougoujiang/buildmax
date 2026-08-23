@@ -24,7 +24,7 @@ func TestSaveAndLoad(t *testing.T) {
 	if err := Save(creds, path); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
-	if creds.SavedAt == 0 {
+	if creds.SavedAt.IsZero() {
 		t.Fatal("SavedAt should be set")
 	}
 

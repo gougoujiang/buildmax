@@ -47,7 +47,7 @@ type RotatedRefreshToken struct {
 	UserID    string
 	SessionID string
 	Plaintext string
-	ExpiresAt int64
+	ExpiresAt time.Time
 }
 
 // RefreshTokenStore issues, rotates, and revokes the stored half of a login.
@@ -60,7 +60,7 @@ type RefreshTokenStore interface {
 	// CreateRefreshToken issues a token and returns the plaintext, which is
 	// never stored — the row holds a hash, so a database backup yields no
 	// usable credentials.
-	CreateRefreshToken(ctx context.Context, in NewRefreshToken) (plaintext string, expiresAt int64, err error)
+	CreateRefreshToken(ctx context.Context, in NewRefreshToken) (plaintext string, expiresAt time.Time, err error)
 
 	// RotateRefreshToken exchanges plaintext for a fresh token in the same
 	// session, spending the presented one.
@@ -76,28 +76,28 @@ type RefreshTokenStore interface {
 	// correct response when a credential may be in two hands. That error comes
 	// back with UserID and SessionID populated and Plaintext empty, so the
 	// caller can record what was revoked.
-	RotateRefreshToken(ctx context.Context, plaintext string, now int64, ttl, grace time.Duration) (RotatedRefreshToken, error)
+	RotateRefreshToken(ctx context.Context, plaintext string, now time.Time, ttl, grace time.Duration) (RotatedRefreshToken, error)
 
 	// RevokeRefreshTokenSession revokes the session the token belongs to and
 	// reports whose it was. An unknown token is not an error: logging out
 	// something already gone is a success.
-	RevokeRefreshTokenSession(ctx context.Context, plaintext string, now int64) (userID, sessionID string, err error)
+	RevokeRefreshTokenSession(ctx context.Context, plaintext string, now time.Time) (userID, sessionID string, err error)
 
 	// RevokeSession revokes every live token in one session and returns how
 	// many it retired.
-	RevokeSession(ctx context.Context, sessionID string, now int64) (int64, error)
+	RevokeSession(ctx context.Context, sessionID string, now time.Time) (int64, error)
 
 	// RevokeUserSessions revokes every live session the user has and returns
 	// how many tokens it retired. This is what "sign them out everywhere"
 	// means, and it is the strongest thing disabling an account can do to a
 	// credential the server actually stores.
-	RevokeUserSessions(ctx context.Context, userID string, now int64) (int64, error)
+	RevokeUserSessions(ctx context.Context, userID string, now time.Time) (int64, error)
 
 	// CountUserSessions counts the user's live sessions — distinct login
 	// chains, not tokens, since a chain is what a person would recognise as
 	// "signed in on my laptop".
-	CountUserSessions(ctx context.Context, userID string, now int64) (int, error)
+	CountUserSessions(ctx context.Context, userID string, now time.Time) (int, error)
 
 	// DeleteExpiredRefreshTokens removes rows that can no longer be exchanged.
-	DeleteExpiredRefreshTokens(ctx context.Context, before int64) (int64, error)
+	DeleteExpiredRefreshTokens(ctx context.Context, before time.Time) (int64, error)
 }

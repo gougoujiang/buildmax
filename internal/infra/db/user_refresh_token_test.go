@@ -62,8 +62,8 @@ func newRefreshTokenSession(t *testing.T, s *Store, userID, sessionID string, tt
 	if err != nil {
 		t.Fatalf("CreateRefreshToken: %v", err)
 	}
-	if expiresAt <= time.Now().Unix() {
-		t.Fatalf("expires_at %d is not in the future", expiresAt)
+	if !expiresAt.After(time.Now()) {
+		t.Fatalf("expires_at %v is not in the future", expiresAt)
 	}
 	return plaintext
 }
@@ -87,7 +87,7 @@ func TestRefreshTokenRotates(t *testing.T) {
 		t.Error("the token is stored in plaintext")
 	}
 
-	now := time.Now().Unix()
+	now := time.Now().UTC()
 	rotated, err := s.RotateRefreshToken(ctx, plaintext, now, time.Hour, 30*time.Second)
 	if err != nil {
 		t.Fatalf("RotateRefreshToken: %v", err)
@@ -118,7 +118,7 @@ func TestRefreshTokenReuseRevokesTheSession(t *testing.T) {
 	const sessionID = "as_refreshreuse"
 	stolen := newRefreshTokenSession(t, s, userID, sessionID, time.Hour)
 
-	now := time.Now().Unix()
+	now := time.Now().UTC()
 	const grace = 30 * time.Second
 	legitimate, err := s.RotateRefreshToken(ctx, stolen, now, time.Hour, grace)
 	if err != nil {
@@ -127,7 +127,7 @@ func TestRefreshTokenReuseRevokesTheSession(t *testing.T) {
 
 	// Present the copy past the grace window. Time is a parameter here, so the
 	// test states the elapsed time rather than waiting for it.
-	later := now + int64(grace.Seconds()) + 1
+	later := now.Add(grace + time.Second)
 	reused, err := s.RotateRefreshToken(ctx, stolen, later, time.Hour, grace)
 	if !errors.Is(err, model.ErrRefreshTokenReused) {
 		t.Fatalf("replaying a spent token: err = %v, want ErrRefreshTokenReused", err)
@@ -167,7 +167,7 @@ func TestRefreshTokenConcurrentRotationsAllSucceed(t *testing.T) {
 	plaintext := newRefreshTokenSession(t, s, userID, sessionID, time.Hour)
 
 	const attempts = 8
-	now := time.Now().Unix()
+	now := time.Now().UTC()
 	results := make([]model.RotatedRefreshToken, attempts)
 	errs := make([]error, attempts)
 	var wg sync.WaitGroup
@@ -204,12 +204,12 @@ func TestRefreshTokenConcurrentRotationsAllSucceed(t *testing.T) {
 
 func TestRefreshTokenRejectsExpiredRevokedAndUnknown(t *testing.T) {
 	s, ctx := newTestStore(t)
-	now := time.Now().Unix()
+	now := time.Now().UTC()
 
 	t.Run("expired", func(t *testing.T) {
 		plaintext := newRefreshTokenSession(t, s, newTestUser(t, s, "refreshexp"), "as_refreshexp", time.Second)
 		// Rotate as if the clock had passed the expiry, rather than sleeping.
-		_, err := s.RotateRefreshToken(ctx, plaintext, now+3600, time.Hour, 30*time.Second)
+		_, err := s.RotateRefreshToken(ctx, plaintext, now.Add(3600*time.Second), time.Hour, 30*time.Second)
 		if !errors.Is(err, model.ErrRefreshTokenInvalid) {
 			t.Errorf("err = %v, want ErrRefreshTokenInvalid", err)
 		}
@@ -248,7 +248,7 @@ func TestRevokeRefreshTokenSession(t *testing.T) {
 	userID := newTestUser(t, s, "refreshlogout")
 	const sessionID = "as_refreshlogout"
 	plaintext := newRefreshTokenSession(t, s, userID, sessionID, time.Hour)
-	now := time.Now().Unix()
+	now := time.Now().UTC()
 
 	// Renew once, so the session holds more than the token being presented.
 	rotated, err := s.RotateRefreshToken(ctx, plaintext, now, time.Hour, 30*time.Second)
@@ -283,22 +283,22 @@ func TestDeleteExpiredRefreshTokens(t *testing.T) {
 	// A sweep at the current time leaves a live token alone. The counts this
 	// call returns are database-wide, so the assertions are about this token
 	// rather than about how many rows moved.
-	if _, err := s.DeleteExpiredRefreshTokens(ctx, time.Now().Unix()); err != nil {
+	if _, err := s.DeleteExpiredRefreshTokens(ctx, time.Now().UTC()); err != nil {
 		t.Fatalf("DeleteExpiredRefreshTokens: %v", err)
 	}
-	if _, err := s.RotateRefreshToken(ctx, plaintext, time.Now().Unix(), time.Hour, 30*time.Second); err != nil {
+	if _, err := s.RotateRefreshToken(ctx, plaintext, time.Now().UTC(), time.Hour, 30*time.Second); err != nil {
 		t.Fatalf("a live token was swept: %v", err)
 	}
 
 	// Past its expiry, it goes.
-	n, err := s.DeleteExpiredRefreshTokens(ctx, time.Now().Add(2*time.Hour).Unix())
+	n, err := s.DeleteExpiredRefreshTokens(ctx, time.Now().Add(2*time.Hour).UTC())
 	if err != nil {
 		t.Fatalf("DeleteExpiredRefreshTokens: %v", err)
 	}
 	if n < 1 {
 		t.Errorf("swept %d tokens, want at least the expired one", n)
 	}
-	if _, err := s.RotateRefreshToken(ctx, plaintext, time.Now().Unix(), time.Hour, 30*time.Second); !errors.Is(err, model.ErrRefreshTokenInvalid) {
+	if _, err := s.RotateRefreshToken(ctx, plaintext, time.Now().UTC(), time.Hour, 30*time.Second); !errors.Is(err, model.ErrRefreshTokenInvalid) {
 		t.Errorf("a swept token still rotates: err = %v", err)
 	}
 }

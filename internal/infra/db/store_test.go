@@ -3,11 +3,12 @@ package db
 import (
 	"context"
 	"errors"
-	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/core/model"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/gougoujiang/buildmax/internal/core/model"
 
 	"github.com/gougoujiang/buildmax/internal/util"
 )
@@ -391,7 +392,7 @@ func TestTaskRunProvenancePersistence(t *testing.T) {
 		t.Fatalf("CreateTaskRun while the initial run is pending: want ErrRunInProgress, got %v", err)
 	}
 
-	endedAt := time.Now().Unix()
+	endedAt := time.Now().UTC()
 	if err := s.UpdateRun(ctx, model.UpdateTaskRunInput{
 		TaskRunID: initialRun.ID,
 		Status:    model.RunStatusSucceeded,

@@ -55,8 +55,8 @@ func TestNoteWrite_Execute_StoresAndStamps(t *testing.T) {
 	if len(store.notes) != 2 {
 		t.Fatalf("stored %d notes, want 2", len(store.notes))
 	}
-	if store.notes[0].WrittenAt != 4 {
-		t.Errorf("WrittenAt = %d, want 4", store.notes[0].WrittenAt)
+	if store.notes[0].WrittenIteration != 4 {
+		t.Errorf("WrittenIteration = %d, want 4", store.notes[0].WrittenIteration)
 	}
 	if !strings.Contains(result, "jurisdiction is New York") {
 		t.Errorf("result does not echo what was stored:\n%s", result)
@@ -79,8 +79,8 @@ func TestNoteWrite_Execute_ReplacesWholeList(t *testing.T) {
 	if len(store.notes) != 1 || store.notes[0].Text != "second" {
 		t.Fatalf("notes = %+v, want only \"second\"", store.notes)
 	}
-	if store.notes[0].WrittenAt != 1 {
-		t.Errorf("surviving note restamped to %d, want 1", store.notes[0].WrittenAt)
+	if store.notes[0].WrittenIteration != 1 {
+		t.Errorf("surviving note restamped to %d, want 1", store.notes[0].WrittenIteration)
 	}
 }
 
@@ -162,7 +162,7 @@ func TestTodoWrite_Execute_WritesThroughToStore(t *testing.T) {
 	if len(store.todos) != 2 {
 		t.Fatalf("stored %d todos, want 2", len(store.todos))
 	}
-	if store.todos[0].Status != agent.TodoInProgress || store.todos[0].WrittenAt != 6 {
+	if store.todos[0].Status != agent.TodoInProgress || store.todos[0].WrittenIteration != 6 {
 		t.Errorf("todos[0] = %+v, want in_progress stamped at 6", store.todos[0])
 	}
 }

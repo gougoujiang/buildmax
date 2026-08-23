@@ -13,8 +13,8 @@ const defaultCleanupInterval = time.Hour
 // ExpiredCredentialStore deletes credential rows that can no longer be
 // redeemed. Both methods return how many rows they removed.
 type ExpiredCredentialStore interface {
-	DeleteExpiredLoginCodes(ctx context.Context, before int64) (int64, error)
-	DeleteExpiredRefreshTokens(ctx context.Context, before int64) (int64, error)
+	DeleteExpiredLoginCodes(ctx context.Context, before time.Time) (int64, error)
+	DeleteExpiredRefreshTokens(ctx context.Context, before time.Time) (int64, error)
 }
 
 // CredentialCleaner periodically removes expired login codes and refresh
@@ -88,7 +88,7 @@ func (c *CredentialCleaner) loop() {
 
 func (c *CredentialCleaner) sweep() {
 	ctx := context.Background()
-	now := time.Now().Unix()
+	now := time.Now().UTC()
 	codes, err := c.store.DeleteExpiredLoginCodes(ctx, now)
 	if err != nil {
 		c.log().Warn("delete expired login codes failed", "err", err)

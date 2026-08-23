@@ -80,7 +80,7 @@ func newDeliveryFixture(t *testing.T, failUntil int) deliveryFixture {
 		TaskRunStore: &mock.MockTaskRunStore{
 			Runs: []model.TaskRun{{
 				ID: "tr_1", TaskID: "tk_1", Status: string(model.RunStatusSucceeded),
-				Output: util.Ptr("the analysis found three problems"), CreatedAt: 1,
+				Output: util.Ptr("the analysis found three problems"), CreatedAt: time.Unix(1, 0).UTC(),
 			}},
 			TaskList: []model.Task{{ID: "tk_1", ConversationID: "conv-1", TeamID: "tm_shared", CreatedBy: "u1"}},
 		},
@@ -141,7 +141,7 @@ func TestTaskResultDeliveryIsRecordedAndClosed(t *testing.T) {
 func TestASweepReportsARunThatWasNeverReported(t *testing.T) {
 	f := newDeliveryFixture(t, 0)
 	// What a restart leaves behind: the obligation, and nothing else.
-	if err := f.deliveries.EnqueueTaskResultDelivery(context.Background(), "tr_1", "conv-1", time.Now().Unix()-60); err != nil {
+	if err := f.deliveries.EnqueueTaskResultDelivery(context.Background(), "tr_1", "conv-1", time.Now().UTC().Add(-60*time.Second)); err != nil {
 		t.Fatal(err)
 	}
 

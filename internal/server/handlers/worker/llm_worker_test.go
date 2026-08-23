@@ -45,8 +45,8 @@ func workerLLMHandler(gateway *llmgateway.Service, runStatus string) http.Handle
 		JWTSecret: llmTestSecret,
 		Gateway:   gateway,
 		TaskRuns: &mock.MockTaskRunStore{
-			Runs:     []model.TaskRun{{ID: "r_1", TaskID: "t_1", Status: runStatus, CreatedAt: 1}},
-			TaskList: []model.Task{{ID: "t_1", ConversationID: "c_1", TeamID: llmTestTeam, Status: runStatus, Input: "in", CreatedBy: llmTestUser, CreatedAt: 1}},
+			Runs:     []model.TaskRun{{ID: "r_1", TaskID: "t_1", Status: runStatus, CreatedAt: time.Unix(1, 0).UTC()}},
+			TaskList: []model.Task{{ID: "t_1", ConversationID: "c_1", TeamID: llmTestTeam, Status: runStatus, Input: "in", CreatedBy: llmTestUser, CreatedAt: time.Unix(1, 0).UTC()}},
 		},
 		WorkerToken: workerTestToken,
 	})

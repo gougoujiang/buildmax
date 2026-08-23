@@ -3,6 +3,7 @@ package quota
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 )
@@ -53,7 +54,7 @@ type mockUsageReader struct {
 	err                   error
 }
 
-func (m *mockUsageReader) TeamUsageInWindow(_ context.Context, _ string, _, _ int64) (runCount, totalTokens int, err error) {
+func (m *mockUsageReader) TeamUsageInWindow(_ context.Context, _ string, _, _ time.Time) (runCount, totalTokens int, err error) {
 	return m.runCount, m.totalTokens, m.err
 }
 

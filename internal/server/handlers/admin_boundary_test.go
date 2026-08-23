@@ -9,13 +9,14 @@ package handlers
 
 import (
 	"context"
-	"github.com/gougoujiang/buildmax/internal/service/conversation"
-	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gougoujiang/buildmax/internal/service/conversation"
+	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -151,9 +152,9 @@ func TestDisableStopsTheAccessTokenOnTheNextRequest(t *testing.T) {
 func TestDisabledAccountCannotLogIn(t *testing.T) {
 	f := newBoundaryFixture(t)
 	f.codes.Codes = map[string]*mock.MockLoginCode{
-		"code-1": {UserID: f.target.ID, ExpiresAt: time.Now().Add(time.Hour).Unix()},
+		"code-1": {UserID: f.target.ID, ExpiresAt: time.Now().Add(time.Hour).UTC()},
 	}
-	f.users.DisableForTest(f.target.ID, 1)
+	f.users.DisableForTest(f.target.ID, time.Unix(1, 0).UTC())
 
 	rec := f.do(t, "POST", "/api/login", "", `{"email":"`+f.target.Email+`","otp":"code-1"}`)
 	if rec.Code != http.StatusForbidden {
@@ -199,7 +200,7 @@ func TestSystemGrantIsNotATeamKey(t *testing.T) {
 func TestDisabledAccountsWebhookKeyIsRefused(t *testing.T) {
 	f := newBoundaryFixture(t)
 	f.keys.Keys = map[string]string{"whk-plain": f.target.ID}
-	f.users.DisableForTest(f.target.ID, 1)
+	f.users.DisableForTest(f.target.ID, time.Unix(1, 0).UTC())
 
 	req := httptest.NewRequest("POST", "/api/webhook", strings.NewReader(`{"message":"hi"}`))
 	req.Header.Set("X-Webhook-Key", "whk-plain")

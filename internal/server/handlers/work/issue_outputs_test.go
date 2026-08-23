@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
@@ -51,12 +52,12 @@ func newOutputsFixtures(t *testing.T, runOutputStorage blob.RunOutputStorage) *o
 			{
 				ID: "i_1", UserID: "u1", TeamID: personalTeamID,
 				Title: "I", Status: model.IssueStatusInProgress,
-				CreatedBy: "u1", CreatedAt: 100, UpdatedAt: 100,
+				CreatedBy: "u1", CreatedAt: time.Unix(100, 0).UTC(), UpdatedAt: time.Unix(100, 0).UTC(),
 			},
 			{
 				ID: "i_other", UserID: "u2", TeamID: otherTeamID,
 				Title: "Other", Status: model.IssueStatusTodo,
-				CreatedBy: "u2", CreatedAt: 50, UpdatedAt: 50,
+				CreatedBy: "u2", CreatedAt: time.Unix(50, 0).UTC(), UpdatedAt: time.Unix(50, 0).UTC(),
 			},
 		},
 	}
@@ -137,7 +138,7 @@ func TestIssueFlowOutputs_AgentTaskResultMD(t *testing.T) {
 		Status:         "SUCCEEDED",
 		Input:          "do work",
 		CreatedBy:      "u1",
-		CreatedAt:      200,
+		CreatedAt:      time.Unix(200, 0).UTC(),
 		LastRunID:      &runID,
 	}}
 	fx.runLister.OutputFiles[runID] = []model.TaskRunArtifact{
@@ -203,13 +204,13 @@ func TestIssueFlowOutputs_WorkflowStepProvenance(t *testing.T) {
 	fx.workflows.Runs = []model.WorkflowRun{{
 		ID: workflowRunID, WorkflowID: wfID,
 		IssueID: util.Ptr("i_1"), ConversationID: "c_1",
-		Status: model.WorkflowRunStatusSucceeded, CreatedBy: "u1", CreatedAt: 300,
+		Status: model.WorkflowRunStatusSucceeded, CreatedBy: "u1", CreatedAt: time.Unix(300, 0).UTC(),
 	}}
 	fx.workflows.StepRuns = []model.WorkflowStepRun{{
 		ID: stepRunID, WorkflowRunID: workflowRunID,
 		StepID: stepID, StepIndex: 0, StepType: model.WorkflowStepTypeAgentTask,
 		Status: model.WorkflowStepRunStatusSucceeded,
-		TaskID: &taskID, TaskRunID: &runID, CreatedAt: 305,
+		TaskID: &taskID, TaskRunID: &runID, CreatedAt: time.Unix(305, 0).UTC(),
 	}}
 
 	fx.tasks.List = []model.Task{{
@@ -219,7 +220,7 @@ func TestIssueFlowOutputs_WorkflowStepProvenance(t *testing.T) {
 		IssueID:        util.Ptr("i_1"),
 		Status:         "SUCCEEDED",
 		CreatedBy:      "u1",
-		CreatedAt:      305,
+		CreatedAt:      time.Unix(305, 0).UTC(),
 		LastRunID:      &runID,
 	}}
 	fx.runLister.OutputFiles[runID] = []model.TaskRunArtifact{
@@ -261,7 +262,7 @@ func TestIssueFlowOutputs_MissingArtifactContent(t *testing.T) {
 	fx.tasks.List = []model.Task{{
 		ID: taskID, ConversationID: "c_1", TeamID: fx.personalID,
 		IssueID: util.Ptr("i_1"), Status: "SUCCEEDED",
-		CreatedBy: "u1", CreatedAt: 200, LastRunID: &runID,
+		CreatedBy: "u1", CreatedAt: time.Unix(200, 0).UTC(), LastRunID: &runID,
 	}}
 	fx.runLister.OutputFiles[runID] = []model.TaskRunArtifact{
 		{TaskRunID: runID, RelativePath: "result.md"},
@@ -288,7 +289,7 @@ func TestIssueFlowOutputs_TeamScoped(t *testing.T) {
 	fx.tasks.List = []model.Task{{
 		ID: taskID, ConversationID: "c_other", TeamID: fx.otherTeamID,
 		IssueID: util.Ptr("i_other"), Status: "SUCCEEDED",
-		CreatedBy: "u2", CreatedAt: 200, LastRunID: &runID,
+		CreatedBy: "u2", CreatedAt: time.Unix(200, 0).UTC(), LastRunID: &runID,
 	}}
 	fx.runLister.OutputFiles[runID] = []model.TaskRunArtifact{
 		{TaskRunID: runID, RelativePath: "result.md"},
@@ -330,9 +331,9 @@ func TestIssueFlowOutputs_ArtifactsPublishedByARun(t *testing.T) {
 	fx.tasks.List = []model.Task{{
 		ID: taskID, ConversationID: "c_1", TeamID: fx.personalID,
 		IssueID: util.Ptr("i_1"), Status: "SUCCEEDED", Input: "do work",
-		CreatedBy: "u1", CreatedAt: 200, LastRunID: &runID,
+		CreatedBy: "u1", CreatedAt: time.Unix(200, 0).UTC(), LastRunID: &runID,
 	}}
-	fx.taskRuns.Runs = []model.TaskRun{{ID: runID, TaskID: taskID, Status: "SUCCEEDED", CreatedAt: 200}}
+	fx.taskRuns.Runs = []model.TaskRun{{ID: runID, TaskID: taskID, Status: "SUCCEEDED", CreatedAt: time.Unix(200, 0).UTC()}}
 	if _, err := fx.published.CreateArtifact(context.Background(), model.CreateArtifactInput{
 		TeamID: fx.personalID, ArtifactID: "ar_published", Filename: "report.pdf",
 		MediaType: "application/pdf", SizeBytes: 2048,
@@ -379,9 +380,9 @@ func TestIssueFlowOutputs_NoArtifactStore(t *testing.T) {
 	fx.tasks.List = []model.Task{{
 		ID: "t_none", ConversationID: "c_1", TeamID: fx.personalID,
 		IssueID: util.Ptr("i_1"), Status: "SUCCEEDED", Input: "do work",
-		CreatedBy: "u1", CreatedAt: 200, LastRunID: &runID,
+		CreatedBy: "u1", CreatedAt: time.Unix(200, 0).UTC(), LastRunID: &runID,
 	}}
-	fx.taskRuns.Runs = []model.TaskRun{{ID: runID, TaskID: "t_none", Status: "SUCCEEDED", CreatedAt: 200}}
+	fx.taskRuns.Runs = []model.TaskRun{{ID: runID, TaskID: "t_none", Status: "SUCCEEDED", CreatedAt: time.Unix(200, 0).UTC()}}
 	rec, flow := fetchIssueFlow(t, fx.mux, fx.personalID, "i_1", "u1")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d", rec.Code)
@@ -403,11 +404,11 @@ func TestIssueFlowOutputs_ArtifactsSurviveARetry(t *testing.T) {
 	fx.tasks.List = []model.Task{{
 		ID: taskID, ConversationID: "c_1", TeamID: fx.personalID,
 		IssueID: util.Ptr("i_1"), Status: "SUCCEEDED", Input: "do work",
-		CreatedBy: "u1", CreatedAt: 200, LastRunID: &secondRun,
+		CreatedBy: "u1", CreatedAt: time.Unix(200, 0).UTC(), LastRunID: &secondRun,
 	}}
 	fx.taskRuns.Runs = []model.TaskRun{
-		{ID: firstRun, TaskID: taskID, Status: "FAILED", CreatedAt: 200},
-		{ID: secondRun, TaskID: taskID, Status: "SUCCEEDED", CreatedAt: 300},
+		{ID: firstRun, TaskID: taskID, Status: "FAILED", CreatedAt: time.Unix(200, 0).UTC()},
+		{ID: secondRun, TaskID: taskID, Status: "SUCCEEDED", CreatedAt: time.Unix(300, 0).UTC()},
 	}
 	for _, c := range []struct{ id, run, name string }{
 		{"ar_from_first", firstRun, "draft.pdf"},

@@ -16,14 +16,14 @@ import (
 // the deployment, which is what lets a System Administrator manage company
 // capabilities without reaching into any team's content.
 type pluginRow struct {
-	ID          uint64 `gorm:"primaryKey;autoIncrement"`
-	Name        string `gorm:"type:varchar(128);uniqueIndex;not null"`
-	DisplayName string `gorm:"type:varchar(255);not null;default:''"`
-	Description string `gorm:"type:varchar(1024);not null;default:''"`
-	ArchivedAt  int64  `gorm:"not null;default:0;index"`
-	CreatedBy   uint64 `gorm:"column:created_by;not null"`
-	CreatedAt   int64  `gorm:"autoCreateTime;index"`
-	UpdatedAt   int64  `gorm:"autoUpdateTime"`
+	ID          uint64     `gorm:"primaryKey;autoIncrement"`
+	Name        string     `gorm:"type:varchar(128);uniqueIndex;not null"`
+	DisplayName string     `gorm:"type:varchar(255);not null;default:''"`
+	Description string     `gorm:"type:varchar(1024);not null;default:''"`
+	ArchivedAt  *time.Time `gorm:"index"`
+	CreatedBy   uint64     `gorm:"column:created_by;not null"`
+	CreatedAt   time.Time  `gorm:"autoCreateTime;index"`
+	UpdatedAt   time.Time  `gorm:"autoUpdateTime"`
 }
 
 func (pluginRow) TableName() string { return "plugin" }
@@ -50,12 +50,12 @@ type pluginReleaseRow struct {
 	Inspection string `gorm:"type:text"`
 	Source     string `gorm:"type:text"`
 
-	PublishedBy uint64 `gorm:"column:published_by;not null"`
-	PublishedAt int64  `gorm:"autoCreateTime;index"`
+	PublishedBy uint64    `gorm:"column:published_by;not null"`
+	PublishedAt time.Time `gorm:"autoCreateTime;index"`
 
-	YankedAt     int64   `gorm:"not null;default:0;index"`
-	YankedBy     *uint64 `gorm:"column:yanked_by"`
-	YankedReason string  `gorm:"type:varchar(512);not null;default:''"`
+	YankedAt     *time.Time `gorm:"index"`
+	YankedBy     *uint64    `gorm:"column:yanked_by"`
+	YankedReason string     `gorm:"type:varchar(512);not null;default:''"`
 }
 
 func (pluginReleaseRow) TableName() string { return "plugin_release" }
@@ -173,7 +173,7 @@ func (s *Store) GetPlugin(ctx context.Context, name string) (*model.Plugin, erro
 func (s *Store) ListPlugins(ctx context.Context, includeArchived bool) ([]model.Plugin, error) {
 	q := s.pluginSelect(ctx).Order("plugin.created_at asc")
 	if !includeArchived {
-		q = q.Where("plugin.archived_at = 0")
+		q = q.Where("plugin.archived_at IS NULL")
 	}
 	var rows []pluginReadRow
 	if err := q.Find(&rows).Error; err != nil {
@@ -201,9 +201,10 @@ func (s *Store) UpdatePlugin(ctx context.Context, name string, in model.UpdatePl
 
 // SetPluginArchived retires or restores an entry.
 func (s *Store) SetPluginArchived(ctx context.Context, name string, archived bool) error {
-	var at int64
+	var at *time.Time
 	if archived {
-		at = time.Now().Unix()
+		now := time.Now().UTC()
+		at = &now
 	}
 	res := s.db.WithContext(ctx).Model(&pluginRow{}).Where("name = ?", name).
 		Update("archived_at", at)
@@ -233,7 +234,7 @@ func (s *Store) CreatePluginRelease(ctx context.Context, in model.CreatePluginRe
 	if err != nil {
 		return nil, err
 	}
-	if entry.ArchivedAt != 0 {
+	if entry.ArchivedAt != nil {
 		return nil, model.ErrPluginArchived
 	}
 
@@ -316,9 +317,9 @@ func (s *Store) YankPluginRelease(ctx context.Context, name, version, actor, rea
 		return err
 	}
 	res := s.db.WithContext(ctx).Model(&pluginReleaseRow{}).
-		Where("plugin_name = ? AND version = ? AND yanked_at = 0", name, version).
+		Where("plugin_name = ? AND version = ? AND yanked_at IS NULL", name, version).
 		Updates(map[string]any{
-			"yanked_at":     time.Now().Unix(),
+			"yanked_at":     time.Now().UTC(),
 			"yanked_by":     yankedBy,
 			"yanked_reason": reason,
 		})

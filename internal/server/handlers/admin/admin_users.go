@@ -18,15 +18,15 @@ import (
 // the surface where that would matter most — see the secret assertion in
 // system_authz_matrix_test.go.
 type AdminUser struct {
-	ID                string  `json:"id"`
-	Email             string  `json:"email"`
-	Name              string  `json:"name,omitempty"`
-	QuotaTier         string  `json:"quota_tier,omitempty"`
-	HasPassword       bool    `json:"has_password"`
-	DisabledAt        *int64  `json:"disabled_at,omitempty"`
-	LastLoginAt       *int64  `json:"last_login_at,omitempty"`
-	LastLoginPlatform *string `json:"last_login_platform,omitempty"`
-	CreatedAt         int64   `json:"created_at"`
+	ID                string     `json:"id"`
+	Email             string     `json:"email"`
+	Name              string     `json:"name,omitempty"`
+	QuotaTier         string     `json:"quota_tier,omitempty"`
+	HasPassword       bool       `json:"has_password"`
+	DisabledAt        *time.Time `json:"disabled_at,omitempty"`
+	LastLoginAt       *time.Time `json:"last_login_at,omitempty"`
+	LastLoginPlatform *string    `json:"last_login_platform,omitempty"`
+	CreatedAt         time.Time  `json:"created_at"`
 }
 
 func toAdminUser(u model.User) AdminUser {
@@ -76,8 +76,8 @@ type AdminCreateUserRequest struct {
 
 // AdminLoginCodeResponse carries a login code, which is shown once.
 type AdminLoginCodeResponse struct {
-	Code      string `json:"code"`
-	ExpiresAt int64  `json:"expires_at"`
+	Code      string    `json:"code"`
+	ExpiresAt time.Time `json:"expires_at"`
 }
 
 // AdminSessionsRevokedResponse reports how many tokens a revocation retired.
@@ -142,7 +142,7 @@ func (h *Handler) getAdminUserHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if h.cfg.RefreshTokens != nil {
-		count, err := h.cfg.RefreshTokens.CountUserSessions(r.Context(), user.ID, time.Now().Unix())
+		count, err := h.cfg.RefreshTokens.CountUserSessions(r.Context(), user.ID, time.Now().UTC())
 		if err != nil {
 			httputil.WriteInternalError(w, err, "handler error", "handler", "admin_get_user", "sessions")
 			return
@@ -247,10 +247,10 @@ func (h *Handler) setAdminUserDisabledHandler(disable bool) http.HandlerFunc {
 			return
 		}
 
-		var disabledAt *int64
+		var disabledAt *time.Time
 		action := model.AuditUserEnabled
 		if disable {
-			now := time.Now().Unix()
+			now := time.Now().UTC()
 			disabledAt = &now
 			action = model.AuditUserDisabled
 		}
@@ -268,7 +268,7 @@ func (h *Handler) setAdminUserDisabledHandler(disable bool) http.HandlerFunc {
 			// The stored half of every login, retired now rather than left to
 			// expire. The access token cannot be revoked at all; what stops it
 			// is requireActiveUser refusing on the next request.
-			n, err := h.cfg.RefreshTokens.RevokeUserSessions(r.Context(), user.ID, time.Now().Unix())
+			n, err := h.cfg.RefreshTokens.RevokeUserSessions(r.Context(), user.ID, time.Now().UTC())
 			if err != nil {
 				httputil.WriteInternalError(w, err, "handler error", "handler", "admin_set_user_disabled", "revoke_sessions")
 				return
@@ -302,7 +302,7 @@ func (h *Handler) revokeAdminUserSessionsHandler(w http.ResponseWriter, r *http.
 	if !ok {
 		return
 	}
-	n, err := h.cfg.RefreshTokens.RevokeUserSessions(r.Context(), user.ID, time.Now().Unix())
+	n, err := h.cfg.RefreshTokens.RevokeUserSessions(r.Context(), user.ID, time.Now().UTC())
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_revoke_sessions", "user_id", user.ID)
 		return

@@ -3,24 +3,25 @@ package db
 import (
 	"context"
 	"errors"
-	"github.com/gougoujiang/buildmax/internal/core/model"
 	"time"
+
+	"github.com/gougoujiang/buildmax/internal/core/model"
 
 	"github.com/gougoujiang/buildmax/internal/util"
 	"gorm.io/gorm"
 )
 
 type agentRow struct {
-	ID           uint64 `gorm:"primaryKey;autoIncrement"`
-	PublicID     string `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_agent_public_id;not null"`
-	UserID       uint64 `gorm:"column:user_id;not null;index"`
-	TeamID       uint64 `gorm:"column:team_id;index"`
-	Name         string `gorm:"type:varchar(255);not null"`
-	Description  string `gorm:"type:text"`
-	Instructions string `gorm:"type:text"`
-	Revision     int    `gorm:"column:revision;not null;default:1"`
-	DeletedAt    *int64 `gorm:"column:deleted_at;index"`
-	CreatedAt    int64  `gorm:"autoCreateTime"`
+	ID           uint64     `gorm:"primaryKey;autoIncrement"`
+	PublicID     string     `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_agent_public_id;not null"`
+	UserID       uint64     `gorm:"column:user_id;not null;index"`
+	TeamID       uint64     `gorm:"column:team_id;index"`
+	Name         string     `gorm:"type:varchar(255);not null"`
+	Description  string     `gorm:"type:text"`
+	Instructions string     `gorm:"type:text"`
+	Revision     int        `gorm:"column:revision;not null;default:1"`
+	DeletedAt    *time.Time `gorm:"column:deleted_at;index"`
+	CreatedAt    time.Time  `gorm:"autoCreateTime"`
 }
 
 func (agentRow) TableName() string { return "agent" }
@@ -48,14 +49,14 @@ func agentSelectTx(tx *gorm.DB) *gorm.DB {
 // appended, never updated or deleted, and they outlive the agent: deleting an
 // agent leaves its history in place.
 type agentRevisionRow struct {
-	ID           uint64 `gorm:"primaryKey;autoIncrement"`
-	AgentID      uint64 `gorm:"column:agent_id;not null;index:idx_agent_revision,unique,priority:1"`
-	Revision     int    `gorm:"column:revision;not null;index:idx_agent_revision,unique,priority:2"`
-	Name         string `gorm:"type:varchar(255);not null"`
-	Description  string `gorm:"type:text"`
-	Instructions string `gorm:"type:text"`
-	CreatedBy    uint64 `gorm:"column:created_by;not null"`
-	CreatedAt    int64  `gorm:"autoCreateTime"`
+	ID           uint64    `gorm:"primaryKey;autoIncrement"`
+	AgentID      uint64    `gorm:"column:agent_id;not null;index:idx_agent_revision,unique,priority:1"`
+	Revision     int       `gorm:"column:revision;not null;index:idx_agent_revision,unique,priority:2"`
+	Name         string    `gorm:"type:varchar(255);not null"`
+	Description  string    `gorm:"type:text"`
+	Instructions string    `gorm:"type:text"`
+	CreatedBy    uint64    `gorm:"column:created_by;not null"`
+	CreatedAt    time.Time `gorm:"autoCreateTime"`
 }
 
 func (agentRevisionRow) TableName() string { return "agent_revision" }
@@ -139,7 +140,7 @@ func appendAgentRevision(ctx context.Context, tx *gorm.DB, agentKey uint64, a *m
 		Description:  a.Description,
 		Instructions: a.Instructions,
 		CreatedBy:    creator,
-		CreatedAt:    time.Now().Unix(),
+		CreatedAt:    time.Now().UTC(),
 	}).Error
 }
 
@@ -221,7 +222,7 @@ func (s *Store) CreateAgentInTeam(ctx context.Context, teamID, userID, name, des
 		Description:  description,
 		Instructions: instructions,
 		Revision:     1,
-		CreatedAt:    time.Now().Unix(),
+		CreatedAt:    time.Now().UTC(),
 	}
 	row := &agentRow{
 		Name:         name,
@@ -390,5 +391,5 @@ func (s *Store) markAgentDeleted(ctx context.Context, agentID string) error {
 	return s.db.WithContext(ctx).
 		Model(&agentRow{}).
 		Where("agent_id = ? AND deleted_at IS NULL", agentID).
-		Update("deleted_at", time.Now().Unix()).Error
+		Update("deleted_at", time.Now().UTC()).Error
 }

@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
@@ -24,12 +25,12 @@ func TestListTaskArtifactsHandler(t *testing.T) {
 
 	mockConversations := &mock.MockConversationStore{
 		Conversations: []model.Conversation{
-			{ID: conversationID, UserID: userID, TeamID: teamID, Channel: "portal", CreatedBy: userID, CreatedAt: 1},
+			{ID: conversationID, UserID: userID, TeamID: teamID, Channel: "portal", CreatedBy: userID, CreatedAt: time.Unix(1, 0).UTC()},
 		},
 	}
 	mockTasks := &mock.MockTaskStore{
 		List: []model.Task{
-			{ID: taskID, ConversationID: conversationID, TeamID: teamID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: 1},
+			{ID: taskID, ConversationID: conversationID, TeamID: teamID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: time.Unix(1, 0).UTC()},
 		},
 	}
 	mockLister := &mock.MockRunOutputLister{
@@ -40,7 +41,7 @@ func TestListTaskArtifactsHandler(t *testing.T) {
 				TaskRunID:        "run-1",
 				ConversationID:   conversationID,
 				UserID:           userID,
-				CreatedAt:        100,
+				CreatedAt:        time.Unix(100, 0).UTC(),
 				TaskInputSnippet: "input snippet",
 			},
 		},
@@ -77,12 +78,12 @@ func TestListArtifactItemsHandler(t *testing.T) {
 
 	mockConversations := &mock.MockConversationStore{
 		Conversations: []model.Conversation{
-			{ID: conversationID, UserID: userID, TeamID: teamID, Channel: "portal", CreatedBy: userID, CreatedAt: 1},
+			{ID: conversationID, UserID: userID, TeamID: teamID, Channel: "portal", CreatedBy: userID, CreatedAt: time.Unix(1, 0).UTC()},
 		},
 	}
 	mockTaskRun := &mock.MockTaskRunStore{
-		Runs:     []model.TaskRun{{ID: taskRunID, TaskID: "task-1", Status: "SUCCEEDED", CreatedAt: 1}},
-		TaskList: []model.Task{{ID: "task-1", ConversationID: conversationID, TeamID: teamID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: 1}},
+		Runs:     []model.TaskRun{{ID: taskRunID, TaskID: "task-1", Status: "SUCCEEDED", CreatedAt: time.Unix(1, 0).UTC()}},
+		TaskList: []model.Task{{ID: "task-1", ConversationID: conversationID, TeamID: teamID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: time.Unix(1, 0).UTC()}},
 	}
 	mockLister := &mock.MockRunOutputLister{
 		OutputFiles: map[string][]model.TaskRunArtifact{
@@ -122,12 +123,12 @@ func TestArtifactContentHandler(t *testing.T) {
 
 	mockConversations := &mock.MockConversationStore{
 		Conversations: []model.Conversation{
-			{ID: conversationID, UserID: userID, TeamID: teamID, Channel: "portal", CreatedBy: userID, CreatedAt: 1},
+			{ID: conversationID, UserID: userID, TeamID: teamID, Channel: "portal", CreatedBy: userID, CreatedAt: time.Unix(1, 0).UTC()},
 		},
 	}
 	mockTaskRun := &mock.MockTaskRunStore{
-		Runs:     []model.TaskRun{{ID: taskRunID, TaskID: taskID, Status: "SUCCEEDED", CreatedAt: 1}},
-		TaskList: []model.Task{{ID: taskID, ConversationID: conversationID, TeamID: teamID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: 1}},
+		Runs:     []model.TaskRun{{ID: taskRunID, TaskID: taskID, Status: "SUCCEEDED", CreatedAt: time.Unix(1, 0).UTC()}},
+		TaskList: []model.Task{{ID: taskID, ConversationID: conversationID, TeamID: teamID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: time.Unix(1, 0).UTC()}},
 	}
 	mockLister := &mock.MockRunOutputLister{
 		OutputFiles: map[string][]model.TaskRunArtifact{

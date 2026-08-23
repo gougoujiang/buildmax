@@ -32,8 +32,8 @@ interface IssueDiscussionProps {
   onCommentsChanged?: (comments: ApiIssueComment[]) => void
 }
 
-function formatTimestamp(seconds: number): string {
-  return new Date(seconds * 1000).toLocaleString()
+function formatTimestamp(rfc3339: string): string {
+  return new Date(rfc3339).toLocaleString()
 }
 
 export function IssueDiscussion({

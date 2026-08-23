@@ -21,10 +21,10 @@ import (
 // Note is one durable session note.
 type Note struct {
 	Text string `json:"text"`
-	// WrittenAt is the loop iteration at which this entry first appeared. Rewriting the list
+	// WrittenIteration is the loop iteration at which this entry first appeared. Rewriting the list
 	// with the same text does not reset it, so the value reflects the entry's age rather than
 	// the age of the last write.
-	WrittenAt int `json:"written_at,omitempty"`
+	WrittenIteration int `json:"written_iteration,omitempty"`
 }
 
 // Todo statuses. These are the values a todo may carry; anything else is rejected.
@@ -39,9 +39,9 @@ type Todo struct {
 	Content    string `json:"content"`
 	Status     string `json:"status"`
 	ActiveForm string `json:"active_form,omitempty"`
-	// WrittenAt is the loop iteration at which this entry last changed status. It is what
+	// WrittenIteration is the loop iteration at which this entry last changed status. It is what
 	// makes "in progress for 40 iterations" reportable.
-	WrittenAt int `json:"written_at,omitempty"`
+	WrittenIteration int `json:"written_iteration,omitempty"`
 }
 
 // Bounds on durable state. These are not tuning knobs: this state is rendered into every
@@ -97,11 +97,11 @@ func ExtractInvariants(systemPromptText string) string {
 type NoteStore interface {
 	Notes() []Note
 	// SetNotes replaces the stored notes. Entries whose text is unchanged keep their original
-	// WrittenAt; iter stamps the rest.
+	// WrittenIteration; iter stamps the rest.
 	SetNotes(notes []Note, iter int)
 	Todos() []Todo
 	// SetTodos replaces the stored todos. Entries whose content and status are both unchanged
-	// keep their original WrittenAt; iter stamps the rest, so a status change restarts the clock.
+	// keep their original WrittenIteration; iter stamps the rest, so a status change restarts the clock.
 	SetTodos(todos []Todo, iter int)
 }
 
@@ -187,27 +187,27 @@ func ValidateTodos(todos []Todo) error {
 	return nil
 }
 
-// StampNotes carries WrittenAt across a rewrite: an entry whose text already exists keeps the
+// StampNotes carries WrittenIteration across a rewrite: an entry whose text already exists keeps the
 // iteration it first appeared at, and everything else is stamped with iter.
 func StampNotes(prev, next []Note, iter int) []Note {
 	age := make(map[string]int, len(prev))
 	for _, p := range prev {
 		if _, seen := age[p.Text]; !seen {
-			age[p.Text] = p.WrittenAt
+			age[p.Text] = p.WrittenIteration
 		}
 	}
 	out := make([]Note, len(next))
 	for i, n := range next {
-		n.WrittenAt = iter
+		n.WrittenIteration = iter
 		if at, ok := age[n.Text]; ok {
-			n.WrittenAt = at
+			n.WrittenIteration = at
 		}
 		out[i] = n
 	}
 	return out
 }
 
-// StampTodos carries WrittenAt across a rewrite. The key is content plus status, so moving an
+// StampTodos carries WrittenIteration across a rewrite. The key is content plus status, so moving an
 // entry to in_progress restarts its clock — which is the number worth reporting.
 func StampTodos(prev, next []Todo, iter int) []Todo {
 	type key struct{ content, status string }
@@ -215,14 +215,14 @@ func StampTodos(prev, next []Todo, iter int) []Todo {
 	for _, p := range prev {
 		k := key{p.Content, p.Status}
 		if _, seen := age[k]; !seen {
-			age[k] = p.WrittenAt
+			age[k] = p.WrittenIteration
 		}
 	}
 	out := make([]Todo, len(next))
 	for i, td := range next {
-		td.WrittenAt = iter
+		td.WrittenIteration = iter
 		if at, ok := age[key{td.Content, td.Status}]; ok {
-			td.WrittenAt = at
+			td.WrittenIteration = at
 		}
 		out[i] = td
 	}
@@ -275,14 +275,14 @@ func RenderSessionState(invariants string, notes []Note, todos []Todo, iter int)
 	}
 
 	for _, n := range notes {
-		add(prioNote, sectionNotes, "- "+stamp(n.WrittenAt)+n.Text)
+		add(prioNote, sectionNotes, "- "+stamp(n.WrittenIteration)+n.Text)
 	}
 
 	completed := 0
 	for _, td := range todos {
 		switch td.Status {
 		case TodoInProgress:
-			add(prioInProgress, sectionTodo, "- [in progress"+age(td.WrittenAt, iter)+"] "+td.Content)
+			add(prioInProgress, sectionTodo, "- [in progress"+age(td.WrittenIteration, iter)+"] "+td.Content)
 		case TodoPending:
 			add(prioPending, sectionTodo, "- [pending] "+td.Content)
 		case TodoCompleted:
@@ -352,17 +352,17 @@ func writeSection(b *strings.Builder, title string, kept []anchorEntry, section 
 }
 
 // stamp renders a note's age marker, or "" when the iteration is unknown.
-func stamp(writtenAt int) string {
-	if writtenAt <= 0 {
+func stamp(written int) string {
+	if written <= 0 {
 		return ""
 	}
-	return "[i" + strconv.Itoa(writtenAt) + "] "
+	return "[i" + strconv.Itoa(written) + "] "
 }
 
 // age renders how long a todo has held its current status, when that is known and non-trivial.
-func age(writtenAt, iter int) string {
-	if writtenAt <= 0 || iter <= writtenAt {
+func age(written, iter int) string {
+	if written <= 0 || iter <= written {
 		return ""
 	}
-	return ", " + strconv.Itoa(iter-writtenAt) + " iterations"
+	return ", " + strconv.Itoa(iter-written) + " iterations"
 }

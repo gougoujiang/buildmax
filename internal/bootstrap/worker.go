@@ -161,7 +161,7 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 	if task.SessionID != nil {
 		sessionID = *task.SessionID
 	}
-	now := time.Now().Unix()
+	now := time.Now().UTC()
 	if err := updater.UpdateRunStatus(ctx, run.ID, &workerclient.PatchTaskRunRequest{
 		Status:    string(model.RunStatusRunning),
 		StartedAt: &now,
@@ -244,7 +244,7 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 // only a record that says why the run stopped instead of what it produced.
 func reportCanceledBeforeStart(ctx context.Context, updater taskrun.TaskRunUpdater, taskRunID string) error {
 	slog.Info("this run was canceled before it started")
-	endedAt := time.Now().Unix()
+	endedAt := time.Now().UTC()
 	message := "this run was canceled before it started"
 	if err := updater.UpdateRunStatus(ctx, taskRunID, &workerclient.PatchTaskRunRequest{
 		Status:       string(model.RunStatusCanceled),

@@ -3,6 +3,7 @@ package admin
 import (
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 )
@@ -17,11 +18,11 @@ type AdminTeam struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 	// Personal marks a user's own space rather than a collaborative team.
-	Personal    bool   `json:"personal"`
-	QuotaTier   string `json:"quota_tier,omitempty"`
-	MemberCount int    `json:"member_count"`
-	CreatedBy   string `json:"created_by,omitempty"`
-	CreatedAt   int64  `json:"created_at"`
+	Personal    bool      `json:"personal"`
+	QuotaTier   string    `json:"quota_tier,omitempty"`
+	MemberCount int       `json:"member_count"`
+	CreatedBy   string    `json:"created_by,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 // AdminTeamsResponse is a page of teams.

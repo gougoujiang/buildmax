@@ -3,22 +3,23 @@ package db
 import (
 	"context"
 	"errors"
-	"github.com/gougoujiang/buildmax/internal/core/model"
 	"time"
+
+	"github.com/gougoujiang/buildmax/internal/core/model"
 
 	"github.com/gougoujiang/buildmax/internal/util"
 	"gorm.io/gorm"
 )
 
 type teamRow struct {
-	ID                uint64  `gorm:"primaryKey;autoIncrement"`
-	PublicID          string  `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_team_public_id;not null"`
-	Name              string  `gorm:"type:varchar(255);not null"`
-	PersonalForUserID *uint64 `gorm:"column:personal_for_user_id;uniqueIndex"`
-	QuotaTier         string  `gorm:"column:quota_tier;type:varchar(64)"`
-	CreatedBy         uint64  `gorm:"column:created_by;not null"`
-	CreatedAt         int64   `gorm:"autoCreateTime"`
-	UpdatedAt         int64   `gorm:"autoUpdateTime"`
+	ID                uint64    `gorm:"primaryKey;autoIncrement"`
+	PublicID          string    `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_team_public_id;not null"`
+	Name              string    `gorm:"type:varchar(255);not null"`
+	PersonalForUserID *uint64   `gorm:"column:personal_for_user_id;uniqueIndex"`
+	QuotaTier         string    `gorm:"column:quota_tier;type:varchar(64)"`
+	CreatedBy         uint64    `gorm:"column:created_by;not null"`
+	CreatedAt         time.Time `gorm:"autoCreateTime"`
+	UpdatedAt         time.Time `gorm:"autoUpdateTime"`
 }
 
 func (teamRow) TableName() string { return "team" }
@@ -42,11 +43,11 @@ type teamReadRow struct {
 }
 
 type teamMemberRow struct {
-	ID        uint64 `gorm:"primaryKey;autoIncrement"`
-	TeamID    uint64 `gorm:"column:team_id;not null;uniqueIndex:uq_team_member_team_user"`
-	UserID    uint64 `gorm:"column:user_id;not null;uniqueIndex:uq_team_member_team_user"`
-	Role      string `gorm:"type:varchar(32);not null"`
-	CreatedAt int64  `gorm:"autoCreateTime"`
+	ID        uint64    `gorm:"primaryKey;autoIncrement"`
+	TeamID    uint64    `gorm:"column:team_id;not null;uniqueIndex:uq_team_member_team_user"`
+	UserID    uint64    `gorm:"column:user_id;not null;uniqueIndex:uq_team_member_team_user"`
+	Role      string    `gorm:"type:varchar(32);not null"`
+	CreatedAt time.Time `gorm:"autoCreateTime"`
 }
 
 func (teamMemberRow) TableName() string { return "team_member" }
@@ -175,7 +176,7 @@ func (s *Store) ListTeamsByUser(ctx context.Context, userID string) ([]model.Tea
 
 // CreateTeam creates a new team and owner membership.
 func (s *Store) CreateTeam(ctx context.Context, name, createdBy, quotaTier string) (*model.Team, error) {
-	now := time.Now().Unix()
+	now := time.Now().UTC()
 	teamDB := &teamRow{Name: name, QuotaTier: quotaTier, CreatedAt: now, UpdatedAt: now}
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		creator, err := lookupKey(ctx, tx, "user", createdBy)
@@ -213,7 +214,7 @@ func (s *Store) AddTeamMember(ctx context.Context, teamID, userID, role string) 
 		TeamID:    teamID,
 		UserID:    userID,
 		Role:      role,
-		CreatedAt: time.Now().Unix(),
+		CreatedAt: time.Now().UTC(),
 	}
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		teamKey, err := lookupKey(ctx, tx, "team", teamID)

@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -22,15 +23,15 @@ type systemGrantRow struct {
 	// revoked rows do not collide with each other or with a later re-grant:
 	// MySQL treats NULLs as distinct in a unique index, which here means at
 	// most one live row per (user, role) and any number of retired ones.
-	UserID    uint64 `gorm:"column:user_id;not null;uniqueIndex:idx_system_grant_live,priority:1;index:idx_system_grant_user"`
-	Role      string `gorm:"type:varchar(32);not null;uniqueIndex:idx_system_grant_live,priority:2"`
-	RevokedAt *int64 `gorm:"uniqueIndex:idx_system_grant_live,priority:3"`
+	UserID    uint64     `gorm:"column:user_id;not null;uniqueIndex:idx_system_grant_live,priority:1;index:idx_system_grant_user"`
+	Role      string     `gorm:"type:varchar(32);not null;uniqueIndex:idx_system_grant_live,priority:2"`
+	RevokedAt *time.Time `gorm:"uniqueIndex:idx_system_grant_live,priority:3"`
 
 	// GrantedBy stays an opaque handle. The operator who bootstraps the first
 	// grant is a command line, not a user row, so this column cannot be a
 	// reference to one.
-	GrantedBy string `gorm:"type:varchar(64);not null"`
-	GrantedAt int64  `gorm:"not null;index"`
+	GrantedBy string    `gorm:"type:varchar(64);not null"`
+	GrantedAt time.Time `gorm:"not null;index"`
 }
 
 func (systemGrantRow) TableName() string { return "system_grant" }
@@ -111,7 +112,7 @@ func (s *Store) ListSystemGrants(ctx context.Context, includeRevoked bool) ([]mo
 // enforces one active grant, so a lost race ends as a duplicate-key error
 // rather than as a second row. The check exists to turn the common case into a
 // clear message instead of a driver error.
-func (s *Store) GrantSystemRole(ctx context.Context, userID, role, grantedBy string, now int64) (*model.SystemGrant, error) {
+func (s *Store) GrantSystemRole(ctx context.Context, userID, role, grantedBy string, now time.Time) (*model.SystemGrant, error) {
 	if !model.ValidSystemRole(role) {
 		return nil, model.ErrSystemRoleUnknown
 	}
@@ -144,7 +145,7 @@ func (s *Store) GrantSystemRole(ctx context.Context, userID, role, grantedBy str
 }
 
 // RevokeSystemRole revokes the active grant, reporting whether one was found.
-func (s *Store) RevokeSystemRole(ctx context.Context, userID, role string, now int64) (bool, error) {
+func (s *Store) RevokeSystemRole(ctx context.Context, userID, role string, now time.Time) (bool, error) {
 	userKey, err := lookupKey(ctx, s.db, "user", userID)
 	if errors.Is(err, model.ErrNotFound) {
 		return false, nil

@@ -37,10 +37,10 @@ type llmCallRow struct {
 	UpstreamModel string `gorm:"type:varchar(128);not null"`
 	Streaming     bool   `gorm:"not null;default:false"`
 
-	AcceptedAt        int64  `gorm:"not null;index"`
-	UpstreamStartedAt *int64 `gorm:""`
-	FirstDeltaAt      *int64 `gorm:""`
-	CompletedAt       *int64 `gorm:""`
+	AcceptedAt        time.Time  `gorm:"not null;index"`
+	UpstreamStartedAt *time.Time `gorm:""`
+	FirstDeltaAt      *time.Time `gorm:""`
+	CompletedAt       *time.Time `gorm:""`
 
 	Status     string  `gorm:"type:varchar(16);not null;index"`
 	ErrorClass *string `gorm:"type:varchar(64)"`
@@ -189,8 +189,8 @@ func (s *Store) OpenLLMCall(ctx context.Context, call *model.LLMCall) (*model.LL
 		return nil, errors.New("llm call is required")
 	}
 	stored := *call
-	if stored.AcceptedAt == 0 {
-		stored.AcceptedAt = time.Now().Unix()
+	if stored.AcceptedAt.IsZero() {
+		stored.AcceptedAt = time.Now().UTC()
 	}
 	if stored.Status == "" {
 		stored.Status = model.LLMCallStatusAccepted

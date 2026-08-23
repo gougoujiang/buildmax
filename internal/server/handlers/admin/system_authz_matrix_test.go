@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -84,7 +85,7 @@ func adminMux(t *testing.T) (*http.ServeMux, *mock.MockAuditStore) {
 	grants := &mock.MockSystemGrantStore{}
 	grants.GrantForTest(adminUser, model.SystemRoleAdmin)
 	grants.GrantForTest(adminRevoked, model.SystemRoleAdmin)
-	revokedAt := int64(500)
+	revokedAt := time.Unix(500, 0).UTC()
 	grants.Grants[1].RevokedAt = &revokedAt
 
 	audits := &mock.MockAuditStore{}
@@ -128,7 +129,7 @@ func seedUser(t *testing.T, users *mock.MockUserStore, userID, email string) *mo
 	if users.ByEmail == nil {
 		users.ByEmail = make(map[string]*model.User)
 	}
-	u := &model.User{ID: userID, Email: email, CreatedAt: 1}
+	u := &model.User{ID: userID, Email: email, CreatedAt: time.Unix(1, 0).UTC()}
 	users.ByID[userID] = u
 	users.ByEmail[email] = u
 	return u

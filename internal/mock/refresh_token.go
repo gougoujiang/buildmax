@@ -14,9 +14,9 @@ type MockRefreshToken struct {
 	UserID    string
 	SessionID string
 	Platform  string
-	ExpiresAt int64
-	UsedAt    *int64
-	RevokedAt *int64
+	ExpiresAt time.Time
+	UsedAt    *time.Time
+	RevokedAt *time.Time
 }
 
 // MockRefreshTokenStore is an in-memory RefreshTokenStore for tests.
@@ -36,17 +36,17 @@ type MockRefreshTokenStore struct {
 	issued int
 }
 
-func (m *MockRefreshTokenStore) CreateRefreshToken(_ context.Context, in model.NewRefreshToken) (string, int64, error) {
+func (m *MockRefreshTokenStore) CreateRefreshToken(_ context.Context, in model.NewRefreshToken) (string, time.Time, error) {
 	if m.CreateErr != nil {
-		return "", 0, m.CreateErr
+		return "", time.Time{}, m.CreateErr
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.mint(in.UserID, in.SessionID, in.Platform, time.Now().Unix(), in.TTL)
+	return m.mint(in.UserID, in.SessionID, in.Platform, time.Now().UTC(), in.TTL)
 }
 
 // mint requires m.mu.
-func (m *MockRefreshTokenStore) mint(userID, sessionID, platform string, now int64, ttl time.Duration) (string, int64, error) {
+func (m *MockRefreshTokenStore) mint(userID, sessionID, platform string, now time.Time, ttl time.Duration) (string, time.Time, error) {
 	if m.Tokens == nil {
 		m.Tokens = make(map[string]*MockRefreshToken)
 	}
@@ -55,7 +55,7 @@ func (m *MockRefreshTokenStore) mint(userID, sessionID, platform string, now int
 	}
 	m.issued++
 	plaintext := fmt.Sprintf("mock-refresh-%s-%d", userID, m.issued)
-	expiresAt := time.Unix(now, 0).Add(ttl).Unix()
+	expiresAt := now.Add(ttl)
 	m.Tokens[plaintext] = &MockRefreshToken{
 		UserID:    userID,
 		SessionID: sessionID,
@@ -65,17 +65,17 @@ func (m *MockRefreshTokenStore) mint(userID, sessionID, platform string, now int
 	return plaintext, expiresAt, nil
 }
 
-func (m *MockRefreshTokenStore) RotateRefreshToken(_ context.Context, plaintext string, now int64, ttl, grace time.Duration) (model.RotatedRefreshToken, error) {
+func (m *MockRefreshTokenStore) RotateRefreshToken(_ context.Context, plaintext string, now time.Time, ttl, grace time.Duration) (model.RotatedRefreshToken, error) {
 	if m.RotateErr != nil {
 		return model.RotatedRefreshToken{}, m.RotateErr
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	row, ok := m.Tokens[plaintext]
-	if !ok || row.RevokedAt != nil || row.ExpiresAt <= now {
+	if !ok || row.RevokedAt != nil || !row.ExpiresAt.After(now) {
 		return model.RotatedRefreshToken{}, model.ErrRefreshTokenInvalid
 	}
-	if row.UsedAt != nil && now-*row.UsedAt > int64(grace.Seconds()) {
+	if row.UsedAt != nil && now.Sub(*row.UsedAt) > grace {
 		m.revokeSession(row.SessionID, now)
 		// The caller needs to know whose session was just revoked in order to
 		// record it, so the identifiers come back alongside the error.
@@ -107,12 +107,12 @@ func (m *MockRefreshTokenStore) Backdate(plaintext string, by time.Duration) boo
 	if !ok || row.UsedAt == nil {
 		return false
 	}
-	moved := *row.UsedAt - int64(by.Seconds())
+	moved := row.UsedAt.Add(-by)
 	row.UsedAt = &moved
 	return true
 }
 
-func (m *MockRefreshTokenStore) RevokeRefreshTokenSession(_ context.Context, plaintext string, now int64) (string, string, error) {
+func (m *MockRefreshTokenStore) RevokeRefreshTokenSession(_ context.Context, plaintext string, now time.Time) (string, string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	row, ok := m.Tokens[plaintext]
@@ -123,14 +123,14 @@ func (m *MockRefreshTokenStore) RevokeRefreshTokenSession(_ context.Context, pla
 	return row.UserID, row.SessionID, nil
 }
 
-func (m *MockRefreshTokenStore) RevokeSession(_ context.Context, sessionID string, now int64) (int64, error) {
+func (m *MockRefreshTokenStore) RevokeSession(_ context.Context, sessionID string, now time.Time) (int64, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.revokeSession(sessionID, now), nil
 }
 
 // revokeSession requires m.mu.
-func (m *MockRefreshTokenStore) revokeSession(sessionID string, now int64) int64 {
+func (m *MockRefreshTokenStore) revokeSession(sessionID string, now time.Time) int64 {
 	var n int64
 	for _, row := range m.Tokens {
 		if row.SessionID == sessionID && row.RevokedAt == nil {
@@ -142,7 +142,7 @@ func (m *MockRefreshTokenStore) revokeSession(sessionID string, now int64) int64
 	return n
 }
 
-func (m *MockRefreshTokenStore) RevokeUserSessions(_ context.Context, userID string, now int64) (int64, error) {
+func (m *MockRefreshTokenStore) RevokeUserSessions(_ context.Context, userID string, now time.Time) (int64, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	var n int64
@@ -156,24 +156,24 @@ func (m *MockRefreshTokenStore) RevokeUserSessions(_ context.Context, userID str
 	return n, nil
 }
 
-func (m *MockRefreshTokenStore) CountUserSessions(_ context.Context, userID string, now int64) (int, error) {
+func (m *MockRefreshTokenStore) CountUserSessions(_ context.Context, userID string, now time.Time) (int, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	sessions := make(map[string]bool)
 	for _, tok := range m.Tokens {
-		if tok.UserID == userID && tok.RevokedAt == nil && tok.ExpiresAt > now {
+		if tok.UserID == userID && tok.RevokedAt == nil && tok.ExpiresAt.After(now) {
 			sessions[tok.SessionID] = true
 		}
 	}
 	return len(sessions), nil
 }
 
-func (m *MockRefreshTokenStore) DeleteExpiredRefreshTokens(_ context.Context, before int64) (int64, error) {
+func (m *MockRefreshTokenStore) DeleteExpiredRefreshTokens(_ context.Context, before time.Time) (int64, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	var n int64
 	for plaintext, row := range m.Tokens {
-		if row.ExpiresAt <= before {
+		if !row.ExpiresAt.After(before) {
 			delete(m.Tokens, plaintext)
 			n++
 		}

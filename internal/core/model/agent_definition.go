@@ -1,6 +1,9 @@
 package model
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // Agent is a user-defined Portal agent stored in the database.
 type Agent struct {
@@ -17,8 +20,8 @@ type Agent struct {
 	// that already refers to it — a task's agent, a step run's target, a
 	// revision's subject — would otherwise point at nothing. A deleted agent is
 	// invisible to every path that would start new work with it.
-	DeletedAt *int64 `json:"deleted_at,omitempty"`
-	CreatedAt int64  `json:"created_at"`
+	DeletedAt *time.Time `json:"deleted_at,omitempty"`
+	CreatedAt time.Time  `json:"created_at"`
 }
 
 // AgentRevision is one recorded version of an agent definition.
@@ -34,8 +37,8 @@ type AgentRevision struct {
 	Instructions string `json:"instructions"`
 	// CreatedBy is the user who wrote this revision, which is not necessarily
 	// the agent's owner.
-	CreatedBy string `json:"created_by"`
-	CreatedAt int64  `json:"created_at"`
+	CreatedBy string    `json:"created_by"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // AgentStore provides persistence for Portal agents.

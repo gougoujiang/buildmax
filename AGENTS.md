@@ -11,6 +11,17 @@ BuildMax is a general-purpose AI Agent runtime. It should be quick to run,
 portable, configurable across models and tools, and suitable for local or
 private deployment.
 
+The project is in Alpha, as [`README.md`](README.md) says. Nothing is released
+that has to stay compatible: no frozen API contract, no persisted data worth
+preserving, no deployment owed a migration path. Design for what the system
+should be when it is stable, not for what today's code happens to do. When a
+stored shape, a JSON field, a column type, or a command surface is wrong, fix
+it everywhere at once — row struct, model, interface, documentation, tests —
+instead of layering a compatible workaround over it. An existing implementation
+is evidence about cost, never a reason a design has to stay. This is licence
+about form; the boundaries and invariants below are still decisions to
+renegotiate in the open.
+
 The active priority order is in [`docs/ROADMAP.md`](docs/ROADMAP.md). Current
 code plus the roadmap wins when an older design record disagrees. Design
 records under [`docs/design/`](docs/design/README.md) explain rationale;

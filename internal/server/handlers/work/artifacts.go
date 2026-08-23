@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
@@ -11,12 +12,12 @@ import (
 )
 
 type ArtifactResponse struct {
-	TaskRunID        string `json:"task_run_id"`
-	TaskID           string `json:"task_id"`
-	ConversationID   string `json:"conversation_id"`
-	UserID           string `json:"user_id"`
-	CreatedAt        int64  `json:"created_at"`
-	TaskInputSnippet string `json:"task_input_snippet"`
+	TaskRunID        string    `json:"task_run_id"`
+	TaskID           string    `json:"task_id"`
+	ConversationID   string    `json:"conversation_id"`
+	UserID           string    `json:"user_id"`
+	CreatedAt        time.Time `json:"created_at"`
+	TaskInputSnippet string    `json:"task_input_snippet"`
 }
 
 func artifactWithTaskToResponse(a model.ArtifactWithTask) ArtifactResponse {

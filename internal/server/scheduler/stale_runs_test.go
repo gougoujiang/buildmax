@@ -17,20 +17,20 @@ type fakeStaleStore struct {
 	canceled         []model.TaskRun
 	listErr          error
 	cancelListErr    error
-	lastCutoff       int64
-	lastCancelCutoff int64
+	lastCutoff       time.Time
+	lastCancelCutoff time.Time
 	failed           []model.UpdateTaskRunInput
 	synced           []string
 	updateErr        error
 }
 
-func (f *fakeStaleStore) ListStaleTaskRuns(_ context.Context, cutoffUnix int64, _ int) ([]model.TaskRun, error) {
-	f.lastCutoff = cutoffUnix
+func (f *fakeStaleStore) ListStaleTaskRuns(_ context.Context, cutoff time.Time, _ int) ([]model.TaskRun, error) {
+	f.lastCutoff = cutoff
 	return f.stale, f.listErr
 }
 
-func (f *fakeStaleStore) ListCancelRequestedTaskRuns(_ context.Context, cutoffUnix int64, _ int) ([]model.TaskRun, error) {
-	f.lastCancelCutoff = cutoffUnix
+func (f *fakeStaleStore) ListCancelRequestedTaskRuns(_ context.Context, cutoff time.Time, _ int) ([]model.TaskRun, error) {
+	f.lastCancelCutoff = cutoff
 	return f.canceled, f.cancelListErr
 }
 
@@ -73,7 +73,7 @@ func TestReaperClosesAbandonedRuns(t *testing.T) {
 		if in.Status != model.RunStatusFailed {
 			t.Errorf("run %s status = %q, want FAILED", in.TaskRunID, in.Status)
 		}
-		if in.EndedAt == nil || *in.EndedAt != now.Unix() {
+		if in.EndedAt == nil || !in.EndedAt.Equal(now) {
 			t.Errorf("run %s ended_at = %v, want %d", in.TaskRunID, in.EndedAt, now.Unix())
 		}
 		// The message names the timeout rather than guessing a cause: from the
@@ -110,14 +110,14 @@ func TestReaperClosesUnconfirmedCancels(t *testing.T) {
 	if got.Status != model.RunStatusCanceled {
 		t.Errorf("status = %q, want CANCELED — a stop that was asked for is not a failure", got.Status)
 	}
-	if got.EndedAt == nil || *got.EndedAt != now.Unix() {
-		t.Errorf("ended_at = %v, want %d", got.EndedAt, now.Unix())
+	if got.EndedAt == nil || !got.EndedAt.Equal(now) {
+		t.Errorf("ended_at = %v, want %v", got.EndedAt, now)
 	}
 	if got.ErrorMessage == nil || !strings.Contains(*got.ErrorMessage, defaultCancelGrace.String()) {
 		t.Errorf("message = %v, want it to name the grace period", got.ErrorMessage)
 	}
-	if want := now.Add(-defaultCancelGrace).Unix(); store.lastCancelCutoff != want {
-		t.Errorf("cancel cutoff = %d, want %d — a run asked to stop a moment ago is still the worker's to end", store.lastCancelCutoff, want)
+	if want := now.Add(-defaultCancelGrace); !store.lastCancelCutoff.Equal(want) {
+		t.Errorf("cancel cutoff = %v, want %v — a run asked to stop a moment ago is still the worker's to end", store.lastCancelCutoff, want)
 	}
 	if len(store.synced) != 1 {
 		t.Errorf("synced %v, want the canceled run", store.synced)
@@ -146,8 +146,8 @@ func TestReaperCutoffIsTheTimeoutAgo(t *testing.T) {
 
 	reaper.Sweep(context.Background(), now)
 
-	if want := now.Add(-6 * time.Hour).Unix(); store.lastCutoff != want {
-		t.Errorf("cutoff = %d, want %d", store.lastCutoff, want)
+	if want := now.Add(-6 * time.Hour); !store.lastCutoff.Equal(want) {
+		t.Errorf("cutoff = %v, want %v", store.lastCutoff, want)
 	}
 }
 

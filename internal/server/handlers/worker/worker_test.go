@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
@@ -16,7 +17,7 @@ import (
 
 func TestGetWorkerTaskRunHandler_RequiresWorkerAuth(t *testing.T) {
 	taskRunID := "run-1"
-	run := model.TaskRun{ID: taskRunID, TaskID: "task-1", Input: "input", Status: "SCHEDULED", CreatedAt: 1}
+	run := model.TaskRun{ID: taskRunID, TaskID: "task-1", Input: "input", Status: "SCHEDULED", CreatedAt: time.Unix(1, 0).UTC()}
 	task := model.Task{ID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1"}
 	mockRun := &mock.MockTaskRunStore{Runs: []model.TaskRun{run}, TaskList: []model.Task{task}}
 	cfg := Config{
@@ -57,7 +58,7 @@ func TestGetWorkerTaskRunHandler_RequiresWorkerAuth(t *testing.T) {
 // has to be visible in it. Nothing else can reach a started run.
 func TestGetWorkerTaskRunHandler_ReportsACancelRequest(t *testing.T) {
 	taskRunID := "run-cancel"
-	askedAt := int64(1_800_000_000)
+	askedAt := time.Unix(1_800_000_000, 0).UTC()
 	runs := &mock.MockTaskRunStore{
 		Runs: []model.TaskRun{{
 			ID: taskRunID, TaskID: "task-1", Input: "input",
@@ -99,7 +100,7 @@ func TestPatchWorkerTaskRun_CanceledKeepsArtifactsAndSyncsTheTask(t *testing.T) 
 	mux := http.NewServeMux()
 	h.Register(mux)
 
-	endedAt := int64(1_800_000_010)
+	endedAt := time.Unix(1_800_000_010, 0).UTC()
 	body, err := json.Marshal(workerclient.PatchTaskRunRequest{
 		Status:   string(model.RunStatusCanceled),
 		EndedAt:  &endedAt,
@@ -150,7 +151,7 @@ func TestGetWorkerTaskRunHandler_NotFound(t *testing.T) {
 
 func TestPatchWorkerTaskRun_RUNNING_WhenScheduled_Returns200(t *testing.T) {
 	taskRunID := "run-scheduled"
-	run := model.TaskRun{ID: taskRunID, TaskID: "task1", Input: "input", Status: "SCHEDULED", CreatedAt: 1}
+	run := model.TaskRun{ID: taskRunID, TaskID: "task1", Input: "input", Status: "SCHEDULED", CreatedAt: time.Unix(1, 0).UTC()}
 	task := model.Task{ID: "task1", ConversationID: "conv-1"}
 	mockRun := &mock.MockTaskRunStore{Runs: []model.TaskRun{run}, TaskList: []model.Task{task}}
 	cfg := Config{
@@ -161,7 +162,7 @@ func TestPatchWorkerTaskRun_RUNNING_WhenScheduled_Returns200(t *testing.T) {
 	mux := http.NewServeMux()
 	h.Register(mux)
 
-	body := map[string]interface{}{"status": "RUNNING", "session_id": "sess-1", "started_at": int64(123)}
+	body := map[string]interface{}{"status": "RUNNING", "session_id": "sess-1", "started_at": time.Unix(123, 0).UTC().Format(time.RFC3339)}
 	raw, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPatch, "/api/worker/task-runs/"+taskRunID, bytes.NewReader(raw))
 	req.SetPathValue("task_run_id", taskRunID)
@@ -180,7 +181,7 @@ func TestPatchWorkerTaskRun_RUNNING_WhenScheduled_Returns200(t *testing.T) {
 
 func TestPatchWorkerTaskRun_RUNNING_WhenPending_Returns409(t *testing.T) {
 	taskRunID := "run-pending"
-	run := model.TaskRun{ID: taskRunID, TaskID: "task1", Input: "input", Status: "PENDING", CreatedAt: 1}
+	run := model.TaskRun{ID: taskRunID, TaskID: "task1", Input: "input", Status: "PENDING", CreatedAt: time.Unix(1, 0).UTC()}
 	task := model.Task{ID: "task1", ConversationID: "conv-1"}
 	mockRun := &mock.MockTaskRunStore{Runs: []model.TaskRun{run}, TaskList: []model.Task{task}}
 	cfg := Config{
@@ -215,7 +216,7 @@ func TestPatchWorkerTaskRun_RUNNING_WhenPending_Returns409(t *testing.T) {
 // stay on this side.
 func TestGetWorkerTaskRunHandler_TellsTheRunHowToReachAModel(t *testing.T) {
 	store := &mock.MockTaskRunStore{
-		Runs:     []model.TaskRun{{ID: "run-1", TaskID: "task-1", Input: "input", Status: "SCHEDULED", CreatedAt: 1}},
+		Runs:     []model.TaskRun{{ID: "run-1", TaskID: "task-1", Input: "input", Status: "SCHEDULED", CreatedAt: time.Unix(1, 0).UTC()}},
 		TaskList: []model.Task{{ID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1"}},
 	}
 

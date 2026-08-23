@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -68,7 +69,7 @@ func TestRunProvenanceQuotesTheMessageBehindTheRun(t *testing.T) {
 	run := model.TaskRun{
 		ID: "tr_1", TaskID: "tk_1", Input: "investigate the flaky test",
 		Status: "SUCCEEDED", CreatedBy: "u1", CreatedByType: model.RunCreatedByTypeUser,
-		TriggerSource: model.RunTriggerSourcePortalConversation, CreatedAt: 1000,
+		TriggerSource: model.RunTriggerSourcePortalConversation, CreatedAt: time.Unix(1000, 0).UTC(),
 	}
 	f := newProvenanceFixture(t, run, provenanceTask())
 	asked, err := f.messages.AppendMessage(t.Context(), model.AppendMessageInput{
@@ -105,7 +106,7 @@ func TestRunProvenanceQuotesTheMessageBehindTheRun(t *testing.T) {
 // A long message is quoted for comparison, not served whole: the conversation
 // route is where the transcript lives.
 func TestRunProvenanceTruncatesALongMessage(t *testing.T) {
-	run := model.TaskRun{ID: "tr_1", TaskID: "tk_1", Input: "do it", Status: "SUCCEEDED", CreatedAt: 1000}
+	run := model.TaskRun{ID: "tr_1", TaskID: "tk_1", Input: "do it", Status: "SUCCEEDED", CreatedAt: time.Unix(1000, 0).UTC()}
 	f := newProvenanceFixture(t, run, provenanceTask())
 	asked, err := f.messages.AppendMessage(t.Context(), model.AppendMessageInput{
 		ConversationID: "conv1",
@@ -131,7 +132,7 @@ func TestRunProvenanceTruncatesALongMessage(t *testing.T) {
 func TestRunProvenanceWithoutASourceMessage(t *testing.T) {
 	run := model.TaskRun{
 		ID: "tr_1", TaskID: "tk_1", Input: "step 2", Status: "RUNNING",
-		CreatedByType: model.RunCreatedByTypeSystem, TriggerSource: model.RunTriggerSourceWorkflowStep, CreatedAt: 1000,
+		CreatedByType: model.RunCreatedByTypeSystem, TriggerSource: model.RunTriggerSourceWorkflowStep, CreatedAt: time.Unix(1000, 0).UTC(),
 	}
 	f := newProvenanceFixture(t, run, provenanceTask())
 
@@ -150,7 +151,7 @@ func TestRunProvenanceWithoutASourceMessage(t *testing.T) {
 // A handle pointing outside the run's own conversation quotes nothing. It is
 // how a stale or wrong reference stops being a way to read someone else's text.
 func TestRunProvenanceIgnoresAMessageFromAnotherConversation(t *testing.T) {
-	run := model.TaskRun{ID: "tr_1", TaskID: "tk_1", Input: "do it", Status: "SUCCEEDED", CreatedAt: 1000}
+	run := model.TaskRun{ID: "tr_1", TaskID: "tk_1", Input: "do it", Status: "SUCCEEDED", CreatedAt: time.Unix(1000, 0).UTC()}
 	f := newProvenanceFixture(t, run, provenanceTask())
 	elsewhere, err := f.messages.AppendMessage(t.Context(), model.AppendMessageInput{
 		ConversationID: "conv-other",
@@ -171,7 +172,7 @@ func TestRunProvenanceIgnoresAMessageFromAnotherConversation(t *testing.T) {
 // The run belongs to a team, and a stranger to that team cannot read where it
 // came from any more than what it produced.
 func TestRunProvenanceRefusesAnotherTeam(t *testing.T) {
-	run := model.TaskRun{ID: "tr_1", TaskID: "tk_1", Input: "do it", Status: "SUCCEEDED", CreatedAt: 1000}
+	run := model.TaskRun{ID: "tr_1", TaskID: "tk_1", Input: "do it", Status: "SUCCEEDED", CreatedAt: time.Unix(1000, 0).UTC()}
 	f := newProvenanceFixture(t, run, provenanceTask())
 
 	req := httptest.NewRequest(http.MethodGet, "/api/teams/tm_other/task-runs/tr_1", nil)
@@ -190,7 +191,7 @@ func TestRunProvenanceNamesTheAgentRevisionThatRan(t *testing.T) {
 	revision := 2
 	run := model.TaskRun{
 		ID: "tr_1", TaskID: "tk_1", Input: "do it", Status: "SUCCEEDED",
-		AgentRevision: &revision, CreatedAt: 1000,
+		AgentRevision: &revision, CreatedAt: time.Unix(1000, 0).UTC(),
 	}
 	task := provenanceTask()
 	task.AgentID = util.Ptr("ag_1")
@@ -218,12 +219,12 @@ func TestRunProvenanceNamesTheAgentRevisionThatRan(t *testing.T) {
 // stop having done so, and hiding the definition is the opposite of provenance.
 func TestRunProvenanceNamesADeletedAgent(t *testing.T) {
 	revision := 1
-	run := model.TaskRun{ID: "tr_1", TaskID: "tk_1", Input: "do it", Status: "SUCCEEDED", AgentRevision: &revision, CreatedAt: 1000}
+	run := model.TaskRun{ID: "tr_1", TaskID: "tk_1", Input: "do it", Status: "SUCCEEDED", AgentRevision: &revision, CreatedAt: time.Unix(1000, 0).UTC()}
 	task := provenanceTask()
 	task.AgentID = util.Ptr("ag_1")
 	f := newProvenanceFixture(t, run, task)
 	f.handler.cfg.Agents = &mock.MockAgentStore{Agents: []model.Agent{
-		{ID: "ag_1", TeamID: "tm_1", Name: "Retired", Revision: 1, DeletedAt: util.Ptr(int64(9))},
+		{ID: "ag_1", TeamID: "tm_1", Name: "Retired", Revision: 1, DeletedAt: util.Ptr(time.Unix(9, 0).UTC())},
 	}}
 
 	_, out := f.get(t, "tr_1")
@@ -235,7 +236,7 @@ func TestRunProvenanceNamesADeletedAgent(t *testing.T) {
 // A task with no agent has no agent block at all, rather than an empty one that
 // reads as an agent nobody can identify.
 func TestRunProvenanceOmitsTheAgentWhenThereIsNone(t *testing.T) {
-	run := model.TaskRun{ID: "tr_1", TaskID: "tk_1", Input: "do it", Status: "SUCCEEDED", CreatedAt: 1000}
+	run := model.TaskRun{ID: "tr_1", TaskID: "tk_1", Input: "do it", Status: "SUCCEEDED", CreatedAt: time.Unix(1000, 0).UTC()}
 	f := newProvenanceFixture(t, run, provenanceTask())
 
 	_, out := f.get(t, "tr_1")

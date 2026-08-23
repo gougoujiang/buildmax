@@ -4,6 +4,7 @@ import (
 	"context"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 )
@@ -37,7 +38,7 @@ func (m *MockArtifactStore) CreateArtifact(_ context.Context, in model.CreateArt
 		SourceID:      in.SourceID,
 		Title:         in.Title,
 		ExpiresAt:     in.ExpiresAt,
-		CreatedAt:     int64(len(m.items) + 1),
+		CreatedAt:     seqTime(len(m.items) + 1),
 	}
 	m.items = append(m.items, rec)
 	out := rec
@@ -65,7 +66,7 @@ func (m *MockArtifactStore) ListArtifactsByTeam(_ context.Context, teamID string
 			live = append(live, m.items[i])
 		}
 	}
-	sort.SliceStable(live, func(i, j int) bool { return live[i].CreatedAt > live[j].CreatedAt })
+	sort.SliceStable(live, func(i, j int) bool { return live[i].CreatedAt.After(live[j].CreatedAt) })
 	page, total := paginate(live, limit, offset)
 	return page, total, nil
 }
@@ -87,7 +88,7 @@ func (m *MockArtifactStore) ListArtifactsBySource(_ context.Context, sourceIDs [
 	return out, nil
 }
 
-func (m *MockArtifactStore) SoftDeleteArtifact(_ context.Context, artifactID string, deletedAt int64) (bool, error) {
+func (m *MockArtifactStore) SoftDeleteArtifact(_ context.Context, artifactID string, deletedAt time.Time) (bool, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for i := range m.items {

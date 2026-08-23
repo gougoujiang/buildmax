@@ -41,13 +41,13 @@ func TestRenderSessionState_EmptyRendersNothing(t *testing.T) {
 
 func TestRenderSessionState_NotesAndTodos(t *testing.T) {
 	notes := []Note{
-		{Text: "matter is governed by New York law", WrittenAt: 12},
-		{Text: "rescission ruled out: outside the limitation period", WrittenAt: 40},
+		{Text: "matter is governed by New York law", WrittenIteration: 12},
+		{Text: "rescission ruled out: outside the limitation period", WrittenIteration: 40},
 	}
 	todos := []Todo{
-		{Content: "draft the notice of default", Status: TodoInProgress, WrittenAt: 40},
-		{Content: "check the cure period", Status: TodoPending, WrittenAt: 40},
-		{Content: "read the lease", Status: TodoCompleted, WrittenAt: 3},
+		{Content: "draft the notice of default", Status: TodoInProgress, WrittenIteration: 40},
+		{Content: "check the cure period", Status: TodoPending, WrittenIteration: 40},
+		{Content: "read the lease", Status: TodoCompleted, WrittenIteration: 3},
 	}
 
 	got := RenderSessionState("", notes, todos, 78)
@@ -90,11 +90,11 @@ func TestRenderSessionState_BudgetKeepsHighestPriority(t *testing.T) {
 	long := strings.Repeat("y", MaxNoteChars)
 	var notes []Note
 	for i := 0; i < MaxNotes; i++ {
-		notes = append(notes, Note{Text: long, WrittenAt: 1})
+		notes = append(notes, Note{Text: long, WrittenIteration: 1})
 	}
-	todos := []Todo{{Content: "THE ACTIVE TASK", Status: TodoInProgress, WrittenAt: 1}}
+	todos := []Todo{{Content: "THE ACTIVE TASK", Status: TodoInProgress, WrittenIteration: 1}}
 	for i := 0; i < MaxTodos-1; i++ {
-		todos = append(todos, Todo{Content: strings.Repeat("z", 180), Status: TodoPending, WrittenAt: 1})
+		todos = append(todos, Todo{Content: strings.Repeat("z", 180), Status: TodoPending, WrittenIteration: 1})
 	}
 
 	got := RenderSessionState("", notes, todos, 2)
@@ -114,29 +114,29 @@ func TestRenderSessionState_BudgetKeepsHighestPriority(t *testing.T) {
 }
 
 func TestStampNotes_PreservesAgeOfUnchangedEntries(t *testing.T) {
-	prev := []Note{{Text: "old", WrittenAt: 3}}
+	prev := []Note{{Text: "old", WrittenIteration: 3}}
 	got := StampNotes(prev, []Note{{Text: "old"}, {Text: "new"}}, 20)
 
-	if got[0].WrittenAt != 3 {
-		t.Errorf("unchanged note restamped to %d, want 3", got[0].WrittenAt)
+	if got[0].WrittenIteration != 3 {
+		t.Errorf("unchanged note restamped to %d, want 3", got[0].WrittenIteration)
 	}
-	if got[1].WrittenAt != 20 {
-		t.Errorf("new note stamped %d, want 20", got[1].WrittenAt)
+	if got[1].WrittenIteration != 20 {
+		t.Errorf("new note stamped %d, want 20", got[1].WrittenIteration)
 	}
 }
 
 func TestStampTodos_StatusChangeRestartsTheClock(t *testing.T) {
-	prev := []Todo{{Content: "task", Status: TodoPending, WrittenAt: 3}}
+	prev := []Todo{{Content: "task", Status: TodoPending, WrittenIteration: 3}}
 
 	same := StampTodos(prev, []Todo{{Content: "task", Status: TodoPending}}, 20)
-	if same[0].WrittenAt != 3 {
-		t.Errorf("unchanged todo restamped to %d, want 3", same[0].WrittenAt)
+	if same[0].WrittenIteration != 3 {
+		t.Errorf("unchanged todo restamped to %d, want 3", same[0].WrittenIteration)
 	}
 
 	moved := StampTodos(prev, []Todo{{Content: "task", Status: TodoInProgress}}, 20)
-	if moved[0].WrittenAt != 20 {
+	if moved[0].WrittenIteration != 20 {
 		t.Errorf("todo that changed status kept %d, want 20 — the age must measure the current status",
-			moved[0].WrittenAt)
+			moved[0].WrittenIteration)
 	}
 }
 
@@ -209,7 +209,7 @@ func TestNoteStoreContext(t *testing.T) {
 func TestRunLoop_StateBlockFollowsMessages(t *testing.T) {
 	client := &windowedClient{window: 0}
 	h := &statefulHistory{}
-	h.notes = []Note{{Text: "durable fact", WrittenAt: 1}}
+	h.notes = []Note{{Text: "durable fact", WrittenIteration: 1}}
 	_ = h.Append(llm.Message{Role: "user", Content: "hello"})
 
 	runOnce(t, client, h, nil)
@@ -276,7 +276,7 @@ func TestNotesSurviveCompaction(t *testing.T) {
 // with tool output, so the author-marked constraints are restated here — and they are the last
 // thing dropped when the block does not fit.
 func TestRenderSessionState_InvariantsLeadAndSurvive(t *testing.T) {
-	got := RenderSessionState("- Never push to main.", []Note{{Text: "a note", WrittenAt: 1}}, nil, 2)
+	got := RenderSessionState("- Never push to main.", []Note{{Text: "a note", WrittenIteration: 1}}, nil, 2)
 	if !strings.Contains(got, "## Invariants") || !strings.Contains(got, "- Never push to main.") {
 		t.Fatalf("invariants missing:\n%s", got)
 	}
@@ -287,11 +287,11 @@ func TestRenderSessionState_InvariantsLeadAndSurvive(t *testing.T) {
 	// Under pressure the invariants outrank everything else.
 	var notes []Note
 	for i := 0; i < MaxNotes; i++ {
-		notes = append(notes, Note{Text: strings.Repeat("y", MaxNoteChars), WrittenAt: 1})
+		notes = append(notes, Note{Text: strings.Repeat("y", MaxNoteChars), WrittenIteration: 1})
 	}
 	var todos []Todo
 	for i := 0; i < MaxTodos; i++ {
-		todos = append(todos, Todo{Content: strings.Repeat("z", 180), Status: TodoPending, WrittenAt: 1})
+		todos = append(todos, Todo{Content: strings.Repeat("z", 180), Status: TodoPending, WrittenIteration: 1})
 	}
 	crowded := RenderSessionState("- Never push to main.", notes, todos, 2)
 	if !strings.Contains(crowded, "Never push to main") {

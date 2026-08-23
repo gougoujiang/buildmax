@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"time"
 
 	mysqldriver "github.com/go-sql-driver/mysql"
 )
@@ -25,6 +26,27 @@ const (
 // schema name comes from server.yaml, which is operator-controlled, but it
 // reaches SQL as an identifier that cannot be a placeholder.
 var schemaNamePattern = regexp.MustCompile(`^[A-Za-z0-9_]+$`)
+
+// utcDSN forces every connection to speak UTC, whatever the caller's DSN said.
+//
+// Instants are stored as DATETIME(6), which carries no zone, so the value that
+// comes back is only correct if both ends agree on how to read it: loc pins the
+// driver, and the time_zone session variable pins NOW() and CURRENT_TIMESTAMP.
+// Enforced here rather than where the DSN is built so an operator-supplied or
+// test DSN cannot opt out. See docs/design/timestamp-representation.md.
+func utcDSN(dsn string) (string, error) {
+	cfg, err := mysqldriver.ParseDSN(dsn)
+	if err != nil {
+		return "", fmt.Errorf("parse dsn: %w", err)
+	}
+	cfg.Loc = time.UTC
+	cfg.ParseTime = true
+	if cfg.Params == nil {
+		cfg.Params = map[string]string{}
+	}
+	cfg.Params["time_zone"] = "'+00:00'"
+	return cfg.FormatDSN(), nil
+}
 
 // ensureDatabase creates the schema named in dsn when it does not exist.
 //

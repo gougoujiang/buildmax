@@ -213,7 +213,7 @@ func (h *Handler) loginHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteInternalError(w, err, "auth handler error", "handler", "login", "issue_token_pair")
 		return
 	}
-	if err := h.cfg.Users.UpdateLoginMeta(r.Context(), user.ID, now.Unix(), platform); err != nil {
+	if err := h.cfg.Users.UpdateLoginMeta(r.Context(), user.ID, now, platform); err != nil {
 		slog.Error("update login meta failed", "err", err, "handler", "login", "user_id", user.ID)
 	}
 	// Recorded after the login succeeds, so the trail holds sessions that were
@@ -265,7 +265,7 @@ func (h *Handler) refreshHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	now := time.Now()
 	rotated, err := h.cfg.RefreshTokens.RotateRefreshToken(
-		r.Context(), req.RefreshToken, now.Unix(), h.refreshTokenTTL(), h.refreshRotationGrace())
+		r.Context(), req.RefreshToken, now, h.refreshTokenTTL(), h.refreshRotationGrace())
 	switch {
 	case errors.Is(err, model.ErrRefreshTokenReused):
 		// The store has already revoked the session. Record it: this is the
@@ -298,7 +298,7 @@ func (h *Handler) refreshHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if user == nil {
-		if _, err := h.cfg.RefreshTokens.RevokeSession(r.Context(), rotated.SessionID, now.Unix()); err != nil {
+		if _, err := h.cfg.RefreshTokens.RevokeSession(r.Context(), rotated.SessionID, now); err != nil {
 			slog.Error("revoke session for missing user failed", "err", err, "session_id", rotated.SessionID)
 		}
 		httputil.WriteJSONError(w, http.StatusUnauthorized, "invalid refresh token")
@@ -309,7 +309,7 @@ func (h *Handler) refreshHandler(w http.ResponseWriter, r *http.Request) {
 	// sweep. Either way the account is the authority, not the row: revoke the
 	// session this one belongs to and say why.
 	if user.Disabled() {
-		if _, err := h.cfg.RefreshTokens.RevokeSession(r.Context(), rotated.SessionID, now.Unix()); err != nil {
+		if _, err := h.cfg.RefreshTokens.RevokeSession(r.Context(), rotated.SessionID, now); err != nil {
 			slog.Error("revoke session for disabled user failed", "err", err, "session_id", rotated.SessionID)
 		}
 		httputil.WriteJSONError(w, http.StatusForbidden, access.DisabledMessage)
@@ -379,7 +379,7 @@ func (h *Handler) setPasswordHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if err := h.cfg.Passwords.SetPassword(r.Context(), userID, hash, time.Now().Unix()); err != nil {
+	if err := h.cfg.Passwords.SetPassword(r.Context(), userID, hash, time.Now().UTC()); err != nil {
 		httputil.WriteInternalError(w, err, "auth handler error", "handler", "set_password", "user_id", userID)
 		return
 	}
@@ -408,7 +408,7 @@ func (h *Handler) logoutHandler(w http.ResponseWriter, r *http.Request) {
 		// An empty body is normal here — the access token alone is enough.
 		_ = json.NewDecoder(r.Body).Decode(&req)
 	}
-	now := time.Now().Unix()
+	now := time.Now().UTC()
 
 	var userID, sessionID string
 	if req.RefreshToken != "" {
@@ -524,7 +524,7 @@ func (h *Handler) verifyLoginCode(w http.ResponseWriter, r *http.Request, req Lo
 		httputil.WriteJSONError(w, http.StatusUnauthorized, "invalid otp")
 		return nil, false
 	}
-	redeemed, err := h.cfg.LoginCodes.ConsumeLoginCode(r.Context(), req.Otp, user.ID, time.Now().Unix())
+	redeemed, err := h.cfg.LoginCodes.ConsumeLoginCode(r.Context(), req.Otp, user.ID, time.Now().UTC())
 	if err != nil {
 		httputil.WriteInternalError(w, err, "auth handler error", "handler", "login", "stage", "consume_login_code")
 		return nil, false

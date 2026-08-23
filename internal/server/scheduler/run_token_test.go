@@ -20,7 +20,7 @@ type recordingRunner struct {
 	runIDs []string
 }
 
-func (r *recordingRunner) Run(_ context.Context, run model.TaskRun, runToken string) (string, *string, *int64, error) {
+func (r *recordingRunner) Run(_ context.Context, run model.TaskRun, runToken string) (string, *string, *time.Time, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.calls++

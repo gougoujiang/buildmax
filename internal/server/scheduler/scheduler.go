@@ -230,7 +230,7 @@ func (s *Scheduler) failRun(ctx context.Context, taskRunID string, cause error) 
 	if len(errorMsg) > maxErrorMessageLength {
 		errorMsg = errorMsg[:maxErrorMessageLength]
 	}
-	endedAt := time.Now().Unix()
+	endedAt := time.Now().UTC()
 	if err := s.taskRuns.UpdateRun(ctx, model.UpdateTaskRunInput{
 		TaskRunID:    taskRunID,
 		Status:       model.RunStatusFailed,

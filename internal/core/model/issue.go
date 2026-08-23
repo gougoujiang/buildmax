@@ -1,6 +1,9 @@
 package model
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 const (
 	IssueStatusTodo       = "todo"
@@ -27,18 +30,18 @@ const (
 // which is enforced in internal/service/issue, not by the schema. See
 // docs/design/issue-model.md.
 type Issue struct {
-	ID            string  `json:"id"`
-	UserID        string  `json:"user_id"`
-	TeamID        string  `json:"team_id,omitempty"`
-	ParentIssueID *string `json:"parent_issue_id,omitempty"`
-	Title         string  `json:"title"`
-	Description   string  `json:"description"`
-	Status        string  `json:"status"`
-	AssigneeKind  *string `json:"assignee_kind,omitempty"`
-	AssigneeID    *string `json:"assignee_id,omitempty"`
-	CreatedBy     string  `json:"created_by"`
-	CreatedAt     int64   `json:"created_at"`
-	UpdatedAt     int64   `json:"updated_at"`
+	ID            string    `json:"id"`
+	UserID        string    `json:"user_id"`
+	TeamID        string    `json:"team_id,omitempty"`
+	ParentIssueID *string   `json:"parent_issue_id,omitempty"`
+	Title         string    `json:"title"`
+	Description   string    `json:"description"`
+	Status        string    `json:"status"`
+	AssigneeKind  *string   `json:"assignee_kind,omitempty"`
+	AssigneeID    *string   `json:"assignee_id,omitempty"`
+	CreatedBy     string    `json:"created_by"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 type CreateIssueInput struct {
@@ -97,17 +100,17 @@ type IssueStore interface {
 // outlives any particular conversation and is never replayed. See
 // docs/design/issue-model.md.
 type IssueComment struct {
-	ID              string  `json:"id"`
-	IssueID         string  `json:"issue_id"`
-	AuthorKind      string  `json:"author_kind"`
-	AuthorID        string  `json:"author_id"`
-	Body            string  `json:"body"`
-	SourceTaskID    *string `json:"source_task_id,omitempty"`
-	SourceTaskRunID *string `json:"source_task_run_id,omitempty"`
-	CreatedAt       int64   `json:"created_at"`
+	ID              string    `json:"id"`
+	IssueID         string    `json:"issue_id"`
+	AuthorKind      string    `json:"author_kind"`
+	AuthorID        string    `json:"author_id"`
+	Body            string    `json:"body"`
+	SourceTaskID    *string   `json:"source_task_id,omitempty"`
+	SourceTaskRunID *string   `json:"source_task_run_id,omitempty"`
+	CreatedAt       time.Time `json:"created_at"`
 	// EditedAt is nil until the body is changed. Its absence is meaningful:
 	// it means the text is as first written.
-	EditedAt *int64 `json:"edited_at,omitempty"`
+	EditedAt *time.Time `json:"edited_at,omitempty"`
 }
 
 type CreateIssueCommentInput struct {

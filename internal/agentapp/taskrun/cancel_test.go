@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
@@ -95,7 +96,7 @@ func TestReportCanceledRunKeepsPartialWork(t *testing.T) {
 	updater := &fakeUpdater{}
 	scope := RunScope{CreatedBy: "u1", ConversationID: "c1", TaskID: "t1", TaskRunID: "r1"}
 	result := RunResult{
-		EndTime:         1_800_000_000,
+		EndTime:         time.Unix(1_800_000_000, 0).UTC(),
 		OutputStr:       "as far as I got",
 		Output:          []byte("as far as I got"),
 		RunArtifactsDir: artifactsDir,
@@ -124,8 +125,8 @@ func TestReportCanceledRunKeepsPartialWork(t *testing.T) {
 	if updater.req.Output == nil || *updater.req.Output != "as far as I got" {
 		t.Errorf("output = %v, want the partial reply the run had produced", updater.req.Output)
 	}
-	if updater.req.EndedAt == nil || *updater.req.EndedAt != result.EndTime {
-		t.Errorf("ended_at = %v, want %d", updater.req.EndedAt, result.EndTime)
+	if updater.req.EndedAt == nil || !updater.req.EndedAt.Equal(result.EndTime) {
+		t.Errorf("ended_at = %v, want %v", updater.req.EndedAt, result.EndTime)
 	}
 	if updater.req.Artifact == nil || len(updater.req.Artifact.RelativePaths) == 0 {
 		t.Fatalf("artifact = %v, want the files the run wrote before stopping", updater.req.Artifact)

@@ -2,6 +2,7 @@ package db
 
 import (
 	"testing"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 )
@@ -36,14 +37,14 @@ func TestEnqueueTaskResultDeliveryIsIdempotent(t *testing.T) {
 	s, ctx := newTestStore(t)
 	convID, runID := deliveryFixture(t, s, "delivery-enqueue")
 
-	if err := s.EnqueueTaskResultDelivery(ctx, runID, convID, 100); err != nil {
+	if err := s.EnqueueTaskResultDelivery(ctx, runID, convID, time.Unix(100, 0).UTC()); err != nil {
 		t.Fatalf("EnqueueTaskResultDelivery: %v", err)
 	}
-	if err := s.EnqueueTaskResultDelivery(ctx, runID, convID, 200); err != nil {
+	if err := s.EnqueueTaskResultDelivery(ctx, runID, convID, time.Unix(200, 0).UTC()); err != nil {
 		t.Fatalf("second EnqueueTaskResultDelivery: %v", err)
 	}
 
-	due, err := s.ListDueTaskResultDeliveries(ctx, 300, 10)
+	due, err := s.ListDueTaskResultDeliveries(ctx, time.Unix(300, 0).UTC(), 10)
 	if err != nil {
 		t.Fatalf("ListDueTaskResultDeliveries: %v", err)
 	}
@@ -51,8 +52,8 @@ func TestEnqueueTaskResultDeliveryIsIdempotent(t *testing.T) {
 	for _, d := range due {
 		if d.TaskRunID == runID {
 			found++
-			if d.NextAttemptAt != 100 {
-				t.Errorf("next_attempt_at = %d, want the first enqueue's, not the second's", d.NextAttemptAt)
+			if !d.NextAttemptAt.Equal(time.Unix(100, 0).UTC()) {
+				t.Errorf("next_attempt_at = %v, want the first enqueue's, not the second's", d.NextAttemptAt)
 			}
 		}
 	}
@@ -66,11 +67,11 @@ func TestEnqueueTaskResultDeliveryIsIdempotent(t *testing.T) {
 func TestClaimTaskResultDeliveryTakesItOnce(t *testing.T) {
 	s, ctx := newTestStore(t)
 	convID, runID := deliveryFixture(t, s, "delivery-claim")
-	if err := s.EnqueueTaskResultDelivery(ctx, runID, convID, 100); err != nil {
+	if err := s.EnqueueTaskResultDelivery(ctx, runID, convID, time.Unix(100, 0).UTC()); err != nil {
 		t.Fatal(err)
 	}
 
-	first, err := s.ClaimTaskResultDelivery(ctx, runID, 200, 900)
+	first, err := s.ClaimTaskResultDelivery(ctx, runID, time.Unix(200, 0).UTC(), time.Unix(900, 0).UTC())
 	if err != nil {
 		t.Fatalf("ClaimTaskResultDelivery: %v", err)
 	}
@@ -82,7 +83,7 @@ func TestClaimTaskResultDeliveryTakesItOnce(t *testing.T) {
 	}
 
 	// The same moment again: the claim pushed the next attempt to 900.
-	second, err := s.ClaimTaskResultDelivery(ctx, runID, 200, 900)
+	second, err := s.ClaimTaskResultDelivery(ctx, runID, time.Unix(200, 0).UTC(), time.Unix(900, 0).UTC())
 	if err != nil {
 		t.Fatalf("second ClaimTaskResultDelivery: %v", err)
 	}
@@ -96,18 +97,18 @@ func TestClaimTaskResultDeliveryTakesItOnce(t *testing.T) {
 func TestRecordTaskResultDeliveryFailureKeepsItOwed(t *testing.T) {
 	s, ctx := newTestStore(t)
 	convID, runID := deliveryFixture(t, s, "delivery-failure")
-	if err := s.EnqueueTaskResultDelivery(ctx, runID, convID, 100); err != nil {
+	if err := s.EnqueueTaskResultDelivery(ctx, runID, convID, time.Unix(100, 0).UTC()); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.ClaimTaskResultDelivery(ctx, runID, 200, 900); err != nil {
+	if _, err := s.ClaimTaskResultDelivery(ctx, runID, time.Unix(200, 0).UTC(), time.Unix(900, 0).UTC()); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := s.RecordTaskResultDeliveryFailure(ctx, runID, "the model refused", 260); err != nil {
+	if err := s.RecordTaskResultDeliveryFailure(ctx, runID, "the model refused", time.Unix(260, 0).UTC()); err != nil {
 		t.Fatalf("RecordTaskResultDeliveryFailure: %v", err)
 	}
 
-	due, err := s.ListDueTaskResultDeliveries(ctx, 260, 10)
+	due, err := s.ListDueTaskResultDeliveries(ctx, time.Unix(260, 0).UTC(), 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +131,7 @@ func TestRecordTaskResultDeliveryFailureKeepsItOwed(t *testing.T) {
 func TestFinishTaskResultDeliveryClosesIt(t *testing.T) {
 	s, ctx := newTestStore(t)
 	convID, runID := deliveryFixture(t, s, "delivery-finish")
-	if err := s.EnqueueTaskResultDelivery(ctx, runID, convID, 100); err != nil {
+	if err := s.EnqueueTaskResultDelivery(ctx, runID, convID, time.Unix(100, 0).UTC()); err != nil {
 		t.Fatal(err)
 	}
 
@@ -138,7 +139,7 @@ func TestFinishTaskResultDeliveryClosesIt(t *testing.T) {
 		t.Fatalf("FinishTaskResultDelivery: %v", err)
 	}
 
-	due, err := s.ListDueTaskResultDeliveries(ctx, 10_000, 10)
+	due, err := s.ListDueTaskResultDeliveries(ctx, time.Unix(10_000, 0).UTC(), 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,7 +148,7 @@ func TestFinishTaskResultDeliveryClosesIt(t *testing.T) {
 			t.Fatalf("a delivered report is still due: %+v", d)
 		}
 	}
-	claimed, err := s.ClaimTaskResultDelivery(ctx, runID, 10_000, 20_000)
+	claimed, err := s.ClaimTaskResultDelivery(ctx, runID, time.Unix(10_000, 0).UTC(), time.Unix(20_000, 0).UTC())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -152,7 +152,7 @@ func TestSetFirstPasswordNeedsOnlyTheSession(t *testing.T) {
 			ByID:    map[string]*model.User{"u1": user},
 		},
 		LoginCodes: &mock.MockLoginCodeStore{Codes: map[string]*mock.MockLoginCode{
-			"code-1": {UserID: "u1", ExpiresAt: time.Now().Add(time.Hour).Unix()},
+			"code-1": {UserID: "u1", ExpiresAt: time.Now().Add(time.Hour).UTC()},
 		}},
 		Passwords:     passwords,
 		RefreshTokens: &mock.MockRefreshTokenStore{},

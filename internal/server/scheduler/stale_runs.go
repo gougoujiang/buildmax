@@ -38,8 +38,8 @@ const staleRunLimit = 100
 
 // StaleRunStore is the narrow store surface the reaper needs.
 type StaleRunStore interface {
-	ListStaleTaskRuns(ctx context.Context, cutoffUnix int64, limit int) ([]model.TaskRun, error)
-	ListCancelRequestedTaskRuns(ctx context.Context, cutoffUnix int64, limit int) ([]model.TaskRun, error)
+	ListStaleTaskRuns(ctx context.Context, cutoff time.Time, limit int) ([]model.TaskRun, error)
+	ListCancelRequestedTaskRuns(ctx context.Context, cutoff time.Time, limit int) ([]model.TaskRun, error)
 	UpdateRun(ctx context.Context, in model.UpdateTaskRunInput) error
 	SyncTaskFromRun(ctx context.Context, taskRunID string) error
 }
@@ -134,7 +134,7 @@ func (c *StaleRunReaper) Sweep(ctx context.Context, now time.Time) {
 
 // sweepAbandoned fails runs whose worker never reported an outcome.
 func (c *StaleRunReaper) sweepAbandoned(ctx context.Context, now time.Time) {
-	stale, err := c.runs.ListStaleTaskRuns(ctx, now.Add(-c.timeout).Unix(), staleRunLimit)
+	stale, err := c.runs.ListStaleTaskRuns(ctx, now.Add(-c.timeout), staleRunLimit)
 	if err != nil {
 		c.log().WarnContext(ctx, "stale run sweep failed", "err", err)
 		return
@@ -151,7 +151,7 @@ func (c *StaleRunReaper) sweepAbandoned(ctx context.Context, now time.Time) {
 // abandoned ends as CANCELED. That is the more informative of the two answers:
 // it names why the run stopped, and the person who asked is the one waiting.
 func (c *StaleRunReaper) sweepCanceled(ctx context.Context, now time.Time) {
-	canceled, err := c.runs.ListCancelRequestedTaskRuns(ctx, now.Add(-c.cancelGrace).Unix(), staleRunLimit)
+	canceled, err := c.runs.ListCancelRequestedTaskRuns(ctx, now.Add(-c.cancelGrace), staleRunLimit)
 	if err != nil {
 		c.log().WarnContext(ctx, "canceled run sweep failed", "err", err)
 		return
@@ -169,7 +169,7 @@ func (c *StaleRunReaper) sweepCanceled(ctx context.Context, now time.Time) {
 // look identical.
 func (c *StaleRunReaper) finish(ctx context.Context, run model.TaskRun, status model.RunStatus, message string, now time.Time, logMsg string) {
 	ctx = buildmaxlog.With(ctx, "task_run_id", run.ID)
-	endedAt := now.Unix()
+	endedAt := now
 	if err := c.runs.UpdateRun(ctx, model.UpdateTaskRunInput{
 		TaskRunID:    run.ID,
 		Status:       status,

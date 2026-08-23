@@ -27,8 +27,8 @@ func (m *MockIssueStore) CreateIssueInTeam(_ context.Context, teamID, createdBy 
 		Description:   in.Description,
 		Status:        model.IssueStatusTodo,
 		CreatedBy:     createdBy,
-		CreatedAt:     time.Now().Unix(),
-		UpdatedAt:     time.Now().Unix(),
+		CreatedAt:     time.Now().UTC(),
+		UpdatedAt:     time.Now().UTC(),
 		AssigneeKind:  nil,
 		AssigneeID:    nil,
 	}
@@ -172,6 +172,6 @@ func (m *MockIssueStore) applyIssueUpdate(i int, in model.UpdateIssueInput) *mod
 			m.Issues[i].ParentIssueID = in.ParentIssueID
 		}
 	}
-	m.Issues[i].UpdatedAt = time.Now().Unix()
+	m.Issues[i].UpdatedAt = time.Now().UTC()
 	return &m.Issues[i]
 }

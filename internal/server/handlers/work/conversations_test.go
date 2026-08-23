@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -19,13 +20,13 @@ func TestGetConversationMessagesHandler_HidesSystemMessages(t *testing.T) {
 	channel := "system"
 	messageStore := &mock.MockConversationMessageStore{
 		Messages: []model.ConversationMessage{
-			{ID: "cm_1", ConversationID: conversationID, Role: "user", Content: "hello", CreatedAt: 1},
-			{ID: "cm_tool", ConversationID: conversationID, Role: "tool", Content: "tool output", CreatedAt: 2},
-			{ID: "cm_2", ConversationID: conversationID, Role: "system", Content: "[Task Result] internal", Channel: &channel, CreatedAt: 2},
+			{ID: "cm_1", ConversationID: conversationID, Role: "user", Content: "hello", CreatedAt: time.Unix(1, 0).UTC()},
+			{ID: "cm_tool", ConversationID: conversationID, Role: "tool", Content: "tool output", CreatedAt: time.Unix(2, 0).UTC()},
+			{ID: "cm_2", ConversationID: conversationID, Role: "system", Content: "[Task Result] internal", Channel: &channel, CreatedAt: time.Unix(2, 0).UTC()},
 			// What the runtime writes today: role "user" so the model replays it,
 			// system channel so the transcript knows the user did not type it.
-			{ID: "cm_task_result", ConversationID: conversationID, Role: "user", Content: "[Task Result] task_id: tk_1 | status: succeeded", Channel: &channel, CreatedAt: 2},
-			{ID: "cm_3", ConversationID: conversationID, Role: "assistant", Content: "final reply", CreatedAt: 3},
+			{ID: "cm_task_result", ConversationID: conversationID, Role: "user", Content: "[Task Result] task_id: tk_1 | status: succeeded", Channel: &channel, CreatedAt: time.Unix(2, 0).UTC()},
+			{ID: "cm_3", ConversationID: conversationID, Role: "assistant", Content: "final reply", CreatedAt: time.Unix(3, 0).UTC()},
 		},
 	}
 	h := New(Config{
@@ -36,7 +37,7 @@ func TestGetConversationMessagesHandler_HidesSystemMessages(t *testing.T) {
 		},
 		Conversations: &mock.MockConversationStore{
 			Conversations: []model.Conversation{
-				{ID: conversationID, UserID: "u1", TeamID: teamID, Channel: "portal", CreatedBy: "u1", CreatedAt: 123},
+				{ID: conversationID, UserID: "u1", TeamID: teamID, Channel: "portal", CreatedBy: "u1", CreatedAt: time.Unix(123, 0).UTC()},
 			},
 		},
 		Messages: messageStore,

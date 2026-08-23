@@ -1,6 +1,9 @@
 package model
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // Task result delivery statuses.
 const (
@@ -33,8 +36,8 @@ type TaskResultDelivery struct {
 	LastError *string
 	// NextAttemptAt is both the backoff and the lease: claiming pushes it out,
 	// so a second sweeper does not pick up a delivery already in flight.
-	NextAttemptAt int64
-	CreatedAt     int64
+	NextAttemptAt time.Time
+	CreatedAt     time.Time
 }
 
 // TaskResultDeliveryStore persists owed reports.
@@ -42,20 +45,20 @@ type TaskResultDeliveryStore interface {
 	// EnqueueTaskResultDelivery records that a run's outcome is owed to a
 	// conversation. It is idempotent per run: a run reported twice — by its
 	// worker and then by the reaper that gave up on it — owes one report.
-	EnqueueTaskResultDelivery(ctx context.Context, taskRunID, conversationID string, now int64) error
+	EnqueueTaskResultDelivery(ctx context.Context, taskRunID, conversationID string, now time.Time) error
 	// ListDueTaskResultDeliveries returns pending reports whose next attempt is
 	// due, oldest first.
-	ListDueTaskResultDeliveries(ctx context.Context, now int64, limit int) ([]TaskResultDelivery, error)
+	ListDueTaskResultDeliveries(ctx context.Context, now time.Time, limit int) ([]TaskResultDelivery, error)
 	// ClaimTaskResultDelivery takes one pending delivery that is due, counting
 	// the attempt and pushing its next one to nextAttemptAt. It returns nil
 	// when the delivery is not pending, not due, or was claimed by someone
 	// else — which is what keeps one run from being reported twice.
-	ClaimTaskResultDelivery(ctx context.Context, taskRunID string, now, nextAttemptAt int64) (*TaskResultDelivery, error)
+	ClaimTaskResultDelivery(ctx context.Context, taskRunID string, now, nextAttemptAt time.Time) (*TaskResultDelivery, error)
 	// FinishTaskResultDelivery closes a delivery as DELIVERED or ABANDONED.
 	FinishTaskResultDelivery(ctx context.Context, taskRunID, status string, lastError *string) error
 	// RecordTaskResultDeliveryFailure keeps a delivery pending, records why the
 	// last attempt did not succeed, and brings its next attempt forward. The
 	// claim pushed that time out far enough to protect a turn still running;
 	// an attempt that has already failed no longer needs protecting.
-	RecordTaskResultDeliveryFailure(ctx context.Context, taskRunID, lastError string, nextAttemptAt int64) error
+	RecordTaskResultDeliveryFailure(ctx context.Context, taskRunID, lastError string, nextAttemptAt time.Time) error
 }

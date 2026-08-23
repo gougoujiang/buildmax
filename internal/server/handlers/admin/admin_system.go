@@ -64,12 +64,12 @@ type AdminSystemResponse struct {
 	AllowSignup        bool           `json:"allow_signup"`
 	TaskRuns           map[string]int `json:"task_runs"`
 	SystemAdmins       int            `json:"system_admins"`
-	ServerTime         int64          `json:"server_time"`
+	ServerTime         time.Time      `json:"server_time"`
 }
 
 type adminSchemaMigration struct {
-	ID        string `json:"id"`
-	AppliedAt int64  `json:"applied_at"`
+	ID        string    `json:"id"`
+	AppliedAt time.Time `json:"applied_at"`
 }
 
 type adminDependency struct {
@@ -100,7 +100,7 @@ func (h *Handler) adminSystemHandler(w http.ResponseWriter, r *http.Request) {
 		SandboxSurface:     h.cfg.Deployment.SandboxSurface,
 		AllowSignup:        h.cfg.Deployment.AllowSignup,
 		TaskRuns:           map[string]int{},
-		ServerTime:         time.Now().Unix(),
+		ServerTime:         time.Now().UTC(),
 	}
 
 	for _, dep := range h.cfg.DependencyProbes {

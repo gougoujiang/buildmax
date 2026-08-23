@@ -92,7 +92,7 @@ func (h *Handler) createAdminGrantHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	grant, err := h.cfg.Grants.GrantSystemRole(r.Context(), req.UserID, role, actorID, time.Now().Unix())
+	grant, err := h.cfg.Grants.GrantSystemRole(r.Context(), req.UserID, role, actorID, time.Now().UTC())
 	switch {
 	case errors.Is(err, model.ErrSystemGrantExists):
 		httputil.WriteJSONError(w, http.StatusConflict, "the account already holds this role")
@@ -146,7 +146,7 @@ func (h *Handler) deleteAdminGrantHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	revoked, err := h.cfg.Grants.RevokeSystemRole(r.Context(), userID, role, time.Now().Unix())
+	revoked, err := h.cfg.Grants.RevokeSystemRole(r.Context(), userID, role, time.Now().UTC())
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_delete_grant", "user_id", userID)
 		return

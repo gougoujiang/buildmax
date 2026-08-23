@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -44,7 +45,7 @@ func (s *Store) ListRunOutputsByConversation(ctx context.Context, conversationID
 		TaskRunID        string
 		ConversationID   string
 		UserID           string
-		CreatedAt        int64
+		CreatedAt        time.Time
 		TaskInputSnippet string
 	}
 	if err := s.db.WithContext(ctx).Raw(q, args...).Scan(&rows).Error; err != nil {

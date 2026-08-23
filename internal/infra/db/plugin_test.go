@@ -6,10 +6,12 @@ import (
 	"errors"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/core/plugin/inspect"
+	"github.com/gougoujiang/buildmax/internal/util"
 )
 
 // The store is the only implementation of the catalog contract, so a mismatch
@@ -64,13 +66,13 @@ func TestPluginArchivedAndYanked(t *testing.T) {
 	if (model.Plugin{}).Archived() {
 		t.Error("a live entry is not archived")
 	}
-	if !(model.Plugin{ArchivedAt: 1}).Archived() {
+	if !(model.Plugin{ArchivedAt: util.Ptr(time.Unix(1, 0).UTC())}).Archived() {
 		t.Error("a retired entry is archived")
 	}
 	if (model.PluginRelease{}).Yanked() {
 		t.Error("a published release is not yanked")
 	}
-	if !(model.PluginRelease{YankedAt: 1}).Yanked() {
+	if !(model.PluginRelease{YankedAt: util.Ptr(time.Unix(1, 0).UTC())}).Yanked() {
 		t.Error("a withdrawn release is yanked")
 	}
 }
@@ -236,7 +238,7 @@ func TestPluginReleaseYank(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if again.YankedBy != admin || again.YankedAt != got.YankedAt {
+	if again.YankedBy != admin || again.YankedAt == nil || !again.YankedAt.Equal(*got.YankedAt) {
 		t.Errorf("second yank rewrote the record: %+v", again)
 	}
 	if err := s.YankPluginRelease(ctx, name, "9.9.9", admin, ""); !errors.Is(err, model.ErrNotFound) {

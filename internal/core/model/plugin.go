@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/plugin/inspect"
 )
@@ -35,14 +36,14 @@ type Plugin struct {
 	// ArchivedAt hides the entry from the default catalog and refuses new
 	// releases. It never deletes anything: a local copy someone installed keeps
 	// working, and the record still explains where that copy came from.
-	ArchivedAt int64  `json:"archived_at,omitempty"`
-	CreatedBy  string `json:"created_by"`
-	CreatedAt  int64  `json:"created_at"`
-	UpdatedAt  int64  `json:"updated_at"`
+	ArchivedAt *time.Time `json:"archived_at,omitempty"`
+	CreatedBy  string     `json:"created_by"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
 }
 
 // Archived reports whether the entry has been retired.
-func (p Plugin) Archived() bool { return p.ArchivedAt != 0 }
+func (p Plugin) Archived() bool { return p.ArchivedAt != nil }
 
 // PluginRelease is one immutable published version.
 type PluginRelease struct {
@@ -66,19 +67,19 @@ type PluginRelease struct {
 	// digest, the server cannot verify it, so it is presented as a claim.
 	Source PluginReleaseSource `json:"source"`
 
-	PublishedBy string `json:"published_by"`
-	PublishedAt int64  `json:"published_at"`
+	PublishedBy string    `json:"published_by"`
+	PublishedAt time.Time `json:"published_at"`
 
 	// YankedAt removes the release from default selection without deleting it.
 	// An existing local copy keeps working, and an exact version can still be
 	// recovered by someone who acknowledges the state.
-	YankedAt     int64  `json:"yanked_at,omitempty"`
-	YankedBy     string `json:"yanked_by,omitempty"`
-	YankedReason string `json:"yanked_reason,omitempty"`
+	YankedAt     *time.Time `json:"yanked_at,omitempty"`
+	YankedBy     string     `json:"yanked_by,omitempty"`
+	YankedReason string     `json:"yanked_reason,omitempty"`
 }
 
 // Yanked reports whether the release has been withdrawn from default selection.
-func (r PluginRelease) Yanked() bool { return r.YankedAt != 0 }
+func (r PluginRelease) Yanked() bool { return r.YankedAt != nil }
 
 // PluginInspection is what a release says it contributes.
 //

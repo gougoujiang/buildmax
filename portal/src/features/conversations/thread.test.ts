@@ -2,8 +2,14 @@ import { describe, expect, it } from "vitest"
 import type { ApiConversationMessage, ApiTask } from "../../lib/api/types"
 import { buildConversationThread, taskRunFailed, taskRunFinished } from "./thread"
 
+// The tests order entries by a small seed; the wire carries RFC 3339, whose
+// lexicographic order over UTC instants is chronological order.
+function instant(seed: number): string {
+  return new Date(seed * 1000).toISOString()
+}
+
 function message(id: string, at: number, role = "user"): ApiConversationMessage {
-  return { id, role, content: id, created_at: at }
+  return { id, role, content: id, created_at: instant(at) }
 }
 
 function task(id: string, at: number, status = "RUNNING"): ApiTask {
@@ -15,7 +21,7 @@ function task(id: string, at: number, status = "RUNNING"): ApiTask {
     input: id,
     output: null,
     created_by: "u1",
-    created_at: at,
+    created_at: instant(at),
     started_at: null,
     ended_at: null,
     error_message: null,

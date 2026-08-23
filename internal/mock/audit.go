@@ -24,8 +24,8 @@ func (m *MockAuditStore) RecordAuditEvent(_ context.Context, in model.AuditEvent
 	// Stamped here because the real store stamps it, and a caller that reads
 	// its own writes back through a time filter — the quota service does — sees
 	// nothing at all if a recorded event stays at time zero.
-	if in.CreatedAt == 0 {
-		in.CreatedAt = time.Now().Unix()
+	if in.CreatedAt.IsZero() {
+		in.CreatedAt = time.Now().UTC()
 	}
 	m.Events = append(m.Events, in)
 	return nil
@@ -84,8 +84,8 @@ func (m *MockAuditStore) exportPage(keep func(model.AuditEvent) bool, after mode
 		}
 	}
 	sort.SliceStable(matched, func(i, j int) bool {
-		if matched[i].event.CreatedAt != matched[j].event.CreatedAt {
-			return matched[i].event.CreatedAt > matched[j].event.CreatedAt
+		if !matched[i].event.CreatedAt.Equal(matched[j].event.CreatedAt) {
+			return matched[i].event.CreatedAt.After(matched[j].event.CreatedAt)
 		}
 		return matched[i].seq > matched[j].seq
 	})
@@ -115,8 +115,8 @@ func (m *MockAuditStore) exportPage(keep func(model.AuditEvent) bool, after mode
 }
 
 // PruneAuditEvents removes events older than the cutoff, at most limit of them.
-func (m *MockAuditStore) PruneAuditEvents(_ context.Context, before int64, limit int) (int64, error) {
-	if before <= 0 {
+func (m *MockAuditStore) PruneAuditEvents(_ context.Context, before time.Time, limit int) (int64, error) {
+	if before.IsZero() {
 		return 0, nil
 	}
 	if limit <= 0 {
@@ -125,7 +125,7 @@ func (m *MockAuditStore) PruneAuditEvents(_ context.Context, before int64, limit
 	kept := make([]model.AuditEvent, 0, len(m.Events))
 	var removed int64
 	for _, e := range m.Events {
-		if e.CreatedAt < before && removed < int64(limit) {
+		if e.CreatedAt.Before(before) && removed < int64(limit) {
 			removed++
 			continue
 		}
@@ -136,10 +136,10 @@ func (m *MockAuditStore) PruneAuditEvents(_ context.Context, before int64, limit
 }
 
 // OldestAuditEventAt returns the earliest recorded timestamp, or zero.
-func (m *MockAuditStore) OldestAuditEventAt(_ context.Context) (int64, error) {
-	var oldest int64
+func (m *MockAuditStore) OldestAuditEventAt(_ context.Context) (time.Time, error) {
+	var oldest time.Time
 	for _, e := range m.Events {
-		if oldest == 0 || e.CreatedAt < oldest {
+		if oldest.IsZero() || e.CreatedAt.Before(oldest) {
 			oldest = e.CreatedAt
 		}
 	}
@@ -159,10 +159,10 @@ func matchesAuditFilter(e model.AuditEvent, filter model.AuditFilter) bool {
 	if filter.Action != "" && e.Action != filter.Action {
 		return false
 	}
-	if filter.Since > 0 && e.CreatedAt < filter.Since {
+	if !filter.Since.IsZero() && e.CreatedAt.Before(filter.Since) {
 		return false
 	}
-	if filter.Until > 0 && e.CreatedAt >= filter.Until {
+	if !filter.Until.IsZero() && !e.CreatedAt.Before(filter.Until) {
 		return false
 	}
 	return true

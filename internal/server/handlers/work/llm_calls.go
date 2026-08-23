@@ -2,6 +2,7 @@ package work
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
@@ -26,9 +27,9 @@ type LLMCallSummary struct {
 	Alias     string `json:"alias,omitempty"`
 	Streaming bool   `json:"streaming"`
 
-	AcceptedAt   int64  `json:"accepted_at"`
-	FirstDeltaAt *int64 `json:"first_delta_at,omitempty"`
-	CompletedAt  *int64 `json:"completed_at,omitempty"`
+	AcceptedAt   time.Time  `json:"accepted_at"`
+	FirstDeltaAt *time.Time `json:"first_delta_at,omitempty"`
+	CompletedAt  *time.Time `json:"completed_at,omitempty"`
 
 	Status     string  `json:"status"`
 	ErrorClass *string `json:"error_class,omitempty"`

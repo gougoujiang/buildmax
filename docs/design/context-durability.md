@@ -323,8 +323,8 @@ Storage — a new field on `session.Session`, persisted in the session file:
 // Note is one durable session note. Notes survive history compaction and are
 // re-rendered on every model call.
 type Note struct {
-    Text      string `json:"text"`
-    WrittenAt int    `json:"written_at"` // iteration index, for staleness judgement
+    Text             string `json:"text"`
+    WrittenIteration int    `json:"written_iteration"` // iteration index, for staleness judgement
 }
 ```
 
@@ -521,7 +521,7 @@ trimmed, so unbounded growth there is worse than losing a message.
   threshold — a task-level generalization of the existing `loopGuard`
   (`internal/core/agent/policy.go:36`). Deliberately deferred: it needs the
   stateful todo from §5.3 to exist first, and it should be designed against
-  observed drift rather than guessed thresholds. The `written_at` field is
+  observed drift rather than guessed thresholds. The `written_iteration` field is
   specified now so the data is available when that design starts.
 - **Note-taking by sub-agents as a feature.** Sub-agent runs are short and
   their result is returned to the parent, so nothing is designed around them

@@ -145,8 +145,8 @@ func TestSaveLoad_DurableStateRoundTrip(t *testing.T) {
 	if len(loaded.Notes()) != 1 || loaded.Notes()[0].Text != "the client is the lessee" {
 		t.Fatalf("notes = %+v, want the stored note", loaded.Notes())
 	}
-	if loaded.Notes()[0].WrittenAt != 12 {
-		t.Errorf("note WrittenAt = %d, want 12", loaded.Notes()[0].WrittenAt)
+	if loaded.Notes()[0].WrittenIteration != 12 {
+		t.Errorf("note WrittenIteration = %d, want 12", loaded.Notes()[0].WrittenIteration)
 	}
 	if len(loaded.Todos()) != 1 || loaded.Todos()[0].Status != agent.TodoInProgress {
 		t.Errorf("todos = %+v, want one in-progress entry", loaded.Todos())

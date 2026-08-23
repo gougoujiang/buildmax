@@ -23,7 +23,7 @@ const LoginCodeTTLDefault = time.Hour
 type LoginCodeStore interface {
 	// CreateLoginCode issues a single-use code for userID and returns the
 	// plaintext, which is never stored and cannot be recovered afterwards.
-	CreateLoginCode(ctx context.Context, userID string, ttl time.Duration) (plaintext string, expiresAt int64, err error)
+	CreateLoginCode(ctx context.Context, userID string, ttl time.Duration) (plaintext string, expiresAt time.Time, err error)
 
 	// ConsumeLoginCode redeems a code that was issued to userID. A code that
 	// is unknown, already used, expired, or issued to somebody else returns
@@ -36,5 +36,5 @@ type LoginCodeStore interface {
 	// that spent the code first and checked the account afterwards burned it
 	// on a typo, and the person retrying with the right address was then
 	// refused for a reason nobody could see.
-	ConsumeLoginCode(ctx context.Context, plaintext, userID string, now int64) (redeemed bool, err error)
+	ConsumeLoginCode(ctx context.Context, plaintext, userID string, now time.Time) (redeemed bool, err error)
 }

@@ -67,9 +67,10 @@ func (f *MockPluginStore) SetPluginArchived(_ context.Context, name string, arch
 		return model.ErrNotFound
 	}
 	if archived {
-		p.ArchivedAt = 1
+		at := seqTime(1)
+		p.ArchivedAt = &at
 	} else {
-		p.ArchivedAt = 0
+		p.ArchivedAt = nil
 	}
 	return nil
 }
@@ -118,8 +119,9 @@ func (f *MockPluginStore) ListPluginReleases(_ context.Context, name string) ([]
 func (f *MockPluginStore) YankPluginRelease(_ context.Context, name, version, actor, reason string) error {
 	for _, r := range f.releases[name] {
 		if r.Version == version {
-			if r.YankedAt == 0 {
-				r.YankedAt, r.YankedBy, r.YankedReason = 1, actor, reason
+			if r.YankedAt == nil {
+				at := seqTime(1)
+				r.YankedAt, r.YankedBy, r.YankedReason = &at, actor, reason
 			}
 			return nil
 		}

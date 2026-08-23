@@ -1,8 +1,8 @@
 import type { ApiConversationMessage, ApiTask } from "../../lib/api/types"
 
 export type ThreadEntry =
-  | { kind: "message"; at: number; message: ApiConversationMessage }
-  | { kind: "task"; at: number; task: ApiTask }
+  | { kind: "message"; at: string; message: ApiConversationMessage }
+  | { kind: "task"; at: string; task: ApiTask }
 
 /**
  * Whether a task's run is over, in the vocabulary the server actually stores.
@@ -44,7 +44,7 @@ export function buildConversationThread(
   return entries
     .map((entry, index) => ({ entry, index }))
     .sort((a, b) => {
-      if (a.entry.at !== b.entry.at) return a.entry.at - b.entry.at
+      if (a.entry.at !== b.entry.at) return a.entry.at < b.entry.at ? -1 : 1
       if (a.entry.kind !== b.entry.kind) return a.entry.kind === "message" ? -1 : 1
       return a.index - b.index
     })

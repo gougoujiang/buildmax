@@ -16,8 +16,8 @@ import (
 type schemaMigrationRow struct {
 	// ID is the migration's permanent identifier. 191 characters is the
 	// longest indexable varchar under MySQL's utf8mb4 index limit.
-	ID        string `gorm:"column:id;type:varchar(191);primaryKey"`
-	AppliedAt int64  `gorm:"column:applied_at;not null"`
+	ID        string    `gorm:"column:id;type:varchar(191);primaryKey"`
+	AppliedAt time.Time `gorm:"column:applied_at;not null"`
 }
 
 func (schemaMigrationRow) TableName() string { return "schema_migration" }
@@ -95,7 +95,7 @@ func runMigrations(ctx context.Context, db *gorm.DB) error {
 		if err := m.Apply(ctx, db); err != nil {
 			return fmt.Errorf("migration %s: %w", m.ID, err)
 		}
-		row := schemaMigrationRow{ID: m.ID, AppliedAt: time.Now().Unix()}
+		row := schemaMigrationRow{ID: m.ID, AppliedAt: time.Now().UTC()}
 		if err := db.WithContext(ctx).Create(&row).Error; err != nil {
 			return fmt.Errorf("record migration %s: %w", m.ID, err)
 		}

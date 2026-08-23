@@ -3,8 +3,9 @@ package db
 import (
 	"context"
 	"errors"
-	"github.com/gougoujiang/buildmax/internal/core/model"
 	"time"
+
+	"github.com/gougoujiang/buildmax/internal/core/model"
 
 	"github.com/gougoujiang/buildmax/internal/util"
 	"gorm.io/gorm"
@@ -21,11 +22,11 @@ type issueRow struct {
 	Status        string  `gorm:"type:varchar(32);not null"`
 	// AssigneeID stays an opaque handle: assignee_kind admits person, agent, or
 	// workflow, and one numeric column cannot name rows in three tables.
-	AssigneeKind *string `gorm:"type:varchar(32)"`
-	AssigneeID   *string `gorm:"type:varchar(64)"`
-	CreatedBy    uint64  `gorm:"column:created_by;not null"`
-	CreatedAt    int64   `gorm:"autoCreateTime"`
-	UpdatedAt    int64   `gorm:"autoUpdateTime;index:idx_issue_team_updated,priority:2"`
+	AssigneeKind *string   `gorm:"type:varchar(32)"`
+	AssigneeID   *string   `gorm:"type:varchar(64)"`
+	CreatedBy    uint64    `gorm:"column:created_by;not null"`
+	CreatedAt    time.Time `gorm:"autoCreateTime"`
+	UpdatedAt    time.Time `gorm:"autoUpdateTime;index:idx_issue_team_updated,priority:2"`
 }
 
 func (issueRow) TableName() string { return "issue" }
@@ -99,7 +100,7 @@ func (s *Store) CreateIssue(ctx context.Context, userID string, in model.CreateI
 
 // CreateIssueInTeam creates a team-scoped issue with default status todo.
 func (s *Store) CreateIssueInTeam(ctx context.Context, teamID, createdBy string, in model.CreateIssueInput) (*model.Issue, error) {
-	now := time.Now().Unix()
+	now := time.Now().UTC()
 	row := &issueRow{
 		Title:       in.Title,
 		Description: in.Description,
@@ -329,7 +330,7 @@ func (s *Store) UpdateIssueInTeam(ctx context.Context, issueID, teamID string, i
 
 func (s *Store) updateIssue(ctx context.Context, issueID string, in model.UpdateIssueInput) (*model.Issue, error) {
 	updates := map[string]interface{}{
-		"updated_at": time.Now().Unix(),
+		"updated_at": time.Now().UTC(),
 	}
 	if in.Title != nil {
 		updates["title"] = *in.Title

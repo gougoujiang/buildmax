@@ -8,7 +8,7 @@ import (
 // MockLoginCode is one issued code in MockLoginCodeStore.
 type MockLoginCode struct {
 	UserID    string
-	ExpiresAt int64
+	ExpiresAt time.Time
 	Used      bool
 }
 
@@ -20,12 +20,12 @@ type MockLoginCodeStore struct {
 	Issued     []string
 }
 
-func (m *MockLoginCodeStore) CreateLoginCode(_ context.Context, userID string, ttl time.Duration) (string, int64, error) {
+func (m *MockLoginCodeStore) CreateLoginCode(_ context.Context, userID string, ttl time.Duration) (string, time.Time, error) {
 	if m.Codes == nil {
 		m.Codes = make(map[string]*MockLoginCode)
 	}
 	plaintext := "mock-code-" + userID
-	expiresAt := time.Now().Add(ttl).Unix()
+	expiresAt := time.Now().UTC().Add(ttl)
 	m.Codes[plaintext] = &MockLoginCode{UserID: userID, ExpiresAt: expiresAt}
 	m.Issued = append(m.Issued, plaintext)
 	return plaintext, expiresAt, nil
@@ -34,12 +34,12 @@ func (m *MockLoginCodeStore) CreateLoginCode(_ context.Context, userID string, t
 // ConsumeLoginCode mirrors the real store: unknown, spent, expired, and
 // somebody else's codes are all reported the same way, as not redeemed rather
 // than as an error, and only a match is marked used.
-func (m *MockLoginCodeStore) ConsumeLoginCode(_ context.Context, plaintext, userID string, now int64) (bool, error) {
+func (m *MockLoginCodeStore) ConsumeLoginCode(_ context.Context, plaintext, userID string, now time.Time) (bool, error) {
 	if m.ConsumeErr != nil {
 		return false, m.ConsumeErr
 	}
 	code, ok := m.Codes[plaintext]
-	if !ok || code.Used || code.ExpiresAt <= now || code.UserID != userID {
+	if !ok || code.Used || !code.ExpiresAt.After(now) || code.UserID != userID {
 		return false, nil
 	}
 	code.Used = true

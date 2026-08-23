@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"slices"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 )
@@ -20,7 +21,7 @@ import (
 // nowhere to put a value that changes on every dispatch. See
 // docs/design/worker-run-token.md.
 type WorkerRunner interface {
-	Run(ctx context.Context, run model.TaskRun, runToken string) (workerType string, k8sJobName *string, k8sJobCreatedAt *int64, err error)
+	Run(ctx context.Context, run model.TaskRun, runToken string) (workerType string, k8sJobName *string, k8sJobCreatedAt *time.Time, err error)
 }
 
 // LocalRunner runs the worker binary as a local process (blocks until exit).
@@ -51,7 +52,7 @@ func NewLocalRunner(workerPath string, env []string, runTokenEnvKey string) *Loc
 //
 // The run token is placed in the child's environment rather than on its command
 // line, where every process on the machine could read it.
-func (r *LocalRunner) Run(ctx context.Context, run model.TaskRun, runToken string) (workerType string, k8sJobName *string, k8sJobCreatedAt *int64, err error) {
+func (r *LocalRunner) Run(ctx context.Context, run model.TaskRun, runToken string) (workerType string, k8sJobName *string, k8sJobCreatedAt *time.Time, err error) {
 	componentLog("worker_runner").InfoContext(ctx, "spawning worker", "task_run_id", run.ID, "task_id", run.TaskID)
 	cmd := exec.CommandContext(ctx, r.workerPath, "--task-run-id", run.ID)
 	cmd.Env = r.env

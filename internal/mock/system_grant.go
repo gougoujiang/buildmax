@@ -3,6 +3,7 @@ package mock
 import (
 	"context"
 	"sort"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 )
@@ -24,7 +25,7 @@ func (m *MockSystemGrantStore) GrantForTest(userID, role string) {
 		UserID:    userID,
 		Role:      role,
 		GrantedBy: model.AuditActorOperator,
-		GrantedAt: 1,
+		GrantedAt: seqTime(1),
 	})
 }
 
@@ -51,11 +52,11 @@ func (m *MockSystemGrantStore) ListSystemGrants(_ context.Context, includeRevoke
 			out = append(out, g)
 		}
 	}
-	sort.SliceStable(out, func(i, j int) bool { return out[i].GrantedAt > out[j].GrantedAt })
+	sort.SliceStable(out, func(i, j int) bool { return out[i].GrantedAt.After(out[j].GrantedAt) })
 	return out, nil
 }
 
-func (m *MockSystemGrantStore) GrantSystemRole(_ context.Context, userID, role, grantedBy string, now int64) (*model.SystemGrant, error) {
+func (m *MockSystemGrantStore) GrantSystemRole(_ context.Context, userID, role, grantedBy string, now time.Time) (*model.SystemGrant, error) {
 	if m.Err != nil {
 		return nil, m.Err
 	}
@@ -78,7 +79,7 @@ func (m *MockSystemGrantStore) GrantSystemRole(_ context.Context, userID, role, 
 	return &grant, nil
 }
 
-func (m *MockSystemGrantStore) RevokeSystemRole(_ context.Context, userID, role string, now int64) (bool, error) {
+func (m *MockSystemGrantStore) RevokeSystemRole(_ context.Context, userID, role string, now time.Time) (bool, error) {
 	if m.Err != nil {
 		return false, m.Err
 	}

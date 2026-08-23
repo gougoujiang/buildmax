@@ -126,7 +126,7 @@ export function actorLabel(event: ApiAuditEvent, currentUserId?: string): string
   return event.actor_id
 }
 
-export function formatEventTime(seconds: number): string {
-  if (!seconds) return "—"
-  return new Date(seconds * 1000).toLocaleString()
+export function formatEventTime(rfc3339: string): string {
+  if (!rfc3339) return "—"
+  return new Date(rfc3339).toLocaleString()
 }
