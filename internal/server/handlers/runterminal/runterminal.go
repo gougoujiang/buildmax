@@ -16,6 +16,9 @@ type Announcer struct {
 	Hub  websocket.StreamHub
 	// On receives the outcome. Nil means nobody is listening beyond the hub.
 	On func(ctx context.Context, info model.TaskRunTerminalInfo)
+	// Group owns the callback goroutines so a shutdown can wait for them. Nil
+	// spawns them unowned, which is what a test that never stops has.
+	Group *Group
 }
 
 // Every terminal outcome goes through here — reported by a worker or written by
@@ -46,10 +49,10 @@ func (a *Announcer) Announce(ctx context.Context, taskRunID, status string, outp
 		Output:         output,
 		ErrorMessage:   errorMessage,
 	}
-	go func() {
+	a.Group.Go(func() {
 		slog.Default().Info("firing task run terminal callbacks", "task_run_id", info.TaskRunID, "status", info.Status)
 		if a.On != nil {
 			a.On(context.Background(), info)
 		}
-	}()
+	})
 }

@@ -43,6 +43,12 @@ data:
     # Private deployments normally invite users rather than letting anyone in.
     allow_signup: false
 
+    # The whole budget for an orderly stop: drain connections, let in-flight
+    # runs report, stop the background loops. Keep it below
+    # terminationGracePeriodSeconds minus the preStop sleep, or the kubelet
+    # kills the process partway through.
+    shutdown_grace: 25s
+
     database:
       host: REPLACE_ME_DB_HOST
       port: 3306
@@ -198,6 +204,10 @@ spec:
         app: buildmax-server
     spec:
       serviceAccountName: buildmax-server
+      # Must exceed shutdown_grace in the ConfigMap plus the preStop sleep
+      # below, or the kubelet kills the process partway through an orderly
+      # stop. See docs/design/graceful-shutdown.md.
+      terminationGracePeriodSeconds: 45
       securityContext:
         runAsNonRoot: true
         runAsUser: 65532
@@ -239,6 +249,15 @@ spec:
               port: http
             initialDelaySeconds: 15
             periodSeconds: 10
+          # The kubelet sends SIGTERM and removes the endpoint at the same
+          # time, so without this pause a request admitted during propagation
+          # meets a closed listener. Five seconds of a draining server — which
+          # answers /readyz with 503 and finishes what it accepted — turns that
+          # into an ordinary retry.
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sleep", "5"]
           # Schema migrations run at startup, so give the first pod of an
           # upgrade room to finish before liveness starts counting.
           startupProbe:

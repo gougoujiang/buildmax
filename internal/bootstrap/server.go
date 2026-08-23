@@ -6,8 +6,10 @@ import (
 	"github.com/gougoujiang/buildmax/internal/server/handlers/admin"
 	"log/slog"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/config"
@@ -125,31 +127,163 @@ func RunServer(ctx context.Context, portOverride int) error {
 	// So that work queued by an account an administrator has disabled does not
 	// start after the disable.
 	sched.WithUserStore(store).Start()
-	defer sched.Stop()
 
 	cleaner := scheduler.NewCredentialCleaner(store, 0)
 	cleaner.Start()
-	defer cleaner.Stop()
 
 	reaper := scheduler.NewStaleRunReaper(store, sc.Worker.RunTimeout, 0)
 	reaper.Start()
-	defer reaper.Stop()
 
 	// Nil unless the operator set a retention window, so a deployment that
 	// never chose one keeps every event.
 	retainer := scheduler.NewAuditRetainer(store, store, sc.Audit.RetentionDays, 0)
 	retainer.Start()
-	defer retainer.Stop()
 
 	s := httpserver.New(serverConfig)
+	s.StartBackground()
 	slog.Info("server starting",
 		"addr", serverConfig.Addr,
 		"version", config.Version,
 		"commit", config.Commit,
 	)
-	err = s.Run()
+
+	signalCtx, stopSignals := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+	defer stopSignals()
+
+	serveErr := make(chan error, 1)
+	go func() { serveErr <- s.ListenAndServe() }()
+
+	select {
+	case err := <-serveErr:
+		// The listener failed before any signal — a taken port, a bad address.
+		// Nothing has started serving, so there is nothing to drain.
+		shutdownServer(context.Background(), targetsFor(s, sched, cleaner, reaper, retainer), httpserver.NewShutdownBudget(0))
+		return err
+	case <-signalCtx.Done():
+	}
+
+	// Stop listening for signals before the ladder starts: a second Ctrl-C
+	// should abort a shutdown that is taking too long, not be swallowed by the
+	// handler that is already running one.
+	stopSignals()
+	slog.Info("shutdown requested", "grace", sc.ShutdownGrace)
+	shutdownServer(ctx, targetsFor(s, sched, cleaner, reaper, retainer), httpserver.NewShutdownBudget(sc.ShutdownGrace))
+
 	slog.Info("server stopped")
-	return err
+	return <-serveErr
+}
+
+// serverLifecycle is the shutdown surface of the HTTP server. An interface
+// because the order below is the whole point of this code, and a test that
+// cannot observe the order cannot defend it.
+type serverLifecycle interface {
+	Drain()
+	Shutdown(ctx context.Context) error
+	StopBackground(ctx context.Context)
+}
+
+// namedStop is a background loop and the name it is reported under when it
+// overruns its share of the budget.
+type namedStop struct {
+	name string
+	stop func()
+}
+
+// shutdownTargets is everything RunServer started, in one value so the ladder
+// below reads as a sequence rather than as argument plumbing.
+type shutdownTargets struct {
+	server serverLifecycle
+	// scheduler stops before the HTTP server, not after: what it dispatches
+	// reports back over the API.
+	scheduler namedStop
+	// loops are the sweeps that need nothing from anyone, so they stop last.
+	loops []namedStop
+}
+
+// targetsFor names what RunServer started in the order the ladder stops it.
+func targetsFor(s *httpserver.Server, sched *scheduler.Scheduler, cleaner *scheduler.CredentialCleaner, reaper *scheduler.StaleRunReaper, retainer *scheduler.AuditRetainer) shutdownTargets {
+	return shutdownTargets{
+		server:    s,
+		scheduler: namedStop{name: "scheduler", stop: sched.Stop},
+		loops: []namedStop{
+			{name: "audit retainer", stop: retainer.Stop},
+			{name: "stale run reaper", stop: reaper.Stop},
+			{name: "credential cleaner", stop: cleaner.Stop},
+		},
+	}
+}
+
+// shutdownServer walks the shutdown ladder from docs/design/graceful-shutdown.md §3.
+//
+// The order is not stylistic. A worker reports its outcome over this server's
+// own HTTP API, so the listener has to outlive the runs — which is why the
+// scheduler stops above the HTTP shutdown rather than in a defer below it.
+// Every rung is bounded: a stop that hangs is worse than one that loses a
+// little work.
+func shutdownServer(ctx context.Context, t shutdownTargets, budget httpserver.ShutdownBudget) {
+	// Rung 1: out of the load balancer, and watcher streams told to go
+	// elsewhere. Immediate, and everything below is quieter for it.
+	t.server.Drain()
+
+	// Rungs 2-3: no new run is claimed, and the runs already dispatched get
+	// their window — while the API they report to is still listening.
+	//
+	// The window is not yet honoured in local_process mode: Stop blocks until
+	// the worker process it spawned exits, and nothing signals that process
+	// yet. Phase 3 of the design record makes this bounded; until then the
+	// timeout below is what keeps a local deployment from hanging forever, at
+	// the cost of leaving an orphan worker behind.
+	stopWithin(ctx, budget.Workers, t.scheduler.name, t.scheduler.stop)
+
+	// Rungs 4-6: streams have already been told (rung 1) and get their moment
+	// to return before ordinary requests are drained and the listener closes.
+	sleepWithin(ctx, budget.Streams)
+	requestCtx, cancelRequests := context.WithTimeout(ctx, budget.Requests)
+	defer cancelRequests()
+	if err := t.server.Shutdown(requestCtx); err != nil {
+		slog.Warn("some requests did not finish before shutdown", "err", err)
+	}
+
+	// Rung 7: last, because everything above could still have enqueued work
+	// here — a run reported during rung 3 fires terminal callbacks.
+	backgroundCtx, cancelBackground := context.WithTimeout(ctx, budget.Background)
+	defer cancelBackground()
+	t.server.StopBackground(backgroundCtx)
+	for _, loop := range t.loops {
+		stopWithin(ctx, budget.Background, loop.name, loop.stop)
+	}
+}
+
+// stopWithin runs stop, which blocks until its loop has finished, and gives up
+// waiting after limit. Giving up leaks the goroutine, which is acceptable
+// exactly here: the process is about to exit anyway, and the alternative is a
+// shutdown that never completes.
+func stopWithin(ctx context.Context, limit time.Duration, name string, stop func()) {
+	done := make(chan struct{})
+	go func() {
+		stop()
+		close(done)
+	}()
+	timer := time.NewTimer(limit)
+	defer timer.Stop()
+	select {
+	case <-done:
+	case <-timer.C:
+		slog.Warn("component did not stop within its shutdown budget", "component", name, "budget", limit)
+	case <-ctx.Done():
+		slog.Warn("shutdown abandoned while stopping a component", "component", name)
+	}
+}
+
+// sleepWithin waits out a phase that has nothing to wait on — the moment
+// watcher streams need to notice the drain and return.
+func sleepWithin(ctx context.Context, d time.Duration) {
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+	case <-ctx.Done():
+	}
 }
 
 func resolveWorkspacesDir(fromConfig string) (string, error) {

@@ -597,6 +597,7 @@ jwt_secret: ""                       # inject via BUILDMAX_JWT_SECRET in product
 access_token_ttl: 168h               # signed, unstored — this is how long a leaked one works
 refresh_token_ttl: 720h              # a stored row, so a session can be revoked before it expires
 refresh_rotation_grace: 30s          # window for processes sharing one credentials file to refresh at once
+shutdown_grace: 25s                  # whole budget for an orderly stop; keep below the orchestrator's kill deadline
 cors_origin: http://localhost:5173
 workspaces_dir: /data/buildmax/workspaces
 default_quota_tier: free_trial
@@ -661,6 +662,19 @@ never stored, so nothing can retire one early — `access_token_ttl` is the wind
 in which a leaked one still works. A refresh token is a database row, so
 `refresh_token_ttl` is how long a session can be renewed, not how long it is
 beyond reach. See [deploy/authentication.md](../deploy/authentication.md).
+
+`shutdown_grace` is the whole budget for stopping the server in order, and
+defaults to **25s**. On SIGINT or SIGTERM the server stops reporting ready so a
+load balancer takes it out, ends the streams watching a run so the Portal
+resubscribes elsewhere, drains the requests it already accepted, and then stops
+its background loops. The phases are derived from this number rather than
+configured one by one.
+
+Keep it below whatever kills the process if the stop takes too long —
+`terminationGracePeriodSeconds` on Kubernetes, `TimeoutStopSec` under systemd —
+including any `preStop` hook. The reference manifests in
+[`deployment/`](../../deployment/) set both together. Design:
+[design/graceful-shutdown.md](../design/graceful-shutdown.md).
 
 People sign in with an email address and a password. `allow_signup` defaults to
 **false**, so nobody registers themselves; create accounts from the server and

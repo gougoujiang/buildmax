@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cancelTask, retryTask } from "./api"
+import { cancelTask, retryTask, subscribeTaskStream } from "./api"
 import { taskIsRetryable, taskIsStoppable } from "../../lib/taskStatus"
 
 function jsonResponse(status: number, body: unknown): Response {
@@ -106,5 +106,74 @@ describe("taskIsStoppable", () => {
     expect(taskIsStoppable("success")).toBe(false)
     expect(taskIsStoppable("failed")).toBe(false)
     expect(taskIsStoppable("canceled")).toBe(false)
+  })
+})
+
+/** A Response whose body streams the given SSE frames, one chunk each. */
+function sseResponse(frames: string[]): Response {
+  const encoder = new TextEncoder()
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const frame of frames) controller.enqueue(encoder.encode(frame))
+      controller.close()
+    },
+  })
+  return new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } })
+}
+
+describe("subscribeTaskStream", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    vi.useRealTimers()
+  })
+
+  // The run lives on the server. A stream that ended because the instance was
+  // stopping must not be reported as a finished run.
+  it("reopens the stream on a draining event instead of reporting completion", async () => {
+    vi.useFakeTimers()
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(sseResponse(["data: partial\n\n", "event: draining\ndata: \n\n"]))
+      .mockResolvedValueOnce(sseResponse(["data: rest\n\n", "data: done\n\n"]))
+    vi.stubGlobal("fetch", fetchMock)
+
+    const deltas: string[] = []
+    let done = 0
+    let failed: Error | null = null
+    subscribeTaskStream("tm1", "t1", "token", {
+      onDelta: (text) => deltas.push(text),
+      onDone: () => {
+        done += 1
+      },
+      onError: (err) => {
+        failed = err
+      },
+    })
+
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(deltas).toContain("partial"))
+    expect(done).toBe(0)
+
+    await vi.advanceTimersByTimeAsync(1000)
+
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() => expect(deltas).toContain("rest"))
+    await vi.waitFor(() => expect(done).toBe(1))
+    expect(failed).toBeNull()
+  })
+
+  it("reports a stream that simply ended as done", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(sseResponse(["data: only\n\n"])))
+
+    let done = 0
+    subscribeTaskStream("tm1", "t1", "token", {
+      onDelta: () => {},
+      onDone: () => {
+        done += 1
+      },
+      onError: () => {},
+    })
+
+    await vi.waitFor(() => expect(done).toBe(1))
   })
 })

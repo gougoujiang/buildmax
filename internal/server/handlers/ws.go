@@ -14,6 +14,13 @@ import (
 // browser cannot set one on a WebSocket upgrade. Everything after "who is this
 // and which team" belongs to internal/server/websocket.
 func (h *Handler) wsUpgradeHandler(w http.ResponseWriter, r *http.Request) {
+	// A socket opened now would be hijacked past the shutdown that is already
+	// running, and its first turn refused anyway. The Portal reconnects with
+	// backoff, so refusing sends it to an instance that will still be here.
+	if h.draining() {
+		http.Error(w, "this server is shutting down", http.StatusServiceUnavailable)
+		return
+	}
 	tokenStr := r.URL.Query().Get("token")
 	if tokenStr == "" {
 		http.Error(w, "token required", http.StatusUnauthorized)

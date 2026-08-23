@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"github.com/gougoujiang/buildmax/internal/server/handlers/admin"
+	"github.com/gougoujiang/buildmax/internal/server/handlers/runterminal"
 	"github.com/gougoujiang/buildmax/internal/server/turnqueue"
 	"sync"
 	"time"
@@ -144,6 +145,14 @@ type Config struct {
 	// Nil means a report that fails is not retried, which is what a deployment
 	// with no database has.
 	TaskResultDeliveries model.TaskResultDeliveryStore
+
+	// Drain is closed when the server is going away. Watcher streams — the ones
+	// that only observe state living in the database — end on it so they stop
+	// holding the shutdown open, and so the browser knows to resubscribe
+	// somewhere else. Streams that carry work in progress deliberately ignore
+	// it. Nil means nothing ever drains, which is what a test has.
+	// See docs/design/graceful-shutdown.md §5.
+	Drain <-chan struct{}
 }
 
 // Handler serves all HTTP routes: auth, user API, worker API, inbound webhook.
@@ -154,6 +163,10 @@ type Handler struct {
 	// turns serializes the turns of one conversation and queues the rest. It is
 	// server-scoped, not connection-scoped — see turnqueue.Registry.
 	turns *turnqueue.Registry
+	// terminal owns the callbacks a finished run fires. Server-scoped for the
+	// same reason: a shutdown has to wait for all of them, not for the ones one
+	// request happened to start.
+	terminal *runterminal.Group
 
 	// sweeper retries the reports this server owes. Started by the server that
 	// owns this handler, not by construction: a test builds handlers freely and
@@ -173,5 +186,6 @@ func NewHandler(cfg Config) *Handler {
 		hub:          hub,
 		connRegistry: wsconn.NewConnRegistry(),
 		turns:        turnqueue.NewRegistry(),
+		terminal:     runterminal.NewGroup(),
 	}
 }

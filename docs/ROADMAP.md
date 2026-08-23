@@ -219,6 +219,10 @@ Focus:
   catalog and call ledger exist; aliases are deployment-wide, not per-team
   (see [design/llm-gateway.md](design/llm-gateway.md) for what is and is not
   implemented)
+- an orderly stop: a restart or a rolling upgrade drains connections, stops
+  claiming runs, and lets an interrupted run report what happened instead of
+  sitting in `RUNNING` until the stale-run reaper closes it
+  (see [design/graceful-shutdown.md](design/graceful-shutdown.md))
 
 Code state:
 
@@ -358,5 +362,6 @@ recovers. The immediate work is therefore evidence-first.
 - [design/local-background-jobs.md](design/local-background-jobs.md) — P0.5 local background jobs and monitors for TUI and Desktop
 - [design/enterprise-deployment.md](design/enterprise-deployment.md) — P3 Enterprise deployment design
 - [design/llm-gateway.md](design/llm-gateway.md) — P3 Managed LLM gateway design
+- [design/graceful-shutdown.md](design/graceful-shutdown.md) — P3 shutdown ladder for server, scheduler, and worker
 - [design/team-governance.md](design/team-governance.md) — P4 Team governance design
 - [design/system-administration.md](design/system-administration.md) — P4 Deployment-scoped system administration design

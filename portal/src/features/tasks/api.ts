@@ -163,6 +163,9 @@ export async function retryTask(
   return res.json() as Promise<RetryTaskResponse>
 }
 
+/** How long to wait before reopening a stream the server closed to shut down. */
+const DRAINING_RETRY_MS = 1000
+
 export function subscribeTaskStream(
   teamId: string,
   taskId: string,
@@ -171,34 +174,57 @@ export function subscribeTaskStream(
 ): () => void {
   const url = `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/tasks/${encodeURIComponent(taskId)}/stream`
   const controller = new AbortController()
+  let retryTimer: ReturnType<typeof setTimeout> | null = null
 
-  void apiFetch(url, { headers: authHeaders(token), signal: controller.signal })
-    .then(async (res) => {
-      if (!res.ok) {
-        const msg = await parseErrorResponse(res, "Stream failed")
-        callbacks.onError(new Error(msg))
-        return
-      }
+  const open = () => {
+    if (controller.signal.aborted) return
+    // The run lives on the server, not in this connection, so a stream that
+    // ended because the instance was stopping is reopened rather than reported
+    // as a finished run.
+    let reopening = false
 
-      await readSSEStream(res, {
-        onData: (data) => {
-          if (data === "done") {
-            callbacks.onDone()
+    void apiFetch(url, { headers: authHeaders(token), signal: controller.signal })
+      .then(async (res) => {
+        if (!res.ok) {
+          const msg = await parseErrorResponse(res, "Stream failed")
+          callbacks.onError(new Error(msg))
+          return
+        }
+
+        await readSSEStream(res, {
+          onData: (data) => {
+            if (data === "done") {
+              callbacks.onDone()
+              return false
+            }
+            callbacks.onDelta(data)
+          },
+          onEvent: (event) => {
+            if (event !== "draining") return
+            reopening = true
+            retryTimer = setTimeout(open, DRAINING_RETRY_MS)
             return false
-          }
-          callbacks.onDelta(data)
-        },
-        onDone: callbacks.onDone,
-        onError: (err) => {
-          if (err.name === "AbortError") return
-          callbacks.onError(err)
-        },
+          },
+          onDone: () => {
+            if (reopening) return
+            callbacks.onDone()
+          },
+          onError: (err) => {
+            if (err.name === "AbortError") return
+            callbacks.onError(err)
+          },
+        })
       })
-    })
-    .catch((err) => {
-      if ((err as Error).name === "AbortError") return
-      callbacks.onError(err instanceof Error ? err : new Error(String(err)))
-    })
+      .catch((err) => {
+        if ((err as Error).name === "AbortError") return
+        callbacks.onError(err instanceof Error ? err : new Error(String(err)))
+      })
+  }
 
-  return () => controller.abort()
+  open()
+
+  return () => {
+    if (retryTimer) clearTimeout(retryTimer)
+    controller.abort()
+  }
 }

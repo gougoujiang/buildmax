@@ -74,6 +74,17 @@ type Config struct {
 	// OnTerminal closes out a run cancelled here, reaching the listeners a
 	// worker's own report reaches.
 	OnTerminal func(ctx context.Context, info model.TaskRunTerminalInfo)
+
+	// TerminalGroup owns the callbacks a cancel here fires, so a shutdown waits
+	// for them instead of dropping them.
+	TerminalGroup *runterminal.Group
+
+	// Drain is closed when the server is going away, and ends the task stream —
+	// a watcher of state that lives in the database, so resubscribing elsewhere
+	// loses nothing. The conversation streams in this package ignore it: they
+	// carry a turn being produced, which no other instance can take over.
+	// See docs/design/graceful-shutdown.md §5.
+	Drain <-chan struct{}
 }
 
 type Handler struct{ cfg Config }
@@ -156,5 +167,5 @@ func (h *Handler) Register(mux *http.ServeMux) {
 // runAnnouncer closes out a run cancelled here, reaching the same listeners a
 // worker's own report does.
 func (h *Handler) runAnnouncer() *runterminal.Announcer {
-	return &runterminal.Announcer{Runs: h.cfg.TaskRuns, Hub: h.cfg.Hub, On: h.cfg.OnTerminal}
+	return &runterminal.Announcer{Runs: h.cfg.TaskRuns, Hub: h.cfg.Hub, On: h.cfg.OnTerminal, Group: h.cfg.TerminalGroup}
 }

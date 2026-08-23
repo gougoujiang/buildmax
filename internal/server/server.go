@@ -7,9 +7,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/server/handlers/admin"
 	"log/slog"
 	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
+	"sync"
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/llm"
@@ -32,7 +30,12 @@ import (
 //go:embed static/openapi.json static/swagger.html
 var staticFS embed.FS
 
-const shutdownTimeout = 10 * time.Second
+// readHeaderTimeout and idleTimeout bound connections that are doing nothing
+// useful. Both matter to shutdown — see the http.Server literal in New.
+const (
+	readHeaderTimeout = 10 * time.Second
+	idleTimeout       = 120 * time.Second
+)
 
 // RunOutputLister lists run outputs (artifacts) by conversation and gets output files for a run.
 type RunOutputLister interface {
@@ -158,11 +161,16 @@ type Server struct {
 	// handlers is kept so the server can run and stop the background work the
 	// API surface owns — see StartBackground.
 	handlers *handlers.Handler
+	// drain is closed once this server is going away. It is a channel rather
+	// than a flag because watcher streams block on it: a Portal tab following a
+	// run has to be told, not polled. See docs/design/graceful-shutdown.md §5.
+	drain     chan struct{}
+	drainOnce sync.Once
 }
 
 // New builds an HTTP server with routes for healthz, readyz, openapi, swagger, and all API handlers.
 func New(cfg Config) *Server {
-	s := &Server{cfg: cfg}
+	s := &Server{cfg: cfg, drain: make(chan struct{})}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", healthzHandler)
@@ -172,7 +180,7 @@ func New(cfg Config) *Server {
 	mux.HandleFunc("GET /swagger/index.html", swaggerUIHandler)
 	mux.HandleFunc("GET /swagger", swaggerUIHandler)
 
-	s.handlers = handlers.NewHandler(buildHandlersConfig(cfg))
+	s.handlers = handlers.NewHandler(buildHandlersConfig(cfg, s.drain))
 	s.handlers.Register(mux)
 
 	handler := http.Handler(mux)
@@ -183,11 +191,22 @@ func New(cfg Config) *Server {
 	s.srv = &http.Server{
 		Addr:    cfg.Addr,
 		Handler: handler,
+		// A connection that never completes its header is neither idle nor
+		// active, so Shutdown neither closes it nor finishes waiting for it.
+		// It is also the slowloris surface.
+		ReadHeaderTimeout: readHeaderTimeout,
+		// Bounds how many keep-alive connections are still open when draining
+		// starts. Shutdown closes idle ones immediately, so fewer here is a
+		// shorter drain.
+		IdleTimeout: idleTimeout,
+		// ReadTimeout and WriteTimeout stay unset on purpose. An artifact
+		// upload is legitimately slow to read, and a write deadline would
+		// truncate every SSE stream and every long managed model call.
 	}
 	return s
 }
 
-func buildHandlersConfig(cfg Config) handlers.Config {
+func buildHandlersConfig(cfg Config, drain <-chan struct{}) handlers.Config {
 	msgPath := cfg.Webhook.MessagePath
 	if msgPath == "" {
 		msgPath = "message"
@@ -258,6 +277,7 @@ func buildHandlersConfig(cfg Config) handlers.Config {
 		WebhookEngine:            webhookEngine,
 		WebhookMessagePath:       msgPath,
 		OnTaskRunTerminal:        buildOnTaskRunTerminal(cfg),
+		Drain:                    drain,
 	}
 }
 
@@ -316,32 +336,64 @@ func (s *Server) Handler() http.Handler {
 	return s.srv.Handler
 }
 
-// Run starts the server and blocks until shutdown (SIGINT/SIGTERM). Returns nil or the shutdown error.
-func (s *Server) Run() error {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
-	// Started here rather than in New so building a handler never starts a
-	// goroutine, and stopped before returning so a shutdown does not leave one
-	// sweeping a database the process is done with.
-	s.handlers.StartBackground()
-	defer s.handlers.StopBackground()
-
-	go func() {
-		<-ctx.Done()
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
-		defer cancel()
-		if err := s.srv.Shutdown(shutdownCtx); err != nil {
-			slog.Warn("server shutdown", "err", err)
-		}
-	}()
-
-	err := s.srv.ListenAndServe()
-	if err != nil && err != http.ErrServerClosed {
+// ListenAndServe serves until Shutdown is called, and reports nil for the
+// orderly stop that causes.
+//
+// It does not install a signal handler. Stopping this process is a sequence
+// that reaches further than the HTTP surface — see docs/design/graceful-shutdown.md
+// — and the layer that assembles the scheduler and the background loops is the
+// only one that can walk it in the right order.
+func (s *Server) ListenAndServe() error {
+	if err := s.srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
-	slog.Info("server stopped")
 	return nil
+}
+
+// StartBackground launches the background work the API surface owns.
+//
+// Called by whoever runs the server rather than by New, so that building a
+// handler — which a test does freely — never starts a goroutine.
+func (s *Server) StartBackground() { s.handlers.StartBackground() }
+
+// StopBackground stops that work and waits for it, bounded by ctx.
+func (s *Server) StopBackground(ctx context.Context) { s.handlers.StopBackground(ctx) }
+
+// Drain marks this server as going away: /readyz starts answering 503 so the
+// load balancer stops sending it new work, and watcher streams return so they
+// stop holding the drain open. It is idempotent and does not wait.
+//
+// Requests in flight are untouched. Ending them is Shutdown's job, one rung
+// further down.
+func (s *Server) Drain() {
+	s.drainOnce.Do(func() {
+		close(s.drain)
+		s.handlers.BeginDrain()
+		slog.Info("server draining")
+	})
+}
+
+// Draining reports whether Drain has been called.
+func (s *Server) Draining() bool {
+	select {
+	case <-s.drain:
+		return true
+	default:
+		return false
+	}
+}
+
+// Shutdown stops accepting connections and waits for the work in flight,
+// bounded by ctx. It also drains, so a caller that stops the server without
+// walking the whole ladder still takes it out of the load balancer first.
+//
+// Conversation turns are waited for first and explicitly: one reached over a
+// WebSocket lives on a hijacked connection, which http.Server.Shutdown returns
+// without waiting for.
+func (s *Server) Shutdown(ctx context.Context) error {
+	s.Drain()
+	s.handlers.WaitTurns(ctx)
+	return s.srv.Shutdown(ctx)
 }
 
 func serveStatic(w http.ResponseWriter, path, contentType string) {
