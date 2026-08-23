@@ -192,10 +192,8 @@ models:                              # first entry is the default model
   #   context_window: 200000
   #   max_tokens: 8192               # 0 = built-in default (8192)
 
-  # - model: Fast                    # a catalog name, not a provider model id
-  #   name: Team Default
-  #   transport: buildmax
-  #   server_url: https://buildmax.example.com
+default_model: GPT-5.6 Luna          # which entry a new session starts with;
+                                     # omit and the first one is used
 
 hooks: {}                            # see guide/hooks.md
 sandbox: {}                          # see guide/sandbox.md
@@ -205,8 +203,9 @@ sandbox: {}                          # see guide/sandbox.md
 |---|---|---|
 | `log_level` | `info` | Logs go to `<BUILDMAX_HOME>/logs/buildmax.log` only, never to the terminal, so the TUI stays clean. |
 | `server_url` | — | Only used as the prompt default for `buildmax login`. |
-| `models[]` | — | One model the CLI can run. Select one per run with `--model <id or name>`. |
-| `models[].provider` | `openai_compatible` | The wire protocol the endpoint speaks — see below. Ignored by a `buildmax` entry, where the deployment's catalog decides. |
+| `models[]` | — | One model the CLI can run while signed out. Select one per run with `--model <id or name>`. |
+| `default_model` | first entry | Which entry a new session starts with, by name or model id. Applies while signed out; a deployment names its own default. |
+| `models[].provider` | `openai_compatible` | The wire protocol the endpoint speaks — see below. |
 | `models[].max_tokens` | `0` | Cap on one response. `0` means the protocol's default; `anthropic` requires the field, so `0` there sends the built-in 8192. |
 | `models[].reasoning` | `off` | How much the model reasons before answering: `off`, `low`, `medium`, or `high` — see below. No effect on `openai_compatible`, which carries none. |
 | `models[].cache_control` | `auto` | Which calls ask the provider to cache the stable prefix of a request, and for how long — see below. |
@@ -214,8 +213,6 @@ sandbox: {}                          # see guide/sandbox.md
 | `models[].integration` | — | A qualified OpenAI-compatible gateway. None is qualified, so any value is refused today. |
 | `models[].vision` | `false` | This model accepts image input. Leave it off and an image a tool returns is described in text rather than sent. |
 | `models[].keep_alive` | — | How long a local runtime keeps the model loaded after a call: a duration such as `30m`, `0` to unload at once, `-1` to stay resident. Only `ollama` reads it. |
-| `models[].transport` | `direct` | `direct` calls a provider from this machine. `buildmax` calls a server's managed gateway. |
-| `models[].server_url` | — | Required for `buildmax` transport: which deployment serves the call. |
 
 ### Model providers
 
@@ -469,53 +466,52 @@ no credential in either case. See
 
 ### Managed models
 
-A `transport: buildmax` entry calls a BuildMax deployment instead of a provider,
-so the server holds the provider credential and decides which models it offers.
-Its `model` field is the **catalog name** an operator added the model under, not
-a provider model id. Every model a deployment offers is available to every user
-of it — a team is a collaboration boundary, not a model authorization boundary.
-List what a deployment offers with:
+Signing in switches this machine to a deployment's models, and signing out
+switches back:
 
 ```bash
-buildmax models --server
+buildmax login        # models now come from that deployment
+buildmax models       # what it offers, and that prompts go there
+buildmax logout       # back to the models in settings.yaml
 ```
 
-`buildmax models` also prints where every configured model sends prompts, and
-`buildmax doctor` reports a managed entry that is missing `server_url`, or whose
-login is absent, expired, or for a different server.
+There is nothing to configure for it. A deployment holds the provider
+credentials and its catalog is fetched on each start, so `settings.yaml`
+describes only the models a signed-out session runs on. Every model a deployment
+offers is available to every user of it — a team is a collaboration boundary,
+not a model authorization boundary.
 
 The credential is never written into `settings.yaml`. It comes from
-`buildmax login` and is only used when the stored login belongs to that entry's
-`server_url` — a mismatch fails rather than sending the token to whatever host
-the file names.
+`buildmax login`, and only the login for the server being called is used — a
+mismatch fails rather than sending the token to whatever host was named.
 
-Model selection is first-match by file order: `--model` and `/model` match a
-name or a model id against `models[]` top to bottom, and the first entry is the
-default. Two entries sharing a name are therefore not interchangeable — the
-lower one is unreachable — which is why `buildmax models` and the model pickers
-print each entry's destination.
+Model selection within a mode is first-match by name or model id, and
+`default_model` names which entry a new session starts with. In managed mode the
+deployment names its own default.
 
-Three limits worth knowing before you rely on this:
+Three things worth knowing before you rely on this:
 
-- **There is no fallback between the modes.** A managed entry does not quietly
-  become a direct call when the server is down, because that would redirect
-  governed traffic to a personal provider key. Configure both entries and pick.
+- **The two modes never mix, and neither covers for the other.** A signed-in
+  session sees only the deployment's models; a signed-out one sees only
+  settings.yaml. A server that is down does not quietly become a local call,
+  because that would redirect governed traffic to a personal provider key — the
+  session refuses to start and says so. `buildmax logout` is the way to local
+  models, and it is a decision rather than a fallback.
 - **The login renews itself, until it does not.** The access token is refreshed
-  automatically before each managed call that would otherwise use an expired
-  one, so a long-lived session keeps working without another login code. When
-  the refresh token itself expires or its session is revoked, calls fail with a
-  clear error and you re-run `buildmax login`. See
-  [design/llm-gateway.md](../design/llm-gateway.md) section 11.
-- **Workers may use either transport; the evaluation harness stays direct.** A
-  task-run worker follows `worker.llm.transport`: `buildmax` gives it a
-  run-scoped credential and no provider key, while `direct` gives it the
-  deployment's configured provider access. `eval/` stays direct so benchmark
-  results do not move with team model policy or quota.
+  automatically before each call that would otherwise use an expired one, so a
+  long-lived session keeps working without another login code. When the refresh
+  token itself expires or its session is revoked, the session stops and asks you
+  to sign in again or sign out.
+- **Workers follow the deployment, and the evaluation harness stays direct.** A
+  task-run worker uses `worker.llm.transport`: `buildmax` gives it a run-scoped
+  credential and no provider key, while `direct` gives it the deployment's
+  configured provider access. `eval/` stays direct so benchmark results do not
+  move with a deployment's catalog or quota.
 
-Prompts, tool schemas, and tool results pass through the server for a managed
-call. That is the point of the mode, and it is a real change in where your data
-goes — which is why the model picker and `buildmax models` always name the
-destination.
+Prompts, tool schemas, and tool results pass through the server in managed mode.
+That is the point of it, and it is a real change in where your data goes — which
+is why `buildmax models`, the model pickers, and the TUI footer all name the
+mode.
 | `hooks` | empty | Lifecycle hooks. Reference: [guide/hooks.md](../guide/hooks.md). |
 | `sandbox` | disabled | Bash sandboxing. Reference: [guide/sandbox.md](../guide/sandbox.md). |
 | `tools.permissions` | empty | Per-tool approval rules. See below. |
