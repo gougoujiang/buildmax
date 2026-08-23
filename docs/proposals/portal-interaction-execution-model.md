@@ -146,20 +146,19 @@ back into server requests.
 
 ### Result Delivery Is Not Durable
 
-Phase 0 took the terminal callback off the socket. It no longer looks for a
-connection belonging to `created_by`, no longer skips when there is none, and no
-longer picks the first of several; the invalidation is broadcast to the team and
-the Tier 1 turn is submitted to the server's turn queue. What remains is the
-durability half:
+Resolved. Phase 0 took the terminal callback off the socket: it no longer looks
+for a connection belonging to `created_by`, no longer skips when there is none,
+and no longer picks the first of several. Phase 3 made the delivery durable:
 
-- the system turn uses an in-memory queue and is dropped when the queue is full;
-- a server restart loses turns that have not started;
-- no outbox, delivery row, or reconciler repairs a missed result reply.
+- a report refused because the turn queue is full stays owed and is retried;
+- a restart no longer loses a report, because the obligation is a row rather
+  than a queued closure;
+- `task_result_delivery` is the outbox, and the sweep is the reconciler.
 
-The documented promise that a result always returns to the originating
-Conversation is therefore still not true for the natural-language reply. The
-result itself is no longer at risk: TaskRun is durable and the Conversation now
-reads its card from the database.
+What is bounded rather than guaranteed is the number of attempts. A report that
+keeps failing is abandoned with its reason recorded — a lost sentence about the
+result, not a lost result, since TaskRun is durable and the Conversation reads
+its card from the database.
 
 ### The Original Intent Is Not Traceably Connected To Execution
 
@@ -788,14 +787,25 @@ This phase does not predefine `ResearchAgent`, `CodingAgent`, or other fixed
 classes. Existing Agent definitions and usage evidence should first establish
 which categories are stable.
 
-### Phase 3: Make Presentation Optional
+### Phase 3: Make Presentation Optional — shipped, except the last bullet
 
-- remove natural-language result summary from the terminal callback's critical
-  path;
-- use durable delivery/outbox when automatic summary is required;
-- retry summary independently while making TaskRun output immediately visible;
-- evaluate generating structured summary during Tier 2 execution to avoid an
-  extra call.
+- ~~remove natural-language result summary from the terminal callback's critical
+  path~~ — the callback records the report and returns; the turn runs on the
+  turn queue and nothing waits for it;
+- ~~use durable delivery/outbox when automatic summary is required~~ —
+  `task_result_delivery`, one row per run, claimed so two servers cannot report
+  one run twice;
+- ~~retry summary independently while making TaskRun output immediately
+  visible~~ — the output was made visible in phase 0 by the task card, and the
+  summary is now retried on a sweep, bounded and with the reason recorded;
+- evaluate generating a structured summary during Tier 2 execution to avoid an
+  extra call — still open, and still an evaluation rather than a decision.
+
+The durability boundary is worth stating plainly: what is durable is the
+*obligation* to report, not the report. A deployment that never gets a model
+call to succeed abandons the report after a bounded number of attempts. That is
+not a lost result — the outcome is on `task_run` and the conversation's card
+reads it directly — it is a lost sentence about the result.
 
 ### Phase 4: Remove Conversation Ownership
 

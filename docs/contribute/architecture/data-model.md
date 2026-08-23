@@ -762,6 +762,44 @@ table; both migrations are in `internal/infra/db/migration.go`.
 It is not `artifact`, below. This is a run's index of the files it left in its
 own output directory; that is a durable object a team keeps.
 
+### `task_result_delivery`
+
+One report the server owes: a run that finished and a conversation that has not
+yet been told. One row per run.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | `bigint unsigned` | no | Internal primary key |
+| `task_run_id` | `bigint unsigned` | no | `task_run.id`, unique — one run owes one report |
+| `conversation_id` | `bigint unsigned` | no | `conversation.id` the report is owed to |
+| `status` | `varchar(16)` | no | `PENDING`, `DELIVERED`, or `ABANDONED` |
+| `attempts` | `int` | no | Claims, not failures: an attempt that died mid-flight still counts |
+| `last_error` | `text` | yes | Why the last attempt did not succeed |
+| `next_attempt_at` | `bigint` | no | Both the backoff and the claim lease |
+| `created_at` | `bigint` | yes | `autoCreateTime` |
+| `updated_at` | `bigint` | yes | `autoUpdateTime` |
+
+Indexes: PK `id`; unique `uq_task_result_delivery_run` on `task_run_id`; index
+`idx_task_result_delivery_due` on (`status`, `next_attempt_at`).
+
+No public handle: nothing addresses a delivery from outside. It is machinery the
+server owes itself.
+
+What the report says is not stored. It is derived from the run on each attempt,
+so a retry reports the run as it is rather than as it was when the first attempt
+was made, and there is one copy of the outcome rather than two that can disagree.
+
+`next_attempt_at` does double duty. Claiming a delivery pushes it out by a lease
+long enough to cover a turn still running, which is what stops two servers
+reporting one run; a failed attempt then pulls it back in by the backoff, since
+an attempt that has already failed no longer needs the protection. A process
+that dies mid-attempt leaves the lease in place and the delivery is retried when
+it expires.
+
+`ABANDONED` is a bounded give-up, not a lost result. The outcome is on
+`task_run` and a conversation's task card reads it directly; what is abandoned
+is the sentence Tier 1 would have written about it.
+
 ### `artifact`
 
 One durable file the team owns, with one immutable content object. Content

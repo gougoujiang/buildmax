@@ -55,24 +55,27 @@ type AuthConfig struct {
 
 // StoresConfig holds entity store interfaces used by handlers.
 type StoresConfig struct {
-	UserStore           model.UserStore
-	LoginCodeStore      model.LoginCodeStore
-	PasswordStore       model.PasswordStore
-	RefreshTokenStore   model.RefreshTokenStore
-	TeamStore           model.TeamStore
-	WorkflowStore       model.WorkflowStore
-	AgentStore          model.AgentStore
-	IssueStore          model.IssueStore
-	IssueCommentStore   model.IssueCommentStore
-	TaskStore           model.TaskStore
-	TaskRunStore        model.TaskRunStore
-	LLMCallStore        model.LLMCallStore
-	RunOutputLister     RunOutputLister
-	UserWebhookKeyStore model.UserWebhookKeyStore
-	AuditStore          model.AuditStore
-	SystemGrantStore    model.SystemGrantStore
-	SchemaStore         model.SchemaStore
-	LLMModelStore       model.LLMModelStore
+	UserStore         model.UserStore
+	LoginCodeStore    model.LoginCodeStore
+	PasswordStore     model.PasswordStore
+	RefreshTokenStore model.RefreshTokenStore
+	TeamStore         model.TeamStore
+	WorkflowStore     model.WorkflowStore
+	AgentStore        model.AgentStore
+	IssueStore        model.IssueStore
+	IssueCommentStore model.IssueCommentStore
+	TaskStore         model.TaskStore
+	TaskRunStore      model.TaskRunStore
+	// TaskResultDeliveryStore records the reports the server owes finished
+	// runs. Nil means a report that fails is not retried.
+	TaskResultDeliveryStore model.TaskResultDeliveryStore
+	LLMCallStore            model.LLMCallStore
+	RunOutputLister         RunOutputLister
+	UserWebhookKeyStore     model.UserWebhookKeyStore
+	AuditStore              model.AuditStore
+	SystemGrantStore        model.SystemGrantStore
+	SchemaStore             model.SchemaStore
+	LLMModelStore           model.LLMModelStore
 	// ArtifactStore records durable files. Nil leaves the artifact routes
 	// answering 503, which is what a deployment with no database has.
 	ArtifactStore model.ArtifactStore
@@ -152,6 +155,9 @@ type Config struct {
 type Server struct {
 	srv *http.Server
 	cfg Config
+	// handlers is kept so the server can run and stop the background work the
+	// API surface owns — see StartBackground.
+	handlers *handlers.Handler
 }
 
 // New builds an HTTP server with routes for healthz, readyz, openapi, swagger, and all API handlers.
@@ -166,7 +172,8 @@ func New(cfg Config) *Server {
 	mux.HandleFunc("GET /swagger/index.html", swaggerUIHandler)
 	mux.HandleFunc("GET /swagger", swaggerUIHandler)
 
-	handlers.NewHandler(buildHandlersConfig(cfg)).Register(mux)
+	s.handlers = handlers.NewHandler(buildHandlersConfig(cfg))
+	s.handlers.Register(mux)
 
 	handler := http.Handler(mux)
 	if cfg.Auth.CORSOrigin != "" {
@@ -232,6 +239,7 @@ func buildHandlersConfig(cfg Config) handlers.Config {
 		IssueCommentStore:        cfg.Stores.IssueCommentStore,
 		TaskStore:                cfg.Stores.TaskStore,
 		TaskRunStore:             cfg.Stores.TaskRunStore,
+		TaskResultDeliveries:     cfg.Stores.TaskResultDeliveryStore,
 		LLMCallStore:             cfg.Stores.LLMCallStore,
 		RunOutputLister:          cfg.Stores.RunOutputLister,
 		UserWebhookKeyStore:      cfg.Stores.UserWebhookKeyStore,
@@ -313,6 +321,12 @@ func (s *Server) Handler() http.Handler {
 func (s *Server) Run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	// Started here rather than in New so building a handler never starts a
+	// goroutine, and stopped before returning so a shutdown does not leave one
+	// sweeping a database the process is done with.
+	s.handlers.StartBackground()
+	defer s.handlers.StopBackground()
 
 	go func() {
 		<-ctx.Done()

@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/gougoujiang/buildmax/internal/server/handlers/admin"
 	"github.com/gougoujiang/buildmax/internal/server/turnqueue"
+	"sync"
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/llm"
@@ -139,6 +140,11 @@ type Config struct {
 	// OnTaskRunTerminal is an optional external callback fired when a worker run reaches
 	// terminal status (after the internal hub/registry callbacks run).
 	OnTaskRunTerminal func(ctx context.Context, info model.TaskRunTerminalInfo)
+
+	// TaskResultDeliveries records the reports the server owes finished runs.
+	// Nil means a report that fails is not retried, which is what a deployment
+	// with no database has.
+	TaskResultDeliveries model.TaskResultDeliveryStore
 }
 
 // Handler serves all HTTP routes: auth, user API, worker API, inbound webhook.
@@ -149,6 +155,12 @@ type Handler struct {
 	// turns serializes the turns of one conversation and queues the rest. It is
 	// server-scoped, not connection-scoped — see turnqueue.Registry.
 	turns *turnqueue.Registry
+
+	// sweeper retries the reports this server owes. Started by the server that
+	// owns this handler, not by construction: a test builds handlers freely and
+	// should not acquire a goroutine by doing so.
+	sweepMu sync.Mutex
+	sweeper *deliverySweeper
 }
 
 // NewHandler returns a configured Handler. If cfg.Hub is nil a new StreamHub is created internally.

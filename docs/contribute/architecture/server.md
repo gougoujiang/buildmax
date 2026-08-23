@@ -107,12 +107,18 @@ conversation, is left out rather than failing the request.
 A run that reaches a terminal status does two independent things
 (`internal/server/handlers/task_result.go`). Every WebSocket connection on the
 task's team receives `task.status.changed`, which is an invalidation and not the
-outcome: a client answers it by re-reading the task. Separately, one Tier 1 turn
-is submitted to the turn queue to report the outcome in the conversation that
-started the task. That turn belongs to no connection, so a run finishing while
-nobody is watching still leaves its reply in the conversation. The queue is in
-memory, so a restart before the turn runs loses the reply — not the result,
-which stays on `task_run`.
+outcome: a client answers it by re-reading the task. Separately, the report owed
+to the conversation is recorded in `task_result_delivery` and attempted — one
+Tier 1 turn submitted to the turn queue, belonging to no connection, so a run
+finishing while nobody is watching still leaves its reply in the conversation.
+
+The report is a model call, so it can fail, be refused because the
+conversation's queue is full, or be interrupted by a restart between the run
+finishing and the turn starting. The delivery row is what survives all three: a
+sweep every minute retries what is due, claiming each delivery so two servers
+cannot report one run twice, and giving up after a bounded number of attempts
+with the reason recorded. Giving up does not lose the result — that is on
+`task_run` and the conversation's task card reads it directly.
 
 ## Cancelling A Run
 
