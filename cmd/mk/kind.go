@@ -50,6 +50,11 @@ func cmdKind(args []string) error {
 		return kindUp()
 	case "images":
 		return cmdPubImages()
+	case "seed":
+		if len(args) > 1 {
+			return usageErrorf("kind", "seed takes no arguments")
+		}
+		return kindSeed()
 	case "forward":
 		if len(args) > 1 {
 			return usageErrorf("kind", "forward takes no arguments")
@@ -198,6 +203,11 @@ func kindUp() error {
 	}
 	fmt.Printf("Kind stack is ready at %s (cluster %s).\n", kindPortalURL, cluster)
 	fmt.Printf("Lost the code above? %s kind info issues another one.\n", mk())
+	// `exists` the function is shadowed by the cluster check above.
+	if _, statErr := os.Stat(localSettingsPath); statErr == nil {
+		fmt.Printf("Want the CLI or Desktop to drive this stack with your own models?\n"+
+			"  %s kind seed puts the ones in %s into its catalog.\n", mk(), localSettingsPath)
+	}
 	return nil
 }
 

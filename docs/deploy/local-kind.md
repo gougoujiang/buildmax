@@ -56,6 +56,7 @@ old one.
 ```bash
 ./make kind smoke   # rerun the end-to-end assertions without rebuilding
 ./make kind smoke managed  # the same, with task runs reaching models through the gateway
+./make kind seed    # put the models in settings.local.yaml into the cluster's catalog
 ./make kind images  # rebuild and load local images without applying manifests
 ./make kind info    # endpoints, plus a fresh login code for the smoke account
 ./make kind forward # forward the in-cluster MySQL and MinIO to 127.0.0.1
@@ -140,6 +141,47 @@ baseline, create `buildmax-secret` from
 `deployment/buildmax-secret.example.yaml`, and configure a real model endpoint.
 Do not use the generated smoke Secret or mock model outside local verification.
 
+### Drive The Cluster With Your Own Models
+
+`./make kind seed` puts every provider model in the repository-root
+`settings.local.yaml` into the cluster's catalog and grants the deployment's
+teams an alias for each. It exists so the CLI and Desktop can exercise the
+managed transport — `transport: buildmax` — against real inference without a
+hosted deployment to point at.
+
+```bash
+./make kind up      # the stack, still answering from the mock
+./make kind seed    # your models in its catalog, with an alias each
+```
+
+The command adds each model with `buildmax-server model add`, reads back the
+catalog ID it prints, and rewrites the `buildmax-config` ConfigMap with the
+matching `llm.aliases` before restarting the server. Aliases have to name a
+catalog ID, and an ID exists only once the row does, which is why the binding
+cannot be written ahead of time. It then prints the managed model entries to
+paste into your own `BUILDMAX_HOME/settings.yaml`, including the team ID; sign
+in with `buildmax login` against <http://localhost:8080> first, because a
+managed entry takes its credential from the login rather than from the file.
+
+The alias is the model id with every character outside `[a-z0-9]` turned into a
+dash — `openai/gpt-5.6-luna` becomes `openai-gpt-5-6-luna`. server.yaml is read
+through viper, which splits a dotted key into a path, so an alias carrying a
+model's version dot stops the server from starting. The printed entries and
+`buildmax models --team <id>` both show the alias to use.
+
+What it deliberately does not touch is the cluster's own inference.
+`conversation.model` and the worker keep answering from the in-cluster mock, so
+Portal conversations and `./make kind smoke` stay deterministic and cost
+nothing. A rerun is safe: a model whose name is already in the catalog keeps
+its row and its ID. Changing a seeded model's endpoint or credential means
+renaming it in `settings.local.yaml`, or rebuilding the cluster — `add` does not
+update a row. `./make kind up` renders the ConfigMap from
+`deployment/smoke/server.kind.yaml` again, which removes the aliases.
+
+A real credential in `settings.local.yaml` reaches the cluster's MySQL in plain
+text. That database is thrown away with the cluster, and this path is for local
+verification only.
+
 ### A real model without a provider key
 
 Between the mock and a hosted provider there is a third option: point the
@@ -151,7 +193,8 @@ Do not put the daemon in the cluster. A pod cannot reach the host's GPU, so
 inference falls back to the CPU of the VM the cluster runs in. Leave it on the
 host and give the deployment an address that reaches it — under Docker Desktop
 that is `host.docker.internal`, which resolves inside pods and forwards even to
-a daemon bound to the host's loopback:
+a daemon bound to the host's loopback. `kind seed` rewrites a loopback address
+to that name for you; by hand it is:
 
 ```bash
 # a catalog target, then point an alias at the printed ID in server.yaml
