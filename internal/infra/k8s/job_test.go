@@ -56,7 +56,7 @@ func TestK8sJobRunner_Run_SetsJobNamePattern(t *testing.T) {
 func TestK8sJobRunner_MountsServerConfig(t *testing.T) {
 	fake := &fakeJobCreator{}
 	inherited := []corev1.EnvVar{
-		{Name: "BUILDMAX_WORKER_TOKEN", Value: "secret"},
+		{Name: config.EnvKeyBuildmaxMinIOAccessKey, Value: "minio-key"},
 		{Name: config.EnvKeyBuildmaxHome, Value: "/server-side-path"},
 	}
 	runner := NewK8sJobRunner("buildmax", "buildmax:local", inherited,
@@ -82,12 +82,12 @@ func TestK8sJobRunner_MountsServerConfig(t *testing.T) {
 	// Credentials inherited from the server must survive.
 	var sawToken bool
 	for _, e := range container.Env {
-		if e.Name == "BUILDMAX_WORKER_TOKEN" && e.Value == "secret" {
+		if e.Name == config.EnvKeyBuildmaxMinIOAccessKey && e.Value == "minio-key" {
 			sawToken = true
 		}
 	}
 	if !sawToken {
-		t.Error("inherited BUILDMAX_WORKER_TOKEN was not propagated to the worker pod")
+		t.Errorf("inherited %s was not propagated to the worker pod", config.EnvKeyBuildmaxMinIOAccessKey)
 	}
 
 	// server.yaml must be mounted by subPath so the rest of BUILDMAX_HOME stays
@@ -153,7 +153,7 @@ func TestK8sJobRunner_NoConfigMap(t *testing.T) {
 // model-chosen command in the pod the ability to mint tokens for any user and
 // read the whole database.
 func TestWorkerEnvFromEnviron_WithholdsServerOnlyCredentials(t *testing.T) {
-	t.Setenv(config.EnvKeyBuildmaxWorkerToken, "wt-secret")
+	t.Setenv(config.EnvKeyBuildmaxMinIOSecretKey, "minio-secret")
 	t.Setenv(config.EnvKeyBuildmaxMinIOAccessKey, "minio-key")
 	t.Setenv(config.EnvKeyBuildmaxJWTSecret, "jwt-secret")
 	t.Setenv(config.EnvKeyBuildmaxDatabasePassword, "db-secret")
@@ -171,7 +171,7 @@ func TestWorkerEnvFromEnviron_WithholdsServerOnlyCredentials(t *testing.T) {
 			t.Errorf("%s must not be forwarded to a worker pod", name)
 		}
 	}
-	for _, name := range []string{config.EnvKeyBuildmaxWorkerToken, config.EnvKeyBuildmaxMinIOAccessKey} {
+	for _, name := range []string{config.EnvKeyBuildmaxMinIOSecretKey, config.EnvKeyBuildmaxMinIOAccessKey} {
 		if _, ok := byName[name]; !ok {
 			t.Errorf("%s is read by a worker but was not forwarded", name)
 		}
@@ -335,20 +335,20 @@ func TestK8sJobRunner_CarriesRunToken(t *testing.T) {
 // other run.
 func TestWorkerEnvFromEnviron_DropsInheritedRunToken(t *testing.T) {
 	t.Setenv(config.EnvKeyBuildmaxRunToken, "some-other-runs-token")
-	t.Setenv("BUILDMAX_WORKER_TOKEN", "kept")
+	t.Setenv(config.EnvKeyBuildmaxMinIOAccessKey, "kept")
 
 	env := WorkerEnvFromEnviron(false)
-	var sawWorkerToken bool
+	var sawInherited bool
 	for _, e := range env {
 		if e.Name == config.EnvKeyBuildmaxRunToken {
 			t.Errorf("%s was inherited from the server environment", config.EnvKeyBuildmaxRunToken)
 		}
-		if e.Name == "BUILDMAX_WORKER_TOKEN" {
-			sawWorkerToken = true
+		if e.Name == config.EnvKeyBuildmaxMinIOAccessKey {
+			sawInherited = true
 		}
 	}
-	if !sawWorkerToken {
-		t.Error("BUILDMAX_WORKER_TOKEN was not propagated; the filter dropped too much")
+	if !sawInherited {
+		t.Errorf("%s was not propagated; the filter dropped too much", config.EnvKeyBuildmaxMinIOAccessKey)
 	}
 }
 
@@ -358,7 +358,7 @@ func TestWorkerEnvFromEnviron_DropsInheritedRunToken(t *testing.T) {
 // where model-chosen commands run.
 func TestWorkerEnvFromEnviron_ManagedPodHasNoProviderKey(t *testing.T) {
 	t.Setenv(config.EnvKeyBuildmaxConversationAPIKey, "provider-key")
-	t.Setenv(config.EnvKeyBuildmaxWorkerToken, "wt-secret")
+	t.Setenv(config.EnvKeyBuildmaxMinIOSecretKey, "minio-secret")
 
 	names := func(env []corev1.EnvVar) map[string]string {
 		out := make(map[string]string, len(env))
@@ -372,8 +372,8 @@ func TestWorkerEnvFromEnviron_ManagedPodHasNoProviderKey(t *testing.T) {
 	if _, ok := managed[config.EnvKeyBuildmaxConversationAPIKey]; ok {
 		t.Errorf("%s reached a managed worker pod", config.EnvKeyBuildmaxConversationAPIKey)
 	}
-	if _, ok := managed[config.EnvKeyBuildmaxWorkerToken]; !ok {
-		t.Error("managed filtering dropped the worker token, which every run still needs")
+	if _, ok := managed[config.EnvKeyBuildmaxMinIOSecretKey]; !ok {
+		t.Error("managed filtering dropped the storage credential, which every run still needs")
 	}
 
 	if _, ok := names(WorkerEnvFromEnviron(false))[config.EnvKeyBuildmaxConversationAPIKey]; !ok {

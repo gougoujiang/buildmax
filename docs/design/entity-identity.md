@@ -555,7 +555,7 @@ public IDs, in the new format. Worker routes still compare the canonical `rid`
 with the route's `task_run_id`. `/api/webhook` still authenticates with the
 webhook secret, never with the key's public ID.
 
-The cutover invalidates every access token, refresh session, worker token,
+The cutover invalidates every access token, refresh session, run token,
 Portal link, and bookmark. That is the intended cost of having no dual-read
 path, and it is affordable exactly once, in Alpha.
 

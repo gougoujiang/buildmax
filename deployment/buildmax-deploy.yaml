@@ -70,7 +70,6 @@ data:
       binary: buildmax-worker
       run_mode: k8s_job
       server_url: http://buildmax.buildmax.svc.cluster.local:5678
-      # token comes from BUILDMAX_WORKER_TOKEN
       k8s:
         namespace: buildmax
         image: buildmax:local
@@ -222,11 +221,6 @@ spec:
                 secretKeyRef:
                   name: buildmax-secret
                   key: BUILDMAX_STORAGE_MINIO_SECRET_KEY
-            - name: BUILDMAX_WORKER_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: buildmax-secret
-                  key: BUILDMAX_WORKER_TOKEN
             - name: BUILDMAX_CONVERSATION_MODEL_API_KEY
               valueFrom:
                 secretKeyRef:

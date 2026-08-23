@@ -131,7 +131,6 @@ func TestDeploymentConfigMapCarriesNoSecrets(t *testing.T) {
 	}
 	secrets := map[string]string{
 		"jwt_secret":                 cfg.JWTSecret,
-		"worker.token":               cfg.Worker.Token,
 		"conversation.model.api_key": cfg.Conversation.Model.APIKey,
 	}
 	for field, value := range secrets {
@@ -206,7 +205,7 @@ func TestDeploymentSmokeConfigsLoadWithoutSecrets(t *testing.T) {
 			if !strings.Contains(cfg.Conversation.Model.APIURL, "smoke") && !strings.Contains(cfg.Conversation.Model.APIURL, "mock-llm") {
 				t.Errorf("conversation model URL %q does not target the smoke service", cfg.Conversation.Model.APIURL)
 			}
-			if cfg.Conversation.Model.APIKey != "" || cfg.Worker.Token != "" || cfg.JWTSecret != "" {
+			if cfg.Conversation.Model.APIKey != "" || cfg.JWTSecret != "" {
 				t.Error("smoke server config contains credentials; inject them at runtime")
 			}
 		})

@@ -298,8 +298,7 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 			WorkspacesDir:    workspacesDir,
 		},
 		Worker: httpserver.WorkerConfig{
-			WorkerToken: sc.Worker.Token,
-			LLM:         workerLLMDescriptor(sc.Worker.LLM),
+			LLM: workerLLMDescriptor(sc.Worker.LLM),
 		},
 		Conv: httpserver.ConversationConfig{
 			ConversationStore:        st,

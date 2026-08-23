@@ -334,7 +334,7 @@ the only tab shown until you install it").
 |---|---|---|
 | Bash filesystem | OS backend (`bwrap` bind/ro-bind; Seatbelt `file-read*` / `file-write*`) | `infra/sandbox/bwrap_linux.go`, `seatbelt_darwin.go` |
 | Bash network egress | Go HTTP/SOCKS proxy (allow_list/deny_list); sandbox forces `HTTP_PROXY` env | `infra/sandbox/proxy.go` |
-| Bash env | Built via `BuildChildEnv`; secret-shaped vars (`*_TOKEN`, `*_KEY`, `*_SECRET`, plus `BUILDMAX_API_KEY`, `BUILDMAX_WORKER_TOKEN`, `BUILDMAX_JWT_SECRET`, `AWS_SECRET_ACCESS_KEY`) filtered out unless explicitly listed | `core/agent/sandbox.go` |
+| Bash env | Built via `BuildChildEnv`; secret-shaped vars (`*_TOKEN`, `*_KEY`, `*_SECRET`, plus `BUILDMAX_API_KEY`, `BUILDMAX_RUN_TOKEN`, `BUILDMAX_JWT_SECRET`, `AWS_SECRET_ACCESS_KEY`) filtered out unless explicitly listed | `core/agent/sandbox.go` |
 | Bash process limits | `syscall.Setrlimit` on Unix; `bwrap --rlimit` on Linux | `infra/sandbox/unix_rlimit.go` |
 | `command` hook | Same wrap + env as Bash (so hooks can't escape) | `infra/hook/command.go` consults `SandboxView` |
 | `http` hook | Same `allowed_domains` / `denied_domains` matcher | `infra/hook/http.go` consults `SandboxView` |

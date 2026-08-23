@@ -14,8 +14,6 @@ import (
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
 )
 
-const workerTestToken = "worker-token-for-tests"
-
 // workerRunClaims is what the scheduler would have minted for the run the tests
 // below execute.
 func workerRunClaims() authtoken.RunClaims {
@@ -29,7 +27,7 @@ func workerRunClaims() authtoken.RunClaims {
 
 func workerRunToken(t *testing.T, claims authtoken.RunClaims, ttl time.Duration, issuedAt time.Time) string {
 	t.Helper()
-	token, err := authtoken.MintRun(llmTestSecret, claims, ttl, issuedAt)
+	token, err := authtoken.MintRun(workerTestSecret, claims, ttl, issuedAt)
 	if err != nil {
 		t.Fatalf("MintRun: %v", err)
 	}
@@ -43,13 +41,12 @@ func validWorkerRunToken(t *testing.T) string {
 
 func workerLLMHandler(gateway *llmgateway.Service, runStatus string) http.Handler {
 	h := New(Config{
-		JWTSecret: llmTestSecret,
+		JWTSecret: workerTestSecret,
 		Gateway:   gateway,
 		TaskRuns: &mock.MockTaskRunStore{
 			Runs:     []model.TaskRun{{ID: "r_1", TaskID: "t_1", Status: runStatus, CreatedAt: time.Unix(1, 0).UTC()}},
 			TaskList: []model.Task{{ID: "t_1", ConversationID: "c_1", TeamID: llmTestTeam, Status: runStatus, Input: "in", CreatedBy: llmTestUser, CreatedAt: time.Unix(1, 0).UTC()}},
 		},
-		WorkerToken: workerTestToken,
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)
@@ -98,16 +95,6 @@ func TestWorkerLLMCompletions(t *testing.T) {
 			if rec.Code != http.StatusConflict {
 				t.Errorf("status %s: got %d, want 409", status, rec.Code)
 			}
-		}
-	})
-
-	// The shared worker token opens the rest of /api/worker/*. It must not open
-	// this route: it names no user, no team, and no run, so a call authenticated
-	// with it could not be attributed or bounded.
-	t.Run("refuses the shared worker token", func(t *testing.T) {
-		rec := workerLLMRequest(t, gateway, string(model.RunStatusRunning), workerLLMBody, workerTestToken)
-		if rec.Code != http.StatusUnauthorized {
-			t.Errorf("status = %d, want 401", rec.Code)
 		}
 	})
 
@@ -215,10 +202,9 @@ func TestWorkerLLMCompletions(t *testing.T) {
 
 	t.Run("404s a run the server does not have", func(t *testing.T) {
 		h := New(Config{
-			JWTSecret:   llmTestSecret,
-			Gateway:     gateway,
-			TaskRuns:    &mock.MockTaskRunStore{},
-			WorkerToken: workerTestToken,
+			JWTSecret: workerTestSecret,
+			Gateway:   gateway,
+			TaskRuns:  &mock.MockTaskRunStore{},
 		})
 		mux := http.NewServeMux()
 		h.Register(mux)

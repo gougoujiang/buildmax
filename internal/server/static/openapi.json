@@ -269,7 +269,7 @@
     },
     "/api/worker/task-runs/{task_run_id}/llm/completions": {
       "post": {
-        "summary": "Run one managed model call on behalf of a task run, so a worker needs no upstream provider credential. Authenticated with the run token the scheduler minted for that run: user, team, task, and run all come from the credential, never from the request. The deployment-wide worker token is not accepted here",
+        "summary": "Run one managed model call on behalf of a task run, so a worker needs no upstream provider credential. Authenticated with the run token the scheduler minted for that run: user, team, task, and run all come from the credential, never from the request",
         "parameters": [
           { "name": "task_run_id", "in": "path", "required": true, "schema": { "type": "string" } }
         ],

@@ -16,7 +16,7 @@ import (
 // name an agent.
 func getTaskRunHandler(agentID *string, agents *mock.MockAgentStore) http.Handler {
 	cfg := Config{
-		JWTSecret: llmTestSecret,
+		JWTSecret: workerTestSecret,
 		TaskRuns: &mock.MockTaskRunStore{
 			Runs: []model.TaskRun{{ID: "r_1", TaskID: "t_1", Status: string(model.RunStatusScheduled), CreatedAt: time.Unix(1, 0).UTC()}},
 			TaskList: []model.Task{{
@@ -25,7 +25,6 @@ func getTaskRunHandler(agentID *string, agents *mock.MockAgentStore) http.Handle
 				AgentID: agentID, CreatedAt: time.Unix(1, 0).UTC(),
 			}},
 		},
-		WorkerToken: workerTestToken,
 	}
 	if agents != nil {
 		cfg.Agents = agents

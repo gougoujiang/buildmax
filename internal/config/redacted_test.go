@@ -24,7 +24,6 @@ func TestRedactedConfigIsAWhitelist(t *testing.T) {
 	sc.Storage.MinIO.AccessKey = "zq7x3c-access-value"
 	sc.Storage.MinIO.SecretKey = "zq7x4d-secret-value"
 	sc.Conversation.Model.APIKey = "zq7x5e-model-value"
-	sc.Worker.Token = "zq7x6f-worker-value"
 
 	encoded, err := json.Marshal(sc.Redacted())
 	if err != nil {
@@ -33,7 +32,7 @@ func TestRedactedConfigIsAWhitelist(t *testing.T) {
 	body := string(encoded)
 	for _, secret := range []string{
 		"zq7x1a-jwt-value", "zq7x2b-db-value", "zq7x3c-access-value",
-		"zq7x4d-secret-value", "zq7x5e-model-value", "zq7x6f-worker-value",
+		"zq7x4d-secret-value", "zq7x5e-model-value",
 	} {
 		if strings.Contains(body, secret) {
 			t.Errorf("the redacted view leaked %q: %s", secret, body)
@@ -56,7 +55,7 @@ func TestRedactedConfigIsAWhitelist(t *testing.T) {
 // the difference.
 func TestRedactedConfigReportsAbsentSecrets(t *testing.T) {
 	got := ServerConfig{}.Redacted()
-	if got.JWTSecret.Set || got.Database.Password.Set || got.Worker.SharedToken.Set {
+	if got.JWTSecret.Set || got.Database.Password.Set || got.Storage.MinIOAccessKey.Set {
 		t.Errorf("an empty configuration reported a secret as set: %+v", got)
 	}
 	if got.Database.TLS != DefaultDBTLSMode {
@@ -110,7 +109,6 @@ func TestRedactedConfigCoversTheSecretFieldsWeKnowAbout(t *testing.T) {
 		"ServerMinIOConfig.AccessKey": true,
 		"ServerMinIOConfig.SecretKey": true,
 		"ServerModelEntry.APIKey":     true,
-		"ServerWorkerConfig.Token":    true,
 	}
 	found := map[string]bool{}
 	var walk func(t reflect.Type, seen map[reflect.Type]bool)

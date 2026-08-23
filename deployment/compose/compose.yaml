@@ -54,7 +54,6 @@ services:
       # Secrets stay out of server.yaml and arrive from .env, the same override
       # path a Kubernetes Secret uses.
       BUILDMAX_JWT_SECRET: ${BUILDMAX_JWT_SECRET:?run ./generate-env.sh first}
-      BUILDMAX_WORKER_TOKEN: ${BUILDMAX_WORKER_TOKEN:?run ./generate-env.sh first}
       BUILDMAX_DATABASE_PASSWORD: ${BUILDMAX_DATABASE_PASSWORD}
       # Optional: without it the Portal loads but conversations cannot run.
       BUILDMAX_CONVERSATION_MODEL_API_KEY: ${BUILDMAX_CONVERSATION_MODEL_API_KEY:-}

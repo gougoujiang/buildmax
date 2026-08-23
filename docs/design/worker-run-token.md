@@ -1,8 +1,8 @@
 # Worker Run Token
 
 > **Audience:** contributors · **Status:** implemented on every `/api/worker/*`
-> route. The deployment-wide worker token is accepted as a deprecated fallback
-> for one release and is scheduled for removal.
+> route, and the only credential they take. The deployment-wide worker token has
+> been removed.
 
 Related: [managed LLM gateway](llm-gateway.md) §11, [trust
 harness](trust-harness.md), and [ROADMAP.md](../ROADMAP.md) P0.5 and P3.
@@ -32,15 +32,16 @@ that names the user, the team, and the run, and authorizes nothing else. Every
 `/api/worker/*` route requires it, and requires that the run it names is the run
 in the path.
 
-It arrived in two steps on purpose. The managed inference route took it first,
+It arrived in three steps on purpose. The managed inference route took it first,
 alone, because that route had no callers — no compatibility period to design and
 nothing to change twice — and because its failure mode is a failed model call.
 Only once a real deployment had run on it did the same credential take over the
-routes that report finished work, where a mistake loses the work instead.
-
-The shared `worker.token` is accepted as a fallback for one release, for the
-upgrade window where a server that has not restarted dispatches a worker image
-that already expects a run token.
+routes that report finished work, where a mistake loses the work instead; those
+kept the shared `worker.token` for one release, for the upgrade window where a
+server that had not restarted dispatched a worker image already expecting a run
+token. The third step removed it. A worker now holds one credential, and a run
+dispatched without one fails at startup rather than falling back to a secret
+that names no run.
 
 ### Why not reuse the user's access token
 
@@ -127,10 +128,9 @@ this design.
 - **The sandbox does not hide it from the model.** `ScrubEnvList` would drop a
   `_TOKEN` variable from a sandboxed child, but `Manager.ScrubEnv` returns the
   environment untouched when the sandbox is off — which is the default on every
-  surface, workers included. The worker therefore clears both
-  `BUILDMAX_RUN_TOKEN` and `BUILDMAX_WORKER_TOKEN` from its own environment once
-  configuration is loaded, keeping them in memory only. That is the protection,
-  not the scrub list.
+  surface, workers included. The worker therefore clears `BUILDMAX_RUN_TOKEN`
+  from its own environment once it has read it, keeping the value in memory only.
+  That is the protection, not the scrub list.
 - **It does not narrow object storage.** `BUILDMAX_MINIO_ACCESS_KEY` and
   `BUILDMAX_MINIO_SECRET_KEY` are marked `WorkerNeeds` in
   `internal/config/env_spec.go`, so a Job pod still receives the deployment's
@@ -145,13 +145,13 @@ this design.
 
 ## Retiring The Shared Worker Token
 
-`worker.token` is static. An operator generates it once — `openssl rand -hex 24`
+`worker.token` was static. An operator generated it once — `openssl rand -hex 24`
 in `deployment/buildmax-secret.example.yaml`, a random hex in
 `deployment/compose/generate-env.sh` — and both the server and every worker read
-that same string until someone rotates it by hand. It has no expiry, no scope,
-and no per-run meaning. Verification is a string compare.
+that same string until someone rotated it by hand. It had no expiry, no scope,
+and no per-run meaning. Verification was a string compare.
 
-The run token replaces it. Every worker route is scoped to a run in its own
+The run token replaced it. Every worker route is scoped to a run in its own
 path, so the middleware needs one rule — the token's run must equal the path's
 run — and no worker route legitimately reaches outside the run it is executing:
 
@@ -159,6 +159,7 @@ run — and no worker route legitimately reaches outside the run it is executing
 GET    /api/worker/task-runs/{task_run_id}
 PATCH  /api/worker/task-runs/{task_run_id}
 POST   /api/worker/task-runs/{task_run_id}/stream
+POST   /api/worker/task-runs/{task_run_id}/artifacts
 POST   /api/worker/task-runs/{task_run_id}/llm/completions
 ```
 
@@ -177,7 +178,7 @@ Four things had to be resolved first, and each is now in place:
 | Concern | Resolution |
 |---|---|
 | A run outliving its token loses its final `PATCH`, and nothing reaped a run stuck in `RUNNING` | `scheduler.StaleRunReaper` fails runs left in `SCHEDULED` or `RUNNING` past `worker.run_timeout` |
-| A server pod mid-upgrade dispatches a newer worker image and mints nothing | The middleware accepts the shared token for one release with a deprecation warning; the worker falls back to it when dispatched without one |
+| A server pod mid-upgrade dispatches a newer worker image and mints nothing | The middleware accepted the shared token for one release with a deprecation warning; that release has passed and the fallback is gone, so upgrade the server before the worker image |
 | Operators lose the ability to drive a worker route by hand | `buildmax-server run-token <task_run_id>` mints one, beside `buildmax-server model` |
 | Route status checks were written around a credential that carried no scope | Stated below |
 
@@ -194,20 +195,25 @@ and each route answers it deliberately rather than by inheritance.
 | `POST /stream` | any | Deltas are diagnostic; refusing them cannot help the run |
 | `POST /llm/completions` | `RUNNING` | Inference spends a team's quota, so it stops the moment the run does |
 
-### Removing The Fallback
+### The Fallback Is Removed
 
-The next release removes, in one change:
+Done in one change, so no half-state exists where a shared secret still opens
+part of the surface:
 
 - the shared-token branch in `runScopedWorkerMiddleware`, and `Config.WorkerToken`
-  with it;
-- the fallback in `internal/bootstrap/worker.go`;
+  with it — the middleware now delegates to `requireRunToken`, so the routes that
+  read the claims and the routes that only need admitting apply one rule;
+- the fallback in `internal/bootstrap/worker.go`, which now fails a run
+  dispatched without `BUILDMAX_RUN_TOKEN` rather than reaching for a second
+  credential;
 - `worker.token` and `BUILDMAX_WORKER_TOKEN` from configuration, including the
   `WorkerNeeds` mark in `internal/config/env_spec.go` — a worker that cannot fall
   back has no reason to hold it;
-- the secret from the deployment manifests and `generate-env.sh`.
+- the secret from the deployment manifests, `generate-env.sh`, and the kind
+  bootstrap in `cmd/mk`.
 
-The deprecation warning names what to do; a deployment still seeing it has a
-server that has not restarted.
+A `worker.token` left in an old `server.yaml` is now an unread key. The upgrade
+order is the server first: it is what mints the credential the worker presents.
 
 ## Validation
 
@@ -216,16 +222,16 @@ Covered by tests:
 - a run token is rejected as a user access token, and an access token is
   rejected as a run token;
 - a token for one run cannot drive a call scoped to another;
-- the shared `worker.token` is refused on the gateway route;
 - an expired token, and one signed by another deployment, are refused;
 - a call against a run that is no longer executing is refused;
 - a token whose team disagrees with the run's is refused;
 - the call ledger records user, team, task, and run for a worker call;
 - a managed worker's environment omits the provider credential, and a direct
   one still receives it;
-- every worker route refuses a token minted for a different run;
-- the shared worker token still opens the non-inference worker routes during the
-  transition, and stops working the moment a deployment removes it;
+- every worker route refuses a token minted for a different run, and refuses a
+  static shared secret, a junk credential, another deployment's signature, and no
+  credential at all — the route table in that test is every route the package
+  registers, so a new one added without a credential fails it;
 - an abandoned run is failed rather than left in `SCHEDULED` or `RUNNING`
   forever.
 

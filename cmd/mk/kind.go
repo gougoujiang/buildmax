@@ -718,17 +718,12 @@ func applyKindSecret() error {
 	if err != nil {
 		return err
 	}
-	workerToken, err := randomHex(24)
-	if err != nil {
-		return err
-	}
 	manifest, err := captureKindKubectl(
 		"create", "secret", "generic", "buildmax-secret", "-n", "buildmax",
 		"--from-literal=BUILDMAX_JWT_SECRET="+jwt,
 		"--from-literal=BUILDMAX_DATABASE_PASSWORD=buildmax",
 		"--from-literal=BUILDMAX_STORAGE_MINIO_ACCESS_KEY=minio",
 		"--from-literal=BUILDMAX_STORAGE_MINIO_SECRET_KEY=minio123",
-		"--from-literal=BUILDMAX_WORKER_TOKEN="+workerToken,
 		"--from-literal=BUILDMAX_CONVERSATION_MODEL_API_KEY=smoke-key",
 		"--dry-run=client", "-o", "yaml",
 	)

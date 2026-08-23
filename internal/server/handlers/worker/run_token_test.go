@@ -58,33 +58,23 @@ func workerRouteRequest(t *testing.T, cfg Config, method, path, token string) in
 
 func workerRouteConfig() Config {
 	return Config{
-		JWTSecret:   runRouteSecret,
-		WorkerToken: "shared-worker-token",
+		JWTSecret: workerTestSecret,
 		TaskRuns: &mock.MockTaskRunStore{
 			Runs:     []model.TaskRun{{ID: "r_1", TaskID: "t_1", Status: string(model.RunStatusScheduled), CreatedAt: time.Unix(1, 0).UTC()}},
-			TaskList: []model.Task{{ID: "t_1", ConversationID: "c_1", TeamID: "tm_1", CreatedBy: "u_1", CreatedAt: time.Unix(1, 0).UTC()}},
+			TaskList: []model.Task{{ID: "t_1", ConversationID: "c_1", TeamID: llmTestTeam, CreatedBy: llmTestUser, CreatedAt: time.Unix(1, 0).UTC()}},
 		},
 	}
 }
 
-const runRouteSecret = "test-run-route-secret"
-
-func runRouteToken(t *testing.T, taskRunID string) string {
-	t.Helper()
-	token, err := authtoken.MintRun(runRouteSecret, authtoken.RunClaims{
-		UserID: "u_1", TeamID: "tm_1", TaskRunID: taskRunID, TaskID: "t_1",
-	}, time.Hour, time.Now())
-	if err != nil {
-		t.Fatalf("MintRun: %v", err)
-	}
-	return token
-}
-
 // TestWorkerRoutesAreRunScoped is what retiring the shared secret buys. Every
-// worker route names a run in its path, and each one now checks that the caller
+// worker route names a run in its path, and each one checks that the caller
 // holds that run's token — so a compromised run can no longer read another
 // team's task input, forge another run's result, or write into another run's
 // live stream.
+//
+// The list is every route the package registers. A route added without a
+// credential would be exactly the hole the run token exists to close, so the
+// table is the place that notices.
 func TestWorkerRoutesAreRunScoped(t *testing.T) {
 	routes := []struct {
 		method string
@@ -93,41 +83,41 @@ func TestWorkerRoutesAreRunScoped(t *testing.T) {
 		{http.MethodGet, "/api/worker/task-runs/r_1"},
 		{http.MethodPatch, "/api/worker/task-runs/r_1"},
 		{http.MethodPost, "/api/worker/task-runs/r_1/stream"},
+		{http.MethodPost, "/api/worker/task-runs/r_1/artifacts"},
+		{http.MethodPost, "/api/worker/task-runs/r_1/llm/completions"},
+	}
+	// A run token is the only credential these routes take, so everything a
+	// worker could otherwise present has to be refused by name.
+	otherDeployment, err := authtoken.MintRun("some-other-deployments-secret", authtoken.RunClaims{
+		UserID: "u_1", TeamID: "tm_1", TaskRunID: "r_1", TaskID: "t_1",
+	}, time.Hour, time.Now())
+	if err != nil {
+		t.Fatalf("MintRun: %v", err)
+	}
+	refused := []struct {
+		name  string
+		token string
+	}{
+		{"no credential", ""},
+		{"a junk credential", "not-a-token"},
+		{"a static shared secret", "shared-worker-token"},
+		{"a token signed by another deployment", otherDeployment},
 	}
 	for _, route := range routes {
 		t.Run(route.method+" "+route.path, func(t *testing.T) {
 			cfg := workerRouteConfig()
 
-			if code := workerRouteRequest(t, cfg, route.method, route.path, runRouteToken(t, "r_1")); code == http.StatusUnauthorized || code == http.StatusForbidden {
+			if code := workerRouteRequest(t, cfg, route.method, route.path, runTokenFor(t, "r_1", "t_1")); code == http.StatusUnauthorized || code == http.StatusForbidden {
 				t.Errorf("this run's own token was refused: %d", code)
 			}
-			if code := workerRouteRequest(t, cfg, route.method, route.path, runRouteToken(t, "r_somebody_else")); code != http.StatusForbidden {
+			if code := workerRouteRequest(t, cfg, route.method, route.path, runTokenFor(t, "r_somebody_else", "t_1")); code != http.StatusForbidden {
 				t.Errorf("another run's token got %d, want 403", code)
 			}
-			if code := workerRouteRequest(t, cfg, route.method, route.path, "not-a-token"); code != http.StatusUnauthorized {
-				t.Errorf("a junk credential got %d, want 401", code)
-			}
-			if code := workerRouteRequest(t, cfg, route.method, route.path, ""); code != http.StatusUnauthorized {
-				t.Errorf("no credential got %d, want 401", code)
+			for _, tc := range refused {
+				if code := workerRouteRequest(t, cfg, route.method, route.path, tc.token); code != http.StatusUnauthorized {
+					t.Errorf("%s got %d, want 401", tc.name, code)
+				}
 			}
 		})
-	}
-}
-
-// TestSharedWorkerTokenStillWorksForOneRelease records the transition. An older
-// server mints no run token while the worker image it dispatches already expects
-// one, so removing the fallback in the same release would fail every run in that
-// upgrade window.
-func TestSharedWorkerTokenStillWorksForOneRelease(t *testing.T) {
-	cfg := workerRouteConfig()
-	if code := workerRouteRequest(t, cfg, http.MethodGet, "/api/worker/task-runs/r_1", "shared-worker-token"); code != http.StatusOK {
-		t.Errorf("the shared worker token got %d, want 200 during the transition", code)
-	}
-
-	// It is a fallback, not a second credential: a deployment that no longer
-	// configures one has nothing to fall back to.
-	cfg.WorkerToken = ""
-	if code := workerRouteRequest(t, cfg, http.MethodGet, "/api/worker/task-runs/r_1", "shared-worker-token"); code != http.StatusUnauthorized {
-		t.Errorf("a stale shared token got %d after the deployment stopped configuring one, want 401", code)
 	}
 }

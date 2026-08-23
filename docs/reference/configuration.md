@@ -62,7 +62,6 @@ value alone.
 | `BUILDMAX_DATABASE_PASSWORD` | `database.password` |
 | `BUILDMAX_STORAGE_MINIO_ACCESS_KEY` | `storage.minio.access_key` |
 | `BUILDMAX_STORAGE_MINIO_SECRET_KEY` | `storage.minio.secret_key` |
-| `BUILDMAX_WORKER_TOKEN` | `worker.token` |
 | `BUILDMAX_CONVERSATION_MODEL_API_KEY` | `conversation.model.api_key` |
 
 The split to aim for: **`server.yaml` carries shape and non-secret values; the
@@ -78,7 +77,6 @@ local process or a Kubernetes Job:
 | Variable | Why a worker needs it |
 |---|---|
 | `BUILDMAX_HOME` | Run-scoped data directory |
-| `BUILDMAX_WORKER_TOKEN` | Deprecated fallback for its `/api/worker/*` calls; a run uses `BUILDMAX_RUN_TOKEN` |
 | `BUILDMAX_STORAGE_MINIO_ACCESS_KEY` / `_SECRET_KEY` | Reads and writes run state and artifacts |
 | `BUILDMAX_CONVERSATION_MODEL_API_KEY` | Calls a provider directly — **withheld** when `worker.llm.transport` is `buildmax` |
 | `BUILDMAX_SANDBOX_ENABLED`, `BUILDMAX_TRACE_DISABLED` | Runtime toggles |
@@ -86,15 +84,15 @@ local process or a Kubernetes Job:
 `BUILDMAX_RUN_TOKEN` reaches a worker by a different route. It is not inherited
 from the server — the filter above strips it, so a stale value cannot be picked
 up — and is added to the process or pod at dispatch, naming the one run it
-authorizes. It is what a worker presents on every `/api/worker/*` route, so a run
-can only read and write its own record. `worker.token` is still accepted there
-for one release; see
+authorizes. It is what a worker presents on every `/api/worker/*` route, and the
+only credential those routes accept, so a run can only read and write its own
+record. A run dispatched without one fails at startup; see
 [design/worker-run-token.md](../design/worker-run-token.md).
 
-A worker clears `BUILDMAX_RUN_TOKEN` and `BUILDMAX_WORKER_TOKEN` from its own
-environment once it has read them, keeping both in memory only. The sandbox
-would strip secret-shaped variables from a child process, but it is off by
-default, so a model-chosen `printenv` would otherwise print them.
+A worker clears `BUILDMAX_RUN_TOKEN` from its own environment once it has read
+it, keeping the value in memory only. The sandbox would strip secret-shaped
+variables from a child process, but it is off by default, so a model-chosen
+`printenv` would otherwise print it.
 
 `BUILDMAX_JWT_SECRET` and `BUILDMAX_DATABASE_PASSWORD` are deliberately
 withheld. A worker never reads them — it reaches the server over HTTP with its
@@ -622,7 +620,6 @@ worker:
   binary: buildmax-worker
   run_mode: local_process            # or k8s_job
   server_url: http://localhost:5678  # how the worker reaches the server
-  token: your-worker-token           # shared secret for /api/worker/*
   k8s:
     namespace: buildmax
     image: buildmax:local
@@ -645,9 +642,10 @@ storage:
     prefix: workspaces
 ```
 
-Required for a working server: `jwt_secret` (or `BUILDMAX_JWT_SECRET`),
-`database`, and `worker.token` if you run workers. Everything else has a usable
-default for local development.
+Required for a working server: `jwt_secret` (or `BUILDMAX_JWT_SECRET`) and
+`database`. Everything else has a usable default for local development. The
+worker needs no credential of its own — `jwt_secret` is what signs the run token
+the server hands it at dispatch.
 
 The two token lifetimes are not interchangeable. An access token is signed and
 never stored, so nothing can retire one early — `access_token_ttl` is the window
@@ -671,8 +669,8 @@ attempts are not rate limited; see the warning in that document before exposing
 a server to an untrusted network.
 
 The worker reads the same `server.yaml` and needs at minimum `worker.server_url`,
-`worker.token`, `workspaces_dir`, and the `storage` block — it talks to blob
-storage directly rather than proxying through the server.
+`workspaces_dir`, and the `storage` block — it talks to blob storage directly
+rather than proxying through the server.
 
 `storage.max_artifact_mb` caps one artifact upload. It defaults to **0**, which
 uses the built-in 100 MB limit. It is a per-file limit and not a team storage

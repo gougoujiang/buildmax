@@ -67,15 +67,14 @@ func (h *Handler) adminHandler() *admin.Handler {
 // package is told what to call, not who is listening.
 func (h *Handler) workerHandler() *worker.Handler {
 	return worker.New(worker.Config{
-		JWTSecret:   h.cfg.JWTSecret,
-		WorkerToken: h.cfg.WorkerToken,
-		WorkerLLM:   h.cfg.WorkerLLM,
-		TaskRuns:    h.cfg.TaskRunStore,
-		Agents:      h.cfg.AgentStore,
-		Gateway:     h.cfg.LLMGateway,
-		Artifacts:   h.artifactService(),
-		Hub:         h.hub,
-		OnTerminal:  h.terminalListeners,
+		JWTSecret:  h.cfg.JWTSecret,
+		WorkerLLM:  h.cfg.WorkerLLM,
+		TaskRuns:   h.cfg.TaskRunStore,
+		Agents:     h.cfg.AgentStore,
+		Gateway:    h.cfg.LLMGateway,
+		Artifacts:  h.artifactService(),
+		Hub:        h.hub,
+		OnTerminal: h.terminalListeners,
 	})
 }
 

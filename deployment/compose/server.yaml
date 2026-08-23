@@ -1,6 +1,6 @@
 # server.yaml for the Compose stack, mounted read-only at /buildmax/server.yaml.
 #
-# Every secret is deliberately absent: jwt_secret, worker.token,
+# Every secret is deliberately absent: jwt_secret,
 # database.password, and the conversation model API key arrive from the
 # environment (see compose.yaml and .env), which is the same override path a
 # Kubernetes Secret uses. Nothing here is sensitive enough to keep out of git.
@@ -43,7 +43,6 @@ worker:
   run_mode: local_process
   # The worker calls the server back over the API, from inside this container.
   server_url: http://127.0.0.1:5678
-  # token: from BUILDMAX_WORKER_TOKEN
 
 # The server and the workers it spawns share this container's filesystem, so
 # the local backend is enough. Workers running elsewhere need storage both can

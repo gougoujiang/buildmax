@@ -46,9 +46,8 @@ The scheduler claimed the run but could not start a worker. Check, in order:
    `worker.binary` in `server.yaml`
 2. `worker.server_url` is reachable **from the worker**, which is not always the
    same address the server binds
-3. the scheduler can mint a run token — every dispatched worker uses a
-   run-scoped credential for `/api/worker/*`; `worker.token` is only the
-   deprecated upgrade fallback
+3. the scheduler can mint a run token — `jwt_secret` signs it, and it is the
+   only credential a worker has for `/api/worker/*`
 4. `workspaces_dir` exists and is writable by both processes
 5. The `storage:` block is reachable from the worker, which talks to blob
    storage directly rather than through the server

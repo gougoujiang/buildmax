@@ -108,29 +108,22 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		workspacesDir = abs
 	}
 
-	// Both credentials are read now and cleared from the environment immediately.
-	// A worker executes model-chosen shell commands, and the sandbox that would
-	// strip secret-shaped variables from a child is off by default — so the only
-	// safe place for a credential is this process's memory.
+	// Read now and cleared from the environment immediately. A worker executes
+	// model-chosen shell commands, and the sandbox that would strip
+	// secret-shaped variables from a child is off by default — so the only safe
+	// place for a credential is this process's memory.
+	//
+	// It is the only credential this worker has for its own routes, and it names
+	// the one run this process is executing. A run dispatched without one cannot
+	// report anything, so it fails here rather than at its first callback — see
+	// docs/design/worker-run-token.md.
 	runToken := takeEnv(config.EnvKeyBuildmaxRunToken)
-	_ = os.Unsetenv(config.EnvKeyBuildmaxWorkerToken)
-
-	// The run token is what this worker presents on its own routes: it names the
-	// one run this process is executing. worker.token is the fallback for the
-	// upgrade window where an older server dispatched this run without minting
-	// one — see docs/design/worker-run-token.md.
-	token := runToken
-	if token == "" {
-		token = sc.Worker.Token
-		if token == "" {
-			slog.Error("no run token and no worker.token")
-			return fmt.Errorf("this run was dispatched without %s, and worker.token is not set either",
-				config.EnvKeyBuildmaxRunToken)
-		}
-		slog.Warn("falling back to the deployment-wide worker token", "why", "this run was dispatched without a run token")
+	if runToken == "" {
+		slog.Error("no run token", "env", config.EnvKeyBuildmaxRunToken)
+		return fmt.Errorf("this run was dispatched without %s", config.EnvKeyBuildmaxRunToken)
 	}
 
-	fetched, err := workerclient.GetWorkerTaskRun(ctx, workerclient.WorkerAPIClientConfig{BaseURL: serverURL, Token: token}, taskRunID)
+	fetched, err := workerclient.GetWorkerTaskRun(ctx, workerclient.WorkerAPIClientConfig{BaseURL: serverURL, Token: runToken}, taskRunID)
 	if err != nil {
 		slog.Error("get run failed", "err", err)
 		return fmt.Errorf("get run: %w", err)
@@ -149,8 +142,8 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		slog.Error("run not in SCHEDULED status", "status", run.Status)
 		return fmt.Errorf("run not scheduled (status=%s)", run.Status)
 	}
-	apiCfg := workerclient.WorkerAPIClientConfig{BaseURL: serverURL, Token: token}
-	updater := &workerclient.WorkerHTTPUpdater{BaseURL: serverURL, Token: token}
+	apiCfg := workerclient.WorkerAPIClientConfig{BaseURL: serverURL, Token: runToken}
+	updater := &workerclient.WorkerHTTPUpdater{BaseURL: serverURL, Token: runToken}
 	// A cancel that landed between dispatch and now: the run is over before it
 	// starts, and nothing below needs to be built for it.
 	if fetched.CancelRequested {
@@ -203,7 +196,7 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 	}
 
 	paths := taskrun.NewRuntimePathsFromRoot(workspacesDir)
-	httpSender := &workerclient.WorkerHTTPStreamSender{BaseURL: serverURL, Token: token}
+	httpSender := &workerclient.WorkerHTTPStreamSender{BaseURL: serverURL, Token: runToken}
 	streamSender := &workerclient.DebouncedStreamSender{Inner: httpSender}
 
 	// The run's own context, so a cancel recorded on the server reaches the
