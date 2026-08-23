@@ -6,7 +6,6 @@
 > [sessions and traces](../guide/sessions-and-traces.md),
 > [durable run trace](durable-run-trace.md),
 > [context durability](context-durability.md),
-> [versioned workspace](versioned-workspace.md),
 > [durable Agent sessions](../proposals/durable-agent-sessions.md), and
 > [session trees and mailboxes](../proposals/session-tree-and-agent-mailbox.md).
 
