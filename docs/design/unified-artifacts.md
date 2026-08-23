@@ -3,11 +3,11 @@
 ## Status
 
 - roadmap_priority: `P2 follow-on`
-- status: `phases 1–2 implemented` (§10: the artifact object, storage, API, and
-  Portal listing; `UploadArtifact` on every surface with a server, and artifacts
-  on issue result cards. Registering a run's whole output directory as artifacts
-  is the one phase 2 item still open — see §12 question 6. Phases 3–4 — external
-  sharing and follow-ons — are open)
+- status: `implemented` (§10 phases 1 and 2: the artifact object, storage, API,
+  and Portal listing; `UploadArtifact` on every surface with a server, and
+  artifacts on issue result cards. Registering a run's output directory and
+  phase 3 external sharing are both decided against — §12 questions 6 and 4.
+  Phase 4 follow-ons stay open)
 - follows: [surface-positioning.md](./surface-positioning.md) and
   [team-governance.md](./team-governance.md)
 - roadmap: [../ROADMAP.md](../ROADMAP.md)
@@ -439,17 +439,19 @@ storage-provider URL behavior, defines the product contract.
   guide.
 - Enable it for Portal task runs and for logged-in CLI and Desktop sessions,
   and leave it unregistered on a session with no server.
-- Register future worker output files as unified Artifacts and show them in
-  conversation/issue result cards.
+- Show deliberately published artifacts in conversation and issue result cards.
+  A run's output directory is not registered — see §12 question 6.
 - Retain task-run artifact route compatibility and migrate Portal consumers.
 
-### Phase 3 — Intentional External Sharing
+### Phase 3 — Intentional External Sharing — not planned
 
-- Define approved roles, deployment policy, expiry defaults, and user-facing
-  warning copy.
-- Add revocable high-entropy share tokens, access tests, and audit events.
-- Decide whether authenticated external recipients, password protection,
-  download limits, and malware scanning are necessary before public links.
+Sharing an artifact outside the deployment is not built and is not queued. An
+agent publishing a file with `UploadArtifact` and an authorized team member
+fetching it covers the workflow this design exists for. Everything the phase
+would have to settle first — approved roles, expiry defaults, revocable tokens,
+anonymous access, malware scanning, audit retention — is cost paid ahead of
+anyone asking for the capability. A deployment that needs it reopens this, not
+a design that anticipates it.
 
 ### Phase 4 — Follow-ons
 
@@ -513,9 +515,8 @@ model and the user one legible publishing event.
 3. **Sensitive-content controls:** which private deployments require malware
    scanning, DLP, or MIME restrictions before agent upload is enabled? Gather
    operator requirements rather than hardcoding a cloud-oriented policy.
-4. **External sharing:** is public anonymous access necessary, or is
-   cross-organization authenticated sharing sufficient? No external link ships
-   without a decision on expiry, revocation, ownership, and audit retention.
+4. **External sharing:** ~~decided: not planned~~. Neither public links nor
+   authenticated cross-organization sharing is built. See phase 3.
 5. **Preview support:** which types can be rendered safely and usefully on all
    Portal clients? Start with an allowlist and measure demand.
 6. **Run output as artifacts:** ~~decided: no~~. A run's output directory is
@@ -556,6 +557,5 @@ The first usable increment is complete when:
   task-run provenance;
 - upload failure never reports a successful Artifact and leaves recoverable
   storage/database state; and
-- deletion and any later share-link revocation take effect immediately at the
-  BuildMax authorization boundary.
+- deletion takes effect immediately at the BuildMax authorization boundary.
 

@@ -144,9 +144,11 @@ Read the relevant architecture document before making a cross-package change:
 - Portal and Desktop share presentational components from `@buildmax/gui`, not
   data/auth/routing logic. Both use React 19.
 
-The planned but not implemented areas include team approvals,
-versioned workspace/timeline restore, worker sandbox hardening, and complete CI
-coverage for Kubernetes and native Windows. Do not document them as shipped.
+The planned but not implemented areas include team approvals, worker sandbox
+hardening, and complete CI coverage for Kubernetes and native Windows. Do not
+document them as shipped. Versioned workspace and timeline restore are not
+planned at all: the design record was withdrawn, so do not describe them as
+upcoming either.
 
 ## Build, Test, And Check
 

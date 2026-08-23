@@ -222,22 +222,6 @@ Acceptance:
 - admins understand who can do what, what resources are used, and what state shared automation is in
 - an operator runs routine account and deployment work through an audited surface rather than through the database
 
-### P5. Versioned Workspace Design
-
-Versioned workspace is the long-term product center, but it should follow
-outcome visibility and runtime stability.
-
-Focus:
-
-- define the minimum workspace state / snapshot / change / restore model
-- derive from existing worker `home/`, `artifacts/`, and `global/` layout
-- keep Git hidden as an implementation engine
-- define how users see what changed and how they restore
-
-Acceptance:
-
-- there is an executable design for agent-produced state changes and restore before broad implementation begins
-
 ## Beta Gate
 
 Alpha to Beta is not more agent capability. It is one trusted team using the
@@ -293,9 +277,9 @@ configuration and authorization actions rather than operational records. What
 the gate needs instead is that those existing records are reachable and joined —
 which is a route, not a new write.
 
-Deliberately outside the Beta gate: Desktop polish, SSO, versioned workspace,
-plugin distribution, and additional model providers. None of them block a
-private server deployment reaching Beta.
+Deliberately outside the Beta gate: Desktop polish, SSO, plugin distribution,
+and additional model providers. None of them block a private server deployment
+reaching Beta.
 
 ## Suggested Order
 
@@ -341,10 +325,10 @@ at the end:
    rollback of the binary, which the schema it left behind must keep serving —
    so there is no down path to write, but the compatibility rule has to hold in
    review. The production storage contract requires read, write, and list access,
-   but BuildMax still has no explicit deployment-initialization check that proves
-   those permissions against the operator's actual bucket and identity. That is
-   deliberately not a `/readyz` responsibility: readiness remains a read-only
-   dependency-availability check. It also does not check worker launch mode,
+   and proving those permissions against the operator's actual bucket and
+   identity is an operations task rather than an application one — BuildMax
+   ships no deployment-initialization check for it. Readiness stays a read-only
+   dependency-availability check, and it also does not check worker launch mode,
    worker token, or the LLM configuration the conversation paths need.
 4. Minimum team governance — **done, with one gap named**. The role and team
    authorization matrix is covered end to end by tests, the audit trail records
@@ -380,7 +364,6 @@ at the end:
 7. Desktop local workbench polish: sessions, project selection, local
    results, and the local background job manager shared with the TUI
    ([design/local-background-jobs.md](design/local-background-jobs.md)).
-8. Versioned workspace design, ready for implementation planning.
 
 ## Avoid For Now
 
@@ -404,4 +387,3 @@ at the end:
 - [design/llm-gateway.md](design/llm-gateway.md) — P3 Managed LLM gateway design
 - [design/team-governance.md](design/team-governance.md) — P4 Team governance design
 - [design/system-administration.md](design/system-administration.md) — P4 Deployment-scoped system administration design
-- [design/versioned-workspace.md](design/versioned-workspace.md) — P5 Versioned workspace design

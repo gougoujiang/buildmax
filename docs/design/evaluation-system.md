@@ -8,7 +8,7 @@
 Related: [roadmap](../ROADMAP.md), [product vision](product-vision.md),
 [surface positioning](surface-positioning.md), [trust harness](trust-harness.md),
 [durable run trace](durable-run-trace.md), [end-to-end testing](end-to-end-testing.md),
-[managed LLM gateway](llm-gateway.md), and [versioned workspace](versioned-workspace.md).
+and [managed LLM gateway](llm-gateway.md).
 
 ## 1. Summary
 

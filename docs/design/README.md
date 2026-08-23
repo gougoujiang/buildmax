@@ -43,13 +43,12 @@ reference, then delete the plan.
 | [System administration](system-administration.md) | P4 | Implemented: grant model, operator command, admin API, Portal area, and model catalog surface |
 | [Plugin distribution and private marketplace](plugin-marketplace.md) | post-Beta, P4 follow-on | Phases A–C shipped: plugins load, the Marketplace publishes and installs, Portal and Desktop manage it. Team and worker distribution deferred |
 | [Team and worker plugin distribution](plugin-team-distribution.md) | post-Beta, after the Marketplace | Design ready for review; implementation not started. The executable half waits on the worker sandbox being wired |
-| [Versioned workspace](versioned-workspace.md) | P5 | Design ready for review; implementation not started |
 | [Entity identity and relational keys](entity-identity.md) | Beta gate | Implemented: opaque public handles, numeric relational keys, and the store boundary between them. Database foreign keys remain a separate decision |
 | [Timestamp representation](timestamp-representation.md) | Beta gate | Implemented: every persisted instant is `time.Time`, `DATETIME(6)`, and RFC 3339, with a UTC-pinned connection and an architecture guard |
 | [Tool permissions](tool-permissions.md) | unscheduled | Implemented; operator control over autonomous surfaces open (§7) |
 | [Parallel tool execution](parallel-tool-execution.md) | unscheduled | Implemented for read-only tools; `Task` and argument-aware `Bash` open (§6) |
 | [Local end-to-end verification](end-to-end-testing.md) | unscheduled | Harness, CLI, Desktop bridge, CI policy, named suites, and the runbook done; some Portal paths, the deployment cancellation and failure-recovery paths, and the packaged-app smoke open |
-| [Unified artifacts](unified-artifacts.md) | P2 follow-on | Phases 1–2 implemented: durable team artifacts with stable `ar_` references, upload/preview/download, tombstoned deletion, and `UploadArtifact` on every surface with a server; registering a run's whole output directory, external sharing, and the follow-ons open |
+| [Unified artifacts](unified-artifacts.md) | P2 follow-on | Implemented: durable team artifacts with stable `ar_` references, upload/preview/download, tombstoned deletion, and `UploadArtifact` on every surface with a server. Registering a run's output directory and external sharing are decided against; the phase 4 follow-ons stay open |
 | [Portal execution model](portal-execution-model.md) | P2 follow-on | Phases 0 and 3 shipped and phase 1 half shipped: outcome projection, durable result delivery, and run provenance. Phase 2 is reduced to what evidence supports; phases 4 and 5, including removing Conversation ownership, are deferred |
 
 ## Subsystem Specifications
@@ -62,7 +61,7 @@ aligned with code and link user-facing behavior to `guide/` or `reference/`.
 | [Hook system](hook-system.md) | 13 events and 4 transports implemented | [guide/hooks.md](../guide/hooks.md) |
 | [Sandbox boundaries](sandbox-boundaries.md) | Local phases A–E implemented; worker hardening open | [guide/sandbox.md](../guide/sandbox.md) |
 | [Durable run trace](durable-run-trace.md) | Phase 1 implemented; richer events and retention open | [guide/sessions-and-traces.md](../guide/sessions-and-traces.md) |
-| [Queued messages](queued-messages.md) | Queueing on all three surfaces, mid-run injection on CLI/TUI and Desktop; persistence and Portal injection open | [reference/cli.md](../reference/cli.md) |
+| [Queued messages](queued-messages.md) | Queueing on all three surfaces, mid-run injection on CLI/TUI and Desktop; persistence and Portal injection decided against | [reference/cli.md](../reference/cli.md) |
 
 ## Where The Designs Land
 

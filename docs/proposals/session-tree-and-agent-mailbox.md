@@ -4,9 +4,8 @@
 >
 > **Opened:** 2026-08-22
 
-Related: [roadmap](../ROADMAP.md) P0.5 and P5, [product vision](../design/product-vision.md),
+Related: [roadmap](../ROADMAP.md) P0.5, [product vision](../design/product-vision.md),
 [surface positioning](../design/surface-positioning.md),
-[versioned workspace](../design/versioned-workspace.md),
 [context durability](../design/context-durability.md),
 [queued messages](../design/queued-messages.md),
 [parallel tool execution](../design/parallel-tool-execution.md),
@@ -443,10 +442,10 @@ Portal must not expose worktree paths. The longer-term product references are:
 - the Session or TaskRun that produced them; and
 - the workspace-service application result.
 
-This expands the current Versioned Workspace design. That design deliberately
-keeps branch and merge-conflict UI outside its first slice, so accepting this
-proposal requires an explicit P5 scope decision rather than an implementation
-that quietly routes around the existing record.
+BuildMax has no versioned workspace plan or design record — the earlier one was
+withdrawn rather than implemented. So this proposal does not extend an existing
+scope; it would be the thing that decides branching, change sets, and write
+ownership, and accepting it means accepting that scope outright.
 
 ### 9.3 Applying child changes
 
@@ -921,7 +920,7 @@ If accepted, candidate ownership boundaries are:
 | Portal Conversation fork and synthesis | `internal/service/conversation` |
 | Durable mailbox store | `internal/core/model` contract plus `internal/infra/db` adapter |
 | Server lease, retry, and offline recovery | `internal/server/scheduler` or a dedicated supervisor service |
-| Workspace snapshot, change, and application | P5 workspace service, not the Session message handler |
+| Workspace snapshot, change, and application | A workspace service this proposal would have to introduce, not the Session message handler |
 | HTTP routes | `internal/server/handlers/routes.go` once implementation defines them |
 
 `internal/core` must not import infra, service, server, agentapp, or interface
@@ -1066,8 +1065,8 @@ Phase 3 automatic resume must additionally show that:
 - Can a read-only child share a snapshot mount, or must it materialize one?
 - Should a Change Set use Git diffs, content-addressed snapshots, or the unified
   Artifact model?
-- Does this proposal expand P5 or follow it as a distinct Branching Workspace
-  plan?
+- Does a Branching Workspace belong inside this proposal, or is it the separate
+  plan that has to land first?
 
 ### Mailbox and scheduling
 
@@ -1141,11 +1140,10 @@ content that is unnecessary to answer the product question:
 
 If evidence supports the direction:
 
-1. Update [ROADMAP.md](../ROADMAP.md) with its sequence and boundary relative to
-   P5 Versioned Workspace.
-2. Update [versioned workspace](../design/versioned-workspace.md) to decide
-   branching, change sets, and write ownership rather than leaving Branch UI out
-   of scope while implementing it elsewhere.
+1. Update [ROADMAP.md](../ROADMAP.md) with its sequence and its boundary against
+   whatever workspace capability it assumes.
+2. Write the workspace design this needs — branching, change sets, and write
+   ownership — rather than implementing them under another name.
 3. Split durable decisions about lineage, mailbox, supervision, and report
    authority into one or more `docs/design/` records.
 4. Create separate implementation issues for local MVP, durable mailbox,
@@ -1175,6 +1173,6 @@ The candidate direction is:
 > change are always separate, reviewable actions.
 
 This offers more product value than tree navigation alone and more control than
-an arbitrary Agent message bus. Whether it belongs in P5 still depends on
+an arbitrary Agent message bus. Whether it earns a roadmap slot still depends on
 repeated evidence of real use for forks, reports, joins, and worktree change
 integration.
