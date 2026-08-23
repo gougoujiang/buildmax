@@ -131,9 +131,14 @@ Read the relevant architecture document before making a cross-package change:
 - Plugins load from `<BUILDMAX_HOME>/plugins/<name>/`, contributing skills,
   subagents, MCP servers, and hooks beneath the global and workspace layers.
   `agentapp` resolves them once per runtime and keeps that snapshot, so an
-  install cannot change a run in flight. A worker assembles inside a run-scoped
-  `BUILDMAX_HOME` and therefore loads none; centrally distributing plugins to
-  Portal or workers is a deferred design, not a gap to fill in passing.
+  install cannot change a run in flight. A worker's `BUILDMAX_HOME` is
+  run-scoped and starts empty; what fills it is a team activation, resolved by
+  the server when the worker claims its run and materialized before the runtime
+  is assembled. A team either curates its activation list or opens the whole
+  catalog, and an agent loads only the plugins it names — nothing is inherited.
+  Releases contributing hooks or MCP servers cannot be activated yet, and Tier 1
+  conversations still load no plugins. See
+  [`docs/design/plugin-team-distribution.md`](docs/design/plugin-team-distribution.md).
 - Every run records a bounded, redacted JSONL trace by default. Trace failure is
   fail-open and must not break an agent run.
 - Server authentication requires a JWT secret. Login codes are single-use;

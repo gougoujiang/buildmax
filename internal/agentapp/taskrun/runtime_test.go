@@ -222,7 +222,7 @@ func TestPrepareRunWorkspace_MaterializesTeamFiles(t *testing.T) {
 	}
 	run := &model.TaskRun{ID: "r1"}
 
-	if err := prepareRunWorkspace(ctx, persist, task, run, dirs); err != nil {
+	if err := prepareRunWorkspace(ctx, RunTaskInput{Persist: persist}, task, run, dirs); err != nil {
 		t.Fatal(err)
 	}
 

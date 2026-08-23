@@ -149,6 +149,13 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 	if fetched.CancelRequested {
 		return reportCanceledBeforeStart(ctx, updater, taskRunID)
 	}
+	// The server could not give this run what its agent named. Failing here
+	// rather than running without the plugin is the point: a run that quietly
+	// does less than its definition says is read by somebody who was not
+	// watching it.
+	if fetched.PluginError != "" {
+		return reportPluginRefusal(ctx, updater, taskRunID, fetched.PluginError)
+	}
 
 	sessionID := session.NewID()
 	if task.SessionID != nil {
@@ -220,6 +227,7 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		Managed:                managed,
 		WorkerAPI:              apiCfg,
 		AdditionalSystemPrompt: fetched.AgentInstructions,
+		Plugins:                fetched.Plugins,
 	})
 	if errors.Is(err, model.ErrRunCanceled) {
 		slog.Info("run canceled on request")
@@ -230,6 +238,25 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		return err
 	}
 	return nil
+}
+
+// reportPluginRefusal finishes a run the server would not resolve plugins for.
+//
+// It reports FAILED rather than CANCELED: nobody asked for this to stop, and a
+// team reading its runs needs the two apart. The reason is the server's text,
+// which names the plugin, because the fix is an activation somebody has to make.
+func reportPluginRefusal(ctx context.Context, updater taskrun.TaskRunUpdater, taskRunID, reason string) error {
+	slog.Error("this run cannot start", "reason", reason)
+	endedAt := time.Now().UTC()
+	if err := updater.UpdateRunStatus(ctx, taskRunID, &workerclient.PatchTaskRunRequest{
+		Status:       string(model.RunStatusFailed),
+		EndedAt:      &endedAt,
+		ErrorMessage: &reason,
+	}); err != nil {
+		slog.Error("could not report the refusal", "err", err)
+		return err
+	}
+	return fmt.Errorf("%s", reason)
 }
 
 // reportCanceledBeforeStart finishes a run that was canceled between dispatch

@@ -1,7 +1,7 @@
 # Team And Worker Plugin Distribution
 
-> **Audience:** contributors and operators · **Status:** planned — design ready
-> for review; implementation has not started
+> **Audience:** contributors and operators · **Status:** partly implemented —
+> D1 works end to end except Portal's surface; D2 and D3 are not started
 >
 > Follows [plugin-marketplace.md](./plugin-marketplace.md), whose §12 Phase D
 > asks for this record before anything here is built.
@@ -9,8 +9,11 @@
 ## Status
 
 - roadmap_priority: `post-Beta, after the Marketplace`
-- status: `ready_for_review` — §5.3 decides the granularity: team activation,
-  agent selection
+- status: `partially_implemented` — D1 ships the activation record, the team
+  routes and the CLI read path, the agent's selection, server-side resolution
+  when a worker claims its run, and materialization into the run. Portal's
+  section (§10) is not built. D2, executable content, and D3, secrets, are not
+  started
 - follows: [plugin-marketplace.md](./plugin-marketplace.md)
 - depends_on: nothing unbuilt. An earlier draft made the executable half wait
   on the worker sandbox surface being wired; §9 retires that, because the Bash
