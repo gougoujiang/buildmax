@@ -189,20 +189,54 @@ func TestClientForRebuildsWhenTargetChanges(t *testing.T) {
 		t.Errorf("factory called %d times, want 3", factory.count())
 	}
 
-	// A change that does not affect construction keeps the cached client.
-	renamed := capped
-	renamed.Name = "Renamed"
-	catalog.set(renamed)
+	// The cache policy changes what the client puts in every request, so an
+	// operator who turns caching off must not keep a client that still asks
+	// for it — and pays for it.
+	cached := capped
+	cached.CacheMode = "off"
+	catalog.set(cached)
 
 	fourth, err := router.ClientFor(ctx, req)
 	if err != nil {
+		t.Fatalf("ClientFor after a cache-mode change: %v", err)
+	}
+	if fourth.Client == third.Client {
+		t.Error("a changed cache mode reused the cached client")
+	}
+	if factory.count() != 4 {
+		t.Errorf("factory called %d times, want 4", factory.count())
+	}
+
+	retained := cached
+	retained.CacheMode = "auto"
+	retained.CacheTTL = "1h"
+	catalog.set(retained)
+
+	fifth, err := router.ClientFor(ctx, req)
+	if err != nil {
+		t.Fatalf("ClientFor after a cache-ttl change: %v", err)
+	}
+	if fifth.Client == fourth.Client {
+		t.Error("a changed cache retention reused the cached client")
+	}
+	if factory.count() != 5 {
+		t.Errorf("factory called %d times, want 5", factory.count())
+	}
+
+	// A change that does not affect construction keeps the cached client.
+	renamed := retained
+	renamed.Name = "Renamed"
+	catalog.set(renamed)
+
+	sixth, err := router.ClientFor(ctx, req)
+	if err != nil {
 		t.Fatalf("ClientFor after rename: %v", err)
 	}
-	if fourth.Client != third.Client {
+	if sixth.Client != fifth.Client {
 		t.Error("a display-name change rebuilt the client")
 	}
-	if factory.count() != 3 {
-		t.Errorf("factory called %d times, want 3", factory.count())
+	if factory.count() != 5 {
+		t.Errorf("factory called %d times, want 5", factory.count())
 	}
 }
 

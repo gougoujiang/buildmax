@@ -21,7 +21,8 @@ func newCachingClient(t *testing.T, provider, baseURL string) *LLMClient {
 	t.Helper()
 	client, err := NewClient(Config{
 		Provider: provider, APIKey: "test-key", BaseURL: baseURL,
-		Model: "test-model", ContextWindow: 32_000, PromptCache: true,
+		Model: "test-model", ContextWindow: 32_000,
+		CacheControl: config.CacheControl{Mode: config.CacheModeForce},
 	})
 	if err != nil {
 		t.Fatalf("NewClient(%s): %v", provider, err)
@@ -35,8 +36,9 @@ func TestAnthropicPlacesCacheBreakpoints(t *testing.T) {
 	up := newUpstreamWithBody(t, anthropicBody(reply{text: "ok"}))
 	client := newCachingClient(t, config.LLMProviderAnthropic, up.server.URL)
 
-	if _, err := client.ChatCompletionBlocking(context.Background(),
-		cllm.Request{Messages: conformanceHistory(), Tools: conformanceTools()}); err != nil {
+	if _, err := client.ChatCompletionBlocking(context.Background(), cllm.Request{
+		Messages: conformanceHistory(), Tools: conformanceTools(), Profile: cllm.ProfileAgentTurn,
+	}); err != nil {
 		t.Fatalf("ChatCompletionBlocking: %v", err)
 	}
 	var request map[string]any
@@ -55,17 +57,134 @@ func TestAnthropicPlacesCacheBreakpoints(t *testing.T) {
 	}
 }
 
-func TestCachingIsOffByDefault(t *testing.T) {
+// An agent turn caches without being configured to. The prefix it sends —
+// tools, system prompt, the history so far — goes out again on the next
+// iteration, which is the case a cache write is priced for.
+func TestAgentTurnsCacheByDefaultOnAnthropic(t *testing.T) {
 	up := newUpstreamWithBody(t, anthropicBody(reply{text: "ok"}))
 	client := newTestClient(t, config.LLMProviderAnthropic, up.server.URL)
 
-	if _, err := client.ChatCompletionBlocking(context.Background(),
-		cllm.Request{Messages: conformanceHistory(), Tools: conformanceTools()}); err != nil {
+	if _, err := client.ChatCompletionBlocking(context.Background(), cllm.Request{
+		Messages: conformanceHistory(), Tools: conformanceTools(), Profile: cllm.ProfileAgentTurn,
+	}); err != nil {
+		t.Fatalf("ChatCompletionBlocking: %v", err)
+	}
+	if !strings.Contains(up.bodies[0], "cache_control") {
+		t.Errorf("request %s carries no breakpoint; an agent turn is the case caching pays for",
+			up.bodies[0])
+	}
+}
+
+// The same default sends nothing on a call that will never be sent again. A
+// write costs more than ordinary input, so buying one for a title is a straight
+// loss — and it is the reason the default can be on at all.
+func TestUtilityCallsDoNotCacheByDefault(t *testing.T) {
+	for _, profile := range []cllm.CallProfile{
+		cllm.ProfileTitle, cllm.ProfileCompaction, cllm.ProfileProbe, cllm.ProfileEvaluation,
+	} {
+		t.Run(string(profile), func(t *testing.T) {
+			up := newUpstreamWithBody(t, anthropicBody(reply{text: "ok"}))
+			client := newTestClient(t, config.LLMProviderAnthropic, up.server.URL)
+
+			if _, err := client.ChatCompletionBlocking(context.Background(), cllm.Request{
+				Messages: conformanceHistory(), Tools: conformanceTools(), Profile: profile,
+			}); err != nil {
+				t.Fatalf("ChatCompletionBlocking: %v", err)
+			}
+			if strings.Contains(up.bodies[0], "cache_control") {
+				t.Errorf("request %s bought a cache write nothing will read", up.bodies[0])
+			}
+		})
+	}
+}
+
+// An explicit off is an opt-out and stays one, on every call.
+func TestOffSendsNoBreakpointOnAnAgentTurn(t *testing.T) {
+	up := newUpstreamWithBody(t, anthropicBody(reply{text: "ok"}))
+	client, err := NewClient(Config{
+		Provider: config.LLMProviderAnthropic, APIKey: "test-key", BaseURL: up.server.URL,
+		Model: "test-model", ContextWindow: 32_000,
+		CacheControl: config.CacheControl{Mode: config.CacheModeOff},
+	})
+	if err != nil {
+		t.Fatalf("NewClient: %v", err)
+	}
+	if _, err := client.ChatCompletionBlocking(context.Background(), cllm.Request{
+		Messages: conformanceHistory(), Tools: conformanceTools(), Profile: cllm.ProfileAgentTurn,
+	}); err != nil {
 		t.Fatalf("ChatCompletionBlocking: %v", err)
 	}
 	if strings.Contains(up.bodies[0], "cache_control") {
-		t.Errorf("request %s cached without being asked; caching changes what a call costs",
-			up.bodies[0])
+		t.Errorf("request %s cached after an explicit opt-out", up.bodies[0])
+	}
+}
+
+// Retention beyond the provider's default is deliberate, so it appears in the
+// request only when it was asked for.
+func TestAnthropicSendsTheRequestedTTL(t *testing.T) {
+	tests := map[string]string{
+		config.CacheTTLProviderDefault: "",
+		config.CacheTTL1h:              "1h",
+		config.CacheTTL5m:              "5m",
+	}
+	for policy, want := range tests {
+		t.Run(policy, func(t *testing.T) {
+			up := newUpstreamWithBody(t, anthropicBody(reply{text: "ok"}))
+			client, err := NewClient(Config{
+				Provider: config.LLMProviderAnthropic, APIKey: "test-key", BaseURL: up.server.URL,
+				Model: "test-model", ContextWindow: 32_000,
+				CacheControl: config.CacheControl{Mode: config.CacheModeAuto, TTL: policy},
+			})
+			if err != nil {
+				t.Fatalf("NewClient: %v", err)
+			}
+			if _, err := client.ChatCompletionBlocking(context.Background(), cllm.Request{
+				Messages: conformanceHistory(), Tools: conformanceTools(), Profile: cllm.ProfileAgentTurn,
+			}); err != nil {
+				t.Fatalf("ChatCompletionBlocking: %v", err)
+			}
+			hasTTL := strings.Contains(up.bodies[0], `"ttl"`)
+			if want == "" {
+				if hasTTL {
+					t.Errorf("request %s pinned a retention the operator left to the provider", up.bodies[0])
+				}
+				return
+			}
+			if !strings.Contains(up.bodies[0], `"ttl":"`+want+`"`) {
+				t.Errorf("request %s does not carry ttl %q", up.bodies[0], want)
+			}
+		})
+	}
+}
+
+// With no system prompt the tool definitions are still the stable part of the
+// request. Without a breakpoint on them the only cacheable boundary left is the
+// rolling one, which lands after a user message that changes every turn — so
+// the run would pay to cache the one part that is never the same twice.
+func TestAnthropicCachesToolsWhenThereIsNoSystemPrompt(t *testing.T) {
+	up := newUpstreamWithBody(t, anthropicBody(reply{text: "ok"}))
+	client := newTestClient(t, config.LLMProviderAnthropic, up.server.URL)
+
+	if _, err := client.ChatCompletionBlocking(context.Background(), cllm.Request{
+		Messages: []cllm.Message{{Role: "user", Content: "hi"}},
+		Tools:    conformanceTools(),
+		Profile:  cllm.ProfileAgentTurn,
+	}); err != nil {
+		t.Fatalf("ChatCompletionBlocking: %v", err)
+	}
+	var request map[string]any
+	if err := json.Unmarshal([]byte(up.bodies[0]), &request); err != nil {
+		t.Fatalf("decode request: %v", err)
+	}
+	if _, present := request["system"]; present {
+		t.Fatalf("this scenario needs a request with no system block: %s", up.bodies[0])
+	}
+	tools, ok := request["tools"].([]any)
+	if !ok || len(tools) == 0 {
+		t.Fatalf("request %s has no tools", up.bodies[0])
+	}
+	if _, marked := tools[len(tools)-1].(map[string]any)["cache_control"]; !marked {
+		t.Errorf("request %s marks no stable tools boundary", up.bodies[0])
 	}
 }
 

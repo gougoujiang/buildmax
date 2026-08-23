@@ -16,6 +16,12 @@ import (
 	"time"
 )
 
+// legacyPromptCacheMode is what the deprecated prompt_cache bool becomes when
+// it was set. Force rather than the weaker default: it was written when the
+// only alternative was no caching at all, so reading it as anything less takes
+// away what the operator asked for.
+const legacyPromptCacheMode = "force"
+
 // Provider types name the wire protocol a target speaks. A provider type
 // selects a client implementation; it is not a vendor name. Claude reached
 // through an OpenAI-compatible gateway is ProviderOpenAICompatible, and Claude
@@ -94,8 +100,14 @@ type Target struct {
 	// Reasoning is the effort level the upstream is asked for; off means none.
 	// The gateway carries the resulting state without reading it.
 	Reasoning string
-	// PromptCache caches the stable prefix of a request.
-	PromptCache bool
+	// CacheMode and CacheTTL are the operator's prompt-cache policy: which
+	// calls ask the upstream to cache the stable prefix of a request, and for
+	// how long. They are carried as plain strings for the same reason the
+	// provider constants above are redefined here — this package resolves what
+	// a team may call without depending on how a process reads configuration.
+	// A managed caller never supplies either: the operator's target does.
+	CacheMode string
+	CacheTTL  string
 	// Vision says the upstream accepts image input.
 	Vision bool
 	// Capabilities is what this target declares it can do.

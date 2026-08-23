@@ -64,7 +64,10 @@ conversation:
                                    # the host's localhost)
     # max_tokens: 0                # cap on one response; 0 = the adapter default
     # reasoning: off               # off (default), low, medium, or high
-    # prompt_cache: false          # cache the stable prefix of a request
+    # cache_control:               # prompt cache policy for this model
+    #   mode: auto                 #   auto (default), off, force
+    #   ttl: provider_default      #   provider_default (default), 5m, 1h
+    # prompt_cache: false          # deprecated shorthand: true = force, off = off
     # vision: false                # this model accepts image input
 
   # Use a catalog model for Tier 1 instead of the model above. This is an

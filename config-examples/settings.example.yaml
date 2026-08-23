@@ -127,9 +127,25 @@ models:
                                    # level but off also replays the reasoning
                                    # on later turns. No effect on
                                    # openai_compatible, which carries none.
-  #   prompt_cache: true           # cache the tool definitions and system
-                                   # prompt so later calls in a run pay less
-                                   # for them
+  #   cache_control:               # cache the tool definitions and system
+  #     mode: auto                 # prompt so later calls in a run pay less
+  #     ttl: provider_default      # for them.
+                                   #
+                                   # mode: auto (default) asks on an agent turn,
+                                   # whose prefix goes out again next iteration,
+                                   # and never on a one-shot call such as title
+                                   # generation — a cache write costs more than
+                                   # ordinary input and only repays itself if a
+                                   # later call reads it. off never asks. force
+                                   # asks on every call.
+                                   #
+                                   # ttl: provider_default (default), 5m, or 1h,
+                                   # and only where the provider documents it.
+                                   # anthropic takes all three; the rest take
+                                   # only provider_default.
+  #   prompt_cache: true           # deprecated: true means mode force, false
+                                   # means mode off. cache_control wins when
+                                   # both are set.
   #   vision: true                 # this model accepts image input. Leave it
                                    # off and an image an MCP tool returns is
                                    # described in text instead of sent.

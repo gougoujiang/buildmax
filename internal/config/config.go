@@ -67,10 +67,15 @@ type ModelEntry struct {
 	// returns is described in text rather than sent, because a model that
 	// cannot read images rejects the request rather than ignoring the image.
 	Vision bool `mapstructure:"vision"`
-	// PromptCache asks the provider to cache the stable prefix of a request —
-	// the tool definitions and system prompt — so later calls in the same run
-	// pay less for them.
-	PromptCache bool `mapstructure:"prompt_cache"`
+	// PromptCache is the deprecated shorthand for CacheControl. It is a pointer
+	// because absent and false ask for different things: absent means nobody
+	// chose and takes the default, while false is an opt-out. Use CacheControl
+	// in new configuration; ResolveCacheControl folds the two.
+	PromptCache *bool `mapstructure:"prompt_cache"`
+	// CacheControl is this model's prompt-cache policy: which calls ask the
+	// provider to cache the stable prefix of a request — the tool definitions
+	// and system prompt — and for how long.
+	CacheControl *CacheControl `mapstructure:"cache_control"`
 	// KeepAlive is how long a local runtime keeps the model loaded after a
 	// call — a duration string, "0" to unload at once, "-1" to stay resident.
 	// Only LLMProviderOllama reads it; on a hosted provider there is no model

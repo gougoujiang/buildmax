@@ -123,6 +123,7 @@ func derivedConversationTarget(entry config.ServerModelEntry) llmgateway.Target 
 	if providerType == "" {
 		providerType = llmgateway.ProviderOpenAICompatible
 	}
+	conversationCache := config.ResolveCacheControl(entry.CacheControl, entry.PromptCache)
 	return llmgateway.Target{
 		ID:            conversationTargetID,
 		Name:          name,
@@ -134,7 +135,8 @@ func derivedConversationTarget(entry config.ServerModelEntry) llmgateway.Target 
 		CallTimeout:   time.Duration(entry.CallTimeout) * time.Second,
 		MaxTokens:     entry.MaxTokens,
 		Reasoning:     entry.Reasoning,
-		PromptCache:   entry.PromptCache,
+		CacheMode:     conversationCache.Mode,
+		CacheTTL:      conversationCache.TTL,
 		Vision:        entry.Vision,
 		Capabilities:  llmgateway.NewCapabilitySet(llmgateway.BaselineCapabilities()...),
 		Enabled:       true,
@@ -192,7 +194,7 @@ func newClientFactory(conversationKey string, models model.LLMModelStore) llmgat
 			ContextWindow: target.ContextWindow,
 			MaxTokens:     target.MaxTokens,
 			Reasoning:     target.Reasoning,
-			PromptCache:   target.PromptCache,
+			CacheControl:  config.CacheControl{Mode: target.CacheMode, TTL: target.CacheTTL},
 			Vision:        target.Vision,
 			Surface:       model.LLMCallSurfaceServer,
 			CallTimeout:   target.CallTimeout,

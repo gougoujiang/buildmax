@@ -253,20 +253,53 @@ carries it, so a run that resumes after a restart keeps its continuity.
 
 ### Prompt caching
 
-`prompt_cache: true` asks the provider to cache the part of a request that does
-not change between calls — the tool definitions and system prompt — so the rest
-of a run pays a reduced rate for them.
+`cache_control` asks the provider to cache the part of a request that does not
+change between calls — the tool definitions and system prompt — so the rest of a
+run pays a reduced rate for them.
 
-| Provider | What it does |
-|---|---|
-| `openai_compatible`, `openai` | Nothing to the request: these cache automatically. Cached tokens are reported either way. |
-| `anthropic` | Places cache breakpoints after the system prompt and at the end of the request. |
-| `ollama` | Nothing. A local runtime reuses its own cache between calls, with no request-side control and no counts to report. |
+```yaml
+models:
+  - name: sonnet
+    provider: anthropic
+    model: claude-sonnet-5
+    cache_control:
+      mode: auto             # auto (default), off, force
+      ttl: provider_default  # provider_default (default), 5m, 1h
+```
 
-It is off by default because caching changes what a call costs: writing a cache
-entry is more expensive than not caching, and it only pays back if later calls
-read it. A single short call is worse off; an agent run of many calls is better
-off.
+`mode` decides **which calls** ask:
+
+| Mode | Agent turns | One-shot calls (title, compaction, probes) |
+|---|---|---|
+| `auto` (default) | Ask | Do not ask |
+| `off` | Do not ask | Do not ask |
+| `force` | Ask | Ask |
+
+The split is what makes `auto` safe as a default. Writing a cache entry costs
+more than not caching and only pays back if a later call reads it, so a run of
+many calls over one stable prefix is better off and a single short call is worse
+off. An agent turn's prefix goes out again on the next iteration; a generated
+title's never does. `force` is for a caller that knows something the runtime
+cannot see.
+
+`ttl` selects retention, and only where the provider documents it. Anything
+other than `provider_default` on a provider that does not document it is
+refused at startup rather than sent and ignored.
+
+| Provider | What a request carries | Retention |
+|---|---|---|
+| `anthropic` | Breakpoints after the tools and system prompt and at the end of the request. Nothing is cached unless the request says where. | `provider_default`, `5m`, `1h` |
+| `openai` | Nothing: Responses caches automatically. Cached tokens are reported either way. | `provider_default` only |
+| `openai_compatible` | Nothing. Speaking the protocol is not a promise to implement its cache fields, and an untested gateway may reject or ignore them. | `provider_default` only |
+| `ollama` | Nothing. A local runtime reuses its own cache between calls, with no request-side control and no counts to report. | `provider_default` only |
+
+`mode: force` is refused at startup on any provider that takes no cache
+instructions. Serving it as no caching at all would answer a question nobody
+asked. `mode: auto` is accepted everywhere, because most models are like this.
+
+The older `prompt_cache` boolean still works and maps onto the same policy:
+`true` becomes `mode: force`, `false` becomes `mode: off`, and leaving it out
+becomes `mode: auto`. `cache_control` wins when both are set.
 
 Cached tokens are reported as `cache_read_tokens` and `cache_write_tokens`,
 which **break the prompt count down rather than adding to it**. A spend report

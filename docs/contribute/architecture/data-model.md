@@ -999,12 +999,22 @@ on the machine that holds the database credentials.
 | `call_timeout` | `bigint` | no | Seconds; default `0`, meaning unspecified |
 | `max_tokens` | `bigint` | no | Cap on one response; default `0`, meaning the client default |
 | `reasoning` | `varchar(16)` | no | Effort level: empty or `off`, `low`, `medium`, `high` |
-| `prompt_cache` | `tinyint(1)` | no | Default `false`; cache the stable prefix of a request |
+| `prompt_cache` | `tinyint(1)` | no | Default `false`; deprecated shorthand for `cache_mode`, read only when `cache_mode` is empty |
+| `cache_mode` | `varchar(16)` | no | Default `''`; prompt-cache policy: `auto`, `off`, `force` |
+| `cache_ttl` | `varchar(16)` | no | Default `''`; prompt-cache retention: `provider_default`, `5m`, `1h` |
 | `vision` | `tinyint(1)` | no | Default `false`; the upstream accepts image input |
 | `capabilities` | `varchar(255)` | yes | Comma-separated: `text_chat`, `tool_calls`, `streaming_text`, `usage_reporting` |
 | `enabled` | `tinyint(1)` | no | Default `true` |
 | `created_at` | `datetime(6)` | yes | `autoCreateTime`, indexed for listing order |
 | `updated_at` | `datetime(6)` | yes | `autoUpdateTime` |
+
+`cache_mode` supersedes `prompt_cache`, and the two are kept side by side
+because a bool cannot hold what the policy needs to say. A row with `cache_mode`
+set uses it. A row without one falls back: `prompt_cache = true` was an explicit
+request for caching and resolves to `force`, while `prompt_cache = false` is the
+column's own default that nobody had to choose and resolves to the default
+policy rather than to an opt-out. An operator who wants caching off says so with
+`cache_mode = off`.
 
 Indexes: PK `id`; index `created_at`; unique `name`; unique `public_id`.
 

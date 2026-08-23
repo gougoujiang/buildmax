@@ -23,12 +23,13 @@ import (
 // mid-conversation, so repairing it into a valid request is this adapter's job
 // rather than a constraint pushed back onto core/llm.
 type anthropicAdapter struct {
-	client      anthropic.Client
-	model       string
-	maxTokens   int
-	reasoning   string
-	promptCache bool
-	vision      bool
+	client     anthropic.Client
+	model      string
+	maxTokens  int
+	reasoning  string
+	cache      config.CacheControl
+	capability cacheCapability
+	vision     bool
 }
 
 func newAnthropicAdapter(cfg Config) (*anthropicAdapter, error) {
@@ -46,18 +47,31 @@ func newAnthropicAdapter(cfg Config) (*anthropicAdapter, error) {
 	}
 	opts = append(opts, option.WithHTTPClient(withBuildMaxUserAgent(cfg.HTTPClient, cfg.Surface)))
 	return &anthropicAdapter{
-		client:      anthropic.NewClient(opts...),
-		model:       cfg.Model,
-		maxTokens:   maxTokensOrDefault(cfg.MaxTokens),
-		reasoning:   cfg.Reasoning,
-		promptCache: cfg.PromptCache,
-		vision:      cfg.Vision,
+		client:     anthropic.NewClient(opts...),
+		model:      cfg.Model,
+		maxTokens:  maxTokensOrDefault(cfg.MaxTokens),
+		reasoning:  cfg.Reasoning,
+		cache:      cfg.CacheControl,
+		capability: cacheCapabilityFor(config.LLMProviderAnthropic),
+		vision:     cfg.Vision,
 	}, nil
 }
 
 func (a *anthropicAdapter) name() string { return config.LLMProviderAnthropic }
 
-func (a *anthropicAdapter) buildParams(messages []cllm.Message, tools []cllm.ToolDef) (anthropic.MessageNewParams, error) {
+// anthropicCacheControl builds one breakpoint. An empty ttl leaves the field
+// off so the provider applies its own default rather than BuildMax pinning a
+// retention the operator did not ask for.
+func anthropicCacheControl(ttl string) anthropic.CacheControlEphemeralParam {
+	breakpoint := anthropic.NewCacheControlEphemeralParam()
+	if ttl != "" {
+		breakpoint.TTL = anthropic.CacheControlEphemeralTTL(ttl)
+	}
+	return breakpoint
+}
+
+func (a *anthropicAdapter) buildParams(req cllm.Request) (anthropic.MessageNewParams, error) {
+	messages, tools := req.Messages, req.Tools
 	system, converted, err := anthropicMessages(messages, a.vision)
 	if err != nil {
 		return anthropic.MessageNewParams{}, err
@@ -68,23 +82,40 @@ func (a *anthropicAdapter) buildParams(messages []cllm.Message, tools []cllm.Too
 		Messages:  converted,
 		Tools:     anthropicTools(tools),
 	}
-	if system != "" {
-		block := anthropic.TextBlockParam{Text: system}
-		if a.promptCache {
-			// Tools and the system prompt render before the messages and are
-			// the same on every call in a run, so one breakpoint at the end of
-			// the system prompt caches both. History is not cached here: a
-			// second breakpoint is placed on the last block below, where it
-			// covers whatever the turn actually ended with.
-			block.CacheControl = anthropic.NewCacheControlEphemeralParam()
-		}
+	decision := resolveCacheDecision(a.cache, a.capability, req.Profile)
+	breakpoint := anthropicCacheControl(decision.ttl)
+	switch {
+	case !decision.send:
+	case system != "":
+		// Tools and the system prompt render before the messages and are the
+		// same on every call in a run, so one breakpoint at the end of the
+		// system prompt caches both. History is not cached here: a second
+		// breakpoint is placed on the last block below, where it covers
+		// whatever the turn actually ended with.
+		block := anthropic.TextBlockParam{Text: system, CacheControl: breakpoint}
 		params.System = []anthropic.TextBlockParam{block}
+	case len(params.Tools) > 0:
+		// No system prompt, but the tool definitions are still identical on
+		// every call. Without a breakpoint here the only cacheable boundary
+		// left is the rolling one, which lands after a user message that
+		// changes every turn — so the run would pay to cache the one part of
+		// the request that is never the same twice.
+		last := params.Tools[len(params.Tools)-1]
+		if last.OfTool != nil {
+			last.OfTool.CacheControl = breakpoint
+			params.Tools[len(params.Tools)-1] = last
+		}
 	}
-	if a.promptCache {
+	if system != "" && !decision.send {
+		params.System = []anthropic.TextBlockParam{{Text: system}}
+	}
+	if decision.send {
 		// The top-level marker attaches to the last cacheable block in the
 		// request, so the next turn reads the whole prefix rather than only the
-		// part before the conversation.
-		params.CacheControl = anthropic.NewCacheControlEphemeralParam()
+		// part before the conversation. It does not replace the static
+		// breakpoint above: automatic lookback only finds a prefix that was
+		// previously written near the rolling endpoint.
+		params.CacheControl = breakpoint
 	}
 	if config.ReasoningEnabled(a.reasoning) {
 		// Adaptive is the only supported mode on current models; a fixed token
@@ -442,8 +473,7 @@ func anthropicUsage(usage anthropic.Usage) cllm.Usage {
 }
 
 func (a *anthropicAdapter) blocking(ctx context.Context, req cllm.Request) (cllm.Completion, error) {
-	messages, tools := req.Messages, req.Tools
-	params, err := a.buildParams(messages, tools)
+	params, err := a.buildParams(req)
 	if err != nil {
 		return cllm.Completion{}, &requestError{err: err}
 	}
@@ -461,8 +491,7 @@ func (a *anthropicAdapter) blocking(ctx context.Context, req cllm.Request) (cllm
 }
 
 func (a *anthropicAdapter) streaming(ctx context.Context, req cllm.Request, onDelta func(string)) (cllm.Completion, error) {
-	messages, tools := req.Messages, req.Tools
-	params, err := a.buildParams(messages, tools)
+	params, err := a.buildParams(req)
 	if err != nil {
 		return cllm.Completion{}, &requestError{err: err}
 	}

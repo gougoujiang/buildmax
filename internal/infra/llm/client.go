@@ -36,9 +36,10 @@ type Config struct {
 	// off also replays reasoning state on later turns. It does nothing on a
 	// protocol that has none.
 	Reasoning string
-	// PromptCache asks the protocol to cache the stable prefix of a request.
-	// It does nothing on a protocol that caches automatically.
-	PromptCache bool
+	// CacheControl is the resolved prompt-cache policy. Whether a given call
+	// acts on it also depends on that call's core/llm.CallProfile: a mode is
+	// what to ask for, and a profile is whether asking is worth its price.
+	CacheControl config.CacheControl
 	// Vision says the model accepts image input. When false, an adapter drops
 	// image parts and sends only the text describing them.
 	Vision bool
@@ -116,6 +117,16 @@ func NewClient(cfg Config) (*LLMClient, error) {
 	if !config.KnownReasoningEffort(cfg.Reasoning) {
 		return nil, fmt.Errorf("unknown reasoning effort %q: use one of %s",
 			cfg.Reasoning, strings.Join(config.ReasoningEfforts(), ", "))
+	}
+	// Checked here rather than per call: a policy the target cannot honour is a
+	// configuration mistake, and finding it at construction names the model
+	// entry instead of failing the first turn of a run.
+	provider := cfg.Provider
+	if provider == "" {
+		provider = config.LLMProviderOpenAICompatible
+	}
+	if cacheErr := validateCachePolicy(cfg.CacheControl, cacheCapabilityFor(provider), provider); cacheErr != nil {
+		return nil, cacheErr
 	}
 	if err != nil {
 		return nil, err

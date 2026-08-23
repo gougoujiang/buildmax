@@ -276,8 +276,11 @@ type ModelConfig struct {
 	MaxTokens     int // 0 = the adapter's own default
 	// Reasoning is the effort level (config.Reasoning*); off means none.
 	Reasoning string
-	// PromptCache caches the stable prefix of a request.
-	PromptCache bool
+	// CacheControl is the resolved prompt-cache policy: which calls ask the
+	// provider to cache the stable prefix, and for how long. Resolved here
+	// rather than in the client so one place folds the deprecated
+	// prompt_cache shorthand.
+	CacheControl config.CacheControl
 	// Vision says this model accepts image input.
 	Vision bool
 	// KeepAlive is how long a local runtime keeps the model loaded between
@@ -1178,7 +1181,7 @@ func (r *LLMClientCache) build(cfg ModelConfig) (cllm.LLMClient, error) {
 		ContextWindow: cfg.ContextWindow,
 		MaxTokens:     cfg.MaxTokens,
 		Reasoning:     cfg.Reasoning,
-		PromptCache:   cfg.PromptCache,
+		CacheControl:  cfg.CacheControl,
 		Vision:        cfg.Vision,
 		Surface:       r.surface,
 		KeepAlive:     cfg.KeepAlive,
@@ -1332,7 +1335,7 @@ func toModelConfig(entry config.ModelEntry) ModelConfig {
 		CallTimeout:   entry.CallTimeout,
 		MaxTokens:     entry.MaxTokens,
 		Reasoning:     entry.Reasoning,
-		PromptCache:   entry.PromptCache,
+		CacheControl:  config.ResolveCacheControl(entry.CacheControl, entry.PromptCache),
 		Vision:        entry.Vision,
 		KeepAlive:     entry.KeepAlive,
 		Provider:      entry.Provider,

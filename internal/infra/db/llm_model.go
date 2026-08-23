@@ -29,7 +29,13 @@ type llmModelRow struct {
 	MaxTokens     int    `gorm:"not null;default:0"`
 	Reasoning     string `gorm:"type:varchar(16);not null;default:''"`
 	PromptCache   bool   `gorm:"not null;default:false"`
-	Vision        bool   `gorm:"not null;default:false"`
+	// CacheMode and CacheTTL are the structured prompt-cache policy that
+	// supersedes PromptCache. Empty means unset, which resolves from the older
+	// column; the two are kept side by side because a bool cannot record the
+	// difference between "cache off" and "nobody chose".
+	CacheMode string `gorm:"size:16;not null;default:''"`
+	CacheTTL  string `gorm:"size:16;not null;default:''"`
+	Vision    bool   `gorm:"not null;default:false"`
 	// Capabilities is a comma-separated list. The set is small, closed, and only
 	// ever read whole, so a join table would buy nothing.
 	Capabilities string    `gorm:"type:varchar(255)"`
@@ -55,6 +61,8 @@ func toLLMModel(row *llmModelRow) *model.LLMModel {
 		MaxTokens:     row.MaxTokens,
 		Reasoning:     row.Reasoning,
 		PromptCache:   row.PromptCache,
+		CacheMode:     row.CacheMode,
+		CacheTTL:      row.CacheTTL,
 		Vision:        row.Vision,
 		Capabilities:  splitCapabilities(row.Capabilities),
 		Enabled:       row.Enabled,
@@ -114,6 +122,8 @@ func (s *Store) CreateLLMModel(ctx context.Context, in model.CreateLLMModelInput
 		MaxTokens:     in.MaxTokens,
 		Reasoning:     in.Reasoning,
 		PromptCache:   in.PromptCache,
+		CacheMode:     in.CacheMode,
+		CacheTTL:      in.CacheTTL,
 		Vision:        in.Vision,
 		Capabilities:  joinCapabilities(in.Capabilities),
 		Enabled:       true,

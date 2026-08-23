@@ -34,8 +34,14 @@ type LLMModel struct {
 	MaxTokens int `json:"max_tokens,omitempty"`
 	// Reasoning is the effort level the upstream is asked for; empty means off.
 	Reasoning string `json:"reasoning,omitempty"`
-	// PromptCache caches the stable prefix of a request.
+	// PromptCache is the deprecated shorthand for the fields below. It stays
+	// so an existing catalog row keeps meaning what it meant.
 	PromptCache bool `json:"prompt_cache,omitempty"`
+	// CacheMode and CacheTTL are the structured prompt-cache policy: which
+	// calls ask the upstream to cache the stable prefix of a request, and for
+	// how long. Empty means unset and resolves from PromptCache.
+	CacheMode string `json:"cache_mode,omitempty"`
+	CacheTTL  string `json:"cache_ttl,omitempty"`
 	// Vision says the upstream accepts image input.
 	Vision bool `json:"vision,omitempty"`
 	// Capabilities is what this model supports, e.g. "text_chat".
@@ -59,6 +65,8 @@ type CreateLLMModelInput struct {
 	MaxTokens     int
 	Reasoning     string
 	PromptCache   bool
+	CacheMode     string
+	CacheTTL      string
 	Vision        bool
 	Capabilities  []string
 }

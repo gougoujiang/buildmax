@@ -187,12 +187,48 @@ does anyway.
 
 ## Prompt Caching
 
-`Config.PromptCache` only changes a request on Anthropic, which needs explicit
-breakpoints: one after the system prompt, which covers the tools and system
-prompt that are identical on every call in a run, and one at the end of the
-request, so the next turn reads the whole prefix rather than only the part before
-the conversation. Both OpenAI protocols cache on their own; the flag does nothing
-there.
+`Config.CacheControl` is the target's policy — `auto` (the default), `off`, or
+`force`, plus a retention — and `Request.Profile` is what the individual call is
+for. `resolveCacheDecision` combines them with the protocol's capability, and
+only the result reaches a request.
+
+The profile is the half configuration cannot supply. Under `auto`, only an
+`agent_turn` asks for caching: its prefix goes out again on the next iteration,
+which is the case a cache write is priced for. A title, a compaction summary, or
+a probe is asked once and never asked again with the same prefix, so a write
+bought for one is a straight loss. A profile this build does not recognise is
+treated as unknown reuse, which does not justify a write; a caller that means to
+pay for one says `force`.
+
+Capability belongs to a target, and a direct entry has only its provider to go
+on:
+
+| Provider | Request controls | Reported as | Retention |
+|---|---|---|---|
+| `anthropic` | Yes — nothing is cached unless the request says where | `supported` | `5m`, `1h` |
+| `openai` | No — Responses caches on its own | `implicit` | — |
+| `openai_compatible` | No — speaking the protocol is not a promise to implement its cache fields | `unsupported` | — |
+| `ollama` | No — a local runtime reuses its own cache | `unsupported` | — |
+
+`implicit` and `unsupported` are kept apart because a provider that caches
+without being asked is not a provider that does not cache, and a reader working
+out why a call cost what it did needs the difference.
+
+`force` on a target with no request controls is refused at construction: serving
+it as no caching at all would answer a question nobody asked. `auto` is accepted
+everywhere, because most targets are like this and erroring would make the
+default mode unusable. A retention the protocol does not document is refused for
+the same reason — better a named failure than a field silently served at some
+other length.
+
+On Anthropic the resulting request carries two breakpoints: a static one on the
+system prompt, which covers the tools and instructions that are identical on
+every call in a run, and the top-level rolling one, so the next turn reads the
+whole prefix rather than only the part before the conversation. The second does
+not replace the first — automatic lookback only finds a prefix that was
+previously written near the rolling endpoint. With no system prompt the static
+breakpoint moves to the last tool definition, because otherwise the only
+cacheable boundary left lands after a user message that changes every turn.
 
 Cached counts are reported by all three and land on `core/llm.Usage` as
 `CacheReadTokens` and `CacheWriteTokens`. They are a **breakdown of
