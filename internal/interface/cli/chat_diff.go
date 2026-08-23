@@ -15,6 +15,10 @@ import (
 
 const slashDiffPanelMaxLines = 22
 
+// slashDiffPanelChromeLines are the panel's own lines: box border, title, the
+// blank line above the panes, and the key hints.
+const slashDiffPanelChromeLines = 6
+
 type slashDiffState struct {
 	Diff            git.WorkspaceDiff
 	LoadError       string
@@ -130,7 +134,6 @@ func (p *slashDiffState) Render(m *Model, maxWidth int) string {
 
 	bodyH := m.diffBodyHeight()
 	leftW, rightW := diffPaneWidths(maxWidth)
-	m.syncDiffViewportsWithSize(leftW, rightW, bodyH)
 	leftStyle := diffPaneBorderStyle.Width(leftW).Height(bodyH)
 	rightStyle := lipgloss.NewStyle().Width(rightW).Height(bodyH)
 	if p.Focus == diffFocusList {
@@ -140,6 +143,10 @@ func (p *slashDiffState) Render(m *Model, maxWidth int) string {
 			BorderForeground(lightSkyBlue).
 			PaddingLeft(1)
 	}
+	// A pane keeps its border and padding inside the width it was given, so the
+	// viewport gets what is left. A viewport as wide as its pane wraps every
+	// line, and the pane grows past the height the panel budgeted for.
+	m.syncDiffViewportsWithSize(leftW-leftStyle.GetHorizontalFrameSize(), rightW-rightStyle.GetHorizontalFrameSize(), bodyH)
 	left := leftStyle.Render(p.ListViewport.View())
 	right := rightStyle.Render(p.ContentViewport.View())
 	b.WriteByte('\n')
@@ -318,12 +325,10 @@ func (m *Model) syncDiffViewports() {
 		return
 	}
 	bodyH := m.diffBodyHeight()
-	boxW := m.width - 2
-	if boxW < 48 {
-		boxW = 48
-	}
-	leftW, rightW := diffPaneWidths(boxW)
-	m.syncDiffViewportsWithSize(leftW, rightW, bodyH)
+	leftW, rightW := diffPaneWidths(max(48, m.panelContentWidth()))
+	// Rendering re-syncs with the focused pane's exact frame; this keeps the
+	// viewports usable for the key handling that runs between frames.
+	m.syncDiffViewportsWithSize(leftW-diffPaneBorderStyle.GetHorizontalFrameSize(), rightW, bodyH)
 }
 
 func (m *Model) syncDiffViewportsWithSize(leftW, rightW, height int) {
@@ -369,5 +374,5 @@ func truncateMiddleRunes(s string, maxRunes int) string {
 }
 
 func (m *Model) diffBodyHeight() int {
-	return min(slashDiffPanelMaxLines, max(10, m.height-8))
+	return m.panelListBudget(slashDiffPanelMaxLines, slashDiffPanelChromeLines)
 }

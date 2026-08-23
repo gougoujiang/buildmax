@@ -11,6 +11,10 @@ import (
 
 const slashMCPInlinePanelMaxContentLines = 14
 
+// slashMCPPanelChromeLines are the panel's own lines: box border, title, the
+// column header, the "… N more" row, and the key hint.
+const slashMCPPanelChromeLines = 8
+
 // slashMCPState is the /mcp system panel above the input (not part of chat session).
 type slashMCPState struct {
 	LoadError string
@@ -53,7 +57,7 @@ func truncateRunes(s string, max int) string {
 	return string(r[:max-3]) + "..."
 }
 
-func (p *slashMCPState) Render(_ *Model, maxLineWidth int) string {
+func (p *slashMCPState) Render(m *Model, maxLineWidth int) string {
 	var b strings.Builder
 	b.WriteString(slashPanelTitleStyle.Render("MCP servers"))
 	b.WriteString("\n\n")
@@ -69,9 +73,10 @@ func (p *slashMCPState) Render(_ *Model, maxLineWidth int) string {
 		return b.String()
 	}
 	fmt.Fprintf(&b, "%-16s  %-6s  %s\n", "id", "type", "status")
+	budget := m.panelListBudget(slashMCPInlinePanelMaxContentLines, slashMCPPanelChromeLines)
 	linesOut := 0
 	for _, row := range p.Servers {
-		if linesOut >= slashMCPInlinePanelMaxContentLines {
+		if linesOut >= budget {
 			remaining := len(p.Servers) - linesOut
 			if remaining > 0 {
 				fmt.Fprintf(&b, "… %d more\n", remaining)

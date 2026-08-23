@@ -15,6 +15,10 @@ import (
 
 const slashJobsInlinePanelMaxLines = 12
 
+// slashJobsPanelChromeLines are the panel's own lines: box border, title, the
+// "… N more" row, the closing note, and the key hints.
+const slashJobsPanelChromeLines = 9
+
 // jobEventMsg carries one background-job lifecycle event into the update loop.
 type jobEventMsg struct {
 	Event job.Event
@@ -234,9 +238,10 @@ func (p *slashJobsPanel) Render(m *Model, maxLineWidth int) string {
 		b.WriteString("No background jobs. Ask for a command with run_in_background to start one.")
 		return strings.TrimRight(b.String(), "\n") + "\n\nesc: close"
 	}
+	budget := m.panelListBudget(slashJobsInlinePanelMaxLines, slashJobsPanelChromeLines)
 	shown := 0
 	for i, j := range jobs {
-		if shown >= slashJobsInlinePanelMaxLines {
+		if shown >= budget {
 			fmt.Fprintf(&b, "… %d more\n", len(jobs)-shown)
 			break
 		}

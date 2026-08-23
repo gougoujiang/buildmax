@@ -13,6 +13,11 @@ import (
 // slashSkillsDescriptionMaxRunes caps how much of a skill description is shown in /skills.
 const slashSkillsDescriptionMaxRunes = 128
 
+// slashSkillsPanelChromeLines are the panel's own lines: box border, title, the
+// "… N more" row, and the key hint. The list budget counts lines, not entries,
+// because each skill takes a name line and a path line.
+const slashSkillsPanelChromeLines = 7
+
 // slashSkillsState is the /skills system panel above the input (not part of chat session).
 type slashSkillsState struct {
 	Entries []tools.SkillEntry
@@ -45,7 +50,7 @@ func (p *slashSkillsState) FooterHint() string { return "esc: close skills panel
 
 func (p *slashSkillsState) OnClose(m *Model) { m.slashSkills = nil }
 
-func (p *slashSkillsState) Render(_ *Model, maxLineWidth int) string {
+func (p *slashSkillsState) Render(m *Model, maxLineWidth int) string {
 	var b strings.Builder
 	b.WriteString(slashPanelTitleStyle.Render("Skills"))
 	b.WriteString("\n\n")
@@ -55,10 +60,11 @@ func (p *slashSkillsState) Render(_ *Model, maxLineWidth int) string {
 		out := strings.TrimRight(b.String(), "\n")
 		return out + "\n\nesc: close"
 	}
+	budget := m.panelListBudget(slashMCPInlinePanelMaxContentLines, slashSkillsPanelChromeLines)
 	linesOut := 0
 	shown := 0
 	for _, e := range p.Entries {
-		if linesOut+2 > slashMCPInlinePanelMaxContentLines {
+		if linesOut+2 > budget {
 			rem := len(p.Entries) - shown
 			if rem > 0 {
 				fmt.Fprintf(&b, "… %d more\n", rem)

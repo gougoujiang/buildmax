@@ -124,29 +124,33 @@ type assistantRenderedMsg struct {
 // Chat history lives in the terminal scrollback; this model only manages the
 // bottom live strip: streaming preview, input, slash panels, approval, and footer.
 type Model struct {
-	opts             TUIOpts
-	inputBlock       InputBlock
-	busy             bool
-	err              string // last error to show in footer
-	width            int
-	height           int
-	carouselDots     int          // 0, 1, 2 for ".", "..", "..."
-	focusInput       bool         // true = input has focus (slash panels may override)
-	streamingBuffer  string       // current LLM response text while streaming
-	activeTools      []activeTool // tool calls in flight, shown in the live view
-	streamChannel    chan tea.Msg // receives streamDeltaMsg, tool events, and agentDoneMsg
-	slashMCP         *slashMCPState
-	slashModel       *slashModelState
-	slashSkills      *slashSkillsState
-	slashSession     *slashSessionState
-	slashDiff        *slashDiffState
-	slashPopup       *slashPopupState
-	activePanel      slashPanel // generic panel (new abstraction); use openPanel/closeActivePanel
-	branch           string
-	userEmail        string
-	pendingApproval  *approvalRequestMsg
-	approvalSelected int
-	runStatus        agentapp.RunStatus
+	opts            TUIOpts
+	inputBlock      InputBlock
+	busy            bool
+	err             string // last error to show in footer
+	width           int
+	height          int
+	carouselDots    int          // 0, 1, 2 for ".", "..", "..."
+	focusInput      bool         // true = input has focus (slash panels may override)
+	streamingBuffer string       // current LLM response text while streaming
+	activeTools     []activeTool // tool calls in flight, shown in the live view
+	streamChannel   chan tea.Msg // receives streamDeltaMsg, tool events, and agentDoneMsg
+	slashMCP        *slashMCPState
+	slashModel      *slashModelState
+	slashSkills     *slashSkillsState
+	slashSession    *slashSessionState
+	slashDiff       *slashDiffState
+	slashPopup      *slashPopupState
+	// slashPopupInput is the input text the popup was last built from, and
+	// slashPopupDismissed remembers that esc closed it for that same text.
+	slashPopupInput     string
+	slashPopupDismissed bool
+	activePanel         slashPanel // generic panel (new abstraction); use openPanel/closeActivePanel
+	branch              string
+	userEmail           string
+	pendingApproval     *approvalRequestMsg
+	approvalSelected    int
+	runStatus           agentapp.RunStatus
 	// queue holds messages typed while a run was in flight. It is drained one
 	// message per turn, after the run that was busy when they arrived finishes.
 	queue *agent.MessageQueue
@@ -377,6 +381,7 @@ func handleKeyMsg(m *Model, msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		if m.slashPopup != nil {
 			m.slashPopup = nil
+			m.slashPopupDismissed = true
 			return m, nil
 		}
 		m.inputBlock.Reset()
