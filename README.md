@@ -20,11 +20,11 @@ one user to an organization does not mean adopting a different agent.
   experience, enterprise platform, or trust boundaries
 
 > **Status: Alpha.** Interfaces, deployment guidance, and runtime behavior may
-> change before a stable release. Password sign-in and operator-assisted
+> change quickly before a stable release. Password sign-in and operator-assisted
 > account recovery are available, but login is not rate limited and there is no
 > SSO or second factor. Read
 > [docs/deploy/authentication.md](docs/deploy/authentication.md) before exposing
-> a server.
+> a server, and [CONTRIBUTING.md](CONTRIBUTING.md) before contributing.
 
 ## Why BuildMax
 
@@ -122,12 +122,10 @@ boundaries; do not expose a deployment before reading the
 BuildMax is early enough that important runtime and product decisions are still
 being made in public.
 
-**Tests are the sharpest current need.** A large and growing share of this
-code is written with AI assistance, which raises how fast the codebase changes
-without raising test coverage to match — reviewers become the bottleneck that
-tests should be. A pull request that adds regression coverage for existing,
-currently-untested behavior is as valuable as new capability, and does not
-need a design discussion first: see [Testing](docs/contribute/areas.md#testing).
+**Tests are the sharpest current need.** The codebase evolves quickly, so a pull
+request that adds regression coverage for existing, currently-untested behavior
+is as valuable as new capability and does not need a design discussion first:
+see [Testing](docs/contribute/areas.md#testing).
 
 Contributions are also welcome in four main areas:
 
