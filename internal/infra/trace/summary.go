@@ -30,8 +30,11 @@ type Summary struct {
 	// trace always has one, including for an unsandboxed run.
 	Boundary *BoundarySummary `json:"boundary,omitempty"`
 
-	LLMCalls         int `json:"llm_calls"`
-	ToolCalls        int `json:"tool_calls"`
+	LLMCalls  int `json:"llm_calls"`
+	ToolCalls int `json:"tool_calls"`
+	// ToolFailures counts calls that could not complete. It is not a count of
+	// work that went badly: a command exiting non-zero is a successful call.
+	ToolFailures     int `json:"tool_failures"`
 	Compactions      int `json:"compactions"`
 	PromptTokens     int `json:"prompt_tokens"`
 	CompletionTokens int `json:"completion_tokens"`
@@ -79,6 +82,8 @@ type ToolSummary struct {
 	// Denied reports the call was blocked, by a hook or by policy.
 	Denied     bool   `json:"denied,omitempty"`
 	DenyReason string `json:"deny_reason,omitempty"`
+	// ErrorKind names how the call failed, empty when it did not.
+	ErrorKind string `json:"error_kind,omitempty"`
 }
 
 // Summarize reads a JSONL trace and reduces it to a Summary.
@@ -130,10 +135,14 @@ func (s *Summary) apply(rec Record) {
 		s.LLMCalls++
 	case "tool_end":
 		s.ToolCalls++
+		if rec.ErrorKind != "" {
+			s.ToolFailures++
+		}
 		s.addTool(ToolSummary{
 			Name:       rec.Tool,
 			DurationMS: rec.DurationMS,
 			Path:       filePathArg(rec.Args),
+			ErrorKind:  rec.ErrorKind,
 		})
 	case "tool_denied":
 		s.addTool(ToolSummary{

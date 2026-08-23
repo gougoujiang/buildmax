@@ -39,8 +39,10 @@ type SubAgentTrace interface {
 	Close() error
 }
 
-// SubAgentTraceFactory opens a trace for a subagent after its private session
-// exists. Returning nil disables only this trace; the subagent must still run.
+// SubAgentTraceFactory opens a trace for a subagent run. sessionID is the
+// session the trace is filed under — the parent's, because the subagent's own
+// session is discarded when it returns. Returning nil disables only this
+// trace; the subagent must still run.
 type SubAgentTraceFactory func(ctx context.Context, sessionID string, opts SubAgentRunOpts) SubAgentTrace
 
 type defaultSubAgentRunner struct {
@@ -109,6 +111,12 @@ func (r *defaultSubAgentRunner) RunSubAgent(ctx context.Context, opts SubAgentRu
 		maxIter = defaultSubAgentMaxIter
 	}
 
+	// Captured before the context is repointed at the subagent's own session,
+	// so the trace can be filed under the session a user can still reach. The
+	// session below is discarded when the subagent returns; a trace directory
+	// keyed by its id would be reachable from nothing.
+	parentSessionID, _ := session.SessionIDFromContext(ctx)
+
 	sess := session.NewSession(opts.Description)
 	registry := llm.NewToolRegistry()
 	registry.AppendTools(opts.Tools...)
@@ -134,15 +142,19 @@ func (r *defaultSubAgentRunner) RunSubAgent(ctx context.Context, opts SubAgentRu
 		})
 	}
 
+	traceSessionID := parentSessionID
+	if traceSessionID == "" {
+		traceSessionID = sess.ID
+	}
 	var eventSink func(coreagent.Event)
 	if r.traceFactory != nil {
-		if trace := r.traceFactory(ctx, sess.ID, opts); trace != nil {
+		if trace := r.traceFactory(ctx, traceSessionID, opts); trace != nil {
 			defer func() { _ = trace.Close() }()
 			eventSink = trace.Record
 		}
 	}
 
-	reply, _, err := coreagent.RunLoop(ctx, coreagent.RunLoopOpts{
+	reply, stats, err := coreagent.RunLoop(ctx, coreagent.RunLoopOpts{
 		LLMClient:        client,
 		SystemPrompt:     opts.SystemPrompt,
 		ToolRegistry:     registry,
@@ -156,6 +168,11 @@ func (r *defaultSubAgentRunner) RunSubAgent(ctx context.Context, opts SubAgentRu
 		EventSink:        eventSink,
 		MaxParallelTools: r.maxParallel,
 	})
+	// Reported before the error check: a subagent that failed still spent the
+	// tokens it spent, and a bill that drops failed work understates the run.
+	// ctx here still carries the parent's accumulator — RunLoop installs the
+	// subagent's own on a context that does not escape it.
+	coreagent.DelegatedUsageFromCtx(ctx).Report(stats)
 	if err != nil {
 		return "", err
 	}

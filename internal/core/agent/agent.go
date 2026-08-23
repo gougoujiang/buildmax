@@ -14,6 +14,17 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 )
 
+// How a tool call failed. A denial is not among them: it has its own event and
+// its own reason, and a call nobody allowed to run did not fail.
+const (
+	// ToolErrorInvalidArgs is arguments the model sent that would not parse.
+	ToolErrorInvalidArgs = "invalid_args"
+	// ToolErrorFailed is the tool itself returning an error.
+	ToolErrorFailed = "tool_error"
+	// ToolErrorPanic is a tool panicking, which is a defect in BuildMax.
+	ToolErrorPanic = "panic"
+)
+
 const denyMsgPolicy = "error: tool call %q denied by policy"
 const denyMsgLoopGuard = "error: tool call %q blocked — repeated identical call detected (loop guard)"
 const denyMsgUser = "error: tool call %q denied by user"
@@ -38,6 +49,11 @@ type RunStats struct {
 	// the total understates the run rather than covering it.
 	Cost           *llm.Cost
 	CostIncomplete bool
+	// Delegated is what subagent runs this one started spent. It is a
+	// breakdown of the token and cost fields above, not an addition to them:
+	// the totals are what the run cost, whoever executed the calls. Nil when
+	// the run delegated nothing.
+	Delegated *DelegatedStats
 }
 
 // addCall folds one completed call into the run's totals.
@@ -112,7 +128,12 @@ type CompactionHistory interface {
 // ContextCompactor summarizes a slice of messages into a short text that can replace them.
 // The returned summary is injected into the system prompt so the LLM retains prior context.
 type ContextCompactor interface {
-	Compact(ctx context.Context, msgs []llm.Message) (summary string, err error)
+	// Usage is what the summarization itself cost. It is returned rather than
+	// left to the implementation to report because compaction is a model call
+	// the run caused: a total that omits it understates exactly the long
+	// sessions where it matters most. A compactor that does not call a model
+	// returns the zero Usage.
+	Compact(ctx context.Context, msgs []llm.Message) (summary string, usage llm.Usage, err error)
 }
 
 // StateCheckpointer is handed the messages a compaction is about to discard, and gets one turn
@@ -209,6 +230,11 @@ type RunLoopOpts struct {
 func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStats, err error) {
 	opts.EventSink = serializedSink(opts.EventSink)
 	var s RunStats
+	// Installed before any tool can run. A subagent reports its totals here
+	// rather than through the tool interface, and its own delegations accrue
+	// to its own loop's accumulator, not this one.
+	delegated := &DelegatedUsage{}
+	ctx = CtxWithDelegatedUsage(ctx, delegated)
 	guard := newLoopGuard(defaultMaxRepeatedCalls)
 	// Most recent compaction summary, rendered into the system prompt when non-empty.
 	// Seeded from the history so a session compacted in an earlier turn keeps its summary
@@ -246,7 +272,7 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 						preOut := runHook(ctx, opts.Hooks, pre)
 						if preOut.Blocked() {
 							slog.Info("context compaction skipped by hook", "iter", i+1, "reason", preOut.Reason)
-						} else if summary, cerr := checkpointAndCompact(ctx, opts, i+1, compactionSummary, toSummarize); cerr == nil {
+						} else if summary, cusage, cerr := checkpointAndCompact(ctx, opts, i+1, compactionSummary, toSummarize); cerr == nil {
 							limit := maxSummaryChars(cw)
 							if clamped := clampSummary(summary, limit); clamped != summary {
 								slog.Warn("compaction summary exceeded its budget, clamped", "iter", i+1, "limit_chars", limit, "got_chars", len(summary))
@@ -260,11 +286,18 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 							}
 							history = toKeep
 							slog.Info("context compacted", "iter", i+1, "summarized", len(toSummarize), "kept", len(toKeep))
+							// Priced here rather than at an llm_end: compaction is
+							// a call the run paid for, but it is not a turn, and
+							// reporting it as one would put a reply in the trace
+							// that the conversation never contained.
+							compactCost := s.addCall(cusage, opts.Pricing)
 							emit(opts.EventSink, Event{
 								Kind:       EventContextCompacted,
 								Iter:       i + 1,
 								Summarized: len(toSummarize),
 								Kept:       len(toKeep),
+								CallUsage:  cusage,
+								CallCost:   compactCost,
 							})
 							post := baseHookInput(opts, HookPostCompact)
 							post.Summarized = len(toSummarize)
@@ -335,6 +368,10 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 		// Tools that write durable state stamp entries with the iteration they were written at.
 		n, err := executeToolCalls(CtxWithIteration(ctx, i+1), opts, toolCalls, guard)
 		s.ToolCalls += n
+		// Drained here rather than at the exits so every path out of the loop
+		// — reply, cancellation, error, iteration cap — reports the same
+		// totals, including whatever a delegation spent on the way.
+		s.absorb(delegated.Drain())
 		if err != nil {
 			return "", s, err
 		}
@@ -396,7 +433,7 @@ func injectPendingInput(ctx context.Context, opts RunLoopOpts, iter int) error {
 // The checkpoint runs first because after Compact returns, the material is only reachable
 // through a lossy summary. Its failure is logged and ignored: losing the checkpoint costs some
 // context, but skipping the compaction it guards would cost the run.
-func checkpointAndCompact(ctx context.Context, opts RunLoopOpts, iter int, priorSummary string, toSummarize []llm.Message) (string, error) {
+func checkpointAndCompact(ctx context.Context, opts RunLoopOpts, iter int, priorSummary string, toSummarize []llm.Message) (string, llm.Usage, error) {
 	if opts.Checkpointer != nil {
 		// The iteration goes on the context so notes written here are stamped like any other.
 		if err := opts.Checkpointer.Checkpoint(CtxWithIteration(ctx, iter), toSummarize); err != nil {
@@ -500,10 +537,14 @@ type pendingCall struct {
 	// parts is non-text content the tool returned, carried to the history
 	// message. Only the MCP gateway sets it today.
 	parts []llm.ContentPart
-	// executed and failed record what the run stage did, so the commit stage
-	// can fire the right post hook without re-deriving it from the result.
+	// executed records what the run stage did, so the commit stage can fire
+	// the right post hook without re-deriving it from the result.
 	executed bool
-	failed   bool
+	// errKind names how the call failed, empty when it did not. It is a
+	// classification rather than a flag because the kinds mean different
+	// things to whoever reads them: bad arguments are the model misusing a
+	// tool, a panic is a defect here, and an error is usually the environment.
+	errKind string
 }
 
 // executeToolCalls runs the calls from one assistant message in four stages:
@@ -553,9 +594,9 @@ func parseCalls(opts RunLoopOpts, toolCalls []llm.ToolCall) []pendingCall {
 		c := pendingCall{call: tc}
 		if tc.Arguments != "" {
 			if err := json.Unmarshal([]byte(tc.Arguments), &c.args); err != nil {
-				// No EventToolStart for a call that never became one.
 				c.result = fmt.Sprintf("error: invalid arguments: %v", err)
 				c.decided = true
+				c.errKind = ToolErrorInvalidArgs
 				out[i] = c
 				continue
 			}
@@ -628,6 +669,26 @@ func executeTool(ctx context.Context, tool llm.Tool, args map[string]any) (strin
 // Execute overlaps. See docs/design/parallel-tool-execution.md §5.4.
 func gateCall(ctx context.Context, opts RunLoopOpts, policy ToolPolicy, guard *loopGuard, c *pendingCall) {
 	if c.decided {
+		// Parsing decided this one before it could be gated. Both records are
+		// still written: tool_start already means "the model issued this call"
+		// rather than "execution began" — a denied call emits one too — and a
+		// failure that appears in the history but not the trace is invisible
+		// exactly where someone would look for it.
+		if c.errKind != "" {
+			emit(opts.EventSink, Event{
+				Kind:       EventToolStart,
+				ToolName:   c.call.Name,
+				ToolCallID: c.call.ID,
+				ToolArgs:   c.call.Arguments,
+			})
+			emit(opts.EventSink, Event{
+				Kind:          EventToolEnd,
+				ToolName:      c.call.Name,
+				ToolCallID:    c.call.ID,
+				ToolResult:    c.result,
+				ToolErrorKind: c.errKind,
+			})
+		}
 		return
 	}
 	name, callID := c.call.Name, c.call.ID
@@ -733,7 +794,7 @@ func runGroup(ctx context.Context, opts RunLoopOpts, group []pendingCall) {
 				if r := recover(); r != nil {
 					slog.Error("tool panicked", "tool", c.call.Name, "panic", r)
 					c.result = fmt.Sprintf("error: tool %q panicked: %v", c.call.Name, r)
-					c.executed, c.failed = true, true
+					c.executed, c.errKind = true, ToolErrorPanic
 				}
 			}()
 			sem <- struct{}{}
@@ -759,17 +820,18 @@ func executeCall(ctx context.Context, opts RunLoopOpts, c *pendingCall) {
 	dur := time.Since(start)
 	c.executed = true
 	if err != nil {
-		c.failed = true
+		c.errKind = ToolErrorFailed
 		c.result = fmt.Sprintf("error: %v", err)
 	} else {
 		c.result, c.parts = result, parts
 	}
 	emit(opts.EventSink, Event{
-		Kind:         EventToolEnd,
-		ToolName:     c.call.Name,
-		ToolCallID:   c.call.ID,
-		ToolResult:   c.result,
-		ToolDuration: dur,
+		Kind:          EventToolEnd,
+		ToolName:      c.call.Name,
+		ToolCallID:    c.call.ID,
+		ToolResult:    c.result,
+		ToolDuration:  dur,
+		ToolErrorKind: c.errKind,
 	})
 }
 
@@ -782,14 +844,14 @@ func firePostHook(ctx context.Context, opts RunLoopOpts, c *pendingCall) {
 		return
 	}
 	event := HookPostToolUse
-	if c.failed {
+	if c.errKind != "" {
 		event = HookPostToolUseFailure
 	}
 	in := baseHookInput(opts, event)
 	in.ToolName = c.call.Name
 	in.ToolCallID = c.call.ID
 	in.ToolArgs = c.args
-	if c.failed {
+	if c.errKind != "" {
 		in.ToolError = c.result
 	} else {
 		in.ToolResult = c.result

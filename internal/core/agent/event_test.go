@@ -371,8 +371,8 @@ func (c *smallWindowLLMClient) ContextWindow() int { return c.contextWindow }
 // alwaysCompactor always returns the given summary string.
 type alwaysCompactor struct{ summary string }
 
-func (a *alwaysCompactor) Compact(_ context.Context, _ []llm.Message) (string, error) {
-	return a.summary, nil
+func (a *alwaysCompactor) Compact(_ context.Context, _ []llm.Message) (string, llm.Usage, error) {
+	return a.summary, llm.Usage{PromptTokens: 40, CompletionTokens: 8, TotalTokens: 48}, nil
 }
 
 // cancellingClient returns a first response then cancels the context and returns context.Canceled.

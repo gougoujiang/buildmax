@@ -71,7 +71,7 @@ type factCompactor struct {
 	calls [][]llm.Message
 }
 
-func (c *factCompactor) Compact(ctx context.Context, msgs []llm.Message) (string, error) {
+func (c *factCompactor) Compact(ctx context.Context, msgs []llm.Message) (string, llm.Usage, error) {
 	c.calls = append(c.calls, msgs)
 	var facts []string
 	for _, m := range msgs {
@@ -81,14 +81,14 @@ func (c *factCompactor) Compact(ctx context.Context, msgs []llm.Message) (string
 			}
 		}
 	}
-	return strings.Join(facts, "\n"), nil
+	return strings.Join(facts, "\n"), llm.Usage{}, nil
 }
 
 // bigCompactor returns a summary far larger than any budget, to exercise clamping.
 type bigCompactor struct{}
 
-func (c *bigCompactor) Compact(ctx context.Context, msgs []llm.Message) (string, error) {
-	return strings.Repeat("filler line of summary text\n", 4000), nil
+func (c *bigCompactor) Compact(ctx context.Context, msgs []llm.Message) (string, llm.Usage, error) {
+	return strings.Repeat("filler line of summary text\n", 4000), llm.Usage{}, nil
 }
 
 const testContextWindow = 4000

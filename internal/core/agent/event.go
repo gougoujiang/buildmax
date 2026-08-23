@@ -104,11 +104,22 @@ type Event struct {
 	// EventToolEnd
 	ToolResult   string
 	ToolDuration time.Duration
+	// ToolErrorKind names how the call failed, empty when it did not.
+	//
+	// It reports a call that could not complete, not a task that went badly.
+	// A tool that ran and reported a bad outcome — a command exiting non-zero,
+	// a search matching nothing — succeeded at this boundary, and reading this
+	// field as a failure rate would flatter exactly the runs that are going
+	// worst.
+	ToolErrorKind string
 
 	// EventToolDenied, EventUserInputBlocked
 	DenyReason string
 
 	// EventContextCompacted
+	//
+	// CallUsage and CallCost above are set here too: compaction is a model
+	// call the run paid for, so it is priced like any other.
 	Summarized int
 	Kept       int
 
