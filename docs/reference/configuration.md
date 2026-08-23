@@ -123,9 +123,17 @@ Two settings under `worker.k8s` remain an operator's:
 | `run_as_user` | `65532` | The uid the pod runs as. Set it on a cluster that assigns its own uid range, OpenShift most commonly. The image needs no matching user — the worker writes only into mounted volumes, and `fsGroup` makes them writable. |
 | `resources.cpu_request` / `cpu_limit` / `memory_request` / `memory_limit` | unset | Kubernetes quantity strings. An empty value leaves that request or limit unset, so a deployment that has not chosen numbers keeps running unbounded rather than inheriting a limit nobody picked. An unparseable value is logged and skipped rather than failing the run. |
 
-This applies to `run_mode: k8s_job`. `local_process` runs the worker beside the
-server with no such boundary; it is a development path, not a deployment
-topology.
+This applies to `run_mode: k8s_job`. Under `local_process` the worker is a child
+process of the server — same host, same uid, same filesystem — so the two are
+one trust domain by construction. The `BUILDMAX_*` filtering above still
+applies, and everything outside that prefix is inherited from the server
+process, so a credential an operator happened to export reaches the worker as
+well. Neither fact is worth fixing on its own: a worker that goes looking reads
+the server's environment and `server.yaml` whatever it was handed. Single-machine
+deployments are supported on those terms. A deployment that needs the server
+separated from the code a model chooses runs `k8s_job`, which is where that
+boundary is built; `local_process` is deliberately not being hardened towards
+one.
 
 ### Local development `.env`
 

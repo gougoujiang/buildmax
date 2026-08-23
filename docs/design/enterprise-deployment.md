@@ -494,8 +494,14 @@ Manual product validation:
    failed liveness check restarts the container. A shared endpoint would have
    turned every database blip into a restart of a server that was working.
 3. Should Redis remain in setup if the current server path does not require it?
-4. Should the recommended production path use Kubernetes Jobs only, or document
-   `local_process` as a single-node option?
+4. ~~Should the recommended production path use Kubernetes Jobs only, or document
+   `local_process` as a single-node option?~~ **Decided: Kubernetes Jobs are the
+   recommended production path, and `local_process` stays supported as a
+   single-machine option with its trust domain stated.** A local worker is a
+   child process of the server under the same uid, so no amount of narrowing
+   what it inherits turns it into a boundary. Rather than harden a topology that
+   cannot hold one, the deployment documentation says server and workers share a
+   trust domain there, and a deployment that needs them separated runs `k8s_job`.
 5. Should private deployments allow self-signup by default?
 
 The remaining questions came from the retired *Private production operations*
