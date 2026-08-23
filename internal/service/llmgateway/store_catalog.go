@@ -61,13 +61,6 @@ func targetFromModel(m model.LLMModel) (Target, error) {
 	for _, c := range m.Capabilities {
 		capabilities = append(capabilities, Capability(c))
 	}
-	// A row written before the structured policy existed carries only the old
-	// bool. True was an explicit request for caching and becomes force; false
-	// is the column default, which nobody had to choose, so it is left unset
-	// and takes the default policy rather than reading as an opt-out.
-	if m.CacheMode == "" && m.PromptCache {
-		m.CacheMode = legacyPromptCacheMode
-	}
 	target := Target{
 		ID:                m.ID,
 		Name:              m.Name,

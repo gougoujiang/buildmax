@@ -84,9 +84,6 @@ type ServerModelEntry struct {
 	Provider string `mapstructure:"provider"`
 	// Reasoning is the effort level: off (the default), low, medium, or high.
 	Reasoning string `mapstructure:"reasoning"`
-	// PromptCache is the deprecated shorthand for CacheControl; absent and
-	// false ask for different things, hence the pointer.
-	PromptCache *bool `mapstructure:"prompt_cache"`
 	// CacheControl is this model's prompt-cache policy.
 	CacheControl *CacheControl `mapstructure:"cache_control"`
 	// Pricing is what this model charges; without it cost is unavailable.
@@ -114,7 +111,6 @@ func (m ServerModelEntry) RuntimeModelEntry() ModelEntry {
 		MaxTokens:     m.MaxTokens,
 		Provider:      m.Provider,
 		Reasoning:     m.Reasoning,
-		PromptCache:   m.PromptCache,
 		CacheControl:  m.CacheControl,
 		Pricing:       m.Pricing,
 		Vision:        m.Vision,

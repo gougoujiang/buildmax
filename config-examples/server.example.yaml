@@ -67,7 +67,6 @@ conversation:
     # cache_control:               # prompt cache policy for this model
     #   mode: auto                 #   auto (default), off, force
     #   ttl: provider_default      #   provider_default (default), 5m, 1h
-    # prompt_cache: false          # deprecated shorthand: true = force, off = off
     # pricing:                     # what this model charges; without it a call
     #   currency: USD              # reports its cost as unavailable
     #   input_per_mtok: "3.00"

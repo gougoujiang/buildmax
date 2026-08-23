@@ -58,38 +58,24 @@ func KnownCacheTTL(ttl string) bool {
 	return false
 }
 
-// ResolveCacheControl folds the structured policy and the deprecated
-// prompt_cache shorthand into one effective policy.
+// ResolveCacheControl fills in what a model entry left unset.
 //
-// The shorthand is a pointer because absent and false are different requests
-// and a bool cannot hold both. Absent means nobody chose, which becomes the
-// default; an explicit false is an opt-out and stays one. An explicit true
-// becomes force rather than auto: it was written when the only alternative was
-// no caching at all, so reading it as the weaker of the two new modes would
-// quietly take away what the operator asked for.
-//
-// The structured field wins outright when present. Someone who wrote both said
-// the newer thing last.
-func ResolveCacheControl(structured *CacheControl, legacy *bool) CacheControl {
-	if structured != nil {
-		out := *structured
-		if out.Mode == "" {
-			out.Mode = CacheModeAuto
-		}
-		if out.TTL == "" {
-			out.TTL = CacheTTLProviderDefault
-		}
+// An absent block, an absent mode, and an absent ttl all mean the same thing —
+// nobody chose — and all take the default. There is no legacy shorthand to fold
+// in: BuildMax is pre-release, so a wrong shape is corrected everywhere rather
+// than carried alongside its replacement.
+func ResolveCacheControl(in *CacheControl) CacheControl {
+	out := CacheControl{Mode: CacheModeAuto, TTL: CacheTTLProviderDefault}
+	if in == nil {
 		return out
 	}
-	mode := CacheModeAuto
-	if legacy != nil {
-		if *legacy {
-			mode = CacheModeForce
-		} else {
-			mode = CacheModeOff
-		}
+	if in.Mode != "" {
+		out.Mode = in.Mode
 	}
-	return CacheControl{Mode: mode, TTL: CacheTTLProviderDefault}
+	if in.TTL != "" {
+		out.TTL = in.TTL
+	}
+	return out
 }
 
 // ValidateCacheControl reports a policy this build cannot act on. It checks the

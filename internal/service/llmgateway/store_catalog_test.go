@@ -25,15 +25,11 @@ func storedModel(mutate func(*model.LLMModel)) model.LLMModel {
 	return m
 }
 
-// A catalog row written before the structured policy existed still has to mean
-// something, and the two legacy values do not mean the same thing.
-//
-// True was an explicit request for caching, so it becomes the mode that asks on
-// every call. False is the column's own default — nobody had to choose it — so
-// it is left unset and takes the default policy. Reading that default as an
-// opt-out would leave every existing managed target uncached forever, which no
-// operator asked for either.
-func TestStoreCatalogResolvesTheLegacyPromptCacheColumn(t *testing.T) {
+// A row that names no policy takes the default rather than reading as an
+// opt-out, and one that names a mode gets exactly that mode. There is no
+// shorthand to fold in: BuildMax is pre-release, so `cache_mode` is the only
+// way a catalog row states this.
+func TestStoreCatalogResolvesTheCachePolicy(t *testing.T) {
 	tests := []struct {
 		name     string
 		stored   model.LLMModel
@@ -46,17 +42,14 @@ func TestStoreCatalogResolvesTheLegacyPromptCacheColumn(t *testing.T) {
 			wantMode: "",
 		},
 		{
-			name:     "the legacy true becomes force",
-			stored:   storedModel(func(m *model.LLMModel) { m.PromptCache = true }),
-			wantMode: "force",
+			name:     "an explicit opt-out survives",
+			stored:   storedModel(func(m *model.LLMModel) { m.CacheMode = "off" }),
+			wantMode: "off",
 		},
 		{
-			name: "a structured policy wins over the shorthand",
-			stored: storedModel(func(m *model.LLMModel) {
-				m.PromptCache = true
-				m.CacheMode = "off"
-			}),
-			wantMode: "off",
+			name:     "force is carried through",
+			stored:   storedModel(func(m *model.LLMModel) { m.CacheMode = "force" }),
+			wantMode: "force",
 		},
 		{
 			name: "retention travels with the mode",

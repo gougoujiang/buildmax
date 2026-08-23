@@ -85,8 +85,7 @@ model request into a cache write or silently enable extended retention.
 
 ## 4. Policy Model
 
-The existing `models[].prompt_cache: bool` remains a deprecated compatibility
-shorthand. New configuration uses a structured policy:
+Configuration uses a structured policy:
 
 ```yaml
 models:
@@ -106,9 +105,13 @@ explicit and `snake_case`; the wire shape is an implementation detail.
 | `off` | Send no control. | Send no control. | Send no control. |
 | `force` | Request caching even when reuse cannot be established. | Request caching. | Reject configuration rather than pretend it worked. |
 
-`prompt_cache: true` migrates to `mode: force`; `false` migrates to `off`.
-An absent legacy field becomes `auto`. This preserves explicit opt-outs and
-does not reinterpret existing `true` as a weaker request.
+The `prompt_cache: bool` this replaces is removed rather than kept as a
+shorthand. It was written up here as a compatibility path, and that was the
+wrong call for a pre-release project: nothing is deployed that has to keep
+working, and the two stores could not agree on what `false` meant — a
+`*bool` in a settings file distinguishes absent from false, and a non-null
+column does not, so the same word would have meant "off" in one place and
+"default" in the other. Removing it removes the disagreement.
 
 ### 4.1 Per-call intent
 
@@ -312,13 +315,12 @@ input observes a write then read; an `auto` title-only call sends no control.
 Two decisions were settled in implementation and are recorded here because the
 plan above did not:
 
-The catalog's `prompt_cache` column cannot hold what section 4 asks of the
-settings file. There, absent and `false` are different requests and a pointer
-keeps them apart; a non-null bool column with a `false` default has no such room,
-and almost every existing row holds a `false` nobody chose. Reading those as
-opt-outs would leave every managed target uncached, which is the outcome this
-document exists to change, so an unset catalog row resolves to `auto` and an
-operator who wants caching off writes `cache_mode: off`.
+The `prompt_cache` shorthand section 4 originally kept is gone. Implementing it
+showed why: a settings file can distinguish absent from `false` with a pointer
+and a non-null column cannot, so the same field would have meant "off" in one
+store and "default" in the other. A pre-release project has no reason to carry
+that. `cache_mode` is the only way either store states this, and an unset row
+takes the default.
 
 `force` is refused where a target takes no cache instructions, and `auto` is
 not. Refusing `auto` there would make the default mode unusable on the majority

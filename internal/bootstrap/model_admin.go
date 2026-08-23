@@ -43,7 +43,6 @@ Flags for add:
   --call-timeout int      Per-call timeout in seconds; 0 uses the client default
   --max-tokens int        Cap on one response; 0 uses the client default
   --reasoning string      Reasoning effort: off (default), low, medium, high
-  --prompt-cache          Deprecated shorthand for --cache-mode force
   --cache-mode string     Prompt cache policy: auto (default), off, force
   --cache-ttl string      Prompt cache retention: provider_default (default),
                           5m, 1h; only where the provider documents it
@@ -100,7 +99,6 @@ func runModelAdd(ctx context.Context, args []string, out io.Writer) error {
 	callTimeout := fs.Int("call-timeout", 0, "per-call timeout in seconds")
 	maxTokens := fs.Int("max-tokens", 0, "cap on one response")
 	reasoning := fs.String("reasoning", "", "reasoning effort: off, low, medium, high")
-	promptCache := fs.Bool("prompt-cache", false, "deprecated shorthand for --cache-mode force")
 	cacheMode := fs.String("cache-mode", "", "prompt cache policy: auto (default), off, force")
 	cacheTTL := fs.String("cache-ttl", "", "prompt cache retention: provider_default (default), 5m, 1h")
 	currency := fs.String("currency", "", "ISO 4217 code the prices are quoted in")
@@ -135,7 +133,6 @@ func runModelAdd(ctx context.Context, args []string, out io.Writer) error {
 		CallTimeout:   *callTimeout,
 		MaxTokens:     *maxTokens,
 		Reasoning:     strings.TrimSpace(*reasoning),
-		PromptCache:   *promptCache,
 		CacheMode:     strings.TrimSpace(*cacheMode),
 		CacheTTL:      strings.TrimSpace(*cacheTTL),
 

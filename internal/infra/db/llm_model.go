@@ -28,21 +28,21 @@ type llmModelRow struct {
 	CallTimeout   int    `gorm:"not null;default:0"`
 	MaxTokens     int    `gorm:"not null;default:0"`
 	Reasoning     string `gorm:"type:varchar(16);not null;default:''"`
-	PromptCache   bool   `gorm:"not null;default:false"`
-	// CacheMode and CacheTTL are the structured prompt-cache policy that
-	// supersedes PromptCache. Empty means unset, which resolves from the older
-	// column; the two are kept side by side because a bool cannot record the
-	// difference between "cache off" and "nobody chose".
+	// CacheMode and CacheTTL are the prompt-cache policy. Empty means unset,
+	// which takes the default.
 	CacheMode string `gorm:"size:16;not null;default:''"`
 	CacheTTL  string `gorm:"size:16;not null;default:''"`
 	// Rates are nano-currency-units per million tokens, held as integers
 	// because a float would round a published price before anything read it.
 	// An empty Currency means unpriced.
+	// The column names are pinned because the naming strategy would render
+	// MTok as "m_tok", which is nobody's idea of the name and would disagree
+	// with every other place these rates are written.
 	Currency          string `gorm:"size:8;not null;default:''"`
-	InputPerMTok      int64  `gorm:"not null;default:0"`
-	CacheReadPerMTok  int64  `gorm:"not null;default:0"`
-	CacheWritePerMTok int64  `gorm:"not null;default:0"`
-	OutputPerMTok     int64  `gorm:"not null;default:0"`
+	InputPerMTok      int64  `gorm:"column:input_per_mtok;not null;default:0"`
+	CacheReadPerMTok  int64  `gorm:"column:cache_read_per_mtok;not null;default:0"`
+	CacheWritePerMTok int64  `gorm:"column:cache_write_per_mtok;not null;default:0"`
+	OutputPerMTok     int64  `gorm:"column:output_per_mtok;not null;default:0"`
 	Vision            bool   `gorm:"not null;default:false"`
 	// Capabilities is a comma-separated list. The set is small, closed, and only
 	// ever read whole, so a join table would buy nothing.
@@ -68,7 +68,6 @@ func toLLMModel(row *llmModelRow) *model.LLMModel {
 		CallTimeout:       row.CallTimeout,
 		MaxTokens:         row.MaxTokens,
 		Reasoning:         row.Reasoning,
-		PromptCache:       row.PromptCache,
 		CacheMode:         row.CacheMode,
 		CacheTTL:          row.CacheTTL,
 		Currency:          row.Currency,
@@ -115,7 +114,10 @@ func joinCapabilities(in []string) string {
 // explicitly so adding a column later cannot silently start returning the key.
 var llmModelColumns = []string{
 	"id", "public_id", "name", "provider_type", "api_url", "model",
-	"context_window", "call_timeout", "max_tokens", "reasoning", "prompt_cache",
+	"context_window", "call_timeout", "max_tokens", "reasoning",
+	"cache_mode", "cache_ttl",
+	"currency", "input_per_mtok", "cache_read_per_mtok", "cache_write_per_mtok",
+	"output_per_mtok",
 	"vision", "capabilities", "enabled",
 	"created_at", "updated_at",
 }
@@ -134,7 +136,6 @@ func (s *Store) CreateLLMModel(ctx context.Context, in model.CreateLLMModelInput
 		CallTimeout:       in.CallTimeout,
 		MaxTokens:         in.MaxTokens,
 		Reasoning:         in.Reasoning,
-		PromptCache:       in.PromptCache,
 		CacheMode:         in.CacheMode,
 		CacheTTL:          in.CacheTTL,
 		Currency:          in.Currency,

@@ -204,7 +204,9 @@ sandbox: {}                          # see guide/sandbox.md
 | `models[].provider` | `openai_compatible` | The wire protocol the endpoint speaks — see below. Ignored by a `buildmax` entry, where the deployment's catalog decides. |
 | `models[].max_tokens` | `0` | Cap on one response. `0` means the protocol's default; `anthropic` requires the field, so `0` there sends the built-in 8192. |
 | `models[].reasoning` | `off` | How much the model reasons before answering: `off`, `low`, `medium`, or `high` — see below. No effect on `openai_compatible`, which carries none. |
-| `models[].prompt_cache` | `false` | Cache the stable prefix of a request — the tool definitions and system prompt — so later calls in a run pay less for them. |
+| `models[].cache_control` | `auto` | Which calls ask the provider to cache the stable prefix of a request, and for how long — see below. |
+| `models[].pricing` | — | What this model charges, so a run can report its cost — see below. |
+| `models[].integration` | — | A qualified OpenAI-compatible gateway. None is qualified, so any value is refused today. |
 | `models[].vision` | `false` | This model accepts image input. Leave it off and an image a tool returns is described in text rather than sent. |
 | `models[].keep_alive` | — | How long a local runtime keeps the model loaded after a call: a duration such as `30m`, `0` to unload at once, `-1` to stay resident. Only `ollama` reads it. |
 | `models[].transport` | `direct` | `direct` calls a provider from this machine. `buildmax` calls a server's managed gateway. |
@@ -314,10 +316,6 @@ what keeps their prompts out of one another's bucket.
 `mode: force` is refused at startup on any provider that takes no cache
 instructions. Serving it as no caching at all would answer a question nobody
 asked. `mode: auto` is accepted everywhere, because most models are like this.
-
-The older `prompt_cache` boolean still works and maps onto the same policy:
-`true` becomes `mode: force`, `false` becomes `mode: off`, and leaving it out
-becomes `mode: auto`. `cache_control` wins when both are set.
 
 Cached tokens are reported as `cache_read_tokens` and `cache_write_tokens`,
 which **break the prompt count down rather than adding to it**. A spend report
@@ -455,7 +453,8 @@ cannot call tools at all, which no amount of prompting works around. Pick one
 whose capabilities include `tools` in `buildmax models --local`.
 
 Everything else behaves as it does elsewhere: `max_tokens`, `vision`, and
-`reasoning` mean the same, `prompt_cache` does nothing, and `keep_alive`
+`reasoning` mean the same, `cache_control` does nothing because a local runtime
+takes no cache instructions, and `keep_alive`
 controls how long the daemon keeps the model in memory between calls — worth
 setting on a machine where reloading a large model costs more than the turn.
 

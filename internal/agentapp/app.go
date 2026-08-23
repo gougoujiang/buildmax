@@ -1388,7 +1388,7 @@ func toModelConfig(entry config.ModelEntry) ModelConfig {
 		CallTimeout:   entry.CallTimeout,
 		MaxTokens:     entry.MaxTokens,
 		Reasoning:     entry.Reasoning,
-		CacheControl:  config.ResolveCacheControl(entry.CacheControl, entry.PromptCache),
+		CacheControl:  config.ResolveCacheControl(entry.CacheControl),
 		Pricing:       pricing,
 		PricingErr:    pricingErr,
 		Integration:   entry.Integration,

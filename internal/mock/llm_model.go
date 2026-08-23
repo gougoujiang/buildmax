@@ -40,7 +40,6 @@ func (m *MockLLMModelStore) CreateLLMModel(_ context.Context, in model.CreateLLM
 		CallTimeout:   in.CallTimeout,
 		MaxTokens:     in.MaxTokens,
 		Reasoning:     in.Reasoning,
-		PromptCache:   in.PromptCache,
 		CacheMode:     in.CacheMode,
 		CacheTTL:      in.CacheTTL,
 		Vision:        in.Vision,

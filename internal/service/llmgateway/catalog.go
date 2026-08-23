@@ -16,12 +16,6 @@ import (
 	"time"
 )
 
-// legacyPromptCacheMode is what the deprecated prompt_cache bool becomes when
-// it was set. Force rather than the weaker default: it was written when the
-// only alternative was no caching at all, so reading it as anything less takes
-// away what the operator asked for.
-const legacyPromptCacheMode = "force"
-
 // Provider types name the wire protocol a target speaks. A provider type
 // selects a client implementation; it is not a vendor name. Claude reached
 // through an OpenAI-compatible gateway is ProviderOpenAICompatible, and Claude

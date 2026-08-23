@@ -123,7 +123,7 @@ func derivedConversationTarget(entry config.ServerModelEntry) llmgateway.Target 
 	if providerType == "" {
 		providerType = llmgateway.ProviderOpenAICompatible
 	}
-	conversationCache := config.ResolveCacheControl(entry.CacheControl, entry.PromptCache)
+	conversationCache := config.ResolveCacheControl(entry.CacheControl)
 	return llmgateway.Target{
 		ID:            conversationTargetID,
 		Name:          name,

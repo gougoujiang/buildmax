@@ -59,11 +59,13 @@ type llmCallRow struct {
 	// new rates would rewrite what a team already spent. An empty Currency
 	// means the model was unpriced at the time, which is not the same fact as
 	// a call that cost nothing.
+	// Column names pinned for the same reason as on llm_model: the naming
+	// strategy renders MTok as "m_tok".
 	Currency              string `gorm:"type:varchar(8)"`
-	RateInputPerMTok      *int64 `gorm:""`
-	RateCacheReadPerMTok  *int64 `gorm:""`
-	RateCacheWritePerMTok *int64 `gorm:""`
-	RateOutputPerMTok     *int64 `gorm:""`
+	RateInputPerMTok      *int64 `gorm:"column:rate_input_per_mtok"`
+	RateCacheReadPerMTok  *int64 `gorm:"column:rate_cache_read_per_mtok"`
+	RateCacheWritePerMTok *int64 `gorm:"column:rate_cache_write_per_mtok"`
+	RateOutputPerMTok     *int64 `gorm:"column:rate_output_per_mtok"`
 }
 
 func (llmCallRow) TableName() string { return "llm_call" }

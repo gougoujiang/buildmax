@@ -5,12 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/util"
+	"gorm.io/gorm/schema"
 )
 
 const catalogSecret = "sk-CATALOG-SECRET-VALUE"
@@ -193,4 +195,71 @@ func TestGetLLMModelMissing(t *testing.T) {
 	if _, err := s.LLMModelCredential(ctx, "lm_does_not_exist"); err == nil {
 		t.Error("a credential was returned for a model that does not exist")
 	}
+}
+
+// TestLLMModelColumnsCoversTheRow is the guard the comment on llmModelColumns
+// asked for and could not enforce.
+//
+// Reads name their columns explicitly so a column added later cannot silently
+// start returning the credential. The cost is the mirror failure, and it
+// happened: the prompt-cache policy and pricing columns were added to the row
+// and not to the list, so every catalog read returned them as zero — a managed
+// deployment would have found its models unpriced and its cache policy unset,
+// with nothing failing to say so. The store tests skip without a DSN, so
+// nothing caught it.
+//
+// api_key is the one column deliberately absent. Everything else must be
+// listed, and this fails when it is not.
+func TestLLMModelColumnsCoversTheRow(t *testing.T) {
+	listed := make(map[string]bool, len(llmModelColumns))
+	for _, c := range llmModelColumns {
+		listed[c] = true
+	}
+	// The credential is excluded on purpose; naming it here is the whole point
+	// of the list.
+	skip := map[string]bool{"api_key": true}
+
+	rowType := reflect.TypeOf(llmModelRow{})
+	for i := range rowType.NumField() {
+		column := gormColumnName(rowType.Field(i))
+		if column == "" || skip[column] {
+			continue
+		}
+		if !listed[column] {
+			t.Errorf("llmModelRow.%s maps to column %q, which llmModelColumns does not select; "+
+				"reads would return it as zero", rowType.Field(i).Name, column)
+		}
+	}
+	for _, c := range llmModelColumns {
+		if !rowHasColumn(rowType, c) {
+			t.Errorf("llmModelColumns selects %q, which llmModelRow has no field for", c)
+		}
+	}
+}
+
+// gormColumnName is the column a struct field maps to.
+//
+// GORM's own naming strategy answers it rather than a hand-rolled snake_case:
+// approximating it is how a guard ends up disagreeing with the schema it
+// guards, and initialisms like APIURL are exactly where the two diverge.
+func gormColumnName(f reflect.StructField) string {
+	tag := f.Tag.Get("gorm")
+	for _, part := range strings.Split(tag, ";") {
+		if name, ok := strings.CutPrefix(strings.TrimSpace(part), "column:"); ok {
+			return name
+		}
+	}
+	if tag == "-" {
+		return ""
+	}
+	return (schema.NamingStrategy{}).ColumnName("", f.Name)
+}
+
+func rowHasColumn(rowType reflect.Type, column string) bool {
+	for i := range rowType.NumField() {
+		if gormColumnName(rowType.Field(i)) == column {
+			return true
+		}
+	}
+	return false
 }

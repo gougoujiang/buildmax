@@ -173,8 +173,6 @@ models:
                                    # documents one: 5m and 1h on anthropic,
                                    # 24h on openai. See the configuration
                                    # reference for the full rules.
-  #   prompt_cache: true           # deprecated: true means force, false means
-                                   # off. cache_control wins over both.
   #   integration: openrouter      # a gateway whose cache behaviour BuildMax
                                    # has qualified, for openai_compatible only.
                                    # None is qualified, so any value is refused
