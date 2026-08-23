@@ -1,0 +1,42 @@
+{
+  "contract_version": 1,
+  "id": "worker-report-from-team-files",
+  "version": 1,
+  "suite": "worker-and-taskrun",
+  "title": "Produce a report from the team's files in a worker run",
+  "tags": ["worker", "materialization", "artifacts"],
+  "domain": "product_outcome",
+  "surface": "worker",
+  "turns": [
+    "The team's files are in the home directory. Read home/backlog.md and write summary.md in your working directory, listing how many items are open and naming the one marked urgent."
+  ],
+  "limits": {
+    "wall_seconds": 240,
+    "tool_calls": 40
+  },
+  "trials": 3,
+  "graders": [
+    {
+      "name": "files",
+      "version": 1,
+      "kind": "deterministic",
+      "required": true,
+      "config": { "exists": ["summary.md", "home/backlog.md"] }
+    },
+    {
+      "name": "command",
+      "version": 1,
+      "kind": "deterministic",
+      "required": true,
+      "config": { "run": ["./check-summary.sh"], "timeout_seconds": 30 }
+    },
+    {
+      "name": "trace",
+      "version": 1,
+      "kind": "trace",
+      "required": true,
+      "config": { "required_tools": ["Write"], "max_tool_calls": 40 }
+    }
+  ],
+  "oracle": ["sh", "./solve.sh"]
+}

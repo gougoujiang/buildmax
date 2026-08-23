@@ -365,6 +365,11 @@ func cmdEval(args []string) error {
 	if err := buildGo("eval", cliBinary, "./cmd/buildmax"); err != nil {
 		return err
 	}
+	// The worker is built too, because a suite may hold worker tasks and the
+	// runner refuses a suite it cannot dispatch rather than skipping those.
+	if err := buildGo("eval", workerBinary, "./cmd/buildmax-worker"); err != nil {
+		return err
+	}
 	out := filepath.Join(binDir, exe(evalBinary))
 	if err := runCmd("go", "build", "-ldflags", ldflags(), "-o", out, "./cmd/buildmax-eval"); err != nil {
 		return err
@@ -374,6 +379,9 @@ func cmdEval(args []string) error {
 	// caller named one, point it at the CLI just built.
 	if !hasFlag(args, "--binary") {
 		args = append([]string{"--binary", filepath.Join(binDir, exe(cliBinary))}, args...)
+	}
+	if !hasFlag(args, "--worker-binary") {
+		args = append([]string{"--worker-binary", filepath.Join(binDir, exe(workerBinary))}, args...)
 	}
 	return runCmd(out, args...)
 }

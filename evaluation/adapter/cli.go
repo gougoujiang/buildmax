@@ -41,6 +41,22 @@ type CLI struct {
 	Retention contract.RetentionLevel
 }
 
+// Executor runs one trial through a built artifact and returns its evidence.
+//
+// Both implementations run a shipped binary rather than the runtime as a
+// library, which is what section 7.3 asks of an authoritative adapter. The
+// interface exists so a suite can hold tasks for more than one surface: a
+// cross-surface parity case is two tasks stating the same goal, and it can only
+// be run if the runner can dispatch each to the surface its task names.
+type Executor interface {
+	Run(ctx context.Context, tr Trial, bundleRoot string) (Result, error)
+	// Describe reports the surface this executor runs and its own version.
+	// Both belong to the subject's identity: two adapters reaching the same
+	// build are two execution paths, and section 8.2 makes the path part of
+	// what was measured rather than a detail of how it was measured.
+	Describe() (contract.Surface, int)
+}
+
 // Trial is one attempt's inputs.
 type Trial struct {
 	Task         contract.Task
@@ -219,6 +235,9 @@ func (c *CLI) Run(ctx context.Context, tr Trial, bundleRoot string) (Result, err
 		Cleanup:   cleanup,
 	}, nil
 }
+
+// Describe reports the CLI surface and this adapter's version.
+func (c *CLI) Describe() (contract.Surface, int) { return contract.SurfaceCLI, CLIAdapterVersion }
 
 func (c *CLI) retention() contract.RetentionLevel {
 	if c.Retention == "" {
