@@ -1,7 +1,8 @@
 # Plugin Distribution And Private Marketplace
 
 > **Audience:** contributors and operators · **Status:** partly implemented —
-> Phases A, B, and C ship; team and worker distribution do not
+> Phases A, B, and C ship; team and worker distribution do not, and are
+> designed in [plugin-team-distribution.md](./plugin-team-distribution.md)
 >
 > User documentation for what ships:
 > [../guide/plugins.md](../guide/plugins.md)
@@ -14,10 +15,11 @@
   subagents, MCP, and hooks, collision and shadowing reports,
   `${BUILDMAX_PLUGIN_ROOT}`, per-run provenance in traces, the local CLI
   commands, and the Marketplace itself — packaging, the catalog and its
-  releases, package storage, publication, browse, download, and install.
-  publication, browse, download, and install, plus the Portal and Desktop
-  surfaces. Phase D, team and worker distribution, is deferred by design and
-  needs its own record before anything is built
+  releases, package storage, publication, browse, download, and install, plus
+  the Portal and Desktop surfaces. Phase D, team and worker distribution, is
+  deferred by design; its record exists and is
+  [plugin-team-distribution.md](./plugin-team-distribution.md), which is ready
+  for review with nothing built
 - follows: [enterprise-deployment.md](./enterprise-deployment.md),
   [team-governance.md](./team-governance.md), and
   [system-administration.md](./system-administration.md)

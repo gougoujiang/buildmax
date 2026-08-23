@@ -4,9 +4,11 @@
 > and phase 4's mechanism with them: cache counts reach every surface, caching
 > is a per-call policy that defaults on for Anthropic agent turns and sends a
 > scoped key on OpenAI Responses, and a priced model reports what a run cost.
-> `./make cache-qualify` exists; no provider has been run through it, so no
-> compatible gateway is qualified and the section 6 diagnostics are not yet
-> carried to the surfaces.
+> `./make cache-qualify` has been run, and §10 phase 4 records what it found:
+> the native Anthropic Messages and OpenAI Responses paths qualified, and
+> `compatibleProfiles` stays empty by decision rather than for want of
+> evidence. Open: the per-entry capability claim that run proposed, and the
+> section 6 diagnostics, which do not yet leave `internal/infra/llm`.
 
 Extends [llm-provider-adapters.md](llm-provider-adapters.md) and
 [llm-gateway.md](llm-gateway.md). The provider-adapter design owns protocol
@@ -26,7 +28,7 @@ The current implementation is a useful base but not a complete policy:
 |---|---|---|
 | Anthropic | `auto` by default on agent turns, with static and rolling breakpoints and an explicit 1-hour opt-in (phase 2). | — |
 | OpenAI Responses | Sends a derived, scoped `prompt_cache_key` and optional 24h retention (phase 3). | `prompt_cache_options` unverified and deliberately unsent. |
-| OpenAI-compatible | Declares no cache capability and sends no controls; a named `integration` may opt in once qualified (phase 4). | No gateway has been through the qualification suite, so every integration name is refused. |
+| OpenAI-compatible | Declares no cache capability and sends no controls; a named `integration` may opt in once qualified (phase 4). | Every integration name is refused, and §10 decides it stays that way: the compatible path already reports what its upstreams do. |
 | Accounting | `core/llm.Usage`, run stats, traces, session totals, local results, the managed ledger, and Portal all carry cache read/write tokens (phase 1). | Nothing distinguishes a requested strategy from a provider that reports nothing. |
 | Cost control | A priced model reports per-call and per-run cost, split by token class, against an uncached baseline (phase 3). | No miss explanation: the section 6 diagnostics are resolved per call but do not leave `internal/infra/llm`. |
 
@@ -330,9 +332,9 @@ nobody asked.
 The section 6 diagnostics — requested mode, capability, strategy, effective TTL,
 outcome — are resolved per call but do not yet leave `internal/infra/llm`.
 Carrying them to the surfaces is the remaining debt, and it belongs with phase 4:
-what a reader needs them for is the explanation behind a miss, and until the
-qualification suite establishes what a real miss looks like there is nothing
-truthful to say beyond the counts.
+what a reader needs them for is the explanation behind a miss, and the
+qualification run of §10 characterized hits rather than misses, so there is
+still nothing truthful to say beyond the counts.
 
 ### Phase 3 — OpenAI native controls and cost estimates (shipped)
 

@@ -37,7 +37,7 @@ reference, then delete the plan.
 | [Enterprise deployment](enterprise-deployment.md) | P3 | M1 and M4 shipped, M3 mostly done; M2 and M5 open |
 | [Managed LLM gateway](llm-gateway.md) | P3 | Shipped for CLI/TUI/Desktop and task runs; per-team database policy and strict quota open |
 | [LLM provider adapters](llm-provider-adapters.md) | P3 follow-on | Complete: three wire protocols, reasoning, prompt caching, and image input |
-| [Prompt cache control](prompt-cache-control.md) | P3 follow-on | Phases 1–3 shipped: cache policy, the Anthropic and OpenAI native paths, usage and cost telemetry. The qualification suite exists; per-model capability claims are an open proposal |
+| [Prompt cache control](prompt-cache-control.md) | P3 follow-on | Phases 1–3 shipped: cache policy, the Anthropic and OpenAI native paths, usage and cost telemetry. The qualification suite has been run and both native paths qualified; compatible profiles stay empty by decision. The per-entry capability claim and the section 6 diagnostics are open |
 | [Local Ollama provider](local-ollama-provider.md) | P1 follow-on | Complete: the adapter, local inventory, the CLI surface, and credential-free managed targets |
 | [Worker run token](worker-run-token.md) | P3 | Complete: the only credential every worker route takes, and the shared worker token is removed |
 | [Team governance](team-governance.md) | P4 | Roles, quota, workflow lifecycle, the audit trail, its retention and export, and quota alerting shipped; the second slice of actions and audit-to-run correlation open |
