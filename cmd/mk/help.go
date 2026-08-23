@@ -294,7 +294,7 @@ func helpTopics() []helpTopic {
 		},
 		{
 			name:    "kind",
-			usage:   "kind <up|images|smoke [managed]|info [email]|forward|status|logs|down>",
+			usage:   "kind <up|images|seed|smoke [managed]|info [email]|forward|status|logs|down>",
 			summary: "Manage the local Kubernetes reference deployment.",
 			details: []string{
 				"Needs Docker and kubectl, and creates a kind cluster — set BUILDMAX_KIND_CLUSTER\n" +
@@ -308,10 +308,15 @@ func helpTopics() []helpTopic {
 					"A target whose host port is already taken is skipped, not fatal.",
 				"A login code is single-use and printed once, so `info` issues a fresh one\n" +
 					"rather than trying to show a code that is already spent.",
+				"`seed` grants the cluster's teams the models in " + localSettingsPath + ", so the CLI\n" +
+					"and Desktop can drive it over the managed transport with real inference. The\n" +
+					"cluster's own Portal conversations and task runs keep answering from the mock,\n" +
+					"so `smoke` stays deterministic and free. `up` renders the aliases away again.",
 			},
 			args: []helpRow{
 				{"up", "Create the cluster and apply the reference deployment"},
 				{"images", "Build the images and load them into the cluster"},
+				{"seed", "Put the models in " + localSettingsPath + " into the cluster's catalog"},
 				{"smoke [managed]", "Run the deployment smoke against the cluster"},
 				{"info [email]", "Print the endpoints and issue a fresh login code"},
 				{"forward", "Forward MySQL (3306) and MinIO (9000, 9001) to 127.0.0.1"},
@@ -319,7 +324,7 @@ func helpTopics() []helpTopic {
 				{"logs", "Tail the deployment's logs"},
 				{"down", "Delete the cluster"},
 			},
-			examples: []string{"kind up", "kind info", "kind smoke", "kind forward"},
+			examples: []string{"kind up", "kind info", "kind seed", "kind smoke", "kind forward"},
 			see:      "docs/deploy/local-kind.md",
 		},
 		{
