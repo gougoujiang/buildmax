@@ -35,7 +35,8 @@ reference, then delete the plan.
 | [Evaluation and qualification](evaluation-system.md) | P0.6 | Direction accepted; contract and black-box vertical slice not implemented |
 | [Issue model](issue-model.md) | P2 follow-on | Implemented: the backend and frontend plans in full. Typed links, threaded replies, mentions, and realtime push are out of scope, not pending |
 | [Enterprise deployment](enterprise-deployment.md) | P3 | M1, M2, M4, and M5 shipped; M3 mostly done. Operating evidence and configuration checks remain. |
-| [Managed LLM gateway](llm-gateway.md) | P3 | Shipped for CLI/TUI/Desktop and task runs; per-team database policy and strict quota open |
+| [Managed LLM gateway](llm-gateway.md) | P3 | Shipped for CLI/TUI/Desktop and task runs; strict quota open. Sections 1, 4.2, 7, 10, and 12 are superseded by [client modes](client-modes.md) |
+| [Client modes: local and managed](client-modes.md) | P3 follow-on | Decided, not implemented: mode decided by `auth.json` alone, model list from one source, alias layer and per-team model policy removed, ledger attributed to a user |
 | [LLM provider adapters](llm-provider-adapters.md) | P3 follow-on | Complete: three wire protocols, reasoning, prompt caching, and image input |
 | [Prompt cache control](prompt-cache-control.md) | P3 follow-on | Phases 1–3 shipped: cache policy, the Anthropic and OpenAI native paths, usage and cost telemetry. The qualification suite has been run and both native paths qualified; compatible profiles stay empty by decision. The per-entry capability claim and the section 6 diagnostics are open |
 | [Local Ollama provider](local-ollama-provider.md) | P1 follow-on | Complete: the adapter, local inventory, the CLI surface, and credential-free managed targets |

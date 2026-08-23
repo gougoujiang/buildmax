@@ -1,7 +1,14 @@
 # Managed LLM Gateway
 
-> **Audience:** contributors · **Status:** shipped for every surface; per-team
-> policy and strict quota remain open
+> **Audience:** contributors · **Status:** shipped for every surface; strict
+> quota remains open. Superseded in part — see below
+>
+> **Direction changed.** [client-modes.md](client-modes.md) revises sections 1,
+> 4.2, 7, 10, and 12: local and managed become mutually exclusive client modes
+> decided by `auth.json`, the alias layer and per-team model policy are removed,
+> and the ledger is attributed to a user. This document still describes what the
+> code does today; that one describes what it should do. Fold the survivors back
+> here and delete it once the work lands.
 >
 > Shipped: `internal/service/llmgateway` (catalog, team policy, alias
 > resolution, capability set, router, error classes), the `llm_model` catalog
@@ -23,7 +30,9 @@
 > its own model.
 >
 > Not shipped: team policy remains the deployment-wide `server.yaml`
-> `llm.aliases` map described in §7, not the per-team database policy, and a
+> `llm.aliases` map described in §7. The per-team database policy is now
+> **withdrawn** rather than pending — models are global to a deployment, see
+> [client-modes.md](client-modes.md) §5 — and a
 > task's approved alias is not pinned at creation time — a run may name any
 > alias its team is granted. Reserved quota enforcement and concurrency control
 > (§10) do not exist; do not claim a strict spending ceiling.
