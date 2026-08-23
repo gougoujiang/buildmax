@@ -248,15 +248,15 @@ func TestRetentionIsRefusedOutsideItsOwnProtocol(t *testing.T) {
 // phase 4, made executable: no endpoint is described as cache-capable until it
 // passes the qualification suite.
 //
-// The registry is empty because no compatible gateway has been run through
-// `./make cache-qualify` yet. This test is the thing standing between "we could
-// add openrouter here" and doing it: an entry added on the strength of reading
-// a gateway's documentation is exactly the assumption the whole capability
-// contract exists to refuse, and it would ship a request field to an endpoint
-// nobody watched accept it.
+// The registry is empty on evidence. OpenRouter has been through
+// `./make cache-qualify`, and the answer differed by upstream model: two
+// families reported cache reads and two reported none, through one gateway and
+// one request shape. An `openrouter` entry would claim implicit caching for the
+// families that cache nothing.
 //
-// Adding a profile means adding a qualification result alongside it and
-// updating this test to name it.
+// This test is what stands between "we could add openrouter here" and doing it.
+// Adding a profile means a qualification result that covers everything the
+// entry would speak for, and this test updated to name it.
 func TestNoCompatibleGatewayIsQualifiedYet(t *testing.T) {
 	if len(compatibleProfiles) != 0 {
 		t.Errorf("compatibleProfiles has %d entries; each one needs a `%s` run behind it, "+

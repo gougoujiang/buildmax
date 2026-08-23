@@ -46,16 +46,17 @@ type cacheCapability struct {
 // behaviour BuildMax has qualified, keyed by the name a model entry names in
 // its `integration` field.
 //
-// It is empty, and that is the current state of the world rather than a
-// placeholder. `openai_compatible` is a protocol family, not a product: an
-// endpoint that speaks the JSON may ignore a cache field, reject it, or accept
-// it and report nothing, and there is no way to tell from the outside. A
-// profile says BuildMax has run `./make cache-qualify` against that gateway and
-// watched it work.
+// It is empty, and the first qualification run is why. Against OpenRouter,
+// through one adapter sending one request shape, `openai/gpt-5.6-luna` and
+// `deepseek/deepseek-v4-flash` reported cache reads and `anthropic/claude-haiku-4.5`
+// and `google/gemini-3.7-flash` reported none. Capability turned out to be a
+// property of the upstream model, so a single `openrouter` entry here would
+// claim implicit caching for the two that cache nothing — the same false claim
+// the capability contract exists to prevent, one layer up.
 //
-// Adding one without that run is the failure this map exists to prevent, which
-// is why a test asserts it stays empty until a qualification result justifies
-// an entry. See docs/design/prompt-cache-control.md section 9, phase 4.
+// A test holds this map empty. Filling it needs either a gateway that fronts
+// one upstream, or the finer unit proposed in
+// docs/design/prompt-cache-control.md section 9, phase 4.
 var compatibleProfiles = map[string]cacheCapability{}
 
 // cacheCapabilityFor returns what the named protocol supports.

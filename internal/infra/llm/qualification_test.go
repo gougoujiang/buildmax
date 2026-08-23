@@ -81,12 +81,23 @@ func (q qualifyTarget) client(t *testing.T, policy config.CacheControl) *LLMClie
 	return client
 }
 
+// qualifyRun makes every prefix unique to this invocation.
+//
+// The first version of this suite used fixed salts and reported a cold prefix
+// reading itself back. It was not a provider bug: the previous run had written
+// the same bytes, they were still inside the retention window, and the scenario
+// that depends on starting cold could not. A suite that cannot be run twice in
+// five minutes is a suite nobody can iterate with, and one whose cold cases
+// silently stop being cold is worse than that.
+var qualifyRun = fmt.Sprintf("%d-%d", time.Now().UnixNano(), os.Getpid())
+
 // qualifyPrefix builds a stable prefix large enough to be cacheable at all.
 //
-// The text is deterministic so two calls in one scenario send byte-identical
-// bytes, and varied per salt so two scenarios do not accidentally read each
-// other's entry and report a hit nobody wrote.
+// The text is deterministic within one run so two calls in a scenario send
+// byte-identical bytes, and varied per salt and per run so no scenario reads an
+// entry it did not write.
 func qualifyPrefix(salt string) string {
+	salt = qualifyRun + "/" + salt
 	var b strings.Builder
 	b.WriteString("You are a qualification fixture. Ignore the content below; answer only OK.\n")
 	b.WriteString("Salt: " + salt + "\n")
@@ -128,28 +139,64 @@ func (q qualifyTarget) call(t *testing.T, client *LLMClient, messages []cllm.Mes
 	return completion.Usage
 }
 
+// report fails a declared-capable target and records an observation for a
+// candidate.
+//
+// The difference is what a missing cache means. A provider BuildMax describes as
+// cache-capable and asks for caching is broken when it does not deliver, and the
+// suite should say so. A gateway BuildMax sends nothing to and that caches
+// nothing is behaving exactly as documented — it simply does not earn a profile,
+// which is a finding rather than a failure.
+func (q qualifyTarget) report(t *testing.T, capability cacheCapability, msg string) {
+	t.Helper()
+	if capability.requestControls {
+		t.Error(msg)
+		return
+	}
+	t.Logf("NOT QUALIFIED: %s", msg)
+}
+
 // TestCacheQualification is the whole suite. Subtests are the scenarios the
 // design names; each one reports what the provider actually did.
 func TestCacheQualification(t *testing.T) {
 	target := qualifyFromEnv(t)
 	t.Logf("qualifying provider=%q model=%q", target.provider, target.model)
 
-	// A provider that takes no cache instructions has nothing to qualify. Saying
-	// so is the point: the suite must not report a pass for a target it never
-	// asked anything of.
 	capability := cacheCapabilityFor(target.provider)
+	// A target that takes no cache instructions is not one with nothing to
+	// qualify — it is the candidate case. This is how an OpenAI-compatible
+	// gateway earns a profile: BuildMax sends it nothing, and the run answers
+	// whether it caches on its own and whether it says so in a shape the
+	// counters can read. Both halves of the acceptance criterion are the
+	// request shape and the usage response, and the second half applies to a
+	// target BuildMax never asked anything of.
+	//
+	// Only the scenarios that require sending a control are skipped there.
 	if !capability.requestControls {
-		t.Skipf("provider %q takes no cache instructions in a request; there is nothing to qualify",
-			target.provider)
+		t.Logf("provider %q takes no cache instructions; observing what it does unasked. "+
+			"A pass here qualifies its usage reporting, not a request shape.", target.provider)
 	}
 
-	t.Run("first call writes", func(t *testing.T) {
+	// A cold call means different things to the two classes, and one assertion
+	// for both was wrong: an implicitly-caching gateway reports nothing on a
+	// cold prefix and is behaving correctly, because it never charges for a
+	// write. Only a target BuildMax asked to cache owes a write here.
+	t.Run("a cold prefix", func(t *testing.T) {
 		client := target.client(t, config.CacheControl{Mode: config.CacheModeAuto})
 		prefix := qualifyPrefix("first-write")
 		usage := target.call(t, client, qualifyTurn(prefix, "say OK"))
-		if usage.CacheWriteTokens == 0 && usage.CacheReadTokens == 0 {
-			t.Errorf("the provider reported no cache activity on a cold %d-token prefix; "+
-				"it may be below this model's minimum, or the model may not cache at all",
+		if usage.CacheReadTokens > 0 {
+			t.Errorf("a cold prefix read %d cached tokens; the entry is keyed more loosely than "+
+				"the prompt, which would serve one prompt's cache to another", usage.CacheReadTokens)
+		}
+		if !capability.requestControls {
+			t.Logf("no write reported, which is expected of a gateway that caches implicitly: " +
+				"it charges for reads and not for writes")
+			return
+		}
+		if usage.CacheWriteTokens == 0 {
+			t.Errorf("BuildMax asked this target to cache and it wrote nothing; the prefix may be "+
+				"below this model's minimum of %d tokens, or the model may not cache at all",
 				qualifyPrefixTokens)
 		}
 	})
@@ -163,8 +210,8 @@ func TestCacheQualification(t *testing.T) {
 			cllm.Message{Role: "assistant", Content: "OK"},
 			cllm.Message{Role: "user", Content: "say OK again"}))
 		if second.CacheReadTokens == 0 {
-			t.Error("the second call over an unchanged prefix read nothing back; " +
-				"the write on the first call is being paid for and never recovered")
+			target.report(t, capability, "the second call over an unchanged prefix read nothing "+
+				"back; a write that nothing recovers costs more than not caching")
 		}
 	})
 
@@ -194,7 +241,7 @@ func TestCacheQualification(t *testing.T) {
 		}
 		last := target.call(t, client, messages)
 		if last.CacheReadTokens == 0 {
-			t.Error("a grown conversation stopped reading the static prefix; " +
+			target.report(t, capability, "a grown conversation stopped reading the static prefix; "+
 				"lookback does not reach it and every long turn pays full price")
 		}
 	})
@@ -216,8 +263,8 @@ func TestCacheQualification(t *testing.T) {
 			completion.Usage.PromptTokens, completion.Usage.CacheReadTokens,
 			completion.Usage.CacheWriteTokens)
 		if completion.Usage.CacheReadTokens == 0 {
-			t.Error("a streamed call reported no cache read over a warm prefix; " +
-				"usage from the event stream is where these counts get lost")
+			target.report(t, capability, "a streamed call reported no cache read over a warm "+
+				"prefix; usage from the event stream is where these counts get lost")
 		}
 	})
 
@@ -257,6 +304,10 @@ func TestCacheQualification(t *testing.T) {
 	})
 
 	t.Run("an explicit retention is accepted", func(t *testing.T) {
+		if !capability.requestControls {
+			t.Skipf("provider %q takes no cache instructions, so there is no retention to send",
+				target.provider)
+		}
 		if len(capability.ttls) == 0 {
 			t.Skipf("provider %q documents no selectable retention", target.provider)
 		}
@@ -271,6 +322,10 @@ func TestCacheQualification(t *testing.T) {
 	})
 
 	t.Run("retention expires", func(t *testing.T) {
+		if !capability.requestControls {
+			t.Skipf("provider %q takes no cache instructions, so no window was asked for",
+				target.provider)
+		}
 		if !target.slow {
 			t.Skipf("set %s to include the scenarios that wait out a retention window",
 				config.EnvKeyBuildmaxCacheQualifySlow)
