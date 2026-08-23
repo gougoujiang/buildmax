@@ -85,7 +85,7 @@ jobs:
       # deployment shape. Compose is the quickstart, and it is the one that
       # keeps run state on local disk rather than in object storage — so it
       # exercises code paths the kind job never reaches.
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .node-version
           cache: npm
@@ -146,7 +146,7 @@ jobs:
       # The browser tests run against the stack the smoke just brought up.
       # They cover what the API-level smoke cannot: whether the published
       # Portal bundle works against a real server.
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .node-version
           cache: npm
