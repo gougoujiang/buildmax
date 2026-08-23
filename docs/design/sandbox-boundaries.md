@@ -361,6 +361,14 @@ The worker config is the concrete realization of [trust-harness.md](./trust-harn
 stamps the trace `sandbox.downgraded=true`, and exposes the
 overriding source in `SessionStart` hook payload (see §11.2).
 
+This table says what the boundary *is*, not who gets to choose it. That
+question — one deployment-wide profile against layered operator/team/task
+profiles, and whether an inapplicable profile fails the run or downgrades it
+with a recorded warning — is open in
+[trust-harness.md](./trust-harness.md) §3.9, together with the cluster-level
+egress half this document does not own. The in-agent proxy below filters by
+hostname for a sandboxed bash child; it is not a pod egress boundary.
+
 ## 11. Visibility
 
 ### 11.1 Surface display

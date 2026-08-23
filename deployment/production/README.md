@@ -118,7 +118,8 @@ Stated rather than left to be discovered:
 
 - **NetworkPolicy.** Worker pods reach the model endpoint, object storage, and
   the server. Restricting egress is worth doing and is not settled here — see
-  [`docs/proposals/agent-execution-policy.md`](../../docs/proposals/agent-execution-policy.md).
+  [`docs/design/trust-harness.md`](../../docs/design/trust-harness.md) §3.9,
+  which holds the open question and what would settle it.
 - **Backups.** Database and bucket backups are yours. BuildMax has no export or
   import command.
 - **Horizontal scaling of workers.** Worker Jobs are created per task run and
