@@ -1,7 +1,8 @@
 # BuildMax Evaluation And Qualification System
 
 > **Audience:** contributors, operators, and product designers · **Status:**
-> planned — direction accepted; contract and black-box vertical slice not implemented
+> planned — direction accepted and the vertical slice planned in [section 18](#18-vertical-slice-implementation-plan);
+> contract and slice not implemented
 >
 > **Accepted:** 2026-08-22 · **Roadmap:** P0.6
 
@@ -464,29 +465,29 @@ cross-repository compatibility cheaper than co-development.
 
 ### 14.1 Framework roles
 
-No external framework is the system of record. The first slice evaluates two
-implementation candidates: an Inspect-backed controller and a thin BuildMax
-controller. Harbor is a separate environment and benchmark adapter, not the
-alternative controller. The other integrations remain optional and follow only
-when a demonstrated workflow needs them.
+No external framework is the system of record. [Section 15.3](#153-experiment-controller-and-implementation-language)
+makes a thin BuildMax controller in Go the default; the slice spikes Inspect against it, and
+Inspect has to earn the switch rather than merely tie. Harbor is a separate environment and
+benchmark adapter, not the alternative controller. The other integrations remain optional and
+follow only when a demonstrated workflow needs them.
 
 | Framework class | Candidate role | Boundary |
 |---|---|---|
-| Inspect AI | First-choice experiment-controller candidate: epochs, limits, scoring, logs, and statistics | Must emit and consume the BuildMax trial contract; reject it if adapter or schema impedance dominates the slice |
-| Thin BuildMax controller | Fallback controller and comparison baseline | Own only the minimum orchestration missing from the contract; do not grow an LLMOps platform |
+| Inspect AI | Challenger to the default controller: epochs, limits, scoring, logs, and statistics | Must emit and consume the BuildMax trial contract; adopting it also adopts Python, so it must clear section 15.3's overturn condition |
+| Thin BuildMax controller | Default controller | Own only the minimum orchestration missing from the contract; do not grow an LLMOps platform |
 | Harbor | First-choice container and public-benchmark adapter, including Terminal-Bench | An execution adapter, not the controller or product-result model |
 | Phoenix or Langfuse | Later, optional self-hosted trace, experiment, and annotation UI | Viewer/export target; never required or authoritative; select at most one after local reports prove insufficient |
 | Promptfoo | Optional adversarial prompt and red-team case generation | Generated cases return to BuildMax-owned tasks and graders; it is not in the main evaluation path |
 | Provider eval APIs | Optional semantic graders or comparison services | No provider becomes required for the core workflow |
 
-The controller choice follows a representative spike, not preference. The spike must attempt at
-least a local task, a worker artifact task, a Portal delegation task, a trust-boundary task, and a
-repeated comparison. It compares an Inspect-backed controller with a thin BuildMax controller and
-records the amount of adapter code, schema impedance, diagnostic quality, concurrency behavior,
-and operational dependencies. Inspect is selected only if it reduces controller
-work without weakening the canonical contract, private-by-default execution,
-diagnostics, or portability. Harbor is evaluated separately because its
-strongest role is a container backend and public-benchmark bridge.
+The spike tests the default rather than opening the question again. It must attempt at least a
+local task, a worker artifact task, a Portal delegation task, a trust-boundary task, and a
+repeated comparison, and it records the amount of adapter code, schema impedance, diagnostic
+quality, concurrency behavior, and operational dependencies on both sides. Inspect is selected
+only if it removes enough controller work to outweigh the Python toolchain it brings, and only if
+it weakens neither the canonical contract, private-by-default execution, diagnostics, nor
+portability. Harbor is evaluated separately because its strongest role is a container backend and
+public-benchmark bridge.
 
 ### 14.2 Public benchmark roles
 
@@ -533,16 +534,59 @@ product outcomes.
 | Trial privacy | Raw prompts, replies, traces, workspace snapshots, and grader bodies remain local/private by default and require explicit bounded export |
 | Future Team scope | Contracts support future pre-publication Agent and Workflow evaluation without committing a Team-facing UI or roadmap phase |
 
-### 15.3 Technical decisions delegated to evidence
+### 15.3 Experiment controller and implementation language
+
+The controller and its language are one decision, not two. Choosing Inspect chooses Python with
+it, and the remaining combination — Python plus a controller BuildMax writes itself — is the
+worst of both: a second contributor toolchain bought without the epochs, limits, scoring, and log
+viewer that would have paid for it. That combination is removed from consideration.
+
+| Decision | Accepted direction |
+|---|---|
+| Controller | A thin BuildMax controller, in Go, using only the standard library, inside the main module |
+| Language | Go by default; Python enters only together with Inspect, never on its own |
+| Overturn condition | The Inspect spike showing that the controller work it removes outweighs a second toolchain and the operator's install cost |
+
+Three things decide it, in order of weight:
+
+- **Operators run it themselves.** Section 4.2 requires a private-deployment operator to
+  qualify a model, configuration, and deployment inside their own environment. The product is a
+  single binary that needs no Node, and private deployment is meant to be boring. Requiring a
+  Python install, a virtualenv, and a lockfile before an operator can qualify anything
+  contradicts that directly.
+- **No new dependency, and existing gates apply for free.** A standard-library controller adds
+  nothing to `go.mod`, which is what section 13 asks for. Because it lives in the main module,
+  `./make test`, `vet`, `lint`, and `govulncheck` already reach it through `./...`; the
+  evaluation system's own correctness needs no second CI pipeline, lockfile, or pinning scheme.
+- **Trace drift fails at compile time.** A Go controller parses traces through the record types
+  in `internal/infra/trace`, so a change to the trace format breaks the build or the tests. A
+  Python controller transcribes that schema by hand, and drift surfaces only at runtime — the
+  in-house version of the framework-evolution risk in section 19.
+
+Statistics is the strongest argument for Python and it is weaker than it appears. Section 12
+needs binomial confidence intervals, pass^k, paired comparison, and per-case variance: a few
+hundred lines of pure functions with fixed inputs and outputs, which is the most testable code
+there is. Heavier analysis — power analysis, stratified sampling, inter-rater models — belongs to
+phase 2 and later, and arrives as an offline Python script reading committed JSON bundles. The
+contract is language-neutral, so that route stays open without deciding anything now.
+
+Harbor and Terminal-Bench are not an argument for Python either. Section 14.2 runs Harbor as a
+separate process calling a BuildMax Agent adapter — an external tool invoking a BuildMax binary,
+not a BuildMax controller importing a Harbor library — so the controller's language does not
+reach it.
+
+The cost is real and is what the overturn condition measures: experiment control (repetition,
+concurrency, limits, cancellation, resumption) and report rendering must be written, and Inspect
+supplies them along with a log viewer.
+
+### 15.4 Technical decisions still delegated to evidence
 
 The vertical slice must resolve these choices with evidence rather than
 preference:
 
-- Inspect-backed runner versus a thin BuildMax runner;
-- Python versus Go for the experiment controller;
 - Harbor's exact adapter mechanism;
 - JSON, JSONL, or a directory manifest as the physical trial-bundle encoding;
-- the first statistical library and report renderer; and
+- the report renderer, given that the statistics above are implemented rather than imported; and
 - Phoenix, Langfuse, or no external viewer.
 
 Each follows from the black-box vertical slice and must preserve the contract and privacy decisions
@@ -580,6 +624,9 @@ The accepted direction is the final option.
 The slice is successful when a failure hands a contributor a classification, trace, final-state
 evidence, subject manifest, and bounded reproduction path — not merely a lower aggregate score.
 
+Phases 0 and 1 are broken down into ordered increments, with the trace audit and adapter sketch
+they depend on, in [section 18](#18-vertical-slice-implementation-plan).
+
 ### Phase 2: Maintainer and operator qualification
 
 - Expand regression, capability, worker, trust, and cross-surface suites.
@@ -605,7 +652,156 @@ evidence, subject manifest, and bounded reproduction path — not merely a lower
 This phase requires a separate product and data-model decision. The earlier phases only preserve a
 contract path to it.
 
-## 18. Risks And Mitigations
+## 18. Vertical Slice Implementation Plan
+
+Section 17 gives the phase direction. This section is the executable breakdown of phase 0 and
+phase 1, written before implementation starts, and it carries the evidence that
+[section 20](#20-evidence-required-during-implementation) requires as items 2 and 3: the trace
+field inventory and the black-box adapter sketch.
+
+Nothing here changes the accepted decisions in section 15. It implements the controller decision
+in section 15.3 and resolves choices section 15.4 delegated to the slice.
+
+### 18.1 What the current harness leaves behind
+
+| Asset | Disposition |
+|---|---|
+| `eval/001-read-summarize` … `eval/013-worker-pool` | Deleted. A few may be recreated later as low-value smoke cases under the new contract |
+| `internal/agenteval` | Deleted, formats included |
+| `cmd/buildmax-eval` | Deleted |
+| `./make eval` | Rewritten to dispatch the new runner |
+
+Four defects justify replacement rather than extension, and they are more specific than
+section 2.1 states:
+
+- `internal/agenteval/catalog.go` uses the task directory itself as the fixture, so the runner
+  copies `task.md` and the grader script it contains into the workspace. The grader is not
+  merely co-located with the task; it is readable by the Agent under evaluation.
+- `internal/agenteval/runner.go` treats a missing fixture directory as a warning and runs the
+  task against an empty workspace. An invalid task is then recorded as an Agent failure, which
+  is exactly the conflation section 7.4 forbids.
+- `internal/agenteval/runner.go` constructs the runtime in process through
+  `agentapp.NewAgentApp`. Nothing it measures can distinguish CLI, worker, or deployment
+  behavior, and no built artifact is exercised.
+- `internal/agenteval/result.go` records a boolean plus token counts. There is no subject
+  identity, no trace reference, no repetition, and no failure class beyond agent versus grader
+  error.
+
+### 18.2 Trace evidence audit
+
+This is the inventory section 20 requires before grading design is fixed. It was taken against
+`internal/infra/trace/record.go` and `internal/infra/trace/summary.go`.
+
+| Evidence a grader needs | Present in the trace today | Gap |
+|---|---|---|
+| Run identity, model, workspace, subagent lineage | `run_start`, with `trace_version` and parent run/tool-call links | None for the slice |
+| Instruction provenance | `prompt_layers`, written even when empty | None |
+| Extension provenance | `plugins`, with repository-plugin mutability | MCP servers and skills are not separately named |
+| Sandbox boundary | `sandbox_boundary`, once per run, `sandboxed` explicitly false rather than absent | No per-command decision |
+| Tool use and argument scope | `tool_start`, `tool_end` with duration | Args and results are bounded at 4096 bytes, so a large-payload assertion cannot rely on them |
+| Blocked call | `tool_denied` with `deny_reason` | `summary.go` collapses hook denial and policy denial into one `Denied`; a trace grader that must distinguish them has to parse the reason string |
+| Context pressure and looping | `iter_start`, `llm_start`, `context_compacted` | None |
+| Token, cache, and cost accounting | `llm_end` per call and cumulative, `run_end` totals, `cost_incomplete` | None |
+| Mid-run instruction changes | `user_input`, `user_input_blocked` | None |
+| Hook execution | Absent | Required before the trust and control suite is credible |
+| File changes | Absent; inferable only from bounded tool arguments | Required before outcome grading can attribute a change |
+| LLM retry and provider error | Absent | Required before reliability separates provider noise from Agent behavior |
+
+The slice proceeds on what exists. Capability, reliability, and the permission half of trust
+are gradable today. Hook execution and file-change events are prerequisites for the trust and
+control suite, not for the slice, and they belong to
+[trust harness](trust-harness.md) and [durable run trace](durable-run-trace.md) follow-ups
+rather than being added here in passing.
+
+### 18.3 Black-box adapter sketch
+
+The CLI adapter is the slice's authoritative execution path:
+
+```text
+BUILDMAX_HOME=<trial home>   buildmax -p <instruction>
+                             --workspace <trial workspace>
+                             --model <subject model>
+                             --output json
+```
+
+The trial home is built by the subject resolver, not inherited from the contributor. This is
+what removes the section 2.1 problem where local settings, hooks, plugins, and permissions
+silently change the subject being measured.
+
+`internal/interface/cli/print_format.go` already emits a stable envelope carrying the reply,
+tool-call count, duration, usage, cache and cost breakdown, context occupancy, exit code, and
+`policy_denied`. The exit codes in `internal/interface/cli/exit_code.go` are a documented
+contract, and they map onto the section 8.3 taxonomy directly:
+
+| CLI exit | Trial status |
+|---|---|
+| `ExitOK` | Graders decide `passed` or `failed` |
+| `ExitUsage` | `invalid_task` when the task supplied the bad input, `infrastructure_error` when the trial home did |
+| `ExitPolicyDenied` | Graders decide; a trust task may require denial, so this is not a failure by itself |
+| `ExitModelError` | `agent_error` |
+| `ExitUserCancelled` | `canceled` |
+| Wall-time budget expired | `timed_out` |
+| Required grader could not run | `grader_error` |
+
+One product change is required for the adapter to work at all. `agentapp.RunResult` already
+carries `TraceID` and `TracePath`, but the CLI envelope does not expose either, so an external
+caller cannot identify which trace file a run wrote — a session with repeated runs holds
+several. The slice adds `trace_id` and `trace_path` to the print-mode envelope. It is
+user-visible beyond evaluation, since it is also how a person finds the trace for a run they
+just made, so it carries a changelog entry and a `docs/reference/cli.md` update.
+
+The worker adapter is sketched but not built in the slice. `internal/agentapp/taskrun` already
+executes in a run-scoped `BUILDMAX_HOME` and writes artifacts, which is the isolation an
+adapter needs; what is missing is a way to submit a trial and collect its bundle without a
+Portal user. The contract reserves the surface field so worker and conversation trials do not
+require a contract version bump later.
+
+### 18.4 Hidden grader boundary
+
+The task directory holds the instruction, the initial state, the grader, and the oracle. Only
+the declared initial state is materialized into the trial workspace. Nothing else in the task
+directory is reachable from inside it. This is the concrete fix for 18.1's first defect, and it
+is a property the slice tests directly: a task whose grader material appears in the workspace
+fails preflight rather than producing a passing trial.
+
+### 18.5 Deterministic checks without a provider key
+
+`internal/testsupport/mockllm` already answers a model from a committed scenario and backs the
+CLI end-to-end suite. The slice reuses it so the pull-request row of the section 12 cadence
+table is real: contract round-trips, task schema validation, grader units, adapter process
+launch and envelope parsing, and the exit-code-to-status mapping all run with no provider
+credential. This keeps the repository rule that a full check requires no model API key. Real
+models are reached only by on-demand, nightly, and release experiments.
+
+Reusing it needs one architecture change made deliberately rather than by omission.
+`internal/architecture/architecture_test.go` keeps `internal/testsupport` out of shipped code by
+scanning the `internal`, `cmd`, and `deployment` trees; a new top-level `evaluation` tree escapes
+that rule by not being listed, which is the wrong reason to be allowed. The slice adds
+`evaluation` to the scanned trees and to the exemption beside `deployment/smoke`, for the same
+stated reason: the tree is never released, so importing the mock model there is the point rather
+than a mistake.
+
+### 18.6 Delivery increments
+
+| Step | Delivers | Resolves |
+|---|---|---|
+| 1. Contract | `evaluation/contract`: versioned task, subject manifest, trial bundle, grader result, and experiment types with the failure taxonomy, in Go against the standard library alone per section 15.3; the trace audit above recorded in the repository | The physical trial-bundle encoding from section 15.4; section 20 items 2 and 3 |
+| 2. CLI adapter | `trace_id`/`trace_path` in the print envelope; subject-built trial home; the hidden-grader boundary; deterministic state and trace graders; one canonical trial bundle per attempt | Whether the contract is sufficient for a real execution path |
+| 3. Experiment | Repetition, paired baseline comparison, uncertainty, failure classification, and a local report; the mockllm pull-request gate | Whether section 15.3's Go controller holds once experiment control is written; the report renderer |
+| 4. Retirement | Delete `eval/`, `internal/agenteval`, and `cmd/buildmax-eval`; rewrite `./make eval`; update `docs/contribute/repo-layout.md`, `docs/contribute/testing.md`, `docs/design/end-to-end-testing.md`, and `docs/design/llm-gateway.md` where they cite the old harness | The last roadmap acceptance criterion |
+
+The Inspect and Harbor spikes follow step 3. Section 14.1 already places framework selection
+downstream of the slice, and a spike run before a canonical bundle exists would compare
+adapters against a contract that is still moving.
+
+### 18.7 Deliberately outside the slice
+
+Naming these prevents the plan from reading as a commitment: worker, conversation, and
+deployment adapters; model-grader calibration; the private or rotating holdout; any external
+viewer; Terminal-Bench and every other public benchmark; and the hook-execution and file-change
+trace events. Each has a home in section 17 or in another design record.
+
+## 19. Risks And Mitigations
 
 | Risk | Mitigation |
 |---|---|
@@ -620,14 +816,17 @@ contract path to it.
 | Main-repository tooling burdens normal contributors | Independent locks and opt-in heavy commands; deterministic repository checks remain lightweight |
 | Scores encourage optimizing the benchmark instead of the product | Multiple product domains, qualitative failure review, public-benchmark separation, and no global score |
 
-## 19. Evidence Required During Implementation
+## 20. Evidence Required During Implementation
 
 The product direction is accepted before a framework is selected. Implementation
 must not proceed past the first slice without evidence from:
 
 1. a representative set of real BuildMax failure or manual-check scenarios;
-2. an inventory of trace fields available and missing for outcome and trust grading;
-3. a black-box adapter sketch for local, worker, and conversation execution;
+2. an inventory of trace fields available and missing for outcome and trust grading —
+   supplied by [section 18.2](#182-trace-evidence-audit);
+3. a black-box adapter sketch for local, worker, and conversation execution — supplied for
+   local by [section 18.3](#183-black-box-adapter-sketch), which also states why the worker
+   and conversation adapters are sketched rather than built;
 4. a privacy review of trial contents, retention, and export;
 5. an initial provider-cost and repetition estimate;
 6. an Inspect/controller spike and a Harbor adapter spike; and
@@ -651,7 +850,7 @@ External practice supports the direction but does not decide BuildMax's product 
   emphasizes task and outcome validity, hidden ground truth, oracle solvers, contamination controls,
   and uncertainty reporting.
 
-## 20. Documentation Lifecycle
+## 21. Documentation Lifecycle
 
 This record owns the rationale and phased direction until the evaluation system
 is implemented. The first implementation must update the repository layout and
