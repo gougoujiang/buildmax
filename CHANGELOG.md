@@ -14,6 +14,478 @@ Unreleased entries live one per file under
 touch the same line. `./make changelog` prints what they currently say, and
 release preparation folds them into a dated section here.
 
+## [0.2.0-alpha.1] - 2026-08-24
+
+### Highlights
+
+- The local agent can work in the background: `Bash`, `Task`, and the new
+  `Monitor` tool detach into jobs, `JobList`, `JobOutput`, and `JobStop`
+  inspect them, and a completion or a monitor line can wake the conversation
+  in the TUI and in Desktop. Every job writes a durable, redacted event log.
+- The CLI and Desktop now have exactly two modes, decided by whether you are
+  signed in: local models from `settings.yaml` straight to their provider, or
+  the models a deployment offers through its gateway. Neither mode covers for
+  the other.
+- Local inference through Ollama, in a local session and through a deployment
+  alike, with no provider key on either path.
+- Runs report what they cost: per-model `pricing`, per-call cost in traces,
+  cache tokens on every surface that shows spend, `buildmax stats` for a
+  session, and prompt caching as a policy rather than a boolean.
+- Teams activate published plugin releases, an agent names the plugins its
+  background runs load, and a worker materializes exactly those. Portal gains
+  a Plugins section under Space.
+- Identity and storage were rebuilt: opaque unprefixed entity identifiers,
+  numeric relational keys underneath them, `DATETIME(6)` timestamps, and an
+  API resource that names its own identifier `id`.
+
+### Upgrade notes
+
+- **An existing Alpha database and object store must be recreated.** Opaque
+  entity identifiers, numeric relational keys, text `public_id` columns, and
+  `DATETIME(6)` timestamps all land in this release with no conversion
+  migration. Every existing identifier, access token, refresh session, worker
+  token, Portal link, bookmark, and stored object key is invalid.
+- API clients that read a resource's own identifier from a type-named field
+  (`task_id`, `user_id`, `team_id` on the resource itself) must read `id`.
+  Relationships keep their semantic names.
+- The deployment-wide `worker.token` is gone. Remove the secret from your
+  manifests and upgrade the server before the worker image: a run dispatched
+  without a run token now fails rather than falling back.
+- Managed models are named by catalog name. Replace `llm.aliases` and
+  `llm.default_alias` with `llm.default_model`, `worker.llm.alias` with
+  `worker.llm.model`, and `/api/teams/{team_id}/llm/...` with `/api/llm/...`;
+  a `transport: buildmax` entry drops `team_id` and names the catalog model.
+- `models[].transport` and `models[].server_url` are removed from
+  `settings.yaml`; a session's mode follows `buildmax login`/`logout`, and
+  `default_model` names the entry a signed-out session starts with.
+- The `prompt_cache` boolean is removed. Write `cache_control: {mode: off}`
+  where it said `false`; Anthropic agent turns now cache by default.
+- The server stops in order within `shutdown_grace` (default 25s). Deployments
+  should set a matching `terminationGracePeriodSeconds` and `preStop` pause, as
+  the reference manifests do.
+- Native Desktop bundles are still not published by the release workflow. The
+  tagged source contains Desktop; GitHub Release artifacts contain the CLI and
+  server binaries.
+
+### Added
+
+- A Portal agent names the plugins it loads for a background run, and loads only
+  those: nothing is inherited from what its team activated. The selection
+  versions with the rest of the definition, so an earlier revision still says
+  what that agent named, and restoring one brings its selection back.
+
+- Background events can wake the conversation in the TUI: `run_in_background`
+  calls accept `deliver_result` to have the completion delivered as its own
+  turn, and a `Monitor` started with `react` sends each delivered line back
+  for analysis. Delivered payloads are marked as untrusted observations,
+  recorded with non-user provenance, and never run user-prompt hooks.
+
+- Background subagents in the TUI and Desktop: `Task` accepts
+  `run_in_background` to delegate investigation without blocking the
+  conversation. The final reply is read with `JobOutput`, the job stops with
+  `JobStop`, and traces link the subagent run to the tool call that launched
+  it.
+
+- `./make cache-qualify` checks prompt caching against a real provider. Every
+  other cache test runs against a fake upstream, which proves what BuildMax
+  sends and nothing about what a provider does with it — a request can be
+  perfectly shaped while the provider declines to cache it, for a minimum prefix
+  length, an unsupported model, or an expired retention window. The suite runs
+  first write, sequential read, changed prefix, long-history lookback,
+  streaming, concurrent cold starts, and retention, and prints what the provider
+  reported for each. Name the target with `BUILDMAX_CACHE_QUALIFY_PROVIDER`,
+  `_MODEL`, `_API_KEY`, and optionally `_BASE_URL`; it calls a paid provider, no
+  check runs it, and it skips when none is named. A model entry can also name an
+  `integration` for an OpenAI-compatible gateway whose cache behaviour has been
+  qualified — none has, so every value is currently refused.
+
+- Desktop delivers background events into the conversation: a completion
+  requested with `deliver_result` or a `react` monitor line runs as its own
+  turn when the owning session is on screen and idle, and is parked — not
+  lost — while that session is busy or another one is open. The transcript
+  labels delivered events as background observations, collapsed by default.
+
+- Background jobs write a durable event log under `<traces>/jobs/`: launch
+  provenance (owning session, parent run and tool call, sandbox fact),
+  monitor lines with drop accounting, and the terminal state. Logs are
+  redacted, bounded, and always end with how the job ended.
+
+- `./make kind seed` fills the local kind cluster's model catalog from the
+  repository-root `settings.local.yaml` and grants the deployment's teams an
+  alias for each model, so the CLI and Desktop can drive the managed transport
+  against real inference. The cluster's own Portal conversations and task runs
+  keep answering from the deterministic mock.
+
+- Background commands in the TUI and Desktop: `Bash` accepts
+  `run_in_background` to detach long builds, tests, or servers as local jobs,
+  and the new `JobList`, `JobOutput`, and `JobStop` tools inspect and stop
+  them. Jobs pass the normal permission and sandbox checks before detaching
+  and end with the application.
+
+- Local models through Ollama: `provider: ollama` on a model entry calls a
+  local daemon's own API with no `api_key` at all. It sends the context window
+  on every call, so the daemon no longer applies its own default and quietly
+  truncates the system prompt and tool definitions out of a longer request —
+  the failure that made small local models look like they could not call tools.
+  `buildmax init --ollama` writes the entry, `buildmax models --local` lists
+  what is installed and which models can call tools, and `buildmax doctor`
+  reports a daemon that is not running or a model that is not pulled with the
+  command that fixes it.
+
+- A deployment can serve a local Ollama model: `--provider ollama` on
+  `buildmax-server model add`, or `provider: ollama` under
+  `conversation.model`, with no credential in either place. Real inference and
+  real tool calls reach the gateway, the `llm_call` ledger, and quota without a
+  provider key or a bill. The daemon stays on the host — a pod cannot use the
+  host's GPU — and the deployment names an address that reaches it, which under
+  Docker Desktop is `host.docker.internal`.
+
+- New `Monitor` tool in the TUI and Desktop: watch logs, files, or CI by
+  running a command whose stdout lines become bounded events. Lines are
+  rate-limited and truncated, dropped lines are counted, and the watcher
+  passes the same permission and sandbox checks as `Bash`.
+
+- OpenAI Responses calls now carry a scoped `prompt_cache_key`, and can ask for
+  24-hour retention with `cache_control: {ttl: 24h}`. The API caches on its own
+  either way, so the key does not turn caching on — it decides which prefixes
+  are looked up together, which matters because callers sharing a credential
+  otherwise share one bucket. The key is derived from the credential, the model,
+  the team on a managed call, and fingerprints of the system prompt and tool
+  definitions; it carries none of them in readable form and is never written to
+  a ledger, trace, or log. Retention vocabulary is per provider: `5m` and `1h`
+  are Anthropic's and `24h` is OpenAI's, and asking for one where it is not
+  documented is refused at startup rather than sent and ignored.
+
+- Add `./make models list`, `./make models info <model>`, and
+  `./make models check` to look up configured and OpenRouter-catalog model
+  details, and catch context_window drift, from the terminal instead of the
+  openrouter.ai models page.
+
+- `buildmax -p --output json` and `--output jsonl` now report `trace_id` and
+  `trace_path`, so a script can open the trace that run wrote instead of
+  guessing at the newest file in the session's trace directory.
+
+- A run can now report what it cost. A model entry takes a `pricing` block —
+  currency plus four decimal rates per million tokens, for fresh input, cache
+  reads, cache writes, and output — and the CLI prints a `Cost(session)` line,
+  `--format json` carries the same figures, and the session file keeps a running
+  total. A managed deployment sets the same rates per catalog model with
+  `--currency`, `--input-price`, `--cache-read-price`, `--cache-write-price`,
+  and `--output-price` on `buildmax-server model add`; the rates in force are
+  copied onto each call's ledger row when it is accepted, so repricing a model
+  does not restate what a team already spent. Portal's run view shows the run's
+  cost and what caching saved against an uncached baseline. Cost is shown only
+  where every rate needed for it was recorded — anything else reads
+  `unavailable` rather than zero — and a saving is reported only when caching
+  actually saved: a run that wrote cache entries nothing read back paid more
+  than it would have uncached, and is shown as the cost it was.
+
+- Run details now name which revision of an agent definition a run executed
+  under, and say when the definition has been edited since. Editing an agent
+  changes what its next run does, which is intended; until now nothing recorded
+  which text produced a given result.
+
+- Run details now open with where the run came from. A background run records
+  the conversation message it was asked for in, and the Portal shows that
+  message next to the instruction the worker was actually given — so a
+  constraint missing from the instruction can be told apart from one that was
+  never asked for. It is shown even for a run that wrote no trace.
+
+- `buildmax stats [session-id]` reports one session's spend with its cache
+  breakdown, how close it came to the context window, how many bytes each tool
+  put back into that window, the split between model time and tool time, and
+  what its delegated runs cost; `--json` emits the whole record. `/stats` in
+  the TUI shows the same figures for the session on screen.
+
+- A team can activate published plugin releases for its background runs, pinned
+  to an exact version and digest. A team either curates that list or leaves it
+  open, in which case naming a plugin in an agent activates it. Releases
+  contributing hooks or MCP servers cannot be activated yet.
+  `buildmax plugin activations --team <id>` reads what a team activated.
+
+- Portal gains a Plugins section under Space: what this team has activated and
+  at which version, what each release contributes, which agents name it, whether
+  a newer release is available, and whether the team curates its list or opens
+  the whole catalog. Owners and admins can activate, update, and suspend from
+  there; any member can read it.
+
+- A run trace now records what each model call cost, not just what the run did.
+  `llm_end` carries that call's own token counts and its estimated cost;
+  `run_end` carries the run's. The per-call figures matter because the running
+  totals cannot answer which turn was expensive, and subtracting consecutive
+  records to find out goes wrong the moment a call in between failed. It also
+  makes the shape of caching visible: the turn that writes a cache entry costs
+  more than it would have uncached, and only a later turn reading it back puts
+  the run ahead. Costs are absent when the model was unpriced, which is not the
+  same fact as a call that cost nothing, and `cost_incomplete` on `run_end`
+  says a call did work that could not be priced.
+
+- A background run now loads the plugins its agent names. The server resolves
+  the team's activations when the worker claims the run, and the worker fetches
+  exactly those releases, verifies each against its pinned digest before
+  extraction, and refuses to start rather than run without one it was told to
+  have.
+
+### Changed
+
+- An API resource now names its own identifier `id` rather than repeating its
+  type — a task returns `{"id": ..., "team_id": ...}` where it used to return
+  `{"task_id": ..., "team_id": ...}`. Relationships are unchanged and keep their
+  semantic names, so only the field naming the resource itself moved. Users,
+  teams, artifacts, audit events, managed model catalog entries, system grants,
+  managed LLM call records, and webhook keys are affected; most other resources
+  already used `id`. Agent and workflow revisions no longer return an identifier
+  at all: a revision is addressed by its parent plus its revision number, which
+  is what the restore route already used. Catalog plugins and plugin releases
+  likewise drop theirs, being addressed by name and by name plus version.
+
+- The CLI and Desktop now run in one of two modes, decided by whether you are
+  signed in. Signed out, the models are the ones in `settings.yaml` and each
+  call goes straight to its provider; signed in, they are the ones that
+  deployment offers and every prompt goes there. `buildmax login` and
+  `buildmax logout` switch, and nothing else configures it — `models[].transport`
+  and `models[].server_url` are gone, because a session is in one mode or the
+  other rather than holding both kinds of entry. A new `default_model` key names
+  which entry a session starts with while signed out; a deployment names its
+  own. `buildmax models`, the `/model` pickers, and the TUI footer all say which
+  mode you are in, and `buildmax doctor` reports it as a check of its own.
+  Desktop no longer opens on a sign-in form: local mode is a working state, so
+  the workbench opens directly and signing in is an action in the account menu.
+  Neither mode covers for the other — a deployment that is down, or a login that
+  has expired, stops the session and says so rather than quietly sending the
+  next prompt to a provider you did not choose for it.
+
+- `./make doctor` now warns that Portal test dependencies and Playwright
+  browsers are unavailable when npm is missing, instead of reporting cached
+  browser state as ready for `./make e2e`.
+
+- The server now stops in order on SIGINT or SIGTERM: it reports itself
+  unready so a load balancer stops sending it work, ends the streams watching a
+  run so the Portal reopens them elsewhere, refuses new conversation turns and
+  waits for the ones running, drains in-flight requests, and only then stops its
+  background loops. The whole budget is `shutdown_grace` in `server.yaml`,
+  default 25s; the reference manifests set a matching
+  `terminationGracePeriodSeconds` and a `preStop` pause.
+
+- `buildmax --help` no longer lists cobra's auto-generated `completion`
+  command. `buildmax completion <shell>` still prints the shell script for
+  anyone who wants it.
+
+- BuildMax now identifies its outbound LLM requests with a versioned
+  `User-Agent` header.
+
+- `worker.run_mode: local_process` is now documented as what it is — a
+  single-machine topology where a task run is a child process of the server
+  under the same uid, sharing its trust domain — instead of being called a
+  development path the Compose deployment contradicts. The startup warning says
+  the same. Nothing about how a worker is launched changed; a deployment that
+  needs its server separated from model-chosen code still runs
+  `worker.run_mode: k8s_job`.
+
+- A managed model is now named by its catalog name rather than by a team alias.
+  `server.yaml` loses `llm.aliases` and `llm.default_alias` and gains
+  `llm.default_model`, which names one of the models `buildmax-server model add`
+  created, or is left empty to use the first enabled one. `worker.llm.alias`
+  becomes `worker.llm.model`. A name that matches no catalog row now stops the
+  server at startup, while an empty catalog does not — rows are added while the
+  server runs. In `settings.yaml`, a `transport: buildmax` entry drops `team_id`
+  and puts the catalog name in `model`; every model a deployment offers is
+  available to every user of it, so `buildmax models --team <id>` becomes
+  `buildmax models --server`. The gateway routes move from
+  `/api/teams/{team_id}/llm/...` to `/api/llm/...`, and a managed call is
+  recorded against the person who made it rather than against a team.
+
+- Entity relationships are stored as numeric keys rather than as repeated
+  identifier strings. Every reference that names exactly one kind of row is now
+  a `bigint`, the public handle each row shows the outside world is a separate
+  `binary(12)` column, and translating between the two happens inside the store
+  and nowhere else. Nothing about the API changed — a handle is still what
+  every request, response, token, log line, and object key carries. What
+  changed is underneath: a team's task list is answered by reading an index
+  backwards instead of sorting rows, usage aggregation is answered from indexes
+  without reading rows at all, and identity no longer depends on the database's
+  text collation. References that cannot be one number — a polymorphic actor, a
+  provider's tool-call ID, an agent session naming a file — stay text
+  deliberately, and a test refuses a new one added without that reason.
+
+- Login-chain, trace-file, and Desktop-project identifiers lost their `as_`,
+  `rt_`, and `p_` prefixes and are now ordinary opaque IDs, leaving one
+  identifier format in the codebase. None of the three is read by a person or
+  dispatched on; they had kept a prefix only because they are not database
+  rows, which was where the previous change stopped rather than a reason to
+  keep one. Background jobs are the exception and keep `jb_`: a job ID reaches
+  the model as a bare string inside tool output, and free prose is the one
+  place a type prefix says something the surrounding context does not.
+
+- Entity identifiers are now opaque and unprefixed: `ivyoh5qcfu6ypfkhyedq`
+  rather than `t_9f3k2m8x1qwe7rt4zy0p`. Each is 96 bits of crypto-random data
+  written as 20 lowercase base32 characters, case-insensitive on input and safe
+  unchanged in a URL, a filename, a Kubernetes name, and a shell. The type
+  prefix is gone because nothing dispatched on it — a route, a JSON field, and a
+  column already name the type — and because it was the only thing standing
+  between a presentation choice and the database schema. Agent and workflow
+  revisions, catalog plugins, and plugin releases carry no identifier at all
+  now; they are addressed by their parent plus a revision number, by name, and
+  by name plus version. Login-chain, trace-file, and Desktop-project identifiers
+  keep their prefixes: none of them names a database row. **This is a breaking
+  change with no compatibility path.** Every existing identifier, access token,
+  refresh session, worker token, Portal link, bookmark, and stored object key is
+  invalid. Recreate the database and object store rather than upgrading.
+
+- Sub-agent delegations to a read-only agent type such as `explore` now run in
+  parallel with each other and no longer prompt for approval, and a sub-agent's
+  own tool calls honour `agent.max_parallel_tools` instead of always running one
+  at a time.
+
+- Prompt caching is now a policy rather than a boolean, and Anthropic agent
+  turns cache by default. A model entry takes `cache_control: {mode, ttl}` —
+  `mode: auto` (the new default) asks on an agent turn, whose prefix goes out
+  again on the next iteration, and never on a one-shot call such as title
+  generation or compaction, where a cache write costs more than it can ever
+  save; `off` never asks and `force` always does. `ttl` selects retention where
+  the provider documents it — `5m` or `1h` on Anthropic, `24h` on OpenAI — and
+  is refused at startup anywhere else rather than sent and ignored, as is
+  `force` on a provider that takes no cache instructions at all. The
+  `prompt_cache` boolean it replaces is removed rather than kept as a
+  shorthand; write `cache_control: {mode: off}` where it said `false`. Managed
+  deployments get the same policy per catalog model through `--cache-mode` and
+  `--cache-ttl` on `buildmax-server model add`.
+
+- Prompt-cache token counts now reach every surface that shows what a run
+  spent. Providers already reported them and the managed ledger already stored
+  them, but they stopped there: run statistics, run traces, session totals, the
+  CLI's summary and `--format json` output, Desktop's run status, the team
+  run-ledger route, and Portal's run-spend view all dropped them, so a cached
+  run was indistinguishable from an uncached one. Cached counts remain a
+  breakdown of the prompt rather than an addition to it, and each surface shows
+  them only where a provider actually reported some — a provider that reports
+  nothing is not a provider that missed.
+
+- Server `public_id` columns now store the 20-character canonical text form
+  instead of raw bytes, so direct database queries show the same IDs the API
+  does. Breaking for existing server databases: there is no migration —
+  recreate the database (`./make kind down && ./make kind up`, or drop the
+  Compose MySQL volume).
+
+- The deployment-wide `worker.token` is gone. Every `/api/worker/*` route now
+  takes only the run token the server mints at dispatch, so a worker can read
+  and write its own run and nothing else. `worker.token` and
+  `BUILDMAX_WORKER_TOKEN` are no longer read, and the secret has been dropped
+  from the Compose and Kubernetes manifests — remove it from yours. Upgrade the
+  server before the worker image: a run dispatched without a run token now
+  fails immediately instead of falling back.
+
+- Stopping a server in `local_process` worker mode no longer waits for the agent
+  run it dispatched. The scheduler stops claiming immediately, asks the worker it
+  spawned to stop — which reports what the run produced — and gives up on a
+  worker that will not go, within the same `shutdown_grace` budget. In
+  `k8s_job` mode the Jobs already outlive the server, and still do.
+
+- Every stored moment in time is now a `DATETIME(6)` column and an RFC 3339
+  string in the API, replacing Unix seconds in `bigint` columns and JSON
+  numbers. Audit `since` and `until` query parameters take RFC 3339 too. An
+  existing Alpha database is recreated rather than converted; no conversion
+  migration ships.
+
+- A task run whose worker is shut down — a drained node, an evicted pod, a
+  restarted deployment — now stops, uploads what it produced, and reports
+  `FAILED` with a message naming the shutdown, instead of sitting in `RUNNING`
+  until the stale-run reaper closes it hours later. Its output and artifacts are
+  kept and shown the way a cancelled run's are.
+
+### Fixed
+
+- Editing an agent no longer fails with a duplicate-key error. The update wrote
+  a row rebuilt from the domain model, which no longer carries the database's
+  own key, so it was saved as a new agent rather than as a change to the
+  existing one; the unique index caught it and refused the edit. The update now
+  addresses the agent by its identifier.
+
+- The Portal conversation list no longer fills up with machinery. A workflow
+  step and an issue agent run each create a conversation because a task requires
+  one, and those were listed alongside conversations people actually hold — on a
+  team that runs either, they pushed real conversations off the page. They are
+  still kept, and a link straight to one still opens it.
+
+- A finished background task now always gets reported back to its conversation.
+  The reply used to be a one-shot attempt: a model call that failed, a busy
+  conversation, or a server restart between the task finishing and the reply
+  being written meant the conversation was simply never told. The report is now
+  recorded as owed and retried until it succeeds, or until it has failed enough
+  times to be given up on with the reason kept. The result itself was never at
+  risk — the task's card reads it directly.
+
+- Closing the runtime now waits for the background job trace writer to drain,
+  so a job's final record always lands in `traces/jobs/` before exit.
+
+- Refresh the built-in context_window fallback table: several ids had drifted
+  from what providers now report (some by a lot, e.g. deepseek-r1), one
+  Anthropic id had a hyphen where the real id uses a dot and never matched,
+  and OpenAI/Anthropic now cover their fast/mid/premium tiers instead of one
+  model each.
+
+- The TUI `/model` and `/tasks` panels scroll. With more entries than fit the
+  terminal each listed the first few and a `… N more` row, while the arrow keys
+  kept moving a selection through the ones it was not showing — so a model past
+  the fold could be switched to, and a job past it stopped with `s`, without
+  ever being seen. Both lists are now a window that follows the selection, and
+  `/model` opens on the model in use rather than at the top.
+
+- A Portal conversation now shows the background tasks it started. Each task
+  gets a card in the thread carrying its status, what the run produced, its
+  files, its run details, and stop or run-again, placed among the messages by
+  when it was created. The cards are read from the server, so they survive a
+  refresh and a dropped connection, and a task result is no longer displayed as
+  if the user had typed it.
+
+- The Portal image now ships third-party license attributions: the licenses of
+  every npm production dependency are served at `/third-party-notices.txt`, and
+  the image carries the Apache-2.0 text under `/usr/share/licenses`.
+
+- Pressing esc on the `/` command popup now closes it for good. The popup was
+  rebuilt from the input on every message, so the next cursor blink brought it
+  straight back; it now stays closed until the typed command changes.
+
+- Session token counts and cost now include the work a run delegated to a
+  subagent and what each context compaction cost; both were previously spent
+  and never counted, so long sessions and ones that used `Task` under-reported
+  themselves. A subagent's trace is also filed under the session that started
+  it rather than under a discarded id, and `tool_end` records how a call failed.
+
+- A finished background task now reports back whether or not anyone is watching.
+  The reply used to be sent through the creator's first open browser connection,
+  which meant it was skipped entirely when they had none and reached only one
+  tab when they had several. Every connection on the team is now told the task
+  changed, and the reply itself is written to the conversation independently of
+  any connection.
+
+- A run trace now reaches disk one record at a time, so a run that is
+  interrupted — killed, crashed, or given up on mid-turn — keeps its final
+  records instead of losing up to 4KB of them. Previously the tail stayed
+  buffered until the run closed cleanly, which made the last recorded event
+  appear seconds before the last one that actually happened. Shutting the
+  runtime down also closes the trace of a run still in flight, marking it
+  abandoned rather than leaving it open with no `run_end`.
+
+- A TUI panel such as `/model` or `/tools` now trims its list to what the
+  terminal can show. It listed a fixed number of rows whatever the height was,
+  so on a short terminal the panel pushed the input box and the footer off the
+  top of the screen, and nothing could scroll them back. Panel lines also no
+  longer wrap inside the panel border, which was quietly doubling the height of
+  the `/tools`, `/skills`, and `/diff` panels.
+
+- Closing a TUI panel such as `/model` no longer leaves its box drawn above the
+  input. The terminal renderer the CLI depends on stopped erasing the lines a
+  shrinking frame vacates, so every dismissed panel stayed on screen; the
+  dependency is pinned back to a working revision.
+
+- The inbound webhook's `202` response no longer labels a run identifier
+  `task_id`. It was returning the task run's ID under the task's name and no
+  task identifier at all, so a caller that wanted to follow the work had to
+  guess which of the two it had been handed. The body now carries both, matching
+  what creating a run through the API already returned:
+  `{"task_id": "...", "task_run_id": "..."}`.
+
 ## [0.1.0-alpha.2] - 2026-08-22
 
 ### Highlights
@@ -1060,7 +1532,8 @@ release preparation folds them into a dated section here.
 - Linux, macOS, and Windows archives with checksums and third-party notices.
 - Multi-architecture Linux container image published to GHCR.
 
-[Unreleased]: https://github.com/gougoujiang/buildmax/compare/v0.1.0-alpha.2...HEAD
+[Unreleased]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.1...HEAD
+[0.2.0-alpha.1]: https://github.com/gougoujiang/buildmax/compare/v0.1.0-alpha.2...v0.2.0-alpha.1
 [0.1.0-alpha.2]: https://github.com/gougoujiang/buildmax/compare/v0.1.0-alpha.1...v0.1.0-alpha.2
 [0.1.0-alpha.1]: https://github.com/gougoujiang/buildmax/compare/v0.1.0-alpha...v0.1.0-alpha.1
 [0.1.0-alpha]: https://github.com/gougoujiang/buildmax/releases/tag/v0.1.0-alpha
