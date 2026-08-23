@@ -19,7 +19,7 @@ func TestWorkerModeCallsTheRunRoute(t *testing.T) {
 
 	client := gateway.client(llmremote.Config{Token: "run-token", TaskRunID: "r_1", Alias: "default"})
 	if _, err := client.ChatCompletionBlocking(context.Background(),
-		[]cllm.Message{{Role: "user", Content: "hello"}}, nil); err != nil {
+		cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "hello"}}}); err != nil {
 		t.Fatalf("ChatCompletionBlocking: %v", err)
 	}
 
@@ -44,7 +44,7 @@ func TestWorkerModeStreams(t *testing.T) {
 	client := gateway.client(llmremote.Config{Token: "run-token", TaskRunID: "r_2"})
 	var deltas []string
 	completion, err := client.ChatCompletionStreaming(context.Background(),
-		[]cllm.Message{{Role: "user", Content: "hi"}}, nil,
+		cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "hi"}}},
 		func(d string) { deltas = append(deltas, d) })
 	if err != nil {
 		t.Fatalf("ChatCompletionStreaming: %v", err)
@@ -66,7 +66,7 @@ func TestTeamAndTaskRunAreMutuallyExclusive(t *testing.T) {
 
 	client := gateway.client(llmremote.Config{Token: "tok", TeamID: "tm_one", TaskRunID: "r_1"})
 	_, err := client.ChatCompletionBlocking(context.Background(),
-		[]cllm.Message{{Role: "user"}}, nil)
+		cllm.Request{Messages: []cllm.Message{{Role: "user"}}})
 	if err == nil {
 		t.Fatal("a client holding both a team and a task run made a call")
 	}
@@ -83,7 +83,7 @@ func TestClientWithNoIdentityMakesNoCall(t *testing.T) {
 
 	client := llmremote.NewClient(llmremote.Config{ServerURL: gateway.server.URL, Token: "tok"})
 	if _, err := client.ChatCompletionBlocking(context.Background(),
-		[]cllm.Message{{Role: "user"}}, nil); err == nil {
+		cllm.Request{Messages: []cllm.Message{{Role: "user"}}}); err == nil {
 		t.Fatal("a client with neither a team nor a task run made a call")
 	}
 	if gateway.requests != 0 {

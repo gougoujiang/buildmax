@@ -72,7 +72,7 @@ type mockResponse struct {
 	usage     llm.Usage
 }
 
-func (m *mockLLMClient) ChatCompletionBlocking(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (llm.Completion, error) {
+func (m *mockLLMClient) ChatCompletionBlocking(ctx context.Context, req llm.Request) (llm.Completion, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.calls >= len(m.responses) {
@@ -83,8 +83,8 @@ func (m *mockLLMClient) ChatCompletionBlocking(ctx context.Context, messages []l
 	return llm.Completion{Content: r.content, ToolCalls: r.toolCalls, Usage: r.usage}, nil
 }
 
-func (m *mockLLMClient) ChatCompletionStreaming(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (llm.Completion, error) {
-	completion, err := m.ChatCompletionBlocking(ctx, messages, tools)
+func (m *mockLLMClient) ChatCompletionStreaming(ctx context.Context, req llm.Request, onDelta func(string)) (llm.Completion, error) {
+	completion, err := m.ChatCompletionBlocking(ctx, req)
 	if err == nil && onDelta != nil && completion.Content != "" {
 		onDelta(completion.Content)
 	}
@@ -292,16 +292,16 @@ type recordingLLMClient struct {
 	once     sync.Once
 }
 
-func (r *recordingLLMClient) ChatCompletionBlocking(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (llm.Completion, error) {
+func (r *recordingLLMClient) ChatCompletionBlocking(ctx context.Context, req llm.Request) (llm.Completion, error) {
 	r.once.Do(func() {
-		r.firstMsg = make([]llm.Message, len(messages))
-		copy(r.firstMsg, messages)
+		r.firstMsg = make([]llm.Message, len(req.Messages))
+		copy(r.firstMsg, req.Messages)
 	})
-	return r.inner.ChatCompletionBlocking(ctx, messages, tools)
+	return r.inner.ChatCompletionBlocking(ctx, req)
 }
 
-func (r *recordingLLMClient) ChatCompletionStreaming(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (llm.Completion, error) {
-	return r.inner.ChatCompletionStreaming(ctx, messages, tools, onDelta)
+func (r *recordingLLMClient) ChatCompletionStreaming(ctx context.Context, req llm.Request, onDelta func(string)) (llm.Completion, error) {
+	return r.inner.ChatCompletionStreaming(ctx, req, onDelta)
 }
 
 func (r *recordingLLMClient) ContextWindow() int { return 0 }
@@ -313,16 +313,16 @@ type lastCallLLMClient struct {
 	lastMu  sync.Mutex
 }
 
-func (r *lastCallLLMClient) ChatCompletionBlocking(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (llm.Completion, error) {
+func (r *lastCallLLMClient) ChatCompletionBlocking(ctx context.Context, req llm.Request) (llm.Completion, error) {
 	r.lastMu.Lock()
-	r.lastMsg = make([]llm.Message, len(messages))
-	copy(r.lastMsg, messages)
+	r.lastMsg = make([]llm.Message, len(req.Messages))
+	copy(r.lastMsg, req.Messages)
 	r.lastMu.Unlock()
-	return r.inner.ChatCompletionBlocking(ctx, messages, tools)
+	return r.inner.ChatCompletionBlocking(ctx, req)
 }
 
-func (r *lastCallLLMClient) ChatCompletionStreaming(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (llm.Completion, error) {
-	return r.inner.ChatCompletionStreaming(ctx, messages, tools, onDelta)
+func (r *lastCallLLMClient) ChatCompletionStreaming(ctx context.Context, req llm.Request, onDelta func(string)) (llm.Completion, error) {
+	return r.inner.ChatCompletionStreaming(ctx, req, onDelta)
 }
 
 func (r *lastCallLLMClient) ContextWindow() int { return 0 }
@@ -574,7 +574,7 @@ type cancelOnSecondCallClient struct {
 	mu       sync.Mutex
 }
 
-func (c *cancelOnSecondCallClient) ChatCompletionBlocking(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (llm.Completion, error) {
+func (c *cancelOnSecondCallClient) ChatCompletionBlocking(ctx context.Context, req llm.Request) (llm.Completion, error) {
 	c.mu.Lock()
 	n := c.calls
 	c.calls++
@@ -586,8 +586,8 @@ func (c *cancelOnSecondCallClient) ChatCompletionBlocking(ctx context.Context, m
 	return llm.Completion{}, context.Canceled
 }
 
-func (c *cancelOnSecondCallClient) ChatCompletionStreaming(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (llm.Completion, error) {
-	return c.ChatCompletionBlocking(ctx, messages, tools)
+func (c *cancelOnSecondCallClient) ChatCompletionStreaming(ctx context.Context, req llm.Request, onDelta func(string)) (llm.Completion, error) {
+	return c.ChatCompletionBlocking(ctx, req)
 }
 
 func (c *cancelOnSecondCallClient) ContextWindow() int { return 0 }
@@ -680,6 +680,54 @@ func TestTextOnlyToolResultCarriesNoParts(t *testing.T) {
 	for _, msg := range history.HistoryMessages() {
 		if msg.Role == "tool" && len(msg.Parts) != 0 {
 			t.Errorf("tool message = %+v, want no parts", msg)
+		}
+	}
+}
+
+// profileClient records the call profile every request arrived with.
+type profileClient struct {
+	mu       sync.Mutex
+	profiles []llm.CallProfile
+	replies  []mockResponse
+}
+
+func (c *profileClient) ChatCompletionBlocking(ctx context.Context, req llm.Request) (llm.Completion, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.profiles = append(c.profiles, req.Profile)
+	if len(c.profiles) > len(c.replies) {
+		return llm.Completion{}, nil
+	}
+	r := c.replies[len(c.profiles)-1]
+	return llm.Completion{Content: r.content, ToolCalls: r.toolCalls, Usage: r.usage}, nil
+}
+
+func (c *profileClient) ChatCompletionStreaming(ctx context.Context, req llm.Request, onDelta func(string)) (llm.Completion, error) {
+	return c.ChatCompletionBlocking(ctx, req)
+}
+
+func (c *profileClient) ContextWindow() int { return 0 }
+
+// Every iteration of the loop is an agent turn, including the ones that only
+// carry tool results. The profile decides whether the call asks a provider to
+// write a cache entry, and a turn labelled anything else would either pay for a
+// write nothing reads or skip the one write the rest of the run reads back.
+func TestRunLoopLabelsEveryIterationAnAgentTurn(t *testing.T) {
+	client := &profileClient{replies: []mockResponse{
+		{toolCalls: []llm.ToolCall{{ID: "1", Name: "echo", Arguments: "{}"}}},
+		{content: "Done."},
+	}}
+	mockTool := &mockTool{name: "echo", description: "Echo", params: map[string]any{"type": "object"}, result: "ok"}
+	if _, _, err := runLoopWithUserMsg(context.Background(), client,
+		newTestToolRegistry(mockTool), newTestBuffer(), "Hi"); err != nil {
+		t.Fatalf("RunLoop: %v", err)
+	}
+	if len(client.profiles) != 2 {
+		t.Fatalf("saw %d calls, want 2", len(client.profiles))
+	}
+	for i, got := range client.profiles {
+		if got != llm.ProfileAgentTurn {
+			t.Errorf("call %d profile = %q, want %q", i+1, got, llm.ProfileAgentTurn)
 		}
 	}
 }

@@ -25,7 +25,7 @@ type traceScriptClient struct {
 	completions []llm.Completion
 }
 
-func (c *traceScriptClient) ChatCompletionBlocking(_ context.Context, _ []llm.Message, _ []llm.ToolDef) (llm.Completion, error) {
+func (c *traceScriptClient) ChatCompletionBlocking(_ context.Context, req llm.Request) (llm.Completion, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if len(c.completions) == 0 {
@@ -36,8 +36,8 @@ func (c *traceScriptClient) ChatCompletionBlocking(_ context.Context, _ []llm.Me
 	return completion, nil
 }
 
-func (c *traceScriptClient) ChatCompletionStreaming(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (llm.Completion, error) {
-	completion, err := c.ChatCompletionBlocking(ctx, messages, tools)
+func (c *traceScriptClient) ChatCompletionStreaming(ctx context.Context, req llm.Request, onDelta func(string)) (llm.Completion, error) {
+	completion, err := c.ChatCompletionBlocking(ctx, req)
 	if err == nil && onDelta != nil && completion.Content != "" {
 		onDelta(completion.Content)
 	}

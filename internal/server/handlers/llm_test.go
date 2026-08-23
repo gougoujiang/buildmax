@@ -31,14 +31,14 @@ type llmStubClient struct {
 	err     error
 }
 
-func (c *llmStubClient) ChatCompletionBlocking(context.Context, []cllm.Message, []cllm.ToolDef) (cllm.Completion, error) {
+func (c *llmStubClient) ChatCompletionBlocking(context.Context, cllm.Request) (cllm.Completion, error) {
 	if c.err != nil {
 		return cllm.Completion{}, c.err
 	}
 	return cllm.Completion{Content: c.content, Usage: c.usage}, nil
 }
 
-func (c *llmStubClient) ChatCompletionStreaming(_ context.Context, _ []cllm.Message, _ []cllm.ToolDef, onDelta func(string)) (cllm.Completion, error) {
+func (c *llmStubClient) ChatCompletionStreaming(_ context.Context, req cllm.Request, onDelta func(string)) (cllm.Completion, error) {
 	for _, delta := range c.deltas {
 		onDelta(delta)
 	}

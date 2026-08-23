@@ -202,10 +202,13 @@ func (w *WebFetch) Execute(ctx context.Context, args map[string]any) (string, er
 		if w.llmClient == nil {
 			return "", errors.New("WebFetch: LLM client is not configured; omit \"prompt\" to return raw fetched content only")
 		}
-		completion, err := w.llmClient.ChatCompletionBlocking(ctx, []llm.Message{
-			{Role: "system", Content: "Answer based only on the following content.\n\n" + content},
-			{Role: "user", Content: prompt},
-		}, nil)
+		completion, err := w.llmClient.ChatCompletionBlocking(ctx, llm.Request{
+			Messages: []llm.Message{
+				{Role: "system", Content: "Answer based only on the following content.\n\n" + content},
+				{Role: "user", Content: prompt},
+			},
+			Profile: llm.ProfileProbe,
+		})
 		if err != nil {
 			return "", err
 		}

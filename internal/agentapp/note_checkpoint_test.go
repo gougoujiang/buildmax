@@ -18,6 +18,9 @@ type scriptedClient struct {
 	sent    [][]llm.Message
 	defs    [][]llm.ToolDef
 	err     error
+	// profiles is what each call said it was for, so a test can pin that a
+	// one-shot utility call never asks for the caching an agent turn does.
+	profiles []llm.CallProfile
 }
 
 type scriptedReply struct {
@@ -25,9 +28,10 @@ type scriptedReply struct {
 	toolCalls []llm.ToolCall
 }
 
-func (c *scriptedClient) ChatCompletionBlocking(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (llm.Completion, error) {
-	c.sent = append(c.sent, append([]llm.Message(nil), messages...))
-	c.defs = append(c.defs, tools)
+func (c *scriptedClient) ChatCompletionBlocking(ctx context.Context, req llm.Request) (llm.Completion, error) {
+	c.sent = append(c.sent, append([]llm.Message(nil), req.Messages...))
+	c.defs = append(c.defs, req.Tools)
+	c.profiles = append(c.profiles, req.Profile)
 	if c.err != nil {
 		return llm.Completion{}, c.err
 	}
@@ -40,8 +44,8 @@ func (c *scriptedClient) ChatCompletionBlocking(ctx context.Context, messages []
 	return llm.Completion{Content: r.content, ToolCalls: r.toolCalls}, nil
 }
 
-func (c *scriptedClient) ChatCompletionStreaming(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (llm.Completion, error) {
-	return c.ChatCompletionBlocking(ctx, messages, tools)
+func (c *scriptedClient) ChatCompletionStreaming(ctx context.Context, req llm.Request, onDelta func(string)) (llm.Completion, error) {
+	return c.ChatCompletionBlocking(ctx, req)
 }
 
 func (c *scriptedClient) ContextWindow() int { return 100_000 }
@@ -286,5 +290,55 @@ func TestTranscript(t *testing.T) {
 	}
 	if strings.Contains(transcript([]llm.Message{{Role: "assistant", Content: "  "}}), "[assistant]") {
 		t.Error("empty content produced a line")
+	}
+}
+
+// A title, a compaction summary, and a checkpoint are each asked once and never
+// asked again with the same prefix. Labelling them agent turns would buy a cache
+// write on every one of them that nothing ever reads back — the exact case where
+// caching costs more than it saves.
+func TestUtilityCallsAreNotLabelledAgentTurns(t *testing.T) {
+	tests := []struct {
+		name string
+		run  func(t *testing.T, client *scriptedClient)
+		want llm.CallProfile
+	}{
+		{
+			name: "title",
+			want: llm.ProfileTitle,
+			run: func(t *testing.T, client *scriptedClient) {
+				sess := NewSessionContext(session.NewSession(""), "test-model")
+				if err := sess.Append(llm.Message{Role: "user", Content: "rename the widget"}); err != nil {
+					t.Fatal(err)
+				}
+				if _, _, err := (&SessionManager{dir: t.TempDir()}).GenerateTitle(t.Context(), client, sess); err != nil {
+					t.Fatalf("GenerateTitle: %v", err)
+				}
+			},
+		},
+		{
+			name: "compaction",
+			want: llm.ProfileCompaction,
+			run: func(t *testing.T, client *scriptedClient) {
+				if _, err := NewLLMCompactor(client).Compact(t.Context(),
+					[]llm.Message{{Role: "user", Content: "a long history"}}); err != nil {
+					t.Fatalf("Compact: %v", err)
+				}
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := &scriptedClient{replies: []scriptedReply{{content: "ok"}}}
+			tc.run(t, client)
+			if len(client.profiles) == 0 {
+				t.Fatal("no call was made")
+			}
+			for i, got := range client.profiles {
+				if got != tc.want {
+					t.Errorf("call %d profile = %q, want %q", i+1, got, tc.want)
+				}
+			}
+		})
 	}
 }

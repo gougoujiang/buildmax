@@ -425,7 +425,9 @@ func callLLM(ctx context.Context, opts RunLoopOpts, history []llm.Message, syste
 	})
 	messages := append([]llm.Message{{Role: "system", Content: systemPrompt}}, history...)
 	messages = append(messages, stateMsg...)
-	defs := opts.ToolRegistry.GetDefs()
+	// The loop is the one caller whose prefix is sent again on the next
+	// iteration, which is what makes a cache write here worth its price.
+	call := llm.Request{Messages: messages, Tools: opts.ToolRegistry.GetDefs(), Profile: llm.ProfileAgentTurn}
 	if opts.StreamSink != nil {
 		onDelta := opts.StreamSink.OnDelta
 		if opts.EventSink != nil {
@@ -435,9 +437,9 @@ func callLLM(ctx context.Context, opts RunLoopOpts, history []llm.Message, syste
 				sink(Event{Kind: EventLLMDelta, Content: delta})
 			}
 		}
-		return opts.LLMClient.ChatCompletionStreaming(ctx, messages, defs, onDelta)
+		return opts.LLMClient.ChatCompletionStreaming(ctx, call, onDelta)
 	}
-	return opts.LLMClient.ChatCompletionBlocking(ctx, messages, defs)
+	return opts.LLMClient.ChatCompletionBlocking(ctx, call)
 }
 
 // pendingCall is one tool call moving through the four stages below. Workers

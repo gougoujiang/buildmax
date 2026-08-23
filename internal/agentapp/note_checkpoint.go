@@ -82,7 +82,7 @@ func (c *NoteCheckpointer) Checkpoint(ctx context.Context, discarded []llm.Messa
 
 	wrote := 0
 	for turn := 0; turn < maxCheckpointTurns; turn++ {
-		completion, err := c.client.ChatCompletionBlocking(ctx, messages, defs)
+		completion, err := c.client.ChatCompletionBlocking(ctx, llm.Request{Messages: messages, Tools: defs, Profile: llm.ProfileCompaction})
 		if err != nil {
 			return fmt.Errorf("checkpoint call: %w", err)
 		}

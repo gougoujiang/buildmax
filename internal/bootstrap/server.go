@@ -43,7 +43,7 @@ func (a *titleGenAdapter) GenerateTitle(ctx context.Context, input string) (stri
 		{Role: "system", Content: taskTitlePrompt},
 		{Role: "user", Content: input},
 	}
-	completion, err := a.client.ChatCompletionBlocking(ctx, msgs, nil)
+	completion, err := a.client.ChatCompletionBlocking(ctx, cllm.Request{Messages: msgs, Profile: cllm.ProfileTitle})
 	if err != nil {
 		return "", 0, 0, err
 	}

@@ -33,9 +33,15 @@ Rationale and the phases beyond this one:
 ```go
 // internal/core/llm
 type LLMClient interface {
-    ChatCompletionBlocking(ctx, messages []Message, tools []ToolDef) (Completion, error)
-    ChatCompletionStreaming(ctx, messages []Message, tools []ToolDef, onDelta func(string)) (Completion, error)
+    ChatCompletionBlocking(ctx, req Request) (Completion, error)
+    ChatCompletionStreaming(ctx, req Request, onDelta func(string)) (Completion, error)
     ContextWindow() int   // 0 = no windowing configured
+}
+
+type Request struct {
+    Messages []Message
+    Tools    []ToolDef
+    Profile  CallProfile      // what the call is for
 }
 
 type Completion struct {
@@ -56,6 +62,26 @@ capability the contract has gained wanted another slot, and a fifth positional
 value is where that stops being readable. `Completion.AssistantMessage()` is the
 history entry a turn becomes, so the agent loop appends it verbatim and no layer
 in between has to know reasoning state exists.
+
+`Request` is a struct for the mirror-image reason on the way in. It exists to
+carry `CallProfile`: what the call is *for*, which the request itself cannot
+show. A title generation and the first turn of a long tool-calling run send the
+same shape of messages, and prompt caching charges them differently — a cache
+write costs more than ordinary input and only repays itself if a later call
+reads it. The profile is the caller's answer to "will anything read this again".
+
+| Profile | Set by |
+|---|---|
+| `agent_turn` | `core/agent.RunLoop` — the prefix goes out again next iteration |
+| `title` | `agentapp.SessionManager.GenerateTitle` |
+| `compaction` | `agentapp.LLMCompactor` and the note checkpointer |
+| `evaluation` | a harness calling *about* a run rather than *as* one |
+| `probe` | a single question with no reuse: `WebFetch`, a hook's model call |
+
+It is a typed field rather than a `context.Context` value because a charged
+provider behavior has to be visible to the callers and tests that reason about
+it. `CallProfile.Valid()` refuses an unknown value rather than defaulting: the
+default it would fall to is the one that spends money.
 
 ## Construction
 

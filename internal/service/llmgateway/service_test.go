@@ -28,9 +28,9 @@ type scriptedClient struct {
 	gotOrigin   cllm.CallOrigin
 }
 
-func (c *scriptedClient) ChatCompletionBlocking(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef) (cllm.Completion, error) {
-	c.gotMessages = messages
-	c.gotTools = tools
+func (c *scriptedClient) ChatCompletionBlocking(ctx context.Context, req cllm.Request) (cllm.Completion, error) {
+	c.gotMessages = req.Messages
+	c.gotTools = req.Tools
 	c.gotOrigin, _ = cllm.CallOriginFromContext(ctx)
 	if c.err != nil {
 		return cllm.Completion{}, c.err
@@ -43,7 +43,9 @@ func (c *scriptedClient) ChatCompletionBlocking(ctx context.Context, messages []
 	}, nil
 }
 
-func (c *scriptedClient) ChatCompletionStreaming(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef, onDelta func(string)) (cllm.Completion, error) {
+func (c *scriptedClient) ChatCompletionStreaming(ctx context.Context, req cllm.Request, onDelta func(string)) (cllm.Completion, error) {
+	messages := req.Messages
+	tools := req.Tools
 	c.gotMessages = messages
 	c.gotTools = tools
 	c.gotOrigin, _ = cllm.CallOriginFromContext(ctx)

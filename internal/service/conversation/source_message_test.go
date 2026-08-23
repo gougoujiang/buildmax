@@ -19,7 +19,7 @@ type toolThenReplyClient struct {
 	calls    int
 }
 
-func (c *toolThenReplyClient) ChatCompletionBlocking(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (llm.Completion, error) {
+func (c *toolThenReplyClient) ChatCompletionBlocking(ctx context.Context, req llm.Request) (llm.Completion, error) {
 	c.calls++
 	if c.calls == 1 {
 		return llm.Completion{ToolCalls: []llm.ToolCall{{ID: "call_1", Name: c.toolName, Arguments: c.args}}}, nil
@@ -27,8 +27,8 @@ func (c *toolThenReplyClient) ChatCompletionBlocking(ctx context.Context, messag
 	return llm.Completion{Content: "started"}, nil
 }
 
-func (c *toolThenReplyClient) ChatCompletionStreaming(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (llm.Completion, error) {
-	return c.ChatCompletionBlocking(ctx, messages, tools)
+func (c *toolThenReplyClient) ChatCompletionStreaming(ctx context.Context, req llm.Request, onDelta func(string)) (llm.Completion, error) {
+	return c.ChatCompletionBlocking(ctx, req)
 }
 
 func (c *toolThenReplyClient) ContextWindow() int { return 0 }

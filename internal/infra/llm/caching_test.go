@@ -35,8 +35,8 @@ func TestAnthropicPlacesCacheBreakpoints(t *testing.T) {
 	up := newUpstreamWithBody(t, anthropicBody(reply{text: "ok"}))
 	client := newCachingClient(t, config.LLMProviderAnthropic, up.server.URL)
 
-	if _, err := client.ChatCompletionBlocking(
-		context.Background(), conformanceHistory(), conformanceTools()); err != nil {
+	if _, err := client.ChatCompletionBlocking(context.Background(),
+		cllm.Request{Messages: conformanceHistory(), Tools: conformanceTools()}); err != nil {
 		t.Fatalf("ChatCompletionBlocking: %v", err)
 	}
 	var request map[string]any
@@ -59,8 +59,8 @@ func TestCachingIsOffByDefault(t *testing.T) {
 	up := newUpstreamWithBody(t, anthropicBody(reply{text: "ok"}))
 	client := newTestClient(t, config.LLMProviderAnthropic, up.server.URL)
 
-	if _, err := client.ChatCompletionBlocking(
-		context.Background(), conformanceHistory(), conformanceTools()); err != nil {
+	if _, err := client.ChatCompletionBlocking(context.Background(),
+		cllm.Request{Messages: conformanceHistory(), Tools: conformanceTools()}); err != nil {
 		t.Fatalf("ChatCompletionBlocking: %v", err)
 	}
 	if strings.Contains(up.bodies[0], "cache_control") {
@@ -138,7 +138,7 @@ func TestCacheTokensAreReportedAsPartOfThePrompt(t *testing.T) {
 			client := newTestClient(t, tc.provider, up.server.URL)
 
 			completion, err := client.ChatCompletionBlocking(context.Background(),
-				[]cllm.Message{{Role: "user", Content: "hi"}}, nil)
+				cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "hi"}}})
 			if err != nil {
 				t.Fatalf("ChatCompletionBlocking: %v", err)
 			}
@@ -212,7 +212,7 @@ func TestCacheTokensSurviveStreaming(t *testing.T) {
 			client := newTestClient(t, tc.provider, up.server.URL)
 
 			completion, err := client.ChatCompletionStreaming(context.Background(),
-				[]cllm.Message{{Role: "user", Content: "hi"}}, nil, func(string) {})
+				cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "hi"}}}, func(string) {})
 			if err != nil {
 				t.Fatalf("ChatCompletionStreaming: %v", err)
 			}

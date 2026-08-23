@@ -101,6 +101,11 @@ type CompleteRequest struct {
 	Alias    string
 	Messages []cllm.Message
 	Tools    []cllm.ToolDef
+	// CallProfile is what the caller says the call is for. It is operational
+	// input, never authorization input: the gateway combines it with the
+	// operator's own target policy, and a client cannot use it to select a
+	// stronger cache request than the deployment allows.
+	CallProfile cllm.CallProfile
 }
 
 // CompleteResult is a finished managed call.
@@ -220,6 +225,7 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 	var completion cllm.Completion
 	var callErr error
 	upstreamCtx := cllm.WithCallOrigin(ctx, upstreamCallOrigin(req.Surface))
+	upstreamCall := cllm.Request{Messages: req.Messages, Tools: req.Tools, Profile: req.CallProfile}
 	if streaming {
 		observed := func(delta string) {
 			if firstDeltaAt == nil {
@@ -228,9 +234,9 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 			}
 			onDelta(delta)
 		}
-		completion, callErr = routed.Client.ChatCompletionStreaming(upstreamCtx, req.Messages, req.Tools, observed)
+		completion, callErr = routed.Client.ChatCompletionStreaming(upstreamCtx, upstreamCall, observed)
 	} else {
-		completion, callErr = routed.Client.ChatCompletionBlocking(upstreamCtx, req.Messages, req.Tools)
+		completion, callErr = routed.Client.ChatCompletionBlocking(upstreamCtx, upstreamCall)
 	}
 
 	outcome := model.LLMCallOutcome{

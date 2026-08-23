@@ -260,7 +260,8 @@ func responsesUsage(usage *openai.ResponseUsage) cllm.Usage {
 	return out
 }
 
-func (a *openAIResponsesAdapter) blocking(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef) (cllm.Completion, error) {
+func (a *openAIResponsesAdapter) blocking(ctx context.Context, req cllm.Request) (cllm.Completion, error) {
+	messages, tools := req.Messages, req.Tools
 	resp, err := a.client.CreateResponse(ctx, a.buildRequest(messages, tools))
 	if err != nil {
 		return cllm.Completion{}, fmt.Errorf("create response: %w", openAIAPIError(err))
@@ -280,7 +281,8 @@ func (a *openAIResponsesAdapter) blocking(ctx context.Context, messages []cllm.M
 	}, nil
 }
 
-func (a *openAIResponsesAdapter) streaming(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef, onDelta func(string)) (cllm.Completion, error) {
+func (a *openAIResponsesAdapter) streaming(ctx context.Context, req cllm.Request, onDelta func(string)) (cllm.Completion, error) {
+	messages, tools := req.Messages, req.Tools
 	stream, err := a.client.CreateResponseStream(ctx, a.buildRequest(messages, tools))
 	if err != nil {
 		return cllm.Completion{}, fmt.Errorf("create response stream: %w", openAIAPIError(err))

@@ -42,14 +42,14 @@ func (c *countingLLMClient) count() int {
 	return c.calls
 }
 
-func (c *countingLLMClient) ChatCompletionBlocking(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (llm.Completion, error) {
+func (c *countingLLMClient) ChatCompletionBlocking(ctx context.Context, req llm.Request) (llm.Completion, error) {
 	if err := c.next(); err != nil {
 		return llm.Completion{}, err
 	}
 	return llm.Completion{Content: "reported"}, nil
 }
 
-func (c *countingLLMClient) ChatCompletionStreaming(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (llm.Completion, error) {
+func (c *countingLLMClient) ChatCompletionStreaming(ctx context.Context, req llm.Request, onDelta func(string)) (llm.Completion, error) {
 	if err := c.next(); err != nil {
 		return llm.Completion{}, err
 	}

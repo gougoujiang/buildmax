@@ -78,10 +78,10 @@ func TestBlockingCallShapesTheRequest(t *testing.T) {
 	gateway.body = `{"llm_call_id":"lc_1","model":"fast","content":"hi"}`
 
 	client := gateway.client(llmremote.Config{Token: "tok", Alias: "fast", Surface: "cli"})
-	_, err := client.ChatCompletionBlocking(context.Background(),
-		[]cllm.Message{{Role: "user", Content: "hello"}},
-		[]cllm.ToolDef{{Name: "read_file", Description: "reads", Parameters: map[string]any{"type": "object"}}},
-	)
+	_, err := client.ChatCompletionBlocking(context.Background(), cllm.Request{
+		Messages: []cllm.Message{{Role: "user", Content: "hello"}},
+		Tools:    []cllm.ToolDef{{Name: "read_file", Description: "reads", Parameters: map[string]any{"type": "object"}}},
+	})
 	if err != nil {
 		t.Fatalf("ChatCompletionBlocking: %v", err)
 	}
@@ -123,7 +123,7 @@ func TestRequestCarriesNoRoutingDetail(t *testing.T) {
 
 	client := gateway.client(llmremote.Config{Token: "tok", Alias: "fast"})
 	if _, err := client.ChatCompletionBlocking(context.Background(),
-		[]cllm.Message{{Role: "user", Content: "hello"}}, nil); err != nil {
+		cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "hello"}}}); err != nil {
 		t.Fatalf("ChatCompletionBlocking: %v", err)
 	}
 
@@ -146,7 +146,7 @@ func TestBlockingCallDecodesTheResponse(t *testing.T) {
 
 	client := gateway.client(llmremote.Config{Token: "tok"})
 	completion, err := client.ChatCompletionBlocking(context.Background(),
-		[]cllm.Message{{Role: "user", Content: "hello"}}, nil)
+		cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "hello"}}})
 	if err != nil {
 		t.Fatalf("ChatCompletionBlocking: %v", err)
 	}
@@ -169,7 +169,7 @@ func TestAbsentUsageIsZero(t *testing.T) {
 
 	client := gateway.client(llmremote.Config{Token: "tok"})
 	completion, err := client.ChatCompletionBlocking(context.Background(),
-		[]cllm.Message{{Role: "user"}}, nil)
+		cllm.Request{Messages: []cllm.Message{{Role: "user"}}})
 	if err != nil {
 		t.Fatalf("ChatCompletionBlocking: %v", err)
 	}
@@ -227,7 +227,7 @@ func TestGatewayErrorsAreClassified(t *testing.T) {
 
 			client := gateway.client(llmremote.Config{Token: "tok"})
 			_, err := client.ChatCompletionBlocking(context.Background(),
-				[]cllm.Message{{Role: "user"}}, nil)
+				cllm.Request{Messages: []cllm.Message{{Role: "user"}}})
 			if err == nil {
 				t.Fatal("a failure status returned no error")
 			}
@@ -274,7 +274,7 @@ func TestStreamingDeliversDeltasThenTheResult(t *testing.T) {
 	var deltas []string
 	client := gateway.client(llmremote.Config{Token: "tok"})
 	completion, err := client.ChatCompletionStreaming(context.Background(),
-		[]cllm.Message{{Role: "user", Content: "hi"}}, nil,
+		cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "hi"}}},
 		func(d string) { deltas = append(deltas, d) })
 	if err != nil {
 		t.Fatalf("ChatCompletionStreaming: %v", err)
@@ -310,7 +310,7 @@ func TestStreamingSurfacesAMidStreamError(t *testing.T) {
 	var deltas []string
 	client := gateway.client(llmremote.Config{Token: "tok"})
 	_, err := client.ChatCompletionStreaming(context.Background(),
-		[]cllm.Message{{Role: "user"}}, nil, func(d string) { deltas = append(deltas, d) })
+		cllm.Request{Messages: []cllm.Message{{Role: "user"}}}, func(d string) { deltas = append(deltas, d) })
 	if err == nil {
 		t.Fatal("a mid-stream error event returned no error")
 	}
@@ -336,7 +336,7 @@ func TestStreamingRejectsATruncatedStream(t *testing.T) {
 
 	client := gateway.client(llmremote.Config{Token: "tok"})
 	_, err := client.ChatCompletionStreaming(context.Background(),
-		[]cllm.Message{{Role: "user"}}, nil, nil)
+		cllm.Request{Messages: []cllm.Message{{Role: "user"}}}, nil)
 	if err == nil {
 		t.Fatal("a stream with no result returned success")
 	}
@@ -355,7 +355,7 @@ func TestStreamingIgnoresUnknownEvents(t *testing.T) {
 
 	client := gateway.client(llmremote.Config{Token: "tok"})
 	completion, err := client.ChatCompletionStreaming(context.Background(),
-		[]cllm.Message{{Role: "user"}}, nil, nil)
+		cllm.Request{Messages: []cllm.Message{{Role: "user"}}}, nil)
 	if err != nil {
 		t.Fatalf("an unknown event broke the stream: %v", err)
 	}
@@ -371,7 +371,7 @@ func TestStreamingRefusalBeforeAnyOutputIsAPlainError(t *testing.T) {
 
 	client := gateway.client(llmremote.Config{Token: "tok"})
 	_, err := client.ChatCompletionStreaming(context.Background(),
-		[]cllm.Message{{Role: "user"}}, nil, nil)
+		cllm.Request{Messages: []cllm.Message{{Role: "user"}}}, nil)
 
 	var gwErr *llmremote.GatewayError
 	if !errors.As(err, &gwErr) || gwErr.StatusCode != http.StatusTooManyRequests {
@@ -385,12 +385,12 @@ func TestStreamingRefusalBeforeAnyOutputIsAPlainError(t *testing.T) {
 func TestClientRequiresServerAndTeam(t *testing.T) {
 	client := llmremote.NewClient(llmremote.Config{Token: "tok"})
 	if _, err := client.ChatCompletionBlocking(context.Background(),
-		[]cllm.Message{{Role: "user"}}, nil); err == nil {
+		cllm.Request{Messages: []cllm.Message{{Role: "user"}}}); err == nil {
 		t.Error("a client with no server URL made a call")
 	}
 
 	var nilClient *llmremote.Client
-	if _, err := nilClient.ChatCompletionBlocking(context.Background(), nil, nil); err == nil {
+	if _, err := nilClient.ChatCompletionBlocking(context.Background(), cllm.Request{Messages: nil}); err == nil {
 		t.Error("a nil client made a call")
 	}
 	if nilClient.ContextWindow() != 0 {
@@ -432,7 +432,7 @@ func TestServerURLTrailingSlashIsTolerated(t *testing.T) {
 		Token:     "tok",
 	})
 	if _, err := client.ChatCompletionBlocking(context.Background(),
-		[]cllm.Message{{Role: "user"}}, nil); err != nil {
+		cllm.Request{Messages: []cllm.Message{{Role: "user"}}}); err != nil {
 		t.Fatalf("ChatCompletionBlocking: %v", err)
 	}
 	if gateway.gotPath != "/api/teams/tm_one/llm/completions" {
@@ -460,7 +460,7 @@ func TestTokenFuncIsReadOnEveryRequest(t *testing.T) {
 
 	for _, want := range tokens {
 		if _, err := client.ChatCompletionBlocking(context.Background(),
-			[]cllm.Message{{Role: "user", Content: "hello"}}, nil); err != nil {
+			cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "hello"}}}); err != nil {
 			t.Fatalf("ChatCompletionBlocking: %v", err)
 		}
 		if gateway.gotAuth != "Bearer "+want {
@@ -480,7 +480,7 @@ func TestTokenFuncFailureStopsTheCall(t *testing.T) {
 	})
 
 	_, err := client.ChatCompletionBlocking(context.Background(),
-		[]cllm.Message{{Role: "user", Content: "hello"}}, nil)
+		cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "hello"}}})
 	if err == nil {
 		t.Fatal("a call with no usable credential was sent anyway")
 	}
@@ -503,7 +503,7 @@ func TestTokenFuncTakesPrecedenceOverToken(t *testing.T) {
 		TokenFunc: func() (string, error) { return "dynamic", nil },
 	})
 	if _, err := client.ChatCompletionBlocking(context.Background(),
-		[]cllm.Message{{Role: "user", Content: "hello"}}, nil); err != nil {
+		cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "hello"}}}); err != nil {
 		t.Fatalf("ChatCompletionBlocking: %v", err)
 	}
 	if gateway.gotAuth != "Bearer dynamic" {
@@ -522,7 +522,7 @@ func TestManagedCallCarriesReasoningState(t *testing.T) {
 
 	client := gateway.client(llmremote.Config{Token: "tok", Alias: "fast"})
 	completion, err := client.ChatCompletionBlocking(context.Background(),
-		[]cllm.Message{{Role: "user", Content: "hi"}}, nil)
+		cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "hi"}}})
 	if err != nil {
 		t.Fatalf("ChatCompletionBlocking: %v", err)
 	}
@@ -531,11 +531,11 @@ func TestManagedCallCarriesReasoningState(t *testing.T) {
 	}
 
 	// And it goes back up on the next request.
-	if _, err := client.ChatCompletionBlocking(context.Background(), []cllm.Message{
+	if _, err := client.ChatCompletionBlocking(context.Background(), cllm.Request{Messages: []cllm.Message{
 		{Role: "user", Content: "hi"},
 		completion.AssistantMessage(),
 		{Role: "user", Content: "again"},
-	}, nil); err != nil {
+	}}); err != nil {
 		t.Fatalf("second call: %v", err)
 	}
 	if !strings.Contains(string(gateway.gotRaw), "sig-1") {
@@ -566,7 +566,7 @@ func TestManagedRoundTripCarriesCacheCounts(t *testing.T) {
 
 			client := gateway.client(mode.cfg)
 			completion, err := client.ChatCompletionBlocking(context.Background(),
-				[]cllm.Message{{Role: "user", Content: "hello"}}, nil)
+				cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "hello"}}})
 			if err != nil {
 				t.Fatalf("ChatCompletionBlocking: %v", err)
 			}
@@ -599,7 +599,7 @@ func TestManagedStreamingCarriesCacheCounts(t *testing.T) {
 
 	client := gateway.client(llmremote.Config{Token: "tok"})
 	completion, err := client.ChatCompletionStreaming(context.Background(),
-		[]cllm.Message{{Role: "user", Content: "hello"}}, nil, func(string) {})
+		cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "hello"}}}, func(string) {})
 	if err != nil {
 		t.Fatalf("ChatCompletionStreaming: %v", err)
 	}

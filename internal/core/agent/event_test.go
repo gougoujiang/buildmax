@@ -357,11 +357,14 @@ type smallWindowLLMClient struct {
 	contextWindow int
 }
 
-func (c *smallWindowLLMClient) ChatCompletionBlocking(ctx context.Context, msgs []llm.Message, tools []llm.ToolDef) (llm.Completion, error) {
-	return c.inner.ChatCompletionBlocking(ctx, msgs, tools)
+func (c *smallWindowLLMClient) ChatCompletionBlocking(ctx context.Context, req llm.Request) (llm.Completion, error) {
+	msgs := req.Messages
+	return c.inner.ChatCompletionBlocking(ctx, llm.Request{Messages: msgs, Tools: req.Tools})
 }
-func (c *smallWindowLLMClient) ChatCompletionStreaming(ctx context.Context, msgs []llm.Message, tools []llm.ToolDef, onDelta func(string)) (llm.Completion, error) {
-	return c.inner.ChatCompletionStreaming(ctx, msgs, tools, onDelta)
+func (c *smallWindowLLMClient) ChatCompletionStreaming(ctx context.Context, req llm.Request, onDelta func(string)) (llm.Completion, error) {
+	msgs := req.Messages
+	tools := req.Tools
+	return c.inner.ChatCompletionStreaming(ctx, llm.Request{Messages: msgs, Tools: tools}, onDelta)
 }
 func (c *smallWindowLLMClient) ContextWindow() int { return c.contextWindow }
 
@@ -380,7 +383,7 @@ type cancellingClient struct {
 	calls     int
 }
 
-func (c *cancellingClient) ChatCompletionBlocking(ctx context.Context, _ []llm.Message, _ []llm.ToolDef) (llm.Completion, error) {
+func (c *cancellingClient) ChatCompletionBlocking(ctx context.Context, req llm.Request) (llm.Completion, error) {
 	c.calls++
 	if c.calls == 1 {
 		return llm.Completion{Content: c.first.content, ToolCalls: c.first.toolCalls, Usage: c.first.usage}, nil
@@ -388,8 +391,10 @@ func (c *cancellingClient) ChatCompletionBlocking(ctx context.Context, _ []llm.M
 	c.cancelCtx() // cancel before returning so ctx.Err() is set
 	return llm.Completion{}, context.Canceled
 }
-func (c *cancellingClient) ChatCompletionStreaming(ctx context.Context, msgs []llm.Message, tools []llm.ToolDef, _ func(string)) (llm.Completion, error) {
-	return c.ChatCompletionBlocking(ctx, msgs, tools)
+func (c *cancellingClient) ChatCompletionStreaming(ctx context.Context, req llm.Request, _ func(string)) (llm.Completion, error) {
+	msgs := req.Messages
+	tools := req.Tools
+	return c.ChatCompletionBlocking(ctx, llm.Request{Messages: msgs, Tools: tools})
 }
 func (c *cancellingClient) ContextWindow() int { return 0 }
 

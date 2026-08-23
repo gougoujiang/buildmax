@@ -48,16 +48,16 @@ type windowedClient struct {
 	lastSent []llm.Message
 }
 
-func (c *windowedClient) ChatCompletionBlocking(ctx context.Context, messages []llm.Message, tools []llm.ToolDef) (llm.Completion, error) {
-	if len(messages) > 0 && messages[0].Role == "system" {
-		c.systems = append(c.systems, messages[0].Content)
+func (c *windowedClient) ChatCompletionBlocking(ctx context.Context, req llm.Request) (llm.Completion, error) {
+	if len(req.Messages) > 0 && req.Messages[0].Role == "system" {
+		c.systems = append(c.systems, req.Messages[0].Content)
 	}
-	c.lastSent = append([]llm.Message(nil), messages...)
+	c.lastSent = append([]llm.Message(nil), req.Messages...)
 	return llm.Completion{Content: "done"}, nil
 }
 
-func (c *windowedClient) ChatCompletionStreaming(ctx context.Context, messages []llm.Message, tools []llm.ToolDef, onDelta func(string)) (llm.Completion, error) {
-	return c.ChatCompletionBlocking(ctx, messages, tools)
+func (c *windowedClient) ChatCompletionStreaming(ctx context.Context, req llm.Request, onDelta func(string)) (llm.Completion, error) {
+	return c.ChatCompletionBlocking(ctx, req)
 }
 
 func (c *windowedClient) ContextWindow() int { return c.window }

@@ -323,7 +323,8 @@ func ollamaUsage(resp ollamaChatResponse) cllm.Usage {
 
 // --- Calls ------------------------------------------------------------------
 
-func (a *ollamaAdapter) blocking(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef) (cllm.Completion, error) {
+func (a *ollamaAdapter) blocking(ctx context.Context, req cllm.Request) (cllm.Completion, error) {
+	messages, tools := req.Messages, req.Tools
 	body, err := a.post(ctx, "/api/chat", a.buildRequest(messages, tools, false))
 	if err != nil {
 		return cllm.Completion{}, fmt.Errorf("chat: %w", err)
@@ -347,7 +348,8 @@ func (a *ollamaAdapter) blocking(ctx context.Context, messages []cllm.Message, t
 	}, nil
 }
 
-func (a *ollamaAdapter) streaming(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef, onDelta func(string)) (cllm.Completion, error) {
+func (a *ollamaAdapter) streaming(ctx context.Context, req cllm.Request, onDelta func(string)) (cllm.Completion, error) {
+	messages, tools := req.Messages, req.Tools
 	body, err := a.post(ctx, "/api/chat", a.buildRequest(messages, tools, true))
 	if err != nil {
 		return cllm.Completion{}, fmt.Errorf("chat stream: %w", err)

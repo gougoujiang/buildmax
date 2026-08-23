@@ -59,8 +59,8 @@ type Config struct {
 type adapter interface {
 	// name is the provider value this adapter implements.
 	name() string
-	blocking(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef) (cllm.Completion, error)
-	streaming(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef, onDelta func(string)) (cllm.Completion, error)
+	blocking(ctx context.Context, req cllm.Request) (cllm.Completion, error)
+	streaming(ctx context.Context, req cllm.Request, onDelta func(string)) (cllm.Completion, error)
 }
 
 // LLMClient calls one model through one wire protocol and holds the
@@ -146,7 +146,7 @@ func resolveContextWindow(cfg Config) int {
 // ChatCompletionBlocking sends messages and tool definitions, returns assistant content, any tool calls, and usage.
 // Retries on rate-limit and transient server errors up to maxRetryAttempts times.
 // Errors are wrapped with a human-readable classification before being returned.
-func (c *LLMClient) ChatCompletionBlocking(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef) (completion cllm.Completion, err error) {
+func (c *LLMClient) ChatCompletionBlocking(ctx context.Context, req cllm.Request) (completion cllm.Completion, err error) {
 	for attempt := range maxRetryAttempts {
 		if attempt > 0 {
 			logRetry(attempt, err)
@@ -155,7 +155,7 @@ func (c *LLMClient) ChatCompletionBlocking(ctx context.Context, messages []cllm.
 			}
 		}
 		callCtx, cancel := c.withCallTimeout(ctx)
-		completion, err = c.adapter.blocking(callCtx, messages, tools)
+		completion, err = c.adapter.blocking(callCtx, req)
 		cancel()
 		if err == nil || !isRetryableError(err) {
 			break
@@ -172,7 +172,7 @@ func (c *LLMClient) ChatCompletionBlocking(ctx context.Context, messages []cllm.
 // Retries on transient errors only when no delta has been emitted yet, to avoid duplicate output.
 // Errors are wrapped with a human-readable classification before being returned.
 // If onDelta is nil, it is not called.
-func (c *LLMClient) ChatCompletionStreaming(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef, onDelta func(delta string)) (completion cllm.Completion, err error) {
+func (c *LLMClient) ChatCompletionStreaming(ctx context.Context, req cllm.Request, onDelta func(delta string)) (completion cllm.Completion, err error) {
 	for attempt := range maxRetryAttempts {
 		if attempt > 0 {
 			logRetry(attempt, err)
@@ -188,7 +188,7 @@ func (c *LLMClient) ChatCompletionStreaming(ctx context.Context, messages []cllm
 			}
 		}
 		callCtx, cancel := c.withCallTimeout(ctx)
-		completion, err = c.adapter.streaming(callCtx, messages, tools, guardedDelta)
+		completion, err = c.adapter.streaming(callCtx, req, guardedDelta)
 		cancel()
 		if err == nil || !isRetryableError(err) || deltaEmitted {
 			break

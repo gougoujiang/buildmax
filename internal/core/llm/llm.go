@@ -143,10 +143,59 @@ type Usage struct {
 	CacheWriteTokens int `json:"cache_write_tokens,omitempty"`
 }
 
+// CallProfile is what a call is for. It is the caller's statement of intent,
+// not a provider setting: a title and a tool-calling turn send the same shape
+// of request and have nothing in common in how they will be reused.
+//
+// It exists because prompt caching is charged. A cache write costs more than
+// ordinary input and only repays itself if a later call reads it, so whether to
+// ask for one cannot be decided from the request alone — a one-shot utility
+// call and the first turn of a long run look identical on the wire. Carrying
+// the answer in an untyped context value, or guessing it from prompt text,
+// would hide a billed behavior from the callers and tests that have to reason
+// about it.
+type CallProfile string
+
+const (
+	// ProfileAgentTurn is one iteration of the agent loop: a large stable
+	// prefix that the next iteration will send again.
+	ProfileAgentTurn CallProfile = "agent_turn"
+	// ProfileTitle is one-shot title generation.
+	ProfileTitle CallProfile = "title"
+	// ProfileCompaction is summarizing history the run is about to discard.
+	ProfileCompaction CallProfile = "compaction"
+	// ProfileEvaluation is a harness call made about a run rather than by one.
+	ProfileEvaluation CallProfile = "evaluation"
+	// ProfileProbe is a single question with no expectation of reuse: a
+	// connectivity check, a tool's own model call.
+	ProfileProbe CallProfile = "probe"
+)
+
+// Valid reports whether p is a profile this build knows. An unknown profile is
+// refused rather than defaulted, because the default it would fall to is the
+// one that spends money.
+func (p CallProfile) Valid() bool {
+	switch p {
+	case ProfileAgentTurn, ProfileTitle, ProfileCompaction, ProfileEvaluation, ProfileProbe:
+		return true
+	}
+	return false
+}
+
+// Request is one completion request.
+//
+// Profile travels with the messages rather than beside them so a caller cannot
+// forget it at one call site and get a different charge than at another.
+type Request struct {
+	Messages []Message
+	Tools    []ToolDef
+	Profile  CallProfile
+}
+
 // LLMClient can perform chat completions with tools and exposes its configuration.
 type LLMClient interface {
-	ChatCompletionBlocking(ctx context.Context, messages []Message, tools []ToolDef) (Completion, error)
-	ChatCompletionStreaming(ctx context.Context, messages []Message, tools []ToolDef, onDelta func(string)) (Completion, error)
+	ChatCompletionBlocking(ctx context.Context, req Request) (Completion, error)
+	ChatCompletionStreaming(ctx context.Context, req Request, onDelta func(string)) (Completion, error)
 	ContextWindow() int // 0 = no windowing configured
 }
 

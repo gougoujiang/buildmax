@@ -129,7 +129,7 @@ func TestOllamaAlwaysSendsContextWindow(t *testing.T) {
 				t.Fatalf("NewClient: %v", err)
 			}
 			if _, err := client.ChatCompletionBlocking(
-				context.Background(), []cllm.Message{{Role: "user", Content: "hi"}}, nil); err != nil {
+				context.Background(), cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "hi"}}}); err != nil {
 				t.Fatalf("ChatCompletionBlocking: %v", err)
 			}
 			if got := chatOptions(t, up.lastChatRequest(t))["num_ctx"]; got != tc.want {
@@ -161,7 +161,7 @@ func TestOllamaSendsItsKnobs(t *testing.T) {
 		t.Fatalf("NewClient: %v", err)
 	}
 	if _, err := client.ChatCompletionBlocking(
-		context.Background(), []cllm.Message{{Role: "user", Content: "hi"}}, nil); err != nil {
+		context.Background(), cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "hi"}}}); err != nil {
 		t.Fatalf("ChatCompletionBlocking: %v", err)
 	}
 	request := up.lastChatRequest(t)
@@ -190,7 +190,7 @@ func TestOllamaReasoningOffSendsNoThink(t *testing.T) {
 		t.Fatalf("NewClient: %v", err)
 	}
 	if _, err := client.ChatCompletionBlocking(
-		context.Background(), []cllm.Message{{Role: "user", Content: "hi"}}, nil); err != nil {
+		context.Background(), cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "hi"}}}); err != nil {
 		t.Fatalf("ChatCompletionBlocking: %v", err)
 	}
 	if _, present := up.lastChatRequest(t)["think"]; present {
@@ -224,7 +224,7 @@ func TestOllamaToolResultsPairByName(t *testing.T) {
 		// An orphan: its call was trimmed or compacted away.
 		{Role: "tool", ToolCallID: "call_9", Content: "stranded"},
 	}
-	if _, err := client.ChatCompletionBlocking(context.Background(), history, nil); err != nil {
+	if _, err := client.ChatCompletionBlocking(context.Background(), cllm.Request{Messages: history}); err != nil {
 		t.Fatalf("ChatCompletionBlocking: %v", err)
 	}
 	var request struct {
@@ -276,7 +276,7 @@ func TestOllamaMintsIdentifiersThatDoNotRepeat(t *testing.T) {
 		{Role: "tool", ToolCallID: "call_1", Content: "package a"},
 		{Role: "tool", ToolCallID: "call_2", Content: "package b"},
 	}
-	completion, err := client.ChatCompletionBlocking(context.Background(), history, nil)
+	completion, err := client.ChatCompletionBlocking(context.Background(), cllm.Request{Messages: history})
 	if err != nil {
 		t.Fatalf("ChatCompletionBlocking: %v", err)
 	}
@@ -304,9 +304,9 @@ func TestOllamaArgumentsSurviveBothDirections(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewClient: %v", err)
 	}
-	completion, err := client.ChatCompletionBlocking(context.Background(), []cllm.Message{
+	completion, err := client.ChatCompletionBlocking(context.Background(), cllm.Request{Messages: []cllm.Message{
 		{Role: "user", Content: "write it"},
-	}, nil)
+	}})
 	if err != nil {
 		t.Fatalf("ChatCompletionBlocking: %v", err)
 	}
@@ -347,7 +347,7 @@ func TestOllamaDaemonDownFailsAtOnce(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newOllamaAdapter: %v", err)
 	}
-	_, err = adapter.blocking(context.Background(), []cllm.Message{{Role: "user", Content: "hi"}}, nil)
+	_, err = adapter.blocking(context.Background(), cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "hi"}}})
 	if err == nil {
 		t.Fatal("expected an error when nothing is listening")
 	}
@@ -374,7 +374,7 @@ func TestOllamaMissingModelSaysHowToPull(t *testing.T) {
 		t.Fatalf("NewClient: %v", err)
 	}
 	_, err = client.ChatCompletionBlocking(
-		context.Background(), []cllm.Message{{Role: "user", Content: "hi"}}, nil)
+		context.Background(), cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "hi"}}})
 	if err == nil {
 		t.Fatal("expected an error for a model that is not pulled")
 	}
@@ -409,7 +409,7 @@ func TestOllamaImagesGoAsRawBase64(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewClient: %v", err)
 			}
-			if _, err := client.ChatCompletionBlocking(context.Background(), history, nil); err != nil {
+			if _, err := client.ChatCompletionBlocking(context.Background(), cllm.Request{Messages: history}); err != nil {
 				t.Fatalf("ChatCompletionBlocking: %v", err)
 			}
 			body := up.bodies["/api/chat"][0]

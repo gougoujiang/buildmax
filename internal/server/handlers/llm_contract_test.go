@@ -162,13 +162,13 @@ func TestManagedCallMatchesADirectCall(t *testing.T) {
 			upstream := fakeUpstream(t, tc.upstream)
 
 			want, err := directClient(t, upstream.URL).
-				ChatCompletionBlocking(context.Background(), messages, tools)
+				ChatCompletionBlocking(context.Background(), cllm.Request{Messages: messages, Tools: tools})
 			if err != nil {
 				t.Fatalf("direct call: %v", err)
 			}
 
 			got, err := managedGateway(t, upstream.URL).
-				ChatCompletionBlocking(context.Background(), messages, tools)
+				ChatCompletionBlocking(context.Background(), cllm.Request{Messages: messages, Tools: tools})
 			if err != nil {
 				t.Fatalf("managed call: %v", err)
 			}
@@ -224,7 +224,7 @@ func TestManagedStreamMatchesADirectStream(t *testing.T) {
 
 	var directDeltas []string
 	want, err := directClient(t, upstream.URL).ChatCompletionStreaming(
-		context.Background(), messages, nil,
+		context.Background(), cllm.Request{Messages: messages},
 		func(d string) { directDeltas = append(directDeltas, d) })
 	if err != nil {
 		t.Fatalf("direct stream: %v", err)
@@ -232,7 +232,7 @@ func TestManagedStreamMatchesADirectStream(t *testing.T) {
 
 	var managedDeltas []string
 	got, err := managedGateway(t, upstream.URL).ChatCompletionStreaming(
-		context.Background(), messages, nil,
+		context.Background(), cllm.Request{Messages: messages},
 		func(d string) { managedDeltas = append(managedDeltas, d) })
 	if err != nil {
 		t.Fatalf("managed stream: %v", err)
@@ -282,7 +282,7 @@ func TestClientDisconnectCancelsTheUpstream(t *testing.T) {
 	done := make(chan error, 1)
 	go func() {
 		_, err := client.ChatCompletionStreaming(ctx,
-			[]cllm.Message{{Role: "user", Content: "hi"}}, nil,
+			cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "hi"}}},
 			func(string) { cancel() })
 		done <- err
 	}()
@@ -319,7 +319,7 @@ func TestManagedClientSatisfiesTheAgentContract(t *testing.T) {
 	for name, client := range clients {
 		t.Run(name, func(t *testing.T) {
 			completion, err := client.ChatCompletionBlocking(context.Background(),
-				[]cllm.Message{{Role: "user", Content: "hi"}}, nil)
+				cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "hi"}}})
 			if err != nil {
 				t.Fatalf("ChatCompletionBlocking: %v", err)
 			}

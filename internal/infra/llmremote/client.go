@@ -148,12 +148,12 @@ func (c *Client) ContextWindow() int {
 }
 
 // ChatCompletionBlocking runs one managed call.
-func (c *Client) ChatCompletionBlocking(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef) (cllm.Completion, error) {
+func (c *Client) ChatCompletionBlocking(ctx context.Context, req cllm.Request) (cllm.Completion, error) {
 	if c == nil {
 		return cllm.Completion{}, errors.New("managed llm client is not configured")
 	}
 
-	resp, err := c.post(ctx, false, messages, tools)
+	resp, err := c.post(ctx, false, req)
 	if err != nil {
 		return cllm.Completion{}, err
 	}
@@ -195,11 +195,11 @@ func (c *Client) ChatCompletionBlocking(ctx context.Context, messages []cllm.Mes
 // It never retries. The server-side provider client owns retry policy and stops
 // once a delta has been emitted; adding a retry here would replay output the
 // caller has already seen.
-func (c *Client) ChatCompletionStreaming(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef, onDelta func(string)) (cllm.Completion, error) {
+func (c *Client) ChatCompletionStreaming(ctx context.Context, req cllm.Request, onDelta func(string)) (cllm.Completion, error) {
 	if c == nil {
 		return cllm.Completion{}, errors.New("managed llm client is not configured")
 	}
-	resp, err := c.post(ctx, true, messages, tools)
+	resp, err := c.post(ctx, true, req)
 	if err != nil {
 		return cllm.Completion{}, err
 	}
@@ -324,15 +324,15 @@ func (s *streamState) finish() (cllm.Completion, error) {
 //
 // The client-side deadline, when set, covers the whole exchange including a
 // stream, so a hung connection cannot hold a caller forever.
-func (c *Client) post(ctx context.Context, stream bool, messages []cllm.Message, tools []cllm.ToolDef) (*http.Response, error) {
+func (c *Client) post(ctx context.Context, stream bool, call cllm.Request) (*http.Response, error) {
 	url, err := c.completionsURL()
 	if err != nil {
 		return nil, err
 	}
 	body, err := json.Marshal(llmwire.CompletionRequest{
 		Model:    c.cfg.Alias,
-		Messages: toWireMessages(messages),
-		Tools:    toWireTools(tools),
+		Messages: toWireMessages(call.Messages),
+		Tools:    toWireTools(call.Tools),
 		Stream:   stream,
 		Metadata: c.metadata(),
 	})

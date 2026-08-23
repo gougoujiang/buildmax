@@ -14,11 +14,11 @@ import (
 // tests only check which instance came back.
 type fakeLLMClient struct{ builtFor string }
 
-func (c *fakeLLMClient) ChatCompletionBlocking(context.Context, []cllm.Message, []cllm.ToolDef) (cllm.Completion, error) {
+func (c *fakeLLMClient) ChatCompletionBlocking(context.Context, cllm.Request) (cllm.Completion, error) {
 	return cllm.Completion{}, nil
 }
 
-func (c *fakeLLMClient) ChatCompletionStreaming(context.Context, []cllm.Message, []cllm.ToolDef, func(string)) (cllm.Completion, error) {
+func (c *fakeLLMClient) ChatCompletionStreaming(context.Context, cllm.Request, func(string)) (cllm.Completion, error) {
 	return cllm.Completion{}, nil
 }
 

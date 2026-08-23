@@ -454,7 +454,7 @@ func TestStoredModelOutputCapReachesTheUpstream(t *testing.T) {
 		t.Fatalf("ClientFor: %v", err)
 	}
 	if _, err := routed.Client.ChatCompletionBlocking(context.Background(),
-		[]cllm.Message{{Role: "user", Content: "hi"}}, nil); err != nil {
+		cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "hi"}}}); err != nil {
 		t.Fatalf("ChatCompletionBlocking: %v", err)
 	}
 	if !strings.Contains(string(body), `"max_tokens":1234`) {

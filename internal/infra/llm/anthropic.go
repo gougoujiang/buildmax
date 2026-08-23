@@ -441,7 +441,8 @@ func anthropicUsage(usage anthropic.Usage) cllm.Usage {
 	}
 }
 
-func (a *anthropicAdapter) blocking(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef) (cllm.Completion, error) {
+func (a *anthropicAdapter) blocking(ctx context.Context, req cllm.Request) (cllm.Completion, error) {
+	messages, tools := req.Messages, req.Tools
 	params, err := a.buildParams(messages, tools)
 	if err != nil {
 		return cllm.Completion{}, &requestError{err: err}
@@ -459,7 +460,8 @@ func (a *anthropicAdapter) blocking(ctx context.Context, messages []cllm.Message
 	}, nil
 }
 
-func (a *anthropicAdapter) streaming(ctx context.Context, messages []cllm.Message, tools []cllm.ToolDef, onDelta func(string)) (cllm.Completion, error) {
+func (a *anthropicAdapter) streaming(ctx context.Context, req cllm.Request, onDelta func(string)) (cllm.Completion, error) {
+	messages, tools := req.Messages, req.Tools
 	params, err := a.buildParams(messages, tools)
 	if err != nil {
 		return cllm.Completion{}, &requestError{err: err}

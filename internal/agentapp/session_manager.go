@@ -79,7 +79,7 @@ func (s *SessionManager) GenerateTitle(ctx context.Context, client llm.LLMClient
 		return "", llm.Usage{}, nil
 	}
 	slog.Debug("generating session title via LLM")
-	completion, err := client.ChatCompletionBlocking(ctx, msgs, nil)
+	completion, err := client.ChatCompletionBlocking(ctx, llm.Request{Messages: msgs, Profile: llm.ProfileTitle})
 	if err != nil {
 		return "", llm.Usage{}, err
 	}
