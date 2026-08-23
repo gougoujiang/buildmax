@@ -759,11 +759,30 @@ message rather than replace it.
 - build on existing Portal Agent definitions without copying the Agent runtime;
 - determine which capability, tool, input/output-contract, and execution-profile
   fields have real demand;
-- allow Tier 1 to recommend an Agent from descriptors;
-- let Workflow, Issue, and API explicitly pin an Agent;
-- have the server validate Team, permissions, model, and execution policy;
-- record the selected Agent definition and selection source in the TaskRun
-  trace.
+- ~~allow Tier 1 to recommend an Agent from descriptors~~ — already true:
+  `StartTask` carries the team's agent summaries and takes an `agent_id`;
+- ~~let Workflow, Issue, and API explicitly pin an Agent~~ — already true: a
+  workflow step names its target, an issue run uses its assignee, and the task
+  route takes an `agent_id`;
+- have the server validate Team, permissions, model, and execution policy —
+  team membership is checked; model and execution policy are not;
+- ~~record the selected Agent definition and selection source~~ — shipped as
+  `task_run.agent_revision` plus the run provenance route. Recorded on the row
+  rather than in the trace, because the trace is written by the worker and can
+  expire, and this has to outlive both.
+
+**Selection source turned out to be already recorded.** Each site that picks an
+agent pairs one-to-one with a distinct `trigger_source`: Tier 1's `StartTask` is
+`portal_conversation`, the task route is `portal_task_create`, an issue run is
+`issue_agent_run`, and a workflow step is `workflow_step`. A separate column
+would have been a derivable duplicate with its own way to drift. It stops being
+derivable the first time one trigger admits two ways of choosing — a
+conversation run where the user pins an agent and Tier 1 passes it through,
+rather than choosing one — and that is when to add it, not before.
+
+What remains is the catalog itself: which capability, tool, contract, and
+execution-profile fields to add. That is evidence-gated by this paper's own
+terms and cannot be settled by writing them down.
 
 This phase does not predefine `ResearchAgent`, `CodingAgent`, or other fixed
 classes. Existing Agent definitions and usage evidence should first establish

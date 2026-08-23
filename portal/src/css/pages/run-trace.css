@@ -279,3 +279,11 @@
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+/* The definition has moved on since the run. Reading the agent's page today
+   would show text this run never saw, which is worth marking. */
+.run-trace__origin-text--drifted {
+  color: var(--color-text-muted);
+  border-left: 2px solid var(--color-text-subtle);
+  padding-left: 0.6rem;
+}

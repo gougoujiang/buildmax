@@ -91,6 +91,12 @@ instruction the worker was given. Those last two are different texts — the
 instruction is what Tier 1 decided to send — and holding both is the only way to
 tell a constraint the model dropped from one the user never gave.
 
+It also names the agent definition the run executed under, by revision. An
+agent's instructions are resolved when its worker asks for the run, so editing
+an agent changes what its next run does; the recorded revision is what says
+which text produced a given outcome, and the response reports the definition's
+current revision alongside it so a reader can see when the two have diverged.
+
 It is a separate route from the trace because it survives a different absence: a
 run that failed before an agent started wrote no trace and still came from
 somewhere. A message that cannot be read, or that belongs to another

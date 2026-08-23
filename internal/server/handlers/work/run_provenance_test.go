@@ -182,3 +182,64 @@ func TestRunProvenanceRefusesAnotherTeam(t *testing.T) {
 		t.Fatalf("status = 200, want a refusal; body = %s", rec.Body.String())
 	}
 }
+
+// An agent's instructions are resolved when its worker asks for the run, so two
+// runs of one task can execute different text. The run names the revision it
+// was handed, and the response says when the definition has moved on since.
+func TestRunProvenanceNamesTheAgentRevisionThatRan(t *testing.T) {
+	revision := 2
+	run := model.TaskRun{
+		ID: "tr_1", TaskID: "tk_1", Input: "do it", Status: "SUCCEEDED",
+		AgentRevision: &revision, CreatedAt: 1000,
+	}
+	task := provenanceTask()
+	task.AgentID = util.Ptr("ag_1")
+	f := newProvenanceFixture(t, run, task)
+	f.handler.cfg.Agents = &mock.MockAgentStore{Agents: []model.Agent{
+		{ID: "ag_1", TeamID: "tm_1", Name: "Reviewer", Revision: 5},
+	}}
+
+	_, out := f.get(t, "tr_1")
+	if out.Agent == nil {
+		t.Fatal("no agent returned")
+	}
+	if out.Agent.Revision != 2 {
+		t.Errorf("revision = %d, want the one the run was handed", out.Agent.Revision)
+	}
+	if out.Agent.CurrentRevision != 5 {
+		t.Errorf("current_revision = %d, want what the definition says now", out.Agent.CurrentRevision)
+	}
+	if out.Agent.Name != "Reviewer" {
+		t.Errorf("name = %q", out.Agent.Name)
+	}
+}
+
+// A deleted agent is still named. A run that already executed under it does not
+// stop having done so, and hiding the definition is the opposite of provenance.
+func TestRunProvenanceNamesADeletedAgent(t *testing.T) {
+	revision := 1
+	run := model.TaskRun{ID: "tr_1", TaskID: "tk_1", Input: "do it", Status: "SUCCEEDED", AgentRevision: &revision, CreatedAt: 1000}
+	task := provenanceTask()
+	task.AgentID = util.Ptr("ag_1")
+	f := newProvenanceFixture(t, run, task)
+	f.handler.cfg.Agents = &mock.MockAgentStore{Agents: []model.Agent{
+		{ID: "ag_1", TeamID: "tm_1", Name: "Retired", Revision: 1, DeletedAt: util.Ptr(int64(9))},
+	}}
+
+	_, out := f.get(t, "tr_1")
+	if out.Agent == nil || !out.Agent.Deleted || out.Agent.Name != "Retired" {
+		t.Fatalf("agent = %+v, want the deleted definition named", out.Agent)
+	}
+}
+
+// A task with no agent has no agent block at all, rather than an empty one that
+// reads as an agent nobody can identify.
+func TestRunProvenanceOmitsTheAgentWhenThereIsNone(t *testing.T) {
+	run := model.TaskRun{ID: "tr_1", TaskID: "tk_1", Input: "do it", Status: "SUCCEEDED", CreatedAt: 1000}
+	f := newProvenanceFixture(t, run, provenanceTask())
+
+	_, out := f.get(t, "tr_1")
+	if out.Agent != nil {
+		t.Errorf("agent = %+v, want none", out.Agent)
+	}
+}

@@ -117,6 +117,15 @@ type TaskRun struct {
 	// unbounded by use: retrying a retry points at the run it repeated, not at
 	// the first of the chain.
 	RetryOfTaskRunID *string `json:"retry_of_task_run_id,omitempty"`
+	// AgentRevision numbers the agent definition this run was actually given.
+	//
+	// The definition is resolved when a worker asks for its run, not when the
+	// task was created, so an edit takes effect on the next run. That is what
+	// someone editing the field expects and it is also why this is recorded: a
+	// run's instructions are otherwise whatever the agent says today, and no
+	// record says which text produced this outcome. Nil for a run with no agent
+	// and for runs that predate the column.
+	AgentRevision *int `json:"agent_revision,omitempty"`
 	// SourceMessageID names the conversation message this run was asked for in.
 	//
 	// Input is what Tier 1 decided to send a worker; this is what the person
@@ -272,6 +281,10 @@ type TaskRunStore interface {
 	// UpdateRun updates a run's status and optional fields.
 	UpdateRun(ctx context.Context, in UpdateTaskRunInput) error
 	UpdateTaskRunWorkerInfo(ctx context.Context, taskRunID, workerType string, k8sJobName *string, k8sJobCreatedAt *int64) error
+	// RecordTaskRunAgentRevision stores which agent definition a run was given.
+	// The first write wins: a run executes under the instructions it was handed
+	// at dispatch, and a later edit does not retroactively change what ran.
+	RecordTaskRunAgentRevision(ctx context.Context, taskRunID string, revision int) error
 	// OnRunComplete creates task_run_artifact rows (one per relativePath) and updates task denormalized fields. Use for SUCCEEDED runs.
 	OnRunComplete(ctx context.Context, taskRunID string, relativePaths []string) error
 	// SyncTaskFromRun updates task denormalized fields and last_run_id from the run (no output). Use for FAILED runs.

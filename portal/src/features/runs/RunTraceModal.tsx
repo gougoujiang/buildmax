@@ -9,7 +9,7 @@ import type {
 } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { getTaskRunProvenance, getTaskRunTrace, listTaskRunLLMCalls } from "./api"
-import { describeOrigin, inputMatchesMessage } from "./origin"
+import { describeAgent, describeOrigin, inputMatchesMessage } from "./origin"
 import { callElapsed, describeSpend, summarizeSpend } from "./spend"
 import { describeBoundary, formatDuration, runElapsed } from "./summary"
 
@@ -290,12 +290,24 @@ function OriginSection({
     )
   }
   const origin = describeOrigin(provenance)
+  const agent = describeAgent(provenance)
   const said = provenance.source_message
   const verbatim = inputMatchesMessage(provenance)
   return (
     <section className="run-trace__section">
       <h3 className="run-trace__heading">Origin</h3>
       <p className="run-trace__origin-text">{origin.text}</p>
+      {agent ? (
+        <p
+          className={
+            agent.driftedSinceRun
+              ? "run-trace__origin-text run-trace__origin-text--drifted"
+              : "run-trace__origin-text"
+          }
+        >
+          {agent.text}
+        </p>
+      ) : null}
       {said ? (
         <>
           <span className="run-trace__origin-label">Asked for as</span>

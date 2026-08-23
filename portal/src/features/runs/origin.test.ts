@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { ApiRunProvenance } from "../../lib/api/types"
-import { describeOrigin, inputMatchesMessage } from "./origin"
+import { describeAgent, describeOrigin, inputMatchesMessage } from "./origin"
 
 function provenance(over: Partial<ApiRunProvenance> = {}): ApiRunProvenance {
   return {
@@ -102,5 +102,47 @@ describe("inputMatchesMessage", () => {
 
   it("is false when there is nothing to compare", () => {
     expect(inputMatchesMessage(provenance())).toBe(false)
+  })
+})
+
+describe("describeAgent", () => {
+  it("says nothing when the run had no agent", () => {
+    expect(describeAgent(provenance())).toBeNull()
+  })
+
+  it("names the revision the run actually executed under", () => {
+    const described = describeAgent(
+      provenance({ agent: { id: "ag_1", name: "Reviewer", revision: 3, current_revision: 3 } })
+    )
+    expect(described?.text).toContain("Reviewer, revision 3")
+    expect(described?.driftedSinceRun).toBe(false)
+  })
+
+  it("flags a definition that has been edited since the run", () => {
+    const described = describeAgent(
+      provenance({ agent: { id: "ag_1", name: "Reviewer", revision: 3, current_revision: 5 } })
+    )
+    expect(described?.driftedSinceRun).toBe(true)
+    expect(described?.text).toContain("revision 5")
+  })
+
+  it("says an unrecorded revision is unrecorded rather than showing the current one", () => {
+    const described = describeAgent(
+      provenance({ agent: { id: "ag_1", name: "Reviewer", revision: 0, current_revision: 5 } })
+    )
+    expect(described?.text).toContain("not recorded")
+    expect(described?.text).not.toContain("revision 5")
+  })
+
+  it("still names a deleted agent, and says it is gone", () => {
+    const described = describeAgent(
+      provenance({ agent: { id: "ag_1", name: "Retired", revision: 1, current_revision: 1, deleted: true } })
+    )
+    expect(described?.text).toContain("Retired")
+    expect(described?.text).toContain("deleted")
+  })
+
+  it("falls back to the handle when the definition could not be named", () => {
+    expect(describeAgent(provenance({ agent: { id: "ag_1", revision: 2 } }))?.text).toContain("ag_1")
   })
 })

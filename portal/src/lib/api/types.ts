@@ -265,6 +265,18 @@ export interface ApiRunProvenance {
   retry_of_task_run_id?: string | null
   created_at: number
   source_message?: ApiRunSourceMessage | null
+  agent?: ApiRunAgent | null
+}
+
+/** The agent definition a run executed under. */
+export interface ApiRunAgent {
+  id: string
+  name?: string
+  /** The revision the run was handed. 0 when it was not recorded. */
+  revision?: number
+  /** What the definition says now; ahead of revision means it was edited since. */
+  current_revision?: number
+  deleted?: boolean
 }
 
 /** What the person actually said, quoted for comparison with the run input. */

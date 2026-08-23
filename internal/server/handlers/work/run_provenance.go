@@ -31,6 +31,23 @@ type RunProvenanceResponse struct {
 	RetryOfTaskRunID *string                `json:"retry_of_task_run_id,omitempty"`
 	CreatedAt        int64                  `json:"created_at"`
 	SourceMessage    *SourceMessageResponse `json:"source_message,omitempty"`
+	Agent            *RunAgentResponse      `json:"agent,omitempty"`
+}
+
+// RunAgentResponse names the agent definition a run executed under.
+//
+// Revision is the point. An agent's instructions are resolved when its worker
+// asks for the run, so the definition can change between two runs of one task —
+// and without the number, nothing says which text produced which outcome.
+type RunAgentResponse struct {
+	ID   string `json:"id"`
+	Name string `json:"name,omitempty"`
+	// Revision is 0 when the run predates the record or never reached a worker.
+	Revision int `json:"revision,omitempty"`
+	// CurrentRevision is what the definition says now. A number ahead of
+	// Revision means the agent was edited after this run.
+	CurrentRevision int  `json:"current_revision,omitempty"`
+	Deleted         bool `json:"deleted,omitempty"`
 }
 
 // SourceMessageResponse is what the person actually said.
@@ -67,6 +84,7 @@ func (h *Handler) getTaskRunProvenanceHandler(w http.ResponseWriter, r *http.Req
 		RetryOfTaskRunID: run.RetryOfTaskRunID,
 		CreatedAt:        run.CreatedAt,
 		SourceMessage:    h.resolveSourceMessage(r, task, run.SourceMessageID),
+		Agent:            h.resolveRunAgent(r, task, run),
 	}
 	httputil.WriteJSON(w, http.StatusOK, out)
 }
@@ -93,4 +111,30 @@ func (h *Handler) resolveSourceMessage(r *http.Request, task *model.Task, messag
 		Truncated: content != msg.Content,
 		CreatedAt: msg.CreatedAt,
 	}
+}
+
+// resolveRunAgent names the agent this run executed under.
+//
+// A deleted agent is still resolved and still named: a run that already ran
+// under it does not stop having done so, and refusing to say which definition
+// produced an outcome is the opposite of provenance.
+func (h *Handler) resolveRunAgent(r *http.Request, task *model.Task, run *model.TaskRun) *RunAgentResponse {
+	if task.AgentID == nil || *task.AgentID == "" {
+		return nil
+	}
+	out := &RunAgentResponse{ID: *task.AgentID}
+	if run.AgentRevision != nil {
+		out.Revision = *run.AgentRevision
+	}
+	if h.cfg.Agents == nil {
+		return out
+	}
+	agent, err := h.cfg.Agents.GetAgentIncludingDeleted(r.Context(), *task.AgentID)
+	if err != nil || agent == nil || agent.TeamID != task.TeamID {
+		return out
+	}
+	out.Name = agent.Name
+	out.CurrentRevision = agent.Revision
+	out.Deleted = agent.DeletedAt != nil
+	return out
 }

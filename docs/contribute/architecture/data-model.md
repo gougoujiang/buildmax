@@ -688,11 +688,18 @@ One execution attempt. This is the row quota and token accounting read.
 | `cancel_requested_by` | `bigint unsigned` | yes | `user.id` of whoever asked |
 | `retry_of_task_run_id` | `bigint unsigned` | yes | The run this one repeats; `NULL` for a run that carries its own instructions |
 | `source_message_id` | `bigint unsigned` | yes | `conversation_message.id` this run was asked for in; `NULL` when no message asked for it |
+| `agent_revision` | `int` | yes | Which revision of `task.agent_id` this run was served; `NULL` for a run with no agent or one that never reached a worker |
 | `created_at` | `bigint` | yes | `autoCreateTime` |
 
 Indexes: PK `id`; index `cancel_requested_at`; index `created_by`; index
 `retry_of_task_run_id`; index `source_message_id`; index
 `idx_task_run_task_created` on (`task_id`, `created_at`); unique `public_id`.
+
+`agent_revision` is not a reference to `agent_revision.id`: a revision is
+addressed by its agent plus its number, and the task already holds the agent. It
+is written when a worker asks for its run, and the first write wins — instructions
+are resolved per dispatch so an edit takes effect on the next run, and the record
+exists so an edit during a run cannot rewrite what that run was given.
 
 `source_message_id` is what a person actually said; `input` is what Tier 1
 decided to send a worker. They are different texts and keeping both is the

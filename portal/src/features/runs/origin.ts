@@ -66,3 +66,43 @@ export function inputMatchesMessage(provenance: ApiRunProvenance): boolean {
   if (!said || said.truncated) return false
   return said.content.trim() === provenance.input.trim()
 }
+
+/** How the agent definition behind a run should read. */
+export interface AgentDescription {
+  text: string
+  /**
+   * True when the definition has been edited since this run. Worth flagging on
+   * its own: reading the agent's page today would show text this run never saw.
+   */
+  driftedSinceRun: boolean
+}
+
+/**
+ * Describe which agent definition a run executed under.
+ *
+ * An agent's instructions are resolved when its worker asks for the run, so
+ * editing an agent changes what its next run does. That is intended. What it
+ * costs is reproducibility, which the recorded revision buys back — and only if
+ * a reader is told plainly when the two numbers disagree.
+ */
+export function describeAgent(provenance: ApiRunProvenance): AgentDescription | null {
+  const agent = provenance.agent
+  if (!agent) return null
+  const name = agent.name || agent.id
+  const ran = agent.revision ?? 0
+  const current = agent.current_revision ?? 0
+  const suffix = agent.deleted ? " This agent has since been deleted." : ""
+  if (ran === 0) {
+    return {
+      text: `Ran under ${name}. Which revision of it is not recorded.${suffix}`,
+      driftedSinceRun: false,
+    }
+  }
+  if (current > ran) {
+    return {
+      text: `Ran under ${name}, revision ${ran}. The definition has been edited since — it is now revision ${current}.${suffix}`,
+      driftedSinceRun: true,
+    }
+  }
+  return { text: `Ran under ${name}, revision ${ran}.${suffix}`, driftedSinceRun: false }
+}
