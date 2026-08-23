@@ -35,10 +35,20 @@ import (
 // qualifyPrefixTokens is roughly how large the stable prefix is made.
 //
 // Providers impose a model-specific minimum below which they cache nothing, and
-// a suite that used a short prompt would report "no cache" for every target and
-// look like a BuildMax bug. This is comfortably above the largest minimum any
-// current model documents.
-const qualifyPrefixTokens = 4096
+// a prefix near that line makes the suite lie: the first version aimed at 4096
+// and Claude Haiku 4.5 wrote an entry for some scenarios and not others,
+// entirely because the generated text landed either side of the boundary. The
+// scenarios that failed looked like a broken cache and were a short prompt.
+//
+// This is deliberately far above any documented minimum rather than just past
+// one. Being wrong here costs a confusing failure; being generous costs a few
+// thousand tokens per call on a suite that runs by hand.
+const qualifyPrefixTokens = 12_000
+
+// qualifyPrefixBytesPerToken is the padding factor for the generated filler.
+// English prose runs near four bytes a token, so three is a conservative floor
+// that keeps the prefix over the target rather than under it.
+const qualifyPrefixBytesPerToken = 3
 
 type qualifyTarget struct {
 	provider string
@@ -101,7 +111,7 @@ func qualifyPrefix(salt string) string {
 	var b strings.Builder
 	b.WriteString("You are a qualification fixture. Ignore the content below; answer only OK.\n")
 	b.WriteString("Salt: " + salt + "\n")
-	for i := 0; b.Len() < qualifyPrefixTokens*3; i++ {
+	for i := 0; b.Len() < qualifyPrefixTokens*qualifyPrefixBytesPerToken; i++ {
 		fmt.Fprintf(&b, "line %d: the quick brown fox jumps over the lazy dog near %s\n", i, salt)
 	}
 	return b.String()
@@ -300,6 +310,55 @@ func TestCacheQualification(t *testing.T) {
 				t.Errorf("concurrent call %d reported more cached tokens than prompt tokens: %+v",
 					i, usage)
 			}
+		}
+	})
+
+	// The one thing section 5.2 asserts that no other test can reach: that the
+	// key BuildMax derives actually separates buckets at the provider.
+	//
+	// A read happening proves nothing about the key on a protocol that caches
+	// implicitly — it would read with or without one. What proves the key is
+	// two calls sending byte-identical prompts under different scopes and the
+	// second one missing. If it hits instead, the key is being ignored, and two
+	// teams on one credential are sharing a cache the design says they must not.
+	t.Run("the cache key isolates two scopes", func(t *testing.T) {
+		if capability.strategy != cacheStrategyOpenAIExplicit {
+			t.Skipf("provider %q sends no cache key", target.provider)
+		}
+		client := target.client(t, config.CacheControl{Mode: config.CacheModeAuto})
+		prefix := qualifyPrefix("scope-isolation")
+		messages := qualifyTurn(prefix, "say OK")
+
+		scoped := func(scope string) cllm.Usage {
+			completion, err := client.ChatCompletionBlocking(context.Background(), cllm.Request{
+				Messages: messages, Tools: qualifyTools(),
+				Profile: cllm.ProfileAgentTurn, CacheScope: scope,
+			})
+			if err != nil {
+				t.Fatalf("call as %q: %v", scope, err)
+			}
+			t.Logf("scope %q: prompt=%d cache_read=%d cache_write=%d", scope,
+				completion.Usage.PromptTokens, completion.Usage.CacheReadTokens,
+				completion.Usage.CacheWriteTokens)
+			return completion.Usage
+		}
+
+		first := scoped("tm_one")
+		if first.CacheWriteTokens == 0 && first.CacheReadTokens == 0 {
+			t.Skip("the first scoped call cached nothing, so isolation cannot be observed")
+		}
+		// Same bytes, different bucket. A hit here is the failure.
+		other := scoped("tm_two")
+		if other.CacheReadTokens > 0 {
+			t.Errorf("a second scope read %d tokens of the first scope's entry; the cache key "+
+				"is not separating them, and two teams on one credential share a bucket",
+				other.CacheReadTokens)
+		}
+		// And the original scope still reads its own, so isolation did not come
+		// from the entry simply never existing.
+		if again := scoped("tm_one"); again.CacheReadTokens == 0 {
+			t.Error("the original scope stopped reading its own entry; isolation cannot be " +
+				"distinguished from the cache not working at all")
 		}
 	})
 

@@ -378,50 +378,78 @@ provider named by `BUILDMAX_CACHE_QUALIFY_*` and reports what the provider
 actually did. Like `agent-smoke` it is not a test and no check runs it: it calls
 a paid provider, and it skips when none is named.
 
-#### What the first run found
+#### What the qualification runs found
 
-The suite has been run against OpenRouter, reached as `openai_compatible`, on
-2026-08-23. BuildMax sends that protocol no cache instructions, so the run
-measured the other half of the acceptance criterion: whether the gateway caches
-unasked and reports it in a shape the counters read.
+Run against OpenRouter on 2026-08-23, reaching it three ways: as
+`openai_compatible` (its Chat Completions endpoint), as `anthropic` (its
+Messages endpoint at `/api/v1/messages`), and as `openai` (its Responses
+endpoint at `/api/v1/responses`).
 
-| Upstream model | Cache reads reported | Streaming |
-|---|---|---|
-| `openai/gpt-5.6-luna` | Yes — 3702 of 3719 prompt tokens on the second call | Yes |
-| `deepseek/deepseek-v4-flash` | Yes — 3840, then 4096 after a grown history | Yes |
-| `anthropic/claude-haiku-4.5` | No — zero on every scenario | No |
-| `google/gemini-3.7-flash` | No — zero on every scenario | No |
+**Native Anthropic Messages — qualified.** Cold prefix wrote 11793 tokens; the
+next call over an unchanged prefix read 11421 back; a conversation grown by
+eight turns still read the static prefix; a streamed call read 11250, which is
+the first evidence those counts survive the event stream on this protocol; a
+changed prefix read nothing. Both `5m` and `1h` retention were accepted.
 
-Every run also confirmed the isolation cases: a cold prefix read nothing, and a
-changed prefix read nothing, so no entry was served to a prompt that did not
-write it. The streaming column matters on its own — those counts come off the
-raw SSE body through `usageCaptureTransport`, and this is the first evidence
-they survive a real gateway rather than a fixture.
+**Native OpenAI Responses — qualified.** Cold prefix wrote 10865; the next call
+read 10517 and wrote only the 14-token increment; a grown conversation read
+10800 and wrote 136; streaming read 11068; a changed prefix read nothing. `24h`
+retention was accepted, which discharges the value this document had fixed by
+vocabulary alone.
 
-**This changes the profile plan above.** One gateway, one BuildMax adapter, one
-request shape, and the answer differs by upstream model. A single
-`integration: openrouter` profile would claim implicit caching for the Anthropic
-and Gemini models measured reporting nothing, which is the same false claim the
-capability contract exists to prevent — just made one layer up. Gateway
-granularity is the wrong unit for a gateway that fronts many providers.
+**The cache key isolates buckets at the provider.** Two calls sending
+byte-identical prompts under different `CacheScope` values: the first wrote
+10788, the second wrote 10788 of its own and read *none* of the first's, and the
+first scope then read its own 10788 back. This is the only way to test what
+section 5.2 asserts — on a protocol that caches implicitly a read proves nothing
+about the key, and only a miss under a different scope does.
 
-`compatibleProfiles` therefore stays empty, now on evidence rather than caution,
-and a test holds it there. Every `integration` value is still refused.
+**Through the compatible endpoint, only Anthropic reports nothing:**
 
-**Proposal, not yet decided.** Since capability turned out to be a property of
-the upstream model, and a model entry already names exactly one, the natural
-place for the declaration is the entry itself: an operator who has run
-`./make cache-qualify` against their own target states what it does, the way
-they already state `context_window` and `vision`. That trades a registry
-BuildMax cannot keep accurate for a claim the operator can verify. It is a
-change to section 5's capability contract and should be decided before being
-built.
+| Upstream model | Cache reads via `openai_compatible` |
+|---|---|
+| `openai/gpt-5.6-luna` | Yes |
+| `google/gemini-3.7-flash` | Yes — 12243, streaming 12250 |
+| `deepseek/deepseek-v4-flash` | Yes — 10496, streaming 11264 |
+| `z-ai/glm-5.3` | Yes — 12160, streaming 12416 |
+| `anthropic/claude-haiku-4.5` | No — zero on every scenario |
 
-Anthropic Messages and OpenAI Responses remain unqualified: reaching them
-natively needs provider credentials rather than a gateway key. Their entries in
-section 5 still rest on published contracts and BuildMax's own request-shape
-tests. The `24h` retention value and the decision to leave
-`prompt_cache_options` unsent are on the same list.
+That last row is not a gateway defect. Anthropic caches nothing implicitly, and
+a Chat Completions adapter sends no breakpoints, so there is nothing to report.
+The same model through the same gateway on the Messages endpoint qualifies
+outright. The lesson is the routing one: an Anthropic model reached over an
+OpenAI-compatible protocol cannot cache at all, whoever is in front of it.
+
+**Caveat on all of it.** This qualifies OpenRouter's *implementations* of the
+Messages and Responses protocols, not `api.anthropic.com` or `api.openai.com`.
+It is strong evidence for BuildMax's request shapes and usage parsing, since a
+gateway that emulates a protocol has no reason to invent cache semantics, but it
+is not the vendor endpoint and should not be reported as such.
+
+**This still settles the profile question, for a sharper reason than expected.**
+The first draft of these results suggested capability varied arbitrarily by
+upstream model. With a large enough prefix it does not: everything that caches
+implicitly reports through the gateway, and the one family that does not is the
+one that needs a request field the compatible adapter never sends. A
+gateway-level `integration: openrouter` profile is still wrong — it would speak
+for Anthropic models that cannot cache on that protocol — but the fix for those
+is to route them natively, which BuildMax already supports and which this run
+verified end to end, tool calling included.
+
+`compatibleProfiles` therefore stays empty, and every `integration` value is
+still refused. Nothing needs one: the compatible path already reports what its
+upstreams do, and the family that needs more has a native adapter.
+
+**Proposal, not yet decided.** Two findings above came from the suite being
+wrong rather than a provider: a prefix near a model's minimum cached
+intermittently, and fixed prefixes meant a second run inside the retention
+window was not cold. Both are fixed. The remaining sharp edge is that
+`cacheCapabilityFor` keys on the protocol, while what actually decides caching
+is the protocol *and* the upstream. Since a model entry already names exactly
+one upstream, the natural place for a capability claim is the entry itself, made
+by an operator who has run `./make cache-qualify` against their own target. That
+is a change to section 5's capability contract and should be decided before
+being built.
 
 The section 6 diagnostics belong to the same run. Their value is explaining a
 miss, and until the suite establishes what a real miss looks like on each target

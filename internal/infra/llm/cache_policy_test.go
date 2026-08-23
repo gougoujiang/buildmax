@@ -249,14 +249,15 @@ func TestRetentionIsRefusedOutsideItsOwnProtocol(t *testing.T) {
 // passes the qualification suite.
 //
 // The registry is empty on evidence. OpenRouter has been through
-// `./make cache-qualify`, and the answer differed by upstream model: two
-// families reported cache reads and two reported none, through one gateway and
-// one request shape. An `openrouter` entry would claim implicit caching for the
-// families that cache nothing.
+// `./make cache-qualify` on all three of its endpoints: every upstream that
+// caches implicitly reports its reads over Chat Completions, Anthropic reports
+// nothing there because it caches nothing implicitly, and the same model
+// qualifies outright over the Messages endpoint. One `openrouter` entry would
+// have to speak for both halves of that.
 //
 // This test is what stands between "we could add openrouter here" and doing it.
-// Adding a profile means a qualification result that covers everything the
-// entry would speak for, and this test updated to name it.
+// Adding a profile means a qualification result covering everything the entry
+// would speak for, and this test updated to name it.
 func TestNoCompatibleGatewayIsQualifiedYet(t *testing.T) {
 	if len(compatibleProfiles) != 0 {
 		t.Errorf("compatibleProfiles has %d entries; each one needs a `%s` run behind it, "+
