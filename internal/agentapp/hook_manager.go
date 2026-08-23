@@ -58,7 +58,7 @@ func (m *HookManager) Run(ctx context.Context, in agent.HookInput) agent.HookOut
 	if m == nil {
 		return agent.HookOutput{}
 	}
-	entries := m.cfg.Entries(string(in.Event))
+	entries := m.snapshot().Entries(string(in.Event))
 	if len(entries) == 0 {
 		return agent.HookOutput{}
 	}
@@ -97,6 +97,16 @@ func (m *HookManager) Refresh(cfg corehook.Config) {
 	m.cfg = cfg
 }
 
+// snapshot returns the config to dispatch against. Refresh can swap it while
+// a run is in flight, and tool calls now reach Run from several goroutines at
+// once, so the read is taken under the lock and the rest of the call works
+// from that copy rather than re-reading a field mid-dispatch.
+func (m *HookManager) snapshot() corehook.Config {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.cfg
+}
+
 // Status returns a snapshot describing what the manager currently dispatches.
 func (m *HookManager) Status() HookStatus {
 	if m == nil {
@@ -117,10 +127,11 @@ func (m *HookManager) Status() HookStatus {
 		corehook.EventStop,
 		corehook.EventStopFailure,
 	}
+	cfg := m.snapshot()
 	counts := make(map[string]int, len(events))
 	total := 0
 	for _, e := range events {
-		n := len(m.cfg.Entries(e))
+		n := len(cfg.Entries(e))
 		if n > 0 {
 			counts[e] = n
 			total += n
