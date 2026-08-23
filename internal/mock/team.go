@@ -131,3 +131,13 @@ func (m *MockTeamStore) CountTeamMembers(_ context.Context, teamIDs []string) (m
 	}
 	return out, nil
 }
+
+func (m *MockTeamStore) SetTeamPluginCuration(_ context.Context, teamID string, mode model.PluginCuration) error {
+	for i := range m.Teams {
+		if m.Teams[i].ID == teamID {
+			m.Teams[i].PluginCuration = mode
+			return nil
+		}
+	}
+	return model.ErrNotFound
+}

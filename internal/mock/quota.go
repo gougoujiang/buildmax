@@ -99,3 +99,7 @@ func (d *DenyQuotaTeamStore) ListAllTeams(_ context.Context, _ string, _, _ int)
 func (d *DenyQuotaTeamStore) CountTeamMembers(_ context.Context, _ []string) (map[string]int, error) {
 	return nil, nil
 }
+
+func (d *DenyQuotaTeamStore) SetTeamPluginCuration(_ context.Context, _ string, _ model.PluginCuration) error {
+	return nil
+}

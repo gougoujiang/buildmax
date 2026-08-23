@@ -123,6 +123,7 @@ erDiagram
     workflow ||--o{ workflow_revision : "versioned by"
 
     plugin ||--o{ plugin_release : "published as"
+    team ||--o{ plugin_activation : activates
 
     task ||--o{ task_run : "attempted as"
     task_run ||--o{ task_run_artifact : produces
@@ -209,6 +210,7 @@ The ownership and authorization boundary for every Portal resource.
 | `name` | `varchar(255)` | no | Display name |
 | `personal_for_user_id` | `bigint unsigned` | yes | Set on a user's personal team; unique, so a user has at most one |
 | `quota_tier` | `varchar(64)` | yes | References `quota_tier.tier_name` |
+| `plugin_curation` | `varchar(16)` | no | Default `'open'`; `open` or `curated`, see `plugin_activation` |
 | `created_by` | `bigint unsigned` | no | `user.id` |
 | `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 | `updated_at` | `datetime(6)` | yes | `autoUpdateTime` |
@@ -1173,6 +1175,49 @@ verified, so it is presented as a claim rather than as proof.
 
 Package bytes are not in either table. They sit behind the plugin package
 storage interface, so a query that lists or inspects releases cannot carry one.
+
+### `plugin_activation`
+
+One team's pinned use of one catalog plugin. The catalog belongs to the
+deployment; an activation belongs to a team, which is why this is a separate
+table rather than a column on `plugin_release`.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | `bigint unsigned` | no | Internal primary key |
+| `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
+| `team_id` | `bigint unsigned` | no | `team.id` |
+| `plugin_name` | `varchar(128)` | no | Catalog identity, as on `plugin_release` |
+| `version` | `varchar(64)` | no | The pinned release |
+| `digest` | `varchar(128)` | no | The pinned release's digest |
+| `enabled` | `boolean` | no | Default `true`; `false` suspends without losing the pin |
+| `origin` | `varchar(16)` | no | Default `'curated'`; `curated` or `automatic` |
+| `activated_by` | `bigint unsigned` | no | `user.id` |
+| `activated_at` | `datetime(6)` | yes | `autoCreateTime`, indexed for listing order |
+| `updated_by` | `bigint unsigned` | no | `user.id` of the last change |
+| `updated_at` | `datetime(6)` | yes | `autoUpdateTime` |
+
+Indexes: PK `id`; unique `uq_plugin_activation_public_id`; index
+`activated_at`; unique `ux_plugin_activation_team_plugin` on (`team_id`,
+`plugin_name`).
+
+The unique index over (`team_id`, `plugin_name`) is what makes an activation
+one row per pair rather than a history, which is why suspension is the
+`enabled` flag: the pin survives it, and a suspended activation still explains
+why a run failed. Moving to another release updates `version` and `digest` in
+place; the trail of who moved what lives in the audit events, not here.
+
+`version` and `digest` together are the pin, and nothing advances them on its
+own. A release published after this row was written cannot change what a run
+loads until a person moves it.
+
+`origin` records which of the two ways the row appeared. `curated` is a team
+admin activating deliberately; `automatic` is the row created because an agent
+named the plugin in a team whose `team.plugin_curation` is `open`. Both are
+real pins with the same digest and the same audit event, and `activated_by`
+names a person either way. See
+[../../design/plugin-team-distribution.md](../../design/plugin-team-distribution.md)
+§4.1.
 
 ## Changing The Schema
 

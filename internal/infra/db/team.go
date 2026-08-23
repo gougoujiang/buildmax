@@ -12,14 +12,18 @@ import (
 )
 
 type teamRow struct {
-	ID                uint64    `gorm:"primaryKey;autoIncrement"`
-	PublicID          string    `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_team_public_id;not null"`
-	Name              string    `gorm:"type:varchar(255);not null"`
-	PersonalForUserID *uint64   `gorm:"column:personal_for_user_id;uniqueIndex"`
-	QuotaTier         string    `gorm:"column:quota_tier;type:varchar(64)"`
-	CreatedBy         uint64    `gorm:"column:created_by;not null"`
-	CreatedAt         time.Time `gorm:"autoCreateTime"`
-	UpdatedAt         time.Time `gorm:"autoUpdateTime"`
+	ID                uint64  `gorm:"primaryKey;autoIncrement"`
+	PublicID          string  `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_team_public_id;not null"`
+	Name              string  `gorm:"type:varchar(255);not null"`
+	PersonalForUserID *uint64 `gorm:"column:personal_for_user_id;uniqueIndex"`
+	QuotaTier         string  `gorm:"column:quota_tier;type:varchar(64)"`
+	// PluginCuration is who fills the team's plugin activation list. It
+	// defaults to open: the gate that crosses teams is operator eligibility,
+	// not a team's housekeeping. See docs/design/plugin-team-distribution.md.
+	PluginCuration string    `gorm:"column:plugin_curation;type:varchar(16);not null;default:'open'"`
+	CreatedBy      uint64    `gorm:"column:created_by;not null"`
+	CreatedAt      time.Time `gorm:"autoCreateTime"`
+	UpdatedAt      time.Time `gorm:"autoUpdateTime"`
 }
 
 func (teamRow) TableName() string { return "team" }
@@ -82,12 +86,13 @@ func toTeam(row *teamReadRow) *model.Team {
 		return nil
 	}
 	out := &model.Team{
-		ID:        row.Row.PublicID,
-		Name:      row.Row.Name,
-		QuotaTier: row.Row.QuotaTier,
-		CreatedBy: derefPublicID(row.CreatedByPublicID),
-		CreatedAt: row.Row.CreatedAt,
-		UpdatedAt: row.Row.UpdatedAt,
+		ID:             row.Row.PublicID,
+		Name:           row.Row.Name,
+		QuotaTier:      row.Row.QuotaTier,
+		PluginCuration: model.NormalizePluginCuration(row.Row.PluginCuration),
+		CreatedBy:      derefPublicID(row.CreatedByPublicID),
+		CreatedAt:      row.Row.CreatedAt,
+		UpdatedAt:      row.Row.UpdatedAt,
 	}
 	if row.Row.PersonalForUserID != nil {
 		personal := derefPublicID(row.PersonalForUserPublicID)
@@ -355,4 +360,20 @@ func (s *Store) CountTeamMembers(ctx context.Context, teamIDs []string) (map[str
 		out[row.PublicID] = row.N
 	}
 	return out, nil
+}
+
+// SetTeamPluginCuration records who fills the team's plugin activation list.
+//
+// The value is validated above this layer, which is why an unrecognized one
+// reaches the column rather than being rejected here: this package translates,
+// it does not decide what a mode means.
+func (s *Store) SetTeamPluginCuration(ctx context.Context, teamID string, mode model.PluginCuration) error {
+	key, err := lookupKey(ctx, s.db, "team", teamID)
+	if err != nil {
+		return err
+	}
+	// Zero rows affected is the mode already having that value: the team
+	// resolved a moment ago, so it is not a missing row.
+	return s.db.WithContext(ctx).Model(&teamRow{}).Where("id = ?", key).
+		Update("plugin_curation", string(mode)).Error
 }
