@@ -162,6 +162,8 @@ internal/
 │   ├── proc/           Process supervision for local background jobs:
 │   │                   group spawn, bounded output rings, tree termination
 │   ├── sandbox/        Seatbelt/bwrap backends, egress proxy, violations
+│   ├── sessionstore/   Session journal file backend: JSONL codec, single-writer
+│   │                   lock, tail repair, salvage
 │   ├── trace/          Durable run-trace recorder (bounded, redacted JSONL)
 │   ├── k8s/            Kubernetes worker job launcher
 │   ├── workerclient/   Worker-side HTTP client for the server worker API
