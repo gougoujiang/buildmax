@@ -26,6 +26,10 @@
     // Agent scratch state: git-ignored worktrees and their test output, which
     // is generated markdown nobody edits and every generator formats its own way.
     ".claude/**",
+    // Same category: local agent notes AGENTS.md says never to commit, and the
+    // release notes and end-to-end evidence `./make` generates into .artifacts.
+    ".vibe/**",
+    ".artifacts/**",
     "docs/design/**",
     "testing-sandbox/**",
     "AGENTS.md",

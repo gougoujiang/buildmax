@@ -175,8 +175,8 @@ quota applies to it identically.
 - User-facing Portal APIs are team-scoped wherever work ownership matters.
 - Worker APIs use the run token the scheduler minted for that task run rather
   than user JWT auth. The token carries the user, team, task, and run, and every
-  route derives its resource scope from those claims. The old shared worker
-  token remains only as a deprecated upgrade fallback — see
+  route derives its resource scope from those claims. It is the only credential
+  those routes accept: the old shared worker token has been removed — see
   [design/worker-run-token.md](../../design/worker-run-token.md).
 - Signing in returns two credentials. The access token is a signed JWT the
   server does not store; the refresh token is a `user_refresh_token` row, which

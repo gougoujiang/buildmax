@@ -213,8 +213,9 @@ Focus:
 - default admin/user/team/quota/model initialization story
 - optional managed LLM connection mode, so a deployment can supply approved
   models without distributing provider credentials to users and workers —
-  shipped for CLI, TUI, Desktop, and task runs, which reach it with a per-run
-  credential and hold no provider key
+  shipped for CLI, TUI, Desktop, and task runs, none of which hold a provider
+  key. A task run reaches it with a per-run credential; an interactive client
+  reaches it with the session its user signed in with
 - operator model catalog and team model aliases behind the shared LLM contract,
   with per-call usage recorded before any spending limit is claimed — the
   catalog and call ledger exist; aliases are deployment-wide, not per-team

@@ -188,9 +188,11 @@ clears the column and nothing else. What each credential does about it is in
 [../../design/system-administration.md](../../design/system-administration.md)
 section 8.
 
-`last_login_at` and `last_login_platform` are carried through the store mapping
-but no server code path currently writes them — only the in-memory store in
-`internal/mock` does. Treat them as reserved, not as a login audit trail.
+`last_login_at` and `last_login_platform` are written by the login handler,
+which calls `UpdateLoginMeta` once the token pair is issued. A failure there is
+logged and does not fail the login: the person is signed in either way, and
+losing one timestamp is not worth refusing them. They record the most recent
+login only — the login audit trail is `audit_event`, which keeps every one.
 
 `password_hash` is nullable and read only by the code that verifies a login,
 through `model.PasswordStore` rather than as a field on `model.User`. It never

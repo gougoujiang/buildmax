@@ -482,10 +482,13 @@ run, minted when the run is dispatched. See
 removed from every worker route, so a run token is the only credential a worker
 holds.
 
-The existing 24-hour user JWT is acceptable for early trusted-deployment
-experiments but not a complete managed-client lifecycle. Before the feature is
-described as production-ready, CLI and Desktop need either token refresh or a
-separately scoped, individually manageable gateway credential.
+The user access token defaults to seven days, which is acceptable for early
+trusted-deployment experiments but not a complete managed-client lifecycle.
+Refresh has since shipped, so a login outlives one access token and a session
+can be revoked. What is still missing before the feature is described as
+production-ready is native secret storage, an absolute session lifetime, and an
+audience-scoped credential — see
+[client sessions and API credentials](../proposals/client-sessions-and-api-credentials.md).
 
 ## 12. Client Configuration And UX
 
@@ -685,8 +688,12 @@ must not require a real model API key.
 
 These choices need resolution before their milestone begins:
 
-1. What refresh or scoped-token flow should CLI and Desktop use for managed
-   calls longer than the current JWT lifecycle?
+1. Refresh has shipped, so a managed client's login now survives access-token
+   expiry. What is still unresolved is where a native client keeps the refresh
+   token, whether a session has an absolute lifetime, whether an access token
+   carries an audience and scopes, and how an unattended caller authenticates at
+   all — see
+   [client sessions and API credentials](../proposals/client-sessions-and-api-credentials.md).
 2. What minimum database shape represents team aliases? The catalog is settled —
    `llm_model`, credential in the row — but aliases are still a deployment-wide
    map in `server.yaml`.

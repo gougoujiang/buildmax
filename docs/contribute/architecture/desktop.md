@@ -28,13 +28,15 @@ Neither mode changes where the agent runs: chat is always executed locally by
 Portal login is a connector rather than a gate — see
 [surface positioning](../../design/surface-positioning.md).
 
-`GetAuthStatus` returns the mode plus the signed-in account. A usable login
-always reports `server`; otherwise the mode is whatever was chosen last, read
-from `<BUILDMAX_HOME>/desktop/state.json`. An empty mode means nobody has
-chosen yet, and the frontend shows the sign-in form with its local-mode option.
-`UseLocalMode` and `ConnectToServer` move between the two; `ConnectToServer`
-touches no credentials, and `Logout` clears the mode so signing out asks again
-rather than silently landing in local mode.
+`GetAuthStatus` returns the signed-in account, and there is no mode field: the
+credentials are the mode. A stored login in `<BUILDMAX_HOME>/auth.json` reports
+`server`, no login reports `local`, and nothing is remembered alongside them,
+because a second record of one fact is a second source of truth for it. A login
+the server no longer honours reports expired: the app stays in managed mode and
+refuses to run rather than quietly using local models, leaving signing in again
+and signing out as the two ways forward. `Logout` revokes the session and
+removes the credentials, and that removal is the whole switch back to local. See
+[client modes](../../design/client-modes.md) sections 3 and 8.
 
 ## Layers
 
