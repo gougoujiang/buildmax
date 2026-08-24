@@ -400,6 +400,9 @@ export default function App() {
   function handleRewound(report) {
     reloadSession(selectedId);
     setHistoryNotice({ kind: 'rewind', text: report });
+    // The turn the digest described is no longer the last one, and the question
+    // the suggestion answered may have been rewound away.
+    setTurnDigest(null);
   }
 
   // A fork is a different session, so this navigates to it. The notice is set
@@ -408,6 +411,8 @@ export default function App() {
     setNewChatProject(null);
     setSelectedId(newSessionId);
     setHistoryNotice({ kind: 'fork', text: report });
+    // Not routed through handleSelectSession, so the digest is dropped here too.
+    setTurnDigest(null);
     app?.ListSessions().then((list) => setSessions(list ?? [])).catch(() => {});
   }
 

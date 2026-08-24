@@ -476,6 +476,14 @@ func beginRun(m *Model) chan tea.Msg {
 	return channel
 }
 
+// dropStaleSuggestion forgets a predicted answer once the question it answers
+// is no longer the last thing the conversation said. beginRun covers the move
+// that runs a turn; this is for the ones that do not — resuming another
+// session, rewinding this one, forking off it.
+func (m *Model) dropStaleSuggestion() {
+	m.inputBlock.SetGhost("")
+}
+
 // startRun begins an agent run for text and returns the Cmd that prints the user
 // message and pumps the run's events. Both a fresh submission and a queued message
 // go through here, so a queued turn is indistinguishable from one typed at the prompt.

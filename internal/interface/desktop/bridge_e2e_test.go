@@ -162,6 +162,10 @@ func writeScenario() mockllm.Scenario {
 			Usage:     &mockllm.Usage{PromptTokens: 120, CompletionTokens: 18},
 		},
 		{Text: "wrote notes.txt", Usage: &mockllm.Usage{PromptTokens: 140, CompletionTokens: 4}},
+		// A turn that ran a tool also asks for a recap, which is a model call of
+		// its own. These runs use the shipped default configuration, so the
+		// scenario has to describe it.
+		{Text: `{"recap": "Wrote notes.txt."}`, Usage: &mockllm.Usage{PromptTokens: 200, CompletionTokens: 12}},
 	}}
 }
 
@@ -296,11 +300,8 @@ func TestBridgeSendsTheTurnDigestWithoutPuttingItInTheSession(t *testing.T) {
 	// The turn has to end by asking the user something, or there is no
 	// suggestion to predict and the digest is asked for the recap alone.
 	scenario.Steps[1].Text = "wrote notes.txt — commit it?"
-	// One more step than the turn needs: the digest is a model call of its own,
-	// made after the loop is done and before the run reports.
-	scenario.Steps = append(scenario.Steps, mockllm.Step{
-		Text: `{"recap": "Wrote notes.txt with the scripted content.", "suggestion": "yes, commit it"}`,
-	})
+	// The digest step writeScenario already carries, answered with both halves.
+	scenario.Steps[2].Text = `{"recap": "Wrote notes.txt with the scripted content.", "suggestion": "yes, commit it"}`
 	app, events, server, projectID := bridge(t, scenario, map[string]string{"Write": "allow"})
 
 	if _, err := app.SendMessageStream(projectID, "", "write notes.txt"); err != nil {

@@ -306,3 +306,35 @@ func TestRenderForkedDoesNotWarnAboutLoss(t *testing.T) {
 		t.Errorf("report = %q, want fork wording rather than rewind wording", got)
 	}
 }
+
+// A suggestion predicts the answer to the question the conversation ended on.
+// A history move changes where it ends, so the prediction is void — offering it
+// afterwards would answer a question the user just took back.
+func TestHistoryMovesDropTheStaleSuggestion(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		open func(*testing.T, *Model) *Model
+	}{
+		{"rewind", openRewindPanel},
+		{"fork", openForkPanel},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m, _ := rewindModel(t)
+			m.inputBlock.SetGhost("yes, that one")
+			panel := tc.open(t, m)
+
+			next, _ := panel.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+			next, _ = next.(*Model).Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+			done := next.(*Model)
+			t.Cleanup(func() {
+				if s := done.CurrentSession(); s != nil {
+					_ = s.Close()
+				}
+			})
+
+			if got := done.inputBlock.Ghost(); got != "" {
+				t.Errorf("ghost = %q after %s, want it dropped", got, tc.name)
+			}
+		})
+	}
+}

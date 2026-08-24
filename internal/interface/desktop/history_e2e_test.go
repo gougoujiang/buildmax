@@ -25,6 +25,11 @@ func historyScenario() mockllm.Scenario {
 			ToolCalls: []mockllm.ToolCall{{Name: "Write", Args: map[string]any{"file_path": "notes.txt", "content": "scripted content\n"}}},
 		},
 		{Text: "wrote notes.txt"},
+		// The first turn ran a tool, so it also asks for a recap — a model call
+		// of its own, scripted here because these runs use the shipped default
+		// configuration. The second turn ran no tool and answered briefly, so it
+		// asks for nothing and needs no step.
+		{Text: `{"recap": "Wrote notes.txt."}`},
 		{Text: "you are welcome"},
 	}}
 }
