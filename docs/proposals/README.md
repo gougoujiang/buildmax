@@ -31,6 +31,7 @@ their context.
 
 | Proposal | Question |
 |---|---|
+| [Client sessions and API credentials](client-sessions-and-api-credentials.md) | Should interactive login issue any long-lived credential beyond a rotating refresh token, and how should native managed clients and unattended callers authenticate? |
 | [Enterprise identity and access](enterprise-identity-and-access.md) | How should a private deployment connect corporate identity to BuildMax teams and roles? |
 | [Durable Agent sessions](durable-agent-sessions.md) | Should authenticated local Agent sessions become revisioned Server resources for recovery, provenance, sharing, and cross-device continuation? |
 | [Local Issue work bridge](local-issue-work-bridge.md) | How should connected CLI/TUI and Desktop handle Team Issues locally without becoming Portal clones or weakening direct local use? |
