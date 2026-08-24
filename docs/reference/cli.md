@@ -191,6 +191,7 @@ Typed into the input line:
 | Command | Opens |
 |---|---|
 | `/model` | Model picker (from `settings.yaml`) |
+| `/rewind` | Move the conversation back to an earlier message |
 | `/sessions` | Session picker |
 | `/tools` | Tools available this run |
 | `/skills` | Discovered skills |

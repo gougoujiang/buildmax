@@ -14,6 +14,7 @@ var builtinSlashCommands = []string{
 	"/diff",
 	"/mcp",
 	"/model",
+	"/rewind",
 	"/sessions",
 	"/skills",
 	"/stats",
@@ -219,6 +220,8 @@ func dispatchSlashCommand(m *Model, cmd string, args ...string) (tea.Model, tea.
 		return openSlashMCP(m)
 	case "/model":
 		return runSlashModel(m, args)
+	case "/rewind":
+		return openSlashRewind(m)
 	case "/sessions":
 		return openSlashSession(m)
 	case "/skills":
@@ -230,7 +233,7 @@ func dispatchSlashCommand(m *Model, cmd string, args ...string) (tea.Model, tea.
 	case "/tools":
 		return openSlashTools(m)
 	default:
-		m.err = "unknown command " + cmd + " (try /diff, /mcp, /model, /sessions, /skills, /stats, /tasks, /tools)"
+		m.err = "unknown command " + cmd + " (try /diff, /mcp, /model, /rewind, /sessions, /skills, /stats, /tasks, /tools)"
 		return m, nil
 	}
 }
