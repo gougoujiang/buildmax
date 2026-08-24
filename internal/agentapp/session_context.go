@@ -333,6 +333,30 @@ func (s *SessionContext) Rewind(targetID string) (session.AbandonedWork, error) 
 	return abandoned, nil
 }
 
+// adoptPrefix writes a forked prefix into a freshly created session and brings
+// the read model up to it.
+//
+// It goes through the ordinary append path rather than writing the file
+// directly, so a copied prefix is validated exactly as a lived one would be:
+// the writer checks that each record continues the branch, and the journal
+// syncs it. A fork that produced a journal the loader would later refuse is a
+// worse outcome than a fork that fails now.
+func (s *SessionContext) adoptPrefix(items []session.Item) error {
+	if s.writer == nil {
+		return fmt.Errorf("adopt prefix: session is not persisted")
+	}
+	if len(s.items) != 0 {
+		return fmt.Errorf("adopt prefix: session already holds %d records", len(s.items))
+	}
+	if err := s.writer.Append(context.Background(), items...); err != nil {
+		return err
+	}
+	s.items = append(s.items, items...)
+	last := items[len(items)-1]
+	s.head, s.lastSeq = last.ID, last.Seq
+	return s.reduceFromHead()
+}
+
 // reduceFromHead rebuilds the read model from the branch the head now names.
 //
 // It re-reduces rather than unwinding what changed. Unwinding would need a

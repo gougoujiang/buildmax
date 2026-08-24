@@ -603,9 +603,21 @@ all rewind and fork retention rules permit physical compaction.
 ### 8.3 Fork
 
 Fork physically copies the history prefix through the selected message into a
-new session directory. It preserves item IDs, gives the child
-an independent session ID and metadata record, and writes fork provenance into
-`meta.json`.
+new session directory. It preserves item IDs, gives the child an independent
+session ID and metadata record, and writes fork provenance into `meta.json`.
+
+What is copied is the *branch* through that message, not the physical prefix: a
+parent that was rewound holds abandoned records too, and a child carrying those
+would hold history its own parent chain never reaches. Sequence numbers are not
+preserved — `seq` is a record's position in the journal holding it, so the child
+is renumbered from one, and a gap in the parent leaves no trace. Item IDs are,
+because they are the identity that makes a child's records recognisable as the
+same work the parent did.
+
+The child starts its own usage and cost totals at zero. Inheriting the parent's
+would double-count the same money as soon as anyone added the two sessions up.
+Title and workspace are carried, because they describe the conversation being
+continued rather than the run that produced it.
 
 Physical copying is O(n), but it gives the Alpha implementation clear
 ownership:
@@ -956,7 +968,12 @@ Implementation is incomplete until tests establish:
   chosen, not the one last in the file;
 - only `head_selected` may name a parent other than the current head, and only
   one this session already holds;
-- fork copies exactly the selected stable prefix and survives parent deletion;
+- fork copies exactly the selected branch prefix and survives parent deletion;
+- a fork of a rewound session copies the live branch, not the abandoned one;
+- a forked journal loads through the ordinary reader, renumbered from one with
+  its item ids intact;
+- parent and child diverge: writing to one changes nothing in the other, and
+  the child is listed as its own session carrying its lineage;
 - compaction summaries never cross a branch they did not summarize;
 - resuming under a different protocol drops provider state whose tag does not
   match the active adapter instead of forwarding it, and a history holding
@@ -1056,8 +1073,11 @@ than continue against state the next turn will not find.
 - Add conversation rewind: the operation and the surfaces that offer it,
   including what it reports as *not* undone (§8.2). The operation and its
   report have landed; the surfaces have not.
-- Add independent child-session fork.
-- Define artifact copy/retention rules for fork and deletion.
+- Add independent child-session fork. The operation has landed; the surfaces
+  have not.
+- Define artifact copy/retention rules for fork and deletion. Nothing is copied
+  today because nothing is externalized yet (§11); the rule and the copier land
+  with `artifacts/` rather than ahead of it.
 
 Head selection and branch-aware replay are not listed: they landed in phase 1
 as the mechanism rewind is built from, and are covered by the property tests

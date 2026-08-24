@@ -81,6 +81,64 @@ func (s *SessionManager) Open(id, defaultModel string) (*SessionContext, error) 
 	return newWriterContext(w, defaultModel), nil
 }
 
+// Fork creates an independent session holding the parent's history through
+// throughItemID, and returns it open for writing.
+//
+// The parent must be open, which is how §12's "no forking from an unstable
+// head" is enforced: holding its writer lock is what makes the branch being
+// copied stand still. The parent is left untouched and still open — forking is
+// not leaving.
+//
+// The child is a copy, not a reference. That costs O(n) once and buys the
+// properties §8.3 wants: deleting the parent cannot break the child, loading
+// the child never walks another session, and retention stays session-local
+// with no reference counting to get wrong.
+func (s *SessionManager) Fork(parent *SessionContext, throughItemID, defaultModel string) (*SessionContext, error) {
+	if parent == nil || !parent.Persisted() {
+		return nil, fmt.Errorf("fork: the parent session is not open for writing")
+	}
+	prefix, err := session.ForkPrefix(parent.items, throughItemID)
+	if err != nil {
+		return nil, err
+	}
+	if len(prefix) == 0 {
+		return nil, fmt.Errorf("fork: %s selects no history", throughItemID)
+	}
+
+	meta := session.NewMeta(session.NewID(), session.KindUser, time.Now())
+	meta.SelectedModel = defaultModel
+	// Carried because they describe the conversation being continued, not the
+	// run that made it: a fork opens where the parent was, so it should open
+	// under the same title and workspace rather than as an untitled session in
+	// the default directory.
+	meta.Title = parent.Title()
+	meta.Workspace = parent.Meta().Workspace
+	meta.ForkedFrom = &session.ForkedFrom{
+		SessionID: parent.ID(),
+		HeadID:    throughItemID,
+	}
+	// Usage and cost deliberately start at zero. They are what this session
+	// spent, and a child that inherited the parent's totals would double-count
+	// the same money the moment anyone added the two up.
+
+	ctx := context.Background()
+	if err := s.store.Create(ctx, meta); err != nil {
+		return nil, err
+	}
+	child, err := s.Open(meta.ID, defaultModel)
+	if err != nil {
+		return nil, err
+	}
+	if err := child.adoptPrefix(prefix); err != nil {
+		// A child holding half a conversation is worse than no child: it would
+		// list, open, and answer from a history that stops mid-turn.
+		_ = child.Close()
+		_ = s.Delete(meta.ID)
+		return nil, err
+	}
+	return child, nil
+}
+
 // RewindPoints lists the messages in an open session a rewind could return to,
 // newest last, paired with the journal item id a caller passes to Rewind.
 //
