@@ -801,25 +801,59 @@ internal/infra/sessionstore
 
 `internal/core/agent` continues to depend on history and durable-state
 interfaces. It does not import files, JSONL, databases, or Server clients.
-The persistence seam expresses session semantics rather than paths:
+The persistence seam expresses session semantics rather than paths, and it lives
+in `internal/core/session` itself — expressed purely in terms of core types, it
+carries no dependency on infra, which is what lets `internal/infra/sessionstore`
+depend on it rather than the reverse:
 
 ```go
 type Store interface {
-    Create(ctx context.Context, meta session.Meta) error
-    Append(ctx context.Context, id string, expectedSeq uint64, items ...session.Item) error
-    Load(ctx context.Context, id string, mode LoadMode) (session.Loaded, error)
-    UpdateMeta(ctx context.Context, id string, update session.MetaUpdate) error
-    List(ctx context.Context, includeHidden bool) ([]session.ItemSummary, error)
+    Create(ctx context.Context, meta Meta) error
+    Open(ctx context.Context, id string) (Writer, error)
+    Load(ctx context.Context, id string, mode LoadMode) (Loaded, error)
+    UpdateMeta(ctx context.Context, id string, update MetaUpdate) error
+    List(ctx context.Context, includeHidden bool) ([]ItemSummary, error)
+}
+
+type Writer interface {
+    Loaded() Loaded
+    Append(ctx context.Context, items ...Item) error
+    Close() error
 }
 ```
 
-`expectedSeq` is the writer's own view of the tail: learned when it opened the
-session and advanced by its own appends. It is never read back from metadata,
-which stores no sequence counter.
+Append is not a flat, stateless call keyed by an `expectedSeq` a caller passes
+in. Building the seam surfaced why: the writer lock is what rules out a second
+writer, and it protects a whole turn, not one call. A single `Append(ctx, id,
+expectedSeq, items...)` would have to choose between holding that lock across
+every call a caller makes — which the signature does not express — or
+re-acquiring it call by call, which would let a second process's turn interleave
+into the middle of the first's. `Open` acquires the lock and returns a `Writer`
+that holds it for exactly as long as one turn is committing; `Writer.Close`
+releases it. `expectedSeq` becomes unnecessary once the lock is held for that
+whole span: nothing else can move the tail out from under a caller mid-turn, so
+`Append` instead checks that each item's `Seq` and `ParentID` continue exactly
+from where this `Writer`'s own view of the branch left off. A mismatch is
+therefore a caller bug to report, not a race to retry.
 
-Exact names may change during implementation. The boundaries may not: core
-owns meaning and deterministic reduction; AgentApp owns when state commits;
-infra owns physical durability.
+`Open` is also where recovery happens, mechanically. It repairs a torn tail
+(§7.2) and, only when the branch it finds still has calls left uncertain by an
+interruption, appends the repair records §7.3 describes before returning. The
+trigger is "is there an uncertain call to resolve", not "was the turn left
+open": a session already repaired by an earlier `Open` still shows an open turn
+on a later one — no `turn_finished` is retroactively added — but with nothing
+left uncertain, so nothing is written twice. `Writer.Loaded().Recovery` reports
+what was just repaired for a caller that wants to tell the user, even though the
+branch it sits beside is already caught up.
+
+`Load` never acquires the lock and never repairs — a writer may be open
+concurrently, and inspection only ever sees a stable prefix (§7.2). It still
+computes `Recovery`, so a caller that only wants to display a session's state
+can learn it was left mid-turn without anything being written.
+
+Exact names may change further. The boundaries may not: core owns meaning and
+deterministic reduction; AgentApp owns when state commits; infra owns physical
+durability.
 
 Mutation APIs must prevent callers from changing resumable exported fields
 without appending history. The materialized `Session` may remain a read model,
@@ -950,6 +984,13 @@ Implementation is incomplete until tests establish:
 - a process killed while cancelling leaves the turn open, and the next open
   recovers it by the ordinary path;
 - stale metadata and global indexes repair without changing history;
+- a damaged `meta.json` recovers as a visible session with zeroed aggregates
+  rather than hiding it, and a session whose metadata cannot be read is skipped
+  when the index is rebuilt rather than guessed at;
+- opening an interrupted session appends its repair once, and opening the same
+  session again appends nothing further while still reporting what was repaired;
+- an append that does not continue the branch the writer opened is refused
+  before anything reaches the file;
 - a rewind followed by metadata loss resumes the selected branch rather than
   the abandoned physical tail, with no metadata field needing repair for it to;
 - head derivation returns the same item as a full branch walk across journals

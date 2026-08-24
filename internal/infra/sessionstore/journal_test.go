@@ -16,7 +16,7 @@ var testTime = time.Date(2026, 8, 24, 10, 0, 0, 0, time.UTC)
 func newJournal(t *testing.T) (string, *Journal) {
 	t.Helper()
 	dir := t.TempDir()
-	j, err := Create(dir, session.NewHeader("s1", testTime))
+	j, err := CreateJournal(dir, session.NewHeader("s1", testTime))
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -59,7 +59,7 @@ func TestCreateRefusesAnExistingJournal(t *testing.T) {
 	j.Close()
 	// Adopting an existing file would let a bug that reuses a session id append
 	// one conversation onto another.
-	if _, err := Create(dir, session.NewHeader("s1", testTime)); err == nil {
+	if _, err := CreateJournal(dir, session.NewHeader("s1", testTime)); err == nil {
 		t.Fatal("Create overwrote an existing journal")
 	}
 }
@@ -231,7 +231,7 @@ func TestOpenAppendRepairsTornTailAndKeepsEarlierRecords(t *testing.T) {
 func tornJournal(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
-	j, err := Create(dir, session.NewHeader("s1", testTime))
+	j, err := CreateJournal(dir, session.NewHeader("s1", testTime))
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -302,7 +302,7 @@ func TestSalvageRecoversThePrefixWithoutTouchingTheFile(t *testing.T) {
 
 func TestSalvageStopsAtAGraphBreakToo(t *testing.T) {
 	dir := t.TempDir()
-	j, err := Create(dir, session.NewHeader("s1", testTime))
+	j, err := CreateJournal(dir, session.NewHeader("s1", testTime))
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -335,7 +335,7 @@ func TestSalvageStopsAtAGraphBreakToo(t *testing.T) {
 func corruptJournal(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
-	j, err := Create(dir, session.NewHeader("s1", testTime))
+	j, err := CreateJournal(dir, session.NewHeader("s1", testTime))
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
