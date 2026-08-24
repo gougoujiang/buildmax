@@ -39,6 +39,9 @@ type SessionContext struct {
 	// so a compaction counted in messages can name the item it covers. The two
 	// slices are appended to together and are always the same length.
 	messageIDs []string
+	// closed makes releasing a session idempotent: an early close and a
+	// deferred one must not fire the SessionEnd hook twice.
+	closed bool
 
 	head    string
 	lastSeq uint64
@@ -73,6 +76,7 @@ func newReadOnlyContext(loaded session.Loaded, defaultModel string) *SessionCont
 	if loaded.Meta.SelectedModel != "" {
 		s.selectedModel = loaded.Meta.SelectedModel
 	}
+	s.messageIDs = messageIDsOnBranch(loaded.Items, loaded.Head)
 	return s
 }
 
@@ -93,18 +97,31 @@ func newWriterContext(w session.Writer, defaultModel string) *SessionContext {
 	for _, it := range loaded.Items {
 		s.lastSeq = it.Seq
 	}
-	// Ids for the reduced messages come from the branch, not from every record
-	// on disk: an abandoned branch's messages are not in state.Messages, so
-	// counting them here would put the two slices out of step.
-	if branch, err := session.Branch(loaded.Items, loaded.Head); err == nil {
-		for _, it := range branch {
-			switch it.Payload.(type) {
-			case session.MessageItem, session.ToolResult:
-				s.messageIDs = append(s.messageIDs, it.ID)
-			}
+	s.messageIDs = messageIDsOnBranch(loaded.Items, loaded.Head)
+	return s
+}
+
+// messageIDsOnBranch is the journal item id behind each entry of the reduced
+// state's Messages, positionally aligned with it.
+//
+// Ids come from the branch, not from every record on disk: an abandoned
+// branch's messages are not in state.Messages, so counting those here would put
+// the two slices out of step. Every context derives them the same way — a read
+// model that skipped this looked correct until something asked it to name a
+// message, and got an empty list instead of an answer.
+func messageIDsOnBranch(items []session.Item, head string) []string {
+	branch, err := session.Branch(items, head)
+	if err != nil {
+		return nil
+	}
+	ids := make([]string, 0, len(branch))
+	for _, it := range branch {
+		switch it.Payload.(type) {
+		case session.MessageItem, session.ToolResult:
+			ids = append(ids, it.ID)
 		}
 	}
-	return s
+	return ids
 }
 
 // --- identity and presentation ---
@@ -399,18 +416,7 @@ func (s *SessionContext) reduceFromHead() error {
 	if err != nil {
 		return err
 	}
-	branch, err := session.Branch(s.items, s.head)
-	if err != nil {
-		return err
-	}
-	ids := make([]string, 0, len(state.Messages))
-	for _, it := range branch {
-		switch it.Payload.(type) {
-		case session.MessageItem, session.ToolResult:
-			ids = append(ids, it.ID)
-		}
-	}
-	s.state, s.messageIDs = state, ids
+	s.state, s.messageIDs = state, messageIDsOnBranch(s.items, s.head)
 	return nil
 }
 
@@ -433,13 +439,21 @@ func (s *SessionContext) Recovery() session.Recovery {
 
 // Close releases the writer lock. Safe on an unpersisted session.
 func (s *SessionContext) Close() error {
-	if s == nil || s.writer == nil {
+	if s == nil {
+		return nil
+	}
+	s.closed = true
+	if s.writer == nil {
 		return nil
 	}
 	err := s.writer.Close()
 	s.writer = nil
 	return err
 }
+
+// Closed reports whether this session has already been released, so a caller
+// that closes early can let a deferred close stand without it firing twice.
+func (s *SessionContext) Closed() bool { return s != nil && s.closed }
 
 // --- commit plumbing ---
 

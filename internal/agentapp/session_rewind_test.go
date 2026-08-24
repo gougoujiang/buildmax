@@ -192,3 +192,36 @@ func TestRewindDropsDurableStateWrittenOnTheAbandonedBranch(t *testing.T) {
 		t.Errorf("notes = %+v, want none — that note is on the abandoned branch", sess.Notes())
 	}
 }
+
+func TestReadGivesAContextThatCanStillNameItsMessages(t *testing.T) {
+	m, sess := openManaged(t)
+	seedTurns(t, sess)
+	id := sess.ID()
+	openPoints := len(RewindPoints(sess))
+	if err := sess.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	read, err := m.Read(id, "test-model")
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+	// A read model carrying messages but no ids looked correct until something
+	// asked it to name one, and then answered with an empty list rather than an
+	// error. Every surface that offers a rewind reads before it writes.
+	if got, want := len(read.MessageIDs()), len(read.Messages()); got != want {
+		t.Fatalf("message ids = %d, messages = %d; the two must stay aligned", got, want)
+	}
+	points := RewindPoints(read)
+	if len(points) != openPoints {
+		t.Fatalf("read points = %d, open points = %d", len(points), openPoints)
+	}
+	// It answers the question a picker asks of it, without the writer lock.
+	if _, err := read.AbandonedBy(points[1].ItemID); err != nil {
+		t.Errorf("AbandonedBy on a read model: %v", err)
+	}
+	// It still cannot write, which is what makes it safe to hand out.
+	if read.Persisted() {
+		t.Error("a read model reports itself as persisted")
+	}
+}

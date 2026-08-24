@@ -4,6 +4,7 @@ import { formatRunStatus } from '../lib/format';
 import { ApprovalPanel } from './ApprovalPanel';
 import { DiffDrawer } from './DiffDrawer';
 import { JobsDrawer } from './JobsDrawer';
+import { HistoryModal } from './HistoryModal';
 import { AgentsModal, MCPModal, PluginsModal } from './Modals';
 import { EventsOn } from '../lib/wailsRuntime';
 
@@ -44,7 +45,7 @@ export function SkillsPopup({ skills, filter, selected, onSelect, onHighlight })
 
 // --- ChatInput ---
 
-export function ChatInput({ onSend, onCancel, loading, error, onDismissError, currentProject, app, approvalRequest, onRespond, toolActivity, runStatus, sessionId, onRunStatusContext }) {
+export function ChatInput({ onSend, onCancel, loading, error, onDismissError, currentProject, app, approvalRequest, onRespond, toolActivity, runStatus, sessionId, onRunStatusContext, onRewound, onForked }) {
   const [prompt, setPrompt] = useState('');
 
   // Skills popup state
@@ -67,6 +68,7 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
   const [showPlugins, setShowPlugins] = useState(false);
   const [showDiff, setShowDiff] = useState(false);
   const [showJobs, setShowJobs] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
   // Count of running background jobs for the status-bar badge. The Go side
   // owns job state; this refreshes from it on every lifecycle event.
@@ -314,6 +316,18 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
           Plugins
         </button>
 
+        {/* History button: rewind and fork both act on a saved session, so
+            there is nothing to offer until this chat has one. */}
+        <button
+          type="button"
+          className="chat-status-bar__btn"
+          onClick={() => setShowHistory(true)}
+          disabled={!sessionId}
+          title={sessionId ? 'Rewind or fork this conversation' : 'Send a message first'}
+        >
+          History
+        </button>
+
         {/* Jobs button */}
         <button
           type="button"
@@ -339,6 +353,16 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
       )}
       {showJobs && (
         <JobsDrawer projectID={currentProject.id} app={app} onClose={() => setShowJobs(false)} />
+      )}
+      {showHistory && sessionId && (
+        <HistoryModal
+          projectID={currentProject.id}
+          sessionID={sessionId}
+          app={app}
+          onRewound={onRewound}
+          onForked={onForked}
+          onClose={() => setShowHistory(false)}
+        />
       )}
     </div>
   );

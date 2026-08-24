@@ -72,7 +72,7 @@ func (s *SessionManager) CreateWithID(id, defaultModel string) (*SessionContext,
 }
 
 // Open acquires the writer lock for id and returns it as a committing context.
-// A session already open in another process reports sessionstore.ErrLocked.
+// A session already open in another process reports session.ErrLocked.
 func (s *SessionManager) Open(id, defaultModel string) (*SessionContext, error) {
 	w, err := s.store.Open(context.Background(), id)
 	if err != nil {
@@ -181,6 +181,21 @@ func (s *SessionManager) List() ([]session.ItemSummary, error) {
 // display it.
 func (s *SessionManager) Load(id string, mode session.LoadMode) (session.Loaded, error) {
 	return s.store.Load(context.Background(), id, mode)
+}
+
+// Read loads a session as a read model, without taking its writer lock.
+//
+// It answers the same questions an open session does — its messages, their
+// ids, what a rewind from here would leave behind — for surfaces that only ask
+// them. Nothing it returns can be committed, which is why this is a separate
+// call rather than a flag on Open: a caller cannot hold a read model and later
+// discover it has been writing to nothing.
+func (s *SessionManager) Read(id, defaultModel string) (*SessionContext, error) {
+	loaded, err := s.store.Load(context.Background(), id, session.LoadFull)
+	if err != nil {
+		return nil, err
+	}
+	return newReadOnlyContext(loaded, defaultModel), nil
 }
 
 // Rename records a new title. Presentation only, so it never touches history.

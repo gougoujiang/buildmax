@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/gougoujiang/buildmax/internal/core/session"
 )
 
 func lockPath(t *testing.T) string {
@@ -21,9 +23,9 @@ func TestAcquireWriterTakesAndReleasesTheLock(t *testing.T) {
 	}
 	// Two separate opens of the same file are two lock owners on every platform
 	// here, so a second attempt must fail while the first holds it.
-	if _, err := AcquireWriter(path); !errors.Is(err, ErrLocked) {
+	if _, err := AcquireWriter(path); !errors.Is(err, session.ErrLocked) {
 		_ = first.Release()
-		t.Fatalf("second acquire err = %v, want ErrLocked", err)
+		t.Fatalf("second acquire err = %v, want session.ErrLocked", err)
 	}
 	if err := first.Release(); err != nil {
 		t.Fatalf("Release: %v", err)
@@ -102,8 +104,8 @@ func TestFailedAcquisitionLeavesTheOwnerFileIntact(t *testing.T) {
 		t.Fatalf("read: %v", err)
 	}
 
-	if _, err := AcquireWriter(path); !errors.Is(err, ErrLocked) {
-		t.Fatalf("err = %v, want ErrLocked", err)
+	if _, err := AcquireWriter(path); !errors.Is(err, session.ErrLocked) {
+		t.Fatalf("err = %v, want session.ErrLocked", err)
 	}
 
 	after, err := os.ReadFile(path)

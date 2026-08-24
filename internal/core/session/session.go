@@ -21,6 +21,14 @@ import (
 // ErrSessionNotFound is returned when a session does not exist.
 var ErrSessionNotFound = errors.New("session not found")
 
+// ErrLocked reports that something else already holds a session's writer lock.
+//
+// It lives here rather than in the file backend because Store.Open's contract
+// names it: a caller deciding whether to report "busy" or to fail programs
+// against the interface, and would otherwise have to import an implementation
+// to ask a question the interface already answers.
+var ErrLocked = errors.New("session is open in another process")
+
 type ctxKey struct{}
 
 var sessionIDKey = &ctxKey{}

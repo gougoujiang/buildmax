@@ -1016,3 +1016,83 @@
     grid-template-columns: minmax(11rem, 38vw) minmax(0, 1fr);
   }
 }
+
+/* ── History modal (rewind / fork) ──────────────────────────────────────── */
+
+.history-modal__tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.history-modal__tab {
+  padding: 0.3rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.history-modal__tab--active {
+  background: var(--color-text);
+  border-color: var(--color-text);
+  color: var(--color-bg);
+}
+
+.history-modal__point {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.history-modal__point:hover {
+  background: var(--color-bg-hover, rgba(0, 0, 0, 0.04));
+}
+
+.history-modal__point--active {
+  background: var(--color-bg-muted, rgba(0, 0, 0, 0.06));
+}
+
+.history-modal__who {
+  flex: none;
+  min-width: 3.2rem;
+  font-size: 0.75rem;
+  color: var(--color-text-subtle);
+}
+
+/* One line per message: the list is for recognising a moment, not reading it
+   again, and a wrapped row would push the rest off the panel. */
+.history-modal__text {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.85rem;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.history-modal__consequence {
+  margin: 0.75rem 0 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+/* The notice after a rewind or fork: about the move, not part of the
+   conversation, so it reads as an aside rather than a message. */
+.page-chat__history-notice {
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+}

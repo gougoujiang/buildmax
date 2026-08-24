@@ -1072,9 +1072,10 @@ than continue against state the next turn will not find.
 
 - Add conversation rewind: the operation and the surfaces that offer it,
   including what it reports as *not* undone (§8.2). Landed, with `/rewind` in
-  the TUI. Desktop does not offer it yet.
-- Add independent child-session fork. Landed, with `/fork` in the TUI, which
-  shares the picker `/rewind` uses. Desktop does not offer it yet.
+  the TUI and the History picker in Desktop.
+- Add independent child-session fork. Landed, with `/fork` in the TUI and the
+  same Desktop picker, which offers both. Each surface shares one list between
+  the two operations and changes only what it says about the choice.
 - Define artifact copy/retention rules for fork and deletion. Nothing is copied
   today because nothing is externalized yet (§11); the rule and the copier land
   with `artifacts/` rather than ahead of it.

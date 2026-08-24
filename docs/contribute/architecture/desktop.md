@@ -76,6 +76,22 @@ picks up anything queued after that. Either way the frontend hears
 before cancelling. See
 [Queued messages](../../design/queued-messages.md).
 
+## Session Ownership
+
+Desktop holds no session between calls. A run opens one, owns it for its whole
+life including queued prompts, and releases it before it emits
+`desktop/stream-done` — so a frontend acting on that event finds the session
+free. Everything else either reads without the writer lock (`GetSession`,
+`GetRunStatus`, `GetHistoryPoints`) or opens transiently and closes again
+(`RewindSession`, `ForkSession`).
+
+That is what makes "not while a run is in flight" enforce itself rather than
+needing a flag: a history move takes the writer lock, and a run holding it is
+how the move discovers it cannot proceed. The bindings translate that into a
+message naming the session as busy. Neither fires a session lifecycle hook —
+nothing is starting or ending when a user edits history, and the transient open
+is an artifact of Desktop's ownership model, not an event a hook should see.
+
 Project metadata is stored in
 `<BUILDMAX_HOME>/projects/projects.json`. Sessions, settings, traces, auth, and
 logs use the regular paths under `BUILDMAX_HOME`; project source files stay in

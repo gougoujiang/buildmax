@@ -767,7 +767,7 @@ func (a *AgentApp) OpenOrCreateSession(sessionID string) (*SessionContext, error
 // open of the same id fails rather than waits. Safe to call with a nil session,
 // and safe to call twice.
 func (a *AgentApp) CloseSession(sess *SessionContext) {
-	if a == nil || sess == nil {
+	if a == nil || sess == nil || sess.Closed() {
 		return
 	}
 	a.fireSessionLifecycle(agent.HookSessionEnd, sess, nil)
@@ -789,11 +789,7 @@ func (a *AgentApp) ReadSession(sessionID string) (*SessionContext, error) {
 	if a == nil || a.sessionManager == nil {
 		return nil, fmt.Errorf("session store is not initialized")
 	}
-	loaded, err := a.sessionManager.Load(sessionID, session.LoadFull)
-	if err != nil {
-		return nil, err
-	}
-	return newReadOnlyContext(loaded, a.DefaultModelName()), nil
+	return a.sessionManager.Read(sessionID, a.DefaultModelName())
 }
 
 func (a *AgentApp) fireSessionLifecycle(event agent.HookEvent, sess *SessionContext, stats *agent.RunStats) {

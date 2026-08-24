@@ -785,6 +785,12 @@ func (a *App) SendMessageStream(projectID, sessionID, prompt string) (int, error
 			}
 			next, ok := queue.Dequeue()
 			if !ok {
+				// Release the session before announcing the turn is over. The
+				// frontend acts on stream-done, and a rewind or fork issued the
+				// moment it arrives would otherwise race the deferred close and
+				// be told the session is busy by the run that just finished.
+				// The deferred close below stands and does nothing.
+				ag.CloseSession(sess)
 				if err == nil {
 					a.emit(ctx, eventStreamDone, replyPayload(out))
 				}

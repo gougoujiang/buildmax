@@ -116,8 +116,8 @@ func TestOpenRefusesASecondWriterWhileTheFirstHoldsTheLock(t *testing.T) {
 
 	// A second FileStore stands in for a second process on the same directory.
 	second := NewFileStore(dir)
-	if _, err := second.Open(ctx, "s1"); !errors.Is(err, ErrLocked) {
-		t.Fatalf("second Open err = %v, want ErrLocked", err)
+	if _, err := second.Open(ctx, "s1"); !errors.Is(err, session.ErrLocked) {
+		t.Fatalf("second Open err = %v, want session.ErrLocked", err)
 	}
 }
 
@@ -213,8 +213,8 @@ func TestUpdateMetaConflictsWithAnOpenWriter(t *testing.T) {
 	defer func() { _ = w.Close() }()
 
 	title := "renamed mid-turn"
-	if err := s.UpdateMeta(ctx, "s1", session.MetaUpdate{Title: &title}); !errors.Is(err, ErrLocked) {
-		t.Fatalf("UpdateMeta while a writer is open: err = %v, want ErrLocked", err)
+	if err := s.UpdateMeta(ctx, "s1", session.MetaUpdate{Title: &title}); !errors.Is(err, session.ErrLocked) {
+		t.Fatalf("UpdateMeta while a writer is open: err = %v, want session.ErrLocked", err)
 	}
 }
 

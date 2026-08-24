@@ -88,6 +88,15 @@ point really did touch the workspace, and the new session's history does not
 contain it, so the agent there will not know it happened. The picker names those
 tools before you choose.
 
+### Where to find them
+
+In the TUI they are the `/rewind` and `/fork` commands. In Desktop they are one
+**History** button in the chat status bar, which opens the same list of messages
+with a tab for which of the two you want.
+
+Desktop refuses both while a run is in flight and says so; stop the run first.
+Opening the picker still works — it only reads.
+
 ### Compaction
 
 When a conversation approaches the model's context window, older messages are
