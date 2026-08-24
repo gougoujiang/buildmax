@@ -26,7 +26,7 @@ func (c *recordingCheckpointer) Checkpoint(ctx context.Context, discarded []llm.
 		return c.err
 	}
 	if c.writeNote != "" && c.store != nil {
-		c.store.SetNotes(append(c.store.Notes(), Note{Text: c.writeNote}), IterationFromContext(ctx))
+		_ = c.store.SetNotes(append(c.store.Notes(), Note{Text: c.writeNote}), IterationFromContext(ctx))
 	}
 	return nil
 }

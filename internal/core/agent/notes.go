@@ -98,11 +98,15 @@ type NoteStore interface {
 	Notes() []Note
 	// SetNotes replaces the stored notes. Entries whose text is unchanged keep their original
 	// WrittenIteration; iter stamps the rest.
-	SetNotes(notes []Note, iter int)
+	//
+	// It returns an error because a durable store commits here, and durable
+	// state that silently failed to commit is worse than one that says so: the
+	// next turn would render notes the file does not have.
+	SetNotes(notes []Note, iter int) error
 	Todos() []Todo
 	// SetTodos replaces the stored todos. Entries whose content and status are both unchanged
 	// keep their original WrittenIteration; iter stamps the rest, so a status change restarts the clock.
-	SetTodos(todos []Todo, iter int)
+	SetTodos(todos []Todo, iter int) error
 }
 
 // NotesHistory is an optional extension of MessageHistory implemented by histories that carry

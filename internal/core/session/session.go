@@ -138,12 +138,13 @@ func (s *Session) PriorSummary() string { return s.CompactionSummary }
 // AddCompaction advances the compaction boundary by summarizedCount messages and stores the
 // summary. The summary is expected to subsume any earlier one, so replacing is correct.
 // Implements agent.CompactionHistory so RunLoop can persist the boundary across turns.
-func (s *Session) AddCompaction(summary string, summarizedCount int) {
+func (s *Session) AddCompaction(summary string, summarizedCount int) error {
 	s.CompactionSummary = summary
 	s.CompactionIdx += summarizedCount
 	if s.CompactionIdx > len(s.Messages) {
 		s.CompactionIdx = len(s.Messages)
 	}
+	return nil
 }
 
 // Notes returns the session's durable notes. Implements agent.NoteStore.
@@ -151,8 +152,9 @@ func (s *Session) Notes() []agent.Note { return s.NoteEntries }
 
 // SetNotes replaces the session's notes, preserving the age of entries whose text is unchanged
 // so a rewrite of the list does not make every entry look new. Implements agent.NoteStore.
-func (s *Session) SetNotes(notes []agent.Note, iter int) {
+func (s *Session) SetNotes(notes []agent.Note, iter int) error {
 	s.NoteEntries = agent.StampNotes(s.NoteEntries, notes, iter)
+	return nil
 }
 
 // Todos returns the session's durable task list. Implements agent.NoteStore.
@@ -160,8 +162,9 @@ func (s *Session) Todos() []agent.Todo { return s.TodoEntries }
 
 // SetTodos replaces the session's task list, preserving the age of entries whose content and
 // status are both unchanged. Implements agent.NoteStore.
-func (s *Session) SetTodos(todos []agent.Todo, iter int) {
+func (s *Session) SetTodos(todos []agent.Todo, iter int) error {
 	s.TodoEntries = agent.StampTodos(s.TodoEntries, todos, iter)
+	return nil
 }
 
 // EnsureTitleFromFirstUserMessage sets the session title from the first user message

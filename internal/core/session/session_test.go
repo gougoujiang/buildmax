@@ -149,7 +149,7 @@ func TestAddCompaction_FiltersOldMessages(t *testing.T) {
 		}
 	}
 	// Compact first 3 messages.
-	s.AddCompaction("summary of first 3", 3)
+	_ = s.AddCompaction("summary of first 3", 3)
 	got := s.HistoryMessages()
 	if len(got) != 2 {
 		t.Fatalf("after compacting 3 of 5, HistoryMessages() len = %d, want 2", len(got))
@@ -169,8 +169,8 @@ func TestAddCompaction_MultipleCompactions(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	s.AddCompaction("summary 1", 4)
-	s.AddCompaction("summary 2", 3) // compact 3 more of the remaining 6
+	_ = s.AddCompaction("summary 1", 4)
+	_ = s.AddCompaction("summary 2", 3) // compact 3 more of the remaining 6
 	got := s.HistoryMessages()
 	if len(got) != 3 {
 		t.Fatalf("after two compactions (4+3 of 10), HistoryMessages() len = %d, want 3", len(got))
@@ -188,7 +188,7 @@ func TestAddCompaction_ClampsToBounds(t *testing.T) {
 	if err := s.Append(llm.Message{Role: "user", Content: "only"}); err != nil {
 		t.Fatal(err)
 	}
-	s.AddCompaction("summary", 999) // more than total messages
+	_ = s.AddCompaction("summary", 999) // more than total messages
 	got := s.HistoryMessages()
 	if len(got) != 0 {
 		t.Errorf("after over-compaction, HistoryMessages() len = %d, want 0", len(got))

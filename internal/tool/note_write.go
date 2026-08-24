@@ -105,7 +105,11 @@ func (t *NoteWrite) Execute(ctx context.Context, args map[string]any) (string, e
 	for i, s := range texts {
 		notes[i] = agent.Note{Text: s}
 	}
-	store.SetNotes(notes, agent.IterationFromContext(ctx))
+	// A store that could not commit must say so rather than echo a list back:
+	// the model would otherwise plan around notes that are not stored.
+	if err := store.SetNotes(notes, agent.IterationFromContext(ctx)); err != nil {
+		return "", fmt.Errorf("store notes: %w", err)
+	}
 
 	return formatNoteList(store.Notes()), nil
 }

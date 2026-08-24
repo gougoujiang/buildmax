@@ -112,7 +112,7 @@ func TestNoteCheckpointer_OffersOnlyStateTools(t *testing.T) {
 func TestNoteCheckpointer_SendsTranscriptAndLiveState(t *testing.T) {
 	client := &scriptedClient{}
 	sess := session.NewSession("")
-	sess.SetNotes([]agent.Note{{Text: "already stored"}}, 1)
+	_ = sess.SetNotes([]agent.Note{{Text: "already stored"}}, 1)
 	cp := NewNoteCheckpointer(client)
 
 	if err := cp.Checkpoint(storeContext(sess), discardedSample); err != nil {
@@ -247,7 +247,7 @@ func TestNoteCheckpointer_CallFailureIsReported(t *testing.T) {
 func TestLLMCompactor_AnchorsOnLiveState(t *testing.T) {
 	client := &scriptedClient{replies: []scriptedReply{{content: "a summary"}}}
 	sess := session.NewSession("")
-	sess.SetNotes([]agent.Note{{Text: "jurisdiction is New York"}}, 1)
+	_ = sess.SetNotes([]agent.Note{{Text: "jurisdiction is New York"}}, 1)
 
 	if _, _, err := NewLLMCompactor(client).Compact(storeContext(sess), discardedSample); err != nil {
 		t.Fatalf("Compact: %v", err)

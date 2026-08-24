@@ -122,7 +122,12 @@ type CompactionHistory interface {
 	// history has never been compacted.
 	PriorSummary() string
 	// AddCompaction advances the compaction boundary by summarizedCount messages and stores summary.
-	AddCompaction(summary string, summarizedCount int)
+	//
+	// It returns an error because a durable history commits here. Compaction
+	// changes what the model sees, so a boundary that failed to reach storage
+	// would leave the next turn reading a different conversation than this one
+	// ended with.
+	AddCompaction(summary string, summarizedCount int) error
 }
 
 // ContextCompactor summarizes a slice of messages into a short text that can replace them.
@@ -282,7 +287,9 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 							if ch, ok := opts.History.(CompactionHistory); ok {
 								// summarizedCount counts real history messages; the prior summary
 								// prepended above is synthetic and never entered the history.
-								ch.AddCompaction(summary, len(toSummarize))
+								if err := ch.AddCompaction(summary, len(toSummarize)); err != nil {
+									return "", s, fmt.Errorf("persist compaction: %w", err)
+								}
 							}
 							history = toKeep
 							slog.Info("context compacted", "iter", i+1, "summarized", len(toSummarize), "kept", len(toKeep))

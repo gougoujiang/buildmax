@@ -139,8 +139,8 @@ func TestSaveLoad_UsageRoundTrip(t *testing.T) {
 func TestSaveLoad_DurableStateRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	s := session.NewSession("")
-	s.SetNotes([]agent.Note{{Text: "the client is the lessee"}}, 12)
-	s.SetTodos([]agent.Todo{{Content: "draft the notice", Status: agent.TodoInProgress}}, 12)
+	_ = s.SetNotes([]agent.Note{{Text: "the client is the lessee"}}, 12)
+	_ = s.SetTodos([]agent.Todo{{Content: "draft the notice", Status: agent.TodoInProgress}}, 12)
 	if err := saveSession(s, dir); err != nil {
 		t.Fatalf("saveSession: %v", err)
 	}
