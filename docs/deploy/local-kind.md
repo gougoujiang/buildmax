@@ -90,9 +90,17 @@ BUILDMAX_KIND_CLUSTER=buildmax-my-change ./make kind up
 BUILDMAX_KIND_CLUSTER=buildmax-my-change ./make kind down
 ```
 
-The cluster uses host ports `8080` and `8443`. Stop another local service on
-`8080`, or use Compose at a different `BUILDMAX_PORTAL_PORT`, before creating
-the cluster.
+The cluster uses host ports `8080` and `8443`, and neither can be moved without
+editing `deployment/dev-kind/kind-config.yaml`. Free `8080` before creating the
+cluster. The Compose stack publishes the Portal there too, so to run both at
+once, move that one:
+
+```bash
+BUILDMAX_PORTAL_PORT=8081 ./make compose up
+```
+
+Nothing else has to follow: `cors_origin` and the Portal's API base are both
+derived from the ports in `deployment/compose/.env`.
 
 ## Read The Data A Run Wrote
 

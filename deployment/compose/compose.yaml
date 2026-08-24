@@ -57,6 +57,11 @@ services:
       # path a Kubernetes Secret uses.
       BUILDMAX_JWT_SECRET: ${BUILDMAX_JWT_SECRET:?run ./generate-env.sh first}
       BUILDMAX_DATABASE_PASSWORD: ${BUILDMAX_DATABASE_PASSWORD}
+      # The browser blocks every request unless this names the origin the Portal
+      # is served from, so it is derived from the same port that publishes it
+      # rather than written into server.yaml, where moving the port would leave
+      # it stale.
+      BUILDMAX_CORS_ORIGIN: http://localhost:${BUILDMAX_PORTAL_PORT:-8080}
       # Optional: without it the Portal loads but conversations cannot run.
       BUILDMAX_CONVERSATION_MODEL_API_KEY: ${BUILDMAX_CONVERSATION_MODEL_API_KEY:-}
     volumes:
@@ -79,8 +84,8 @@ services:
     restart: unless-stopped
     environment:
       # The browser calls this, not the container, so it is the address on the
-      # host — and server.yaml's cors_origin has to name the Portal's own
-      # origin in return. Change one and you change both.
+      # host. Both sides of the CORS pair are derived from the two host ports,
+      # so changing a port in .env is the whole change.
       BUILDMAX_API_BASE: http://localhost:${BUILDMAX_SERVER_PORT:-5678}
     ports:
       - "${BUILDMAX_PORTAL_PORT:-8080}:80"

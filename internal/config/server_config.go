@@ -367,8 +367,19 @@ const (
 	EnvKeyBuildmaxConversationAPIKey = "BUILDMAX_CONVERSATION_MODEL_API_KEY"
 )
 
+// BUILDMAX_CORS_ORIGIN overrides cors_origin.
+//
+// The one override here that carries no secret. cors_origin has to name the
+// origin the Portal is actually served from, which is a host port the
+// deployment chooses and the file cannot know: the Compose stack publishes the
+// Portal on BUILDMAX_PORTAL_PORT, so a committed server.yaml that spells the
+// default out is wrong for every other value. Deriving it where the port is
+// chosen is what keeps moving that port a one-variable change.
+const EnvKeyBuildmaxCORSOrigin = "BUILDMAX_CORS_ORIGIN"
+
 // LoadServerConfig reads BUILDMAX_HOME/server.yaml via Viper and applies defaults.
-// Secret-bearing fields can be overridden by the environment variables above.
+// Secret-bearing fields and cors_origin can be overridden by the environment
+// variables above.
 // A missing file is not an error — returns a config with all defaults applied.
 func LoadServerConfig() (ServerConfig, error) {
 	v := viper.New()
@@ -409,10 +420,12 @@ func LoadServerConfig() (ServerConfig, error) {
 	v.SetDefault("database.name", "buildmax")
 	v.SetDefault("conversation.model.context_window", 0)
 
-	// Environment overrides for values that should not live in the file on disk.
+	// Environment overrides for values the file cannot hold: credentials that
+	// should not be on disk, and cors_origin, which only the deployment knows.
 	// An explicit env name is passed, so SetEnvPrefix does not apply to these.
 	v.SetEnvPrefix("BUILDMAX")
 	_ = v.BindEnv("jwt_secret", EnvKeyBuildmaxJWTSecret)
+	_ = v.BindEnv("cors_origin", EnvKeyBuildmaxCORSOrigin)
 	_ = v.BindEnv("database.password", EnvKeyBuildmaxDatabasePassword)
 	_ = v.BindEnv("storage.minio.access_key", EnvKeyBuildmaxMinIOAccessKey)
 	_ = v.BindEnv("storage.minio.secret_key", EnvKeyBuildmaxMinIOSecretKey)

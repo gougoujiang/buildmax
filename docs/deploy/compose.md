@@ -146,20 +146,23 @@ This stack is shaped for a laptop. Before it faces anyone else:
 - **Storage is a Docker volume.** `docker compose down -v` deletes every
   workspace, artifact, and account with it.
 
-## Two Settings That Must Agree
+## Changing The Host Ports
 
-`BUILDMAX_API_BASE` on the Portal is what the **browser** calls, so it is a host
-address, not a container name. `cors_origin` in `server.yaml` must name the
-origin the Portal is served from. Change a port in `.env` and the second one has
-to follow, or the browser blocks every request and the Portal looks broken while
-both containers report healthy.
+`BUILDMAX_SERVER_PORT` and `BUILDMAX_PORTAL_PORT` in `.env` are the whole
+change. `compose.yaml` derives the Portal's `BUILDMAX_API_BASE` — what the
+**browser** calls, so a host address, not a container name — and the server's
+`cors_origin` from them; the two must name each other's origin or the browser
+blocks every request while both containers report healthy.
+
+Moving `BUILDMAX_PORTAL_PORT` is also how this stack runs beside a
+[kind cluster](local-kind.md), which publishes `8080` and cannot move.
 
 ## Common Problems
 
 | Symptom | Cause |
 |---|---|
 | `run ./generate-env.sh first` | `.env` is missing; compose refuses rather than starting with empty secrets |
-| Portal loads, every request fails in the browser console | `cors_origin` and the Portal's origin disagree |
+| Portal loads, every request fails in the browser console | `cors_origin` and the Portal's origin disagree; check `BUILDMAX_CORS_ORIGIN` on the server container, which is what the stack sets |
 | `signup is disabled on this server` | Expected. Create the account with `user create` |
 | `invalid otp` | The code is single-use and expires in an hour; issue another |
 | Server restarts in a loop | Usually MySQL: `docker compose logs mysql` |

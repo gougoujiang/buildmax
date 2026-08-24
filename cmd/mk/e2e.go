@@ -113,10 +113,15 @@ func e2eOwningCompose() error {
 	// Owning a stack means taking it down afterwards, so refuse to adopt one
 	// that is already up: it may be someone's running deployment, and this
 	// command would end it. Attaching is what that case wants.
+	//
+	// What answers is not necessarily Compose — a kind cluster publishes the
+	// same 8080 — so the message names the port and both stacks rather than
+	// asserting which one it found and sending the reader to `compose down`
+	// for a stack that was never up.
 	probe := &http.Client{Timeout: 2 * time.Second}
 	if err := waitForHTTP(context.Background(), probe, composePortalURL(), 2*time.Second); err == nil {
-		return fmt.Errorf("a Compose stack is already answering at %s, and `%s e2e local` would take it down when it finished\nTest the stack you have with `%s e2e compose`, or stop it first with `%s compose down`",
-			composePortalURL(), mk(), mk(), mk())
+		return fmt.Errorf("something is already answering at %s, and `%s e2e local` would take down whatever it started there when it finished\nIf it is a Compose stack, test it with `%s e2e compose` or stop it with `%s compose down`; if it is a kind cluster, test it with `%s e2e kind`, stop it with `%s kind down`, or run this stack elsewhere with BUILDMAX_PORTAL_PORT",
+			composePortalURL(), mk(), mk(), mk(), mk(), mk())
 	}
 	fmt.Println("[e2e] owning a Compose stack for this run: starting it, testing it, and taking it down")
 	// The smoke overlay, not a plain `up`: the browser tests drive a run to

@@ -80,6 +80,7 @@ var EnvVars = []EnvVar{
 	{Name: EnvKeyBuildmaxMinIOAccessKey, Description: "Override for storage.minio.access_key in server.yaml", WorkerNeeds: true},
 	{Name: EnvKeyBuildmaxMinIOSecretKey, Description: "Override for storage.minio.secret_key in server.yaml", WorkerNeeds: true},
 	{Name: EnvKeyBuildmaxConversationAPIKey, Description: "Override for conversation.model.api_key in server.yaml", WorkerNeeds: true, DirectLLMOnly: true},
+	{Name: EnvKeyBuildmaxCORSOrigin, Description: "Override for cors_origin in server.yaml; set where the Portal's host port is chosen"},
 	// Deliberately not WorkerNeeds: a worker reads this, but it is injected per
 	// run by the scheduler, never inherited from the server. Leaving it unmarked
 	// is what strips a stale value the server happens to be holding, so the only

@@ -8,9 +8,9 @@
 log_level: info
 port: 5678
 
-# Must name the origin the Portal is served from, or the browser blocks every
-# request. Change this together with BUILDMAX_PORTAL_PORT in .env.
-cors_origin: http://localhost:8080
+# cors_origin: from BUILDMAX_CORS_ORIGIN, which compose.yaml derives from
+# BUILDMAX_PORTAL_PORT. It must name the origin the Portal is served from, so
+# moving that port here too would only be a second place to forget.
 
 # Accounts are created with `buildmax-server user create`; see
 # docs/deploy/authentication.md. Setting allow_signup here would let anyone who
