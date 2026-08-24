@@ -1,7 +1,10 @@
 <!--
 This PR is merged with a merge commit: the TITLE above becomes the merge commit
 subject, and every commit on the branch lands on main too. One imperative line
-each, reading on its own in `git log --oneline`.
+each, reading on its own in `git log --oneline`. The title also takes a
+Conventional Commits type prefix — `feat: Add a login-code expiry check`,
+`docs: …`, `fix(portal): …`, `!` before the colon for a breaking change — and
+the commit subjects on the branch do not.
 
 CONTRIBUTING.md has the full guidance. The short version: one concern per PR,
 tests for behavioral changes, and documentation updated alongside the code.

@@ -139,6 +139,18 @@ attribution is noise in a history that anyone can read.
 - **The pull request title becomes the merge commit subject.** It is what the
   history shows for the change as a whole, so write it as one imperative line
   that reads without the branch under it.
+- **The title carries a [Conventional Commits](https://www.conventionalcommits.org/)
+  type prefix**, so `main`'s merge commits classify themselves at a glance:
+  `feat: Add the black-box worker trial adapter`, `docs: Document AI-first
+  contribution practices`, `fix: Derive the Compose stack's cors_origin from its
+  Portal port`. The types are `feat`, `fix`, `docs`, `refactor`, `perf`, `test`,
+  `build`, `ci`, `chore`, and `revert`. Add a scope when it narrows the title
+  usefully — `feat(portal): …` — and a `!` before the colon when the change
+  breaks existing public behavior — `refactor(server)!: …`.
+- **The prefix is on the title only.** Commit subjects on the branch stay bare
+  imperative lines, and nothing parses the prefix: changelog entries are
+  hand-written files under `docs/changelog/`, and the release version is chosen,
+  not derived. The prefix is a label for readers of `git log --oneline`.
 - Keep the branch to **one coherent change**. The merge commit is what a revert
   targets, so a pull request that does three unrelated things cannot have one of
   them backed out later. Two changes, two pull requests.
