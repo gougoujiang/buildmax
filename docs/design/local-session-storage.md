@@ -946,6 +946,16 @@ Implementation is incomplete until tests establish:
   outcome, or `outcome_unknown` as specified;
 - parallel tool completion preserves committed history order and call IDs;
 - rewind selects an earlier head without deleting the abandoned branch;
+- rewind reports the tool calls on the span it moved past, including one left
+  in flight by an interruption, and reports nothing for a conversation-only
+  span;
+- rewind re-reduces rather than unwinding: durable state written on the
+  abandoned branch is gone from the resumed session, and a turn appended after
+  a rewind extends the chosen branch;
+- a rewind survives reopening — the resumed session is the branch that was
+  chosen, not the one last in the file;
+- only `head_selected` may name a parent other than the current head, and only
+  one this session already holds;
 - fork copies exactly the selected stable prefix and survives parent deletion;
 - compaction summaries never cross a branch they did not summarize;
 - resuming under a different protocol drops provider state whose tag does not
@@ -1044,7 +1054,8 @@ than continue against state the next turn will not find.
 ### Phase 2: Rewind and physical-copy fork
 
 - Add conversation rewind: the operation and the surfaces that offer it,
-  including what it reports as *not* undone (§8.2).
+  including what it reports as *not* undone (§8.2). The operation and its
+  report have landed; the surfaces have not.
 - Add independent child-session fork.
 - Define artifact copy/retention rules for fork and deletion.
 

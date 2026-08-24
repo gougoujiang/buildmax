@@ -81,6 +81,39 @@ func (s *SessionManager) Open(id, defaultModel string) (*SessionContext, error) 
 	return newWriterContext(w, defaultModel), nil
 }
 
+// RewindPoints lists the messages in an open session a rewind could return to,
+// newest last, paired with the journal item id a caller passes to Rewind.
+//
+// Only user and assistant messages are offered. A tool result is a message the
+// model sees, but "go back to the output of that command" is not a place a
+// person thinks of returning to, and offering it would put entries in the list
+// that only make sense to the machine.
+func RewindPoints(sess *SessionContext) []RewindPoint {
+	if sess == nil {
+		return nil
+	}
+	msgs, ids := sess.Messages(), sess.MessageIDs()
+	out := make([]RewindPoint, 0, len(msgs))
+	for i, m := range msgs {
+		if i >= len(ids) || (m.Role != "user" && m.Role != "assistant") {
+			continue
+		}
+		out = append(out, RewindPoint{ItemID: ids[i], Role: m.Role, Content: m.Content, Source: m.Source})
+	}
+	return out
+}
+
+// RewindPoint is one place a session can be rewound to.
+type RewindPoint struct {
+	ItemID  string
+	Role    string
+	Content string
+	// Source is non-empty when a user-role message was a background event
+	// rather than something the person typed, which a picker should not
+	// present as their own words.
+	Source string
+}
+
 // List returns the picker projection: user-visible sessions only.
 func (s *SessionManager) List() ([]session.ItemSummary, error) {
 	return s.store.List(context.Background(), false)

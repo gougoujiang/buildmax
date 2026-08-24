@@ -29,6 +29,12 @@ type SessionContext struct {
 	meta  session.Meta
 	state session.State
 
+	// items is every record this session has, in physical order — what was on
+	// disk when it opened plus what has been committed since. It is kept
+	// because a rewind has to re-derive the read model from a different branch,
+	// and the reduced state alone cannot say what is on the branch it moves to.
+	items []session.Item
+
 	// messageIDs holds the journal item id behind each entry in state.Messages,
 	// so a compaction counted in messages can name the item it covers. The two
 	// slices are appended to together and are always the same length.
@@ -63,11 +69,19 @@ func newWriterContext(w session.Writer, defaultModel string) *SessionContext {
 	if loaded.Meta.SelectedModel != "" {
 		s.selectedModel = loaded.Meta.SelectedModel
 	}
+	s.items = loaded.Items
 	for _, it := range loaded.Items {
 		s.lastSeq = it.Seq
-		switch it.Payload.(type) {
-		case session.MessageItem, session.ToolResult:
-			s.messageIDs = append(s.messageIDs, it.ID)
+	}
+	// Ids for the reduced messages come from the branch, not from every record
+	// on disk: an abandoned branch's messages are not in state.Messages, so
+	// counting them here would put the two slices out of step.
+	if branch, err := session.Branch(loaded.Items, loaded.Head); err == nil {
+		for _, it := range branch {
+			switch it.Payload.(type) {
+			case session.MessageItem, session.ToolResult:
+				s.messageIDs = append(s.messageIDs, it.ID)
+			}
 		}
 	}
 	return s
@@ -140,6 +154,10 @@ func (s *SessionContext) HistoryMessages() []llm.Message { return s.state.Histor
 // Messages returns the whole branch, compacted prefix included, for callers
 // that summarise a session rather than send it to a model.
 func (s *SessionContext) Messages() []llm.Message { return s.state.Messages }
+
+// MessageIDs are the journal item ids behind Messages, positionally aligned, so
+// a caller offering a rewind can name the item a message came from.
+func (s *SessionContext) MessageIDs() []string { return s.messageIDs }
 
 // Append commits one message and returns only once it is durable.
 func (s *SessionContext) Append(m llm.Message) error {
@@ -284,6 +302,63 @@ func (s *SessionContext) SetWorkspace(dir string) {
 	s.meta.UpdatedAt = time.Now().UTC()
 }
 
+// Rewind moves the conversation back to targetID and reports what it left in
+// place.
+//
+// The report is not optional decoration. Rewind returns the model's history to
+// an earlier point and does not touch files, processes, or anything a network
+// call reached (§8.1), so a caller that does not show the result is telling the
+// user the opposite of what happened — and leaving the model to reason from a
+// workspace picture that is no longer true. It is returned rather than logged
+// for that reason: a caller has to receive it to ignore it.
+//
+// The report is computed before the append, because afterwards the branch it
+// describes is no longer the live one.
+func (s *SessionContext) Rewind(targetID string) (session.AbandonedWork, error) {
+	if s.writer == nil {
+		return session.AbandonedWork{}, fmt.Errorf("rewind: session is not persisted")
+	}
+	abandoned, err := session.Abandoned(s.items, s.head, targetID)
+	if err != nil {
+		return session.AbandonedWork{}, err
+	}
+	// The head_selected record chains to the target, which is what redirects
+	// the branch; the head stays "the last physical record" either way.
+	if err := s.commitTo(targetID, session.HeadSelected{Reason: "user_rewind"}); err != nil {
+		return session.AbandonedWork{}, err
+	}
+	if err := s.reduceFromHead(); err != nil {
+		return session.AbandonedWork{}, err
+	}
+	return abandoned, nil
+}
+
+// reduceFromHead rebuilds the read model from the branch the head now names.
+//
+// It re-reduces rather than unwinding what changed. Unwinding would need a
+// second implementation of every rule the reducer already has — compaction
+// boundaries, replaced note lists, the additional prompt — and the two would
+// drift. Replaying is the same code path a fresh open takes.
+func (s *SessionContext) reduceFromHead() error {
+	state, err := session.Reduce(s.items, s.head)
+	if err != nil {
+		return err
+	}
+	branch, err := session.Branch(s.items, s.head)
+	if err != nil {
+		return err
+	}
+	ids := make([]string, 0, len(state.Messages))
+	for _, it := range branch {
+		switch it.Payload.(type) {
+		case session.MessageItem, session.ToolResult:
+			ids = append(ids, it.ID)
+		}
+	}
+	s.state, s.messageIDs = state, ids
+	return nil
+}
+
 // Snapshot is the live session as a Loaded value, for callers that summarise
 // it. It reads the in-memory state rather than the file: a turn commits as it
 // runs, but metadata lands at the end, so re-reading the bundle mid-turn would
@@ -334,6 +409,23 @@ func (s *SessionContext) commitItem(payload session.Payload) (string, error) {
 	return ids[0], nil
 }
 
+// commitTo appends one payload chained to an explicit parent rather than to the
+// current head. Only a rewind needs it: every other record continues the branch
+// it is already on.
+func (s *SessionContext) commitTo(parent string, payload session.Payload) error {
+	if s.writer == nil {
+		return nil
+	}
+	seq := s.lastSeq + 1
+	item := session.NewItem(seq, session.NewID(), parent, time.Now(), s.turnID, payload)
+	if err := s.writer.Append(context.Background(), item); err != nil {
+		return err
+	}
+	s.items = append(s.items, item)
+	s.head, s.lastSeq = item.ID, seq
+	return nil
+}
+
 func (s *SessionContext) commitAll(payloads ...session.Payload) ([]string, error) {
 	if len(payloads) == 0 {
 		return nil, nil
@@ -354,6 +446,7 @@ func (s *SessionContext) commitAll(payloads ...session.Payload) ([]string, error
 	if err := s.writer.Append(context.Background(), items...); err != nil {
 		return nil, err
 	}
+	s.items = append(s.items, items...)
 	s.head, s.lastSeq = parent, seq
 	return ids, nil
 }

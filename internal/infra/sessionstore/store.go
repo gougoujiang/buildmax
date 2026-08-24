@@ -369,7 +369,16 @@ func (w *fileWriter) Append(ctx context.Context, items ...session.Item) error {
 			return fmt.Errorf("append: item %d (%s) has seq %d, want %d", i, it.ID, it.Seq, seq)
 		}
 		if it.ParentID != parent {
-			return fmt.Errorf("append: item %d (%s) has parent %q, want %q", i, it.ID, it.ParentID, parent)
+			// One record type is allowed to point somewhere else: head_selected
+			// is how a rewind redirects the branch. Recognising it by type
+			// rather than by a flag the caller passes keeps the guard strict
+			// for everything else, and means a caller cannot opt out of it.
+			if _, ok := it.Payload.(session.HeadSelected); !ok {
+				return fmt.Errorf("append: item %d (%s) has parent %q, want %q", i, it.ID, it.ParentID, parent)
+			}
+			if !w.knows(it.ParentID) {
+				return fmt.Errorf("append: rewind item %s names parent %q, which this session does not hold", it.ID, it.ParentID)
+			}
 		}
 		parent = it.ID
 	}
@@ -380,6 +389,18 @@ func (w *fileWriter) Append(ctx context.Context, items ...session.Item) error {
 	w.loaded.Items = append(w.loaded.Items, items...)
 	w.loaded.Head = parent
 	return nil
+}
+
+// knows reports whether this session already holds an item with that id — the
+// check a rewind target has to pass, since a branch can only be redirected to
+// somewhere the journal actually goes.
+func (w *fileWriter) knows(id string) bool {
+	for _, it := range w.loaded.Items {
+		if it.ID == id {
+			return true
+		}
+	}
+	return false
 }
 
 func (w *fileWriter) Close() error {
