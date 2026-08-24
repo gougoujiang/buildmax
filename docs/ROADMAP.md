@@ -344,12 +344,17 @@ recovers. The immediate work is therefore evidence-first.
    contained rather than what permits them; see
    [design/plugin-team-distribution.md](design/plugin-team-distribution.md) §9.
    None of it hides steps 1–3 behind it.
-5. **Choose one post-Beta product bet from evidence.** The lowest-risk candidate
-   is the local Issue work bridge. Durable Agent Sessions require a decision on
-   local session storage, privacy, retention, and synchronization first. Session
-   trees/mailboxes additionally require a workspace/change-set ownership design.
-   SSO and the executable half of team plugin distribution remain post-Beta
-   unless a deployment partner supplies the evidence to reprioritize them.
+5. **Choose one product bet from evidence.** The lowest-risk candidate is the
+   local Issue work bridge. Durable Agent Sessions needed a decision on local
+   session storage, privacy, retention, and synchronization first;
+   [design/local-session-storage.md](design/local-session-storage.md) settles
+   local storage and the privacy of what it holds, and its phase 0 has landed.
+   Retention and synchronization are still open — that record leaves subagent
+   bundle retention as a question and puts Server synchronization outside its
+   scope. Session trees/mailboxes additionally require a workspace/change-set
+   ownership design. SSO and the executable half of team plugin distribution
+   stay behind the steps above unless a deployment partner supplies the
+   evidence to reprioritize them.
 
 ## Avoid For Now
 
