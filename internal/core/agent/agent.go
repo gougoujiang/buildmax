@@ -566,17 +566,19 @@ func executeToolCalls(ctx context.Context, opts RunLoopOpts, toolCalls []llm.Too
 		for i := range group {
 			gateCall(ctx, opts, policy, guard, &group[i])
 		}
+		// Between gate and run: the approved calls are recorded as about to
+		// cross into their tools, and that record is durable before any of them
+		// does. A failure here stops the turn rather than running a tool whose
+		// outcome could not be classified afterwards.
+		if err := recordToolBoundary(opts, group); err != nil {
+			return count, err
+		}
 		runGroup(ctx, opts, group)
 		for i := range group {
 			c := &group[i]
 			firePostHook(ctx, opts, c)
 			logToolResult(c.call.Name, c.result)
-			if err := opts.History.Append(llm.Message{
-				Role:       "tool",
-				Content:    c.result,
-				ToolCallID: c.call.ID,
-				Parts:      c.parts,
-			}); err != nil {
+			if err := appendToolOutcome(opts, c); err != nil {
 				return count, err
 			}
 			count++

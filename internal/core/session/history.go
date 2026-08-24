@@ -40,10 +40,16 @@ const (
 // call may already have changed the world, and saying so is the only honest
 // answer available.
 const (
-	ToolStatusCompleted = "completed"
-	ToolStatusFailed    = "failed"
-	ToolStatusDenied    = "denied"
-	ToolStatusUnknown   = "unknown"
+	// The first three are aliases rather than fresh literals: the agent loop
+	// classifies a finished call and this package writes that classification
+	// down, so one definition keeps the file format and the loop from drifting.
+	ToolStatusCompleted = agent.ToolStatusCompleted
+	ToolStatusFailed    = agent.ToolStatusFailed
+	ToolStatusDenied    = agent.ToolStatusDenied
+	// ToolStatusUnknown has no counterpart in the loop because the loop never
+	// produces it: it is written by recovery, for a call the loop did not live
+	// long enough to classify.
+	ToolStatusUnknown = "unknown"
 )
 
 // Terminal turn statuses. Canceled and interrupted are separate because they are
