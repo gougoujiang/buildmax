@@ -311,6 +311,11 @@ review comments on a first contribution:
 
 The rest:
 
+- **The title takes a type prefix.** Since it becomes the merge commit subject,
+  write it as a [Conventional Commits](https://www.conventionalcommits.org/)
+  type and then the same imperative line — `feat: Add a login-code expiry
+  check`, `docs: …`, `fix(portal): …`, or `!` before the colon for a change that
+  breaks existing public behavior. Only the title; commit subjects stay bare.
 - No `Co-Authored-By` or `Claude-Session` trailers, and no "Generated with …"
   footer or assistant session link in the description. The reasoning is in
   [conventions.md](docs/contribute/conventions.md#commit-messages-and-pull-requests).

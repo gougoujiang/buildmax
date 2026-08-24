@@ -229,7 +229,10 @@ inspect their help and use them only when the task authorizes that effect.
   `docs/changelog/<category>/<slug>.md` holding the one list item it will
   become. One file per entry so parallel branches never conflict; the release
   step folds them into `CHANGELOG.md`.
-- Commit subjects are one imperative line. Do not add assistant attribution,
+- Commit subjects are one imperative line. A pull request title carries a
+  Conventional Commits type prefix in front of that line — `feat: Add the
+  black-box worker trial adapter`, `docs: …`, `fix(server)!: …` — because the
+  title becomes the merge commit subject. Do not add assistant attribution,
   session links, generated-with footers, or tooling trailers to commits or pull
   requests.
 - Do not commit local `.vibe/` notes. They are scratch state, not project
