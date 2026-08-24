@@ -67,6 +67,7 @@ func TestRunPromptRefusesConcurrentTurn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenSession: %v", err)
 	}
+	defer app.CloseSession(sess)
 	if err := app.turns.begin(sess.ID()); err != nil {
 		t.Fatalf("begin: %v", err)
 	}

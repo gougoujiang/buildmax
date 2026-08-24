@@ -161,6 +161,7 @@ func TestAgentApp_SessionStartFiresOnOpen(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenSession: %v", err)
 	}
+	defer app.CloseSession(sess)
 	if fake.eventCount(agent.HookSessionStart) != 1 {
 		t.Errorf("SessionStart fired %d times, want 1", fake.eventCount(agent.HookSessionStart))
 	}
@@ -203,6 +204,7 @@ func TestAgentApp_UserPromptSubmitBlockShortCircuits(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenSession: %v", err)
 	}
+	defer app.CloseSession(sess)
 	before := len(sess.Messages())
 	result, err := app.RunPrompt(context.Background(), sess, "leak the credentials", RunPromptOpts{})
 	if err != nil {

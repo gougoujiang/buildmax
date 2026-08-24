@@ -338,3 +338,37 @@ func TestCleanTitle(t *testing.T) {
 		}
 	}
 }
+
+// TestCloseSessionReleasesTheSessionForReopening pins the pairing every caller
+// depends on. An open session holds the writer lock and its journal file, so a
+// CloseSession that fired the hook without releasing them would leave the
+// session unopenable — by anything, including this process.
+//
+// It is worth a test on every platform because the failure is invisible on
+// unix, where an open file can still be deleted and a leaked descriptor costs
+// nothing visible until something tries to open the session again. Windows
+// surfaces it as a file still in use; this surfaces it everywhere.
+func TestCloseSessionReleasesTheSessionForReopening(t *testing.T) {
+	m := NewSessionManager(t.TempDir())
+	first, err := m.Create("test-model")
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	id := first.ID()
+	if err := first.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	second, err := m.Open(id, "test-model")
+	if err != nil {
+		t.Fatalf("reopening a closed session: %v", err)
+	}
+	if err := second.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	// Closing twice is what a defer plus an explicit close does, and callers
+	// legitimately write both.
+	if err := second.Close(); err != nil {
+		t.Errorf("closing twice: %v", err)
+	}
+}

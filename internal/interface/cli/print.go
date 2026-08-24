@@ -89,6 +89,7 @@ func runPrintMode(opts printOptions) error {
 	if err != nil {
 		return printFatal(opts.Format, ExitModelError, err)
 	}
+	defer app.CloseSession(sess)
 	if opts.ModelName != "" {
 		sess.SetModel(opts.ModelName)
 	}

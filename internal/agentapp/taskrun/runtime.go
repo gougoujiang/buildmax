@@ -479,6 +479,10 @@ func runAgentTask(ctx context.Context, run *model.TaskRun, runDir, runGlobalDir,
 		if err != nil {
 			return err
 		}
+		// Released before the run's global directory is uploaded: the journal
+		// has to be closed and its lock dropped before anything reads the
+		// bundle back off disk.
+		defer app.CloseSession(sess)
 		out, err = app.RunPrompt(ctx, sess, run.Input, agentapp.RunPromptOpts{Stream: sink})
 		return err
 	})

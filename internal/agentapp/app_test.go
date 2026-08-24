@@ -116,6 +116,7 @@ func TestOpenOrCreateSessionUsesAssignedID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer app.CloseSession(sess)
 	if sess.ID() != assignedID {
 		t.Fatalf("session ID = %q, want %q", sess.ID(), assignedID)
 	}
@@ -128,7 +129,7 @@ func TestOpenOrCreateSessionUsesAssignedID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _ = reloaded.Close() }()
+	defer app.CloseSession(reloaded)
 	if reloaded.ID() != assignedID {
 		t.Fatalf("reloaded session ID = %q, want %q", reloaded.ID(), assignedID)
 	}

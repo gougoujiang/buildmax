@@ -97,6 +97,7 @@ func TestAgentApp_RunPromptWritesTrace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenSession: %v", err)
 	}
+	defer app.CloseSession(sess)
 	result, err := app.RunPrompt(context.Background(), sess, "leak the credentials", RunPromptOpts{})
 	if err != nil {
 		t.Fatalf("RunPrompt: %v", err)
@@ -169,6 +170,7 @@ func TestAgentApp_RunPromptTraceDisabled(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenSession: %v", err)
 	}
+	defer app.CloseSession(sess)
 	result, err := app.RunPrompt(context.Background(), sess, "leak the credentials", RunPromptOpts{})
 	if err != nil {
 		t.Fatalf("RunPrompt: %v", err)
@@ -191,6 +193,7 @@ func TestAgentApp_RunPromptTraceFailureIsFailOpen(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenSession: %v", err)
 	}
+	defer app.CloseSession(sess)
 	// Occupy the session's traces path with a regular file so MkdirAll must
 	// fail. It has to be seeded after the session exists, because the path now
 	// lives inside the session's own bundle.
@@ -229,6 +232,7 @@ func TestAgentApp_SubagentTraceLinksToImmediateParent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenSession: %v", err)
 	}
+	defer app.CloseSession(sess)
 	result, err := app.RunPrompt(context.Background(), sess, "delegate this", RunPromptOpts{})
 	if err != nil {
 		t.Fatalf("RunPrompt: %v", err)

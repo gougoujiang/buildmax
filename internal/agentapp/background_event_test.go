@@ -54,6 +54,7 @@ func TestRunBackgroundEventSkipsUserPromptHook(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenSession: %v", err)
 	}
+	defer app.CloseSession(sess)
 	result, err := app.RunBackgroundEvent(context.Background(), sess, BackgroundEvent{
 		Source:  llm.MessageSourceCommandResult,
 		JobID:   "jb_done",
@@ -90,6 +91,7 @@ func TestRunBackgroundEventSerialized(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenSession: %v", err)
 	}
+	defer app.CloseSession(sess)
 	if err := app.turns.begin(sess.ID()); err != nil {
 		t.Fatal(err)
 	}

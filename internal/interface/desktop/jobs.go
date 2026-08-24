@@ -164,6 +164,16 @@ func (a *App) DeliverNextJobEvent(projectID, sessionID string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("open session: %w", err)
 	}
+	// An open session holds the writer lock, and several checks below can
+	// decline the delivery. Ownership passes to the run goroutine only once
+	// there is one; until then this releases it however the function leaves,
+	// including through a check added later.
+	handOver := false
+	defer func() {
+		if !handOver {
+			ag.CloseSession(sess)
+		}
+	}()
 
 	a.mu.Lock()
 	// Re-check under the lock, and pop only once the run slot is ours.
@@ -197,12 +207,14 @@ func (a *App) DeliverNextJobEvent(projectID, sessionID string) (bool, error) {
 		Source:    ev.Source,
 		Title:     ev.Title,
 	})
+	handOver = true
 	go func() {
 		defer func() {
 			a.mu.Lock()
 			delete(a.runCancels, projectID)
 			a.mu.Unlock()
 			cancel()
+			ag.CloseSession(sess)
 		}()
 		out, err := ag.RunBackgroundEvent(runCtx, sess, ev, agentapp.RunPromptOpts{
 			Stream:    sink,

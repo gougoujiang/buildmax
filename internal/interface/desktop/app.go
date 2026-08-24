@@ -438,9 +438,11 @@ func (a *App) GetRunStatus(projectID, sessionID string) (RunStatusPayload, error
 	if err != nil {
 		return RunStatusPayload{}, err
 	}
-	sess, err := ag.OpenSession(sessionID)
+	// Read-only: a status view has to work while a turn holds the session, so
+	// it must not be the thing that takes the writer lock.
+	sess, err := ag.ReadSession(sessionID)
 	if err != nil {
-		return RunStatusPayload{}, fmt.Errorf("open session: %w", err)
+		return RunStatusPayload{}, fmt.Errorf("read session: %w", err)
 	}
 	st, err := ag.EstimateRunStatus(sess)
 	if err != nil {
@@ -728,6 +730,16 @@ func (a *App) SendMessageStream(projectID, sessionID, prompt string) (int, error
 	if err != nil {
 		return 0, fmt.Errorf("open session: %w", err)
 	}
+	// An open session holds the writer lock, and the re-check below can decide
+	// to queue this prompt instead of running it. Ownership passes to the run
+	// goroutine only once there is one; until then this releases it however
+	// the function leaves, including through a check added later.
+	handOver := false
+	defer func() {
+		if !handOver {
+			ag.CloseSession(sess)
+		}
+	}()
 	a.mu.Lock()
 	// Re-check under the lock: the run this prompt raced with may have started
 	// between the read above and here.
@@ -743,12 +755,17 @@ func (a *App) SendMessageStream(projectID, sessionID, prompt string) (int, error
 	queue := a.queueForProject(projectID)
 	sink := &desktopStreamSink{ctx: ctx, emit: a.emit}
 	evSink := desktopEventSink(a.emit, ctx, queue)
+	handOver = true
 	go func() {
 		defer func() {
 			a.mu.Lock()
 			delete(a.runCancels, projectID)
 			a.mu.Unlock()
 			cancel()
+			// The run owns the session for its whole life, queued prompts
+			// included, and releases it here. Leaving it open would hold the
+			// writer lock for the lifetime of the window.
+			ag.CloseSession(sess)
 		}()
 		// One turn per iteration. Most queued prompts never reach this loop — the
 		// run itself drains them at its next iteration boundary (RunPromptOpts.Pending).

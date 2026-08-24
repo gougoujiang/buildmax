@@ -147,6 +147,7 @@ func TestRunPrompt_SendsAdditionalSystemPrompt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenSession: %v", err)
 	}
+	defer app.CloseSession(sess)
 	if _, err := app.RunPrompt(context.Background(), sess, "what is 1+1", RunPromptOpts{}); err != nil {
 		t.Fatalf("RunPrompt: %v", err)
 	}
@@ -175,6 +176,7 @@ func TestRunPrompt_RecordsWhatItRanUnder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenSession: %v", err)
 	}
+	defer app.CloseSession(sess)
 	if _, err := app.RunPrompt(context.Background(), sess, "what is 1+1", RunPromptOpts{}); err != nil {
 		t.Fatalf("RunPrompt: %v", err)
 	}

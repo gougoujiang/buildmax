@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gougoujiang/buildmax/internal/core/subagent"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -758,14 +759,41 @@ func (a *AgentApp) OpenOrCreateSession(sessionID string) (*SessionContext, error
 	return sess, nil
 }
 
-// CloseSession fires the SessionEnd hook for a finished session. Sessions
-// persist on disk; this is the explicit signal for hooks/audit that the
-// caller is done with that session. Safe to call with a nil session.
+// CloseSession releases a finished session and fires the SessionEnd hook.
+//
+// Every OpenSession must be paired with one of these. An open session holds the
+// writer lock and its journal file, so leaving one open keeps the session
+// unopenable by anything else — including this process, which is how a second
+// open of the same id fails rather than waits. Safe to call with a nil session,
+// and safe to call twice.
 func (a *AgentApp) CloseSession(sess *SessionContext) {
 	if a == nil || sess == nil {
 		return
 	}
 	a.fireSessionLifecycle(agent.HookSessionEnd, sess, nil)
+	// The hook runs first so it still sees a session it can read; closing only
+	// releases the lock and the file, not the in-memory state.
+	if err := sess.Close(); err != nil {
+		slog.Warn("closing the session failed", "session_id", sess.ID(), "err", err)
+	}
+}
+
+// ReadSession loads a session without taking its writer lock, for callers that
+// only display it.
+//
+// A status view must work while a turn is running, so it cannot be the thing
+// that takes the lock. The result cannot be written to: it is a read model, and
+// its commit paths are no-ops, which is why it is a different call rather than
+// a flag on OpenSession.
+func (a *AgentApp) ReadSession(sessionID string) (*SessionContext, error) {
+	if a == nil || a.sessionManager == nil {
+		return nil, fmt.Errorf("session store is not initialized")
+	}
+	loaded, err := a.sessionManager.Load(sessionID, session.LoadFull)
+	if err != nil {
+		return nil, err
+	}
+	return newReadOnlyContext(loaded, a.DefaultModelName()), nil
 }
 
 func (a *AgentApp) fireSessionLifecycle(event agent.HookEvent, sess *SessionContext, stats *agent.RunStats) {

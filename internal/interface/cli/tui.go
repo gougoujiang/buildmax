@@ -61,6 +61,10 @@ func runTUI(resumeID, modelName, additionalSystemPrompt, workspace string) error
 	if err != nil {
 		return err
 	}
+	// Held for the life of the TUI, which is the session's whole visible life,
+	// and released here so the process does not leave the lock behind on the
+	// paths that return before exit.
+	defer app.CloseSession(sess)
 	if modelName != "" {
 		sess.SetModel(modelName)
 	}

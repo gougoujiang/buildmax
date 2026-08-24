@@ -56,6 +56,26 @@ func NewSessionContext(defaultModel string) *SessionContext {
 	}
 }
 
+// newReadOnlyContext wraps a loaded session that holds no writer.
+//
+// Its commit paths are no-ops, so anything that would change resumable state
+// silently does nothing — which is why callers that intend to write must use
+// the writer path instead. It exists for the read-only views that must keep
+// working while a turn holds the session.
+func newReadOnlyContext(loaded session.Loaded, defaultModel string) *SessionContext {
+	s := &SessionContext{
+		meta:          loaded.Meta,
+		state:         loaded.State,
+		items:         loaded.Items,
+		head:          loaded.Head,
+		selectedModel: defaultModel,
+	}
+	if loaded.Meta.SelectedModel != "" {
+		s.selectedModel = loaded.Meta.SelectedModel
+	}
+	return s
+}
+
 // newWriterContext wraps an open writer and the branch it found.
 func newWriterContext(w session.Writer, defaultModel string) *SessionContext {
 	loaded := w.Loaded()
