@@ -192,6 +192,7 @@ Typed into the input line:
 |---|---|
 | `/model` | Model picker (from `settings.yaml`) |
 | `/rewind` | Move the conversation back to an earlier message |
+| `/fork` | Branch a new session off an earlier message |
 | `/sessions` | Session picker |
 | `/tools` | Tools available this run |
 | `/skills` | Discovered skills |

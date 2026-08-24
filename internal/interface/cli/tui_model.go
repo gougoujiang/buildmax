@@ -140,7 +140,7 @@ type Model struct {
 	slashModel      *slashModelState
 	slashSkills     *slashSkillsState
 	slashSession    *slashSessionState
-	slashRewind     *slashRewindState
+	slashHistory    *slashHistoryPointState
 	slashDiff       *slashDiffState
 	slashPopup      *slashPopupState
 	// slashPopupInput is the input text the popup was last built from, and

@@ -23,7 +23,11 @@ func rewindModel(t *testing.T) (*Model, *agentapp.SessionContext) {
 	home := t.TempDir()
 	t.Setenv(config.EnvKeyBuildmaxHome, home)
 
-	m := agentapp.NewSessionManager(t.TempDir())
+	// One sessions root for both, which is what a real TUI has: the fork panel
+	// creates the child through the directory in TUIOpts, and a child written
+	// somewhere the parent does not live would not be a fork of anything.
+	sessionsDir := t.TempDir()
+	m := agentapp.NewSessionManager(sessionsDir)
 	sess, err := m.Create("test-model")
 	if err != nil {
 		t.Fatalf("Create: %v", err)
@@ -55,19 +59,29 @@ func rewindModel(t *testing.T) (*Model, *agentapp.SessionContext) {
 	appendMsg(llm.Message{Role: "user", Content: "thanks"})
 	appendMsg(llm.Message{Role: "assistant", Content: "you are welcome"})
 
-	model := NewModel(TUIOpts{Session: sess, Workspace: t.TempDir(), SessionsDir: t.TempDir()})
+	model := NewModel(TUIOpts{Session: sess, Workspace: t.TempDir(), SessionsDir: sessionsDir})
 	sized, _ := model.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	return sized.(*Model), sess
 }
 
 func openRewindPanel(t *testing.T, m *Model) *Model {
 	t.Helper()
-	m.inputBlock.SetValue("/rewind")
+	return openHistoryPanelFor(t, m, "/rewind")
+}
+
+func openForkPanel(t *testing.T, m *Model) *Model {
+	t.Helper()
+	return openHistoryPanelFor(t, m, "/fork")
+}
+
+func openHistoryPanelFor(t *testing.T, m *Model, command string) *Model {
+	t.Helper()
+	m.inputBlock.SetValue(command)
 	m.inputBlock.SyncHeight()
 	next, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	after := next.(*Model)
-	if after.slashRewind == nil {
-		t.Fatal("expected the rewind panel to open")
+	if after.slashHistory == nil {
+		t.Fatal("expected the " + command + " panel to open")
 	}
 	return after
 }
@@ -76,7 +90,7 @@ func TestSlashRewindListsPointsNewestFirstWithoutTheHead(t *testing.T) {
 	m, _ := rewindModel(t)
 	after := openRewindPanel(t, m)
 
-	p := after.slashRewind
+	p := after.slashHistory
 	if p.LoadError != "" || p.Empty {
 		t.Fatalf("unexpected panel state: %+v", p)
 	}
@@ -99,7 +113,7 @@ func TestSlashRewindPreviewNamesWhatWouldBeLeftBehind(t *testing.T) {
 
 	// The top row rewinds only past the closing reply, which ran nothing, so
 	// the panel should say so rather than warn about nothing.
-	if got := previewLine(after.slashRewind); !strings.Contains(got, "nothing outside the conversation") {
+	if got := consequenceLine(after.slashHistory); !strings.Contains(got, "nothing outside the conversation") {
 		t.Errorf("preview at the newest point = %q, want nothing left over", got)
 	}
 
@@ -107,10 +121,10 @@ func TestSlashRewindPreviewNamesWhatWouldBeLeftBehind(t *testing.T) {
 	// it — before the user commits, which is the whole point of showing this.
 	cur := after
 	var crossed string
-	for range len(after.slashRewind.Points) - 1 {
+	for range len(after.slashHistory.Points) - 1 {
 		next, _ := cur.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 		cur = next.(*Model)
-		if got := previewLine(cur.slashRewind); strings.Contains(got, "Write") {
+		if got := consequenceLine(cur.slashHistory); strings.Contains(got, "Write") {
 			crossed = got
 			break
 		}
@@ -126,14 +140,14 @@ func TestSlashRewindEnterRewindsTheSession(t *testing.T) {
 
 	// Walk to the oldest point, then commit.
 	cur := after
-	for range len(after.slashRewind.Points) - 1 {
+	for range len(after.slashHistory.Points) - 1 {
 		next, _ := cur.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 		cur = next.(*Model)
 	}
 	next, _ := cur.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	done := next.(*Model)
 
-	if done.slashRewind != nil {
+	if done.slashHistory != nil {
 		t.Error("the panel stayed open after committing")
 	}
 	msgs := sess.Messages()
@@ -150,8 +164,8 @@ func TestSlashRewindWithNoSessionSaysSo(t *testing.T) {
 	m.inputBlock.SyncHeight()
 	next, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	after := next.(*Model)
-	if after.slashRewind == nil || after.slashRewind.LoadError == "" {
-		t.Fatalf("expected an error state, got %+v", after.slashRewind)
+	if after.slashHistory == nil || after.slashHistory.LoadError == "" {
+		t.Fatalf("expected an error state, got %+v", after.slashHistory)
 	}
 }
 
@@ -159,7 +173,7 @@ func TestRenderAbandonedTellsTheUserWhatSurvives(t *testing.T) {
 	m, _ := rewindModel(t)
 	after := openRewindPanel(t, m)
 	// The oldest point, which is far enough back to cross the Write.
-	oldest := after.slashRewind.Points[len(after.slashRewind.Points)-1]
+	oldest := after.slashHistory.Points[len(after.slashHistory.Points)-1]
 	abandoned, err := after.opts.Session.AbandonedBy(oldest.ItemID)
 	if err != nil {
 		t.Fatalf("AbandonedBy: %v", err)
@@ -172,5 +186,114 @@ func TestRenderAbandonedTellsTheUserWhatSurvives(t *testing.T) {
 	// The sentence that stops a user believing a rewind undid the run.
 	if !strings.Contains(got, "does not undo") {
 		t.Errorf("report = %q, want it to say what rewind does not do", got)
+	}
+}
+
+func TestSlashForkOffersTheCurrentHeadButRewindDoesNot(t *testing.T) {
+	m, _ := rewindModel(t)
+	rewind := openRewindPanel(t, m)
+	rewindPoints := len(rewind.slashHistory.Points)
+
+	m2, _ := rewindModel(t)
+	fork := openForkPanel(t, m2)
+
+	// Rewinding to where you already are is not a move, so the head is not
+	// offered. Forking from it is the common case — branch off from here.
+	if len(fork.slashHistory.Points) != rewindPoints+1 {
+		t.Fatalf("fork points = %d, rewind points = %d; want fork to offer one more",
+			len(fork.slashHistory.Points), rewindPoints)
+	}
+	if !strings.Contains(fork.slashHistory.Points[0].Content, "you are welcome") {
+		t.Errorf("fork's first row = %q, want the current head", fork.slashHistory.Points[0].Content)
+	}
+}
+
+func TestSlashForkConsequenceIsAboutTheNewSessionNotLoss(t *testing.T) {
+	m, _ := rewindModel(t)
+	fork := openForkPanel(t, m)
+
+	// From the head, nothing came after, so there is nothing the child will be
+	// missing.
+	if got := consequenceLine(fork.slashHistory); !strings.Contains(got, "copies this conversation") {
+		t.Errorf("consequence at the head = %q", got)
+	}
+
+	// Walking back past the Write changes what the line means: the parent still
+	// keeps everything, but the child will not know the file was written.
+	cur := fork
+	var crossed string
+	for range len(fork.slashHistory.Points) - 1 {
+		next, _ := cur.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+		cur = next.(*Model)
+		if got := consequenceLine(cur.slashHistory); strings.Contains(got, "Write") {
+			crossed = got
+			break
+		}
+	}
+	if crossed == "" {
+		t.Fatal("no fork point mentioned the Write")
+	}
+	if !strings.Contains(crossed, "will not know about") {
+		t.Errorf("fork consequence = %q, want it framed as what the new session misses", crossed)
+	}
+	// Forking loses nothing from the parent, so it must not talk about dropping.
+	if strings.Contains(crossed, "drops") {
+		t.Errorf("fork consequence = %q, but forking drops nothing from the parent", crossed)
+	}
+}
+
+func TestSlashForkSwitchesToTheNewSessionAndLeavesTheOldOne(t *testing.T) {
+	m, parent := rewindModel(t)
+	parentID := parent.ID()
+	fork := openForkPanel(t, m)
+
+	// Fork from the point before the closing reply.
+	next, _ := fork.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	cur := next.(*Model)
+	next, _ = cur.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	done := next.(*Model)
+
+	if done.slashHistory != nil {
+		t.Error("the panel stayed open after forking")
+	}
+	child := done.opts.Session
+	if child == nil || child.ID() == parentID {
+		t.Fatalf("the session did not switch to the fork: %v", child)
+	}
+	from := child.Meta().ForkedFrom
+	if from == nil || from.SessionID != parentID {
+		t.Errorf("forked_from = %+v, want the parent", from)
+	}
+	// The parent is closed, not deleted: reopening it must work and find its
+	// history untouched.
+	reopened, err := agentapp.NewSessionManager(done.opts.SessionsDir).Open(parentID, "test-model")
+	if err != nil {
+		t.Fatalf("reopening the parent after forking: %v", err)
+	}
+	defer func() { _ = reopened.Close() }()
+	if len(reopened.Messages()) != 8 {
+		t.Errorf("parent messages = %d, want its full history", len(reopened.Messages()))
+	}
+}
+
+func TestRenderForkedDoesNotWarnAboutLoss(t *testing.T) {
+	m, _ := rewindModel(t)
+	fork := openForkPanel(t, m)
+	oldest := fork.slashHistory.Points[len(fork.slashHistory.Points)-1]
+	affected, err := fork.opts.Session.AbandonedBy(oldest.ItemID)
+	if err != nil {
+		t.Fatalf("AbandonedBy: %v", err)
+	}
+
+	got := renderForked(affected)
+	if !strings.Contains(got, "unchanged") {
+		t.Errorf("report = %q, want it to say the original is unchanged", got)
+	}
+	if !strings.Contains(got, "Write") {
+		t.Errorf("report = %q, want the tool named", got)
+	}
+	// The rewind wording would be wrong here: nothing was undone or dropped.
+	if strings.Contains(got, "does not undo") {
+		t.Errorf("report = %q, want fork wording rather than rewind wording", got)
 	}
 }
