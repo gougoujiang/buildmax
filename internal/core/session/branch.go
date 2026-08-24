@@ -4,45 +4,76 @@ import (
 	"fmt"
 )
 
-// Validate checks a journal's items as a graph, in physical order.
+// Validator checks a journal's items as a graph, one at a time in physical
+// order.
+//
+// It is incremental rather than whole-slice so a caller reading a damaged file
+// knows exactly which record failed, and can therefore offer the prefix that
+// was still good instead of only reporting that something somewhere is wrong.
+type Validator struct {
+	seen  map[string]struct{}
+	roots int
+	count int
+}
+
+// NewValidator returns a Validator for one journal.
+func NewValidator() *Validator {
+	return &Validator{seen: make(map[string]struct{})}
+}
+
+// Add checks one item against everything already accepted.
 //
 // It rejects what would make a reduction wrong: a duplicate identity, a parent
-// that does not exist, more than one root, and a record this build cannot
+// that has not appeared, more than one root, and a record this build cannot
 // interpret but must. It does not check that seq numbers are contiguous — see
-// docs/design/local-session-storage.md §7.2 for why a gap is not treated as a
-// corruption signal.
-func Validate(items []Item) error {
-	seen := make(map[string]int, len(items))
-	roots := 0
-	for i, it := range items {
-		switch {
-		case it.ID == "":
-			return fmt.Errorf("%w: item at index %d has no id", ErrHistoryCorrupt, i)
-		case it.Payload == nil:
-			return fmt.Errorf("%w: item %s has no payload", ErrHistoryCorrupt, it.ID)
-		}
-		if _, dup := seen[it.ID]; dup {
-			return fmt.Errorf("%w: duplicate item id %s", ErrHistoryCorrupt, it.ID)
-		}
-		if u, ok := it.Payload.(UnknownPayload); ok && it.Required {
-			return fmt.Errorf("%w: %s at seq %d", ErrUnknownRequired, u.Kind, it.Seq)
-		}
-		if it.ParentID == "" {
-			roots++
-			if roots > 1 {
-				return fmt.Errorf("%w: item %s starts a second root", ErrHistoryCorrupt, it.ID)
-			}
-		} else if _, ok := seen[it.ParentID]; !ok {
-			// A parent must already have been written. Requiring it to appear
-			// earlier is what makes cycles impossible without walking for them.
-			return fmt.Errorf("%w: item %s names parent %s, which does not appear before it", ErrHistoryCorrupt, it.ID, it.ParentID)
-		}
-		seen[it.ID] = i
+// docs/design/local-session-storage.md §7.2 for why a gap is not a corruption
+// signal.
+func (v *Validator) Add(it Item) error {
+	switch {
+	case it.ID == "":
+		return fmt.Errorf("%w: item at index %d has no id", ErrHistoryCorrupt, v.count)
+	case it.Payload == nil:
+		return fmt.Errorf("%w: item %s has no payload", ErrHistoryCorrupt, it.ID)
 	}
-	if len(items) > 0 && roots == 0 {
+	if _, dup := v.seen[it.ID]; dup {
+		return fmt.Errorf("%w: duplicate item id %s", ErrHistoryCorrupt, it.ID)
+	}
+	if u, ok := it.Payload.(UnknownPayload); ok && it.Required {
+		return fmt.Errorf("%w: %s at seq %d", ErrUnknownRequired, u.Kind, it.Seq)
+	}
+	if it.ParentID == "" {
+		v.roots++
+		if v.roots > 1 {
+			return fmt.Errorf("%w: item %s starts a second root", ErrHistoryCorrupt, it.ID)
+		}
+	} else if _, ok := v.seen[it.ParentID]; !ok {
+		// A parent must already have been written. Requiring it to appear
+		// earlier is what makes cycles impossible without walking for them.
+		return fmt.Errorf("%w: item %s names parent %s, which does not appear before it", ErrHistoryCorrupt, it.ID, it.ParentID)
+	}
+	v.seen[it.ID] = struct{}{}
+	v.count++
+	return nil
+}
+
+// Done reports problems only a finished journal can show.
+func (v *Validator) Done() error {
+	if v.count > 0 && v.roots == 0 {
 		return fmt.Errorf("%w: no root item", ErrHistoryCorrupt)
 	}
 	return nil
+}
+
+// Validate checks a whole journal at once. It is Validator over a slice, for
+// callers that already hold every item.
+func Validate(items []Item) error {
+	v := NewValidator()
+	for _, it := range items {
+		if err := v.Add(it); err != nil {
+			return err
+		}
+	}
+	return v.Done()
 }
 
 // Head returns the id of the item the next append extends.
