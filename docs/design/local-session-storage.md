@@ -335,7 +335,7 @@ from the tail, not a second file that could disagree.
 | `additional_prompt_set` | Complete validated text | Replaces the durable additional system prompt |
 | `head_selected` | Target history item and reason | Selects the branch later records extend |
 | `checkpoint` | History head and state digest | Names a stable conversation restore point |
-| `turn_finished` | Terminal status and optional error classification | Closes the turn |
+| `turn_finished` | Terminal status — `completed`, `failed`, `canceled`, or `interrupted` — and optional error classification | Closes the turn |
 | `turn_recovered` | Interrupted turn and uncertain tool-call IDs | Makes cold recovery explicit before new work |
 
 `message` preserves the full portable `llm.Message`, not only text. An
@@ -433,15 +433,29 @@ may change the world. Its result reaches stable storage before another model
 request consumes it.
 
 The strength of that guarantee is exactly the strength of the sync beneath it,
-so the backend states which primitive it uses per platform. On macOS `fsync(2)`
-returns once the write reaches the drive's cache, not the platter; only
-`F_FULLFSYNC` waits for the device, and it costs tens of milliseconds. With a
-cache-only flush a `tool_execution_started` record can be lost after the tool
-already ran, and recovery would then classify as `not_started` work that
-changed the world. Process crash and power loss are different guarantees and
-this design does not conflate them: the classification in §7.3 is sound under
-process and machine crash with an honest sync, and degrades to best-effort
-under power loss on hardware that lies.
+and the primitive is `os.File.Sync`. The Go runtime already maps it to the
+strongest one each platform offers — `F_FULLFSYNC` on macOS, which waits for
+the device instead of returning at the drive's write cache, `fsync(2)` on Linux
+and the BSDs, `FlushFileBuffers` on Windows. Calling a platform primitive
+directly would reimplement that mapping without improving it.
+
+Process crash and power loss are different guarantees and this design does not
+conflate them. The §7.3 classification is sound under power loss wherever the
+platform's strongest primitive is honoured, and degrades to crash-only where it
+is not: macOS falls back to `fsync` when `F_FULLFSYNC` returns `ENOTSUP`, which
+some network and virtual filesystems do, and no software primitive survives a
+device that reports a flush it never performed. With a cache-only flush a
+`tool_execution_started` record can be lost after the tool already ran, and
+recovery would then classify as `not_started` work that changed the world. Both
+degradations belong to the filesystem underneath rather than to the protocol,
+and neither is silent: the fallback is observable where it happens.
+
+Directory entries are a separate question with a cheaper answer. Appending to
+an existing journal does not change its directory entry, so the hot path needs
+no directory sync at all. Creating a session directory does. Replacing
+`meta.json` deliberately does not: §4 already establishes that losing a
+metadata write degrades a current selection rather than recovery, so paying a
+directory sync every turn to protect it would buy the wrong thing.
 
 That choice is a latency budget as much as a correctness one. This protocol
 syncs at least five times per turn plus twice per approved tool call, so a turn
@@ -504,6 +518,39 @@ says so.
 
 The journal records the Agent's observed state. It cannot prove the filesystem,
 a shell process, an HTTP endpoint, or a remote database matches that state.
+
+### 7.4 Cancellation and shutdown
+
+A turn stops in one of two ways, and the axis that separates them is not what
+anyone intended but whether a process was alive to say so.
+
+While BuildMax is running it closes the turn itself. A person stopping the turn
+gets `turn_finished` with status `canceled`; a shutdown arriving mid-turn gets
+`interrupted`. Those are the two causes
+[`graceful-shutdown.md`](graceful-shutdown.md) already separates at the run
+level as `ErrRunCanceled` and `ErrRunInterrupted`, on reasoning that applies
+here unchanged: a stop the process knows about in advance lets the run say what
+happened instead of going silent and being declared abandoned later. The
+journal keeps the distinction for the same reason the Portal does — the two are
+not the same event and must not read the same.
+
+A closed turn is not an interrupted one. The next open sees `turn_finished`,
+appends no `turn_recovered`, and starts work rather than repair.
+
+Closing a turn does not resolve the tools inside it. A call that crossed
+`tool_execution_started` without returning is `outcome_unknown` whether the turn
+was cancelled, interrupted, or lost with its process: BuildMax knows it entered
+the tool and not whether the effect landed, and stopping deliberately does not
+make that knowable. So the live process writes exactly what §7.3 says recovery
+would have written — one `tool_result` with status `unknown` per uncertain call
+— while it still holds the call IDs, rather than inventing a certainty it does
+not have.
+
+The two paths converge instead of branching. If the process dies during its own
+cancellation, on a second interrupt or a `SIGKILL`, nothing special is needed:
+the turn is left open and the next open recovers it exactly as §7.2 and §7.3
+describe. Graceful closure is an optimisation over recovery, not an alternative
+to it.
 
 ## 8. Checkpoint, Rewind, And Fork
 
@@ -683,6 +730,31 @@ and the file backend adds a cross-process lock. `writer.lock` may contain PID,
 process start time, or owner diagnostics, but those values are not authority:
 the OS lock decides ownership, and an abandoned file cannot keep a session
 permanently busy.
+
+That cross-process lock is an OS advisory lock on `writer.lock`: `flock(2)` on
+macOS and Linux, `LockFileEx` with `LOCKFILE_EXCLUSIVE_LOCK |
+LOCKFILE_FAIL_IMMEDIATELY` on Windows, both through `golang.org/x/sys`, which
+is already a dependency.
+
+The portable alternative loses on the requirement above. An `O_CREAT|O_EXCL`
+lock file needs no platform code at all and cannot clear itself: it outlives
+the process that made it, so recovering from a crash would mean judging whether
+a recorded PID is still alive — the stale process state this design refuses to
+treat as authority. A kernel lock is released when the owning process exits,
+however it exits, which is the only version of "an abandoned file cannot keep a
+session permanently busy" that needs no heuristic.
+
+The lock is taken on `writer.lock` rather than on `history.jsonl`, because a
+reader must still be able to inspect a stable prefix while a writer holds the
+session. Locking the journal itself would either block those readers or, with
+POSIX record locks, expose the rule that closing any descriptor for a file
+drops every lock the process holds on it. A separate file has neither problem,
+and it is the same reason `flock` is preferred over `fcntl` on Unix.
+
+Advisory locking is not universally available: some network filesystems refuse
+it, and some accept it and do nothing. A failure to acquire is reported rather
+than assumed successful, and a filesystem that cannot lock is one where
+BuildMax says so instead of pretending a session is held exclusively.
 
 Read-only inspection may read a stable prefix while a writer is active. A
 second process cannot resume, rewind, fork from an unstable head, or append
@@ -868,7 +940,13 @@ Implementation is incomplete until tests establish:
 - foreground, background, and nested subagents write isolated hidden bundles
   with immediate-parent lineage;
 - hidden subagents never appear in the picker or become `--continue` targets;
-- a second writer cannot mutate a live session;
+- a second writer cannot mutate a live session, and the lock clears with no
+  intervention when the holding process dies, including by `SIGKILL`;
+- a turn closed as `canceled` or `interrupted` is not recovered on the next
+  open, while a tool call left in flight by that stop still resolves to
+  `unknown` rather than to a fabricated result;
+- a process killed while cancelling leaves the turn open, and the next open
+  recovers it by the ordinary path;
 - stale metadata and global indexes repair without changing history;
 - a rewind followed by metadata loss resumes the selected branch rather than
   the abandoned physical tail, with no metadata field needing repair for it to;
@@ -905,8 +983,8 @@ Landed. `util.WriteFileAtomic` writes a temp file in the target's directory,
 syncs it, and renames over the target; the session file, the session index, and
 the worker's restore of a previous run's session all use it. It syncs the file
 but not the directory entry, so a write is all-or-nothing rather than durable —
-the per-platform durability question in §19.1 stays open, and §7.1 still
-describes what phase 1 has to decide.
+§7.1 now names the primitive phase 1 uses and says what it does and does not
+claim.
 
 ### Phase 1: Session bundle and linked history
 
@@ -945,20 +1023,11 @@ constraint requires the two layers beneath it to arrive in the same review.
 
 ## 19. Open Questions
 
-Grouped by the phase each one blocks, because only the first group has to be
-answered before implementation starts.
+Grouped by the phase each one blocks. Nothing blocks phase 1: the three
+questions that did are answered in the body — the writer lock in §12, the sync
+primitive in §7.1, and cancellation in §7.4.
 
-### 19.1 Blocking phase 1
-
-- Which cross-platform lock implementation covers CLI, Desktop, worker, and
-  native Windows with the same single-writer guarantee?
-- Which sync primitive each platform uses, and therefore whether §7.1 claims
-  crash safety or power-loss safety.
-- Should a graceful cancellation close a turn as `canceled` or remain a
-  recoverable interruption? This fixes the meaning of `turn_finished`, so it
-  cannot be deferred past the record vocabulary.
-
-### 19.2 Blocking phase 2
+### 19.1 Blocking phase 2
 
 - Which tools may declare an interrupted call safe for automatic retry, and how
   is that idempotency qualified?
@@ -967,14 +1036,14 @@ answered before implementation starts.
 - How does a surface tell a user what a rewind did not undo, given §8.1 leaves
   workspace effects in place?
 
-### 19.3 Blocking phase 3
+### 19.2 Blocking phase 3
 
 - What size moves inline content into `artifacts/` without making ordinary tool
   resume dependent on excessive small files?
 - What reachability rule makes a journal prefix safe to prune, given branches,
   checkpoints, and fork exports? Until it exists, §13 bounds nothing.
 
-### 19.4 Resolved
+### 19.3 Resolved
 
 Which completed content unit streams to history — a provider response item, a
 portable `llm.Message`, or both through one adapter boundary — is already
