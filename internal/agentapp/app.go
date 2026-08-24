@@ -18,6 +18,7 @@ import (
 	llm "github.com/gougoujiang/buildmax/internal/infra/llm"
 	"github.com/gougoujiang/buildmax/internal/infra/llmremote"
 	"github.com/gougoujiang/buildmax/internal/infra/sandbox"
+	"github.com/gougoujiang/buildmax/internal/infra/sessionstore"
 	"github.com/gougoujiang/buildmax/internal/infra/trace"
 	tools "github.com/gougoujiang/buildmax/internal/tool"
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -357,7 +358,7 @@ func (a *AgentApp) effectiveAdditionalPrompt(sess *SessionContext) string {
 		return a.additionalSystemPrompt
 	}
 	if sess != nil {
-		return sess.AdditionalSystemPrompt
+		return sess.AdditionalPrompt()
 	}
 	return ""
 }
@@ -414,7 +415,7 @@ func NewAgentApp(cfg AppConfig) (*AgentApp, error) {
 		workspaceRoot:          workspaceRoot,
 		settings:               settings,
 		toolRegistries:         make(map[string]cllm.ToolRegistry),
-		sessionManager:         &SessionManager{dir: config.SessionsDir()},
+		sessionManager:         NewSessionManager(config.SessionsDir()),
 		skillsRegistry:         &SkillRegistry{},
 		subagentsRegistry:      &SubAgentRegistry{},
 		policy:                 NewConfiguredPolicy(config.ResolvePermissions(settings.Tools), cfg.Policy),
@@ -724,9 +725,9 @@ func (a *AgentApp) OpenSession(sessionID string) (*SessionContext, error) {
 		err  error
 	)
 	if sessionID == "" {
-		sess = a.sessionManager.Create(a.DefaultModelName())
+		sess, err = a.sessionManager.Create(a.DefaultModelName())
 	} else {
-		sess, err = a.sessionManager.Load(sessionID, a.DefaultModelName())
+		sess, err = a.sessionManager.Open(sessionID, a.DefaultModelName())
 	}
 	if err != nil {
 		return nil, err
@@ -749,7 +750,10 @@ func (a *AgentApp) OpenOrCreateSession(sessionID string) (*SessionContext, error
 	if !errors.Is(err, session.ErrSessionNotFound) {
 		return nil, err
 	}
-	sess = NewSessionContext(session.NewSessionFromData(sessionID, "", time.Now(), nil, 0, 0), a.DefaultModelName())
+	sess, err = a.sessionManager.CreateWithID(sessionID, a.DefaultModelName())
+	if err != nil {
+		return nil, err
+	}
 	a.fireSessionLifecycle(agent.HookSessionStart, sess, nil)
 	return sess, nil
 }
@@ -770,7 +774,7 @@ func (a *AgentApp) fireSessionLifecycle(event agent.HookEvent, sess *SessionCont
 	}
 	in := agent.HookInput{
 		Event:     event,
-		SessionID: sess.ID,
+		SessionID: sess.ID(),
 		Workspace: a.workspaceRoot,
 		Sandbox:   a.sandboxInfo(),
 	}
@@ -803,7 +807,7 @@ func (a *AgentApp) EstimateRunStatus(sess *SessionContext) (RunStatus, error) {
 		return RunStatus{}, fmt.Errorf("app is nil")
 	}
 	if sess == nil {
-		sess = NewSessionContext(session.NewSession(""), a.DefaultModelName())
+		sess = NewSessionContext(a.DefaultModelName())
 	}
 	modelName := sess.ModelName(a.DefaultModelName())
 	client, err := a.llmClients.Get(modelName)
@@ -819,17 +823,17 @@ func (a *AgentApp) estimateRunStatus(sess *SessionContext, modelName string, con
 	}
 	// This path does not go through RunLoop, so it renders the compaction block itself to
 	// estimate the real prompt size. It uses the same renderer RunLoop does.
-	systemPrompt := BuildEffectiveSystemPrompt(a.workspaceRoot, modelName, a.effectiveAdditionalPrompt(sess), a.promptCapabilities()) + agent.RenderCompactionBlock(sess.CompactionSummary)
+	systemPrompt := BuildEffectiveSystemPrompt(a.workspaceRoot, modelName, a.effectiveAdditionalPrompt(sess), a.promptCapabilities()) + agent.RenderCompactionBlock(sess.PriorSummary())
 	contextTokens := agent.EstimateMessageTokens(cllm.Message{Role: "system", Content: systemPrompt}) + agent.EstimateTokens(sess.HistoryMessages())
 	return RunStatus{
 		ContextTokens:         contextTokens,
 		ContextWindow:         contextWindow,
-		TotalPromptTokens:     sess.PromptTokens,
-		TotalCompletionTokens: sess.CompletionTokens,
-		TotalCacheReadTokens:  sess.CacheReadTokens,
-		TotalCacheWriteTokens: sess.CacheWriteTokens,
-		Cost:                  sess.Cost,
-		CostIncomplete:        sess.CostIncomplete,
+		TotalPromptTokens:     sess.PromptTokens(),
+		TotalCompletionTokens: sess.CompletionTokens(),
+		TotalCacheReadTokens:  sess.CacheReadTokens(),
+		TotalCacheWriteTokens: sess.CacheWriteTokens(),
+		Cost:                  sess.Cost(),
+		CostIncomplete:        sess.CostIncomplete(),
 	}
 }
 
@@ -838,7 +842,7 @@ func (a *AgentApp) resolveRunContext(sess *SessionContext) (*SessionContext, str
 		return nil, "", nil, fmt.Errorf("app is nil")
 	}
 	if sess == nil {
-		sess = NewSessionContext(session.NewSession(""), a.DefaultModelName())
+		sess = NewSessionContext(a.DefaultModelName())
 	}
 	modelName := sess.ModelName(a.DefaultModelName())
 	client, err := a.llmClients.Get(modelName)
@@ -914,16 +918,16 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 	// so a concurrent call here is a caller bug or an unserialized background
 	// producer — refused, because Session and SessionManager have no locks of
 	// their own and an overlapping turn would race the history.
-	if err := a.turns.begin(sess.ID); err != nil {
-		return RunResult{SessionID: sess.ID}, fmt.Errorf("session %s: %w", sess.ID, err)
+	if err := a.turns.begin(sess.ID()); err != nil {
+		return RunResult{SessionID: sess.ID()}, fmt.Errorf("session %s: %w", sess.ID(), err)
 	}
-	defer a.turns.end(sess.ID)
+	defer a.turns.end(sess.ID())
 	registry, err := a.toolRegistry(modelName, client)
 	if err != nil {
 		return RunResult{}, err
 	}
 	start := time.Now()
-	ctx = session.CtxWithSessionID(ctx, sess.ID)
+	ctx = session.CtxWithSessionID(ctx, sess.ID())
 	// NoteWrite and TodoWrite reach the session through the context: the tool registry is
 	// cached per model and shared across sessions, so a tool must not hold one.
 	ctx = agent.CtxWithNoteStore(ctx, sess)
@@ -932,7 +936,12 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 	// loaded and a run that ends early still has to be able to say.
 	extraPrompt := a.effectiveAdditionalPrompt(sess)
 	systemPrompt, promptLayers := BuildSystemPromptWithLayers(a.workspaceRoot, modelName, extraPrompt, a.promptCapabilities())
-	sess.AdditionalSystemPrompt = extraPrompt
+	// Durable state, so it commits rather than being assigned: a resumed
+	// session that lost the prompt it ran under would answer as a different
+	// agent than the one the conversation records.
+	if err := sess.SetAdditionalPrompt(extraPrompt); err != nil {
+		return RunResult{SessionID: sess.ID()}, fmt.Errorf("persist session: %w", err)
+	}
 
 	// Durable run trace: one JSONL file per run, attached at this single
 	// chokepoint so CLI/TUI, Desktop, eval, and the worker all produce traces
@@ -942,9 +951,12 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 		// Tracing is fail-open, so entropy failure costs the trace and not the
 		// run: an empty run ID makes NewRecorder disable itself and say so.
 		runID, _ := util.NewPublicID()
-		recorder = trace.NewRecorder(config.TracesDir(), trace.Meta{
+		// Traces live inside the session's own bundle, one file per run, so a
+		// session's diagnostics are deleted, copied, and retained with the
+		// conversation they describe rather than from a second root.
+		recorder = trace.NewRecorder(sessionstore.SessionTracesDir(a.sessionManager.Dir(), sess.ID()), trace.Meta{
 			RunID:        runID,
-			SessionID:    sess.ID,
+			SessionID:    sess.ID(),
 			Workspace:    a.workspaceRoot,
 			Model:        modelName,
 			Sandbox:      a.sandboxInfo(),
@@ -965,7 +977,7 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 	if event == nil {
 		promptHook := a.hooks.Run(ctx, agent.HookInput{
 			Event:     agent.HookUserPromptSubmit,
-			SessionID: sess.ID,
+			SessionID: sess.ID(),
 			Workspace: a.workspaceRoot,
 			Prompt:    prompt,
 		})
@@ -979,15 +991,15 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 			return RunResult{
 				Reply:                 reason,
 				Duration:              time.Since(start),
-				TotalPromptTokens:     sess.PromptTokens,
-				TotalCompletionTokens: sess.CompletionTokens,
-				TotalCacheReadTokens:  sess.CacheReadTokens,
-				TotalCacheWriteTokens: sess.CacheWriteTokens,
-				Cost:                  sess.Cost,
-				CostIncomplete:        sess.CostIncomplete,
+				TotalPromptTokens:     sess.PromptTokens(),
+				TotalCompletionTokens: sess.CompletionTokens(),
+				TotalCacheReadTokens:  sess.CacheReadTokens(),
+				TotalCacheWriteTokens: sess.CacheWriteTokens(),
+				Cost:                  sess.Cost(),
+				CostIncomplete:        sess.CostIncomplete(),
 				ContextTokens:         status.ContextTokens,
 				ContextWindow:         status.ContextWindow,
-				SessionID:             sess.ID,
+				SessionID:             sess.ID(),
 				Workspace:             a.workspaceRoot,
 				ModelName:             modelName,
 				TraceID:               recorder.RunID(),
@@ -1018,7 +1030,7 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 		Policy:       a.policy,
 		Approval:     opts.Approval,
 		PendingInput: opts.Pending,
-		Grants:       a.grantsFor(sess.ID),
+		Grants:       a.grantsFor(sess.ID()),
 
 		MaxParallelTools: config.ResolveMaxParallelTools(a.settings.Agent),
 		Compactor:        NewLLMCompactor(client),
@@ -1026,17 +1038,17 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 		Invariants:       agent.ExtractInvariants(extraPrompt),
 		EventSink:        teeEventSink(recorder.Record, opts.EventSink),
 		Hooks:            a.hooks,
-		SessionID:        sess.ID,
+		SessionID:        sess.ID(),
 		Workspace:        a.workspaceRoot,
 	})
 	// Failed runs still leave a complete trace (RunLoop emits run_end with the
 	// error), so carry TraceID out even on the error paths — a failed run is
 	// exactly when the caller most needs to point a viewer at the file.
 	if err != nil {
-		return RunResult{SessionID: sess.ID, TraceID: recorder.RunID(), TracePath: recorder.Path()}, fmt.Errorf("agent: %w", err)
+		return RunResult{SessionID: sess.ID(), TraceID: recorder.RunID(), TracePath: recorder.Path()}, fmt.Errorf("agent: %w", err)
 	}
 	if _, err := a.finalizeTurn(sess, client, stats); err != nil {
-		return RunResult{SessionID: sess.ID, TraceID: recorder.RunID(), TracePath: recorder.Path()}, err
+		return RunResult{SessionID: sess.ID(), TraceID: recorder.RunID(), TracePath: recorder.Path()}, err
 	}
 	status := a.estimateRunStatus(sess, modelName, client.ContextWindow())
 	return RunResult{
@@ -1047,15 +1059,15 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 		CompletionTokens:      stats.CompletionTokens,
 		CacheReadTokens:       stats.CacheReadTokens,
 		CacheWriteTokens:      stats.CacheWriteTokens,
-		TotalPromptTokens:     sess.PromptTokens,
-		TotalCompletionTokens: sess.CompletionTokens,
-		TotalCacheReadTokens:  sess.CacheReadTokens,
-		TotalCacheWriteTokens: sess.CacheWriteTokens,
-		Cost:                  sess.Cost,
-		CostIncomplete:        sess.CostIncomplete,
+		TotalPromptTokens:     sess.PromptTokens(),
+		TotalCompletionTokens: sess.CompletionTokens(),
+		TotalCacheReadTokens:  sess.CacheReadTokens(),
+		TotalCacheWriteTokens: sess.CacheWriteTokens(),
+		Cost:                  sess.Cost(),
+		CostIncomplete:        sess.CostIncomplete(),
 		ContextTokens:         status.ContextTokens,
 		ContextWindow:         status.ContextWindow,
-		SessionID:             sess.ID,
+		SessionID:             sess.ID(),
 		Workspace:             a.workspaceRoot,
 		ModelName:             modelName,
 		TraceID:               recorder.RunID(),
@@ -1174,7 +1186,7 @@ func (a *AgentApp) Plugins() PluginSnapshot {
 	return a.plugins
 }
 
-func (a *AgentApp) ListSessions() ([]session.SessionItem, error) {
+func (a *AgentApp) ListSessions() ([]session.ItemSummary, error) {
 	if a == nil || a.sessionManager == nil {
 		return nil, fmt.Errorf("session store is not initialized")
 	}
@@ -1273,6 +1285,7 @@ func (a *AgentApp) buildToolRegistry(client cllm.LLMClient) (cllm.ToolRegistry, 
 	runner, err := tools.NewDefaultSubAgentRunner(client, a.policy, func(modelName string) (cllm.LLMClient, error) {
 		return a.llmClients.Get(modelName)
 	}, tools.WithSubAgentHooks(a.hooks), tools.WithSubAgentTraceFactory(a.newSubAgentTrace),
+		tools.WithSubAgentSessionFactory(a.newSubAgentSession),
 		tools.WithSubAgentMaxParallelTools(config.ResolveMaxParallelTools(a.settings.Agent)))
 	if err == nil {
 		taskTool, err := tools.NewTask(runner, agentTypes)
@@ -1317,7 +1330,7 @@ func (a *AgentApp) newSubAgentTrace(ctx context.Context, sessionID string, opts 
 	}
 	// Fail-open for the same reason as the parent run's recorder above.
 	runID, _ := util.NewPublicID()
-	return trace.NewRecorder(config.TracesDir(), trace.Meta{
+	return trace.NewRecorder(sessionstore.SessionTracesDir(a.sessionManager.Dir(), sessionID), trace.Meta{
 		RunID:            runID,
 		ParentRunID:      parent.runID,
 		ParentToolCallID: agent.ToolCallFromCtx(ctx),

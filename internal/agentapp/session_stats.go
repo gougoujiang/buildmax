@@ -6,6 +6,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/session"
+	"github.com/gougoujiang/buildmax/internal/infra/sessionstore"
 	"github.com/gougoujiang/buildmax/internal/infra/trace"
 )
 
@@ -48,21 +49,12 @@ type SessionStats struct {
 // A missing trace directory is not an error — tracing is fail-open and nothing
 // prunes it today, so its absence is a normal state that the returned Runs
 // reports rather than a failure to load the session.
-func LoadSessionStats(sessionsDir, tracesDir, id string) (SessionStats, error) {
-	sess, err := LoadSession(sessionsDir, id)
+func LoadSessionStats(sessionsDir, id string) (SessionStats, error) {
+	loaded, err := NewSessionManager(sessionsDir).Load(id, session.LoadFull)
 	if err != nil {
 		return SessionStats{}, err
 	}
-	workspace := ""
-	if items, err := LoadSessionList(sessionsDir); err == nil {
-		for _, it := range items {
-			if it.ID == id {
-				workspace = it.Workspace
-				break
-			}
-		}
-	}
-	return NewSessionStats(sess, workspace, tracesDir)
+	return NewSessionStats(loaded, sessionsDir)
 }
 
 // NewSessionStats assembles statistics for a session already in memory.
@@ -70,25 +62,26 @@ func LoadSessionStats(sessionsDir, tracesDir, id string) (SessionStats, error) {
 // A surface holding the live session uses this rather than LoadSessionStats:
 // a session is persisted after each assistant reply, so reading it back from
 // disk mid-turn answers about the turn before the one on screen.
-func NewSessionStats(sess *session.Session, workspace, tracesDir string) (SessionStats, error) {
-	if sess == nil {
+func NewSessionStats(loaded session.Loaded, sessionsDir string) (SessionStats, error) {
+	m := loaded.Meta
+	if m.ID == "" {
 		return SessionStats{}, fmt.Errorf("session stats: no session")
 	}
 	out := SessionStats{
-		ID:             sess.ID,
-		Title:          sess.Title,
-		Workspace:      workspace,
-		CreatedAt:      sess.CreatedAt,
-		Usage:          sess.Usage(),
-		Cost:           sess.Cost,
-		CostIncomplete: sess.CostIncomplete,
-		Conversation:   session.Stats(sess),
+		ID:             m.ID,
+		Title:          m.Title,
+		Workspace:      m.Workspace,
+		CreatedAt:      m.CreatedAt,
+		Usage:          m.Usage(),
+		Cost:           m.Cost,
+		CostIncomplete: m.CostIncomplete,
+		Conversation:   session.Stats(loaded.State),
 	}
 	// A trace read that fails leaves the run fold empty rather than failing
 	// the whole answer: the session half is already complete and useful.
-	runs, err := trace.SummarizeSession(tracesDir, sess.ID)
+	runs, err := trace.SummarizeSession(sessionstore.SessionTracesDir(sessionsDir, m.ID))
 	if err != nil {
-		return out, fmt.Errorf("read traces for session %s: %w", sess.ID, err)
+		return out, fmt.Errorf("read traces for session %s: %w", m.ID, err)
 	}
 	out.Runs = runs
 	return out, nil

@@ -29,7 +29,30 @@ func NewFileStore(dir string) *FileStore {
 }
 
 func (s *FileStore) sessionDir(id string) string {
-	return filepath.Join(s.Dir, id)
+	return filepath.Join(s.Dir, sanitizeID(id))
+}
+
+// sanitizeID makes a session id safe as a single path segment.
+//
+// Ids are generated here and are already safe, so this is a containment guard
+// rather than a transformation anyone should rely on: an id that arrived from
+// somewhere else must not be able to place a session bundle outside the
+// sessions root. An empty id becomes "unknown" for the same reason — it would
+// otherwise name the root itself.
+func sanitizeID(id string) string {
+	if id == "" {
+		return "unknown"
+	}
+	out := make([]rune, 0, len(id))
+	for _, c := range id {
+		switch {
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9', c == '_', c == '-':
+			out = append(out, c)
+		default:
+			out = append(out, '_')
+		}
+	}
+	return string(out)
 }
 
 // DefaultMeta is what Load, Open, and UpdateMeta fall back to when meta.json

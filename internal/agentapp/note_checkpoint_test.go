@@ -8,7 +8,6 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/core/session"
 )
 
 // scriptedClient returns a queued response per call and records what it was sent.
@@ -56,7 +55,7 @@ func noteCall(id, argsJSON string) llm.ToolCall {
 	return llm.ToolCall{ID: id, Name: "NoteWrite", Arguments: argsJSON}
 }
 
-func storeContext(s *session.Session) context.Context {
+func storeContext(s agent.NoteStore) context.Context {
 	return agent.CtxWithNoteStore(context.Background(), s)
 }
 
@@ -70,7 +69,7 @@ func TestNoteCheckpointer_WritesNotesFromDiscardedMessages(t *testing.T) {
 	client := &scriptedClient{replies: []scriptedReply{
 		{toolCalls: []llm.ToolCall{noteCall("a", `{"notes":["cure period is 14 days from notice"]}`)}},
 	}}
-	sess := session.NewSession("")
+	sess := NewSessionContext("test-model")
 	cp := NewNoteCheckpointer(client)
 
 	if err := cp.Checkpoint(agent.CtxWithIteration(storeContext(sess), 9), discardedSample); err != nil {
@@ -91,7 +90,7 @@ func TestNoteCheckpointer_OffersOnlyStateTools(t *testing.T) {
 	client := &scriptedClient{}
 	cp := NewNoteCheckpointer(client)
 
-	if err := cp.Checkpoint(storeContext(session.NewSession("")), discardedSample); err != nil {
+	if err := cp.Checkpoint(storeContext(NewSessionContext("test-model")), discardedSample); err != nil {
 		t.Fatalf("Checkpoint: %v", err)
 	}
 
@@ -111,7 +110,7 @@ func TestNoteCheckpointer_OffersOnlyStateTools(t *testing.T) {
 // to be lost and what it already holds, so it can merge rather than overwrite blindly.
 func TestNoteCheckpointer_SendsTranscriptAndLiveState(t *testing.T) {
 	client := &scriptedClient{}
-	sess := session.NewSession("")
+	sess := NewSessionContext("test-model")
 	_ = sess.SetNotes([]agent.Note{{Text: "already stored"}}, 1)
 	cp := NewNoteCheckpointer(client)
 
@@ -148,7 +147,7 @@ func TestNoteCheckpointer_RetriesAfterRejectedWrite(t *testing.T) {
 		{toolCalls: []llm.ToolCall{noteCall("a", tooMany)}},
 		{toolCalls: []llm.ToolCall{noteCall("b", `{"notes":["merged into one"]}`)}},
 	}}
-	sess := session.NewSession("")
+	sess := NewSessionContext("test-model")
 	cp := NewNoteCheckpointer(client)
 
 	if err := cp.Checkpoint(storeContext(sess), discardedSample); err != nil {
@@ -183,7 +182,7 @@ func TestNoteCheckpointer_StopsAtTurnBudget(t *testing.T) {
 	}}
 	cp := NewNoteCheckpointer(client)
 
-	if err := cp.Checkpoint(storeContext(session.NewSession("")), discardedSample); err != nil {
+	if err := cp.Checkpoint(storeContext(NewSessionContext("test-model")), discardedSample); err != nil {
 		t.Fatalf("Checkpoint: %v", err)
 	}
 	if client.calls != maxCheckpointTurns {
@@ -193,7 +192,7 @@ func TestNoteCheckpointer_StopsAtTurnBudget(t *testing.T) {
 
 func TestNoteCheckpointer_StopsWhenNothingWorthKeeping(t *testing.T) {
 	client := &scriptedClient{replies: []scriptedReply{{content: "nothing to keep"}}}
-	sess := session.NewSession("")
+	sess := NewSessionContext("test-model")
 	cp := NewNoteCheckpointer(client)
 
 	if err := cp.Checkpoint(storeContext(sess), discardedSample); err != nil {
@@ -223,7 +222,7 @@ func TestNoteCheckpointer_EmptyInputIsANoOp(t *testing.T) {
 	client := &scriptedClient{}
 	cp := NewNoteCheckpointer(client)
 
-	if err := cp.Checkpoint(storeContext(session.NewSession("")), nil); err != nil {
+	if err := cp.Checkpoint(storeContext(NewSessionContext("test-model")), nil); err != nil {
 		t.Fatalf("Checkpoint: %v", err)
 	}
 	if client.calls != 0 {
@@ -237,7 +236,7 @@ func TestNoteCheckpointer_CallFailureIsReported(t *testing.T) {
 
 	// RunLoop logs and continues; the checkpointer's job is to say what went wrong, not to
 	// decide whether it matters.
-	if err := cp.Checkpoint(storeContext(session.NewSession("")), discardedSample); err == nil {
+	if err := cp.Checkpoint(storeContext(NewSessionContext("test-model")), discardedSample); err == nil {
 		t.Error("a failed model call was reported as success")
 	}
 }
@@ -246,7 +245,7 @@ func TestNoteCheckpointer_CallFailureIsReported(t *testing.T) {
 // what is still open, instead of spending its budget evenly over material of unequal value.
 func TestLLMCompactor_AnchorsOnLiveState(t *testing.T) {
 	client := &scriptedClient{replies: []scriptedReply{{content: "a summary"}}}
-	sess := session.NewSession("")
+	sess := NewSessionContext("test-model")
 	_ = sess.SetNotes([]agent.Note{{Text: "jurisdiction is New York"}}, 1)
 
 	if _, _, err := NewLLMCompactor(client).Compact(storeContext(sess), discardedSample); err != nil {
@@ -307,7 +306,7 @@ func TestUtilityCallsAreNotLabelledAgentTurns(t *testing.T) {
 			name: "title",
 			want: llm.ProfileTitle,
 			run: func(t *testing.T, client *scriptedClient) {
-				sess := NewSessionContext(session.NewSession(""), "test-model")
+				sess := NewSessionContext("test-model")
 				if err := sess.Append(llm.Message{Role: "user", Content: "rename the widget"}); err != nil {
 					t.Fatal(err)
 				}

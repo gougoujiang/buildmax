@@ -70,9 +70,9 @@ func TestRunBackgroundEventSkipsUserPromptHook(t *testing.T) {
 		t.Error("UserPromptSubmit fired for a background event")
 	}
 	var eventMsg *llm.Message
-	for i := range sess.Messages {
-		if sess.Messages[i].Source != "" {
-			eventMsg = &sess.Messages[i]
+	for i := range sess.Messages() {
+		if sess.Messages()[i].Source != "" {
+			eventMsg = &sess.Messages()[i]
 		}
 	}
 	if eventMsg == nil {
@@ -90,10 +90,10 @@ func TestRunBackgroundEventSerialized(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenSession: %v", err)
 	}
-	if err := app.turns.begin(sess.ID); err != nil {
+	if err := app.turns.begin(sess.ID()); err != nil {
 		t.Fatal(err)
 	}
-	defer app.turns.end(sess.ID)
+	defer app.turns.end(sess.ID())
 	_, err = app.RunBackgroundEvent(context.Background(), sess, BackgroundEvent{Source: llm.MessageSourceCommandResult}, RunPromptOpts{})
 	if err == nil {
 		t.Fatal("expected ErrTurnActive")

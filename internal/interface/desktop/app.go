@@ -344,14 +344,22 @@ func (a *App) DeleteProject(id string) error {
 
 // --- Session bindings ---
 
+// sessionManager is the store behind every session binding below. Desktop has
+// no long-lived agent for these: they list, rename, and delete sessions that
+// belong to whichever project window is open, so each call goes through a
+// manager over the one sessions root.
+func sessionManager() *agentapp.SessionManager {
+	return agentapp.NewSessionManager(config.SessionsDir())
+}
+
 // ListSessions returns all sessions across all projects.
-func (a *App) ListSessions() ([]session.SessionItem, error) {
-	entries, err := agentapp.LoadSessionList(config.SessionsDir())
+func (a *App) ListSessions() ([]session.ItemSummary, error) {
+	entries, err := sessionManager().List()
 	if err != nil {
 		return nil, fmt.Errorf("list sessions: %w", err)
 	}
 	if entries == nil {
-		entries = []session.SessionItem{}
+		entries = []session.ItemSummary{}
 	}
 	return entries, nil
 }
@@ -360,21 +368,21 @@ func (a *App) RenameSession(sessionID, title string) error {
 	if sessionID == "" {
 		return fmt.Errorf("session ID required")
 	}
-	return agentapp.RenameSession(config.SessionsDir(), sessionID, title)
+	return sessionManager().Rename(sessionID, title)
 }
 
 func (a *App) DeleteSession(sessionID string) error {
 	if sessionID == "" {
 		return fmt.Errorf("session ID required")
 	}
-	return agentapp.DeleteSession(config.SessionsDir(), sessionID)
+	return sessionManager().Delete(sessionID)
 }
 
 func (a *App) SetSessionPinned(sessionID string, pinned bool) error {
 	if sessionID == "" {
 		return fmt.Errorf("session ID required")
 	}
-	return agentapp.SetSessionPinned(config.SessionsDir(), sessionID, pinned)
+	return sessionManager().SetPinned(sessionID, pinned)
 }
 
 func (a *App) ClearProjectSessions(projectID string) ([]string, error) {
@@ -387,7 +395,7 @@ func (a *App) ClearProjectSessions(projectID string) ([]string, error) {
 	}
 	for _, p := range projects {
 		if p.ID == projectID {
-			return agentapp.DeleteSessionsByWorkspace(config.SessionsDir(), p.FolderPath)
+			return sessionManager().DeleteByWorkspace(p.FolderPath)
 		}
 	}
 	return nil, fmt.Errorf("project not found: %s", projectID)
@@ -398,24 +406,26 @@ func (a *App) GetSession(sessionID string) (SessionDetail, error) {
 	if sessionID == "" {
 		return SessionDetail{}, fmt.Errorf("session ID required")
 	}
-	sess, err := agentapp.LoadSession(config.SessionsDir(), sessionID)
+	// Read-only: displaying a session must not take its writer lock, or
+	// opening the detail view would lock out the window that is running it.
+	loaded, err := sessionManager().Load(sessionID, session.LoadFull)
 	if err != nil {
 		if errors.Is(err, session.ErrSessionNotFound) {
 			return SessionDetail{}, fmt.Errorf("session not found: %s", sessionID)
 		}
 		return SessionDetail{}, fmt.Errorf("load session: %w", err)
 	}
-	display := make([]llm.Message, 0, len(sess.Messages))
-	for _, m := range sess.Messages {
+	display := make([]llm.Message, 0, len(loaded.State.Messages))
+	for _, m := range loaded.State.Messages {
 		if m.Role == "system" {
 			continue
 		}
 		display = append(display, m)
 	}
 	return SessionDetail{
-		ID:        sess.ID,
-		Title:     sess.Title,
-		CreatedAt: sess.CreatedAt.Format(time.RFC3339),
+		ID:        loaded.Meta.ID,
+		Title:     loaded.Meta.Title,
+		CreatedAt: loaded.Meta.CreatedAt.Format(time.RFC3339),
 		Messages:  display,
 	}, nil
 }

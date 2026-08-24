@@ -36,7 +36,7 @@ func readRecords(t *testing.T, path string) []Record {
 
 func TestRecorder_WritesRunStartEventsAndEnd(t *testing.T) {
 	dir := t.TempDir()
-	rec := NewRecorder(dir, Meta{RunID: "rt_test01", SessionID: "c_sess1", Workspace: "/ws", Model: "m"})
+	rec := NewRecorder(runDirFor(dir, "c_sess1"), Meta{RunID: "rt_test01", SessionID: "c_sess1", Workspace: "/ws", Model: "m"})
 	if rec == nil {
 		t.Fatal("expected recorder")
 	}
@@ -94,14 +94,14 @@ func TestNewRecorder_FailOpen(t *testing.T) {
 	if err := os.WriteFile(blocker, []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if rec := NewRecorder(dir, Meta{RunID: "rt_y", SessionID: "s"}); rec != nil {
+	if rec := NewRecorder(runDirFor(dir, "s"), Meta{RunID: "rt_y", SessionID: "s"}); rec != nil {
 		t.Error("unwritable dir should yield nil recorder")
 	}
 }
 
 func TestRecorder_RecordCap(t *testing.T) {
 	dir := t.TempDir()
-	rec := NewRecorder(dir, Meta{RunID: "rt_cap", SessionID: "s"})
+	rec := NewRecorder(runDirFor(dir, "s"), Meta{RunID: "rt_cap", SessionID: "s"})
 	rec.maxRecord = 3 // run_start and sandbox_boundary already count as 2
 	rec.Record(agent.Event{Kind: agent.EventIterStart, Iter: 1})
 	rec.Record(agent.Event{Kind: agent.EventIterStart, Iter: 2}) // hits cap; dropped
@@ -127,7 +127,7 @@ func TestRecorder_RecordCap(t *testing.T) {
 
 func TestRecordRunEnd_Synthetic(t *testing.T) {
 	dir := t.TempDir()
-	rec := NewRecorder(dir, Meta{RunID: "rt_block", SessionID: "s"})
+	rec := NewRecorder(runDirFor(dir, "s"), Meta{RunID: "rt_block", SessionID: "s"})
 	rec.RecordRunEnd("blocked by hook: nope")
 	rec.Close()
 	recs := readRecords(t, filepath.Join(dir, "s", "rt_block.jsonl"))
@@ -166,7 +166,7 @@ func TestRecorder_BoundaryReportsUnsandboxedRun(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			rec := NewRecorder(dir, Meta{RunID: "rt_b", SessionID: "s", Sandbox: tt.info})
+			rec := NewRecorder(runDirFor(dir, "s"), Meta{RunID: "rt_b", SessionID: "s", Sandbox: tt.info})
 			rec.Close()
 
 			recs := readRecords(t, filepath.Join(dir, "s", "rt_b.jsonl"))
@@ -212,7 +212,7 @@ func TestBoundaryRecord_FalseSurvivesEncoding(t *testing.T) {
 // runs is observable rather than something a reader has to infer from behaviour.
 func TestRecorder_ReportsPromptLayers(t *testing.T) {
 	dir := t.TempDir()
-	rec := NewRecorder(dir, Meta{
+	rec := NewRecorder(runDirFor(dir, "s"), Meta{
 		RunID:     "rt_layers",
 		SessionID: "s",
 		PromptLayers: []agent.PromptLayer{
@@ -241,7 +241,7 @@ func TestRecorder_ReportsPromptLayers(t *testing.T) {
 // loaded nothing beyond the runtime prompt. An absent record would read as "nobody looked".
 func TestRecorder_ReportsPromptLayersWhenBare(t *testing.T) {
 	dir := t.TempDir()
-	rec := NewRecorder(dir, Meta{RunID: "rt_bare", SessionID: "s"})
+	rec := NewRecorder(runDirFor(dir, "s"), Meta{RunID: "rt_bare", SessionID: "s"})
 	rec.Close()
 
 	recs := readRecords(t, filepath.Join(dir, "s", "rt_bare.jsonl"))
@@ -263,7 +263,7 @@ func TestRecorder_ReportsPromptLayersWhenBare(t *testing.T) {
 // trace to the wrong place.
 func TestRecorder_RecordsAreDurableWithoutClose(t *testing.T) {
 	dir := t.TempDir()
-	rec := NewRecorder(dir, Meta{RunID: "rt_kill01", SessionID: "c_sess1", Workspace: "/ws", Model: "m"})
+	rec := NewRecorder(runDirFor(dir, "c_sess1"), Meta{RunID: "rt_kill01", SessionID: "c_sess1", Workspace: "/ws", Model: "m"})
 	if rec == nil {
 		t.Fatal("expected recorder")
 	}
@@ -295,4 +295,11 @@ func TestRecorder_RecordsAreDurableWithoutClose(t *testing.T) {
 	if len(body) == 0 || body[len(body)-1] != '\n' {
 		t.Errorf("trace does not end on a record boundary; last byte %q", body[len(body)-1:])
 	}
+}
+
+// runDirFor is where a session's traces live now that the caller owns the
+// layout: the store puts them inside the session's own bundle, and these tests
+// only need a stable per-session directory to assert against.
+func runDirFor(root, sessionID string) string {
+	return filepath.Join(root, sessionID)
 }

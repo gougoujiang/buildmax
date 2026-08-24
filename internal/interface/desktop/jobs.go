@@ -192,7 +192,7 @@ func (a *App) DeliverNextJobEvent(projectID, sessionID string) (bool, error) {
 	evSink := desktopEventSink(a.emit, ctx, queue)
 	a.emit(ctx, eventJobDelivery, &JobDeliveryPayload{
 		ProjectID: projectID,
-		SessionID: sess.ID,
+		SessionID: sess.ID(),
 		JobID:     ev.JobID,
 		Source:    ev.Source,
 		Title:     ev.Title,

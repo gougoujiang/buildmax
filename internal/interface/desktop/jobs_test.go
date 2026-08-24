@@ -2,18 +2,15 @@ package desktop
 
 import (
 	"context"
-	"encoding/json"
-	"os"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/gougoujiang/buildmax/internal/agentapp"
 	"github.com/gougoujiang/buildmax/internal/agentapp/job"
 	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/core/session"
 )
 
 // recordingEmitter captures frontend events for assertions.
@@ -133,19 +130,17 @@ func (r *recordingEmitter) eventNames() []string {
 	return names
 }
 
-// writeSessionFile puts a minimal owning session on disk, as the launching
-// turn's finalize would have.
+// writeSessionFile puts a minimal owning session bundle on disk, as the
+// launching turn would have.
 func writeSessionFile(t *testing.T, id string) {
 	t.Helper()
-	data, err := json.Marshal(session.Session{ID: id, CreatedAt: time.Now()})
+	sess, err := agentapp.NewSessionManager(config.SessionsDir()).CreateWithID(id, "test-model")
 	if err != nil {
 		t.Fatal(err)
 	}
-	dir := config.SessionsDir()
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, id+".json"), data, 0o644); err != nil {
+	// Closed straight away: the bundle is what this fixture is for, and holding
+	// its writer lock would block the code under test from opening it.
+	if err := sess.Close(); err != nil {
 		t.Fatal(err)
 	}
 }

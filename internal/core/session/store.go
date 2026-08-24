@@ -34,12 +34,16 @@ type Loaded struct {
 // ItemSummary is one session's row in the picker projection (§12): enough to
 // list and group forks without reading a session's journal.
 type ItemSummary struct {
-	ID         string
-	Kind       Kind
+	ID   string
+	Kind Kind
+	// CreatedAt is carried as well as UpdatedAt because the picker orders by
+	// it: a list that reordered itself every time a session was touched would
+	// move entries under the cursor.
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 	Title      string
 	Workspace  string
 	Pinned     bool
-	UpdatedAt  time.Time
 	ForkedFrom *ForkedFrom
 }
 

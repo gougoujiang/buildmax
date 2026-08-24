@@ -97,10 +97,9 @@ type SessionToolStats struct {
 //
 // A session with no traces is not an error: tracing may have failed open, or
 // the run may predate it. The zero SessionSummary with Runs == 0 says so.
-func SummarizeSession(dir, sessionID string) (SessionSummary, error) {
-	out := SessionSummary{SessionID: sessionID}
-	runDir := filepath.Join(dir, sanitize(sessionID))
-	entries, err := os.ReadDir(runDir)
+func SummarizeSession(sessionTraceDir string) (SessionSummary, error) {
+	var out SessionSummary
+	entries, err := os.ReadDir(sessionTraceDir)
 	if os.IsNotExist(err) {
 		return out, nil
 	}
@@ -120,7 +119,7 @@ func SummarizeSession(dir, sessionID string) (SessionSummary, error) {
 
 	agg := newSessionAgg(&out)
 	for _, name := range files {
-		f, err := os.Open(filepath.Join(runDir, name))
+		f, err := os.Open(filepath.Join(sessionTraceDir, name))
 		if err != nil {
 			// One unreadable run is not a reason to answer nothing about the
 			// rest, but it must not pass as a run that recorded nothing.

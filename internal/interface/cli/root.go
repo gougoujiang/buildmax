@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/gougoujiang/buildmax/internal/agentapp"
 	"github.com/gougoujiang/buildmax/internal/config"
@@ -225,7 +224,7 @@ func resolveResumeID(resumeID string, cont bool) (string, error) {
 		return resumeID, nil
 	}
 	sessionsDir := config.SessionsDir()
-	list, err := agentapp.LoadSessionList(sessionsDir)
+	list, err := agentapp.NewSessionManager(sessionsDir).List()
 	if err != nil {
 		slog.Error("load session list failed", "err", err)
 		return "", fmt.Errorf("load session list: %w", err)
@@ -239,17 +238,11 @@ func resolveResumeID(resumeID string, cont bool) (string, error) {
 	return last.ID, nil
 }
 
-func latestSessionItem(entries []session.SessionItem) *session.SessionItem {
-	var best *session.SessionItem
-	var bestT time.Time
+func latestSessionItem(entries []session.ItemSummary) *session.ItemSummary {
+	var best *session.ItemSummary
 	for i := range entries {
-		t, err := time.Parse(time.RFC3339, entries[i].CreatedAt)
-		if err != nil {
-			continue
-		}
-		if best == nil || t.After(bestT) {
+		if best == nil || entries[i].CreatedAt.After(best.CreatedAt) {
 			best = &entries[i]
-			bestT = t
 		}
 	}
 	return best

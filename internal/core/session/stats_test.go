@@ -6,11 +6,9 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 )
 
-func statsSession() *Session {
-	return &Session{
-		ID:            "s1",
+func statsSession() State {
+	return State{
 		CompactionIdx: 2,
-		NoteEntries:   nil,
 		Messages: []llm.Message{
 			{Role: "user", Content: "1234567890"},
 			{Role: "assistant", Content: "ok", ToolCalls: []llm.ToolCall{
@@ -74,10 +72,9 @@ func TestStats_AttributesResultBytesToTheToolThatProducedThem(t *testing.T) {
 // bytes in the context. Dropping it would understate exactly the long sessions
 // this view exists for.
 func TestStats_UnattributableResultIsCountedNotDropped(t *testing.T) {
-	s := &Session{Messages: []llm.Message{
+	got := Stats(State{Messages: []llm.Message{
 		{Role: "tool", ToolCallID: "gone", Content: "1234567890"},
-	}}
-	got := Stats(s)
+	}})
 	if got.ToolResultBytes != 10 {
 		t.Errorf("ToolResultBytes = %d, want 10", got.ToolResultBytes)
 	}
@@ -89,17 +86,17 @@ func TestStats_UnattributableResultIsCountedNotDropped(t *testing.T) {
 // Zero cache reads and unreported cache usage are different facts, and only the
 // first says the cache missed.
 func TestCacheReadShare_UnreportedIsNotAMiss(t *testing.T) {
-	if _, ok := (&Session{PromptTokens: 1000}).CacheReadShare(); ok {
+	if _, ok := (Meta{PromptTokens: 1000}).CacheReadShare(); ok {
 		t.Error("CacheReadShare reported a share for a provider that reported no cache usage")
 	}
-	share, ok := (&Session{PromptTokens: 1000, CacheReadTokens: 250}).CacheReadShare()
+	share, ok := (Meta{PromptTokens: 1000, CacheReadTokens: 250}).CacheReadShare()
 	if !ok || share != 0.25 {
 		t.Errorf("CacheReadShare = %v, %v; want 0.25, true", share, ok)
 	}
 }
 
-func TestStats_NilSessionIsEmpty(t *testing.T) {
-	if got := Stats(nil); got.UserMessages != 0 || got.Tools != nil {
-		t.Errorf("Stats(nil) = %+v, want the zero value", got)
+func TestStats_EmptyStateIsEmpty(t *testing.T) {
+	if got := Stats(State{}); got.UserMessages != 0 || len(got.Tools) != 0 {
+		t.Errorf("Stats(State{}) = %+v, want nothing counted", got)
 	}
 }

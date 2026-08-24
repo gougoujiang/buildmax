@@ -76,7 +76,7 @@ func runTUI(resumeID, modelName, additionalSystemPrompt, workspace string) error
 
 	// Print banner and any existing session history to the terminal scrollback
 	// before the TUI program takes over the bottom strip.
-	fmt.Print(buildHistoryForScrollback(sess.Session, 80, glamourStyle))
+	fmt.Print(buildHistoryForScrollback(sess.Messages(), 80, glamourStyle))
 
 	approval := NewTUIApprovalHandler()
 	opts := TUIOpts{

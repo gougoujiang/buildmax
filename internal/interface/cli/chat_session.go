@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"log/slog"
 	"sort"
 	"strings"
 	"time"
@@ -23,8 +24,8 @@ const slashSessionPanelChromeLines = 9
 type slashSessionState struct {
 	LoadError string
 	Empty     bool
-	All       []session.SessionItem // full sorted list, unchanged by filtering
-	Filtered  []session.SessionItem // view after applying Query
+	All       []session.ItemSummary // full sorted list, unchanged by filtering
+	Filtered  []session.ItemSummary // view after applying Query
 	Selected  int
 	Offset    int
 	Query     string
@@ -35,7 +36,7 @@ type slashSessionState struct {
 var slashSessionTitleStyle = slashPanelTitleStyle
 
 func openSlashSession(m *Model) (tea.Model, tea.Cmd) {
-	entries, err := agentapp.LoadSessionList(m.opts.SessionsDir)
+	entries, err := agentapp.NewSessionManager(m.opts.SessionsDir).List()
 	var st *slashSessionState
 	switch {
 	case err != nil:
@@ -48,7 +49,7 @@ func openSlashSession(m *Model) (tea.Model, tea.Cmd) {
 		// Pre-select the current session if it is in the list.
 		if m.opts.Session != nil {
 			for i, e := range entries {
-				if e.ID == m.opts.Session.ID {
+				if e.ID == m.opts.Session.ID() {
 					st.Selected = i
 					scrollSessionIntoView(m, st)
 					break
@@ -163,7 +164,7 @@ func applySessionFilter(st *slashSessionState) {
 		return
 	}
 	q := strings.ToLower(st.Query)
-	filtered := make([]session.SessionItem, 0, len(st.All))
+	filtered := make([]session.ItemSummary, 0, len(st.All))
 	for _, e := range st.All {
 		if strings.Contains(strings.ToLower(e.Title), q) ||
 			strings.Contains(strings.ToLower(e.ID), q) {
@@ -211,11 +212,11 @@ func confirmSlashSessionRename(m *Model) {
 		cancelSlashSessionRename(m)
 		return
 	}
-	if err := agentapp.RenameSession(m.opts.SessionsDir, entry.ID, title); err != nil {
+	if err := agentapp.NewSessionManager(m.opts.SessionsDir).Rename(entry.ID, title); err != nil {
 		m.slashSession.LoadError = "rename failed: " + err.Error()
 		return
 	}
-	entries, err := agentapp.LoadSessionList(m.opts.SessionsDir)
+	entries, err := agentapp.NewSessionManager(m.opts.SessionsDir).List()
 	if err != nil {
 		m.slashSession.LoadError = err.Error()
 		return
@@ -242,12 +243,20 @@ func confirmSlashSessionResume(m *Model) (tea.Model, tea.Cmd) {
 		return m.closeActivePanel()
 	}
 	entry := m.slashSession.Filtered[m.slashSession.Selected]
-	sess, err := agentapp.LoadSession(m.opts.SessionsDir, entry.ID)
+	sess, err := agentapp.NewSessionManager(m.opts.SessionsDir).Open(entry.ID, m.opts.ModelName)
 	if err != nil {
 		m.slashSession.LoadError = "load failed: " + err.Error()
 		return m, nil
 	}
-	m.opts.Session = agentapp.NewSessionContext(sess, m.opts.ModelName)
+	// One writer per session: the one being left goes before the one being
+	// resumed is held, or this process would hold two locks and refuse itself
+	// the session it just closed.
+	if m.opts.Session != nil {
+		if err := m.opts.Session.Close(); err != nil {
+			slog.Warn("closing the previous session failed", "err", err)
+		}
+	}
+	m.opts.Session = sess
 	if m.opts.App != nil {
 		if st, err := m.opts.App.EstimateRunStatus(m.opts.Session); err == nil {
 			m.runStatus = st
@@ -262,7 +271,7 @@ func confirmSlashSessionResume(m *Model) (tea.Model, tea.Cmd) {
 		title = entry.ID
 	}
 	separator := messageBarStyle.Render("─── Resumed: " + title + " ───")
-	history := buildMessagesForScrollback(sess, m.width, m.opts.GlamourStyle)
+	history := buildMessagesForScrollback(sess.Messages(), m.width, m.opts.GlamourStyle)
 	output := separator + "\n\n" + history
 	return m, tea.Sequence(
 		tea.Println(output),
@@ -279,11 +288,11 @@ func deleteSlashSessionEntry(m *Model) {
 	}
 	prevSelected := m.slashSession.Selected
 	entry := m.slashSession.Filtered[prevSelected]
-	if err := agentapp.DeleteSession(m.opts.SessionsDir, entry.ID); err != nil {
+	if err := agentapp.NewSessionManager(m.opts.SessionsDir).Delete(entry.ID); err != nil {
 		m.slashSession.LoadError = "delete failed: " + err.Error()
 		return
 	}
-	entries, err := agentapp.LoadSessionList(m.opts.SessionsDir)
+	entries, err := agentapp.NewSessionManager(m.opts.SessionsDir).List()
 	if err != nil {
 		st := &slashSessionState{LoadError: err.Error()}
 		m.slashSession = st
@@ -313,31 +322,15 @@ func deleteSlashSessionEntry(m *Model) {
 	m.activePanel = st
 }
 
-func sortSessionsByCreatedAtDesc(entries []session.SessionItem) {
+func sortSessionsByCreatedAtDesc(entries []session.ItemSummary) {
 	sort.SliceStable(entries, func(i, j int) bool {
-		ti, ei := time.Parse(time.RFC3339, entries[i].CreatedAt)
-		tj, ej := time.Parse(time.RFC3339, entries[j].CreatedAt)
-		if ei != nil && ej != nil {
-			return false
-		}
-		if ei != nil {
-			return false
-		}
-		if ej != nil {
-			return true
-		}
-		return ti.After(tj)
+		return entries[i].CreatedAt.After(entries[j].CreatedAt)
 	})
 }
 
-func formatSessionListRow(maxWidth int, e *session.SessionItem) string {
-	t, err := time.Parse(time.RFC3339, e.CreatedAt)
-	timeStr := e.CreatedAt
-	var ago string
-	if err == nil {
-		timeStr = t.Local().Format("01-02 15:04")
-		ago = humanAgo(time.Since(t))
-	}
+func formatSessionListRow(maxWidth int, e *session.ItemSummary) string {
+	timeStr := e.CreatedAt.Local().Format("01-02 15:04")
+	ago := humanAgo(time.Since(e.CreatedAt))
 	title := e.Title
 	if title == "" {
 		title = "(no title)"

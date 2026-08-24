@@ -1,7 +1,9 @@
 package cli
 
 import (
+	"context"
 	"errors"
+	"time"
 
 	"github.com/gougoujiang/buildmax/internal/agentapp"
 	"github.com/gougoujiang/buildmax/internal/config"
@@ -14,12 +16,13 @@ import (
 	"testing"
 
 	mcp "github.com/gougoujiang/buildmax/internal/infra/mcp"
+	"github.com/gougoujiang/buildmax/internal/infra/sessionstore"
 
 	tea "charm.land/bubbletea/v2"
 )
 
 func testSessionContext() *agentapp.SessionContext {
-	return agentapp.NewSessionContext(session.NewSession(""), "")
+	return agentapp.NewSessionContext("")
 }
 
 func testAgentApp(t *testing.T, workspace string) *agentapp.AgentApp {
@@ -70,12 +73,12 @@ func TestModelFocusInput(t *testing.T) {
 }
 
 func TestViewFooterPresent(t *testing.T) {
-	sess := session.NewSession("")
+	sess := agentapp.NewSessionContext("")
 	if err := sess.Append(llm.Message{Role: "assistant", Content: "short"}); err != nil {
 		t.Fatal(err)
 	}
 	m := NewModel(TUIOpts{
-		Session:   agentapp.NewSessionContext(sess, ""),
+		Session:   sess,
 		ModelName: "test-model",
 		Workspace: "/tmp/workspace",
 	})
@@ -609,20 +612,20 @@ func TestSlashCompletionShowsPrefixMatch(t *testing.T) {
 }
 
 func TestSlashCommandUnknownDoesNotAppendSession(t *testing.T) {
-	sess := session.NewSession("")
+	sess := agentapp.NewSessionContext("")
 	m := NewModel(TUIOpts{
-		Session:   agentapp.NewSessionContext(sess, ""),
+		Session:   sess,
 		Workspace: t.TempDir(),
 	})
 	m2, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
 	mod := m2.(*Model)
 	mod.inputBlock.SetValue("/nope")
 	mod.inputBlock.SyncHeight()
-	before := len(mod.opts.Session.Messages)
+	before := len(mod.opts.Session.Messages())
 	next, _ := mod.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	after := next.(*Model)
-	if len(after.opts.Session.Messages) != before {
-		t.Fatalf("session messages should not change, before=%d after=%d", before, len(after.opts.Session.Messages))
+	if len(after.opts.Session.Messages()) != before {
+		t.Fatalf("session messages should not change, before=%d after=%d", before, len(after.opts.Session.Messages()))
 	}
 	if after.err == "" {
 		t.Fatal("expected footer error for unknown slash command")
@@ -633,18 +636,15 @@ func TestSlashCommandUnknownDoesNotAppendSession(t *testing.T) {
 }
 
 func TestSlashSessionListsNewestFirst(t *testing.T) {
-	sess := session.NewSession("")
+	sess := agentapp.NewSessionContext("")
 	dir := t.TempDir()
-	oldTime := "2026-01-01T10:00:00Z"
-	newTime := "2026-06-01T10:00:00Z"
-	if err := agentapp.UpsertSessionItem(dir, session.SessionItem{ID: "sess-old", Title: "older chat", CreatedAt: oldTime}); err != nil {
-		t.Fatalf("UpsertSessionItem: %v", err)
-	}
-	if err := agentapp.UpsertSessionItem(dir, session.SessionItem{ID: "sess-new", Title: "newer chat", CreatedAt: newTime}); err != nil {
-		t.Fatalf("UpsertSessionItem: %v", err)
-	}
+	// Seeded through the store so the creation times are explicit: the panel
+	// orders by them, and two sessions made a microsecond apart would not prove
+	// anything about the ordering.
+	seedSession(t, dir, "sess-old", "older chat", time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC))
+	seedSession(t, dir, "sess-new", "newer chat", time.Date(2026, 6, 1, 10, 0, 0, 0, time.UTC))
 	m0 := NewModel(TUIOpts{
-		Session:     agentapp.NewSessionContext(sess, ""),
+		Session:     sess,
 		Workspace:   t.TempDir(),
 		SessionsDir: dir,
 	})
@@ -677,21 +677,21 @@ func TestSlashSessionListsNewestFirst(t *testing.T) {
 
 func TestSlashSkillsDoesNotAppendSession(t *testing.T) {
 	t.Setenv("BUILDMAX_HOME", t.TempDir())
-	sess := session.NewSession("")
+	sess := agentapp.NewSessionContext("")
 	ws := t.TempDir()
 	m := NewModel(TUIOpts{
-		Session:   agentapp.NewSessionContext(sess, ""),
+		Session:   sess,
 		Workspace: ws,
 	})
 	m2, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 14})
 	mod := m2.(*Model)
 	mod.inputBlock.SetValue("/skills")
 	mod.inputBlock.SyncHeight()
-	before := len(mod.opts.Session.Messages)
+	before := len(mod.opts.Session.Messages())
 	next, _ := mod.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	after := next.(*Model)
-	if len(after.opts.Session.Messages) != before {
-		t.Fatalf("session messages should not change, before=%d after=%d", before, len(after.opts.Session.Messages))
+	if len(after.opts.Session.Messages()) != before {
+		t.Fatalf("session messages should not change, before=%d after=%d", before, len(after.opts.Session.Messages()))
 	}
 	if after.slashSkills == nil {
 		t.Fatal("expected skills overlay after /skills")
@@ -703,7 +703,7 @@ func TestSlashSkillsDoesNotAppendSession(t *testing.T) {
 
 func TestSlashSkillsOpensOverlayAndEscCloses(t *testing.T) {
 	t.Setenv("BUILDMAX_HOME", t.TempDir())
-	sess := session.NewSession("")
+	sess := agentapp.NewSessionContext("")
 	ws := t.TempDir()
 	skillRoot := filepath.Join(ws, ".buildmax", "skills", "listdemo")
 	if err := os.MkdirAll(skillRoot, 0755); err != nil {
@@ -714,7 +714,7 @@ func TestSlashSkillsOpensOverlayAndEscCloses(t *testing.T) {
 		t.Fatal(err)
 	}
 	m0 := NewModel(TUIOpts{
-		Session:   agentapp.NewSessionContext(sess, ""),
+		Session:   sess,
 		Workspace: ws,
 	})
 	m1, _ := m0.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
@@ -748,10 +748,10 @@ func TestSlashSkillsOpensOverlayAndEscCloses(t *testing.T) {
 
 func TestSlashSkillsEmptyOverlay(t *testing.T) {
 	t.Setenv("BUILDMAX_HOME", t.TempDir())
-	sess := session.NewSession("")
+	sess := agentapp.NewSessionContext("")
 	ws := t.TempDir()
 	m0 := NewModel(TUIOpts{
-		Session:   agentapp.NewSessionContext(sess, ""),
+		Session:   sess,
 		Workspace: ws,
 	})
 	m1, _ := m0.Update(tea.WindowSizeMsg{Width: 80, Height: 16})
@@ -773,11 +773,11 @@ func TestSlashSkillsEmptyOverlay(t *testing.T) {
 }
 
 func TestSlashMCPOpensOverlayAndEmptyConfig(t *testing.T) {
-	sess := session.NewSession("")
+	sess := agentapp.NewSessionContext("")
 	workspace := t.TempDir()
 	m := NewModel(TUIOpts{
 		App:       testAgentApp(t, workspace),
-		Session:   agentapp.NewSessionContext(sess, ""),
+		Session:   sess,
 		Workspace: workspace,
 	})
 	m2, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
@@ -798,9 +798,9 @@ func TestSlashMCPOpensOverlayAndEmptyConfig(t *testing.T) {
 }
 
 func TestMCPOverlayEscClosesAndShowsServers(t *testing.T) {
-	sess := session.NewSession("")
+	sess := agentapp.NewSessionContext("")
 	m0 := NewModel(TUIOpts{
-		Session:   agentapp.NewSessionContext(sess, ""),
+		Session:   sess,
 		Workspace: t.TempDir(),
 	})
 	m1, _ := m0.Update(tea.WindowSizeMsg{Width: 80, Height: 18})
@@ -942,5 +942,15 @@ func TestFooterWithoutAnAppSaysLocal(t *testing.T) {
 	footer := m.renderFooterView()
 	if !strings.Contains(footer, "model: local (local)") {
 		t.Errorf("footer = %q, want it to name the model and the mode", footer)
+	}
+}
+
+// seedSession writes one session bundle with an explicit creation time.
+func seedSession(t *testing.T, dir, id, title string, createdAt time.Time) {
+	t.Helper()
+	meta := session.NewMeta(id, session.KindUser, createdAt)
+	meta.Title = title
+	if err := sessionstore.NewFileStore(dir).Create(context.Background(), meta); err != nil {
+		t.Fatalf("create session %s: %v", id, err)
 	}
 }

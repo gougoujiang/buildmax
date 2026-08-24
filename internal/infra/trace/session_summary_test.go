@@ -40,7 +40,7 @@ func TestSummarizeSession_SubagentTokensAreNotCountedTwice(t *testing.T) {
 	writeSessionTrace(t, dir, "s1", "rt_p", parentStart, parentEnd)
 	writeSessionTrace(t, dir, "s1", "rt_c", childStart, childEnd)
 
-	got, err := SummarizeSession(dir, "s1")
+	got, err := SummarizeSession(runDirFor(dir, "s1"))
 	if err != nil {
 		t.Fatalf("SummarizeSession: %v", err)
 	}
@@ -70,7 +70,7 @@ func TestSummarizeSession_WallClockExcludesSubagents(t *testing.T) {
 	writeSessionTrace(t, dir, "s1", "rt_p", parentStart, parentEnd)
 	writeSessionTrace(t, dir, "s1", "rt_c", childStart, childEnd)
 
-	got, err := SummarizeSession(dir, "s1")
+	got, err := SummarizeSession(runDirFor(dir, "s1"))
 	if err != nil {
 		t.Fatalf("SummarizeSession: %v", err)
 	}
@@ -87,7 +87,7 @@ func TestSummarizeSession_IncompleteRunIsNamed(t *testing.T) {
 	writeSessionTrace(t, dir, "s1", "rt_p", parentStart,
 		`{"ts":"2026-08-20T10:00:05Z","type":"llm_start","iter":1,"context_tokens":900,"context_window":2000}`)
 
-	got, err := SummarizeSession(dir, "s1")
+	got, err := SummarizeSession(runDirFor(dir, "s1"))
 	if err != nil {
 		t.Fatalf("SummarizeSession: %v", err)
 	}
@@ -110,7 +110,7 @@ func TestSummarizeSession_ToolOutcomesAreSplitByKind(t *testing.T) {
 		`{"ts":"2026-08-20T10:00:03Z","type":"tool_denied","tool":"Write","deny_reason":"policy"}`,
 		parentEnd)
 
-	got, err := SummarizeSession(dir, "s1")
+	got, err := SummarizeSession(runDirFor(dir, "s1"))
 	if err != nil {
 		t.Fatalf("SummarizeSession: %v", err)
 	}
@@ -141,11 +141,11 @@ func TestSummarizeSession_ToolOutcomesAreSplitByKind(t *testing.T) {
 // Tracing is fail-open and nothing prunes the directory today, so a session
 // with no traces is a normal state, not a read error.
 func TestSummarizeSession_NoTracesIsNotAnError(t *testing.T) {
-	got, err := SummarizeSession(t.TempDir(), "never-ran")
+	got, err := SummarizeSession(runDirFor(t.TempDir(), "never-ran"))
 	if err != nil {
 		t.Fatalf("SummarizeSession: %v", err)
 	}
-	if got.Runs != 0 || got.SessionID != "never-ran" {
-		t.Errorf("got %+v, want an empty summary naming the session", got)
+	if got.Runs != 0 {
+		t.Errorf("got %+v, want an empty summary", got)
 	}
 }

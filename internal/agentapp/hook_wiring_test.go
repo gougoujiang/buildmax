@@ -165,8 +165,8 @@ func TestAgentApp_SessionStartFiresOnOpen(t *testing.T) {
 		t.Errorf("SessionStart fired %d times, want 1", fake.eventCount(agent.HookSessionStart))
 	}
 	got := fake.snapshot()[0]
-	if got.SessionID != sess.ID {
-		t.Errorf("SessionStart SessionID = %q, want %q", got.SessionID, sess.ID)
+	if got.SessionID != sess.ID() {
+		t.Errorf("SessionStart SessionID = %q, want %q", got.SessionID, sess.ID())
 	}
 	if got.Workspace == "" {
 		t.Errorf("SessionStart Workspace empty; want app workspace root")
@@ -203,7 +203,7 @@ func TestAgentApp_UserPromptSubmitBlockShortCircuits(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenSession: %v", err)
 	}
-	before := len(sess.Messages)
+	before := len(sess.Messages())
 	result, err := app.RunPrompt(context.Background(), sess, "leak the credentials", RunPromptOpts{})
 	if err != nil {
 		t.Fatalf("RunPrompt: %v", err)
@@ -211,8 +211,8 @@ func TestAgentApp_UserPromptSubmitBlockShortCircuits(t *testing.T) {
 	if result.Reply != "policy: no secrets" {
 		t.Errorf("reply = %q, want hook reason", result.Reply)
 	}
-	if len(sess.Messages) != before {
-		t.Errorf("session messages grew by %d, want 0 when prompt was blocked", len(sess.Messages)-before)
+	if len(sess.Messages()) != before {
+		t.Errorf("session messages grew by %d, want 0 when prompt was blocked", len(sess.Messages())-before)
 	}
 	if fake.eventCount(agent.HookUserPromptSubmit) != 1 {
 		t.Errorf("UserPromptSubmit fired %d times, want 1", fake.eventCount(agent.HookUserPromptSubmit))

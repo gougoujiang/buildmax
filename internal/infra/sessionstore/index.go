@@ -103,10 +103,11 @@ func summarize(m session.Meta) session.ItemSummary {
 	return session.ItemSummary{
 		ID:         m.ID,
 		Kind:       m.Kind,
+		CreatedAt:  m.CreatedAt,
+		UpdatedAt:  m.UpdatedAt,
 		Title:      m.Title,
 		Workspace:  m.Workspace,
 		Pinned:     m.Pinned,
-		UpdatedAt:  m.UpdatedAt,
 		ForkedFrom: m.ForkedFrom,
 	}
 }

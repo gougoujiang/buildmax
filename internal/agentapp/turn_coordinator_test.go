@@ -67,17 +67,17 @@ func TestRunPromptRefusesConcurrentTurn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenSession: %v", err)
 	}
-	if err := app.turns.begin(sess.ID); err != nil {
+	if err := app.turns.begin(sess.ID()); err != nil {
 		t.Fatalf("begin: %v", err)
 	}
-	defer app.turns.end(sess.ID)
+	defer app.turns.end(sess.ID())
 
-	before := len(sess.Messages)
+	before := len(sess.Messages())
 	_, err = app.RunPrompt(context.Background(), sess, "hello", RunPromptOpts{})
 	if !errors.Is(err, ErrTurnActive) {
 		t.Fatalf("RunPrompt = %v, want ErrTurnActive", err)
 	}
-	if len(sess.Messages) != before {
-		t.Errorf("refused turn wrote %d messages to history", len(sess.Messages)-before)
+	if len(sess.Messages()) != before {
+		t.Errorf("refused turn wrote %d messages to history", len(sess.Messages())-before)
 	}
 }

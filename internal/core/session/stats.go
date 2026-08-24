@@ -72,14 +72,11 @@ type ToolStats struct {
 // — the assistant message was compacted out from under it — is counted in the
 // totals under an empty name rather than dropped: the bytes are in the context
 // either way.
-func Stats(s *Session) ConversationStats {
-	if s == nil {
-		return ConversationStats{}
-	}
+func Stats(st State) ConversationStats {
 	var out ConversationStats
-	out.CompactedMessages = min(s.CompactionIdx, len(s.Messages))
-	out.Notes = len(s.NoteEntries)
-	out.Todos = len(s.TodoEntries)
+	out.CompactedMessages = min(st.CompactionIdx, len(st.Messages))
+	out.Notes = len(st.Notes)
+	out.Todos = len(st.Todos)
 
 	byCall := make(map[string]string)
 	byTool := make(map[string]*ToolStats)
@@ -92,7 +89,7 @@ func Stats(s *Session) ConversationStats {
 		return t
 	}
 
-	for _, m := range s.Messages {
+	for _, m := range st.Messages {
 		switch m.Role {
 		case "user":
 			if m.Source == "" {
@@ -141,26 +138,23 @@ func Stats(s *Session) ConversationStats {
 // a provider's cache, and ok=false when there is nothing to divide or the
 // provider reported no cache usage at all. A zero share and an unreported one
 // are different facts: only the first says the cache missed.
-func (s *Session) CacheReadShare() (share float64, ok bool) {
-	if s == nil || s.PromptTokens <= 0 {
+func (m Meta) CacheReadShare() (share float64, ok bool) {
+	if m.PromptTokens <= 0 {
 		return 0, false
 	}
-	if s.CacheReadTokens == 0 && s.CacheWriteTokens == 0 {
+	if m.CacheReadTokens == 0 && m.CacheWriteTokens == 0 {
 		return 0, false
 	}
-	return float64(s.CacheReadTokens) / float64(s.PromptTokens), true
+	return float64(m.CacheReadTokens) / float64(m.PromptTokens), true
 }
 
 // Usage is the session's accumulated token usage.
-func (s *Session) Usage() llm.Usage {
-	if s == nil {
-		return llm.Usage{}
-	}
+func (m Meta) Usage() llm.Usage {
 	return llm.Usage{
-		PromptTokens:     s.PromptTokens,
-		CompletionTokens: s.CompletionTokens,
-		TotalTokens:      s.PromptTokens + s.CompletionTokens,
-		CacheReadTokens:  s.CacheReadTokens,
-		CacheWriteTokens: s.CacheWriteTokens,
+		PromptTokens:     m.PromptTokens,
+		CompletionTokens: m.CompletionTokens,
+		TotalTokens:      m.PromptTokens + m.CompletionTokens,
+		CacheReadTokens:  m.CacheReadTokens,
+		CacheWriteTokens: m.CacheWriteTokens,
 	}
 }

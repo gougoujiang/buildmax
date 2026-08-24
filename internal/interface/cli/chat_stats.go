@@ -6,7 +6,6 @@ import (
 	"text/tabwriter"
 
 	"github.com/gougoujiang/buildmax/internal/agentapp"
-	"github.com/gougoujiang/buildmax/internal/config"
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/util"
 
@@ -33,14 +32,14 @@ type slashStatsPanel struct {
 
 func openSlashStats(m *Model) (tea.Model, tea.Cmd) {
 	p := &slashStatsPanel{}
-	if m.opts.Session == nil || m.opts.Session.Session == nil {
+	if m.opts.Session == nil {
 		p.LoadError = "no session is open"
 		return m.openPanel(p)
 	}
-	// The live session, not the file: a session is persisted after each
-	// assistant reply, so reading it back would answer about the turn before
-	// the one on screen.
-	stats, err := agentapp.NewSessionStats(m.opts.Session.Session, m.opts.Workspace, config.TracesDir())
+	// The live session, not the file: the conversation commits as the turn
+	// runs but its metadata lands at the end, so reading the bundle back here
+	// would answer about the turn before the one on screen.
+	stats, err := agentapp.NewSessionStats(m.opts.Session.Snapshot(), m.opts.SessionsDir)
 	if err != nil {
 		p.LoadError = err.Error()
 	}
