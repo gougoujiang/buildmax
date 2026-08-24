@@ -39,7 +39,7 @@ type Contents struct {
 // Create writes a new journal with its header and returns it open for append.
 // It fails if one already exists: silently adopting a file would let a bug that
 // reuses a session id append one conversation onto another.
-func Create(dir string, header session.Header) (*Journal, error) {
+func CreateJournal(dir string, header session.Header) (*Journal, error) {
 	if err := header.Validate(); err != nil {
 		return nil, err
 	}
