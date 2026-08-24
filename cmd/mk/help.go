@@ -74,7 +74,7 @@ func allHelpSections() []helpSection {
 		}},
 		{"Release", []helpRow{
 			{"changelog [new]", "Add or preview unreleased entries; 'release <version>' folds them in"},
-			{"release <action>", "Run bump, verify, notices, or licenses"},
+			{"release <action>", "Run bump, notes, verify, notices, or licenses"},
 			{"install", "Install binaries to ~/.local/bin"},
 		}},
 	}
@@ -412,21 +412,23 @@ func helpTopics() []helpTopic {
 		},
 		{
 			name:    "release",
-			usage:   "release <bump|verify|notices|licenses>",
+			usage:   "release <bump|notes|verify|notices|licenses>",
 			summary: "Run one release chore.",
 			details: []string{
 				"`bump` tags the next version locally and stops there, because pushing the tag\n" +
-					"is what starts the release build. The other three are checks and generated\n" +
-					"files that CI also runs.",
+					"is what starts the release build. `notes` prints what that build will publish\n" +
+					"as the release body, or writes it with `-o`. The rest are checks and\n" +
+					"generated files that CI also runs.",
 				"Each action takes its own flags: `" + mk() + " release verify --help` prints them.",
 			},
 			args: []helpRow{
 				{"bump [patch|minor|major]", "Tag the next version locally (default patch)"},
+				{"notes <version>", "Compose the release body from that version's CHANGELOG.md section"},
 				{"verify", "Validate the built GoReleaser archives"},
 				{"notices", "Regenerate NOTICE-THIRD-PARTY"},
 				{"licenses", "Check npm production dependencies against the allowed set"},
 			},
-			examples: []string{"release notices", "release bump minor"},
+			examples: []string{"release notices", "release bump minor", "release notes v0.2.0-alpha.1"},
 			see:      "docs/contribute/releasing.md",
 		},
 		{

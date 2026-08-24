@@ -83,6 +83,7 @@ func TestReleaseRoutesActions(t *testing.T) {
 		want string
 	}{
 		{name: "bump", args: []string{"bump", "invalid"}, want: "bump must be"},
+		{name: "notes", args: []string{"notes"}, want: "release notes needs a version"},
 		{name: "verify", args: []string{"verify", "--invalid"}, want: "flag provided but not defined"},
 		{name: "notices", args: []string{"notices", "--invalid"}, want: "flag provided but not defined"},
 		{name: "licenses", args: []string{"licenses", "--invalid"}, want: "flag provided but not defined"},

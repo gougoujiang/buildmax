@@ -38,10 +38,16 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # GoReleaser can only hold a static header and footer, so the release body
+      # is composed here from the tag's CHANGELOG.md section. A tag with no
+      # section fails the release rather than publishing notes without it.
+      - name: Compose release notes
+        run: go run ./cmd/mk release notes "${GITHUB_REF_NAME}" -o .artifacts/release-notes.md
+
       - uses: goreleaser/goreleaser-action@v7
         with:
           version: v2.17.1
-          args: release --clean
+          args: release --clean --release-notes=.artifacts/release-notes.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

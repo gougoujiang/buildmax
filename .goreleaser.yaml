@@ -111,64 +111,13 @@ dockers_v2:
         Out-of-the-box, privately deployable Agent platform: CLI, server, and worker.
 
 changelog:
-  # The published history starts at a squashed initial commit, so generated
-  # changelogs would be noise for the first releases. Release notes are written
-  # by hand until there is a real commit history to summarize.
+  # The published history starts at a squashed initial commit, so a generated
+  # changelog would be noise. The release body is composed instead by
+  # `./make release notes <version>` from that version's CHANGELOG.md section,
+  # and the workflow passes it as --release-notes; a notes file replaces the
+  # header and footer, so this file no longer carries either.
   disable: true
 
 release:
   # A tag like v0.1.0-alpha marks the GitHub release as a pre-release.
   prerelease: auto
-  header: |
-    BuildMax is an out-of-the-box, privately deployable Agent platform built on
-    one shared Go Agent Runtime. The same runtime backs a CLI/TUI for local
-    terminal work, a desktop app, and a team Portal served by the Go server,
-    with a scheduler and worker pipeline for background task runs.
-
-    ## Install
-
-    Download the archive for your platform below. Each one contains all three
-    binaries — `buildmax`, `buildmax-server`, `buildmax-worker` — plus
-    `config-examples/`, `LICENSE`, and `NOTICE-THIRD-PARTY`. Verify it against
-    `checksums.txt` first.
-
-    With a Go toolchain, for the CLI alone:
-
-    ```
-    go install github.com/gougoujiang/buildmax/cmd/buildmax@{{ .Tag }}
-    ```
-
-    As a container, for linux/amd64 and linux/arm64:
-
-    ```
-    docker pull ghcr.io/gougoujiang/buildmax:{{ .Version }}
-    ```
-
-    ## Getting started
-
-    Copy `config-examples/settings.example.yaml` to
-    `~/.buildmax/settings.yaml`, configure at least one model, then run
-    `buildmax` for the TUI or `buildmax -p "your prompt"` for a single
-    non-interactive turn. Running the server and Portal additionally needs
-    MySQL and object storage; see the README.
-
-    The desktop app is not published here. It needs code signing and
-    notarization to launch on macOS, so build it locally with `./make build`.
-  footer: |
-    ## Before you deploy this
-
-    This is an alpha, and two defaults deserve to be read as warnings rather
-    than footnotes:
-
-    - **Server authentication is bootstrap-level.** There is no mail channel, so
-      an operator creates accounts and issues single-use login codes with
-      `buildmax-server user create` and `user login-code`. Self-registration is
-      closed by default. There is no password, second factor, SSO, or recovery
-      flow; putting the Portal on a network you do not control requires wiring a
-      real identity provider first.
-    - **The bash sandbox is off by default**, and worker hardening is
-      incomplete.
-
-    `SECURITY.md` lists both, along with how to report a vulnerability
-    privately. Interfaces and deployment guidance may change before a stable
-    release.
