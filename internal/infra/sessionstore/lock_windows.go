@@ -13,17 +13,30 @@ import (
 // would-block, so the two are mapped onto one sentinel for the caller.
 var errWouldBlock = windows.ERROR_LOCK_VIOLATION
 
-// lockByteRange is the region locked. The lock is on the range, not on the
-// bytes, so locking one byte of a file whose contents are pure diagnostics is
-// enough to make ownership exclusive.
-const lockByteRange = 1
+// The locked region is one byte at a very high offset, past anything the file
+// will ever contain.
+//
+// It matters which byte. A Windows file lock is mandatory, not advisory like
+// flock: a locked range cannot be read by anyone, including a person or a test
+// trying to see who holds the session. Locking the start of the file would
+// therefore make the owner diagnostics unreadable exactly while the lock is
+// held — which is the only time anybody wants to read them. Locking a byte that
+// holds no data keeps ownership exclusive and the contents legible.
+const (
+	lockOffsetHigh = 0x40000000 // 1<<62, far beyond any diagnostics blob
+	lockBytes      = 1
+)
+
+func lockRegion() windows.Overlapped {
+	return windows.Overlapped{OffsetHigh: lockOffsetHigh}
+}
 
 func lockFile(f *os.File) error {
-	var overlapped windows.Overlapped
+	overlapped := lockRegion()
 	err := windows.LockFileEx(
 		windows.Handle(f.Fd()),
 		windows.LOCKFILE_EXCLUSIVE_LOCK|windows.LOCKFILE_FAIL_IMMEDIATELY,
-		0, lockByteRange, 0, &overlapped,
+		0, lockBytes, 0, &overlapped,
 	)
 	if err == windows.ERROR_IO_PENDING || err == windows.ERROR_LOCK_VIOLATION {
 		return errWouldBlock
@@ -32,6 +45,6 @@ func lockFile(f *os.File) error {
 }
 
 func unlockFile(f *os.File) error {
-	var overlapped windows.Overlapped
-	return windows.UnlockFileEx(windows.Handle(f.Fd()), 0, lockByteRange, 0, &overlapped)
+	overlapped := lockRegion()
+	return windows.UnlockFileEx(windows.Handle(f.Fd()), 0, lockBytes, 0, &overlapped)
 }

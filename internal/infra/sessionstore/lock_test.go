@@ -134,3 +134,33 @@ func TestReleaseIsSafeToCallTwice(t *testing.T) {
 		t.Errorf("nil Release: %v", err)
 	}
 }
+
+// TestOwnerFileIsReadableWhileHeld pins what the diagnostics are for. They
+// exist so a person can see who holds a stuck session, which means they have to
+// be readable at the one moment anybody would look: while the lock is held.
+//
+// This is not free on every platform. A Windows file lock is mandatory rather
+// than advisory, so a locked byte range cannot be read at all — locking the
+// start of the file would make the owner blob unreadable exactly when it
+// matters. The lock therefore covers a byte the file never uses, and this test
+// is what would catch that changing.
+func TestOwnerFileIsReadableWhileHeld(t *testing.T) {
+	path := lockPath(t)
+	lock, err := AcquireWriter(path)
+	if err != nil {
+		t.Fatalf("AcquireWriter: %v", err)
+	}
+	defer func() { _ = lock.Release() }()
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("the owner file is unreadable while the lock is held: %v", err)
+	}
+	var owner lockOwner
+	if err := json.Unmarshal(data, &owner); err != nil {
+		t.Fatalf("owner diagnostics are not decodable: %v (%s)", err, data)
+	}
+	if owner.PID != os.Getpid() {
+		t.Errorf("pid = %d, want %d", owner.PID, os.Getpid())
+	}
+}
