@@ -66,8 +66,7 @@ This shape has four problems, worst first:
 1. A long Agent turn may complete many model and tool steps before the session
    is saved. A crash loses the distinction between work that never started and
    work that may already have changed the world.
-2. A flat `Messages` array has no durable identity for a checkpoint, rewind, or
-   fork point.
+2. A flat `Messages` array has no durable identity for a rewind or fork point.
 3. Direct overwrite could leave the only file unparsable after interruption,
    disk exhaustion, or machine failure. Phase 0 retired this one: both files
    are now replaced through `util.WriteFileAtomic`.
@@ -95,8 +94,7 @@ answer.
   content parts, and provenance.
 - Commit enough state during a turn to recover safely after interruption.
 - Give every history item a stable identity and logical parent.
-- Support resume, conversation checkpoint, rewind, and fork without making the
-  run trace authoritative.
+- Support resume, rewind, and fork without making the run trace authoritative.
 - Keep title lookup and session listing fast.
 - Isolate metadata, history, trace, artifact, and writer-lock failure policies.
 - Keep the stored form neutral about which model provider produced a turn, and
@@ -109,8 +107,8 @@ answer.
 ### 3.2 Non-goals
 
 - Replaying or rolling back arbitrary external side effects.
-- Capturing or restoring workspace file state, and treating a conversation
-  checkpoint as a filesystem, process, remote service, or database snapshot.
+- Capturing or restoring workspace file state. Rewind moves the conversation;
+  it does not undo what the conversation did.
 - Persisting credentials, approval grants, process handles, or shell sessions.
 - Making a local transcript tamper-proof audit evidence.
 - Implementing Server synchronization, Team sharing, or remote authorization.
@@ -214,7 +212,6 @@ A forked user session adds:
 {
   "forked_from": {
     "session_id": "<parent uuid>",
-    "checkpoint_id": "<checkpoint item id>",
     "head_id": "<history item id>"
   }
 }
@@ -333,7 +330,6 @@ holds an answer that could disagree with it.
 | `todos_replaced` | Complete stamped todo list | Replaces durable todos |
 | `additional_prompt_set` | Complete validated text | Replaces the durable additional system prompt |
 | `head_selected` | Reason; the item returned to is its `parent_id` | Redirects the parent chain to an earlier item |
-| `checkpoint` | History head and state digest | Names a stable conversation restore point |
 | `turn_finished` | Terminal status — `completed`, `failed`, `canceled`, or `interrupted` — and optional error classification | Closes the turn |
 | `turn_recovered` | Interrupted turn and uncertain tool-call IDs | Makes cold recovery explicit before new work |
 
@@ -551,53 +547,38 @@ the turn is left open and the next open recovers it exactly as §7.2 and §7.3
 describe. Graceful closure is an optimisation over recovery, not an alternative
 to it.
 
-## 8. Checkpoint, Rewind, And Fork
+## 8. Rewind And Fork
 
-### 8.1 Checkpoint
+### 8.1 Why there is no checkpoint
 
-A checkpoint names a stable conversation head:
+An earlier draft had a `checkpoint` record naming a head, so it could be
+returned to later. It is gone, and the reason is recorded rather than left to
+be rediscovered.
 
-```json
-{
-  "seq": 85,
-  "id": "<checkpoint item id>",
-  "parent_id": "<history item id>",
-  "type": "checkpoint",
-  "data": {
-    "history_head_id": "<history item id>",
-    "state_digest": "sha256:...",
-    "reason": "user_prompt"
-  }
-}
-```
+A checkpoint is a promise about state. Everywhere else the word is used, it
+means "put things back the way they were" — files included. This design cannot
+keep that promise: BuildMax has no versioned workspace capability and no design
+record for one, the earlier record having been withdrawn rather than
+implemented, as [`trust-harness.md`](trust-harness.md) and the session-tree
+proposal both state.
 
-`state_digest` covers the conversation state reduced at that head, so a restore
-can be checked against what the checkpoint claimed rather than trusted.
+A conversation-only checkpoint would therefore have been a name that promises
+more than the thing does, over a capability rewind already provides. Worse, the
+name would hide the sharp edge instead of exposing it: rewinding past a turn
+that edited files, ran Bash, or called a network service leaves every one of
+those effects in place. The model's history returns to an earlier point and the
+world does not, so the model then reasons from a picture of the workspace that
+is no longer true.
 
-**A checkpoint restores conversation, and only conversation.** It does not
-capture the workspace, and this design does not propose a mechanism that would.
-BuildMax has no versioned workspace capability and no design record for one:
-the earlier record was withdrawn rather than implemented, as
-[`trust-harness.md`](trust-harness.md) and the session-tree proposal both state.
-A workspace snapshot field here would describe a withdrawn capability as
-upcoming.
-
-The consequence deserves stating rather than leaving to inference. Rewinding
-past a turn that edited files, ran Bash, or called a network service leaves
-every one of those effects in place: the model's history returns to an earlier
-point and the world does not. A user who rewinds after a destructive edit gets
-a conversation that no longer mentions it and a tree that still contains it, so
-the surfaces offering rewind have to say what it does not undo.
-
-If a versioned workspace capability is ever taken up, a checkpoint gains a
-reference to one under §11's ordering rule — artifact bytes durable before
-the record referencing them — and §6.4 decides whether older readers may skip
-the extended record. That is an extension point, not a plan.
+That is a real hazard, and it is rewind's to carry and to surface (§8.2), not
+something to be smoothed over by a reassuring word. Restoring what an agent
+changed is a capability worth having, but it is a different design record, and
+naming a slot for it here would describe a withdrawn capability as upcoming.
 
 ### 8.2 Rewind
 
-Rewind appends a `head_selected` record whose parent is the target checkpoint
-or message. That is the entire operation. The target is not repeated in the
+Rewind appends a `head_selected` record whose parent is the message being
+returned to. That is the entire operation. The target is not repeated in the
 payload: this is the one record that deliberately points somewhere other than
 its physical predecessor, so the parent link already says everything a target
 field would, and storing it twice would only create a pair that could
@@ -617,12 +598,12 @@ difference inspectable rather than silent.
 Compaction is branch-scoped. A summary records exactly which history head or
 range it covers. A summary produced after the fork point cannot be reused by a
 child that does not contain the summarized records. Raw history remains until
-all checkpoint, rewind, and fork retention rules permit physical compaction.
+all rewind and fork retention rules permit physical compaction.
 
 ### 8.3 Fork
 
-Phase 1 physically copies the stable history prefix through the selected
-checkpoint into a new session directory. It preserves item IDs, gives the child
+Fork physically copies the history prefix through the selected message into a
+new session directory. It preserves item IDs, gives the child
 an independent session ID and metadata record, and writes fork provenance into
 `meta.json`.
 
@@ -648,7 +629,7 @@ deferred until measured storage pressure justifies their deletion, retention,
 and garbage-collection complexity.
 
 Traces are not copied into the child resume context. Fork metadata names the
-source checkpoint; new child runs create new trace files.
+session and head it came from; new child runs create new trace files.
 
 ## 9. Subagent Sessions
 
@@ -783,8 +764,8 @@ totals, and warns when a single journal crosses a configured size, so growth
 becomes visible before it becomes a complaint.
 
 Physical pruning is what would bound those bytes, and it does not ship here. A
-prefix cannot be removed while a branch, checkpoint, fork export, or remote
-revision depends on it. No pruning ships until reachability and recovery are
+prefix cannot be removed while a branch, fork export, or remote revision
+depends on it. No pruning ships until reachability and recovery are
 specified and tested.
 
 ## 14. Ownership And Interfaces
@@ -972,8 +953,8 @@ Implementation is incomplete until tests establish:
   messages from more than one protocol still replays;
 - an unknown skippable record loads with a warning and an unknown required
   record fails exactly like corruption;
-- restoring a checkpoint reproduces exactly the reduced state its
-  `state_digest` names, and leaves workspace files untouched;
+- rewinding to a message reproduces exactly the state that message's branch
+  reduces to, and leaves workspace files untouched;
 - foreground, background, and nested subagents write isolated hidden bundles
   with immediate-parent lineage;
 - hidden subagents never appear in the picker or become `--continue` targets;
@@ -1014,7 +995,7 @@ Implementation is incomplete until tests establish:
 Property tests generate linked histories and compare incremental reduction with
 full replay from every reachable head. Crash tests use real temporary files and
 inject failure around file sync, metadata rename, tool execution, artifact
-publication, checkpoint creation, and fork copying.
+publication, and fork copying.
 
 ## 18. Delivery Phases
 
@@ -1060,17 +1041,21 @@ One thing the record did not anticipate: `AddCompaction`, `SetNotes`, and
 commit. All three now return one, because §7.1 requires the turn to stop rather
 than continue against state the next turn will not find.
 
-### Phase 2: Checkpoint, rewind, and physical-copy fork
+### Phase 2: Rewind and physical-copy fork
 
-- Add stable conversation checkpoints.
-- Add current-head selection and branch-aware replay.
-- Add conversation rewind and independent child-session fork.
+- Add conversation rewind: the operation and the surfaces that offer it,
+  including what it reports as *not* undone (§8.2).
+- Add independent child-session fork.
 - Define artifact copy/retention rules for fork and deletion.
+
+Head selection and branch-aware replay are not listed: they landed in phase 1
+as the mechanism rewind is built from, and are covered by the property tests
+there. What remains for rewind is the operation and its surfaces.
 
 ### Phase 3: Measured optimization and remote input
 
 - Externalize oversized content and qualify artifact garbage collection.
-- Feed immutable checkpoint bundles into durable Agent session work after that
+- Feed immutable session prefixes into durable Agent session work after that
   proposal is accepted.
 - Evaluate SQLite or shared history segments only from measured query,
   concurrency, or storage pressure.
@@ -1087,15 +1072,19 @@ primitive in §7.1, and cancellation in §7.4.
   is that idempotency qualified?
 - How long are hidden subagent bundles retained after the parent receives their
   result?
-- How does a surface tell a user what a rewind did not undo, given §8.1 leaves
-  workspace effects in place?
+- How does a surface tell a user what a rewind did not undo? The journal has
+  the answer — the abandoned branch's `tool_execution_started` and `tool_result`
+  records say which tools ran — so this is a question about what to show, not
+  about what is known. It blocks shipping rewind rather than building it: §8.1
+  makes the hazard rewind's to surface, and an unanswered version of this
+  question is a rewind that hides it.
 
 ### 19.2 Blocking phase 3
 
 - What size moves inline content into `artifacts/` without making ordinary tool
   resume dependent on excessive small files?
-- What reachability rule makes a journal prefix safe to prune, given branches,
-  checkpoints, and fork exports? Until it exists, §13 bounds nothing.
+- What reachability rule makes a journal prefix safe to prune, given branches
+  and fork exports? Until it exists, §13 bounds nothing.
 
 ### 19.3 Resolved
 
