@@ -287,3 +287,55 @@ func (a *App) mustProjectFolder(t *testing.T, projectID string) string {
 	t.Fatalf("project %s is not listed", projectID)
 	return ""
 }
+
+// The turn digest reaches the frontend as its own event and stays out of the
+// session. Both halves matter: the recap is only useful if the UI is told, and
+// the whole premise is that neither half is something the model reads back.
+func TestBridgeSendsTheTurnDigestWithoutPuttingItInTheSession(t *testing.T) {
+	scenario := writeScenario()
+	// The turn has to end by asking the user something, or there is no
+	// suggestion to predict and the digest is asked for the recap alone.
+	scenario.Steps[1].Text = "wrote notes.txt — commit it?"
+	// One more step than the turn needs: the digest is a model call of its own,
+	// made after the loop is done and before the run reports.
+	scenario.Steps = append(scenario.Steps, mockllm.Step{
+		Text: `{"recap": "Wrote notes.txt with the scripted content.", "suggestion": "yes, commit it"}`,
+	})
+	app, events, server, projectID := bridge(t, scenario, map[string]string{"Write": "allow"})
+
+	if _, err := app.SendMessageStream(projectID, "", "write notes.txt"); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+
+	digest, ok := events.waitFor(t, eventTurnDigest).(*TurnDigestPayload)
+	if !ok {
+		t.Fatalf("turn-digest payload = %T, want *TurnDigestPayload", digest)
+	}
+	if digest.Recap != "Wrote notes.txt with the scripted content." {
+		t.Errorf("recap = %q", digest.Recap)
+	}
+	if digest.Suggestion != "yes, commit it" {
+		t.Errorf("suggestion = %q", digest.Suggestion)
+	}
+
+	done, ok := events.waitFor(t, eventStreamDone).(*ReplyPayload)
+	if !ok {
+		t.Fatalf("stream-done payload = %T, want *ReplyPayload", done)
+	}
+	if remaining := server.Remaining(); remaining != 0 {
+		t.Fatalf("unconsumed scenario steps = %d, want 0 — the digest call is one of them", remaining)
+	}
+
+	detail, err := app.GetSession(done.SessionID)
+	if err != nil {
+		t.Fatalf("reopen the session: %v", err)
+	}
+	for _, m := range detail.Messages {
+		if strings.Contains(m.Content, "Wrote notes.txt with the scripted content.") {
+			t.Fatalf("the recap was written into the conversation as a %s message", m.Role)
+		}
+		if strings.Contains(m.Content, "yes, commit it") {
+			t.Fatalf("the suggestion was written into the conversation as a %s message", m.Role)
+		}
+	}
+}

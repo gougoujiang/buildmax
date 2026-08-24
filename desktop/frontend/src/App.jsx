@@ -119,6 +119,7 @@ export default function App() {
   const EV_MESSAGE_BLOCKED = 'desktop/message-blocked';
   const EV_JOB_DELIVERY = 'desktop/job-delivery';
   const EV_JOB_DELIVERY_PENDING = 'desktop/job-delivery-pending';
+  const EV_TURN_DIGEST = 'desktop/turn-digest';
 
   const [approvalRequest, setApprovalRequest] = useState(null);
   const [toolActivity, setToolActivity] = useState('');
@@ -126,6 +127,11 @@ export default function App() {
   // Prompts typed during a run, waiting for their own turn. The Go side owns the
   // real queue; this mirrors it so the transcript can show what is still waiting.
   const [queuedMessages, setQueuedMessages] = useState([]);
+  // What the last finished turn is worth telling the user: a recap of what it
+  // did, and the answer it expects next. Held apart from `messages` on purpose —
+  // stream-done reloads that list from the session, and neither of these is in
+  // the session or ever goes back to the model.
+  const [turnDigest, setTurnDigest] = useState(null);
 
   useEffect(() => {
     const unsubDelta = EventsOn(EV_STREAM_DELTA, (delta) => {
@@ -244,8 +250,16 @@ export default function App() {
         content: `⟳ ${payload?.source ?? 'background event'} from ${payload?.job_id ?? ''} — ${payload?.title ?? ''}`,
       }]);
     });
+    // Emitted once per turn, and only when the turn earned something to say.
+    const unsubTurnDigest = EventsOn(EV_TURN_DIGEST, (payload) => {
+      setTurnDigest({
+        recap: payload?.recap ?? '',
+        suggestion: payload?.suggestion ?? '',
+      });
+    });
     return () => {
-      EventsOff(EV_STREAM_DELTA, EV_STREAM_DONE, EV_STREAM_ERROR, EV_APPROVAL_REQUEST, EV_LLM_START, EV_TOOL_START, EV_TOOL_END, EV_RUN_STATUS, EV_MESSAGE_DEQUEUED, EV_MESSAGE_BLOCKED, EV_JOB_DELIVERY);
+      EventsOff(EV_STREAM_DELTA, EV_STREAM_DONE, EV_STREAM_ERROR, EV_APPROVAL_REQUEST, EV_LLM_START, EV_TOOL_START, EV_TOOL_END, EV_RUN_STATUS, EV_MESSAGE_DEQUEUED, EV_MESSAGE_BLOCKED, EV_JOB_DELIVERY, EV_TURN_DIGEST);
+      unsubTurnDigest?.();
       unsubDelta?.();
       unsubDone?.();
       unsubError?.();
@@ -378,6 +392,9 @@ export default function App() {
     setNewChatProject(null);
     setHistoryNotice(null);
     setSelectedId(sessionId);
+    // A digest belongs to one turn of one conversation; it does not follow the
+    // user to another.
+    setTurnDigest(null);
   }
 
   function handleRewound(report) {
@@ -400,6 +417,7 @@ export default function App() {
     setMessages([]);
     setSessionTitle('');
     setError(null);
+    setTurnDigest(null);
   }
 
   function handleNewChatInProject(project) {
@@ -407,6 +425,7 @@ export default function App() {
     setSelectedId(null);
     setMessages([]);
     setSessionTitle('New Chat');
+    setTurnDigest(null);
   }
 
   async function handleCreateProject(name, folderPath) {
@@ -534,6 +553,9 @@ export default function App() {
     setLoading(true);
     setError(null);
     setHistoryNotice(null);
+    // The recap described the previous turn and the suggestion answered the
+    // question it asked. Both are spent the moment a new turn starts.
+    setTurnDigest(null);
     streamingContentRef.current = '';
     setRunStatus((prev) => ({ ...(prev ?? {}), prompt_tokens: 0, completion_tokens: 0 }));
     setMessages((prev) => [
@@ -698,6 +720,18 @@ export default function App() {
           <MarkdownMessage content={queued} />
         </div>
       ),
+    });
+  }
+
+  // The recap closes the transcript as a notice, not a message: it is shown to
+  // the user and never said to the agent.
+  if (turnDigest?.recap) {
+    threadItems.push({
+      id: 'turn-recap',
+      role: 'notice',
+      label: 'Turn recap',
+      hideAvatar: true,
+      body: <div className="page-chat__recap">{turnDigest.recap}</div>,
     });
   }
 
@@ -867,6 +901,8 @@ export default function App() {
                       onRespond={handleRespond}
                       toolActivity={toolActivity}
                       runStatus={runStatus}
+                      suggestion={turnDigest?.suggestion ?? ''}
+                      onAcceptSuggestion={() => setTurnDigest(null)}
                       sessionId={selectedId || ''}
                       onRewound={handleRewound}
                       onForked={handleForked}

@@ -101,6 +101,15 @@
   opacity: 0.75;
 }
 
+/* What the finished turn did, written for the user. Marked as an aside rather
+   than a reply: the agent never said it, and it never goes back to the model. */
+.page-chat__recap {
+  font-size: 0.85rem;
+  line-height: 1.55;
+  border-left: 2px solid var(--color-border);
+  padding-left: 0.6rem;
+}
+
 .page-chat__markdown {
   color: inherit;
   font-size: 0.95rem;

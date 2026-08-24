@@ -92,6 +92,27 @@
   color: var(--color-text-subtle);
 }
 
+/* A ghost suggestion is a placeholder that means something different from an
+   idle hint, so it is marked as offered rather than merely absent text. */
+.bm-chat-composer__input--ghost::placeholder {
+  color: var(--color-text-muted);
+  font-style: italic;
+  opacity: 1;
+}
+
+.bm-chat-composer__ghost-hint {
+  position: absolute;
+  right: 5rem;
+  bottom: 0.85rem;
+  padding: 0.1rem 0.35rem;
+  font-size: 0.7rem;
+  line-height: 1.4;
+  color: var(--color-text-subtle);
+  border: 1px solid var(--color-input-border);
+  border-radius: 4px;
+  pointer-events: none;
+}
+
 .bm-chat-composer__button {
   position: absolute;
   right: 0.5rem;
@@ -229,6 +250,14 @@
   background: var(--color-bg-muted);
   border: 1px solid var(--color-border);
   color: var(--color-text);
+}
+
+/* A notice is shown to the reader and was never said in the conversation, so
+   it deliberately has no bubble to be mistaken for a message. */
+.bm-chat-thread__bubble--notice {
+  max-width: min(48rem, 90%);
+  padding-left: 0;
+  color: var(--color-text-subtle);
 }
 
 .bm-recent-list__items {
