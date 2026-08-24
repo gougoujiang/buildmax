@@ -309,17 +309,15 @@ logical history:
 This keeps abandoned branches available without truncating or rewriting the
 journal.
 
-The head is derived from the tail of the journal, not stored beside it:
+The head is derived rather than stored beside the journal, and the derivation
+is one rule: **the head is the last physical record.**
 
-- with no `head_selected` record, the head is the last physical record;
-- otherwise it is the last physical record after the final `head_selected`;
-- if nothing follows that record, the head is the item it names.
-
-The rule is exact because a branch switch inside one journal is always marked.
-Rewind writes `head_selected` (§8.2) and fork writes a separate session
-directory (§8.3), so no record can be appended to an abandoned branch without a
-`head_selected` in front of it. Reading the head therefore costs a scan back
-from the tail, not a second file that could disagree.
+Rewind needs no special case because it is expressed in the parent links rather
+than beside them. Every record chains to its physical predecessor except
+`head_selected`, whose parent is the item being returned to. Appending one
+therefore redirects the chain, and everything after it descends from that
+target. Reading the head costs looking at the final line, and no second place
+holds an answer that could disagree with it.
 
 ### 6.3 Record vocabulary
 
@@ -333,7 +331,7 @@ from the tail, not a second file that could disagree.
 | `notes_replaced` | Complete stamped note list | Replaces durable notes |
 | `todos_replaced` | Complete stamped todo list | Replaces durable todos |
 | `additional_prompt_set` | Complete validated text | Replaces the durable additional system prompt |
-| `head_selected` | Target history item and reason | Selects the branch later records extend |
+| `head_selected` | Reason; the item returned to is its `parent_id` | Redirects the parent chain to an earlier item |
 | `checkpoint` | History head and state digest | Names a stable conversation restore point |
 | `turn_finished` | Terminal status — `completed`, `failed`, `canceled`, or `interrupted` — and optional error classification | Closes the turn |
 | `turn_recovered` | Interrupted turn and uncertain tool-call IDs | Makes cold recovery explicit before new work |
@@ -597,8 +595,12 @@ the extended record. That is an extension point, not a plan.
 
 ### 8.2 Rewind
 
-Rewind appends a `head_selected` record naming the target checkpoint or
-message. That is the entire operation. Because the head is derived rather than
+Rewind appends a `head_selected` record whose parent is the target checkpoint
+or message. That is the entire operation. The target is not repeated in the
+payload: this is the one record that deliberately points somewhere other than
+its physical predecessor, so the parent link already says everything a target
+field would, and storing it twice would only create a pair that could
+disagree. Because the head is derived rather than
 stored, there is no second write to keep in step and no window in which a crash
 could leave the selection half-applied. The old tail remains in
 `history.jsonl`, and a new prompt appended after rewind names the selected head
