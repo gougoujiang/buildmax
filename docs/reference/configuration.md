@@ -43,6 +43,7 @@ anything not listed here is not read by BuildMax.
 | `BUILDMAX_CORS_ORIGIN` | — | Overrides `cors_origin` in `server.yaml`. It has to name the origin the Portal is served from, which is a host port the deployment picks — the Compose stack derives it from `BUILDMAX_PORTAL_PORT`, so moving that port is one change rather than two. |
 | `BUILDMAX_SANDBOX_ENABLED` | — | Overrides `sandbox.enabled`. Accepts `1/true/yes/on` or `0/false/no/off`. |
 | `BUILDMAX_TRACE_DISABLED` | — | Disables durable run traces when truthy. Traces are on by default. |
+| `BUILDMAX_CREDENTIAL_STORE` | — | Set to `file` to keep a CLI or Desktop login's access and refresh tokens in `auth.json` instead of the OS credential store (Keychain, Credential Manager, Secret Service). `buildmax login`, `buildmax whoami`, and `buildmax doctor` report which one a login actually used. |
 | `BUILDMAX_RUN_TOKEN` | — | One task run's credential for every `/api/worker/*` route. Minted per run by the scheduler and placed in the worker process or Job pod — not something an operator sets. |
 | `BUILDMAX_RUN_INTERRUPT_GRACE` | — | How long a worker asked to stop may spend reporting what its run produced. Set per dispatch by the scheduler from `shutdown_grace`, so the two windows nest — not something an operator sets. |
 | `BUILDMAX_TEST_DSN` | — | MySQL DSN for store integration tests. Unset skips those tests. |

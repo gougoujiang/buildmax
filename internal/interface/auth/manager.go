@@ -20,6 +20,10 @@ type AuthInfo struct {
 	UserID    string `json:"user_id,omitempty"`
 	Email     string `json:"email,omitempty"`
 	Name      string `json:"name,omitempty"`
+	// Storage is StorageKeyring or StorageFile. A surface reports it because
+	// the file mode is a downgrade, and one nobody is told about is one nobody
+	// can act on.
+	Storage string `json:"storage,omitempty"`
 }
 
 // Info returns the current caller-facing auth state.
@@ -40,6 +44,7 @@ func Info() (AuthInfo, error) {
 		UserID:    creds.UserID,
 		Email:     creds.Email,
 		Name:      creds.Name,
+		Storage:   creds.Storage,
 	}, nil
 }
 
@@ -176,7 +181,6 @@ func refreshTokenForServer(serverURL string) (string, error) {
 	if rr.RefreshToken != "" {
 		creds.RefreshToken = rr.RefreshToken
 	}
-	creds.SavedAt = time.Now().UTC()
 	if err := SaveCredentials(creds); err != nil {
 		// The exchange succeeded, so the token in hand is good even though the
 		// next process will not see it. Failing the call over a write error

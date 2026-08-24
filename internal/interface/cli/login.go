@@ -108,6 +108,9 @@ func interactiveLogin() error {
 		return fmt.Errorf("save credentials: %w", err)
 	}
 	fmt.Fprintf(os.Stdout, "Logged in as %s on %s\n", lr.User.Email, serverURL)
+	// Said at login rather than only on request: this is the moment someone
+	// decides whether signing in on this machine is acceptable.
+	fmt.Fprintf(os.Stdout, "Credentials: %s\n", auth.StorageDescription(creds.Storage))
 	return nil
 }
 
@@ -132,6 +135,7 @@ func runWhoami(_ *cobra.Command, _ []string) error {
 		return nil
 	}
 	fmt.Fprintf(os.Stdout, "Logged in as %s on %s\n", info.Email, info.ServerURL)
+	fmt.Fprintf(os.Stdout, "Credentials: %s\n", auth.StorageDescription(info.Storage))
 	return nil
 }
 

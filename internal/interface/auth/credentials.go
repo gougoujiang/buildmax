@@ -8,6 +8,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,13 +17,18 @@ import (
 	"time"
 )
 
-// Credentials holds the persisted authentication state (server URL, both
-// halves of the login, and basic user info). Stored as JSON on disk.
+// Credentials is one login, assembled from both places it is kept: the
+// metadata from auth.json and the two secrets from wherever this machine keeps
+// secrets.
+//
+// Token and RefreshToken carry `omitempty` because auth.json holds them only in
+// StorageFile mode. Under StorageKeyring they are blanked before the file is
+// written, which is the whole point of the split.
 type Credentials struct {
 	ServerURL string `json:"server_url"`
 	// Token is the access token. The field keeps its original name so that a
 	// credentials file written before refresh tokens existed still loads.
-	Token string `json:"token"`
+	Token string `json:"token,omitempty"`
 	// RefreshToken renews the access token without another login code. Empty
 	// means this login ends when Token expires — either an old file or a server
 	// that stores no refresh tokens.
@@ -30,6 +37,10 @@ type Credentials struct {
 	Email        string    `json:"email"`
 	Name         string    `json:"name"`
 	SavedAt      time.Time `json:"saved_at"`
+	// Storage names where the two tokens came from: StorageKeyring or
+	// StorageFile. Load always sets it from the store that answered, so it
+	// describes this machine rather than the machine that wrote the file.
+	Storage string `json:"storage,omitempty"`
 }
 
 const (
@@ -123,19 +134,92 @@ func extractJWTExp(tokenStr string) (time.Time, error) {
 	return time.Unix(int64(*claims.Exp), 0).UTC(), nil
 }
 
-// Save marshals creds to JSON and writes them to path, creating parent
-// directories as needed.
+// secretCache keeps this process from asking the OS credential store on every
+// managed call. TokenForServer runs before each one, and on macOS a credential
+// store read is a subprocess.
+//
+// auth.json's saved_at is the invalidation signal. Every Save stamps it, so a
+// refresh in another BuildMax process changes it and this one re-reads; the
+// metadata file is a cheap read either way. Sharing one login across CLI and
+// Desktop is the point, so noticing the other process's rotation is not
+// optional.
+var secretCache struct {
+	mu      sync.Mutex
+	savedAt time.Time
+	secrets loginSecrets
+	valid   bool
+}
+
+func rememberSecrets(savedAt time.Time, s loginSecrets) {
+	secretCache.mu.Lock()
+	defer secretCache.mu.Unlock()
+	secretCache.savedAt, secretCache.secrets, secretCache.valid = savedAt, s, true
+}
+
+func forgetSecrets() {
+	secretCache.mu.Lock()
+	defer secretCache.mu.Unlock()
+	secretCache.valid = false
+}
+
+// cachedSecrets returns the secrets stored alongside the auth.json that was
+// last written at savedAt, reading the store only when that stamp has moved.
+func cachedSecrets(store secretStore, savedAt time.Time) (loginSecrets, error) {
+	secretCache.mu.Lock()
+	if secretCache.valid && secretCache.savedAt.Equal(savedAt) {
+		defer secretCache.mu.Unlock()
+		return secretCache.secrets, nil
+	}
+	secretCache.mu.Unlock()
+
+	s, err := store.Load()
+	if err != nil {
+		return loginSecrets{}, err
+	}
+	rememberSecrets(savedAt, s)
+	return s, nil
+}
+
+// Save persists creds: the two secrets go to this machine's credential store,
+// and auth.json keeps everything else.
+//
+// A machine with no credential store keeps the secrets in auth.json as before.
+// That is a downgrade, so Save records which one happened in the file rather
+// than leaving the reader to infer it from a missing field.
+func Save(creds *Credentials, path string) error {
+	store := activeStore()
+	// Stamped on every save, not only the first: saved_at is what tells another
+	// process its cached secrets are stale.
+	savedAt := time.Now().UTC()
+
+	onDisk := *creds
+	onDisk.SavedAt = savedAt
+	onDisk.Storage = storageKind(store)
+	if store != nil {
+		secrets := loginSecrets{Token: creds.Token, RefreshToken: creds.RefreshToken}
+		if err := store.Save(secrets); err != nil {
+			return fmt.Errorf("store credentials in the OS credential store: %w", err)
+		}
+		onDisk.Token, onDisk.RefreshToken = "", ""
+		rememberSecrets(savedAt, secrets)
+	}
+	if err := writeCredentialsFile(&onDisk, path); err != nil {
+		return err
+	}
+	creds.SavedAt = savedAt
+	creds.Storage = onDisk.Storage
+	return nil
+}
+
+// writeCredentialsFile replaces path with creds, atomically.
 //
 // The write goes to a temporary file and is renamed into place. Refreshing
 // rewrites this file while other BuildMax processes may be reading it, and a
 // truncate-then-write would let one of them load a half-written file and
 // conclude it is not signed in.
-func Save(creds *Credentials, path string) error {
+func writeCredentialsFile(creds *Credentials, path string) error {
 	credentialsMu.Lock()
 	defer credentialsMu.Unlock()
-	if creds.SavedAt.IsZero() {
-		creds.SavedAt = time.Now().UTC()
-	}
 	data, err := json.MarshalIndent(creds, "", "  ")
 	if err != nil {
 		return err
@@ -174,8 +258,9 @@ func Save(creds *Credentials, path string) error {
 	return err
 }
 
-// Load reads credentials from path. If the file does not exist, it returns
-// (nil, nil) — not an error. Any other read or parse failure is an error.
+// Load reads credentials from path and fills in the secrets from wherever this
+// machine keeps them. If the file does not exist, it returns (nil, nil) — not
+// an error. Any other read or parse failure is an error.
 func Load(path string) (*Credentials, error) {
 	credentialsMu.RLock()
 	data, err := os.ReadFile(path)
@@ -190,17 +275,53 @@ func Load(path string) (*Credentials, error) {
 	if err := json.Unmarshal(data, &c); err != nil {
 		return nil, err
 	}
+	store := activeStore()
+	if store == nil {
+		c.Storage = StorageFile
+		return &c, nil
+	}
+	if c.Token != "" || c.RefreshToken != "" {
+		// Secrets still in the file: either it predates this split, or it was
+		// written on a machine — or a run — with no credential store. Move them
+		// now and rewrite the file without them. A read that performs a write is
+		// unusual, but leaving plaintext bearer tokens on disk once a safe place
+		// exists is exactly what this is here to stop, and the move spends
+		// nothing: the session is untouched.
+		moved := c
+		if err := Save(&moved, path); err != nil {
+			slog.Warn("could not move stored credentials into the OS credential store", "err", err)
+			c.Storage = StorageFile
+			return &c, nil
+		}
+		return &moved, nil
+	}
+	secrets, err := cachedSecrets(store, c.SavedAt)
+	if err != nil {
+		return nil, fmt.Errorf("read credentials from the OS credential store: %w", err)
+	}
+	c.Token, c.RefreshToken = secrets.Token, secrets.RefreshToken
+	c.Storage = StorageKeyring
 	return &c, nil
 }
 
-// Clear removes the credentials file at path. It is not an error if the
-// file does not exist.
+// Clear removes the credentials file at path and the secrets that belong to it.
+// It is not an error if either is already gone.
 func Clear(path string) error {
+	store := activeStore()
+	forgetSecrets()
+
 	credentialsMu.Lock()
-	defer credentialsMu.Unlock()
 	err := os.Remove(path)
+	credentialsMu.Unlock()
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
+	}
+	// After the file, so a credential store that refuses to delete still leaves
+	// the machine signed out: Load needs the metadata, and it is gone.
+	if store != nil {
+		if err := store.Clear(); err != nil {
+			return fmt.Errorf("remove credentials from the OS credential store: %w", err)
+		}
 	}
 	return nil
 }
