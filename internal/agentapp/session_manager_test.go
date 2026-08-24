@@ -345,6 +345,111 @@ func TestDeleteSessionsByWorkspace(t *testing.T) {
 	}
 }
 
+func TestDeleteSession_RemovesIndexEntryAndFile(t *testing.T) {
+	dir := t.TempDir()
+	for _, id := range []string{"keep", "drop"} {
+		if err := UpsertSessionItem(dir, session.SessionItem{ID: id, Title: id, CreatedAt: "2026-01-31T10:00:00Z"}); err != nil {
+			t.Fatalf("UpsertSessionItem: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, id+".json"), []byte("{}"), 0644); err != nil {
+			t.Fatalf("write session file: %v", err)
+		}
+	}
+
+	if err := DeleteSession(dir, "drop"); err != nil {
+		t.Fatalf("DeleteSession: %v", err)
+	}
+
+	entries, err := LoadSessionList(dir)
+	if err != nil {
+		t.Fatalf("LoadSessionList: %v", err)
+	}
+	if len(entries) != 1 || entries[0].ID != "keep" {
+		t.Fatalf("entries = %+v, want only keep", entries)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "drop.json")); !os.IsNotExist(err) {
+		t.Fatalf("drop.json should be deleted, err=%v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "keep.json")); err != nil {
+		t.Fatalf("keep.json should survive: %v", err)
+	}
+}
+
+// --- atomic replacement ---
+
+// sessionDirNoise reports files in dir that are neither a session file nor the
+// index. Replacement writes a temp file first, so a leaked one shows up here.
+func sessionDirNoise(t *testing.T, dir string, want map[string]bool) []string {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read dir: %v", err)
+	}
+	var out []string
+	for _, e := range entries {
+		if !want[e.Name()] {
+			out = append(out, e.Name())
+		}
+	}
+	return out
+}
+
+func TestSessionWrites_LeaveNoTempFiles(t *testing.T) {
+	dir := t.TempDir()
+	s := session.NewSession("first")
+	if err := s.Append(llm.Message{Role: "user", Content: "hello"}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Two rounds, because the second replaces files the first created and that
+	// is the path where a leftover temp file would appear.
+	for round := range 2 {
+		if err := saveSession(s, dir); err != nil {
+			t.Fatalf("saveSession round %d: %v", round, err)
+		}
+		if err := upsertSessionItem(dir, session.SessionItem{ID: s.ID, Title: s.Title, CreatedAt: "2026-01-31T10:00:00Z"}); err != nil {
+			t.Fatalf("upsertSessionItem round %d: %v", round, err)
+		}
+	}
+
+	want := map[string]bool{s.ID + ".json": true, "sessions.json": true}
+	if noise := sessionDirNoise(t, dir, want); noise != nil {
+		t.Errorf("unexpected files in session dir: %v", noise)
+	}
+}
+
+func TestSaveSession_ReplacingWithShorterContentLeavesNoTail(t *testing.T) {
+	dir := t.TempDir()
+	s := session.NewSession("a deliberately long session title that makes the first file bigger")
+	for range 20 {
+		if err := s.Append(llm.Message{Role: "user", Content: strings.Repeat("padding ", 40)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := saveSession(s, dir); err != nil {
+		t.Fatalf("saveSession: %v", err)
+	}
+
+	// Replacement, not overwrite: the shorter document must not sit on top of
+	// the longer one's tail and leave the file unparsable.
+	short := session.NewSession("short")
+	short.ID = s.ID
+	if err := saveSession(short, dir); err != nil {
+		t.Fatalf("saveSession short: %v", err)
+	}
+
+	got, err := LoadSession(dir, s.ID)
+	if err != nil {
+		t.Fatalf("LoadSession: %v", err)
+	}
+	if got.Title != "short" {
+		t.Errorf("title = %q, want %q", got.Title, "short")
+	}
+	if len(got.Messages) != 0 {
+		t.Errorf("messages = %d, want 0", len(got.Messages))
+	}
+}
+
 // --- title generation ---
 
 func TestCleanTitle(t *testing.T) {

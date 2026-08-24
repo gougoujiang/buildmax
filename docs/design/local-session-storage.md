@@ -55,9 +55,9 @@ run diagnostics, and artifacts into one unbounded file.
 - durable notes and todos; and
 - the additional system prompt.
 
-`SessionManager.Save` marshals the complete object and calls `os.WriteFile`
-after a completed turn. A separate `sessions.json` stores title, workspace,
-creation time, and pin state for listing. The selected model lives only in
+`SessionManager.Save` marshals the complete object and replaces the file after
+a completed turn. A separate `sessions.json` stores title, workspace, creation
+time, and pin state for listing. The selected model lives only in
 `SessionContext`, so reopening a session currently falls back to a default.
 
 This shape has four problems, worst first:
@@ -67,8 +67,9 @@ This shape has four problems, worst first:
    work that may already have changed the world.
 2. A flat `Messages` array has no durable identity for a checkpoint, rewind, or
    fork point.
-3. Direct overwrite can leave the only file unparsable after interruption,
-   disk exhaustion, or machine failure.
+3. Direct overwrite could leave the only file unparsable after interruption,
+   disk exhaustion, or machine failure. Phase 0 retired this one: both files
+   are now replaced through `util.WriteFileAtomic`.
 4. Every turn rewrites all previous messages, tool results, provider state, and
    image data.
 
@@ -78,8 +79,10 @@ incorrect, and on its own it would justify a buffer, not a format. Uncertain
 tool outcomes and missing item identity are what the current shape cannot
 express at all, and they are what the rest of this document is for.
 
-Atomic replacement is a worthwhile stop-gap for the current format. It does
-not solve incremental durability, tool-outcome uncertainty, or linked history.
+Atomic replacement was worth doing on its own and has landed, but it changes
+only the third problem. It does not solve incremental durability, tool-outcome
+uncertainty, or linked history, which is why it is a stop-gap rather than an
+answer.
 
 ## 3. Goals And Non-Goals
 
@@ -893,15 +896,17 @@ publication, checkpoint creation, and fork copying.
 
 ## 18. Delivery Phases
 
-### Phase 0: Stop-gap atomic replacement
+### Phase 0: Stop-gap atomic replacement — done
 
 - Replace direct whole-session and index overwrite with temp-write, sync, and
   atomic rename if the final implementation does not land immediately.
 
-`SessionManager` still writes both the session file and `sessions.json` with a
-direct `os.WriteFile`, so this is an open gap rather than a hypothetical one.
-It is small enough to land on its own and it retires problem 3 of §2 without
-prejudging anything below.
+Landed. `util.WriteFileAtomic` writes a temp file in the target's directory,
+syncs it, and renames over the target; the session file, the session index, and
+the worker's restore of a previous run's session all use it. It syncs the file
+but not the directory entry, so a write is all-or-nothing rather than durable —
+the per-platform durability question in §19.1 stays open, and §7.1 still
+describes what phase 1 has to decide.
 
 ### Phase 1: Session bundle and linked history
 
