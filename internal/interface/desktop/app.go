@@ -777,24 +777,30 @@ func (a *App) SendMessageStream(projectID, sessionID, prompt string) (int, error
 				EventSink: evSink,
 				Pending:   queue,
 			})
-			if err != nil {
-				a.emit(ctx, eventStreamError, &StreamErrorPayload{Message: err.Error()})
-			} else {
+			if err == nil {
 				// Update last_used_at so the sidebar can order projects by recency.
 				touchProjectLastUsed(projectID)
 			}
 			next, ok := queue.Dequeue()
 			if !ok {
-				// Release the session before announcing the turn is over. The
-				// frontend acts on stream-done, and a rewind or fork issued the
-				// moment it arrives would otherwise race the deferred close and
-				// be told the session is busy by the run that just finished.
-				// The deferred close below stands and does nothing.
+				// Release the session before the run's last event, whichever it
+				// is. The frontend acts on these, and a rewind or fork issued
+				// the moment one arrives would otherwise race the deferred close
+				// and be told the session is busy by the run that just finished
+				// — after a failure as much as after a success. The deferred
+				// close below stands and does nothing.
 				ag.CloseSession(sess)
-				if err == nil {
+				if err != nil {
+					a.emit(ctx, eventStreamError, &StreamErrorPayload{Message: err.Error()})
+				} else {
 					a.emit(ctx, eventStreamDone, replyPayload(out))
 				}
 				return
+			}
+			// A turn that failed with more still queued reports it now, so the
+			// error and the prompt it belongs to stay in order.
+			if err != nil {
+				a.emit(ctx, eventStreamError, &StreamErrorPayload{Message: err.Error()})
 			}
 			// A failed turn still drains: the queue holds what the user asked for,
 			// and stranding it with no run to release it is worse than letting it

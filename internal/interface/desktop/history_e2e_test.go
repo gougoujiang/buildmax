@@ -1,7 +1,10 @@
 package desktop
 
 import (
+	"context"
+	"errors"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/testsupport/mockllm"
@@ -258,6 +261,79 @@ func TestHistoryMovesAreRefusedWhileTheSessionIsBusy(t *testing.T) {
 
 	app.RespondApproval(projectID, "once")
 	events.waitFor(t, eventStreamDone)
+}
+
+// probeAtTerminalEvent makes the app try to take the session's writer lock at
+// the instant it announces a turn is over, and reports what happened.
+//
+// Waiting for the event and then trying would test the poll interval, not the
+// ordering: by the time a 10ms poll notices, a close that came afterwards has
+// long since run. Doing it inside the emit is the frontend's own position —
+// acting on the event as it arrives — and the only place the question has a
+// definite answer.
+func probeAtTerminalEvent(app *App, events *uiEvents) func() error {
+	var mu sync.Mutex
+	var probed, failure error
+	probed = errors.New("no terminal event was emitted")
+	inner := events.emit
+	app.emit = func(ctx context.Context, name string, data any) {
+		if name == eventStreamDone || name == eventStreamError {
+			mu.Lock()
+			probed = nil
+			sessions, err := sessionManager().List()
+			if err == nil && len(sessions) > 0 {
+				if held, oerr := sessionManager().Open(sessions[0].ID, "mock"); oerr != nil {
+					failure = oerr
+				} else {
+					_ = held.Close()
+				}
+			}
+			mu.Unlock()
+		}
+		inner(ctx, name, data)
+	}
+	return func() error {
+		mu.Lock()
+		defer mu.Unlock()
+		if probed != nil {
+			return probed
+		}
+		return failure
+	}
+}
+
+func TestTheSessionIsFreeTheMomentARunSaysItFinished(t *testing.T) {
+	app, events, _, projectID := bridge(t, mockllm.Scenario{Steps: []mockllm.Step{{Text: "hello there"}}}, nil)
+	result := probeAtTerminalEvent(app, events)
+
+	if _, err := app.SendMessageStream(projectID, "", "hi"); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	events.waitFor(t, eventStreamDone)
+
+	// The frontend acts on this event. If the run still held its session here,
+	// a rewind issued from the event handler would be refused by the very run
+	// that just reported it was done.
+	if err := result(); err != nil {
+		t.Fatalf("the session was not free when stream-done fired: %v", err)
+	}
+}
+
+func TestTheSessionIsFreeTheMomentARunReportsAFailure(t *testing.T) {
+	scenario := mockllm.Scenario{Steps: []mockllm.Step{{Status: 400, Error: "scripted provider refusal"}}}
+	app, events, _, projectID := bridge(t, scenario, nil)
+	result := probeAtTerminalEvent(app, events)
+
+	if _, err := app.SendMessageStream(projectID, "", "hi"); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	events.waitFor(t, eventStreamError)
+
+	// Going back is a likely thing to want right after a turn goes wrong, so
+	// the failing path has to release the session as the succeeding one does.
+	if err := result(); err != nil {
+		t.Fatalf("the session was not free when stream-error fired: %v", err)
+	}
 }
 
 func TestHistoryMovesRejectMissingArguments(t *testing.T) {
