@@ -2,6 +2,8 @@ package taskrun
 
 import (
 	"testing"
+
+	"github.com/gougoujiang/buildmax/internal/config"
 )
 
 func testManaged() ManagedInference {
@@ -64,5 +66,43 @@ func TestDirectRunOffersNoManagedCredential(t *testing.T) {
 	}
 	if got := managedRunScope(testManaged(), "r_1"); got != "r_1" {
 		t.Errorf("managedRunScope = %q, want r_1", got)
+	}
+}
+
+// TestRuntimeModelEntriesKeepsTheDeploymentDefault covers the deployment that
+// names no worker model: the gateway resolves the empty name, so the entry has
+// to reach the runtime anyway. Dropping it took the smoke stacks down with
+// `model not found: ""` — the runtime had no models to choose from at all.
+func TestRuntimeModelEntriesKeepsTheDeploymentDefault(t *testing.T) {
+	entry := config.ModelEntry{Name: "deployment default", ContextWindow: 32000}
+
+	got := runtimeModelEntries(entry, testManaged())
+	if len(got) != 1 {
+		t.Fatalf("runtimeModelEntries returned %d entries, want the managed entry", len(got))
+	}
+	if got[0].Name != "deployment default" || got[0].ContextWindow != 32000 {
+		t.Errorf("entry = %+v; want the name and context window the run was given", got[0])
+	}
+}
+
+func TestRuntimeModelEntriesForANamedModel(t *testing.T) {
+	entry := config.ModelEntry{Model: "Fast", Name: "Fast"}
+
+	for name, managed := range map[string]ManagedInference{"managed": testManaged(), "direct": {}} {
+		t.Run(name, func(t *testing.T) {
+			got := runtimeModelEntries(entry, managed)
+			if len(got) != 1 || got[0].Model != "Fast" {
+				t.Errorf("runtimeModelEntries = %+v, want the named model", got)
+			}
+		})
+	}
+}
+
+// A direct run names its own model, so an empty one is a server with no model
+// configured rather than a default to resolve elsewhere. Passing an unnamed
+// entry would send the prompt nowhere; settings.yaml still gets its say.
+func TestRuntimeModelEntriesDropsAnUnnamedDirectModel(t *testing.T) {
+	if got := runtimeModelEntries(config.ModelEntry{}, ManagedInference{}); got != nil {
+		t.Errorf("runtimeModelEntries = %+v, want no entries", got)
 	}
 }

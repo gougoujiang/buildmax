@@ -147,3 +147,34 @@ func serverConfigWithDirectModel() config.ServerConfig {
 		},
 	}
 }
+
+// TestResolveRunModelManagedWithoutAModelName is the deployment that names no
+// worker model: the gateway resolves the empty name to its default, so the
+// worker must pass the run's entry along rather than treat it as no model.
+func TestResolveRunModelManagedWithoutAModelName(t *testing.T) {
+	sc := serverConfigWithDirectModel()
+	llm := &workerclient.TaskRunLLM{Transport: config.TransportBuildMax, ContextWindow: 32000}
+
+	entry, managed, err := resolveRunModel(sc, llm, "https://buildmax.example.com", "run-token")
+	if err != nil {
+		t.Fatalf("resolveRunModel: %v", err)
+	}
+	if entry.Model != "" {
+		t.Errorf("entry names model %q; naming one here would be this worker choosing it", entry.Model)
+	}
+	// The trace has to call the model something, and the run never learns which
+	// one the gateway picked.
+	if entry.Name != "deployment default" {
+		t.Errorf("entry.Name = %q, want a name the trace can record", entry.Name)
+	}
+	if entry.ContextWindow != 32000 {
+		t.Errorf("entry.ContextWindow = %d; the session compacts against it", entry.ContextWindow)
+	}
+	// The server's own provider key must not ride along on a managed run.
+	if entry.APIKey != "" {
+		t.Error("a managed entry carries a provider credential")
+	}
+	if !managed.Enabled() {
+		t.Errorf("managed = %+v, want the gateway credential", managed)
+	}
+}
