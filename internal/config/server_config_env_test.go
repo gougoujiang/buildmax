@@ -69,6 +69,38 @@ conversation:
 	}
 }
 
+// TestServerConfigCORSOriginEnvOverride covers the one override that carries no
+// secret. The Compose stack publishes the Portal on a port chosen in .env and
+// derives this from it, so a file value it disagrees with must lose — otherwise
+// moving that port is two edits and the browser blocks every request after the
+// first one.
+func TestServerConfigCORSOriginEnvOverride(t *testing.T) {
+	writeServerYAML(t, "cors_origin: http://localhost:8080\n")
+	t.Setenv(config.EnvKeyBuildmaxCORSOrigin, "http://localhost:8081")
+
+	cfg, err := config.LoadServerConfig()
+	if err != nil {
+		t.Fatalf("LoadServerConfig: %v", err)
+	}
+	if cfg.CORSOrigin != "http://localhost:8081" {
+		t.Errorf("cors_origin = %q, want the environment override", cfg.CORSOrigin)
+	}
+}
+
+// An unset override must leave a file value alone, the same way the credential
+// overrides do.
+func TestServerConfigCORSOriginFromFile(t *testing.T) {
+	writeServerYAML(t, "cors_origin: http://localhost:8080\n")
+
+	cfg, err := config.LoadServerConfig()
+	if err != nil {
+		t.Fatalf("LoadServerConfig: %v", err)
+	}
+	if cfg.CORSOrigin != "http://localhost:8080" {
+		t.Errorf("cors_origin = %q, want the value from server.yaml", cfg.CORSOrigin)
+	}
+}
+
 // TestServerConfigEnvOnly covers the container case: no server.yaml on disk yet,
 // credentials supplied entirely by the environment.
 func TestServerConfigEnvOnly(t *testing.T) {

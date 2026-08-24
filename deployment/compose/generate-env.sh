@@ -31,8 +31,10 @@ BUILDMAX_DATABASE_PASSWORD=$(random_hex)
 # Any OpenAI-compatible provider; the endpoint is set in server.yaml.
 BUILDMAX_CONVERSATION_MODEL_API_KEY=
 
-# Host ports. Changing BUILDMAX_PORTAL_PORT also means changing cors_origin in
-# server.yaml, which has to name the origin the Portal is served from.
+# Host ports. Both are self-contained: compose.yaml derives the Portal's API
+# base and the server's cors_origin from them, so nothing else has to follow.
+# Move BUILDMAX_PORTAL_PORT to run this stack beside a kind cluster, which
+# publishes 8080 and cannot move.
 BUILDMAX_SERVER_PORT=5678
 BUILDMAX_PORTAL_PORT=8080
 EOF

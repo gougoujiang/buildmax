@@ -1,6 +1,7 @@
 log_level: info
 port: 5678
-cors_origin: http://localhost:8080
+# cors_origin: from BUILDMAX_CORS_ORIGIN, derived from BUILDMAX_PORTAL_PORT in
+# compose.yaml, so the smoke follows a moved Portal port like the stack does.
 workspaces_dir: /data/workspaces
 # The smoke deployment runs many agent runs and is meant to be kept: free_trial
 # caps a team at ten runs in thirty days, which turns a long-lived local stack

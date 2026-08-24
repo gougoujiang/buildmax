@@ -40,6 +40,7 @@ anything not listed here is not read by BuildMax.
 |---|---|---|
 | `BUILDMAX_HOME` | `~/.buildmax` | Data directory; locates `settings.yaml` and `server.yaml`. Must be an env var — nothing else can be found until it is known. |
 | `BUILDMAX_JWT_SECRET` | — | Overrides `jwt_secret` in `server.yaml`. Inject this at deploy time rather than committing the secret to a file. |
+| `BUILDMAX_CORS_ORIGIN` | — | Overrides `cors_origin` in `server.yaml`. It has to name the origin the Portal is served from, which is a host port the deployment picks — the Compose stack derives it from `BUILDMAX_PORTAL_PORT`, so moving that port is one change rather than two. |
 | `BUILDMAX_SANDBOX_ENABLED` | — | Overrides `sandbox.enabled`. Accepts `1/true/yes/on` or `0/false/no/off`. |
 | `BUILDMAX_TRACE_DISABLED` | — | Disables durable run traces when truthy. Traces are on by default. |
 | `BUILDMAX_RUN_TOKEN` | — | One task run's credential for every `/api/worker/*` route. Minted per run by the scheduler and placed in the worker process or Job pod — not something an operator sets. |
@@ -168,7 +169,9 @@ Two variables are read by the task runner itself rather than by BuildMax:
 The Compose stack is separate and does not use the root `.env`. It reads
 `deployment/compose/.env`, which `deployment/compose/generate-env.sh` creates
 with generated secrets and the host ports `BUILDMAX_SERVER_PORT` and
-`BUILDMAX_PORTAL_PORT`; `./make compose up` generates it on first run. See
+`BUILDMAX_PORTAL_PORT`; `./make compose up` generates it on first run. Those two
+ports are self-contained — `compose.yaml` derives the Portal's API base and the
+server's `BUILDMAX_CORS_ORIGIN` from them. See
 [deploy/compose.md](../deploy/compose.md).
 
 ## `settings.yaml` — CLI and Desktop
@@ -599,7 +602,7 @@ access_token_ttl: 168h               # signed, unstored — this is how long a l
 refresh_token_ttl: 720h              # a stored row, so a session can be revoked before it expires
 refresh_rotation_grace: 30s          # window for processes sharing one credentials file to refresh at once
 shutdown_grace: 25s                  # whole budget for an orderly stop; keep below the orchestrator's kill deadline
-cors_origin: http://localhost:5173
+cors_origin: http://localhost:5173   # or inject via BUILDMAX_CORS_ORIGIN where the Portal's port is chosen
 workspaces_dir: /data/buildmax/workspaces
 default_quota_tier: free_trial
 
