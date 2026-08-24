@@ -27,10 +27,13 @@ const (
 	// smoke account's, which is what makes it able to prove a denial.
 	smokeOutsiderEmail = "deployment-smoke-outsider@buildmax.local"
 	smokeReply         = "deployment smoke ok"
-	// smokeManagedAlias is the team model alias the managed smoke stack grants,
-	// and what the call ledger must record for the run. Matching it proves the
-	// run reached a model the operator approved rather than one it picked.
-	smokeManagedAlias = "default"
+	// smokeManagedModel is llm.default_model in the managed smoke configuration,
+	// and what the call ledger must record for the run. The stack names no worker
+	// model on purpose, so matching this proves two things at once: the run
+	// reached a model the operator approved rather than one it picked, and an
+	// empty worker model resolved to the deployment's default instead of to
+	// nothing.
+	smokeManagedModel = "BuildMax smoke"
 )
 
 var loginCodePattern = regexp.MustCompile(`bmxlogin_[a-f0-9]+`)
@@ -479,7 +482,7 @@ func assertManagedRun(ctx context.Context, client *http.Client, target smokeTarg
 	}
 	var calls []struct {
 		UserID  *string `json:"user_id"`
-		Alias   string  `json:"alias"`
+		Model   string  `json:"model"`
 		Status  string  `json:"status"`
 		Surface string  `json:"surface"`
 	}
@@ -496,8 +499,8 @@ func assertManagedRun(ctx context.Context, client *http.Client, target smokeTarg
 		return fmt.Errorf("call ledger surface = %q, want worker", call.Surface)
 	case call.UserID == nil || *call.UserID == "":
 		return errors.New("the managed call is attributed to no user; a run belongs to whoever created it")
-	case call.Alias != smokeManagedAlias:
-		return fmt.Errorf("call ledger alias = %q, want %q", call.Alias, smokeManagedAlias)
+	case call.Model != smokeManagedModel:
+		return fmt.Errorf("call ledger model = %q, want %q", call.Model, smokeManagedModel)
 	case !strings.EqualFold(call.Status, "succeeded"):
 		return fmt.Errorf("call ledger status = %q, want succeeded", call.Status)
 	}

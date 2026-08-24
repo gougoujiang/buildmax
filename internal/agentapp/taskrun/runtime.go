@@ -414,6 +414,24 @@ type agentRunOutput struct {
 	tracePath string
 }
 
+// runtimeModelEntries is the model list the run's app is assembled with.
+//
+// A managed run keeps its entry even when the model name is empty. Empty means
+// the deployment's default, which only the gateway can resolve — but the entry
+// is still how the runtime learns that a model exists at all, and it carries
+// the context window the session compacts against. Dropping it left every
+// deployment that names no worker model with no models at all, and failed its
+// runs with `model not found: ""`.
+//
+// A direct run with no model stays empty: there the name is the whole entry,
+// and an unnamed one would send the prompt nowhere.
+func runtimeModelEntries(runtimeModel config.ModelEntry, managed ManagedInference) []config.ModelEntry {
+	if runtimeModel.Model == "" && !managed.Enabled() {
+		return nil
+	}
+	return []config.ModelEntry{runtimeModel}
+}
+
 func runAgentTask(ctx context.Context, run *model.TaskRun, runDir, runGlobalDir, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry, managed ManagedInference, additionalSystemPrompt string, publisher tool.ArtifactPublisher) (agentRunOutput, error) {
 	var sink llm.StreamSink
 	if streamSender != nil {
@@ -422,15 +440,11 @@ func runAgentTask(ctx context.Context, run *model.TaskRun, runDir, runGlobalDir,
 
 	var out agentapp.RunResult
 	err := withBuildmaxHome(runGlobalDir, func() error {
-		var modelEntries []config.ModelEntry
-		if runtimeModel.Model != "" {
-			modelEntries = []config.ModelEntry{runtimeModel}
-		}
 		app, err := agentapp.NewAgentApp(agentapp.AppConfig{
 			WorkspaceDir:           runDir,
 			EnableMCP:              true,
 			Policy:                 agentapp.NewNonInteractivePolicy(),
-			ModelEntries:           modelEntries,
+			ModelEntries:           runtimeModelEntries(runtimeModel, managed),
 			ManagedServerURL:       managed.ServerURL,
 			ManagedToken:           managed.tokenFunc(),
 			ManagedTaskRunID:       managedRunScope(managed, run.ID),
