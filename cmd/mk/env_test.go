@@ -107,6 +107,7 @@ func TestCacheQualifyEnvNamesMatchTheSpec(t *testing.T) {
 	}
 	for _, name := range []string{
 		envCacheQualifyProvider, envCacheQualifyModel, envCacheQualifyAPIKey, envCacheQualifyBaseURL,
+		envCredentialStore,
 	} {
 		if !strings.Contains(string(spec), `"`+name+`"`) {
 			t.Errorf("%s is not declared in internal/config/env_spec.go", name)

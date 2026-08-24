@@ -241,7 +241,8 @@ func checkMode(ctx context.Context) doctorCheck {
 	return doctorCheck{
 		Severity: doctorOK,
 		Title:    "mode",
-		Detail:   fmt.Sprintf("signed in to %s: its models serve every prompt", creds.ServerURL),
+		Detail: fmt.Sprintf("signed in to %s: its models serve every prompt. Credentials: %s",
+			creds.ServerURL, auth.StorageDescription(creds.Storage)),
 	}
 }
 

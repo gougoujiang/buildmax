@@ -120,10 +120,11 @@ produce a complete server-side LLM call ledger. A gateway does not fix that by
 itself; call-level persistence is part of the chosen design.
 
 Authentication also has limits that the design must not hide. CLI and Desktop
-store the Server access token in `auth.json`. A refresh flow now exists, so a
-login survives longer than one access token, and a session can be revoked — but
-the access token itself still cannot be. There is no revocation list, so an
-issued access token works until it expires. Team membership is checked
+keep the access and refresh tokens in the OS credential store by default, or in
+`auth.json` itself on a machine with none — either way, a refresh flow now
+exists, so a login survives longer than one access token, and a session can be
+revoked. The access token itself still cannot be: there is no revocation list,
+so an issued one works until it expires. Team membership is checked
 server-side and can remove access to a team, but the access token must not be
 described as an independently revocable gateway credential.
 

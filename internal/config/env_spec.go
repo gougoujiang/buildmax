@@ -32,6 +32,12 @@ const (
 	// docs/design/graceful-shutdown.md §6.3.
 	EnvKeyBuildmaxRunInterruptGrace = "BUILDMAX_RUN_INTERRUPT_GRACE"
 
+	// BUILDMAX_CREDENTIAL_STORE — set to "file" to keep a login's tokens in
+	// auth.json instead of the operating system's credential store. It is for a
+	// machine whose credential store is present but unusable, which the probe
+	// in internal/interface/auth cannot tell from a working one.
+	EnvKeyBuildmaxCredentialStore = "BUILDMAX_CREDENTIAL_STORE"
+
 	// Test only.
 	EnvKeyBuildmaxTestDSN = "BUILDMAX_TEST_DSN"
 
@@ -90,6 +96,9 @@ var EnvVars = []EnvVar{
 	// scheduler sets it per dispatch from its own shutdown budget, and a stale
 	// value inherited from the server would describe the wrong window.
 	{Name: EnvKeyBuildmaxRunInterruptGrace, Description: "How long a worker asked to stop may spend reporting what its run produced; set by the scheduler, not by an operator"},
+	// Deliberately not WorkerNeeds: a worker holds a run token, never a login,
+	// so it has no credentials to store either way.
+	{Name: EnvKeyBuildmaxCredentialStore, Description: "Set to \"file\" to keep CLI and Desktop login tokens in auth.json rather than the OS credential store"},
 	{Name: EnvKeyBuildmaxTestDSN, Description: "MySQL DSN for store integration tests; unset skips those tests"},
 	{Name: EnvKeyBuildmaxCacheQualifyProvider, Description: "Provider for the prompt-cache qualification suite; unset skips it"},
 	{Name: EnvKeyBuildmaxCacheQualifyModel, Description: "Model identifier for the prompt-cache qualification suite"},

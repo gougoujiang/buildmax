@@ -20,6 +20,10 @@ const (
 	envCacheQualifyBaseURL  = "BUILDMAX_CACHE_QUALIFY_BASE_URL"
 )
 
+// envCredentialStore mirrors config.EnvKeyBuildmaxCredentialStore for the same
+// reason as the qualification variables above.
+const envCredentialStore = "BUILDMAX_CREDENTIAL_STORE"
+
 func cmdBuild(args []string) error {
 	if len(args) > 1 {
 		return usageErrorf("build", "build takes at most one target")
@@ -399,6 +403,11 @@ func hasFlag(args []string, name string) bool {
 
 // useSandboxHome points BUILDMAX_HOME at testing-sandbox for this process and
 // everything it starts, keeping tests and smoke runs away from real user data.
+//
+// Credential storage is pinned to the file the sandbox owns for the same
+// reason. The OS credential store is outside BUILDMAX_HOME, so pointing the
+// data directory somewhere safe would not keep a test out of a contributor's
+// own Keychain or Credential Manager.
 func useSandboxHome() (string, error) {
 	sandbox, err := filepath.Abs(sandboxDir)
 	if err != nil {
@@ -408,6 +417,9 @@ func useSandboxHome() (string, error) {
 		return "", err
 	}
 	if err := os.Setenv("BUILDMAX_HOME", sandbox); err != nil {
+		return "", err
+	}
+	if err := os.Setenv(envCredentialStore, "file"); err != nil {
 		return "", err
 	}
 	return sandbox, nil
