@@ -628,33 +628,34 @@ owner, not in personal session settings.
 
 ## Code And Documentation Findings
 
-The proposal relies on current code where older documents disagree. Several
-documents need correction whether or not this proposal is accepted:
+The proposal relies on current code where older documents disagreed. None of
+these corrections waited on the product decision, so all of them have been
+made:
 
-- `docs/contribute/architecture/desktop.md` still describes the removed
-  Desktop mode-state mechanism and the deleted `UseLocalMode` and
-  `ConnectToServer` bindings; `auth.json` presence now decides the mode.
-- `docs/contribute/architecture/tui.md` says the CLI has no app-level mode and
-  transport belongs to each model entry; current `agentapp` and the client-modes
-  design make transport an app-level property.
-- `internal/server/static/openapi.json` documents old
-  `/api/teams/{team_id}/llm/*` routes and aliases, while the route source of
-  truth registers deployment-global `/api/llm/*` routes.
-- `docs/contribute/architecture/server.md` says the old shared worker token
-  remains as an upgrade fallback; the worker-run-token design and code say it
-  has been removed.
-- `docs/contribute/architecture/data-model.md` says no server path writes the
-  user's last-login metadata; the login handler calls `UpdateLoginMeta`.
-- `docs/design/llm-gateway.md` still lists refresh versus a scoped client token
-  as an open question even though refresh is implemented. The unresolved parts
-  are secure storage, absolute lifetime, audience/scope, and machine identity.
-- The P3 roadmap sentence can be read as saying CLI, TUI, Desktop, and task
-  runs all use a per-run credential. Only task runs use run tokens; interactive
-  local clients use the human session.
-
-The OpenAPI mismatch is especially material because it describes routes that
-do not exist. It should be fixed as current documentation work rather than wait
-for this proposal's product decision.
+- `docs/contribute/architecture/desktop.md` described the removed Desktop
+  mode-state mechanism and the deleted `UseLocalMode` and `ConnectToServer`
+  bindings. Corrected: `auth.json` presence is the mode.
+- `docs/contribute/architecture/tui.md` said the CLI has no app-level mode and
+  that transport belongs to each model entry, and printed a `direct` footer tag
+  the TUI does not render. Corrected: the tag is `local` or the deployment host,
+  and it is a property of the app.
+- `internal/server/static/openapi.json` documented `/api/teams/{team_id}/llm/*`
+  and a bare `/api/conversations`, none of which are registered. Corrected to
+  the deployment-global `/api/llm/*` and the team-scoped conversation route;
+  every documented path now matches `routes.go`.
+- `docs/contribute/architecture/server.md` said the old shared worker token
+  remained as an upgrade fallback. Corrected: it has been removed, and the run
+  token is the only credential a worker route accepts.
+- `docs/contribute/architecture/data-model.md` said no server path writes the
+  user's last-login metadata. Corrected: the login handler calls
+  `UpdateLoginMeta`.
+- `docs/design/llm-gateway.md` listed refresh versus a scoped client token as an
+  open question, and called the access token a 24-hour JWT. Corrected: refresh
+  is implemented and the default is seven days; the unresolved parts are secure
+  storage, absolute lifetime, audience/scope, and machine identity.
+- The P3 roadmap sentence could be read as saying CLI, TUI, Desktop, and task
+  runs all use a per-run credential. Corrected: only task runs use run tokens,
+  and interactive clients use the human session.
 
 ## Staged Direction If Accepted
 
