@@ -395,10 +395,10 @@ func restoreSessionFromPreviousRun(ctx context.Context, task *model.Task, run *m
 		return
 	}
 	sessionsDir := filepath.Join(runGlobalDir, "sessions")
-	if err := os.MkdirAll(sessionsDir, 0755); err != nil {
-		return
-	}
-	_ = os.WriteFile(filepath.Join(sessionsDir, *task.SessionID+".json"), data, 0644)
+	// Restoring is best-effort — a run that cannot recover the previous session
+	// starts fresh rather than failing — but the file it lands in must still be
+	// whole, because the next run reads it as the conversation's only copy.
+	_ = util.WriteFileAtomic(filepath.Join(sessionsDir, *task.SessionID+".json"), data, 0644)
 }
 
 // agentRunOutput is what one in-process agent run yields back to the task-run

@@ -167,11 +167,7 @@ func DeleteSession(dir, id string) error {
 			filtered = append(filtered, e)
 		}
 	}
-	data, err := json.MarshalIndent(filtered, "", "  ")
-	if err != nil {
-		return err
-	}
-	if err := os.WriteFile(filepath.Join(dir, "sessions.json"), data, 0644); err != nil {
+	if err := writeSessionList(dir, filtered); err != nil {
 		return err
 	}
 	sessPath := filepath.Join(dir, id+".json")
@@ -294,15 +290,14 @@ func LoadSession(dir, id string) (*session.Session, error) {
 }
 
 func saveSession(s *session.Session, dir string) error {
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return err
-	}
 	data, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {
 		return err
 	}
-	path := filepath.Join(dir, s.ID+".json")
-	return os.WriteFile(path, data, 0644)
+	// A session file is the only copy of its conversation, so it is replaced
+	// rather than overwritten: an interrupted overwrite would leave the turn
+	// that was already finished unreadable.
+	return util.WriteFileAtomic(filepath.Join(dir, s.ID+".json"), data, 0644)
 }
 
 // UpsertSessionItem adds or updates one entry in the session index at dir/sessions.json.
@@ -323,9 +318,6 @@ func cleanTitle(s string) string {
 }
 
 func upsertSessionItem(dir string, entry session.SessionItem) error {
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return err
-	}
 	entries, err := LoadSessionList(dir)
 	if err != nil {
 		return err
@@ -349,15 +341,13 @@ func upsertSessionItem(dir string, entry session.SessionItem) error {
 }
 
 func writeSessionList(dir string, entries []session.SessionItem) error {
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return err
-	}
 	data, err := json.MarshalIndent(entries, "", "  ")
 	if err != nil {
 		return err
 	}
-	path := filepath.Join(dir, "sessions.json")
-	return os.WriteFile(path, data, 0644)
+	// Losing the index to a torn write would hide every session from the
+	// picker, so it is replaced whole like the session files it lists.
+	return util.WriteFileAtomic(filepath.Join(dir, "sessions.json"), data, 0644)
 }
 
 // addSessionCost folds one turn's spend into the session's running total.
