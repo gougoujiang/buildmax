@@ -56,3 +56,7 @@ refactors, test-only changes, and documentation edits do not need one.
 date, then deletes the files it folded in. Order within a category follows the
 filename, which is arbitrary — release preparation is where entries get ordered
 for readers.
+
+That section is also the GitHub Release body: `./make release notes <version>`
+composes it with the install and alpha text around it, and the release workflow
+publishes the result. An entry nobody wrote is a change nobody announces.

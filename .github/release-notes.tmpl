@@ -1,0 +1,60 @@
+{{- /*
+The GitHub Release body, composed by `./make release notes <version>` and
+handed to GoReleaser as --release-notes. Edit the standing prose here; what
+the version changed comes from its CHANGELOG.md section as .Summary (the
+highlights and upgrade notes) and .Details (the categorized lists).
+*/ -}}
+BuildMax is an out-of-the-box, privately deployable Agent platform: a CLI/TUI,
+a desktop app, and a team Portal on one shared Go Agent Runtime.
+{{if .Summary}}
+{{.Summary}}
+{{end}}
+## Install
+
+Download the archive for your platform below. Each one contains all three
+binaries — `buildmax`, `buildmax-server`, `buildmax-worker` — plus
+`config-examples/`, `LICENSE`, and `NOTICE-THIRD-PARTY`. Verify it against
+`checksums.txt` first.
+
+With a Go toolchain, for the CLI alone:
+
+```
+go install github.com/gougoujiang/buildmax/cmd/buildmax@{{.Tag}}
+```
+
+As a container, for linux/amd64 and linux/arm64:
+
+```
+docker pull ghcr.io/gougoujiang/buildmax:{{.Version}}
+```
+
+Copy `config-examples/settings.example.yaml` to `~/.buildmax/settings.yaml`,
+configure at least one model, then run `buildmax` for the TUI or
+`buildmax -p "your prompt"` for a single non-interactive turn. Running the
+server and Portal additionally needs MySQL and object storage; see the README.
+
+The desktop app is not published here. It needs code signing and notarization
+to launch on macOS, so build it locally with `./make build`.
+
+## Before you deploy this
+
+This is an alpha, and two defaults deserve to be read as warnings rather than
+footnotes:
+
+- **Server authentication is bootstrap-level.** There is no mail channel, so an
+  operator creates accounts and issues single-use login codes with
+  `buildmax-server user create` and `user login-code`. Self-registration is
+  closed by default. There is no password, second factor, SSO, or recovery
+  flow; putting the Portal on a network you do not control requires wiring a
+  real identity provider first.
+- **The bash sandbox is off by default**, and worker hardening is incomplete.
+
+`SECURITY.md` lists both, along with how to report a vulnerability privately.
+Interfaces and deployment guidance may change before a stable release.
+{{if .Details}}
+{{.Details}}
+{{end}}
+---
+
+Earlier releases are in
+[CHANGELOG.md](https://github.com/gougoujiang/buildmax/blob/{{.Tag}}/CHANGELOG.md).

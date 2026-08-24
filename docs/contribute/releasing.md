@@ -27,7 +27,16 @@ prerelease version.
    ```
 
    Read the result before committing; the fold is mechanical and orders entries
-   by filename, not by what matters most to a reader.
+   by filename, not by what matters most to a reader. It is also what the
+   release page will say, so preview the body the workflow will publish:
+
+   ```bash
+   ./make release notes v0.2.0-alpha.1
+   ```
+
+   The body is `.github/release-notes.tmpl` with this version's section filled
+   in: highlights and upgrade notes above the install steps, the categorized
+   lists below them. A tag with no section in `CHANGELOG.md` fails the release.
 3. Review [SECURITY.md](../../SECURITY.md), installation instructions, known
    limitations, and configuration examples for release-specific changes.
 4. Run the local verification commands:
@@ -79,7 +88,8 @@ The release workflow owns GitHub Release creation and GHCR publication.
 After the workflow completes:
 
 1. Confirm every expected platform archive, `checksums.txt`, and one SPDX SBOM
-   per archive are attached to the GitHub Release.
+   per archive are attached to the GitHub Release, and that its body carries
+   the version's changelog section.
 2. Download one archive, verify its checksum, and run `buildmax version`.
 3. Confirm the archive contains `LICENSE`, `NOTICE-THIRD-PARTY`, `README.md`,
    `SECURITY.md`, `CHANGELOG.md`, and `config-examples/`.

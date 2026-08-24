@@ -16,6 +16,10 @@ import (
 // entries are files rather than lines in one list.
 const changelogDir = "docs/changelog"
 
+// changelogFile is the released history the fragments fold into, and the source
+// a release body quotes.
+const changelogFile = "CHANGELOG.md"
+
 // changelogCategories are the headings a release section uses, in the order
 // they appear in it. A directory outside this set is a typo rather than a new
 // category, and is reported as one.
@@ -156,27 +160,26 @@ func releaseChangelog(version string) error {
 		return fmt.Errorf("no entries in %s; nothing to release", changelogDir)
 	}
 
-	const path = "CHANGELOG.md"
-	raw, err := os.ReadFile(path)
+	raw, err := os.ReadFile(changelogFile)
 	if err != nil {
-		return fmt.Errorf("read %s: %w", path, err)
+		return fmt.Errorf("read %s: %w", changelogFile, err)
 	}
 	body := string(raw)
 	marker := "## [Unreleased]"
 	at := strings.Index(body, marker)
 	if at < 0 {
-		return fmt.Errorf("%s has no %q heading", path, marker)
+		return fmt.Errorf("%s has no %q heading", changelogFile, marker)
 	}
 	next := strings.Index(body[at+len(marker):], "\n## ")
 	if next < 0 {
-		return fmt.Errorf("%s has no released section after %q", path, marker)
+		return fmt.Errorf("%s has no released section after %q", changelogFile, marker)
 	}
 	cut := at + len(marker) + next + 1
 
 	heading := fmt.Sprintf("## [%s] - %s\n\n", version, time.Now().Format("2006-01-02"))
 	updated := body[:cut] + heading + section + body[cut:]
-	if err := os.WriteFile(path, []byte(updated), 0o644); err != nil {
-		return fmt.Errorf("write %s: %w", path, err)
+	if err := os.WriteFile(changelogFile, []byte(updated), 0o644); err != nil {
+		return fmt.Errorf("write %s: %w", changelogFile, err)
 	}
 
 	for _, category := range changelogCategories {
@@ -187,6 +190,6 @@ func releaseChangelog(version string) error {
 			}
 		}
 	}
-	fmt.Printf("Folded %d entries into %s as %s.\n", count, path, version)
+	fmt.Printf("Folded %d entries into %s as %s.\n", count, changelogFile, version)
 	return nil
 }
