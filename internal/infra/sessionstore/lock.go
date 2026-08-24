@@ -13,10 +13,9 @@ import (
 	"os"
 	"path/filepath"
 	"time"
-)
 
-// ErrLocked reports that another process owns the session's writer lock.
-var ErrLocked = errors.New("session is open in another process")
+	"github.com/gougoujiang/buildmax/internal/core/session"
+)
 
 // WriterLock is exclusive ownership of one session's mutable state.
 //
@@ -54,7 +53,7 @@ func AcquireWriter(path string) (*WriterLock, error) {
 	if err := lockFile(f); err != nil {
 		f.Close()
 		if errors.Is(err, errWouldBlock) {
-			return nil, fmt.Errorf("%w: %s", ErrLocked, path)
+			return nil, fmt.Errorf("%w: %s", session.ErrLocked, path)
 		}
 		// A filesystem that cannot lock is reported rather than treated as an
 		// empty session: pretending exclusivity we do not have is worse than

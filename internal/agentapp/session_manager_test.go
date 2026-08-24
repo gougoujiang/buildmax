@@ -9,7 +9,6 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/session"
-	"github.com/gougoujiang/buildmax/internal/infra/sessionstore"
 )
 
 // openManaged creates a session and returns it open, closing it when the test
@@ -182,7 +181,7 @@ func TestOpenRefusesASecondWriter(t *testing.T) {
 	m, sess := openManaged(t)
 	// Two managers over one directory stand in for two processes.
 	other := NewSessionManager(m.Dir())
-	if _, err := other.Open(sess.ID(), "test-model"); !errors.Is(err, sessionstore.ErrLocked) {
+	if _, err := other.Open(sess.ID(), "test-model"); !errors.Is(err, session.ErrLocked) {
 		t.Fatalf("err = %v, want ErrLocked", err)
 	}
 }

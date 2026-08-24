@@ -273,7 +273,7 @@ func checkHeaderMatchesDir(c Contents, id string) error {
 // UpdateMeta changes current selections or running aggregates. It briefly
 // takes the writer lock even though it never touches the journal, so a rename
 // or pin change cannot race a concurrent update to the same file; a session
-// mid-turn reports ErrLocked rather than losing one of the two writes.
+// mid-turn reports session.ErrLocked rather than losing one of the two writes.
 func (s *FileStore) UpdateMeta(ctx context.Context, id string, update session.MetaUpdate) error {
 	dir := s.sessionDir(id)
 	lock, err := AcquireWriter(filepath.Join(dir, "writer.lock"))

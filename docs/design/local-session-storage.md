@@ -1,7 +1,6 @@
 # Local Session Storage
 
-> **Audience:** contributors and security reviewers · **Status:** phases 0 and
-> 1 implemented; phases 2 and 3 planned
+> **Audience:** contributors and security reviewers · **Status:** implemented
 >
 > Related: [session architecture](../contribute/architecture/session.md),
 > [sessions and traces](../guide/sessions-and-traces.md),
@@ -24,8 +23,6 @@ directory whose records each carry their own contract:
     history.jsonl
     traces/
       <run_id>.jsonl
-    artifacts/
-      <artifact_id>
     writer.lock
 ```
 
@@ -34,14 +31,13 @@ directory whose records each carry their own contract:
   journal.
 - `traces/<run_id>.jsonl` keeps the existing bounded, redacted, fail-open run
   diagnostics, one file per run.
-- `artifacts/` owns large content referenced by history records.
 - `writer.lock` enforces one mutable owner without treating stale process state
   as durable metadata.
 - `index.json` is a rebuildable projection for the session picker.
 
 The design borrows continuous item persistence and linked conversation history
-from JSONL-based coding agents without multiplexing metadata, resumable content,
-run diagnostics, and artifacts into one unbounded file.
+from JSONL-based coding agents without multiplexing metadata, resumable
+content, and run diagnostics into one unbounded file.
 
 ## 2. Current State And Problem
 
@@ -96,7 +92,7 @@ answer.
 - Give every history item a stable identity and logical parent.
 - Support resume, rewind, and fork without making the run trace authoritative.
 - Keep title lookup and session listing fast.
-- Isolate metadata, history, trace, artifact, and writer-lock failure policies.
+- Isolate metadata, history, trace, and writer-lock failure policies.
 - Keep the stored form neutral about which model provider produced a turn, and
   extensible to records this version does not define.
 - Give foreground, background, and nested subagents private durable sessions
@@ -133,7 +129,6 @@ answer.
 | Notes, todos, additional prompt | `history.jsonl` | Durable state injected into later model requests |
 | Current history head | `head_selected` history record | Derived on load and never stored as metadata, so it cannot disagree with the branch it names |
 | LLM/tool timing, working directory, sandbox, plugins, denial diagnostics | per-run trace | Bounded operational evidence, not resume input |
-| Large or binary content | `artifacts/` plus a history reference | Independent size, integrity, and lifecycle controls |
 | Active writer | OS lock plus `writer.lock` diagnostics | A process fact that must become stale automatically |
 
 `meta.json` and `history.jsonl` intentionally do not have one transaction, and
@@ -324,7 +319,7 @@ holds an answer that could disagree with it.
 | `turn_started` | Run ID, effective model, workspace root, context window, input kind | Opens a turn and fixes its runtime identity |
 | `message` | One complete `llm.Message` | Adds user or assistant provider history |
 | `tool_execution_started` | Tool-call ID and tool name | Marks that an approved call crossed the side-effect boundary |
-| `tool_result` | Tool-call ID, status, full text, content parts or artifact refs | Projects one tool-role message and closes the call |
+| `tool_result` | Tool-call ID, status, full text, content parts | Projects one tool-role message and closes the call |
 | `compaction` | Covered head/range, full accumulated summary | Replaces the model-visible prefix on this branch |
 | `notes_replaced` | Complete stamped note list | Replaces durable notes |
 | `todos_replaced` | Complete stamped todo list | Replaces durable todos |
@@ -455,9 +450,9 @@ directory sync every turn to protect it would buy the wrong thing.
 That choice is a latency budget as much as a correctness one. This protocol
 syncs at least five times per turn plus twice per approved tool call, so a turn
 with ten parallel tool calls crosses roughly twenty-five sync points on the
-interactive path. Phase 1 therefore measures committed-turn latency and sync
-count alongside the replay numbers in §13. Measuring only replay would tune the
-path a user waits for once and ignore the one they wait for every turn.
+interactive path. That is the cost a user pays every turn, and it is the one to
+measure first if this ever needs tuning — opening a session is a cost paid once.
+Neither is instrumented today.
 
 ### 7.2 Torn tail and corruption
 
@@ -627,18 +622,13 @@ ownership:
 - authorization and retention stay session-local; and
 - no reference-counted history graph is required.
 
-Artifacts referenced by the prefix are physically copied, for the same
-ownership reason as the journal prefix. Because §11 keeps ordinary content
-inline in phase 1, `artifacts/` holds only oversized and binary parts by then,
-so the copy is bounded by what a session actually pasted or captured rather
-than by how long it ran. A content-addressed store with reference counting is a
-phase 3 option, taken only if measured fork cost justifies the
-garbage-collection complexity it adds. Under either scheme a child must never
-point into a deletable parent-owned artifact directory.
+A fork copies the journal prefix and nothing else, because history holds all
+of a session's content inline (§11). There is no separate content store for a
+child to share, and therefore no reference counting to get wrong.
 
 Shared prefixes, copy-on-write segments, and database-backed history graphs are
-deferred until measured storage pressure justifies their deletion, retention,
-and garbage-collection complexity.
+not planned. Each buys a smaller copy at the price of deletion, retention, and
+garbage-collection rules that the physical copy does not need at all.
 
 Traces are not copied into the child resume context. Fork metadata names the
 session and head it came from; new child runs create new trace files.
@@ -690,22 +680,18 @@ The trace stays bounded, redacted, and fail-open. History stays lossless for
 resume and fail-closed at commit boundaries. A trace may summarize a history
 item ID for correlation, but a resume path never reads trace content as state.
 
-## 11. Artifacts
+## 11. Session Content And Privacy
 
-History initially stores ordinary text and structured results inline, matching
-current exact-resume behavior. Content over a configured threshold and binary
-parts move to `artifacts/` with media type, byte length, and digest in the
-history reference.
+History stores content inline: ordinary text, structured tool results, and
+non-text parts alike. There is no separate content store, no size threshold,
+and no reference to resolve on load — a session's conversation is in the one
+file that owns it. Nothing here bounds how large that gets; §13 says what that
+costs and what is not done about it.
 
-Artifact bytes are synced before the referencing history item. An unreferenced
-artifact may be collected; a committed history item must not point at missing
-bytes. Fork and deletion operate on an explicit reference manifest rather than
-discovering ownership from arbitrary paths.
-
-Session content is not redacted because redaction would change what the resumed
-model sees. Session directories use private permissions (`0700` directories and
-`0600` files where supported). Credentials and approval grants never enter
-metadata, history, traces, or artifacts as session state.
+Session content is not redacted, because redaction would change what the
+resumed model sees. Session directories use private permissions (`0700`
+directories and `0600` files where supported). Credentials and approval grants
+never enter metadata, history, or traces as session state.
 
 ## 12. Index, Locking, And Lifecycle
 
@@ -756,29 +742,28 @@ Read-only inspection may read a stable prefix while a writer is active. A
 second process cannot resume, rewind, fork from an unstable head, or append
 until it owns the writer lock.
 
-Deleting a session removes its directory only after resolving retained child
-and artifact policy. Because this is a material destructive operation, the
-caller identifies the exact session and surfaces whether child sessions or
-shared artifacts remain.
+Deleting a session removes its directory outright. It can, because a fork is a
+physical copy (§8.3): no other session's content lives in this directory, and
+nothing outside it points in. Because this is a material destructive operation,
+the caller identifies the exact session rather than matching on a prefix.
 
-## 13. Journal Growth And Physical Compaction
+## 13. Journal Growth
 
-Phase 1 replays `history.jsonl` on open and records replay duration, record
-count, and bytes.
+Nothing bounds a journal's size. It grows with the conversation and with every
+inline tool result, and it is never rewritten.
 
-Those measurements have a confounder worth naming. Replay parses the whole
-journal to find the live branch, so its cost tracks total bytes on disk —
-abandoned branches and full inline tool results included — not the length of
-the conversation the model actually sees. A rewind-heavy session can therefore
-open slowly for reasons that have nothing to do with how long its conversation
-is. Phase 1 records live-branch records and bytes separately from journal
-totals, and warns when a single journal crosses a configured size, so growth
-becomes visible before it becomes a complaint.
+A rewind-heavy session grows faster than its visible conversation suggests, and
+opens more slowly for a reason that is easy to misread: replay parses the whole
+file to find the live branch, so open cost tracks total bytes on disk —
+abandoned branches included — not the length of the conversation the model
+actually sees. Two sessions showing the same transcript can open at very
+different speeds.
 
-Physical pruning is what would bound those bytes, and it does not ship here. A
-prefix cannot be removed while a branch, fork export, or remote revision
-depends on it. No pruning ships until reachability and recovery are
-specified and tested.
+Physical pruning is what would bound this, and it does not ship. A prefix
+cannot be removed while a branch or a fork export depends on it, and no pruning
+should ship before that reachability rule and its recovery behaviour are
+specified and tested. Neither is, and no growth measurement is collected today
+either, so this section describes a known cost rather than a managed one.
 
 ## 14. Ownership And Interfaces
 
@@ -1011,18 +996,13 @@ Implementation is incomplete until tests establish:
   modifying the original file;
 - repeated interrupted opens append one recovery record per interruption and
   never duplicate a synthetic `unknown` tool result;
-- committed-turn latency and sync count are recorded for a representative turn,
-  including one with parallel tool calls, so the open-cost picture in §13 sits
-  beside the cost paid on every turn;
-- missing artifacts fail with an exact reference rather than silently dropping
-  model-visible content;
 - old Alpha files are ignored and no code path dual-writes them; and
 - all tests use the isolated `BUILDMAX_HOME` supplied by `./make test`.
 
 Property tests generate linked histories and compare incremental reduction with
 full replay from every reachable head. Crash tests use real temporary files and
-inject failure around file sync, metadata rename, tool execution, artifact
-publication, and fork copying.
+inject failure around file sync, metadata rename, tool execution, and fork
+copying.
 
 ## 18. Delivery Phases
 
@@ -1068,55 +1048,52 @@ One thing the record did not anticipate: `AddCompaction`, `SetNotes`, and
 commit. All three now return one, because §7.1 requires the turn to stop rather
 than continue against state the next turn will not find.
 
-### Phase 2: Rewind and physical-copy fork
+### Phase 2: Rewind and physical-copy fork — done
 
 - Add conversation rewind: the operation and the surfaces that offer it,
   including what it reports as *not* undone (§8.2). Landed, with `/rewind` in
-  the TUI. Desktop does not offer it yet.
-- Add independent child-session fork. Landed, with `/fork` in the TUI, which
-  shares the picker `/rewind` uses. Desktop does not offer it yet.
-- Define artifact copy/retention rules for fork and deletion. Nothing is copied
-  today because nothing is externalized yet (§11); the rule and the copier land
-  with `artifacts/` rather than ahead of it.
+  the TUI and the History picker in Desktop.
+- Add independent child-session fork. Landed, with `/fork` in the TUI and the
+  same Desktop picker, which offers both. Each surface shares one list between
+  the two operations and changes only what it says about the choice.
 
 Head selection and branch-aware replay are not listed: they landed in phase 1
 as the mechanism rewind is built from, and are covered by the property tests
-there. What remains for rewind is the operation and its surfaces.
+there.
 
-### Phase 3: Measured optimization and remote input
-
-- Externalize oversized content and qualify artifact garbage collection.
-- Feed immutable session prefixes into durable Agent session work after that
-  proposal is accepted.
-- Evaluate SQLite or shared history segments only from measured query,
-  concurrency, or storage pressure.
+This is the last phase. What was once a fourth — externalized content, shared
+history segments, a database-backed store — is not planned, and is not
+described here as though it were. Each was an optimization with no measurement
+behind it, and §13 is honest that no measurement is collected. A design record
+that carries unscheduled work reads like a commitment; if storage pressure ever
+shows up, the case for changing this can be made then, against evidence.
 
 ## 19. Open Questions
 
-Grouped by the phase each one blocks. Nothing blocks phase 1: the three
-questions that did are answered in the body — the writer lock in §12, the sync
-primitive in §7.1, and cancellation in §7.4.
+Nothing here blocks a phase, because every phase has shipped. These are the
+questions the implementation did not have to answer to work, and would have to
+answer to do more.
 
-### 19.1 Blocking phase 2
+### 19.1 Open
 
 - Which tools may declare an interrupted call safe for automatic retry, and how
-  is that idempotency qualified?
+  is that idempotency qualified? Until this is answered, an interrupted call is
+  reported to the user (§8.2) and never retried on their behalf.
 - How long are hidden subagent bundles retained after the parent receives their
-  result?
-- ~~How does a surface tell a user what a rewind did not undo?~~ Answered by
-  `/rewind`: the picker names the tools that ran in the span being dropped
-  while the point is highlighted, so the consequence is visible before the
-  choice, and repeats it after the rewind. A surface that offers rewind without
-  this is hiding the hazard §8.1 makes it responsible for.
-
-### 19.2 Blocking phase 3
-
-- What size moves inline content into `artifacts/` without making ordinary tool
-  resume dependent on excessive small files?
+  result? They are kept indefinitely today.
 - What reachability rule makes a journal prefix safe to prune, given branches
-  and fork exports? Until it exists, §13 bounds nothing.
+  and fork exports? Until it exists, §13 bounds nothing — which is a cost, not
+  a defect, and the reason no pruning ships.
 
-### 19.3 Resolved
+### 19.2 Resolved
+
+**How does a surface tell a user what a rewind did not undo?** By naming the
+tools that ran in the span being dropped while the point is still highlighted,
+so the consequence is visible before the choice, and repeating it afterwards.
+Both surfaces do this, and both reuse the same computation for fork with the
+opposite wording: the original loses nothing, but the copy will not know that
+work happened. A surface offering either without this is hiding the hazard §8.1
+makes it responsible for.
 
 Which completed content unit streams to history — a provider response item, a
 portable `llm.Message`, or both through one adapter boundary — is already

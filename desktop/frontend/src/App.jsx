@@ -7,7 +7,7 @@ import { MarkdownMessage } from './components/MarkdownMessage';
 import { CreateProjectModal } from './components/Modals';
 import { ProjectItem } from './components/ProjectItem';
 
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import Markdown from 'react-markdown';
 import { Avatar, ChatComposer, ChatThread, ThemeProvider, ThemeToggle } from '@buildmax/gui';
 import { EventsOn, EventsOff } from './lib/wailsRuntime';
@@ -18,6 +18,10 @@ export default function App() {
   const [selectedId, setSelectedId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [sessionTitle, setSessionTitle] = useState('');
+  // What the last rewind or fork left behind, shown at the end of the
+  // transcript. It is about the move, not about the conversation, so it is not
+  // a message and is not persisted.
+  const [historyNotice, setHistoryNotice] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [wailsReady, setWailsReady] = useState(false);
@@ -341,6 +345,18 @@ export default function App() {
       .catch(() => setAuthStatus(signedOut));
   }
 
+  // reloadSession is also how a rewind refreshes the transcript: the session id
+  // does not change, so nothing else would re-read it.
+  const reloadSession = useCallback((id) => {
+    if (!app || !id) return;
+    app.GetSession(id)
+      .then((detail) => {
+        setMessages(detail?.messages ?? []);
+        setSessionTitle(detail?.title?.trim() || 'Chat');
+      })
+      .catch((err) => setError(err?.message ?? String(err)));
+  }, [app]);
+
   useEffect(() => {
     if (selectedId === null) {
       setMessages([]);
@@ -349,13 +365,8 @@ export default function App() {
     }
     if (!app) return;
     setError(null);
-    app.GetSession(selectedId)
-      .then((detail) => {
-        setMessages(detail?.messages ?? []);
-        setSessionTitle(detail?.title?.trim() || 'Chat');
-      })
-      .catch((err) => setError(err?.message ?? String(err)));
-  }, [selectedId, app, newChatProject]);
+    reloadSession(selectedId);
+  }, [selectedId, app, newChatProject, reloadSession]);
 
   useEffect(() => {
     if (historyRef.current) {
@@ -365,7 +376,22 @@ export default function App() {
 
   function handleSelectSession(sessionId) {
     setNewChatProject(null);
+    setHistoryNotice(null);
     setSelectedId(sessionId);
+  }
+
+  function handleRewound(report) {
+    reloadSession(selectedId);
+    setHistoryNotice({ kind: 'rewind', text: report });
+  }
+
+  // A fork is a different session, so this navigates to it. The notice is set
+  // after the switch rather than through handleSelectSession, which clears it.
+  function handleForked(newSessionId, report) {
+    setNewChatProject(null);
+    setSelectedId(newSessionId);
+    setHistoryNotice({ kind: 'fork', text: report });
+    app?.ListSessions().then((list) => setSessions(list ?? [])).catch(() => {});
   }
 
   function handleGoHome() {
@@ -507,6 +533,7 @@ export default function App() {
 
     setLoading(true);
     setError(null);
+    setHistoryNotice(null);
     streamingContentRef.current = '';
     setRunStatus((prev) => ({ ...(prev ?? {}), prompt_tokens: 0, completion_tokens: 0 }));
     setMessages((prev) => [
@@ -647,6 +674,16 @@ export default function App() {
       ),
     }];
   });
+
+  if (historyNotice) {
+    threadItems.push({
+      id: 'history-notice',
+      role: 'system',
+      label: historyNotice.kind === 'fork' ? 'Forked' : 'Rewound',
+      hideAvatar: true,
+      body: <div className="page-chat__msg-content page-chat__history-notice">{historyNotice.text}</div>,
+    });
+  }
 
   // Queued messages sit at the end of the transcript, dimmed: typed and accepted,
   // but not sent to the model yet.
@@ -831,6 +868,8 @@ export default function App() {
                       toolActivity={toolActivity}
                       runStatus={runStatus}
                       sessionId={selectedId || ''}
+                      onRewound={handleRewound}
+                      onForked={handleForked}
                       onRunStatusContext={(status) => {
                         setRunStatus((prev) => ({
                           ...(status ?? {}),

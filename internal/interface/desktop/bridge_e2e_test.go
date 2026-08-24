@@ -63,6 +63,34 @@ func (u *uiEvents) waitFor(t *testing.T, name string) any {
 	return nil
 }
 
+// waitForNth blocks until the nth event of this name has arrived, 1-based, and
+// returns its data. A suite that drives two turns cannot use waitFor for the
+// second: it would match the first turn's event and return before the second
+// turn has done anything.
+func (u *uiEvents) waitForNth(t *testing.T, name string, n int) any {
+	t.Helper()
+	deadline := time.Now().Add(20 * time.Second)
+	for time.Now().Before(deadline) {
+		u.mu.Lock()
+		var seen int
+		for _, e := range u.events {
+			if e.name != name {
+				continue
+			}
+			seen++
+			if seen == n {
+				data := e.data
+				u.mu.Unlock()
+				return data
+			}
+		}
+		u.mu.Unlock()
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("fewer than %d %q events within 20s. What the frontend was sent:\n%s", n, name, u.summary())
+	return nil
+}
+
 func (u *uiEvents) seen(name string) bool {
 	u.mu.Lock()
 	defer u.mu.Unlock()
