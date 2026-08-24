@@ -12,8 +12,10 @@ import (
 // builtinSlashCommands is sorted; add new system commands here for completion.
 var builtinSlashCommands = []string{
 	"/diff",
+	"/fork",
 	"/mcp",
 	"/model",
+	"/rewind",
 	"/sessions",
 	"/skills",
 	"/stats",
@@ -215,10 +217,14 @@ func dispatchSlashCommand(m *Model, cmd string, args ...string) (tea.Model, tea.
 	switch cmd {
 	case "/diff":
 		return openSlashDiff(m)
+	case "/fork":
+		return openSlashFork(m)
 	case "/mcp":
 		return openSlashMCP(m)
 	case "/model":
 		return runSlashModel(m, args)
+	case "/rewind":
+		return openSlashRewind(m)
 	case "/sessions":
 		return openSlashSession(m)
 	case "/skills":
@@ -230,7 +236,7 @@ func dispatchSlashCommand(m *Model, cmd string, args ...string) (tea.Model, tea.
 	case "/tools":
 		return openSlashTools(m)
 	default:
-		m.err = "unknown command " + cmd + " (try /diff, /mcp, /model, /sessions, /skills, /stats, /tasks, /tools)"
+		m.err = "unknown command " + cmd + " (try /diff, /fork, /mcp, /model, /rewind, /sessions, /skills, /stats, /tasks, /tools)"
 		return m, nil
 	}
 }

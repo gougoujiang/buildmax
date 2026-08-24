@@ -322,6 +322,17 @@ func (s *SessionContext) SetWorkspace(dir string) {
 	s.meta.UpdatedAt = time.Now().UTC()
 }
 
+// AbandonedBy reports what rewinding to targetID would leave in place, without
+// doing it.
+//
+// It exists so a surface can show the consequence before the user commits to
+// it. Rewind returns the same answer, but only after the fact — and a choice
+// made without knowing what it leaves behind is the thing §8.1 says rewind must
+// not hide.
+func (s *SessionContext) AbandonedBy(targetID string) (session.AbandonedWork, error) {
+	return session.Abandoned(s.items, s.head, targetID)
+}
+
 // Rewind moves the conversation back to targetID and reports what it left in
 // place.
 //

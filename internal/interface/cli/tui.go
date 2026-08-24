@@ -61,10 +61,19 @@ func runTUI(resumeID, modelName, additionalSystemPrompt, workspace string) error
 	if err != nil {
 		return err
 	}
-	// Held for the life of the TUI, which is the session's whole visible life,
-	// and released here so the process does not leave the lock behind on the
-	// paths that return before exit.
-	defer app.CloseSession(sess)
+	// Held for the life of the TUI, which is the session's whole visible life.
+	// Deferred here so no path that returns before the program starts leaves the
+	// lock behind, and routed through the model once there is one: /fork
+	// replaces the session and closes the parent itself, so a release fixed on
+	// `sess` would end the parent a second time and never end the fork at all.
+	var model *Model
+	defer func() {
+		if model != nil {
+			app.CloseSession(model.CurrentSession())
+			return
+		}
+		app.CloseSession(sess)
+	}()
 	if modelName != "" {
 		sess.SetModel(modelName)
 	}
@@ -93,7 +102,8 @@ func runTUI(resumeID, modelName, additionalSystemPrompt, workspace string) error
 		GlamourStyle: glamourStyle,
 		RunStatus:    runStatus,
 	}
-	p := tea.NewProgram(NewModel(opts))
+	model = NewModel(opts)
+	p := tea.NewProgram(model)
 	approval.SetProgram(p)
 	if _, err := p.Run(); err != nil {
 		slog.Error("TUI failed", "err", err)

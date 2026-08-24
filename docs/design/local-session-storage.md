@@ -1071,10 +1071,10 @@ than continue against state the next turn will not find.
 ### Phase 2: Rewind and physical-copy fork
 
 - Add conversation rewind: the operation and the surfaces that offer it,
-  including what it reports as *not* undone (§8.2). The operation and its
-  report have landed; the surfaces have not.
-- Add independent child-session fork. The operation has landed; the surfaces
-  have not.
+  including what it reports as *not* undone (§8.2). Landed, with `/rewind` in
+  the TUI. Desktop does not offer it yet.
+- Add independent child-session fork. Landed, with `/fork` in the TUI, which
+  shares the picker `/rewind` uses. Desktop does not offer it yet.
 - Define artifact copy/retention rules for fork and deletion. Nothing is copied
   today because nothing is externalized yet (§11); the rule and the copier land
   with `artifacts/` rather than ahead of it.
@@ -1103,12 +1103,11 @@ primitive in §7.1, and cancellation in §7.4.
   is that idempotency qualified?
 - How long are hidden subagent bundles retained after the parent receives their
   result?
-- How does a surface tell a user what a rewind did not undo? The journal has
-  the answer — the abandoned branch's `tool_execution_started` and `tool_result`
-  records say which tools ran — so this is a question about what to show, not
-  about what is known. It blocks shipping rewind rather than building it: §8.1
-  makes the hazard rewind's to surface, and an unanswered version of this
-  question is a rewind that hides it.
+- ~~How does a surface tell a user what a rewind did not undo?~~ Answered by
+  `/rewind`: the picker names the tools that ran in the span being dropped
+  while the point is highlighted, so the consequence is visible before the
+  choice, and repeats it after the rewind. A surface that offers rewind without
+  this is hiding the hazard §8.1 makes it responsible for.
 
 ### 19.2 Blocking phase 3
 

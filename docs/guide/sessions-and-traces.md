@@ -59,6 +59,35 @@ A session can be open in one place at a time. Opening one that another window or
 process is already running reports that it is in use rather than letting two
 runs write over each other.
 
+### Rewinding
+
+`/rewind` moves the conversation back to an earlier message. Pick a point, and
+everything after it leaves the conversation the agent sees.
+
+**It moves the conversation. It does not undo what the conversation did.** A
+turn that edited a file, ran a command, or called an API leaves all of that in
+place — the agent's history goes back, the workspace does not. The picker says
+which tools ran in the part you are about to drop, before you choose, and
+repeats it afterwards, so you can put those effects right yourself if you need
+to.
+
+Nothing is deleted. The messages you rewind past stay on disk, and a new reply
+after a rewind starts a new branch rather than overwriting the old one.
+
+### Forking
+
+`/fork` takes the same picker and does the opposite: instead of moving this
+conversation back, it copies the history up to the chosen message into a **new
+session** and switches you to it. The original is untouched and still there.
+
+Use it to try a second approach without losing the first. The two sessions are
+independent from that point on — deleting one never affects the other.
+
+The same caveat applies from the other side. Work that happened after the fork
+point really did touch the workspace, and the new session's history does not
+contain it, so the agent there will not know it happened. The picker names those
+tools before you choose.
+
 ### Compaction
 
 When a conversation approaches the model's context window, older messages are
