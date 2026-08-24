@@ -256,10 +256,19 @@ func TestSlashForkSwitchesToTheNewSessionAndLeavesTheOldOne(t *testing.T) {
 	if done.slashHistory != nil {
 		t.Error("the panel stayed open after forking")
 	}
-	child := done.opts.Session
+	// Asked through CurrentSession, because that is what releases the session at
+	// exit. A fork replaces what the model holds, and an exit path that closed
+	// the session it opened instead would end the parent a second time and leave
+	// the fork's lock behind.
+	child := done.CurrentSession()
 	if child == nil || child.ID() == parentID {
 		t.Fatalf("the session did not switch to the fork: %v", child)
 	}
+	// The TUI holds the fork open for the rest of its run, which is right for
+	// the product and a leak in a test. Windows cannot delete a file another
+	// handle still has open, so without this the temporary directory fails to
+	// clean up and the test fails there while passing everywhere else.
+	t.Cleanup(func() { _ = child.Close() })
 	from := child.Meta().ForkedFrom
 	if from == nil || from.SessionID != parentID {
 		t.Errorf("forked_from = %+v, want the parent", from)

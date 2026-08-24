@@ -222,6 +222,16 @@ func eventSinkToChannel(channel chan tea.Msg) func(agent.Event) {
 	}
 }
 
+// CurrentSession is the session the model is holding now, which is not always
+// the one it started with: /fork switches to the child it creates. Whoever
+// releases the session at exit has to ask, rather than remember.
+func (m *Model) CurrentSession() *agentapp.SessionContext {
+	if m == nil {
+		return nil
+	}
+	return m.opts.Session
+}
+
 // NewModel builds a TUI model with input block and stored opts.
 func NewModel(opts TUIOpts) *Model {
 	var userEmail string
