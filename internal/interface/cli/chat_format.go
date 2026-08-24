@@ -209,6 +209,20 @@ func queuedPrefixedLines(prefix, text string) string {
 	return b.String()
 }
 
+// formatRecapForScrollback formats the turn recap as a dim notice under the
+// reply. It borrows the queued-message treatment for the same reason that one
+// has it: dim text is how this transcript says "shown to you, not said to the
+// agent", and the recap is never sent back to the model.
+func formatRecapForScrollback(recap string, width int) string {
+	recap = strings.TrimSpace(recap)
+	if recap == "" {
+		return ""
+	}
+	const prefix = "❯❯ "
+	body := max(20, width-len([]rune(prefix))-2)
+	return queuedPrefixedLines(prefix, strings.Join(wrapLine(recap, body), "\n"))
+}
+
 // formatAssistantMsgForScrollback formats a completed assistant reply for printing to the terminal scrollback.
 // style is the pre-detected glamour style ("dark" or "light").
 func formatAssistantMsgForScrollback(text string, width int, style string) string {

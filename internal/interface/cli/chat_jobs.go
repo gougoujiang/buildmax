@@ -118,14 +118,7 @@ func (m *Model) nextParkedJobEvent() (agentapp.BackgroundEvent, bool) {
 // busy state, stream channel, and queue handoff, with a dim header saying why
 // the agent is speaking unprompted.
 func startBackgroundEventRun(m *Model, ev agentapp.BackgroundEvent) tea.Cmd {
-	m.busy = true
-	m.err = ""
-	m.carouselDots = 0
-	m.streamingBuffer = ""
-	m.runStatus.PromptTokens = 0
-	m.runStatus.CompletionTokens = 0
-	channel := make(chan tea.Msg)
-	m.streamChannel = channel
+	channel := beginRun(m)
 	header := queuedMessageStyle.Render("⟳ " + ev.Source + " from " + ev.JobID + " — " + jobCommandSummary(ev.Title, 60))
 	return tea.Sequence(
 		tea.Println(header+"\n"),
@@ -147,6 +140,7 @@ func runBackgroundEventWithStream(opts TUIOpts, ev agentapp.BackgroundEvent, cha
 			Approval:  opts.Approval,
 			EventSink: evSink,
 			Pending:   queue,
+			Digest:    true,
 		})
 		channel <- agentDoneMsg{Result: result, Err: err}
 		close(channel)

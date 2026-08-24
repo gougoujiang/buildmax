@@ -265,6 +265,10 @@ type RunResult struct {
 	// rebuilding the layout from TraceID, so the stored path and the written
 	// file cannot disagree.
 	TracePath string
+	// Digest is the after-the-turn account written for the user, empty unless
+	// RunPromptOpts.Digest asked for one and the turn earned something to say.
+	// It is not part of the conversation and never reaches the model again.
+	Digest TurnDigest
 }
 
 type RunStatus struct {
@@ -892,6 +896,11 @@ type RunPromptOpts struct {
 	// waiting for the run to finish. Nil disables mid-run injection, leaving the
 	// surface to drain its own queue between runs.
 	Pending agent.PendingInput
+	// Digest asks for a TurnDigest once the turn is done, returned on
+	// RunResult.Digest. It costs one extra model call, so only a surface with
+	// somewhere to show it sets this; see turn_digest.go for what it produces
+	// and what keeps it from running on turns it could not describe.
+	Digest bool
 }
 
 // traceRunContext is the trace identity a running tool inherits when it starts
@@ -1036,6 +1045,9 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 	if event != nil {
 		turnMsg = event.message()
 	}
+	// Where this turn's own messages start. Compaction moves a boundary rather
+	// than dropping entries, so the index stays valid for the whole run.
+	turnStart := len(sess.Messages())
 	if err := sess.Append(turnMsg); err != nil {
 		return RunResult{}, err
 	}
@@ -1071,6 +1083,19 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 	if err != nil {
 		return RunResult{SessionID: sess.ID(), TraceID: recorder.RunID(), TracePath: recorder.Path()}, fmt.Errorf("agent: %w", err)
 	}
+	// Before finalizing, so what the digest spends is persisted by the same
+	// metadata write as the turn's own usage rather than waiting for a next
+	// turn that may never come. Fail-open: the turn is the deliverable and a
+	// missing recap must not cost the user their answer.
+	var digest TurnDigest
+	if opts.Digest {
+		summary := summarizeTurn(prompt, reply, sess.Messages()[turnStart:], stats.ToolCalls)
+		got, digestErr := a.GenerateTurnDigest(ctx, sess, client, summary)
+		if digestErr != nil {
+			slog.Warn("turn digest failed", "err", digestErr)
+		}
+		digest = got
+	}
 	if _, err := a.finalizeTurn(sess, client, stats); err != nil {
 		return RunResult{SessionID: sess.ID(), TraceID: recorder.RunID(), TracePath: recorder.Path()}, err
 	}
@@ -1096,6 +1121,7 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 		ModelName:             modelName,
 		TraceID:               recorder.RunID(),
 		TracePath:             recorder.Path(),
+		Digest:                digest,
 	}, nil
 }
 

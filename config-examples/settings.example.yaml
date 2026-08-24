@@ -391,5 +391,15 @@ models:
 # batch means the same thing at any setting. 1 disables parallel execution.
 # Range 1-16; the default is 4.
 #
+# turn_digest spends one small extra model call when a turn ends: recap prints
+# a dim summary of what the turn did under the reply, and suggest offers the
+# answer you are likely about to type as ghost text in the input box, which tab
+# accepts. Neither ever enters the conversation -- the model does not see them
+# on a later turn. Both default to true; set either to false to switch that
+# half off, or both to end turns with no extra call.
+#
 # agent:
 #   max_parallel_tools: 4
+#   turn_digest:
+#     recap: true
+#     suggest: true

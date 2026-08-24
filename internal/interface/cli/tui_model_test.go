@@ -954,3 +954,127 @@ func seedSession(t *testing.T, dir, id, title string, createdAt time.Time) {
 		t.Fatalf("create session %s: %v", id, err)
 	}
 }
+
+// --- Turn digest: the recap line and the ghost suggestion ---
+
+func doneWithDigest(recap, suggestion string) agentDoneMsg {
+	return agentDoneMsg{Result: agentapp.RunResult{
+		Digest: agentapp.TurnDigest{Recap: recap, Suggestion: suggestion},
+	}}
+}
+
+func TestSuggestionIsOfferedAsGhostAndAcceptedWithTab(t *testing.T) {
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+	m.busy = true
+
+	next, _ := m.Update(doneWithDigest("", "yes, use the second option"))
+	mod := next.(*Model)
+	if got := mod.inputBlock.Ghost(); got != "yes, use the second option" {
+		t.Fatalf("ghost = %q, want the suggestion on offer", got)
+	}
+	if mod.inputBlock.Value() != "" {
+		t.Fatal("a suggestion must not put text in the input until it is accepted")
+	}
+
+	next, _ = mod.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	mod = next.(*Model)
+	if got := mod.inputBlock.Value(); got != "yes, use the second option" {
+		t.Fatalf("input after tab = %q, want the accepted suggestion", got)
+	}
+	if mod.inputBlock.Ghost() != "" {
+		t.Error("an accepted suggestion should no longer be on offer")
+	}
+}
+
+// Typing withdraws the offer: what the user is about to send is what they
+// typed, so tab must not overwrite it.
+func TestTypingWithdrawsTheSuggestion(t *testing.T) {
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+	m.busy = true
+	next, _ := m.Update(doneWithDigest("", "yes"))
+	mod := typeInto(t, next.(*Model), "no, do the other thing")
+
+	if mod.inputBlock.Ghost() != "" {
+		t.Error("a suggestion should not be on offer once the user has typed")
+	}
+	next, _ = mod.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	if got := next.(*Model).inputBlock.Value(); got != "no, do the other thing" {
+		t.Fatalf("input after tab = %q, want what the user typed", got)
+	}
+}
+
+func TestStartingATurnClearsTheSuggestion(t *testing.T) {
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+	m.busy = true
+	next, _ := m.Update(doneWithDigest("", "yes"))
+	mod := next.(*Model)
+
+	startRun(mod, "something else entirely")
+	if mod.inputBlock.Ghost() != "" {
+		t.Error("the question a suggestion answered is gone once a turn starts")
+	}
+}
+
+func TestEscapeDismissesTheSuggestion(t *testing.T) {
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+	m.busy = true
+	next, _ := m.Update(doneWithDigest("", "yes"))
+
+	next, _ = next.(*Model).Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	if got := next.(*Model).inputBlock.Ghost(); got != "" {
+		t.Errorf("ghost = %q after esc, want it dismissed", got)
+	}
+}
+
+// The recap goes to scrollback, never to the session: a turn ending with one
+// still hands the same drain command back.
+func TestRecapPrintsToScrollbackBeforeDraining(t *testing.T) {
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+	m.busy = true
+	m.width = 80
+
+	_, cmd := m.Update(doneWithDigest("Rewrote the parser and ran the suite.", ""))
+	if cmd == nil {
+		t.Fatal("a turn with a recap should still return a command")
+	}
+	if _, ok := cmd().(drainQueueMsg); ok {
+		t.Fatal("the recap should be printed before the queue drains")
+	}
+}
+
+// When the reply is only rendered at agentDoneMsg, the recap has to wait for
+// it: printed first it would describe a turn the user cannot see yet.
+func TestRecapWaitsForTheFallbackReplyRender(t *testing.T) {
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+	m.busy = true
+	m.width = 80
+	m.streamingBuffer = "the reply nobody printed yet"
+
+	next, _ := m.Update(doneWithDigest("Did the thing.", ""))
+	mod := next.(*Model)
+	if mod.pendingRecap == "" {
+		t.Fatal("the recap should be held for the reply it belongs under")
+	}
+
+	next, cmd := mod.Update(assistantRenderedMsg{line: "the reply nobody printed yet"})
+	mod = next.(*Model)
+	if mod.pendingRecap != "" {
+		t.Error("the held recap should be released once the reply renders")
+	}
+	if cmd == nil {
+		t.Fatal("rendering the reply should print something")
+	}
+}
+
+func TestNoDigestPrintsNothingExtra(t *testing.T) {
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+	m.busy = true
+
+	_, cmd := m.Update(doneWithDigest("", ""))
+	if cmd == nil {
+		t.Fatal("agentDoneMsg should return the queue drain command")
+	}
+	if _, ok := cmd().(drainQueueMsg); !ok {
+		t.Fatal("a turn with no digest should go straight to the drain")
+	}
+}

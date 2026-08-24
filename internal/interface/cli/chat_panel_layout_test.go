@@ -329,3 +329,24 @@ func jobsCursorRow(content string) string {
 	}
 	return ""
 }
+
+// A ghost suggestion is rendered over the textarea's own height, so the input
+// has to grow for one that wraps or the offer is shown cut in half.
+func TestInputGrowsForAWrappingSuggestion(t *testing.T) {
+	ib := NewInputBlock()
+	ib.SetWidth(20)
+	ib.SyncHeight()
+	if got := ib.Height(); got != inputMinLines {
+		t.Fatalf("empty input height = %d, want %d", got, inputMinLines)
+	}
+
+	ib.SetGhost("yes, and please also update the documentation for it")
+	if got := ib.Height(); got <= inputMinLines {
+		t.Errorf("height with a wrapping suggestion = %d, want more than %d", got, inputMinLines)
+	}
+
+	ib.SetGhost("")
+	if got := ib.Height(); got != inputMinLines {
+		t.Errorf("height after the suggestion is gone = %d, want %d", got, inputMinLines)
+	}
+}
