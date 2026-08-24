@@ -91,11 +91,13 @@ honesty rules say is wrong would have been worse than publishing nothing.
 
 Two related defects were fixed alongside them:
 
-3. **Subagent traces were unreachable.** The runner creates an ephemeral
-   session and discards it on return, and the trace was filed under that id —
-   producing directories under `traces/` that no session could ever name. A
-   subagent's trace is now filed under the parent's session, told apart by
-   `is_subagent` and linked by `parent_run_id`.
+3. **Subagent traces were unreachable.** The runner then created an ephemeral
+   session and discarded it on return, and the trace was filed under that id —
+   producing directories no session could ever name. A subagent's trace is now
+   filed under the parent's session, told apart by `is_subagent` and linked by
+   `parent_run_id`. A subagent keeps its own bundle since
+   [local session storage](local-session-storage.md), but it is hidden, so the
+   trace still belongs with the parent.
 
 4. **A failed tool call was invisible.** The loop already distinguished failure
    (it fires `PostToolUseFailure`), but flattened the error into `error: …`
@@ -157,16 +159,15 @@ numbers.
 
 - **Cross-session aggregation.** "What did this week cost", grouped by
   workspace, model, and day. The intended mechanism is a small projection on
-  `SessionItem` in `sessions.json`, written on the save that already happens
-  each turn — that file is explicitly rebuildable, so a wrong value is
+  the row in `sessions/index.json`, written on the metadata write that already
+  happens each turn — that file is explicitly rebuildable, so a wrong value is
   repairable rather than a migration. Deferred by choice, not blocked.
 - **Per-turn recording.** It would remove the trace dependency and make a
-  session self-describing. It is deliberately not decided here: [local session
-  storage](local-session-storage.md) plans to split the session into
-  `meta.json` + `history.jsonl` + `traces/`, and per-turn stats belong in that
-  `meta.json` if anywhere. Building it now would pre-empt a design already
-  written and waiting for review.
-- **Trace retention.** Nothing prunes `traces/` today. Stats is both an
+  session self-describing. [Local session storage](local-session-storage.md)
+  has since landed, so the place for it now exists: `meta.json` holds the
+  running totals, and a per-turn breakdown belongs beside them there rather
+  than being folded back out of the journal.
+- **Trace retention.** Nothing prunes a session's `traces/` today. Stats is both an
   argument for retention and a victim of it; the view degrades visibly rather
   than silently, which is the most it can do until retention is decided.
 - **Cache diagnostics.** When §6 of [prompt cache control](prompt-cache-control.md)

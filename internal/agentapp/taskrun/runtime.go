@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -379,26 +380,44 @@ func ensureRunDirs(runHome, runArtifacts, runGlobal string) error {
 	return nil
 }
 
+// sessionBundleFiles are the parts of a session bundle a resumed run needs.
+//
+// Only these two: meta.json carries the session's current selections and
+// running totals, history.jsonl carries the conversation. Traces are
+// diagnostics rather than resume input, so a run that recovers a session
+// without them resumes correctly and simply has no record of what the previous
+// run did — which is the right trade when the alternative is fetching an
+// unbounded set of files whose names this side does not know.
+var sessionBundleFiles = []string{"meta.json", "history.jsonl"}
+
 func restoreSessionFromPreviousRun(ctx context.Context, task *model.Task, run *model.TaskRun, runGlobalDir string, persist blob.RunStorage) {
 	if task.SessionID == nil || task.LastRunID == nil || *task.LastRunID == run.ID {
 		return
 	}
-	relPath := "sessions/" + *task.SessionID + ".json"
-	data, err := persist.GetRunGlobal(ctx, blob.RunObjectRef{
-		CreatedBy:      task.CreatedBy,
-		ConversationID: task.ConversationID,
-		TaskID:         task.ID,
-		TaskRunID:      *task.LastRunID,
-		RelPath:        relPath,
-	})
-	if err != nil {
-		return
+	bundleDir := filepath.Join(runGlobalDir, "sessions", *task.SessionID)
+	for _, name := range sessionBundleFiles {
+		data, err := persist.GetRunGlobal(ctx, blob.RunObjectRef{
+			CreatedBy:      task.CreatedBy,
+			ConversationID: task.ConversationID,
+			TaskID:         task.ID,
+			TaskRunID:      *task.LastRunID,
+			RelPath:        "sessions/" + *task.SessionID + "/" + name,
+		})
+		if err != nil {
+			// Best-effort: a run that cannot recover the previous session
+			// starts fresh rather than failing. Half a bundle is worse than
+			// none, though — a history with no metadata resumes under the
+			// wrong model — so a missing part abandons the whole restore.
+			_ = os.RemoveAll(bundleDir)
+			return
+		}
+		// Whole or not at all: the next run reads these as the conversation's
+		// only copy, and a torn one would refuse to open the session.
+		if err := util.WriteFileAtomic(filepath.Join(bundleDir, name), data, 0o600); err != nil {
+			_ = os.RemoveAll(bundleDir)
+			return
+		}
 	}
-	sessionsDir := filepath.Join(runGlobalDir, "sessions")
-	// Restoring is best-effort — a run that cannot recover the previous session
-	// starts fresh rather than failing — but the file it lands in must still be
-	// whole, because the next run reads it as the conversation's only copy.
-	_ = util.WriteFileAtomic(filepath.Join(sessionsDir, *task.SessionID+".json"), data, 0644)
 }
 
 // agentRunOutput is what one in-process agent run yields back to the task-run
@@ -674,16 +693,20 @@ func uploadTaskGlobal(ctx context.Context, globalDir string, scope RunScope, per
 	if traceKey != "" {
 		relPaths = append(relPaths, traceKey)
 	}
+	// Walked rather than listed: a session is a directory now — metadata,
+	// journal, and its own traces — so a flat read would upload nothing.
 	sessionsDir := filepath.Join(globalDir, "sessions")
-	entries, err := os.ReadDir(sessionsDir)
-	if err == nil {
-		for _, e := range entries {
-			if e.IsDir() {
-				continue
-			}
-			relPaths = append(relPaths, "sessions/"+e.Name())
+	_ = filepath.WalkDir(sessionsDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil
 		}
-	}
+		rel, relErr := filepath.Rel(globalDir, path)
+		if relErr != nil {
+			return nil
+		}
+		relPaths = append(relPaths, filepath.ToSlash(rel))
+		return nil
+	})
 	for _, relPath := range relPaths {
 		fullPath := filepath.Join(globalDir, filepath.FromSlash(relPath))
 		info, err := os.Stat(fullPath)

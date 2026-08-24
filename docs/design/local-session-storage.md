@@ -1,6 +1,7 @@
 # Local Session Storage
 
-> **Audience:** contributors and security reviewers · **Status:** planned
+> **Audience:** contributors and security reviewers · **Status:** phases 0 and
+> 1 implemented; phases 2 and 3 planned
 >
 > Related: [session architecture](../contribute/architecture/session.md),
 > [sessions and traces](../guide/sessions-and-traces.md),
@@ -1029,7 +1030,7 @@ but not the directory entry, so a write is all-or-nothing rather than durable �
 §7.1 now names the primitive phase 1 uses and says what it does and does not
 claim.
 
-### Phase 1: Session bundle and linked history
+### Phase 1: Session bundle and linked history — done
 
 - Add metadata schema, history header/items, reducer, JSONL backend, writer
   lock, and tail repair.
@@ -1040,14 +1041,24 @@ claim.
 - Cut CLI, TUI, Desktop, eval, worker paths, docs, and tests to the new format
   together.
 
-Phase 1 is a milestone, not one change, and it has three seams that land and
-review independently. The core item types, the reducer, and their property
-tests depend on no storage at all. The `internal/infra/sessionstore` codec,
-locking, and tail repair are testable directly against temporary directories
-with no agent in the picture. Only the third seam, the surface cutover, touches
-user-facing behavior, and it stays atomic across CLI, TUI, Desktop, eval, and
-worker paths because §15 rules out dual-writing. Nothing about that final
-constraint requires the two layers beneath it to arrive in the same review.
+Landed, across the three seams it was split into: the core item types and
+reducer, then the `sessionstore` codec and lock, then the surface cutover. Only
+the third touched user-facing behaviour, and it stayed atomic across CLI, TUI,
+Desktop, eval, and worker paths because §15 rules out dual-writing — but
+nothing about that constraint required the two layers beneath it to arrive in
+the same review.
+
+Two things the record described turned out to be more complicated than they
+needed to be, and were corrected against the implementation rather than worked
+around: head derivation collapsed to "the last physical record" once
+`head_selected` chained to its target (§6.2), and `Append` became a method on a
+`Writer` that holds the lock for a whole turn rather than a flat call carrying
+`expectedSeq` (§14).
+
+One thing the record did not anticipate: `AddCompaction`, `SetNotes`, and
+`SetTodos` returned no error, so a durable history had no way to report a failed
+commit. All three now return one, because §7.1 requires the turn to stop rather
+than continue against state the next turn will not find.
 
 ### Phase 2: Checkpoint, rewind, and physical-copy fork
 
