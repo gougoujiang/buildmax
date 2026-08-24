@@ -34,6 +34,7 @@ their context.
 | [Enterprise identity and access](enterprise-identity-and-access.md) | How should a private deployment connect corporate identity to BuildMax teams and roles? |
 | [Durable Agent sessions](durable-agent-sessions.md) | Should authenticated local Agent sessions become revisioned Server resources for recovery, provenance, sharing, and cross-device continuation? |
 | [Local Issue work bridge](local-issue-work-bridge.md) | How should connected CLI/TUI and Desktop handle Team Issues locally without becoming Portal clones or weakening direct local use? |
+| [Run-scoped Secret Broker and workload identity](run-scoped-secret-broker.md) | How should a Team authorize one run and one plugin consumer to use a stored or externally managed credential without exposing it to the whole worker? |
 | [Session tree, agent mailbox, and branched workspaces](session-tree-and-agent-mailbox.md) | Should interactive sessions fork isolated workspaces, return structured child reports, and resume their parent through a durable mailbox? |
 
 Nine papers have been retired. Five were accepted into a design
