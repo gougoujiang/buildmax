@@ -11,24 +11,28 @@ Two different records of what happened, for two different questions.
 |---|---|---|
 | Answers | "What did we talk about?" | "What did it actually do?" |
 | Contains | The conversation, resumable | Every LLM call and tool call in one run |
-| Lives in | `<BUILDMAX_HOME>/sessions/` | `<BUILDMAX_HOME>/traces/` |
+| Lives in | `<BUILDMAX_HOME>/sessions/<id>/` | the same folder, under `traces/` |
 | Read by | You, and the agent on resume | You, when something went wrong |
 
 ## Sessions
 
-Each session is one JSON file, `sessions/<id>.json`, plus an index in
-`sessions.json` that the picker reads without opening every file.
+Each session is a folder, and everything about it lives inside:
 
-```json
-{
-  "id": "…",
-  "title": "Add pagination to the list endpoint",
-  "created_at": "…",
-  "messages": [ … ],
-  "prompt_tokens": 18234,
-  "completion_tokens": 2011
-}
+```text
+<BUILDMAX_HOME>/sessions/
+  index.json                    what the picker reads
+  <id>/
+    meta.json                   title, workspace, model, token and cost totals
+    history.jsonl               the conversation, one record per line
+    traces/<run_id>.jsonl       one file per run
 ```
+
+`history.jsonl` is append-only: each message, tool call, and tool result is
+written as it happens rather than the whole file being rewritten at the end of a
+turn. That is what lets an interrupted run be picked back up — and what lets
+BuildMax tell a tool call that never started from one that may already have
+changed something on disk. When it resumes a session that stopped mid-tool, it
+says so rather than assuming either way.
 
 Token counts and cost cover the whole session: every turn, the title-generation
 call, each compaction, and any work the run delegated to a subagent.
@@ -47,23 +51,27 @@ buildmax --session-id <uuid>     # load if it exists, otherwise create it
 `--session-id` is the one to script with: it makes a run idempotent against a
 known id instead of depending on what happens to be most recent.
 
-In the TUI, `/sessions` opens the picker. Sessions are saved after each
-assistant reply, so an interrupted run does not lose the conversation up to that
-point.
+In the TUI, `/sessions` opens the picker. The conversation is written as it
+happens, so an interrupted run keeps everything up to the moment it stopped —
+not just up to the last completed reply.
+
+A session can be open in one place at a time. Opening one that another window or
+process is already running reports that it is in use rather than letting two
+runs write over each other.
 
 ### Compaction
 
 When a conversation approaches the model's context window, older messages are
-compacted into a summary, recorded in the session as `compaction_idx` and
-`compaction_summary`. The `pre_compact` hook can block this, and `post_compact`
-observes it — see [hooks.md](hooks.md).
+compacted into a summary, recorded in the journal as a `compaction` record
+naming exactly which messages it covers. The `pre_compact` hook can block this,
+and `post_compact` observes it — see [hooks.md](hooks.md).
 
 ## Traces
 
 Every run writes one JSONL file:
 
 ```text
-<BUILDMAX_HOME>/traces/<session_id>/<run_id>.jsonl
+<BUILDMAX_HOME>/sessions/<session_id>/traces/<run_id>.jsonl
 ```
 
 Run ids are prefixed `rt_`. The file opens with a `run_start` record and three
@@ -87,13 +95,13 @@ Because it is JSONL, ordinary tools work:
 ```bash
 # every tool call in the last run
 jq -r 'select(.type=="tool_start") | .tool_name' \
-   ~/.buildmax/traces/<session>/<run>.jsonl
+   ~/.buildmax/sessions/<session>/traces/<run>.jsonl
 
 # what got blocked
-jq 'select(.type=="tool_denied")' ~/.buildmax/traces/<session>/*.jsonl
+jq 'select(.type=="tool_denied")' ~/.buildmax/sessions/<session>/traces/*.jsonl
 
 # how the run ended
-jq 'select(.type=="run_end")' ~/.buildmax/traces/<session>/<run>.jsonl
+jq 'select(.type=="run_end")' ~/.buildmax/sessions/<session>/traces/<run>.jsonl
 ```
 
 ### Bounded and Redacted

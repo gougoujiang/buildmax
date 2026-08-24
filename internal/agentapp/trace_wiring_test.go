@@ -14,6 +14,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/gougoujiang/buildmax/internal/infra/sessionstore"
 	"github.com/gougoujiang/buildmax/internal/infra/trace"
 	tools "github.com/gougoujiang/buildmax/internal/tool"
 
@@ -55,7 +56,8 @@ func (traceAllowPolicy) Check(string, string, map[string]any) (llm.ToolAction, b
 // readTrace returns the decoded records of the trace file RunPrompt reported.
 func readTrace(t *testing.T, sessionID, traceID string) []map[string]any {
 	t.Helper()
-	path := filepath.Join(config.TracesDir(), sessionID, traceID+".jsonl")
+	// Traces live inside the session's own bundle now, not under a second root.
+	path := filepath.Join(sessionstore.SessionTracesDir(config.SessionsDir(), sessionID), traceID+".jsonl")
 	f, err := os.Open(path)
 	if err != nil {
 		t.Fatalf("open trace %s: %v", path, err)
@@ -95,6 +97,7 @@ func TestAgentApp_RunPromptWritesTrace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenSession: %v", err)
 	}
+	defer app.CloseSession(sess)
 	result, err := app.RunPrompt(context.Background(), sess, "leak the credentials", RunPromptOpts{})
 	if err != nil {
 		t.Fatalf("RunPrompt: %v", err)
@@ -103,7 +106,7 @@ func TestAgentApp_RunPromptWritesTrace(t *testing.T) {
 		t.Fatalf("TraceID = %q, want a canonical public ID", result.TraceID)
 	}
 
-	records := readTrace(t, sess.ID, result.TraceID)
+	records := readTrace(t, sess.ID(), result.TraceID)
 	if len(records) != 5 {
 		t.Fatalf("got %d records, want run_start + sandbox_boundary + prompt_layers + plugins + run_end: %+v",
 			len(records), records)
@@ -116,8 +119,8 @@ func TestAgentApp_RunPromptWritesTrace(t *testing.T) {
 	if start["run_id"] != result.TraceID {
 		t.Errorf("run_start run_id = %v, want %q", start["run_id"], result.TraceID)
 	}
-	if start["session_id"] != sess.ID {
-		t.Errorf("run_start session_id = %v, want %q", start["session_id"], sess.ID)
+	if start["session_id"] != sess.ID() {
+		t.Errorf("run_start session_id = %v, want %q", start["session_id"], sess.ID())
 	}
 	if start["workspace"] == nil || start["workspace"] == "" {
 		t.Error("run_start workspace empty")
@@ -167,6 +170,7 @@ func TestAgentApp_RunPromptTraceDisabled(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenSession: %v", err)
 	}
+	defer app.CloseSession(sess)
 	result, err := app.RunPrompt(context.Background(), sess, "leak the credentials", RunPromptOpts{})
 	if err != nil {
 		t.Fatalf("RunPrompt: %v", err)
@@ -174,7 +178,7 @@ func TestAgentApp_RunPromptTraceDisabled(t *testing.T) {
 	if result.TraceID != "" {
 		t.Errorf("TraceID = %q, want empty when tracing is disabled", result.TraceID)
 	}
-	if _, err := os.Stat(config.TracesDir()); !os.IsNotExist(err) {
+	if _, err := os.Stat(sessionstore.SessionTracesDir(config.SessionsDir(), sess.ID())); !os.IsNotExist(err) {
 		t.Errorf("traces dir exists with tracing disabled (stat err = %v)", err)
 	}
 }
@@ -185,14 +189,16 @@ func TestAgentApp_RunPromptTraceFailureIsFailOpen(t *testing.T) {
 	app := makeAgentAppForHookTests(t)
 	app.hooks = &fakeHookRunner{blockOn: agent.HookUserPromptSubmit, reason: "policy: no secrets"}
 
-	// Occupy the traces path with a regular file so MkdirAll must fail.
-	if err := os.WriteFile(config.TracesDir(), []byte("not a dir"), 0o644); err != nil {
-		t.Fatalf("seed traces path: %v", err)
-	}
-
 	sess, err := app.OpenSession("")
 	if err != nil {
 		t.Fatalf("OpenSession: %v", err)
+	}
+	defer app.CloseSession(sess)
+	// Occupy the session's traces path with a regular file so MkdirAll must
+	// fail. It has to be seeded after the session exists, because the path now
+	// lives inside the session's own bundle.
+	if err := os.WriteFile(sessionstore.SessionTracesDir(config.SessionsDir(), sess.ID()), []byte("not a dir"), 0o644); err != nil {
+		t.Fatalf("seed traces path: %v", err)
 	}
 	result, err := app.RunPrompt(context.Background(), sess, "leak the credentials", RunPromptOpts{})
 	if err != nil {
@@ -226,6 +232,7 @@ func TestAgentApp_SubagentTraceLinksToImmediateParent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenSession: %v", err)
 	}
+	defer app.CloseSession(sess)
 	result, err := app.RunPrompt(context.Background(), sess, "delegate this", RunPromptOpts{})
 	if err != nil {
 		t.Fatalf("RunPrompt: %v", err)
@@ -234,34 +241,24 @@ func TestAgentApp_SubagentTraceLinksToImmediateParent(t *testing.T) {
 		t.Fatalf("Reply = %q, want parent result", result.Reply)
 	}
 
-	parent := readTrace(t, sess.ID, result.TraceID)
+	parent := readTrace(t, sess.ID(), result.TraceID)
 	if _, exists := parent[0]["parent_run_id"]; exists {
 		t.Errorf("top-level run_start has parent_run_id = %v, want absent", parent[0]["parent_run_id"])
 	}
 
-	// The child belongs to the parent's session directory, not one of its own:
-	// the subagent's session is discarded when it returns, so a directory
-	// keyed by that id would be reachable from nothing.
-	sessionDirs, err := os.ReadDir(config.TracesDir())
-	if err != nil {
-		t.Fatalf("read traces dir: %v", err)
-	}
-	for _, sessionDir := range sessionDirs {
-		if sessionDir.IsDir() && sessionDir.Name() != sess.ID {
-			t.Errorf("trace directory %q exists beside the session's own", sessionDir.Name())
-		}
-	}
-
+	// The child's trace is filed under the parent's session, not its own: a
+	// subagent bundle is hidden from the picker, so a trace kept only there
+	// would be reachable from nothing a person opens.
 	var child []map[string]any
-	files, err := os.ReadDir(filepath.Join(config.TracesDir(), sess.ID))
+	files, err := os.ReadDir(sessionstore.SessionTracesDir(config.SessionsDir(), sess.ID()))
 	if err != nil {
-		t.Fatalf("read trace session %s: %v", sess.ID, err)
+		t.Fatalf("read trace session %s: %v", sess.ID(), err)
 	}
 	for _, file := range files {
 		if file.IsDir() || !strings.HasSuffix(file.Name(), ".jsonl") {
 			continue
 		}
-		data, err := os.ReadFile(filepath.Join(config.TracesDir(), sess.ID, file.Name()))
+		data, err := os.ReadFile(filepath.Join(sessionstore.SessionTracesDir(config.SessionsDir(), sess.ID()), file.Name()))
 		if err != nil {
 			t.Fatalf("read child trace %s: %v", file.Name(), err)
 		}

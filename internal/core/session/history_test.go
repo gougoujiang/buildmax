@@ -43,7 +43,6 @@ func TestItemRoundTripsEveryPayload(t *testing.T) {
 		TodosReplaced{Todos: []agent.Todo{{Content: "todo", Status: agent.TodoPending}}},
 		AdditionalPromptSet{Text: "extra"},
 		HeadSelected{Reason: "user_rewind"},
-		Checkpoint{HistoryHeadID: "ib", StateDigest: "sha256:x", Reason: "user_prompt"},
 		TurnFinished{Status: TurnCanceled},
 		TurnRecovered{TurnID: "run1", UncertainToolCallIDs: []string{"call_1"}},
 	}
@@ -91,7 +90,6 @@ func TestItemRequiredFollowsModelVisibility(t *testing.T) {
 		// correctly, so refusing the session over one would be a version trap.
 		{TurnStarted{}, false},
 		{ToolExecutionStarted{}, false},
-		{Checkpoint{}, false},
 		{TurnFinished{}, false},
 		{TurnRecovered{}, false},
 	}

@@ -18,14 +18,16 @@ type statefulHistory struct {
 
 func (h *statefulHistory) Notes() []Note { return h.notes }
 
-func (h *statefulHistory) SetNotes(notes []Note, iter int) {
+func (h *statefulHistory) SetNotes(notes []Note, iter int) error {
 	h.notes = StampNotes(h.notes, notes, iter)
+	return nil
 }
 
 func (h *statefulHistory) Todos() []Todo { return h.todos }
 
-func (h *statefulHistory) SetTodos(todos []Todo, iter int) {
+func (h *statefulHistory) SetTodos(todos []Todo, iter int) error {
 	h.todos = StampTodos(h.todos, todos, iter)
+	return nil
 }
 
 var _ NotesHistory = (*statefulHistory)(nil)
@@ -263,7 +265,7 @@ func TestRunLoop_NoStateBlockWhenEmpty(t *testing.T) {
 func TestNotesSurviveCompaction(t *testing.T) {
 	client := &windowedClient{window: testContextWindow}
 	h := &statefulHistory{}
-	h.SetNotes([]Note{{Text: "the client is the lessee"}}, 1)
+	_ = h.SetNotes([]Note{{Text: "the client is the lessee"}}, 1)
 	fillToThreshold(&h.compactingHistory)
 
 	runOnce(t, client, h, &factCompactor{})

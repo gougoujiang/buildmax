@@ -27,7 +27,6 @@ const (
 	ItemTodosReplaced        = "todos_replaced"
 	ItemAdditionalPromptSet  = "additional_prompt_set"
 	ItemHeadSelected         = "head_selected"
-	ItemCheckpoint           = "checkpoint"
 	ItemTurnFinished         = "turn_finished"
 	ItemTurnRecovered        = "turn_recovered"
 )
@@ -40,10 +39,16 @@ const (
 // call may already have changed the world, and saying so is the only honest
 // answer available.
 const (
-	ToolStatusCompleted = "completed"
-	ToolStatusFailed    = "failed"
-	ToolStatusDenied    = "denied"
-	ToolStatusUnknown   = "unknown"
+	// The first three are aliases rather than fresh literals: the agent loop
+	// classifies a finished call and this package writes that classification
+	// down, so one definition keeps the file format and the loop from drifting.
+	ToolStatusCompleted = agent.ToolStatusCompleted
+	ToolStatusFailed    = agent.ToolStatusFailed
+	ToolStatusDenied    = agent.ToolStatusDenied
+	// ToolStatusUnknown has no counterpart in the loop because the loop never
+	// produces it: it is written by recovery, for a call the loop did not live
+	// long enough to classify.
+	ToolStatusUnknown = "unknown"
 )
 
 // Terminal turn statuses. Canceled and interrupted are separate because they are
@@ -202,19 +207,6 @@ type HeadSelected struct {
 func (HeadSelected) itemType() string   { return ItemHeadSelected }
 func (HeadSelected) modelVisible() bool { return true }
 
-// Checkpoint names a stable conversation head. It does not capture the
-// workspace: files, processes and network effects are outside what this journal
-// can restore, and StateDigest covers only the reduced conversation so a restore
-// can be checked rather than trusted.
-type Checkpoint struct {
-	HistoryHeadID string `json:"history_head_id"`
-	StateDigest   string `json:"state_digest,omitempty"`
-	Reason        string `json:"reason,omitempty"`
-}
-
-func (Checkpoint) itemType() string   { return ItemCheckpoint }
-func (Checkpoint) modelVisible() bool { return false }
-
 // TurnFinished closes a turn. Its presence is what tells the next open that
 // there is nothing to recover.
 type TurnFinished struct {
@@ -367,8 +359,6 @@ func decodePayload(kind string, data json.RawMessage) (Payload, error) {
 		return decodePayloadInto[AdditionalPromptSet](kind, data)
 	case ItemHeadSelected:
 		return decodePayloadInto[HeadSelected](kind, data)
-	case ItemCheckpoint:
-		return decodePayloadInto[Checkpoint](kind, data)
 	case ItemTurnFinished:
 		return decodePayloadInto[TurnFinished](kind, data)
 	case ItemTurnRecovered:

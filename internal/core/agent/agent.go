@@ -122,7 +122,12 @@ type CompactionHistory interface {
 	// history has never been compacted.
 	PriorSummary() string
 	// AddCompaction advances the compaction boundary by summarizedCount messages and stores summary.
-	AddCompaction(summary string, summarizedCount int)
+	//
+	// It returns an error because a durable history commits here. Compaction
+	// changes what the model sees, so a boundary that failed to reach storage
+	// would leave the next turn reading a different conversation than this one
+	// ended with.
+	AddCompaction(summary string, summarizedCount int) error
 }
 
 // ContextCompactor summarizes a slice of messages into a short text that can replace them.
@@ -282,7 +287,9 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 							if ch, ok := opts.History.(CompactionHistory); ok {
 								// summarizedCount counts real history messages; the prior summary
 								// prepended above is synthetic and never entered the history.
-								ch.AddCompaction(summary, len(toSummarize))
+								if err := ch.AddCompaction(summary, len(toSummarize)); err != nil {
+									return "", s, fmt.Errorf("persist compaction: %w", err)
+								}
 							}
 							history = toKeep
 							slog.Info("context compacted", "iter", i+1, "summarized", len(toSummarize), "kept", len(toKeep))
@@ -566,17 +573,19 @@ func executeToolCalls(ctx context.Context, opts RunLoopOpts, toolCalls []llm.Too
 		for i := range group {
 			gateCall(ctx, opts, policy, guard, &group[i])
 		}
+		// Between gate and run: the approved calls are recorded as about to
+		// cross into their tools, and that record is durable before any of them
+		// does. A failure here stops the turn rather than running a tool whose
+		// outcome could not be classified afterwards.
+		if err := recordToolBoundary(opts, group); err != nil {
+			return count, err
+		}
 		runGroup(ctx, opts, group)
 		for i := range group {
 			c := &group[i]
 			firePostHook(ctx, opts, c)
 			logToolResult(c.call.Name, c.result)
-			if err := opts.History.Append(llm.Message{
-				Role:       "tool",
-				Content:    c.result,
-				ToolCallID: c.call.ID,
-				Parts:      c.parts,
-			}); err != nil {
+			if err := appendToolOutcome(opts, c); err != nil {
 				return count, err
 			}
 			count++

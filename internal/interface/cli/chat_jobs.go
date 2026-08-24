@@ -78,7 +78,7 @@ func handleJobEvent(m *Model, msg jobEventMsg) (tea.Model, tea.Cmd) {
 
 // ownsJob reports whether the job belongs to the session currently on screen.
 func (m *Model) ownsJob(j job.Job) bool {
-	return m.opts.Session != nil && j.Provenance.SessionID == m.opts.Session.ID
+	return m.opts.Session != nil && j.Provenance.SessionID == m.opts.Session.ID()
 }
 
 // parkJobEvent queues one delivery under the job's owning session and, when
@@ -101,15 +101,15 @@ func (m *Model) nextParkedJobEvent() (agentapp.BackgroundEvent, bool) {
 	if m.opts.Session == nil {
 		return agentapp.BackgroundEvent{}, false
 	}
-	events := m.parkedJobEvents[m.opts.Session.ID]
+	events := m.parkedJobEvents[m.opts.Session.ID()]
 	if len(events) == 0 {
 		return agentapp.BackgroundEvent{}, false
 	}
 	ev := events[0]
 	if len(events) == 1 {
-		delete(m.parkedJobEvents, m.opts.Session.ID)
+		delete(m.parkedJobEvents, m.opts.Session.ID())
 	} else {
-		m.parkedJobEvents[m.opts.Session.ID] = events[1:]
+		m.parkedJobEvents[m.opts.Session.ID()] = events[1:]
 	}
 	return ev, true
 }

@@ -67,12 +67,11 @@ func NewRecorder(dir string, meta Meta) *Recorder {
 		componentLog().Warn("missing run id; tracing disabled for this run")
 		return nil
 	}
-	runDir := filepath.Join(dir, sanitize(meta.SessionID))
-	if err := os.MkdirAll(runDir, 0o755); err != nil {
-		componentLog().Warn("create dir failed; tracing disabled for this run", "dir", runDir, "err", err)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		componentLog().Warn("create dir failed; tracing disabled for this run", "dir", dir, "err", err)
 		return nil
 	}
-	path := filepath.Join(runDir, meta.RunID+".jsonl")
+	path := filepath.Join(dir, meta.RunID+".jsonl")
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 	if err != nil {
 		componentLog().Warn("open file failed; tracing disabled for this run", "path", path, "err", err)
@@ -206,22 +205,4 @@ func (r *Recorder) write(rec Record) {
 		return
 	}
 	r.count++
-}
-
-// sanitize makes a session id safe as a single path segment. Empty becomes
-// "unknown" so traces are never written outside the traces dir.
-func sanitize(id string) string {
-	if id == "" {
-		return "unknown"
-	}
-	out := make([]rune, 0, len(id))
-	for _, c := range id {
-		switch {
-		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9', c == '_', c == '-':
-			out = append(out, c)
-		default:
-			out = append(out, '_')
-		}
-	}
-	return string(out)
 }

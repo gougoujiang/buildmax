@@ -61,6 +61,10 @@ func runTUI(resumeID, modelName, additionalSystemPrompt, workspace string) error
 	if err != nil {
 		return err
 	}
+	// Held for the life of the TUI, which is the session's whole visible life,
+	// and released here so the process does not leave the lock behind on the
+	// paths that return before exit.
+	defer app.CloseSession(sess)
 	if modelName != "" {
 		sess.SetModel(modelName)
 	}
@@ -76,7 +80,7 @@ func runTUI(resumeID, modelName, additionalSystemPrompt, workspace string) error
 
 	// Print banner and any existing session history to the terminal scrollback
 	// before the TUI program takes over the bottom strip.
-	fmt.Print(buildHistoryForScrollback(sess.Session, 80, glamourStyle))
+	fmt.Print(buildHistoryForScrollback(sess.Messages(), 80, glamourStyle))
 
 	approval := NewTUIApprovalHandler()
 	opts := TUIOpts{

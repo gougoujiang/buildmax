@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/core/agent"
-	"github.com/gougoujiang/buildmax/internal/core/session"
 )
 
 const testPromptText = "You are a law consultant.\n\n## Invariants\n- Name the jurisdiction.\n"
@@ -86,8 +85,10 @@ func TestValidateAdditionalSystemPrompt(t *testing.T) {
 // configured, a resumed session keeps the identity it already ran under instead of silently
 // losing it.
 func TestEffectiveAdditionalPrompt(t *testing.T) {
-	sess := NewSessionContext(session.NewSession(""), "m")
-	sess.AdditionalSystemPrompt = "stored text"
+	sess := NewSessionContext("m")
+	if err := sess.SetAdditionalPrompt("stored text"); err != nil {
+		t.Fatalf("SetAdditionalPrompt: %v", err)
+	}
 
 	configured := &AgentApp{additionalSystemPrompt: "configured text"}
 	if got := configured.effectiveAdditionalPrompt(sess); got != "configured text" {
@@ -146,6 +147,7 @@ func TestRunPrompt_SendsAdditionalSystemPrompt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenSession: %v", err)
 	}
+	defer app.CloseSession(sess)
 	if _, err := app.RunPrompt(context.Background(), sess, "what is 1+1", RunPromptOpts{}); err != nil {
 		t.Fatalf("RunPrompt: %v", err)
 	}
@@ -174,11 +176,12 @@ func TestRunPrompt_RecordsWhatItRanUnder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenSession: %v", err)
 	}
+	defer app.CloseSession(sess)
 	if _, err := app.RunPrompt(context.Background(), sess, "what is 1+1", RunPromptOpts{}); err != nil {
 		t.Fatalf("RunPrompt: %v", err)
 	}
 
-	if sess.AdditionalSystemPrompt != "answer 24 for 1+1" {
-		t.Errorf("session recorded %q", sess.AdditionalSystemPrompt)
+	if sess.AdditionalPrompt() != "answer 24 for 1+1" {
+		t.Errorf("session recorded %q", sess.AdditionalPrompt())
 	}
 }

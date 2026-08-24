@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -14,6 +15,9 @@ type compactingHistory struct {
 	messages []llm.Message
 	idx      int
 	summary  string
+	// failCompaction makes the durable commit fail, so a test can check the
+	// run stops rather than continuing against a boundary that never landed.
+	failCompaction error
 }
 
 func (h *compactingHistory) HistoryMessages() []llm.Message {
@@ -30,12 +34,16 @@ func (h *compactingHistory) Append(m llm.Message) error {
 
 func (h *compactingHistory) PriorSummary() string { return h.summary }
 
-func (h *compactingHistory) AddCompaction(summary string, summarizedCount int) {
+func (h *compactingHistory) AddCompaction(summary string, summarizedCount int) error {
+	if h.failCompaction != nil {
+		return h.failCompaction
+	}
 	h.summary = summary
 	h.idx += summarizedCount
 	if h.idx > len(h.messages) {
 		h.idx = len(h.messages)
 	}
+	return nil
 }
 
 var _ CompactionHistory = (*compactingHistory)(nil)
@@ -304,5 +312,32 @@ func TestRenderCompactionBlock(t *testing.T) {
 	got := RenderCompactionBlock("s")
 	if strings.Count(got, "<context_compaction>") != 1 || !strings.Contains(got, "\ns\n") {
 		t.Errorf("unexpected block: %q", got)
+	}
+}
+
+// TestCompaction_PersistFailureStopsTheRun asserts a compaction boundary that
+// could not be stored ends the run instead of continuing. Carrying on would
+// leave the next turn reading a different conversation than this one ended
+// with: the messages are gone from the working history, and the summary that
+// was supposed to stand in for them never reached the file.
+func TestCompaction_PersistFailureStopsTheRun(t *testing.T) {
+	client := &windowedClient{window: testContextWindow}
+	h := &compactingHistory{failCompaction: errors.New("disk full")}
+	_ = h.Append(llm.Message{Role: "user", Content: strings.Repeat("x", 2000)})
+	fillToThreshold(h)
+
+	_, _, err := RunLoop(context.Background(), RunLoopOpts{
+		LLMClient:    client,
+		SystemPrompt: testSystemPrompt,
+		ToolRegistry: newTestToolRegistry(),
+		MaxIter:      DefaultMaxIterations,
+		History:      h,
+		Compactor:    &factCompactor{},
+	})
+	if err == nil {
+		t.Fatal("RunLoop succeeded despite a compaction that could not be stored")
+	}
+	if !strings.Contains(err.Error(), "persist compaction") {
+		t.Errorf("err = %v, want it to name the failed commit", err)
 	}
 }

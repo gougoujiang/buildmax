@@ -40,18 +40,42 @@ type SubAgentTrace interface {
 }
 
 // SubAgentTraceFactory opens a trace for a subagent run. sessionID is the
-// session the trace is filed under — the parent's, because the subagent's own
-// session is discarded when it returns. Returning nil disables only this
-// trace; the subagent must still run.
+// session the trace is filed under — the parent's, so a subagent's diagnostics
+// stay reachable from a session a person can still find. Returning nil disables
+// only this trace; the subagent must still run.
 type SubAgentTraceFactory func(ctx context.Context, sessionID string, opts SubAgentRunOpts) SubAgentTrace
 
+// SubAgentSession is one subagent's own conversation: everything the loop needs
+// to read and commit history, plus the identity and close it needs to be a
+// durable session rather than a scratch buffer.
+//
+// It is an interface here for the same reason SubAgentTrace is: this package
+// sits below infra, so it says what it needs and lets agentapp supply the
+// durable implementation.
+type SubAgentSession interface {
+	coreagent.NotesHistory
+	coreagent.CompactionHistory
+	ID() string
+	Close() error
+}
+
+// SubAgentSessionFactory creates the private session for one subagent run.
+//
+// §9 of the local session storage plan gives every subagent its own hidden
+// bundle: it must never write into the parent's journal or durable state, and
+// the parent's Task result stays the model-facing return path. A nil factory
+// falls back to an in-memory session, which is what a test or an embedder with
+// no store gets.
+type SubAgentSessionFactory func(ctx context.Context, opts SubAgentRunOpts) (SubAgentSession, error)
+
 type defaultSubAgentRunner struct {
-	client        llm.LLMClient
-	policy        coreagent.ToolPolicy
-	hooks         coreagent.HookRunner
-	modelResolver func(string) (llm.LLMClient, error) // nil = always use client
-	traceFactory  SubAgentTraceFactory
-	maxParallel   int // 0 = sequential, as RunLoop reads it
+	client         llm.LLMClient
+	policy         coreagent.ToolPolicy
+	hooks          coreagent.HookRunner
+	modelResolver  func(string) (llm.LLMClient, error) // nil = always use client
+	traceFactory   SubAgentTraceFactory
+	sessionFactory SubAgentSessionFactory
+	maxParallel    int // 0 = sequential, as RunLoop reads it
 }
 
 // SubAgentRunnerOption configures a SubAgentRunner.
@@ -112,21 +136,28 @@ func (r *defaultSubAgentRunner) RunSubAgent(ctx context.Context, opts SubAgentRu
 	}
 
 	// Captured before the context is repointed at the subagent's own session,
-	// so the trace can be filed under the session a user can still reach. The
-	// session below is discarded when the subagent returns; a trace directory
-	// keyed by its id would be reachable from nothing.
+	// so the trace stays filed under a session a user can still reach: a
+	// subagent's own bundle is hidden from the picker.
 	parentSessionID, _ := session.SessionIDFromContext(ctx)
 
-	sess := session.NewSession(opts.Description)
+	sess, err := r.newSession(ctx, opts)
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		if cerr := sess.Close(); cerr != nil {
+			slog.Warn("closing the subagent session failed", "err", cerr)
+		}
+	}()
 	registry := llm.NewToolRegistry()
 	registry.AppendTools(opts.Tools...)
 	if err := sess.Append(llm.Message{Role: "user", Content: prompt}); err != nil {
 		return "", err
 	}
-	ctx = session.CtxWithSessionID(ctx, sess.ID)
+	ctx = session.CtxWithSessionID(ctx, sess.ID())
 	// Point durable state at the subagent's own session. The parent's store arrives on the
 	// context, and leaving it in place would let a subagent overwrite the notes and task list
-	// of the run that delegated to it. This session is discarded when the subagent returns.
+	// of the run that delegated to it.
 	ctx = coreagent.CtxWithNoteStore(ctx, sess)
 	ctx = coreagent.CtxMarkSubagent(ctx)
 
@@ -135,7 +166,7 @@ func (r *defaultSubAgentRunner) RunSubAgent(ctx context.Context, opts SubAgentRu
 	if r.hooks != nil {
 		r.hooks.Run(ctx, coreagent.HookInput{
 			Event:      coreagent.HookSubagentStart,
-			SessionID:  sess.ID,
+			SessionID:  sess.ID(),
 			IsSubagent: true,
 			AgentType:  opts.Description,
 			Prompt:     prompt,
@@ -144,7 +175,7 @@ func (r *defaultSubAgentRunner) RunSubAgent(ctx context.Context, opts SubAgentRu
 
 	traceSessionID := parentSessionID
 	if traceSessionID == "" {
-		traceSessionID = sess.ID
+		traceSessionID = sess.ID()
 	}
 	var eventSink func(coreagent.Event)
 	if r.traceFactory != nil {
@@ -162,7 +193,7 @@ func (r *defaultSubAgentRunner) RunSubAgent(ctx context.Context, opts SubAgentRu
 		History:          sess,
 		Policy:           r.policy,
 		Hooks:            r.hooks,
-		SessionID:        sess.ID,
+		SessionID:        sess.ID(),
 		IsSubagent:       true,
 		AgentType:        opts.Description,
 		EventSink:        eventSink,

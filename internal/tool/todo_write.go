@@ -145,7 +145,9 @@ func (t *TodoWrite) Execute(ctx context.Context, args map[string]any) (string, e
 	if !ok {
 		return formatTodoList(items) + "\n\n(This run keeps no durable task list, so the list was not stored.)", nil
 	}
-	store.SetTodos(todos, agent.IterationFromContext(ctx))
+	if err := store.SetTodos(todos, agent.IterationFromContext(ctx)); err != nil {
+		return "", fmt.Errorf("store task list: %w", err)
+	}
 	return formatTodoList(items), nil
 }
 

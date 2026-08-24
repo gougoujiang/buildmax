@@ -10,7 +10,6 @@ import (
 	"github.com/gougoujiang/buildmax/internal/agentapp"
 	"github.com/gougoujiang/buildmax/internal/agentapp/job"
 	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/core/session"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -36,14 +35,20 @@ func TestSlashPanelsFitTerminalHeight(t *testing.T) {
 	writeTestSettings(t, manyModelsSettings(20))
 
 	sessionsDir := filepath.Join(home, "sessions")
+	manager := agentapp.NewSessionManager(sessionsDir)
 	for i := range 20 {
-		item := session.SessionItem{
-			ID:        fmt.Sprintf("sess-%02d", i),
-			Title:     fmt.Sprintf("chat number %02d", i),
-			CreatedAt: fmt.Sprintf("2026-01-%02dT10:00:00Z", i+1),
+		id := fmt.Sprintf("sess-%02d", i)
+		sess, err := manager.CreateWithID(id, "test-model")
+		if err != nil {
+			t.Fatalf("CreateWithID: %v", err)
 		}
-		if err := agentapp.UpsertSessionItem(sessionsDir, item); err != nil {
-			t.Fatalf("UpsertSessionItem: %v", err)
+		// Closed as each one is made: the panel under test lists sessions, and
+		// twenty held writer locks would be twenty open files for nothing.
+		if err := sess.Close(); err != nil {
+			t.Fatalf("Close: %v", err)
+		}
+		if err := manager.Rename(id, fmt.Sprintf("chat number %02d", i)); err != nil {
+			t.Fatalf("Rename: %v", err)
 		}
 	}
 

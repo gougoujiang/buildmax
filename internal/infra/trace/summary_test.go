@@ -14,7 +14,7 @@ import (
 // out through Summarize, so the two halves of the format cannot drift.
 func TestSummarize_RoundTripsARealTrace(t *testing.T) {
 	dir := t.TempDir()
-	rec := NewRecorder(dir, Meta{
+	rec := NewRecorder(runDirFor(dir, "c_sess1"), Meta{
 		RunID:     "rt_sum1",
 		SessionID: "c_sess1",
 		Model:     "test-model",
@@ -78,7 +78,7 @@ func TestSummarize_RoundTripsARealTrace(t *testing.T) {
 // must not get wrong: a run nothing confined, and a run that never finished.
 func TestSummarize_ReportsUnsandboxedAndIncomplete(t *testing.T) {
 	dir := t.TempDir()
-	rec := NewRecorder(dir, Meta{RunID: "rt_sum2", SessionID: "s"})
+	rec := NewRecorder(runDirFor(dir, "s"), Meta{RunID: "rt_sum2", SessionID: "s"})
 	rec.Record(agent.Event{Kind: agent.EventLLMStart, Iter: 1})
 	// No run_end: the run died mid-flight.
 	if err := rec.Close(); err != nil {

@@ -1,456 +1,324 @@
 package agentapp
 
 import (
-	"encoding/json"
+	"context"
 	"errors"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/session"
+	"github.com/gougoujiang/buildmax/internal/infra/sessionstore"
 )
 
-// --- session persistence ---
-
-func TestSaveSession_CreatesFileWithValidJSON(t *testing.T) {
-	dir := t.TempDir()
-	s := session.NewSession("test title")
-	if err := s.Append(llm.Message{Role: "user", Content: "hello"}); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := saveSession(s, dir); err != nil {
-		t.Fatalf("saveSession: %v", err)
-	}
-	path := filepath.Join(dir, s.ID+".json")
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("ReadFile: %v", err)
-	}
-	var got session.Session
-	if err := json.Unmarshal(data, &got); err != nil {
-		t.Fatalf("JSON invalid: %v", err)
-	}
-	if got.ID != s.ID || got.Title != s.Title {
-		t.Errorf("id=%q title=%q, want %q %q", got.ID, got.Title, s.ID, s.Title)
-	}
-	if got.CreatedAt.IsZero() {
-		t.Error("created_at empty")
-	}
-	if len(got.Messages) != 1 || got.Messages[0].Content != "hello" {
-		t.Errorf("messages = %v", got.Messages)
-	}
-}
-
-func TestLoadSession_AfterSaveReturnsSameSession(t *testing.T) {
-	dir := t.TempDir()
-	s := session.NewSession("round-trip")
-	if err := s.Append(llm.Message{Role: "user", Content: "a"}); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.Append(llm.Message{Role: "assistant", Content: "b"}); err != nil {
-		t.Fatal(err)
-	}
-	if err := saveSession(s, dir); err != nil {
-		t.Fatalf("saveSession: %v", err)
-	}
-
-	loaded, err := LoadSession(dir, s.ID)
-	if err != nil {
-		t.Fatalf("LoadSession: %v", err)
-	}
-	if loaded.ID != s.ID {
-		t.Errorf("ID() = %q, want %q", loaded.ID, s.ID)
-	}
-	if loaded.Title != s.Title {
-		t.Errorf("Title() = %q, want %q", loaded.Title, s.Title)
-	}
-	if !loaded.CreatedAt.Truncate(time.Second).Equal(s.CreatedAt.Truncate(time.Second)) {
-		t.Errorf("CreatedAt() = %v, want %v", loaded.CreatedAt, s.CreatedAt)
-	}
-	got := loaded.Messages
-	want := s.Messages
-	if len(got) != len(want) {
-		t.Fatalf("len(Messages) = %d, want %d", len(got), len(want))
-	}
-	for i := range got {
-		if got[i].Role != want[i].Role || got[i].Content != want[i].Content {
-			t.Errorf("Messages[%d] = %+v, want %+v", i, got[i], want[i])
-		}
-	}
-}
-
-func TestLoadSession_MissingFileReturnsError(t *testing.T) {
-	dir := t.TempDir()
-	_, err := LoadSession(dir, "nonexistent-id")
-	if err == nil {
-		t.Fatal("LoadSession: want error for missing file")
-	}
-	if !errors.Is(err, session.ErrSessionNotFound) {
-		t.Errorf("error should wrap ErrSessionNotFound: %v", err)
-	}
-}
-
-func TestLoadSession_InvalidJSONReturnsError(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "bad-id.json")
-	if err := os.WriteFile(path, []byte("not json"), 0644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
-	_, err := LoadSession(dir, "bad-id")
-	if err == nil {
-		t.Fatal("LoadSession: want error for invalid JSON")
-	}
-}
-
-func TestSaveLoad_UsageRoundTrip(t *testing.T) {
-	dir := t.TempDir()
-	s := session.NewSession("")
-	if err := s.Append(llm.Message{Role: "user", Content: "Hi"}); err != nil {
-		t.Fatal(err)
-	}
-	s.PromptTokens, s.CompletionTokens = 50, 30
-	// A resumed session keeps its cached breakdown too. Losing it on restart
-	// would make a long cached session report the same totals as an uncached
-	// one, which is exactly the comparison caching exists to change.
-	s.CacheReadTokens, s.CacheWriteTokens = 40, 10
-	if err := saveSession(s, dir); err != nil {
-		t.Fatalf("saveSession: %v", err)
-	}
-	loaded, err := LoadSession(dir, s.ID)
-	if err != nil {
-		t.Fatalf("LoadSession: %v", err)
-	}
-	if loaded.PromptTokens != 50 || loaded.CompletionTokens != 30 {
-		t.Errorf("loaded usage: prompt=%d completion=%d, want 50, 30", loaded.PromptTokens, loaded.CompletionTokens)
-	}
-	if loaded.CacheReadTokens != 40 || loaded.CacheWriteTokens != 10 {
-		t.Errorf("loaded cache usage: read=%d write=%d, want 40, 10", loaded.CacheReadTokens, loaded.CacheWriteTokens)
-	}
-}
-
-// TestSaveLoad_DurableStateRoundTrip covers the property that makes notes worth having: they
-// are stored on the session, not in the message list, so they outlive both trimming and a
-// restart. If they did not persist they would be no better than a tool result.
-func TestSaveLoad_DurableStateRoundTrip(t *testing.T) {
-	dir := t.TempDir()
-	s := session.NewSession("")
-	s.SetNotes([]agent.Note{{Text: "the client is the lessee"}}, 12)
-	s.SetTodos([]agent.Todo{{Content: "draft the notice", Status: agent.TodoInProgress}}, 12)
-	if err := saveSession(s, dir); err != nil {
-		t.Fatalf("saveSession: %v", err)
-	}
-
-	loaded, err := LoadSession(dir, s.ID)
-	if err != nil {
-		t.Fatalf("LoadSession: %v", err)
-	}
-	if len(loaded.Notes()) != 1 || loaded.Notes()[0].Text != "the client is the lessee" {
-		t.Fatalf("notes = %+v, want the stored note", loaded.Notes())
-	}
-	if loaded.Notes()[0].WrittenIteration != 12 {
-		t.Errorf("note WrittenIteration = %d, want 12", loaded.Notes()[0].WrittenIteration)
-	}
-	if len(loaded.Todos()) != 1 || loaded.Todos()[0].Status != agent.TodoInProgress {
-		t.Errorf("todos = %+v, want one in-progress entry", loaded.Todos())
-	}
-}
-
-func TestLoadSessionList_MissingFile(t *testing.T) {
-	dir := t.TempDir()
-	entries, err := LoadSessionList(dir)
-	if err != nil {
-		t.Errorf("LoadSessionList(missing file): err = %v, want nil", err)
-	}
-	if entries == nil || len(entries) != 0 {
-		t.Errorf("LoadSessionList(missing file): entries = %v, want empty slice", entries)
-	}
-}
-
-func TestLoadSessionList_InvalidJSON(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "sessions.json")
-	if err := os.WriteFile(path, []byte("not json"), 0644); err != nil {
-		t.Fatalf("write invalid file: %v", err)
-	}
-	entries, err := LoadSessionList(dir)
-	if err == nil {
-		t.Error("LoadSessionList(invalid JSON): err = nil, want non-nil")
-	}
-	if entries != nil {
-		t.Errorf("LoadSessionList(invalid JSON): entries = %v, want nil", entries)
-	}
-}
-
-func TestLoadSessionList_ValidRoundTrip(t *testing.T) {
-	dir := t.TempDir()
-	want := []session.SessionItem{
-		{ID: "a", Title: "first", Workspace: "/ws1", CreatedAt: "2026-01-31T10:00:00Z"},
-		{ID: "b", Title: "second", Workspace: "/ws2", CreatedAt: "2026-01-31T11:00:00Z"},
-	}
-	if err := UpsertSessionItem(dir, want[0]); err != nil {
-		t.Fatalf("UpsertSessionItem first: %v", err)
-	}
-	if err := UpsertSessionItem(dir, want[1]); err != nil {
-		t.Fatalf("UpsertSessionItem second: %v", err)
-	}
-	got, err := LoadSessionList(dir)
-	if err != nil {
-		t.Fatalf("LoadSessionList after write: %v", err)
-	}
-	if len(got) != 2 {
-		t.Fatalf("LoadSessionList: len = %d, want 2", len(got))
-	}
-	for i := range want {
-		if got[i].ID != want[i].ID || got[i].Title != want[i].Title || got[i].Workspace != want[i].Workspace || got[i].CreatedAt != want[i].CreatedAt {
-			t.Errorf("entry %d: got %+v, want %+v", i, got[i], want[i])
-		}
-	}
-}
-
-func TestUpsertSessionItem_CreatesFile(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "sessions.json")
-	if _, err := os.Stat(path); err == nil {
-		t.Fatal("sessions.json should not exist yet")
-	}
-	entry := session.SessionItem{ID: "id1", Title: "t1", Workspace: "/w", CreatedAt: time.Now().UTC().Format(time.RFC3339)}
-	if err := UpsertSessionItem(dir, entry); err != nil {
-		t.Fatalf("UpsertSessionItem: %v", err)
-	}
-	entries, err := LoadSessionList(dir)
-	if err != nil {
-		t.Fatalf("LoadSessionList: %v", err)
-	}
-	if len(entries) != 1 {
-		t.Fatalf("len(entries) = %d, want 1", len(entries))
-	}
-	if entries[0].ID != entry.ID || entries[0].Title != entry.Title || entries[0].Workspace != entry.Workspace || entries[0].CreatedAt != entry.CreatedAt {
-		t.Errorf("got %+v, want %+v", entries[0], entry)
-	}
-}
-
-func TestUpsertSessionItem_UpdatesExisting(t *testing.T) {
-	dir := t.TempDir()
-	old := session.SessionItem{ID: "same", Title: "old title", Workspace: "/old", CreatedAt: "2026-01-31T10:00:00Z"}
-	if err := UpsertSessionItem(dir, old); err != nil {
-		t.Fatalf("UpsertSessionItem initial: %v", err)
-	}
-	updated := session.SessionItem{ID: "same", Title: "new title", Workspace: "/new", CreatedAt: "2026-01-31T10:00:00Z"}
-	if err := UpsertSessionItem(dir, updated); err != nil {
-		t.Fatalf("UpsertSessionItem update: %v", err)
-	}
-	entries, err := LoadSessionList(dir)
-	if err != nil {
-		t.Fatalf("LoadSessionList: %v", err)
-	}
-	if len(entries) != 1 {
-		t.Fatalf("len(entries) = %d, want 1", len(entries))
-	}
-	if entries[0].Title != "new title" || entries[0].Workspace != "/new" {
-		t.Errorf("title/workspace not updated: got %+v", entries[0])
-	}
-	if entries[0].CreatedAt != old.CreatedAt {
-		t.Errorf("created_at changed: got %q, want %q", entries[0].CreatedAt, old.CreatedAt)
-	}
-}
-
-func TestRenameSession_UpdatesIndexAndSessionFile(t *testing.T) {
-	dir := t.TempDir()
-	s := session.NewSession("old")
-	if err := saveSession(s, dir); err != nil {
-		t.Fatalf("saveSession: %v", err)
-	}
-	if err := UpsertSessionItem(dir, session.SessionItem{ID: s.ID, Title: "old", Workspace: "/w", CreatedAt: s.CreatedAt.Format(time.RFC3339)}); err != nil {
-		t.Fatalf("UpsertSessionItem: %v", err)
-	}
-	if err := RenameSession(dir, s.ID, "new title"); err != nil {
-		t.Fatalf("RenameSession: %v", err)
-	}
-	entries, err := LoadSessionList(dir)
-	if err != nil {
-		t.Fatalf("LoadSessionList: %v", err)
-	}
-	if entries[0].Title != "new title" {
-		t.Fatalf("index title = %q, want new title", entries[0].Title)
-	}
-	loaded, err := LoadSession(dir, s.ID)
-	if err != nil {
-		t.Fatalf("LoadSession: %v", err)
-	}
-	if loaded.Title != "new title" {
-		t.Fatalf("session title = %q, want new title", loaded.Title)
-	}
-}
-
-func TestSetSessionPinned_PreservesAcrossUpsert(t *testing.T) {
-	dir := t.TempDir()
-	item := session.SessionItem{ID: "id1", Title: "title", Workspace: "/w", CreatedAt: time.Now().UTC().Format(time.RFC3339)}
-	if err := UpsertSessionItem(dir, item); err != nil {
-		t.Fatalf("UpsertSessionItem: %v", err)
-	}
-	if err := SetSessionPinned(dir, item.ID, true); err != nil {
-		t.Fatalf("SetSessionPinned: %v", err)
-	}
-	item.Title = "updated"
-	if err := UpsertSessionItem(dir, item); err != nil {
-		t.Fatalf("UpsertSessionItem update: %v", err)
-	}
-	entries, err := LoadSessionList(dir)
-	if err != nil {
-		t.Fatalf("LoadSessionList: %v", err)
-	}
-	if !entries[0].Pinned {
-		t.Fatal("pinned flag should survive session upsert")
-	}
-	if entries[0].Title != "updated" {
-		t.Fatalf("title = %q, want updated", entries[0].Title)
-	}
-}
-
-func TestDeleteSessionsByWorkspace(t *testing.T) {
-	dir := t.TempDir()
-	items := []session.SessionItem{
-		{ID: "a", Title: "a", Workspace: "/w", CreatedAt: "2026-01-31T10:00:00Z"},
-		{ID: "b", Title: "b", Workspace: "/other", CreatedAt: "2026-01-31T11:00:00Z"},
-	}
-	for _, item := range items {
-		if err := UpsertSessionItem(dir, item); err != nil {
-			t.Fatalf("UpsertSessionItem: %v", err)
-		}
-		if err := os.WriteFile(filepath.Join(dir, item.ID+".json"), []byte("{}"), 0644); err != nil {
-			t.Fatalf("write session file: %v", err)
-		}
-	}
-	deleted, err := DeleteSessionsByWorkspace(dir, "/w")
-	if err != nil {
-		t.Fatalf("DeleteSessionsByWorkspace: %v", err)
-	}
-	if len(deleted) != 1 || deleted[0] != "a" {
-		t.Fatalf("deleted = %v, want [a]", deleted)
-	}
-	entries, err := LoadSessionList(dir)
-	if err != nil {
-		t.Fatalf("LoadSessionList: %v", err)
-	}
-	if len(entries) != 1 || entries[0].ID != "b" {
-		t.Fatalf("entries = %+v, want only b", entries)
-	}
-	if _, err := os.Stat(filepath.Join(dir, "a.json")); !os.IsNotExist(err) {
-		t.Fatalf("a.json should be deleted, err=%v", err)
-	}
-}
-
-func TestDeleteSession_RemovesIndexEntryAndFile(t *testing.T) {
-	dir := t.TempDir()
-	for _, id := range []string{"keep", "drop"} {
-		if err := UpsertSessionItem(dir, session.SessionItem{ID: id, Title: id, CreatedAt: "2026-01-31T10:00:00Z"}); err != nil {
-			t.Fatalf("UpsertSessionItem: %v", err)
-		}
-		if err := os.WriteFile(filepath.Join(dir, id+".json"), []byte("{}"), 0644); err != nil {
-			t.Fatalf("write session file: %v", err)
-		}
-	}
-
-	if err := DeleteSession(dir, "drop"); err != nil {
-		t.Fatalf("DeleteSession: %v", err)
-	}
-
-	entries, err := LoadSessionList(dir)
-	if err != nil {
-		t.Fatalf("LoadSessionList: %v", err)
-	}
-	if len(entries) != 1 || entries[0].ID != "keep" {
-		t.Fatalf("entries = %+v, want only keep", entries)
-	}
-	if _, err := os.Stat(filepath.Join(dir, "drop.json")); !os.IsNotExist(err) {
-		t.Fatalf("drop.json should be deleted, err=%v", err)
-	}
-	if _, err := os.Stat(filepath.Join(dir, "keep.json")); err != nil {
-		t.Fatalf("keep.json should survive: %v", err)
-	}
-}
-
-// --- atomic replacement ---
-
-// sessionDirNoise reports files in dir that are neither a session file nor the
-// index. Replacement writes a temp file first, so a leaked one shows up here.
-func sessionDirNoise(t *testing.T, dir string, want map[string]bool) []string {
+// openManaged creates a session and returns it open, closing it when the test
+// ends. The writer lock is held for as long as a session is open, so a test
+// that left one open would block every later open of the same id.
+func openManaged(t *testing.T) (*SessionManager, *SessionContext) {
 	t.Helper()
-	entries, err := os.ReadDir(dir)
+	m := NewSessionManager(t.TempDir())
+	sess, err := m.Create("test-model")
 	if err != nil {
-		t.Fatalf("read dir: %v", err)
+		t.Fatalf("Create: %v", err)
 	}
-	var out []string
-	for _, e := range entries {
-		if !want[e.Name()] {
-			out = append(out, e.Name())
-		}
-	}
-	return out
+	t.Cleanup(func() { _ = sess.Close() })
+	return m, sess
 }
 
-func TestSessionWrites_LeaveNoTempFiles(t *testing.T) {
-	dir := t.TempDir()
-	s := session.NewSession("first")
-	if err := s.Append(llm.Message{Role: "user", Content: "hello"}); err != nil {
-		t.Fatal(err)
+func TestCreateThenReopenRoundTripsTheConversation(t *testing.T) {
+	m, sess := openManaged(t)
+	id := sess.ID()
+
+	if err := sess.Append(llm.Message{Role: "user", Content: "hello"}); err != nil {
+		t.Fatalf("Append: %v", err)
+	}
+	assistant := llm.Message{
+		Role:          "assistant",
+		Content:       "hi",
+		ProviderState: &llm.ProviderState{Protocol: "anthropic", Data: []byte(`{"sig":"x"}`)},
+	}
+	if err := sess.Append(assistant); err != nil {
+		t.Fatalf("Append: %v", err)
+	}
+	if err := sess.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
 	}
 
-	// Two rounds, because the second replaces files the first created and that
-	// is the path where a leftover temp file would appear.
-	for round := range 2 {
-		if err := saveSession(s, dir); err != nil {
-			t.Fatalf("saveSession round %d: %v", round, err)
-		}
-		if err := upsertSessionItem(dir, session.SessionItem{ID: s.ID, Title: s.Title, CreatedAt: "2026-01-31T10:00:00Z"}); err != nil {
-			t.Fatalf("upsertSessionItem round %d: %v", round, err)
-		}
-	}
-
-	want := map[string]bool{s.ID + ".json": true, "sessions.json": true}
-	if noise := sessionDirNoise(t, dir, want); noise != nil {
-		t.Errorf("unexpected files in session dir: %v", noise)
-	}
-}
-
-func TestSaveSession_ReplacingWithShorterContentLeavesNoTail(t *testing.T) {
-	dir := t.TempDir()
-	s := session.NewSession("a deliberately long session title that makes the first file bigger")
-	for range 20 {
-		if err := s.Append(llm.Message{Role: "user", Content: strings.Repeat("padding ", 40)}); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if err := saveSession(s, dir); err != nil {
-		t.Fatalf("saveSession: %v", err)
-	}
-
-	// Replacement, not overwrite: the shorter document must not sit on top of
-	// the longer one's tail and leave the file unparsable.
-	short := session.NewSession("short")
-	short.ID = s.ID
-	if err := saveSession(short, dir); err != nil {
-		t.Fatalf("saveSession short: %v", err)
-	}
-
-	got, err := LoadSession(dir, s.ID)
+	reopened, err := m.Open(id, "test-model")
 	if err != nil {
-		t.Fatalf("LoadSession: %v", err)
+		t.Fatalf("Open: %v", err)
 	}
-	if got.Title != "short" {
-		t.Errorf("title = %q, want %q", got.Title, "short")
+	defer func() { _ = reopened.Close() }()
+
+	got := reopened.Messages()
+	if len(got) != 2 {
+		t.Fatalf("messages = %d, want 2", len(got))
 	}
-	if len(got.Messages) != 0 {
-		t.Errorf("messages = %d, want 0", len(got.Messages))
+	// Provider state is what a resumed turn cannot reconstruct, so losing it
+	// here would be a silent downgrade rather than a visible failure.
+	if got[1].ProviderState == nil || got[1].ProviderState.Protocol != "anthropic" {
+		t.Errorf("provider state lost on resume: %#v", got[1].ProviderState)
 	}
 }
 
-// --- title generation ---
+func TestOpenMissingSessionReportsNotFound(t *testing.T) {
+	m := NewSessionManager(t.TempDir())
+	if _, err := m.Open("nonexistent", "test-model"); !errors.Is(err, session.ErrSessionNotFound) {
+		t.Fatalf("err = %v, want ErrSessionNotFound", err)
+	}
+}
+
+func TestDurableStateSurvivesReopen(t *testing.T) {
+	m, sess := openManaged(t)
+	id := sess.ID()
+
+	if err := sess.SetNotes([]agent.Note{{Text: "remember"}}, 1); err != nil {
+		t.Fatalf("SetNotes: %v", err)
+	}
+	if err := sess.SetTodos([]agent.Todo{{Content: "do it", Status: agent.TodoPending}}, 1); err != nil {
+		t.Fatalf("SetTodos: %v", err)
+	}
+	if err := sess.SetAdditionalPrompt("be brief"); err != nil {
+		t.Fatalf("SetAdditionalPrompt: %v", err)
+	}
+	if err := sess.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	reopened, err := m.Open(id, "test-model")
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer func() { _ = reopened.Close() }()
+	if len(reopened.Notes()) != 1 || reopened.Notes()[0].Text != "remember" {
+		t.Errorf("notes = %+v", reopened.Notes())
+	}
+	if len(reopened.Todos()) != 1 || reopened.Todos()[0].Content != "do it" {
+		t.Errorf("todos = %+v", reopened.Todos())
+	}
+	if reopened.AdditionalPrompt() != "be brief" {
+		t.Errorf("additional prompt = %q", reopened.AdditionalPrompt())
+	}
+}
+
+func TestToolBoundaryAndResultAreRecorded(t *testing.T) {
+	m, sess := openManaged(t)
+	id := sess.ID()
+
+	if err := sess.Append(llm.Message{
+		Role:      "assistant",
+		ToolCalls: []llm.ToolCall{{ID: "call_1", Name: "Bash"}},
+	}); err != nil {
+		t.Fatalf("Append: %v", err)
+	}
+	if err := sess.ToolExecutionStarted([]agent.ToolCallStart{{ID: "call_1", Name: "Bash"}}); err != nil {
+		t.Fatalf("ToolExecutionStarted: %v", err)
+	}
+	if err := sess.AppendToolResult(agent.ToolOutcome{
+		ID: "call_1", Name: "Bash", Status: agent.ToolStatusCompleted, Result: "ok",
+	}); err != nil {
+		t.Fatalf("AppendToolResult: %v", err)
+	}
+	if err := sess.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	// A completed call leaves nothing uncertain, so reopening must not report
+	// recovery or write a repair record.
+	reopened, err := m.Open(id, "test-model")
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer func() { _ = reopened.Close() }()
+	if reopened.Recovery().Needed() {
+		t.Errorf("recovery reported for a completed call: %+v", reopened.Recovery())
+	}
+	msgs := reopened.Messages()
+	if len(msgs) != 2 || msgs[1].Role != "tool" || msgs[1].ToolCallID != "call_1" {
+		t.Fatalf("messages = %#v, want the tool result projected", msgs)
+	}
+}
+
+func TestInterruptedToolCallIsRepairedOnReopen(t *testing.T) {
+	m, sess := openManaged(t)
+	id := sess.ID()
+
+	if err := sess.BeginTurn("run1", "test-model", "/ws", 1000, "prompt"); err != nil {
+		t.Fatalf("BeginTurn: %v", err)
+	}
+	if err := sess.Append(llm.Message{
+		Role:      "assistant",
+		ToolCalls: []llm.ToolCall{{ID: "call_1", Name: "Bash"}},
+	}); err != nil {
+		t.Fatalf("Append: %v", err)
+	}
+	// Crossing the boundary and then stopping is the shape a crash leaves.
+	if err := sess.ToolExecutionStarted([]agent.ToolCallStart{{ID: "call_1", Name: "Bash"}}); err != nil {
+		t.Fatalf("ToolExecutionStarted: %v", err)
+	}
+	if err := sess.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	reopened, err := m.Open(id, "test-model")
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer func() { _ = reopened.Close() }()
+	rec := reopened.Recovery()
+	if len(rec.Uncertain) != 1 || rec.Uncertain[0].ToolCallID != "call_1" {
+		t.Fatalf("recovery = %+v, want call_1 uncertain", rec)
+	}
+	// The repair is durable and model-visible: the resumed turn sees a result
+	// telling it to verify, rather than a call that never answered.
+	msgs := reopened.Messages()
+	if len(msgs) != 2 || msgs[1].Role != "tool" || msgs[1].ToolCallID != "call_1" {
+		t.Fatalf("messages = %#v, want a synthetic tool result", msgs)
+	}
+}
+
+func TestOpenRefusesASecondWriter(t *testing.T) {
+	m, sess := openManaged(t)
+	// Two managers over one directory stand in for two processes.
+	other := NewSessionManager(m.Dir())
+	if _, err := other.Open(sess.ID(), "test-model"); !errors.Is(err, sessionstore.ErrLocked) {
+		t.Fatalf("err = %v, want ErrLocked", err)
+	}
+}
+
+func TestRenameAndPinShowUpInTheList(t *testing.T) {
+	m, sess := openManaged(t)
+	id := sess.ID()
+	if err := sess.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	if err := m.Rename(id, `  "Renamed"  `); err != nil {
+		t.Fatalf("Rename: %v", err)
+	}
+	if err := m.SetPinned(id, true); err != nil {
+		t.Fatalf("SetPinned: %v", err)
+	}
+
+	rows, err := m.List()
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("rows = %v, want one", rows)
+	}
+	if rows[0].Title != "Renamed" {
+		t.Errorf("title = %q, want the quotes and padding stripped", rows[0].Title)
+	}
+	if !rows[0].Pinned {
+		t.Error("pin did not reach the list")
+	}
+}
+
+func TestSubagentSessionsAreHiddenFromTheList(t *testing.T) {
+	m := NewSessionManager(t.TempDir())
+	visible, err := m.Create("test-model")
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	defer func() { _ = visible.Close() }()
+
+	hidden, err := m.CreateSubagent("test-model", session.Meta{
+		ParentSessionID: visible.ID(),
+		AgentType:       "explorer",
+		DelegationDepth: 1,
+	})
+	if err != nil {
+		t.Fatalf("CreateSubagent: %v", err)
+	}
+	defer func() { _ = hidden.Close() }()
+
+	rows, err := m.List()
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(rows) != 1 || rows[0].ID != visible.ID() {
+		t.Fatalf("rows = %v, want only the user session", rows)
+	}
+	// Hidden does not mean absent: the bundle is on disk with its lineage, so
+	// a failed delegation can still be inspected afterwards.
+	loaded, err := m.Load(hidden.ID(), session.LoadMetaOnly)
+	if err != nil {
+		t.Fatalf("Load hidden: %v", err)
+	}
+	if loaded.Meta.Kind != session.KindSubagent || loaded.Meta.ParentSessionID != visible.ID() {
+		t.Errorf("lineage = %+v", loaded.Meta)
+	}
+}
+
+func TestDeleteRemovesTheBundleAndTheListRow(t *testing.T) {
+	m, sess := openManaged(t)
+	id := sess.ID()
+	if err := sess.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	if err := m.Delete(id); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+	rows, err := m.List()
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(rows) != 0 {
+		t.Errorf("rows = %v, want none", rows)
+	}
+	if _, err := m.Load(id, session.LoadMetaOnly); !errors.Is(err, session.ErrSessionNotFound) {
+		t.Errorf("err = %v, want ErrSessionNotFound", err)
+	}
+}
+
+func TestDeleteByWorkspaceLeavesOtherWorkspacesAlone(t *testing.T) {
+	m := NewSessionManager(t.TempDir())
+	ids := map[string]string{}
+	for name, ws := range map[string]string{"mine": "/w", "other": "/elsewhere"} {
+		sess, err := m.Create("test-model")
+		if err != nil {
+			t.Fatalf("Create: %v", err)
+		}
+		if _, err := m.Finalize(context.Background(), nil, sess, ws, agent.RunStats{}, llm.Pricing{}); err != nil {
+			t.Fatalf("Finalize: %v", err)
+		}
+		ids[name] = sess.ID()
+		if err := sess.Close(); err != nil {
+			t.Fatalf("Close: %v", err)
+		}
+	}
+
+	deleted, err := m.DeleteByWorkspace("/w")
+	if err != nil {
+		t.Fatalf("DeleteByWorkspace: %v", err)
+	}
+	if len(deleted) != 1 || deleted[0] != ids["mine"] {
+		t.Fatalf("deleted = %v, want only the matching workspace", deleted)
+	}
+	rows, err := m.List()
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(rows) != 1 || rows[0].ID != ids["other"] {
+		t.Fatalf("rows = %v, want the other workspace untouched", rows)
+	}
+}
+
+func TestFinalizeAccumulatesUsageAcrossTurns(t *testing.T) {
+	m, sess := openManaged(t)
+	stats := agent.RunStats{PromptTokens: 100, CompletionTokens: 20}
+	for range 2 {
+		if _, err := m.Finalize(context.Background(), nil, sess, "/ws", stats, llm.Pricing{}); err != nil {
+			t.Fatalf("Finalize: %v", err)
+		}
+	}
+	if sess.PromptTokens() != 200 || sess.CompletionTokens() != 40 {
+		t.Errorf("usage = %d/%d, want 200/40", sess.PromptTokens(), sess.CompletionTokens())
+	}
+}
 
 func TestCleanTitle(t *testing.T) {
 	tests := []struct {
@@ -468,5 +336,39 @@ func TestCleanTitle(t *testing.T) {
 		if got != tt.want {
 			t.Errorf("cleanTitle(%q) = %q, want %q", tt.input, got, tt.want)
 		}
+	}
+}
+
+// TestCloseSessionReleasesTheSessionForReopening pins the pairing every caller
+// depends on. An open session holds the writer lock and its journal file, so a
+// CloseSession that fired the hook without releasing them would leave the
+// session unopenable — by anything, including this process.
+//
+// It is worth a test on every platform because the failure is invisible on
+// unix, where an open file can still be deleted and a leaked descriptor costs
+// nothing visible until something tries to open the session again. Windows
+// surfaces it as a file still in use; this surfaces it everywhere.
+func TestCloseSessionReleasesTheSessionForReopening(t *testing.T) {
+	m := NewSessionManager(t.TempDir())
+	first, err := m.Create("test-model")
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	id := first.ID()
+	if err := first.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	second, err := m.Open(id, "test-model")
+	if err != nil {
+		t.Fatalf("reopening a closed session: %v", err)
+	}
+	if err := second.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	// Closing twice is what a defer plus an explicit close does, and callers
+	// legitimately write both.
+	if err := second.Close(); err != nil {
+		t.Errorf("closing twice: %v", err)
 	}
 }

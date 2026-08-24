@@ -291,3 +291,64 @@ func parseJSONL(out string) []map[string]any {
 	}
 	return lines
 }
+
+// TestARunWritesASessionBundle is the end-to-end proof that the storage layout
+// the documentation describes is the one the built binary actually produces.
+// The unit tests cover each layer; this covers the stack, through a real
+// process, which is where a wiring mistake would otherwise survive.
+func TestARunWritesASessionBundle(t *testing.T) {
+	server := startModel(t, "write-a-file.json")
+	workspace := t.TempDir()
+	home := writeHome(t, server, map[string]string{"Write": "allow"})
+
+	result := run(t, home, workspace, "-p", "write notes.txt", "--output", "jsonl")
+	if result.exitCode != 0 {
+		t.Fatalf("exit code = %d, want 0\nstderr:\n%s", result.exitCode, result.stderr)
+	}
+	sessionID := result.field("result", "session_id")
+	if sessionID == "" {
+		t.Fatal("the run reported no session id")
+	}
+
+	bundle := filepath.Join(home, "sessions", sessionID)
+	for _, name := range []string{"meta.json", "history.jsonl"} {
+		if _, err := os.Stat(filepath.Join(bundle, name)); err != nil {
+			t.Errorf("%s missing from the bundle: %v", name, err)
+		}
+	}
+	// The picker projection has to name the session, or /sessions would not
+	// find a conversation that exists.
+	index, err := os.ReadFile(filepath.Join(home, "sessions", "index.json"))
+	if err != nil {
+		t.Fatalf("read index: %v", err)
+	}
+	if !strings.Contains(string(index), sessionID) {
+		t.Errorf("index.json does not list the session:\n%s", index)
+	}
+
+	// The journal records the tool boundary before the result, which is the
+	// distinction the whole format exists for. Asserting the order here proves
+	// the agent loop, the committing context, and the codec agree about it.
+	journal, err := os.ReadFile(filepath.Join(bundle, "history.jsonl"))
+	if err != nil {
+		t.Fatalf("read journal: %v", err)
+	}
+	started := strings.Index(string(journal), `"type":"tool_execution_started"`)
+	done := strings.Index(string(journal), `"type":"tool_result"`)
+	switch {
+	case started < 0:
+		t.Errorf("no tool_execution_started record:\n%s", journal)
+	case done < 0:
+		t.Errorf("no tool_result record:\n%s", journal)
+	case started > done:
+		t.Error("the tool result was recorded before the boundary that precedes it")
+	}
+
+	// Traces live inside the bundle now, not under a second root.
+	if entries, err := os.ReadDir(filepath.Join(bundle, "traces")); err != nil || len(entries) == 0 {
+		t.Errorf("no trace in the bundle (err = %v)", err)
+	}
+	if _, err := os.Stat(filepath.Join(home, "traces")); !os.IsNotExist(err) {
+		t.Errorf("the old traces root still exists (stat err = %v)", err)
+	}
+}

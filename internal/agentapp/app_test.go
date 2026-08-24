@@ -116,17 +116,21 @@ func TestOpenOrCreateSessionUsesAssignedID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if sess.ID != assignedID {
-		t.Fatalf("session ID = %q, want %q", sess.ID, assignedID)
+	defer app.CloseSession(sess)
+	if sess.ID() != assignedID {
+		t.Fatalf("session ID = %q, want %q", sess.ID(), assignedID)
 	}
-	if err := app.sessionManager.Save(sess, app.WorkspaceRoot()); err != nil {
+	// The writer lock is held for as long as a session is open, so the first
+	// one is released before the same id is opened again.
+	if err := sess.Close(); err != nil {
 		t.Fatal(err)
 	}
 	reloaded, err := app.OpenOrCreateSession(assignedID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if reloaded.ID != assignedID {
-		t.Fatalf("reloaded session ID = %q, want %q", reloaded.ID, assignedID)
+	defer app.CloseSession(reloaded)
+	if reloaded.ID() != assignedID {
+		t.Fatalf("reloaded session ID = %q, want %q", reloaded.ID(), assignedID)
 	}
 }

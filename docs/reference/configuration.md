@@ -906,8 +906,8 @@ Two things to know before enabling it:
 ├── skills/<name>/      Skills available in every workspace
 ├── agents/             Subagent definitions available in every workspace
 ├── plugins/<name>/     Installed plugins; .state.json holds their source
-├── sessions/           Local session JSON files plus sessions.json index
-├── traces/<session>/   Durable run traces, one JSONL file per run
+├── sessions/           index.json plus one folder per session
+│   └── <id>/           meta.json, history.jsonl, traces/<run>.jsonl
 └── logs/               Rotating buildmax.log
 ```
 

@@ -99,12 +99,12 @@ func deliverableJob(m *Model, kind job.Kind) job.Job {
 	return job.Job{
 		ID: "jb_deliver", Kind: kind, State: job.StateSucceeded, Deliver: true,
 		Command:    "npm test",
-		Provenance: job.Provenance{SessionID: m.opts.Session.ID},
+		Provenance: job.Provenance{SessionID: m.opts.Session.ID()},
 	}
 }
 
 func currentParked(m *Model) []agentapp.BackgroundEvent {
-	return m.parkedJobEvents[m.opts.Session.ID]
+	return m.parkedJobEvents[m.opts.Session.ID()]
 }
 
 // A requested delivery parks a wake-up under the owning session; another

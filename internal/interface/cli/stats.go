@@ -52,7 +52,7 @@ lines say so rather than reporting zero.`,
 func runStats(w io.Writer, id string, asJSON bool) error {
 	sessionsDir := config.SessionsDir()
 	if id == "" {
-		list, err := agentapp.LoadSessionList(sessionsDir)
+		list, err := agentapp.NewSessionManager(sessionsDir).List()
 		if err != nil {
 			return fmt.Errorf("load session list: %w", err)
 		}
@@ -63,7 +63,7 @@ func runStats(w io.Writer, id string, asJSON bool) error {
 		id = last.ID
 	}
 
-	stats, err := agentapp.LoadSessionStats(sessionsDir, config.TracesDir(), id)
+	stats, err := agentapp.LoadSessionStats(sessionsDir, id)
 	if err != nil {
 		return err
 	}

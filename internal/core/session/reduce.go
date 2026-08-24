@@ -72,7 +72,7 @@ func Reduce(items []Item, head string) (State, error) {
 			st.Todos = append([]agent.Todo(nil), p.Todos...)
 		case AdditionalPromptSet:
 			st.AdditionalPrompt = p.Text
-		case ToolExecutionStarted, HeadSelected, Checkpoint, TurnRecovered:
+		case ToolExecutionStarted, HeadSelected, TurnRecovered:
 			// Recorded for recovery, ordering, and provenance; none of them
 			// changes the state a resumed turn starts from.
 		case UnknownPayload:

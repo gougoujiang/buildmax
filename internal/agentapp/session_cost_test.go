@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/core/session"
 )
 
 func testPricing() llm.Pricing {
@@ -18,7 +17,7 @@ func testPricing() llm.Pricing {
 }
 
 func newCostSession() *SessionContext {
-	return NewSessionContext(session.NewSession(""), "test-model")
+	return NewSessionContext("test-model")
 }
 
 // The session's spend accumulates as it runs rather than being recomputed on
@@ -32,18 +31,18 @@ func TestSessionCostAccumulatesAcrossTurns(t *testing.T) {
 	addSessionCost(sess, usage, testPricing())
 	addSessionCost(sess, usage, testPricing())
 
-	if sess.Cost == nil {
+	if sess.Cost() == nil {
 		t.Fatal("two priced turns produced no cost")
 	}
-	if sess.CostIncomplete {
+	if sess.CostIncomplete() {
 		t.Error("a fully priced session should not be marked incomplete")
 	}
 	one, _ := llm.EstimateCost(usage, testPricing())
-	if sess.Cost.Total != one.Total*2 {
-		t.Errorf("total = %d, want %d", sess.Cost.Total, one.Total*2)
+	if sess.Cost().Total != one.Total*2 {
+		t.Errorf("total = %d, want %d", sess.Cost().Total, one.Total*2)
 	}
-	if sess.Cost.Baseline != one.Baseline*2 {
-		t.Errorf("baseline = %d, want %d", sess.Cost.Baseline, one.Baseline*2)
+	if sess.Cost().Baseline != one.Baseline*2 {
+		t.Errorf("baseline = %d, want %d", sess.Cost().Baseline, one.Baseline*2)
 	}
 }
 
@@ -57,15 +56,15 @@ func TestAnUnpricedTurnMarksTheSessionIncomplete(t *testing.T) {
 	addSessionCost(sess, usage, testPricing())
 	addSessionCost(sess, usage, llm.Pricing{})
 
-	if sess.Cost == nil {
+	if sess.Cost() == nil {
 		t.Fatal("the priced turn should still have produced a cost")
 	}
-	if !sess.CostIncomplete {
+	if !sess.CostIncomplete() {
 		t.Error("an unpriced turn should mark the total incomplete")
 	}
 	one, _ := llm.EstimateCost(usage, testPricing())
-	if sess.Cost.Total != one.Total {
-		t.Errorf("total = %d, want only the priced turn's %d", sess.Cost.Total, one.Total)
+	if sess.Cost().Total != one.Total {
+		t.Errorf("total = %d, want only the priced turn's %d", sess.Cost().Total, one.Total)
 	}
 }
 
@@ -76,10 +75,10 @@ func TestATurnWithNoUsageDoesNotMarkTheSessionIncomplete(t *testing.T) {
 	sess := newCostSession()
 	addSessionCost(sess, llm.Usage{}, testPricing())
 
-	if sess.Cost != nil {
-		t.Errorf("an unmeasured turn produced a cost: %+v", sess.Cost)
+	if sess.Cost() != nil {
+		t.Errorf("an unmeasured turn produced a cost: %+v", sess.Cost())
 	}
-	if sess.CostIncomplete {
+	if sess.CostIncomplete() {
 		t.Error("an unmeasured turn should not read as an unpriced one")
 	}
 }
@@ -91,16 +90,16 @@ func TestSwitchingCurrencyMidSessionMarksTheTotalIncomplete(t *testing.T) {
 	usage := llm.Usage{PromptTokens: 100_000, CompletionTokens: 1_000}
 
 	addSessionCost(sess, usage, testPricing())
-	before := *sess.Cost
+	before := *sess.Cost()
 
 	euros := testPricing()
 	euros.Currency = "EUR"
 	addSessionCost(sess, usage, euros)
 
-	if sess.Cost.Currency != "USD" || sess.Cost.Total != before.Total {
-		t.Errorf("the running total moved: %+v, want %+v", *sess.Cost, before)
+	if sess.Cost().Currency != "USD" || sess.Cost().Total != before.Total {
+		t.Errorf("the running total moved: %+v, want %+v", *sess.Cost(), before)
 	}
-	if !sess.CostIncomplete {
+	if !sess.CostIncomplete() {
 		t.Error("a second currency should mark the total incomplete")
 	}
 }

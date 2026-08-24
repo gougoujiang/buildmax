@@ -156,13 +156,22 @@ func TestUploadTaskGlobal_UploadsPresentFiles(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(globalDir, "settings.yaml"), []byte("{}"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.MkdirAll(filepath.Join(globalDir, "sessions"), 0755); err != nil {
+	// A session is a directory now, with its traces nested a further level
+	// down, so a flat read of sessions/ would upload none of it.
+	bundle := filepath.Join(globalDir, "sessions", "sid-1")
+	if err := os.MkdirAll(filepath.Join(bundle, "traces"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(globalDir, "sessions", "sessions.json"), []byte("[]"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(globalDir, "sessions", "index.json"), []byte("[]"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(globalDir, "sessions", "sid-1.json"), []byte("{}"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(bundle, "meta.json"), []byte("{}"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bundle, "history.jsonl"), []byte("{}\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bundle, "traces", "run1.jsonl"), []byte("{}\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -170,10 +179,16 @@ func TestUploadTaskGlobal_UploadsPresentFiles(t *testing.T) {
 	uploadTaskGlobal(ctx, globalDir, RunScope{CreatedBy: "u1", ConversationID: "conv1", TaskID: "chat1", TaskRunID: "run1"}, fake, "")
 
 	got := fake.taskGlobalRelPaths("u1", "conv1", "chat1", "run1")
-	if len(got) != 3 {
-		t.Fatalf("want 3 uploaded relPaths, got %d: %v", len(got), got)
+	if len(got) != 5 {
+		t.Fatalf("want 5 uploaded relPaths, got %d: %v", len(got), got)
 	}
-	wantSet := map[string]bool{"settings.yaml": true, "sessions/sessions.json": true, "sessions/sid-1.json": true}
+	wantSet := map[string]bool{
+		"settings.yaml":                    true,
+		"sessions/index.json":              true,
+		"sessions/sid-1/meta.json":         true,
+		"sessions/sid-1/history.jsonl":     true,
+		"sessions/sid-1/traces/run1.jsonl": true,
+	}
 	for _, p := range got {
 		if !wantSet[p] {
 			t.Errorf("unexpected relPath %q", p)
@@ -281,5 +296,66 @@ func TestTraceRelPath_RefusesUnresolvablePaths(t *testing.T) {
 	outside := filepath.Join(t.TempDir(), "traces", "s", "rt_x.jsonl")
 	if got := traceRelPath(globalDir, outside); got != "" {
 		t.Errorf("trace outside the uploaded dir should record no path, got %q", got)
+	}
+}
+
+// TestRestoreSessionFromPreviousRun_RoundTripsTheBundle proves the two halves
+// agree: what upload writes for a session is what restore can fetch back.
+func TestRestoreSessionFromPreviousRun_RoundTripsTheBundle(t *testing.T) {
+	ctx := context.Background()
+	fake := newFakePersistStorage()
+
+	prevDir := t.TempDir()
+	bundle := filepath.Join(prevDir, "sessions", "sid-1")
+	if err := os.MkdirAll(bundle, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bundle, "meta.json"), []byte(`{"id":"sid-1"}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bundle, "history.jsonl"), []byte("{\"type\":\"history\"}\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	scope := RunScope{CreatedBy: "u1", ConversationID: "conv1", TaskID: "chat1", TaskRunID: "run1"}
+	uploadTaskGlobal(ctx, prevDir, scope, fake, "")
+
+	nextDir := t.TempDir()
+	sessionID, lastRun := "sid-1", "run1"
+	restoreSessionFromPreviousRun(ctx,
+		&model.Task{CreatedBy: "u1", ConversationID: "conv1", ID: "chat1", SessionID: &sessionID, LastRunID: &lastRun},
+		&model.TaskRun{ID: "run2"}, nextDir, fake)
+
+	for _, name := range sessionBundleFiles {
+		if _, err := os.Stat(filepath.Join(nextDir, "sessions", "sid-1", name)); err != nil {
+			t.Errorf("%s not restored: %v", name, err)
+		}
+	}
+}
+
+// A bundle missing one of its parts must not be half-restored: a history with
+// no metadata would resume under the wrong model rather than fail visibly.
+func TestRestoreSessionFromPreviousRun_PartialBundleRestoresNothing(t *testing.T) {
+	ctx := context.Background()
+	fake := newFakePersistStorage()
+
+	prevDir := t.TempDir()
+	bundle := filepath.Join(prevDir, "sessions", "sid-1")
+	if err := os.MkdirAll(bundle, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bundle, "history.jsonl"), []byte("{}\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	scope := RunScope{CreatedBy: "u1", ConversationID: "conv1", TaskID: "chat1", TaskRunID: "run1"}
+	uploadTaskGlobal(ctx, prevDir, scope, fake, "")
+
+	nextDir := t.TempDir()
+	sessionID, lastRun := "sid-1", "run1"
+	restoreSessionFromPreviousRun(ctx,
+		&model.Task{CreatedBy: "u1", ConversationID: "conv1", ID: "chat1", SessionID: &sessionID, LastRunID: &lastRun},
+		&model.TaskRun{ID: "run2"}, nextDir, fake)
+
+	if _, err := os.Stat(filepath.Join(nextDir, "sessions", "sid-1")); !os.IsNotExist(err) {
+		t.Errorf("a partial bundle was left behind (stat err = %v)", err)
 	}
 }

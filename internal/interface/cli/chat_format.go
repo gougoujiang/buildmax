@@ -9,7 +9,6 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/core/session"
 
 	"github.com/charmbracelet/glamour"
 )
@@ -284,10 +283,10 @@ func formatMsgForScrollback(m llm.Message, width int, style string, toolResults 
 
 // buildMessagesForScrollback formats only the conversation messages (no banner) as a string
 // for printing to the terminal scrollback. Used when resuming a session mid-TUI.
-func buildMessagesForScrollback(sess *session.Session, width int, style string) string {
+func buildMessagesForScrollback(messages []llm.Message, width int, style string) string {
 	var b strings.Builder
-	toolResults := buildToolResultMap(sess.Messages)
-	for _, msg := range sess.Messages {
+	toolResults := buildToolResultMap(messages)
+	for _, msg := range messages {
 		line := formatMsgForScrollback(msg, width, style, toolResults)
 		if line != "" {
 			b.WriteString(line)
@@ -300,12 +299,12 @@ func buildMessagesForScrollback(sess *session.Session, width int, style string) 
 // buildHistoryForScrollback formats the session banner and message history as a single string
 // suitable for printing to stdout before the TUI program starts.
 // style is the pre-detected glamour style ("dark" or "light").
-func buildHistoryForScrollback(sess *session.Session, width int, style string) string {
+func buildHistoryForScrollback(messages []llm.Message, width int, style string) string {
 	var b strings.Builder
 	b.WriteString(bannerWithVersion(config.Version))
 	b.WriteString("\n")
-	toolResults := buildToolResultMap(sess.Messages)
-	for _, msg := range sess.Messages {
+	toolResults := buildToolResultMap(messages)
+	for _, msg := range messages {
 		line := formatMsgForScrollback(msg, width, style, toolResults)
 		if line != "" {
 			b.WriteString(line)

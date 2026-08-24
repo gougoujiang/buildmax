@@ -2,6 +2,7 @@ package tool
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -13,18 +14,29 @@ import (
 type fakeStore struct {
 	notes []agent.Note
 	todos []agent.Todo
+	// failWrite makes the durable commit fail, so a test can check the tool
+	// reports it instead of echoing back a list that was not stored.
+	failWrite error
 }
 
 func (s *fakeStore) Notes() []agent.Note { return s.notes }
 
-func (s *fakeStore) SetNotes(notes []agent.Note, iter int) {
+func (s *fakeStore) SetNotes(notes []agent.Note, iter int) error {
+	if s.failWrite != nil {
+		return s.failWrite
+	}
 	s.notes = agent.StampNotes(s.notes, notes, iter)
+	return nil
 }
 
 func (s *fakeStore) Todos() []agent.Todo { return s.todos }
 
-func (s *fakeStore) SetTodos(todos []agent.Todo, iter int) {
+func (s *fakeStore) SetTodos(todos []agent.Todo, iter int) error {
+	if s.failWrite != nil {
+		return s.failWrite
+	}
 	s.todos = agent.StampTodos(s.todos, todos, iter)
+	return nil
 }
 
 func storeCtx(store *fakeStore, iter int) context.Context {
@@ -193,5 +205,36 @@ func TestTodoWrite_Execute_NoStoreSaysSo(t *testing.T) {
 	}
 	if !strings.Contains(result, "not stored") {
 		t.Errorf("result does not say the list was not kept:\n%s", result)
+	}
+}
+
+// TestNoteWrite_Execute_ReportsAStoreFailure asserts the tool surfaces a failed
+// commit instead of echoing the list back. Echoing would tell the model its
+// notes are kept when they are not, and the model would plan around them.
+func TestNoteWrite_Execute_ReportsAStoreFailure(t *testing.T) {
+	store := &fakeStore{failWrite: errors.New("disk full")}
+	out, err := (&NoteWrite{}).Execute(storeCtx(store, 1), map[string]any{
+		"notes": []any{"remember this"},
+	})
+	if err == nil {
+		t.Fatalf("Execute succeeded despite a failed store; out = %q", out)
+	}
+	if !strings.Contains(err.Error(), "store notes") {
+		t.Errorf("err = %v, want it to name the failed store", err)
+	}
+}
+
+// TestTodoWrite_Execute_ReportsAStoreFailure is the same guarantee for the task
+// list.
+func TestTodoWrite_Execute_ReportsAStoreFailure(t *testing.T) {
+	store := &fakeStore{failWrite: errors.New("disk full")}
+	out, err := (&TodoWrite{}).Execute(storeCtx(store, 1), map[string]any{
+		"todos": []any{map[string]any{"content": "do it", "status": "pending", "active_form": "Doing it"}},
+	})
+	if err == nil {
+		t.Fatalf("Execute succeeded despite a failed store; out = %q", out)
+	}
+	if !strings.Contains(err.Error(), "store task list") {
+		t.Errorf("err = %v, want it to name the failed store", err)
 	}
 }
