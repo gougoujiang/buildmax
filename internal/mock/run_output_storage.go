@@ -2,6 +2,7 @@ package mock
 
 import (
 	"context"
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"io"
 
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
@@ -28,7 +29,7 @@ func (m *MockRunOutputStorage) GetResult(_ context.Context, ref blob.RunRef) ([]
 	if data, ok := m.Results[key]; ok {
 		return data, nil
 	}
-	return nil, blob.ErrNotFound
+	return nil, apierr.ErrNotFound
 }
 
 func (m *MockRunOutputStorage) PutRunOutputFile(_ context.Context, ref blob.RunObjectRef, r io.Reader) error {
@@ -43,11 +44,11 @@ func (m *MockRunOutputStorage) PutRunOutputFile(_ context.Context, ref blob.RunO
 
 func (m *MockRunOutputStorage) GetRunOutputFile(_ context.Context, ref blob.RunObjectRef) ([]byte, error) {
 	if m.Files == nil {
-		return nil, blob.ErrNotFound
+		return nil, apierr.ErrNotFound
 	}
 	key := ref.CreatedBy + "/" + ref.ConversationID + "/" + ref.TaskID + "/" + ref.TaskRunID + "/" + ref.RelPath
 	if data, ok := m.Files[key]; ok {
 		return data, nil
 	}
-	return nil, blob.ErrNotFound
+	return nil, apierr.ErrNotFound
 }

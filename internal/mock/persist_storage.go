@@ -2,6 +2,7 @@ package mock
 
 import (
 	"context"
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"io"
 
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
@@ -46,7 +47,7 @@ func (m *MockPersistStorage) GetRunGlobal(_ context.Context, ref blob.RunObjectR
 	if data, ok := m.RunGlobal[runObjectKey(ref)]; ok {
 		return data, nil
 	}
-	return nil, blob.ErrNotFound
+	return nil, apierr.ErrNotFound
 }
 
 func (m *MockPersistStorage) PutRunArtifacts(_ context.Context, ref blob.RunObjectRef, r io.Reader) error {
@@ -65,7 +66,7 @@ func (m *MockPersistStorage) GetRunArtifacts(_ context.Context, ref blob.RunObje
 	if data, ok := m.RunArtifacts[runObjectKey(ref)]; ok {
 		return data, nil
 	}
-	return nil, blob.ErrNotFound
+	return nil, apierr.ErrNotFound
 }
 
 func (m *MockPersistStorage) Put(_ context.Context, _ string, _ string, _ io.Reader) error {
@@ -73,7 +74,7 @@ func (m *MockPersistStorage) Put(_ context.Context, _ string, _ string, _ io.Rea
 }
 
 func (m *MockPersistStorage) Get(_ context.Context, _ string, _ string) ([]byte, error) {
-	return nil, blob.ErrNotFound
+	return nil, apierr.ErrNotFound
 }
 
 func (m *MockPersistStorage) ListFiles(_ context.Context, _ string) ([]string, error) {

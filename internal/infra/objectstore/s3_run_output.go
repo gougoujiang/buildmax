@@ -24,7 +24,7 @@ func (s *S3RunOutputStorage) PutResult(ctx context.Context, ref RunRef, data []b
 	return s.client.PutObject(ctx, s.bucket, key, bytes.NewReader(data))
 }
 
-// GetResult reads result.md for the run. Returns ErrNotFound if the object does not exist.
+// GetResult reads result.md for the run. Returns apierr.ErrNotFound if the object does not exist.
 func (s *S3RunOutputStorage) GetResult(ctx context.Context, ref RunRef) ([]byte, error) {
 	key := RunOutputResultKey(s.prefix, ref.CreatedBy, ref.ConversationID, ref.TaskID, ref.TaskRunID)
 	return s.client.GetObject(ctx, s.bucket, key)
@@ -39,7 +39,7 @@ func (s *S3RunOutputStorage) PutRunOutputFile(ctx context.Context, ref RunObject
 	return s.client.PutObject(ctx, s.bucket, key, r)
 }
 
-// GetRunOutputFile reads one file under the run output. Returns ErrNotFound if the object does not exist.
+// GetRunOutputFile reads one file under the run output. Returns apierr.ErrNotFound if the object does not exist.
 func (s *S3RunOutputStorage) GetRunOutputFile(ctx context.Context, ref RunObjectRef) ([]byte, error) {
 	key, err := RunOutputFileKey(s.prefix, ref.CreatedBy, ref.ConversationID, ref.TaskID, ref.TaskRunID, ref.RelPath)
 	if err != nil {

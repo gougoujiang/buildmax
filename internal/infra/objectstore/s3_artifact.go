@@ -2,6 +2,7 @@ package objectstore
 
 import (
 	"context"
+	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
 	"io"
 )
 
@@ -17,7 +18,7 @@ func NewS3ArtifactStorage(client S3Client, bucket, prefix string) *S3ArtifactSto
 	return &S3ArtifactStorage{client: client, bucket: bucket, prefix: prefix}
 }
 
-func (s *S3ArtifactStorage) PutArtifact(ctx context.Context, ref ArtifactRef, r io.Reader) (string, error) {
+func (s *S3ArtifactStorage) PutArtifact(ctx context.Context, ref coreartifact.Ref, r io.Reader) (string, error) {
 	key := ArtifactObjectKey(s.prefix, ref)
 	if err := s.client.PutObject(ctx, s.bucket, key, r); err != nil {
 		return "", err
@@ -28,7 +29,7 @@ func (s *S3ArtifactStorage) PutArtifact(ctx context.Context, ref ArtifactRef, r 
 // OpenArtifact streams rather than reading the object whole: artifact content
 // is arbitrary user files bounded only by the upload limit, and a download must
 // not cost the server that much memory per request.
-func (s *S3ArtifactStorage) OpenArtifact(ctx context.Context, ref ArtifactRef) (io.ReadCloser, error) {
+func (s *S3ArtifactStorage) OpenArtifact(ctx context.Context, ref coreartifact.Ref) (io.ReadCloser, error) {
 	// The size the stream reports is discarded: the artifact record already
 	// carries the length that was measured when the content was stored, and
 	// that is the number the download header must use.
@@ -36,6 +37,6 @@ func (s *S3ArtifactStorage) OpenArtifact(ctx context.Context, ref ArtifactRef) (
 	return body, err
 }
 
-func (s *S3ArtifactStorage) RemoveArtifact(ctx context.Context, ref ArtifactRef) error {
+func (s *S3ArtifactStorage) RemoveArtifact(ctx context.Context, ref coreartifact.Ref) error {
 	return s.client.DeleteObject(ctx, s.bucket, ArtifactObjectKey(s.prefix, ref))
 }

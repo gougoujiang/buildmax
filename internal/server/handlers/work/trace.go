@@ -3,10 +3,10 @@ package work
 import (
 	"bytes"
 	"errors"
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"net/http"
 	"os"
 
-	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/infra/trace"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	tools "github.com/gougoujiang/buildmax/internal/tool"
@@ -54,7 +54,7 @@ func (h *Handler) getTaskRunTraceHandler(w http.ResponseWriter, r *http.Request)
 	}
 	data, err := h.readRunGlobal(r.Context(), task, taskRunID, *run.TracePath)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) || errors.Is(err, blob.ErrNotFound) {
+		if errors.Is(err, os.ErrNotExist) || errors.Is(err, apierr.ErrNotFound) {
 			httputil.WriteJSONError(w, http.StatusNotFound, "this run's trace is no longer in storage")
 			return
 		}

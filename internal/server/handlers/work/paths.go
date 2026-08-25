@@ -3,6 +3,7 @@ package work
 import (
 	"context"
 	"errors"
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"os"
 	"path/filepath"
 
@@ -47,7 +48,7 @@ func (h *Handler) readRunGlobal(ctx context.Context, task *model.Task, taskRunID
 		}
 		// Anything other than "the backend does not have it" is the backend's
 		// problem, and looking on disk would only hide it.
-		if !errors.Is(err, blob.ErrNotFound) && !errors.Is(err, os.ErrNotExist) {
+		if !errors.Is(err, apierr.ErrNotFound) && !errors.Is(err, os.ErrNotExist) {
 			return nil, err
 		}
 	}

@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
+	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
 	"io"
 	"path/filepath"
 	"strings"
@@ -11,7 +13,7 @@ import (
 )
 
 func TestArtifactObjectKeyIsDisjointFromTheOtherKeySpaces(t *testing.T) {
-	ref := ArtifactRef{TeamID: "tm_1", ArtifactID: "ar_abc"}
+	ref := coreartifact.Ref{TeamID: "tm_1", ArtifactID: "ar_abc"}
 	got := ArtifactObjectKey("workspaces", ref)
 	if got != "workspaces/teams/tm_1/artifacts/ar_abc/content" {
 		t.Fatalf("key = %q", got)
@@ -40,7 +42,7 @@ func TestLocalFSArtifactRoundTrip(t *testing.T) {
 		return filepath.Join(root, teamID, artifactID)
 	})
 	ctx := context.Background()
-	ref := ArtifactRef{TeamID: "tm_1", ArtifactID: "ar_abc"}
+	ref := coreartifact.Ref{TeamID: "tm_1", ArtifactID: "ar_abc"}
 
 	key, err := s.PutArtifact(ctx, ref, strings.NewReader("hello"))
 	if err != nil {
@@ -68,9 +70,9 @@ func TestLocalFSArtifactMissingContentIsNotFound(t *testing.T) {
 	s := NewLocalFSArtifactStorage(func(teamID, artifactID string) string {
 		return filepath.Join(root, teamID, artifactID)
 	})
-	_, err := s.OpenArtifact(context.Background(), ArtifactRef{TeamID: "tm_1", ArtifactID: "ar_missing"})
-	if !errors.Is(err, ErrNotFound) {
-		t.Errorf("err = %v, want ErrNotFound", err)
+	_, err := s.OpenArtifact(context.Background(), coreartifact.Ref{TeamID: "tm_1", ArtifactID: "ar_missing"})
+	if !errors.Is(err, apierr.ErrNotFound) {
+		t.Errorf("err = %v, want apierr.ErrNotFound", err)
 	}
 }
 
@@ -82,7 +84,7 @@ func TestLocalFSArtifactRemoveIsRepeatable(t *testing.T) {
 		return filepath.Join(root, teamID, artifactID)
 	})
 	ctx := context.Background()
-	ref := ArtifactRef{TeamID: "tm_1", ArtifactID: "ar_abc"}
+	ref := coreartifact.Ref{TeamID: "tm_1", ArtifactID: "ar_abc"}
 	if _, err := s.PutArtifact(ctx, ref, strings.NewReader("hello")); err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +93,7 @@ func TestLocalFSArtifactRemoveIsRepeatable(t *testing.T) {
 			t.Fatalf("remove %d: %v", i, err)
 		}
 	}
-	if _, err := s.OpenArtifact(ctx, ref); !errors.Is(err, ErrNotFound) {
-		t.Errorf("after removal err = %v, want ErrNotFound", err)
+	if _, err := s.OpenArtifact(ctx, ref); !errors.Is(err, apierr.ErrNotFound) {
+		t.Errorf("after removal err = %v, want apierr.ErrNotFound", err)
 	}
 }

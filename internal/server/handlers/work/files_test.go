@@ -3,6 +3,7 @@ package work
 import (
 	"bytes"
 	"context"
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -41,11 +42,11 @@ func (s *testPersistStorage) Put(ctx context.Context, teamID string, relPath str
 
 func (s *testPersistStorage) Get(ctx context.Context, teamID string, relPath string) ([]byte, error) {
 	if s.files[teamID] == nil {
-		return nil, blob.ErrNotFound
+		return nil, apierr.ErrNotFound
 	}
 	data, ok := s.files[teamID][relPath]
 	if !ok {
-		return nil, blob.ErrNotFound
+		return nil, apierr.ErrNotFound
 	}
 	return append([]byte(nil), data...), nil
 }
@@ -67,7 +68,7 @@ func (s *testPersistStorage) PutRunGlobal(ctx context.Context, ref blob.RunObjec
 }
 
 func (s *testPersistStorage) GetRunGlobal(ctx context.Context, ref blob.RunObjectRef) ([]byte, error) {
-	return nil, blob.ErrNotFound
+	return nil, apierr.ErrNotFound
 }
 
 func (s *testPersistStorage) PutRunArtifacts(ctx context.Context, ref blob.RunObjectRef, r io.Reader) error {
@@ -75,7 +76,7 @@ func (s *testPersistStorage) PutRunArtifacts(ctx context.Context, ref blob.RunOb
 }
 
 func (s *testPersistStorage) GetRunArtifacts(ctx context.Context, ref blob.RunObjectRef) ([]byte, error) {
-	return nil, blob.ErrNotFound
+	return nil, apierr.ErrNotFound
 }
 
 func TestTeamScopedFilesHandlers(t *testing.T) {

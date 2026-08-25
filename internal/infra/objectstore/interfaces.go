@@ -3,12 +3,8 @@ package objectstore
 
 import (
 	"context"
-	"errors"
 	"io"
 )
-
-// ErrNotFound is returned when a requested object does not exist in the store.
-var ErrNotFound = errors.New("object not found")
 
 type RunObjectRef struct {
 	CreatedBy      string
@@ -36,7 +32,7 @@ type HomeStorage interface {
 
 // RunStorage reads and writes run-scoped files: the task run global dir (BUILDMAX_HOME state)
 // and the task run artifacts dir. Key space: conversations/<cID>/tasks/<tID>/<rID>/{global,artifacts}/.
-// For local-FS deployments these files live on worker disk; all methods are no-ops or return ErrNotFound.
+// For local-FS deployments these files live on worker disk; all methods are no-ops or return apierr.ErrNotFound.
 type RunStorage interface {
 	PutRunGlobal(ctx context.Context, ref RunObjectRef, r io.Reader) error
 	GetRunGlobal(ctx context.Context, ref RunObjectRef) ([]byte, error)

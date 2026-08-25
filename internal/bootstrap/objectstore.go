@@ -4,6 +4,7 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
 	"github.com/gougoujiang/buildmax/internal/service/plugin"
 	"path/filepath"
 
@@ -82,7 +83,7 @@ func BuildPersistStorage(cfg config.WorkspaceStorageConfig, persistRoot func(tea
 // BuildArtifactStorage returns the configured storage for artifact content.
 // artifactDir is (teamID, artifactID) -> directory for the local-filesystem
 // backend; the S3 backend derives its own key and ignores it.
-func BuildArtifactStorage(cfg config.WorkspaceStorageConfig, artifactDir func(teamID, artifactID string) string, s3Client blob.S3Client) (blob.ArtifactStorage, error) {
+func BuildArtifactStorage(cfg config.WorkspaceStorageConfig, artifactDir func(teamID, artifactID string) string, s3Client blob.S3Client) (artifactsvc.ContentStore, error) {
 	switch cfg.ArtifactProvider {
 	case config.ProviderMinIO:
 		if s3Client == nil {

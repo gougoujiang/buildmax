@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/gougoujiang/buildmax/internal/server/handlers/admin"
+	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -322,7 +323,7 @@ func openStore(ctx context.Context, db_ config.ServerDBConfig) (*db.Store, error
 type blobStorage struct {
 	persist   blob.PersistStorage
 	runOutput blob.RunOutputStorage
-	artifact  blob.ArtifactStorage
+	artifact  artifactsvc.ContentStore
 	packages  pluginsvc.PackageStore
 	// packageKeyPrefix scopes package keys inside whichever backend holds them.
 	packageKeyPrefix string

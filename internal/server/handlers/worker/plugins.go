@@ -3,12 +3,12 @@ package worker
 import (
 	"errors"
 	"fmt"
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"io"
 	"net/http"
 	"strconv"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
-	"github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
@@ -131,7 +131,7 @@ func (h *Handler) downloadPluginPackage(w http.ResponseWriter, r *http.Request) 
 	// not reach into a team's activation, so a run pinned to one must still run.
 	body, size, err := h.cfg.Plugins.OpenPackage(r.Context(), *release)
 	if err != nil {
-		if errors.Is(err, objectstore.ErrNotFound) {
+		if errors.Is(err, apierr.ErrNotFound) {
 			httputil.WriteJSONError(w, http.StatusNotFound, "the package bytes for this release are missing")
 			return
 		}

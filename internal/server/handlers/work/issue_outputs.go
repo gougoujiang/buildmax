@@ -3,6 +3,7 @@ package work
 import (
 	"context"
 	"errors"
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"os"
 	"sort"
 	"strings"
@@ -261,7 +262,7 @@ func (h *Handler) readArtifactPreview(ctx context.Context, t model.Task, taskRun
 		TaskRunID:      taskRunID,
 	})
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) || errors.Is(err, blob.ErrNotFound) {
+		if errors.Is(err, os.ErrNotExist) || errors.Is(err, apierr.ErrNotFound) {
 			return "", false
 		}
 		// Other errors: log via http handler caller is not available here;

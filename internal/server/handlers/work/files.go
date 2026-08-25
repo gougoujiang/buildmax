@@ -3,6 +3,7 @@ package work
 import (
 	"errors"
 	"fmt"
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"net/http"
 	"os"
 	"path"
@@ -112,7 +113,7 @@ func (h *Handler) fileContentHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	data, err := h.cfg.PersistStorage.Get(r.Context(), teamID, cleanPath)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) || errors.Is(err, blob.ErrNotFound) {
+		if errors.Is(err, os.ErrNotExist) || errors.Is(err, apierr.ErrNotFound) {
 			httputil.WriteJSONError(w, http.StatusNotFound, "file not found")
 			return
 		}

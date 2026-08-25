@@ -150,7 +150,7 @@ func (f *MockPluginPackageStorage) Put(_ context.Context, key string, r io.Reade
 func (f *MockPluginPackageStorage) Open(_ context.Context, key string) (io.ReadCloser, int64, error) {
 	data, ok := f.Objects[key]
 	if !ok {
-		return nil, 0, objectstore.ErrNotFound
+		return nil, 0, apierr.ErrNotFound
 	}
 	return io.NopCloser(bytes.NewReader(data)), int64(len(data)), nil
 }

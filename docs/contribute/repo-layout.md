@@ -121,6 +121,8 @@ internal/
 │   ├── subagent/       The subagent definition file shape and its frontmatter
 │   ├── team/           What a team's roles may do: the one role/action decision
 │   │                   the HTTP guard and the team service both enforce
+│   ├── artifact/       How an artifact's content object is addressed, named by
+│   │                   the artifact service and its storage adapters alike
 │   └── session/        Local session model; persistence lives in agentapp
 │
 ├── agentapp/           Agent runtime assembly: LLM client cache, tool registry,

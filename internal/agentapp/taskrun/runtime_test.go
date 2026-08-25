@@ -3,6 +3,7 @@ package taskrun
 import (
 	"bytes"
 	"context"
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"io"
 	"os"
 	"path/filepath"
@@ -95,7 +96,7 @@ func (f *fakePersistStorage) GetRunGlobal(ctx context.Context, ref blob.RunObjec
 	key := ref.CreatedBy + "/" + ref.ConversationID + "/" + ref.TaskID + "/" + ref.TaskRunID + "/" + ref.RelPath
 	data, ok := f.taskGlobal[key]
 	if !ok {
-		return nil, blob.ErrNotFound
+		return nil, apierr.ErrNotFound
 	}
 	return data, nil
 }
@@ -114,7 +115,7 @@ func (f *fakePersistStorage) GetRunArtifacts(ctx context.Context, ref blob.RunOb
 	key := ref.CreatedBy + "/" + ref.ConversationID + "/" + ref.TaskID + "/" + ref.TaskRunID + "/artifacts/" + ref.RelPath
 	data, ok := f.taskGlobal[key]
 	if !ok {
-		return nil, blob.ErrNotFound
+		return nil, apierr.ErrNotFound
 	}
 	return data, nil
 }

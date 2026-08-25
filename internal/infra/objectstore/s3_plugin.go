@@ -29,7 +29,7 @@ func (s *S3PluginPackageStorage) Put(ctx context.Context, key string, r io.Reade
 	return s.client.PutObject(ctx, s.bucket, key, r)
 }
 
-// Open returns the package and its size, or ErrNotFound.
+// Open returns the package and its size, or apierr.ErrNotFound.
 func (s *S3PluginPackageStorage) Open(ctx context.Context, key string) (io.ReadCloser, int64, error) {
 	if _, err := CleanRelPath(key); err != nil {
 		return nil, 0, err
