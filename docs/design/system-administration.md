@@ -67,14 +67,14 @@ working on".
 What exists today, with the anchors this design builds on:
 
 - Team roles and the team authorization helper:
-  `internal/core/model/team.go`, `internal/server/handlers/team_authz.go`.
+  `internal/core/team/team.go`, `internal/core/team/policy.go`.
 - The single funnel for user identity on every JWT route: `requireAuth` in
   `internal/server/handlers/auth.go`. Every authenticated handler reaches a
   user id through it.
 - Route ownership: each handler subpackage's `Register` method, with a coverage
   test in `team_authz_matrix_test.go` that reads every one of them and fails
   when a team-scoped route has no authorization row.
-- The append-only audit trail: `internal/core/model/audit.go`,
+- The append-only audit trail: `internal/core/audit/audit.go`,
   `internal/service/audit`, `internal/infra/db/audit.go`, and the team-scoped,
   owner-only `GET /api/teams/{team_id}/audit-events`.
 - Operator commands that already run with database credentials:

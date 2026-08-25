@@ -55,8 +55,8 @@ They should not need to know:
 
 The issue entity today:
 
-- `internal/core/model/issue.go` — `Issue`, `CreateIssueInput`,
-  `UpdateIssueInput`, `IssueStore`
+- `internal/core/issue/issue.go` — `Issue`, `CreateInput`, `UpdateInput`,
+  `Store`
 - `internal/infra/db/issue.go` — `issueRow`, table `issue`
 - `internal/service/issue/service.go` — title/status/assignee validation
 - `internal/server/handlers/issues.go` — list, create, get, patch, flow,

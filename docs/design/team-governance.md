@@ -46,11 +46,11 @@ console.
 
 Backend anchors:
 
-- roles in `internal/core/model/team.go`
+- roles in `internal/core/team/team.go`
 - authz helper in `internal/server/handlers/team_authz.go`
 - quota service in `internal/service/quota/service.go`
 - quota routes in `internal/server/handlers/usage.go`
-- workflow lifecycle in `internal/core/model/workflow.go`
+- workflow lifecycle in `internal/core/workflow/workflow.go`
 - workflow lifecycle enforcement in `internal/service/workflow/service.go`
 - team persistence in `internal/infra/db/team.go`
 - default quota tier seeding in `internal/infra/db/quota_tier.go`
@@ -175,7 +175,7 @@ Polish workflow list/detail copy and controls:
 
 ### 5.4 Small Audit/Event Model — SHIPPED, first slice
 
-`model.AuditEvent` in `internal/core/model/audit.go` is the shipped shape. It
+`audit.Event` in `internal/core/audit/audit.go` is the shipped shape. It
 differs from what this section originally sketched in three ways that were
 decisions, not drift:
 
