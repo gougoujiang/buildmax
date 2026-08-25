@@ -265,7 +265,7 @@ decide, and its status block summarises what changed here.
 | Name resolution, no alias layer | `internal/service/llmgateway/resolve.go` |
 | `llm.default_model`, startup validation | `internal/config/server_config.go`, `internal/bootstrap` |
 | Global gateway routes | `internal/server/handlers/routes.go`, `internal/server/handlers/llm.go` |
-| User-scoped ledger | `internal/infra/db/llm_call.go`, `internal/core/model/llm_call.go` |
+| User-scoped ledger | `internal/infra/db/llm_call.go`, `internal/core/llmgateway/call.go` |
 | Expired login | `auth.ErrLoginExpired`, `internal/interface/cli/mode.go`, Desktop `AuthStatus.Expired` |
 
 The user-facing half is
