@@ -157,6 +157,8 @@ internal/
 │   │   └── channel/    Normalized turn types and channel adapters (webhook)
 │   ├── agent/          Agent definitions, their revisions, and the delete guard
 │   ├── artifact/       Durable files a team keeps; knows no producer
+│   ├── llmcatalog/     What the model catalog accepts and what changing it
+│   │                   records; the shell and the admin route both call it
 │   ├── issue/          Issue service
 │   ├── task/           Task and task_run service
 │   ├── workflow/       Workflow and workflow-run orchestration

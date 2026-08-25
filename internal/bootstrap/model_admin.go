@@ -15,6 +15,7 @@ import (
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/infra/db"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
+	"github.com/gougoujiang/buildmax/internal/service/llmcatalog"
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
 )
 
@@ -146,27 +147,23 @@ func runModelAdd(ctx context.Context, args []string, out io.Writer) error {
 		Vision:            *vision,
 		Capabilities:      parseCapabilityList(*capabilities),
 	}
-	if err := validateModelInput(in); err != nil {
-		return err
-	}
 
 	store, err := openStoreFromConfig(ctx)
 	if err != nil {
 		return err
 	}
-	created, err := store.CreateLLMModel(ctx, in)
-	if err != nil {
-		if errors.Is(err, coregw.ErrModelNameTaken) {
-			return fmt.Errorf("a model named %q already exists", in.Name)
-		}
-		return fmt.Errorf("create model: %w", err)
-	}
-
 	// The catalog holds provider credentials and decides where prompts go, so
 	// a change to it is worth a record. The actor is the operator at a shell on
 	// the server, which the process cannot name — this command already requires
 	// the database credentials, so being on that machine is the authorization.
-	recordModelAudit(ctx, store, coreaudit.ModelCreated, created.ID, created.Name)
+	svc := &llmcatalog.Service{Models: store, Audit: audit.NewRecorder(store)}
+	created, err := svc.Create(ctx, in, llmcatalog.OperatorActor())
+	if err != nil {
+		if errors.Is(err, llmcatalog.ErrNameTaken) {
+			return fmt.Errorf("a model named %q already exists", in.Name)
+		}
+		return commandError("model add", err)
+	}
 
 	fmt.Fprintf(out, "Added model %s (%s)\n", created.ID, created.Name)
 	fmt.Fprintf(out, "It is available immediately to signed-in users as %q.\n", created.Name)
@@ -234,52 +231,6 @@ func runModelSetEnabled(ctx context.Context, args []string, out io.Writer, enabl
 	return nil
 }
 
-// validateModelInput rejects a row that could never serve a call, so the
-// operator hears about it here rather than at someone's first prompt.
-func validateModelInput(in coregw.CreateModelInput) error {
-	switch {
-	case in.Name == "":
-		return errors.New("model add: --name is required")
-	case in.APIURL == "":
-		return errors.New("model add: --api-url is required")
-	// A local runtime has no credential, and requiring a placeholder for it
-	// would put a meaningless secret in the catalog and in the audit trail.
-	case in.APIKey == "" && llm.ProviderNeedsCredential(in.ProviderType):
-		return errors.New("model add: --api-key is required")
-	case in.Model == "":
-		return errors.New("model add: --model is required")
-	case in.ContextWindow < 0:
-		return errors.New("model add: --context-window cannot be negative")
-	case in.CallTimeout < 0:
-		return errors.New("model add: --call-timeout cannot be negative")
-	case in.MaxTokens < 0:
-		return errors.New("model add: --max-tokens cannot be negative")
-	case !config.KnownReasoningEffort(in.Reasoning):
-		return fmt.Errorf("model add: --reasoning %q is not a level; use one of %s",
-			in.Reasoning, strings.Join(config.ReasoningEfforts(), ", "))
-	case !llm.KnownProvider(in.ProviderType):
-		return fmt.Errorf("model add: --provider %q is not implemented; use one of %s",
-			in.ProviderType, strings.Join(llm.Providers(), ", "))
-	case !config.KnownCacheMode(in.CacheMode):
-		return fmt.Errorf("model add: --cache-mode %q is not a mode; use one of %s",
-			in.CacheMode, strings.Join(config.CacheModes(), ", "))
-	case !config.KnownCacheTTL(in.CacheTTL):
-		return fmt.Errorf("model add: --cache-ttl %q is not a retention; use one of %s",
-			in.CacheTTL, strings.Join(config.CacheTTLs(), ", "))
-	}
-	for _, c := range in.Capabilities {
-		if !knownCapability(c) {
-			return fmt.Errorf("model add: unknown capability %q", c)
-		}
-	}
-	return nil
-}
-
-func knownCapability(name string) bool {
-	return llmgateway.NewCapabilitySet(llmgateway.BaselineCapabilities()...).
-		Has(llmgateway.Capability(name))
-}
-
 // parseCapabilityList defaults to the capability set an OpenAI-compatible
 // client already guarantees, matching what the runtime assumes elsewhere.
 func parseCapabilityList(s string) []string {
@@ -322,4 +273,35 @@ func recordModelAudit(ctx context.Context, store coreaudit.Writer, action, model
 		TargetID:   modelID,
 		Detail:     detail,
 	})
+}
+
+// modelAddFlagFor names the flag an input field is set by. The catalog refuses
+// input in its own vocabulary, which is right — it has an HTTP caller too — and
+// this is where that becomes something an operator can act on without guessing
+// which flag it meant.
+var modelAddFlagFor = map[string]string{
+	"name":           "name",
+	"api_url":        "api-url",
+	"api_key":        "api-key",
+	"model":          "model",
+	"context_window": "context-window",
+	"call_timeout":   "call-timeout",
+	"max_tokens":     "max-tokens",
+	"reasoning":      "reasoning",
+	"provider_type":  "provider",
+	"cache_mode":     "cache-mode",
+	"cache_ttl":      "cache-ttl",
+}
+
+// commandError renders a catalog refusal the way this command's user reads it.
+func commandError(command string, err error) error {
+	var invalid *llmcatalog.InvalidField
+	if !errors.As(err, &invalid) {
+		return fmt.Errorf("%s: %w", command, err)
+	}
+	flag, ok := modelAddFlagFor[invalid.Field]
+	if !ok {
+		return fmt.Errorf("%s: %s", command, invalid.Message)
+	}
+	return fmt.Errorf("%s: --%s %s", command, flag, invalid.Message)
 }
