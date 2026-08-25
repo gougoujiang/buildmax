@@ -1,0 +1,106 @@
+name: Release snapshot
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - '.goreleaser.yaml'
+      - '.github/workflows/release-snapshot.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-snapshot-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release-snapshot:
+    name: Release snapshot
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # A relevant pull request only needs to prove that the release
+      # configuration is valid. The full 15-binary snapshot remains a
+      # post-merge and manual check, where its runtime does not hold up review.
+      - name: Check release configuration
+        if: github.event_name == 'pull_request'
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          version: v2.17.1
+          args: check
+
+      - uses: actions/setup-go@v7
+        if: github.event_name != 'pull_request'
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install release license tool
+        if: github.event_name != 'pull_request'
+        run: go install github.com/google/go-licenses@v1.6.0
+
+      - uses: anchore/sbom-action/download-syft@v0.24.0
+        if: github.event_name != 'pull_request'
+        with:
+          syft-version: v1.51.0
+
+      - uses: goreleaser/goreleaser-action@v7
+        if: github.event_name != 'pull_request'
+        with:
+          version: v2.17.1
+          args: release --snapshot --clean --skip=publish,docker
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify all release archive contents
+        if: github.event_name != 'pull_request'
+        run: go run ./cmd/mk release verify --all
+
+      - name: Upload release archives
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-snapshot
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/checksums.txt
+          if-no-files-found: error
+          retention-days: 1
+
+  release-archive-smoke:
+    name: Release archive (${{ matrix.name }})
+    if: github.event_name != 'pull_request'
+    needs: release-snapshot
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux
+            os: ubuntu-latest
+          - name: macOS
+            os: macos-latest
+          - name: Windows
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-snapshot
+          path: dist
+
+      - name: Verify native release archive
+        run: go run ./cmd/mk release verify

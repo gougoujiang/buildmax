@@ -3,7 +3,6 @@ name: CodeQL
 on:
   push:
     branches: [main]
-  pull_request:
   schedule:
     # Weekly, so a newly published query still finds old code.
     - cron: '27 4 * * 1'

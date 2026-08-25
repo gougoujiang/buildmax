@@ -236,9 +236,10 @@ const (
 	goreleaserPkg = "github.com/goreleaser/goreleaser/v2@v2.17.1"
 )
 
-// checkCI runs what a pull request runs, for contributors who would rather
-// spend a laptop's time than the repository's Actions minutes. The Windows job
-// has no local equivalent; everything else does.
+// checkCI runs the required pull-request suite plus the conditional release and
+// Windows checks, for contributors who would rather spend a laptop's time than
+// the repository's Actions minutes. The native Windows test has no local
+// equivalent; everything else does.
 func checkCI(checks map[string]func() error) error {
 	before, err := worktreeState()
 	if err != nil {
@@ -291,7 +292,8 @@ func checkGoLicenses() error {
 	return runCmd("go", "run", goLicensesPkg, "check", "./cmd/...", "--disallowed_types=forbidden,restricted")
 }
 
-// checkReleaseConfig mirrors the pull-request half of the release-snapshot job.
+// checkReleaseConfig mirrors the pull-request half of the conditional
+// release-snapshot workflow.
 //
 // It runs the pinned version through `go run` like every other CI tool here.
 // That replaced a check that used whatever `goreleaser` the contributor had

@@ -17,9 +17,9 @@ tests for behavioral changes, and documentation updated alongside the code.
 ## Verification
 
 <!--
-What you actually ran, and what it showed. `./make check ci` is everything CI
-runs except the Windows job; `./make check go` is the Go half of it. Say so
-explicitly if a change is untested and why.
+What you actually ran, and what it showed. `./make check ci` covers the required
+PR suite plus the conditional release and Windows checks; `./make check go` is
+the Go half of it. Say so explicitly if a change is untested and why.
 -->
 
 ## Notes for the reviewer
