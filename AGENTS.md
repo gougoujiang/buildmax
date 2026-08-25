@@ -184,7 +184,7 @@ Use the cross-platform task runner from the repository root:
 ./make check <scope>   # go, portal, desktop, docs, all, or ci
 ./make check ci        # required PR suite plus conditional release/Windows checks
 ./make e2e <suite>     # one end-to-end suite: cli, desktop, local, compose, kind, all
-./make help            # common contributor commands; add `all` for everything
+./make help            # every command, grouped, with the contributor path
 ./make help <command>  # one command's arguments, examples, and caveats
 ```
 
@@ -199,6 +199,12 @@ covers what and what each one needs.
 
 `./make agent-smoke` is not a test: it drives the agent's tools with a real
 model, needs an API key, and reports a table the model wrote about itself.
+`./make eval` is not a gate either: it builds the CLI and worker and measures
+them as a black box against the tasks in `evaluation/suite/`, which needs a
+model API key and spends tokens. It answers how reliably a model drives a
+behavior, not whether the behavior is wired; run it deliberately, never as part
+of a handoff check. See
+[`docs/design/evaluation-system.md`](docs/design/evaluation-system.md).
 
 On Windows use `make.bat`. Add or change commands under `cmd/mk`; the `make`
 and `make.bat` files remain one-line shims. Do not introduce a parallel shell

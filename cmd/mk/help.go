@@ -6,9 +6,16 @@ import (
 	"strings"
 )
 
-// Help lives in three layers, because a task runner is read by three different
-// people: `help` is the short path a first contribution needs, `help all` is
-// the full command list, and `help <command>` is one command's own page.
+// Help lives in two layers: `help` is every command, grouped by what it is for,
+// and `help <command>` is one command's own page.
+//
+// It used to open on a six-command subset, with everything else behind
+// `help all`. That hid commands from the one reader who needs a list — the
+// person who does not yet know what exists, and who has no reason to guess that
+// `eval` or `models` is a word this runner knows. It also gave every common
+// command two descriptions, which drifted. The full list is thirty lines; a
+// first contribution is served by the path printed under it, not by truncating
+// what is above it.
 //
 // The per-command pages are also the single source of the usage lines the
 // commands print when an argument is wrong. Before this table those lines were
@@ -37,18 +44,6 @@ type helpTopic struct {
 	see      string   // a document that carries the long version
 }
 
-func commonHelpRows() []helpRow {
-	return []helpRow{
-		{"doctor [all]", "Check the contributor environment without changing it"},
-		{"build [cli]", "Build everything, or only the CLI"},
-		{"test [race] [pkg]", "Run Go tests in the isolated testing sandbox"},
-		{"check [scope]", "Run pre-PR checks (go|gui|portal|desktop|docs|all|ci)"},
-		{"run <target>", "Run cli, server, desktop, or Portal locally"},
-		{"clean", "Remove build outputs and installed frontend dependencies"},
-		{"help <command>", "Show one command's own page; `help all` lists every command"},
-	}
-}
-
 func allHelpSections() []helpSection {
 	return []helpSection{
 		{"Development", []helpRow{
@@ -58,13 +53,14 @@ func allHelpSections() []helpSection {
 			{"check [scope]", "Run checks for go, gui, portal, desktop, docs, all, or ci"},
 			{"run <target>", "Run cli, server, desktop, or Portal locally"},
 			{"clean", "Remove binaries, native app builds, node_modules, and dist"},
+			{"help [command]", "Show this list, or one command's arguments and examples"},
 		}},
 		{"Advanced", []helpRow{
 			{"fmt", "Format every tracked Go file with gofmt"},
 			{"lint", "Run pinned golangci-lint and govulncheck"},
 			{"agent-smoke", "Drive the agent's tools with a real model (needs an API key; not a deterministic test)"},
 			{"cache-qualify", "Qualify prompt caching against a real provider (needs an API key; not a test)"},
-			{"eval", "Evaluate the built CLI against the task suite (requires a model API key)"},
+			{"eval [flags]", "Measure the built binaries against evaluation/suite/ (needs an API key)"},
 			{"models <list|info|check>", "List, look up on OpenRouter, or check settings.local.yaml models"},
 		}},
 		{"Deployment", []helpRow{
@@ -81,7 +77,7 @@ func allHelpSections() []helpSection {
 }
 
 // helpTopics is the per-command page for every command dispatch accepts, in the
-// order help all lists them. TestEveryCommandHasAHelpTopic keeps the two sets
+// order help lists them. TestEveryCommandHasAHelpTopic keeps the two sets
 // equal, so a new command cannot ship without a page.
 func helpTopics() []helpTopic {
 	return []helpTopic{
@@ -445,19 +441,21 @@ func helpTopics() []helpTopic {
 		},
 		{
 			name:    "help",
-			usage:   "help [all | <command>]",
-			summary: "Show the contributor path, the full command list, or one command's page.",
+			usage:   "help [command]",
+			summary: "Show every command, or one command's own page.",
 			details: []string{
+				"With no argument it prints every command, grouped by what it is for, and\n" +
+					"the four-command path a first contribution takes. `help all` is the old\n" +
+					"spelling of that and prints the same list.",
 				"Every command also answers its own help flag: `" + mk() + " check --help` prints\n" +
 					"the same page as `" + mk() + " help check`. The exception is eval, whose\n" +
 					"arguments belong to the benchmark binary.",
 			},
 			args: []helpRow{
-				{"(none)", "The common commands and the typical contribution path"},
-				{"all", "Every command, grouped by what it is for"},
+				{"(none)", "Every command, grouped, and the contribution path"},
 				{"<command>", "That command's arguments, examples, and caveats"},
 			},
-			examples: []string{"help", "help all", "help test"},
+			examples: []string{"help", "help test", "help eval"},
 		},
 	}
 }
@@ -480,7 +478,6 @@ func helpCommandNames() []string {
 			names = append(names, strings.Fields(row.name)[0])
 		}
 	}
-	add(commonHelpRows())
 	for _, section := range allHelpSections() {
 		add(section.rows)
 	}
@@ -538,10 +535,13 @@ func cmdHelp(args []string) error {
 		return nil
 	}
 	if len(args) > 1 {
-		return fmt.Errorf("usage: %s help [all|<command>]", mk())
+		return usageErrorf("help", "help takes at most one command")
 	}
+	// `all` was the spelling for the full list back when `help` printed a subset
+	// of it. It stays as an alias rather than becoming an unknown topic, because
+	// it is still in shell history and in older checkouts of the documentation.
 	if args[0] == "all" {
-		usageAll()
+		usage()
 		return nil
 	}
 	if topic, ok := lookupHelpTopic(args[0]); ok {
@@ -551,7 +551,7 @@ func cmdHelp(args []string) error {
 	if closest, found := nearestCommand(args[0]); found {
 		return fmt.Errorf("no help topic %q; did you mean `%s help %s`?", args[0], mk(), closest)
 	}
-	return fmt.Errorf("no help topic %q; run `%s help all` for the command list", args[0], mk())
+	return fmt.Errorf("no help topic %q; run `%s help` for the command list", args[0], mk())
 }
 
 func printHelpTopic(topic helpTopic) {
@@ -584,9 +584,14 @@ func printHelpTopic(topic helpTopic) {
 func usage() {
 	m := mk()
 	fmt.Printf("Usage: %s <command>\n", m)
-	fmt.Println()
-	fmt.Println("Common commands:")
-	printHelpRows(commonHelpRows())
+	for _, section := range allHelpSections() {
+		fmt.Println()
+		fmt.Printf("%s:\n", section.name)
+		printHelpRows(section.rows)
+	}
+	// The path is printed under the list rather than in place of it: a first
+	// contribution still gets its four commands, and everyone else has already
+	// read that the runner does more than build and test.
 	fmt.Println()
 	fmt.Println("Typical contribution path:")
 	fmt.Printf("  %s doctor\n", m)
@@ -596,16 +601,6 @@ func usage() {
 	// naming a weaker command here than first-pr.md does sent contributors to
 	// whichever document they happened to read.
 	fmt.Printf("  %s check ci\n", m)
-}
-
-func usageAll() {
-	m := mk()
-	fmt.Printf("Usage: %s <command>\n", m)
-	for _, section := range allHelpSections() {
-		fmt.Println()
-		fmt.Printf("%s:\n", section.name)
-		printHelpRows(section.rows)
-	}
 	fmt.Println()
 	fmt.Printf("Run %s help <command> for one command's arguments and examples.\n", m)
 }
