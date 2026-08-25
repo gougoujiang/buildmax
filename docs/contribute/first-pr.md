@@ -121,11 +121,10 @@ specific enough to stand alone.
 ## What CI Will Run
 
 Everything in [CONTRIBUTING.md § Pull Requests](../../CONTRIBUTING.md#pull-requests):
-the documented fresh-clone commands, formatting, `go mod tidy` cleanliness,
-build, vet, golangci-lint, govulncheck, the test suite with `-race`, the three
-frontend builds and both frontend test suites, a secret scan over git history,
-dependency license checks, and Markdown lint. None of it needs credentials, so
-it runs the same way on a fork.
+formatting, `go mod tidy` cleanliness, build, vet, golangci-lint, govulncheck,
+the test suite with `-race`, the three frontend builds and both frontend test
+suites, a secret scan over git history, dependency license checks, and Markdown
+lint. None of it needs credentials, so it runs the same way on a fork.
 
 `./make check ci` runs all of it locally except the Windows job, which needs a
 Windows machine; it cross-compiles for Windows instead.

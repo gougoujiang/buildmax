@@ -148,8 +148,9 @@ Exactly two, both already existing branch points:
   values.
 
 `internal/service/llmgateway` gains two constants beside
-`ProviderOpenAICompatible` and nothing else. That package resolves aliases to
-targets; it does not open connections, and this work must not make it start.
+`ProviderOpenAICompatible` and nothing else. That package resolves catalog
+names to targets; it does not open connections, and this work must not make it
+start.
 
 ### 5.3 Dependencies
 

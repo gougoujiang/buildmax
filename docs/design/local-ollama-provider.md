@@ -83,8 +83,8 @@ Around it, three local-first behaviors:
 - `num_ctx` is sent on **every** call, derived from the same number BuildMax
   trims history against, so the two cannot disagree;
 - `buildmax models --local` and `buildmax doctor` read the daemon and report
-  what it holds, in the same paste-ready shape `buildmax models --team` already
-  uses.
+  what it holds; the models command also prints a paste-ready local
+  `settings.yaml` entry.
 
 `provider: openai_compatible` pointed at `http://localhost:11434/v1` keeps
 working unchanged. `ollama` is opt-in and is the recommended path, not a
@@ -271,7 +271,6 @@ It has two consumers and no others:
 - **`buildmax models --local`** lists them and prints a paste-ready
   `settings.yaml` block for one, with `provider`, `api_url`, `context_window`,
   and — from the capability list — `vision` and `reasoning` already filled in.
-  This mirrors what `--team` does at the end of `printTeamModels`.
 - **`buildmax doctor`**, per §9.
 
 Capabilities are *reported*, never inferred at call time. A model entry keeps

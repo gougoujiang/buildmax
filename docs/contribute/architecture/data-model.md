@@ -256,8 +256,8 @@ The membership join table, and the row every authorization check looks for.
 Indexes: PK `id`; unique `uq_team_member_team_user` on (`team_id`, `user_id`).
 
 Roles are `model.TeamRoleOwner` / `TeamRoleAdmin` / `TeamRoleMember`. Team
-approvals and an audit log are designed but not implemented; do not read this
-table as an approval record.
+approvals are planned but not implemented. The audit trail is implemented in
+`audit_event`; neither approval nor audit state belongs in this membership row.
 
 ### `system_grant`
 

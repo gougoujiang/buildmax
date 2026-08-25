@@ -18,7 +18,7 @@ buildmax <command> [flags]
 | `buildmax login` | Log in to a BuildMax server and store credentials |
 | `buildmax logout` | Clear stored credentials |
 | `buildmax whoami` | Show current login status |
-| `buildmax models` | List configured models and prompt destinations; `--local` lists what a local Ollama daemon holds, `--team` lists server-side aliases |
+| `buildmax models` | List the models the current mode uses and their prompt destination; `--local` also lists what a local Ollama daemon holds |
 | `buildmax tools status` | Inspect the tools currently available to the agent |
 | `buildmax stats [session-id]` | Show what a session spent, what it did, and where its context went; `--json` for the full record |
 | `buildmax sandbox status` | Print the resolved sandbox config and which layer set each value |
@@ -33,6 +33,7 @@ buildmax <command> [flags]
 | `buildmax plugin update <name>` | Replace an installed Marketplace plugin with a newer release |
 | `buildmax plugin uninstall <name>` | Remove an installed plugin |
 | `buildmax plugin publish <path>` | Pack a directory and publish it (System Administrator only) |
+| `buildmax plugin activations --team <team-id>` | List the exact plugin releases a Team has activated for background runs |
 
 ## Flags
 
@@ -140,6 +141,10 @@ without `--force`: a working tree can hold work that exists nowhere else.
 
 `publish` takes the version from the directory's own `plugin.yaml` and needs a
 System Administrator grant on the server you are signed in to.
+
+`activations` is read-only and requires a login. It reports the Team's curation
+mode and each activated release; activation changes stay in Portal, where they
+are visible with the Team's other shared automation and audit history.
 
 ### `buildmax doctor`
 

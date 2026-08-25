@@ -55,12 +55,11 @@ not:
 
 Current deployment assets:
 
-- `./make setup` creates a kind cluster, MinIO, MySQL, Redis, ingress-nginx, and
-  port-forwards.
-- `./make pub_images` builds `buildmax:local` and `buildmax-portal:local`, then
-  loads them into kind.
-- `./make deploy` builds, loads images, applies
-  `deployment/buildmax-deploy.yaml`, and restarts server and Portal deployments.
+- `./make kind up` owns the local Kubernetes loop: it creates the pinned kind
+  cluster, installs MySQL, MinIO, and ingress-nginx, builds and loads images,
+  applies the manifests, and runs the deterministic deployment smoke.
+- `./make kind images`, `smoke`, `status`, `logs`, `forward`, and `down` expose
+  the narrower lifecycle operations without a parallel script workflow.
 - `deployment/docker/Dockerfile.buildmax` builds the Go binaries into a
   container image.
 - `deployment/docker/Dockerfile.portal` builds and serves the Portal static app.
@@ -193,14 +192,14 @@ Define one active deployment config contract:
 Make the local kind path fully end-to-end:
 
 ```sh
-./make setup
-./make deploy
+./make kind up
+./make e2e kind
 ```
 
 Then verify:
 
-- Portal opens at `http://buildmax.kind.local`
-- API health works at `http://buildmax-api.kind.local/healthz`
+- Portal opens at `http://localhost:8080`
+- API health works at `http://localhost:8080/healthz`
 - login works
 - a task can run through a worker Job
 - a result is visible in Portal
@@ -239,15 +238,12 @@ Required checks:
 
 ### 5.5 Initial Admin / Team / Quota Story
 
-The first logged-in user and team setup must be obvious.
-
-Minimum story:
-
-- signup/login creates or locates the user's personal team
-- default quota tier is seeded
-- default team role is `owner`
-- the docs explain whether public signup is acceptable for private deployment
-- future admin bootstrap is identified if not implemented in P3
+The bootstrap story is implemented. Self-registration is closed by default. An
+operator creates an account and its personal Team with `buildmax-server user
+create`, issues a single-use login code, and grants deployment authority
+separately with `buildmax-server admin grant`. The default quota tier and Team
+owner membership are created without a database edit. See M5 and
+[deployment authentication](../deploy/authentication.md).
 
 ## 6. Out Of Scope
 
@@ -257,7 +253,8 @@ Minimum story:
 - Enterprise SSO.
 - Billing.
 - Advanced secrets manager integration.
-- Full audit/event product.
+- A policy or approval platform beyond the shipped audit trail and governance
+  foundation.
 
 ## 7. Target Deployment Architecture
 
@@ -324,7 +321,8 @@ storage:
 worker:
   run_mode: "k8s_job"
   server_url: "http://buildmax.buildmax.svc.cluster.local:5678"
-  token: ""
+  run_token_ttl: 24h
+  run_timeout: 6h
   k8s:
     namespace: "buildmax"
     image: "buildmax:local"
@@ -338,8 +336,8 @@ conversation:
     call_timeout: 60
 ```
 
-P3 should decide whether secrets are written into this mounted file, substituted
-before mount, or supplied through supported env overrides. The clean target is:
+The production reference keeps shape and non-secret values in the ConfigMap and
+injects secret fields through the supported environment overrides:
 
 - non-secrets in ConfigMap
 - secrets in Secret
@@ -354,9 +352,12 @@ Secret values:
 - S3 access key and secret key
 - conversation model API key
 
-Current code only explicitly supports `BUILDMAX_JWT_SECRET` as an env override.
-If Kubernetes should keep all secrets out of `server.yaml`, P3 must add env
-override support for the other secret fields or a secret-file merge path.
+The supported overrides are `BUILDMAX_JWT_SECRET`,
+`BUILDMAX_DATABASE_PASSWORD`, `BUILDMAX_STORAGE_MINIO_ACCESS_KEY`,
+`BUILDMAX_STORAGE_MINIO_SECRET_KEY`, and
+`BUILDMAX_CONVERSATION_MODEL_API_KEY`. Their precedence and complete names live
+in [the configuration reference](../reference/configuration.md); the design does
+not duplicate a second authoritative list.
 
 ## 9. Implementation Plan
 
@@ -440,7 +441,7 @@ and System Administrator without modifying the database.
 Code validation:
 
 ```sh
-go test ./internal/config ./internal/bootstrap ./internal/server/handlers ./internal/server/scheduler
+./make test ./internal/config ./internal/bootstrap ./internal/server/handlers ./internal/server/scheduler
 ```
 
 Full validation:
@@ -452,9 +453,8 @@ Full validation:
 Deployment validation:
 
 ```sh
-./make setup
-./make deploy
-curl http://buildmax-api.kind.local/healthz
+./make kind up
+./make e2e kind
 ```
 
 Manual product validation:
@@ -471,8 +471,9 @@ Manual product validation:
 
 - **Config split confusion**: YAML plus env overrides can become unclear unless
   docs and code define precedence precisely.
-- **Secret leakage**: current dev manifests include placeholder secrets; P3 must
-  clearly mark dev-only values and provide a production-safe path.
+- **Secret leakage**: development manifests contain clearly labeled placeholder
+  values; production must use the documented environment overrides backed by a
+  deployment Secret.
 - **Kind success hiding production gaps**: the local path should be a reference,
   not the only documented shape.
 - **Worker mode drift**: local process and Kubernetes Job modes must use the
@@ -482,15 +483,19 @@ Manual product validation:
 
 ## 12. Open Questions
 
-1. Should BuildMax support env overrides for all secret fields in `server.yaml`,
-   or should Kubernetes mount a rendered secret-backed config file?
+1. ~~Should BuildMax support env overrides for all secret fields in
+   `server.yaml`, or mount a rendered secret-backed config file?~~ **Decided:
+   environment overrides.** The production manifest sources them from a Secret,
+   while the ConfigMap carries the non-secret shape.
 2. ~~Should P3 introduce `GET /readyz`, or should `/healthz` become dependency
    aware?~~ **Decided: a separate `/readyz`.** Making `/healthz` dependency
    aware would have fed the same answer to both probes, and Kubernetes acts on
    them very differently: a failed readiness check stops traffic, while a
    failed liveness check restarts the container. A shared endpoint would have
    turned every database blip into a restart of a server that was working.
-3. Should Redis remain in setup if the current server path does not require it?
+3. ~~Should Redis remain in setup if the current server path does not require
+   it?~~ **Decided: no.** The reference is single-instance and has no Redis
+   dependency; multi-instance stream distribution remains outside this design.
 4. ~~Should the recommended production path use Kubernetes Jobs only, or document
    `local_process` as a single-node option?~~ **Decided: Kubernetes Jobs are the
    recommended production path, and `local_process` stays supported as a
@@ -499,7 +504,9 @@ Manual product validation:
    what it inherits turns it into a boundary. Rather than harden a topology that
    cannot hold one, the deployment documentation says server and workers share a
    trust domain there, and a deployment that needs them separated runs `k8s_job`.
-5. Should private deployments allow self-signup by default?
+5. ~~Should private deployments allow self-signup by default?~~ **Decided:
+   no.** `allow_signup` defaults false; an operator creates accounts and issues
+   single-use login codes.
 
 The remaining questions came from the retired *Private production operations*
 proposal. The reference topology it asked for now exists; what it asked for and
@@ -518,24 +525,26 @@ did not get is evidence that the topology can be operated:
    `/metrics` endpoint and no Prometheus dependency — so an operator diagnoses
    from logs, `/readyz`, and the run trace. Deciding the required set is a
    prerequisite for claiming the deployment is operable, not a later polish.
-10. How are JWT, worker, database, storage, and model credentials **rotated**?
-    Injection is settled — env overrides sourced from a Secret — but nothing
-    documents what a rotation does to sessions, in-flight task runs, or a
-    worker Job that already holds a token.
+10. How are JWT signing keys, access/refresh sessions, per-run tokens, database,
+    storage, and model credentials **rotated**? Injection is settled — env
+    overrides sourced from a Secret — but nothing documents what a rotation
+    does to sessions, in-flight task runs, or a worker Job that already holds a
+    run token.
 11. Which versions of Kubernetes, MySQL, and S3-compatible storage form the
     supported matrix? `docs/start/support.md` grades surfaces and platforms but
     names no dependency versions, and `deployment/production/README.md` states
     a behavioural contract instead.
 
-## 13. Recommended First PR
+## 13. Initial Delivery Slice — Done
 
-The first P3 PR should fix the config/deployment mismatch:
+The first P3 slice fixed the config/deployment mismatch:
 
-1. Add a deployment `server.yaml` sample.
-2. Mount it in `deployment/buildmax-deploy.yaml`.
-3. Move unsupported env-var config out of the manifest.
-4. Keep secrets explicit and dev-only values clearly labeled.
-5. Update setup/deployment docs.
-6. Verify `./make setup && ./make deploy` reaches `/healthz`.
+1. Added a deployment `server.yaml` sample.
+2. Mounted it in the deployment manifests.
+3. Removed unsupported environment configuration.
+4. Kept secrets explicit and development-only values labeled.
+5. Updated deployment documentation.
+6. Replaced the old setup/deploy path with the owned kind workflow and
+   dependency-aware `/readyz` verification.
 
-That gives the rest of P3 a stable deployment contract to build on.
+That slice established the deployment contract used by the later milestones.

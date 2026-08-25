@@ -167,9 +167,9 @@ func runModelAdd(ctx context.Context, args []string, out io.Writer) error {
 	recordModelAudit(ctx, store, model.AuditModelCreated, created.ID, created.Name)
 
 	fmt.Fprintf(out, "Added model %s (%s)\n", created.ID, created.Name)
-	fmt.Fprintf(out, "\nTo let a team use it, add an alias to server.yaml:\n\n"+
-		"  llm:\n    default_alias: default\n    aliases:\n      default: %s\n\nThen restart the server.\n",
-		created.ID)
+	fmt.Fprintf(out, "It is available immediately to signed-in users as %q.\n", created.Name)
+	fmt.Fprintf(out, "To make it the default when a client names none, set in server.yaml:\n\n"+
+		"  llm:\n    default_model: %s\n\nThen restart the server.\n", created.Name)
 	return nil
 }
 

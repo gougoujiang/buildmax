@@ -77,8 +77,8 @@ Several required pieces already exist:
   to an Issue.
 - CLI and Desktop can authenticate to a Server without moving their Agent loop
   off the local machine.
-- Managed models let a connected local client use Team-approved model aliases
-  without holding a provider credential.
+- Managed models let a connected local client use the deployment's model
+  catalog without holding a provider credential.
 - An authenticated local Agent can publish a unified Artifact to the Server.
 - The current surface-positioning decision already permits an assigned-work
   inbox, starting a local Session from an Issue, and returning results.

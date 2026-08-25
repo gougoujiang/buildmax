@@ -113,8 +113,9 @@ export function AdminModels({ token }: { token: string | null }) {
           &lt;key&gt; --model &lt;id&gt;
         </code>
         <p className="admin-scope-note">
-          A model becomes usable once an alias in <code>server.yaml</code> points at its
-          id. Aliases are configuration, so changing them is a deploy rather than a click.
+          Every enabled catalog entry is available to signed-in users. Its name is the
+          stable client-facing identifier; <code>llm.default_model</code> selects the
+          default when a client names none.
         </p>
       </section>
     </div>

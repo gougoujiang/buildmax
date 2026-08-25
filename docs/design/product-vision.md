@@ -1,232 +1,160 @@
-# Agent-Mediated AI-Native Workspace
+# BuildMax Product Vision
 
-**Product direction · current**
-*Long-range design reference for the BuildMax AI-native workspace.*
+> **Audience:** contributors, product designers, and operators · **Status:** current decision
 
----
+Related: [roadmap](../ROADMAP.md),
+[surface positioning](surface-positioning.md),
+[Issue model](issue-model.md), and
+[Portal execution model](portal-execution-model.md).
 
-## 1. High-Level Idea
+## Product Promise
 
-An **AI-native workspace** where:
+BuildMax is an out-of-the-box, privately deployable enterprise Agent platform
+powered by one shared Go Agent Core.
 
-- Users express **intent**, not tool operations.
-- AI agents operate on a **versioned, text-based workspace**.
-- All state is stored as structured text (Markdown, CSV, JSON, YAML).
-- Every change is reversible.
-- Git acts as the hidden state engine.
-- Containers provide isolated execution environments.
+The same runtime serves three operating profiles:
 
-**Paradigm shift:**
+- direct local execution through CLI/TUI and Desktop;
+- team collaboration and governance through Server and Portal; and
+- durable background execution through worker TaskRuns.
 
-| Traditional | AI-Native |
-|-------------|-----------|
-| Human → UI → Tool → Data | Human → Agent → Workspace → Versioned State |
+A Server is optional for local use. Connecting a local client adds identity,
+managed models, Team work, and publication to the private deployment; it does
+not turn local execution into a remote-only product.
 
-Work shifts from **operating software** to **expressing goals**.
+## Product Model
 
----
+### One Agent Core, Several Surfaces
 
-## 2. Key Concepts
+Important Agent capability belongs in the shared runtime first. CLI, Desktop,
+Portal conversations, and workers may present and authorize that capability
+differently, but they must not grow separate tool-calling loops or incompatible
+execution semantics.
 
-### 2.1 Text as a First-Class Citizen
+[Surface positioning](surface-positioning.md) owns the detailed division:
 
-All core artifacts are text-based and machine-readable:
+- CLI/TUI is the fastest local Agent surface;
+- Desktop is the local personal Agent workbench;
+- Portal is the enterprise operation layer; and
+- workers execute durable background runs without speaking directly to users.
 
-- **Reports** → Markdown  
-- **Data** → CSV / JSON  
-- **Plans** → Markdown  
-- **Config** → YAML  
-- **Logs** → Text  
+### Team Owns Shared Resources
 
-**Rationale:** Diffable, versionable, explainable, AI-native.
+Team is the ownership and authorization boundary for Portal resources. Roles,
+quota, workflows, issues, conversations, tasks, artifacts, plugins, audit, and
+usage are interpreted within that boundary. Deployment-wide administration is
+a separate grant and does not imply access to another Team's content.
 
-### 2.2 Agent-Mediated Interaction
+Issue is the primary user-facing work object. It states the work, relates its
+discussion and execution, and makes results easy to find without requiring a
+user to understand scheduler internals.
 
-**Agent** = LLM + Tools + Workspace + Control Loop.
+### Foreground Orchestration And Background Execution Stay Distinct
 
-**Core loop:** Observe → Plan → Act → Observe
+A Conversation is Tier 1: it is the single voice to the user and coordinates
+foreground turns. Task plus TaskRun is Tier 2: it is durable background
+execution, reports its outcome to Tier 1, and never speaks to the user directly.
 
-The agent:
+These units may relate to the same Issue, but they keep distinct identity,
+lifecycle, authority, and storage. A future proposal may improve how work moves
+between them; it must not erase those boundaries by accident.
 
-- Reads workspace state
-- Modifies files
-- Executes code
-- Generates artifacts
-- Commits changes
+### Outcomes Are First-Class
 
-The user does **not** interact with files directly.
+Users ask for outcomes, not internal task graphs. BuildMax therefore treats a
+result summary, Artifact, and provenance as product objects rather than log
+fragments. Task, run, step, trace, and model-call pages are explanations and
+drill-down surfaces behind that outcome.
 
-### 2.3 Workspace Model
+Artifacts are explicit durable publications. A worker output directory or a
+local file does not become an Artifact merely because it exists; an authorized
+producer publishes the file intentionally.
 
-| Term | Definition |
-|------|------------|
-| **Workspace** | Persistent context container |
-| **Project** | Executable work unit |
-| **Task** | Single agent execution |
+## Runtime Principles
 
-**Hierarchy:**
+### Local And Managed Modes Are Honest
 
-```
-Workspace
-├── Project
-│   ├── Tasks
-│   ├── Artifacts
-│   ├── Commits
-│   └── Container Runtime
-└── Memory (long-term context)
-```
+A local client either calls a locally configured provider or, after login,
+calls models supplied by its BuildMax deployment. The two modes do not merge
+catalogs or credentials. Direct local mode remains useful without a Server;
+managed mode keeps provider credentials server-side.
 
-### 2.4 Versioned Reality (Git as Infrastructure)
+### Trust Boundaries Are Visible
 
-Git is **internal only** — hidden from the user.
+Tool permissions, hooks, sandboxing, traces, worker credentials, and plugin
+pins must describe the boundary that actually applied. A recorded downgrade is
+better than an implied sandbox that did not run, but security-sensitive policy
+may still choose to fail closed. BuildMax must not claim containment, egress
+restriction, approval, or recovery behavior it does not enforce.
 
-For every task, the system:
+Every run produces bounded, redacted trace evidence by default. Trace failure
+is fail-open for execution, but the surface should state when evidence is
+missing.
 
-- Creates a snapshot
-- Records changes
-- Generates a semantic change summary
-- Supports restore
+### Durability Is Scoped, Not Magical
 
-**Principles:** Write access by default; reversible by design.
+Each durable object names its own persistence and recovery contract:
 
-**User sees:** Activity timeline, what changed, restore option.  
-**User does not see:** commit, branch, merge, diff.
-
-### 2.5 Container Runtime
-
-Each project runs inside an isolated container with:
-
-- Controlled execution
-- Restricted command policy
-- Resource limits
-
-The agent operates only within the workspace boundary.
-
----
-
-## 3. Work Model
-
-### 3.1 Traditional Model
-
-The user:
-
-- Opens multiple tools
-- Exports/imports data
-- Runs manual steps
-- Copies results
-- Formats reports
-
-**Work** = Tool operations.
-
-### 3.2 AI-Native Model
-
-**User:** States a goal.
-
-**Agent:**
-
-- Gathers context
-- Executes operations
-- Generates artifacts
-- Commits state
-- Explains impact
-
-**Work** = Intent → State transformation.
-
-### 3.3 Example: Sales Analysis Flow
-
-**User says:** “Prepare this month’s sales analysis.”
-
-**System:**
-
-1. Loads workspace context  
-2. Imports CSV data  
-3. Cleans data  
-4. Runs analysis  
-5. Generates Markdown report  
-6. Creates charts  
-7. Records change  
-8. Returns summary  
-
-**User sees:** Key metrics, insights, timeline entry, restore option.
-
----
-
-## 4. Design Principles
-
-1. **Intent first** — Goals over operations.  
-2. **Text is the primary representation** — All core state is text.  
-3. **State is versioned** — Every change is tracked and reversible.  
-4. **Mechanisms hidden, meaning visible** — Git/containers are implementation details.  
-5. **Write access by default, reversible by design** — Users can act freely and undo.  
-6. **Workspace is the agent’s body** — The agent lives in and acts on the workspace.  
-7. **UI is visualization, not state** — The UI reflects workspace state; it does not own it.
-
----
-
-## 5. Core Architecture Summary
-
-```
-User
-  ↓
-Conversation Agent (Intent → Plan)
-  ↓
-Operator Agent (Execute in Container)
-  ↓
-Workspace (Text-Based State)
-  ↓
-Git State Engine (Hidden)
-  ↓
-Timeline + Semantic Change Narrative
-```
-
----
-
-## 6. Mental Model for Users
-
-Users should feel:
-
-- “I describe what I want.”
-- “The system understands my work.”
-- “It remembers context.”
-- “I can always go back.”
-- “I don’t need to manage tools.”
-
-They should **not** feel:
-
-- “I am operating software.”
-- “I am editing files.”
-- “I am managing versions.”
-
----
-
-## 7. UI Wireframe — Landing Page
-
-Landing experience: single prompt area and recent activity.
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│  🧠 Nexus                                    ⚙️  Profile    │
-│  Workspace: Sales Team                                        │
-├──────────────────────────────────────────────────────────────┤
-│                                                              │
-│              What would you like to accomplish?              │
-│                                                              │
-│      ┌──────────────────────────────────────────────────┐   │
-│      │ Help me prepare this month's sales analysis       │   │
-│      └──────────────────────────────────────────────────┘   │
-│                                                              │
-│                         [  Run  ]                            │
-│                                                              │
-├──────────────────────────────────────────────────────────────┤
-│  Recent Activity                                             │
-│                                                              │
-│  • Generated sales report (Today 10:42 AM)                   │
-│  • Updated February revenue data                             │
-│  • Created pricing draft                                     │
-│                                                              │
-└──────────────────────────────────────────────────────────────┘
-```
-
----
-
-*End of reference. Prototype name: Nexus (or replace as needed).*
+- local Sessions use atomic bundles and linked history;
+- TaskRuns and their result delivery are Server records;
+- Artifacts have stable identities and explicit retention behavior; and
+- audit and model-call records explain shared operations.
+
+BuildMax does **not** have a generic versioned-workspace service, hidden Git
+state engine, activity timeline restore, or promise that every file change is
+reversible. Session rewind changes conversation history only; it does not undo
+tools or restore workspace files. A feature that needs snapshots, change sets,
+rollback, or cross-device workspace reconstruction requires a separately
+accepted design, ownership model, and roadmap priority.
+
+### Configuration And Execution Remain Portable
+
+The Go core and CLI/TUI remain usable as a single binary without Node. Portal
+and Desktop may use their React frontends, but the runtime must stay suitable
+for local and private deployment across supported platforms and model
+providers.
+
+## Current Concepts
+
+| Concept | Product role | Authority |
+|---|---|---|
+| Local workspace | Directory the local Agent reads and changes | Local user and operating system |
+| Local Session | Resumable interaction with one local Agent | Local session bundle |
+| Desktop Project | Local UI state around a workspace | Desktop only; not a Server entity |
+| Team | Ownership and authorization boundary | Server |
+| Issue | Primary shared work object | Team |
+| Workflow | Reusable linear plan | Team |
+| Conversation | Tier 1 foreground orchestrator and user voice | Team |
+| Task / TaskRun | Tier 2 durable background execution | Team and scheduler |
+| Artifact | Explicit durable output with stable identity | Team |
+| Plugin activation | Team allow-list and release pin for Agent selection | Team; exact pins snapshot onto a TaskRun |
+
+The table is a product map, not a database schema. Current fields and
+relationships live in the [data model](../contribute/architecture/data-model.md).
+
+## Direction For New Product Bets
+
+Open proposals are options, not extensions already promised by this vision.
+The current candidates cover:
+
+- receiving and returning Issue work from local clients;
+- synchronizing selected local Session checkpoints;
+- Session trees and structured child reports;
+- enterprise identity integration;
+- client-session and machine-credential boundaries; and
+- run-scoped Secret delivery and workload identity.
+
+Acceptance means updating the roadmap, moving durable rationale into a design
+record, and deleting the proposal. Until then, user and operator documentation
+must describe only what ships.
+
+## Decision Test
+
+A proposed capability fits BuildMax when it strengthens at least one operating
+profile without weakening the shared runtime or the Team boundary, and when its
+authority, durability, failure behavior, and evidence can be explained plainly.
+
+Prefer changes that make Agent outcomes easier to obtain, trust, and reuse.
+Reject shortcuts that create a Portal-only Agent, make a local client a second
+administration surface, let a background run speak around Tier 1, or present an
+unimplemented recovery or security boundary as product behavior.

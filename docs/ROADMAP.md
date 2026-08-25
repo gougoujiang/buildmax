@@ -196,9 +196,13 @@ The black-box vertical slice is enabling work before substantial new Agent
 capability. Framework selection is deliberately downstream of that slice; see
 [design/evaluation-system.md](design/evaluation-system.md).
 
-Code state: **not started**. `cmd/buildmax-eval` and `internal/agenteval` are
-the legacy evaluator that this priority is intended to replace, not evidence
-that the new evaluation contract or black-box slice exists.
+Code state: **partly shipped**. `evaluation/contract`, the black-box CLI and
+worker adapters, deterministic/command/trace graders, preflight, repeated and
+paired experiments, and three representative tasks are implemented.
+`cmd/buildmax-eval` is the entry point for that contract; the old `eval/`
+catalog and `internal/agenteval` are deleted. Conversation and deployment
+adapters, model-grader calibration, a private or rotating holdout, and the
+Inspect/Harbor spikes remain open.
 
 ### P3. Enterprise Deployment Loop — implementation mostly shipped; operating evidence open
 
@@ -216,11 +220,11 @@ Focus:
   shipped for CLI, TUI, Desktop, and task runs, none of which hold a provider
   key. A task run reaches it with a per-run credential; an interactive client
   reaches it with the session its user signed in with
-- operator model catalog and team model aliases behind the shared LLM contract,
-  with per-call usage recorded before any spending limit is claimed — the
-  catalog and call ledger exist; aliases are deployment-wide, not per-team
-  (see [design/llm-gateway.md](design/llm-gateway.md) for what is and is not
-  implemented)
+- an operator model catalog behind the shared LLM contract, with per-call usage
+  recorded before any spending limit is claimed — the catalog and call ledger
+  exist; catalog names and availability are deployment-wide, and the withdrawn
+  per-team alias layer must not be described as current
+  (see [design/client-modes.md](design/client-modes.md))
 - an orderly stop: a restart or a rolling upgrade drains connections, stops
   claiming runs, and lets an interrupted run report what happened instead of
   sitting in `RUNNING` until the stale-run reaper closes it
@@ -330,10 +334,11 @@ recovers. The immediate work is therefore evidence-first.
    upgrade followed by binary rollback. Add only the smallest product diagnostics
    exposed by those exercises; do not turn readiness into a destructive storage
    probe or invent metrics before deciding what an operator needs.
-3. **Start P0.6 with a small black-box contract and slice.** Define the trial
-   bundle/failure taxonomy first, then run built local, worker, conversation,
-   and boundary subjects repeatedly. This can run alongside step 2, and it
-   replaces the legacy evaluator only after it produces a useful failure bundle.
+3. **Continue P0.6 from the shipped local and worker slice.** Add conversation
+   and deployment adapters, then expand the product and trust suites around
+   repeated trials and useful failure bundles. Calibrate model graders and
+   spike Inspect/Harbor only after the local workflow shows what those tools
+   need to add. This can run alongside step 2.
 4. **Finish worker hardening as a parallel security track.** First decide and
    document fail-closed versus recorded downgrade when `bwrap` is unavailable;
    then add the backend to the image, prove the pod supports it, select
@@ -349,8 +354,9 @@ recovers. The immediate work is therefore evidence-first.
    local Issue work bridge. Durable Agent Sessions needed a decision on local
    session storage, privacy, retention, and synchronization first;
    [design/local-session-storage.md](design/local-session-storage.md) settles
-   local storage and the privacy of what it holds, and its phase 0 has landed.
-   Retention and synchronization are still open — that record leaves subagent
+   local storage and the privacy of what it holds; its atomic bundle, rewind,
+   and physical-copy fork phases have all landed. Server retention and
+   synchronization remain separate decisions — that record leaves subagent
    bundle retention as a question and puts Server synchronization outside its
    scope. Session trees/mailboxes additionally require a workspace/change-set
    ownership design. SSO and the executable half of team plugin distribution

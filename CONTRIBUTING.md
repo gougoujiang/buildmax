@@ -344,8 +344,7 @@ The rest:
 - Preserve existing public behavior unless the pull request explicitly documents
   a breaking change.
 
-CI runs the documented fresh-clone quickstart, `gofmt`, a `go mod tidy`
-cleanliness check, build, vet, golangci-lint,
+CI runs `gofmt`, a `go mod tidy` cleanliness check, build, vet, golangci-lint,
 govulncheck, and the test suite — with `-race` on Linux — for Go on Linux and
 Windows. It builds all three frontends, requires zero lint warnings in Portal
 and Desktop, runs both frontend test suites, scans Git history for secrets,

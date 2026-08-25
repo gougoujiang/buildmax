@@ -14,7 +14,7 @@ the environment, because they must be known before any file can be read.
 | `<workspace>/.buildmax/hooks.yaml` | CLI, Desktop | Per-workspace hook overlay, additive to global hooks |
 | `<BUILDMAX_HOME>/mcp.json` | CLI, Desktop, Worker | MCP servers, merged with the workspace file |
 | `<workspace>/.buildmax/mcp.json` | CLI, Desktop | Per-workspace MCP servers; wins on a duplicate server id |
-| `<BUILDMAX_HOME>/plugins/<name>/` | CLI, Desktop | An installed plugin; see [guide/plugins.md](../guide/plugins.md) |
+| `<BUILDMAX_HOME>/plugins/<name>/` | CLI, Desktop, Worker | An installed local plugin, or an exact Team-activated release materialized into a run-scoped worker home; see [guide/plugins.md](../guide/plugins.md) |
 | `<workspaces_dir>/.marketplace/` | Server | Published plugin packages, when the deployment has no object store |
 
 `BUILDMAX_HOME` defaults to `~/.buildmax`. Copy the starting points from

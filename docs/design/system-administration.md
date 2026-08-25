@@ -669,12 +669,11 @@ Acceptance met: a model can be retired from Portal, the catalog response
 contains no key, and the trail does not distinguish a CLI toggle from an API
 one except by actor — a command names the binary, the route names a person.
 
-One addition the sketch did not have: **the response says which aliases point
-at each model**, and the page marks a model with none. Enabled and unreachable
-is the most common reason an operator's model "does not work", and nothing else
-in the product reports it. Aliases themselves stay configuration — changing one
-is a deploy rather than a click, for the same reason §7.2 gives for the rest of
-the configuration.
+One addition the sketch did not have: **the response says which model name is
+the deployment default**. Every enabled catalog entry is callable by every user
+of the deployment, and its unique name is the stable client-facing identifier;
+the alias layer and per-Team model policy were withdrawn by
+[client-modes.md](client-modes.md).
 
 Quota tier assignment, if it is wanted, comes after M6 with its own store
 method and its own audit action. It is the one item in §7.1 that was a feature
@@ -793,8 +792,7 @@ Manual scenarios, each of which is a claim in this document:
    which keeps an operator from having to reissue keys to whatever is calling
    the webhook. If a leaver's integrations should die permanently, that is a
    different action from disabling.
-8. Should model aliases become editable through the API? They are the last
-   piece of the model story still requiring a deploy, and the argument against
-   §7.2 makes — one replica's view of the world, or none — applies to them
-   exactly. A config store would answer this and the configuration-write
-   question together, and neither should be answered alone.
+8. ~~Should model aliases become editable through the API?~~ **Retired.**
+   [Client modes](client-modes.md) removed the alias layer: clients name the
+   unique deployment-wide catalog entry directly, and the admin response names
+   the configured default.

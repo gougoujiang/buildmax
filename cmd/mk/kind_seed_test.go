@@ -38,10 +38,10 @@ func TestAddedModelPattern(t *testing.T) {
 	output := strings.Join([]string{
 		"Added model gsyt7at6cjfr33d73mta (GPT-5.6 Luna)",
 		"",
-		"To let a team use it, add an alias to server.yaml:",
+		`It is available immediately to signed-in users as "GPT-5.6 Luna".`,
 		"",
 		"  llm:",
-		"    default_alias: default",
+		"    default_model: GPT-5.6 Luna",
 		"",
 	}, "\n")
 	match := addedModelPattern.FindStringSubmatch(output)

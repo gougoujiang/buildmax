@@ -2,7 +2,8 @@
 
 > **Audience:** contributors, operators, and product designers · **Status:**
 > partly implemented — the [section 18](#18-vertical-slice-implementation-plan) vertical slice has
-> shipped for the CLI surface; phase 2 onward is planned
+> shipped for the CLI and worker surfaces; conversation and deployment adapters
+> and phase 2 onward are planned
 >
 > **Accepted:** 2026-08-22 · **Roadmap:** P0.6
 
@@ -673,7 +674,7 @@ in section 15.3 and resolves choices section 15.4 delegated to the slice.
 |---|---|
 | `eval/001-read-summarize` … `eval/013-worker-pool` | Deleted. A few may be recreated later as low-value smoke cases under the new contract |
 | `internal/agenteval` | Deleted, formats included |
-| `cmd/buildmax-eval` | Deleted |
+| `cmd/buildmax-eval` | Rewritten as the entry point for the new contract and runner |
 | `./make eval` | Rewritten to dispatch the new runner |
 
 Four defects justify replacement rather than extension, and they are more specific than
@@ -873,9 +874,9 @@ must not proceed past the first slice without evidence from:
 1. a representative set of real BuildMax failure or manual-check scenarios;
 2. an inventory of trace fields available and missing for outcome and trust grading —
    supplied by [section 18.2](#182-trace-evidence-audit);
-3. a black-box adapter sketch for local, worker, and conversation execution — supplied for
-   local by [section 18.3](#183-black-box-adapter-sketch), which also states why the worker
-   and conversation adapters are sketched rather than built;
+3. black-box adapters for local and worker execution, plus a sketch for
+   conversation execution — the built adapters and the remaining gap are
+   recorded by [section 18.3](#183-black-box-adapter-sketch);
 4. a privacy review of trial contents, retention, and export;
 5. an initial provider-cost and repetition estimate;
 6. an Inspect/controller spike and a Harbor adapter spike; and
