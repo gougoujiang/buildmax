@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	"github.com/gougoujiang/buildmax/internal/mock"
 )
 
@@ -19,7 +19,7 @@ type fakeAdminStore struct {
 	*mock.MockAuditStore
 }
 
-func newAdminFixture(t *testing.T) (*fakeAdminStore, *model.User) {
+func newAdminFixture(t *testing.T) (*fakeAdminStore, *coreidentity.User) {
 	t.Helper()
 	users := &mock.MockUserStore{}
 	user, err := users.CreateUser(context.Background(), "alice@example.com", "")
@@ -73,8 +73,8 @@ func TestAdminGrantAndRevoke(t *testing.T) {
 		t.Fatalf("runAdminGrant: %v", err)
 	}
 	roles, err := store.ActiveSystemRoles(ctx, user.ID)
-	if err != nil || len(roles) != 1 || roles[0] != model.SystemRoleAdmin {
-		t.Fatalf("ActiveSystemRoles = %v, %v; want [%s]", roles, err, model.SystemRoleAdmin)
+	if err != nil || len(roles) != 1 || roles[0] != coreidentity.SystemRoleAdmin {
+		t.Fatalf("ActiveSystemRoles = %v, %v; want [%s]", roles, err, coreidentity.SystemRoleAdmin)
 	}
 	// An account with no password cannot use the authority it was just given,
 	// and the operator should not have to work that out for themselves.
@@ -137,7 +137,7 @@ func TestAdminRevokeLastGrantWarns(t *testing.T) {
 	if err := runAdminRevoke(ctx, []string{user.Email}, &out, store); err != nil {
 		t.Fatalf("runAdminRevoke: %v", err)
 	}
-	if !strings.Contains(out.String(), "no "+model.SystemRoleAdmin) {
+	if !strings.Contains(out.String(), "no "+coreidentity.SystemRoleAdmin) {
 		t.Errorf("revoking the last grant should say the deployment now has none, got:\n%s", out.String())
 	}
 	if !strings.Contains(out.String(), "buildmax-server admin grant") {

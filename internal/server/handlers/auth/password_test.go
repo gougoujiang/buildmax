@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	"github.com/gougoujiang/buildmax/internal/mock"
 )
 
@@ -14,7 +14,7 @@ const testPassword = "correct horse battery staple"
 
 func hashFor(t *testing.T, plaintext string) string {
 	t.Helper()
-	hash, err := model.HashPassword(plaintext)
+	hash, err := coreidentity.HashPassword(plaintext)
 	if err != nil {
 		t.Fatalf("HashPassword: %v", err)
 	}
@@ -24,12 +24,12 @@ func hashFor(t *testing.T, plaintext string) string {
 // newPasswordMux wires a handler where u1 signs in with testPassword.
 func newPasswordMux(t *testing.T, cfg Config) (*http.ServeMux, *mock.MockPasswordStore) {
 	t.Helper()
-	user := &model.User{ID: "u1", Email: "a@b.c", Name: "Alice"}
+	user := &coreidentity.User{ID: "u1", Email: "a@b.c", Name: "Alice"}
 	passwords := &mock.MockPasswordStore{Hashes: map[string]string{"u1": hashFor(t, testPassword)}}
 	if cfg.Users == nil {
 		cfg.Users = &mock.MockUserStore{
-			ByEmail: map[string]*model.User{"a@b.c": user},
-			ByID:    map[string]*model.User{"u1": user},
+			ByEmail: map[string]*coreidentity.User{"a@b.c": user},
+			ByID:    map[string]*coreidentity.User{"u1": user},
 		}
 	}
 	if cfg.Passwords == nil {
@@ -68,14 +68,14 @@ func TestPasswordLoginIssuesASession(t *testing.T) {
 // Every failure answers the same way. Telling an unknown address apart from a
 // wrong password turns the login form into a way to ask who has an account.
 func TestPasswordLoginFailuresAreIndistinguishable(t *testing.T) {
-	noPassword := &model.User{ID: "u2", Email: "nopass@b.c"}
+	noPassword := &coreidentity.User{ID: "u2", Email: "nopass@b.c"}
 	mux, _ := newPasswordMux(t, Config{
 		Users: &mock.MockUserStore{
-			ByEmail: map[string]*model.User{
+			ByEmail: map[string]*coreidentity.User{
 				"a@b.c":      {ID: "u1", Email: "a@b.c", Name: "Alice"},
 				"nopass@b.c": noPassword,
 			},
-			ByID: map[string]*model.User{"u1": {ID: "u1", Email: "a@b.c"}, "u2": noPassword},
+			ByID: map[string]*coreidentity.User{"u1": {ID: "u1", Email: "a@b.c"}, "u2": noPassword},
 		},
 	})
 
@@ -124,7 +124,7 @@ func TestSetPasswordRequiresTheCurrentOneWhenThereIsOne(t *testing.T) {
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want 401", rec.Code)
 	}
-	if model.VerifyPassword(passwords.Hashes["u1"], next) {
+	if coreidentity.VerifyPassword(passwords.Hashes["u1"], next) {
 		t.Fatal("the password changed without the current one")
 	}
 
@@ -134,7 +134,7 @@ func TestSetPasswordRequiresTheCurrentOneWhenThereIsOne(t *testing.T) {
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("status = %d, body %s", rec.Code, rec.Body.String())
 	}
-	if !model.VerifyPassword(passwords.Hashes["u1"], next) {
+	if !coreidentity.VerifyPassword(passwords.Hashes["u1"], next) {
 		t.Error("the new password was not stored")
 	}
 }
@@ -143,13 +143,13 @@ func TestSetPasswordRequiresTheCurrentOneWhenThereIsOne(t *testing.T) {
 // which is the strongest proof this deployment has, and there is no current
 // password to present.
 func TestSetFirstPasswordNeedsOnlyTheSession(t *testing.T) {
-	user := &model.User{ID: "u1", Email: "a@b.c", Name: "Alice"}
+	user := &coreidentity.User{ID: "u1", Email: "a@b.c", Name: "Alice"}
 	passwords := &mock.MockPasswordStore{}
 	mux := http.NewServeMux()
 	New(Config{
 		Users: &mock.MockUserStore{
-			ByEmail: map[string]*model.User{"a@b.c": user},
-			ByID:    map[string]*model.User{"u1": user},
+			ByEmail: map[string]*coreidentity.User{"a@b.c": user},
+			ByID:    map[string]*coreidentity.User{"u1": user},
 		},
 		LoginCodes: &mock.MockLoginCodeStore{Codes: map[string]*mock.MockLoginCode{
 			"code-1": {UserID: "u1", ExpiresAt: time.Now().Add(time.Hour).UTC()},
@@ -172,7 +172,7 @@ func TestSetFirstPasswordNeedsOnlyTheSession(t *testing.T) {
 	if rec.Code != http.StatusNoContent {
 		t.Fatalf("status = %d, body %s", rec.Code, rec.Body.String())
 	}
-	if !model.VerifyPassword(passwords.Hashes["u1"], chosen) {
+	if !coreidentity.VerifyPassword(passwords.Hashes["u1"], chosen) {
 		t.Fatal("the first password was not stored")
 	}
 

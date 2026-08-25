@@ -393,11 +393,14 @@ func exprString(e ast.Expr) string {
 // TestModelIdentifiersCrossAsStrings fails when a domain struct carries an
 // identifier as a number.
 //
-// internal/core/model is what every boundary serializes: an API response, a
-// JWT claim, an object key, a trace record, a WebSocket frame. Keeping row keys
-// out of it is what keeps them out of all of those at once, and it is why the
+// internal/core is what every boundary serializes: an API response, a JWT
+// claim, an object key, a trace record, a WebSocket frame. Keeping row keys out
+// of it is what keeps them out of all of those at once, and it is why the
 // models lost their ID uint rather than hiding it behind json:"-" -- a field
 // that exists is a field a log line or a mock can reach.
+//
+// The whole tree is scanned, not one package: a domain moving into its own
+// package must not move out of this rule with it.
 func TestModelIdentifiersCrossAsStrings(t *testing.T) {
 	root := moduleRoot(t)
 	// Numeric fields whose name ends in ID but which count something rather
@@ -406,7 +409,7 @@ func TestModelIdentifiersCrossAsStrings(t *testing.T) {
 		"AuditCursor.ID": false, // a keyset position, and it is the public handle
 	}
 	checked := 0
-	for _, path := range goFiles(t, filepath.Join(root, "internal/core/model")) {
+	for _, path := range goFiles(t, filepath.Join(root, "internal/core")) {
 		if strings.HasSuffix(path, "_test.go") {
 			continue
 		}
@@ -441,6 +444,6 @@ func TestModelIdentifiersCrossAsStrings(t *testing.T) {
 		})
 	}
 	if checked == 0 {
-		t.Fatal("found no identifier fields in internal/core/model")
+		t.Fatal("found no identifier fields in internal/core")
 	}
 }

@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	buildmaxlog "github.com/gougoujiang/buildmax/internal/infra/log"
 	"github.com/gougoujiang/buildmax/internal/server/authtoken"
@@ -49,7 +49,7 @@ type Scheduler struct {
 	// users answers whether the account that created a run may still have work
 	// executed for it. Nil means the check is skipped, which is what a
 	// deployment with no user store has.
-	users        model.UserStore
+	users        coreidentity.UserStore
 	runner       WorkerRunner
 	mintRunToken MintRunToken
 	pollInterval time.Duration
@@ -112,7 +112,7 @@ func NewSchedulerWithPollInterval(taskRunStore coretask.RunStore, runner WorkerR
 // optional: a deployment with no user store schedules exactly as it did before,
 // and the three existing call sites do not have to learn about accounts to keep
 // compiling.
-func (s *Scheduler) WithUserStore(users model.UserStore) *Scheduler {
+func (s *Scheduler) WithUserStore(users coreidentity.UserStore) *Scheduler {
 	s.users = users
 	return s
 }

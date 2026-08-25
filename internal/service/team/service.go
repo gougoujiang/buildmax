@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 )
 
@@ -30,14 +30,14 @@ var (
 
 type Service struct {
 	Teams coreteam.Store
-	Users model.UserStore
+	Users coreidentity.UserStore
 }
 
 // Member pairs a membership with the account behind it. User is nil when the
 // deployment has no user store to resolve it against.
 type Member struct {
 	Membership coreteam.Member
-	User       *model.User
+	User       *coreidentity.User
 }
 
 type AddMemberCmd struct {
@@ -78,7 +78,7 @@ func (s *Service) ListMembers(ctx context.Context, teamID string) ([]Member, err
 	return out, nil
 }
 
-func (s *Service) AddMember(ctx context.Context, cmd AddMemberCmd) (*coreteam.Member, *model.User, error) {
+func (s *Service) AddMember(ctx context.Context, cmd AddMemberCmd) (*coreteam.Member, *coreidentity.User, error) {
 	if s.Teams == nil {
 		return nil, nil, ErrTeamsNotConfigured
 	}

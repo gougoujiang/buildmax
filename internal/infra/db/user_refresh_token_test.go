@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 )
 
 // The row must never be able to yield a working credential, so this is worth
@@ -53,7 +53,7 @@ func TestNewRefreshTokenPlaintextIsPrefixedAndUnique(t *testing.T) {
 func newRefreshTokenSession(t *testing.T, s *Store, userID, sessionID string, ttl time.Duration) string {
 	t.Helper()
 	ctx := context.Background()
-	plaintext, expiresAt, err := s.CreateRefreshToken(ctx, model.NewRefreshToken{
+	plaintext, expiresAt, err := s.CreateRefreshToken(ctx, coreidentity.NewRefreshToken{
 		UserID:    userID,
 		SessionID: sessionID,
 		Platform:  "cli",
@@ -129,7 +129,7 @@ func TestRefreshTokenReuseRevokesTheSession(t *testing.T) {
 	// test states the elapsed time rather than waiting for it.
 	later := now.Add(grace + time.Second)
 	reused, err := s.RotateRefreshToken(ctx, stolen, later, time.Hour, grace)
-	if !errors.Is(err, model.ErrRefreshTokenReused) {
+	if !errors.Is(err, coreidentity.ErrRefreshTokenReused) {
 		t.Fatalf("replaying a spent token: err = %v, want ErrRefreshTokenReused", err)
 	}
 	// The caller has to be able to record what was revoked.
@@ -143,7 +143,7 @@ func TestRefreshTokenReuseRevokesTheSession(t *testing.T) {
 
 	// The holder that did nothing wrong is signed out too. With two copies in
 	// circulation there is no way to tell which one is the thief.
-	if _, err := s.RotateRefreshToken(ctx, legitimate.Plaintext, later, time.Hour, grace); !errors.Is(err, model.ErrRefreshTokenInvalid) {
+	if _, err := s.RotateRefreshToken(ctx, legitimate.Plaintext, later, time.Hour, grace); !errors.Is(err, coreidentity.ErrRefreshTokenInvalid) {
 		t.Errorf("the session survived a reuse report: err = %v, want ErrRefreshTokenInvalid", err)
 	}
 
@@ -168,7 +168,7 @@ func TestRefreshTokenConcurrentRotationsAllSucceed(t *testing.T) {
 
 	const attempts = 8
 	now := time.Now().UTC()
-	results := make([]model.RotatedRefreshToken, attempts)
+	results := make([]coreidentity.RotatedRefreshToken, attempts)
 	errs := make([]error, attempts)
 	var wg sync.WaitGroup
 	start := make(chan struct{})
@@ -210,7 +210,7 @@ func TestRefreshTokenRejectsExpiredRevokedAndUnknown(t *testing.T) {
 		plaintext := newRefreshTokenSession(t, s, newTestUser(t, s, "refreshexp"), "as_refreshexp", time.Second)
 		// Rotate as if the clock had passed the expiry, rather than sleeping.
 		_, err := s.RotateRefreshToken(ctx, plaintext, now.Add(3600*time.Second), time.Hour, 30*time.Second)
-		if !errors.Is(err, model.ErrRefreshTokenInvalid) {
+		if !errors.Is(err, coreidentity.ErrRefreshTokenInvalid) {
 			t.Errorf("err = %v, want ErrRefreshTokenInvalid", err)
 		}
 	})
@@ -225,19 +225,19 @@ func TestRefreshTokenRejectsExpiredRevokedAndUnknown(t *testing.T) {
 		if n != 1 {
 			t.Errorf("revoked %d tokens, want 1", n)
 		}
-		if _, err := s.RotateRefreshToken(ctx, plaintext, now, time.Hour, 30*time.Second); !errors.Is(err, model.ErrRefreshTokenInvalid) {
+		if _, err := s.RotateRefreshToken(ctx, plaintext, now, time.Hour, 30*time.Second); !errors.Is(err, coreidentity.ErrRefreshTokenInvalid) {
 			t.Errorf("err = %v, want ErrRefreshTokenInvalid", err)
 		}
 	})
 
 	t.Run("unknown", func(t *testing.T) {
-		if _, err := s.RotateRefreshToken(ctx, "bmxrefresh_never-issued", now, time.Hour, 30*time.Second); !errors.Is(err, model.ErrRefreshTokenInvalid) {
+		if _, err := s.RotateRefreshToken(ctx, "bmxrefresh_never-issued", now, time.Hour, 30*time.Second); !errors.Is(err, coreidentity.ErrRefreshTokenInvalid) {
 			t.Errorf("err = %v, want ErrRefreshTokenInvalid", err)
 		}
 	})
 
 	t.Run("empty", func(t *testing.T) {
-		if _, err := s.RotateRefreshToken(ctx, "", now, time.Hour, 30*time.Second); !errors.Is(err, model.ErrRefreshTokenInvalid) {
+		if _, err := s.RotateRefreshToken(ctx, "", now, time.Hour, 30*time.Second); !errors.Is(err, coreidentity.ErrRefreshTokenInvalid) {
 			t.Errorf("err = %v, want ErrRefreshTokenInvalid", err)
 		}
 	})
@@ -263,7 +263,7 @@ func TestRevokeRefreshTokenSession(t *testing.T) {
 	if gotUser != userID || gotSession != sessionID {
 		t.Errorf("revoked user %q session %q, want %q and %q", gotUser, gotSession, userID, sessionID)
 	}
-	if _, err := s.RotateRefreshToken(ctx, rotated.Plaintext, now, time.Hour, 30*time.Second); !errors.Is(err, model.ErrRefreshTokenInvalid) {
+	if _, err := s.RotateRefreshToken(ctx, rotated.Plaintext, now, time.Hour, 30*time.Second); !errors.Is(err, coreidentity.ErrRefreshTokenInvalid) {
 		t.Errorf("a revoked token still rotates: err = %v", err)
 	}
 
@@ -298,7 +298,7 @@ func TestDeleteExpiredRefreshTokens(t *testing.T) {
 	if n < 1 {
 		t.Errorf("swept %d tokens, want at least the expired one", n)
 	}
-	if _, err := s.RotateRefreshToken(ctx, plaintext, time.Now().UTC(), time.Hour, 30*time.Second); !errors.Is(err, model.ErrRefreshTokenInvalid) {
+	if _, err := s.RotateRefreshToken(ctx, plaintext, time.Now().UTC(), time.Hour, 30*time.Second); !errors.Is(err, coreidentity.ErrRefreshTokenInvalid) {
 		t.Errorf("a swept token still rotates: err = %v", err)
 	}
 }

@@ -12,6 +12,7 @@ import (
 	"net/http"
 
 	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
@@ -26,11 +27,11 @@ type Config struct {
 	JWTSecret        string
 	DefaultQuotaTier string
 
-	Users         model.UserStore
-	LoginCodes    model.LoginCodeStore
-	RefreshTokens model.RefreshTokenStore
+	Users         coreidentity.UserStore
+	LoginCodes    coreidentity.LoginCodeStore
+	RefreshTokens coreidentity.RefreshTokenStore
 	Teams         coreteam.Store
-	Grants        model.SystemGrantStore
+	Grants        coreidentity.SystemGrantStore
 	Audits        coreaudit.Store
 	Models        coregw.ModelStore
 	Schema        model.SchemaStore
@@ -104,4 +105,4 @@ func (h *Handler) Register(mux *http.ServeMux) {
 
 // systemRoleAdmin keeps admin_system.go from importing the model package for
 // one constant.
-func systemRoleAdmin() string { return model.SystemRoleAdmin }
+func systemRoleAdmin() string { return coreidentity.SystemRoleAdmin }

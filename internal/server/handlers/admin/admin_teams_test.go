@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
@@ -99,7 +99,7 @@ func adminTeamsMux(t *testing.T) *http.ServeMux {
 	seedUser(t, users, adminUser, "admin@example.com")
 	seedUser(t, users, "u_alice", "alice@example.com")
 	grants := &mock.MockSystemGrantStore{}
-	grants.GrantForTest(adminUser, model.SystemRoleAdmin)
+	grants.GrantForTest(adminUser, coreidentity.SystemRoleAdmin)
 
 	personalOf := "u_alice"
 	teams := &mock.MockTeamStore{

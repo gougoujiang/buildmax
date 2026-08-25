@@ -15,6 +15,7 @@ import (
 	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
 	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
@@ -63,10 +64,10 @@ type AuthConfig struct {
 
 // StoresConfig holds entity store interfaces used by handlers.
 type StoresConfig struct {
-	UserStore         model.UserStore
-	LoginCodeStore    model.LoginCodeStore
-	PasswordStore     model.PasswordStore
-	RefreshTokenStore model.RefreshTokenStore
+	UserStore         coreidentity.UserStore
+	LoginCodeStore    coreidentity.LoginCodeStore
+	PasswordStore     coreidentity.PasswordStore
+	RefreshTokenStore coreidentity.RefreshTokenStore
 	TeamStore         coreteam.Store
 	WorkflowStore     coreworkflow.Store
 	AgentStore        agentdef.Store
@@ -79,9 +80,9 @@ type StoresConfig struct {
 	TaskResultDeliveryStore coretask.ResultDeliveryStore
 	LLMCallStore            coregw.CallStore
 	RunOutputLister         workroutes.RunOutputLister
-	UserWebhookKeyStore     model.UserWebhookKeyStore
+	UserWebhookKeyStore     coreidentity.UserWebhookKeyStore
 	AuditStore              coreaudit.Store
-	SystemGrantStore        model.SystemGrantStore
+	SystemGrantStore        coreidentity.SystemGrantStore
 	SchemaStore             model.SchemaStore
 	LLMModelStore           coregw.ModelStore
 	// ArtifactStore records durable files. Nil leaves the artifact routes

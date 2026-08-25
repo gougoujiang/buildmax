@@ -11,7 +11,7 @@ package artifact
 import (
 	"net/http"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/server/access"
 	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
@@ -21,7 +21,7 @@ import (
 type Config struct {
 	JWTSecret string
 
-	Users model.UserStore
+	Users coreidentity.UserStore
 	Teams coreteam.Store
 
 	// Artifacts is the capability itself. Nil means this deployment has no

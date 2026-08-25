@@ -12,7 +12,7 @@ import (
 
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	"github.com/gougoujiang/buildmax/internal/server/access"
@@ -29,9 +29,9 @@ type Config struct {
 	DefaultQuotaTier string
 
 	Teams       coreteam.Store
-	Users       model.UserStore
+	Users       coreidentity.UserStore
 	Agents      agentdef.Store
-	WebhookKeys model.UserWebhookKeyStore
+	WebhookKeys coreidentity.UserWebhookKeyStore
 	Audits      coreaudit.Store
 	// Workflows answers one question here -- which published workflows still
 	// name an agent -- so that deleting one cannot silently break them. Nil

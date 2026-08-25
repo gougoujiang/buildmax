@@ -8,7 +8,7 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 	archive "github.com/gougoujiang/buildmax/internal/infra/pluginarchive"
 	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
@@ -26,7 +26,7 @@ func pluginMux(t *testing.T) (*http.ServeMux, *mock.MockPluginStore, *mock.MockP
 	packages := mock.NewMockPluginPackageStorage()
 
 	grants := &mock.MockSystemGrantStore{}
-	grants.GrantForTest(adminUser, model.SystemRoleAdmin)
+	grants.GrantForTest(adminUser, coreidentity.SystemRoleAdmin)
 	users := &mock.MockUserStore{}
 	seedUser(t, users, adminUser, "admin@example.com")
 	audits := &mock.MockAuditStore{}

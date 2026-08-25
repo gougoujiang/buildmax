@@ -12,7 +12,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/config"
 	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	"github.com/gougoujiang/buildmax/internal/infra/db"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 )
@@ -94,7 +94,7 @@ func runUserCreate(ctx context.Context, args []string, out io.Writer, store user
 	}
 	user, err := store.CreateUser(ctx, email, sc.DefaultQuotaTier)
 	if err != nil {
-		if errors.Is(err, model.ErrEmailExists) {
+		if errors.Is(err, coreidentity.ErrEmailExists) {
 			return fmt.Errorf("%s already has an account; issue a code with: buildmax-server user login-code %s", email, email)
 		}
 		return fmt.Errorf("create user: %w", err)
@@ -115,7 +115,7 @@ func runUserSetPassword(ctx context.Context, args []string, out io.Writer, in io
 	if err != nil {
 		return err
 	}
-	raw, err := io.ReadAll(io.LimitReader(in, model.PasswordMaxLength+1))
+	raw, err := io.ReadAll(io.LimitReader(in, coreidentity.PasswordMaxLength+1))
 	if err != nil {
 		return fmt.Errorf("read password: %w", err)
 	}
@@ -125,10 +125,10 @@ func runUserSetPassword(ctx context.Context, args []string, out io.Writer, in io
 	if password == "" {
 		return errors.New("no password on stdin; pipe one in, e.g. printf '%s' '<password>' | buildmax-server user set-password <email>")
 	}
-	if err := model.ValidatePassword(password); err != nil {
+	if err := coreidentity.ValidatePassword(password); err != nil {
 		return err
 	}
-	hash, err := model.HashPassword(password)
+	hash, err := coreidentity.HashPassword(password)
 	if err != nil {
 		return err
 	}
@@ -152,7 +152,7 @@ func runUserSetPassword(ctx context.Context, args []string, out io.Writer, in io
 func runUserLoginCode(ctx context.Context, args []string, out io.Writer, store userAdminStore) error {
 	fs := flag.NewFlagSet("user login-code", flag.ContinueOnError)
 	fs.SetOutput(out)
-	ttl := fs.Duration("ttl", model.LoginCodeTTLDefault, "how long the code stays valid")
+	ttl := fs.Duration("ttl", coreidentity.LoginCodeTTLDefault, "how long the code stays valid")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -184,9 +184,9 @@ func runUserLoginCode(ctx context.Context, args []string, out io.Writer, store u
 
 // userAdminStore is the slice of the database the operator commands need.
 type userAdminStore interface {
-	model.UserStore
-	model.LoginCodeStore
-	model.PasswordStore
+	coreidentity.UserStore
+	coreidentity.LoginCodeStore
+	coreidentity.PasswordStore
 	coreaudit.Writer
 }
 

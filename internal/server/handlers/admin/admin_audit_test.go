@@ -8,7 +8,7 @@ import (
 	"time"
 
 	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 )
@@ -18,7 +18,7 @@ func auditSearchMux(t *testing.T) (*http.ServeMux, *mock.MockAuditStore) {
 	users := &mock.MockUserStore{}
 	seedUser(t, users, adminUser, "admin@example.com")
 	grants := &mock.MockSystemGrantStore{}
-	grants.GrantForTest(adminUser, model.SystemRoleAdmin)
+	grants.GrantForTest(adminUser, coreidentity.SystemRoleAdmin)
 
 	audits := &mock.MockAuditStore{Events: []coreaudit.Event{
 		// Deployment-scoped: no team-scoped reader can ever see these.

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
@@ -32,12 +32,12 @@ func TestTeamHandlers(t *testing.T) {
 		},
 	}
 	userStore := &mock.MockUserStore{
-		ByEmail: map[string]*model.User{
+		ByEmail: map[string]*coreidentity.User{
 			"u1@example.com": {ID: "u1", Email: "u1@example.com", Name: "Alice"},
 			"u2@example.com": {ID: "u2", Email: "u2@example.com", Name: "Bob"},
 			"u3@example.com": {ID: "u3", Email: "u3@example.com", Name: "Carol"},
 		},
-		ByID: map[string]*model.User{
+		ByID: map[string]*coreidentity.User{
 			"u1": {ID: "u1", Email: "u1@example.com", Name: "Alice"},
 			"u2": {ID: "u2", Email: "u2@example.com", Name: "Bob"},
 			"u3": {ID: "u3", Email: "u3@example.com", Name: "Carol"},

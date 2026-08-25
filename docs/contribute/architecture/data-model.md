@@ -195,7 +195,7 @@ losing one timestamp is not worth refusing them. They record the most recent
 login only — the login audit trail is `audit_event`, which keeps every one.
 
 `password_hash` is nullable and read only by the code that verifies a login,
-through `model.PasswordStore` rather than as a field on `model.User`. It never
+through `identity.PasswordStore` rather than as a field on `identity.User`. It never
 rides along on a user object, so no handler can serialize it by accident.
 Nullable is also what leaves room for an account authenticated somewhere else:
 an identity provider, when there is one, needs no local password to exist.

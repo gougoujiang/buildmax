@@ -142,6 +142,8 @@ internal/
 │   │                   worth recording, and how it is read and pruned
 │   ├── task/           Tier 2 durable work: the Task, its runs and their one
 │   │                   legal set of transitions, run output, and delivery
+│   ├── identity/       Who a caller is: the account, its credentials, its
+│   │                   rotating sessions, and the deployment roles it holds
 │   └── session/        Local session model; persistence lives in agentapp
 │
 ├── agentapp/           Agent runtime assembly: LLM client cache, tool registry,

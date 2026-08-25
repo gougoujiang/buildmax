@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	"github.com/gougoujiang/buildmax/internal/mock"
 )
 
@@ -29,7 +29,7 @@ func TestSchedulerDoesNotDispatchForADisabledAccount(t *testing.T) {
 
 	users := &mock.MockUserStore{}
 	disabledAt := time.Unix(1, 0).UTC()
-	users.ByID = map[string]*model.User{
+	users.ByID = map[string]*coreidentity.User{
 		"u_disabled": {ID: "u_disabled", Email: "gone@example.com", DisabledAt: &disabledAt},
 	}
 	runner := &recordingRunner{}
@@ -65,9 +65,9 @@ func TestSchedulerDoesNotDispatchForADisabledAccount(t *testing.T) {
 func TestSchedulerDispatchesForAnEnabledAccount(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
-		users model.UserStore
+		users coreidentity.UserStore
 	}{
-		{"enabled account", &mock.MockUserStore{ByID: map[string]*model.User{
+		{"enabled account", &mock.MockUserStore{ByID: map[string]*coreidentity.User{
 			"u_active": {ID: "u_active", Email: "here@example.com"},
 		}}},
 		{"no user store", nil},

@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 )
 
 type loginCodeRow struct {
@@ -37,13 +37,13 @@ func hashLoginCode(plaintext string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// CreateLoginCode implements model.LoginCodeStore.
+// CreateLoginCode implements coreidentity.LoginCodeStore.
 func (s *Store) CreateLoginCode(ctx context.Context, userID string, ttl time.Duration) (string, time.Time, error) {
 	if userID == "" {
 		return "", time.Time{}, errors.New("login code: user id required")
 	}
 	if ttl <= 0 {
-		ttl = model.LoginCodeTTLDefault
+		ttl = coreidentity.LoginCodeTTLDefault
 	}
 	b := make([]byte, loginCodeBytes)
 	if _, err := rand.Read(b); err != nil {
@@ -66,7 +66,7 @@ func (s *Store) CreateLoginCode(ctx context.Context, userID string, ttl time.Dur
 	return plaintext, expiresAt, nil
 }
 
-// ConsumeLoginCode implements model.LoginCodeStore.
+// ConsumeLoginCode implements coreidentity.LoginCodeStore.
 //
 // The redemption is a conditional UPDATE rather than a read-then-write: two
 // requests racing with the same code both match the row, and only the one whose

@@ -12,7 +12,7 @@ import (
 	"time"
 
 	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
@@ -85,8 +85,8 @@ var adminRoutes = []adminCase{
 func adminMux(t *testing.T) (*http.ServeMux, *mock.MockAuditStore) {
 	t.Helper()
 	grants := &mock.MockSystemGrantStore{}
-	grants.GrantForTest(adminUser, model.SystemRoleAdmin)
-	grants.GrantForTest(adminRevoked, model.SystemRoleAdmin)
+	grants.GrantForTest(adminUser, coreidentity.SystemRoleAdmin)
+	grants.GrantForTest(adminRevoked, coreidentity.SystemRoleAdmin)
 	revokedAt := time.Unix(500, 0).UTC()
 	grants.Grants[1].RevokedAt = &revokedAt
 
@@ -123,15 +123,15 @@ func adminMux(t *testing.T) (*http.ServeMux, *mock.MockAuditStore) {
 
 // seedUser puts an account in the store under a chosen id, which CreateUser
 // does not allow.
-func seedUser(t *testing.T, users *mock.MockUserStore, userID, email string) *model.User {
+func seedUser(t *testing.T, users *mock.MockUserStore, userID, email string) *coreidentity.User {
 	t.Helper()
 	if users.ByID == nil {
-		users.ByID = make(map[string]*model.User)
+		users.ByID = make(map[string]*coreidentity.User)
 	}
 	if users.ByEmail == nil {
-		users.ByEmail = make(map[string]*model.User)
+		users.ByEmail = make(map[string]*coreidentity.User)
 	}
-	u := &model.User{ID: userID, Email: email, CreatedAt: time.Unix(1, 0).UTC()}
+	u := &coreidentity.User{ID: userID, Email: email, CreatedAt: time.Unix(1, 0).UTC()}
 	users.ByID[userID] = u
 	users.ByEmail[email] = u
 	return u
@@ -211,7 +211,7 @@ func TestAdminDenialIsRecorded(t *testing.T) {
 // than admits.
 func TestAdminRouteFailsClosedOnStoreError(t *testing.T) {
 	grants := &mock.MockSystemGrantStore{Err: errStoreUnavailable}
-	grants.GrantForTest(adminUser, model.SystemRoleAdmin)
+	grants.GrantForTest(adminUser, coreidentity.SystemRoleAdmin)
 	h := New(Config{
 		JWTSecret: testSecret,
 		Grants:    grants,
@@ -256,7 +256,7 @@ func TestAdminMeReportsTheGrant(t *testing.T) {
 		t.Fatalf("got %d, want 200: %s", rec.Code, rec.Body.String())
 	}
 	body := rec.Body.String()
-	for _, want := range []string{adminUser, model.SystemRoleAdmin, "granted_at"} {
+	for _, want := range []string{adminUser, coreidentity.SystemRoleAdmin, "granted_at"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("response should contain %q, got %s", want, body)
 		}

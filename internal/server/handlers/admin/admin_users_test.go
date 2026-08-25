@@ -9,7 +9,7 @@ import (
 	"time"
 
 	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
@@ -44,7 +44,7 @@ func (f *disableFixture) actions() []string {
 // token stops working now rather than at expiry.
 func TestDisableRevokesSessionsAndRefusesRefresh(t *testing.T) {
 	f := newDisableFixture(t)
-	plaintext, _, err := f.sessions.CreateRefreshToken(t.Context(), model.NewRefreshToken{
+	plaintext, _, err := f.sessions.CreateRefreshToken(t.Context(), coreidentity.NewRefreshToken{
 		UserID: f.target.ID, SessionID: "as_one", Platform: "portal", TTL: time.Hour,
 	})
 	if err != nil {
@@ -196,9 +196,9 @@ func newDisableFixture(t *testing.T) *disableFixture {
 	t.Helper()
 	users := &mock.MockUserStore{}
 	grants := &mock.MockSystemGrantStore{}
-	grants.GrantForTest(adminUser, model.SystemRoleAdmin)
+	grants.GrantForTest(adminUser, coreidentity.SystemRoleAdmin)
 	// Two, so revoking one is not the last-grant case.
-	grants.GrantForTest("u_second_admin", model.SystemRoleAdmin)
+	grants.GrantForTest("u_second_admin", coreidentity.SystemRoleAdmin)
 
 	f := &disableFixture{
 		users:    users,
@@ -236,6 +236,6 @@ type disableFixture struct {
 	codes    *mock.MockLoginCodeStore
 	keys     *mock.MockUserWebhookKeyStore
 	audits   *mock.MockAuditStore
-	admin    *model.User
-	target   *model.User
+	admin    *coreidentity.User
+	target   *coreidentity.User
 }

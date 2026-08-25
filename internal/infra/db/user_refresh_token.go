@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -72,8 +72,8 @@ func newRefreshTokenPlaintext() (string, error) {
 	return refreshTokenPrefix + hex.EncodeToString(b), nil
 }
 
-// CreateRefreshToken implements model.RefreshTokenStore.
-func (s *Store) CreateRefreshToken(ctx context.Context, in model.NewRefreshToken) (string, time.Time, error) {
+// CreateRefreshToken implements coreidentity.RefreshTokenStore.
+func (s *Store) CreateRefreshToken(ctx context.Context, in coreidentity.NewRefreshToken) (string, time.Time, error) {
 	if in.UserID == "" {
 		return "", time.Time{}, errors.New("refresh token: user id required")
 	}
@@ -82,7 +82,7 @@ func (s *Store) CreateRefreshToken(ctx context.Context, in model.NewRefreshToken
 	}
 	ttl := in.TTL
 	if ttl <= 0 {
-		ttl = model.RefreshTokenTTLDefault
+		ttl = coreidentity.RefreshTokenTTLDefault
 	}
 	plaintext, err := newRefreshTokenPlaintext()
 	if err != nil {
@@ -106,26 +106,26 @@ func (s *Store) CreateRefreshToken(ctx context.Context, in model.NewRefreshToken
 	return plaintext, expiresAt, nil
 }
 
-// RotateRefreshToken implements model.RefreshTokenStore.
+// RotateRefreshToken implements coreidentity.RefreshTokenStore.
 //
 // The exchange opens with a conditional UPDATE, the same shape ConsumeLoginCode
 // uses and for the same reason: concurrent callers holding one token must not
 // both be treated as the first. Exactly one wins that UPDATE. Everyone else
 // falls through to the slower path below, which decides whether they are a
 // racing sibling process or a replay.
-func (s *Store) RotateRefreshToken(ctx context.Context, plaintext string, now time.Time, ttl, grace time.Duration) (model.RotatedRefreshToken, error) {
+func (s *Store) RotateRefreshToken(ctx context.Context, plaintext string, now time.Time, ttl, grace time.Duration) (coreidentity.RotatedRefreshToken, error) {
 	if plaintext == "" {
-		return model.RotatedRefreshToken{}, model.ErrRefreshTokenInvalid
+		return coreidentity.RotatedRefreshToken{}, coreidentity.ErrRefreshTokenInvalid
 	}
 	if ttl <= 0 {
-		ttl = model.RefreshTokenTTLDefault
+		ttl = coreidentity.RefreshTokenTTLDefault
 	}
 	if grace < 0 {
 		grace = 0
 	}
 	hash := hashRefreshToken(plaintext)
 
-	var out model.RotatedRefreshToken
+	var out coreidentity.RotatedRefreshToken
 	// Reuse is reported after the transaction rather than from inside it.
 	// Returning an error from the closure rolls the transaction back, which
 	// would undo the very revocation that makes the report meaningful.
@@ -153,7 +153,7 @@ func (s *Store) RotateRefreshToken(ctx context.Context, plaintext string, now ti
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Where("token_hash = ?", hash).First(&row).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return model.ErrRefreshTokenInvalid
+				return coreidentity.ErrRefreshTokenInvalid
 			}
 			return err
 		}
@@ -165,13 +165,13 @@ func (s *Store) RotateRefreshToken(ctx context.Context, plaintext string, now ti
 		if res.RowsAffected == 0 {
 			// Not the winner. Work out why.
 			if row.RevokedAt != nil || !row.ExpiresAt.After(now) {
-				return model.ErrRefreshTokenInvalid
+				return coreidentity.ErrRefreshTokenInvalid
 			}
 			if row.UsedAt == nil {
 				// Live, unexpired, unrevoked, unspent — yet the UPDATE matched
 				// nothing. Nothing should produce this; refuse rather than
 				// guess.
-				return model.ErrRefreshTokenInvalid
+				return coreidentity.ErrRefreshTokenInvalid
 			}
 			if now.Sub(*row.UsedAt) > grace {
 				// Spent long enough ago that a second presentation is not a
@@ -183,7 +183,7 @@ func (s *Store) RotateRefreshToken(ctx context.Context, plaintext string, now ti
 				// No new token, but the caller still needs to know whose
 				// session was just revoked in order to record it. Commit, and
 				// let the wrapper turn this into ErrRefreshTokenReused.
-				out = model.RotatedRefreshToken{UserID: ownerPublicID, SessionID: row.SessionID}
+				out = coreidentity.RotatedRefreshToken{UserID: ownerPublicID, SessionID: row.SessionID}
 				reused = true
 				return nil
 			}
@@ -212,7 +212,7 @@ func (s *Store) RotateRefreshToken(ctx context.Context, plaintext string, now ti
 			Update("replaced_by", nextHash).Error; err != nil {
 			return err
 		}
-		out = model.RotatedRefreshToken{
+		out = coreidentity.RotatedRefreshToken{
 			UserID:    ownerPublicID,
 			SessionID: row.SessionID,
 			Plaintext: next,
@@ -224,12 +224,12 @@ func (s *Store) RotateRefreshToken(ctx context.Context, plaintext string, now ti
 		return out, err
 	}
 	if reused {
-		return out, model.ErrRefreshTokenReused
+		return out, coreidentity.ErrRefreshTokenReused
 	}
 	return out, nil
 }
 
-// RevokeRefreshTokenSession implements model.RefreshTokenStore.
+// RevokeRefreshTokenSession implements coreidentity.RefreshTokenStore.
 func (s *Store) RevokeRefreshTokenSession(ctx context.Context, plaintext string, now time.Time) (string, string, error) {
 	if plaintext == "" {
 		return "", "", nil
@@ -249,7 +249,7 @@ func (s *Store) RevokeRefreshTokenSession(ctx context.Context, plaintext string,
 	return row.UserPublicID, row.Row.SessionID, nil
 }
 
-// RevokeSession implements model.RefreshTokenStore.
+// RevokeSession implements coreidentity.RefreshTokenStore.
 func (s *Store) RevokeSession(ctx context.Context, sessionID string, now time.Time) (int64, error) {
 	if sessionID == "" {
 		return 0, nil
@@ -260,7 +260,7 @@ func (s *Store) RevokeSession(ctx context.Context, sessionID string, now time.Ti
 	return res.RowsAffected, res.Error
 }
 
-// RevokeUserSessions implements model.RefreshTokenStore.
+// RevokeUserSessions implements coreidentity.RefreshTokenStore.
 func (s *Store) RevokeUserSessions(ctx context.Context, userID string, now time.Time) (int64, error) {
 	if userID == "" {
 		return 0, nil
@@ -278,7 +278,7 @@ func (s *Store) RevokeUserSessions(ctx context.Context, userID string, now time.
 	return res.RowsAffected, res.Error
 }
 
-// CountUserSessions implements model.RefreshTokenStore.
+// CountUserSessions implements coreidentity.RefreshTokenStore.
 //
 // Distinct session ids rather than rows: rotation leaves several live tokens in
 // one chain during the grace window, and reporting those as separate sessions
@@ -314,7 +314,7 @@ func revokeSessionTx(tx *gorm.DB, sessionID string, now time.Time) error {
 		Update("revoked_at", now).Error
 }
 
-// DeleteExpiredRefreshTokens implements model.RefreshTokenStore.
+// DeleteExpiredRefreshTokens implements coreidentity.RefreshTokenStore.
 //
 // Revoked rows are kept until they expire rather than deleted on revocation:
 // a reuse report is worth investigating, and the chain it points at should

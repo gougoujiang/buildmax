@@ -18,7 +18,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/service/conversation"
 	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
@@ -39,7 +39,7 @@ type boundaryFixture struct {
 	users  *mock.MockUserStore
 	codes  *mock.MockLoginCodeStore
 	keys   *mock.MockUserWebhookKeyStore
-	target *model.User
+	target *coreidentity.User
 }
 
 func newBoundaryFixture(t *testing.T) *boundaryFixture {
@@ -50,7 +50,7 @@ func newBoundaryFixture(t *testing.T) *boundaryFixture {
 		t.Fatalf("CreateUser: %v", err)
 	}
 	grants := &mock.MockSystemGrantStore{}
-	grants.GrantForTest(adminUser, model.SystemRoleAdmin)
+	grants.GrantForTest(adminUser, coreidentity.SystemRoleAdmin)
 	audits := &mock.MockAuditStore{}
 	codes := &mock.MockLoginCodeStore{}
 	keys := &mock.MockUserWebhookKeyStore{}
@@ -180,7 +180,7 @@ func TestDisabledAccountCannotLogIn(t *testing.T) {
 
 func TestSystemGrantIsNotATeamKey(t *testing.T) {
 	grants := &mock.MockSystemGrantStore{}
-	grants.GrantForTest(adminUser, model.SystemRoleAdmin)
+	grants.GrantForTest(adminUser, coreidentity.SystemRoleAdmin)
 
 	mux := matrixMuxWithGrants(t, grants)
 	for _, c := range teamRoutes {

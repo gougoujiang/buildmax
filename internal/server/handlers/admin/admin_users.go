@@ -8,13 +8,13 @@ import (
 	"time"
 
 	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 )
 
 // AdminUser is one account as an administrator sees it.
 //
-// It is a response struct rather than model.User on purpose. A row struct
+// It is a response struct rather than coreidentity.User on purpose. A row struct
 // serialized straight out is how a password hash reaches a client, and this is
 // the surface where that would matter most — see the secret assertion in
 // system_authz_matrix_test.go.
@@ -30,7 +30,7 @@ type AdminUser struct {
 	CreatedAt         time.Time  `json:"created_at"`
 }
 
-func toAdminUser(u model.User) AdminUser {
+func toAdminUser(u coreidentity.User) AdminUser {
 	return AdminUser{
 		ID:                u.ID,
 		Email:             u.Email,
@@ -186,7 +186,7 @@ func (h *Handler) createAdminUserHandler(w http.ResponseWriter, r *http.Request)
 	}
 	user, err := h.cfg.Users.CreateUser(r.Context(), email, h.cfg.DefaultQuotaTier)
 	if err != nil {
-		if errors.Is(err, model.ErrEmailExists) {
+		if errors.Is(err, coreidentity.ErrEmailExists) {
 			httputil.WriteJSONError(w, http.StatusConflict, "email already registered")
 			return
 		}
@@ -217,7 +217,7 @@ func (h *Handler) issueAdminLoginCodeHandler(w http.ResponseWriter, r *http.Requ
 		httputil.WriteJSONError(w, http.StatusConflict, "the account is disabled; enable it before issuing a code")
 		return
 	}
-	code, expiresAt, err := h.cfg.LoginCodes.CreateLoginCode(r.Context(), user.ID, model.LoginCodeTTLDefault)
+	code, expiresAt, err := h.cfg.LoginCodes.CreateLoginCode(r.Context(), user.ID, coreidentity.LoginCodeTTLDefault)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_login_code", "user_id", user.ID)
 		return
@@ -256,7 +256,7 @@ func (h *Handler) setAdminUserDisabledHandler(disable bool) http.HandlerFunc {
 			action = coreaudit.UserDisabled
 		}
 		if err := h.cfg.Users.SetUserDisabled(r.Context(), user.ID, disabledAt); err != nil {
-			if errors.Is(err, model.ErrUserNotFound) {
+			if errors.Is(err, coreidentity.ErrUserNotFound) {
 				httputil.WriteJSONError(w, http.StatusNotFound, "account not found")
 				return
 			}
@@ -313,7 +313,7 @@ func (h *Handler) revokeAdminUserSessionsHandler(w http.ResponseWriter, r *http.
 }
 
 // adminTargetUser resolves the {user_id} an admin route acts on.
-func (h *Handler) adminTargetUser(w http.ResponseWriter, r *http.Request) (*model.User, bool) {
+func (h *Handler) adminTargetUser(w http.ResponseWriter, r *http.Request) (*coreidentity.User, bool) {
 	if !httputil.RequireStore(w, h.cfg.Users, "accounts not configured") {
 		return nil, false
 	}

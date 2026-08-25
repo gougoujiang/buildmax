@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 )
 
 func openUserAdminStore(t *testing.T) (*Store, context.Context) {
@@ -25,7 +25,7 @@ func openUserAdminStore(t *testing.T) (*Store, context.Context) {
 	return s, ctx
 }
 
-func createTestUser(t *testing.T, s *Store, ctx context.Context) *model.User {
+func createTestUser(t *testing.T, s *Store, ctx context.Context) *coreidentity.User {
 	t.Helper()
 	email := testPublicID(t) + "@example.com"
 	user, err := s.CreateUser(ctx, email, "")
@@ -74,7 +74,7 @@ func TestSetUserDisabled(t *testing.T) {
 		t.Fatalf("after enable: %+v, %v", got, err)
 	}
 
-	if err := s.SetUserDisabled(ctx, testPublicID(t), &now); !errors.Is(err, model.ErrUserNotFound) {
+	if err := s.SetUserDisabled(ctx, testPublicID(t), &now); !errors.Is(err, coreidentity.ErrUserNotFound) {
 		t.Errorf("disabling an unknown account = %v, want ErrUserNotFound", err)
 	}
 }
@@ -117,7 +117,7 @@ func TestRevokeUserSessionsAndCount(t *testing.T) {
 	now := time.Now().UTC()
 
 	for _, sessionID := range []string{"as_one", "as_two"} {
-		if _, _, err := s.CreateRefreshToken(ctx, model.NewRefreshToken{
+		if _, _, err := s.CreateRefreshToken(ctx, coreidentity.NewRefreshToken{
 			UserID: user.ID, SessionID: sessionID, Platform: "portal", TTL: time.Hour,
 		}); err != nil {
 			t.Fatalf("CreateRefreshToken: %v", err)
@@ -125,7 +125,7 @@ func TestRevokeUserSessionsAndCount(t *testing.T) {
 	}
 	// A second token in an existing chain, as rotation leaves during the grace
 	// window. It must not read as a third session.
-	if _, _, err := s.CreateRefreshToken(ctx, model.NewRefreshToken{
+	if _, _, err := s.CreateRefreshToken(ctx, coreidentity.NewRefreshToken{
 		UserID: user.ID, SessionID: "as_one", Platform: "portal", TTL: time.Hour,
 	}); err != nil {
 		t.Fatalf("CreateRefreshToken: %v", err)

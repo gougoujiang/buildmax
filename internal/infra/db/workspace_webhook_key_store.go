@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 
 	"github.com/gougoujiang/buildmax/internal/util"
 
@@ -78,7 +78,7 @@ func (s *Store) GetUserIDByKey(ctx context.Context, plaintextKey string) (userID
 }
 
 // ListKeys returns key metadata for the user.
-func (s *Store) ListKeys(ctx context.Context, userID string) ([]model.WebhookKeyMeta, error) {
+func (s *Store) ListKeys(ctx context.Context, userID string) ([]coreidentity.WebhookKeyMeta, error) {
 	userKey, err := lookupKey(ctx, s.db, "user", userID)
 	if errors.Is(err, apierr.ErrNotFound) {
 		return nil, nil
@@ -90,9 +90,9 @@ func (s *Store) ListKeys(ctx context.Context, userID string) ([]model.WebhookKey
 	if err := s.db.WithContext(ctx).Where("user_id = ?", userKey).Order("created_at ASC").Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	out := make([]model.WebhookKeyMeta, len(rows))
+	out := make([]coreidentity.WebhookKeyMeta, len(rows))
 	for i := range rows {
-		out[i] = model.WebhookKeyMeta{KeyID: rows[i].PublicID, Name: rows[i].Name, CreatedAt: rows[i].CreatedAt}
+		out[i] = coreidentity.WebhookKeyMeta{KeyID: rows[i].PublicID, Name: rows[i].Name, CreatedAt: rows[i].CreatedAt}
 	}
 	return out, nil
 }

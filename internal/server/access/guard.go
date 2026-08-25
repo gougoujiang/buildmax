@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
@@ -22,9 +22,9 @@ const DisabledMessage = "account_disabled"
 // handling.
 type Guard struct {
 	JWTSecret string
-	Users     model.UserStore
+	Users     coreidentity.UserStore
 	Teams     coreteam.Store
-	Grants    model.SystemGrantStore
+	Grants    coreidentity.SystemGrantStore
 	// Audit records refusals. Nil discards them, which is what a deployment
 	// without a database has.
 	Audit *audit.Recorder
@@ -231,7 +231,7 @@ func (g *Guard) SystemAdmin(w http.ResponseWriter, r *http.Request) (string, boo
 		return "", false
 	}
 	for _, role := range roles {
-		if role == model.SystemRoleAdmin {
+		if role == coreidentity.SystemRoleAdmin {
 			return userID, true
 		}
 	}
@@ -268,7 +268,7 @@ func DeniedRouteName(r *http.Request) string {
 
 // RejectDisabled writes the refusal for a disabled account and reports whether
 // the caller may continue. The login paths use it so the rule is stated once.
-func (g *Guard) RejectDisabled(w http.ResponseWriter, user *model.User) bool {
+func (g *Guard) RejectDisabled(w http.ResponseWriter, user *coreidentity.User) bool {
 	if user == nil || !user.Disabled() {
 		return true
 	}

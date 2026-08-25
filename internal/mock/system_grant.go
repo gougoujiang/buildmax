@@ -6,12 +6,12 @@ import (
 	"time"
 
 	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 )
 
-// MockSystemGrantStore is an in-memory model.SystemGrantStore for tests.
+// MockSystemGrantStore is an in-memory coreidentity.SystemGrantStore for tests.
 type MockSystemGrantStore struct {
-	Grants []model.SystemGrant
+	Grants []coreidentity.SystemGrant
 	// Err, when set, is returned by every read so a caller's behaviour on a
 	// store failure can be exercised. An authorization check that fails open
 	// on a database error is the bug worth having a test for.
@@ -21,7 +21,7 @@ type MockSystemGrantStore struct {
 // GrantForTest adds an active grant without going through the validation
 // GrantSystemRole applies. Test setup, not a store method.
 func (m *MockSystemGrantStore) GrantForTest(userID, role string) {
-	m.Grants = append(m.Grants, model.SystemGrant{
+	m.Grants = append(m.Grants, coreidentity.SystemGrant{
 		ID:        "sg_" + userID + "_" + role,
 		UserID:    userID,
 		Role:      role,
@@ -43,11 +43,11 @@ func (m *MockSystemGrantStore) ActiveSystemRoles(_ context.Context, userID strin
 	return out, nil
 }
 
-func (m *MockSystemGrantStore) ListSystemGrants(_ context.Context, includeRevoked bool) ([]model.SystemGrant, error) {
+func (m *MockSystemGrantStore) ListSystemGrants(_ context.Context, includeRevoked bool) ([]coreidentity.SystemGrant, error) {
 	if m.Err != nil {
 		return nil, m.Err
 	}
-	var out []model.SystemGrant
+	var out []coreidentity.SystemGrant
 	for _, g := range m.Grants {
 		if includeRevoked || g.Active() {
 			out = append(out, g)
@@ -57,19 +57,19 @@ func (m *MockSystemGrantStore) ListSystemGrants(_ context.Context, includeRevoke
 	return out, nil
 }
 
-func (m *MockSystemGrantStore) GrantSystemRole(_ context.Context, userID, role, grantedBy string, now time.Time) (*model.SystemGrant, error) {
+func (m *MockSystemGrantStore) GrantSystemRole(_ context.Context, userID, role, grantedBy string, now time.Time) (*coreidentity.SystemGrant, error) {
 	if m.Err != nil {
 		return nil, m.Err
 	}
-	if !model.ValidSystemRole(role) {
-		return nil, model.ErrSystemRoleUnknown
+	if !coreidentity.ValidSystemRole(role) {
+		return nil, coreidentity.ErrSystemRoleUnknown
 	}
 	for _, g := range m.Grants {
 		if g.UserID == userID && g.Role == role && g.Active() {
-			return nil, model.ErrSystemGrantExists
+			return nil, coreidentity.ErrSystemGrantExists
 		}
 	}
-	grant := model.SystemGrant{
+	grant := coreidentity.SystemGrant{
 		ID:        "sg_" + userID + "_" + role,
 		UserID:    userID,
 		Role:      role,

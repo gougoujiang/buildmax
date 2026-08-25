@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
@@ -166,7 +166,7 @@ func matrixMux(t *testing.T) *http.ServeMux {
 // matrixMuxWithGrants is matrixMux with a deployment-scoped grant store, so
 // the team matrix can also be driven by a system administrator. That caller
 // must be refused by every route here — see TestSystemGrantIsNotATeamKey.
-func matrixMuxWithGrants(t *testing.T, grants model.SystemGrantStore) *http.ServeMux {
+func matrixMuxWithGrants(t *testing.T, grants coreidentity.SystemGrantStore) *http.ServeMux {
 	t.Helper()
 	teams := &mock.MockTeamStore{
 		Teams: []coreteam.Team{

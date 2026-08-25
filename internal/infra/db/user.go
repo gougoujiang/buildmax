@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -35,11 +35,11 @@ type userRow struct {
 
 func (userRow) TableName() string { return "user" }
 
-func toUser(row *userRow) *model.User {
+func toUser(row *userRow) *coreidentity.User {
 	if row == nil {
 		return nil
 	}
-	return &model.User{
+	return &coreidentity.User{
 		ID:                row.PublicID,
 		Email:             row.Email,
 		Name:              row.Name,
@@ -53,7 +53,7 @@ func toUser(row *userRow) *model.User {
 	}
 }
 
-func toUserRow(m *model.User) *userRow {
+func toUserRow(m *coreidentity.User) *userRow {
 	if m == nil {
 		return nil
 	}
@@ -74,7 +74,7 @@ func toUserRow(m *model.User) *userRow {
 // meant to be: an operator searching for a colleague on a deployment with a few
 // thousand accounts is not a hot path, and a prefix-only match would fail the
 // common case of searching by the part before the @.
-func (s *Store) ListUsers(ctx context.Context, query string, limit, offset int) ([]model.User, int, error) {
+func (s *Store) ListUsers(ctx context.Context, query string, limit, offset int) ([]coreidentity.User, int, error) {
 	limit, offset = clampPage(limit, offset)
 	q := s.db.WithContext(ctx).Model(&userRow{})
 	if query != "" {
@@ -88,7 +88,7 @@ func (s *Store) ListUsers(ctx context.Context, query string, limit, offset int) 
 	if err := q.Order("created_at DESC, id DESC").Limit(limit).Offset(offset).Find(&rows).Error; err != nil {
 		return nil, 0, err
 	}
-	out := make([]model.User, 0, len(rows))
+	out := make([]coreidentity.User, 0, len(rows))
 	for i := range rows {
 		out = append(out, *toUser(&rows[i]))
 	}
@@ -102,7 +102,7 @@ func (s *Store) ListUsers(ctx context.Context, query string, limit, offset int) 
 func (s *Store) SetUserDisabled(ctx context.Context, userID string, disabledAt *time.Time) error {
 	id, ok := util.CanonicalPublicID(userID)
 	if !ok {
-		return model.ErrUserNotFound
+		return coreidentity.ErrUserNotFound
 	}
 	res := s.db.WithContext(ctx).
 		Model(&userRow{}).
@@ -120,14 +120,14 @@ func (s *Store) SetUserDisabled(ctx context.Context, userID string, disabledAt *
 			return err
 		}
 		if user == nil {
-			return model.ErrUserNotFound
+			return coreidentity.ErrUserNotFound
 		}
 	}
 	return nil
 }
 
 // UserByEmail returns the user with the given email, or (nil, nil) when not found.
-func (s *Store) UserByEmail(ctx context.Context, email string) (*model.User, error) {
+func (s *Store) UserByEmail(ctx context.Context, email string) (*coreidentity.User, error) {
 	var u userRow
 	err := s.db.WithContext(ctx).Where("email = ?", email).First(&u).Error
 	if err != nil {
@@ -140,7 +140,7 @@ func (s *Store) UserByEmail(ctx context.Context, email string) (*model.User, err
 }
 
 // GetUser returns the user by user_id, or (nil, nil) when not found.
-func (s *Store) GetUser(ctx context.Context, userID string) (*model.User, error) {
+func (s *Store) GetUser(ctx context.Context, userID string) (*coreidentity.User, error) {
 	id, ok := util.CanonicalPublicID(userID)
 	if !ok {
 		return nil, nil
@@ -160,7 +160,7 @@ func (s *Store) GetUser(ctx context.Context, userID string) (*model.User, error)
 func (s *Store) UpdateLoginMeta(ctx context.Context, userID string, loginAt time.Time, platform string) error {
 	id, ok := util.CanonicalPublicID(userID)
 	if !ok {
-		return model.ErrUserNotFound
+		return coreidentity.ErrUserNotFound
 	}
 	return s.db.WithContext(ctx).
 		Model(&userRow{}).
@@ -174,15 +174,15 @@ func (s *Store) UpdateLoginMeta(ctx context.Context, userID string, loginAt time
 // CreateUser creates a user with the given email. Name is set to empty.
 // When defaultQuotaTier is non-empty, User.QuotaTier is set to it.
 // Returns ErrEmailExists if the email is already registered.
-func (s *Store) CreateUser(ctx context.Context, email string, defaultQuotaTier string) (*model.User, error) {
+func (s *Store) CreateUser(ctx context.Context, email string, defaultQuotaTier string) (*coreidentity.User, error) {
 	existing, err := s.UserByEmail(ctx, email)
 	if err != nil {
 		return nil, err
 	}
 	if existing != nil {
-		return nil, model.ErrEmailExists
+		return nil, coreidentity.ErrEmailExists
 	}
-	u := model.User{
+	u := coreidentity.User{
 		Email:     email,
 		Name:      "",
 		CreatedAt: time.Now().UTC(),
@@ -225,7 +225,7 @@ func (s *Store) CreateUser(ctx context.Context, email string, defaultQuotaTier s
 	return &u, nil
 }
 
-// PasswordHash implements model.PasswordStore.
+// PasswordHash implements coreidentity.PasswordStore.
 //
 // A missing account and an account with no password both return "", because
 // the caller does the same thing with either: refuse, having spent the same
@@ -253,7 +253,7 @@ func (s *Store) PasswordHash(ctx context.Context, userID string) (string, error)
 	return *row.PasswordHash, nil
 }
 
-// SetPassword implements model.PasswordStore.
+// SetPassword implements coreidentity.PasswordStore.
 func (s *Store) SetPassword(ctx context.Context, userID, encodedHash string, setAt time.Time) error {
 	if userID == "" {
 		return errors.New("set password: user id required")
@@ -263,7 +263,7 @@ func (s *Store) SetPassword(ctx context.Context, userID, encodedHash string, set
 	}
 	id, ok := util.CanonicalPublicID(userID)
 	if !ok {
-		return model.ErrUserNotFound
+		return coreidentity.ErrUserNotFound
 	}
 	res := s.db.WithContext(ctx).Model(&userRow{}).
 		Where("public_id = ?", id).
@@ -272,7 +272,7 @@ func (s *Store) SetPassword(ctx context.Context, userID, encodedHash string, set
 		return res.Error
 	}
 	if res.RowsAffected == 0 {
-		return model.ErrUserNotFound
+		return coreidentity.ErrUserNotFound
 	}
 	return nil
 }

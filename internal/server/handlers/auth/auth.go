@@ -10,7 +10,7 @@ import (
 	"time"
 
 	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	"github.com/gougoujiang/buildmax/internal/server/access"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -101,21 +101,21 @@ func (h *Handler) accessTokenTTL() time.Duration {
 	if h.cfg.AccessTokenTTL > 0 {
 		return h.cfg.AccessTokenTTL
 	}
-	return model.AccessTokenTTLDefault
+	return coreidentity.AccessTokenTTLDefault
 }
 
 func (h *Handler) refreshTokenTTL() time.Duration {
 	if h.cfg.RefreshTokenTTL > 0 {
 		return h.cfg.RefreshTokenTTL
 	}
-	return model.RefreshTokenTTLDefault
+	return coreidentity.RefreshTokenTTLDefault
 }
 
 func (h *Handler) refreshRotationGrace() time.Duration {
 	if h.cfg.RefreshRotationGrace > 0 {
 		return h.cfg.RefreshRotationGrace
 	}
-	return model.RefreshRotationGraceDefault
+	return coreidentity.RefreshRotationGraceDefault
 }
 
 // issueTokenPair signs an access token for sessionID and, when the deployment
@@ -132,7 +132,7 @@ func (h *Handler) issueTokenPair(ctx context.Context, userID, platform, sessionI
 		return "", "", 0, err
 	}
 	if h.cfg.RefreshTokens != nil {
-		refreshToken, _, err = h.cfg.RefreshTokens.CreateRefreshToken(ctx, model.NewRefreshToken{
+		refreshToken, _, err = h.cfg.RefreshTokens.CreateRefreshToken(ctx, coreidentity.NewRefreshToken{
 			UserID:    userID,
 			SessionID: sessionID,
 			Platform:  platform,
@@ -175,7 +175,7 @@ func (h *Handler) loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var user *model.User
+	var user *coreidentity.User
 	var method string
 	var ok bool
 	if req.Password != "" {
@@ -268,7 +268,7 @@ func (h *Handler) refreshHandler(w http.ResponseWriter, r *http.Request) {
 	rotated, err := h.cfg.RefreshTokens.RotateRefreshToken(
 		r.Context(), req.RefreshToken, now, h.refreshTokenTTL(), h.refreshRotationGrace())
 	switch {
-	case errors.Is(err, model.ErrRefreshTokenReused):
+	case errors.Is(err, coreidentity.ErrRefreshTokenReused):
 		// The store has already revoked the session. Record it: this is the
 		// one signal a deployment gets that a credential was copied, and it
 		// arrives without anyone reporting anything.
@@ -283,7 +283,7 @@ func (h *Handler) refreshHandler(w http.ResponseWriter, r *http.Request) {
 			"handler", "refresh", "user_id", rotated.UserID, "session_id", rotated.SessionID)
 		httputil.WriteJSONError(w, http.StatusUnauthorized, "invalid refresh token")
 		return
-	case errors.Is(err, model.ErrRefreshTokenInvalid):
+	case errors.Is(err, coreidentity.ErrRefreshTokenInvalid):
 		httputil.WriteJSONError(w, http.StatusUnauthorized, "invalid refresh token")
 		return
 	case err != nil:
@@ -360,7 +360,7 @@ func (h *Handler) setPasswordHandler(w http.ResponseWriter, r *http.Request) {
 	if !httputil.DecodeJSONBody(w, r, &req) {
 		return
 	}
-	if err := model.ValidatePassword(req.NewPassword); err != nil {
+	if err := coreidentity.ValidatePassword(req.NewPassword); err != nil {
 		httputil.WriteJSONError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -370,12 +370,12 @@ func (h *Handler) setPasswordHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteInternalError(w, err, "auth handler error", "handler", "set_password", "password_hash")
 		return
 	}
-	if existing != "" && !model.VerifyPassword(existing, req.CurrentPassword) {
+	if existing != "" && !coreidentity.VerifyPassword(existing, req.CurrentPassword) {
 		httputil.WriteJSONError(w, http.StatusUnauthorized, "current password is incorrect")
 		return
 	}
 
-	hash, err := model.HashPassword(req.NewPassword)
+	hash, err := coreidentity.HashPassword(req.NewPassword)
 	if err != nil {
 		httputil.WriteJSONError(w, http.StatusBadRequest, err.Error())
 		return
@@ -460,7 +460,7 @@ const (
 const invalidPasswordMessage = "invalid email or password"
 
 // verifyPassword resolves the user a submitted password authenticates.
-func (h *Handler) verifyPassword(w http.ResponseWriter, r *http.Request, req LoginRequest) (*model.User, bool) {
+func (h *Handler) verifyPassword(w http.ResponseWriter, r *http.Request, req LoginRequest) (*coreidentity.User, bool) {
 	if h.cfg.Passwords == nil {
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "password login is not configured")
 		return nil, false
@@ -483,11 +483,11 @@ func (h *Handler) verifyPassword(w http.ResponseWriter, r *http.Request, req Log
 		// No account, or one that has never set a password. Hash anyway: the
 		// work is what makes the two cases take the same time, and time is the
 		// other channel that would answer "is this address registered".
-		model.DummyVerifyPassword(req.Password)
+		coreidentity.DummyVerifyPassword(req.Password)
 		httputil.WriteJSONError(w, http.StatusUnauthorized, invalidPasswordMessage)
 		return nil, false
 	}
-	if !model.VerifyPassword(hash, req.Password) {
+	if !coreidentity.VerifyPassword(hash, req.Password) {
 		httputil.WriteJSONError(w, http.StatusUnauthorized, invalidPasswordMessage)
 		return nil, false
 	}
@@ -506,7 +506,7 @@ func (h *Handler) verifyPassword(w http.ResponseWriter, r *http.Request, req Log
 // Single use is unaffected. Redemption is still one conditional UPDATE, so two
 // browsers submitting the same code with the right address still produce
 // exactly one session.
-func (h *Handler) verifyLoginCode(w http.ResponseWriter, r *http.Request, req LoginRequest) (*model.User, bool) {
+func (h *Handler) verifyLoginCode(w http.ResponseWriter, r *http.Request, req LoginRequest) (*coreidentity.User, bool) {
 	if h.cfg.LoginCodes == nil {
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "login codes are not configured")
 		return nil, false
@@ -594,7 +594,7 @@ func (h *Handler) otpRequestHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	_, err = h.cfg.Users.CreateUser(r.Context(), req.Email, h.cfg.DefaultQuotaTier)
 	if err != nil {
-		if errors.Is(err, model.ErrEmailExists) {
+		if errors.Is(err, coreidentity.ErrEmailExists) {
 			httputil.WriteJSONError(w, http.StatusConflict, "email already registered")
 			return
 		}

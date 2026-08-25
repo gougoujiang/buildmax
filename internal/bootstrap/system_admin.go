@@ -10,7 +10,7 @@ import (
 	"time"
 
 	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 )
 
@@ -62,8 +62,8 @@ See docs/design/system-administration.md.
 // interface rather than *db.Store is what lets the command logic be tested
 // without a database.
 type adminStore interface {
-	model.UserStore
-	model.SystemGrantStore
+	coreidentity.UserStore
+	coreidentity.SystemGrantStore
 	coreaudit.Writer
 }
 
@@ -116,16 +116,16 @@ func runAdminGrant(ctx context.Context, args []string, out io.Writer, store admi
 		return fmt.Errorf("no account for %s; create one first with: buildmax-server user create %s", email, email)
 	}
 
-	grant, err := store.GrantSystemRole(ctx, user.ID, model.SystemRoleAdmin, coreaudit.ActorOperator, time.Now().UTC())
+	grant, err := store.GrantSystemRole(ctx, user.ID, coreidentity.SystemRoleAdmin, coreaudit.ActorOperator, time.Now().UTC())
 	if err != nil {
-		if errors.Is(err, model.ErrSystemGrantExists) {
-			return fmt.Errorf("%s already holds %s", email, model.SystemRoleAdmin)
+		if errors.Is(err, coreidentity.ErrSystemGrantExists) {
+			return fmt.Errorf("%s already holds %s", email, coreidentity.SystemRoleAdmin)
 		}
-		return fmt.Errorf("grant %s: %w", model.SystemRoleAdmin, err)
+		return fmt.Errorf("grant %s: %w", coreidentity.SystemRoleAdmin, err)
 	}
 	recordSystemGrantAudit(ctx, store, coreaudit.SystemAdminGranted, user.ID)
 
-	fmt.Fprintf(out, "Granted %s to %s (%s).\n", model.SystemRoleAdmin, user.Email, user.ID)
+	fmt.Fprintf(out, "Granted %s to %s (%s).\n", coreidentity.SystemRoleAdmin, user.Email, user.ID)
 	fmt.Fprintf(out, "Grant %s, recorded in the audit trail.\n\n", grant.ID)
 	if !user.HasPassword {
 		fmt.Fprintf(out, "The account has no password yet. Let them in with:\n  buildmax-server user login-code %s\n\n", email)
@@ -147,17 +147,17 @@ func runAdminRevoke(ctx context.Context, args []string, out io.Writer, store adm
 		return fmt.Errorf("no account for %s", email)
 	}
 
-	revoked, err := store.RevokeSystemRole(ctx, user.ID, model.SystemRoleAdmin, time.Now().UTC())
+	revoked, err := store.RevokeSystemRole(ctx, user.ID, coreidentity.SystemRoleAdmin, time.Now().UTC())
 	if err != nil {
-		return fmt.Errorf("revoke %s: %w", model.SystemRoleAdmin, err)
+		return fmt.Errorf("revoke %s: %w", coreidentity.SystemRoleAdmin, err)
 	}
 	if !revoked {
-		fmt.Fprintf(out, "%s does not hold %s; nothing to revoke.\n", email, model.SystemRoleAdmin)
+		fmt.Fprintf(out, "%s does not hold %s; nothing to revoke.\n", email, coreidentity.SystemRoleAdmin)
 		return nil
 	}
 	recordSystemGrantAudit(ctx, store, coreaudit.SystemAdminRevoked, user.ID)
 
-	fmt.Fprintf(out, "Revoked %s from %s (%s).\n", model.SystemRoleAdmin, user.Email, user.ID)
+	fmt.Fprintf(out, "Revoked %s from %s (%s).\n", coreidentity.SystemRoleAdmin, user.Email, user.ID)
 	fmt.Fprint(out, "It stops working on their next request. Their sessions are untouched;\n")
 	fmt.Fprint(out, "revoke those separately if losing the role is not the whole intent.\n")
 
@@ -165,9 +165,9 @@ func runAdminRevoke(ctx context.Context, args []string, out io.Writer, store adm
 	// it is the recovery path — but an operator who did not mean to leave the
 	// deployment with none should hear about it now rather than discover it
 	// when nobody can open the admin area.
-	remaining, err := store.CountActiveSystemGrants(ctx, model.SystemRoleAdmin)
+	remaining, err := store.CountActiveSystemGrants(ctx, coreidentity.SystemRoleAdmin)
 	if err == nil && remaining == 0 {
-		fmt.Fprintf(out, "\nThis deployment now has no %s. Portal's admin area is unreachable\n", model.SystemRoleAdmin)
+		fmt.Fprintf(out, "\nThis deployment now has no %s. Portal's admin area is unreachable\n", coreidentity.SystemRoleAdmin)
 		fmt.Fprint(out, "for everyone until you run:\n  buildmax-server admin grant <email>\n")
 	}
 	return nil
@@ -234,6 +234,6 @@ func recordSystemGrantAudit(ctx context.Context, store coreaudit.Writer, action,
 		Action:     action,
 		TargetType: "user",
 		TargetID:   userID,
-		Detail:     model.SystemRoleAdmin,
+		Detail:     coreidentity.SystemRoleAdmin,
 	})
 }
