@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -33,7 +34,7 @@ func newProvenanceFixture(t *testing.T, run model.TaskRun, task model.Task) prov
 			Members: []coreteam.Member{{TeamID: "tm_1", UserID: "u1", Role: coreteam.RoleOwner}},
 		},
 		Conversations: &mock.MockConversationStore{
-			Conversations: []model.Conversation{{ID: "conv1", UserID: "u1", TeamID: "tm_1", Channel: "portal", CreatedBy: "u1"}},
+			Conversations: []coreconv.Conversation{{ID: "conv1", UserID: "u1", TeamID: "tm_1", Channel: "portal", CreatedBy: "u1"}},
 		},
 		Tasks:    &mock.MockTaskStore{List: []model.Task{task}},
 		TaskRuns: &mock.MockTaskRunStore{Runs: []model.TaskRun{run}, TaskList: []model.Task{task}},
@@ -73,7 +74,7 @@ func TestRunProvenanceQuotesTheMessageBehindTheRun(t *testing.T) {
 		TriggerSource: model.RunTriggerSourcePortalConversation, CreatedAt: time.Unix(1000, 0).UTC(),
 	}
 	f := newProvenanceFixture(t, run, provenanceTask())
-	asked, err := f.messages.AppendMessage(t.Context(), model.AppendMessageInput{
+	asked, err := f.messages.AppendMessage(t.Context(), coreconv.AppendInput{
 		ConversationID: "conv1",
 		Role:           "user",
 		Content:        "look into the flaky test, but leave the CI config alone",
@@ -109,7 +110,7 @@ func TestRunProvenanceQuotesTheMessageBehindTheRun(t *testing.T) {
 func TestRunProvenanceTruncatesALongMessage(t *testing.T) {
 	run := model.TaskRun{ID: "tr_1", TaskID: "tk_1", Input: "do it", Status: "SUCCEEDED", CreatedAt: time.Unix(1000, 0).UTC()}
 	f := newProvenanceFixture(t, run, provenanceTask())
-	asked, err := f.messages.AppendMessage(t.Context(), model.AppendMessageInput{
+	asked, err := f.messages.AppendMessage(t.Context(), coreconv.AppendInput{
 		ConversationID: "conv1",
 		Role:           "user",
 		Content:        strings.Repeat("a", sourceMessageMaxLen+50),
@@ -154,7 +155,7 @@ func TestRunProvenanceWithoutASourceMessage(t *testing.T) {
 func TestRunProvenanceIgnoresAMessageFromAnotherConversation(t *testing.T) {
 	run := model.TaskRun{ID: "tr_1", TaskID: "tk_1", Input: "do it", Status: "SUCCEEDED", CreatedAt: time.Unix(1000, 0).UTC()}
 	f := newProvenanceFixture(t, run, provenanceTask())
-	elsewhere, err := f.messages.AppendMessage(t.Context(), model.AppendMessageInput{
+	elsewhere, err := f.messages.AppendMessage(t.Context(), coreconv.AppendInput{
 		ConversationID: "conv-other",
 		Role:           "user",
 		Content:        "something said in another conversation",

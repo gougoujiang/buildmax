@@ -10,6 +10,7 @@ import (
 	"os"
 	"time"
 
+	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	"github.com/gougoujiang/buildmax/internal/service/conversation"
@@ -100,7 +101,7 @@ func (h *Handler) writeTaskServiceError(w http.ResponseWriter, r *http.Request, 
 	return httputil.WriteServiceError(w, err)
 }
 
-func (h *Handler) getTaskForTeam(w http.ResponseWriter, r *http.Request, teamID, taskID string) (*model.Task, *model.Conversation, bool) {
+func (h *Handler) getTaskForTeam(w http.ResponseWriter, r *http.Request, teamID, taskID string) (*model.Task, *coreconv.Conversation, bool) {
 	task, err := h.cfg.Tasks.GetTask(r.Context(), taskID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "get_task", "task_id", taskID)

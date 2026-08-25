@@ -4,12 +4,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 )
 
 func TestReplayMessageFromStore_SystemBecomesUser_BackwardCompat(t *testing.T) {
 	channel := "system"
-	msg := replayMessageFromStore(model.ConversationMessage{
+	msg := replayMessageFromStore(coreconv.Message{
 		Role:    "system",
 		Content: "[Task Result] status: succeeded",
 		Channel: &channel,
@@ -24,7 +24,7 @@ func TestReplayMessageFromStore_SystemBecomesUser_BackwardCompat(t *testing.T) {
 
 func TestReplayMessageFromStore_UserRolePassthrough(t *testing.T) {
 	channel := "portal"
-	msg := replayMessageFromStore(model.ConversationMessage{
+	msg := replayMessageFromStore(coreconv.Message{
 		Role:    "user",
 		Content: "hello",
 		Channel: &channel,
@@ -39,7 +39,7 @@ func TestReplayMessageFromStore_UserRolePassthrough(t *testing.T) {
 // second turn would send the protocol a turn it rejects.
 func TestReplayMessageFromStore_CarriesReasoningState(t *testing.T) {
 	stored := `{"protocol":"anthropic","data":[{"type":"thinking","signature":"sig-1"}]}`
-	msg := replayMessageFromStore(model.ConversationMessage{
+	msg := replayMessageFromStore(coreconv.Message{
 		Role:              "assistant",
 		Content:           "done",
 		ProviderStateJSON: &stored,
@@ -62,7 +62,7 @@ func TestReplayMessageFromStore_ToleratesMissingAndUnreadableState(t *testing.T)
 		"unreadable": &unreadable,
 	} {
 		t.Run(name, func(t *testing.T) {
-			msg := replayMessageFromStore(model.ConversationMessage{
+			msg := replayMessageFromStore(coreconv.Message{
 				Role: "assistant", Content: "done", ProviderStateJSON: stored,
 			})
 			if msg.ProviderState != nil {

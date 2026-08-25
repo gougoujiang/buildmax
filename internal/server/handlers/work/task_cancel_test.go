@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -44,7 +45,7 @@ func cancelFixture(t *testing.T, run model.TaskRun) (*http.ServeMux, *mock.MockT
 		},
 		Tasks:    &mock.MockTaskStore{List: []model.Task{task}},
 		TaskRuns: runs,
-		Conversations: &mock.MockConversationStore{Conversations: []model.Conversation{
+		Conversations: &mock.MockConversationStore{Conversations: []coreconv.Conversation{
 			{ID: cancelConv, UserID: cancelUser, TeamID: cancelTeam, Channel: "portal", CreatedBy: cancelUser},
 		}},
 	})

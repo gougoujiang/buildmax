@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
 	"github.com/gougoujiang/buildmax/internal/service/task"
@@ -14,7 +15,7 @@ var ErrWebhookChannelRequired = errors.New("webhook engine only accepts webhook 
 // WebhookEngine implements TurnEngine for webhook turns: no LLM, create one TaskRun.
 type WebhookEngine struct {
 	TaskService   *task.Service
-	Conversations model.ConversationStore
+	Conversations coreconv.Store
 }
 
 // Process creates exactly one TaskRun for webhook turns. Rejects other channels.

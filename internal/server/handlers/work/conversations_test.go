@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
@@ -20,7 +20,7 @@ func TestGetConversationMessagesHandler_HidesSystemMessages(t *testing.T) {
 	teamID := "tm_personal_u1"
 	channel := "system"
 	messageStore := &mock.MockConversationMessageStore{
-		Messages: []model.ConversationMessage{
+		Messages: []coreconv.Message{
 			{ID: "cm_1", ConversationID: conversationID, Role: "user", Content: "hello", CreatedAt: time.Unix(1, 0).UTC()},
 			{ID: "cm_tool", ConversationID: conversationID, Role: "tool", Content: "tool output", CreatedAt: time.Unix(2, 0).UTC()},
 			{ID: "cm_2", ConversationID: conversationID, Role: "system", Content: "[Task Result] internal", Channel: &channel, CreatedAt: time.Unix(2, 0).UTC()},
@@ -37,7 +37,7 @@ func TestGetConversationMessagesHandler_HidesSystemMessages(t *testing.T) {
 			Members: []coreteam.Member{{TeamID: teamID, UserID: "u1", Role: coreteam.RoleOwner}},
 		},
 		Conversations: &mock.MockConversationStore{
-			Conversations: []model.Conversation{
+			Conversations: []coreconv.Conversation{
 				{ID: conversationID, UserID: "u1", TeamID: teamID, Channel: "portal", CreatedBy: "u1", CreatedAt: time.Unix(123, 0).UTC()},
 			},
 		},
@@ -79,10 +79,10 @@ func TestListConversationsHidesTheOnesNobodyHolds(t *testing.T) {
 			Teams:   []coreteam.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}},
 			Members: []coreteam.Member{{TeamID: teamID, UserID: "u1", Role: coreteam.RoleOwner}},
 		},
-		Conversations: &mock.MockConversationStore{Conversations: []model.Conversation{
-			{ID: "conv_portal", UserID: "u1", TeamID: teamID, Channel: model.ChannelWorkflow, CreatedBy: "u1"},
+		Conversations: &mock.MockConversationStore{Conversations: []coreconv.Conversation{
+			{ID: "conv_portal", UserID: "u1", TeamID: teamID, Channel: coreconv.ChannelWorkflow, CreatedBy: "u1"},
 			{ID: "conv_mine", UserID: "u1", TeamID: teamID, Channel: "portal", CreatedBy: "u1"},
-			{ID: "conv_issue", UserID: "u1", TeamID: teamID, Channel: model.ChannelIssueAgent, CreatedBy: "u1"},
+			{ID: "conv_issue", UserID: "u1", TeamID: teamID, Channel: coreconv.ChannelIssueAgent, CreatedBy: "u1"},
 			{ID: "conv_hook", UserID: "u1", TeamID: teamID, Channel: "webhook", CreatedBy: "u1"},
 		}},
 	})

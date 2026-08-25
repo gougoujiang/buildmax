@@ -3,7 +3,7 @@ package channel
 import (
 	"context"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 )
 
 // Adapter normalizes channel-specific input into a Turn and can deliver output
@@ -32,8 +32,8 @@ const (
 	// ChannelWorkflow and ChannelIssueAgent are not transports and are defined
 	// in core/model with the column they are written to. They are aliased here
 	// so a caller that already speaks this package does not need both.
-	ChannelWorkflow   = model.ChannelWorkflow
-	ChannelIssueAgent = model.ChannelIssueAgent
+	ChannelWorkflow   = coreconv.ChannelWorkflow
+	ChannelIssueAgent = coreconv.ChannelIssueAgent
 )
 
 // ValidChannels returns the transport channels accepted from a caller.

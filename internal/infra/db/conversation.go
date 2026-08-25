@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 
 	"github.com/gougoujiang/buildmax/internal/util"
 	"gorm.io/gorm"
@@ -46,11 +46,11 @@ func (s *Store) conversationSelect(ctx context.Context) *gorm.DB {
 		Joins("INNER JOIN `user` cb ON cb.id = conversation.created_by")
 }
 
-func toConversation(row *conversationReadRow) *model.Conversation {
+func toConversation(row *conversationReadRow) *coreconv.Conversation {
 	if row == nil {
 		return nil
 	}
-	return &model.Conversation{
+	return &coreconv.Conversation{
 		ID:        row.Row.PublicID,
 		UserID:    row.UserPublicID,
 		TeamID:    derefPublicID(row.TeamPublicID),
@@ -61,8 +61,8 @@ func toConversation(row *conversationReadRow) *model.Conversation {
 	}
 }
 
-func toConversations(rows []conversationReadRow) []model.Conversation {
-	out := make([]model.Conversation, len(rows))
+func toConversations(rows []conversationReadRow) []coreconv.Conversation {
+	out := make([]coreconv.Conversation, len(rows))
 	for i := range rows {
 		out[i] = *toConversation(&rows[i])
 	}
@@ -70,7 +70,7 @@ func toConversations(rows []conversationReadRow) []model.Conversation {
 }
 
 // CreateConversation creates a new Tier 1 conversation. Returns the conversation with conversation_id set.
-func (s *Store) CreateConversation(ctx context.Context, userID, channel, createdBy string) (*model.Conversation, error) {
+func (s *Store) CreateConversation(ctx context.Context, userID, channel, createdBy string) (*coreconv.Conversation, error) {
 	teamID, err := s.personalTeamIDForUser(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -79,7 +79,7 @@ func (s *Store) CreateConversation(ctx context.Context, userID, channel, created
 }
 
 // CreateConversationInTeam creates a new team-scoped Tier 1 conversation.
-func (s *Store) CreateConversationInTeam(ctx context.Context, teamID, userID, channel, createdBy string) (*model.Conversation, error) {
+func (s *Store) CreateConversationInTeam(ctx context.Context, teamID, userID, channel, createdBy string) (*coreconv.Conversation, error) {
 	now := time.Now().UTC()
 	row := &conversationRow{Channel: channel, CreatedAt: now}
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -105,7 +105,7 @@ func (s *Store) CreateConversationInTeam(ctx context.Context, teamID, userID, ch
 	}); err != nil {
 		return nil, err
 	}
-	return &model.Conversation{
+	return &coreconv.Conversation{
 		ID:        row.PublicID,
 		UserID:    userID,
 		TeamID:    teamID,
@@ -116,7 +116,7 @@ func (s *Store) CreateConversationInTeam(ctx context.Context, teamID, userID, ch
 }
 
 // GetConversation returns the conversation by conversation_id, or (nil, nil) if not found.
-func (s *Store) GetConversation(ctx context.Context, conversationID string) (*model.Conversation, error) {
+func (s *Store) GetConversation(ctx context.Context, conversationID string) (*coreconv.Conversation, error) {
 	id, ok := util.CanonicalPublicID(conversationID)
 	if !ok {
 		return nil, nil
@@ -134,7 +134,7 @@ func (s *Store) GetConversation(ctx context.Context, conversationID string) (*mo
 
 // ListConversationsByUser returns conversations for the user ordered by created_at DESC.
 // total is the total count of matching conversations (ignoring limit/offset).
-func (s *Store) ListConversationsByUser(ctx context.Context, userID string, limit, offset int) ([]model.Conversation, int, error) {
+func (s *Store) ListConversationsByUser(ctx context.Context, userID string, limit, offset int) ([]coreconv.Conversation, int, error) {
 	limit, offset = capPage(limit, offset)
 	userKey, err := lookupKey(ctx, s.db, "user", userID)
 	if errors.Is(err, apierr.ErrNotFound) {
@@ -161,12 +161,12 @@ func (s *Store) ListConversationsByUser(ctx context.Context, userID string, limi
 // each create one because Task requires a conversation, not because anyone is
 // talking through it, and a team that runs either would otherwise find its own
 // conversations pushed off the first page by machinery. They are still there
-// and a link straight to one still opens it — see model.SyntheticChannels.
+// and a link straight to one still opens it — see coreconv.SyntheticChannels.
 //
 // The filter is here rather than in the caller because the page is cut here:
 // dropping the rows after the limit would leave a short page with a total that
 // disagrees with it.
-func (s *Store) ListConversationsByTeam(ctx context.Context, teamID string, limit, offset int) ([]model.Conversation, int, error) {
+func (s *Store) ListConversationsByTeam(ctx context.Context, teamID string, limit, offset int) ([]coreconv.Conversation, int, error) {
 	limit, offset = capPage(limit, offset)
 	teamKey, err := lookupKey(ctx, s.db, "team", teamID)
 	if errors.Is(err, apierr.ErrNotFound) {
@@ -177,13 +177,13 @@ func (s *Store) ListConversationsByTeam(ctx context.Context, teamID string, limi
 	}
 	var total int64
 	if err := s.db.WithContext(ctx).Model(&conversationRow{}).
-		Where("team_id = ? AND channel NOT IN ?", teamKey, model.SyntheticChannels()).
+		Where("team_id = ? AND channel NOT IN ?", teamKey, coreconv.SyntheticChannels()).
 		Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 	var list []conversationReadRow
 	err = s.conversationSelect(ctx).
-		Where("conversation.team_id = ? AND conversation.channel NOT IN ?", teamKey, model.SyntheticChannels()).
+		Where("conversation.team_id = ? AND conversation.channel NOT IN ?", teamKey, coreconv.SyntheticChannels()).
 		Order("conversation.created_at DESC").
 		Limit(limit).Offset(offset).
 		Find(&list).Error

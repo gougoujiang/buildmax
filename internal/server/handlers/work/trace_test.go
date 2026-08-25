@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
@@ -62,7 +63,7 @@ func traceTestFixture(t *testing.T, tracePath *string, persist blob.PersistStora
 			TaskList: []model.Task{{ID: taskID, ConversationID: conversationID, TeamID: teamID, Status: "FAILED", Input: "in", CreatedBy: userID, CreatedAt: time.Unix(1, 0).UTC()}},
 		},
 		Conversations: &mock.MockConversationStore{
-			Conversations: []model.Conversation{{ID: conversationID, UserID: userID, TeamID: teamID, Channel: "portal", CreatedBy: userID, CreatedAt: time.Unix(1, 0).UTC()}},
+			Conversations: []coreconv.Conversation{{ID: conversationID, UserID: userID, TeamID: teamID, Channel: "portal", CreatedBy: userID, CreatedAt: time.Unix(1, 0).UTC()}},
 		},
 		PersistStorage: persist,
 	})

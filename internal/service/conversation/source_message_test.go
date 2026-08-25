@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -53,7 +54,7 @@ func TestStartTaskRecordsTheMessageThatAskedForIt(t *testing.T) {
 	messages := &mock.MockConversationMessageStore{}
 	svc := &Service{
 		TaskService:       &task.Service{Tasks: tasks, TaskRuns: &mock.MockTaskRunStore{}},
-		ConversationStore: &mock.MockConversationStore{Conversations: []model.Conversation{{ID: conversationID, TeamID: teamID, Channel: convchannel.ChannelPortal}}},
+		ConversationStore: &mock.MockConversationStore{Conversations: []coreconv.Conversation{{ID: conversationID, TeamID: teamID, Channel: convchannel.ChannelPortal}}},
 		MessageStore:      messages,
 		LLMClient:         &toolThenReplyClient{toolName: "StartTask", args: startTaskArgs(t, "investigate the flaky test")},
 	}
@@ -105,7 +106,7 @@ func TestContinueTaskRecordsItsOwnMessage(t *testing.T) {
 	}
 	svc := &Service{
 		TaskService:       &task.Service{Tasks: tasks, TaskRuns: runs},
-		ConversationStore: &mock.MockConversationStore{Conversations: []model.Conversation{{ID: conversationID, TeamID: teamID, Channel: convchannel.ChannelPortal}}},
+		ConversationStore: &mock.MockConversationStore{Conversations: []coreconv.Conversation{{ID: conversationID, TeamID: teamID, Channel: convchannel.ChannelPortal}}},
 		MessageStore:      messages,
 		LLMClient:         &toolThenReplyClient{toolName: "ContinueTask", args: string(args)},
 	}
@@ -138,7 +139,7 @@ func TestSystemTurnCreatesNoAttributedWork(t *testing.T) {
 	tasks := &mock.MockTaskStore{}
 	svc := &Service{
 		TaskService:       &task.Service{Tasks: tasks, TaskRuns: &mock.MockTaskRunStore{}},
-		ConversationStore: &mock.MockConversationStore{Conversations: []model.Conversation{{ID: conversationID, Channel: convchannel.ChannelPortal}}},
+		ConversationStore: &mock.MockConversationStore{Conversations: []coreconv.Conversation{{ID: conversationID, Channel: convchannel.ChannelPortal}}},
 		MessageStore:      &mock.MockConversationMessageStore{},
 		LLMClient:         &toolThenReplyClient{toolName: "StartTask", args: startTaskArgs(t, "do something")},
 	}

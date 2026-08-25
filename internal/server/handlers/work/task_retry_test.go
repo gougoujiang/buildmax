@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -50,7 +51,7 @@ func retryFixture(t *testing.T, run model.TaskRun, workflows *mock.MockWorkflowS
 		},
 		Tasks:    &mock.MockTaskStore{List: []model.Task{target}},
 		TaskRuns: runs,
-		Conversations: &mock.MockConversationStore{Conversations: []model.Conversation{
+		Conversations: &mock.MockConversationStore{Conversations: []coreconv.Conversation{
 			{ID: retryConv, UserID: retryUser, TeamID: retryTeam, Channel: "portal", CreatedBy: retryUser},
 		}},
 	}

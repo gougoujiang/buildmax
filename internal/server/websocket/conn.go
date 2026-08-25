@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	"github.com/gougoujiang/buildmax/internal/server/turnqueue"
 	"github.com/gougoujiang/buildmax/internal/service/conversation"
 
@@ -89,7 +89,7 @@ func (s *wsSink) OnDelta(delta string) {
 // use for: a socket creates and reads conversations and runs turns, and that
 // is the whole list.
 type ConnDeps struct {
-	Conversations model.ConversationStore
+	Conversations coreconv.Store
 	Turns         *turnqueue.Registry
 	// Turner runs one conversation turn. An interface so this package does not
 	// depend on the service that assembles agents, models, and tools.

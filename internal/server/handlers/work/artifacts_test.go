@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
@@ -25,7 +26,7 @@ func TestListTaskArtifactsHandler(t *testing.T) {
 	token := testsupport.SignJWT(userID, secret)
 
 	mockConversations := &mock.MockConversationStore{
-		Conversations: []model.Conversation{
+		Conversations: []coreconv.Conversation{
 			{ID: conversationID, UserID: userID, TeamID: teamID, Channel: "portal", CreatedBy: userID, CreatedAt: time.Unix(1, 0).UTC()},
 		},
 	}
@@ -78,7 +79,7 @@ func TestListArtifactItemsHandler(t *testing.T) {
 	token := testsupport.SignJWT(userID, secret)
 
 	mockConversations := &mock.MockConversationStore{
-		Conversations: []model.Conversation{
+		Conversations: []coreconv.Conversation{
 			{ID: conversationID, UserID: userID, TeamID: teamID, Channel: "portal", CreatedBy: userID, CreatedAt: time.Unix(1, 0).UTC()},
 		},
 	}
@@ -123,7 +124,7 @@ func TestArtifactContentHandler(t *testing.T) {
 	token := testsupport.SignJWT(userID, secret)
 
 	mockConversations := &mock.MockConversationStore{
-		Conversations: []model.Conversation{
+		Conversations: []coreconv.Conversation{
 			{ID: conversationID, UserID: userID, TeamID: teamID, Channel: "portal", CreatedBy: userID, CreatedAt: time.Unix(1, 0).UTC()},
 		},
 	}

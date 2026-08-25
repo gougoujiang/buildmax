@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -73,7 +74,7 @@ func newDeliveryFixture(t *testing.T, failUntil int) deliveryFixture {
 	client := &countingLLMClient{failUntil: failUntil}
 	h := NewHandler(Config{
 		JWTSecret:                wsTestSecret,
-		ConversationStore:        &mock.MockConversationStore{Conversations: []model.Conversation{{ID: "conv-1", TeamID: "tm_shared"}}},
+		ConversationStore:        &mock.MockConversationStore{Conversations: []coreconv.Conversation{{ID: "conv-1", TeamID: "tm_shared"}}},
 		ConversationMessageStore: messages,
 		ConversationLLMClient:    client,
 		TaskResultDeliveries:     deliveries,
