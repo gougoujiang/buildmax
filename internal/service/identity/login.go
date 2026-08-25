@@ -19,6 +19,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
+	"github.com/gougoujiang/buildmax/internal/service/audit"
 )
 
 // Refusals a login can produce. The two 401s carry no Kind: apierr has no
@@ -90,6 +91,13 @@ type Service struct {
 	Tokens     TokenIssuer
 	Sessions   SessionIDs
 	RefreshTTL time.Duration
+	// RotationGrace is how long a just-rotated refresh token may be exchanged
+	// again before that counts as reuse. It exists because the CLI and Desktop
+	// share one credentials file between processes.
+	RotationGrace time.Duration
+	// Audit records what a deployment should be able to look back at. Nil
+	// records nothing.
+	Audit *audit.Recorder
 
 	// Now is the clock. Nil means time.Now.
 	Now func() time.Time

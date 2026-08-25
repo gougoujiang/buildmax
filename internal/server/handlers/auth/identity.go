@@ -46,5 +46,7 @@ func (h *Handler) identityService() *identitysvc.Service {
 		Tokens:        jwtIssuer{secret: h.cfg.JWTSecret, ttl: h.accessTokenTTL()},
 		Sessions:      publicIDSessions{},
 		RefreshTTL:    h.refreshTokenTTL(),
+		RotationGrace: h.refreshRotationGrace(),
+		Audit:         h.cfg.Audit,
 	}
 }
