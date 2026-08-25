@@ -2,7 +2,6 @@ package work
 
 import (
 	"context"
-	"errors"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"net/http"
 	"strings"
@@ -333,49 +332,34 @@ func (h *Handler) createIssueAgentRunHandler(w http.ResponseWriter, r *http.Requ
 			return
 		}
 	}
-	issue, err := h.issueService().GetIssue(r.Context(), teamID, issueID)
+	plan, err := h.issueService().PlanAssignedAgentRun(r.Context(),
+		issue.StartAssignedAgentCmd{TeamID: teamID, IssueID: issueID, UserID: userID, Input: req.Input},
+		h.taskService(),
+		issueConversationOpener{h: h},
+	)
 	if err != nil {
-		if h.writeIssueServiceError(w, err) {
+		if httputil.WriteServiceError(w, err) {
 			return
 		}
-		httputil.WriteInternalError(w, err, "handler error", "handler", "get_issue_for_agent_run", "issue_id", issueID)
-		return
-	}
-	if issue.AssigneeKind == nil || issue.AssigneeID == nil || *issue.AssigneeKind != coreissue.AssigneeAgent {
-		httputil.WriteJSONError(w, http.StatusBadRequest, "issue not assigned to agent")
-		return
-	}
-	// The agent has to belong to this team as well, and asking the agent
-	// service is what keeps that one rule rather than a third copy of it.
-	if _, err := h.agentService().GetAgent(r.Context(), teamID, *issue.AssigneeID); err != nil {
-		if errors.Is(err, agentsvc.ErrAgentNotFound) {
-			httputil.WriteJSONError(w, http.StatusBadRequest, "agent not found")
-			return
-		}
-		httputil.WriteInternalError(w, err, "handler error", "handler", "get_agent_for_issue_run", "issue_id", issueID, "agent_id", *issue.AssigneeID)
-		return
-	}
-	conv, err := h.cfg.Conversations.CreateConversationInTeam(r.Context(), teamID, userID, convchannel.ChannelIssueAgent, userID)
-	if err != nil {
-		httputil.WriteInternalError(w, err, "handler error", "handler", "create_issue_agent_conversation", "issue_id", issueID)
+		httputil.WriteInternalError(w, err, "handler error", "handler", "create_issue_agent_run", "issue_id", issueID)
 		return
 	}
 	input := req.Input
 	if input == "" {
-		input = buildIssueAgentRunInput(*issue)
+		input = buildIssueAgentRunInput(plan.Issue)
 	}
 	createdTask, err := h.taskService().CreateTask(r.Context(), task.CreateTaskCmd{
-		ConversationID: conv.ID,
+		ConversationID: plan.ConversationID,
 		UserID:         userID,
 		TeamID:         teamID,
 		Input:          input,
-		AgentID:        issue.AssigneeID,
+		AgentID:        &plan.AgentID,
 		IssueID:        &issueID,
 		CreatedByType:  coretask.RunCreatedByTypeUser,
 		TriggerSource:  coretask.RunTriggerSourceIssueAgentRun,
 	})
 	if err != nil {
-		if h.writeTaskServiceError(w, r, err, issue.AssigneeID) {
+		if h.writeTaskServiceError(w, r, err, &plan.AgentID) {
 			return
 		}
 		httputil.WriteInternalError(w, err, "handler error", "handler", "create_issue_agent_task", "issue_id", issueID)
@@ -425,11 +409,16 @@ func (h *Handler) patchIssueHandler(w http.ResponseWriter, r *http.Request) {
 	httputil.WriteJSON(w, http.StatusOK, out[0])
 }
 
-// agentService answers whether an agent belongs to this team. The work package
-// builds its own rather than taking one, because that is the only question it
-// asks of agents.
-func (h *Handler) agentService() *agentsvc.Service {
-	return h.agents
-}
-
 func newWorkAgentService(cfg Config) *agentsvc.Service { return &agentsvc.Service{Agents: cfg.Agents} }
+
+// issueConversationOpener lets the issue orchestration open the thread a run
+// reports into without knowing which store holds one.
+type issueConversationOpener struct{ h *Handler }
+
+func (o issueConversationOpener) OpenForIssue(ctx context.Context, teamID, userID string) (string, error) {
+	conv, err := o.h.cfg.Conversations.CreateConversationInTeam(ctx, teamID, userID, convchannel.ChannelIssueAgent, userID)
+	if err != nil {
+		return "", err
+	}
+	return conv.ID, nil
+}
