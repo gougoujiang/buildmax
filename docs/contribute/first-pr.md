@@ -98,10 +98,10 @@ git commit -m "Fix the workspace path in the sandbox guide"
 git push -u origin short-topic-name
 ```
 
-`./make check ci` is everything a pull request runs except the Windows job — the
-Go gate above, both frontend suites, the documentation checks, and the
-repository-wide scans. It needs the pinned Node; without it, run
-`./make check go` and let CI cover the other half.
+`./make check ci` is the required pull-request suite plus the path-scoped
+release and Windows checks — the Go gate above, both frontend suites, the
+documentation checks, and the repository-wide scans. It needs the pinned Node;
+without it, run `./make check go` and let CI cover the other half.
 
 A commit subject is a single imperative line. No tooling trailers, no
 "Generated with …" footer. Add a changelog entry — a new file under
@@ -120,14 +120,17 @@ specific enough to stand alone.
 
 ## What CI Will Run
 
-Everything in [CONTRIBUTING.md § Pull Requests](../../CONTRIBUTING.md#pull-requests):
+Every pull request runs the three required jobs described in
+[CONTRIBUTING.md § Pull Requests](../../CONTRIBUTING.md#pull-requests):
 formatting, `go mod tidy` cleanliness, build, vet, golangci-lint, govulncheck,
 the test suite with `-race`, the three frontend builds and both frontend test
 suites, a secret scan over git history, dependency license checks, and Markdown
 lint. None of it needs credentials, so it runs the same way on a fork.
 
-`./make check ci` runs all of it locally except the Windows job, which needs a
-Windows machine; it cross-compiles for Windows instead.
+Relevant changes add a native Windows run, GoReleaser configuration validation,
+or a Portal image build. `./make check ci` always runs the local equivalents of
+the first two; it cross-compiles for Windows because the native test needs a
+Windows machine.
 
 ## If You Get Stuck
 

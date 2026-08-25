@@ -169,7 +169,7 @@ Use the cross-platform task runner from the repository root:
 ./make fmt             # gofmt every tracked Go file
 ./make lint            # pinned golangci-lint and govulncheck
 ./make check <scope>   # go, portal, desktop, docs, all, or ci
-./make check ci        # everything a pull request runs, except the Windows job
+./make check ci        # required PR suite plus conditional release/Windows checks
 ./make e2e <suite>     # one end-to-end suite: cli, desktop, local, compose, kind, all
 ./make help            # common contributor commands; add `all` for everything
 ./make help <command>  # one command's arguments, examples, and caveats

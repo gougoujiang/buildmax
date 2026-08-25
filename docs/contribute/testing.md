@@ -134,10 +134,11 @@ becomes a weakened assertion.
 
 | Trigger | What runs |
 |---|---|
-| Pull request | The fast checks in `ci.yml`: build, vet, lint, tests, frontend builds, licenses |
-| Merge to `main` | The deployment smoke and the Portal browser suites, on Compose and kind |
-| Daily schedule | The same, so a regression no merge caused is still found |
-| Manual dispatch | Either, for release preparation or a suspected environment regression |
+| Every pull request | The required `ci.yml` jobs: Go, frontend, and open-source policy |
+| Relevant pull request | Windows for Go/task-runner changes, release configuration validation, or a Portal image build |
+| Merge to `main` | Required CI, Windows, CodeQL, release snapshot, and path-scoped deployment smoke |
+| Schedule | Daily deployment smoke and weekly CodeQL analysis |
+| Manual dispatch | The selected workflow, for release preparation or a suspected environment regression |
 
 End-to-end verification is deliberately not a pull-request gate. A post-merge
 failure is triaged by the author of the merge that broke it, and that merge is
@@ -151,7 +152,7 @@ passed.
 ## Before A Release
 
 ```bash
-./make check ci   # everything a pull request runs, except the Windows job
+./make check ci   # required PR suite plus conditional release/Windows checks
 ./make e2e all    # cli, desktop, then a browser run against a stack it owns
 ```
 

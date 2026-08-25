@@ -269,7 +269,7 @@ func TestGoReleaserPinMatchesWorkflows(t *testing.T) {
 	// Lazy across lines because a step may carry `if:` between `uses:` and the
 	// version it pins.
 	step := regexp.MustCompile(`goreleaser/goreleaser-action@v\d+(?s:.*?)version:\s*(\S+)`)
-	for _, path := range []string{"../../.github/workflows/ci.yml", "../../.github/workflows/release.yml"} {
+	for _, path := range []string{"../../.github/workflows/release-snapshot.yml", "../../.github/workflows/release.yml"} {
 		body, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatalf("read %s: %v", path, err)
