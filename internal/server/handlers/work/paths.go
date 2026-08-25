@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 )
 
@@ -28,7 +28,7 @@ func (h *Handler) workspacesDir() string {
 // every default deployment, and reports it as "storage lost this" when the file
 // is sitting on disk the whole time. Both readers go through here to keep that
 // from happening again.
-func (h *Handler) readRunGlobal(ctx context.Context, task *model.Task, taskRunID, relPath string) ([]byte, error) {
+func (h *Handler) readRunGlobal(ctx context.Context, task *coretask.Task, taskRunID, relPath string) ([]byte, error) {
 	// The trace path is written by the worker and read back from the database,
 	// so it is not trusted input by the time it reaches a filepath.Join.
 	clean, err := blob.CleanRelPath(relPath)
@@ -57,7 +57,7 @@ func (h *Handler) readRunGlobal(ctx context.Context, task *model.Task, taskRunID
 
 // runGlobalPath is where a worker writes a run's global files, and therefore
 // where local_fs deployments keep them.
-func (h *Handler) runGlobalPath(task *model.Task, taskRunID, cleanRelPath string) string {
+func (h *Handler) runGlobalPath(task *coretask.Task, taskRunID, cleanRelPath string) string {
 	return filepath.Join(
 		h.workspacesDir(),
 		task.CreatedBy,

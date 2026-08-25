@@ -13,8 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	"github.com/gougoujiang/buildmax/internal/infra/httpclient"
 	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
 )
@@ -69,14 +69,14 @@ func workerDo(ctx context.Context, cfg WorkerAPIClientConfig, method, pathSuffix
 // WorkerTaskRun is everything the server tells a worker about the run it is
 // about to execute.
 type WorkerTaskRun struct {
-	Run  *model.TaskRun
-	Task *model.Task
+	Run  *coretask.Run
+	Task *coretask.Task
 	// LLM is how this run reaches a model. Nil means direct, which is what a
 	// server that has not enabled managed worker inference reports.
 	LLM *TaskRunLLM
 	// AgentInstructions is the text appended to the run's system prompt, resolved by the
 	// server from the agent the task names. Empty when the task names none. It is not on
-	// model.Task because it is not a property of the task: it is resolved per run, so an
+	// coretask.Task because it is not a property of the task: it is resolved per run, so an
 	// edited definition applies to the next one.
 	AgentInstructions string
 	// CancelRequested is true when the run was already asked to stop before
@@ -111,14 +111,14 @@ func GetWorkerTaskRun(ctx context.Context, cfg WorkerAPIClientConfig, taskRunID 
 		return nil, err
 	}
 	return &WorkerTaskRun{
-		Run: &model.TaskRun{
+		Run: &coretask.Run{
 			ID:        got.Run.ID,
 			TaskID:    got.Run.TaskID,
 			Input:     got.Run.Input,
 			Status:    got.Run.Status,
 			CreatedAt: got.Run.CreatedAt,
 		},
-		Task: &model.Task{
+		Task: &coretask.Task{
 			ID:             got.Task.ID,
 			ConversationID: got.Task.ConversationID,
 			TeamID:         got.Task.TeamID,

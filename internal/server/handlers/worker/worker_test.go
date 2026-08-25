@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -17,9 +17,9 @@ import (
 
 func TestGetWorkerTaskRunHandler_RequiresWorkerAuth(t *testing.T) {
 	taskRunID := "run-1"
-	run := model.TaskRun{ID: taskRunID, TaskID: "task-1", Input: "input", Status: "SCHEDULED", CreatedAt: time.Unix(1, 0).UTC()}
-	task := model.Task{ID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1"}
-	mockRun := &mock.MockTaskRunStore{Runs: []model.TaskRun{run}, TaskList: []model.Task{task}}
+	run := coretask.Run{ID: taskRunID, TaskID: "task-1", Input: "input", Status: "SCHEDULED", CreatedAt: time.Unix(1, 0).UTC()}
+	task := coretask.Task{ID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1"}
+	mockRun := &mock.MockTaskRunStore{Runs: []coretask.Run{run}, TaskList: []coretask.Task{task}}
 	cfg := Config{
 		JWTSecret: workerTestSecret,
 		TaskRuns:  mockRun,
@@ -60,11 +60,11 @@ func TestGetWorkerTaskRunHandler_ReportsACancelRequest(t *testing.T) {
 	taskRunID := "run-cancel"
 	askedAt := time.Unix(1_800_000_000, 0).UTC()
 	runs := &mock.MockTaskRunStore{
-		Runs: []model.TaskRun{{
+		Runs: []coretask.Run{{
 			ID: taskRunID, TaskID: "task-1", Input: "input",
-			Status: string(model.RunStatusRunning), CancelRequestedAt: &askedAt,
+			Status: string(coretask.RunStatusRunning), CancelRequestedAt: &askedAt,
 		}},
-		TaskList: []model.Task{{ID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1"}},
+		TaskList: []coretask.Task{{ID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1"}},
 	}
 	h := New(Config{JWTSecret: workerTestSecret, TaskRuns: runs})
 	mux := http.NewServeMux()
@@ -93,8 +93,8 @@ func TestGetWorkerTaskRunHandler_ReportsACancelRequest(t *testing.T) {
 func TestPatchWorkerTaskRun_CanceledKeepsArtifactsAndSyncsTheTask(t *testing.T) {
 	taskRunID := "run-canceled"
 	runs := &mock.MockTaskRunStore{
-		Runs:     []model.TaskRun{{ID: taskRunID, TaskID: "task-1", Status: string(model.RunStatusRunning)}},
-		TaskList: []model.Task{{ID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1", Status: string(model.RunStatusRunning)}},
+		Runs:     []coretask.Run{{ID: taskRunID, TaskID: "task-1", Status: string(coretask.RunStatusRunning)}},
+		TaskList: []coretask.Task{{ID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1", Status: string(coretask.RunStatusRunning)}},
 	}
 	h := New(Config{JWTSecret: workerTestSecret, TaskRuns: runs})
 	mux := http.NewServeMux()
@@ -102,7 +102,7 @@ func TestPatchWorkerTaskRun_CanceledKeepsArtifactsAndSyncsTheTask(t *testing.T) 
 
 	endedAt := time.Unix(1_800_000_010, 0).UTC()
 	body, err := json.Marshal(workerclient.PatchTaskRunRequest{
-		Status:   string(model.RunStatusCanceled),
+		Status:   string(coretask.RunStatusCanceled),
 		EndedAt:  &endedAt,
 		Output:   util.Ptr("as far as I got"),
 		Artifact: &workerclient.ArtifactPayload{RelativePaths: []string{"result.md", "notes.md"}},
@@ -119,10 +119,10 @@ func TestPatchWorkerTaskRun_CanceledKeepsArtifactsAndSyncsTheTask(t *testing.T) 
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body = %s", w.Code, w.Body.String())
 	}
-	if runs.Runs[0].Status != string(model.RunStatusCanceled) {
+	if runs.Runs[0].Status != string(coretask.RunStatusCanceled) {
 		t.Errorf("run status = %q, want CANCELED", runs.Runs[0].Status)
 	}
-	if runs.TaskList[0].Status != string(model.RunStatusCanceled) {
+	if runs.TaskList[0].Status != string(coretask.RunStatusCanceled) {
 		t.Errorf("task status = %q, want CANCELED", runs.TaskList[0].Status)
 	}
 	if got := runs.Artifacts[taskRunID]; len(got) != 2 {
@@ -136,8 +136,8 @@ func TestPatchWorkerTaskRun_CanceledKeepsArtifactsAndSyncsTheTask(t *testing.T) 
 func TestPatchWorkerTaskRun_InterruptedFailedKeepsArtifacts(t *testing.T) {
 	taskRunID := "run-interrupted"
 	runs := &mock.MockTaskRunStore{
-		Runs:     []model.TaskRun{{ID: taskRunID, TaskID: "task-1", Status: string(model.RunStatusRunning)}},
-		TaskList: []model.Task{{ID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1", Status: string(model.RunStatusRunning)}},
+		Runs:     []coretask.Run{{ID: taskRunID, TaskID: "task-1", Status: string(coretask.RunStatusRunning)}},
+		TaskList: []coretask.Task{{ID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1", Status: string(coretask.RunStatusRunning)}},
 	}
 	h := New(Config{JWTSecret: workerTestSecret, TaskRuns: runs})
 	mux := http.NewServeMux()
@@ -145,10 +145,10 @@ func TestPatchWorkerTaskRun_InterruptedFailedKeepsArtifacts(t *testing.T) {
 
 	endedAt := time.Unix(1_800_000_010, 0).UTC()
 	body, err := json.Marshal(workerclient.PatchTaskRunRequest{
-		Status:       string(model.RunStatusFailed),
+		Status:       string(coretask.RunStatusFailed),
 		EndedAt:      &endedAt,
 		Output:       util.Ptr("as far as I got"),
-		ErrorMessage: util.Ptr(model.ErrRunInterrupted.Error()),
+		ErrorMessage: util.Ptr(coretask.ErrRunInterrupted.Error()),
 		Artifact:     &workerclient.ArtifactPayload{RelativePaths: []string{"result.md", "notes.md"}},
 	})
 	if err != nil {
@@ -163,10 +163,10 @@ func TestPatchWorkerTaskRun_InterruptedFailedKeepsArtifacts(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body = %s", w.Code, w.Body.String())
 	}
-	if runs.Runs[0].Status != string(model.RunStatusFailed) {
+	if runs.Runs[0].Status != string(coretask.RunStatusFailed) {
 		t.Errorf("run status = %q, want FAILED", runs.Runs[0].Status)
 	}
-	if runs.TaskList[0].Status != string(model.RunStatusFailed) {
+	if runs.TaskList[0].Status != string(coretask.RunStatusFailed) {
 		t.Errorf("task status = %q, want FAILED", runs.TaskList[0].Status)
 	}
 	if got := runs.Artifacts[taskRunID]; len(got) != 2 {
@@ -179,15 +179,15 @@ func TestPatchWorkerTaskRun_InterruptedFailedKeepsArtifacts(t *testing.T) {
 func TestPatchWorkerTaskRun_PlainFailureRegistersNothing(t *testing.T) {
 	taskRunID := "run-failed"
 	runs := &mock.MockTaskRunStore{
-		Runs:     []model.TaskRun{{ID: taskRunID, TaskID: "task-1", Status: string(model.RunStatusRunning)}},
-		TaskList: []model.Task{{ID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1", Status: string(model.RunStatusRunning)}},
+		Runs:     []coretask.Run{{ID: taskRunID, TaskID: "task-1", Status: string(coretask.RunStatusRunning)}},
+		TaskList: []coretask.Task{{ID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1", Status: string(coretask.RunStatusRunning)}},
 	}
 	h := New(Config{JWTSecret: workerTestSecret, TaskRuns: runs})
 	mux := http.NewServeMux()
 	h.Register(mux)
 
 	body, err := json.Marshal(workerclient.PatchTaskRunRequest{
-		Status:       string(model.RunStatusFailed),
+		Status:       string(coretask.RunStatusFailed),
 		ErrorMessage: util.Ptr("the model refused"),
 	})
 	if err != nil {
@@ -205,7 +205,7 @@ func TestPatchWorkerTaskRun_PlainFailureRegistersNothing(t *testing.T) {
 	if got := runs.Artifacts[taskRunID]; len(got) != 0 {
 		t.Errorf("registered artifacts = %v, want none", got)
 	}
-	if runs.TaskList[0].Status != string(model.RunStatusFailed) {
+	if runs.TaskList[0].Status != string(coretask.RunStatusFailed) {
 		t.Errorf("task status = %q, want FAILED", runs.TaskList[0].Status)
 	}
 }
@@ -213,7 +213,7 @@ func TestPatchWorkerTaskRun_PlainFailureRegistersNothing(t *testing.T) {
 func TestGetWorkerTaskRunHandler_NotFound(t *testing.T) {
 	cfg := Config{
 		JWTSecret: workerTestSecret,
-		TaskRuns:  &mock.MockTaskRunStore{Runs: []model.TaskRun{}},
+		TaskRuns:  &mock.MockTaskRunStore{Runs: []coretask.Run{}},
 	}
 	h := New(cfg)
 	mux := http.NewServeMux()
@@ -231,9 +231,9 @@ func TestGetWorkerTaskRunHandler_NotFound(t *testing.T) {
 
 func TestPatchWorkerTaskRun_RUNNING_WhenScheduled_Returns200(t *testing.T) {
 	taskRunID := "run-scheduled"
-	run := model.TaskRun{ID: taskRunID, TaskID: "task1", Input: "input", Status: "SCHEDULED", CreatedAt: time.Unix(1, 0).UTC()}
-	task := model.Task{ID: "task1", ConversationID: "conv-1"}
-	mockRun := &mock.MockTaskRunStore{Runs: []model.TaskRun{run}, TaskList: []model.Task{task}}
+	run := coretask.Run{ID: taskRunID, TaskID: "task1", Input: "input", Status: "SCHEDULED", CreatedAt: time.Unix(1, 0).UTC()}
+	task := coretask.Task{ID: "task1", ConversationID: "conv-1"}
+	mockRun := &mock.MockTaskRunStore{Runs: []coretask.Run{run}, TaskList: []coretask.Task{task}}
 	cfg := Config{
 		JWTSecret: workerTestSecret,
 		TaskRuns:  mockRun,
@@ -261,9 +261,9 @@ func TestPatchWorkerTaskRun_RUNNING_WhenScheduled_Returns200(t *testing.T) {
 
 func TestPatchWorkerTaskRun_RUNNING_WhenPending_Returns409(t *testing.T) {
 	taskRunID := "run-pending"
-	run := model.TaskRun{ID: taskRunID, TaskID: "task1", Input: "input", Status: "PENDING", CreatedAt: time.Unix(1, 0).UTC()}
-	task := model.Task{ID: "task1", ConversationID: "conv-1"}
-	mockRun := &mock.MockTaskRunStore{Runs: []model.TaskRun{run}, TaskList: []model.Task{task}}
+	run := coretask.Run{ID: taskRunID, TaskID: "task1", Input: "input", Status: "PENDING", CreatedAt: time.Unix(1, 0).UTC()}
+	task := coretask.Task{ID: "task1", ConversationID: "conv-1"}
+	mockRun := &mock.MockTaskRunStore{Runs: []coretask.Run{run}, TaskList: []coretask.Task{task}}
 	cfg := Config{
 		JWTSecret: workerTestSecret,
 		TaskRuns:  mockRun,
@@ -296,8 +296,8 @@ func TestPatchWorkerTaskRun_RUNNING_WhenPending_Returns409(t *testing.T) {
 // stay on this side.
 func TestGetWorkerTaskRunHandler_TellsTheRunHowToReachAModel(t *testing.T) {
 	store := &mock.MockTaskRunStore{
-		Runs:     []model.TaskRun{{ID: "run-1", TaskID: "task-1", Input: "input", Status: "SCHEDULED", CreatedAt: time.Unix(1, 0).UTC()}},
-		TaskList: []model.Task{{ID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1"}},
+		Runs:     []coretask.Run{{ID: "run-1", TaskID: "task-1", Input: "input", Status: "SCHEDULED", CreatedAt: time.Unix(1, 0).UTC()}},
+		TaskList: []coretask.Task{{ID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1"}},
 	}
 
 	get := func(t *testing.T, cfg Config) workerclient.GetTaskRunResponse {

@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 )
 
 // spyTaskRunStore records task-run transitions for tests.
@@ -16,15 +16,15 @@ type spyTaskRunStore struct {
 	mu sync.Mutex
 
 	// GetNextPendingTaskRun: return one run on first call, nil thereafter
-	pendingRun   *model.TaskRun
+	pendingRun   *coretask.Run
 	pendingCalls int
 
 	// GetTaskRunWithTask: the task behind pendingRun, or nil to report one missing
-	task *model.Task
+	task *coretask.Task
 
 	// GetTaskRun: what the run looks like when the scheduler re-reads it after
 	// the worker exits. Nil means the store has nothing to say about it.
-	storedRun *model.TaskRun
+	storedRun *coretask.Run
 
 	// Recorded calls
 	lastUpdateStatus *struct {
@@ -37,14 +37,14 @@ type spyTaskRunStore struct {
 
 func newSpyTaskRunStore(taskRunID string) *spyTaskRunStore {
 	return &spyTaskRunStore{
-		pendingRun: &model.TaskRun{
+		pendingRun: &coretask.Run{
 			ID:        taskRunID,
 			TaskID:    "t_test",
 			Input:     "input",
 			Status:    "PENDING",
 			CreatedAt: time.Now().UTC(),
 		},
-		task: &model.Task{
+		task: &coretask.Task{
 			ID:        "t_test",
 			TeamID:    "tm_test",
 			CreatedBy: "u_test",
@@ -52,7 +52,7 @@ func newSpyTaskRunStore(taskRunID string) *spyTaskRunStore {
 	}
 }
 
-func (s *spyTaskRunStore) CreateTaskRun(_ context.Context, _ model.CreateTaskRunInput) (*model.TaskRun, error) {
+func (s *spyTaskRunStore) CreateTaskRun(_ context.Context, _ coretask.CreateRunInput) (*coretask.Run, error) {
 	return nil, nil
 }
 
@@ -64,7 +64,7 @@ func (s *spyTaskRunStore) CountTaskRunsByStatus(_ context.Context) (map[string]i
 	return nil, nil
 }
 
-func (s *spyTaskRunStore) GetNextPendingTaskRun(_ context.Context) (*model.TaskRun, error) {
+func (s *spyTaskRunStore) GetNextPendingTaskRun(_ context.Context) (*coretask.Run, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.pendingCalls++
@@ -74,7 +74,7 @@ func (s *spyTaskRunStore) GetNextPendingTaskRun(_ context.Context) (*model.TaskR
 	return nil, nil
 }
 
-func (s *spyTaskRunStore) GetTaskRun(_ context.Context, _ string) (*model.TaskRun, error) {
+func (s *spyTaskRunStore) GetTaskRun(_ context.Context, _ string) (*coretask.Run, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.storedRun == nil {
@@ -83,7 +83,7 @@ func (s *spyTaskRunStore) GetTaskRun(_ context.Context, _ string) (*model.TaskRu
 	return s.storedRun, nil
 }
 
-func (s *spyTaskRunStore) GetTaskRunWithTask(_ context.Context, _ string) (*model.TaskRun, *model.Task, error) {
+func (s *spyTaskRunStore) GetTaskRunWithTask(_ context.Context, _ string) (*coretask.Run, *coretask.Task, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.task == nil {
@@ -92,7 +92,7 @@ func (s *spyTaskRunStore) GetTaskRunWithTask(_ context.Context, _ string) (*mode
 	return s.pendingRun, s.task, nil
 }
 
-func (s *spyTaskRunStore) GetActiveTaskRunByTask(_ context.Context, _ string) (*model.TaskRun, error) {
+func (s *spyTaskRunStore) GetActiveTaskRunByTask(_ context.Context, _ string) (*coretask.Run, error) {
 	return nil, nil
 }
 
@@ -100,13 +100,13 @@ func (s *spyTaskRunStore) RequestTaskRunCancel(_ context.Context, _, _ string, _
 	return false, nil
 }
 
-func (s *spyTaskRunStore) TransitionTaskRun(_ context.Context, in model.TransitionTaskRunInput) (bool, error) {
+func (s *spyTaskRunStore) TransitionTaskRun(_ context.Context, in coretask.TransitionRunInput) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if !model.ValidRunStatusTransition(in.ExpectedStatus, in.NewStatus) {
-		return false, model.ErrInvalidRunTransition
+	if !coretask.ValidRunStatusTransition(in.ExpectedStatus, in.NewStatus) {
+		return false, coretask.ErrInvalidRunTransition
 	}
-	var run *model.TaskRun
+	var run *coretask.Run
 	if s.storedRun != nil {
 		run = s.storedRun
 	} else {
@@ -116,7 +116,7 @@ func (s *spyTaskRunStore) TransitionTaskRun(_ context.Context, in model.Transiti
 		return false, nil
 	}
 	run.Status = string(in.NewStatus)
-	if in.NewStatus == model.RunStatusFailed {
+	if in.NewStatus == coretask.RunStatusFailed {
 		s.lastUpdateStatus = &struct {
 			taskRunID    string
 			status       string
@@ -142,7 +142,7 @@ func (s *spyTaskRunStore) RecordTaskRunPluginPins(_ context.Context, _ string, _
 // failingRunner implements WorkerRunner and always returns an error.
 type failingRunner struct{ err error }
 
-func (f *failingRunner) Run(_ context.Context, _ model.TaskRun, _ string) (string, *string, *time.Time, error) {
+func (f *failingRunner) Run(_ context.Context, _ coretask.Run, _ string) (string, *string, *time.Time, error) {
 	if f.err != nil {
 		return "", nil, nil, f.err
 	}
@@ -157,7 +157,7 @@ var errSpawnFailed = errors.New("spawn failed for test")
 func TestScheduler_Loop_KeepsAnOutcomeTheWorkerAlreadyReported(t *testing.T) {
 	taskRunID := "r_spy_canceled_00000000"
 	spy := newSpyTaskRunStore(taskRunID)
-	spy.storedRun = &model.TaskRun{ID: taskRunID, Status: string(model.RunStatusCanceled)}
+	spy.storedRun = &coretask.Run{ID: taskRunID, Status: string(coretask.RunStatusCanceled)}
 
 	s, err := NewSchedulerWithPollInterval(spy, &failingRunner{err: errSpawnFailed}, nil, 10*time.Millisecond)
 	if err != nil {

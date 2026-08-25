@@ -10,7 +10,7 @@ import (
 	"time"
 
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
@@ -39,7 +39,7 @@ func openTaskStream(t *testing.T, drain <-chan struct{}) *http.Response {
 			Conversations: []coreconv.Conversation{{ID: streamTestConv, UserID: streamTestUser, TeamID: streamTestTeam, Channel: "portal", CreatedBy: streamTestUser, CreatedAt: time.Unix(1, 0).UTC()}},
 		},
 		Tasks: &mock.MockTaskStore{
-			List: []model.Task{{ID: streamTestTask, ConversationID: streamTestConv, TeamID: streamTestTeam, Status: "RUNNING", Input: "in", CreatedBy: streamTestUser, CreatedAt: time.Unix(1, 0).UTC()}},
+			List: []coretask.Task{{ID: streamTestTask, ConversationID: streamTestConv, TeamID: streamTestTeam, Status: "RUNNING", Input: "in", CreatedBy: streamTestUser, CreatedAt: time.Unix(1, 0).UTC()}},
 		},
 		Drain: drain,
 	})

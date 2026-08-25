@@ -5,7 +5,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/server/handlers/llmhttp"
 	"net/http"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	"github.com/gougoujiang/buildmax/internal/infra/llmwire"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
@@ -52,7 +52,7 @@ func (h *Handler) workerLLMCompletionsHandler(w http.ResponseWriter, r *http.Req
 		httputil.WriteJSONError(w, http.StatusNotFound, "task run not found")
 		return
 	}
-	if run.Status != string(model.RunStatusRunning) {
+	if run.Status != string(coretask.RunStatusRunning) {
 		httputil.WriteJSONError(w, http.StatusConflict, "task run is not executing")
 		return
 	}

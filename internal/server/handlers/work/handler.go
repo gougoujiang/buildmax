@@ -19,6 +19,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
@@ -39,8 +40,8 @@ import (
 // RunOutputLister reads what a run produced. An interface because the store
 // that answers it is assembled above this package.
 type RunOutputLister interface {
-	ListRunOutputsByConversation(ctx context.Context, conversationID string, taskID *string) ([]model.ArtifactWithTask, error)
-	GetTaskRunOutputFiles(ctx context.Context, taskRunID string) ([]model.TaskRunArtifact, error)
+	ListRunOutputsByConversation(ctx context.Context, conversationID string, taskID *string) ([]coretask.RunOutputListing, error)
+	GetTaskRunOutputFiles(ctx context.Context, taskRunID string) ([]coretask.RunOutputFile, error)
 }
 
 type Config struct {
@@ -52,8 +53,8 @@ type Config struct {
 	Issues        coreissue.Store
 	IssueComments coreissue.CommentStore
 	Workflows     coreworkflow.Store
-	Tasks         model.TaskStore
-	TaskRuns      model.TaskRunStore
+	Tasks         coretask.Store
+	TaskRuns      coretask.RunStore
 	Agents        agentdef.Store
 	Teams         coreteam.Store
 	Conversations coreconv.Store
@@ -84,7 +85,7 @@ type Config struct {
 	Turns *turnqueue.Registry
 	// OnTerminal closes out a run cancelled here, reaching the listeners a
 	// worker's own report reaches.
-	OnTerminal func(ctx context.Context, info model.TaskRunTerminalInfo)
+	OnTerminal func(ctx context.Context, info coretask.RunTerminalInfo)
 
 	// TerminalGroup owns the callbacks a cancel here fires, so a shutdown waits
 	// for them instead of dropping them.

@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
@@ -97,7 +97,7 @@ func (h *Handler) getTaskRunProvenanceHandler(w http.ResponseWriter, r *http.Req
 // behind it is the normal case anyway. The message is confirmed to belong to
 // the run's own conversation before it is returned, so a stale handle cannot
 // quote text from somewhere else.
-func (h *Handler) resolveSourceMessage(r *http.Request, task *model.Task, messageID *string) *SourceMessageResponse {
+func (h *Handler) resolveSourceMessage(r *http.Request, task *coretask.Task, messageID *string) *SourceMessageResponse {
 	if messageID == nil || *messageID == "" || h.cfg.Messages == nil {
 		return nil
 	}
@@ -119,7 +119,7 @@ func (h *Handler) resolveSourceMessage(r *http.Request, task *model.Task, messag
 // A deleted agent is still resolved and still named: a run that already ran
 // under it does not stop having done so, and refusing to say which definition
 // produced an outcome is the opposite of provenance.
-func (h *Handler) resolveRunAgent(r *http.Request, task *model.Task, run *model.TaskRun) *RunAgentResponse {
+func (h *Handler) resolveRunAgent(r *http.Request, task *coretask.Task, run *coretask.Run) *RunAgentResponse {
 	if task.AgentID == nil || *task.AgentID == "" {
 		return nil
 	}

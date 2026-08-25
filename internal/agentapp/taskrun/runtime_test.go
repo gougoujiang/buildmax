@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 )
 
@@ -230,13 +230,13 @@ func TestPrepareRunWorkspace_MaterializesTeamFiles(t *testing.T) {
 		runArtifacts: filepath.Join(t.TempDir(), "artifacts"),
 		runGlobal:    filepath.Join(t.TempDir(), "global"),
 	}
-	task := &model.Task{
+	task := &coretask.Task{
 		ID:             "t1",
 		ConversationID: "c1",
 		TeamID:         "tm_shared",
 		CreatedBy:      "u_creator",
 	}
-	run := &model.TaskRun{ID: "r1"}
+	run := &coretask.Run{ID: "r1"}
 
 	if err := prepareRunWorkspace(ctx, RunTaskInput{Persist: persist}, task, run, dirs); err != nil {
 		t.Fatal(err)
@@ -323,8 +323,8 @@ func TestRestoreSessionFromPreviousRun_RoundTripsTheBundle(t *testing.T) {
 	nextDir := t.TempDir()
 	sessionID, lastRun := "sid-1", "run1"
 	restoreSessionFromPreviousRun(ctx,
-		&model.Task{CreatedBy: "u1", ConversationID: "conv1", ID: "chat1", SessionID: &sessionID, LastRunID: &lastRun},
-		&model.TaskRun{ID: "run2"}, nextDir, fake)
+		&coretask.Task{CreatedBy: "u1", ConversationID: "conv1", ID: "chat1", SessionID: &sessionID, LastRunID: &lastRun},
+		&coretask.Run{ID: "run2"}, nextDir, fake)
 
 	for _, name := range sessionBundleFiles {
 		if _, err := os.Stat(filepath.Join(nextDir, "sessions", "sid-1", name)); err != nil {
@@ -353,8 +353,8 @@ func TestRestoreSessionFromPreviousRun_PartialBundleRestoresNothing(t *testing.T
 	nextDir := t.TempDir()
 	sessionID, lastRun := "sid-1", "run1"
 	restoreSessionFromPreviousRun(ctx,
-		&model.Task{CreatedBy: "u1", ConversationID: "conv1", ID: "chat1", SessionID: &sessionID, LastRunID: &lastRun},
-		&model.TaskRun{ID: "run2"}, nextDir, fake)
+		&coretask.Task{CreatedBy: "u1", ConversationID: "conv1", ID: "chat1", SessionID: &sessionID, LastRunID: &lastRun},
+		&coretask.Run{ID: "run2"}, nextDir, fake)
 
 	if _, err := os.Stat(filepath.Join(nextDir, "sessions", "sid-1")); !os.IsNotExist(err) {
 		t.Errorf("a partial bundle was left behind (stat err = %v)", err)

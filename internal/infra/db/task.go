@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/core/session"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	"github.com/gougoujiang/buildmax/internal/util"
 
 	"gorm.io/gorm"
@@ -68,11 +68,11 @@ func (s *Store) taskSelect(ctx context.Context) *gorm.DB {
 		Joins("LEFT JOIN agent a ON a.id = task.agent_id")
 }
 
-func toTask(row *taskReadRow) *model.Task {
+func toTask(row *taskReadRow) *coretask.Task {
 	if row == nil {
 		return nil
 	}
-	out := &model.Task{
+	out := &coretask.Task{
 		ID:                    row.Row.PublicID,
 		ConversationID:        row.ConversationPublicID,
 		TeamID:                derefPublicID(row.TeamPublicID),
@@ -104,8 +104,8 @@ func toTask(row *taskReadRow) *model.Task {
 	return out
 }
 
-func toTasks(rows []taskReadRow) []model.Task {
-	out := make([]model.Task, len(rows))
+func toTasks(rows []taskReadRow) []coretask.Task {
+	out := make([]coretask.Task, len(rows))
 	for i := range rows {
 		out[i] = *toTask(&rows[i])
 	}
@@ -114,7 +114,7 @@ func toTasks(rows []taskReadRow) []model.Task {
 
 // ListTasksByConversation returns tasks in the conversation, ordered by created_at.
 // order is "asc" (oldest first) or "desc" (latest first); default "desc".
-func (s *Store) ListTasksByConversation(ctx context.Context, conversationID string, order string) ([]model.Task, error) {
+func (s *Store) ListTasksByConversation(ctx context.Context, conversationID string, order string) ([]coretask.Task, error) {
 	id, ok := util.CanonicalPublicID(conversationID)
 	if !ok {
 		return nil, nil
@@ -133,7 +133,7 @@ func (s *Store) ListTasksByConversation(ctx context.Context, conversationID stri
 // ListTasksByConversationPaginated returns tasks with optional executed_only filter, ordered by created_at DESC.
 // executedOnly: when true, only tasks that have been run (last_run_id IS NOT NULL) are returned.
 // total is the total number of matching tasks (ignoring limit/offset).
-func (s *Store) ListTasksByConversationPaginated(ctx context.Context, conversationID string, executedOnly bool, limit, offset int) ([]model.Task, int, error) {
+func (s *Store) ListTasksByConversationPaginated(ctx context.Context, conversationID string, executedOnly bool, limit, offset int) ([]coretask.Task, int, error) {
 	limit, offset = capPage(limit, offset)
 	convKey, err := lookupKey(ctx, s.db, "conversation", conversationID)
 	if errors.Is(err, apierr.ErrNotFound) {
@@ -159,7 +159,7 @@ func (s *Store) ListTasksByConversationPaginated(ctx context.Context, conversati
 	return toTasks(list), int(total), err
 }
 
-func (s *Store) ListTasksByIssue(ctx context.Context, issueID string, limit, offset int) ([]model.Task, int, error) {
+func (s *Store) ListTasksByIssue(ctx context.Context, issueID string, limit, offset int) ([]coretask.Task, int, error) {
 	limit, offset = capPage(limit, offset)
 	issueKey, err := lookupKey(ctx, s.db, "issue", issueID)
 	if errors.Is(err, apierr.ErrNotFound) {
@@ -182,7 +182,7 @@ func (s *Store) ListTasksByIssue(ctx context.Context, issueID string, limit, off
 }
 
 // GetTask returns the task by task_id, or (nil, nil) if not found.
-func (s *Store) GetTask(ctx context.Context, taskID string) (*model.Task, error) {
+func (s *Store) GetTask(ctx context.Context, taskID string) (*coretask.Task, error) {
 	id, ok := util.CanonicalPublicID(taskID)
 	if !ok {
 		return nil, nil
@@ -199,7 +199,7 @@ func (s *Store) GetTask(ctx context.Context, taskID string) (*model.Task, error)
 }
 
 // GetTaskBySessionID returns the task with the given session_id, or (nil, nil) if not found.
-func (s *Store) GetTaskBySessionID(ctx context.Context, sessionID string) (*model.Task, error) {
+func (s *Store) GetTaskBySessionID(ctx context.Context, sessionID string) (*coretask.Task, error) {
 	var task taskReadRow
 	err := s.taskSelect(ctx).Where("task.session_id = ?", sessionID).Take(&task).Error
 	if err != nil {
@@ -211,10 +211,10 @@ func (s *Store) GetTaskBySessionID(ctx context.Context, sessionID string) (*mode
 	return toTask(&task), nil
 }
 
-// CreateTask creates a new task and its first model.TaskRun (PENDING) in one transaction. Returns the task with last_run_id and session_id set.
-func (s *Store) CreateTask(ctx context.Context, in *model.CreateTaskInput) (*model.Task, error) {
+// CreateTask creates a new task and its first coretask.Run (PENDING) in one transaction. Returns the task with last_run_id and session_id set.
+func (s *Store) CreateTask(ctx context.Context, in *coretask.CreateInput) (*coretask.Task, error) {
 	if in == nil {
-		return nil, errors.New("model.CreateTaskInput is required")
+		return nil, errors.New("coretask.CreateInput is required")
 	}
 	now := time.Now().UTC()
 	sessionID := session.NewID() // UUID for buildmax CLI (session not exposed to user)
@@ -230,8 +230,8 @@ func (s *Store) CreateTask(ctx context.Context, in *model.CreateTaskInput) (*mod
 	runDB := &taskRunRow{
 		Input:         in.Input,
 		CreatedBy:     defaultString(in.InitialRunCreatedBy, in.CreatedBy),
-		CreatedByType: defaultString(in.InitialRunCreatedByType, model.RunCreatedByTypeUser),
-		TriggerSource: defaultString(in.InitialRunTriggerSource, model.RunTriggerSourceTaskCreate),
+		CreatedByType: defaultString(in.InitialRunCreatedByType, coretask.RunCreatedByTypeUser),
+		TriggerSource: defaultString(in.InitialRunTriggerSource, coretask.RunTriggerSourceTaskCreate),
 		Status:        "PENDING",
 		CreatedAt:     now,
 	}
@@ -346,7 +346,7 @@ func buildTaskUpdates(status string, startedAt, endedAt *time.Time, output, erro
 
 // UpdateTask updates a task's status and optional fields.
 // Only non-nil pointer fields are written; status is always set.
-func (s *Store) UpdateTask(ctx context.Context, in model.UpdateTaskInput) error {
+func (s *Store) UpdateTask(ctx context.Context, in coretask.UpdateInput) error {
 	id, ok := util.CanonicalPublicID(in.TaskID)
 	if !ok {
 		return apierr.ErrNotFound
@@ -358,7 +358,7 @@ func (s *Store) UpdateTask(ctx context.Context, in model.UpdateTaskInput) error 
 
 // ClaimTask updates a task's status and optional fields only when current status equals expectedStatus.
 // Returns updated = (exactly one row was updated). Used for atomic claim (e.g. PENDING→SCHEDULED, SCHEDULED→RUNNING).
-func (s *Store) ClaimTask(ctx context.Context, in model.ClaimTaskInput) (bool, error) {
+func (s *Store) ClaimTask(ctx context.Context, in coretask.ClaimInput) (bool, error) {
 	id, ok := util.CanonicalPublicID(in.TaskID)
 	if !ok {
 		return false, nil

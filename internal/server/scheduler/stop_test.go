@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 )
 
 // blockingRunner holds a dispatch until it is released, the way local_process
@@ -23,7 +23,7 @@ func newBlockingRunner() *blockingRunner {
 	return &blockingRunner{started: make(chan struct{}), release: make(chan struct{})}
 }
 
-func (b *blockingRunner) Run(ctx context.Context, _ model.TaskRun, _ string) (string, *string, *time.Time, error) {
+func (b *blockingRunner) Run(ctx context.Context, _ coretask.Run, _ string) (string, *string, *time.Time, error) {
 	b.once.Do(func() { close(b.started) })
 	select {
 	case <-ctx.Done():
@@ -80,7 +80,7 @@ func TestStopGivesUpOnADispatchThatWillNotStop(t *testing.T) {
 	spy := newSpyTaskRunStore("r_stop_stuck_000000000")
 	stuck := make(chan struct{})
 	defer close(stuck)
-	s, err := NewSchedulerWithPollInterval(spy, runnerFunc(func(context.Context, model.TaskRun, string) (string, *string, *time.Time, error) {
+	s, err := NewSchedulerWithPollInterval(spy, runnerFunc(func(context.Context, coretask.Run, string) (string, *string, *time.Time, error) {
 		<-stuck
 		return "local_process", nil, nil, nil
 	}), nil, 5*time.Millisecond)
@@ -107,7 +107,7 @@ func TestStopGivesUpOnADispatchThatWillNotStop(t *testing.T) {
 func TestStopDoesNotRewriteARunItsWorkerAlreadyReported(t *testing.T) {
 	taskRunID := "r_stop_reported_0000000"
 	spy := newSpyTaskRunStore(taskRunID)
-	s, err := NewSchedulerWithPollInterval(spy, runnerFunc(func(ctx context.Context, _ model.TaskRun, _ string) (string, *string, *time.Time, error) {
+	s, err := NewSchedulerWithPollInterval(spy, runnerFunc(func(ctx context.Context, _ coretask.Run, _ string) (string, *string, *time.Time, error) {
 		<-ctx.Done()
 		// What exec reports for a worker that was signalled.
 		return "", nil, nil, context.Canceled
@@ -139,7 +139,7 @@ func TestOnlyOneDispatchRunsAtATime(t *testing.T) {
 	release := make(chan struct{})
 	defer close(release)
 
-	s, err := NewSchedulerWithPollInterval(spy, runnerFunc(func(context.Context, model.TaskRun, string) (string, *string, *time.Time, error) {
+	s, err := NewSchedulerWithPollInterval(spy, runnerFunc(func(context.Context, coretask.Run, string) (string, *string, *time.Time, error) {
 		mu.Lock()
 		concurrent++
 		if concurrent > peak {
@@ -170,8 +170,8 @@ func TestOnlyOneDispatchRunsAtATime(t *testing.T) {
 }
 
 // runnerFunc adapts a function to WorkerRunner.
-type runnerFunc func(context.Context, model.TaskRun, string) (string, *string, *time.Time, error)
+type runnerFunc func(context.Context, coretask.Run, string) (string, *string, *time.Time, error)
 
-func (f runnerFunc) Run(ctx context.Context, run model.TaskRun, token string) (string, *string, *time.Time, error) {
+func (f runnerFunc) Run(ctx context.Context, run coretask.Run, token string) (string, *string, *time.Time, error) {
 	return f(ctx, run, token)
 }

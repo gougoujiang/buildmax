@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 )
 
 // MockTaskResultDeliveryStore is an in-memory TaskResultDeliveryStore.
@@ -16,14 +16,14 @@ import (
 // refuse a second claim would let that pass.
 type MockTaskResultDeliveryStore struct {
 	mu         sync.Mutex
-	Deliveries map[string]*model.TaskResultDelivery
+	Deliveries map[string]*coretask.ResultDelivery
 	// EnqueueErr, when set, is returned by every enqueue.
 	EnqueueErr error
 }
 
 func (m *MockTaskResultDeliveryStore) ensure() {
 	if m.Deliveries == nil {
-		m.Deliveries = map[string]*model.TaskResultDelivery{}
+		m.Deliveries = map[string]*coretask.ResultDelivery{}
 	}
 }
 
@@ -37,23 +37,23 @@ func (m *MockTaskResultDeliveryStore) EnqueueTaskResultDelivery(_ context.Contex
 	if _, exists := m.Deliveries[taskRunID]; exists {
 		return nil
 	}
-	m.Deliveries[taskRunID] = &model.TaskResultDelivery{
+	m.Deliveries[taskRunID] = &coretask.ResultDelivery{
 		TaskRunID:      taskRunID,
 		ConversationID: conversationID,
-		Status:         model.DeliveryPending,
+		Status:         coretask.DeliveryPending,
 		NextAttemptAt:  now,
 		CreatedAt:      now,
 	}
 	return nil
 }
 
-func (m *MockTaskResultDeliveryStore) ListDueTaskResultDeliveries(_ context.Context, now time.Time, limit int) ([]model.TaskResultDelivery, error) {
+func (m *MockTaskResultDeliveryStore) ListDueTaskResultDeliveries(_ context.Context, now time.Time, limit int) ([]coretask.ResultDelivery, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.ensure()
-	var out []model.TaskResultDelivery
+	var out []coretask.ResultDelivery
 	for _, d := range m.Deliveries {
-		if d.Status == model.DeliveryPending && !d.NextAttemptAt.After(now) {
+		if d.Status == coretask.DeliveryPending && !d.NextAttemptAt.After(now) {
 			out = append(out, *d)
 		}
 	}
@@ -64,12 +64,12 @@ func (m *MockTaskResultDeliveryStore) ListDueTaskResultDeliveries(_ context.Cont
 	return out, nil
 }
 
-func (m *MockTaskResultDeliveryStore) ClaimTaskResultDelivery(_ context.Context, taskRunID string, now, nextAttemptAt time.Time) (*model.TaskResultDelivery, error) {
+func (m *MockTaskResultDeliveryStore) ClaimTaskResultDelivery(_ context.Context, taskRunID string, now, nextAttemptAt time.Time) (*coretask.ResultDelivery, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.ensure()
 	d, ok := m.Deliveries[taskRunID]
-	if !ok || d.Status != model.DeliveryPending || d.NextAttemptAt.After(now) {
+	if !ok || d.Status != coretask.DeliveryPending || d.NextAttemptAt.After(now) {
 		return nil, nil
 	}
 	d.Attempts++
@@ -98,7 +98,7 @@ func (m *MockTaskResultDeliveryStore) RecordTaskResultDeliveryFailure(_ context.
 	defer m.mu.Unlock()
 	m.ensure()
 	d, ok := m.Deliveries[taskRunID]
-	if !ok || d.Status != model.DeliveryPending {
+	if !ok || d.Status != coretask.DeliveryPending {
 		return nil
 	}
 	msg := lastError
@@ -108,7 +108,7 @@ func (m *MockTaskResultDeliveryStore) RecordTaskResultDeliveryFailure(_ context.
 }
 
 // Get returns a copy of one delivery, or nil.
-func (m *MockTaskResultDeliveryStore) Get(taskRunID string) *model.TaskResultDelivery {
+func (m *MockTaskResultDeliveryStore) Get(taskRunID string) *coretask.ResultDelivery {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.ensure()

@@ -6,7 +6,7 @@ import (
 	"net/http"
 
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 )
@@ -113,10 +113,10 @@ func (h *Handler) postStream(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handlePatchRunning(w http.ResponseWriter, r *http.Request, taskRunID string, req *workerclient.PatchTaskRunRequest) bool {
-	updated, err := h.cfg.TaskRuns.TransitionTaskRun(r.Context(), model.TransitionTaskRunInput{
+	updated, err := h.cfg.TaskRuns.TransitionTaskRun(r.Context(), coretask.TransitionRunInput{
 		TaskRunID:      taskRunID,
-		ExpectedStatus: model.RunStatusScheduled,
-		NewStatus:      model.RunStatusRunning,
+		ExpectedStatus: coretask.RunStatusScheduled,
+		NewStatus:      coretask.RunStatusRunning,
 		StartedAt:      req.StartedAt,
 		SessionID:      req.SessionID,
 	})
@@ -142,10 +142,10 @@ func (h *Handler) handlePatchTerminalStatus(w http.ResponseWriter, r *http.Reque
 			relativePaths = []string{"result.md"}
 		}
 	}
-	updated, err := h.cfg.TaskRuns.TransitionTaskRun(r.Context(), model.TransitionTaskRunInput{
+	updated, err := h.cfg.TaskRuns.TransitionTaskRun(r.Context(), coretask.TransitionRunInput{
 		TaskRunID:             taskRunID,
-		ExpectedStatus:        model.RunStatusRunning,
-		NewStatus:             model.RunStatus(req.Status),
+		ExpectedStatus:        coretask.RunStatusRunning,
+		NewStatus:             coretask.RunStatus(req.Status),
 		StartedAt:             req.StartedAt,
 		EndedAt:               req.EndedAt,
 		Output:                req.Output,
@@ -188,13 +188,13 @@ func (h *Handler) patchTaskRun(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusBadRequest, "status required")
 		return
 	}
-	if req.Status == string(model.RunStatusRunning) {
+	if req.Status == string(coretask.RunStatusRunning) {
 		if h.handlePatchRunning(w, r, taskRunID, &req) {
 			httputil.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 		}
 		return
 	}
-	if !model.RunStatusTerminal(req.Status) {
+	if !coretask.RunStatusTerminal(req.Status) {
 		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid run status")
 		return
 	}
@@ -212,7 +212,7 @@ func componentLog() *slog.Logger { return slog.With("component", "worker_api") }
 // run; the record is written once so an edit during this one cannot rewrite what
 // already ran. A failure to record is logged and dropped: a worker waiting for
 // its instructions must not be held up by bookkeeping.
-func (h *Handler) recordAgentRevision(r *http.Request, run *model.TaskRun, revision int) {
+func (h *Handler) recordAgentRevision(r *http.Request, run *coretask.Run, revision int) {
 	if run.AgentRevision != nil || revision <= 0 || h.cfg.TaskRuns == nil {
 		return
 	}

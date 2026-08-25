@@ -10,7 +10,7 @@ import (
 
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/server/turnqueue"
@@ -52,14 +52,14 @@ func (c *replyLLMClient) ChatCompletionStreaming(ctx context.Context, req llm.Re
 
 func (c *replyLLMClient) ContextWindow() int { return 0 }
 
-func terminalInfo() model.TaskRunTerminalInfo {
-	return model.TaskRunTerminalInfo{
+func terminalInfo() coretask.RunTerminalInfo {
+	return coretask.RunTerminalInfo{
 		TaskRunID:      "tr_1",
 		TaskID:         "tk_1",
 		ConversationID: "conv-1",
 		TeamID:         "tm_shared",
 		UserID:         "u1",
-		Status:         string(model.RunStatusSucceeded),
+		Status:         string(coretask.RunStatusSucceeded),
 		Output:         util.Ptr("the analysis found three problems"),
 	}
 }
@@ -116,7 +116,7 @@ func TestTaskRunTerminalBroadcastSurvivesPresenterFailure(t *testing.T) {
 	if err := json.Unmarshal(env.Payload, &changed); err != nil {
 		t.Fatal(err)
 	}
-	if changed.TaskID != "tk_1" || changed.Status != string(model.RunStatusSucceeded) {
+	if changed.TaskID != "tk_1" || changed.Status != string(coretask.RunStatusSucceeded) {
 		t.Errorf("payload = %+v, want the finished task", changed)
 	}
 }

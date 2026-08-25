@@ -11,18 +11,18 @@ import (
 	"time"
 
 	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
 )
 
 func artifactWorkerMux(t *testing.T, store *mock.MockArtifactStore, teamID string) *http.ServeMux {
 	t.Helper()
-	run := model.TaskRun{ID: "run-1", TaskID: "task-1", Status: "RUNNING", CreatedAt: time.Unix(1, 0).UTC()}
-	task := model.Task{ID: "task-1", ConversationID: "conv-1", TeamID: teamID, CreatedBy: "u1"}
+	run := coretask.Run{ID: "run-1", TaskID: "task-1", Status: "RUNNING", CreatedAt: time.Unix(1, 0).UTC()}
+	task := coretask.Task{ID: "task-1", ConversationID: "conv-1", TeamID: teamID, CreatedBy: "u1"}
 	h := New(Config{
 		JWTSecret: workerTestSecret,
-		TaskRuns:  &mock.MockTaskRunStore{Runs: []model.TaskRun{run}, TaskList: []model.Task{task}},
+		TaskRuns:  &mock.MockTaskRunStore{Runs: []coretask.Run{run}, TaskList: []coretask.Task{task}},
 		Artifacts: &artifactsvc.Service{Artifacts: store, Storage: mock.NewMockArtifactStorage()},
 	})
 	mux := http.NewServeMux()
@@ -130,11 +130,11 @@ func TestWorkerArtifactRefusesARunWithNoTeam(t *testing.T) {
 }
 
 func TestWorkerArtifactUnconfiguredDeploymentRefuses(t *testing.T) {
-	run := model.TaskRun{ID: "run-1", TaskID: "task-1", Status: "RUNNING", CreatedAt: time.Unix(1, 0).UTC()}
-	task := model.Task{ID: "task-1", TeamID: "tm_1", CreatedBy: "u1"}
+	run := coretask.Run{ID: "run-1", TaskID: "task-1", Status: "RUNNING", CreatedAt: time.Unix(1, 0).UTC()}
+	task := coretask.Task{ID: "task-1", TeamID: "tm_1", CreatedBy: "u1"}
 	h := New(Config{
 		JWTSecret: workerTestSecret,
-		TaskRuns:  &mock.MockTaskRunStore{Runs: []model.TaskRun{run}, TaskList: []model.Task{task}},
+		TaskRuns:  &mock.MockTaskRunStore{Runs: []coretask.Run{run}, TaskList: []coretask.Task{task}},
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)

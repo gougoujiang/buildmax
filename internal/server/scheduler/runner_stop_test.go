@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 )
 
 // buildHelper compiles a stand-in worker. A real program rather than a shell
@@ -100,7 +100,7 @@ func TestLocalRunnerSignalsTheWorkerInsteadOfKillingIt(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() {
-		_, _, _, err := runner.Run(ctx, model.TaskRun{ID: "r_local_signal_000000000"}, "")
+		_, _, _, err := runner.Run(ctx, coretask.Run{ID: "r_local_signal_000000000"}, "")
 		done <- err
 	}()
 
@@ -137,7 +137,7 @@ func TestLocalRunnerKillsAWorkerThatWillNotStop(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() {
-		_, _, _, _ = runner.Run(ctx, model.TaskRun{ID: "r_local_stubborn_000000"}, "")
+		_, _, _, _ = runner.Run(ctx, coretask.Run{ID: "r_local_stubborn_000000"}, "")
 		close(done)
 	}()
 

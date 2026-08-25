@@ -10,7 +10,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 )
 
 // WorkerRunner starts a worker for a task run. On success returns worker info to persist; on failure returns an error (caller should revert run to PENDING).
@@ -21,7 +21,7 @@ import (
 // nowhere to put a value that changes on every dispatch. See
 // docs/design/worker-run-token.md.
 type WorkerRunner interface {
-	Run(ctx context.Context, run model.TaskRun, runToken string) (workerType string, k8sJobName *string, k8sJobCreatedAt *time.Time, err error)
+	Run(ctx context.Context, run coretask.Run, runToken string) (workerType string, k8sJobName *string, k8sJobCreatedAt *time.Time, err error)
 }
 
 // LocalRunner runs the worker binary as a local process (blocks until exit).
@@ -70,7 +70,7 @@ func NewLocalRunner(workerPath string, env []string, runTokenEnvKey string, stop
 // Cancelling ctx asks the worker to stop rather than killing it, so the run it
 // is executing can report what it produced. It is killed if it does not manage
 // that inside stopGrace — see docs/design/graceful-shutdown.md §6.1.
-func (r *LocalRunner) Run(ctx context.Context, run model.TaskRun, runToken string) (workerType string, k8sJobName *string, k8sJobCreatedAt *time.Time, err error) {
+func (r *LocalRunner) Run(ctx context.Context, run coretask.Run, runToken string) (workerType string, k8sJobName *string, k8sJobCreatedAt *time.Time, err error) {
 	componentLog("worker_runner").InfoContext(ctx, "spawning worker", "task_run_id", run.ID, "task_id", run.TaskID)
 	cmd := exec.CommandContext(ctx, r.workerPath, "--task-run-id", run.ID)
 	cmd.Env = r.env

@@ -5,17 +5,17 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	"github.com/gougoujiang/buildmax/internal/server/websocket"
 )
 
 // Announcer closes out a run: it tells the stream hub the task is done and
 // hands the outcome to whoever the server wired up.
 type Announcer struct {
-	Runs model.TaskRunStore
+	Runs coretask.RunStore
 	Hub  websocket.StreamHub
 	// On receives the outcome. Nil means nobody is listening beyond the hub.
-	On func(ctx context.Context, info model.TaskRunTerminalInfo)
+	On func(ctx context.Context, info coretask.RunTerminalInfo)
 	// Group owns the callback goroutines so a shutdown can wait for them. Nil
 	// spawns them unowned, which is what a test that never stops has.
 	Group *Group
@@ -39,7 +39,7 @@ func (a *Announcer) Announce(ctx context.Context, taskRunID, status string, outp
 	if task == nil {
 		return
 	}
-	info := model.TaskRunTerminalInfo{
+	info := coretask.RunTerminalInfo{
 		TaskRunID:      run.ID,
 		TaskID:         run.TaskID,
 		ConversationID: task.ConversationID,

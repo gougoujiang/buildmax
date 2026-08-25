@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
 
@@ -14,7 +14,7 @@ const chatInputSnippetMaxLen = 200
 
 // ListRunOutputsByConversation returns run outputs (artifacts) in the conversation, optionally filtered by task_id.
 // Order: run created_at DESC. ArtifactID in the result is task_run_id for API compatibility.
-func (s *Store) ListRunOutputsByConversation(ctx context.Context, conversationID string, taskID *string) ([]model.ArtifactWithTask, error) {
+func (s *Store) ListRunOutputsByConversation(ctx context.Context, conversationID string, taskID *string) ([]coretask.RunOutputListing, error) {
 	convID, ok := util.CanonicalPublicID(conversationID)
 	if !ok {
 		return nil, nil
@@ -52,9 +52,9 @@ func (s *Store) ListRunOutputsByConversation(ctx context.Context, conversationID
 	if err := s.db.WithContext(ctx).Raw(q, args...).Scan(&rows).Error; err != nil {
 		return nil, err
 	}
-	out := make([]model.ArtifactWithTask, 0, len(rows))
+	out := make([]coretask.RunOutputListing, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, model.ArtifactWithTask{
+		out = append(out, coretask.RunOutputListing{
 			ArtifactID:       r.ArtifactID,
 			TaskID:           r.TaskID,
 			TaskRunID:        r.TaskRunID,
@@ -68,7 +68,7 @@ func (s *Store) ListRunOutputsByConversation(ctx context.Context, conversationID
 }
 
 // GetTaskRunOutputFiles returns all artifact rows for the given task_run_id, ordered by relative_path.
-func (s *Store) GetTaskRunOutputFiles(ctx context.Context, taskRunID string) ([]model.TaskRunArtifact, error) {
+func (s *Store) GetTaskRunOutputFiles(ctx context.Context, taskRunID string) ([]coretask.RunOutputFile, error) {
 	runKey, err := lookupKey(ctx, s.db, "task_run", taskRunID)
 	if errors.Is(err, apierr.ErrNotFound) {
 		return nil, nil

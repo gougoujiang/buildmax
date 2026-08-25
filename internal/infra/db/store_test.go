@@ -12,6 +12,7 @@ import (
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -263,7 +264,7 @@ func TestTransitionTaskRun_ListRunOutputs(t *testing.T) {
 	defer func() {
 		_ = s.db.WithContext(ctx).Delete(&conversationRow{}, "public_id = ?", canonicalPublicID(conv.ID))
 	}()
-	task, err := s.CreateTask(ctx, &model.CreateTaskInput{ConversationID: conv.ID, Input: "input", Title: "", CreatedBy: runOutputUser})
+	task, err := s.CreateTask(ctx, &coretask.CreateInput{ConversationID: conv.ID, Input: "input", Title: "", CreatedBy: runOutputUser})
 	if err != nil {
 		t.Fatalf("CreateTask: %v", err)
 	}
@@ -278,10 +279,10 @@ func TestTransitionTaskRun_ListRunOutputs(t *testing.T) {
 	}()
 	// Finish the run and register its outputs in the same transition.
 	startTaskRunForTest(t, s, ctx, taskRunID)
-	if updated, err := s.TransitionTaskRun(ctx, model.TransitionTaskRunInput{
+	if updated, err := s.TransitionTaskRun(ctx, coretask.TransitionRunInput{
 		TaskRunID:             taskRunID,
-		ExpectedStatus:        model.RunStatusRunning,
-		NewStatus:             model.RunStatusSucceeded,
+		ExpectedStatus:        coretask.RunStatusRunning,
+		NewStatus:             coretask.RunStatusSucceeded,
 		Output:                util.Ptr("out"),
 		ArtifactRelativePaths: []string{"result.md", "extra.txt"},
 	}); err != nil || !updated {
@@ -350,14 +351,14 @@ func TestTaskRunProvenancePersistence(t *testing.T) {
 	defer func() {
 		_ = s.db.WithContext(ctx).Delete(&conversationRow{}, "public_id = ?", canonicalPublicID(conv.ID))
 	}()
-	task, err := s.CreateTask(ctx, &model.CreateTaskInput{
+	task, err := s.CreateTask(ctx, &coretask.CreateInput{
 		ConversationID:          conv.ID,
 		Input:                   "initial input",
 		Title:                   "initial title",
 		CreatedBy:               provenanceUser,
 		InitialRunCreatedBy:     provenanceUser,
-		InitialRunCreatedByType: model.RunCreatedByTypeUser,
-		InitialRunTriggerSource: model.RunTriggerSourcePortalTaskCreate,
+		InitialRunCreatedByType: coretask.RunCreatedByTypeUser,
+		InitialRunTriggerSource: coretask.RunTriggerSourcePortalTaskCreate,
 	})
 	if err != nil {
 		t.Fatalf("CreateTask: %v", err)
@@ -379,43 +380,43 @@ func TestTaskRunProvenancePersistence(t *testing.T) {
 	if initialRun.CreatedBy != provenanceUser {
 		t.Fatalf("initial run created_by = %q, want %q", initialRun.CreatedBy, provenanceUser)
 	}
-	if initialRun.CreatedByType != model.RunCreatedByTypeUser {
-		t.Fatalf("initial run created_by_type = %q, want %q", initialRun.CreatedByType, model.RunCreatedByTypeUser)
+	if initialRun.CreatedByType != coretask.RunCreatedByTypeUser {
+		t.Fatalf("initial run created_by_type = %q, want %q", initialRun.CreatedByType, coretask.RunCreatedByTypeUser)
 	}
-	if initialRun.TriggerSource != model.RunTriggerSourcePortalTaskCreate {
-		t.Fatalf("initial run trigger_source = %q, want %q", initialRun.TriggerSource, model.RunTriggerSourcePortalTaskCreate)
+	if initialRun.TriggerSource != coretask.RunTriggerSourcePortalTaskCreate {
+		t.Fatalf("initial run trigger_source = %q, want %q", initialRun.TriggerSource, coretask.RunTriggerSourcePortalTaskCreate)
 	}
 
 	// A task carries at most one run in flight, so a rerun follows a finished
 	// run. Asking for one while the first is still PENDING is what the Portal
-	// answers 409 to; see CreateTaskRun and model.ErrRunInProgress.
-	if _, err := s.CreateTaskRun(ctx, model.CreateTaskRunInput{
+	// answers 409 to; see CreateTaskRun and coretask.ErrRunInProgress.
+	if _, err := s.CreateTaskRun(ctx, coretask.CreateRunInput{
 		TaskID:        task.ID,
 		Input:         "too soon",
 		CreatedBy:     "reviewer-user",
-		CreatedByType: model.RunCreatedByTypeUser,
-		TriggerSource: model.RunTriggerSourcePortalConversation,
-	}); !errors.Is(err, model.ErrRunInProgress) {
+		CreatedByType: coretask.RunCreatedByTypeUser,
+		TriggerSource: coretask.RunTriggerSourcePortalConversation,
+	}); !errors.Is(err, coretask.ErrRunInProgress) {
 		t.Fatalf("CreateTaskRun while the initial run is pending: want ErrRunInProgress, got %v", err)
 	}
 
 	endedAt := time.Now().UTC()
 	startTaskRunForTest(t, s, ctx, initialRun.ID)
-	if updated, err := s.TransitionTaskRun(ctx, model.TransitionTaskRunInput{
+	if updated, err := s.TransitionTaskRun(ctx, coretask.TransitionRunInput{
 		TaskRunID:      initialRun.ID,
-		ExpectedStatus: model.RunStatusRunning,
-		NewStatus:      model.RunStatusSucceeded,
+		ExpectedStatus: coretask.RunStatusRunning,
+		NewStatus:      coretask.RunStatusSucceeded,
 		EndedAt:        &endedAt,
 	}); err != nil || !updated {
 		t.Fatalf("TransitionTaskRun to SUCCEEDED: updated=%v err=%v", updated, err)
 	}
 
-	rerun, err := s.CreateTaskRun(ctx, model.CreateTaskRunInput{
+	rerun, err := s.CreateTaskRun(ctx, coretask.CreateRunInput{
 		TaskID:        task.ID,
 		Input:         "follow-up input",
 		CreatedBy:     "reviewer-user",
-		CreatedByType: model.RunCreatedByTypeUser,
-		TriggerSource: model.RunTriggerSourcePortalConversation,
+		CreatedByType: coretask.RunCreatedByTypeUser,
+		TriggerSource: coretask.RunTriggerSourcePortalConversation,
 	})
 	if err != nil {
 		t.Fatalf("CreateTaskRun: %v", err)
@@ -423,11 +424,11 @@ func TestTaskRunProvenancePersistence(t *testing.T) {
 	if rerun.CreatedBy != "reviewer-user" {
 		t.Fatalf("rerun created_by = %q, want %q", rerun.CreatedBy, "reviewer-user")
 	}
-	if rerun.CreatedByType != model.RunCreatedByTypeUser {
-		t.Fatalf("rerun created_by_type = %q, want %q", rerun.CreatedByType, model.RunCreatedByTypeUser)
+	if rerun.CreatedByType != coretask.RunCreatedByTypeUser {
+		t.Fatalf("rerun created_by_type = %q, want %q", rerun.CreatedByType, coretask.RunCreatedByTypeUser)
 	}
-	if rerun.TriggerSource != model.RunTriggerSourcePortalConversation {
-		t.Fatalf("rerun trigger_source = %q, want %q", rerun.TriggerSource, model.RunTriggerSourcePortalConversation)
+	if rerun.TriggerSource != coretask.RunTriggerSourcePortalConversation {
+		t.Fatalf("rerun trigger_source = %q, want %q", rerun.TriggerSource, coretask.RunTriggerSourcePortalConversation)
 	}
 }
 
@@ -453,7 +454,7 @@ func TestClaimTask(t *testing.T) {
 		_ = s.db.WithContext(ctx).Delete(&conversationRow{}, "public_id = ?", canonicalPublicID(conv.ID))
 		deleteTestUser(t, s, user.ID)
 	}()
-	task, err := s.CreateTask(ctx, &model.CreateTaskInput{ConversationID: conv.ID, Input: "input", Title: "", CreatedBy: user.ID})
+	task, err := s.CreateTask(ctx, &coretask.CreateInput{ConversationID: conv.ID, Input: "input", Title: "", CreatedBy: user.ID})
 	if err != nil {
 		t.Fatalf("CreateTask: %v", err)
 	}
@@ -466,7 +467,7 @@ func TestClaimTask(t *testing.T) {
 	}
 
 	// PENDING -> SCHEDULED: should update
-	updated, err := s.ClaimTask(ctx, model.ClaimTaskInput{TaskID: task.ID, ExpectedStatus: "PENDING", NewStatus: "SCHEDULED"})
+	updated, err := s.ClaimTask(ctx, coretask.ClaimInput{TaskID: task.ID, ExpectedStatus: "PENDING", NewStatus: "SCHEDULED"})
 	if err != nil {
 		t.Fatalf("ClaimTask PENDING->SCHEDULED: %v", err)
 	}
@@ -479,7 +480,7 @@ func TestClaimTask(t *testing.T) {
 	}
 
 	// PENDING -> SCHEDULED again: no match, updated false
-	updated, err = s.ClaimTask(ctx, model.ClaimTaskInput{TaskID: task.ID, ExpectedStatus: "PENDING", NewStatus: "SCHEDULED"})
+	updated, err = s.ClaimTask(ctx, coretask.ClaimInput{TaskID: task.ID, ExpectedStatus: "PENDING", NewStatus: "SCHEDULED"})
 	if err != nil {
 		t.Fatalf("ClaimTask PENDING->SCHEDULED (second): %v", err)
 	}
@@ -492,7 +493,7 @@ func TestClaimTask(t *testing.T) {
 	}
 
 	// SCHEDULED -> RUNNING: should update
-	updated, err = s.ClaimTask(ctx, model.ClaimTaskInput{TaskID: task.ID, ExpectedStatus: "SCHEDULED", NewStatus: "RUNNING"})
+	updated, err = s.ClaimTask(ctx, coretask.ClaimInput{TaskID: task.ID, ExpectedStatus: "SCHEDULED", NewStatus: "RUNNING"})
 	if err != nil {
 		t.Fatalf("ClaimTask SCHEDULED->RUNNING: %v", err)
 	}
@@ -505,7 +506,7 @@ func TestClaimTask(t *testing.T) {
 	}
 
 	// SCHEDULED -> RUNNING again: no match, updated false
-	updated, err = s.ClaimTask(ctx, model.ClaimTaskInput{TaskID: task.ID, ExpectedStatus: "SCHEDULED", NewStatus: "RUNNING"})
+	updated, err = s.ClaimTask(ctx, coretask.ClaimInput{TaskID: task.ID, ExpectedStatus: "SCHEDULED", NewStatus: "RUNNING"})
 	if err != nil {
 		t.Fatalf("ClaimTask SCHEDULED->RUNNING (second): %v", err)
 	}

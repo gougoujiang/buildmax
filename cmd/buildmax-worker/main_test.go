@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/bootstrap"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 )
 
 // Exit status is what the scheduler reads, and under Kubernetes it decides
@@ -18,9 +18,9 @@ func TestWorkerExitCode(t *testing.T) {
 		want int
 	}{
 		{name: "a run that finished", err: nil, want: 0},
-		{name: "a run that was canceled", err: model.ErrRunCanceled, want: 0},
-		{name: "a run interrupted by shutdown", err: model.ErrRunInterrupted, want: 0},
-		{name: "a run wrapped in context", err: errors.Join(errors.New("worker run"), model.ErrRunInterrupted), want: 0},
+		{name: "a run that was canceled", err: coretask.ErrRunCanceled, want: 0},
+		{name: "a run interrupted by shutdown", err: coretask.ErrRunInterrupted, want: 0},
+		{name: "a run wrapped in context", err: errors.Join(errors.New("worker run"), coretask.ErrRunInterrupted), want: 0},
 		{name: "a run another worker had claimed", err: bootstrap.ErrAlreadyClaimed, want: 2},
 		{name: "a run that failed at its work", err: errors.New("the model refused"), want: 1},
 	}

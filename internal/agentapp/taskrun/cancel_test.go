@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 )
@@ -68,7 +68,7 @@ func (f *fakeUpdater) UpdateRunStatus(ctx context.Context, _ string, req *worker
 // and reporting that as a cancel would put a wrong outcome on the record.
 func TestRunCanceledOnlyRecognisesACancelCause(t *testing.T) {
 	asked, cancelAsked := context.WithCancelCause(context.Background())
-	cancelAsked(model.ErrRunCanceled)
+	cancelAsked(coretask.ErrRunCanceled)
 	if !runCanceled(asked) {
 		t.Error("a context canceled with ErrRunCanceled does not read as a cancel")
 	}
@@ -103,14 +103,14 @@ func TestReportCanceledRunKeepsPartialWork(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancelCause(context.Background())
-	cancel(model.ErrRunCanceled)
+	cancel(coretask.ErrRunCanceled)
 	err := reportCanceledRun(ctx, scope, result, runDirs{runGlobal: t.TempDir(), runArtifacts: artifactsDir}, RunTaskInput{
 		Persist:          newFakePersistStorage(),
 		RunOutputStorage: storage,
 		Updater:          updater,
 	})
 
-	if !errors.Is(err, model.ErrRunCanceled) {
+	if !errors.Is(err, coretask.ErrRunCanceled) {
 		t.Fatalf("err = %v, want ErrRunCanceled", err)
 	}
 	if storage.err != nil {
@@ -119,7 +119,7 @@ func TestReportCanceledRunKeepsPartialWork(t *testing.T) {
 	if updater.req == nil {
 		t.Fatal("the run never reported an outcome")
 	}
-	if updater.req.Status != string(model.RunStatusCanceled) {
+	if updater.req.Status != string(coretask.RunStatusCanceled) {
 		t.Errorf("status = %q, want CANCELED", updater.req.Status)
 	}
 	if updater.req.Output == nil || *updater.req.Output != "as far as I got" {

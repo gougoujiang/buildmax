@@ -11,7 +11,7 @@ import (
 
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
 )
@@ -23,8 +23,8 @@ func llmCallsFixture(ledger *llmStubLedger) Config {
 		JWTSecret: llmTestSecret,
 		Teams:     llmTestTeamStore(),
 		TaskRuns: &mock.MockTaskRunStore{
-			Runs:     []model.TaskRun{{ID: "r_1", TaskID: "t_1", Status: string(model.RunStatusSucceeded), CreatedAt: time.Unix(1, 0).UTC()}},
-			TaskList: []model.Task{{ID: "t_1", ConversationID: "c_1", TeamID: llmTestTeam, CreatedBy: llmTestUser, CreatedAt: time.Unix(1, 0).UTC()}},
+			Runs:     []coretask.Run{{ID: "r_1", TaskID: "t_1", Status: string(coretask.RunStatusSucceeded), CreatedAt: time.Unix(1, 0).UTC()}},
+			TaskList: []coretask.Task{{ID: "t_1", ConversationID: "c_1", TeamID: llmTestTeam, CreatedBy: llmTestUser, CreatedAt: time.Unix(1, 0).UTC()}},
 		},
 		Conversations: &mock.MockConversationStore{
 			Conversations: []coreconv.Conversation{{ID: "c_1", TeamID: llmTestTeam, CreatedBy: llmTestUser}},

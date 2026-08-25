@@ -5,7 +5,7 @@ import (
 	"time"
 
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
 
@@ -28,7 +28,7 @@ func TestCreateTaskRunPersistsSourceMessage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AppendMessage: %v", err)
 	}
-	task, err := s.CreateTask(ctx, &model.CreateTaskInput{
+	task, err := s.CreateTask(ctx, &coretask.CreateInput{
 		ConversationID:            conv.ID,
 		Input:                     "investigate the flaky test",
 		CreatedBy:                 user,
@@ -56,10 +56,10 @@ func TestCreateTaskRunPersistsSourceMessage(t *testing.T) {
 
 	endedAt := time.Unix(1_800_000_000, 0).UTC()
 	startTaskRunForTest(t, s, ctx, first.ID)
-	if updated, err := s.TransitionTaskRun(ctx, model.TransitionTaskRunInput{
+	if updated, err := s.TransitionTaskRun(ctx, coretask.TransitionRunInput{
 		TaskRunID:      first.ID,
-		ExpectedStatus: model.RunStatusRunning,
-		NewStatus:      model.RunStatusSucceeded,
+		ExpectedStatus: coretask.RunStatusRunning,
+		NewStatus:      coretask.RunStatusSucceeded,
 		EndedAt:        &endedAt,
 	}); err != nil || !updated {
 		t.Fatalf("TransitionTaskRun to SUCCEEDED: updated=%v err=%v", updated, err)
@@ -74,7 +74,7 @@ func TestCreateTaskRunPersistsSourceMessage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AppendMessage follow-up: %v", err)
 	}
-	second, err := s.CreateTaskRun(ctx, model.CreateTaskRunInput{
+	second, err := s.CreateTaskRun(ctx, coretask.CreateRunInput{
 		TaskID:          task.ID,
 		Input:           "check the Windows runner",
 		CreatedBy:       user,
@@ -113,7 +113,7 @@ func TestCreateTaskRunWithoutASourceMessage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewPublicID: %v", err)
 	}
-	task, err := s.CreateTask(ctx, &model.CreateTaskInput{
+	task, err := s.CreateTask(ctx, &coretask.CreateInput{
 		ConversationID:            conv.ID,
 		Input:                     "run the nightly sweep",
 		CreatedBy:                 user,

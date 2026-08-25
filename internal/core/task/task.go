@@ -1,4 +1,4 @@
-package model
+package task
 
 import (
 	"context"
@@ -103,8 +103,8 @@ type Task struct {
 	AgentID               *string    `json:"agent_id,omitempty"`
 }
 
-// TaskRun is one execution (initial or follow-up) of a task.
-type TaskRun struct {
+// Run is one execution (initial or follow-up) of a task.
+type Run struct {
 	ID               string     `json:"id"`
 	TaskID           string     `json:"task_id"`
 	Input            string     `json:"input"`
@@ -167,9 +167,9 @@ type TaskRun struct {
 	CreatedAt       time.Time `json:"created_at"`
 }
 
-// TaskRunTerminalInfo describes a task run that reached a terminal state.
+// RunTerminalInfo describes a task run that reached a terminal state.
 // Used by the workflow service to advance or finalize workflow step runs.
-type TaskRunTerminalInfo struct {
+type RunTerminalInfo struct {
 	TaskRunID      string
 	TaskID         string
 	ConversationID string
@@ -182,8 +182,8 @@ type TaskRunTerminalInfo struct {
 	ErrorMessage *string
 }
 
-// CreateTaskInput is the input for CreateTask.
-type CreateTaskInput struct {
+// CreateInput is the input for CreateTask.
+type CreateInput struct {
 	ConversationID          string
 	TeamID                  string
 	Input                   string
@@ -200,8 +200,8 @@ type CreateTaskInput struct {
 	IssueID                   *string
 }
 
-// UpdateTaskInput updates a task to the given status with optional fields.
-type UpdateTaskInput struct {
+// UpdateInput updates a task to the given status with optional fields.
+type UpdateInput struct {
 	TaskID       string
 	Status       string
 	StartedAt    *time.Time
@@ -211,8 +211,8 @@ type UpdateTaskInput struct {
 	SessionID    *string
 }
 
-// ClaimTaskInput atomically transitions a task from ExpectedStatus to NewStatus.
-type ClaimTaskInput struct {
+// ClaimInput atomically transitions a task from ExpectedStatus to NewStatus.
+type ClaimInput struct {
 	TaskID         string
 	ExpectedStatus string
 	NewStatus      string
@@ -223,10 +223,10 @@ type ClaimTaskInput struct {
 	SessionID      *string
 }
 
-// TransitionTaskRunInput atomically moves a run from ExpectedStatus to
+// TransitionRunInput atomically moves a run from ExpectedStatus to
 // NewStatus and projects the accepted state onto its task. Artifact paths, when
 // present, are registered in the same transaction as a terminal transition.
-type TransitionTaskRunInput struct {
+type TransitionRunInput struct {
 	TaskRunID             string
 	ExpectedStatus        RunStatus
 	NewStatus             RunStatus
@@ -241,9 +241,9 @@ type TransitionTaskRunInput struct {
 	ArtifactRelativePaths []string
 }
 
-// TaskStore provides task persistence. Tasks belong to a conversation.
-// CreateTask creates a task plus its first TaskRun (both in one transaction).
-type TaskStore interface {
+// Store provides task persistence. Tasks belong to a conversation.
+// CreateTask creates a task plus its first Run (both in one transaction).
+type Store interface {
 	// ListTasksByConversation returns tasks in the conversation. order is "asc" (oldest first) or "desc" (latest first); default "desc".
 	ListTasksByConversation(ctx context.Context, conversationID string, order string) ([]Task, error)
 	// ListTasksByConversationPaginated returns tasks with optional executed_only filter, ordered by created_at DESC. total is total matching count.
@@ -251,14 +251,14 @@ type TaskStore interface {
 	ListTasksByIssue(ctx context.Context, issueID string, limit, offset int) ([]Task, int, error)
 	GetTask(ctx context.Context, taskID string) (*Task, error)
 	GetTaskBySessionID(ctx context.Context, sessionID string) (*Task, error)
-	// CreateTask creates a new task and its first TaskRun (input, title, PENDING). Returns the task with last_run_id set.
-	CreateTask(ctx context.Context, in *CreateTaskInput) (*Task, error)
-	UpdateTask(ctx context.Context, in UpdateTaskInput) error
-	ClaimTask(ctx context.Context, in ClaimTaskInput) (updated bool, err error)
+	// CreateTask creates a new task and its first Run (input, title, PENDING). Returns the task with last_run_id set.
+	CreateTask(ctx context.Context, in *CreateInput) (*Task, error)
+	UpdateTask(ctx context.Context, in UpdateInput) error
+	ClaimTask(ctx context.Context, in ClaimInput) (updated bool, err error)
 }
 
-// CreateTaskRunInput describes a new run on an existing task.
-type CreateTaskRunInput struct {
+// CreateRunInput describes a new run on an existing task.
+type CreateRunInput struct {
 	TaskID        string
 	Input         string
 	CreatedBy     string
@@ -270,19 +270,19 @@ type CreateTaskRunInput struct {
 	SourceMessageID *string
 }
 
-// TaskRunStore provides task run persistence.
-type TaskRunStore interface {
+// RunStore provides task run persistence.
+type RunStore interface {
 	// CreateTaskRun creates a new run (PENDING). Returns ErrRunInProgress if the task has any run in PENDING/SCHEDULED/RUNNING.
-	CreateTaskRun(ctx context.Context, in CreateTaskRunInput) (*TaskRun, error)
+	CreateTaskRun(ctx context.Context, in CreateRunInput) (*Run, error)
 	// CountTaskRunsByStatus returns how many runs are in each status. It is
 	// the one number that answers "is work flowing through this deployment",
 	// and it carries no team, input, or output — only counts.
 	CountTaskRunsByStatus(ctx context.Context) (map[string]int, error)
 	// GetNextPendingTaskRun returns the oldest run with status PENDING (by created_at), or (nil, nil) if none.
-	GetNextPendingTaskRun(ctx context.Context) (*TaskRun, error)
-	GetTaskRun(ctx context.Context, taskRunID string) (*TaskRun, error)
+	GetNextPendingTaskRun(ctx context.Context) (*Run, error)
+	GetTaskRun(ctx context.Context, taskRunID string) (*Run, error)
 	// GetTaskRunWithTask returns the run and its task, or (nil, nil, nil) if run not found.
-	GetTaskRunWithTask(ctx context.Context, taskRunID string) (*TaskRun, *Task, error)
+	GetTaskRunWithTask(ctx context.Context, taskRunID string) (*Run, *Task, error)
 	// ListTaskRunIDsByTasks returns each task's run IDs, newest first, keyed by
 	// task ID. Tasks with no runs are absent from the map.
 	//
@@ -291,7 +291,7 @@ type TaskRunStore interface {
 	ListTaskRunIDsByTasks(ctx context.Context, taskIDs []string) (map[string][]string, error)
 	// GetActiveTaskRunByTask returns the task's run in PENDING, SCHEDULED, or
 	// RUNNING, or (nil, nil) when the task has none. A task holds at most one.
-	GetActiveTaskRunByTask(ctx context.Context, taskID string) (*TaskRun, error)
+	GetActiveTaskRunByTask(ctx context.Context, taskID string) (*Run, error)
 	// RequestTaskRunCancel records who asked a run to stop, and when, on a run
 	// that has not reached a terminal status. Returns false when the run is
 	// already terminal or already carries a request, so a second cancel
@@ -301,7 +301,7 @@ type TaskRunStore interface {
 	// TransitionTaskRun atomically updates a run only when its current status
 	// matches ExpectedStatus, then updates the task projection in the same
 	// transaction. A false result means another actor won the transition.
-	TransitionTaskRun(ctx context.Context, in TransitionTaskRunInput) (bool, error)
+	TransitionTaskRun(ctx context.Context, in TransitionRunInput) (bool, error)
 	UpdateTaskRunWorkerInfo(ctx context.Context, taskRunID, workerType string, k8sJobName *string, k8sJobCreatedAt *time.Time) error
 	// RecordTaskRunAgentRevision stores which agent definition a run was given.
 	// The first write wins: a run executes under the instructions it was handed

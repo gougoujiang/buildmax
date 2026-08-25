@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 )
 
 // deliveryFixture creates a conversation, a task, and its first run.
@@ -16,7 +16,7 @@ func deliveryFixture(t *testing.T, s *Store, label string) (conversationID, task
 	if err != nil {
 		t.Fatalf("CreateConversation: %v", err)
 	}
-	task, err := s.CreateTask(ctx, &model.CreateTaskInput{
+	task, err := s.CreateTask(ctx, &coretask.CreateInput{
 		ConversationID: conv.ID, Input: "input", CreatedBy: user,
 	})
 	if err != nil {
@@ -112,7 +112,7 @@ func TestRecordTaskResultDeliveryFailureKeepsItOwed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var got *model.TaskResultDelivery
+	var got *coretask.ResultDelivery
 	for i := range due {
 		if due[i].TaskRunID == runID {
 			got = &due[i]
@@ -135,7 +135,7 @@ func TestFinishTaskResultDeliveryClosesIt(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := s.FinishTaskResultDelivery(ctx, runID, model.DeliveryDelivered, nil); err != nil {
+	if err := s.FinishTaskResultDelivery(ctx, runID, coretask.DeliveryDelivered, nil); err != nil {
 		t.Fatalf("FinishTaskResultDelivery: %v", err)
 	}
 

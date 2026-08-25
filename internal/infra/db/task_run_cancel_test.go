@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 )
 
 // TestTaskRunCancelQueries covers the three queries a cancel depends on. They
@@ -18,7 +18,7 @@ func TestTaskRunCancelQueries(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateConversation: %v", err)
 	}
-	task, err := s.CreateTask(ctx, &model.CreateTaskInput{
+	task, err := s.CreateTask(ctx, &coretask.CreateInput{
 		ConversationID: conv.ID,
 		Input:          "input",
 		CreatedBy:      cancelTestUser,
@@ -70,7 +70,7 @@ func TestTaskRunCancelQueries(t *testing.T) {
 	if stored.CancelRequestedBy == nil || *stored.CancelRequestedBy != cancelTestUser {
 		t.Errorf("cancel_requested_by = %v, want %q", stored.CancelRequestedBy, cancelTestUser)
 	}
-	if stored.Status != string(model.RunStatusPending) {
+	if stored.Status != string(coretask.RunStatusPending) {
 		t.Errorf("status = %q, want the request to leave it alone", stored.Status)
 	}
 
@@ -96,10 +96,10 @@ func TestTaskRunCancelQueries(t *testing.T) {
 	// Once the run is terminal nothing may cancel it again, and the backstop
 	// must stop seeing it.
 	endedAt := time.Unix(1_800_000_100, 0).UTC()
-	if updated, err := s.TransitionTaskRun(ctx, model.TransitionTaskRunInput{
+	if updated, err := s.TransitionTaskRun(ctx, coretask.TransitionRunInput{
 		TaskRunID:      runID,
-		ExpectedStatus: model.RunStatusPending,
-		NewStatus:      model.RunStatusCanceled,
+		ExpectedStatus: coretask.RunStatusPending,
+		NewStatus:      coretask.RunStatusCanceled,
 		EndedAt:        &endedAt,
 	}); err != nil || !updated {
 		t.Fatalf("TransitionTaskRun to CANCELED: updated=%v err=%v", updated, err)
@@ -123,7 +123,7 @@ func TestTaskRunCancelQueries(t *testing.T) {
 	}
 }
 
-func containsRun(runs []model.TaskRun, taskRunID string) bool {
+func containsRun(runs []coretask.Run, taskRunID string) bool {
 	for _, r := range runs {
 		if r.ID == taskRunID {
 			return true

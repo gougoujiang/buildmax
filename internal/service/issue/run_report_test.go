@@ -7,29 +7,29 @@ import (
 	"testing"
 
 	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
 
-func reporterFor(task model.Task, comments *mock.MockIssueCommentStore) *RunReporter {
+func reporterFor(task coretask.Task, comments *mock.MockIssueCommentStore) *RunReporter {
 	return &RunReporter{
-		Tasks:    &mock.MockTaskStore{List: []model.Task{task}},
+		Tasks:    &mock.MockTaskStore{List: []coretask.Task{task}},
 		Comments: comments,
 	}
 }
 
 func TestReportRunTerminal_WritesOneAgentComment(t *testing.T) {
 	comments := &mock.MockIssueCommentStore{}
-	reporter := reporterFor(model.Task{
+	reporter := reporterFor(coretask.Task{
 		ID:      "t_1",
 		IssueID: util.Ptr("i_1"),
 		AgentID: util.Ptr("a_1"),
 	}, comments)
-	err := reporter.ReportRunTerminal(context.Background(), model.TaskRunTerminalInfo{
+	err := reporter.ReportRunTerminal(context.Background(), coretask.RunTerminalInfo{
 		TaskRunID: "r_1",
 		TaskID:    "t_1",
-		Status:    string(model.RunStatusSucceeded),
+		Status:    string(coretask.RunStatusSucceeded),
 		Output:    util.Ptr("Shipped the migration."),
 	})
 	if err != nil {
@@ -55,28 +55,28 @@ func TestReportRunTerminal_WritesOneAgentComment(t *testing.T) {
 func TestReportRunTerminal_SilentCases(t *testing.T) {
 	cases := []struct {
 		name string
-		task model.Task
-		info model.TaskRunTerminalInfo
+		task coretask.Task
+		info coretask.RunTerminalInfo
 	}{
 		{
 			name: "task not on an issue",
-			task: model.Task{ID: "t_1"},
-			info: model.TaskRunTerminalInfo{TaskID: "t_1", Status: string(model.RunStatusSucceeded), Output: util.Ptr("done")},
+			task: coretask.Task{ID: "t_1"},
+			info: coretask.RunTerminalInfo{TaskID: "t_1", Status: string(coretask.RunStatusSucceeded), Output: util.Ptr("done")},
 		},
 		{
 			name: "success with no output",
-			task: model.Task{ID: "t_1", IssueID: util.Ptr("i_1")},
-			info: model.TaskRunTerminalInfo{TaskID: "t_1", Status: string(model.RunStatusSucceeded)},
+			task: coretask.Task{ID: "t_1", IssueID: util.Ptr("i_1")},
+			info: coretask.RunTerminalInfo{TaskID: "t_1", Status: string(coretask.RunStatusSucceeded)},
 		},
 		{
 			name: "success with blank output",
-			task: model.Task{ID: "t_1", IssueID: util.Ptr("i_1")},
-			info: model.TaskRunTerminalInfo{TaskID: "t_1", Status: string(model.RunStatusSucceeded), Output: util.Ptr("  \n ")},
+			task: coretask.Task{ID: "t_1", IssueID: util.Ptr("i_1")},
+			info: coretask.RunTerminalInfo{TaskID: "t_1", Status: string(coretask.RunStatusSucceeded), Output: util.Ptr("  \n ")},
 		},
 		{
 			name: "failure with no message",
-			task: model.Task{ID: "t_1", IssueID: util.Ptr("i_1")},
-			info: model.TaskRunTerminalInfo{TaskID: "t_1", Status: string(model.RunStatusFailed)},
+			task: coretask.Task{ID: "t_1", IssueID: util.Ptr("i_1")},
+			info: coretask.RunTerminalInfo{TaskID: "t_1", Status: string(coretask.RunStatusFailed)},
 		},
 	}
 	for _, tc := range cases {
@@ -94,11 +94,11 @@ func TestReportRunTerminal_SilentCases(t *testing.T) {
 
 func TestReportRunTerminal_FailureReportsTheError(t *testing.T) {
 	comments := &mock.MockIssueCommentStore{}
-	reporter := reporterFor(model.Task{ID: "t_1", IssueID: util.Ptr("i_1"), AgentID: util.Ptr("a_1")}, comments)
-	if err := reporter.ReportRunTerminal(context.Background(), model.TaskRunTerminalInfo{
+	reporter := reporterFor(coretask.Task{ID: "t_1", IssueID: util.Ptr("i_1"), AgentID: util.Ptr("a_1")}, comments)
+	if err := reporter.ReportRunTerminal(context.Background(), coretask.RunTerminalInfo{
 		TaskRunID:    "r_1",
 		TaskID:       "t_1",
-		Status:       string(model.RunStatusFailed),
+		Status:       string(coretask.RunStatusFailed),
 		ErrorMessage: util.Ptr("model refused the tool call"),
 	}); err != nil {
 		t.Fatalf("ReportRunTerminal: %v", err)
@@ -113,11 +113,11 @@ func TestReportRunTerminal_FailureReportsTheError(t *testing.T) {
 
 func TestReportRunTerminal_TruncatesLongOutput(t *testing.T) {
 	comments := &mock.MockIssueCommentStore{}
-	reporter := reporterFor(model.Task{ID: "t_1", IssueID: util.Ptr("i_1")}, comments)
-	if err := reporter.ReportRunTerminal(context.Background(), model.TaskRunTerminalInfo{
+	reporter := reporterFor(coretask.Task{ID: "t_1", IssueID: util.Ptr("i_1")}, comments)
+	if err := reporter.ReportRunTerminal(context.Background(), coretask.RunTerminalInfo{
 		TaskRunID: "r_1",
 		TaskID:    "t_1",
-		Status:    string(model.RunStatusSucceeded),
+		Status:    string(coretask.RunStatusSucceeded),
 		Output:    util.Ptr(strings.Repeat("é", runSummaryLimit)),
 	}); err != nil {
 		t.Fatalf("ReportRunTerminal: %v", err)
@@ -138,11 +138,11 @@ func TestReportRunTerminal_TruncatesLongOutput(t *testing.T) {
 func TestReportRunTerminal_StoreFailureIsReturnedNotSwallowed(t *testing.T) {
 	sentinel := errors.New("comment store down")
 	comments := &mock.MockIssueCommentStore{CreateErr: sentinel}
-	reporter := reporterFor(model.Task{ID: "t_1", IssueID: util.Ptr("i_1")}, comments)
-	err := reporter.ReportRunTerminal(context.Background(), model.TaskRunTerminalInfo{
+	reporter := reporterFor(coretask.Task{ID: "t_1", IssueID: util.Ptr("i_1")}, comments)
+	err := reporter.ReportRunTerminal(context.Background(), coretask.RunTerminalInfo{
 		TaskRunID: "r_1",
 		TaskID:    "t_1",
-		Status:    string(model.RunStatusSucceeded),
+		Status:    string(coretask.RunStatusSucceeded),
 		Output:    util.Ptr("done"),
 	})
 	if !errors.Is(err, sentinel) {
@@ -152,7 +152,7 @@ func TestReportRunTerminal_StoreFailureIsReturnedNotSwallowed(t *testing.T) {
 
 func TestReportRunTerminal_NoStoreIsANoop(t *testing.T) {
 	reporter := &RunReporter{}
-	if err := reporter.ReportRunTerminal(context.Background(), model.TaskRunTerminalInfo{TaskID: "t_1"}); err != nil {
+	if err := reporter.ReportRunTerminal(context.Background(), coretask.RunTerminalInfo{TaskID: "t_1"}); err != nil {
 		t.Fatalf("ReportRunTerminal with no stores: %v", err)
 	}
 }

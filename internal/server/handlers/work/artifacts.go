@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 )
@@ -21,7 +21,7 @@ type runOutputResponse struct {
 	TaskInputSnippet string    `json:"task_input_snippet"`
 }
 
-func artifactWithTaskToResponse(a model.ArtifactWithTask) runOutputResponse {
+func artifactWithTaskToResponse(a coretask.RunOutputListing) runOutputResponse {
 	return runOutputResponse{
 		TaskRunID:        a.ArtifactID,
 		TaskID:           a.TaskID,
@@ -64,7 +64,7 @@ type runOutputItemResponse struct {
 	RelativePath string `json:"relative_path"`
 }
 
-func (h *Handler) getArtifactRunAndTaskAny(w http.ResponseWriter, r *http.Request, taskRunID string) (run *model.TaskRun, task *model.Task, ok bool) {
+func (h *Handler) getArtifactRunAndTaskAny(w http.ResponseWriter, r *http.Request, taskRunID string) (run *coretask.Run, task *coretask.Task, ok bool) {
 	if !httputil.RequireStore(w, h.cfg.TaskRuns, "task runs not configured") {
 		return nil, nil, false
 	}
@@ -81,7 +81,7 @@ func (h *Handler) getArtifactRunAndTaskAny(w http.ResponseWriter, r *http.Reques
 	return run, task, true
 }
 
-func (h *Handler) getArtifactRunAndTaskForTeam(w http.ResponseWriter, r *http.Request, teamID, taskRunID string) (run *model.TaskRun, task *model.Task, ok bool) {
+func (h *Handler) getArtifactRunAndTaskForTeam(w http.ResponseWriter, r *http.Request, teamID, taskRunID string) (run *coretask.Run, task *coretask.Task, ok bool) {
 	run, task, ok = h.getArtifactRunAndTaskAny(w, r, taskRunID)
 	if !ok {
 		return nil, nil, false

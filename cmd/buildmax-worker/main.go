@@ -13,7 +13,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/bootstrap"
 	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	log "github.com/gougoujiang/buildmax/internal/infra/log"
 )
 
@@ -65,11 +65,11 @@ func workerExitCode(taskRunID string, err error) int {
 		// Not this worker's run. 2 is what tells the scheduler that, as
 		// distinct from a run that genuinely failed to start.
 		return 2
-	case errors.Is(err, model.ErrRunCanceled):
+	case errors.Is(err, coretask.ErrRunCanceled):
 		// The run did what it was told and has already reported CANCELED.
 		slog.Info("worker run canceled", "task_run_id", taskRunID)
 		return 0
-	case errors.Is(err, model.ErrRunInterrupted):
+	case errors.Is(err, coretask.ErrRunInterrupted):
 		// The process was asked to stop; the run has already reported what it
 		// produced and why it stopped.
 		slog.Info("worker run interrupted by shutdown", "task_run_id", taskRunID)

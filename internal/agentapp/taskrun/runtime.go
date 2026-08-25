@@ -19,8 +19,8 @@ import (
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 	tool "github.com/gougoujiang/buildmax/internal/tool"
@@ -122,13 +122,13 @@ func managedRunScope(m ManagedInference, taskRunID string) string {
 
 // RunTaskInput holds all inputs for RunTask. Callers build this struct and pass it to RunTask.
 type RunTaskInput struct {
-	Task *model.Task
+	Task *coretask.Task
 	// AdditionalSystemPrompt is the instruction text of the agent this task names, resolved by
 	// the server for this run. It becomes the last layer of the system prompt, where it is
 	// re-sent whole on every call, instead of riding in the task input where compaction
 	// eventually drops it.
 	AdditionalSystemPrompt string
-	Run                    *model.TaskRun
+	Run                    *coretask.Run
 	SessionID              string
 	Paths                  RuntimePaths
 	Persist                blob.PersistStorage
@@ -210,7 +210,7 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 	}
 
 	reportPersistedRunState(ctx, input.Persist, scope, dirs, result)
-	if err := reportRunOutcome(ctx, scope, result, model.RunStatusSucceeded, "", input.RunOutputStorage, input.Updater); err != nil {
+	if err := reportRunOutcome(ctx, scope, result, coretask.RunStatusSucceeded, "", input.RunOutputStorage, input.Updater); err != nil {
 		return err
 	}
 	componentLog().Info("run succeeded", "task_run_id", run.ID)
@@ -233,13 +233,13 @@ const interruptReportTimeout = 15 * time.Second
 // runCanceled reports whether this run's context was ended by a cancel request
 // rather than by the process shutting down or a deadline passing.
 func runCanceled(ctx context.Context) bool {
-	return errors.Is(context.Cause(ctx), model.ErrRunCanceled)
+	return errors.Is(context.Cause(ctx), coretask.ErrRunCanceled)
 }
 
 // runInterrupted reports whether this run's context was ended because the
 // process executing it was asked to stop.
 func runInterrupted(ctx context.Context) bool {
-	return errors.Is(context.Cause(ctx), model.ErrRunInterrupted)
+	return errors.Is(context.Cause(ctx), coretask.ErrRunInterrupted)
 }
 
 // reportStoppedRun finishes a run that stopped for a reason it can name, and
@@ -266,12 +266,12 @@ func reportStoppedRun(ctx context.Context, scope RunScope, result runResult, dir
 // reporting gets a fresh, bounded one, or the cancel would also destroy the
 // evidence of what the run had done.
 func reportCanceledRun(ctx context.Context, scope RunScope, result runResult, dirs runDirs, input RunTaskInput) error {
-	if err := finishStoppedRun(ctx, scope, result, dirs, input, model.RunStatusCanceled, "", reportFinishTimeout); err != nil {
+	if err := finishStoppedRun(ctx, scope, result, dirs, input, coretask.RunStatusCanceled, "", reportFinishTimeout); err != nil {
 		componentLog().Error("could not report a canceled run", "task_run_id", scope.TaskRunID, "err", err)
 		return err
 	}
 	componentLog().Info("run canceled", "task_run_id", scope.TaskRunID, "output_len", len(result.OutputStr))
-	return model.ErrRunCanceled
+	return coretask.ErrRunCanceled
 }
 
 // reportInterruptedRun finishes a run whose process is shutting down.
@@ -287,12 +287,12 @@ func reportInterruptedRun(ctx context.Context, scope RunScope, result runResult,
 	if grace <= 0 {
 		grace = interruptReportTimeout
 	}
-	if err := finishStoppedRun(ctx, scope, result, dirs, input, model.RunStatusFailed, model.ErrRunInterrupted.Error(), grace); err != nil {
+	if err := finishStoppedRun(ctx, scope, result, dirs, input, coretask.RunStatusFailed, coretask.ErrRunInterrupted.Error(), grace); err != nil {
 		componentLog().Error("could not report an interrupted run", "task_run_id", scope.TaskRunID, "err", err)
 		return err
 	}
 	componentLog().Info("run interrupted by shutdown", "task_run_id", scope.TaskRunID, "output_len", len(result.OutputStr))
-	return model.ErrRunInterrupted
+	return coretask.ErrRunInterrupted
 }
 
 // finishStoppedRun uploads what a stopped run produced and records its outcome
@@ -301,7 +301,7 @@ func reportInterruptedRun(ctx context.Context, scope RunScope, result runResult,
 // The detached context is the whole point: the run's own is dead by definition
 // here, and reporting on it would destroy the evidence of the work along with
 // the run.
-func finishStoppedRun(ctx context.Context, scope RunScope, result runResult, dirs runDirs, input RunTaskInput, status model.RunStatus, errMessage string, timeout time.Duration) error {
+func finishStoppedRun(ctx context.Context, scope RunScope, result runResult, dirs runDirs, input RunTaskInput, status coretask.RunStatus, errMessage string, timeout time.Duration) error {
 	reportCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
 	defer cancel()
 	if result.EndTime.IsZero() {
@@ -311,7 +311,7 @@ func finishStoppedRun(ctx context.Context, scope RunScope, result runResult, dir
 	return reportRunOutcome(reportCtx, scope, result, status, errMessage, input.RunOutputStorage, input.Updater)
 }
 
-func resolveRunDirs(paths RuntimePaths, task *model.Task, run *model.TaskRun) runDirs {
+func resolveRunDirs(paths RuntimePaths, task *coretask.Task, run *coretask.Run) runDirs {
 	return runDirs{
 		runDir:       paths.RuntimeTaskRunDir(task.CreatedBy, task.ConversationID, task.ID, run.ID),
 		runHome:      paths.RuntimeTaskRunHomeDir(task.CreatedBy, task.ConversationID, task.ID, run.ID),
@@ -320,7 +320,7 @@ func resolveRunDirs(paths RuntimePaths, task *model.Task, run *model.TaskRun) ru
 	}
 }
 
-func prepareRunWorkspace(ctx context.Context, input RunTaskInput, task *model.Task, run *model.TaskRun, dirs runDirs) error {
+func prepareRunWorkspace(ctx context.Context, input RunTaskInput, task *coretask.Task, run *coretask.Run, dirs runDirs) error {
 	persist := input.Persist
 	if err := ensureRunDirs(dirs.runHome, dirs.runArtifacts, dirs.runGlobal); err != nil {
 		return err
@@ -344,7 +344,7 @@ func prepareRunWorkspace(ctx context.Context, input RunTaskInput, task *model.Ta
 	return nil
 }
 
-func executeRunTask(ctx context.Context, input RunTaskInput, task *model.Task, run *model.TaskRun, dirs runDirs) (runResult, error) {
+func executeRunTask(ctx context.Context, input RunTaskInput, task *coretask.Task, run *coretask.Run, dirs runDirs) (runResult, error) {
 	effectiveSessionID := input.SessionID
 	if task.SessionID != nil {
 		effectiveSessionID = *task.SessionID
@@ -395,7 +395,7 @@ func ensureRunDirs(runHome, runArtifacts, runGlobal string) error {
 // unbounded set of files whose names this side does not know.
 var sessionBundleFiles = []string{"meta.json", "history.jsonl"}
 
-func restoreSessionFromPreviousRun(ctx context.Context, task *model.Task, run *model.TaskRun, runGlobalDir string, persist blob.RunStorage) {
+func restoreSessionFromPreviousRun(ctx context.Context, task *coretask.Task, run *coretask.Run, runGlobalDir string, persist blob.RunStorage) {
 	if task.SessionID == nil || task.LastRunID == nil || *task.LastRunID == run.ID {
 		return
 	}
@@ -456,7 +456,7 @@ func runtimeModelEntries(runtimeModel config.ModelEntry, managed ManagedInferenc
 	return []config.ModelEntry{runtimeModel}
 }
 
-func runAgentTask(ctx context.Context, run *model.TaskRun, runDir, runGlobalDir, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry, managed ManagedInference, additionalSystemPrompt string, publisher tool.ArtifactPublisher) (agentRunOutput, error) {
+func runAgentTask(ctx context.Context, run *coretask.Run, runDir, runGlobalDir, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry, managed ManagedInference, additionalSystemPrompt string, publisher tool.ArtifactPublisher) (agentRunOutput, error) {
 	var sink llm.StreamSink
 	if streamSender != nil {
 		sink = &streamSinkAdapter{ctx: ctx, streamSender: streamSender, taskRunID: run.ID}
@@ -567,7 +567,7 @@ func reportRunFailure(ctx context.Context, taskRunID string, err error, tracePat
 	endTime := time.Now().UTC()
 	errMsg := fmt.Sprintf("%v", err)
 	req := &workerclient.PatchTaskRunRequest{
-		Status:       string(model.RunStatusFailed),
+		Status:       string(coretask.RunStatusFailed),
 		EndedAt:      &endTime,
 		ErrorMessage: &errMsg,
 	}
@@ -584,7 +584,7 @@ func reportRunFailure(ctx context.Context, taskRunID string, err error, tracePat
 // artifacts the run wrote, and the tokens it spent. The status is what tells a
 // reader whether the output is the answer or as far as the run got, and
 // errMessage, when there is one, is what tells them why it is the latter.
-func reportRunOutcome(ctx context.Context, scope RunScope, result runResult, status model.RunStatus, errMessage string, runOutputStorage blob.RunOutputStorage, updater TaskRunUpdater) error {
+func reportRunOutcome(ctx context.Context, scope RunScope, result runResult, status coretask.RunStatus, errMessage string, runOutputStorage blob.RunOutputStorage, updater TaskRunUpdater) error {
 	if putErr := runOutputStorage.PutResult(ctx, blob.RunRef(scope), result.Output); putErr != nil {
 		componentLog().Error("failed to write result to artifact storage", "task_run_id", scope.TaskRunID, "err", putErr)
 	}

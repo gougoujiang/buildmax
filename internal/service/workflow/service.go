@@ -13,7 +13,7 @@ import (
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	"github.com/gougoujiang/buildmax/internal/service/task"
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -345,7 +345,7 @@ func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd)
 	return run, stepRuns, nil
 }
 
-func (s *Service) HandleTaskRunTerminal(ctx context.Context, info model.TaskRunTerminalInfo) error {
+func (s *Service) HandleTaskRunTerminal(ctx context.Context, info coretask.RunTerminalInfo) error {
 	if s.Workflows == nil {
 		return nil
 	}
@@ -367,7 +367,7 @@ func (s *Service) HandleTaskRunTerminal(ctx context.Context, info model.TaskRunT
 		return err
 	}
 	now := time.Now().UTC()
-	if info.Status == string(model.RunStatusSucceeded) {
+	if info.Status == string(coretask.RunStatusSucceeded) {
 		summary := summarizeOutput(info.Output)
 		status := coreworkflow.StepRunStatusSucceeded
 		if _, err := s.Workflows.UpdateWorkflowStepRun(ctx, stepRun.ID, coreworkflow.UpdateStepRunInput{
@@ -393,7 +393,7 @@ func (s *Service) HandleTaskRunTerminal(ctx context.Context, info model.TaskRunT
 	// happened.
 	stepStatus := coreworkflow.StepRunStatusFailed
 	runStatus := coreworkflow.RunStatusFailed
-	if info.Status == string(model.RunStatusCanceled) {
+	if info.Status == string(coretask.RunStatusCanceled) {
 		stepStatus = coreworkflow.StepRunStatusCanceled
 		runStatus = coreworkflow.RunStatusCanceled
 	}
@@ -509,7 +509,7 @@ func (s *Service) stepAgent(ctx context.Context, teamID, agentID string, step co
 	return agent, nil
 }
 
-func (s *Service) createStepTask(ctx context.Context, teamID, userID, conversationID string, step coreworkflow.StepRun) (*model.Task, string, error) {
+func (s *Service) createStepTask(ctx context.Context, teamID, userID, conversationID string, step coreworkflow.StepRun) (*coretask.Task, string, error) {
 	agentID := ""
 	if step.TargetAgentID != nil {
 		agentID = *step.TargetAgentID
@@ -528,8 +528,8 @@ func (s *Service) createStepTask(ctx context.Context, teamID, userID, conversati
 		TeamID:         teamID,
 		Input:          input,
 		AgentID:        &agentID,
-		CreatedByType:  model.RunCreatedByTypeUser,
-		TriggerSource:  model.RunTriggerSourceWorkflowStep,
+		CreatedByType:  coretask.RunCreatedByTypeUser,
+		TriggerSource:  coretask.RunTriggerSourceWorkflowStep,
 	})
 	if err != nil {
 		return nil, "", err

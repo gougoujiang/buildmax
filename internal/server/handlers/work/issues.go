@@ -11,7 +11,7 @@ import (
 	agentsvc "github.com/gougoujiang/buildmax/internal/service/agent"
 
 	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
 	"github.com/gougoujiang/buildmax/internal/service/issue"
@@ -371,8 +371,8 @@ func (h *Handler) createIssueAgentRunHandler(w http.ResponseWriter, r *http.Requ
 		Input:          input,
 		AgentID:        issue.AssigneeID,
 		IssueID:        &issueID,
-		CreatedByType:  model.RunCreatedByTypeUser,
-		TriggerSource:  model.RunTriggerSourceIssueAgentRun,
+		CreatedByType:  coretask.RunCreatedByTypeUser,
+		TriggerSource:  coretask.RunTriggerSourceIssueAgentRun,
 	})
 	if err != nil {
 		if h.writeTaskServiceError(w, r, err, issue.AssigneeID) {

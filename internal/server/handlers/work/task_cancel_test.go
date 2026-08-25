@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
@@ -27,23 +27,23 @@ const (
 
 // cancelFixture wires the two stores a cancel touches: the task is read for
 // authorization, the run is what actually moves.
-func cancelFixture(t *testing.T, run model.TaskRun) (*http.ServeMux, *mock.MockTaskRunStore) {
+func cancelFixture(t *testing.T, run coretask.Run) (*http.ServeMux, *mock.MockTaskRunStore) {
 	t.Helper()
-	task := model.Task{
+	task := coretask.Task{
 		ID:             cancelTaskID,
 		ConversationID: cancelConv,
 		TeamID:         cancelTeam,
 		Status:         run.Status,
 		CreatedBy:      cancelUser,
 	}
-	runs := &mock.MockTaskRunStore{Runs: []model.TaskRun{run}, TaskList: []model.Task{task}}
+	runs := &mock.MockTaskRunStore{Runs: []coretask.Run{run}, TaskList: []coretask.Task{task}}
 	h := New(Config{
 		JWTSecret: cancelSecret,
 		Teams: &mock.MockTeamStore{
 			Teams:   []coreteam.Team{{ID: cancelTeam, Name: "My Space", PersonalForUserID: util.Ptr(cancelUser), CreatedBy: cancelUser}},
 			Members: []coreteam.Member{{TeamID: cancelTeam, UserID: cancelUser, Role: coreteam.RoleOwner}},
 		},
-		Tasks:    &mock.MockTaskStore{List: []model.Task{task}},
+		Tasks:    &mock.MockTaskStore{List: []coretask.Task{task}},
 		TaskRuns: runs,
 		Conversations: &mock.MockConversationStore{Conversations: []coreconv.Conversation{
 			{ID: cancelConv, UserID: cancelUser, TeamID: cancelTeam, Channel: "portal", CreatedBy: cancelUser},
@@ -75,8 +75,8 @@ func decodeCancel(t *testing.T, rec *httptest.ResponseRecorder) cancelTaskRespon
 // A run nobody has picked up is over the moment it is canceled: no worker holds
 // it, so there is nothing to wait for and nothing that could still report.
 func TestCancelTaskFinishesAnUndispatchedRun(t *testing.T) {
-	mux, runs := cancelFixture(t, model.TaskRun{
-		ID: cancelRunID, TaskID: cancelTaskID, Status: string(model.RunStatusPending),
+	mux, runs := cancelFixture(t, coretask.Run{
+		ID: cancelRunID, TaskID: cancelTaskID, Status: string(coretask.RunStatusPending),
 	})
 
 	rec := postCancel(t, mux)
@@ -85,13 +85,13 @@ func TestCancelTaskFinishesAnUndispatchedRun(t *testing.T) {
 		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
 	}
 	got := decodeCancel(t, rec)
-	if got.Status != string(model.RunStatusCanceled) {
+	if got.Status != string(coretask.RunStatusCanceled) {
 		t.Errorf("status = %q, want CANCELED", got.Status)
 	}
 	if got.CancelRequested {
 		t.Error("cancel_requested is true for a run that is already over")
 	}
-	if runs.Runs[0].Status != string(model.RunStatusCanceled) {
+	if runs.Runs[0].Status != string(coretask.RunStatusCanceled) {
 		t.Errorf("stored run status = %q, want CANCELED", runs.Runs[0].Status)
 	}
 	if runs.Runs[0].EndedAt == nil {
@@ -99,7 +99,7 @@ func TestCancelTaskFinishesAnUndispatchedRun(t *testing.T) {
 	}
 	// The task's denormalized status has to follow, or Portal keeps showing
 	// work in progress that has already stopped.
-	if runs.TaskList[0].Status != string(model.RunStatusCanceled) {
+	if runs.TaskList[0].Status != string(coretask.RunStatusCanceled) {
 		t.Errorf("task status = %q, want CANCELED", runs.TaskList[0].Status)
 	}
 	if runs.Runs[0].CancelRequestedBy == nil || *runs.Runs[0].CancelRequestedBy != cancelUser {
@@ -111,8 +111,8 @@ func TestCancelTaskFinishesAnUndispatchedRun(t *testing.T) {
 // its status, because marking it over here would describe a process that is
 // still executing.
 func TestCancelTaskRequestsStopForARunningRun(t *testing.T) {
-	mux, runs := cancelFixture(t, model.TaskRun{
-		ID: cancelRunID, TaskID: cancelTaskID, Status: string(model.RunStatusRunning),
+	mux, runs := cancelFixture(t, coretask.Run{
+		ID: cancelRunID, TaskID: cancelTaskID, Status: string(coretask.RunStatusRunning),
 	})
 
 	rec := postCancel(t, mux)
@@ -124,10 +124,10 @@ func TestCancelTaskRequestsStopForARunningRun(t *testing.T) {
 	if !got.CancelRequested {
 		t.Error("cancel_requested is false for a run that is still executing")
 	}
-	if got.Status != string(model.RunStatusRunning) {
+	if got.Status != string(coretask.RunStatusRunning) {
 		t.Errorf("status = %q, want the run's current status RUNNING", got.Status)
 	}
-	if runs.Runs[0].Status != string(model.RunStatusRunning) {
+	if runs.Runs[0].Status != string(coretask.RunStatusRunning) {
 		t.Errorf("stored run status = %q, want it left alone until its worker reports", runs.Runs[0].Status)
 	}
 	if runs.Runs[0].CancelRequestedAt == nil {
@@ -138,8 +138,8 @@ func TestCancelTaskRequestsStopForARunningRun(t *testing.T) {
 // Pressing stop twice is normal — the first press has no visible effect until
 // the worker reacts. The second must not read as an error.
 func TestCancelTaskIsIdempotentWhileTheRunIsStopping(t *testing.T) {
-	mux, runs := cancelFixture(t, model.TaskRun{
-		ID: cancelRunID, TaskID: cancelTaskID, Status: string(model.RunStatusRunning),
+	mux, runs := cancelFixture(t, coretask.Run{
+		ID: cancelRunID, TaskID: cancelTaskID, Status: string(coretask.RunStatusRunning),
 	})
 
 	first := postCancel(t, mux)
@@ -158,8 +158,8 @@ func TestCancelTaskIsIdempotentWhileTheRunIsStopping(t *testing.T) {
 }
 
 func TestCancelTaskRefusesAFinishedRun(t *testing.T) {
-	mux, _ := cancelFixture(t, model.TaskRun{
-		ID: cancelRunID, TaskID: cancelTaskID, Status: string(model.RunStatusSucceeded),
+	mux, _ := cancelFixture(t, coretask.Run{
+		ID: cancelRunID, TaskID: cancelTaskID, Status: string(coretask.RunStatusSucceeded),
 	})
 
 	rec := postCancel(t, mux)
@@ -174,8 +174,8 @@ func TestCancelTaskRefusesAFinishedRun(t *testing.T) {
 
 // The run belongs to a different task, so this task has nothing in flight.
 func TestCancelTaskRefusesWhenTheTaskHasNoActiveRun(t *testing.T) {
-	mux, _ := cancelFixture(t, model.TaskRun{
-		ID: cancelOtherID, TaskID: "t_somebody_else", Status: string(model.RunStatusRunning),
+	mux, _ := cancelFixture(t, coretask.Run{
+		ID: cancelOtherID, TaskID: "t_somebody_else", Status: string(coretask.RunStatusRunning),
 	})
 
 	rec := postCancel(t, mux)

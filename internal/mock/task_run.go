@@ -5,36 +5,36 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 )
 
 // MockTaskRunStore is an in-memory TaskRunStore for tests.
 type MockTaskRunStore struct {
-	Runs     []model.TaskRun
-	TaskList []model.Task
+	Runs     []coretask.Run
+	TaskList []coretask.Task
 	// Artifacts holds the relative paths registered per run, so a test can
 	// check that a run's files were kept.
 	Artifacts map[string][]string
 }
 
-func (m *MockTaskRunStore) CreateTaskRun(_ context.Context, in model.CreateTaskRunInput) (*model.TaskRun, error) {
+func (m *MockTaskRunStore) CreateTaskRun(_ context.Context, in coretask.CreateRunInput) (*coretask.Run, error) {
 	// One task holds at most one active run. The real store enforces this, and
 	// callers handle the refusal, so a double that quietly allowed a second one
 	// would let a test pass on behavior the deployment does not have.
 	for i := range m.Runs {
-		if m.Runs[i].TaskID == in.TaskID && !model.RunStatusTerminal(m.Runs[i].Status) {
-			return nil, model.ErrRunInProgress
+		if m.Runs[i].TaskID == in.TaskID && !coretask.RunStatusTerminal(m.Runs[i].Status) {
+			return nil, coretask.ErrRunInProgress
 		}
 	}
-	run := model.TaskRun{
+	run := coretask.Run{
 		ID:               fmt.Sprintf("r_mock_%d", len(m.Runs)+1),
 		TaskID:           in.TaskID,
 		Input:            in.Input,
 		CreatedBy:        in.CreatedBy,
 		CreatedByType:    in.CreatedByType,
 		TriggerSource:    in.TriggerSource,
-		Status:           string(model.RunStatusPending),
+		Status:           string(coretask.RunStatusPending),
 		RetryOfTaskRunID: in.RetryOfTaskRunID,
 		SourceMessageID:  in.SourceMessageID,
 		CreatedAt:        time.Now().UTC(),
@@ -50,10 +50,10 @@ func (m *MockTaskRunStore) CountTaskRunsByStatus(_ context.Context) (map[string]
 	return out, nil
 }
 
-func (m *MockTaskRunStore) GetNextPendingTaskRun(_ context.Context) (*model.TaskRun, error) {
+func (m *MockTaskRunStore) GetNextPendingTaskRun(_ context.Context) (*coretask.Run, error) {
 	return nil, nil
 }
-func (m *MockTaskRunStore) GetTaskRun(_ context.Context, taskRunID string) (*model.TaskRun, error) {
+func (m *MockTaskRunStore) GetTaskRun(_ context.Context, taskRunID string) (*coretask.Run, error) {
 	for i := range m.Runs {
 		if m.Runs[i].ID == taskRunID {
 			return &m.Runs[i], nil
@@ -61,8 +61,8 @@ func (m *MockTaskRunStore) GetTaskRun(_ context.Context, taskRunID string) (*mod
 	}
 	return nil, nil
 }
-func (m *MockTaskRunStore) GetTaskRunWithTask(_ context.Context, taskRunID string) (*model.TaskRun, *model.Task, error) {
-	var run *model.TaskRun
+func (m *MockTaskRunStore) GetTaskRunWithTask(_ context.Context, taskRunID string) (*coretask.Run, *coretask.Task, error) {
+	var run *coretask.Run
 	for i := range m.Runs {
 		if m.Runs[i].ID == taskRunID {
 			run = &m.Runs[i]
@@ -72,7 +72,7 @@ func (m *MockTaskRunStore) GetTaskRunWithTask(_ context.Context, taskRunID strin
 	if run == nil {
 		return nil, nil, nil
 	}
-	var task *model.Task
+	var task *coretask.Task
 	for i := range m.TaskList {
 		if m.TaskList[i].ID == run.TaskID {
 			task = &m.TaskList[i]
@@ -95,12 +95,12 @@ func (m *MockTaskRunStore) ListTaskRunIDsByTasks(_ context.Context, taskIDs []st
 	return out, nil
 }
 
-func (m *MockTaskRunStore) GetActiveTaskRunByTask(_ context.Context, taskID string) (*model.TaskRun, error) {
+func (m *MockTaskRunStore) GetActiveTaskRunByTask(_ context.Context, taskID string) (*coretask.Run, error) {
 	for i := range m.Runs {
 		if m.Runs[i].TaskID != taskID {
 			continue
 		}
-		if !model.RunStatusTerminal(m.Runs[i].Status) {
+		if !coretask.RunStatusTerminal(m.Runs[i].Status) {
 			return &m.Runs[i], nil
 		}
 	}
@@ -112,7 +112,7 @@ func (m *MockTaskRunStore) RequestTaskRunCancel(_ context.Context, taskRunID, re
 		if m.Runs[i].ID != taskRunID {
 			continue
 		}
-		if model.RunStatusTerminal(m.Runs[i].Status) || m.Runs[i].CancelRequestedAt != nil {
+		if coretask.RunStatusTerminal(m.Runs[i].Status) || m.Runs[i].CancelRequestedAt != nil {
 			return false, nil
 		}
 		m.Runs[i].CancelRequestedAt = &requestedAt
@@ -122,9 +122,9 @@ func (m *MockTaskRunStore) RequestTaskRunCancel(_ context.Context, taskRunID, re
 	return false, nil
 }
 
-func (m *MockTaskRunStore) TransitionTaskRun(ctx context.Context, in model.TransitionTaskRunInput) (bool, error) {
-	if !model.ValidRunStatusTransition(in.ExpectedStatus, in.NewStatus) {
-		return false, model.ErrInvalidRunTransition
+func (m *MockTaskRunStore) TransitionTaskRun(ctx context.Context, in coretask.TransitionRunInput) (bool, error) {
+	if !coretask.ValidRunStatusTransition(in.ExpectedStatus, in.NewStatus) {
+		return false, coretask.ErrInvalidRunTransition
 	}
 	for i := range m.Runs {
 		if m.Runs[i].ID != in.TaskRunID || m.Runs[i].Status != string(in.ExpectedStatus) {

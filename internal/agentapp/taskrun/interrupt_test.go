@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 )
 
 // A run stopped because its worker is going away is neither a cancel nor a
@@ -17,7 +17,7 @@ import (
 // outcome on the record is wrong in one direction or the other.
 func TestRunInterruptedOnlyRecognisesAShutdownCause(t *testing.T) {
 	shutdown, cancelShutdown := context.WithCancelCause(context.Background())
-	cancelShutdown(model.ErrRunInterrupted)
+	cancelShutdown(coretask.ErrRunInterrupted)
 	if !runInterrupted(shutdown) {
 		t.Error("a context canceled with ErrRunInterrupted does not read as an interruption")
 	}
@@ -26,7 +26,7 @@ func TestRunInterruptedOnlyRecognisesAShutdownCause(t *testing.T) {
 	}
 
 	asked, cancelAsked := context.WithCancelCause(context.Background())
-	cancelAsked(model.ErrRunCanceled)
+	cancelAsked(coretask.ErrRunCanceled)
 	if runInterrupted(asked) {
 		t.Error("a canceled run reads as interrupted")
 	}
@@ -57,14 +57,14 @@ func TestReportInterruptedRunReportsFailedAndKeepsPartialWork(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancelCause(context.Background())
-	cancel(model.ErrRunInterrupted)
+	cancel(coretask.ErrRunInterrupted)
 	err := reportInterruptedRun(ctx, scope, result, runDirs{runGlobal: t.TempDir(), runArtifacts: artifactsDir}, RunTaskInput{
 		Persist:          newFakePersistStorage(),
 		RunOutputStorage: storage,
 		Updater:          updater,
 	})
 
-	if !errors.Is(err, model.ErrRunInterrupted) {
+	if !errors.Is(err, coretask.ErrRunInterrupted) {
 		t.Fatalf("err = %v, want ErrRunInterrupted", err)
 	}
 	if storage.err != nil {
@@ -73,7 +73,7 @@ func TestReportInterruptedRunReportsFailedAndKeepsPartialWork(t *testing.T) {
 	if updater.req == nil {
 		t.Fatal("the run never reported an outcome")
 	}
-	if updater.req.Status != string(model.RunStatusFailed) {
+	if updater.req.Status != string(coretask.RunStatusFailed) {
 		t.Errorf("status = %q, want FAILED", updater.req.Status)
 	}
 	// FAILED is shared with a run that failed at its work, so the message is
@@ -109,19 +109,19 @@ func TestCancelWinsOverAnInterruptionOnTheSameRun(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancelCause(context.Background())
-	cancel(model.ErrRunCanceled)
+	cancel(coretask.ErrRunCanceled)
 	// A second cause never replaces the first, which is what makes the order
 	// here a real question rather than a formality.
-	cancel(model.ErrRunInterrupted)
+	cancel(coretask.ErrRunInterrupted)
 
 	stopped, err := reportStoppedRun(ctx, scope, runResult{}, dirs, input)
 	if !stopped {
 		t.Fatal("a stopped run was not recognised as stopped")
 	}
-	if !errors.Is(err, model.ErrRunCanceled) {
+	if !errors.Is(err, coretask.ErrRunCanceled) {
 		t.Fatalf("err = %v, want ErrRunCanceled", err)
 	}
-	if updater.req == nil || updater.req.Status != string(model.RunStatusCanceled) {
+	if updater.req == nil || updater.req.Status != string(coretask.RunStatusCanceled) {
 		t.Fatalf("status = %v, want CANCELED", updater.req)
 	}
 }

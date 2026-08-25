@@ -14,6 +14,7 @@ import (
 	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/server/access"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
@@ -33,7 +34,7 @@ type Config struct {
 	Audits        coreaudit.Store
 	Models        coregw.ModelStore
 	Schema        model.SchemaStore
-	TaskRuns      model.TaskRunStore
+	TaskRuns      coretask.RunStore
 
 	Quota *quota.Service
 	// Plugins publishes releases and manages catalog entries. Nil is a

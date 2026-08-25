@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
 	"github.com/gougoujiang/buildmax/internal/service/task"
 )
@@ -53,8 +53,8 @@ func (e *WebhookEngine) Process(ctx context.Context, conversationID, taskID stri
 			TeamID:         conv.TeamID,
 			Input:          turn.Message,
 			AgentID:        nil,
-			CreatedByType:  model.RunCreatedByTypeWebhook,
-			TriggerSource:  model.RunTriggerSourceWebhook,
+			CreatedByType:  coretask.RunCreatedByTypeWebhook,
+			TriggerSource:  coretask.RunTriggerSourceWebhook,
 		})
 		if err != nil {
 			return ConversationResult{}, err
@@ -65,8 +65,8 @@ func (e *WebhookEngine) Process(ctx context.Context, conversationID, taskID stri
 		UserID:        userID,
 		TaskID:        taskID,
 		Input:         turn.Message,
-		CreatedByType: model.RunCreatedByTypeWebhook,
-		TriggerSource: model.RunTriggerSourceWebhook,
+		CreatedByType: coretask.RunCreatedByTypeWebhook,
+		TriggerSource: coretask.RunTriggerSourceWebhook,
 	})
 	if err != nil {
 		return ConversationResult{}, err

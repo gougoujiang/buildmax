@@ -6,7 +6,7 @@ import (
 	"log/slog"
 
 	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 )
 
@@ -26,7 +26,7 @@ type issueFlow struct {
 	Runs     []issueFlowRun
 	// AgentTasks are the runs started from the issue directly rather than
 	// through a workflow step.
-	AgentTasks []model.Task
+	AgentTasks []coretask.Task
 	// StepsByTaskID lets the output aggregation attribute a task's result to
 	// the step that dispatched it.
 	StepsByTaskID map[string]coreworkflow.StepRun

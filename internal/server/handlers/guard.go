@@ -12,7 +12,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/service/conversation"
 	"github.com/gougoujiang/buildmax/internal/service/task"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	"github.com/gougoujiang/buildmax/internal/server/access"
 )
 
@@ -93,7 +93,7 @@ func (h *Handler) activationStore() worker.ActivationReader {
 	return h.cfg.PluginService.Activations
 }
 
-func (h *Handler) terminalListeners(ctx context.Context, info model.TaskRunTerminalInfo) {
+func (h *Handler) terminalListeners(ctx context.Context, info coretask.RunTerminalInfo) {
 	h.reportTaskRunTerminal(ctx, info)
 	if h.cfg.OnTaskRunTerminal != nil {
 		h.cfg.OnTaskRunTerminal(ctx, info)
