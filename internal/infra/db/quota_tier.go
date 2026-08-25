@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	corequota "github.com/gougoujiang/buildmax/internal/core/quota"
 
 	"gorm.io/gorm"
 )
@@ -18,11 +18,11 @@ type quotaTierRow struct {
 
 func (quotaTierRow) TableName() string { return "quota_tier" }
 
-func toQuotaTier(row *quotaTierRow) *model.QuotaTier {
+func toQuotaTier(row *quotaTierRow) *corequota.Tier {
 	if row == nil {
 		return nil
 	}
-	return &model.QuotaTier{
+	return &corequota.Tier{
 		TierName:           row.TierName,
 		MaxRunsPerPeriod:   row.MaxRunsPerPeriod,
 		MaxTokensPerPeriod: row.MaxTokensPerPeriod,
@@ -31,7 +31,7 @@ func toQuotaTier(row *quotaTierRow) *model.QuotaTier {
 }
 
 // GetQuotaTier returns the tier limits by tier name, or (nil, nil) when not found.
-func (s *Store) GetQuotaTier(ctx context.Context, tierName string) (*model.QuotaTier, error) {
+func (s *Store) GetQuotaTier(ctx context.Context, tierName string) (*corequota.Tier, error) {
 	var t quotaTierRow
 	err := s.db.WithContext(ctx).Where("tier_name = ?", tierName).First(&t).Error
 	if err != nil {

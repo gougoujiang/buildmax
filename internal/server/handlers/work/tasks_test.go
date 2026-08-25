@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	corequota "github.com/gougoujiang/buildmax/internal/core/quota"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/quota"
@@ -193,7 +194,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 	denyChecker := &quota.Service{
 		TeamStore:   &mock.DenyQuotaTeamStore{Team: &coreteam.Team{ID: teamID, QuotaTier: "free_trial"}},
 		UsageReader: &mock.DenyQuotaUsageReader{RunCount: 10, TotalTokens: 0},
-		TierStore:   &mock.DenyQuotaTierStore{Tier: &model.QuotaTier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
+		TierStore:   &mock.DenyQuotaTierStore{Tier: &corequota.Tier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
 		DefaultTier: "free_trial",
 	}
 	tests = append(tests, struct {

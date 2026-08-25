@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	corequota "github.com/gougoujiang/buildmax/internal/core/quota"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/quota"
@@ -30,7 +30,7 @@ func TestUsageHandler(t *testing.T) {
 	}
 	usageReader := &mock.MockUsageReader{RunCount: 2, TotalTokens: 5000}
 	tierStore := &mock.MockTierStore{
-		Tier: &model.QuotaTier{
+		Tier: &corequota.Tier{
 			TierName:           "free_trial",
 			MaxRunsPerPeriod:   10,
 			MaxTokensPerPeriod: 100_000,

@@ -128,6 +128,8 @@ internal/
 │   │                   its store, and how its content object is addressed
 │   ├── llmgateway/     What a deployment brokers and records: the model catalog
 │   │                   entry, the call ledger entry, and their stores
+│   ├── quota/          Tier limits and the usage window a refusal is measured
+│   │                   against
 │   └── session/        Local session model; persistence lives in agentapp
 │
 ├── agentapp/           Agent runtime assembly: LLM client cache, tool registry,
