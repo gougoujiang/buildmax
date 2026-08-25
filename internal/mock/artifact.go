@@ -6,25 +6,25 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
 )
 
-// MockArtifactStore is an in-memory model.ArtifactStore for tests.
+// MockArtifactStore is an in-memory coreartifact.Store for tests.
 type MockArtifactStore struct {
 	mu    sync.Mutex
-	items []model.Artifact
+	items []coreartifact.Artifact
 	// CreateErr, when set, fails every create — the case where content is
 	// already durable and the record is not.
 	CreateErr error
 }
 
-func (m *MockArtifactStore) CreateArtifact(_ context.Context, in model.CreateArtifactInput) (*model.Artifact, error) {
+func (m *MockArtifactStore) CreateArtifact(_ context.Context, in coreartifact.CreateInput) (*coreartifact.Artifact, error) {
 	if m.CreateErr != nil {
 		return nil, m.CreateErr
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	rec := model.Artifact{
+	rec := coreartifact.Artifact{
 		ID:            in.ArtifactID,
 		TeamID:        in.TeamID,
 		Filename:      in.Filename,
@@ -45,7 +45,7 @@ func (m *MockArtifactStore) CreateArtifact(_ context.Context, in model.CreateArt
 	return &out, nil
 }
 
-func (m *MockArtifactStore) GetArtifact(_ context.Context, artifactID string) (*model.Artifact, error) {
+func (m *MockArtifactStore) GetArtifact(_ context.Context, artifactID string) (*coreartifact.Artifact, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for i := range m.items {
@@ -57,10 +57,10 @@ func (m *MockArtifactStore) GetArtifact(_ context.Context, artifactID string) (*
 	return nil, nil
 }
 
-func (m *MockArtifactStore) ListArtifactsByTeam(_ context.Context, teamID string, limit, offset int) ([]model.Artifact, int, error) {
+func (m *MockArtifactStore) ListArtifactsByTeam(_ context.Context, teamID string, limit, offset int) ([]coreartifact.Artifact, int, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	var live []model.Artifact
+	var live []coreartifact.Artifact
 	for i := range m.items {
 		if m.items[i].TeamID == teamID && m.items[i].DeletedAt == nil {
 			live = append(live, m.items[i])
@@ -71,14 +71,14 @@ func (m *MockArtifactStore) ListArtifactsByTeam(_ context.Context, teamID string
 	return page, total, nil
 }
 
-func (m *MockArtifactStore) ListArtifactsBySource(_ context.Context, sourceIDs []string) (map[string][]model.Artifact, error) {
+func (m *MockArtifactStore) ListArtifactsBySource(_ context.Context, sourceIDs []string) (map[string][]coreartifact.Artifact, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	want := make(map[string]bool, len(sourceIDs))
 	for _, id := range sourceIDs {
 		want[id] = true
 	}
-	out := make(map[string][]model.Artifact)
+	out := make(map[string][]coreartifact.Artifact)
 	for i := len(m.items) - 1; i >= 0; i-- {
 		it := m.items[i]
 		if it.DeletedAt == nil && want[it.SourceID] {

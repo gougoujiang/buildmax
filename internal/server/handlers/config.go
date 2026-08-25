@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/core/model"
@@ -88,7 +89,7 @@ type Config struct {
 	// ArtifactStore records durable files. Nil, or no ArtifactStorage, leaves
 	// the artifact routes answering 503: metadata without content is not an
 	// artifact capability.
-	ArtifactStore model.ArtifactStore
+	ArtifactStore coreartifact.Store
 	// SystemGrantStore reads deployment-scoped role grants. Nil leaves every
 	// /api/admin route answering 503 to an authenticated caller, which is what
 	// a deployment with no database has: no way to know whether anyone is an

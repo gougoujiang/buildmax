@@ -422,6 +422,19 @@ change to the matrix could reach it. Now that both enforcers read one rule, the
 service states its own expectation, and each of the three enforcement points
 fails independently when the rule is widened.
 
+D6 found `artifact.go` holding two capabilities. `TaskRunArtifact` and
+`ArtifactWithTask` are run-output types — one names a file a run left behind,
+the other is the DTO for listing them, and its own comment says so. Their only
+callers are `db/run_output.go`, `db/task_run.go`, and the work handlers; the
+`ArtifactStore` interface never mentions them. The separate-concepts list above
+already says an Artifact and a run output are different objects, so they stayed
+behind for the task domain rather than riding along on a filename.
+
+`Artifact` keeps its name. The satellites lose the prefix that only repeated the
+package — `CreateArtifactInput` is `CreateInput`, `ArtifactStore` is `Store`,
+the source and creator constants drop `Artifact` — but a package's primary
+entity naming itself is `time.Time`, not a defect.
+
 D1 changed its own destination. The plan sent the catalog and call-ledger
 models to `core/llm`, and moving them there put `Usage` and `CallUsage` side by
 side with the same five token fields — one being what a provider reported for a
@@ -511,7 +524,7 @@ settled in D0's review.
 | D3 | `core/conversation` | `conversation.go` | 13 |
 | D4 | `core/workflow` | `workflow.go` | 13 |
 | D5 | `core/agentdef` | `agent_definition.go` | 15 |
-| D6 | `core/artifact` | `artifact.go` | 15 |
+| D6 | `core/artifact` (from B2b) | `artifact.go`, minus its two run-output types | 13 |
 | D7 | `core/issue` | `issue.go` | 15 |
 | D8 | `core/team` (from B4) | `team.go`, `webhook_key.go` | 18, 5 |
 | D9 | `core/identity` | `user.go`, `password.go`, `login_code.go`, `refresh_token.go`, `system_grant.go`, 3 sentinels | 18, 2, 7, 7, 9 |

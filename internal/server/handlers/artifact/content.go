@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
 )
@@ -75,7 +75,7 @@ func (h *Handler) artifactContentHandler(w http.ResponseWriter, r *http.Request)
 
 // writeContentHeaders describes the bytes from what was stored and validated,
 // never from anything the uploader declared.
-func writeContentHeaders(w http.ResponseWriter, rec *model.Artifact) {
+func writeContentHeaders(w http.ResponseWriter, rec *coreartifact.Artifact) {
 	inline := inlineAllowed(rec.MediaType)
 	contentType := rec.MediaType
 	disposition := "attachment"

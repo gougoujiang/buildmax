@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
@@ -317,10 +318,10 @@ func TestUploadOverTheLimitIsRefused(t *testing.T) {
 func TestUploadRecordsProvenance(t *testing.T) {
 	f := newFixture(t)
 	created := f.upload(t, userOwner, teamA, "report.md", "hello")
-	if created.SourceType != model.ArtifactSourceUserUpload {
-		t.Errorf("source type = %q, want %q", created.SourceType, model.ArtifactSourceUserUpload)
+	if created.SourceType != coreartifact.SourceUserUpload {
+		t.Errorf("source type = %q, want %q", created.SourceType, coreartifact.SourceUserUpload)
 	}
-	if created.CreatedByType != model.ArtifactCreatorUser || created.CreatedByID != userOwner {
+	if created.CreatedByType != coreartifact.CreatorUser || created.CreatedByID != userOwner {
 		t.Errorf("creator = %q/%q, want a user and the uploader", created.CreatedByType, created.CreatedByID)
 	}
 }

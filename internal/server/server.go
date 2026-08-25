@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/core/model"
@@ -78,7 +79,7 @@ type StoresConfig struct {
 	LLMModelStore           coregw.ModelStore
 	// ArtifactStore records durable files. Nil leaves the artifact routes
 	// answering 503, which is what a deployment with no database has.
-	ArtifactStore model.ArtifactStore
+	ArtifactStore coreartifact.Store
 }
 
 // ServicesConfig holds application services the handlers reach through rather

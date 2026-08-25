@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
 	"github.com/gougoujiang/buildmax/internal/mock"
 
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -22,13 +22,13 @@ func newService(t *testing.T) (*Service, *mock.MockArtifactStore, *mock.MockArti
 	return &Service{Artifacts: store, Storage: storage}, store, storage
 }
 
-func createFile(t *testing.T, s *Service, teamID, filename, body string) *model.Artifact {
+func createFile(t *testing.T, s *Service, teamID, filename, body string) *coreartifact.Artifact {
 	t.Helper()
 	rec, err := s.Create(context.Background(), CreateInput{
 		TeamID:        teamID,
 		Filename:      filename,
-		SourceType:    model.ArtifactSourceUserUpload,
-		CreatedByType: model.ArtifactCreatorUser,
+		SourceType:    coreartifact.SourceUserUpload,
+		CreatedByType: coreartifact.CreatorUser,
 		CreatedByID:   "u_1",
 		Content:       strings.NewReader(body),
 	})
@@ -193,7 +193,7 @@ func TestDeleteHidesTheArtifactImmediately(t *testing.T) {
 	svc, _, storage := newService(t)
 	rec := createFile(t, svc, "tm_1", "notes.txt", "hello")
 
-	if err := svc.Delete(context.Background(), rec, model.ArtifactCreatorUser, "u_1"); err != nil {
+	if err := svc.Delete(context.Background(), rec, coreartifact.CreatorUser, "u_1"); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
 	if _, err := svc.Get(context.Background(), rec.ID); !errors.Is(err, ErrNotFound) {
@@ -216,10 +216,10 @@ func TestDeleteHidesTheArtifactImmediately(t *testing.T) {
 func TestDeleteTwiceReportsNotFound(t *testing.T) {
 	svc, _, _ := newService(t)
 	rec := createFile(t, svc, "tm_1", "notes.txt", "hello")
-	if err := svc.Delete(context.Background(), rec, model.ArtifactCreatorUser, "u_1"); err != nil {
+	if err := svc.Delete(context.Background(), rec, coreartifact.CreatorUser, "u_1"); err != nil {
 		t.Fatalf("first delete: %v", err)
 	}
-	if err := svc.Delete(context.Background(), rec, model.ArtifactCreatorUser, "u_1"); !errors.Is(err, ErrNotFound) {
+	if err := svc.Delete(context.Background(), rec, coreartifact.CreatorUser, "u_1"); !errors.Is(err, ErrNotFound) {
 		t.Errorf("second delete = %v, want ErrNotFound", err)
 	}
 }

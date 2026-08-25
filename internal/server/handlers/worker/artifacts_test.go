@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
@@ -79,11 +80,11 @@ func TestWorkerArtifactTakesTheTeamFromTheRun(t *testing.T) {
 	}
 	// An agent choosing to publish is a different fact from a run leaving files
 	// in its output directory, and the provenance has to say which happened.
-	if out.SourceType != model.ArtifactSourceAgent || out.SourceID != "run-1" {
+	if out.SourceType != coreartifact.SourceAgent || out.SourceID != "run-1" {
 		t.Errorf("provenance = %q/%q, want agent/run-1", out.SourceType, out.SourceID)
 	}
-	if out.CreatedByType != model.ArtifactCreatorAgent {
-		t.Errorf("creator = %q, want %q", out.CreatedByType, model.ArtifactCreatorAgent)
+	if out.CreatedByType != coreartifact.CreatorAgent {
+		t.Errorf("creator = %q, want %q", out.CreatedByType, coreartifact.CreatorAgent)
 	}
 	if out.CreatedByID != "" {
 		t.Errorf("creator id = %q, want empty — automated work gets no invented user", out.CreatedByID)

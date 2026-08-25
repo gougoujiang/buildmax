@@ -3,7 +3,7 @@ package worker
 import (
 	"net/http"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
 	artifactroutes "github.com/gougoujiang/buildmax/internal/server/handlers/artifact"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 )
@@ -44,8 +44,8 @@ func (h *Handler) postArtifact(w http.ResponseWriter, r *http.Request) {
 	}
 	artifactroutes.ReceiveUpload(w, r, h.cfg.Artifacts, artifactroutes.ReceiveInput{
 		TeamID:        task.TeamID,
-		SourceType:    model.ArtifactSourceAgent,
+		SourceType:    coreartifact.SourceAgent,
 		SourceID:      taskRunID,
-		CreatedByType: model.ArtifactCreatorAgent,
+		CreatedByType: coreartifact.CreatorAgent,
 	})
 }
