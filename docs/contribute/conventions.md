@@ -84,6 +84,26 @@ Prefer small, explicit local duplication over a shared abstraction that
 misleads. Two things that merely look alike get forced apart later, and by then
 the seam is in the wrong place.
 
+These pairs already look alike and are already separate on purpose. Each has a
+record that says why; none of them is cleanup waiting to happen.
+
+| Looks like | Is not | Why, in |
+|---|---|---|
+| Local Job | durable Task and TaskRun | [design/local-background-jobs.md](../design/local-background-jobs.md) |
+| Local Session | Portal Conversation | [design/surface-positioning.md](../design/surface-positioning.md) |
+| Configured model | catalog record, resolved target | [design/llm-gateway.md](../design/llm-gateway.md) |
+| Artifact | run output, team home file | [design/unified-artifacts.md](../design/unified-artifacts.md) |
+| Domain entity | `db` row, wire DTO | [design/entity-identity.md](../design/entity-identity.md) |
+| Task-run status | workflow-run and Issue status | three packages, three vocabularies |
+| User session | worker run token | [design/worker-run-token.md](../design/worker-run-token.md) |
+| Plugin package storage | team Artifact storage | [design/plugin-marketplace.md](../design/plugin-marketplace.md) |
+| Gateway protocol errors | `core/apierr` refusals | [design/llm-gateway.md](../design/llm-gateway.md) |
+
+A small package is not on this list because it is small. `llmwire`,
+`pluginwire`, `authtoken`, `plugininspect`, and the handler trust boundaries are
+small because their reasons to change are narrow, which is the test the rest of
+this section applies.
+
 An interface exists where substitution is required, and it belongs near its
 consumer. Do not mirror every concrete implementation with an interface, and do
 not merge two consumer-owned interfaces because their methods match:
