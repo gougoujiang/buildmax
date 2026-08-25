@@ -42,15 +42,6 @@ type QuotaChecker interface {
 	Check(ctx context.Context, teamID string, runsToAdd, tokensToAdd int) (allowed bool, reason string)
 }
 
-// QuotaExceededError is returned when quota blocks a task operation.
-type QuotaExceededError struct {
-	Reason string
-}
-
-func (e *QuotaExceededError) Error() string {
-	return "quota exceeded: " + e.Reason
-}
-
 // Service owns task-related application workflows.
 type Service struct {
 	Agents         model.AgentStore
@@ -316,7 +307,10 @@ func (s *Service) checkQuota(ctx context.Context, teamID string, tokens int) err
 	if allowed {
 		return nil
 	}
-	return &QuotaExceededError{Reason: reason}
+	// The quota service's reason is already the whole sentence a caller should
+	// read, so it is the message rather than a detail appended to one. The Kind
+	// is what carries the 429; no transport needs to know this package's types.
+	return apierr.New(apierr.KindQuotaExceeded, reason)
 }
 
 func buildTaskInputFromAgent(agent *model.Agent, userInput string) string {

@@ -97,11 +97,6 @@ func (h *Handler) writeTaskServiceError(w http.ResponseWriter, r *http.Request, 
 		httputil.WriteJSONError(w, http.StatusNotFound, "task not found")
 		return true
 	}
-	var quotaErr *task.QuotaExceededError
-	if errors.As(err, &quotaErr) {
-		httputil.WriteQuotaExceeded(w, quotaErr.Reason)
-		return true
-	}
 	return httputil.WriteServiceError(w, err)
 }
 

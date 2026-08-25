@@ -18,11 +18,6 @@ func WriteJSONError(w http.ResponseWriter, status int, message string) {
 	WriteJSON(w, status, map[string]string{"error": message})
 }
 
-// WriteQuotaExceeded writes HTTP 429 with JSON body {"error": reason}.
-func WriteQuotaExceeded(w http.ResponseWriter, reason string) {
-	WriteJSONError(w, http.StatusTooManyRequests, reason)
-}
-
 // WriteInternalError logs the error with logMsg and attrs, then writes 500 and {"error": "internal error"}.
 // logMsg is the slog message (e.g. "auth handler error", "portal handler error").
 func WriteInternalError(w http.ResponseWriter, err error, logMsg string, attrs ...any) {
