@@ -13,6 +13,7 @@ import (
 
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
@@ -78,7 +79,7 @@ type StoresConfig struct {
 	LLMCallStore            coregw.CallStore
 	RunOutputLister         workroutes.RunOutputLister
 	UserWebhookKeyStore     model.UserWebhookKeyStore
-	AuditStore              model.AuditStore
+	AuditStore              coreaudit.Store
 	SystemGrantStore        model.SystemGrantStore
 	SchemaStore             model.SchemaStore
 	LLMModelStore           coregw.ModelStore

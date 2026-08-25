@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	"github.com/gougoujiang/buildmax/internal/mock"
 )
 
@@ -14,12 +14,12 @@ import (
 // deployment without a database still has to serve.
 func TestRecorderSurvivesAMissingStore(t *testing.T) {
 	var nilRecorder *Recorder
-	nilRecorder.Record(context.Background(), model.AuditEvent{Action: model.AuditUserLogin})
-	nilRecorder.UserAction(context.Background(), "u", "tm", model.AuditUserLogin, "", "", "")
+	nilRecorder.Record(context.Background(), coreaudit.Event{Action: coreaudit.UserLogin})
+	nilRecorder.UserAction(context.Background(), "u", "tm", coreaudit.UserLogin, "", "", "")
 	nilRecorder.Denied(context.Background(), "u", "tm", "route")
 
 	empty := NewRecorder(nil)
-	empty.Record(context.Background(), model.AuditEvent{Action: model.AuditUserLogin})
+	empty.Record(context.Background(), coreaudit.Event{Action: coreaudit.UserLogin})
 }
 
 // TestRecordDoesNotFailTheAction pins the failure policy, which is a real
@@ -34,7 +34,7 @@ func TestRecordDoesNotFailTheAction(t *testing.T) {
 	// No return value to check: the signature is the assertion. If Record ever
 	// grows an error a caller must handle, this test stops compiling and the
 	// trade above has to be made again on purpose.
-	r.Record(context.Background(), model.AuditEvent{Action: model.AuditUserLogin, ActorID: "u_1"})
+	r.Record(context.Background(), coreaudit.Event{Action: coreaudit.UserLogin, ActorID: "u_1"})
 
 	if len(store.Events) != 0 {
 		t.Errorf("a failed write must not be recorded as success: %+v", store.Events)
@@ -45,18 +45,18 @@ func TestUserActionAndDenied(t *testing.T) {
 	store := &mock.MockAuditStore{}
 	r := NewRecorder(store)
 
-	r.UserAction(context.Background(), "u_1", "tm_1", model.AuditTeamMemberAdded, "user", "u_2", "admin")
+	r.UserAction(context.Background(), "u_1", "tm_1", coreaudit.TeamMemberAdded, "user", "u_2", "admin")
 	r.Denied(context.Background(), "u_3", "tm_1", "manage_agents")
 
 	if len(store.Events) != 2 {
 		t.Fatalf("got %d events, want 2: %+v", len(store.Events), store.Events)
 	}
 	added := store.Events[0]
-	if added.ActorType != model.AuditActorUser || added.ActorID != "u_1" || added.TargetID != "u_2" || added.Detail != "admin" {
+	if added.ActorType != coreaudit.ActorUser || added.ActorID != "u_1" || added.TargetID != "u_2" || added.Detail != "admin" {
 		t.Errorf("member-added event wrong: %+v", added)
 	}
 	denied := store.Events[1]
-	if denied.Action != model.AuditAccessDenied || denied.TargetType != "route" || denied.TargetID != "manage_agents" {
+	if denied.Action != coreaudit.AccessDenied || denied.TargetType != "route" || denied.TargetID != "manage_agents" {
 		t.Errorf("denial event wrong: %+v", denied)
 	}
 }

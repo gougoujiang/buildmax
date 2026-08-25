@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/config"
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/infra/db"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
@@ -98,7 +99,7 @@ func runUserCreate(ctx context.Context, args []string, out io.Writer, store user
 		}
 		return fmt.Errorf("create user: %w", err)
 	}
-	recordOperatorUserAudit(ctx, store, model.AuditUserCreated, user.ID)
+	recordOperatorUserAudit(ctx, store, coreaudit.UserCreated, user.ID)
 	fmt.Fprintf(out, "Created %s (%s) with a personal team. It has no password yet.\n\n", user.Email, user.ID)
 	fmt.Fprintf(out, "Let them set their own:\n  buildmax-server user login-code %s\n\n", email)
 	fmt.Fprintf(out, "Or set one now:\n  printf '%%s' '<password>' | buildmax-server user set-password %s\n", email)
@@ -142,7 +143,7 @@ func runUserSetPassword(ctx context.Context, args []string, out io.Writer, in io
 	if err := store.SetPassword(ctx, user.ID, hash, time.Now().UTC()); err != nil {
 		return fmt.Errorf("set password: %w", err)
 	}
-	recordOperatorUserAudit(ctx, store, model.AuditPasswordSet, user.ID)
+	recordOperatorUserAudit(ctx, store, coreaudit.PasswordSet, user.ID)
 	fmt.Fprintf(out, "Password set for %s.\n", user.Email)
 	fmt.Fprintf(out, "Existing sessions are unaffected; revoke them separately if that is the intent.\n")
 	return nil
@@ -173,7 +174,7 @@ func runUserLoginCode(ctx context.Context, args []string, out io.Writer, store u
 	if err != nil {
 		return fmt.Errorf("issue login code: %w", err)
 	}
-	recordOperatorUserAudit(ctx, store, model.AuditLoginCodeIssued, user.ID)
+	recordOperatorUserAudit(ctx, store, coreaudit.LoginCodeIssued, user.ID)
 	fmt.Fprintf(out, "Login code for %s:\n\n  %s\n\n", user.Email, code)
 	fmt.Fprintf(out, "Valid until %s, and only once. It is not stored anywhere it can be read back,\n",
 		expiresAt.Local().Format(time.RFC3339))
@@ -186,7 +187,7 @@ type userAdminStore interface {
 	model.UserStore
 	model.LoginCodeStore
 	model.PasswordStore
-	model.AuditWriter
+	coreaudit.Writer
 }
 
 // recordOperatorUserAudit writes an account action taken from the command line.
@@ -198,10 +199,10 @@ type userAdminStore interface {
 // the same reason the model catalog commands say so: this runs from a shell on
 // the machine that already holds the database credentials, and inventing a
 // user id would put a name in the record that nothing verified.
-func recordOperatorUserAudit(ctx context.Context, store model.AuditWriter, action, userID string) {
-	audit.NewRecorder(store).Record(ctx, model.AuditEvent{
-		ActorType:  model.AuditActorSystem,
-		ActorID:    model.AuditActorOperator,
+func recordOperatorUserAudit(ctx context.Context, store coreaudit.Writer, action, userID string) {
+	audit.NewRecorder(store).Record(ctx, coreaudit.Event{
+		ActorType:  coreaudit.ActorSystem,
+		ActorID:    coreaudit.ActorOperator,
 		Action:     action,
 		TargetType: "user",
 		TargetID:   userID,

@@ -17,7 +17,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 )
 
@@ -45,7 +45,7 @@ var auditExportHeader = []string{
 // auditPageFunc fetches one page of events after a cursor. It is what separates
 // the team-scoped export from the deployment-scoped one; everything below this
 // line is identical for both.
-type PageFunc func(ctx context.Context, after model.AuditCursor, limit int) ([]model.AuditEvent, error)
+type PageFunc func(ctx context.Context, after coreaudit.Cursor, limit int) ([]coreaudit.Event, error)
 
 // exportAuditEventsHandler serves
 // GET /api/teams/{team_id}/audit-events/export.
@@ -81,7 +81,7 @@ func Stream(w http.ResponseWriter, r *http.Request, page PageFunc, name string) 
 		_ = csvOut.Write(auditExportHeader)
 	}
 
-	var cursor model.AuditCursor
+	var cursor coreaudit.Cursor
 	for written < auditExportMax {
 		limit := min(auditExportPage, auditExportMax-written)
 		events, err := page(r.Context(), cursor, limit)
@@ -101,7 +101,7 @@ func Stream(w http.ResponseWriter, r *http.Request, page PageFunc, name string) 
 			written++
 		}
 		last := events[len(events)-1]
-		cursor = model.AuditCursor{CreatedAt: last.CreatedAt, ID: last.ID}
+		cursor = coreaudit.Cursor{CreatedAt: last.CreatedAt, ID: last.ID}
 
 		csvOut.Flush()
 		if flusher != nil {
@@ -115,7 +115,7 @@ func Stream(w http.ResponseWriter, r *http.Request, page PageFunc, name string) 
 	return written, written >= auditExportMax
 }
 
-func exportRow(e model.AuditEvent) []string {
+func exportRow(e coreaudit.Event) []string {
 	return []string{
 		e.ID,
 		e.CreatedAt.UTC().Format(time.RFC3339),
@@ -140,8 +140,8 @@ func Detail(written int, truncated bool) string {
 // adminAuditFilter reads the deployment-scoped filters from a query. It is
 // shared by the search and the export so the two cannot answer differently.
 // AdminFilter reads the deployment-scoped filters from a query.
-func AdminFilter(q url.Values) model.AuditFilter {
-	filter := model.AuditFilter{
+func AdminFilter(q url.Values) coreaudit.Filter {
+	filter := coreaudit.Filter{
 		TeamID:  q.Get("team_id"),
 		ActorID: q.Get("actor_id"),
 		Action:  q.Get("action"),

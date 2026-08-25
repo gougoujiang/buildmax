@@ -5,6 +5,7 @@ import (
 	"sort"
 	"time"
 
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 )
 
@@ -24,7 +25,7 @@ func (m *MockSystemGrantStore) GrantForTest(userID, role string) {
 		ID:        "sg_" + userID + "_" + role,
 		UserID:    userID,
 		Role:      role,
-		GrantedBy: model.AuditActorOperator,
+		GrantedBy: coreaudit.ActorOperator,
 		GrantedAt: seqTime(1),
 	})
 }

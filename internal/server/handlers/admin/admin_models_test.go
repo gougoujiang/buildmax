@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -108,13 +109,13 @@ func TestAdminModelEnableDisable(t *testing.T) {
 
 	// The same actions the operator command writes: the trail does not
 	// distinguish a catalog change by where it was made, only by who made it.
-	want := []string{model.AuditModelDisabled, model.AuditModelEnabled}
+	want := []string{coreaudit.ModelDisabled, coreaudit.ModelEnabled}
 	if len(audits.Events) != 2 {
 		t.Fatalf("got %d events, want 2: %+v", len(audits.Events), audits.Events)
 	}
 	for i, action := range want {
 		e := audits.Events[i]
-		if e.Action != action || e.ActorType != model.AuditActorUser || e.ActorID != adminUser {
+		if e.Action != action || e.ActorType != coreaudit.ActorUser || e.ActorID != adminUser {
 			t.Errorf("event %d = %+v, want %s by the administrator", i, e, action)
 		}
 		if e.Detail != "Fast" {

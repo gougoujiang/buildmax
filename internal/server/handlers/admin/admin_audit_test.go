@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
@@ -19,13 +20,13 @@ func auditSearchMux(t *testing.T) (*http.ServeMux, *mock.MockAuditStore) {
 	grants := &mock.MockSystemGrantStore{}
 	grants.GrantForTest(adminUser, model.SystemRoleAdmin)
 
-	audits := &mock.MockAuditStore{Events: []model.AuditEvent{
+	audits := &mock.MockAuditStore{Events: []coreaudit.Event{
 		// Deployment-scoped: no team-scoped reader can ever see these.
-		{ID: "ae_1", ActorType: model.AuditActorUser, ActorID: "u_alice", Action: model.AuditUserLogin, CreatedAt: time.Unix(100, 0).UTC()},
-		{ID: "ae_2", ActorType: model.AuditActorSystem, ActorID: model.AuditActorOperator, Action: model.AuditSystemAdminGranted, TargetID: "u_bob", CreatedAt: time.Unix(200, 0).UTC()},
+		{ID: "ae_1", ActorType: coreaudit.ActorUser, ActorID: "u_alice", Action: coreaudit.UserLogin, CreatedAt: time.Unix(100, 0).UTC()},
+		{ID: "ae_2", ActorType: coreaudit.ActorSystem, ActorID: coreaudit.ActorOperator, Action: coreaudit.SystemAdminGranted, TargetID: "u_bob", CreatedAt: time.Unix(200, 0).UTC()},
 		// Team-scoped, in two different teams.
-		{ID: "ae_3", TeamID: "tm_one", ActorType: model.AuditActorUser, ActorID: "u_alice", Action: model.AuditTeamMemberAdded, CreatedAt: time.Unix(300, 0).UTC()},
-		{ID: "ae_4", TeamID: "tm_two", ActorType: model.AuditActorUser, ActorID: "u_carol", Action: model.AuditAccessDenied, CreatedAt: time.Unix(400, 0).UTC()},
+		{ID: "ae_3", TeamID: "tm_one", ActorType: coreaudit.ActorUser, ActorID: "u_alice", Action: coreaudit.TeamMemberAdded, CreatedAt: time.Unix(300, 0).UTC()},
+		{ID: "ae_4", TeamID: "tm_two", ActorType: coreaudit.ActorUser, ActorID: "u_carol", Action: coreaudit.AccessDenied, CreatedAt: time.Unix(400, 0).UTC()},
 	}}
 
 	h := New(Config{
@@ -92,7 +93,7 @@ func TestAdminAuditSearchFilters(t *testing.T) {
 	}{
 		{"by team", "?team_id=tm_two", []string{"ae_4"}},
 		{"by actor across teams", "?actor_id=u_alice", []string{"ae_1", "ae_3"}},
-		{"by action", "?action=" + model.AuditSystemAdminGranted, []string{"ae_2"}},
+		{"by action", "?action=" + coreaudit.SystemAdminGranted, []string{"ae_2"}},
 		{"since", "?since=" + rfc3339(300), []string{"ae_3", "ae_4"}},
 		{"until", "?until=" + rfc3339(300), []string{"ae_1", "ae_2"}},
 		{"a window", "?since=" + rfc3339(200) + "&until=" + rfc3339(400), []string{"ae_2", "ae_3"}},

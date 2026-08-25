@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
@@ -58,7 +58,7 @@ func TestDenialIsRecorded(t *testing.T) {
 		t.Fatalf("got %d events, want the denial recorded: %+v", len(store.Events), store.Events)
 	}
 	got := store.Events[0]
-	if got.Action != model.AuditAccessDenied || got.ActorID != matrixMember || got.TeamID != matrixTeam {
+	if got.Action != coreaudit.AccessDenied || got.ActorID != matrixMember || got.TeamID != matrixTeam {
 		t.Errorf("denial event wrong: %+v", got)
 	}
 }
@@ -67,8 +67,8 @@ func TestDenialIsRecorded(t *testing.T) {
 // refused, which a colleague does not need to see.
 func TestAuditTrailIsOwnerOnly(t *testing.T) {
 	mux, store, _ := auditFixture(t)
-	store.Events = []model.AuditEvent{
-		{ID: "ae_1", TeamID: matrixTeam, ActorType: model.AuditActorUser, ActorID: matrixOwner, Action: model.AuditTeamMemberAdded, CreatedAt: time.Unix(1, 0).UTC()},
+	store.Events = []coreaudit.Event{
+		{ID: "ae_1", TeamID: matrixTeam, ActorType: coreaudit.ActorUser, ActorID: matrixOwner, Action: coreaudit.TeamMemberAdded, CreatedAt: time.Unix(1, 0).UTC()},
 	}
 
 	for _, tc := range []struct {
@@ -93,9 +93,9 @@ func TestAuditTrailIsOwnerOnly(t *testing.T) {
 // those have different retention answers and live elsewhere.
 func TestAuditTrailCarriesNoContent(t *testing.T) {
 	mux, store, _ := auditFixture(t)
-	store.Events = []model.AuditEvent{{
-		ID: "ae_1", TeamID: matrixTeam, ActorType: model.AuditActorUser,
-		ActorID: matrixOwner, Action: model.AuditModelCreated,
+	store.Events = []coreaudit.Event{{
+		ID: "ae_1", TeamID: matrixTeam, ActorType: coreaudit.ActorUser,
+		ActorID: matrixOwner, Action: coreaudit.ModelCreated,
 		TargetType: "llm_model", TargetID: "lm_1", Detail: "fast", CreatedAt: time.Unix(1, 0).UTC(),
 	}}
 

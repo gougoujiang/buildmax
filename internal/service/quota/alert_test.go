@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	corequota "github.com/gougoujiang/buildmax/internal/core/quota"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -49,8 +49,8 @@ func TestCheckRecordsCrossingTheThreshold(t *testing.T) {
 		t.Fatalf("recorded %v, want one threshold event", actions(audits))
 	}
 	event := audits.Events[0]
-	if event.Action != model.AuditQuotaThresholdReached {
-		t.Errorf("action = %q, want %q", event.Action, model.AuditQuotaThresholdReached)
+	if event.Action != coreaudit.QuotaThresholdReached {
+		t.Errorf("action = %q, want %q", event.Action, coreaudit.QuotaThresholdReached)
 	}
 	if !strings.HasPrefix(event.Detail, "runs") {
 		t.Errorf("detail = %q, want it to name the limit", event.Detail)
@@ -58,8 +58,8 @@ func TestCheckRecordsCrossingTheThreshold(t *testing.T) {
 	// The actor is the deployment, not whoever submitted the work that tipped
 	// the total over. A quota is the team's, and naming the last member to
 	// submit would read as blame for a shared budget.
-	if event.ActorType != model.AuditActorSystem {
-		t.Errorf("actor type = %q, want %q", event.ActorType, model.AuditActorSystem)
+	if event.ActorType != coreaudit.ActorSystem {
+		t.Errorf("actor type = %q, want %q", event.ActorType, coreaudit.ActorSystem)
 	}
 }
 
@@ -116,8 +116,8 @@ func TestCheckRecordsTheRefusal(t *testing.T) {
 	if reason != "quota exceeded: run limit" {
 		t.Errorf("reason = %q", reason)
 	}
-	if len(audits.Events) != 1 || audits.Events[0].Action != model.AuditQuotaExceeded {
-		t.Fatalf("recorded %v, want one %q", actions(audits), model.AuditQuotaExceeded)
+	if len(audits.Events) != 1 || audits.Events[0].Action != coreaudit.QuotaExceeded {
+		t.Fatalf("recorded %v, want one %q", actions(audits), coreaudit.QuotaExceeded)
 	}
 }
 

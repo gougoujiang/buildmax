@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 )
 
 // TestSearchAuditEvents covers the read the team-scoped method cannot do: an
@@ -28,17 +28,17 @@ func TestSearchAuditEvents(t *testing.T) {
 	teamID := newTestTeam(t, s, actor)
 	t.Cleanup(func() { _ = s.db.WithContext(ctx).Delete(&auditEventRow{}, "actor_id = ?", actor).Error })
 
-	for _, e := range []model.AuditEvent{
-		{ActorType: model.AuditActorUser, ActorID: actor, Action: model.AuditUserLogin},
-		{ActorType: model.AuditActorSystem, ActorID: actor, Action: model.AuditSystemAdminGranted, TargetType: "user", TargetID: actor},
-		{TeamID: teamID, ActorType: model.AuditActorUser, ActorID: actor, Action: model.AuditTeamMemberAdded},
+	for _, e := range []coreaudit.Event{
+		{ActorType: coreaudit.ActorUser, ActorID: actor, Action: coreaudit.UserLogin},
+		{ActorType: coreaudit.ActorSystem, ActorID: actor, Action: coreaudit.SystemAdminGranted, TargetType: "user", TargetID: actor},
+		{TeamID: teamID, ActorType: coreaudit.ActorUser, ActorID: actor, Action: coreaudit.TeamMemberAdded},
 	} {
 		if err := s.RecordAuditEvent(ctx, e); err != nil {
 			t.Fatalf("RecordAuditEvent: %v", err)
 		}
 	}
 
-	all, total, err := s.SearchAuditEvents(ctx, model.AuditFilter{ActorID: actor}, 50, 0)
+	all, total, err := s.SearchAuditEvents(ctx, coreaudit.Filter{ActorID: actor}, 50, 0)
 	if err != nil || total != 3 || len(all) != 3 {
 		t.Fatalf("search by actor = %d of %d, %v", len(all), total, err)
 	}
@@ -51,13 +51,13 @@ func TestSearchAuditEvents(t *testing.T) {
 		}
 	}
 
-	teamOnly, total, err := s.SearchAuditEvents(ctx, model.AuditFilter{ActorID: actor, TeamID: teamID}, 50, 0)
-	if err != nil || total != 1 || teamOnly[0].Action != model.AuditTeamMemberAdded {
+	teamOnly, total, err := s.SearchAuditEvents(ctx, coreaudit.Filter{ActorID: actor, TeamID: teamID}, 50, 0)
+	if err != nil || total != 1 || teamOnly[0].Action != coreaudit.TeamMemberAdded {
 		t.Errorf("search by team = %+v, %d, %v", teamOnly, total, err)
 	}
 
 	// The events a team-scoped reader can never see, asked for on purpose.
-	noTeam, total, err := s.SearchAuditEvents(ctx, model.AuditFilter{ActorID: actor, WithoutTeam: true}, 50, 0)
+	noTeam, total, err := s.SearchAuditEvents(ctx, coreaudit.Filter{ActorID: actor, WithoutTeam: true}, 50, 0)
 	if err != nil || total != 2 {
 		t.Fatalf("deployment-scoped search = %d, %v", total, err)
 	}
@@ -67,7 +67,7 @@ func TestSearchAuditEvents(t *testing.T) {
 		}
 	}
 
-	byAction, total, err := s.SearchAuditEvents(ctx, model.AuditFilter{ActorID: actor, Action: model.AuditSystemAdminGranted}, 50, 0)
+	byAction, total, err := s.SearchAuditEvents(ctx, coreaudit.Filter{ActorID: actor, Action: coreaudit.SystemAdminGranted}, 50, 0)
 	if err != nil || total != 1 || byAction[0].TargetID != actor {
 		t.Errorf("search by action = %+v, %d, %v", byAction, total, err)
 	}

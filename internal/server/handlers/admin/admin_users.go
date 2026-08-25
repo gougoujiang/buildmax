@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 )
@@ -192,7 +193,7 @@ func (h *Handler) createAdminUserHandler(w http.ResponseWriter, r *http.Request)
 		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_create_user")
 		return
 	}
-	h.recordAdminUserAction(r, actorID, model.AuditUserCreated, user.ID, "")
+	h.recordAdminUserAction(r, actorID, coreaudit.UserCreated, user.ID, "")
 	httputil.WriteJSON(w, http.StatusCreated, toAdminUser(*user))
 }
 
@@ -221,7 +222,7 @@ func (h *Handler) issueAdminLoginCodeHandler(w http.ResponseWriter, r *http.Requ
 		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_login_code", "user_id", user.ID)
 		return
 	}
-	h.recordAdminUserAction(r, actorID, model.AuditLoginCodeIssued, user.ID, "")
+	h.recordAdminUserAction(r, actorID, coreaudit.LoginCodeIssued, user.ID, "")
 	// The code itself is never recorded, here or in the trail. The event says
 	// one was issued; the plaintext exists in this response and nowhere else.
 	httputil.WriteJSON(w, http.StatusOK, AdminLoginCodeResponse{Code: code, ExpiresAt: expiresAt})
@@ -248,11 +249,11 @@ func (h *Handler) setAdminUserDisabledHandler(disable bool) http.HandlerFunc {
 		}
 
 		var disabledAt *time.Time
-		action := model.AuditUserEnabled
+		action := coreaudit.UserEnabled
 		if disable {
 			now := time.Now().UTC()
 			disabledAt = &now
-			action = model.AuditUserDisabled
+			action = coreaudit.UserDisabled
 		}
 		if err := h.cfg.Users.SetUserDisabled(r.Context(), user.ID, disabledAt); err != nil {
 			if errors.Is(err, model.ErrUserNotFound) {
@@ -307,7 +308,7 @@ func (h *Handler) revokeAdminUserSessionsHandler(w http.ResponseWriter, r *http.
 		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_revoke_sessions", "user_id", user.ID)
 		return
 	}
-	h.recordAdminUserAction(r, actorID, model.AuditSessionsRevoked, user.ID, "")
+	h.recordAdminUserAction(r, actorID, coreaudit.SessionsRevoked, user.ID, "")
 	httputil.WriteJSON(w, http.StatusOK, AdminSessionsRevokedResponse{Revoked: n})
 }
 
@@ -337,8 +338,8 @@ func (h *Handler) adminTargetUser(w http.ResponseWriter, r *http.Request) (*mode
 // Unlike the operator command's events, these name a person: the caller proved
 // who they are, so the trail says so rather than naming the binary.
 func (h *Handler) recordAdminUserAction(r *http.Request, actorID, action, targetUserID, detail string) {
-	h.cfg.Audit.Record(r.Context(), model.AuditEvent{
-		ActorType:  model.AuditActorUser,
+	h.cfg.Audit.Record(r.Context(), coreaudit.Event{
+		ActorType:  coreaudit.ActorUser,
 		ActorID:    actorID,
 		Action:     action,
 		TargetType: "user",

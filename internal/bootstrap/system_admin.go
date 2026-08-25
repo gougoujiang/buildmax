@@ -9,6 +9,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 )
@@ -63,7 +64,7 @@ See docs/design/system-administration.md.
 type adminStore interface {
 	model.UserStore
 	model.SystemGrantStore
-	model.AuditWriter
+	coreaudit.Writer
 }
 
 // RunAdminCommand executes `buildmax-server admin ...`. args excludes the
@@ -115,14 +116,14 @@ func runAdminGrant(ctx context.Context, args []string, out io.Writer, store admi
 		return fmt.Errorf("no account for %s; create one first with: buildmax-server user create %s", email, email)
 	}
 
-	grant, err := store.GrantSystemRole(ctx, user.ID, model.SystemRoleAdmin, model.AuditActorOperator, time.Now().UTC())
+	grant, err := store.GrantSystemRole(ctx, user.ID, model.SystemRoleAdmin, coreaudit.ActorOperator, time.Now().UTC())
 	if err != nil {
 		if errors.Is(err, model.ErrSystemGrantExists) {
 			return fmt.Errorf("%s already holds %s", email, model.SystemRoleAdmin)
 		}
 		return fmt.Errorf("grant %s: %w", model.SystemRoleAdmin, err)
 	}
-	recordSystemGrantAudit(ctx, store, model.AuditSystemAdminGranted, user.ID)
+	recordSystemGrantAudit(ctx, store, coreaudit.SystemAdminGranted, user.ID)
 
 	fmt.Fprintf(out, "Granted %s to %s (%s).\n", model.SystemRoleAdmin, user.Email, user.ID)
 	fmt.Fprintf(out, "Grant %s, recorded in the audit trail.\n\n", grant.ID)
@@ -154,7 +155,7 @@ func runAdminRevoke(ctx context.Context, args []string, out io.Writer, store adm
 		fmt.Fprintf(out, "%s does not hold %s; nothing to revoke.\n", email, model.SystemRoleAdmin)
 		return nil
 	}
-	recordSystemGrantAudit(ctx, store, model.AuditSystemAdminRevoked, user.ID)
+	recordSystemGrantAudit(ctx, store, coreaudit.SystemAdminRevoked, user.ID)
 
 	fmt.Fprintf(out, "Revoked %s from %s (%s).\n", model.SystemRoleAdmin, user.Email, user.ID)
 	fmt.Fprint(out, "It stops working on their next request. Their sessions are untouched;\n")
@@ -226,10 +227,10 @@ func formatGrantTime(t time.Time) string {
 // catalog commands say so: this runs from a shell on the machine that holds the
 // database credentials, and inventing a user id would put a name in the record
 // that nothing verified.
-func recordSystemGrantAudit(ctx context.Context, store model.AuditWriter, action, userID string) {
-	audit.NewRecorder(store).Record(ctx, model.AuditEvent{
-		ActorType:  model.AuditActorSystem,
-		ActorID:    model.AuditActorOperator,
+func recordSystemGrantAudit(ctx context.Context, store coreaudit.Writer, action, userID string) {
+	audit.NewRecorder(store).Record(ctx, coreaudit.Event{
+		ActorType:  coreaudit.ActorSystem,
+		ActorID:    coreaudit.ActorOperator,
 		Action:     action,
 		TargetType: "user",
 		TargetID:   userID,

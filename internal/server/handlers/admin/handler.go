@@ -11,6 +11,7 @@ package admin
 import (
 	"net/http"
 
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
@@ -29,7 +30,7 @@ type Config struct {
 	RefreshTokens model.RefreshTokenStore
 	Teams         coreteam.Store
 	Grants        model.SystemGrantStore
-	Audits        model.AuditStore
+	Audits        coreaudit.Store
 	Models        coregw.ModelStore
 	Schema        model.SchemaStore
 	TaskRuns      model.TaskRunStore

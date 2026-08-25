@@ -407,7 +407,7 @@ on (`team_id`, `created_at`); unique `public_id`.
 
 Action strings are persisted and therefore permanent: renaming one rewrites
 history for every reader that filters on it. They are declared in
-`internal/core/model/audit.go`.
+`internal/core/audit/audit.go`.
 
 **No prompts, generated content, tool output, or credentials.** This table
 answers a governance question; run diagnostics belong to the durable run trace

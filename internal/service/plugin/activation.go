@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 )
 
@@ -77,7 +77,7 @@ func (s *Service) MovePin(ctx context.Context, in ActivateInput) (*coreplugin.Ac
 	if err != nil {
 		return nil, err
 	}
-	s.recordActivation(ctx, in.ActorID, in.TeamID, model.AuditPluginPinMoved, *activation)
+	s.recordActivation(ctx, in.ActorID, in.TeamID, coreaudit.PluginPinMoved, *activation)
 	return activation, nil
 }
 
@@ -89,9 +89,9 @@ func (s *Service) SetActivationEnabled(ctx context.Context, teamID, pluginName s
 	if err != nil {
 		return nil, err
 	}
-	action := model.AuditPluginSuspended
+	action := coreaudit.PluginSuspended
 	if enabled {
-		action = model.AuditPluginResumed
+		action = coreaudit.PluginResumed
 	}
 	s.recordActivation(ctx, actorID, teamID, action, *activation)
 	return activation, nil
@@ -176,7 +176,7 @@ func (s *Service) pin(ctx context.Context, teamID string, release coreplugin.Rel
 	if err != nil {
 		return nil, err
 	}
-	s.recordActivation(ctx, actorID, teamID, model.AuditPluginActivated, *activation)
+	s.recordActivation(ctx, actorID, teamID, coreaudit.PluginActivated, *activation)
 	return activation, nil
 }
 
@@ -249,9 +249,9 @@ func checkActivatable(release coreplugin.Release) error {
 }
 
 func (s *Service) recordActivation(ctx context.Context, actorID, teamID, action string, a coreplugin.Activation) {
-	s.Audit.Record(ctx, model.AuditEvent{
+	s.Audit.Record(ctx, coreaudit.Event{
 		TeamID:     teamID,
-		ActorType:  model.AuditActorUser,
+		ActorType:  coreaudit.ActorUser,
 		ActorID:    actorID,
 		Action:     action,
 		TargetType: "plugin",
@@ -268,11 +268,11 @@ func (s *Service) SetCuration(ctx context.Context, teamID string, mode coreplugi
 	if err := s.Teams.SetTeamPluginCuration(ctx, teamID, mode); err != nil {
 		return err
 	}
-	s.Audit.Record(ctx, model.AuditEvent{
+	s.Audit.Record(ctx, coreaudit.Event{
 		TeamID:     teamID,
-		ActorType:  model.AuditActorUser,
+		ActorType:  coreaudit.ActorUser,
 		ActorID:    actorID,
-		Action:     model.AuditTeamPluginCuration,
+		Action:     coreaudit.TeamPluginCuration,
 		TargetType: "team",
 		TargetID:   teamID,
 		Detail:     string(mode),

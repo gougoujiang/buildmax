@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 )
 
 // defaultAuditSweepInterval is how often the retention window is applied.
@@ -36,8 +36,8 @@ const auditPruneMaxBatches = 20
 // without it, the two look identical to a reader, and the wrong one of them is
 // the kind of thing an audit trail exists to make visible.
 type AuditRetainer struct {
-	store    model.AuditPruneStore
-	writer   model.AuditWriter
+	store    coreaudit.PruneStore
+	writer   coreaudit.Writer
 	window   time.Duration
 	interval time.Duration
 	stopCh   chan struct{}
@@ -50,7 +50,7 @@ type AuditRetainer struct {
 // A nil store or a window of zero returns nil: keeping every event is the
 // default, and a deployment that has not chosen a retention policy must not get
 // one by accident. Use 0 for the default interval.
-func NewAuditRetainer(store model.AuditPruneStore, writer model.AuditWriter, retentionDays int, interval time.Duration) *AuditRetainer {
+func NewAuditRetainer(store coreaudit.PruneStore, writer coreaudit.Writer, retentionDays int, interval time.Duration) *AuditRetainer {
 	if store == nil || retentionDays <= 0 {
 		return nil
 	}
@@ -167,10 +167,10 @@ func (a *AuditRetainer) recordPrune(ctx context.Context, removed int64, oldest, 
 			cutoff.UTC().Format(time.RFC3339),
 		)
 	}
-	if err := a.writer.RecordAuditEvent(ctx, model.AuditEvent{
-		ActorType:  model.AuditActorSystem,
-		ActorID:    model.AuditActorOperator,
-		Action:     model.AuditEventsPruned,
+	if err := a.writer.RecordAuditEvent(ctx, coreaudit.Event{
+		ActorType:  coreaudit.ActorSystem,
+		ActorID:    coreaudit.ActorOperator,
+		Action:     coreaudit.EventsPruned,
 		TargetType: "audit_event",
 		Detail:     detail,
 	}); err != nil {

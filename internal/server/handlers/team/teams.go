@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
@@ -170,7 +171,7 @@ func (h *Handler) addTeamMemberHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "add_team_member", "user_id", userID, "team_id", teamID)
 		return
 	}
-	h.cfg.Audit.UserAction(r.Context(), userID, teamID, model.AuditTeamMemberAdded, "user", user.ID, member.Role)
+	h.cfg.Audit.UserAction(r.Context(), userID, teamID, coreaudit.TeamMemberAdded, "user", user.ID, member.Role)
 	httputil.WriteJSON(w, http.StatusCreated, teamMemberToResponse(*member, user))
 }
 
@@ -202,6 +203,6 @@ func (h *Handler) removeTeamMemberHandler(w http.ResponseWriter, r *http.Request
 		httputil.WriteInternalError(w, err, "handler error", "handler", "remove_team_member", "team_id", teamID, "member_user_id", targetUserID)
 		return
 	}
-	h.cfg.Audit.UserAction(r.Context(), userID, teamID, model.AuditTeamMemberRemoved, "user", targetUserID, "")
+	h.cfg.Audit.UserAction(r.Context(), userID, teamID, coreaudit.TeamMemberRemoved, "user", targetUserID, "")
 	w.WriteHeader(http.StatusNoContent)
 }

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
@@ -51,10 +51,10 @@ func teamAuditExport(t *testing.T, audits *mock.MockAuditStore, teamID, userID s
 
 // exportBody runs an admin export and returns the raw response.
 func TestTeamAuditExportStaysInsideTheTeam(t *testing.T) {
-	audits := &mock.MockAuditStore{Events: []model.AuditEvent{
-		{ID: "ae_1", TeamID: matrixTeam, ActorType: model.AuditActorUser, ActorID: matrixOwner, Action: model.AuditTeamMemberAdded, CreatedAt: time.Unix(100, 0).UTC()},
-		{ID: "ae_2", TeamID: matrixOther, ActorType: model.AuditActorUser, ActorID: "u_elsewhere", Action: model.AuditTeamMemberAdded, CreatedAt: time.Unix(200, 0).UTC()},
-		{ID: "ae_3", ActorType: model.AuditActorUser, ActorID: matrixOwner, Action: model.AuditUserLogin, CreatedAt: time.Unix(300, 0).UTC()},
+	audits := &mock.MockAuditStore{Events: []coreaudit.Event{
+		{ID: "ae_1", TeamID: matrixTeam, ActorType: coreaudit.ActorUser, ActorID: matrixOwner, Action: coreaudit.TeamMemberAdded, CreatedAt: time.Unix(100, 0).UTC()},
+		{ID: "ae_2", TeamID: matrixOther, ActorType: coreaudit.ActorUser, ActorID: "u_elsewhere", Action: coreaudit.TeamMemberAdded, CreatedAt: time.Unix(200, 0).UTC()},
+		{ID: "ae_3", ActorType: coreaudit.ActorUser, ActorID: matrixOwner, Action: coreaudit.UserLogin, CreatedAt: time.Unix(300, 0).UTC()},
 	}}
 	rec := teamAuditExport(t, audits, matrixTeam, matrixOwner)
 	if rec.Code != http.StatusOK {
@@ -66,7 +66,7 @@ func TestTeamAuditExportStaysInsideTheTeam(t *testing.T) {
 		if line == "" {
 			continue
 		}
-		var event model.AuditEvent
+		var event coreaudit.Event
 		if err := json.Unmarshal([]byte(line), &event); err != nil {
 			t.Fatalf("parse jsonl: %v", err)
 		}

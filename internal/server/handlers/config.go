@@ -7,6 +7,7 @@ import (
 
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
@@ -76,7 +77,7 @@ type Config struct {
 	UserWebhookKeyStore      model.UserWebhookKeyStore
 	ConversationStore        coreconv.Store
 	ConversationMessageStore coreconv.MessageStore
-	AuditStore               model.AuditStore
+	AuditStore               coreaudit.Store
 	// LLMModelStore reads the managed model catalog. Nil leaves the admin
 	// catalog routes answering 503. It is deliberately read plus enable/disable
 	// here: the credential half of the catalog is edited by

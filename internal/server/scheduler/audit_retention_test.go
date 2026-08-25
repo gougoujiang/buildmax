@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 )
 
 type fakeAuditPruner struct {
-	events []model.AuditEvent
+	events []coreaudit.Event
 	// pruneErr, when set, is returned by PruneAuditEvents.
 	pruneErr error
 	// oldestErr, when set, is returned by OldestAuditEventAt.
@@ -24,7 +24,7 @@ func (f *fakeAuditPruner) PruneAuditEvents(_ context.Context, before time.Time, 
 	if f.pruneErr != nil {
 		return 0, f.pruneErr
 	}
-	kept := make([]model.AuditEvent, 0, len(f.events))
+	kept := make([]coreaudit.Event, 0, len(f.events))
 	var removed int64
 	for _, e := range f.events {
 		if e.CreatedAt.Before(before) && removed < int64(limit) {
@@ -50,7 +50,7 @@ func (f *fakeAuditPruner) OldestAuditEventAt(context.Context) (time.Time, error)
 	return oldest, nil
 }
 
-func (f *fakeAuditPruner) RecordAuditEvent(_ context.Context, in model.AuditEvent) error {
+func (f *fakeAuditPruner) RecordAuditEvent(_ context.Context, in coreaudit.Event) error {
 	f.events = append(f.events, in)
 	return nil
 }
@@ -72,11 +72,11 @@ func retainerAt(store *fakeAuditPruner, days int, now time.Time) *AuditRetainer 
 // it to.
 func TestAuditRetainerRemovesOnlyExpiredEvents(t *testing.T) {
 	now := time.Now()
-	store := &fakeAuditPruner{events: []model.AuditEvent{
-		{Action: model.AuditUserLogin, CreatedAt: at(now, 100)},
-		{Action: model.AuditUserLogin, CreatedAt: at(now, 91)},
-		{Action: model.AuditUserLogin, CreatedAt: at(now, 89)},
-		{Action: model.AuditUserLogin, CreatedAt: at(now, 1)},
+	store := &fakeAuditPruner{events: []coreaudit.Event{
+		{Action: coreaudit.UserLogin, CreatedAt: at(now, 100)},
+		{Action: coreaudit.UserLogin, CreatedAt: at(now, 91)},
+		{Action: coreaudit.UserLogin, CreatedAt: at(now, 89)},
+		{Action: coreaudit.UserLogin, CreatedAt: at(now, 1)},
 	}}
 
 	removed := retainerAt(store, 90, now).sweep(context.Background())
@@ -84,7 +84,7 @@ func TestAuditRetainerRemovesOnlyExpiredEvents(t *testing.T) {
 		t.Fatalf("removed %d events, want 2", removed)
 	}
 	for _, e := range store.events {
-		if e.Action == model.AuditUserLogin && e.CreatedAt.Before(at(now, 90)) {
+		if e.Action == coreaudit.UserLogin && e.CreatedAt.Before(at(now, 90)) {
 			t.Errorf("event at %v survived the 90-day window", e.CreatedAt)
 		}
 	}
@@ -95,24 +95,24 @@ func TestAuditRetainerRemovesOnlyExpiredEvents(t *testing.T) {
 // somebody truncated, and only one of those is something a deployment chose.
 func TestAuditRetainerRecordsWhatItRemoved(t *testing.T) {
 	now := time.Now()
-	store := &fakeAuditPruner{events: []model.AuditEvent{
-		{Action: model.AuditUserLogin, CreatedAt: at(now, 100)},
-		{Action: model.AuditUserLogin, CreatedAt: at(now, 95)},
+	store := &fakeAuditPruner{events: []coreaudit.Event{
+		{Action: coreaudit.UserLogin, CreatedAt: at(now, 100)},
+		{Action: coreaudit.UserLogin, CreatedAt: at(now, 95)},
 	}}
 
 	retainerAt(store, 90, now).sweep(context.Background())
 
-	var pruned *model.AuditEvent
+	var pruned *coreaudit.Event
 	for i := range store.events {
-		if store.events[i].Action == model.AuditEventsPruned {
+		if store.events[i].Action == coreaudit.EventsPruned {
 			pruned = &store.events[i]
 		}
 	}
 	if pruned == nil {
 		t.Fatal("a sweep that deleted events recorded nothing")
 	}
-	if pruned.ActorType != model.AuditActorSystem {
-		t.Errorf("actor type = %q, want %q", pruned.ActorType, model.AuditActorSystem)
+	if pruned.ActorType != coreaudit.ActorSystem {
+		t.Errorf("actor type = %q, want %q", pruned.ActorType, coreaudit.ActorSystem)
 	}
 	if !strings.HasPrefix(pruned.Detail, "2 events") {
 		t.Errorf("detail = %q, want it to name the count", pruned.Detail)
@@ -126,8 +126,8 @@ func TestAuditRetainerRecordsWhatItRemoved(t *testing.T) {
 // row would bury the trail it is meant to explain.
 func TestAuditRetainerRecordsNothingWhenNothingExpired(t *testing.T) {
 	now := time.Now()
-	store := &fakeAuditPruner{events: []model.AuditEvent{
-		{Action: model.AuditUserLogin, CreatedAt: at(now, 5)},
+	store := &fakeAuditPruner{events: []coreaudit.Event{
+		{Action: coreaudit.UserLogin, CreatedAt: at(now, 5)},
 	}}
 
 	if removed := retainerAt(store, 90, now).sweep(context.Background()); removed != 0 {
@@ -160,7 +160,7 @@ func TestNewAuditRetainerIsNilWithoutAWindow(t *testing.T) {
 func TestAuditRetainerRecordsNothingWhenThePruneFails(t *testing.T) {
 	now := time.Now()
 	store := &fakeAuditPruner{
-		events:   []model.AuditEvent{{Action: model.AuditUserLogin, CreatedAt: at(now, 100)}},
+		events:   []coreaudit.Event{{Action: coreaudit.UserLogin, CreatedAt: at(now, 100)}},
 		pruneErr: errors.New("database is away"),
 	}
 
@@ -168,7 +168,7 @@ func TestAuditRetainerRecordsNothingWhenThePruneFails(t *testing.T) {
 		t.Fatalf("removed %d events on a failed prune, want 0", removed)
 	}
 	for _, e := range store.events {
-		if e.Action == model.AuditEventsPruned {
+		if e.Action == coreaudit.EventsPruned {
 			t.Fatal("a failed prune claimed to have removed events")
 		}
 	}
@@ -180,7 +180,7 @@ func TestAuditRetainerBoundsOneSweep(t *testing.T) {
 	now := time.Now()
 	store := &fakeAuditPruner{}
 	for range auditPruneBatch*auditPruneMaxBatches + 10 {
-		store.events = append(store.events, model.AuditEvent{Action: model.AuditUserLogin, CreatedAt: at(now, 100)})
+		store.events = append(store.events, coreaudit.Event{Action: coreaudit.UserLogin, CreatedAt: at(now, 100)})
 	}
 
 	removed := retainerAt(store, 90, now).sweep(context.Background())

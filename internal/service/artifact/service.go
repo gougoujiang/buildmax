@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
@@ -180,7 +180,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*coreartifact.Art
 		s.discard(ctx, ref)
 		return nil, err
 	}
-	s.audit(ctx, rec, model.AuditArtifactCreated, rec.SourceType)
+	s.audit(ctx, rec, coreaudit.ArtifactCreated, rec.SourceType)
 	return rec, nil
 }
 
@@ -269,7 +269,7 @@ func (s *Service) Delete(ctx context.Context, rec *coreartifact.Artifact, actorT
 	deleted := *rec
 	deleted.CreatedByType = actorType
 	deleted.CreatedByID = actorID
-	s.audit(ctx, &deleted, model.AuditArtifactDeleted, "")
+	s.audit(ctx, &deleted, coreaudit.ArtifactDeleted, "")
 	return nil
 }
 
@@ -280,7 +280,7 @@ func (s *Service) audit(ctx context.Context, rec *coreartifact.Artifact, action,
 	if s.Audit == nil || rec == nil {
 		return
 	}
-	s.Audit.Record(ctx, model.AuditEvent{
+	s.Audit.Record(ctx, coreaudit.Event{
 		TeamID:     rec.TeamID,
 		ActorType:  auditActorFor(rec.CreatedByType),
 		ActorID:    rec.CreatedByID,
@@ -294,11 +294,11 @@ func (s *Service) audit(ctx context.Context, rec *coreartifact.Artifact, action,
 func auditActorFor(createdByType string) string {
 	switch createdByType {
 	case coreartifact.CreatorUser:
-		return model.AuditActorUser
+		return coreaudit.ActorUser
 	case coreartifact.CreatorAgent, coreartifact.CreatorWorker:
-		return model.AuditActorWorker
+		return coreaudit.ActorWorker
 	default:
-		return model.AuditActorSystem
+		return coreaudit.ActorSystem
 	}
 }
 
