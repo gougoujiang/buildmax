@@ -3,6 +3,7 @@ package auth
 import (
 	"bytes"
 	"net/http"
+	"sort"
 	"testing"
 	"time"
 
@@ -216,4 +217,54 @@ func loginWithPassword(t *testing.T, mux *http.ServeMux) (accessToken, refreshTo
 	access, _ := body["access_token"].(string)
 	refresh, _ := body["refresh_token"].(string)
 	return access, refresh
+}
+
+// TestUnknownAddressCostsWhatAWrongPasswordCosts is the other half of
+// TestPasswordLoginFailuresAreIndistinguishable.
+//
+// That test proves the three failures answer the same status and the same
+// message. This one proves they take the same time, which is the channel the
+// message cannot close: an unknown address that skips the hash comes back in
+// microseconds while a known one spends milliseconds, and the difference
+// answers "is this address registered" to anyone with a stopwatch.
+//
+// Nothing else asserts it. verifyPassword calls DummyVerifyPassword on the
+// no-account path precisely for this, and removing that call leaves every other
+// test in this package passing.
+func TestUnknownAddressCostsWhatAWrongPasswordCosts(t *testing.T) {
+	mux, _ := newPasswordMux(t, Config{
+		Users: &mock.MockUserStore{
+			ByEmail: map[string]*coreidentity.User{"a@b.c": {ID: "u1", Email: "a@b.c"}},
+			ByID:    map[string]*coreidentity.User{"u1": {ID: "u1", Email: "a@b.c"}},
+		},
+	})
+
+	known := medianDuration(5, func() {
+		postJSON(t, mux, "/api/login", `{"email":"a@b.c","password":"wrong but long enough"}`, nil)
+	})
+	unknown := medianDuration(5, func() {
+		postJSON(t, mux, "/api/login", `{"email":"nobody@example.com","password":"wrong but long enough"}`, nil)
+	})
+
+	if known <= 0 {
+		t.Fatalf("a known-address failure measured as %v; the clock is not usable here", known)
+	}
+	if ratio := float64(unknown) / float64(known); ratio < 0.25 {
+		t.Errorf("an unknown address failed in %v against a known address's %v (ratio %.3f).\n"+
+			"Both are meant to cost a password verification; at this ratio the response\n"+
+			"time says whether the address is registered.", unknown, known, ratio)
+	}
+}
+
+// medianDuration runs fn n times and reports the middle result, so one
+// descheduled iteration does not decide what the test saw.
+func medianDuration(n int, fn func()) time.Duration {
+	samples := make([]time.Duration, 0, n)
+	for i := 0; i < n; i++ {
+		start := time.Now()
+		fn()
+		samples = append(samples, time.Since(start))
+	}
+	sort.Slice(samples, func(i, j int) bool { return samples[i] < samples[j] })
+	return samples[len(samples)/2]
 }

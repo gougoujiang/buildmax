@@ -1,8 +1,10 @@
 package identity
 
 import (
+	"sort"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestHashPasswordRoundTrips(t *testing.T) {
@@ -134,5 +136,52 @@ func TestHashPasswordRefusesAnUnusablePassword(t *testing.T) {
 func TestDummyVerifyPasswordAlwaysFails(t *testing.T) {
 	if DummyVerifyPassword("anything at all") {
 		t.Error("the dummy verification succeeded")
+	}
+}
+
+// medianDuration runs fn n times and reports the middle result, so one
+// descheduled iteration does not decide what the test saw.
+func medianDuration(n int, fn func()) time.Duration {
+	samples := make([]time.Duration, 0, n)
+	for i := 0; i < n; i++ {
+		start := time.Now()
+		fn()
+		samples = append(samples, time.Since(start))
+	}
+	sort.Slice(samples, func(i, j int) bool { return samples[i] < samples[j] })
+	return samples[len(samples)/2]
+}
+
+// TestDummyVerifyPasswordCostsWhatAVerifyCosts is the assertion that makes
+// DummyVerifyPassword worth calling.
+//
+// Its whole job is to take the time a real verification takes, so that a login
+// for an unknown address costs the same as one for a known address with the
+// wrong password. A body of `return false` satisfies every other test in this
+// package -- it fails, which is all TestDummyVerifyPasswordAlwaysFails asks --
+// and silently reopens the timing channel that answers "does this address have
+// an account here".
+//
+// The threshold is loose on purpose. A real verification and this one differ by
+// the salt decode and little else, so the honest ratio sits near 0.7; a stub
+// would sit near zero. Anything above a quarter is the work being done.
+func TestDummyVerifyPasswordCostsWhatAVerifyCosts(t *testing.T) {
+	hash, err := HashPassword("correct horse battery staple")
+	if err != nil {
+		t.Fatalf("HashPassword: %v", err)
+	}
+	const wrong = "wrong password entirely"
+
+	real := medianDuration(5, func() { VerifyPassword(hash, wrong) })
+	dummy := medianDuration(5, func() { DummyVerifyPassword(wrong) })
+
+	if real <= 0 {
+		t.Fatalf("a real verification measured as %v; the clock is not usable here", real)
+	}
+	if ratio := float64(dummy) / float64(real); ratio < 0.25 {
+		t.Errorf("DummyVerifyPassword cost %v against a real verification's %v (ratio %.3f).\n"+
+			"It is meant to do the same work; at this ratio a login for an unknown address\n"+
+			"is measurably faster than one for a known address, which answers whether the\n"+
+			"address is registered.", dummy, real, ratio)
 	}
 }
