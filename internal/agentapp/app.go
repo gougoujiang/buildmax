@@ -333,7 +333,7 @@ type ModelConfig struct {
 	// calls. Only a local provider has one to keep.
 	KeepAlive string
 	// Provider is the wire protocol this model speaks. Empty means
-	// config.LLMProviderOpenAICompatible. In managed mode it is ignored: the
+	// cllm.ProviderOpenAICompatible. In managed mode it is ignored: the
 	// operator's catalog decides which protocol serves the call.
 	//
 	// There is no transport here. Where a prompt goes is a property of the app's
@@ -1187,7 +1187,7 @@ func (r *LLMClientCache) build(cfg ModelConfig) (cllm.LLMClient, error) {
 
 	// A local runtime has no credential, and demanding one would make the
 	// provider unusable without inventing a fake key.
-	if cfg.APIKey == "" && config.LLMProviderNeedsAPIKey(cfg.Provider) {
+	if cfg.APIKey == "" && cllm.ProviderNeedsCredential(cfg.Provider) {
 		return nil, fmt.Errorf("api_key is required for model %q in settings.yaml", cfg.Name)
 	}
 	client, err := llm.NewClient(llm.Config{

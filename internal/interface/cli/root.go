@@ -15,6 +15,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/interface/auth"
 
 	"github.com/google/uuid"
+	"github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/spf13/cobra"
 )
 
@@ -204,7 +205,7 @@ func checkModelConfig() error {
 	// A local provider carries no credential, so an empty key there is the
 	// configured state rather than an unfinished one.
 	first := s.Models[0]
-	if config.LLMProviderNeedsAPIKey(first.LLMProvider()) && strings.TrimSpace(first.APIKey) == "" {
+	if llm.ProviderNeedsCredential(first.LLMProvider()) && strings.TrimSpace(first.APIKey) == "" {
 		fmt.Fprintf(os.Stderr, "The first model in %s has no api_key.\n\n"+
 			"Add one, or use a local model with `buildmax init --ollama`.\n", path)
 		return errors.New("api key not set")

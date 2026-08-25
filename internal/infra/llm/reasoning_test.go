@@ -64,7 +64,7 @@ func reasoningUpstream(t *testing.T, body string) *upstream {
 
 func TestAnthropicCapturesThinkingAsProviderState(t *testing.T) {
 	up := reasoningUpstream(t, anthropicThinkingBody())
-	client := newReasoningClient(t, config.LLMProviderAnthropic, up.server.URL)
+	client := newReasoningClient(t, cllm.ProviderAnthropic, up.server.URL)
 
 	completion, err := client.ChatCompletionBlocking(context.Background(),
 		cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "where is it"}}})
@@ -80,7 +80,7 @@ func TestAnthropicCapturesThinkingAsProviderState(t *testing.T) {
 	if strings.Contains(completion.Content, thinkingText) {
 		t.Error("thinking leaked into the content")
 	}
-	if !completion.ProviderState.Belongs(config.LLMProviderAnthropic) {
+	if !completion.ProviderState.Belongs(cllm.ProviderAnthropic) {
 		t.Fatalf("provider state = %+v, want anthropic state", completion.ProviderState)
 	}
 	if !strings.Contains(string(completion.ProviderState.Data), thinkingSignature) {
@@ -107,7 +107,7 @@ func TestAnthropicCapturesThinkingAsProviderState(t *testing.T) {
 
 func TestAnthropicReplaysThinkingOnTheNextTurn(t *testing.T) {
 	up := reasoningUpstream(t, anthropicThinkingBody())
-	client := newReasoningClient(t, config.LLMProviderAnthropic, up.server.URL)
+	client := newReasoningClient(t, cllm.ProviderAnthropic, up.server.URL)
 
 	first, err := client.ChatCompletionBlocking(context.Background(),
 		cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "where is it"}}})
@@ -139,15 +139,15 @@ func TestAnthropicReplaysThinkingOnTheNextTurn(t *testing.T) {
 // there, and a session is portable precisely because the state is not.
 func TestForeignReasoningStateIsNotReplayed(t *testing.T) {
 	foreign := &cllm.ProviderState{
-		Protocol: config.LLMProviderOpenAI,
+		Protocol: cllm.ProviderOpenAI,
 		Data:     json.RawMessage(`[{"type":"reasoning","encrypted_content":"` + encryptedReasonig + `"}]`),
 	}
 	for _, p := range []struct {
 		provider string
 		body     string
 	}{
-		{config.LLMProviderAnthropic, anthropicThinkingBody()},
-		{config.LLMProviderOpenAICompatible, openAIChatBody(reply{text: "ok"})},
+		{cllm.ProviderAnthropic, anthropicThinkingBody()},
+		{cllm.ProviderOpenAICompatible, openAIChatBody(reply{text: "ok"})},
 	} {
 		t.Run(p.provider, func(t *testing.T) {
 			up := reasoningUpstream(t, p.body)
@@ -169,7 +169,7 @@ func TestForeignReasoningStateIsNotReplayed(t *testing.T) {
 
 func TestResponsesCapturesAndReplaysReasoning(t *testing.T) {
 	up := reasoningUpstream(t, responsesReasoningBody())
-	client := newReasoningClient(t, config.LLMProviderOpenAI, up.server.URL)
+	client := newReasoningClient(t, cllm.ProviderOpenAI, up.server.URL)
 
 	first, err := client.ChatCompletionBlocking(context.Background(),
 		cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "where is it"}}})
@@ -179,7 +179,7 @@ func TestResponsesCapturesAndReplaysReasoning(t *testing.T) {
 	if first.Content != "It is in internal/." {
 		t.Errorf("content = %q", first.Content)
 	}
-	if !first.ProviderState.Belongs(config.LLMProviderOpenAI) {
+	if !first.ProviderState.Belongs(cllm.ProviderOpenAI) {
 		t.Fatalf("provider state = %+v, want openai state", first.ProviderState)
 	}
 	// The encrypted content is the part that cannot be reconstructed, so losing
@@ -211,7 +211,7 @@ func TestResponsesCapturesAndReplaysReasoning(t *testing.T) {
 // models, is rejected outright.
 func TestReasoningIsOffByDefault(t *testing.T) {
 	up := reasoningUpstream(t, anthropicThinkingBody())
-	client := newTestClient(t, config.LLMProviderAnthropic, up.server.URL)
+	client := newTestClient(t, cllm.ProviderAnthropic, up.server.URL)
 
 	if _, err := client.ChatCompletionBlocking(context.Background(),
 		cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "hi"}}}); err != nil {

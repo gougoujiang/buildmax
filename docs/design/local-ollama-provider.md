@@ -378,7 +378,7 @@ failing on an empty credential — which is load-bearing for every provider that
 has a key.
 
 The invariant is now stated rather than assumed.
-`llmgateway.ProviderNeedsCredential` is the one place that says which protocols
+`llm.ProviderNeedsCredential` is the one place that says which protocols
 authenticate, and both `validateModelInput` and `resolveCredential` ask it. The
 exemption is deliberately one provider wide: a hosted target missing its key is
 a misconfiguration that must fail at selection, not a call sent unauthenticated.

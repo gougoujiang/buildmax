@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/gougoujiang/buildmax/internal/core/llm"
 )
 
 // initInHome runs `buildmax init` with BUILDMAX_HOME pointed at a temp dir and
@@ -237,8 +238,8 @@ func TestInitOllamaWritesAKeylessEntry(t *testing.T) {
 	}
 	m := settings.Models[0]
 	switch {
-	case m.LLMProvider() != config.LLMProviderOllama:
-		t.Errorf("provider = %q, want %q", m.LLMProvider(), config.LLMProviderOllama)
+	case m.LLMProvider() != llm.ProviderOllama:
+		t.Errorf("provider = %q, want %q", m.LLMProvider(), llm.ProviderOllama)
 	case m.Model != "qwen3:8b":
 		t.Errorf("model = %q, want the one the daemon holds", m.Model)
 	// The daemon reports what the model was trained for; the file gets a window
@@ -286,7 +287,7 @@ func TestInitStatesTheProvider(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read settings.yaml: %v", err)
 	}
-	if !strings.Contains(string(body), config.LLMProviderOpenAICompatible) {
+	if !strings.Contains(string(body), llm.ProviderOpenAICompatible) {
 		t.Errorf("generated file does not state its provider:\n%s", body)
 	}
 }

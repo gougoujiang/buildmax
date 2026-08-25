@@ -1,11 +1,11 @@
 package bootstrap
 
 import (
+	"github.com/gougoujiang/buildmax/internal/core/llm"
 	"strings"
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
-	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
 )
 
 // TestValidateModelInputCredentialRule pins which catalog targets may be added
@@ -17,7 +17,7 @@ func TestValidateModelInputCredentialRule(t *testing.T) {
 		Name:         "Target",
 		APIURL:       "https://api.example.test/v1",
 		Model:        "some-model",
-		ProviderType: llmgateway.ProviderOpenAICompatible,
+		ProviderType: llm.ProviderOpenAICompatible,
 	}
 	cases := []struct {
 		name     string
@@ -25,11 +25,11 @@ func TestValidateModelInputCredentialRule(t *testing.T) {
 		apiKey   string
 		wantErr  string
 	}{
-		{name: "hosted with a key", provider: llmgateway.ProviderOpenAICompatible, apiKey: "sk-test"},
-		{name: "hosted without a key", provider: llmgateway.ProviderOpenAICompatible, wantErr: "--api-key is required"},
-		{name: "anthropic without a key", provider: llmgateway.ProviderAnthropic, wantErr: "--api-key is required"},
-		{name: "local without a key", provider: llmgateway.ProviderOllama},
-		{name: "local with a key", provider: llmgateway.ProviderOllama, apiKey: "not-needed"},
+		{name: "hosted with a key", provider: llm.ProviderOpenAICompatible, apiKey: "sk-test"},
+		{name: "hosted without a key", provider: llm.ProviderOpenAICompatible, wantErr: "--api-key is required"},
+		{name: "anthropic without a key", provider: llm.ProviderAnthropic, wantErr: "--api-key is required"},
+		{name: "local without a key", provider: llm.ProviderOllama},
+		{name: "local with a key", provider: llm.ProviderOllama, apiKey: "not-needed"},
 		{name: "unimplemented provider", provider: "bedrock", apiKey: "sk-test", wantErr: "not implemented"},
 	}
 	for _, tc := range cases {

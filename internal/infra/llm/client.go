@@ -24,7 +24,7 @@ import (
 // Config holds the settings for one LLM client.
 type Config struct {
 	// Provider is the wire protocol to speak. Empty means
-	// config.LLMProviderOpenAICompatible.
+	// cllm.ProviderOpenAICompatible.
 	Provider      string
 	APIKey        string
 	BaseURL       string
@@ -104,20 +104,20 @@ func NewClient(cfg Config) (*LLMClient, error) {
 		err  error
 	)
 	switch cfg.Provider {
-	case "", config.LLMProviderOpenAICompatible:
+	case "", cllm.ProviderOpenAICompatible:
 		impl = newOpenAIChatAdapter(cfg)
-	case config.LLMProviderOpenAI:
+	case cllm.ProviderOpenAI:
 		impl = newOpenAIResponsesAdapter(cfg)
-	case config.LLMProviderAnthropic:
+	case cllm.ProviderAnthropic:
 		impl, err = newAnthropicAdapter(cfg)
-	case config.LLMProviderOllama:
+	case cllm.ProviderOllama:
 		// The window is passed in rather than read from cfg: this protocol
 		// sends it on every call, and it must be the same number the caller
 		// trims history against.
 		impl, err = newOllamaAdapter(cfg, cw)
 	default:
 		return nil, fmt.Errorf("unknown llm provider %q: use one of %s",
-			cfg.Provider, strings.Join(config.LLMProviders(), ", "))
+			cfg.Provider, strings.Join(cllm.Providers(), ", "))
 	}
 	if !config.KnownReasoningEffort(cfg.Reasoning) {
 		return nil, fmt.Errorf("unknown reasoning effort %q: use one of %s",
@@ -128,7 +128,7 @@ func NewClient(cfg Config) (*LLMClient, error) {
 	// entry instead of failing the first turn of a run.
 	provider := cfg.Provider
 	if provider == "" {
-		provider = config.LLMProviderOpenAICompatible
+		provider = cllm.ProviderOpenAICompatible
 	}
 	capability, cacheErr := cacheCapabilityForIntegration(provider, cfg.Integration)
 	if cacheErr != nil {
@@ -154,7 +154,7 @@ func NewClient(cfg Config) (*LLMClient, error) {
 // snapshot of a hosted catalog keyed by its identifiers, and a daemon can
 // answer the same question about the model actually installed.
 func resolveContextWindow(cfg Config) int {
-	if cfg.Provider == config.LLMProviderOllama {
+	if cfg.Provider == cllm.ProviderOllama {
 		return ollamaContextWindow(cfg)
 	}
 	if cw := lookupContextWindow(cfg.Model); cw > 0 {

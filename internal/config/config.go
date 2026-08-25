@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/viper"
 
 	corehook "github.com/gougoujiang/buildmax/internal/core/hook"
+	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
 )
 
 // LLM holds resolved LLM provider settings.
@@ -91,57 +92,20 @@ type ModelEntry struct {
 	Integration string `mapstructure:"integration"`
 	// KeepAlive is how long a local runtime keeps the model loaded after a
 	// call — a duration string, "0" to unload at once, "-1" to stay resident.
-	// Only LLMProviderOllama reads it; on a hosted provider there is no model
+	// Only llm.ProviderOllama reads it; on a hosted provider there is no model
 	// to keep loaded. Empty means the runtime's own default.
 	KeepAlive string `mapstructure:"keep_alive"`
-	// Provider is the wire protocol this endpoint speaks: LLMProviderOpenAICompatible
-	// (the default), LLMProviderOpenAI, LLMProviderAnthropic, or LLMProviderOllama.
+	// Provider is the wire protocol this endpoint speaks: llm.ProviderOpenAICompatible
+	// (the default), llm.ProviderOpenAI, llm.ProviderAnthropic, or llm.ProviderOllama.
 	Provider string `mapstructure:"provider"`
 }
 
-// LLM wire protocols a direct model entry can speak. The value names a protocol
-// family, not a vendor: Claude served through an OpenAI-compatible gateway is
-// LLMProviderOpenAICompatible, and Claude served from Anthropic's own endpoint is
-// LLMProviderAnthropic.
-const (
-	// LLMProviderOpenAICompatible is OpenAI Chat Completions, spoken by OpenRouter,
-	// LiteLLM, vLLM, and local inference servers. It is the default.
-	LLMProviderOpenAICompatible = "openai_compatible"
-	// LLMProviderOpenAI is OpenAI's own Responses API.
-	LLMProviderOpenAI = "openai"
-	// LLMProviderAnthropic is the Anthropic Messages API.
-	LLMProviderAnthropic = "anthropic"
-	// LLMProviderOllama is Ollama's own /api/chat, spoken by a local daemon.
-	// Its compatibility endpoint would answer LLMProviderOpenAICompatible, but
-	// that path cannot set the context window the runtime otherwise defaults
-	// and silently truncates to.
-	LLMProviderOllama = "ollama"
-)
-
-// LLMProviders returns every wire protocol a direct model entry may name, for
-// help text and error messages that must not drift from the list above.
-func LLMProviders() []string {
-	return []string{
-		LLMProviderOpenAICompatible,
-		LLMProviderOpenAI,
-		LLMProviderAnthropic,
-		LLMProviderOllama,
-	}
-}
-
-// LLMProviderNeedsAPIKey reports whether an entry naming this provider must
-// carry a credential. A local runtime has none, and demanding a placeholder for
-// it turns a working setup into a diagnostic failure.
-func LLMProviderNeedsAPIKey(provider string) bool {
-	return provider != LLMProviderOllama
-}
-
 // LLMProvider returns the wire protocol this entry speaks, defaulting to
-// LLMProviderOpenAICompatible so a configuration written before providers
+// llm.ProviderOpenAICompatible so a configuration written before providers
 // existed keeps calling what it always called.
 func (m ModelEntry) LLMProvider() string {
 	if m.Provider == "" {
-		return LLMProviderOpenAICompatible
+		return cllm.ProviderOpenAICompatible
 	}
 	return m.Provider
 }
@@ -180,19 +144,20 @@ func ReasoningEfforts() []string {
 
 // KnownLLMProvider reports whether name is a wire protocol BuildMax implements.
 // The empty string is known: it means the default.
+//
+// This is the config boundary's own reading of the vocabulary, not a second
+// copy of it. An unset provider is a valid thing to write in settings.yaml and
+// LLMProvider resolves it; llm.KnownProvider answers about a stated protocol
+// and rejects the empty one.
 func KnownLLMProvider(name string) bool {
-	switch name {
-	case "", LLMProviderOpenAICompatible, LLMProviderOpenAI, LLMProviderAnthropic, LLMProviderOllama:
-		return true
-	}
-	return false
+	return name == "" || cllm.KnownProvider(name)
 }
 
 // DefaultOpenRouterBaseURL is the OpenRouter OpenAI-compatible API base URL.
 const DefaultOpenRouterBaseURL = "https://openrouter.ai/api/v1"
 
 // DefaultOllamaBaseURL is where a local Ollama daemon listens. It is the daemon
-// root, not the /v1 compatibility endpoint, because LLMProviderOllama speaks the
+// root, not the /v1 compatibility endpoint, because llm.ProviderOllama speaks the
 // native API under /api.
 const DefaultOllamaBaseURL = "http://localhost:11434"
 

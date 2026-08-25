@@ -103,7 +103,7 @@ func catalogRow(id string) model.LLMModel {
 	return model.LLMModel{
 		ID:            id,
 		Name:          strings.ToUpper(id),
-		ProviderType:  llmgateway.ProviderOpenAICompatible,
+		ProviderType:  cllm.ProviderOpenAICompatible,
 		APIURL:        "https://upstream.example.com/v1",
 		Model:         "vendor/" + id,
 		ContextWindow: 64000,
@@ -333,7 +333,7 @@ func TestClientFactoryBuildsALocalTargetWithoutACredential(t *testing.T) {
 
 	client, err := factory(context.Background(), llmgateway.Target{
 		Name:          "Local",
-		ProviderType:  config.LLMProviderOllama,
+		ProviderType:  cllm.ProviderOllama,
 		Endpoint:      "http://ollama.test:11434",
 		UpstreamModel: "qwen3:8b",
 		// Set so building the client asks the daemon nothing.
@@ -356,7 +356,7 @@ func TestClientFactoryStillDemandsACredentialForHostedTargets(t *testing.T) {
 
 	_, err := factory(context.Background(), llmgateway.Target{
 		Name:          "Hosted",
-		ProviderType:  llmgateway.ProviderOpenAICompatible,
+		ProviderType:  cllm.ProviderOpenAICompatible,
 		Endpoint:      "https://api.example.test/v1",
 		UpstreamModel: "gpt-4o-mini",
 		CredentialRef: conversationCredentialRef,
@@ -447,7 +447,7 @@ func TestStoredModelOutputCapReachesTheUpstream(t *testing.T) {
 	defer upstream.Close()
 
 	row := catalogRow("lm_capped")
-	row.ProviderType = llmgateway.ProviderAnthropic
+	row.ProviderType = cllm.ProviderAnthropic
 	row.APIURL = upstream.URL
 	row.MaxTokens = 1234
 
@@ -500,7 +500,7 @@ func TestConversationModelCachePolicyReachesTheUpstream(t *testing.T) {
 			defer upstream.Close()
 
 			row := catalogRow("lm_tier1")
-			row.ProviderType = llmgateway.ProviderAnthropic
+			row.ProviderType = cllm.ProviderAnthropic
 			row.APIURL = upstream.URL
 			row.CacheMode = tc.cacheMode
 

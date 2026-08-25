@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
 )
 
@@ -15,7 +16,7 @@ func validTarget() llmgateway.Target {
 	return llmgateway.Target{
 		ID:            "mt_fast",
 		Name:          "Fast",
-		ProviderType:  llmgateway.ProviderOpenAICompatible,
+		ProviderType:  cllm.ProviderOpenAICompatible,
 		Endpoint:      "https://upstream.example.com/v1",
 		CredentialRef: "upstream_key",
 		UpstreamModel: "vendor/fast-1",
@@ -215,28 +216,28 @@ func TestNewStaticCatalogAcceptsEmpty(t *testing.T) {
 // selection rather than send an unauthenticated request upstream; a local
 // runtime has no key to miss.
 func TestProviderNeedsCredential(t *testing.T) {
-	for _, provider := range []string{llmgateway.ProviderOpenAICompatible, llmgateway.ProviderOpenAI, llmgateway.ProviderAnthropic} {
-		if !llmgateway.ProviderNeedsCredential(provider) {
+	for _, provider := range []string{cllm.ProviderOpenAICompatible, cllm.ProviderOpenAI, cllm.ProviderAnthropic} {
+		if !cllm.ProviderNeedsCredential(provider) {
 			t.Errorf("provider %q authenticates and must need a credential", provider)
 		}
 	}
-	if llmgateway.ProviderNeedsCredential(llmgateway.ProviderOllama) {
-		t.Errorf("provider %q is a local runtime with no credential to hold", llmgateway.ProviderOllama)
+	if cllm.ProviderNeedsCredential(cllm.ProviderOllama) {
+		t.Errorf("provider %q is a local runtime with no credential to hold", cllm.ProviderOllama)
 	}
 	// An unknown name is not an exemption: it reaches KnownProvider first, and
 	// answering "needs none" here would be the wrong default if that changed.
-	if !llmgateway.ProviderNeedsCredential("bedrock") {
+	if !cllm.ProviderNeedsCredential("bedrock") {
 		t.Error("an unrecognized provider should not be exempt")
 	}
 }
 
 func TestProvidersAndKnownProviderAgree(t *testing.T) {
-	for _, provider := range llmgateway.Providers() {
-		if !llmgateway.KnownProvider(provider) {
+	for _, provider := range cllm.Providers() {
+		if !cllm.KnownProvider(provider) {
 			t.Errorf("Providers lists %q, which KnownProvider rejects", provider)
 		}
 	}
-	if llmgateway.KnownProvider("") {
+	if cllm.KnownProvider("") {
 		t.Error("an empty provider is not known: a target must state its protocol")
 	}
 }

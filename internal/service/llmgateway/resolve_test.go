@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
 )
 
@@ -402,7 +403,7 @@ func TestNoUpstreamDetailEscapes(t *testing.T) {
 	// logs, so they carry an ID and never a credential.
 	_, err = llmgateway.NewStaticCatalog([]llmgateway.Target{{
 		ID:            "mt_broken",
-		ProviderType:  llmgateway.ProviderOpenAICompatible,
+		ProviderType:  cllm.ProviderOpenAICompatible,
 		Endpoint:      secretEndpoint,
 		CredentialRef: secretCredential,
 	}})

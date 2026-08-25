@@ -19,6 +19,13 @@ implementation of it. The agent loop only ever sees the interface.
 | `anthropic` | Anthropic Messages | `anthropic.go` |
 | `ollama` | Ollama `/api/chat` (local) | `ollama.go`, `ollama_inventory.go` |
 
+Those four values are `llm.Provider*` in `internal/core/llm`, along with
+`Providers`, `KnownProvider`, and `ProviderNeedsCredential`. One protocol name
+is read from `settings.yaml`, stored in the model catalog, and recorded in the
+call ledger, so it has one definition rather than one per surface.
+`config.KnownLLMProvider` adds only the configuration boundary's own reading,
+that an unset value means the default.
+
 `client.go` is the only entry point: it selects an adapter and owns the parts a
 caller depends on — the per-call timeout, the retry loop, and error
 classification — so four protocols cannot drift apart on them. An adapter

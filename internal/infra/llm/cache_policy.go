@@ -61,7 +61,7 @@ var compatibleProfiles = map[string]cacheCapability{}
 // cacheCapabilityFor returns what the named protocol supports.
 func cacheCapabilityFor(provider string) cacheCapability {
 	switch provider {
-	case config.LLMProviderAnthropic:
+	case cllm.ProviderAnthropic:
 		// This protocol has no automatic caching: nothing is cached unless the
 		// request says where. 24h is in the vocabulary but not in this
 		// protocol, so asking for it is refused rather than silently served at
@@ -72,7 +72,7 @@ func cacheCapabilityFor(provider string) cacheCapability {
 			strategy:        cacheStrategyAnthropicStatic,
 			reported:        cacheCapabilitySupported,
 		}
-	case config.LLMProviderOpenAI:
+	case cllm.ProviderOpenAI:
 		// Responses caches on its own, so the controls here do not turn caching
 		// on — they say which bucket a prefix belongs in and how long it
 		// survives. 24h is this protocol's extended retention; the shorter
@@ -101,10 +101,10 @@ func cacheCapabilityForIntegration(provider, integration string) (cacheCapabilit
 	if integration == "" {
 		return cacheCapabilityFor(provider), nil
 	}
-	if provider != config.LLMProviderOpenAICompatible {
+	if provider != cllm.ProviderOpenAICompatible {
 		return cacheCapability{}, fmt.Errorf(
 			"integration %q applies to provider %q only; provider %q declares its own cache behaviour",
-			integration, config.LLMProviderOpenAICompatible, provider)
+			integration, cllm.ProviderOpenAICompatible, provider)
 	}
 	capability, ok := compatibleProfiles[integration]
 	if !ok {

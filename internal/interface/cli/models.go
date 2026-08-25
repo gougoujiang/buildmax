@@ -14,6 +14,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/agentapp"
 	"github.com/gougoujiang/buildmax/internal/config"
+	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/infra/llm"
 	"github.com/gougoujiang/buildmax/internal/interface/auth"
 )
@@ -109,7 +110,7 @@ func printLocalModels(settings config.Settings) {
 // modelDestination is where prompts actually go for a local entry.
 func modelDestination(cfg agentapp.ModelConfig) string {
 	if cfg.BaseURL == "" {
-		if cfg.Provider == config.LLMProviderOllama {
+		if cfg.Provider == cllm.ProviderOllama {
 			return config.DefaultOllamaBaseURL
 		}
 		return config.DefaultOpenRouterBaseURL
@@ -174,7 +175,7 @@ func printOllamaModels(ctx context.Context, out io.Writer, baseURL string) error
 	}
 	fmt.Fprintf(out, "\nTo use one, add to settings.yaml:\n\n"+
 		"  - model: %s\n    name: %s (local)\n    provider: %s\n    api_url: %s\n    context_window: %d\n",
-		usable.Model, usable.Model, config.LLMProviderOllama, baseURL, suggestedContextWindow(usable))
+		usable.Model, usable.Model, cllm.ProviderOllama, baseURL, suggestedContextWindow(usable))
 	return nil
 }
 

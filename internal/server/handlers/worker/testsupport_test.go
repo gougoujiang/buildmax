@@ -47,7 +47,7 @@ func llmTestService(t *testing.T, client cllm.LLMClient, quota llmgateway.QuotaC
 	fast := llmgateway.Target{
 		ID:            "mt_fast",
 		Name:          "Fast",
-		ProviderType:  llmgateway.ProviderOpenAICompatible,
+		ProviderType:  cllm.ProviderOpenAICompatible,
 		Endpoint:      "https://SECRET-ENDPOINT.internal/v1",
 		CredentialRef: "SECRET-CREDENTIAL",
 		UpstreamModel: "SECRET-UPSTREAM-MODEL",

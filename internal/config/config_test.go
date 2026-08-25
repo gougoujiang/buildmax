@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
 )
 
 const settingsValidOne = `
@@ -470,29 +472,31 @@ func TestLogLevel(t *testing.T) {
 	}
 }
 
-// TestLLMProviderNeedsAPIKey pins which providers a credential is demanded for.
-// The exemption is what makes a local entry complete rather than half-written,
-// and widening it by accident would let a hosted entry fail at the first call
-// instead of at the diagnostic.
-func TestLLMProviderNeedsAPIKey(t *testing.T) {
-	for _, provider := range []string{"", LLMProviderOpenAICompatible, LLMProviderOpenAI, LLMProviderAnthropic} {
-		if !LLMProviderNeedsAPIKey(provider) {
-			t.Errorf("provider %q should still need a credential", provider)
-		}
+// TestKnownLLMProviderAcceptsTheUnsetProvider pins the one thing this boundary
+// adds to the vocabulary: an unset provider is a valid thing to write in
+// settings.yaml, because LLMProvider resolves it. The vocabulary itself is
+// core/llm's, and its own tests cover it.
+func TestKnownLLMProviderAcceptsTheUnsetProvider(t *testing.T) {
+	if !KnownLLMProvider("") {
+		t.Error("an unset provider is the default, not an unknown one")
 	}
-	if LLMProviderNeedsAPIKey(LLMProviderOllama) {
-		t.Errorf("provider %q runs locally and has no credential to hold", LLMProviderOllama)
-	}
-}
-
-func TestKnownLLMProviderCoversEveryListedProvider(t *testing.T) {
-	for _, provider := range LLMProviders() {
+	for _, provider := range cllm.Providers() {
 		if !KnownLLMProvider(provider) {
-			t.Errorf("LLMProviders lists %q, which KnownLLMProvider rejects", provider)
+			t.Errorf("llm.Providers lists %q, which KnownLLMProvider rejects", provider)
 		}
 	}
 	if KnownLLMProvider("bedrock") {
 		t.Error("KnownLLMProvider accepted a provider with no adapter")
+	}
+}
+
+// TestModelEntryLLMProviderDefaults pins the defaulting itself.
+func TestModelEntryLLMProviderDefaults(t *testing.T) {
+	if got := (ModelEntry{}).LLMProvider(); got != cllm.ProviderOpenAICompatible {
+		t.Errorf("an entry with no provider resolved to %q", got)
+	}
+	if got := (ModelEntry{Provider: cllm.ProviderOllama}).LLMProvider(); got != cllm.ProviderOllama {
+		t.Errorf("a stated provider resolved to %q", got)
 	}
 }
 
@@ -509,7 +513,7 @@ func TestLoadSettings_LocalEntryNeedsNoKey(t *testing.T) {
 	}
 	m := settings.Models[0]
 	switch {
-	case m.LLMProvider() != LLMProviderOllama:
+	case m.LLMProvider() != cllm.ProviderOllama:
 		t.Errorf("provider = %q", m.LLMProvider())
 	case m.APIKey != "":
 		t.Errorf("api_key = %q, want none", m.APIKey)

@@ -49,7 +49,7 @@ name belongs to the narrower thing; the configuration reference must state
 this, because the values read backwards otherwise.
 
 The values are protocol families, not vendors, matching the existing comment on
-`llmgateway.ProviderOpenAICompatible`. Claude served through OpenRouter is
+`llm.ProviderOpenAICompatible`. Claude served through OpenRouter is
 `openai_compatible`; Claude served from `api.anthropic.com` is `anthropic`.
 
 The shared contract in `internal/core/llm` **does not change** in this work.

@@ -34,7 +34,7 @@ func newCachingClient(t *testing.T, provider, baseURL string) *LLMClient {
 // so that is where the first breakpoint goes.
 func TestAnthropicPlacesCacheBreakpoints(t *testing.T) {
 	up := newUpstreamWithBody(t, anthropicBody(reply{text: "ok"}))
-	client := newCachingClient(t, config.LLMProviderAnthropic, up.server.URL)
+	client := newCachingClient(t, cllm.ProviderAnthropic, up.server.URL)
 
 	if _, err := client.ChatCompletionBlocking(context.Background(), cllm.Request{
 		Messages: conformanceHistory(), Tools: conformanceTools(), Profile: cllm.ProfileAgentTurn,
@@ -62,7 +62,7 @@ func TestAnthropicPlacesCacheBreakpoints(t *testing.T) {
 // iteration, which is the case a cache write is priced for.
 func TestAgentTurnsCacheByDefaultOnAnthropic(t *testing.T) {
 	up := newUpstreamWithBody(t, anthropicBody(reply{text: "ok"}))
-	client := newTestClient(t, config.LLMProviderAnthropic, up.server.URL)
+	client := newTestClient(t, cllm.ProviderAnthropic, up.server.URL)
 
 	if _, err := client.ChatCompletionBlocking(context.Background(), cllm.Request{
 		Messages: conformanceHistory(), Tools: conformanceTools(), Profile: cllm.ProfileAgentTurn,
@@ -84,7 +84,7 @@ func TestUtilityCallsDoNotCacheByDefault(t *testing.T) {
 	} {
 		t.Run(string(profile), func(t *testing.T) {
 			up := newUpstreamWithBody(t, anthropicBody(reply{text: "ok"}))
-			client := newTestClient(t, config.LLMProviderAnthropic, up.server.URL)
+			client := newTestClient(t, cllm.ProviderAnthropic, up.server.URL)
 
 			if _, err := client.ChatCompletionBlocking(context.Background(), cllm.Request{
 				Messages: conformanceHistory(), Tools: conformanceTools(), Profile: profile,
@@ -102,7 +102,7 @@ func TestUtilityCallsDoNotCacheByDefault(t *testing.T) {
 func TestOffSendsNoBreakpointOnAnAgentTurn(t *testing.T) {
 	up := newUpstreamWithBody(t, anthropicBody(reply{text: "ok"}))
 	client, err := NewClient(Config{
-		Provider: config.LLMProviderAnthropic, APIKey: "test-key", BaseURL: up.server.URL,
+		Provider: cllm.ProviderAnthropic, APIKey: "test-key", BaseURL: up.server.URL,
 		Model: "test-model", ContextWindow: 32_000,
 		CacheControl: config.CacheControl{Mode: config.CacheModeOff},
 	})
@@ -131,7 +131,7 @@ func TestAnthropicSendsTheRequestedTTL(t *testing.T) {
 		t.Run(policy, func(t *testing.T) {
 			up := newUpstreamWithBody(t, anthropicBody(reply{text: "ok"}))
 			client, err := NewClient(Config{
-				Provider: config.LLMProviderAnthropic, APIKey: "test-key", BaseURL: up.server.URL,
+				Provider: cllm.ProviderAnthropic, APIKey: "test-key", BaseURL: up.server.URL,
 				Model: "test-model", ContextWindow: 32_000,
 				CacheControl: config.CacheControl{Mode: config.CacheModeAuto, TTL: policy},
 			})
@@ -163,7 +163,7 @@ func TestAnthropicSendsTheRequestedTTL(t *testing.T) {
 // the run would pay to cache the one part that is never the same twice.
 func TestAnthropicCachesToolsWhenThereIsNoSystemPrompt(t *testing.T) {
 	up := newUpstreamWithBody(t, anthropicBody(reply{text: "ok"}))
-	client := newTestClient(t, config.LLMProviderAnthropic, up.server.URL)
+	client := newTestClient(t, cllm.ProviderAnthropic, up.server.URL)
 
 	if _, err := client.ChatCompletionBlocking(context.Background(), cllm.Request{
 		Messages: []cllm.Message{{Role: "user", Content: "hi"}},
@@ -197,7 +197,7 @@ func TestCacheTokensAreReportedAsPartOfThePrompt(t *testing.T) {
 		want     cllm.Usage
 	}{
 		{
-			provider: config.LLMProviderAnthropic,
+			provider: cllm.ProviderAnthropic,
 			body: mustJSON(map[string]any{
 				"id": "msg_1", "type": "message", "role": "assistant", "model": "m",
 				"content": []any{map[string]any{"type": "text", "text": "ok"}},
@@ -214,7 +214,7 @@ func TestCacheTokensAreReportedAsPartOfThePrompt(t *testing.T) {
 			},
 		},
 		{
-			provider: config.LLMProviderOpenAI,
+			provider: cllm.ProviderOpenAI,
 			body: mustJSON(map[string]any{
 				"id": "resp_1", "object": "response", "status": "completed", "model": "m",
 				"output": []any{map[string]any{
@@ -233,7 +233,7 @@ func TestCacheTokensAreReportedAsPartOfThePrompt(t *testing.T) {
 			},
 		},
 		{
-			provider: config.LLMProviderOpenAICompatible,
+			provider: cllm.ProviderOpenAICompatible,
 			body: mustJSON(map[string]any{
 				"id": "chatcmpl-1", "object": "chat.completion",
 				"choices": []any{map[string]any{
@@ -275,7 +275,7 @@ func TestCacheTokensAreReportedAsPartOfThePrompt(t *testing.T) {
 // typo in settings.yaml names itself instead of arriving as a provider error.
 func TestUnknownReasoningEffortIsRejected(t *testing.T) {
 	_, err := NewClient(Config{
-		Provider: config.LLMProviderAnthropic, APIKey: "k", Model: "m", Reasoning: "maximum",
+		Provider: cllm.ProviderAnthropic, APIKey: "k", Model: "m", Reasoning: "maximum",
 	})
 	if err == nil {
 		t.Fatal("expected an error for an unknown effort level")
@@ -299,7 +299,7 @@ func TestCacheTokensSurviveStreaming(t *testing.T) {
 		want     cllm.Usage
 	}{
 		{
-			provider: config.LLMProviderAnthropic,
+			provider: cllm.ProviderAnthropic,
 			body:     anthropicCacheSSE(),
 			// 10 fresh + 80 read + 10 written, the same addition the blocking
 			// path makes.
@@ -309,7 +309,7 @@ func TestCacheTokensSurviveStreaming(t *testing.T) {
 			},
 		},
 		{
-			provider: config.LLMProviderOpenAI,
+			provider: cllm.ProviderOpenAI,
 			body:     responsesCacheSSE(),
 			want: cllm.Usage{
 				PromptTokens: 100, CompletionTokens: 4, TotalTokens: 104,
@@ -317,7 +317,7 @@ func TestCacheTokensSurviveStreaming(t *testing.T) {
 			},
 		},
 		{
-			provider: config.LLMProviderOpenAICompatible,
+			provider: cllm.ProviderOpenAICompatible,
 			body:     openAIChatCacheSSE(),
 			want: cllm.Usage{
 				PromptTokens: 100, CompletionTokens: 4, TotalTokens: 104,
@@ -468,7 +468,7 @@ func TestASequentialLoopWritesThenReads(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := newTestClient(t, config.LLMProviderAnthropic, server.URL)
+	client := newTestClient(t, cllm.ProviderAnthropic, server.URL)
 	history := []cllm.Message{
 		{Role: "system", Content: "you are a careful assistant"},
 		{Role: "user", Content: "start"},

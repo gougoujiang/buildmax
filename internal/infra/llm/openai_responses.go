@@ -45,13 +45,13 @@ func newOpenAIResponsesAdapter(cfg Config) *openAIResponsesAdapter {
 		maxTokens:  cfg.MaxTokens,
 		reasoning:  cfg.Reasoning,
 		cache:      cfg.CacheControl,
-		capability: cacheCapabilityFor(config.LLMProviderOpenAI),
+		capability: cacheCapabilityFor(cllm.ProviderOpenAI),
 		credential: cfg.APIKey,
 		vision:     cfg.Vision,
 	}
 }
 
-func (a *openAIResponsesAdapter) name() string { return config.LLMProviderOpenAI }
+func (a *openAIResponsesAdapter) name() string { return cllm.ProviderOpenAI }
 
 // buildRequest turns canonical history into Responses input items.
 //
@@ -162,14 +162,14 @@ func responsesReasoning(items []any) *cllm.ProviderState {
 	if err != nil {
 		return nil
 	}
-	return &cllm.ProviderState{Protocol: config.LLMProviderOpenAI, Data: data}
+	return &cllm.ProviderState{Protocol: cllm.ProviderOpenAI, Data: data}
 }
 
 // responsesReasoningItems rebuilds the input items to replay. State from another
 // protocol is ignored: this one would reject it, and the turn is still valid
 // without it.
 func responsesReasoningItems(state *cllm.ProviderState) []any {
-	if !state.Belongs(config.LLMProviderOpenAI) {
+	if !state.Belongs(cllm.ProviderOpenAI) {
 		return nil
 	}
 	var items []any

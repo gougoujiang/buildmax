@@ -59,7 +59,7 @@ func newOllamaAdapter(cfg Config, contextWindow int) (*ollamaAdapter, error) {
 	}, nil
 }
 
-func (a *ollamaAdapter) name() string { return config.LLMProviderOllama }
+func (a *ollamaAdapter) name() string { return cllm.ProviderOllama }
 
 // ollamaBaseURL normalizes what an operator wrote to the daemon root.
 //

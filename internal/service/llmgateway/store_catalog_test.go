@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
@@ -13,7 +14,7 @@ func storedModel(mutate func(*model.LLMModel)) model.LLMModel {
 	m := model.LLMModel{
 		ID:           "lm_1",
 		Name:         "fast",
-		ProviderType: llmgateway.ProviderAnthropic,
+		ProviderType: cllm.ProviderAnthropic,
 		APIURL:       "https://api.anthropic.com",
 		Model:        "claude-sonnet-5",
 		Capabilities: []string{string(llmgateway.CapabilityTextChat)},

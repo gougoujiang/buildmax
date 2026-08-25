@@ -534,7 +534,7 @@ provider-specific feature survives an OpenAI-compatible intermediary.
 `ollama` is the one target type with **no credential**: it names a local runtime
 the deployment reaches directly, and what authorizes the call is being able to
 reach the daemon, which is a property of the deployment's network rather than of
-the catalog. `llmgateway.ProviderNeedsCredential` is where that exemption is
+the catalog. `llm.ProviderNeedsCredential` is where that exemption is
 stated, and it is deliberately one provider wide — a hosted target missing its
 key is a misconfiguration that must fail at selection rather than send an
 unauthenticated request. Everything else about such a target is unchanged: an

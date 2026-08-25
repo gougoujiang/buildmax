@@ -120,7 +120,7 @@ func TestOllamaAlwaysSendsContextWindow(t *testing.T) {
 				up.show = showBody(tc.daemonWindow, OllamaCapabilityTools)
 			}
 			client, err := NewClient(Config{
-				Provider:      config.LLMProviderOllama,
+				Provider:      cllm.ProviderOllama,
 				BaseURL:       up.server.URL,
 				Model:         "qwen3:8b",
 				ContextWindow: tc.configured,
@@ -149,7 +149,7 @@ func TestOllamaAlwaysSendsContextWindow(t *testing.T) {
 func TestOllamaSendsItsKnobs(t *testing.T) {
 	up := newOllamaUpstream(t)
 	client, err := NewClient(Config{
-		Provider:      config.LLMProviderOllama,
+		Provider:      cllm.ProviderOllama,
 		BaseURL:       up.server.URL,
 		Model:         "qwen3:8b",
 		ContextWindow: 16_000,
@@ -181,7 +181,7 @@ func TestOllamaSendsItsKnobs(t *testing.T) {
 func TestOllamaReasoningOffSendsNoThink(t *testing.T) {
 	up := newOllamaUpstream(t)
 	client, err := NewClient(Config{
-		Provider:      config.LLMProviderOllama,
+		Provider:      cllm.ProviderOllama,
 		BaseURL:       up.server.URL,
 		Model:         "qwen3:8b",
 		ContextWindow: 16_000,
@@ -204,7 +204,7 @@ func TestOllamaReasoningOffSendsNoThink(t *testing.T) {
 func TestOllamaToolResultsPairByName(t *testing.T) {
 	up := newOllamaUpstream(t)
 	client, err := NewClient(Config{
-		Provider:      config.LLMProviderOllama,
+		Provider:      cllm.ProviderOllama,
 		BaseURL:       up.server.URL,
 		Model:         "qwen3:8b",
 		ContextWindow: 16_000,
@@ -259,7 +259,7 @@ func TestOllamaMintsIdentifiersThatDoNotRepeat(t *testing.T) {
 		{Name: "read_file", Arguments: `{"path":"c.go"}`},
 	}})
 	client, err := NewClient(Config{
-		Provider:      config.LLMProviderOllama,
+		Provider:      cllm.ProviderOllama,
 		BaseURL:       up.server.URL,
 		Model:         "qwen3:8b",
 		ContextWindow: 16_000,
@@ -296,7 +296,7 @@ func TestOllamaArgumentsSurviveBothDirections(t *testing.T) {
 		{Name: "write_file", Arguments: `{"path":"a.go","content":"package a"}`},
 	}})
 	client, err := NewClient(Config{
-		Provider:      config.LLMProviderOllama,
+		Provider:      cllm.ProviderOllama,
 		BaseURL:       up.server.URL,
 		Model:         "qwen3:8b",
 		ContextWindow: 16_000,
@@ -365,7 +365,7 @@ func TestOllamaMissingModelSaysHowToPull(t *testing.T) {
 	up := newOllamaUpstream(t)
 	up.status = http.StatusNotFound
 	client, err := NewClient(Config{
-		Provider:      config.LLMProviderOllama,
+		Provider:      cllm.ProviderOllama,
 		BaseURL:       up.server.URL,
 		Model:         "qwen3:8b",
 		ContextWindow: 16_000,
@@ -400,7 +400,7 @@ func TestOllamaImagesGoAsRawBase64(t *testing.T) {
 		t.Run(map[bool]string{true: "vision on", false: "vision off"}[vision], func(t *testing.T) {
 			up := newOllamaUpstream(t)
 			client, err := NewClient(Config{
-				Provider:      config.LLMProviderOllama,
+				Provider:      cllm.ProviderOllama,
 				BaseURL:       up.server.URL,
 				Model:         "qwen3:8b",
 				ContextWindow: 16_000,
@@ -492,7 +492,7 @@ func TestModelInfoContextLengthFallsBackToAnySuffix(t *testing.T) {
 }
 
 func TestOllamaNeedsAModel(t *testing.T) {
-	_, err := NewClient(Config{Provider: config.LLMProviderOllama, BaseURL: "http://127.0.0.1:1", ContextWindow: 1})
+	_, err := NewClient(Config{Provider: cllm.ProviderOllama, BaseURL: "http://127.0.0.1:1", ContextWindow: 1})
 	if err == nil {
 		t.Fatal("expected an error when no model is named")
 	}

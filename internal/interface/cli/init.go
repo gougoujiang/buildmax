@@ -17,6 +17,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/infra/llm"
 
+	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/spf13/cobra"
 )
 
@@ -116,10 +117,10 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	force, _ := cmd.Flags().GetBool("force")
 	ollama, _ := cmd.Flags().GetBool("ollama")
 
-	provider := config.LLMProviderOpenAICompatible
+	provider := cllm.ProviderOpenAICompatible
 	var local llm.OllamaModel
 	if ollama {
-		provider = config.LLMProviderOllama
+		provider = cllm.ProviderOllama
 		// Flags win over the daemon: --model names what the user wants
 		// configured even if it is not pulled yet.
 		local = resolveOllamaDefaults(cmd, apiURL, model, contextWindow)
@@ -159,7 +160,7 @@ func runInit(cmd *cobra.Command, _ []string) error {
 			values.Name = model + " (local)"
 		}
 	}
-	if values.APIKey == "" && config.LLMProviderNeedsAPIKey(provider) {
+	if values.APIKey == "" && cllm.ProviderNeedsCredential(provider) {
 		values.APIKey = APIKeyPlaceholder
 	}
 	if values.ContextWindow == 0 {

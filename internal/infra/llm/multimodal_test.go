@@ -11,7 +11,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/config"
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
 )
 
@@ -78,9 +77,9 @@ func TestToolImagePlacementFollowsTheProtocol(t *testing.T) {
 		provider     string
 		wantFollowUp bool
 	}{
-		{config.LLMProviderAnthropic, false},
-		{config.LLMProviderOpenAICompatible, true},
-		{config.LLMProviderOpenAI, true},
+		{cllm.ProviderAnthropic, false},
+		{cllm.ProviderOpenAICompatible, true},
+		{cllm.ProviderOpenAI, true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.provider, func(t *testing.T) {
