@@ -1,0 +1,9 @@
+{
+  "name": "one plain answer, and nothing after it",
+  "steps": [
+    {
+      "text": "the session exists now",
+      "usage": { "prompt_tokens": 100, "completion_tokens": 5 }
+    }
+  ]
+}

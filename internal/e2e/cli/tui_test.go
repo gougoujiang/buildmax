@@ -19,9 +19,10 @@ import (
 
 // The approval prompt is the one outcome print mode cannot reach: a surface
 // with no approval handler turns an Ask into a Deny, so answering one takes a
-// terminal. These are the only tests here that need a pseudo-terminal, and
-// they stay two because a terminal-driven test costs more to run and more to
-// diagnose than the print-mode paths beside it.
+// terminal. The session lock below needs a terminal for a different reason: it
+// needs a process that keeps a session open, and the TUI is the only surface
+// that does. Everything else stays in print mode, because a terminal-driven
+// test costs more to run and more to diagnose than the paths beside it.
 
 func TestApprovingAtTheTerminalLetsTheWriteThrough(t *testing.T) {
 	server := startModel(t, "write-a-file.json")
@@ -67,6 +68,43 @@ func TestDenyingAtTheTerminalStopsTheWrite(t *testing.T) {
 	}
 }
 
+// TestASessionOpenInOneProcessIsRefusedToAnother is the cross-process half of
+// the writer lock. The store's own tests take the lock twice inside one
+// process, which proves the bookkeeping; what a person is promised is that a
+// session open in one window cannot be opened in another, and flock and
+// LockFileEx only mean that between real processes. This is also why the test
+// lives here rather than beside the store.
+func TestASessionOpenInOneProcessIsRefusedToAnother(t *testing.T) {
+	server := startModel(t, "answer-once.json")
+	workspace := t.TempDir()
+	home := writeHome(t, server, nil)
+
+	created := run(t, home, workspace, "-p", "make me a session", "--output", "jsonl")
+	sessionID := created.field("result", "session_id")
+	if sessionID == "" {
+		t.Fatalf("the first run reported no session id\nstdout:\n%s", created.stdout)
+	}
+
+	// The TUI holds the session for as long as it is up, which is what gives a
+	// second process something to collide with.
+	holder := startTUI(t, home, workspace, "-r", sessionID)
+	holder.waitFor(t, "ctrl+c: quit")
+
+	blocked := run(t, home, workspace, "-r", sessionID, "-p", "and again")
+
+	if blocked.exitCode == 0 {
+		t.Fatalf("the second process opened a session the TUI holds\nstdout:\n%s", blocked.stdout)
+	}
+	if !strings.Contains(blocked.stderr, "open in another process") {
+		t.Fatalf("the refusal does not say the session is held elsewhere:\n%s", blocked.stderr)
+	}
+	// Refused before the model, not after: a run that asked and then failed
+	// would have spent a turn and possibly written something.
+	if remaining := server.Remaining(); remaining != 0 {
+		t.Fatalf("unconsumed scenario steps = %d, want 0 — the refused run reached the model", remaining)
+	}
+}
+
 // ptySession is the TUI running on a pseudo-terminal, with everything it has
 // drawn so far.
 type ptySession struct {
@@ -75,9 +113,9 @@ type ptySession struct {
 	buf []byte
 }
 
-func startTUI(t *testing.T, home, workspace string) *ptySession {
+func startTUI(t *testing.T, home, workspace string, args ...string) *ptySession {
 	t.Helper()
-	cmd := exec.Command(binary, "--workspace", workspace)
+	cmd := exec.Command(binary, append(args, "--workspace", workspace)...)
 	cmd.Dir = workspace
 	cmd.Env = append(os.Environ(), "BUILDMAX_HOME="+home, "TERM=xterm-256color")
 	// A wide terminal keeps the strings these tests match on from being wrapped
