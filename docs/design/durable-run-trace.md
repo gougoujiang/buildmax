@@ -232,7 +232,7 @@ agentapp.RunPrompt(ctx, sess, prompt, stream, approval, eventSink)
 
 - `config.TracesDir()` → `<DataDir>/traces`.
 - `config.TraceEnabled()` → true unless `BUILDMAX_TRACE_DISABLED` is a truthy
-  value (`1/true/yes/on`). Default on; registered in `env_spec.go` EnvVars and
+  value (`1/true/yes/on`). Default on; registered in `env_spec.go`'s `EnvVars()` inventory and
   `.env.example`.
 - Worker inherits the same env, so worker runs trace by default; their trace
   dir is the run-scoped `global/` BUILDMAX_HOME, keeping trace data with the

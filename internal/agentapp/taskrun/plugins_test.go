@@ -10,7 +10,7 @@ import (
 	"testing/fstest"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
-	"github.com/gougoujiang/buildmax/internal/core/plugin/archive"
+	archive "github.com/gougoujiang/buildmax/internal/infra/pluginarchive"
 )
 
 func mapFile(body string) *fstest.MapFile { return &fstest.MapFile{Data: []byte(body)} }

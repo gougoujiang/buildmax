@@ -5,11 +5,12 @@ import (
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	pluginsvc "github.com/gougoujiang/buildmax/internal/service/plugin"
 )
 
 // The store is the only implementation of the activation contract, so a
 // mismatch should fail here rather than when the routes are wired.
-var _ model.PluginActivationStore = (*Store)(nil)
+var _ pluginsvc.ActivationStore = (*Store)(nil)
 
 func TestToPluginActivationCarriesThePin(t *testing.T) {
 	updatedBy := "gsyt7at6cjfr33d73mtb"

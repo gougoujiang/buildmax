@@ -112,10 +112,7 @@ func (h *Handler) postStream(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handlePatchRunning(w http.ResponseWriter, r *http.Request, taskRunID string, req *workerclient.PatchTaskRunRequest) bool {
-	if req.Status != string(model.RunStatusRunning) {
-		return false
-	}
-	updated, err := h.cfg.TaskRuns.ClaimTaskRun(r.Context(), model.ClaimTaskRunInput{
+	updated, err := h.cfg.TaskRuns.TransitionTaskRun(r.Context(), model.TransitionTaskRunInput{
 		TaskRunID:      taskRunID,
 		ExpectedStatus: model.RunStatusScheduled,
 		NewStatus:      model.RunStatusRunning,
@@ -124,64 +121,52 @@ func (h *Handler) handlePatchRunning(w http.ResponseWriter, r *http.Request, tas
 	})
 	if err != nil {
 		httputil.WriteInternalError(w, err, "worker handler error", "handler", "patch_worker_task_run", "task_run_id", taskRunID)
-		return true
+		return false
 	}
 	if !updated {
 		httputil.WriteJSONError(w, http.StatusConflict, "run not scheduled or already running")
-		return true
+		return false
 	}
 	return true
 }
 
 func (h *Handler) handlePatchTerminalStatus(w http.ResponseWriter, r *http.Request, taskRunID string, req *workerclient.PatchTaskRunRequest) bool {
-	if err := h.cfg.TaskRuns.UpdateRun(r.Context(), model.UpdateTaskRunInput{
-		TaskRunID:        taskRunID,
-		Status:           model.RunStatus(req.Status),
-		StartedAt:        req.StartedAt,
-		EndedAt:          req.EndedAt,
-		Output:           req.Output,
-		ErrorMessage:     req.ErrorMessage,
-		SessionID:        req.SessionID,
-		PromptTokens:     req.PromptTokens,
-		CompletionTokens: req.CompletionTokens,
-		TracePath:        req.TracePath,
-	}); err != nil {
-		httputil.WriteInternalError(w, err, "worker handler error", "handler", "patch_worker_task_run", "task_run_id", taskRunID)
-		return false
-	}
-	// What a run left behind is registered whenever it reports any, whatever
-	// status it reports. A run that stopped early — cancelled, or interrupted
-	// because its worker was being shut down — produced real work, and
-	// discarding it would make stopping more expensive than waiting. The status
-	// is not the test because a run that failed at its work sends no artifact
-	// and so registers none; OnRunComplete also does everything SyncTaskFromRun
-	// below does, so the task record stays correct either way.
-	switch {
-	case req.Artifact != nil:
-		relativePaths := req.Artifact.RelativePaths
+	relativePaths := []string(nil)
+	if req.Artifact != nil {
+		relativePaths = req.Artifact.RelativePaths
 		if len(relativePaths) == 0 && req.Artifact.RelativePath != "" {
 			relativePaths = []string{req.Artifact.RelativePath}
 		}
 		if len(relativePaths) == 0 {
 			relativePaths = []string{"result.md"}
 		}
-		if err := h.cfg.TaskRuns.OnRunComplete(r.Context(), taskRunID, relativePaths); err != nil {
-			httputil.WriteInternalError(w, err, "worker handler error", "handler", "patch_worker_task_run_on_complete", "task_run_id", taskRunID)
-			return false
-		}
-	case req.Status == string(model.RunStatusFailed) || req.Status == string(model.RunStatusCanceled):
-		if err := h.cfg.TaskRuns.SyncTaskFromRun(r.Context(), taskRunID); err != nil {
-			httputil.WriteInternalError(w, err, "worker handler error", "handler", "patch_worker_task_run_sync", "task_run_id", taskRunID)
-			return false
-		}
+	}
+	updated, err := h.cfg.TaskRuns.TransitionTaskRun(r.Context(), model.TransitionTaskRunInput{
+		TaskRunID:             taskRunID,
+		ExpectedStatus:        model.RunStatusRunning,
+		NewStatus:             model.RunStatus(req.Status),
+		StartedAt:             req.StartedAt,
+		EndedAt:               req.EndedAt,
+		Output:                req.Output,
+		ErrorMessage:          req.ErrorMessage,
+		SessionID:             req.SessionID,
+		PromptTokens:          req.PromptTokens,
+		CompletionTokens:      req.CompletionTokens,
+		TracePath:             req.TracePath,
+		ArtifactRelativePaths: relativePaths,
+	})
+	if err != nil {
+		httputil.WriteInternalError(w, err, "worker handler error", "handler", "patch_worker_task_run", "task_run_id", taskRunID)
+		return false
+	}
+	if !updated {
+		// A recovery loop or an earlier retry already committed the outcome. A
+		// worker report is idempotent and must not rewrite that terminal state.
+		return true
 	}
 	h.announcer().Announce(r.Context(), taskRunID, req.Status, req.Output, req.ErrorMessage)
 	return true
 }
-
-// announceTaskRunTerminal closes the run's output stream and tells Tier 1 that
-// the run is over.
-//
 
 func (h *Handler) patchTaskRun(w http.ResponseWriter, r *http.Request) {
 	taskRunID := r.PathValue("task_run_id")
@@ -202,8 +187,14 @@ func (h *Handler) patchTaskRun(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusBadRequest, "status required")
 		return
 	}
-	if h.handlePatchRunning(w, r, taskRunID, &req) {
-		httputil.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	if req.Status == string(model.RunStatusRunning) {
+		if h.handlePatchRunning(w, r, taskRunID, &req) {
+			httputil.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		}
+		return
+	}
+	if !model.RunStatusTerminal(req.Status) {
+		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid run status")
 		return
 	}
 	if h.handlePatchTerminalStatus(w, r, taskRunID, &req) {

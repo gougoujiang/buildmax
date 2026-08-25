@@ -17,6 +17,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/agentapp"
 	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/gougoujiang/buildmax/internal/core/agent"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
@@ -24,6 +25,9 @@ import (
 	tool "github.com/gougoujiang/buildmax/internal/tool"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
+
+// Identity belongs in an attr, not in every message string.
+func componentLog() *slog.Logger { return slog.With("component", "runtime") }
 
 // TaskRunUpdater is used by the worker to update run status and register artifacts via HTTP.
 // When status is SUCCEEDED with artifact, server creates artifact and syncs task denormalized fields.
@@ -40,8 +44,8 @@ type RunScope struct {
 	TaskRunID      string
 }
 
-// RunResult holds the outcome of a successful run (output and paths) for reportRunSuccess.
-type RunResult struct {
+// runResult is the evidence taskrun persists and reports after execution.
+type runResult struct {
 	EndTime          time.Time
 	OutputStr        string
 	RunArtifactsDir  string
@@ -158,7 +162,7 @@ func artifactPublisher(cfg workerclient.WorkerAPIClientConfig, taskRunID string)
 	if cfg.BaseURL == "" || cfg.Token == "" || taskRunID == "" {
 		return nil
 	}
-	return &workerclient.ArtifactPublisher{Cfg: cfg, TaskRunID: taskRunID, ServerBaseURL: cfg.BaseURL}
+	return workerclient.NewArtifactPublisher(cfg, taskRunID, cfg.BaseURL)
 }
 
 // RunTask runs a single task run: materialize workspace, optionally restore session from previous run, execute agent in-process, upload run state to blob, update run and task via updater.
@@ -184,7 +188,7 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 	scope := RunScope{CreatedBy: task.CreatedBy, ConversationID: task.ConversationID, TaskID: task.ID, TaskRunID: run.ID}
 
 	if err := prepareRunWorkspace(ctx, input, task, run, dirs); err != nil {
-		if stopped, stopErr := reportStoppedRun(ctx, scope, RunResult{RunArtifactsDir: dirs.runArtifacts}, dirs, input); stopped {
+		if stopped, stopErr := reportStoppedRun(ctx, scope, runResult{RunArtifactsDir: dirs.runArtifacts}, dirs, input); stopped {
 			return stopErr
 		}
 		reportRunFailure(ctx, run.ID, err, "", input.Updater)
@@ -241,7 +245,7 @@ func runInterrupted(ctx context.Context) bool {
 // reports whether it was one. Cancellation is checked first: a run that was
 // cancelled and then caught a shutdown was still cancelled, and that is the
 // outcome someone is waiting to see.
-func reportStoppedRun(ctx context.Context, scope RunScope, result RunResult, dirs runDirs, input RunTaskInput) (bool, error) {
+func reportStoppedRun(ctx context.Context, scope RunScope, result runResult, dirs runDirs, input RunTaskInput) (bool, error) {
 	switch {
 	case runCanceled(ctx):
 		return true, reportCanceledRun(ctx, scope, result, dirs, input)
@@ -260,7 +264,7 @@ func reportStoppedRun(ctx context.Context, scope RunScope, result RunResult, dir
 // it. The one difference is the context: the run's own is already dead, so the
 // reporting gets a fresh, bounded one, or the cancel would also destroy the
 // evidence of what the run had done.
-func reportCanceledRun(ctx context.Context, scope RunScope, result RunResult, dirs runDirs, input RunTaskInput) error {
+func reportCanceledRun(ctx context.Context, scope RunScope, result runResult, dirs runDirs, input RunTaskInput) error {
 	if err := finishStoppedRun(ctx, scope, result, dirs, input, model.RunStatusCanceled, "", reportFinishTimeout); err != nil {
 		componentLog().Error("could not report a canceled run", "task_run_id", scope.TaskRunID, "err", err)
 		return err
@@ -277,7 +281,7 @@ func reportCanceledRun(ctx context.Context, scope RunScope, result RunResult, di
 // quota all need, and a fourth terminal status whose only correct handling is
 // "retry it" costs more than it buys until retry exists. The error message is
 // what tells a reader this was the cluster and not the agent.
-func reportInterruptedRun(ctx context.Context, scope RunScope, result RunResult, dirs runDirs, input RunTaskInput) error {
+func reportInterruptedRun(ctx context.Context, scope RunScope, result runResult, dirs runDirs, input RunTaskInput) error {
 	grace := input.InterruptGrace
 	if grace <= 0 {
 		grace = interruptReportTimeout
@@ -296,7 +300,7 @@ func reportInterruptedRun(ctx context.Context, scope RunScope, result RunResult,
 // The detached context is the whole point: the run's own is dead by definition
 // here, and reporting on it would destroy the evidence of the work along with
 // the run.
-func finishStoppedRun(ctx context.Context, scope RunScope, result RunResult, dirs runDirs, input RunTaskInput, status model.RunStatus, errMessage string, timeout time.Duration) error {
+func finishStoppedRun(ctx context.Context, scope RunScope, result runResult, dirs runDirs, input RunTaskInput, status model.RunStatus, errMessage string, timeout time.Duration) error {
 	reportCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
 	defer cancel()
 	if result.EndTime.IsZero() {
@@ -339,14 +343,14 @@ func prepareRunWorkspace(ctx context.Context, input RunTaskInput, task *model.Ta
 	return nil
 }
 
-func executeRunTask(ctx context.Context, input RunTaskInput, task *model.Task, run *model.TaskRun, dirs runDirs) (RunResult, error) {
+func executeRunTask(ctx context.Context, input RunTaskInput, task *model.Task, run *model.TaskRun, dirs runDirs) (runResult, error) {
 	effectiveSessionID := input.SessionID
 	if task.SessionID != nil {
 		effectiveSessionID = *task.SessionID
 	}
 	agentRun, err := runAgentTask(ctx, run, dirs.runDir, dirs.runGlobal, effectiveSessionID, input.StreamSender, input.Model, input.Managed, input.AdditionalSystemPrompt,
 		artifactPublisher(input.WorkerAPI, run.ID))
-	result := RunResult{
+	result := runResult{
 		EndTime:          time.Now().UTC(),
 		OutputStr:        string(agentRun.output),
 		RunArtifactsDir:  dirs.runArtifacts,
@@ -361,7 +365,7 @@ func executeRunTask(ctx context.Context, input RunTaskInput, task *model.Task, r
 	return result, nil
 }
 
-func reportPersistedRunState(ctx context.Context, persist blob.RunStorage, scope RunScope, dirs runDirs, result RunResult) {
+func reportPersistedRunState(ctx context.Context, persist blob.RunStorage, scope RunScope, dirs runDirs, result runResult) {
 	persistRunResult(dirs.runArtifacts, result.Output)
 	uploadTaskGlobal(ctx, dirs.runGlobal, scope, persist, result.TracePath)
 	uploadTaskRunArtifacts(ctx, dirs.runArtifacts, scope, persist)
@@ -462,7 +466,7 @@ func runAgentTask(ctx context.Context, run *model.TaskRun, runDir, runGlobalDir,
 		app, err := agentapp.NewAgentApp(agentapp.AppConfig{
 			WorkspaceDir:           runDir,
 			EnableMCP:              true,
-			Policy:                 agentapp.NewNonInteractivePolicy(),
+			Policy:                 agent.AllowAllPolicy(),
 			ModelEntries:           runtimeModelEntries(runtimeModel, managed),
 			ManagedServerURL:       managed.ServerURL,
 			ManagedToken:           managed.tokenFunc(),
@@ -579,7 +583,7 @@ func reportRunFailure(ctx context.Context, taskRunID string, err error, tracePat
 // artifacts the run wrote, and the tokens it spent. The status is what tells a
 // reader whether the output is the answer or as far as the run got, and
 // errMessage, when there is one, is what tells them why it is the latter.
-func reportRunOutcome(ctx context.Context, scope RunScope, result RunResult, status model.RunStatus, errMessage string, runOutputStorage blob.RunOutputStorage, updater TaskRunUpdater) error {
+func reportRunOutcome(ctx context.Context, scope RunScope, result runResult, status model.RunStatus, errMessage string, runOutputStorage blob.RunOutputStorage, updater TaskRunUpdater) error {
 	if putErr := runOutputStorage.PutResult(ctx, blob.RunRef(scope), result.Output); putErr != nil {
 		componentLog().Error("failed to write result to artifact storage", "task_run_id", scope.TaskRunID, "err", putErr)
 	}

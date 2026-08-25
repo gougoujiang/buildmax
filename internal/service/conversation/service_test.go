@@ -3,6 +3,7 @@ package conversation
 import (
 	"testing"
 
+	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
 	"github.com/gougoujiang/buildmax/internal/service/task"
 )
 
@@ -10,7 +11,7 @@ func TestTaskServiceForChannel_systemDisablesTaskTools(t *testing.T) {
 	ts := &task.Service{}
 	svc := &Service{TaskService: ts}
 
-	result := svc.taskServiceForChannel(ChannelSystem)
+	result := svc.taskServiceForChannel(convchannel.ChannelSystem)
 
 	if result != nil {
 		t.Fatalf("system channel task service = %#v, want nil", result)
@@ -21,7 +22,7 @@ func TestTaskServiceForChannel_portalAllowsTaskTools(t *testing.T) {
 	ts := &task.Service{}
 	svc := &Service{TaskService: ts}
 
-	result := svc.taskServiceForChannel(ChannelPortal)
+	result := svc.taskServiceForChannel(convchannel.ChannelPortal)
 
 	if result == nil {
 		t.Fatal("portal channel task service = nil, want configured service")

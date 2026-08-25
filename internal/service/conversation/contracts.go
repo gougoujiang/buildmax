@@ -25,25 +25,6 @@ type SpawnedRun struct {
 	RunID  string
 }
 
-const (
-	ChannelPortal     = convchannel.ChannelPortal
-	ChannelTelegram   = convchannel.ChannelTelegram
-	ChannelCron       = convchannel.ChannelCron
-	ChannelWebhook    = convchannel.ChannelWebhook
-	ChannelSystem     = convchannel.ChannelSystem
-	ChannelWorkflow   = convchannel.ChannelWorkflow
-	ChannelIssueAgent = convchannel.ChannelIssueAgent
-)
-
-// SyntheticChannels are conversations nobody holds; see convchannel.
-var SyntheticChannels = convchannel.SyntheticChannels
-
-var ValidChannels = convchannel.ValidChannels
-
-func ValidChannel(ch string) bool {
-	return convchannel.ValidChannel(ch)
-}
-
 // TurnEngine processes one turn; may create Tier 2 runs and/or return a direct reply.
 type TurnEngine interface {
 	Process(ctx context.Context, conversationID, taskID string, turn convchannel.Turn) (ConversationResult, error)

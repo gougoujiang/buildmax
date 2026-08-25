@@ -15,6 +15,7 @@ import (
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 	"github.com/gougoujiang/buildmax/internal/server/handlers"
+	workroutes "github.com/gougoujiang/buildmax/internal/server/handlers/work"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 	"github.com/gougoujiang/buildmax/internal/service/conversation"
@@ -36,12 +37,6 @@ const (
 	readHeaderTimeout = 10 * time.Second
 	idleTimeout       = 120 * time.Second
 )
-
-// RunOutputLister lists run outputs (artifacts) by conversation and gets output files for a run.
-type RunOutputLister interface {
-	ListRunOutputsByConversation(ctx context.Context, conversationID string, taskID *string) ([]model.ArtifactWithTask, error)
-	GetTaskRunOutputFiles(ctx context.Context, taskRunID string) ([]model.TaskRunArtifact, error)
-}
 
 // AuthConfig holds auth and CORS settings plus optional quota for signup and create-chat/run.
 type AuthConfig struct {
@@ -73,7 +68,7 @@ type StoresConfig struct {
 	// runs. Nil means a report that fails is not retried.
 	TaskResultDeliveryStore model.TaskResultDeliveryStore
 	LLMCallStore            model.LLMCallStore
-	RunOutputLister         RunOutputLister
+	RunOutputLister         workroutes.RunOutputLister
 	UserWebhookKeyStore     model.UserWebhookKeyStore
 	AuditStore              model.AuditStore
 	SystemGrantStore        model.SystemGrantStore

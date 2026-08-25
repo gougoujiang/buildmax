@@ -12,12 +12,12 @@ import (
 
 const notFoundMessage = "artifact not found"
 
-// ArtifactResponse is one artifact as the API presents it.
+// artifactResponse is one artifact as the API presents it.
 //
 // Built by hand rather than serialized from the model so that adding a column
 // cannot publish it by accident — the storage key in particular must never
 // leave the server.
-type ArtifactResponse struct {
+type artifactResponse struct {
 	ID            string `json:"id"`
 	TeamID        string `json:"team_id"`
 	Filename      string `json:"filename"`
@@ -38,14 +38,14 @@ type ArtifactResponse struct {
 }
 
 type artifactListResponse struct {
-	Items []ArtifactResponse `json:"items"`
+	Items []artifactResponse `json:"items"`
 	Total int                `json:"total"`
 }
 
-// ToResponse builds the wire form by hand. Exported for the worker API, which
-// answers with the same shape.
-func ToResponse(a *model.Artifact) ArtifactResponse {
-	out := ArtifactResponse{
+// toResponse builds the wire form by hand so model fields cannot become API
+// fields merely by being added to the stored entity.
+func toResponse(a *model.Artifact) artifactResponse {
+	out := artifactResponse{
 		ID:            a.ID,
 		TeamID:        a.TeamID,
 		Filename:      a.Filename,
@@ -142,9 +142,9 @@ func (h *Handler) listArtifactsHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "list_artifacts", "team_id", teamID)
 		return
 	}
-	out := make([]ArtifactResponse, len(items))
+	out := make([]artifactResponse, len(items))
 	for i := range items {
-		out[i] = ToResponse(&items[i])
+		out[i] = toResponse(&items[i])
 	}
 	httputil.WriteJSON(w, http.StatusOK, artifactListResponse{Items: out, Total: total})
 }
@@ -154,7 +154,7 @@ func (h *Handler) getArtifactHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	httputil.WriteJSON(w, http.StatusOK, ToResponse(rec))
+	httputil.WriteJSON(w, http.StatusOK, toResponse(rec))
 }
 
 func (h *Handler) deleteArtifactHandler(w http.ResponseWriter, r *http.Request) {

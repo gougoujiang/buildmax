@@ -319,3 +319,14 @@ func TestTruncateSubAgentReply_HeadAndTailPresent(t *testing.T) {
 		t.Error("truncated reply should contain truncation note")
 	}
 }
+
+func TestBuiltinSubAgentDefsReturnsDeepCopy(t *testing.T) {
+	defs := BuiltinSubAgentDefs()
+	defs[0].Name = "broken"
+	defs[1].ToolNames[0] = "broken"
+
+	again := BuiltinSubAgentDefs()
+	if again[0].Name != "general" || again[1].ToolNames[0] != ToolNameRead {
+		t.Fatalf("built-in definitions mutated through caller copy: %#v", again)
+	}
+}

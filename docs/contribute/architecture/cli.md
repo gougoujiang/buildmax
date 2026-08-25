@@ -94,7 +94,7 @@ type TUIOpts struct {
     SessionsDir  string
     Approval     agent.ApprovalHandler
     GlamourStyle string          // "dark" or "light", detected once at startup
-    RunStatus    agentapp.RunStatus
+    RunStatus    agentapp.RunUsage
 }
 ```
 

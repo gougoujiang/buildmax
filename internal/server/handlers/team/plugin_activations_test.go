@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
-	"github.com/gougoujiang/buildmax/internal/core/plugin/inspect"
 	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
@@ -132,7 +131,7 @@ func TestActivationRoutesAuthority(t *testing.T) {
 
 func TestActivationRoutesRefuseExecutableContent(t *testing.T) {
 	f := newActivationFixture(t, model.PluginCurationCurated)
-	f.publish(t, "guard", "1.0.0", model.PluginInspection{Hooks: []inspect.Hook{{Event: "pre_tool_use"}}})
+	f.publish(t, "guard", "1.0.0", model.PluginInspection{Hooks: []model.PluginHook{{Event: "pre_tool_use"}}})
 
 	rec := f.call(t, http.MethodPost, "u_owner", "/plugin-activations", `{"plugin_name":"guard"}`)
 	if rec.Code != http.StatusUnprocessableEntity {
@@ -194,7 +193,7 @@ func TestPatchMovesThePinAndSuspends(t *testing.T) {
 func TestARefusedPinMoveChangesNothing(t *testing.T) {
 	f := newActivationFixture(t, model.PluginCurationCurated)
 	f.publish(t, "code-review", "1.0.0", model.PluginInspection{Skills: []string{"review"}})
-	f.publish(t, "code-review", "1.1.0", model.PluginInspection{Hooks: []inspect.Hook{{Event: "pre_tool_use"}}})
+	f.publish(t, "code-review", "1.1.0", model.PluginInspection{Hooks: []model.PluginHook{{Event: "pre_tool_use"}}})
 	if rec := f.call(t, http.MethodPost, "u_owner", "/plugin-activations", `{"plugin_name":"code-review","version":"1.0.0"}`); rec.Code != http.StatusCreated {
 		t.Fatalf("activate status = %d", rec.Code)
 	}

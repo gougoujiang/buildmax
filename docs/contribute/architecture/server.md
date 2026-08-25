@@ -13,6 +13,10 @@ The server owns route registration, middleware, WebSocket handling, worker API
 callbacks, and scheduler startup. Business workflows are delegated to
 `internal/service/*`.
 
+The root handler constructs its route-group handlers and their application
+services once in `handlers.NewHandler`. Requests reuse those instances; helper
+methods do not assemble fresh service graphs per call.
+
 ## Key Areas
 
 | Area | Package / File | Role |
@@ -130,8 +134,8 @@ with the reason recorded. Giving up does not lose the result — that is on
 `POST /api/teams/{team_id}/tasks/{task_id}/cancel` stops the task's run. What
 happens next depends on whether a worker already holds it:
 
-- **Not dispatched yet** (`PENDING`): the run is claimed straight to `CANCELED`,
-  its task is synced, and the response is `200`.
+- **Not dispatched yet** (`PENDING`): one database transaction moves the run to
+  `CANCELED`, projects that terminal state onto its task, and returns `200`.
 - **Dispatched** (`SCHEDULED` or `RUNNING`): the request is recorded on the run
   (`cancel_requested_at`, `cancel_requested_by`) and the response is `202`. The
   worker polls `GET /api/worker/task-runs/{task_run_id}`, sees `cancel_requested`,

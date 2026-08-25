@@ -2,7 +2,6 @@ package agentapp
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -384,10 +383,3 @@ func cleanTitle(s string) string {
 	s = strings.TrimSpace(s)
 	return util.ClipRunes(s, 100)
 }
-
-// ErrSessionNotFound is re-exported so surfaces can classify a missing session
-// without importing the core package for one sentinel.
-var ErrSessionNotFound = session.ErrSessionNotFound
-
-// IsNotFound reports whether err means the session does not exist.
-func IsNotFound(err error) bool { return errors.Is(err, session.ErrSessionNotFound) }

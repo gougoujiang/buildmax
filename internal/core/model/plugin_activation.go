@@ -1,7 +1,6 @@
 package model
 
 import (
-	"context"
 	"errors"
 	"time"
 )
@@ -111,25 +110,4 @@ type MovePluginActivationPinInput struct {
 	Version    string
 	Digest     string
 	ActorID    string
-}
-
-// PluginActivationStore persists which releases a team's background runs may
-// use. It is separate from PluginStore because the catalog belongs to the
-// deployment and an activation belongs to a team.
-type PluginActivationStore interface {
-	// ActivatePlugin records a new activation, or returns
-	// ErrPluginAlreadyActivated when the team has one for that plugin.
-	ActivatePlugin(ctx context.Context, in ActivatePluginInput) (*PluginActivation, error)
-	// GetPluginActivation returns one team's activation of one plugin, or
-	// (nil, nil) when there is none.
-	GetPluginActivation(ctx context.Context, teamID, pluginName string) (*PluginActivation, error)
-	// ListPluginActivations returns a team's activations, oldest first,
-	// suspended ones included: a suspended activation still explains why a run
-	// failed.
-	ListPluginActivations(ctx context.Context, teamID string) ([]PluginActivation, error)
-	// MovePluginActivationPin repoints an activation, or returns ErrNotFound.
-	MovePluginActivationPin(ctx context.Context, in MovePluginActivationPinInput) (*PluginActivation, error)
-	// SetPluginActivationEnabled suspends or resumes an activation without
-	// losing the pin, or returns ErrNotFound.
-	SetPluginActivationEnabled(ctx context.Context, teamID, pluginName string, enabled bool, actorID string) (*PluginActivation, error)
 }

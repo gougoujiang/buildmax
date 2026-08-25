@@ -9,21 +9,21 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	// Establishing a session lives in its own package: those routes run before a
 	// caller has one, and its Config holds no team store, so nothing there can
 	// decide what a session may reach.
-	h.authHandler().Register(mux)
+	h.auth.Register(mux)
 
 	// What a team owns -- membership, agents, webhook keys, usage, audit trail --
 	// lives in its own package, holding exactly the stores those routes read.
-	h.teamHandler().Register(mux)
+	h.team.Register(mux)
 
 	// The work surface -- issues, workflows, tasks, conversations, and the files
 	// and traces their runs leave behind -- is one package because those
 	// entities are one story, not four that happen to sit together.
-	h.workHandler().Register(mux)
+	h.work.Register(mux)
 
 	// Artifacts are their own object with their own authorization shape: a
 	// route addressed by ar_ ID takes the team from the record, not the path.
 	// See docs/design/unified-artifacts.md.
-	h.artifactHandler().Register(mux)
+	h.artifact.Register(mux)
 
 	// The plugin catalog is deployment-scoped and readable by any active
 	// account: browsing changes nothing, and a release only takes effect when
@@ -45,12 +45,12 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	// System administration lives in its own package: every route there requires
 	// a system_admin grant and none is team-scoped, so it holds a Config that
 	// cannot reach a team's data at all.
-	h.adminHandler().Register(mux)
+	h.admin.Register(mux)
 
 	// The worker API lives in its own package: its routes authenticate with a
 	// run token rather than a user's session, and a Config that holds neither
 	// user store nor team store cannot be talked into honouring one.
-	h.workerHandler().Register(mux)
+	h.worker.Register(mux)
 
 	// Inbound webhook
 	mux.HandleFunc("POST /api/webhook", h.serveWebhook)

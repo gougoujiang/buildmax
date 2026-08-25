@@ -78,8 +78,7 @@ type EnvVar struct {
 	DirectLLMOnly bool
 }
 
-// EnvVars lists every environment variable read by BuildMax binaries.
-var EnvVars = []EnvVar{
+var envVars = []EnvVar{
 	{Name: EnvKeyBuildmaxHome, Default: "~/.buildmax", Description: "Application data directory; locates settings.yaml and server.yaml", WorkerNeeds: true},
 	{Name: EnvKeyBuildmaxJWTSecret, Description: "Override for jwt_secret in server.yaml; inject at deploy time in production"},
 	{Name: EnvKeyBuildmaxDatabasePassword, Description: "Override for database.password in server.yaml"},
@@ -109,6 +108,9 @@ var EnvVars = []EnvVar{
 	{Name: EnvKeyBuildmaxTraceDisabled, Description: "Disable durable run traces when truthy (1/true/yes/on); traces are on by default", WorkerNeeds: true},
 }
 
+// EnvVars returns every environment variable read by BuildMax binaries.
+func EnvVars() []EnvVar { return append([]EnvVar(nil), envVars...) }
+
 // WorkerNeedsEnv reports whether a task-run worker reads name.
 //
 // managedLLM says whether this deployment's task runs reach models through the
@@ -119,7 +121,7 @@ var EnvVars = []EnvVar{
 // known one a worker does not use, so a variable added to the server without a
 // thought for workers stays on the server.
 func WorkerNeedsEnv(name string, managedLLM bool) bool {
-	for _, v := range EnvVars {
+	for _, v := range envVars {
 		if v.Name == name {
 			return v.WorkerNeeds && !(managedLLM && v.DirectLLMOnly)
 		}
@@ -131,7 +133,7 @@ func WorkerNeedsEnv(name string, managedLLM bool) bool {
 // declaration order.
 func WorkerEnvKeys(managedLLM bool) []string {
 	var out []string
-	for _, v := range EnvVars {
+	for _, v := range envVars {
 		if WorkerNeedsEnv(v.Name, managedLLM) {
 			out = append(out, v.Name)
 		}

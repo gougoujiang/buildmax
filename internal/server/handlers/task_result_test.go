@@ -13,7 +13,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/server/turnqueue"
 	wsconn "github.com/gougoujiang/buildmax/internal/server/websocket"
-	"github.com/gougoujiang/buildmax/internal/service/conversation"
+	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
 	"github.com/gougoujiang/buildmax/internal/util"
 
@@ -77,8 +77,8 @@ func TestTaskResultTurnRunsWithNobodyConnected(t *testing.T) {
 	h.reportTaskRunTerminal(context.Background(), terminalInfo())
 
 	stored := waitForMessages(t, messages, 2)
-	if stored[0].Channel == nil || *stored[0].Channel != conversation.ChannelSystem {
-		t.Fatalf("incoming message channel = %v, want %q", stored[0].Channel, conversation.ChannelSystem)
+	if stored[0].Channel == nil || *stored[0].Channel != convchannel.ChannelSystem {
+		t.Fatalf("incoming message channel = %v, want %q", stored[0].Channel, convchannel.ChannelSystem)
 	}
 	if stored[1].Role != "assistant" || stored[1].Content != "Three problems turned up." {
 		t.Errorf("reply = %q/%q, want the presenter's summary", stored[1].Role, stored[1].Content)

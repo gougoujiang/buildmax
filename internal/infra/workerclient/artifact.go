@@ -10,23 +10,23 @@ import (
 	"github.com/gougoujiang/buildmax/internal/tool"
 )
 
-// ArtifactResponse is what the server made of a published file. Only the fields
+// artifactResponse is what the server made of a published file. Only the fields
 // a worker reports back to the model are decoded; the storage key is not among
 // them and never leaves the server.
-type ArtifactResponse struct {
+type artifactResponse struct {
 	ID        string `json:"id"`
 	Filename  string `json:"filename"`
 	SizeBytes int64  `json:"size_bytes"`
 }
 
-// ArtifactPublisher publishes a run's chosen file through the worker API.
+// artifactPublisher publishes a run's chosen file through the worker API.
 //
 // The bytes go through the server rather than straight to the object store the
 // worker can already reach. That is deliberate: one code path creates
 // artifacts, so the size limit, the naming rules, and the write-once ordering
 // cannot come to differ between a worker and everyone else — and a worker never
 // has to be told which team it is writing to.
-type ArtifactPublisher struct {
+type artifactPublisher struct {
 	Cfg       WorkerAPIClientConfig
 	TaskRunID string
 	// ServerBaseURL renders the artifact's address for the model. Empty leaves
@@ -34,8 +34,13 @@ type ArtifactPublisher struct {
 	ServerBaseURL string
 }
 
+// NewArtifactPublisher builds the run-token adapter for the artifact tool.
+func NewArtifactPublisher(cfg WorkerAPIClientConfig, taskRunID, serverBaseURL string) tool.ArtifactPublisher {
+	return &artifactPublisher{Cfg: cfg, TaskRunID: taskRunID, ServerBaseURL: serverBaseURL}
+}
+
 // PublishArtifact implements tool.ArtifactPublisher.
-func (p *ArtifactPublisher) PublishArtifact(ctx context.Context, in tool.ArtifactUpload) (tool.PublishedArtifact, error) {
+func (p *artifactPublisher) PublishArtifact(ctx context.Context, in tool.ArtifactUpload) (tool.PublishedArtifact, error) {
 	endpoint := p.Cfg.BaseURL + "/api/worker/task-runs/" + url.PathEscape(p.TaskRunID) + "/artifacts"
 	if in.Title != "" {
 		endpoint += "?title=" + url.QueryEscape(in.Title)
@@ -48,7 +53,7 @@ func (p *ArtifactPublisher) PublishArtifact(ctx context.Context, in tool.Artifac
 	if resp.StatusCode != http.StatusCreated {
 		return tool.PublishedArtifact{}, httpclient.DecodeError(resp, "worker API POST "+endpoint)
 	}
-	var out ArtifactResponse
+	var out artifactResponse
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
 		return tool.PublishedArtifact{}, err
 	}

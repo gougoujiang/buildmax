@@ -19,9 +19,9 @@ type fakeStaleStore struct {
 	cancelListErr    error
 	lastCutoff       time.Time
 	lastCancelCutoff time.Time
-	failed           []model.UpdateTaskRunInput
-	synced           []string
+	transitions      []model.TransitionTaskRunInput
 	updateErr        error
+	transitionWon    *bool
 }
 
 func (f *fakeStaleStore) ListStaleTaskRuns(_ context.Context, cutoff time.Time, _ int) ([]model.TaskRun, error) {
@@ -34,17 +34,15 @@ func (f *fakeStaleStore) ListCancelRequestedTaskRuns(_ context.Context, cutoff t
 	return f.canceled, f.cancelListErr
 }
 
-func (f *fakeStaleStore) UpdateRun(_ context.Context, in model.UpdateTaskRunInput) error {
+func (f *fakeStaleStore) TransitionTaskRun(_ context.Context, in model.TransitionTaskRunInput) (bool, error) {
 	if f.updateErr != nil {
-		return f.updateErr
+		return false, f.updateErr
 	}
-	f.failed = append(f.failed, in)
-	return nil
-}
-
-func (f *fakeStaleStore) SyncTaskFromRun(_ context.Context, taskRunID string) error {
-	f.synced = append(f.synced, taskRunID)
-	return nil
+	f.transitions = append(f.transitions, in)
+	if f.transitionWon != nil {
+		return *f.transitionWon, nil
+	}
+	return true, nil
 }
 
 func newStaleFixture(stale ...model.TaskRun) (*fakeStaleStore, *StaleRunReaper) {
@@ -66,12 +64,12 @@ func TestReaperClosesAbandonedRuns(t *testing.T) {
 	now := time.Unix(1_800_000_000, 0)
 	reaper.Sweep(context.Background(), now)
 
-	if len(store.failed) != 2 {
-		t.Fatalf("failed %d runs, want 2", len(store.failed))
+	if len(store.transitions) != 2 {
+		t.Fatalf("finished %d runs, want 2", len(store.transitions))
 	}
-	for _, in := range store.failed {
-		if in.Status != model.RunStatusFailed {
-			t.Errorf("run %s status = %q, want FAILED", in.TaskRunID, in.Status)
+	for _, in := range store.transitions {
+		if in.NewStatus != model.RunStatusFailed {
+			t.Errorf("run %s status = %q, want FAILED", in.TaskRunID, in.NewStatus)
 		}
 		if in.EndedAt == nil || !in.EndedAt.Equal(now) {
 			t.Errorf("run %s ended_at = %v, want %d", in.TaskRunID, in.EndedAt, now.Unix())
@@ -82,11 +80,6 @@ func TestReaperClosesAbandonedRuns(t *testing.T) {
 		if in.ErrorMessage == nil || !strings.Contains(*in.ErrorMessage, "6h0m0s") {
 			t.Errorf("run %s message = %v, want it to name the timeout", in.TaskRunID, in.ErrorMessage)
 		}
-	}
-	// The task's denormalized status has to follow, or Portal keeps showing work
-	// in progress even though the run is closed.
-	if len(store.synced) != 2 {
-		t.Errorf("synced %v, want both runs", store.synced)
 	}
 }
 
@@ -103,12 +96,12 @@ func TestReaperClosesUnconfirmedCancels(t *testing.T) {
 	now := time.Unix(1_800_000_000, 0)
 	reaper.Sweep(context.Background(), now)
 
-	if len(store.failed) != 1 {
-		t.Fatalf("finished %d runs, want 1", len(store.failed))
+	if len(store.transitions) != 1 {
+		t.Fatalf("finished %d runs, want 1", len(store.transitions))
 	}
-	got := store.failed[0]
-	if got.Status != model.RunStatusCanceled {
-		t.Errorf("status = %q, want CANCELED — a stop that was asked for is not a failure", got.Status)
+	got := store.transitions[0]
+	if got.NewStatus != model.RunStatusCanceled {
+		t.Errorf("status = %q, want CANCELED — a stop that was asked for is not a failure", got.NewStatus)
 	}
 	if got.EndedAt == nil || !got.EndedAt.Equal(now) {
 		t.Errorf("ended_at = %v, want %v", got.EndedAt, now)
@@ -118,9 +111,6 @@ func TestReaperClosesUnconfirmedCancels(t *testing.T) {
 	}
 	if want := now.Add(-defaultCancelGrace); !store.lastCancelCutoff.Equal(want) {
 		t.Errorf("cancel cutoff = %v, want %v — a run asked to stop a moment ago is still the worker's to end", store.lastCancelCutoff, want)
-	}
-	if len(store.synced) != 1 {
-		t.Errorf("synced %v, want the canceled run", store.synced)
 	}
 }
 
@@ -135,8 +125,8 @@ func TestReaperSweepsAbandonedRunsWhenTheCancelQueryFails(t *testing.T) {
 
 	reaper.Sweep(context.Background(), time.Unix(1_800_000_000, 0))
 
-	if len(store.failed) != 1 || store.failed[0].Status != model.RunStatusFailed {
-		t.Errorf("failed = %v, want the abandoned run failed", store.failed)
+	if len(store.transitions) != 1 || store.transitions[0].NewStatus != model.RunStatusFailed {
+		t.Errorf("transitions = %v, want the abandoned run failed", store.transitions)
 	}
 }
 
@@ -159,7 +149,7 @@ func TestReaperSurvivesFailures(t *testing.T) {
 		store, reaper := newStaleFixture(model.TaskRun{ID: "r_1"})
 		store.listErr = errors.New("database is away")
 		reaper.Sweep(context.Background(), time.Now())
-		if len(store.failed) != 0 {
+		if len(store.transitions) != 0 {
 			t.Error("runs were failed from a query that errored")
 		}
 	})
@@ -168,10 +158,28 @@ func TestReaperSurvivesFailures(t *testing.T) {
 		store, reaper := newStaleFixture(model.TaskRun{ID: "r_1"})
 		store.updateErr = errors.New("database is away")
 		reaper.Sweep(context.Background(), time.Now())
-		if len(store.synced) != 0 {
-			t.Error("a task was synced from a run that was never failed")
+		if len(store.transitions) != 0 {
+			t.Error("a failed transition was recorded")
 		}
 	})
+}
+
+func TestReaperDoesNotOverwriteAConcurrentWorkerOutcome(t *testing.T) {
+	won := false
+	store := &fakeStaleStore{
+		stale:         []model.TaskRun{{ID: "r_1", Status: string(model.RunStatusRunning)}},
+		transitionWon: &won,
+	}
+	reaper := NewStaleRunReaper(store, 6*time.Hour, time.Hour)
+
+	reaper.Sweep(context.Background(), time.Unix(1_800_000_000, 0))
+
+	if len(store.transitions) != 1 {
+		t.Fatalf("transitions = %d, want one conditional attempt", len(store.transitions))
+	}
+	if store.transitions[0].ExpectedStatus != model.RunStatusRunning {
+		t.Errorf("expected status = %q, want RUNNING", store.transitions[0].ExpectedStatus)
+	}
 }
 
 // TestNilReaperIsInert covers the deployment with no store: Start, Stop, and

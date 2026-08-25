@@ -51,6 +51,12 @@ The main layers are:
 6. **Pure core**: `internal/core/agent`, `internal/core/llm`, `internal/core/model`, `internal/core/session`.
 7. **Infrastructure**: `internal/infra/db`, `llm`, `objectstore`, `mcp`, `workerclient`, `k8s`, and `log`.
 
+`agentapp.NewAgentApp` has two explicit phases. `resolveAgentAppConfig` reads and
+merges workspace, settings, plugin, hook, permission, and sandbox inputs into an
+immutable assembly description; `buildAgentApp` opens MCP, sandbox, registry,
+job, and trace resources from that description. `AgentApp.Close` owns those
+resources, and a failed partial build closes what it already opened.
+
 ## Directory Layout
 
 ```text

@@ -38,8 +38,9 @@ type ApprovalHandler interface {
 // presence already is that fact, and a second source could only disagree.
 func (o RunLoopOpts) interactive() bool { return o.Approval != nil }
 
-// AllowAllPolicy defers all decisions to each tool's own declarations.
-var AllowAllPolicy ToolPolicy = allowAll{}
+// AllowAllPolicy returns a policy that defers every decision to the tool's own
+// declaration.
+func AllowAllPolicy() ToolPolicy { return allowAll{} }
 
 type allowAll struct{}
 

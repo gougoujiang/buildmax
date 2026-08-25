@@ -72,7 +72,7 @@ func runPrintMode(opts printOptions) error {
 	app, err := agentapp.NewAgentApp(agentapp.AppConfig{
 		WorkspaceDir:           opts.Workspace,
 		EnableMCP:              true,
-		Policy:                 agentapp.NewNonInteractivePolicy(),
+		Policy:                 agent.AllowAllPolicy(),
 		ModelEntries:           source.Entries,
 		DefaultModel:           source.Default,
 		ManagedServerURL:       source.ServerURL,

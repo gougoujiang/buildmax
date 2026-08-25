@@ -241,7 +241,7 @@ func TestCreateTeam(t *testing.T) {
 	}
 }
 
-func TestOnRunComplete_ListRunOutputs(t *testing.T) {
+func TestTransitionTaskRun_ListRunOutputs(t *testing.T) {
 	dsn := os.Getenv(config.EnvKeyBuildmaxTestDSN)
 	if dsn == "" {
 		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
@@ -272,13 +272,16 @@ func TestOnRunComplete_ListRunOutputs(t *testing.T) {
 		_ = s.db.WithContext(ctx).Delete(&taskRunRow{}, "task_id = ?", task.ID)
 		_ = s.db.WithContext(ctx).Delete(&taskRow{}, "task_id = ?", task.ID)
 	}()
-	// Update run to SUCCEEDED so ListRunOutputsByWorkspace returns it
-	if err := s.UpdateRun(ctx, model.UpdateTaskRunInput{TaskRunID: taskRunID, Status: model.RunStatusSucceeded, Output: util.Ptr("out")}); err != nil {
-		t.Fatalf("UpdateRun: %v", err)
-	}
-	err = s.OnRunComplete(ctx, taskRunID, []string{"result.md", "extra.txt"})
-	if err != nil {
-		t.Fatalf("OnRunComplete: %v", err)
+	// Finish the run and register its outputs in the same transition.
+	startTaskRunForTest(t, s, ctx, taskRunID)
+	if updated, err := s.TransitionTaskRun(ctx, model.TransitionTaskRunInput{
+		TaskRunID:             taskRunID,
+		ExpectedStatus:        model.RunStatusRunning,
+		NewStatus:             model.RunStatusSucceeded,
+		Output:                util.Ptr("out"),
+		ArtifactRelativePaths: []string{"result.md", "extra.txt"},
+	}); err != nil || !updated {
+		t.Fatalf("TransitionTaskRun to SUCCEEDED: updated=%v err=%v", updated, err)
 	}
 	runKey, err := lookupKey(ctx, s.db, "task_run", taskRunID)
 	if err != nil {
@@ -393,12 +396,14 @@ func TestTaskRunProvenancePersistence(t *testing.T) {
 	}
 
 	endedAt := time.Now().UTC()
-	if err := s.UpdateRun(ctx, model.UpdateTaskRunInput{
-		TaskRunID: initialRun.ID,
-		Status:    model.RunStatusSucceeded,
-		EndedAt:   &endedAt,
-	}); err != nil {
-		t.Fatalf("UpdateRun: %v", err)
+	startTaskRunForTest(t, s, ctx, initialRun.ID)
+	if updated, err := s.TransitionTaskRun(ctx, model.TransitionTaskRunInput{
+		TaskRunID:      initialRun.ID,
+		ExpectedStatus: model.RunStatusRunning,
+		NewStatus:      model.RunStatusSucceeded,
+		EndedAt:        &endedAt,
+	}); err != nil || !updated {
+		t.Fatalf("TransitionTaskRun to SUCCEEDED: updated=%v err=%v", updated, err)
 	}
 
 	rerun, err := s.CreateTaskRun(ctx, model.CreateTaskRunInput{

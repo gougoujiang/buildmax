@@ -383,8 +383,8 @@ user-scoped: a run token is not a user, and letting it read the catalog would
 make it one.
 
 Everything below the download reuses what already exists —
-`internal/core/plugin/archive` for extraction with its traversal, link,
-duplicate-path, and size guards, and `internal/core/plugin/inspect` for the
+`internal/infra/pluginarchive` for extraction with its traversal, link,
+duplicate-path, and size guards, and `internal/service/plugininspect` for the
 check that decides whether a package would load. A second implementation for
 workers would be a second set of rules about what an archive may contain.
 
@@ -525,7 +525,8 @@ already are.
   the run-token-scoped package download that serves only what those pins name.
 - `internal/agentapp/taskrun` — resolving pins into the run's plugins
   directory before the runtime is assembled.
-- `internal/core/plugin/archive` and `.../inspect` — reused unchanged.
+- `internal/infra/pluginarchive` and `internal/service/plugininspect` — the
+  extraction mechanism and sanitized application-level capability inspection.
 
 `internal/agentapp` needs no change beyond what already exists: it discovers
 plugins from `BUILDMAX_HOME`, and a worker's is populated before assembly rather

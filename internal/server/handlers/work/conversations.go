@@ -11,6 +11,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	"github.com/gougoujiang/buildmax/internal/service/conversation"
+	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
 	"github.com/gougoujiang/buildmax/internal/service/task"
 )
 
@@ -67,7 +68,7 @@ type addMessageResponse struct {
 // input, but nobody typed it, and showing it as the user's own message is a lie
 // about who said what. The run's card is what reports the outcome.
 func isVisibleConversationMessage(m model.ConversationMessage) bool {
-	if m.Channel != nil && *m.Channel == conversation.ChannelSystem {
+	if m.Channel != nil && *m.Channel == convchannel.ChannelSystem {
 		return false
 	}
 	return m.Role == "user" || m.Role == "assistant"
@@ -96,13 +97,17 @@ type runConversationTurnInput struct {
 }
 
 func (h *Handler) conversationService() *conversation.Service {
+	return h.conversations
+}
+
+func newConversationService(cfg Config, tasks *task.Service) *conversation.Service {
 	return &conversation.Service{
-		TaskService:       h.taskService(),
-		ConversationStore: h.cfg.Conversations,
-		MessageStore:      h.cfg.Messages,
-		LLMClient:         h.cfg.ConversationLLM,
-		TitleGenerator:    h.cfg.TitleGenerator,
-		AgentStore:        h.cfg.Agents,
+		TaskService:       tasks,
+		ConversationStore: cfg.Conversations,
+		MessageStore:      cfg.Messages,
+		LLMClient:         cfg.ConversationLLM,
+		TitleGenerator:    cfg.TitleGenerator,
+		AgentStore:        cfg.Agents,
 	}
 }
 

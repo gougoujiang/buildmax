@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -13,6 +14,15 @@ import (
 	buildmaxlog "github.com/gougoujiang/buildmax/internal/infra/log"
 	"github.com/gougoujiang/buildmax/internal/server/authtoken"
 )
+
+// The independent scheduler loops tag their records by subsystem. Loggers are
+// built per call so infra/log can replace slog.Default during startup.
+func componentLog(name string) *slog.Logger { return slog.With("component", name) }
+
+func (s *Scheduler) log() *slog.Logger         { return componentLog("scheduler") }
+func (c *CredentialCleaner) log() *slog.Logger { return componentLog("credential_cleaner") }
+func (c *StaleRunReaper) log() *slog.Logger    { return componentLog("stale_run_reaper") }
+func (a *AuditRetainer) log() *slog.Logger     { return componentLog("audit_retention") }
 
 const (
 	defaultPollInterval   = 5 * time.Second
@@ -214,7 +224,7 @@ func (s *Scheduler) pollOnce() {
 	if run == nil {
 		return
 	}
-	updated, err := s.taskRuns.ClaimTaskRun(ctx, model.ClaimTaskRunInput{
+	updated, err := s.taskRuns.TransitionTaskRun(ctx, model.TransitionTaskRunInput{
 		TaskRunID:      run.ID,
 		ExpectedStatus: model.RunStatusPending,
 		NewStatus:      model.RunStatusScheduled,
@@ -318,7 +328,16 @@ func (s *Scheduler) runTokenFor(ctx context.Context, run *model.TaskRun) (string
 // process error, which says less and is about the wrong thing.
 func (s *Scheduler) failRun(ctx context.Context, taskRunID string, cause error) {
 	ctx = buildmaxlog.With(ctx, "task_run_id", taskRunID)
-	if run, err := s.taskRuns.GetTaskRun(ctx, taskRunID); err == nil && run != nil && model.RunStatusTerminal(run.Status) {
+	run, err := s.taskRuns.GetTaskRun(ctx, taskRunID)
+	if err != nil {
+		s.log().ErrorContext(ctx, "could not read run before marking it FAILED", "err", err)
+		return
+	}
+	if run == nil {
+		s.log().ErrorContext(ctx, "could not mark missing run FAILED")
+		return
+	}
+	if model.RunStatusTerminal(run.Status) {
 		s.log().InfoContext(ctx, "worker exited non-zero but the run already reported an outcome",
 			"status", run.Status, "err", cause)
 		return
@@ -328,16 +347,18 @@ func (s *Scheduler) failRun(ctx context.Context, taskRunID string, cause error) 
 		errorMsg = errorMsg[:maxErrorMessageLength]
 	}
 	endedAt := time.Now().UTC()
-	if err := s.taskRuns.UpdateRun(ctx, model.UpdateTaskRunInput{
-		TaskRunID:    taskRunID,
-		Status:       model.RunStatusFailed,
-		EndedAt:      &endedAt,
-		ErrorMessage: &errorMsg,
-	}); err != nil {
+	updated, err := s.taskRuns.TransitionTaskRun(ctx, model.TransitionTaskRunInput{
+		TaskRunID:      taskRunID,
+		ExpectedStatus: model.RunStatus(run.Status),
+		NewStatus:      model.RunStatusFailed,
+		EndedAt:        &endedAt,
+		ErrorMessage:   &errorMsg,
+	})
+	if err != nil {
 		s.log().ErrorContext(ctx, "could not set run to FAILED", "err", err)
 		return
 	}
-	if err := s.taskRuns.SyncTaskFromRun(ctx, taskRunID); err != nil {
-		s.log().WarnContext(ctx, "could not sync task from run", "err", err)
+	if !updated {
+		s.log().InfoContext(ctx, "run outcome changed while recording dispatch failure")
 	}
 }

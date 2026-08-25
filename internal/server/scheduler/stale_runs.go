@@ -40,8 +40,7 @@ const staleRunLimit = 100
 type StaleRunStore interface {
 	ListStaleTaskRuns(ctx context.Context, cutoff time.Time, limit int) ([]model.TaskRun, error)
 	ListCancelRequestedTaskRuns(ctx context.Context, cutoff time.Time, limit int) ([]model.TaskRun, error)
-	UpdateRun(ctx context.Context, in model.UpdateTaskRunInput) error
-	SyncTaskFromRun(ctx context.Context, taskRunID string) error
+	TransitionTaskRun(ctx context.Context, in model.TransitionTaskRunInput) (bool, error)
 }
 
 // StaleRunReaper finishes runs that nothing else will finish.
@@ -162,7 +161,7 @@ func (c *StaleRunReaper) sweepCanceled(ctx context.Context, now time.Time) {
 	}
 }
 
-// finish writes one terminal outcome and syncs the run's task.
+// finish writes one terminal outcome and its task projection atomically.
 //
 // The message names what the server observed rather than guessing a cause,
 // because from here a dead worker, an evicted pod, and an expired credential
@@ -170,17 +169,20 @@ func (c *StaleRunReaper) sweepCanceled(ctx context.Context, now time.Time) {
 func (c *StaleRunReaper) finish(ctx context.Context, run model.TaskRun, status model.RunStatus, message string, now time.Time, logMsg string) {
 	ctx = buildmaxlog.With(ctx, "task_run_id", run.ID)
 	endedAt := now
-	if err := c.runs.UpdateRun(ctx, model.UpdateTaskRunInput{
-		TaskRunID:    run.ID,
-		Status:       status,
-		EndedAt:      &endedAt,
-		ErrorMessage: &message,
-	}); err != nil {
+	updated, err := c.runs.TransitionTaskRun(ctx, model.TransitionTaskRunInput{
+		TaskRunID:      run.ID,
+		ExpectedStatus: model.RunStatus(run.Status),
+		NewStatus:      status,
+		EndedAt:        &endedAt,
+		ErrorMessage:   &message,
+	})
+	if err != nil {
 		c.log().ErrorContext(ctx, "could not finish an unreported run", "status", status, "err", err)
 		return
 	}
-	if err := c.runs.SyncTaskFromRun(ctx, run.ID); err != nil {
-		c.log().WarnContext(ctx, "could not sync a task from its unreported run", "err", err)
+	if !updated {
+		c.log().InfoContext(ctx, "run outcome changed during stale-run sweep", "status_was", run.Status)
+		return
 	}
 	c.log().WarnContext(ctx, logMsg, "status_was", run.Status)
 }

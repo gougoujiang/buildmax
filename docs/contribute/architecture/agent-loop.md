@@ -13,7 +13,7 @@ nothing else from the project.
 
 Every surface runs this loop. CLI, Desktop, and worker runs reach it through
 `internal/agentapp`; Portal conversation turns reach it through
-`internal/service/conversation/runtime`.
+`internal/service/conversation`.
 
 ## Key Types
 
@@ -40,7 +40,7 @@ type RunLoopOpts struct {
     History      MessageHistory     // required
     StreamSink   llm.StreamSink     // non-nil selects the streaming call
 
-    Policy    ToolPolicy            // nil = AllowAllPolicy
+    Policy    ToolPolicy            // nil = AllowAllPolicy()
     Approval  ApprovalHandler       // nil collapses ToolActionAsk to Deny, and marks
                                     //   the surface as having nobody to prompt
     Grants    *SessionGrants        // caller-owned; nil grants nothing
@@ -48,7 +48,7 @@ type RunLoopOpts struct {
     PendingInput PendingInput       // nil disables mid-run injection
     Compactor ContextCompactor      // nil disables compaction; TrimHistory is the fallback
     EventSink func(Event)           // nil disables event emission entirely
-    Hooks     HookRunner            // nil or NoopHookRunner disables hooks
+    Hooks     HookRunner            // nil disables hooks
 
     SessionID string                // forwarded to hook payloads
     Workspace string                // forwarded to hook payloads
@@ -213,7 +213,7 @@ Exceeding `MaxIter` is different — that returns an error.
 
 - **Uses**: `internal/core/llm` (`Message`, `ToolDef`, `ToolCall`, `LLMClient`,
   `ToolRegistry`, `StreamSink`) and the standard library. Nothing else.
-- **Used by**: `internal/agentapp` and `internal/service/conversation/runtime`
+- **Used by**: `internal/agentapp` and `internal/service/conversation`
 
 ## Related
 

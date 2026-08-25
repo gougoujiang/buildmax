@@ -9,13 +9,13 @@ import (
 func TestConversationTurn_fields(t *testing.T) {
 	raw := map[string]any{"key": "val"}
 	turn := convchannel.Turn{
-		Channel:        ChannelPortal,
+		Channel:        convchannel.ChannelPortal,
 		ConversationID: "c_xyz",
 		UserID:         "u_123",
 		Message:        "hello",
 		Raw:            raw,
 	}
-	if turn.Channel != ChannelPortal || turn.ConversationID != "c_xyz" {
+	if turn.Channel != convchannel.ChannelPortal || turn.ConversationID != "c_xyz" {
 		t.Errorf("Channel/ConversationID: got %q %q", turn.Channel, turn.ConversationID)
 	}
 	if turn.UserID != "u_123" || turn.Message != "hello" {
@@ -41,7 +41,8 @@ func TestConversationResult_fields(t *testing.T) {
 
 func TestChannelConstants_nonEmptyAndDistinct(t *testing.T) {
 	seen := make(map[string]bool)
-	for _, ch := range ValidChannels {
+	validChannels := convchannel.ValidChannels()
+	for _, ch := range validChannels {
 		if ch == "" {
 			t.Errorf("channel constant is empty")
 		}
@@ -50,25 +51,25 @@ func TestChannelConstants_nonEmptyAndDistinct(t *testing.T) {
 		}
 		seen[ch] = true
 	}
-	if len(ValidChannels) != 4 {
-		t.Errorf("expected 4 channel constants, got %d", len(ValidChannels))
+	if len(validChannels) != 4 {
+		t.Errorf("expected 4 channel constants, got %d", len(validChannels))
 	}
 	// Ensure the named constants match
-	if ChannelPortal != "portal" || ChannelTelegram != "telegram" || ChannelCron != "cron" || ChannelWebhook != "webhook" {
+	if convchannel.ChannelPortal != "portal" || convchannel.ChannelTelegram != "telegram" || convchannel.ChannelCron != "cron" || convchannel.ChannelWebhook != "webhook" {
 		t.Errorf("channel constant values changed")
 	}
 }
 
 func TestValidChannel(t *testing.T) {
-	for _, ch := range ValidChannels {
-		if !ValidChannel(ch) {
+	for _, ch := range convchannel.ValidChannels() {
+		if !convchannel.ValidChannel(ch) {
 			t.Errorf("ValidChannel(%q) = false, want true", ch)
 		}
 	}
-	if ValidChannel("") {
+	if convchannel.ValidChannel("") {
 		t.Error("ValidChannel(\"\") = true, want false")
 	}
-	if ValidChannel("slack") {
+	if convchannel.ValidChannel("slack") {
 		t.Error("ValidChannel(\"slack\") = true, want false")
 	}
 }

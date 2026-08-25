@@ -147,13 +147,6 @@ type HookRunner interface {
 	Run(ctx context.Context, in HookInput) HookOutput
 }
 
-// NoopHookRunner is the default when no runner is configured. It allows everything.
-var NoopHookRunner HookRunner = noopHookRunner{}
-
-type noopHookRunner struct{}
-
-func (noopHookRunner) Run(_ context.Context, _ HookInput) HookOutput { return HookOutput{} }
-
 // runHook is a small helper that respects a nil runner (treating it as Noop) so call
 // sites in agent.go stay compact.
 func runHook(ctx context.Context, runner HookRunner, in HookInput) HookOutput {

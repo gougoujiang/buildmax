@@ -176,13 +176,13 @@ func (s *Store) ListConversationsByTeam(ctx context.Context, teamID string, limi
 	}
 	var total int64
 	if err := s.db.WithContext(ctx).Model(&conversationRow{}).
-		Where("team_id = ? AND channel NOT IN ?", teamKey, model.SyntheticChannels).
+		Where("team_id = ? AND channel NOT IN ?", teamKey, model.SyntheticChannels()).
 		Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 	var list []conversationReadRow
 	err = s.conversationSelect(ctx).
-		Where("conversation.team_id = ? AND conversation.channel NOT IN ?", teamKey, model.SyntheticChannels).
+		Where("conversation.team_id = ? AND conversation.channel NOT IN ?", teamKey, model.SyntheticChannels()).
 		Order("conversation.created_at DESC").
 		Limit(limit).Offset(offset).
 		Find(&list).Error

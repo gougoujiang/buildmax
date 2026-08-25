@@ -140,7 +140,7 @@ func (m *MockConversationMessageStore) GetMessage(_ context.Context, messageID s
 // syntheticChannel mirrors the store: a conversation nobody holds is not in the
 // list. A double that returned them would let a regression pass here.
 func syntheticChannel(channel string) bool {
-	for _, c := range model.SyntheticChannels {
+	for _, c := range model.SyntheticChannels() {
 		if c == channel {
 			return true
 		}

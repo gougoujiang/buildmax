@@ -8,7 +8,7 @@ import (
 
 // EnvKeyBuildmaxTraceDisabled, when truthy, turns off durable run traces.
 // Per-subsystem env constant (kept here next to the resolver, mirroring the
-// sandbox convention) and registered in env_spec.go EnvVars.
+// sandbox convention) and registered by env_spec.go EnvVars.
 const EnvKeyBuildmaxTraceDisabled = "BUILDMAX_TRACE_DISABLED"
 
 // TracesDir returns the directory holding durable run traces under DataDir.

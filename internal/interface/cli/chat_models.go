@@ -115,7 +115,7 @@ func (p *slashModelState) confirm(m *Model) tea.Cmd {
 	}
 	m.opts.ModelName = cfg.Name
 	if m.opts.App != nil && m.opts.Session != nil {
-		if st, err := m.opts.App.EstimateRunStatus(m.opts.Session); err == nil {
+		if st, err := m.opts.App.EstimateRunUsage(m.opts.Session); err == nil {
 			m.runStatus = updateRunStatusContext(m.runStatus, st)
 		}
 	}

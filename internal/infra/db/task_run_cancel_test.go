@@ -96,10 +96,13 @@ func TestTaskRunCancelQueries(t *testing.T) {
 	// Once the run is terminal nothing may cancel it again, and the backstop
 	// must stop seeing it.
 	endedAt := time.Unix(1_800_000_100, 0).UTC()
-	if err := s.UpdateRun(ctx, model.UpdateTaskRunInput{
-		TaskRunID: runID, Status: model.RunStatusCanceled, EndedAt: &endedAt,
-	}); err != nil {
-		t.Fatalf("UpdateRun: %v", err)
+	if updated, err := s.TransitionTaskRun(ctx, model.TransitionTaskRunInput{
+		TaskRunID:      runID,
+		ExpectedStatus: model.RunStatusPending,
+		NewStatus:      model.RunStatusCanceled,
+		EndedAt:        &endedAt,
+	}); err != nil || !updated {
+		t.Fatalf("TransitionTaskRun to CANCELED: updated=%v err=%v", updated, err)
 	}
 	if got, err := s.RequestTaskRunCancel(ctx, runID, cancelTestUser, time.Unix(1_800_000_200, 0).UTC()); err != nil || got {
 		t.Errorf("RequestTaskRunCancel on a finished run = %v, %v; want false, nil", got, err)

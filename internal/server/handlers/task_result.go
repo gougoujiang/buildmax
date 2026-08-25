@@ -10,6 +10,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/server/turnqueue"
 	wsconn "github.com/gougoujiang/buildmax/internal/server/websocket"
 	"github.com/gougoujiang/buildmax/internal/service/conversation"
+	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
 )
 
 const taskResultMaxOutputLen = 4000
@@ -153,9 +154,9 @@ func (h *Handler) loadTerminalInfo(ctx context.Context, taskRunID string) (model
 func (h *Handler) submitTaskResultTurn(ctx context.Context, info model.TaskRunTerminalInfo, onDone func(error)) {
 	message := formatTaskResultMessage(info)
 	job := turnqueue.NewJob(func() {
-		_, err := h.conversationService().HandleTurn(ctx, conversation.HandleTurnCmd{
+		_, err := h.conversations.HandleTurn(ctx, conversation.HandleTurnCmd{
 			UserID:         info.UserID,
-			Channel:        conversation.ChannelSystem,
+			Channel:        convchannel.ChannelSystem,
 			Message:        message,
 			ConversationID: info.ConversationID,
 			StreamSink:     h.connRegistry.BroadcastSink(info.TeamID, info.UserID, info.ConversationID),

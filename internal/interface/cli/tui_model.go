@@ -37,7 +37,7 @@ type TUIOpts struct {
 	SessionsDir  string
 	Approval     agent.ApprovalHandler
 	GlamourStyle string // "dark" or "light", detected once before the program starts
-	RunStatus    agentapp.RunStatus
+	RunStatus    agentapp.RunUsage
 }
 
 // agentDoneMsg is sent when the agent run finishes (in a tea.Cmd).
@@ -64,7 +64,7 @@ type llmEndMsg struct {
 }
 
 type runStatusMsg struct {
-	Status agentapp.RunStatus
+	Status agentapp.RunUsage
 }
 
 // toolStartMsg is sent when the agent begins executing a tool call.
@@ -152,7 +152,7 @@ type Model struct {
 	userEmail           string
 	pendingApproval     *approvalRequestMsg
 	approvalSelected    int
-	runStatus           agentapp.RunStatus
+	runStatus           agentapp.RunUsage
 	// queue holds messages typed while a run was in flight. It is drained one
 	// message per turn, after the run that was busy when they arrived finishes.
 	queue *agent.MessageQueue
@@ -172,6 +172,9 @@ type Model struct {
 	// the user's own queued messages, because the user's words outrank a
 	// job's news — and the rest wait for their session to come back.
 	parkedJobEvents map[string][]agentapp.BackgroundEvent
+	// runs owns prompt goroutines independently of Bubble Tea's command
+	// goroutines, which the program stops waiting for as soon as it quits.
+	runs *tuiRunOwner
 }
 
 // drainQueueMsg asks the model to start the next queued message, if any. It is a
@@ -185,45 +188,48 @@ func drainQueueCmd() tea.Cmd {
 
 // streamSinkToChannel implements agent.StreamSink by sending streamDeltaMsg to a channel.
 type streamSinkToChannel struct {
+	ctx     context.Context
 	channel chan tea.Msg
 }
 
 func (s *streamSinkToChannel) OnDelta(delta string) {
-	s.channel <- streamDeltaMsg{Delta: delta}
+	sendTUIMessage(s.ctx, s.channel, streamDeltaMsg{Delta: delta})
 }
 
 // eventSinkToChannel returns an agent.EventSink that forwards tool events to the stream channel.
-func eventSinkToChannel(channel chan tea.Msg) func(agent.Event) {
+func eventSinkToChannel(ctx context.Context, channel chan tea.Msg) func(agent.Event) {
 	return func(e agent.Event) {
 		switch e.Kind {
 		case agent.EventLLMStart:
-			channel <- runStatusMsg{Status: agentapp.RunStatus{
+			if !sendTUIMessage(ctx, channel, runStatusMsg{Status: agentapp.RunUsage{
 				ContextTokens:    e.ContextTokens,
 				ContextWindow:    e.ContextWindow,
 				PromptTokens:     e.PromptTokens,
 				CompletionTokens: e.CompletionTokens,
 				CacheReadTokens:  e.CacheReadTokens,
 				CacheWriteTokens: e.CacheWriteTokens,
-			}}
-			channel <- llmStartMsg{}
+			}}) {
+				return
+			}
+			sendTUIMessage(ctx, channel, llmStartMsg{})
 		case agent.EventLLMEnd:
-			channel <- llmEndMsg{
+			sendTUIMessage(ctx, channel, llmEndMsg{
 				Content:          e.Content,
 				PromptTokens:     e.PromptTokens,
 				CompletionTokens: e.CompletionTokens,
 				CacheReadTokens:  e.CacheReadTokens,
 				CacheWriteTokens: e.CacheWriteTokens,
-			}
+			})
 		case agent.EventToolStart:
-			channel <- toolStartMsg{CallID: e.ToolCallID, Name: e.ToolName, Args: e.ToolArgs}
+			sendTUIMessage(ctx, channel, toolStartMsg{CallID: e.ToolCallID, Name: e.ToolName, Args: e.ToolArgs})
 		case agent.EventToolEnd:
-			channel <- toolEndMsg{CallID: e.ToolCallID, Name: e.ToolName, Duration: e.ToolDuration, IsError: strings.HasPrefix(e.ToolResult, "error:")}
+			sendTUIMessage(ctx, channel, toolEndMsg{CallID: e.ToolCallID, Name: e.ToolName, Duration: e.ToolDuration, IsError: strings.HasPrefix(e.ToolResult, "error:")})
 		case agent.EventToolDenied:
-			channel <- toolDeniedMsg{CallID: e.ToolCallID, Name: e.ToolName, Reason: e.DenyReason}
+			sendTUIMessage(ctx, channel, toolDeniedMsg{CallID: e.ToolCallID, Name: e.ToolName, Reason: e.DenyReason})
 		case agent.EventUserInput:
-			channel <- userInputInjectedMsg{Text: e.Content}
+			sendTUIMessage(ctx, channel, userInputInjectedMsg{Text: e.Content})
 		case agent.EventUserInputBlocked:
-			channel <- userInputBlockedMsg{Text: e.Content, Reason: e.DenyReason}
+			sendTUIMessage(ctx, channel, userInputBlockedMsg{Text: e.Content, Reason: e.DenyReason})
 		}
 	}
 }
@@ -254,11 +260,27 @@ func NewModel(opts TUIOpts) *Model {
 		userEmail:  userEmail,
 		runStatus:  opts.RunStatus,
 		queue:      agent.NewMessageQueue(agent.DefaultMaxQueuedMessages),
+		runs:       newTUIRunOwner(context.Background()),
 	}
 	if opts.App != nil && opts.App.Jobs() != nil {
 		m.jobEvents, m.jobEventsCancel = opts.App.Jobs().Subscribe("")
 	}
 	return m
+}
+
+// Close stops foreground runs and releases background-job subscriptions before
+// the AgentApp they use is closed.
+func (m *Model) Close() {
+	if m == nil {
+		return
+	}
+	if m.jobEventsCancel != nil {
+		m.jobEventsCancel()
+		m.jobEventsCancel = nil
+	}
+	if m.runs != nil {
+		m.runs.Close()
+	}
 }
 
 // Init runs when the program starts; focuses input and starts cursor blink.
@@ -278,20 +300,23 @@ func (m *Model) FocusInput() bool {
 // runAgentWithStream starts the agent in a goroutine and returns a Cmd that reads the first event.
 // queue is handed to the run so a message typed mid-run joins it at the next
 // iteration boundary rather than waiting for the whole run to finish.
-func runAgentWithStream(opts TUIOpts, text string, channel chan tea.Msg, queue *agent.MessageQueue) tea.Cmd {
-	sink := &streamSinkToChannel{channel: channel}
-	evSink := eventSinkToChannel(channel)
-	go func() {
-		result, err := opts.App.RunPrompt(context.Background(), opts.Session, text, agentapp.RunPromptOpts{
+func runAgentWithStream(owner *tuiRunOwner, opts TUIOpts, text string, channel chan tea.Msg, queue *agent.MessageQueue) tea.Cmd {
+	started := owner.Go(func(ctx context.Context) {
+		defer close(channel)
+		sink := &streamSinkToChannel{ctx: ctx, channel: channel}
+		evSink := eventSinkToChannel(ctx, channel)
+		result, err := opts.App.RunPrompt(ctx, opts.Session, text, agentapp.RunPromptOpts{
 			Stream:    sink,
 			Approval:  opts.Approval,
 			EventSink: evSink,
 			Pending:   queue,
 			Digest:    true,
 		})
-		channel <- agentDoneMsg{Result: result, Err: err}
+		sendTUIMessage(ctx, channel, agentDoneMsg{Result: result, Err: err})
+	})
+	if !started {
 		close(channel)
-	}()
+	}
 	return func() tea.Msg { return <-channel }
 }
 
@@ -352,6 +377,10 @@ func (m *Model) renderStreamingPreview() string {
 }
 
 func handleKeyMsg(m *Model, msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if msg.String() == "ctrl+c" {
+		m.runs.Cancel()
+		return m, tea.Quit
+	}
 	// Approval prompt intercepts all keys when a tool call is waiting for approval.
 	if m.pendingApproval != nil {
 		switch msg.String() {
@@ -373,9 +402,6 @@ func handleKeyMsg(m *Model, msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			m.answerApproval(agent.ApprovalDeny)
 		}
 		return m, nil
-	}
-	if msg.String() == "ctrl+c" {
-		return m, tea.Quit
 	}
 	// Tab accepts the ghost suggestion. With nothing on offer it stays what it
 	// was: a no-op, because transcript mode has no viewport to move focus to.
@@ -496,7 +522,7 @@ func startRun(m *Model, text string) tea.Cmd {
 		tea.Println(userLine+"\n"),
 		tea.Batch(
 			tea.Tick(time.Duration(carouselTick)*time.Millisecond, func(t time.Time) tea.Msg { return carouselTickMsg{} }),
-			runAgentWithStream(m.opts, text, channel, m.queue),
+			runAgentWithStream(m.runs, m.opts, text, channel, m.queue),
 		),
 	)
 }
@@ -587,7 +613,7 @@ func handleAgentDone(m *Model, msg agentDoneMsg) (tea.Model, tea.Cmd) {
 		slog.Error("agent failed", "err", msg.Err)
 		return m, drainQueueCmd()
 	}
-	m.runStatus = agentapp.RunStatus{
+	m.runStatus = agentapp.RunUsage{
 		ContextTokens:         msg.Result.ContextTokens,
 		ContextWindow:         msg.Result.ContextWindow,
 		PromptTokens:          msg.Result.PromptTokens,
@@ -635,7 +661,7 @@ func handleLLMStart(m *Model, msg llmStartMsg) (tea.Model, tea.Cmd) {
 }
 
 func handleLLMEnd(m *Model, msg llmEndMsg) (tea.Model, tea.Cmd) {
-	m.runStatus = mergeRunStatus(m.runStatus, agentapp.RunStatus{
+	m.runStatus = mergeRunStatus(m.runStatus, agentapp.RunUsage{
 		PromptTokens:     msg.PromptTokens,
 		CompletionTokens: msg.CompletionTokens,
 		CacheReadTokens:  msg.CacheReadTokens,
@@ -652,7 +678,7 @@ func handleLLMEnd(m *Model, msg llmEndMsg) (tea.Model, tea.Cmd) {
 	return m, renderAssistantMsgCmd(text, m.width, m.opts.GlamourStyle, true)
 }
 
-func mergeRunStatus(prev, next agentapp.RunStatus) agentapp.RunStatus {
+func mergeRunStatus(prev, next agentapp.RunUsage) agentapp.RunUsage {
 	if next.ContextTokens == 0 {
 		next.ContextTokens = prev.ContextTokens
 	}
@@ -691,7 +717,7 @@ func handleRunStatus(m *Model, msg runStatusMsg) (tea.Model, tea.Cmd) {
 	return m, nextStreamMsgCmd(m.streamChannel)
 }
 
-func updateRunStatusContext(prev, next agentapp.RunStatus) agentapp.RunStatus {
+func updateRunStatusContext(prev, next agentapp.RunUsage) agentapp.RunUsage {
 	next.PromptTokens = prev.PromptTokens
 	next.CompletionTokens = prev.CompletionTokens
 	next.TotalPromptTokens = prev.TotalPromptTokens
@@ -904,7 +930,7 @@ func (m *Model) renderFooterView() string {
 	return line1 + "\n" + line2
 }
 
-func formatRunStatus(st agentapp.RunStatus) string {
+func formatRunStatus(st agentapp.RunUsage) string {
 	ctx := "ctx: unknown"
 	if st.ContextWindow > 0 {
 		percent := 0

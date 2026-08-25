@@ -9,6 +9,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/agentapp"
 	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/gougoujiang/buildmax/internal/core/agent"
 
 	"github.com/spf13/cobra"
 )
@@ -33,7 +34,7 @@ func newToolsStatusCommand() *cobra.Command {
 				WorkspaceDir:   workspace,
 				EnableMCP:      false,
 				SandboxSurface: config.SandboxSurfaceCLI,
-				Policy:         agentapp.NewInteractivePolicy(),
+				Policy:         agent.AllowAllPolicy(),
 			})
 			if err != nil {
 				return err

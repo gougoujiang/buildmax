@@ -11,18 +11,23 @@ package work
 
 import (
 	"context"
-	"github.com/gougoujiang/buildmax/internal/server/handlers/runterminal"
 	"net/http"
 
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/server/access"
+	"github.com/gougoujiang/buildmax/internal/server/handlers/runterminal"
 	"github.com/gougoujiang/buildmax/internal/server/turnqueue"
 	wsconn "github.com/gougoujiang/buildmax/internal/server/websocket"
+	agentsvc "github.com/gougoujiang/buildmax/internal/service/agent"
 	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
+	"github.com/gougoujiang/buildmax/internal/service/conversation"
+	"github.com/gougoujiang/buildmax/internal/service/issue"
 	"github.com/gougoujiang/buildmax/internal/service/quota"
+	"github.com/gougoujiang/buildmax/internal/service/task"
+	"github.com/gougoujiang/buildmax/internal/service/workflow"
 )
 
 // RunOutputLister reads what a run produced. An interface because the store
@@ -87,7 +92,15 @@ type Config struct {
 	Drain <-chan struct{}
 }
 
-type Handler struct{ cfg Config }
+type Handler struct {
+	cfg Config
+
+	tasks         *task.Service
+	conversations *conversation.Service
+	issues        *issue.Service
+	agents        *agentsvc.Service
+	workflows     *workflow.Service
+}
 
 // New builds the work surface. A nil Hub or Turns gets one of its own, which
 // is what the unified handler did: a deployment with nobody watching still has
@@ -99,7 +112,13 @@ func New(cfg Config) *Handler {
 	if cfg.Turns == nil {
 		cfg.Turns = turnqueue.NewRegistry()
 	}
-	return &Handler{cfg: cfg}
+	h := &Handler{cfg: cfg}
+	h.tasks = newTaskService(cfg)
+	h.conversations = newConversationService(cfg, h.tasks)
+	h.issues = newIssueService(cfg)
+	h.agents = newWorkAgentService(cfg)
+	h.workflows = newWorkflowService(cfg, h.tasks)
+	return h
 }
 
 func (h *Handler) guard() *access.Guard {

@@ -1,4 +1,4 @@
-package tool
+package conversation
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 )
 
 func TestNewListTasksTool_nilRunner(t *testing.T) {
-	tool := NewListTasksTool("w_1", nil)
+	tool := newListTasksTool("w_1", nil)
 	ctx := context.Background()
 	_, err := tool.Execute(ctx, map[string]any{})
 	if err == nil {
@@ -19,7 +19,7 @@ func TestNewListTasksTool_nilRunner(t *testing.T) {
 }
 
 func TestNewListTasksTool_success(t *testing.T) {
-	tool := NewListTasksTool("w_1", ListTasksRunnerFunc(func(ctx context.Context, workspaceID string) (string, error) {
+	tool := newListTasksTool("w_1", ListTasksRunnerFunc(func(ctx context.Context, workspaceID string) (string, error) {
 		if workspaceID != "w_1" {
 			return "", errors.New("wrong workspace")
 		}
@@ -36,7 +36,7 @@ func TestNewListTasksTool_success(t *testing.T) {
 }
 
 func TestNewListTasksTool_runnerError(t *testing.T) {
-	tool := NewListTasksTool("w_1", ListTasksRunnerFunc(func(ctx context.Context, workspaceID string) (string, error) {
+	tool := newListTasksTool("w_1", ListTasksRunnerFunc(func(ctx context.Context, workspaceID string) (string, error) {
 		return "", errors.New("db error")
 	}))
 	ctx := context.Background()

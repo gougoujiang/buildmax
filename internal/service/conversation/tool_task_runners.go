@@ -1,4 +1,4 @@
-package tool
+package conversation
 
 import (
 	"context"
@@ -10,12 +10,9 @@ import (
 	"github.com/gougoujiang/buildmax/internal/util"
 )
 
-// NewStartTaskServiceRunner builds the StartTask runner for one turn.
-//
-// sourceMessageID is the message this turn is answering. It is bound per turn
-// rather than passed per call because the model chooses the tool arguments and
-// must not be able to choose, or omit, the message the work is attributed to.
-func NewStartTaskServiceRunner(taskService *task.Service, conversationID, teamID, userID string, sourceMessageID *string) StartTaskRunner {
+// sourceMessageID is bound per turn because the model must not choose, or omit,
+// the message that requested the work.
+func newStartTaskServiceRunner(taskService *task.Service, conversationID, teamID, userID string, sourceMessageID *string) startTaskRunner {
 	if taskService == nil {
 		return nil
 	}
@@ -28,24 +25,23 @@ func NewStartTaskServiceRunner(taskService *task.Service, conversationID, teamID
 	}
 }
 
-func NewListTasksStoreRunner(tasks model.TaskStore) ListTasksRunner {
+func newListTasksStoreRunner(tasks model.TaskStore) listTasksRunner {
 	if tasks == nil {
 		return nil
 	}
 	return &listTasksStoreRunner{tasks: tasks}
 }
 
-func NewGetTaskStoreRunner(tasks model.TaskStore) GetTaskRunner {
+func newGetTaskStoreRunner(tasks model.TaskStore) getTaskRunner {
 	if tasks == nil {
 		return nil
 	}
 	return &getTaskStoreRunner{tasks: tasks}
 }
 
-// NewContinueTaskServiceRunner builds the ContinueTask runner for one turn.
-// sourceMessageID is bound per turn for the same reason as StartTask: a
-// continuation run is asked for by a message too, and each run records its own.
-func NewContinueTaskServiceRunner(taskService *task.Service, sourceMessageID *string) ContinueTaskRunner {
+// sourceMessageID is bound per turn for the same reason as StartTask: each
+// continuation run records the message that requested it.
+func newContinueTaskServiceRunner(taskService *task.Service, sourceMessageID *string) continueTaskRunner {
 	if taskService == nil {
 		return nil
 	}

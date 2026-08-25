@@ -290,7 +290,7 @@ local performance flag.
 to surface without double-counting prompt tokens.
 
 Counts travel `llm.Usage` → `agent.RunStats` and `agent.Event` → trace `llm_end`
-and `run_end` → `session.Session` totals → `agentapp.RunResult`/`RunStatus` →
+and `run_end` → `session.Session` totals → `agentapp.RunResult`/`RunUsage` →
 CLI, Desktop, and — for a managed call — `llmwire.Usage` → the `llm_call` ledger
 row → the team run-ledger route → Portal's run-spend view. Every surface prints
 the breakdown only where a provider reported one: a permanent `0 / 0` would read

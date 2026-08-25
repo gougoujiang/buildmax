@@ -83,8 +83,9 @@ func BuildSystemPromptWithLayers(workspaceDir, modelName, additionalSystemPrompt
 // BuildAgentTypes merges built-in sub-agent definitions with caller-provided user defs into
 // an AgentTypeConfig map ready for tools.NewTask.
 func BuildAgentTypes(registry llm.ToolRegistry, userDefs []subagent.Def) map[string]tools.AgentTypeConfig {
-	agentTypes := make(map[string]tools.AgentTypeConfig, len(tools.BuiltinSubAgentDefs))
-	for _, def := range tools.BuiltinSubAgentDefs {
+	builtinDefs := tools.BuiltinSubAgentDefs()
+	agentTypes := make(map[string]tools.AgentTypeConfig, len(builtinDefs))
+	for _, def := range builtinDefs {
 		var resolved []llm.Tool
 		if def.ToolNames == nil {
 			resolved = registry.Tools()

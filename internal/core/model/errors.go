@@ -21,6 +21,10 @@ var ErrUserDisabled = errors.New("account is disabled")
 // ErrRunInProgress is returned by CreateTaskRun when the task already has a run in PENDING, SCHEDULED, or RUNNING.
 var ErrRunInProgress = errors.New("task has a run already in progress")
 
+// ErrInvalidRunTransition is returned when a caller asks a task run to move
+// between statuses that are not adjacent in its lifecycle.
+var ErrInvalidRunTransition = errors.New("invalid task run status transition")
+
 // ErrRunCanceled is the reason a canceled run's context carries, and what
 // RunTask returns for a run that stopped because someone asked it to. It marks
 // an outcome, not a fault: a worker that returns it did what it was told.

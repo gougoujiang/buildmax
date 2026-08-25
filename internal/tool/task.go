@@ -36,8 +36,7 @@ type BuiltinSubAgentDef struct {
 	Description  string
 }
 
-// BuiltinSubAgentDefs defines the built-in sub-agent types in display order.
-var BuiltinSubAgentDefs = []BuiltinSubAgentDef{
+var builtinSubAgentDefs = []BuiltinSubAgentDef{
 	{
 		Name:         "general",
 		ToolNames:    nil, // all base tools
@@ -58,10 +57,21 @@ var BuiltinSubAgentDefs = []BuiltinSubAgentDef{
 	},
 }
 
+// BuiltinSubAgentDefs returns the built-in sub-agent types in display order.
+// The returned definitions can be changed without altering later runtimes.
+func BuiltinSubAgentDefs() []BuiltinSubAgentDef {
+	out := make([]BuiltinSubAgentDef, len(builtinSubAgentDefs))
+	for i := range builtinSubAgentDefs {
+		out[i] = builtinSubAgentDefs[i]
+		out[i].ToolNames = append([]string(nil), builtinSubAgentDefs[i].ToolNames...)
+	}
+	return out
+}
+
 // builtinTypeOrder returns the names in declaration order (derived from BuiltinSubAgentDefs).
 var builtinTypeOrder = func() []string {
-	names := make([]string, len(BuiltinSubAgentDefs))
-	for i, d := range BuiltinSubAgentDefs {
+	names := make([]string, len(builtinSubAgentDefs))
+	for i, d := range builtinSubAgentDefs {
 		names[i] = d.Name
 	}
 	return names
@@ -69,8 +79,8 @@ var builtinTypeOrder = func() []string {
 
 // builtinNames is a set for quick lookup (derived from BuiltinSubAgentDefs).
 var builtinNames = func() map[string]bool {
-	m := make(map[string]bool, len(BuiltinSubAgentDefs))
-	for _, d := range BuiltinSubAgentDefs {
+	m := make(map[string]bool, len(builtinSubAgentDefs))
+	for _, d := range builtinSubAgentDefs {
 		m[d.Name] = true
 	}
 	return m

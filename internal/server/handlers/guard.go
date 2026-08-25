@@ -38,7 +38,7 @@ func (h *Handler) guard() *access.Guard {
 //
 // Constructed here rather than injected so internal/server keeps assembling one
 // Config; what changed is that administration can only see this slice of it.
-func (h *Handler) adminHandler() *admin.Handler {
+func (h *Handler) buildAdminHandler() *admin.Handler {
 	return admin.New(admin.Config{
 		JWTSecret:        h.cfg.JWTSecret,
 		DefaultQuotaTier: h.cfg.DefaultQuotaTier,
@@ -65,14 +65,14 @@ func (h *Handler) adminHandler() *admin.Handler {
 // OnTerminal fans a finished run out to whoever is watching: the connected
 // clients this package tracks, and then the server's own callback. The worker
 // package is told what to call, not who is listening.
-func (h *Handler) workerHandler() *worker.Handler {
+func (h *Handler) buildWorkerHandler() *worker.Handler {
 	return worker.New(worker.Config{
 		JWTSecret:     h.cfg.JWTSecret,
 		WorkerLLM:     h.cfg.WorkerLLM,
 		TaskRuns:      h.cfg.TaskRunStore,
 		Agents:        h.cfg.AgentStore,
 		Gateway:       h.cfg.LLMGateway,
-		Artifacts:     h.artifactService(),
+		Artifacts:     h.artifacts,
 		Hub:           h.hub,
 		OnTerminal:    h.terminalListeners,
 		TerminalGroup: h.terminal,
@@ -86,7 +86,7 @@ func (h *Handler) workerHandler() *worker.Handler {
 
 // activationStore is the plugin service's activation store, or nil when this
 // deployment has no Marketplace.
-func (h *Handler) activationStore() model.PluginActivationStore {
+func (h *Handler) activationStore() worker.ActivationReader {
 	if h.cfg.PluginService == nil {
 		return nil
 	}
@@ -101,7 +101,7 @@ func (h *Handler) terminalListeners(ctx context.Context, info model.TaskRunTermi
 }
 
 // authHandler builds the session routes from the fields they need.
-func (h *Handler) authHandler() *authroutes.Handler {
+func (h *Handler) buildAuthHandler() *authroutes.Handler {
 	return authroutes.New(authroutes.Config{
 		JWTSecret:            h.cfg.JWTSecret,
 		AllowSignup:          h.cfg.AllowSignup,
@@ -118,7 +118,7 @@ func (h *Handler) authHandler() *authroutes.Handler {
 }
 
 // teamHandler builds the team surface from the stores a team's own routes read.
-func (h *Handler) teamHandler() *teamroutes.Handler {
+func (h *Handler) buildTeamHandler() *teamroutes.Handler {
 	return teamroutes.New(teamroutes.Config{
 		JWTSecret:        h.cfg.JWTSecret,
 		DefaultQuotaTier: h.cfg.DefaultQuotaTier,
@@ -139,19 +139,19 @@ func (h *Handler) teamHandler() *teamroutes.Handler {
 // It is handed the capability rather than the pieces, and holds neither issue,
 // task, nor conversation store: an artifact service that could reach them is
 // one edit away from an artifact that belongs to a run again.
-func (h *Handler) artifactHandler() *artifactroutes.Handler {
+func (h *Handler) buildArtifactHandler() *artifactroutes.Handler {
 	return artifactroutes.New(artifactroutes.Config{
 		JWTSecret: h.cfg.JWTSecret,
 		Users:     h.cfg.UserStore,
 		Teams:     h.cfg.TeamStore,
-		Artifacts: h.artifactService(),
+		Artifacts: h.artifacts,
 		Audit:     h.cfg.Audit,
 	})
 }
 
 // artifactService returns nil when either half of the capability is missing, so
 // "not configured" is decided once here rather than at each route.
-func (h *Handler) artifactService() *artifactsvc.Service {
+func (h *Handler) buildArtifactService() *artifactsvc.Service {
 	if h.cfg.ArtifactStore == nil || h.cfg.ArtifactStorage == nil {
 		return nil
 	}
@@ -164,7 +164,7 @@ func (h *Handler) artifactService() *artifactsvc.Service {
 }
 
 // workHandler builds the work surface from the stores those routes read.
-func (h *Handler) workHandler() *work.Handler {
+func (h *Handler) buildWorkHandler() *work.Handler {
 	return work.New(work.Config{
 		JWTSecret:        h.cfg.JWTSecret,
 		Users:            h.cfg.UserStore,
@@ -181,7 +181,7 @@ func (h *Handler) workHandler() *work.Handler {
 		LLMCalls:         h.cfg.LLMCallStore,
 		PersistStorage:   h.cfg.PersistStorage,
 		RunOutputStorage: h.cfg.RunOutputStorage,
-		Artifacts:        h.artifactService(),
+		Artifacts:        h.artifacts,
 		WorkspacesDir:    h.cfg.WorkspacesDir,
 		Quota:            h.cfg.QuotaService,
 		TitleGenerator:   h.cfg.TitleGenerator,
@@ -197,7 +197,7 @@ func (h *Handler) workHandler() *work.Handler {
 
 // conversationService answers a Tier 1 turn for the socket, which is the only
 // thing the root package still runs itself.
-func (h *Handler) conversationService() *conversation.Service {
+func (h *Handler) buildConversationService() *conversation.Service {
 	var quotaChecker task.QuotaChecker
 	if h.cfg.QuotaService != nil {
 		quotaChecker = h.cfg.QuotaService

@@ -95,7 +95,7 @@ func TestReportCanceledRunKeepsPartialWork(t *testing.T) {
 	storage := &fakeRunOutputStorage{}
 	updater := &fakeUpdater{}
 	scope := RunScope{CreatedBy: "u1", ConversationID: "c1", TaskID: "t1", TaskRunID: "r1"}
-	result := RunResult{
+	result := runResult{
 		EndTime:         time.Unix(1_800_000_000, 0).UTC(),
 		OutputStr:       "as far as I got",
 		Output:          []byte("as far as I got"),

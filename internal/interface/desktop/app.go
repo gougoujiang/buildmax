@@ -231,7 +231,7 @@ func (a *App) agentAppForProject(projectID string) (*agentapp.AgentApp, error) {
 	ag, err = agentapp.NewAgentApp(agentapp.AppConfig{
 		WorkspaceDir:         proj.FolderPath,
 		EnableMCP:            true,
-		Policy:               agentapp.NewInteractivePolicy(),
+		Policy:               agent.AllowAllPolicy(),
 		ModelEntries:         source.Entries,
 		DefaultModel:         source.Default,
 		ManagedServerURL:     source.ServerURL,
@@ -460,7 +460,7 @@ func (a *App) GetRunStatus(projectID, sessionID string) (RunStatusPayload, error
 	if err != nil {
 		return RunStatusPayload{}, fmt.Errorf("read session: %w", err)
 	}
-	st, err := ag.EstimateRunStatus(sess)
+	st, err := ag.EstimateRunUsage(sess)
 	if err != nil {
 		return RunStatusPayload{}, err
 	}

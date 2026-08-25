@@ -8,7 +8,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/plugin"
-	"github.com/gougoujiang/buildmax/internal/core/plugin/inspect"
+	inspect "github.com/gougoujiang/buildmax/internal/service/plugininspect"
 )
 
 // invalidPluginExit ends the command non-zero without printing a second time:

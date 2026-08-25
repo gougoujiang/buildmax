@@ -8,6 +8,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
+	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
 	"github.com/gougoujiang/buildmax/internal/service/task"
 )
 
@@ -52,14 +53,14 @@ func TestStartTaskRecordsTheMessageThatAskedForIt(t *testing.T) {
 	messages := &mock.MockConversationMessageStore{}
 	svc := &Service{
 		TaskService:       &task.Service{Tasks: tasks, TaskRuns: &mock.MockTaskRunStore{}},
-		ConversationStore: &mock.MockConversationStore{Conversations: []model.Conversation{{ID: conversationID, TeamID: teamID, Channel: ChannelPortal}}},
+		ConversationStore: &mock.MockConversationStore{Conversations: []model.Conversation{{ID: conversationID, TeamID: teamID, Channel: convchannel.ChannelPortal}}},
 		MessageStore:      messages,
 		LLMClient:         &toolThenReplyClient{toolName: "StartTask", args: startTaskArgs(t, "investigate the flaky test")},
 	}
 
 	if _, err := svc.HandleTurn(context.Background(), HandleTurnCmd{
 		UserID:         "u1",
-		Channel:        ChannelPortal,
+		Channel:        convchannel.ChannelPortal,
 		Message:        "look into the flaky test, but leave the CI config alone",
 		ConversationID: conversationID,
 	}); err != nil {
@@ -104,14 +105,14 @@ func TestContinueTaskRecordsItsOwnMessage(t *testing.T) {
 	}
 	svc := &Service{
 		TaskService:       &task.Service{Tasks: tasks, TaskRuns: runs},
-		ConversationStore: &mock.MockConversationStore{Conversations: []model.Conversation{{ID: conversationID, TeamID: teamID, Channel: ChannelPortal}}},
+		ConversationStore: &mock.MockConversationStore{Conversations: []model.Conversation{{ID: conversationID, TeamID: teamID, Channel: convchannel.ChannelPortal}}},
 		MessageStore:      messages,
 		LLMClient:         &toolThenReplyClient{toolName: "ContinueTask", args: string(args)},
 	}
 
 	if _, err := svc.HandleTurn(context.Background(), HandleTurnCmd{
 		UserID:         "u1",
-		Channel:        ChannelPortal,
+		Channel:        convchannel.ChannelPortal,
 		Message:        "now check whether it fails on Windows too",
 		ConversationID: conversationID,
 	}); err != nil {
@@ -137,14 +138,14 @@ func TestSystemTurnCreatesNoAttributedWork(t *testing.T) {
 	tasks := &mock.MockTaskStore{}
 	svc := &Service{
 		TaskService:       &task.Service{Tasks: tasks, TaskRuns: &mock.MockTaskRunStore{}},
-		ConversationStore: &mock.MockConversationStore{Conversations: []model.Conversation{{ID: conversationID, Channel: ChannelPortal}}},
+		ConversationStore: &mock.MockConversationStore{Conversations: []model.Conversation{{ID: conversationID, Channel: convchannel.ChannelPortal}}},
 		MessageStore:      &mock.MockConversationMessageStore{},
 		LLMClient:         &toolThenReplyClient{toolName: "StartTask", args: startTaskArgs(t, "do something")},
 	}
 
 	if _, err := svc.HandleTurn(context.Background(), HandleTurnCmd{
 		UserID:         "u1",
-		Channel:        ChannelSystem,
+		Channel:        convchannel.ChannelSystem,
 		Message:        "[Task Result] task_id: tk_1 | status: succeeded",
 		ConversationID: conversationID,
 	}); err != nil {

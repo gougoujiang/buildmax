@@ -80,7 +80,7 @@ func installConfigExample(t *testing.T, exampleFile, targetFile string) {
 	t.Helper()
 	dir := t.TempDir()
 	t.Setenv(config.EnvKeyBuildmaxHome, dir)
-	for _, envVar := range config.EnvVars {
+	for _, envVar := range config.EnvVars() {
 		if envVar.Name != config.EnvKeyBuildmaxHome {
 			t.Setenv(envVar.Name, "")
 		}

@@ -7,6 +7,15 @@ import (
 	"gorm.io/gorm"
 )
 
+// nextRevision returns the revision number that follows current. Rows that
+// predate revision tracking are treated as revision 1, so their first edit is 2.
+func nextRevision(current int) int {
+	if current < 1 {
+		return 2
+	}
+	return current + 1
+}
+
 // Both revision tables are the same query shape: append-only rows keyed by an
 // owner column and a revision number, newest first. Only the row type, the
 // column name, and the join set differ, so they are parameters rather than two
@@ -17,7 +26,6 @@ import (
 // read joins for the handles it returns, and an unqualified `revision` is
 // ambiguous once the owner table -- which has a revision of its own -- is in
 // the query.
-
 func listRevisions[R any](ctx context.Context, db, sel *gorm.DB, table, ownerCol string, ownerKey uint64, limit, offset int) ([]R, int, error) {
 	limit, offset = capPage(limit, offset)
 	var total int64

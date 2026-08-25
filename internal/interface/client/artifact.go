@@ -22,14 +22,14 @@ type artifactResponse struct {
 // managed inference uses, and it refuses a login belonging to another server.
 type TokenFunc func(serverURL string) (string, error)
 
-// ArtifactPublisher publishes a local file through a BuildMax server on the
+// artifactPublisher publishes a local file through a BuildMax server on the
 // signed-in person's session.
 //
 // It exists only where there is a server to publish to. A CLI or Desktop
 // session running straight against a model provider has no artifact capability
 // at all, and its agent is given no artifact tool — see
 // docs/design/unified-artifacts.md section 7.1.
-type ArtifactPublisher struct {
+type artifactPublisher struct {
 	ServerURL string
 	// TeamID is optional. Empty means the server keeps the artifact in the
 	// caller's personal team, which is what a client that has never been asked
@@ -45,11 +45,11 @@ func NewArtifactPublisher(serverURL, teamID string, token TokenFunc) tool.Artifa
 	if serverURL == "" || token == nil {
 		return nil
 	}
-	return &ArtifactPublisher{ServerURL: serverURL, TeamID: teamID, Token: token}
+	return &artifactPublisher{ServerURL: serverURL, TeamID: teamID, Token: token}
 }
 
 // PublishArtifact implements tool.ArtifactPublisher.
-func (p *ArtifactPublisher) PublishArtifact(ctx context.Context, in tool.ArtifactUpload) (tool.PublishedArtifact, error) {
+func (p *artifactPublisher) PublishArtifact(ctx context.Context, in tool.ArtifactUpload) (tool.PublishedArtifact, error) {
 	token, err := p.Token(p.ServerURL)
 	if err != nil {
 		return tool.PublishedArtifact{}, err

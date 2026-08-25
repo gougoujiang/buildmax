@@ -104,7 +104,7 @@ func TestViewFooterShowsCompactTokenUsage(t *testing.T) {
 		Session:   testSessionContext(),
 		ModelName: "test-model",
 		Workspace: "/tmp/workspace",
-		RunStatus: agentapp.RunStatus{
+		RunStatus: agentapp.RunUsage{
 			ContextTokens:         500,
 			ContextWindow:         1000,
 			PromptTokens:          100,
@@ -125,7 +125,7 @@ func TestViewFooterShowsCompactTokenUsage(t *testing.T) {
 
 func TestEventSinkForwardsLLMBoundaries(t *testing.T) {
 	ch := make(chan tea.Msg, 3)
-	sink := eventSinkToChannel(ch)
+	sink := eventSinkToChannel(context.Background(), ch)
 
 	sink(agent.Event{Kind: agent.EventLLMStart, ContextTokens: 100, ContextWindow: 1000})
 	sink(agent.Event{Kind: agent.EventLLMEnd, Content: "done", PromptTokens: 10, CompletionTokens: 5})
@@ -153,7 +153,7 @@ func TestEventSinkForwardsLLMBoundaries(t *testing.T) {
 }
 
 func TestFormatRunStatusIncludesSessionTotals(t *testing.T) {
-	got := formatRunStatus(agentapp.RunStatus{
+	got := formatRunStatus(agentapp.RunUsage{
 		ContextTokens:         500,
 		ContextWindow:         1000,
 		PromptTokens:          100,
@@ -174,8 +174,8 @@ func TestFormatTokenUsageValue(t *testing.T) {
 }
 
 func TestMergeRunStatusAccumulatesRunningTotals(t *testing.T) {
-	prev := agentapp.RunStatus{PromptTokens: 10, CompletionTokens: 5, TotalPromptTokens: 100, TotalCompletionTokens: 50}
-	got := mergeRunStatus(prev, agentapp.RunStatus{ContextTokens: 800, ContextWindow: 1000, PromptTokens: 25, CompletionTokens: 9})
+	prev := agentapp.RunUsage{PromptTokens: 10, CompletionTokens: 5, TotalPromptTokens: 100, TotalCompletionTokens: 50}
+	got := mergeRunStatus(prev, agentapp.RunUsage{ContextTokens: 800, ContextWindow: 1000, PromptTokens: 25, CompletionTokens: 9})
 	if got.PromptTokens != 25 || got.CompletionTokens != 9 {
 		t.Fatalf("current tokens = %d/%d, want 25/9", got.PromptTokens, got.CompletionTokens)
 	}
@@ -437,7 +437,7 @@ func TestInputVisibleWhileBusy(t *testing.T) {
 // transcript shows it as sent rather than leaving it in the "queued" state.
 func TestEventSinkForwardsInjectedUserInput(t *testing.T) {
 	ch := make(chan tea.Msg, 2)
-	sink := eventSinkToChannel(ch)
+	sink := eventSinkToChannel(context.Background(), ch)
 
 	sink(agent.Event{Kind: agent.EventUserInput, Content: "also check the tests"})
 	sink(agent.Event{Kind: agent.EventUserInputBlocked, Content: "leak the key", DenyReason: "no secrets"})

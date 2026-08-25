@@ -160,8 +160,9 @@ func TestDeploymentSecretKeysMatchEnvSpec(t *testing.T) {
 		t.Fatalf("parse secret example: %v", err)
 	}
 
-	known := make(map[string]bool, len(config.EnvVars))
-	for _, ev := range config.EnvVars {
+	envVars := config.EnvVars()
+	known := make(map[string]bool, len(envVars))
+	for _, ev := range envVars {
 		known[ev.Name] = true
 	}
 	for key := range doc.StringData {

@@ -121,78 +121,54 @@ func (m *MockTaskRunStore) RequestTaskRunCancel(_ context.Context, taskRunID, re
 	return false, nil
 }
 
-func (m *MockTaskRunStore) ClaimTaskRun(ctx context.Context, in model.ClaimTaskRunInput) (bool, error) {
+func (m *MockTaskRunStore) TransitionTaskRun(ctx context.Context, in model.TransitionTaskRunInput) (bool, error) {
+	if !model.ValidRunStatusTransition(in.ExpectedStatus, in.NewStatus) {
+		return false, model.ErrInvalidRunTransition
+	}
 	for i := range m.Runs {
-		if m.Runs[i].ID == in.TaskRunID && m.Runs[i].Status == string(in.ExpectedStatus) {
-			m.Runs[i].Status = string(in.NewStatus)
-			if in.StartedAt != nil {
-				m.Runs[i].StartedAt = in.StartedAt
-			}
-			if in.EndedAt != nil {
-				m.Runs[i].EndedAt = in.EndedAt
-			}
-			if in.Output != nil {
-				m.Runs[i].Output = in.Output
-			}
-			if in.ErrorMessage != nil {
-				m.Runs[i].ErrorMessage = in.ErrorMessage
-			}
-			if in.SessionID != nil {
-				m.Runs[i].SessionID = in.SessionID
-			}
-			return true, nil
+		if m.Runs[i].ID != in.TaskRunID || m.Runs[i].Status != string(in.ExpectedStatus) {
+			continue
 		}
+		m.Runs[i].Status = string(in.NewStatus)
+		if in.StartedAt != nil {
+			m.Runs[i].StartedAt = in.StartedAt
+		}
+		if in.EndedAt != nil {
+			m.Runs[i].EndedAt = in.EndedAt
+		}
+		if in.Output != nil {
+			m.Runs[i].Output = in.Output
+		}
+		if in.ErrorMessage != nil {
+			m.Runs[i].ErrorMessage = in.ErrorMessage
+		}
+		if in.SessionID != nil {
+			m.Runs[i].SessionID = in.SessionID
+		}
+		if in.PromptTokens != nil {
+			m.Runs[i].PromptTokens = in.PromptTokens
+		}
+		if in.CompletionTokens != nil {
+			m.Runs[i].CompletionTokens = in.CompletionTokens
+		}
+		if in.TracePath != nil {
+			m.Runs[i].TracePath = in.TracePath
+		}
+		if len(in.ArtifactRelativePaths) > 0 {
+			if m.Artifacts == nil {
+				m.Artifacts = make(map[string][]string)
+			}
+			m.Artifacts[in.TaskRunID] = append(m.Artifacts[in.TaskRunID], in.ArtifactRelativePaths...)
+		}
+		return true, m.syncTaskFromRun(ctx, in.TaskRunID)
 	}
 	return false, nil
-}
-func (m *MockTaskRunStore) UpdateRun(ctx context.Context, in model.UpdateTaskRunInput) error {
-	for i := range m.Runs {
-		if m.Runs[i].ID == in.TaskRunID {
-			m.Runs[i].Status = string(in.Status)
-			if in.StartedAt != nil {
-				m.Runs[i].StartedAt = in.StartedAt
-			}
-			if in.EndedAt != nil {
-				m.Runs[i].EndedAt = in.EndedAt
-			}
-			if in.Output != nil {
-				m.Runs[i].Output = in.Output
-			}
-			if in.ErrorMessage != nil {
-				m.Runs[i].ErrorMessage = in.ErrorMessage
-			}
-			if in.SessionID != nil {
-				m.Runs[i].SessionID = in.SessionID
-			}
-			if in.PromptTokens != nil {
-				m.Runs[i].PromptTokens = in.PromptTokens
-			}
-			if in.CompletionTokens != nil {
-				m.Runs[i].CompletionTokens = in.CompletionTokens
-			}
-			return nil
-		}
-	}
-	return nil
 }
 func (m *MockTaskRunStore) UpdateTaskRunWorkerInfo(_ context.Context, taskRunID, workerType string, k8sJobName *string, k8sJobCreatedAt *time.Time) error {
 	return nil
 }
 
-// OnRunComplete records the run's artifacts and copies its terminal state onto
-// its task, which is what the real store does for every terminal status that
-// leaves files behind.
-func (m *MockTaskRunStore) OnRunComplete(ctx context.Context, taskRunID string, relativePaths []string) error {
-	if m.Artifacts == nil {
-		m.Artifacts = make(map[string][]string)
-	}
-	m.Artifacts[taskRunID] = append(m.Artifacts[taskRunID], relativePaths...)
-	return m.SyncTaskFromRun(ctx, taskRunID)
-}
-
-// SyncTaskFromRun copies the run's terminal state onto its task, which is what
-// the real store does and what callers assert on after a cancel or a failure.
-func (m *MockTaskRunStore) SyncTaskFromRun(_ context.Context, taskRunID string) error {
+func (m *MockTaskRunStore) syncTaskFromRun(_ context.Context, taskRunID string) error {
 	for i := range m.Runs {
 		if m.Runs[i].ID != taskRunID {
 			continue
