@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -334,11 +335,11 @@ func TestIssueFlowOutputs_ArtifactsPublishedByARun(t *testing.T) {
 		CreatedBy: "u1", CreatedAt: time.Unix(200, 0).UTC(), LastRunID: &runID,
 	}}
 	fx.taskRuns.Runs = []model.TaskRun{{ID: runID, TaskID: taskID, Status: "SUCCEEDED", CreatedAt: time.Unix(200, 0).UTC()}}
-	if _, err := fx.published.CreateArtifact(context.Background(), model.CreateArtifactInput{
+	if _, err := fx.published.CreateArtifact(context.Background(), coreartifact.CreateInput{
 		TeamID: fx.personalID, ArtifactID: "ar_published", Filename: "report.pdf",
 		MediaType: "application/pdf", SizeBytes: 2048,
-		SourceType: model.ArtifactSourceAgent, SourceID: runID,
-		CreatedByType: model.ArtifactCreatorAgent, Title: "Quarterly report",
+		SourceType: coreartifact.SourceAgent, SourceID: runID,
+		CreatedByType: coreartifact.CreatorAgent, Title: "Quarterly report",
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -414,10 +415,10 @@ func TestIssueFlowOutputs_ArtifactsSurviveARetry(t *testing.T) {
 		{"ar_from_first", firstRun, "draft.pdf"},
 		{"ar_from_second", secondRun, "final.pdf"},
 	} {
-		if _, err := fx.published.CreateArtifact(context.Background(), model.CreateArtifactInput{
+		if _, err := fx.published.CreateArtifact(context.Background(), coreartifact.CreateInput{
 			TeamID: fx.personalID, ArtifactID: c.id, Filename: c.name,
-			SourceType: model.ArtifactSourceAgent, SourceID: c.run,
-			CreatedByType: model.ArtifactCreatorAgent,
+			SourceType: coreartifact.SourceAgent, SourceID: c.run,
+			CreatedByType: coreartifact.CreatorAgent,
 		}); err != nil {
 			t.Fatal(err)
 		}

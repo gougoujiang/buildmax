@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
@@ -44,7 +45,7 @@ type artifactListResponse struct {
 
 // toResponse builds the wire form by hand so model fields cannot become API
 // fields merely by being added to the stored entity.
-func toResponse(a *model.Artifact) artifactResponse {
+func toResponse(a *coreartifact.Artifact) artifactResponse {
 	out := artifactResponse{
 		ID:            a.ID,
 		TeamID:        a.TeamID,
@@ -97,7 +98,7 @@ func (h *Handler) teamCaller(w http.ResponseWriter, r *http.Request) (userID, te
 //
 // Absent, tombstoned, and not-yours are answered identically on purpose: the
 // three are the same fact to anyone who should not have it.
-func (h *Handler) resolve(w http.ResponseWriter, r *http.Request) (*model.Artifact, string, bool) {
+func (h *Handler) resolve(w http.ResponseWriter, r *http.Request) (*coreartifact.Artifact, string, bool) {
 	userID, ok := h.guard().ActiveUser(w, r)
 	if !ok {
 		return nil, "", false
@@ -174,7 +175,7 @@ func (h *Handler) deleteArtifactHandler(w http.ResponseWriter, r *http.Request) 
 		httputil.WriteJSONError(w, http.StatusForbidden, "not allowed to delete this artifact")
 		return
 	}
-	if err := svc.Delete(r.Context(), rec, model.ArtifactCreatorUser, userID); err != nil {
+	if err := svc.Delete(r.Context(), rec, coreartifact.CreatorUser, userID); err != nil {
 		if errors.Is(err, artifactsvc.ErrNotFound) {
 			httputil.WriteJSONError(w, http.StatusNotFound, notFoundMessage)
 			return
@@ -192,9 +193,9 @@ func (h *Handler) deleteArtifactHandler(w http.ResponseWriter, r *http.Request) 
 // uploaded themselves, and an admin or owner may remove anything the team
 // holds. A member cannot delete a colleague's file, and cannot delete what a
 // run produced, because neither is theirs to withdraw.
-func mayDelete(role, userID string, rec *model.Artifact) bool {
+func mayDelete(role, userID string, rec *coreartifact.Artifact) bool {
 	if role == model.TeamRoleAdmin || role == model.TeamRoleOwner {
 		return true
 	}
-	return rec.CreatedByType == model.ArtifactCreatorUser && rec.CreatedByID == userID && userID != ""
+	return rec.CreatedByType == coreartifact.CreatorUser && rec.CreatedByID == userID && userID != ""
 }

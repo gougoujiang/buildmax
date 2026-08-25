@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
 )
@@ -30,8 +30,8 @@ func (h *Handler) uploadArtifactHandler(w http.ResponseWriter, r *http.Request) 
 	}
 	ReceiveUpload(w, r, svc, ReceiveInput{
 		TeamID:        teamID,
-		SourceType:    model.ArtifactSourceUserUpload,
-		CreatedByType: model.ArtifactCreatorUser,
+		SourceType:    coreartifact.SourceUserUpload,
+		CreatedByType: coreartifact.CreatorUser,
 		CreatedByID:   userID,
 	})
 }
@@ -47,8 +47,8 @@ func (h *Handler) uploadToDefaultTeamHandler(w http.ResponseWriter, r *http.Requ
 	}
 	ReceiveUpload(w, r, svc, ReceiveInput{
 		TeamID:        teamID,
-		SourceType:    model.ArtifactSourceUserUpload,
-		CreatedByType: model.ArtifactCreatorUser,
+		SourceType:    coreartifact.SourceUserUpload,
+		CreatedByType: coreartifact.CreatorUser,
 		CreatedByID:   userID,
 	})
 }

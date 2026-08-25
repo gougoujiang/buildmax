@@ -53,7 +53,7 @@ const maxFilenameLen = 255
 
 // Service creates, reads, lists, and tombstones artifacts.
 type Service struct {
-	Artifacts model.ArtifactStore
+	Artifacts coreartifact.Store
 	Storage   ContentStore
 	// Audit records that a file entered or left a team's keeping. Nil records
 	// nothing, which is what a deployment without a database has.
@@ -115,7 +115,7 @@ type CreateInput struct {
 // durable, and every failure path removes whatever was written. A caller that
 // gets an error has no artifact, and nothing is left addressable that a record
 // does not describe.
-func (s *Service) Create(ctx context.Context, in CreateInput) (*model.Artifact, error) {
+func (s *Service) Create(ctx context.Context, in CreateInput) (*coreartifact.Artifact, error) {
 	if !s.Available() {
 		return nil, ErrNotConfigured
 	}
@@ -161,7 +161,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*model.Artifact, 
 		return nil, apierr.Detail(ErrTooLarge, "limit is %d bytes", limit)
 	}
 
-	rec, err := s.Artifacts.CreateArtifact(ctx, model.CreateArtifactInput{
+	rec, err := s.Artifacts.CreateArtifact(ctx, coreartifact.CreateInput{
 		TeamID:        in.TeamID,
 		ArtifactID:    artifactID,
 		Filename:      filename,
@@ -196,7 +196,7 @@ func (s *Service) discard(ctx context.Context, ref coreartifact.Ref) {
 
 // Get returns a live artifact. A tombstoned one is reported as absent, so
 // deletion takes effect here rather than at each caller.
-func (s *Service) Get(ctx context.Context, artifactID string) (*model.Artifact, error) {
+func (s *Service) Get(ctx context.Context, artifactID string) (*coreartifact.Artifact, error) {
 	if !s.Available() {
 		return nil, ErrNotConfigured
 	}
@@ -211,7 +211,7 @@ func (s *Service) Get(ctx context.Context, artifactID string) (*model.Artifact, 
 }
 
 // Open returns the artifact's content stream, which the caller closes.
-func (s *Service) Open(ctx context.Context, rec *model.Artifact) (io.ReadCloser, error) {
+func (s *Service) Open(ctx context.Context, rec *coreartifact.Artifact) (io.ReadCloser, error) {
 	if !s.Available() {
 		return nil, ErrNotConfigured
 	}
@@ -229,7 +229,7 @@ func (s *Service) Open(ctx context.Context, rec *model.Artifact) (io.ReadCloser,
 }
 
 // List returns a team's live artifacts, newest first, with the total.
-func (s *Service) List(ctx context.Context, teamID string, limit, offset int) ([]model.Artifact, int, error) {
+func (s *Service) List(ctx context.Context, teamID string, limit, offset int) ([]coreartifact.Artifact, int, error) {
 	if !s.Available() {
 		return nil, 0, ErrNotConfigured
 	}
@@ -239,7 +239,7 @@ func (s *Service) List(ctx context.Context, teamID string, limit, offset int) ([
 // ListBySource returns what the given operations published, keyed by source ID.
 // A work object uses it to show what its runs produced without becoming their
 // owner.
-func (s *Service) ListBySource(ctx context.Context, sourceIDs []string) (map[string][]model.Artifact, error) {
+func (s *Service) ListBySource(ctx context.Context, sourceIDs []string) (map[string][]coreartifact.Artifact, error) {
 	if !s.Available() {
 		return nil, ErrNotConfigured
 	}
@@ -252,7 +252,7 @@ func (s *Service) ListBySource(ctx context.Context, sourceIDs []string) (map[str
 // deletion take effect at the authorization boundary immediately, which is the
 // property that matters; reclaiming the object is retention's job and can be
 // slower than the request that asked for it.
-func (s *Service) Delete(ctx context.Context, rec *model.Artifact, actorType, actorID string) error {
+func (s *Service) Delete(ctx context.Context, rec *coreartifact.Artifact, actorType, actorID string) error {
 	if !s.Available() {
 		return ErrNotConfigured
 	}
@@ -276,7 +276,7 @@ func (s *Service) Delete(ctx context.Context, rec *model.Artifact, actorType, ac
 // audit records a metadata-only event. The detail is the source type or empty:
 // a filename or a caller's title is content, and content does not go in the
 // trail.
-func (s *Service) audit(ctx context.Context, rec *model.Artifact, action, detail string) {
+func (s *Service) audit(ctx context.Context, rec *coreartifact.Artifact, action, detail string) {
 	if s.Audit == nil || rec == nil {
 		return
 	}
@@ -293,9 +293,9 @@ func (s *Service) audit(ctx context.Context, rec *model.Artifact, action, detail
 
 func auditActorFor(createdByType string) string {
 	switch createdByType {
-	case model.ArtifactCreatorUser:
+	case coreartifact.CreatorUser:
 		return model.AuditActorUser
-	case model.ArtifactCreatorAgent, model.ArtifactCreatorWorker:
+	case coreartifact.CreatorAgent, coreartifact.CreatorWorker:
 		return model.AuditActorWorker
 	default:
 		return model.AuditActorSystem

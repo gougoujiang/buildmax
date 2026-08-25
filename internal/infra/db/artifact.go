@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
 	"github.com/gougoujiang/buildmax/internal/util"
 	"gorm.io/gorm"
 )
@@ -53,11 +53,11 @@ func (s *Store) artifactSelect(ctx context.Context) *gorm.DB {
 		Joins("INNER JOIN team t ON t.id = artifact.team_id")
 }
 
-func toArtifact(row *artifactReadRow) *model.Artifact {
+func toArtifact(row *artifactReadRow) *coreartifact.Artifact {
 	if row == nil {
 		return nil
 	}
-	return &model.Artifact{
+	return &coreartifact.Artifact{
 		ID:            row.Row.PublicID,
 		TeamID:        row.TeamPublicID,
 		Filename:      row.Row.Filename,
@@ -76,8 +76,8 @@ func toArtifact(row *artifactReadRow) *model.Artifact {
 	}
 }
 
-func toArtifacts(rows []artifactReadRow) []model.Artifact {
-	out := make([]model.Artifact, len(rows))
+func toArtifacts(rows []artifactReadRow) []coreartifact.Artifact {
+	out := make([]coreartifact.Artifact, len(rows))
 	for i := range rows {
 		out[i] = *toArtifact(&rows[i])
 	}
@@ -86,7 +86,7 @@ func toArtifacts(rows []artifactReadRow) []model.Artifact {
 
 // CreateArtifact records one artifact. The ID is supplied by the caller, which
 // reserved it before streaming so the storage key could be derived from it.
-func (s *Store) CreateArtifact(ctx context.Context, in model.CreateArtifactInput) (*model.Artifact, error) {
+func (s *Store) CreateArtifact(ctx context.Context, in coreartifact.CreateInput) (*coreartifact.Artifact, error) {
 	teamKey, err := lookupKey(ctx, s.db, "team", in.TeamID)
 	if err != nil {
 		return nil, err
@@ -118,7 +118,7 @@ func (s *Store) CreateArtifact(ctx context.Context, in model.CreateArtifactInput
 
 // GetArtifact returns the artifact including a tombstoned one; the caller
 // decides what a deleted artifact means for its route.
-func (s *Store) GetArtifact(ctx context.Context, artifactID string) (*model.Artifact, error) {
+func (s *Store) GetArtifact(ctx context.Context, artifactID string) (*coreartifact.Artifact, error) {
 	id, ok := util.CanonicalPublicID(artifactID)
 	if !ok {
 		return nil, nil
@@ -135,7 +135,7 @@ func (s *Store) GetArtifact(ctx context.Context, artifactID string) (*model.Arti
 }
 
 // ListArtifactsByTeam returns the team's live artifacts, newest first.
-func (s *Store) ListArtifactsByTeam(ctx context.Context, teamID string, limit, offset int) ([]model.Artifact, int, error) {
+func (s *Store) ListArtifactsByTeam(ctx context.Context, teamID string, limit, offset int) ([]coreartifact.Artifact, int, error) {
 	limit, offset = capPage(limit, offset)
 	teamKey, err := lookupKey(ctx, s.db, "team", teamID)
 	if errors.Is(err, apierr.ErrNotFound) {
@@ -165,9 +165,9 @@ func (s *Store) ListArtifactsByTeam(ctx context.Context, teamID string, limit, o
 //
 // Sources with nothing published are absent from the map rather than present
 // with an empty slice, so a caller has to treat a miss as "produced none".
-func (s *Store) ListArtifactsBySource(ctx context.Context, sourceIDs []string) (map[string][]model.Artifact, error) {
+func (s *Store) ListArtifactsBySource(ctx context.Context, sourceIDs []string) (map[string][]coreartifact.Artifact, error) {
 	if len(sourceIDs) == 0 {
-		return map[string][]model.Artifact{}, nil
+		return map[string][]coreartifact.Artifact{}, nil
 	}
 	var list []artifactReadRow
 	err := s.artifactSelect(ctx).
@@ -177,7 +177,7 @@ func (s *Store) ListArtifactsBySource(ctx context.Context, sourceIDs []string) (
 	if err != nil {
 		return nil, err
 	}
-	out := make(map[string][]model.Artifact, len(sourceIDs))
+	out := make(map[string][]coreartifact.Artifact, len(sourceIDs))
 	for i := range list {
 		out[list[i].Row.SourceID] = append(out[list[i].Row.SourceID], *toArtifact(&list[i]))
 	}

@@ -1,4 +1,4 @@
-package model
+package artifact
 
 import (
 	"context"
@@ -48,30 +48,30 @@ func (a *Artifact) Deleted() bool { return a != nil && a.DeletedAt != nil }
 // Artifact source types record which operation produced the file. They are
 // persisted, so they are permanent in the same way audit actions are.
 const (
-	// ArtifactSourceAgent is an agent that chose to publish a file. SourceID is
+	// SourceAgent is an agent that chose to publish a file. SourceID is
 	// its run or session ID where one is known.
-	ArtifactSourceAgent = "agent"
-	// ArtifactSourceTaskRun is a worker's run output. SourceID is the task run.
-	ArtifactSourceTaskRun = "task_run"
-	// ArtifactSourceUserUpload is a member uploading a file directly.
-	ArtifactSourceUserUpload = "user_upload"
-	// ArtifactSourceSystem is BuildMax generating a file with no agent call.
-	ArtifactSourceSystem = "system"
+	SourceAgent = "agent"
+	// SourceTaskRun is a worker's run output. SourceID is the task run.
+	SourceTaskRun = "task_run"
+	// SourceUserUpload is a member uploading a file directly.
+	SourceUserUpload = "user_upload"
+	// SourceSystem is BuildMax generating a file with no agent call.
+	SourceSystem = "system"
 )
 
 // Artifact creator kinds. These answer "what kind of actor", not "which user":
 // automated work does not get a person's ID invented for it, which is the same
 // rule the audit trail follows.
 const (
-	ArtifactCreatorUser   = "user"
-	ArtifactCreatorAgent  = "agent"
-	ArtifactCreatorWorker = "worker"
-	ArtifactCreatorSystem = "system"
+	CreatorUser   = "user"
+	CreatorAgent  = "agent"
+	CreatorWorker = "worker"
+	CreatorSystem = "system"
 )
 
-// CreateArtifactInput is everything the store needs to record one artifact.
+// CreateInput is everything the store needs to record one artifact.
 // The caller has already stored the content and measured it.
-type CreateArtifactInput struct {
+type CreateInput struct {
 	TeamID        string
 	ArtifactID    string
 	Filename      string
@@ -87,13 +87,13 @@ type CreateArtifactInput struct {
 	ExpiresAt     *time.Time
 }
 
-// ArtifactStore persists artifact metadata.
+// Store persists artifact metadata.
 //
 // It knows nothing about task runs, issues, or conversations. Provenance
 // reaches it as two opaque strings, which is what keeps an artifact from
 // acquiring an owner it should not have.
-type ArtifactStore interface {
-	CreateArtifact(ctx context.Context, in CreateArtifactInput) (*Artifact, error)
+type Store interface {
+	CreateArtifact(ctx context.Context, in CreateInput) (*Artifact, error)
 	// GetArtifact returns the artifact by its ar_ ID, or (nil, nil) when there
 	// is none. A tombstoned artifact is returned, not hidden: the caller has to
 	// tell "never existed" from "deleted" to answer either one correctly.
@@ -107,22 +107,4 @@ type ArtifactStore interface {
 	// SoftDeleteArtifact tombstones the artifact and reports whether it changed
 	// anything, so a repeat delete is distinguishable from a first one.
 	SoftDeleteArtifact(ctx context.Context, artifactID string, deletedAt time.Time) (bool, error)
-}
-
-// TaskRunArtifact is one output file (artifact) for a task run.
-type TaskRunArtifact struct {
-	TaskRunID    string `json:"task_run_id"`
-	RelativePath string `json:"relative_path"`
-}
-
-// ArtifactWithTask is a DTO for listing run outputs (artifacts) with task/run context.
-// ArtifactID holds task_run_id for API compatibility.
-type ArtifactWithTask struct {
-	ArtifactID       string    `json:"artifact_id"`
-	TaskID           string    `json:"task_id"`
-	TaskRunID        string    `json:"task_run_id"`
-	ConversationID   string    `json:"conversation_id"`
-	UserID           string    `json:"user_id"`
-	CreatedAt        time.Time `json:"created_at"`
-	TaskInputSnippet string    `json:"task_input_snippet"`
 }
