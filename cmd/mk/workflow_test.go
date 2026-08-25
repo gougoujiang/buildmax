@@ -99,16 +99,29 @@ func TestReleaseRoutesActions(t *testing.T) {
 	}
 }
 
-func TestCommonHelpStaysFocused(t *testing.T) {
-	rows := commonHelpRows()
-	if len(rows) != 7 {
-		t.Fatalf("common help has %d rows; want 7", len(rows))
-	}
-	hidden := map[string]bool{"bump": true, "deploy": true, "setup": true, "npm-licenses": true}
-	for _, row := range rows {
-		if hidden[strings.Fields(row.name)[0]] {
-			t.Errorf("advanced command %q appears in common help", row.name)
+// TestDefaultHelpListsEveryCommand pins what the bare `help` is for. It used to
+// print six commands, which left `eval`, `models`, and the deployment tasks
+// discoverable only by someone who already knew to ask for more.
+func TestDefaultHelpListsEveryCommand(t *testing.T) {
+	out := captureStdout(t, usage)
+	for _, name := range helpCommandNames() {
+		if !strings.Contains(out, "  "+name) {
+			t.Errorf("bare help does not list %q", name)
 		}
+	}
+	for _, want := range []string{"Typical contribution path:", mk() + " check ci", mk() + " help <command>"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("bare help does not mention %q", want)
+		}
+	}
+	// `all` was the old spelling for this list and still reaches it.
+	alias := captureStdout(t, func() {
+		if err := cmdHelp([]string{"all"}); err != nil {
+			t.Fatalf("cmdHelp(all) = %v", err)
+		}
+	})
+	if alias != out {
+		t.Error("`help all` prints something other than the bare help list")
 	}
 }
 
@@ -141,9 +154,6 @@ func TestEveryCommandHasAHelpTopic(t *testing.T) {
 	for _, name := range helpCommandNames() {
 		listed[name] = true
 	}
-	// help is the one topic the tables carry as `help <command>` rather than as
-	// a section row of its own, so it is checked by name.
-	listed["help"] = true
 	for _, topic := range helpTopics() {
 		if !listed[topic.name] {
 			t.Errorf("topic %q is not listed by any help table, so nothing points at it", topic.name)
