@@ -18,7 +18,7 @@ const (
 	ChannelIssueAgent = "issue_agent"
 )
 
-// SyntheticChannels are the channels of conversations that exist only to
+// SyntheticChannels returns the channels of conversations that exist only to
 // satisfy the schema.
 //
 // They are kept out of the conversation list rather than deleted: a workflow
@@ -28,7 +28,9 @@ const (
 //
 // It is a deny-list rather than "anything that is not a transport" so that
 // adding a real channel does not silently hide it.
-var SyntheticChannels = []string{ChannelWorkflow, ChannelIssueAgent}
+func SyntheticChannels() []string {
+	return []string{ChannelWorkflow, ChannelIssueAgent}
+}
 
 // Conversation is the Tier 1 conversation container.
 type Conversation struct {

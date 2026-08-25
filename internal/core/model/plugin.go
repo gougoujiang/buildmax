@@ -1,11 +1,8 @@
 package model
 
 import (
-	"context"
 	"errors"
 	"time"
-
-	"github.com/gougoujiang/buildmax/internal/core/plugin/inspect"
 )
 
 // ErrPluginNameTaken is returned when a catalog entry already claims a name.
@@ -83,20 +80,46 @@ func (r PluginRelease) Yanked() bool { return r.YankedAt != nil }
 
 // PluginInspection is what a release says it contributes.
 //
-// It reuses the sanitized shapes from the inspector, so what a catalog stores
-// is exactly what that inspection was allowed to carry: names, transports,
-// executables, and hosts — never arguments, header values, environment values,
-// prompts, or file contents.
+// Its shapes deliberately contain only what a catalog may store: names,
+// transports, executables, and hosts — never arguments, header values,
+// environment values, prompts, or file contents.
 type PluginInspection struct {
-	Skills      []string            `json:"skills,omitempty"`
-	Subagents   []inspect.Subagent  `json:"subagents,omitempty"`
-	MCP         []inspect.MCPServer `json:"mcp,omitempty"`
-	Hooks       []inspect.Hook      `json:"hooks,omitempty"`
-	EnvRefs     []string            `json:"env_refs,omitempty"`
-	PluginPaths []string            `json:"plugin_paths,omitempty"`
+	Skills      []string          `json:"skills,omitempty"`
+	Subagents   []PluginSubagent  `json:"subagents,omitempty"`
+	MCP         []PluginMCPServer `json:"mcp,omitempty"`
+	Hooks       []PluginHook      `json:"hooks,omitempty"`
+	EnvRefs     []string          `json:"env_refs,omitempty"`
+	PluginPaths []string          `json:"plugin_paths,omitempty"`
 	// Warnings are the findings that did not stop publication, kept so an
 	// installer can show what a publisher chose to accept.
 	Warnings []string `json:"warnings,omitempty"`
+}
+
+// PluginSubagent is the catalog-safe part of one contributed subagent. Its
+// prompt is deliberately absent.
+type PluginSubagent struct {
+	Name  string   `json:"name"`
+	Tools []string `json:"tools,omitempty"`
+	Model string   `json:"model,omitempty"`
+}
+
+// PluginMCPServer is the catalog-safe part of one contributed MCP server.
+type PluginMCPServer struct {
+	ID         string `json:"id"`
+	Transport  string `json:"transport"`
+	Executable string `json:"executable,omitempty"`
+	Host       string `json:"host,omitempty"`
+}
+
+// PluginHook is the catalog-safe part of one contributed hook.
+type PluginHook struct {
+	Event      string `json:"event"`
+	Type       string `json:"type"`
+	Matcher    string `json:"matcher,omitempty"`
+	Executable string `json:"executable,omitempty"`
+	Host       string `json:"host,omitempty"`
+	MCPServer  string `json:"mcp_server,omitempty"`
+	MCPTool    string `json:"mcp_tool,omitempty"`
 }
 
 // PluginReleaseSource is the publisher's claim about where the bytes came from.
@@ -139,35 +162,4 @@ type CreatePluginReleaseInput struct {
 	Inspection         PluginInspection
 	Source             PluginReleaseSource
 	PublishedBy        string
-}
-
-// PluginStore persists the deployment's plugin catalog.
-//
-// Package bytes are not here: they live behind the object store, so a query
-// that lists or inspects releases can never carry one.
-type PluginStore interface {
-	// CreatePlugin adds a catalog entry, or returns ErrPluginNameTaken.
-	CreatePlugin(ctx context.Context, in CreatePluginInput) (*Plugin, error)
-	// GetPlugin returns one entry by name, or (nil, nil) when there is none.
-	GetPlugin(ctx context.Context, name string) (*Plugin, error)
-	// ListPlugins returns entries oldest first, archived ones only when asked.
-	ListPlugins(ctx context.Context, includeArchived bool) ([]Plugin, error)
-	// UpdatePlugin changes display metadata, or returns ErrNotFound.
-	UpdatePlugin(ctx context.Context, name string, in UpdatePluginInput) (*Plugin, error)
-	// SetPluginArchived retires or restores an entry, or returns ErrNotFound.
-	SetPluginArchived(ctx context.Context, name string, archived bool) error
-
-	// CreatePluginRelease publishes one version. It returns
-	// ErrPluginVersionExists when that version is already published,
-	// ErrPluginArchived when the entry is retired, and ErrNotFound when there
-	// is no such entry.
-	CreatePluginRelease(ctx context.Context, in CreatePluginReleaseInput) (*PluginRelease, error)
-	// GetPluginRelease returns one version, or (nil, nil) when there is none.
-	GetPluginRelease(ctx context.Context, name, version string) (*PluginRelease, error)
-	// ListPluginReleases returns every release of one plugin, oldest first,
-	// including yanked ones: choosing between them is the caller's job.
-	ListPluginReleases(ctx context.Context, name string) ([]PluginRelease, error)
-	// YankPluginRelease withdraws a release from default selection, or returns
-	// ErrNotFound.
-	YankPluginRelease(ctx context.Context, name, version, actor, reason string) error
 }

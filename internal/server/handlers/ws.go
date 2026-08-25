@@ -49,7 +49,7 @@ func (h *Handler) connDeps() wsconn.ConnDeps {
 	return wsconn.ConnDeps{
 		Conversations: h.cfg.ConversationStore,
 		Turns:         h.turns,
-		Turner:        h.conversationService(),
+		Turner:        h.conversations,
 		Registry:      h.connRegistry,
 		CORSOrigin:    h.cfg.CORSOrigin,
 	}

@@ -157,7 +157,7 @@ func (a *App) GetSlashAgents(projectID string) (SlashAgentsResult, error) {
 		return SlashAgentsResult{}, err
 	}
 	var agents []SlashAgentEntry
-	for _, def := range tools.BuiltinSubAgentDefs {
+	for _, def := range tools.BuiltinSubAgentDefs() {
 		agents = append(agents, SlashAgentEntry{
 			Name:        def.Name,
 			Description: def.Description,

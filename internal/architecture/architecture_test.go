@@ -51,13 +51,10 @@ var importRules = []struct {
 		},
 	},
 	{
-		// agentapp is deliberately absent: service/conversation/runtime imports
-		// it for NewNonInteractivePolicy, and that one call is the whole
-		// dependency. Removable, but real — and a rule that fails on main
-		// teaches contributors to skip the suite.
 		name: "service is reached by transports, not the reverse",
 		dir:  "internal/service",
 		forbidden: []string{
+			"github.com/gougoujiang/buildmax/internal/agentapp",
 			"github.com/gougoujiang/buildmax/internal/bootstrap",
 			"github.com/gougoujiang/buildmax/internal/interface",
 			"github.com/gougoujiang/buildmax/internal/server",
@@ -123,6 +120,42 @@ func TestNoInternalTypeAliases(t *testing.T) {
 			return true
 		})
 	}
+}
+
+// Exported package variables let any importer replace process-wide behavior.
+// Sentinels follow Go's errors.Is convention; other shared values are exposed
+// as constants or functions returning copies.
+func TestNoExportedMutablePackageState(t *testing.T) {
+	root := moduleRoot(t)
+	for _, path := range goFiles(t, filepath.Join(root, "internal")) {
+		if strings.HasSuffix(path, "_test.go") {
+			continue
+		}
+		f := parseFile(t, path)
+		for _, decl := range f.Decls {
+			gen, ok := decl.(*ast.GenDecl)
+			if !ok || gen.Tok != token.VAR {
+				continue
+			}
+			for _, spec := range gen.Specs {
+				value := spec.(*ast.ValueSpec)
+				for _, name := range value.Names {
+					if ast.IsExported(name.Name) && !allowedExportedPackageVar(rel(root, path), name.Name) {
+						t.Errorf("%s exports mutable package variable %s; use a constant or a function returning a copy", rel(root, path), name.Name)
+					}
+				}
+			}
+		}
+	}
+}
+
+func allowedExportedPackageVar(path, name string) bool {
+	if strings.HasPrefix(name, "Err") {
+		return true
+	}
+	// GoReleaser writes these two through -ldflags; constants cannot be link
+	// targets. They are immutable after process startup.
+	return path == "internal/config/version.go" && (name == "Version" || name == "Commit")
 }
 
 // Reached from production code, each of these is either a shipped capability

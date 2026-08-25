@@ -1,4 +1,4 @@
-package archive
+package pluginarchive
 
 import (
 	"archive/tar"
@@ -14,7 +14,7 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/gougoujiang/buildmax/internal/core/plugin/inspect"
+	inspect "github.com/gougoujiang/buildmax/internal/service/plugininspect"
 )
 
 func file(body string) *fstest.MapFile { return &fstest.MapFile{Data: []byte(body)} }

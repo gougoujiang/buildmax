@@ -66,20 +66,24 @@ func taskToResponse(task model.Task) TaskResponse {
 }
 
 func (h *Handler) taskService() *task.Service {
+	return h.tasks
+}
+
+func newTaskService(cfg Config) *task.Service {
 	var quotaChecker task.QuotaChecker
-	if h.cfg.Quota != nil {
-		quotaChecker = h.cfg.Quota
+	if cfg.Quota != nil {
+		quotaChecker = cfg.Quota
 	}
 	var workflowSteps task.WorkflowStepLookup
-	if h.cfg.Workflows != nil {
-		workflowSteps = h.cfg.Workflows
+	if cfg.Workflows != nil {
+		workflowSteps = cfg.Workflows
 	}
 	return &task.Service{
-		Agents:         h.cfg.Agents,
-		Tasks:          h.cfg.Tasks,
-		TaskRuns:       h.cfg.TaskRuns,
+		Agents:         cfg.Agents,
+		Tasks:          cfg.Tasks,
+		TaskRuns:       cfg.TaskRuns,
 		QuotaChecker:   quotaChecker,
-		TitleGenerator: h.cfg.TitleGenerator,
+		TitleGenerator: cfg.TitleGenerator,
 		WorkflowSteps:  workflowSteps,
 	}
 }
@@ -440,7 +444,7 @@ func (h *Handler) cancelTaskHandler(w http.ResponseWriter, r *http.Request) {
 // runs.
 func (h *Handler) finishUndispatchedRun(r *http.Request, taskRunID string, endedAt time.Time) bool {
 	message := "this run was canceled before it started"
-	claimed, err := h.cfg.TaskRuns.ClaimTaskRun(r.Context(), model.ClaimTaskRunInput{
+	claimed, err := h.cfg.TaskRuns.TransitionTaskRun(r.Context(), model.TransitionTaskRunInput{
 		TaskRunID:      taskRunID,
 		ExpectedStatus: model.RunStatusPending,
 		NewStatus:      model.RunStatusCanceled,
@@ -453,9 +457,6 @@ func (h *Handler) finishUndispatchedRun(r *http.Request, taskRunID string, ended
 	}
 	if !claimed {
 		return false
-	}
-	if err := h.cfg.TaskRuns.SyncTaskFromRun(r.Context(), taskRunID); err != nil {
-		slog.Warn("could not sync a task from its canceled run", "task_run_id", taskRunID, "err", err)
 	}
 	h.runAnnouncer().Announce(r.Context(), taskRunID, string(model.RunStatusCanceled), nil, &message)
 	return true

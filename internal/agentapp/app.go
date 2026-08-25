@@ -15,7 +15,6 @@ import (
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/plugin"
 	"github.com/gougoujiang/buildmax/internal/core/session"
-	"github.com/gougoujiang/buildmax/internal/infra/hook"
 	llm "github.com/gougoujiang/buildmax/internal/infra/llm"
 	"github.com/gougoujiang/buildmax/internal/infra/llmremote"
 	"github.com/gougoujiang/buildmax/internal/infra/sandbox"
@@ -45,7 +44,7 @@ type AppConfig struct {
 	// every prompt goes. See docs/design/client-modes.md section 4.
 	ManagedServerURL string
 	// Policy sets the tool permission policy for all runs in this AgentApp.
-	// Nil defaults to AllowAllPolicy for backward compatibility.
+	// Nil defaults to agent.AllowAllPolicy for backward compatibility.
 	Policy agent.ToolPolicy
 	// SandboxSurface picks the per-surface default sandbox baseline (see
 	// config.SandboxSurfaceCLI / SandboxSurfaceWorker). Empty means
@@ -271,7 +270,9 @@ type RunResult struct {
 	Digest TurnDigest
 }
 
-type RunStatus struct {
+// RunUsage is the current context occupancy and token/cost accounting for an
+// agent run. Task lifecycle state is model.RunStatus; this type carries none.
+type RunUsage struct {
 	ContextTokens         int `json:"context_tokens"`
 	ContextWindow         int `json:"context_window"`
 	PromptTokens          int `json:"prompt_tokens"`
@@ -369,118 +370,11 @@ func (a *AgentApp) effectiveAdditionalPrompt(sess *SessionContext) string {
 }
 
 func NewAgentApp(cfg AppConfig) (*AgentApp, error) {
-	workspaceRoot, err := resolveWorkspaceRoot(cfg.WorkspaceDir)
+	resolved, err := resolveAgentAppConfig(cfg)
 	if err != nil {
 		return nil, err
 	}
-	if err := ValidateAdditionalSystemPrompt(cfg.AdditionalSystemPrompt); err != nil {
-		return nil, err
-	}
-	settings, err := config.LoadSettings()
-	if err != nil {
-		return nil, fmt.Errorf("load settings: %w", err)
-	}
-	if len(cfg.ModelEntries) > 0 {
-		// A supplied list replaces settings.yaml's outright, default included:
-		// in managed mode the deployment says which of its models is the
-		// default, and a name from the local file would select nothing here.
-		settings.Models = append([]config.ModelEntry(nil), cfg.ModelEntries...)
-		settings.DefaultModel = cfg.DefaultModel
-	}
-	// Resolved once, here: every layer below reads the same inventory, and a
-	// plugin installed later must not change a runtime already assembled.
-	pluginSnapshot := discoverPlugins()
-	pluginSnapshot.resolveBase(context.Background())
-	loadedPlugins := pluginSnapshot.Loadable()
-
-	wsHooks, err := config.LoadWorkspaceHooks(workspaceRoot)
-	if err != nil {
-		return nil, fmt.Errorf("load workspace hooks: %w", err)
-	}
-	pluginHooks := config.ResolvePluginHooks(loadedPlugins)
-	pluginSnapshot.addFindings(pluginHooks.Findings...)
-	mergedHooks := config.MergeHooks(settings.Hooks, pluginHooks.Config, wsHooks)
-
-	policyCfg, err := config.LoadPolicySandbox()
-	if err != nil {
-		return nil, fmt.Errorf("load policy sandbox: %w", err)
-	}
-	surface := cfg.SandboxSurface
-	if surface == "" {
-		surface = config.SandboxSurfaceCLI
-	}
-	sandboxResolved := config.ResolveSandbox(settings.Sandbox, policyCfg, surface)
-	sandboxManager, err := buildSandboxManager(sandboxResolved, workspaceRoot)
-	if err != nil {
-		return nil, err
-	}
-	var sandboxView agent.SandboxView = sandboxManager
-
-	app := &AgentApp{
-		workspaceRoot:          workspaceRoot,
-		settings:               settings,
-		toolRegistries:         make(map[string]cllm.ToolRegistry),
-		sessionManager:         NewSessionManager(config.SessionsDir()),
-		skillsRegistry:         &SkillRegistry{},
-		subagentsRegistry:      &SubAgentRegistry{},
-		policy:                 NewConfiguredPolicy(config.ResolvePermissions(settings.Tools), cfg.Policy),
-		additionalSystemPrompt: cfg.AdditionalSystemPrompt,
-		artifactPublisher:      cfg.ArtifactPublisher,
-		sandbox:                sandboxView,
-		sandboxManager:         sandboxManager,
-		sandboxResolved:        sandboxResolved,
-		plugins:                pluginSnapshot,
-	}
-	app.llmClients = &LLMClientCache{
-		settings:         app.settings,
-		managedServerURL: cfg.ManagedServerURL,
-		managedToken:     cfg.ManagedToken,
-		managedTaskRunID: cfg.ManagedTaskRunID,
-		surface:          cfg.Surface,
-		clients:          make(map[string]cllm.LLMClient),
-	}
-	if cfg.EnableMCP {
-		mcpRes, err := config.ResolveMCPConfig(app.workspaceRoot, loadedPlugins)
-		if err != nil {
-			return nil, fmt.Errorf("load mcp config: %w", err)
-		}
-		app.plugins.addFindings(mcpRes.Findings...)
-		app.plugins.addShadowed(mcpRes.Shadowed...)
-		app.mcpManager, err = NewMCPManager(context.Background(), mcpRes.Config)
-		if err != nil {
-			return nil, err
-		}
-	}
-	// HookManager wiring happens after MCP + LLMClientCache exist so the
-	// mcp_tool and prompt drivers can be backed by adapters in this package.
-	hookDeps := hook.Deps{LLMCaller: &llmCaller{cache: app.llmClients, defaultModel: app.DefaultModelName}}
-	if app.mcpManager != nil {
-		hookDeps.MCPCaller = &mcpCaller{m: app.mcpManager}
-	}
-	app.hooks = NewHookManager(mergedHooks, hook.NewDriverRegistry(hookDeps))
-
-	if err := app.skillsRegistry.Load(app.workspaceRoot, loadedPlugins); err != nil {
-		return nil, err
-	}
-	if err := app.subagentsRegistry.Load(app.workspaceRoot, loadedPlugins); err != nil {
-		return nil, err
-	}
-	app.plugins.addFindings(app.skillsRegistry.findings...)
-	app.plugins.addShadowed(app.skillsRegistry.shadowed...)
-	app.plugins.addFindings(app.subagentsRegistry.findings...)
-	app.plugins.addShadowed(app.subagentsRegistry.shadowed...)
-	if cfg.EnableBackgroundJobs {
-		app.jobs = job.NewManager()
-		if config.TraceEnabled() {
-			events, _ := app.jobs.Subscribe("")
-			app.jobTraceDone = make(chan struct{})
-			go func() {
-				defer close(app.jobTraceDone)
-				logJobEvents(config.TracesDir(), events)
-			}()
-		}
-	}
-	return app, nil
+	return buildAgentApp(cfg, resolved)
 }
 
 // jobShutdownTimeout bounds how long Close waits for background jobs after
@@ -830,9 +724,9 @@ func (a *AgentApp) sandboxInfo() *agent.SandboxInfo {
 	}
 }
 
-func (a *AgentApp) EstimateRunStatus(sess *SessionContext) (RunStatus, error) {
+func (a *AgentApp) EstimateRunUsage(sess *SessionContext) (RunUsage, error) {
 	if a == nil {
-		return RunStatus{}, fmt.Errorf("app is nil")
+		return RunUsage{}, fmt.Errorf("app is nil")
 	}
 	if sess == nil {
 		sess = NewSessionContext(a.DefaultModelName())
@@ -840,20 +734,20 @@ func (a *AgentApp) EstimateRunStatus(sess *SessionContext) (RunStatus, error) {
 	modelName := sess.ModelName(a.DefaultModelName())
 	client, err := a.llmClients.Get(modelName)
 	if err != nil {
-		return RunStatus{}, err
+		return RunUsage{}, err
 	}
-	return a.estimateRunStatus(sess, modelName, client.ContextWindow()), nil
+	return a.estimateRunUsage(sess, modelName, client.ContextWindow()), nil
 }
 
-func (a *AgentApp) estimateRunStatus(sess *SessionContext, modelName string, contextWindow int) RunStatus {
+func (a *AgentApp) estimateRunUsage(sess *SessionContext, modelName string, contextWindow int) RunUsage {
 	if a == nil || sess == nil {
-		return RunStatus{}
+		return RunUsage{}
 	}
 	// This path does not go through RunLoop, so it renders the compaction block itself to
 	// estimate the real prompt size. It uses the same renderer RunLoop does.
 	systemPrompt := BuildEffectiveSystemPrompt(a.workspaceRoot, modelName, a.effectiveAdditionalPrompt(sess), a.promptCapabilities()) + agent.RenderCompactionBlock(sess.PriorSummary())
 	contextTokens := agent.EstimateMessageTokens(cllm.Message{Role: "system", Content: systemPrompt}) + agent.EstimateTokens(sess.HistoryMessages())
-	return RunStatus{
+	return RunUsage{
 		ContextTokens:         contextTokens,
 		ContextWindow:         contextWindow,
 		TotalPromptTokens:     sess.PromptTokens(),
@@ -1020,7 +914,7 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 				reason = "prompt blocked by hook"
 			}
 			recorder.RecordRunEnd("blocked by hook: " + reason)
-			status := a.estimateRunStatus(sess, modelName, client.ContextWindow())
+			status := a.estimateRunUsage(sess, modelName, client.ContextWindow())
 			return RunResult{
 				Reply:                 reason,
 				Duration:              time.Since(start),
@@ -1099,7 +993,7 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 	if _, err := a.finalizeTurn(sess, client, stats); err != nil {
 		return RunResult{SessionID: sess.ID(), TraceID: recorder.RunID(), TracePath: recorder.Path()}, err
 	}
-	status := a.estimateRunStatus(sess, modelName, client.ContextWindow())
+	status := a.estimateRunUsage(sess, modelName, client.ContextWindow())
 	return RunResult{
 		Reply:                 reply,
 		Duration:              time.Since(start),

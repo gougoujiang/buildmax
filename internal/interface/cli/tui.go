@@ -7,6 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/gougoujiang/buildmax/internal/agentapp"
+	"github.com/gougoujiang/buildmax/internal/core/agent"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/interface/auth"
 	"github.com/muesli/termenv"
@@ -29,7 +30,7 @@ func tuiAppConfig(workspace, additionalSystemPrompt string, source auth.ModelSou
 	return agentapp.AppConfig{
 		WorkspaceDir:           workspace,
 		EnableMCP:              true,
-		Policy:                 agentapp.NewInteractivePolicy(),
+		Policy:                 agent.AllowAllPolicy(),
 		ModelEntries:           source.Entries,
 		DefaultModel:           source.Default,
 		ManagedServerURL:       source.ServerURL,
@@ -77,9 +78,9 @@ func runTUI(resumeID, modelName, additionalSystemPrompt, workspace string) error
 	if modelName != "" {
 		sess.SetModel(modelName)
 	}
-	runStatus, err := app.EstimateRunStatus(sess)
+	runStatus, err := app.EstimateRunUsage(sess)
 	if err != nil {
-		runStatus = agentapp.RunStatus{}
+		runStatus = agentapp.RunUsage{}
 	}
 
 	// Detect terminal color scheme before the program starts so glamour never
@@ -103,6 +104,7 @@ func runTUI(resumeID, modelName, additionalSystemPrompt, workspace string) error
 		RunStatus:    runStatus,
 	}
 	model = NewModel(opts)
+	defer model.Close()
 	p := tea.NewProgram(model)
 	approval.SetProgram(p)
 	if _, err := p.Run(); err != nil {

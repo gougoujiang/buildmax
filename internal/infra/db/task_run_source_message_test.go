@@ -54,12 +54,14 @@ func TestCreateTaskRunPersistsSourceMessage(t *testing.T) {
 	}
 
 	endedAt := time.Unix(1_800_000_000, 0).UTC()
-	if err := s.UpdateRun(ctx, model.UpdateTaskRunInput{
-		TaskRunID: first.ID,
-		Status:    model.RunStatusSucceeded,
-		EndedAt:   &endedAt,
-	}); err != nil {
-		t.Fatalf("UpdateRun: %v", err)
+	startTaskRunForTest(t, s, ctx, first.ID)
+	if updated, err := s.TransitionTaskRun(ctx, model.TransitionTaskRunInput{
+		TaskRunID:      first.ID,
+		ExpectedStatus: model.RunStatusRunning,
+		NewStatus:      model.RunStatusSucceeded,
+		EndedAt:        &endedAt,
+	}); err != nil || !updated {
+		t.Fatalf("TransitionTaskRun to SUCCEEDED: updated=%v err=%v", updated, err)
 	}
 
 	// A continuation is a different request and records the message that made it.

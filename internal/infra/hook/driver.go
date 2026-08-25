@@ -2,10 +2,14 @@ package hook
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	corehook "github.com/gougoujiang/buildmax/internal/core/hook"
 )
+
+// Identity belongs in an attr, not in every message string.
+func componentLog() *slog.Logger { return slog.With("component", "hook") }
 
 // Driver executes one configured hook entry and returns the resulting
 // HookOutput. Implementations are stateless except for cheap caches
@@ -44,4 +48,25 @@ type LLMCaller interface {
 type Deps struct {
 	MCPCaller MCPCaller
 	LLMCaller LLMCaller
+}
+
+// NewDriverRegistry builds the per-type driver map used by the HookManager.
+// Drivers with external dependencies are included only when their caller is
+// available; dispatch then skips the corresponding configured entries.
+func NewDriverRegistry(deps Deps) map[string]Driver {
+	registry := map[string]Driver{
+		corehook.TypeCommand: NewCommandDriver(),
+		corehook.TypeHTTP:    NewHTTPDriver(),
+	}
+	if deps.MCPCaller != nil {
+		registry[corehook.TypeMCP] = NewMCPDriver(deps.MCPCaller)
+	} else {
+		componentLog().Debug("no MCP caller; mcp_tool hooks disabled")
+	}
+	if deps.LLMCaller != nil {
+		registry[corehook.TypePrompt] = NewPromptDriver(deps.LLMCaller)
+	} else {
+		componentLog().Debug("no LLM caller; prompt hooks disabled")
+	}
+	return registry
 }

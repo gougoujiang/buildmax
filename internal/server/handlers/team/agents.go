@@ -8,6 +8,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/server/access"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	"github.com/gougoujiang/buildmax/internal/service/agent"
+	"github.com/gougoujiang/buildmax/internal/service/workflow"
 )
 
 type AgentResponse struct {
@@ -85,14 +86,18 @@ func agentRevisionToResponse(rev model.AgentRevision) agentRevisionResponse {
 }
 
 func (h *Handler) agentService() *agent.Service {
-	svc := &agent.Service{Agents: h.cfg.Agents}
-	if h.cfg.Workflows != nil {
-		svc.Workflows = h.workflowUsage()
+	return h.agents
+}
+
+func newTeamAgentService(cfg Config, workflowUsage *workflow.Service) *agent.Service {
+	svc := &agent.Service{Agents: cfg.Agents}
+	if workflowUsage != nil {
+		svc.Workflows = workflowUsage
 	}
 	// Nil when the deployment has no Marketplace, which is what makes naming a
 	// plugin a refusal there rather than a stored selection nothing resolves.
-	if h.cfg.Plugins != nil && h.cfg.Plugins.Activations != nil {
-		svc.Plugins = h.cfg.Plugins
+	if cfg.Plugins != nil && cfg.Plugins.Activations != nil {
+		svc.Plugins = cfg.Plugins
 	}
 	return svc
 }

@@ -9,7 +9,6 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/server/access"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
-	"github.com/gougoujiang/buildmax/internal/service/conversation"
 	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
 )
 
@@ -72,7 +71,7 @@ func (h *Handler) serveWebhook(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "conversations not configured")
 		return
 	}
-	conv, err := h.cfg.ConversationStore.CreateConversation(r.Context(), resolvedUserID, conversation.ChannelWebhook, turn.UserID)
+	conv, err := h.cfg.ConversationStore.CreateConversation(r.Context(), resolvedUserID, convchannel.ChannelWebhook, turn.UserID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "webhook handler", "handler", "create_conversation")
 		return

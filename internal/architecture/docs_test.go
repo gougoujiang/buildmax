@@ -104,7 +104,7 @@ func TestEnvVarsDocumented(t *testing.T) {
 		t.Fatalf("read configuration reference: %v", err)
 	}
 	doc := string(body)
-	for _, ev := range config.EnvVars {
+	for _, ev := range config.EnvVars() {
 		if !strings.Contains(doc, ev.Name) {
 			t.Errorf("environment variable %s is in config.EnvVars but not in docs/reference/configuration.md", ev.Name)
 		}

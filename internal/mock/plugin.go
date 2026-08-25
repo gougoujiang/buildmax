@@ -9,7 +9,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/infra/objectstore"
 )
 
-// MockPluginStore is an in-memory model.PluginStore for tests.
+// MockPluginStore is an in-memory Marketplace catalog for tests.
 type MockPluginStore struct {
 	plugins  map[string]*model.Plugin
 	releases map[string][]*model.PluginRelease

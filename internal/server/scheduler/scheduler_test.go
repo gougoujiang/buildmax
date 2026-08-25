@@ -10,16 +10,13 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/model"
 )
 
-// spyTaskRunStore records UpdateRun and SyncTaskFromRun calls for tests.
+// spyTaskRunStore records task-run transitions for tests.
 type spyTaskRunStore struct {
 	mu sync.Mutex
 
 	// GetNextPendingTaskRun: return one run on first call, nil thereafter
 	pendingRun   *model.TaskRun
 	pendingCalls int
-
-	// UpdateTaskRunStatusIf: return true for first claim (PENDING→SCHEDULED)
-	statusIfCalls int
 
 	// GetTaskRunWithTask: the task behind pendingRun, or nil to report one missing
 	task *model.Task
@@ -35,7 +32,6 @@ type spyTaskRunStore struct {
 		endedAt      *time.Time
 		errorMessage *string
 	}
-	syncTaskFromRunCalls []string
 }
 
 func newSpyTaskRunStore(taskRunID string) *spyTaskRunStore {
@@ -80,6 +76,9 @@ func (s *spyTaskRunStore) GetNextPendingTaskRun(_ context.Context) (*model.TaskR
 func (s *spyTaskRunStore) GetTaskRun(_ context.Context, _ string) (*model.TaskRun, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.storedRun == nil {
+		return s.pendingRun, nil
+	}
 	return s.storedRun, nil
 }
 
@@ -100,26 +99,31 @@ func (s *spyTaskRunStore) RequestTaskRunCancel(_ context.Context, _, _ string, _
 	return false, nil
 }
 
-func (s *spyTaskRunStore) ClaimTaskRun(_ context.Context, in model.ClaimTaskRunInput) (bool, error) {
+func (s *spyTaskRunStore) TransitionTaskRun(_ context.Context, in model.TransitionTaskRunInput) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.statusIfCalls++
-	if s.statusIfCalls == 1 && in.ExpectedStatus == model.RunStatusPending && in.NewStatus == model.RunStatusScheduled {
-		return true, nil
+	if !model.ValidRunStatusTransition(in.ExpectedStatus, in.NewStatus) {
+		return false, model.ErrInvalidRunTransition
 	}
-	return false, nil
-}
-
-func (s *spyTaskRunStore) UpdateRun(_ context.Context, in model.UpdateTaskRunInput) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.lastUpdateStatus = &struct {
-		taskRunID    string
-		status       string
-		endedAt      *time.Time
-		errorMessage *string
-	}{in.TaskRunID, string(in.Status), in.EndedAt, in.ErrorMessage}
-	return nil
+	var run *model.TaskRun
+	if s.storedRun != nil {
+		run = s.storedRun
+	} else {
+		run = s.pendingRun
+	}
+	if run == nil || run.Status != string(in.ExpectedStatus) {
+		return false, nil
+	}
+	run.Status = string(in.NewStatus)
+	if in.NewStatus == model.RunStatusFailed {
+		s.lastUpdateStatus = &struct {
+			taskRunID    string
+			status       string
+			endedAt      *time.Time
+			errorMessage *string
+		}{in.TaskRunID, string(in.NewStatus), in.EndedAt, in.ErrorMessage}
+	}
+	return true, nil
 }
 
 func (s *spyTaskRunStore) UpdateTaskRunWorkerInfo(_ context.Context, _ string, _ string, _ *string, _ *time.Time) error {
@@ -131,17 +135,6 @@ func (s *spyTaskRunStore) RecordTaskRunAgentRevision(_ context.Context, _ string
 }
 
 func (s *spyTaskRunStore) RecordTaskRunPluginPins(_ context.Context, _ string, _ []model.PluginPin) error {
-	return nil
-}
-
-func (s *spyTaskRunStore) OnRunComplete(_ context.Context, _ string, _ []string) error {
-	return nil
-}
-
-func (s *spyTaskRunStore) SyncTaskFromRun(_ context.Context, taskRunID string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.syncTaskFromRunCalls = append(s.syncTaskFromRunCalls, taskRunID)
 	return nil
 }
 
@@ -214,11 +207,4 @@ func TestScheduler_Loop_SpawnFailure_MarksRunFailed(t *testing.T) {
 		t.Error("UpdateRun errorMessage is nil or empty, want non-empty")
 	}
 
-	// SyncTaskFromRun must have been called with the same taskRunID.
-	if len(spy.syncTaskFromRunCalls) == 0 {
-		t.Fatal("SyncTaskFromRun was not called")
-	}
-	if spy.syncTaskFromRunCalls[0] != taskRunID {
-		t.Errorf("SyncTaskFromRun taskRunID = %q, want %q", spy.syncTaskFromRunCalls[0], taskRunID)
-	}
 }

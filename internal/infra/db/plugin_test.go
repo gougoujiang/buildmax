@@ -10,13 +10,13 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/model"
-	"github.com/gougoujiang/buildmax/internal/core/plugin/inspect"
+	pluginsvc "github.com/gougoujiang/buildmax/internal/service/plugin"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
 
 // The store is the only implementation of the catalog contract, so a mismatch
 // should fail here rather than when the routes are wired.
-var _ model.PluginStore = (*Store)(nil)
+var _ pluginsvc.CatalogStore = (*Store)(nil)
 
 // A report that will not decode costs the report, not the release: the bytes
 // and their digest are still exactly what was published.
@@ -40,7 +40,7 @@ func TestToPluginReleaseSurvivesADamagedDocument(t *testing.T) {
 func TestToPluginReleaseDecodesDocuments(t *testing.T) {
 	inspection, err := json.Marshal(model.PluginInspection{
 		Skills:  []string{"review"},
-		MCP:     []inspect.MCPServer{{ID: "github", Transport: "stdio", Executable: "npx"}},
+		MCP:     []model.PluginMCPServer{{ID: "github", Transport: "stdio", Executable: "npx"}},
 		EnvRefs: []string{"GITHUB_TOKEN"},
 	})
 	if err != nil {

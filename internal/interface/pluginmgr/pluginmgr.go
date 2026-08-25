@@ -19,13 +19,13 @@ import (
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
-	"github.com/gougoujiang/buildmax/internal/core/plugin/archive"
-	"github.com/gougoujiang/buildmax/internal/core/plugin/inspect"
 	"github.com/gougoujiang/buildmax/internal/infra/git"
+	archive "github.com/gougoujiang/buildmax/internal/infra/pluginarchive"
 	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
 	"github.com/gougoujiang/buildmax/internal/interface/auth"
 	"github.com/gougoujiang/buildmax/internal/interface/client"
 	pluginsvc "github.com/gougoujiang/buildmax/internal/service/plugin"
+	inspect "github.com/gougoujiang/buildmax/internal/service/plugininspect"
 )
 
 // Reserved directories inside the plugins directory. Dot-prefixed so discovery

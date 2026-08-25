@@ -32,7 +32,7 @@ type Config struct {
 	// Activations resolves what a run's team activated. Nil means this
 	// deployment cannot, which is a refusal only for an agent that names a
 	// plugin.
-	Activations model.PluginActivationStore
+	Activations ActivationReader
 	// Plugins serves the package bytes a run's pins name. Nil answers 503 on
 	// the download route.
 	Plugins *pluginsvc.Service
@@ -50,6 +50,12 @@ type Config struct {
 	// TerminalGroup owns those callbacks so a shutdown waits for them instead
 	// of dropping them.
 	TerminalGroup *runterminal.Group
+}
+
+// ActivationReader is the only team-plugin capability a run token receives.
+// In particular, the worker surface cannot activate or repin a plugin.
+type ActivationReader interface {
+	GetPluginActivation(ctx context.Context, teamID, pluginName string) (*model.PluginActivation, error)
 }
 
 type Handler struct{ cfg Config }

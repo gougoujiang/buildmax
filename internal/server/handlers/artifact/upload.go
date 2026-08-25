@@ -106,7 +106,7 @@ func ReceiveUpload(w http.ResponseWriter, r *http.Request, svc *artifactsvc.Serv
 		writeUploadError(w, err, in.TeamID)
 		return
 	}
-	httputil.WriteJSON(w, http.StatusCreated, ToResponse(rec))
+	httputil.WriteJSON(w, http.StatusCreated, toResponse(rec))
 }
 
 var errNoFilePart = errors.New("no file part in upload")

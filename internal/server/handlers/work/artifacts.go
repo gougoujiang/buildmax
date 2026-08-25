@@ -11,7 +11,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 )
 
-type ArtifactResponse struct {
+type runOutputResponse struct {
 	TaskRunID        string    `json:"task_run_id"`
 	TaskID           string    `json:"task_id"`
 	ConversationID   string    `json:"conversation_id"`
@@ -20,8 +20,8 @@ type ArtifactResponse struct {
 	TaskInputSnippet string    `json:"task_input_snippet"`
 }
 
-func artifactWithTaskToResponse(a model.ArtifactWithTask) ArtifactResponse {
-	return ArtifactResponse{
+func artifactWithTaskToResponse(a model.ArtifactWithTask) runOutputResponse {
+	return runOutputResponse{
 		TaskRunID:        a.ArtifactID,
 		TaskID:           a.TaskID,
 		ConversationID:   a.ConversationID,
@@ -52,14 +52,14 @@ func (h *Handler) listTaskArtifactsHandler(w http.ResponseWriter, r *http.Reques
 		httputil.WriteInternalError(w, err, "handler error", "handler", "list_artifacts", "task_id", taskID)
 		return
 	}
-	out := make([]ArtifactResponse, len(list))
+	out := make([]runOutputResponse, len(list))
 	for i := range list {
 		out[i] = artifactWithTaskToResponse(list[i])
 	}
 	httputil.WriteJSON(w, http.StatusOK, out)
 }
 
-type ArtifactItemResponse struct {
+type runOutputItemResponse struct {
 	RelativePath string `json:"relative_path"`
 }
 
@@ -110,9 +110,9 @@ func (h *Handler) listArtifactItemsHandler(w http.ResponseWriter, r *http.Reques
 		httputil.WriteInternalError(w, err, "handler error", "handler", "artifact_items", "artifact_id", taskRunID)
 		return
 	}
-	out := make([]ArtifactItemResponse, len(items))
+	out := make([]runOutputItemResponse, len(items))
 	for i := range items {
-		out[i] = ArtifactItemResponse{RelativePath: items[i].RelativePath}
+		out[i] = runOutputItemResponse{RelativePath: items[i].RelativePath}
 	}
 	httputil.WriteJSON(w, http.StatusOK, out)
 }

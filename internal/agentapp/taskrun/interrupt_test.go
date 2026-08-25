@@ -49,7 +49,7 @@ func TestReportInterruptedRunReportsFailedAndKeepsPartialWork(t *testing.T) {
 	storage := &fakeRunOutputStorage{}
 	updater := &fakeUpdater{}
 	scope := RunScope{CreatedBy: "u1", ConversationID: "c1", TaskID: "t1", TaskRunID: "r1"}
-	result := RunResult{
+	result := runResult{
 		EndTime:         time.Unix(1_800_000_000, 0).UTC(),
 		OutputStr:       "as far as I got",
 		Output:          []byte("as far as I got"),
@@ -114,7 +114,7 @@ func TestCancelWinsOverAnInterruptionOnTheSameRun(t *testing.T) {
 	// here a real question rather than a formality.
 	cancel(model.ErrRunInterrupted)
 
-	stopped, err := reportStoppedRun(ctx, scope, RunResult{}, dirs, input)
+	stopped, err := reportStoppedRun(ctx, scope, runResult{}, dirs, input)
 	if !stopped {
 		t.Fatal("a stopped run was not recognised as stopped")
 	}
@@ -129,7 +129,7 @@ func TestCancelWinsOverAnInterruptionOnTheSameRun(t *testing.T) {
 // A run that is simply still going must not be reported as stopped.
 func TestReportStoppedRunIgnoresALiveRun(t *testing.T) {
 	updater := &fakeUpdater{}
-	stopped, err := reportStoppedRun(context.Background(), RunScope{TaskRunID: "r1"}, RunResult{}, runDirs{}, RunTaskInput{
+	stopped, err := reportStoppedRun(context.Background(), RunScope{TaskRunID: "r1"}, runResult{}, runDirs{}, RunTaskInput{
 		Persist:          newFakePersistStorage(),
 		RunOutputStorage: &fakeRunOutputStorage{},
 		Updater:          updater,

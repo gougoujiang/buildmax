@@ -9,7 +9,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/model"
 )
 
-// MockPluginActivationStore is an in-memory model.PluginActivationStore.
+// MockPluginActivationStore is an in-memory team activation store for tests.
 type MockPluginActivationStore struct {
 	// rows is keyed by team and plugin, which is the pair the real unique
 	// index covers.

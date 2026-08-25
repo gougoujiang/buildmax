@@ -616,7 +616,7 @@ permanent cost. `WrittenIteration` is still recorded — the drift detection
 below reads it rather than prints it.
 
 Scope note: `NoteWrite` and `TodoWrite` are part of the workspace agent's tool
-set. Tier 1 conversation runs (`internal/service/conversation/runtime`) build
+set. Tier 1 conversation runs (`internal/service/conversation`) build
 their own narrow tool list for task orchestration and offer neither, so nothing
 about this pass changes Portal conversation behaviour.
 

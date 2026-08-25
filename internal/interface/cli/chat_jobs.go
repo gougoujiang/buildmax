@@ -124,27 +124,30 @@ func startBackgroundEventRun(m *Model, ev agentapp.BackgroundEvent) tea.Cmd {
 		tea.Println(header+"\n"),
 		tea.Batch(
 			tea.Tick(time.Duration(carouselTick)*time.Millisecond, func(time.Time) tea.Msg { return carouselTickMsg{} }),
-			runBackgroundEventWithStream(m.opts, ev, channel, m.queue),
+			runBackgroundEventWithStream(m.runs, m.opts, ev, channel, m.queue),
 		),
 	)
 }
 
 // runBackgroundEventWithStream is runAgentWithStream's sibling for a
 // background event turn.
-func runBackgroundEventWithStream(opts TUIOpts, ev agentapp.BackgroundEvent, channel chan tea.Msg, queue *agent.MessageQueue) tea.Cmd {
-	sink := &streamSinkToChannel{channel: channel}
-	evSink := eventSinkToChannel(channel)
-	go func() {
-		result, err := opts.App.RunBackgroundEvent(context.Background(), opts.Session, ev, agentapp.RunPromptOpts{
+func runBackgroundEventWithStream(owner *tuiRunOwner, opts TUIOpts, ev agentapp.BackgroundEvent, channel chan tea.Msg, queue *agent.MessageQueue) tea.Cmd {
+	started := owner.Go(func(ctx context.Context) {
+		defer close(channel)
+		sink := &streamSinkToChannel{ctx: ctx, channel: channel}
+		evSink := eventSinkToChannel(ctx, channel)
+		result, err := opts.App.RunBackgroundEvent(ctx, opts.Session, ev, agentapp.RunPromptOpts{
 			Stream:    sink,
 			Approval:  opts.Approval,
 			EventSink: evSink,
 			Pending:   queue,
 			Digest:    true,
 		})
-		channel <- agentDoneMsg{Result: result, Err: err}
+		sendTUIMessage(ctx, channel, agentDoneMsg{Result: result, Err: err})
+	})
+	if !started {
 		close(channel)
-	}()
+	}
 	return func() tea.Msg { return <-channel }
 }
 

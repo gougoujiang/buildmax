@@ -12,9 +12,11 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/server/access"
+	agentsvc "github.com/gougoujiang/buildmax/internal/service/agent"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 	"github.com/gougoujiang/buildmax/internal/service/plugin"
 	"github.com/gougoujiang/buildmax/internal/service/quota"
+	teamsvc "github.com/gougoujiang/buildmax/internal/service/team"
 	"github.com/gougoujiang/buildmax/internal/service/workflow"
 )
 
@@ -41,9 +43,19 @@ type Config struct {
 	Plugins *plugin.Service
 }
 
-type Handler struct{ cfg Config }
+type Handler struct {
+	cfg Config
 
-func New(cfg Config) *Handler { return &Handler{cfg: cfg} }
+	teams  *teamsvc.Service
+	agents *agentsvc.Service
+}
+
+func New(cfg Config) *Handler {
+	h := &Handler{cfg: cfg}
+	h.teams = newTeamService(cfg)
+	h.agents = newTeamAgentService(cfg, newWorkflowUsage(cfg))
+	return h
+}
 
 func (h *Handler) guard() *access.Guard {
 	return &access.Guard{
@@ -59,11 +71,11 @@ func (h *Handler) guard() *access.Guard {
 // Built from the workflow store alone rather than from a full workflow service:
 // the delete guard needs one query, and a service wired for orchestration would
 // tie an agent edit to task dispatch.
-func (h *Handler) workflowUsage() *workflow.Service {
-	if h.cfg.Workflows == nil {
+func newWorkflowUsage(cfg Config) *workflow.Service {
+	if cfg.Workflows == nil {
 		return nil
 	}
-	return &workflow.Service{Workflows: h.cfg.Workflows}
+	return &workflow.Service{Workflows: cfg.Workflows}
 }
 
 func (h *Handler) Register(mux *http.ServeMux) {

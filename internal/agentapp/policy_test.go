@@ -8,29 +8,6 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 )
 
-func TestPolicyBothReturnAllow(t *testing.T) {
-	cases := []struct {
-		name     string
-		toolName string
-		args     map[string]any
-	}{
-		{"normal bash", "Bash", map[string]any{"command": "go test ./..."}},
-		{"rm -rf subdir", "Bash", map[string]any{"command": "rm -rf ./tmp"}},
-		{"read .env", "Read", map[string]any{"file_path": ".env"}},
-		{"write .env", "Write", map[string]any{"file_path": ".env", "content": "X=1"}},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			for _, pol := range []agent.ToolPolicy{NewInteractivePolicy(), NewNonInteractivePolicy()} {
-				if got, ok := pol.Check(tc.toolName, "", tc.args); ok || got != llm.ToolActionAllow {
-					t.Errorf("policy.Check(%q) = (%v, %v); want (Allow, false) — no opinion", tc.toolName, got, ok)
-				}
-			}
-		})
-	}
-}
-
 // TestConfiguredPolicy_LayersOverFallback checks the wiring that makes
 // settings.yaml matter: a rule answers, and anything unmatched falls through to
 // the surface policy, which has no opinion.
@@ -40,7 +17,7 @@ func TestConfiguredPolicy_LayersOverFallback(t *testing.T) {
 		"Task":                 "deny",
 		"CallMcpTool:github/*": "allow",
 	}})
-	pol := NewConfiguredPolicy(res, NewInteractivePolicy())
+	pol := NewConfiguredPolicy(res, agent.AllowAllPolicy())
 
 	for _, tc := range []struct {
 		name, scope string
@@ -63,7 +40,7 @@ func TestConfiguredPolicy_LayersOverFallback(t *testing.T) {
 // TestConfiguredPolicy_NoRulesReturnsFallback keeps the zero-config path free of
 // a wrapper that would answer every call the same way.
 func TestConfiguredPolicy_NoRulesReturnsFallback(t *testing.T) {
-	fallback := NewInteractivePolicy()
+	fallback := agent.AllowAllPolicy()
 	if got := NewConfiguredPolicy(config.PermissionResolution{}, fallback); got != fallback {
 		t.Errorf("with no rules, want the fallback returned unwrapped")
 	}

@@ -115,10 +115,7 @@ internal/
 │   ├── mcp/            The mcp.json document shape and its validation rules
 │   ├── agent/          The tool-calling loop, events, hooks, sandbox contract
 │   ├── plugin/         Plugin manifest, version arithmetic, and the layer
-│   │   │               vocabulary discovery, resolution, and publication share
-│   │   ├── archive/    Packing and hardened extraction of a plugin package
-│   │   └── inspect/    What a plugin package contributes, sanitized for a
-│   │                   catalog record and shared with `plugin validate`
+│   │                   vocabulary discovery, resolution, and publication share
 │   ├── subagent/       The subagent definition file shape and its frontmatter
 │   └── session/        Local session model; persistence lives in agentapp
 │
@@ -129,9 +126,7 @@ internal/
 │
 ├── service/            Application services: coordinate stores, enforce rules
 │   ├── conversation/   Tier 1 orchestrator — the single voice to the user
-│   │   ├── channel/    Normalized turn types and channel adapters (webhook)
-│   │   ├── runtime/    Turn-loop mechanics: replay, tool assembly, streaming
-│   │   └── tool/       Tier 1 tools and the task-runner bridge
+│   │   └── channel/    Normalized turn types and channel adapters (webhook)
 │   ├── agent/          Agent definitions, their revisions, and the delete guard
 │   ├── artifact/       Durable files a team keeps; knows no producer
 │   ├── issue/          Issue service
@@ -140,6 +135,7 @@ internal/
 │   ├── audit/          Records that a sensitive action happened (governance,
 │   │                   not diagnostics — see the package doc)
 │   ├── plugin/         Marketplace publication and catalog lifecycle
+│   ├── plugininspect/  Sanitized inspection of what a plugin archive contributes
 │   ├── team/           Membership: who is in a team and who may change that
 │   ├── quota/          Team quota enforcement
 │   └── llmgateway/     Model catalog, team aliases, routing, and managed calls
@@ -159,6 +155,7 @@ internal/
 │   ├── mcp/            MCP protocol, client transport, registry
 │   ├── hook/           Hook transports: command, http, mcp_tool, prompt
 │   ├── pluginwire/     Wire contract for the private plugin Marketplace
+│   ├── pluginarchive/  Packing and hardened extraction of plugin archives
 │   ├── proc/           Process supervision for local background jobs:
 │   │                   group spawn, bounded output rings, tree termination
 │   ├── sandbox/        Seatbelt/bwrap backends, egress proxy, violations
@@ -254,7 +251,7 @@ bootstrap ──▶ interface / server / service / agentapp / infra ──▶ co
   implementations.
 - `infra` imports nothing from `bootstrap`, `interface`, or `server`.
 - `server` imports nothing from `bootstrap`, `config`, or `interface`.
-- `service` imports nothing from `bootstrap`, `interface`, or `server`. A
+- `service` imports nothing from `agentapp`, `bootstrap`, `interface`, or `server`. A
   service is reached by a transport and never reaches back for one.
 - `agentapp` imports nothing from `bootstrap`, `interface`, or `server`. Every
   surface that assembles it sits above it.
@@ -266,12 +263,6 @@ bootstrap ──▶ interface / server / service / agentapp / infra ──▶ co
 
 These rules are enforced by tests in `internal/architecture`. If a change trips
 one, the import is the problem, not the test.
-
-One exception is recorded rather than enforced: `service/conversation/runtime`
-imports `agentapp` for `NewNonInteractivePolicy`. That one call is the whole
-dependency and the policy it returns needs only `core`, so the import is
-removable — but it is real today, and a rule that fails teaches contributors to
-ignore the suite.
 
 ## Frontends
 

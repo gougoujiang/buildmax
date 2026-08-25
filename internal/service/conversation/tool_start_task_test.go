@@ -1,4 +1,4 @@
-package tool
+package conversation
 
 import (
 	"context"
@@ -14,7 +14,7 @@ func (f startTaskRunnerFunc) StartTask(ctx context.Context, input string, agentI
 }
 
 func TestNewStartTaskTool_nilRunner(t *testing.T) {
-	tool := NewStartTaskTool(nil, nil)
+	tool := newStartTaskTool(nil, nil)
 	ctx := context.Background()
 	_, err := tool.Execute(ctx, map[string]any{"input": "do something"})
 	if err == nil {
@@ -29,7 +29,7 @@ func TestNewStartTaskTool_missingInput(t *testing.T) {
 	runner := startTaskRunnerFunc(func(ctx context.Context, input string, agentID *string) (string, string, error) {
 		return "t_1", "r_1", nil
 	})
-	tool := NewStartTaskTool(runner, nil)
+	tool := newStartTaskTool(runner, nil)
 	ctx := context.Background()
 	_, err := tool.Execute(ctx, map[string]any{})
 	if err == nil {
@@ -44,7 +44,7 @@ func TestNewStartTaskTool_success(t *testing.T) {
 		}
 		return "t_abc", "r_xyz", nil
 	})
-	tool := NewStartTaskTool(runner, nil)
+	tool := newStartTaskTool(runner, nil)
 	ctx := context.Background()
 	out, err := tool.Execute(ctx, map[string]any{"input": "analyze repo"})
 	if err != nil {
@@ -56,11 +56,11 @@ func TestNewStartTaskTool_success(t *testing.T) {
 }
 
 func TestNewStartTaskTool_descriptionWithAgents(t *testing.T) {
-	agents := []AgentSummary{
+	agents := []agentSummary{
 		{ID: "a_111", Name: "code-reviewer", Description: "reviews code"},
 		{ID: "a_222", Name: "test-writer", Description: ""},
 	}
-	tool := NewStartTaskTool(nil, agents)
+	tool := newStartTaskTool(nil, agents)
 	desc := tool.Description()
 	if !strings.Contains(desc, "code-reviewer (id: a_111) - reviews code") {
 		t.Errorf("description missing agent with description: %s", desc)
@@ -74,7 +74,7 @@ func TestNewStartTaskTool_descriptionWithAgents(t *testing.T) {
 }
 
 func TestNewStartTaskTool_descriptionNoAgents(t *testing.T) {
-	tool := NewStartTaskTool(nil, nil)
+	tool := newStartTaskTool(nil, nil)
 	desc := tool.Description()
 	if strings.Contains(desc, "Available agents") {
 		t.Errorf("description should not have agents section when nil: %s", desc)

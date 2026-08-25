@@ -170,7 +170,7 @@ type RunLoopOpts struct {
 	MaxIter      int
 	History      MessageHistory
 	StreamSink   llm.StreamSink
-	// Policy is consulted before each tool execution. Nil defaults to AllowAllPolicy.
+	// Policy is consulted before each tool execution. Nil defaults to AllowAllPolicy().
 	Policy ToolPolicy
 	// Approval is invoked when Policy returns ToolActionAsk.
 	// Nil approval with ToolActionAsk denies the call: an unattended surface
@@ -210,7 +210,7 @@ type RunLoopOpts struct {
 	EventSink func(Event)
 	// Hooks runs lifecycle hooks at fixed points (PreToolUse, PostToolUse,
 	// PostToolUseFailure, Notification, PreCompact, PostCompact, Stop /
-	// SubagentStop / StopFailure). Nil or NoopHookRunner disables hooks.
+	// SubagentStop / StopFailure). Nil disables hooks.
 	// PreToolUse and PreCompact hooks may block their respective actions.
 	Hooks HookRunner
 	// SessionID is forwarded to hook payloads so external scripts can correlate runs.
@@ -564,7 +564,7 @@ type pendingCall struct {
 func executeToolCalls(ctx context.Context, opts RunLoopOpts, toolCalls []llm.ToolCall, guard *loopGuard) (int, error) {
 	policy := opts.Policy
 	if policy == nil {
-		policy = AllowAllPolicy
+		policy = AllowAllPolicy()
 	}
 	pending := parseCalls(opts, toolCalls)
 

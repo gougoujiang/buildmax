@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
-	"github.com/gougoujiang/buildmax/internal/core/plugin/inspect"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 )
@@ -67,7 +66,7 @@ func skillOnly() model.PluginInspection {
 func withHook() model.PluginInspection {
 	return model.PluginInspection{
 		Skills: []string{"review"},
-		Hooks:  []inspect.Hook{{Event: "pre_tool_use"}},
+		Hooks:  []model.PluginHook{{Event: "pre_tool_use"}},
 	}
 }
 

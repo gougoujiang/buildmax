@@ -2,16 +2,20 @@ package websocket
 
 import (
 	"context"
-	"github.com/gougoujiang/buildmax/internal/core/model"
-	"github.com/gougoujiang/buildmax/internal/server/turnqueue"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
 
+	"github.com/gougoujiang/buildmax/internal/core/model"
+	"github.com/gougoujiang/buildmax/internal/server/turnqueue"
 	"github.com/gougoujiang/buildmax/internal/service/conversation"
 
 	gws "github.com/gorilla/websocket"
 )
+
+// Identity belongs in an attr, not in every message string.
+func componentLog() *slog.Logger { return slog.With("component", "websocket") }
 
 const (
 	wsWriteChSize  = 256

@@ -32,12 +32,30 @@ func RunStatusTerminal(status string) bool {
 	}
 }
 
-// ActiveRunStatuses are the statuses a run passes through before it finishes.
-// One task may hold at most one run in these statuses at a time.
-var ActiveRunStatuses = []string{
-	string(RunStatusPending),
-	string(RunStatusScheduled),
-	string(RunStatusRunning),
+// ValidRunStatusTransition reports whether a run may move directly from one
+// status to another. Terminal statuses are immutable.
+func ValidRunStatusTransition(from, to RunStatus) bool {
+	switch from {
+	case RunStatusPending:
+		return to == RunStatusScheduled || to == RunStatusCanceled
+	case RunStatusScheduled:
+		return to == RunStatusRunning || to == RunStatusFailed || to == RunStatusCanceled
+	case RunStatusRunning:
+		return to == RunStatusSucceeded || to == RunStatusFailed || to == RunStatusCanceled
+	default:
+		return false
+	}
+}
+
+// ActiveRunStatuses returns the statuses a run passes through before it
+// finishes. It returns a fresh slice so callers cannot mutate the lifecycle
+// definition for the rest of the process.
+func ActiveRunStatuses() []string {
+	return []string{
+		string(RunStatusPending),
+		string(RunStatusScheduled),
+		string(RunStatusRunning),
+	}
 }
 
 const (
@@ -181,18 +199,6 @@ type CreateTaskInput struct {
 	IssueID                   *string
 }
 
-// ClaimTaskRunInput atomically transitions a run from ExpectedStatus to NewStatus.
-type ClaimTaskRunInput struct {
-	TaskRunID      string
-	ExpectedStatus RunStatus
-	NewStatus      RunStatus
-	StartedAt      *time.Time
-	EndedAt        *time.Time
-	Output         *string
-	ErrorMessage   *string
-	SessionID      *string
-}
-
 // UpdateTaskInput updates a task to the given status with optional fields.
 type UpdateTaskInput struct {
 	TaskID       string
@@ -216,18 +222,22 @@ type ClaimTaskInput struct {
 	SessionID      *string
 }
 
-// UpdateTaskRunInput updates a run to the given status with optional fields.
-type UpdateTaskRunInput struct {
-	TaskRunID        string
-	Status           RunStatus
-	StartedAt        *time.Time
-	EndedAt          *time.Time
-	Output           *string
-	ErrorMessage     *string
-	SessionID        *string
-	PromptTokens     *int
-	CompletionTokens *int
-	TracePath        *string
+// TransitionTaskRunInput atomically moves a run from ExpectedStatus to
+// NewStatus and projects the accepted state onto its task. Artifact paths, when
+// present, are registered in the same transaction as a terminal transition.
+type TransitionTaskRunInput struct {
+	TaskRunID             string
+	ExpectedStatus        RunStatus
+	NewStatus             RunStatus
+	StartedAt             *time.Time
+	EndedAt               *time.Time
+	Output                *string
+	ErrorMessage          *string
+	SessionID             *string
+	PromptTokens          *int
+	CompletionTokens      *int
+	TracePath             *string
+	ArtifactRelativePaths []string
 }
 
 // TaskStore provides task persistence. Tasks belong to a conversation.
@@ -287,10 +297,10 @@ type TaskRunStore interface {
 	// neither resets the clock the backstop measures nor overwrites the name
 	// of whoever asked first.
 	RequestTaskRunCancel(ctx context.Context, taskRunID, requestedBy string, requestedAt time.Time) (bool, error)
-	// ClaimTaskRun atomically updates a run when current status matches ExpectedStatus.
-	ClaimTaskRun(ctx context.Context, in ClaimTaskRunInput) (bool, error)
-	// UpdateRun updates a run's status and optional fields.
-	UpdateRun(ctx context.Context, in UpdateTaskRunInput) error
+	// TransitionTaskRun atomically updates a run only when its current status
+	// matches ExpectedStatus, then updates the task projection in the same
+	// transaction. A false result means another actor won the transition.
+	TransitionTaskRun(ctx context.Context, in TransitionTaskRunInput) (bool, error)
 	UpdateTaskRunWorkerInfo(ctx context.Context, taskRunID, workerType string, k8sJobName *string, k8sJobCreatedAt *time.Time) error
 	// RecordTaskRunAgentRevision stores which agent definition a run was given.
 	// The first write wins: a run executes under the instructions it was handed
@@ -300,8 +310,4 @@ type TaskRunStore interface {
 	// agent revision, the first write wins: a worker polls its run, and a
 	// team's activation edited mid-run must not rewrite what actually ran.
 	RecordTaskRunPluginPins(ctx context.Context, taskRunID string, pins []PluginPin) error
-	// OnRunComplete creates task_run_artifact rows (one per relativePath) and updates task denormalized fields. Use for SUCCEEDED runs.
-	OnRunComplete(ctx context.Context, taskRunID string, relativePaths []string) error
-	// SyncTaskFromRun updates task denormalized fields and last_run_id from the run (no output). Use for FAILED runs.
-	SyncTaskFromRun(ctx context.Context, taskRunID string) error
 }

@@ -258,7 +258,7 @@ func confirmSlashSessionResume(m *Model) (tea.Model, tea.Cmd) {
 	}
 	m.opts.Session = sess
 	if m.opts.App != nil {
-		if st, err := m.opts.App.EstimateRunStatus(m.opts.Session); err == nil {
+		if st, err := m.opts.App.EstimateRunUsage(m.opts.Session); err == nil {
 			m.runStatus = st
 		}
 	}

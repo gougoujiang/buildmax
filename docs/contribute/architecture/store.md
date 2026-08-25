@@ -4,8 +4,10 @@
 
 ## Purpose
 
-`internal/infra/db` provides the MySQL/GORM persistence implementation for the
-repository contracts defined in `internal/core/model`.
+`internal/infra/db` provides the MySQL/GORM persistence implementation for
+domain repository contracts. Most shared contracts remain in
+`internal/core/model`; capability-specific ports may live with their consumer,
+such as the Marketplace catalog and activation ports in `internal/service/plugin`.
 
 The active persistence model is team-scoped for shared work:
 
@@ -35,7 +37,8 @@ halves are answered from indexes without reading a row.
 
 | Layer | Package | Role |
 |-------|---------|------|
-| Contracts/entities | `internal/core/model` | Shared structs and repository interfaces |
+| Shared contracts/entities | `internal/core/model` | Shared structs and cross-service repository interfaces |
+| Consumer-owned ports | `internal/service/*` | Narrow persistence capabilities used by one orchestrator |
 | GORM implementation | `internal/infra/db` | MySQL-backed store implementing those interfaces |
 | Object storage | `internal/infra/objectstore` | Team home files, run output, and artifact content; local FS or S3/MinIO |
 

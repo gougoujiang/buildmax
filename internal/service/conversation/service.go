@@ -3,12 +3,12 @@ package conversation
 import (
 	"context"
 	"fmt"
+
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
 
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/model"
-	convruntime "github.com/gougoujiang/buildmax/internal/service/conversation/runtime"
-	convtool "github.com/gougoujiang/buildmax/internal/service/conversation/tool"
+	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
 	"github.com/gougoujiang/buildmax/internal/service/task"
 )
 
@@ -59,7 +59,7 @@ func (s *Service) RerunTask(ctx context.Context, cmd RerunTaskCmd) (Conversation
 	}
 	createdByType := model.RunCreatedByTypeUser
 	triggerSource := model.RunTriggerSourcePortalTaskRerun
-	if cmd.Channel == ChannelWebhook {
+	if cmd.Channel == convchannel.ChannelWebhook {
 		createdByType = model.RunCreatedByTypeWebhook
 		triggerSource = model.RunTriggerSourceWebhook
 	}
@@ -86,7 +86,7 @@ func (s *Service) handleConversationTurn(ctx context.Context, cmd HandleTurnCmd)
 
 	teamID := s.fetchTeamID(ctx, cmd.ConversationID, cmd.Channel)
 
-	runInput := convruntime.TurnRunInput{
+	runInput := turnRunInput{
 		ConversationID: cmd.ConversationID,
 		Message:        cmd.Message,
 		Channel:        cmd.Channel,
@@ -97,12 +97,12 @@ func (s *Service) handleConversationTurn(ctx context.Context, cmd HandleTurnCmd)
 		TitleGenerator: s.TitleGenerator,
 		StreamSink:     cmd.StreamSink,
 	}
-	reply, err := convruntime.Run(ctx, s.ConversationStore, s.MessageStore, s.LLMClient, runInput)
+	reply, err := runConversationTurn(ctx, s.ConversationStore, s.MessageStore, s.LLMClient, runInput)
 	return ConversationResult{Reply: reply}, err
 }
 
 func (s *Service) taskServiceForChannel(channel string) *task.Service {
-	if channel == ChannelSystem {
+	if channel == convchannel.ChannelSystem {
 		return nil
 	}
 	return s.TaskService
@@ -111,7 +111,7 @@ func (s *Service) taskServiceForChannel(channel string) *task.Service {
 // fetchTeamID looks up the conversation's team once so StartTask and agent listing share it.
 // Returns "" when the channel is system or no TaskService is configured (task tools disabled).
 func (s *Service) fetchTeamID(ctx context.Context, conversationID, channel string) string {
-	if channel == ChannelSystem || s.TaskService == nil || s.ConversationStore == nil {
+	if channel == convchannel.ChannelSystem || s.TaskService == nil || s.ConversationStore == nil {
 		return ""
 	}
 	conv, err := s.ConversationStore.GetConversation(ctx, conversationID)
@@ -121,17 +121,17 @@ func (s *Service) fetchTeamID(ctx context.Context, conversationID, channel strin
 	return conv.TeamID
 }
 
-func (s *Service) fetchAgentSummaries(ctx context.Context, teamID, channel string) []convtool.AgentSummary {
-	if s.AgentStore == nil || teamID == "" || channel == ChannelSystem {
+func (s *Service) fetchAgentSummaries(ctx context.Context, teamID, channel string) []agentSummary {
+	if s.AgentStore == nil || teamID == "" || channel == convchannel.ChannelSystem {
 		return nil
 	}
 	agents, err := s.AgentStore.ListAgentsByTeam(ctx, teamID)
 	if err != nil || len(agents) == 0 {
 		return nil
 	}
-	summaries := make([]convtool.AgentSummary, len(agents))
+	summaries := make([]agentSummary, len(agents))
 	for i, a := range agents {
-		summaries[i] = convtool.AgentSummary{ID: a.ID, Name: a.Name, Description: a.Description}
+		summaries[i] = agentSummary{ID: a.ID, Name: a.Name, Description: a.Description}
 	}
 	return summaries
 }

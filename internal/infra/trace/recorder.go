@@ -5,6 +5,7 @@ package trace
 import (
 	"bufio"
 	"encoding/json"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
@@ -12,6 +13,9 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	"github.com/gougoujiang/buildmax/internal/core/plugin"
 )
+
+// Identity belongs in an attr, not in every message string.
+func componentLog() *slog.Logger { return slog.With("component", "trace") }
 
 // defaultMaxRecords guards a runaway loop: once this many event records are
 // written, further events are dropped (run_end is still attempted).

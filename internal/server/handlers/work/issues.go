@@ -12,7 +12,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/server/access"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
-	"github.com/gougoujiang/buildmax/internal/service/conversation"
+	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
 	"github.com/gougoujiang/buildmax/internal/service/issue"
 	"github.com/gougoujiang/buildmax/internal/service/task"
 )
@@ -131,12 +131,16 @@ func buildIssueAgentRunInput(issue model.Issue) string {
 }
 
 func (h *Handler) issueService() *issue.Service {
+	return h.issues
+}
+
+func newIssueService(cfg Config) *issue.Service {
 	return &issue.Service{
-		Issues:    h.cfg.Issues,
-		Comments:  h.cfg.IssueComments,
-		Agents:    h.cfg.Agents,
-		Teams:     h.cfg.Teams,
-		Workflows: h.cfg.Workflows,
+		Issues:    cfg.Issues,
+		Comments:  cfg.IssueComments,
+		Agents:    cfg.Agents,
+		Teams:     cfg.Teams,
+		Workflows: cfg.Workflows,
 	}
 }
 
@@ -350,7 +354,7 @@ func (h *Handler) createIssueAgentRunHandler(w http.ResponseWriter, r *http.Requ
 		httputil.WriteInternalError(w, err, "handler error", "handler", "get_agent_for_issue_run", "issue_id", issueID, "agent_id", *issue.AssigneeID)
 		return
 	}
-	conv, err := h.cfg.Conversations.CreateConversationInTeam(r.Context(), teamID, userID, conversation.ChannelIssueAgent, userID)
+	conv, err := h.cfg.Conversations.CreateConversationInTeam(r.Context(), teamID, userID, convchannel.ChannelIssueAgent, userID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "create_issue_agent_conversation", "issue_id", issueID)
 		return
@@ -424,5 +428,7 @@ func (h *Handler) patchIssueHandler(w http.ResponseWriter, r *http.Request) {
 // builds its own rather than taking one, because that is the only question it
 // asks of agents.
 func (h *Handler) agentService() *agentsvc.Service {
-	return &agentsvc.Service{Agents: h.cfg.Agents}
+	return h.agents
 }
+
+func newWorkAgentService(cfg Config) *agentsvc.Service { return &agentsvc.Service{Agents: cfg.Agents} }

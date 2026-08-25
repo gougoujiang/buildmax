@@ -11,7 +11,7 @@
 bootstrap ──▶ interface / server / service / agentapp / infra ──▶ core
 ```
 
-Dependencies point inward. `internal/core` is pure domain — entities, contracts,
+Dependencies point inward. `internal/core` is pure domain — entities, shared contracts,
 and the agent loop — and knows nothing about databases, HTTP, the filesystem, or
 configuration. Everything else may depend on it.
 
@@ -26,9 +26,11 @@ import. Three rules, checked by parsing every file under `internal/`:
 
 | Layer | May not import |
 |---|---|
-| `internal/core` | `bootstrap`, `config`, `infra`, `interface`, `server` |
+| `internal/core` | `agentapp`, `bootstrap`, `config`, `infra`, `interface`, `server`, `service` |
 | `internal/infra` | `bootstrap`, `interface`, `server` |
 | `internal/server` | `bootstrap`, `config`, `interface` |
+| `internal/service` | `agentapp`, `bootstrap`, `interface`, `server` |
+| `internal/agentapp` | `bootstrap`, `interface`, `server` |
 
 Two consequences worth internalizing:
 
@@ -42,11 +44,18 @@ A fourth rule bans **type aliases anywhere under `internal/`**
 merely re-exports, which is exactly how a boundary quietly dissolves during a
 refactor. Import the defining package directly.
 
+A fifth rule bans exported mutable package variables except error sentinels and
+the two build metadata values written through linker flags. Shared inventories
+are functions returning copies (`config.EnvVars()`,
+`tool.BuiltinSubAgentDefs()`), so one importer cannot rewrite another run's
+behavior.
+
 ## Where Things Belong
 
 | Kind of code | Package |
 |---|---|
-| Entities and repository contracts | `internal/core/model` |
+| Domain entities and cross-service repository contracts | `internal/core/model` |
+| A persistence port used by one orchestrator | The consuming `internal/service/*` package |
 | LLM contracts, tool contract, tool policy | `internal/core/llm` |
 | The tool-calling loop | `internal/core/agent` |
 | Business rules that coordinate stores and runs | `internal/service/*` |
@@ -69,7 +78,8 @@ The import is the problem, not the test. In practice a violation means one of:
 
 - a core package wants configuration → take the value as a parameter or field
 - a core package wants to do I/O → define an interface in core, implement it in
-  infra, inject it
+  infra, inject it; if only one service consumes the capability, let that
+  service own the interface
 - the server wants something from `interface/` → it belongs in `service/` or
   `core/` if both need it
 

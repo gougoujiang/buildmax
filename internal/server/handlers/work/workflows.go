@@ -7,6 +7,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/server/access"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
+	"github.com/gougoujiang/buildmax/internal/service/task"
 	"github.com/gougoujiang/buildmax/internal/service/workflow"
 )
 
@@ -176,12 +177,16 @@ func workflowStepRunToResponse(step model.WorkflowStepRun) workflowStepRunRespon
 }
 
 func (h *Handler) workflowService() *workflow.Service {
+	return h.workflows
+}
+
+func newWorkflowService(cfg Config, tasks *task.Service) *workflow.Service {
 	return &workflow.Service{
-		Workflows:     h.cfg.Workflows,
-		Agents:        h.cfg.Agents,
-		Issues:        h.cfg.Issues,
-		Conversations: h.cfg.Conversations,
-		TaskService:   h.taskService(),
+		Workflows:     cfg.Workflows,
+		Agents:        cfg.Agents,
+		Issues:        cfg.Issues,
+		Conversations: cfg.Conversations,
+		TaskService:   tasks,
 	}
 }
 

@@ -8,9 +8,9 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
-	"github.com/gougoujiang/buildmax/internal/core/plugin/archive"
-	"github.com/gougoujiang/buildmax/internal/core/plugin/inspect"
+	archive "github.com/gougoujiang/buildmax/internal/infra/pluginarchive"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
+	inspect "github.com/gougoujiang/buildmax/internal/service/plugininspect"
 )
 
 // A worker's BUILDMAX_HOME is created fresh per run, so its plugins directory
@@ -19,7 +19,7 @@ import (
 // BUILDMAX_HOME as it always has.
 //
 // Everything below the download reuses what the local install already does —
-// internal/core/plugin/archive for extraction with its traversal, link,
+// internal/infra/pluginarchive for extraction with its traversal, link,
 // duplicate-path, and size guards, and .../inspect for the check that decides
 // whether a package would load. A second implementation for workers would be a
 // second set of rules about what an archive may contain.

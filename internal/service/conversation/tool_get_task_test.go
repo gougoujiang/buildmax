@@ -1,4 +1,4 @@
-package tool
+package conversation
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 )
 
 func TestNewGetTaskTool_nilRunner(t *testing.T) {
-	tool := NewGetTaskTool("w_1", nil)
+	tool := newGetTaskTool("w_1", nil)
 	ctx := context.Background()
 	_, err := tool.Execute(ctx, map[string]any{"task_id": "t_1"})
 	if err == nil {
@@ -19,7 +19,7 @@ func TestNewGetTaskTool_nilRunner(t *testing.T) {
 }
 
 func TestNewGetTaskTool_missingTaskID(t *testing.T) {
-	tool := NewGetTaskTool("w_1", GetTaskRunnerFunc(func(ctx context.Context, workspaceID, chatID string) (string, error) {
+	tool := newGetTaskTool("w_1", GetTaskRunnerFunc(func(ctx context.Context, workspaceID, chatID string) (string, error) {
 		return "detail", nil
 	}))
 	ctx := context.Background()
@@ -33,7 +33,7 @@ func TestNewGetTaskTool_missingTaskID(t *testing.T) {
 }
 
 func TestNewGetTaskTool_notInWorkspace(t *testing.T) {
-	tool := NewGetTaskTool("w_1", GetTaskRunnerFunc(func(ctx context.Context, workspaceID, chatID string) (string, error) {
+	tool := newGetTaskTool("w_1", GetTaskRunnerFunc(func(ctx context.Context, workspaceID, chatID string) (string, error) {
 		return "", errors.New("task not found or not in this workspace")
 	}))
 	ctx := context.Background()
@@ -44,7 +44,7 @@ func TestNewGetTaskTool_notInWorkspace(t *testing.T) {
 }
 
 func TestNewGetTaskTool_success(t *testing.T) {
-	tool := NewGetTaskTool("w_1", GetTaskRunnerFunc(func(ctx context.Context, workspaceID, chatID string) (string, error) {
+	tool := newGetTaskTool("w_1", GetTaskRunnerFunc(func(ctx context.Context, workspaceID, chatID string) (string, error) {
 		if workspaceID != "w_1" || chatID != "t_abc" {
 			return "", errors.New("bad args")
 		}

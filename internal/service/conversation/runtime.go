@@ -1,4 +1,4 @@
-package runtime
+package conversation
 
 import (
 	"context"
@@ -6,11 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/agentapp"
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/model"
-	convtool "github.com/gougoujiang/buildmax/internal/service/conversation/tool"
 	"github.com/gougoujiang/buildmax/internal/service/task"
 )
 
@@ -47,15 +45,15 @@ func currentSystemPrompt() string {
 	return systemPromptBase + "\n\nToday's date: " + time.Now().Format("2006-01-02") + "."
 }
 
-// TurnRunInput configures one conversation turn execution.
-type TurnRunInput struct {
+// turnRunInput configures one conversation turn execution.
+type turnRunInput struct {
 	ConversationID string
 	Message        string
 	Channel        string
 	UserID         string
 	TeamID         string
 	TaskService    *task.Service
-	AgentSummaries []convtool.AgentSummary
+	AgentSummaries []agentSummary
 	TitleGenerator llm.TitleGenerator
 	StreamSink     llm.StreamSink
 }
@@ -65,25 +63,25 @@ type TurnRunInput struct {
 // sourceMessageID is the message the turn is answering, already stored. Every
 // run these tools create records it, so the request a worker was given can be
 // compared with what the person actually asked for.
-func buildConversationTools(in TurnRunInput, sourceMessageID *string) []llm.Tool {
+func buildConversationTools(in turnRunInput, sourceMessageID *string) []llm.Tool {
 	if in.Channel == internalSystemChannel || in.TaskService == nil {
 		return nil
 	}
 	svc := in.TaskService
 	tools := []llm.Tool{
-		convtool.NewStartTaskTool(
-			convtool.NewStartTaskServiceRunner(svc, in.ConversationID, in.TeamID, in.UserID, sourceMessageID),
+		newStartTaskTool(
+			newStartTaskServiceRunner(svc, in.ConversationID, in.TeamID, in.UserID, sourceMessageID),
 			in.AgentSummaries,
 		),
 	}
-	if r := convtool.NewListTasksStoreRunner(svc.Tasks); r != nil {
-		tools = append(tools, convtool.NewListTasksTool(in.ConversationID, r))
+	if r := newListTasksStoreRunner(svc.Tasks); r != nil {
+		tools = append(tools, newListTasksTool(in.ConversationID, r))
 	}
-	if r := convtool.NewGetTaskStoreRunner(svc.Tasks); r != nil {
-		tools = append(tools, convtool.NewGetTaskTool(in.ConversationID, r))
+	if r := newGetTaskStoreRunner(svc.Tasks); r != nil {
+		tools = append(tools, newGetTaskTool(in.ConversationID, r))
 	}
-	if r := convtool.NewContinueTaskServiceRunner(svc, sourceMessageID); r != nil {
-		tools = append(tools, convtool.NewContinueTaskTool(in.ConversationID, in.UserID, r))
+	if r := newContinueTaskServiceRunner(svc, sourceMessageID); r != nil {
+		tools = append(tools, newContinueTaskTool(in.ConversationID, in.UserID, r))
 	}
 	return tools
 }
@@ -185,7 +183,7 @@ type preparedRun struct {
 	toolsList  []llm.Tool
 }
 
-func prepareRun(ctx context.Context, msgStore model.ConversationMessageStore, in TurnRunInput) (*preparedRun, error) {
+func prepareRun(ctx context.Context, msgStore model.ConversationMessageStore, in turnRunInput) (*preparedRun, error) {
 	msgs, err := msgStore.ListMessages(ctx, in.ConversationID)
 	if err != nil {
 		return nil, fmt.Errorf("list messages: %w", err)
@@ -223,7 +221,7 @@ func prepareRun(ctx context.Context, msgStore model.ConversationMessageStore, in
 	}, nil
 }
 
-func executeRun(ctx context.Context, llmClient llm.LLMClient, in TurnRunInput, prepared *preparedRun) (string, error) {
+func executeRun(ctx context.Context, llmClient llm.LLMClient, in turnRunInput, prepared *preparedRun) (string, error) {
 	tools := llm.NewToolRegistry()
 	tools.AppendTools(prepared.toolsList...)
 
@@ -234,7 +232,7 @@ func executeRun(ctx context.Context, llmClient llm.LLMClient, in TurnRunInput, p
 		MaxIter:          maxIterations,
 		History:          prepared.buffer,
 		StreamSink:       in.StreamSink,
-		Policy:           agentapp.NewNonInteractivePolicy(),
+		Policy:           agent.AllowAllPolicy(),
 		MaxParallelTools: maxParallelTools,
 	})
 	if err != nil {
@@ -243,7 +241,7 @@ func executeRun(ctx context.Context, llmClient llm.LLMClient, in TurnRunInput, p
 	return reply, nil
 }
 
-func maybeUpdateTitle(ctx context.Context, convStore model.ConversationStore, in TurnRunInput, prepared *preparedRun) {
+func maybeUpdateTitle(ctx context.Context, convStore model.ConversationStore, in turnRunInput, prepared *preparedRun) {
 	if !prepared.firstRound || in.Message == "" || in.TitleGenerator == nil {
 		return
 	}
@@ -252,7 +250,7 @@ func maybeUpdateTitle(ctx context.Context, convStore model.ConversationStore, in
 	}
 }
 
-func runLoop(ctx context.Context, convStore model.ConversationStore, msgStore model.ConversationMessageStore, llmClient llm.LLMClient, in TurnRunInput) (string, error) {
+func runLoop(ctx context.Context, convStore model.ConversationStore, msgStore model.ConversationMessageStore, llmClient llm.LLMClient, in turnRunInput) (string, error) {
 	prepared, err := prepareRun(ctx, msgStore, in)
 	if err != nil {
 		return "", err
@@ -265,8 +263,8 @@ func runLoop(ctx context.Context, convStore model.ConversationStore, msgStore mo
 	return reply, nil
 }
 
-// Run executes one conversation turn. Streaming is enabled when in.StreamSink is non-nil.
-func Run(ctx context.Context, convStore model.ConversationStore, msgStore model.ConversationMessageStore, llmClient llm.LLMClient, in TurnRunInput) (string, error) {
+// runConversationTurn executes one turn. Streaming is enabled when StreamSink is non-nil.
+func runConversationTurn(ctx context.Context, convStore model.ConversationStore, msgStore model.ConversationMessageStore, llmClient llm.LLMClient, in turnRunInput) (string, error) {
 	if llmClient == nil {
 		if in.StreamSink != nil {
 			return "", fmt.Errorf("conversation stream LLM not configured")

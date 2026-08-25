@@ -209,7 +209,7 @@ func (m *Model) refreshRunStatus() {
 	if m.opts.App == nil || m.opts.Session == nil {
 		return
 	}
-	if st, err := m.opts.App.EstimateRunStatus(m.opts.Session); err == nil {
+	if st, err := m.opts.App.EstimateRunUsage(m.opts.Session); err == nil {
 		m.runStatus = st
 	} else {
 		slog.Debug("estimating run status after a history move failed", "err", err)

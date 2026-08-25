@@ -208,7 +208,7 @@ func (s *Store) CreateTaskRun(ctx context.Context, in model.CreateTaskRunInput) 
 		return nil, err
 	}
 	var inProgress int64
-	err = s.db.WithContext(ctx).Model(&taskRunRow{}).Where("task_id = ? AND status IN ?", taskKey, model.ActiveRunStatuses).Count(&inProgress).Error
+	err = s.db.WithContext(ctx).Model(&taskRunRow{}).Where("task_id = ? AND status IN ?", taskKey, model.ActiveRunStatuses()).Count(&inProgress).Error
 	if err != nil {
 		return nil, err
 	}
@@ -384,7 +384,7 @@ func (s *Store) GetActiveTaskRunByTask(ctx context.Context, taskID string) (*mod
 	}
 	var r taskRunReadRow
 	err = s.taskRunSelect(ctx).
-		Where("task_run.task_id = ? AND task_run.status IN ?", taskKey, model.ActiveRunStatuses).
+		Where("task_run.task_id = ? AND task_run.status IN ?", taskKey, model.ActiveRunStatuses()).
 		Order("task_run.created_at DESC").
 		Take(&r).Error
 	if err != nil {
@@ -413,7 +413,7 @@ func (s *Store) RequestTaskRunCancel(ctx context.Context, taskRunID, requestedBy
 		return false, err
 	}
 	result := s.db.WithContext(ctx).Model(&taskRunRow{}).
-		Where("public_id = ? AND status IN ? AND cancel_requested_at IS NULL", id, model.ActiveRunStatuses).
+		Where("public_id = ? AND status IN ? AND cancel_requested_at IS NULL", id, model.ActiveRunStatuses()).
 		Updates(map[string]interface{}{
 			"cancel_requested_at": requestedAt,
 			"cancel_requested_by": requester,
@@ -436,7 +436,7 @@ func (s *Store) ListCancelRequestedTaskRuns(ctx context.Context, cutoff time.Tim
 	}
 	var rows []taskRunReadRow
 	err := s.taskRunSelect(ctx).
-		Where("task_run.status IN ?", model.ActiveRunStatuses).
+		Where("task_run.status IN ?", model.ActiveRunStatuses()).
 		Where("task_run.cancel_requested_at IS NOT NULL AND task_run.cancel_requested_at <= ?", cutoff).
 		Order("task_run.cancel_requested_at ASC").
 		Limit(limit).
@@ -451,81 +451,68 @@ func (s *Store) ListCancelRequestedTaskRuns(ctx context.Context, cutoff time.Tim
 	return out, nil
 }
 
-// ClaimTaskRun atomically updates a run when current status matches ExpectedStatus.
-func (s *Store) ClaimTaskRun(ctx context.Context, in model.ClaimTaskRunInput) (bool, error) {
+// TransitionTaskRun moves a run only from the status the caller observed. The
+// run, its task projection, and any artifact index rows commit together, so a
+// worker and a recovery loop cannot overwrite one another's outcome or leave
+// the task disagreeing with its last run.
+func (s *Store) TransitionTaskRun(ctx context.Context, in model.TransitionTaskRunInput) (bool, error) {
+	if !model.ValidRunStatusTransition(in.ExpectedStatus, in.NewStatus) {
+		return false, fmt.Errorf("%w: %s -> %s", model.ErrInvalidRunTransition, in.ExpectedStatus, in.NewStatus)
+	}
 	id, ok := util.CanonicalPublicID(in.TaskRunID)
 	if !ok {
 		return false, nil
 	}
-	result := s.db.WithContext(ctx).Model(&taskRunRow{}).Where("public_id = ? AND status = ?", id, string(in.ExpectedStatus)).Updates(
-		buildTaskRunUpdates(taskRunUpdate{
-			status:       string(in.NewStatus),
-			startedAt:    in.StartedAt,
-			endedAt:      in.EndedAt,
-			output:       in.Output,
-			errorMessage: in.ErrorMessage,
-			sessionID:    in.SessionID,
-		}),
-	)
-	if result.Error != nil {
-		return false, result.Error
-	}
-	if result.RowsAffected == 1 && (in.NewStatus == model.RunStatusPending || in.NewStatus == model.RunStatusScheduled || in.NewStatus == model.RunStatusRunning) {
-		_ = s.syncTaskStatusFromRun(ctx, in.TaskRunID, string(in.NewStatus), in.StartedAt, nil)
-	}
-	return result.RowsAffected == 1, nil
-}
 
-// UpdateRun updates a run's status and optional fields.
-func (s *Store) UpdateRun(ctx context.Context, in model.UpdateTaskRunInput) error {
-	id, ok := util.CanonicalPublicID(in.TaskRunID)
-	if !ok {
-		return model.ErrNotFound
-	}
-	if err := s.db.WithContext(ctx).Model(&taskRunRow{}).Where("public_id = ?", id).Updates(
-		buildTaskRunUpdates(taskRunUpdate{
-			status:           string(in.Status),
-			startedAt:        in.StartedAt,
-			endedAt:          in.EndedAt,
-			output:           in.Output,
-			errorMessage:     in.ErrorMessage,
-			sessionID:        in.SessionID,
-			tracePath:        in.TracePath,
-			promptTokens:     in.PromptTokens,
-			completionTokens: in.CompletionTokens,
-		}),
-	).Error; err != nil {
-		return err
-	}
-	if in.Status == model.RunStatusPending || in.Status == model.RunStatusScheduled || in.Status == model.RunStatusRunning {
-		_ = s.syncTaskStatusFromRun(ctx, in.TaskRunID, string(in.Status), in.StartedAt, in.EndedAt)
-	}
-	return nil
-}
+	updated := false
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		result := tx.Model(&taskRunRow{}).
+			Where("public_id = ? AND status = ?", id, string(in.ExpectedStatus)).
+			Updates(buildTaskRunUpdates(taskRunUpdate{
+				status:           string(in.NewStatus),
+				startedAt:        in.StartedAt,
+				endedAt:          in.EndedAt,
+				output:           in.Output,
+				errorMessage:     in.ErrorMessage,
+				sessionID:        in.SessionID,
+				tracePath:        in.TracePath,
+				promptTokens:     in.PromptTokens,
+				completionTokens: in.CompletionTokens,
+			}))
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return nil
+		}
 
-// syncTaskStatusFromRun updates the task row (denormalized status) for the run's task_id to match the run's status.
-func (s *Store) syncTaskStatusFromRun(ctx context.Context, taskRunID, status string, startedAt, endedAt *time.Time) error {
-	id, ok := util.CanonicalPublicID(taskRunID)
-	if !ok {
-		return model.ErrNotFound
-	}
-	var run taskRunRow
-	if err := s.db.WithContext(ctx).Where("public_id = ?", id).Select("task_id").First(&run).Error; err != nil {
-		return err
-	}
-	taskUpdates := map[string]interface{}{"status": status}
-	if status == "PENDING" {
-		taskUpdates["started_at"] = nil
-		taskUpdates["ended_at"] = nil
-	} else {
-		if startedAt != nil {
-			taskUpdates["started_at"] = *startedAt
+		var run taskRunRow
+		if err := tx.Where("public_id = ?", id).First(&run).Error; err != nil {
+			return err
 		}
-		if endedAt != nil {
-			taskUpdates["ended_at"] = *endedAt
+		for _, relativePath := range in.ArtifactRelativePaths {
+			if err := tx.Create(&taskRunArtifactRow{TaskRunID: run.ID, RelativePath: relativePath}).Error; err != nil {
+				return err
+			}
 		}
-	}
-	return s.db.WithContext(ctx).Model(&taskRow{}).Where("id = ?", run.TaskID).Updates(taskUpdates).Error
+		taskUpdates := map[string]interface{}{
+			"last_run_id":   run.ID,
+			"status":        run.Status,
+			"output":        run.Output,
+			"started_at":    run.StartedAt,
+			"ended_at":      run.EndedAt,
+			"error_message": run.ErrorMessage,
+		}
+		if run.SessionID != nil {
+			taskUpdates["session_id"] = *run.SessionID
+		}
+		if err := tx.Model(&taskRow{}).Where("id = ?", run.TaskID).Updates(taskUpdates).Error; err != nil {
+			return err
+		}
+		updated = true
+		return nil
+	})
+	return updated, err
 }
 
 // UpdateTaskRunWorkerInfo updates worker_type, k8s_job_name, k8s_job_created_at for the run.
@@ -578,64 +565,6 @@ func (s *Store) ListTaskRunIDsByTasks(ctx context.Context, taskIDs []string) (ma
 		out[row.TaskPublicID] = append(out[row.TaskPublicID], row.TaskRunPublicID)
 	}
 	return out, nil
-}
-
-// OnRunComplete creates task_run_artifact rows (one per relativePath) and updates task denormalized fields.
-func (s *Store) OnRunComplete(ctx context.Context, taskRunID string, relativePaths []string) error {
-	if len(relativePaths) == 0 {
-		relativePaths = []string{"result.md"}
-	}
-	id, ok := util.CanonicalPublicID(taskRunID)
-	if !ok {
-		return model.ErrNotFound
-	}
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var run taskRunRow
-		if err := tx.Where("public_id = ?", id).First(&run).Error; err != nil {
-			return err
-		}
-		for _, relPath := range relativePaths {
-			if err := tx.Create(&taskRunArtifactRow{TaskRunID: run.ID, RelativePath: relPath}).Error; err != nil {
-				return err
-			}
-		}
-		updates := map[string]interface{}{
-			"last_run_id":   run.ID,
-			"status":        run.Status,
-			"output":        run.Output,
-			"started_at":    run.StartedAt,
-			"ended_at":      run.EndedAt,
-			"error_message": run.ErrorMessage,
-		}
-		if run.SessionID != nil {
-			updates["session_id"] = *run.SessionID
-		}
-		return tx.Model(&taskRow{}).Where("id = ?", run.TaskID).Updates(updates).Error
-	})
-}
-
-// SyncTaskFromRun updates task denormalized fields and last_run_id from the run. Use when run ends with FAILED (no artifact).
-func (s *Store) SyncTaskFromRun(ctx context.Context, taskRunID string) error {
-	id, ok := util.CanonicalPublicID(taskRunID)
-	if !ok {
-		return model.ErrNotFound
-	}
-	var run taskRunRow
-	if err := s.db.WithContext(ctx).Where("public_id = ?", id).First(&run).Error; err != nil {
-		return err
-	}
-	updates := map[string]interface{}{
-		"last_run_id":   run.ID,
-		"status":        run.Status,
-		"output":        run.Output,
-		"started_at":    run.StartedAt,
-		"ended_at":      run.EndedAt,
-		"error_message": run.ErrorMessage,
-	}
-	if run.SessionID != nil {
-		updates["session_id"] = *run.SessionID
-	}
-	return s.db.WithContext(ctx).Model(&taskRow{}).Where("id = ?", run.TaskID).Updates(updates).Error
 }
 
 // ListStaleTaskRuns returns runs that were dispatched before cutoff and have

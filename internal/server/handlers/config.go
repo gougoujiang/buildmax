@@ -2,9 +2,6 @@ package handlers
 
 import (
 	"context"
-	"github.com/gougoujiang/buildmax/internal/server/handlers/admin"
-	"github.com/gougoujiang/buildmax/internal/server/handlers/runterminal"
-	"github.com/gougoujiang/buildmax/internal/server/turnqueue"
 	"sync"
 	"time"
 
@@ -12,7 +9,16 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
+	"github.com/gougoujiang/buildmax/internal/server/handlers/admin"
+	artifactroutes "github.com/gougoujiang/buildmax/internal/server/handlers/artifact"
+	authroutes "github.com/gougoujiang/buildmax/internal/server/handlers/auth"
+	"github.com/gougoujiang/buildmax/internal/server/handlers/runterminal"
+	teamroutes "github.com/gougoujiang/buildmax/internal/server/handlers/team"
+	"github.com/gougoujiang/buildmax/internal/server/handlers/work"
+	"github.com/gougoujiang/buildmax/internal/server/handlers/worker"
+	"github.com/gougoujiang/buildmax/internal/server/turnqueue"
 	wsconn "github.com/gougoujiang/buildmax/internal/server/websocket"
+	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 	"github.com/gougoujiang/buildmax/internal/service/conversation"
 	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
@@ -20,12 +26,6 @@ import (
 	pluginsvc "github.com/gougoujiang/buildmax/internal/service/plugin"
 	"github.com/gougoujiang/buildmax/internal/service/quota"
 )
-
-// RunOutputLister lists run outputs (artifacts) by conversation and gets output files for a run.
-type RunOutputLister interface {
-	ListRunOutputsByConversation(ctx context.Context, conversationID string, taskID *string) ([]model.ArtifactWithTask, error)
-	GetTaskRunOutputFiles(ctx context.Context, taskRunID string) ([]model.TaskRunArtifact, error)
-}
 
 // Config holds all dependencies for the unified handler (auth, user API, worker API, inbound webhook).
 type Config struct {
@@ -65,7 +65,7 @@ type Config struct {
 	// LLMCallStore reads the managed call ledger. Nil leaves the ledger
 	// unreadable over HTTP, which is what a deployment with no database has.
 	LLMCallStore             model.LLMCallStore
-	RunOutputLister          RunOutputLister
+	RunOutputLister          work.RunOutputLister
 	UserWebhookKeyStore      model.UserWebhookKeyStore
 	ConversationStore        model.ConversationStore
 	ConversationMessageStore model.ConversationMessageStore
@@ -168,6 +168,17 @@ type Handler struct {
 	// request happened to start.
 	terminal *runterminal.Group
 
+	// Surfaces and shared services are assembled once. A request executes a
+	// capability; it never rebuilds the application's dependency graph.
+	admin         *admin.Handler
+	auth          *authroutes.Handler
+	team          *teamroutes.Handler
+	work          *work.Handler
+	worker        *worker.Handler
+	artifact      *artifactroutes.Handler
+	artifacts     *artifactsvc.Service
+	conversations *conversation.Service
+
 	// sweeper retries the reports this server owes. Started by the server that
 	// owns this handler, not by construction: a test builds handlers freely and
 	// should not acquire a goroutine by doing so.
@@ -181,11 +192,20 @@ func NewHandler(cfg Config) *Handler {
 	if hub == nil {
 		hub = wsconn.NewStreamHub()
 	}
-	return &Handler{
+	h := &Handler{
 		cfg:          cfg,
 		hub:          hub,
 		connRegistry: wsconn.NewConnRegistry(),
 		turns:        turnqueue.NewRegistry(),
 		terminal:     runterminal.NewGroup(),
 	}
+	h.artifacts = h.buildArtifactService()
+	h.conversations = h.buildConversationService()
+	h.admin = h.buildAdminHandler()
+	h.auth = h.buildAuthHandler()
+	h.team = h.buildTeamHandler()
+	h.work = h.buildWorkHandler()
+	h.worker = h.buildWorkerHandler()
+	h.artifact = h.buildArtifactHandler()
+	return h
 }

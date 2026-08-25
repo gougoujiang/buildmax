@@ -8,7 +8,7 @@
 // It depends only on the standard library so both sides can run it: the client
 // packs and installs, and internal/server validates the same bytes without
 // reaching into internal/config.
-package archive
+package pluginarchive
 
 import (
 	"archive/tar"
@@ -57,14 +57,16 @@ type Limits struct {
 	MaxPathLength      int
 }
 
-// DefaultLimits is generous for a directory of instructions and scripts, and
+// defaultLimits is generous for a directory of instructions and scripts, and
 // far below anything that could exhaust a disk.
-var DefaultLimits = Limits{
-	MaxFiles:           2000,
-	MaxFileBytes:       16 << 20,
-	MaxTotalBytes:      64 << 20,
-	MaxCompressedBytes: 32 << 20,
-	MaxPathLength:      512,
+func defaultLimits() Limits {
+	return Limits{
+		MaxFiles:           2000,
+		MaxFileBytes:       16 << 20,
+		MaxTotalBytes:      64 << 20,
+		MaxCompressedBytes: 32 << 20,
+		MaxPathLength:      512,
+	}
 }
 
 // ResolveLimits fills in the zero fields of lim, so a caller outside this
@@ -72,7 +74,7 @@ var DefaultLimits = Limits{
 func ResolveLimits(lim Limits) Limits { return lim.withDefaults() }
 
 func (l Limits) withDefaults() Limits {
-	d := DefaultLimits
+	d := defaultLimits()
 	if l.MaxFiles > 0 {
 		d.MaxFiles = l.MaxFiles
 	}

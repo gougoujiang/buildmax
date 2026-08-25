@@ -106,7 +106,11 @@ func (h *Handler) createTeamHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) teamService() *teamsvc.Service {
-	return &teamsvc.Service{Teams: h.cfg.Teams, Users: h.cfg.Users}
+	return h.teams
+}
+
+func newTeamService(cfg Config) *teamsvc.Service {
+	return &teamsvc.Service{Teams: cfg.Teams, Users: cfg.Users}
 }
 
 func (h *Handler) listTeamMembersHandler(w http.ResponseWriter, r *http.Request) {

@@ -271,7 +271,7 @@ From there the counts follow the same path as the prompt and completion totals:
 `agent.RunStats` accumulates them across a run, `agent.Event` carries the running
 figures on `llm_start`/`llm_end`, the JSONL trace records them on `llm_end` and
 `run_end`, the session file keeps the per-session totals, and `agentapp.RunResult`
-and `RunStatus` hand them to the CLI, Desktop, and any other surface. A managed
+and `RunUsage` hand them to the CLI, Desktop, and any other surface. A managed
 call carries the same counts over `llmwire.Usage` and onto the `llm_call` ledger
 row, which the team run-ledger route and Portal's run-spend view read back.
 

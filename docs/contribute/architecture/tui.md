@@ -78,6 +78,13 @@ Enter ─▶ append user message ─▶ busy = true
 Both are adapters over the agent loop's existing seams; the TUI adds no
 agent-side machinery of its own.
 
+`tuiRunOwner` (`tui_runs.go`) owns the context for every foreground turn and
+background delivery, plus the wait group that joins them. Closing the model
+cancels that root context before `AgentApp.Close`, and channel sends select on
+the same context. The goroutine that creates a stream channel is the only one
+that closes it, after the run returns, so quitting cannot strand a sender or
+close a channel while a producer still owns it.
+
 ## Typing During A Run
 
 The input stays visible and editable while the agent works. `Enter` queues the

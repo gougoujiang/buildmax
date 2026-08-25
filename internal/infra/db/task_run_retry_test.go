@@ -36,12 +36,14 @@ func TestCreateTaskRunPersistsRetryLineage(t *testing.T) {
 	}
 	failed := *task.LastRunID
 	endedAt := time.Unix(1_800_000_000, 0).UTC()
-	if err := s.UpdateRun(ctx, model.UpdateTaskRunInput{
-		TaskRunID: failed,
-		Status:    model.RunStatusFailed,
-		EndedAt:   &endedAt,
-	}); err != nil {
-		t.Fatalf("UpdateRun: %v", err)
+	startTaskRunForTest(t, s, ctx, failed)
+	if updated, err := s.TransitionTaskRun(ctx, model.TransitionTaskRunInput{
+		TaskRunID:      failed,
+		ExpectedStatus: model.RunStatusRunning,
+		NewStatus:      model.RunStatusFailed,
+		EndedAt:        &endedAt,
+	}); err != nil || !updated {
+		t.Fatalf("TransitionTaskRun to FAILED: updated=%v err=%v", updated, err)
 	}
 
 	retry, err := s.CreateTaskRun(ctx, model.CreateTaskRunInput{

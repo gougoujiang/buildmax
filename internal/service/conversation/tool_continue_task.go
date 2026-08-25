@@ -1,4 +1,4 @@
-package tool
+package conversation
 
 import (
 	"context"
@@ -9,17 +9,19 @@ import (
 
 // ContinueTaskRunner is the interface used by the ContinueTask tool. Callers implement this
 // using TaskService.CreateRun; must verify task belongs to the current conversation before creating run.
-type ContinueTaskRunner interface {
+type continueTaskRunner interface {
 	ContinueTask(ctx context.Context, scopeID, userID, taskID, input string) (runID string, err error)
 }
 
 type continueTaskTool struct {
 	scopeID string
 	userID  string
-	runner  ContinueTaskRunner
+	runner  continueTaskRunner
 }
 
-func (t *continueTaskTool) Name() string { return ToolNameContinueTask }
+const toolNameContinueTask = "ContinueTask"
+
+func (t *continueTaskTool) Name() string { return toolNameContinueTask }
 
 func (t *continueTaskTool) Description() string {
 	return "Continue an existing task with a follow-up message. Use this when the user wants to add to a task, try again with different input, or follow up on a previous result. Creates a new run for that task. Tell the user the task_id and run_id when done. Fails if the task is not in the current conversation."
@@ -44,7 +46,7 @@ func (t *continueTaskTool) Parameters() any {
 
 func (t *continueTaskTool) Execute(ctx context.Context, args map[string]any) (string, error) {
 	if t.runner == nil {
-		return "", fmt.Errorf("%s not configured", ToolNameContinueTask)
+		return "", fmt.Errorf("%s not configured", toolNameContinueTask)
 	}
 	taskID, _ := args["task_id"].(string)
 	if taskID == "" {
@@ -62,6 +64,6 @@ func (t *continueTaskTool) Execute(ctx context.Context, args map[string]any) (st
 }
 
 // NewContinueTaskTool returns a llm.Tool that continues a task with a follow-up. If runner is nil, Execute returns "not configured".
-func NewContinueTaskTool(scopeID, userID string, runner ContinueTaskRunner) llm.Tool {
+func newContinueTaskTool(scopeID, userID string, runner continueTaskRunner) llm.Tool {
 	return &continueTaskTool{scopeID: scopeID, userID: userID, runner: runner}
 }

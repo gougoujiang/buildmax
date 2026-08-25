@@ -1,4 +1,4 @@
-package tool
+package conversation
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 )
 
 func TestNewContinueTaskTool_nilRunner(t *testing.T) {
-	tool := NewContinueTaskTool("w_1", "u_1", nil)
+	tool := newContinueTaskTool("w_1", "u_1", nil)
 	ctx := context.Background()
 	_, err := tool.Execute(ctx, map[string]any{"task_id": "t_1", "input": "follow up"})
 	if err == nil {
@@ -19,7 +19,7 @@ func TestNewContinueTaskTool_nilRunner(t *testing.T) {
 }
 
 func TestNewContinueTaskTool_missingTaskID(t *testing.T) {
-	tool := NewContinueTaskTool("w_1", "u_1", ContinueTaskRunnerFunc(func(ctx context.Context, workspaceID, userID, chatID, input string) (string, error) {
+	tool := newContinueTaskTool("w_1", "u_1", ContinueTaskRunnerFunc(func(ctx context.Context, workspaceID, userID, chatID, input string) (string, error) {
 		return "r_1", nil
 	}))
 	ctx := context.Background()
@@ -33,7 +33,7 @@ func TestNewContinueTaskTool_missingTaskID(t *testing.T) {
 }
 
 func TestNewContinueTaskTool_missingInput(t *testing.T) {
-	tool := NewContinueTaskTool("w_1", "u_1", ContinueTaskRunnerFunc(func(ctx context.Context, workspaceID, userID, chatID, input string) (string, error) {
+	tool := newContinueTaskTool("w_1", "u_1", ContinueTaskRunnerFunc(func(ctx context.Context, workspaceID, userID, chatID, input string) (string, error) {
 		return "r_1", nil
 	}))
 	ctx := context.Background()
@@ -47,7 +47,7 @@ func TestNewContinueTaskTool_missingInput(t *testing.T) {
 }
 
 func TestNewContinueTaskTool_notInWorkspace(t *testing.T) {
-	tool := NewContinueTaskTool("w_1", "u_1", ContinueTaskRunnerFunc(func(ctx context.Context, workspaceID, userID, chatID, input string) (string, error) {
+	tool := newContinueTaskTool("w_1", "u_1", ContinueTaskRunnerFunc(func(ctx context.Context, workspaceID, userID, chatID, input string) (string, error) {
 		return "", errors.New("task not found or not in this workspace")
 	}))
 	ctx := context.Background()
@@ -58,7 +58,7 @@ func TestNewContinueTaskTool_notInWorkspace(t *testing.T) {
 }
 
 func TestNewContinueTaskTool_success(t *testing.T) {
-	tool := NewContinueTaskTool("w_1", "u_1", ContinueTaskRunnerFunc(func(ctx context.Context, workspaceID, userID, chatID, input string) (string, error) {
+	tool := newContinueTaskTool("w_1", "u_1", ContinueTaskRunnerFunc(func(ctx context.Context, workspaceID, userID, chatID, input string) (string, error) {
 		if workspaceID != "w_1" || userID != "u_1" || chatID != "t_xyz" || input != "add this" {
 			return "", errors.New("bad args")
 		}

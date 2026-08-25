@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
-	"github.com/gougoujiang/buildmax/internal/core/plugin/archive"
+	archive "github.com/gougoujiang/buildmax/internal/infra/pluginarchive"
 	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/audit"

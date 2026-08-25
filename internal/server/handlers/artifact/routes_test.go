@@ -94,14 +94,14 @@ func multipartBody(t *testing.T, filename, content string) (io.Reader, string) {
 	return &buf, w.FormDataContentType()
 }
 
-func (f *fixture) upload(t *testing.T, userID, teamID, filename, content string) ArtifactResponse {
+func (f *fixture) upload(t *testing.T, userID, teamID, filename, content string) artifactResponse {
 	t.Helper()
 	body, contentType := multipartBody(t, filename, content)
 	rec := f.do(t, http.MethodPost, "/api/teams/"+teamID+"/artifacts", userID, body, contentType)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("upload status = %d, want 201: %s", rec.Code, rec.Body.String())
 	}
-	var out ArtifactResponse
+	var out artifactResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 		t.Fatalf("decode upload response: %v", err)
 	}
@@ -332,7 +332,7 @@ func TestUploadTitleComesFromTheQuery(t *testing.T) {
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want 201", rec.Code)
 	}
-	var out ArtifactResponse
+	var out artifactResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 		t.Fatal(err)
 	}
@@ -392,7 +392,7 @@ func TestUploadToDefaultTeamUsesThePersonalTeam(t *testing.T) {
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want 201: %s", rec.Code, rec.Body.String())
 	}
-	var out ArtifactResponse
+	var out artifactResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 		t.Fatal(err)
 	}

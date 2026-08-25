@@ -13,7 +13,7 @@
 // What it deliberately does not carry: command arguments, header values,
 // environment values, prompt text, and file contents. A catalog record is not a
 // place to publish the inside of somebody's configuration.
-package inspect
+package plugininspect
 
 import (
 	"errors"
@@ -25,6 +25,7 @@ import (
 
 	corehook "github.com/gougoujiang/buildmax/internal/core/hook"
 	coremcp "github.com/gougoujiang/buildmax/internal/core/mcp"
+	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/core/plugin"
 	"github.com/gougoujiang/buildmax/internal/core/subagent"
 )
@@ -46,9 +47,9 @@ const (
 type Package struct {
 	Manifest  plugin.Manifest
 	Skills    []string
-	Subagents []Subagent
-	MCP       []MCPServer
-	Hooks     []Hook
+	Subagents []model.PluginSubagent
+	MCP       []model.PluginMCPServer
+	Hooks     []model.PluginHook
 
 	// EnvRefs are the environment variable names the payload reads, sorted.
 	// Names only: a value here would be a secret in a catalog record.
@@ -59,35 +60,6 @@ type Package struct {
 	PluginPaths []string
 
 	Findings []plugin.Finding
-}
-
-// Subagent is one contributed subagent, without its system prompt.
-type Subagent struct {
-	Name  string   `json:"name"`
-	Tools []string `json:"tools,omitempty"`
-	Model string   `json:"model,omitempty"`
-}
-
-// MCPServer is one contributed server, without its arguments or environment.
-type MCPServer struct {
-	ID        string `json:"id"`
-	Transport string `json:"transport"`
-	// Executable is the program name only, so a reader can see what starts
-	// without seeing what it is told to do.
-	Executable string `json:"executable,omitempty"`
-	// Host is the URL host only, never its path or query.
-	Host string `json:"host,omitempty"`
-}
-
-// Hook is one contributed hook, without its prompt, headers, or input.
-type Hook struct {
-	Event      string `json:"event"`
-	Type       string `json:"type"`
-	Matcher    string `json:"matcher,omitempty"`
-	Executable string `json:"executable,omitempty"`
-	Host       string `json:"host,omitempty"`
-	MCPServer  string `json:"mcp_server,omitempty"`
-	MCPTool    string `json:"mcp_tool,omitempty"`
 }
 
 // HasErrors reports whether anything found would stop the package loading.
@@ -148,12 +120,12 @@ func inspectSkills(fsys fs.FS, p *Package) []string {
 	return names
 }
 
-func inspectSubagents(fsys fs.FS, p *Package) []Subagent {
+func inspectSubagents(fsys fs.FS, p *Package) []model.PluginSubagent {
 	entries, err := fs.ReadDir(fsys, agentsDir)
 	if err != nil {
 		return nil
 	}
-	var out []Subagent
+	var out []model.PluginSubagent
 	for _, e := range entries {
 		if e.IsDir() || len(out) >= maxInspected {
 			continue
@@ -174,13 +146,13 @@ func inspectSubagents(fsys fs.FS, p *Package) []Subagent {
 			})
 			continue
 		}
-		out = append(out, Subagent{Name: def.Name, Tools: def.ToolNames, Model: def.Model})
+		out = append(out, model.PluginSubagent{Name: def.Name, Tools: def.ToolNames, Model: def.Model})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out
 }
 
-func inspectMCP(fsys fs.FS, p *Package, refs *refSet) []MCPServer {
+func inspectMCP(fsys fs.FS, p *Package, refs *refSet) []model.PluginMCPServer {
 	data, err := fs.ReadFile(fsys, mcpFile)
 	if err != nil {
 		if !errors.Is(err, fs.ErrNotExist) {
@@ -199,7 +171,7 @@ func inspectMCP(fsys fs.FS, p *Package, refs *refSet) []MCPServer {
 		return nil
 	}
 
-	var out []MCPServer
+	var out []model.PluginMCPServer
 	for id, s := range root.MCPServers {
 		if err := coremcp.ValidateServerConfig(id, s); err != nil {
 			p.Findings = append(p.Findings, plugin.Finding{
@@ -213,7 +185,7 @@ func inspectMCP(fsys fs.FS, p *Package, refs *refSet) []MCPServer {
 			refs.scan(v)
 		}
 		refs.scan(s.URL)
-		out = append(out, MCPServer{
+		out = append(out, model.PluginMCPServer{
 			ID:         id,
 			Transport:  s.Type,
 			Executable: executableName(s.Command),
@@ -224,7 +196,7 @@ func inspectMCP(fsys fs.FS, p *Package, refs *refSet) []MCPServer {
 	return out
 }
 
-func inspectHooks(fsys fs.FS, p *Package, refs *refSet) []Hook {
+func inspectHooks(fsys fs.FS, p *Package, refs *refSet) []model.PluginHook {
 	data, err := fs.ReadFile(fsys, hooksFile)
 	if err != nil {
 		if !errors.Is(err, fs.ErrNotExist) {
@@ -240,7 +212,7 @@ func inspectHooks(fsys fs.FS, p *Package, refs *refSet) []Hook {
 		return nil
 	}
 
-	var out []Hook
+	var out []model.PluginHook
 	for _, event := range corehook.EventNames() {
 		for _, e := range cfg.Entries(event) {
 			refs.scan(e.Command)
@@ -258,7 +230,7 @@ func inspectHooks(fsys fs.FS, p *Package, refs *refSet) []Hook {
 			refs.scanPathsOnly(e.Prompt)
 			refs.scanAnyPathsOnly(e.Input)
 
-			out = append(out, Hook{
+			out = append(out, model.PluginHook{
 				Event:      event,
 				Type:       e.ResolvedType(),
 				Matcher:    e.Matcher,

@@ -109,7 +109,7 @@ the build on the ways documentation rots silently:
 | Test | Fails when |
 |---|---|
 | `TestDocsLinksResolve` | A relative markdown link points at a file that does not exist |
-| `TestEnvVarsDocumented` | `config.EnvVars` gains a variable missing from [reference/configuration.md](../reference/configuration.md) |
+| `TestEnvVarsDocumented` | `config.EnvVars()` gains a variable missing from [reference/configuration.md](../reference/configuration.md) |
 | `TestToolNamesDocumented` | A tool name constant is missing from [guide/tools.md](../guide/tools.md) |
 | `TestAgentsMDPathsExist` / `TestAgentsMDRoutesExist` | [AGENTS.md](../../AGENTS.md) cites a path or route that does not exist |
 | `TestDocumentedFilePathsExist` | Any document cites a repository file that does not exist |

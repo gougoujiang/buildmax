@@ -19,10 +19,10 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
-	"github.com/gougoujiang/buildmax/internal/core/plugin/archive"
-	"github.com/gougoujiang/buildmax/internal/core/plugin/inspect"
 	"github.com/gougoujiang/buildmax/internal/infra/objectstore"
+	archive "github.com/gougoujiang/buildmax/internal/infra/pluginarchive"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
+	inspect "github.com/gougoujiang/buildmax/internal/service/plugininspect"
 )
 
 // ErrInvalidPackage means the uploaded bytes are not a plugin this deployment
@@ -40,11 +40,11 @@ const digestPrefixLen = 12
 
 // Service publishes releases and manages catalog entries.
 type Service struct {
-	Catalog model.PluginStore
+	Catalog CatalogStore
 	// Activations and Teams carry the team half of distribution: which
 	// releases a team's background runs may use, and who fills that list.
 	// They are nil in a deployment that only publishes and installs locally.
-	Activations model.PluginActivationStore
+	Activations ActivationStore
 	Teams       model.TeamStore
 	Packages    objectstore.PluginPackageStorage
 	// KeyPrefix scopes package keys inside the object store.

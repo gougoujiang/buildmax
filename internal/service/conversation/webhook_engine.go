@@ -19,7 +19,7 @@ type WebhookEngine struct {
 
 // Process creates exactly one TaskRun for webhook turns. Rejects other channels.
 func (e *WebhookEngine) Process(ctx context.Context, conversationID, taskID string, turn convchannel.Turn) (ConversationResult, error) {
-	if turn.Channel != ChannelWebhook {
+	if turn.Channel != convchannel.ChannelWebhook {
 		return ConversationResult{}, ErrWebhookChannelRequired
 	}
 	if e.TaskService == nil {
