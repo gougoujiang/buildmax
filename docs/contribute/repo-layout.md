@@ -108,7 +108,9 @@ internal/
 │
 ├── core/               Pure domain layer — no infra imports
 │   ├── model/          Domain entities and repository contracts
-│   ├── apierr/         Why a service refused: a Kind a transport maps to a status
+│   ├── apierr/         Why a service refused: a Kind a transport maps to a
+│   │                   status, plus ErrNotFound, what a store says when the
+│   │                   row or object a caller named is not there
 │   ├── llm/            LLM contracts (Message, ToolDef, ToolCall, Usage, LLMClient),
 │   │                   the Tool contract, ToolRegistry, and tool policy
 │   ├── hook/           The hooks configuration shape, its events and transports
@@ -258,7 +260,7 @@ bootstrap ──▶ interface / server / service / agentapp / infra ──▶ co
 - `agentapp` imports nothing from `bootstrap`, `interface`, or `server`. Every
   surface that assembles it sits above it.
 - `gorm.io` is imported only by `infra/db`. Above that boundary, "no such row"
-  is `model.ErrNotFound`, which the store translates to.
+  is `apierr.ErrNotFound`, which the store translates to.
 - `mock` and `testsupport` are imported only from `_test.go` files. Neither may
   be reached from code that ships.
 - `internal/tool` is not pure — it imports infra (MCP, git) as needed.

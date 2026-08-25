@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -69,7 +70,7 @@ func deleteTestUser(t *testing.T, s *Store, userID string) {
 	t.Helper()
 	ctx := context.Background()
 	key, err := lookupKey(ctx, s.db, "user", userID)
-	if errors.Is(err, model.ErrNotFound) {
+	if errors.Is(err, apierr.ErrNotFound) {
 		return
 	}
 	if err != nil {

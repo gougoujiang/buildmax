@@ -17,6 +17,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 	archive "github.com/gougoujiang/buildmax/internal/infra/pluginarchive"
@@ -101,7 +102,7 @@ func (s *Service) SetArchived(ctx context.Context, name string, archived bool, a
 		return err
 	}
 	if entry == nil {
-		return model.ErrNotFound
+		return apierr.ErrNotFound
 	}
 	if err := s.Catalog.SetPluginArchived(ctx, name, archived); err != nil {
 		return err
@@ -135,7 +136,7 @@ func (s *Service) ListReleases(ctx context.Context, name string) ([]model.Plugin
 		return nil, err
 	}
 	if entry == nil {
-		return nil, model.ErrNotFound
+		return nil, apierr.ErrNotFound
 	}
 	return s.Catalog.ListPluginReleases(ctx, name)
 }
@@ -160,7 +161,7 @@ func (s *Service) Yank(ctx context.Context, name, version, actorID, reason strin
 		return err
 	}
 	if release == nil {
-		return model.ErrNotFound
+		return apierr.ErrNotFound
 	}
 	if err := s.Catalog.YankPluginRelease(ctx, name, version, actorID, reason); err != nil {
 		return err

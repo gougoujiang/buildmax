@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 )
@@ -119,7 +120,7 @@ func (s *Service) ResolveSelection(ctx context.Context, teamID string, names []s
 		return nil, err
 	}
 	if team == nil {
-		return nil, model.ErrNotFound
+		return nil, apierr.ErrNotFound
 	}
 	curation := model.NormalizePluginCuration(string(team.PluginCuration))
 
@@ -191,7 +192,7 @@ func (s *Service) activatableRelease(ctx context.Context, pluginName, version st
 			return nil, err
 		}
 		if release == nil {
-			return nil, model.ErrNotFound
+			return nil, apierr.ErrNotFound
 		}
 		if err := checkActivatable(*release); err != nil {
 			return nil, err

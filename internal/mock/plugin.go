@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/infra/objectstore"
 )
@@ -54,7 +55,7 @@ func (f *MockPluginStore) ListPlugins(_ context.Context, includeArchived bool) (
 func (f *MockPluginStore) UpdatePlugin(_ context.Context, name string, in model.UpdatePluginInput) (*model.Plugin, error) {
 	p, ok := f.plugins[name]
 	if !ok {
-		return nil, model.ErrNotFound
+		return nil, apierr.ErrNotFound
 	}
 	p.DisplayName, p.Description = in.DisplayName, in.Description
 	copied := *p
@@ -64,7 +65,7 @@ func (f *MockPluginStore) UpdatePlugin(_ context.Context, name string, in model.
 func (f *MockPluginStore) SetPluginArchived(_ context.Context, name string, archived bool) error {
 	p, ok := f.plugins[name]
 	if !ok {
-		return model.ErrNotFound
+		return apierr.ErrNotFound
 	}
 	if archived {
 		at := seqTime(1)
@@ -78,7 +79,7 @@ func (f *MockPluginStore) SetPluginArchived(_ context.Context, name string, arch
 func (f *MockPluginStore) CreatePluginRelease(_ context.Context, in model.CreatePluginReleaseInput) (*model.PluginRelease, error) {
 	entry, ok := f.plugins[in.PluginName]
 	if !ok {
-		return nil, model.ErrNotFound
+		return nil, apierr.ErrNotFound
 	}
 	if entry.Archived() {
 		return nil, model.ErrPluginArchived
@@ -126,7 +127,7 @@ func (f *MockPluginStore) YankPluginRelease(_ context.Context, name, version, ac
 			return nil
 		}
 	}
-	return model.ErrNotFound
+	return apierr.ErrNotFound
 }
 
 // MockPluginPackageStorage is an in-memory plugin.PackageStore.

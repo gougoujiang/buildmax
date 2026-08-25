@@ -7,6 +7,7 @@ import (
 
 	"gorm.io/gorm"
 
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
@@ -83,7 +84,7 @@ func (s *Store) RecordAuditEvent(ctx context.Context, in model.AuditEvent) error
 	var teamKey *uint64
 	if in.TeamID != "" {
 		key, err := lookupKey(ctx, s.db, "team", in.TeamID)
-		if err != nil && !errors.Is(err, model.ErrNotFound) {
+		if err != nil && !errors.Is(err, apierr.ErrNotFound) {
 			return err
 		}
 		if err == nil {
@@ -120,7 +121,7 @@ func truncateDetail(s string) string {
 func (s *Store) ListAuditEvents(ctx context.Context, teamID string, limit, offset int) ([]model.AuditEvent, int, error) {
 	limit, offset = clampPage(limit, offset)
 	teamKey, err := lookupKey(ctx, s.db, "team", teamID)
-	if errors.Is(err, model.ErrNotFound) {
+	if errors.Is(err, apierr.ErrNotFound) {
 		return nil, 0, nil
 	}
 	if err != nil {
@@ -180,7 +181,7 @@ func (s *Store) auditFilterTeamKey(ctx context.Context, filter model.AuditFilter
 		return nil, nil
 	}
 	key, err := lookupKey(ctx, s.db, "team", filter.TeamID)
-	if errors.Is(err, model.ErrNotFound) {
+	if errors.Is(err, apierr.ErrNotFound) {
 		return nil, nil
 	}
 	if err != nil {
@@ -260,7 +261,7 @@ func auditRowsToEvents(rows []auditEventReadRow) []model.AuditEvent {
 // continuing from after.
 func (s *Store) ExportTeamAuditEvents(ctx context.Context, teamID string, after model.AuditCursor, limit int) ([]model.AuditEvent, error) {
 	teamKey, err := lookupKey(ctx, s.db, "team", teamID)
-	if errors.Is(err, model.ErrNotFound) {
+	if errors.Is(err, apierr.ErrNotFound) {
 		return nil, nil
 	}
 	if err != nil {

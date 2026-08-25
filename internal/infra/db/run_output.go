@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
@@ -69,7 +70,7 @@ func (s *Store) ListRunOutputsByConversation(ctx context.Context, conversationID
 // GetTaskRunOutputFiles returns all artifact rows for the given task_run_id, ordered by relative_path.
 func (s *Store) GetTaskRunOutputFiles(ctx context.Context, taskRunID string) ([]model.TaskRunArtifact, error) {
 	runKey, err := lookupKey(ctx, s.db, "task_run", taskRunID)
-	if errors.Is(err, model.ErrNotFound) {
+	if errors.Is(err, apierr.ErrNotFound) {
 		return nil, nil
 	}
 	if err != nil {
@@ -83,7 +84,7 @@ func (s *Store) GetTaskRunOutputFiles(ctx context.Context, taskRunID string) ([]
 // TaskRunHasOutput returns true if the run has at least one output file (and thus is a valid "artifact" for content).
 func (s *Store) TaskRunHasOutput(ctx context.Context, taskRunID string) (bool, error) {
 	runKey, err := lookupKey(ctx, s.db, "task_run", taskRunID)
-	if errors.Is(err, model.ErrNotFound) {
+	if errors.Is(err, apierr.ErrNotFound) {
 		return false, nil
 	}
 	if err != nil {

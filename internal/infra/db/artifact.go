@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/util"
 	"gorm.io/gorm"
@@ -92,7 +93,7 @@ func (s *Store) CreateArtifact(ctx context.Context, in model.CreateArtifactInput
 	}
 	id, ok := util.CanonicalPublicID(in.ArtifactID)
 	if !ok {
-		return nil, model.ErrNotFound
+		return nil, apierr.ErrNotFound
 	}
 	row := artifactRow{
 		PublicID:      id,
@@ -137,7 +138,7 @@ func (s *Store) GetArtifact(ctx context.Context, artifactID string) (*model.Arti
 func (s *Store) ListArtifactsByTeam(ctx context.Context, teamID string, limit, offset int) ([]model.Artifact, int, error) {
 	limit, offset = capPage(limit, offset)
 	teamKey, err := lookupKey(ctx, s.db, "team", teamID)
-	if errors.Is(err, model.ErrNotFound) {
+	if errors.Is(err, apierr.ErrNotFound) {
 		return nil, 0, nil
 	}
 	if err != nil {

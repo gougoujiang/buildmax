@@ -408,7 +408,7 @@ func lookupKey(ctx context.Context, tx *gorm.DB, table, publicID string) (uint64
 ```
 
 A public ID that fails `ParsePublicID`, and one that names no row, both return
-`model.ErrNotFound` — the handler layer has already rejected malformed input
+`apierr.ErrNotFound` — the handler layer has already rejected malformed input
 with `400`, and a well-formed unknown value must not become an existence
 oracle.
 

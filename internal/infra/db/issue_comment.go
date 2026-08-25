@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/util"
 	"gorm.io/gorm"
@@ -128,7 +129,7 @@ func (s *Store) CreateIssueComment(ctx context.Context, in model.CreateIssueComm
 func (s *Store) ListIssueComments(ctx context.Context, issueID string, limit, offset int) ([]model.IssueComment, int, error) {
 	limit, offset = capPage(limit, offset)
 	issueKey, err := lookupKey(ctx, s.db, "issue", issueID)
-	if errors.Is(err, model.ErrNotFound) {
+	if errors.Is(err, apierr.ErrNotFound) {
 		return nil, 0, nil
 	}
 	if err != nil {

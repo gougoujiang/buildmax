@@ -7,6 +7,7 @@ import (
 
 	"gorm.io/gorm"
 
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
@@ -267,7 +268,7 @@ func (s *Store) CompleteLLMCall(ctx context.Context, llmCallID string, outcome m
 	}
 	id, ok := util.CanonicalPublicID(llmCallID)
 	if !ok {
-		return model.ErrNotFound
+		return apierr.ErrNotFound
 	}
 	return s.db.WithContext(ctx).Model(&llmCallRow{}).
 		Where("public_id = ?", id).
@@ -298,7 +299,7 @@ func (s *Store) GetLLMCallByClientID(ctx context.Context, userID, clientCallID s
 		return nil, nil
 	}
 	userKey, err := lookupKey(ctx, s.db, "user", userID)
-	if errors.Is(err, model.ErrNotFound) {
+	if errors.Is(err, apierr.ErrNotFound) {
 		return nil, nil
 	}
 	if err != nil {
@@ -324,7 +325,7 @@ func (s *Store) GetLLMCallByClientID(ctx context.Context, userID, clientCallID s
 // column here to filter on afterwards.
 func (s *Store) ListLLMCallsByTaskRun(ctx context.Context, taskRunID string) ([]model.LLMCall, error) {
 	runKey, err := lookupKey(ctx, s.db, "task_run", taskRunID)
-	if errors.Is(err, model.ErrNotFound) {
+	if errors.Is(err, apierr.ErrNotFound) {
 		return nil, nil
 	}
 	if err != nil {

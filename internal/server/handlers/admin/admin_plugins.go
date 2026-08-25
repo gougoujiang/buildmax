@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	archive "github.com/gougoujiang/buildmax/internal/infra/pluginarchive"
 	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
@@ -199,7 +200,7 @@ func writePluginError(w http.ResponseWriter, err error, handler, name string) {
 		errors.Is(err, model.ErrPluginArchived),
 		errors.Is(err, model.ErrPluginNameTaken):
 		httputil.WriteJSONError(w, http.StatusConflict, err.Error())
-	case errors.Is(err, model.ErrNotFound):
+	case errors.Is(err, apierr.ErrNotFound):
 		httputil.WriteJSONError(w, http.StatusNotFound, "plugin not found")
 	default:
 		httputil.WriteInternalError(w, err, "handler error", "handler", handler, "plugin_name", name)

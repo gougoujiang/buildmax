@@ -8,6 +8,7 @@ import (
 
 	"gorm.io/gorm"
 
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 )
 
@@ -194,7 +195,7 @@ func (s *Store) updatePluginActivation(ctx context.Context, teamID, pluginName, 
 			return nil, getErr
 		}
 		if existing == nil {
-			return nil, model.ErrNotFound
+			return nil, apierr.ErrNotFound
 		}
 		return existing, nil
 	}

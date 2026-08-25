@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -136,7 +137,7 @@ func (s *Store) GetConversation(ctx context.Context, conversationID string) (*mo
 func (s *Store) ListConversationsByUser(ctx context.Context, userID string, limit, offset int) ([]model.Conversation, int, error) {
 	limit, offset = capPage(limit, offset)
 	userKey, err := lookupKey(ctx, s.db, "user", userID)
-	if errors.Is(err, model.ErrNotFound) {
+	if errors.Is(err, apierr.ErrNotFound) {
 		return nil, 0, nil
 	}
 	if err != nil {
@@ -168,7 +169,7 @@ func (s *Store) ListConversationsByUser(ctx context.Context, userID string, limi
 func (s *Store) ListConversationsByTeam(ctx context.Context, teamID string, limit, offset int) ([]model.Conversation, int, error) {
 	limit, offset = capPage(limit, offset)
 	teamKey, err := lookupKey(ctx, s.db, "team", teamID)
-	if errors.Is(err, model.ErrNotFound) {
+	if errors.Is(err, apierr.ErrNotFound) {
 		return nil, 0, nil
 	}
 	if err != nil {
@@ -193,7 +194,7 @@ func (s *Store) ListConversationsByTeam(ctx context.Context, teamID string, limi
 func (s *Store) UpdateConversationTitle(ctx context.Context, conversationID, title string) error {
 	id, ok := util.CanonicalPublicID(conversationID)
 	if !ok {
-		return model.ErrNotFound
+		return apierr.ErrNotFound
 	}
 	return s.db.WithContext(ctx).Model(&conversationRow{}).
 		Where("public_id = ?", id).

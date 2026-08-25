@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	pluginsvc "github.com/gougoujiang/buildmax/internal/service/plugin"
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -132,7 +133,7 @@ func TestPluginCatalogLifecycle(t *testing.T) {
 	if updated.DisplayName != "Renamed" || updated.Description != "New." {
 		t.Errorf("updated = %+v", updated)
 	}
-	if _, err := s.UpdatePlugin(ctx, "store-test-absent", model.UpdatePluginInput{}); !errors.Is(err, model.ErrNotFound) {
+	if _, err := s.UpdatePlugin(ctx, "store-test-absent", model.UpdatePluginInput{}); !errors.Is(err, apierr.ErrNotFound) {
 		t.Errorf("updating a missing entry: err = %v, want ErrNotFound", err)
 	}
 
@@ -186,7 +187,7 @@ func TestPluginReleaseIsImmutable(t *testing.T) {
 	}
 	if _, err := s.CreatePluginRelease(ctx, model.CreatePluginReleaseInput{
 		PluginName: "store-test-absent", Version: "1.0.0", Digest: "sha256:a", PublishedBy: newTestUser(t, s, "publisher"),
-	}); !errors.Is(err, model.ErrNotFound) {
+	}); !errors.Is(err, apierr.ErrNotFound) {
 		t.Errorf("publishing to a missing entry: err = %v, want ErrNotFound", err)
 	}
 
@@ -241,7 +242,7 @@ func TestPluginReleaseYank(t *testing.T) {
 	if again.YankedBy != admin || again.YankedAt == nil || !again.YankedAt.Equal(*got.YankedAt) {
 		t.Errorf("second yank rewrote the record: %+v", again)
 	}
-	if err := s.YankPluginRelease(ctx, name, "9.9.9", admin, ""); !errors.Is(err, model.ErrNotFound) {
+	if err := s.YankPluginRelease(ctx, name, "9.9.9", admin, ""); !errors.Is(err, apierr.ErrNotFound) {
 		t.Errorf("yanking a missing release: err = %v, want ErrNotFound", err)
 	}
 

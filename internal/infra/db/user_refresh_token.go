@@ -8,6 +8,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 
 	"gorm.io/gorm"
@@ -265,7 +266,7 @@ func (s *Store) RevokeUserSessions(ctx context.Context, userID string, now time.
 		return 0, nil
 	}
 	userKey, err := lookupKey(ctx, s.db, "user", userID)
-	if errors.Is(err, model.ErrNotFound) {
+	if errors.Is(err, apierr.ErrNotFound) {
 		return 0, nil
 	}
 	if err != nil {
@@ -288,7 +289,7 @@ func (s *Store) CountUserSessions(ctx context.Context, userID string, now time.T
 		return 0, nil
 	}
 	userKey, err := lookupKey(ctx, s.db, "user", userID)
-	if errors.Is(err, model.ErrNotFound) {
+	if errors.Is(err, apierr.ErrNotFound) {
 		return 0, nil
 	}
 	if err != nil {

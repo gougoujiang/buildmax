@@ -70,7 +70,7 @@ var importRules = []struct {
 		},
 	},
 	{
-		// Above this boundary, "no such row" is model.ErrNotFound.
+		// Above this boundary, "no such row" is apierr.ErrNotFound.
 		name: "gorm stays inside the db implementation",
 		dir:  "internal",
 		forbidden: []string{

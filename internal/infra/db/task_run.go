@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -237,7 +238,7 @@ func (s *Store) CreateTaskRun(ctx context.Context, in model.CreateTaskRunInput) 
 	// refusing it. Losing the provenance of work someone asked for is bad;
 	// refusing to do the work because its provenance would not resolve is worse.
 	sourceKey, err := optionalKey(ctx, s.db, "conversation_message", in.SourceMessageID)
-	if err != nil && !errors.Is(err, model.ErrNotFound) {
+	if err != nil && !errors.Is(err, apierr.ErrNotFound) {
 		return nil, err
 	}
 	row.SourceMessageID = sourceKey
@@ -265,7 +266,7 @@ func (s *Store) CreateTaskRun(ctx context.Context, in model.CreateTaskRunInput) 
 func (s *Store) RecordTaskRunAgentRevision(ctx context.Context, taskRunID string, revision int) error {
 	id, ok := util.CanonicalPublicID(taskRunID)
 	if !ok {
-		return model.ErrNotFound
+		return apierr.ErrNotFound
 	}
 	return s.db.WithContext(ctx).Model(&taskRunRow{}).
 		Where("public_id = ? AND agent_revision IS NULL", id).
@@ -280,7 +281,7 @@ func (s *Store) RecordTaskRunAgentRevision(ctx context.Context, taskRunID string
 func (s *Store) RecordTaskRunPluginPins(ctx context.Context, taskRunID string, pins []model.PluginPin) error {
 	id, ok := util.CanonicalPublicID(taskRunID)
 	if !ok {
-		return model.ErrNotFound
+		return apierr.ErrNotFound
 	}
 	encoded, err := json.Marshal(pins)
 	if err != nil {
@@ -376,7 +377,7 @@ func (s *Store) GetTaskRunWithTask(ctx context.Context, taskRunID string) (*mode
 // stops being true.
 func (s *Store) GetActiveTaskRunByTask(ctx context.Context, taskID string) (*model.TaskRun, error) {
 	taskKey, err := lookupKey(ctx, s.db, "task", taskID)
-	if errors.Is(err, model.ErrNotFound) {
+	if errors.Is(err, apierr.ErrNotFound) {
 		return nil, nil
 	}
 	if err != nil {
@@ -526,7 +527,7 @@ func (s *Store) UpdateTaskRunWorkerInfo(ctx context.Context, taskRunID, workerTy
 	}
 	id, ok := util.CanonicalPublicID(taskRunID)
 	if !ok {
-		return model.ErrNotFound
+		return apierr.ErrNotFound
 	}
 	return s.db.WithContext(ctx).Model(&taskRunRow{}).Where("public_id = ?", id).Updates(updates).Error
 }
