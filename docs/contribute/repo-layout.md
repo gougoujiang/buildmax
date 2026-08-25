@@ -107,7 +107,6 @@ internal/
 ├── config/             YAML + env config loading and path resolution
 │
 ├── core/               Pure domain layer — no infra imports
-│   ├── model/          Domain entities and repository contracts
 │   ├── apierr/         Why a service refused: a Kind a transport maps to a
 │   │                   status, plus ErrNotFound, what a store says when the
 │   │                   row or object a caller named is not there
@@ -144,6 +143,8 @@ internal/
 │   │                   legal set of transitions, run output, and delivery
 │   ├── identity/       Who a caller is: the account, its credentials, its
 │   │                   rotating sessions, and the deployment roles it holds
+│   ├── schema/         What a database says has been done to it: the applied
+│   │                   migrations infra/db reports and the admin route reads
 │   └── session/        Local session model; persistence lives in agentapp
 │
 ├── agentapp/           Agent runtime assembly: LLM client cache, tool registry,

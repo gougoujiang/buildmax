@@ -19,7 +19,7 @@ import (
 	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreschema "github.com/gougoujiang/buildmax/internal/core/schema"
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
@@ -56,7 +56,7 @@ type AuthConfig struct {
 	CORSOrigin       string         // If set, enable CORS with this origin (e.g. "http://localhost:5173")
 	QuotaService     *quota.Service // Optional; when set, create chat/run enforce quota and return 429 when exceeded
 	DefaultQuotaTier string         // Default quota tier for new users (e.g. signup); used when calling CreateUser
-	// Token lifetimes; zero means the default in internal/core/model.
+	// Token lifetimes; zero means the default in internal/core/identity.
 	AccessTokenTTL       time.Duration
 	RefreshTokenTTL      time.Duration
 	RefreshRotationGrace time.Duration
@@ -83,7 +83,7 @@ type StoresConfig struct {
 	UserWebhookKeyStore     coreidentity.UserWebhookKeyStore
 	AuditStore              coreaudit.Store
 	SystemGrantStore        coreidentity.SystemGrantStore
-	SchemaStore             model.SchemaStore
+	SchemaStore             coreschema.Store
 	LLMModelStore           coregw.ModelStore
 	// ArtifactStore records durable files. Nil leaves the artifact routes
 	// answering 503, which is what a deployment with no database has.

@@ -13,7 +13,7 @@ import (
 	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreschema "github.com/gougoujiang/buildmax/internal/core/schema"
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
@@ -93,7 +93,7 @@ type Config struct {
 	PluginService *pluginsvc.Service
 	// SchemaStore reports which migrations a database has had applied. Nil
 	// leaves that field of the system status empty.
-	SchemaStore model.SchemaStore
+	SchemaStore coreschema.Store
 	// ArtifactStore records durable files. Nil, or no ArtifactStorage, leaves
 	// the artifact routes answering 503: metadata without content is not an
 	// artifact capability.
