@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 )
 
 // MockLLMModelStore is an in-memory LLMModelStore for tests.
@@ -14,23 +14,23 @@ import (
 // the key onto the record would let a handler test pass while the endpoint
 // serialized it.
 type MockLLMModelStore struct {
-	Models      []model.LLMModel
+	Models      []coregw.Model
 	Credentials map[string]string
 	Err         error
 	next        int
 }
 
-func (m *MockLLMModelStore) CreateLLMModel(_ context.Context, in model.CreateLLMModelInput) (*model.LLMModel, error) {
+func (m *MockLLMModelStore) CreateLLMModel(_ context.Context, in coregw.CreateModelInput) (*coregw.Model, error) {
 	if m.Err != nil {
 		return nil, m.Err
 	}
 	for _, existing := range m.Models {
 		if existing.Name == in.Name {
-			return nil, model.ErrLLMModelNameTaken
+			return nil, coregw.ErrModelNameTaken
 		}
 	}
 	m.next++
-	created := model.LLMModel{
+	created := coregw.Model{
 		ID:            fmt.Sprintf("lm_mock_%d", m.next),
 		Name:          in.Name,
 		ProviderType:  in.ProviderType,
@@ -54,7 +54,7 @@ func (m *MockLLMModelStore) CreateLLMModel(_ context.Context, in model.CreateLLM
 	return &created, nil
 }
 
-func (m *MockLLMModelStore) GetLLMModel(_ context.Context, llmModelID string) (*model.LLMModel, error) {
+func (m *MockLLMModelStore) GetLLMModel(_ context.Context, llmModelID string) (*coregw.Model, error) {
 	if m.Err != nil {
 		return nil, m.Err
 	}
@@ -67,7 +67,7 @@ func (m *MockLLMModelStore) GetLLMModel(_ context.Context, llmModelID string) (*
 	return nil, nil
 }
 
-func (m *MockLLMModelStore) GetLLMModelByName(_ context.Context, name string) (*model.LLMModel, error) {
+func (m *MockLLMModelStore) GetLLMModelByName(_ context.Context, name string) (*coregw.Model, error) {
 	if m.Err != nil {
 		return nil, m.Err
 	}
@@ -83,11 +83,11 @@ func (m *MockLLMModelStore) GetLLMModelByName(_ context.Context, name string) (*
 	return nil, nil
 }
 
-func (m *MockLLMModelStore) ListLLMModels(_ context.Context) ([]model.LLMModel, error) {
+func (m *MockLLMModelStore) ListLLMModels(_ context.Context) ([]coregw.Model, error) {
 	if m.Err != nil {
 		return nil, m.Err
 	}
-	return append([]model.LLMModel(nil), m.Models...), nil
+	return append([]coregw.Model(nil), m.Models...), nil
 }
 
 func (m *MockLLMModelStore) SetLLMModelEnabled(_ context.Context, llmModelID string, enabled bool) error {

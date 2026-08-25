@@ -8,7 +8,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/config"
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	llm "github.com/gougoujiang/buildmax/internal/infra/llm"
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
 )
@@ -101,7 +101,7 @@ func (c *bootstrapCatalog) List(ctx context.Context) ([]llmgateway.Target, error
 //
 // It returns nil when the deployment has neither a database nor a conversation
 // model, which leaves Tier 1 unwired exactly as before the gateway existed.
-func buildLLMRouting(sc config.ServerConfig, models model.LLMModelStore) (*llmRouting, error) {
+func buildLLMRouting(sc config.ServerConfig, models coregw.ModelStore) (*llmRouting, error) {
 	catalog := &bootstrapCatalog{}
 	if entry := sc.Conversation.Model; entry.APIKey != "" {
 		derived := derivedConversationTarget(entry)
@@ -170,7 +170,7 @@ func derivedConversationTarget(entry config.ServerModelEntry) llmgateway.Target 
 
 // newClientFactory builds provider clients for approved targets. It is the only
 // place a credential reference becomes a real credential.
-func newClientFactory(conversationKey string, models model.LLMModelStore) llmgateway.ClientFactory {
+func newClientFactory(conversationKey string, models coregw.ModelStore) llmgateway.ClientFactory {
 	return func(ctx context.Context, target llmgateway.Target) (cllm.LLMClient, error) {
 		if !cllm.KnownProvider(target.ProviderType) {
 			return nil, fmt.Errorf("model %q uses unsupported provider %q; use one of %s",
@@ -193,7 +193,7 @@ func newClientFactory(conversationKey string, models model.LLMModelStore) llmgat
 			Reasoning:     target.Reasoning,
 			CacheControl:  config.CacheControl{Mode: target.CacheMode, TTL: target.CacheTTL},
 			Vision:        target.Vision,
-			Surface:       model.LLMCallSurfaceServer,
+			Surface:       coregw.CallSurfaceServer,
 			CallTimeout:   target.CallTimeout,
 		})
 		if err != nil {
@@ -210,7 +210,7 @@ func newClientFactory(conversationKey string, models model.LLMModelStore) llmgat
 // unauthenticated request upstream. A local runtime has none by definition, and
 // for it an empty key is the configured state — the target is authorized by the
 // deployment being able to reach the daemon, not by a secret.
-func resolveCredential(ctx context.Context, target llmgateway.Target, conversationKey string, models model.LLMModelStore) (string, error) {
+func resolveCredential(ctx context.Context, target llmgateway.Target, conversationKey string, models coregw.ModelStore) (string, error) {
 	required := cllm.ProviderNeedsCredential(target.ProviderType)
 	if target.CredentialRef == conversationCredentialRef {
 		if conversationKey == "" && required {

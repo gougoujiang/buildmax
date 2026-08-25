@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 )
 
 // TestValidateModelInputCredentialRule pins which catalog targets may be added
@@ -13,7 +13,7 @@ import (
 // them, so the exemption has to be exactly one provider wide: the one with no
 // secret to hold.
 func TestValidateModelInputCredentialRule(t *testing.T) {
-	base := model.CreateLLMModelInput{
+	base := coregw.CreateModelInput{
 		Name:         "Target",
 		APIURL:       "https://api.example.test/v1",
 		Model:        "some-model",

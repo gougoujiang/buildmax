@@ -5,7 +5,7 @@ import (
 	"time"
 
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 )
 
@@ -120,7 +120,7 @@ func (h *Handler) listTaskRunLLMCallsHandler(w http.ResponseWriter, r *http.Requ
 	httputil.WriteJSON(w, http.StatusOK, out)
 }
 
-func toLLMCallSummary(call model.LLMCall) LLMCallSummary {
+func toLLMCallSummary(call coregw.Call) LLMCallSummary {
 	out := LLMCallSummary{
 		ID:               call.ID,
 		UserID:           call.UserID,
@@ -155,7 +155,7 @@ func toLLMCallSummary(call model.LLMCall) LLMCallSummary {
 // what a team already spent. A row written before the snapshot existed has no
 // rates and reports no cost, which is the truthful answer — nobody recorded
 // what it was charged.
-func llmCallCost(call model.LLMCall) (LLMCallCost, bool) {
+func llmCallCost(call coregw.Call) (LLMCallCost, bool) {
 	if call.Currency == "" || call.RateInputPerMTok == nil {
 		return LLMCallCost{}, false
 	}

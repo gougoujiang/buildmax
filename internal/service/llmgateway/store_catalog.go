@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 )
 
 // StoreCatalog serves the model catalog from persistent storage.
@@ -14,7 +14,7 @@ import (
 // router compares a target's connection details before reusing a cached client
 // and why a dangling alias is a call-time failure rather than a startup one.
 type StoreCatalog struct {
-	Models model.LLMModelStore
+	Models coregw.ModelStore
 }
 
 // Target returns one approved upstream by catalog ID.
@@ -98,7 +98,7 @@ func (c *StoreCatalog) IDs(ctx context.Context) ([]string, error) {
 // A row is validated on the way out rather than trusted: the catalog is edited
 // through an API, and a half-written row must fail its own calls instead of
 // producing a client pointed at nothing.
-func targetFromModel(m model.LLMModel) (Target, error) {
+func targetFromModel(m coregw.Model) (Target, error) {
 	capabilities := make([]Capability, 0, len(m.Capabilities))
 	for _, c := range m.Capabilities {
 		capabilities = append(capabilities, Capability(c))

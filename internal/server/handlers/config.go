@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/llm"
+	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
@@ -64,7 +65,7 @@ type Config struct {
 	TaskRunStore      model.TaskRunStore
 	// LLMCallStore reads the managed call ledger. Nil leaves the ledger
 	// unreadable over HTTP, which is what a deployment with no database has.
-	LLMCallStore             model.LLMCallStore
+	LLMCallStore             coregw.CallStore
 	RunOutputLister          work.RunOutputLister
 	UserWebhookKeyStore      model.UserWebhookKeyStore
 	ConversationStore        model.ConversationStore
@@ -75,7 +76,7 @@ type Config struct {
 	// here: the credential half of the catalog is edited by
 	// `buildmax-server model`, on the machine that holds the database
 	// credentials.
-	LLMModelStore model.LLMModelStore
+	LLMModelStore coregw.ModelStore
 
 	// PluginService publishes Marketplace releases and manages catalog
 	// entries. Nil leaves the catalog routes reporting that this deployment

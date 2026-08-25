@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
@@ -21,14 +22,14 @@ func adminModelsMux(t *testing.T) (*http.ServeMux, *mock.MockLLMModelStore, *moc
 	grants.GrantForTest(adminUser, model.SystemRoleAdmin)
 
 	models := &mock.MockLLMModelStore{}
-	fast, err := models.CreateLLMModel(t.Context(), model.CreateLLMModelInput{
+	fast, err := models.CreateLLMModel(t.Context(), coregw.CreateModelInput{
 		Name: "Fast", ProviderType: "openai_compatible", APIURL: "https://example.test/v1",
 		APIKey: modelSecret, Model: "provider/fast",
 	})
 	if err != nil {
 		t.Fatalf("CreateLLMModel: %v", err)
 	}
-	if _, err := models.CreateLLMModel(t.Context(), model.CreateLLMModelInput{
+	if _, err := models.CreateLLMModel(t.Context(), coregw.CreateModelInput{
 		Name: "Deep", ProviderType: "openai_compatible", APIURL: "https://example.test/v1",
 		APIKey: modelSecret, Model: "provider/deep",
 	}); err != nil {

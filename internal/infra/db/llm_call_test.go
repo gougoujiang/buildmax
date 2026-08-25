@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
 
@@ -23,10 +23,10 @@ func ledgerUser(t *testing.T, s *Store) string {
 	return newTestUser(t, s, "ledger")
 }
 
-func sampleLLMCall() *model.LLMCall {
-	return &model.LLMCall{
+func sampleLLMCall() *coregw.Call {
+	return &coregw.Call{
 		UserID:        nil,
-		Surface:       model.LLMCallSurfaceCLI,
+		Surface:       coregw.CallSurfaceCLI,
 		SessionID:     ptrString("session-1"),
 		Model:         "fast",
 		TargetID:      "mt_fast",
@@ -52,14 +52,14 @@ func TestLLMCallRowRoundTrip(t *testing.T) {
 	call.UpstreamStartedAt = &upstreamStarted
 	call.FirstDeltaAt = &firstDelta
 	call.CompletedAt = &completed
-	call.Status = model.LLMCallStatusSucceeded
+	call.Status = coregw.CallStatusSucceeded
 	call.ErrorClass = ptrString("upstream_unavailable")
 	call.Attempts = 2
 	prompt, completion, total := 100, 20, 120
 	call.PromptTokens = &prompt
 	call.CompletionTokens = &completion
 	call.TotalTokens = &total
-	call.UsageSource = model.LLMUsageSourceReported
+	call.UsageSource = coregw.UsageSourceReported
 
 	got := toLLMCall(&llmCallReadRow{Row: *llmCallValues(call)})
 	if got == nil {
@@ -133,11 +133,11 @@ func TestOpenAndCompleteLLMCall(t *testing.T) {
 	if _, ok := util.CanonicalPublicID(opened.ID); !ok {
 		t.Errorf("LLMCallID = %q, want a canonical public ID", opened.ID)
 	}
-	if opened.Status != model.LLMCallStatusAccepted {
-		t.Errorf("Status = %q, want %q", opened.Status, model.LLMCallStatusAccepted)
+	if opened.Status != coregw.CallStatusAccepted {
+		t.Errorf("Status = %q, want %q", opened.Status, coregw.CallStatusAccepted)
 	}
-	if opened.UsageSource != model.LLMUsageSourceUnavailable {
-		t.Errorf("UsageSource = %q, want %q", opened.UsageSource, model.LLMUsageSourceUnavailable)
+	if opened.UsageSource != coregw.UsageSourceUnavailable {
+		t.Errorf("UsageSource = %q, want %q", opened.UsageSource, coregw.UsageSourceUnavailable)
 	}
 	if opened.PromptTokens != nil {
 		t.Error("an accepted call must not carry token counts yet")
@@ -145,16 +145,16 @@ func TestOpenAndCompleteLLMCall(t *testing.T) {
 
 	completedAt := opened.AcceptedAt.Add(3 * time.Second)
 	upstreamStarted := opened.AcceptedAt.Add(1 * time.Second)
-	err = s.CompleteLLMCall(ctx, opened.ID, model.LLMCallOutcome{
-		Status:            model.LLMCallStatusSucceeded,
+	err = s.CompleteLLMCall(ctx, opened.ID, coregw.CallOutcome{
+		Status:            coregw.CallStatusSucceeded,
 		Attempts:          1,
 		UpstreamStartedAt: &upstreamStarted,
 		CompletedAt:       completedAt,
-		Usage: &model.LLMCallUsage{
+		Usage: &coregw.CallUsage{
 			PromptTokens:     100,
 			CompletionTokens: 20,
 			TotalTokens:      120,
-			Source:           model.LLMUsageSourceReported,
+			Source:           coregw.UsageSourceReported,
 		},
 	})
 	if err != nil {
@@ -168,8 +168,8 @@ func TestOpenAndCompleteLLMCall(t *testing.T) {
 	if got == nil {
 		t.Fatal("GetLLMCall returned nothing for a stored call")
 	}
-	if got.Status != model.LLMCallStatusSucceeded {
-		t.Errorf("Status = %q, want %q", got.Status, model.LLMCallStatusSucceeded)
+	if got.Status != coregw.CallStatusSucceeded {
+		t.Errorf("Status = %q, want %q", got.Status, coregw.CallStatusSucceeded)
 	}
 	if got.TotalTokens == nil || *got.TotalTokens != 120 {
 		t.Errorf("TotalTokens = %v, want 120", got.TotalTokens)
@@ -217,8 +217,8 @@ func TestCompleteLLMCallKeepsUnavailableUsage(t *testing.T) {
 	}()
 
 	errorClass := "upstream_unavailable"
-	err = s.CompleteLLMCall(ctx, opened.ID, model.LLMCallOutcome{
-		Status:      model.LLMCallStatusFailed,
+	err = s.CompleteLLMCall(ctx, opened.ID, coregw.CallOutcome{
+		Status:      coregw.CallStatusFailed,
 		ErrorClass:  &errorClass,
 		Attempts:    3,
 		CompletedAt: opened.AcceptedAt.Add(5 * time.Second),
@@ -236,8 +236,8 @@ func TestCompleteLLMCallKeepsUnavailableUsage(t *testing.T) {
 	if got.TotalTokens != nil {
 		t.Errorf("TotalTokens = %v, want nil", got.TotalTokens)
 	}
-	if got.UsageSource != model.LLMUsageSourceUnavailable {
-		t.Errorf("UsageSource = %q, want %q", got.UsageSource, model.LLMUsageSourceUnavailable)
+	if got.UsageSource != coregw.UsageSourceUnavailable {
+		t.Errorf("UsageSource = %q, want %q", got.UsageSource, coregw.UsageSourceUnavailable)
 	}
 	if got.Attempts != 3 {
 		t.Errorf("Attempts = %d, want 3", got.Attempts)
@@ -273,7 +273,7 @@ func TestOpenLLMCallRejectsADuplicateClientID(t *testing.T) {
 	second := sampleLLMCall()
 	second.UserID = &user
 	second.ClientCallID = &key
-	if _, err := s.OpenLLMCall(ctx, second); !errors.Is(err, model.ErrDuplicateLLMCall) {
+	if _, err := s.OpenLLMCall(ctx, second); !errors.Is(err, coregw.ErrDuplicateCall) {
 		t.Fatalf("want ErrDuplicateLLMCall, got %v", err)
 	}
 

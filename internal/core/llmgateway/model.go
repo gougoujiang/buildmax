@@ -1,4 +1,4 @@
-package model
+package llmgateway
 
 import (
 	"context"
@@ -6,16 +6,16 @@ import (
 	"time"
 )
 
-// ErrLLMModelNameTaken is returned when an operator reuses a model name.
-var ErrLLMModelNameTaken = errors.New("a model with this name already exists")
+// ErrModelNameTaken is returned when an operator reuses a model name.
+var ErrModelNameTaken = errors.New("a model with this name already exists")
 
-// LLMModel is one operator-approved upstream the managed gateway may call.
+// Model is one operator-approved upstream the managed gateway may call.
 //
 // The record deliberately has no credential field. The key lives in the same
 // table but is read only by the component that opens a provider connection, so
 // listing, resolving, and diagnosing models can never carry it by accident.
 // See docs/design/llm-gateway.md.
-type LLMModel struct {
+type Model struct {
 	ID string `json:"id"`
 	// Name is the operator-facing name, unique within a deployment.
 	Name string `json:"name"`
@@ -62,9 +62,9 @@ type LLMModel struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-// CreateLLMModelInput is a new catalog row, including the credential that the
+// CreateModelInput is a new catalog row, including the credential that the
 // record itself never carries afterwards.
-type CreateLLMModelInput struct {
+type CreateModelInput struct {
 	Name              string
 	ProviderType      string
 	APIURL            string
@@ -85,22 +85,22 @@ type CreateLLMModelInput struct {
 	Capabilities      []string
 }
 
-// LLMModelStore persists the managed model catalog.
+// ModelStore persists the managed model catalog.
 //
 // Reading a model and reading its credential are separate operations on
 // purpose: everything that lists, resolves, or reports a model uses the first,
 // and only the client factory uses the second.
-type LLMModelStore interface {
+type ModelStore interface {
 	// CreateLLMModel stores a new model and returns it without its credential.
-	CreateLLMModel(ctx context.Context, in CreateLLMModelInput) (*LLMModel, error)
+	CreateLLMModel(ctx context.Context, in CreateModelInput) (*Model, error)
 	// GetLLMModel returns one model by ID, or (nil, nil) when not found.
-	GetLLMModel(ctx context.Context, llmModelID string) (*LLMModel, error)
+	GetLLMModel(ctx context.Context, llmModelID string) (*Model, error)
 	// GetLLMModelByName returns one model by its operator-facing name, or
 	// (nil, nil) when not found. Name is unique across the deployment and is
 	// what a client names a model by, so this is the lookup on the call path.
-	GetLLMModelByName(ctx context.Context, name string) (*LLMModel, error)
+	GetLLMModelByName(ctx context.Context, name string) (*Model, error)
 	// ListLLMModels returns every model, enabled or not, oldest first.
-	ListLLMModels(ctx context.Context) ([]LLMModel, error)
+	ListLLMModels(ctx context.Context) ([]Model, error)
 	// SetLLMModelEnabled retires or restores a model.
 	SetLLMModelEnabled(ctx context.Context, llmModelID string, enabled bool) error
 	// LLMModelCredential returns the upstream key for a model. It is the only

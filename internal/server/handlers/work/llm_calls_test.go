@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
@@ -44,8 +45,8 @@ func getLLMCalls(t *testing.T, cfg Config, teamID, taskRunID string, auth bool) 
 	return rec
 }
 
-func stagedCall() model.LLMCall {
-	return model.LLMCall{
+func stagedCall() coregw.Call {
+	return coregw.Call{
 		ID:            "lc_1",
 		UserID:        ptr(llmTestUser),
 		TaskRunID:     ptr("r_1"),
@@ -56,9 +57,9 @@ func stagedCall() model.LLMCall {
 		ProviderType:  "openai_compatible",
 		UpstreamModel: "SECRET-UPSTREAM-MODEL",
 		AcceptedAt:    time.Now().UTC(),
-		Status:        model.LLMCallStatusSucceeded,
+		Status:        coregw.CallStatusSucceeded,
 		PromptTokens:  ptr(10),
-		UsageSource:   model.LLMUsageSourceReported,
+		UsageSource:   coregw.UsageSourceReported,
 	}
 }
 
@@ -66,7 +67,7 @@ func stagedCall() model.LLMCall {
 // spent was recorded from the start and could only be read with the database
 // password.
 func TestListTaskRunLLMCalls(t *testing.T) {
-	rec := getLLMCalls(t, llmCallsFixture(&llmStubLedger{calls: []model.LLMCall{stagedCall()}}), llmTestTeam, "r_1", true)
+	rec := getLLMCalls(t, llmCallsFixture(&llmStubLedger{calls: []coregw.Call{stagedCall()}}), llmTestTeam, "r_1", true)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body)
 	}
@@ -98,7 +99,7 @@ func TestListTaskRunLLMCallsReportsCacheTokens(t *testing.T) {
 	call := stagedCall()
 	call.CacheReadTokens = ptr(80)
 	call.CacheWriteTokens = ptr(0)
-	rec := getLLMCalls(t, llmCallsFixture(&llmStubLedger{calls: []model.LLMCall{call}}), llmTestTeam, "r_1", true)
+	rec := getLLMCalls(t, llmCallsFixture(&llmStubLedger{calls: []coregw.Call{call}}), llmTestTeam, "r_1", true)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body)
 	}
@@ -124,7 +125,7 @@ func TestListTaskRunLLMCallsReportsCacheTokens(t *testing.T) {
 // A call the provider reported no cache for omits the fields entirely, so a
 // reader is never handed a zero nobody measured.
 func TestListTaskRunLLMCallsOmitsUnreportedCacheTokens(t *testing.T) {
-	rec := getLLMCalls(t, llmCallsFixture(&llmStubLedger{calls: []model.LLMCall{stagedCall()}}), llmTestTeam, "r_1", true)
+	rec := getLLMCalls(t, llmCallsFixture(&llmStubLedger{calls: []coregw.Call{stagedCall()}}), llmTestTeam, "r_1", true)
 	for _, field := range []string{"cache_read_tokens", "cache_write_tokens"} {
 		if strings.Contains(rec.Body.String(), field) {
 			t.Errorf("unreported %s was sent as a count: %s", field, rec.Body)
@@ -136,7 +137,7 @@ func TestListTaskRunLLMCallsOmitsUnreportedCacheTokens(t *testing.T) {
 // boundary. A caller names a model; which catalog entry that resolves to, and
 // which upstream model it is, belong to the operator.
 func TestListTaskRunLLMCallsHidesOperatorRouting(t *testing.T) {
-	rec := getLLMCalls(t, llmCallsFixture(&llmStubLedger{calls: []model.LLMCall{stagedCall()}}), llmTestTeam, "r_1", true)
+	rec := getLLMCalls(t, llmCallsFixture(&llmStubLedger{calls: []coregw.Call{stagedCall()}}), llmTestTeam, "r_1", true)
 	for _, secret := range []string{"SECRET-CATALOG-ID", "SECRET-UPSTREAM-MODEL"} {
 		if body := rec.Body.String(); strings.Contains(body, secret) {
 			t.Errorf("response leaked %q: %s", secret, body)
@@ -145,7 +146,7 @@ func TestListTaskRunLLMCallsHidesOperatorRouting(t *testing.T) {
 }
 
 func TestListTaskRunLLMCallsRefusals(t *testing.T) {
-	staged := &llmStubLedger{calls: []model.LLMCall{stagedCall()}}
+	staged := &llmStubLedger{calls: []coregw.Call{stagedCall()}}
 
 	t.Run("unauthenticated", func(t *testing.T) {
 		if code := getLLMCalls(t, llmCallsFixture(staged), llmTestTeam, "r_1", false).Code; code != http.StatusUnauthorized {
@@ -249,7 +250,7 @@ func TestListTaskRunLLMCallsOmitsCostWhenItCannotBeKnown(t *testing.T) {
 	// No usage reported, so there is nothing to multiply.
 	priced.PromptTokens = nil
 
-	for name, call := range map[string]model.LLMCall{"unpriced model": unpriced, "unreported usage": priced} {
+	for name, call := range map[string]coregw.Call{"unpriced model": unpriced, "unreported usage": priced} {
 		t.Run(name, func(t *testing.T) {
 			out := listCalls(t, call)
 			if out[0].Cost != nil {
@@ -262,9 +263,9 @@ func TestListTaskRunLLMCallsOmitsCostWhenItCannotBeKnown(t *testing.T) {
 	}
 }
 
-func listCalls(t *testing.T, call model.LLMCall) []LLMCallSummary {
+func listCalls(t *testing.T, call coregw.Call) []LLMCallSummary {
 	t.Helper()
-	rec := getLLMCalls(t, llmCallsFixture(&llmStubLedger{calls: []model.LLMCall{call}}), llmTestTeam, "r_1", true)
+	rec := getLLMCalls(t, llmCallsFixture(&llmStubLedger{calls: []coregw.Call{call}}), llmTestTeam, "r_1", true)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body)
 	}
@@ -278,8 +279,8 @@ func listCalls(t *testing.T, call model.LLMCall) []LLMCallSummary {
 	return out
 }
 
-func rawBody(t *testing.T, call model.LLMCall) string {
+func rawBody(t *testing.T, call coregw.Call) string {
 	t.Helper()
-	rec := getLLMCalls(t, llmCallsFixture(&llmStubLedger{calls: []model.LLMCall{call}}), llmTestTeam, "r_1", true)
+	rec := getLLMCalls(t, llmCallsFixture(&llmStubLedger{calls: []coregw.Call{call}}), llmTestTeam, "r_1", true)
 	return rec.Body.String()
 }

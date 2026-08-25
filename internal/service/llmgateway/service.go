@@ -8,7 +8,7 @@ import (
 	"time"
 
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 )
 
 // Service-level failures, in addition to the resolution errors in resolve.go.
@@ -63,7 +63,7 @@ type Service struct {
 	// Router resolves models and supplies clients.
 	Router *Router
 	// Ledger records every managed call.
-	Ledger model.LLMCallStore
+	Ledger coregw.CallStore
 	// Quota is optional. Without it, calls are recorded but never refused.
 	Quota QuotaChecker
 	// Now is the clock, injectable so tests can pin ledger timestamps.
@@ -200,7 +200,7 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 	}
 
 	acceptedAt := s.now().UTC()
-	ledgerEntry := &model.LLMCall{
+	ledgerEntry := &coregw.Call{
 		ClientCallID:  req.ClientCallID,
 		UserID:        req.UserID,
 		TaskRunID:     req.TaskRunID,
@@ -213,7 +213,7 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 		UpstreamModel: routed.Resolution.Target.UpstreamModel,
 		Streaming:     streaming,
 		AcceptedAt:    acceptedAt,
-		Status:        model.LLMCallStatusAccepted,
+		Status:        coregw.CallStatusAccepted,
 	}
 	// The rates are copied onto the row at acceptance, not looked up when
 	// someone reads it back. A catalog price changes; what a team spent last
@@ -222,7 +222,7 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 	applyRateSnapshot(ledgerEntry, routed.Resolution.Target)
 	call, err := s.Ledger.OpenLLMCall(ctx, ledgerEntry)
 	if err != nil {
-		if errors.Is(err, model.ErrDuplicateLLMCall) {
+		if errors.Is(err, coregw.ErrDuplicateCall) {
 			return CompleteResult{}, &DuplicateCallError{}
 		}
 		return CompleteResult{}, fmt.Errorf("open call ledger: %w", err)
@@ -258,7 +258,7 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 		completion, callErr = routed.Client.ChatCompletionBlocking(upstreamCtx, upstreamCall)
 	}
 
-	outcome := model.LLMCallOutcome{
+	outcome := coregw.CallOutcome{
 		Attempts:          1,
 		UpstreamStartedAt: &upstreamStartedAt,
 		FirstDeltaAt:      firstDeltaAt,
@@ -269,9 +269,9 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 		if class == ErrorClassInternal {
 			class = ErrorClassUpstream
 		}
-		outcome.Status = model.LLMCallStatusFailed
+		outcome.Status = coregw.CallStatusFailed
 		if errors.Is(callErr, context.Canceled) || errors.Is(callErr, context.DeadlineExceeded) {
-			outcome.Status = model.LLMCallStatusCanceled
+			outcome.Status = coregw.CallStatusCanceled
 		}
 		outcome.ErrorClass = &class
 		s.closeLedger(ctx, call.ID, outcome)
@@ -280,15 +280,15 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 
 	usage := completion.Usage
 	reported := usage.TotalTokens > 0 || usage.PromptTokens > 0 || usage.CompletionTokens > 0
-	outcome.Status = model.LLMCallStatusSucceeded
+	outcome.Status = coregw.CallStatusSucceeded
 	if reported {
-		outcome.Usage = &model.LLMCallUsage{
+		outcome.Usage = &coregw.CallUsage{
 			PromptTokens:     usage.PromptTokens,
 			CompletionTokens: usage.CompletionTokens,
 			TotalTokens:      usage.TotalTokens,
 			CacheReadTokens:  usage.CacheReadTokens,
 			CacheWriteTokens: usage.CacheWriteTokens,
-			Source:           model.LLMUsageSourceReported,
+			Source:           coregw.UsageSourceReported,
 		}
 	}
 	s.closeLedger(ctx, call.ID, outcome)
@@ -309,19 +309,19 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 // must not become an arbitrary HTTP header value at an upstream provider.
 func upstreamCallOrigin(surface string) cllm.CallOrigin {
 	switch surface {
-	case model.LLMCallSurfaceCLI, model.LLMCallSurfaceDesktop, model.LLMCallSurfaceWorker:
+	case coregw.CallSurfaceCLI, coregw.CallSurfaceDesktop, coregw.CallSurfaceWorker:
 		return cllm.CallOrigin{Surface: surface, ViaGateway: true}
-	case model.LLMCallSurfaceServer:
+	case coregw.CallSurfaceServer:
 		return cllm.CallOrigin{Surface: surface}
 	default:
-		return cllm.CallOrigin{Surface: model.LLMCallSurfaceServer}
+		return cllm.CallOrigin{Surface: coregw.CallSurfaceServer}
 	}
 }
 
 // closeLedger writes the terminal record. A write failure does not discard work
 // the provider already charged for: the row stays ACCEPTED, which is the signal
 // that reconciliation is needed.
-func (s *Service) closeLedger(ctx context.Context, llmCallID string, outcome model.LLMCallOutcome) {
+func (s *Service) closeLedger(ctx context.Context, llmCallID string, outcome coregw.CallOutcome) {
 	// The call may have ended because the caller went away; use a context that
 	// is still live so the terminal record is written anyway.
 	writeCtx := context.WithoutCancel(ctx)
@@ -373,7 +373,7 @@ func gatewayLog() *slog.Logger { return slog.With("component", "llm_gateway") }
 // An unpriced target leaves every field nil, which reads back as "cost
 // unavailable" rather than as a call that cost nothing. A zero rate on a priced
 // target is a real price and is stored as one.
-func applyRateSnapshot(call *model.LLMCall, target Target) {
+func applyRateSnapshot(call *coregw.Call, target Target) {
 	if target.Currency == "" {
 		return
 	}

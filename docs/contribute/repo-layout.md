@@ -123,6 +123,8 @@ internal/
 │   │                   the HTTP guard and the team service both enforce
 │   ├── artifact/       How an artifact's content object is addressed, named by
 │   │                   the artifact service and its storage adapters alike
+│   ├── llmgateway/     What a deployment brokers and records: the model catalog
+│   │                   entry, the call ledger entry, and their stores
 │   └── session/        Local session model; persistence lives in agentapp
 │
 ├── agentapp/           Agent runtime assembly: LLM client cache, tool registry,

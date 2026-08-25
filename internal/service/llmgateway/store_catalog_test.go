@@ -5,13 +5,13 @@ import (
 	"testing"
 
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
 )
 
-func storedModel(mutate func(*model.LLMModel)) model.LLMModel {
-	m := model.LLMModel{
+func storedModel(mutate func(*coregw.Model)) coregw.Model {
+	m := coregw.Model{
 		ID:           "lm_1",
 		Name:         "fast",
 		ProviderType: cllm.ProviderAnthropic,
@@ -33,7 +33,7 @@ func storedModel(mutate func(*model.LLMModel)) model.LLMModel {
 func TestStoreCatalogResolvesTheCachePolicy(t *testing.T) {
 	tests := []struct {
 		name     string
-		stored   model.LLMModel
+		stored   coregw.Model
 		wantMode string
 		wantTTL  string
 	}{
@@ -44,17 +44,17 @@ func TestStoreCatalogResolvesTheCachePolicy(t *testing.T) {
 		},
 		{
 			name:     "an explicit opt-out survives",
-			stored:   storedModel(func(m *model.LLMModel) { m.CacheMode = "off" }),
+			stored:   storedModel(func(m *coregw.Model) { m.CacheMode = "off" }),
 			wantMode: "off",
 		},
 		{
 			name:     "force is carried through",
-			stored:   storedModel(func(m *model.LLMModel) { m.CacheMode = "force" }),
+			stored:   storedModel(func(m *coregw.Model) { m.CacheMode = "force" }),
 			wantMode: "force",
 		},
 		{
 			name: "retention travels with the mode",
-			stored: storedModel(func(m *model.LLMModel) {
+			stored: storedModel(func(m *coregw.Model) {
 				m.CacheMode = "auto"
 				m.CacheTTL = "1h"
 			}),
@@ -63,7 +63,7 @@ func TestStoreCatalogResolvesTheCachePolicy(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			catalog := &llmgateway.StoreCatalog{Models: &mock.MockLLMModelStore{Models: []model.LLMModel{tc.stored}}}
+			catalog := &llmgateway.StoreCatalog{Models: &mock.MockLLMModelStore{Models: []coregw.Model{tc.stored}}}
 			target, err := catalog.Target(context.Background(), "lm_1")
 			if err != nil {
 				t.Fatalf("Target: %v", err)

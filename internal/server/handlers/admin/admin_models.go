@@ -3,20 +3,21 @@ package admin
 import (
 	"net/http"
 
+	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 )
 
 // AdminModel is one catalog entry as an administrator sees it.
 //
-// model.LLMModel carries no credential by construction — the key lives in the
+// coregw.Model carries no credential by construction — the key lives in the
 // same table but leaves the store only through LLMModelCredential — so this
 // embeds it rather than copying field by field.
 //
 // Nothing is added: every enabled model is callable by every user, so a row's
 // name and enabled state are the whole answer to "can this be used".
 type AdminModel struct {
-	model.LLMModel
+	coregw.Model
 }
 
 // AdminModelsResponse is the managed catalog.
@@ -43,7 +44,7 @@ func (h *Handler) listAdminModelsHandler(w http.ResponseWriter, r *http.Request)
 	}
 	out := make([]AdminModel, 0, len(models))
 	for _, m := range models {
-		out = append(out, AdminModel{LLMModel: m})
+		out = append(out, AdminModel{Model: m})
 	}
 	httputil.WriteJSON(w, http.StatusOK, AdminModelsResponse{
 		Models:       out,
@@ -106,6 +107,6 @@ func (h *Handler) setAdminModelEnabledHandler(enabled bool) http.HandlerFunc {
 			httputil.WriteInternalError(w, err, "handler error", "handler", "admin_set_model_enabled", "reload")
 			return
 		}
-		httputil.WriteJSON(w, http.StatusOK, AdminModel{LLMModel: *updated})
+		httputil.WriteJSON(w, http.StatusOK, AdminModel{Model: *updated})
 	}
 }

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/llm"
+	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
@@ -68,13 +69,13 @@ type StoresConfig struct {
 	// TaskResultDeliveryStore records the reports the server owes finished
 	// runs. Nil means a report that fails is not retried.
 	TaskResultDeliveryStore model.TaskResultDeliveryStore
-	LLMCallStore            model.LLMCallStore
+	LLMCallStore            coregw.CallStore
 	RunOutputLister         workroutes.RunOutputLister
 	UserWebhookKeyStore     model.UserWebhookKeyStore
 	AuditStore              model.AuditStore
 	SystemGrantStore        model.SystemGrantStore
 	SchemaStore             model.SchemaStore
-	LLMModelStore           model.LLMModelStore
+	LLMModelStore           coregw.ModelStore
 	// ArtifactStore records durable files. Nil leaves the artifact routes
 	// answering 503, which is what a deployment with no database has.
 	ArtifactStore model.ArtifactStore

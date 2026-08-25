@@ -14,7 +14,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/core/session"
 	"github.com/gougoujiang/buildmax/internal/interface/auth"
 	"github.com/gougoujiang/buildmax/internal/interface/client"
@@ -237,7 +237,7 @@ func (a *App) agentAppForProject(projectID string) (*agentapp.AgentApp, error) {
 		ManagedServerURL:     source.ServerURL,
 		ManagedToken:         auth.TokenForServer,
 		ArtifactPublisher:    auth.ArtifactPublisherForSession(),
-		Surface:              model.LLMCallSurfaceDesktop,
+		Surface:              coregw.CallSurfaceDesktop,
 		EnableBackgroundJobs: true,
 	})
 	if err != nil {

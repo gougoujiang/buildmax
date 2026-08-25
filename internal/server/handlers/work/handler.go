@@ -14,6 +14,7 @@ import (
 	"net/http"
 
 	"github.com/gougoujiang/buildmax/internal/core/llm"
+	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/server/access"
@@ -55,7 +56,7 @@ type Config struct {
 	RunOutputs    RunOutputLister
 	// LLMCalls reads the managed call ledger for one run. Nil leaves that
 	// route answering 503, which is what a deployment with no database has.
-	LLMCalls model.LLMCallStore
+	LLMCalls coregw.CallStore
 
 	PersistStorage   blob.PersistStorage
 	RunOutputStorage blob.RunOutputStorage

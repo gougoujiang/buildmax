@@ -11,6 +11,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
+	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/infra/db"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
@@ -124,7 +125,7 @@ func runModelAdd(ctx context.Context, args []string, out io.Writer) error {
 		return fmt.Errorf("model add: %w", err)
 	}
 
-	in := model.CreateLLMModelInput{
+	in := coregw.CreateModelInput{
 		Name:          strings.TrimSpace(*name),
 		ProviderType:  strings.TrimSpace(*provider),
 		APIURL:        strings.TrimSpace(*apiURL),
@@ -155,7 +156,7 @@ func runModelAdd(ctx context.Context, args []string, out io.Writer) error {
 	}
 	created, err := store.CreateLLMModel(ctx, in)
 	if err != nil {
-		if errors.Is(err, model.ErrLLMModelNameTaken) {
+		if errors.Is(err, coregw.ErrModelNameTaken) {
 			return fmt.Errorf("a model named %q already exists", in.Name)
 		}
 		return fmt.Errorf("create model: %w", err)
@@ -235,7 +236,7 @@ func runModelSetEnabled(ctx context.Context, args []string, out io.Writer, enabl
 
 // validateModelInput rejects a row that could never serve a call, so the
 // operator hears about it here rather than at someone's first prompt.
-func validateModelInput(in model.CreateLLMModelInput) error {
+func validateModelInput(in coregw.CreateModelInput) error {
 	switch {
 	case in.Name == "":
 		return errors.New("model add: --name is required")
