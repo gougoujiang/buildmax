@@ -31,6 +31,7 @@ their context.
 
 | Proposal | Question |
 |---|---|
+| [Repository capability ownership](repository-capability-ownership.md) | Which packages should canonically own shared domain rules, application workflows, storage ports, and the public API contract before repository-wide structural refactoring begins? |
 | [Client sessions and API credentials](client-sessions-and-api-credentials.md) | Should interactive login issue any long-lived credential beyond a rotating refresh token, and how should native managed clients and unattended callers authenticate? |
 | [Enterprise identity and access](enterprise-identity-and-access.md) | How should a private deployment connect corporate identity to BuildMax teams and roles? |
 | [Durable Agent sessions](durable-agent-sessions.md) | Should authenticated local Agent sessions become revisioned Server resources for recovery, provenance, sharing, and cross-device continuation? |
