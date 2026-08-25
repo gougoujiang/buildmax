@@ -9,7 +9,7 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 	archive "github.com/gougoujiang/buildmax/internal/infra/pluginarchive"
 )
 
@@ -49,7 +49,7 @@ func serveBytes(data []byte, digestHeader string) packageFetcher {
 func TestMaterializePlacesAVerifiedPackage(t *testing.T) {
 	globalDir := t.TempDir()
 	data, digest := skillPackage(t, "code-review")
-	pins := []model.PluginPin{{PluginName: "code-review", Version: "1.0.0", Digest: digest}}
+	pins := []coreplugin.Pin{{PluginName: "code-review", Version: "1.0.0", Digest: digest}}
 
 	if err := materializePlugins(context.Background(), globalDir, pins, serveBytes(data, digest)); err != nil {
 		t.Fatalf("materializePlugins: %v", err)
@@ -69,7 +69,7 @@ func TestMaterializePlacesAVerifiedPackage(t *testing.T) {
 func TestMaterializeLeavesNoStagedArchive(t *testing.T) {
 	globalDir := t.TempDir()
 	data, digest := skillPackage(t, "code-review")
-	pins := []model.PluginPin{{PluginName: "code-review", Version: "1.0.0", Digest: digest}}
+	pins := []coreplugin.Pin{{PluginName: "code-review", Version: "1.0.0", Digest: digest}}
 
 	if err := materializePlugins(context.Background(), globalDir, pins, serveBytes(data, digest)); err != nil {
 		t.Fatalf("materializePlugins: %v", err)
@@ -89,7 +89,7 @@ func TestMaterializeLeavesNoStagedArchive(t *testing.T) {
 func TestMaterializeRefusesAMismatchedDigest(t *testing.T) {
 	globalDir := t.TempDir()
 	data, digest := skillPackage(t, "code-review")
-	pins := []model.PluginPin{{PluginName: "code-review", Version: "1.0.0", Digest: digest}}
+	pins := []coreplugin.Pin{{PluginName: "code-review", Version: "1.0.0", Digest: digest}}
 
 	tampered := append([]byte{}, data...)
 	tampered[len(tampered)-1] ^= 0xff
@@ -106,7 +106,7 @@ func TestMaterializeRefusesAMismatchedDigest(t *testing.T) {
 func TestMaterializeRefusesADigestTheServerDisagreesWith(t *testing.T) {
 	globalDir := t.TempDir()
 	data, digest := skillPackage(t, "code-review")
-	pins := []model.PluginPin{{PluginName: "code-review", Version: "1.0.0", Digest: digest}}
+	pins := []coreplugin.Pin{{PluginName: "code-review", Version: "1.0.0", Digest: digest}}
 
 	err := materializePlugins(context.Background(), globalDir, pins, serveBytes(data, "sha256:something-else"))
 	if err == nil {
@@ -121,7 +121,7 @@ func TestMaterializeRefusesADigestTheServerDisagreesWith(t *testing.T) {
 func TestMaterializeRefusesAMisnamedPackage(t *testing.T) {
 	globalDir := t.TempDir()
 	data, digest := skillPackage(t, "something-else")
-	pins := []model.PluginPin{{PluginName: "code-review", Version: "1.0.0", Digest: digest}}
+	pins := []coreplugin.Pin{{PluginName: "code-review", Version: "1.0.0", Digest: digest}}
 
 	err := materializePlugins(context.Background(), globalDir, pins, serveBytes(data, digest))
 	if err == nil {
@@ -138,7 +138,7 @@ func TestMaterializeRefusesAPackageThatWouldNotLoad(t *testing.T) {
 	data, digest := packBytes(t, fstest.MapFS{
 		"plugin.yaml": mapFile("name: code-review\nversion: not-a-version\n"),
 	})
-	pins := []model.PluginPin{{PluginName: "code-review", Version: "1.0.0", Digest: digest}}
+	pins := []coreplugin.Pin{{PluginName: "code-review", Version: "1.0.0", Digest: digest}}
 
 	if err := materializePlugins(context.Background(), globalDir, pins, serveBytes(data, digest)); err == nil {
 		t.Fatal("a package that would not load was accepted")
@@ -149,7 +149,7 @@ func TestMaterializeRefusesAPackageThatWouldNotLoad(t *testing.T) {
 func TestOneFailedPinFailsTheRun(t *testing.T) {
 	globalDir := t.TempDir()
 	good, goodDigest := skillPackage(t, "code-review")
-	pins := []model.PluginPin{
+	pins := []coreplugin.Pin{
 		{PluginName: "code-review", Version: "1.0.0", Digest: goodDigest},
 		{PluginName: "audit", Version: "1.0.0", Digest: "sha256:never-matches"},
 	}

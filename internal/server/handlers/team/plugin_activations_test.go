@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
@@ -28,7 +29,7 @@ type activationFixture struct {
 // newActivationFixture wires the real handler over in-memory stores. The team
 // has an owner, an ordinary member, and a non-member, because the authority
 // split is the thing these routes are for.
-func newActivationFixture(t *testing.T, curation model.PluginCuration) *activationFixture {
+func newActivationFixture(t *testing.T, curation coreplugin.Curation) *activationFixture {
 	t.Helper()
 	teamID := "tm_1"
 	teams := &mock.MockTeamStore{
@@ -51,17 +52,17 @@ func newActivationFixture(t *testing.T, curation model.PluginCuration) *activati
 	return &activationFixture{mux: mux, catalog: catalog, teams: teams, base: "/api/teams/" + teamID}
 }
 
-func (f *activationFixture) publish(t *testing.T, name, version string, in model.PluginInspection) {
+func (f *activationFixture) publish(t *testing.T, name, version string, in coreplugin.Inspection) {
 	t.Helper()
 	ctx := context.Background()
 	if entry, err := f.catalog.GetPlugin(ctx, name); err != nil {
 		t.Fatalf("GetPlugin: %v", err)
 	} else if entry == nil {
-		if _, err := f.catalog.CreatePlugin(ctx, model.CreatePluginInput{Name: name, CreatedBy: "u_owner"}); err != nil {
+		if _, err := f.catalog.CreatePlugin(ctx, coreplugin.CreateInput{Name: name, CreatedBy: "u_owner"}); err != nil {
 			t.Fatalf("CreatePlugin: %v", err)
 		}
 	}
-	if _, err := f.catalog.CreatePluginRelease(ctx, model.CreatePluginReleaseInput{
+	if _, err := f.catalog.CreatePluginRelease(ctx, coreplugin.CreateReleaseInput{
 		PluginName: name, Version: version, Digest: "sha256:" + version,
 		ObjectKey: "bm/" + name, Inspection: in, PublishedBy: "u_owner",
 	}); err != nil {
@@ -80,8 +81,8 @@ func (f *activationFixture) call(t *testing.T, method, userID, path, body string
 }
 
 func TestActivationRoutesActivateAndList(t *testing.T) {
-	f := newActivationFixture(t, model.PluginCurationCurated)
-	f.publish(t, "code-review", "1.2.0", model.PluginInspection{Skills: []string{"review"}})
+	f := newActivationFixture(t, coreplugin.CurationCurated)
+	f.publish(t, "code-review", "1.2.0", coreplugin.Inspection{Skills: []string{"review"}})
 
 	rec := f.call(t, http.MethodPost, "u_owner", "/plugin-activations", `{"plugin_name":"code-review"}`)
 	if rec.Code != http.StatusCreated {
@@ -96,7 +97,7 @@ func TestActivationRoutesActivateAndList(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if got.Curation != model.PluginCurationCurated {
+	if got.Curation != coreplugin.CurationCurated {
 		t.Errorf("curation = %q, want curated", got.Curation)
 	}
 	if len(got.Activations) != 1 || got.Activations[0].Version != "1.2.0" {
@@ -109,8 +110,8 @@ func TestActivationRoutesActivateAndList(t *testing.T) {
 
 // Reading is any member's question; changing is not.
 func TestActivationRoutesAuthority(t *testing.T) {
-	f := newActivationFixture(t, model.PluginCurationCurated)
-	f.publish(t, "code-review", "1.0.0", model.PluginInspection{Skills: []string{"review"}})
+	f := newActivationFixture(t, coreplugin.CurationCurated)
+	f.publish(t, "code-review", "1.0.0", coreplugin.Inspection{Skills: []string{"review"}})
 
 	if rec := f.call(t, http.MethodGet, "u_member", "/plugin-activations", ""); rec.Code != http.StatusOK {
 		t.Errorf("member read status = %d, want 200", rec.Code)
@@ -130,8 +131,8 @@ func TestActivationRoutesAuthority(t *testing.T) {
 }
 
 func TestActivationRoutesRefuseExecutableContent(t *testing.T) {
-	f := newActivationFixture(t, model.PluginCurationCurated)
-	f.publish(t, "guard", "1.0.0", model.PluginInspection{Hooks: []model.PluginHook{{Event: "pre_tool_use"}}})
+	f := newActivationFixture(t, coreplugin.CurationCurated)
+	f.publish(t, "guard", "1.0.0", coreplugin.Inspection{Hooks: []coreplugin.Hook{{Event: "pre_tool_use"}}})
 
 	rec := f.call(t, http.MethodPost, "u_owner", "/plugin-activations", `{"plugin_name":"guard"}`)
 	if rec.Code != http.StatusUnprocessableEntity {
@@ -144,8 +145,8 @@ func TestActivationRoutesRefuseExecutableContent(t *testing.T) {
 
 // A second activation is a pin move, and saying so beats a 500.
 func TestActivatingTwiceIsAConflict(t *testing.T) {
-	f := newActivationFixture(t, model.PluginCurationCurated)
-	f.publish(t, "code-review", "1.0.0", model.PluginInspection{Skills: []string{"review"}})
+	f := newActivationFixture(t, coreplugin.CurationCurated)
+	f.publish(t, "code-review", "1.0.0", coreplugin.Inspection{Skills: []string{"review"}})
 
 	if rec := f.call(t, http.MethodPost, "u_owner", "/plugin-activations", `{"plugin_name":"code-review"}`); rec.Code != http.StatusCreated {
 		t.Fatalf("first activate status = %d", rec.Code)
@@ -157,9 +158,9 @@ func TestActivatingTwiceIsAConflict(t *testing.T) {
 }
 
 func TestPatchMovesThePinAndSuspends(t *testing.T) {
-	f := newActivationFixture(t, model.PluginCurationCurated)
-	f.publish(t, "code-review", "1.0.0", model.PluginInspection{Skills: []string{"review"}})
-	f.publish(t, "code-review", "2.0.0", model.PluginInspection{Skills: []string{"review"}})
+	f := newActivationFixture(t, coreplugin.CurationCurated)
+	f.publish(t, "code-review", "1.0.0", coreplugin.Inspection{Skills: []string{"review"}})
+	f.publish(t, "code-review", "2.0.0", coreplugin.Inspection{Skills: []string{"review"}})
 	if rec := f.call(t, http.MethodPost, "u_owner", "/plugin-activations", `{"plugin_name":"code-review","version":"1.0.0"}`); rec.Code != http.StatusCreated {
 		t.Fatalf("activate status = %d", rec.Code)
 	}
@@ -168,7 +169,7 @@ func TestPatchMovesThePinAndSuspends(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("move status = %d, want 200: %s", rec.Code, rec.Body.String())
 	}
-	var moved model.PluginActivation
+	var moved coreplugin.Activation
 	if err := json.Unmarshal(rec.Body.Bytes(), &moved); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
@@ -180,7 +181,7 @@ func TestPatchMovesThePinAndSuspends(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("suspend status = %d: %s", rec.Code, rec.Body.String())
 	}
-	var suspended model.PluginActivation
+	var suspended coreplugin.Activation
 	if err := json.Unmarshal(rec.Body.Bytes(), &suspended); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
@@ -191,9 +192,9 @@ func TestPatchMovesThePinAndSuspends(t *testing.T) {
 
 // A refused pin move must leave the activation exactly as it was.
 func TestARefusedPinMoveChangesNothing(t *testing.T) {
-	f := newActivationFixture(t, model.PluginCurationCurated)
-	f.publish(t, "code-review", "1.0.0", model.PluginInspection{Skills: []string{"review"}})
-	f.publish(t, "code-review", "1.1.0", model.PluginInspection{Hooks: []model.PluginHook{{Event: "pre_tool_use"}}})
+	f := newActivationFixture(t, coreplugin.CurationCurated)
+	f.publish(t, "code-review", "1.0.0", coreplugin.Inspection{Skills: []string{"review"}})
+	f.publish(t, "code-review", "1.1.0", coreplugin.Inspection{Hooks: []coreplugin.Hook{{Event: "pre_tool_use"}}})
 	if rec := f.call(t, http.MethodPost, "u_owner", "/plugin-activations", `{"plugin_name":"code-review","version":"1.0.0"}`); rec.Code != http.StatusCreated {
 		t.Fatalf("activate status = %d", rec.Code)
 	}
@@ -214,8 +215,8 @@ func TestARefusedPinMoveChangesNothing(t *testing.T) {
 }
 
 func TestPatchWithNoFieldsIsRefused(t *testing.T) {
-	f := newActivationFixture(t, model.PluginCurationCurated)
-	f.publish(t, "code-review", "1.0.0", model.PluginInspection{Skills: []string{"review"}})
+	f := newActivationFixture(t, coreplugin.CurationCurated)
+	f.publish(t, "code-review", "1.0.0", coreplugin.Inspection{Skills: []string{"review"}})
 	if rec := f.call(t, http.MethodPost, "u_owner", "/plugin-activations", `{"plugin_name":"code-review"}`); rec.Code != http.StatusCreated {
 		t.Fatalf("activate status = %d", rec.Code)
 	}
@@ -226,7 +227,7 @@ func TestPatchWithNoFieldsIsRefused(t *testing.T) {
 }
 
 func TestSetCurationRoundTripsAndValidates(t *testing.T) {
-	f := newActivationFixture(t, model.PluginCurationOpen)
+	f := newActivationFixture(t, coreplugin.CurationOpen)
 
 	rec := f.call(t, http.MethodPut, "u_owner", "/plugin-curation", `{"curation":"curated"}`)
 	if rec.Code != http.StatusOK {
@@ -237,7 +238,7 @@ func TestSetCurationRoundTripsAndValidates(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if got.Curation != model.PluginCurationCurated {
+	if got.Curation != coreplugin.CurationCurated {
 		t.Errorf("curation = %q, want curated", got.Curation)
 	}
 

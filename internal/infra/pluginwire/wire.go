@@ -9,7 +9,9 @@
 // Mirrors the design in docs/design/plugin-marketplace.md section 7.6.
 package pluginwire
 
-import "github.com/gougoujiang/buildmax/internal/core/model"
+import (
+	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
+)
 
 // Paths, relative to the server base URL.
 const (
@@ -50,7 +52,7 @@ const (
 
 // CatalogResponse is the browsable catalog.
 type CatalogResponse struct {
-	Plugins []model.Plugin `json:"plugins"`
+	Plugins []coreplugin.Plugin `json:"plugins"`
 }
 
 // PluginResponse is one entry and everything published under it.
@@ -59,13 +61,13 @@ type CatalogResponse struct {
 // exact-version recovery impossible to discover, and choosing between releases
 // needs the client's own version anyway.
 type PluginResponse struct {
-	Plugin   model.Plugin          `json:"plugin"`
-	Releases []model.PluginRelease `json:"releases"`
+	Plugin   coreplugin.Plugin    `json:"plugin"`
+	Releases []coreplugin.Release `json:"releases"`
 }
 
 // ReleasesResponse lists one plugin's releases for an administrator.
 type ReleasesResponse struct {
-	Releases []model.PluginRelease `json:"releases"`
+	Releases []coreplugin.Release `json:"releases"`
 }
 
 // CreatePluginRequest reserves a catalog name.
@@ -98,8 +100,8 @@ const (
 // the other misleads: an empty list means "nothing activated yet" in open mode
 // and "nothing may be named" in curated mode.
 type ActivationsResponse struct {
-	Curation    model.PluginCuration     `json:"curation"`
-	Activations []model.PluginActivation `json:"activations"`
+	Curation    coreplugin.Curation     `json:"curation"`
+	Activations []coreplugin.Activation `json:"activations"`
 }
 
 // ActivateRequest pins a release for a team. An empty Version takes the newest
@@ -119,5 +121,5 @@ type UpdateActivationRequest struct {
 
 // SetCurationRequest chooses who fills the team's activation list.
 type SetCurationRequest struct {
-	Curation model.PluginCuration `json:"curation"`
+	Curation coreplugin.Curation `json:"curation"`
 }

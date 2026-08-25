@@ -6,7 +6,7 @@ import (
 	"strconv"
 
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 	archive "github.com/gougoujiang/buildmax/internal/infra/pluginarchive"
 	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
@@ -104,7 +104,7 @@ func (h *Handler) publishAdminPluginReleaseHandler(w http.ResponseWriter, r *htt
 	release, err := h.cfg.Plugins.Publish(r.Context(), pluginsvc.PublishInput{
 		PluginName: name,
 		Body:       r.Body,
-		Source: model.PluginReleaseSource{
+		Source: coreplugin.ReleaseSource{
 			RemoteURL: q.Get(pluginwire.QuerySourceRemote),
 			Commit:    q.Get(pluginwire.QuerySourceCommit),
 			Branch:    q.Get(pluginwire.QuerySourceBranch),
@@ -196,9 +196,9 @@ func writePluginError(w http.ResponseWriter, err error, handler, name string) {
 		httputil.WriteJSONError(w, http.StatusRequestEntityTooLarge, err.Error())
 	case errors.Is(err, pluginsvc.ErrInvalidPackage), errors.Is(err, pluginsvc.ErrNameMismatch):
 		httputil.WriteJSONError(w, http.StatusBadRequest, err.Error())
-	case errors.Is(err, model.ErrPluginVersionExists),
-		errors.Is(err, model.ErrPluginArchived),
-		errors.Is(err, model.ErrPluginNameTaken):
+	case errors.Is(err, coreplugin.ErrVersionExists),
+		errors.Is(err, coreplugin.ErrArchived),
+		errors.Is(err, coreplugin.ErrNameTaken):
 		httputil.WriteJSONError(w, http.StatusConflict, err.Error())
 	case errors.Is(err, apierr.ErrNotFound):
 		httputil.WriteJSONError(w, http.StatusNotFound, "plugin not found")

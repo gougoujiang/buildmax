@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 	archive "github.com/gougoujiang/buildmax/internal/infra/pluginarchive"
 	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -71,7 +72,7 @@ func (f *catalogFixture) get(t *testing.T, path, userID string) *httptest.Respon
 	return rec
 }
 
-func (f *catalogFixture) publish(t *testing.T, manifest string) *model.PluginRelease {
+func (f *catalogFixture) publish(t *testing.T, manifest string) *coreplugin.Release {
 	t.Helper()
 	var buf bytes.Buffer
 	if _, err := archive.Pack(&buf, fstest.MapFS{

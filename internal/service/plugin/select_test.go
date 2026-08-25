@@ -6,28 +6,28 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
 
-func release(version string, opts ...func(*model.PluginRelease)) model.PluginRelease {
-	r := model.PluginRelease{PluginName: "code-review", Version: version}
+func release(version string, opts ...func(*coreplugin.Release)) coreplugin.Release {
+	r := coreplugin.Release{PluginName: "code-review", Version: version}
 	for _, o := range opts {
 		o(&r)
 	}
 	return r
 }
 
-func yanked(reason string) func(*model.PluginRelease) {
-	return func(r *model.PluginRelease) { r.YankedAt, r.YankedReason = util.Ptr(time.Unix(1, 0).UTC()), reason }
+func yanked(reason string) func(*coreplugin.Release) {
+	return func(r *coreplugin.Release) { r.YankedAt, r.YankedReason = util.Ptr(time.Unix(1, 0).UTC()), reason }
 }
 
-func needs(v string) func(*model.PluginRelease) {
-	return func(r *model.PluginRelease) { r.MinBuildmaxVersion = v }
+func needs(v string) func(*coreplugin.Release) {
+	return func(r *coreplugin.Release) { r.MinBuildmaxVersion = v }
 }
 
 func TestSelectReleaseDefaultTakesTheNewestStable(t *testing.T) {
-	got, err := SelectRelease([]model.PluginRelease{
+	got, err := SelectRelease([]coreplugin.Release{
 		release("1.0.0"), release("1.10.0"), release("1.9.0"), release("2.0.0-rc.1"),
 	}, SelectOptions{ClientVersion: "1.0.0"})
 	if err != nil {
@@ -41,7 +41,7 @@ func TestSelectReleaseDefaultTakesTheNewestStable(t *testing.T) {
 }
 
 func TestSelectReleaseSkipsWhatTheDefaultShouldNotTake(t *testing.T) {
-	releases := []model.PluginRelease{
+	releases := []coreplugin.Release{
 		release("1.0.0"),
 		release("1.1.0", yanked("broken hook")),
 		release("1.2.0", needs("9.0.0")),
@@ -78,7 +78,7 @@ func TestSelectReleaseSkipsWhatTheDefaultShouldNotTake(t *testing.T) {
 }
 
 func TestSelectReleaseRefusals(t *testing.T) {
-	releases := []model.PluginRelease{
+	releases := []coreplugin.Release{
 		release("1.0.0", yanked("broken hook")),
 		release("2.0.0", needs("9.0.0")),
 	}
@@ -115,7 +115,7 @@ func TestSelectReleaseRefusals(t *testing.T) {
 // Refusing to install on a version nobody can compare would break every
 // contributor's checkout.
 func TestSelectReleaseUnplaceableClientSatisfiesEveryBound(t *testing.T) {
-	releases := []model.PluginRelease{release("1.0.0", needs("9.9.9"))}
+	releases := []coreplugin.Release{release("1.0.0", needs("9.9.9"))}
 	for _, client := range []string{"", "dev", "0.0.0-20260809120000-abcdef123456"} {
 		got, err := SelectRelease(releases, SelectOptions{ClientVersion: client})
 		if err != nil {
@@ -128,7 +128,7 @@ func TestSelectReleaseUnplaceableClientSatisfiesEveryBound(t *testing.T) {
 	}
 	// A build three commits after the tag contains it, which semver alone
 	// would read the other way.
-	got, err := SelectRelease([]model.PluginRelease{release("1.0.0", needs("0.9.0"))},
+	got, err := SelectRelease([]coreplugin.Release{release("1.0.0", needs("0.9.0"))},
 		SelectOptions{ClientVersion: "0.9.0-3-gabc1234"})
 	if err != nil || got == nil {
 		t.Errorf("a build after the tag should satisfy it: %v", err)
@@ -138,7 +138,7 @@ func TestSelectReleaseUnplaceableClientSatisfiesEveryBound(t *testing.T) {
 // Publishing rejects an unparseable version, so one in the catalog came from a
 // build that did not. Skipping it beats ranking it by guess.
 func TestSelectReleaseSkipsAnUnorderableVersion(t *testing.T) {
-	got, err := SelectRelease([]model.PluginRelease{
+	got, err := SelectRelease([]coreplugin.Release{
 		release("not-a-version"), release("1.0.0"),
 	}, SelectOptions{ClientVersion: "1.0.0"})
 	if err != nil {
@@ -148,7 +148,7 @@ func TestSelectReleaseSkipsAnUnorderableVersion(t *testing.T) {
 		t.Errorf("selected %s, want 1.0.0", got.Version)
 	}
 	// Named exactly it is still reachable, because the bytes are still there.
-	if _, err := SelectRelease([]model.PluginRelease{release("not-a-version")},
+	if _, err := SelectRelease([]coreplugin.Release{release("not-a-version")},
 		SelectOptions{Version: "not-a-version"}); err != nil {
 		t.Errorf("naming it exactly: %v", err)
 	}

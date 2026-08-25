@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 	pluginsvc "github.com/gougoujiang/buildmax/internal/service/plugin"
 )
 
@@ -22,7 +22,7 @@ func TestToPluginActivationCarriesThePin(t *testing.T) {
 			Version:    "1.2.0",
 			Digest:     "sha256:abc",
 			Enabled:    true,
-			Origin:     string(model.PluginActivationAutomatic),
+			Origin:     string(coreplugin.ActivationAutomatic),
 		},
 		TeamPublicID:        "gsyt7at6cjfr33d73mtc",
 		ActivatedByPublicID: "gsyt7at6cjfr33d73mtd",
@@ -31,7 +31,7 @@ func TestToPluginActivationCarriesThePin(t *testing.T) {
 	if got.Version != "1.2.0" || got.Digest != "sha256:abc" {
 		t.Errorf("the pin did not survive conversion: %+v", got)
 	}
-	if got.Origin != model.PluginActivationAutomatic {
+	if got.Origin != coreplugin.ActivationAutomatic {
 		t.Errorf("origin = %q, want automatic", got.Origin)
 	}
 	if got.TeamID == "" || got.ActivatedBy == "" || got.UpdatedBy != updatedBy {
@@ -58,12 +58,12 @@ func TestPluginActivationLifecycle(t *testing.T) {
 		t.Fatalf("CreateTeam: %v", err)
 	}
 
-	activated, err := s.ActivatePlugin(ctx, model.ActivatePluginInput{
+	activated, err := s.ActivatePlugin(ctx, coreplugin.ActivateInput{
 		TeamID:     team.ID,
 		PluginName: "code-review",
 		Version:    "1.0.0",
 		Digest:     "sha256:one",
-		Origin:     model.PluginActivationCurated,
+		Origin:     coreplugin.ActivationCurated,
 		ActorID:    owner,
 	})
 	if err != nil {
@@ -74,14 +74,14 @@ func TestPluginActivationLifecycle(t *testing.T) {
 	}
 
 	// One row per team and plugin: a second activation is a pin move.
-	if _, err := s.ActivatePlugin(ctx, model.ActivatePluginInput{
+	if _, err := s.ActivatePlugin(ctx, coreplugin.ActivateInput{
 		TeamID: team.ID, PluginName: "code-review", Version: "2.0.0",
-		Digest: "sha256:two", Origin: model.PluginActivationCurated, ActorID: owner,
-	}); !errors.Is(err, model.ErrPluginAlreadyActivated) {
+		Digest: "sha256:two", Origin: coreplugin.ActivationCurated, ActorID: owner,
+	}); !errors.Is(err, coreplugin.ErrAlreadyActivated) {
 		t.Fatalf("second activation err = %v, want ErrPluginAlreadyActivated", err)
 	}
 
-	moved, err := s.MovePluginActivationPin(ctx, model.MovePluginActivationPinInput{
+	moved, err := s.MovePluginActivationPin(ctx, coreplugin.MovePinInput{
 		TeamID: team.ID, PluginName: "code-review", Version: "2.0.0",
 		Digest: "sha256:two", ActorID: owner,
 	})
@@ -114,7 +114,7 @@ func TestPluginActivationLifecycle(t *testing.T) {
 		t.Fatalf("got %d activations, want 1 — a suspended one still explains a failed run", len(listed))
 	}
 
-	if _, err := s.MovePluginActivationPin(ctx, model.MovePluginActivationPinInput{
+	if _, err := s.MovePluginActivationPin(ctx, coreplugin.MovePinInput{
 		TeamID: team.ID, PluginName: "absent", Version: "1.0.0", Digest: "sha256:x", ActorID: owner,
 	}); !errors.Is(err, apierr.ErrNotFound) {
 		t.Fatalf("moving an absent activation err = %v, want ErrNotFound", err)
@@ -128,18 +128,18 @@ func TestSetTeamPluginCurationRoundTrips(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateTeam: %v", err)
 	}
-	if team.PluginCuration != model.PluginCurationOpen {
+	if team.PluginCuration != coreplugin.CurationOpen {
 		t.Errorf("a new team's mode = %q, want open by default", team.PluginCuration)
 	}
 
-	if err := s.SetTeamPluginCuration(ctx, team.ID, model.PluginCurationCurated); err != nil {
+	if err := s.SetTeamPluginCuration(ctx, team.ID, coreplugin.CurationCurated); err != nil {
 		t.Fatalf("SetTeamPluginCuration: %v", err)
 	}
 	got, err := s.GetTeam(ctx, team.ID)
 	if err != nil {
 		t.Fatalf("GetTeam: %v", err)
 	}
-	if got.PluginCuration != model.PluginCurationCurated {
+	if got.PluginCuration != coreplugin.CurationCurated {
 		t.Errorf("mode = %q, want curated", got.PluginCuration)
 	}
 }

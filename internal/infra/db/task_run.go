@@ -9,6 +9,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 
 	"github.com/gougoujiang/buildmax/internal/util"
 	"gorm.io/gorm"
@@ -278,7 +279,7 @@ func (s *Store) RecordTaskRunAgentRevision(ctx context.Context, taskRunID string
 // The `plugin_pins = ”` guard is what makes the first write win, for the same
 // reason the agent revision has one: a worker polls its run, and a team's
 // activation edited mid-run must not rewrite the record of what actually ran.
-func (s *Store) RecordTaskRunPluginPins(ctx context.Context, taskRunID string, pins []model.PluginPin) error {
+func (s *Store) RecordTaskRunPluginPins(ctx context.Context, taskRunID string, pins []coreplugin.Pin) error {
 	id, ok := util.CanonicalPublicID(taskRunID)
 	if !ok {
 		return apierr.ErrNotFound
@@ -295,11 +296,11 @@ func (s *Store) RecordTaskRunPluginPins(ctx context.Context, taskRunID string, p
 // decodePluginPins reads the column. A document that will not decode costs the
 // record of what a run had, not the run: the pins it actually used were sent to
 // it at claim time.
-func decodePluginPins(raw string) []model.PluginPin {
+func decodePluginPins(raw string) []coreplugin.Pin {
 	if raw == "" {
 		return nil
 	}
-	var out []model.PluginPin
+	var out []coreplugin.Pin
 	if err := json.Unmarshal([]byte(raw), &out); err != nil {
 		return nil
 	}

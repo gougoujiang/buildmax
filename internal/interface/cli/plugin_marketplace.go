@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 	"github.com/gougoujiang/buildmax/internal/interface/pluginmgr"
 
@@ -154,7 +153,7 @@ func runPluginInstall(ctx context.Context, w io.Writer, opts pluginmgr.Options) 
 }
 
 // writeReleaseSummary shows what a release contributes before it is installed.
-func writeReleaseSummary(w io.Writer, release model.PluginRelease) {
+func writeReleaseSummary(w io.Writer, release coreplugin.Release) {
 	if release.Digest != "" {
 		fmt.Fprintf(w, "  digest:      %s\n", release.Digest)
 	}

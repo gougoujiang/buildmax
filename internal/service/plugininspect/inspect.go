@@ -25,7 +25,6 @@ import (
 
 	corehook "github.com/gougoujiang/buildmax/internal/core/hook"
 	coremcp "github.com/gougoujiang/buildmax/internal/core/mcp"
-	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/core/plugin"
 	"github.com/gougoujiang/buildmax/internal/core/subagent"
 )
@@ -47,9 +46,9 @@ const (
 type Package struct {
 	Manifest  plugin.Manifest
 	Skills    []string
-	Subagents []model.PluginSubagent
-	MCP       []model.PluginMCPServer
-	Hooks     []model.PluginHook
+	Subagents []plugin.Subagent
+	MCP       []plugin.MCPServer
+	Hooks     []plugin.Hook
 
 	// EnvRefs are the environment variable names the payload reads, sorted.
 	// Names only: a value here would be a secret in a catalog record.
@@ -120,12 +119,12 @@ func inspectSkills(fsys fs.FS, p *Package) []string {
 	return names
 }
 
-func inspectSubagents(fsys fs.FS, p *Package) []model.PluginSubagent {
+func inspectSubagents(fsys fs.FS, p *Package) []plugin.Subagent {
 	entries, err := fs.ReadDir(fsys, agentsDir)
 	if err != nil {
 		return nil
 	}
-	var out []model.PluginSubagent
+	var out []plugin.Subagent
 	for _, e := range entries {
 		if e.IsDir() || len(out) >= maxInspected {
 			continue
@@ -146,13 +145,13 @@ func inspectSubagents(fsys fs.FS, p *Package) []model.PluginSubagent {
 			})
 			continue
 		}
-		out = append(out, model.PluginSubagent{Name: def.Name, Tools: def.ToolNames, Model: def.Model})
+		out = append(out, plugin.Subagent{Name: def.Name, Tools: def.ToolNames, Model: def.Model})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out
 }
 
-func inspectMCP(fsys fs.FS, p *Package, refs *refSet) []model.PluginMCPServer {
+func inspectMCP(fsys fs.FS, p *Package, refs *refSet) []plugin.MCPServer {
 	data, err := fs.ReadFile(fsys, mcpFile)
 	if err != nil {
 		if !errors.Is(err, fs.ErrNotExist) {
@@ -171,7 +170,7 @@ func inspectMCP(fsys fs.FS, p *Package, refs *refSet) []model.PluginMCPServer {
 		return nil
 	}
 
-	var out []model.PluginMCPServer
+	var out []plugin.MCPServer
 	for id, s := range root.MCPServers {
 		if err := coremcp.ValidateServerConfig(id, s); err != nil {
 			p.Findings = append(p.Findings, plugin.Finding{
@@ -185,7 +184,7 @@ func inspectMCP(fsys fs.FS, p *Package, refs *refSet) []model.PluginMCPServer {
 			refs.scan(v)
 		}
 		refs.scan(s.URL)
-		out = append(out, model.PluginMCPServer{
+		out = append(out, plugin.MCPServer{
 			ID:         id,
 			Transport:  s.Type,
 			Executable: executableName(s.Command),
@@ -196,7 +195,7 @@ func inspectMCP(fsys fs.FS, p *Package, refs *refSet) []model.PluginMCPServer {
 	return out
 }
 
-func inspectHooks(fsys fs.FS, p *Package, refs *refSet) []model.PluginHook {
+func inspectHooks(fsys fs.FS, p *Package, refs *refSet) []plugin.Hook {
 	data, err := fs.ReadFile(fsys, hooksFile)
 	if err != nil {
 		if !errors.Is(err, fs.ErrNotExist) {
@@ -212,7 +211,7 @@ func inspectHooks(fsys fs.FS, p *Package, refs *refSet) []model.PluginHook {
 		return nil
 	}
 
-	var out []model.PluginHook
+	var out []plugin.Hook
 	for _, event := range corehook.EventNames() {
 		for _, e := range cfg.Entries(event) {
 			refs.scan(e.Command)
@@ -230,7 +229,7 @@ func inspectHooks(fsys fs.FS, p *Package, refs *refSet) []model.PluginHook {
 			refs.scanPathsOnly(e.Prompt)
 			refs.scanAnyPathsOnly(e.Input)
 
-			out = append(out, model.PluginHook{
+			out = append(out, plugin.Hook{
 				Event:      event,
 				Type:       e.ResolvedType(),
 				Matcher:    e.Matcher,

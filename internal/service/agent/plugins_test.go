@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/agent"
 )
@@ -20,14 +20,14 @@ type stubSelection struct {
 	err      error
 }
 
-func (s *stubSelection) ResolveSelection(_ context.Context, teamID string, names []string, actorID string) ([]model.PluginActivation, error) {
+func (s *stubSelection) ResolveSelection(_ context.Context, teamID string, names []string, actorID string) ([]coreplugin.Activation, error) {
 	s.gotTeam, s.gotNames, s.gotActor = teamID, names, actorID
 	if s.err != nil {
 		return nil, s.err
 	}
-	out := make([]model.PluginActivation, 0, len(names))
+	out := make([]coreplugin.Activation, 0, len(names))
 	for _, n := range names {
-		out = append(out, model.PluginActivation{TeamID: teamID, PluginName: n, Version: "1.0.0", Enabled: true})
+		out = append(out, coreplugin.Activation{TeamID: teamID, PluginName: n, Version: "1.0.0", Enabled: true})
 	}
 	return out, nil
 }

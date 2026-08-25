@@ -10,7 +10,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 )
 
 // pluginRow is one catalog entry. It has no team column: the catalog belongs to
@@ -93,11 +93,11 @@ func (s *Store) pluginReleaseSelect(ctx context.Context) *gorm.DB {
 		Joins("LEFT JOIN `user` yb ON yb.id = plugin_release.yanked_by")
 }
 
-func toPlugin(row *pluginReadRow) *model.Plugin {
+func toPlugin(row *pluginReadRow) *coreplugin.Plugin {
 	if row == nil {
 		return nil
 	}
-	return &model.Plugin{
+	return &coreplugin.Plugin{
 		Name:        row.Row.Name,
 		DisplayName: row.Row.DisplayName,
 		Description: row.Row.Description,
@@ -108,11 +108,11 @@ func toPlugin(row *pluginReadRow) *model.Plugin {
 	}
 }
 
-func toPluginRelease(row *pluginReleaseReadRow) *model.PluginRelease {
+func toPluginRelease(row *pluginReleaseReadRow) *coreplugin.Release {
 	if row == nil {
 		return nil
 	}
-	out := &model.PluginRelease{
+	out := &coreplugin.Release{
 		PluginName:         row.Row.PluginName,
 		Version:            row.Row.Version,
 		MinBuildmaxVersion: row.Row.MinBuildmaxVersion,
@@ -137,7 +137,7 @@ func toPluginRelease(row *pluginReleaseReadRow) *model.PluginRelease {
 }
 
 // CreatePlugin adds a catalog entry.
-func (s *Store) CreatePlugin(ctx context.Context, in model.CreatePluginInput) (*model.Plugin, error) {
+func (s *Store) CreatePlugin(ctx context.Context, in coreplugin.CreateInput) (*coreplugin.Plugin, error) {
 	creator, err := lookupKey(ctx, s.db, "user", in.CreatedBy)
 	if err != nil {
 		return nil, err
@@ -150,7 +150,7 @@ func (s *Store) CreatePlugin(ctx context.Context, in model.CreatePluginInput) (*
 	}
 	if err := s.db.WithContext(ctx).Create(&row).Error; err != nil {
 		if isDuplicateKey(err) {
-			return nil, model.ErrPluginNameTaken
+			return nil, coreplugin.ErrNameTaken
 		}
 		return nil, err
 	}
@@ -158,7 +158,7 @@ func (s *Store) CreatePlugin(ctx context.Context, in model.CreatePluginInput) (*
 }
 
 // GetPlugin returns one entry by name, or (nil, nil) when there is none.
-func (s *Store) GetPlugin(ctx context.Context, name string) (*model.Plugin, error) {
+func (s *Store) GetPlugin(ctx context.Context, name string) (*coreplugin.Plugin, error) {
 	var row pluginReadRow
 	err := s.pluginSelect(ctx).Where("plugin.name = ?", name).Take(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -171,7 +171,7 @@ func (s *Store) GetPlugin(ctx context.Context, name string) (*model.Plugin, erro
 }
 
 // ListPlugins returns entries oldest first.
-func (s *Store) ListPlugins(ctx context.Context, includeArchived bool) ([]model.Plugin, error) {
+func (s *Store) ListPlugins(ctx context.Context, includeArchived bool) ([]coreplugin.Plugin, error) {
 	q := s.pluginSelect(ctx).Order("plugin.created_at asc")
 	if !includeArchived {
 		q = q.Where("plugin.archived_at IS NULL")
@@ -180,7 +180,7 @@ func (s *Store) ListPlugins(ctx context.Context, includeArchived bool) ([]model.
 	if err := q.Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	out := make([]model.Plugin, 0, len(rows))
+	out := make([]coreplugin.Plugin, 0, len(rows))
 	for i := range rows {
 		out = append(out, *toPlugin(&rows[i]))
 	}
@@ -188,7 +188,7 @@ func (s *Store) ListPlugins(ctx context.Context, includeArchived bool) ([]model.
 }
 
 // UpdatePlugin changes display metadata.
-func (s *Store) UpdatePlugin(ctx context.Context, name string, in model.UpdatePluginInput) (*model.Plugin, error) {
+func (s *Store) UpdatePlugin(ctx context.Context, name string, in coreplugin.UpdateInput) (*coreplugin.Plugin, error) {
 	res := s.db.WithContext(ctx).Model(&pluginRow{}).Where("name = ?", name).
 		Updates(map[string]any{"display_name": in.DisplayName, "description": in.Description})
 	if res.Error != nil {
@@ -223,7 +223,7 @@ func (s *Store) SetPluginArchived(ctx context.Context, name string, archived boo
 // The unique index over (plugin_name, version) is the guard rather than a
 // preceding read: two publishes racing would both pass a check and only one
 // can pass the constraint.
-func (s *Store) CreatePluginRelease(ctx context.Context, in model.CreatePluginReleaseInput) (*model.PluginRelease, error) {
+func (s *Store) CreatePluginRelease(ctx context.Context, in coreplugin.CreateReleaseInput) (*coreplugin.Release, error) {
 	// The parent reference is read from the row: a catalog entry is addressed
 	// by name everywhere above this package, so the model does not carry a
 	// handle for it.
@@ -236,7 +236,7 @@ func (s *Store) CreatePluginRelease(ctx context.Context, in model.CreatePluginRe
 		return nil, err
 	}
 	if entry.ArchivedAt != nil {
-		return nil, model.ErrPluginArchived
+		return nil, coreplugin.ErrArchived
 	}
 
 	publisher, err := lookupKey(ctx, s.db, "user", in.PublishedBy)
@@ -266,7 +266,7 @@ func (s *Store) CreatePluginRelease(ctx context.Context, in model.CreatePluginRe
 	}
 	if err := s.db.WithContext(ctx).Create(&row).Error; err != nil {
 		if isDuplicateKey(err) {
-			return nil, model.ErrPluginVersionExists
+			return nil, coreplugin.ErrVersionExists
 		}
 		return nil, err
 	}
@@ -276,7 +276,7 @@ func (s *Store) CreatePluginRelease(ctx context.Context, in model.CreatePluginRe
 }
 
 // GetPluginRelease returns one version, or (nil, nil) when there is none.
-func (s *Store) GetPluginRelease(ctx context.Context, name, version string) (*model.PluginRelease, error) {
+func (s *Store) GetPluginRelease(ctx context.Context, name, version string) (*coreplugin.Release, error) {
 	var row pluginReleaseReadRow
 	err := s.pluginReleaseSelect(ctx).
 		Where("plugin_release.plugin_name = ? AND plugin_release.version = ?", name, version).Take(&row).Error
@@ -294,14 +294,14 @@ func (s *Store) GetPluginRelease(ctx context.Context, name, version string) (*mo
 // Yanked releases are included: which one to install is a decision that needs
 // the version arithmetic, and a store that filtered here would hide the exact
 // version a recovery asks for.
-func (s *Store) ListPluginReleases(ctx context.Context, name string) ([]model.PluginRelease, error) {
+func (s *Store) ListPluginReleases(ctx context.Context, name string) ([]coreplugin.Release, error) {
 	var rows []pluginReleaseReadRow
 	err := s.pluginReleaseSelect(ctx).Where("plugin_release.plugin_name = ?", name).
 		Order("plugin_release.published_at asc").Find(&rows).Error
 	if err != nil {
 		return nil, err
 	}
-	out := make([]model.PluginRelease, 0, len(rows))
+	out := make([]coreplugin.Release, 0, len(rows))
 	for i := range rows {
 		out = append(out, *toPluginRelease(&rows[i]))
 	}

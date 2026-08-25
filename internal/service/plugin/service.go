@@ -63,11 +63,11 @@ type CreateEntryInput struct {
 }
 
 // CreateEntry adds a catalog entry.
-func (s *Service) CreateEntry(ctx context.Context, in CreateEntryInput) (*model.Plugin, error) {
+func (s *Service) CreateEntry(ctx context.Context, in CreateEntryInput) (*coreplugin.Plugin, error) {
 	if err := coreplugin.ValidateName(in.Name); err != nil {
 		return nil, fmt.Errorf("%w: %s", ErrInvalidPackage, err)
 	}
-	entry, err := s.Catalog.CreatePlugin(ctx, model.CreatePluginInput{
+	entry, err := s.Catalog.CreatePlugin(ctx, coreplugin.CreateInput{
 		Name:        in.Name,
 		DisplayName: in.DisplayName,
 		Description: in.Description,
@@ -82,7 +82,7 @@ func (s *Service) CreateEntry(ctx context.Context, in CreateEntryInput) (*model.
 
 // UpdateEntry changes display metadata. The name is not editable: it identifies
 // the plugin every installed copy came from.
-func (s *Service) UpdateEntry(ctx context.Context, name string, in model.UpdatePluginInput, actorID string) (*model.Plugin, error) {
+func (s *Service) UpdateEntry(ctx context.Context, name string, in coreplugin.UpdateInput, actorID string) (*coreplugin.Plugin, error) {
 	entry, err := s.Catalog.UpdatePlugin(ctx, name, in)
 	if err != nil {
 		return nil, err
@@ -118,19 +118,19 @@ func (s *Service) SetArchived(ctx context.Context, name string, archived bool, a
 // ListEntries returns the catalog. Archived entries are included only when
 // asked for: hiding a retired entry from the person who retired it would leave
 // no way to restore it.
-func (s *Service) ListEntries(ctx context.Context, includeArchived bool) ([]model.Plugin, error) {
+func (s *Service) ListEntries(ctx context.Context, includeArchived bool) ([]coreplugin.Plugin, error) {
 	return s.Catalog.ListPlugins(ctx, includeArchived)
 }
 
 // GetEntry returns one catalog entry, or (nil, nil) when there is none.
-func (s *Service) GetEntry(ctx context.Context, name string) (*model.Plugin, error) {
+func (s *Service) GetEntry(ctx context.Context, name string) (*coreplugin.Plugin, error) {
 	return s.Catalog.GetPlugin(ctx, name)
 }
 
 // ListReleases returns every release of one plugin, yanked ones included:
 // which to install needs the version arithmetic, and an exact version can still
 // be recovered by someone who acknowledges the state.
-func (s *Service) ListReleases(ctx context.Context, name string) ([]model.PluginRelease, error) {
+func (s *Service) ListReleases(ctx context.Context, name string) ([]coreplugin.Release, error) {
 	entry, err := s.Catalog.GetPlugin(ctx, name)
 	if err != nil {
 		return nil, err
@@ -142,7 +142,7 @@ func (s *Service) ListReleases(ctx context.Context, name string) ([]model.Plugin
 }
 
 // GetRelease returns one release, or (nil, nil) when there is none.
-func (s *Service) GetRelease(ctx context.Context, name, version string) (*model.PluginRelease, error) {
+func (s *Service) GetRelease(ctx context.Context, name, version string) (*coreplugin.Release, error) {
 	return s.Catalog.GetPluginRelease(ctx, name, version)
 }
 
@@ -150,7 +150,7 @@ func (s *Service) GetRelease(ctx context.Context, name, version string) (*model.
 //
 // The stream is handed to the caller rather than read here: a download that
 // buffered a package would size the server by its largest plugin.
-func (s *Service) OpenPackage(ctx context.Context, release model.PluginRelease) (io.ReadCloser, int64, error) {
+func (s *Service) OpenPackage(ctx context.Context, release coreplugin.Release) (io.ReadCloser, int64, error) {
 	return s.Packages.Open(ctx, release.ObjectKey)
 }
 
@@ -181,7 +181,7 @@ type PublishInput struct {
 	// Source is the publisher's claim about the checkout the bytes came from.
 	// The server cannot verify it, so it is recorded as a claim beside a digest
 	// the server calculated itself.
-	Source  model.PluginReleaseSource
+	Source  coreplugin.ReleaseSource
 	ActorID string
 }
 
@@ -190,7 +190,7 @@ type PublishInput struct {
 // The order matters. Bytes are stored before the release row, so a failure
 // between the two leaves an orphan at a content-addressed key rather than a row
 // pointing at nothing. An orphan costs disk; a dangling row costs an install.
-func (s *Service) Publish(ctx context.Context, in PublishInput) (*model.PluginRelease, error) {
+func (s *Service) Publish(ctx context.Context, in PublishInput) (*coreplugin.Release, error) {
 	staged, err := s.stage(in.Body)
 	if err != nil {
 		return nil, err
@@ -227,7 +227,7 @@ func (s *Service) Publish(ctx context.Context, in PublishInput) (*model.PluginRe
 		return nil, err
 	}
 	if entry.Archived() {
-		return nil, model.ErrPluginArchived
+		return nil, coreplugin.ErrArchived
 	}
 
 	key, err := s.Packages.PackageKey(s.KeyPrefix, entry.Name, staged.digest)
@@ -238,7 +238,7 @@ func (s *Service) Publish(ctx context.Context, in PublishInput) (*model.PluginRe
 		return nil, err
 	}
 
-	release, err := s.Catalog.CreatePluginRelease(ctx, model.CreatePluginReleaseInput{
+	release, err := s.Catalog.CreatePluginRelease(ctx, coreplugin.CreateReleaseInput{
 		PluginName:         entry.Name,
 		Version:            pkg.Manifest.Version,
 		MinBuildmaxVersion: pkg.Manifest.MinBuildmaxVersion,
@@ -263,7 +263,7 @@ func (s *Service) Publish(ctx context.Context, in PublishInput) (*model.PluginRe
 // a separate create would make the documented flow fail on its first use. The
 // authority is the same either way — only a System Administrator reaches
 // either route — and the trail records the creation as its own event.
-func (s *Service) ensureEntry(ctx context.Context, m coreplugin.Manifest, actorID string) (*model.Plugin, error) {
+func (s *Service) ensureEntry(ctx context.Context, m coreplugin.Manifest, actorID string) (*coreplugin.Plugin, error) {
 	entry, err := s.Catalog.GetPlugin(ctx, m.Name)
 	if err != nil {
 		return nil, err
@@ -290,8 +290,8 @@ func (s *Service) storeBytes(ctx context.Context, key, path string) error {
 }
 
 // toInspection reduces a package report to what a catalog record keeps.
-func toInspection(pkg inspect.Package) model.PluginInspection {
-	out := model.PluginInspection{
+func toInspection(pkg inspect.Package) coreplugin.Inspection {
+	out := coreplugin.Inspection{
 		Skills:      pkg.Skills,
 		Subagents:   pkg.Subagents,
 		MCP:         pkg.MCP,

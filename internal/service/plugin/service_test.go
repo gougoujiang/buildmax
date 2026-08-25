@@ -10,6 +10,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 	archive "github.com/gougoujiang/buildmax/internal/infra/pluginarchive"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
@@ -55,7 +56,7 @@ func TestPublishStoresBytesAndRelease(t *testing.T) {
 	release, err := s.Publish(ctx, PublishInput{
 		PluginName: "code-review",
 		Body:       bytes.NewReader(data),
-		Source:     model.PluginReleaseSource{RemoteURL: "git@example.com:x.git", Commit: "abc123"},
+		Source:     coreplugin.ReleaseSource{RemoteURL: "git@example.com:x.git", Commit: "abc123"},
 		ActorID:    "u_admin",
 	})
 	if err != nil {
@@ -119,7 +120,7 @@ func TestPublishRefusesAnExistingVersion(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err := s.Publish(ctx, PublishInput{PluginName: "code-review", Body: bytes.NewReader(data), ActorID: "u_admin"})
-	if !errors.Is(err, model.ErrPluginVersionExists) {
+	if !errors.Is(err, coreplugin.ErrVersionExists) {
 		t.Errorf("err = %v, want ErrPluginVersionExists", err)
 	}
 }
@@ -212,7 +213,7 @@ func TestPublishRefusesAnArchivedEntry(t *testing.T) {
 	}
 	data := validPackage(t, "name: code-review\nversion: 1.0.0\n", nil)
 	_, err := s.Publish(ctx, PublishInput{PluginName: "code-review", Body: bytes.NewReader(data), ActorID: "u_admin"})
-	if !errors.Is(err, model.ErrPluginArchived) {
+	if !errors.Is(err, coreplugin.ErrArchived) {
 		t.Errorf("err = %v, want ErrPluginArchived", err)
 	}
 }
@@ -227,7 +228,7 @@ func TestCatalogLifecycleRecordsTheTrail(t *testing.T) {
 	if _, err := s.CreateEntry(ctx, CreateEntryInput{Name: "Bad Name", ActorID: "u_admin"}); !errors.Is(err, ErrInvalidPackage) {
 		t.Errorf("an invalid name: err = %v, want ErrInvalidPackage", err)
 	}
-	if _, err := s.UpdateEntry(ctx, "code-review", model.UpdatePluginInput{Description: "New."}, "u_admin"); err != nil {
+	if _, err := s.UpdateEntry(ctx, "code-review", coreplugin.UpdateInput{Description: "New."}, "u_admin"); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.SetArchived(ctx, "code-review", true, "u_admin"); err != nil {

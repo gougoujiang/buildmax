@@ -9,7 +9,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 )
 
 // pluginActivationRow is one team's pinned use of one catalog plugin.
@@ -55,18 +55,18 @@ func (s *Store) pluginActivationSelect(ctx context.Context) *gorm.DB {
 		Joins("LEFT JOIN `user` ub ON ub.id = plugin_activation.updated_by")
 }
 
-func toPluginActivation(row *pluginActivationReadRow) *model.PluginActivation {
+func toPluginActivation(row *pluginActivationReadRow) *coreplugin.Activation {
 	if row == nil {
 		return nil
 	}
-	return &model.PluginActivation{
+	return &coreplugin.Activation{
 		ID:          row.Row.PublicID,
 		TeamID:      row.TeamPublicID,
 		PluginName:  row.Row.PluginName,
 		Version:     row.Row.Version,
 		Digest:      row.Row.Digest,
 		Enabled:     row.Row.Enabled,
-		Origin:      model.PluginActivationOrigin(row.Row.Origin),
+		Origin:      coreplugin.ActivationOrigin(row.Row.Origin),
 		ActivatedBy: row.ActivatedByPublicID,
 		ActivatedAt: row.Row.ActivatedAt,
 		UpdatedBy:   derefPublicID(row.UpdatedByPublicID),
@@ -79,7 +79,7 @@ func toPluginActivation(row *pluginActivationReadRow) *model.PluginActivation {
 // The unique index is the guard rather than a preceding read: two admins
 // activating the same plugin would both pass a check and only one can pass the
 // constraint.
-func (s *Store) ActivatePlugin(ctx context.Context, in model.ActivatePluginInput) (*model.PluginActivation, error) {
+func (s *Store) ActivatePlugin(ctx context.Context, in coreplugin.ActivateInput) (*coreplugin.Activation, error) {
 	team, err := lookupKey(ctx, s.db, "team", in.TeamID)
 	if err != nil {
 		return nil, err
@@ -102,7 +102,7 @@ func (s *Store) ActivatePlugin(ctx context.Context, in model.ActivatePluginInput
 		func(id string) { row.PublicID = id }, &row)
 	if err != nil {
 		if isDuplicateKey(err) {
-			return nil, model.ErrPluginAlreadyActivated
+			return nil, coreplugin.ErrAlreadyActivated
 		}
 		return nil, err
 	}
@@ -110,7 +110,7 @@ func (s *Store) ActivatePlugin(ctx context.Context, in model.ActivatePluginInput
 }
 
 // GetPluginActivation returns one team's activation of one plugin.
-func (s *Store) GetPluginActivation(ctx context.Context, teamID, pluginName string) (*model.PluginActivation, error) {
+func (s *Store) GetPluginActivation(ctx context.Context, teamID, pluginName string) (*coreplugin.Activation, error) {
 	team, err := lookupKey(ctx, s.db, "team", teamID)
 	if err != nil {
 		return nil, err
@@ -129,7 +129,7 @@ func (s *Store) GetPluginActivation(ctx context.Context, teamID, pluginName stri
 }
 
 // ListPluginActivations returns a team's activations, oldest first.
-func (s *Store) ListPluginActivations(ctx context.Context, teamID string) ([]model.PluginActivation, error) {
+func (s *Store) ListPluginActivations(ctx context.Context, teamID string) ([]coreplugin.Activation, error) {
 	team, err := lookupKey(ctx, s.db, "team", teamID)
 	if err != nil {
 		return nil, err
@@ -142,7 +142,7 @@ func (s *Store) ListPluginActivations(ctx context.Context, teamID string) ([]mod
 	if err != nil {
 		return nil, err
 	}
-	out := make([]model.PluginActivation, 0, len(rows))
+	out := make([]coreplugin.Activation, 0, len(rows))
 	for i := range rows {
 		out = append(out, *toPluginActivation(&rows[i]))
 	}
@@ -150,7 +150,7 @@ func (s *Store) ListPluginActivations(ctx context.Context, teamID string) ([]mod
 }
 
 // MovePluginActivationPin repoints an activation at another release.
-func (s *Store) MovePluginActivationPin(ctx context.Context, in model.MovePluginActivationPinInput) (*model.PluginActivation, error) {
+func (s *Store) MovePluginActivationPin(ctx context.Context, in coreplugin.MovePinInput) (*coreplugin.Activation, error) {
 	return s.updatePluginActivation(ctx, in.TeamID, in.PluginName, in.ActorID, map[string]any{
 		"version": in.Version,
 		"digest":  in.Digest,
@@ -158,7 +158,7 @@ func (s *Store) MovePluginActivationPin(ctx context.Context, in model.MovePlugin
 }
 
 // SetPluginActivationEnabled suspends or resumes an activation.
-func (s *Store) SetPluginActivationEnabled(ctx context.Context, teamID, pluginName string, enabled bool, actorID string) (*model.PluginActivation, error) {
+func (s *Store) SetPluginActivationEnabled(ctx context.Context, teamID, pluginName string, enabled bool, actorID string) (*coreplugin.Activation, error) {
 	return s.updatePluginActivation(ctx, teamID, pluginName, actorID, map[string]any{
 		"enabled": enabled,
 	})
@@ -167,7 +167,7 @@ func (s *Store) SetPluginActivationEnabled(ctx context.Context, teamID, pluginNa
 // updatePluginActivation applies fields to one activation and stamps who did
 // it. Every write here records an actor: an activation whose last change has no
 // name answers half the question it exists to answer.
-func (s *Store) updatePluginActivation(ctx context.Context, teamID, pluginName, actorID string, fields map[string]any) (*model.PluginActivation, error) {
+func (s *Store) updatePluginActivation(ctx context.Context, teamID, pluginName, actorID string, fields map[string]any) (*coreplugin.Activation, error) {
 	team, err := lookupKey(ctx, s.db, "team", teamID)
 	if err != nil {
 		return nil, err

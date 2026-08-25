@@ -47,12 +47,12 @@ type ActivateInput struct {
 // It is the curated path: a person chose this plugin. The open-mode path is
 // ResolveSelection, which activates as a side effect of an agent naming it and
 // records that difference in the row's origin.
-func (s *Service) Activate(ctx context.Context, in ActivateInput) (*model.PluginActivation, error) {
+func (s *Service) Activate(ctx context.Context, in ActivateInput) (*coreplugin.Activation, error) {
 	release, err := s.activatableRelease(ctx, in.PluginName, in.Version)
 	if err != nil {
 		return nil, err
 	}
-	return s.pin(ctx, in.TeamID, *release, model.PluginActivationCurated, in.ActorID)
+	return s.pin(ctx, in.TeamID, *release, coreplugin.ActivationCurated, in.ActorID)
 }
 
 // MovePin repoints a team's activation at another release.
@@ -62,12 +62,12 @@ func (s *Service) Activate(ctx context.Context, in ActivateInput) (*model.Plugin
 // The new release passes the same content check a first activation does, which
 // is what stops a plugin whose next version adds a hook from arriving as an
 // update.
-func (s *Service) MovePin(ctx context.Context, in ActivateInput) (*model.PluginActivation, error) {
+func (s *Service) MovePin(ctx context.Context, in ActivateInput) (*coreplugin.Activation, error) {
 	release, err := s.activatableRelease(ctx, in.PluginName, in.Version)
 	if err != nil {
 		return nil, err
 	}
-	activation, err := s.Activations.MovePluginActivationPin(ctx, model.MovePluginActivationPinInput{
+	activation, err := s.Activations.MovePluginActivationPin(ctx, coreplugin.MovePinInput{
 		TeamID:     in.TeamID,
 		PluginName: in.PluginName,
 		Version:    release.Version,
@@ -84,7 +84,7 @@ func (s *Service) MovePin(ctx context.Context, in ActivateInput) (*model.PluginA
 // SetActivationEnabled suspends or resumes an activation without losing the
 // pin. Suspending fails the runs of the agents that name the plugin; that is
 // intended, and it is why this is not a delete.
-func (s *Service) SetActivationEnabled(ctx context.Context, teamID, pluginName string, enabled bool, actorID string) (*model.PluginActivation, error) {
+func (s *Service) SetActivationEnabled(ctx context.Context, teamID, pluginName string, enabled bool, actorID string) (*coreplugin.Activation, error) {
 	activation, err := s.Activations.SetPluginActivationEnabled(ctx, teamID, pluginName, enabled, actorID)
 	if err != nil {
 		return nil, err
@@ -98,7 +98,7 @@ func (s *Service) SetActivationEnabled(ctx context.Context, teamID, pluginName s
 }
 
 // ListActivations returns a team's activations, suspended ones included.
-func (s *Service) ListActivations(ctx context.Context, teamID string) ([]model.PluginActivation, error) {
+func (s *Service) ListActivations(ctx context.Context, teamID string) ([]coreplugin.Activation, error) {
 	return s.Activations.ListPluginActivations(ctx, teamID)
 }
 
@@ -114,7 +114,7 @@ func (s *Service) ListActivations(ctx context.Context, teamID string) ([]model.P
 // A suspended activation is returned rather than refused: the write is not
 // where that fails. A run resolving the same name is (§5.3), so refusing here
 // would stop somebody editing an agent to remove the plugin that is failing it.
-func (s *Service) ResolveSelection(ctx context.Context, teamID string, names []string, actorID string) ([]model.PluginActivation, error) {
+func (s *Service) ResolveSelection(ctx context.Context, teamID string, names []string, actorID string) ([]coreplugin.Activation, error) {
 	team, err := s.Teams.GetTeam(ctx, teamID)
 	if err != nil {
 		return nil, err
@@ -122,9 +122,9 @@ func (s *Service) ResolveSelection(ctx context.Context, teamID string, names []s
 	if team == nil {
 		return nil, apierr.ErrNotFound
 	}
-	curation := model.NormalizePluginCuration(string(team.PluginCuration))
+	curation := coreplugin.NormalizeCuration(string(team.PluginCuration))
 
-	out := make([]model.PluginActivation, 0, len(names))
+	out := make([]coreplugin.Activation, 0, len(names))
 	for _, name := range names {
 		activation, err := s.Activations.GetPluginActivation(ctx, teamID, name)
 		if err != nil {
@@ -134,7 +134,7 @@ func (s *Service) ResolveSelection(ctx context.Context, teamID string, names []s
 			out = append(out, *activation)
 			continue
 		}
-		if curation == model.PluginCurationCurated {
+		if curation == coreplugin.CurationCurated {
 			return nil, fmt.Errorf("%w: %s", ErrNotActivated, name)
 		}
 		created, err := s.autoActivate(ctx, teamID, name, actorID)
@@ -149,13 +149,13 @@ func (s *Service) ResolveSelection(ctx context.Context, teamID string, names []s
 // autoActivate is open mode's activation: caused by an agent naming the plugin,
 // attributed to whoever saved that agent, and otherwise identical to a curated
 // one — same pin, same digest, same audit event.
-func (s *Service) autoActivate(ctx context.Context, teamID, pluginName, actorID string) (*model.PluginActivation, error) {
+func (s *Service) autoActivate(ctx context.Context, teamID, pluginName, actorID string) (*coreplugin.Activation, error) {
 	release, err := s.activatableRelease(ctx, pluginName, "")
 	if err != nil {
 		return nil, err
 	}
-	activation, err := s.pin(ctx, teamID, *release, model.PluginActivationAutomatic, actorID)
-	if errors.Is(err, model.ErrPluginAlreadyActivated) {
+	activation, err := s.pin(ctx, teamID, *release, coreplugin.ActivationAutomatic, actorID)
+	if errors.Is(err, coreplugin.ErrAlreadyActivated) {
 		// Two agents saved at once, both naming the plugin. The row the other
 		// write created is the answer, and it is the same pin this one would
 		// have made.
@@ -164,8 +164,8 @@ func (s *Service) autoActivate(ctx context.Context, teamID, pluginName, actorID 
 	return activation, err
 }
 
-func (s *Service) pin(ctx context.Context, teamID string, release model.PluginRelease, origin model.PluginActivationOrigin, actorID string) (*model.PluginActivation, error) {
-	activation, err := s.Activations.ActivatePlugin(ctx, model.ActivatePluginInput{
+func (s *Service) pin(ctx context.Context, teamID string, release coreplugin.Release, origin coreplugin.ActivationOrigin, actorID string) (*coreplugin.Activation, error) {
+	activation, err := s.Activations.ActivatePlugin(ctx, coreplugin.ActivateInput{
 		TeamID:     teamID,
 		PluginName: release.PluginName,
 		Version:    release.Version,
@@ -185,7 +185,7 @@ func (s *Service) pin(ctx context.Context, teamID string, release model.PluginRe
 // An explicit version is taken as given and checked; an empty one selects the
 // newest release this team could be pinned to. Both go through the same content
 // check, so "activate" and "update" cannot disagree about what a team may run.
-func (s *Service) activatableRelease(ctx context.Context, pluginName, version string) (*model.PluginRelease, error) {
+func (s *Service) activatableRelease(ctx context.Context, pluginName, version string) (*coreplugin.Release, error) {
 	if version != "" {
 		release, err := s.Catalog.GetPluginRelease(ctx, pluginName, version)
 		if err != nil {
@@ -204,7 +204,7 @@ func (s *Service) activatableRelease(ctx context.Context, pluginName, version st
 	if err != nil {
 		return nil, err
 	}
-	var best *model.PluginRelease
+	var best *coreplugin.Release
 	var bestVersion coreplugin.Version
 	// refused remembers the newest candidate that was otherwise selectable and
 	// only failed the content check. Without it, activating a plugin whose every
@@ -241,14 +241,14 @@ func (s *Service) activatableRelease(ctx context.Context, pluginName, version st
 
 // checkActivatable is Phase D1's gate: a release that starts a process or opens
 // a connection is refused until the operator has a way to say it may.
-func checkActivatable(release model.PluginRelease) error {
+func checkActivatable(release coreplugin.Release) error {
 	if len(release.Inspection.Hooks) > 0 || len(release.Inspection.MCP) > 0 {
 		return fmt.Errorf("%w: %s@%s", ErrExecutableContent, release.PluginName, release.Version)
 	}
 	return nil
 }
 
-func (s *Service) recordActivation(ctx context.Context, actorID, teamID, action string, a model.PluginActivation) {
+func (s *Service) recordActivation(ctx context.Context, actorID, teamID, action string, a coreplugin.Activation) {
 	s.Audit.Record(ctx, model.AuditEvent{
 		TeamID:     teamID,
 		ActorType:  model.AuditActorUser,
@@ -261,8 +261,8 @@ func (s *Service) recordActivation(ctx context.Context, actorID, teamID, action 
 }
 
 // SetCuration records who fills a team's plugin activation list.
-func (s *Service) SetCuration(ctx context.Context, teamID string, mode model.PluginCuration, actorID string) error {
-	if !model.ValidPluginCuration(mode) {
+func (s *Service) SetCuration(ctx context.Context, teamID string, mode coreplugin.Curation, actorID string) error {
+	if !coreplugin.ValidCuration(mode) {
 		return fmt.Errorf("%w: %q", ErrInvalidCuration, mode)
 	}
 	if err := s.Teams.SetTeamPluginCuration(ctx, teamID, mode); err != nil {

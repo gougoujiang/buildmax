@@ -7,6 +7,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 
 	"github.com/gougoujiang/buildmax/internal/util"
 	"gorm.io/gorm"
@@ -90,7 +91,7 @@ func toTeam(row *teamReadRow) *model.Team {
 		ID:             row.Row.PublicID,
 		Name:           row.Row.Name,
 		QuotaTier:      row.Row.QuotaTier,
-		PluginCuration: model.NormalizePluginCuration(row.Row.PluginCuration),
+		PluginCuration: coreplugin.NormalizeCuration(row.Row.PluginCuration),
 		CreatedBy:      derefPublicID(row.CreatedByPublicID),
 		CreatedAt:      row.Row.CreatedAt,
 		UpdatedAt:      row.Row.UpdatedAt,
@@ -368,7 +369,7 @@ func (s *Store) CountTeamMembers(ctx context.Context, teamIDs []string) (map[str
 // The value is validated above this layer, which is why an unrecognized one
 // reaches the column rather than being rejected here: this package translates,
 // it does not decide what a mode means.
-func (s *Store) SetTeamPluginCuration(ctx context.Context, teamID string, mode model.PluginCuration) error {
+func (s *Store) SetTeamPluginCuration(ctx context.Context, teamID string, mode coreplugin.Curation) error {
 	key, err := lookupKey(ctx, s.db, "team", teamID)
 	if err != nil {
 		return err

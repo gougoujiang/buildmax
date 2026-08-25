@@ -6,7 +6,7 @@ import (
 	"io"
 	"text/tabwriter"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
 	"github.com/gougoujiang/buildmax/internal/interface/pluginmgr"
 
@@ -70,8 +70,8 @@ func writePluginActivations(w io.Writer, got pluginwire.ActivationsResponse) err
 // curationDescription spells out what the mode means rather than printing the
 // bare word. "open" alone does not tell a reader whether an empty list means
 // nothing is available or everything is.
-func curationDescription(c model.PluginCuration) string {
-	if model.NormalizePluginCuration(string(c)) == model.PluginCurationCurated {
+func curationDescription(c coreplugin.Curation) string {
+	if coreplugin.NormalizeCuration(string(c)) == coreplugin.CurationCurated {
 		return "curated (an admin activates a plugin before an agent may name it)"
 	}
 	return "open (an agent may name any catalog plugin; naming activates it)"

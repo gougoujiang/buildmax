@@ -16,7 +16,7 @@ import (
 	"testing/fstest"
 
 	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 	archive "github.com/gougoujiang/buildmax/internal/infra/pluginarchive"
 	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
 	"github.com/gougoujiang/buildmax/internal/interface/auth"
@@ -26,7 +26,7 @@ import (
 // fakeMarketplace serves one plugin's catalog entry and its packaged bytes.
 type fakeMarketplace struct {
 	server   *httptest.Server
-	releases []model.PluginRelease
+	releases []coreplugin.Release
 	packages map[string][]byte
 	// servedDigest overrides the digest header, for a server that disagrees
 	// with its own catalog.
@@ -39,7 +39,7 @@ func newFakeMarketplace(t *testing.T) *fakeMarketplace {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/plugins/{plugin_name}", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, pluginwire.PluginResponse{
-			Plugin:   model.Plugin{Name: r.PathValue("plugin_name")},
+			Plugin:   coreplugin.Plugin{Name: r.PathValue("plugin_name")},
 			Releases: m.releases,
 		})
 	})
@@ -69,7 +69,7 @@ func writeJSON(w http.ResponseWriter, v any) {
 }
 
 // publish adds one release, packaging a minimal plugin under the given name.
-func (m *fakeMarketplace) publish(t *testing.T, name, version string, opts ...func(*model.PluginRelease)) model.PluginRelease {
+func (m *fakeMarketplace) publish(t *testing.T, name, version string, opts ...func(*coreplugin.Release)) coreplugin.Release {
 	t.Helper()
 	manifest := fmt.Sprintf("name: %s\nversion: %s\n", name, version)
 	var buf bytes.Buffer
@@ -85,10 +85,10 @@ func (m *fakeMarketplace) publish(t *testing.T, name, version string, opts ...fu
 	}
 	m.packages[version] = buf.Bytes()
 
-	release := model.PluginRelease{
+	release := coreplugin.Release{
 		PluginName: name, Version: version,
 		Digest: digest, SizeBytes: int64(buf.Len()), PublishedBy: "u_admin",
-		Inspection: model.PluginInspection{Skills: []string{"review"}},
+		Inspection: coreplugin.Inspection{Skills: []string{"review"}},
 	}
 	for _, o := range opts {
 		o(&release)

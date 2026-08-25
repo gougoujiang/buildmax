@@ -2,6 +2,7 @@ package model
 
 import (
 	"context"
+	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 	"time"
 )
 
@@ -154,7 +155,7 @@ type TaskRun struct {
 	// which versions this run actually had. The trace says so too, but a trace
 	// is fail-open and lives in run-global storage, while this is the queryable
 	// fact and what a retry reads. Nil for a run that resolved no plugins.
-	PluginPins []PluginPin `json:"plugin_pins,omitempty"`
+	PluginPins []coreplugin.Pin `json:"plugin_pins,omitempty"`
 	// SourceMessageID names the conversation message this run was asked for in.
 	//
 	// Input is what Tier 1 decided to send a worker; this is what the person
@@ -309,5 +310,5 @@ type TaskRunStore interface {
 	// RecordTaskRunPluginPins stores the releases a run was given. Like the
 	// agent revision, the first write wins: a worker polls its run, and a
 	// team's activation edited mid-run must not rewrite what actually ran.
-	RecordTaskRunPluginPins(ctx context.Context, taskRunID string, pins []PluginPin) error
+	RecordTaskRunPluginPins(ctx context.Context, taskRunID string, pins []coreplugin.Pin) error
 }

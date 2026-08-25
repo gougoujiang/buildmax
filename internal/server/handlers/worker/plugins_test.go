@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -68,9 +69,9 @@ func newPinFixture(t *testing.T, agentPlugins []string) *pinFixture {
 func (f *pinFixture) activate(t *testing.T, name, version, digest string, enabled bool) {
 	t.Helper()
 	ctx := context.Background()
-	if _, err := f.activations.ActivatePlugin(ctx, model.ActivatePluginInput{
+	if _, err := f.activations.ActivatePlugin(ctx, coreplugin.ActivateInput{
 		TeamID: pluginTestTeam, PluginName: name, Version: version, Digest: digest,
-		Origin: model.PluginActivationCurated, ActorID: "u_1",
+		Origin: coreplugin.ActivationCurated, ActorID: "u_1",
 	}); err != nil {
 		t.Fatalf("ActivatePlugin: %v", err)
 	}
@@ -126,7 +127,7 @@ func TestASecondClaimKeepsTheRecordedPins(t *testing.T) {
 		t.Fatalf("first claim = %+v", got.Plugins)
 	}
 
-	if _, err := f.activations.MovePluginActivationPin(context.Background(), model.MovePluginActivationPinInput{
+	if _, err := f.activations.MovePluginActivationPin(context.Background(), coreplugin.MovePinInput{
 		TeamID: pluginTestTeam, PluginName: "code-review", Version: "2.0.0", Digest: "sha256:two", ActorID: "u_1",
 	}); err != nil {
 		t.Fatalf("MovePluginActivationPin: %v", err)
@@ -200,10 +201,10 @@ func TestClaimIgnoresAnAgentFromAnotherTeam(t *testing.T) {
 func TestDownloadServesOnlyThePinnedRelease(t *testing.T) {
 	f := newPinFixture(t, []string{"code-review"})
 	ctx := context.Background()
-	if _, err := f.catalog.CreatePlugin(ctx, model.CreatePluginInput{Name: "code-review", CreatedBy: "u_1"}); err != nil {
+	if _, err := f.catalog.CreatePlugin(ctx, coreplugin.CreateInput{Name: "code-review", CreatedBy: "u_1"}); err != nil {
 		t.Fatalf("CreatePlugin: %v", err)
 	}
-	if _, err := f.catalog.CreatePluginRelease(ctx, model.CreatePluginReleaseInput{
+	if _, err := f.catalog.CreatePluginRelease(ctx, coreplugin.CreateReleaseInput{
 		PluginName: "code-review", Version: "1.0.0", Digest: "sha256:abc",
 		ObjectKey: "bm/code-review/1.0.0", PublishedBy: "u_1",
 	}); err != nil {

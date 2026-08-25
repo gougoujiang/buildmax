@@ -13,6 +13,7 @@ import (
 	"net/http"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 	"github.com/gougoujiang/buildmax/internal/server/websocket"
 	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
@@ -55,7 +56,7 @@ type Config struct {
 // ActivationReader is the only team-plugin capability a run token receives.
 // In particular, the worker surface cannot activate or repin a plugin.
 type ActivationReader interface {
-	GetPluginActivation(ctx context.Context, teamID, pluginName string) (*model.PluginActivation, error)
+	GetPluginActivation(ctx context.Context, teamID, pluginName string) (*coreplugin.Activation, error)
 }
 
 type Handler struct{ cfg Config }

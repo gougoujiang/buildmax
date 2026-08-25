@@ -14,6 +14,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 )
 
 var (
@@ -43,7 +44,7 @@ type WorkflowUsage interface {
 // on the whole service would tie an agent edit to publication and package
 // storage.
 type PluginSelection interface {
-	ResolveSelection(ctx context.Context, teamID string, names []string, actorID string) ([]model.PluginActivation, error)
+	ResolveSelection(ctx context.Context, teamID string, names []string, actorID string) ([]coreplugin.Activation, error)
 }
 
 type Service struct {

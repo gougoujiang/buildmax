@@ -10,13 +10,13 @@ import (
 	"net/url"
 	"strconv"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 	"github.com/gougoujiang/buildmax/internal/infra/httpclient"
 	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
 )
 
 // ListPlugins returns the deployment's browsable catalog.
-func (c *Client) ListPlugins(ctx context.Context, token string) ([]model.Plugin, error) {
+func (c *Client) ListPlugins(ctx context.Context, token string) ([]coreplugin.Plugin, error) {
 	var out pluginwire.CatalogResponse
 	if err := c.getJSON(ctx, token, pluginwire.CatalogPath, &out); err != nil {
 		return nil, err
@@ -81,8 +81,8 @@ func (c *Client) DownloadRelease(ctx context.Context, token, name, version strin
 // where it came from travels beside it. The server hashes and inspects what it
 // receives, so nothing here is trusted on the far side.
 func (c *Client) PublishRelease(
-	ctx context.Context, token, name string, body io.Reader, source model.PluginReleaseSource,
-) (*model.PluginRelease, error) {
+	ctx context.Context, token, name string, body io.Reader, source coreplugin.ReleaseSource,
+) (*coreplugin.Release, error) {
 	q := url.Values{}
 	setIfPresent(q, pluginwire.QuerySourceRemote, source.RemoteURL)
 	setIfPresent(q, pluginwire.QuerySourceCommit, source.Commit)
@@ -103,7 +103,7 @@ func (c *Client) PublishRelease(
 	if resp.StatusCode != http.StatusCreated {
 		return nil, httpclient.DecodeError(resp, "")
 	}
-	var out model.PluginRelease
+	var out coreplugin.Release
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
 		return nil, fmt.Errorf("decode response: %w", err)
 	}

@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 	archive "github.com/gougoujiang/buildmax/internal/infra/pluginarchive"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
@@ -41,7 +40,7 @@ func httpPackageFetcher(cfg workerclient.WorkerAPIClientConfig, taskRunID string
 // whole run rather than starting it without that plugin. A background run's
 // output is acted on by somebody who was not watching it, so silently doing
 // less than the team activated is the wrong failure.
-func materializePlugins(ctx context.Context, globalDir string, pins []model.PluginPin, fetch packageFetcher) error {
+func materializePlugins(ctx context.Context, globalDir string, pins []coreplugin.Pin, fetch packageFetcher) error {
 	if len(pins) == 0 {
 		return nil
 	}
@@ -57,7 +56,7 @@ func materializePlugins(ctx context.Context, globalDir string, pins []model.Plug
 	return nil
 }
 
-func materializeOne(ctx context.Context, pluginsDir string, pin model.PluginPin, fetch packageFetcher) error {
+func materializeOne(ctx context.Context, pluginsDir string, pin coreplugin.Pin, fetch packageFetcher) error {
 	// The archive lands in the run's own directory rather than the system
 	// temp: a run is already given a place to write, and keeping the bytes
 	// there means a killed worker leaves nothing behind anywhere else.

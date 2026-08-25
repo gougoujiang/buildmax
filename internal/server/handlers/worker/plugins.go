@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
@@ -32,7 +33,7 @@ import (
 // team has no enabled activation is not skipped: an agent that names a plugin
 // has declared it needs one, and a background run that quietly does less than
 // its definition says is acted on by somebody who was not watching it.
-func (h *Handler) resolvePluginPins(r *http.Request, run *model.TaskRun, task *model.Task, agent *model.Agent) (pins []model.PluginPin, refusal string) {
+func (h *Handler) resolvePluginPins(r *http.Request, run *model.TaskRun, task *model.Task, agent *model.Agent) (pins []coreplugin.Pin, refusal string) {
 	// Already resolved. A worker polls this route while it runs, and a team
 	// moving a pin mid-run must not change what the run was given — the same
 	// rule, and the same reason, as the agent revision's first-write-wins.
@@ -45,7 +46,7 @@ func (h *Handler) resolvePluginPins(r *http.Request, run *model.TaskRun, task *m
 	if h.cfg.Activations == nil {
 		return nil, "this deployment cannot resolve plugin activations, and this agent names plugins"
 	}
-	out := make([]model.PluginPin, 0, len(agent.Plugins))
+	out := make([]coreplugin.Pin, 0, len(agent.Plugins))
 	for _, name := range agent.Plugins {
 		activation, err := h.cfg.Activations.GetPluginActivation(r.Context(), task.TeamID, name)
 		if err != nil {
@@ -59,7 +60,7 @@ func (h *Handler) resolvePluginPins(r *http.Request, run *model.TaskRun, task *m
 		if !activation.Enabled {
 			return nil, fmt.Sprintf("this agent names plugin %q, whose activation is suspended", name)
 		}
-		out = append(out, model.PluginPin{
+		out = append(out, coreplugin.Pin{
 			PluginName: activation.PluginName,
 			Version:    activation.Version,
 			Digest:     activation.Digest,
@@ -70,7 +71,7 @@ func (h *Handler) resolvePluginPins(r *http.Request, run *model.TaskRun, task *m
 
 // recordPluginPins stores what the run was given, so that afterwards something
 // other than a fail-open trace can say which versions it had.
-func (h *Handler) recordPluginPins(r *http.Request, run *model.TaskRun, pins []model.PluginPin) {
+func (h *Handler) recordPluginPins(r *http.Request, run *model.TaskRun, pins []coreplugin.Pin) {
 	if len(pins) == 0 || len(run.PluginPins) > 0 || h.cfg.TaskRuns == nil {
 		return
 	}
@@ -151,16 +152,16 @@ func (h *Handler) downloadPluginPackage(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
-func findPin(pins []model.PluginPin, name, version string) (model.PluginPin, bool) {
+func findPin(pins []coreplugin.Pin, name, version string) (coreplugin.Pin, bool) {
 	for _, pin := range pins {
 		if pin.PluginName == name && pin.Version == version {
 			return pin, true
 		}
 	}
-	return model.PluginPin{}, false
+	return coreplugin.Pin{}, false
 }
 
-func toWirePlugins(pins []model.PluginPin) []workerclient.TaskRunPlugin {
+func toWirePlugins(pins []coreplugin.Pin) []workerclient.TaskRunPlugin {
 	if len(pins) == 0 {
 		return nil
 	}
