@@ -6,7 +6,7 @@ import (
 	"time"
 
 	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	teamsvc "github.com/gougoujiang/buildmax/internal/service/team"
@@ -50,7 +50,7 @@ func teamToResponse(team coreteam.Team) teamResponse {
 	}
 }
 
-func teamMemberToResponse(member coreteam.Member, user *model.User) teamMemberResponse {
+func teamMemberToResponse(member coreteam.Member, user *coreidentity.User) teamMemberResponse {
 	resp := teamMemberResponse{
 		TeamID:    member.TeamID,
 		UserID:    member.UserID,

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 )
 
 func TestPasswordLifecycle(t *testing.T) {
@@ -31,7 +31,7 @@ func TestPasswordLifecycle(t *testing.T) {
 		t.Error("HasPassword is true for an account that has never set one")
 	}
 
-	encoded, err := model.HashPassword("correct horse battery staple")
+	encoded, err := coreidentity.HashPassword("correct horse battery staple")
 	if err != nil {
 		t.Fatalf("HashPassword: %v", err)
 	}
@@ -43,7 +43,7 @@ func TestPasswordLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("PasswordHash: %v", err)
 	}
-	if !model.VerifyPassword(stored, "correct horse battery staple") {
+	if !coreidentity.VerifyPassword(stored, "correct horse battery staple") {
 		t.Error("the stored hash does not verify the password it was made from")
 	}
 
@@ -72,7 +72,7 @@ func TestPasswordHashFitsItsColumn(t *testing.T) {
 	t.Cleanup(func() { deleteTestUser(t, s, user.ID) })
 
 	const password = "a password at the long end of what anyone would actually type"
-	encoded, err := model.HashPassword(password)
+	encoded, err := coreidentity.HashPassword(password)
 	if err != nil {
 		t.Fatalf("HashPassword: %v", err)
 	}
@@ -86,18 +86,18 @@ func TestPasswordHashFitsItsColumn(t *testing.T) {
 	if stored != encoded {
 		t.Fatalf("the stored hash differs from what was written (%d vs %d bytes)", len(stored), len(encoded))
 	}
-	if !model.VerifyPassword(stored, password) {
+	if !coreidentity.VerifyPassword(stored, password) {
 		t.Error("a round-tripped hash does not verify")
 	}
 }
 
 func TestSetPasswordRejectsAnUnknownAccount(t *testing.T) {
 	s, ctx := newTestStore(t)
-	encoded, err := model.HashPassword("correct horse battery staple")
+	encoded, err := coreidentity.HashPassword("correct horse battery staple")
 	if err != nil {
 		t.Fatalf("HashPassword: %v", err)
 	}
-	if err := s.SetPassword(ctx, "u_doesnotexist", encoded, time.Now().UTC()); !errors.Is(err, model.ErrUserNotFound) {
+	if err := s.SetPassword(ctx, "u_doesnotexist", encoded, time.Now().UTC()); !errors.Is(err, coreidentity.ErrUserNotFound) {
 		t.Errorf("SetPassword = %v, want ErrUserNotFound", err)
 	}
 }

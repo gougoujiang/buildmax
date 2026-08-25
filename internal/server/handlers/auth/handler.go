@@ -11,7 +11,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	"github.com/gougoujiang/buildmax/internal/server/access"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 )
@@ -36,10 +36,10 @@ type Config struct {
 	// and Desktop share one credentials file between processes.
 	RefreshRotationGrace time.Duration
 
-	Users         model.UserStore
-	LoginCodes    model.LoginCodeStore
-	Passwords     model.PasswordStore
-	RefreshTokens model.RefreshTokenStore
+	Users         coreidentity.UserStore
+	LoginCodes    coreidentity.LoginCodeStore
+	Passwords     coreidentity.PasswordStore
+	RefreshTokens coreidentity.RefreshTokenStore
 
 	// Audit records logins and credential changes. Nil discards them.
 	Audit *audit.Recorder
@@ -64,7 +64,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 }
 
 // The log line names which login path refused, which the guard cannot know.
-func (h *Handler) refuseDisabled(w http.ResponseWriter, r *http.Request, user *model.User, handler string) bool {
+func (h *Handler) refuseDisabled(w http.ResponseWriter, r *http.Request, user *coreidentity.User, handler string) bool {
 	if user != nil && user.Disabled() {
 		slog.InfoContext(r.Context(), "refused a disabled account",
 			"handler", handler, "user_id", user.ID, "remote", r.RemoteAddr)

@@ -1,4 +1,4 @@
-package model
+package identity
 
 import (
 	"crypto/rand"

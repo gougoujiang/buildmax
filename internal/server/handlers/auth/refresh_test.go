@@ -10,14 +10,14 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/server/access"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	"github.com/gougoujiang/buildmax/internal/mock"
 )
 
 const refreshTestSecret = "test-jwt-secret"
 
-func refreshTestUser() *model.User {
-	return &model.User{ID: "u1", Email: "a@b.c", Name: "Alice"}
+func refreshTestUser() *coreidentity.User {
+	return &coreidentity.User{ID: "u1", Email: "a@b.c", Name: "Alice"}
 }
 
 // newAuthTestMux wires a handler that can log in, refresh, and log out, and
@@ -28,8 +28,8 @@ func newAuthTestMux(t *testing.T, cfg Config) (*http.ServeMux, *mock.MockRefresh
 	store := &mock.MockRefreshTokenStore{}
 	if cfg.Users == nil {
 		cfg.Users = &mock.MockUserStore{
-			ByEmail: map[string]*model.User{"a@b.c": user},
-			ByID:    map[string]*model.User{"u1": user},
+			ByEmail: map[string]*coreidentity.User{"a@b.c": user},
+			ByID:    map[string]*coreidentity.User{"u1": user},
 		}
 	}
 	if cfg.LoginCodes == nil {
@@ -101,8 +101,8 @@ func TestLoginIssuesBothCredentials(t *testing.T) {
 	if body["token"] != body["access_token"] {
 		t.Errorf("token = %v, want the same value as access_token %v", body["token"], body["access_token"])
 	}
-	if body["expires_in"] != float64(model.AccessTokenTTLDefault.Seconds()) {
-		t.Errorf("expires_in = %v, want %v", body["expires_in"], model.AccessTokenTTLDefault.Seconds())
+	if body["expires_in"] != float64(coreidentity.AccessTokenTTLDefault.Seconds()) {
+		t.Errorf("expires_in = %v, want %v", body["expires_in"], coreidentity.AccessTokenTTLDefault.Seconds())
 	}
 	if _, ok := body["refresh_token"].(string); !ok {
 		t.Error("response carries no refresh token")
@@ -116,8 +116,8 @@ func TestLoginWithoutRefreshStoreStillIssuesAnAccessToken(t *testing.T) {
 	mux := http.NewServeMux()
 	New(Config{
 		Users: &mock.MockUserStore{
-			ByEmail: map[string]*model.User{"a@b.c": user},
-			ByID:    map[string]*model.User{"u1": user},
+			ByEmail: map[string]*coreidentity.User{"a@b.c": user},
+			ByID:    map[string]*coreidentity.User{"u1": user},
 		},
 		LoginCodes: &mock.MockLoginCodeStore{Codes: map[string]*mock.MockLoginCode{
 			"code-1": {UserID: "u1", ExpiresAt: time.Now().Add(time.Hour).UTC()},
@@ -344,7 +344,7 @@ func TestRefreshRejectsADeletedUser(t *testing.T) {
 	// Rebuild the handler with the user gone but the same token store behind
 	// it. That is the shape of an account removed between two refreshes.
 	deleted, _ := newAuthTestMux(t, Config{
-		Users:         &mock.MockUserStore{ByID: map[string]*model.User{}},
+		Users:         &mock.MockUserStore{ByID: map[string]*coreidentity.User{}},
 		RefreshTokens: store,
 	})
 	rec := postJSON(t, deleted, "/api/token/refresh", `{"refresh_token":"`+refreshToken+`"}`, nil)

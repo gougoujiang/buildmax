@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
-	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 )
@@ -20,7 +20,7 @@ func adminModelsMux(t *testing.T) (*http.ServeMux, *mock.MockLLMModelStore, *moc
 	users := &mock.MockUserStore{}
 	seedUser(t, users, adminUser, "admin@example.com")
 	grants := &mock.MockSystemGrantStore{}
-	grants.GrantForTest(adminUser, model.SystemRoleAdmin)
+	grants.GrantForTest(adminUser, coreidentity.SystemRoleAdmin)
 
 	models := &mock.MockLLMModelStore{}
 	fast, err := models.CreateLLMModel(t.Context(), coregw.CreateModelInput{
@@ -137,7 +137,7 @@ func TestAdminModelsWithoutACatalogIs503(t *testing.T) {
 	users := &mock.MockUserStore{}
 	seedUser(t, users, adminUser, "admin@example.com")
 	grants := &mock.MockSystemGrantStore{}
-	grants.GrantForTest(adminUser, model.SystemRoleAdmin)
+	grants.GrantForTest(adminUser, coreidentity.SystemRoleAdmin)
 	audits := &mock.MockAuditStore{}
 	h := New(Config{
 		JWTSecret: testSecret,

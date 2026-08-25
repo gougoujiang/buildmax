@@ -3,7 +3,7 @@ package admin
 import (
 	"net/http"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 )
 
@@ -19,7 +19,7 @@ type AdminMeResponse struct {
 	// Grants are the caller's own active grants, so the area can show when the
 	// authority was given and by whom. Other people's grants are not here;
 	// that is GET /api/admin/grants.
-	Grants []model.SystemGrant `json:"grants"`
+	Grants []coreidentity.SystemGrant `json:"grants"`
 }
 
 // adminMeHandler serves GET /api/admin/me.
@@ -42,7 +42,7 @@ func (h *Handler) adminMeHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_me", "user_id", userID)
 		return
 	}
-	mine := make([]model.SystemGrant, 0, 1)
+	mine := make([]coreidentity.SystemGrant, 0, 1)
 	for _, g := range all {
 		if g.UserID == userID {
 			mine = append(mine, g)

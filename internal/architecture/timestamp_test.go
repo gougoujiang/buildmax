@@ -77,7 +77,9 @@ func TestStoredInstantsAreDatetimeColumns(t *testing.T) {
 func TestInstantFieldsAreNotIntegers(t *testing.T) {
 	root := moduleRoot(t)
 	seen := 0
-	for _, dir := range []string{"internal/core/model", "internal/infra/db", "internal/core/agent"} {
+	// internal/core is scanned whole rather than package by package: a domain
+	// moving into its own package must not move out of this rule with it.
+	for _, dir := range []string{"internal/core", "internal/infra/db"} {
 		for _, path := range goFiles(t, filepath.Join(root, dir)) {
 			if strings.HasSuffix(path, "_test.go") {
 				continue

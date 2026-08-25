@@ -11,7 +11,7 @@ import (
 	"testing/fstest"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 	archive "github.com/gougoujiang/buildmax/internal/infra/pluginarchive"
 	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
@@ -35,8 +35,8 @@ type catalogFixture struct {
 func newCatalogFixture(t *testing.T, withMarketplace bool) *catalogFixture {
 	t.Helper()
 	users := &mock.MockUserStore{
-		ByID:    map[string]*model.User{catalogUser: {ID: catalogUser, Email: "reader@example.com", CreatedAt: time.Unix(1, 0).UTC()}},
-		ByEmail: map[string]*model.User{"reader@example.com": {ID: catalogUser, Email: "reader@example.com", CreatedAt: time.Unix(1, 0).UTC()}},
+		ByID:    map[string]*coreidentity.User{catalogUser: {ID: catalogUser, Email: "reader@example.com", CreatedAt: time.Unix(1, 0).UTC()}},
+		ByEmail: map[string]*coreidentity.User{"reader@example.com": {ID: catalogUser, Email: "reader@example.com", CreatedAt: time.Unix(1, 0).UTC()}},
 	}
 	audits := &mock.MockAuditStore{}
 	cfg := Config{

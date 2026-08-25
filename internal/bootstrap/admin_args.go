@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 )
 
 // emailArg parses a subcommand's flags and returns its single email argument.
@@ -24,7 +24,7 @@ func emailArg(name string, args []string, out io.Writer) (string, error) {
 // The caller writes its own not-found message: grant points the operator at
 // `user create`, revoke does not, because suggesting an account be created is
 // the wrong advice when the command's job is to take access away.
-func lookupUser(ctx context.Context, users model.UserStore, email string) (*model.User, error) {
+func lookupUser(ctx context.Context, users coreidentity.UserStore, email string) (*coreidentity.User, error) {
 	user, err := users.UserByEmail(ctx, email)
 	if err != nil {
 		return nil, fmt.Errorf("look up user: %w", err)

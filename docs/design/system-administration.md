@@ -148,7 +148,7 @@ Two attacks shape the specifics below:
 ### 5.1 One Role, Persisted As A Grant
 
 ```go
-// internal/core/model/system_grant.go
+// internal/core/identity/system_grant.go
 const SystemRoleAdmin = "system_admin"
 
 // SystemGrant is one deployment-scoped authority held by one user.
@@ -534,7 +534,7 @@ without touching the database directly.
 
 ### M1. Grant Model, Command, And Authorization — DONE
 
-`model.SystemGrant` and `SystemGrantStore`, `systemGrantRow` on `system_grant`,
+`identity.SystemGrant` and `SystemGrantStore`, `systemGrantRow` on `system_grant`,
 the `sg_` prefix, `buildmax-server admin grant | revoke | list`,
 `requireSystemAdmin`, the audit actions, and the first route —
 `GET /api/admin/me` — so that the matrix test had something to cover from the

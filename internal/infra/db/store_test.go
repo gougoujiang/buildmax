@@ -10,8 +10,8 @@ import (
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
-	"github.com/gougoujiang/buildmax/internal/core/model"
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 
@@ -189,8 +189,8 @@ func TestCreateUser_DuplicateEmail(t *testing.T) {
 	if err == nil {
 		t.Error("second CreateUser: expected error")
 	}
-	if !errors.Is(err, model.ErrEmailExists) {
-		t.Errorf("second CreateUser: got %v, want model.ErrEmailExists", err)
+	if !errors.Is(err, coreidentity.ErrEmailExists) {
+		t.Errorf("second CreateUser: got %v, want coreidentity.ErrEmailExists", err)
 	}
 }
 

@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 )
 
 // MockRefreshToken is one issued token in MockRefreshTokenStore.
@@ -36,7 +36,7 @@ type MockRefreshTokenStore struct {
 	issued int
 }
 
-func (m *MockRefreshTokenStore) CreateRefreshToken(_ context.Context, in model.NewRefreshToken) (string, time.Time, error) {
+func (m *MockRefreshTokenStore) CreateRefreshToken(_ context.Context, in coreidentity.NewRefreshToken) (string, time.Time, error) {
 	if m.CreateErr != nil {
 		return "", time.Time{}, m.CreateErr
 	}
@@ -51,7 +51,7 @@ func (m *MockRefreshTokenStore) mint(userID, sessionID, platform string, now tim
 		m.Tokens = make(map[string]*MockRefreshToken)
 	}
 	if ttl <= 0 {
-		ttl = model.RefreshTokenTTLDefault
+		ttl = coreidentity.RefreshTokenTTLDefault
 	}
 	m.issued++
 	plaintext := fmt.Sprintf("mock-refresh-%s-%d", userID, m.issued)
@@ -65,21 +65,21 @@ func (m *MockRefreshTokenStore) mint(userID, sessionID, platform string, now tim
 	return plaintext, expiresAt, nil
 }
 
-func (m *MockRefreshTokenStore) RotateRefreshToken(_ context.Context, plaintext string, now time.Time, ttl, grace time.Duration) (model.RotatedRefreshToken, error) {
+func (m *MockRefreshTokenStore) RotateRefreshToken(_ context.Context, plaintext string, now time.Time, ttl, grace time.Duration) (coreidentity.RotatedRefreshToken, error) {
 	if m.RotateErr != nil {
-		return model.RotatedRefreshToken{}, m.RotateErr
+		return coreidentity.RotatedRefreshToken{}, m.RotateErr
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	row, ok := m.Tokens[plaintext]
 	if !ok || row.RevokedAt != nil || !row.ExpiresAt.After(now) {
-		return model.RotatedRefreshToken{}, model.ErrRefreshTokenInvalid
+		return coreidentity.RotatedRefreshToken{}, coreidentity.ErrRefreshTokenInvalid
 	}
 	if row.UsedAt != nil && now.Sub(*row.UsedAt) > grace {
 		m.revokeSession(row.SessionID, now)
 		// The caller needs to know whose session was just revoked in order to
 		// record it, so the identifiers come back alongside the error.
-		return model.RotatedRefreshToken{UserID: row.UserID, SessionID: row.SessionID}, model.ErrRefreshTokenReused
+		return coreidentity.RotatedRefreshToken{UserID: row.UserID, SessionID: row.SessionID}, coreidentity.ErrRefreshTokenReused
 	}
 	if row.UsedAt == nil {
 		spent := now
@@ -87,9 +87,9 @@ func (m *MockRefreshTokenStore) RotateRefreshToken(_ context.Context, plaintext 
 	}
 	next, expiresAt, err := m.mint(row.UserID, row.SessionID, row.Platform, now, ttl)
 	if err != nil {
-		return model.RotatedRefreshToken{}, err
+		return coreidentity.RotatedRefreshToken{}, err
 	}
-	return model.RotatedRefreshToken{
+	return coreidentity.RotatedRefreshToken{
 		UserID:    row.UserID,
 		SessionID: row.SessionID,
 		Plaintext: next,

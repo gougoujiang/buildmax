@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	"github.com/gougoujiang/buildmax/internal/util"
 	"gorm.io/gorm"
 )
@@ -49,11 +49,11 @@ func (s *Store) systemGrantSelect(ctx context.Context) *gorm.DB {
 		Joins("INNER JOIN `user` u ON u.id = system_grant.user_id")
 }
 
-func toSystemGrant(row *systemGrantReadRow) *model.SystemGrant {
+func toSystemGrant(row *systemGrantReadRow) *coreidentity.SystemGrant {
 	if row == nil {
 		return nil
 	}
-	return &model.SystemGrant{
+	return &coreidentity.SystemGrant{
 		ID:        row.Row.PublicID,
 		UserID:    row.UserPublicID,
 		Role:      row.Row.Role,
@@ -90,7 +90,7 @@ func (s *Store) ActiveSystemRoles(ctx context.Context, userID string) ([]string,
 }
 
 // ListSystemGrants returns grants newest first.
-func (s *Store) ListSystemGrants(ctx context.Context, includeRevoked bool) ([]model.SystemGrant, error) {
+func (s *Store) ListSystemGrants(ctx context.Context, includeRevoked bool) ([]coreidentity.SystemGrant, error) {
 	q := s.systemGrantSelect(ctx)
 	if !includeRevoked {
 		q = q.Where("system_grant.revoked_at IS NULL")
@@ -99,7 +99,7 @@ func (s *Store) ListSystemGrants(ctx context.Context, includeRevoked bool) ([]mo
 	if err := q.Order("system_grant.granted_at DESC, system_grant.id DESC").Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	out := make([]model.SystemGrant, 0, len(rows))
+	out := make([]coreidentity.SystemGrant, 0, len(rows))
 	for i := range rows {
 		out = append(out, *toSystemGrant(&rows[i]))
 	}
@@ -113,9 +113,9 @@ func (s *Store) ListSystemGrants(ctx context.Context, includeRevoked bool) ([]mo
 // enforces one active grant, so a lost race ends as a duplicate-key error
 // rather than as a second row. The check exists to turn the common case into a
 // clear message instead of a driver error.
-func (s *Store) GrantSystemRole(ctx context.Context, userID, role, grantedBy string, now time.Time) (*model.SystemGrant, error) {
-	if !model.ValidSystemRole(role) {
-		return nil, model.ErrSystemRoleUnknown
+func (s *Store) GrantSystemRole(ctx context.Context, userID, role, grantedBy string, now time.Time) (*coreidentity.SystemGrant, error) {
+	if !coreidentity.ValidSystemRole(role) {
+		return nil, coreidentity.ErrSystemRoleUnknown
 	}
 	userKey, err := lookupKey(ctx, s.db, "user", userID)
 	if err != nil {
@@ -126,7 +126,7 @@ func (s *Store) GrantSystemRole(ctx context.Context, userID, role, grantedBy str
 		Where("user_id = ? AND role = ? AND revoked_at IS NULL", userKey, role).
 		First(&existing).Error
 	if err == nil {
-		return nil, model.ErrSystemGrantExists
+		return nil, coreidentity.ErrSystemGrantExists
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, err

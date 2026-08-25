@@ -7,14 +7,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 )
 
 // MockUserStore is an in-memory UserStore for tests.
 // Use ByEmail and ByID to pre-seed users; CreateErr and NextUserID for behavior.
 type MockUserStore struct {
-	ByEmail    map[string]*model.User
-	ByID       map[string]*model.User
+	ByEmail    map[string]*coreidentity.User
+	ByID       map[string]*coreidentity.User
 	CreateErr  error
 	NextUserID int
 }
@@ -23,7 +23,7 @@ type MockUserStore struct {
 // utf8mb4_0900_ai_ci email column does. Login resolves the account by address
 // and nothing compares the two strings afterwards, so a case-sensitive mock
 // would let a regression in that lookup pass here.
-func (m *MockUserStore) UserByEmail(_ context.Context, email string) (*model.User, error) {
+func (m *MockUserStore) UserByEmail(_ context.Context, email string) (*coreidentity.User, error) {
 	if m.ByEmail == nil {
 		return nil, nil
 	}
@@ -38,28 +38,28 @@ func (m *MockUserStore) UserByEmail(_ context.Context, email string) (*model.Use
 	return nil, nil
 }
 
-func (m *MockUserStore) GetUser(_ context.Context, userID string) (*model.User, error) {
+func (m *MockUserStore) GetUser(_ context.Context, userID string) (*coreidentity.User, error) {
 	if m.ByID != nil {
 		return m.ByID[userID], nil
 	}
 	return nil, nil
 }
 
-func (m *MockUserStore) CreateUser(_ context.Context, email string, defaultQuotaTier string) (*model.User, error) {
+func (m *MockUserStore) CreateUser(_ context.Context, email string, defaultQuotaTier string) (*coreidentity.User, error) {
 	if m.CreateErr != nil {
 		return nil, m.CreateErr
 	}
 	if m.ByEmail == nil {
-		m.ByEmail = make(map[string]*model.User)
+		m.ByEmail = make(map[string]*coreidentity.User)
 	}
 	if m.ByID == nil {
-		m.ByID = make(map[string]*model.User)
+		m.ByID = make(map[string]*coreidentity.User)
 	}
 	if existing := m.ByEmail[email]; existing != nil {
-		return nil, model.ErrEmailExists
+		return nil, coreidentity.ErrEmailExists
 	}
 	m.NextUserID++
-	u := &model.User{
+	u := &coreidentity.User{
 		ID:        fmt.Sprintf("mock-u-%d", m.NextUserID),
 		Email:     email,
 		QuotaTier: defaultQuotaTier,
@@ -79,8 +79,8 @@ func (m *MockUserStore) UpdateLoginMeta(_ context.Context, userID string, loginA
 	return nil
 }
 
-func (m *MockUserStore) ListUsers(_ context.Context, query string, limit, offset int) ([]model.User, int, error) {
-	var all []model.User
+func (m *MockUserStore) ListUsers(_ context.Context, query string, limit, offset int) ([]coreidentity.User, int, error) {
+	var all []coreidentity.User
 	for _, u := range m.ByID {
 		if query == "" || strings.Contains(u.Email, query) {
 			all = append(all, *u)
@@ -102,7 +102,7 @@ func (m *MockUserStore) ListUsers(_ context.Context, query string, limit, offset
 func (m *MockUserStore) SetUserDisabled(_ context.Context, userID string, disabledAt *time.Time) error {
 	u, ok := m.ByID[userID]
 	if !ok || u == nil {
-		return model.ErrUserNotFound
+		return coreidentity.ErrUserNotFound
 	}
 	u.DisabledAt = disabledAt
 	return nil

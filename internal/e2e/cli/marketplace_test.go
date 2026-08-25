@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	"github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/server/handlers"
@@ -40,19 +40,19 @@ const (
 // package store on disk.
 func startMarketplace(t *testing.T) *httptest.Server {
 	t.Helper()
-	users := &mock.MockUserStore{ByID: map[string]*model.User{}, ByEmail: map[string]*model.User{}}
+	users := &mock.MockUserStore{ByID: map[string]*coreidentity.User{}, ByEmail: map[string]*coreidentity.User{}}
 	for id, email := range map[string]string{
 		publisherID: "publisher@example.com",
 		consumerID:  "consumer@example.com",
 	} {
-		u := &model.User{ID: id, Email: email, CreatedAt: time.Unix(1, 0).UTC()}
+		u := &coreidentity.User{ID: id, Email: email, CreatedAt: time.Unix(1, 0).UTC()}
 		users.ByID[id] = u
 		users.ByEmail[email] = u
 	}
 	// Only the publisher holds the grant. The consumer installing without one
 	// is the authority split the design draws, tested rather than assumed.
 	grants := &mock.MockSystemGrantStore{}
-	grants.GrantForTest(publisherID, model.SystemRoleAdmin)
+	grants.GrantForTest(publisherID, coreidentity.SystemRoleAdmin)
 	audits := &mock.MockAuditStore{}
 
 	h := handlers.NewHandler(handlers.Config{

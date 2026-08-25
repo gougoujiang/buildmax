@@ -7,7 +7,7 @@ import (
 	"time"
 
 	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 )
 
@@ -19,7 +19,7 @@ type AdminGrantsResponse struct {
 // AdminGrant is one grant with the account it names resolved, so a list is
 // readable without a second call per row.
 type AdminGrant struct {
-	model.SystemGrant
+	coreidentity.SystemGrant
 	Email string `json:"email,omitempty"`
 }
 
@@ -78,7 +78,7 @@ func (h *Handler) createAdminGrantHandler(w http.ResponseWriter, r *http.Request
 	}
 	role := req.Role
 	if role == "" {
-		role = model.SystemRoleAdmin
+		role = coreidentity.SystemRoleAdmin
 	}
 	// Granting does not create an account, for the same reason the operator
 	// command does not: creating an account and minting deployment authority
@@ -95,10 +95,10 @@ func (h *Handler) createAdminGrantHandler(w http.ResponseWriter, r *http.Request
 
 	grant, err := h.cfg.Grants.GrantSystemRole(r.Context(), req.UserID, role, actorID, time.Now().UTC())
 	switch {
-	case errors.Is(err, model.ErrSystemGrantExists):
+	case errors.Is(err, coreidentity.ErrSystemGrantExists):
 		httputil.WriteJSONError(w, http.StatusConflict, "the account already holds this role")
 		return
-	case errors.Is(err, model.ErrSystemRoleUnknown):
+	case errors.Is(err, coreidentity.ErrSystemRoleUnknown):
 		httputil.WriteJSONError(w, http.StatusBadRequest, "unknown system role")
 		return
 	case err != nil:
@@ -133,7 +133,7 @@ func (h *Handler) deleteAdminGrantHandler(w http.ResponseWriter, r *http.Request
 	}
 	role := r.URL.Query().Get("role")
 	if role == "" {
-		role = model.SystemRoleAdmin
+		role = coreidentity.SystemRoleAdmin
 	}
 
 	remaining, err := h.cfg.Grants.CountActiveSystemGrants(r.Context(), role)

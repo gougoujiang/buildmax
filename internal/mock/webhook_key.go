@@ -4,14 +4,14 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 )
 
 // MockUserWebhookKeyStore is an in-memory UserWebhookKeyStore for tests.
 // Keys maps a plaintext key to the user that owns it.
 type MockUserWebhookKeyStore struct {
 	Keys  map[string]string
-	Metas map[string][]model.WebhookKeyMeta
+	Metas map[string][]coreidentity.WebhookKeyMeta
 	next  int
 }
 
@@ -20,13 +20,13 @@ func (m *MockUserWebhookKeyStore) CreateKey(_ context.Context, userID, name stri
 		m.Keys = make(map[string]string)
 	}
 	if m.Metas == nil {
-		m.Metas = make(map[string][]model.WebhookKeyMeta)
+		m.Metas = make(map[string][]coreidentity.WebhookKeyMeta)
 	}
 	m.next++
 	plaintext := fmt.Sprintf("whsec_mock_%d", m.next)
 	keyID := fmt.Sprintf("whk_mock_%d", m.next)
 	m.Keys[plaintext] = userID
-	m.Metas[userID] = append(m.Metas[userID], model.WebhookKeyMeta{KeyID: keyID, Name: name})
+	m.Metas[userID] = append(m.Metas[userID], coreidentity.WebhookKeyMeta{KeyID: keyID, Name: name})
 	return plaintext, keyID, nil
 }
 
@@ -34,7 +34,7 @@ func (m *MockUserWebhookKeyStore) GetUserIDByKey(_ context.Context, plaintextKey
 	return m.Keys[plaintextKey], nil
 }
 
-func (m *MockUserWebhookKeyStore) ListKeys(_ context.Context, userID string) ([]model.WebhookKeyMeta, error) {
+func (m *MockUserWebhookKeyStore) ListKeys(_ context.Context, userID string) ([]coreidentity.WebhookKeyMeta, error) {
 	return m.Metas[userID], nil
 }
 

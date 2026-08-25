@@ -9,13 +9,13 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/config"
 	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 )
 
 // The store is the only implementation the server wires in, so a signature
 // drift here should stop the build rather than surface as a nil interface at
 // startup.
-var _ model.SystemGrantStore = (*Store)(nil)
+var _ coreidentity.SystemGrantStore = (*Store)(nil)
 
 func openGrantStore(t *testing.T) (*Store, context.Context) {
 	t.Helper()
@@ -39,12 +39,12 @@ func TestSystemGrantLifecycle(t *testing.T) {
 	s, ctx := openGrantStore(t)
 	userID := newTestUser(t, s, "grant")
 
-	before, err := s.CountActiveSystemGrants(ctx, model.SystemRoleAdmin)
+	before, err := s.CountActiveSystemGrants(ctx, coreidentity.SystemRoleAdmin)
 	if err != nil {
 		t.Fatalf("CountActiveSystemGrants: %v", err)
 	}
 
-	grant, err := s.GrantSystemRole(ctx, userID, model.SystemRoleAdmin, coreaudit.ActorOperator, time.Unix(100, 0).UTC())
+	grant, err := s.GrantSystemRole(ctx, userID, coreidentity.SystemRoleAdmin, coreaudit.ActorOperator, time.Unix(100, 0).UTC())
 	if err != nil {
 		t.Fatalf("GrantSystemRole: %v", err)
 	}
@@ -56,21 +56,21 @@ func TestSystemGrantLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ActiveSystemRoles: %v", err)
 	}
-	if len(roles) != 1 || roles[0] != model.SystemRoleAdmin {
-		t.Fatalf("ActiveSystemRoles = %v, want [%s]", roles, model.SystemRoleAdmin)
+	if len(roles) != 1 || roles[0] != coreidentity.SystemRoleAdmin {
+		t.Fatalf("ActiveSystemRoles = %v, want [%s]", roles, coreidentity.SystemRoleAdmin)
 	}
 
-	if n, err := s.CountActiveSystemGrants(ctx, model.SystemRoleAdmin); err != nil || n != before+1 {
+	if n, err := s.CountActiveSystemGrants(ctx, coreidentity.SystemRoleAdmin); err != nil || n != before+1 {
 		t.Fatalf("CountActiveSystemGrants = %d, %v; want %d", n, err, before+1)
 	}
 
 	// A second grant of a role already held is refused rather than silently
 	// creating a second row, so a caller can say "already an admin".
-	if _, err := s.GrantSystemRole(ctx, userID, model.SystemRoleAdmin, "u_other", time.Unix(101, 0).UTC()); !errors.Is(err, model.ErrSystemGrantExists) {
+	if _, err := s.GrantSystemRole(ctx, userID, coreidentity.SystemRoleAdmin, "u_other", time.Unix(101, 0).UTC()); !errors.Is(err, coreidentity.ErrSystemGrantExists) {
 		t.Fatalf("second grant err = %v, want ErrSystemGrantExists", err)
 	}
 
-	found, err := s.RevokeSystemRole(ctx, userID, model.SystemRoleAdmin, time.Unix(200, 0).UTC())
+	found, err := s.RevokeSystemRole(ctx, userID, coreidentity.SystemRoleAdmin, time.Unix(200, 0).UTC())
 	if err != nil || !found {
 		t.Fatalf("RevokeSystemRole = %v, %v; want true, nil", found, err)
 	}
@@ -78,18 +78,18 @@ func TestSystemGrantLifecycle(t *testing.T) {
 	if err != nil || len(roles) != 0 {
 		t.Fatalf("after revoke ActiveSystemRoles = %v, %v; want empty", roles, err)
 	}
-	if n, err := s.CountActiveSystemGrants(ctx, model.SystemRoleAdmin); err != nil || n != before {
+	if n, err := s.CountActiveSystemGrants(ctx, coreidentity.SystemRoleAdmin); err != nil || n != before {
 		t.Fatalf("after revoke count = %d, %v; want %d", n, err, before)
 	}
 
 	// Revoking again is not an error: the end state is what was asked for.
-	if found, err := s.RevokeSystemRole(ctx, userID, model.SystemRoleAdmin, time.Unix(201, 0).UTC()); err != nil || found {
+	if found, err := s.RevokeSystemRole(ctx, userID, coreidentity.SystemRoleAdmin, time.Unix(201, 0).UTC()); err != nil || found {
 		t.Fatalf("second revoke = %v, %v; want false, nil", found, err)
 	}
 
 	// The revoked row stays, and a re-grant does not collide with it. This is
 	// what the (user_id, role, revoked_at) unique index has to allow.
-	regrant, err := s.GrantSystemRole(ctx, userID, model.SystemRoleAdmin, "u_admin", time.Unix(300, 0).UTC())
+	regrant, err := s.GrantSystemRole(ctx, userID, coreidentity.SystemRoleAdmin, "u_admin", time.Unix(300, 0).UTC())
 	if err != nil {
 		t.Fatalf("re-grant after revoke: %v", err)
 	}
@@ -134,7 +134,7 @@ func TestGrantSystemRoleRejectsUnknownRole(t *testing.T) {
 	s, ctx := openGrantStore(t)
 	userID := newTestUser(t, s, "grant")
 
-	if _, err := s.GrantSystemRole(ctx, userID, "system_observer", coreaudit.ActorOperator, time.Unix(100, 0).UTC()); !errors.Is(err, model.ErrSystemRoleUnknown) {
+	if _, err := s.GrantSystemRole(ctx, userID, "system_observer", coreaudit.ActorOperator, time.Unix(100, 0).UTC()); !errors.Is(err, coreidentity.ErrSystemRoleUnknown) {
 		t.Fatalf("GrantSystemRole(system_observer) err = %v, want ErrSystemRoleUnknown", err)
 	}
 	roles, err := s.ActiveSystemRoles(ctx, userID)

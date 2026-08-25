@@ -9,6 +9,7 @@ import (
 	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
 	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
@@ -60,10 +61,10 @@ type Config struct {
 	RefreshRotationGrace time.Duration
 
 	// Stores
-	UserStore         model.UserStore
-	LoginCodeStore    model.LoginCodeStore
-	PasswordStore     model.PasswordStore
-	RefreshTokenStore model.RefreshTokenStore
+	UserStore         coreidentity.UserStore
+	LoginCodeStore    coreidentity.LoginCodeStore
+	PasswordStore     coreidentity.PasswordStore
+	RefreshTokenStore coreidentity.RefreshTokenStore
 	TeamStore         coreteam.Store
 	WorkflowStore     coreworkflow.Store
 	AgentStore        agentdef.Store
@@ -75,7 +76,7 @@ type Config struct {
 	// unreadable over HTTP, which is what a deployment with no database has.
 	LLMCallStore             coregw.CallStore
 	RunOutputLister          work.RunOutputLister
-	UserWebhookKeyStore      model.UserWebhookKeyStore
+	UserWebhookKeyStore      coreidentity.UserWebhookKeyStore
 	ConversationStore        coreconv.Store
 	ConversationMessageStore coreconv.MessageStore
 	AuditStore               coreaudit.Store
@@ -101,7 +102,7 @@ type Config struct {
 	// /api/admin route answering 503 to an authenticated caller, which is what
 	// a deployment with no database has: no way to know whether anyone is an
 	// administrator, and therefore no basis for letting one in.
-	SystemGrantStore model.SystemGrantStore
+	SystemGrantStore coreidentity.SystemGrantStore
 
 	// Storage
 	PersistStorage   blob.PersistStorage

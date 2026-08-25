@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -30,7 +31,7 @@ func systemMux(t *testing.T, probes []DependencyProbe, redacted any) *http.Serve
 	users := &mock.MockUserStore{}
 	seedUser(t, users, adminUser, "admin@example.com")
 	grants := &mock.MockSystemGrantStore{}
-	grants.GrantForTest(adminUser, model.SystemRoleAdmin)
+	grants.GrantForTest(adminUser, coreidentity.SystemRoleAdmin)
 
 	runs := &mock.MockTaskRunStore{Runs: []coretask.Run{
 		{ID: "r_1", Status: "SUCCEEDED"},
@@ -118,7 +119,7 @@ func TestAdminSystemStatusSurvivesAPartialOutage(t *testing.T) {
 	users := &mock.MockUserStore{}
 	seedUser(t, users, adminUser, "admin@example.com")
 	grants := &mock.MockSystemGrantStore{}
-	grants.GrantForTest(adminUser, model.SystemRoleAdmin)
+	grants.GrantForTest(adminUser, coreidentity.SystemRoleAdmin)
 	audits := &mock.MockAuditStore{}
 	h := New(Config{
 		JWTSecret:  testSecret,
