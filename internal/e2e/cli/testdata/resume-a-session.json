@@ -1,0 +1,13 @@
+{
+  "name": "answer, then answer again from what the first turn left behind",
+  "steps": [
+    {
+      "text": "noted: the code word is albatross",
+      "usage": { "prompt_tokens": 110, "completion_tokens": 8 }
+    },
+    {
+      "text": "the code word was albatross",
+      "usage": { "prompt_tokens": 160, "completion_tokens": 7 }
+    }
+  ]
+}

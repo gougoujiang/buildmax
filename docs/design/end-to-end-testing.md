@@ -6,15 +6,17 @@
   not yet placed in [../ROADMAP.md](../ROADMAP.md)
 - status: `in progress` — §9 steps 1, 2, 3, and 6 are done: the model harness of
   §4 is `internal/testsupport/mockllm` and serves the deployment smokes too; the
-  CLI suite covers print mode and answers an approval on a pseudo-terminal; the
-  deployment workflow is post-merge, scheduled, and dispatchable and reports
-  what verified a commit; the suites have names, preflight, artifacts, and an
-  owning local mode; and the runbook is
+  CLI suite covers print mode, answers an approval on a pseudo-terminal, and
+  resumes a session both by id and by `-c`, including the refusal a second
+  process gets when one is already open; the deployment workflow is post-merge,
+  scheduled, and dispatchable and reports what verified a commit; the suites
+  have names, preflight, artifacts, and an owning local mode; and the runbook is
   [../contribute/testing.md](../contribute/testing.md). Step 4 landed files,
   workflows, and the ungranted-account view in the browser, and retry and the
-  team boundary in the deployment smoke. Step 5 landed the Desktop bridge.
-  Open: workflow execution and space settings in the browser, the two
-  deployment paths §6.1 leaves for later, and the native packaged-app smoke
+  team boundary in the deployment smoke. Step 5 landed the Desktop bridge,
+  including rewind and fork. Open: workflow execution and space settings in the
+  browser, the two deployment paths §6.1 leaves for later, and the native
+  packaged-app smoke
 - depends on: [tool-permissions.md](./tool-permissions.md), whose approval gate
   the CLI and Desktop paths exist to drive, and which decides what a surface
   with no human attached does with an `Ask`;
@@ -357,10 +359,12 @@ rather than discovered later.
   moved out of the gating set with an issue attached, on the same day. Blanket
   retries are not added: the browser suite sets `retries: 0` deliberately, and
   a hidden flake is worse than a visible one.
-- **The `gui` package loses its only PR-time coverage.** That is accepted here
-  only because it is cheap to replace: `gui` needs its own unit tests and a
-  lint step in the frontend job. Until it has them, a shared-component
-  regression reaches `main` before anything executes it.
+- **The `gui` package loses its only PR-time coverage.** That was accepted here
+  only because it was cheap to replace, and it has been: `gui` has its own
+  component tests and the frontend job runs them, so a shared-component
+  regression is caught before merge again. A lint step for the package is still
+  missing, and stays blocked until typescript-eslint supports the TypeScript
+  version it builds with.
 
 ## 9. Delivery Order
 
@@ -399,9 +403,9 @@ rather than discovered later.
    carrying the summary and the link, and `./make e2e all` as the matrix.
 
 Renaming the model-driven `./make smoke` rode along with step 3. Giving `gui`
-tests is still open and belongs with step 4, which is when Portal paths start
-depending on the shared components; a lint step for it is blocked until
-typescript-eslint supports the TypeScript version it builds with.
+tests rode along with step 4, which is when Portal paths started depending on
+the shared components; a lint step for it is blocked until typescript-eslint
+supports the TypeScript version it builds with.
 
 ## 10. Success Criteria
 

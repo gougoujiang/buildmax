@@ -1,0 +1,17 @@
+{
+  "name": "three separate turns, one per run",
+  "steps": [
+    {
+      "text": "first session speaking",
+      "usage": { "prompt_tokens": 100, "completion_tokens": 4 }
+    },
+    {
+      "text": "second session speaking",
+      "usage": { "prompt_tokens": 100, "completion_tokens": 4 }
+    },
+    {
+      "text": "still the second session",
+      "usage": { "prompt_tokens": 130, "completion_tokens": 4 }
+    }
+  ]
+}

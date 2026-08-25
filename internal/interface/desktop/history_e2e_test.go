@@ -16,6 +16,10 @@ import (
 // sits in the middle is the one that tells the two halves of the feature apart.
 // Points after it abandon nothing that touched the workspace; points before it
 // abandon a Write whose file is still on disk either way.
+//
+// The TestBridge prefix is what puts a test in the Desktop suite: `./make e2e
+// desktop` selects by that name, so a bridge test named anything else runs only
+// in the package's own `./make test` and is silently absent from the suite.
 
 // historyScenario is two turns: one that writes a file, one that only talks.
 func historyScenario() mockllm.Scenario {
@@ -56,7 +60,7 @@ func historySession(t *testing.T) (*App, string, string) {
 	return app, projectID, first.SessionID
 }
 
-func TestGetHistoryPointsListsNewestFirstAndMarksTheHead(t *testing.T) {
+func TestBridgeHistoryPointsListNewestFirstAndMarkTheHead(t *testing.T) {
 	app, _, sessionID := historySession(t)
 
 	got, err := app.GetHistoryPoints(sessionID)
@@ -84,7 +88,7 @@ func TestGetHistoryPointsListsNewestFirstAndMarksTheHead(t *testing.T) {
 	}
 }
 
-func TestGetHistoryPointsNamesTheToolAPointWouldMovePast(t *testing.T) {
+func TestBridgeHistoryPointsNameTheToolAPointWouldMovePast(t *testing.T) {
 	app, _, sessionID := historySession(t)
 
 	got, err := app.GetHistoryPoints(sessionID)
@@ -126,7 +130,7 @@ func TestGetHistoryPointsNamesTheToolAPointWouldMovePast(t *testing.T) {
 	}
 }
 
-func TestRewindSessionMovesTheConversationBack(t *testing.T) {
+func TestBridgeRewindMovesTheConversationBack(t *testing.T) {
 	app, projectID, sessionID := historySession(t)
 
 	before, err := app.GetSession(sessionID)
@@ -171,7 +175,7 @@ func TestRewindSessionMovesTheConversationBack(t *testing.T) {
 	}
 }
 
-func TestForkSessionLeavesTheOriginalAndReturnsANewOne(t *testing.T) {
+func TestBridgeForkLeavesTheOriginalAndReturnsANewOne(t *testing.T) {
 	app, projectID, sessionID := historySession(t)
 
 	before, err := app.GetSession(sessionID)
@@ -229,7 +233,7 @@ func TestForkSessionLeavesTheOriginalAndReturnsANewOne(t *testing.T) {
 	}
 }
 
-func TestHistoryMovesAreRefusedWhileTheSessionIsBusy(t *testing.T) {
+func TestBridgeHistoryMovesAreRefusedWhileTheSessionIsBusy(t *testing.T) {
 	app, events, _, projectID := bridge(t, historyScenario(), map[string]string{"Write": "ask"})
 
 	if _, err := app.SendMessageStream(projectID, "", "write notes.txt"); err != nil {
@@ -307,7 +311,7 @@ func probeAtTerminalEvent(app *App, events *uiEvents) func() error {
 	}
 }
 
-func TestTheSessionIsFreeTheMomentARunSaysItFinished(t *testing.T) {
+func TestBridgeTheSessionIsFreeTheMomentARunSaysItFinished(t *testing.T) {
 	app, events, _, projectID := bridge(t, mockllm.Scenario{Steps: []mockllm.Step{{Text: "hello there"}}}, nil)
 	result := probeAtTerminalEvent(app, events)
 
@@ -324,7 +328,7 @@ func TestTheSessionIsFreeTheMomentARunSaysItFinished(t *testing.T) {
 	}
 }
 
-func TestTheSessionIsFreeTheMomentARunReportsAFailure(t *testing.T) {
+func TestBridgeTheSessionIsFreeTheMomentARunReportsAFailure(t *testing.T) {
 	scenario := mockllm.Scenario{Steps: []mockllm.Step{{Status: 400, Error: "scripted provider refusal"}}}
 	app, events, _, projectID := bridge(t, scenario, nil)
 	result := probeAtTerminalEvent(app, events)
@@ -341,7 +345,7 @@ func TestTheSessionIsFreeTheMomentARunReportsAFailure(t *testing.T) {
 	}
 }
 
-func TestHistoryMovesRejectMissingArguments(t *testing.T) {
+func TestBridgeHistoryMovesRejectMissingArguments(t *testing.T) {
 	app := NewApp()
 	if _, err := app.RewindSession("", "s1", "i1"); err == nil {
 		t.Error("RewindSession with no project succeeded")
