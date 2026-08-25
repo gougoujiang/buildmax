@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
@@ -24,11 +24,11 @@ const hierarchyTeam = "tm_hierarchy"
 func hierarchyMux(t *testing.T) (*http.ServeMux, *mock.MockIssueStore) {
 	t.Helper()
 	issues := &mock.MockIssueStore{
-		Issues: []model.Issue{
-			{ID: "i_parent", UserID: "u_owner", TeamID: hierarchyTeam, Title: "Parent", Status: model.IssueStatusInProgress},
-			{ID: "i_child_a", UserID: "u_owner", TeamID: hierarchyTeam, Title: "Child A", Status: model.IssueStatusDone, ParentIssueID: util.Ptr("i_parent")},
-			{ID: "i_child_b", UserID: "u_owner", TeamID: hierarchyTeam, Title: "Child B", Status: model.IssueStatusTodo, ParentIssueID: util.Ptr("i_parent")},
-			{ID: "i_loose", UserID: "u_owner", TeamID: hierarchyTeam, Title: "Loose", Status: model.IssueStatusTodo},
+		Issues: []coreissue.Issue{
+			{ID: "i_parent", UserID: "u_owner", TeamID: hierarchyTeam, Title: "Parent", Status: coreissue.StatusInProgress},
+			{ID: "i_child_a", UserID: "u_owner", TeamID: hierarchyTeam, Title: "Child A", Status: coreissue.StatusDone, ParentIssueID: util.Ptr("i_parent")},
+			{ID: "i_child_b", UserID: "u_owner", TeamID: hierarchyTeam, Title: "Child B", Status: coreissue.StatusTodo, ParentIssueID: util.Ptr("i_parent")},
+			{ID: "i_loose", UserID: "u_owner", TeamID: hierarchyTeam, Title: "Loose", Status: coreissue.StatusTodo},
 		},
 	}
 	teams := &mock.MockTeamStore{

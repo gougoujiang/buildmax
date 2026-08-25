@@ -6,7 +6,7 @@ import (
 	"log/slog"
 
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 )
@@ -35,8 +35,8 @@ var (
 )
 
 type Service struct {
-	Issues    model.IssueStore
-	Comments  model.IssueCommentStore
+	Issues    coreissue.Store
+	Comments  coreissue.CommentStore
 	Agents    agentdef.Store
 	Teams     coreteam.Store
 	Workflows coreworkflow.Store
@@ -62,7 +62,7 @@ type UpdateIssueCmd struct {
 	ParentIssueID *string
 }
 
-func (s *Service) CreateIssue(ctx context.Context, cmd CreateIssueCmd) (*model.Issue, error) {
+func (s *Service) CreateIssue(ctx context.Context, cmd CreateIssueCmd) (*coreissue.Issue, error) {
 	if s.Issues == nil {
 		return nil, ErrIssuesNotConfigured
 	}
@@ -76,14 +76,14 @@ func (s *Service) CreateIssue(ctx context.Context, cmd CreateIssueCmd) (*model.I
 	if err != nil {
 		return nil, err
 	}
-	return s.Issues.CreateIssueInTeam(ctx, cmd.TeamID, cmd.UserID, model.CreateIssueInput{
+	return s.Issues.CreateIssueInTeam(ctx, cmd.TeamID, cmd.UserID, coreissue.CreateInput{
 		Title:         cmd.Title,
 		Description:   cmd.Description,
 		ParentIssueID: parent,
 	})
 }
 
-func (s *Service) UpdateIssue(ctx context.Context, cmd UpdateIssueCmd) (*model.Issue, error) {
+func (s *Service) UpdateIssue(ctx context.Context, cmd UpdateIssueCmd) (*coreissue.Issue, error) {
 	if s.Issues == nil {
 		return nil, ErrIssuesNotConfigured
 	}
@@ -108,7 +108,7 @@ func (s *Service) UpdateIssue(ctx context.Context, cmd UpdateIssueCmd) (*model.I
 			parent = new(string)
 		}
 	}
-	issue, err := s.Issues.UpdateIssueInTeam(ctx, cmd.IssueID, cmd.TeamID, model.UpdateIssueInput{
+	issue, err := s.Issues.UpdateIssueInTeam(ctx, cmd.IssueID, cmd.TeamID, coreissue.UpdateInput{
 		Title:         cmd.Title,
 		Description:   cmd.Description,
 		Status:        cmd.Status,
@@ -165,7 +165,7 @@ func (s *Service) normalizeParent(ctx context.Context, teamID, childID string, p
 
 func isValidStatus(status string) bool {
 	switch status {
-	case model.IssueStatusTodo, model.IssueStatusInProgress, model.IssueStatusDone:
+	case coreissue.StatusTodo, coreissue.StatusInProgress, coreissue.StatusDone:
 		return true
 	default:
 		return false
@@ -183,7 +183,7 @@ func (s *Service) validateAssignee(ctx context.Context, teamID, userID string, k
 		return nil
 	}
 	switch *kind {
-	case model.IssueAssigneePerson:
+	case coreissue.AssigneePerson:
 		if s.Teams == nil {
 			return ErrTeamsNotConfigured
 		}
@@ -197,7 +197,7 @@ func (s *Service) validateAssignee(ctx context.Context, teamID, userID string, k
 			}
 		}
 		return ErrInvalidAssigneeID
-	case model.IssueAssigneeAgent:
+	case coreissue.AssigneeAgent:
 		if *id == "" {
 			return ErrInvalidAssigneeID
 		}
@@ -212,7 +212,7 @@ func (s *Service) validateAssignee(ctx context.Context, teamID, userID string, k
 			return ErrAgentNotFound
 		}
 		return nil
-	case model.IssueAssigneeWorkflow:
+	case coreissue.AssigneeWorkflow:
 		if *id == "" {
 			return ErrInvalidAssigneeID
 		}
@@ -247,7 +247,7 @@ type Counts struct {
 //
 // An issue belonging to another team reads as not found rather than forbidden,
 // so the answer does not confirm that an id exists elsewhere.
-func (s *Service) GetIssue(ctx context.Context, teamID, issueID string) (*model.Issue, error) {
+func (s *Service) GetIssue(ctx context.Context, teamID, issueID string) (*coreissue.Issue, error) {
 	if s.Issues == nil {
 		return nil, ErrIssuesNotConfigured
 	}
@@ -261,7 +261,7 @@ func (s *Service) GetIssue(ctx context.Context, teamID, issueID string) (*model.
 	return found, nil
 }
 
-func (s *Service) ListIssues(ctx context.Context, teamID string, filter model.ListIssuesFilter, limit, offset int) ([]model.Issue, int, error) {
+func (s *Service) ListIssues(ctx context.Context, teamID string, filter coreissue.ListFilter, limit, offset int) ([]coreissue.Issue, int, error) {
 	if s.Issues == nil {
 		return nil, 0, ErrIssuesNotConfigured
 	}

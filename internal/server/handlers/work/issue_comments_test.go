@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
@@ -25,10 +25,10 @@ const (
 func commentMux(t *testing.T) (*http.ServeMux, *mock.MockIssueStore, *mock.MockIssueCommentStore) {
 	t.Helper()
 	issues := &mock.MockIssueStore{
-		Issues: []model.Issue{
-			{ID: "i_1", UserID: "u_owner", TeamID: commentTeam, Title: "Parent", Status: model.IssueStatusTodo},
-			{ID: "i_2", UserID: "u_owner", TeamID: commentTeam, Title: "Other issue", Status: model.IssueStatusTodo},
-			{ID: "i_far", UserID: "u_stranger", TeamID: commentOtherTeam, Title: "Theirs", Status: model.IssueStatusTodo},
+		Issues: []coreissue.Issue{
+			{ID: "i_1", UserID: "u_owner", TeamID: commentTeam, Title: "Parent", Status: coreissue.StatusTodo},
+			{ID: "i_2", UserID: "u_owner", TeamID: commentTeam, Title: "Other issue", Status: coreissue.StatusTodo},
+			{ID: "i_far", UserID: "u_stranger", TeamID: commentOtherTeam, Title: "Theirs", Status: coreissue.StatusTodo},
 		},
 	}
 	comments := &mock.MockIssueCommentStore{}
@@ -82,7 +82,7 @@ func TestIssueComments_CreateListEditDelete(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
 		t.Fatalf("decode create: %v", err)
 	}
-	if created.AuthorKind != model.IssueCommentAuthorUser || created.AuthorID != "u_member" {
+	if created.AuthorKind != coreissue.CommentAuthorUser || created.AuthorID != "u_member" {
 		t.Fatalf("author = %s/%s, want user/u_member", created.AuthorKind, created.AuthorID)
 	}
 
@@ -226,7 +226,7 @@ func TestIssueComments_NotConfigured(t *testing.T) {
 	h := New(Config{
 		JWTSecret: commentTestSecret,
 		Teams:     teams,
-		Issues:    &mock.MockIssueStore{Issues: []model.Issue{{ID: "i_1", TeamID: commentTeam}}},
+		Issues:    &mock.MockIssueStore{Issues: []coreissue.Issue{{ID: "i_1", TeamID: commentTeam}}},
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)

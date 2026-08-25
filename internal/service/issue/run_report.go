@@ -5,6 +5,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 )
 
@@ -25,7 +26,7 @@ const runSummaryLimit = 2000
 // completed run into a failed one.
 type RunReporter struct {
 	Tasks    model.TaskStore
-	Comments model.IssueCommentStore
+	Comments coreissue.CommentStore
 }
 
 // ReportRunTerminal writes one comment for a run that reached a terminal
@@ -51,9 +52,9 @@ func (r *RunReporter) ReportRunTerminal(ctx context.Context, info model.TaskRunT
 	}
 	taskID := info.TaskID
 	runID := info.TaskRunID
-	_, err = r.Comments.CreateIssueComment(ctx, model.CreateIssueCommentInput{
+	_, err = r.Comments.CreateIssueComment(ctx, coreissue.CreateCommentInput{
 		IssueID:         *task.IssueID,
-		AuthorKind:      model.IssueCommentAuthorAgent,
+		AuthorKind:      coreissue.CommentAuthorAgent,
 		AuthorID:        agentIDOf(task),
 		Body:            body,
 		SourceTaskID:    &taskID,

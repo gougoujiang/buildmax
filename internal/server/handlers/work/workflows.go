@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	"github.com/gougoujiang/buildmax/internal/service/task"
@@ -471,7 +471,7 @@ func (h *Handler) createIssueWorkflowRunHandler(w http.ResponseWriter, r *http.R
 		httputil.WriteJSONError(w, http.StatusNotFound, "issue not found")
 		return
 	}
-	if issue.AssigneeKind == nil || issue.AssigneeID == nil || *issue.AssigneeKind != model.IssueAssigneeWorkflow {
+	if issue.AssigneeKind == nil || issue.AssigneeID == nil || *issue.AssigneeKind != coreissue.AssigneeWorkflow {
 		httputil.WriteJSONError(w, http.StatusBadRequest, "issue not assigned to workflow")
 		return
 	}

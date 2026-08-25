@@ -14,6 +14,7 @@ import (
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
+	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/core/model"
@@ -67,8 +68,8 @@ type StoresConfig struct {
 	TeamStore         coreteam.Store
 	WorkflowStore     coreworkflow.Store
 	AgentStore        agentdef.Store
-	IssueStore        model.IssueStore
-	IssueCommentStore model.IssueCommentStore
+	IssueStore        coreissue.Store
+	IssueCommentStore coreissue.CommentStore
 	TaskStore         model.TaskStore
 	TaskRunStore      model.TaskRunStore
 	// TaskResultDeliveryStore records the reports the server owes finished

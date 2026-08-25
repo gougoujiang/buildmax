@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	"github.com/gougoujiang/buildmax/internal/service/issue"
 )
@@ -31,7 +31,7 @@ type issueCommentRequest struct {
 	Body string `json:"body"`
 }
 
-func issueCommentToResponse(comment model.IssueComment) issueCommentResponse {
+func issueCommentToResponse(comment coreissue.Comment) issueCommentResponse {
 	return issueCommentResponse{
 		ID:              comment.ID,
 		IssueID:         comment.IssueID,
@@ -107,7 +107,7 @@ func (h *Handler) createIssueCommentHandler(w http.ResponseWriter, r *http.Reque
 	}
 	created, err := h.issueService().CreateComment(r.Context(), issue.CreateCommentCmd{
 		IssueID:    issueID,
-		AuthorKind: model.IssueCommentAuthorUser,
+		AuthorKind: coreissue.CommentAuthorUser,
 		AuthorID:   userID,
 		Body:       req.Body,
 	})

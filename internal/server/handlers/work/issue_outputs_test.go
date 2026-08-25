@@ -11,6 +11,7 @@ import (
 	"time"
 
 	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
+	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
@@ -51,15 +52,15 @@ func newOutputsFixtures(t *testing.T, runOutputStorage blob.RunOutputStorage) *o
 	personalTeamID := "tm_personal_u1"
 	otherTeamID := "tm_other"
 	issues := &mock.MockIssueStore{
-		Issues: []model.Issue{
+		Issues: []coreissue.Issue{
 			{
 				ID: "i_1", UserID: "u1", TeamID: personalTeamID,
-				Title: "I", Status: model.IssueStatusInProgress,
+				Title: "I", Status: coreissue.StatusInProgress,
 				CreatedBy: "u1", CreatedAt: time.Unix(100, 0).UTC(), UpdatedAt: time.Unix(100, 0).UTC(),
 			},
 			{
 				ID: "i_other", UserID: "u2", TeamID: otherTeamID,
-				Title: "Other", Status: model.IssueStatusTodo,
+				Title: "Other", Status: coreissue.StatusTodo,
 				CreatedBy: "u2", CreatedAt: time.Unix(50, 0).UTC(), UpdatedAt: time.Unix(50, 0).UTC(),
 			},
 		},
@@ -197,7 +198,7 @@ func TestIssueFlowOutputs_WorkflowStepProvenance(t *testing.T) {
 		Definition: `{"steps":[]}`, Status: coreworkflow.StatusPublished,
 	}}
 	// Patch the issue's assignee_kind/id via the underlying store directly.
-	// The mock IssueStore exposes Issues as []model.Issue, so update in place.
+	// The mock IssueStore exposes Issues as []coreissue.Issue, so update in place.
 	// IssueStore is set up in newOutputsFixtures.
 	// Get a handle via a small endpoint round-trip is overkill — patch directly.
 	// Find via type assertion.

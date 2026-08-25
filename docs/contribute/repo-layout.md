@@ -136,6 +136,8 @@ internal/
 │   │                   run and step-run state its execution moves through
 │   ├── agentdef/       The Agent a team defined and its revisions -- what an
 │   │                   Agent is configured to be, not the loop that runs it
+│   ├── issue/          The Issue, its hierarchy and assignee vocabulary, and
+│   │                   the comments people and agents leave on it
 │   └── session/        Local session model; persistence lives in agentapp
 │
 ├── agentapp/           Agent runtime assembly: LLM client cache, tool registry,

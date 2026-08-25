@@ -9,7 +9,7 @@ import (
 	"time"
 
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -25,14 +25,14 @@ func TestIssueHandlers(t *testing.T) {
 	otherTeamID := "tm_other"
 	workflowID := "w_1"
 	store := &mock.MockIssueStore{
-		Issues: []model.Issue{
+		Issues: []coreissue.Issue{
 			{
 				ID:           "i_1",
 				UserID:       "u1",
 				TeamID:       personalTeamID,
 				Title:        "Initial issue",
 				Description:  "Initial description",
-				Status:       model.IssueStatusTodo,
+				Status:       coreissue.StatusTodo,
 				CreatedBy:    "u1",
 				CreatedAt:    time.Unix(100, 0).UTC(),
 				UpdatedAt:    time.Unix(100, 0).UTC(),
@@ -102,7 +102,7 @@ func TestIssueHandlers(t *testing.T) {
 		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 			t.Fatalf("decode create: %v", err)
 		}
-		if out.Title != "New issue" || out.Status != model.IssueStatusTodo {
+		if out.Title != "New issue" || out.Status != coreissue.StatusTodo {
 			t.Fatalf("created = %+v", out)
 		}
 		if out.TeamID != personalTeamID {
@@ -144,7 +144,7 @@ func TestIssueHandlers(t *testing.T) {
 		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 			t.Fatalf("decode patch: %v", err)
 		}
-		if out.Status != model.IssueStatusInProgress || out.AssigneeKind == nil || *out.AssigneeKind != model.IssueAssigneeAgent {
+		if out.Status != coreissue.StatusInProgress || out.AssigneeKind == nil || *out.AssigneeKind != coreissue.AssigneeAgent {
 			t.Fatalf("patched = %+v", out)
 		}
 	})
@@ -214,7 +214,7 @@ func TestIssueHandlers(t *testing.T) {
 		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 			t.Fatalf("decode patch: %v", err)
 		}
-		if out.AssigneeKind == nil || *out.AssigneeKind != model.IssueAssigneeWorkflow {
+		if out.AssigneeKind == nil || *out.AssigneeKind != coreissue.AssigneeWorkflow {
 			t.Fatalf("patched = %+v", out)
 		}
 	})

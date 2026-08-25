@@ -10,6 +10,7 @@ import (
 
 	agentsvc "github.com/gougoujiang/buildmax/internal/service/agent"
 
+	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
@@ -81,7 +82,7 @@ type patchIssueRequest struct {
 	ParentIssueID *string `json:"parent_issue_id"`
 }
 
-func issueToResponse(issue model.Issue) IssueResponse {
+func issueToResponse(issue coreissue.Issue) IssueResponse {
 	return IssueResponse{
 		ID:            issue.ID,
 		UserID:        issue.UserID,
@@ -118,7 +119,7 @@ func (h *Handler) decorateIssueResponses(ctx context.Context, out []IssueRespons
 	}
 }
 
-func buildIssueAgentRunInput(issue model.Issue) string {
+func buildIssueAgentRunInput(issue coreissue.Issue) string {
 	var b strings.Builder
 	b.WriteString("Work on this issue.\n\n")
 	b.WriteString("Title: ")
@@ -157,7 +158,7 @@ func (h *Handler) listIssuesHandler(w http.ResponseWriter, r *http.Request) {
 	// No parent_id lists every issue in the team, sub-issues included. That is
 	// what callers predating the hierarchy expect, so the board opts into the
 	// filtered view rather than the endpoint changing under anyone.
-	var filter model.ListIssuesFilter
+	var filter coreissue.ListFilter
 	switch parentID := r.URL.Query().Get("parent_id"); parentID {
 	case "":
 	case "none":
@@ -340,7 +341,7 @@ func (h *Handler) createIssueAgentRunHandler(w http.ResponseWriter, r *http.Requ
 		httputil.WriteInternalError(w, err, "handler error", "handler", "get_issue_for_agent_run", "issue_id", issueID)
 		return
 	}
-	if issue.AssigneeKind == nil || issue.AssigneeID == nil || *issue.AssigneeKind != model.IssueAssigneeAgent {
+	if issue.AssigneeKind == nil || issue.AssigneeID == nil || *issue.AssigneeKind != coreissue.AssigneeAgent {
 		httputil.WriteJSONError(w, http.StatusBadRequest, "issue not assigned to agent")
 		return
 	}
@@ -396,7 +397,7 @@ func (h *Handler) patchIssueHandler(w http.ResponseWriter, r *http.Request) {
 	if !httputil.DecodeJSONBody(w, r, &req) {
 		return
 	}
-	if req.AssigneeKind != nil && *req.AssigneeKind == model.IssueAssigneeWorkflow {
+	if req.AssigneeKind != nil && *req.AssigneeKind == coreissue.AssigneeWorkflow {
 		if _, ok := h.guard().TeamAction(w, r, userID, teamID, coreteam.ActionAssignIssueWorkflow); !ok {
 			return
 		}

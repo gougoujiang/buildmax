@@ -5,27 +5,27 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
 )
 
 // MockIssueStore is an in-memory IssueStore for tests.
 type MockIssueStore struct {
-	Issues []model.Issue
+	Issues []coreissue.Issue
 }
 
-func (m *MockIssueStore) CreateIssue(_ context.Context, userID string, in model.CreateIssueInput) (*model.Issue, error) {
+func (m *MockIssueStore) CreateIssue(_ context.Context, userID string, in coreissue.CreateInput) (*coreissue.Issue, error) {
 	return m.CreateIssueInTeam(context.Background(), "tm_personal", userID, in)
 }
 
-func (m *MockIssueStore) CreateIssueInTeam(_ context.Context, teamID, createdBy string, in model.CreateIssueInput) (*model.Issue, error) {
-	issue := model.Issue{
+func (m *MockIssueStore) CreateIssueInTeam(_ context.Context, teamID, createdBy string, in coreissue.CreateInput) (*coreissue.Issue, error) {
+	issue := coreissue.Issue{
 		ID:            fmt.Sprintf("i_mock_%d", len(m.Issues)+1),
 		UserID:        createdBy,
 		TeamID:        teamID,
 		ParentIssueID: in.ParentIssueID,
 		Title:         in.Title,
 		Description:   in.Description,
-		Status:        model.IssueStatusTodo,
+		Status:        coreissue.StatusTodo,
 		CreatedBy:     createdBy,
 		CreatedAt:     time.Now().UTC(),
 		UpdatedAt:     time.Now().UTC(),
@@ -36,8 +36,8 @@ func (m *MockIssueStore) CreateIssueInTeam(_ context.Context, teamID, createdBy 
 	return &m.Issues[len(m.Issues)-1], nil
 }
 
-func (m *MockIssueStore) ListIssuesByUser(_ context.Context, userID string, limit, offset int) ([]model.Issue, int, error) {
-	var filtered []model.Issue
+func (m *MockIssueStore) ListIssuesByUser(_ context.Context, userID string, limit, offset int) ([]coreissue.Issue, int, error) {
+	var filtered []coreissue.Issue
 	for _, issue := range m.Issues {
 		if issue.UserID == userID {
 			filtered = append(filtered, issue)
@@ -45,7 +45,7 @@ func (m *MockIssueStore) ListIssuesByUser(_ context.Context, userID string, limi
 	}
 	total := len(filtered)
 	if offset > len(filtered) {
-		return []model.Issue{}, total, nil
+		return []coreissue.Issue{}, total, nil
 	}
 	end := offset + limit
 	if limit <= 0 || end > len(filtered) {
@@ -54,8 +54,8 @@ func (m *MockIssueStore) ListIssuesByUser(_ context.Context, userID string, limi
 	return filtered[offset:end], total, nil
 }
 
-func (m *MockIssueStore) ListIssuesByTeam(_ context.Context, teamID string, filter model.ListIssuesFilter, limit, offset int) ([]model.Issue, int, error) {
-	var filtered []model.Issue
+func (m *MockIssueStore) ListIssuesByTeam(_ context.Context, teamID string, filter coreissue.ListFilter, limit, offset int) ([]coreissue.Issue, int, error) {
+	var filtered []coreissue.Issue
 	for _, issue := range m.Issues {
 		if issue.TeamID != teamID {
 			continue
@@ -70,7 +70,7 @@ func (m *MockIssueStore) ListIssuesByTeam(_ context.Context, teamID string, filt
 	}
 	total := len(filtered)
 	if offset > len(filtered) {
-		return []model.Issue{}, total, nil
+		return []coreissue.Issue{}, total, nil
 	}
 	end := offset + limit
 	if limit <= 0 || end > len(filtered) {
@@ -79,8 +79,8 @@ func (m *MockIssueStore) ListIssuesByTeam(_ context.Context, teamID string, filt
 	return filtered[offset:end], total, nil
 }
 
-func (m *MockIssueStore) ListIssueChildren(_ context.Context, parentIssueID string) ([]model.Issue, error) {
-	out := []model.Issue{}
+func (m *MockIssueStore) ListIssueChildren(_ context.Context, parentIssueID string) ([]coreissue.Issue, error) {
+	out := []coreissue.Issue{}
 	if parentIssueID == "" {
 		return out, nil
 	}
@@ -92,19 +92,19 @@ func (m *MockIssueStore) ListIssueChildren(_ context.Context, parentIssueID stri
 	return out, nil
 }
 
-func (m *MockIssueStore) ChildStatsForIssues(_ context.Context, issueIDs []string) (map[string]model.IssueChildStats, error) {
+func (m *MockIssueStore) ChildStatsForIssues(_ context.Context, issueIDs []string) (map[string]coreissue.ChildStats, error) {
 	wanted := map[string]bool{}
 	for _, id := range issueIDs {
 		wanted[id] = true
 	}
-	out := map[string]model.IssueChildStats{}
+	out := map[string]coreissue.ChildStats{}
 	for _, issue := range m.Issues {
 		if issue.ParentIssueID == nil || !wanted[*issue.ParentIssueID] {
 			continue
 		}
 		stats := out[*issue.ParentIssueID]
 		stats.Total++
-		if issue.Status == model.IssueStatusDone {
+		if issue.Status == coreissue.StatusDone {
 			stats.Done++
 		}
 		out[*issue.ParentIssueID] = stats
@@ -112,7 +112,7 @@ func (m *MockIssueStore) ChildStatsForIssues(_ context.Context, issueIDs []strin
 	return out, nil
 }
 
-func (m *MockIssueStore) GetIssue(_ context.Context, issueID string) (*model.Issue, error) {
+func (m *MockIssueStore) GetIssue(_ context.Context, issueID string) (*coreissue.Issue, error) {
 	for i := range m.Issues {
 		if m.Issues[i].ID == issueID {
 			return &m.Issues[i], nil
@@ -121,7 +121,7 @@ func (m *MockIssueStore) GetIssue(_ context.Context, issueID string) (*model.Iss
 	return nil, nil
 }
 
-func (m *MockIssueStore) UpdateIssue(_ context.Context, issueID, userID string, in model.UpdateIssueInput) (*model.Issue, error) {
+func (m *MockIssueStore) UpdateIssue(_ context.Context, issueID, userID string, in coreissue.UpdateInput) (*coreissue.Issue, error) {
 	for i := range m.Issues {
 		if m.Issues[i].ID != issueID || m.Issues[i].UserID != userID {
 			continue
@@ -131,7 +131,7 @@ func (m *MockIssueStore) UpdateIssue(_ context.Context, issueID, userID string, 
 	return nil, nil
 }
 
-func (m *MockIssueStore) UpdateIssueInTeam(_ context.Context, issueID, teamID string, in model.UpdateIssueInput) (*model.Issue, error) {
+func (m *MockIssueStore) UpdateIssueInTeam(_ context.Context, issueID, teamID string, in coreissue.UpdateInput) (*coreissue.Issue, error) {
 	for i := range m.Issues {
 		if m.Issues[i].ID != issueID || m.Issues[i].TeamID != teamID {
 			continue
@@ -141,7 +141,7 @@ func (m *MockIssueStore) UpdateIssueInTeam(_ context.Context, issueID, teamID st
 	return nil, nil
 }
 
-func (m *MockIssueStore) applyIssueUpdate(i int, in model.UpdateIssueInput) *model.Issue {
+func (m *MockIssueStore) applyIssueUpdate(i int, in coreissue.UpdateInput) *coreissue.Issue {
 	if in.Title != nil {
 		m.Issues[i].Title = *in.Title
 	}

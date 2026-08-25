@@ -1,4 +1,4 @@
-package model
+package issue
 
 import (
 	"context"
@@ -6,20 +6,20 @@ import (
 )
 
 const (
-	IssueStatusTodo       = "todo"
-	IssueStatusInProgress = "in_progress"
-	IssueStatusDone       = "done"
-	IssueAssigneePerson   = "person"
-	IssueAssigneeAgent    = "agent"
-	IssueAssigneeWorkflow = "workflow"
+	StatusTodo       = "todo"
+	StatusInProgress = "in_progress"
+	StatusDone       = "done"
+	AssigneePerson   = "person"
+	AssigneeAgent    = "agent"
+	AssigneeWorkflow = "workflow"
 )
 
 // Issue comment author kinds. A comment is written by a person, reported by an
 // agent run, or stated by the server itself.
 const (
-	IssueCommentAuthorUser   = "user"
-	IssueCommentAuthorAgent  = "agent"
-	IssueCommentAuthorSystem = "system"
+	CommentAuthorUser   = "user"
+	CommentAuthorAgent  = "agent"
+	CommentAuthorSystem = "system"
 )
 
 // Issue is the user-facing work-management object. It is intentionally separate
@@ -44,13 +44,13 @@ type Issue struct {
 	UpdatedAt     time.Time `json:"updated_at"`
 }
 
-type CreateIssueInput struct {
+type CreateInput struct {
 	Title         string
 	Description   string
 	ParentIssueID *string
 }
 
-type UpdateIssueInput struct {
+type UpdateInput struct {
 	Title         *string
 	Description   *string
 	Status        *string
@@ -59,9 +59,9 @@ type UpdateIssueInput struct {
 	ParentIssueID *string
 }
 
-// ListIssuesFilter narrows a team issue listing. The zero value lists every
+// ListFilter narrows a team issue listing. The zero value lists every
 // issue in the team, which is what callers predating sub-issues expect.
-type ListIssuesFilter struct {
+type ListFilter struct {
 	// TopLevelOnly restricts the listing to issues with no parent.
 	TopLevelOnly bool
 	// ParentIssueID restricts the listing to one parent's children. It is
@@ -69,37 +69,37 @@ type ListIssuesFilter struct {
 	ParentIssueID string
 }
 
-// IssueChildStats is a parent's sub-issue progress. It is always computed, never
+// ChildStats is a parent's sub-issue progress. It is always computed, never
 // stored: a persisted counter is a second source of truth that drifts the first
 // time a status write fails between the two rows.
-type IssueChildStats struct {
+type ChildStats struct {
 	Total int `json:"total"`
 	Done  int `json:"done"`
 }
 
-// IssueStore provides issue persistence. Issues are user-scoped.
-type IssueStore interface {
-	CreateIssue(ctx context.Context, userID string, in CreateIssueInput) (*Issue, error)
-	CreateIssueInTeam(ctx context.Context, teamID, createdBy string, in CreateIssueInput) (*Issue, error)
+// Store provides issue persistence. Issues are user-scoped.
+type Store interface {
+	CreateIssue(ctx context.Context, userID string, in CreateInput) (*Issue, error)
+	CreateIssueInTeam(ctx context.Context, teamID, createdBy string, in CreateInput) (*Issue, error)
 	ListIssuesByUser(ctx context.Context, userID string, limit, offset int) ([]Issue, int, error)
-	ListIssuesByTeam(ctx context.Context, teamID string, filter ListIssuesFilter, limit, offset int) ([]Issue, int, error)
+	ListIssuesByTeam(ctx context.Context, teamID string, filter ListFilter, limit, offset int) ([]Issue, int, error)
 	ListIssueChildren(ctx context.Context, parentIssueID string) ([]Issue, error)
 	// ChildStatsForIssues returns sub-issue progress keyed by parent issue ID.
 	// Parents with no children are absent from the map rather than present with
 	// a zero value, so callers must treat a miss as "no sub-issues".
-	ChildStatsForIssues(ctx context.Context, issueIDs []string) (map[string]IssueChildStats, error)
+	ChildStatsForIssues(ctx context.Context, issueIDs []string) (map[string]ChildStats, error)
 	GetIssue(ctx context.Context, issueID string) (*Issue, error)
-	UpdateIssue(ctx context.Context, issueID, userID string, in UpdateIssueInput) (*Issue, error)
-	UpdateIssueInTeam(ctx context.Context, issueID, teamID string, in UpdateIssueInput) (*Issue, error)
+	UpdateIssue(ctx context.Context, issueID, userID string, in UpdateInput) (*Issue, error)
+	UpdateIssueInTeam(ctx context.Context, issueID, teamID string, in UpdateInput) (*Issue, error)
 }
 
-// IssueComment is one statement about an issue, addressed to people.
+// Comment is one statement about an issue, addressed to people.
 //
 // It is deliberately not a conversation_message: that table is LLM turn history
 // carrying roles and tool traffic, replayed into a model context. A comment
 // outlives any particular conversation and is never replayed. See
 // docs/design/issue-model.md.
-type IssueComment struct {
+type Comment struct {
 	ID              string    `json:"id"`
 	IssueID         string    `json:"issue_id"`
 	AuthorKind      string    `json:"author_kind"`
@@ -113,7 +113,7 @@ type IssueComment struct {
 	EditedAt *time.Time `json:"edited_at,omitempty"`
 }
 
-type CreateIssueCommentInput struct {
+type CreateCommentInput struct {
 	IssueID         string
 	AuthorKind      string
 	AuthorID        string
@@ -122,16 +122,16 @@ type CreateIssueCommentInput struct {
 	SourceTaskRunID *string
 }
 
-// IssueCommentStore provides issue comment persistence. A comment's team is its
+// CommentStore provides issue comment persistence. A comment's team is its
 // issue's team; the row carries no team_id of its own, so every caller
 // authorizes through the issue.
-type IssueCommentStore interface {
-	CreateIssueComment(ctx context.Context, in CreateIssueCommentInput) (*IssueComment, error)
+type CommentStore interface {
+	CreateIssueComment(ctx context.Context, in CreateCommentInput) (*Comment, error)
 	// ListIssueComments returns comments oldest first — a thread reads in the
 	// order it was written.
-	ListIssueComments(ctx context.Context, issueID string, limit, offset int) ([]IssueComment, int, error)
-	GetIssueComment(ctx context.Context, commentID string) (*IssueComment, error)
-	UpdateIssueComment(ctx context.Context, commentID, body string) (*IssueComment, error)
+	ListIssueComments(ctx context.Context, issueID string, limit, offset int) ([]Comment, int, error)
+	GetIssueComment(ctx context.Context, commentID string) (*Comment, error)
+	UpdateIssueComment(ctx context.Context, commentID, body string) (*Comment, error)
 	DeleteIssueComment(ctx context.Context, commentID string) error
 	// CountIssueComments returns comment totals keyed by issue ID. Issues with
 	// no comments are absent from the map.
