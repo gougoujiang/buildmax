@@ -36,6 +36,29 @@ func newTeam(t *testing.T) (*team.Service, string, string, string) {
 	return &team.Service{Teams: teams, Users: users}, tm.ID, owner.ID, member.ID
 }
 
+// addMemberWithRole seats an account in the team at a role the service itself
+// will not grant, which is the only way to test what that role may do.
+func addMemberWithRole(t *testing.T, s *team.Service, teamID, email, role string) string {
+	t.Helper()
+	ctx := context.Background()
+	users, ok := s.Users.(*mock.MockUserStore)
+	if !ok {
+		t.Fatalf("fixture user store is %T", s.Users)
+	}
+	teams, ok := s.Teams.(*mock.MockTeamStore)
+	if !ok {
+		t.Fatalf("fixture team store is %T", s.Teams)
+	}
+	user, err := users.CreateUser(ctx, email, "free")
+	if err != nil {
+		t.Fatalf("CreateUser %s: %v", email, err)
+	}
+	if _, err := teams.AddTeamMember(ctx, teamID, user.ID, role); err != nil {
+		t.Fatalf("AddTeamMember %s: %v", role, err)
+	}
+	return user.ID
+}
+
 // The owner check existed twice, once per mutating handler. These two cases are
 // what those copies were each meant to enforce.
 func TestOnlyOwnersMayAddOrRemove(t *testing.T) {
@@ -53,6 +76,33 @@ func TestOnlyOwnersMayAddOrRemove(t *testing.T) {
 	err = s.RemoveMember(ctx, team.RemoveMemberCmd{TeamID: teamID, ActorID: memberID, TargetUserID: memberID})
 	if !errors.Is(err, team.ErrOnlyOwnerCanRemove) {
 		t.Errorf("remove by a member: %v, want ErrOnlyOwnerCanRemove", err)
+	}
+}
+
+// TestAdminMayNotChangeMembership is the half the role matrix in core/team
+// cannot show on its own. Membership is the one thing an admin does not get:
+// an admin manages what the team automates, an owner decides who the team is.
+//
+// It is pinned here as well as in core/team because this service is the second
+// enforcer. Before the rule had one owner, "owner" was written into this
+// package and a change to the matrix could not reach it; now it can, so this
+// package states what it expects rather than inheriting it silently.
+func TestAdminMayNotChangeMembership(t *testing.T) {
+	s, teamID, _, _ := newTeam(t)
+	ctx := context.Background()
+	adminID := addMemberWithRole(t, s, teamID, "admin@example.com", model.TeamRoleAdmin)
+
+	_, _, err := s.AddMember(ctx, team.AddMemberCmd{TeamID: teamID, ActorID: adminID, Email: "new@example.com"})
+	if !errors.Is(err, team.ErrOnlyOwnerCanAdd) {
+		t.Errorf("add by an admin: %v, want ErrOnlyOwnerCanAdd", err)
+	}
+	if kind, _ := apierr.KindOf(err); kind != apierr.KindForbidden {
+		t.Errorf("kind = %q, want forbidden", kind)
+	}
+
+	err = s.RemoveMember(ctx, team.RemoveMemberCmd{TeamID: teamID, ActorID: adminID, TargetUserID: adminID})
+	if !errors.Is(err, team.ErrOnlyOwnerCanRemove) {
+		t.Errorf("remove by an admin: %v, want ErrOnlyOwnerCanRemove", err)
 	}
 }
 

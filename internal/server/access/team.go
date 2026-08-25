@@ -4,27 +4,11 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 )
 
-type Action string
-
-const (
-	ActionManageTeamMembers   Action = "manage_team_members"
-	ActionManageAgents        Action = "manage_agents"
-	ActionManageWorkflows     Action = "manage_workflows"
-	ActionAssignIssueWorkflow Action = "assign_issue_workflow"
-	ActionRunWorkflow         Action = "run_workflow"
-	ActionReadAuditTrail      Action = "read_audit_trail"
-	ActionCommentIssue        Action = "comment_issue"
-	// ActionModerateIssueComments covers deleting a comment the caller did not
-	// write. Editing another author's comment is permitted to nobody, so it is
-	// not an action here — see internal/service/issue.
-	ActionModerateIssueComments Action = "moderate_issue_comments"
-)
-
-func (g *Guard) TeamAction(w http.ResponseWriter, r *http.Request, userID, teamID string, action Action) (string, bool) {
+func (g *Guard) TeamAction(w http.ResponseWriter, r *http.Request, userID, teamID string, action coreteam.Action) (string, bool) {
 	if !httputil.RequireStore(w, g.Teams, "teams not configured") {
 		return "", false
 	}
@@ -40,12 +24,16 @@ func (g *Guard) TeamAction(w http.ResponseWriter, r *http.Request, userID, teamI
 			break
 		}
 	}
+	// A row with no role at all reads as "not a member" here, while
+	// Guard.teamRole reads it as plain membership. Nothing can write one today
+	// -- the service defaults an unset role to member before it stores one --
+	// so the two have never disagreed about a real row.
 	if role == "" {
 		g.denied(r, userID, teamID, string(action))
 		httputil.WriteJSONError(w, http.StatusForbidden, "forbidden")
 		return "", false
 	}
-	if !isRoleAllowed(role, action) {
+	if !coreteam.Allows(role, action) {
 		g.denied(r, userID, teamID, string(action))
 		httputil.WriteJSONError(w, http.StatusForbidden, "forbidden")
 		return "", false
@@ -60,7 +48,7 @@ func (g *Guard) TeamAction(w http.ResponseWriter, r *http.Request, userID, teamI
 // answers a question a handler asks before it knows whether the permission is
 // needed at all — deleting a comment requires it only when the comment is
 // someone else's — so a false here is not a refused request.
-func (g *Guard) MemberAllows(ctx context.Context, userID, teamID string, action Action) bool {
+func (g *Guard) MemberAllows(ctx context.Context, userID, teamID string, action coreteam.Action) bool {
 	if g.Teams == nil {
 		return false
 	}
@@ -70,21 +58,8 @@ func (g *Guard) MemberAllows(ctx context.Context, userID, teamID string, action 
 	}
 	for i := range members {
 		if members[i].UserID == userID {
-			return isRoleAllowed(members[i].Role, action)
+			return coreteam.Allows(members[i].Role, action)
 		}
 	}
 	return false
-}
-
-func isRoleAllowed(role string, action Action) bool {
-	switch action {
-	case ActionManageTeamMembers, ActionReadAuditTrail, ActionModerateIssueComments:
-		return role == model.TeamRoleOwner
-	case ActionManageAgents, ActionManageWorkflows, ActionAssignIssueWorkflow:
-		return role == model.TeamRoleOwner || role == model.TeamRoleAdmin
-	case ActionRunWorkflow, ActionCommentIssue:
-		return role == model.TeamRoleOwner || role == model.TeamRoleAdmin || role == model.TeamRoleMember
-	default:
-		return false
-	}
 }

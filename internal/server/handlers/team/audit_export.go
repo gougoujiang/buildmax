@@ -2,11 +2,11 @@ package team
 
 import (
 	"context"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/server/handlers/auditexport"
 	"net/http"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
-	"github.com/gougoujiang/buildmax/internal/server/access"
 )
 
 func (h *Handler) exportAuditEventsHandler(w http.ResponseWriter, r *http.Request) {
@@ -14,7 +14,7 @@ func (h *Handler) exportAuditEventsHandler(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	if _, ok := h.guard().TeamAction(w, r, userID, teamID, access.ActionReadAuditTrail); !ok {
+	if _, ok := h.guard().TeamAction(w, r, userID, teamID, coreteam.ActionReadAuditTrail); !ok {
 		return
 	}
 	store := h.cfg.Audits

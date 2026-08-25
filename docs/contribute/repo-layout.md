@@ -117,6 +117,8 @@ internal/
 │   ├── plugin/         Plugin manifest, version arithmetic, and the layer
 │   │                   vocabulary discovery, resolution, and publication share
 │   ├── subagent/       The subagent definition file shape and its frontmatter
+│   ├── team/           What a team's roles may do: the one role/action decision
+│   │                   the HTTP guard and the team service both enforce
 │   └── session/        Local session model; persistence lives in agentapp
 │
 ├── agentapp/           Agent runtime assembly: LLM client cache, tool registry,

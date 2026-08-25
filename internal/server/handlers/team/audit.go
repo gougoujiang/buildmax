@@ -1,11 +1,11 @@
 package team
 
 import (
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"net/http"
 	"strconv"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
-	"github.com/gougoujiang/buildmax/internal/server/access"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 )
 
@@ -25,7 +25,7 @@ func (h *Handler) listAuditEventsHandler(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	if _, ok := h.guard().TeamAction(w, r, userID, teamID, access.ActionReadAuditTrail); !ok {
+	if _, ok := h.guard().TeamAction(w, r, userID, teamID, coreteam.ActionReadAuditTrail); !ok {
 		return
 	}
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))

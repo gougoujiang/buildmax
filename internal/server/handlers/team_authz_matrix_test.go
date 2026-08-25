@@ -22,10 +22,11 @@ import (
 // that forgets to call one is not a compile error, and would otherwise be
 // caught by nobody.
 //
-// Driving real requests rather than unit-testing isRoleAllowed is deliberate:
-// the role rules have two implementations. Most routes go through
-// authorizeTeamAction, while member add and remove check for owner inline in
-// teams.go. A test of the shared helper would pass while those two drifted.
+// Driving real requests rather than unit-testing core/team.Allows is
+// deliberate, and stays deliberate now that Allows is the only implementation
+// of the rules. What this proves is not what a role may do -- core/team's own
+// table proves that -- but that each route asks. A rule with one owner that
+// nobody consults on a route is still an open route.
 
 const (
 	matrixSecret  = "matrix-secret"
