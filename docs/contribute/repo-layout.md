@@ -161,6 +161,8 @@ internal/
 │   │                   records; the shell and the admin route both call it
 │   ├── systemadmin/    Who holds a deployment-scoped role; the last-holder
 │   │                   rule turns on the caller's authority, not a flag
+│   ├── identity/       What proves who a caller is: verifying a credential and
+│   │                   opening the session it earns
 │   ├── issue/          Issue service
 │   ├── task/           Task and task_run service
 │   ├── workflow/       Workflow and workflow-run orchestration
