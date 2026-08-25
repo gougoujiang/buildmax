@@ -5,6 +5,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"log/slog"
 
+	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
@@ -36,7 +37,7 @@ var (
 type Service struct {
 	Issues    model.IssueStore
 	Comments  model.IssueCommentStore
-	Agents    model.AgentStore
+	Agents    agentdef.Store
 	Teams     coreteam.Store
 	Workflows coreworkflow.Store
 }

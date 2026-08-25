@@ -10,6 +10,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
 
+	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
@@ -40,7 +41,7 @@ var (
 
 type Service struct {
 	Workflows     coreworkflow.Store
-	Agents        model.AgentStore
+	Agents        agentdef.Store
 	Issues        model.IssueStore
 	Conversations coreconv.Store
 	TaskService   *task.Service
@@ -483,9 +484,9 @@ func (s *Service) dispatchNextStep(ctx context.Context, teamID, userID string, r
 // before that fall back to the agent definition as it stands now, deleted or not:
 // the run was authorized when it started, and refusing to finish it because the
 // agent has since been deleted would strand it half done.
-func (s *Service) stepAgent(ctx context.Context, teamID, agentID string, step coreworkflow.StepRun) (*model.Agent, error) {
+func (s *Service) stepAgent(ctx context.Context, teamID, agentID string, step coreworkflow.StepRun) (*agentdef.Agent, error) {
 	if step.AgentName != "" || step.AgentInstructions != "" {
-		return &model.Agent{
+		return &agentdef.Agent{
 			ID:           agentID,
 			TeamID:       teamID,
 			Name:         step.AgentName,
@@ -561,7 +562,7 @@ func (s *Service) validateIssueForRun(ctx context.Context, teamID, workflowID st
 
 // parseAndValidateDefinition parses raw, checks every step's target agent, and returns
 // the resolved agents keyed by agent ID so a caller can snapshot them.
-func (s *Service) parseAndValidateDefinition(ctx context.Context, teamID, raw string) (*coreworkflow.Definition, map[string]model.Agent, error) {
+func (s *Service) parseAndValidateDefinition(ctx context.Context, teamID, raw string) (*coreworkflow.Definition, map[string]agentdef.Agent, error) {
 	def, err := parseDefinition(raw)
 	if err != nil {
 		return nil, nil, err
@@ -614,11 +615,11 @@ func parseDefinition(raw string) (*coreworkflow.Definition, error) {
 // run starts, so a plan cannot take a new dependency on a deleted agent, and a
 // workflow that lost one is refused at the start of a run rather than partway
 // through it.
-func (s *Service) resolveDefinitionAgents(ctx context.Context, teamID string, def *coreworkflow.Definition) (map[string]model.Agent, error) {
+func (s *Service) resolveDefinitionAgents(ctx context.Context, teamID string, def *coreworkflow.Definition) (map[string]agentdef.Agent, error) {
 	if s.Agents == nil {
 		return nil, ErrInvalidTargetAgent
 	}
-	agents := make(map[string]model.Agent, len(def.Steps))
+	agents := make(map[string]agentdef.Agent, len(def.Steps))
 	for i := range def.Steps {
 		agentID := def.Steps[i].TargetAgentID
 		if _, ok := agents[agentID]; ok {
@@ -664,7 +665,7 @@ func ptrError(err error) *string {
 	return util.Ptr(err.Error())
 }
 
-func buildWorkflowTaskInput(agent *model.Agent, prompt string) string {
+func buildWorkflowTaskInput(agent *agentdef.Agent, prompt string) string {
 	base := fmt.Sprintf("Agent: %s\nDescription: %s\nInstructions:\n%s", agent.Name, agent.Description, agent.Instructions)
 	if strings.TrimSpace(prompt) == "" {
 		return base

@@ -1,4 +1,4 @@
-package model
+package agentdef
 
 import (
 	"context"
@@ -28,12 +28,12 @@ type Agent struct {
 	CreatedAt time.Time  `json:"created_at"`
 }
 
-// AgentRevision is one recorded version of an agent definition.
+// Revision is one recorded version of an agent definition.
 //
 // Revisions are append-only: an edit adds one, nothing rewrites or deletes one,
 // and restoring an older revision is itself an edit that appends a new one.
 // They outlive the agent, so a deleted agent's history stays readable.
-type AgentRevision struct {
+type Revision struct {
 	AgentID      string `json:"agent_id"`
 	Revision     int    `json:"revision"`
 	Name         string `json:"name"`
@@ -49,13 +49,13 @@ type AgentRevision struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-// AgentDefinition is the content of one agent: what a revision records and
+// Definition is the content of one agent: what a revision records and
 // what a write replaces.
 //
 // A write carries the whole definition rather than the fields that changed,
 // because a revision holding only a delta could not answer what the agent was
 // at that point, which is the question revisions exist for.
-type AgentDefinition struct {
+type Definition struct {
 	Name         string
 	Description  string
 	Instructions string
@@ -65,28 +65,28 @@ type AgentDefinition struct {
 	Plugins []string
 }
 
-// CreateAgentInput and UpdateAgentInput carry a whole definition plus who it
+// CreateInput and UpdateInput carry a whole definition plus who it
 // belongs to. They are structs rather than positional arguments because the
 // definition grew past the point where an argument list said which value was
 // which.
-type CreateAgentInput struct {
+type CreateInput struct {
 	TeamID string
 	UserID string
-	Def    AgentDefinition
+	Def    Definition
 }
 
-type UpdateAgentInput struct {
+type UpdateInput struct {
 	AgentID string
 	TeamID  string
 	// UpdatedBy is taken because a team agent is edited by whoever holds the
 	// permission, not only by its owner, and a revision that cannot name its
 	// author is not much of a record.
 	UpdatedBy string
-	Def       AgentDefinition
+	Def       Definition
 }
 
-// AgentStore provides persistence for Portal agents.
-type AgentStore interface {
+// Store provides persistence for Portal agents.
+type Store interface {
 	ListAgentsByUser(ctx context.Context, userID string) ([]Agent, error)
 	ListAgentsByTeam(ctx context.Context, teamID string) ([]Agent, error)
 	// GetAgent returns a live agent. A deleted one reads as not found, so no
@@ -96,8 +96,8 @@ type AgentStore interface {
 	// deleted or not. Use it to finish or describe work that named the agent
 	// before it was deleted, never to start work with it.
 	GetAgentIncludingDeleted(ctx context.Context, agentID string) (*Agent, error)
-	CreateAgentInTeam(ctx context.Context, in CreateAgentInput) (*Agent, error)
-	UpdateAgentInTeam(ctx context.Context, in UpdateAgentInput) (*Agent, error)
+	CreateAgentInTeam(ctx context.Context, in CreateInput) (*Agent, error)
+	UpdateAgentInTeam(ctx context.Context, in UpdateInput) (*Agent, error)
 	// DeleteAgent and DeleteAgentInTeam mark the agent deleted rather than
 	// removing the row. Deleting an agent a published workflow still names is
 	// refused above this layer; see the delete handler.
@@ -106,8 +106,8 @@ type AgentStore interface {
 	DeleteAgentInTeam(ctx context.Context, agentID, teamID string) error
 	// ListAgentRevisions returns an agent's revisions, newest first, with the
 	// total count.
-	ListAgentRevisions(ctx context.Context, agentID string, limit, offset int) ([]AgentRevision, int, error)
+	ListAgentRevisions(ctx context.Context, agentID string, limit, offset int) ([]Revision, int, error)
 	// GetAgentRevision returns one revision, or nil when the agent has no such
 	// revision number.
-	GetAgentRevision(ctx context.Context, agentID string, revision int) (*AgentRevision, error)
+	GetAgentRevision(ctx context.Context, agentID string, revision int) (*Revision, error)
 }

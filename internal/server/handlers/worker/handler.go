@@ -12,6 +12,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/server/handlers/runterminal"
 	"net/http"
 
+	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
@@ -29,7 +30,7 @@ type Config struct {
 	WorkerLLM *workerclient.TaskRunLLM
 
 	TaskRuns model.TaskRunStore
-	Agents   model.AgentStore
+	Agents   agentdef.Store
 	// Activations resolves what a run's team activated. Nil means this
 	// deployment cannot, which is a refusal only for an agent that names a
 	// plugin.

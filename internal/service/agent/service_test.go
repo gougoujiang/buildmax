@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/agent"
@@ -19,7 +19,7 @@ func newService(t *testing.T) (*agent.Service, *mock.MockAgentStore, context.Con
 	return &agent.Service{Agents: store}, store, context.Background()
 }
 
-func create(t *testing.T, s *agent.Service, teamID string) *model.Agent {
+func create(t *testing.T, s *agent.Service, teamID string) *agentdef.Agent {
 	t.Helper()
 	a, err := s.CreateAgent(context.Background(), agent.CreateCmd{
 		TeamID: teamID, UserID: "u_1", Name: "reviewer", Description: "d", Instructions: "i",

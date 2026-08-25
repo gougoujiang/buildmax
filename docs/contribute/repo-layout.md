@@ -134,6 +134,8 @@ internal/
 │   │                   orchestrates and stores, distinct from a local session
 │   ├── workflow/       A team's reusable linear plan, its revisions, and the
 │   │                   run and step-run state its execution moves through
+│   ├── agentdef/       The Agent a team defined and its revisions -- what an
+│   │                   Agent is configured to be, not the loop that runs it
 │   └── session/        Local session model; persistence lives in agentapp
 │
 ├── agentapp/           Agent runtime assembly: LLM client cache, tool registry,

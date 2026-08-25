@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
@@ -34,7 +35,7 @@ func (h *Handler) getTaskRun(w http.ResponseWriter, r *http.Request) {
 	// which is what someone editing the field expects. A deleted agent still answers, because
 	// a run that already names it has to finish under the identity it was started with.
 	agentInstructions := ""
-	var runAgent *model.Agent
+	var runAgent *agentdef.Agent
 	if task.AgentID != nil && *task.AgentID != "" && h.cfg.Agents != nil {
 		if a, aerr := h.cfg.Agents.GetAgentIncludingDeleted(r.Context(), *task.AgentID); aerr != nil {
 			// A run missing its instructions is worse than a run that never had any, but

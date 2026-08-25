@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -15,7 +16,7 @@ func TestCreateWorkflow_ValidateDefinition(t *testing.T) {
 	svc := &Service{
 		Workflows: &mock.MockWorkflowStore{},
 		Agents: &mock.MockAgentStore{
-			Agents: []model.Agent{{ID: "a_1", TeamID: "tm_1", Name: "Agent 1"}},
+			Agents: []agentdef.Agent{{ID: "a_1", TeamID: "tm_1", Name: "Agent 1"}},
 		},
 	}
 	workflow, err := svc.CreateWorkflow(context.Background(), CreateWorkflowCmd{
@@ -48,7 +49,7 @@ func TestStartWorkflowRunAndAdvanceOnTerminal(t *testing.T) {
 	}
 	taskStore := &mock.MockTaskStore{}
 	agentStore := &mock.MockAgentStore{
-		Agents: []model.Agent{
+		Agents: []agentdef.Agent{
 			{ID: "a_1", TeamID: "tm_1", Name: "Collector", Instructions: "collect"},
 			{ID: "a_2", TeamID: "tm_1", Name: "Summarizer", Instructions: "summarize"},
 		},
@@ -118,7 +119,7 @@ func TestStartWorkflowRun_StepsUseAgentSnapshot(t *testing.T) {
 	}
 	taskStore := &mock.MockTaskStore{}
 	agentStore := &mock.MockAgentStore{
-		Agents: []model.Agent{
+		Agents: []agentdef.Agent{
 			{ID: "a_1", TeamID: "tm_1", Name: "Collector", Description: "collects", Instructions: "collect carefully", Revision: 1},
 			{ID: "a_2", TeamID: "tm_1", Name: "Summarizer", Description: "summarizes", Instructions: "summarize carefully", Revision: 2},
 		},
@@ -191,7 +192,7 @@ func TestStartWorkflowRun_StepsUseAgentSnapshot(t *testing.T) {
 func TestUpdateWorkflow_RecordsRevisions(t *testing.T) {
 	workflowStore := &mock.MockWorkflowStore{}
 	agentStore := &mock.MockAgentStore{
-		Agents: []model.Agent{{ID: "a_1", TeamID: "tm_1", Name: "Agent 1", Revision: 1}},
+		Agents: []agentdef.Agent{{ID: "a_1", TeamID: "tm_1", Name: "Agent 1", Revision: 1}},
 	}
 	svc := &Service{Workflows: workflowStore, Agents: agentStore}
 	first := `{"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"}]}`
@@ -241,7 +242,7 @@ func TestUpdateWorkflow_RecordsRevisions(t *testing.T) {
 func TestRestoreWorkflowRevision_AppendsAndKeepsStatus(t *testing.T) {
 	workflowStore := &mock.MockWorkflowStore{}
 	agentStore := &mock.MockAgentStore{
-		Agents: []model.Agent{{ID: "a_1", TeamID: "tm_1", Name: "Agent 1", Revision: 1}},
+		Agents: []agentdef.Agent{{ID: "a_1", TeamID: "tm_1", Name: "Agent 1", Revision: 1}},
 	}
 	svc := &Service{Workflows: workflowStore, Agents: agentStore}
 	first := `{"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"}]}`
@@ -305,7 +306,7 @@ func TestDeletedAgent_RunFinishesButNewWorkIsRefused(t *testing.T) {
 	}
 	taskStore := &mock.MockTaskStore{}
 	agentStore := &mock.MockAgentStore{
-		Agents: []model.Agent{
+		Agents: []agentdef.Agent{
 			{ID: "a_1", TeamID: "tm_1", Name: "Collector", Instructions: "collect carefully", Revision: 1},
 			{ID: "a_2", TeamID: "tm_1", Name: "Summarizer", Instructions: "summarize carefully", Revision: 1},
 		},
@@ -389,7 +390,7 @@ func TestPublishedWorkflowsUsingAgent(t *testing.T) {
 
 func TestStepAgent_FallsBackToLiveAgentForLegacyStepRun(t *testing.T) {
 	agentStore := &mock.MockAgentStore{
-		Agents: []model.Agent{{ID: "a_1", TeamID: "tm_1", Name: "Collector", Instructions: "collect"}},
+		Agents: []agentdef.Agent{{ID: "a_1", TeamID: "tm_1", Name: "Collector", Instructions: "collect"}},
 	}
 	svc := &Service{Agents: agentStore}
 	agent, err := svc.stepAgent(context.Background(), "tm_1", "a_1", coreworkflow.StepRun{})
@@ -419,7 +420,7 @@ func TestHandleTaskRunTerminal_CancelStopsTheRunWithoutFailingIt(t *testing.T) {
 		}},
 	}
 	agentStore := &mock.MockAgentStore{
-		Agents: []model.Agent{
+		Agents: []agentdef.Agent{
 			{ID: "a_1", TeamID: "tm_1", Name: "Collector", Instructions: "collect"},
 			{ID: "a_2", TeamID: "tm_1", Name: "Summarizer", Instructions: "summarize"},
 		},

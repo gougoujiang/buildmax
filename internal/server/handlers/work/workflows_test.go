@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
@@ -34,7 +35,7 @@ func TestWorkflowHandlers(t *testing.T) {
 		}},
 	}
 	agentStore := &mock.MockAgentStore{
-		Agents: []model.Agent{{ID: "a_1", UserID: "u1", TeamID: teamID, Name: "Agent 1", Instructions: "Do things"}},
+		Agents: []agentdef.Agent{{ID: "a_1", UserID: "u1", TeamID: teamID, Name: "Agent 1", Instructions: "Do things"}},
 	}
 	teamStore := &mock.MockTeamStore{
 		Teams:   []coreteam.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}},

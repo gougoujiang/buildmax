@@ -10,6 +10,7 @@ package team
 import (
 	"net/http"
 
+	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
@@ -28,7 +29,7 @@ type Config struct {
 
 	Teams       coreteam.Store
 	Users       model.UserStore
-	Agents      model.AgentStore
+	Agents      agentdef.Store
 	WebhookKeys model.UserWebhookKeyStore
 	Audits      model.AuditStore
 	// Workflows answers one question here -- which published workflows still

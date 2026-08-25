@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	"github.com/gougoujiang/buildmax/internal/service/agent"
 	"github.com/gougoujiang/buildmax/internal/service/workflow"
@@ -58,7 +58,7 @@ type patchAgentRequest struct {
 	Plugins      []string `json:"plugins,omitempty"`
 }
 
-func agentToResponse(a model.Agent) AgentResponse {
+func agentToResponse(a agentdef.Agent) AgentResponse {
 	return AgentResponse{
 		ID:           a.ID,
 		UserID:       a.UserID,
@@ -72,7 +72,7 @@ func agentToResponse(a model.Agent) AgentResponse {
 	}
 }
 
-func agentRevisionToResponse(rev model.AgentRevision) agentRevisionResponse {
+func agentRevisionToResponse(rev agentdef.Revision) agentRevisionResponse {
 	return agentRevisionResponse{
 		AgentID:      rev.AgentID,
 		Revision:     rev.Revision,

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -27,13 +27,13 @@ func TestAgentRevisionEndpoints(t *testing.T) {
 		Teams:   []coreteam.Team{{ID: teamID, Name: "Team", CreatedBy: "u1"}},
 		Members: []coreteam.Member{{TeamID: teamID, UserID: "u1", Role: coreteam.RoleOwner}},
 	}
-	created, err := agentStore.CreateAgentInTeam(t.Context(), model.CreateAgentInput{TeamID: teamID, UserID: "u1",
-		Def: model.AgentDefinition{Name: "Collector", Description: "collects", Instructions: "collect carefully"}})
+	created, err := agentStore.CreateAgentInTeam(t.Context(), agentdef.CreateInput{TeamID: teamID, UserID: "u1",
+		Def: agentdef.Definition{Name: "Collector", Description: "collects", Instructions: "collect carefully"}})
 	if err != nil {
 		t.Fatalf("CreateAgentInTeam: %v", err)
 	}
-	if _, err := agentStore.UpdateAgentInTeam(t.Context(), model.UpdateAgentInput{AgentID: created.ID, TeamID: teamID, UpdatedBy: "u1",
-		Def: model.AgentDefinition{Name: "Collector", Description: "collects", Instructions: "collect faster"}}); err != nil {
+	if _, err := agentStore.UpdateAgentInTeam(t.Context(), agentdef.UpdateInput{AgentID: created.ID, TeamID: teamID, UpdatedBy: "u1",
+		Def: agentdef.Definition{Name: "Collector", Description: "collects", Instructions: "collect faster"}}); err != nil {
 		t.Fatalf("UpdateAgentInTeam: %v", err)
 	}
 
@@ -112,7 +112,7 @@ func TestAgentRevisionEndpoints(t *testing.T) {
 func TestDeleteAgentRefusedWhilePublishedWorkflowUsesIt(t *testing.T) {
 	teamID := "tm_1"
 	agentStore := &mock.MockAgentStore{
-		Agents: []model.Agent{{ID: "a_1", UserID: "u1", TeamID: teamID, Name: "Collector", Revision: 1}},
+		Agents: []agentdef.Agent{{ID: "a_1", UserID: "u1", TeamID: teamID, Name: "Collector", Revision: 1}},
 	}
 	workflowStore := &mock.MockWorkflowStore{
 		Workflows: []coreworkflow.Workflow{{
@@ -173,7 +173,7 @@ func TestDeleteAgentRefusedWhilePublishedWorkflowUsesIt(t *testing.T) {
 func TestPatchAgentHandler(t *testing.T) {
 	personalTeamID := "tm_personal_u1"
 	agentStore := &mock.MockAgentStore{
-		Agents: []model.Agent{
+		Agents: []agentdef.Agent{
 			{ID: "a_1", UserID: "u1", TeamID: personalTeamID, Name: "Old", Description: "d1", Instructions: "i1", CreatedAt: time.Unix(100, 0).UTC()},
 		},
 	}
@@ -308,7 +308,7 @@ func TestDeleteAgentHandler(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			store := &mock.MockAgentStore{
-				Agents: []model.Agent{
+				Agents: []agentdef.Agent{
 					{ID: "a_1", UserID: "u1", TeamID: personalTeamID, Name: "ToDelete", CreatedAt: time.Unix(100, 0).UTC()},
 				},
 			}

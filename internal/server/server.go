@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
@@ -65,7 +66,7 @@ type StoresConfig struct {
 	RefreshTokenStore model.RefreshTokenStore
 	TeamStore         coreteam.Store
 	WorkflowStore     coreworkflow.Store
-	AgentStore        model.AgentStore
+	AgentStore        agentdef.Store
 	IssueStore        model.IssueStore
 	IssueCommentStore model.IssueCommentStore
 	TaskStore         model.TaskStore
