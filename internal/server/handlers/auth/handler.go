@@ -7,7 +7,6 @@
 package auth
 
 import (
-	"log/slog"
 	"net/http"
 	"time"
 
@@ -61,13 +60,4 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/logout", h.logoutHandler)
 	// Authenticated; sets or changes the caller's own password.
 	mux.HandleFunc("POST /api/password", h.setPasswordHandler)
-}
-
-// The log line names which login path refused, which the guard cannot know.
-func (h *Handler) refuseDisabled(w http.ResponseWriter, r *http.Request, user *coreidentity.User, handler string) bool {
-	if user != nil && user.Disabled() {
-		slog.InfoContext(r.Context(), "refused a disabled account",
-			"handler", handler, "user_id", user.ID, "remote", r.RemoteAddr)
-	}
-	return h.guard().RejectDisabled(w, user)
 }
