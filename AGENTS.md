@@ -73,6 +73,16 @@ server, agentapp, or interface packages. `internal/config` loads files and
 environment only; it does not assemble infrastructure. These boundaries are
 enforced by tests under `internal/architecture`.
 
+Within that direction, a package is an ownership boundary: it owns a business
+capability or one precise infrastructure concern, and every state transition,
+validation rule, and authorization decision has exactly one authoritative
+implementation that handlers, commands, and workers delegate to. Package
+naming, the duplication classification, and the rule that an ownership change
+moves every caller in one commit are in
+[`docs/contribute/conventions.md`](docs/contribute/conventions.md). Finding an
+ownership problem is not permission to restructure inside an unrelated change:
+record it and propose the migration separately.
+
 Important ownership boundaries:
 
 - `internal/core/agent` owns the shared LLM/tool-calling loop.

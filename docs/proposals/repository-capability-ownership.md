@@ -1,6 +1,6 @@
 # Repository Capability Ownership
 
-> **Audience:** contributors · **Status:** proposal — under discussion
+> **Audience:** contributors · **Status:** accepted — plan of record
 >
 > **Opened:** 2026-08-25
 
@@ -26,10 +26,31 @@ canonical owners, and breaks the work into independently reviewable batches.
 It deliberately changes no production package, API, database shape, or runtime
 behaviour.
 
-Implementation should start only after the target ownership and batch order are
-accepted. In particular, the audit does not treat fewer packages or fewer lines
-as a goal. The desired outcome is that one business fact has one owner and every
-boundary translates it explicitly.
+The ownership direction was accepted on 2026-08-25, with breaking changes
+explicitly permitted: the project is Alpha, so nothing is owed a compatibility
+window and no batch below needs a shim. Four amendments were made to the plan
+this paper first proposed:
+
+1. **The API contract work left this proposal.** Route and OpenAPI drift is a
+   correctness bug, not an ownership problem. Measurement showed it to be
+   documentation-only, so it ships now, on its own, and gates nothing.
+2. **There is no approval gate before the first change.** The N-1 rollback
+   promise in `docs/start/support.md` is an operating promise about upgrading a
+   deployment, not a constraint on source ownership, and no change in this plan
+   touches a column.
+3. **A package is judged by its reason to change, not its size**, and an
+   ownership move carries every caller in one commit. Both rules now live in
+   [conventions.md](../contribute/conventions.md); this plan follows them
+   rather than restating them.
+4. **Mechanical moves come first.** They deliver this audit's core claim for
+   the smallest reviewable cost, and they create the owners the later tracks
+   need.
+
+The audit does not treat fewer packages or fewer lines as a goal. The desired
+outcome is that one business fact has one owner and every boundary translates
+it explicitly. The licence to break things removes cost, not judgment: a break
+is taken when the current shape is wrong, never as a side effect of moving a Go
+type between packages.
 
 ## Executive Summary
 
@@ -264,6 +285,7 @@ internal/core/
   audit/          audit event, cursor, and store contracts
   quota/          quota tier/decision vocabulary
   llm/            existing LLM contract plus provider vocabulary and catalog/call models
+  apierr/         existing error taxonomy, plus the cross-cutting ErrNotFound sentinel
 
 internal/service/
   identity/       login/session and account-administration workflows
@@ -326,27 +348,187 @@ authorization, persistence, wire-contract, and runtime changes in one review,
 make regressions hard to localize, and conflict with the no-alias architecture
 rule. The audit evidence does not justify that risk.
 
-## Incremental Implementation Plan
+## Execution Plan
 
-Every batch starts with characterization tests, changes one ownership decision,
-runs the narrow package tests while iterating, then runs `./make test`, the
-relevant `./make check` scope, and `git diff --check`. User-visible corrections
-also get one changelog entry. No batch changes a DB column merely to move a Go
-type or workflow.
+The ownership direction above is accepted. This section replaces the batch
+table this paper first proposed, and is the plan of record until the last track
+lands and this document is deleted.
 
-| Batch | Packages | Change | Required tests and checks | Compatibility and rollback |
+Work is grouped into four tracks. Track A is independent of ownership and ships
+now. Track B is mechanical and can be reviewed in parallel. Track C is service
+extraction and waits for the roadmap. Track D dissolves `core/model` last.
+
+Every change moves the concept **and every caller in one commit**: no aliases,
+no dual-live definitions, no compatibility shims. `TestNoInternalTypeAliases`
+already refuses the usual shim, and the project is Alpha, so nothing is owed a
+migration window. Incrementality is between pull requests, never inside one.
+The rules this plan follows are in
+[conventions.md](../contribute/conventions.md).
+
+Breaking changes are permitted. That licence removes cost, not judgment: a
+break is taken when the current shape is wrong, never as a side effect of
+moving a Go type between packages. No change below alters a database column,
+and each one says explicitly whether it changes the wire.
+
+### Track A — Contract Repair, Independent Of Ownership
+
+These are correctness and documentation bugs. They are not ownership problems,
+they gate nothing, and none of them waits for a decision.
+
+| PR | Scope | Change | Verification | Wire |
 |---|---|---|---|---|
-| 0. Confirm contracts | `docs/start/support.md`, architecture/design owners | Resolve the conflict between the Alpha/no-migration guidance and the current N-1 binary rollback promise before any schema-affecting work; approve this proposal's owners | Documentation link/check suite | Documentation-only decision; no runtime rollback |
-| 1. Repair API contract | All handler `Register` methods, new `server/apicontract`, `server/static/openapi.json`, Portal API wire types | Inventory all 121 registrations; choose structured Go metadata; make OpenAPI complete; fix timestamp schemas; add exact route coverage; remove the stale Portal archive reference; generate or check snake-case Portal DTOs | Route inventory vs OpenAPI test, JSON schema/timestamp tests, handler tests, Portal typecheck/build, `./make check go`, `./make check portal` | Keep route paths and JSON unchanged; checked OpenAPI is revertible as one batch. If generation proves too opaque, retain static schemas but keep exhaustive coverage tests. |
-| 2. Canonical LLM vocabulary | `core/llm`, `config`, `llmgateway`, `infra/llm`, bootstrap model code | Move provider values/list/known/credential rule to `core/llm`; retain config empty-default translation; centralize shared reasoning/cache validation where semantics match | Existing config/gateway/adapter tests plus table test proving all surfaces accept the same inventory | No YAML/DB/JSON value changes. Revert is source-only; do not leave aliases. |
-| 3. Canonical catalog administration | New `service/llmcatalog`, model bootstrap and admin handlers | Move create/validate/enable/disable/audit workflows behind one service; keep credential-bearing create shell-only | Characterize every validation and audit branch; CLI golden/output tests; admin HTTP status/body tests; catalog store tests | No route, CLI flag, row, or secret-exposure change. Revert service and both adapters together. |
-| 4. Canonical team policy | `core/team`, `service/team`, `server/access` | Define typed actions and one role/action decision; service enforces it; guard translates denial and records audit | Existing team authorization matrix, service member tests, artifact non-enumeration tests, fuzz/table tests for unknown role/action | Preserve current status codes and owner-only membership policy. Pure source move, one-commit rollback. |
-| 5. System and account administration | New `service/systemadmin`, `service/identity`; bootstrap user/admin commands; admin handlers | Extract grant/revoke/list and account create/code/disable/session-revoke; model operator versus user actors explicitly; make last-admin override available only to operator adapter | Operator command tests, admin authorization matrix, audit content tests, last-admin tests, disabled-user/session revocation tests | Preserve shell recovery and HTTP refusal. No store/schema changes. Roll back the batch as a unit. |
-| 6. Authentication workflows | `service/identity`, auth handlers, auth token adapter | Extract password/code verification, token-pair issue, refresh rotation/reuse handling, password setup, and logout; inject token issuer/clock/randomness | Move current password/refresh tests to service characterization and retain HTTP integration tests for exact status/body/cookies; race tests for rotation | Security-sensitive: keep endpoint/wire behaviour exact and deploy independently. Revert without data migration because token rows/formats do not change. |
-| 7. Issue execution orchestration | `service/issue`, work issue/workflow handlers, conversation/task/workflow ports | Add start-assigned-agent and start-assigned-workflow commands; make one rule validate team/assignment; define compensation for partial creates | Service tests for wrong team/assignee/deleted Agent/unpublished Workflow and each partial failure; existing handler tests become adapter tests; workflow progression tests | Preserve routes and produced provenance values. Roll back source-only; no new persisted intermediate state unless separately approved. |
-| 8. Port and utility cleanup | `service/artifact`, `service/plugin`, `infra/objectstore`, `infra/k8s`, `util` | Move content/package ports to consumers using pure refs/errors; move worker Job naming and tests to K8s | Artifact streaming/cleanup tests, plugin dedup/streaming tests, local/S3 adapter contract tests, exact Job-name tests, architecture import test | Method behaviour and object keys/job names must be byte-for-byte unchanged. Mechanical source rollback. |
-| 9. Normalize quota refusal | `service/task`, `core/apierr`, work handlers | Return `KindQuotaExceeded` with detail from Task and remove duplicate handler branches; leave gateway protocol error local | Task/conversation HTTP 429 body tests, service errors test, gateway classification tests | Preserve status and reason text; small independent revert. |
-| 10. Split `core/model` incrementally | New core capability packages; every direct caller; `infra/db`; mocks; architecture tests; architecture docs | Move one cohesive domain per PR, starting with `llm`, `team`, and `identity`, then Issue/Agent/Workflow/Task/Artifact/Plugin/Audit/Quota/Conversation; delete `core/model` last | Compile-time caller update, domain/store/DB mapping tests, JSON golden tests, entity-ID/timestamp architecture tests updated to scan all domain packages, `./make test`, `./make check ci` before final deletion | No aliases or dual definitions. Keep JSON tags, store behavior, table names, and rows unchanged. Each domain move is independently revertible before the next; final deletion occurs only at zero importers. |
+| A1 | `internal/server/static/openapi.json`, new coverage test | Fix the five `created_at` schemas (`Agent`, `Task`, `Conversation`, `ConversationMessage`, `Artifact`) from `integer` to `string`/`date-time`; add the missing operations toward the 117 contract-bearing patterns; add a test asserting every registered method pattern appears in the document | New route-vs-OpenAPI coverage test, `./make check go`, `./make check docs` | **None.** Measured: every affected Go field is `time.Time` and `portal/src/lib/api/types.ts` already declares `string`. Only the document was wrong. |
+| A2 | `AGENTS.md`, `internal/architecture/docs_test.go` | `routes.go` is named the source of truth for routes but registers 7 of 121 patterns; the rest are in the subpackage `Register` methods, and `TestAgentsMDRoutesExist` only scans `routes.go`. Correct the claim and widen the scan | `./make check docs` | None |
+| A3 | `docs/start/support.md`, `docs/contribute/architecture/data-model.md` | Record how the N-1 binary rollback promise stands against the Alpha guidance that no migration path is owed. Answered: the forward-only half is structural and cannot lapse; the one-release rollback is a discipline that alpha may spend on a wrong stored shape, with a changelog entry as the cost. Recorded in both places, because the rule was stated twice | `./make check docs` | None |
+
+A1 is the largest of the three and is worth splitting if the added operations
+outgrow one review: the timestamp fix and the coverage test are one PR, filling
+in the missing operations is another. Whether OpenAPI eventually becomes
+generated from structured Go metadata stays open — the coverage test makes the
+document honest either way, and is the prerequisite for deciding.
+
+### Track B — Mechanical Ownership Moves
+
+Pure source moves. Each removes one duplicated business fact, changes no
+persisted shape and no wire, and reverts as a single commit. They have no
+ordering dependency on each other and can be reviewed in parallel.
+
+| PR | Scope | Change | Measured size | Verification |
+|---|---|---|---|---|
+| B1 | `core/llm`, `config`, `service/llmgateway`, `infra/llm`, `bootstrap`, `interface/cli` | Move the four protocol values and `Known`/`All`/`NeedsCredential` to `core/llm`; `config` keeps only its empty-value defaulting, which is a genuine boundary translation | 18 production files, 20 test files | Table test asserting every surface accepts one inventory; existing config, gateway, and adapter tests |
+| B2 | `service/plugin`, `infra/objectstore`, `infra/k8s`, `util` | Plugin service owns its `PackageStore` port, key derivation included, so layout stays with the adapter; move `WorkerJobNameForTaskRun`/`…At`, their regexes, and their tests to the Kubernetes adapter | 2 symbols crossed for plugin; 1 function and 2 regexes for K8s | Plugin publish/download tests, adapter conformance assertion in the port's own package, exact Job-name tests, `TestInternalLayerImports` |
+| B2b | `service/artifact`, `infra/objectstore`, and every `objectstore.ErrNotFound` caller | **Deferred, see below.** The artifact port cannot move without a home for `ArtifactRef` and the not-found sentinel | 23 non-infra callers of `ErrNotFound` | — |
+| B3 | `service/task`, `core/apierr`, `server/handlers/work`, `server/httputil` | Replace `task.QuotaExceededError` with `apierr.KindQuotaExceeded` carrying the quota service's reason as the message; delete the two handler special cases and the now-unused `httputil.WriteQuotaExceeded` | 1 type, 2 call sites, 1 superseded helper | 429 status and body tests for task and conversation routes; gateway classification tests prove `llmgateway.QuotaError` stayed local |
+| B4 | `core/team`, `service/team`, `server/access` | One typed role/action decision in `core/team`; `service/team.requireOwner`/`hasRole` and `access.isRoleAllowed` both call it; the guard keeps translating denial and recording audit | 8 actions, 2 decision sites | Team authorization matrix, member mutation tests, artifact non-enumeration tests, table test proving an unknown role or action denies |
+
+B4 turned up a latent disagreement inside `server/access` itself. `TeamAction`
+reads a membership row with no role as "not a member" and answers 403;
+`Guard.teamRole` reads the same row as plain membership. Nothing can write such
+a row today — the team service defaults an unset role to member before storing
+one — so the two have never disagreed about a real row. B4 preserved both
+readings rather than bundling an authorization change into a mechanical batch;
+which one is right is recorded in Open Questions.
+
+Consolidating also exposed a coverage gap. `service/team` had no test proving an
+admin may not change membership: "owner" was written into that package, so no
+change to the matrix could reach it. Now that both enforcers read one rule, the
+service states its own expectation, and each of the three enforcement points
+fails independently when the rule is widened.
+
+B3 keeps the response body byte-for-byte. The reason the quota service supplies
+is already a whole sentence — `quota exceeded: run limit` — so it becomes the
+error's message rather than a detail appended to one, which would have said it
+twice.
+
+B2's plugin half resolved the judgment call this plan flagged. `PluginPackageKey`
+derives an object key, which is storage layout — but the key is also persisted
+on the release record and handed back to `Open`, so the service must hold it.
+Key derivation therefore became a port method: the adapter still owns the
+layout, and the service gets the value it has to store without knowing it.
+
+**B2b is deferred, and the audit under-scoped it.** The finding said the only
+production service packages reaching `internal/infra` are artifact and plugin.
+That is true of the service layer and false of the repository: `ErrNotFound` has
+23 callers outside `infra/objectstore`, across `server/handlers`,
+`service/artifact`, `agentapp`, and the mocks. It is already the repository-wide
+vocabulary for "no such object", exactly as `model.ErrNotFound` is for "no such
+row".
+
+So moving the artifact port alone buys nothing: the consumer would still import
+`infra/objectstore` for the sentinel and for `ArtifactRef`, and twenty other
+files would keep importing it regardless. The real change is to give the
+not-found sentinel a home both layers can import — the same question D0 answers
+for `model.ErrNotFound`, and with the same answer. Do B2b as part of D0, with
+`ArtifactRef` following its domain in D6; do not spend churn on the port in
+isolation first.
+
+### Track C — Service Extraction
+
+These extract business workflows out of transports. They are correct, but their
+payoff is testability rather than user-visible behavior, and they are the
+largest changes in this plan. They are sequenced **after** steps 1–4 of the
+[roadmap](../ROADMAP.md#suggested-order): deployment proof, operating
+exercises, evaluation, and worker hardening are ahead of them.
+
+| PR | Scope | Change | Guardrail |
+|---|---|---|---|
+| C1 | New `service/llmcatalog`; `bootstrap/model_admin.go`; admin model handlers | One catalog administration workflow: validate, create, enable, disable, audit. Credential-bearing create stays operator-only | Characterize every validation branch and audit record first. HTTP must never accept or echo a credential |
+| C2 | New `service/systemadmin`; account administration in `service/identity`; bootstrap user/admin commands; admin handlers | One grant/revoke/list workflow and one account create/code/disable/session-revoke workflow. Operator authority and System Administrator authority are modeled explicitly, not as a boolean any HTTP caller can set | The last-admin refusal must stay on the HTTP path and the operator override must stay on the shell path |
+| C3 | `service/identity`; auth handlers; auth token adapter | Extract password and code verification, token-pair issue, refresh rotation and reuse handling, password establishment, logout. Inject token issuer, clock, and randomness | Security-sensitive. Characterize login failure timing and refresh reuse **before** moving anything, and do not combine this with any token format or crypto change |
+| C4 | `service/issue`; work issue and workflow handlers | Add start-assigned-agent and start-assigned-workflow commands so one rule validates team, issue, and assignee; the workflow service stops revalidating independently | Fault-injection across conversation, task, and workflow creation decides whether explicit compensation is enough or an operation record is needed. Do not add persistence before that evidence |
+
+C1 answers whether catalog administration is its own service or a facet of
+`llmgateway`: build it as `service/llmcatalog` and keep it if its tests run with
+no provider-call dependency. C2 and C3 answer whether identity is one package
+or two service types under one capability: if neither workflow needs the
+other's ports, keep two types in one package.
+
+### Track D — Dissolve `core/model`
+
+Last, and only after Tracks B and C have created real owners. One target
+package per pull request, ordered so that cheap moves prove the mechanics
+before expensive ones. `core/model` is deleted when it reaches zero importers.
+
+**`errors.go` does not move as a unit.** It has the largest fan-in in the
+package, but it is eight sentinels belonging to four capabilities, so it
+dissolves instead: `ErrEmailExists`, `ErrUserNotFound`, and `ErrUserDisabled`
+travel with identity; `ErrRunInProgress`, `ErrInvalidRunTransition`,
+`ErrRunCanceled`, and `ErrRunInterrupted` travel with task; only `ErrNotFound`
+is genuinely cross-cutting. It moves first, on its own, to `core/apierr`, which
+already owns what an error means to the whole application and already declares
+`KindNotFound`. That is the one design decision in this track and it should be
+settled in D0's review.
+
+| PR | Target package | Sources | Production files referencing the moved symbols |
+|---|---|---|---|
+| D0 | `core/apierr` | `ErrNotFound` from `errors.go` | 41 (the sentinel alone; the rest of `errors.go` waits for D5 and D9) |
+| D1 | `core/llm` (exists) | `llm_model.go`, `llm_call.go` | 10, 10 |
+| D2 | `core/quota` | `quota.go` | 4 |
+| D3 | `core/conversation` | `conversation.go` | 13 |
+| D4 | `core/workflow` | `workflow.go` | 13 |
+| D5 | `core/agentdef` | `agent_definition.go` | 15 |
+| D6 | `core/artifact` | `artifact.go` | 15 |
+| D7 | `core/issue` | `issue.go` | 15 |
+| D8 | `core/team` (from B4) | `team.go`, `webhook_key.go` | 18, 5 |
+| D9 | `core/identity` | `user.go`, `password.go`, `login_code.go`, `refresh_token.go`, `system_grant.go`, 3 sentinels | 18, 2, 7, 7, 9 |
+| D10 | `core/audit` | `audit.go` | 25 |
+| D11 | `core/plugin` (exists) | `plugin.go`, `plugin_activation.go` | 28, 18 |
+| D12 | `core/task` | `task.go`, `task_result_delivery.go`, 4 sentinels | 38, 4 |
+| D13 | open | `schema.go` | 4 |
+
+The counts are files referencing any exported symbol defined in that source
+file, measured statically. They overlap — one file can appear in several rows —
+and the distinct total is 140 production files in 38 directories.
+
+`schema.go` has no obvious owner: `SchemaMigration` and `SchemaStore` describe
+the database's own applied-migration state rather than a business capability.
+Decide in D13 whether it belongs beside the migration machinery or in a named
+capability package; do not park it in whatever remains of `core/model`.
+
+Each of D1–D12 keeps JSON tags, store method signatures, table names, and row
+structs unchanged. `entity_identity_test.go` and `timestamp_test.go` currently
+scan `core/model` and must be widened to scan every capability package as it
+appears — that widening is part of each PR, not a follow-up.
+
+**Track D is not obligatory in full.** After Tracks B and C, re-measure. A
+source file stays where it is unless a real owner exists for it and its current
+placement is causing a concrete problem — an import cycle, a misuse, or a
+capability that cannot be tested alone. If a handful of types are still best
+served by one shared package at the end, that is an acceptable outcome. The
+goal is that the owner of a concept is easy to find, not that a particular
+directory disappears.
+
+### Sequencing And Cost
+
+Track A ships immediately and in parallel with everything. Track B is four
+independent PRs and should follow at once; it delivers the core claim of this
+audit — one business fact, one owner — for the smallest reviewable cost. Track
+C waits for roadmap steps 1–4. Track D follows C.
+
+The whole plan is roughly 4 + 4 + 4 + 14 pull requests. If only part of it is
+funded, **B1, B2, and B3 are the minimum worth doing**: together they remove
+three duplicated facts, touch no wire and no schema, and each reverts in one
+commit.
 
 ## Risks And Guardrails
 
@@ -369,47 +551,44 @@ type or workflow.
   view models or mappers. Generation is useful only after the API contract is
   complete and checked.
 
-## Open Questions And Evidence Needed
+## Open Questions
 
-1. Is the current N-1 binary/database-schema promise in
-   `docs/start/support.md` intentional despite the Alpha guidance that no
-   migration path is owed? A maintainer decision is required before any future
-   schema change; the proposed source-only batches do not depend on the answer.
-2. Should OpenAPI become generated from structured Go route/schema metadata, or
-   remain checked-in handwritten JSON with exhaustive coverage tests? Prototype
-   one representative auth route, one team route, and one streaming route and
-   compare reviewability before committing to generation.
-3. Should model administration be a facet of `llmgateway` or a separate
-   `llmcatalog` service? Choose based on whether catalog writes can be tested
-   without provider-call dependencies and whether their audit/credential policy
-   changes independently.
-4. Should identity login/session workflows and operator account administration
-   share one package or two services under one `identity` domain? Use the
-   resulting constructor dependency sets as evidence; if neither workflow needs
-   the other's ports, keep two service types in the same capability package.
-5. Does every `core/model` domain deserve extraction? After batches 1–9, measure
-   import fan-in and cross-domain references again. Keep a small package when it
-   owns a stable boundary; do not merge it merely to hit a package-count target.
-6. Does Issue execution need a transaction/operation record, or is explicit
-   compensation enough? Fault-injection tests across conversation, task, and
-   workflow creation should decide before adding persistence.
+Answered questions have moved into the plan above. What is still genuinely open:
 
-## Acceptance Criteria For Starting Implementation
+1. Should OpenAPI become generated from structured Go route/schema metadata, or
+   remain handwritten JSON held honest by an exhaustive coverage test? A1's
+   coverage test makes the document truthful either way and is the prerequisite
+   for deciding. Prototype one auth route, one team route, and one streaming
+   route and compare reviewability before committing to generation.
+2. Where does `ErrNotFound` belong? This plan proposes `core/apierr`, which
+   already owns what an error means application-wide. Settle it in D0.
+3. Where does `schema.go` belong? `SchemaMigration` and `SchemaStore` describe
+   the database's own state, not a business capability. Settle it in D13.
+4. What does a membership row with no role mean? `access.TeamAction` says "not
+   a member", `access.Guard.teamRole` says "member". No current path writes one,
+   so pick the reading deliberately rather than letting the next empty row
+   decide. Least privilege argues for "member"; the stricter reading argues for
+   403.
+5. Is model administration its own service or a facet of `llmgateway`? C1 builds
+   `service/llmcatalog` and keeps it only if its tests run with no provider-call
+   dependency.
+6. Is identity one package or two service types under one capability? C2 and C3
+   decide from the resulting constructor dependency sets.
+7. Does Issue execution need an operation record, or is explicit compensation
+   enough? C4's fault-injection tests decide, before any persistence is added.
 
-- Maintainers accept or amend the canonical owners in the findings table.
-- The separate-concepts list is treated as a guardrail, not a later cleanup
-  queue.
-- One issue or PR is created per implementation batch, with behaviour-level
-  acceptance criteria and named rollback scope.
-- Batch 1 chooses and documents the OpenAPI generation/checking strategy.
-- Security-sensitive identity batches have characterization tests before moves.
-- The final `core/model` sequence is ordered only after earlier services and
-  pure rules establish real owners.
+## Definition Of Done For This Document
 
-## Likely Destination If Accepted
+This paper is the plan of record until its tracks land. It is deleted when:
 
-Accepted ownership decisions belong in the matching architecture documents and
-architecture tests; implementation priority belongs in the roadmap or focused
-issues. This proposal should then be deleted. Durable rationale for intentionally
-separate concepts belongs in the existing subsystem design records rather than
-in a permanent repository-wide audit document.
+- Accepted ownership decisions have moved into the matching architecture
+  documents under [`docs/contribute/architecture/`](../contribute/architecture/README.md)
+  and into tests under `internal/architecture`.
+- The rationale for the deliberately separate concepts above has moved into the
+  subsystem design records that own them, not into a permanent repository-wide
+  audit.
+- Remaining tracks are tracked as issues rather than as sections here.
+
+Until then, each pull request names its track and PR identifier, states which
+package owns each affected concept, what duplicated knowledge it removed, what
+similar code it deliberately kept apart, and how behavior was verified.

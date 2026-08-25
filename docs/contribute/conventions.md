@@ -8,6 +8,125 @@ will hold a pull request to. Layering rules live in
 in `internal/architecture`; documentation rules live in
 [documentation.md](documentation.md).
 
+## Packages Own Capabilities
+
+> Packages are organized around business capabilities.
+> Files are organized for readability.
+> Functions are organized around a single responsibility.
+
+A package is a semantic ownership boundary, not a folder that keeps files
+short. Each one owns a responsibility describable as a business capability or
+one precise infrastructure concern — `task`, `workflow`, `identity`,
+`pluginarchive` — never a repository-wide technical grouping such as `models`,
+`services`, `repositories`, or `interfaces`.
+
+Finding an ownership problem is not permission to fix it here. Do not
+restructure packages as an incidental part of a feature unless the feature is
+wrong without it. Record the finding and propose the migration on its own.
+
+A package's size is never an argument, in either direction. The only test is
+whether it has a reason to change that its neighbours do not. `core/apierr` is
+under 200 lines and earns its boundary, because what an error means to the
+whole application changes for reasons nothing else shares. Split a file when
+navigation improves; split a package only when a reason to change diverges.
+
+Do not name a package for what it contains rather than what it owns. `common`,
+`shared`, `util`, `helpers`, `base`, `misc`, and `model`/`models` name a
+container, so nobody can tell what belongs inside and everything drifts there.
+Cross-cutting infrastructure is allowed, but it takes a precise name and a
+narrow responsibility.
+
+`internal/core` is a dependency-layer prefix, not a package name. The packages
+beneath it each carry a capability: `core/agent`, `core/llm`, `core/session`.
+`internal/core/model` and `internal/util` are the shape this rule forbids — a
+container name holding several unrelated capabilities. They predate the rule
+and are known debt, not a pattern to copy or add to.
+
+Never resolve an import cycle by moving unrelated code into a general package.
+A cycle is evidence that ownership or dependency direction is wrong. Move the
+smallest shared concept to its true owner, or pass an ID or an input contract
+instead.
+
+## Every Business Rule Has One Owner
+
+A state transition, a validation rule, an authorization decision, a lifecycle
+constraint, retry eligibility, a defaulting rule, and an error's meaning each
+have exactly one authoritative implementation. HTTP handlers, CLI commands,
+workers, schedulers, and stores delegate to it; they never restate it. Task-run
+status is the shape to copy: `core/model` owns the legal transitions and
+`infra/db.TransitionTaskRun` only applies one atomically.
+
+Before adding a rule of any of those kinds, search the whole repository for one
+with the same semantic responsibility, identify the package that owns the
+concept today, and extend that owner when ownership is clear. Write a second
+implementation only when it is a genuinely different concept.
+
+The search has to be repository-wide, because a rule reimplemented in a handler
+is invisible from inside that handler's package. This applies to business
+rules. A helper with no business meaning does not need it.
+
+## Duplication Is Classified Before It Is Removed
+
+Name what you found before deciding anything. There are three kinds:
+
+- **Textual** — similar syntax, unrelated meaning. Usually leave it.
+- **Structural** — parallel types, interfaces, validators, mappers, or errors.
+  Sometimes a boundary translation, sometimes an accident.
+- **Knowledge** — the same business fact implemented in more than one place.
+  This is the one that matters, and it normally gets one owner.
+
+Then say which relationship the two sites are in: shared knowledge, legitimate
+boundary translation, intentional local duplication, or coincidental
+similarity. Share code only when both sites are the same concept, have the same
+owner, and change for the same reason.
+
+Prefer small, explicit local duplication over a shared abstraction that
+misleads. Two things that merely look alike get forced apart later, and by then
+the seam is in the wrong place.
+
+An interface exists where substitution is required, and it belongs near its
+consumer. Do not mirror every concrete implementation with an interface, and do
+not merge two consumer-owned interfaces because their methods match:
+`service/task` and `service/llmgateway` each declaring a quota checker is
+correct, because admitting a task and admitting a model call may diverge.
+
+Boundary models are worth their mapping cost when they protect a real
+transport, domain, persistence, or external-API boundary. A domain entity, a
+`db` row, and a wire DTO are three different things and stay that way. A chain
+of request, input, params, command, payload, and domain types copying identical
+fields without enforcing anything is not a boundary.
+
+Do not add base services, generic repositories, universal mappers, or helper
+frameworks to reduce line count. Fewer lines is not the goal.
+
+## Ownership Changes Move Every Caller At Once
+
+When a change establishes or corrects a canonical owner:
+
+1. Find every implementation and call site.
+2. Decide the canonical owner.
+3. Classify the duplication, as above.
+4. Put tests around the behavior that must not change.
+5. Move the concept **and every caller in the same change**.
+6. Delete the superseded implementation in that same change.
+7. Run `./make fmt`, `./make lint`, `./make test`, and the relevant
+   `./make check` scope.
+
+Step 5 is not negotiable. This project is Alpha and owes no compatibility
+window, so there is no reason to run two definitions of one fact side by side,
+and `TestNoInternalTypeAliases` already refuses the usual shim. Incrementality
+belongs *between* changes — one capability per pull request — never inside one.
+
+When reporting architectural work, say which package now owns each affected
+concept, what duplicated knowledge was removed, what similar code was
+deliberately kept apart and why, and how the behavior was verified.
+
+The goal is not the most packages or the fewest repeated lines. It is a
+repository where the owner of a concept is easy to find and each business rule
+has one authoritative implementation. Apart from the architecture tests named
+above, review holds these rules; each one is a judgment, so argue it in the
+pull request rather than applying it mechanically.
+
 ## Persisted Data Uses snake_case
 
 Everything this project writes to disk — session files, config, any JSON — uses
