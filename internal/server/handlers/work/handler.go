@@ -18,6 +18,7 @@ import (
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
+	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/server/access"
 	"github.com/gougoujiang/buildmax/internal/server/handlers/runterminal"
@@ -48,7 +49,7 @@ type Config struct {
 	Users         model.UserStore
 	Issues        model.IssueStore
 	IssueComments model.IssueCommentStore
-	Workflows     model.WorkflowStore
+	Workflows     coreworkflow.Store
 	Tasks         model.TaskStore
 	TaskRuns      model.TaskRunStore
 	Agents        model.AgentStore

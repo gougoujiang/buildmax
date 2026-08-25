@@ -7,6 +7,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
+	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 )
 
 var (
@@ -37,7 +38,7 @@ type Service struct {
 	Comments  model.IssueCommentStore
 	Agents    model.AgentStore
 	Teams     coreteam.Store
-	Workflows model.WorkflowStore
+	Workflows coreworkflow.Store
 }
 
 type CreateIssueCmd struct {
@@ -224,7 +225,7 @@ func (s *Service) validateAssignee(ctx context.Context, teamID, userID string, k
 		if workflow == nil || workflow.TeamID != teamID {
 			return ErrWorkflowNotFound
 		}
-		if workflow.Status != model.WorkflowStatusPublished {
+		if workflow.Status != coreworkflow.StatusPublished {
 			return ErrWorkflowNotPublished
 		}
 		return nil

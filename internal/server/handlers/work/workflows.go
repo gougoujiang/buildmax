@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	"github.com/gougoujiang/buildmax/internal/service/task"
 	"github.com/gougoujiang/buildmax/internal/service/workflow"
@@ -108,7 +109,7 @@ type createWorkflowRunRequest struct {
 	IssueID *string `json:"issue_id,omitempty"`
 }
 
-func workflowToResponse(workflow model.Workflow) workflowResponse {
+func workflowToResponse(workflow coreworkflow.Workflow) workflowResponse {
 	return workflowResponse{
 		ID:          workflow.ID,
 		TeamID:      workflow.TeamID,
@@ -123,7 +124,7 @@ func workflowToResponse(workflow model.Workflow) workflowResponse {
 	}
 }
 
-func workflowRevisionToResponse(rev model.WorkflowRevision) workflowRevisionResponse {
+func workflowRevisionToResponse(rev coreworkflow.Revision) workflowRevisionResponse {
 	return workflowRevisionResponse{
 		WorkflowID:  rev.WorkflowID,
 		Revision:    rev.Revision,
@@ -136,7 +137,7 @@ func workflowRevisionToResponse(rev model.WorkflowRevision) workflowRevisionResp
 	}
 }
 
-func workflowRunToResponse(run model.WorkflowRun) workflowRunResponse {
+func workflowRunToResponse(run coreworkflow.Run) workflowRunResponse {
 	return workflowRunResponse{
 		ID:               run.ID,
 		WorkflowID:       run.WorkflowID,
@@ -152,7 +153,7 @@ func workflowRunToResponse(run model.WorkflowRun) workflowRunResponse {
 	}
 }
 
-func workflowStepRunToResponse(step model.WorkflowStepRun) workflowStepRunResponse {
+func workflowStepRunToResponse(step coreworkflow.StepRun) workflowStepRunResponse {
 	return workflowStepRunResponse{
 		ID:                step.ID,
 		WorkflowRunID:     step.WorkflowRunID,

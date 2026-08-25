@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 )
 
 // issueFlow is what the flow view shows, gathered before any of it becomes a
@@ -20,20 +21,20 @@ type issueFlow struct {
 	Issue    model.Issue
 	Parent   *model.Issue
 	Children []model.Issue
-	Workflow *model.Workflow
+	Workflow *coreworkflow.Workflow
 	Runs     []issueFlowRun
 	// AgentTasks are the runs started from the issue directly rather than
 	// through a workflow step.
 	AgentTasks []model.Task
 	// StepsByTaskID lets the output aggregation attribute a task's result to
 	// the step that dispatched it.
-	StepsByTaskID map[string]model.WorkflowStepRun
+	StepsByTaskID map[string]coreworkflow.StepRun
 	TotalRuns     int
 }
 
 type issueFlowRun struct {
-	Run   model.WorkflowRun
-	Steps []model.WorkflowStepRun
+	Run   coreworkflow.Run
+	Steps []coreworkflow.StepRun
 }
 
 // loadIssueFlow gathers the view. A failure names the query that failed,
@@ -43,7 +44,7 @@ func (h *Handler) loadIssueFlow(ctx context.Context, teamID, issueID string, lim
 	if err != nil {
 		return nil, err
 	}
-	flow := &issueFlow{Issue: *issue, StepsByTaskID: map[string]model.WorkflowStepRun{}}
+	flow := &issueFlow{Issue: *issue, StepsByTaskID: map[string]coreworkflow.StepRun{}}
 
 	// The hierarchy is two levels deep, so an issue has a parent or children,
 	// never both. Neither failing is worth losing the page over: a flow view

@@ -7,6 +7,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
 
@@ -34,7 +35,7 @@ var (
 // optional: a deployment with no workflow store has no workflow steps, so a nil
 // lookup means nothing to protect rather than an unanswered question.
 type WorkflowStepLookup interface {
-	GetWorkflowStepRunByTaskID(ctx context.Context, taskID string) (*model.WorkflowStepRun, error)
+	GetWorkflowStepRunByTaskID(ctx context.Context, taskID string) (*coreworkflow.StepRun, error)
 }
 
 // QuotaChecker is the narrow quota surface needed by task workflows.

@@ -15,6 +15,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
+	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 )
 
 var (
@@ -33,7 +34,7 @@ var (
 // question answered, and depending on the whole service would tie an agent edit
 // to workflow orchestration.
 type WorkflowUsage interface {
-	PublishedWorkflowsUsingAgent(ctx context.Context, teamID, agentID string) ([]model.Workflow, error)
+	PublishedWorkflowsUsingAgent(ctx context.Context, teamID, agentID string) ([]coreworkflow.Workflow, error)
 }
 
 // PluginSelection turns the plugin names an agent carries into the team
@@ -273,7 +274,7 @@ func (s *Service) DeleteAgent(ctx context.Context, teamID, agentID string) error
 
 // workflowNameList renders the blocking workflows as "name (id)": a name alone
 // is ambiguous and an id alone means nothing to a reader.
-func workflowNameList(workflows []model.Workflow) string {
+func workflowNameList(workflows []coreworkflow.Workflow) string {
 	parts := make([]string, len(workflows))
 	for i := range workflows {
 		parts[i] = workflows[i].Name + " (" + workflows[i].ID + ")"

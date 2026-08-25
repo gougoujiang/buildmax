@@ -13,6 +13,7 @@ import (
 	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
+	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
@@ -191,9 +192,9 @@ func TestIssueFlowOutputs_WorkflowStepProvenance(t *testing.T) {
 
 	// Assign issue to workflow so the issue flow endpoint resolves the workflow.
 	wfID := "w_1"
-	fx.workflows.Workflows = []model.Workflow{{
+	fx.workflows.Workflows = []coreworkflow.Workflow{{
 		ID: wfID, TeamID: fx.personalID, Name: "WF",
-		Definition: `{"steps":[]}`, Status: model.WorkflowStatusPublished,
+		Definition: `{"steps":[]}`, Status: coreworkflow.StatusPublished,
 	}}
 	// Patch the issue's assignee_kind/id via the underlying store directly.
 	// The mock IssueStore exposes Issues as []model.Issue, so update in place.
@@ -203,15 +204,15 @@ func TestIssueFlowOutputs_WorkflowStepProvenance(t *testing.T) {
 	// (Tests for assignment behavior live in issues_test.go.)
 	// For this test we don't actually need the workflow to resolve; the
 	// step provenance comes from ListWorkflowRunsByIssue / ListWorkflowStepRuns.
-	fx.workflows.Runs = []model.WorkflowRun{{
+	fx.workflows.Runs = []coreworkflow.Run{{
 		ID: workflowRunID, WorkflowID: wfID,
 		IssueID: util.Ptr("i_1"), ConversationID: "c_1",
-		Status: model.WorkflowRunStatusSucceeded, CreatedBy: "u1", CreatedAt: time.Unix(300, 0).UTC(),
+		Status: coreworkflow.RunStatusSucceeded, CreatedBy: "u1", CreatedAt: time.Unix(300, 0).UTC(),
 	}}
-	fx.workflows.StepRuns = []model.WorkflowStepRun{{
+	fx.workflows.StepRuns = []coreworkflow.StepRun{{
 		ID: stepRunID, WorkflowRunID: workflowRunID,
-		StepID: stepID, StepIndex: 0, StepType: model.WorkflowStepTypeAgentTask,
-		Status: model.WorkflowStepRunStatusSucceeded,
+		StepID: stepID, StepIndex: 0, StepType: coreworkflow.StepTypeAgentTask,
+		Status: coreworkflow.StepRunStatusSucceeded,
 		TaskID: &taskID, TaskRunID: &runID, CreatedAt: time.Unix(305, 0).UTC(),
 	}}
 

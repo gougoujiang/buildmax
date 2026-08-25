@@ -5,20 +5,20 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 )
 
 // MockWorkflowStore is an in-memory WorkflowStore for tests. It records
 // revisions the way the database store does, so a test can assert on history.
 type MockWorkflowStore struct {
-	Workflows []model.Workflow
-	Revisions []model.WorkflowRevision
-	Runs      []model.WorkflowRun
-	StepRuns  []model.WorkflowStepRun
+	Workflows []coreworkflow.Workflow
+	Revisions []coreworkflow.Revision
+	Runs      []coreworkflow.Run
+	StepRuns  []coreworkflow.StepRun
 }
 
-func (m *MockWorkflowStore) appendRevision(w *model.Workflow, createdBy string) {
-	m.Revisions = append(m.Revisions, model.WorkflowRevision{
+func (m *MockWorkflowStore) appendRevision(w *coreworkflow.Workflow, createdBy string) {
+	m.Revisions = append(m.Revisions, coreworkflow.Revision{
 		WorkflowID:  w.ID,
 		Revision:    w.Revision,
 		Name:        w.Name,
@@ -30,8 +30,8 @@ func (m *MockWorkflowStore) appendRevision(w *model.Workflow, createdBy string) 
 	})
 }
 
-func (m *MockWorkflowStore) ListWorkflowsByTeam(_ context.Context, teamID string) ([]model.Workflow, error) {
-	var out []model.Workflow
+func (m *MockWorkflowStore) ListWorkflowsByTeam(_ context.Context, teamID string) ([]coreworkflow.Workflow, error) {
+	var out []coreworkflow.Workflow
 	for _, workflow := range m.Workflows {
 		if workflow.TeamID == teamID {
 			out = append(out, workflow)
@@ -40,14 +40,14 @@ func (m *MockWorkflowStore) ListWorkflowsByTeam(_ context.Context, teamID string
 	return out, nil
 }
 
-func (m *MockWorkflowStore) CreateWorkflow(_ context.Context, teamID, createdBy, name, description, definition string) (*model.Workflow, error) {
-	workflow := model.Workflow{
+func (m *MockWorkflowStore) CreateWorkflow(_ context.Context, teamID, createdBy, name, description, definition string) (*coreworkflow.Workflow, error) {
+	workflow := coreworkflow.Workflow{
 		ID:          fmt.Sprintf("w_mock_%d", len(m.Workflows)+1),
 		TeamID:      teamID,
 		Name:        name,
 		Description: description,
 		Definition:  definition,
-		Status:      model.WorkflowStatusDraft,
+		Status:      coreworkflow.StatusDraft,
 		Revision:    1,
 		CreatedBy:   createdBy,
 		CreatedAt:   time.Now().UTC(),
@@ -59,7 +59,7 @@ func (m *MockWorkflowStore) CreateWorkflow(_ context.Context, teamID, createdBy,
 	return created, nil
 }
 
-func (m *MockWorkflowStore) GetWorkflow(_ context.Context, workflowID string) (*model.Workflow, error) {
+func (m *MockWorkflowStore) GetWorkflow(_ context.Context, workflowID string) (*coreworkflow.Workflow, error) {
 	for i := range m.Workflows {
 		if m.Workflows[i].ID == workflowID {
 			return &m.Workflows[i], nil
@@ -68,7 +68,7 @@ func (m *MockWorkflowStore) GetWorkflow(_ context.Context, workflowID string) (*
 	return nil, nil
 }
 
-func (m *MockWorkflowStore) UpdateWorkflow(_ context.Context, workflowID, teamID string, in model.UpdateWorkflowInput) (*model.Workflow, error) {
+func (m *MockWorkflowStore) UpdateWorkflow(_ context.Context, workflowID, teamID string, in coreworkflow.UpdateInput) (*coreworkflow.Workflow, error) {
 	for i := range m.Workflows {
 		if m.Workflows[i].ID != workflowID || m.Workflows[i].TeamID != teamID {
 			continue
@@ -102,8 +102,8 @@ func (m *MockWorkflowStore) UpdateWorkflow(_ context.Context, workflowID, teamID
 	return nil, nil
 }
 
-func (m *MockWorkflowStore) ListWorkflowRevisions(_ context.Context, workflowID string, limit, offset int) ([]model.WorkflowRevision, int, error) {
-	var all []model.WorkflowRevision
+func (m *MockWorkflowStore) ListWorkflowRevisions(_ context.Context, workflowID string, limit, offset int) ([]coreworkflow.Revision, int, error) {
+	var all []coreworkflow.Revision
 	for i := len(m.Revisions) - 1; i >= 0; i-- {
 		if m.Revisions[i].WorkflowID == workflowID {
 			all = append(all, m.Revisions[i])
@@ -112,7 +112,7 @@ func (m *MockWorkflowStore) ListWorkflowRevisions(_ context.Context, workflowID 
 	return pageRevisions(all, limit, offset), len(all), nil
 }
 
-func (m *MockWorkflowStore) GetWorkflowRevision(_ context.Context, workflowID string, revision int) (*model.WorkflowRevision, error) {
+func (m *MockWorkflowStore) GetWorkflowRevision(_ context.Context, workflowID string, revision int) (*coreworkflow.Revision, error) {
 	for i := range m.Revisions {
 		if m.Revisions[i].WorkflowID == workflowID && m.Revisions[i].Revision == revision {
 			return &m.Revisions[i], nil
@@ -121,8 +121,8 @@ func (m *MockWorkflowStore) GetWorkflowRevision(_ context.Context, workflowID st
 	return nil, nil
 }
 
-func (m *MockWorkflowStore) CreateWorkflowRun(_ context.Context, in model.CreateWorkflowRunInput) (*model.WorkflowRun, error) {
-	run := model.WorkflowRun{
+func (m *MockWorkflowStore) CreateWorkflowRun(_ context.Context, in coreworkflow.CreateRunInput) (*coreworkflow.Run, error) {
+	run := coreworkflow.Run{
 		ID:               fmt.Sprintf("wr_mock_%d", len(m.Runs)+1),
 		WorkflowID:       in.WorkflowID,
 		WorkflowRevision: in.WorkflowRevision,
@@ -137,8 +137,8 @@ func (m *MockWorkflowStore) CreateWorkflowRun(_ context.Context, in model.Create
 	return &m.Runs[len(m.Runs)-1], nil
 }
 
-func (m *MockWorkflowStore) ListWorkflowRunsByWorkflow(_ context.Context, workflowID string, limit, offset int) ([]model.WorkflowRun, int, error) {
-	var out []model.WorkflowRun
+func (m *MockWorkflowStore) ListWorkflowRunsByWorkflow(_ context.Context, workflowID string, limit, offset int) ([]coreworkflow.Run, int, error) {
+	var out []coreworkflow.Run
 	for _, run := range m.Runs {
 		if run.WorkflowID == workflowID {
 			out = append(out, run)
@@ -146,7 +146,7 @@ func (m *MockWorkflowStore) ListWorkflowRunsByWorkflow(_ context.Context, workfl
 	}
 	total := len(out)
 	if offset > total {
-		return []model.WorkflowRun{}, total, nil
+		return []coreworkflow.Run{}, total, nil
 	}
 	if limit <= 0 || offset+limit > total {
 		limit = total - offset
@@ -154,8 +154,8 @@ func (m *MockWorkflowStore) ListWorkflowRunsByWorkflow(_ context.Context, workfl
 	return out[offset : offset+limit], total, nil
 }
 
-func (m *MockWorkflowStore) ListWorkflowRunsByIssue(_ context.Context, issueID string, limit, offset int) ([]model.WorkflowRun, int, error) {
-	var out []model.WorkflowRun
+func (m *MockWorkflowStore) ListWorkflowRunsByIssue(_ context.Context, issueID string, limit, offset int) ([]coreworkflow.Run, int, error) {
+	var out []coreworkflow.Run
 	for _, run := range m.Runs {
 		if run.IssueID != nil && *run.IssueID == issueID {
 			out = append(out, run)
@@ -163,7 +163,7 @@ func (m *MockWorkflowStore) ListWorkflowRunsByIssue(_ context.Context, issueID s
 	}
 	total := len(out)
 	if offset > total {
-		return []model.WorkflowRun{}, total, nil
+		return []coreworkflow.Run{}, total, nil
 	}
 	if limit <= 0 || offset+limit > total {
 		limit = total - offset
@@ -171,7 +171,7 @@ func (m *MockWorkflowStore) ListWorkflowRunsByIssue(_ context.Context, issueID s
 	return out[offset : offset+limit], total, nil
 }
 
-func (m *MockWorkflowStore) GetWorkflowRun(_ context.Context, workflowRunID string) (*model.WorkflowRun, error) {
+func (m *MockWorkflowStore) GetWorkflowRun(_ context.Context, workflowRunID string) (*coreworkflow.Run, error) {
 	for i := range m.Runs {
 		if m.Runs[i].ID == workflowRunID {
 			return &m.Runs[i], nil
@@ -180,8 +180,8 @@ func (m *MockWorkflowStore) GetWorkflowRun(_ context.Context, workflowRunID stri
 	return nil, nil
 }
 
-func (m *MockWorkflowStore) ListWorkflowStepRuns(_ context.Context, workflowRunID string) ([]model.WorkflowStepRun, error) {
-	var out []model.WorkflowStepRun
+func (m *MockWorkflowStore) ListWorkflowStepRuns(_ context.Context, workflowRunID string) ([]coreworkflow.StepRun, error) {
+	var out []coreworkflow.StepRun
 	for _, step := range m.StepRuns {
 		if step.WorkflowRunID == workflowRunID {
 			out = append(out, step)
@@ -190,10 +190,10 @@ func (m *MockWorkflowStore) ListWorkflowStepRuns(_ context.Context, workflowRunI
 	return out, nil
 }
 
-func (m *MockWorkflowStore) CreateWorkflowStepRuns(_ context.Context, workflowRunID string, steps []model.CreateWorkflowStepRunInput) ([]model.WorkflowStepRun, error) {
-	out := make([]model.WorkflowStepRun, len(steps))
+func (m *MockWorkflowStore) CreateWorkflowStepRuns(_ context.Context, workflowRunID string, steps []coreworkflow.CreateStepRunInput) ([]coreworkflow.StepRun, error) {
+	out := make([]coreworkflow.StepRun, len(steps))
 	for i := range steps {
-		out[i] = model.WorkflowStepRun{
+		out[i] = coreworkflow.StepRun{
 			ID:                fmt.Sprintf("wsr_mock_%d", len(m.StepRuns)+1),
 			WorkflowRunID:     workflowRunID,
 			StepID:            steps[i].StepID,
@@ -213,7 +213,7 @@ func (m *MockWorkflowStore) CreateWorkflowStepRuns(_ context.Context, workflowRu
 	return out, nil
 }
 
-func (m *MockWorkflowStore) UpdateWorkflowRun(_ context.Context, workflowRunID string, in model.UpdateWorkflowRunInput) (*model.WorkflowRun, error) {
+func (m *MockWorkflowStore) UpdateWorkflowRun(_ context.Context, workflowRunID string, in coreworkflow.UpdateRunInput) (*coreworkflow.Run, error) {
 	for i := range m.Runs {
 		if m.Runs[i].ID != workflowRunID {
 			continue
@@ -233,7 +233,7 @@ func (m *MockWorkflowStore) UpdateWorkflowRun(_ context.Context, workflowRunID s
 	return nil, nil
 }
 
-func (m *MockWorkflowStore) UpdateWorkflowStepRun(_ context.Context, stepRunID string, in model.UpdateWorkflowStepRunInput) (*model.WorkflowStepRun, error) {
+func (m *MockWorkflowStore) UpdateWorkflowStepRun(_ context.Context, stepRunID string, in coreworkflow.UpdateStepRunInput) (*coreworkflow.StepRun, error) {
 	for i := range m.StepRuns {
 		if m.StepRuns[i].ID != stepRunID {
 			continue
@@ -280,7 +280,7 @@ func (m *MockWorkflowStore) UpdateWorkflowStepRun(_ context.Context, stepRunID s
 	return nil, nil
 }
 
-func (m *MockWorkflowStore) GetWorkflowStepRunByTaskID(_ context.Context, taskID string) (*model.WorkflowStepRun, error) {
+func (m *MockWorkflowStore) GetWorkflowStepRunByTaskID(_ context.Context, taskID string) (*coreworkflow.StepRun, error) {
 	for i := range m.StepRuns {
 		if m.StepRuns[i].TaskID != nil && *m.StepRuns[i].TaskID == taskID {
 			return &m.StepRuns[i], nil
@@ -289,7 +289,7 @@ func (m *MockWorkflowStore) GetWorkflowStepRunByTaskID(_ context.Context, taskID
 	return nil, nil
 }
 
-func (m *MockWorkflowStore) GetWorkflowStepRunByTaskRunID(_ context.Context, taskRunID string) (*model.WorkflowStepRun, error) {
+func (m *MockWorkflowStore) GetWorkflowStepRunByTaskRunID(_ context.Context, taskRunID string) (*coreworkflow.StepRun, error) {
 	for i := range m.StepRuns {
 		if m.StepRuns[i].TaskRunID != nil && *m.StepRuns[i].TaskRunID == taskRunID {
 			return &m.StepRuns[i], nil

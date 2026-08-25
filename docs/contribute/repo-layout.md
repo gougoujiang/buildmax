@@ -132,6 +132,8 @@ internal/
 │   │                   against
 │   ├── conversation/   The durable Conversation and its messages: what Tier 1
 │   │                   orchestrates and stores, distinct from a local session
+│   ├── workflow/       A team's reusable linear plan, its revisions, and the
+│   │                   run and step-run state its execution moves through
 │   └── session/        Local session model; persistence lives in agentapp
 │
 ├── agentapp/           Agent runtime assembly: LLM client cache, tool registry,
