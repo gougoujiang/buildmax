@@ -6,15 +6,17 @@
   not yet placed in [../ROADMAP.md](../ROADMAP.md)
 - status: `in progress` — §9 steps 1, 2, 3, and 6 are done: the model harness of
   §4 is `internal/testsupport/mockllm` and serves the deployment smokes too; the
-  CLI suite covers print mode and answers an approval on a pseudo-terminal; the
-  deployment workflow is post-merge, scheduled, and dispatchable and reports
-  what verified a commit; the suites have names, preflight, artifacts, and an
-  owning local mode; and the runbook is
+  CLI suite covers print mode, answers an approval on a pseudo-terminal, and
+  resumes a session both by id and by `-c`, including the refusal a second
+  process gets when one is already open; the deployment workflow is post-merge,
+  scheduled, and dispatchable and reports what verified a commit; the suites
+  have names, preflight, artifacts, and an owning local mode; and the runbook is
   [../contribute/testing.md](../contribute/testing.md). Step 4 landed files,
   workflows, and the ungranted-account view in the browser, and retry and the
-  team boundary in the deployment smoke. Step 5 landed the Desktop bridge.
-  Open: workflow execution and space settings in the browser, the two
-  deployment paths §6.1 leaves for later, and the native packaged-app smoke
+  team boundary in the deployment smoke. Step 5 landed the Desktop bridge,
+  including rewind and fork. Open: workflow execution and space settings in the
+  browser, the two deployment paths §6.1 leaves for later, and the native
+  packaged-app smoke
 - depends on: [tool-permissions.md](./tool-permissions.md), whose approval gate
   the CLI and Desktop paths exist to drive, and which decides what a surface
   with no human attached does with an `Ask`;
