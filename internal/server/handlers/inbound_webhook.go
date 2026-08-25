@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	"github.com/gougoujiang/buildmax/internal/server/access"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
@@ -78,7 +78,7 @@ func (h *Handler) serveWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 	result, err := h.cfg.WebhookEngine.Process(r.Context(), conv.ID, "", turn)
 	if err != nil {
-		if errors.Is(err, model.ErrRunInProgress) {
+		if errors.Is(err, coretask.ErrRunInProgress) {
 			httputil.WriteJSONError(w, http.StatusConflict, "task has a run already in progress")
 			return
 		}

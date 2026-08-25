@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	buildmaxlog "github.com/gougoujiang/buildmax/internal/infra/log"
 	"github.com/gougoujiang/buildmax/internal/server/authtoken"
 )
@@ -44,7 +45,7 @@ type MintRunToken func(authtoken.RunClaims) (string, error)
 
 // Scheduler polls the task run store for PENDING runs and runs the worker via the configured runner.
 type Scheduler struct {
-	taskRuns model.TaskRunStore
+	taskRuns coretask.RunStore
 	// users answers whether the account that created a run may still have work
 	// executed for it. Nil means the check is skipped, which is what a
 	// deployment with no user store has.
@@ -76,12 +77,12 @@ const maxConcurrentDispatch = 1
 // mint may be nil, which is every deployment that has not enabled managed worker
 // inference: its workers reach a provider directly and have nothing to
 // authenticate to.
-func NewScheduler(taskRunStore model.TaskRunStore, runner WorkerRunner, mint MintRunToken) (*Scheduler, error) {
+func NewScheduler(taskRunStore coretask.RunStore, runner WorkerRunner, mint MintRunToken) (*Scheduler, error) {
 	return NewSchedulerWithPollInterval(taskRunStore, runner, mint, defaultPollInterval)
 }
 
 // NewSchedulerWithPollInterval is like NewScheduler but allows setting the poll interval (e.g. for tests). Use 0 for default.
-func NewSchedulerWithPollInterval(taskRunStore model.TaskRunStore, runner WorkerRunner, mint MintRunToken, pollInterval time.Duration) (*Scheduler, error) {
+func NewSchedulerWithPollInterval(taskRunStore coretask.RunStore, runner WorkerRunner, mint MintRunToken, pollInterval time.Duration) (*Scheduler, error) {
 	if taskRunStore == nil {
 		return nil, errors.New("scheduler: taskRunStore must not be nil")
 	}
@@ -124,7 +125,7 @@ func (s *Scheduler) WithUserStore(users model.UserStore) *Scheduler {
 // which is a worse failure than one run starting for an account disabled a
 // moment ago — the run's own credential is scoped to that run and expiring, and
 // the account's sessions are already gone.
-func (s *Scheduler) creatorIsDisabled(ctx context.Context, run *model.TaskRun) bool {
+func (s *Scheduler) creatorIsDisabled(ctx context.Context, run *coretask.Run) bool {
 	if s.users == nil || run.CreatedBy == "" {
 		return false
 	}
@@ -224,10 +225,10 @@ func (s *Scheduler) pollOnce() {
 	if run == nil {
 		return
 	}
-	updated, err := s.taskRuns.TransitionTaskRun(ctx, model.TransitionTaskRunInput{
+	updated, err := s.taskRuns.TransitionTaskRun(ctx, coretask.TransitionRunInput{
 		TaskRunID:      run.ID,
-		ExpectedStatus: model.RunStatusPending,
-		NewStatus:      model.RunStatusScheduled,
+		ExpectedStatus: coretask.RunStatusPending,
+		NewStatus:      coretask.RunStatusScheduled,
 	})
 	if err != nil {
 		s.log().WarnContext(ctx, "claim failed", "err", err)
@@ -275,7 +276,7 @@ func (s *Scheduler) pollOnce() {
 // scheduler reaches the worker: a local process is asked to stop, and a Job that
 // has already been created is unaffected, which is right — it outlives the
 // server that dispatched it.
-func (s *Scheduler) dispatch(ctx context.Context, run model.TaskRun, runToken string) {
+func (s *Scheduler) dispatch(ctx context.Context, run coretask.Run, runToken string) {
 	dispatchCtx := buildmaxlog.With(s.dispatchCtx, "task_run_id", run.ID)
 	workerType, k8sName, k8sAt, err := s.runner.Run(dispatchCtx, run, runToken)
 	if err != nil {
@@ -300,7 +301,7 @@ func (s *Scheduler) dispatch(ctx context.Context, run model.TaskRun, runToken st
 // Returns "" when the deployment mints none. The claims come from the task, not
 // from the run alone, because the team and the owner are what the gateway
 // authorizes against and only the task carries them.
-func (s *Scheduler) runTokenFor(ctx context.Context, run *model.TaskRun) (string, error) {
+func (s *Scheduler) runTokenFor(ctx context.Context, run *coretask.Run) (string, error) {
 	if s.mintRunToken == nil {
 		return "", nil
 	}
@@ -337,7 +338,7 @@ func (s *Scheduler) failRun(ctx context.Context, taskRunID string, cause error) 
 		s.log().ErrorContext(ctx, "could not mark missing run FAILED")
 		return
 	}
-	if model.RunStatusTerminal(run.Status) {
+	if coretask.RunStatusTerminal(run.Status) {
 		s.log().InfoContext(ctx, "worker exited non-zero but the run already reported an outcome",
 			"status", run.Status, "err", cause)
 		return
@@ -347,10 +348,10 @@ func (s *Scheduler) failRun(ctx context.Context, taskRunID string, cause error) 
 		errorMsg = errorMsg[:maxErrorMessageLength]
 	}
 	endedAt := time.Now().UTC()
-	updated, err := s.taskRuns.TransitionTaskRun(ctx, model.TransitionTaskRunInput{
+	updated, err := s.taskRuns.TransitionTaskRun(ctx, coretask.TransitionRunInput{
 		TaskRunID:      taskRunID,
-		ExpectedStatus: model.RunStatus(run.Status),
-		NewStatus:      model.RunStatusFailed,
+		ExpectedStatus: coretask.RunStatus(run.Status),
+		NewStatus:      coretask.RunStatusFailed,
 		EndedAt:        &endedAt,
 		ErrorMessage:   &errorMsg,
 	})

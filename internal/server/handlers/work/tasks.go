@@ -11,7 +11,7 @@ import (
 	"time"
 
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	"github.com/gougoujiang/buildmax/internal/service/conversation"
 	"github.com/gougoujiang/buildmax/internal/service/task"
@@ -46,7 +46,7 @@ type createTaskRequest struct {
 	AgentID *string `json:"agent_id,omitempty"`
 }
 
-func taskToResponse(task model.Task) TaskResponse {
+func taskToResponse(task coretask.Task) TaskResponse {
 	return TaskResponse{
 		ID:             task.ID,
 		ConversationID: task.ConversationID,
@@ -101,7 +101,7 @@ func (h *Handler) writeTaskServiceError(w http.ResponseWriter, r *http.Request, 
 	return httputil.WriteServiceError(w, err)
 }
 
-func (h *Handler) getTaskForTeam(w http.ResponseWriter, r *http.Request, teamID, taskID string) (*model.Task, *coreconv.Conversation, bool) {
+func (h *Handler) getTaskForTeam(w http.ResponseWriter, r *http.Request, teamID, taskID string) (*coretask.Task, *coreconv.Conversation, bool) {
 	task, err := h.cfg.Tasks.GetTask(r.Context(), taskID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "get_task", "task_id", taskID)
@@ -172,7 +172,7 @@ func (h *Handler) listConversationTasksHandler(w http.ResponseWriter, r *http.Re
 // The artifacts come from one query for the whole conversation rather than one
 // per task, and a failure to read them drops the links rather than the tasks --
 // a task whose card cannot offer a download is still a task worth showing.
-func (h *Handler) conversationTaskResponses(ctx context.Context, conversationID string, list []model.Task) []TaskResponse {
+func (h *Handler) conversationTaskResponses(ctx context.Context, conversationID string, list []coretask.Task) []TaskResponse {
 	byTask := map[string][]string{}
 	if h.cfg.RunOutputs != nil {
 		outputs, err := h.cfg.RunOutputs.ListRunOutputsByConversation(ctx, conversationID, nil)
@@ -213,8 +213,8 @@ func (h *Handler) createConversationTaskHandler(w http.ResponseWriter, r *http.R
 		TeamID:         teamID,
 		Input:          req.Input,
 		AgentID:        req.AgentID,
-		CreatedByType:  model.RunCreatedByTypeUser,
-		TriggerSource:  model.RunTriggerSourcePortalTaskCreate,
+		CreatedByType:  coretask.RunCreatedByTypeUser,
+		TriggerSource:  coretask.RunTriggerSourcePortalTaskCreate,
 	})
 	if err != nil {
 		if h.writeTaskServiceError(w, r, err, req.AgentID) {
@@ -257,7 +257,7 @@ func (h *Handler) createTaskRunViaConversation(w http.ResponseWriter, r *http.Re
 		if h.writeConversationServiceError(w, r, err, nil) {
 			return true
 		}
-		if errors.Is(err, model.ErrRunInProgress) {
+		if errors.Is(err, coretask.ErrRunInProgress) {
 			httputil.WriteJSONError(w, http.StatusConflict, "a run is already in progress for this task")
 			return true
 		}
@@ -329,9 +329,9 @@ func (h *Handler) retryTaskHandler(w http.ResponseWriter, r *http.Request) {
 		if h.writeTaskServiceError(w, r, err, nil) {
 			return
 		}
-		// model.ErrRunInProgress comes from the store, below the service, so it
+		// coretask.ErrRunInProgress comes from the store, below the service, so it
 		// carries no Kind of its own.
-		if errors.Is(err, model.ErrRunInProgress) {
+		if errors.Is(err, coretask.ErrRunInProgress) {
 			httputil.WriteJSONError(w, http.StatusConflict, "a run is already in progress for this task")
 			return
 		}
@@ -405,7 +405,7 @@ func (h *Handler) cancelTaskHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSON(w, http.StatusOK, cancelTaskResponse{
 			TaskID:    target.ID,
 			TaskRunID: run.ID,
-			Status:    string(model.RunStatusCanceled),
+			Status:    string(coretask.RunStatusCanceled),
 		})
 		return
 	}
@@ -417,7 +417,7 @@ func (h *Handler) cancelTaskHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "cancel_task", "task_run_id", run.ID)
 		return
 	}
-	if current == nil || model.RunStatusTerminal(current.Status) {
+	if current == nil || coretask.RunStatusTerminal(current.Status) {
 		httputil.WriteJSONError(w, http.StatusConflict, "this run has already finished")
 		return
 	}
@@ -440,10 +440,10 @@ func (h *Handler) cancelTaskHandler(w http.ResponseWriter, r *http.Request) {
 // runs.
 func (h *Handler) finishUndispatchedRun(r *http.Request, taskRunID string, endedAt time.Time) bool {
 	message := "this run was canceled before it started"
-	claimed, err := h.cfg.TaskRuns.TransitionTaskRun(r.Context(), model.TransitionTaskRunInput{
+	claimed, err := h.cfg.TaskRuns.TransitionTaskRun(r.Context(), coretask.TransitionRunInput{
 		TaskRunID:      taskRunID,
-		ExpectedStatus: model.RunStatusPending,
-		NewStatus:      model.RunStatusCanceled,
+		ExpectedStatus: coretask.RunStatusPending,
+		NewStatus:      coretask.RunStatusCanceled,
 		EndedAt:        &endedAt,
 		ErrorMessage:   &message,
 	})
@@ -454,7 +454,7 @@ func (h *Handler) finishUndispatchedRun(r *http.Request, taskRunID string, ended
 	if !claimed {
 		return false
 	}
-	h.runAnnouncer().Announce(r.Context(), taskRunID, string(model.RunStatusCanceled), nil, &message)
+	h.runAnnouncer().Announce(r.Context(), taskRunID, string(coretask.RunStatusCanceled), nil, &message)
 	return true
 }
 
@@ -519,6 +519,6 @@ func (h *Handler) getTaskConversationHandler(w http.ResponseWriter, r *http.Requ
 	httputil.WriteJSON(w, http.StatusOK, out)
 }
 
-func (h *Handler) loadTaskConversationData(ctx context.Context, task *model.Task, lastRunID, sessionID string) ([]byte, error) {
+func (h *Handler) loadTaskConversationData(ctx context.Context, task *coretask.Task, lastRunID, sessionID string) ([]byte, error) {
 	return h.readRunGlobal(ctx, task, lastRunID, "sessions/"+sessionID+".json")
 }

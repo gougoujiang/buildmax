@@ -13,8 +13,8 @@ import (
 	"net/http"
 
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
-	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 	"github.com/gougoujiang/buildmax/internal/server/websocket"
 	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
@@ -29,7 +29,7 @@ type Config struct {
 	// WorkerLLM tells a worker how to reach a model. Nil means direct.
 	WorkerLLM *workerclient.TaskRunLLM
 
-	TaskRuns model.TaskRunStore
+	TaskRuns coretask.RunStore
 	Agents   agentdef.Store
 	// Activations resolves what a run's team activated. Nil means this
 	// deployment cannot, which is a refusal only for an agent that names a
@@ -48,7 +48,7 @@ type Config struct {
 	// OnTerminal is fired once a run reaches a terminal status, after the hub
 	// has been told. The server supplies it; this package does not know who is
 	// listening.
-	OnTerminal func(ctx context.Context, info model.TaskRunTerminalInfo)
+	OnTerminal func(ctx context.Context, info coretask.RunTerminalInfo)
 	// TerminalGroup owns those callbacks so a shutdown waits for them instead
 	// of dropping them.
 	TerminalGroup *runterminal.Group

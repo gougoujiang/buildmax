@@ -9,7 +9,7 @@ import (
 	"time"
 
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -31,12 +31,12 @@ func TestListTaskArtifactsHandler(t *testing.T) {
 		},
 	}
 	mockTasks := &mock.MockTaskStore{
-		List: []model.Task{
+		List: []coretask.Task{
 			{ID: taskID, ConversationID: conversationID, TeamID: teamID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: time.Unix(1, 0).UTC()},
 		},
 	}
 	mockLister := &mock.MockRunOutputLister{
-		List: []model.ArtifactWithTask{
+		List: []coretask.RunOutputListing{
 			{
 				ArtifactID:       "run-1",
 				TaskID:           taskID,
@@ -84,11 +84,11 @@ func TestListArtifactItemsHandler(t *testing.T) {
 		},
 	}
 	mockTaskRun := &mock.MockTaskRunStore{
-		Runs:     []model.TaskRun{{ID: taskRunID, TaskID: "task-1", Status: "SUCCEEDED", CreatedAt: time.Unix(1, 0).UTC()}},
-		TaskList: []model.Task{{ID: "task-1", ConversationID: conversationID, TeamID: teamID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: time.Unix(1, 0).UTC()}},
+		Runs:     []coretask.Run{{ID: taskRunID, TaskID: "task-1", Status: "SUCCEEDED", CreatedAt: time.Unix(1, 0).UTC()}},
+		TaskList: []coretask.Task{{ID: "task-1", ConversationID: conversationID, TeamID: teamID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: time.Unix(1, 0).UTC()}},
 	}
 	mockLister := &mock.MockRunOutputLister{
-		OutputFiles: map[string][]model.TaskRunArtifact{
+		OutputFiles: map[string][]coretask.RunOutputFile{
 			taskRunID: {{TaskRunID: taskRunID, RelativePath: "result-task1.md"}},
 		},
 	}
@@ -129,11 +129,11 @@ func TestArtifactContentHandler(t *testing.T) {
 		},
 	}
 	mockTaskRun := &mock.MockTaskRunStore{
-		Runs:     []model.TaskRun{{ID: taskRunID, TaskID: taskID, Status: "SUCCEEDED", CreatedAt: time.Unix(1, 0).UTC()}},
-		TaskList: []model.Task{{ID: taskID, ConversationID: conversationID, TeamID: teamID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: time.Unix(1, 0).UTC()}},
+		Runs:     []coretask.Run{{ID: taskRunID, TaskID: taskID, Status: "SUCCEEDED", CreatedAt: time.Unix(1, 0).UTC()}},
+		TaskList: []coretask.Task{{ID: taskID, ConversationID: conversationID, TeamID: teamID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: time.Unix(1, 0).UTC()}},
 	}
 	mockLister := &mock.MockRunOutputLister{
-		OutputFiles: map[string][]model.TaskRunArtifact{
+		OutputFiles: map[string][]coretask.RunOutputFile{
 			taskRunID: {{TaskRunID: taskRunID, RelativePath: "result.md"}},
 		},
 	}

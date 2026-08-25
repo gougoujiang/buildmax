@@ -6,7 +6,7 @@ import (
 	"unicode/utf8"
 
 	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 )
 
 // runSummaryLimit bounds the body of an agent-authored comment.
@@ -25,7 +25,7 @@ const runSummaryLimit = 2000
 // reaching that response: a comment that could not be written must not turn a
 // completed run into a failed one.
 type RunReporter struct {
-	Tasks    model.TaskStore
+	Tasks    coretask.Store
 	Comments coreissue.CommentStore
 }
 
@@ -35,7 +35,7 @@ type RunReporter struct {
 //
 // One comment per terminal run is the whole budget. A run that streamed for
 // twenty minutes still produces one line in the thread.
-func (r *RunReporter) ReportRunTerminal(ctx context.Context, info model.TaskRunTerminalInfo) error {
+func (r *RunReporter) ReportRunTerminal(ctx context.Context, info coretask.RunTerminalInfo) error {
 	if r == nil || r.Tasks == nil || r.Comments == nil {
 		return nil
 	}
@@ -63,7 +63,7 @@ func (r *RunReporter) ReportRunTerminal(ctx context.Context, info model.TaskRunT
 	return err
 }
 
-func agentIDOf(task *model.Task) string {
+func agentIDOf(task *coretask.Task) string {
 	if task.AgentID != nil {
 		return *task.AgentID
 	}
@@ -73,8 +73,8 @@ func agentIDOf(task *model.Task) string {
 // runSummaryBody renders what the run reported. It returns "" for a run that
 // said nothing — a silent success is not worth a comment, and a thread of
 // content-free notifications is what makes people stop reading one.
-func runSummaryBody(info model.TaskRunTerminalInfo) string {
-	if info.Status == string(model.RunStatusFailed) {
+func runSummaryBody(info coretask.RunTerminalInfo) string {
+	if info.Status == string(coretask.RunStatusFailed) {
 		if info.ErrorMessage == nil {
 			return ""
 		}

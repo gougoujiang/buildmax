@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 )
@@ -31,7 +32,7 @@ func systemMux(t *testing.T, probes []DependencyProbe, redacted any) *http.Serve
 	grants := &mock.MockSystemGrantStore{}
 	grants.GrantForTest(adminUser, model.SystemRoleAdmin)
 
-	runs := &mock.MockTaskRunStore{Runs: []model.TaskRun{
+	runs := &mock.MockTaskRunStore{Runs: []coretask.Run{
 		{ID: "r_1", Status: "SUCCEEDED"},
 		{ID: "r_2", Status: "SUCCEEDED"},
 		{ID: "r_3", Status: "PENDING"},

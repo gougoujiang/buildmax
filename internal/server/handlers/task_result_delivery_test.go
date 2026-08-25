@@ -11,7 +11,7 @@ import (
 
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
@@ -79,11 +79,11 @@ func newDeliveryFixture(t *testing.T, failUntil int) deliveryFixture {
 		ConversationLLMClient:    client,
 		TaskResultDeliveries:     deliveries,
 		TaskRunStore: &mock.MockTaskRunStore{
-			Runs: []model.TaskRun{{
-				ID: "tr_1", TaskID: "tk_1", Status: string(model.RunStatusSucceeded),
+			Runs: []coretask.Run{{
+				ID: "tr_1", TaskID: "tk_1", Status: string(coretask.RunStatusSucceeded),
 				Output: util.Ptr("the analysis found three problems"), CreatedAt: time.Unix(1, 0).UTC(),
 			}},
-			TaskList: []model.Task{{ID: "tk_1", ConversationID: "conv-1", TeamID: "tm_shared", CreatedBy: "u1"}},
+			TaskList: []coretask.Task{{ID: "tk_1", ConversationID: "conv-1", TeamID: "tm_shared", CreatedBy: "u1"}},
 		},
 	})
 	return deliveryFixture{handler: h, deliveries: deliveries, messages: messages, client: client}
@@ -91,7 +91,7 @@ func newDeliveryFixture(t *testing.T, failUntil int) deliveryFixture {
 
 // waitFor polls until the delivery satisfies want. A report is made on the turn
 // queue's goroutine, so every assertion about one has to wait for it to settle.
-func (f deliveryFixture) waitFor(t *testing.T, desc string, want func(*model.TaskResultDelivery) bool) *model.TaskResultDelivery {
+func (f deliveryFixture) waitFor(t *testing.T, desc string, want func(*coretask.ResultDelivery) bool) *coretask.ResultDelivery {
 	t.Helper()
 	deadline := time.Now().Add(3 * time.Second)
 	for {
@@ -106,18 +106,18 @@ func (f deliveryFixture) waitFor(t *testing.T, desc string, want func(*model.Tas
 	}
 }
 
-func (f deliveryFixture) waitForStatus(t *testing.T, want string) *model.TaskResultDelivery {
+func (f deliveryFixture) waitForStatus(t *testing.T, want string) *coretask.ResultDelivery {
 	t.Helper()
-	return f.waitFor(t, "status "+want, func(d *model.TaskResultDelivery) bool { return d.Status == want })
+	return f.waitFor(t, "status "+want, func(d *coretask.ResultDelivery) bool { return d.Status == want })
 }
 
 // waitForFailedAttempt waits until the nth model call's refusal has been
 // recorded, which is the only moment the delivery is due again.
-func (f deliveryFixture) waitForFailedAttempt(t *testing.T, n int) *model.TaskResultDelivery {
+func (f deliveryFixture) waitForFailedAttempt(t *testing.T, n int) *coretask.ResultDelivery {
 	t.Helper()
 	want := fmt.Sprintf("(call %d)", n)
-	return f.waitFor(t, "call "+strconv.Itoa(n)+" to be recorded as failed", func(d *model.TaskResultDelivery) bool {
-		if d.Status == model.DeliveryAbandoned {
+	return f.waitFor(t, "call "+strconv.Itoa(n)+" to be recorded as failed", func(d *coretask.ResultDelivery) bool {
+		if d.Status == coretask.DeliveryAbandoned {
 			return true
 		}
 		return d.LastError != nil && strings.Contains(*d.LastError, want)
@@ -131,7 +131,7 @@ func TestTaskResultDeliveryIsRecordedAndClosed(t *testing.T) {
 
 	f.handler.reportTaskRunTerminal(context.Background(), terminalInfo())
 
-	d := f.waitForStatus(t, model.DeliveryDelivered)
+	d := f.waitForStatus(t, coretask.DeliveryDelivered)
 	if d.Attempts != 1 {
 		t.Errorf("attempts = %d, want 1", d.Attempts)
 	}
@@ -148,7 +148,7 @@ func TestASweepReportsARunThatWasNeverReported(t *testing.T) {
 
 	f.handler.SweepTaskResultDeliveries(context.Background(), time.Now())
 
-	f.waitForStatus(t, model.DeliveryDelivered)
+	f.waitForStatus(t, coretask.DeliveryDelivered)
 	msgs, _ := f.messages.ListMessages(context.Background(), "conv-1")
 	if len(msgs) < 2 {
 		t.Fatalf("stored %d messages, want the report and its reply", len(msgs))
@@ -164,7 +164,7 @@ func TestAFailedReportIsRetriedRatherThanLost(t *testing.T) {
 
 	// Still owed after the first attempt, and it says why.
 	d := f.waitForFailedAttempt(t, 1)
-	if d.Status != model.DeliveryPending {
+	if d.Status != coretask.DeliveryPending {
 		t.Fatalf("status = %q, want the report still owed", d.Status)
 	}
 	if d.LastError == nil || *d.LastError == "" {
@@ -174,7 +174,7 @@ func TestAFailedReportIsRetriedRatherThanLost(t *testing.T) {
 	// The backoff put the next attempt in the future; a sweep at that time
 	// makes it, and this time the model answers.
 	f.handler.SweepTaskResultDeliveries(context.Background(), time.Now().Add(2*deliveryBackoff))
-	f.waitForStatus(t, model.DeliveryDelivered)
+	f.waitForStatus(t, coretask.DeliveryDelivered)
 	if f.client.count() != 2 {
 		t.Errorf("model calls = %d, want the failed attempt and the retry", f.client.count())
 	}
@@ -186,7 +186,7 @@ func TestAClaimedReportIsNotReportedAgain(t *testing.T) {
 	f := newDeliveryFixture(t, 0)
 
 	f.handler.reportTaskRunTerminal(context.Background(), terminalInfo())
-	f.waitForStatus(t, model.DeliveryDelivered)
+	f.waitForStatus(t, coretask.DeliveryDelivered)
 	before := f.client.count()
 
 	// A sweep that runs afterwards finds nothing due: the delivery is closed.
@@ -202,13 +202,13 @@ func TestAReportIsAbandonedAfterItsAttemptsRunOut(t *testing.T) {
 
 	f.handler.reportTaskRunTerminal(context.Background(), terminalInfo())
 	for attempt := 1; attempt <= deliveryMaxAttempts+1; attempt++ {
-		if f.waitForFailedAttempt(t, attempt).Status == model.DeliveryAbandoned {
+		if f.waitForFailedAttempt(t, attempt).Status == coretask.DeliveryAbandoned {
 			break
 		}
 		f.handler.SweepTaskResultDeliveries(context.Background(), time.Now().Add(time.Duration(attempt)*2*deliveryBackoff))
 	}
 
-	d := f.waitForStatus(t, model.DeliveryAbandoned)
+	d := f.waitForStatus(t, coretask.DeliveryAbandoned)
 	if d.LastError == nil {
 		t.Error("giving up should say why")
 	}

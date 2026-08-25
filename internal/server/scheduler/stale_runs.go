@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	buildmaxlog "github.com/gougoujiang/buildmax/internal/infra/log"
 )
 
@@ -38,9 +38,9 @@ const staleRunLimit = 100
 
 // StaleRunStore is the narrow store surface the reaper needs.
 type StaleRunStore interface {
-	ListStaleTaskRuns(ctx context.Context, cutoff time.Time, limit int) ([]model.TaskRun, error)
-	ListCancelRequestedTaskRuns(ctx context.Context, cutoff time.Time, limit int) ([]model.TaskRun, error)
-	TransitionTaskRun(ctx context.Context, in model.TransitionTaskRunInput) (bool, error)
+	ListStaleTaskRuns(ctx context.Context, cutoff time.Time, limit int) ([]coretask.Run, error)
+	ListCancelRequestedTaskRuns(ctx context.Context, cutoff time.Time, limit int) ([]coretask.Run, error)
+	TransitionTaskRun(ctx context.Context, in coretask.TransitionRunInput) (bool, error)
 }
 
 // StaleRunReaper finishes runs that nothing else will finish.
@@ -140,7 +140,7 @@ func (c *StaleRunReaper) sweepAbandoned(ctx context.Context, now time.Time) {
 	}
 	message := "this run was abandoned: no worker reported an outcome within " + c.timeout.String()
 	for _, run := range stale {
-		c.finish(ctx, run, model.RunStatusFailed, message, now, "failed an abandoned task run")
+		c.finish(ctx, run, coretask.RunStatusFailed, message, now, "failed an abandoned task run")
 	}
 }
 
@@ -157,7 +157,7 @@ func (c *StaleRunReaper) sweepCanceled(ctx context.Context, now time.Time) {
 	}
 	message := "this run was canceled: no worker confirmed the cancel within " + c.cancelGrace.String()
 	for _, run := range canceled {
-		c.finish(ctx, run, model.RunStatusCanceled, message, now, "canceled a task run whose worker never confirmed")
+		c.finish(ctx, run, coretask.RunStatusCanceled, message, now, "canceled a task run whose worker never confirmed")
 	}
 }
 
@@ -166,12 +166,12 @@ func (c *StaleRunReaper) sweepCanceled(ctx context.Context, now time.Time) {
 // The message names what the server observed rather than guessing a cause,
 // because from here a dead worker, an evicted pod, and an expired credential
 // look identical.
-func (c *StaleRunReaper) finish(ctx context.Context, run model.TaskRun, status model.RunStatus, message string, now time.Time, logMsg string) {
+func (c *StaleRunReaper) finish(ctx context.Context, run coretask.Run, status coretask.RunStatus, message string, now time.Time, logMsg string) {
 	ctx = buildmaxlog.With(ctx, "task_run_id", run.ID)
 	endedAt := now
-	updated, err := c.runs.TransitionTaskRun(ctx, model.TransitionTaskRunInput{
+	updated, err := c.runs.TransitionTaskRun(ctx, coretask.TransitionRunInput{
 		TaskRunID:      run.ID,
-		ExpectedStatus: model.RunStatus(run.Status),
+		ExpectedStatus: coretask.RunStatus(run.Status),
 		NewStatus:      status,
 		EndedAt:        &endedAt,
 		ErrorMessage:   &message,

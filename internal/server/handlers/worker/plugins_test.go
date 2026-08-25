@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
-	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -46,8 +46,8 @@ func newPinFixture(t *testing.T, agentPlugins []string) *pinFixture {
 	}
 	agentID := created.ID
 	runs := &mock.MockTaskRunStore{
-		Runs:     []model.TaskRun{{ID: pluginTestRun, TaskID: "tk_1", Status: string(model.RunStatusPending)}},
-		TaskList: []model.Task{{ID: "tk_1", TeamID: pluginTestTeam, CreatedBy: "u_1", AgentID: &agentID}},
+		Runs:     []coretask.Run{{ID: pluginTestRun, TaskID: "tk_1", Status: string(coretask.RunStatusPending)}},
+		TaskList: []coretask.Task{{ID: "tk_1", TeamID: pluginTestTeam, CreatedBy: "u_1", AgentID: &agentID}},
 	}
 	catalog := mock.NewMockPluginStore()
 	packages := mock.NewMockPluginPackageStorage()

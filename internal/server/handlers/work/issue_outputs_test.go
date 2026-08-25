@@ -12,7 +12,7 @@ import (
 
 	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
 	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
@@ -77,7 +77,7 @@ func newOutputsFixtures(t *testing.T, runOutputStorage blob.RunOutputStorage) *o
 	}
 	tasks := &mock.MockTaskStore{}
 	workflows := &mock.MockWorkflowStore{}
-	runLister := &mock.MockRunOutputLister{OutputFiles: map[string][]model.TaskRunArtifact{}}
+	runLister := &mock.MockRunOutputLister{OutputFiles: map[string][]coretask.RunOutputFile{}}
 	published := &mock.MockArtifactStore{}
 	taskRuns := &mock.MockTaskRunStore{}
 
@@ -134,7 +134,7 @@ func TestIssueFlowOutputs_AgentTaskResultMD(t *testing.T) {
 	fx := newOutputsFixtures(t, artifacts)
 	taskID := "t_a"
 	runID := "r_a"
-	fx.tasks.List = []model.Task{{
+	fx.tasks.List = []coretask.Task{{
 		ID:             taskID,
 		ConversationID: "c_1",
 		TeamID:         fx.personalID,
@@ -145,7 +145,7 @@ func TestIssueFlowOutputs_AgentTaskResultMD(t *testing.T) {
 		CreatedAt:      time.Unix(200, 0).UTC(),
 		LastRunID:      &runID,
 	}}
-	fx.runLister.OutputFiles[runID] = []model.TaskRunArtifact{
+	fx.runLister.OutputFiles[runID] = []coretask.RunOutputFile{
 		{TaskRunID: runID, RelativePath: "result.md"},
 	}
 	if err := artifacts.PutResult(context.Background(), blob.RunRef{
@@ -217,7 +217,7 @@ func TestIssueFlowOutputs_WorkflowStepProvenance(t *testing.T) {
 		TaskID: &taskID, TaskRunID: &runID, CreatedAt: time.Unix(305, 0).UTC(),
 	}}
 
-	fx.tasks.List = []model.Task{{
+	fx.tasks.List = []coretask.Task{{
 		ID:             taskID,
 		ConversationID: "c_1",
 		TeamID:         fx.personalID,
@@ -227,7 +227,7 @@ func TestIssueFlowOutputs_WorkflowStepProvenance(t *testing.T) {
 		CreatedAt:      time.Unix(305, 0).UTC(),
 		LastRunID:      &runID,
 	}}
-	fx.runLister.OutputFiles[runID] = []model.TaskRunArtifact{
+	fx.runLister.OutputFiles[runID] = []coretask.RunOutputFile{
 		{TaskRunID: runID, RelativePath: "result.md"},
 	}
 	_ = artifacts.PutResult(context.Background(), blob.RunRef{
@@ -263,12 +263,12 @@ func TestIssueFlowOutputs_MissingArtifactContent(t *testing.T) {
 	fx := newOutputsFixtures(t, artifacts)
 	taskID := "t_a"
 	runID := "r_a"
-	fx.tasks.List = []model.Task{{
+	fx.tasks.List = []coretask.Task{{
 		ID: taskID, ConversationID: "c_1", TeamID: fx.personalID,
 		IssueID: util.Ptr("i_1"), Status: "SUCCEEDED",
 		CreatedBy: "u1", CreatedAt: time.Unix(200, 0).UTC(), LastRunID: &runID,
 	}}
-	fx.runLister.OutputFiles[runID] = []model.TaskRunArtifact{
+	fx.runLister.OutputFiles[runID] = []coretask.RunOutputFile{
 		{TaskRunID: runID, RelativePath: "result.md"},
 	}
 
@@ -290,12 +290,12 @@ func TestIssueFlowOutputs_TeamScoped(t *testing.T) {
 	// Create a task on the other team's issue.
 	taskID := "t_other"
 	runID := "r_other"
-	fx.tasks.List = []model.Task{{
+	fx.tasks.List = []coretask.Task{{
 		ID: taskID, ConversationID: "c_other", TeamID: fx.otherTeamID,
 		IssueID: util.Ptr("i_other"), Status: "SUCCEEDED",
 		CreatedBy: "u2", CreatedAt: time.Unix(200, 0).UTC(), LastRunID: &runID,
 	}}
-	fx.runLister.OutputFiles[runID] = []model.TaskRunArtifact{
+	fx.runLister.OutputFiles[runID] = []coretask.RunOutputFile{
 		{TaskRunID: runID, RelativePath: "result.md"},
 	}
 	_ = artifacts.PutResult(context.Background(), blob.RunRef{
@@ -332,12 +332,12 @@ func TestIssueFlowOutputs_ArtifactsPublishedByARun(t *testing.T) {
 	fx := newOutputsFixtures(t, mock.NewMockRunOutputStorage())
 	taskID := "t_pub"
 	runID := "r_pub"
-	fx.tasks.List = []model.Task{{
+	fx.tasks.List = []coretask.Task{{
 		ID: taskID, ConversationID: "c_1", TeamID: fx.personalID,
 		IssueID: util.Ptr("i_1"), Status: "SUCCEEDED", Input: "do work",
 		CreatedBy: "u1", CreatedAt: time.Unix(200, 0).UTC(), LastRunID: &runID,
 	}}
-	fx.taskRuns.Runs = []model.TaskRun{{ID: runID, TaskID: taskID, Status: "SUCCEEDED", CreatedAt: time.Unix(200, 0).UTC()}}
+	fx.taskRuns.Runs = []coretask.Run{{ID: runID, TaskID: taskID, Status: "SUCCEEDED", CreatedAt: time.Unix(200, 0).UTC()}}
 	if _, err := fx.published.CreateArtifact(context.Background(), coreartifact.CreateInput{
 		TeamID: fx.personalID, ArtifactID: "ar_published", Filename: "report.pdf",
 		MediaType: "application/pdf", SizeBytes: 2048,
@@ -381,12 +381,12 @@ func TestIssueFlowOutputs_NoArtifactStore(t *testing.T) {
 	fx := newOutputsFixtures(t, mock.NewMockRunOutputStorage())
 	fx.published = nil
 	runID := "r_none"
-	fx.tasks.List = []model.Task{{
+	fx.tasks.List = []coretask.Task{{
 		ID: "t_none", ConversationID: "c_1", TeamID: fx.personalID,
 		IssueID: util.Ptr("i_1"), Status: "SUCCEEDED", Input: "do work",
 		CreatedBy: "u1", CreatedAt: time.Unix(200, 0).UTC(), LastRunID: &runID,
 	}}
-	fx.taskRuns.Runs = []model.TaskRun{{ID: runID, TaskID: "t_none", Status: "SUCCEEDED", CreatedAt: time.Unix(200, 0).UTC()}}
+	fx.taskRuns.Runs = []coretask.Run{{ID: runID, TaskID: "t_none", Status: "SUCCEEDED", CreatedAt: time.Unix(200, 0).UTC()}}
 	rec, flow := fetchIssueFlow(t, fx.mux, fx.personalID, "i_1", "u1")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d", rec.Code)
@@ -405,12 +405,12 @@ func TestIssueFlowOutputs_ArtifactsSurviveARetry(t *testing.T) {
 	fx := newOutputsFixtures(t, mock.NewMockRunOutputStorage())
 	taskID := "t_retry"
 	firstRun, secondRun := "r_first", "r_second"
-	fx.tasks.List = []model.Task{{
+	fx.tasks.List = []coretask.Task{{
 		ID: taskID, ConversationID: "c_1", TeamID: fx.personalID,
 		IssueID: util.Ptr("i_1"), Status: "SUCCEEDED", Input: "do work",
 		CreatedBy: "u1", CreatedAt: time.Unix(200, 0).UTC(), LastRunID: &secondRun,
 	}}
-	fx.taskRuns.Runs = []model.TaskRun{
+	fx.taskRuns.Runs = []coretask.Run{
 		{ID: firstRun, TaskID: taskID, Status: "FAILED", CreatedAt: time.Unix(200, 0).UTC()},
 		{ID: secondRun, TaskID: taskID, Status: "SUCCEEDED", CreatedAt: time.Unix(300, 0).UTC()},
 	}

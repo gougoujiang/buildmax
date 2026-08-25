@@ -697,7 +697,7 @@ Indexes: PK `id`; index `agent_id`; index `conversation_id`; index `issue_id`;
 index `last_run_id`; index `idx_task_team_created` on (`team_id`,
 `created_at`); unique `public_id`.
 
-Status values are `model.RunStatus` — uppercase, and shared with `task_run`.
+Status values are `task.RunStatus` — uppercase, and shared with `task_run`.
 
 ### `task_run`
 
@@ -712,7 +712,7 @@ One execution attempt. This is the row quota and token accounting read.
 | `created_by` | `varchar(64)` | yes | `user.id`, empty for system-triggered runs |
 | `created_by_type` | `varchar(32)` | yes | `user`, `webhook`, or `system` |
 | `trigger_source` | `varchar(64)` | yes | `task_create`, `task_rerun`, `portal_conversation`, `portal_task_create`, `portal_task_rerun`, `issue_agent_run`, `workflow_step`, `webhook` |
-| `status` | `varchar(32)` | no | Same `model.RunStatus` values as `task` |
+| `status` | `varchar(32)` | no | Same `task.RunStatus` values as `task` |
 | `output` | `text` | yes | |
 | `error_message` | `text` | yes | |
 | `started_at` | `datetime(6)` | yes | |

@@ -1,7 +1,9 @@
 // Package workerclient defines the worker API client and HTTP contract types.
 package workerclient
 
-import "time"
+import (
+	"time"
+)
 
 // GetTaskRunResponse is the JSON response for GET /api/worker/task-runs/{task_run_id} (snake_case).
 type GetTaskRunResponse struct {
@@ -114,5 +116,5 @@ type StreamDeltaRequest struct {
 	Delta string `json:"delta"`
 }
 
-// Run status values match model.RunStatus (PENDING, SCHEDULED, RUNNING, SUCCEEDED, FAILED, CANCELED).
-// Use model.RunStatusPending, model.RunStatusScheduled, etc. when building or comparing status.
+// Run status values match coretask.RunStatus (PENDING, SCHEDULED, RUNNING, SUCCEEDED, FAILED, CANCELED).
+// Use coretask.RunStatusPending, coretask.RunStatusScheduled, etc. when building or comparing status.

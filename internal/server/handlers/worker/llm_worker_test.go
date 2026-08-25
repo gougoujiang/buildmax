@@ -9,7 +9,7 @@ import (
 	"time"
 
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/server/authtoken"
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
@@ -45,8 +45,8 @@ func workerLLMHandler(gateway *llmgateway.Service, runStatus string) http.Handle
 		JWTSecret: workerTestSecret,
 		Gateway:   gateway,
 		TaskRuns: &mock.MockTaskRunStore{
-			Runs:     []model.TaskRun{{ID: "r_1", TaskID: "t_1", Status: runStatus, CreatedAt: time.Unix(1, 0).UTC()}},
-			TaskList: []model.Task{{ID: "t_1", ConversationID: "c_1", TeamID: llmTestTeam, Status: runStatus, Input: "in", CreatedBy: llmTestUser, CreatedAt: time.Unix(1, 0).UTC()}},
+			Runs:     []coretask.Run{{ID: "r_1", TaskID: "t_1", Status: runStatus, CreatedAt: time.Unix(1, 0).UTC()}},
+			TaskList: []coretask.Task{{ID: "t_1", ConversationID: "c_1", TeamID: llmTestTeam, Status: runStatus, Input: "in", CreatedBy: llmTestUser, CreatedAt: time.Unix(1, 0).UTC()}},
 		},
 	})
 	mux := http.NewServeMux()
@@ -73,7 +73,7 @@ func TestWorkerLLMCompletions(t *testing.T) {
 	gateway := llmTestService(t, &llmStubClient{content: "answer"}, nil)
 
 	t.Run("answers a run that is executing", func(t *testing.T) {
-		rec := workerLLMRequest(t, gateway, string(model.RunStatusRunning), workerLLMBody, validWorkerRunToken(t))
+		rec := workerLLMRequest(t, gateway, string(coretask.RunStatusRunning), workerLLMBody, validWorkerRunToken(t))
 		if rec.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
 		}
@@ -86,11 +86,11 @@ func TestWorkerLLMCompletions(t *testing.T) {
 	// going. Without the status check a token would keep spending a team's quota
 	// against work that finished, right up to its expiry.
 	t.Run("refuses a run that is not executing", func(t *testing.T) {
-		for _, status := range []model.RunStatus{
-			model.RunStatusPending,
-			model.RunStatusScheduled,
-			model.RunStatusSucceeded,
-			model.RunStatusFailed,
+		for _, status := range []coretask.RunStatus{
+			coretask.RunStatusPending,
+			coretask.RunStatusScheduled,
+			coretask.RunStatusSucceeded,
+			coretask.RunStatusFailed,
 		} {
 			rec := workerLLMRequest(t, gateway, string(status), workerLLMBody, validWorkerRunToken(t))
 			if rec.Code != http.StatusConflict {
@@ -117,7 +117,7 @@ func TestWorkerLLMCompletions(t *testing.T) {
 		}
 		for _, tc := range tests {
 			t.Run(tc.name, func(t *testing.T) {
-				rec := workerLLMRequest(t, gateway, string(model.RunStatusRunning), workerLLMBody, tc.token)
+				rec := workerLLMRequest(t, gateway, string(coretask.RunStatusRunning), workerLLMBody, tc.token)
 				if rec.Code != http.StatusUnauthorized {
 					t.Errorf("status = %d, want 401", rec.Code)
 				}
@@ -131,7 +131,7 @@ func TestWorkerLLMCompletions(t *testing.T) {
 	t.Run("refuses a token minted for another run", func(t *testing.T) {
 		claims := workerRunClaims()
 		claims.TaskRunID = "r_somebody_else"
-		rec := workerLLMRequest(t, gateway, string(model.RunStatusRunning), workerLLMBody,
+		rec := workerLLMRequest(t, gateway, string(coretask.RunStatusRunning), workerLLMBody,
 			workerRunToken(t, claims, time.Hour, time.Now()))
 		if rec.Code != http.StatusForbidden {
 			t.Errorf("status = %d, want 403", rec.Code)
@@ -143,7 +143,7 @@ func TestWorkerLLMCompletions(t *testing.T) {
 	t.Run("refuses a token whose team is not the run's", func(t *testing.T) {
 		claims := workerRunClaims()
 		claims.TeamID = "tm_other"
-		rec := workerLLMRequest(t, gateway, string(model.RunStatusRunning), workerLLMBody,
+		rec := workerLLMRequest(t, gateway, string(coretask.RunStatusRunning), workerLLMBody,
 			workerRunToken(t, claims, time.Hour, time.Now()))
 		if rec.Code != http.StatusForbidden {
 			t.Errorf("status = %d, want 403", rec.Code)
@@ -154,7 +154,7 @@ func TestWorkerLLMCompletions(t *testing.T) {
 	// team could not answer whose work spent the tokens.
 	t.Run("attributes the call to the run's user and team", func(t *testing.T) {
 		attributed := llmTestService(t, &llmStubClient{content: "answer"}, nil)
-		rec := workerLLMRequest(t, attributed, string(model.RunStatusRunning), workerLLMBody, validWorkerRunToken(t))
+		rec := workerLLMRequest(t, attributed, string(coretask.RunStatusRunning), workerLLMBody, validWorkerRunToken(t))
 		if rec.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
 		}
@@ -178,7 +178,7 @@ func TestWorkerLLMCompletions(t *testing.T) {
 	})
 
 	t.Run("never reveals the upstream model, endpoint, or credential", func(t *testing.T) {
-		rec := workerLLMRequest(t, gateway, string(model.RunStatusRunning), workerLLMBody, validWorkerRunToken(t))
+		rec := workerLLMRequest(t, gateway, string(coretask.RunStatusRunning), workerLLMBody, validWorkerRunToken(t))
 		for _, secret := range []string{"SECRET-ENDPOINT", "SECRET-CREDENTIAL", "SECRET-UPSTREAM-MODEL"} {
 			if strings.Contains(rec.Body.String(), secret) {
 				t.Errorf("response leaked %q: %s", secret, rec.Body.String())
@@ -190,7 +190,7 @@ func TestWorkerLLMCompletions(t *testing.T) {
 	// attributes comes from the token, so there is no field here to forge.
 	t.Run("rejects a body carrying fields it does not define", func(t *testing.T) {
 		rec := workerLLMRequest(t, gateway,
-			string(model.RunStatusRunning),
+			string(coretask.RunStatusRunning),
 			`{"model":"Fast","messages":[{"role":"user","content":"hi"}],"team_id":"tm_other"}`,
 			validWorkerRunToken(t))
 		if rec.Code != http.StatusBadRequest {
@@ -232,7 +232,7 @@ func (workerDenyQuota) Check(context.Context, string, int, int) (bool, string) {
 func TestWorkerLLMCompletionRespectsQuota(t *testing.T) {
 	gateway := llmTestService(t, &llmStubClient{content: "answer"}, workerDenyQuota{})
 
-	rec := workerLLMRequest(t, gateway, string(model.RunStatusRunning), workerLLMBody, validWorkerRunToken(t))
+	rec := workerLLMRequest(t, gateway, string(coretask.RunStatusRunning), workerLLMBody, validWorkerRunToken(t))
 	if rec.Code != http.StatusTooManyRequests {
 		t.Fatalf("status = %d, want 429: %s", rec.Code, rec.Body.String())
 	}
@@ -249,7 +249,7 @@ func TestWorkerLLMCompletionCarriesTheCallProfile(t *testing.T) {
 	client := &llmStubClient{content: "answer"}
 	gateway := llmTestService(t, client, nil)
 
-	rec := workerLLMRequest(t, gateway, string(model.RunStatusRunning),
+	rec := workerLLMRequest(t, gateway, string(coretask.RunStatusRunning),
 		`{"model":"Fast","messages":[{"role":"user","content":"hi"}],"call_profile":"agent_turn"}`,
 		validWorkerRunToken(t))
 	if rec.Code != http.StatusOK {
@@ -264,7 +264,7 @@ func TestWorkerLLMCompletionRefusesAnUnknownProfile(t *testing.T) {
 	client := &llmStubClient{content: "answer"}
 	gateway := llmTestService(t, client, nil)
 
-	rec := workerLLMRequest(t, gateway, string(model.RunStatusRunning),
+	rec := workerLLMRequest(t, gateway, string(coretask.RunStatusRunning),
 		`{"model":"Fast","messages":[{"role":"user","content":"hi"}],"call_profile":"cache_everything"}`,
 		validWorkerRunToken(t))
 	if rec.Code != http.StatusBadRequest {
@@ -286,7 +286,7 @@ func TestWorkerLLMCompletionRefusesACachePolicy(t *testing.T) {
 		`{"messages":[{"role":"user","content":"hi"}],"cache_control":{"mode":"force"}}`,
 		`{"messages":[{"role":"user","content":"hi"}],"cache_ttl":"1h"}`,
 	} {
-		rec := workerLLMRequest(t, gateway, string(model.RunStatusRunning), body, validWorkerRunToken(t))
+		rec := workerLLMRequest(t, gateway, string(coretask.RunStatusRunning), body, validWorkerRunToken(t))
 		if rec.Code != http.StatusBadRequest {
 			t.Errorf("body %s produced status %d, want 400", body, rec.Code)
 		}

@@ -11,8 +11,8 @@ import (
 
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
-	"github.com/gougoujiang/buildmax/internal/core/model"
 	corequota "github.com/gougoujiang/buildmax/internal/core/quota"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/quota"
@@ -29,12 +29,12 @@ func TestListConversationTasksHandler(t *testing.T) {
 			{ID: conversationID, UserID: "u1", TeamID: teamID, Channel: "portal", CreatedBy: "u1", CreatedAt: time.Unix(123, 0).UTC()},
 		},
 	}
-	task1 := model.Task{ID: "t1", ConversationID: conversationID, TeamID: teamID, Status: "PENDING", Input: "Do something", CreatedBy: "u1", CreatedAt: time.Unix(1000, 0).UTC()}
-	task2 := model.Task{ID: "t2", ConversationID: conversationID, TeamID: teamID, Status: "PENDING", Input: "Explore", CreatedBy: "u1", CreatedAt: time.Unix(1001, 0).UTC()}
+	task1 := coretask.Task{ID: "t1", ConversationID: conversationID, TeamID: teamID, Status: "PENDING", Input: "Do something", CreatedBy: "u1", CreatedAt: time.Unix(1000, 0).UTC()}
+	task2 := coretask.Task{ID: "t2", ConversationID: conversationID, TeamID: teamID, Status: "PENDING", Input: "Explore", CreatedBy: "u1", CreatedAt: time.Unix(1001, 0).UTC()}
 
 	tests := []struct {
 		name         string
-		taskStore    model.TaskStore
+		taskStore    coretask.Store
 		authHeader   string
 		path         string
 		wantStatus   int
@@ -61,7 +61,7 @@ func TestListConversationTasksHandler(t *testing.T) {
 		},
 		{
 			name:         "owned conversation empty list returns 200",
-			taskStore:    &mock.MockTaskStore{List: []model.Task{}},
+			taskStore:    &mock.MockTaskStore{List: []coretask.Task{}},
 			authHeader:   "Bearer " + testsupport.SignJWT("u1", secret),
 			path:         "/api/teams/" + teamID + "/conversations/" + conversationID + "/tasks",
 			wantStatus:   http.StatusOK,
@@ -70,7 +70,7 @@ func TestListConversationTasksHandler(t *testing.T) {
 		},
 		{
 			name:         "owned conversation with tasks returns 200",
-			taskStore:    &mock.MockTaskStore{List: []model.Task{task1, task2}},
+			taskStore:    &mock.MockTaskStore{List: []coretask.Task{task1, task2}},
 			authHeader:   "Bearer " + testsupport.SignJWT("u1", secret),
 			path:         "/api/teams/" + teamID + "/conversations/" + conversationID + "/tasks",
 			wantStatus:   http.StatusOK,
@@ -126,7 +126,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		taskStore    model.TaskStore
+		taskStore    coretask.Store
 		agentStore   agentdef.Store
 		authHeader   string
 		path         string
@@ -165,7 +165,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 		{
 			name: "valid body returns 201",
 			taskStore: &mock.MockTaskStore{
-				Create: &model.Task{
+				Create: &coretask.Task{
 					ID: "new-task-id", ConversationID: conversationID, TeamID: teamID, Status: "PENDING",
 					Input: "Do X", CreatedBy: "u1", CreatedAt: time.Unix(99999, 0).UTC(),
 				},
@@ -201,7 +201,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 	}
 	tests = append(tests, struct {
 		name         string
-		taskStore    model.TaskStore
+		taskStore    coretask.Store
 		agentStore   agentdef.Store
 		authHeader   string
 		path         string
@@ -269,17 +269,17 @@ func TestListConversationTasksCarriesRunAndArtifacts(t *testing.T) {
 	secret := "test-task-cards-secret"
 	conversationID := "conv1"
 	teamID := "tm_personal_u1"
-	task1 := model.Task{ID: "t1", ConversationID: conversationID, TeamID: teamID, Status: "SUCCEEDED", Input: "Do something", CreatedBy: "u1", CreatedAt: time.Unix(1000, 0).UTC(), LastRunID: util.Ptr("tr_1")}
-	task2 := model.Task{ID: "t2", ConversationID: conversationID, TeamID: teamID, Status: "PENDING", Input: "Explore", CreatedBy: "u1", CreatedAt: time.Unix(1001, 0).UTC()}
+	task1 := coretask.Task{ID: "t1", ConversationID: conversationID, TeamID: teamID, Status: "SUCCEEDED", Input: "Do something", CreatedBy: "u1", CreatedAt: time.Unix(1000, 0).UTC(), LastRunID: util.Ptr("tr_1")}
+	task2 := coretask.Task{ID: "t2", ConversationID: conversationID, TeamID: teamID, Status: "PENDING", Input: "Explore", CreatedBy: "u1", CreatedAt: time.Unix(1001, 0).UTC()}
 
 	h := New(Config{
 		JWTSecret: secret,
 		Teams:     &mock.MockTeamStore{Teams: []coreteam.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}}, Members: []coreteam.Member{{TeamID: teamID, UserID: "u1", Role: coreteam.RoleOwner}}},
-		Tasks:     &mock.MockTaskStore{List: []model.Task{task1, task2}},
+		Tasks:     &mock.MockTaskStore{List: []coretask.Task{task1, task2}},
 		Conversations: &mock.MockConversationStore{
 			Conversations: []coreconv.Conversation{{ID: conversationID, UserID: "u1", TeamID: teamID, Channel: "portal", CreatedBy: "u1", CreatedAt: time.Unix(123, 0).UTC()}},
 		},
-		RunOutputs: &mock.MockRunOutputLister{List: []model.ArtifactWithTask{
+		RunOutputs: &mock.MockRunOutputLister{List: []coretask.RunOutputListing{
 			{ArtifactID: "tr_1", TaskID: "t1", TaskRunID: "tr_1", ConversationID: conversationID},
 		}},
 	})

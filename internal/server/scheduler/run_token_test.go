@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	"github.com/gougoujiang/buildmax/internal/server/authtoken"
 )
 
@@ -20,7 +20,7 @@ type recordingRunner struct {
 	runIDs []string
 }
 
-func (r *recordingRunner) Run(_ context.Context, run model.TaskRun, runToken string) (string, *string, *time.Time, error) {
+func (r *recordingRunner) Run(_ context.Context, run coretask.Run, runToken string) (string, *string, *time.Time, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.calls++
@@ -105,13 +105,13 @@ func TestRunTokenFailureStopsDispatch(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		task    *model.Task
+		task    *coretask.Task
 		mint    MintRunToken
 		wantMsg string
 	}{
 		{
 			name:    "the minter refuses",
-			task:    &model.Task{ID: "t_test", TeamID: "tm_test", CreatedBy: "u_test"},
+			task:    &coretask.Task{ID: "t_test", TeamID: "tm_test", CreatedBy: "u_test"},
 			mint:    func(authtoken.RunClaims) (string, error) { return "", mintFailed },
 			wantMsg: mintFailed.Error(),
 		},
@@ -140,7 +140,7 @@ func TestRunTokenFailureStopsDispatch(t *testing.T) {
 			if spy.lastUpdateStatus == nil {
 				t.Fatal("the run was left in SCHEDULED with no worker coming for it")
 			}
-			if spy.lastUpdateStatus.status != string(model.RunStatusFailed) {
+			if spy.lastUpdateStatus.status != string(coretask.RunStatusFailed) {
 				t.Errorf("run status = %q, want FAILED", spy.lastUpdateStatus.status)
 			}
 			if spy.lastUpdateStatus.errorMessage == nil {

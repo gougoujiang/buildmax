@@ -5,14 +5,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 )
 
 func startTaskRunForTest(t testing.TB, s *Store, ctx context.Context, taskRunID string) {
 	t.Helper()
-	for _, step := range []model.TransitionTaskRunInput{
-		{TaskRunID: taskRunID, ExpectedStatus: model.RunStatusPending, NewStatus: model.RunStatusScheduled},
-		{TaskRunID: taskRunID, ExpectedStatus: model.RunStatusScheduled, NewStatus: model.RunStatusRunning},
+	for _, step := range []coretask.TransitionRunInput{
+		{TaskRunID: taskRunID, ExpectedStatus: coretask.RunStatusPending, NewStatus: coretask.RunStatusScheduled},
+		{TaskRunID: taskRunID, ExpectedStatus: coretask.RunStatusScheduled, NewStatus: coretask.RunStatusRunning},
 	} {
 		updated, err := s.TransitionTaskRun(ctx, step)
 		if err != nil || !updated {
@@ -28,7 +28,7 @@ func TestTransitionTaskRunDoesNotOverwriteACommittedOutcome(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateConversation: %v", err)
 	}
-	task, err := s.CreateTask(ctx, &model.CreateTaskInput{
+	task, err := s.CreateTask(ctx, &coretask.CreateInput{
 		ConversationID: conversation.ID,
 		Input:          "input",
 		CreatedBy:      userID,
@@ -41,9 +41,9 @@ func TestTransitionTaskRunDoesNotOverwriteACommittedOutcome(t *testing.T) {
 	}
 	runID := *task.LastRunID
 
-	transition := func(from, to model.RunStatus, fields func(*model.TransitionTaskRunInput)) {
+	transition := func(from, to coretask.RunStatus, fields func(*coretask.TransitionRunInput)) {
 		t.Helper()
-		in := model.TransitionTaskRunInput{TaskRunID: runID, ExpectedStatus: from, NewStatus: to}
+		in := coretask.TransitionRunInput{TaskRunID: runID, ExpectedStatus: from, NewStatus: to}
 		if fields != nil {
 			fields(&in)
 		}
@@ -59,21 +59,21 @@ func TestTransitionTaskRunDoesNotOverwriteACommittedOutcome(t *testing.T) {
 	startedAt := time.Unix(1_800_000_000, 0).UTC()
 	endedAt := startedAt.Add(time.Minute)
 	output := "worker result"
-	transition(model.RunStatusPending, model.RunStatusScheduled, nil)
-	transition(model.RunStatusScheduled, model.RunStatusRunning, func(in *model.TransitionTaskRunInput) {
+	transition(coretask.RunStatusPending, coretask.RunStatusScheduled, nil)
+	transition(coretask.RunStatusScheduled, coretask.RunStatusRunning, func(in *coretask.TransitionRunInput) {
 		in.StartedAt = &startedAt
 	})
-	transition(model.RunStatusRunning, model.RunStatusSucceeded, func(in *model.TransitionTaskRunInput) {
+	transition(coretask.RunStatusRunning, coretask.RunStatusSucceeded, func(in *coretask.TransitionRunInput) {
 		in.EndedAt = &endedAt
 		in.Output = &output
 		in.ArtifactRelativePaths = []string{"result.md"}
 	})
 
 	staleMessage := "stale reaper outcome"
-	updated, err := s.TransitionTaskRun(ctx, model.TransitionTaskRunInput{
+	updated, err := s.TransitionTaskRun(ctx, coretask.TransitionRunInput{
 		TaskRunID:      runID,
-		ExpectedStatus: model.RunStatusRunning,
-		NewStatus:      model.RunStatusFailed,
+		ExpectedStatus: coretask.RunStatusRunning,
+		NewStatus:      coretask.RunStatusFailed,
 		EndedAt:        &endedAt,
 		ErrorMessage:   &staleMessage,
 	})
@@ -88,14 +88,14 @@ func TestTransitionTaskRunDoesNotOverwriteACommittedOutcome(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetTaskRun: %v", err)
 	}
-	if storedRun == nil || storedRun.Status != string(model.RunStatusSucceeded) || storedRun.Output == nil || *storedRun.Output != output {
+	if storedRun == nil || storedRun.Status != string(coretask.RunStatusSucceeded) || storedRun.Output == nil || *storedRun.Output != output {
 		t.Fatalf("stored run = %+v, want the worker's successful outcome", storedRun)
 	}
 	storedTask, err := s.GetTask(ctx, task.ID)
 	if err != nil {
 		t.Fatalf("GetTask: %v", err)
 	}
-	if storedTask == nil || storedTask.Status != string(model.RunStatusSucceeded) || storedTask.Output == nil || *storedTask.Output != output {
+	if storedTask == nil || storedTask.Status != string(coretask.RunStatusSucceeded) || storedTask.Output == nil || *storedTask.Output != output {
 		t.Fatalf("stored task = %+v, want the same successful outcome", storedTask)
 	}
 	artifacts, err := s.GetTaskRunOutputFiles(ctx, runID)

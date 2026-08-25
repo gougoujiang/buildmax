@@ -10,7 +10,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -75,7 +75,7 @@ func truncatePreview(data []byte, budget int) (string, bool) {
 // the overall issue flow response.
 func (h *Handler) aggregateIssueOutputs(
 	ctx context.Context,
-	agentTasks []model.Task,
+	agentTasks []coretask.Task,
 	stepsByTaskID map[string]coreworkflow.StepRun,
 ) ([]issueOutputResponse, *issueOutputResponse) {
 	if h.cfg.RunOutputs == nil {
@@ -154,7 +154,7 @@ func (h *Handler) aggregateIssueOutputs(
 // returns none, which is the same shape as runs that published nothing.
 func (h *Handler) artifactOutputs(
 	ctx context.Context,
-	agentTasks []model.Task,
+	agentTasks []coretask.Task,
 	stepsByTaskID map[string]coreworkflow.StepRun,
 ) []issueOutputResponse {
 	if h.cfg.Artifacts == nil || !h.cfg.Artifacts.Available() {
@@ -165,7 +165,7 @@ func (h *Handler) artifactOutputs(
 	// team keeps — it does not stop being this issue's output because the task
 	// was run again.
 	taskIDs := make([]string, 0, len(agentTasks))
-	tasksByID := make(map[string]model.Task, len(agentTasks))
+	tasksByID := make(map[string]coretask.Task, len(agentTasks))
 	for _, t := range agentTasks {
 		taskIDs = append(taskIDs, t.ID)
 		tasksByID[t.ID] = t
@@ -175,7 +175,7 @@ func (h *Handler) artifactOutputs(
 		return nil
 	}
 	runIDs := make([]string, 0, len(taskIDs))
-	runToTask := make(map[string]model.Task, len(taskIDs))
+	runToTask := make(map[string]coretask.Task, len(taskIDs))
 	for taskID, runs := range runsByTask {
 		for _, runID := range runs {
 			runIDs = append(runIDs, runID)
@@ -235,7 +235,7 @@ func (h *Handler) runIDsByTask(ctx context.Context, taskIDs []string) (map[strin
 	return map[string][]string{}, nil
 }
 
-func findResultItem(items []model.TaskRunArtifact) *model.TaskRunArtifact {
+func findResultItem(items []coretask.RunOutputFile) *coretask.RunOutputFile {
 	for i := range items {
 		if items[i].RelativePath == issueOutputResultFilename {
 			return &items[i]
@@ -247,7 +247,7 @@ func findResultItem(items []model.TaskRunArtifact) *model.TaskRunArtifact {
 // readArtifactPreview reads a bounded preview of result.md for a task run.
 // Missing or unreadable content returns ("", false) — the caller still emits
 // a card without preview.
-func (h *Handler) readArtifactPreview(ctx context.Context, t model.Task, taskRunID, relPath string) (string, bool) {
+func (h *Handler) readArtifactPreview(ctx context.Context, t coretask.Task, taskRunID, relPath string) (string, bool) {
 	if h.cfg.RunOutputStorage == nil {
 		return "", false
 	}

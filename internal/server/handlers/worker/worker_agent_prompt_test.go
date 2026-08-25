@@ -8,7 +8,7 @@ import (
 	"time"
 
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 	"github.com/gougoujiang/buildmax/internal/mock"
 )
@@ -19,10 +19,10 @@ func getTaskRunHandler(agentID *string, agents *mock.MockAgentStore) http.Handle
 	cfg := Config{
 		JWTSecret: workerTestSecret,
 		TaskRuns: &mock.MockTaskRunStore{
-			Runs: []model.TaskRun{{ID: "r_1", TaskID: "t_1", Status: string(model.RunStatusScheduled), CreatedAt: time.Unix(1, 0).UTC()}},
-			TaskList: []model.Task{{
+			Runs: []coretask.Run{{ID: "r_1", TaskID: "t_1", Status: string(coretask.RunStatusScheduled), CreatedAt: time.Unix(1, 0).UTC()}},
+			TaskList: []coretask.Task{{
 				ID: "t_1", ConversationID: "c_1", TeamID: llmTestTeam,
-				Status: string(model.RunStatusScheduled), Input: "in", CreatedBy: llmTestUser,
+				Status: string(coretask.RunStatusScheduled), Input: "in", CreatedBy: llmTestUser,
 				AgentID: agentID, CreatedAt: time.Unix(1, 0).UTC(),
 			}},
 		},

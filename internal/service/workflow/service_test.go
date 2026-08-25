@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/task"
@@ -85,11 +85,11 @@ func TestStartWorkflowRunAndAdvanceOnTerminal(t *testing.T) {
 	}
 
 	output := "done"
-	if err := svc.HandleTaskRunTerminal(context.Background(), model.TaskRunTerminalInfo{
+	if err := svc.HandleTaskRunTerminal(context.Background(), coretask.RunTerminalInfo{
 		TaskRunID: *steps[0].TaskRunID,
 		TaskID:    *steps[0].TaskID,
 		UserID:    "u1",
-		Status:    string(model.RunStatusSucceeded),
+		Status:    string(coretask.RunStatusSucceeded),
 		Output:    &output,
 	}); err != nil {
 		t.Fatalf("HandleTaskRunTerminal first step: %v", err)
@@ -160,11 +160,11 @@ func TestStartWorkflowRun_StepsUseAgentSnapshot(t *testing.T) {
 	}
 
 	output := "done"
-	if err := svc.HandleTaskRunTerminal(context.Background(), model.TaskRunTerminalInfo{
+	if err := svc.HandleTaskRunTerminal(context.Background(), coretask.RunTerminalInfo{
 		TaskRunID: *steps[0].TaskRunID,
 		TaskID:    *steps[0].TaskID,
 		UserID:    "u1",
-		Status:    string(model.RunStatusSucceeded),
+		Status:    string(coretask.RunStatusSucceeded),
 		Output:    &output,
 	}); err != nil {
 		t.Fatalf("HandleTaskRunTerminal: %v", err)
@@ -332,11 +332,11 @@ func TestDeletedAgent_RunFinishesButNewWorkIsRefused(t *testing.T) {
 	}
 
 	output := "done"
-	if err := svc.HandleTaskRunTerminal(context.Background(), model.TaskRunTerminalInfo{
+	if err := svc.HandleTaskRunTerminal(context.Background(), coretask.RunTerminalInfo{
 		TaskRunID: *steps[0].TaskRunID,
 		TaskID:    *steps[0].TaskID,
 		UserID:    "u1",
-		Status:    string(model.RunStatusSucceeded),
+		Status:    string(coretask.RunStatusSucceeded),
 		Output:    &output,
 	}); err != nil {
 		t.Fatalf("HandleTaskRunTerminal: %v", err)
@@ -438,11 +438,11 @@ func TestHandleTaskRunTerminal_CancelStopsTheRunWithoutFailingIt(t *testing.T) {
 		t.Fatalf("StartWorkflowRun: %v", err)
 	}
 
-	if err := svc.HandleTaskRunTerminal(context.Background(), model.TaskRunTerminalInfo{
+	if err := svc.HandleTaskRunTerminal(context.Background(), coretask.RunTerminalInfo{
 		TaskRunID: *steps[0].TaskRunID,
 		TaskID:    *steps[0].TaskID,
 		UserID:    "u1",
-		Status:    string(model.RunStatusCanceled),
+		Status:    string(coretask.RunStatusCanceled),
 	}); err != nil {
 		t.Fatalf("HandleTaskRunTerminal: %v", err)
 	}

@@ -11,8 +11,8 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/agentapp/taskrun"
 	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/core/session"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 )
@@ -138,7 +138,7 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		slog.Error("cannot resolve a model for this run", "err", err)
 		return err
 	}
-	if run.Status != string(model.RunStatusScheduled) {
+	if run.Status != string(coretask.RunStatusScheduled) {
 		slog.Error("run not in SCHEDULED status", "status", run.Status)
 		return fmt.Errorf("run not scheduled (status=%s)", run.Status)
 	}
@@ -163,7 +163,7 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 	}
 	now := time.Now().UTC()
 	if err := updater.UpdateRunStatus(ctx, run.ID, &workerclient.PatchTaskRunRequest{
-		Status:    string(model.RunStatusRunning),
+		Status:    string(coretask.RunStatusRunning),
 		StartedAt: &now,
 		SessionID: &sessionID,
 	}); err != nil {
@@ -217,7 +217,7 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 	// the cause, leaving the run unable to say why it stopped.
 	runCtx, cancelRun := context.WithCancelCause(context.WithoutCancel(ctx))
 	defer cancelRun(nil)
-	go workerclient.WatchCancel(runCtx, apiCfg, taskRunID, 0, func() { cancelRun(model.ErrRunCanceled) })
+	go workerclient.WatchCancel(runCtx, apiCfg, taskRunID, 0, func() { cancelRun(coretask.ErrRunCanceled) })
 	interruptRunOnShutdown(ctx, runCtx, cancelRun)
 
 	err = taskrun.RunTask(runCtx, taskrun.RunTaskInput{
@@ -236,11 +236,11 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		Plugins:                fetched.Plugins,
 		InterruptGrace:         interruptGraceFromEnv(),
 	})
-	if errors.Is(err, model.ErrRunCanceled) {
+	if errors.Is(err, coretask.ErrRunCanceled) {
 		slog.Info("run canceled on request")
 		return err
 	}
-	if errors.Is(err, model.ErrRunInterrupted) {
+	if errors.Is(err, coretask.ErrRunInterrupted) {
 		slog.Info("run interrupted by shutdown")
 		return err
 	}
@@ -260,7 +260,7 @@ func reportPluginRefusal(ctx context.Context, updater taskrun.TaskRunUpdater, ta
 	slog.Error("this run cannot start", "reason", reason)
 	endedAt := time.Now().UTC()
 	if err := updater.UpdateRunStatus(ctx, taskRunID, &workerclient.PatchTaskRunRequest{
-		Status:       string(model.RunStatusFailed),
+		Status:       string(coretask.RunStatusFailed),
 		EndedAt:      &endedAt,
 		ErrorMessage: &reason,
 	}); err != nil {
@@ -303,7 +303,7 @@ func interruptRunOnShutdown(processCtx, runCtx context.Context, cancelRun contex
 		select {
 		case <-processCtx.Done():
 			slog.Info("worker asked to stop; interrupting the run")
-			cancelRun(model.ErrRunInterrupted)
+			cancelRun(coretask.ErrRunInterrupted)
 		case <-runCtx.Done():
 		}
 	}()
@@ -317,12 +317,12 @@ func reportCanceledBeforeStart(ctx context.Context, updater taskrun.TaskRunUpdat
 	endedAt := time.Now().UTC()
 	message := "this run was canceled before it started"
 	if err := updater.UpdateRunStatus(ctx, taskRunID, &workerclient.PatchTaskRunRequest{
-		Status:       string(model.RunStatusCanceled),
+		Status:       string(coretask.RunStatusCanceled),
 		EndedAt:      &endedAt,
 		ErrorMessage: &message,
 	}); err != nil {
 		slog.Error("could not report a cancel", "err", err)
 		return err
 	}
-	return model.ErrRunCanceled
+	return coretask.ErrRunCanceled
 }

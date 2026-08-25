@@ -140,6 +140,8 @@ internal/
 │   │                   the comments people and agents leave on it
 │   ├── audit/          The append-only trail: what an event is, the actions
 │   │                   worth recording, and how it is read and pruned
+│   ├── task/           Tier 2 durable work: the Task, its runs and their one
+│   │                   legal set of transitions, run output, and delivery
 │   └── session/        Local session model; persistence lives in agentapp
 │
 ├── agentapp/           Agent runtime assembly: LLM client cache, tool registry,

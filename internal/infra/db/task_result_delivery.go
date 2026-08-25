@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	"github.com/gougoujiang/buildmax/internal/util"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -43,8 +43,8 @@ func (s *Store) taskResultDeliverySelect(ctx context.Context) *gorm.DB {
 		Joins("INNER JOIN conversation c ON c.id = task_result_delivery.conversation_id")
 }
 
-func toTaskResultDelivery(row *taskResultDeliveryReadRow) model.TaskResultDelivery {
-	return model.TaskResultDelivery{
+func toTaskResultDelivery(row *taskResultDeliveryReadRow) coretask.ResultDelivery {
+	return coretask.ResultDelivery{
 		TaskRunID:      row.TaskRunPublicID,
 		ConversationID: row.ConversationPublicID,
 		Status:         row.Row.Status,
@@ -72,7 +72,7 @@ func (s *Store) EnqueueTaskResultDelivery(ctx context.Context, taskRunID, conver
 	row := &taskResultDeliveryRow{
 		TaskRunID:      runKey,
 		ConversationID: convKey,
-		Status:         model.DeliveryPending,
+		Status:         coretask.DeliveryPending,
 		NextAttemptAt:  now,
 		CreatedAt:      now,
 	}
@@ -80,20 +80,20 @@ func (s *Store) EnqueueTaskResultDelivery(ctx context.Context, taskRunID, conver
 }
 
 // ListDueTaskResultDeliveries returns pending reports whose next attempt is due.
-func (s *Store) ListDueTaskResultDeliveries(ctx context.Context, now time.Time, limit int) ([]model.TaskResultDelivery, error) {
+func (s *Store) ListDueTaskResultDeliveries(ctx context.Context, now time.Time, limit int) ([]coretask.ResultDelivery, error) {
 	if limit <= 0 {
 		return nil, nil
 	}
 	var rows []taskResultDeliveryReadRow
 	err := s.taskResultDeliverySelect(ctx).
-		Where("task_result_delivery.status = ? AND task_result_delivery.next_attempt_at <= ?", model.DeliveryPending, now).
+		Where("task_result_delivery.status = ? AND task_result_delivery.next_attempt_at <= ?", coretask.DeliveryPending, now).
 		Order("task_result_delivery.next_attempt_at ASC").
 		Limit(limit).
 		Find(&rows).Error
 	if err != nil {
 		return nil, err
 	}
-	out := make([]model.TaskResultDelivery, len(rows))
+	out := make([]coretask.ResultDelivery, len(rows))
 	for i := range rows {
 		out[i] = toTaskResultDelivery(&rows[i])
 	}
@@ -105,13 +105,13 @@ func (s *Store) ListDueTaskResultDeliveries(ctx context.Context, now time.Time, 
 // The status and due-time conditions are in the UPDATE rather than checked
 // first: two servers sweeping at once both see the same due row, and only the
 // one whose update matched may report it.
-func (s *Store) ClaimTaskResultDelivery(ctx context.Context, taskRunID string, now, nextAttemptAt time.Time) (*model.TaskResultDelivery, error) {
+func (s *Store) ClaimTaskResultDelivery(ctx context.Context, taskRunID string, now, nextAttemptAt time.Time) (*coretask.ResultDelivery, error) {
 	runKey, err := lookupKey(ctx, s.db, "task_run", taskRunID)
 	if err != nil {
 		return nil, err
 	}
 	res := s.db.WithContext(ctx).Model(&taskResultDeliveryRow{}).
-		Where("task_run_id = ? AND status = ? AND next_attempt_at <= ?", runKey, model.DeliveryPending, now).
+		Where("task_run_id = ? AND status = ? AND next_attempt_at <= ?", runKey, coretask.DeliveryPending, now).
 		Updates(map[string]interface{}{
 			"attempts":        gorm.Expr("attempts + 1"),
 			"next_attempt_at": nextAttemptAt,
@@ -166,7 +166,7 @@ func (s *Store) RecordTaskResultDeliveryFailure(ctx context.Context, taskRunID, 
 		return err
 	}
 	return s.db.WithContext(ctx).Model(&taskResultDeliveryRow{}).
-		Where("task_run_id = ? AND status = ?", runKey, model.DeliveryPending).
+		Where("task_run_id = ? AND status = ?", runKey, coretask.DeliveryPending).
 		Updates(map[string]interface{}{
 			"last_error":      util.TruncateRunes(lastError, deliveryErrorMaxLen),
 			"next_attempt_at": nextAttemptAt,

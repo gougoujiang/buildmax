@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	"github.com/gougoujiang/buildmax/internal/server/turnqueue"
 	wsconn "github.com/gougoujiang/buildmax/internal/server/websocket"
 	"github.com/gougoujiang/buildmax/internal/service/conversation"
@@ -44,7 +44,7 @@ const deliveryBackoff = time.Minute
 // The two halves do not depend on each other. A report that fails leaves the
 // card standing, and a card nobody is connected to see does not stop the report
 // from being made.
-func (h *Handler) reportTaskRunTerminal(ctx context.Context, info model.TaskRunTerminalInfo) {
+func (h *Handler) reportTaskRunTerminal(ctx context.Context, info coretask.RunTerminalInfo) {
 	h.connRegistry.Broadcast(info.TeamID, info.UserID, wsconn.TypeTaskStatusChanged, wsconn.TaskStatusChanged{
 		TaskID: info.TaskID,
 		Status: info.Status,
@@ -86,16 +86,16 @@ func (h *Handler) attemptTaskResultDelivery(ctx context.Context, taskRunID strin
 	if !ok {
 		// Nothing left to report from. Close it rather than retrying a read
 		// that will keep failing the same way.
-		h.finishDelivery(ctx, taskRunID, model.DeliveryAbandoned, "the run this report describes could not be read")
+		h.finishDelivery(ctx, taskRunID, coretask.DeliveryAbandoned, "the run this report describes could not be read")
 		return
 	}
 	if claimed.Attempts > deliveryMaxAttempts {
-		h.finishDelivery(ctx, taskRunID, model.DeliveryAbandoned, "gave up after "+strconv.Itoa(deliveryMaxAttempts)+" attempts")
+		h.finishDelivery(ctx, taskRunID, coretask.DeliveryAbandoned, "gave up after "+strconv.Itoa(deliveryMaxAttempts)+" attempts")
 		return
 	}
 	h.submitTaskResultTurn(ctx, info, func(turnErr error) {
 		if turnErr == nil {
-			h.finishDelivery(ctx, taskRunID, model.DeliveryDelivered, "")
+			h.finishDelivery(ctx, taskRunID, coretask.DeliveryDelivered, "")
 			return
 		}
 		// Left pending, and brought forward: the claim pushed the next attempt
@@ -115,7 +115,7 @@ func (h *Handler) finishDelivery(ctx context.Context, taskRunID, status, reason 
 	if err := h.cfg.TaskResultDeliveries.FinishTaskResultDelivery(ctx, taskRunID, status, lastError); err != nil {
 		slog.Warn("task result delivery not closed", "task_run_id", taskRunID, "status", status, "err", err)
 	}
-	if status == model.DeliveryAbandoned {
+	if status == coretask.DeliveryAbandoned {
 		slog.Warn("gave up reporting a finished run", "task_run_id", taskRunID, "reason", reason)
 	}
 }
@@ -125,15 +125,15 @@ func (h *Handler) finishDelivery(ctx context.Context, taskRunID, status, reason 
 // A sweep after a restart has nothing in memory, and re-reading is also what
 // makes a retry report the run as it is rather than as it was when the first
 // attempt was made.
-func (h *Handler) loadTerminalInfo(ctx context.Context, taskRunID string) (model.TaskRunTerminalInfo, bool) {
+func (h *Handler) loadTerminalInfo(ctx context.Context, taskRunID string) (coretask.RunTerminalInfo, bool) {
 	if h.cfg.TaskRunStore == nil {
-		return model.TaskRunTerminalInfo{}, false
+		return coretask.RunTerminalInfo{}, false
 	}
 	run, task, err := h.cfg.TaskRunStore.GetTaskRunWithTask(ctx, taskRunID)
 	if err != nil || run == nil || task == nil {
-		return model.TaskRunTerminalInfo{}, false
+		return coretask.RunTerminalInfo{}, false
 	}
-	return model.TaskRunTerminalInfo{
+	return coretask.RunTerminalInfo{
 		TaskRunID:      run.ID,
 		TaskID:         run.TaskID,
 		ConversationID: task.ConversationID,
@@ -151,7 +151,7 @@ func (h *Handler) loadTerminalInfo(ctx context.Context, taskRunID string) (model
 // whether or not the person who started it is still connected, and the reply
 // waiting for them when they come back must not depend on that. onDone, when
 // set, is called with the turn's outcome once it has run.
-func (h *Handler) submitTaskResultTurn(ctx context.Context, info model.TaskRunTerminalInfo, onDone func(error)) {
+func (h *Handler) submitTaskResultTurn(ctx context.Context, info coretask.RunTerminalInfo, onDone func(error)) {
 	message := formatTaskResultMessage(info)
 	job := turnqueue.NewJob(func() {
 		_, err := h.conversations.HandleTurn(ctx, conversation.HandleTurnCmd{
@@ -180,8 +180,8 @@ func (h *Handler) submitTaskResultTurn(ctx context.Context, info model.TaskRunTe
 	}
 }
 
-func formatTaskResultMessage(info model.TaskRunTerminalInfo) string {
-	if info.Status == string(model.RunStatusCanceled) {
+func formatTaskResultMessage(info coretask.RunTerminalInfo) string {
+	if info.Status == string(coretask.RunStatusCanceled) {
 		// A cancel is an instruction, not a fault. Saying so keeps Tier 1 from
 		// treating the stop as a failure worth retrying or apologising for.
 		note := ""
@@ -190,7 +190,7 @@ func formatTaskResultMessage(info model.TaskRunTerminalInfo) string {
 		}
 		return "[Task Result] task_id: " + info.TaskID + " | status: canceled\n\nThis task was stopped on request." + note
 	}
-	if info.Status == string(model.RunStatusSucceeded) {
+	if info.Status == string(coretask.RunStatusSucceeded) {
 		output := ""
 		if info.Output != nil {
 			output = *info.Output

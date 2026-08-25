@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	streamhub "github.com/gougoujiang/buildmax/internal/server/websocket"
 )
@@ -18,8 +18,8 @@ func TestPostWorkerStreamHandler_AppendsToHub(t *testing.T) {
 	cfg := Config{
 		JWTSecret: workerTestSecret,
 		TaskRuns: &mock.MockTaskRunStore{
-			Runs:     []model.TaskRun{{ID: taskRunID, TaskID: taskID}},
-			TaskList: []model.Task{{ID: taskID}},
+			Runs:     []coretask.Run{{ID: taskRunID, TaskID: taskID}},
+			TaskList: []coretask.Task{{ID: taskID}},
 		},
 		Hub: hub,
 	}

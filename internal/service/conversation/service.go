@@ -9,7 +9,7 @@ import (
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
 	"github.com/gougoujiang/buildmax/internal/service/task"
 )
@@ -59,11 +59,11 @@ func (s *Service) RerunTask(ctx context.Context, cmd RerunTaskCmd) (Conversation
 	if s.TaskService == nil {
 		return ConversationResult{}, task.ErrTaskRunsNotConfigured
 	}
-	createdByType := model.RunCreatedByTypeUser
-	triggerSource := model.RunTriggerSourcePortalTaskRerun
+	createdByType := coretask.RunCreatedByTypeUser
+	triggerSource := coretask.RunTriggerSourcePortalTaskRerun
 	if cmd.Channel == convchannel.ChannelWebhook {
-		createdByType = model.RunCreatedByTypeWebhook
-		triggerSource = model.RunTriggerSourceWebhook
+		createdByType = coretask.RunCreatedByTypeWebhook
+		triggerSource = coretask.RunTriggerSourceWebhook
 	}
 	run, err := s.TaskService.CreateRun(ctx, task.CreateRunCmd{
 		UserID:        cmd.UserID,

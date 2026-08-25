@@ -19,6 +19,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
@@ -71,11 +72,11 @@ type StoresConfig struct {
 	AgentStore        agentdef.Store
 	IssueStore        coreissue.Store
 	IssueCommentStore coreissue.CommentStore
-	TaskStore         model.TaskStore
-	TaskRunStore      model.TaskRunStore
+	TaskStore         coretask.Store
+	TaskRunStore      coretask.RunStore
 	// TaskResultDeliveryStore records the reports the server owes finished
 	// runs. Nil means a report that fails is not retried.
-	TaskResultDeliveryStore model.TaskResultDeliveryStore
+	TaskResultDeliveryStore coretask.ResultDeliveryStore
 	LLMCallStore            coregw.CallStore
 	RunOutputLister         workroutes.RunOutputLister
 	UserWebhookKeyStore     model.UserWebhookKeyStore
@@ -292,7 +293,7 @@ func buildHandlersConfig(cfg Config, drain <-chan struct{}) handlers.Config {
 // Each half is wired independently and each failure is logged rather than
 // propagated. A deployment without workflows still reports runs on issues, and
 // a comment store that is down does not stop a workflow from advancing.
-func buildOnTaskRunTerminal(cfg Config) func(ctx context.Context, info model.TaskRunTerminalInfo) {
+func buildOnTaskRunTerminal(cfg Config) func(ctx context.Context, info coretask.RunTerminalInfo) {
 	var workflowSvc *workflow.Service
 	if cfg.Stores.WorkflowStore != nil {
 		taskSvc := &task.Service{
@@ -320,7 +321,7 @@ func buildOnTaskRunTerminal(cfg Config) func(ctx context.Context, info model.Tas
 	if workflowSvc == nil && runReporter == nil {
 		return nil
 	}
-	return func(ctx context.Context, info model.TaskRunTerminalInfo) {
+	return func(ctx context.Context, info coretask.RunTerminalInfo) {
 		terminal := info
 		if workflowSvc != nil {
 			if err := workflowSvc.HandleTaskRunTerminal(ctx, terminal); err != nil && !errors.Is(err, workflow.ErrWorkflowRunNotFound) {

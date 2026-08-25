@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 )
 
 // waitForCause waits for ctx to end and returns why, or fails the test.
@@ -32,7 +32,7 @@ func TestShutdownReachesTheRunAsAnInterruption(t *testing.T) {
 	interruptRunOnShutdown(processCtx, runCtx, cancelRun)
 	stopProcess()
 
-	if cause := waitForCause(t, runCtx); !errors.Is(cause, model.ErrRunInterrupted) {
+	if cause := waitForCause(t, runCtx); !errors.Is(cause, coretask.ErrRunInterrupted) {
 		t.Fatalf("run stopped because %v, want ErrRunInterrupted", cause)
 	}
 }
@@ -46,10 +46,10 @@ func TestAShutdownAfterACancelDoesNotRewriteTheReason(t *testing.T) {
 	defer cancelRun(nil)
 
 	interruptRunOnShutdown(processCtx, runCtx, cancelRun)
-	cancelRun(model.ErrRunCanceled)
+	cancelRun(coretask.ErrRunCanceled)
 	stopProcess()
 
-	if cause := waitForCause(t, runCtx); !errors.Is(cause, model.ErrRunCanceled) {
+	if cause := waitForCause(t, runCtx); !errors.Is(cause, coretask.ErrRunCanceled) {
 		t.Fatalf("run stopped because %v, want ErrRunCanceled", cause)
 	}
 }
@@ -64,7 +64,7 @@ func TestAFinishedRunIsNotInterruptedByTheProcessStopping(t *testing.T) {
 	cancelRun(nil) // what RunWorker's defer does when the run is over
 	stopProcess()
 
-	if cause := waitForCause(t, runCtx); errors.Is(cause, model.ErrRunInterrupted) {
+	if cause := waitForCause(t, runCtx); errors.Is(cause, coretask.ErrRunInterrupted) {
 		t.Fatalf("a finished run was recorded as interrupted")
 	}
 }

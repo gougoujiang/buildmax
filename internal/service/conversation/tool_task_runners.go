@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	"github.com/gougoujiang/buildmax/internal/service/task"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
@@ -25,14 +25,14 @@ func newStartTaskServiceRunner(taskService *task.Service, conversationID, teamID
 	}
 }
 
-func newListTasksStoreRunner(tasks model.TaskStore) listTasksRunner {
+func newListTasksStoreRunner(tasks coretask.Store) listTasksRunner {
 	if tasks == nil {
 		return nil
 	}
 	return &listTasksStoreRunner{tasks: tasks}
 }
 
-func newGetTaskStoreRunner(tasks model.TaskStore) getTaskRunner {
+func newGetTaskStoreRunner(tasks coretask.Store) getTaskRunner {
 	if tasks == nil {
 		return nil
 	}
@@ -66,8 +66,8 @@ func (r *startTaskServiceRunner) StartTask(ctx context.Context, input string, ag
 		TeamID:          r.teamID,
 		Input:           input,
 		AgentID:         agentID,
-		CreatedByType:   model.RunCreatedByTypeUser,
-		TriggerSource:   model.RunTriggerSourcePortalConversation,
+		CreatedByType:   coretask.RunCreatedByTypeUser,
+		TriggerSource:   coretask.RunTriggerSourcePortalConversation,
 		SourceMessageID: r.sourceMessageID,
 	})
 	if err != nil {
@@ -77,7 +77,7 @@ func (r *startTaskServiceRunner) StartTask(ctx context.Context, input string, ag
 }
 
 type listTasksStoreRunner struct {
-	tasks model.TaskStore
+	tasks coretask.Store
 }
 
 func (r *listTasksStoreRunner) ListTasks(ctx context.Context, conversationID string) (string, error) {
@@ -101,7 +101,7 @@ func (r *listTasksStoreRunner) ListTasks(ctx context.Context, conversationID str
 }
 
 type getTaskStoreRunner struct {
-	tasks model.TaskStore
+	tasks coretask.Store
 }
 
 func (r *getTaskStoreRunner) GetTask(ctx context.Context, conversationID, taskID string) (string, error) {
@@ -145,8 +145,8 @@ func (r *continueTaskServiceRunner) ContinueTask(ctx context.Context, conversati
 		UserID:          userID,
 		TaskID:          taskID,
 		Input:           input,
-		CreatedByType:   model.RunCreatedByTypeUser,
-		TriggerSource:   model.RunTriggerSourcePortalConversation,
+		CreatedByType:   coretask.RunCreatedByTypeUser,
+		TriggerSource:   coretask.RunTriggerSourcePortalConversation,
 		SourceMessageID: r.sourceMessageID,
 	})
 	if err != nil {

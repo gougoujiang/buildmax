@@ -7,34 +7,34 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 )
 
 // fakeStaleStore records what the reaper did and lets a test control what it
 // finds.
 type fakeStaleStore struct {
-	stale            []model.TaskRun
-	canceled         []model.TaskRun
+	stale            []coretask.Run
+	canceled         []coretask.Run
 	listErr          error
 	cancelListErr    error
 	lastCutoff       time.Time
 	lastCancelCutoff time.Time
-	transitions      []model.TransitionTaskRunInput
+	transitions      []coretask.TransitionRunInput
 	updateErr        error
 	transitionWon    *bool
 }
 
-func (f *fakeStaleStore) ListStaleTaskRuns(_ context.Context, cutoff time.Time, _ int) ([]model.TaskRun, error) {
+func (f *fakeStaleStore) ListStaleTaskRuns(_ context.Context, cutoff time.Time, _ int) ([]coretask.Run, error) {
 	f.lastCutoff = cutoff
 	return f.stale, f.listErr
 }
 
-func (f *fakeStaleStore) ListCancelRequestedTaskRuns(_ context.Context, cutoff time.Time, _ int) ([]model.TaskRun, error) {
+func (f *fakeStaleStore) ListCancelRequestedTaskRuns(_ context.Context, cutoff time.Time, _ int) ([]coretask.Run, error) {
 	f.lastCancelCutoff = cutoff
 	return f.canceled, f.cancelListErr
 }
 
-func (f *fakeStaleStore) TransitionTaskRun(_ context.Context, in model.TransitionTaskRunInput) (bool, error) {
+func (f *fakeStaleStore) TransitionTaskRun(_ context.Context, in coretask.TransitionRunInput) (bool, error) {
 	if f.updateErr != nil {
 		return false, f.updateErr
 	}
@@ -45,7 +45,7 @@ func (f *fakeStaleStore) TransitionTaskRun(_ context.Context, in model.Transitio
 	return true, nil
 }
 
-func newStaleFixture(stale ...model.TaskRun) (*fakeStaleStore, *StaleRunReaper) {
+func newStaleFixture(stale ...coretask.Run) (*fakeStaleStore, *StaleRunReaper) {
 	f := &fakeStaleStore{stale: stale}
 	return f, NewStaleRunReaper(f, 6*time.Hour, time.Hour)
 }
@@ -57,8 +57,8 @@ func newStaleFixture(stale ...model.TaskRun) (*fakeStaleStore, *StaleRunReaper) 
 // finish.
 func TestReaperClosesAbandonedRuns(t *testing.T) {
 	store, reaper := newStaleFixture(
-		model.TaskRun{ID: "r_1", Status: string(model.RunStatusRunning)},
-		model.TaskRun{ID: "r_2", Status: string(model.RunStatusScheduled)},
+		coretask.Run{ID: "r_1", Status: string(coretask.RunStatusRunning)},
+		coretask.Run{ID: "r_2", Status: string(coretask.RunStatusScheduled)},
 	)
 
 	now := time.Unix(1_800_000_000, 0)
@@ -68,7 +68,7 @@ func TestReaperClosesAbandonedRuns(t *testing.T) {
 		t.Fatalf("finished %d runs, want 2", len(store.transitions))
 	}
 	for _, in := range store.transitions {
-		if in.NewStatus != model.RunStatusFailed {
+		if in.NewStatus != coretask.RunStatusFailed {
 			t.Errorf("run %s status = %q, want FAILED", in.TaskRunID, in.NewStatus)
 		}
 		if in.EndedAt == nil || !in.EndedAt.Equal(now) {
@@ -89,7 +89,7 @@ func TestReaperClosesAbandonedRuns(t *testing.T) {
 // cancel having done nothing.
 func TestReaperClosesUnconfirmedCancels(t *testing.T) {
 	store := &fakeStaleStore{
-		canceled: []model.TaskRun{{ID: "r_1", Status: string(model.RunStatusRunning)}},
+		canceled: []coretask.Run{{ID: "r_1", Status: string(coretask.RunStatusRunning)}},
 	}
 	reaper := NewStaleRunReaper(store, 6*time.Hour, time.Hour)
 
@@ -100,7 +100,7 @@ func TestReaperClosesUnconfirmedCancels(t *testing.T) {
 		t.Fatalf("finished %d runs, want 1", len(store.transitions))
 	}
 	got := store.transitions[0]
-	if got.NewStatus != model.RunStatusCanceled {
+	if got.NewStatus != coretask.RunStatusCanceled {
 		t.Errorf("status = %q, want CANCELED — a stop that was asked for is not a failure", got.NewStatus)
 	}
 	if got.EndedAt == nil || !got.EndedAt.Equal(now) {
@@ -118,14 +118,14 @@ func TestReaperClosesUnconfirmedCancels(t *testing.T) {
 // different questions and one being unavailable is no reason to skip the other.
 func TestReaperSweepsAbandonedRunsWhenTheCancelQueryFails(t *testing.T) {
 	store := &fakeStaleStore{
-		stale:         []model.TaskRun{{ID: "r_1", Status: string(model.RunStatusRunning)}},
+		stale:         []coretask.Run{{ID: "r_1", Status: string(coretask.RunStatusRunning)}},
 		cancelListErr: errors.New("database is away"),
 	}
 	reaper := NewStaleRunReaper(store, 6*time.Hour, time.Hour)
 
 	reaper.Sweep(context.Background(), time.Unix(1_800_000_000, 0))
 
-	if len(store.transitions) != 1 || store.transitions[0].NewStatus != model.RunStatusFailed {
+	if len(store.transitions) != 1 || store.transitions[0].NewStatus != coretask.RunStatusFailed {
 		t.Errorf("transitions = %v, want the abandoned run failed", store.transitions)
 	}
 }
@@ -146,7 +146,7 @@ func TestReaperCutoffIsTheTimeoutAgo(t *testing.T) {
 // nothing that the next tick cannot recover.
 func TestReaperSurvivesFailures(t *testing.T) {
 	t.Run("the query fails", func(t *testing.T) {
-		store, reaper := newStaleFixture(model.TaskRun{ID: "r_1"})
+		store, reaper := newStaleFixture(coretask.Run{ID: "r_1"})
 		store.listErr = errors.New("database is away")
 		reaper.Sweep(context.Background(), time.Now())
 		if len(store.transitions) != 0 {
@@ -155,7 +155,7 @@ func TestReaperSurvivesFailures(t *testing.T) {
 	})
 
 	t.Run("the update fails", func(t *testing.T) {
-		store, reaper := newStaleFixture(model.TaskRun{ID: "r_1"})
+		store, reaper := newStaleFixture(coretask.Run{ID: "r_1"})
 		store.updateErr = errors.New("database is away")
 		reaper.Sweep(context.Background(), time.Now())
 		if len(store.transitions) != 0 {
@@ -167,7 +167,7 @@ func TestReaperSurvivesFailures(t *testing.T) {
 func TestReaperDoesNotOverwriteAConcurrentWorkerOutcome(t *testing.T) {
 	won := false
 	store := &fakeStaleStore{
-		stale:         []model.TaskRun{{ID: "r_1", Status: string(model.RunStatusRunning)}},
+		stale:         []coretask.Run{{ID: "r_1", Status: string(coretask.RunStatusRunning)}},
 		transitionWon: &won,
 	}
 	reaper := NewStaleRunReaper(store, 6*time.Hour, time.Hour)
@@ -177,7 +177,7 @@ func TestReaperDoesNotOverwriteAConcurrentWorkerOutcome(t *testing.T) {
 	if len(store.transitions) != 1 {
 		t.Fatalf("transitions = %d, want one conditional attempt", len(store.transitions))
 	}
-	if store.transitions[0].ExpectedStatus != model.RunStatusRunning {
+	if store.transitions[0].ExpectedStatus != coretask.RunStatusRunning {
 		t.Errorf("expected status = %q, want RUNNING", store.transitions[0].ExpectedStatus)
 	}
 }

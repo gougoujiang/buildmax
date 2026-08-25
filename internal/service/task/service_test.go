@@ -4,13 +4,13 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	"github.com/gougoujiang/buildmax/internal/mock"
 )
 
 func TestCreateRun_PersistsProvenance(t *testing.T) {
 	taskStore := &mock.MockTaskStore{
-		List: []model.Task{{
+		List: []coretask.Task{{
 			ID:     "t_1",
 			TeamID: "tm_1",
 			Status: "SUCCEEDED",
@@ -26,8 +26,8 @@ func TestCreateRun_PersistsProvenance(t *testing.T) {
 		UserID:        "u1",
 		TaskID:        "t_1",
 		Input:         "try again",
-		CreatedByType: model.RunCreatedByTypeUser,
-		TriggerSource: model.RunTriggerSourcePortalConversation,
+		CreatedByType: coretask.RunCreatedByTypeUser,
+		TriggerSource: coretask.RunTriggerSourcePortalConversation,
 	})
 	if err != nil {
 		t.Fatalf("CreateRun: %v", err)
@@ -42,10 +42,10 @@ func TestCreateRun_PersistsProvenance(t *testing.T) {
 	if got.CreatedBy != "u1" {
 		t.Fatalf("created_by = %q, want %q", got.CreatedBy, "u1")
 	}
-	if got.CreatedByType != model.RunCreatedByTypeUser {
-		t.Fatalf("created_by_type = %q, want %q", got.CreatedByType, model.RunCreatedByTypeUser)
+	if got.CreatedByType != coretask.RunCreatedByTypeUser {
+		t.Fatalf("created_by_type = %q, want %q", got.CreatedByType, coretask.RunCreatedByTypeUser)
 	}
-	if got.TriggerSource != model.RunTriggerSourcePortalConversation {
-		t.Fatalf("trigger_source = %q, want %q", got.TriggerSource, model.RunTriggerSourcePortalConversation)
+	if got.TriggerSource != coretask.RunTriggerSourcePortalConversation {
+		t.Fatalf("trigger_source = %q, want %q", got.TriggerSource, coretask.RunTriggerSourcePortalConversation)
 	}
 }

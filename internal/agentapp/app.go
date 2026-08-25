@@ -271,7 +271,7 @@ type RunResult struct {
 }
 
 // RunUsage is the current context occupancy and token/cost accounting for an
-// agent run. Task lifecycle state is model.RunStatus; this type carries none.
+// agent run. Task lifecycle state is coretask.RunStatus; this type carries none.
 type RunUsage struct {
 	ContextTokens         int `json:"context_tokens"`
 	ContextWindow         int `json:"context_window"`

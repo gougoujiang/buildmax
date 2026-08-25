@@ -1,4 +1,4 @@
-package model
+package task
 
 import (
 	"context"
@@ -16,7 +16,7 @@ const (
 	DeliveryAbandoned = "ABANDONED"
 )
 
-// TaskResultDelivery is one owed report: a run that finished and a conversation
+// ResultDelivery is one owed report: a run that finished and a conversation
 // that has not yet been told.
 //
 // It exists because the report is a Tier 1 turn, and a turn is a model call that
@@ -25,7 +25,7 @@ const (
 // afterwards knows one was owed. What the report says is not stored: it is
 // derived from the run each attempt, so a retry reports the run as it is rather
 // than as it was when it finished.
-type TaskResultDelivery struct {
+type ResultDelivery struct {
 	TaskRunID      string
 	ConversationID string
 	Status         string
@@ -40,20 +40,20 @@ type TaskResultDelivery struct {
 	CreatedAt     time.Time
 }
 
-// TaskResultDeliveryStore persists owed reports.
-type TaskResultDeliveryStore interface {
+// ResultDeliveryStore persists owed reports.
+type ResultDeliveryStore interface {
 	// EnqueueTaskResultDelivery records that a run's outcome is owed to a
 	// conversation. It is idempotent per run: a run reported twice — by its
 	// worker and then by the reaper that gave up on it — owes one report.
 	EnqueueTaskResultDelivery(ctx context.Context, taskRunID, conversationID string, now time.Time) error
 	// ListDueTaskResultDeliveries returns pending reports whose next attempt is
 	// due, oldest first.
-	ListDueTaskResultDeliveries(ctx context.Context, now time.Time, limit int) ([]TaskResultDelivery, error)
+	ListDueTaskResultDeliveries(ctx context.Context, now time.Time, limit int) ([]ResultDelivery, error)
 	// ClaimTaskResultDelivery takes one pending delivery that is due, counting
 	// the attempt and pushing its next one to nextAttemptAt. It returns nil
 	// when the delivery is not pending, not due, or was claimed by someone
 	// else — which is what keeps one run from being reported twice.
-	ClaimTaskResultDelivery(ctx context.Context, taskRunID string, now, nextAttemptAt time.Time) (*TaskResultDelivery, error)
+	ClaimTaskResultDelivery(ctx context.Context, taskRunID string, now, nextAttemptAt time.Time) (*ResultDelivery, error)
 	// FinishTaskResultDelivery closes a delivery as DELIVERED or ABANDONED.
 	FinishTaskResultDelivery(ctx context.Context, taskRunID, status string, lastError *string) error
 	// RecordTaskResultDeliveryFailure keeps a delivery pending, records why the

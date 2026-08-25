@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 )
 
 // A retry is only distinguishable from any other run by what it stores, so the
@@ -18,7 +18,7 @@ func TestCreateTaskRunPersistsRetryLineage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateConversation: %v", err)
 	}
-	task, err := s.CreateTask(ctx, &model.CreateTaskInput{
+	task, err := s.CreateTask(ctx, &coretask.CreateInput{
 		ConversationID: conv.ID,
 		Input:          "input",
 		CreatedBy:      retryTestUser,
@@ -37,21 +37,21 @@ func TestCreateTaskRunPersistsRetryLineage(t *testing.T) {
 	failed := *task.LastRunID
 	endedAt := time.Unix(1_800_000_000, 0).UTC()
 	startTaskRunForTest(t, s, ctx, failed)
-	if updated, err := s.TransitionTaskRun(ctx, model.TransitionTaskRunInput{
+	if updated, err := s.TransitionTaskRun(ctx, coretask.TransitionRunInput{
 		TaskRunID:      failed,
-		ExpectedStatus: model.RunStatusRunning,
-		NewStatus:      model.RunStatusFailed,
+		ExpectedStatus: coretask.RunStatusRunning,
+		NewStatus:      coretask.RunStatusFailed,
 		EndedAt:        &endedAt,
 	}); err != nil || !updated {
 		t.Fatalf("TransitionTaskRun to FAILED: updated=%v err=%v", updated, err)
 	}
 
-	retry, err := s.CreateTaskRun(ctx, model.CreateTaskRunInput{
+	retry, err := s.CreateTaskRun(ctx, coretask.CreateRunInput{
 		TaskID:           task.ID,
 		Input:            "input",
 		CreatedBy:        retryTestUser,
-		CreatedByType:    model.RunCreatedByTypeUser,
-		TriggerSource:    model.RunTriggerSourceTaskRetry,
+		CreatedByType:    coretask.RunCreatedByTypeUser,
+		TriggerSource:    coretask.RunTriggerSourceTaskRetry,
 		RetryOfTaskRunID: &failed,
 	})
 	if err != nil {
@@ -68,8 +68,8 @@ func TestCreateTaskRunPersistsRetryLineage(t *testing.T) {
 	if stored.RetryOfTaskRunID == nil || *stored.RetryOfTaskRunID != failed {
 		t.Errorf("retry_of_task_run_id = %v, want %s", stored.RetryOfTaskRunID, failed)
 	}
-	if stored.TriggerSource != model.RunTriggerSourceTaskRetry {
-		t.Errorf("trigger_source = %q, want %q", stored.TriggerSource, model.RunTriggerSourceTaskRetry)
+	if stored.TriggerSource != coretask.RunTriggerSourceTaskRetry {
+		t.Errorf("trigger_source = %q, want %q", stored.TriggerSource, coretask.RunTriggerSourceTaskRetry)
 	}
 
 	// The run it repeats is untouched: a retry is a new attempt, not a rewrite
@@ -78,7 +78,7 @@ func TestCreateTaskRunPersistsRetryLineage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetTaskRun previous: %v", err)
 	}
-	if previous.Status != string(model.RunStatusFailed) {
+	if previous.Status != string(coretask.RunStatusFailed) {
 		t.Errorf("previous run status = %q, want FAILED", previous.Status)
 	}
 	if previous.RetryOfTaskRunID != nil {

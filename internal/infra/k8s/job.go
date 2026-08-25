@@ -16,7 +16,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
 
@@ -225,7 +225,7 @@ func (r *K8sJobRunner) podVolumes() ([]corev1.Volume, []corev1.VolumeMount) {
 //
 // runToken is this run's managed-gateway credential, or "" when the deployment
 // mints none.
-func (r *K8sJobRunner) Run(ctx context.Context, run model.TaskRun, runToken string) (workerType string, k8sJobName *string, k8sJobCreatedAt *time.Time, err error) {
+func (r *K8sJobRunner) Run(ctx context.Context, run coretask.Run, runToken string) (workerType string, k8sJobName *string, k8sJobCreatedAt *time.Time, err error) {
 	jobName := workerJobNameForTaskRun(run.ID)
 	now := metav1.Now()
 	createdAt := now.UTC()

@@ -13,6 +13,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
@@ -68,8 +69,8 @@ type Config struct {
 	AgentStore        agentdef.Store
 	IssueStore        coreissue.Store
 	IssueCommentStore coreissue.CommentStore
-	TaskStore         model.TaskStore
-	TaskRunStore      model.TaskRunStore
+	TaskStore         coretask.Store
+	TaskRunStore      coretask.RunStore
 	// LLMCallStore reads the managed call ledger. Nil leaves the ledger
 	// unreadable over HTTP, which is what a deployment with no database has.
 	LLMCallStore             coregw.CallStore
@@ -147,12 +148,12 @@ type Config struct {
 
 	// OnTaskRunTerminal is an optional external callback fired when a worker run reaches
 	// terminal status (after the internal hub/registry callbacks run).
-	OnTaskRunTerminal func(ctx context.Context, info model.TaskRunTerminalInfo)
+	OnTaskRunTerminal func(ctx context.Context, info coretask.RunTerminalInfo)
 
 	// TaskResultDeliveries records the reports the server owes finished runs.
 	// Nil means a report that fails is not retried, which is what a deployment
 	// with no database has.
-	TaskResultDeliveries model.TaskResultDeliveryStore
+	TaskResultDeliveries coretask.ResultDeliveryStore
 
 	// Drain is closed when the server is going away. Watcher streams — the ones
 	// that only observe state living in the database — end on it so they stop

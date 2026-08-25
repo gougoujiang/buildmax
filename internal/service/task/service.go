@@ -7,7 +7,7 @@ import (
 
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
@@ -47,8 +47,8 @@ type QuotaChecker interface {
 // Service owns task-related application workflows.
 type Service struct {
 	Agents         agentdef.Store
-	Tasks          model.TaskStore
-	TaskRuns       model.TaskRunStore
+	Tasks          coretask.Store
+	TaskRuns       coretask.RunStore
 	QuotaChecker   QuotaChecker
 	TitleGenerator llm.TitleGenerator
 	// WorkflowSteps is only consulted by RetryRun. Callers that never retry
@@ -91,8 +91,8 @@ type RetryRunCmd struct {
 
 // RetryResult reports the new run and the one it repeats.
 type RetryResult struct {
-	Run        *model.TaskRun
-	RetriedRun model.TaskRun
+	Run        *coretask.Run
+	RetriedRun coretask.Run
 }
 
 // StartBackgroundTaskResult is returned when a background task is created.
@@ -102,7 +102,7 @@ type StartBackgroundTaskResult struct {
 }
 
 // CreateTask resolves input, applies title/quota rules, and persists a new task.
-func (s *Service) CreateTask(ctx context.Context, cmd CreateTaskCmd) (*model.Task, error) {
+func (s *Service) CreateTask(ctx context.Context, cmd CreateTaskCmd) (*coretask.Task, error) {
 	if s.Tasks == nil {
 		return nil, ErrTasksNotConfigured
 	}
@@ -115,7 +115,7 @@ func (s *Service) CreateTask(ctx context.Context, cmd CreateTaskCmd) (*model.Tas
 	if err := s.checkQuota(ctx, cmd.TeamID, promptTokens+completionTokens); err != nil {
 		return nil, err
 	}
-	return s.Tasks.CreateTask(ctx, &model.CreateTaskInput{
+	return s.Tasks.CreateTask(ctx, &coretask.CreateInput{
 		ConversationID:            cmd.ConversationID,
 		TeamID:                    cmd.TeamID,
 		Input:                     input,
@@ -133,7 +133,7 @@ func (s *Service) CreateTask(ctx context.Context, cmd CreateTaskCmd) (*model.Tas
 }
 
 // CreateRun enforces basic run creation rules and delegates to TaskRunStore.
-func (s *Service) CreateRun(ctx context.Context, cmd CreateRunCmd) (*model.TaskRun, error) {
+func (s *Service) CreateRun(ctx context.Context, cmd CreateRunCmd) (*coretask.Run, error) {
 	if s.TaskRuns == nil {
 		return nil, ErrTaskRunsNotConfigured
 	}
@@ -152,7 +152,7 @@ func (s *Service) CreateRun(ctx context.Context, cmd CreateRunCmd) (*model.TaskR
 		}
 	}
 	createdByType, triggerSource := normalizeCreateRunProvenance(cmd.CreatedByType, cmd.TriggerSource)
-	return s.TaskRuns.CreateTaskRun(ctx, model.CreateTaskRunInput{
+	return s.TaskRuns.CreateTaskRun(ctx, coretask.CreateRunInput{
 		TaskID:           cmd.TaskID,
 		Input:            cmd.Input,
 		CreatedBy:        cmd.UserID,
@@ -197,7 +197,7 @@ func (s *Service) RetryRun(ctx context.Context, cmd RetryRunCmd) (*RetryResult, 
 		return nil, err
 	}
 	if active != nil {
-		return nil, model.ErrRunInProgress
+		return nil, coretask.ErrRunInProgress
 	}
 	if target.LastRunID == nil {
 		return nil, ErrNoRunToRetry
@@ -206,15 +206,15 @@ func (s *Service) RetryRun(ctx context.Context, cmd RetryRunCmd) (*RetryResult, 
 	if err != nil {
 		return nil, err
 	}
-	if previous == nil || !model.RunStatusTerminal(previous.Status) {
+	if previous == nil || !coretask.RunStatusTerminal(previous.Status) {
 		return nil, ErrNoRunToRetry
 	}
 	run, err := s.CreateRun(ctx, CreateRunCmd{
 		UserID:           cmd.UserID,
 		TaskID:           cmd.TaskID,
 		Input:            previous.Input,
-		CreatedByType:    model.RunCreatedByTypeUser,
-		TriggerSource:    model.RunTriggerSourceTaskRetry,
+		CreatedByType:    coretask.RunCreatedByTypeUser,
+		TriggerSource:    coretask.RunTriggerSourceTaskRetry,
 		RetryOfTaskRunID: &previous.ID,
 	})
 	if err != nil {
@@ -329,20 +329,20 @@ func truncateTaskTitle(input string, maxRunes int) string {
 
 func normalizeCreateTaskProvenance(createdByType, triggerSource string) (string, string) {
 	if createdByType == "" {
-		createdByType = model.RunCreatedByTypeUser
+		createdByType = coretask.RunCreatedByTypeUser
 	}
 	if triggerSource == "" {
-		triggerSource = model.RunTriggerSourceTaskCreate
+		triggerSource = coretask.RunTriggerSourceTaskCreate
 	}
 	return createdByType, triggerSource
 }
 
 func normalizeCreateRunProvenance(createdByType, triggerSource string) (string, string) {
 	if createdByType == "" {
-		createdByType = model.RunCreatedByTypeUser
+		createdByType = coretask.RunCreatedByTypeUser
 	}
 	if triggerSource == "" {
-		triggerSource = model.RunTriggerSourceTaskRerun
+		triggerSource = coretask.RunTriggerSourceTaskRerun
 	}
 	return createdByType, triggerSource
 }

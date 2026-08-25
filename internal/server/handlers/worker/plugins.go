@@ -9,8 +9,8 @@ import (
 	"strconv"
 
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
-	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
@@ -34,7 +34,7 @@ import (
 // team has no enabled activation is not skipped: an agent that names a plugin
 // has declared it needs one, and a background run that quietly does less than
 // its definition says is acted on by somebody who was not watching it.
-func (h *Handler) resolvePluginPins(r *http.Request, run *model.TaskRun, task *model.Task, agent *agentdef.Agent) (pins []coreplugin.Pin, refusal string) {
+func (h *Handler) resolvePluginPins(r *http.Request, run *coretask.Run, task *coretask.Task, agent *agentdef.Agent) (pins []coreplugin.Pin, refusal string) {
 	// Already resolved. A worker polls this route while it runs, and a team
 	// moving a pin mid-run must not change what the run was given — the same
 	// rule, and the same reason, as the agent revision's first-write-wins.
@@ -72,7 +72,7 @@ func (h *Handler) resolvePluginPins(r *http.Request, run *model.TaskRun, task *m
 
 // recordPluginPins stores what the run was given, so that afterwards something
 // other than a fail-open trace can say which versions it had.
-func (h *Handler) recordPluginPins(r *http.Request, run *model.TaskRun, pins []coreplugin.Pin) {
+func (h *Handler) recordPluginPins(r *http.Request, run *coretask.Run, pins []coreplugin.Pin) {
 	if len(pins) == 0 || len(run.PluginPins) > 0 || h.cfg.TaskRuns == nil {
 		return
 	}

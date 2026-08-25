@@ -11,7 +11,7 @@ import (
 	"time"
 
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -59,8 +59,8 @@ func traceTestFixture(t *testing.T, tracePath *string, persist blob.PersistStora
 			Members: []coreteam.Member{{TeamID: teamID, UserID: userID, Role: coreteam.RoleOwner}},
 		},
 		TaskRuns: &mock.MockTaskRunStore{
-			Runs:     []model.TaskRun{{ID: taskRunID, TaskID: taskID, Status: "FAILED", TracePath: tracePath, CreatedAt: time.Unix(1, 0).UTC()}},
-			TaskList: []model.Task{{ID: taskID, ConversationID: conversationID, TeamID: teamID, Status: "FAILED", Input: "in", CreatedBy: userID, CreatedAt: time.Unix(1, 0).UTC()}},
+			Runs:     []coretask.Run{{ID: taskRunID, TaskID: taskID, Status: "FAILED", TracePath: tracePath, CreatedAt: time.Unix(1, 0).UTC()}},
+			TaskList: []coretask.Task{{ID: taskID, ConversationID: conversationID, TeamID: teamID, Status: "FAILED", Input: "in", CreatedBy: userID, CreatedAt: time.Unix(1, 0).UTC()}},
 		},
 		Conversations: &mock.MockConversationStore{
 			Conversations: []coreconv.Conversation{{ID: conversationID, UserID: userID, TeamID: teamID, Channel: "portal", CreatedBy: userID, CreatedAt: time.Unix(1, 0).UTC()}},

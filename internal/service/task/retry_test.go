@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -13,15 +13,15 @@ import (
 
 // retryFixture builds a task whose last run finished in the given status.
 func retryFixture(status string) (*Service, *mock.MockTaskRunStore) {
-	previous := model.TaskRun{
+	previous := coretask.Run{
 		ID:            "tr_1",
 		TaskID:        "t_1",
 		Input:         "review the migration plan",
 		Status:        status,
-		TriggerSource: model.RunTriggerSourcePortalTaskRerun,
+		TriggerSource: coretask.RunTriggerSourcePortalTaskRerun,
 	}
-	runs := &mock.MockTaskRunStore{Runs: []model.TaskRun{previous}}
-	tasks := &mock.MockTaskStore{List: []model.Task{{
+	runs := &mock.MockTaskRunStore{Runs: []coretask.Run{previous}}
+	tasks := &mock.MockTaskStore{List: []coretask.Task{{
 		ID:        "t_1",
 		TeamID:    "tm_1",
 		Status:    status,
@@ -34,7 +34,7 @@ func retryFixture(status string) (*Service, *mock.MockTaskRunStore) {
 // The retry repeats what the last run was asked to do, not what the task was
 // first created with: a task's later runs can carry follow-up instructions.
 func TestRetryRunRepeatsTheLastRunsInput(t *testing.T) {
-	svc, runs := retryFixture(string(model.RunStatusFailed))
+	svc, runs := retryFixture(string(coretask.RunStatusFailed))
 
 	result, err := svc.RetryRun(context.Background(), RetryRunCmd{UserID: "u1", TaskID: "t_1"})
 	if err != nil {
@@ -46,8 +46,8 @@ func TestRetryRunRepeatsTheLastRunsInput(t *testing.T) {
 	if result.Run.Input != "review the migration plan" {
 		t.Errorf("input = %q, want the previous run's input", result.Run.Input)
 	}
-	if result.Run.TriggerSource != model.RunTriggerSourceTaskRetry {
-		t.Errorf("trigger_source = %q, want %q", result.Run.TriggerSource, model.RunTriggerSourceTaskRetry)
+	if result.Run.TriggerSource != coretask.RunTriggerSourceTaskRetry {
+		t.Errorf("trigger_source = %q, want %q", result.Run.TriggerSource, coretask.RunTriggerSourceTaskRetry)
 	}
 	if result.Run.RetryOfTaskRunID == nil || *result.Run.RetryOfTaskRunID != "tr_1" {
 		t.Errorf("retry_of_task_run_id = %v, want tr_1", result.Run.RetryOfTaskRunID)
@@ -64,7 +64,7 @@ func TestRetryRunRepeatsTheLastRunsInput(t *testing.T) {
 // without producing the answer someone wanted, and nothing about it says the
 // same work cannot be asked for again.
 func TestRetryRunAcceptsACanceledRun(t *testing.T) {
-	svc, _ := retryFixture(string(model.RunStatusCanceled))
+	svc, _ := retryFixture(string(coretask.RunStatusCanceled))
 
 	if _, err := svc.RetryRun(context.Background(), RetryRunCmd{UserID: "u1", TaskID: "t_1"}); err != nil {
 		t.Fatalf("RetryRun on a canceled run: %v", err)
@@ -74,7 +74,7 @@ func TestRetryRunAcceptsACanceledRun(t *testing.T) {
 // Retrying a succeeded run is running the same work again, which is a normal
 // thing to want and is not the service's business to refuse.
 func TestRetryRunAcceptsASucceededRun(t *testing.T) {
-	svc, _ := retryFixture(string(model.RunStatusSucceeded))
+	svc, _ := retryFixture(string(coretask.RunStatusSucceeded))
 
 	if _, err := svc.RetryRun(context.Background(), RetryRunCmd{UserID: "u1", TaskID: "t_1"}); err != nil {
 		t.Fatalf("RetryRun on a succeeded run: %v", err)
@@ -85,13 +85,13 @@ func TestRetryRunAcceptsASucceededRun(t *testing.T) {
 // "nothing to retry" there would be wrong twice over: there is something, and
 // the reason it cannot be repeated yet is the run that is still going.
 func TestRetryRunRefusesWhileARunIsInFlight(t *testing.T) {
-	svc, runs := retryFixture(string(model.RunStatusSucceeded))
-	runs.Runs = append(runs.Runs, model.TaskRun{
-		ID: "tr_2", TaskID: "t_1", Input: "follow-up", Status: string(model.RunStatusRunning),
+	svc, runs := retryFixture(string(coretask.RunStatusSucceeded))
+	runs.Runs = append(runs.Runs, coretask.Run{
+		ID: "tr_2", TaskID: "t_1", Input: "follow-up", Status: string(coretask.RunStatusRunning),
 	})
 
 	_, err := svc.RetryRun(context.Background(), RetryRunCmd{UserID: "u1", TaskID: "t_1"})
-	if !errors.Is(err, model.ErrRunInProgress) {
+	if !errors.Is(err, coretask.ErrRunInProgress) {
 		t.Fatalf("err = %v, want ErrRunInProgress", err)
 	}
 	if len(runs.Runs) != 2 {
@@ -102,7 +102,7 @@ func TestRetryRunRefusesWhileARunIsInFlight(t *testing.T) {
 // A task that has never run has nothing to repeat.
 func TestRetryRunRefusesATaskThatNeverRan(t *testing.T) {
 	svc := &Service{
-		Tasks:    &mock.MockTaskStore{List: []model.Task{{ID: "t_1", TeamID: "tm_1", Status: "PENDING"}}},
+		Tasks:    &mock.MockTaskStore{List: []coretask.Task{{ID: "t_1", TeamID: "tm_1", Status: "PENDING"}}},
 		TaskRuns: &mock.MockTaskRunStore{},
 	}
 
@@ -116,7 +116,7 @@ func TestRetryRunRefusesATaskThatNeverRan(t *testing.T) {
 // outcome for a step that is already settled, marking it succeeded and
 // dispatching the next step of a workflow run that has already ended.
 func TestRetryRunRefusesAWorkflowStepTask(t *testing.T) {
-	svc, runs := retryFixture(string(model.RunStatusFailed))
+	svc, runs := retryFixture(string(coretask.RunStatusFailed))
 	svc.WorkflowSteps = &mock.MockWorkflowStore{StepRuns: []coreworkflow.StepRun{{
 		ID:            "wsr_1",
 		WorkflowRunID: "wr_1",
@@ -136,7 +136,7 @@ func TestRetryRunRefusesAWorkflowStepTask(t *testing.T) {
 // A deployment with no workflow store has no workflow steps, so the absent
 // lookup is an answered question, not an unanswered one.
 func TestRetryRunWithoutAWorkflowStoreStillRetries(t *testing.T) {
-	svc, _ := retryFixture(string(model.RunStatusFailed))
+	svc, _ := retryFixture(string(coretask.RunStatusFailed))
 	svc.WorkflowSteps = nil
 
 	if _, err := svc.RetryRun(context.Background(), RetryRunCmd{UserID: "u1", TaskID: "t_1"}); err != nil {
@@ -145,7 +145,7 @@ func TestRetryRunWithoutAWorkflowStoreStillRetries(t *testing.T) {
 }
 
 func TestRetryRunRefusesAnUnknownTask(t *testing.T) {
-	svc, _ := retryFixture(string(model.RunStatusFailed))
+	svc, _ := retryFixture(string(coretask.RunStatusFailed))
 
 	if _, err := svc.RetryRun(context.Background(), RetryRunCmd{UserID: "u1", TaskID: "t_missing"}); !errors.Is(err, ErrTaskNotFound) {
 		t.Fatalf("err = %v, want ErrTaskNotFound", err)

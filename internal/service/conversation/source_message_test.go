@@ -7,7 +7,7 @@ import (
 
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
 	"github.com/gougoujiang/buildmax/internal/service/task"
@@ -95,7 +95,7 @@ func TestStartTaskRecordsTheMessageThatAskedForIt(t *testing.T) {
 func TestContinueTaskRecordsItsOwnMessage(t *testing.T) {
 	const conversationID = "conv-1"
 	const teamID = "tm_1"
-	tasks := &mock.MockTaskStore{List: []model.Task{{
+	tasks := &mock.MockTaskStore{List: []coretask.Task{{
 		ID: "tk_1", ConversationID: conversationID, TeamID: teamID, Status: "SUCCEEDED", Input: "first",
 	}}}
 	runs := &mock.MockTaskRunStore{}
