@@ -298,6 +298,23 @@ func (s *Service) resolveTitle(ctx context.Context, input string) (string, int, 
 	return genTitle, promptTokens, completionTokens
 }
 
+// Admits reports whether the team can start one more run right now, before a
+// caller writes anything a refusal would strand.
+//
+// CreateTask checks the same allowance, but only after resolving a title --
+// which is a model call -- and only once it has been handed a conversation to
+// hang the task on. An orchestrator that creates that conversation first and
+// asks afterwards leaves one behind on every refusal, and nothing deletes a
+// conversation. This is the question worth asking before the first write.
+//
+// It asks about the run allowance alone. The token half depends on the title
+// the model has not written yet, so CreateTask still checks it and can still
+// refuse; what this closes is the case a team hits routinely, which is running
+// out of runs.
+func (s *Service) Admits(ctx context.Context, teamID string) error {
+	return s.checkQuota(ctx, teamID, 0)
+}
+
 func (s *Service) checkQuota(ctx context.Context, teamID string, tokens int) error {
 	if s.QuotaChecker == nil {
 		return nil
