@@ -359,10 +359,12 @@ rather than discovered later.
   moved out of the gating set with an issue attached, on the same day. Blanket
   retries are not added: the browser suite sets `retries: 0` deliberately, and
   a hidden flake is worse than a visible one.
-- **The `gui` package loses its only PR-time coverage.** That is accepted here
-  only because it is cheap to replace: `gui` needs its own unit tests and a
-  lint step in the frontend job. Until it has them, a shared-component
-  regression reaches `main` before anything executes it.
+- **The `gui` package loses its only PR-time coverage.** That was accepted here
+  only because it was cheap to replace, and it has been: `gui` has its own
+  component tests and the frontend job runs them, so a shared-component
+  regression is caught before merge again. A lint step for the package is still
+  missing, and stays blocked until typescript-eslint supports the TypeScript
+  version it builds with.
 
 ## 9. Delivery Order
 
@@ -401,9 +403,9 @@ rather than discovered later.
    carrying the summary and the link, and `./make e2e all` as the matrix.
 
 Renaming the model-driven `./make smoke` rode along with step 3. Giving `gui`
-tests is still open and belongs with step 4, which is when Portal paths start
-depending on the shared components; a lint step for it is blocked until
-typescript-eslint supports the TypeScript version it builds with.
+tests rode along with step 4, which is when Portal paths started depending on
+the shared components; a lint step for it is blocked until typescript-eslint
+supports the TypeScript version it builds with.
 
 ## 10. Success Criteria
 
