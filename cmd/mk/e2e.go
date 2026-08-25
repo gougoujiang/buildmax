@@ -76,8 +76,12 @@ func e2eCLI() error {
 // e2eDesktopBridge runs the Wails bridge suite. It stops at the bridge: the
 // window, the webview, and the React app need a display and a running
 // `wails dev`, which is the packaged-app smoke this design still defers.
+//
+// The name is the suite: a bridge test called anything but TestBridge* is not
+// selected here, so it runs only in `./make test` and this command reports a
+// pass without having executed it.
 func e2eDesktopBridge() error {
-	fmt.Println("[e2e] Desktop bridge suite: bound methods, frontend events, and approvals — no window")
+	fmt.Println("[e2e] Desktop bridge suite: bound methods, frontend events, approvals, and history — no window")
 	return runCmd("go", "test", "-count=1", "-run", "^TestBridge", "./internal/interface/desktop/")
 }
 
