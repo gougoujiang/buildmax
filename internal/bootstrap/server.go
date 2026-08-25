@@ -15,7 +15,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/config"
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/infra/db"
 	"github.com/gougoujiang/buildmax/internal/infra/k8s"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
@@ -526,7 +526,7 @@ func wireLLM(cfg *httpserver.Config, sc config.ServerConfig, st *db.Store, quota
 	// A nil *db.Store put straight into an interface parameter is a non-nil
 	// interface holding a nil pointer, so the absence of a store has to be
 	// stated rather than passed along.
-	var models model.LLMModelStore
+	var models coregw.ModelStore
 	if st != nil {
 		models = st
 	}

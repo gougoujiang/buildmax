@@ -10,7 +10,7 @@ import (
 	"time"
 
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/server/authtoken"
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
 )
@@ -104,31 +104,31 @@ func (c *llmStubClient) ContextWindow() int { return 0 }
 // what a call was attributed to.
 type llmStubLedger struct {
 	opened  int
-	last    model.LLMCall
-	calls   []model.LLMCall
+	last    coregw.Call
+	calls   []coregw.Call
 	listErr error
 }
 
-func (l *llmStubLedger) OpenLLMCall(_ context.Context, call *model.LLMCall) (*model.LLMCall, error) {
+func (l *llmStubLedger) OpenLLMCall(_ context.Context, call *coregw.Call) (*coregw.Call, error) {
 	l.opened++
 	stored := *call
 	stored.ID = "lc_stub"
 	l.last = stored
 	return &stored, nil
 }
-func (l *llmStubLedger) CompleteLLMCall(context.Context, string, model.LLMCallOutcome) error {
+func (l *llmStubLedger) CompleteLLMCall(context.Context, string, coregw.CallOutcome) error {
 	return nil
 }
-func (l *llmStubLedger) GetLLMCall(context.Context, string) (*model.LLMCall, error) { return nil, nil }
+func (l *llmStubLedger) GetLLMCall(context.Context, string) (*coregw.Call, error) { return nil, nil }
 
-func (l *llmStubLedger) GetLLMCallByClientID(context.Context, string, string) (*model.LLMCall, error) {
+func (l *llmStubLedger) GetLLMCallByClientID(context.Context, string, string) (*coregw.Call, error) {
 	return nil, nil
 }
-func (l *llmStubLedger) ListLLMCallsByTaskRun(_ context.Context, taskRunID string) ([]model.LLMCall, error) {
+func (l *llmStubLedger) ListLLMCallsByTaskRun(_ context.Context, taskRunID string) ([]coregw.Call, error) {
 	if l.listErr != nil {
 		return nil, l.listErr
 	}
-	var out []model.LLMCall
+	var out []coregw.Call
 	for _, call := range l.calls {
 		if call.TaskRunID != nil && *call.TaskRunID == taskRunID {
 			out = append(out, call)

@@ -284,7 +284,9 @@ internal/core/
   plugin/         existing plugin contracts plus persisted catalog/activation types
   audit/          audit event, cursor, and store contracts
   quota/          quota tier/decision vocabulary
-  llm/            existing LLM contract plus provider vocabulary and catalog/call models
+  llm/            existing LLM contract plus provider vocabulary
+  llmgateway/     what a deployment brokers and records: catalog entry, call
+                  ledger entry, and their stores
   apierr/         existing error taxonomy, plus the cross-cutting ErrNotFound sentinel
 
 internal/service/
@@ -420,6 +422,22 @@ change to the matrix could reach it. Now that both enforcers read one rule, the
 service states its own expectation, and each of the three enforcement points
 fails independently when the rule is widened.
 
+D1 changed its own destination. The plan sent the catalog and call-ledger
+models to `core/llm`, and moving them there put `Usage` and `CallUsage` side by
+side with the same five token fields — one being what a provider reported for a
+completion, the other what the ledger recorded plus where the numbers came from.
+Two near-identical types in one package invite the wrong one, and the collision
+is the evidence: `core/llm` owns how BuildMax talks to a model, while the
+catalog and the ledger own what a deployment brokered and recorded. Those change
+for different reasons, so they are `core/llmgateway`, paired with
+`service/llmgateway` the way `core/team` is paired with `service/team`.
+
+Moving them also dropped the package-name stutter: `LLMModel` is `Model`,
+`LLMCall` is `Call`, and the status, surface, and usage-source constants lose
+the same prefix. Store method names are untouched — renaming those reaches the
+DB adapter, the mocks, and every caller for no gain the type rename does not
+already give.
+
 B3 keeps the response body byte-for-byte. The reason the quota service supplies
 is already a whole sentence — `quota exceeded: run limit` — so it becomes the
 error's message rather than a detail appended to one, which would have said it
@@ -488,7 +506,7 @@ settled in D0's review.
 | PR | Target package | Sources | Production files referencing the moved symbols |
 |---|---|---|---|
 | D0 | `core/apierr` | `ErrNotFound` from `errors.go` | 41 (the sentinel alone; the rest of `errors.go` waits for D5 and D9) |
-| D1 | `core/llm` (exists) | `llm_model.go`, `llm_call.go` | 10, 10 |
+| D1 | `core/llmgateway` (new, not `core/llm`) | `llm_model.go`, `llm_call.go` | 10, 6 |
 | D2 | `core/quota` | `quota.go` | 4 |
 | D3 | `core/conversation` | `conversation.go` | 13 |
 | D4 | `core/workflow` | `workflow.go` | 13 |

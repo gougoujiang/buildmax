@@ -12,7 +12,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/config"
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	httpserver "github.com/gougoujiang/buildmax/internal/server"
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
 )
@@ -30,13 +30,13 @@ func conversationModel() config.ServerModelEntry {
 
 // fakeModels is an in-memory llm_model table.
 type fakeModels struct {
-	rows        map[string]model.LLMModel
+	rows        map[string]coregw.Model
 	credentials map[string]string
 	err         error
 }
 
-func newFakeModels(rows ...model.LLMModel) *fakeModels {
-	m := &fakeModels{rows: map[string]model.LLMModel{}, credentials: map[string]string{}}
+func newFakeModels(rows ...coregw.Model) *fakeModels {
+	m := &fakeModels{rows: map[string]coregw.Model{}, credentials: map[string]string{}}
 	for _, r := range rows {
 		m.rows[r.ID] = r
 		m.credentials[r.ID] = "key-for-" + r.ID
@@ -44,11 +44,11 @@ func newFakeModels(rows ...model.LLMModel) *fakeModels {
 	return m
 }
 
-func (m *fakeModels) CreateLLMModel(context.Context, model.CreateLLMModelInput) (*model.LLMModel, error) {
+func (m *fakeModels) CreateLLMModel(context.Context, coregw.CreateModelInput) (*coregw.Model, error) {
 	return nil, errors.New("not used")
 }
 
-func (m *fakeModels) GetLLMModel(_ context.Context, id string) (*model.LLMModel, error) {
+func (m *fakeModels) GetLLMModel(_ context.Context, id string) (*coregw.Model, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -59,7 +59,7 @@ func (m *fakeModels) GetLLMModel(_ context.Context, id string) (*model.LLMModel,
 	return &row, nil
 }
 
-func (m *fakeModels) GetLLMModelByName(_ context.Context, name string) (*model.LLMModel, error) {
+func (m *fakeModels) GetLLMModelByName(_ context.Context, name string) (*coregw.Model, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -73,7 +73,7 @@ func (m *fakeModels) GetLLMModelByName(_ context.Context, name string) (*model.L
 
 // Sorted by ID, so a listing and the default it implies do not move between
 // calls the way ranging over a map would.
-func (m *fakeModels) ListLLMModels(context.Context) ([]model.LLMModel, error) {
+func (m *fakeModels) ListLLMModels(context.Context) ([]coregw.Model, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -82,7 +82,7 @@ func (m *fakeModels) ListLLMModels(context.Context) ([]model.LLMModel, error) {
 		ids = append(ids, id)
 	}
 	slices.Sort(ids)
-	out := make([]model.LLMModel, 0, len(ids))
+	out := make([]coregw.Model, 0, len(ids))
 	for _, id := range ids {
 		out = append(out, m.rows[id])
 	}
@@ -99,8 +99,8 @@ func (m *fakeModels) LLMModelCredential(_ context.Context, id string) (string, e
 	return key, nil
 }
 
-func catalogRow(id string) model.LLMModel {
-	return model.LLMModel{
+func catalogRow(id string) coregw.Model {
+	return coregw.Model{
 		ID:            id,
 		Name:          strings.ToUpper(id),
 		ProviderType:  cllm.ProviderOpenAICompatible,

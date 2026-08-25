@@ -11,6 +11,7 @@ import (
 	"time"
 
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
+	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/infra/llmwire"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -55,12 +56,12 @@ func (c *llmStubClient) ContextWindow() int { return 0 }
 // what a call was attributed to.
 type llmStubLedger struct {
 	opened  int
-	last    model.LLMCall
-	calls   []model.LLMCall
+	last    coregw.Call
+	calls   []coregw.Call
 	listErr error
 }
 
-func (l *llmStubLedger) OpenLLMCall(_ context.Context, call *model.LLMCall) (*model.LLMCall, error) {
+func (l *llmStubLedger) OpenLLMCall(_ context.Context, call *coregw.Call) (*coregw.Call, error) {
 	l.opened++
 	stored := *call
 	stored.ID = "lc_stub"
@@ -68,24 +69,24 @@ func (l *llmStubLedger) OpenLLMCall(_ context.Context, call *model.LLMCall) (*mo
 	return &stored, nil
 }
 
-func (l *llmStubLedger) CompleteLLMCall(context.Context, string, model.LLMCallOutcome) error {
+func (l *llmStubLedger) CompleteLLMCall(context.Context, string, coregw.CallOutcome) error {
 	return nil
 }
 
-func (l *llmStubLedger) GetLLMCall(context.Context, string) (*model.LLMCall, error) { return nil, nil }
+func (l *llmStubLedger) GetLLMCall(context.Context, string) (*coregw.Call, error) { return nil, nil }
 
-func (l *llmStubLedger) GetLLMCallByClientID(context.Context, string, string) (*model.LLMCall, error) {
+func (l *llmStubLedger) GetLLMCallByClientID(context.Context, string, string) (*coregw.Call, error) {
 	return nil, nil
 }
 
 // ListLLMCallsByTaskRun returns whatever the test staged, filtered by run the
 // way the real store does. The team is authorized by the handler before this is
 // reached, so there is nothing team-shaped to filter on here.
-func (l *llmStubLedger) ListLLMCallsByTaskRun(_ context.Context, taskRunID string) ([]model.LLMCall, error) {
+func (l *llmStubLedger) ListLLMCallsByTaskRun(_ context.Context, taskRunID string) ([]coregw.Call, error) {
 	if l.listErr != nil {
 		return nil, l.listErr
 	}
-	var out []model.LLMCall
+	var out []coregw.Call
 	for _, call := range l.calls {
 		if call.TaskRunID != nil && *call.TaskRunID == taskRunID {
 			out = append(out, call)
@@ -506,8 +507,8 @@ func TestLLMDuplicateCallIDIsRefused(t *testing.T) {
 // llmDuplicateLedger reports that every client call ID is already in use.
 type llmDuplicateLedger struct{ llmStubLedger }
 
-func (l *llmDuplicateLedger) GetLLMCallByClientID(context.Context, string, string) (*model.LLMCall, error) {
-	return &model.LLMCall{ID: "lc_original", Status: model.LLMCallStatusAccepted}, nil
+func (l *llmDuplicateLedger) GetLLMCallByClientID(context.Context, string, string) (*coregw.Call, error) {
+	return &coregw.Call{ID: "lc_original", Status: coregw.CallStatusAccepted}, nil
 }
 
 func TestLLMModelsUnconfigured(t *testing.T) {

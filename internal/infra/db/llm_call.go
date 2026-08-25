@@ -8,7 +8,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
 
@@ -91,11 +91,11 @@ func (s *Store) llmCallSelect(ctx context.Context) *gorm.DB {
 		Joins("LEFT JOIN task_run r ON r.id = llm_call.task_run_id")
 }
 
-func toLLMCall(row *llmCallReadRow) *model.LLMCall {
+func toLLMCall(row *llmCallReadRow) *coregw.Call {
 	if row == nil {
 		return nil
 	}
-	out := &model.LLMCall{
+	out := &coregw.Call{
 		ID:                row.Row.PublicID,
 		ClientCallID:      row.Row.ClientCallID,
 		Surface:           row.Row.Surface,
@@ -145,7 +145,7 @@ func toLLMCall(row *llmCallReadRow) *model.LLMCall {
 // It is separate from reference resolution so the mapping stays testable
 // without a database: a column added to the model and forgotten here is the
 // failure this split exists to keep catching.
-func llmCallValues(call *model.LLMCall) *llmCallRow {
+func llmCallValues(call *coregw.Call) *llmCallRow {
 	if call == nil {
 		return nil
 	}
@@ -183,7 +183,7 @@ func llmCallValues(call *model.LLMCall) *llmCallRow {
 // toLLMCallRow resolves the call's references. It reports an error rather than
 // dropping one: the ledger is an accounting record, and a call attributed to
 // nothing is worse than a refused write.
-func (s *Store) toLLMCallRow(ctx context.Context, call *model.LLMCall) (*llmCallRow, error) {
+func (s *Store) toLLMCallRow(ctx context.Context, call *coregw.Call) (*llmCallRow, error) {
 	userKey, err := optionalKey(ctx, s.db, "user", call.UserID)
 	if err != nil {
 		return nil, err
@@ -205,7 +205,7 @@ func (s *Store) toLLMCallRow(ctx context.Context, call *model.LLMCall) (*llmCall
 
 // OpenLLMCall records an accepted call before the upstream request starts, so a
 // call that never returns still leaves evidence that it was attempted.
-func (s *Store) OpenLLMCall(ctx context.Context, call *model.LLMCall) (*model.LLMCall, error) {
+func (s *Store) OpenLLMCall(ctx context.Context, call *coregw.Call) (*coregw.Call, error) {
 	if call == nil {
 		return nil, errors.New("llm call is required")
 	}
@@ -214,10 +214,10 @@ func (s *Store) OpenLLMCall(ctx context.Context, call *model.LLMCall) (*model.LL
 		stored.AcceptedAt = time.Now().UTC()
 	}
 	if stored.Status == "" {
-		stored.Status = model.LLMCallStatusAccepted
+		stored.Status = coregw.CallStatusAccepted
 	}
 	if stored.UsageSource == "" {
-		stored.UsageSource = model.LLMUsageSourceUnavailable
+		stored.UsageSource = coregw.UsageSourceUnavailable
 	}
 	row, err := s.toLLMCallRow(ctx, &stored)
 	if err != nil {
@@ -226,7 +226,7 @@ func (s *Store) OpenLLMCall(ctx context.Context, call *model.LLMCall) (*model.LL
 	if err := createWithPublicID(ctx, s.db, "uq_llm_call_public_id",
 		func(id string) { row.PublicID = id }, row); err != nil {
 		if isDuplicateKey(err) {
-			return nil, model.ErrDuplicateLLMCall
+			return nil, coregw.ErrDuplicateCall
 		}
 		return nil, err
 	}
@@ -241,7 +241,7 @@ func (s *Store) OpenLLMCall(ctx context.Context, call *model.LLMCall) (*model.LL
 // CompleteLLMCall writes the terminal outcome of an open call. Usage is left as
 // recorded when the outcome carries none, so an unavailable count is never
 // silently written as zero.
-func (s *Store) CompleteLLMCall(ctx context.Context, llmCallID string, outcome model.LLMCallOutcome) error {
+func (s *Store) CompleteLLMCall(ctx context.Context, llmCallID string, outcome coregw.CallOutcome) error {
 	updates := map[string]any{
 		"status":       outcome.Status,
 		"error_class":  outcome.ErrorClass,
@@ -257,7 +257,7 @@ func (s *Store) CompleteLLMCall(ctx context.Context, llmCallID string, outcome m
 	if usage := outcome.Usage; usage != nil {
 		source := usage.Source
 		if source == "" {
-			source = model.LLMUsageSourceReported
+			source = coregw.UsageSourceReported
 		}
 		updates["prompt_tokens"] = usage.PromptTokens
 		updates["completion_tokens"] = usage.CompletionTokens
@@ -276,7 +276,7 @@ func (s *Store) CompleteLLMCall(ctx context.Context, llmCallID string, outcome m
 }
 
 // GetLLMCall returns one call by ID, or (nil, nil) when not found.
-func (s *Store) GetLLMCall(ctx context.Context, llmCallID string) (*model.LLMCall, error) {
+func (s *Store) GetLLMCall(ctx context.Context, llmCallID string) (*coregw.Call, error) {
 	id, ok := util.CanonicalPublicID(llmCallID)
 	if !ok {
 		return nil, nil
@@ -294,7 +294,7 @@ func (s *Store) GetLLMCall(ctx context.Context, llmCallID string) (*model.LLMCal
 
 // GetLLMCallByClientID returns one user's call by their idempotency key.
 // The lookup is user-scoped: one caller's key can never resolve another's call.
-func (s *Store) GetLLMCallByClientID(ctx context.Context, userID, clientCallID string) (*model.LLMCall, error) {
+func (s *Store) GetLLMCallByClientID(ctx context.Context, userID, clientCallID string) (*coregw.Call, error) {
 	if userID == "" || clientCallID == "" {
 		return nil, nil
 	}
@@ -323,7 +323,7 @@ func (s *Store) GetLLMCallByClientID(ctx context.Context, userID, clientCallID s
 // A run belongs to exactly one team, so authorizing the run authorizes every
 // row this returns. The caller establishes that before asking; there is no team
 // column here to filter on afterwards.
-func (s *Store) ListLLMCallsByTaskRun(ctx context.Context, taskRunID string) ([]model.LLMCall, error) {
+func (s *Store) ListLLMCallsByTaskRun(ctx context.Context, taskRunID string) ([]coregw.Call, error) {
 	runKey, err := lookupKey(ctx, s.db, "task_run", taskRunID)
 	if errors.Is(err, apierr.ErrNotFound) {
 		return nil, nil
@@ -339,7 +339,7 @@ func (s *Store) ListLLMCallsByTaskRun(ctx context.Context, taskRunID string) ([]
 	if err != nil {
 		return nil, err
 	}
-	out := make([]model.LLMCall, 0, len(rows))
+	out := make([]coregw.Call, 0, len(rows))
 	for i := range rows {
 		out = append(out, *toLLMCall(&rows[i]))
 	}

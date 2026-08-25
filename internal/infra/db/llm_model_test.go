@@ -10,15 +10,15 @@ import (
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/util"
 	"gorm.io/gorm/schema"
 )
 
 const catalogSecret = "sk-CATALOG-SECRET-VALUE"
 
-func sampleModelInput(name string) model.CreateLLMModelInput {
-	return model.CreateLLMModelInput{
+func sampleModelInput(name string) coregw.CreateModelInput {
+	return coregw.CreateModelInput{
 		Name:          name,
 		ProviderType:  "openai_compatible",
 		APIURL:        "https://upstream.example.com/v1",
@@ -59,8 +59,8 @@ func TestLLMModelReadsExcludeTheCredential(t *testing.T) {
 		}
 	}
 	// The entity itself has no field to put it in either.
-	if strings.Contains(fmt.Sprintf("%+v", model.LLMModel{}), "APIKey") {
-		t.Error("model.LLMModel has an APIKey field")
+	if strings.Contains(fmt.Sprintf("%+v", coregw.Model{}), "APIKey") {
+		t.Error("coregw.Model has an APIKey field")
 	}
 }
 
@@ -147,7 +147,7 @@ func TestLLMModelNameIsUnique(t *testing.T) {
 		_ = s.db.WithContext(ctx).Delete(&llmModelRow{}, "public_id = ?", canonicalPublicID(created.ID))
 	}()
 
-	if _, err := s.CreateLLMModel(ctx, sampleModelInput(name)); !errors.Is(err, model.ErrLLMModelNameTaken) {
+	if _, err := s.CreateLLMModel(ctx, sampleModelInput(name)); !errors.Is(err, coregw.ErrModelNameTaken) {
 		t.Fatalf("want ErrLLMModelNameTaken, got %v", err)
 	}
 }

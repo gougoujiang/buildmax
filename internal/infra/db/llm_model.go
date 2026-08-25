@@ -8,7 +8,7 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 )
 
 // llmModelRow is the managed model catalog.
@@ -54,11 +54,11 @@ type llmModelRow struct {
 
 func (llmModelRow) TableName() string { return "llm_model" }
 
-func toLLMModel(row *llmModelRow) *model.LLMModel {
+func toLLMModel(row *llmModelRow) *coregw.Model {
 	if row == nil {
 		return nil
 	}
-	return &model.LLMModel{
+	return &coregw.Model{
 		ID:                row.PublicID,
 		Name:              row.Name,
 		ProviderType:      row.ProviderType,
@@ -124,7 +124,7 @@ var llmModelColumns = []string{
 
 // CreateLLMModel stores a new model. The name is unique so an operator cannot
 // end up with two catalog entries that look identical in a listing.
-func (s *Store) CreateLLMModel(ctx context.Context, in model.CreateLLMModelInput) (*model.LLMModel, error) {
+func (s *Store) CreateLLMModel(ctx context.Context, in coregw.CreateModelInput) (*coregw.Model, error) {
 	now := time.Now().UTC()
 	row := &llmModelRow{
 		Name:              in.Name,
@@ -152,7 +152,7 @@ func (s *Store) CreateLLMModel(ctx context.Context, in model.CreateLLMModelInput
 	if err := createWithPublicID(ctx, s.db, "uq_llm_model_public_id",
 		func(id string) { row.PublicID = id }, row); err != nil {
 		if isDuplicateKey(err) {
-			return nil, model.ErrLLMModelNameTaken
+			return nil, coregw.ErrModelNameTaken
 		}
 		return nil, err
 	}
@@ -160,7 +160,7 @@ func (s *Store) CreateLLMModel(ctx context.Context, in model.CreateLLMModelInput
 }
 
 // GetLLMModel returns one model by ID, or (nil, nil) when not found.
-func (s *Store) GetLLMModel(ctx context.Context, llmModelID string) (*model.LLMModel, error) {
+func (s *Store) GetLLMModel(ctx context.Context, llmModelID string) (*coregw.Model, error) {
 	if llmModelID == "" {
 		return nil, nil
 	}
@@ -181,7 +181,7 @@ func (s *Store) GetLLMModel(ctx context.Context, llmModelID string) (*model.LLMM
 // The name column is uniquely indexed, so this is a single-row lookup rather
 // than a scan — which is what lets the call path address a model by the name an
 // operator gave it.
-func (s *Store) GetLLMModelByName(ctx context.Context, name string) (*model.LLMModel, error) {
+func (s *Store) GetLLMModelByName(ctx context.Context, name string) (*coregw.Model, error) {
 	if name == "" {
 		return nil, nil
 	}
@@ -198,13 +198,13 @@ func (s *Store) GetLLMModelByName(ctx context.Context, name string) (*model.LLMM
 }
 
 // ListLLMModels returns every model, enabled or not, oldest first.
-func (s *Store) ListLLMModels(ctx context.Context) ([]model.LLMModel, error) {
+func (s *Store) ListLLMModels(ctx context.Context) ([]coregw.Model, error) {
 	var rows []llmModelRow
 	if err := s.db.WithContext(ctx).Select(llmModelColumns).
 		Order("created_at ASC").Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	out := make([]model.LLMModel, 0, len(rows))
+	out := make([]coregw.Model, 0, len(rows))
 	for i := range rows {
 		out = append(out, *toLLMModel(&rows[i]))
 	}

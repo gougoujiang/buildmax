@@ -1,4 +1,4 @@
-package model
+package llmgateway
 
 import (
 	"context"
@@ -6,42 +6,42 @@ import (
 	"time"
 )
 
-// ErrDuplicateLLMCall is returned when a team reuses a client call ID. The
+// ErrDuplicateCall is returned when a team reuses a client call ID. The
 // unique index is what actually decides it, so two concurrent requests with one
 // key cannot both open a record.
-var ErrDuplicateLLMCall = errors.New("llm call already exists for this client call id")
+var ErrDuplicateCall = errors.New("llm call already exists for this client call id")
 
 // Managed LLM call lifecycle statuses.
 const (
-	LLMCallStatusAccepted  = "ACCEPTED"
-	LLMCallStatusSucceeded = "SUCCEEDED"
-	LLMCallStatusFailed    = "FAILED"
-	LLMCallStatusCanceled  = "CANCELED"
+	CallStatusAccepted  = "ACCEPTED"
+	CallStatusSucceeded = "SUCCEEDED"
+	CallStatusFailed    = "FAILED"
+	CallStatusCanceled  = "CANCELED"
 )
 
 // Where a call's token counts came from. Recording this keeps accounting honest
 // when a provider reports no usage: an absent number and a zero are different
 // facts, and only one of them may be billed.
 const (
-	LLMUsageSourceReported    = "reported"
-	LLMUsageSourceEstimated   = "estimated"
-	LLMUsageSourceUnavailable = "unavailable"
+	UsageSourceReported    = "reported"
+	UsageSourceEstimated   = "estimated"
+	UsageSourceUnavailable = "unavailable"
 )
 
 // Surfaces a managed call can originate from.
 const (
-	LLMCallSurfaceServer  = "server"
-	LLMCallSurfaceCLI     = "cli"
-	LLMCallSurfaceDesktop = "desktop"
-	LLMCallSurfaceWorker  = "worker"
+	CallSurfaceServer  = "server"
+	CallSurfaceCLI     = "cli"
+	CallSurfaceDesktop = "desktop"
+	CallSurfaceWorker  = "worker"
 )
 
-// LLMCall is one logical managed inference call.
+// Call is one logical managed inference call.
 //
 // It is an accounting and diagnostic record, not a transcript: prompts, tool
 // arguments, tool results, and generated content are deliberately absent. Run
 // detail belongs to durable local traces. See docs/design/llm-gateway.md.
-type LLMCall struct {
+type Call struct {
 	ID string `json:"id"`
 	// ClientCallID is the caller's idempotency key, unique within one user's
 	// calls. It is absent for calls the server makes on its own behalf.
@@ -102,8 +102,8 @@ type LLMCall struct {
 	RateOutputPerMTok     *int64 `json:"rate_output_per_mtok,omitempty"`
 }
 
-// LLMCallUsage is the token usage reported for one call.
-type LLMCallUsage struct {
+// CallUsage is the token usage reported for one call.
+type CallUsage struct {
 	PromptTokens     int `json:"prompt_tokens"`
 	CompletionTokens int `json:"completion_tokens"`
 	TotalTokens      int `json:"total_tokens"`
@@ -115,8 +115,8 @@ type LLMCallUsage struct {
 	Source           string `json:"source"`
 }
 
-// LLMCallOutcome is the terminal state written when a call finishes.
-type LLMCallOutcome struct {
+// CallOutcome is the terminal state written when a call finishes.
+type CallOutcome struct {
 	Status            string
 	ErrorClass        *string
 	Attempts          int
@@ -124,27 +124,27 @@ type LLMCallOutcome struct {
 	FirstDeltaAt      *time.Time
 	CompletedAt       time.Time
 	// Usage is nil when the provider reported none; the record then keeps
-	// LLMUsageSourceUnavailable rather than zero counts.
-	Usage *LLMCallUsage
+	// UsageSourceUnavailable rather than zero counts.
+	Usage *CallUsage
 }
 
-// LLMCallStore persists the managed call ledger.
-type LLMCallStore interface {
+// CallStore persists the managed call ledger.
+type CallStore interface {
 	// OpenLLMCall records an accepted call before the upstream request starts.
 	// It assigns the call ID and returns the stored record.
-	OpenLLMCall(ctx context.Context, call *LLMCall) (*LLMCall, error)
+	OpenLLMCall(ctx context.Context, call *Call) (*Call, error)
 	// CompleteLLMCall writes the terminal outcome of an open call.
-	CompleteLLMCall(ctx context.Context, llmCallID string, outcome LLMCallOutcome) error
+	CompleteLLMCall(ctx context.Context, llmCallID string, outcome CallOutcome) error
 	// GetLLMCall returns one call by ID, or (nil, nil) when not found.
-	GetLLMCall(ctx context.Context, llmCallID string) (*LLMCall, error)
+	GetLLMCall(ctx context.Context, llmCallID string) (*Call, error)
 	// GetLLMCallByClientID returns one user's call by their idempotency key, or
 	// (nil, nil) when not found. The key is scoped to the user who sent it, so
 	// one caller's key can never resolve another's call.
-	GetLLMCallByClientID(ctx context.Context, userID, clientCallID string) (*LLMCall, error)
+	GetLLMCallByClientID(ctx context.Context, userID, clientCallID string) (*Call, error)
 	// ListLLMCallsByTaskRun returns a run's calls, oldest first, so a reader
 	// follows the run in the order it happened.
 	//
 	// A run belongs to exactly one team, so authorizing the run authorizes its
 	// ledger; the caller must have established that before asking.
-	ListLLMCallsByTaskRun(ctx context.Context, taskRunID string) ([]LLMCall, error)
+	ListLLMCallsByTaskRun(ctx context.Context, taskRunID string) ([]Call, error)
 }

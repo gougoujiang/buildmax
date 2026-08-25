@@ -13,7 +13,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/agentapp"
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/interface/auth"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
@@ -78,7 +78,7 @@ func runPrintMode(opts printOptions) error {
 		ManagedServerURL:       source.ServerURL,
 		ManagedToken:           auth.TokenForServer,
 		ArtifactPublisher:      auth.ArtifactPublisherForSession(),
-		Surface:                model.LLMCallSurfaceCLI,
+		Surface:                coregw.CallSurfaceCLI,
 		AdditionalSystemPrompt: opts.AdditionalSystemPrompt,
 	})
 	if err != nil {

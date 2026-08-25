@@ -9,7 +9,7 @@ import (
 	"time"
 
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
 )
 
@@ -68,19 +68,19 @@ func (c *scriptedClient) ContextWindow() int { return 0 }
 // fakeLedger records calls in memory.
 type fakeLedger struct {
 	mu       sync.Mutex
-	opened   []model.LLMCall
-	outcomes map[string]model.LLMCallOutcome
-	existing *model.LLMCall
+	opened   []coregw.Call
+	outcomes map[string]coregw.CallOutcome
+	existing *coregw.Call
 	openErr  error
 	closeErr error
 	nextID   int
 }
 
 func newFakeLedger() *fakeLedger {
-	return &fakeLedger{outcomes: map[string]model.LLMCallOutcome{}}
+	return &fakeLedger{outcomes: map[string]coregw.CallOutcome{}}
 }
 
-func (l *fakeLedger) OpenLLMCall(_ context.Context, call *model.LLMCall) (*model.LLMCall, error) {
+func (l *fakeLedger) OpenLLMCall(_ context.Context, call *coregw.Call) (*coregw.Call, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.openErr != nil {
@@ -93,7 +93,7 @@ func (l *fakeLedger) OpenLLMCall(_ context.Context, call *model.LLMCall) (*model
 	return &stored, nil
 }
 
-func (l *fakeLedger) CompleteLLMCall(_ context.Context, llmCallID string, outcome model.LLMCallOutcome) error {
+func (l *fakeLedger) CompleteLLMCall(_ context.Context, llmCallID string, outcome coregw.CallOutcome) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.closeErr != nil {
@@ -103,19 +103,19 @@ func (l *fakeLedger) CompleteLLMCall(_ context.Context, llmCallID string, outcom
 	return nil
 }
 
-func (l *fakeLedger) GetLLMCall(context.Context, string) (*model.LLMCall, error) { return nil, nil }
+func (l *fakeLedger) GetLLMCall(context.Context, string) (*coregw.Call, error) { return nil, nil }
 
-func (l *fakeLedger) GetLLMCallByClientID(context.Context, string, string) (*model.LLMCall, error) {
+func (l *fakeLedger) GetLLMCallByClientID(context.Context, string, string) (*coregw.Call, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return l.existing, nil
 }
 
-func (l *fakeLedger) ListLLMCallsByTaskRun(context.Context, string) ([]model.LLMCall, error) {
+func (l *fakeLedger) ListLLMCallsByTaskRun(context.Context, string) ([]coregw.Call, error) {
 	return nil, nil
 }
 
-func (l *fakeLedger) only(t *testing.T) (model.LLMCall, model.LLMCallOutcome) {
+func (l *fakeLedger) only(t *testing.T) (coregw.Call, coregw.CallOutcome) {
 	t.Helper()
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -139,7 +139,7 @@ func (q *allowQuota) Check(context.Context, string, int, int) (bool, string) {
 	return true, ""
 }
 
-func serviceWith(t *testing.T, client cllm.LLMClient, ledger model.LLMCallStore, quota llmgateway.QuotaChecker) *llmgateway.Service {
+func serviceWith(t *testing.T, client cllm.LLMClient, ledger coregw.CallStore, quota llmgateway.QuotaChecker) *llmgateway.Service {
 	t.Helper()
 	router := &llmgateway.Router{
 		Resolver: testResolver(t),
@@ -161,7 +161,7 @@ func userRequest() llmgateway.CompleteRequest {
 	return llmgateway.CompleteRequest{
 		TeamID:   "tm_one",
 		UserID:   &userID,
-		Surface:  model.LLMCallSurfaceCLI,
+		Surface:  coregw.CallSurfaceCLI,
 		Messages: []cllm.Message{{Role: "user", Content: "hello"}},
 	}
 }
@@ -195,17 +195,17 @@ func TestCompleteRecordsASuccessfulCall(t *testing.T) {
 	if call.TargetID != "mt_fast" || call.UpstreamModel != "vendor/fast-1" {
 		t.Errorf("ledger model = %q / %q", call.TargetID, call.UpstreamModel)
 	}
-	if call.Status != model.LLMCallStatusAccepted {
-		t.Errorf("opened status = %q, want %q", call.Status, model.LLMCallStatusAccepted)
+	if call.Status != coregw.CallStatusAccepted {
+		t.Errorf("opened status = %q, want %q", call.Status, coregw.CallStatusAccepted)
 	}
-	if outcome.Status != model.LLMCallStatusSucceeded {
-		t.Errorf("outcome status = %q, want %q", outcome.Status, model.LLMCallStatusSucceeded)
+	if outcome.Status != coregw.CallStatusSucceeded {
+		t.Errorf("outcome status = %q, want %q", outcome.Status, coregw.CallStatusSucceeded)
 	}
 	if outcome.Usage == nil || outcome.Usage.TotalTokens != 14 {
 		t.Fatalf("outcome usage = %+v", outcome.Usage)
 	}
-	if outcome.Usage.Source != model.LLMUsageSourceReported {
-		t.Errorf("usage source = %q, want %q", outcome.Usage.Source, model.LLMUsageSourceReported)
+	if outcome.Usage.Source != coregw.UsageSourceReported {
+		t.Errorf("usage source = %q, want %q", outcome.Usage.Source, coregw.UsageSourceReported)
 	}
 	if outcome.Attempts != 1 {
 		t.Errorf("attempts = %d, want 1", outcome.Attempts)
@@ -218,7 +218,7 @@ func TestCompletePreservesClientSurfaceForTheUpstream(t *testing.T) {
 	if _, err := svc.Complete(context.Background(), userRequest()); err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
-	if want := (cllm.CallOrigin{Surface: model.LLMCallSurfaceCLI, ViaGateway: true}); client.gotOrigin != want {
+	if want := (cllm.CallOrigin{Surface: coregw.CallSurfaceCLI, ViaGateway: true}); client.gotOrigin != want {
 		t.Errorf("upstream origin = %+v, want %+v", client.gotOrigin, want)
 	}
 }
@@ -253,8 +253,8 @@ func TestCompleteRecordsAFailedCall(t *testing.T) {
 	}
 
 	_, outcome := ledger.only(t)
-	if outcome.Status != model.LLMCallStatusFailed {
-		t.Errorf("outcome status = %q, want %q", outcome.Status, model.LLMCallStatusFailed)
+	if outcome.Status != coregw.CallStatusFailed {
+		t.Errorf("outcome status = %q, want %q", outcome.Status, coregw.CallStatusFailed)
 	}
 	if outcome.ErrorClass == nil || *outcome.ErrorClass != llmgateway.ErrorClassUpstream {
 		t.Errorf("error class = %v, want %q", outcome.ErrorClass, llmgateway.ErrorClassUpstream)
@@ -427,7 +427,7 @@ func TestStreamRecordsTheFirstDelta(t *testing.T) {
 	if outcome.FirstDeltaAt == nil {
 		t.Fatal("the ledger recorded no first-delta time")
 	}
-	if outcome.Status != model.LLMCallStatusSucceeded {
+	if outcome.Status != coregw.CallStatusSucceeded {
 		t.Errorf("status = %q", outcome.Status)
 	}
 }
@@ -465,7 +465,7 @@ func TestStreamRequiresTheStreamingCapability(t *testing.T) {
 
 func TestDuplicateClientCallIDIsRefused(t *testing.T) {
 	ledger := newFakeLedger()
-	ledger.existing = &model.LLMCall{ID: "lc_original", Status: model.LLMCallStatusAccepted}
+	ledger.existing = &coregw.Call{ID: "lc_original", Status: coregw.CallStatusAccepted}
 	svc := serviceWith(t, &scriptedClient{content: "hi"}, ledger, nil)
 
 	req := userRequest()
@@ -491,7 +491,7 @@ func TestDuplicateClientCallIDIsRefused(t *testing.T) {
 // what decides.
 func TestDuplicateDetectedByTheIndexIsRefused(t *testing.T) {
 	ledger := newFakeLedger()
-	ledger.openErr = model.ErrDuplicateLLMCall
+	ledger.openErr = coregw.ErrDuplicateCall
 	svc := serviceWith(t, &scriptedClient{content: "hi"}, ledger, nil)
 
 	req := userRequest()

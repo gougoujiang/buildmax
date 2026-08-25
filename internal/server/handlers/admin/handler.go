@@ -11,6 +11,7 @@ package admin
 import (
 	"net/http"
 
+	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/server/access"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
@@ -28,7 +29,7 @@ type Config struct {
 	Teams         model.TeamStore
 	Grants        model.SystemGrantStore
 	Audits        model.AuditStore
-	Models        model.LLMModelStore
+	Models        coregw.ModelStore
 	Schema        model.SchemaStore
 	TaskRuns      model.TaskRunStore
 

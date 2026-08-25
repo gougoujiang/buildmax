@@ -8,7 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/gougoujiang/buildmax/internal/agentapp"
 	"github.com/gougoujiang/buildmax/internal/core/agent"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/interface/auth"
 	"github.com/muesli/termenv"
 )
@@ -36,7 +36,7 @@ func tuiAppConfig(workspace, additionalSystemPrompt string, source auth.ModelSou
 		ManagedServerURL:       source.ServerURL,
 		ManagedToken:           auth.TokenForServer,
 		ArtifactPublisher:      auth.ArtifactPublisherForSession(),
-		Surface:                model.LLMCallSurfaceCLI,
+		Surface:                coregw.CallSurfaceCLI,
 		AdditionalSystemPrompt: additionalSystemPrompt,
 		// Interactive TUI only: print mode has no host process to own a job
 		// and deliberately does not set this.
