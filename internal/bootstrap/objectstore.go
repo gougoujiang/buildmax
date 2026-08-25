@@ -4,6 +4,7 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"github.com/gougoujiang/buildmax/internal/service/plugin"
 	"path/filepath"
 
 	"github.com/gougoujiang/buildmax/internal/config"
@@ -123,7 +124,7 @@ const PluginPackagesDirName = ".marketplace"
 // Packages are kept apart from team artifacts on purpose: a catalog record that
 // vanished with a team's retention window could no longer explain an
 // installation still sitting on somebody's machine.
-func BuildPluginPackageStorage(cfg config.WorkspaceStorageConfig, workspacesDir string, s3Client blob.S3Client) (blob.PluginPackageStorage, string) {
+func BuildPluginPackageStorage(cfg config.WorkspaceStorageConfig, workspacesDir string, s3Client blob.S3Client) (plugin.PackageStore, string) {
 	if s3Client != nil {
 		return blob.NewS3PluginPackageStorage(s3Client, cfg.Bucket), cfg.Prefix
 	}

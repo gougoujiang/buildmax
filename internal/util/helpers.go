@@ -3,16 +3,8 @@ package util
 import (
 	"fmt"
 	"os"
-	"regexp"
-	"strconv"
-	"strings"
 	"time"
 	"unicode/utf8"
-)
-
-var (
-	nonDNS1123Chars = regexp.MustCompile(`[^a-z0-9-]+`)
-	repeatedDashes  = regexp.MustCompile(`-+`)
 )
 
 // WithEnvVar sets envKey to value for the duration of fn, then restores the previous process env state.
@@ -81,29 +73,4 @@ func ClipRunes(s string, maxRunes int) string {
 	}
 	runes := []rune(s)
 	return string(runes[:maxRunes])
-}
-
-// WorkerJobNameForTaskRun returns a DNS-1123-compatible worker Job name for a task run id.
-func WorkerJobNameForTaskRun(taskRunID string) string {
-	return WorkerJobNameForTaskRunAt(taskRunID, time.Now())
-}
-
-// WorkerJobNameForTaskRunAt returns a DNS-1123-compatible worker Job name for a task run id and timestamp.
-// Total length is kept <= 63 characters.
-func WorkerJobNameForTaskRunAt(taskRunID string, now time.Time) string {
-	const maxBaseLen = 30
-
-	sanitized := strings.ToLower(taskRunID)
-	sanitized = nonDNS1123Chars.ReplaceAllString(sanitized, "-")
-	sanitized = repeatedDashes.ReplaceAllString(sanitized, "-")
-	sanitized = strings.Trim(sanitized, "-")
-	if len(sanitized) > maxBaseLen {
-		sanitized = sanitized[:maxBaseLen]
-	}
-	if sanitized == "" {
-		sanitized = "task"
-	}
-
-	ts := strconv.FormatInt(now.Unix(), 10)
-	return "buildmax-worker-" + sanitized + "-" + ts
 }

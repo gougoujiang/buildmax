@@ -92,3 +92,9 @@ func (s *LocalFSPluginPackageStorage) Exists(ctx context.Context, key string) (b
 	}
 	return true, nil
 }
+
+// PackageKey returns the object key for one release's bytes. The layout is
+// this package's; see PluginPackageKey for why it is content-addressed.
+func (s *LocalFSPluginPackageStorage) PackageKey(prefix, pluginName, digest string) (string, error) {
+	return PluginPackageKey(prefix, pluginName, digest)
+}

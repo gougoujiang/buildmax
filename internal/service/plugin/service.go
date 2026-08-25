@@ -19,7 +19,6 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
-	"github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	archive "github.com/gougoujiang/buildmax/internal/infra/pluginarchive"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 	inspect "github.com/gougoujiang/buildmax/internal/service/plugininspect"
@@ -46,7 +45,7 @@ type Service struct {
 	// They are nil in a deployment that only publishes and installs locally.
 	Activations ActivationStore
 	Teams       model.TeamStore
-	Packages    objectstore.PluginPackageStorage
+	Packages    PackageStore
 	// KeyPrefix scopes package keys inside the object store.
 	KeyPrefix string
 	Audit     *audit.Recorder
@@ -230,7 +229,7 @@ func (s *Service) Publish(ctx context.Context, in PublishInput) (*model.PluginRe
 		return nil, model.ErrPluginArchived
 	}
 
-	key, err := objectstore.PluginPackageKey(s.KeyPrefix, entry.Name, staged.digest)
+	key, err := s.Packages.PackageKey(s.KeyPrefix, entry.Name, staged.digest)
 	if err != nil {
 		return nil, err
 	}

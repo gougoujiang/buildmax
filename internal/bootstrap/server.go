@@ -323,7 +323,7 @@ type blobStorage struct {
 	persist   blob.PersistStorage
 	runOutput blob.RunOutputStorage
 	artifact  blob.ArtifactStorage
-	packages  blob.PluginPackageStorage
+	packages  pluginsvc.PackageStore
 	// packageKeyPrefix scopes package keys inside whichever backend holds them.
 	packageKeyPrefix string
 }

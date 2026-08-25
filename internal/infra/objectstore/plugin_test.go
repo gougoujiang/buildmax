@@ -212,13 +212,6 @@ func TestS3PluginPackageStorage(t *testing.T) {
 	}
 }
 
-// Both implementations answer the same contract, so a deployment can move
-// between them without the routes above noticing.
-func TestPluginPackageStorageImplementations(t *testing.T) {
-	var _ PluginPackageStorage = (*LocalFSPluginPackageStorage)(nil)
-	var _ PluginPackageStorage = (*S3PluginPackageStorage)(nil)
-}
-
 type failingReader struct{}
 
 func (failingReader) Read([]byte) (int, error) { return 0, errors.New("connection reset") }

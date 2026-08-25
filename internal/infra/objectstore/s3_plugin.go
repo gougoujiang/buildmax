@@ -44,3 +44,9 @@ func (s *S3PluginPackageStorage) Exists(ctx context.Context, key string) (bool, 
 	}
 	return s.client.ObjectExists(ctx, s.bucket, key)
 }
+
+// PackageKey returns the object key for one release's bytes. The layout is
+// this package's; see PluginPackageKey for why it is content-addressed.
+func (s *S3PluginPackageStorage) PackageKey(prefix, pluginName, digest string) (string, error) {
+	return PluginPackageKey(prefix, pluginName, digest)
+}

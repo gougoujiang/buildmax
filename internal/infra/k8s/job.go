@@ -226,7 +226,7 @@ func (r *K8sJobRunner) podVolumes() ([]corev1.Volume, []corev1.VolumeMount) {
 // runToken is this run's managed-gateway credential, or "" when the deployment
 // mints none.
 func (r *K8sJobRunner) Run(ctx context.Context, run model.TaskRun, runToken string) (workerType string, k8sJobName *string, k8sJobCreatedAt *time.Time, err error) {
-	jobName := util.WorkerJobNameForTaskRun(run.ID)
+	jobName := workerJobNameForTaskRun(run.ID)
 	now := metav1.Now()
 	createdAt := now.UTC()
 
