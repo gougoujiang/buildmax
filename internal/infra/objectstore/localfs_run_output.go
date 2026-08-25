@@ -2,6 +2,7 @@ package objectstore
 
 import (
 	"context"
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"io"
 	"os"
 	"path/filepath"
@@ -54,7 +55,7 @@ func (s *LocalFSRunOutputStorage) PutRunOutputFile(ctx context.Context, ref RunO
 	return err
 }
 
-// GetRunOutputFile reads one file under the run output dir. Returns ErrNotFound if not found.
+// GetRunOutputFile reads one file under the run output dir. Returns apierr.ErrNotFound if not found.
 func (s *LocalFSRunOutputStorage) GetRunOutputFile(ctx context.Context, ref RunObjectRef) ([]byte, error) {
 	clean, err := CleanRelPath(ref.RelPath)
 	if err != nil {
@@ -64,7 +65,7 @@ func (s *LocalFSRunOutputStorage) GetRunOutputFile(ctx context.Context, ref RunO
 	data, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(clean)))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, ErrNotFound
+			return nil, apierr.ErrNotFound
 		}
 		return nil, err
 	}

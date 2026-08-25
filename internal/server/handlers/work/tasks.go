@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"log/slog"
 	"net/http"
 	"os"
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
-	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	"github.com/gougoujiang/buildmax/internal/service/conversation"
 	"github.com/gougoujiang/buildmax/internal/service/task"
@@ -503,7 +503,7 @@ func (h *Handler) getTaskConversationHandler(w http.ResponseWriter, r *http.Requ
 	lastRunID := *task.LastRunID
 	data, err := h.loadTaskConversationData(r.Context(), task, lastRunID, sessionID)
 	if err != nil {
-		if os.IsNotExist(err) || errors.Is(err, blob.ErrNotFound) {
+		if os.IsNotExist(err) || errors.Is(err, apierr.ErrNotFound) {
 			httputil.WriteJSONError(w, http.StatusNotFound, "conversation file not found")
 			return
 		}

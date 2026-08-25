@@ -3,13 +3,13 @@ package handlers
 import (
 	"errors"
 	"fmt"
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
-	"github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 )
@@ -107,7 +107,7 @@ func (h *Handler) downloadPluginReleaseHandler(w http.ResponseWriter, r *http.Re
 
 	body, size, err := h.cfg.PluginService.OpenPackage(r.Context(), *release)
 	if err != nil {
-		if errors.Is(err, objectstore.ErrNotFound) {
+		if errors.Is(err, apierr.ErrNotFound) {
 			httputil.WriteJSONError(w, http.StatusNotFound, "the package bytes for this release are missing")
 			return
 		}

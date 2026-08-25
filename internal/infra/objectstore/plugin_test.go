@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"io"
 	"os"
 	"path/filepath"
@@ -80,8 +81,8 @@ func TestLocalFSPluginPackageRoundTrip(t *testing.T) {
 	if ok, err := s.Exists(ctx, key); err != nil || ok {
 		t.Errorf("Exists before Put = %v, %v; want false, nil", ok, err)
 	}
-	if _, _, err := s.Open(ctx, key); !errors.Is(err, ErrNotFound) {
-		t.Errorf("Open before Put: err = %v, want ErrNotFound", err)
+	if _, _, err := s.Open(ctx, key); !errors.Is(err, apierr.ErrNotFound) {
+		t.Errorf("Open before Put: err = %v, want apierr.ErrNotFound", err)
 	}
 
 	body := []byte("package bytes")
@@ -204,8 +205,8 @@ func TestS3PluginPackageStorage(t *testing.T) {
 		t.Errorf("read %q", got)
 	}
 
-	if _, _, err := s.Open(ctx, "bm/plugins/absent/sha256-x.tar.gz"); !errors.Is(err, ErrNotFound) {
-		t.Errorf("missing object: err = %v, want ErrNotFound", err)
+	if _, _, err := s.Open(ctx, "bm/plugins/absent/sha256-x.tar.gz"); !errors.Is(err, apierr.ErrNotFound) {
+		t.Errorf("missing object: err = %v, want apierr.ErrNotFound", err)
 	}
 	if err := s.Put(ctx, "../escape", strings.NewReader("x")); err == nil {
 		t.Error("an unsafe key was accepted")
@@ -230,7 +231,7 @@ func (f *fakeS3) PutObject(_ context.Context, _, key string, body io.Reader) err
 func (f *fakeS3) GetObject(_ context.Context, _, key string) ([]byte, error) {
 	data, ok := f.objects[key]
 	if !ok {
-		return nil, ErrNotFound
+		return nil, apierr.ErrNotFound
 	}
 	return data, nil
 }
@@ -248,7 +249,7 @@ func (f *fakeS3) ListObjectKeys(_ context.Context, _, prefix string) ([]string, 
 func (f *fakeS3) GetObjectStream(_ context.Context, _, key string) (io.ReadCloser, int64, error) {
 	data, ok := f.objects[key]
 	if !ok {
-		return nil, 0, ErrNotFound
+		return nil, 0, apierr.ErrNotFound
 	}
 	return io.NopCloser(bytes.NewReader(data)), int64(len(data)), nil
 }

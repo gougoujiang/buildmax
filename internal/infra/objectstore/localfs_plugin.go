@@ -3,6 +3,7 @@ package objectstore
 import (
 	"context"
 	"errors"
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"io"
 	"os"
 	"path/filepath"
@@ -57,7 +58,7 @@ func (s *LocalFSPluginPackageStorage) Put(ctx context.Context, key string, r io.
 	return os.Rename(tmpName, full)
 }
 
-// Open returns the package and its size, or ErrNotFound.
+// Open returns the package and its size, or apierr.ErrNotFound.
 func (s *LocalFSPluginPackageStorage) Open(ctx context.Context, key string) (io.ReadCloser, int64, error) {
 	full, err := s.path(key)
 	if err != nil {
@@ -66,7 +67,7 @@ func (s *LocalFSPluginPackageStorage) Open(ctx context.Context, key string) (io.
 	f, err := os.Open(full)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return nil, 0, ErrNotFound
+			return nil, 0, apierr.ErrNotFound
 		}
 		return nil, 0, err
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"io"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -58,7 +59,7 @@ func (a *s3ClientAdapter) GetObject(ctx context.Context, bucket, key string) ([]
 	if err != nil {
 		var nsk *types.NoSuchKey
 		if errors.As(err, &nsk) {
-			return nil, ErrNotFound
+			return nil, apierr.ErrNotFound
 		}
 		return nil, err
 	}
@@ -74,7 +75,7 @@ func (a *s3ClientAdapter) GetObjectStream(ctx context.Context, bucket, key strin
 	if err != nil {
 		var nsk *types.NoSuchKey
 		if errors.As(err, &nsk) {
-			return nil, 0, ErrNotFound
+			return nil, 0, apierr.ErrNotFound
 		}
 		return nil, 0, err
 	}

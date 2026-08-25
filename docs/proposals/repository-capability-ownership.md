@@ -397,7 +397,7 @@ ordering dependency on each other and can be reviewed in parallel.
 |---|---|---|---|---|
 | B1 | `core/llm`, `config`, `service/llmgateway`, `infra/llm`, `bootstrap`, `interface/cli` | Move the four protocol values and `Known`/`All`/`NeedsCredential` to `core/llm`; `config` keeps only its empty-value defaulting, which is a genuine boundary translation | 18 production files, 20 test files | Table test asserting every surface accepts one inventory; existing config, gateway, and adapter tests |
 | B2 | `service/plugin`, `infra/objectstore`, `infra/k8s`, `util` | Plugin service owns its `PackageStore` port, key derivation included, so layout stays with the adapter; move `WorkerJobNameForTaskRun`/`…At`, their regexes, and their tests to the Kubernetes adapter | 2 symbols crossed for plugin; 1 function and 2 regexes for K8s | Plugin publish/download tests, adapter conformance assertion in the port's own package, exact Job-name tests, `TestInternalLayerImports` |
-| B2b | `service/artifact`, `infra/objectstore`, and every `objectstore.ErrNotFound` caller | **Deferred, see below.** The artifact port cannot move without a home for `ArtifactRef` and the not-found sentinel | 23 non-infra callers of `ErrNotFound` | — |
+| B2b | `service/artifact`, `infra/objectstore`, `core/artifact`, every `objectstore.ErrNotFound` caller | Fold the object-store sentinel into `apierr.ErrNotFound`, give `Ref` a neutral home in `core/artifact`, and move the content port to the artifact service | 15 non-infra sentinel callers; 8 files naming `ArtifactRef` | Artifact streaming/cleanup tests, adapter conformance assertion in the port's own package, `TestInternalLayerImports` |
 | B3 | `service/task`, `core/apierr`, `server/handlers/work`, `server/httputil` | Replace `task.QuotaExceededError` with `apierr.KindQuotaExceeded` carrying the quota service's reason as the message; delete the two handler special cases and the now-unused `httputil.WriteQuotaExceeded` | 1 type, 2 call sites, 1 superseded helper | 429 status and body tests for task and conversation routes; gateway classification tests prove `llmgateway.QuotaError` stayed local |
 | B4 | `core/team`, `service/team`, `server/access` | One typed role/action decision in `core/team`; `service/team.requireOwner`/`hasRole` and `access.isRoleAllowed` both call it; the guard keeps translating denial and recording audit | 8 actions, 2 decision sites | Team authorization matrix, member mutation tests, artifact non-enumeration tests, table test proving an unknown role or action denies |
 | B5 | `core/team`, `server/access`, `service/team` | Settle what a membership row with no role means: member. `EffectiveRole` owns the reading; the guard's local copy goes | 1 helper, 3 call sites | Role matrix driven with an unset-role member through every team-scoped route; `core/team` table tests |
@@ -431,21 +431,22 @@ on the release record and handed back to `Open`, so the service must hold it.
 Key derivation therefore became a port method: the adapter still owns the
 layout, and the service gets the value it has to store without knowing it.
 
-**B2b is deferred, and the audit under-scoped it.** The finding said the only
-production service packages reaching `internal/infra` are artifact and plugin.
-That is true of the service layer and false of the repository: `ErrNotFound` has
-23 callers outside `infra/objectstore`, across `server/handlers`,
-`service/artifact`, `agentapp`, and the mocks. It is already the repository-wide
-vocabulary for "no such object", exactly as `model.ErrNotFound` is for "no such
-row".
+**B2b was deferred because the audit under-scoped it, and it landed after D0.**
+The finding said the only production service packages reaching `internal/infra`
+are artifact and plugin. That is true of the service layer and false of the
+repository: the object-store sentinel had callers across `server/handlers`,
+`service/artifact`, `agentapp`, and the mocks. Moving the port alone would have
+bought nothing — the consumer would still have imported `infra/objectstore` for
+the sentinel and for `ArtifactRef`, and the other files would have kept
+importing it regardless.
 
-So moving the artifact port alone buys nothing: the consumer would still import
-`infra/objectstore` for the sentinel and for `ArtifactRef`, and twenty other
-files would keep importing it regardless. The real change is to give the
-not-found sentinel a home both layers can import — the same question D0 answers
-for `model.ErrNotFound`, and with the same answer. Do B2b as part of D0, with
-`ArtifactRef` following its domain in D6; do not spend churn on the port in
-isolation first.
+D0 settled the sentinel, and B2b then folded the object-store copy into it: one
+`apierr.ErrNotFound` now says that a row or an object is not there, because no
+caller ever distinguished the two. `Ref` went to `core/artifact` rather than to
+either side, since the service and the adapters both have to name it and
+neither may own it. With both settled, `service/artifact` stops importing
+`infra` and the service layer's only remaining infra dependency is
+`pluginarchive`, which the findings say should stay.
 
 ### Track C — Service Extraction
 

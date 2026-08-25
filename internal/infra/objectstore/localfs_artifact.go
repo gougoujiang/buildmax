@@ -2,6 +2,8 @@ package objectstore
 
 import (
 	"context"
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
+	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
 	"io"
 	"os"
 	"path/filepath"
@@ -21,11 +23,11 @@ func NewLocalFSArtifactStorage(artifactDir func(teamID, artifactID string) strin
 	return &LocalFSArtifactStorage{artifactDir: artifactDir}
 }
 
-func (s *LocalFSArtifactStorage) path(ref ArtifactRef) string {
+func (s *LocalFSArtifactStorage) path(ref coreartifact.Ref) string {
 	return filepath.Join(s.artifactDir(ref.TeamID, ref.ArtifactID), artifactContentFilename)
 }
 
-func (s *LocalFSArtifactStorage) PutArtifact(_ context.Context, ref ArtifactRef, r io.Reader) (string, error) {
+func (s *LocalFSArtifactStorage) PutArtifact(_ context.Context, ref coreartifact.Ref, r io.Reader) (string, error) {
 	full := s.path(ref)
 	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
 		return "", err
@@ -44,11 +46,11 @@ func (s *LocalFSArtifactStorage) PutArtifact(_ context.Context, ref ArtifactRef,
 	return full, nil
 }
 
-func (s *LocalFSArtifactStorage) OpenArtifact(_ context.Context, ref ArtifactRef) (io.ReadCloser, error) {
+func (s *LocalFSArtifactStorage) OpenArtifact(_ context.Context, ref coreartifact.Ref) (io.ReadCloser, error) {
 	f, err := os.Open(s.path(ref))
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, ErrNotFound
+			return nil, apierr.ErrNotFound
 		}
 		return nil, err
 	}
@@ -57,7 +59,7 @@ func (s *LocalFSArtifactStorage) OpenArtifact(_ context.Context, ref ArtifactRef
 
 // RemoveArtifact removes the content file and the directory that held it, so a
 // deleted artifact leaves no empty shell behind for an operator to wonder about.
-func (s *LocalFSArtifactStorage) RemoveArtifact(_ context.Context, ref ArtifactRef) error {
+func (s *LocalFSArtifactStorage) RemoveArtifact(_ context.Context, ref coreartifact.Ref) error {
 	if err := os.Remove(s.path(ref)); err != nil && !os.IsNotExist(err) {
 		return err
 	}

@@ -12,6 +12,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
 	"io"
 	"mime"
 	"path"
@@ -21,7 +22,6 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/core/model"
-	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
@@ -54,7 +54,7 @@ const maxFilenameLen = 255
 // Service creates, reads, lists, and tombstones artifacts.
 type Service struct {
 	Artifacts model.ArtifactStore
-	Storage   blob.ArtifactStorage
+	Storage   ContentStore
 	// Audit records that a file entered or left a team's keeping. Nil records
 	// nothing, which is what a deployment without a database has.
 	Audit *audit.Recorder
@@ -137,7 +137,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*model.Artifact, 
 	if err != nil {
 		return nil, err
 	}
-	ref := blob.ArtifactRef{TeamID: in.TeamID, ArtifactID: artifactID}
+	ref := coreartifact.Ref{TeamID: in.TeamID, ArtifactID: artifactID}
 	limit := s.maxFileBytes()
 
 	// Read one byte past the limit so an oversized upload is detected rather
@@ -190,7 +190,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*model.Artifact, 
 // already failed, and the object is unreferenced either way. What it leaves is
 // an orphan for a reconciler, which is strictly better than a record pointing
 // at bytes that are not there.
-func (s *Service) discard(ctx context.Context, ref blob.ArtifactRef) {
+func (s *Service) discard(ctx context.Context, ref coreartifact.Ref) {
 	_ = s.Storage.RemoveArtifact(ctx, ref)
 }
 
@@ -218,9 +218,9 @@ func (s *Service) Open(ctx context.Context, rec *model.Artifact) (io.ReadCloser,
 	if rec == nil {
 		return nil, ErrNotFound
 	}
-	body, err := s.Storage.OpenArtifact(ctx, blob.ArtifactRef{TeamID: rec.TeamID, ArtifactID: rec.ID})
+	body, err := s.Storage.OpenArtifact(ctx, coreartifact.Ref{TeamID: rec.TeamID, ArtifactID: rec.ID})
 	if err != nil {
-		if errors.Is(err, blob.ErrNotFound) {
+		if errors.Is(err, apierr.ErrNotFound) {
 			return nil, ErrNotFound
 		}
 		return nil, err

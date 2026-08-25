@@ -2,6 +2,7 @@ package objectstore
 
 import (
 	"context"
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"io"
 	"os"
 	"path/filepath"
@@ -78,9 +79,9 @@ func (s *LocalFSPersistStorage) PutRunGlobal(ctx context.Context, ref RunObjectR
 	return nil
 }
 
-// GetRunGlobal returns ErrNotFound; task run global files are not in the persist root for local_fs (caller uses local path).
+// GetRunGlobal returns apierr.ErrNotFound; task run global files are not in the persist root for local_fs (caller uses local path).
 func (s *LocalFSPersistStorage) GetRunGlobal(ctx context.Context, ref RunObjectRef) ([]byte, error) {
-	return nil, ErrNotFound
+	return nil, apierr.ErrNotFound
 }
 
 // PutRunArtifacts is a no-op for local FS (run artifacts already live on worker disk).
@@ -88,9 +89,9 @@ func (s *LocalFSPersistStorage) PutRunArtifacts(ctx context.Context, ref RunObje
 	return nil
 }
 
-// GetRunArtifacts returns ErrNotFound; run artifacts are not in the persist root for local_fs (caller uses local path).
+// GetRunArtifacts returns apierr.ErrNotFound; run artifacts are not in the persist root for local_fs (caller uses local path).
 func (s *LocalFSPersistStorage) GetRunArtifacts(ctx context.Context, ref RunObjectRef) ([]byte, error) {
-	return nil, ErrNotFound
+	return nil, apierr.ErrNotFound
 }
 
 // MaterializeToDir copies all persistent files from the team into dstDir.

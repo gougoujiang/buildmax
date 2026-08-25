@@ -2,6 +2,7 @@ package work
 
 import (
 	"errors"
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"net/http"
 	"os"
 	"time"
@@ -190,7 +191,7 @@ func (h *Handler) artifactContentHandler(w http.ResponseWriter, r *http.Request)
 		})
 	}
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) || errors.Is(err, blob.ErrNotFound) {
+		if errors.Is(err, os.ErrNotExist) || errors.Is(err, apierr.ErrNotFound) {
 			httputil.WriteJSONError(w, http.StatusNotFound, "artifact content not found")
 			return
 		}

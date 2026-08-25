@@ -398,9 +398,16 @@ through the compatibility route, and are not copied.
 The interface `internal/infra/objectstore` called `ArtifactStorage` was
 run-output storage — its methods take `RunRef` and `RunObjectRef`. It is now
 `RunOutputStorage`, matching the `cfg.RunOutputs` and `db/run_output.go` naming
-already in use, and `ArtifactStorage` names the native capability. Two
-interfaces sharing that name would have been the easiest way for a later change
-to quietly re-invert the dependency direction this design exists to fix.
+already in use. Two interfaces sharing one name would have been the easiest way
+for a later change to quietly re-invert the dependency direction this design
+exists to fix.
+
+The native capability's contract has since moved to its consumer as
+`internal/service/artifact.ContentStore`, with the reference type in
+`internal/core/artifact`. The direction is the same one this section argues for,
+stated the other way round: the service says what it needs and an adapter
+happens to satisfy it, rather than the storage package publishing an interface
+the service must take.
 
 Upload is write-once:
 

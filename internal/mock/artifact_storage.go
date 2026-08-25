@@ -3,13 +3,15 @@ package mock
 import (
 	"bytes"
 	"context"
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
+	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
 	"io"
 	"sync"
 
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 )
 
-// MockArtifactStorage is an in-memory blob.ArtifactStorage for tests.
+// MockArtifactStorage is an in-memory artifact.ContentStore for tests.
 type MockArtifactStorage struct {
 	mu      sync.Mutex
 	objects map[string][]byte
@@ -22,11 +24,11 @@ func NewMockArtifactStorage() *MockArtifactStorage {
 	return &MockArtifactStorage{objects: make(map[string][]byte)}
 }
 
-func mockArtifactKey(ref blob.ArtifactRef) string {
+func mockArtifactKey(ref coreartifact.Ref) string {
 	return blob.ArtifactObjectKey("mock", ref)
 }
 
-func (m *MockArtifactStorage) PutArtifact(_ context.Context, ref blob.ArtifactRef, r io.Reader) (string, error) {
+func (m *MockArtifactStorage) PutArtifact(_ context.Context, ref coreartifact.Ref, r io.Reader) (string, error) {
 	// Read first even when the write is going to fail: the service measures the
 	// stream as it passes, and a store that never drains it would make a
 	// failure look like an empty file.
@@ -44,17 +46,17 @@ func (m *MockArtifactStorage) PutArtifact(_ context.Context, ref blob.ArtifactRe
 	return key, nil
 }
 
-func (m *MockArtifactStorage) OpenArtifact(_ context.Context, ref blob.ArtifactRef) (io.ReadCloser, error) {
+func (m *MockArtifactStorage) OpenArtifact(_ context.Context, ref coreartifact.Ref) (io.ReadCloser, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	data, ok := m.objects[mockArtifactKey(ref)]
 	if !ok {
-		return nil, blob.ErrNotFound
+		return nil, apierr.ErrNotFound
 	}
 	return io.NopCloser(bytes.NewReader(data)), nil
 }
 
-func (m *MockArtifactStorage) RemoveArtifact(_ context.Context, ref blob.ArtifactRef) error {
+func (m *MockArtifactStorage) RemoveArtifact(_ context.Context, ref coreartifact.Ref) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	delete(m.objects, mockArtifactKey(ref))

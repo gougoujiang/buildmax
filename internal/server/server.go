@@ -5,6 +5,7 @@ import (
 	"embed"
 	"errors"
 	"github.com/gougoujiang/buildmax/internal/server/handlers/admin"
+	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -95,7 +96,7 @@ type StorageConfig struct {
 	// ArtifactStorage holds artifact content. It is separate from
 	// RunOutputStorage because they are different key spaces with different
 	// lifetimes, not two names for one bucket.
-	ArtifactStorage blob.ArtifactStorage
+	ArtifactStorage artifactsvc.ContentStore
 	// MaxArtifactBytes caps one artifact. Zero uses the service default.
 	MaxArtifactBytes int64
 	WorkspacesDir    string // Overrides config.WorkspacesDir() for workspace file operations

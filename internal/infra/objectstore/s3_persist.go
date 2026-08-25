@@ -29,7 +29,7 @@ func (s *S3PersistStorage) Put(ctx context.Context, teamID string, relPath strin
 	return s.client.PutObject(ctx, s.bucket, key, r)
 }
 
-// Get reads one file. Callers can use errors.Is(err, ErrNotFound) if the client returns a sentinel.
+// Get reads one file. Callers can use errors.Is(err, apierr.ErrNotFound) if the client returns a sentinel.
 func (s *S3PersistStorage) Get(ctx context.Context, teamID string, relPath string) ([]byte, error) {
 	key, err := PersistObjectKey(s.prefix, teamID, relPath)
 	if err != nil {
@@ -68,7 +68,7 @@ func (s *S3PersistStorage) PutRunGlobal(ctx context.Context, ref RunObjectRef, r
 	return s.client.PutObject(ctx, s.bucket, key, r)
 }
 
-// GetRunGlobal reads one file from the task run global key space. Returns ErrNotFound if the object does not exist.
+// GetRunGlobal reads one file from the task run global key space. Returns apierr.ErrNotFound if the object does not exist.
 func (s *S3PersistStorage) GetRunGlobal(ctx context.Context, ref RunObjectRef) ([]byte, error) {
 	key, err := RunGlobalObjectKey(s.prefix, ref.CreatedBy, ref.ConversationID, ref.TaskID, ref.TaskRunID, ref.RelPath)
 	if err != nil {
@@ -86,7 +86,7 @@ func (s *S3PersistStorage) PutRunArtifacts(ctx context.Context, ref RunObjectRef
 	return s.client.PutObject(ctx, s.bucket, key, r)
 }
 
-// GetRunArtifacts reads one file from the task run artifacts key space. Returns ErrNotFound if the object does not exist.
+// GetRunArtifacts reads one file from the task run artifacts key space. Returns apierr.ErrNotFound if the object does not exist.
 func (s *S3PersistStorage) GetRunArtifacts(ctx context.Context, ref RunObjectRef) ([]byte, error) {
 	key, err := RunArtifactsObjectKey(s.prefix, ref.CreatedBy, ref.ConversationID, ref.TaskID, ref.TaskRunID, ref.RelPath)
 	if err != nil {

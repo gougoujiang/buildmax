@@ -97,7 +97,7 @@ type Config struct {
 	// Storage
 	PersistStorage   blob.PersistStorage
 	RunOutputStorage blob.RunOutputStorage
-	ArtifactStorage  blob.ArtifactStorage
+	ArtifactStorage  artifactsvc.ContentStore
 	MaxArtifactBytes int64
 	WorkspacesDir    string
 
