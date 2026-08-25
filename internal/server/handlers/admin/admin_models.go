@@ -3,9 +3,9 @@ package admin
 import (
 	"net/http"
 
-	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
+	"github.com/gougoujiang/buildmax/internal/service/llmcatalog"
 )
 
 // AdminModel is one catalog entry as an administrator sees it.
@@ -59,6 +59,9 @@ func (h *Handler) listAdminModelsHandler(w http.ResponseWriter, r *http.Request)
 // stays the only way to put an API key into the catalog, because doing it over
 // HTTP means a provider credential in a request body, in a proxy log, and in
 // whatever the browser did with the form.
+//
+// What a change records is service/llmcatalog's; this decides only that the
+// caller is a person and says which one.
 func (h *Handler) setAdminModelEnabledHandler(enabled bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		actorID, ok := h.guard().SystemAdmin(w, r)
@@ -72,39 +75,13 @@ func (h *Handler) setAdminModelEnabledHandler(enabled bool) http.HandlerFunc {
 		if !ok {
 			return
 		}
-		existing, err := h.cfg.Models.GetLLMModel(r.Context(), modelID)
+		svc := &llmcatalog.Service{Models: h.cfg.Models, Audit: h.cfg.Audit}
+		updated, err := svc.SetEnabled(r.Context(), modelID, enabled, llmcatalog.UserActor(actorID))
 		if err != nil {
+			if httputil.WriteServiceError(w, err) {
+				return
+			}
 			httputil.WriteInternalError(w, err, "handler error", "handler", "admin_set_model_enabled", "model_id", modelID)
-			return
-		}
-		if existing == nil {
-			httputil.WriteJSONError(w, http.StatusNotFound, "model not found")
-			return
-		}
-		if err := h.cfg.Models.SetLLMModelEnabled(r.Context(), modelID, enabled); err != nil {
-			httputil.WriteInternalError(w, err, "handler error", "handler", "admin_set_model_enabled", "model_id", modelID)
-			return
-		}
-
-		// The same actions the operator command writes, so the trail does not
-		// distinguish a catalog change by where it was made — only by who made
-		// it. A command names the binary; this names a person.
-		action := coreaudit.ModelDisabled
-		if enabled {
-			action = coreaudit.ModelEnabled
-		}
-		h.cfg.Audit.Record(r.Context(), coreaudit.Event{
-			ActorType:  coreaudit.ActorUser,
-			ActorID:    actorID,
-			Action:     action,
-			TargetType: "llm_model",
-			TargetID:   modelID,
-			Detail:     existing.Name,
-		})
-
-		updated, err := h.cfg.Models.GetLLMModel(r.Context(), modelID)
-		if err != nil || updated == nil {
-			httputil.WriteInternalError(w, err, "handler error", "handler", "admin_set_model_enabled", "reload")
 			return
 		}
 		httputil.WriteJSON(w, http.StatusOK, AdminModel{Model: *updated})
