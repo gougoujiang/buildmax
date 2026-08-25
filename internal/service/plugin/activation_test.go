@@ -7,6 +7,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 )
@@ -25,7 +26,7 @@ func newActivationService(t *testing.T, curation coreplugin.Curation) (*Service,
 	catalog := mock.NewMockPluginStore()
 	activations := mock.NewMockPluginActivationStore()
 	events := &fakeAudit{}
-	teams := &mock.MockTeamStore{Teams: []model.Team{{ID: testTeam, Name: "Team", PluginCuration: curation}}}
+	teams := &mock.MockTeamStore{Teams: []coreteam.Team{{ID: testTeam, Name: "Team", PluginCuration: curation}}}
 	return &Service{
 		Catalog:     catalog,
 		Activations: activations,

@@ -1,4 +1,4 @@
-package model
+package team
 
 import (
 	"context"
@@ -7,14 +7,14 @@ import (
 )
 
 const (
-	// TeamRoleOwner is the initial role for the user who creates a team.
-	TeamRoleOwner = "owner"
-	// TeamRoleAdmin can manage shared automation assets but not membership ownership.
-	TeamRoleAdmin = "admin"
-	// TeamRoleMember is the basic collaboration role for invited members.
-	TeamRoleMember = "member"
-	// DefaultPersonalTeamName is the initial UX-facing name for a user's own space.
-	DefaultPersonalTeamName = "My Space"
+	// RoleOwner is the initial role for the user who creates a team.
+	RoleOwner = "owner"
+	// RoleAdmin can manage shared automation assets but not membership ownership.
+	RoleAdmin = "admin"
+	// RoleMember is the basic collaboration role for invited members.
+	RoleMember = "member"
+	// DefaultPersonalName is the initial UX-facing name for a user's own space.
+	DefaultPersonalName = "My Space"
 )
 
 // Team is the ownership and collaboration boundary for working resources.
@@ -32,16 +32,16 @@ type Team struct {
 	UpdatedAt      time.Time           `json:"updated_at"`
 }
 
-// TeamMember is one user's membership in a team.
-type TeamMember struct {
+// Member is one user's membership in a team.
+type Member struct {
 	TeamID    string    `json:"team_id"`
 	UserID    string    `json:"user_id"`
 	Role      string    `json:"role"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
-// TeamStore provides team persistence and membership lookup.
-type TeamStore interface {
+// Store provides team persistence and membership lookup.
+type Store interface {
 	// GetTeam returns the team by team_id, or (nil, nil) when not found.
 	GetTeam(ctx context.Context, teamID string) (*Team, error)
 	// GetPersonalTeamByUser returns the default personal team for the user, or (nil, nil) when not found.
@@ -51,11 +51,11 @@ type TeamStore interface {
 	// CreateTeam creates a new team and owner membership.
 	CreateTeam(ctx context.Context, name, createdBy, quotaTier string) (*Team, error)
 	// AddTeamMember adds or updates a team membership.
-	AddTeamMember(ctx context.Context, teamID, userID, role string) (*TeamMember, error)
+	AddTeamMember(ctx context.Context, teamID, userID, role string) (*Member, error)
 	// RemoveTeamMember removes one membership from a team.
 	RemoveTeamMember(ctx context.Context, teamID, userID string) error
 	// ListTeamMembers returns members of the team ordered by created_at ASC.
-	ListTeamMembers(ctx context.Context, teamID string) ([]TeamMember, error)
+	ListTeamMembers(ctx context.Context, teamID string) ([]Member, error)
 	// ListAllTeams returns every team newest first, with the total count. A
 	// non-empty query filters on name as a substring.
 	//

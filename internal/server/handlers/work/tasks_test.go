@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/quota"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
@@ -78,7 +79,7 @@ func TestListConversationTasksHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			h := New(Config{
 				JWTSecret:     secret,
-				Teams:         &mock.MockTeamStore{Teams: []model.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}}, Members: []model.TeamMember{{TeamID: teamID, UserID: "u1", Role: model.TeamRoleOwner}}},
+				Teams:         &mock.MockTeamStore{Teams: []coreteam.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}}, Members: []coreteam.Member{{TeamID: teamID, UserID: "u1", Role: coreteam.RoleOwner}}},
 				Tasks:         tt.taskStore,
 				Conversations: mockConversations,
 			})
@@ -190,7 +191,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 		},
 	}
 	denyChecker := &quota.Service{
-		TeamStore:   &mock.DenyQuotaTeamStore{Team: &model.Team{ID: teamID, QuotaTier: "free_trial"}},
+		TeamStore:   &mock.DenyQuotaTeamStore{Team: &coreteam.Team{ID: teamID, QuotaTier: "free_trial"}},
 		UsageReader: &mock.DenyQuotaUsageReader{RunCount: 10, TotalTokens: 0},
 		TierStore:   &mock.DenyQuotaTierStore{Tier: &model.QuotaTier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
 		DefaultTier: "free_trial",
@@ -219,7 +220,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := Config{
 				JWTSecret:     secret,
-				Teams:         &mock.MockTeamStore{Teams: []model.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}}, Members: []model.TeamMember{{TeamID: teamID, UserID: "u1", Role: model.TeamRoleOwner}}},
+				Teams:         &mock.MockTeamStore{Teams: []coreteam.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}}, Members: []coreteam.Member{{TeamID: teamID, UserID: "u1", Role: coreteam.RoleOwner}}},
 				Tasks:         tt.taskStore,
 				Agents:        tt.agentStore,
 				Conversations: mockConversations,
@@ -270,7 +271,7 @@ func TestListConversationTasksCarriesRunAndArtifacts(t *testing.T) {
 
 	h := New(Config{
 		JWTSecret: secret,
-		Teams:     &mock.MockTeamStore{Teams: []model.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}}, Members: []model.TeamMember{{TeamID: teamID, UserID: "u1", Role: model.TeamRoleOwner}}},
+		Teams:     &mock.MockTeamStore{Teams: []coreteam.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}}, Members: []coreteam.Member{{TeamID: teamID, UserID: "u1", Role: coreteam.RoleOwner}}},
 		Tasks:     &mock.MockTaskStore{List: []model.Task{task1, task2}},
 		Conversations: &mock.MockConversationStore{
 			Conversations: []model.Conversation{{ID: conversationID, UserID: "u1", TeamID: teamID, Channel: "portal", CreatedBy: "u1", CreatedAt: time.Unix(123, 0).UTC()}},

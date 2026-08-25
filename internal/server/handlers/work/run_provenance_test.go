@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -28,8 +29,8 @@ func newProvenanceFixture(t *testing.T, run model.TaskRun, task model.Task) prov
 	h := New(Config{
 		JWTSecret: provenanceSecret,
 		Teams: &mock.MockTeamStore{
-			Teams:   []model.Team{{ID: "tm_1", Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}},
-			Members: []model.TeamMember{{TeamID: "tm_1", UserID: "u1", Role: model.TeamRoleOwner}},
+			Teams:   []coreteam.Team{{ID: "tm_1", Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}},
+			Members: []coreteam.Member{{TeamID: "tm_1", UserID: "u1", Role: coreteam.RoleOwner}},
 		},
 		Conversations: &mock.MockConversationStore{
 			Conversations: []model.Conversation{{ID: "conv1", UserID: "u1", TeamID: "tm_1", Channel: "portal", CreatedBy: "u1"}},

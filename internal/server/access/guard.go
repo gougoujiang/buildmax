@@ -23,7 +23,7 @@ const DisabledMessage = "account_disabled"
 type Guard struct {
 	JWTSecret string
 	Users     model.UserStore
-	Teams     model.TeamStore
+	Teams     coreteam.Store
 	Grants    model.SystemGrantStore
 	// Audit records refusals. Nil discards them, which is what a deployment
 	// without a database has.

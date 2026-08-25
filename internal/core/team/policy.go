@@ -6,11 +6,9 @@
 // of the same rule were not, and the one nobody remembered to update would have
 // been the permissive one.
 //
-// It imports core/model only for the role values. Those move here with the rest
-// of the team domain, at which point this import goes away.
+// The role values, the Team it belongs to, and the store contract are in
+// team.go beside it.
 package team
-
-import "github.com/gougoujiang/buildmax/internal/core/model"
 
 // An Action is something a caller wants to do to a team, named at the coarseness
 // the role rules actually distinguish. It is not one action per route: several
@@ -63,7 +61,7 @@ func Actions() []Action {
 // Callers normalize before asking Allows, which answers about a stated role.
 func EffectiveRole(role string) string {
 	if role == "" {
-		return model.TeamRoleMember
+		return RoleMember
 	}
 	return role
 }
@@ -78,11 +76,11 @@ func EffectiveRole(role string) string {
 func Allows(role string, action Action) bool {
 	switch action {
 	case ActionManageTeamMembers, ActionReadAuditTrail, ActionModerateIssueComments:
-		return role == model.TeamRoleOwner
+		return role == RoleOwner
 	case ActionManageAgents, ActionManageWorkflows, ActionAssignIssueWorkflow:
-		return role == model.TeamRoleOwner || role == model.TeamRoleAdmin
+		return role == RoleOwner || role == RoleAdmin
 	case ActionRunWorkflow, ActionCommentIssue:
-		return role == model.TeamRoleOwner || role == model.TeamRoleAdmin || role == model.TeamRoleMember
+		return role == RoleOwner || role == RoleAdmin || role == RoleMember
 	default:
 		return false
 	}

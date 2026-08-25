@@ -12,6 +12,7 @@ import (
 
 	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
@@ -63,13 +64,13 @@ func newOutputsFixtures(t *testing.T, runOutputStorage blob.RunOutputStorage) *o
 		},
 	}
 	teams := &mock.MockTeamStore{
-		Teams: []model.Team{
+		Teams: []coreteam.Team{
 			{ID: personalTeamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"},
 			{ID: otherTeamID, Name: "Other", CreatedBy: "u2"},
 		},
-		Members: []model.TeamMember{
-			{TeamID: personalTeamID, UserID: "u1", Role: model.TeamRoleOwner},
-			{TeamID: otherTeamID, UserID: "u2", Role: model.TeamRoleOwner},
+		Members: []coreteam.Member{
+			{TeamID: personalTeamID, UserID: "u1", Role: coreteam.RoleOwner},
+			{TeamID: otherTeamID, UserID: "u2", Role: coreteam.RoleOwner},
 		},
 	}
 	tasks := &mock.MockTaskStore{}

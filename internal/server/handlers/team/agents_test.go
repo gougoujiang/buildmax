@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -22,8 +23,8 @@ func TestAgentRevisionEndpoints(t *testing.T) {
 	teamID := "tm_1"
 	agentStore := &mock.MockAgentStore{}
 	teamStore := &mock.MockTeamStore{
-		Teams:   []model.Team{{ID: teamID, Name: "Team", CreatedBy: "u1"}},
-		Members: []model.TeamMember{{TeamID: teamID, UserID: "u1", Role: model.TeamRoleOwner}},
+		Teams:   []coreteam.Team{{ID: teamID, Name: "Team", CreatedBy: "u1"}},
+		Members: []coreteam.Member{{TeamID: teamID, UserID: "u1", Role: coreteam.RoleOwner}},
 	}
 	created, err := agentStore.CreateAgentInTeam(t.Context(), model.CreateAgentInput{TeamID: teamID, UserID: "u1",
 		Def: model.AgentDefinition{Name: "Collector", Description: "collects", Instructions: "collect carefully"}})
@@ -122,8 +123,8 @@ func TestDeleteAgentRefusedWhilePublishedWorkflowUsesIt(t *testing.T) {
 		}},
 	}
 	teamStore := &mock.MockTeamStore{
-		Teams:   []model.Team{{ID: teamID, Name: "Team", CreatedBy: "u1"}},
-		Members: []model.TeamMember{{TeamID: teamID, UserID: "u1", Role: model.TeamRoleOwner}},
+		Teams:   []coreteam.Team{{ID: teamID, Name: "Team", CreatedBy: "u1"}},
+		Members: []coreteam.Member{{TeamID: teamID, UserID: "u1", Role: coreteam.RoleOwner}},
 	}
 	h := New(Config{
 		JWTSecret: agentTestSecret,
@@ -176,8 +177,8 @@ func TestPatchAgentHandler(t *testing.T) {
 		},
 	}
 	teamStore := &mock.MockTeamStore{
-		Teams:   []model.Team{{ID: personalTeamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}},
-		Members: []model.TeamMember{{TeamID: personalTeamID, UserID: "u1", Role: model.TeamRoleOwner}, {TeamID: personalTeamID, UserID: "u2", Role: model.TeamRoleMember}},
+		Teams:   []coreteam.Team{{ID: personalTeamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}},
+		Members: []coreteam.Member{{TeamID: personalTeamID, UserID: "u1", Role: coreteam.RoleOwner}, {TeamID: personalTeamID, UserID: "u2", Role: coreteam.RoleMember}},
 	}
 
 	tests := []struct {
@@ -311,8 +312,8 @@ func TestDeleteAgentHandler(t *testing.T) {
 				},
 			}
 			teamStore := &mock.MockTeamStore{
-				Teams:   []model.Team{{ID: personalTeamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}},
-				Members: []model.TeamMember{{TeamID: personalTeamID, UserID: "u1", Role: model.TeamRoleOwner}, {TeamID: personalTeamID, UserID: "u2", Role: model.TeamRoleMember}},
+				Teams:   []coreteam.Team{{ID: personalTeamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}},
+				Members: []coreteam.Member{{TeamID: personalTeamID, UserID: "u1", Role: coreteam.RoleOwner}, {TeamID: personalTeamID, UserID: "u2", Role: coreteam.RoleMember}},
 			}
 			h := New(Config{
 				JWTSecret: agentTestSecret,

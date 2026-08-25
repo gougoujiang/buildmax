@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
@@ -22,13 +23,13 @@ import (
 func teamAuditExport(t *testing.T, audits *mock.MockAuditStore, teamID, userID string) *httptest.ResponseRecorder {
 	t.Helper()
 	teams := &mock.MockTeamStore{
-		Teams: []model.Team{
+		Teams: []coreteam.Team{
 			{ID: matrixTeam, Name: "Matrix", CreatedBy: matrixOwner},
 			{ID: matrixOther, Name: "Other", CreatedBy: matrixOutside},
 		},
-		Members: []model.TeamMember{
-			{TeamID: matrixTeam, UserID: matrixOwner, Role: model.TeamRoleOwner},
-			{TeamID: matrixOther, UserID: matrixOutside, Role: model.TeamRoleOwner},
+		Members: []coreteam.Member{
+			{TeamID: matrixTeam, UserID: matrixOwner, Role: coreteam.RoleOwner},
+			{TeamID: matrixOther, UserID: matrixOutside, Role: coreteam.RoleOwner},
 		},
 	}
 	h := New(Config{

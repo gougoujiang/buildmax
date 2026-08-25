@@ -29,14 +29,14 @@ var (
 )
 
 type Service struct {
-	Teams model.TeamStore
+	Teams coreteam.Store
 	Users model.UserStore
 }
 
 // Member pairs a membership with the account behind it. User is nil when the
 // deployment has no user store to resolve it against.
 type Member struct {
-	Membership model.TeamMember
+	Membership coreteam.Member
 	User       *model.User
 }
 
@@ -78,7 +78,7 @@ func (s *Service) ListMembers(ctx context.Context, teamID string) ([]Member, err
 	return out, nil
 }
 
-func (s *Service) AddMember(ctx context.Context, cmd AddMemberCmd) (*model.TeamMember, *model.User, error) {
+func (s *Service) AddMember(ctx context.Context, cmd AddMemberCmd) (*coreteam.Member, *model.User, error) {
 	if s.Teams == nil {
 		return nil, nil, ErrTeamsNotConfigured
 	}
@@ -95,12 +95,12 @@ func (s *Service) AddMember(ctx context.Context, cmd AddMemberCmd) (*model.TeamM
 	}
 	role := strings.TrimSpace(cmd.Role)
 	if role == "" {
-		role = model.TeamRoleMember
+		role = coreteam.RoleMember
 	}
 	// Owner and admin are not grantable here. Adding someone as an owner from
 	// the same call that adds a member would make an escalation look like a
 	// routine invitation.
-	if role != model.TeamRoleMember {
+	if role != coreteam.RoleMember {
 		return nil, nil, ErrUnsupportedRole
 	}
 
@@ -154,7 +154,7 @@ func (s *Service) requireManageMembers(ctx context.Context, teamID, userID strin
 	return nil
 }
 
-func allows(members []model.TeamMember, userID string, action coreteam.Action) bool {
+func allows(members []coreteam.Member, userID string, action coreteam.Action) bool {
 	for i := range members {
 		if members[i].UserID == userID {
 			return coreteam.Allows(coreteam.EffectiveRole(members[i].Role), action)
@@ -163,7 +163,7 @@ func allows(members []model.TeamMember, userID string, action coreteam.Action) b
 	return false
 }
 
-func isMember(members []model.TeamMember, userID string) bool {
+func isMember(members []coreteam.Member, userID string) bool {
 	for i := range members {
 		if members[i].UserID == userID {
 			return true

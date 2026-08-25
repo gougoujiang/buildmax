@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
 )
@@ -32,14 +33,14 @@ func commentMux(t *testing.T) (*http.ServeMux, *mock.MockIssueStore, *mock.MockI
 	}
 	comments := &mock.MockIssueCommentStore{}
 	teams := &mock.MockTeamStore{
-		Teams: []model.Team{
+		Teams: []coreteam.Team{
 			{ID: commentTeam, Name: "Comments", CreatedBy: "u_owner"},
 			{ID: commentOtherTeam, Name: "Other", CreatedBy: "u_stranger"},
 		},
-		Members: []model.TeamMember{
-			{TeamID: commentTeam, UserID: "u_owner", Role: model.TeamRoleOwner},
-			{TeamID: commentTeam, UserID: "u_member", Role: model.TeamRoleMember},
-			{TeamID: commentOtherTeam, UserID: "u_stranger", Role: model.TeamRoleOwner},
+		Members: []coreteam.Member{
+			{TeamID: commentTeam, UserID: "u_owner", Role: coreteam.RoleOwner},
+			{TeamID: commentTeam, UserID: "u_member", Role: coreteam.RoleMember},
+			{TeamID: commentOtherTeam, UserID: "u_stranger", Role: coreteam.RoleOwner},
 		},
 	}
 	h := New(Config{
@@ -219,8 +220,8 @@ func TestIssueComments_DeleteAuthorization(t *testing.T) {
 // 503 rather than the deployment losing its issues.
 func TestIssueComments_NotConfigured(t *testing.T) {
 	teams := &mock.MockTeamStore{
-		Teams:   []model.Team{{ID: commentTeam, Name: "Comments", CreatedBy: "u_owner"}},
-		Members: []model.TeamMember{{TeamID: commentTeam, UserID: "u_owner", Role: model.TeamRoleOwner}},
+		Teams:   []coreteam.Team{{ID: commentTeam, Name: "Comments", CreatedBy: "u_owner"}},
+		Members: []coreteam.Member{{TeamID: commentTeam, UserID: "u_owner", Role: coreteam.RoleOwner}},
 	}
 	h := New(Config{
 		JWTSecret: commentTestSecret,

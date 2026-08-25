@@ -10,6 +10,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 
 	"github.com/gougoujiang/buildmax/internal/util"
 )
@@ -142,8 +143,8 @@ func TestCreateUser(t *testing.T) {
 	if team == nil {
 		t.Fatal("GetPersonalTeamByUser: got nil team")
 	}
-	if team.Name != model.DefaultPersonalTeamName {
-		t.Errorf("personal team name = %q, want %q", team.Name, model.DefaultPersonalTeamName)
+	if team.Name != coreteam.DefaultPersonalName {
+		t.Errorf("personal team name = %q, want %q", team.Name, coreteam.DefaultPersonalName)
 	}
 	if team.QuotaTier != "free_trial" {
 		t.Errorf("personal team quota_tier = %q, want %q", team.QuotaTier, "free_trial")
@@ -156,7 +157,7 @@ func TestCreateUser(t *testing.T) {
 	if len(members) != 1 {
 		t.Fatalf("ListTeamMembers: got %d members, want 1", len(members))
 	}
-	if members[0].UserID != u.ID || members[0].Role != model.TeamRoleOwner {
+	if members[0].UserID != u.ID || members[0].Role != coreteam.RoleOwner {
 		t.Errorf("team member = %+v", members[0])
 	}
 }
@@ -237,7 +238,7 @@ func TestCreateTeam(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListTeamMembers: %v", err)
 	}
-	if len(members) != 1 || members[0].UserID != user.ID || members[0].Role != model.TeamRoleOwner {
+	if len(members) != 1 || members[0].UserID != user.ID || members[0].Role != coreteam.RoleOwner {
 		t.Fatalf("team members = %+v", members)
 	}
 }

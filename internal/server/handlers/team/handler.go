@@ -11,6 +11,7 @@ import (
 	"net/http"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/server/access"
 	agentsvc "github.com/gougoujiang/buildmax/internal/service/agent"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
@@ -24,7 +25,7 @@ type Config struct {
 	JWTSecret        string
 	DefaultQuotaTier string
 
-	Teams       model.TeamStore
+	Teams       coreteam.Store
 	Users       model.UserStore
 	Agents      model.AgentStore
 	WebhookKeys model.UserWebhookKeyStore

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 )
@@ -58,7 +59,7 @@ func TestAdminTeamDetailShowsMembershipNotContent(t *testing.T) {
 			owner = m
 		}
 	}
-	if owner.Role != model.TeamRoleOwner || owner.Email != "alice@example.com" {
+	if owner.Role != coreteam.RoleOwner || owner.Email != "alice@example.com" {
 		t.Errorf("owner = %+v", owner)
 	}
 	// A membership naming an account the store does not have still lists, with
@@ -102,14 +103,14 @@ func adminTeamsMux(t *testing.T) *http.ServeMux {
 
 	personalOf := "u_alice"
 	teams := &mock.MockTeamStore{
-		Teams: []model.Team{
+		Teams: []coreteam.Team{
 			{ID: "tm_shared", Name: "Platform", CreatedBy: "u_alice", QuotaTier: "free_trial", CreatedAt: time.Unix(200, 0).UTC()},
 			{ID: "tm_personal", Name: "My Space", PersonalForUserID: &personalOf, CreatedBy: "u_alice", CreatedAt: time.Unix(100, 0).UTC()},
 		},
-		Members: []model.TeamMember{
-			{TeamID: "tm_shared", UserID: "u_alice", Role: model.TeamRoleOwner},
-			{TeamID: "tm_shared", UserID: "u_bob", Role: model.TeamRoleMember},
-			{TeamID: "tm_personal", UserID: "u_alice", Role: model.TeamRoleOwner},
+		Members: []coreteam.Member{
+			{TeamID: "tm_shared", UserID: "u_alice", Role: coreteam.RoleOwner},
+			{TeamID: "tm_shared", UserID: "u_bob", Role: coreteam.RoleMember},
+			{TeamID: "tm_personal", UserID: "u_alice", Role: coreteam.RoleOwner},
 		},
 	}
 	audits := &mock.MockAuditStore{}

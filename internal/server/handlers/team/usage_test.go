@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/quota"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
@@ -20,11 +21,11 @@ func TestUsageHandler(t *testing.T) {
 	userID := "u1"
 	teamID := "tm_personal_u1"
 	teamStore := &mock.MockTeamStore{
-		Teams: []model.Team{
+		Teams: []coreteam.Team{
 			{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr(userID), QuotaTier: "free_trial", CreatedBy: userID, CreatedAt: time.Now().UTC()},
 		},
-		Members: []model.TeamMember{
-			{TeamID: teamID, UserID: userID, Role: model.TeamRoleOwner, CreatedAt: time.Now().UTC()},
+		Members: []coreteam.Member{
+			{TeamID: teamID, UserID: userID, Role: coreteam.RoleOwner, CreatedAt: time.Now().UTC()},
 		},
 	}
 	usageReader := &mock.MockUsageReader{RunCount: 2, TotalTokens: 5000}

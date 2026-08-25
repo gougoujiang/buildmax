@@ -20,6 +20,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	archive "github.com/gougoujiang/buildmax/internal/infra/pluginarchive"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 	inspect "github.com/gougoujiang/buildmax/internal/service/plugininspect"
@@ -45,7 +46,7 @@ type Service struct {
 	// releases a team's background runs may use, and who fills that list.
 	// They are nil in a deployment that only publishes and installs locally.
 	Activations ActivationStore
-	Teams       model.TeamStore
+	Teams       coreteam.Store
 	Packages    PackageStore
 	// KeyPrefix scopes package keys inside the object store.
 	KeyPrefix string

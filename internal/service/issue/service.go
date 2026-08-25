@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 )
 
 var (
@@ -35,7 +36,7 @@ type Service struct {
 	Issues    model.IssueStore
 	Comments  model.IssueCommentStore
 	Agents    model.AgentStore
-	Teams     model.TeamStore
+	Teams     coreteam.Store
 	Workflows model.WorkflowStore
 }
 

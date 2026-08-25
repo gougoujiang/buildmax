@@ -6,7 +6,7 @@ import (
 	"time"
 
 	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
 )
@@ -194,7 +194,7 @@ func (h *Handler) deleteArtifactHandler(w http.ResponseWriter, r *http.Request) 
 // holds. A member cannot delete a colleague's file, and cannot delete what a
 // run produced, because neither is theirs to withdraw.
 func mayDelete(role, userID string, rec *coreartifact.Artifact) bool {
-	if role == model.TeamRoleAdmin || role == model.TeamRoleOwner {
+	if role == coreteam.RoleAdmin || role == coreteam.RoleOwner {
 		return true
 	}
 	return rec.CreatedByType == coreartifact.CreatorUser && rec.CreatedByID == userID && userID != ""

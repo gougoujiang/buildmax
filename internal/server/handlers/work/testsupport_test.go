@@ -10,7 +10,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/mock"
 
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 )
 
 // llmStubLedger accepts every write and keeps the last one so a test can check
@@ -54,11 +54,11 @@ const llmTestSecret = "test-llm-secret"
 
 func llmTestTeamStore() *mock.MockTeamStore {
 	return &mock.MockTeamStore{
-		Teams: []model.Team{
+		Teams: []coreteam.Team{
 			{ID: llmTestTeam, Name: "LLM Team", CreatedBy: llmTestUser, CreatedAt: time.Now().UTC()},
 		},
-		Members: []model.TeamMember{
-			{TeamID: llmTestTeam, UserID: llmTestUser, Role: model.TeamRoleOwner, CreatedAt: time.Now().UTC()},
+		Members: []coreteam.Member{
+			{TeamID: llmTestTeam, UserID: llmTestUser, Role: coreteam.RoleOwner, CreatedAt: time.Now().UTC()},
 		},
 	}
 }

@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/team"
 )
@@ -30,7 +30,7 @@ func newTeam(t *testing.T) (*team.Service, string, string, string) {
 	if err != nil {
 		t.Fatalf("CreateTeam: %v", err)
 	}
-	if _, err := teams.AddTeamMember(ctx, tm.ID, member.ID, model.TeamRoleMember); err != nil {
+	if _, err := teams.AddTeamMember(ctx, tm.ID, member.ID, coreteam.RoleMember); err != nil {
 		t.Fatalf("AddTeamMember: %v", err)
 	}
 	return &team.Service{Teams: teams, Users: users}, tm.ID, owner.ID, member.ID
@@ -90,7 +90,7 @@ func TestOnlyOwnersMayAddOrRemove(t *testing.T) {
 func TestAdminMayNotChangeMembership(t *testing.T) {
 	s, teamID, _, _ := newTeam(t)
 	ctx := context.Background()
-	adminID := addMemberWithRole(t, s, teamID, "admin@example.com", model.TeamRoleAdmin)
+	adminID := addMemberWithRole(t, s, teamID, "admin@example.com", coreteam.RoleAdmin)
 
 	_, _, err := s.AddMember(ctx, team.AddMemberCmd{TeamID: teamID, ActorID: adminID, Email: "new@example.com"})
 	if !errors.Is(err, team.ErrOnlyOwnerCanAdd) {
@@ -170,7 +170,7 @@ func TestOwnerRemovesAMember(t *testing.T) {
 func TestOnlyTheMemberRoleIsGrantable(t *testing.T) {
 	s, teamID, ownerID, _ := newTeam(t)
 
-	for _, role := range []string{model.TeamRoleOwner, model.TeamRoleAdmin} {
+	for _, role := range []string{coreteam.RoleOwner, coreteam.RoleAdmin} {
 		_, _, err := s.AddMember(context.Background(), team.AddMemberCmd{
 			TeamID: teamID, ActorID: ownerID, Email: "member@example.com", Role: role,
 		})

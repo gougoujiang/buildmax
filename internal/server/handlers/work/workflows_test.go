@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -35,8 +36,8 @@ func TestWorkflowHandlers(t *testing.T) {
 		Agents: []model.Agent{{ID: "a_1", UserID: "u1", TeamID: teamID, Name: "Agent 1", Instructions: "Do things"}},
 	}
 	teamStore := &mock.MockTeamStore{
-		Teams:   []model.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}},
-		Members: []model.TeamMember{{TeamID: teamID, UserID: "u1", Role: model.TeamRoleOwner}, {TeamID: teamID, UserID: "u2", Role: model.TeamRoleMember}, {TeamID: teamID, UserID: "u3", Role: model.TeamRoleAdmin}},
+		Teams:   []coreteam.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}},
+		Members: []coreteam.Member{{TeamID: teamID, UserID: "u1", Role: coreteam.RoleOwner}, {TeamID: teamID, UserID: "u2", Role: coreteam.RoleMember}, {TeamID: teamID, UserID: "u3", Role: coreteam.RoleAdmin}},
 	}
 	taskStore := &mock.MockTaskStore{}
 	issueStore := &mock.MockIssueStore{

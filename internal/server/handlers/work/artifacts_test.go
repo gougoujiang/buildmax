@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
@@ -49,7 +50,7 @@ func TestListTaskArtifactsHandler(t *testing.T) {
 
 	h := New(Config{
 		JWTSecret:     secret,
-		Teams:         &mock.MockTeamStore{Teams: []model.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr(userID), CreatedBy: userID}}, Members: []model.TeamMember{{TeamID: teamID, UserID: userID, Role: model.TeamRoleOwner}}},
+		Teams:         &mock.MockTeamStore{Teams: []coreteam.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr(userID), CreatedBy: userID}}, Members: []coreteam.Member{{TeamID: teamID, UserID: userID, Role: coreteam.RoleOwner}}},
 		Tasks:         mockTasks,
 		Conversations: mockConversations,
 		RunOutputs:    mockLister,
@@ -93,7 +94,7 @@ func TestListArtifactItemsHandler(t *testing.T) {
 
 	h := New(Config{
 		JWTSecret:     secret,
-		Teams:         &mock.MockTeamStore{Teams: []model.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr(userID), CreatedBy: userID}}, Members: []model.TeamMember{{TeamID: teamID, UserID: userID, Role: model.TeamRoleOwner}}},
+		Teams:         &mock.MockTeamStore{Teams: []coreteam.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr(userID), CreatedBy: userID}}, Members: []coreteam.Member{{TeamID: teamID, UserID: userID, Role: coreteam.RoleOwner}}},
 		TaskRuns:      mockTaskRun,
 		RunOutputs:    mockLister,
 		Conversations: mockConversations,
@@ -147,7 +148,7 @@ func TestArtifactContentHandler(t *testing.T) {
 
 	h := New(Config{
 		JWTSecret:        secret,
-		Teams:            &mock.MockTeamStore{Teams: []model.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr(userID), CreatedBy: userID}}, Members: []model.TeamMember{{TeamID: teamID, UserID: userID, Role: model.TeamRoleOwner}}},
+		Teams:            &mock.MockTeamStore{Teams: []coreteam.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr(userID), CreatedBy: userID}}, Members: []coreteam.Member{{TeamID: teamID, UserID: userID, Role: coreteam.RoleOwner}}},
 		TaskRuns:         mockTaskRun,
 		RunOutputs:       mockLister,
 		RunOutputStorage: runOutputStorage,

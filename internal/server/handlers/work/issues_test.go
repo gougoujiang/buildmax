@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -46,15 +47,15 @@ func TestIssueHandlers(t *testing.T) {
 	}
 	tasks := &mock.MockTaskStore{}
 	teams := &mock.MockTeamStore{
-		Teams: []model.Team{
+		Teams: []coreteam.Team{
 			{ID: personalTeamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"},
 			{ID: otherTeamID, Name: "Other", CreatedBy: "u2"},
 		},
-		Members: []model.TeamMember{
-			{TeamID: personalTeamID, UserID: "u1", Role: model.TeamRoleOwner},
-			{TeamID: personalTeamID, UserID: "u2", Role: model.TeamRoleMember},
-			{TeamID: personalTeamID, UserID: "u3", Role: model.TeamRoleAdmin},
-			{TeamID: otherTeamID, UserID: "u2", Role: model.TeamRoleOwner},
+		Members: []coreteam.Member{
+			{TeamID: personalTeamID, UserID: "u1", Role: coreteam.RoleOwner},
+			{TeamID: personalTeamID, UserID: "u2", Role: coreteam.RoleMember},
+			{TeamID: personalTeamID, UserID: "u3", Role: coreteam.RoleAdmin},
+			{TeamID: otherTeamID, UserID: "u2", Role: coreteam.RoleOwner},
 		},
 	}
 	h := New(Config{

@@ -13,6 +13,7 @@ import (
 
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/server/access"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 	pluginsvc "github.com/gougoujiang/buildmax/internal/service/plugin"
@@ -26,7 +27,7 @@ type Config struct {
 	Users         model.UserStore
 	LoginCodes    model.LoginCodeStore
 	RefreshTokens model.RefreshTokenStore
-	Teams         model.TeamStore
+	Teams         coreteam.Store
 	Grants        model.SystemGrantStore
 	Audits        model.AuditStore
 	Models        coregw.ModelStore

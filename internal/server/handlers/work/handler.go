@@ -16,6 +16,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/server/access"
 	"github.com/gougoujiang/buildmax/internal/server/handlers/runterminal"
@@ -50,7 +51,7 @@ type Config struct {
 	Tasks         model.TaskStore
 	TaskRuns      model.TaskRunStore
 	Agents        model.AgentStore
-	Teams         model.TeamStore
+	Teams         coreteam.Store
 	Conversations model.ConversationStore
 	Messages      model.ConversationMessageStore
 	RunOutputs    RunOutputLister

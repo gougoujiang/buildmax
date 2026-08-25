@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
@@ -53,8 +54,8 @@ func traceTestFixture(t *testing.T, tracePath *string, persist blob.PersistStora
 		JWTSecret:     secret,
 		WorkspacesDir: workspacesDir,
 		Teams: &mock.MockTeamStore{
-			Teams:   []model.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr(userID), CreatedBy: userID}},
-			Members: []model.TeamMember{{TeamID: teamID, UserID: userID, Role: model.TeamRoleOwner}},
+			Teams:   []coreteam.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr(userID), CreatedBy: userID}},
+			Members: []coreteam.Member{{TeamID: teamID, UserID: userID, Role: coreteam.RoleOwner}},
 		},
 		TaskRuns: &mock.MockTaskRunStore{
 			Runs:     []model.TaskRun{{ID: taskRunID, TaskID: taskID, Status: "FAILED", TracePath: tracePath, CreatedAt: time.Unix(1, 0).UTC()}},

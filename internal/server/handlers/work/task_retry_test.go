@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -44,8 +45,8 @@ func retryFixture(t *testing.T, run model.TaskRun, workflows *mock.MockWorkflowS
 	cfg := Config{
 		JWTSecret: retrySecret,
 		Teams: &mock.MockTeamStore{
-			Teams:   []model.Team{{ID: retryTeam, Name: "My Space", PersonalForUserID: util.Ptr(retryUser), CreatedBy: retryUser}},
-			Members: []model.TeamMember{{TeamID: retryTeam, UserID: retryUser, Role: model.TeamRoleOwner}},
+			Teams:   []coreteam.Team{{ID: retryTeam, Name: "My Space", PersonalForUserID: util.Ptr(retryUser), CreatedBy: retryUser}},
+			Members: []coreteam.Member{{TeamID: retryTeam, UserID: retryUser, Role: coreteam.RoleOwner}},
 		},
 		Tasks:    &mock.MockTaskStore{List: []model.Task{target}},
 		TaskRuns: runs,

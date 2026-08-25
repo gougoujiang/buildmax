@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
@@ -22,10 +23,10 @@ func auditFixture(t *testing.T) (*http.ServeMux, *mock.MockAuditStore, *mock.Moc
 	h := New(Config{
 		JWTSecret: matrixSecret,
 		Teams: &mock.MockTeamStore{
-			Teams: []model.Team{{ID: matrixTeam, Name: "Matrix", CreatedBy: matrixOwner}},
-			Members: []model.TeamMember{
-				{TeamID: matrixTeam, UserID: matrixOwner, Role: model.TeamRoleOwner},
-				{TeamID: matrixTeam, UserID: matrixMember, Role: model.TeamRoleMember},
+			Teams: []coreteam.Team{{ID: matrixTeam, Name: "Matrix", CreatedBy: matrixOwner}},
+			Members: []coreteam.Member{
+				{TeamID: matrixTeam, UserID: matrixOwner, Role: coreteam.RoleOwner},
+				{TeamID: matrixTeam, UserID: matrixMember, Role: coreteam.RoleMember},
 			},
 		},
 		Users:  users,

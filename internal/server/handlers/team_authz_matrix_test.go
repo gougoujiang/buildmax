@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
 )
@@ -56,100 +57,100 @@ type authzCase struct {
 // must appear here — TestAuthzMatrixCoversEveryTeamRoute fails otherwise, so a
 // new route cannot ship without someone deciding who may call it.
 var teamRoutes = []authzCase{
-	{"GET", "/api/teams/{team_id}/agents", model.TeamRoleMember, false},
-	{"POST", "/api/teams/{team_id}/agents", model.TeamRoleAdmin, false},
-	{"GET", "/api/teams/{team_id}/agents/{agent_id}", model.TeamRoleMember, false},
-	{"PATCH", "/api/teams/{team_id}/agents/{agent_id}", model.TeamRoleAdmin, false},
-	{"DELETE", "/api/teams/{team_id}/agents/{agent_id}", model.TeamRoleAdmin, false},
-	{"GET", "/api/teams/{team_id}/agents/{agent_id}/revisions", model.TeamRoleMember, false},
-	{"POST", "/api/teams/{team_id}/agents/{agent_id}/revisions/{revision}/restore", model.TeamRoleAdmin, false},
+	{"GET", "/api/teams/{team_id}/agents", coreteam.RoleMember, false},
+	{"POST", "/api/teams/{team_id}/agents", coreteam.RoleAdmin, false},
+	{"GET", "/api/teams/{team_id}/agents/{agent_id}", coreteam.RoleMember, false},
+	{"PATCH", "/api/teams/{team_id}/agents/{agent_id}", coreteam.RoleAdmin, false},
+	{"DELETE", "/api/teams/{team_id}/agents/{agent_id}", coreteam.RoleAdmin, false},
+	{"GET", "/api/teams/{team_id}/agents/{agent_id}/revisions", coreteam.RoleMember, false},
+	{"POST", "/api/teams/{team_id}/agents/{agent_id}/revisions/{revision}/restore", coreteam.RoleAdmin, false},
 
 	// Reading what a team activated answers "why did this run have this
 	// plugin", which is any member's question. Changing an activation is the
 	// same authority the team's other shared automation needs.
-	{"GET", "/api/teams/{team_id}/plugin-activations", model.TeamRoleMember, false},
-	{"POST", "/api/teams/{team_id}/plugin-activations", model.TeamRoleAdmin, false},
-	{"PATCH", "/api/teams/{team_id}/plugin-activations/{plugin_name}", model.TeamRoleAdmin, false},
-	{"PUT", "/api/teams/{team_id}/plugin-curation", model.TeamRoleAdmin, false},
+	{"GET", "/api/teams/{team_id}/plugin-activations", coreteam.RoleMember, false},
+	{"POST", "/api/teams/{team_id}/plugin-activations", coreteam.RoleAdmin, false},
+	{"PATCH", "/api/teams/{team_id}/plugin-activations/{plugin_name}", coreteam.RoleAdmin, false},
+	{"PUT", "/api/teams/{team_id}/plugin-curation", coreteam.RoleAdmin, false},
 
-	{"GET", "/api/teams/{team_id}/members", model.TeamRoleMember, false},
-	{"POST", "/api/teams/{team_id}/members", model.TeamRoleOwner, false},
-	{"DELETE", "/api/teams/{team_id}/members/{user_id}", model.TeamRoleOwner, false},
+	{"GET", "/api/teams/{team_id}/members", coreteam.RoleMember, false},
+	{"POST", "/api/teams/{team_id}/members", coreteam.RoleOwner, false},
+	{"DELETE", "/api/teams/{team_id}/members/{user_id}", coreteam.RoleOwner, false},
 
-	{"GET", "/api/teams/{team_id}/conversations", model.TeamRoleMember, false},
-	{"POST", "/api/teams/{team_id}/conversations", model.TeamRoleMember, false},
-	{"GET", "/api/teams/{team_id}/conversations/{conversation_id}/messages", model.TeamRoleMember, false},
-	{"POST", "/api/teams/{team_id}/conversations/{conversation_id}/messages", model.TeamRoleMember, false},
-	{"GET", "/api/teams/{team_id}/conversations/{conversation_id}/tasks", model.TeamRoleMember, false},
-	{"POST", "/api/teams/{team_id}/conversations/{conversation_id}/tasks", model.TeamRoleMember, false},
+	{"GET", "/api/teams/{team_id}/conversations", coreteam.RoleMember, false},
+	{"POST", "/api/teams/{team_id}/conversations", coreteam.RoleMember, false},
+	{"GET", "/api/teams/{team_id}/conversations/{conversation_id}/messages", coreteam.RoleMember, false},
+	{"POST", "/api/teams/{team_id}/conversations/{conversation_id}/messages", coreteam.RoleMember, false},
+	{"GET", "/api/teams/{team_id}/conversations/{conversation_id}/tasks", coreteam.RoleMember, false},
+	{"POST", "/api/teams/{team_id}/conversations/{conversation_id}/tasks", coreteam.RoleMember, false},
 
-	{"GET", "/api/teams/{team_id}/issues", model.TeamRoleMember, false},
-	{"POST", "/api/teams/{team_id}/issues", model.TeamRoleMember, false},
-	{"GET", "/api/teams/{team_id}/issues/{issue_id}", model.TeamRoleMember, false},
-	{"PATCH", "/api/teams/{team_id}/issues/{issue_id}", model.TeamRoleMember, false},
-	{"GET", "/api/teams/{team_id}/issues/{issue_id}/flow", model.TeamRoleMember, false},
+	{"GET", "/api/teams/{team_id}/issues", coreteam.RoleMember, false},
+	{"POST", "/api/teams/{team_id}/issues", coreteam.RoleMember, false},
+	{"GET", "/api/teams/{team_id}/issues/{issue_id}", coreteam.RoleMember, false},
+	{"PATCH", "/api/teams/{team_id}/issues/{issue_id}", coreteam.RoleMember, false},
+	{"GET", "/api/teams/{team_id}/issues/{issue_id}/flow", coreteam.RoleMember, false},
 	// Commenting is collaboration, so every member may do it. Moderation —
 	// deleting a comment you did not write — is owner-only, but that is decided
 	// inside the handler from the comment's author, not by the route: a member
 	// deleting their own comment reaches the same endpoint.
-	{"GET", "/api/teams/{team_id}/issues/{issue_id}/comments", model.TeamRoleMember, false},
-	{"POST", "/api/teams/{team_id}/issues/{issue_id}/comments", model.TeamRoleMember, false},
-	{"PATCH", "/api/teams/{team_id}/issues/{issue_id}/comments/{comment_id}", model.TeamRoleMember, false},
-	{"DELETE", "/api/teams/{team_id}/issues/{issue_id}/comments/{comment_id}", model.TeamRoleMember, false},
-	{"POST", "/api/teams/{team_id}/issues/{issue_id}/agent-runs", model.TeamRoleMember, false},
-	{"POST", "/api/teams/{team_id}/issues/{issue_id}/workflow-runs", model.TeamRoleMember, false},
+	{"GET", "/api/teams/{team_id}/issues/{issue_id}/comments", coreteam.RoleMember, false},
+	{"POST", "/api/teams/{team_id}/issues/{issue_id}/comments", coreteam.RoleMember, false},
+	{"PATCH", "/api/teams/{team_id}/issues/{issue_id}/comments/{comment_id}", coreteam.RoleMember, false},
+	{"DELETE", "/api/teams/{team_id}/issues/{issue_id}/comments/{comment_id}", coreteam.RoleMember, false},
+	{"POST", "/api/teams/{team_id}/issues/{issue_id}/agent-runs", coreteam.RoleMember, false},
+	{"POST", "/api/teams/{team_id}/issues/{issue_id}/workflow-runs", coreteam.RoleMember, false},
 
-	{"GET", "/api/teams/{team_id}/workflows", model.TeamRoleMember, false},
-	{"POST", "/api/teams/{team_id}/workflows", model.TeamRoleAdmin, false},
-	{"GET", "/api/teams/{team_id}/workflows/{workflow_id}", model.TeamRoleMember, false},
-	{"PATCH", "/api/teams/{team_id}/workflows/{workflow_id}", model.TeamRoleAdmin, false},
-	{"GET", "/api/teams/{team_id}/workflows/{workflow_id}/revisions", model.TeamRoleMember, false},
-	{"POST", "/api/teams/{team_id}/workflows/{workflow_id}/revisions/{revision}/restore", model.TeamRoleAdmin, false},
-	{"GET", "/api/teams/{team_id}/workflows/{workflow_id}/runs", model.TeamRoleMember, false},
-	{"POST", "/api/teams/{team_id}/workflows/{workflow_id}/runs", model.TeamRoleMember, false},
-	{"GET", "/api/teams/{team_id}/workflow-runs/{workflow_run_id}", model.TeamRoleMember, false},
+	{"GET", "/api/teams/{team_id}/workflows", coreteam.RoleMember, false},
+	{"POST", "/api/teams/{team_id}/workflows", coreteam.RoleAdmin, false},
+	{"GET", "/api/teams/{team_id}/workflows/{workflow_id}", coreteam.RoleMember, false},
+	{"PATCH", "/api/teams/{team_id}/workflows/{workflow_id}", coreteam.RoleAdmin, false},
+	{"GET", "/api/teams/{team_id}/workflows/{workflow_id}/revisions", coreteam.RoleMember, false},
+	{"POST", "/api/teams/{team_id}/workflows/{workflow_id}/revisions/{revision}/restore", coreteam.RoleAdmin, false},
+	{"GET", "/api/teams/{team_id}/workflows/{workflow_id}/runs", coreteam.RoleMember, false},
+	{"POST", "/api/teams/{team_id}/workflows/{workflow_id}/runs", coreteam.RoleMember, false},
+	{"GET", "/api/teams/{team_id}/workflow-runs/{workflow_run_id}", coreteam.RoleMember, false},
 
-	{"GET", "/api/teams/{team_id}/tasks/{task_id}", model.TeamRoleMember, false},
-	{"POST", "/api/teams/{team_id}/tasks/{task_id}/runs", model.TeamRoleMember, false},
+	{"GET", "/api/teams/{team_id}/tasks/{task_id}", coreteam.RoleMember, false},
+	{"POST", "/api/teams/{team_id}/tasks/{task_id}/runs", coreteam.RoleMember, false},
 	// Starting a run and stopping one are the same level of act on the same
 	// resource. A member who may spend the team's budget may also stop
 	// spending it, including on a run somebody else started.
-	{"POST", "/api/teams/{team_id}/tasks/{task_id}/cancel", model.TeamRoleMember, false},
+	{"POST", "/api/teams/{team_id}/tasks/{task_id}/cancel", coreteam.RoleMember, false},
 	// Retry starts a run, so it sits at the same level as starting one.
-	{"POST", "/api/teams/{team_id}/tasks/{task_id}/retry", model.TeamRoleMember, false},
-	{"GET", "/api/teams/{team_id}/tasks/{task_id}/artifacts", model.TeamRoleMember, false},
+	{"POST", "/api/teams/{team_id}/tasks/{task_id}/retry", coreteam.RoleMember, false},
+	{"GET", "/api/teams/{team_id}/tasks/{task_id}/artifacts", coreteam.RoleMember, false},
 	// Unified artifacts. Any member may keep a file for the team and see what
 	// the team holds; removing one is decided per artifact rather than per
 	// role, so it is not on a team-scoped route -- see the artifact package.
-	{"GET", "/api/teams/{team_id}/artifacts", model.TeamRoleMember, false},
-	{"POST", "/api/teams/{team_id}/artifacts", model.TeamRoleMember, false},
-	{"GET", "/api/teams/{team_id}/tasks/{task_id}/conversation", model.TeamRoleMember, false},
-	{"GET", "/api/teams/{team_id}/tasks/{task_id}/stream", model.TeamRoleMember, false},
+	{"GET", "/api/teams/{team_id}/artifacts", coreteam.RoleMember, false},
+	{"POST", "/api/teams/{team_id}/artifacts", coreteam.RoleMember, false},
+	{"GET", "/api/teams/{team_id}/tasks/{task_id}/conversation", coreteam.RoleMember, false},
+	{"GET", "/api/teams/{team_id}/tasks/{task_id}/stream", coreteam.RoleMember, false},
 
-	{"GET", "/api/teams/{team_id}/task-runs/{task_run_id}", model.TeamRoleMember, false},
-	{"GET", "/api/teams/{team_id}/task-runs/{task_run_id}/artifacts/items", model.TeamRoleMember, false},
-	{"GET", "/api/teams/{team_id}/task-runs/{task_run_id}/artifacts/content", model.TeamRoleMember, false},
-	{"GET", "/api/teams/{team_id}/task-runs/{task_run_id}/trace", model.TeamRoleMember, false},
+	{"GET", "/api/teams/{team_id}/task-runs/{task_run_id}", coreteam.RoleMember, false},
+	{"GET", "/api/teams/{team_id}/task-runs/{task_run_id}/artifacts/items", coreteam.RoleMember, false},
+	{"GET", "/api/teams/{team_id}/task-runs/{task_run_id}/artifacts/content", coreteam.RoleMember, false},
+	{"GET", "/api/teams/{team_id}/task-runs/{task_run_id}/trace", coreteam.RoleMember, false},
 	// A member may read what their team's run spent, the same as its trace and
 	// artifacts. The ledger carries no prompts, and hiding a team's own usage
 	// from the people producing it would make quota unexplainable.
-	{"GET", "/api/teams/{team_id}/task-runs/{task_run_id}/llm-calls", model.TeamRoleMember, false},
+	{"GET", "/api/teams/{team_id}/task-runs/{task_run_id}/llm-calls", coreteam.RoleMember, false},
 
-	{"GET", "/api/teams/{team_id}/files", model.TeamRoleMember, false},
-	{"GET", "/api/teams/{team_id}/files/{path...}", model.TeamRoleMember, false},
-	{"POST", "/api/teams/{team_id}/upload", model.TeamRoleMember, false},
+	{"GET", "/api/teams/{team_id}/files", coreteam.RoleMember, false},
+	{"GET", "/api/teams/{team_id}/files/{path...}", coreteam.RoleMember, false},
+	{"POST", "/api/teams/{team_id}/upload", coreteam.RoleMember, false},
 
-	{"GET", "/api/teams/{team_id}/usage", model.TeamRoleMember, false},
+	{"GET", "/api/teams/{team_id}/usage", coreteam.RoleMember, false},
 	// Owner only: the trail names who did what, including who was refused,
 	// which is administrative rather than collaborative information.
-	{"GET", "/api/teams/{team_id}/audit-events", model.TeamRoleOwner, false},
+	{"GET", "/api/teams/{team_id}/audit-events", coreteam.RoleOwner, false},
 	// The export is the same read in a file, so it is the same reader.
-	{"GET", "/api/teams/{team_id}/audit-events/export", model.TeamRoleOwner, false},
+	{"GET", "/api/teams/{team_id}/audit-events/export", coreteam.RoleOwner, false},
 	// The managed gateway is deliberately absent: it is not team-scoped. Every
 	// catalog model is available to every signed-in user, so its routes carry no
 	// team and are covered by the gateway's own tests.
 
-	{"GET", "/api/teams/{team_id}/ws", model.TeamRoleMember, true},
+	{"GET", "/api/teams/{team_id}/ws", coreteam.RoleMember, true},
 }
 
 // matrixMux builds a handler with every store wired.
@@ -168,21 +169,21 @@ func matrixMux(t *testing.T) *http.ServeMux {
 func matrixMuxWithGrants(t *testing.T, grants model.SystemGrantStore) *http.ServeMux {
 	t.Helper()
 	teams := &mock.MockTeamStore{
-		Teams: []model.Team{
+		Teams: []coreteam.Team{
 			{ID: matrixTeam, Name: "Matrix", CreatedBy: matrixOwner},
 			{ID: matrixOther, Name: "Other", CreatedBy: matrixOutside},
 		},
-		Members: []model.TeamMember{
-			{TeamID: matrixTeam, UserID: matrixOwner, Role: model.TeamRoleOwner},
-			{TeamID: matrixTeam, UserID: matrixAdmin, Role: model.TeamRoleAdmin},
-			{TeamID: matrixTeam, UserID: matrixMember, Role: model.TeamRoleMember},
+		Members: []coreteam.Member{
+			{TeamID: matrixTeam, UserID: matrixOwner, Role: coreteam.RoleOwner},
+			{TeamID: matrixTeam, UserID: matrixAdmin, Role: coreteam.RoleAdmin},
+			{TeamID: matrixTeam, UserID: matrixMember, Role: coreteam.RoleMember},
 			// A membership row that never got a role. Nothing writes one now --
 			// the team service defaults an unset role before storing it -- so
 			// this stands in for a legacy row, and pins what such a row may do.
 			{TeamID: matrixTeam, UserID: matrixUnsetRole, Role: ""},
 			// The stranger owns a different team, which is the case that
 			// separates "is a member of something" from "is a member of this".
-			{TeamID: matrixOther, UserID: matrixOutside, Role: model.TeamRoleOwner},
+			{TeamID: matrixOther, UserID: matrixOutside, Role: coreteam.RoleOwner},
 		},
 	}
 	conversations := &mock.MockConversationStore{}
@@ -236,10 +237,10 @@ func requestAs(t *testing.T, mux *http.ServeMux, c authzCase, teamID, userID str
 
 func allowedFor(minRole, role string) bool {
 	switch minRole {
-	case model.TeamRoleOwner:
-		return role == model.TeamRoleOwner
-	case model.TeamRoleAdmin:
-		return role == model.TeamRoleOwner || role == model.TeamRoleAdmin
+	case coreteam.RoleOwner:
+		return role == coreteam.RoleOwner
+	case coreteam.RoleAdmin:
+		return role == coreteam.RoleOwner || role == coreteam.RoleAdmin
 	default:
 		return true
 	}
@@ -251,12 +252,12 @@ func TestTeamAuthzMatrix(t *testing.T) {
 	mux := matrixMux(t)
 
 	roles := map[string]string{
-		matrixOwner:  model.TeamRoleOwner,
-		matrixAdmin:  model.TeamRoleAdmin,
-		matrixMember: model.TeamRoleMember,
+		matrixOwner:  coreteam.RoleOwner,
+		matrixAdmin:  coreteam.RoleAdmin,
+		matrixMember: coreteam.RoleMember,
 		// A row with no role is a member, so it is driven through every route
 		// against the same expectations. It used to be refused everything.
-		matrixUnsetRole: model.TeamRoleMember,
+		matrixUnsetRole: coreteam.RoleMember,
 	}
 
 	for _, c := range teamRoutes {
