@@ -66,6 +66,14 @@ export async function session(page: Page): Promise<Session> {
   return { token, teamId, apiBase, team: `${apiBase}/api/teams/${encodeURIComponent(teamId)}` }
 }
 
+export async function getJSON<T>(page: Page, path: string, session: Session): Promise<T> {
+  const res = await page.request.get(path, {
+    headers: { Authorization: `Bearer ${session.token}` },
+  })
+  expect(res.ok(), `GET ${path} → ${res.status()} ${await res.text()}`).toBeTruthy()
+  return res.json() as Promise<T>
+}
+
 export async function postJSON<T>(page: Page, path: string, session: Session, body: unknown): Promise<T> {
   const res = await page.request.post(path, {
     headers: { Authorization: `Bearer ${session.token}` },
