@@ -10,6 +10,11 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "JWT"
+      },
+      "runTokenAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "A run-scoped token issued when a worker claims a task run. It carries neither a user session nor access to any store a user route reads."
       }
     },
     "schemas": {
@@ -21,7 +26,7 @@
           "name": { "type": "string" },
           "description": { "type": "string" },
           "instructions": { "type": "string" },
-          "created_at": { "type": "integer" }
+          "created_at": { "type": "string", "format": "date-time" }
         }
       },
       "Task": {
@@ -35,9 +40,9 @@
           "title": { "type": "string" },
           "output": { "type": "string", "nullable": true },
           "created_by": { "type": "string" },
-          "created_at": { "type": "integer" },
-          "started_at": { "type": "integer", "nullable": true },
-          "ended_at": { "type": "integer", "nullable": true },
+          "created_at": { "type": "string", "format": "date-time" },
+          "started_at": { "type": "string", "format": "date-time", "nullable": true },
+          "ended_at": { "type": "string", "format": "date-time", "nullable": true },
           "error_message": { "type": "string", "nullable": true },
           "agent_id": { "type": "string", "nullable": true }
         }
@@ -49,7 +54,7 @@
           "user_id": { "type": "string" },
           "channel": { "type": "string" },
           "title": { "type": "string" },
-          "created_at": { "type": "integer" },
+          "created_at": { "type": "string", "format": "date-time" },
           "created_by": { "type": "string" }
         }
       },
@@ -60,7 +65,7 @@
           "role": { "type": "string" },
           "content": { "type": "string" },
           "channel": { "type": "string", "nullable": true },
-          "created_at": { "type": "integer" }
+          "created_at": { "type": "string", "format": "date-time" }
         }
       },
       "Artifact": {
@@ -70,7 +75,7 @@
           "task_id": { "type": "string" },
           "conversation_id": { "type": "string" },
           "user_id": { "type": "string" },
-          "created_at": { "type": "integer" },
+          "created_at": { "type": "string", "format": "date-time" },
           "task_input_snippet": { "type": "string" }
         }
       },
@@ -139,8 +144,8 @@
           "task_run_id": { "type": "string" },
           "run_id": { "type": "string", "description": "Agent run id; also the trace file's name" },
           "model": { "type": "string" },
-          "started_at": { "type": "string" },
-          "ended_at": { "type": "string" },
+          "started_at": { "type": "string", "format": "date-time" },
+          "ended_at": { "type": "string", "format": "date-time" },
           "boundary": { "$ref": "#/components/schemas/TraceBoundary" },
           "llm_calls": { "type": "integer" },
           "tool_calls": { "type": "integer" },
@@ -156,6 +161,759 @@
           "error": { "type": "string", "description": "Terminal error; empty when the run succeeded" },
           "complete": { "type": "boolean", "description": "False means the run wrote no terminal record — do not read as success" }
         }
+      },
+      "Error": {"type": "object", "properties": {"error": {"type": "string"}}, "required": ["error"]},
+      "Team": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "name": {"type": "string"},
+          "personal_for_user_id": {"type": "string"},
+          "created_by": {"type": "string"},
+          "created_at": {"type": "string", "format": "date-time"},
+          "updated_at": {"type": "string", "format": "date-time"}
+        },
+        "required": ["id", "name", "created_by", "created_at", "updated_at"]
+      },
+      "TeamMember": {
+        "type": "object",
+        "properties": {
+          "team_id": {"type": "string"},
+          "user_id": {"type": "string"},
+          "role": {"type": "string"},
+          "created_at": {"type": "string", "format": "date-time"},
+          "user_name": {"type": "string"},
+          "user_email": {"type": "string"}
+        },
+        "required": ["team_id", "user_id", "role", "created_at"]
+      },
+      "Issue": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "user_id": {"type": "string"},
+          "team_id": {"type": "string"},
+          "parent_issue_id": {"type": "string"},
+          "title": {"type": "string"},
+          "description": {"type": "string"},
+          "status": {"type": "string"},
+          "assignee_kind": {"type": "string"},
+          "assignee_id": {"type": "string"},
+          "created_by": {"type": "string"},
+          "created_at": {"type": "string", "format": "date-time"},
+          "updated_at": {"type": "string", "format": "date-time"},
+          "child_count": {"type": "integer"},
+          "done_child_count": {"type": "integer"},
+          "comment_count": {"type": "integer"}
+        },
+        "required": [
+          "id",
+          "user_id",
+          "title",
+          "description",
+          "status",
+          "created_by",
+          "created_at",
+          "updated_at",
+          "child_count",
+          "done_child_count",
+          "comment_count"
+        ]
+      },
+      "IssueComment": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "issue_id": {"type": "string"},
+          "author_kind": {"type": "string"},
+          "author_id": {"type": "string"},
+          "body": {"type": "string"},
+          "source_task_id": {"type": "string"},
+          "source_task_run_id": {"type": "string"},
+          "created_at": {"type": "string", "format": "date-time"},
+          "edited_at": {"type": "string", "format": "date-time"}
+        },
+        "required": ["id", "issue_id", "author_kind", "author_id", "body", "created_at"]
+      },
+      "IssueFlow": {
+        "type": "object",
+        "properties": {
+          "issue": {
+            "type": "object",
+            "properties": {
+              "id": {"type": "string"},
+              "user_id": {"type": "string"},
+              "team_id": {"type": "string"},
+              "parent_issue_id": {"type": "string"},
+              "title": {"type": "string"},
+              "description": {"type": "string"},
+              "status": {"type": "string"},
+              "assignee_kind": {"type": "string"},
+              "assignee_id": {"type": "string"},
+              "created_by": {"type": "string"},
+              "created_at": {"type": "string", "format": "date-time"},
+              "updated_at": {"type": "string", "format": "date-time"},
+              "child_count": {"type": "integer"},
+              "done_child_count": {"type": "integer"},
+              "comment_count": {"type": "integer"}
+            },
+            "required": [
+              "id",
+              "user_id",
+              "title",
+              "description",
+              "status",
+              "created_by",
+              "created_at",
+              "updated_at",
+              "child_count",
+              "done_child_count",
+              "comment_count"
+            ]
+          },
+          "parent": {
+            "type": "object",
+            "properties": {
+              "id": {"type": "string"},
+              "user_id": {"type": "string"},
+              "team_id": {"type": "string"},
+              "parent_issue_id": {"type": "string"},
+              "title": {"type": "string"},
+              "description": {"type": "string"},
+              "status": {"type": "string"},
+              "assignee_kind": {"type": "string"},
+              "assignee_id": {"type": "string"},
+              "created_by": {"type": "string"},
+              "created_at": {"type": "string", "format": "date-time"},
+              "updated_at": {"type": "string", "format": "date-time"},
+              "child_count": {"type": "integer"},
+              "done_child_count": {"type": "integer"},
+              "comment_count": {"type": "integer"}
+            },
+            "required": [
+              "id",
+              "user_id",
+              "title",
+              "description",
+              "status",
+              "created_by",
+              "created_at",
+              "updated_at",
+              "child_count",
+              "done_child_count",
+              "comment_count"
+            ]
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {"type": "string"},
+                "user_id": {"type": "string"},
+                "team_id": {"type": "string"},
+                "parent_issue_id": {"type": "string"},
+                "title": {"type": "string"},
+                "description": {"type": "string"},
+                "status": {"type": "string"},
+                "assignee_kind": {"type": "string"},
+                "assignee_id": {"type": "string"},
+                "created_by": {"type": "string"},
+                "created_at": {"type": "string", "format": "date-time"},
+                "updated_at": {"type": "string", "format": "date-time"},
+                "child_count": {"type": "integer"},
+                "done_child_count": {"type": "integer"},
+                "comment_count": {"type": "integer"}
+              },
+              "required": [
+                "id",
+                "user_id",
+                "title",
+                "description",
+                "status",
+                "created_by",
+                "created_at",
+                "updated_at",
+                "child_count",
+                "done_child_count",
+                "comment_count"
+              ]
+            }
+          },
+          "workflow": {
+            "type": "object",
+            "properties": {
+              "id": {"type": "string"},
+              "team_id": {"type": "string"},
+              "name": {"type": "string"},
+              "description": {"type": "string"},
+              "definition": {"type": "string"},
+              "status": {"type": "string"},
+              "revision": {"type": "integer"},
+              "created_by": {"type": "string"},
+              "created_at": {"type": "string", "format": "date-time"},
+              "updated_at": {"type": "string", "format": "date-time"}
+            },
+            "required": [
+              "id",
+              "team_id",
+              "name",
+              "description",
+              "definition",
+              "status",
+              "revision",
+              "created_by",
+              "created_at",
+              "updated_at"
+            ]
+          },
+          "runs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "run": {
+                  "type": "object",
+                  "properties": {
+                    "id": {"type": "string"},
+                    "workflow_id": {"type": "string"},
+                    "workflow_revision": {"type": "integer"},
+                    "issue_id": {"type": "string"},
+                    "conversation_id": {"type": "string"},
+                    "status": {"type": "string"},
+                    "created_by": {"type": "string"},
+                    "created_at": {"type": "string", "format": "date-time"},
+                    "started_at": {"type": "string", "format": "date-time"},
+                    "ended_at": {"type": "string", "format": "date-time"},
+                    "error_message": {"type": "string"}
+                  },
+                  "required": ["id", "workflow_id", "conversation_id", "status", "created_by", "created_at"]
+                },
+                "steps": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {"type": "string"},
+                      "workflow_run_id": {"type": "string"},
+                      "step_id": {"type": "string"},
+                      "step_index": {"type": "integer"},
+                      "step_type": {"type": "string"},
+                      "target_agent_id": {"type": "string"},
+                      "agent_name": {"type": "string"},
+                      "agent_description": {"type": "string"},
+                      "agent_instructions": {"type": "string"},
+                      "agent_revision": {"type": "integer"},
+                      "prompt": {"type": "string"},
+                      "status": {"type": "string"},
+                      "task_id": {"type": "string"},
+                      "task_run_id": {"type": "string"},
+                      "output_summary": {"type": "string"},
+                      "error_message": {"type": "string"},
+                      "created_at": {"type": "string", "format": "date-time"},
+                      "started_at": {"type": "string", "format": "date-time"},
+                      "ended_at": {"type": "string", "format": "date-time"}
+                    },
+                    "required": [
+                      "id",
+                      "workflow_run_id",
+                      "step_id",
+                      "step_index",
+                      "step_type",
+                      "prompt",
+                      "status",
+                      "created_at"
+                    ]
+                  }
+                }
+              },
+              "required": ["run", "steps"]
+            }
+          },
+          "agent_tasks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {"type": "string"},
+                "conversation_id": {"type": "string"},
+                "session_id": {"type": "string"},
+                "status": {"type": "string"},
+                "input": {"type": "string"},
+                "title": {"type": "string"},
+                "output": {"type": "string"},
+                "created_by": {"type": "string"},
+                "created_at": {"type": "string", "format": "date-time"},
+                "started_at": {"type": "string", "format": "date-time"},
+                "ended_at": {"type": "string", "format": "date-time"},
+                "error_message": {"type": "string"},
+                "agent_id": {"type": "string"},
+                "issue_id": {"type": "string"},
+                "last_run_id": {"type": "string"},
+                "artifact_run_ids": {"type": "array", "items": {"type": "string"}}
+              },
+              "required": ["id", "conversation_id", "status", "input", "created_by", "created_at"]
+            }
+          },
+          "latest_result": {
+            "type": "object",
+            "properties": {
+              "id": {"type": "string"},
+              "title": {"type": "string"},
+              "kind": {"type": "string"},
+              "relative_path": {"type": "string"},
+              "artifact_id": {"type": "string"},
+              "filename": {"type": "string"},
+              "media_type": {"type": "string"},
+              "size_bytes": {"type": "integer"},
+              "preview": {"type": "string"},
+              "preview_truncated": {"type": "boolean"},
+              "source": {
+                "type": "object",
+                "properties": {
+                  "source_type": {"type": "string"},
+                  "task_id": {"type": "string"},
+                  "task_run_id": {"type": "string"},
+                  "conversation_id": {"type": "string"},
+                  "workflow_run_id": {"type": "string"},
+                  "workflow_step_run_id": {"type": "string"},
+                  "workflow_step_id": {"type": "string"}
+                },
+                "required": ["source_type"]
+              },
+              "created_at": {"type": "string", "format": "date-time"}
+            },
+            "required": ["id", "title", "kind", "preview_truncated", "source", "created_at"]
+          },
+          "outputs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {"type": "string"},
+                "title": {"type": "string"},
+                "kind": {"type": "string"},
+                "relative_path": {"type": "string"},
+                "artifact_id": {"type": "string"},
+                "filename": {"type": "string"},
+                "media_type": {"type": "string"},
+                "size_bytes": {"type": "integer"},
+                "preview": {"type": "string"},
+                "preview_truncated": {"type": "boolean"},
+                "source": {
+                  "type": "object",
+                  "properties": {
+                    "source_type": {"type": "string"},
+                    "task_id": {"type": "string"},
+                    "task_run_id": {"type": "string"},
+                    "conversation_id": {"type": "string"},
+                    "workflow_run_id": {"type": "string"},
+                    "workflow_step_run_id": {"type": "string"},
+                    "workflow_step_id": {"type": "string"}
+                  },
+                  "required": ["source_type"]
+                },
+                "created_at": {"type": "string", "format": "date-time"}
+              },
+              "required": ["id", "title", "kind", "preview_truncated", "source", "created_at"]
+            }
+          },
+          "total": {"type": "integer"}
+        },
+        "required": ["issue", "children", "runs", "agent_tasks", "outputs", "total"]
+      },
+      "Workflow": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "team_id": {"type": "string"},
+          "name": {"type": "string"},
+          "description": {"type": "string"},
+          "definition": {"type": "string"},
+          "status": {"type": "string"},
+          "revision": {"type": "integer"},
+          "created_by": {"type": "string"},
+          "created_at": {"type": "string", "format": "date-time"},
+          "updated_at": {"type": "string", "format": "date-time"}
+        },
+        "required": [
+          "id",
+          "team_id",
+          "name",
+          "description",
+          "definition",
+          "status",
+          "revision",
+          "created_by",
+          "created_at",
+          "updated_at"
+        ]
+      },
+      "WorkflowRevision": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "workflow_id": {"type": "string"},
+          "revision": {"type": "integer"},
+          "name": {"type": "string"},
+          "description": {"type": "string"},
+          "definition": {"type": "string"},
+          "status": {"type": "string"},
+          "created_by": {"type": "string"},
+          "created_at": {"type": "string", "format": "date-time"}
+        },
+        "required": [
+          "id",
+          "workflow_id",
+          "revision",
+          "name",
+          "description",
+          "definition",
+          "status",
+          "created_by",
+          "created_at"
+        ]
+      },
+      "WorkflowRun": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "workflow_id": {"type": "string"},
+          "workflow_revision": {"type": "integer"},
+          "issue_id": {"type": "string"},
+          "conversation_id": {"type": "string"},
+          "status": {"type": "string"},
+          "created_by": {"type": "string"},
+          "created_at": {"type": "string", "format": "date-time"},
+          "started_at": {"type": "string", "format": "date-time"},
+          "ended_at": {"type": "string", "format": "date-time"},
+          "error_message": {"type": "string"}
+        },
+        "required": ["id", "workflow_id", "conversation_id", "status", "created_by", "created_at"]
+      },
+      "WorkflowStepRun": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "workflow_run_id": {"type": "string"},
+          "step_id": {"type": "string"},
+          "step_index": {"type": "integer"},
+          "step_type": {"type": "string"},
+          "target_agent_id": {"type": "string"},
+          "agent_name": {"type": "string"},
+          "agent_description": {"type": "string"},
+          "agent_instructions": {"type": "string"},
+          "agent_revision": {"type": "integer"},
+          "prompt": {"type": "string"},
+          "status": {"type": "string"},
+          "task_id": {"type": "string"},
+          "task_run_id": {"type": "string"},
+          "output_summary": {"type": "string"},
+          "error_message": {"type": "string"},
+          "created_at": {"type": "string", "format": "date-time"},
+          "started_at": {"type": "string", "format": "date-time"},
+          "ended_at": {"type": "string", "format": "date-time"}
+        },
+        "required": [
+          "id",
+          "workflow_run_id",
+          "step_id",
+          "step_index",
+          "step_type",
+          "prompt",
+          "status",
+          "created_at"
+        ]
+      },
+      "AgentRevision": {
+        "type": "object",
+        "properties": {
+          "agent_id": {"type": "string"},
+          "revision": {"type": "integer"},
+          "name": {"type": "string"},
+          "description": {"type": "string"},
+          "instructions": {"type": "string"},
+          "plugins": {"type": "array", "items": {"type": "string"}},
+          "created_by": {"type": "string"},
+          "created_at": {"type": "string", "format": "date-time"}
+        },
+        "required": ["agent_id", "revision", "name", "description", "instructions", "created_by", "created_at"]
+      },
+      "Usage": {
+        "type": "object",
+        "properties": {
+          "run_count": {"type": "integer"},
+          "total_tokens": {"type": "integer"},
+          "tier": {"type": "string"},
+          "period_days": {"type": "integer"},
+          "max_runs_per_period": {"type": "integer"},
+          "max_tokens_per_period": {"type": "integer"}
+        },
+        "required": ["run_count", "total_tokens", "tier", "period_days"]
+      },
+      "AdminUser": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "email": {"type": "string"},
+          "name": {"type": "string"},
+          "quota_tier": {"type": "string"},
+          "has_password": {"type": "boolean"},
+          "disabled_at": {"type": "string", "format": "date-time"},
+          "last_login_at": {"type": "string", "format": "date-time"},
+          "last_login_platform": {"type": "string"},
+          "created_at": {"type": "string", "format": "date-time"}
+        },
+        "required": ["id", "email", "has_password", "created_at"]
+      },
+      "AdminGrant": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "user_id": {"type": "string"},
+          "role": {"type": "string"},
+          "granted_by": {"type": "string"},
+          "granted_at": {"type": "string", "format": "date-time"},
+          "revoked_at": {"type": "string", "format": "date-time"},
+          "email": {"type": "string"}
+        },
+        "required": ["id", "user_id", "role", "granted_by", "granted_at"]
+      },
+      "AdminModel": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "name": {"type": "string"},
+          "provider_type": {"type": "string"},
+          "api_url": {"type": "string"},
+          "model": {"type": "string"},
+          "context_window": {"type": "integer"},
+          "call_timeout": {"type": "integer"},
+          "max_tokens": {"type": "integer"},
+          "reasoning": {"type": "string"},
+          "cache_mode": {"type": "string"},
+          "cache_ttl": {"type": "string"},
+          "currency": {"type": "string"},
+          "input_per_mtok": {"type": "integer"},
+          "cache_read_per_mtok": {"type": "integer"},
+          "cache_write_per_mtok": {"type": "integer"},
+          "output_per_mtok": {"type": "integer"},
+          "vision": {"type": "boolean"},
+          "capabilities": {"type": "array", "items": {"type": "string"}},
+          "enabled": {"type": "boolean"},
+          "created_at": {"type": "string", "format": "date-time"},
+          "updated_at": {"type": "string", "format": "date-time"}
+        },
+        "required": ["id", "name", "provider_type", "api_url", "model", "enabled", "created_at", "updated_at"]
+      },
+      "AdminMe": {
+        "type": "object",
+        "properties": {
+          "user_id": {"type": "string"},
+          "roles": {"type": "array", "items": {"type": "string"}},
+          "grants": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {"type": "string"},
+                "user_id": {"type": "string"},
+                "role": {"type": "string"},
+                "granted_by": {"type": "string"},
+                "granted_at": {"type": "string", "format": "date-time"},
+                "revoked_at": {"type": "string", "format": "date-time"}
+              },
+              "required": ["id", "user_id", "role", "granted_by", "granted_at"]
+            }
+          }
+        },
+        "required": ["user_id", "roles", "grants"]
+      },
+      "AdminLoginCode": {
+        "type": "object",
+        "properties": {"code": {"type": "string"}, "expires_at": {"type": "string", "format": "date-time"}},
+        "required": ["code", "expires_at"]
+      },
+      "WorkerTaskRun": {
+        "type": "object",
+        "properties": {
+          "run": {
+            "type": "object",
+            "properties": {
+              "id": {"type": "string"},
+              "task_id": {"type": "string"},
+              "input": {"type": "string"},
+              "status": {"type": "string"},
+              "cancel_requested": {"type": "boolean"},
+              "created_at": {"type": "string", "format": "date-time"}
+            },
+            "required": ["id", "task_id", "input", "status", "created_at"]
+          },
+          "task": {
+            "type": "object",
+            "properties": {
+              "id": {"type": "string"},
+              "conversation_id": {"type": "string"},
+              "team_id": {"type": "string"},
+              "user_id": {"type": "string"},
+              "session_id": {"type": "string"},
+              "last_run_id": {"type": "string"},
+              "agent_instructions": {"type": "string"}
+            },
+            "required": ["id", "conversation_id", "team_id", "user_id"]
+          },
+          "llm": {
+            "type": "object",
+            "properties": {
+              "transport": {"type": "string"},
+              "model": {"type": "string"},
+              "context_window": {"type": "integer"},
+              "call_timeout": {"type": "integer"}
+            },
+            "required": ["transport"]
+          },
+          "plugins": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {"type": "string"},
+                "version": {"type": "string"},
+                "digest": {"type": "string"}
+              },
+              "required": ["name", "version", "digest"]
+            }
+          },
+          "plugin_error": {"type": "string"}
+        },
+        "required": ["run", "task"]
+      },
+      "Plugin": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string"},
+          "display_name": {"type": "string"},
+          "description": {"type": "string"},
+          "archived_at": {"type": "string", "format": "date-time"},
+          "created_by": {"type": "string"},
+          "created_at": {"type": "string", "format": "date-time"},
+          "updated_at": {"type": "string", "format": "date-time"}
+        },
+        "required": ["name", "created_by", "created_at", "updated_at"]
+      },
+      "PluginRelease": {
+        "type": "object",
+        "properties": {
+          "plugin_name": {"type": "string"},
+          "version": {"type": "string"},
+          "min_buildmax_version": {"type": "string"},
+          "digest": {"type": "string"},
+          "object_key": {"type": "string"},
+          "size_bytes": {"type": "integer"},
+          "inspection": {
+            "type": "object",
+            "properties": {
+              "skills": {"type": "array", "items": {"type": "string"}},
+              "subagents": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {"type": "string"},
+                    "tools": {"type": "array", "items": {"type": "string"}},
+                    "model": {"type": "string"}
+                  },
+                  "required": ["name"]
+                }
+              },
+              "mcp": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {"type": "string"},
+                    "transport": {"type": "string"},
+                    "executable": {"type": "string"},
+                    "host": {"type": "string"}
+                  },
+                  "required": ["id", "transport"]
+                }
+              },
+              "hooks": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "event": {"type": "string"},
+                    "type": {"type": "string"},
+                    "matcher": {"type": "string"},
+                    "executable": {"type": "string"},
+                    "host": {"type": "string"},
+                    "mcp_server": {"type": "string"},
+                    "mcp_tool": {"type": "string"}
+                  },
+                  "required": ["event", "type"]
+                }
+              },
+              "env_refs": {"type": "array", "items": {"type": "string"}},
+              "plugin_paths": {"type": "array", "items": {"type": "string"}},
+              "warnings": {"type": "array", "items": {"type": "string"}}
+            }
+          },
+          "source": {
+            "type": "object",
+            "properties": {
+              "remote_url": {"type": "string"},
+              "commit": {"type": "string"},
+              "branch": {"type": "string"},
+              "dirty": {"type": "boolean"}
+            }
+          },
+          "published_by": {"type": "string"},
+          "published_at": {"type": "string", "format": "date-time"},
+          "yanked_at": {"type": "string", "format": "date-time"},
+          "yanked_by": {"type": "string"},
+          "yanked_reason": {"type": "string"}
+        },
+        "required": [
+          "plugin_name",
+          "version",
+          "digest",
+          "object_key",
+          "size_bytes",
+          "inspection",
+          "source",
+          "published_by",
+          "published_at"
+        ]
+      },
+      "PluginActivation": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "team_id": {"type": "string"},
+          "plugin_name": {"type": "string"},
+          "version": {"type": "string"},
+          "digest": {"type": "string"},
+          "enabled": {"type": "boolean"},
+          "origin": {"type": "object"},
+          "activated_by": {"type": "string"},
+          "activated_at": {"type": "string", "format": "date-time"},
+          "updated_by": {"type": "string"},
+          "updated_at": {"type": "string", "format": "date-time"}
+        },
+        "required": [
+          "id",
+          "team_id",
+          "plugin_name",
+          "version",
+          "digest",
+          "enabled",
+          "origin",
+          "activated_by",
+          "activated_at",
+          "updated_at"
+        ]
       }
     }
   },
@@ -302,6 +1060,9 @@
       }
     },
     "/api/teams/{team_id}/agents": {
+      "parameters": [
+        {"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}
+      ],
       "get": {
         "summary": "List agents",
         "security": [{ "bearerAuth": [] }],
@@ -335,6 +1096,9 @@
       }
     },
     "/api/teams/{team_id}/agents/{agent_id}": {
+      "parameters": [
+        {"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}
+      ],
       "get": {
         "summary": "Get agent",
         "security": [{ "bearerAuth": [] }],
@@ -462,6 +1226,9 @@
       }
     },
     "/api/teams/{team_id}/conversations": {
+      "parameters": [
+        {"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}
+      ],
       "get": {
         "summary": "List conversations",
         "security": [{ "bearerAuth": [] }],
@@ -494,6 +1261,9 @@
       }
     },
     "/api/teams/{team_id}/conversations/{conversation_id}/messages": {
+      "parameters": [
+        {"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}
+      ],
       "get": {
         "summary": "List conversation messages",
         "security": [{ "bearerAuth": [] }],
@@ -531,6 +1301,9 @@
       }
     },
     "/api/teams/{team_id}/conversations/{conversation_id}/tasks": {
+      "parameters": [
+        {"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}
+      ],
       "get": {
         "summary": "List tasks in a conversation",
         "security": [{ "bearerAuth": [] }],
@@ -570,6 +1343,9 @@
       }
     },
     "/api/teams/{team_id}/tasks/{task_id}": {
+      "parameters": [
+        {"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}
+      ],
       "get": {
         "summary": "Get task",
         "security": [{ "bearerAuth": [] }],
@@ -589,6 +1365,9 @@
       }
     },
     "/api/teams/{team_id}/tasks/{task_id}/runs": {
+      "parameters": [
+        {"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}
+      ],
       "post": {
         "summary": "Create task run",
         "security": [{ "bearerAuth": [] }],
@@ -602,6 +1381,9 @@
       }
     },
     "/api/teams/{team_id}/tasks/{task_id}/cancel": {
+      "parameters": [
+        {"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}
+      ],
       "post": {
         "summary": "Cancel the task's run",
         "description": "A run that has not been dispatched is canceled outright and answers 200. A run a worker already holds is asked to stop and answers 202; it reaches CANCELED when that worker confirms, or when the server's backstop finishes it.",
@@ -617,6 +1399,9 @@
       }
     },
     "/api/teams/{team_id}/tasks/{task_id}/retry": {
+      "parameters": [
+        {"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}
+      ],
       "post": {
         "summary": "Run the task's last run again",
         "description": "Creates a new run with the same input as the task's most recent finished run, recording which run it repeats. Takes no body. A task whose run is still in flight, one that has never finished a run, and one belonging to a workflow step all answer 409.",
@@ -646,6 +1431,9 @@
       }
     },
     "/api/teams/{team_id}/tasks/{task_id}/conversation": {
+      "parameters": [
+        {"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}
+      ],
       "get": {
         "summary": "Get task execution conversation",
         "security": [{ "bearerAuth": [] }],
@@ -658,6 +1446,9 @@
       }
     },
     "/api/teams/{team_id}/tasks/{task_id}/stream": {
+      "parameters": [
+        {"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}
+      ],
       "get": {
         "summary": "Stream task run output",
         "security": [{ "bearerAuth": [] }],
@@ -670,6 +1461,9 @@
       }
     },
     "/api/teams/{team_id}/tasks/{task_id}/artifacts": {
+      "parameters": [
+        {"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}
+      ],
       "get": {
         "summary": "List artifacts for a task",
         "security": [{ "bearerAuth": [] }],
@@ -692,6 +1486,9 @@
       }
     },
     "/api/teams/{team_id}/task-runs/{task_run_id}/artifacts/items": {
+      "parameters": [
+        {"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}
+      ],
       "get": {
         "summary": "List artifact files for a task run",
         "security": [{ "bearerAuth": [] }],
@@ -714,6 +1511,9 @@
       }
     },
     "/api/teams/{team_id}/task-runs/{task_run_id}/artifacts/content": {
+      "parameters": [
+        {"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}
+      ],
       "get": {
         "summary": "Get artifact file content",
         "security": [{ "bearerAuth": [] }],
@@ -727,6 +1527,9 @@
       }
     },
     "/api/teams/{team_id}/task-runs/{task_run_id}/trace": {
+      "parameters": [
+        {"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}
+      ],
       "get": {
         "summary": "Get a task run's trace summary",
         "description": "What the run used, touched, spent, why it ended, and the execution boundary it ran under. Model output, tool arguments, and tool results are deliberately excluded.",
@@ -748,6 +1551,9 @@
       }
     },
     "/api/teams/{team_id}/task-runs/{task_run_id}/llm-calls": {
+      "parameters": [
+        {"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}
+      ],
       "get": {
         "summary": "List a task run's managed model calls",
         "description": "What the run spent and on which approved alias, oldest first. An accounting record, not a transcript: prompts, tool arguments, and generated content are absent, and so is the catalog entry the alias resolved to, which is the operator's routing rather than the team's.",
@@ -759,6 +1565,1852 @@
           "200": { "description": "OK. An empty array when the run made no managed calls, which is what a direct-mode run does" },
           "404": { "description": "No such run for this team" },
           "503": { "description": "This deployment records no managed calls" }
+        }
+      }
+    },
+    "/api/admin/me": {
+      "get": {
+        "summary": "Show the caller's system roles and grants",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AdminMe"}}}
+          }
+        }
+      }
+    },
+    "/api/admin/system": {
+      "get": {
+        "summary": "Report deployment build, runtime, and dependency state",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {"description": "OK", "content": {"application/json": {"schema": {"type": "object"}}}}
+        }
+      }
+    },
+    "/api/admin/config": {
+      "get": {
+        "summary": "Report the redacted effective server configuration",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {"description": "OK", "content": {"application/json": {"schema": {"type": "object"}}}},
+          "503": {
+            "description": "This deployment reports no configuration",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/admin/users": {
+      "get": {
+        "summary": "List accounts",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {"name": "limit", "in": "query", "required": false, "schema": {"type": "integer"}},
+          {"name": "offset", "in": "query", "required": false, "schema": {"type": "integer"}},
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {"type": "string"},
+            "description": "Substring match on email or name"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "users": {"type": "array", "items": {"$ref": "#/components/schemas/AdminUser"}},
+                    "total": {"type": "integer"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create an account",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {"email": {"type": "string"}, "name": {"type": "string"}}
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AdminUser"}}}
+          },
+          "400": {
+            "description": "Missing or invalid email",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "409": {
+            "description": "Email already registered",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/admin/users/{user_id}": {
+      "get": {
+        "summary": "Show one account with its teams and grants",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name": "user_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {
+          "200": {"description": "OK", "content": {"application/json": {"schema": {"type": "object"}}}},
+          "404": {
+            "description": "Account not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/admin/users/{user_id}/disable": {
+      "post": {
+        "summary": "Disable an account",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name": "user_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {"id": {"type": "string"}, "disabled": {"type": "boolean"}}
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Account not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "409": {
+            "description": "An administrator cannot disable their own account",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/admin/users/{user_id}/enable": {
+      "post": {
+        "summary": "Enable an account",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name": "user_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {"id": {"type": "string"}, "disabled": {"type": "boolean"}}
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Account not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "409": {
+            "description": "An administrator cannot disable their own account",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/admin/users/{user_id}/login-code": {
+      "post": {
+        "summary": "Issue a single-use login code",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name": "user_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AdminLoginCode"}}}
+          },
+          "404": {
+            "description": "Account not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "409": {
+            "description": "The account is disabled",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/admin/users/{user_id}/sessions": {
+      "delete": {
+        "summary": "Revoke every refresh session for an account",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name": "user_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {"schema": {"type": "object", "properties": {"revoked": {"type": "integer"}}}}
+            }
+          },
+          "404": {
+            "description": "Account not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/admin/teams": {
+      "get": {
+        "summary": "List every team in the deployment",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {"name": "limit", "in": "query", "required": false, "schema": {"type": "integer"}},
+          {"name": "offset", "in": "query", "required": false, "schema": {"type": "integer"}},
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {"type": "string"},
+            "description": "Substring match on team name"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "teams": {"type": "array", "items": {"type": "object"}},
+                    "total": {"type": "integer"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/teams/{team_id}": {
+      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "get": {
+        "summary": "Show one team with its members",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {
+          "200": {"description": "OK", "content": {"application/json": {"schema": {"type": "object"}}}},
+          "404": {
+            "description": "Team not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/admin/grants": {
+      "get": {
+        "summary": "List system role grants",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {
+            "name": "include_revoked",
+            "in": "query",
+            "required": false,
+            "schema": {"type": "string"},
+            "description": "\"true\" also returns revoked grants"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "grants": {"type": "array", "items": {"$ref": "#/components/schemas/AdminGrant"}}
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Grant a system role",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {"user_id": {"type": "string"}, "role": {"type": "string"}}
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AdminGrant"}}}
+          },
+          "400": {
+            "description": "Missing user_id or unknown system role",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "404": {
+            "description": "Account not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "409": {
+            "description": "The account already holds this role",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/admin/grants/{user_id}": {
+      "delete": {
+        "summary": "Revoke a system role",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {"name": "user_id", "in": "path", "required": true, "schema": {"type": "string"}},
+          {
+            "name": "role",
+            "in": "query",
+            "required": false,
+            "schema": {"type": "string"},
+            "description": "Defaults to system_admin"
+          }
+        ],
+        "responses": {
+          "204": {"description": "Revoked"},
+          "404": {
+            "description": "The account does not hold this role",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "409": {
+            "description": "Refused: this would remove the last system administrator",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/admin/audit-events": {
+      "get": {
+        "summary": "Search the deployment-wide audit trail",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {"name": "limit", "in": "query", "required": false, "schema": {"type": "integer"}},
+          {"name": "offset", "in": "query", "required": false, "schema": {"type": "integer"}},
+          {
+            "name": "team_id",
+            "in": "query",
+            "required": false,
+            "schema": {"type": "string"},
+            "description": "\"none\" selects events belonging to no team"
+          },
+          {"name": "actor_id", "in": "query", "required": false, "schema": {"type": "string"}},
+          {"name": "action", "in": "query", "required": false, "schema": {"type": "string"}},
+          {"name": "target_type", "in": "query", "required": false, "schema": {"type": "string"}},
+          {"name": "target_id", "in": "query", "required": false, "schema": {"type": "string"}}
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "events": {"type": "array", "items": {"type": "object"}},
+                    "total": {"type": "integer"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/audit-events/export": {
+      "get": {
+        "summary": "Export the deployment-wide audit trail",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {"type": "string"},
+            "description": "csv (default) or jsonl"
+          },
+          {"name": "team_id", "in": "query", "required": false, "schema": {"type": "string"}},
+          {"name": "actor_id", "in": "query", "required": false, "schema": {"type": "string"}},
+          {"name": "action", "in": "query", "required": false, "schema": {"type": "string"}},
+          {"name": "target_type", "in": "query", "required": false, "schema": {"type": "string"}},
+          {"name": "target_id", "in": "query", "required": false, "schema": {"type": "string"}}
+        ],
+        "responses": {
+          "200": {
+            "description": "A CSV or JSONL attachment streamed until exhausted or truncated",
+            "content": {
+              "text/csv": {"schema": {"type": "string"}},
+              "application/x-ndjson": {"schema": {"type": "string"}}
+            }
+          },
+          "400": {
+            "description": "format must be csv or jsonl",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/admin/llm/models": {
+      "get": {
+        "summary": "List every catalog model, enabled or not",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "models": {"type": "array", "items": {"$ref": "#/components/schemas/AdminModel"}}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/llm/models/{model_id}/enable": {
+      "post": {
+        "summary": "Enable a catalog model",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name": "model_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AdminModel"}}}
+          },
+          "404": {
+            "description": "Model not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/admin/llm/models/{model_id}/disable": {
+      "post": {
+        "summary": "Disable a catalog model",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name": "model_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AdminModel"}}}
+          },
+          "404": {
+            "description": "Model not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/admin/plugins": {
+      "get": {
+        "summary": "List the plugin catalog, including archived entries",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {"plugins": {"type": "array", "items": {"$ref": "#/components/schemas/Plugin"}}}
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Reserve a catalog name",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {"type": "string"},
+                  "display_name": {"type": "string"},
+                  "description": {"type": "string"}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Plugin"}}}
+          },
+          "400": {
+            "description": "Invalid request body",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "409": {
+            "description": "The name is already taken",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/admin/plugins/{plugin_name}/archive": {
+      "post": {
+        "summary": "Archive a catalog entry",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name": "plugin_name", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {
+          "204": {"description": "Applied"},
+          "404": {
+            "description": "Plugin not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/admin/plugins/{plugin_name}/unarchive": {
+      "post": {
+        "summary": "Unarchive a catalog entry",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name": "plugin_name", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {
+          "204": {"description": "Applied"},
+          "404": {
+            "description": "Plugin not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/admin/plugins/{plugin_name}/releases": {
+      "get": {
+        "summary": "List a plugin's releases, withdrawn ones included",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name": "plugin_name", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "releases": {"type": "array", "items": {"$ref": "#/components/schemas/PluginRelease"}}
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Plugin not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      },
+      "post": {
+        "summary": "Publish a release",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name": "plugin_name", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {"type": "object", "properties": {"file": {"type": "string", "format": "binary"}}}
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PluginRelease"}}}
+          },
+          "400": {
+            "description": "The package failed inspection",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "404": {
+            "description": "Plugin not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "409": {
+            "description": "That version is already published",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/admin/plugins/{plugin_name}/releases/{version}/yank": {
+      "post": {
+        "summary": "Withdraw a release",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {"name": "plugin_name", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "version", "in": "path", "required": true, "schema": {"type": "string"}}
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {"schema": {"type": "object", "properties": {"reason": {"type": "string"}}}}
+          }
+        },
+        "responses": {
+          "204": {"description": "Withdrawn"},
+          "404": {
+            "description": "Release not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/teams": {
+      "get": {
+        "summary": "List the teams the caller belongs to",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/Team"}}}
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a team",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {"schema": {"type": "object", "properties": {"name": {"type": "string"}}}}
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Team"}}}
+          },
+          "400": {
+            "description": "name is required",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/teams/{team_id}/members": {
+      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "get": {
+        "summary": "List a team's members",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/TeamMember"}}}
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Add a member",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {"email": {"type": "string"}, "role": {"type": "string"}}
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/TeamMember"}}}
+          },
+          "400": {
+            "description": "Invalid email or role",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "403": {
+            "description": "Only an owner may add a member",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "404": {
+            "description": "Account not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/teams/{team_id}/members/{user_id}": {
+      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "delete": {
+        "summary": "Remove a member",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name": "user_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {
+          "204": {"description": "Removed"},
+          "403": {
+            "description": "Only an owner may remove a member",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "404": {
+            "description": "Not a member of this team",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/teams/{team_id}/usage": {
+      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "get": {
+        "summary": "Report this team's run and token usage against its quota",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Usage"}}}
+          },
+          "503": {
+            "description": "Usage is not recorded by this deployment",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/teams/{team_id}/audit-events": {
+      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "get": {
+        "summary": "Search this team's audit trail",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {"name": "limit", "in": "query", "required": false, "schema": {"type": "integer"}},
+          {"name": "offset", "in": "query", "required": false, "schema": {"type": "integer"}}
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "events": {"type": "array", "items": {"type": "object"}},
+                    "total": {"type": "integer"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/teams/{team_id}/audit-events/export": {
+      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "get": {
+        "summary": "Export this team's audit trail",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {"type": "string"},
+            "description": "csv (default) or jsonl"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A CSV or JSONL attachment; exporting is itself recorded in the trail",
+            "content": {
+              "text/csv": {"schema": {"type": "string"}},
+              "application/x-ndjson": {"schema": {"type": "string"}}
+            }
+          },
+          "400": {
+            "description": "format must be csv or jsonl",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/teams/{team_id}/agents/{agent_id}/revisions": {
+      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "get": {
+        "summary": "List an Agent definition's revisions",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {"name": "agent_id", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "limit", "in": "query", "required": false, "schema": {"type": "integer"}},
+          {"name": "offset", "in": "query", "required": false, "schema": {"type": "integer"}}
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "revisions": {"type": "array", "items": {"$ref": "#/components/schemas/AgentRevision"}},
+                    "total": {"type": "integer"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/teams/{team_id}/agents/{agent_id}/revisions/{revision}/restore": {
+      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "post": {
+        "summary": "Restore an Agent definition to an earlier revision",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {"name": "agent_id", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "revision", "in": "path", "required": true, "schema": {"type": "string"}}
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Agent"}}}
+          },
+          "404": {
+            "description": "No such revision",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/teams/{team_id}/plugin-activations": {
+      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "get": {
+        "summary": "List the team's plugin activations and curation mode",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "curation": {"type": "string"},
+                    "activations": {"type": "array", "items": {"$ref": "#/components/schemas/PluginActivation"}}
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Team not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      },
+      "post": {
+        "summary": "Activate a plugin release for the team",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {"plugin_name": {"type": "string"}, "version": {"type": "string"}}
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PluginActivation"}}}
+          },
+          "400": {
+            "description": "plugin_name is required",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "404": {
+            "description": "No such plugin or release",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/teams/{team_id}/plugin-activations/{plugin_name}": {
+      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "patch": {
+        "summary": "Move an activation's pin or suspend it",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name": "plugin_name", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {"version": {"type": "string"}, "enabled": {"type": "boolean"}}
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PluginActivation"}}}
+          },
+          "400": {
+            "description": "A request that changes neither the version nor the enabled flag is not a change",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "404": {
+            "description": "Not activated for this team",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/teams/{team_id}/plugin-curation": {
+      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "put": {
+        "summary": "Choose who fills the team's activation list",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {"schema": {"type": "object", "properties": {"curation": {"type": "string"}}}}
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {"schema": {"type": "object", "properties": {"curation": {"type": "string"}}}}
+            }
+          },
+          "400": {
+            "description": "Unknown curation mode",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/teams/{team_id}/issues": {
+      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "get": {
+        "summary": "List issues",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {"name": "limit", "in": "query", "required": false, "schema": {"type": "integer"}},
+          {"name": "offset", "in": "query", "required": false, "schema": {"type": "integer"}},
+          {
+            "name": "parent_id",
+            "in": "query",
+            "required": false,
+            "schema": {"type": "string"},
+            "description": "An issue id, or \"none\" for top-level issues only"
+          },
+          {"name": "status", "in": "query", "required": false, "schema": {"type": "string"}},
+          {"name": "assignee_kind", "in": "query", "required": false, "schema": {"type": "string"}},
+          {"name": "assignee_id", "in": "query", "required": false, "schema": {"type": "string"}}
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "issues": {"type": "array", "items": {"$ref": "#/components/schemas/Issue"}},
+                    "total": {"type": "integer"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create an issue",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object"}}}},
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Issue"}}}
+          },
+          "400": {
+            "description": "Invalid body, parent, or assignee",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/teams/{team_id}/issues/{issue_id}": {
+      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "get": {
+        "summary": "Show one issue",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name": "issue_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Issue"}}}
+          },
+          "404": {
+            "description": "Issue not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update an issue",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name": "issue_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object"}}}},
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Issue"}}}
+          },
+          "400": {
+            "description": "Invalid change",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "404": {
+            "description": "Issue not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/teams/{team_id}/issues/{issue_id}/flow": {
+      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "get": {
+        "summary": "Show an issue's work: its conversation, task runs, and workflow runs",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {"name": "issue_id", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "limit", "in": "query", "required": false, "schema": {"type": "integer"}},
+          {"name": "offset", "in": "query", "required": false, "schema": {"type": "integer"}}
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/IssueFlow"}}}
+          },
+          "404": {
+            "description": "Issue not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/teams/{team_id}/issues/{issue_id}/agent-runs": {
+      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "post": {
+        "summary": "Start the assigned Agent on an issue",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name": "issue_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "requestBody": {"required": false, "content": {"application/json": {"schema": {"type": "object"}}}},
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Task"}}}
+          },
+          "400": {
+            "description": "The issue is not assigned to an Agent, or the Agent no longer exists",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "404": {
+            "description": "Issue not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "429": {
+            "description": "The team is over its run or token allowance",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/teams/{team_id}/issues/{issue_id}/workflow-runs": {
+      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "post": {
+        "summary": "Start the assigned Workflow on an issue",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name": "issue_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "requestBody": {"required": false, "content": {"application/json": {"schema": {"type": "object"}}}},
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "run": {"$ref": "#/components/schemas/WorkflowRun"},
+                    "steps": {"type": "array", "items": {"$ref": "#/components/schemas/WorkflowStepRun"}}
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The issue is not assigned to a Workflow",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "404": {
+            "description": "Issue not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/teams/{team_id}/issues/{issue_id}/comments": {
+      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "get": {
+        "summary": "List an issue's comments",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {"name": "issue_id", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "limit", "in": "query", "required": false, "schema": {"type": "integer"}},
+          {"name": "offset", "in": "query", "required": false, "schema": {"type": "integer"}}
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "comments": {"type": "array", "items": {"$ref": "#/components/schemas/IssueComment"}},
+                    "total": {"type": "integer"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Comment on an issue",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name": "issue_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {"schema": {"type": "object", "properties": {"body": {"type": "string"}}}}
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/IssueComment"}}}
+          },
+          "400": {
+            "description": "body is required",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "404": {
+            "description": "Issue not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/teams/{team_id}/issues/{issue_id}/comments/{comment_id}": {
+      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "patch": {
+        "summary": "Edit a comment",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {"name": "issue_id", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "comment_id", "in": "path", "required": true, "schema": {"type": "string"}}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {"schema": {"type": "object", "properties": {"body": {"type": "string"}}}}
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/IssueComment"}}}
+          },
+          "403": {
+            "description": "Only the author may edit a comment",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "404": {
+            "description": "Comment not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a comment",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {"name": "issue_id", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "comment_id", "in": "path", "required": true, "schema": {"type": "string"}}
+        ],
+        "responses": {
+          "204": {"description": "Deleted"},
+          "403": {
+            "description": "Only the author or a moderator may delete a comment",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "404": {
+            "description": "Comment not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/teams/{team_id}/workflows": {
+      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "get": {
+        "summary": "List the team's workflows",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "workflows": {"type": "array", "items": {"$ref": "#/components/schemas/Workflow"}}
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a workflow",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object"}}}},
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Workflow"}}}
+          },
+          "400": {
+            "description": "Invalid definition",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/teams/{team_id}/workflows/{workflow_id}": {
+      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "get": {
+        "summary": "Show one workflow",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name": "workflow_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Workflow"}}}
+          },
+          "404": {
+            "description": "Workflow not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update a workflow",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name": "workflow_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object"}}}},
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Workflow"}}}
+          },
+          "400": {
+            "description": "Invalid definition",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "404": {
+            "description": "Workflow not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/teams/{team_id}/workflows/{workflow_id}/revisions": {
+      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "get": {
+        "summary": "List a workflow's revisions",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {"name": "workflow_id", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "limit", "in": "query", "required": false, "schema": {"type": "integer"}},
+          {"name": "offset", "in": "query", "required": false, "schema": {"type": "integer"}}
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "revisions": {"type": "array", "items": {"$ref": "#/components/schemas/WorkflowRevision"}},
+                    "total": {"type": "integer"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/teams/{team_id}/workflows/{workflow_id}/revisions/{revision}/restore": {
+      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "post": {
+        "summary": "Restore a workflow to an earlier revision",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {"name": "workflow_id", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "revision", "in": "path", "required": true, "schema": {"type": "string"}}
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Workflow"}}}
+          },
+          "404": {
+            "description": "No such revision",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/teams/{team_id}/workflows/{workflow_id}/runs": {
+      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "get": {
+        "summary": "List a workflow's runs",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {"name": "workflow_id", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "limit", "in": "query", "required": false, "schema": {"type": "integer"}},
+          {"name": "offset", "in": "query", "required": false, "schema": {"type": "integer"}}
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "runs": {"type": "array", "items": {"$ref": "#/components/schemas/WorkflowRun"}},
+                    "total": {"type": "integer"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Start a workflow run",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name": "workflow_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "requestBody": {"required": false, "content": {"application/json": {"schema": {"type": "object"}}}},
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "run": {"$ref": "#/components/schemas/WorkflowRun"},
+                    "steps": {"type": "array", "items": {"$ref": "#/components/schemas/WorkflowStepRun"}}
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The workflow is not runnable",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "404": {
+            "description": "Workflow not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/teams/{team_id}/workflow-runs/{workflow_run_id}": {
+      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "get": {
+        "summary": "Show one workflow run and its steps",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name": "workflow_run_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "run": {"$ref": "#/components/schemas/WorkflowRun"},
+                    "steps": {"type": "array", "items": {"$ref": "#/components/schemas/WorkflowStepRun"}}
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Run not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/teams/{team_id}/task-runs/{task_run_id}": {
+      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "get": {
+        "summary": "Show what produced a task run: its Agent, model, plugins, and workspace",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name": "task_run_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {
+          "200": {"description": "OK", "content": {"application/json": {"schema": {"type": "object"}}}},
+          "404": {
+            "description": "No such run for this team",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/artifacts": {
+      "post": {
+        "summary": "Upload an artifact to the caller's default team",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "query",
+            "required": false,
+            "schema": {"type": "string"},
+            "description": "Overrides the caller's default team"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {"type": "object", "properties": {"file": {"type": "string", "format": "binary"}}}
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Artifact"}}}
+          },
+          "400": {
+            "description": "Expected a multipart upload",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "413": {
+            "description": "The file is larger than this deployment accepts",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/teams/{team_id}/artifacts": {
+      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "get": {
+        "summary": "List a team's artifacts",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {"name": "limit", "in": "query", "required": false, "schema": {"type": "integer"}},
+          {"name": "offset", "in": "query", "required": false, "schema": {"type": "integer"}}
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {"type": "array", "items": {"$ref": "#/components/schemas/Artifact"}},
+                    "total": {"type": "integer"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Upload an artifact to a team",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {"type": "object", "properties": {"file": {"type": "string", "format": "binary"}}}
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Artifact"}}}
+          },
+          "400": {
+            "description": "Expected a multipart upload",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "413": {
+            "description": "The file is larger than this deployment accepts",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/artifacts/{artifact_id}": {
+      "get": {
+        "summary": "Show one artifact's metadata",
+        "description": "The artifact's team comes from the record, not from the path.",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name": "artifact_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Artifact"}}}
+          },
+          "404": {
+            "description": "Artifact not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete an artifact",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name": "artifact_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {
+          "204": {"description": "Deleted"},
+          "403": {
+            "description": "Not allowed to delete this artifact",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "404": {
+            "description": "Artifact not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/artifacts/{artifact_id}/content": {
+      "get": {
+        "summary": "Download an artifact's bytes",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {"name": "artifact_id", "in": "path", "required": true, "schema": {"type": "string"}},
+          {
+            "name": "disposition",
+            "in": "query",
+            "required": false,
+            "schema": {"type": "string"},
+            "description": "attachment (default) or inline"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The stored bytes, with the artifact's own content type",
+            "content": {"application/octet-stream": {"schema": {"type": "string", "format": "binary"}}}
+          },
+          "404": {
+            "description": "Artifact content not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/plugins": {
+      "get": {
+        "summary": "Browse the plugin catalog",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {"plugins": {"type": "array", "items": {"$ref": "#/components/schemas/Plugin"}}}
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plugins/{plugin_name}": {
+      "get": {
+        "summary": "Show one catalog entry and its releases",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name": "plugin_name", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "plugin": {"$ref": "#/components/schemas/Plugin"},
+                    "releases": {"type": "array", "items": {"$ref": "#/components/schemas/PluginRelease"}}
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Plugin not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/plugins/{plugin_name}/releases/{version}/download": {
+      "get": {
+        "summary": "Download a release package",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {"name": "plugin_name", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "version", "in": "path", "required": true, "schema": {"type": "string"}},
+          {
+            "name": "allow_yanked",
+            "in": "query",
+            "required": false,
+            "schema": {"type": "boolean"},
+            "description": "Take a withdrawn release deliberately"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The gzipped package",
+            "content": {"application/gzip": {"schema": {"type": "string", "format": "binary"}}}
+          },
+          "404": {
+            "description": "Release not found, or its package bytes are missing",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "409": {
+            "description": "The release was withdrawn; pass allow_yanked to take it anyway",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/teams/{team_id}/ws": {
+      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "get": {
+        "summary": "Open the team's event stream",
+        "description": "Authenticated by the token query parameter rather than a bearer header.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "query",
+            "required": false,
+            "schema": {"type": "string"},
+            "description": "The access token; a WebSocket handshake carries no Authorization header"
+          }
+        ],
+        "responses": {
+          "101": {"description": "Switching Protocols"},
+          "401": {"description": "Missing or invalid token"},
+          "503": {"description": "This server is shutting down, or teams are not configured"}
+        }
+      }
+    },
+    "/api/worker/task-runs/{task_run_id}": {
+      "get": {
+        "summary": "Claim the run's inputs",
+        "security": [{"runTokenAuth": []}],
+        "parameters": [{"name": "task_run_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkerTaskRun"}}}
+          },
+          "404": {
+            "description": "Run not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "503": {
+            "description": "Task runs are not configured",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      },
+      "patch": {
+        "summary": "Report the run's status",
+        "security": [{"runTokenAuth": []}],
+        "parameters": [{"name": "task_run_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {"status": {"type": "string"}, "error_message": {"type": "string"}}
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {"schema": {"type": "object", "properties": {"status": {"type": "string"}}}}
+            }
+          },
+          "400": {
+            "description": "Missing or invalid run status",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "503": {
+            "description": "Task runs are not configured",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/worker/task-runs/{task_run_id}/stream": {
+      "post": {
+        "summary": "Append streamed run output",
+        "security": [{"runTokenAuth": []}],
+        "parameters": [{"name": "task_run_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object"}}}},
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {"schema": {"type": "object", "properties": {"status": {"type": "string"}}}}
+            }
+          },
+          "400": {
+            "description": "Invalid JSON body",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "404": {
+            "description": "Run not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/worker/task-runs/{task_run_id}/artifacts": {
+      "post": {
+        "summary": "Keep a file the run produced",
+        "security": [{"runTokenAuth": []}],
+        "parameters": [{"name": "task_run_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {"type": "object", "properties": {"file": {"type": "string", "format": "binary"}}}
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Artifact"}}}
+          },
+          "404": {
+            "description": "Run not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "409": {
+            "description": "This run has no team to keep an artifact for",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/worker/task-runs/{task_run_id}/plugins/{plugin_name}/{version}/download": {
+      "get": {
+        "summary": "Download a release this run is pinned to",
+        "security": [{"runTokenAuth": []}],
+        "parameters": [
+          {"name": "task_run_id", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "plugin_name", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "version", "in": "path", "required": true, "schema": {"type": "string"}}
+        ],
+        "responses": {
+          "200": {
+            "description": "The gzipped package",
+            "content": {"application/gzip": {"schema": {"type": "string", "format": "binary"}}}
+          },
+          "404": {
+            "description": "Run not found, or this run is not pinned to that release",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "503": {
+            "description": "Plugin packages are not configured",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
         }
       }
     }
