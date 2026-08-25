@@ -7,9 +7,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/internal/config"
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
-
 	openai "github.com/sashabaranov/go-openai"
 )
 
@@ -42,7 +40,7 @@ func newOpenAIChatAdapter(cfg Config) *openAIChatAdapter {
 	}
 }
 
-func (a *openAIChatAdapter) name() string { return config.LLMProviderOpenAICompatible }
+func (a *openAIChatAdapter) name() string { return cllm.ProviderOpenAICompatible }
 
 func (a *openAIChatAdapter) buildRequest(messages []cllm.Message, tools []cllm.ToolDef) openai.ChatCompletionRequest {
 	openaiMsgs := make([]openai.ChatCompletionMessage, 0, len(messages))

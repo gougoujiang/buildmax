@@ -18,6 +18,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/infra/sandbox"
 	"github.com/gougoujiang/buildmax/internal/interface/auth"
 
+	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/spf13/cobra"
 )
 
@@ -172,7 +173,7 @@ func checkModels(ctx context.Context, settings config.Settings) []doctorCheck {
 			})
 			continue
 		}
-		if m.LLMProvider() == config.LLMProviderOllama {
+		if m.LLMProvider() == cllm.ProviderOllama {
 			checks = append(checks, checkOllamaModel(ctx, i, title, display, sev, m))
 			continue
 		}

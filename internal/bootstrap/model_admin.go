@@ -10,6 +10,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/infra/db"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
@@ -94,7 +95,7 @@ func runModelAdd(ctx context.Context, args []string, out io.Writer) error {
 	apiURL := fs.String("api-url", "", "upstream base URL")
 	apiKey := fs.String("api-key", "", "upstream credential")
 	providerModel := fs.String("model", "", "the provider's own model identifier")
-	provider := fs.String("provider", llmgateway.ProviderOpenAICompatible, "wire protocol the upstream speaks")
+	provider := fs.String("provider", llm.ProviderOpenAICompatible, "wire protocol the upstream speaks")
 	contextWindow := fs.Int("context-window", 0, "usable context size")
 	callTimeout := fs.Int("call-timeout", 0, "per-call timeout in seconds")
 	maxTokens := fs.Int("max-tokens", 0, "cap on one response")
@@ -242,7 +243,7 @@ func validateModelInput(in model.CreateLLMModelInput) error {
 		return errors.New("model add: --api-url is required")
 	// A local runtime has no credential, and requiring a placeholder for it
 	// would put a meaningless secret in the catalog and in the audit trail.
-	case in.APIKey == "" && llmgateway.ProviderNeedsCredential(in.ProviderType):
+	case in.APIKey == "" && llm.ProviderNeedsCredential(in.ProviderType):
 		return errors.New("model add: --api-key is required")
 	case in.Model == "":
 		return errors.New("model add: --model is required")
@@ -255,9 +256,9 @@ func validateModelInput(in model.CreateLLMModelInput) error {
 	case !config.KnownReasoningEffort(in.Reasoning):
 		return fmt.Errorf("model add: --reasoning %q is not a level; use one of %s",
 			in.Reasoning, strings.Join(config.ReasoningEfforts(), ", "))
-	case !llmgateway.KnownProvider(in.ProviderType):
+	case !llm.KnownProvider(in.ProviderType):
 		return fmt.Errorf("model add: --provider %q is not implemented; use one of %s",
-			in.ProviderType, strings.Join(llmgateway.Providers(), ", "))
+			in.ProviderType, strings.Join(llm.Providers(), ", "))
 	case !config.KnownCacheMode(in.CacheMode):
 		return fmt.Errorf("model add: --cache-mode %q is not a mode; use one of %s",
 			in.CacheMode, strings.Join(config.CacheModes(), ", "))

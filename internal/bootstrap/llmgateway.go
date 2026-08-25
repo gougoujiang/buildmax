@@ -146,7 +146,7 @@ func derivedConversationTarget(entry config.ServerModelEntry) llmgateway.Target 
 	}
 	providerType := entry.Provider
 	if providerType == "" {
-		providerType = llmgateway.ProviderOpenAICompatible
+		providerType = cllm.ProviderOpenAICompatible
 	}
 	conversationCache := config.ResolveCacheControl(entry.CacheControl)
 	return llmgateway.Target{
@@ -172,9 +172,9 @@ func derivedConversationTarget(entry config.ServerModelEntry) llmgateway.Target 
 // place a credential reference becomes a real credential.
 func newClientFactory(conversationKey string, models model.LLMModelStore) llmgateway.ClientFactory {
 	return func(ctx context.Context, target llmgateway.Target) (cllm.LLMClient, error) {
-		if !llmgateway.KnownProvider(target.ProviderType) {
+		if !cllm.KnownProvider(target.ProviderType) {
 			return nil, fmt.Errorf("model %q uses unsupported provider %q; use one of %s",
-				target.Name, target.ProviderType, strings.Join(llmgateway.Providers(), ", "))
+				target.Name, target.ProviderType, strings.Join(cllm.Providers(), ", "))
 		}
 		apiKey, err := resolveCredential(ctx, target, conversationKey, models)
 		if err != nil {
@@ -211,7 +211,7 @@ func newClientFactory(conversationKey string, models model.LLMModelStore) llmgat
 // for it an empty key is the configured state — the target is authorized by the
 // deployment being able to reach the daemon, not by a secret.
 func resolveCredential(ctx context.Context, target llmgateway.Target, conversationKey string, models model.LLMModelStore) (string, error) {
-	required := llmgateway.ProviderNeedsCredential(target.ProviderType)
+	required := cllm.ProviderNeedsCredential(target.ProviderType)
 	if target.CredentialRef == conversationCredentialRef {
 		if conversationKey == "" && required {
 			return "", fmt.Errorf("conversation.model.api_key is not set")

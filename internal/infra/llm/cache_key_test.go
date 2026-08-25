@@ -123,7 +123,7 @@ func TestResponsesSendsAScopedCacheKey(t *testing.T) {
 				}},
 			}))
 			client, err := NewClient(Config{
-				Provider: config.LLMProviderOpenAI, APIKey: "sk-test", BaseURL: up.server.URL,
+				Provider: cllm.ProviderOpenAI, APIKey: "sk-test", BaseURL: up.server.URL,
 				Model: "gpt-5", CacheControl: config.CacheControl{Mode: config.CacheModeAuto, TTL: tc.ttl},
 			})
 			if err != nil {
@@ -176,7 +176,7 @@ func TestCacheKeyIsNotOnTheResult(t *testing.T) {
 		"usage": map[string]any{"input_tokens": 10, "output_tokens": 4, "total_tokens": 14},
 	}))
 	client, err := NewClient(Config{
-		Provider: config.LLMProviderOpenAI, APIKey: "sk-test", BaseURL: up.server.URL, Model: "gpt-5",
+		Provider: cllm.ProviderOpenAI, APIKey: "sk-test", BaseURL: up.server.URL, Model: "gpt-5",
 	})
 	if err != nil {
 		t.Fatalf("NewClient: %v", err)

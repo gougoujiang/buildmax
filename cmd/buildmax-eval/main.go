@@ -24,6 +24,7 @@ import (
 	"github.com/gougoujiang/buildmax/evaluation/contract"
 	"github.com/gougoujiang/buildmax/evaluation/runner"
 	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/gougoujiang/buildmax/internal/core/llm"
 )
 
 func main() {
@@ -180,7 +181,7 @@ func describeSubject(binary, name string, model config.ModelEntry, dataset contr
 	// different protocols are different subjects.
 	transport := model.Provider
 	if transport == "" {
-		transport = config.LLMProviderOpenAICompatible
+		transport = llm.ProviderOpenAICompatible
 	}
 
 	return contract.SubjectManifest{

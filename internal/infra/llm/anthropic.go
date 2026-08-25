@@ -52,12 +52,12 @@ func newAnthropicAdapter(cfg Config) (*anthropicAdapter, error) {
 		maxTokens:  maxTokensOrDefault(cfg.MaxTokens),
 		reasoning:  cfg.Reasoning,
 		cache:      cfg.CacheControl,
-		capability: cacheCapabilityFor(config.LLMProviderAnthropic),
+		capability: cacheCapabilityFor(cllm.ProviderAnthropic),
 		vision:     cfg.Vision,
 	}, nil
 }
 
-func (a *anthropicAdapter) name() string { return config.LLMProviderAnthropic }
+func (a *anthropicAdapter) name() string { return cllm.ProviderAnthropic }
 
 // anthropicCacheControl builds one breakpoint. An empty ttl leaves the field
 // off so the provider applies its own default rather than BuildMax pinning a
@@ -405,14 +405,14 @@ func anthropicProviderState(blocks []anthropic.ContentBlockUnion) *cllm.Provider
 		// a partial signature would be rejected on the next turn.
 		return nil
 	}
-	return &cllm.ProviderState{Protocol: config.LLMProviderAnthropic, Data: data}
+	return &cllm.ProviderState{Protocol: cllm.ProviderAnthropic, Data: data}
 }
 
 // anthropicThinkingBlocks rebuilds the blocks to replay. State from another
 // protocol is ignored: this one would reject it, and the turn is still valid
 // without it.
 func anthropicThinkingBlocks(state *cllm.ProviderState) []anthropic.ContentBlockParamUnion {
-	if !state.Belongs(config.LLMProviderAnthropic) {
+	if !state.Belongs(cllm.ProviderAnthropic) {
 		return nil
 	}
 	var recorded []anthropicThinking

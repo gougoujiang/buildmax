@@ -463,7 +463,7 @@ func (p protocol) want(r reply, history []cllm.Message) reply {
 
 var protocols = []protocol{
 	{
-		provider: config.LLMProviderOpenAICompatible,
+		provider: cllm.ProviderOpenAICompatible,
 		blocking: openAIChatBody,
 		stream:   openAIChatSSE,
 		errorBody: func(int) string {
@@ -471,7 +471,7 @@ var protocols = []protocol{
 		},
 	},
 	{
-		provider: config.LLMProviderOpenAI,
+		provider: cllm.ProviderOpenAI,
 		blocking: responsesBody,
 		stream:   responsesSSE,
 		errorBody: func(int) string {
@@ -479,7 +479,7 @@ var protocols = []protocol{
 		},
 	},
 	{
-		provider: config.LLMProviderAnthropic,
+		provider: cllm.ProviderAnthropic,
 		blocking: anthropicBody,
 		stream:   anthropicSSE,
 		errorBody: func(int) string {
@@ -487,7 +487,7 @@ var protocols = []protocol{
 		},
 	},
 	{
-		provider: config.LLMProviderOllama,
+		provider: cllm.ProviderOllama,
 		blocking: ollamaBody,
 		stream:   ollamaNDJSON,
 		errorBody: func(int) string {
@@ -709,10 +709,36 @@ func TestUnknownProviderIsRejected(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected an error for an unknown provider")
 	}
-	for _, known := range config.LLMProviders() {
+	for _, known := range cllm.Providers() {
 		if !strings.Contains(err.Error(), known) {
 			t.Errorf("error %q should name the supported provider %q", err.Error(), known)
 		}
+	}
+}
+
+// TestEveryListedProviderHasAnAdapter is the positive half of
+// TestUnknownProviderIsRejected. core/llm owns the one list of wire protocols;
+// this fails when a value is added there and no adapter is wired for it, which
+// would otherwise surface as the factory's "unknown llm provider" error at
+// somebody's first call rather than here.
+func TestEveryListedProviderHasAnAdapter(t *testing.T) {
+	for _, provider := range cllm.Providers() {
+		t.Run(provider, func(t *testing.T) {
+			client, err := NewClient(Config{
+				Provider:      provider,
+				APIKey:        "test-key",
+				BaseURL:       "http://127.0.0.1:1",
+				Model:         "test-model",
+				ContextWindow: 32_000,
+				Surface:       "cli",
+			})
+			if err != nil {
+				t.Fatalf("NewClient(%q): %v", provider, err)
+			}
+			if got := client.Provider(); got != provider {
+				t.Errorf("client reports provider %q, want %q", got, provider)
+			}
+		})
 	}
 }
 
@@ -720,8 +746,8 @@ func TestUnknownProviderIsRejected(t *testing.T) {
 // providers existed calling exactly what it always called.
 func TestDefaultProviderIsChatCompletions(t *testing.T) {
 	client := newTestClient(t, "", "http://127.0.0.1:1")
-	if got := client.Provider(); got != config.LLMProviderOpenAICompatible {
-		t.Errorf("default provider = %q, want %q", got, config.LLMProviderOpenAICompatible)
+	if got := client.Provider(); got != cllm.ProviderOpenAICompatible {
+		t.Errorf("default provider = %q, want %q", got, cllm.ProviderOpenAICompatible)
 	}
 }
 

@@ -14,9 +14,9 @@ import (
 // and a title send the same shape of request, and only one of them will be sent
 // again. Asking for a cache on the other buys a write nothing reads.
 func TestResolveCacheDecision(t *testing.T) {
-	anthropic := cacheCapabilityFor(config.LLMProviderAnthropic)
-	responses := cacheCapabilityFor(config.LLMProviderOpenAI)
-	compatible := cacheCapabilityFor(config.LLMProviderOpenAICompatible)
+	anthropic := cacheCapabilityFor(cllm.ProviderAnthropic)
+	responses := cacheCapabilityFor(cllm.ProviderOpenAI)
+	compatible := cacheCapabilityFor(cllm.ProviderOpenAICompatible)
 
 	tests := []struct {
 		name       string
@@ -127,10 +127,10 @@ func TestCacheCapabilityReporting(t *testing.T) {
 		wantReported string
 		wantControls bool
 	}{
-		config.LLMProviderAnthropic:        {cacheCapabilitySupported, true},
-		config.LLMProviderOpenAI:           {cacheCapabilitySupported, true},
-		config.LLMProviderOpenAICompatible: {cacheCapabilityUnsupported, false},
-		config.LLMProviderOllama:           {cacheCapabilityUnsupported, false},
+		cllm.ProviderAnthropic:        {cacheCapabilitySupported, true},
+		cllm.ProviderOpenAI:           {cacheCapabilitySupported, true},
+		cllm.ProviderOpenAICompatible: {cacheCapabilityUnsupported, false},
+		cllm.ProviderOllama:           {cacheCapabilityUnsupported, false},
 	}
 	for provider, want := range tests {
 		t.Run(provider, func(t *testing.T) {
@@ -150,7 +150,7 @@ func TestCacheCapabilityReporting(t *testing.T) {
 // not refused: most targets are like this, and erroring on them would make the
 // default mode unusable.
 func TestForceIsRefusedWhereItCannotBeHonoured(t *testing.T) {
-	for _, provider := range []string{config.LLMProviderOpenAICompatible, config.LLMProviderOllama} {
+	for _, provider := range []string{cllm.ProviderOpenAICompatible, cllm.ProviderOllama} {
 		t.Run(provider, func(t *testing.T) {
 			_, err := NewClient(Config{
 				Provider: provider, APIKey: "k", BaseURL: "http://localhost:1", Model: "m",
@@ -173,7 +173,7 @@ func TestForceIsRefusedWhereItCannotBeHonoured(t *testing.T) {
 // silently served at some other length.
 func TestUnsupportedTTLIsRefused(t *testing.T) {
 	_, err := NewClient(Config{
-		Provider: config.LLMProviderAnthropic, APIKey: "k", Model: "m",
+		Provider: cllm.ProviderAnthropic, APIKey: "k", Model: "m",
 		CacheControl: config.CacheControl{Mode: config.CacheModeAuto, TTL: config.CacheTTL24h},
 	})
 	if err == nil {
@@ -181,7 +181,7 @@ func TestUnsupportedTTLIsRefused(t *testing.T) {
 	}
 	for _, supported := range []string{config.CacheTTL5m, config.CacheTTL1h} {
 		if _, err := NewClient(Config{
-			Provider: config.LLMProviderAnthropic, APIKey: "k", Model: "m",
+			Provider: cllm.ProviderAnthropic, APIKey: "k", Model: "m",
 			CacheControl: config.CacheControl{Mode: config.CacheModeAuto, TTL: supported},
 		}); err != nil {
 			t.Errorf("ttl %q should be accepted on anthropic: %v", supported, err)
@@ -194,7 +194,7 @@ func TestUnsupportedTTLIsRefused(t *testing.T) {
 // caching, over a field that will never be sent.
 func TestOffToleratesAnUnsupportedTTL(t *testing.T) {
 	if _, err := NewClient(Config{
-		Provider: config.LLMProviderOpenAICompatible, APIKey: "k", BaseURL: "http://localhost:1", Model: "m",
+		Provider: cllm.ProviderOpenAICompatible, APIKey: "k", BaseURL: "http://localhost:1", Model: "m",
 		CacheControl: config.CacheControl{Mode: config.CacheModeOff, TTL: config.CacheTTL1h},
 	}); err != nil {
 		t.Errorf("off with an inert ttl should be accepted: %v", err)
@@ -212,12 +212,12 @@ func TestRetentionIsRefusedOutsideItsOwnProtocol(t *testing.T) {
 		refused   []string
 	}{
 		{
-			provider:  config.LLMProviderAnthropic,
+			provider:  cllm.ProviderAnthropic,
 			supported: []string{config.CacheTTL5m, config.CacheTTL1h},
 			refused:   []string{config.CacheTTL24h},
 		},
 		{
-			provider:  config.LLMProviderOpenAI,
+			provider:  cllm.ProviderOpenAI,
 			supported: []string{config.CacheTTL24h},
 			refused:   []string{config.CacheTTL5m, config.CacheTTL1h},
 		},
@@ -272,7 +272,7 @@ func TestNoCompatibleGatewayIsQualifiedYet(t *testing.T) {
 // opted into something.
 func TestUnknownIntegrationIsRefused(t *testing.T) {
 	_, err := NewClient(Config{
-		Provider: config.LLMProviderOpenAICompatible, APIKey: "k", BaseURL: "http://localhost:1",
+		Provider: cllm.ProviderOpenAICompatible, APIKey: "k", BaseURL: "http://localhost:1",
 		Model: "m", Integration: "openrouter",
 	})
 	if err == nil {
@@ -287,7 +287,7 @@ func TestUnknownIntegrationIsRefused(t *testing.T) {
 // mistake, not an override: Anthropic and Responses are not gateways whose
 // quirks need naming, and accepting one would suggest it changed something.
 func TestIntegrationIsRefusedOnANativeProtocol(t *testing.T) {
-	for _, provider := range []string{config.LLMProviderAnthropic, config.LLMProviderOpenAI} {
+	for _, provider := range []string{cllm.ProviderAnthropic, cllm.ProviderOpenAI} {
 		t.Run(provider, func(t *testing.T) {
 			if _, err := NewClient(Config{
 				Provider: provider, APIKey: "k", BaseURL: "http://localhost:1",
@@ -302,8 +302,8 @@ func TestIntegrationIsRefusedOnANativeProtocol(t *testing.T) {
 // An entry that names no integration is the normal case and must keep working.
 func TestNoIntegrationIsTheNormalCase(t *testing.T) {
 	for _, provider := range []string{
-		config.LLMProviderOpenAICompatible, config.LLMProviderAnthropic,
-		config.LLMProviderOpenAI, config.LLMProviderOllama,
+		cllm.ProviderOpenAICompatible, cllm.ProviderAnthropic,
+		cllm.ProviderOpenAI, cllm.ProviderOllama,
 	} {
 		t.Run(provider, func(t *testing.T) {
 			if _, err := NewClient(Config{

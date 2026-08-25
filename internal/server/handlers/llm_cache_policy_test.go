@@ -44,7 +44,7 @@ func profileServer(t *testing.T, client cllm.LLMClient) *httptest.Server {
 	target := llmgateway.Target{
 		ID:            "mt_fast",
 		Name:          "Fast",
-		ProviderType:  llmgateway.ProviderAnthropic,
+		ProviderType:  cllm.ProviderAnthropic,
 		Endpoint:      "https://upstream.invalid",
 		CredentialRef: "ref",
 		UpstreamModel: "claude-sonnet-5",

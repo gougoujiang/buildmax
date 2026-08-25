@@ -228,7 +228,7 @@ func TestBuildsALocalClientWithoutACredential(t *testing.T) {
 	local := config.ModelEntry{
 		Model:    "qwen3:8b",
 		Name:     "Local",
-		Provider: config.LLMProviderOllama,
+		Provider: cllm.ProviderOllama,
 		APIURL:   "http://127.0.0.1:11434",
 		// Set so building the client asks the daemon nothing.
 		ContextWindow: 32_000,
@@ -238,8 +238,8 @@ func TestBuildsALocalClientWithoutACredential(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
-	if got := client.(*llm.LLMClient).Provider(); got != config.LLMProviderOllama {
-		t.Errorf("provider = %q, want %q", got, config.LLMProviderOllama)
+	if got := client.(*llm.LLMClient).Provider(); got != cllm.ProviderOllama {
+		t.Errorf("provider = %q, want %q", got, cllm.ProviderOllama)
 	}
 
 	hosted := config.ModelEntry{Model: "openai/gpt-4o-mini", Name: "Hosted", APIURL: "https://example.test/v1"}

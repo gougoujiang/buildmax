@@ -8,6 +8,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/agentapp"
 	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/gougoujiang/buildmax/internal/core/llm"
 )
 
 // TestModelsLocalListsWhatTheDaemonHolds covers the column that decides whether
@@ -25,7 +26,7 @@ func TestModelsLocalListsWhatTheDaemonHolds(t *testing.T) {
 	if err := printOllamaModels(context.Background(), &out, url); err != nil {
 		t.Fatalf("printOllamaModels: %v", err)
 	}
-	for _, want := range []string{"qwen3:8b", "40960", "tools", "provider: " + config.LLMProviderOllama, url} {
+	for _, want := range []string{"qwen3:8b", "40960", "tools", "provider: " + llm.ProviderOllama, url} {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("listing missing %q:\n%s", want, out.String())
 		}
@@ -63,7 +64,7 @@ func TestModelsLocalReportsAnAbsentDaemon(t *testing.T) {
 func TestModelDestinationForLocalEntry(t *testing.T) {
 	cfg := agentapp.ModelConfigFromEntry(config.ModelEntry{
 		Model:    "qwen3:8b",
-		Provider: config.LLMProviderOllama,
+		Provider: llm.ProviderOllama,
 	})
 	if got := modelDestination(cfg); got != config.DefaultOllamaBaseURL {
 		t.Errorf("destination = %q, want %q", got, config.DefaultOllamaBaseURL)

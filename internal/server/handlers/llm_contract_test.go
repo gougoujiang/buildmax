@@ -42,7 +42,7 @@ func managedGateway(t *testing.T, upstreamURL string) *llmremote.Client {
 	target := llmgateway.Target{
 		ID:            "mt_fast",
 		Name:          "Fast",
-		ProviderType:  llmgateway.ProviderOpenAICompatible,
+		ProviderType:  cllm.ProviderOpenAICompatible,
 		Endpoint:      upstreamURL,
 		CredentialRef: "ref",
 		UpstreamModel: "vendor/x",
