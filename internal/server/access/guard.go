@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 )
@@ -195,19 +196,10 @@ func (g *Guard) teamRole(w http.ResponseWriter, r *http.Request, userID, teamID 
 	}
 	for _, member := range members {
 		if member.UserID == userID {
-			return teamRoleOrMember(member.Role), true
+			return coreteam.EffectiveRole(member.Role), true
 		}
 	}
 	return "", true
-}
-
-// teamRoleOrMember treats an unset role as plain membership, so a route that
-// gates on admin cannot be passed by a row that never got one.
-func teamRoleOrMember(role string) string {
-	if role == "" {
-		return model.TeamRoleMember
-	}
-	return role
 }
 
 // SystemAdmin authorizes a deployment-scoped route.

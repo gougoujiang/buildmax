@@ -400,14 +400,19 @@ ordering dependency on each other and can be reviewed in parallel.
 | B2b | `service/artifact`, `infra/objectstore`, and every `objectstore.ErrNotFound` caller | **Deferred, see below.** The artifact port cannot move without a home for `ArtifactRef` and the not-found sentinel | 23 non-infra callers of `ErrNotFound` | — |
 | B3 | `service/task`, `core/apierr`, `server/handlers/work`, `server/httputil` | Replace `task.QuotaExceededError` with `apierr.KindQuotaExceeded` carrying the quota service's reason as the message; delete the two handler special cases and the now-unused `httputil.WriteQuotaExceeded` | 1 type, 2 call sites, 1 superseded helper | 429 status and body tests for task and conversation routes; gateway classification tests prove `llmgateway.QuotaError` stayed local |
 | B4 | `core/team`, `service/team`, `server/access` | One typed role/action decision in `core/team`; `service/team.requireOwner`/`hasRole` and `access.isRoleAllowed` both call it; the guard keeps translating denial and recording audit | 8 actions, 2 decision sites | Team authorization matrix, member mutation tests, artifact non-enumeration tests, table test proving an unknown role or action denies |
+| B5 | `core/team`, `server/access`, `service/team` | Settle what a membership row with no role means: member. `EffectiveRole` owns the reading; the guard's local copy goes | 1 helper, 3 call sites | Role matrix driven with an unset-role member through every team-scoped route; `core/team` table tests |
 
 B4 turned up a latent disagreement inside `server/access` itself. `TeamAction`
-reads a membership row with no role as "not a member" and answers 403;
-`Guard.teamRole` reads the same row as plain membership. Nothing can write such
-a row today — the team service defaults an unset role to member before storing
-one — so the two have never disagreed about a real row. B4 preserved both
-readings rather than bundling an authorization change into a mechanical batch;
-which one is right is recorded in Open Questions.
+read a membership row with no role as "not a member" and answered 403;
+`Guard.teamRole` read the same row as plain membership. Nothing can write such a
+row today — the team service defaults an unset role to member before storing one
+— so the two never disagreed about a real row. B4 preserved both readings rather
+than bundling an authorization change into a mechanical batch.
+
+**Settled since, as B5.** A row with no role is a member: the row is what says
+somebody belongs to the team, and member is the least the three roles can mean.
+`core/team.EffectiveRole` owns that reading and all three call sites use it, so
+the normalization has one owner exactly as the decision does.
 
 Consolidating also exposed a coverage gap. `service/team` had no test proving an
 admin may not change membership: "owner" was written into that package, so no
@@ -564,17 +569,12 @@ Answered questions have moved into the plan above. What is still genuinely open:
    already owns what an error means application-wide. Settle it in D0.
 3. Where does `schema.go` belong? `SchemaMigration` and `SchemaStore` describe
    the database's own state, not a business capability. Settle it in D13.
-4. What does a membership row with no role mean? `access.TeamAction` says "not
-   a member", `access.Guard.teamRole` says "member". No current path writes one,
-   so pick the reading deliberately rather than letting the next empty row
-   decide. Least privilege argues for "member"; the stricter reading argues for
-   403.
-5. Is model administration its own service or a facet of `llmgateway`? C1 builds
+4. Is model administration its own service or a facet of `llmgateway`? C1 builds
    `service/llmcatalog` and keeps it only if its tests run with no provider-call
    dependency.
-6. Is identity one package or two service types under one capability? C2 and C3
+5. Is identity one package or two service types under one capability? C2 and C3
    decide from the resulting constructor dependency sets.
-7. Does Issue execution need an operation record, or is explicit compensation
+6. Does Issue execution need an operation record, or is explicit compensation
    enough? C4's fault-injection tests decide, before any persistence is added.
 
 ## Definition Of Done For This Document

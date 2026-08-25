@@ -255,7 +255,12 @@ The membership join table, and the row every authorization check looks for.
 
 Indexes: PK `id`; unique `uq_team_member_team_user` on (`team_id`, `user_id`).
 
-Roles are `model.TeamRoleOwner` / `TeamRoleAdmin` / `TeamRoleMember`. Team
+Roles are `model.TeamRoleOwner` / `TeamRoleAdmin` / `TeamRoleMember`. The column
+is `NOT NULL` but accepts the empty string, and `core/team.EffectiveRole` reads
+such a row as a member: the row is what says somebody belongs to the team, and
+member is the least the three roles can mean. Nothing writes one — the team
+service defaults an unset role before storing it — so that reading exists for
+rows a release before the default may have left behind. Team
 approvals are planned but not implemented. The audit trail is implemented in
 `audit_event`; neither approval nor audit state belongs in this membership row.
 

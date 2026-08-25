@@ -157,7 +157,7 @@ func (s *Service) requireManageMembers(ctx context.Context, teamID, userID strin
 func allows(members []model.TeamMember, userID string, action coreteam.Action) bool {
 	for i := range members {
 		if members[i].UserID == userID {
-			return coreteam.Allows(members[i].Role, action)
+			return coreteam.Allows(coreteam.EffectiveRole(members[i].Role), action)
 		}
 	}
 	return false

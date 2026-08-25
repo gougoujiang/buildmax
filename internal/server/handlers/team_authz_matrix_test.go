@@ -29,13 +29,14 @@ import (
 // nobody consults on a route is still an open route.
 
 const (
-	matrixSecret  = "matrix-secret"
-	matrixTeam    = "tm_matrix"
-	matrixOther   = "tm_other"
-	matrixOwner   = "u_owner"
-	matrixAdmin   = "u_admin"
-	matrixMember  = "u_member"
-	matrixOutside = "u_outsider"
+	matrixSecret    = "matrix-secret"
+	matrixTeam      = "tm_matrix"
+	matrixOther     = "tm_other"
+	matrixOwner     = "u_owner"
+	matrixAdmin     = "u_admin"
+	matrixMember    = "u_member"
+	matrixUnsetRole = "u_unset_role"
+	matrixOutside   = "u_outsider"
 )
 
 // authzCase is one route and the least privileged role that may reach its
@@ -175,6 +176,10 @@ func matrixMuxWithGrants(t *testing.T, grants model.SystemGrantStore) *http.Serv
 			{TeamID: matrixTeam, UserID: matrixOwner, Role: model.TeamRoleOwner},
 			{TeamID: matrixTeam, UserID: matrixAdmin, Role: model.TeamRoleAdmin},
 			{TeamID: matrixTeam, UserID: matrixMember, Role: model.TeamRoleMember},
+			// A membership row that never got a role. Nothing writes one now --
+			// the team service defaults an unset role before storing it -- so
+			// this stands in for a legacy row, and pins what such a row may do.
+			{TeamID: matrixTeam, UserID: matrixUnsetRole, Role: ""},
 			// The stranger owns a different team, which is the case that
 			// separates "is a member of something" from "is a member of this".
 			{TeamID: matrixOther, UserID: matrixOutside, Role: model.TeamRoleOwner},
@@ -249,6 +254,9 @@ func TestTeamAuthzMatrix(t *testing.T) {
 		matrixOwner:  model.TeamRoleOwner,
 		matrixAdmin:  model.TeamRoleAdmin,
 		matrixMember: model.TeamRoleMember,
+		// A row with no role is a member, so it is driven through every route
+		// against the same expectations. It used to be refused everything.
+		matrixUnsetRole: model.TeamRoleMember,
 	}
 
 	for _, c := range teamRoutes {
