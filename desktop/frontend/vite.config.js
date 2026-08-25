@@ -8,6 +8,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   plugins: [react()],
   root: '.',
+  // Component tests need a document. The pure-helper tests do not, but one
+  // environment for the whole suite beats per-file annotations.
+  test: {
+    environment: 'jsdom',
+  },
   resolve: {
     // @buildmax/gui is a symlinked workspace package that externalises react,
     // so its bare `import "react"` resolves from its own real path — and gui

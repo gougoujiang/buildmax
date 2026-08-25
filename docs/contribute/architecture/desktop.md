@@ -76,6 +76,20 @@ picks up anything queued after that. Either way the frontend hears
 before cancelling. See
 [Queued messages](../../design/queued-messages.md).
 
+A finished turn also emits `desktop/turn-digest`: a short recap of what the turn
+did, and the answer the user is likely about to type when the turn ended by
+asking them something. It is one event per turn rather than one per run, because
+a run that drains a queue runs several turns and each recap describes only its
+own — so it fires where the turn ended, while the session is still held, not
+beside `desktop/stream-done`. Neither half is part of the conversation, which is
+why the frontend holds it beside `messages` rather than in it —
+`desktop/stream-done` reloads that list from the session, and nothing in the
+digest is in the session. The recap renders as a `notice` row closing the
+thread; the suggestion becomes the `ChatComposer` ghost, offered as a
+placeholder while the input is empty and accepted with Tab.
+`agent.turn_digest` in `settings.yaml` switches either half off. See
+[tui.md](tui.md) for the same feature in the terminal.
+
 ## Session Ownership
 
 Desktop holds no session between calls. A run opens one, owns it for its whole

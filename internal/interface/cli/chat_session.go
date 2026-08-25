@@ -264,6 +264,7 @@ func confirmSlashSessionResume(m *Model) (tea.Model, tea.Cmd) {
 	}
 	m.slashSession = nil
 	m.activePanel = nil
+	m.dropStaleSuggestion()
 	m.focusInput = true
 
 	title := entry.Title

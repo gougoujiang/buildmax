@@ -155,6 +155,7 @@ func confirmSlashRewind(m *Model) tea.Cmd {
 	}
 	_, closeCmd := m.closeActivePanel()
 	m.refreshRunStatus()
+	m.dropStaleSuggestion()
 	m.focusInput = true
 
 	banner := messageBarStyle.Render("─── Rewound to: " + historyPointLabel(target, 60) + " ───")
@@ -193,6 +194,7 @@ func confirmSlashFork(m *Model) tea.Cmd {
 
 	_, closeCmd := m.closeActivePanel()
 	m.refreshRunStatus()
+	m.dropStaleSuggestion()
 	m.focusInput = true
 
 	banner := messageBarStyle.Render("─── Forked at: " + historyPointLabel(target, 60) + " ───")

@@ -42,7 +42,7 @@ func commonHelpRows() []helpRow {
 		{"doctor [all]", "Check the contributor environment without changing it"},
 		{"build [cli]", "Build everything, or only the CLI"},
 		{"test [race] [pkg]", "Run Go tests in the isolated testing sandbox"},
-		{"check [scope]", "Run pre-PR checks (go|portal|desktop|docs|all|ci)"},
+		{"check [scope]", "Run pre-PR checks (go|gui|portal|desktop|docs|all|ci)"},
 		{"run <target>", "Run cli, server, desktop, or Portal locally"},
 		{"clean", "Remove build outputs and installed frontend dependencies"},
 		{"help <command>", "Show one command's own page; `help all` lists every command"},
@@ -55,7 +55,7 @@ func allHelpSections() []helpSection {
 			{"doctor [all]", "Inspect core tools; 'all' requires pinned frontend tools"},
 			{"build [cli]", "Strict full build, or build only " + exe(cliBinary)},
 			{"test [race] [pkg]", "Run Go tests; add packages or `go test` flags to narrow"},
-			{"check [scope]", "Run checks for go, portal, desktop, docs, all, or ci"},
+			{"check [scope]", "Run checks for go, gui, portal, desktop, docs, all, or ci"},
 			{"run <target>", "Run cli, server, desktop, or Portal locally"},
 			{"clean", "Remove binaries, native app builds, node_modules, and dist"},
 		}},
@@ -142,7 +142,7 @@ func helpTopics() []helpTopic {
 		},
 		{
 			name:    "check",
-			usage:   "check [go|portal|desktop|docs|all|ci]",
+			usage:   "check [go|gui|portal|desktop|docs|all|ci]",
 			summary: "Run the pre-pull-request checks for one scope, or all of them.",
 			details: []string{
 				"`check ci` is what a pull request runs, minus the Windows job, and is the\n" +
@@ -154,6 +154,7 @@ func helpTopics() []helpTopic {
 			},
 			args: []helpRow{
 				{"go", "gofmt, go mod tidy, build, vet, race tests, lint"},
+				{"gui", "gui build, then the shared component tests"},
 				{"portal", "gui build, then Portal lint, build, and tests"},
 				{"desktop", "gui build, then Desktop frontend lint, build, and tests"},
 				{"docs", "Architecture boundary tests and the Markdown lint (needs npm)"},

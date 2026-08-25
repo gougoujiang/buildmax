@@ -8,7 +8,9 @@ import (
 
 // scopeOrder is the order `all` and `ci` run their scopes in: the Go gate
 // first, because it fails fastest on the code most changes touch.
-var scopeOrder = []string{"go", "portal", "desktop", "docs"}
+// gui runs before its two consumers: a component change that breaks its own
+// tests should say so once, not twice through Portal and Desktop.
+var scopeOrder = []string{"go", "gui", "portal", "desktop", "docs"}
 
 func cmdCheck(args []string) error {
 	scope := "all"
@@ -21,6 +23,7 @@ func cmdCheck(args []string) error {
 
 	checks := map[string]func() error{
 		"go":      checkGo,
+		"gui":     checkGUI,
 		"portal":  checkPortal,
 		"desktop": checkDesktop,
 		"docs":    checkDocs,
@@ -162,6 +165,16 @@ func batchArgs(files []string) [][]string {
 		batches = append(batches, batch)
 	}
 	return batches
+}
+
+// checkGUI builds the shared component package and runs its own tests. The
+// build already runs as part of the Portal and Desktop scopes, because both
+// consume dist/; what is here and nowhere else is the test run.
+func checkGUI() error {
+	if err := buildGUI(); err != nil {
+		return err
+	}
+	return runIn("gui", "npm", "test")
 }
 
 func checkPortal() error {

@@ -27,6 +27,14 @@ export interface ChatComposerProps {
   queueWhileLoading?: boolean
   queueLabel?: string
   queuePlaceholder?: string
+  // ghost is a predicted next message offered to the user, accepted with Tab.
+  // It rides on the placeholder because the two have the same rule — shown only
+  // while the input is empty — so typing withdraws the offer without this
+  // component having to watch for it. onAcceptGhost is what Tab calls; without
+  // it Tab keeps moving focus, which is what a keyboard user expects when
+  // nothing is on offer.
+  ghost?: string
+  onAcceptGhost?: () => void
 }
 
 const DEFAULT_PLACEHOLDER = "Type a message… (Enter to send, Shift+Enter for new line)"
@@ -50,17 +58,27 @@ export function ChatComposer({
   queueWhileLoading = false,
   queueLabel = "Queue",
   queuePlaceholder,
+  ghost,
+  onAcceptGhost,
 }: ChatComposerProps) {
   const queueing = loading && queueWhileLoading
   const showCancel = loading && !!onCancel
   const inputDisabled = disabled || (loading && !queueing)
   const isSubmitDisabled = disabled || !value.trim() || (loading && !queueing)
+  // On offer only while the input is empty and nothing is running: what the
+  // user is about to send is whatever they have typed, if they have typed.
+  const ghostOffered = !!ghost && !value && !loading && !disabled && !!onAcceptGhost
 
   function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
     // Let the parent intercept first (e.g. for slash command navigation).
     if (onKeyDownProp) {
       onKeyDownProp(e)
       if (e.defaultPrevented) return
+    }
+    if (e.key === "Tab" && ghostOffered) {
+      e.preventDefault()
+      onAcceptGhost?.()
+      return
     }
     if (e.key !== "Enter") return
     if (allowShiftEnter && e.shiftKey) return
@@ -73,15 +91,22 @@ export function ChatComposer({
     <>
       <div className="bm-chat-composer">
         <textarea
-          className="bm-chat-composer__input"
+          className={`bm-chat-composer__input${ghostOffered ? " bm-chat-composer__input--ghost" : ""}`}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={queueing && queuePlaceholder ? queuePlaceholder : placeholder}
+          placeholder={
+            ghostOffered ? ghost : queueing && queuePlaceholder ? queuePlaceholder : placeholder
+          }
           rows={rows}
           disabled={inputDisabled}
           aria-label={ariaLabel}
         />
+        {ghostOffered && (
+          <span className="bm-chat-composer__ghost-hint" aria-hidden>
+            Tab
+          </span>
+        )}
         {showCancel ? (
           <button
             type="button"

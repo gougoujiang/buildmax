@@ -99,6 +99,21 @@ type MessageBlockedPayload struct {
 	Queued []string `json:"queued"`
 }
 
+// TurnDigestPayload is what the finished turn is worth telling the user, and
+// nothing the model will read again (event desktop/turn-digest). It is emitted
+// once per turn rather than with stream-done, because a run that drains a queue
+// runs several turns and each one's recap describes only itself.
+//
+// It deliberately does not travel in the message list: stream-done reloads the
+// thread from the session, and neither of these is in the session.
+type TurnDigestPayload struct {
+	// Recap is a short account of what the turn did, or "" when it earned none.
+	Recap string `json:"recap"`
+	// Suggestion is the answer the user is likely about to give, or "" when the
+	// turn did not end by asking them anything.
+	Suggestion string `json:"suggestion"`
+}
+
 const (
 	eventStreamDelta     = "desktop/stream-delta"
 	eventStreamDone      = "desktop/stream-done"
@@ -109,6 +124,7 @@ const (
 	eventRunStatus       = "desktop/run-status"
 	eventMessageDequeued = "desktop/message-dequeued"
 	eventMessageBlocked  = "desktop/message-blocked"
+	eventTurnDigest      = "desktop/turn-digest"
 )
 
 // uiEmitter delivers one event to the frontend.
@@ -776,8 +792,16 @@ func (a *App) SendMessageStream(projectID, sessionID, prompt string) (int, error
 				Approval:  handler,
 				EventSink: evSink,
 				Pending:   queue,
+				Digest:    true,
 			})
 			if err == nil {
+				// Per turn, where the turn ended, rather than beside stream-done
+				// below: a run draining a queue runs several turns and reports
+				// done once, and each recap describes only its own turn. It goes
+				// out while the session is still held, as the mid-queue error
+				// emit already does — the frontend only reads a digest, so there
+				// is nothing here to race the close.
+				a.emitTurnDigest(ctx, out)
 				// Update last_used_at so the sidebar can order projects by recency.
 				touchProjectLastUsed(projectID)
 			}
@@ -821,6 +845,19 @@ func (a *App) queuePrompt(projectID, prompt string) (int, error) {
 		return 0, fmt.Errorf("%w: %d messages are already waiting", err, q.Len())
 	}
 	return pos, nil
+}
+
+// emitTurnDigest sends the finished turn's recap and suggestion, if it produced
+// either. Silence when it produced neither: an event carrying two empty strings
+// would make the frontend clear a recap the user is still reading.
+func (a *App) emitTurnDigest(ctx context.Context, out agentapp.RunResult) {
+	if out.Digest.Empty() {
+		return
+	}
+	a.emit(ctx, eventTurnDigest, &TurnDigestPayload{
+		Recap:      out.Digest.Recap,
+		Suggestion: out.Digest.Suggestion,
+	})
 }
 
 func replyPayload(out agentapp.RunResult) *ReplyPayload {

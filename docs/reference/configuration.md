@@ -521,6 +521,8 @@ mode.
 | `sandbox` | disabled | Bash sandboxing. Reference: [guide/sandbox.md](../guide/sandbox.md). |
 | `tools.permissions` | empty | Per-tool approval rules. See below. |
 | `agent.max_parallel_tools` | `4` | How many read-only tool calls from one model message may run at once. Range 1-16; 1 disables it. |
+| `agent.turn_digest.recap` | `true` | Print a dim summary of what each turn did, under the reply. |
+| `agent.turn_digest.suggest` | `true` | Offer the likely answer as ghost text when a turn ends by asking you something. |
 
 ### `tools.permissions`
 
@@ -591,6 +593,32 @@ its own reads rather than running them one at a time.
 Raise it for read-heavy work over slow storage or many `WebFetch` calls. Lower
 it to 1 to make a run reproduce exactly one call at a time. Design:
 [design/parallel-tool-execution.md](../design/parallel-tool-execution.md).
+
+### `agent.turn_digest`
+
+When a turn ends, the CLI TUI and Desktop can spend one small extra model call
+to describe it:
+
+```yaml
+agent:
+  turn_digest:
+    recap: true             # dim summary of the turn, printed under the reply
+    suggest: true           # predicted answer offered as ghost text; tab accepts
+```
+
+In the TUI the recap appears in the scrollback as a dim `❯❯` line; in Desktop it
+closes the thread as a dim aside. The suggestion appears inside the input box,
+greyed out, and only while the input is empty: press `tab` to accept it and
+`enter` to send, or just start typing to ignore it.
+
+Neither is part of the conversation. The model never sees a recap or a
+suggestion on a later turn — they are written for you and thrown away.
+
+The call is skipped on turns that could not produce anything: a turn that ran
+no tools and answered briefly gets no recap, and a turn that ended without
+asking you anything gets no suggestion. What it does spend counts towards the
+session's usage — `/stats` in the TUI, the status bar in Desktop. Set either key to `false` to switch that half off, or both
+to make the turn end with no extra call at all.
 
 ## `server.yaml` — Server and Worker
 

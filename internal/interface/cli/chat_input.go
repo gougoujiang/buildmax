@@ -12,23 +12,51 @@ import (
 const (
 	inputMinLines = 1
 	inputMaxLines = 3 // max lines for input; grows from 1 as user types, viewport shrinks
+	// idlePlaceholder is what the input says when it has no ghost suggestion.
+	idlePlaceholder = "Type a message..."
 )
 
 // InputBlock groups input state for the textarea at the bottom.
 type InputBlock struct {
 	input textarea.Model
+	// ghost is the predicted answer offered as dim text, accepted with tab.
+	// It rides on the textarea's placeholder because the two have the same
+	// rule — shown only while the input is empty — so typing hides the
+	// suggestion without anything here having to notice.
+	ghost string
 }
 
 // NewInputBlock returns an InputBlock with textarea configured (prompt, placeholder, initial height/width, focused).
 func NewInputBlock() InputBlock {
 	ti := textarea.New()
 	ti.Prompt = "> "
-	ti.Placeholder = "Type a message..."
+	ti.Placeholder = idlePlaceholder
 	ti.ShowLineNumbers = false
 	ti.SetHeight(inputMinLines)
 	ti.SetWidth(76) // leave room for input box border and padding
 	ti.Focus()
 	return InputBlock{input: ti}
+}
+
+// SetGhost offers text as the ghost suggestion, or clears it when s is empty.
+func (ib *InputBlock) SetGhost(s string) {
+	ib.ghost = s
+	if s == "" {
+		ib.input.Placeholder = idlePlaceholder
+	} else {
+		ib.input.Placeholder = s
+	}
+	ib.SyncHeight()
+}
+
+// Ghost returns the suggestion currently on offer, or "" when there is none.
+// It is on offer only while the input is empty: once the user has typed, the
+// suggestion is not what they are about to send.
+func (ib *InputBlock) Ghost() string {
+	if ib.input.Value() != "" {
+		return ""
+	}
+	return ib.ghost
 }
 
 // desiredInputHeight returns how many lines the input should use (1 to inputMaxLines) based on wrapped content.
@@ -55,8 +83,16 @@ func wrappedLineCount(value string, width int) int {
 }
 
 // SyncHeight sets the textarea height to match wrapped content (1 to inputMaxLines).
+//
+// An empty input is measured against the ghost suggestion instead: the
+// textarea renders the placeholder over its own height, so a two-line
+// suggestion in a one-line box would be silently cut in half.
 func (ib *InputBlock) SyncHeight() {
-	want := desiredInputHeight(ib.input.Value(), ib.input.Width())
+	measured := ib.input.Value()
+	if measured == "" {
+		measured = ib.ghost
+	}
+	want := desiredInputHeight(measured, ib.input.Width())
 	if want != ib.input.Height() {
 		ib.input.SetHeight(want)
 	}

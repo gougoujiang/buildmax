@@ -45,7 +45,7 @@ export function SkillsPopup({ skills, filter, selected, onSelect, onHighlight })
 
 // --- ChatInput ---
 
-export function ChatInput({ onSend, onCancel, loading, error, onDismissError, currentProject, app, approvalRequest, onRespond, toolActivity, runStatus, sessionId, onRunStatusContext, onRewound, onForked }) {
+export function ChatInput({ onSend, onCancel, loading, error, onDismissError, currentProject, app, approvalRequest, onRespond, toolActivity, runStatus, sessionId, onRunStatusContext, onRewound, onForked, suggestion, onAcceptSuggestion }) {
   const [prompt, setPrompt] = useState('');
 
   // Skills popup state
@@ -154,6 +154,13 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
     setSkillsSelected(0);
   }
 
+  // Accepting puts the suggestion in the box for the user to send or edit; it
+  // is never sent on their behalf.
+  function handleAcceptSuggestion() {
+    setPrompt(suggestion);
+    onAcceptSuggestion?.();
+  }
+
   function handleSelectSkill(skill) {
     setPrompt(`/${skill.name}`);
     setSkillsSelected(0);
@@ -222,6 +229,8 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
         queuePlaceholder="Type a message… (Enter to queue it for the next turn)"
         ariaLabel="Message"
         onKeyDown={handleKeyDown}
+        ghost={suggestion}
+        onAcceptGhost={handleAcceptSuggestion}
       />
 
       <div className="chat-status-bar">

@@ -26,16 +26,20 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@testing-library/react": "^16.3.2",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.1.0",
+    "jsdom": "^30.0.1",
     "typescript": "~7.0.2",
-    "vite": "^8.2.1"
+    "vite": "^8.2.1",
+    "vitest": "^4.1.11"
   },
   "scripts": {
     "build": "vite build && cp src/theme.css dist/theme.css && cp src/modal.css dist/modal.css && cp src/widgets.css dist/widgets.css && npm run build:types",
     "build:types": "tsc --emitDeclarationOnly --outDir dist --rootDir src",
-    "dev": "vite build --watch"
+    "dev": "vite build --watch",
+    "test": "tsc --noEmit -p tsconfig.test.json && vitest run"
   },
   "files": [
     "dist"

@@ -221,11 +221,13 @@ func (a *App) DeliverNextJobEvent(projectID, sessionID string) (bool, error) {
 			Approval:  handler,
 			EventSink: evSink,
 			Pending:   queue,
+			Digest:    true,
 		})
 		if err != nil {
 			a.emit(ctx, eventStreamError, &StreamErrorPayload{Message: err.Error()})
 			return
 		}
+		a.emitTurnDigest(ctx, out)
 		// Prompts queued while the delivery ran drain exactly as after a user
 		// turn (see SendMessageStream); the backstop loop is the same shape.
 		for {
@@ -240,11 +242,13 @@ func (a *App) DeliverNextJobEvent(projectID, sessionID string) (bool, error) {
 				Approval:  handler,
 				EventSink: evSink,
 				Pending:   queue,
+				Digest:    true,
 			})
 			if err != nil {
 				a.emit(ctx, eventStreamError, &StreamErrorPayload{Message: err.Error()})
 				return
 			}
+			a.emitTurnDigest(ctx, out)
 		}
 	}()
 	return true, nil

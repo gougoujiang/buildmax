@@ -45,13 +45,14 @@ focus — plus the parts that make a live run legible:
 | Field | Role |
 |---|---|
 | `streamingBuffer` | Assistant text accumulated so far this turn |
-| `toolActivity` | The in-flight tool, cleared on tool end or denial |
-| `currentToolArgs` | Raw JSON args of the executing tool, used when rendering the end event |
+| `activeTools` | Tool calls in flight, keyed by call id so overlapping calls keep their own arguments |
 | `streamChannel` | `chan tea.Msg` carrying deltas, tool events, and completion |
 | `runStatus` | Context and token counters shown in the footer |
 | `pendingApproval` | An approval request awaiting a keypress |
 | `slash*` / `activePanel` | Slash panel state |
 | `queue` | Messages typed during the run, waiting for their own turn |
+| `pendingRecap` | A turn recap held until the reply it describes has printed |
+| `inputBlock.ghost` | The predicted answer on offer, shown as the input's placeholder |
 
 ## How A Turn Runs
 
@@ -96,6 +97,26 @@ message rather than a direct call orders that next turn behind whatever the
 finished one was still printing. A failed run drains too; see
 [Queued messages](../../design/queued-messages.md).
 
+## After A Turn
+
+`RunPromptOpts.Digest` asks `agentapp` for a `TurnDigest` once the turn is done:
+a short recap of what the turn did, and the answer the user is likely about to
+type when the reply ended by asking them something. It costs one extra model
+call, made by `AgentApp.runTurn` while it still holds the session, so what the
+call spends is folded into the session's usage the same way title generation's
+is. The TUI is the only surface that sets the flag.
+
+Neither half is part of the conversation. The recap goes to scrollback as a dim
+`❯❯` notice, printed under the reply it describes: `pendingRecap` holds it back
+when the reply is only rendered at `agentDoneMsg`, because a recap above its own
+turn reads as a recap of the previous one. The suggestion becomes the
+textarea's placeholder, which is what makes it disappear the moment the user
+types — the placeholder and a ghost suggestion have the same rule, so nothing
+has to watch for it. `Tab` accepts it into the input; starting a turn or
+pressing `Esc` withdraws it.
+
+`agent.turn_digest` in `settings.yaml` switches either half off.
+
 ## Approval
 
 `TUIApprovalHandler` (`chat_approval.go`) implements `agent.ApprovalHandler`. When
@@ -119,7 +140,7 @@ the footer hint work the same for all of them.
 |---|---|
 | Enter | Submit, confirm in a panel, or queue the message during a run |
 | Esc | Clear input, dismiss a panel, deny an approval, or unqueue the last message |
-| Tab | Toggle focus between input and viewport |
+| Tab | Accept the ghost suggestion; no-op when none is on offer |
 | Ctrl+C | Quit |
 | `/` then ↑↓ | Slash command completion |
 

@@ -160,6 +160,12 @@ type Model struct {
 	// has no job manager. jobEventsCancel releases the subscription on quit.
 	jobEvents       <-chan job.Event
 	jobEventsCancel func()
+	// pendingRecap is a turn recap waiting for the assistant text it belongs
+	// under. The normal path prints the reply before the run finishes, so the
+	// recap can go straight to scrollback; the fallback render at agentDoneMsg
+	// has not printed yet, and a recap above the answer it describes reads as
+	// a recap of the wrong turn.
+	pendingRecap string
 	// parkedJobEvents are background events waiting to wake their owning
 	// session, keyed by session ID: requested deliveries and react-monitor
 	// lines. Only the session on screen drains — one event per turn, after
@@ -281,6 +287,7 @@ func runAgentWithStream(opts TUIOpts, text string, channel chan tea.Msg, queue *
 			Approval:  opts.Approval,
 			EventSink: evSink,
 			Pending:   queue,
+			Digest:    true,
 		})
 		channel <- agentDoneMsg{Result: result, Err: err}
 		close(channel)
@@ -370,8 +377,13 @@ func handleKeyMsg(m *Model, msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	if msg.String() == "ctrl+c" {
 		return m, tea.Quit
 	}
-	// Tab: no-op in transcript mode (no viewport to toggle focus).
+	// Tab accepts the ghost suggestion. With nothing on offer it stays what it
+	// was: a no-op, because transcript mode has no viewport to move focus to.
 	if msg.Code == tea.KeyTab {
+		if ghost := m.inputBlock.Ghost(); ghost != "" && !m.busy {
+			m.inputBlock.SetValue(ghost)
+			m.inputBlock.SetGhost("")
+		}
 		return m, nil
 	}
 	// Active slashPanel (new abstraction) gets first dibs on keys.
@@ -405,7 +417,7 @@ func handleKeyMsg(m *Model, msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.inputBlock.Reset()
-		m.inputBlock.SyncHeight()
+		m.inputBlock.SetGhost("")
 		return m, nil
 	case tea.KeyEnter:
 		if m.busy {
@@ -444,18 +456,39 @@ func handleKeyMsg(m *Model, msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-// startRun begins an agent run for text and returns the Cmd that prints the user
-// message and pumps the run's events. Both a fresh submission and a queued message
-// go through here, so a queued turn is indistinguishable from one typed at the prompt.
-func startRun(m *Model, text string) tea.Cmd {
+// beginRun puts the model into the running state and returns the channel the
+// run will report on. Every path that starts a turn goes through it, so a
+// surface-level thing that must not survive into the next turn — a stale
+// suggestion, last turn's counters — is forgotten in one place.
+func beginRun(m *Model) chan tea.Msg {
 	m.busy = true
 	m.err = ""
 	m.carouselDots = 0
 	m.streamingBuffer = ""
+	// A suggestion predicts the answer to the question the last turn asked.
+	// Once a turn is underway that question has been answered, whatever the
+	// user actually sent.
+	m.inputBlock.SetGhost("")
 	m.runStatus.PromptTokens = 0
 	m.runStatus.CompletionTokens = 0
 	channel := make(chan tea.Msg)
 	m.streamChannel = channel
+	return channel
+}
+
+// dropStaleSuggestion forgets a predicted answer once the question it answers
+// is no longer the last thing the conversation said. beginRun covers the move
+// that runs a turn; this is for the ones that do not — resuming another
+// session, rewinding this one, forking off it.
+func (m *Model) dropStaleSuggestion() {
+	m.inputBlock.SetGhost("")
+}
+
+// startRun begins an agent run for text and returns the Cmd that prints the user
+// message and pumps the run's events. Both a fresh submission and a queued message
+// go through here, so a queued turn is indistinguishable from one typed at the prompt.
+func startRun(m *Model, text string) tea.Cmd {
+	channel := beginRun(m)
 	// tea.Println returns a Cmd in Bubble Tea v2; use Sequence so the user message
 	// appears in scrollback before the agent starts reading from the channel.
 	userLine := formatUserMsgForScrollback(text)
@@ -566,11 +599,20 @@ func handleAgentDone(m *Model, msg agentDoneMsg) (tea.Model, tea.Cmd) {
 		TotalCacheReadTokens:  msg.Result.TotalCacheReadTokens,
 		TotalCacheWriteTokens: msg.Result.TotalCacheWriteTokens,
 	}
+	// Neither half of the digest is part of the conversation: the suggestion is
+	// only offered while the input is empty, and the recap goes to scrollback
+	// as a notice. Nothing here is sent back to the model.
+	m.inputBlock.SetGhost(msg.Result.Digest.Suggestion)
+	recap := formatRecapForScrollback(msg.Result.Digest.Recap, m.width)
 	if strings.TrimSpace(text) == "" {
-		return m, drainQueueCmd()
+		if recap == "" {
+			return m, drainQueueCmd()
+		}
+		return m, tea.Sequence(tea.Println(recap+"\n"), drainQueueCmd())
 	}
 	// Normally each LLM response is rendered on llmEndMsg. This fallback keeps a
 	// successful run from dropping text if the stream closes without an LLM end event.
+	m.pendingRecap = recap
 	return m, tea.Sequence(renderAssistantMsgCmd(text, width, glamourStyle, false), drainQueueCmd())
 }
 
@@ -843,6 +885,11 @@ func (m *Model) renderFooterView() string {
 	}
 
 	line2 := formatRunStatus(m.runStatus) + " | ctrl+c: quit | esc: clear/dismiss | /… + ↑↓: commands"
+	// Only while a suggestion is actually on offer: tab does nothing otherwise,
+	// and a hint for a key that does nothing is worse than no hint.
+	if m.inputBlock.Ghost() != "" && !m.busy {
+		line2 += " | tab: accept suggestion"
+	}
 	if n := m.queue.Len(); n > 0 {
 		line2 += fmt.Sprintf(" | queued: %d", n)
 	}
@@ -940,16 +987,26 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.approvalSelected = 0
 		return m, nil
 	case assistantRenderedMsg:
-		if msg.line == "" {
-			if msg.continueStream {
+		if msg.continueStream {
+			if msg.line == "" {
 				return m, nextStreamMsgCmd(m.streamChannel)
 			}
-			return m, nil
-		}
-		if msg.continueStream {
 			return m, tea.Sequence(tea.Println(msg.line+"\n"), nextStreamMsgCmd(m.streamChannel))
 		}
-		return m, tea.Println(msg.line + "\n")
+		// End of a turn: a recap held back for this render goes out under the
+		// reply it describes, in the same write, so nothing can interleave.
+		line := msg.line
+		if m.pendingRecap != "" {
+			if line != "" {
+				line += "\n\n"
+			}
+			line += m.pendingRecap
+			m.pendingRecap = ""
+		}
+		if line == "" {
+			return m, nil
+		}
+		return m, tea.Println(line + "\n")
 	default:
 		// tea.Println returns a Cmd whose result is a tea-internal printLineMessage.
 		// That message is handled by the renderer (insertAbove) but also reaches

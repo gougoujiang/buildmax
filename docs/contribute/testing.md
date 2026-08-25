@@ -37,6 +37,7 @@ package whose code reads those paths gives itself a `TestMain` calling
 | The agent loop, tools, permissions, sessions, the TUI | `./make test`, then `./make e2e cli` |
 | Plugins, packaging, or the Marketplace routes | `./make test`, then `./make e2e cli` |
 | The Desktop bridge, its events, or approvals | `./make e2e desktop` |
+| A shared component in `gui/` | `./make check gui` |
 | Portal, `gui`, or a route Portal calls | `./make e2e local` |
 | Server, worker, scheduler, storage, or the model gateway | `./make compose smoke`, and `./make compose smoke managed` if the change touches the gateway |
 | Deployment manifests, the Dockerfiles, ingress, or the worker's Kubernetes path | `./make kind up`, then `./make e2e` |
@@ -157,6 +158,24 @@ passed.
 `./make e2e all` deliberately leaves out kind: that suite needs a cluster, and a
 release check that quietly builds one is a surprise. Run `./make kind up`
 followed by `./make e2e` when the change is worth proving on Kubernetes.
+
+## Frontend Component Tests
+
+`gui/` and `desktop/frontend` run their component tests under vitest with a
+jsdom document, so a test asserts what a viewer can see and which key does what
+rather than what a function returned. `gui` is where a shared component's own
+behaviour is proved once, for both surfaces; a surface's test covers only its
+own wiring to that component. Portal keeps browser-level assertions in
+Playwright, where a real engine is the point.
+
+```bash
+./make check gui               # build the package, type-check, run its tests
+npm --prefix gui test          # the tests alone, while iterating
+```
+
+`npm test` in `gui` type-checks before it runs: `tsconfig.json` excludes test
+files so no `.d.ts` for one reaches `dist/`, and `tsconfig.test.json` puts them
+back for the check.
 
 ## Adding A Test
 
