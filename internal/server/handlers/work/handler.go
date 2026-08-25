@@ -13,6 +13,7 @@ import (
 	"context"
 	"net/http"
 
+	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/core/model"
@@ -52,8 +53,8 @@ type Config struct {
 	TaskRuns      model.TaskRunStore
 	Agents        model.AgentStore
 	Teams         coreteam.Store
-	Conversations model.ConversationStore
-	Messages      model.ConversationMessageStore
+	Conversations coreconv.Store
+	Messages      coreconv.MessageStore
 	RunOutputs    RunOutputLister
 	// LLMCalls reads the managed call ledger for one run. Nil leaves that
 	// route answering 503, which is what a deployment with no database has.

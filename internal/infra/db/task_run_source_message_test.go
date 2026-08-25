@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
@@ -19,7 +20,7 @@ func TestCreateTaskRunPersistsSourceMessage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateConversation: %v", err)
 	}
-	asked, err := s.AppendMessage(ctx, model.AppendMessageInput{
+	asked, err := s.AppendMessage(ctx, coreconv.AppendInput{
 		ConversationID: conv.ID,
 		Role:           "user",
 		Content:        "look into the flaky test, but do not touch the CI config",
@@ -65,7 +66,7 @@ func TestCreateTaskRunPersistsSourceMessage(t *testing.T) {
 	}
 
 	// A continuation is a different request and records the message that made it.
-	followUp, err := s.AppendMessage(ctx, model.AppendMessageInput{
+	followUp, err := s.AppendMessage(ctx, coreconv.AppendInput{
 		ConversationID: conv.ID,
 		Role:           "user",
 		Content:        "now check whether it fails on Windows too",

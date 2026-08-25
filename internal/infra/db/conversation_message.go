@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 
 	"github.com/gougoujiang/buildmax/internal/util"
 	"gorm.io/gorm"
@@ -41,11 +41,11 @@ func (s *Store) conversationMessageSelect(ctx context.Context) *gorm.DB {
 		Joins("INNER JOIN conversation c ON c.id = conversation_message.conversation_id")
 }
 
-func toConversationMessage(row *conversationMessageReadRow) *model.ConversationMessage {
+func toConversationMessage(row *conversationMessageReadRow) *coreconv.Message {
 	if row == nil {
 		return nil
 	}
-	return &model.ConversationMessage{
+	return &coreconv.Message{
 		ID:                row.Row.PublicID,
 		ConversationID:    row.ConversationPublicID,
 		Role:              row.Row.Role,
@@ -59,8 +59,8 @@ func toConversationMessage(row *conversationMessageReadRow) *model.ConversationM
 	}
 }
 
-func toConversationMessages(rows []conversationMessageReadRow) []model.ConversationMessage {
-	out := make([]model.ConversationMessage, len(rows))
+func toConversationMessages(rows []conversationMessageReadRow) []coreconv.Message {
+	out := make([]coreconv.Message, len(rows))
 	for i := range rows {
 		out[i] = *toConversationMessage(&rows[i])
 	}
@@ -70,7 +70,7 @@ func toConversationMessages(rows []conversationMessageReadRow) []model.Conversat
 // AppendMessage appends one message to the conversation. channel is stored for incoming turns such as
 // role "user" and role "system"; tool_call_id is stored when role is "tool"; tool_calls (JSON) is
 // stored when role is "assistant" with tool calls. Returns the created message.
-func (s *Store) AppendMessage(ctx context.Context, in model.AppendMessageInput) (*model.ConversationMessage, error) {
+func (s *Store) AppendMessage(ctx context.Context, in coreconv.AppendInput) (*coreconv.Message, error) {
 	convKey, err := lookupKey(ctx, s.db, "conversation", in.ConversationID)
 	if err != nil {
 		return nil, err
@@ -96,7 +96,7 @@ func (s *Store) AppendMessage(ctx context.Context, in model.AppendMessageInput) 
 }
 
 // GetMessage returns one message by handle, or (nil, nil) when there is none.
-func (s *Store) GetMessage(ctx context.Context, messageID string) (*model.ConversationMessage, error) {
+func (s *Store) GetMessage(ctx context.Context, messageID string) (*coreconv.Message, error) {
 	id, ok := util.CanonicalPublicID(messageID)
 	if !ok {
 		return nil, nil
@@ -113,7 +113,7 @@ func (s *Store) GetMessage(ctx context.Context, messageID string) (*model.Conver
 }
 
 // ListMessages returns all messages for the conversation ordered by created_at ASC.
-func (s *Store) ListMessages(ctx context.Context, conversationID string) ([]model.ConversationMessage, error) {
+func (s *Store) ListMessages(ctx context.Context, conversationID string) ([]coreconv.Message, error) {
 	id, ok := util.CanonicalPublicID(conversationID)
 	if !ok {
 		return nil, nil

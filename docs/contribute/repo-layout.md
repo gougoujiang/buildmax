@@ -130,6 +130,8 @@ internal/
 │   │                   entry, the call ledger entry, and their stores
 │   ├── quota/          Tier limits and the usage window a refusal is measured
 │   │                   against
+│   ├── conversation/   The durable Conversation and its messages: what Tier 1
+│   │                   orchestrates and stores, distinct from a local session
 │   └── session/        Local session model; persistence lives in agentapp
 │
 ├── agentapp/           Agent runtime assembly: LLM client cache, tool registry,

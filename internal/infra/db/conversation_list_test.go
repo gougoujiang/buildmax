@@ -3,7 +3,7 @@ package db
 import (
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 )
 
 // The filter is in the store because the page is cut there: dropping the rows
@@ -17,11 +17,11 @@ func TestListConversationsByTeamHidesSyntheticOnes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateConversationInTeam: %v", err)
 	}
-	step, err := s.CreateConversationInTeam(ctx, team, user, model.ChannelWorkflow, user)
+	step, err := s.CreateConversationInTeam(ctx, team, user, coreconv.ChannelWorkflow, user)
 	if err != nil {
 		t.Fatalf("CreateConversationInTeam workflow: %v", err)
 	}
-	agentRun, err := s.CreateConversationInTeam(ctx, team, user, model.ChannelIssueAgent, user)
+	agentRun, err := s.CreateConversationInTeam(ctx, team, user, coreconv.ChannelIssueAgent, user)
 	if err != nil {
 		t.Fatalf("CreateConversationInTeam issue agent: %v", err)
 	}

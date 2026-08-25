@@ -8,7 +8,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/server/turnqueue"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	"github.com/gougoujiang/buildmax/internal/service/conversation"
 	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
@@ -67,7 +67,7 @@ type addMessageResponse struct {
 // "[Task Result]" message is stored with role "user" so the model replays it as
 // input, but nobody typed it, and showing it as the user's own message is a lie
 // about who said what. The run's card is what reports the outcome.
-func isVisibleConversationMessage(m model.ConversationMessage) bool {
+func isVisibleConversationMessage(m coreconv.Message) bool {
 	if m.Channel != nil && *m.Channel == convchannel.ChannelSystem {
 		return false
 	}
@@ -356,7 +356,7 @@ func (h *Handler) addConversationMessageHandler(w http.ResponseWriter, r *http.R
 	}
 }
 
-func (h *Handler) getConversationForTeam(w http.ResponseWriter, r *http.Request, teamID, conversationID string) (*model.Conversation, bool) {
+func (h *Handler) getConversationForTeam(w http.ResponseWriter, r *http.Request, teamID, conversationID string) (*coreconv.Conversation, bool) {
 	if !httputil.RequireStore(w, h.cfg.Conversations, "conversations not configured") {
 		return nil, false
 	}

@@ -9,6 +9,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
+	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 
@@ -600,7 +601,7 @@ func TestCreateConversation_AppendMessage_ListMessages(t *testing.T) {
 	}
 
 	ch := "portal"
-	m1, err := s.AppendMessage(ctx, model.AppendMessageInput{
+	m1, err := s.AppendMessage(ctx, coreconv.AppendInput{
 		ConversationID: conv.ID, Role: "user", Content: "hello", Channel: &ch,
 	})
 	if err != nil {
@@ -610,7 +611,7 @@ func TestCreateConversation_AppendMessage_ListMessages(t *testing.T) {
 		t.Errorf("AppendMessage user: got %+v", m1)
 	}
 
-	m2, err := s.AppendMessage(ctx, model.AppendMessageInput{
+	m2, err := s.AppendMessage(ctx, coreconv.AppendInput{
 		ConversationID: conv.ID, Role: "assistant", Content: "hi there",
 	})
 	if err != nil {
@@ -621,7 +622,7 @@ func TestCreateConversation_AppendMessage_ListMessages(t *testing.T) {
 	}
 
 	tcID := "call_1"
-	m3, err := s.AppendMessage(ctx, model.AppendMessageInput{
+	m3, err := s.AppendMessage(ctx, coreconv.AppendInput{
 		ConversationID: conv.ID, Role: "tool", Content: "2025-03-01", ToolCallID: &tcID,
 	})
 	if err != nil {
@@ -632,7 +633,7 @@ func TestCreateConversation_AppendMessage_ListMessages(t *testing.T) {
 	}
 
 	sysCh := "system"
-	m4, err := s.AppendMessage(ctx, model.AppendMessageInput{
+	m4, err := s.AppendMessage(ctx, coreconv.AppendInput{
 		ConversationID: conv.ID, Role: "system", Content: "[Task Result] internal", Channel: &sysCh,
 	})
 	if err != nil {

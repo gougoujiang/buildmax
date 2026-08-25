@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/agent"
+	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
-	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/service/task"
 )
 
@@ -89,7 +89,7 @@ func buildConversationTools(in turnRunInput, sourceMessageID *string) []llm.Tool
 type conversationBuffer struct {
 	ctx            context.Context
 	conversationID string
-	msgStore       model.ConversationMessageStore
+	msgStore       coreconv.MessageStore
 	msgs           []llm.Message
 }
 
@@ -133,7 +133,7 @@ func (b *conversationBuffer) Append(m llm.Message) error {
 			partsJSON = &js
 		}
 	}
-	_, err := b.msgStore.AppendMessage(b.ctx, model.AppendMessageInput{
+	_, err := b.msgStore.AppendMessage(b.ctx, coreconv.AppendInput{
 		ConversationID:    b.conversationID,
 		Role:              m.Role,
 		Content:           m.Content,
@@ -145,7 +145,7 @@ func (b *conversationBuffer) Append(m llm.Message) error {
 	return err
 }
 
-func replayMessageFromStore(m model.ConversationMessage) llm.Message {
+func replayMessageFromStore(m coreconv.Message) llm.Message {
 	toolCallID := ""
 	if m.ToolCallID != nil {
 		toolCallID = *m.ToolCallID
@@ -183,14 +183,14 @@ type preparedRun struct {
 	toolsList  []llm.Tool
 }
 
-func prepareRun(ctx context.Context, msgStore model.ConversationMessageStore, in turnRunInput) (*preparedRun, error) {
+func prepareRun(ctx context.Context, msgStore coreconv.MessageStore, in turnRunInput) (*preparedRun, error) {
 	msgs, err := msgStore.ListMessages(ctx, in.ConversationID)
 	if err != nil {
 		return nil, fmt.Errorf("list messages: %w", err)
 	}
 	firstRound := len(msgs) == 0
 	channelPtr := &in.Channel
-	incoming, err := msgStore.AppendMessage(ctx, model.AppendMessageInput{
+	incoming, err := msgStore.AppendMessage(ctx, coreconv.AppendInput{
 		ConversationID: in.ConversationID,
 		Role:           "user",
 		Content:        in.Message,
@@ -241,7 +241,7 @@ func executeRun(ctx context.Context, llmClient llm.LLMClient, in turnRunInput, p
 	return reply, nil
 }
 
-func maybeUpdateTitle(ctx context.Context, convStore model.ConversationStore, in turnRunInput, prepared *preparedRun) {
+func maybeUpdateTitle(ctx context.Context, convStore coreconv.Store, in turnRunInput, prepared *preparedRun) {
 	if !prepared.firstRound || in.Message == "" || in.TitleGenerator == nil {
 		return
 	}
@@ -250,7 +250,7 @@ func maybeUpdateTitle(ctx context.Context, convStore model.ConversationStore, in
 	}
 }
 
-func runLoop(ctx context.Context, convStore model.ConversationStore, msgStore model.ConversationMessageStore, llmClient llm.LLMClient, in turnRunInput) (string, error) {
+func runLoop(ctx context.Context, convStore coreconv.Store, msgStore coreconv.MessageStore, llmClient llm.LLMClient, in turnRunInput) (string, error) {
 	prepared, err := prepareRun(ctx, msgStore, in)
 	if err != nil {
 		return "", err
@@ -264,7 +264,7 @@ func runLoop(ctx context.Context, convStore model.ConversationStore, msgStore mo
 }
 
 // runConversationTurn executes one turn. Streaming is enabled when StreamSink is non-nil.
-func runConversationTurn(ctx context.Context, convStore model.ConversationStore, msgStore model.ConversationMessageStore, llmClient llm.LLMClient, in turnRunInput) (string, error) {
+func runConversationTurn(ctx context.Context, convStore coreconv.Store, msgStore coreconv.MessageStore, llmClient llm.LLMClient, in turnRunInput) (string, error) {
 	if llmClient == nil {
 		if in.StreamSink != nil {
 			return "", fmt.Errorf("conversation stream LLM not configured")

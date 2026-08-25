@@ -12,6 +12,7 @@ import (
 	"time"
 
 	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
+	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/core/model"
@@ -116,8 +117,8 @@ type WorkerConfig struct {
 // ConversationConfig holds Tier 1 conversation stores and LLM wiring.
 type ConversationConfig struct {
 	TitleGenerator           llm.TitleGenerator
-	ConversationStore        model.ConversationStore
-	ConversationMessageStore model.ConversationMessageStore
+	ConversationStore        coreconv.Store
+	ConversationMessageStore coreconv.MessageStore
 	ConversationLLMClient    llm.LLMClient
 	// LLMGateway serves managed inference to authenticated clients. Nil leaves
 	// the /llm routes answering 503.

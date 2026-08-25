@@ -10,6 +10,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
 
+	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/service/task"
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -40,7 +41,7 @@ type Service struct {
 	Workflows     model.WorkflowStore
 	Agents        model.AgentStore
 	Issues        model.IssueStore
-	Conversations model.ConversationStore
+	Conversations coreconv.Store
 	TaskService   *task.Service
 }
 

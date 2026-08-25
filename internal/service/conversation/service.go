@@ -6,6 +6,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
 
+	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
@@ -20,8 +21,8 @@ var (
 // Service is the single Tier 1 orchestration entry point for portal turns.
 type Service struct {
 	TaskService       *task.Service
-	ConversationStore model.ConversationStore
-	MessageStore      model.ConversationMessageStore
+	ConversationStore coreconv.Store
+	MessageStore      coreconv.MessageStore
 	LLMClient         llm.LLMClient
 	TitleGenerator    llm.TitleGenerator
 	AgentStore        model.AgentStore

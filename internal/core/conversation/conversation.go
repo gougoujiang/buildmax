@@ -1,4 +1,4 @@
-package model
+package conversation
 
 import (
 	"context"
@@ -43,8 +43,8 @@ type Conversation struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-// ConversationMessage is one message in a Tier 1 conversation.
-type ConversationMessage struct {
+// Message is one message in a Tier 1 conversation.
+type Message struct {
 	ID             string  `json:"id"`
 	ConversationID string  `json:"conversation_id"`
 	Role           string  `json:"role"`
@@ -61,11 +61,11 @@ type ConversationMessage struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-// AppendMessageInput is one message to store.
+// AppendInput is one message to store.
 //
 // It is a struct because the column set grows as the LLM contract does, and a
 // positional list this long stops saying which nil means what.
-type AppendMessageInput struct {
+type AppendInput struct {
 	ConversationID string
 	Role           string
 	Content        string
@@ -79,8 +79,8 @@ type AppendMessageInput struct {
 	PartsJSON *string
 }
 
-// ConversationStore provides Tier 1 conversation persistence. Conversations are user-scoped.
-type ConversationStore interface {
+// Store provides Tier 1 conversation persistence. Conversations are user-scoped.
+type Store interface {
 	CreateConversation(ctx context.Context, userID, channel, createdBy string) (*Conversation, error)
 	CreateConversationInTeam(ctx context.Context, teamID, userID, channel, createdBy string) (*Conversation, error)
 	GetConversation(ctx context.Context, conversationID string) (*Conversation, error)
@@ -89,14 +89,14 @@ type ConversationStore interface {
 	UpdateConversationTitle(ctx context.Context, conversationID, title string) error
 }
 
-// ConversationMessageStore provides Tier 1 conversation message persistence.
+// MessageStore provides Tier 1 conversation message persistence.
 // For role=assistant with tool calls, toolCallsJSON should be the JSON-encoded array of tool calls (id, name, arguments).
-type ConversationMessageStore interface {
-	AppendMessage(ctx context.Context, in AppendMessageInput) (*ConversationMessage, error)
-	ListMessages(ctx context.Context, conversationID string) ([]ConversationMessage, error)
+type MessageStore interface {
+	AppendMessage(ctx context.Context, in AppendInput) (*Message, error)
+	ListMessages(ctx context.Context, conversationID string) ([]Message, error)
 	// GetMessage returns one message by handle, or (nil, nil) when there is no
 	// such row. It exists because a run names the message that asked for it,
 	// and reading a whole transcript to resolve one handle is the wrong shape
 	// for a question about one run.
-	GetMessage(ctx context.Context, messageID string) (*ConversationMessage, error)
+	GetMessage(ctx context.Context, messageID string) (*Message, error)
 }

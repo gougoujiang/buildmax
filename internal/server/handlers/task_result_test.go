@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
@@ -23,7 +24,7 @@ import (
 
 // waitForMessages polls until the store holds want messages, or fails. The turn
 // runs on the queue's goroutine while the test reads from its own.
-func waitForMessages(t *testing.T, m *mock.MockConversationMessageStore, want int) []model.ConversationMessage {
+func waitForMessages(t *testing.T, m *mock.MockConversationMessageStore, want int) []coreconv.Message {
 	t.Helper()
 	deadline := time.Now().Add(3 * time.Second)
 	for {

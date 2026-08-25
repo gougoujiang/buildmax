@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	corequota "github.com/gougoujiang/buildmax/internal/core/quota"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
@@ -23,7 +24,7 @@ func TestListConversationTasksHandler(t *testing.T) {
 	conversationID := "conv1"
 	teamID := "tm_personal_u1"
 	mockConversations := &mock.MockConversationStore{
-		Conversations: []model.Conversation{
+		Conversations: []coreconv.Conversation{
 			{ID: conversationID, UserID: "u1", TeamID: teamID, Channel: "portal", CreatedBy: "u1", CreatedAt: time.Unix(123, 0).UTC()},
 		},
 	}
@@ -117,7 +118,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 	conversationID := "conv1"
 	teamID := "tm_personal_u1"
 	mockConversations := &mock.MockConversationStore{
-		Conversations: []model.Conversation{
+		Conversations: []coreconv.Conversation{
 			{ID: conversationID, UserID: "u1", TeamID: teamID, Channel: "portal", CreatedBy: "u1", CreatedAt: time.Unix(123, 0).UTC()},
 		},
 	}
@@ -275,7 +276,7 @@ func TestListConversationTasksCarriesRunAndArtifacts(t *testing.T) {
 		Teams:     &mock.MockTeamStore{Teams: []coreteam.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}}, Members: []coreteam.Member{{TeamID: teamID, UserID: "u1", Role: coreteam.RoleOwner}}},
 		Tasks:     &mock.MockTaskStore{List: []model.Task{task1, task2}},
 		Conversations: &mock.MockConversationStore{
-			Conversations: []model.Conversation{{ID: conversationID, UserID: "u1", TeamID: teamID, Channel: "portal", CreatedBy: "u1", CreatedAt: time.Unix(123, 0).UTC()}},
+			Conversations: []coreconv.Conversation{{ID: conversationID, UserID: "u1", TeamID: teamID, Channel: "portal", CreatedBy: "u1", CreatedAt: time.Unix(123, 0).UTC()}},
 		},
 		RunOutputs: &mock.MockRunOutputLister{List: []model.ArtifactWithTask{
 			{ArtifactID: "tr_1", TaskID: "t1", TaskRunID: "tr_1", ConversationID: conversationID},

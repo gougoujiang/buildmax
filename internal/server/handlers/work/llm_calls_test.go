@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -26,7 +27,7 @@ func llmCallsFixture(ledger *llmStubLedger) Config {
 			TaskList: []model.Task{{ID: "t_1", ConversationID: "c_1", TeamID: llmTestTeam, CreatedBy: llmTestUser, CreatedAt: time.Unix(1, 0).UTC()}},
 		},
 		Conversations: &mock.MockConversationStore{
-			Conversations: []model.Conversation{{ID: "c_1", TeamID: llmTestTeam, CreatedBy: llmTestUser}},
+			Conversations: []coreconv.Conversation{{ID: "c_1", TeamID: llmTestTeam, CreatedBy: llmTestUser}},
 		},
 		LLMCalls: ledger,
 	}

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
+	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/core/model"
@@ -70,8 +71,8 @@ type Config struct {
 	LLMCallStore             coregw.CallStore
 	RunOutputLister          work.RunOutputLister
 	UserWebhookKeyStore      model.UserWebhookKeyStore
-	ConversationStore        model.ConversationStore
-	ConversationMessageStore model.ConversationMessageStore
+	ConversationStore        coreconv.Store
+	ConversationMessageStore coreconv.MessageStore
 	AuditStore               model.AuditStore
 	// LLMModelStore reads the managed model catalog. Nil leaves the admin
 	// catalog routes answering 503. It is deliberately read plus enable/disable
