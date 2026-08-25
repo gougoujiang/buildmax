@@ -5,14 +5,14 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 )
 
 // AuditEventsResponse is a page of a team's audit trail.
 type AuditEventsResponse struct {
-	Events []model.AuditEvent `json:"events"`
-	Total  int                `json:"total"`
+	Events []coreaudit.Event `json:"events"`
+	Total  int               `json:"total"`
 }
 
 // listAuditEventsHandler serves GET /api/teams/{team_id}/audit-events.

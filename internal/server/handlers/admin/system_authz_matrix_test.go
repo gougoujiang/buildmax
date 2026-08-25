@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -187,7 +188,7 @@ func TestAdminDenialIsRecorded(t *testing.T) {
 		t.Fatalf("got %d events, want 1: %+v", len(audits.Events), audits.Events)
 	}
 	e := audits.Events[0]
-	if e.Action != model.AuditAccessDenied || e.ActorID != adminTeamOwner || e.TeamID != "" || e.TargetType != "route" {
+	if e.Action != coreaudit.AccessDenied || e.ActorID != adminTeamOwner || e.TeamID != "" || e.TargetType != "route" {
 		t.Errorf("denial event wrong: %+v", e)
 	}
 	if !strings.Contains(e.TargetID, "/api/admin/me") {

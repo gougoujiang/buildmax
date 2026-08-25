@@ -5,14 +5,14 @@ import (
 	"github.com/gougoujiang/buildmax/internal/server/handlers/auditexport"
 	"net/http"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 )
 
 // AdminAuditEventsResponse is a page of the deployment-wide trail.
 type AdminAuditEventsResponse struct {
-	Events []model.AuditEvent `json:"events"`
-	Total  int                `json:"total"`
+	Events []coreaudit.Event `json:"events"`
+	Total  int               `json:"total"`
 }
 
 // listAdminAuditEventsHandler serves GET /api/admin/audit-events.
@@ -55,18 +55,18 @@ func (h *Handler) exportAdminAuditEventsHandler(w http.ResponseWriter, r *http.R
 	}
 	filter := auditexport.AdminFilter(r.URL.Query())
 	store := h.cfg.Audits
-	page := func(ctx context.Context, after model.AuditCursor, limit int) ([]model.AuditEvent, error) {
+	page := func(ctx context.Context, after coreaudit.Cursor, limit int) ([]coreaudit.Event, error) {
 		return store.ExportAuditEvents(ctx, filter, after, limit)
 	}
 	written, truncated := auditexport.Stream(w, r, page, "audit-deployment")
 	// An export narrowed to one team is recorded in that team's trail as well,
 	// so a team owner can see that the deployment read their record. An
 	// unfiltered one has no team to name and stays deployment-scoped.
-	h.cfg.Audit.Record(r.Context(), model.AuditEvent{
+	h.cfg.Audit.Record(r.Context(), coreaudit.Event{
 		TeamID:     filter.TeamID,
-		ActorType:  model.AuditActorUser,
+		ActorType:  coreaudit.ActorUser,
 		ActorID:    adminID,
-		Action:     model.AuditEventsExported,
+		Action:     coreaudit.EventsExported,
 		TargetType: "audit_event",
 		Detail:     auditexport.Detail(written, truncated),
 	})

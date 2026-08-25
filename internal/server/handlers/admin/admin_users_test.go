@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
@@ -104,11 +105,11 @@ func TestAdminAccountActionsAreRecorded(t *testing.T) {
 	f.do(t, "DELETE", "/api/admin/users/"+f.target.ID+"/sessions", adminUser, "")
 
 	want := []string{
-		model.AuditUserCreated,
-		model.AuditLoginCodeIssued,
-		model.AuditUserDisabled,
-		model.AuditUserEnabled,
-		model.AuditSessionsRevoked,
+		coreaudit.UserCreated,
+		coreaudit.LoginCodeIssued,
+		coreaudit.UserDisabled,
+		coreaudit.UserEnabled,
+		coreaudit.SessionsRevoked,
 	}
 	got := f.actions()
 	if len(got) != len(want) {
@@ -120,7 +121,7 @@ func TestAdminAccountActionsAreRecorded(t *testing.T) {
 		}
 	}
 	for _, e := range f.audits.Events {
-		if e.ActorType != model.AuditActorUser || e.ActorID != adminUser {
+		if e.ActorType != coreaudit.ActorUser || e.ActorID != adminUser {
 			t.Errorf("event should name the administrator: %+v", e)
 		}
 		if e.TeamID != "" {

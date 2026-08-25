@@ -6,7 +6,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/server/handlers/auditexport"
 	"net/http"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 )
 
 func (h *Handler) exportAuditEventsHandler(w http.ResponseWriter, r *http.Request) {
@@ -18,7 +18,7 @@ func (h *Handler) exportAuditEventsHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	store := h.cfg.Audits
-	page := func(ctx context.Context, after model.AuditCursor, limit int) ([]model.AuditEvent, error) {
+	page := func(ctx context.Context, after coreaudit.Cursor, limit int) ([]coreaudit.Event, error) {
 		return store.ExportTeamAuditEvents(ctx, teamID, after, limit)
 	}
 	written, truncated := auditexport.Stream(w, r, page, "audit-"+teamID)
@@ -26,7 +26,7 @@ func (h *Handler) exportAuditEventsHandler(w http.ResponseWriter, r *http.Reques
 	// what was requested. Reading the whole record is itself an action on it,
 	// and an export that left no trace would be the one way to consult the
 	// trail without appearing in it.
-	h.cfg.Audit.UserAction(r.Context(), userID, teamID, model.AuditEventsExported,
+	h.cfg.Audit.UserAction(r.Context(), userID, teamID, coreaudit.EventsExported,
 		"audit_event", "", auditexport.Detail(written, truncated))
 }
 

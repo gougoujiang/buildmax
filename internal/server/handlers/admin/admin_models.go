@@ -3,8 +3,8 @@ package admin
 import (
 	"net/http"
 
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
-	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 )
 
@@ -89,12 +89,12 @@ func (h *Handler) setAdminModelEnabledHandler(enabled bool) http.HandlerFunc {
 		// The same actions the operator command writes, so the trail does not
 		// distinguish a catalog change by where it was made — only by who made
 		// it. A command names the binary; this names a person.
-		action := model.AuditModelDisabled
+		action := coreaudit.ModelDisabled
 		if enabled {
-			action = model.AuditModelEnabled
+			action = coreaudit.ModelEnabled
 		}
-		h.cfg.Audit.Record(r.Context(), model.AuditEvent{
-			ActorType:  model.AuditActorUser,
+		h.cfg.Audit.Record(r.Context(), coreaudit.Event{
+			ActorType:  coreaudit.ActorUser,
 			ActorID:    actorID,
 			Action:     action,
 			TargetType: "llm_model",

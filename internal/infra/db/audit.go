@@ -8,7 +8,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
 
@@ -56,11 +56,11 @@ func (s *Store) auditSelect(ctx context.Context) *gorm.DB {
 		Joins("LEFT JOIN team t ON t.id = audit_event.team_id")
 }
 
-func toAuditEvent(row *auditEventReadRow) *model.AuditEvent {
+func toAuditEvent(row *auditEventReadRow) *coreaudit.Event {
 	if row == nil {
 		return nil
 	}
-	return &model.AuditEvent{
+	return &coreaudit.Event{
 		ID:         row.Row.PublicID,
 		TeamID:     derefPublicID(row.TeamPublicID),
 		ActorType:  row.Row.ActorType,
@@ -74,7 +74,7 @@ func toAuditEvent(row *auditEventReadRow) *model.AuditEvent {
 }
 
 // RecordAuditEvent appends one event.
-func (s *Store) RecordAuditEvent(ctx context.Context, in model.AuditEvent) error {
+func (s *Store) RecordAuditEvent(ctx context.Context, in coreaudit.Event) error {
 	publicID, err := util.NewPublicID()
 	if err != nil {
 		return err
@@ -118,7 +118,7 @@ func truncateDetail(s string) string {
 }
 
 // ListAuditEvents returns a team's events, newest first, with the total count.
-func (s *Store) ListAuditEvents(ctx context.Context, teamID string, limit, offset int) ([]model.AuditEvent, int, error) {
+func (s *Store) ListAuditEvents(ctx context.Context, teamID string, limit, offset int) ([]coreaudit.Event, int, error) {
 	limit, offset = clampPage(limit, offset)
 	teamKey, err := lookupKey(ctx, s.db, "team", teamID)
 	if errors.Is(err, apierr.ErrNotFound) {
@@ -136,7 +136,7 @@ func (s *Store) ListAuditEvents(ctx context.Context, teamID string, limit, offse
 		Order("audit_event.created_at DESC, audit_event.id DESC").Limit(limit).Offset(offset).Find(&rows).Error; err != nil {
 		return nil, 0, err
 	}
-	out := make([]model.AuditEvent, 0, len(rows))
+	out := make([]coreaudit.Event, 0, len(rows))
 	for i := range rows {
 		out = append(out, *toAuditEvent(&rows[i]))
 	}
@@ -150,7 +150,7 @@ func (s *Store) ListAuditEvents(ctx context.Context, teamID string, limit, offse
 // deliberate action. If that stops being true the answer is a second index on
 // created_at, not a smaller retention — losing evidence to make a query fast is
 // the wrong trade.
-func (s *Store) SearchAuditEvents(ctx context.Context, filter model.AuditFilter, limit, offset int) ([]model.AuditEvent, int, error) {
+func (s *Store) SearchAuditEvents(ctx context.Context, filter coreaudit.Filter, limit, offset int) ([]coreaudit.Event, int, error) {
 	limit, offset = clampPage(limit, offset)
 	teamKey, err := s.auditFilterTeamKey(ctx, filter)
 	if err != nil {
@@ -166,7 +166,7 @@ func (s *Store) SearchAuditEvents(ctx context.Context, filter model.AuditFilter,
 		Order("audit_event.created_at DESC, audit_event.id DESC").Limit(limit).Offset(offset).Find(&rows).Error; err != nil {
 		return nil, 0, err
 	}
-	out := make([]model.AuditEvent, 0, len(rows))
+	out := make([]coreaudit.Event, 0, len(rows))
 	for i := range rows {
 		out = append(out, *toAuditEvent(&rows[i]))
 	}
@@ -176,7 +176,7 @@ func (s *Store) SearchAuditEvents(ctx context.Context, filter model.AuditFilter,
 // auditFilterTeamKey resolves the filter's team once. A filter naming a team
 // that does not exist matches nothing, which is reported as an empty page
 // rather than an error: a search is allowed to find nothing.
-func (s *Store) auditFilterTeamKey(ctx context.Context, filter model.AuditFilter) (*uint64, error) {
+func (s *Store) auditFilterTeamKey(ctx context.Context, filter coreaudit.Filter) (*uint64, error) {
 	if filter.WithoutTeam || filter.TeamID == "" {
 		return nil, nil
 	}
@@ -193,7 +193,7 @@ func (s *Store) auditFilterTeamKey(ctx context.Context, filter model.AuditFilter
 // applyAuditFilter narrows a query to the events a filter names. It is shared
 // by the paged search and the export so the two cannot drift into answering
 // different questions from the same parameters.
-func applyAuditFilter(q *gorm.DB, col string, filter model.AuditFilter, teamKey *uint64) *gorm.DB {
+func applyAuditFilter(q *gorm.DB, col string, filter coreaudit.Filter, teamKey *uint64) *gorm.DB {
 	switch {
 	case filter.WithoutTeam:
 		q = q.Where(col + "team_id IS NULL")
@@ -226,7 +226,7 @@ func applyAuditFilter(q *gorm.DB, col string, filter model.AuditFilter, teamKey 
 // the event by its public handle and the key is resolved in a subquery. That
 // keeps the translation where every other one lives -- inside this package --
 // and costs one indexed lookup per page rather than a round trip per page.
-func (s *Store) applyAuditCursor(ctx context.Context, q *gorm.DB, after model.AuditCursor) *gorm.DB {
+func (s *Store) applyAuditCursor(ctx context.Context, q *gorm.DB, after coreaudit.Cursor) *gorm.DB {
 	if after.Zero() {
 		return q
 	}
@@ -249,8 +249,8 @@ func auditPageSize(limit int) int {
 	return limit
 }
 
-func auditRowsToEvents(rows []auditEventReadRow) []model.AuditEvent {
-	out := make([]model.AuditEvent, 0, len(rows))
+func auditRowsToEvents(rows []auditEventReadRow) []coreaudit.Event {
+	out := make([]coreaudit.Event, 0, len(rows))
 	for i := range rows {
 		out = append(out, *toAuditEvent(&rows[i]))
 	}
@@ -259,7 +259,7 @@ func auditRowsToEvents(rows []auditEventReadRow) []model.AuditEvent {
 
 // ExportTeamAuditEvents returns one page of a team's events, newest first,
 // continuing from after.
-func (s *Store) ExportTeamAuditEvents(ctx context.Context, teamID string, after model.AuditCursor, limit int) ([]model.AuditEvent, error) {
+func (s *Store) ExportTeamAuditEvents(ctx context.Context, teamID string, after coreaudit.Cursor, limit int) ([]coreaudit.Event, error) {
 	teamKey, err := lookupKey(ctx, s.db, "team", teamID)
 	if errors.Is(err, apierr.ErrNotFound) {
 		return nil, nil
@@ -279,7 +279,7 @@ func (s *Store) ExportTeamAuditEvents(ctx context.Context, teamID string, after 
 
 // ExportAuditEvents returns one page of events across every team, newest first,
 // continuing from after.
-func (s *Store) ExportAuditEvents(ctx context.Context, filter model.AuditFilter, after model.AuditCursor, limit int) ([]model.AuditEvent, error) {
+func (s *Store) ExportAuditEvents(ctx context.Context, filter coreaudit.Filter, after coreaudit.Cursor, limit int) ([]coreaudit.Event, error) {
 	teamKey, err := s.auditFilterTeamKey(ctx, filter)
 	if err != nil {
 		return nil, err
@@ -301,7 +301,7 @@ func (s *Store) ExportAuditEvents(ctx context.Context, filter model.AuditFilter,
 // policy rather than an edit: it removes rows by age and cannot be pointed at a
 // particular record. The sweep that calls it records what it removed, so a
 // trail that starts partway through says why it does — see
-// model.AuditEventsPruned.
+// coreaudit.EventsPruned.
 func (s *Store) PruneAuditEvents(ctx context.Context, before time.Time, limit int) (int64, error) {
 	if before.IsZero() {
 		return 0, nil

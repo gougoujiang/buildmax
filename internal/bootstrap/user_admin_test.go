@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	"github.com/gougoujiang/buildmax/internal/mock"
 )
 
@@ -55,7 +55,7 @@ func TestOperatorAccountCommandsAreRecorded(t *testing.T) {
 		t.Fatalf("runUserLoginCode: %v", err)
 	}
 
-	want := []string{model.AuditUserCreated, model.AuditPasswordSet, model.AuditLoginCodeIssued}
+	want := []string{coreaudit.UserCreated, coreaudit.PasswordSet, coreaudit.LoginCodeIssued}
 	events := store.MockAuditStore.Events
 	if len(events) != len(want) {
 		t.Fatalf("got %d events, want %d: %+v", len(events), len(want), events)
@@ -69,7 +69,7 @@ func TestOperatorAccountCommandsAreRecorded(t *testing.T) {
 		// the machine that holds the database credentials and has no session to
 		// name; naming the machine is less than naming a person and more than
 		// recording nothing.
-		if e.ActorType != model.AuditActorSystem || e.ActorID != model.AuditActorOperator {
+		if e.ActorType != coreaudit.ActorSystem || e.ActorID != coreaudit.ActorOperator {
 			t.Errorf("event %d should name the operator binary: %+v", i, e)
 		}
 		if e.TargetType != "user" || e.TargetID != user.ID {

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/server/access"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
@@ -218,10 +219,10 @@ func (h *Handler) loginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	// Recorded after the login succeeds, so the trail holds sessions that were
 	// actually issued rather than attempts. A login has no team.
-	h.cfg.Audit.Record(r.Context(), model.AuditEvent{
-		ActorType:  model.AuditActorUser,
+	h.cfg.Audit.Record(r.Context(), coreaudit.Event{
+		ActorType:  coreaudit.ActorUser,
 		ActorID:    user.ID,
-		Action:     model.AuditUserLogin,
+		Action:     coreaudit.UserLogin,
 		TargetType: "platform",
 		TargetID:   platform,
 		// Which credential authenticated. A trail that cannot tell a password
@@ -271,10 +272,10 @@ func (h *Handler) refreshHandler(w http.ResponseWriter, r *http.Request) {
 		// The store has already revoked the session. Record it: this is the
 		// one signal a deployment gets that a credential was copied, and it
 		// arrives without anyone reporting anything.
-		h.cfg.Audit.Record(r.Context(), model.AuditEvent{
-			ActorType:  model.AuditActorSystem,
+		h.cfg.Audit.Record(r.Context(), coreaudit.Event{
+			ActorType:  coreaudit.ActorSystem,
 			ActorID:    rotated.UserID,
-			Action:     model.AuditRefreshReuse,
+			Action:     coreaudit.RefreshReuse,
 			TargetType: "auth_session",
 			TargetID:   rotated.SessionID,
 		})
@@ -383,10 +384,10 @@ func (h *Handler) setPasswordHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteInternalError(w, err, "auth handler error", "handler", "set_password", "user_id", userID)
 		return
 	}
-	h.cfg.Audit.Record(r.Context(), model.AuditEvent{
-		ActorType:  model.AuditActorUser,
+	h.cfg.Audit.Record(r.Context(), coreaudit.Event{
+		ActorType:  coreaudit.ActorUser,
 		ActorID:    userID,
-		Action:     model.AuditPasswordSet,
+		Action:     coreaudit.PasswordSet,
 		TargetType: "user",
 		TargetID:   userID,
 	})
@@ -434,10 +435,10 @@ func (h *Handler) logoutHandler(w http.ResponseWriter, r *http.Request) {
 	// An unknown token revokes nothing and still answers 204: a client should
 	// be able to log out of a session the server has already forgotten.
 	if sessionID != "" {
-		h.cfg.Audit.Record(r.Context(), model.AuditEvent{
-			ActorType:  model.AuditActorUser,
+		h.cfg.Audit.Record(r.Context(), coreaudit.Event{
+			ActorType:  coreaudit.ActorUser,
 			ActorID:    userID,
-			Action:     model.AuditUserLogout,
+			Action:     coreaudit.UserLogout,
 			TargetType: "auth_session",
 			TargetID:   sessionID,
 		})

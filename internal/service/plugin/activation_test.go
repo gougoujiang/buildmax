@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -91,7 +91,7 @@ func TestActivatePinsTheNewestRelease(t *testing.T) {
 	if got.Origin != coreplugin.ActivationCurated {
 		t.Errorf("origin = %q, want curated", got.Origin)
 	}
-	if !events.has(model.AuditPluginActivated) {
+	if !events.has(coreaudit.PluginActivated) {
 		t.Error("activation is the record that answers why a run had a capability; it must be audited")
 	}
 }
@@ -193,7 +193,7 @@ func TestOpenModeActivatesOnFirstNaming(t *testing.T) {
 	if got[0].Version != "1.2.0" || got[0].Digest == "" {
 		t.Errorf("an automatic activation is still a pin, got %+v", got[0])
 	}
-	if !events.has(model.AuditPluginActivated) {
+	if !events.has(coreaudit.PluginActivated) {
 		t.Error("an automatic activation is audited like any other")
 	}
 }
@@ -281,7 +281,7 @@ func TestSuspendKeepsThePinAndIsAudited(t *testing.T) {
 	if suspended.Version != "1.2.0" || suspended.Digest == "" {
 		t.Errorf("suspension lost the pin: %+v", suspended)
 	}
-	if !events.has(model.AuditPluginSuspended) {
+	if !events.has(coreaudit.PluginSuspended) {
 		t.Error("suspension stops a team's runs; it must be audited")
 	}
 
@@ -289,7 +289,7 @@ func TestSuspendKeepsThePinAndIsAudited(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resume: %v", err)
 	}
-	if !resumed.Enabled || !events.has(model.AuditPluginResumed) {
+	if !resumed.Enabled || !events.has(coreaudit.PluginResumed) {
 		t.Errorf("resume did not take or was not audited: %+v", resumed)
 	}
 }
@@ -314,7 +314,7 @@ func TestSetCurationValidatesAndAudits(t *testing.T) {
 	if err := s.SetCuration(ctx, testTeam, coreplugin.CurationCurated, testAdmin); err != nil {
 		t.Fatalf("SetCuration: %v", err)
 	}
-	if !events.has(model.AuditTeamPluginCuration) {
+	if !events.has(coreaudit.TeamPluginCuration) {
 		t.Error("the mode is a decision about a team's runs; it must be audited")
 	}
 	team, err := s.Teams.GetTeam(ctx, testTeam)

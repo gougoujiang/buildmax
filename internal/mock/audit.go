@@ -5,18 +5,18 @@ import (
 	"sort"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 )
 
-// MockAuditStore is an in-memory model.AuditStore for tests.
+// MockAuditStore is an in-memory coreaudit.Store for tests.
 type MockAuditStore struct {
-	Events []model.AuditEvent
+	Events []coreaudit.Event
 	// Err, when set, is returned by RecordAuditEvent so a caller's behaviour
 	// on a failed write can be exercised.
 	Err error
 }
 
-func (m *MockAuditStore) RecordAuditEvent(_ context.Context, in model.AuditEvent) error {
+func (m *MockAuditStore) RecordAuditEvent(_ context.Context, in coreaudit.Event) error {
 	if m.Err != nil {
 		return m.Err
 	}
@@ -31,8 +31,8 @@ func (m *MockAuditStore) RecordAuditEvent(_ context.Context, in model.AuditEvent
 	return nil
 }
 
-func (m *MockAuditStore) ListAuditEvents(_ context.Context, teamID string, limit, offset int) ([]model.AuditEvent, int, error) {
-	var all []model.AuditEvent
+func (m *MockAuditStore) ListAuditEvents(_ context.Context, teamID string, limit, offset int) ([]coreaudit.Event, int, error) {
+	var all []coreaudit.Event
 	for _, e := range m.Events {
 		if e.TeamID == teamID {
 			all = append(all, e)
@@ -42,8 +42,8 @@ func (m *MockAuditStore) ListAuditEvents(_ context.Context, teamID string, limit
 	return page, total, nil
 }
 
-func (m *MockAuditStore) SearchAuditEvents(_ context.Context, filter model.AuditFilter, limit, offset int) ([]model.AuditEvent, int, error) {
-	var all []model.AuditEvent
+func (m *MockAuditStore) SearchAuditEvents(_ context.Context, filter coreaudit.Filter, limit, offset int) ([]coreaudit.Event, int, error) {
+	var all []coreaudit.Event
 	for _, e := range m.Events {
 		if matchesAuditFilter(e, filter) {
 			all = append(all, e)
@@ -54,13 +54,13 @@ func (m *MockAuditStore) SearchAuditEvents(_ context.Context, filter model.Audit
 }
 
 // ExportTeamAuditEvents walks a team's events newest-first from after.
-func (m *MockAuditStore) ExportTeamAuditEvents(_ context.Context, teamID string, after model.AuditCursor, limit int) ([]model.AuditEvent, error) {
-	return m.exportPage(func(e model.AuditEvent) bool { return e.TeamID == teamID }, after, limit), nil
+func (m *MockAuditStore) ExportTeamAuditEvents(_ context.Context, teamID string, after coreaudit.Cursor, limit int) ([]coreaudit.Event, error) {
+	return m.exportPage(func(e coreaudit.Event) bool { return e.TeamID == teamID }, after, limit), nil
 }
 
 // ExportAuditEvents walks every team's events newest-first from after.
-func (m *MockAuditStore) ExportAuditEvents(_ context.Context, filter model.AuditFilter, after model.AuditCursor, limit int) ([]model.AuditEvent, error) {
-	return m.exportPage(func(e model.AuditEvent) bool { return matchesAuditFilter(e, filter) }, after, limit), nil
+func (m *MockAuditStore) ExportAuditEvents(_ context.Context, filter coreaudit.Filter, after coreaudit.Cursor, limit int) ([]coreaudit.Event, error) {
+	return m.exportPage(func(e coreaudit.Event) bool { return matchesAuditFilter(e, filter) }, after, limit), nil
 }
 
 // exportPage mirrors the store's keyset paging: newest first, continuing from
@@ -69,12 +69,12 @@ func (m *MockAuditStore) ExportAuditEvents(_ context.Context, filter model.Audit
 // The mock assigns no ids, so position within Events stands in for one. It is
 // assigned here rather than at write time because a test that appends events
 // out of order should still page in the order it declared.
-func (m *MockAuditStore) exportPage(keep func(model.AuditEvent) bool, after model.AuditCursor, limit int) []model.AuditEvent {
+func (m *MockAuditStore) exportPage(keep func(coreaudit.Event) bool, after coreaudit.Cursor, limit int) []coreaudit.Event {
 	if limit <= 0 {
 		limit = 200
 	}
 	type ordered struct {
-		event model.AuditEvent
+		event coreaudit.Event
 		seq   int
 	}
 	var matched []ordered
@@ -104,7 +104,7 @@ func (m *MockAuditStore) exportPage(keep func(model.AuditEvent) bool, after mode
 		}
 	}
 
-	out := make([]model.AuditEvent, 0, limit)
+	out := make([]coreaudit.Event, 0, limit)
 	for _, o := range matched[min(start, len(matched)):] {
 		out = append(out, o.event)
 		if len(out) == limit {
@@ -122,7 +122,7 @@ func (m *MockAuditStore) PruneAuditEvents(_ context.Context, before time.Time, l
 	if limit <= 0 {
 		limit = 1000
 	}
-	kept := make([]model.AuditEvent, 0, len(m.Events))
+	kept := make([]coreaudit.Event, 0, len(m.Events))
 	var removed int64
 	for _, e := range m.Events {
 		if e.CreatedAt.Before(before) && removed < int64(limit) {
@@ -146,7 +146,7 @@ func (m *MockAuditStore) OldestAuditEventAt(_ context.Context) (time.Time, error
 	return oldest, nil
 }
 
-func matchesAuditFilter(e model.AuditEvent, filter model.AuditFilter) bool {
+func matchesAuditFilter(e coreaudit.Event, filter coreaudit.Filter) bool {
 	switch {
 	case filter.WithoutTeam && e.TeamID != "":
 		return false

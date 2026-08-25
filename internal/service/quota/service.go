@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	corequota "github.com/gougoujiang/buildmax/internal/core/quota"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 )
@@ -20,7 +20,7 @@ type Service struct {
 	// enforcement is the point, and the record of it is what a team admin reads
 	// afterwards. It is the full store rather than a writer because the events
 	// are deduplicated against what is already there; see alert.go.
-	Audit model.AuditStore
+	Audit coreaudit.Store
 	clock func() time.Time
 }
 

@@ -18,7 +18,7 @@ import (
 	"strings"
 
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	archive "github.com/gougoujiang/buildmax/internal/infra/pluginarchive"
@@ -77,7 +77,7 @@ func (s *Service) CreateEntry(ctx context.Context, in CreateEntryInput) (*corepl
 	if err != nil {
 		return nil, err
 	}
-	s.record(ctx, in.ActorID, model.AuditPluginCreated, entry.Name, entry.Name, "")
+	s.record(ctx, in.ActorID, coreaudit.PluginCreated, entry.Name, entry.Name, "")
 	return entry, nil
 }
 
@@ -88,7 +88,7 @@ func (s *Service) UpdateEntry(ctx context.Context, name string, in coreplugin.Up
 	if err != nil {
 		return nil, err
 	}
-	s.record(ctx, actorID, model.AuditPluginUpdated, entry.Name, entry.Name, "")
+	s.record(ctx, actorID, coreaudit.PluginUpdated, entry.Name, entry.Name, "")
 	return entry, nil
 }
 
@@ -108,9 +108,9 @@ func (s *Service) SetArchived(ctx context.Context, name string, archived bool, a
 	if err := s.Catalog.SetPluginArchived(ctx, name, archived); err != nil {
 		return err
 	}
-	action := model.AuditPluginUnarchived
+	action := coreaudit.PluginUnarchived
 	if archived {
-		action = model.AuditPluginArchived
+		action = coreaudit.PluginArchived
 	}
 	s.record(ctx, actorID, action, entry.Name, entry.Name, "")
 	return nil
@@ -167,7 +167,7 @@ func (s *Service) Yank(ctx context.Context, name, version, actorID, reason strin
 	if err := s.Catalog.YankPluginRelease(ctx, name, version, actorID, reason); err != nil {
 		return err
 	}
-	s.record(ctx, actorID, model.AuditPluginYanked, name, releaseTarget(name, version),
+	s.record(ctx, actorID, coreaudit.PluginYanked, name, releaseTarget(name, version),
 		releaseDetail(name, version, release.Digest))
 	return nil
 }
@@ -253,7 +253,7 @@ func (s *Service) Publish(ctx context.Context, in PublishInput) (*coreplugin.Rel
 	if err != nil {
 		return nil, err
 	}
-	s.record(ctx, in.ActorID, model.AuditPluginPublished, entry.Name, releaseTarget(entry.Name, release.Version),
+	s.record(ctx, in.ActorID, coreaudit.PluginPublished, entry.Name, releaseTarget(entry.Name, release.Version),
 		releaseDetail(entry.Name, release.Version, release.Digest))
 	return release, nil
 }
@@ -326,8 +326,8 @@ func (s *Service) record(ctx context.Context, actorID, action, name, targetID, d
 	if detail == "" {
 		detail = name
 	}
-	s.Audit.Record(ctx, model.AuditEvent{
-		ActorType:  model.AuditActorUser,
+	s.Audit.Record(ctx, coreaudit.Event{
+		ActorType:  coreaudit.ActorUser,
 		ActorID:    actorID,
 		Action:     action,
 		TargetType: "plugin",

@@ -11,6 +11,7 @@ import (
 	"net/http"
 
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
@@ -31,7 +32,7 @@ type Config struct {
 	Users       model.UserStore
 	Agents      agentdef.Store
 	WebhookKeys model.UserWebhookKeyStore
-	Audits      model.AuditStore
+	Audits      coreaudit.Store
 	// Workflows answers one question here -- which published workflows still
 	// name an agent -- so that deleting one cannot silently break them. Nil
 	// leaves that check unmade, which is what a deployment without workflows

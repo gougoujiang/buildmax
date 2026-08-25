@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 )
 
 // quotaWarnThreshold is the share of a limit that turns into a recorded
@@ -46,23 +46,23 @@ func (c *Service) noteUsage(ctx context.Context, teamID string, limit quotaLimit
 	if c.Audit == nil || max <= 0 {
 		return
 	}
-	action := model.AuditQuotaThresholdReached
+	action := coreaudit.QuotaThresholdReached
 	detail := fmt.Sprintf("%s %d%% of %d", limit, int(float64(used)*100/float64(max)), max)
 	if denied {
-		action = model.AuditQuotaExceeded
+		action = coreaudit.QuotaExceeded
 		detail = fmt.Sprintf("%s limit reached at %d of %d", limit, used, max)
 	}
 
 	if c.alreadyNoted(ctx, teamID, action, string(limit), windowStart) {
 		return
 	}
-	if err := c.Audit.RecordAuditEvent(ctx, model.AuditEvent{
+	if err := c.Audit.RecordAuditEvent(ctx, coreaudit.Event{
 		TeamID: teamID,
 		// The actor is the system, not whoever submitted the work that tipped
 		// the total over. A quota is a property of the team, and naming the
 		// last member to submit would read as blame for a shared budget.
-		ActorType:  model.AuditActorSystem,
-		ActorID:    model.AuditActorOperator,
+		ActorType:  coreaudit.ActorSystem,
+		ActorID:    coreaudit.ActorOperator,
 		Action:     action,
 		TargetType: "team",
 		TargetID:   teamID,
@@ -81,7 +81,7 @@ func (c *Service) noteUsage(ctx context.Context, teamID string, limit quotaLimit
 // noted": a duplicate warning is noise, and noise in an evidence table is worse
 // than a warning that was skipped once because the database was busy.
 func (c *Service) alreadyNoted(ctx context.Context, teamID, action, limit string, windowStart time.Time) bool {
-	events, _, err := c.Audit.SearchAuditEvents(ctx, model.AuditFilter{
+	events, _, err := c.Audit.SearchAuditEvents(ctx, coreaudit.Filter{
 		TeamID: teamID,
 		Action: action,
 		Since:  windowStart,

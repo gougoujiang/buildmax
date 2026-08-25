@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
 )
@@ -83,13 +84,13 @@ func TestAdminGrantAndRevoke(t *testing.T) {
 
 	// The grant is attributed to the binary, not to an invented user, and the
 	// grant row and the audit event agree on the name.
-	if got := store.MockSystemGrantStore.Grants[0].GrantedBy; got != model.AuditActorOperator {
-		t.Errorf("GrantedBy = %q, want %q", got, model.AuditActorOperator)
+	if got := store.MockSystemGrantStore.Grants[0].GrantedBy; got != coreaudit.ActorOperator {
+		t.Errorf("GrantedBy = %q, want %q", got, coreaudit.ActorOperator)
 	}
 	event := store.MockAuditStore.Events[0]
-	if event.Action != model.AuditSystemAdminGranted ||
-		event.ActorType != model.AuditActorSystem ||
-		event.ActorID != model.AuditActorOperator ||
+	if event.Action != coreaudit.SystemAdminGranted ||
+		event.ActorType != coreaudit.ActorSystem ||
+		event.ActorID != coreaudit.ActorOperator ||
 		event.TargetID != user.ID ||
 		event.TeamID != "" {
 		t.Errorf("grant event wrong: %+v", event)
@@ -110,7 +111,7 @@ func TestAdminGrantAndRevoke(t *testing.T) {
 	if err != nil || len(roles) != 0 {
 		t.Fatalf("after revoke ActiveSystemRoles = %v, %v; want empty", roles, err)
 	}
-	if want := []string{model.AuditSystemAdminGranted, model.AuditSystemAdminRevoked}; len(actions(store)) != 2 ||
+	if want := []string{coreaudit.SystemAdminGranted, coreaudit.SystemAdminRevoked}; len(actions(store)) != 2 ||
 		actions(store)[0] != want[0] || actions(store)[1] != want[1] {
 		t.Errorf("audit actions = %v, want %v", actions(store), want)
 	}

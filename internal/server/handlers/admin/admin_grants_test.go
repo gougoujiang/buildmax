@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 )
 
 // TestGrantRoundTripThroughTheAPI: an administrator can hand the authority to
@@ -51,7 +51,7 @@ func TestGrantRoundTripThroughTheAPI(t *testing.T) {
 	// The grant, the revocation, and then the refused request the revoked
 	// administrator made — which is the trail doing its job, not noise: a
 	// denial is what shows someone reaching for authority they no longer have.
-	want := []string{model.AuditSystemAdminGranted, model.AuditSystemAdminRevoked, model.AuditAccessDenied}
+	want := []string{coreaudit.SystemAdminGranted, coreaudit.SystemAdminRevoked, coreaudit.AccessDenied}
 	got := f.actions()
 	if len(got) != len(want) {
 		t.Fatalf("actions = %v, want %v", got, want)
@@ -62,7 +62,7 @@ func TestGrantRoundTripThroughTheAPI(t *testing.T) {
 		}
 	}
 	for _, e := range f.audits.Events[:2] {
-		if e.ActorID != adminUser || e.ActorType != model.AuditActorUser {
+		if e.ActorID != adminUser || e.ActorType != coreaudit.ActorUser {
 			t.Errorf("a grant made through the API names the administrator: %+v", e)
 		}
 	}

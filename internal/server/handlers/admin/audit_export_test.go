@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 )
 
 // teamAuditExport drives the team-scoped export as one user.
@@ -60,12 +60,12 @@ func TestAdminAuditExportHonoursTheSameFilters(t *testing.T) {
 
 	rec := exportBody(t, mux, "?format=jsonl&team_id=tm_one")
 
-	var lines []model.AuditEvent
+	var lines []coreaudit.Event
 	for line := range strings.SplitSeq(strings.TrimSpace(rec.Body.String()), "\n") {
 		if line == "" {
 			continue
 		}
-		var event model.AuditEvent
+		var event coreaudit.Event
 		if err := json.Unmarshal([]byte(line), &event); err != nil {
 			t.Fatalf("parse jsonl line %q: %v", line, err)
 		}
@@ -91,7 +91,7 @@ func TestAdminAuditExportReachesTheEventsWithNoTeam(t *testing.T) {
 		if line == "" {
 			continue
 		}
-		var event model.AuditEvent
+		var event coreaudit.Event
 		if err := json.Unmarshal([]byte(line), &event); err != nil {
 			t.Fatalf("parse jsonl: %v", err)
 		}
@@ -112,9 +112,9 @@ func TestAdminAuditExportIsItselfRecorded(t *testing.T) {
 
 	exportBody(t, mux, "?format=csv")
 
-	var recorded *model.AuditEvent
+	var recorded *coreaudit.Event
 	for i := range audits.Events {
-		if audits.Events[i].Action == model.AuditEventsExported {
+		if audits.Events[i].Action == coreaudit.EventsExported {
 			recorded = &audits.Events[i]
 		}
 	}
@@ -137,7 +137,7 @@ func TestAdminAuditExportOfOneTeamIsVisibleToThatTeam(t *testing.T) {
 	exportBody(t, mux, "?format=csv&team_id=tm_one")
 
 	for _, event := range audits.Events {
-		if event.Action == model.AuditEventsExported {
+		if event.Action == coreaudit.EventsExported {
 			if event.TeamID != "tm_one" {
 				t.Errorf("recorded against team %q, want tm_one", event.TeamID)
 			}

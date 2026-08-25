@@ -9,7 +9,7 @@ import (
 	"testing/fstest"
 
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 	archive "github.com/gougoujiang/buildmax/internal/infra/pluginarchive"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -96,11 +96,11 @@ func TestPublishStoresBytesAndRelease(t *testing.T) {
 	if entry == nil || entry.DisplayName != "Code Review" {
 		t.Errorf("entry = %+v", entry)
 	}
-	if !events.has(model.AuditPluginCreated) || !events.has(model.AuditPluginPublished) {
+	if !events.has(coreaudit.PluginCreated) || !events.has(coreaudit.PluginPublished) {
 		t.Errorf("audit trail = %+v", events.actions())
 	}
 	// The trail names the version and a digest prefix, never the whole thing.
-	detail := events.detailFor(model.AuditPluginPublished)
+	detail := events.detailFor(coreaudit.PluginPublished)
 	if !strings.Contains(detail, "code-review@1.2.0") {
 		t.Errorf("detail = %q", detail)
 	}
@@ -241,8 +241,8 @@ func TestCatalogLifecycleRecordsTheTrail(t *testing.T) {
 		t.Errorf("archiving a missing entry: err = %v, want ErrNotFound", err)
 	}
 	for _, action := range []string{
-		model.AuditPluginCreated, model.AuditPluginUpdated,
-		model.AuditPluginArchived, model.AuditPluginUnarchived,
+		coreaudit.PluginCreated, coreaudit.PluginUpdated,
+		coreaudit.PluginArchived, coreaudit.PluginUnarchived,
 	} {
 		if !events.has(action) {
 			t.Errorf("missing %s in %v", action, events.actions())
@@ -261,7 +261,7 @@ func TestYank(t *testing.T) {
 	if err := s.Yank(ctx, "code-review", "1.0.0", "u_admin", "broken hook"); err != nil {
 		t.Fatal(err)
 	}
-	if !events.has(model.AuditPluginYanked) {
+	if !events.has(coreaudit.PluginYanked) {
 		t.Errorf("audit trail = %v", events.actions())
 	}
 	if err := s.Yank(ctx, "code-review", "9.9.9", "u_admin", ""); !errors.Is(err, apierr.ErrNotFound) {
@@ -271,9 +271,9 @@ func TestYank(t *testing.T) {
 
 // --- fakes -----------------------------------------------------------------
 
-type fakeAudit struct{ events []model.AuditEvent }
+type fakeAudit struct{ events []coreaudit.Event }
 
-func (f *fakeAudit) RecordAuditEvent(_ context.Context, e model.AuditEvent) error {
+func (f *fakeAudit) RecordAuditEvent(_ context.Context, e coreaudit.Event) error {
 	f.events = append(f.events, e)
 	return nil
 }

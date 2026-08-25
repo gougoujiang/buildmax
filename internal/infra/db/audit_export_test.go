@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 )
 
 // seedAuditEvents writes n events for one actor at the given timestamps and
@@ -21,11 +21,11 @@ func at(seconds int) time.Time { return time.Unix(1_700_000_000+int64(seconds), 
 func seedAuditEvents(t *testing.T, s *Store, ctx context.Context, actor, teamID string, at []time.Time) {
 	t.Helper()
 	for range at {
-		if err := s.RecordAuditEvent(ctx, model.AuditEvent{
+		if err := s.RecordAuditEvent(ctx, coreaudit.Event{
 			TeamID:    teamID,
-			ActorType: model.AuditActorUser,
+			ActorType: coreaudit.ActorUser,
 			ActorID:   actor,
-			Action:    model.AuditUserLogin,
+			Action:    coreaudit.UserLogin,
 		}); err != nil {
 			t.Fatalf("RecordAuditEvent: %v", err)
 		}
@@ -64,7 +64,7 @@ func TestExportTeamAuditEventsWalksEveryEventAcrossTies(t *testing.T) {
 	seedAuditEvents(t, s, ctx, actor, teamID, []time.Time{at(500), at(500), at(500), at(400)})
 
 	var seen []string
-	var cursor model.AuditCursor
+	var cursor coreaudit.Cursor
 	for range 10 {
 		page, err := s.ExportTeamAuditEvents(ctx, teamID, cursor, 2)
 		if err != nil {
@@ -77,7 +77,7 @@ func TestExportTeamAuditEventsWalksEveryEventAcrossTies(t *testing.T) {
 			seen = append(seen, e.ID)
 		}
 		last := page[len(page)-1]
-		cursor = model.AuditCursor{CreatedAt: last.CreatedAt, ID: last.ID}
+		cursor = coreaudit.Cursor{CreatedAt: last.CreatedAt, ID: last.ID}
 	}
 
 	if len(seen) != 4 {
@@ -103,7 +103,7 @@ func TestExportAuditEventsHonoursTheFilter(t *testing.T) {
 
 	seedAuditEvents(t, s, ctx, actor, teamID, []time.Time{at(100), at(200), at(300)})
 
-	events, err := s.ExportAuditEvents(ctx, model.AuditFilter{ActorID: actor, Since: at(200)}, model.AuditCursor{}, 100)
+	events, err := s.ExportAuditEvents(ctx, coreaudit.Filter{ActorID: actor, Since: at(200)}, coreaudit.Cursor{}, 100)
 	if err != nil {
 		t.Fatalf("ExportAuditEvents: %v", err)
 	}
@@ -162,7 +162,7 @@ func TestPruneAuditEventsRemovesOnlyWhatExpired(t *testing.T) {
 		t.Fatalf("second batch removed %d, want 1", removed)
 	}
 
-	remaining, err := s.ExportAuditEvents(ctx, model.AuditFilter{ActorID: actor}, model.AuditCursor{}, 100)
+	remaining, err := s.ExportAuditEvents(ctx, coreaudit.Filter{ActorID: actor}, coreaudit.Cursor{}, 100)
 	if err != nil {
 		t.Fatalf("ExportAuditEvents: %v", err)
 	}

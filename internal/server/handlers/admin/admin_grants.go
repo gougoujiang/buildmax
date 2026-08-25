@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 )
@@ -104,10 +105,10 @@ func (h *Handler) createAdminGrantHandler(w http.ResponseWriter, r *http.Request
 		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_create_grant", "user_id", req.UserID)
 		return
 	}
-	h.cfg.Audit.Record(r.Context(), model.AuditEvent{
-		ActorType:  model.AuditActorUser,
+	h.cfg.Audit.Record(r.Context(), coreaudit.Event{
+		ActorType:  coreaudit.ActorUser,
 		ActorID:    actorID,
-		Action:     model.AuditSystemAdminGranted,
+		Action:     coreaudit.SystemAdminGranted,
 		TargetType: "user",
 		TargetID:   req.UserID,
 		Detail:     role,
@@ -155,10 +156,10 @@ func (h *Handler) deleteAdminGrantHandler(w http.ResponseWriter, r *http.Request
 		httputil.WriteJSONError(w, http.StatusNotFound, "the account does not hold this role")
 		return
 	}
-	h.cfg.Audit.Record(r.Context(), model.AuditEvent{
-		ActorType:  model.AuditActorUser,
+	h.cfg.Audit.Record(r.Context(), coreaudit.Event{
+		ActorType:  coreaudit.ActorUser,
 		ActorID:    actorID,
-		Action:     model.AuditSystemAdminRevoked,
+		Action:     coreaudit.SystemAdminRevoked,
 		TargetType: "user",
 		TargetID:   userID,
 		Detail:     role,

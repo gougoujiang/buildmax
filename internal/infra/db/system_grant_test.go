@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/config"
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 )
 
@@ -43,7 +44,7 @@ func TestSystemGrantLifecycle(t *testing.T) {
 		t.Fatalf("CountActiveSystemGrants: %v", err)
 	}
 
-	grant, err := s.GrantSystemRole(ctx, userID, model.SystemRoleAdmin, model.AuditActorOperator, time.Unix(100, 0).UTC())
+	grant, err := s.GrantSystemRole(ctx, userID, model.SystemRoleAdmin, coreaudit.ActorOperator, time.Unix(100, 0).UTC())
 	if err != nil {
 		t.Fatalf("GrantSystemRole: %v", err)
 	}
@@ -133,7 +134,7 @@ func TestGrantSystemRoleRejectsUnknownRole(t *testing.T) {
 	s, ctx := openGrantStore(t)
 	userID := newTestUser(t, s, "grant")
 
-	if _, err := s.GrantSystemRole(ctx, userID, "system_observer", model.AuditActorOperator, time.Unix(100, 0).UTC()); !errors.Is(err, model.ErrSystemRoleUnknown) {
+	if _, err := s.GrantSystemRole(ctx, userID, "system_observer", coreaudit.ActorOperator, time.Unix(100, 0).UTC()); !errors.Is(err, model.ErrSystemRoleUnknown) {
 		t.Fatalf("GrantSystemRole(system_observer) err = %v, want ErrSystemRoleUnknown", err)
 	}
 	roles, err := s.ActiveSystemRoles(ctx, userID)
