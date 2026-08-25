@@ -352,3 +352,103 @@ func TestARunWritesASessionBundle(t *testing.T) {
 		t.Errorf("the old traces root still exists (stat err = %v)", err)
 	}
 }
+
+// TestResumingASessionSendsTheEarlierTurnBackToTheModel is what -r has to mean.
+// The bundle test above proves a run writes its journal; this proves a second
+// process reads that journal back and hands it to the model as the conversation
+// so far. Only two real runs over one directory assemble both halves.
+func TestResumingASessionSendsTheEarlierTurnBackToTheModel(t *testing.T) {
+	server := startModel(t, "resume-a-session.json")
+	workspace := t.TempDir()
+	home := writeHome(t, server, nil)
+
+	first := run(t, home, workspace, "-p", "remember the code word: albatross", "--output", "jsonl")
+	if first.exitCode != 0 {
+		t.Fatalf("first run exit code = %d, want 0\nstderr:\n%s", first.exitCode, first.stderr)
+	}
+	sessionID := first.field("result", "session_id")
+	if sessionID == "" {
+		t.Fatal("the first run reported no session id")
+	}
+
+	second := run(t, home, workspace, "-r", sessionID, "-p", "what was the code word?", "--output", "jsonl")
+	if second.exitCode != 0 {
+		t.Fatalf("resumed run exit code = %d, want 0\nstderr:\n%s", second.exitCode, second.stderr)
+	}
+	// A resume that quietly started a new conversation would answer just as
+	// well and abandon the session, so the id is the assertion, not the reply.
+	if got := second.field("result", "session_id"); got != sessionID {
+		t.Fatalf("resumed session id = %q, want the session it was told to resume, %q", got, sessionID)
+	}
+
+	calls := server.Requests()
+	if len(calls) != 2 {
+		t.Fatalf("model calls = %d, want 2, one per run", len(calls))
+	}
+	// What the second run sent is the whole proof: the earlier exchange has to
+	// be in the request, or the model is answering with no memory of it.
+	sent := string(calls[1].Body)
+	for _, want := range []string{
+		"remember the code word: albatross",
+		"noted: the code word is albatross",
+		"what was the code word?",
+	} {
+		if !strings.Contains(sent, want) {
+			t.Errorf("the resumed run did not send %q to the model:\n%s", want, sent)
+		}
+	}
+
+	// Both turns land in the one journal. A resume that appended somewhere else
+	// would still have sent the right history and still lose the next run.
+	journal, err := os.ReadFile(filepath.Join(home, "sessions", sessionID, "history.jsonl"))
+	if err != nil {
+		t.Fatalf("read journal: %v", err)
+	}
+	if !strings.Contains(string(journal), "albatross") || !strings.Contains(string(journal), "what was the code word?") {
+		t.Errorf("the journal does not hold both turns:\n%s", journal)
+	}
+	if remaining := server.Remaining(); remaining != 0 {
+		t.Fatalf("unconsumed scenario steps = %d, want 0", remaining)
+	}
+}
+
+// TestContinueResumesTheMostRecentSession covers the flag a person actually
+// types: -r needs an id from somewhere, -c has to find the session itself.
+// Choosing the wrong one is invisible until the model answers out of the wrong
+// conversation, which is why this asserts on what was sent rather than on the
+// reply.
+func TestContinueResumesTheMostRecentSession(t *testing.T) {
+	server := startModel(t, "three-short-answers.json")
+	workspace := t.TempDir()
+	home := writeHome(t, server, nil)
+
+	older := run(t, home, workspace, "-p", "this is the older session", "--output", "jsonl")
+	newer := run(t, home, workspace, "-p", "this is the newer session", "--output", "jsonl")
+	olderID, newerID := older.field("result", "session_id"), newer.field("result", "session_id")
+	if olderID == "" || newerID == "" || olderID == newerID {
+		t.Fatalf("the two runs did not leave two sessions: %q and %q", olderID, newerID)
+	}
+
+	continued := run(t, home, workspace, "-c", "-p", "which session is this?", "--output", "jsonl")
+	if continued.exitCode != 0 {
+		t.Fatalf("continued run exit code = %d, want 0\nstderr:\n%s", continued.exitCode, continued.stderr)
+	}
+	if got := continued.field("result", "session_id"); got != newerID {
+		t.Fatalf("-c resumed %q, want the most recent session %q (the other was %q)", got, newerID, olderID)
+	}
+
+	calls := server.Requests()
+	if len(calls) != 3 {
+		t.Fatalf("model calls = %d, want 3, one per run", len(calls))
+	}
+	sent := string(calls[2].Body)
+	if !strings.Contains(sent, "this is the newer session") {
+		t.Errorf("-c did not send the most recent conversation to the model:\n%s", sent)
+	}
+	if strings.Contains(sent, "this is the older session") {
+		t.Errorf("-c sent the other session's history too:\n%s", sent)
+	}
+	if remaining := server.Remaining(); remaining != 0 {
+		t.Fatalf("unconsumed scenario steps = %d, want 0", remaining)
+	}
+}
