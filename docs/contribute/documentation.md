@@ -98,7 +98,7 @@ Repeating a fact in two documents guarantees that one of them becomes wrong.
 | Repository tree | [repo-layout.md](repo-layout.md) | links |
 | Environment variables | `internal/config/env_spec.go` → [reference/configuration.md](../reference/configuration.md) | links |
 | Config file fields | `config-examples/*.example.yaml` → [reference/configuration.md](../reference/configuration.md) | links |
-| HTTP routes | `internal/server/handlers/routes.go` → `/openapi.json` | links |
+| HTTP routes | each handler subpackage's `Register` method → `/openapi.json` | links |
 | Roadmap priorities | [ROADMAP.md](../ROADMAP.md) | links |
 
 ## What Is Enforced

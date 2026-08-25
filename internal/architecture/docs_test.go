@@ -185,17 +185,20 @@ func TestAgentsMDPathsExist(t *testing.T) {
 // TestAgentsMDRoutesExist fails when AGENTS.md lists an HTTP route the server
 // does not register. The route list is a summary, so extra registered routes are
 // fine — a documented route that does not exist is not.
+//
+// It scans every package under internal/server. Reading only handlers/routes.go
+// would see 7 of the registrations: that file composes the subpackages, and
+// each one registers its own routes. A citation of any of the others would look
+// like a route the server does not have.
 func TestAgentsMDRoutesExist(t *testing.T) {
 	root := repoRoot(t)
-	routesSrc, err := os.ReadFile(filepath.Join(root, "internal", "server", "handlers", "routes.go"))
-	if err != nil {
-		t.Fatalf("read routes.go: %v", err)
-	}
-	registered := regexp.MustCompile(`mux\.Handle(?:Func)?\("[A-Z]+ ([^"]+)"`).
-		FindAllStringSubmatch(string(routesSrc), -1)
-	paths := map[string]bool{"/healthz": true, "/openapi.json": true, "/swagger/": true}
-	for _, m := range registered {
-		paths[m[1]] = true
+	paths := map[string]bool{}
+	for route := range registeredRoutes(t, root) {
+		_, pattern, ok := strings.Cut(route, " ")
+		if !ok {
+			t.Fatalf("route %q is not %q", route, "METHOD /pattern")
+		}
+		paths[pattern] = true
 	}
 
 	body, err := os.ReadFile(filepath.Join(root, "AGENTS.md"))

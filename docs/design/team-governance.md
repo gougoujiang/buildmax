@@ -84,11 +84,11 @@ explanation:
 
 **This gap is closed.** A matrix drives real requests through the mux for an
 owner, an admin, a member, a member of another team, and an anonymous caller,
-covering every team-scoped route in `internal/server/handlers/routes.go`.
+covering every team-scoped route the server registers.
 Driving requests rather than unit-testing the authorization helper is the
 point: the role rules have more than one implementation, and a test of the
-shared helper would pass while they drifted. A second test reads `routes.go`
-and fails when a team-scoped route has no entry — and when an entry names a
+shared helper would pass while they drifted. A second test reads every route
+registration and fails when a team-scoped route has no entry — and when an entry names a
 route that no longer exists, because a dead row reads as coverage.
 
 What it was built to prove:
@@ -336,7 +336,7 @@ control, build from observed needs rather than inventing custom RBAC now.
 
 Shipped as a route matrix rather than tests around `isRoleAllowed`, for the
 reason given in §4.2: the helper is not the only implementation of the rules.
-Every team-scoped route in `routes.go` has a row naming who may call it, the
+Every team-scoped route the server registers has a row naming who may call it, the
 rows are driven as real requests for five callers including a member of another
 team, and a route without a row fails the build.
 
