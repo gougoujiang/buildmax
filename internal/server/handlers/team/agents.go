@@ -1,11 +1,11 @@
 package team
 
 import (
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"net/http"
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
-	"github.com/gougoujiang/buildmax/internal/server/access"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	"github.com/gougoujiang/buildmax/internal/service/agent"
 	"github.com/gougoujiang/buildmax/internal/service/workflow"
@@ -135,7 +135,7 @@ func (h *Handler) createAgentHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if _, ok := h.guard().TeamAction(w, r, userID, teamID, access.ActionManageAgents); !ok {
+	if _, ok := h.guard().TeamAction(w, r, userID, teamID, coreteam.ActionManageAgents); !ok {
 		return
 	}
 	var req createAgentRequest
@@ -185,7 +185,7 @@ func (h *Handler) patchAgentHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if _, ok := h.guard().TeamAction(w, r, userID, teamID, access.ActionManageAgents); !ok {
+	if _, ok := h.guard().TeamAction(w, r, userID, teamID, coreteam.ActionManageAgents); !ok {
 		return
 	}
 	agentID, ok := httputil.PathValue(w, r, "agent_id")
@@ -248,7 +248,7 @@ func (h *Handler) restoreAgentRevisionHandler(w http.ResponseWriter, r *http.Req
 	if !ok {
 		return
 	}
-	if _, ok := h.guard().TeamAction(w, r, userID, teamID, access.ActionManageAgents); !ok {
+	if _, ok := h.guard().TeamAction(w, r, userID, teamID, coreteam.ActionManageAgents); !ok {
 		return
 	}
 	agentID, ok := httputil.PathValue(w, r, "agent_id")
@@ -280,7 +280,7 @@ func (h *Handler) deleteAgentHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if _, ok := h.guard().TeamAction(w, r, userID, teamID, access.ActionManageAgents); !ok {
+	if _, ok := h.guard().TeamAction(w, r, userID, teamID, coreteam.ActionManageAgents); !ok {
 		return
 	}
 	agentID, ok := httputil.PathValue(w, r, "agent_id")

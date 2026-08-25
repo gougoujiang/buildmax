@@ -13,6 +13,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 )
 
 var (
@@ -84,7 +85,7 @@ func (s *Service) AddMember(ctx context.Context, cmd AddMemberCmd) (*model.TeamM
 	if s.Users == nil {
 		return nil, nil, ErrUsersNotConfigured
 	}
-	if err := s.requireOwner(ctx, cmd.TeamID, cmd.ActorID, ErrOnlyOwnerCanAdd); err != nil {
+	if err := s.requireManageMembers(ctx, cmd.TeamID, cmd.ActorID, ErrOnlyOwnerCanAdd); err != nil {
 		return nil, nil, err
 	}
 
@@ -125,7 +126,7 @@ func (s *Service) RemoveMember(ctx context.Context, cmd RemoveMemberCmd) error {
 	if err != nil {
 		return err
 	}
-	if !hasRole(members, cmd.ActorID, model.TeamRoleOwner) {
+	if !allows(members, cmd.ActorID, coreteam.ActionManageTeamMembers) {
 		return ErrOnlyOwnerCanRemove
 	}
 	// An owner removing themselves could leave a team nobody can administer.
@@ -138,21 +139,25 @@ func (s *Service) RemoveMember(ctx context.Context, cmd RemoveMemberCmd) error {
 	return s.Teams.RemoveTeamMember(ctx, cmd.TeamID, cmd.TargetUserID)
 }
 
-func (s *Service) requireOwner(ctx context.Context, teamID, userID string, refusal error) error {
+// requireManageMembers refuses a caller who may not change this team's
+// membership. The refusal differs by command -- adding and removing say so in
+// their own words -- but the rule behind both is one action in core/team, so
+// the guard and this service cannot drift apart on who holds it.
+func (s *Service) requireManageMembers(ctx context.Context, teamID, userID string, refusal error) error {
 	members, err := s.Teams.ListTeamMembers(ctx, teamID)
 	if err != nil {
 		return err
 	}
-	if !hasRole(members, userID, model.TeamRoleOwner) {
+	if !allows(members, userID, coreteam.ActionManageTeamMembers) {
 		return refusal
 	}
 	return nil
 }
 
-func hasRole(members []model.TeamMember, userID, role string) bool {
+func allows(members []model.TeamMember, userID string, action coreteam.Action) bool {
 	for i := range members {
 		if members[i].UserID == userID {
-			return members[i].Role == role
+			return coreteam.Allows(members[i].Role, action)
 		}
 	}
 	return false

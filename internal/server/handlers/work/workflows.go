@@ -1,11 +1,11 @@
 package work
 
 import (
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"net/http"
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
-	"github.com/gougoujiang/buildmax/internal/server/access"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	"github.com/gougoujiang/buildmax/internal/service/task"
 	"github.com/gougoujiang/buildmax/internal/service/workflow"
@@ -219,7 +219,7 @@ func (h *Handler) createWorkflowHandler(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	if _, ok := h.guard().TeamAction(w, r, userID, teamID, access.ActionManageWorkflows); !ok {
+	if _, ok := h.guard().TeamAction(w, r, userID, teamID, coreteam.ActionManageWorkflows); !ok {
 		return
 	}
 	var req createWorkflowRequest
@@ -268,7 +268,7 @@ func (h *Handler) patchWorkflowHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if _, ok := h.guard().TeamAction(w, r, userID, teamID, access.ActionManageWorkflows); !ok {
+	if _, ok := h.guard().TeamAction(w, r, userID, teamID, coreteam.ActionManageWorkflows); !ok {
 		return
 	}
 	workflowID, ok := httputil.PathValue(w, r, "workflow_id")
@@ -332,7 +332,7 @@ func (h *Handler) restoreWorkflowRevisionHandler(w http.ResponseWriter, r *http.
 	if !ok {
 		return
 	}
-	if _, ok := h.guard().TeamAction(w, r, userID, teamID, access.ActionManageWorkflows); !ok {
+	if _, ok := h.guard().TeamAction(w, r, userID, teamID, coreteam.ActionManageWorkflows); !ok {
 		return
 	}
 	workflowID, ok := httputil.PathValue(w, r, "workflow_id")
@@ -413,7 +413,7 @@ func (h *Handler) createWorkflowRunHandler(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	if _, ok := h.guard().TeamAction(w, r, userID, teamID, access.ActionRunWorkflow); !ok {
+	if _, ok := h.guard().TeamAction(w, r, userID, teamID, coreteam.ActionRunWorkflow); !ok {
 		return
 	}
 	workflowID, ok := httputil.PathValue(w, r, "workflow_id")
@@ -451,7 +451,7 @@ func (h *Handler) createIssueWorkflowRunHandler(w http.ResponseWriter, r *http.R
 	if !ok {
 		return
 	}
-	if _, ok := h.guard().TeamAction(w, r, userID, teamID, access.ActionRunWorkflow); !ok {
+	if _, ok := h.guard().TeamAction(w, r, userID, teamID, coreteam.ActionRunWorkflow); !ok {
 		return
 	}
 	issueID, ok := httputil.PathValue(w, r, "issue_id")

@@ -3,6 +3,7 @@ package work
 import (
 	"context"
 	"errors"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"net/http"
 	"strings"
 	"time"
@@ -10,7 +11,6 @@ import (
 	agentsvc "github.com/gougoujiang/buildmax/internal/service/agent"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
-	"github.com/gougoujiang/buildmax/internal/server/access"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
 	"github.com/gougoujiang/buildmax/internal/service/issue"
@@ -397,7 +397,7 @@ func (h *Handler) patchIssueHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.AssigneeKind != nil && *req.AssigneeKind == model.IssueAssigneeWorkflow {
-		if _, ok := h.guard().TeamAction(w, r, userID, teamID, access.ActionAssignIssueWorkflow); !ok {
+		if _, ok := h.guard().TeamAction(w, r, userID, teamID, coreteam.ActionAssignIssueWorkflow); !ok {
 			return
 		}
 	}

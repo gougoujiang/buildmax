@@ -2,11 +2,11 @@ package team
 
 import (
 	"errors"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"net/http"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
-	"github.com/gougoujiang/buildmax/internal/server/access"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	pluginsvc "github.com/gougoujiang/buildmax/internal/service/plugin"
 )
@@ -85,7 +85,7 @@ func (h *Handler) activatePluginHandler(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	if _, ok := h.guard().TeamAction(w, r, userID, teamID, access.ActionManageAgents); !ok {
+	if _, ok := h.guard().TeamAction(w, r, userID, teamID, coreteam.ActionManageAgents); !ok {
 		return
 	}
 	if !h.requirePluginService(w) {
@@ -120,7 +120,7 @@ func (h *Handler) patchPluginActivationHandler(w http.ResponseWriter, r *http.Re
 	if !ok {
 		return
 	}
-	if _, ok := h.guard().TeamAction(w, r, userID, teamID, access.ActionManageAgents); !ok {
+	if _, ok := h.guard().TeamAction(w, r, userID, teamID, coreteam.ActionManageAgents); !ok {
 		return
 	}
 	if !h.requirePluginService(w) {
@@ -178,7 +178,7 @@ func (h *Handler) setPluginCurationHandler(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	if _, ok := h.guard().TeamAction(w, r, userID, teamID, access.ActionManageAgents); !ok {
+	if _, ok := h.guard().TeamAction(w, r, userID, teamID, coreteam.ActionManageAgents); !ok {
 		return
 	}
 	if !h.requirePluginService(w) {

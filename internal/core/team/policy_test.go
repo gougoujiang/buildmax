@@ -1,0 +1,64 @@
+package team
+
+import (
+	"testing"
+
+	"github.com/gougoujiang/buildmax/internal/core/model"
+)
+
+// TestAllowsMatrix is the whole rule, written out. A change to Allows that
+// nobody meant to make has to edit this table to pass, which is the point: the
+// two enforcers drive real requests and real commands, and neither of them can
+// show the rule as one piece.
+func TestAllowsMatrix(t *testing.T) {
+	const (
+		owner  = model.TeamRoleOwner
+		admin  = model.TeamRoleAdmin
+		member = model.TeamRoleMember
+	)
+	want := map[Action]map[string]bool{
+		ActionManageTeamMembers:     {owner: true, admin: false, member: false},
+		ActionReadAuditTrail:        {owner: true, admin: false, member: false},
+		ActionModerateIssueComments: {owner: true, admin: false, member: false},
+		ActionManageAgents:          {owner: true, admin: true, member: false},
+		ActionManageWorkflows:       {owner: true, admin: true, member: false},
+		ActionAssignIssueWorkflow:   {owner: true, admin: true, member: false},
+		ActionRunWorkflow:           {owner: true, admin: true, member: true},
+		ActionCommentIssue:          {owner: true, admin: true, member: true},
+	}
+	for _, action := range Actions() {
+		roles, ok := want[action]
+		if !ok {
+			t.Errorf("%s is an action with no row in this table", action)
+			continue
+		}
+		for role, allowed := range roles {
+			if got := Allows(role, action); got != allowed {
+				t.Errorf("Allows(%q, %q) = %v, want %v", role, action, got, allowed)
+			}
+		}
+	}
+	if len(want) != len(Actions()) {
+		t.Errorf("the table has %d rows for %d actions", len(want), len(Actions()))
+	}
+}
+
+// TestAllowsRefusesWhatItDoesNotKnow pins the direction an unknown value fails
+// in. A role or an action nobody wrote a rule for is a rule nobody wrote, and
+// answering true would turn a typo into an escalation.
+func TestAllowsRefusesWhatItDoesNotKnow(t *testing.T) {
+	for _, action := range Actions() {
+		for _, role := range []string{"", "  ", "Owner", "OWNER", "root", "system_admin"} {
+			if Allows(role, action) {
+				t.Errorf("Allows(%q, %q) = true; only the three team roles are roles", role, action)
+			}
+		}
+	}
+	for _, action := range []Action{"", "manage", "manage_team_members ", "ManageTeamMembers", "delete_team"} {
+		for _, role := range []string{model.TeamRoleOwner, model.TeamRoleAdmin, model.TeamRoleMember} {
+			if Allows(role, action) {
+				t.Errorf("Allows(%q, %q) = true; an unknown action is not permitted to anyone", role, action)
+			}
+		}
+	}
+}

@@ -1,11 +1,11 @@
 package work
 
 import (
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"net/http"
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
-	"github.com/gougoujiang/buildmax/internal/server/access"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	"github.com/gougoujiang/buildmax/internal/service/issue"
 )
@@ -98,7 +98,7 @@ func (h *Handler) createIssueCommentHandler(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
-	if _, ok := h.guard().TeamAction(w, r, userID, teamID, access.ActionCommentIssue); !ok {
+	if _, ok := h.guard().TeamAction(w, r, userID, teamID, coreteam.ActionCommentIssue); !ok {
 		return
 	}
 	var req issueCommentRequest
@@ -165,7 +165,7 @@ func (h *Handler) deleteIssueCommentHandler(w http.ResponseWriter, r *http.Reque
 		IssueID:     issueID,
 		CommentID:   commentID,
 		UserID:      userID,
-		CanModerate: h.guard().MemberAllows(r.Context(), userID, teamID, access.ActionModerateIssueComments),
+		CanModerate: h.guard().MemberAllows(r.Context(), userID, teamID, coreteam.ActionModerateIssueComments),
 	})
 	if err != nil {
 		if h.writeIssueServiceError(w, err) {
