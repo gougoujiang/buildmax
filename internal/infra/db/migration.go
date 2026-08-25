@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreschema "github.com/gougoujiang/buildmax/internal/core/schema"
 	"gorm.io/gorm"
 )
 
@@ -22,19 +22,19 @@ type schemaMigrationRow struct {
 
 func (schemaMigrationRow) TableName() string { return "schema_migration" }
 
-// AppliedMigrations implements model.SchemaStore.
+// AppliedMigrations implements coreschema.Store.
 //
 // AutoMigrate's additive DDL is not in this table — only the steps a struct
 // cannot express. A reader should take it as "what has been done beyond the row
 // structs", not as a complete schema version.
-func (s *Store) AppliedMigrations(ctx context.Context) ([]model.SchemaMigration, error) {
+func (s *Store) AppliedMigrations(ctx context.Context) ([]coreschema.Migration, error) {
 	var rows []schemaMigrationRow
 	if err := s.db.WithContext(ctx).Order("applied_at ASC, id ASC").Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	out := make([]model.SchemaMigration, 0, len(rows))
+	out := make([]coreschema.Migration, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, model.SchemaMigration{ID: row.ID, AppliedAt: row.AppliedAt})
+		out = append(out, coreschema.Migration{ID: row.ID, AppliedAt: row.AppliedAt})
 	}
 	return out, nil
 }

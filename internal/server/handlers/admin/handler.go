@@ -14,7 +14,7 @@ import (
 	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreschema "github.com/gougoujiang/buildmax/internal/core/schema"
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/server/access"
@@ -34,7 +34,7 @@ type Config struct {
 	Grants        coreidentity.SystemGrantStore
 	Audits        coreaudit.Store
 	Models        coregw.ModelStore
-	Schema        model.SchemaStore
+	Schema        coreschema.Store
 	TaskRuns      coretask.RunStore
 
 	Quota *quota.Service

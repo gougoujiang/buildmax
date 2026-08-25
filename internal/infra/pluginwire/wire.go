@@ -2,7 +2,7 @@
 //
 // It is the single definition of the shapes the server writes and the CLI
 // reads, so a field can never mean one thing on one side and something else on
-// the other. The entities themselves come from internal/core/model — what is
+// the other. The entities themselves come from internal/core/plugin — what is
 // here is the envelope around them, the paths, and the one header a download
 // carries.
 //

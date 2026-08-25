@@ -303,8 +303,8 @@ internal/server/
   static/         checked generated OpenAPI output
 ```
 
-`core/model` disappears only after the last domain moves. No type aliases are
-introduced. Each domain extraction updates all of its callers, DB mappers,
+`core/model` is gone. It disappeared when the last domain moved, with no type
+aliases introduced at any point. Each domain extraction updates all of its callers, DB mappers,
 tests, architecture scanners, and documents in the same batch. Cross-domain
 references use the owning package directly: for example Task imports Plugin's
 resolved pin type, while Workflow services import both Task and Workflow
@@ -538,7 +538,7 @@ settled in D0's review.
 | D10 | `core/audit` | `audit.go` | 25 |
 | D11 | `core/plugin` (exists) | `plugin.go`, `plugin_activation.go` | 28, 18 — and it must precede D8, because Team names Plugin's curation mode |
 | D12 | `core/task` | `task.go`, `task_result_delivery.go`, 4 sentinels | 38, 4 |
-| D13 | open | `schema.go` | 4 |
+| D13 | `core/schema` | `schema.go`, then `core/model` is deleted | 4 |
 
 The counts are files referencing any exported symbol defined in that source
 file, measured statically. They overlap — one file can appear in several rows —
@@ -609,8 +609,11 @@ Answered questions have moved into the plan above. What is still genuinely open:
    answers changed. A Kind would make an unhandled store miss answer 404 rather
    than 500 — better on most routes, and a disclosure change on the ones that
    answer 404 precisely so an opaque ID cannot be probed.
-3. Where does `schema.go` belong? `SchemaMigration` and `SchemaStore` describe
-   the database's own state, not a business capability. Settle it in D13.
+3. ~~Where does `schema.go` belong?~~ Settled in D13: `core/schema`. It is not
+   a business capability, but two layers have to name the same fact and neither
+   may own it — `infra/db` reports the applied steps and the system
+   administration route reads them, so a type in either would make the other
+   depend on it. The same shape as `core/artifact.Ref`.
 4. Is model administration its own service or a facet of `llmgateway`? C1 builds
    `service/llmcatalog` and keeps it only if its tests run with no provider-call
    dependency.

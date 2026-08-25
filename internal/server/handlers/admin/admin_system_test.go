@@ -10,7 +10,7 @@ import (
 	"time"
 
 	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreschema "github.com/gougoujiang/buildmax/internal/core/schema"
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
@@ -18,11 +18,11 @@ import (
 
 // stubSchemaStore reports a fixed migration history.
 type stubSchemaStore struct {
-	migrations []model.SchemaMigration
+	migrations []coreschema.Migration
 	err        error
 }
 
-func (s stubSchemaStore) AppliedMigrations(_ context.Context) ([]model.SchemaMigration, error) {
+func (s stubSchemaStore) AppliedMigrations(_ context.Context) ([]coreschema.Migration, error) {
 	return s.migrations, s.err
 }
 
@@ -45,7 +45,7 @@ func systemMux(t *testing.T, probes []DependencyProbe, redacted any) *http.Serve
 		Users:     users,
 		Teams:     &mock.MockTeamStore{},
 		TaskRuns:  runs,
-		Schema:    stubSchemaStore{migrations: []model.SchemaMigration{{ID: "0001_first", AppliedAt: time.Unix(100, 0).UTC()}}},
+		Schema:    stubSchemaStore{migrations: []coreschema.Migration{{ID: "0001_first", AppliedAt: time.Unix(100, 0).UTC()}}},
 		Audits:    audits,
 		Audit:     audit.NewRecorder(audits),
 		Deployment: DeploymentInfo{
