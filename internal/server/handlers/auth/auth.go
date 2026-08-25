@@ -220,70 +220,44 @@ func (h *Handler) refreshHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusBadRequest, "refresh_token required")
 		return
 	}
-	now := time.Now()
-	rotated, err := h.cfg.RefreshTokens.RotateRefreshToken(
-		r.Context(), req.RefreshToken, now, h.refreshTokenTTL(), h.refreshRotationGrace())
-	switch {
-	case errors.Is(err, coreidentity.ErrRefreshTokenReused):
-		// The store has already revoked the session. Record it: this is the
-		// one signal a deployment gets that a credential was copied, and it
-		// arrives without anyone reporting anything.
-		h.cfg.Audit.Record(r.Context(), coreaudit.Event{
-			ActorType:  coreaudit.ActorSystem,
-			ActorID:    rotated.UserID,
-			Action:     coreaudit.RefreshReuse,
-			TargetType: "auth_session",
-			TargetID:   rotated.SessionID,
-		})
-		slog.Warn("refresh token reused; session revoked",
-			"handler", "refresh", "user_id", rotated.UserID, "session_id", rotated.SessionID)
-		httputil.WriteJSONError(w, http.StatusUnauthorized, "invalid refresh token")
-		return
-	case errors.Is(err, coreidentity.ErrRefreshTokenInvalid):
-		httputil.WriteJSONError(w, http.StatusUnauthorized, "invalid refresh token")
-		return
-	case err != nil:
-		httputil.WriteInternalError(w, err, "auth handler error", "handler", "refresh", "rotate")
-		return
-	}
-
-	// The refresh token outlives many access tokens, so the account behind it
-	// is re-checked here rather than trusted from the login it descends from.
-	user, err := h.cfg.Users.GetUser(r.Context(), rotated.UserID)
+	result, err := h.identityService().Refresh(r.Context(), req.RefreshToken)
 	if err != nil {
-		httputil.WriteInternalError(w, err, "auth handler error", "handler", "refresh", "user_id", rotated.UserID)
-		return
-	}
-	if user == nil {
-		if _, err := h.cfg.RefreshTokens.RevokeSession(r.Context(), rotated.SessionID, now); err != nil {
-			slog.Error("revoke session for missing user failed", "err", err, "session_id", rotated.SessionID)
-		}
-		httputil.WriteJSONError(w, http.StatusUnauthorized, "invalid refresh token")
-		return
-	}
-	// A disabled account's sessions are revoked when it is disabled, so a
-	// refresh token that still rotates was issued after that or escaped the
-	// sweep. Either way the account is the authority, not the row: revoke the
-	// session this one belongs to and say why.
-	if user.Disabled() {
-		if _, err := h.cfg.RefreshTokens.RevokeSession(r.Context(), rotated.SessionID, now); err != nil {
-			slog.Error("revoke session for disabled user failed", "err", err, "session_id", rotated.SessionID)
-		}
-		httputil.WriteJSONError(w, http.StatusForbidden, access.DisabledMessage)
-		return
-	}
-
-	ttl := h.accessTokenTTL()
-	accessToken, err := access.Mint(h.cfg.JWTSecret, user.ID, rotated.SessionID, now, ttl)
-	if err != nil {
-		httputil.WriteInternalError(w, err, "auth handler error", "handler", "refresh", "sign_token")
+		h.writeRefreshError(w, r, err)
 		return
 	}
 	httputil.WriteJSON(w, http.StatusOK, RefreshResponse{
-		AccessToken:  accessToken,
-		RefreshToken: rotated.Plaintext,
-		ExpiresIn:    int64(ttl.Seconds()),
+		AccessToken:  result.AccessToken,
+		RefreshToken: result.RefreshToken,
+		ExpiresIn:    result.ExpiresIn,
 	})
+}
+
+// writeRefreshError answers a refused refresh exactly as the handler used to.
+//
+// Every failure is one 401 with one message. A caller who could tell "never
+// existed" from "already spent" could learn whether a token they found was ever
+// real; the reason is logged instead, and a reused one is logged louder because
+// it is the only signal a deployment gets that a credential was copied.
+func (h *Handler) writeRefreshError(w http.ResponseWriter, r *http.Request, err error) {
+	var invalid *identitysvc.InvalidRefresh
+	if errors.As(err, &invalid) {
+		if invalid.Reused {
+			slog.Warn("refresh token reused; session revoked",
+				"handler", "refresh", "user_id", invalid.UserID, "session_id", invalid.SessionID)
+		} else {
+			slog.InfoContext(r.Context(), "refresh rejected", "reason", invalid.Reason)
+		}
+		httputil.WriteJSONError(w, http.StatusUnauthorized, "invalid refresh token")
+		return
+	}
+	if errors.Is(err, identitysvc.ErrDisabled) {
+		httputil.WriteJSONError(w, http.StatusForbidden, access.DisabledMessage)
+		return
+	}
+	if httputil.WriteServiceError(w, err) {
+		return
+	}
+	httputil.WriteInternalError(w, err, "auth handler error", "handler", "refresh")
 }
 
 // SetPasswordRequest is the JSON body for POST /api/password.
