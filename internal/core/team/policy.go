@@ -52,13 +52,29 @@ func Actions() []Action {
 	}
 }
 
+// EffectiveRole is what a membership row's stored role means.
+//
+// A row with no role is a member. The row is what says somebody belongs to the
+// team; the role only says how much they may do, and the least of the three is
+// what a row that never got one has been given. Reading it as "not a member"
+// instead would make a data defect look like an absent membership, and reading
+// it as anything higher would let a missing value grant something.
+//
+// Callers normalize before asking Allows, which answers about a stated role.
+func EffectiveRole(role string) string {
+	if role == "" {
+		return model.TeamRoleMember
+	}
+	return role
+}
+
 // Allows reports whether a member holding role may perform action.
 //
 // It answers about a stated role. An unknown role and an unknown action are
 // both refused: a caller with neither has not been given permission, and
-// defaulting either to true would make a typo an escalation. What an empty role
-// means is the caller's question, not this one's — the two enforcers currently
-// answer it differently, which is recorded where they do.
+// defaulting either to true would make a typo an escalation. An empty role is
+// not stated, so it is refused here too — EffectiveRole is what turns a stored
+// row into the role to ask about.
 func Allows(role string, action Action) bool {
 	switch action {
 	case ActionManageTeamMembers, ActionReadAuditTrail, ActionModerateIssueComments:
