@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	pluginsvc "github.com/gougoujiang/buildmax/internal/service/plugin"
 )
@@ -115,7 +116,7 @@ func TestPluginActivationLifecycle(t *testing.T) {
 
 	if _, err := s.MovePluginActivationPin(ctx, model.MovePluginActivationPinInput{
 		TeamID: team.ID, PluginName: "absent", Version: "1.0.0", Digest: "sha256:x", ActorID: owner,
-	}); !errors.Is(err, model.ErrNotFound) {
+	}); !errors.Is(err, apierr.ErrNotFound) {
 		t.Fatalf("moving an absent activation err = %v, want ErrNotFound", err)
 	}
 }

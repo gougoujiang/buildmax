@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -152,7 +153,7 @@ func (s *Store) CreateIssueInTeam(ctx context.Context, teamID, createdBy string,
 func (s *Store) ListIssuesByUser(ctx context.Context, userID string, limit, offset int) ([]model.Issue, int, error) {
 	limit, offset = capPage(limit, offset)
 	userKey, err := lookupKey(ctx, s.db, "user", userID)
-	if errors.Is(err, model.ErrNotFound) {
+	if errors.Is(err, apierr.ErrNotFound) {
 		return nil, 0, nil
 	}
 	if err != nil {
@@ -180,7 +181,7 @@ func (s *Store) ListIssuesByUser(ctx context.Context, userID string, limit, offs
 func (s *Store) ListIssuesByTeam(ctx context.Context, teamID string, filter model.ListIssuesFilter, limit, offset int) ([]model.Issue, int, error) {
 	limit, offset = capPage(limit, offset)
 	teamKey, err := lookupKey(ctx, s.db, "team", teamID)
-	if errors.Is(err, model.ErrNotFound) {
+	if errors.Is(err, apierr.ErrNotFound) {
 		return nil, 0, nil
 	}
 	if err != nil {
@@ -189,7 +190,7 @@ func (s *Store) ListIssuesByTeam(ctx context.Context, teamID string, filter mode
 	var parentKey *uint64
 	if filter.ParentIssueID != "" {
 		key, err := lookupKey(ctx, s.db, "issue", filter.ParentIssueID)
-		if errors.Is(err, model.ErrNotFound) {
+		if errors.Is(err, apierr.ErrNotFound) {
 			return nil, 0, nil
 		}
 		if err != nil {
@@ -233,7 +234,7 @@ func (s *Store) ListIssueChildren(ctx context.Context, parentIssueID string) ([]
 		return []model.Issue{}, nil
 	}
 	parentKey, err := lookupKey(ctx, s.db, "issue", parentIssueID)
-	if errors.Is(err, model.ErrNotFound) {
+	if errors.Is(err, apierr.ErrNotFound) {
 		return []model.Issue{}, nil
 	}
 	if err != nil {

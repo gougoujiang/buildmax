@@ -8,6 +8,7 @@ import (
 	"testing"
 	"testing/fstest"
 
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	archive "github.com/gougoujiang/buildmax/internal/infra/pluginarchive"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -235,7 +236,7 @@ func TestCatalogLifecycleRecordsTheTrail(t *testing.T) {
 	if err := s.SetArchived(ctx, "code-review", false, "u_admin"); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.SetArchived(ctx, "absent", true, "u_admin"); !errors.Is(err, model.ErrNotFound) {
+	if err := s.SetArchived(ctx, "absent", true, "u_admin"); !errors.Is(err, apierr.ErrNotFound) {
 		t.Errorf("archiving a missing entry: err = %v, want ErrNotFound", err)
 	}
 	for _, action := range []string{
@@ -262,7 +263,7 @@ func TestYank(t *testing.T) {
 	if !events.has(model.AuditPluginYanked) {
 		t.Errorf("audit trail = %v", events.actions())
 	}
-	if err := s.Yank(ctx, "code-review", "9.9.9", "u_admin", ""); !errors.Is(err, model.ErrNotFound) {
+	if err := s.Yank(ctx, "code-review", "9.9.9", "u_admin", ""); !errors.Is(err, apierr.ErrNotFound) {
 		t.Errorf("yanking a missing release: err = %v, want ErrNotFound", err)
 	}
 }

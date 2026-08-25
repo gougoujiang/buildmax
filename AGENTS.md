@@ -105,7 +105,7 @@ Important ownership boundaries:
   database schema; `AutoMigrate` in `store.go` applies them. The full table
   reference and the rules for changing them are in
   [`docs/contribute/architecture/data-model.md`](docs/contribute/architecture/data-model.md).
-  GORM stays inside that package: above it, "no such row" is `model.ErrNotFound`.
+  GORM stays inside that package: above it, "no such row" is `apierr.ErrNotFound`.
 - `internal/mock` and `internal/testsupport` are test-only. Production code must
   not import either; a test enforces it.
 

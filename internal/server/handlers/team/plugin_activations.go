@@ -5,6 +5,7 @@ import (
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"net/http"
 
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
@@ -42,7 +43,7 @@ func writePluginActivationError(w http.ResponseWriter, err error) bool {
 		// another release is the PATCH, and saying so is more use than 500.
 		httputil.WriteJSONError(w, http.StatusConflict, err.Error())
 		return true
-	case errors.Is(err, model.ErrNotFound):
+	case errors.Is(err, apierr.ErrNotFound):
 		httputil.WriteJSONError(w, http.StatusNotFound, "no such plugin or release")
 		return true
 	}

@@ -7,6 +7,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -346,7 +347,7 @@ func (s *Store) updateAgent(ctx context.Context, a *model.Agent, updatedBy strin
 			return res.Error
 		}
 		if res.RowsAffected == 0 {
-			return model.ErrNotFound
+			return apierr.ErrNotFound
 		}
 		return appendAgentRevision(ctx, tx, agentKey, &updated, updatedBy)
 	})
@@ -360,7 +361,7 @@ func (s *Store) updateAgent(ctx context.Context, a *model.Agent, updatedBy strin
 func (s *Store) ListAgentRevisions(ctx context.Context, agentID string, limit, offset int) ([]model.AgentRevision, int, error) {
 	limit, offset = capPage(limit, offset)
 	agentKey, err := lookupKey(ctx, s.db, "agent", agentID)
-	if errors.Is(err, model.ErrNotFound) {
+	if errors.Is(err, apierr.ErrNotFound) {
 		return nil, 0, nil
 	}
 	if err != nil {
@@ -377,7 +378,7 @@ func (s *Store) ListAgentRevisions(ctx context.Context, agentID string, limit, o
 // GetAgentRevision returns one revision, or (nil, nil) when there is no such revision.
 func (s *Store) GetAgentRevision(ctx context.Context, agentID string, revision int) (*model.AgentRevision, error) {
 	agentKey, err := lookupKey(ctx, s.db, "agent", agentID)
-	if errors.Is(err, model.ErrNotFound) {
+	if errors.Is(err, apierr.ErrNotFound) {
 		return nil, nil
 	}
 	if err != nil {
@@ -392,14 +393,14 @@ func (s *Store) GetAgentRevision(ctx context.Context, agentID string, revision i
 }
 
 // DeleteAgent marks the agent deleted if it exists and belongs to the user.
-// Returns model.ErrNotFound if there is no such live agent for that user.
+// Returns apierr.ErrNotFound if there is no such live agent for that user.
 func (s *Store) DeleteAgent(ctx context.Context, agentID, userID string) error {
 	a, err := s.GetAgent(ctx, agentID)
 	if err != nil {
 		return err
 	}
 	if a == nil || a.UserID != userID {
-		return model.ErrNotFound
+		return apierr.ErrNotFound
 	}
 	return s.markAgentDeleted(ctx, a.ID)
 }
@@ -411,7 +412,7 @@ func (s *Store) DeleteAgentInTeam(ctx context.Context, agentID, teamID string) e
 		return err
 	}
 	if a == nil || a.TeamID != teamID {
-		return model.ErrNotFound
+		return apierr.ErrNotFound
 	}
 	return s.markAgentDeleted(ctx, a.ID)
 }

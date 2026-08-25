@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/core/session"
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -135,7 +136,7 @@ func (s *Store) ListTasksByConversation(ctx context.Context, conversationID stri
 func (s *Store) ListTasksByConversationPaginated(ctx context.Context, conversationID string, executedOnly bool, limit, offset int) ([]model.Task, int, error) {
 	limit, offset = capPage(limit, offset)
 	convKey, err := lookupKey(ctx, s.db, "conversation", conversationID)
-	if errors.Is(err, model.ErrNotFound) {
+	if errors.Is(err, apierr.ErrNotFound) {
 		return nil, 0, nil
 	}
 	if err != nil {
@@ -161,7 +162,7 @@ func (s *Store) ListTasksByConversationPaginated(ctx context.Context, conversati
 func (s *Store) ListTasksByIssue(ctx context.Context, issueID string, limit, offset int) ([]model.Task, int, error) {
 	limit, offset = capPage(limit, offset)
 	issueKey, err := lookupKey(ctx, s.db, "issue", issueID)
-	if errors.Is(err, model.ErrNotFound) {
+	if errors.Is(err, apierr.ErrNotFound) {
 		return nil, 0, nil
 	}
 	if err != nil {
@@ -241,7 +242,7 @@ func (s *Store) CreateTask(ctx context.Context, in *model.CreateTaskInput) (*mod
 		var conv conversationRow
 		convID, ok := util.CanonicalPublicID(in.ConversationID)
 		if !ok {
-			return model.ErrNotFound
+			return apierr.ErrNotFound
 		}
 		if err := tx.Where("public_id = ?", convID).First(&conv).Error; err != nil {
 			return err
@@ -277,7 +278,7 @@ func (s *Store) CreateTask(ctx context.Context, in *model.CreateTaskInput) (*mod
 		// See CreateTaskRun: an unresolvable message leaves the run
 		// unattributed rather than refusing to create the task.
 		sourceKey, err := optionalKey(ctx, tx, "conversation_message", in.InitialRunSourceMessageID)
-		if err != nil && !errors.Is(err, model.ErrNotFound) {
+		if err != nil && !errors.Is(err, apierr.ErrNotFound) {
 			return err
 		}
 		runDB.SourceMessageID = sourceKey
@@ -348,7 +349,7 @@ func buildTaskUpdates(status string, startedAt, endedAt *time.Time, output, erro
 func (s *Store) UpdateTask(ctx context.Context, in model.UpdateTaskInput) error {
 	id, ok := util.CanonicalPublicID(in.TaskID)
 	if !ok {
-		return model.ErrNotFound
+		return apierr.ErrNotFound
 	}
 	return s.db.WithContext(ctx).Model(&taskRow{}).Where("public_id = ?", id).Updates(
 		buildTaskUpdates(in.Status, in.StartedAt, in.EndedAt, in.Output, in.ErrorMessage, in.SessionID),

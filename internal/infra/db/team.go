@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -257,14 +258,14 @@ func (s *Store) AddTeamMember(ctx context.Context, teamID, userID, role string) 
 // RemoveTeamMember removes a team membership when present.
 func (s *Store) RemoveTeamMember(ctx context.Context, teamID, userID string) error {
 	teamKey, err := lookupKey(ctx, s.db, "team", teamID)
-	if errors.Is(err, model.ErrNotFound) {
+	if errors.Is(err, apierr.ErrNotFound) {
 		return nil
 	}
 	if err != nil {
 		return err
 	}
 	userKey, err := lookupKey(ctx, s.db, "user", userID)
-	if errors.Is(err, model.ErrNotFound) {
+	if errors.Is(err, apierr.ErrNotFound) {
 		return nil
 	}
 	if err != nil {

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 )
 
@@ -80,7 +81,7 @@ func (s *Store) ConsumeLoginCode(ctx context.Context, plaintext, userID string, 
 	// An unknown account is not an error here: it matches no code, which is the
 	// same refusal a wrong code gets and takes the same work.
 	userKey, err := lookupKey(ctx, s.db, "user", userID)
-	if errors.Is(err, model.ErrNotFound) {
+	if errors.Is(err, apierr.ErrNotFound) {
 		return false, nil
 	}
 	if err != nil {

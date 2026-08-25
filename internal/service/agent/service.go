@@ -262,7 +262,7 @@ func (s *Service) DeleteAgent(ctx context.Context, teamID, agentID string) error
 		}
 	}
 	if err := s.Agents.DeleteAgentInTeam(ctx, agentID, teamID); err != nil {
-		if errors.Is(err, model.ErrNotFound) {
+		if errors.Is(err, apierr.ErrNotFound) {
 			return ErrAgentNotFound
 		}
 		return err

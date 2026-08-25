@@ -9,7 +9,7 @@ import (
 	mysqldriver "github.com/go-sql-driver/mysql"
 	"gorm.io/gorm"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
 
@@ -43,7 +43,7 @@ const mysqlDuplicateEntry = 1062
 func lookupKey(ctx context.Context, tx *gorm.DB, table, publicID string) (uint64, error) {
 	id, ok := util.CanonicalPublicID(publicID)
 	if !ok {
-		return 0, model.ErrNotFound
+		return 0, apierr.ErrNotFound
 	}
 	// Row().Scan rather than Take: the destination is one scalar, and GORM
 	// reads a scalar destination as a row struct.
@@ -51,7 +51,7 @@ func lookupKey(ctx context.Context, tx *gorm.DB, table, publicID string) (uint64
 	err := tx.WithContext(ctx).Table(table).
 		Select("id").Where("public_id = ?", id).Row().Scan(&key)
 	if errors.Is(err, sql.ErrNoRows) {
-		return 0, model.ErrNotFound
+		return 0, apierr.ErrNotFound
 	}
 	if err != nil {
 		return 0, err
@@ -139,7 +139,7 @@ func publicIDForKey(ctx context.Context, tx *gorm.DB, table string, key uint64) 
 	err := tx.WithContext(ctx).Table(table).
 		Select("public_id").Where("id = ?", key).Row().Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
-		return "", model.ErrNotFound
+		return "", apierr.ErrNotFound
 	}
 	if err != nil {
 		return "", err

@@ -6,6 +6,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
@@ -142,7 +143,7 @@ func (m *MockAgentStore) DeleteAgent(_ context.Context, agentID, userID string) 
 			return nil
 		}
 	}
-	return model.ErrNotFound
+	return apierr.ErrNotFound
 }
 
 func (m *MockAgentStore) DeleteAgentInTeam(_ context.Context, agentID, teamID string) error {
@@ -152,5 +153,5 @@ func (m *MockAgentStore) DeleteAgentInTeam(_ context.Context, agentID, teamID st
 			return nil
 		}
 	}
-	return model.ErrNotFound
+	return apierr.ErrNotFound
 }

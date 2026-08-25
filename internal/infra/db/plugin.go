@@ -9,6 +9,7 @@ import (
 
 	"gorm.io/gorm"
 
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 )
 
@@ -194,7 +195,7 @@ func (s *Store) UpdatePlugin(ctx context.Context, name string, in model.UpdatePl
 		return nil, res.Error
 	}
 	if res.RowsAffected == 0 {
-		return nil, model.ErrNotFound
+		return nil, apierr.ErrNotFound
 	}
 	return s.GetPlugin(ctx, name)
 }
@@ -212,7 +213,7 @@ func (s *Store) SetPluginArchived(ctx context.Context, name string, archived boo
 		return res.Error
 	}
 	if res.RowsAffected == 0 {
-		return model.ErrNotFound
+		return apierr.ErrNotFound
 	}
 	return nil
 }
@@ -229,7 +230,7 @@ func (s *Store) CreatePluginRelease(ctx context.Context, in model.CreatePluginRe
 	var entry pluginRow
 	err := s.db.WithContext(ctx).Where("name = ?", in.PluginName).Take(&entry).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, model.ErrNotFound
+		return nil, apierr.ErrNotFound
 	}
 	if err != nil {
 		return nil, err
@@ -332,7 +333,7 @@ func (s *Store) YankPluginRelease(ctx context.Context, name, version, actor, rea
 			return err
 		}
 		if existing == nil {
-			return model.ErrNotFound
+			return apierr.ErrNotFound
 		}
 	}
 	return nil

@@ -6,6 +6,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 )
 
@@ -71,7 +72,7 @@ func (m *MockPluginActivationStore) ListPluginActivations(_ context.Context, tea
 func (m *MockPluginActivationStore) MovePluginActivationPin(_ context.Context, in model.MovePluginActivationPinInput) (*model.PluginActivation, error) {
 	row, ok := m.rows[activationKey(in.TeamID, in.PluginName)]
 	if !ok {
-		return nil, model.ErrNotFound
+		return nil, apierr.ErrNotFound
 	}
 	row.Version = in.Version
 	row.Digest = in.Digest
@@ -84,7 +85,7 @@ func (m *MockPluginActivationStore) MovePluginActivationPin(_ context.Context, i
 func (m *MockPluginActivationStore) SetPluginActivationEnabled(_ context.Context, teamID, pluginName string, enabled bool, actorID string) (*model.PluginActivation, error) {
 	row, ok := m.rows[activationKey(teamID, pluginName)]
 	if !ok {
-		return nil, model.ErrNotFound
+		return nil, apierr.ErrNotFound
 	}
 	row.Enabled = enabled
 	row.UpdatedBy = actorID

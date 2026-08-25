@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
@@ -43,7 +44,7 @@ func TestPublicIDHelpersCanonicalizeOrBlank(t *testing.T) {
 // The nil database is the assertion. A query would panic.
 func TestLookupKeyRefusesAMalformedHandleWithoutQuerying(t *testing.T) {
 	for _, bad := range []string{"", "t_9f3k2m8x1qwe7rt4zy", "not a public id", "IVYOH5QCFU6YPFKHYED!"} {
-		if _, err := lookupKey(context.Background(), nil, "task", bad); !errors.Is(err, model.ErrNotFound) {
+		if _, err := lookupKey(context.Background(), nil, "task", bad); !errors.Is(err, apierr.ErrNotFound) {
 			t.Errorf("lookupKey(%q) = %v, want ErrNotFound", bad, err)
 		}
 	}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/util"
 	"gorm.io/gorm"
@@ -147,7 +148,7 @@ func (s *Store) GrantSystemRole(ctx context.Context, userID, role, grantedBy str
 // RevokeSystemRole revokes the active grant, reporting whether one was found.
 func (s *Store) RevokeSystemRole(ctx context.Context, userID, role string, now time.Time) (bool, error) {
 	userKey, err := lookupKey(ctx, s.db, "user", userID)
-	if errors.Is(err, model.ErrNotFound) {
+	if errors.Is(err, apierr.ErrNotFound) {
 		return false, nil
 	}
 	if err != nil {

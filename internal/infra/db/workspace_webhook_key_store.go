@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -79,7 +80,7 @@ func (s *Store) GetUserIDByKey(ctx context.Context, plaintextKey string) (userID
 // ListKeys returns key metadata for the user.
 func (s *Store) ListKeys(ctx context.Context, userID string) ([]model.WebhookKeyMeta, error) {
 	userKey, err := lookupKey(ctx, s.db, "user", userID)
-	if errors.Is(err, model.ErrNotFound) {
+	if errors.Is(err, apierr.ErrNotFound) {
 		return nil, nil
 	}
 	if err != nil {
@@ -100,7 +101,7 @@ func (s *Store) ListKeys(ctx context.Context, userID string) ([]model.WebhookKey
 func (s *Store) RevokeKey(ctx context.Context, userID, keyID string) error {
 	notOwned := fmt.Errorf("webhook key not found or not owned by user")
 	userKey, err := lookupKey(ctx, s.db, "user", userID)
-	if errors.Is(err, model.ErrNotFound) {
+	if errors.Is(err, apierr.ErrNotFound) {
 		return notOwned
 	}
 	if err != nil {

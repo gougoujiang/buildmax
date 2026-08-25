@@ -565,8 +565,11 @@ Answered questions have moved into the plan above. What is still genuinely open:
    coverage test makes the document truthful either way and is the prerequisite
    for deciding. Prototype one auth route, one team route, and one streaming
    route and compare reviewability before committing to generation.
-2. Where does `ErrNotFound` belong? This plan proposes `core/apierr`, which
-   already owns what an error means application-wide. Settle it in D0.
+2. Should `apierr.ErrNotFound` carry `KindNotFound`? D0 settled where it lives
+   and moved it as a plain sentinel, so nothing about which status a route
+   answers changed. A Kind would make an unhandled store miss answer 404 rather
+   than 500 — better on most routes, and a disclosure change on the ones that
+   answer 404 precisely so an opaque ID cannot be probed.
 3. Where does `schema.go` belong? `SchemaMigration` and `SchemaStore` describe
    the database's own state, not a business capability. Settle it in D13.
 4. Is model administration its own service or a facet of `llmgateway`? C1 builds

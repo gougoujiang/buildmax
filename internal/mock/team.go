@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 )
 
@@ -139,5 +140,5 @@ func (m *MockTeamStore) SetTeamPluginCuration(_ context.Context, teamID string, 
 			return nil
 		}
 	}
-	return model.ErrNotFound
+	return apierr.ErrNotFound
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -441,7 +442,7 @@ func (s *Store) UpdateWorkflow(ctx context.Context, workflowID, teamID string, i
 func (s *Store) ListWorkflowRevisions(ctx context.Context, workflowID string, limit, offset int) ([]model.WorkflowRevision, int, error) {
 	limit, offset = capPage(limit, offset)
 	workflowKey, err := lookupKey(ctx, s.db, "workflow", workflowID)
-	if errors.Is(err, model.ErrNotFound) {
+	if errors.Is(err, apierr.ErrNotFound) {
 		return nil, 0, nil
 	}
 	if err != nil {
@@ -458,7 +459,7 @@ func (s *Store) ListWorkflowRevisions(ctx context.Context, workflowID string, li
 // GetWorkflowRevision returns one revision, or (nil, nil) when there is no such revision.
 func (s *Store) GetWorkflowRevision(ctx context.Context, workflowID string, revision int) (*model.WorkflowRevision, error) {
 	workflowKey, err := lookupKey(ctx, s.db, "workflow", workflowID)
-	if errors.Is(err, model.ErrNotFound) {
+	if errors.Is(err, apierr.ErrNotFound) {
 		return nil, nil
 	}
 	if err != nil {
@@ -525,7 +526,7 @@ func (s *Store) CreateWorkflowRun(ctx context.Context, in model.CreateWorkflowRu
 func (s *Store) ListWorkflowRunsByWorkflow(ctx context.Context, workflowID string, limit, offset int) ([]model.WorkflowRun, int, error) {
 	limit, offset = capPage(limit, offset)
 	workflowKey, err := lookupKey(ctx, s.db, "workflow", workflowID)
-	if errors.Is(err, model.ErrNotFound) {
+	if errors.Is(err, apierr.ErrNotFound) {
 		return nil, 0, nil
 	}
 	if err != nil {
@@ -549,7 +550,7 @@ func (s *Store) ListWorkflowRunsByWorkflow(ctx context.Context, workflowID strin
 func (s *Store) ListWorkflowRunsByIssue(ctx context.Context, issueID string, limit, offset int) ([]model.WorkflowRun, int, error) {
 	limit, offset = capPage(limit, offset)
 	issueKey, err := lookupKey(ctx, s.db, "issue", issueID)
-	if errors.Is(err, model.ErrNotFound) {
+	if errors.Is(err, apierr.ErrNotFound) {
 		return nil, 0, nil
 	}
 	if err != nil {
@@ -588,7 +589,7 @@ func (s *Store) GetWorkflowRun(ctx context.Context, workflowRunID string) (*mode
 
 func (s *Store) ListWorkflowStepRuns(ctx context.Context, workflowRunID string) ([]model.WorkflowStepRun, error) {
 	runKey, err := lookupKey(ctx, s.db, "workflow_run", workflowRunID)
-	if errors.Is(err, model.ErrNotFound) {
+	if errors.Is(err, apierr.ErrNotFound) {
 		return nil, nil
 	}
 	if err != nil {
@@ -748,7 +749,7 @@ func (s *Store) GetWorkflowStepRunByTaskRunID(ctx context.Context, taskRunID str
 // and never values from a request.
 func (s *Store) getWorkflowStepRunByOwner(ctx context.Context, table, col, publicID string) (*model.WorkflowStepRun, error) {
 	key, err := lookupKey(ctx, s.db, table, publicID)
-	if errors.Is(err, model.ErrNotFound) {
+	if errors.Is(err, apierr.ErrNotFound) {
 		return nil, nil
 	}
 	if err != nil {

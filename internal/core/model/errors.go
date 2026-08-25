@@ -2,21 +2,11 @@ package model
 
 import "errors"
 
-// ErrNotFound is returned when an operation's only return is an error and the
-// row it names does not exist. Callers that can get a nil value keep using that.
-var ErrNotFound = errors.New("not found")
-
 // ErrEmailExists is returned by CreateUser when the email is already registered.
 var ErrEmailExists = errors.New("email already exists")
 
 // ErrUserNotFound is returned when an operation names an account that is not there.
 var ErrUserNotFound = errors.New("user not found")
-
-// ErrUserDisabled is returned when a credential belongs to an account an
-// administrator has disabled. It is deliberately distinguishable from a wrong
-// credential: someone who can prove the account is theirs should be told why
-// they are being refused, while a wrong password still gets the generic answer.
-var ErrUserDisabled = errors.New("account is disabled")
 
 // ErrRunInProgress is returned by CreateTaskRun when the task already has a run in PENDING, SCHEDULED, or RUNNING.
 var ErrRunInProgress = errors.New("task has a run already in progress")

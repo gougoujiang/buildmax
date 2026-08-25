@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 )
 
 // TeamUsageInWindow returns run count and total tokens for the team in [since, until].
@@ -17,7 +17,7 @@ import (
 // no longer touches a string.
 func (s *Store) TeamUsageInWindow(ctx context.Context, teamID string, since, until time.Time) (runCount, totalTokens int, err error) {
 	teamKey, err := lookupKey(ctx, s.db, "team", teamID)
-	if errors.Is(err, model.ErrNotFound) {
+	if errors.Is(err, apierr.ErrNotFound) {
 		return 0, 0, nil
 	}
 	if err != nil {
