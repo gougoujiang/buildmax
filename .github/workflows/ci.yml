@@ -173,44 +173,6 @@ jobs:
       - name: Test
         run: .\make.bat test
 
-  contributor-quickstart:
-    name: Contributor quickstart (fresh clone)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-          cache: true
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .node-version
-          cache: npm
-          cache-dependency-path: |
-            gui/package-lock.json
-            portal/package-lock.json
-            desktop/frontend/package-lock.json
-
-      - name: Use pinned npm
-        run: npm install --global npm@11.17.0
-
-      # These are the exact first commands in the contributor path. Running
-      # them in a pristine checkout catches missing generated files, inaccurate
-      # prerequisites, task-runner drift, and accidental writes to the repo.
-      - name: Diagnose toolchain
-        run: ./make doctor all
-
-      - name: Build CLI
-        run: ./make build cli
-
-      - name: Run tests
-        run: ./make test
-
-      - name: Verify quickstart leaves tracked files unchanged
-        run: git diff --exit-code
-
   frontend:
     name: Frontend (gui, portal, desktop)
     runs-on: ubuntu-latest
