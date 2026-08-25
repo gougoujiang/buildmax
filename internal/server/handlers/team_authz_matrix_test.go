@@ -50,7 +50,7 @@ type authzCase struct {
 	tokenInQuery bool
 }
 
-// teamRoutes is the authorization matrix. Every team-scoped route in routes.go
+// teamRoutes is the authorization matrix. Every team-scoped route the server registers
 // must appear here — TestAuthzMatrixCoversEveryTeamRoute fails otherwise, so a
 // new route cannot ship without someone deciding who may call it.
 var teamRoutes = []authzCase{
@@ -281,16 +281,16 @@ func TestTeamAuthzMatrix(t *testing.T) {
 	}
 }
 
-// TestAuthzMatrixCoversEveryTeamRoute reads routes.go and fails when a
-// team-scoped route has no entry above.
+// TestAuthzMatrixCoversEveryTeamRoute reads every route registration under
+// this package and fails when a team-scoped route has no entry above.
 //
 // Without this the matrix silently stops being a matrix: a new route ships,
 // nobody notices it was never assigned a minimum role, and the gap looks
 // exactly like coverage.
 func TestAuthzMatrixCoversEveryTeamRoute(t *testing.T) {
-	// Team-scoped routes are registered in routes.go and in each context
-	// package's own table, so the matrix reads every table rather than the one
-	// that happened to hold them all before the split.
+	// Team-scoped routes are registered by each context package's own Register
+	// method, so the matrix reads every one of them rather than the file that
+	// happened to hold them all before the split.
 	var body []byte
 	err := filepath.WalkDir(".", func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
@@ -309,7 +309,7 @@ func TestAuthzMatrixCoversEveryTeamRoute(t *testing.T) {
 	found := regexp.MustCompile(`"(GET|POST|PATCH|PUT|DELETE) (/api/teams/\{team_id\}[^"]*)"`).
 		FindAllStringSubmatch(string(body), -1)
 	if len(found) == 0 {
-		t.Fatal("no team-scoped routes found in routes.go; the pattern this test relies on has changed")
+		t.Fatal("no team-scoped routes found; the pattern this test relies on has changed")
 	}
 
 	covered := make(map[string]bool, len(teamRoutes))

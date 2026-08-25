@@ -95,7 +95,10 @@ Important ownership boundaries:
   results to Tier 1; it does not speak directly to the user.
 - `internal/tool/names.go` is the source of truth for LLM-facing runtime tool
   names. Hook matchers and subagent `tools:` entries use those exact strings.
-- `internal/server/handlers/routes.go` is the source of truth for HTTP routes.
+- HTTP routes are registered by each handler subpackage's `Register` method and
+  composed in `internal/server/handlers/routes.go` and `internal/server/server.go`.
+  Those registrations are the source of truth; `internal/server/static/openapi.json`
+  describes them, and a test holds it to an exact match in both directions.
 - `internal/config/env_spec.go` is the source of truth for bootstrap environment
   variables.
 - The `xxxRow` structs in `internal/infra/db` are the source of truth for the

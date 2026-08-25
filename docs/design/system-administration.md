@@ -71,9 +71,9 @@ What exists today, with the anchors this design builds on:
 - The single funnel for user identity on every JWT route: `requireAuth` in
   `internal/server/handlers/auth.go`. Every authenticated handler reaches a
   user id through it.
-- Route ownership: `internal/server/handlers/routes.go`, with a coverage test
-  in `team_authz_matrix_test.go` that fails when a team-scoped route has no
-  authorization row.
+- Route ownership: each handler subpackage's `Register` method, with a coverage
+  test in `team_authz_matrix_test.go` that reads every one of them and fails
+  when a team-scoped route has no authorization row.
 - The append-only audit trail: `internal/core/model/audit.go`,
   `internal/service/audit`, `internal/infra/db/audit.go`, and the team-scoped,
   owner-only `GET /api/teams/{team_id}/audit-events`.
@@ -220,7 +220,7 @@ being true and no test would notice.
 - A valid credential without a grant: **403**.
 
 Not 404. Hiding the existence of `/api/admin/*` is not achievable — the routes
-are in an open-source `routes.go` and in the Portal bundle — and pretending
+are in open-source route registrations and in the Portal bundle — and pretending
 otherwise costs the clarity of a correct status code. What must not leak is
 data, and the 403 carries none. This is the same shape as the existing
 owner-only audit route, which Portal already reads a 403 from as "not for
@@ -478,7 +478,7 @@ live in handler helpers rather than in one middleware, so a route that forgets
 to call one is not a compile error. Admin routes have exactly that property, so
 they get exactly that treatment — a sibling `system_authz_matrix_test.go`:
 
-1. **Every `/api/admin/*` route in `routes.go` has a row.** A route without one
+1. **Every `/api/admin/*` route the package registers has a row.** A route without one
    fails the build, and a row naming a route that no longer exists fails too,
    because a dead row reads as coverage. Shipped in M1, and verified by adding
    an unguarded route and watching it fail — a coverage test that has never

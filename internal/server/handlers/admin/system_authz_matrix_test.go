@@ -42,7 +42,7 @@ type adminCase struct {
 	path   string
 }
 
-// adminRoutes is the authorization matrix. Every /api/admin route in routes.go
+// adminRoutes is the authorization matrix. Every /api/admin route this package registers
 // must appear here — TestAdminMatrixCoversEveryAdminRoute fails otherwise, so a
 // new one cannot ship without someone deciding it is admin-only.
 var adminRoutes = []adminCase{
@@ -265,17 +265,32 @@ func TestAdminMeReportsTheGrant(t *testing.T) {
 	}
 }
 
-// TestAdminMatrixCoversEveryAdminRoute reads routes.go and fails when an
-// /api/admin route has no entry above.
+// TestAdminMatrixCoversEveryAdminRoute reads this package's own registrations
+// and fails when an /api/admin route has no entry above.
+//
+// It reads every file in the package rather than handler.go alone: which file
+// holds a registration is a readability choice, and a matrix that stops seeing
+// half of them looks exactly like coverage.
 func TestAdminMatrixCoversEveryAdminRoute(t *testing.T) {
-	body, err := os.ReadFile(filepath.Join("handler.go"))
+	var body []byte
+	err := filepath.WalkDir(".", func(path string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return err
+		}
+		part, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return readErr
+		}
+		body = append(body, part...)
+		return nil
+	})
 	if err != nil {
-		t.Fatalf("read handler.go: %v", err)
+		t.Fatalf("read the route registrations: %v", err)
 	}
 	found := regexp.MustCompile(`"(GET|POST|PATCH|PUT|DELETE) (/api/admin[^"]*)"`).
 		FindAllStringSubmatch(string(body), -1)
 	if len(found) == 0 {
-		t.Fatal("no admin routes found in routes.go; the pattern this test relies on has changed")
+		t.Fatal("no admin routes found in this package; the pattern this test relies on has changed")
 	}
 
 	covered := make(map[string]bool, len(adminRoutes))
@@ -297,7 +312,7 @@ func TestAdminMatrixCoversEveryAdminRoute(t *testing.T) {
 	}
 	for _, c := range adminRoutes {
 		if key := c.method + " " + c.path; !registered[key] {
-			t.Errorf("%s has an admin authorization case but is not registered in routes.go", key)
+			t.Errorf("%s has an admin authorization case but is not registered", key)
 		}
 	}
 }

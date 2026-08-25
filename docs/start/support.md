@@ -116,9 +116,10 @@ gets that they are in that position.
 
 ### HTTP API — no version, so expect change
 
-There is no `/v1` prefix and no negotiated version. `internal/server/handlers/routes.go`
-is the list of routes and `openapi.json` describes them, but neither is a
-stability contract during Beta.
+There is no `/v1` prefix and no negotiated version. `openapi.json`, served at
+`/openapi.json`, describes every route the server registers and is tested
+against them in both directions — but describing a route is not promising to
+keep it during Beta.
 
 Expect additions to be additive and safe. Do not assume a route, a field, or a
 status code will survive a release without reading the changelog. A breaking
