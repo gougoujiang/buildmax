@@ -129,7 +129,7 @@ func (f *MockPluginStore) YankPluginRelease(_ context.Context, name, version, ac
 	return model.ErrNotFound
 }
 
-// MockPluginPackageStorage is an in-memory objectstore.PluginPackageStorage.
+// MockPluginPackageStorage is an in-memory plugin.PackageStore.
 type MockPluginPackageStorage struct{ Objects map[string][]byte }
 
 // NewMockPluginPackageStorage returns empty storage.
@@ -152,6 +152,12 @@ func (f *MockPluginPackageStorage) Open(_ context.Context, key string) (io.ReadC
 		return nil, 0, objectstore.ErrNotFound
 	}
 	return io.NopCloser(bytes.NewReader(data)), int64(len(data)), nil
+}
+
+// PackageKey delegates to the real layout, so a key a test stores under is the
+// key production would have used.
+func (f *MockPluginPackageStorage) PackageKey(prefix, pluginName, digest string) (string, error) {
+	return objectstore.PluginPackageKey(prefix, pluginName, digest)
 }
 
 func (f *MockPluginPackageStorage) Exists(_ context.Context, key string) (bool, error) {
