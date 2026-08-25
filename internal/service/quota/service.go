@@ -5,11 +5,12 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 )
 
 // Service enforces team-scoped quota (run count and token limits) using tier limits from the store.
 type Service struct {
-	TeamStore   model.TeamStore
+	TeamStore   coreteam.Store
 	UsageReader model.UsageInWindowReader
 	TierStore   model.QuotaTierStore
 	DefaultTier string

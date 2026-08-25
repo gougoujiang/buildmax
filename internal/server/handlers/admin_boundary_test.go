@@ -19,6 +19,7 @@ import (
 	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
@@ -57,8 +58,8 @@ func newBoundaryFixture(t *testing.T) *boundaryFixture {
 	// A team the administrator is not a member of. Membership, not the grant,
 	// is what these routes must ask for.
 	teams := &mock.MockTeamStore{
-		Teams:   []model.Team{{ID: boundaryTeam, Name: "Boundary", CreatedBy: target.ID}},
-		Members: []model.TeamMember{{TeamID: boundaryTeam, UserID: target.ID, Role: model.TeamRoleOwner}},
+		Teams:   []coreteam.Team{{ID: boundaryTeam, Name: "Boundary", CreatedBy: target.ID}},
+		Members: []coreteam.Member{{TeamID: boundaryTeam, UserID: target.ID, Role: coreteam.RoleOwner}},
 	}
 
 	h := NewHandler(Config{

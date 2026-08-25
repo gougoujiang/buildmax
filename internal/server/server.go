@@ -15,6 +15,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 	"github.com/gougoujiang/buildmax/internal/server/handlers"
@@ -60,7 +61,7 @@ type StoresConfig struct {
 	LoginCodeStore    model.LoginCodeStore
 	PasswordStore     model.PasswordStore
 	RefreshTokenStore model.RefreshTokenStore
-	TeamStore         model.TeamStore
+	TeamStore         coreteam.Store
 	WorkflowStore     model.WorkflowStore
 	AgentStore        model.AgentStore
 	IssueStore        model.IssueStore

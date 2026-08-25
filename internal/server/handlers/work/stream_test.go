@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -30,8 +31,8 @@ func openTaskStream(t *testing.T, drain <-chan struct{}) *http.Response {
 	h := New(Config{
 		JWTSecret: streamTestSecret,
 		Teams: &mock.MockTeamStore{
-			Teams:   []model.Team{{ID: streamTestTeam, Name: "My Space", PersonalForUserID: util.Ptr(streamTestUser), CreatedBy: streamTestUser}},
-			Members: []model.TeamMember{{TeamID: streamTestTeam, UserID: streamTestUser, Role: model.TeamRoleOwner}},
+			Teams:   []coreteam.Team{{ID: streamTestTeam, Name: "My Space", PersonalForUserID: util.Ptr(streamTestUser), CreatedBy: streamTestUser}},
+			Members: []coreteam.Member{{TeamID: streamTestTeam, UserID: streamTestUser, Role: coreteam.RoleOwner}},
 		},
 		Conversations: &mock.MockConversationStore{
 			Conversations: []model.Conversation{{ID: streamTestConv, UserID: streamTestUser, TeamID: streamTestTeam, Channel: "portal", CreatedBy: streamTestUser, CreatedAt: time.Unix(1, 0).UTC()}},

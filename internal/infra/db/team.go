@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 
 	"github.com/gougoujiang/buildmax/internal/util"
 	"gorm.io/gorm"
@@ -83,11 +83,11 @@ func (s *Store) teamMemberSelect(ctx context.Context) *gorm.DB {
 		Joins("INNER JOIN `user` u ON u.id = team_member.user_id")
 }
 
-func toTeam(row *teamReadRow) *model.Team {
+func toTeam(row *teamReadRow) *coreteam.Team {
 	if row == nil {
 		return nil
 	}
-	out := &model.Team{
+	out := &coreteam.Team{
 		ID:             row.Row.PublicID,
 		Name:           row.Row.Name,
 		QuotaTier:      row.Row.QuotaTier,
@@ -103,19 +103,19 @@ func toTeam(row *teamReadRow) *model.Team {
 	return out
 }
 
-func toTeams(rows []teamReadRow) []model.Team {
-	out := make([]model.Team, len(rows))
+func toTeams(rows []teamReadRow) []coreteam.Team {
+	out := make([]coreteam.Team, len(rows))
 	for i := range rows {
 		out[i] = *toTeam(&rows[i])
 	}
 	return out
 }
 
-func toTeamMember(row *teamMemberReadRow) *model.TeamMember {
+func toTeamMember(row *teamMemberReadRow) *coreteam.Member {
 	if row == nil {
 		return nil
 	}
-	return &model.TeamMember{
+	return &coreteam.Member{
 		TeamID:    row.TeamPublicID,
 		UserID:    row.UserPublicID,
 		Role:      row.Row.Role,
@@ -123,8 +123,8 @@ func toTeamMember(row *teamMemberReadRow) *model.TeamMember {
 	}
 }
 
-func toTeamMembers(rows []teamMemberReadRow) []model.TeamMember {
-	out := make([]model.TeamMember, len(rows))
+func toTeamMembers(rows []teamMemberReadRow) []coreteam.Member {
+	out := make([]coreteam.Member, len(rows))
 	for i := range rows {
 		out[i] = *toTeamMember(&rows[i])
 	}
@@ -132,7 +132,7 @@ func toTeamMembers(rows []teamMemberReadRow) []model.TeamMember {
 }
 
 // GetTeam returns the team by team_id, or (nil, nil) when not found.
-func (s *Store) GetTeam(ctx context.Context, teamID string) (*model.Team, error) {
+func (s *Store) GetTeam(ctx context.Context, teamID string) (*coreteam.Team, error) {
 	id, ok := util.CanonicalPublicID(teamID)
 	if !ok {
 		return nil, nil
@@ -149,7 +149,7 @@ func (s *Store) GetTeam(ctx context.Context, teamID string) (*model.Team, error)
 }
 
 // GetPersonalTeamByUser returns the default personal team for the user, or (nil, nil) when not found.
-func (s *Store) GetPersonalTeamByUser(ctx context.Context, userID string) (*model.Team, error) {
+func (s *Store) GetPersonalTeamByUser(ctx context.Context, userID string) (*coreteam.Team, error) {
 	id, ok := util.CanonicalPublicID(userID)
 	if !ok {
 		return nil, nil
@@ -166,7 +166,7 @@ func (s *Store) GetPersonalTeamByUser(ctx context.Context, userID string) (*mode
 }
 
 // ListTeamsByUser returns all teams the user belongs to, ordered by created_at ASC.
-func (s *Store) ListTeamsByUser(ctx context.Context, userID string) ([]model.Team, error) {
+func (s *Store) ListTeamsByUser(ctx context.Context, userID string) ([]coreteam.Team, error) {
 	id, ok := util.CanonicalPublicID(userID)
 	if !ok {
 		return nil, nil
@@ -182,7 +182,7 @@ func (s *Store) ListTeamsByUser(ctx context.Context, userID string) ([]model.Tea
 }
 
 // CreateTeam creates a new team and owner membership.
-func (s *Store) CreateTeam(ctx context.Context, name, createdBy, quotaTier string) (*model.Team, error) {
+func (s *Store) CreateTeam(ctx context.Context, name, createdBy, quotaTier string) (*coreteam.Team, error) {
 	now := time.Now().UTC()
 	teamDB := &teamRow{Name: name, QuotaTier: quotaTier, CreatedAt: now, UpdatedAt: now}
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -198,14 +198,14 @@ func (s *Store) CreateTeam(ctx context.Context, name, createdBy, quotaTier strin
 		return tx.Create(&teamMemberRow{
 			TeamID:    teamDB.ID,
 			UserID:    creator,
-			Role:      model.TeamRoleOwner,
+			Role:      coreteam.RoleOwner,
 			CreatedAt: now,
 		}).Error
 	})
 	if err != nil {
 		return nil, err
 	}
-	return &model.Team{
+	return &coreteam.Team{
 		ID:        teamDB.PublicID,
 		Name:      name,
 		QuotaTier: quotaTier,
@@ -216,8 +216,8 @@ func (s *Store) CreateTeam(ctx context.Context, name, createdBy, quotaTier strin
 }
 
 // AddTeamMember adds or updates a team membership.
-func (s *Store) AddTeamMember(ctx context.Context, teamID, userID, role string) (*model.TeamMember, error) {
-	member := &model.TeamMember{
+func (s *Store) AddTeamMember(ctx context.Context, teamID, userID, role string) (*coreteam.Member, error) {
+	member := &coreteam.Member{
 		TeamID:    teamID,
 		UserID:    userID,
 		Role:      role,
@@ -278,7 +278,7 @@ func (s *Store) RemoveTeamMember(ctx context.Context, teamID, userID string) err
 }
 
 // ListTeamMembers returns members of the team ordered by created_at ASC.
-func (s *Store) ListTeamMembers(ctx context.Context, teamID string) ([]model.TeamMember, error) {
+func (s *Store) ListTeamMembers(ctx context.Context, teamID string) ([]coreteam.Member, error) {
 	id, ok := util.CanonicalPublicID(teamID)
 	if !ok {
 		return nil, nil
@@ -302,8 +302,8 @@ func (s *Store) personalTeamIDForUser(ctx context.Context, userID string) (strin
 	return team.ID, nil
 }
 
-// ListAllTeams implements model.TeamStore.
-func (s *Store) ListAllTeams(ctx context.Context, query string, limit, offset int) ([]model.Team, int, error) {
+// ListAllTeams implements coreteam.Store.
+func (s *Store) ListAllTeams(ctx context.Context, query string, limit, offset int) ([]coreteam.Team, int, error) {
 	limit, offset = clampPage(limit, offset)
 	var total int64
 	countQ := s.db.WithContext(ctx).Model(&teamRow{})
@@ -321,14 +321,14 @@ func (s *Store) ListAllTeams(ctx context.Context, query string, limit, offset in
 	if err := q.Order("team.created_at DESC, team.id DESC").Limit(limit).Offset(offset).Find(&rows).Error; err != nil {
 		return nil, 0, err
 	}
-	out := make([]model.Team, 0, len(rows))
+	out := make([]coreteam.Team, 0, len(rows))
 	for i := range rows {
 		out = append(out, *toTeam(&rows[i]))
 	}
 	return out, int(total), nil
 }
 
-// CountTeamMembers implements model.TeamStore.
+// CountTeamMembers implements coreteam.Store.
 func (s *Store) CountTeamMembers(ctx context.Context, teamIDs []string) (map[string]int, error) {
 	out := make(map[string]int, len(teamIDs))
 	if len(teamIDs) == 0 {

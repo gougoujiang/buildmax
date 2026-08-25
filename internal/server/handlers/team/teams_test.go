@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -20,14 +21,14 @@ func TestTeamHandlers(t *testing.T) {
 	personalTeamID := "tm_personal_u1"
 	sharedTeamID := "tm_shared"
 	teamStore := &mock.MockTeamStore{
-		Teams: []model.Team{
+		Teams: []coreteam.Team{
 			{ID: personalTeamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1", CreatedAt: time.Unix(100, 0).UTC(), UpdatedAt: time.Unix(100, 0).UTC()},
 			{ID: sharedTeamID, Name: "Ops", CreatedBy: "u1", CreatedAt: time.Unix(200, 0).UTC(), UpdatedAt: time.Unix(200, 0).UTC()},
 		},
-		Members: []model.TeamMember{
-			{TeamID: personalTeamID, UserID: "u1", Role: model.TeamRoleOwner, CreatedAt: time.Unix(100, 0).UTC()},
-			{TeamID: sharedTeamID, UserID: "u1", Role: model.TeamRoleOwner, CreatedAt: time.Unix(200, 0).UTC()},
-			{TeamID: sharedTeamID, UserID: "u2", Role: model.TeamRoleMember, CreatedAt: time.Unix(201, 0).UTC()},
+		Members: []coreteam.Member{
+			{TeamID: personalTeamID, UserID: "u1", Role: coreteam.RoleOwner, CreatedAt: time.Unix(100, 0).UTC()},
+			{TeamID: sharedTeamID, UserID: "u1", Role: coreteam.RoleOwner, CreatedAt: time.Unix(200, 0).UTC()},
+			{TeamID: sharedTeamID, UserID: "u2", Role: coreteam.RoleMember, CreatedAt: time.Unix(201, 0).UTC()},
 		},
 	}
 	userStore := &mock.MockUserStore{

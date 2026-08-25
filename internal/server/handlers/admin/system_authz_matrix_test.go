@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 )
@@ -90,9 +91,9 @@ func adminMux(t *testing.T) (*http.ServeMux, *mock.MockAuditStore) {
 
 	audits := &mock.MockAuditStore{}
 	teams := &mock.MockTeamStore{
-		Teams: []model.Team{{ID: matrixTeam, Name: "Matrix", CreatedBy: adminTeamOwner}},
-		Members: []model.TeamMember{
-			{TeamID: matrixTeam, UserID: adminTeamOwner, Role: model.TeamRoleOwner},
+		Teams: []coreteam.Team{{ID: matrixTeam, Name: "Matrix", CreatedBy: adminTeamOwner}},
+		Members: []coreteam.Member{
+			{TeamID: matrixTeam, UserID: adminTeamOwner, Role: coreteam.RoleOwner},
 		},
 	}
 	users := &mock.MockUserStore{}

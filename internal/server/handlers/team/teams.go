@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	teamsvc "github.com/gougoujiang/buildmax/internal/service/team"
 )
@@ -37,7 +38,7 @@ type createTeamRequest struct {
 	Name string `json:"name"`
 }
 
-func teamToResponse(team model.Team) teamResponse {
+func teamToResponse(team coreteam.Team) teamResponse {
 	return teamResponse{
 		ID:                team.ID,
 		Name:              team.Name,
@@ -48,7 +49,7 @@ func teamToResponse(team model.Team) teamResponse {
 	}
 }
 
-func teamMemberToResponse(member model.TeamMember, user *model.User) teamMemberResponse {
+func teamMemberToResponse(member coreteam.Member, user *model.User) teamMemberResponse {
 	resp := teamMemberResponse{
 		TeamID:    member.TeamID,
 		UserID:    member.UserID,

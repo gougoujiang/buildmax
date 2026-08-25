@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -31,8 +32,8 @@ func hierarchyMux(t *testing.T) (*http.ServeMux, *mock.MockIssueStore) {
 		},
 	}
 	teams := &mock.MockTeamStore{
-		Teams:   []model.Team{{ID: hierarchyTeam, Name: "Hierarchy", CreatedBy: "u_owner"}},
-		Members: []model.TeamMember{{TeamID: hierarchyTeam, UserID: "u_owner", Role: model.TeamRoleOwner}},
+		Teams:   []coreteam.Team{{ID: hierarchyTeam, Name: "Hierarchy", CreatedBy: "u_owner"}},
+		Members: []coreteam.Member{{TeamID: hierarchyTeam, UserID: "u_owner", Role: coreteam.RoleOwner}},
 	}
 	h := New(Config{
 		JWTSecret:     hierarchyTestSecret,

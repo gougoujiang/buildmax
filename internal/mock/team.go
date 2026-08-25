@@ -7,17 +7,17 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 )
 
 // MockTeamStore is an in-memory TeamStore for tests.
 type MockTeamStore struct {
-	Teams   []model.Team
-	Members []model.TeamMember
+	Teams   []coreteam.Team
+	Members []coreteam.Member
 }
 
-func (m *MockTeamStore) GetTeam(_ context.Context, teamID string) (*model.Team, error) {
+func (m *MockTeamStore) GetTeam(_ context.Context, teamID string) (*coreteam.Team, error) {
 	for i := range m.Teams {
 		if m.Teams[i].ID == teamID {
 			return &m.Teams[i], nil
@@ -26,7 +26,7 @@ func (m *MockTeamStore) GetTeam(_ context.Context, teamID string) (*model.Team, 
 	return nil, nil
 }
 
-func (m *MockTeamStore) GetPersonalTeamByUser(_ context.Context, userID string) (*model.Team, error) {
+func (m *MockTeamStore) GetPersonalTeamByUser(_ context.Context, userID string) (*coreteam.Team, error) {
 	for i := range m.Teams {
 		if m.Teams[i].PersonalForUserID != nil && *m.Teams[i].PersonalForUserID == userID {
 			return &m.Teams[i], nil
@@ -35,8 +35,8 @@ func (m *MockTeamStore) GetPersonalTeamByUser(_ context.Context, userID string) 
 	return nil, nil
 }
 
-func (m *MockTeamStore) ListTeamsByUser(_ context.Context, userID string) ([]model.Team, error) {
-	var out []model.Team
+func (m *MockTeamStore) ListTeamsByUser(_ context.Context, userID string) ([]coreteam.Team, error) {
+	var out []coreteam.Team
 	for _, member := range m.Members {
 		if member.UserID != userID {
 			continue
@@ -50,9 +50,9 @@ func (m *MockTeamStore) ListTeamsByUser(_ context.Context, userID string) ([]mod
 	return out, nil
 }
 
-func (m *MockTeamStore) CreateTeam(_ context.Context, name, createdBy, quotaTier string) (*model.Team, error) {
+func (m *MockTeamStore) CreateTeam(_ context.Context, name, createdBy, quotaTier string) (*coreteam.Team, error) {
 	id := fmt.Sprintf("tm_%d", len(m.Teams)+1)
-	team := model.Team{
+	team := coreteam.Team{
 		ID:        id,
 		Name:      name,
 		QuotaTier: quotaTier,
@@ -61,23 +61,23 @@ func (m *MockTeamStore) CreateTeam(_ context.Context, name, createdBy, quotaTier
 		UpdatedAt: time.Now().UTC(),
 	}
 	m.Teams = append(m.Teams, team)
-	m.Members = append(m.Members, model.TeamMember{
+	m.Members = append(m.Members, coreteam.Member{
 		TeamID:    id,
 		UserID:    createdBy,
-		Role:      model.TeamRoleOwner,
+		Role:      coreteam.RoleOwner,
 		CreatedAt: time.Now().UTC(),
 	})
 	return &m.Teams[len(m.Teams)-1], nil
 }
 
-func (m *MockTeamStore) AddTeamMember(_ context.Context, teamID, userID, role string) (*model.TeamMember, error) {
+func (m *MockTeamStore) AddTeamMember(_ context.Context, teamID, userID, role string) (*coreteam.Member, error) {
 	for i := range m.Members {
 		if m.Members[i].TeamID == teamID && m.Members[i].UserID == userID {
 			m.Members[i].Role = role
 			return &m.Members[i], nil
 		}
 	}
-	member := model.TeamMember{
+	member := coreteam.Member{
 		TeamID:    teamID,
 		UserID:    userID,
 		Role:      role,
@@ -99,8 +99,8 @@ func (m *MockTeamStore) RemoveTeamMember(_ context.Context, teamID, userID strin
 	return nil
 }
 
-func (m *MockTeamStore) ListTeamMembers(_ context.Context, teamID string) ([]model.TeamMember, error) {
-	var out []model.TeamMember
+func (m *MockTeamStore) ListTeamMembers(_ context.Context, teamID string) ([]coreteam.Member, error) {
+	var out []coreteam.Member
 	for _, member := range m.Members {
 		if member.TeamID == teamID {
 			out = append(out, member)
@@ -109,8 +109,8 @@ func (m *MockTeamStore) ListTeamMembers(_ context.Context, teamID string) ([]mod
 	return out, nil
 }
 
-func (m *MockTeamStore) ListAllTeams(_ context.Context, query string, limit, offset int) ([]model.Team, int, error) {
-	var all []model.Team
+func (m *MockTeamStore) ListAllTeams(_ context.Context, query string, limit, offset int) ([]coreteam.Team, int, error) {
+	var all []coreteam.Team
 	for i := range m.Teams {
 		if query == "" || strings.Contains(m.Teams[i].Name, query) {
 			all = append(all, m.Teams[i])

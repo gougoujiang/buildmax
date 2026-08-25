@@ -2,8 +2,6 @@ package team
 
 import (
 	"testing"
-
-	"github.com/gougoujiang/buildmax/internal/core/model"
 )
 
 // TestAllowsMatrix is the whole rule, written out. A change to Allows that
@@ -12,9 +10,9 @@ import (
 // show the rule as one piece.
 func TestAllowsMatrix(t *testing.T) {
 	const (
-		owner  = model.TeamRoleOwner
-		admin  = model.TeamRoleAdmin
-		member = model.TeamRoleMember
+		owner  = RoleOwner
+		admin  = RoleAdmin
+		member = RoleMember
 	)
 	want := map[Action]map[string]bool{
 		ActionManageTeamMembers:     {owner: true, admin: false, member: false},
@@ -53,10 +51,10 @@ func TestAllowsMatrix(t *testing.T) {
 // today -- the team service defaults an unset role before storing one -- so
 // this is what a legacy row gets, not a path anything takes now.
 func TestEffectiveRoleReadsAnUnsetRoleAsMember(t *testing.T) {
-	if got := EffectiveRole(""); got != model.TeamRoleMember {
-		t.Errorf("EffectiveRole(\"\") = %q, want %q", got, model.TeamRoleMember)
+	if got := EffectiveRole(""); got != RoleMember {
+		t.Errorf("EffectiveRole(\"\") = %q, want %q", got, RoleMember)
 	}
-	for _, role := range []string{model.TeamRoleOwner, model.TeamRoleAdmin, model.TeamRoleMember} {
+	for _, role := range []string{RoleOwner, RoleAdmin, RoleMember} {
 		if got := EffectiveRole(role); got != role {
 			t.Errorf("EffectiveRole(%q) = %q, want it unchanged", role, got)
 		}
@@ -74,7 +72,7 @@ func TestEffectiveRoleReadsAnUnsetRoleAsMember(t *testing.T) {
 func TestEffectiveRoleGrantsOnlyMemberLevelActions(t *testing.T) {
 	unset := EffectiveRole("")
 	for _, action := range Actions() {
-		want := Allows(model.TeamRoleMember, action)
+		want := Allows(RoleMember, action)
 		if got := Allows(unset, action); got != want {
 			t.Errorf("Allows(unset, %q) = %v, want %v (what a member gets)", action, got, want)
 		}
@@ -99,7 +97,7 @@ func TestAllowsRefusesWhatItDoesNotKnow(t *testing.T) {
 		}
 	}
 	for _, action := range []Action{"", "manage", "manage_team_members ", "ManageTeamMembers", "delete_team"} {
-		for _, role := range []string{model.TeamRoleOwner, model.TeamRoleAdmin, model.TeamRoleMember} {
+		for _, role := range []string{RoleOwner, RoleAdmin, RoleMember} {
 			if Allows(role, action) {
 				t.Errorf("Allows(%q, %q) = true; an unknown action is not permitted to anyone", role, action)
 			}

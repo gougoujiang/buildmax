@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -38,8 +39,8 @@ func cancelFixture(t *testing.T, run model.TaskRun) (*http.ServeMux, *mock.MockT
 	h := New(Config{
 		JWTSecret: cancelSecret,
 		Teams: &mock.MockTeamStore{
-			Teams:   []model.Team{{ID: cancelTeam, Name: "My Space", PersonalForUserID: util.Ptr(cancelUser), CreatedBy: cancelUser}},
-			Members: []model.TeamMember{{TeamID: cancelTeam, UserID: cancelUser, Role: model.TeamRoleOwner}},
+			Teams:   []coreteam.Team{{ID: cancelTeam, Name: "My Space", PersonalForUserID: util.Ptr(cancelUser), CreatedBy: cancelUser}},
+			Members: []coreteam.Member{{TeamID: cancelTeam, UserID: cancelUser, Role: coreteam.RoleOwner}},
 		},
 		Tasks:    &mock.MockTaskStore{List: []model.Task{task}},
 		TaskRuns: runs,

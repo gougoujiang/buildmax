@@ -121,8 +121,9 @@ internal/
 │   │                   plus the catalog entry, its releases, and a team's
 │   │                   activations
 │   ├── subagent/       The subagent definition file shape and its frontmatter
-│   ├── team/           What a team's roles may do: the one role/action decision
-│   │                   the HTTP guard and the team service both enforce
+│   ├── team/           The Team, its members, its store, and the one
+│   │                   role/action decision the HTTP guard and the team
+│   │                   service both enforce
 │   ├── artifact/       The Artifact: a file somebody chose to keep, its record,
 │   │                   its store, and how its content object is addressed
 │   ├── llmgateway/     What a deployment brokers and records: the model catalog

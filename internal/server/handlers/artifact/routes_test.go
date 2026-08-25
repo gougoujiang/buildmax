@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
@@ -41,16 +41,16 @@ func newFixture(t *testing.T) *fixture {
 	storage := mock.NewMockArtifactStorage()
 	svc := &artifactsvc.Service{Artifacts: store, Storage: storage}
 	teams := &mock.MockTeamStore{
-		Teams: []model.Team{
+		Teams: []coreteam.Team{
 			{ID: teamA, Name: "A", CreatedBy: userOwner},
 			{ID: teamB, Name: "B", CreatedBy: userOther},
 		},
-		Members: []model.TeamMember{
-			{TeamID: teamA, UserID: userOwner, Role: model.TeamRoleOwner},
-			{TeamID: teamA, UserID: userMember, Role: model.TeamRoleMember},
+		Members: []coreteam.Member{
+			{TeamID: teamA, UserID: userOwner, Role: coreteam.RoleOwner},
+			{TeamID: teamA, UserID: userMember, Role: coreteam.RoleMember},
 			// The stranger is a legitimate member of somewhere else, which is
 			// the case that separates "is a member" from "is a member of this".
-			{TeamID: teamB, UserID: userOther, Role: model.TeamRoleOwner},
+			{TeamID: teamB, UserID: userOther, Role: coreteam.RoleOwner},
 		},
 	}
 	h := New(Config{
@@ -369,13 +369,13 @@ func TestUploadToDefaultTeamUsesThePersonalTeam(t *testing.T) {
 	storage := mock.NewMockArtifactStorage()
 	personal := "tm_personal"
 	teams := &mock.MockTeamStore{
-		Teams: []model.Team{
+		Teams: []coreteam.Team{
 			{ID: personal, Name: "Mine", PersonalForUserID: util.Ptr(userOwner), CreatedBy: userOwner},
 			{ID: teamA, Name: "A", CreatedBy: userOwner},
 		},
-		Members: []model.TeamMember{
-			{TeamID: personal, UserID: userOwner, Role: model.TeamRoleOwner},
-			{TeamID: teamA, UserID: userOwner, Role: model.TeamRoleMember},
+		Members: []coreteam.Member{
+			{TeamID: personal, UserID: userOwner, Role: coreteam.RoleOwner},
+			{TeamID: teamA, UserID: userOwner, Role: coreteam.RoleMember},
 		},
 	}
 	h := New(Config{

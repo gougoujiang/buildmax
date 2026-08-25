@@ -10,6 +10,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/server/turnqueue"
 	wsconn "github.com/gougoujiang/buildmax/internal/server/websocket"
@@ -184,10 +185,10 @@ func TestTaskResultTurnQueuesBehindARunningTurn(t *testing.T) {
 
 func sharedTeamStore(teamID string) *mock.MockTeamStore {
 	return &mock.MockTeamStore{
-		Teams: []model.Team{{ID: teamID, Name: "Shared", CreatedBy: "u1"}},
-		Members: []model.TeamMember{
-			{TeamID: teamID, UserID: "u1", Role: model.TeamRoleOwner},
-			{TeamID: teamID, UserID: "u2", Role: model.TeamRoleMember},
+		Teams: []coreteam.Team{{ID: teamID, Name: "Shared", CreatedBy: "u1"}},
+		Members: []coreteam.Member{
+			{TeamID: teamID, UserID: "u1", Role: coreteam.RoleOwner},
+			{TeamID: teamID, UserID: "u2", Role: coreteam.RoleMember},
 		},
 	}
 }

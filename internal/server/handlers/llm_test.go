@@ -12,7 +12,7 @@ import (
 
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/infra/llmwire"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
@@ -104,11 +104,11 @@ func (llmDenyQuota) Check(context.Context, string, int, int) (bool, string) {
 
 func llmTestTeamStore() *mock.MockTeamStore {
 	return &mock.MockTeamStore{
-		Teams: []model.Team{
+		Teams: []coreteam.Team{
 			{ID: llmTestTeam, Name: "LLM Team", CreatedBy: llmTestUser, CreatedAt: time.Now().UTC()},
 		},
-		Members: []model.TeamMember{
-			{TeamID: llmTestTeam, UserID: llmTestUser, Role: model.TeamRoleOwner, CreatedAt: time.Now().UTC()},
+		Members: []coreteam.Member{
+			{TeamID: llmTestTeam, UserID: llmTestUser, Role: coreteam.RoleOwner, CreatedAt: time.Now().UTC()},
 		},
 	}
 }

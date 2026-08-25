@@ -12,6 +12,7 @@ import (
 	"net/http"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/server/access"
 	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
@@ -21,7 +22,7 @@ type Config struct {
 	JWTSecret string
 
 	Users model.UserStore
-	Teams model.TeamStore
+	Teams coreteam.Store
 
 	// Artifacts is the capability itself. Nil means this deployment has no
 	// artifact store, and every route here answers 503.

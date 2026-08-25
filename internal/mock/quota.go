@@ -6,6 +6,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 )
 
 // MockUsageReader returns fixed run count and token total for TeamUsageInWindow.
@@ -37,29 +38,29 @@ func (m *MockTierStore) GetQuotaTier(_ context.Context, _ string) (*model.QuotaT
 
 // DenyQuotaTeamStore is used by quota 429 tests to supply a team with tier.
 type DenyQuotaTeamStore struct {
-	Team *model.Team
+	Team *coreteam.Team
 }
 
-func (d *DenyQuotaTeamStore) GetTeam(_ context.Context, _ string) (*model.Team, error) {
+func (d *DenyQuotaTeamStore) GetTeam(_ context.Context, _ string) (*coreteam.Team, error) {
 	return d.Team, nil
 }
 
-func (d *DenyQuotaTeamStore) GetPersonalTeamByUser(_ context.Context, _ string) (*model.Team, error) {
+func (d *DenyQuotaTeamStore) GetPersonalTeamByUser(_ context.Context, _ string) (*coreteam.Team, error) {
 	return d.Team, nil
 }
 
-func (d *DenyQuotaTeamStore) ListTeamsByUser(_ context.Context, _ string) ([]model.Team, error) {
+func (d *DenyQuotaTeamStore) ListTeamsByUser(_ context.Context, _ string) ([]coreteam.Team, error) {
 	if d.Team == nil {
 		return nil, nil
 	}
-	return []model.Team{*d.Team}, nil
+	return []coreteam.Team{*d.Team}, nil
 }
 
-func (d *DenyQuotaTeamStore) CreateTeam(_ context.Context, _, _, _ string) (*model.Team, error) {
+func (d *DenyQuotaTeamStore) CreateTeam(_ context.Context, _, _, _ string) (*coreteam.Team, error) {
 	return nil, nil
 }
 
-func (d *DenyQuotaTeamStore) AddTeamMember(_ context.Context, _, _, _ string) (*model.TeamMember, error) {
+func (d *DenyQuotaTeamStore) AddTeamMember(_ context.Context, _, _, _ string) (*coreteam.Member, error) {
 	return nil, nil
 }
 
@@ -67,7 +68,7 @@ func (d *DenyQuotaTeamStore) RemoveTeamMember(_ context.Context, _, _ string) er
 	return nil
 }
 
-func (d *DenyQuotaTeamStore) ListTeamMembers(_ context.Context, _ string) ([]model.TeamMember, error) {
+func (d *DenyQuotaTeamStore) ListTeamMembers(_ context.Context, _ string) ([]coreteam.Member, error) {
 	return nil, nil
 }
 
@@ -90,11 +91,11 @@ func (d *DenyQuotaTierStore) GetQuotaTier(_ context.Context, _ string) (*model.Q
 	return d.Tier, nil
 }
 
-func (d *DenyQuotaTeamStore) ListAllTeams(_ context.Context, _ string, _, _ int) ([]model.Team, int, error) {
+func (d *DenyQuotaTeamStore) ListAllTeams(_ context.Context, _ string, _, _ int) ([]coreteam.Team, int, error) {
 	if d.Team == nil {
 		return nil, 0, nil
 	}
-	return []model.Team{*d.Team}, 1, nil
+	return []coreteam.Team{*d.Team}, 1, nil
 }
 
 func (d *DenyQuotaTeamStore) CountTeamMembers(_ context.Context, _ []string) (map[string]int, error) {

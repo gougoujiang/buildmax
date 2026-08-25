@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 )
 
@@ -44,7 +45,7 @@ func TestUpdateIssue_AssignToPerson(t *testing.T) {
 		Issues: &mock.MockIssueStore{
 			Issues: []model.Issue{{ID: "i_1", UserID: "u1", TeamID: "tm_1", Status: model.IssueStatusTodo}},
 		},
-		Teams: &mock.MockTeamStore{Members: []model.TeamMember{{TeamID: "tm_1", UserID: "u1", Role: model.TeamRoleOwner}}},
+		Teams: &mock.MockTeamStore{Members: []coreteam.Member{{TeamID: "tm_1", UserID: "u1", Role: coreteam.RoleOwner}}},
 	}
 	kind := model.IssueAssigneePerson
 	id := "u1"

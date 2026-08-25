@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -32,8 +33,8 @@ func TestGetConversationMessagesHandler_HidesSystemMessages(t *testing.T) {
 	h := New(Config{
 		JWTSecret: secret,
 		Teams: &mock.MockTeamStore{
-			Teams:   []model.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}},
-			Members: []model.TeamMember{{TeamID: teamID, UserID: "u1", Role: model.TeamRoleOwner}},
+			Teams:   []coreteam.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}},
+			Members: []coreteam.Member{{TeamID: teamID, UserID: "u1", Role: coreteam.RoleOwner}},
 		},
 		Conversations: &mock.MockConversationStore{
 			Conversations: []model.Conversation{
@@ -75,8 +76,8 @@ func TestListConversationsHidesTheOnesNobodyHolds(t *testing.T) {
 	h := New(Config{
 		JWTSecret: secret,
 		Teams: &mock.MockTeamStore{
-			Teams:   []model.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}},
-			Members: []model.TeamMember{{TeamID: teamID, UserID: "u1", Role: model.TeamRoleOwner}},
+			Teams:   []coreteam.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}},
+			Members: []coreteam.Member{{TeamID: teamID, UserID: "u1", Role: coreteam.RoleOwner}},
 		},
 		Conversations: &mock.MockConversationStore{Conversations: []model.Conversation{
 			{ID: "conv_portal", UserID: "u1", TeamID: teamID, Channel: model.ChannelWorkflow, CreatedBy: "u1"},

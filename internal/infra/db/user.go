@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 
 	"github.com/gougoujiang/buildmax/internal/util"
 	"gorm.io/gorm"
@@ -191,7 +192,7 @@ func (s *Store) CreateUser(ctx context.Context, email string, defaultQuotaTier s
 	}
 	userDB := toUserRow(&u)
 	personalTeamDB := &teamRow{
-		Name:      model.DefaultPersonalTeamName,
+		Name:      coreteam.DefaultPersonalName,
 		QuotaTier: defaultQuotaTier,
 		CreatedAt: u.CreatedAt,
 		UpdatedAt: u.CreatedAt,
@@ -214,7 +215,7 @@ func (s *Store) CreateUser(ctx context.Context, email string, defaultQuotaTier s
 		return tx.Create(&teamMemberRow{
 			TeamID:    personalTeamDB.ID,
 			UserID:    userDB.ID,
-			Role:      model.TeamRoleOwner,
+			Role:      coreteam.RoleOwner,
 			CreatedAt: u.CreatedAt,
 		}).Error
 	}); err != nil {

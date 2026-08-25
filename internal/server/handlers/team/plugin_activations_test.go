@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
@@ -33,10 +33,10 @@ func newActivationFixture(t *testing.T, curation coreplugin.Curation) *activatio
 	t.Helper()
 	teamID := "tm_1"
 	teams := &mock.MockTeamStore{
-		Teams: []model.Team{{ID: teamID, Name: "Team", CreatedBy: "u_owner", PluginCuration: curation}},
-		Members: []model.TeamMember{
-			{TeamID: teamID, UserID: "u_owner", Role: model.TeamRoleOwner},
-			{TeamID: teamID, UserID: "u_member", Role: model.TeamRoleMember},
+		Teams: []coreteam.Team{{ID: teamID, Name: "Team", CreatedBy: "u_owner", PluginCuration: curation}},
+		Members: []coreteam.Member{
+			{TeamID: teamID, UserID: "u_owner", Role: coreteam.RoleOwner},
+			{TeamID: teamID, UserID: "u_member", Role: coreteam.RoleMember},
 		},
 	}
 	catalog := mock.NewMockPluginStore()
@@ -252,8 +252,8 @@ func TestSetCurationRoundTripsAndValidates(t *testing.T) {
 func TestActivationRoutesWithoutTheService(t *testing.T) {
 	teamID := "tm_1"
 	teams := &mock.MockTeamStore{
-		Teams:   []model.Team{{ID: teamID, Name: "Team", CreatedBy: "u_owner"}},
-		Members: []model.TeamMember{{TeamID: teamID, UserID: "u_owner", Role: model.TeamRoleOwner}},
+		Teams:   []coreteam.Team{{ID: teamID, Name: "Team", CreatedBy: "u_owner"}},
+		Members: []coreteam.Member{{TeamID: teamID, UserID: "u_owner", Role: coreteam.RoleOwner}},
 	}
 	h := New(Config{JWTSecret: activationSecret, Teams: teams})
 	mux := http.NewServeMux()

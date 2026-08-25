@@ -7,30 +7,31 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 )
 
 type mockTeamStore struct {
-	team *model.Team
+	team *coreteam.Team
 	err  error
 }
 
-func (m *mockTeamStore) GetTeam(_ context.Context, _ string) (*model.Team, error) {
+func (m *mockTeamStore) GetTeam(_ context.Context, _ string) (*coreteam.Team, error) {
 	return m.team, m.err
 }
 
-func (m *mockTeamStore) GetPersonalTeamByUser(_ context.Context, _ string) (*model.Team, error) {
+func (m *mockTeamStore) GetPersonalTeamByUser(_ context.Context, _ string) (*coreteam.Team, error) {
 	return nil, nil
 }
 
-func (m *mockTeamStore) ListTeamsByUser(_ context.Context, _ string) ([]model.Team, error) {
+func (m *mockTeamStore) ListTeamsByUser(_ context.Context, _ string) ([]coreteam.Team, error) {
 	return nil, nil
 }
 
-func (m *mockTeamStore) CreateTeam(_ context.Context, _, _, _ string) (*model.Team, error) {
+func (m *mockTeamStore) CreateTeam(_ context.Context, _, _, _ string) (*coreteam.Team, error) {
 	return nil, nil
 }
 
-func (m *mockTeamStore) AddTeamMember(_ context.Context, _, _, _ string) (*model.TeamMember, error) {
+func (m *mockTeamStore) AddTeamMember(_ context.Context, _, _, _ string) (*coreteam.Member, error) {
 	return nil, nil
 }
 
@@ -38,7 +39,7 @@ func (m *mockTeamStore) RemoveTeamMember(_ context.Context, _, _ string) error {
 	return nil
 }
 
-func (m *mockTeamStore) ListAllTeams(_ context.Context, _ string, _, _ int) ([]model.Team, int, error) {
+func (m *mockTeamStore) ListAllTeams(_ context.Context, _ string, _, _ int) ([]coreteam.Team, int, error) {
 	return nil, 0, nil
 }
 
@@ -46,7 +47,7 @@ func (m *mockTeamStore) CountTeamMembers(_ context.Context, _ []string) (map[str
 	return nil, nil
 }
 
-func (m *mockTeamStore) ListTeamMembers(_ context.Context, _ string) ([]model.TeamMember, error) {
+func (m *mockTeamStore) ListTeamMembers(_ context.Context, _ string) ([]coreteam.Member, error) {
 	return nil, nil
 }
 
@@ -83,7 +84,7 @@ func TestCheck_NoTeam_Allows(t *testing.T) {
 
 func TestCheck_UnknownTier_Allows(t *testing.T) {
 	c := &Service{
-		TeamStore:   &mockTeamStore{team: &model.Team{ID: "tm_1", QuotaTier: "unknown"}},
+		TeamStore:   &mockTeamStore{team: &coreteam.Team{ID: "tm_1", QuotaTier: "unknown"}},
 		UsageReader: &mockUsageReader{runCount: 0, totalTokens: 0},
 		TierStore:   &mockTierStore{tier: nil},
 		DefaultTier: "free_trial",
@@ -96,7 +97,7 @@ func TestCheck_UnknownTier_Allows(t *testing.T) {
 
 func TestCheck_RunLimitExceeded_Denies(t *testing.T) {
 	c := &Service{
-		TeamStore:   &mockTeamStore{team: &model.Team{ID: "tm_1", QuotaTier: "free_trial"}},
+		TeamStore:   &mockTeamStore{team: &coreteam.Team{ID: "tm_1", QuotaTier: "free_trial"}},
 		UsageReader: &mockUsageReader{runCount: 10, totalTokens: 0},
 		TierStore:   &mockTierStore{tier: &model.QuotaTier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
 		DefaultTier: "free_trial",
@@ -112,7 +113,7 @@ func TestCheck_RunLimitExceeded_Denies(t *testing.T) {
 
 func TestCheck_TokenLimitExceeded_Denies(t *testing.T) {
 	c := &Service{
-		TeamStore:   &mockTeamStore{team: &model.Team{ID: "tm_1", QuotaTier: "free_trial"}},
+		TeamStore:   &mockTeamStore{team: &coreteam.Team{ID: "tm_1", QuotaTier: "free_trial"}},
 		UsageReader: &mockUsageReader{runCount: 0, totalTokens: 100000},
 		TierStore:   &mockTierStore{tier: &model.QuotaTier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
 		DefaultTier: "free_trial",
@@ -128,7 +129,7 @@ func TestCheck_TokenLimitExceeded_Denies(t *testing.T) {
 
 func TestCheck_UnderLimit_Allows(t *testing.T) {
 	c := &Service{
-		TeamStore:   &mockTeamStore{team: &model.Team{ID: "tm_1", QuotaTier: "free_trial"}},
+		TeamStore:   &mockTeamStore{team: &coreteam.Team{ID: "tm_1", QuotaTier: "free_trial"}},
 		UsageReader: &mockUsageReader{runCount: 5, totalTokens: 50000},
 		TierStore:   &mockTierStore{tier: &model.QuotaTier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
 		DefaultTier: "free_trial",
@@ -144,7 +145,7 @@ func TestCheck_UnderLimit_Allows(t *testing.T) {
 
 func TestCheck_EmptyTeamTier_UsesDefault(t *testing.T) {
 	c := &Service{
-		TeamStore:   &mockTeamStore{team: &model.Team{ID: "tm_1", QuotaTier: ""}},
+		TeamStore:   &mockTeamStore{team: &coreteam.Team{ID: "tm_1", QuotaTier: ""}},
 		UsageReader: &mockUsageReader{runCount: 10, totalTokens: 0},
 		TierStore:   &mockTierStore{tier: &model.QuotaTier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
 		DefaultTier: "free_trial",
