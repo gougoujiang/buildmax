@@ -157,7 +157,7 @@ func runModelAdd(ctx context.Context, args []string, out io.Writer) error {
 	// the server, which the process cannot name — this command already requires
 	// the database credentials, so being on that machine is the authorization.
 	svc := &llmcatalog.Service{Models: store, Audit: audit.NewRecorder(store)}
-	created, err := svc.Create(ctx, in, llmcatalog.OperatorActor())
+	created, err := svc.Create(ctx, in, coreaudit.OperatorActor())
 	if err != nil {
 		if errors.Is(err, llmcatalog.ErrNameTaken) {
 			return fmt.Errorf("a model named %q already exists", in.Name)
