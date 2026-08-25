@@ -39,7 +39,7 @@ var (
 //
 // A cap is the whole of the first slice's admission control. A team storage
 // total is a stock, and the existing quota model measures rates in a window
-// (model.QuotaTier), so counting bytes held is a new dimension rather than a
+// (corequota.Tier), so counting bytes held is a new dimension rather than a
 // value to slot in; it waits for its own decision. What this cap already buys
 // is the property that matters most here — one request cannot cost the
 // deployment an unbounded amount of disk.

@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
+	corequota "github.com/gougoujiang/buildmax/internal/core/quota"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 )
 
@@ -25,11 +25,11 @@ func (m *MockUsageReader) TeamUsageInWindow(_ context.Context, _ string, _, _ ti
 
 // MockTierStore returns a fixed tier for GetQuotaTier.
 type MockTierStore struct {
-	Tier *model.QuotaTier
+	Tier *corequota.Tier
 	Err  error
 }
 
-func (m *MockTierStore) GetQuotaTier(_ context.Context, _ string) (*model.QuotaTier, error) {
+func (m *MockTierStore) GetQuotaTier(_ context.Context, _ string) (*corequota.Tier, error) {
 	if m.Err != nil {
 		return nil, m.Err
 	}
@@ -84,10 +84,10 @@ func (d *DenyQuotaUsageReader) TeamUsageInWindow(_ context.Context, _ string, _,
 
 // DenyQuotaTierStore is used by quota 429 tests.
 type DenyQuotaTierStore struct {
-	Tier *model.QuotaTier
+	Tier *corequota.Tier
 }
 
-func (d *DenyQuotaTierStore) GetQuotaTier(_ context.Context, _ string) (*model.QuotaTier, error) {
+func (d *DenyQuotaTierStore) GetQuotaTier(_ context.Context, _ string) (*corequota.Tier, error) {
 	return d.Tier, nil
 }
 

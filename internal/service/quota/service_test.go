@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
+	corequota "github.com/gougoujiang/buildmax/internal/core/quota"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 )
 
@@ -61,11 +61,11 @@ func (m *mockUsageReader) TeamUsageInWindow(_ context.Context, _ string, _, _ ti
 }
 
 type mockTierStore struct {
-	tier *model.QuotaTier
+	tier *corequota.Tier
 	err  error
 }
 
-func (m *mockTierStore) GetQuotaTier(_ context.Context, _ string) (*model.QuotaTier, error) {
+func (m *mockTierStore) GetQuotaTier(_ context.Context, _ string) (*corequota.Tier, error) {
 	return m.tier, m.err
 }
 
@@ -99,7 +99,7 @@ func TestCheck_RunLimitExceeded_Denies(t *testing.T) {
 	c := &Service{
 		TeamStore:   &mockTeamStore{team: &coreteam.Team{ID: "tm_1", QuotaTier: "free_trial"}},
 		UsageReader: &mockUsageReader{runCount: 10, totalTokens: 0},
-		TierStore:   &mockTierStore{tier: &model.QuotaTier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
+		TierStore:   &mockTierStore{tier: &corequota.Tier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
 		DefaultTier: "free_trial",
 	}
 	allowed, reason := c.Check(context.Background(), "tm_1", 1, 0)
@@ -115,7 +115,7 @@ func TestCheck_TokenLimitExceeded_Denies(t *testing.T) {
 	c := &Service{
 		TeamStore:   &mockTeamStore{team: &coreteam.Team{ID: "tm_1", QuotaTier: "free_trial"}},
 		UsageReader: &mockUsageReader{runCount: 0, totalTokens: 100000},
-		TierStore:   &mockTierStore{tier: &model.QuotaTier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
+		TierStore:   &mockTierStore{tier: &corequota.Tier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
 		DefaultTier: "free_trial",
 	}
 	allowed, reason := c.Check(context.Background(), "tm_1", 0, 1)
@@ -131,7 +131,7 @@ func TestCheck_UnderLimit_Allows(t *testing.T) {
 	c := &Service{
 		TeamStore:   &mockTeamStore{team: &coreteam.Team{ID: "tm_1", QuotaTier: "free_trial"}},
 		UsageReader: &mockUsageReader{runCount: 5, totalTokens: 50000},
-		TierStore:   &mockTierStore{tier: &model.QuotaTier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
+		TierStore:   &mockTierStore{tier: &corequota.Tier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
 		DefaultTier: "free_trial",
 	}
 	allowed, reason := c.Check(context.Background(), "tm_1", 1, 10000)
@@ -147,7 +147,7 @@ func TestCheck_EmptyTeamTier_UsesDefault(t *testing.T) {
 	c := &Service{
 		TeamStore:   &mockTeamStore{team: &coreteam.Team{ID: "tm_1", QuotaTier: ""}},
 		UsageReader: &mockUsageReader{runCount: 10, totalTokens: 0},
-		TierStore:   &mockTierStore{tier: &model.QuotaTier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
+		TierStore:   &mockTierStore{tier: &corequota.Tier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
 		DefaultTier: "free_trial",
 	}
 	allowed, _ := c.Check(context.Background(), "tm_1", 1, 0)

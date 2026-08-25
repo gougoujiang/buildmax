@@ -5,14 +5,15 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	corequota "github.com/gougoujiang/buildmax/internal/core/quota"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 )
 
 // Service enforces team-scoped quota (run count and token limits) using tier limits from the store.
 type Service struct {
 	TeamStore   coreteam.Store
-	UsageReader model.UsageInWindowReader
-	TierStore   model.QuotaTierStore
+	UsageReader corequota.UsageInWindowReader
+	TierStore   corequota.TierStore
 	DefaultTier string
 	// Audit records a team approaching or reaching its limits. Nil records
 	// nothing, so a deployment without a database still enforces quota — the

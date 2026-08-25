@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	corequota "github.com/gougoujiang/buildmax/internal/core/quota"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 )
@@ -15,7 +16,7 @@ func alertingService(runs, tokens int, maxRuns, maxTokens int) (*Service, *mock.
 	return &Service{
 		TeamStore:   &mockTeamStore{team: &coreteam.Team{ID: "tm_1", QuotaTier: "free_trial"}},
 		UsageReader: &mockUsageReader{runCount: runs, totalTokens: tokens},
-		TierStore: &mockTierStore{tier: &model.QuotaTier{
+		TierStore: &mockTierStore{tier: &corequota.Tier{
 			TierName:           "free_trial",
 			MaxRunsPerPeriod:   maxRuns,
 			MaxTokensPerPeriod: maxTokens,
