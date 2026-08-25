@@ -7,8 +7,8 @@ import (
 	"slices"
 	"time"
 
+	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	"github.com/gougoujiang/buildmax/internal/core/model"
 
 	"github.com/gougoujiang/buildmax/internal/util"
 	"gorm.io/gorm"
@@ -113,11 +113,11 @@ func (s *Store) agentRevisionSelect(ctx context.Context) *gorm.DB {
 		Joins("INNER JOIN `user` cb ON cb.id = agent_revision.created_by")
 }
 
-func toAgent(row *agentReadRow) *model.Agent {
+func toAgent(row *agentReadRow) *agentdef.Agent {
 	if row == nil {
 		return nil
 	}
-	return &model.Agent{
+	return &agentdef.Agent{
 		ID:           row.Row.PublicID,
 		UserID:       row.UserPublicID,
 		TeamID:       derefPublicID(row.TeamPublicID),
@@ -131,11 +131,11 @@ func toAgent(row *agentReadRow) *model.Agent {
 	}
 }
 
-func toAgentRevision(row *agentRevisionReadRow) *model.AgentRevision {
+func toAgentRevision(row *agentRevisionReadRow) *agentdef.Revision {
 	if row == nil {
 		return nil
 	}
-	return &model.AgentRevision{
+	return &agentdef.Revision{
 		AgentID:      row.AgentPublicID,
 		Revision:     row.Row.Revision,
 		Name:         row.Row.Name,
@@ -147,16 +147,16 @@ func toAgentRevision(row *agentRevisionReadRow) *model.AgentRevision {
 	}
 }
 
-func toAgentRevisions(rows []agentRevisionReadRow) []model.AgentRevision {
-	out := make([]model.AgentRevision, len(rows))
+func toAgentRevisions(rows []agentRevisionReadRow) []agentdef.Revision {
+	out := make([]agentdef.Revision, len(rows))
 	for i := range rows {
 		out[i] = *toAgentRevision(&rows[i])
 	}
 	return out
 }
 
-func toAgents(rows []agentReadRow) []model.Agent {
-	out := make([]model.Agent, len(rows))
+func toAgents(rows []agentReadRow) []agentdef.Agent {
+	out := make([]agentdef.Agent, len(rows))
 	for i := range rows {
 		out[i] = *toAgent(&rows[i])
 	}
@@ -167,7 +167,7 @@ func toAgents(rows []agentReadRow) []model.Agent {
 // the same transaction as the write it describes, so history cannot drift from
 // the row: the unique (agent_id, revision) index makes a concurrent second
 // write fail rather than record two different definitions under one number.
-func appendAgentRevision(ctx context.Context, tx *gorm.DB, agentKey uint64, a *model.Agent, createdBy string) error {
+func appendAgentRevision(ctx context.Context, tx *gorm.DB, agentKey uint64, a *agentdef.Agent, createdBy string) error {
 	creator, err := lookupKey(ctx, tx, "user", createdBy)
 	if err != nil {
 		return err
@@ -186,7 +186,7 @@ func appendAgentRevision(ctx context.Context, tx *gorm.DB, agentKey uint64, a *m
 
 // GetAgent returns the live agent by agent_id, or (nil, nil) when there is none.
 // A deleted agent reads as not found here; see GetAgentIncludingDeleted.
-func (s *Store) GetAgent(ctx context.Context, agentID string) (*model.Agent, error) {
+func (s *Store) GetAgent(ctx context.Context, agentID string) (*agentdef.Agent, error) {
 	id, ok := util.CanonicalPublicID(agentID)
 	if !ok {
 		return nil, nil
@@ -204,7 +204,7 @@ func (s *Store) GetAgent(ctx context.Context, agentID string) (*model.Agent, err
 
 // GetAgentIncludingDeleted returns the agent whether or not it was deleted. It
 // answers "what did this record refer to", not "what may I use".
-func (s *Store) GetAgentIncludingDeleted(ctx context.Context, agentID string) (*model.Agent, error) {
+func (s *Store) GetAgentIncludingDeleted(ctx context.Context, agentID string) (*agentdef.Agent, error) {
 	id, ok := util.CanonicalPublicID(agentID)
 	if !ok {
 		return nil, nil
@@ -221,7 +221,7 @@ func (s *Store) GetAgentIncludingDeleted(ctx context.Context, agentID string) (*
 }
 
 // ListAgentsByUser returns all agents for the given user_id, ordered by created_at ASC.
-func (s *Store) ListAgentsByUser(ctx context.Context, userID string) ([]model.Agent, error) {
+func (s *Store) ListAgentsByUser(ctx context.Context, userID string) ([]agentdef.Agent, error) {
 	id, ok := util.CanonicalPublicID(userID)
 	if !ok {
 		return nil, nil
@@ -233,7 +233,7 @@ func (s *Store) ListAgentsByUser(ctx context.Context, userID string) ([]model.Ag
 }
 
 // ListAgentsByTeam returns all agents for the given team_id, ordered by created_at ASC.
-func (s *Store) ListAgentsByTeam(ctx context.Context, teamID string) ([]model.Agent, error) {
+func (s *Store) ListAgentsByTeam(ctx context.Context, teamID string) ([]agentdef.Agent, error) {
 	id, ok := util.CanonicalPublicID(teamID)
 	if !ok {
 		return nil, nil
@@ -248,7 +248,7 @@ func (s *Store) ListAgentsByTeam(ctx context.Context, teamID string) ([]model.Ag
 //
 // An empty TeamID puts the agent in the user's personal team, which is what a
 // non-team caller means by "my agent".
-func (s *Store) CreateAgentInTeam(ctx context.Context, in model.CreateAgentInput) (*model.Agent, error) {
+func (s *Store) CreateAgentInTeam(ctx context.Context, in agentdef.CreateInput) (*agentdef.Agent, error) {
 	teamID := in.TeamID
 	if teamID == "" {
 		resolved, err := s.personalTeamIDForUser(ctx, in.UserID)
@@ -257,7 +257,7 @@ func (s *Store) CreateAgentInTeam(ctx context.Context, in model.CreateAgentInput
 		}
 		teamID = resolved
 	}
-	a := &model.Agent{
+	a := &agentdef.Agent{
 		UserID:       in.UserID,
 		TeamID:       teamID,
 		Name:         in.Def.Name,
@@ -303,7 +303,7 @@ func (s *Store) CreateAgentInTeam(ctx context.Context, in model.CreateAgentInput
 
 // UpdateAgentInTeam updates a team-scoped agent. Returns (nil, nil) if not
 // found or the team does not match.
-func (s *Store) UpdateAgentInTeam(ctx context.Context, in model.UpdateAgentInput) (*model.Agent, error) {
+func (s *Store) UpdateAgentInTeam(ctx context.Context, in agentdef.UpdateInput) (*agentdef.Agent, error) {
 	a, err := s.GetAgent(ctx, in.AgentID)
 	if err != nil || a == nil {
 		return nil, err
@@ -317,7 +317,7 @@ func (s *Store) UpdateAgentInTeam(ctx context.Context, in model.UpdateAgentInput
 // updateAgent writes new content and records it as the next revision. An update
 // that changes nothing is not a revision: a save with no edit should not add a
 // row that a reader has to compare against its predecessor to dismiss.
-func (s *Store) updateAgent(ctx context.Context, a *model.Agent, updatedBy string, def model.AgentDefinition) (*model.Agent, error) {
+func (s *Store) updateAgent(ctx context.Context, a *agentdef.Agent, updatedBy string, def agentdef.Definition) (*agentdef.Agent, error) {
 	if a.Name == def.Name && a.Description == def.Description &&
 		a.Instructions == def.Instructions && slices.Equal(a.Plugins, def.Plugins) {
 		return a, nil
@@ -358,7 +358,7 @@ func (s *Store) updateAgent(ctx context.Context, a *model.Agent, updatedBy strin
 }
 
 // ListAgentRevisions returns an agent's revisions, newest first.
-func (s *Store) ListAgentRevisions(ctx context.Context, agentID string, limit, offset int) ([]model.AgentRevision, int, error) {
+func (s *Store) ListAgentRevisions(ctx context.Context, agentID string, limit, offset int) ([]agentdef.Revision, int, error) {
 	limit, offset = capPage(limit, offset)
 	agentKey, err := lookupKey(ctx, s.db, "agent", agentID)
 	if errors.Is(err, apierr.ErrNotFound) {
@@ -376,7 +376,7 @@ func (s *Store) ListAgentRevisions(ctx context.Context, agentID string, limit, o
 }
 
 // GetAgentRevision returns one revision, or (nil, nil) when there is no such revision.
-func (s *Store) GetAgentRevision(ctx context.Context, agentID string, revision int) (*model.AgentRevision, error) {
+func (s *Store) GetAgentRevision(ctx context.Context, agentID string, revision int) (*agentdef.Revision, error) {
 	agentKey, err := lookupKey(ctx, s.db, "agent", agentID)
 	if errors.Is(err, apierr.ErrNotFound) {
 		return nil, nil

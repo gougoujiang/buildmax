@@ -12,8 +12,8 @@ import (
 	"slices"
 	"strings"
 
+	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 )
@@ -49,7 +49,7 @@ type PluginSelection interface {
 }
 
 type Service struct {
-	Agents model.AgentStore
+	Agents agentdef.Store
 	// Plugins is optional, and nil means the deployment has no Marketplace.
 	// An agent that names a plugin is then refused rather than saved: storing
 	// a selection nothing can resolve would be a definition that silently does
@@ -89,14 +89,14 @@ type RestoreRevisionCmd struct {
 	Revision int
 }
 
-func (s *Service) ListAgents(ctx context.Context, teamID string) ([]model.Agent, error) {
+func (s *Service) ListAgents(ctx context.Context, teamID string) ([]agentdef.Agent, error) {
 	if s.Agents == nil {
 		return nil, ErrAgentsNotConfigured
 	}
 	return s.Agents.ListAgentsByTeam(ctx, teamID)
 }
 
-func (s *Service) CreateAgent(ctx context.Context, cmd CreateCmd) (*model.Agent, error) {
+func (s *Service) CreateAgent(ctx context.Context, cmd CreateCmd) (*agentdef.Agent, error) {
 	if s.Agents == nil {
 		return nil, ErrAgentsNotConfigured
 	}
@@ -107,10 +107,10 @@ func (s *Service) CreateAgent(ctx context.Context, cmd CreateCmd) (*model.Agent,
 	if err != nil {
 		return nil, err
 	}
-	return s.Agents.CreateAgentInTeam(ctx, model.CreateAgentInput{
+	return s.Agents.CreateAgentInTeam(ctx, agentdef.CreateInput{
 		TeamID: cmd.TeamID,
 		UserID: cmd.UserID,
-		Def: model.AgentDefinition{
+		Def: agentdef.Definition{
 			Name:         cmd.Name,
 			Description:  cmd.Description,
 			Instructions: cmd.Instructions,
@@ -168,7 +168,7 @@ func normalizePluginNames(names []string) []string {
 //
 // An agent belonging to another team reads as not found rather than forbidden,
 // so the answer does not confirm that an id exists somewhere else.
-func (s *Service) GetAgent(ctx context.Context, teamID, agentID string) (*model.Agent, error) {
+func (s *Service) GetAgent(ctx context.Context, teamID, agentID string) (*agentdef.Agent, error) {
 	if s.Agents == nil {
 		return nil, ErrAgentsNotConfigured
 	}
@@ -182,7 +182,7 @@ func (s *Service) GetAgent(ctx context.Context, teamID, agentID string) (*model.
 	return found, nil
 }
 
-func (s *Service) UpdateAgent(ctx context.Context, cmd UpdateCmd) (*model.Agent, error) {
+func (s *Service) UpdateAgent(ctx context.Context, cmd UpdateCmd) (*agentdef.Agent, error) {
 	if s.Agents == nil {
 		return nil, ErrAgentsNotConfigured
 	}
@@ -193,11 +193,11 @@ func (s *Service) UpdateAgent(ctx context.Context, cmd UpdateCmd) (*model.Agent,
 	if err != nil {
 		return nil, err
 	}
-	updated, err := s.Agents.UpdateAgentInTeam(ctx, model.UpdateAgentInput{
+	updated, err := s.Agents.UpdateAgentInTeam(ctx, agentdef.UpdateInput{
 		AgentID:   cmd.AgentID,
 		TeamID:    cmd.TeamID,
 		UpdatedBy: cmd.UserID,
-		Def: model.AgentDefinition{
+		Def: agentdef.Definition{
 			Name:         cmd.Name,
 			Description:  cmd.Description,
 			Instructions: cmd.Instructions,
@@ -213,7 +213,7 @@ func (s *Service) UpdateAgent(ctx context.Context, cmd UpdateCmd) (*model.Agent,
 	return updated, nil
 }
 
-func (s *Service) ListRevisions(ctx context.Context, teamID, agentID string, limit, offset int) ([]model.AgentRevision, int, error) {
+func (s *Service) ListRevisions(ctx context.Context, teamID, agentID string, limit, offset int) ([]agentdef.Revision, int, error) {
 	if _, err := s.GetAgent(ctx, teamID, agentID); err != nil {
 		return nil, 0, err
 	}
@@ -222,7 +222,7 @@ func (s *Service) ListRevisions(ctx context.Context, teamID, agentID string, lim
 
 // RestoreRevision writes an older definition back as a new revision. Restoring
 // is an edit, not a rewind: the history keeps growing.
-func (s *Service) RestoreRevision(ctx context.Context, cmd RestoreRevisionCmd) (*model.Agent, error) {
+func (s *Service) RestoreRevision(ctx context.Context, cmd RestoreRevisionCmd) (*agentdef.Agent, error) {
 	if _, err := s.GetAgent(ctx, cmd.TeamID, cmd.AgentID); err != nil {
 		return nil, err
 	}

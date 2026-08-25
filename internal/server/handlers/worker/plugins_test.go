@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
@@ -36,9 +37,9 @@ type pinFixture struct {
 func newPinFixture(t *testing.T, agentPlugins []string) *pinFixture {
 	t.Helper()
 	agents := &mock.MockAgentStore{}
-	created, err := agents.CreateAgentInTeam(context.Background(), model.CreateAgentInput{
+	created, err := agents.CreateAgentInTeam(context.Background(), agentdef.CreateInput{
 		TeamID: pluginTestTeam, UserID: "u_1",
-		Def: model.AgentDefinition{Name: "Reviewer", Plugins: agentPlugins},
+		Def: agentdef.Definition{Name: "Reviewer", Plugins: agentPlugins},
 	})
 	if err != nil {
 		t.Fatalf("CreateAgentInTeam: %v", err)

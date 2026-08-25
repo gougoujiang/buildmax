@@ -6,6 +6,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
 
+	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/model"
@@ -25,7 +26,7 @@ type Service struct {
 	MessageStore      coreconv.MessageStore
 	LLMClient         llm.LLMClient
 	TitleGenerator    llm.TitleGenerator
-	AgentStore        model.AgentStore
+	AgentStore        agentdef.Store
 }
 
 // HandleTurnCmd describes one normalized portal conversation turn.

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
@@ -41,7 +42,7 @@ func TestIssueHandlers(t *testing.T) {
 		},
 	}
 	agents := &mock.MockAgentStore{
-		Agents: []model.Agent{{ID: agentID, UserID: "u1", TeamID: personalTeamID, Name: "Agent 1"}},
+		Agents: []agentdef.Agent{{ID: agentID, UserID: "u1", TeamID: personalTeamID, Name: "Agent 1"}},
 	}
 	workflows := &mock.MockWorkflowStore{
 		Workflows: []coreworkflow.Workflow{{ID: workflowID, TeamID: personalTeamID, Name: "Workflow 1", Definition: `{"steps":[{"step_id":"s1","type":"agent_task","target_agent_id":"a_1","prompt":"do it"}]}`, Status: coreworkflow.StatusPublished}},

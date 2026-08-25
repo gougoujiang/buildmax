@@ -13,6 +13,7 @@ import (
 	"context"
 	"net/http"
 
+	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
@@ -52,7 +53,7 @@ type Config struct {
 	Workflows     coreworkflow.Store
 	Tasks         model.TaskStore
 	TaskRuns      model.TaskRunStore
-	Agents        model.AgentStore
+	Agents        agentdef.Store
 	Teams         coreteam.Store
 	Conversations coreconv.Store
 	Messages      coreconv.MessageStore

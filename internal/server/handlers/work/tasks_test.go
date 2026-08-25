@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	corequota "github.com/gougoujiang/buildmax/internal/core/quota"
@@ -126,7 +127,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 	tests := []struct {
 		name         string
 		taskStore    model.TaskStore
-		agentStore   model.AgentStore
+		agentStore   agentdef.Store
 		authHeader   string
 		path         string
 		body         string
@@ -180,7 +181,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 			name:      "create with agent_id composes input and returns 201",
 			taskStore: &mock.MockTaskStore{},
 			agentStore: &mock.MockAgentStore{
-				Agents: []model.Agent{
+				Agents: []agentdef.Agent{
 					{ID: "a_1", UserID: "u1", TeamID: teamID, Name: "TestAgent", Description: "A desc", Instructions: "Do things", CreatedAt: time.Unix(100, 0).UTC()},
 				},
 			},
@@ -201,7 +202,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 	tests = append(tests, struct {
 		name         string
 		taskStore    model.TaskStore
-		agentStore   model.AgentStore
+		agentStore   agentdef.Store
 		authHeader   string
 		path         string
 		body         string

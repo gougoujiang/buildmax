@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -56,7 +57,7 @@ func getTaskRun(t *testing.T, handler http.Handler) workerclient.GetTaskRunRespo
 // instead of riding in the task input where compaction eventually drops them.
 func TestGetTaskRun_CarriesAgentInstructions(t *testing.T) {
 	agentID := "ag_1"
-	agents := &mock.MockAgentStore{Agents: []model.Agent{{
+	agents := &mock.MockAgentStore{Agents: []agentdef.Agent{{
 		ID:           agentID,
 		TeamID:       llmTestTeam,
 		Name:         "law-consultant",
@@ -75,7 +76,7 @@ func TestGetTaskRun_CarriesAgentInstructions(t *testing.T) {
 // into a run that has no claim on them.
 func TestGetTaskRun_ForeignAgentIsNotDisclosed(t *testing.T) {
 	agentID := "ag_other"
-	agents := &mock.MockAgentStore{Agents: []model.Agent{{
+	agents := &mock.MockAgentStore{Agents: []agentdef.Agent{{
 		ID:           agentID,
 		TeamID:       "team_somebody_else",
 		Instructions: "secret instructions",

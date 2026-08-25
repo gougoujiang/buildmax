@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
@@ -198,7 +199,7 @@ func TestRunProvenanceNamesTheAgentRevisionThatRan(t *testing.T) {
 	task := provenanceTask()
 	task.AgentID = util.Ptr("ag_1")
 	f := newProvenanceFixture(t, run, task)
-	f.handler.cfg.Agents = &mock.MockAgentStore{Agents: []model.Agent{
+	f.handler.cfg.Agents = &mock.MockAgentStore{Agents: []agentdef.Agent{
 		{ID: "ag_1", TeamID: "tm_1", Name: "Reviewer", Revision: 5},
 	}}
 
@@ -225,7 +226,7 @@ func TestRunProvenanceNamesADeletedAgent(t *testing.T) {
 	task := provenanceTask()
 	task.AgentID = util.Ptr("ag_1")
 	f := newProvenanceFixture(t, run, task)
-	f.handler.cfg.Agents = &mock.MockAgentStore{Agents: []model.Agent{
+	f.handler.cfg.Agents = &mock.MockAgentStore{Agents: []agentdef.Agent{
 		{ID: "ag_1", TeamID: "tm_1", Name: "Retired", Revision: 1, DeletedAt: util.Ptr(time.Unix(9, 0).UTC())},
 	}}
 

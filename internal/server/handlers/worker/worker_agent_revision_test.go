@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
 )
@@ -35,7 +36,7 @@ func revisionFixture(agentID *string, agents *mock.MockAgentStore) (http.Handler
 // could differ with no record of how.
 func TestGetTaskRun_RecordsTheAgentRevisionItServed(t *testing.T) {
 	agentID := "ag_1"
-	agents := &mock.MockAgentStore{Agents: []model.Agent{{
+	agents := &mock.MockAgentStore{Agents: []agentdef.Agent{{
 		ID: agentID, TeamID: llmTestTeam, Name: "reviewer", Revision: 3,
 		Instructions: "You review things.",
 	}}}
@@ -52,7 +53,7 @@ func TestGetTaskRun_RecordsTheAgentRevisionItServed(t *testing.T) {
 // run must not rewrite the record of what the run was actually given.
 func TestGetTaskRun_AgentRevisionIsNotRewrittenByALaterPoll(t *testing.T) {
 	agentID := "ag_1"
-	agents := &mock.MockAgentStore{Agents: []model.Agent{{
+	agents := &mock.MockAgentStore{Agents: []agentdef.Agent{{
 		ID: agentID, TeamID: llmTestTeam, Name: "reviewer", Revision: 3,
 		Instructions: "You review things.",
 	}}}
@@ -76,7 +77,7 @@ func TestGetTaskRun_AgentRevisionIsNotRewrittenByALaterPoll(t *testing.T) {
 // Another team's agent contributes nothing, so there is nothing to record.
 func TestGetTaskRun_ForeignAgentRevisionIsNotRecorded(t *testing.T) {
 	agentID := "ag_other"
-	agents := &mock.MockAgentStore{Agents: []model.Agent{{
+	agents := &mock.MockAgentStore{Agents: []agentdef.Agent{{
 		ID: agentID, TeamID: "team_somebody_else", Revision: 7, Instructions: "secret",
 	}}}
 	handler, runs := revisionFixture(&agentID, agents)

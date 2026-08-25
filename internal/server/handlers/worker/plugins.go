@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 
+	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
@@ -33,7 +34,7 @@ import (
 // team has no enabled activation is not skipped: an agent that names a plugin
 // has declared it needs one, and a background run that quietly does less than
 // its definition says is acted on by somebody who was not watching it.
-func (h *Handler) resolvePluginPins(r *http.Request, run *model.TaskRun, task *model.Task, agent *model.Agent) (pins []coreplugin.Pin, refusal string) {
+func (h *Handler) resolvePluginPins(r *http.Request, run *model.TaskRun, task *model.Task, agent *agentdef.Agent) (pins []coreplugin.Pin, refusal string) {
 	// Already resolved. A worker polls this route while it runs, and a team
 	// moving a pin mid-run must not change what the run was given — the same
 	// rule, and the same reason, as the agent revision's first-write-wins.

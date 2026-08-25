@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
 
+	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
@@ -45,7 +46,7 @@ type QuotaChecker interface {
 
 // Service owns task-related application workflows.
 type Service struct {
-	Agents         model.AgentStore
+	Agents         agentdef.Store
 	Tasks          model.TaskStore
 	TaskRuns       model.TaskRunStore
 	QuotaChecker   QuotaChecker
@@ -266,7 +267,7 @@ func (s *Service) resolveInput(ctx context.Context, teamID, userID, input string
 	// deleted one still names it truthfully — that is how a workflow run whose
 	// agent was deleted mid-flight finishes its remaining steps. With no input
 	// the agent is the source of the prompt, so it has to be live.
-	var agent *model.Agent
+	var agent *agentdef.Agent
 	var err error
 	if input != "" {
 		agent, err = s.Agents.GetAgentIncludingDeleted(ctx, *agentID)
@@ -314,7 +315,7 @@ func (s *Service) checkQuota(ctx context.Context, teamID string, tokens int) err
 	return apierr.New(apierr.KindQuotaExceeded, reason)
 }
 
-func buildTaskInputFromAgent(agent *model.Agent, userInput string) string {
+func buildTaskInputFromAgent(agent *agentdef.Agent, userInput string) string {
 	out := fmt.Sprintf("Agent: %s\nDescription: %s\nInstructions:\n%s", agent.Name, agent.Description, agent.Instructions)
 	if userInput != "" {
 		out = out + "\n\n" + userInput

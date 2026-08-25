@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
@@ -71,7 +72,7 @@ func TestUpdateIssue_AssignToAgent(t *testing.T) {
 			Issues: []model.Issue{{ID: "i_1", UserID: "u1", TeamID: "tm_1", Status: model.IssueStatusTodo}},
 		},
 		Agents: &mock.MockAgentStore{
-			Agents: []model.Agent{{ID: "a_1", UserID: "u1", TeamID: "tm_1", Name: "Agent 1"}},
+			Agents: []agentdef.Agent{{ID: "a_1", UserID: "u1", TeamID: "tm_1", Name: "Agent 1"}},
 		},
 	}
 	kind := model.IssueAssigneeAgent
@@ -97,7 +98,7 @@ func TestUpdateIssue_AssignToWrongAgent(t *testing.T) {
 			Issues: []model.Issue{{ID: "i_1", UserID: "u1", TeamID: "tm_1", Status: model.IssueStatusTodo}},
 		},
 		Agents: &mock.MockAgentStore{
-			Agents: []model.Agent{{ID: "a_1", UserID: "u2", TeamID: "tm_2", Name: "Other Agent"}},
+			Agents: []agentdef.Agent{{ID: "a_1", UserID: "u2", TeamID: "tm_2", Name: "Other Agent"}},
 		},
 	}
 	kind := model.IssueAssigneeAgent
