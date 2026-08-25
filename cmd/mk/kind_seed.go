@@ -48,11 +48,8 @@ var publicIDPattern = regexp.MustCompile(`^[a-z2-7]{20}$`)
 
 // kindSeedEntry is one settings.local.yaml model as the cluster will hold it.
 type kindSeedEntry struct {
-	// source is the settings.local.yaml model id the row was built from, so the
-	// printed entries say which model each one is.
-	source string
 	// name is the catalog row's operator-facing name, unique in the deployment.
-	// It is what a client puts in a managed entry's `model` field.
+	// It is what a managed client selects after login.
 	name string
 	// id is the catalog ID the row was created with.
 	id string
@@ -97,9 +94,9 @@ func kindSeed() error {
 	return printKindSeedUsage(entries)
 }
 
-// directSettingsModels drops the entries that already call a gateway. Such an
-// entry names a team alias rather than an upstream, so there is nothing in it
-// for a catalog to hold.
+// directSettingsModels drops obsolete managed entries that already call a
+// gateway. Such an entry names a catalog row rather than an upstream, so there
+// is nothing in it for a catalog to hold.
 func directSettingsModels(models []settingsModel) []settingsModel {
 	out := make([]settingsModel, 0, len(models))
 	for _, m := range models {
@@ -147,7 +144,7 @@ func seedKindCatalog(target smokeTarget, models []settingsModel, existing map[st
 			fmt.Printf("  %s added as %s\n", name, id)
 		}
 		claimed[name] = m.id
-		entries = append(entries, kindSeedEntry{source: m.id, name: name, id: id})
+		entries = append(entries, kindSeedEntry{name: name, id: id})
 	}
 	return entries, nil
 }
@@ -274,9 +271,8 @@ func catalogNameColumn(line string) (int, int) {
 	return len([]rune(line[:start])), len([]rune(line[:provider]))
 }
 
-// printKindSeedUsage prints the managed model entries a contributor pastes into
-// their own settings.yaml. A managed entry names a model and a server; the
-// credential comes from the login, and no team is involved.
+// printKindSeedUsage explains how a managed client sees the new catalog rows.
+// Login decides the mode; managed model entries do not belong in settings.yaml.
 func printKindSeedUsage(entries []kindSeedEntry) error {
 	target := kindSmokeTarget()
 	client := &http.Client{Timeout: 10 * time.Second}
@@ -288,16 +284,8 @@ func printKindSeedUsage(entries []kindSeedEntry) error {
 	fmt.Printf("\nSeeded %d model(s) into cluster %s.\n", len(entries), kindClusterName())
 	fmt.Printf("The cluster's own inference is untouched: Portal conversations and task runs\n"+
 		"still answer from the mock, so `%s kind smoke` stays free and deterministic.\n", mk())
-	fmt.Printf("\nAdd these to your BUILDMAX_HOME/settings.yaml to drive them from the CLI or Desktop:\n\n")
-	fmt.Println("models:")
-	for _, entry := range entries {
-		fmt.Printf("  - model: %s  # %s\n", entry.name, entry.source)
-		fmt.Printf("    name: %s (kind)\n", entry.name)
-		fmt.Printf("    transport: buildmax\n")
-		fmt.Printf("    server_url: %s\n", target.apiBase)
-	}
-	fmt.Printf("\nThe credential comes from the login, not the file: sign in first with\n")
+	fmt.Printf("\nSign in to use the deployment catalog from the CLI or Desktop:\n")
 	fmt.Printf("  buildmax login --server %s   (as %s)\n", target.apiBase, smokeEmail)
-	fmt.Printf("Run `%s kind info` for a single-use code, then `buildmax models --server` to check.\n", mk())
+	fmt.Printf("Run `%s kind info` for a single-use code, then `buildmax models` to check.\n", mk())
 	return nil
 }

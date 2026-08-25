@@ -1,8 +1,9 @@
 # Plugin Distribution And Private Marketplace
 
 > **Audience:** contributors and operators · **Status:** partly implemented —
-> Phases A, B, and C ship; team and worker distribution do not, and are
-> designed in [plugin-team-distribution.md](./plugin-team-distribution.md)
+> Phases A, B, and C ship; team and worker distribution D1 also ships and its
+> remaining work is designed in
+> [plugin-team-distribution.md](./plugin-team-distribution.md)
 >
 > User documentation for what ships:
 > [../guide/plugins.md](../guide/plugins.md)
@@ -17,10 +18,11 @@
   commands, and the Marketplace itself — packaging, the catalog and its
   releases, package storage, publication, browse, download, and install, plus
   the Portal and Desktop surfaces. Phase D, team and worker distribution, is
-  under way: a team activates releases and a worker materializes them, with
-  Portal's surface still to come. Its record is
-  [plugin-team-distribution.md](./plugin-team-distribution.md), which is ready
-  for review with nothing built
+  under way: D1 ships team activation, agent selection, Portal management,
+  server-side pinning, and worker materialization for skills and subagents. The
+  Agent modal still lacks its plugin field; executable hooks/MCP and secret
+  delivery remain open. Its record is
+  [plugin-team-distribution.md](./plugin-team-distribution.md)
 - follows: [enterprise-deployment.md](./enterprise-deployment.md),
   [team-governance.md](./team-governance.md), and
   [system-administration.md](./system-administration.md)
@@ -473,10 +475,11 @@ Two honest limits, both of which follow from §8:
 
 `internal/config/permissions.go` records the matching precedent in the other
 direction: a `policy.yaml` block for tool permissions was specified and then
-dropped, because a worker's `BUILDMAX_HOME` is created fresh per run and
-nothing placed there could reach the surface that needed it. Plugins differ —
-the plugins directory is part of a persistent `BUILDMAX_HOME` — but the worker
-path must be checked before this block is specified as covering workers.
+dropped, because a worker's `BUILDMAX_HOME` is created fresh per run and an
+operator policy placed on a long-lived host would not automatically reach it.
+Plugin source policy therefore governs discovery in the home that actually
+contains it; team activations and immutable run pins, rather than a persistent
+worker plugin directory, govern which releases a background run receives.
 
 Source classification lives with discovery rather than with each surface that
 displays it. A recorded source is the answer when there is one; otherwise the
@@ -828,7 +831,7 @@ Normal users may browse the catalog, but Portal must not claim a plugin is
 installed on a local machine it cannot inspect. The primary install surfaces
 are CLI and Desktop; raw archive download from Portal is optional.
 
-## 10. Provenance And Future Worker Use
+## 10. Provenance And Worker Use
 
 Every run records the active plugin inventory at start.
 
@@ -848,11 +851,14 @@ This bounded metadata contains no package content or secrets. Skill invocation,
 subagent start, MCP calls, and hook events should carry plugin origin when the
 resolved definition came from one.
 
-Future Portal and worker distribution should consume only immutable Marketplace
-releases pinned before dispatch. A worker must not clone a mutable repository,
-receive a developer's Git credential, or resolve “latest” while starting a run.
-Team activation, secret selection, and worker delivery require a follow-on
-design because they change authorization and the non-interactive trust boundary.
+Portal and worker distribution consume only immutable Marketplace releases.
+The server resolves an Agent's named plugins against the Team activation and
+records exact release pins on the TaskRun; the worker downloads only those pins
+with its run token and materializes them before runtime assembly. It never
+clones a mutable repository, receives a developer's Git credential, or resolves
+“latest” while starting a run. D1 admits skills and subagents only. Executable
+hooks/MCP and secret delivery remain in the follow-on
+[team distribution design](plugin-team-distribution.md).
 
 ## 11. Implementation Ownership
 

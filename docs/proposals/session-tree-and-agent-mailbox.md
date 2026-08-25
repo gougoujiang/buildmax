@@ -456,10 +456,11 @@ The candidate flow is:
 3. The report references those durable records.
 4. The parent Agent may inspect the diff, tests, and conflict preflight.
 5. The user, or an explicitly authorized policy, chooses whether to apply.
-6. Workspace Service applies the change set against the current parent base.
-7. Success creates a new parent snapshot; failure creates an inspectable
-   conflict result.
-8. The operation and actor appear in trace, audit, and workspace timeline data.
+6. A separately accepted workspace owner applies the change set against the
+   current parent base.
+7. Success records the applied change-set digest and the resulting backend
+   revision when one exists; failure creates an inspectable conflict result.
+8. The operation and actor appear in trace and audit data.
 
 The first slice must not automatically merge. A patch can be mechanically clean
 and still contradict decisions the parent made after the fork.
@@ -913,7 +914,7 @@ If accepted, candidate ownership boundaries are:
 | Responsibility | Candidate owner |
 |---|---|
 | Pure lineage, fork snapshot, and Signal types/interfaces | `internal/core/session` or a new pure core package |
-| Local Session fork, file persistence, and restore | `internal/agentapp` |
+| Local Session fork, file persistence, and resume | `internal/agentapp` |
 | `ReportToParent` runtime tool | `internal/tool`, through an injected application service |
 | Local worktree creation and change inspection | `internal/agentapp` plus `internal/util` or a dedicated service, to be designed |
 | Desktop and CLI supervision | Surface packages over shared application behavior |
@@ -992,10 +993,12 @@ first building automatic scheduling.
 
 ### Phase 5: Workspace change integration
 
+- Start only after a separate workspace/change-set design is accepted; phases
+  1–4 do not commit BuildMax to a generic versioned workspace.
 - Create Change Sets, conflict preflight, and parent review.
 - Apply only after user approval.
 - Make Server or Workspace Service own Team workspace writes.
-- Connect snapshot, timeline, restore, and Session Tree causality.
+- Record applied change-set causality in trace and audit data.
 - Evaluate a safe automatic-apply profile.
 
 ### Phase 6: Align Portal and detached execution

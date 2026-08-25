@@ -1,9 +1,9 @@
 # Plugins
 
-> **Audience:** users · **Status:** current — local plugins ship; the private
-> Marketplace does not yet exist
+> **Audience:** users · **Status:** current — local plugins, the private
+> Marketplace, and instruction-only Team activation ship
 >
-> Design rationale and the planned Marketplace:
+> Design rationale:
 > [design/plugin-marketplace.md](../design/plugin-marketplace.md)
 
 A plugin is a directory of things that already work in a workspace
@@ -82,6 +82,30 @@ buildmax plugin uninstall code-review
 Installing never replaces a Git checkout, and `uninstall` will not delete one
 without `--force`. A working tree can hold work that exists nowhere else, and
 neither command is one you expect to lose it to.
+
+## Use One In Team Background Runs
+
+Portal's Team Plugins page controls which Marketplace releases are available to
+that Team's background Agents. A Team can curate an explicit activation list or
+use open catalog mode. In either mode, an Agent loads only the plugins its
+definition names; naming none loads none. The release version belongs to the
+Team activation, not to each Agent.
+
+The Agent definition API accepts plugin catalog names. The Portal Agent modal
+does not expose that field yet. To inspect the Team side from a terminal:
+
+```bash
+buildmax plugin activations --team <team-id>
+```
+
+When a worker claims a run, the server resolves and records exact release pins.
+The worker downloads only those packages with its run credential and
+materializes them before the Agent runtime starts, so changing an activation
+cannot alter a run already in flight.
+
+This first Team slice accepts plugins that contribute skills and subagents.
+Releases containing executable hooks or MCP servers cannot be activated yet,
+and BuildMax does not yet deliver Team secrets to plugins.
 
 ## Publish One
 

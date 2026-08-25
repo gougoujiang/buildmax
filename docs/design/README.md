@@ -16,7 +16,7 @@ Durable product decisions that guide more than one roadmap phase.
 
 | Document | Scope |
 |---|---|
-| [Product vision](product-vision.md) | Long-range direction for the AI-native workspace |
+| [Product vision](product-vision.md) | Long-range product model, ownership boundaries, and rules for future bets |
 | [Surface positioning](surface-positioning.md) | How Agent Core, CLI, Desktop, and Portal relate |
 
 ## Active Roadmap Plans
@@ -30,10 +30,10 @@ reference, then delete the plan.
 |---|---|---|
 | [Agent Core trust harness](trust-harness.md) | P0.5 | Hooks shipped; sandbox worker hardening and trace follow-ups open |
 | [Context durability](context-durability.md) | P0.5 | Implemented: accumulating compaction, durable session notes, the pre-compaction checkpoint, and the additional system prompt |
-| [Local session storage](local-session-storage.md) | unscheduled | Design ready for review; implementation not started |
+| [Local session storage](local-session-storage.md) | unscheduled | Implemented: atomic session bundles, linked journal history, rewind, and physical-copy fork. Server synchronization is outside this record |
 | [Session usage stats](session-usage-stats.md) | P1 follow-on | Per-session `buildmax stats` and the TUI `/stats` panel shipped, with the subagent and compaction metering fixes they required. Cross-session aggregation and the Desktop surface are designed and not built |
 | [Local background jobs](local-background-jobs.md) | P0.5 | Stages 1–3 shipped: background `Bash`/`Task` jobs, `Monitor`, typed delivery with parked wake-up on both surfaces, durable job logs. Durability beyond the process — spool, supervisor, scheduling — is decided against, not pending |
-| [Evaluation and qualification](evaluation-system.md) | P0.6 | Vertical slice shipped: the contract, the black-box CLI adapter, deterministic/command/trace graders, preflight, repetition, paired comparison, and the first two tasks. The legacy harness is retired. Worker, conversation, and deployment adapters, model-grader calibration, the holdout, and the Inspect/Harbor spikes are open |
+| [Evaluation and qualification](evaluation-system.md) | P0.6 | Local and worker slices shipped: the contract, both black-box adapters, deterministic/command/trace graders, preflight, repetition, paired comparison, and three tasks. The legacy harness is retired. Conversation and deployment adapters, model-grader calibration, the holdout, and the Inspect/Harbor spikes are open |
 | [Issue model](issue-model.md) | P2 follow-on | Implemented: the backend and frontend plans in full. Typed links, threaded replies, mentions, and realtime push are out of scope, not pending |
 | [Enterprise deployment](enterprise-deployment.md) | P3 | M1, M2, M4, and M5 shipped; M3 mostly done. Operating evidence and configuration checks remain. |
 | [Graceful shutdown](graceful-shutdown.md) | P3 follow-on | Implemented: the shutdown ladder and its budget, the draining state, watcher-stream drain and its Portal half, turn quiescing, managed terminal callbacks, HTTP timeouts, the manifests, a worker that reports what it produced when asked to stop, and a bounded scheduler stop. Re-dispatching an interrupted run belongs to run retry; durable workflow advance stays open |
@@ -44,7 +44,7 @@ reference, then delete the plan.
 | [Worker run token](worker-run-token.md) | P3 | Complete: the only credential every worker route takes, and the shared worker token is removed |
 | [Team governance](team-governance.md) | P4 | Roles, quota, workflow lifecycle, the audit trail, its retention and export, and quota alerting shipped; the second slice of actions and audit-to-run correlation open |
 | [System administration](system-administration.md) | P4 | Implemented: grant model, operator command, admin API, Portal area, and model catalog surface |
-| [Plugin distribution and private marketplace](plugin-marketplace.md) | post-Beta, P4 follow-on | Phases A–C shipped: plugins load, the Marketplace publishes and installs, Portal and Desktop manage it. Team and worker distribution deferred |
+| [Plugin distribution and private marketplace](plugin-marketplace.md) | post-Beta, P4 follow-on | Phases A–C shipped: plugins load, the Marketplace publishes and installs, Portal and Desktop manage it. Phase D is tracked by the next record; its instruction-only D1 slice is shipped |
 | [Team and worker plugin distribution](plugin-team-distribution.md) | post-Beta, after the Marketplace | D1 works end to end: a team curates its plugin list or opens the whole catalog, an agent loads only what it names, and a worker materializes exactly the pinned releases. Portal manages activations; the agent's own plugin field is still API-only. D2, executable content behind operator eligibility, is not started |
 | [Entity identity and relational keys](entity-identity.md) | Beta gate | Implemented: opaque public handles, numeric relational keys, and the store boundary between them. §8 decided database foreign keys: none, until a real deletion feature adds them |
 | [Timestamp representation](timestamp-representation.md) | Beta gate | Implemented: every persisted instant is `time.Time`, `DATETIME(6)`, and RFC 3339, with a UTC-pinned connection and an architecture guard |

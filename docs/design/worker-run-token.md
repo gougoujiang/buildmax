@@ -19,11 +19,13 @@ worker could name any run: read the prompt text of every team's tasks, `PATCH`
 another team's run to SUCCEEDED with arbitrary output, or push deltas into
 another run's live stream.
 
-Managed inference made it untenable rather than merely loose. The gateway's two
-authorization inputs are both team-scoped — `PolicyForTeam` decides which aliases
-may be called, `Quota.Check` decides whose budget is spent — so a credential that
-identifies no team forces the server to derive one from whatever run ID the
-caller supplies.
+Managed inference made it untenable rather than merely loose. At the time, the
+gateway policy and quota inputs were Team-scoped, so a credential that
+identified no Team forced the server to derive one from whatever run ID the
+caller supplied. [Client modes](client-modes.md) later removed per-Team model
+policy and made catalog availability deployment-wide, but the worker still
+needs a run-scoped identity for route authorization, attribution, and isolation
+between Teams and runs.
 
 ## Decision
 

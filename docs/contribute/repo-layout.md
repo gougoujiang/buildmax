@@ -142,7 +142,7 @@ internal/
 │   ├── plugin/         Marketplace publication and catalog lifecycle
 │   ├── team/           Membership: who is in a team and who may change that
 │   ├── quota/          Team quota enforcement
-│   └── llmgateway/     Model catalog, team aliases, routing, and managed calls
+│   └── llmgateway/     Model catalog, name resolution, routing, and managed calls
 │
 ├── tool/               Runtime agent tools: Read, Write, Edit, Bash, Glob, Grep,
 │                       WebFetch, TodoWrite, Skill, Task, and the MCP gateway.

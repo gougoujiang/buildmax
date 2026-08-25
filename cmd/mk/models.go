@@ -249,9 +249,10 @@ type settingsModel struct {
 	vision        bool
 }
 
-// isManaged reports whether the entry already calls a BuildMax gateway rather
-// than a provider. Such an entry names a team alias, not an upstream, so there
-// is nothing in it to put in a catalog.
+// isManaged reports whether an older entry already calls a BuildMax gateway
+// rather than a provider. Such an entry names a catalog row, not an upstream,
+// so there is nothing in it to put in a catalog. Current client modes no longer
+// create these entries, but the reader still ignores one left in an older file.
 func (m settingsModel) isManaged() bool { return m.transport == "buildmax" }
 
 // readLocalModels reads settings.local.yaml from the repository root. main's

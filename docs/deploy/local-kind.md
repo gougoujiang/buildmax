@@ -163,14 +163,14 @@ real inference without a hosted deployment to point at.
 
 The command adds each model with `buildmax-server model add` and stops there: a
 catalog row is callable as soon as it exists, so nothing needs restarting and no
-configuration changes. It then prints the managed model entries to paste into
-your own `BUILDMAX_HOME/settings.yaml`; sign in with `buildmax login` against
-<http://localhost:8080> first, because a managed entry takes its credential from
-the login rather than from the file.
+configuration changes. Sign in with `buildmax login` against
+<http://localhost:8080>; a stored login puts the client in managed mode, where
+`buildmax models` reads the deployment catalog and local `settings.yaml` model
+entries are not used.
 
 A model is named by the `name` it was added under, which is its display name in
-`settings.local.yaml`, or its model id when it has none. The printed entries and
-`buildmax models --server` both show the name to use.
+`settings.local.yaml`, or its model id when it has none. After login,
+`buildmax models` shows the name to use.
 
 What it deliberately does not touch is the cluster's own inference.
 `conversation.model` and the worker keep answering from the in-cluster mock, so
