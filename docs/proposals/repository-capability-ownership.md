@@ -422,6 +422,13 @@ change to the matrix could reach it. Now that both enforcers read one rule, the
 service states its own expectation, and each of the three enforcement points
 fails independently when the rule is widened.
 
+D11 has to run before D8. `model.Team` carries a `PluginCuration` field and
+`model.Task` carries a `PluginPin`, so moving the plugin domain first is what
+lets those two become ordinary cross-package references — Team and Task naming
+Plugin's types directly, which is what this plan says a cross-domain reference
+should look like. Attempting D8 first fails to compile, which is the ordering
+telling you about itself.
+
 D6 found `artifact.go` holding two capabilities. `TaskRunArtifact` and
 `ArtifactWithTask` are run-output types — one names a file a run left behind,
 the other is the DTO for listing them, and its own comment says so. Their only
@@ -529,7 +536,7 @@ settled in D0's review.
 | D8 | `core/team` (from B4) | `team.go`, `webhook_key.go` | 18, 5 |
 | D9 | `core/identity` | `user.go`, `password.go`, `login_code.go`, `refresh_token.go`, `system_grant.go`, 3 sentinels | 18, 2, 7, 7, 9 |
 | D10 | `core/audit` | `audit.go` | 25 |
-| D11 | `core/plugin` (exists) | `plugin.go`, `plugin_activation.go` | 28, 18 |
+| D11 | `core/plugin` (exists) | `plugin.go`, `plugin_activation.go` | 28, 18 — and it must precede D8, because Team names Plugin's curation mode |
 | D12 | `core/task` | `task.go`, `task_result_delivery.go`, 4 sentinels | 38, 4 |
 | D13 | open | `schema.go` | 4 |
 

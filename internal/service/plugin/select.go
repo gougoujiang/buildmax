@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 )
 
@@ -43,7 +42,7 @@ type SelectOptions struct {
 // and whose lower bound this build meets. Every one of those exclusions is
 // recoverable by naming a version exactly, which is what keeps the default safe
 // without making it a wall.
-func SelectRelease(releases []model.PluginRelease, opts SelectOptions) (*model.PluginRelease, error) {
+func SelectRelease(releases []coreplugin.Release, opts SelectOptions) (*coreplugin.Release, error) {
 	client := coreplugin.ParseClientVersion(opts.ClientVersion)
 
 	if opts.Version != "" {
@@ -63,7 +62,7 @@ func SelectRelease(releases []model.PluginRelease, opts SelectOptions) (*model.P
 		return nil, ErrNoRelease
 	}
 
-	var best *model.PluginRelease
+	var best *coreplugin.Release
 	var bestVersion coreplugin.Version
 	for i := range releases {
 		candidate := releases[i]
@@ -98,7 +97,7 @@ func SelectRelease(releases []model.PluginRelease, opts SelectOptions) (*model.P
 // A bound that will not parse is treated as no bound. The value reached the
 // catalog through a publish that validated it, so an unreadable one is a record
 // this build cannot interpret rather than a reason to refuse an install.
-func checkBound(release model.PluginRelease, client coreplugin.ClientVersion) error {
+func checkBound(release coreplugin.Release, client coreplugin.ClientVersion) error {
 	if release.MinBuildmaxVersion == "" {
 		return nil
 	}
@@ -113,7 +112,7 @@ func checkBound(release model.PluginRelease, client coreplugin.ClientVersion) er
 	return nil
 }
 
-func yankNote(release model.PluginRelease) string {
+func yankNote(release coreplugin.Release) string {
 	if release.YankedReason == "" {
 		return release.Version
 	}

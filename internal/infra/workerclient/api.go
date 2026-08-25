@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 	"github.com/gougoujiang/buildmax/internal/infra/httpclient"
 	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
 )
@@ -84,7 +85,7 @@ type WorkerTaskRun struct {
 	CancelRequested bool
 	// Plugins are the releases this run materializes, resolved by the server.
 	// A worker fetches and verifies exactly these and never resolves its own.
-	Plugins []model.PluginPin
+	Plugins []coreplugin.Pin
 	// PluginError is why this run cannot proceed. A worker that receives one
 	// fails the run rather than starting it without the plugin: an agent that
 	// names a plugin has declared it needs one.
@@ -133,13 +134,13 @@ func GetWorkerTaskRun(ctx context.Context, cfg WorkerAPIClientConfig, taskRunID 
 	}, nil
 }
 
-func toPluginPins(wire []TaskRunPlugin) []model.PluginPin {
+func toPluginPins(wire []TaskRunPlugin) []coreplugin.Pin {
 	if len(wire) == 0 {
 		return nil
 	}
-	out := make([]model.PluginPin, 0, len(wire))
+	out := make([]coreplugin.Pin, 0, len(wire))
 	for _, p := range wire {
-		out = append(out, model.PluginPin{PluginName: p.Name, Version: p.Version, Digest: p.Digest})
+		out = append(out, coreplugin.Pin{PluginName: p.Name, Version: p.Version, Digest: p.Digest})
 	}
 	return out
 }

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 )
 
 // spyTaskRunStore records task-run transitions for tests.
@@ -134,7 +135,7 @@ func (s *spyTaskRunStore) RecordTaskRunAgentRevision(_ context.Context, _ string
 	return nil
 }
 
-func (s *spyTaskRunStore) RecordTaskRunPluginPins(_ context.Context, _ string, _ []model.PluginPin) error {
+func (s *spyTaskRunStore) RecordTaskRunPluginPins(_ context.Context, _ string, _ []coreplugin.Pin) error {
 	return nil
 }
 

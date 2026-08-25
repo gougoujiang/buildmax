@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 	"github.com/gougoujiang/buildmax/internal/infra/git"
 	archive "github.com/gougoujiang/buildmax/internal/infra/pluginarchive"
@@ -90,7 +89,7 @@ type Options struct {
 // It exists so a surface can show what is about to change while the decision
 // is still open, which is the moment the capability report is worth reading.
 type Plan struct {
-	Release model.PluginRelease
+	Release coreplugin.Release
 	// AlreadyInstalled means this exact release is the one already in place.
 	AlreadyInstalled bool
 }
@@ -131,7 +130,7 @@ func (s *Session) Resolve(ctx context.Context, opts Options) (Plan, error) {
 }
 
 // Install downloads a resolved release and puts it in place.
-func (s *Session) Install(ctx context.Context, opts Options, release model.PluginRelease) error {
+func (s *Session) Install(ctx context.Context, opts Options, release coreplugin.Release) error {
 	pluginsDir := config.PluginsDir()
 	staged, err := s.stage(ctx, opts, release)
 	if err != nil {
@@ -146,7 +145,7 @@ func (s *Session) Install(ctx context.Context, opts Options, release model.Plugi
 }
 
 // Publish packs a directory and uploads it.
-func (s *Session) Publish(ctx context.Context, dir string) (*model.PluginRelease, error) {
+func (s *Session) Publish(ctx context.Context, dir string) (*coreplugin.Release, error) {
 	pkg, err := Inspect(dir)
 	if err != nil {
 		return nil, err
@@ -207,11 +206,11 @@ func Pack(dir string) (io.Reader, func(), int64, error) {
 // A directory that is not a repository produces an empty claim, which is not an
 // error: a package assembled by hand is a legitimate thing to publish, and the
 // catalog says so rather than inventing provenance.
-func ReadSourceClaim(ctx context.Context, dir string) model.PluginReleaseSource {
+func ReadSourceClaim(ctx context.Context, dir string) coreplugin.ReleaseSource {
 	if !git.IsRepository(dir) {
-		return model.PluginReleaseSource{}
+		return coreplugin.ReleaseSource{}
 	}
-	claim := model.PluginReleaseSource{RemoteURL: git.ReadRemoteURL(ctx, dir)}
+	claim := coreplugin.ReleaseSource{RemoteURL: git.ReadRemoteURL(ctx, dir)}
 	if st, err := git.ReadStatus(ctx, dir); err == nil {
 		claim.Commit, claim.Branch, claim.Dirty = st.Commit, st.Branch, st.Dirty
 	}
@@ -295,7 +294,7 @@ type staged struct {
 	extracted string
 }
 
-func (s *Session) stage(ctx context.Context, opts Options, release model.PluginRelease) (staged, error) {
+func (s *Session) stage(ctx context.Context, opts Options, release coreplugin.Release) (staged, error) {
 	pluginsDir := config.PluginsDir()
 	if err := os.MkdirAll(pluginsDir, 0o755); err != nil {
 		return staged{}, err
@@ -413,7 +412,7 @@ func swapIn(stagedDir, active string) error {
 	return nil
 }
 
-func recordInstalled(pluginsDir, name, serverURL string, release model.PluginRelease) error {
+func recordInstalled(pluginsDir, name, serverURL string, release coreplugin.Release) error {
 	now := time.Now().UTC()
 	return config.UpdatePluginStates(pluginsDir, func(s *config.PluginStates) error {
 		st, _ := s.Get(name)

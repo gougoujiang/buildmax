@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 )
 
 // MockUsageReader returns fixed run count and token total for TeamUsageInWindow.
@@ -100,6 +101,6 @@ func (d *DenyQuotaTeamStore) CountTeamMembers(_ context.Context, _ []string) (ma
 	return nil, nil
 }
 
-func (d *DenyQuotaTeamStore) SetTeamPluginCuration(_ context.Context, _ string, _ model.PluginCuration) error {
+func (d *DenyQuotaTeamStore) SetTeamPluginCuration(_ context.Context, _ string, _ coreplugin.Curation) error {
 	return nil
 }

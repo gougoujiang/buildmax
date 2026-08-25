@@ -6,25 +6,25 @@ import (
 	"io"
 
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 	"github.com/gougoujiang/buildmax/internal/infra/objectstore"
 )
 
 // MockPluginStore is an in-memory Marketplace catalog for tests.
 type MockPluginStore struct {
-	plugins  map[string]*model.Plugin
-	releases map[string][]*model.PluginRelease
+	plugins  map[string]*coreplugin.Plugin
+	releases map[string][]*coreplugin.Release
 }
 
 func NewMockPluginStore() *MockPluginStore {
-	return &MockPluginStore{plugins: map[string]*model.Plugin{}, releases: map[string][]*model.PluginRelease{}}
+	return &MockPluginStore{plugins: map[string]*coreplugin.Plugin{}, releases: map[string][]*coreplugin.Release{}}
 }
 
-func (f *MockPluginStore) CreatePlugin(_ context.Context, in model.CreatePluginInput) (*model.Plugin, error) {
+func (f *MockPluginStore) CreatePlugin(_ context.Context, in coreplugin.CreateInput) (*coreplugin.Plugin, error) {
 	if _, taken := f.plugins[in.Name]; taken {
-		return nil, model.ErrPluginNameTaken
+		return nil, coreplugin.ErrNameTaken
 	}
-	p := &model.Plugin{
+	p := &coreplugin.Plugin{
 		Name: in.Name, DisplayName: in.DisplayName,
 		Description: in.Description, CreatedBy: in.CreatedBy,
 	}
@@ -32,7 +32,7 @@ func (f *MockPluginStore) CreatePlugin(_ context.Context, in model.CreatePluginI
 	return p, nil
 }
 
-func (f *MockPluginStore) GetPlugin(_ context.Context, name string) (*model.Plugin, error) {
+func (f *MockPluginStore) GetPlugin(_ context.Context, name string) (*coreplugin.Plugin, error) {
 	p, ok := f.plugins[name]
 	if !ok {
 		return nil, nil
@@ -41,8 +41,8 @@ func (f *MockPluginStore) GetPlugin(_ context.Context, name string) (*model.Plug
 	return &copied, nil
 }
 
-func (f *MockPluginStore) ListPlugins(_ context.Context, includeArchived bool) ([]model.Plugin, error) {
-	var out []model.Plugin
+func (f *MockPluginStore) ListPlugins(_ context.Context, includeArchived bool) ([]coreplugin.Plugin, error) {
+	var out []coreplugin.Plugin
 	for _, p := range f.plugins {
 		if !includeArchived && p.Archived() {
 			continue
@@ -52,7 +52,7 @@ func (f *MockPluginStore) ListPlugins(_ context.Context, includeArchived bool) (
 	return out, nil
 }
 
-func (f *MockPluginStore) UpdatePlugin(_ context.Context, name string, in model.UpdatePluginInput) (*model.Plugin, error) {
+func (f *MockPluginStore) UpdatePlugin(_ context.Context, name string, in coreplugin.UpdateInput) (*coreplugin.Plugin, error) {
 	p, ok := f.plugins[name]
 	if !ok {
 		return nil, apierr.ErrNotFound
@@ -76,20 +76,20 @@ func (f *MockPluginStore) SetPluginArchived(_ context.Context, name string, arch
 	return nil
 }
 
-func (f *MockPluginStore) CreatePluginRelease(_ context.Context, in model.CreatePluginReleaseInput) (*model.PluginRelease, error) {
+func (f *MockPluginStore) CreatePluginRelease(_ context.Context, in coreplugin.CreateReleaseInput) (*coreplugin.Release, error) {
 	entry, ok := f.plugins[in.PluginName]
 	if !ok {
 		return nil, apierr.ErrNotFound
 	}
 	if entry.Archived() {
-		return nil, model.ErrPluginArchived
+		return nil, coreplugin.ErrArchived
 	}
 	for _, r := range f.releases[in.PluginName] {
 		if r.Version == in.Version {
-			return nil, model.ErrPluginVersionExists
+			return nil, coreplugin.ErrVersionExists
 		}
 	}
-	r := &model.PluginRelease{
+	r := &coreplugin.Release{
 		PluginName: in.PluginName,
 		Version:    in.Version, MinBuildmaxVersion: in.MinBuildmaxVersion, Digest: in.Digest,
 		ObjectKey: in.ObjectKey, SizeBytes: in.SizeBytes, Inspection: in.Inspection,
@@ -99,7 +99,7 @@ func (f *MockPluginStore) CreatePluginRelease(_ context.Context, in model.Create
 	return r, nil
 }
 
-func (f *MockPluginStore) GetPluginRelease(_ context.Context, name, version string) (*model.PluginRelease, error) {
+func (f *MockPluginStore) GetPluginRelease(_ context.Context, name, version string) (*coreplugin.Release, error) {
 	for _, r := range f.releases[name] {
 		if r.Version == version {
 			copied := *r
@@ -109,8 +109,8 @@ func (f *MockPluginStore) GetPluginRelease(_ context.Context, name, version stri
 	return nil, nil
 }
 
-func (f *MockPluginStore) ListPluginReleases(_ context.Context, name string) ([]model.PluginRelease, error) {
-	var out []model.PluginRelease
+func (f *MockPluginStore) ListPluginReleases(_ context.Context, name string) ([]coreplugin.Release, error) {
+	var out []coreplugin.Release
 	for _, r := range f.releases[name] {
 		out = append(out, *r)
 	}

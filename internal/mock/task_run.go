@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 )
 
 // MockTaskRunStore is an in-memory TaskRunStore for tests.
@@ -190,7 +191,7 @@ func (m *MockTaskRunStore) syncTaskFromRun(_ context.Context, taskRunID string) 
 	return nil
 }
 
-func (m *MockTaskRunStore) RecordTaskRunPluginPins(_ context.Context, taskRunID string, pins []model.PluginPin) error {
+func (m *MockTaskRunStore) RecordTaskRunPluginPins(_ context.Context, taskRunID string, pins []coreplugin.Pin) error {
 	for i := range m.Runs {
 		if m.Runs[i].ID != taskRunID {
 			continue

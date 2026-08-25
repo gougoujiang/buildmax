@@ -20,6 +20,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 	tool "github.com/gougoujiang/buildmax/internal/tool"
@@ -143,7 +144,7 @@ type RunTaskInput struct {
 	// Plugins are the releases the server resolved for this run. They are
 	// materialized into the run's BUILDMAX_HOME before the runtime is
 	// assembled; a pin that cannot be materialized fails the run.
-	Plugins []model.PluginPin
+	Plugins []coreplugin.Pin
 	// InterruptGrace is how long this run may spend reporting after its process
 	// is asked to stop. Zero uses interruptReportTimeout. A dispatcher that will
 	// kill the worker on its own deadline passes that deadline here, so the run

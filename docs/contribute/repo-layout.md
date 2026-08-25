@@ -117,7 +117,9 @@ internal/
 │   ├── mcp/            The mcp.json document shape and its validation rules
 │   ├── agent/          The tool-calling loop, events, hooks, sandbox contract
 │   ├── plugin/         Plugin manifest, version arithmetic, and the layer
-│   │                   vocabulary discovery, resolution, and publication share
+│   │                   vocabulary discovery, resolution, and publication share,
+│   │                   plus the catalog entry, its releases, and a team's
+│   │                   activations
 │   ├── subagent/       The subagent definition file shape and its frontmatter
 │   ├── team/           What a team's roles may do: the one role/action decision
 │   │                   the HTTP guard and the team service both enforce

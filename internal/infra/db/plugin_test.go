@@ -10,7 +10,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 	pluginsvc "github.com/gougoujiang/buildmax/internal/service/plugin"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
@@ -39,15 +39,15 @@ func TestToPluginReleaseSurvivesADamagedDocument(t *testing.T) {
 }
 
 func TestToPluginReleaseDecodesDocuments(t *testing.T) {
-	inspection, err := json.Marshal(model.PluginInspection{
+	inspection, err := json.Marshal(coreplugin.Inspection{
 		Skills:  []string{"review"},
-		MCP:     []model.PluginMCPServer{{ID: "github", Transport: "stdio", Executable: "npx"}},
+		MCP:     []coreplugin.MCPServer{{ID: "github", Transport: "stdio", Executable: "npx"}},
 		EnvRefs: []string{"GITHUB_TOKEN"},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	source, err := json.Marshal(model.PluginReleaseSource{
+	source, err := json.Marshal(coreplugin.ReleaseSource{
 		RemoteURL: "git@example.com:x.git", Commit: "abc123", Dirty: true,
 	})
 	if err != nil {
@@ -64,16 +64,16 @@ func TestToPluginReleaseDecodesDocuments(t *testing.T) {
 }
 
 func TestPluginArchivedAndYanked(t *testing.T) {
-	if (model.Plugin{}).Archived() {
+	if (coreplugin.Plugin{}).Archived() {
 		t.Error("a live entry is not archived")
 	}
-	if !(model.Plugin{ArchivedAt: util.Ptr(time.Unix(1, 0).UTC())}).Archived() {
+	if !(coreplugin.Plugin{ArchivedAt: util.Ptr(time.Unix(1, 0).UTC())}).Archived() {
 		t.Error("a retired entry is archived")
 	}
-	if (model.PluginRelease{}).Yanked() {
+	if (coreplugin.Release{}).Yanked() {
 		t.Error("a published release is not yanked")
 	}
-	if !(model.PluginRelease{YankedAt: util.Ptr(time.Unix(1, 0).UTC())}).Yanked() {
+	if !(coreplugin.Release{YankedAt: util.Ptr(time.Unix(1, 0).UTC())}).Yanked() {
 		t.Error("a withdrawn release is yanked")
 	}
 }
@@ -94,11 +94,11 @@ func newPluginStore(t *testing.T) (*Store, context.Context) {
 	return s, ctx
 }
 
-func makeCatalogEntry(t *testing.T, s *Store, ctx context.Context, name string) *model.Plugin {
+func makeCatalogEntry(t *testing.T, s *Store, ctx context.Context, name string) *coreplugin.Plugin {
 	t.Helper()
 	_ = s.db.WithContext(ctx).Delete(&pluginReleaseRow{}, "plugin_name = ?", name)
 	_ = s.db.WithContext(ctx).Delete(&pluginRow{}, "name = ?", name)
-	entry, err := s.CreatePlugin(ctx, model.CreatePluginInput{
+	entry, err := s.CreatePlugin(ctx, coreplugin.CreateInput{
 		Name: name, DisplayName: "Code Review", Description: "Reviews.", CreatedBy: newTestUser(t, s, "plugin"),
 	})
 	if err != nil {
@@ -119,21 +119,21 @@ func TestPluginCatalogLifecycle(t *testing.T) {
 		t.Fatalf("entry = %+v", entry)
 	}
 
-	if _, err := s.CreatePlugin(ctx, model.CreatePluginInput{Name: name, CreatedBy: newTestUser(t, s, "plugin")}); !errors.Is(err, model.ErrPluginNameTaken) {
+	if _, err := s.CreatePlugin(ctx, coreplugin.CreateInput{Name: name, CreatedBy: newTestUser(t, s, "plugin")}); !errors.Is(err, coreplugin.ErrNameTaken) {
 		t.Errorf("duplicate name: err = %v, want ErrPluginNameTaken", err)
 	}
 	if got, err := s.GetPlugin(ctx, "store-test-absent"); err != nil || got != nil {
 		t.Errorf("missing entry = %+v, %v; want nil, nil", got, err)
 	}
 
-	updated, err := s.UpdatePlugin(ctx, name, model.UpdatePluginInput{DisplayName: "Renamed", Description: "New."})
+	updated, err := s.UpdatePlugin(ctx, name, coreplugin.UpdateInput{DisplayName: "Renamed", Description: "New."})
 	if err != nil {
 		t.Fatalf("UpdatePlugin: %v", err)
 	}
 	if updated.DisplayName != "Renamed" || updated.Description != "New." {
 		t.Errorf("updated = %+v", updated)
 	}
-	if _, err := s.UpdatePlugin(ctx, "store-test-absent", model.UpdatePluginInput{}); !errors.Is(err, apierr.ErrNotFound) {
+	if _, err := s.UpdatePlugin(ctx, "store-test-absent", coreplugin.UpdateInput{}); !errors.Is(err, apierr.ErrNotFound) {
 		t.Errorf("updating a missing entry: err = %v, want ErrNotFound", err)
 	}
 
@@ -147,9 +147,9 @@ func TestPluginCatalogLifecycle(t *testing.T) {
 		t.Error("an archived entry should be out of the default catalog")
 	}
 	// Archiving hides and refuses, it does not delete.
-	if _, err := s.CreatePluginRelease(ctx, model.CreatePluginReleaseInput{
+	if _, err := s.CreatePluginRelease(ctx, coreplugin.CreateReleaseInput{
 		PluginName: name, Version: "1.0.0", Digest: "sha256:a", ObjectKey: "k", PublishedBy: newTestUser(t, s, "publisher"),
-	}); !errors.Is(err, model.ErrPluginArchived) {
+	}); !errors.Is(err, coreplugin.ErrArchived) {
 		t.Errorf("publishing to an archived entry: err = %v, want ErrPluginArchived", err)
 	}
 	if err := s.SetPluginArchived(ctx, name, false); err != nil {
@@ -162,15 +162,15 @@ func TestPluginReleaseIsImmutable(t *testing.T) {
 	const name = "store-test-immutable"
 	makeCatalogEntry(t, s, ctx, name)
 
-	in := model.CreatePluginReleaseInput{
+	in := coreplugin.CreateReleaseInput{
 		PluginName:         name,
 		Version:            "1.2.0",
 		MinBuildmaxVersion: "0.9.0",
 		Digest:             "sha256:abc",
 		ObjectKey:          "plugins/store-test-immutable/1.2.0.tar.gz",
 		SizeBytes:          4096,
-		Inspection:         model.PluginInspection{Skills: []string{"review"}, EnvRefs: []string{"GITHUB_TOKEN"}},
-		Source:             model.PluginReleaseSource{RemoteURL: "git@example.com:x.git", Commit: "abc123"},
+		Inspection:         coreplugin.Inspection{Skills: []string{"review"}, EnvRefs: []string{"GITHUB_TOKEN"}},
+		Source:             coreplugin.ReleaseSource{RemoteURL: "git@example.com:x.git", Commit: "abc123"},
 		PublishedBy:        newTestUser(t, s, "publisher"),
 	}
 	rel, err := s.CreatePluginRelease(ctx, in)
@@ -182,10 +182,10 @@ func TestPluginReleaseIsImmutable(t *testing.T) {
 	}
 
 	// Identical bytes are still a second publication of one version.
-	if _, err := s.CreatePluginRelease(ctx, in); !errors.Is(err, model.ErrPluginVersionExists) {
+	if _, err := s.CreatePluginRelease(ctx, in); !errors.Is(err, coreplugin.ErrVersionExists) {
 		t.Errorf("republishing: err = %v, want ErrPluginVersionExists", err)
 	}
-	if _, err := s.CreatePluginRelease(ctx, model.CreatePluginReleaseInput{
+	if _, err := s.CreatePluginRelease(ctx, coreplugin.CreateReleaseInput{
 		PluginName: "store-test-absent", Version: "1.0.0", Digest: "sha256:a", PublishedBy: newTestUser(t, s, "publisher"),
 	}); !errors.Is(err, apierr.ErrNotFound) {
 		t.Errorf("publishing to a missing entry: err = %v, want ErrNotFound", err)
@@ -211,7 +211,7 @@ func TestPluginReleaseYank(t *testing.T) {
 	const name = "store-test-yank"
 	makeCatalogEntry(t, s, ctx, name)
 	for _, v := range []string{"1.0.0", "1.1.0"} {
-		if _, err := s.CreatePluginRelease(ctx, model.CreatePluginReleaseInput{
+		if _, err := s.CreatePluginRelease(ctx, coreplugin.CreateReleaseInput{
 			PluginName: name, Version: v, Digest: "sha256:" + v, ObjectKey: v, PublishedBy: newTestUser(t, s, "publisher"),
 		}); err != nil {
 			t.Fatalf("publish %s: %v", v, err)
@@ -260,7 +260,7 @@ func TestPluginReleaseYank(t *testing.T) {
 	}
 }
 
-func listPlugins(t *testing.T, s *Store, ctx context.Context, includeArchived bool) []model.Plugin {
+func listPlugins(t *testing.T, s *Store, ctx context.Context, includeArchived bool) []coreplugin.Plugin {
 	t.Helper()
 	got, err := s.ListPlugins(ctx, includeArchived)
 	if err != nil {
@@ -269,7 +269,7 @@ func listPlugins(t *testing.T, s *Store, ctx context.Context, includeArchived bo
 	return got
 }
 
-func containsPlugin(list []model.Plugin, name string) bool {
+func containsPlugin(list []coreplugin.Plugin, name string) bool {
 	for _, p := range list {
 		if p.Name == name {
 			return true

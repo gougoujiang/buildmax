@@ -2,6 +2,7 @@ package model
 
 import (
 	"context"
+	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 	"time"
 )
 
@@ -24,11 +25,11 @@ type Team struct {
 	PersonalForUserID *string `json:"personal_for_user_id,omitempty"`
 	QuotaTier         string  `json:"quota_tier,omitempty"`
 	// PluginCuration is who fills this team's plugin activation list; empty
-	// reads as PluginCurationOpen. See plugin_activation.go.
-	PluginCuration PluginCuration `json:"plugin_curation,omitempty"`
-	CreatedBy      string         `json:"created_by"`
-	CreatedAt      time.Time      `json:"created_at"`
-	UpdatedAt      time.Time      `json:"updated_at"`
+	// reads as plugin.CurationOpen. See core/plugin/activation.go.
+	PluginCuration coreplugin.Curation `json:"plugin_curation,omitempty"`
+	CreatedBy      string              `json:"created_by"`
+	CreatedAt      time.Time           `json:"created_at"`
+	UpdatedAt      time.Time           `json:"updated_at"`
 }
 
 // TeamMember is one user's membership in a team.
@@ -69,5 +70,5 @@ type TeamStore interface {
 	CountTeamMembers(ctx context.Context, teamIDs []string) (map[string]int, error)
 	// SetTeamPluginCuration records who fills the team's plugin activation
 	// list, or returns ErrNotFound. The value is validated above this layer.
-	SetTeamPluginCuration(ctx context.Context, teamID string, mode PluginCuration) error
+	SetTeamPluginCuration(ctx context.Context, teamID string, mode coreplugin.Curation) error
 }

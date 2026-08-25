@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 )
 
 type mockTeamStore struct {
@@ -154,6 +155,6 @@ func TestCheck_EmptyTeamTier_UsesDefault(t *testing.T) {
 	}
 }
 
-func (m *mockTeamStore) SetTeamPluginCuration(_ context.Context, _ string, _ model.PluginCuration) error {
+func (m *mockTeamStore) SetTeamPluginCuration(_ context.Context, _ string, _ coreplugin.Curation) error {
 	return nil
 }

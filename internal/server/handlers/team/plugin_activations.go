@@ -6,7 +6,7 @@ import (
 	"net/http"
 
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	pluginsvc "github.com/gougoujiang/buildmax/internal/service/plugin"
@@ -38,7 +38,7 @@ func writePluginActivationError(w http.ResponseWriter, err error) bool {
 		errors.Is(err, pluginsvc.ErrInvalidCuration):
 		httputil.WriteJSONError(w, http.StatusUnprocessableEntity, err.Error())
 		return true
-	case errors.Is(err, model.ErrPluginAlreadyActivated):
+	case errors.Is(err, coreplugin.ErrAlreadyActivated):
 		// Already activated is a conflict rather than a failure: moving to
 		// another release is the PATCH, and saying so is more use than 500.
 		httputil.WriteJSONError(w, http.StatusConflict, err.Error())
@@ -76,7 +76,7 @@ func (h *Handler) listPluginActivationsHandler(w http.ResponseWriter, r *http.Re
 		return
 	}
 	httputil.WriteJSON(w, http.StatusOK, pluginwire.ActivationsResponse{
-		Curation:    model.NormalizePluginCuration(string(team.PluginCuration)),
+		Curation:    coreplugin.NormalizeCuration(string(team.PluginCuration)),
 		Activations: activations,
 	})
 }
@@ -143,7 +143,7 @@ func (h *Handler) patchPluginActivationHandler(w http.ResponseWriter, r *http.Re
 	// The pin moves first. Suspending and repointing in one request is
 	// unusual but well defined, and doing the pin first means a refused move
 	// leaves the activation as it was rather than suspended-and-unmoved.
-	var current *model.PluginActivation
+	var current *coreplugin.Activation
 	if req.Version != nil {
 		moved, err := h.cfg.Plugins.MovePin(r.Context(), pluginsvc.ActivateInput{
 			TeamID:     teamID,

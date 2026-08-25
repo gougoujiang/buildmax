@@ -9,6 +9,7 @@ import (
 	"testing/fstest"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 	archive "github.com/gougoujiang/buildmax/internal/infra/pluginarchive"
 	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -87,7 +88,7 @@ func TestAdminPluginPublishAndCatalog(t *testing.T) {
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("publish = %d: %s", rec.Code, rec.Body)
 	}
-	var release model.PluginRelease
+	var release coreplugin.Release
 	if err := json.Unmarshal(rec.Body.Bytes(), &release); err != nil {
 		t.Fatal(err)
 	}

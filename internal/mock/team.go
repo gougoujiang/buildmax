@@ -8,6 +8,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 )
 
 // MockTeamStore is an in-memory TeamStore for tests.
@@ -133,7 +134,7 @@ func (m *MockTeamStore) CountTeamMembers(_ context.Context, teamIDs []string) (m
 	return out, nil
 }
 
-func (m *MockTeamStore) SetTeamPluginCuration(_ context.Context, teamID string, mode model.PluginCuration) error {
+func (m *MockTeamStore) SetTeamPluginCuration(_ context.Context, teamID string, mode coreplugin.Curation) error {
 	for i := range m.Teams {
 		if m.Teams[i].ID == teamID {
 			m.Teams[i].PluginCuration = mode

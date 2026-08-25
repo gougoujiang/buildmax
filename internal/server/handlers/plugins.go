@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 	"github.com/gougoujiang/buildmax/internal/infra/pluginwire"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 )
@@ -133,7 +133,7 @@ func (h *Handler) downloadPluginReleaseHandler(w http.ResponseWriter, r *http.Re
 	}
 }
 
-func yankedMessage(release model.PluginRelease) string {
+func yankedMessage(release coreplugin.Release) string {
 	msg := "release " + release.Version + " was withdrawn"
 	if release.YankedReason != "" {
 		msg += ": " + release.YankedReason
