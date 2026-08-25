@@ -12,11 +12,11 @@
   scheduled, and dispatchable and reports what verified a commit; the suites
   have names, preflight, artifacts, and an owning local mode; and the runbook is
   [../contribute/testing.md](../contribute/testing.md). Step 4 landed files,
-  workflows, and the ungranted-account view in the browser, and retry and the
+  workflows and their execution, a conversation turn over the deployment's
+  WebSocket, and the ungranted-account view in the browser, and retry and the
   team boundary in the deployment smoke. Step 5 landed the Desktop bridge,
-  including rewind and fork. Open: workflow execution and space settings in the
-  browser, the two deployment paths §6.1 leaves for later, and the native
-  packaged-app smoke
+  including rewind and fork. Open: space settings in the browser, the two
+  deployment paths §6.1 leaves for later, and the native packaged-app smoke
 - depends on: [tool-permissions.md](./tool-permissions.md), whose approval gate
   the CLI and Desktop paths exist to drive, and which decides what a surface
   with no human attached does with an `Ask`;
@@ -53,7 +53,7 @@ prove together:
 
 | Surface | Boundary an E2E test must prove |
 |---|---|
-| Portal | The published browser bundle, runtime API configuration, authentication, and the visible team workflow work against a real deployment. |
+| Portal | The published browser bundle, runtime API configuration, authentication, the socket a conversation turn rides in both directions, and the visible team workflow work against a real deployment. |
 | Server and worker | The deployed server, storage, scheduler, worker, artifact path, and managed-model transport cooperate. |
 | CLI and TUI | The released binary, terminal interaction, the approval gate, the local workspace, session persistence, policy, and trace behavior cooperate. |
 | Desktop | The React UI, Wails bindings and events, local runtime, approvals, and persistent project/session state cooperate. |
