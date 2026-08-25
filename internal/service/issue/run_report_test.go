@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -38,7 +39,7 @@ func TestReportRunTerminal_WritesOneAgentComment(t *testing.T) {
 		t.Fatalf("wrote %d comments, want exactly 1 per terminal run", len(comments.Comments))
 	}
 	got := comments.Comments[0]
-	if got.AuthorKind != model.IssueCommentAuthorAgent || got.AuthorID != "a_1" {
+	if got.AuthorKind != coreissue.CommentAuthorAgent || got.AuthorID != "a_1" {
 		t.Fatalf("author = %s/%s, want agent/a_1", got.AuthorKind, got.AuthorID)
 	}
 	if got.SourceTaskRunID == nil || *got.SourceTaskRunID != "r_1" {

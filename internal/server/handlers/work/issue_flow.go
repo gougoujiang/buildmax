@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 )
@@ -18,9 +19,9 @@ import (
 // It is a read model, so it is assembled in one place and rendered in another,
 // rather than interleaved through ninety lines of a handler.
 type issueFlow struct {
-	Issue    model.Issue
-	Parent   *model.Issue
-	Children []model.Issue
+	Issue    coreissue.Issue
+	Parent   *coreissue.Issue
+	Children []coreissue.Issue
 	Workflow *coreworkflow.Workflow
 	Runs     []issueFlowRun
 	// AgentTasks are the runs started from the issue directly rather than
@@ -62,7 +63,7 @@ func (h *Handler) loadIssueFlow(ctx context.Context, teamID, issueID string, lim
 		flow.Children = children
 	}
 
-	if issue.AssigneeKind != nil && issue.AssigneeID != nil && *issue.AssigneeKind == model.IssueAssigneeWorkflow {
+	if issue.AssigneeKind != nil && issue.AssigneeID != nil && *issue.AssigneeKind == coreissue.AssigneeWorkflow {
 		workflow, err := h.cfg.Workflows.GetWorkflow(ctx, *issue.AssigneeID)
 		if err != nil {
 			return nil, fmt.Errorf("load the issue's workflow: %w", err)

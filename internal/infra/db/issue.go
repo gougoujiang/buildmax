@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
 
 	"github.com/gougoujiang/buildmax/internal/util"
 	"gorm.io/gorm"
@@ -56,11 +56,11 @@ func issueSelectTx(tx *gorm.DB) *gorm.DB {
 		Joins("INNER JOIN `user` cb ON cb.id = issue.created_by")
 }
 
-func toIssue(row *issueReadRow) *model.Issue {
+func toIssue(row *issueReadRow) *coreissue.Issue {
 	if row == nil {
 		return nil
 	}
-	out := &model.Issue{
+	out := &coreissue.Issue{
 		ID:           row.Row.PublicID,
 		UserID:       row.UserPublicID,
 		TeamID:       derefPublicID(row.TeamPublicID),
@@ -80,8 +80,8 @@ func toIssue(row *issueReadRow) *model.Issue {
 	return out
 }
 
-func toIssues(rows []issueReadRow) []model.Issue {
-	out := make([]model.Issue, len(rows))
+func toIssues(rows []issueReadRow) []coreissue.Issue {
+	out := make([]coreissue.Issue, len(rows))
 	for i := range rows {
 		out[i] = *toIssue(&rows[i])
 	}
@@ -91,7 +91,7 @@ func toIssues(rows []issueReadRow) []model.Issue {
 // CreateIssue creates an issue with default status todo. During the transition to
 // team ownership, issues created through user-scoped flows are attached to the
 // user's default personal team.
-func (s *Store) CreateIssue(ctx context.Context, userID string, in model.CreateIssueInput) (*model.Issue, error) {
+func (s *Store) CreateIssue(ctx context.Context, userID string, in coreissue.CreateInput) (*coreissue.Issue, error) {
 	teamID, err := s.personalTeamIDForUser(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -100,12 +100,12 @@ func (s *Store) CreateIssue(ctx context.Context, userID string, in model.CreateI
 }
 
 // CreateIssueInTeam creates a team-scoped issue with default status todo.
-func (s *Store) CreateIssueInTeam(ctx context.Context, teamID, createdBy string, in model.CreateIssueInput) (*model.Issue, error) {
+func (s *Store) CreateIssueInTeam(ctx context.Context, teamID, createdBy string, in coreissue.CreateInput) (*coreissue.Issue, error) {
 	now := time.Now().UTC()
 	row := &issueRow{
 		Title:       in.Title,
 		Description: in.Description,
-		Status:      model.IssueStatusTodo,
+		Status:      coreissue.StatusTodo,
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
@@ -135,14 +135,14 @@ func (s *Store) CreateIssueInTeam(ctx context.Context, teamID, createdBy string,
 	}); err != nil {
 		return nil, err
 	}
-	return &model.Issue{
+	return &coreissue.Issue{
 		ID:            row.PublicID,
 		UserID:        createdBy,
 		TeamID:        teamID,
 		ParentIssueID: in.ParentIssueID,
 		Title:         in.Title,
 		Description:   in.Description,
-		Status:        model.IssueStatusTodo,
+		Status:        coreissue.StatusTodo,
 		CreatedBy:     createdBy,
 		CreatedAt:     now,
 		UpdatedAt:     now,
@@ -150,7 +150,7 @@ func (s *Store) CreateIssueInTeam(ctx context.Context, teamID, createdBy string,
 }
 
 // ListIssuesByUser returns issues for the user ordered by updated_at DESC.
-func (s *Store) ListIssuesByUser(ctx context.Context, userID string, limit, offset int) ([]model.Issue, int, error) {
+func (s *Store) ListIssuesByUser(ctx context.Context, userID string, limit, offset int) ([]coreissue.Issue, int, error) {
 	limit, offset = capPage(limit, offset)
 	userKey, err := lookupKey(ctx, s.db, "user", userID)
 	if errors.Is(err, apierr.ErrNotFound) {
@@ -178,7 +178,7 @@ func (s *Store) ListIssuesByUser(ctx context.Context, userID string, limit, offs
 //
 // A zero filter lists every issue in the team, sub-issues included, which is
 // what callers predating the hierarchy expect.
-func (s *Store) ListIssuesByTeam(ctx context.Context, teamID string, filter model.ListIssuesFilter, limit, offset int) ([]model.Issue, int, error) {
+func (s *Store) ListIssuesByTeam(ctx context.Context, teamID string, filter coreissue.ListFilter, limit, offset int) ([]coreissue.Issue, int, error) {
 	limit, offset = capPage(limit, offset)
 	teamKey, err := lookupKey(ctx, s.db, "team", teamID)
 	if errors.Is(err, apierr.ErrNotFound) {
@@ -229,13 +229,13 @@ func (s *Store) ListIssuesByTeam(ctx context.Context, teamID string, filter mode
 // parent's children are shown as one group; a parent with enough children to
 // need paging is a sign the breakdown wants a different shape, not a bigger
 // page.
-func (s *Store) ListIssueChildren(ctx context.Context, parentIssueID string) ([]model.Issue, error) {
+func (s *Store) ListIssueChildren(ctx context.Context, parentIssueID string) ([]coreissue.Issue, error) {
 	if parentIssueID == "" {
-		return []model.Issue{}, nil
+		return []coreissue.Issue{}, nil
 	}
 	parentKey, err := lookupKey(ctx, s.db, "issue", parentIssueID)
 	if errors.Is(err, apierr.ErrNotFound) {
-		return []model.Issue{}, nil
+		return []coreissue.Issue{}, nil
 	}
 	if err != nil {
 		return nil, err
@@ -252,8 +252,8 @@ func (s *Store) ListIssueChildren(ctx context.Context, parentIssueID string) ([]
 
 // ChildStatsForIssues returns sub-issue progress for the given parents in one
 // grouped query. Parents with no children are absent from the map.
-func (s *Store) ChildStatsForIssues(ctx context.Context, issueIDs []string) (map[string]model.IssueChildStats, error) {
-	out := map[string]model.IssueChildStats{}
+func (s *Store) ChildStatsForIssues(ctx context.Context, issueIDs []string) (map[string]coreissue.ChildStats, error) {
+	out := map[string]coreissue.ChildStats{}
 	if len(issueIDs) == 0 {
 		return out, nil
 	}
@@ -274,7 +274,7 @@ func (s *Store) ChildStatsForIssues(ctx context.Context, issueIDs []string) (map
 		Done           int
 	}
 	if err := s.db.WithContext(ctx).Model(&issueRow{}).
-		Select("p.public_id AS parent_public_id, COUNT(*) AS total, SUM(CASE WHEN issue.status = ? THEN 1 ELSE 0 END) AS done", model.IssueStatusDone).
+		Select("p.public_id AS parent_public_id, COUNT(*) AS total, SUM(CASE WHEN issue.status = ? THEN 1 ELSE 0 END) AS done", coreissue.StatusDone).
 		Joins("INNER JOIN issue p ON p.id = issue.parent_issue_id").
 		Where("p.public_id IN ?", ids).
 		Group("p.public_id").
@@ -282,13 +282,13 @@ func (s *Store) ChildStatsForIssues(ctx context.Context, issueIDs []string) (map
 		return nil, err
 	}
 	for _, row := range rows {
-		out[row.ParentPublicID] = model.IssueChildStats{Total: row.Total, Done: row.Done}
+		out[row.ParentPublicID] = coreissue.ChildStats{Total: row.Total, Done: row.Done}
 	}
 	return out, nil
 }
 
 // GetIssue returns the issue by issue_id, or (nil, nil) if not found.
-func (s *Store) GetIssue(ctx context.Context, issueID string) (*model.Issue, error) {
+func (s *Store) GetIssue(ctx context.Context, issueID string) (*coreissue.Issue, error) {
 	id, ok := util.CanonicalPublicID(issueID)
 	if !ok {
 		return nil, nil
@@ -305,7 +305,7 @@ func (s *Store) GetIssue(ctx context.Context, issueID string) (*model.Issue, err
 }
 
 // UpdateIssue updates only provided fields. Returns (nil, nil) if not found or not owned by user.
-func (s *Store) UpdateIssue(ctx context.Context, issueID, userID string, in model.UpdateIssueInput) (*model.Issue, error) {
+func (s *Store) UpdateIssue(ctx context.Context, issueID, userID string, in coreissue.UpdateInput) (*coreissue.Issue, error) {
 	issue, err := s.GetIssue(ctx, issueID)
 	if err != nil || issue == nil {
 		return nil, err
@@ -318,7 +318,7 @@ func (s *Store) UpdateIssue(ctx context.Context, issueID, userID string, in mode
 
 // UpdateIssueInTeam updates only provided fields. Returns (nil, nil) if not found
 // or not owned by the given team.
-func (s *Store) UpdateIssueInTeam(ctx context.Context, issueID, teamID string, in model.UpdateIssueInput) (*model.Issue, error) {
+func (s *Store) UpdateIssueInTeam(ctx context.Context, issueID, teamID string, in coreissue.UpdateInput) (*coreissue.Issue, error) {
 	issue, err := s.GetIssue(ctx, issueID)
 	if err != nil || issue == nil {
 		return nil, err
@@ -329,7 +329,7 @@ func (s *Store) UpdateIssueInTeam(ctx context.Context, issueID, teamID string, i
 	return s.updateIssue(ctx, issueID, in)
 }
 
-func (s *Store) updateIssue(ctx context.Context, issueID string, in model.UpdateIssueInput) (*model.Issue, error) {
+func (s *Store) updateIssue(ctx context.Context, issueID string, in coreissue.UpdateInput) (*coreissue.Issue, error) {
 	updates := map[string]interface{}{
 		"updated_at": time.Now().UTC(),
 	}

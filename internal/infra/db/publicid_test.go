@@ -9,7 +9,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
 
@@ -78,7 +78,7 @@ func TestAForeignHandleIsIndistinguishableFromAnUnknownOne(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateConversationInTeam: %v", err)
 	}
-	issue, err := s.CreateIssueInTeam(ctx, ownerTeam, owner, model.CreateIssueInput{Title: "private"})
+	issue, err := s.CreateIssueInTeam(ctx, ownerTeam, owner, coreissue.CreateInput{Title: "private"})
 	if err != nil {
 		t.Fatalf("CreateIssueInTeam: %v", err)
 	}
@@ -89,11 +89,11 @@ func TestAForeignHandleIsIndistinguishableFromAnUnknownOne(t *testing.T) {
 
 	// Listing another team's issue by its real handle, and by one that names
 	// nothing, must produce the same answer.
-	real, realTotal, err := s.ListIssuesByTeam(ctx, strangerTeam, model.ListIssuesFilter{ParentIssueID: issue.ID}, 10, 0)
+	real, realTotal, err := s.ListIssuesByTeam(ctx, strangerTeam, coreissue.ListFilter{ParentIssueID: issue.ID}, 10, 0)
 	if err != nil {
 		t.Fatalf("ListIssuesByTeam(foreign parent): %v", err)
 	}
-	made, madeTotal, err := s.ListIssuesByTeam(ctx, strangerTeam, model.ListIssuesFilter{ParentIssueID: unknown}, 10, 0)
+	made, madeTotal, err := s.ListIssuesByTeam(ctx, strangerTeam, coreissue.ListFilter{ParentIssueID: unknown}, 10, 0)
 	if err != nil {
 		t.Fatalf("ListIssuesByTeam(unknown parent): %v", err)
 	}

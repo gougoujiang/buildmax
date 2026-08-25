@@ -5,7 +5,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
 )
 
 var (
@@ -52,7 +52,7 @@ type DeleteCommentCmd struct {
 
 // CreateComment appends a comment to an issue. The caller is responsible for
 // having authorized the issue's team.
-func (s *Service) CreateComment(ctx context.Context, cmd CreateCommentCmd) (*model.IssueComment, error) {
+func (s *Service) CreateComment(ctx context.Context, cmd CreateCommentCmd) (*coreissue.Comment, error) {
 	if s.Comments == nil {
 		return nil, ErrCommentsNotConfigured
 	}
@@ -62,9 +62,9 @@ func (s *Service) CreateComment(ctx context.Context, cmd CreateCommentCmd) (*mod
 	}
 	kind := cmd.AuthorKind
 	if kind == "" {
-		kind = model.IssueCommentAuthorUser
+		kind = coreissue.CommentAuthorUser
 	}
-	return s.Comments.CreateIssueComment(ctx, model.CreateIssueCommentInput{
+	return s.Comments.CreateIssueComment(ctx, coreissue.CreateCommentInput{
 		IssueID:         cmd.IssueID,
 		AuthorKind:      kind,
 		AuthorID:        cmd.AuthorID,
@@ -75,7 +75,7 @@ func (s *Service) CreateComment(ctx context.Context, cmd CreateCommentCmd) (*mod
 }
 
 // ListComments returns an issue's thread, oldest first.
-func (s *Service) ListComments(ctx context.Context, issueID string, limit, offset int) ([]model.IssueComment, int, error) {
+func (s *Service) ListComments(ctx context.Context, issueID string, limit, offset int) ([]coreissue.Comment, int, error) {
 	if s.Comments == nil {
 		return nil, 0, ErrCommentsNotConfigured
 	}
@@ -88,12 +88,12 @@ func (s *Service) ListComments(ctx context.Context, issueID string, limit, offse
 // not rewriting: an edit puts words in another person's mouth, and an agent or
 // system comment is the record of what a run reported — a record anyone can
 // rewrite is not one.
-func (s *Service) UpdateComment(ctx context.Context, cmd UpdateCommentCmd) (*model.IssueComment, error) {
+func (s *Service) UpdateComment(ctx context.Context, cmd UpdateCommentCmd) (*coreissue.Comment, error) {
 	comment, err := s.loadComment(ctx, cmd.IssueID, cmd.CommentID)
 	if err != nil {
 		return nil, err
 	}
-	if comment.AuthorKind != model.IssueCommentAuthorUser || comment.AuthorID != cmd.UserID {
+	if comment.AuthorKind != coreissue.CommentAuthorUser || comment.AuthorID != cmd.UserID {
 		return nil, ErrCommentNotEditable
 	}
 	body, err := validateCommentBody(cmd.Body)
@@ -117,7 +117,7 @@ func (s *Service) DeleteComment(ctx context.Context, cmd DeleteCommentCmd) error
 	if err != nil {
 		return err
 	}
-	own := comment.AuthorKind == model.IssueCommentAuthorUser && comment.AuthorID == cmd.UserID
+	own := comment.AuthorKind == coreissue.CommentAuthorUser && comment.AuthorID == cmd.UserID
 	if !own && !cmd.CanModerate {
 		return ErrCommentNotEditable
 	}
@@ -127,7 +127,7 @@ func (s *Service) DeleteComment(ctx context.Context, cmd DeleteCommentCmd) error
 // loadComment resolves a comment and verifies it belongs to the issue the
 // caller was authorized against. A comment ID from another issue is not found,
 // not a successful write to somewhere else.
-func (s *Service) loadComment(ctx context.Context, issueID, commentID string) (*model.IssueComment, error) {
+func (s *Service) loadComment(ctx context.Context, issueID, commentID string) (*coreissue.Comment, error) {
 	if s.Comments == nil {
 		return nil, ErrCommentsNotConfigured
 	}

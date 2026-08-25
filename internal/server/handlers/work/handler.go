@@ -15,6 +15,7 @@ import (
 
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
+	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/core/model"
@@ -48,8 +49,8 @@ type Config struct {
 	// Users is part of authentication, not work ownership: every user-facing
 	// route must reject a disabled account before it reads the team's work.
 	Users         model.UserStore
-	Issues        model.IssueStore
-	IssueComments model.IssueCommentStore
+	Issues        coreissue.Store
+	IssueComments coreissue.CommentStore
 	Workflows     coreworkflow.Store
 	Tasks         model.TaskStore
 	TaskRuns      model.TaskRunStore

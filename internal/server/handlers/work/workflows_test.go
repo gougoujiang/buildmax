@@ -9,7 +9,7 @@ import (
 	"time"
 
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -43,14 +43,14 @@ func TestWorkflowHandlers(t *testing.T) {
 	}
 	taskStore := &mock.MockTaskStore{}
 	issueStore := &mock.MockIssueStore{
-		Issues: []model.Issue{{
+		Issues: []coreissue.Issue{{
 			ID:           "i_1",
 			UserID:       "u1",
 			TeamID:       teamID,
 			Title:        "Issue",
 			Description:  "Desc",
-			Status:       model.IssueStatusTodo,
-			AssigneeKind: util.Ptr(model.IssueAssigneeWorkflow),
+			Status:       coreissue.StatusTodo,
+			AssigneeKind: util.Ptr(coreissue.AssigneeWorkflow),
 			AssigneeID:   util.Ptr("w_1"),
 			CreatedBy:    "u1",
 		}},

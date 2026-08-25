@@ -12,6 +12,7 @@ import (
 
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
+	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	"github.com/gougoujiang/buildmax/internal/service/task"
@@ -42,7 +43,7 @@ var (
 type Service struct {
 	Workflows     coreworkflow.Store
 	Agents        agentdef.Store
-	Issues        model.IssueStore
+	Issues        coreissue.Store
 	Conversations coreconv.Store
 	TaskService   *task.Service
 }
@@ -554,7 +555,7 @@ func (s *Service) validateIssueForRun(ctx context.Context, teamID, workflowID st
 	if issue == nil || issue.TeamID != teamID {
 		return ErrIssueNotFound
 	}
-	if issue.AssigneeKind == nil || issue.AssigneeID == nil || *issue.AssigneeKind != model.IssueAssigneeWorkflow || *issue.AssigneeID != workflowID {
+	if issue.AssigneeKind == nil || issue.AssigneeID == nil || *issue.AssigneeKind != coreissue.AssigneeWorkflow || *issue.AssigneeID != workflowID {
 		return ErrIssueWorkflowMismatch
 	}
 	return nil

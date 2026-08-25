@@ -10,6 +10,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
+	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 
@@ -528,7 +529,7 @@ func TestIssueStore_CreateListUpdate(t *testing.T) {
 		t.Fatalf("CreateUser: %v", err)
 	}
 
-	issue, err := s.CreateIssue(ctx, user.ID, model.CreateIssueInput{
+	issue, err := s.CreateIssue(ctx, user.ID, coreissue.CreateInput{
 		Title:       "Initial issue",
 		Description: "Initial description",
 	})
@@ -540,7 +541,7 @@ func TestIssueStore_CreateListUpdate(t *testing.T) {
 		deleteTestUser(t, s, user.ID)
 	}()
 
-	if issue.ID == "" || issue.Status != model.IssueStatusTodo || issue.UserID != user.ID || issue.TeamID == "" {
+	if issue.ID == "" || issue.Status != coreissue.StatusTodo || issue.UserID != user.ID || issue.TeamID == "" {
 		t.Fatalf("created issue = %+v", issue)
 	}
 
@@ -553,10 +554,10 @@ func TestIssueStore_CreateListUpdate(t *testing.T) {
 	}
 
 	title := "Updated issue"
-	status := model.IssueStatusInProgress
-	kind := model.IssueAssigneePerson
+	status := coreissue.StatusInProgress
+	kind := coreissue.AssigneePerson
 	id := user.ID
-	updated, err := s.UpdateIssue(ctx, issue.ID, user.ID, model.UpdateIssueInput{
+	updated, err := s.UpdateIssue(ctx, issue.ID, user.ID, coreissue.UpdateInput{
 		Title:        &title,
 		Status:       &status,
 		AssigneeKind: &kind,
@@ -568,7 +569,7 @@ func TestIssueStore_CreateListUpdate(t *testing.T) {
 	if updated == nil || updated.Title != title || updated.Status != status {
 		t.Fatalf("updated issue = %+v", updated)
 	}
-	if updated.AssigneeKind == nil || *updated.AssigneeKind != model.IssueAssigneePerson {
+	if updated.AssigneeKind == nil || *updated.AssigneeKind != coreissue.AssigneePerson {
 		t.Fatalf("updated assignee kind = %v", updated.AssigneeKind)
 	}
 }

@@ -5,23 +5,23 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
 )
 
 // MockIssueCommentStore is an in-memory IssueCommentStore for tests.
 type MockIssueCommentStore struct {
-	Comments []model.IssueComment
+	Comments []coreissue.Comment
 	// CreateErr, when set, is returned by CreateIssueComment. It exists so a
 	// test can prove a failed comment write does not fail the run that
 	// triggered it.
 	CreateErr error
 }
 
-func (m *MockIssueCommentStore) CreateIssueComment(_ context.Context, in model.CreateIssueCommentInput) (*model.IssueComment, error) {
+func (m *MockIssueCommentStore) CreateIssueComment(_ context.Context, in coreissue.CreateCommentInput) (*coreissue.Comment, error) {
 	if m.CreateErr != nil {
 		return nil, m.CreateErr
 	}
-	comment := model.IssueComment{
+	comment := coreissue.Comment{
 		ID:              fmt.Sprintf("ic_mock_%d", len(m.Comments)+1),
 		IssueID:         in.IssueID,
 		AuthorKind:      in.AuthorKind,
@@ -35,8 +35,8 @@ func (m *MockIssueCommentStore) CreateIssueComment(_ context.Context, in model.C
 	return &m.Comments[len(m.Comments)-1], nil
 }
 
-func (m *MockIssueCommentStore) ListIssueComments(_ context.Context, issueID string, limit, offset int) ([]model.IssueComment, int, error) {
-	var filtered []model.IssueComment
+func (m *MockIssueCommentStore) ListIssueComments(_ context.Context, issueID string, limit, offset int) ([]coreissue.Comment, int, error) {
+	var filtered []coreissue.Comment
 	for _, comment := range m.Comments {
 		if comment.IssueID == issueID {
 			filtered = append(filtered, comment)
@@ -44,7 +44,7 @@ func (m *MockIssueCommentStore) ListIssueComments(_ context.Context, issueID str
 	}
 	total := len(filtered)
 	if offset > len(filtered) {
-		return []model.IssueComment{}, total, nil
+		return []coreissue.Comment{}, total, nil
 	}
 	end := offset + limit
 	if limit <= 0 || end > len(filtered) {
@@ -53,7 +53,7 @@ func (m *MockIssueCommentStore) ListIssueComments(_ context.Context, issueID str
 	return filtered[offset:end], total, nil
 }
 
-func (m *MockIssueCommentStore) GetIssueComment(_ context.Context, commentID string) (*model.IssueComment, error) {
+func (m *MockIssueCommentStore) GetIssueComment(_ context.Context, commentID string) (*coreissue.Comment, error) {
 	for i := range m.Comments {
 		if m.Comments[i].ID == commentID {
 			return &m.Comments[i], nil
@@ -62,7 +62,7 @@ func (m *MockIssueCommentStore) GetIssueComment(_ context.Context, commentID str
 	return nil, nil
 }
 
-func (m *MockIssueCommentStore) UpdateIssueComment(_ context.Context, commentID, body string) (*model.IssueComment, error) {
+func (m *MockIssueCommentStore) UpdateIssueComment(_ context.Context, commentID, body string) (*coreissue.Comment, error) {
 	for i := range m.Comments {
 		if m.Comments[i].ID != commentID {
 			continue

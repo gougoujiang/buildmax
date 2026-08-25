@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
 	"github.com/gougoujiang/buildmax/internal/util"
 	"gorm.io/gorm"
 )
@@ -52,11 +52,11 @@ func (s *Store) issueCommentSelect(ctx context.Context) *gorm.DB {
 		Joins("LEFT JOIN task_run sr ON sr.id = issue_comment.source_task_run_id")
 }
 
-func toIssueComment(row *issueCommentReadRow) *model.IssueComment {
+func toIssueComment(row *issueCommentReadRow) *coreissue.Comment {
 	if row == nil {
 		return nil
 	}
-	out := &model.IssueComment{
+	out := &coreissue.Comment{
 		ID:         row.Row.PublicID,
 		IssueID:    row.IssuePublicID,
 		AuthorKind: row.Row.AuthorKind,
@@ -76,8 +76,8 @@ func toIssueComment(row *issueCommentReadRow) *model.IssueComment {
 	return out
 }
 
-func toIssueComments(rows []issueCommentReadRow) []model.IssueComment {
-	out := make([]model.IssueComment, len(rows))
+func toIssueComments(rows []issueCommentReadRow) []coreissue.Comment {
+	out := make([]coreissue.Comment, len(rows))
 	for i := range rows {
 		out[i] = *toIssueComment(&rows[i])
 	}
@@ -85,7 +85,7 @@ func toIssueComments(rows []issueCommentReadRow) []model.IssueComment {
 }
 
 // CreateIssueComment appends a comment to an issue.
-func (s *Store) CreateIssueComment(ctx context.Context, in model.CreateIssueCommentInput) (*model.IssueComment, error) {
+func (s *Store) CreateIssueComment(ctx context.Context, in coreissue.CreateCommentInput) (*coreissue.Comment, error) {
 	issueKey, err := lookupKey(ctx, s.db, "issue", in.IssueID)
 	if err != nil {
 		return nil, err
@@ -126,7 +126,7 @@ func (s *Store) CreateIssueComment(ctx context.Context, in model.CreateIssueComm
 //
 // Ordering is created_at then the row key. A public ID is random rather than
 // time-ordered, so it is never a sort key.
-func (s *Store) ListIssueComments(ctx context.Context, issueID string, limit, offset int) ([]model.IssueComment, int, error) {
+func (s *Store) ListIssueComments(ctx context.Context, issueID string, limit, offset int) ([]coreissue.Comment, int, error) {
 	limit, offset = capPage(limit, offset)
 	issueKey, err := lookupKey(ctx, s.db, "issue", issueID)
 	if errors.Is(err, apierr.ErrNotFound) {
@@ -152,7 +152,7 @@ func (s *Store) ListIssueComments(ctx context.Context, issueID string, limit, of
 }
 
 // GetIssueComment returns the comment by issue_comment_id, or (nil, nil) if not found.
-func (s *Store) GetIssueComment(ctx context.Context, commentID string) (*model.IssueComment, error) {
+func (s *Store) GetIssueComment(ctx context.Context, commentID string) (*coreissue.Comment, error) {
 	id, ok := util.CanonicalPublicID(commentID)
 	if !ok {
 		return nil, nil
@@ -169,7 +169,7 @@ func (s *Store) GetIssueComment(ctx context.Context, commentID string) (*model.I
 }
 
 // UpdateIssueComment replaces the body and stamps edited_at.
-func (s *Store) UpdateIssueComment(ctx context.Context, commentID, body string) (*model.IssueComment, error) {
+func (s *Store) UpdateIssueComment(ctx context.Context, commentID, body string) (*coreissue.Comment, error) {
 	updates := map[string]interface{}{
 		"body":      body,
 		"edited_at": time.Now().UTC(),
