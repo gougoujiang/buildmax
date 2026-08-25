@@ -278,10 +278,6 @@ type SetPasswordRequest struct {
 // alone — that session came from a login code an operator issued by hand, which
 // is the strongest proof this deployment has.
 func (h *Handler) setPasswordHandler(w http.ResponseWriter, r *http.Request) {
-	if h.cfg.Passwords == nil || h.cfg.Users == nil {
-		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "password login is not configured")
-		return
-	}
 	userID, ok := h.guard().ActiveUser(w, r)
 	if !ok {
 		return
@@ -290,38 +286,28 @@ func (h *Handler) setPasswordHandler(w http.ResponseWriter, r *http.Request) {
 	if !httputil.DecodeJSONBody(w, r, &req) {
 		return
 	}
-	if err := coreidentity.ValidatePassword(req.NewPassword); err != nil {
-		httputil.WriteJSONError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	existing, err := h.cfg.Passwords.PasswordHash(r.Context(), userID)
-	if err != nil {
-		httputil.WriteInternalError(w, err, "auth handler error", "handler", "set_password", "password_hash")
-		return
-	}
-	if existing != "" && !coreidentity.VerifyPassword(existing, req.CurrentPassword) {
-		httputil.WriteJSONError(w, http.StatusUnauthorized, "current password is incorrect")
-		return
-	}
-
-	hash, err := coreidentity.HashPassword(req.NewPassword)
-	if err != nil {
-		httputil.WriteJSONError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-	if err := h.cfg.Passwords.SetPassword(r.Context(), userID, hash, time.Now().UTC()); err != nil {
-		httputil.WriteInternalError(w, err, "auth handler error", "handler", "set_password", "user_id", userID)
-		return
-	}
-	h.cfg.Audit.Record(r.Context(), coreaudit.Event{
-		ActorType:  coreaudit.ActorUser,
-		ActorID:    userID,
-		Action:     coreaudit.PasswordSet,
-		TargetType: "user",
-		TargetID:   userID,
+	err := h.identityService().SetPassword(r.Context(), identitysvc.SetPasswordCmd{
+		UserID: userID, Current: req.CurrentPassword, New: req.NewPassword,
 	})
-	w.WriteHeader(http.StatusNoContent)
+	switch {
+	case err == nil:
+		w.WriteHeader(http.StatusNoContent)
+	case errors.Is(err, identitysvc.ErrCurrentPasswordIncorrect):
+		// 401 rather than the Kind's 403: holding the session is not the
+		// permission being refused here, the current password is.
+		httputil.WriteJSONError(w, http.StatusUnauthorized, "current password is incorrect")
+	default:
+		var rejected *identitysvc.PasswordRejected
+		if errors.As(err, &rejected) {
+			// The rule's own words: they name the limit the person has to meet.
+			httputil.WriteJSONError(w, http.StatusBadRequest, rejected.Error())
+			return
+		}
+		if httputil.WriteServiceError(w, err) {
+			return
+		}
+		httputil.WriteInternalError(w, err, "auth handler error", "handler", "set_password", "user_id", userID)
+	}
 }
 
 // logoutHandler revokes one session.
@@ -330,48 +316,33 @@ func (h *Handler) setPasswordHandler(w http.ResponseWriter, r *http.Request) {
 // access token carries the session in its sid claim. A caller holding neither
 // has nothing to revoke, and clearing its own state is all that is left.
 func (h *Handler) logoutHandler(w http.ResponseWriter, r *http.Request) {
-	if h.cfg.RefreshTokens == nil {
-		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "refresh not configured")
-		return
-	}
 	var req LogoutRequest
 	if r.Body != nil {
 		// An empty body is normal here — the access token alone is enough.
 		_ = json.NewDecoder(r.Body).Decode(&req)
 	}
-	now := time.Now().UTC()
-
-	var userID, sessionID string
+	svc := h.identityService()
+	var err error
 	if req.RefreshToken != "" {
-		var err error
-		userID, sessionID, err = h.cfg.RefreshTokens.RevokeRefreshTokenSession(r.Context(), req.RefreshToken, now)
-		if err != nil {
-			httputil.WriteInternalError(w, err, "auth handler error", "handler", "logout", "revoke_by_token")
-			return
-		}
+		_, err = svc.LogoutByRefreshToken(r.Context(), req.RefreshToken)
 	} else {
 		claims, ok := access.ClaimsFromRequest(r, h.cfg.JWTSecret)
 		if !ok || claims.Sid == "" {
+			if h.cfg.RefreshTokens == nil {
+				httputil.WriteJSONError(w, http.StatusServiceUnavailable, "refresh not configured")
+				return
+			}
 			httputil.WriteJSONError(w, http.StatusUnauthorized, "unauthorized")
 			return
 		}
-		userID, sessionID = claims.Sub, claims.Sid
-		if _, err := h.cfg.RefreshTokens.RevokeSession(r.Context(), sessionID, now); err != nil {
-			httputil.WriteInternalError(w, err, "auth handler error", "handler", "logout", "revoke_session")
+		_, err = svc.LogoutSession(r.Context(), claims.Sub, claims.Sid)
+	}
+	if err != nil {
+		if httputil.WriteServiceError(w, err) {
 			return
 		}
-	}
-
-	// An unknown token revokes nothing and still answers 204: a client should
-	// be able to log out of a session the server has already forgotten.
-	if sessionID != "" {
-		h.cfg.Audit.Record(r.Context(), coreaudit.Event{
-			ActorType:  coreaudit.ActorUser,
-			ActorID:    userID,
-			Action:     coreaudit.UserLogout,
-			TargetType: "auth_session",
-			TargetID:   sessionID,
-		})
+		httputil.WriteInternalError(w, err, "auth handler error", "handler", "logout")
+		return
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -383,70 +354,19 @@ func (h *Handler) logoutHandler(w http.ResponseWriter, r *http.Request) {
 const invalidPasswordMessage = "invalid email or password"
 
 func (h *Handler) otpRequestHandler(w http.ResponseWriter, r *http.Request) {
-	if h.cfg.Users == nil {
-		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "otp not configured")
-		return
-	}
 	var req OtpRequestRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if req.Email == "" {
-		httputil.WriteJSONError(w, http.StatusBadRequest, "email required")
-		return
-	}
-	intent := req.Intent
-	if intent == "" {
-		intent = "signup"
-	}
-	if intent != "signup" && intent != "login" {
-		httputil.WriteJSONError(w, http.StatusBadRequest, "intent must be signup or login")
-		return
-	}
-	user, err := h.cfg.Users.UserByEmail(r.Context(), req.Email)
+	outcome, err := h.identityService().RequestAccount(
+		r.Context(), req.Email, req.Intent, h.cfg.AllowSignup, h.cfg.DefaultQuotaTier)
 	if err != nil {
-		httputil.WriteJSONError(w, http.StatusInternalServerError, "internal error")
-		return
-	}
-	if intent == "login" {
-		if user == nil {
-			httputil.WriteJSONError(w, http.StatusNotFound, "user not found")
+		if httputil.WriteServiceError(w, err) {
 			return
 		}
-		// The account exists. Nothing is sent, because there is nothing to send
-		// it with; getting in means a password, or a code an operator issues by
-		// hand.
-		httputil.WriteJSON(w, http.StatusOK, OtpRequestResponse{Message: "account_exists"})
+		httputil.WriteInternalError(w, err, "auth handler error", "handler", "otp_request")
 		return
 	}
-	// intent == "signup"
-	//
-	// Closed by default. Nothing here verifies that whoever typed an address
-	// controls it, so open registration on a reachable server is how someone
-	// claims a colleague's address. Accounts are created by an operator
-	// instead, with `buildmax-server user create`.
-	if !h.cfg.AllowSignup {
-		httputil.WriteJSONError(w, http.StatusForbidden,
-			"signup is disabled on this server; ask an administrator for an account")
-		return
-	}
-	if user != nil {
-		httputil.WriteJSONError(w, http.StatusConflict, "email already registered")
-		return
-	}
-	_, err = h.cfg.Users.CreateUser(r.Context(), req.Email, h.cfg.DefaultQuotaTier)
-	if err != nil {
-		if errors.Is(err, coreidentity.ErrEmailExists) {
-			httputil.WriteJSONError(w, http.StatusConflict, "email already registered")
-			return
-		}
-		httputil.WriteJSONError(w, http.StatusInternalServerError, "internal error")
-		return
-	}
-	// The account exists now, and still cannot be used: it has no password, and
-	// no code has been issued for it. An operator has to run
-	// `buildmax-server user login-code` before anyone can sign in — which is why
-	// no BuildMax client offers a sign-up form.
-	httputil.WriteJSON(w, http.StatusOK, OtpRequestResponse{Message: "account_created"})
+	httputil.WriteJSON(w, http.StatusOK, OtpRequestResponse{Message: string(outcome)})
 }
