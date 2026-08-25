@@ -1317,6 +1317,19 @@ A removal takes two releases. In the first, the code stops reading and writing
 the column or table but the schema keeps it. In the second, a migration drops
 it. Between the two, either release's binary runs against either schema.
 
+That is a discipline, not a mechanism. The forward-only half is structural —
+there is no `Down` to write — but nothing fails a build when a change removes a
+column in one release, and during alpha it may be removed in one deliberately.
+BuildMax is alpha and owes no migration path: when a stored shape is wrong, the
+fix is to correct it everywhere at once rather than carry the wrong one for a
+release. What that spends is the binary rollback, and what it owes in exchange
+is a changelog entry saying so.
+
+Take the two-release path by default — it is nearly free, and it is what lets a
+bad upgrade be undone by redeploying the previous image. Spend the rollback only
+when keeping the wrong shape costs more than losing it, and say in the entry
+which one you did.
+
 A binary that starts against a database carrying migrations it does not know
 logs a warning and continues, because that is the N-1 promise working: a server
 one release behind a migrated database is supposed to keep serving. A server

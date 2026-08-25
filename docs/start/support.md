@@ -88,22 +88,31 @@
 What an upgrade may and may not do to a deployment. Where a promise does not
 exist yet, this says so rather than implying one.
 
-### Database schema — a promise, and it is enforced
+### Database schema — forward only, one release back by default
 
 The schema moves **forward only**. There are no down migrations, and the
-`Migration` type has no `Down` field to write one in.
+`Migration` type has no `Down` field to write one in. That half is structural
+and cannot lapse.
 
-What is supported is rolling the **binary** back one release: schema version N
-keeps serving code from release N-1. That puts one requirement on every change
-— nothing is removed in the same release that stops using it, so a removal
-takes two — and it is why an upgrade that goes wrong is recovered by
-redeploying the previous image tag.
+What you can normally do is roll the **binary** back one release: schema
+version N keeps serving code from release N-1, which is why an upgrade that
+goes wrong is recovered by redeploying the previous image tag. Holding that
+open costs one rule — nothing is removed in the release that stops using it, so
+a removal takes two — and BuildMax follows it by default.
 
-Rolling a **database** back is not supported. Recovery from a bad schema change
-is a restore from backup, so take one before an upgrade that crosses a release
-carrying migrations. A binary that meets migrations from a later release logs a
-warning and keeps running, because that is the N-1 promise working; a binary
-several releases behind has no such promise.
+It is a discipline rather than a mechanism, and **alpha can spend it**. When a
+stored shape is wrong, an alpha release may correct it in one step instead of
+carrying it for another release. A release that does so says so in its notes,
+the same way the configuration section below describes: a note in one release
+rather than a warning across two. Read the release notes before an upgrade you
+intend to be able to undo.
+
+Rolling a **database** back is not supported in any case. Recovery from a bad
+schema change is a restore from backup, so take one before an upgrade that
+crosses a release carrying migrations. A binary that meets migrations from a
+later release logs a warning and keeps running; a binary several releases
+behind has no such promise, and that log line is the only signal an operator
+gets that they are in that position.
 
 ### HTTP API — no version, so expect change
 
