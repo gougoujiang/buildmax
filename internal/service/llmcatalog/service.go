@@ -27,28 +27,6 @@ import (
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
 )
 
-// Actor is who changed the catalog.
-//
-// The two are different authorities rather than two names for one: an operator
-// proved it by reaching the machine and the database, a user proved it with a
-// session and a system grant. The trail records which, so a later reader can
-// tell an emergency shell change from a routine one.
-type Actor struct {
-	Type string
-	ID   string
-}
-
-// OperatorActor is the shell. The process cannot name the person at it; being
-// able to run the command with the database credentials is the authorization.
-func OperatorActor() Actor {
-	return Actor{Type: coreaudit.ActorSystem, ID: coreaudit.ActorOperator}
-}
-
-// UserActor is a signed-in System Administrator.
-func UserActor(userID string) Actor {
-	return Actor{Type: coreaudit.ActorUser, ID: userID}
-}
-
 // Service is the catalog's administration workflows.
 type Service struct {
 	Models coregw.ModelStore
@@ -107,7 +85,7 @@ func knownCapability(name string) bool {
 }
 
 // Create validates and adds a catalog entry.
-func (s *Service) Create(ctx context.Context, in coregw.CreateModelInput, actor Actor) (*coregw.Model, error) {
+func (s *Service) Create(ctx context.Context, in coregw.CreateModelInput, actor coreaudit.Actor) (*coregw.Model, error) {
 	if err := Validate(in); err != nil {
 		return nil, err
 	}
@@ -123,7 +101,7 @@ func (s *Service) Create(ctx context.Context, in coregw.CreateModelInput, actor 
 }
 
 // SetEnabled turns a catalog entry on or off and returns it as it now stands.
-func (s *Service) SetEnabled(ctx context.Context, modelID string, enabled bool, actor Actor) (*coregw.Model, error) {
+func (s *Service) SetEnabled(ctx context.Context, modelID string, enabled bool, actor coreaudit.Actor) (*coregw.Model, error) {
 	existing, err := s.Models.GetLLMModel(ctx, modelID)
 	if err != nil {
 		return nil, fmt.Errorf("read model: %w", err)
@@ -150,7 +128,7 @@ func (s *Service) SetEnabled(ctx context.Context, modelID string, enabled bool, 
 	return updated, nil
 }
 
-func (s *Service) record(ctx context.Context, actor Actor, action, modelID, detail string) {
+func (s *Service) record(ctx context.Context, actor coreaudit.Actor, action, modelID, detail string) {
 	if s.Audit == nil {
 		return
 	}

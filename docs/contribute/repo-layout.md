@@ -159,6 +159,8 @@ internal/
 │   ├── artifact/       Durable files a team keeps; knows no producer
 │   ├── llmcatalog/     What the model catalog accepts and what changing it
 │   │                   records; the shell and the admin route both call it
+│   ├── systemadmin/    Who holds a deployment-scoped role; the last-holder
+│   │                   rule turns on the caller's authority, not a flag
 │   ├── issue/          Issue service
 │   ├── task/           Task and task_run service
 │   ├── workflow/       Workflow and workflow-run orchestration

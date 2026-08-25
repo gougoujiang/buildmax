@@ -12,6 +12,7 @@ import (
 	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
+	"github.com/gougoujiang/buildmax/internal/service/systemadmin"
 )
 
 // The operator-side half of deployment administration.
@@ -116,14 +117,14 @@ func runAdminGrant(ctx context.Context, args []string, out io.Writer, store admi
 		return fmt.Errorf("no account for %s; create one first with: buildmax-server user create %s", email, email)
 	}
 
-	grant, err := store.GrantSystemRole(ctx, user.ID, coreidentity.SystemRoleAdmin, coreaudit.ActorOperator, time.Now().UTC())
+	svc := &systemadmin.Service{Grants: store, Users: store, Audit: audit.NewRecorder(store)}
+	grant, err := svc.Grant(ctx, user.ID, coreidentity.SystemRoleAdmin, coreaudit.OperatorActor())
 	if err != nil {
-		if errors.Is(err, coreidentity.ErrSystemGrantExists) {
+		if errors.Is(err, systemadmin.ErrAlreadyHeld) {
 			return fmt.Errorf("%s already holds %s", email, coreidentity.SystemRoleAdmin)
 		}
-		return fmt.Errorf("grant %s: %w", coreidentity.SystemRoleAdmin, err)
+		return err
 	}
-	recordSystemGrantAudit(ctx, store, coreaudit.SystemAdminGranted, user.ID)
 
 	fmt.Fprintf(out, "Granted %s to %s (%s).\n", coreidentity.SystemRoleAdmin, user.Email, user.ID)
 	fmt.Fprintf(out, "Grant %s, recorded in the audit trail.\n\n", grant.ID)
@@ -147,25 +148,26 @@ func runAdminRevoke(ctx context.Context, args []string, out io.Writer, store adm
 		return fmt.Errorf("no account for %s", email)
 	}
 
-	revoked, err := store.RevokeSystemRole(ctx, user.ID, coreidentity.SystemRoleAdmin, time.Now().UTC())
-	if err != nil {
-		return fmt.Errorf("revoke %s: %w", coreidentity.SystemRoleAdmin, err)
+	svc := &systemadmin.Service{Grants: store, Users: store, Audit: audit.NewRecorder(store)}
+	// The API refuses to revoke the last grant; this command is the recovery
+	// path, and the service permits it because the actor is the shell rather
+	// than because this caller asked to skip a check.
+	if err := svc.Revoke(ctx, user.ID, coreidentity.SystemRoleAdmin, coreaudit.OperatorActor()); err != nil {
+		if errors.Is(err, systemadmin.ErrNotHeld) {
+			fmt.Fprintf(out, "%s does not hold %s; nothing to revoke.\n", email, coreidentity.SystemRoleAdmin)
+			return nil
+		}
+		return err
 	}
-	if !revoked {
-		fmt.Fprintf(out, "%s does not hold %s; nothing to revoke.\n", email, coreidentity.SystemRoleAdmin)
-		return nil
-	}
-	recordSystemGrantAudit(ctx, store, coreaudit.SystemAdminRevoked, user.ID)
 
 	fmt.Fprintf(out, "Revoked %s from %s (%s).\n", coreidentity.SystemRoleAdmin, user.Email, user.ID)
 	fmt.Fprint(out, "It stops working on their next request. Their sessions are untouched;\n")
 	fmt.Fprint(out, "revoke those separately if losing the role is not the whole intent.\n")
 
-	// The API refuses to revoke the last grant. This command allows it, because
-	// it is the recovery path — but an operator who did not mean to leave the
-	// deployment with none should hear about it now rather than discover it
-	// when nobody can open the admin area.
-	remaining, err := store.CountActiveSystemGrants(ctx, coreidentity.SystemRoleAdmin)
+	// An operator who did not mean to leave the deployment with none should
+	// hear about it now rather than discover it when nobody can open the admin
+	// area.
+	remaining, err := svc.RemainingHolders(ctx, coreidentity.SystemRoleAdmin)
 	if err == nil && remaining == 0 {
 		fmt.Fprintf(out, "\nThis deployment now has no %s. Portal's admin area is unreachable\n", coreidentity.SystemRoleAdmin)
 		fmt.Fprint(out, "for everyone until you run:\n  buildmax-server admin grant <email>\n")
@@ -219,21 +221,4 @@ func formatGrantTime(t time.Time) string {
 		return "-"
 	}
 	return t.Local().Format(time.RFC3339)
-}
-
-// recordSystemGrantAudit writes a change of deployment authority to the trail.
-//
-// The actor is the system rather than a user, for the same reason the model
-// catalog commands say so: this runs from a shell on the machine that holds the
-// database credentials, and inventing a user id would put a name in the record
-// that nothing verified.
-func recordSystemGrantAudit(ctx context.Context, store coreaudit.Writer, action, userID string) {
-	audit.NewRecorder(store).Record(ctx, coreaudit.Event{
-		ActorType:  coreaudit.ActorSystem,
-		ActorID:    coreaudit.ActorOperator,
-		Action:     action,
-		TargetType: "user",
-		TargetID:   userID,
-		Detail:     coreidentity.SystemRoleAdmin,
-	})
 }

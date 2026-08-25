@@ -1,6 +1,7 @@
 package admin
 
 import (
+	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	"net/http"
 
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
@@ -76,7 +77,7 @@ func (h *Handler) setAdminModelEnabledHandler(enabled bool) http.HandlerFunc {
 			return
 		}
 		svc := &llmcatalog.Service{Models: h.cfg.Models, Audit: h.cfg.Audit}
-		updated, err := svc.SetEnabled(r.Context(), modelID, enabled, llmcatalog.UserActor(actorID))
+		updated, err := svc.SetEnabled(r.Context(), modelID, enabled, coreaudit.UserActor(actorID))
 		if err != nil {
 			if httputil.WriteServiceError(w, err) {
 				return

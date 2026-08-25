@@ -4,11 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"time"
 
 	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
+	"github.com/gougoujiang/buildmax/internal/service/systemadmin"
 )
 
 // AdminGrantsResponse lists who can operate the deployment.
@@ -82,38 +82,24 @@ func (h *Handler) createAdminGrantHandler(w http.ResponseWriter, r *http.Request
 	}
 	// Granting does not create an account, for the same reason the operator
 	// command does not: creating an account and minting deployment authority
-	// are two decisions.
-	user, err := h.cfg.Users.GetUser(r.Context(), req.UserID)
+	// are two decisions. The service refuses an id nobody holds.
+	svc := &systemadmin.Service{Grants: h.cfg.Grants, Users: h.cfg.Users, Audit: h.cfg.Audit}
+	grant, err := svc.Grant(r.Context(), req.UserID, role, coreaudit.UserActor(actorID))
 	if err != nil {
+		if httputil.WriteServiceError(w, err) {
+			return
+		}
 		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_create_grant", "user_id", req.UserID)
 		return
 	}
-	if user == nil {
-		httputil.WriteJSONError(w, http.StatusNotFound, "account not found")
-		return
+	// Read for the response, not for the rule: the service already refused an
+	// id nobody holds, and this route answers with the address so a caller does
+	// not have to look it up to show what it just did.
+	email := ""
+	if user, err := h.cfg.Users.GetUser(r.Context(), req.UserID); err == nil && user != nil {
+		email = user.Email
 	}
-
-	grant, err := h.cfg.Grants.GrantSystemRole(r.Context(), req.UserID, role, actorID, time.Now().UTC())
-	switch {
-	case errors.Is(err, coreidentity.ErrSystemGrantExists):
-		httputil.WriteJSONError(w, http.StatusConflict, "the account already holds this role")
-		return
-	case errors.Is(err, coreidentity.ErrSystemRoleUnknown):
-		httputil.WriteJSONError(w, http.StatusBadRequest, "unknown system role")
-		return
-	case err != nil:
-		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_create_grant", "user_id", req.UserID)
-		return
-	}
-	h.cfg.Audit.Record(r.Context(), coreaudit.Event{
-		ActorType:  coreaudit.ActorUser,
-		ActorID:    actorID,
-		Action:     coreaudit.SystemAdminGranted,
-		TargetType: "user",
-		TargetID:   req.UserID,
-		Detail:     role,
-	})
-	httputil.WriteJSON(w, http.StatusCreated, AdminGrant{SystemGrant: *grant, Email: user.Email})
+	httputil.WriteJSON(w, http.StatusCreated, AdminGrant{SystemGrant: *grant, Email: email})
 }
 
 // deleteAdminGrantHandler serves DELETE /api/admin/grants/{user_id}.
@@ -136,33 +122,18 @@ func (h *Handler) deleteAdminGrantHandler(w http.ResponseWriter, r *http.Request
 		role = coreidentity.SystemRoleAdmin
 	}
 
-	remaining, err := h.cfg.Grants.CountActiveSystemGrants(r.Context(), role)
-	if err != nil {
-		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_delete_grant", "role", role)
-		return
-	}
-	if remaining <= 1 {
-		httputil.WriteJSONError(w, http.StatusConflict,
-			"this is the deployment's last "+role+"; revoke it with `buildmax-server admin revoke <email>` if that is the intent")
-		return
-	}
-
-	revoked, err := h.cfg.Grants.RevokeSystemRole(r.Context(), userID, role, time.Now().UTC())
-	if err != nil {
+	svc := &systemadmin.Service{Grants: h.cfg.Grants, Users: h.cfg.Users, Audit: h.cfg.Audit}
+	if err := svc.Revoke(r.Context(), userID, role, coreaudit.UserActor(actorID)); err != nil {
+		if errors.Is(err, systemadmin.ErrLastHolder) {
+			httputil.WriteJSONError(w, http.StatusConflict,
+				"this is the deployment's last "+role+"; revoke it with `buildmax-server admin revoke <email>` if that is the intent")
+			return
+		}
+		if httputil.WriteServiceError(w, err) {
+			return
+		}
 		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_delete_grant", "user_id", userID)
 		return
 	}
-	if !revoked {
-		httputil.WriteJSONError(w, http.StatusNotFound, "the account does not hold this role")
-		return
-	}
-	h.cfg.Audit.Record(r.Context(), coreaudit.Event{
-		ActorType:  coreaudit.ActorUser,
-		ActorID:    actorID,
-		Action:     coreaudit.SystemAdminRevoked,
-		TargetType: "user",
-		TargetID:   userID,
-		Detail:     role,
-	})
 	w.WriteHeader(http.StatusNoContent)
 }
