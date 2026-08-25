@@ -8,6 +8,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/agent"
 )
@@ -114,9 +115,9 @@ func TestMissingRevisionIsReported(t *testing.T) {
 	}
 }
 
-type usedBy []model.Workflow
+type usedBy []coreworkflow.Workflow
 
-func (u usedBy) PublishedWorkflowsUsingAgent(context.Context, string, string) ([]model.Workflow, error) {
+func (u usedBy) PublishedWorkflowsUsingAgent(context.Context, string, string) ([]coreworkflow.Workflow, error) {
 	return u, nil
 }
 

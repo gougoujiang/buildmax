@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 
 	"github.com/gougoujiang/buildmax/internal/util"
 	"gorm.io/gorm"
@@ -165,11 +165,11 @@ func workflowStepRunSelectTx(tx *gorm.DB) *gorm.DB {
 		Joins("LEFT JOIN task_run r ON r.id = workflow_step_run.task_run_id")
 }
 
-func toWorkflow(row *workflowReadRow) *model.Workflow {
+func toWorkflow(row *workflowReadRow) *coreworkflow.Workflow {
 	if row == nil {
 		return nil
 	}
-	return &model.Workflow{
+	return &coreworkflow.Workflow{
 		ID:          row.Row.PublicID,
 		TeamID:      row.TeamPublicID,
 		Name:        row.Row.Name,
@@ -183,19 +183,19 @@ func toWorkflow(row *workflowReadRow) *model.Workflow {
 	}
 }
 
-func toWorkflows(rows []workflowReadRow) []model.Workflow {
-	out := make([]model.Workflow, len(rows))
+func toWorkflows(rows []workflowReadRow) []coreworkflow.Workflow {
+	out := make([]coreworkflow.Workflow, len(rows))
 	for i := range rows {
 		out[i] = *toWorkflow(&rows[i])
 	}
 	return out
 }
 
-func toWorkflowRevision(row *workflowRevisionReadRow) *model.WorkflowRevision {
+func toWorkflowRevision(row *workflowRevisionReadRow) *coreworkflow.Revision {
 	if row == nil {
 		return nil
 	}
-	return &model.WorkflowRevision{
+	return &coreworkflow.Revision{
 		WorkflowID:  row.WorkflowPublicID,
 		Revision:    row.Row.Revision,
 		Name:        row.Row.Name,
@@ -207,19 +207,19 @@ func toWorkflowRevision(row *workflowRevisionReadRow) *model.WorkflowRevision {
 	}
 }
 
-func toWorkflowRevisions(rows []workflowRevisionReadRow) []model.WorkflowRevision {
-	out := make([]model.WorkflowRevision, len(rows))
+func toWorkflowRevisions(rows []workflowRevisionReadRow) []coreworkflow.Revision {
+	out := make([]coreworkflow.Revision, len(rows))
 	for i := range rows {
 		out[i] = *toWorkflowRevision(&rows[i])
 	}
 	return out
 }
 
-func toWorkflowRun(row *workflowRunReadRow) *model.WorkflowRun {
+func toWorkflowRun(row *workflowRunReadRow) *coreworkflow.Run {
 	if row == nil {
 		return nil
 	}
-	out := &model.WorkflowRun{
+	out := &coreworkflow.Run{
 		ID:               row.Row.PublicID,
 		WorkflowID:       row.WorkflowPublicID,
 		WorkflowRevision: row.Row.WorkflowRevision,
@@ -238,19 +238,19 @@ func toWorkflowRun(row *workflowRunReadRow) *model.WorkflowRun {
 	return out
 }
 
-func toWorkflowRuns(rows []workflowRunReadRow) []model.WorkflowRun {
-	out := make([]model.WorkflowRun, len(rows))
+func toWorkflowRuns(rows []workflowRunReadRow) []coreworkflow.Run {
+	out := make([]coreworkflow.Run, len(rows))
 	for i := range rows {
 		out[i] = *toWorkflowRun(&rows[i])
 	}
 	return out
 }
 
-func toWorkflowStepRun(row *workflowStepRunReadRow) *model.WorkflowStepRun {
+func toWorkflowStepRun(row *workflowStepRunReadRow) *coreworkflow.StepRun {
 	if row == nil {
 		return nil
 	}
-	out := &model.WorkflowStepRun{
+	out := &coreworkflow.StepRun{
 		ID:                row.Row.PublicID,
 		WorkflowRunID:     row.WorkflowRunPublicID,
 		StepID:            row.Row.StepID,
@@ -283,15 +283,15 @@ func toWorkflowStepRun(row *workflowStepRunReadRow) *model.WorkflowStepRun {
 	return out
 }
 
-func toWorkflowStepRuns(rows []workflowStepRunReadRow) []model.WorkflowStepRun {
-	out := make([]model.WorkflowStepRun, len(rows))
+func toWorkflowStepRuns(rows []workflowStepRunReadRow) []coreworkflow.StepRun {
+	out := make([]coreworkflow.StepRun, len(rows))
 	for i := range rows {
 		out[i] = *toWorkflowStepRun(&rows[i])
 	}
 	return out
 }
 
-func (s *Store) ListWorkflowsByTeam(ctx context.Context, teamID string) ([]model.Workflow, error) {
+func (s *Store) ListWorkflowsByTeam(ctx context.Context, teamID string) ([]coreworkflow.Workflow, error) {
 	id, ok := util.CanonicalPublicID(teamID)
 	if !ok {
 		return nil, nil
@@ -301,14 +301,14 @@ func (s *Store) ListWorkflowsByTeam(ctx context.Context, teamID string) ([]model
 	return toWorkflows(list), err
 }
 
-func (s *Store) CreateWorkflow(ctx context.Context, teamID, createdBy, name, description, definition string) (*model.Workflow, error) {
+func (s *Store) CreateWorkflow(ctx context.Context, teamID, createdBy, name, description, definition string) (*coreworkflow.Workflow, error) {
 	now := time.Now().UTC()
-	workflow := &model.Workflow{
+	workflow := &coreworkflow.Workflow{
 		TeamID:      teamID,
 		Name:        name,
 		Description: description,
 		Definition:  definition,
-		Status:      model.WorkflowStatusDraft,
+		Status:      coreworkflow.StatusDraft,
 		Revision:    1,
 		CreatedBy:   createdBy,
 		CreatedAt:   now,
@@ -318,7 +318,7 @@ func (s *Store) CreateWorkflow(ctx context.Context, teamID, createdBy, name, des
 		Name:        name,
 		Description: description,
 		Definition:  definition,
-		Status:      model.WorkflowStatusDraft,
+		Status:      coreworkflow.StatusDraft,
 		Revision:    1,
 		CreatedAt:   now,
 		UpdatedAt:   now,
@@ -351,7 +351,7 @@ func (s *Store) CreateWorkflow(ctx context.Context, teamID, createdBy, name, des
 // revision. It runs in the same transaction as the write it describes, and the
 // unique (workflow_id, revision) index makes a concurrent second write fail
 // rather than record two definitions under one number.
-func appendWorkflowRevision(tx *gorm.DB, workflowKey, createdBy uint64, w *model.Workflow) error {
+func appendWorkflowRevision(tx *gorm.DB, workflowKey, createdBy uint64, w *coreworkflow.Workflow) error {
 	return tx.Create(&workflowRevisionRow{
 		WorkflowID:  workflowKey,
 		Revision:    w.Revision,
@@ -364,7 +364,7 @@ func appendWorkflowRevision(tx *gorm.DB, workflowKey, createdBy uint64, w *model
 	}).Error
 }
 
-func (s *Store) GetWorkflow(ctx context.Context, workflowID string) (*model.Workflow, error) {
+func (s *Store) GetWorkflow(ctx context.Context, workflowID string) (*coreworkflow.Workflow, error) {
 	id, ok := util.CanonicalPublicID(workflowID)
 	if !ok {
 		return nil, nil
@@ -380,7 +380,7 @@ func (s *Store) GetWorkflow(ctx context.Context, workflowID string) (*model.Work
 	return toWorkflow(&workflow), nil
 }
 
-func (s *Store) UpdateWorkflow(ctx context.Context, workflowID, teamID string, in model.UpdateWorkflowInput) (*model.Workflow, error) {
+func (s *Store) UpdateWorkflow(ctx context.Context, workflowID, teamID string, in coreworkflow.UpdateInput) (*coreworkflow.Workflow, error) {
 	workflow, err := s.GetWorkflow(ctx, workflowID)
 	if err != nil || workflow == nil {
 		return nil, err
@@ -439,7 +439,7 @@ func (s *Store) UpdateWorkflow(ctx context.Context, workflowID, teamID string, i
 }
 
 // ListWorkflowRevisions returns a workflow's revisions, newest first.
-func (s *Store) ListWorkflowRevisions(ctx context.Context, workflowID string, limit, offset int) ([]model.WorkflowRevision, int, error) {
+func (s *Store) ListWorkflowRevisions(ctx context.Context, workflowID string, limit, offset int) ([]coreworkflow.Revision, int, error) {
 	limit, offset = capPage(limit, offset)
 	workflowKey, err := lookupKey(ctx, s.db, "workflow", workflowID)
 	if errors.Is(err, apierr.ErrNotFound) {
@@ -457,7 +457,7 @@ func (s *Store) ListWorkflowRevisions(ctx context.Context, workflowID string, li
 }
 
 // GetWorkflowRevision returns one revision, or (nil, nil) when there is no such revision.
-func (s *Store) GetWorkflowRevision(ctx context.Context, workflowID string, revision int) (*model.WorkflowRevision, error) {
+func (s *Store) GetWorkflowRevision(ctx context.Context, workflowID string, revision int) (*coreworkflow.Revision, error) {
 	workflowKey, err := lookupKey(ctx, s.db, "workflow", workflowID)
 	if errors.Is(err, apierr.ErrNotFound) {
 		return nil, nil
@@ -473,9 +473,9 @@ func (s *Store) GetWorkflowRevision(ctx context.Context, workflowID string, revi
 	return toWorkflowRevision(row), nil
 }
 
-func (s *Store) CreateWorkflowRun(ctx context.Context, in model.CreateWorkflowRunInput) (*model.WorkflowRun, error) {
+func (s *Store) CreateWorkflowRun(ctx context.Context, in coreworkflow.CreateRunInput) (*coreworkflow.Run, error) {
 	now := time.Now().UTC()
-	run := &model.WorkflowRun{
+	run := &coreworkflow.Run{
 		WorkflowID:       in.WorkflowID,
 		WorkflowRevision: in.WorkflowRevision,
 		IssueID:          in.IssueID,
@@ -523,7 +523,7 @@ func (s *Store) CreateWorkflowRun(ctx context.Context, in model.CreateWorkflowRu
 	return run, nil
 }
 
-func (s *Store) ListWorkflowRunsByWorkflow(ctx context.Context, workflowID string, limit, offset int) ([]model.WorkflowRun, int, error) {
+func (s *Store) ListWorkflowRunsByWorkflow(ctx context.Context, workflowID string, limit, offset int) ([]coreworkflow.Run, int, error) {
 	limit, offset = capPage(limit, offset)
 	workflowKey, err := lookupKey(ctx, s.db, "workflow", workflowID)
 	if errors.Is(err, apierr.ErrNotFound) {
@@ -547,7 +547,7 @@ func (s *Store) ListWorkflowRunsByWorkflow(ctx context.Context, workflowID strin
 	return toWorkflowRuns(list), int(total), nil
 }
 
-func (s *Store) ListWorkflowRunsByIssue(ctx context.Context, issueID string, limit, offset int) ([]model.WorkflowRun, int, error) {
+func (s *Store) ListWorkflowRunsByIssue(ctx context.Context, issueID string, limit, offset int) ([]coreworkflow.Run, int, error) {
 	limit, offset = capPage(limit, offset)
 	issueKey, err := lookupKey(ctx, s.db, "issue", issueID)
 	if errors.Is(err, apierr.ErrNotFound) {
@@ -571,7 +571,7 @@ func (s *Store) ListWorkflowRunsByIssue(ctx context.Context, issueID string, lim
 	return toWorkflowRuns(list), int(total), nil
 }
 
-func (s *Store) GetWorkflowRun(ctx context.Context, workflowRunID string) (*model.WorkflowRun, error) {
+func (s *Store) GetWorkflowRun(ctx context.Context, workflowRunID string) (*coreworkflow.Run, error) {
 	id, ok := util.CanonicalPublicID(workflowRunID)
 	if !ok {
 		return nil, nil
@@ -587,7 +587,7 @@ func (s *Store) GetWorkflowRun(ctx context.Context, workflowRunID string) (*mode
 	return toWorkflowRun(&run), nil
 }
 
-func (s *Store) ListWorkflowStepRuns(ctx context.Context, workflowRunID string) ([]model.WorkflowStepRun, error) {
+func (s *Store) ListWorkflowStepRuns(ctx context.Context, workflowRunID string) ([]coreworkflow.StepRun, error) {
 	runKey, err := lookupKey(ctx, s.db, "workflow_run", workflowRunID)
 	if errors.Is(err, apierr.ErrNotFound) {
 		return nil, nil
@@ -603,16 +603,16 @@ func (s *Store) ListWorkflowStepRuns(ctx context.Context, workflowRunID string) 
 	return toWorkflowStepRuns(list), err
 }
 
-func (s *Store) CreateWorkflowStepRuns(ctx context.Context, workflowRunID string, steps []model.CreateWorkflowStepRunInput) ([]model.WorkflowStepRun, error) {
+func (s *Store) CreateWorkflowStepRuns(ctx context.Context, workflowRunID string, steps []coreworkflow.CreateStepRunInput) ([]coreworkflow.StepRun, error) {
 	if len(steps) == 0 {
-		return []model.WorkflowStepRun{}, nil
+		return []coreworkflow.StepRun{}, nil
 	}
 	now := time.Now().UTC()
 	runKey, err := lookupKey(ctx, s.db, "workflow_run", workflowRunID)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]model.WorkflowStepRun, len(steps))
+	out := make([]coreworkflow.StepRun, len(steps))
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		for i := range steps {
 			row := &workflowStepRunRow{
@@ -652,7 +652,7 @@ func (s *Store) CreateWorkflowStepRuns(ctx context.Context, workflowRunID string
 	return out, nil
 }
 
-func (s *Store) UpdateWorkflowRun(ctx context.Context, workflowRunID string, in model.UpdateWorkflowRunInput) (*model.WorkflowRun, error) {
+func (s *Store) UpdateWorkflowRun(ctx context.Context, workflowRunID string, in coreworkflow.UpdateRunInput) (*coreworkflow.Run, error) {
 	updates := map[string]interface{}{
 		"status": in.Status,
 	}
@@ -675,7 +675,7 @@ func (s *Store) UpdateWorkflowRun(ctx context.Context, workflowRunID string, in 
 	return s.GetWorkflowRun(ctx, workflowRunID)
 }
 
-func (s *Store) UpdateWorkflowStepRun(ctx context.Context, stepRunID string, in model.UpdateWorkflowStepRunInput) (*model.WorkflowStepRun, error) {
+func (s *Store) UpdateWorkflowStepRun(ctx context.Context, stepRunID string, in coreworkflow.UpdateStepRunInput) (*coreworkflow.StepRun, error) {
 	updates := map[string]interface{}{}
 	if in.Status != nil {
 		updates["status"] = *in.Status
@@ -735,11 +735,11 @@ func (s *Store) UpdateWorkflowStepRun(ctx context.Context, stepRunID string, in 
 	return s.getWorkflowStepRun(ctx, stepRunID)
 }
 
-func (s *Store) GetWorkflowStepRunByTaskID(ctx context.Context, taskID string) (*model.WorkflowStepRun, error) {
+func (s *Store) GetWorkflowStepRunByTaskID(ctx context.Context, taskID string) (*coreworkflow.StepRun, error) {
 	return s.getWorkflowStepRunByOwner(ctx, "task", "workflow_step_run.task_id", taskID)
 }
 
-func (s *Store) GetWorkflowStepRunByTaskRunID(ctx context.Context, taskRunID string) (*model.WorkflowStepRun, error) {
+func (s *Store) GetWorkflowStepRunByTaskRunID(ctx context.Context, taskRunID string) (*coreworkflow.StepRun, error) {
 	return s.getWorkflowStepRunByOwner(ctx, "task_run", "workflow_step_run.task_run_id", taskRunID)
 }
 
@@ -747,7 +747,7 @@ func (s *Store) GetWorkflowStepRunByTaskRunID(ctx context.Context, taskRunID str
 //
 // table and col reach a query as text, so both stay constants from this package
 // and never values from a request.
-func (s *Store) getWorkflowStepRunByOwner(ctx context.Context, table, col, publicID string) (*model.WorkflowStepRun, error) {
+func (s *Store) getWorkflowStepRunByOwner(ctx context.Context, table, col, publicID string) (*coreworkflow.StepRun, error) {
 	key, err := lookupKey(ctx, s.db, table, publicID)
 	if errors.Is(err, apierr.ErrNotFound) {
 		return nil, nil
@@ -766,7 +766,7 @@ func (s *Store) getWorkflowStepRunByOwner(ctx context.Context, table, col, publi
 	return toWorkflowStepRun(&step), nil
 }
 
-func (s *Store) getWorkflowStepRun(ctx context.Context, stepRunID string) (*model.WorkflowStepRun, error) {
+func (s *Store) getWorkflowStepRun(ctx context.Context, stepRunID string) (*coreworkflow.StepRun, error) {
 	id, ok := util.CanonicalPublicID(stepRunID)
 	if !ok {
 		return nil, nil

@@ -12,6 +12,7 @@ import (
 
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	"github.com/gougoujiang/buildmax/internal/service/task"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
@@ -38,7 +39,7 @@ var (
 )
 
 type Service struct {
-	Workflows     model.WorkflowStore
+	Workflows     coreworkflow.Store
 	Agents        model.AgentStore
 	Issues        model.IssueStore
 	Conversations coreconv.Store
@@ -78,14 +79,14 @@ type StartWorkflowRunCmd struct {
 	IssueID    *string
 }
 
-func (s *Service) ListWorkflows(ctx context.Context, teamID string) ([]model.Workflow, error) {
+func (s *Service) ListWorkflows(ctx context.Context, teamID string) ([]coreworkflow.Workflow, error) {
 	if s.Workflows == nil {
 		return nil, ErrWorkflowsNotConfigured
 	}
 	return s.Workflows.ListWorkflowsByTeam(ctx, teamID)
 }
 
-func (s *Service) CreateWorkflow(ctx context.Context, cmd CreateWorkflowCmd) (*model.Workflow, error) {
+func (s *Service) CreateWorkflow(ctx context.Context, cmd CreateWorkflowCmd) (*coreworkflow.Workflow, error) {
 	if s.Workflows == nil {
 		return nil, ErrWorkflowsNotConfigured
 	}
@@ -101,7 +102,7 @@ func (s *Service) CreateWorkflow(ctx context.Context, cmd CreateWorkflowCmd) (*m
 	return s.Workflows.CreateWorkflow(ctx, cmd.TeamID, cmd.UserID, strings.TrimSpace(cmd.Name), strings.TrimSpace(cmd.Description), cmd.Definition)
 }
 
-func (s *Service) GetWorkflow(ctx context.Context, teamID, workflowID string) (*model.Workflow, error) {
+func (s *Service) GetWorkflow(ctx context.Context, teamID, workflowID string) (*coreworkflow.Workflow, error) {
 	if s.Workflows == nil {
 		return nil, ErrWorkflowsNotConfigured
 	}
@@ -115,11 +116,11 @@ func (s *Service) GetWorkflow(ctx context.Context, teamID, workflowID string) (*
 	return workflow, nil
 }
 
-func (s *Service) UpdateWorkflow(ctx context.Context, cmd UpdateWorkflowCmd) (*model.Workflow, error) {
+func (s *Service) UpdateWorkflow(ctx context.Context, cmd UpdateWorkflowCmd) (*coreworkflow.Workflow, error) {
 	if s.Workflows == nil {
 		return nil, ErrWorkflowsNotConfigured
 	}
-	in := model.UpdateWorkflowInput{
+	in := coreworkflow.UpdateInput{
 		Name:        cmd.Name,
 		Description: cmd.Description,
 		Definition:  cmd.Definition,
@@ -150,7 +151,7 @@ func (s *Service) UpdateWorkflow(ctx context.Context, cmd UpdateWorkflowCmd) (*m
 	return workflow, nil
 }
 
-func (s *Service) ListWorkflowRevisions(ctx context.Context, teamID, workflowID string, limit, offset int) ([]model.WorkflowRevision, int, error) {
+func (s *Service) ListWorkflowRevisions(ctx context.Context, teamID, workflowID string, limit, offset int) ([]coreworkflow.Revision, int, error) {
 	workflow, err := s.GetWorkflow(ctx, teamID, workflowID)
 	if err != nil {
 		return nil, 0, err
@@ -168,7 +169,7 @@ func (s *Service) ListWorkflowRevisions(ctx context.Context, teamID, workflowID 
 // without anyone deciding to. The definition is revalidated, so a revision
 // whose agents have since been deleted is refused rather than restored into a
 // plan that cannot run.
-func (s *Service) RestoreWorkflowRevision(ctx context.Context, cmd RestoreWorkflowRevisionCmd) (*model.Workflow, error) {
+func (s *Service) RestoreWorkflowRevision(ctx context.Context, cmd RestoreWorkflowRevisionCmd) (*coreworkflow.Workflow, error) {
 	if s.Workflows == nil {
 		return nil, ErrWorkflowsNotConfigured
 	}
@@ -203,7 +204,7 @@ func (s *Service) RestoreWorkflowRevision(ctx context.Context, cmd RestoreWorkfl
 // A published workflow whose definition no longer parses is skipped rather than
 // treated as a reference. It cannot run either way, and blocking an unrelated
 // delete on it would leave no way forward.
-func (s *Service) PublishedWorkflowsUsingAgent(ctx context.Context, teamID, agentID string) ([]model.Workflow, error) {
+func (s *Service) PublishedWorkflowsUsingAgent(ctx context.Context, teamID, agentID string) ([]coreworkflow.Workflow, error) {
 	if s.Workflows == nil {
 		return nil, ErrWorkflowsNotConfigured
 	}
@@ -211,9 +212,9 @@ func (s *Service) PublishedWorkflowsUsingAgent(ctx context.Context, teamID, agen
 	if err != nil {
 		return nil, err
 	}
-	var using []model.Workflow
+	var using []coreworkflow.Workflow
 	for i := range workflows {
-		if workflows[i].Status != model.WorkflowStatusPublished {
+		if workflows[i].Status != coreworkflow.StatusPublished {
 			continue
 		}
 		def, err := parseDefinition(workflows[i].Definition)
@@ -230,7 +231,7 @@ func (s *Service) PublishedWorkflowsUsingAgent(ctx context.Context, teamID, agen
 	return using, nil
 }
 
-func (s *Service) ListWorkflowRuns(ctx context.Context, teamID, workflowID string, limit, offset int) ([]model.WorkflowRun, int, error) {
+func (s *Service) ListWorkflowRuns(ctx context.Context, teamID, workflowID string, limit, offset int) ([]coreworkflow.Run, int, error) {
 	workflow, err := s.GetWorkflow(ctx, teamID, workflowID)
 	if err != nil {
 		return nil, 0, err
@@ -238,7 +239,7 @@ func (s *Service) ListWorkflowRuns(ctx context.Context, teamID, workflowID strin
 	return s.Workflows.ListWorkflowRunsByWorkflow(ctx, workflow.ID, limit, offset)
 }
 
-func (s *Service) GetWorkflowRunDetail(ctx context.Context, teamID, workflowRunID string) (*model.WorkflowRun, []model.WorkflowStepRun, error) {
+func (s *Service) GetWorkflowRunDetail(ctx context.Context, teamID, workflowRunID string) (*coreworkflow.Run, []coreworkflow.StepRun, error) {
 	if s.Workflows == nil {
 		return nil, nil, ErrWorkflowsNotConfigured
 	}
@@ -263,7 +264,7 @@ func (s *Service) GetWorkflowRunDetail(ctx context.Context, teamID, workflowRunI
 	return run, steps, nil
 }
 
-func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd) (*model.WorkflowRun, []model.WorkflowStepRun, error) {
+func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd) (*coreworkflow.Run, []coreworkflow.StepRun, error) {
 	if s.Workflows == nil {
 		return nil, nil, ErrWorkflowsNotConfigured
 	}
@@ -277,10 +278,10 @@ func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd)
 	if err != nil {
 		return nil, nil, err
 	}
-	if workflow.Status == model.WorkflowStatusArchived {
+	if workflow.Status == coreworkflow.StatusArchived {
 		return nil, nil, ErrWorkflowArchived
 	}
-	if workflow.Status != model.WorkflowStatusPublished {
+	if workflow.Status != coreworkflow.StatusPublished {
 		return nil, nil, ErrWorkflowNotPublished
 	}
 	def, agents, err := s.parseAndValidateDefinition(ctx, cmd.TeamID, workflow.Definition)
@@ -295,23 +296,23 @@ func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd)
 		return nil, nil, err
 	}
 	now := time.Now().UTC()
-	run, err := s.Workflows.CreateWorkflowRun(ctx, model.CreateWorkflowRunInput{
+	run, err := s.Workflows.CreateWorkflowRun(ctx, coreworkflow.CreateRunInput{
 		WorkflowID:       workflow.ID,
 		WorkflowRevision: workflow.Revision,
 		IssueID:          cmd.IssueID,
 		ConversationID:   conv.ID,
-		Status:           model.WorkflowRunStatusRunning,
+		Status:           coreworkflow.RunStatusRunning,
 		CreatedBy:        cmd.UserID,
 		StartedAt:        &now,
 	})
 	if err != nil {
 		return nil, nil, err
 	}
-	stepsIn := make([]model.CreateWorkflowStepRunInput, len(def.Steps))
+	stepsIn := make([]coreworkflow.CreateStepRunInput, len(def.Steps))
 	for i := range def.Steps {
 		target := def.Steps[i].TargetAgentID
 		agent := agents[target]
-		stepsIn[i] = model.CreateWorkflowStepRunInput{
+		stepsIn[i] = coreworkflow.CreateStepRunInput{
 			StepID:            def.Steps[i].StepID,
 			StepIndex:         i,
 			StepType:          def.Steps[i].Type,
@@ -321,7 +322,7 @@ func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd)
 			AgentInstructions: agent.Instructions,
 			AgentRevision:     agent.Revision,
 			Prompt:            def.Steps[i].Prompt,
-			Status:            model.WorkflowStepRunStatusPending,
+			Status:            coreworkflow.StepRunStatusPending,
 		}
 	}
 	stepRuns, err := s.Workflows.CreateWorkflowStepRuns(ctx, run.ID, stepsIn)
@@ -366,8 +367,8 @@ func (s *Service) HandleTaskRunTerminal(ctx context.Context, info model.TaskRunT
 	now := time.Now().UTC()
 	if info.Status == string(model.RunStatusSucceeded) {
 		summary := summarizeOutput(info.Output)
-		status := model.WorkflowStepRunStatusSucceeded
-		if _, err := s.Workflows.UpdateWorkflowStepRun(ctx, stepRun.ID, model.UpdateWorkflowStepRunInput{
+		status := coreworkflow.StepRunStatusSucceeded
+		if _, err := s.Workflows.UpdateWorkflowStepRun(ctx, stepRun.ID, coreworkflow.UpdateStepRunInput{
 			Status:        &status,
 			TaskRunID:     &info.TaskRunID,
 			OutputSummary: summary,
@@ -388,13 +389,13 @@ func (s *Service) HandleTaskRunTerminal(ctx context.Context, info model.TaskRunT
 	// not a failure: someone stopped this work on purpose, and a run labelled
 	// failed would send whoever reads it looking for a fault that never
 	// happened.
-	stepStatus := model.WorkflowStepRunStatusFailed
-	runStatus := model.WorkflowRunStatusFailed
+	stepStatus := coreworkflow.StepRunStatusFailed
+	runStatus := coreworkflow.RunStatusFailed
 	if info.Status == string(model.RunStatusCanceled) {
-		stepStatus = model.WorkflowStepRunStatusCanceled
-		runStatus = model.WorkflowRunStatusCanceled
+		stepStatus = coreworkflow.StepRunStatusCanceled
+		runStatus = coreworkflow.RunStatusCanceled
 	}
-	if _, err := s.Workflows.UpdateWorkflowStepRun(ctx, stepRun.ID, model.UpdateWorkflowStepRunInput{
+	if _, err := s.Workflows.UpdateWorkflowStepRun(ctx, stepRun.ID, coreworkflow.UpdateStepRunInput{
 		Status:       &stepStatus,
 		TaskRunID:    &info.TaskRunID,
 		ErrorMessage: info.ErrorMessage,
@@ -406,15 +407,15 @@ func (s *Service) HandleTaskRunTerminal(ctx context.Context, info model.TaskRunT
 	if err != nil {
 		return err
 	}
-	blocked := model.WorkflowStepRunStatusBlocked
+	blocked := coreworkflow.StepRunStatusBlocked
 	for i := range steps {
-		if steps[i].StepIndex > stepRun.StepIndex && steps[i].Status == model.WorkflowStepRunStatusPending {
-			if _, err := s.Workflows.UpdateWorkflowStepRun(ctx, steps[i].ID, model.UpdateWorkflowStepRunInput{Status: &blocked}); err != nil {
+		if steps[i].StepIndex > stepRun.StepIndex && steps[i].Status == coreworkflow.StepRunStatusPending {
+			if _, err := s.Workflows.UpdateWorkflowStepRun(ctx, steps[i].ID, coreworkflow.UpdateStepRunInput{Status: &blocked}); err != nil {
 				return err
 			}
 		}
 	}
-	_, err = s.Workflows.UpdateWorkflowRun(ctx, run.ID, model.UpdateWorkflowRunInput{
+	_, err = s.Workflows.UpdateWorkflowRun(ctx, run.ID, coreworkflow.UpdateRunInput{
 		Status:       runStatus,
 		EndedAt:      &now,
 		ErrorMessage: info.ErrorMessage,
@@ -422,9 +423,9 @@ func (s *Service) HandleTaskRunTerminal(ctx context.Context, info model.TaskRunT
 	return err
 }
 
-func (s *Service) dispatchNextStep(ctx context.Context, teamID, userID string, run *model.WorkflowRun, steps []model.WorkflowStepRun) (*model.WorkflowStepRun, error) {
+func (s *Service) dispatchNextStep(ctx context.Context, teamID, userID string, run *coreworkflow.Run, steps []coreworkflow.StepRun) (*coreworkflow.StepRun, error) {
 	for i := range steps {
-		if steps[i].Status != model.WorkflowStepRunStatusPending {
+		if steps[i].Status != coreworkflow.StepRunStatusPending {
 			continue
 		}
 		if teamID == "" {
@@ -438,17 +439,17 @@ func (s *Service) dispatchNextStep(ctx context.Context, teamID, userID string, r
 			teamID = workflow.TeamID
 		}
 		startedAt := time.Now().UTC()
-		running := model.WorkflowStepRunStatusRunning
+		running := coreworkflow.StepRunStatusRunning
 		taskItem, taskRunID, err := s.createStepTask(ctx, teamID, userID, run.ConversationID, steps[i])
 		if err != nil {
-			failed := model.WorkflowRunStatusFailed
-			_, _ = s.Workflows.UpdateWorkflowRun(ctx, run.ID, model.UpdateWorkflowRunInput{
+			failed := coreworkflow.RunStatusFailed
+			_, _ = s.Workflows.UpdateWorkflowRun(ctx, run.ID, coreworkflow.UpdateRunInput{
 				Status:       failed,
 				EndedAt:      &startedAt,
 				ErrorMessage: ptrError(err),
 			})
-			stepFailed := model.WorkflowStepRunStatusFailed
-			_, _ = s.Workflows.UpdateWorkflowStepRun(ctx, steps[i].ID, model.UpdateWorkflowStepRunInput{
+			stepFailed := coreworkflow.StepRunStatusFailed
+			_, _ = s.Workflows.UpdateWorkflowStepRun(ctx, steps[i].ID, coreworkflow.UpdateStepRunInput{
 				Status:       &stepFailed,
 				ErrorMessage: ptrError(err),
 				StartedAt:    &startedAt,
@@ -456,7 +457,7 @@ func (s *Service) dispatchNextStep(ctx context.Context, teamID, userID string, r
 			})
 			return nil, err
 		}
-		_, err = s.Workflows.UpdateWorkflowStepRun(ctx, steps[i].ID, model.UpdateWorkflowStepRunInput{
+		_, err = s.Workflows.UpdateWorkflowStepRun(ctx, steps[i].ID, coreworkflow.UpdateStepRunInput{
 			Status:    &running,
 			TaskID:    &taskItem.ID,
 			TaskRunID: &taskRunID,
@@ -468,8 +469,8 @@ func (s *Service) dispatchNextStep(ctx context.Context, teamID, userID string, r
 		return &steps[i], nil
 	}
 	endedAt := time.Now().UTC()
-	status := model.WorkflowRunStatusSucceeded
-	_, err := s.Workflows.UpdateWorkflowRun(ctx, run.ID, model.UpdateWorkflowRunInput{
+	status := coreworkflow.RunStatusSucceeded
+	_, err := s.Workflows.UpdateWorkflowRun(ctx, run.ID, coreworkflow.UpdateRunInput{
 		Status:  status,
 		EndedAt: &endedAt,
 	})
@@ -482,7 +483,7 @@ func (s *Service) dispatchNextStep(ctx context.Context, teamID, userID string, r
 // before that fall back to the agent definition as it stands now, deleted or not:
 // the run was authorized when it started, and refusing to finish it because the
 // agent has since been deleted would strand it half done.
-func (s *Service) stepAgent(ctx context.Context, teamID, agentID string, step model.WorkflowStepRun) (*model.Agent, error) {
+func (s *Service) stepAgent(ctx context.Context, teamID, agentID string, step coreworkflow.StepRun) (*model.Agent, error) {
 	if step.AgentName != "" || step.AgentInstructions != "" {
 		return &model.Agent{
 			ID:           agentID,
@@ -506,7 +507,7 @@ func (s *Service) stepAgent(ctx context.Context, teamID, agentID string, step mo
 	return agent, nil
 }
 
-func (s *Service) createStepTask(ctx context.Context, teamID, userID, conversationID string, step model.WorkflowStepRun) (*model.Task, string, error) {
+func (s *Service) createStepTask(ctx context.Context, teamID, userID, conversationID string, step coreworkflow.StepRun) (*model.Task, string, error) {
 	agentID := ""
 	if step.TargetAgentID != nil {
 		agentID = *step.TargetAgentID
@@ -560,7 +561,7 @@ func (s *Service) validateIssueForRun(ctx context.Context, teamID, workflowID st
 
 // parseAndValidateDefinition parses raw, checks every step's target agent, and returns
 // the resolved agents keyed by agent ID so a caller can snapshot them.
-func (s *Service) parseAndValidateDefinition(ctx context.Context, teamID, raw string) (*model.WorkflowDefinition, map[string]model.Agent, error) {
+func (s *Service) parseAndValidateDefinition(ctx context.Context, teamID, raw string) (*coreworkflow.Definition, map[string]model.Agent, error) {
 	def, err := parseDefinition(raw)
 	if err != nil {
 		return nil, nil, err
@@ -574,8 +575,8 @@ func (s *Service) parseAndValidateDefinition(ctx context.Context, teamID, raw st
 
 // parseDefinition unmarshals raw JSON into a WorkflowDefinition and validates structural fields
 // (step count, unique IDs, required type/agent/prompt). Does not touch the database.
-func parseDefinition(raw string) (*model.WorkflowDefinition, error) {
-	var def model.WorkflowDefinition
+func parseDefinition(raw string) (*coreworkflow.Definition, error) {
+	var def coreworkflow.Definition
 	if err := json.Unmarshal([]byte(raw), &def); err != nil {
 		return nil, apierr.Detail(ErrInvalidDefinition, "%v", err)
 	}
@@ -596,7 +597,7 @@ func parseDefinition(raw string) (*model.WorkflowDefinition, error) {
 			return nil, ErrInvalidStepID
 		}
 		seen[step.StepID] = struct{}{}
-		if step.Type != model.WorkflowStepTypeAgentTask {
+		if step.Type != coreworkflow.StepTypeAgentTask {
 			return nil, ErrInvalidStepType
 		}
 		if step.TargetAgentID == "" || step.Prompt == "" {
@@ -613,7 +614,7 @@ func parseDefinition(raw string) (*model.WorkflowDefinition, error) {
 // run starts, so a plan cannot take a new dependency on a deleted agent, and a
 // workflow that lost one is refused at the start of a run rather than partway
 // through it.
-func (s *Service) resolveDefinitionAgents(ctx context.Context, teamID string, def *model.WorkflowDefinition) (map[string]model.Agent, error) {
+func (s *Service) resolveDefinitionAgents(ctx context.Context, teamID string, def *coreworkflow.Definition) (map[string]model.Agent, error) {
 	if s.Agents == nil {
 		return nil, ErrInvalidTargetAgent
 	}
@@ -637,7 +638,7 @@ func (s *Service) resolveDefinitionAgents(ctx context.Context, teamID string, de
 
 func isValidWorkflowStatus(status string) bool {
 	switch status {
-	case model.WorkflowStatusDraft, model.WorkflowStatusPublished, model.WorkflowStatusArchived:
+	case coreworkflow.StatusDraft, coreworkflow.StatusPublished, coreworkflow.StatusArchived:
 		return true
 	default:
 		return false

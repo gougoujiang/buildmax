@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
@@ -116,11 +117,11 @@ func TestRetryRunRefusesATaskThatNeverRan(t *testing.T) {
 // dispatching the next step of a workflow run that has already ended.
 func TestRetryRunRefusesAWorkflowStepTask(t *testing.T) {
 	svc, runs := retryFixture(string(model.RunStatusFailed))
-	svc.WorkflowSteps = &mock.MockWorkflowStore{StepRuns: []model.WorkflowStepRun{{
+	svc.WorkflowSteps = &mock.MockWorkflowStore{StepRuns: []coreworkflow.StepRun{{
 		ID:            "wsr_1",
 		WorkflowRunID: "wr_1",
 		TaskID:        util.Ptr("t_1"),
-		Status:        model.WorkflowStepRunStatusFailed,
+		Status:        coreworkflow.StepRunStatusFailed,
 	}}}
 
 	_, err := svc.RetryRun(context.Background(), RetryRunCmd{UserID: "u1", TaskID: "t_1"})

@@ -12,6 +12,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
+	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	"github.com/gougoujiang/buildmax/internal/server/access"
 	agentsvc "github.com/gougoujiang/buildmax/internal/service/agent"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
@@ -34,7 +35,7 @@ type Config struct {
 	// name an agent -- so that deleting one cannot silently break them. Nil
 	// leaves that check unmade, which is what a deployment without workflows
 	// has.
-	Workflows model.WorkflowStore
+	Workflows coreworkflow.Store
 
 	Quota *quota.Service
 	Audit *audit.Recorder

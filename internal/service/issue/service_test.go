@@ -7,6 +7,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
+	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	"github.com/gougoujiang/buildmax/internal/mock"
 )
 
@@ -119,7 +120,7 @@ func TestUpdateIssue_AssignToWorkflow(t *testing.T) {
 			Issues: []model.Issue{{ID: "i_1", UserID: "u1", TeamID: "tm_1", Status: model.IssueStatusTodo}},
 		},
 		Workflows: &mock.MockWorkflowStore{
-			Workflows: []model.Workflow{{ID: "w_1", TeamID: "tm_1", Name: "WF", Status: model.WorkflowStatusPublished}},
+			Workflows: []coreworkflow.Workflow{{ID: "w_1", TeamID: "tm_1", Name: "WF", Status: coreworkflow.StatusPublished}},
 		},
 	}
 	kind := model.IssueAssigneeWorkflow
@@ -145,7 +146,7 @@ func TestUpdateIssue_AssignToUnpublishedWorkflow(t *testing.T) {
 			Issues: []model.Issue{{ID: "i_1", UserID: "u1", TeamID: "tm_1", Status: model.IssueStatusTodo}},
 		},
 		Workflows: &mock.MockWorkflowStore{
-			Workflows: []model.Workflow{{ID: "w_1", TeamID: "tm_1", Name: "WF", Status: model.WorkflowStatusDraft}},
+			Workflows: []coreworkflow.Workflow{{ID: "w_1", TeamID: "tm_1", Name: "WF", Status: coreworkflow.StatusDraft}},
 		},
 	}
 	kind := model.IssueAssigneeWorkflow

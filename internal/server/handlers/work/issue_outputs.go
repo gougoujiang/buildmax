@@ -11,6 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
+	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
@@ -75,7 +76,7 @@ func truncatePreview(data []byte, budget int) (string, bool) {
 func (h *Handler) aggregateIssueOutputs(
 	ctx context.Context,
 	agentTasks []model.Task,
-	stepsByTaskID map[string]model.WorkflowStepRun,
+	stepsByTaskID map[string]coreworkflow.StepRun,
 ) ([]issueOutputResponse, *issueOutputResponse) {
 	if h.cfg.RunOutputs == nil {
 		return []issueOutputResponse{}, nil
@@ -154,7 +155,7 @@ func (h *Handler) aggregateIssueOutputs(
 func (h *Handler) artifactOutputs(
 	ctx context.Context,
 	agentTasks []model.Task,
-	stepsByTaskID map[string]model.WorkflowStepRun,
+	stepsByTaskID map[string]coreworkflow.StepRun,
 ) []issueOutputResponse {
 	if h.cfg.Artifacts == nil || !h.cfg.Artifacts.Available() {
 		return nil

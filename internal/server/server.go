@@ -17,6 +17,7 @@ import (
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
+	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 	"github.com/gougoujiang/buildmax/internal/server/handlers"
@@ -63,7 +64,7 @@ type StoresConfig struct {
 	PasswordStore     model.PasswordStore
 	RefreshTokenStore model.RefreshTokenStore
 	TeamStore         coreteam.Store
-	WorkflowStore     model.WorkflowStore
+	WorkflowStore     coreworkflow.Store
 	AgentStore        model.AgentStore
 	IssueStore        model.IssueStore
 	IssueCommentStore model.IssueCommentStore

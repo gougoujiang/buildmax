@@ -10,6 +10,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
+	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -20,13 +21,13 @@ const workflowTestSecret = "workflow-test-secret"
 func TestWorkflowHandlers(t *testing.T) {
 	teamID := "tm_personal_u1"
 	workflowStore := &mock.MockWorkflowStore{
-		Workflows: []model.Workflow{{
+		Workflows: []coreworkflow.Workflow{{
 			ID:          "w_1",
 			TeamID:      teamID,
 			Name:        "WF",
 			Description: "desc",
 			Definition:  `{"steps":[{"step_id":"s1","type":"agent_task","target_agent_id":"a_1","prompt":"do it"}]}`,
-			Status:      model.WorkflowStatusPublished,
+			Status:      coreworkflow.StatusPublished,
 			CreatedBy:   "u1",
 			CreatedAt:   time.Unix(100, 0).UTC(),
 			UpdatedAt:   time.Unix(100, 0).UTC(),
@@ -95,8 +96,8 @@ func TestWorkflowHandlers(t *testing.T) {
 		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 			t.Fatalf("decode: %v", err)
 		}
-		if out.Status != model.WorkflowStatusDraft {
-			t.Fatalf("workflow status = %q, want %q", out.Status, model.WorkflowStatusDraft)
+		if out.Status != coreworkflow.StatusDraft {
+			t.Fatalf("workflow status = %q, want %q", out.Status, coreworkflow.StatusDraft)
 		}
 	})
 

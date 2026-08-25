@@ -10,6 +10,7 @@ import (
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
+	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -159,11 +160,11 @@ func TestRetryTaskRefusesAWorkflowStep(t *testing.T) {
 		TaskID: retryTaskID,
 		Input:  "review the migration plan",
 		Status: string(model.RunStatusFailed),
-	}, &mock.MockWorkflowStore{StepRuns: []model.WorkflowStepRun{{
+	}, &mock.MockWorkflowStore{StepRuns: []coreworkflow.StepRun{{
 		ID:            "wsr_1",
 		WorkflowRunID: "wr_1",
 		TaskID:        util.Ptr(retryTaskID),
-		Status:        model.WorkflowStepRunStatusFailed,
+		Status:        coreworkflow.StepRunStatusFailed,
 	}}})
 
 	rec := postRetry(t, mux)

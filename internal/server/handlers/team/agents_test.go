@@ -10,6 +10,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/model"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
+	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -114,12 +115,12 @@ func TestDeleteAgentRefusedWhilePublishedWorkflowUsesIt(t *testing.T) {
 		Agents: []model.Agent{{ID: "a_1", UserID: "u1", TeamID: teamID, Name: "Collector", Revision: 1}},
 	}
 	workflowStore := &mock.MockWorkflowStore{
-		Workflows: []model.Workflow{{
+		Workflows: []coreworkflow.Workflow{{
 			ID:         "w_1",
 			TeamID:     teamID,
 			Name:       "Nightly report",
 			Definition: `{"steps":[{"step_id":"s","type":"agent_task","target_agent_id":"a_1","prompt":"p"}]}`,
-			Status:     model.WorkflowStatusPublished,
+			Status:     coreworkflow.StatusPublished,
 		}},
 	}
 	teamStore := &mock.MockTeamStore{
@@ -156,8 +157,8 @@ func TestDeleteAgentRefusedWhilePublishedWorkflowUsesIt(t *testing.T) {
 	}
 
 	// Archiving the workflow releases the agent.
-	archived := model.WorkflowStatusArchived
-	if _, err := workflowStore.UpdateWorkflow(t.Context(), "w_1", teamID, model.UpdateWorkflowInput{Status: &archived}); err != nil {
+	archived := coreworkflow.StatusArchived
+	if _, err := workflowStore.UpdateWorkflow(t.Context(), "w_1", teamID, coreworkflow.UpdateInput{Status: &archived}); err != nil {
 		t.Fatalf("archive workflow: %v", err)
 	}
 	req = httptest.NewRequest(http.MethodDelete, url, nil)

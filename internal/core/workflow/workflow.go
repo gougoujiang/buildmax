@@ -1,4 +1,4 @@
-package model
+package workflow
 
 import (
 	"context"
@@ -6,24 +6,24 @@ import (
 )
 
 const (
-	WorkflowStatusDraft     = "draft"
-	WorkflowStatusPublished = "published"
-	WorkflowStatusArchived  = "archived"
+	StatusDraft     = "draft"
+	StatusPublished = "published"
+	StatusArchived  = "archived"
 
-	WorkflowRunStatusPending   = "pending"
-	WorkflowRunStatusRunning   = "running"
-	WorkflowRunStatusSucceeded = "succeeded"
-	WorkflowRunStatusFailed    = "failed"
-	WorkflowRunStatusCanceled  = "canceled"
+	RunStatusPending   = "pending"
+	RunStatusRunning   = "running"
+	RunStatusSucceeded = "succeeded"
+	RunStatusFailed    = "failed"
+	RunStatusCanceled  = "canceled"
 
-	WorkflowStepTypeAgentTask = "agent_task"
+	StepTypeAgentTask = "agent_task"
 
-	WorkflowStepRunStatusPending   = "pending"
-	WorkflowStepRunStatusRunning   = "running"
-	WorkflowStepRunStatusSucceeded = "succeeded"
-	WorkflowStepRunStatusFailed    = "failed"
-	WorkflowStepRunStatusCanceled  = "canceled"
-	WorkflowStepRunStatusBlocked   = "blocked"
+	StepRunStatusPending   = "pending"
+	StepRunStatusRunning   = "running"
+	StepRunStatusSucceeded = "succeeded"
+	StepRunStatusFailed    = "failed"
+	StepRunStatusCanceled  = "canceled"
+	StepRunStatusBlocked   = "blocked"
 )
 
 // Workflow is a reusable team-scoped execution plan.
@@ -43,11 +43,11 @@ type Workflow struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-// WorkflowRevision is one recorded version of a workflow.
+// Revision is one recorded version of a workflow.
 //
 // Revisions are append-only: an edit adds one, nothing rewrites or deletes one,
 // and restoring an older revision is itself an edit that appends a new one.
-type WorkflowRevision struct {
+type Revision struct {
 	WorkflowID  string    `json:"workflow_id"`
 	Revision    int       `json:"revision"`
 	Name        string    `json:"name"`
@@ -58,8 +58,8 @@ type WorkflowRevision struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
-// WorkflowRun is one execution attempt of a workflow.
-type WorkflowRun struct {
+// Run is one execution attempt of a workflow.
+type Run struct {
 	ID         string `json:"id"`
 	WorkflowID string `json:"workflow_id"`
 	// WorkflowRevision is the workflow revision this run expanded. It is 0 for
@@ -75,8 +75,8 @@ type WorkflowRun struct {
 	ErrorMessage     *string    `json:"error_message,omitempty"`
 }
 
-// WorkflowStepRun is one durable step execution record under a workflow run.
-type WorkflowStepRun struct {
+// StepRun is one durable step execution record under a workflow run.
+type StepRun struct {
 	ID            string  `json:"id"`
 	WorkflowRunID string  `json:"workflow_run_id"`
 	StepID        string  `json:"step_id"`
@@ -101,20 +101,20 @@ type WorkflowStepRun struct {
 	EndedAt           *time.Time `json:"ended_at,omitempty"`
 }
 
-// WorkflowDefinition is the parsed structure of a workflow definition JSON.
-type WorkflowDefinition struct {
-	Steps []WorkflowDefinitionStep `json:"steps"`
+// Definition is the parsed structure of a workflow definition JSON.
+type Definition struct {
+	Steps []DefinitionStep `json:"steps"`
 }
 
-// WorkflowDefinitionStep describes one step in a workflow definition.
-type WorkflowDefinitionStep struct {
+// DefinitionStep describes one step in a workflow definition.
+type DefinitionStep struct {
 	StepID        string `json:"step_id"`
 	Type          string `json:"type"`
 	TargetAgentID string `json:"target_agent_id"`
 	Prompt        string `json:"prompt"`
 }
 
-type CreateWorkflowRunInput struct {
+type CreateRunInput struct {
 	WorkflowID       string
 	WorkflowRevision int
 	IssueID          *string
@@ -124,7 +124,7 @@ type CreateWorkflowRunInput struct {
 	StartedAt        *time.Time
 }
 
-type UpdateWorkflowInput struct {
+type UpdateInput struct {
 	Name        *string
 	Description *string
 	Definition  *string
@@ -133,7 +133,7 @@ type UpdateWorkflowInput struct {
 	UpdatedBy string
 }
 
-type CreateWorkflowStepRunInput struct {
+type CreateStepRunInput struct {
 	StepID            string
 	StepIndex         int
 	StepType          string
@@ -146,14 +146,14 @@ type CreateWorkflowStepRunInput struct {
 	Status            string
 }
 
-type UpdateWorkflowRunInput struct {
+type UpdateRunInput struct {
 	Status       string
 	StartedAt    *time.Time
 	EndedAt      *time.Time
 	ErrorMessage *string
 }
 
-type UpdateWorkflowStepRunInput struct {
+type UpdateStepRunInput struct {
 	Status        *string
 	TaskID        *string
 	TaskRunID     *string
@@ -163,26 +163,26 @@ type UpdateWorkflowStepRunInput struct {
 	EndedAt       *time.Time
 }
 
-// WorkflowStore provides workflow and workflow execution persistence.
-type WorkflowStore interface {
+// Store provides workflow and workflow execution persistence.
+type Store interface {
 	ListWorkflowsByTeam(ctx context.Context, teamID string) ([]Workflow, error)
 	CreateWorkflow(ctx context.Context, teamID, createdBy, name, description, definition string) (*Workflow, error)
 	GetWorkflow(ctx context.Context, workflowID string) (*Workflow, error)
-	UpdateWorkflow(ctx context.Context, workflowID, teamID string, in UpdateWorkflowInput) (*Workflow, error)
-	CreateWorkflowRun(ctx context.Context, in CreateWorkflowRunInput) (*WorkflowRun, error)
-	ListWorkflowRunsByWorkflow(ctx context.Context, workflowID string, limit, offset int) ([]WorkflowRun, int, error)
-	ListWorkflowRunsByIssue(ctx context.Context, issueID string, limit, offset int) ([]WorkflowRun, int, error)
-	GetWorkflowRun(ctx context.Context, workflowRunID string) (*WorkflowRun, error)
-	ListWorkflowStepRuns(ctx context.Context, workflowRunID string) ([]WorkflowStepRun, error)
-	CreateWorkflowStepRuns(ctx context.Context, workflowRunID string, steps []CreateWorkflowStepRunInput) ([]WorkflowStepRun, error)
-	UpdateWorkflowRun(ctx context.Context, workflowRunID string, in UpdateWorkflowRunInput) (*WorkflowRun, error)
-	UpdateWorkflowStepRun(ctx context.Context, stepRunID string, in UpdateWorkflowStepRunInput) (*WorkflowStepRun, error)
-	GetWorkflowStepRunByTaskID(ctx context.Context, taskID string) (*WorkflowStepRun, error)
-	GetWorkflowStepRunByTaskRunID(ctx context.Context, taskRunID string) (*WorkflowStepRun, error)
+	UpdateWorkflow(ctx context.Context, workflowID, teamID string, in UpdateInput) (*Workflow, error)
+	CreateWorkflowRun(ctx context.Context, in CreateRunInput) (*Run, error)
+	ListWorkflowRunsByWorkflow(ctx context.Context, workflowID string, limit, offset int) ([]Run, int, error)
+	ListWorkflowRunsByIssue(ctx context.Context, issueID string, limit, offset int) ([]Run, int, error)
+	GetWorkflowRun(ctx context.Context, workflowRunID string) (*Run, error)
+	ListWorkflowStepRuns(ctx context.Context, workflowRunID string) ([]StepRun, error)
+	CreateWorkflowStepRuns(ctx context.Context, workflowRunID string, steps []CreateStepRunInput) ([]StepRun, error)
+	UpdateWorkflowRun(ctx context.Context, workflowRunID string, in UpdateRunInput) (*Run, error)
+	UpdateWorkflowStepRun(ctx context.Context, stepRunID string, in UpdateStepRunInput) (*StepRun, error)
+	GetWorkflowStepRunByTaskID(ctx context.Context, taskID string) (*StepRun, error)
+	GetWorkflowStepRunByTaskRunID(ctx context.Context, taskRunID string) (*StepRun, error)
 	// ListWorkflowRevisions returns a workflow's revisions, newest first, with
 	// the total count.
-	ListWorkflowRevisions(ctx context.Context, workflowID string, limit, offset int) ([]WorkflowRevision, int, error)
+	ListWorkflowRevisions(ctx context.Context, workflowID string, limit, offset int) ([]Revision, int, error)
 	// GetWorkflowRevision returns one revision, or nil when the workflow has no
 	// such revision number.
-	GetWorkflowRevision(ctx context.Context, workflowID string, revision int) (*WorkflowRevision, error)
+	GetWorkflowRevision(ctx context.Context, workflowID string, revision int) (*Revision, error)
 }
