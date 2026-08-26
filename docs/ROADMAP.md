@@ -359,9 +359,14 @@ recovers. The immediate work is therefore evidence-first.
    synchronization remain separate decisions — that record leaves subagent
    bundle retention as a question and puts Server synchronization outside its
    scope. Session trees/mailboxes additionally require a workspace/change-set
-   ownership design. SSO and the executable half of team plugin distribution
-   stay behind the steps above unless a deployment partner supplies the
-   evidence to reprioritize them.
+   ownership design. The other candidate is agent-managed worktrees: a session
+   that moves its own workspace root, decided in
+   [design/workspace-root-and-worktrees.md](design/workspace-root-and-worktrees.md)
+   and not started. It is the smaller bet — the decisions are settled, it
+   touches no server or storage boundary, and it is the prerequisite the
+   session-tree paper assumes. SSO and the executable half of team plugin
+   distribution stay behind the steps above unless a deployment partner
+   supplies the evidence to reprioritize them.
 
 ## Avoid For Now
 

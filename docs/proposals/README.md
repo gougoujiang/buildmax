@@ -38,7 +38,7 @@ their context.
 | [Run-scoped Secret Broker and workload identity](run-scoped-secret-broker.md) | How should a Team authorize one run and one plugin consumer to use a stored or externally managed credential without exposing it to the whole worker? |
 | [Session tree, agent mailbox, and branched workspaces](session-tree-and-agent-mailbox.md) | Should interactive sessions fork isolated workspaces, return structured child reports, and resume their parent through a durable mailbox? |
 
-Nine papers have been retired. Five were accepted into a design
+Ten papers have been retired. Six were accepted into a design
 record. *System administration* asked how a private
 deployment should authorize and audit System Administrators; the direction was
 accepted and is now the [system administration
@@ -70,6 +70,14 @@ definition narrows it, and the two levels split by what an unwanted item costs:
 inert content is inherited when an agent names none, executable content is
 loaded only when an agent names it.
 
+*Agent-managed worktrees and a mutable workspace root* asked whether one
+interactive session should create a Git worktree and move its own workspace
+root into it; the direction was accepted and is now the [workspace root and
+worktrees design](../design/workspace-root-and-worktrees.md), which settles
+where worktrees live, which of the root's dependents move with it, the
+permission asymmetry between creating and removing one, and what happens to a
+dirty tree, running jobs, and the cacheable prompt prefix.
+
 Three were retired because the work they proposed shipped. *Private production
 operations* asked for an operating contract for private deployment;
 `deployment/production/` and the compatibility section of
@@ -92,7 +100,7 @@ by, and records all became settled behaviour while it was open, leaving one
 question that belongs to an existing plan — it is now §3.9 of the [trust harness
 design](../design/trust-harness.md), with the egress half it blocks.
 
-Git history holds all nine papers.
+Git history holds all ten papers.
 
 ## Starting A Proposal
 
