@@ -97,9 +97,12 @@ snake_case per CLAUDE.md §6.1 but the structure is identical to upstream.
 | User | `<BUILDMAX_HOME>/settings.yaml` under `sandbox:` | default location |
 | Policy (operator) | `<BUILDMAX_HOME>/policy.yaml` under `sandbox:` | optional lock-out |
 | Env | `BUILDMAX_SANDBOX_ENABLED` | per-process override |
-| CLI | `dangerously_disable_sandbox: true` as a per-call bash arg | per-invocation escape hatch |
+| CLI run | `--sandbox [--sandbox-mode auto_allow\|regular]` | require it for one TUI or print-mode run; fail closed if unavailable |
+| Bash call | `dangerously_disable_sandbox: true` | config-gated per-call escape hatch |
 
-Resolution: env and policy override user. Policy file may set
+Resolution for scalar values is policy > CLI run > env > user > surface
+default. The CLI layer can require but cannot disable the sandbox, and an
+explicit `--sandbox` also forces `fail_if_unavailable`. Policy may set
 `allow_managed_domains_only: true` and `allow_managed_read_paths_only:
 true` to lock specific arrays — when set, lower sources can still
 **add deny entries** but their **allow entries are ignored** for that

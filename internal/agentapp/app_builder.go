@@ -66,7 +66,7 @@ func resolveAgentAppConfig(cfg AppConfig) (resolvedAgentAppConfig, error) {
 		plugins:       plugins,
 		loadedPlugins: loadedPlugins,
 		hooks:         config.MergeHooks(settings.Hooks, pluginHooks.Config, workspaceHooks),
-		sandbox:       config.ResolveSandbox(settings.Sandbox, policySandbox, surface),
+		sandbox:       config.ResolveSandboxForRun(settings.Sandbox, cfg.SandboxRunOverride, policySandbox, surface),
 	}, nil
 }
 

@@ -50,6 +50,9 @@ type AppConfig struct {
 	// config.SandboxSurfaceCLI / SandboxSurfaceWorker). Empty means
 	// SandboxSurfaceCLI.
 	SandboxSurface config.SandboxSurface
+	// SandboxRunOverride enables the sandbox or selects its approval mode for
+	// this AgentApp only. It cannot disable confinement or outrank policy.yaml.
+	SandboxRunOverride config.SandboxRunOverride
 	// ManagedToken supplies the BuildMax credential for models configured with
 	// transport "buildmax". Leaving it nil means this surface offers no managed
 	// inference, and such an entry fails with a clear error instead of falling

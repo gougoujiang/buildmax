@@ -45,6 +45,8 @@ buildmax <command> [flags]
 | `--session-id UUID` | — | Use a specific session id; loads it if it exists, otherwise creates it |
 | `--model ID\|NAME` | first entry in `settings.yaml` | Pick a model from `models:` |
 | `--workspace DIR` | current directory | Directory the agent operates in |
+| `--sandbox` | off | Require the Bash sandbox for this run without changing settings; fail if its backend is unavailable |
+| `--sandbox-mode auto_allow\|regular` | configured mode | Select the approval mode for this run; requires `--sandbox` |
 | `--append-system-prompt TEXT` | — | Text appended to this run's system prompt |
 | `--append-system-prompt-file PATH` | — | Same, read from a file |
 | `--agent NAME` | — | Append the body of a definition from `.buildmax/agents/` or `~/.buildmax/agents/` |
@@ -57,6 +59,10 @@ buildmax <command> [flags]
 
 `--output json` and `--output jsonl` make print mode machine-readable, which is
 what you want when calling BuildMax from a script or another program.
+
+`--sandbox` applies to both the TUI and print mode. It can enable confinement
+for one run, but cannot disable it; operator `policy.yaml` remains authoritative
+over both flags.
 
 Both carry `trace_id` and `trace_path`, naming the durable trace that run wrote.
 Use them rather than looking for the newest file under

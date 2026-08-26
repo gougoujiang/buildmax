@@ -62,6 +62,8 @@ func NewRootCommand() *cobra.Command {
 	root.Flags().String("session-id", "", "use a specific session ID (load if exists, else create); must be a valid UUID")
 	root.Flags().String("model", "", "use model from settings by model id or name")
 	root.Flags().String("workspace", "", "workspace directory for the agent (default: current directory)")
+	root.Flags().Bool("sandbox", false, "require the Bash sandbox for this run without changing settings")
+	root.Flags().String("sandbox-mode", "", "sandbox approval mode for this run: auto_allow or regular (requires --sandbox)")
 	root.Flags().String("agent", "", "append the body of a named definition from .buildmax/agents or ~/.buildmax/agents")
 	root.Flags().String("append-system-prompt", "", "text appended to this run's system prompt")
 	root.Flags().String("append-system-prompt-file", "", "file whose contents are appended to this run's system prompt")
@@ -95,6 +97,8 @@ func runRoot(cmd *cobra.Command, _ []string) error {
 	model, _ := cmd.Flags().GetString("model")
 	sessionID, _ := cmd.Flags().GetString("session-id")
 	workspace, _ := cmd.Flags().GetString("workspace")
+	sandboxEnabled, _ := cmd.Flags().GetBool("sandbox")
+	sandboxMode, _ := cmd.Flags().GetString("sandbox-mode")
 	promptFlags := systemPromptFlags{}
 	promptFlags.Agent, _ = cmd.Flags().GetString("agent")
 	promptFlags.AppendText, _ = cmd.Flags().GetString("append-system-prompt")
@@ -105,6 +109,11 @@ func runRoot(cmd *cobra.Command, _ []string) error {
 	includeDeltas, _ := cmd.Flags().GetBool("include-deltas")
 
 	format, err := parseOutputFormat(outputStr)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		return &ExitError{Code: ExitUsage, Err: err}
+	}
+	sandboxRun, err := parseSandboxRunOverride(sandboxEnabled, sandboxMode)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		return &ExitError{Code: ExitUsage, Err: err}
@@ -153,10 +162,31 @@ func runRoot(cmd *cobra.Command, _ []string) error {
 			Quiet:                  quiet,
 			IncludeDeltas:          includeDeltas,
 			AdditionalSystemPrompt: additionalSystemPrompt,
+			SandboxRunOverride:     sandboxRun,
 		})
 	}
 	slog.Info("starting TUI")
-	return runTUIFunc(effectiveSessionID, model, additionalSystemPrompt, workspace)
+	return runTUIFunc(effectiveSessionID, model, additionalSystemPrompt, workspace, sandboxRun)
+}
+
+func parseSandboxRunOverride(enabled bool, mode string) (config.SandboxRunOverride, error) {
+	if mode != "" && !enabled {
+		return config.SandboxRunOverride{}, errors.New("--sandbox-mode requires --sandbox")
+	}
+	override := config.SandboxRunOverride{Enable: enabled}
+	switch mode {
+	case "":
+		return override, nil
+	case "auto_allow":
+		v := true
+		override.AutoAllowBashIfSandboxed = &v
+	case "regular":
+		v := false
+		override.AutoAllowBashIfSandboxed = &v
+	default:
+		return config.SandboxRunOverride{}, fmt.Errorf("invalid --sandbox-mode %q: want auto_allow or regular", mode)
+	}
+	return override, nil
 }
 
 func parseOutputFormat(s string) (OutputFormat, error) {

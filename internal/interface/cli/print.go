@@ -11,6 +11,7 @@ import (
 	"syscall"
 
 	"github.com/gougoujiang/buildmax/internal/agentapp"
+	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
@@ -32,6 +33,7 @@ type printOptions struct {
 	// prompt's last layer. Empty leaves a resumed session running under whatever text it
 	// already had.
 	AdditionalSystemPrompt string
+	SandboxRunOverride     config.SandboxRunOverride
 }
 
 // stdoutStreamSink writes each delta to stdout and flushes so output appears incrementally.
@@ -69,18 +71,7 @@ func runPrintMode(opts printOptions) error {
 	if err != nil {
 		return printFatal(opts.Format, ExitModelError, err)
 	}
-	app, err := agentapp.NewAgentApp(agentapp.AppConfig{
-		WorkspaceDir:           opts.Workspace,
-		EnableMCP:              true,
-		Policy:                 agent.AllowAllPolicy(),
-		ModelEntries:           source.Entries,
-		DefaultModel:           source.Default,
-		ManagedServerURL:       source.ServerURL,
-		ManagedToken:           auth.TokenForServer,
-		ArtifactPublisher:      auth.ArtifactPublisherForSession(),
-		Surface:                coregw.CallSurfaceCLI,
-		AdditionalSystemPrompt: opts.AdditionalSystemPrompt,
-	})
+	app, err := agentapp.NewAgentApp(printAppConfig(opts, source))
 	if err != nil {
 		return printFatal(opts.Format, ExitModelError, err)
 	}
@@ -135,6 +126,22 @@ func runPrintMode(opts printOptions) error {
 		return nil
 	}
 	return &ExitError{Code: exitCode, Err: runErr}
+}
+
+func printAppConfig(opts printOptions, source auth.ModelSource) agentapp.AppConfig {
+	return agentapp.AppConfig{
+		WorkspaceDir:           opts.Workspace,
+		EnableMCP:              true,
+		Policy:                 agent.AllowAllPolicy(),
+		ModelEntries:           source.Entries,
+		DefaultModel:           source.Default,
+		ManagedServerURL:       source.ServerURL,
+		ManagedToken:           auth.TokenForServer,
+		ArtifactPublisher:      auth.ArtifactPublisherForSession(),
+		Surface:                coregw.CallSurfaceCLI,
+		AdditionalSystemPrompt: opts.AdditionalSystemPrompt,
+		SandboxRunOverride:     opts.SandboxRunOverride,
+	}
 }
 
 func emitResultEnvelope(w io.Writer, out agentapp.RunResult, exitCode int, runErr error, policyDenied bool, jsonl bool) {

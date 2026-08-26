@@ -35,6 +35,21 @@ buildmax sandbox status    # resolved config, and which layer set each value
 
 ## Turn It On
 
+For one TUI or print-mode run, without changing `settings.yaml`:
+
+```bash
+buildmax --sandbox
+buildmax --sandbox --sandbox-mode regular
+```
+
+`--sandbox-mode` accepts `auto_allow` or `regular` and requires `--sandbox`.
+An explicit `--sandbox` fails the run at startup if the OS backend is missing;
+it never silently falls back to unsandboxed Bash.
+There is deliberately no `--no-sandbox` flag: a per-run convenience must not
+weaken a boundary required by configuration or operator policy.
+
+To make sandboxing the user default:
+
 ```bash
 buildmax sandbox enable
 buildmax sandbox mode auto_allow
@@ -85,10 +100,11 @@ environment unless you list them explicitly.
 
 ## Operator Policy
 
-`<BUILDMAX_HOME>/policy.yaml` holds a sandbox block with the same shape that
-**overrides** `settings.yaml`. `BUILDMAX_SANDBOX_ENABLED` overrides both. Use
-the policy file when the machine's owner and the machine's user are different
-people.
+`<BUILDMAX_HOME>/policy.yaml` holds a sandbox block with the same shape and is
+the final authority. Sandbox precedence is `policy.yaml` > per-run CLI >
+`BUILDMAX_SANDBOX_ENABLED` > `settings.yaml` > surface default. In particular,
+an environment variable cannot turn off a sandbox that policy requires. Use the
+policy file when the machine's owner and the machine's user are different people.
 
 Two keys make the policy layer authoritative rather than merely additive:
 `allow_managed_read_paths_only` and `allow_managed_domains_only` cause lower

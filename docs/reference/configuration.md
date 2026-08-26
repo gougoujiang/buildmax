@@ -41,7 +41,7 @@ anything not listed here is not read by BuildMax.
 | `BUILDMAX_HOME` | `~/.buildmax` | Data directory; locates `settings.yaml` and `server.yaml`. Must be an env var — nothing else can be found until it is known. |
 | `BUILDMAX_JWT_SECRET` | — | Overrides `jwt_secret` in `server.yaml`. Inject this at deploy time rather than committing the secret to a file. |
 | `BUILDMAX_CORS_ORIGIN` | — | Overrides `cors_origin` in `server.yaml`. It has to name the origin the Portal is served from, which is a host port the deployment picks — the Compose stack derives it from `BUILDMAX_PORTAL_PORT`, so moving that port is one change rather than two. |
-| `BUILDMAX_SANDBOX_ENABLED` | — | Overrides `sandbox.enabled`. Accepts `1/true/yes/on` or `0/false/no/off`. |
+| `BUILDMAX_SANDBOX_ENABLED` | — | Overrides user `sandbox.enabled`, below per-run CLI and operator policy. Accepts `1/true/yes/on` or `0/false/no/off`. |
 | `BUILDMAX_TRACE_DISABLED` | — | Disables durable run traces when truthy. Traces are on by default. |
 | `BUILDMAX_CREDENTIAL_STORE` | — | Set to `file` to keep a CLI or Desktop login's access and refresh tokens in `auth.json` instead of the OS credential store (Keychain, Credential Manager, Secret Service). `buildmax login`, `buildmax whoami`, and `buildmax doctor` report which one a login actually used. |
 | `BUILDMAX_RUN_TOKEN` | — | One task run's credential for every `/api/worker/*` route. Minted per run by the scheduler and placed in the worker process or Job pod — not something an operator sets. |
@@ -949,6 +949,11 @@ For any value that appears in more than one place:
 ```text
 environment variable  >  policy.yaml  >  settings.yaml / server.yaml  >  built-in default
 ```
+
+Sandbox is the security-sensitive exception: `policy.yaml` > per-run CLI >
+`BUILDMAX_SANDBOX_ENABLED` > `settings.yaml` > surface default. A run may enable
+the sandbox and select its approval mode, but it cannot disable sandboxing or
+override operator policy.
 
 The sandbox block is the only one with a workspace-level layer; hooks are the
 only block that merges additively (global hooks and workspace hooks both run)

@@ -95,7 +95,7 @@ func TestSandboxConfig_DefaultsForSurface(t *testing.T) {
 	}
 }
 
-// TestSandboxConfig_EnvOverride asserts env wins over settings.
+// TestSandboxConfig_EnvOverride asserts env wins over user settings.
 func TestSandboxConfig_EnvOverride(t *testing.T) {
 	t.Setenv(EnvKeyBuildmaxSandboxEnabled, "true")
 	res := ResolveSandbox(SandboxConfig{Enabled: false}, SandboxConfig{}, SandboxSurfaceCLI)
@@ -106,6 +106,44 @@ func TestSandboxConfig_EnvOverride(t *testing.T) {
 	res = ResolveSandbox(SandboxConfig{Enabled: true}, SandboxConfig{}, SandboxSurfaceCLI)
 	if res.Config.Enabled {
 		t.Errorf("env override did not disable sandbox")
+	}
+}
+
+func TestSandboxConfig_RunOverrideWinsOverEnv(t *testing.T) {
+	t.Setenv(EnvKeyBuildmaxSandboxEnabled, "false")
+	regular := false
+	res := ResolveSandboxForRun(
+		SandboxConfig{},
+		SandboxRunOverride{Enable: true, AutoAllowBashIfSandboxed: &regular},
+		SandboxConfig{},
+		SandboxSurfaceCLI,
+	)
+	if !res.Config.Enabled {
+		t.Error("per-run override did not enable the sandbox over env=false")
+	}
+	if !res.Config.FailIfUnavailable {
+		t.Error("per-run sandbox request did not fail closed")
+	}
+	if res.Config.EffectiveAutoAllowBash() {
+		t.Error("per-run regular mode resolved as auto_allow")
+	}
+}
+
+func TestSandboxConfig_PolicyWinsOverRunAndEnv(t *testing.T) {
+	t.Setenv(EnvKeyBuildmaxSandboxEnabled, "false")
+	autoAllow := true
+	regular := false
+	res := ResolveSandboxForRun(
+		SandboxConfig{},
+		SandboxRunOverride{Enable: true, AutoAllowBashIfSandboxed: &autoAllow},
+		SandboxConfig{Enabled: true, AutoAllowBashIfSandboxed: &regular},
+		SandboxSurfaceCLI,
+	)
+	if !res.Config.Enabled {
+		t.Error("env=false weakened policy enabled=true")
+	}
+	if res.Config.EffectiveAutoAllowBash() {
+		t.Error("run auto_allow weakened policy regular mode")
 	}
 }
 
@@ -210,18 +248,22 @@ sandbox:
 
 // TestSandboxResolution_SourcesOrder asserts source tagging.
 func TestSandboxResolution_SourcesOrder(t *testing.T) {
-	t.Setenv(EnvKeyBuildmaxSandboxEnabled, "")
-	res := ResolveSandbox(
+	t.Setenv(EnvKeyBuildmaxSandboxEnabled, "true")
+	regular := false
+	res := ResolveSandboxForRun(
 		SandboxConfig{Enabled: true},
+		SandboxRunOverride{Enable: true, AutoAllowBashIfSandboxed: &regular},
 		SandboxConfig{FailIfUnavailable: true},
 		SandboxSurfaceCLI,
 	)
 	got := res.Sources
-	if len(got) != 3 ||
+	if len(got) != 5 ||
 		got[0] != "default:cli" ||
 		got[1] != "settings" ||
-		got[2] != "policy" {
-		t.Errorf("sources = %v, want [default:cli settings policy]", got)
+		got[2] != "env:"+EnvKeyBuildmaxSandboxEnabled+"=true" ||
+		got[3] != "run" ||
+		got[4] != "policy" {
+		t.Errorf("sources = %v, want [default:cli settings env run policy]", got)
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/interface/auth"
 )
 
@@ -61,26 +62,36 @@ func TestRootCommand_PassesWorkspaceToTUI(t *testing.T) {
 	writeTestSettings(t, "models:\n  - model: stub\n    name: stub\n    api_key: x\n")
 	workspace := t.TempDir()
 
-	var got string
+	var gotWorkspace string
+	var gotSandbox config.SandboxRunOverride
 	orig := runTUIFunc
-	runTUIFunc = func(resumeID, modelName, additionalSystemPrompt, ws string) error {
-		got = ws
+	runTUIFunc = func(resumeID, modelName, additionalSystemPrompt, ws string, sandboxRun config.SandboxRunOverride) error {
+		gotWorkspace = ws
+		gotSandbox = sandboxRun
 		return nil
 	}
 	t.Cleanup(func() { runTUIFunc = orig })
 
 	root := NewRootCommand()
-	root.SetArgs([]string{"--workspace", workspace})
+	root.SetArgs([]string{"--workspace", workspace, "--sandbox", "--sandbox-mode", "regular"})
 	if err := root.Execute(); err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
-	if got != workspace {
-		t.Errorf("workspace passed to the TUI = %q, want %q", got, workspace)
+	if gotWorkspace != workspace {
+		t.Errorf("workspace passed to the TUI = %q, want %q", gotWorkspace, workspace)
+	}
+	if !gotSandbox.Enable {
+		t.Error("--sandbox did not reach the TUI runtime")
+	}
+	if gotSandbox.AutoAllowBashIfSandboxed == nil || *gotSandbox.AutoAllowBashIfSandboxed {
+		t.Errorf("sandbox mode = %v, want regular", gotSandbox.AutoAllowBashIfSandboxed)
 	}
 }
 
 func TestTUIAppConfigCarriesWorkspace(t *testing.T) {
-	cfg := tuiAppConfig("/tmp/some-workspace", "extra prompt", auth.ModelSource{})
+	regular := false
+	sandboxRun := config.SandboxRunOverride{Enable: true, AutoAllowBashIfSandboxed: &regular}
+	cfg := tuiAppConfig("/tmp/some-workspace", "extra prompt", auth.ModelSource{}, sandboxRun)
 	if cfg.WorkspaceDir != "/tmp/some-workspace" {
 		t.Errorf("WorkspaceDir = %q, want %q", cfg.WorkspaceDir, "/tmp/some-workspace")
 	}
@@ -93,13 +104,51 @@ func TestTUIAppConfigCarriesWorkspace(t *testing.T) {
 	if cfg.Policy == nil {
 		t.Error("an interactive session needs a policy that can ask")
 	}
+	if !cfg.SandboxRunOverride.Enable || cfg.SandboxRunOverride.AutoAllowBashIfSandboxed == nil || *cfg.SandboxRunOverride.AutoAllowBashIfSandboxed {
+		t.Errorf("SandboxRunOverride = %+v, want enabled regular mode", cfg.SandboxRunOverride)
+	}
 }
 
 // An empty --workspace still means "current directory"; the fix must not turn the
 // default into an empty path handed to the runtime.
 func TestTUIAppConfigWithoutWorkspaceLeavesTheDefault(t *testing.T) {
-	if cfg := tuiAppConfig("", "", auth.ModelSource{}); cfg.WorkspaceDir != "" {
+	if cfg := tuiAppConfig("", "", auth.ModelSource{}, config.SandboxRunOverride{}); cfg.WorkspaceDir != "" {
 		t.Errorf("WorkspaceDir = %q, want empty so the runtime falls back to the working directory", cfg.WorkspaceDir)
+	}
+}
+
+func TestRootCommand_SandboxModeErrorsPrecedeModelCheck(t *testing.T) {
+	t.Setenv("BUILDMAX_HOME", t.TempDir())
+
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "mode requires sandbox", args: []string{"--sandbox-mode", "regular"}, want: "requires --sandbox"},
+		{name: "invalid mode", args: []string{"--sandbox", "--sandbox-mode", "permissive"}, want: "want auto_allow or regular"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := NewRootCommand()
+			root.SetArgs(tt.args)
+			err := root.Execute()
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("Execute() error = %v, want %q", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestPrintAppConfigCarriesSandboxRunOverride(t *testing.T) {
+	autoAllow := true
+	opts := printOptions{SandboxRunOverride: config.SandboxRunOverride{
+		Enable:                   true,
+		AutoAllowBashIfSandboxed: &autoAllow,
+	}}
+	cfg := printAppConfig(opts, auth.ModelSource{})
+	if !cfg.SandboxRunOverride.Enable || cfg.SandboxRunOverride.AutoAllowBashIfSandboxed == nil || !*cfg.SandboxRunOverride.AutoAllowBashIfSandboxed {
+		t.Errorf("SandboxRunOverride = %+v, want enabled auto_allow mode", cfg.SandboxRunOverride)
 	}
 }
 
