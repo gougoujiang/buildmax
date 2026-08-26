@@ -572,8 +572,28 @@ naming a slot for it here would describe a withdrawn capability as upcoming.
 
 ### 8.2 Rewind
 
-Rewind appends a `head_selected` record whose parent is the message being
-returned to. That is the entire operation. The target is not repeated in the
+Rewind takes one of the user's own prompts back. The chosen message leaves the
+branch along with everything after it, and its text returns to the input box to
+be edited and sent again — which is what the operation is for, and why it is
+exclusive of the message rather than inclusive of it.
+
+Rewind appends a `head_selected` record whose parent is the record before the
+rewound message. That is the entire operation.
+
+The landing record is the physical predecessor on the branch, not the previous
+message: notes, todos, a compaction, and the `turn_finished` of the turn before
+all sit between two messages and belong to work that is being kept. The one
+record stepped over is `turn_started`, because §7.1 opens a turn before the
+prompt that starts it, and landing there would leave the branch inside the turn
+being dropped. A prompt with nothing before it — the first of a session — has no
+landing and is not offered; a new session says the same thing without inventing
+an empty branch.
+
+What a surface may offer follows from that. Rewind offers the prompts the user
+typed, since a reply has nothing to hand back and a background event arrives as
+a message the user never wrote. Fork offers every message a turn ended on, the
+head included, but not a reply that asked for a tool: a branch ending there
+holds a call with no result, which only some provider adapters prune. The target is not repeated in the
 payload: this is the one record that deliberately points somewhere other than
 its physical predecessor, so the parent link already says everything a target
 field would, and storing it twice would only create a pair that could
@@ -942,7 +962,8 @@ Implementation is incomplete until tests establish:
 - failure before and after each tool boundary yields `not_started`, known
   outcome, or `outcome_unknown` as specified;
 - parallel tool completion preserves committed history order and call IDs;
-- rewind selects an earlier head without deleting the abandoned branch;
+- rewind selects an earlier head without deleting the abandoned branch, and
+  returns the prompt it removed;
 - rewind reports the tool calls on the span it moved past, including one left
   in flight by an interruption, and reports nothing for a conversation-only
   span;
@@ -965,8 +986,8 @@ Implementation is incomplete until tests establish:
   messages from more than one protocol still replays;
 - an unknown skippable record loads with a warning and an unknown required
   record fails exactly like corruption;
-- rewinding to a message reproduces exactly the state that message's branch
-  reduces to, and leaves workspace files untouched;
+- rewinding a prompt reproduces exactly the state the record before it reduces
+  to, and leaves workspace files untouched;
 - foreground, background, and nested subagents write isolated hidden bundles
   with immediate-parent lineage;
 - hidden subagents never appear in the picker or become `--continue` targets;

@@ -368,7 +368,14 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
           projectID={currentProject.id}
           sessionID={sessionId}
           app={app}
-          onRewound={onRewound}
+          draft={prompt}
+          onRewound={(report, restored) => {
+            // The rewound prompt comes back here to be edited and sent again;
+            // the modal decides whether it may, since a draft already in the
+            // composer wins.
+            if (restored) setPrompt(restored);
+            onRewound(report);
+          }}
           onForked={onForked}
           onClose={() => setShowHistory(false)}
         />

@@ -1,6 +1,20 @@
 package session
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
+
+// ErrAlreadyHead reports that a point is where the branch already ends, so
+// nothing follows it. Rewinding there is a caller mistake; forking there is
+// the ordinary "branch off from here", so a fork surface reads this as an
+// empty span rather than a failure.
+var ErrAlreadyHead = errors.New("this point is already the head")
+
+// ErrNoLanding reports that a message cannot be rewound because nothing on the
+// branch precedes it. A picker filters those out; a surface handed one anyway
+// needs to say why rather than fail as "not found".
+var ErrNoLanding = errors.New("no record precedes this message")
 
 // AbandonedEffect is one tool call the conversation is about to move past.
 type AbandonedEffect struct {
@@ -37,9 +51,9 @@ func (a AbandonedWork) Undoable() bool { return len(a.Effects) == 0 }
 // Abandoned reports what rewinding from head to target would leave in place.
 //
 // target must be on the branch ending at head, and must not be head itself:
-// rewinding to where you already are is a caller mistake, not a no-op worth
-// silently accepting, because a surface that computed the wrong target would
-// otherwise report "nothing abandoned" and look correct.
+// asking about where the branch already ends is answered with ErrAlreadyHead
+// rather than an empty span, because a surface that computed the wrong target
+// would otherwise report "nothing abandoned" and look correct.
 func Abandoned(items []Item, head, target string) (AbandonedWork, error) {
 	branch, err := Branch(items, head)
 	if err != nil {
@@ -56,7 +70,7 @@ func Abandoned(items []Item, head, target string) (AbandonedWork, error) {
 	case cut < 0:
 		return AbandonedWork{}, fmt.Errorf("%w: %s is not on the branch ending at %s", ErrHeadNotFound, target, head)
 	case cut == len(branch)-1:
-		return AbandonedWork{}, fmt.Errorf("rewind target %s is already the head", target)
+		return AbandonedWork{}, fmt.Errorf("%w: %s", ErrAlreadyHead, target)
 	}
 
 	var out AbandonedWork
@@ -87,4 +101,44 @@ func Abandoned(items []Item, head, target string) (AbandonedWork, error) {
 		})
 	}
 	return out, nil
+}
+
+// RewindLanding returns the record a rewind removing messageID lands on.
+//
+// Rewind is exclusive: the message a person picks is the one they want back in
+// the input box, so it leaves the branch along with everything after it, and
+// the head has to name the record before it rather than the message itself.
+//
+// That record is the physical predecessor on the branch, not the previous
+// message: notes, todos, a compaction, and the `turn_finished` of the turn
+// before all sit between two messages, and they belong to work that is being
+// kept. The one record stepped over is `turn_started`, because §7.1 opens a
+// turn before the prompt that starts it — landing there would leave the branch
+// inside the turn being dropped.
+//
+// A message with nothing before it has no landing. That is the first prompt of
+// a session, and rewinding it would ask for a branch with no records at all;
+// starting a new session says the same thing honestly.
+func RewindLanding(items []Item, head, messageID string) (string, error) {
+	branch, err := Branch(items, head)
+	if err != nil {
+		return "", err
+	}
+	cut := -1
+	for i, it := range branch {
+		if it.ID == messageID {
+			cut = i
+			break
+		}
+	}
+	if cut < 0 {
+		return "", fmt.Errorf("%w: %s is not on the branch ending at %s", ErrHeadNotFound, messageID, head)
+	}
+	for i := cut - 1; i >= 0; i-- {
+		if _, opensTurn := branch[i].Payload.(TurnStarted); opensTurn {
+			continue
+		}
+		return branch[i].ID, nil
+	}
+	return "", fmt.Errorf("%w: %s is the first message of this session", ErrNoLanding, messageID)
 }

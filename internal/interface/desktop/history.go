@@ -26,34 +26,36 @@ type HistoryToolEffect struct {
 	Interrupted bool `json:"interrupted"`
 }
 
-// HistoryPoint is one message a session can be rewound to or forked from.
+// HistoryPoint is one message a picker offers.
 //
-// Messages and Tools describe the same span for both operations, and mean
-// opposite things about it. A rewind drops that span from this conversation
-// and leaves the tools' effects on disk; a fork drops nothing — the original
-// keeps all of it — but the copy begins without knowing that work happened.
-// The surface chooses the reading; the binding reports the span once.
+// Messages and Tools describe the span choosing it affects, and the two
+// operations mean opposite things by it. A rewind removes that span from this
+// conversation and leaves the tools' effects on disk; a fork removes nothing —
+// the original keeps all of it — but the copy begins without knowing that work
+// happened. The surface chooses the reading; the binding reports the span once.
 type HistoryPoint struct {
 	ItemID   string              `json:"item_id"`
 	Role     string              `json:"role"`
 	Content  string              `json:"content"`
 	Messages int                 `json:"messages"`
 	Tools    []HistoryToolEffect `json:"tools,omitempty"`
-	// IsHead marks the end of the conversation. Forking from it is the common
-	// case — branch off from where we are — while rewinding to it is not a
-	// move, so a surface offers one and not the other.
-	IsHead bool `json:"is_head"`
 }
 
 // HistoryPointsResult is the picker's whole input, consequences included.
 //
-// Every point carries what choosing it would affect, rather than the surface
-// asking again each time the selection moves: the computation is in-memory
-// over a branch that is already loaded, and a round trip per keystroke would
-// be the expensive half of an otherwise free question.
+// The two lists are computed here rather than filtered in the frontend,
+// because which messages an operation may be pointed at is a rule about the
+// journal, not a presentation choice: rewind offers the prompts it can hand
+// back, fork offers every message a turn ended on, and the head is a fork
+// point but never a rewind one. Every point carries what choosing it would
+// affect, rather than the surface asking again each time the selection moves:
+// the computation is in-memory over a branch that is already loaded, and a
+// round trip per keystroke would be the expensive half of an otherwise free
+// question.
 type HistoryPointsResult struct {
 	SessionID string         `json:"session_id"`
-	Points    []HistoryPoint `json:"points"`
+	Rewind    []HistoryPoint `json:"rewind"`
+	Fork      []HistoryPoint `json:"fork"`
 }
 
 // HistoryMoveResult is what happened, for the report shown afterwards.
@@ -63,10 +65,16 @@ type HistoryMoveResult struct {
 	SessionID string              `json:"session_id"`
 	Messages  int                 `json:"messages"`
 	Tools     []HistoryToolEffect `json:"tools,omitempty"`
+	// Prompt is the rewound message, for the composer to take back. Empty
+	// after a fork, which removes nothing.
+	Prompt string `json:"prompt,omitempty"`
+	// Attachments counts images the rewound message carried and the composer
+	// cannot restore.
+	Attachments int `json:"attachments,omitempty"`
 }
 
-// GetHistoryPoints lists the messages this session can be rewound to or forked
-// from, most recent first.
+// GetHistoryPoints lists what this session can be rewound to and forked from,
+// each newest first.
 //
 // It reads without the writer lock, so the picker still opens while a run is in
 // flight. Only the move itself is refused then.
@@ -81,32 +89,50 @@ func (a *App) GetHistoryPoints(sessionID string) (HistoryPointsResult, error) {
 		}
 		return HistoryPointsResult{}, fmt.Errorf("read session: %w", err)
 	}
-	points := agentapp.RewindPoints(sess)
-	out := make([]HistoryPoint, 0, len(points))
-	for i, p := range points {
-		hp := HistoryPoint{
-			ItemID:  p.ItemID,
-			Role:    historyRole(p),
-			Content: p.Content,
-			IsHead:  i == len(points)-1,
-		}
-		// The head has nothing after it, so there is no span to describe and
-		// AbandonedBy rightly refuses to answer for it.
-		if !hp.IsHead {
-			affected, err := sess.AbandonedBy(p.ItemID)
-			if err != nil {
-				return HistoryPointsResult{}, fmt.Errorf("inspect %s: %w", p.ItemID, err)
-			}
-			hp.Messages = affected.Messages
-			hp.Tools = historyTools(affected)
-		}
-		out = append(out, hp)
+
+	rewind, err := historyPoints(agentapp.RewindPoints(sess), sess.RewindPreview)
+	if err != nil {
+		return HistoryPointsResult{}, err
 	}
-	reverseHistoryPoints(out)
-	return HistoryPointsResult{SessionID: sessionID, Points: out}, nil
+	fork, err := historyPoints(agentapp.ForkPoints(sess), func(itemID string) (session.AbandonedWork, error) {
+		affected, err := sess.AbandonedBy(itemID)
+		// The head has nothing after it. That is a mistake to rewind to and
+		// the common case to fork from, so here it is an empty span.
+		if errors.Is(err, session.ErrAlreadyHead) {
+			return session.AbandonedWork{}, nil
+		}
+		return affected, err
+	})
+	if err != nil {
+		return HistoryPointsResult{}, err
+	}
+	return HistoryPointsResult{SessionID: sessionID, Rewind: rewind, Fork: fork}, nil
 }
 
-// RewindSession moves a session's conversation back to itemID.
+// historyPoints projects one picker's points, asking span for what choosing
+// each would affect, and reverses them: working near the end of a conversation
+// is far more common than working near its start.
+func historyPoints(points []agentapp.HistoryPoint, span func(string) (session.AbandonedWork, error)) ([]HistoryPoint, error) {
+	out := make([]HistoryPoint, 0, len(points))
+	for _, p := range points {
+		affected, err := span(p.ItemID)
+		if err != nil {
+			return nil, fmt.Errorf("inspect %s: %w", p.ItemID, err)
+		}
+		out = append(out, HistoryPoint{
+			ItemID:   p.ItemID,
+			Role:     historyRole(p),
+			Content:  p.Content,
+			Messages: affected.Messages,
+			Tools:    historyTools(affected),
+		})
+	}
+	reverseHistoryPoints(out)
+	return out, nil
+}
+
+// RewindSession removes itemID and everything after it, and returns the prompt
+// for the composer to take back.
 //
 // No session lifecycle hook fires. Nothing is starting or ending here — the
 // user is editing history — and the transient open this needs is an artifact
@@ -119,14 +145,16 @@ func (a *App) RewindSession(projectID, sessionID, itemID string) (HistoryMoveRes
 	}
 	defer closeQuietly(sess)
 
-	abandoned, err := sess.Rewind(itemID)
+	outcome, err := sess.Rewind(itemID)
 	if err != nil {
 		return HistoryMoveResult{}, fmt.Errorf("rewind: %w", err)
 	}
 	return HistoryMoveResult{
-		SessionID: sessionID,
-		Messages:  abandoned.Messages,
-		Tools:     historyTools(abandoned),
+		SessionID:   sessionID,
+		Messages:    outcome.Abandoned.Messages,
+		Tools:       historyTools(outcome.Abandoned),
+		Prompt:      outcome.Prompt,
+		Attachments: outcome.Attachments,
 	}, nil
 }
 
@@ -199,7 +227,7 @@ func closeQuietly(sess *agentapp.SessionContext) {
 // historyRole is who the picker should say spoke. A background event arrives as
 // a user message although the user did not say it, and calling it theirs would
 // misattribute it.
-func historyRole(p agentapp.RewindPoint) string {
+func historyRole(p agentapp.HistoryPoint) string {
 	if p.Role == "user" && p.Source != "" {
 		return "event"
 	}

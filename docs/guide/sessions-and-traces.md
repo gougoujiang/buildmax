@@ -61,13 +61,22 @@ runs write over each other.
 
 ### Rewinding
 
-`/rewind` moves the conversation back to an earlier message. Pick a point, and
-everything after it leaves the conversation the agent sees.
+`/rewind` takes one of your prompts back so you can say it differently. Pick it
+from the list, and it leaves the conversation along with everything that came
+after it — and comes back in the input box, ready to edit and send again.
+
+The list holds the prompts you typed. Not the agent's replies, since there is
+nothing to hand back from one; not background events, which arrive as messages
+you never wrote; and not the first prompt of the session, which has nothing
+before it to return to — start a new session for that. If the input box already
+holds a draft, that draft is kept and the rewound prompt is not restored; the
+report says so. Only the text comes back, so images the prompt carried are named
+as not having.
 
 **It moves the conversation. It does not undo what the conversation did.** A
 turn that edited a file, ran a command, or called an API leaves all of that in
 place — the agent's history goes back, the workspace does not. The picker says
-which tools ran in the part you are about to drop, before you choose, and
+which tools ran in the part you are about to remove, before you choose, and
 repeats it afterwards, so you can put those effects right yourself if you need
 to.
 
@@ -76,9 +85,14 @@ after a rewind starts a new branch rather than overwriting the old one.
 
 ### Forking
 
-`/fork` takes the same picker and does the opposite: instead of moving this
-conversation back, it copies the history up to the chosen message into a **new
-session** and switches you to it. The original is untouched and still there.
+`/fork` copies the history up to a chosen message into a **new session** and
+switches you to it, instead of changing this one. The original is untouched and
+still there.
+
+Its list is the wider one: any message a turn ended on, yours or the agent's,
+including the newest — branching off from where you already are is the common
+case. A reply that asked for a tool is mid-turn and is not offered, because a
+copy that stopped there would hold a tool call with no result.
 
 Use it to try a second approach without losing the first. The two sessions are
 independent from that point on — deleting one never affects the other.
@@ -91,8 +105,8 @@ tools before you choose.
 ### Where to find them
 
 In the TUI they are the `/rewind` and `/fork` commands. In Desktop they are one
-**History** button in the chat status bar, which opens the same list of messages
-with a tab for which of the two you want.
+**History** button in the chat status bar, with a tab for which of the two you
+want; each tab lists the messages that operation can be pointed at.
 
 Desktop refuses both while a run is in flight and says so; stop the run first.
 Opening the picker still works — it only reads.

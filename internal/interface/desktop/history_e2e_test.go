@@ -21,70 +21,84 @@ import (
 // desktop` selects by that name, so a bridge test named anything else runs only
 // in the package's own `./make test` and is silently absent from the suite.
 
-// historyScenario is two turns: one that writes a file, one that only talks.
+// historyScenario is three turns: one that only talks, one that writes a file,
+// and one that only talks again.
+//
+// The opening turn is there because rewind cannot take back the first prompt of
+// a session — nothing precedes it to land on — so a fixture that started with
+// the turn that wrote the file could never rewind across the Write.
 func historyScenario() mockllm.Scenario {
 	return mockllm.Scenario{Steps: []mockllm.Step{
+		{Text: "hello to you too"},
 		{
 			Text:      "writing it now",
 			ToolCalls: []mockllm.ToolCall{{Name: "Write", Args: map[string]any{"file_path": "notes.txt", "content": "scripted content\n"}}},
 		},
 		{Text: "wrote notes.txt"},
-		// The first turn ran a tool, so it also asks for a recap — a model call
-		// of its own, scripted here because these runs use the shipped default
-		// configuration. The second turn ran no tool and answered briefly, so it
-		// asks for nothing and needs no step.
+		// That turn ran a tool, so it also asks for a recap — a model call of
+		// its own, scripted here because these runs use the shipped default
+		// configuration. The turns that ran no tool and answered briefly ask
+		// for nothing and need no step.
 		{Text: `{"recap": "Wrote notes.txt."}`},
 		{Text: "you are welcome"},
 	}}
 }
 
-// historySession runs both turns and returns the session they left.
+// historySession runs all three turns and returns the session they left.
 func historySession(t *testing.T) (*App, string, string) {
 	t.Helper()
 	app, events, _, projectID := bridge(t, historyScenario(), map[string]string{"Write": "allow"})
 
-	if _, err := app.SendMessageStream(projectID, "", "write notes.txt"); err != nil {
+	if _, err := app.SendMessageStream(projectID, "", "say hello"); err != nil {
 		t.Fatalf("first send: %v", err)
 	}
 	first, ok := events.waitFor(t, eventStreamDone).(*ReplyPayload)
 	if !ok {
 		t.Fatalf("first turn did not finish:\n%s", events.summary())
 	}
-	if _, err := app.SendMessageStream(projectID, first.SessionID, "thanks"); err != nil {
-		t.Fatalf("second send: %v", err)
+	for i, prompt := range []string{"write notes.txt", "thanks"} {
+		if _, err := app.SendMessageStream(projectID, first.SessionID, prompt); err != nil {
+			t.Fatalf("send %q: %v", prompt, err)
+		}
+		// That turn's own stream-done, not an earlier one. It is also the point
+		// at which the session is free: a run releases it before announcing that
+		// it finished, so a move issued from here does not race the close.
+		events.waitForNth(t, eventStreamDone, i+2)
 	}
-	// The second turn's own stream-done, not the first's. It is also the point
-	// at which the session is free: a run releases it before announcing that it
-	// finished, so a move issued from here does not race the close.
-	events.waitForNth(t, eventStreamDone, 2)
 	return app, projectID, first.SessionID
 }
 
-func TestBridgeHistoryPointsListNewestFirstAndMarkTheHead(t *testing.T) {
+func TestBridgeHistoryPointsListEachOperationNewestFirst(t *testing.T) {
 	app, _, sessionID := historySession(t)
 
 	got, err := app.GetHistoryPoints(sessionID)
 	if err != nil {
 		t.Fatalf("GetHistoryPoints: %v", err)
 	}
-	if len(got.Points) < 4 {
-		t.Fatalf("points = %d, want the whole conversation: %+v", len(got.Points), got.Points)
+	// Forking branches from a point, so every message a turn ended on is one —
+	// the newest included, which is "branch off from here".
+	if len(got.Fork) != 6 {
+		t.Fatalf("fork points = %d, want the whole conversation: %+v", len(got.Fork), got.Fork)
 	}
-	if got.Points[0].Content != "you are welcome" {
-		t.Errorf("first row = %q, want the newest message", got.Points[0].Content)
+	if got.Fork[0].Content != "you are welcome" {
+		t.Errorf("first fork row = %q, want the newest message", got.Fork[0].Content)
 	}
-	// Only the newest is the head, and only it is the one a rewind may not
-	// target. Getting this wrong offers a no-op as if it were a move.
-	if !got.Points[0].IsHead {
-		t.Error("the newest point is not marked as the head")
+	if last := got.Fork[len(got.Fork)-1]; last.Content != "say hello" {
+		t.Errorf("last fork row = %q, want the opening message", last.Content)
 	}
-	for _, p := range got.Points[1:] {
-		if p.IsHead {
-			t.Errorf("%q is also marked as the head", p.Content)
+
+	// Rewinding hands a prompt back, so only prompts are offered, and not the
+	// first one: nothing precedes it to land on.
+	if len(got.Rewind) != 2 {
+		t.Fatalf("rewind points = %d, want the two prompts after the first: %+v", len(got.Rewind), got.Rewind)
+	}
+	if got.Rewind[0].Content != "thanks" || got.Rewind[1].Content != "write notes.txt" {
+		t.Errorf("rewind rows = %+v, want the prompts newest first", got.Rewind)
+	}
+	for _, p := range got.Rewind {
+		if p.Role != "user" {
+			t.Errorf("rewind row %+v is not a prompt", p)
 		}
-	}
-	if last := got.Points[len(got.Points)-1]; last.Content != "write notes.txt" {
-		t.Errorf("last row = %q, want the opening message", last.Content)
 	}
 }
 
@@ -96,14 +110,14 @@ func TestBridgeHistoryPointsNameTheToolAPointWouldMovePast(t *testing.T) {
 		t.Fatalf("GetHistoryPoints: %v", err)
 	}
 	// The head describes no span at all: nothing came after it.
-	if head := got.Points[0]; head.Messages != 0 || len(head.Tools) != 0 {
+	if head := got.Fork[0]; head.Messages != 0 || len(head.Tools) != 0 {
 		t.Errorf("head point = %+v, want an empty span", head)
 	}
 	// Every point before the Write must name it. Its file stays on disk through
 	// both operations, and a surface that did not say so would be claiming a
 	// rewind undoes the run.
 	var named int
-	for _, p := range got.Points {
+	for _, p := range append(append([]HistoryPoint{}, got.Fork...), got.Rewind...) {
 		for _, tool := range p.Tools {
 			if tool.Name == "Write" {
 				named++
@@ -114,23 +128,20 @@ func TestBridgeHistoryPointsNameTheToolAPointWouldMovePast(t *testing.T) {
 		}
 	}
 	if named == 0 {
-		t.Fatalf("no point named the Write that ran:\n%+v", got.Points)
+		t.Fatalf("no point named the Write that ran:\n%+v", got)
 	}
-	// The points after the tool describe only conversation, so at least one
-	// must carry messages and no tools — otherwise the span is being computed
-	// from the wrong end.
-	var conversationOnly bool
-	for _, p := range got.Points {
-		if p.Messages > 0 && len(p.Tools) == 0 {
-			conversationOnly = true
-		}
+	// The prompt of the turn that wrote the file removes the Write with it,
+	// and the prompt after it removes conversation alone. Getting either wrong
+	// means the span is computed from the wrong end.
+	if wrote := got.Rewind[1]; len(wrote.Tools) == 0 {
+		t.Errorf("rewinding %q reports no tools, but its own turn wrote the file", wrote.Content)
 	}
-	if !conversationOnly {
-		t.Error("no point abandons conversation alone; the span looks wrong")
+	if thanks := got.Rewind[0]; thanks.Messages == 0 || len(thanks.Tools) != 0 {
+		t.Errorf("rewinding %q = %+v, want conversation alone", thanks.Content, thanks)
 	}
 }
 
-func TestBridgeRewindMovesTheConversationBack(t *testing.T) {
+func TestBridgeRewindTakesThePromptBack(t *testing.T) {
 	app, projectID, sessionID := historySession(t)
 
 	before, err := app.GetSession(sessionID)
@@ -141,8 +152,8 @@ func TestBridgeRewindMovesTheConversationBack(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetHistoryPoints: %v", err)
 	}
-	// The oldest point: rewinding there abandons everything, tool included.
-	target := points.Points[len(points.Points)-1]
+	// The oldest prompt that can be taken back: rewinding it crosses the Write.
+	target := points.Rewind[len(points.Rewind)-1]
 
 	got, err := app.RewindSession(projectID, sessionID, target.ItemID)
 	if err != nil {
@@ -157,6 +168,11 @@ func TestBridgeRewindMovesTheConversationBack(t *testing.T) {
 	if len(got.Tools) == 0 {
 		t.Error("the rewind moved past the Write without reporting it")
 	}
+	// The composer takes the prompt back; without it the user would have to
+	// retype what they asked to edit.
+	if got.Prompt != "write notes.txt" {
+		t.Errorf("prompt = %q, want the rewound message", got.Prompt)
+	}
 
 	after, err := app.GetSession(sessionID)
 	if err != nil {
@@ -166,8 +182,9 @@ func TestBridgeRewindMovesTheConversationBack(t *testing.T) {
 		t.Errorf("messages after the rewind = %d, before = %d; want fewer",
 			len(after.Messages), len(before.Messages))
 	}
-	if len(after.Messages) != 1 {
-		t.Errorf("messages after rewinding to the first = %d, want just it", len(after.Messages))
+	// The opening exchange, and nothing of the turn whose prompt was taken.
+	if len(after.Messages) != 2 {
+		t.Errorf("messages after the rewind = %d, want the first exchange", len(after.Messages))
 	}
 	// The session is closed again, so the next run can take it.
 	if _, err := app.GetHistoryPoints(sessionID); err != nil {
@@ -186,7 +203,7 @@ func TestBridgeForkLeavesTheOriginalAndReturnsANewOne(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetHistoryPoints: %v", err)
 	}
-	target := points.Points[len(points.Points)-1]
+	target := points.Fork[len(points.Fork)-1]
 
 	got, err := app.ForkSession(projectID, sessionID, target.ItemID)
 	if err != nil {
@@ -234,7 +251,18 @@ func TestBridgeForkLeavesTheOriginalAndReturnsANewOne(t *testing.T) {
 }
 
 func TestBridgeHistoryMovesAreRefusedWhileTheSessionIsBusy(t *testing.T) {
-	app, events, _, projectID := bridge(t, historyScenario(), map[string]string{"Write": "ask"})
+	// Its own scenario, whose first turn reaches the gate: the shared fixture
+	// opens with a turn that runs no tool, and nothing here needs the history
+	// that fixture builds.
+	scenario := mockllm.Scenario{Steps: []mockllm.Step{
+		{
+			Text:      "writing it now",
+			ToolCalls: []mockllm.ToolCall{{Name: "Write", Args: map[string]any{"file_path": "notes.txt", "content": "scripted content\n"}}},
+		},
+		{Text: "wrote notes.txt"},
+		{Text: `{"recap": "Wrote notes.txt."}`},
+	}}
+	app, events, _, projectID := bridge(t, scenario, map[string]string{"Write": "ask"})
 
 	if _, err := app.SendMessageStream(projectID, "", "write notes.txt"); err != nil {
 		t.Fatalf("send: %v", err)
@@ -256,11 +284,11 @@ func TestBridgeHistoryMovesAreRefusedWhileTheSessionIsBusy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetHistoryPoints during a run: %v", err)
 	}
-	if len(points.Points) == 0 {
+	if len(points.Fork) == 0 {
 		t.Fatal("no points while the run is parked")
 	}
 
-	_, err = app.RewindSession(projectID, sessionID, points.Points[len(points.Points)-1].ItemID)
+	_, err = app.RewindSession(projectID, sessionID, points.Fork[len(points.Fork)-1].ItemID)
 	if err == nil {
 		t.Fatal("RewindSession succeeded on a session a run holds")
 	}

@@ -1,10 +1,12 @@
 package agentapp
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/gougoujiang/buildmax/internal/core/session"
 )
 
 // seedTurns writes a user message, then an assistant turn that ran one tool,
@@ -36,34 +38,35 @@ func seedTurns(t *testing.T, sess *SessionContext) {
 	}
 }
 
-func TestRewindDropsTheLaterMessagesAndReportsWhatItLeft(t *testing.T) {
+func TestRewindRemovesThePromptAndReportsWhatItLeft(t *testing.T) {
 	_, sess := openManaged(t)
 	seedTurns(t, sess)
 
 	points := RewindPoints(sess)
-	// Tool results are messages but not rewind points: "go back to that
-	// command's output" is not a place a person thinks of returning to. Nor is
-	// the assistant message that asked for the tool, which is mid-turn.
-	if len(points) != 3 {
-		t.Fatalf("points = %+v, want the three turn-ending user/assistant messages", points)
-	}
-	target := points[1] // the assistant "ok", before the second exchange
-	if target.Content != "ok" {
-		t.Fatalf("target = %+v, want the assistant reply", target)
+	// Only prompts are offered, and not the first one: nothing precedes it to
+	// land on. Replies and tool results are not places to hand anything back
+	// from, so they are not points either.
+	if len(points) != 1 || points[0].Content != "second" {
+		t.Fatalf("points = %+v, want the second prompt alone", points)
 	}
 
-	abandoned, err := sess.Rewind(target.ItemID)
+	outcome, err := sess.Rewind(points[0].ItemID)
 	if err != nil {
 		t.Fatalf("Rewind: %v", err)
 	}
 
-	// The conversation is back to the first exchange.
+	// The prompt left the conversation with everything after it, and comes
+	// back to be edited and sent again.
 	msgs := sess.Messages()
 	if len(msgs) != 2 || msgs[0].Content != "first" || msgs[1].Content != "ok" {
 		t.Fatalf("messages = %#v, want the first exchange only", msgs)
 	}
+	if outcome.Prompt != "second" {
+		t.Errorf("prompt = %q, want the rewound message back", outcome.Prompt)
+	}
 	// And it says what it did not undo, because the file it wrote is still
 	// there.
+	abandoned := outcome.Abandoned
 	if abandoned.Undoable() {
 		t.Fatal("Undoable() = true despite a Write having run")
 	}
@@ -73,28 +76,151 @@ func TestRewindDropsTheLaterMessagesAndReportsWhatItLeft(t *testing.T) {
 	if !abandoned.Effects[0].Returned {
 		t.Error("the Write returned, but was reported as not having")
 	}
+	// Three: the prompt itself, the reply that asked for the tool, and its
+	// result. Counting the prompt is the difference an exclusive rewind makes.
 	if abandoned.Messages != 3 {
 		t.Errorf("messages abandoned = %d, want 3", abandoned.Messages)
 	}
 }
 
-func TestRewindSaysNothingWasLeftWhenNothingRan(t *testing.T) {
+func TestRewindPreviewAnswersBeforeTheMove(t *testing.T) {
+	_, sess := openManaged(t)
+	seedTurns(t, sess)
+	target := RewindPoints(sess)[0].ItemID
+
+	preview, err := sess.RewindPreview(target)
+	if err != nil {
+		t.Fatalf("RewindPreview: %v", err)
+	}
+	// A choice made without knowing what it leaves behind is what §8.1 says
+	// rewind must not hide, so the preview and the move must agree.
+	outcome, err := sess.Rewind(target)
+	if err != nil {
+		t.Fatalf("Rewind: %v", err)
+	}
+	if preview.Messages != outcome.Abandoned.Messages || len(preview.Effects) != len(outcome.Abandoned.Effects) {
+		t.Errorf("preview = %+v, outcome = %+v; the two must agree", preview, outcome.Abandoned)
+	}
+}
+
+func TestRewindPointsSkipWhatCannotBeHandedBack(t *testing.T) {
 	_, sess := openManaged(t)
 	if err := sess.Append(llm.Message{Role: "user", Content: "first"}); err != nil {
 		t.Fatalf("Append: %v", err)
 	}
-	if err := sess.Append(llm.Message{Role: "assistant", Content: "just talking"}); err != nil {
+	if err := sess.Append(llm.Message{Role: "assistant", Content: "ok"}); err != nil {
+		t.Fatalf("Append: %v", err)
+	}
+	// A background event travels as a user message but the person never wrote
+	// it, so putting it in their input box to send again would be a fiction.
+	if err := sess.Append(llm.Message{
+		Role: "user", Content: "job 3 finished", Source: llm.MessageSourceCommandResult,
+	}); err != nil {
+		t.Fatalf("Append: %v", err)
+	}
+	if err := sess.Append(llm.Message{Role: "user", Content: "and now this"}); err != nil {
 		t.Fatalf("Append: %v", err)
 	}
 
-	abandoned, err := sess.Rewind(RewindPoints(sess)[0].ItemID)
+	points := RewindPoints(sess)
+	if len(points) != 1 || points[0].Content != "and now this" {
+		t.Fatalf("points = %+v, want the one prompt the user typed and can get back", points)
+	}
+}
+
+func TestRewindReportsTheImagesItCannotHandBack(t *testing.T) {
+	_, sess := openManaged(t)
+	if err := sess.Append(llm.Message{Role: "user", Content: "first"}); err != nil {
+		t.Fatalf("Append: %v", err)
+	}
+	if err := sess.Append(llm.Message{Role: "assistant", Content: "ok"}); err != nil {
+		t.Fatalf("Append: %v", err)
+	}
+	if err := sess.Append(llm.Message{
+		Role:    "user",
+		Content: "look at this",
+		Parts: []llm.ContentPart{
+			{Type: llm.ContentPartText, Text: "look at this"},
+			{Type: llm.ContentPartImage, MediaType: "image/png", Data: "aGk="},
+		},
+	}); err != nil {
+		t.Fatalf("Append: %v", err)
+	}
+
+	outcome, err := sess.Rewind(RewindPoints(sess)[0].ItemID)
 	if err != nil {
 		t.Fatalf("Rewind: %v", err)
 	}
-	// A surface can say the rewind really did undo everything it moved past,
+	// Only the text comes back, so a surface that showed the prompt returning
+	// has something to say about the rest.
+	if outcome.Prompt != "look at this" || outcome.Attachments != 1 {
+		t.Errorf("outcome = %+v, want the text back and the image counted", outcome)
+	}
+}
+
+func TestRewindKeepsWhatTheTurnBeforeThePromptWrote(t *testing.T) {
+	_, sess := openManaged(t)
+	if err := sess.Append(llm.Message{Role: "user", Content: "first"}); err != nil {
+		t.Fatalf("Append: %v", err)
+	}
+	if err := sess.Append(llm.Message{Role: "assistant", Content: "ok"}); err != nil {
+		t.Fatalf("Append: %v", err)
+	}
+	if err := sess.SetNotes([]agent.Note{{Text: "learned before the prompt"}}, 1); err != nil {
+		t.Fatalf("SetNotes: %v", err)
+	}
+	if err := sess.Append(llm.Message{Role: "user", Content: "second"}); err != nil {
+		t.Fatalf("Append: %v", err)
+	}
+
+	if _, err := sess.Rewind(RewindPoints(sess)[0].ItemID); err != nil {
+		t.Fatalf("Rewind: %v", err)
+	}
+	// The landing record is the one physically before the prompt, not the
+	// message before it: a note the finished turn wrote sits between the two
+	// and belongs to work that is being kept.
+	if len(sess.Notes()) != 1 {
+		t.Errorf("notes = %+v, want the note the kept turn wrote", sess.Notes())
+	}
+}
+
+func TestRewindRefusesTheFirstMessage(t *testing.T) {
+	_, sess := openManaged(t)
+	if err := sess.Append(llm.Message{Role: "user", Content: "first"}); err != nil {
+		t.Fatalf("Append: %v", err)
+	}
+	first := sess.MessageIDs()[0]
+	if len(RewindPoints(sess)) != 0 {
+		t.Fatalf("points = %+v, want none: the only prompt has nothing before it", RewindPoints(sess))
+	}
+	// A surface handed it anyway needs to hear why, not "not found": there is
+	// no branch left to select, and a new session says that honestly.
+	if _, err := sess.Rewind(first); !errors.Is(err, session.ErrNoLanding) {
+		t.Fatalf("Rewind of the first message = %v, want ErrNoLanding", err)
+	}
+}
+
+func TestRewindSaysNothingWasLeftWhenNothingRan(t *testing.T) {
+	_, sess := openManaged(t)
+	for _, m := range []llm.Message{
+		{Role: "user", Content: "first"},
+		{Role: "assistant", Content: "ok"},
+		{Role: "user", Content: "second"},
+		{Role: "assistant", Content: "just talking"},
+	} {
+		if err := sess.Append(m); err != nil {
+			t.Fatalf("Append: %v", err)
+		}
+	}
+
+	outcome, err := sess.Rewind(RewindPoints(sess)[0].ItemID)
+	if err != nil {
+		t.Fatalf("Rewind: %v", err)
+	}
+	// A surface can say the rewind really did undo everything it removed,
 	// rather than warning about nothing.
-	if !abandoned.Undoable() {
-		t.Errorf("Undoable() = false for a conversation-only rewind: %+v", abandoned.Effects)
+	if !outcome.Abandoned.Undoable() {
+		t.Errorf("Undoable() = false for a conversation-only rewind: %+v", outcome.Abandoned.Effects)
 	}
 }
 
@@ -103,7 +229,7 @@ func TestRewindSurvivesReopen(t *testing.T) {
 	id := sess.ID()
 	seedTurns(t, sess)
 
-	if _, err := sess.Rewind(RewindPoints(sess)[1].ItemID); err != nil {
+	if _, err := sess.Rewind(RewindPoints(sess)[0].ItemID); err != nil {
 		t.Fatalf("Rewind: %v", err)
 	}
 	if err := sess.Close(); err != nil {
@@ -129,7 +255,7 @@ func TestATurnAfterRewindExtendsTheChosenBranch(t *testing.T) {
 	id := sess.ID()
 	seedTurns(t, sess)
 
-	if _, err := sess.Rewind(RewindPoints(sess)[1].ItemID); err != nil {
+	if _, err := sess.Rewind(RewindPoints(sess)[0].ItemID); err != nil {
 		t.Fatalf("Rewind: %v", err)
 	}
 	if err := sess.Append(llm.Message{Role: "user", Content: "different second"}); err != nil {
@@ -172,18 +298,21 @@ func TestRewindOnAnUnpersistedSessionIsRefused(t *testing.T) {
 
 func TestRewindDropsDurableStateWrittenOnTheAbandonedBranch(t *testing.T) {
 	_, sess := openManaged(t)
-	if err := sess.Append(llm.Message{Role: "user", Content: "first"}); err != nil {
-		t.Fatalf("Append: %v", err)
-	}
-	target := RewindPoints(sess)[0].ItemID
-	if err := sess.Append(llm.Message{Role: "assistant", Content: "second"}); err != nil {
-		t.Fatalf("Append: %v", err)
+	for _, m := range []llm.Message{
+		{Role: "user", Content: "first"},
+		{Role: "assistant", Content: "ok"},
+		{Role: "user", Content: "second"},
+		{Role: "assistant", Content: "third"},
+	} {
+		if err := sess.Append(m); err != nil {
+			t.Fatalf("Append: %v", err)
+		}
 	}
 	if err := sess.SetNotes([]agent.Note{{Text: "learned on the abandoned branch"}}, 1); err != nil {
 		t.Fatalf("SetNotes: %v", err)
 	}
 
-	if _, err := sess.Rewind(target); err != nil {
+	if _, err := sess.Rewind(RewindPoints(sess)[0].ItemID); err != nil {
 		t.Fatalf("Rewind: %v", err)
 	}
 	// Notes are history, so they belong to the branch that recorded them.
@@ -217,8 +346,11 @@ func TestReadGivesAContextThatCanStillNameItsMessages(t *testing.T) {
 	if len(points) != openPoints {
 		t.Fatalf("read points = %d, open points = %d", len(points), openPoints)
 	}
-	// It answers the question a picker asks of it, without the writer lock.
-	if _, err := read.AbandonedBy(points[1].ItemID); err != nil {
+	// It answers the questions a picker asks of it, without the writer lock.
+	if _, err := read.RewindPreview(points[0].ItemID); err != nil {
+		t.Errorf("RewindPreview on a read model: %v", err)
+	}
+	if _, err := read.AbandonedBy(ForkPoints(read)[1].ItemID); err != nil {
 		t.Errorf("AbandonedBy on a read model: %v", err)
 	}
 	// It still cannot write, which is what makes it safe to hand out.

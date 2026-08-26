@@ -138,12 +138,12 @@ func (s *SessionManager) Fork(parent *SessionContext, throughItemID, defaultMode
 	return child, nil
 }
 
-// RewindPoints lists the messages in an open session a rewind could return to,
-// newest last, paired with the journal item id a caller passes to Rewind.
+// ForkPoints lists the messages in a session a fork could branch from, newest
+// last, paired with the journal item id a caller passes to Fork.
 //
 // Only user and assistant messages are offered. A tool result is a message the
-// model sees, but "go back to the output of that command" is not a place a
-// person thinks of returning to, and offering it would put entries in the list
+// model sees, but "branch off from the output of that command" is not a place a
+// person thinks of starting from, and offering it would put entries in the list
 // that only make sense to the machine.
 //
 // An assistant message that asked for tools is excluded for a harder reason
@@ -154,26 +154,56 @@ func (s *SessionManager) Fork(parent *SessionContext, throughItemID, defaultMode
 // request. Since the loop continues a turn only when the model asked for
 // tools, excluding those messages is exactly excluding the mid-turn ones, and
 // what remains is the reply that ended each turn.
-func RewindPoints(sess *SessionContext) []RewindPoint {
+//
+// The last point is the head. Forking from where the conversation already is
+// is the common case — branch off from here — which is why fork offers it and
+// rewind does not.
+func ForkPoints(sess *SessionContext) []HistoryPoint {
+	return historyPoints(sess, func(i int, m llm.Message) bool {
+		if m.Role != "user" && m.Role != "assistant" {
+			return false
+		}
+		return m.Role != "assistant" || len(m.ToolCalls) == 0
+	})
+}
+
+// RewindPoints lists the prompts a rewind could take back, newest last, paired
+// with the journal item id a caller passes to Rewind.
+//
+// Only what the person typed is offered, and rewind removes it: the message
+// returns to the input box to be edited and sent again, so an assistant reply
+// is not a point — there is nothing to hand back — and neither is a background
+// event, which arrives as a user message the person never wrote.
+//
+// The first message of the session is not offered either. Rewinding it would
+// ask for a branch with no records on it at all; a new session says that more
+// honestly than an empty one does. See session.RewindLanding.
+func RewindPoints(sess *SessionContext) []HistoryPoint {
+	return historyPoints(sess, func(i int, m llm.Message) bool {
+		return i > 0 && m.Role == "user" && m.Source == ""
+	})
+}
+
+// historyPoints projects the branch's messages through one picker's rule. The
+// index it passes is the message's position in the branch, which is how a rule
+// can speak about the first message without knowing how the branch was built.
+func historyPoints(sess *SessionContext, keep func(int, llm.Message) bool) []HistoryPoint {
 	if sess == nil {
 		return nil
 	}
 	msgs, ids := sess.Messages(), sess.MessageIDs()
-	out := make([]RewindPoint, 0, len(msgs))
+	out := make([]HistoryPoint, 0, len(msgs))
 	for i, m := range msgs {
-		if i >= len(ids) || (m.Role != "user" && m.Role != "assistant") {
+		if i >= len(ids) || !keep(i, m) {
 			continue
 		}
-		if m.Role == "assistant" && len(m.ToolCalls) > 0 {
-			continue
-		}
-		out = append(out, RewindPoint{ItemID: ids[i], Role: m.Role, Content: m.Content, Source: m.Source})
+		out = append(out, HistoryPoint{ItemID: ids[i], Role: m.Role, Content: m.Content, Source: m.Source})
 	}
 	return out
 }
 
-// RewindPoint is one place a session can be rewound to.
-type RewindPoint struct {
+// HistoryPoint is one message a picker offers, for a rewind or for a fork.
+type HistoryPoint struct {
 	ItemID  string
 	Role    string
 	Content string

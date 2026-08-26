@@ -86,7 +86,7 @@ func openHistoryPanelFor(t *testing.T, m *Model, command string) *Model {
 	return after
 }
 
-func TestSlashRewindListsPointsNewestFirstWithoutTheHead(t *testing.T) {
+func TestSlashRewindOffersThePromptsItCanHandBack(t *testing.T) {
 	m, _ := rewindModel(t)
 	after := openRewindPanel(t, m)
 
@@ -94,17 +94,24 @@ func TestSlashRewindListsPointsNewestFirstWithoutTheHead(t *testing.T) {
 	if p.LoadError != "" || p.Empty {
 		t.Fatalf("unexpected panel state: %+v", p)
 	}
-	// Seven user/assistant messages exist. The one that asked for the Write is
-	// mid-turn and never offered, and the newest is the current head, where
-	// rewinding to where you already are is not a move.
-	if len(p.Points) != 5 {
-		t.Fatalf("points = %d, want 5: %+v", len(p.Points), p.Points)
+	// Rewind takes a prompt back, so only the prompts are offered — and not
+	// the first one, which has nothing before it to land on.
+	if len(p.Points) != 2 {
+		t.Fatalf("points = %d, want the two prompts after the first: %+v", len(p.Points), p.Points)
 	}
 	if !strings.Contains(p.Points[0].Content, "thanks") {
-		t.Errorf("first row = %q, want the most recent point", p.Points[0].Content)
+		t.Errorf("first row = %q, want the most recent prompt", p.Points[0].Content)
 	}
-	if !strings.Contains(p.Points[len(p.Points)-1].Content, "first question") {
-		t.Errorf("last row = %q, want the oldest point", p.Points[len(p.Points)-1].Content)
+	if !strings.Contains(p.Points[1].Content, "now write the file") {
+		t.Errorf("last row = %q, want the second prompt", p.Points[1].Content)
+	}
+	for _, point := range p.Points {
+		if point.Role != "user" {
+			t.Errorf("row %+v is not a prompt", point)
+		}
+		if strings.Contains(point.Content, "first question") {
+			t.Error("the first prompt was offered; nothing precedes it to land on")
+		}
 	}
 }
 
@@ -135,7 +142,7 @@ func TestSlashRewindPreviewNamesWhatWouldBeLeftBehind(t *testing.T) {
 	}
 }
 
-func TestSlashRewindEnterRewindsTheSession(t *testing.T) {
+func TestSlashRewindEnterRemovesThePromptAndHandsItBack(t *testing.T) {
 	m, sess := rewindModel(t)
 	after := openRewindPanel(t, m)
 
@@ -151,9 +158,39 @@ func TestSlashRewindEnterRewindsTheSession(t *testing.T) {
 	if done.slashHistory != nil {
 		t.Error("the panel stayed open after committing")
 	}
+	// The chosen prompt left the conversation with everything after it, and
+	// the exchange before it stayed.
 	msgs := sess.Messages()
-	if len(msgs) != 1 || msgs[0].Content != "first question" {
-		t.Fatalf("messages = %#v, want the conversation rewound to the first question", msgs)
+	if len(msgs) != 2 || msgs[0].Content != "first question" || msgs[1].Content != "first answer" {
+		t.Fatalf("messages = %#v, want the first exchange and nothing more", msgs)
+	}
+	// The point of rewinding to a prompt is to send it again.
+	if got := done.inputBlock.Value(); got != "now write the file" {
+		t.Errorf("input = %q, want the rewound prompt back", got)
+	}
+}
+
+func TestSlashRewindKeepsADraftTheUserAlreadyTyped(t *testing.T) {
+	m, _ := rewindModel(t)
+	after := openRewindPanel(t, m)
+	after.inputBlock.SetValue("half an idea")
+	after.inputBlock.SyncHeight()
+
+	next, _ := after.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	done := next.(*Model)
+
+	// The draft is newer and no branch holds it; the rewound prompt is at
+	// least still in the journal.
+	if got := done.inputBlock.Value(); got != "half an idea" {
+		t.Errorf("input = %q, want the draft the user was writing", got)
+	}
+	// The rewind itself still happened, so the draft is what the user sends
+	// next rather than what the panel refused to act on.
+	if done.slashHistory != nil {
+		t.Error("the panel stayed open after committing")
+	}
+	if got := len(done.opts.Session.Messages()); got != 6 {
+		t.Errorf("messages = %d, want the newest prompt and its reply removed", got)
 	}
 }
 
@@ -170,17 +207,17 @@ func TestSlashRewindWithNoSessionSaysSo(t *testing.T) {
 	}
 }
 
-func TestRenderAbandonedTellsTheUserWhatSurvives(t *testing.T) {
+func TestRenderRewoundTellsTheUserWhatSurvives(t *testing.T) {
 	m, _ := rewindModel(t)
 	after := openRewindPanel(t, m)
 	// The oldest point, which is far enough back to cross the Write.
 	oldest := after.slashHistory.Points[len(after.slashHistory.Points)-1]
-	abandoned, err := after.opts.Session.AbandonedBy(oldest.ItemID)
+	abandoned, err := after.opts.Session.RewindPreview(oldest.ItemID)
 	if err != nil {
-		t.Fatalf("AbandonedBy: %v", err)
+		t.Fatalf("RewindPreview: %v", err)
 	}
 
-	got := renderAbandoned(abandoned)
+	got := renderRewound(agentapp.RewindOutcome{Abandoned: abandoned, Prompt: oldest.Content}, true)
 	if !strings.Contains(got, "Write") {
 		t.Errorf("report = %q, want the tool named", got)
 	}
@@ -188,24 +225,48 @@ func TestRenderAbandonedTellsTheUserWhatSurvives(t *testing.T) {
 	if !strings.Contains(got, "does not undo") {
 		t.Errorf("report = %q, want it to say what rewind does not do", got)
 	}
+	// And where the prompt went, since the user is looking at an input box.
+	if !strings.Contains(got, "back in the input box") {
+		t.Errorf("report = %q, want it to account for the prompt", got)
+	}
 }
 
-func TestSlashForkOffersTheCurrentHeadButRewindDoesNot(t *testing.T) {
+func TestRenderRewoundSaysWhenThePromptWasNotRestored(t *testing.T) {
+	got := renderRewound(agentapp.RewindOutcome{Prompt: "try again"}, false)
+	if !strings.Contains(got, "already held a draft") {
+		t.Errorf("report = %q, want it to say why the prompt is not in the box", got)
+	}
+}
+
+func TestRenderRewoundNamesTheImagesThatDidNotComeBack(t *testing.T) {
+	got := renderRewound(agentapp.RewindOutcome{Prompt: "look at this", Attachments: 2}, true)
+	if !strings.Contains(got, "2 images did not come back") {
+		t.Errorf("report = %q, want the images accounted for", got)
+	}
+}
+
+func TestSlashForkOffersRepliesAndTheHeadWhereRewindOffersPrompts(t *testing.T) {
 	m, _ := rewindModel(t)
 	rewind := openRewindPanel(t, m)
-	rewindPoints := len(rewind.slashHistory.Points)
 
 	m2, _ := rewindModel(t)
 	fork := openForkPanel(t, m2)
 
-	// Rewinding to where you already are is not a move, so the head is not
-	// offered. Forking from it is the common case — branch off from here.
-	if len(fork.slashHistory.Points) != rewindPoints+1 {
-		t.Fatalf("fork points = %d, rewind points = %d; want fork to offer one more",
-			len(fork.slashHistory.Points), rewindPoints)
+	// Forking branches from a point, so every message a turn ended on is one,
+	// the current head included: "branch off from here" is the common case.
+	if len(fork.slashHistory.Points) != 6 {
+		t.Fatalf("fork points = %d, want every turn-ending message: %+v",
+			len(fork.slashHistory.Points), fork.slashHistory.Points)
 	}
 	if !strings.Contains(fork.slashHistory.Points[0].Content, "you are welcome") {
 		t.Errorf("fork's first row = %q, want the current head", fork.slashHistory.Points[0].Content)
+	}
+	// Rewind hands a prompt back, so a reply is not a point: there would be
+	// nothing to return.
+	for _, p := range rewind.slashHistory.Points {
+		if p.Role != "user" {
+			t.Errorf("rewind offered %+v, which is not a prompt", p)
+		}
 	}
 }
 

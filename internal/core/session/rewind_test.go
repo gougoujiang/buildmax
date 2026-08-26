@@ -131,8 +131,57 @@ func TestAbandonedRejectsRewindingToTheHead(t *testing.T) {
 	head := mustHeadT(t, items)
 	// Accepting this would let a surface that computed the wrong target report
 	// "nothing abandoned" and look correct.
-	if _, err := Abandoned(items, head, head); err == nil {
-		t.Fatal("rewinding to the head was accepted")
+	if _, err := Abandoned(items, head, head); !errors.Is(err, ErrAlreadyHead) {
+		t.Fatalf("err = %v, want ErrAlreadyHead — a fork surface reads it as an empty span", err)
+	}
+}
+
+func TestRewindLandingIsTheRecordBeforeThePrompt(t *testing.T) {
+	items := journal(
+		TurnStarted{RunID: "run1"},
+		MessageItem{Message: llm.Message{Role: "user", Content: "one"}},
+		MessageItem{Message: llm.Message{Role: "assistant", Content: "answered"}},
+		// Durable state the finished turn wrote, and the record closing it.
+		// Both belong to work being kept, so both stay on the branch.
+		NotesReplaced{},
+		TurnFinished{Status: TurnCompleted},
+		TurnStarted{RunID: "run2"},
+		MessageItem{Message: llm.Message{Role: "user", Content: "two"}},
+	)
+	head := mustHeadT(t, items)
+	prompt := items[len(items)-1].ID
+
+	got, err := RewindLanding(items, head, prompt)
+	if err != nil {
+		t.Fatalf("RewindLanding: %v", err)
+	}
+	// The turn_started of the turn being dropped is stepped over: landing there
+	// would leave the branch inside that turn.
+	if want := items[4].ID; got != want {
+		t.Fatalf("landing = %s, want %s, the turn_finished before the prompt", got, want)
+	}
+}
+
+func TestRewindLandingRefusesTheFirstMessage(t *testing.T) {
+	items := journal(
+		TurnStarted{RunID: "run1"},
+		MessageItem{Message: llm.Message{Role: "user", Content: "one"}},
+		MessageItem{Message: llm.Message{Role: "assistant", Content: "answered"}},
+	)
+	// Only the turn_started precedes it, and stepping over that leaves nothing
+	// to select: a branch with no records is not a session.
+	if _, err := RewindLanding(items, mustHeadT(t, items), items[1].ID); !errors.Is(err, ErrNoLanding) {
+		t.Fatalf("err = %v, want ErrNoLanding", err)
+	}
+}
+
+func TestRewindLandingRejectsAMessageOffTheBranch(t *testing.T) {
+	items := journal(
+		MessageItem{Message: llm.Message{Role: "user", Content: "one"}},
+		MessageItem{Message: llm.Message{Role: "assistant", Content: "two"}},
+	)
+	if _, err := RewindLanding(items, mustHeadT(t, items), "ghost"); !errors.Is(err, ErrHeadNotFound) {
+		t.Fatalf("err = %v, want ErrHeadNotFound", err)
 	}
 }
 
