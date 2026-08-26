@@ -430,7 +430,11 @@ explicitly:
 3. reject the fork.
 
 Silently ignoring uncommitted changes is not acceptable: the conversation may
-describe code the child cannot see.
+describe code the child cannot see. For a single session moving its own root,
+[workspace root and worktrees](../design/workspace-root-and-worktrees.md) D6
+chose option 2 and rejected an automatic stash, because worktrees of one
+repository share a stash stack. A fork should not answer this differently
+without a reason that applies only to forks.
 
 ### 9.2 Portal and Worker workspaces
 
@@ -916,7 +920,7 @@ If accepted, candidate ownership boundaries are:
 | Pure lineage, fork snapshot, and Signal types/interfaces | `internal/core/session` or a new pure core package |
 | Local Session fork, file persistence, and resume | `internal/agentapp` |
 | `ReportToParent` runtime tool | `internal/tool`, through an injected application service |
-| Local worktree creation and change inspection | `internal/agentapp` plus `internal/util` or a dedicated service, to be designed |
+| Local worktree creation and change inspection | Decided by the [workspace root and worktrees design](../design/workspace-root-and-worktrees.md) §7 |
 | Desktop and CLI supervision | Surface packages over shared application behavior |
 | Portal Conversation fork and synthesis | `internal/service/conversation` |
 | Durable mailbox store | `internal/core/model` contract plus `internal/infra/db` adapter |
