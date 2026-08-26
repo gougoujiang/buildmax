@@ -32,6 +32,17 @@ const defaultStaleSweepInterval = time.Minute
 // seconds from saying so themselves.
 const defaultCancelGrace = 2 * time.Minute
 
+// defaultLivenessGrace is how long a RUNNING run may go without its worker
+// reporting before the server treats the worker as gone.
+//
+// The worker polls its own run route every DefaultCancelPollInterval — five
+// seconds — for as long as it is RUNNING, so this is two dozen missed polls. It
+// is that generous on purpose: a worker whose polls fail keeps working (a
+// server it cannot reach is not one that canceled it), so reaping early does
+// not stop the run, it only throws away the result the run was about to report.
+// A partition has to look like a dead process before this fires.
+const defaultLivenessGrace = 2 * time.Minute
+
 // staleRunLimit bounds one sweep so a backlog cannot hold the loop or the
 // database for an unbounded time. The next tick continues.
 const staleRunLimit = 100
@@ -40,12 +51,13 @@ const staleRunLimit = 100
 type StaleRunStore interface {
 	ListStaleTaskRuns(ctx context.Context, cutoff time.Time, limit int) ([]coretask.Run, error)
 	ListCancelRequestedTaskRuns(ctx context.Context, cutoff time.Time, limit int) ([]coretask.Run, error)
+	ListLostWorkerTaskRuns(ctx context.Context, cutoff time.Time, limit int) ([]coretask.Run, error)
 	TransitionTaskRun(ctx context.Context, in coretask.TransitionRunInput) (bool, error)
 }
 
 // StaleRunReaper finishes runs that nothing else will finish.
 //
-// Two cases, one loop. A run whose worker never reported an outcome stays
+// Three cases, one loop. A run whose worker never reported an outcome stays
 // SCHEDULED or RUNNING forever, because the only thing that moves it is the
 // worker itself: that was already possible when a pod was evicted or a process
 // was killed, and run tokens add one more way, since a run outliving its token
@@ -54,14 +66,25 @@ type StaleRunStore interface {
 // that is gone honors nothing. Either way the run is over and the record should
 // say so.
 //
+// The third case is the same fact observed sooner. A RUNNING run's worker polls
+// its own route every few seconds, so silence there says the process is gone
+// long before the run timeout would. The timeout stays as the backstop for
+// everything that sweep cannot see: a run that never reached RUNNING, and one
+// with no recorded signal at all.
+//
+// Nothing here re-runs anything. A reaped run is recorded as over, not retried:
+// a worker may have executed arbitrary side effects before it died, and the
+// server cannot know whether the task was safe to repeat.
+//
 // See docs/design/worker-run-token.md.
 type StaleRunReaper struct {
-	runs        StaleRunStore
-	timeout     time.Duration
-	cancelGrace time.Duration
-	interval    time.Duration
-	stopCh      chan struct{}
-	doneCh      chan struct{}
+	runs          StaleRunStore
+	timeout       time.Duration
+	cancelGrace   time.Duration
+	livenessGrace time.Duration
+	interval      time.Duration
+	stopCh        chan struct{}
+	doneCh        chan struct{}
 }
 
 // NewStaleRunReaper returns a reaper for runs, or nil when there is no store to
@@ -78,12 +101,13 @@ func NewStaleRunReaper(runs StaleRunStore, timeout, interval time.Duration) *Sta
 		interval = defaultStaleSweepInterval
 	}
 	return &StaleRunReaper{
-		runs:        runs,
-		timeout:     timeout,
-		cancelGrace: defaultCancelGrace,
-		interval:    interval,
-		stopCh:      make(chan struct{}),
-		doneCh:      make(chan struct{}),
+		runs:          runs,
+		timeout:       timeout,
+		cancelGrace:   defaultCancelGrace,
+		livenessGrace: defaultLivenessGrace,
+		interval:      interval,
+		stopCh:        make(chan struct{}),
+		doneCh:        make(chan struct{}),
 	}
 }
 
@@ -93,7 +117,8 @@ func (c *StaleRunReaper) Start() {
 		return
 	}
 	go c.loop()
-	c.log().Info("started", "run_timeout", c.timeout, "cancel_grace", c.cancelGrace, "interval", c.interval)
+	c.log().Info("started", "run_timeout", c.timeout, "cancel_grace", c.cancelGrace,
+		"liveness_grace", c.livenessGrace, "interval", c.interval)
 }
 
 // Stop signals the loop to exit and blocks until it has finished.
@@ -120,15 +145,39 @@ func (c *StaleRunReaper) loop() {
 	}
 }
 
-// Sweep finishes every run the reaper is responsible for: those dispatched
-// longer ago than the timeout, and those asked to stop longer ago than the
-// grace. It is exported so a test can drive one pass without a clock.
+// Sweep finishes every run the reaper is responsible for: those asked to stop
+// longer ago than the cancel grace, those whose worker stopped reporting, and
+// those dispatched longer ago than the timeout. It is exported so a test can
+// drive one pass without a clock.
+//
+// The order is most-informative first. A run that qualifies for more than one
+// sweep is finished by the first that reaches it, and each writes a different
+// answer to why it ended.
 func (c *StaleRunReaper) Sweep(ctx context.Context, now time.Time) {
 	if c == nil {
 		return
 	}
 	c.sweepCanceled(ctx, now)
+	c.sweepLostWorkers(ctx, now)
 	c.sweepAbandoned(ctx, now)
+}
+
+// sweepLostWorkers fails runs whose worker stopped reporting mid-run.
+//
+// It runs after the cancel sweep for the reason that one runs first, and before
+// the abandoned sweep because both end in FAILED and this one can say more: the
+// run was executing and its worker went silent, rather than the run simply
+// never finishing.
+func (c *StaleRunReaper) sweepLostWorkers(ctx context.Context, now time.Time) {
+	lost, err := c.runs.ListLostWorkerTaskRuns(ctx, now.Add(-c.livenessGrace), staleRunLimit)
+	if err != nil {
+		c.log().WarnContext(ctx, "lost worker sweep failed", "err", err)
+		return
+	}
+	message := "this run lost its worker: nothing was heard from it for " + c.livenessGrace.String()
+	for _, run := range lost {
+		c.finish(ctx, run, coretask.RunStatusFailed, message, now, "failed a task run whose worker stopped reporting")
+	}
 }
 
 // sweepAbandoned fails runs whose worker never reported an outcome.

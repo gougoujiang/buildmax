@@ -15,10 +15,13 @@ import (
 type fakeStaleStore struct {
 	stale            []coretask.Run
 	canceled         []coretask.Run
+	lost             []coretask.Run
 	listErr          error
 	cancelListErr    error
+	lostListErr      error
 	lastCutoff       time.Time
 	lastCancelCutoff time.Time
+	lastLostCutoff   time.Time
 	transitions      []coretask.TransitionRunInput
 	updateErr        error
 	transitionWon    *bool
@@ -32,6 +35,11 @@ func (f *fakeStaleStore) ListStaleTaskRuns(_ context.Context, cutoff time.Time, 
 func (f *fakeStaleStore) ListCancelRequestedTaskRuns(_ context.Context, cutoff time.Time, _ int) ([]coretask.Run, error) {
 	f.lastCancelCutoff = cutoff
 	return f.canceled, f.cancelListErr
+}
+
+func (f *fakeStaleStore) ListLostWorkerTaskRuns(_ context.Context, cutoff time.Time, _ int) ([]coretask.Run, error) {
+	f.lastLostCutoff = cutoff
+	return f.lost, f.lostListErr
 }
 
 func (f *fakeStaleStore) TransitionTaskRun(_ context.Context, in coretask.TransitionRunInput) (bool, error) {
@@ -205,5 +213,78 @@ func TestReaperDefaultsAreApplied(t *testing.T) {
 	}
 	if reaper.cancelGrace != defaultCancelGrace {
 		t.Errorf("cancel grace = %v, want %v", reaper.cancelGrace, defaultCancelGrace)
+	}
+	if reaper.livenessGrace != defaultLivenessGrace {
+		t.Errorf("liveness grace = %v, want %v", reaper.livenessGrace, defaultLivenessGrace)
+	}
+}
+
+// TestReaperClosesRunsWhoseWorkerWentSilent is the whole point of recording the
+// poll a worker already makes: a SIGKILLed pod reports nothing, and before this
+// the run sat RUNNING until the six-hour timeout while a user watched it.
+func TestReaperClosesRunsWhoseWorkerWentSilent(t *testing.T) {
+	store := &fakeStaleStore{
+		lost: []coretask.Run{{ID: "r_1", Status: string(coretask.RunStatusRunning)}},
+	}
+	reaper := NewStaleRunReaper(store, 6*time.Hour, time.Hour)
+
+	now := time.Unix(1_800_000_000, 0)
+	reaper.Sweep(context.Background(), now)
+
+	if len(store.transitions) != 1 {
+		t.Fatalf("finished %d runs, want 1", len(store.transitions))
+	}
+	got := store.transitions[0]
+	if got.NewStatus != coretask.RunStatusFailed {
+		t.Errorf("status = %q, want FAILED", got.NewStatus)
+	}
+	// Only from RUNNING: the worker's own terminal report must still win if it
+	// arrives first, and ExpectedStatus is what makes that a race nobody loses.
+	if got.ExpectedStatus != coretask.RunStatusRunning {
+		t.Errorf("expected status = %q, want RUNNING", got.ExpectedStatus)
+	}
+	if got.EndedAt == nil || !got.EndedAt.Equal(now) {
+		t.Errorf("ended_at = %v, want %v", got.EndedAt, now)
+	}
+	// The message says what was observed — silence for a stated window — rather
+	// than naming a cause the server cannot tell apart from a partition.
+	if got.ErrorMessage == nil || !strings.Contains(*got.ErrorMessage, defaultLivenessGrace.String()) {
+		t.Errorf("message = %v, want it to name the liveness grace", got.ErrorMessage)
+	}
+	if want := now.Add(-defaultLivenessGrace); !store.lastLostCutoff.Equal(want) {
+		t.Errorf("liveness cutoff = %v, want %v", store.lastLostCutoff, want)
+	}
+}
+
+// A run that is both canceled and silent ends as CANCELED. Someone asked it to
+// stop and is waiting for that answer; "the worker went away" is true but is
+// not what they need to be told.
+func TestReaperAnswersACancelBeforeALostWorker(t *testing.T) {
+	run := coretask.Run{ID: "r_1", Status: string(coretask.RunStatusRunning)}
+	store := &fakeStaleStore{canceled: []coretask.Run{run}, lost: []coretask.Run{run}}
+	won := true
+	store.transitionWon = &won
+	reaper := NewStaleRunReaper(store, 6*time.Hour, time.Hour)
+
+	reaper.Sweep(context.Background(), time.Unix(1_800_000_000, 0))
+
+	if len(store.transitions) == 0 || store.transitions[0].NewStatus != coretask.RunStatusCanceled {
+		t.Fatalf("transitions = %v, want the cancel to be written first", store.transitions)
+	}
+}
+
+// The three sweeps answer different questions, so one query being unavailable
+// is no reason to skip the others.
+func TestReaperSweepsOnWhenTheLivenessQueryFails(t *testing.T) {
+	store := &fakeStaleStore{
+		stale:       []coretask.Run{{ID: "r_1", Status: string(coretask.RunStatusRunning)}},
+		lostListErr: errors.New("database is away"),
+	}
+	reaper := NewStaleRunReaper(store, 6*time.Hour, time.Hour)
+
+	reaper.Sweep(context.Background(), time.Unix(1_800_000_000, 0))
+
+	if len(store.transitions) != 1 || store.transitions[0].NewStatus != coretask.RunStatusFailed {
+		t.Errorf("transitions = %v, want the abandoned run still failed", store.transitions)
 	}
 }
