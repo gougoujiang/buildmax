@@ -14,6 +14,150 @@ Unreleased entries live one per file under
 touch the same line. `./make changelog` prints what they currently say, and
 release preparation folds them into a dated section here.
 
+## [0.2.0-alpha.2] - 2026-08-26
+
+### Highlights
+
+- A conversation can go back: `/rewind` in the TUI moves it to an earlier
+  message, `/fork` branches a new session off one, and Desktop offers both
+  behind a **History** button. Each names the tools that ran in the span you
+  are choosing across, because rewinding moves the conversation and does not
+  undo the files those tools wrote.
+- A session is now a folder — metadata, an append-only conversation journal,
+  and its own run traces — written as the turn happens rather than rewritten
+  after it. An interrupted run keeps everything up to the moment it stopped,
+  and a session can only be open in one place at a time.
+- Logins are kept in the operating system's credential store (Keychain,
+  Credential Manager, Secret Service) instead of as plaintext in `auth.json`.
+- A turn ends with a dim recap of what it did, and the answer you are likely
+  about to type is offered as ghost text when the agent asks you something.
+- `openapi.json` now describes every route the server registers — 117
+  operations instead of 40 — held to an exact match by a test in both
+  directions.
+
+### Upgrade notes
+
+- **Sessions from earlier versions are ignored.** The move to `sessions/<id>/`
+  ships with no conversion, and the `traces/` root is gone with it. Existing
+  conversations and their traces stay on disk untouched; BuildMax will not
+  read them. Delete them, or keep them for reference.
+- A plaintext `auth.json` is moved into the credential store the first time it
+  is read, so a login survives the upgrade. A machine with no usable store
+  falls back to the file as before, and `BUILDMAX_CREDENTIAL_STORE=file` keeps
+  the previous behavior deliberately. `buildmax login`, `whoami`, and `doctor`
+  say which one a login is actually using.
+- API clients generated from `openapi.json` will see far more than the routes
+  change: `created_at`, `started_at`, and `ended_at` are typed as RFC 3339
+  strings rather than integers, which is what the API has always sent, and
+  managed inference is documented at `/api/llm/models` and
+  `/api/llm/completions` rather than the team-scoped paths that never existed.
+- A Compose stack that moves the Portal off `8080` should set
+  `BUILDMAX_CORS_ORIGIN`, which now follows `BUILDMAX_PORTAL_PORT`, instead of
+  hand-editing `server.yaml`.
+
+### Added
+
+- Desktop offers rewind and fork through a **History** button in the chat status
+  bar: one list of messages, with a tab for whether choosing one moves this
+  conversation back or starts a new session from it. Each names the tools that
+  ran in the span you are choosing across, because their effects stay on disk
+  either way. Both are refused while a run is in flight, and say so.
+
+- `/fork` in the TUI branches a new session off an earlier message and switches
+  to it, leaving the original untouched — for trying a second approach without
+  losing the first. The two are independent from that point on, so deleting one
+  never affects the other. It shares the picker `/rewind` uses, and names the
+  tools that ran after the fork point, because their effects are on disk and the
+  new session's history will not mention them.
+
+- CLI and Desktop now keep a login's access and refresh tokens in the
+  operating system's credential store (Keychain, Credential Manager, Secret
+  Service) instead of as plaintext in `auth.json`. A file written before this
+  change is moved on first read, and a machine with no usable credential store
+  falls back to the file as before; `buildmax login`, `buildmax whoami`, and
+  `buildmax doctor` say which one a login is actually using. Set
+  `BUILDMAX_CREDENTIAL_STORE=file` to keep the previous behavior.
+
+- `/rewind` in the TUI moves the conversation back to an earlier message. It
+  says which tools ran in the part you are about to drop before you choose, and
+  again afterwards, because rewinding moves the conversation and does not undo
+  the files it wrote or the commands it ran. Nothing is deleted: the messages
+  you rewind past stay on disk, and the next reply starts a new branch.
+
+- The CLI TUI and Desktop now end a turn with a dim recap of what it did, and
+  offer the answer you are likely about to type as ghost text in the input box
+  when the agent asks you something — `tab` accepts it. Neither enters the
+  conversation. Configure with `agent.turn_digest` in `settings.yaml`.
+
+### Changed
+
+- `./make help` now lists every command, grouped by what it is for, with the
+  contributor path under it. It used to open on six commands and keep the rest
+  — including `eval`, `models`, and the deployment tasks — behind
+  `./make help all`, which is now an alias for the same list.
+
+- Enabling or disabling a catalog model with `buildmax-server model enable` or
+  `model disable` now records the model's name in the audit trail, which the
+  equivalent `/api/admin` route already did. The trail distinguishes a catalog
+  change by who made it, not by where it was made.
+
+- Each session is now a folder under `sessions/<id>/` holding its metadata, an
+  append-only conversation journal, and its own run traces, replacing the single
+  JSON file per session and the `traces/` root. The conversation is written as
+  it happens rather than rewritten after each reply, so an interrupted run keeps
+  everything up to the moment it stopped, and BuildMax can tell a tool call that
+  never started from one that may already have changed something. A session can
+  be open in one place at a time; opening one already in use says so instead of
+  letting two runs overwrite each other. Sessions from earlier versions are not
+  migrated and are ignored.
+
+### Fixed
+
+- Session files and the session index are now replaced atomically, so a crash,
+  a full disk, or a machine failure part-way through a save leaves the previous
+  conversation intact instead of an unreadable file.
+
+- Prevented stale-run recovery and late worker reports from overwriting a task
+  run's committed outcome or leaving its task and artifact list out of sync.
+
+- The Compose stack derives `cors_origin` from `BUILDMAX_PORTAL_PORT` through
+  the new `BUILDMAX_CORS_ORIGIN` override, so moving the Portal off `8080` — to
+  run it beside a kind cluster, which cannot move — no longer needs a hand edit
+  of `server.yaml` to keep the browser from blocking every request.
+
+- A team membership record with no role is now read as a member everywhere.
+  Team-scoped routes previously refused such a record entirely while resource
+  routes admitted it, so the same account could be a member for one request and
+  a stranger for the next. No release could create one, so this affects only a
+  database written before the role was defaulted.
+
+- A background run on a deployment that leaves `worker.llm.model` unset reaches
+  the deployment's default model again. The run was assembled with no model at
+  all and failed with `model not found: ""`; naming a model in `worker.llm` was
+  the only way around it.
+
+- Starting an Issue's assigned Agent no longer leaves an empty conversation
+  behind when the run is refused. A team at its quota limit collected one on
+  every attempt: the conversation was created before the task, the task was
+  what checked the allowance, and nothing deletes a conversation.
+
+- `openapi.json` now describes every route the server registers, 117 operations
+  instead of 40, and corrects the schemas that called a timestamp an integer:
+  `created_at`, `started_at`, and `ended_at` are RFC 3339 strings, which is what
+  the API has always sent. Tests now hold the document to an exact match with
+  the registered routes.
+
+- The served OpenAPI document no longer describes routes that do not exist.
+  Managed inference is `GET /api/llm/models` and `POST /api/llm/completions`,
+  not the team-scoped paths it listed, and listing or creating a conversation is
+  team-scoped rather than `/api/conversations`.
+
+- Correct model administration and kind-seeding guidance to use the
+  deployment-wide catalog instead of removed aliases and managed settings.
+
+- Fixed TUI shutdown so Ctrl+C cancels and joins the active agent run instead
+  of leaving stream senders or background goroutines behind.
+
 ## [0.2.0-alpha.1] - 2026-08-24
 
 ### Highlights
