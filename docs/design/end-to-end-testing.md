@@ -8,7 +8,10 @@
   §4 is `internal/testsupport/mockllm` and serves the deployment smokes too; the
   CLI suite covers print mode, answers an approval on a pseudo-terminal, and
   resumes a session both by id and by `-c`, including the refusal a second
-  process gets when one is already open; the deployment workflow is post-merge,
+  process gets when one is already open, proves a batched turn produces one
+  canonical history at concurrency limits 1 and 8, and reports a refused
+  credential with an exit code, a message naming the fix, and no retry; the
+  deployment workflow is post-merge,
   scheduled, and dispatchable and reports what verified a commit; the suites
   have names, preflight, artifacts, and an owning local mode; and the runbook is
   [../contribute/testing.md](../contribute/testing.md). Step 4's browser half is
