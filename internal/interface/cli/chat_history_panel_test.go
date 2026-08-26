@@ -94,10 +94,11 @@ func TestSlashRewindListsPointsNewestFirstWithoutTheHead(t *testing.T) {
 	if p.LoadError != "" || p.Empty {
 		t.Fatalf("unexpected panel state: %+v", p)
 	}
-	// Seven user/assistant messages exist; the newest is the current head, and
+	// Seven user/assistant messages exist. The one that asked for the Write is
+	// mid-turn and never offered, and the newest is the current head, where
 	// rewinding to where you already are is not a move.
-	if len(p.Points) != 6 {
-		t.Fatalf("points = %d, want 6: %+v", len(p.Points), p.Points)
+	if len(p.Points) != 5 {
+		t.Fatalf("points = %d, want 5: %+v", len(p.Points), p.Points)
 	}
 	if !strings.Contains(p.Points[0].Content, "thanks") {
 		t.Errorf("first row = %q, want the most recent point", p.Points[0].Content)

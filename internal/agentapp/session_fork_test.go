@@ -154,7 +154,8 @@ func TestForkWritesAJournalTheLoaderAccepts(t *testing.T) {
 	m, parent := openManaged(t)
 	seedTurns(t, parent)
 
-	child, err := m.Fork(parent, RewindPoints(parent)[3].ItemID, "test-model")
+	points := RewindPoints(parent)
+	child, err := m.Fork(parent, points[len(points)-1].ItemID, "test-model")
 	if err != nil {
 		t.Fatalf("Fork: %v", err)
 	}
@@ -268,5 +269,23 @@ func TestForkedChildIsListedAsItsOwnSession(t *testing.T) {
 	}
 	if !found {
 		t.Error("the child is not in the list")
+	}
+}
+
+func TestHistoryPointsSkipAMessageThatAskedForTools(t *testing.T) {
+	_, sess := openManaged(t)
+	seedTurns(t, sess)
+
+	// The branch ending at that message holds a call with no result. The
+	// Anthropic adapter prunes the unanswered half; the OpenAI and Ollama ones
+	// send it and the provider refuses the request, so it is not somewhere a
+	// session may be left standing.
+	for _, p := range RewindPoints(sess) {
+		if p.Role == "assistant" && p.Content == "" {
+			t.Fatalf("the picker offered a mid-turn message: %+v", p)
+		}
+	}
+	if got := len(RewindPoints(sess)); got != 3 {
+		t.Fatalf("points = %d, want the three messages that end where a turn ended", got)
 	}
 }
