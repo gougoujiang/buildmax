@@ -116,7 +116,12 @@ changelog:
   # `./make release notes <version>` from that version's CHANGELOG.md section,
   # and the workflow passes it as --release-notes; a notes file replaces the
   # header and footer, so this file no longer carries either.
-  disable: true
+  #
+  # This stays enabled because --release-notes is read by this pipe: disabling
+  # it drops the file silently, and v0.2.0-alpha.2 published with an empty
+  # body. The flag is what skips generation, so the git log never reaches a
+  # release the workflow composed notes for.
+  disable: false
 
 release:
   # A tag like v0.1.0-alpha marks the GitHub release as a pre-release.

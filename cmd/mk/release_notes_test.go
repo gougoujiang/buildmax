@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 func writeChangelog(t *testing.T, body string) {
@@ -177,4 +179,35 @@ func latestReleasedVersion(t *testing.T) string {
 	}
 	t.Fatalf("%s has no released version heading", changelogFile)
 	return ""
+}
+
+// The composed body reaches GitHub through GoReleaser's changelog pipe:
+// --release-notes is a file that pipe loads, not a flag the release step reads
+// on its own. Disabling the pipe drops the file with no warning and publishes
+// an empty body, which is what happened to v0.2.0-alpha.2, so pin the pair
+// rather than either half.
+func TestReleaseNotesFileReachesTheChangelogPipe(t *testing.T) {
+	workflow, err := os.ReadFile("../../.github/workflows/release.yml")
+	if err != nil {
+		t.Fatalf("read release workflow: %v", err)
+	}
+	if !strings.Contains(string(workflow), "--release-notes=") {
+		t.Error("release.yml does not pass --release-notes; the body would be GoReleaser's generated changelog")
+	}
+
+	raw, err := os.ReadFile("../../.goreleaser.yaml")
+	if err != nil {
+		t.Fatalf("read .goreleaser.yaml: %v", err)
+	}
+	var config struct {
+		Changelog struct {
+			Disable string `yaml:"disable"`
+		} `yaml:"changelog"`
+	}
+	if err := yaml.Unmarshal(raw, &config); err != nil {
+		t.Fatalf("parse .goreleaser.yaml: %v", err)
+	}
+	if config.Changelog.Disable == "true" {
+		t.Error(".goreleaser.yaml disables the changelog pipe, which silently discards --release-notes")
+	}
 }
