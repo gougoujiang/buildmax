@@ -4,7 +4,7 @@
 log_level: info
 
 # Server URL shown as default when running `buildmax login`.
-# server_url: http://localhost:5678
+# server_url: http://localhost:5678  # BUILDMAX_SERVER_URL overrides this
 
 # LLM models available in the CLI and desktop app.
 # The first entry is the default model.

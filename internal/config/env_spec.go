@@ -14,6 +14,12 @@ const (
 	// config files cannot be located until this path is known.
 	EnvKeyBuildmaxHome = "BUILDMAX_HOME"
 
+	// BUILDMAX_SERVER_URL — address this process uses to reach buildmax-server.
+	// It overrides settings.yaml server_url for CLI/Desktop and server.yaml
+	// worker.server_url for workers, so one deployed image can target a stage or
+	// production control plane without rewriting its config file.
+	EnvKeyBuildmaxServerURL = "BUILDMAX_SERVER_URL"
+
 	// BUILDMAX_JWT_SECRET — optional override for jwt_secret in server.yaml.
 	// In production, inject via env var (Kubernetes Secret, Docker secret) instead of
 	// storing the value in the YAML file on disk.
@@ -80,6 +86,7 @@ type EnvVar struct {
 
 var envVars = []EnvVar{
 	{Name: EnvKeyBuildmaxHome, Default: "~/.buildmax", Description: "Application data directory; locates settings.yaml and server.yaml", WorkerNeeds: true},
+	{Name: EnvKeyBuildmaxServerURL, Description: "Override for settings.yaml server_url and server.yaml worker.server_url", WorkerNeeds: true},
 	{Name: EnvKeyBuildmaxJWTSecret, Description: "Override for jwt_secret in server.yaml; inject at deploy time in production"},
 	{Name: EnvKeyBuildmaxDatabasePassword, Description: "Override for database.password in server.yaml"},
 	{Name: EnvKeyBuildmaxMinIOAccessKey, Description: "Override for storage.minio.access_key in server.yaml", WorkerNeeds: true},

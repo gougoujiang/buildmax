@@ -39,6 +39,7 @@ anything not listed here is not read by BuildMax.
 | Variable | Default | Purpose |
 |---|---|---|
 | `BUILDMAX_HOME` | `~/.buildmax` | Data directory; locates `settings.yaml` and `server.yaml`. Must be an env var — nothing else can be found until it is known. |
+| `BUILDMAX_SERVER_URL` | — | Address this process uses to reach `buildmax-server`. Overrides `settings.yaml` `server_url` for CLI/Desktop and `server.yaml` `worker.server_url` for workers. |
 | `BUILDMAX_JWT_SECRET` | — | Overrides `jwt_secret` in `server.yaml`. Inject this at deploy time rather than committing the secret to a file. |
 | `BUILDMAX_CORS_ORIGIN` | — | Overrides `cors_origin` in `server.yaml`. It has to name the origin the Portal is served from, which is a host port the deployment picks — the Compose stack derives it from `BUILDMAX_PORTAL_PORT`, so moving that port is one change rather than two. |
 | `BUILDMAX_SANDBOX_ENABLED` | — | Overrides `sandbox.enabled`. Accepts `1/true/yes/on` or `0/false/no/off`. |
@@ -80,6 +81,7 @@ local process or a Kubernetes Job:
 | Variable | Why a worker needs it |
 |---|---|
 | `BUILDMAX_HOME` | Run-scoped data directory |
+| `BUILDMAX_SERVER_URL` | Reaches the server that owns the task run |
 | `BUILDMAX_STORAGE_MINIO_ACCESS_KEY` / `_SECRET_KEY` | Reads and writes run state and artifacts |
 | `BUILDMAX_CONVERSATION_MODEL_API_KEY` | Calls a provider directly — **withheld** when `worker.llm.transport` is `buildmax` |
 | `BUILDMAX_SANDBOX_ENABLED`, `BUILDMAX_TRACE_DISABLED` | Runtime toggles |
@@ -179,7 +181,8 @@ server's `BUILDMAX_CORS_ORIGIN` from them. See
 
 ```yaml
 log_level: info                      # debug | info | warn | error | off
-server_url: http://localhost:5678    # default offered by `buildmax login`
+server_url: http://localhost:5678    # default offered by `buildmax login`;
+                                      # BUILDMAX_SERVER_URL overrides it
 
 models:                              # first entry is the default model
   - model: openai/gpt-3.5-turbo
@@ -207,7 +210,7 @@ sandbox: {}                          # see guide/sandbox.md
 | Key | Default | Notes |
 |---|---|---|
 | `log_level` | `info` | Logs go to `<BUILDMAX_HOME>/logs/buildmax.log` only, never to the terminal, so the TUI stays clean. |
-| `server_url` | — | Only used as the prompt default for `buildmax login`. |
+| `server_url` | — | Only used as the prompt default for `buildmax login`; `BUILDMAX_SERVER_URL` overrides it. |
 | `models[]` | — | One model the CLI can run while signed out. Select one per run with `--model <id or name>`. |
 | `default_model` | first entry | Which entry a new session starts with, by name or model id. Applies while signed out; a deployment names its own default. |
 | `models[].provider` | `openai_compatible` | The wire protocol the endpoint speaks — see below. |
@@ -662,7 +665,8 @@ webhook:
 worker:
   binary: buildmax-worker
   run_mode: local_process            # or k8s_job
-  server_url: http://localhost:5678  # how the worker reaches the server
+  server_url: http://localhost:5678  # how the worker reaches the server;
+                                      # BUILDMAX_SERVER_URL overrides it
   k8s:
     namespace: buildmax
     image: buildmax:local
@@ -724,9 +728,9 @@ The same code is how someone who forgot their password gets back in. Login
 attempts are not rate limited; see the warning in that document before exposing
 a server to an untrusted network.
 
-The worker reads the same `server.yaml` and needs at minimum `worker.server_url`,
-`workspaces_dir`, and the `storage` block — it talks to blob storage directly
-rather than proxying through the server.
+The worker reads the same `server.yaml` and needs at minimum `worker.server_url`
+(or `BUILDMAX_SERVER_URL`), `workspaces_dir`, and the `storage` block — it talks
+to blob storage directly rather than proxying through the server.
 
 `storage.max_artifact_mb` caps one artifact upload. It defaults to **0**, which
 uses the built-in 100 MB limit. It is a per-file limit and not a team storage

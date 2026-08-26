@@ -101,11 +101,37 @@ func TestServerConfigCORSOriginFromFile(t *testing.T) {
 	}
 }
 
+func TestServerConfigServerURLEnvOverride(t *testing.T) {
+	writeServerYAML(t, "worker:\n  server_url: https://from-file.example\n")
+	t.Setenv(config.EnvKeyBuildmaxServerURL, "https://stage.buildmax.example")
+
+	cfg, err := config.LoadServerConfig()
+	if err != nil {
+		t.Fatalf("LoadServerConfig: %v", err)
+	}
+	if cfg.Worker.ServerURL != "https://stage.buildmax.example" {
+		t.Errorf("worker.server_url = %q, want the environment override", cfg.Worker.ServerURL)
+	}
+}
+
+func TestServerConfigServerURLFromFile(t *testing.T) {
+	writeServerYAML(t, "worker:\n  server_url: https://from-file.example\n")
+
+	cfg, err := config.LoadServerConfig()
+	if err != nil {
+		t.Fatalf("LoadServerConfig: %v", err)
+	}
+	if cfg.Worker.ServerURL != "https://from-file.example" {
+		t.Errorf("worker.server_url = %q, want the value from server.yaml", cfg.Worker.ServerURL)
+	}
+}
+
 // TestServerConfigEnvOnly covers the container case: no server.yaml on disk yet,
 // credentials supplied entirely by the environment.
 func TestServerConfigEnvOnly(t *testing.T) {
 	writeServerYAML(t, "")
 	t.Setenv(config.EnvKeyBuildmaxJWTSecret, "secret-from-env")
+	t.Setenv(config.EnvKeyBuildmaxServerURL, "https://server.example")
 
 	cfg, err := config.LoadServerConfig()
 	if err != nil {
@@ -113,6 +139,9 @@ func TestServerConfigEnvOnly(t *testing.T) {
 	}
 	if cfg.JWTSecret != "secret-from-env" {
 		t.Errorf("jwt_secret = %q, want %q", cfg.JWTSecret, "secret-from-env")
+	}
+	if cfg.Worker.ServerURL != "https://server.example" {
+		t.Errorf("worker.server_url = %q, want the environment-only value", cfg.Worker.ServerURL)
 	}
 	if cfg.Worker.Binary != "buildmax-worker" {
 		t.Errorf("worker.binary = %q, want the default to survive", cfg.Worker.Binary)

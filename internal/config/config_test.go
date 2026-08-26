@@ -234,6 +234,36 @@ func TestLoadSettings_MissingFileReturnsEmpty(t *testing.T) {
 	}
 }
 
+func TestLoadSettings_ServerURLEnvOverride(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv(EnvKeyBuildmaxHome, tmp)
+	t.Setenv(EnvKeyBuildmaxServerURL, "https://stage.buildmax.example")
+	if err := os.WriteFile(SettingsPath(), []byte("server_url: https://from-file.example\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	s, err := LoadSettings()
+	if err != nil {
+		t.Fatalf("LoadSettings: %v", err)
+	}
+	if s.ServerURL != "https://stage.buildmax.example" {
+		t.Errorf("server_url = %q, want environment override", s.ServerURL)
+	}
+}
+
+func TestLoadSettings_ServerURLEnvWithoutFile(t *testing.T) {
+	t.Setenv(EnvKeyBuildmaxHome, t.TempDir())
+	t.Setenv(EnvKeyBuildmaxServerURL, "https://prod.buildmax.example")
+
+	s, err := LoadSettings()
+	if err != nil {
+		t.Fatalf("LoadSettings: %v", err)
+	}
+	if s.ServerURL != "https://prod.buildmax.example" {
+		t.Errorf("server_url = %q, want environment-only value", s.ServerURL)
+	}
+}
+
 func TestLoadSettings_EmptyModels(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv(EnvKeyBuildmaxHome, tmp)

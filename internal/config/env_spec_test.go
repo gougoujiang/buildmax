@@ -13,7 +13,7 @@ func TestEnvVarsHaveUniqueNames(t *testing.T) {
 }
 
 func TestEnvVarsIncludeRequiredKeys(t *testing.T) {
-	required := []string{EnvKeyBuildmaxHome, EnvKeyBuildmaxJWTSecret}
+	required := []string{EnvKeyBuildmaxHome, EnvKeyBuildmaxServerURL, EnvKeyBuildmaxJWTSecret}
 	names := map[string]struct{}{}
 	for _, e := range EnvVars() {
 		names[e.Name] = struct{}{}
