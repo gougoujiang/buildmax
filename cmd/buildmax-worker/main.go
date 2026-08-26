@@ -57,14 +57,24 @@ func main() {
 // `RestartPolicy: OnFailure` a non-zero exit starts a new pod, whose worker
 // immediately refuses the run for no longer being SCHEDULED — so reporting a
 // stopped run as a failed dispatch spends the Job's backoff on nothing.
+//
+// The Job's backoff is worth keeping for what it is actually for. A worker can
+// die before it claims its run — while reading its configuration, fetching the
+// run, or resolving its model — and the run is still SCHEDULED, so a fresh pod
+// picks it up and succeeds. Every case below that exits zero is one where a
+// restart cannot help.
 func workerExitCode(taskRunID string, err error) int {
 	switch {
 	case err == nil:
 		return 0
 	case errors.Is(err, bootstrap.ErrAlreadyClaimed):
-		// Not this worker's run. 2 is what tells the scheduler that, as
-		// distinct from a run that genuinely failed to start.
-		return 2
+		// Not this worker's run: somebody else is executing it, or already did.
+		// Zero, because a restart would refuse it again for the same reason and
+		// nothing reads a distinct code — and because under the local runner a
+		// non-zero exit makes the scheduler fail a run another worker is in the
+		// middle of.
+		slog.Info("run already claimed; this worker has nothing to do", "task_run_id", taskRunID)
+		return 0
 	case errors.Is(err, coretask.ErrRunCanceled):
 		// The run did what it was told and has already reported CANCELED.
 		slog.Info("worker run canceled", "task_run_id", taskRunID)
