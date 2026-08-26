@@ -296,9 +296,11 @@ func cmdAgentSmoke() error {
 	if err != nil {
 		return err
 	}
-	// Preflight, because this is the one command here that calls a paid model.
-	// Discovering that from a provider's 401, halfway through a run, is a worse
-	// way to learn it than being told before anything starts.
+	// Preflight, because this calls a paid model and reads its credential from
+	// settings.yaml rather than being handed one. Discovering that from a
+	// provider's 401, halfway through a run, is a worse way to learn it than
+	// being told before anything starts. cache-qualify takes its provider from
+	// the environment and skips when it is unset, so it needs no equivalent.
 	if err := requireModelKey(home); err != nil {
 		return err
 	}
