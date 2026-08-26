@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"github.com/gougoujiang/buildmax/internal/util"
 	"slices"
 	"strings"
 	"testing"
@@ -17,7 +18,7 @@ import (
 // panel's width- and height-driven trimming reads.
 func statsPanelModel(t *testing.T) *Model {
 	t.Helper()
-	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: util.FixedRoot(t.TempDir())})
 	next, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
 	return next.(*Model)
 }
@@ -50,7 +51,7 @@ func TestSlashStats_IsRegisteredForCompletionAndDispatch(t *testing.T) {
 // The panel folds the live session, so a run with no session open must say so
 // rather than render an empty report that reads as a session that did nothing.
 func TestSlashStats_NoSessionSaysSo(t *testing.T) {
-	m := NewModel(TUIOpts{Workspace: t.TempDir()})
+	m := NewModel(TUIOpts{Workspace: util.FixedRoot(t.TempDir())})
 	next, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
 	mod := next.(*Model)
 	opened, _ := openSlashStats(mod)

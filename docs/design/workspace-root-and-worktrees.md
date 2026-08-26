@@ -1,6 +1,6 @@
 # Workspace Root And Worktrees
 
-> **Audience:** contributors · **Status:** planned — nothing implemented
+> **Audience:** contributors · **Status:** phase 1 implemented; phases 2-5 open
 
 Related: [roadmap](../ROADMAP.md) step 5,
 [session trees, agent mailboxes, and branched workspaces](../proposals/session-tree-and-agent-mailbox.md)
@@ -18,10 +18,11 @@ The workspace root becomes session state instead of construction state, and an
 agent can create a Git worktree, move the session into it, work there, leave,
 and clean up — without the user doing any of it by hand.
 
-Nothing here is implemented. This record exists so the implementation does not
-have to re-derive which of the root's dependents move with it and which do not,
-because that question, not the worktree command, is where this feature is
-easy to get subtly wrong.
+Phase 1 is implemented: the root is session state and every tool consults it
+per call. Nothing moves it yet — the worktree lifecycle is phase 2. This record
+exists so the implementation does not have to re-derive which of the root's
+dependents move with it and which do not, because that question, not the
+worktree command, is where this feature is easy to get subtly wrong.
 
 ## 2. Why
 
@@ -293,7 +294,8 @@ the agent is writing to.
 
 | Responsibility | Owner |
 |---|---|
-| Current root as session state, and the provider tools consult | `internal/agentapp` |
+| The workspace contract both tools and the sandbox resolve against | `internal/util` (`Workspace`, `FixedRoot`) |
+| Current root as session state | `internal/agentapp` (`MovableRoot`) |
 | Tools reading the root per call rather than per construction | `internal/tool` (`workspaceTool`, `Bash`, `Monitor`, `Task`) |
 | Worktree creation, listing, containment check, and removal | `internal/infra/git`, driven by an `internal/agentapp` service |
 | Runtime tool surface and its permission tiers | `internal/tool`, name added to `internal/tool/names.go` |
@@ -306,12 +308,13 @@ state, and nothing here gives the agent loop a new concept.
 
 ## 8. Staged Delivery
 
-**Phase 1 — the root becomes session state.** A provider consulted per call
-replaces the construction-time string in the file tools, Bash, jobs, and
-`Monitor`; the sandbox bind, the TUI header, `/diff`, and the recorded
-workspace follow it. No worktree capability yet, and `--workspace` behaves
-exactly as it does now. This is the phase that can regress existing behavior,
-so it ships and is tested on its own.
+**Phase 1 — the root becomes session state. Implemented.** `util.Workspace` is
+the contract, `agentapp.MovableRoot` the state, and the file tools, Bash,
+`Monitor`, `Task`, the sandbox's writable bind, the TUI footer, and `/diff` all
+read it per call. `util.FixedRoot` serves every surface and test that never
+moves. No worktree capability yet, and `--workspace` behaves exactly as before.
+This is the phase that could regress existing behavior, so it shipped and is
+tested on its own.
 
 **Phase 2 — the worktree lifecycle.** Create, enter, leave, and remove, with
 D3's containment check, D4's tiers, D5's exit behavior, and D6's dirty report.

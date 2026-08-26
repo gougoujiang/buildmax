@@ -8,12 +8,17 @@ import (
 )
 
 // workspaceTool is embedded by tools that operate on files under a workspace root.
-type workspaceTool struct{ root string }
+type workspaceTool struct{ ws util.Workspace }
+
+// root returns the workspace root as of this call. A nil Workspace is a wiring
+// bug and panics here rather than silently resolving paths against the
+// process's current directory.
+func (w workspaceTool) root() string { return w.ws.Root() }
 
 // resolveFilePath resolves path under root. Returns an error if the path escapes
 // the root, does not exist, is not accessible, or is a directory.
 func (w workspaceTool) resolveFilePath(path string) (string, error) {
-	resolved, err := util.ResolvePath(w.root, path)
+	resolved, err := util.ResolvePath(w.root(), path)
 	if err != nil {
 		return "", err
 	}
@@ -30,7 +35,7 @@ func (w workspaceTool) resolveFilePath(path string) (string, error) {
 // resolveDirPath resolves path under root. Returns an error if the path escapes
 // the root, does not exist, is not accessible, or is not a directory.
 func (w workspaceTool) resolveDirPath(path string) (string, error) {
-	resolved, err := util.ResolvePath(w.root, path)
+	resolved, err := util.ResolvePath(w.root(), path)
 	if err != nil {
 		return "", err
 	}
@@ -48,7 +53,7 @@ func (w workspaceTool) resolveDirPath(path string) (string, error) {
 // (true) or directory (false). Returns an error if the path escapes root or does
 // not exist.
 func (w workspaceTool) resolveAnyPath(path string) (resolved string, isFile bool, err error) {
-	resolved, err = util.ResolvePath(w.root, path)
+	resolved, err = util.ResolvePath(w.root(), path)
 	if err != nil {
 		return "", false, err
 	}

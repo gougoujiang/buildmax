@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"github.com/gougoujiang/buildmax/internal/util"
 	"runtime"
 	"strings"
 	"testing"
@@ -37,7 +38,7 @@ func testShellJobSpec(command string) job.CommandSpec {
 }
 
 func TestSlashTasksUnavailableWithoutJobs(t *testing.T) {
-	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: util.FixedRoot(t.TempDir())})
 	got, _ := dispatchSlashCommand(m, "/tasks")
 	mod := got.(*Model)
 	if mod.err == "" {
@@ -63,7 +64,7 @@ func TestSlashTasksPanelListsAndStops(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	m := NewModel(TUIOpts{App: app, Session: testSessionContext(), Workspace: t.TempDir()})
+	m := NewModel(TUIOpts{App: app, Session: testSessionContext(), Workspace: util.FixedRoot(t.TempDir())})
 	got, _ := dispatchSlashCommand(m, "/tasks")
 	mod := got.(*Model)
 	panel, ok := mod.activePanel.(*slashJobsPanel)
@@ -111,7 +112,7 @@ func currentParked(m *Model) []agentapp.BackgroundEvent {
 // session's job parks for that session and waits, and non-requested
 // completions only notify.
 func TestJobEventParksRequestedDelivery(t *testing.T) {
-	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: util.FixedRoot(t.TempDir())})
 
 	_, cmd := handleJobEvent(m, jobEventMsg{Event: job.Event{Job: deliverableJob(m, job.KindCommand)}})
 	if len(currentParked(m)) != 1 {
@@ -163,7 +164,7 @@ func TestJobEventParksRequestedDelivery(t *testing.T) {
 }
 
 func TestJobEventParksReactMonitorLine(t *testing.T) {
-	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: util.FixedRoot(t.TempDir())})
 	watcher := deliverableJob(m, job.KindMonitor)
 	watcher.State = job.StateRunning
 

@@ -2,6 +2,7 @@ package tool
 
 import (
 	"context"
+	"github.com/gougoujiang/buildmax/internal/util"
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/core/llm"
@@ -76,7 +77,7 @@ func TestTaskTool_Access(t *testing.T) {
 func TestTaskTool_AccessSurvivesWithJobs(t *testing.T) {
 	tool := accessTaskTool(t, map[string]AgentTypeConfig{
 		"explore": {Tools: []llm.Tool{readOnlyTool(ToolNameRead)}},
-	}).WithJobs(nil, "/ws")
+	}).WithJobs(nil, util.FixedRoot("/ws"))
 	if got := tool.Access(map[string]any{"subagent_type": "explore"}); got != llm.AccessReadOnly {
 		t.Errorf("Access after WithJobs = %v, want read-only", got)
 	}

@@ -2,6 +2,7 @@ package tool
 
 import (
 	"context"
+	"github.com/gougoujiang/buildmax/internal/util"
 	"runtime"
 	"strings"
 	"testing"
@@ -68,7 +69,7 @@ func waitJobDone(t *testing.T, m *job.Manager, id string) job.Job {
 
 func TestBashRunInBackground(t *testing.T) {
 	m := newJobManager(t)
-	b := NewBash(t.TempDir()).WithJobs(m)
+	b := NewBash(util.FixedRoot(t.TempDir())).WithJobs(m)
 
 	id := startBackground(t, b, m, "echo detached")
 	j := waitJobDone(t, m, id)
@@ -116,7 +117,7 @@ func TestBashRunInBackground(t *testing.T) {
 
 func TestBashBackgroundRefusedInSubagent(t *testing.T) {
 	m := newJobManager(t)
-	b := NewBash(t.TempDir()).WithJobs(m)
+	b := NewBash(util.FixedRoot(t.TempDir())).WithJobs(m)
 	ctx := agent.CtxMarkSubagent(session.CtxWithSessionID(context.Background(), "sub-sess"))
 	out, err := b.Execute(ctx, map[string]any{"command": "echo hi", "run_in_background": true})
 	if err != nil {
@@ -131,7 +132,7 @@ func TestBashBackgroundRefusedInSubagent(t *testing.T) {
 }
 
 func TestBashBackgroundUnavailableWithoutManager(t *testing.T) {
-	b := NewBash(t.TempDir())
+	b := NewBash(util.FixedRoot(t.TempDir()))
 	out, err := b.Execute(context.Background(), map[string]any{"command": "echo hi", "run_in_background": true})
 	if err != nil {
 		t.Fatal(err)
@@ -144,7 +145,7 @@ func TestBashBackgroundUnavailableWithoutManager(t *testing.T) {
 	if _, ok := schema["run_in_background"]; ok {
 		t.Fatal("run_in_background advertised without a job manager")
 	}
-	withJobs := NewBash(t.TempDir()).WithJobs(job.NewManager())
+	withJobs := NewBash(util.FixedRoot(t.TempDir())).WithJobs(job.NewManager())
 	schema = withJobs.Parameters().(map[string]any)["properties"].(map[string]any)
 	if _, ok := schema["run_in_background"]; !ok {
 		t.Fatal("run_in_background missing with a job manager")
@@ -153,7 +154,7 @@ func TestBashBackgroundUnavailableWithoutManager(t *testing.T) {
 
 func TestJobStopTool(t *testing.T) {
 	m := newJobManager(t)
-	b := NewBash(t.TempDir()).WithJobs(m)
+	b := NewBash(util.FixedRoot(t.TempDir())).WithJobs(m)
 	id := startBackground(t, b, m, sleepCommandForTest())
 
 	out, err := NewJobStop(m).Execute(context.Background(), map[string]any{"job_id": id})

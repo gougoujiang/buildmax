@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"github.com/gougoujiang/buildmax/internal/util"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -66,7 +67,7 @@ func TestSlashPanelsFitTerminalHeight(t *testing.T) {
 					App:         app,
 					Session:     testSessionContext(),
 					ModelName:   "Model 01",
-					Workspace:   home,
+					Workspace:   util.FixedRoot(home),
 					SessionsDir: sessionsDir,
 				})
 				next, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: height})
@@ -87,7 +88,7 @@ func TestSlashPanelsFitTerminalHeight(t *testing.T) {
 // The completion popup is rebuilt on every message, not only on key presses, so
 // a dismissal that is not remembered is undone by the next cursor blink.
 func TestSlashPopupStaysDismissedUntilInputChanges(t *testing.T) {
-	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: util.FixedRoot(t.TempDir())})
 	next, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 30})
 	mod := next.(*Model)
 
@@ -262,7 +263,7 @@ func TestSlashJobsPanelScrollsToTheSelection(t *testing.T) {
 		waitForJobToFinish(t, app, started.ID)
 	}
 
-	m := NewModel(TUIOpts{App: app, Session: testSessionContext(), Workspace: home})
+	m := NewModel(TUIOpts{App: app, Session: testSessionContext(), Workspace: util.FixedRoot(home)})
 	sized, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
 	opened, _ := dispatchSlashCommand(sized.(*Model), "/tasks")
 	mod := opened.(*Model)

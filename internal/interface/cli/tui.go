@@ -99,7 +99,7 @@ func runTUI(resumeID, modelName, additionalSystemPrompt, workspace string, sandb
 		App:          app,
 		Session:      sess,
 		ModelName:    sess.ModelName(app.DefaultModelName()),
-		Workspace:    app.WorkspaceRoot(),
+		Workspace:    app.Workspace(),
 		SessionsDir:  app.SessionsDir(),
 		Approval:     approval,
 		GlamourStyle: glamourStyle,

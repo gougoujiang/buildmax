@@ -2,6 +2,7 @@ package tool
 
 import (
 	"context"
+	"github.com/gougoujiang/buildmax/internal/util"
 	"strings"
 	"testing"
 
@@ -13,7 +14,7 @@ import (
 
 func TestMonitorStartsJob(t *testing.T) {
 	m := newJobManager(t)
-	mon := NewMonitor(t.TempDir()).WithJobs(m)
+	mon := NewMonitor(util.FixedRoot(t.TempDir())).WithJobs(m)
 	ctx := session.CtxWithSessionID(context.Background(), "sess-1")
 	ctx = agent.CtxWithRunID(ctx, "rt_run")
 
@@ -47,7 +48,7 @@ func TestMonitorStartsJob(t *testing.T) {
 
 // Monitor is not a way around Bash's command policy.
 func TestMonitorSharesBashRiskChecks(t *testing.T) {
-	mon := NewMonitor(t.TempDir()).WithJobs(job.NewManager())
+	mon := NewMonitor(util.FixedRoot(t.TempDir())).WithJobs(job.NewManager())
 	if got := mon.CheckArgs(map[string]any{"command": "curl http://example.com"}); got != llm.ToolActionAsk {
 		t.Fatalf("risky command action = %v, want ask", got)
 	}
@@ -58,12 +59,12 @@ func TestMonitorSharesBashRiskChecks(t *testing.T) {
 
 func TestMonitorRefusals(t *testing.T) {
 	m := newJobManager(t)
-	mon := NewMonitor(t.TempDir()).WithJobs(m)
+	mon := NewMonitor(util.FixedRoot(t.TempDir())).WithJobs(m)
 	out, err := mon.Execute(agent.CtxMarkSubagent(context.Background()), map[string]any{"command": "echo hi"})
 	if err != nil || !strings.Contains(out, "not available inside a subagent") {
 		t.Fatalf("subagent refusal = %q, %v", out, err)
 	}
-	bare := NewMonitor(t.TempDir())
+	bare := NewMonitor(util.FixedRoot(t.TempDir()))
 	out, err = bare.Execute(context.Background(), map[string]any{"command": "echo hi"})
 	if err != nil || !strings.Contains(out, "not available on this surface") {
 		t.Fatalf("surface refusal = %q, %v", out, err)

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"github.com/gougoujiang/buildmax/internal/util"
 	"os/exec"
 	"runtime"
 	"strconv"
@@ -36,10 +37,10 @@ type Bash struct {
 	jobs *job.Manager
 }
 
-// NewBash creates a Bash tool that runs commands under the given workspace root.
-func NewBash(workspaceRoot string) *Bash {
+// NewBash creates a Bash tool that runs commands under the given workspace.
+func NewBash(ws util.Workspace) *Bash {
 	return &Bash{
-		workspaceTool: workspaceTool{root: workspaceRoot},
+		workspaceTool: workspaceTool{ws: ws},
 		sandbox:       agent.NoopSandbox{},
 	}
 }
@@ -191,7 +192,7 @@ func (b *Bash) Execute(ctx context.Context, args map[string]any) (string, error)
 		return "", err
 	}
 	cmd := exec.CommandContext(runCtx, name, shellArgs...)
-	cmd.Dir = b.root
+	cmd.Dir = b.root()
 	cmd.Env = b.childEnv()
 	var out bytes.Buffer
 	cmd.Stdout = &out
@@ -237,12 +238,12 @@ func (b *Bash) executeBackground(ctx context.Context, command string, args map[s
 		Command: command,
 		Name:    name,
 		Args:    shellArgs,
-		Dir:     b.root,
+		Dir:     b.root(),
 		Env:     b.childEnv(),
 		Timeout: parseBackgroundTimeout(args),
 		Deliver: deliver,
 	}, job.Provenance{
-		Workspace:        b.root,
+		Workspace:        b.root(),
 		SessionID:        sessionID,
 		ParentTraceID:    agent.RunIDFromCtx(ctx),
 		ParentToolCallID: agent.ToolCallFromCtx(ctx),

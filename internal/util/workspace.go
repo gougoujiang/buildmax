@@ -24,6 +24,23 @@ func ResolveWorkspaceRoot(dir string) (string, error) {
 	return filepath.Clean(abs), nil
 }
 
+// Workspace reports the directory a caller resolves paths against.
+//
+// It is consulted per call rather than captured at construction: a session's
+// root moves when it enters a worktree, and a tool or sandbox profile still
+// holding the launch directory would keep working on the tree the user left,
+// with nothing to signal it. See docs/design/workspace-root-and-worktrees.md.
+type Workspace interface {
+	Root() string
+}
+
+// FixedRoot is a Workspace that never moves: a surface with no way to switch
+// roots, and any caller that only needs one directory.
+type FixedRoot string
+
+// Root implements Workspace.
+func (f FixedRoot) Root() string { return string(f) }
+
 // ResolvePath resolves a user-supplied path relative to root, ensuring the result
 // stays under root. Returns the absolute, cleaned path.
 // Includes a Windows-safe prefix check (filepath.Rel can return an absolute

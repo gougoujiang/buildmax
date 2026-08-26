@@ -2,6 +2,7 @@ package tool
 
 import (
 	"context"
+	"github.com/gougoujiang/buildmax/internal/util"
 	"os"
 	"strconv"
 	"strings"
@@ -15,8 +16,8 @@ type ReadFile struct {
 }
 
 // NewReadFile creates a ReadFile tool that reads files under the given workspace root.
-func NewReadFile(workspaceRoot string) *ReadFile {
-	return &ReadFile{workspaceTool{root: workspaceRoot}}
+func NewReadFile(ws util.Workspace) *ReadFile {
+	return &ReadFile{workspaceTool{ws: ws}}
 }
 
 // Name returns the tool name for the LLM.

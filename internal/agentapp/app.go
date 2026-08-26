@@ -92,7 +92,7 @@ type AppConfig struct {
 type ManagedTokenFunc func(serverURL string) (string, error)
 
 type AgentApp struct {
-	workspaceRoot          string
+	workspace              *MovableRoot
 	settings               config.Settings
 	llmClients             *LLMClientCache
 	toolRegistriesMu       sync.Mutex
@@ -441,7 +441,17 @@ func (a *AgentApp) WorkspaceRoot() string {
 	if a == nil {
 		return ""
 	}
-	return a.workspaceRoot
+	return a.workspace.Root()
+}
+
+// Workspace returns the root itself, for a surface that must keep following it
+// rather than read it once. A nil AgentApp reports an empty root instead of
+// nil, so callers never have to guard the interface value.
+func (a *AgentApp) Workspace() util.Workspace {
+	if a == nil || a.workspace == nil {
+		return util.FixedRoot("")
+	}
+	return a.workspace
 }
 
 func (a *AgentApp) SessionsDir() string {
@@ -605,7 +615,7 @@ func (a *AgentApp) RefreshMCP(ctx context.Context) (MCPStatus, error) {
 	}
 	// Refresh re-reads the files, not the plugin inventory: a runtime keeps the
 	// snapshot it was assembled with.
-	mcpRes, err := config.ResolveMCPConfig(a.workspaceRoot, a.plugins.Loadable())
+	mcpRes, err := config.ResolveMCPConfig(a.workspace.Root(), a.plugins.Loadable())
 	if err != nil {
 		return MCPStatus{}, fmt.Errorf("load mcp config: %w", err)
 	}
@@ -700,7 +710,7 @@ func (a *AgentApp) fireSessionLifecycle(event agent.HookEvent, sess *SessionCont
 	in := agent.HookInput{
 		Event:     event,
 		SessionID: sess.ID(),
-		Workspace: a.workspaceRoot,
+		Workspace: a.workspace.Root(),
 		Sandbox:   a.sandboxInfo(),
 	}
 	if stats != nil {
@@ -748,7 +758,7 @@ func (a *AgentApp) estimateRunUsage(sess *SessionContext, modelName string, cont
 	}
 	// This path does not go through RunLoop, so it renders the compaction block itself to
 	// estimate the real prompt size. It uses the same renderer RunLoop does.
-	systemPrompt := BuildEffectiveSystemPrompt(a.workspaceRoot, modelName, a.effectiveAdditionalPrompt(sess), a.promptCapabilities()) + agent.RenderCompactionBlock(sess.PriorSummary())
+	systemPrompt := BuildEffectiveSystemPrompt(a.workspace.Root(), modelName, a.effectiveAdditionalPrompt(sess), a.promptCapabilities()) + agent.RenderCompactionBlock(sess.PriorSummary())
 	contextTokens := agent.EstimateMessageTokens(cllm.Message{Role: "system", Content: systemPrompt}) + agent.EstimateTokens(sess.HistoryMessages())
 	return RunUsage{
 		ContextTokens:         contextTokens,
@@ -865,7 +875,7 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 	// Resolved before the trace opens, because the trace reports which prompt layers this run
 	// loaded and a run that ends early still has to be able to say.
 	extraPrompt := a.effectiveAdditionalPrompt(sess)
-	systemPrompt, promptLayers := BuildSystemPromptWithLayers(a.workspaceRoot, modelName, extraPrompt, a.promptCapabilities())
+	systemPrompt, promptLayers := BuildSystemPromptWithLayers(a.workspace.Root(), modelName, extraPrompt, a.promptCapabilities())
 	// Durable state, so it commits rather than being assigned: a resumed
 	// session that lost the prompt it ran under would answer as a different
 	// agent than the one the conversation records.
@@ -887,7 +897,7 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 		recorder = trace.NewRecorder(sessionstore.SessionTracesDir(a.sessionManager.Dir(), sess.ID()), trace.Meta{
 			RunID:        runID,
 			SessionID:    sess.ID(),
-			Workspace:    a.workspaceRoot,
+			Workspace:    a.workspace.Root(),
 			Model:        modelName,
 			Sandbox:      a.sandboxInfo(),
 			PromptLayers: promptLayers,
@@ -908,7 +918,7 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 		promptHook := a.hooks.Run(ctx, agent.HookInput{
 			Event:     agent.HookUserPromptSubmit,
 			SessionID: sess.ID(),
-			Workspace: a.workspaceRoot,
+			Workspace: a.workspace.Root(),
 			Prompt:    prompt,
 		})
 		if promptHook.Blocked() {
@@ -958,7 +968,7 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 		EventSink:        teeEventSink(recorder.Record, opts.EventSink),
 		Hooks:            a.hooks,
 		SessionID:        sess.ID(),
-		Workspace:        a.workspaceRoot,
+		Workspace:        a.workspace.Root(),
 	})
 	// Failed runs still leave a complete trace (RunLoop emits run_end with the
 	// error), so carry TraceID out even on the error paths — a failed run is
@@ -1034,7 +1044,7 @@ func (a *AgentApp) runResult(sess *SessionContext, client cllm.LLMClient, modelN
 		ContextTokens:         status.ContextTokens,
 		ContextWindow:         status.ContextWindow,
 		SessionID:             sess.ID(),
-		Workspace:             a.workspaceRoot,
+		Workspace:             a.workspace.Root(),
 		ModelName:             modelName,
 		TraceID:               recorder.RunID(),
 		TracePath:             recorder.Path(),
@@ -1068,7 +1078,7 @@ func (a *AgentApp) GenerateSessionTitle(ctx context.Context, sess *SessionContex
 }
 
 func (a *AgentApp) finalizeTurn(sess *SessionContext, client cllm.LLMClient, stats agent.RunStats) (TurnFinalizeResult, error) {
-	return a.sessionManager.Finalize(context.Background(), client, sess, a.workspaceRoot, stats, a.pricingFor(sess))
+	return a.sessionManager.Finalize(context.Background(), client, sess, a.workspace.Root(), stats, a.pricingFor(sess))
 }
 
 // pricingFor is the price list of the model this session is running against, or
@@ -1241,7 +1251,7 @@ func (a *AgentApp) promptCapabilities() PromptCapabilities {
 
 func (a *AgentApp) buildToolRegistry(client cllm.LLMClient) (cllm.ToolRegistry, error) {
 	registry := cllm.NewToolRegistry()
-	registry.AppendTools(buildBaseTools(client, a.workspaceRoot, a.skillsRegistry.NewTool(), a.Sandbox(), a.artifactPublisher, a.jobs)...)
+	registry.AppendTools(buildBaseTools(client, a.workspace, a.skillsRegistry.NewTool(), a.Sandbox(), a.artifactPublisher, a.jobs)...)
 	if a.mcpManager != nil {
 		if reg := a.mcpManager.Registry(); reg != nil {
 			registry.AppendTools(tools.GatewayTools(reg)...)
@@ -1257,7 +1267,7 @@ func (a *AgentApp) buildToolRegistry(client cllm.LLMClient) (cllm.ToolRegistry, 
 		taskTool, err := tools.NewTask(runner, agentTypes)
 		if err == nil {
 			if a.jobs != nil {
-				taskTool = taskTool.WithJobs(a.jobs, a.workspaceRoot)
+				taskTool = taskTool.WithJobs(a.jobs, a.workspace)
 			}
 			registry.AppendTools(taskTool)
 		}
@@ -1267,7 +1277,7 @@ func (a *AgentApp) buildToolRegistry(client cllm.LLMClient) (cllm.ToolRegistry, 
 	if a.jobs != nil {
 		registry.AppendTools(
 			tools.NewJobList(a.jobs), tools.NewJobOutput(a.jobs), tools.NewJobStop(a.jobs),
-			tools.NewMonitor(a.workspaceRoot).WithSandbox(a.Sandbox()).WithJobs(a.jobs),
+			tools.NewMonitor(a.workspace).WithSandbox(a.Sandbox()).WithJobs(a.jobs),
 		)
 	}
 	return registry, nil
@@ -1301,7 +1311,7 @@ func (a *AgentApp) newSubAgentTrace(ctx context.Context, sessionID string, opts 
 		ParentRunID:      parent.runID,
 		ParentToolCallID: agent.ToolCallFromCtx(ctx),
 		SessionID:        sessionID,
-		Workspace:        a.workspaceRoot,
+		Workspace:        a.workspace.Root(),
 		Model:            modelName,
 		IsSubagent:       true,
 		Sandbox:          a.sandboxInfo(),

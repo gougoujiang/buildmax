@@ -2,6 +2,7 @@ package tool
 
 import (
 	"context"
+	"github.com/gougoujiang/buildmax/internal/util"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,17 +13,17 @@ import (
 
 func TestNewGrep(t *testing.T) {
 	t.Run("empty root uses cwd", func(t *testing.T) {
-		g := NewGrep(testWorkspace(t, ""))
-		if g.root == "" {
+		g := NewGrep(util.FixedRoot(testWorkspace(t, "")))
+		if g.root() == "" {
 			t.Error("root should not be empty")
 		}
 	})
 	t.Run("root is normalized", func(t *testing.T) {
 		dir := t.TempDir()
-		g := NewGrep(testWorkspace(t, dir))
+		g := NewGrep(util.FixedRoot(testWorkspace(t, dir)))
 		abs, _ := filepath.Abs(dir)
-		if g.root != filepath.Clean(abs) {
-			t.Errorf("root = %q, want %q", g.root, filepath.Clean(abs))
+		if g.root() != filepath.Clean(abs) {
+			t.Errorf("root = %q, want %q", g.root(), filepath.Clean(abs))
 		}
 	})
 }
@@ -31,7 +32,7 @@ func TestNewGrep(t *testing.T) {
 
 func TestGrep_Name_Description_Parameters(t *testing.T) {
 	dir := t.TempDir()
-	g := NewGrep(testWorkspace(t, dir))
+	g := NewGrep(util.FixedRoot(testWorkspace(t, dir)))
 	if g.Name() != ToolNameGrep {
 		t.Errorf("Name() = %q, want Grep", g.Name())
 	}
@@ -74,7 +75,7 @@ func TestGrep_Name_Description_Parameters(t *testing.T) {
 
 func TestGrep_Execute_missingPattern(t *testing.T) {
 	dir := t.TempDir()
-	g := NewGrep(testWorkspace(t, dir))
+	g := NewGrep(util.FixedRoot(testWorkspace(t, dir)))
 	_, err := g.Execute(context.Background(), map[string]any{})
 	if err == nil {
 		t.Fatal("expected error for missing pattern")
@@ -86,7 +87,7 @@ func TestGrep_Execute_missingPattern(t *testing.T) {
 
 func TestGrep_Execute_emptyPattern(t *testing.T) {
 	dir := t.TempDir()
-	g := NewGrep(testWorkspace(t, dir))
+	g := NewGrep(util.FixedRoot(testWorkspace(t, dir)))
 	_, err := g.Execute(context.Background(), map[string]any{"pattern": "   "})
 	if err == nil {
 		t.Fatal("expected error for empty pattern")
@@ -98,7 +99,7 @@ func TestGrep_Execute_emptyPattern(t *testing.T) {
 
 func TestGrep_Execute_invalidRegex(t *testing.T) {
 	dir := t.TempDir()
-	g := NewGrep(testWorkspace(t, dir))
+	g := NewGrep(util.FixedRoot(testWorkspace(t, dir)))
 	_, err := g.Execute(context.Background(), map[string]any{"pattern": "[invalid"})
 	if err == nil {
 		t.Fatal("expected error for invalid regex")
@@ -112,7 +113,7 @@ func TestGrep_Execute_invalidRegex(t *testing.T) {
 
 func TestGrep_Execute_pathOutsideRoot(t *testing.T) {
 	dir := t.TempDir()
-	g := NewGrep(testWorkspace(t, dir))
+	g := NewGrep(util.FixedRoot(testWorkspace(t, dir)))
 	_, err := g.Execute(context.Background(), map[string]any{"pattern": "x", "path": ".."})
 	if err == nil {
 		t.Fatal("expected error for path outside root")
@@ -124,7 +125,7 @@ func TestGrep_Execute_pathOutsideRoot(t *testing.T) {
 
 func TestGrep_Execute_pathNotFound(t *testing.T) {
 	dir := t.TempDir()
-	g := NewGrep(testWorkspace(t, dir))
+	g := NewGrep(util.FixedRoot(testWorkspace(t, dir)))
 	_, err := g.Execute(context.Background(), map[string]any{"pattern": "x", "path": "nonexistent"})
 	if err == nil {
 		t.Fatal("expected error for nonexistent path")
@@ -141,7 +142,7 @@ func TestGrep_Execute_pathIsFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	g := NewGrep(testWorkspace(t, dir))
+	g := NewGrep(util.FixedRoot(testWorkspace(t, dir)))
 	result, err := g.Execute(context.Background(), map[string]any{
 		"pattern": "hello",
 		"path":    "hello.go",
@@ -167,7 +168,7 @@ func TestGrep_Execute_pathIsDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	g := NewGrep(testWorkspace(t, dir))
+	g := NewGrep(util.FixedRoot(testWorkspace(t, dir)))
 	// Search only sub directory
 	result, err := g.Execute(context.Background(), map[string]any{
 		"pattern": "hello",
@@ -197,7 +198,7 @@ func TestGrep_Execute_omittedPathSearchesRoot(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	g := NewGrep(testWorkspace(t, dir))
+	g := NewGrep(util.FixedRoot(testWorkspace(t, dir)))
 	result, err := g.Execute(context.Background(), map[string]any{"pattern": "findme"})
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
@@ -221,7 +222,7 @@ func TestGrep_Execute_filesWithMatches(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	g := NewGrep(testWorkspace(t, dir))
+	g := NewGrep(util.FixedRoot(testWorkspace(t, dir)))
 	result, err := g.Execute(context.Background(), map[string]any{
 		"pattern":     "func",
 		"output_mode": "files_with_matches",
@@ -250,7 +251,7 @@ func TestGrep_Execute_countMode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	g := NewGrep(testWorkspace(t, dir))
+	g := NewGrep(util.FixedRoot(testWorkspace(t, dir)))
 	result, err := g.Execute(context.Background(), map[string]any{
 		"pattern":     "line",
 		"output_mode": "count",
@@ -274,7 +275,7 @@ func TestGrep_Execute_contentMode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	g := NewGrep(testWorkspace(t, dir))
+	g := NewGrep(util.FixedRoot(testWorkspace(t, dir)))
 	result, err := g.Execute(context.Background(), map[string]any{
 		"pattern":     "beta",
 		"output_mode": "content",
@@ -302,7 +303,7 @@ func TestGrep_Execute_globFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	g := NewGrep(testWorkspace(t, dir))
+	g := NewGrep(util.FixedRoot(testWorkspace(t, dir)))
 	result, err := g.Execute(context.Background(), map[string]any{
 		"pattern": "hello",
 		"glob":    "*.go",
@@ -330,7 +331,7 @@ func TestGrep_Execute_typeFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	g := NewGrep(testWorkspace(t, dir))
+	g := NewGrep(util.FixedRoot(testWorkspace(t, dir)))
 	result, err := g.Execute(context.Background(), map[string]any{
 		"pattern": "hello",
 		"type":    "go",
@@ -365,7 +366,7 @@ func TestGrep_Execute_globAndTypeFilter(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	g := NewGrep(testWorkspace(t, dir))
+	g := NewGrep(util.FixedRoot(testWorkspace(t, dir)))
 	result, err := g.Execute(context.Background(), map[string]any{
 		"pattern": "hello",
 		"glob":    "src/*.go",
@@ -395,7 +396,7 @@ func TestGrep_Execute_beforeContext(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	g := NewGrep(testWorkspace(t, dir))
+	g := NewGrep(util.FixedRoot(testWorkspace(t, dir)))
 	result, err := g.Execute(context.Background(), map[string]any{
 		"pattern":        "target",
 		"output_mode":    "content",
@@ -422,7 +423,7 @@ func TestGrep_Execute_afterContext(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	g := NewGrep(testWorkspace(t, dir))
+	g := NewGrep(util.FixedRoot(testWorkspace(t, dir)))
 	result, err := g.Execute(context.Background(), map[string]any{
 		"pattern":       "target",
 		"output_mode":   "content",
@@ -450,7 +451,7 @@ func TestGrep_Execute_contextOverlap(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	g := NewGrep(testWorkspace(t, dir))
+	g := NewGrep(util.FixedRoot(testWorkspace(t, dir)))
 	result, err := g.Execute(context.Background(), map[string]any{
 		"pattern":     "match",
 		"output_mode": "content",
@@ -477,7 +478,7 @@ func TestGrep_Execute_contextSeparator(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	g := NewGrep(testWorkspace(t, dir))
+	g := NewGrep(util.FixedRoot(testWorkspace(t, dir)))
 	result, err := g.Execute(context.Background(), map[string]any{
 		"pattern":     "match",
 		"output_mode": "content",
@@ -499,7 +500,7 @@ func TestGrep_Execute_caseInsensitive(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	g := NewGrep(testWorkspace(t, dir))
+	g := NewGrep(util.FixedRoot(testWorkspace(t, dir)))
 	result, err := g.Execute(context.Background(), map[string]any{
 		"pattern":          "hello",
 		"output_mode":      "count",
@@ -519,7 +520,7 @@ func TestGrep_Execute_lineNumbersFalse(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	g := NewGrep(testWorkspace(t, dir))
+	g := NewGrep(util.FixedRoot(testWorkspace(t, dir)))
 	result, err := g.Execute(context.Background(), map[string]any{
 		"pattern":      "hello",
 		"output_mode":  "content",
@@ -545,7 +546,7 @@ func TestGrep_Execute_multiline(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	g := NewGrep(testWorkspace(t, dir))
+	g := NewGrep(util.FixedRoot(testWorkspace(t, dir)))
 	result, err := g.Execute(context.Background(), map[string]any{
 		"pattern":     "hello\\nworld",
 		"output_mode": "content",
@@ -577,7 +578,7 @@ func TestGrep_Execute_headLimit_filesWithMatches(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	g := NewGrep(testWorkspace(t, dir))
+	g := NewGrep(util.FixedRoot(testWorkspace(t, dir)))
 	result, err := g.Execute(context.Background(), map[string]any{
 		"pattern":    "hello",
 		"head_limit": float64(2),
@@ -603,7 +604,7 @@ func TestGrep_Execute_offset_filesWithMatches(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	g := NewGrep(testWorkspace(t, dir))
+	g := NewGrep(util.FixedRoot(testWorkspace(t, dir)))
 	result, err := g.Execute(context.Background(), map[string]any{
 		"pattern": "hello",
 		"offset":  float64(1),
@@ -636,7 +637,7 @@ func TestGrep_Execute_offsetAndLimit(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	g := NewGrep(testWorkspace(t, dir))
+	g := NewGrep(util.FixedRoot(testWorkspace(t, dir)))
 	result, err := g.Execute(context.Background(), map[string]any{
 		"pattern":    "hello",
 		"offset":     float64(1),
@@ -658,7 +659,7 @@ func TestGrep_Execute_headLimit_contentMode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	g := NewGrep(testWorkspace(t, dir))
+	g := NewGrep(util.FixedRoot(testWorkspace(t, dir)))
 	result, err := g.Execute(context.Background(), map[string]any{
 		"pattern":     "match",
 		"output_mode": "content",
@@ -685,7 +686,7 @@ func TestGrep_Execute_noMatches_allModes(t *testing.T) {
 	}
 
 	modes := []string{"files_with_matches", "content", "count"}
-	g := NewGrep(testWorkspace(t, dir))
+	g := NewGrep(util.FixedRoot(testWorkspace(t, dir)))
 	for _, mode := range modes {
 		t.Run(mode, func(t *testing.T) {
 			result, err := g.Execute(context.Background(), map[string]any{
@@ -710,7 +711,7 @@ func TestGrep_Execute_defaultOutputMode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	g := NewGrep(testWorkspace(t, dir))
+	g := NewGrep(util.FixedRoot(testWorkspace(t, dir)))
 	result, err := g.Execute(context.Background(), map[string]any{
 		"pattern": "hello",
 	})
@@ -741,7 +742,7 @@ func TestGrep_Execute_headLimit_countMode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	g := NewGrep(testWorkspace(t, dir))
+	g := NewGrep(util.FixedRoot(testWorkspace(t, dir)))
 	result, err := g.Execute(context.Background(), map[string]any{
 		"pattern":     "x",
 		"output_mode": "count",
@@ -765,7 +766,7 @@ func TestGrep_Execute_contextOverridesBeforeAfter(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	g := NewGrep(testWorkspace(t, dir))
+	g := NewGrep(util.FixedRoot(testWorkspace(t, dir)))
 	result, err := g.Execute(context.Background(), map[string]any{
 		"pattern":        "target",
 		"output_mode":    "content",
@@ -796,7 +797,7 @@ func TestGrep_Execute_contentMode_multipleFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	g := NewGrep(testWorkspace(t, dir))
+	g := NewGrep(util.FixedRoot(testWorkspace(t, dir)))
 	result, err := g.Execute(context.Background(), map[string]any{
 		"pattern":     "hello",
 		"output_mode": "content",

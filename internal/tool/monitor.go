@@ -2,6 +2,7 @@ package tool
 
 import (
 	"context"
+	"github.com/gougoujiang/buildmax/internal/util"
 	"strconv"
 
 	"github.com/gougoujiang/buildmax/internal/agentapp/job"
@@ -20,9 +21,9 @@ type Monitor struct {
 	jobs *job.Manager
 }
 
-// NewMonitor creates a Monitor for the given workspace root.
-func NewMonitor(workspaceRoot string) *Monitor {
-	return &Monitor{bash: NewBash(workspaceRoot)}
+// NewMonitor creates a Monitor for the given workspace.
+func NewMonitor(ws util.Workspace) *Monitor {
+	return &Monitor{bash: NewBash(ws)}
 }
 
 // WithSandbox returns a copy whose command resolution wraps through the
@@ -119,13 +120,13 @@ func (m *Monitor) Execute(ctx context.Context, args map[string]any) (string, err
 		Command:    display,
 		Name:       name,
 		Args:       shellArgs,
-		Dir:        m.bash.root,
+		Dir:        m.bash.root(),
 		Env:        m.bash.childEnv(),
 		Timeout:    parseBackgroundTimeout(args),
 		Persistent: persistent,
 		React:      react,
 	}, job.Provenance{
-		Workspace:        m.bash.root,
+		Workspace:        m.bash.root(),
 		SessionID:        sessionID,
 		ParentTraceID:    agent.RunIDFromCtx(ctx),
 		ParentToolCallID: agent.ToolCallFromCtx(ctx),

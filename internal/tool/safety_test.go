@@ -1,6 +1,7 @@
 package tool
 
 import (
+	"github.com/gougoujiang/buildmax/internal/util"
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/core/llm"
@@ -89,7 +90,7 @@ func TestIsRiskyBashCommand(t *testing.T) {
 
 func TestBash_CheckArgs_Classification(t *testing.T) {
 	dir := t.TempDir()
-	b := NewBash(testWorkspace(t, dir))
+	b := NewBash(util.FixedRoot(testWorkspace(t, dir)))
 
 	cases := []struct {
 		cmd  string

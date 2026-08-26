@@ -2,6 +2,7 @@ package agentapp
 
 import (
 	"context"
+	"github.com/gougoujiang/buildmax/internal/util"
 	"strings"
 	"testing"
 
@@ -35,7 +36,7 @@ func toolNames(list []llm.Tool) map[string]bool {
 // registered only to answer "unavailable" costs a round trip and teaches the
 // model nothing — see docs/design/unified-artifacts.md section 7.1.
 func TestArtifactToolIsAbsentWithoutAPublisher(t *testing.T) {
-	names := toolNames(buildBaseTools(nil, t.TempDir(), stubTool{}, agent.NoopSandbox{}, nil, nil))
+	names := toolNames(buildBaseTools(nil, util.FixedRoot(t.TempDir()), stubTool{}, agent.NoopSandbox{}, nil, nil))
 	if names[tools.ToolNameUploadArtifact] {
 		t.Error("a session with no artifact service must not be offered the tool")
 	}
@@ -45,7 +46,7 @@ func TestArtifactToolIsAbsentWithoutAPublisher(t *testing.T) {
 }
 
 func TestArtifactToolIsPresentWithAPublisher(t *testing.T) {
-	names := toolNames(buildBaseTools(nil, t.TempDir(), stubTool{}, agent.NoopSandbox{}, stubPublisher{}, nil))
+	names := toolNames(buildBaseTools(nil, util.FixedRoot(t.TempDir()), stubTool{}, agent.NoopSandbox{}, stubPublisher{}, nil))
 	if !names[tools.ToolNameUploadArtifact] {
 		t.Error("a session with an artifact service must be offered the tool")
 	}

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"github.com/gougoujiang/buildmax/internal/util"
 	"strings"
 	"testing"
 
@@ -59,7 +60,7 @@ func rewindModel(t *testing.T) (*Model, *agentapp.SessionContext) {
 	appendMsg(llm.Message{Role: "user", Content: "thanks"})
 	appendMsg(llm.Message{Role: "assistant", Content: "you are welcome"})
 
-	model := NewModel(TUIOpts{Session: sess, Workspace: t.TempDir(), SessionsDir: sessionsDir})
+	model := NewModel(TUIOpts{Session: sess, Workspace: util.FixedRoot(t.TempDir()), SessionsDir: sessionsDir})
 	sized, _ := model.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	return sized.(*Model), sess
 }
@@ -195,7 +196,7 @@ func TestSlashRewindKeepsADraftTheUserAlreadyTyped(t *testing.T) {
 }
 
 func TestSlashRewindWithNoSessionSaysSo(t *testing.T) {
-	model := NewModel(TUIOpts{Workspace: t.TempDir(), SessionsDir: t.TempDir()})
+	model := NewModel(TUIOpts{Workspace: util.FixedRoot(t.TempDir()), SessionsDir: t.TempDir()})
 	sized, _ := model.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	m := sized.(*Model)
 	m.inputBlock.SetValue("/rewind")

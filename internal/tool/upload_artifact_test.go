@@ -3,6 +3,7 @@ package tool
 import (
 	"context"
 	"errors"
+	"github.com/gougoujiang/buildmax/internal/util"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -28,7 +29,7 @@ func newUploadFixture(t *testing.T) (string, *fakePublisher, *UploadArtifact) {
 	t.Helper()
 	root := t.TempDir()
 	pub := &fakePublisher{res: PublishedArtifact{ArtifactID: "ar_1", Filename: "report.md", SizeBytes: 5, URL: "https://bm.example/api/artifacts/ar_1"}}
-	return root, pub, NewUploadArtifact(root, pub)
+	return root, pub, NewUploadArtifact(util.FixedRoot(root), pub)
 }
 
 func writeFile(t *testing.T, path, content string) {

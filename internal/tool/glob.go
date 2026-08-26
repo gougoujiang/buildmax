@@ -3,6 +3,7 @@ package tool
 import (
 	"context"
 	"errors"
+	"github.com/gougoujiang/buildmax/internal/util"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -22,8 +23,8 @@ type Glob struct {
 }
 
 // NewGlob creates a Glob tool that searches for files under the given workspace root.
-func NewGlob(workspaceRoot string) *Glob {
-	return &Glob{workspaceTool{root: workspaceRoot}}
+func NewGlob(ws util.Workspace) *Glob {
+	return &Glob{workspaceTool{ws: ws}}
 }
 
 // Name returns the tool name for the LLM.
@@ -119,7 +120,7 @@ func (g *Glob) Execute(ctx context.Context, args map[string]any) (string, error)
 func (g *Glob) resolveSearchDir(args map[string]any) (string, error) {
 	v, ok := args["path"]
 	if !ok || v == nil {
-		return g.root, nil
+		return g.root(), nil
 	}
 	s, ok := v.(string)
 	if !ok {
@@ -127,7 +128,7 @@ func (g *Glob) resolveSearchDir(args map[string]any) (string, error) {
 	}
 	s = strings.TrimSpace(s)
 	if s == "" {
-		return g.root, nil
+		return g.root(), nil
 	}
 	return g.resolveDirPath(s)
 }
