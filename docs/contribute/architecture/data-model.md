@@ -718,9 +718,9 @@ One execution attempt. This is the row quota and token accounting read.
 | `started_at` | `datetime(6)` | yes | |
 | `ended_at` | `datetime(6)` | yes | `NULL` while running |
 | `session_id` | `varchar(36)` | yes | UUID of this run's session file |
-| `worker_type` | `varchar(32)` | yes | Reserved; see below |
-| `k8s_job_name` | `varchar(128)` | yes | Reserved; see below |
-| `k8s_job_created_at` | `datetime(6)` | yes | Reserved; see below |
+| `worker_type` | `varchar(32)` | yes | `local_process` or `k8s_job`; see below for when it is written |
+| `k8s_job_name` | `varchar(128)` | yes | The Job that ran this run; `NULL` under the local runner |
+| `k8s_job_created_at` | `datetime(6)` | yes | When that Job was created; `NULL` under the local runner |
 | `prompt_tokens` | `bigint` | yes | Quota input |
 | `completion_tokens` | `bigint` | yes | Quota input |
 | `trace_path` | `varchar(512)` | yes | This run's durable trace inside run-global storage, e.g. `traces/<session>/rt_….jsonl`; `NULL` when none was written |
@@ -730,10 +730,11 @@ One execution attempt. This is the row quota and token accounting read.
 | `source_message_id` | `bigint unsigned` | yes | `conversation_message.id` this run was asked for in; `NULL` when no message asked for it |
 | `agent_revision` | `int` | yes | Which revision of `task.agent_id` this run was served; `NULL` for a run with no agent or one that never reached a worker |
 | `plugin_pins` | `text` | yes | JSON array of `{plugin_name, version, digest}`: the releases this run was given |
+| `last_seen_at` | `datetime(6)` | yes | When this run's worker last polled its own route; `NULL` until a worker claims the run |
 | `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 
 Indexes: PK `id`; index `cancel_requested_at`; index `created_by`; index
-`retry_of_task_run_id`; index `source_message_id`; index
+`last_seen_at`; index `retry_of_task_run_id`; index `source_message_id`; index
 `idx_task_run_task_created` on (`task_id`, `created_at`); unique `public_id`.
 
 `agent_revision` is not a reference to `agent_revision.id`: a revision is
@@ -777,9 +778,34 @@ run route, and `StaleRunReaper` finishes runs whose worker never confirms — th
 same backstop that closes abandoned ones. Both columns are written once; a
 second cancel does not overwrite who asked first.
 
-`worker_type`, `k8s_job_name`, and `k8s_job_created_at` have no writer in the
-current code — they round-trip through the store mapping and stay `NULL`. Do
-not build behavior on them without adding the write path first.
+`last_seen_at` is how the server tells a worker that died from one that is
+slow. It is written on `GET /api/worker/task-runs/{id}` and nowhere else: a
+worker polls that route every few seconds for the whole time its run is
+`RUNNING`, so the signal already existed and only had to be recorded. The
+streaming route deliberately does not stamp — it fires many times a second — and
+neither does the terminal `PATCH`, which would move the timestamp past the
+moment the work stopped. `StaleRunReaper` reads it to fail `RUNNING` runs that
+have gone silent, minutes after the fact rather than at `worker.run_timeout`.
+`NULL` is never reaped for silence: no signal was ever recorded, so there is
+nothing to have gone quiet.
+
+`worker_type`, `k8s_job_name`, and `k8s_job_created_at` are written by
+`Scheduler.dispatch` through `UpdateTaskRunWorkerInfo`, once the runner returns
+without error. When that happens differs by runner, and the difference matters
+before reading these columns:
+
+- **`k8s_job`** returns as soon as the Job is created, so all three are written
+  at dispatch and are readable for the whole run.
+- **`local_process`** blocks for the entire run, so `worker_type` is written
+  only after the worker exits, and only when it exits cleanly — a spawn or exit
+  failure takes the failure path, which records the error instead. The two
+  Kubernetes columns stay `NULL`.
+
+Nothing reads any of them yet. `k8s_job_name` is what a future sweep would use
+to ask Kubernetes why a worker disappeared — `OOMKilled` and `Evicted` are the
+same silence from the server's side — but that would cover the `k8s_job` runner
+only, which is why `last_seen_at` rather than Job status is what the stale-run
+reaper watches.
 
 `trace_path` is written by the worker on the terminal PATCH, on failure as well
 as success. It is stored rather than derived because the trace's file name is

@@ -127,6 +127,10 @@ func (s *spyTaskRunStore) TransitionTaskRun(_ context.Context, in coretask.Trans
 	return true, nil
 }
 
+func (s *spyTaskRunStore) MarkTaskRunSeen(_ context.Context, _ string, _ time.Time) error {
+	return nil
+}
+
 func (s *spyTaskRunStore) UpdateTaskRunWorkerInfo(_ context.Context, _ string, _ string, _ *string, _ *time.Time) error {
 	return nil
 }

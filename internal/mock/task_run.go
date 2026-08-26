@@ -169,6 +169,19 @@ func (m *MockTaskRunStore) UpdateTaskRunWorkerInfo(_ context.Context, taskRunID,
 	return nil
 }
 
+// MarkTaskRunSeen stamps an active run, matching the store's status guard so a
+// test cannot observe a terminal run's timestamp moving.
+func (m *MockTaskRunStore) MarkTaskRunSeen(_ context.Context, taskRunID string, seenAt time.Time) error {
+	for i := range m.Runs {
+		if m.Runs[i].ID != taskRunID || coretask.RunStatusTerminal(m.Runs[i].Status) {
+			continue
+		}
+		m.Runs[i].LastSeenAt = &seenAt
+		return nil
+	}
+	return nil
+}
+
 func (m *MockTaskRunStore) syncTaskFromRun(_ context.Context, taskRunID string) error {
 	for i := range m.Runs {
 		if m.Runs[i].ID != taskRunID {

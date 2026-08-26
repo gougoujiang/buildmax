@@ -163,8 +163,16 @@ type Run struct {
 	// without it, nobody can tell a constraint the model dropped from one the
 	// user never gave. Nil for a run with no message behind it — a workflow
 	// step, an issue agent run, a retry, or a task created straight from the API.
-	SourceMessageID *string   `json:"source_message_id,omitempty"`
-	CreatedAt       time.Time `json:"created_at"`
+	SourceMessageID *string `json:"source_message_id,omitempty"`
+	// LastSeenAt is when this run's worker last called a route scoped to it.
+	//
+	// A worker polls its own run every few seconds for the whole time it is
+	// RUNNING, so a run that stops reporting has lost its worker. Recording the
+	// poll it already makes is what turns that into an observation: without it
+	// a SIGKILLed worker is indistinguishable from a slow one until the run
+	// timeout, hours later. Nil for a run no worker has claimed yet.
+	LastSeenAt *time.Time `json:"last_seen_at,omitempty"`
+	CreatedAt  time.Time  `json:"created_at"`
 }
 
 // RunTerminalInfo describes a task run that reached a terminal state.
@@ -303,6 +311,10 @@ type RunStore interface {
 	// transaction. A false result means another actor won the transition.
 	TransitionTaskRun(ctx context.Context, in TransitionRunInput) (bool, error)
 	UpdateTaskRunWorkerInfo(ctx context.Context, taskRunID, workerType string, k8sJobName *string, k8sJobCreatedAt *time.Time) error
+	// MarkTaskRunSeen records that this run's worker is still reporting. It
+	// writes only while the run is active, so a terminal run's last signal
+	// stays the one it gave while it was working.
+	MarkTaskRunSeen(ctx context.Context, taskRunID string, seenAt time.Time) error
 	// RecordTaskRunAgentRevision stores which agent definition a run was given.
 	// The first write wins: a run executes under the instructions it was handed
 	// at dispatch, and a later edit does not retroactively change what ran.
