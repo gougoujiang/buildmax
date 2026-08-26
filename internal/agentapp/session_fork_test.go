@@ -15,7 +15,7 @@ func TestForkCopiesTheHistoryThroughTheChosenMessage(t *testing.T) {
 	m, parent := openManaged(t)
 	seedTurns(t, parent)
 
-	points := RewindPoints(parent)
+	points := ForkPoints(parent)
 	through := points[1] // the assistant "ok"
 
 	child, err := m.Fork(parent, through.ItemID, "test-model")
@@ -49,7 +49,7 @@ func TestForkedChildSurvivesTheParentBeingDeleted(t *testing.T) {
 	seedTurns(t, parent)
 	parentID := parent.ID()
 
-	child, err := m.Fork(parent, RewindPoints(parent)[1].ItemID, "test-model")
+	child, err := m.Fork(parent, ForkPoints(parent)[1].ItemID, "test-model")
 	if err != nil {
 		t.Fatalf("Fork: %v", err)
 	}
@@ -81,14 +81,14 @@ func TestForkTakesTheBranchNotThePhysicalPrefix(t *testing.T) {
 
 	// Rewind, then continue: the parent now holds records that its own branch
 	// does not reach.
-	if _, err := parent.Rewind(RewindPoints(parent)[1].ItemID); err != nil {
+	if _, err := parent.Rewind(RewindPoints(parent)[0].ItemID); err != nil {
 		t.Fatalf("Rewind: %v", err)
 	}
 	if err := parent.Append(llm.Message{Role: "user", Content: "the kept path"}); err != nil {
 		t.Fatalf("Append: %v", err)
 	}
 
-	child, err := m.Fork(parent, RewindPoints(parent)[2].ItemID, "test-model")
+	child, err := m.Fork(parent, ForkPoints(parent)[2].ItemID, "test-model")
 	if err != nil {
 		t.Fatalf("Fork: %v", err)
 	}
@@ -109,7 +109,7 @@ func TestForkedChildStartsItsOwnUsageAndTraces(t *testing.T) {
 	seedTurns(t, parent)
 	parent.AddUsage(session.MetaUpdate{AddPromptTokens: 500, AddCompletionTokens: 100})
 
-	child, err := m.Fork(parent, RewindPoints(parent)[1].ItemID, "test-model")
+	child, err := m.Fork(parent, ForkPoints(parent)[1].ItemID, "test-model")
 	if err != nil {
 		t.Fatalf("Fork: %v", err)
 	}
@@ -134,7 +134,7 @@ func TestForkCarriesTitleAndWorkspace(t *testing.T) {
 		t.Fatalf("Append: %v", err)
 	}
 
-	child, err := m.Fork(parent, RewindPoints(parent)[0].ItemID, "test-model")
+	child, err := m.Fork(parent, ForkPoints(parent)[0].ItemID, "test-model")
 	if err != nil {
 		t.Fatalf("Fork: %v", err)
 	}
@@ -154,7 +154,7 @@ func TestForkWritesAJournalTheLoaderAccepts(t *testing.T) {
 	m, parent := openManaged(t)
 	seedTurns(t, parent)
 
-	points := RewindPoints(parent)
+	points := ForkPoints(parent)
 	child, err := m.Fork(parent, points[len(points)-1].ItemID, "test-model")
 	if err != nil {
 		t.Fatalf("Fork: %v", err)
@@ -218,7 +218,7 @@ func TestForkedChildIsIndependentlyWritable(t *testing.T) {
 	m, parent := openManaged(t)
 	seedTurns(t, parent)
 
-	child, err := m.Fork(parent, RewindPoints(parent)[1].ItemID, "test-model")
+	child, err := m.Fork(parent, ForkPoints(parent)[1].ItemID, "test-model")
 	if err != nil {
 		t.Fatalf("Fork: %v", err)
 	}
@@ -243,7 +243,7 @@ func TestForkedChildIsListedAsItsOwnSession(t *testing.T) {
 	m, parent := openManaged(t)
 	seedTurns(t, parent)
 
-	child, err := m.Fork(parent, RewindPoints(parent)[1].ItemID, "test-model")
+	child, err := m.Fork(parent, ForkPoints(parent)[1].ItemID, "test-model")
 	if err != nil {
 		t.Fatalf("Fork: %v", err)
 	}
@@ -280,12 +280,12 @@ func TestHistoryPointsSkipAMessageThatAskedForTools(t *testing.T) {
 	// Anthropic adapter prunes the unanswered half; the OpenAI and Ollama ones
 	// send it and the provider refuses the request, so it is not somewhere a
 	// session may be left standing.
-	for _, p := range RewindPoints(sess) {
+	for _, p := range ForkPoints(sess) {
 		if p.Role == "assistant" && p.Content == "" {
 			t.Fatalf("the picker offered a mid-turn message: %+v", p)
 		}
 	}
-	if got := len(RewindPoints(sess)); got != 3 {
+	if got := len(ForkPoints(sess)); got != 3 {
 		t.Fatalf("points = %d, want the three messages that end where a turn ended", got)
 	}
 }

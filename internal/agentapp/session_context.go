@@ -339,19 +339,54 @@ func (s *SessionContext) SetWorkspace(dir string) {
 	s.meta.UpdatedAt = time.Now().UTC()
 }
 
-// AbandonedBy reports what rewinding to targetID would leave in place, without
-// doing it.
+// AbandonedBy reports what happened after targetID, without changing anything.
 //
 // It exists so a surface can show the consequence before the user commits to
-// it. Rewind returns the same answer, but only after the fact — and a choice
-// made without knowing what it leaves behind is the thing §8.1 says rewind must
-// not hide.
+// it. A fork asks it directly: the span it names is what the copy will not
+// know about. A rewind asks RewindPreview instead, because the message it is
+// about to take back belongs to the span it removes.
 func (s *SessionContext) AbandonedBy(targetID string) (session.AbandonedWork, error) {
 	return session.Abandoned(s.items, s.head, targetID)
 }
 
-// Rewind moves the conversation back to targetID and reports what it left in
-// place.
+// RewindPreview reports what rewinding messageID would remove, without doing
+// it.
+//
+// A choice made without knowing what it leaves behind is the thing §8.1 says
+// rewind must not hide, so this answers the same question Rewind does, before
+// the user commits to it rather than after.
+func (s *SessionContext) RewindPreview(messageID string) (session.AbandonedWork, error) {
+	landing, err := session.RewindLanding(s.items, s.head, messageID)
+	if err != nil {
+		return session.AbandonedWork{}, err
+	}
+	return session.Abandoned(s.items, s.head, landing)
+}
+
+// RewindOutcome is everything a surface needs after a rewind: what the move
+// left in place, and what it has to hand back.
+type RewindOutcome struct {
+	// Abandoned is the work the conversation no longer mentions and the world
+	// still has. It counts the rewound message itself, which left the branch
+	// with everything after it.
+	Abandoned session.AbandonedWork
+	// Prompt is the text of the rewound message, for the surface to put back
+	// in its input box. Taking a prompt away without returning it would make
+	// rewind destructive of the one thing the user meant to keep.
+	Prompt string
+	// Attachments counts images the rewound message carried. Only the text
+	// comes back, so a surface that showed the prompt returning has to say
+	// these did not.
+	Attachments int
+}
+
+// Rewind removes messageID and everything after it, and reports what it left
+// in place.
+//
+// It is exclusive: the message a person picks is the prompt they want to edit
+// and send again, so it leaves the branch rather than staying at the end of it,
+// and comes back in the outcome. session.RewindLanding decides which record the
+// head then names.
 //
 // The report is not optional decoration. Rewind returns the model's history to
 // an earlier point and does not touch files, processes, or anything a network
@@ -362,23 +397,42 @@ func (s *SessionContext) AbandonedBy(targetID string) (session.AbandonedWork, er
 //
 // The report is computed before the append, because afterwards the branch it
 // describes is no longer the live one.
-func (s *SessionContext) Rewind(targetID string) (session.AbandonedWork, error) {
+func (s *SessionContext) Rewind(messageID string) (RewindOutcome, error) {
 	if s.writer == nil {
-		return session.AbandonedWork{}, fmt.Errorf("rewind: session is not persisted")
+		return RewindOutcome{}, fmt.Errorf("rewind: session is not persisted")
 	}
-	abandoned, err := session.Abandoned(s.items, s.head, targetID)
+	landing, err := session.RewindLanding(s.items, s.head, messageID)
 	if err != nil {
-		return session.AbandonedWork{}, err
+		return RewindOutcome{}, err
 	}
-	// The head_selected record chains to the target, which is what redirects
-	// the branch; the head stays "the last physical record" either way.
-	if err := s.commitTo(targetID, session.HeadSelected{Reason: "user_rewind"}); err != nil {
-		return session.AbandonedWork{}, err
+	abandoned, err := session.Abandoned(s.items, s.head, landing)
+	if err != nil {
+		return RewindOutcome{}, err
+	}
+	out := RewindOutcome{Abandoned: abandoned}
+	if msg, ok := s.messageAt(messageID); ok {
+		out.Prompt, out.Attachments = msg.Content, len(msg.Images())
+	}
+	// The head_selected record chains to the landing record, which is what
+	// redirects the branch; the head stays "the last physical record" either
+	// way.
+	if err := s.commitTo(landing, session.HeadSelected{Reason: "user_rewind"}); err != nil {
+		return RewindOutcome{}, err
 	}
 	if err := s.reduceFromHead(); err != nil {
-		return session.AbandonedWork{}, err
+		return RewindOutcome{}, err
 	}
-	return abandoned, nil
+	return out, nil
+}
+
+// messageAt finds the branch message a journal item id names.
+func (s *SessionContext) messageAt(itemID string) (llm.Message, bool) {
+	for i, id := range s.messageIDs {
+		if id == itemID && i < len(s.state.Messages) {
+			return s.state.Messages[i], true
+		}
+	}
+	return llm.Message{}, false
 }
 
 // adoptPrefix writes a forked prefix into a freshly created session and brings

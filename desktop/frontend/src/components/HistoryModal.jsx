@@ -5,23 +5,20 @@ import { InfoModal } from './Modals';
  * HistoryModal is the picker behind rewind and fork.
  *
  * Both ask the same question — which message in this conversation — and differ
- * only in what they do with the answer, so one list serves both and a tab
- * chooses the reading. The Go side reports the affected span once per point;
- * everything below turns that one number into two different sentences.
+ * only in what they do with the answer, so one modal serves both and a tab
+ * chooses the reading. The lists are not the same list, and the Go side decides
+ * which messages each operation may be pointed at: which of them can be handed
+ * back or branched from is a rule about the journal, not a presentation choice.
+ * It reports the affected span once per point; everything below turns that one
+ * number into two different sentences.
  */
 
 export const REWIND = 'rewind';
 export const FORK = 'fork';
 
-/**
- * visiblePoints drops the head for rewind and keeps it for fork.
- *
- * Rewinding to where you already are is not a move. Forking from there is the
- * common case — branch off from here — so the two lists are not the same list.
- */
+/** visiblePoints is the list for one tab, as the Go side computed it. */
 export function visiblePoints(points, mode) {
-  const all = points ?? [];
-  return mode === FORK ? all : all.filter((p) => !p.is_head);
+  return (mode === FORK ? points?.fork : points?.rewind) ?? [];
 }
 
 export function toolNames(point) {
@@ -42,10 +39,11 @@ export function pointLabel(point) {
 /**
  * consequenceText is the one-line answer to "what does choosing this do".
  *
- * The same span means opposite things. A rewind drops those messages from this
- * conversation and leaves the tools' effects behind; a fork drops nothing — the
- * original keeps all of it — but the copy starts without knowing that work
- * happened. Saying "drops" about a fork would be false.
+ * The same span means opposite things. A rewind removes the chosen prompt and
+ * everything after it, hands the prompt back, and leaves the tools' effects
+ * behind; a fork removes nothing — the original keeps all of it — but the copy
+ * starts without knowing that work happened. Saying "removes" about a fork
+ * would be false.
  */
 export function consequenceText(point, mode) {
   if (!point) return '';
@@ -55,8 +53,9 @@ export function consequenceText(point, mode) {
     return `new session starts here · will not know about: ${tools}`;
   }
   const plural = point.messages === 1 ? 'message' : 'messages';
-  if (!tools) return `drops ${point.messages} ${plural} · nothing outside the conversation ran`;
-  return `drops ${point.messages} ${plural} · leaves in place: ${tools}`;
+  const removes = `prompt comes back · removes ${point.messages} ${plural}`;
+  if (!tools) return `${removes} · nothing outside the conversation ran`;
+  return `${removes} · leaves in place: ${tools}`;
 }
 
 /**
@@ -67,17 +66,33 @@ export function consequenceText(point, mode) {
  * Fork gives the other half of the same fact: the original lost nothing, and
  * the new session's history does not mention work that nonetheless happened.
  */
-export function moveReport(result, mode) {
+export function moveReport(result, mode, restored = false) {
   const tools = toolNames(result ?? {});
   if (mode === FORK) {
     if (!tools) return 'The original session is unchanged, and nothing outside the conversation ran after this point.';
     return `The original session is unchanged. These ran after the fork point, so their effects are on disk but the new session's history does not mention them: ${tools}`;
   }
-  if (!tools) return 'Nothing outside the conversation ran in the part that was rewound, so there is nothing left over.';
-  return `These ran before the rewind and their effects are still in place: ${tools}. Rewinding moves the conversation. It does not undo files, commands, or network calls.`;
+  const left = tools
+    ? `These ran before the rewind and their effects are still in place: ${tools}. Rewinding moves the conversation. It does not undo files, commands, or network calls.`
+    : 'Nothing outside the conversation ran in the part that was rewound, so there is nothing left over.';
+  return `${left}${promptNote(result ?? {}, restored)}`;
 }
 
-export function HistoryModal({ projectID, sessionID, app, onRewound, onForked, onClose }) {
+/**
+ * promptNote accounts for the prompt, because the user is looking at a composer
+ * and whether what is in it is theirs or the message just taken back is not
+ * something to leave them guessing. Only the text comes back, so images the
+ * message carried have to be named as not having.
+ */
+function promptNote(result, restored) {
+  if (!result.prompt) return '';
+  if (!restored) return ' The composer already held a draft, so the rewound prompt was left out of it.';
+  const images = result.attachments ?? 0;
+  if (!images) return ' The prompt is back in the composer.';
+  return ` The prompt is back in the composer. Its ${images === 1 ? '1 image' : `${images} images`} did not come back.`;
+}
+
+export function HistoryModal({ projectID, sessionID, app, draft, onRewound, onForked, onClose }) {
   const [mode, setMode] = useState(REWIND);
   const [points, setPoints] = useState(null);
   const [selected, setSelected] = useState(null);
@@ -86,7 +101,7 @@ export function HistoryModal({ projectID, sessionID, app, onRewound, onForked, o
 
   const load = useCallback(() => {
     app.GetHistoryPoints(sessionID)
-      .then((res) => { setPoints(res?.points ?? []); setError(null); })
+      .then((res) => { setPoints(res ?? {}); setError(null); })
       .catch((err) => setError(err?.message ?? String(err)));
   }, [app, sessionID]);
 
@@ -107,7 +122,11 @@ export function HistoryModal({ projectID, sessionID, app, onRewound, onForked, o
         onForked(res.session_id, moveReport(res, FORK));
       } else {
         const res = await app.RewindSession(projectID, sessionID, current.item_id);
-        onRewound(moveReport(res, REWIND));
+        // A draft the user has already typed wins: rewinding is deliberate but
+        // the draft is newer, and no branch holds it — the rewound prompt is at
+        // least still in the journal.
+        const restore = Boolean(res.prompt) && !draft?.trim();
+        onRewound(moveReport(res, REWIND, restore), restore ? res.prompt : '');
       }
       onClose();
     } catch (err) {
@@ -124,7 +143,7 @@ export function HistoryModal({ projectID, sessionID, app, onRewound, onForked, o
     <InfoModal title="History" onClose={onClose}>
       <div className="history-modal__tabs" role="tablist" aria-label="What to do with the chosen message">
         {[
-          [REWIND, 'Rewind', 'Move this conversation back'],
+          [REWIND, 'Rewind', 'Take a prompt back to send again'],
           [FORK, 'Fork', 'Start a new session from here'],
         ].map(([value, label, hint]) => (
           <button
@@ -146,7 +165,7 @@ export function HistoryModal({ projectID, sessionID, app, onRewound, onForked, o
       {!points && <p className="info-modal__muted">Loading…</p>}
       {points && rows.length === 0 && (
         <p className="info-modal__muted">
-          {mode === FORK ? 'Nothing to fork from yet.' : 'Nothing to rewind to yet.'}
+          {mode === FORK ? 'Nothing to fork from yet.' : 'No prompt to take back yet.'}
         </p>
       )}
 
@@ -182,7 +201,7 @@ export function HistoryModal({ projectID, sessionID, app, onRewound, onForked, o
           onClick={act}
           disabled={!current || busy}
         >
-          {mode === FORK ? 'Fork here' : 'Rewind here'}
+          {mode === FORK ? 'Fork here' : 'Take this prompt back'}
         </button>
       </div>
     </InfoModal>

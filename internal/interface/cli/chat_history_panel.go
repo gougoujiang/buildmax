@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -13,8 +14,10 @@ import (
 
 // The history-point panel backs both /rewind and /fork. Both ask the same
 // question — which message in this conversation — and differ only in what they
-// do with the answer, so the list, the navigation, and the consequence line are
-// shared and the two modes supply the rest.
+// do with the answer, so the navigation and the frame are shared and the two
+// modes supply the rest. The lists themselves are not the same list: a rewind
+// takes a prompt back, so it offers the prompts, while a fork branches from a
+// point, so it offers every message a turn ended on.
 const (
 	slashHistoryPanelChromeLines           = 9
 	slashHistoryInlinePanelMaxContentLines = 14
@@ -23,7 +26,8 @@ const (
 type historyPointMode int
 
 const (
-	// modeRewind moves this conversation back to the chosen message.
+	// modeRewind removes the chosen prompt and everything after it, and hands
+	// the prompt back to be edited and sent again.
 	modeRewind historyPointMode = iota
 	// modeFork copies the history up to the chosen message into a new session
 	// and leaves this one untouched.
@@ -36,7 +40,7 @@ type slashHistoryPointState struct {
 	Empty     bool
 	// Points are the messages this session offers, most recent first — working
 	// near the end of a conversation is far more common than near its start.
-	Points   []agentapp.RewindPoint
+	Points   []agentapp.HistoryPoint
 	Selected int
 	Offset   int
 
@@ -60,12 +64,9 @@ func openHistoryPanel(m *Model, mode historyPointMode) (tea.Model, tea.Cmd) {
 		m.slashHistory = st
 		return m.openPanel(st)
 	}
-	points := agentapp.RewindPoints(m.opts.Session)
-	if mode == modeRewind && len(points) > 0 {
-		// Rewinding to the current head is not a move, so it is not offered.
-		// Forking from it is: "branch off from where we are" is the common
-		// case, not a no-op.
-		points = points[:len(points)-1]
+	points := agentapp.ForkPoints(m.opts.Session)
+	if mode == modeRewind {
+		points = agentapp.RewindPoints(m.opts.Session)
 	}
 	reversePoints(points)
 	if len(points) == 0 {
@@ -78,7 +79,7 @@ func openHistoryPanel(m *Model, mode historyPointMode) (tea.Model, tea.Cmd) {
 	return m.openPanel(st)
 }
 
-func reversePoints(points []agentapp.RewindPoint) {
+func reversePoints(points []agentapp.HistoryPoint) {
 	for i, j := 0, len(points)-1; i < j; i, j = i+1, j-1 {
 		points[i], points[j] = points[j], points[i]
 	}
@@ -90,11 +91,17 @@ func (p *slashHistoryPointState) refreshAffected(m *Model) {
 	if len(p.Points) == 0 || m.opts.Session == nil {
 		return
 	}
-	got, err := m.opts.Session.AbandonedBy(p.Points[p.Selected].ItemID)
+	target := p.Points[p.Selected].ItemID
+	got, err := m.opts.Session.AbandonedBy(target)
+	if p.Mode == modeRewind {
+		// A rewind removes the chosen prompt too, so it asks about the span
+		// starting at that message rather than the one after it.
+		got, err = m.opts.Session.RewindPreview(target)
+	}
 	if err != nil {
-		// The newest point has nothing after it, which is a legitimate fork
-		// target rather than a failure worth reporting.
-		if p.Mode == modeFork && p.Selected == 0 {
+		// A point with nothing after it is a legitimate fork target — branch
+		// off from here — rather than a failure worth reporting.
+		if p.Mode == modeFork && errors.Is(err, session.ErrAlreadyHead) {
 			return
 		}
 		p.affectedErr = err.Error()
@@ -140,7 +147,7 @@ func (p *slashHistoryPointState) HandleKey(m *Model, msg tea.KeyPressMsg) (bool,
 	return false, nil
 }
 
-// confirmSlashRewind moves the conversation and reports what it left behind.
+// confirmSlashRewind takes the prompt back and reports what it left behind.
 func confirmSlashRewind(m *Model) tea.Cmd {
 	p := m.slashHistory
 	if p == nil || len(p.Points) == 0 || m.opts.Session == nil {
@@ -148,21 +155,37 @@ func confirmSlashRewind(m *Model) tea.Cmd {
 		return cmd
 	}
 	target := p.Points[p.Selected]
-	abandoned, err := m.opts.Session.Rewind(target.ItemID)
+	outcome, err := m.opts.Session.Rewind(target.ItemID)
 	if err != nil {
 		p.LoadError = "rewind failed: " + err.Error()
 		return nil
 	}
+	restored := restorePrompt(m, outcome.Prompt)
 	_, closeCmd := m.closeActivePanel()
 	m.refreshRunStatus()
 	m.dropStaleSuggestion()
 	m.focusInput = true
 
-	banner := messageBarStyle.Render("─── Rewound to: " + historyPointLabel(target, 60) + " ───")
+	banner := messageBarStyle.Render("─── Rewound: " + historyPointLabel(target, 60) + " ───")
 	return tea.Sequence(
-		tea.Println(banner+"\n\n"+renderAbandoned(abandoned)),
+		tea.Println(banner+"\n\n"+renderRewound(outcome, restored)),
 		closeCmd,
 	)
+}
+
+// restorePrompt puts the rewound message back in the input box, and reports
+// whether it did.
+//
+// A draft the user has already typed wins. Rewinding is deliberate but the
+// draft is newer, and silently replacing it would lose work that no branch
+// holds — the rewound prompt is at least still in the journal.
+func restorePrompt(m *Model, prompt string) bool {
+	if prompt == "" || strings.TrimSpace(m.inputBlock.Value()) != "" {
+		return false
+	}
+	m.inputBlock.SetValue(prompt)
+	m.inputBlock.SyncHeight()
+	return true
 }
 
 // confirmSlashFork branches a new session off the chosen point and switches to
@@ -216,20 +239,38 @@ func (m *Model) refreshRunStatus() {
 	}
 }
 
-// renderAbandoned is what the user is told after a rewind.
+// renderRewound is what the user is told after a rewind.
 //
 // It names the tools whose effects are still in place, because the conversation
 // no longer mentions them and the workspace still contains them. Saying nothing
-// would leave the user believing a rewind undid the run.
-func renderAbandoned(a session.AbandonedWork) string {
-	if a.Undoable() {
-		return "Nothing outside the conversation ran in the part that was rewound, so there is nothing left over."
-	}
+// would leave the user believing a rewind undid the run. It also accounts for
+// the prompt: the user is looking at an input box, and whether what is in it is
+// theirs or the one just taken back is not something to leave them guessing.
+func renderRewound(o agentapp.RewindOutcome, restored bool) string {
 	var b strings.Builder
-	b.WriteString("These ran before the rewind and their effects are still in place:\n")
-	writeToolLines(&b, a)
-	b.WriteString("\nRewinding moves the conversation. It does not undo files, commands, or network calls.")
+	if o.Abandoned.Undoable() {
+		b.WriteString("Nothing outside the conversation ran in the part that was rewound, so there is nothing left over.")
+	} else {
+		b.WriteString("These ran before the rewind and their effects are still in place:\n")
+		writeToolLines(&b, o.Abandoned)
+		b.WriteString("\nRewinding moves the conversation. It does not undo files, commands, or network calls.")
+	}
+	switch {
+	case restored && o.Attachments > 0:
+		fmt.Fprintf(&b, "\n\nThe prompt is back in the input box. Its %s did not come back.", plural(o.Attachments, "image", "images"))
+	case restored:
+		b.WriteString("\n\nThe prompt is back in the input box.")
+	case o.Prompt != "":
+		b.WriteString("\n\nThe input box already held a draft, so the rewound prompt was left out of it.")
+	}
 	return b.String()
+}
+
+func plural(n int, one, many string) string {
+	if n == 1 {
+		return fmt.Sprintf("%d %s", n, one)
+	}
+	return fmt.Sprintf("%d %s", n, many)
 }
 
 // renderForked is what the user is told after a fork.
@@ -282,7 +323,7 @@ func (p *slashHistoryPointState) Render(m *Model, maxLineWidth int) string {
 		if p.Mode == modeFork {
 			b.WriteString("Nothing to fork from yet.")
 		} else {
-			b.WriteString("Nothing to rewind to yet.")
+			b.WriteString("No prompt to take back yet.")
 		}
 		return b.String() + "\n\nesc: close"
 	}
@@ -315,10 +356,11 @@ func (p *slashHistoryPointState) Render(m *Model, maxLineWidth int) string {
 
 // consequenceLine is the one-line answer to "what does choosing this do".
 //
-// The two modes read the same computation differently. A rewind drops those
-// messages from this conversation and leaves the tools' effects behind; a fork
-// drops nothing — the parent keeps everything — but the new session starts
-// without the knowledge of work that nonetheless happened.
+// The two modes read the same computation differently. A rewind removes the
+// chosen prompt and everything after it, hands the prompt back, and leaves the
+// tools' effects behind; a fork removes nothing — the parent keeps everything —
+// but the new session starts without the knowledge of work that nonetheless
+// happened.
 func consequenceLine(p *slashHistoryPointState) string {
 	if p.affectedErr != "" {
 		return "could not check what this would affect: " + p.affectedErr
@@ -334,9 +376,9 @@ func consequenceLine(p *slashHistoryPointState) string {
 		return fmt.Sprintf("new session starts here · will not know about: %s", toolNames(p.affected))
 	}
 	if p.affected.Undoable() {
-		return fmt.Sprintf("drops %d %s · nothing outside the conversation ran", p.affected.Messages, msgs)
+		return fmt.Sprintf("prompt comes back · removes %d %s · nothing outside the conversation ran", p.affected.Messages, msgs)
 	}
-	return fmt.Sprintf("drops %d %s · leaves in place: %s", p.affected.Messages, msgs, toolNames(p.affected))
+	return fmt.Sprintf("prompt comes back · removes %d %s · leaves in place: %s", p.affected.Messages, msgs, toolNames(p.affected))
 }
 
 func toolNames(a session.AbandonedWork) string {
@@ -356,7 +398,7 @@ func toolNames(a session.AbandonedWork) string {
 
 // historyPointLabel is one row: who spoke, and enough of what they said to
 // recognise the moment.
-func historyPointLabel(p agentapp.RewindPoint, width int) string {
+func historyPointLabel(p agentapp.HistoryPoint, width int) string {
 	who := "you"
 	switch {
 	case p.Role == "assistant":
