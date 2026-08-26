@@ -718,9 +718,9 @@ One execution attempt. This is the row quota and token accounting read.
 | `started_at` | `datetime(6)` | yes | |
 | `ended_at` | `datetime(6)` | yes | `NULL` while running |
 | `session_id` | `varchar(36)` | yes | UUID of this run's session file |
-| `worker_type` | `varchar(32)` | yes | Reserved; see below |
-| `k8s_job_name` | `varchar(128)` | yes | Reserved; see below |
-| `k8s_job_created_at` | `datetime(6)` | yes | Reserved; see below |
+| `worker_type` | `varchar(32)` | yes | `local_process` or `k8s_job`; see below for when it is written |
+| `k8s_job_name` | `varchar(128)` | yes | The Job that ran this run; `NULL` under the local runner |
+| `k8s_job_created_at` | `datetime(6)` | yes | When that Job was created; `NULL` under the local runner |
 | `prompt_tokens` | `bigint` | yes | Quota input |
 | `completion_tokens` | `bigint` | yes | Quota input |
 | `trace_path` | `varchar(512)` | yes | This run's durable trace inside run-global storage, e.g. `traces/<session>/rt_….jsonl`; `NULL` when none was written |
@@ -789,9 +789,23 @@ have gone silent, minutes after the fact rather than at `worker.run_timeout`.
 `NULL` is never reaped for silence: no signal was ever recorded, so there is
 nothing to have gone quiet.
 
-`worker_type`, `k8s_job_name`, and `k8s_job_created_at` have no writer in the
-current code — they round-trip through the store mapping and stay `NULL`. Do
-not build behavior on them without adding the write path first.
+`worker_type`, `k8s_job_name`, and `k8s_job_created_at` are written by
+`Scheduler.dispatch` through `UpdateTaskRunWorkerInfo`, once the runner returns
+without error. When that happens differs by runner, and the difference matters
+before reading these columns:
+
+- **`k8s_job`** returns as soon as the Job is created, so all three are written
+  at dispatch and are readable for the whole run.
+- **`local_process`** blocks for the entire run, so `worker_type` is written
+  only after the worker exits, and only when it exits cleanly — a spawn or exit
+  failure takes the failure path, which records the error instead. The two
+  Kubernetes columns stay `NULL`.
+
+Nothing reads any of them yet. `k8s_job_name` is what a future sweep would use
+to ask Kubernetes why a worker disappeared — `OOMKilled` and `Evicted` are the
+same silence from the server's side — but that would cover the `k8s_job` runner
+only, which is why `last_seen_at` rather than Job status is what the stale-run
+reaper watches.
 
 `trace_path` is written by the worker on the terminal PATCH, on failure as well
 as success. It is stored rather than derived because the trace's file name is
