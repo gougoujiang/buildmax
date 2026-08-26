@@ -61,7 +61,7 @@ aligned with code and link user-facing behavior to `guide/` or `reference/`.
 
 | Document | Current state | User docs |
 |---|---|---|
-| [Client modes: local and managed](client-modes.md) | Implemented: the mode is whether `auth.json` exists, models come from one source, the alias layer and per-team model policy are gone, and the call ledger is user-scoped | [guide/models-and-modes.md](../guide/models-and-modes.md) |
+| [Client modes: local and managed](client-modes.md) | Implemented: the mode is whether a login is stored, models come from one source, the alias layer and per-team model policy are gone, and the call ledger is user-scoped | [guide/models-and-modes.md](../guide/models-and-modes.md) |
 | [Hook system](hook-system.md) | 13 events and 4 transports implemented | [guide/hooks.md](../guide/hooks.md) |
 | [Sandbox boundaries](sandbox-boundaries.md) | Local phases A–E implemented; worker hardening open | [guide/sandbox.md](../guide/sandbox.md) |
 | [Durable run trace](durable-run-trace.md) | Phase 1 implemented; richer events and retention open | [guide/sessions-and-traces.md](../guide/sessions-and-traces.md) |
