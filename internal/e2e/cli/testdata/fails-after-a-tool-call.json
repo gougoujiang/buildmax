@@ -1,0 +1,11 @@
+{
+  "name": "one turn that reads a file, then a provider that refuses",
+  "steps": [
+    {
+      "text": "reading it",
+      "tool_calls": [ { "name": "Read", "args": { "file_path": "alpha.txt" } } ],
+      "usage": { "prompt_tokens": 150, "completion_tokens": 12 }
+    },
+    { "status": 401, "error": "invalid api key" }
+  ]
+}
