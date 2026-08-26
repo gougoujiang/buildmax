@@ -18,9 +18,8 @@ import (
 func yamlUnmarshal(data []byte, out *map[string]any) error { return yaml.Unmarshal(data, out) }
 func yamlMarshal(v any) ([]byte, error)                    { return yaml.Marshal(v) }
 
-// newSandboxCommand builds `buildmax sandbox` with its subcommands. Phase A
-// ships `status` only; later phases add `deps`, `mode`, `enable`, `disable`,
-// and `overrides`. See docs/design/sandbox-boundaries.md §8.
+// newSandboxCommand builds the persistent sandbox-management commands. See
+// docs/design/sandbox-boundaries.md §8.
 func newSandboxCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "sandbox",

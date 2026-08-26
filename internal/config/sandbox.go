@@ -22,7 +22,7 @@ func PolicyPath() string {
 // configuration directly. Detail design lives in
 // docs/design/sandbox-boundaries.md.
 //
-// Phase A only loads and resolves these values — nothing enforces them yet.
+// The enforced subset and remaining gaps are tracked in that design record.
 type SandboxConfig struct {
 	// Enabled is the master switch.
 	Enabled bool `mapstructure:"enabled" json:"enabled,omitempty" yaml:"enabled,omitempty"`
@@ -63,6 +63,16 @@ type SandboxConfig struct {
 	// com.apple.trustd.agent so Go-based CLIs can verify TLS through a
 	// MITM proxy. Documented as weaker.
 	EnableWeakerNetworkIsolation bool `mapstructure:"enable_weaker_network_isolation" json:"enable_weaker_network_isolation,omitempty" yaml:"enable_weaker_network_isolation,omitempty"`
+}
+
+// SandboxRunOverride is the deliberately narrow per-run sandbox surface.
+// A run may require the sandbox and choose its approval mode, but it cannot
+// disable the sandbox or alter confinement boundaries. Requiring it also
+// fails closed when the backend is unavailable. Operator policy is applied
+// after this layer and remains authoritative.
+type SandboxRunOverride struct {
+	Enable                   bool
+	AutoAllowBashIfSandboxed *bool
 }
 
 // SandboxFSConfig mirrors Claude Code's sandbox.filesystem schema. Paths
@@ -157,7 +167,7 @@ type SandboxResolution struct {
 	Config SandboxConfig
 
 	// Sources lists every layer that contributed a non-default value, in
-	// resolution order: "default", "settings", "policy", "env".
+	// resolution order: "default", "settings", "env", "run", "policy".
 	Sources []string
 }
 
@@ -165,19 +175,27 @@ type SandboxResolution struct {
 // phases may add more.
 const EnvKeyBuildmaxSandboxEnabled = "BUILDMAX_SANDBOX_ENABLED"
 
-// ResolveSandbox merges settings + policy + env + surface defaults into a
-// final SandboxConfig. Mirrors the layering in docs/design/sandbox-boundaries.md §4.1.
+// ResolveSandbox merges settings + env + policy + surface defaults into a
+// final SandboxConfig. It is the no-run-override form used by surfaces that
+// do not expose per-run sandbox controls.
+func ResolveSandbox(global, policy SandboxConfig, surface SandboxSurface) SandboxResolution {
+	return ResolveSandboxForRun(global, SandboxRunOverride{}, policy, surface)
+}
+
+// ResolveSandboxForRun also applies a narrow per-run override. Mirrors the
+// layering in docs/design/sandbox-boundaries.md §4.1.
 //
 // Precedence (highest wins for scalars; arrays union):
-//  1. Env (BUILDMAX_SANDBOX_ENABLED).
-//  2. Policy file.
-//  3. Settings file.
-//  4. Surface default.
+//  1. Policy file.
+//  2. Per-run override.
+//  3. Env (BUILDMAX_SANDBOX_ENABLED).
+//  4. Settings file.
+//  5. Surface default.
 //
 // For the managed-only flags (AllowManagedDomainsOnly,
 // AllowManagedReadPathsOnly) set in policy.yaml, the corresponding allow
 // array in lower sources is suppressed. Deny arrays always union.
-func ResolveSandbox(global, policy SandboxConfig, surface SandboxSurface) SandboxResolution {
+func ResolveSandboxForRun(global SandboxConfig, run SandboxRunOverride, policy SandboxConfig, surface SandboxSurface) SandboxResolution {
 	base := defaultSandbox(surface)
 	res := SandboxResolution{Config: base, Sources: []string{"default:" + string(surface)}}
 
@@ -186,12 +204,8 @@ func ResolveSandbox(global, policy SandboxConfig, surface SandboxSurface) Sandbo
 		res.Config = mergeSandbox(res.Config, global, false)
 		res.Sources = append(res.Sources, "settings")
 	}
-	// Layer policy.yaml on top of settings.
-	if !sandboxEmpty(policy) {
-		res.Config = mergeSandbox(res.Config, policy, true)
-		res.Sources = append(res.Sources, "policy")
-	}
-	// Env override for Enabled.
+	// The process environment sits above user settings but below an explicit
+	// run request and operator policy.
 	if v, ok := os.LookupEnv(EnvKeyBuildmaxSandboxEnabled); ok {
 		switch strings.ToLower(strings.TrimSpace(v)) {
 		case "1", "true", "yes", "on":
@@ -201,6 +215,23 @@ func ResolveSandbox(global, policy SandboxConfig, surface SandboxSurface) Sandbo
 			res.Config.Enabled = false
 			res.Sources = append(res.Sources, "env:"+EnvKeyBuildmaxSandboxEnabled+"=false")
 		}
+	}
+	if run.Enable || run.AutoAllowBashIfSandboxed != nil {
+		if run.Enable {
+			res.Config.Enabled = true
+			res.Config.FailIfUnavailable = true
+		}
+		if run.AutoAllowBashIfSandboxed != nil {
+			v := *run.AutoAllowBashIfSandboxed
+			res.Config.AutoAllowBashIfSandboxed = &v
+		}
+		res.Sources = append(res.Sources, "run")
+	}
+	// Policy is final so neither an environment variable nor a command-line
+	// convenience can weaken an operator-controlled boundary.
+	if !sandboxEmpty(policy) {
+		res.Config = mergeSandbox(res.Config, policy, true)
+		res.Sources = append(res.Sources, "policy")
 	}
 	return res
 }

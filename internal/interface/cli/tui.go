@@ -7,6 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/gougoujiang/buildmax/internal/agentapp"
+	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/interface/auth"
@@ -26,7 +27,7 @@ func detectGlamourStyle() string {
 // tuiAppConfig is the runtime assembly for an interactive session. It is separate
 // from runTUI so the wiring can be asserted without starting Bubble Tea — the
 // workspace reaching it is exactly what was missing before.
-func tuiAppConfig(workspace, additionalSystemPrompt string, source auth.ModelSource) agentapp.AppConfig {
+func tuiAppConfig(workspace, additionalSystemPrompt string, source auth.ModelSource, sandboxRun config.SandboxRunOverride) agentapp.AppConfig {
 	return agentapp.AppConfig{
 		WorkspaceDir:           workspace,
 		EnableMCP:              true,
@@ -38,6 +39,7 @@ func tuiAppConfig(workspace, additionalSystemPrompt string, source auth.ModelSou
 		ArtifactPublisher:      auth.ArtifactPublisherForSession(),
 		Surface:                coregw.CallSurfaceCLI,
 		AdditionalSystemPrompt: additionalSystemPrompt,
+		SandboxRunOverride:     sandboxRun,
 		// Interactive TUI only: print mode has no host process to own a job
 		// and deliberately does not set this.
 		EnableBackgroundJobs: true,
@@ -48,12 +50,12 @@ func tuiAppConfig(workspace, additionalSystemPrompt string, source auth.ModelSou
 // the flags resolved to without launching an interactive program.
 var runTUIFunc = runTUI
 
-func runTUI(resumeID, modelName, additionalSystemPrompt, workspace string) error {
+func runTUI(resumeID, modelName, additionalSystemPrompt, workspace string, sandboxRun config.SandboxRunOverride) error {
 	source, err := resolveModelSource(context.Background())
 	if err != nil {
 		return err
 	}
-	app, err := agentapp.NewAgentApp(tuiAppConfig(workspace, additionalSystemPrompt, source))
+	app, err := agentapp.NewAgentApp(tuiAppConfig(workspace, additionalSystemPrompt, source, sandboxRun))
 	if err != nil {
 		return err
 	}
