@@ -127,7 +127,7 @@ func TestToolNamesDocumented(t *testing.T) {
 		tool.ToolNameRead, tool.ToolNameWrite, tool.ToolNameEdit,
 		tool.ToolNameGlob, tool.ToolNameGrep, tool.ToolNameBash,
 		tool.ToolNameWebFetch, tool.ToolNameTodoWrite,
-		tool.ToolNameSkill, tool.ToolNameTask,
+		tool.ToolNameSkill, tool.ToolNameTask, tool.ToolNameWorktree,
 		tool.ToolNameLoadMCPTools, tool.ToolNameCallMCPTool,
 	}
 	for _, name := range names {

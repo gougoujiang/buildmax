@@ -1,6 +1,6 @@
 # Workspace Root And Worktrees
 
-> **Audience:** contributors · **Status:** phase 1 implemented; phases 2-5 open
+> **Audience:** contributors · **Status:** phases 1-2 implemented; phases 3-5 open
 
 Related: [roadmap](../ROADMAP.md) step 5,
 [session trees, agent mailboxes, and branched workspaces](../proposals/session-tree-and-agent-mailbox.md)
@@ -18,9 +18,11 @@ The workspace root becomes session state instead of construction state, and an
 agent can create a Git worktree, move the session into it, work there, leave,
 and clean up — without the user doing any of it by hand.
 
-Phase 1 is implemented: the root is session state and every tool consults it
-per call. Nothing moves it yet — the worktree lifecycle is phase 2. This record
-exists so the implementation does not have to re-derive which of the root's
+Phases 1 and 2 are implemented: the root is session state, every tool consults
+it per call, and a `Worktree` tool creates, enters, leaves, lists, and removes
+them. What is still open is the configuration derived from the root — hooks,
+MCP, skills, and the `AGENTS.md` prompt layer are those of the launch tree
+until phase 3. This record exists so the implementation does not have to re-derive which of the root's
 dependents move with it and which do not, because that question, not the
 worktree command, is where this feature is easy to get subtly wrong.
 
@@ -297,9 +299,11 @@ the agent is writing to.
 | The workspace contract both tools and the sandbox resolve against | `internal/util` (`Workspace`, `FixedRoot`) |
 | Current root as session state | `internal/agentapp` (`MovableRoot`) |
 | Tools reading the root per call rather than per construction | `internal/tool` (`workspaceTool`, `Bash`, `Monitor`, `Task`) |
-| Worktree creation, listing, containment check, and removal | `internal/infra/git`, driven by an `internal/agentapp` service |
-| Runtime tool surface and its permission tiers | `internal/tool`, name added to `internal/tool/names.go` |
-| `/worktree` command, header, and `/diff` following the root | `internal/interface/cli` |
+| Git worktree mechanics: add, list, remove, exclude, and what removal would lose | `internal/infra/git` |
+| The occupancy lock the OS releases on exit | `internal/infra/flock` |
+| Lifecycle for one session: what may be entered, who occupies it, and the move | `internal/agentapp/worktree` |
+| Runtime tool surface and its permission tiers | `internal/tool` (`Worktree`) |
+| `/worktree` panel, footer, and `/diff` following the root | `internal/interface/cli` |
 | Sandbox writable bind following the root | `internal/infra/sandbox` |
 | Recorded workspace and resume behavior | `internal/agentapp/session_manager.go`, `internal/agentapp/session_workspace.go` |
 
@@ -316,14 +320,17 @@ moves. No worktree capability yet, and `--workspace` behaves exactly as before.
 This is the phase that could regress existing behavior, so it shipped and is
 tested on its own.
 
-**Phase 2 — the worktree lifecycle.** Create, enter, leave, and remove, with
-D3's containment check, D4's tiers, D5's exit behavior, and D6's dirty report.
+**Phase 2 — the worktree lifecycle. Implemented.** `internal/agentapp/worktree`
+owns it, `internal/infra/git` the Git mechanics, and `internal/infra/flock` the
+occupancy lock. The `Worktree` tool and the TUI's `/worktree` panel are the two
+surfaces. D3's containment check, D4's tiers, D5's refusal to delete anything on
+its own, D6's dirty report, D9's naming, and D10's lock are all in force.
 
 **Phase 3 — derived configuration.** Hooks, MCP, skills, subagents, and the
 `AGENTS.md` layer re-resolve on switch, per §4.
 
-Phase 2 shipping before phase 3 is tolerable only because a worktree of the
-same repository normally carries identical workspace configuration, so the
+Phase 2 shipped before phase 3, which is tolerable only because a worktree of
+the same repository normally carries identical workspace configuration, so the
 stale snapshot is usually the same snapshot. That argument disappears the
 moment D3 is relaxed, so phase 3 must land before the root is allowed anywhere
 else.

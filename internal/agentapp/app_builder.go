@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/gougoujiang/buildmax/internal/agentapp/job"
+	"github.com/gougoujiang/buildmax/internal/agentapp/worktree"
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	corehook "github.com/gougoujiang/buildmax/internal/core/hook"
@@ -139,6 +140,9 @@ func buildAgentApp(cfg AppConfig, resolved resolvedAgentAppConfig) (_ *AgentApp,
 	app.plugins.addFindings(app.subagentsRegistry.findings...)
 	app.plugins.addShadowed(app.subagentsRegistry.shadowed...)
 
+	if cfg.EnableWorktrees {
+		app.worktrees = worktree.NewManager(workspace)
+	}
 	if cfg.EnableBackgroundJobs {
 		app.jobs = job.NewManager()
 		if config.TraceEnabled() {
