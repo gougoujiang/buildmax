@@ -138,9 +138,13 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		slog.Error("cannot resolve a model for this run", "err", err)
 		return err
 	}
+	// The same answer the RUNNING transition gives when it loses the race, and
+	// for the same reason: this run belongs to another worker. A restarted pod
+	// arrives here rather than at the transition, so reporting it differently
+	// would spend the Job's backoff on a run no pod can execute.
 	if run.Status != string(coretask.RunStatusScheduled) {
 		slog.Error("run not in SCHEDULED status", "status", run.Status)
-		return fmt.Errorf("run not scheduled (status=%s)", run.Status)
+		return fmt.Errorf("%w (status=%s)", ErrAlreadyClaimed, run.Status)
 	}
 	apiCfg := workerclient.WorkerAPIClientConfig{BaseURL: serverURL, Token: runToken}
 	updater := &workerclient.WorkerHTTPUpdater{BaseURL: serverURL, Token: runToken}

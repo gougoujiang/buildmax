@@ -378,6 +378,21 @@ exit under `RestartPolicy: OnFailure` with `BackoffLimit: 3`
 pod whose new process immediately refuses the run for not being `SCHEDULED`.
 That is the same reasoning `main.go` already applies to a cancelled run.
 
+It now applies to `ErrAlreadyClaimed` as well, which is what both the status
+guard and the lost `RUNNING` transition report. That case had been exiting `2`
+on the stated grounds that the scheduler could tell it apart from a failed
+start — but nothing reads the code, `2` is non-zero and so restarts the pod
+anyway, and under the local runner a non-zero exit makes the scheduler fail a
+run another worker is in the middle of.
+
+The backoff itself stays at 3. It is not there for runs that cannot be
+re-executed; it is there for a worker that dies *before* it claims one — while
+reading configuration, fetching the run, or resolving its model — where the run
+is still `SCHEDULED` and a fresh pod does succeed. Zero would throw that away.
+What a hard kill after the claim costs is bounded and no longer matters much:
+the pod restarts once, the new worker exits 0, and §6.4's liveness sweep closes
+the run within minutes either way.
+
 The stale-run reaper remains the answer for a worker that is genuinely gone —
 SIGKILL, node loss, a crash — and this design only removes the case where it was
 standing in for a report the worker could have made. `worker.run_timeout` was
