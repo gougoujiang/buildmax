@@ -914,24 +914,10 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 				reason = "prompt blocked by hook"
 			}
 			recorder.RecordRunEnd("blocked by hook: " + reason)
-			status := a.estimateRunUsage(sess, modelName, client.ContextWindow())
-			return RunResult{
-				Reply:                 reason,
-				Duration:              time.Since(start),
-				TotalPromptTokens:     sess.PromptTokens(),
-				TotalCompletionTokens: sess.CompletionTokens(),
-				TotalCacheReadTokens:  sess.CacheReadTokens(),
-				TotalCacheWriteTokens: sess.CacheWriteTokens(),
-				Cost:                  sess.Cost(),
-				CostIncomplete:        sess.CostIncomplete(),
-				ContextTokens:         status.ContextTokens,
-				ContextWindow:         status.ContextWindow,
-				SessionID:             sess.ID(),
-				Workspace:             a.workspaceRoot,
-				ModelName:             modelName,
-				TraceID:               recorder.RunID(),
-				TracePath:             recorder.Path(),
-			}, nil
+			// Zero stats, because a blocked prompt never reached the model:
+			// the turn spent nothing, and the session totals below are what
+			// earlier turns already cost.
+			return a.runResult(sess, client, modelName, recorder, agent.RunStats{}, start, reason), nil
 		}
 	}
 
@@ -974,8 +960,24 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 	// Failed runs still leave a complete trace (RunLoop emits run_end with the
 	// error), so carry TraceID out even on the error paths — a failed run is
 	// exactly when the caller most needs to point a viewer at the file.
+	//
+	// The same argument covers the rest of the report. RunLoop returns its
+	// accumulated stats on every error return, and the workspace, the model,
+	// and the elapsed time are facts the run holds either way, so a failure
+	// that reported none of them was claiming a run did nothing when it had
+	// read files and spent tokens. Finalize is metadata-only by contract —
+	// "a failure here loses reporting rather than the turn" — which is the
+	// reason to run it here rather than to skip it: the tokens are spent, and
+	// a session whose totals omit them under-reports for good.
+	//
+	// It is passed no client on purpose. The client is what just failed, and
+	// generating a title through it would spend a second request to fail
+	// again; Finalize still names the session from its first user message.
 	if err != nil {
-		return RunResult{SessionID: sess.ID(), TraceID: recorder.RunID(), TracePath: recorder.Path()}, fmt.Errorf("agent: %w", err)
+		if _, finalizeErr := a.finalizeTurn(sess, nil, stats); finalizeErr != nil {
+			slog.Warn("could not record what the failed turn spent", "err", finalizeErr)
+		}
+		return a.runResult(sess, client, modelName, recorder, stats, start, ""), fmt.Errorf("agent: %w", err)
 	}
 	// Before finalizing, so what the digest spends is persisted by the same
 	// metadata write as the turn's own usage rather than waiting for a next
@@ -991,9 +993,27 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 		digest = got
 	}
 	if _, err := a.finalizeTurn(sess, client, stats); err != nil {
-		return RunResult{SessionID: sess.ID(), TraceID: recorder.RunID(), TracePath: recorder.Path()}, err
+		return a.runResult(sess, client, modelName, recorder, stats, start, reply), err
 	}
-	status := a.estimateRunUsage(sess, modelName, client.ContextWindow())
+	result := a.runResult(sess, client, modelName, recorder, stats, start, reply)
+	result.Digest = digest
+	return result, nil
+}
+
+// runResult is the report one turn hands back, and is deliberately the only
+// place that builds one: the success and failure paths differ in what the run
+// achieved, never in which facts about it get reported. Splitting them is how
+// the failure path came to claim a run made no tool calls and spent no time.
+//
+// Everything here is already known when a run fails. sess carries the totals
+// Finalize has just folded this turn's usage into, so a caller reading them
+// after a failure sees the tokens the provider actually charged for.
+func (a *AgentApp) runResult(sess *SessionContext, client cllm.LLMClient, modelName string, recorder *trace.Recorder, stats agent.RunStats, start time.Time, reply string) RunResult {
+	var contextWindow int
+	if client != nil {
+		contextWindow = client.ContextWindow()
+	}
+	status := a.estimateRunUsage(sess, modelName, contextWindow)
 	return RunResult{
 		Reply:                 reply,
 		Duration:              time.Since(start),
@@ -1015,8 +1035,7 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 		ModelName:             modelName,
 		TraceID:               recorder.RunID(),
 		TracePath:             recorder.Path(),
-		Digest:                digest,
-	}, nil
+	}
 }
 
 // teeEventSink fans one runtime event out to the trace recorder first (so a
