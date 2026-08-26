@@ -58,8 +58,12 @@ type taskRunRow struct {
 	// beside AgentRevision and at the same moment. A JSON column for the reason
 	// plugin_release.inspection is one: written once, read whole, and nothing
 	// queries inside it.
-	PluginPins string    `gorm:"column:plugin_pins;type:text"`
-	CreatedAt  time.Time `gorm:"autoCreateTime;index:idx_task_run_task_created,priority:2"`
+	PluginPins string `gorm:"column:plugin_pins;type:text"`
+	// LastSeenAt is when this run's worker last called a route scoped to it.
+	// Indexed because the stale-run reaper's liveness sweep is the only reader
+	// and it selects on this column.
+	LastSeenAt *time.Time `gorm:"column:last_seen_at;index"`
+	CreatedAt  time.Time  `gorm:"autoCreateTime;index:idx_task_run_task_created,priority:2"`
 }
 
 func (taskRunRow) TableName() string { return "task_run" }
@@ -122,6 +126,7 @@ func toTaskRun(row *taskRunReadRow) *coretask.Run {
 		AgentRevision:     row.Row.AgentRevision,
 		PluginPins:        decodePluginPins(row.Row.PluginPins),
 		CancelRequestedAt: row.Row.CancelRequestedAt,
+		LastSeenAt:        row.Row.LastSeenAt,
 		CreatedAt:         row.Row.CreatedAt,
 	}
 	if row.Row.CancelRequestedBy != nil {
@@ -441,6 +446,60 @@ func (s *Store) ListCancelRequestedTaskRuns(ctx context.Context, cutoff time.Tim
 		Where("task_run.status IN ?", coretask.ActiveRunStatuses()).
 		Where("task_run.cancel_requested_at IS NOT NULL AND task_run.cancel_requested_at <= ?", cutoff).
 		Order("task_run.cancel_requested_at ASC").
+		Limit(limit).
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	out := make([]coretask.Run, 0, len(rows))
+	for i := range rows {
+		out = append(out, *toTaskRun(&rows[i]))
+	}
+	return out, nil
+}
+
+// MarkTaskRunSeen records that this run's worker is still reporting.
+//
+// The status guard is what makes the column mean "last seen while working": a
+// worker's terminal PATCH is itself a call scoped to the run, and letting it
+// stamp would move the timestamp past the moment the work stopped.
+//
+// It is one unconditional write per call rather than a read-then-write, because
+// the only caller is the run's own poll route and that arrives on a fixed
+// interval. Do not stamp from the streaming route, which fires many times a
+// second.
+func (s *Store) MarkTaskRunSeen(ctx context.Context, taskRunID string, seenAt time.Time) error {
+	id, ok := util.CanonicalPublicID(taskRunID)
+	if !ok {
+		return apierr.ErrNotFound
+	}
+	return s.db.WithContext(ctx).Model(&taskRunRow{}).
+		Where("public_id = ? AND status IN ?", id, []string{
+			string(coretask.RunStatusScheduled), string(coretask.RunStatusRunning),
+		}).
+		Update("last_seen_at", seenAt).Error
+}
+
+// ListLostWorkerTaskRuns returns RUNNING runs whose worker stopped reporting
+// before cutoff.
+//
+// It is deliberately narrower than ListStaleTaskRuns. A RUNNING run has a
+// worker polling its own route every few seconds for as long as it lives, so
+// silence there is evidence the process is gone rather than slow. A SCHEDULED
+// run makes no such promise — it may be materializing a workspace or pulling
+// plugin packages without touching the API — so it stays under the run timeout.
+//
+// A NULL last_seen_at is never reaped here: it means no signal was ever
+// recorded, and absence of evidence is not the observation this sweep is for.
+func (s *Store) ListLostWorkerTaskRuns(ctx context.Context, cutoff time.Time, limit int) ([]coretask.Run, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	var rows []taskRunReadRow
+	err := s.taskRunSelect(ctx).
+		Where("task_run.status = ?", string(coretask.RunStatusRunning)).
+		Where("task_run.last_seen_at IS NOT NULL AND task_run.last_seen_at <= ?", cutoff).
+		Order("task_run.last_seen_at ASC").
 		Limit(limit).
 		Find(&rows).Error
 	if err != nil {

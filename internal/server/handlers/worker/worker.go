@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"time"
 
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
@@ -30,6 +31,7 @@ func (h *Handler) getTaskRun(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusNotFound, "run not found")
 		return
 	}
+	h.recordSeen(r, run)
 	// The agent's instructions are appended to the run's system prompt. Resolving them here
 	// rather than at task creation means an edited definition takes effect on the next run,
 	// which is what someone editing the field expects. A deleted agent still answers, because
@@ -205,6 +207,27 @@ func (h *Handler) patchTaskRun(w http.ResponseWriter, r *http.Request) {
 
 // Identity belongs in an attr, not in every message string.
 func componentLog() *slog.Logger { return slog.With("component", "worker_api") }
+
+// recordSeen notes that this run's worker is still alive.
+//
+// This route is the heartbeat because the worker already calls it on a fixed
+// interval for the whole time a run is RUNNING — WatchCancel polls it to learn
+// about a cancel. Recording that existing call is what lets the stale-run
+// reaper tell a SIGKILLed worker from a slow one in minutes instead of at the
+// run timeout. No other worker route stamps: the streaming one fires many times
+// a second, and the terminal PATCH would move the timestamp past the moment the
+// work stopped.
+//
+// A failure is logged and dropped. A worker asking whether it was canceled must
+// not be refused over bookkeeping, and the run timeout still closes the run.
+func (h *Handler) recordSeen(r *http.Request, run *coretask.Run) {
+	if h.cfg.TaskRuns == nil {
+		return
+	}
+	if err := h.cfg.TaskRuns.MarkTaskRunSeen(r.Context(), run.ID, time.Now().UTC()); err != nil {
+		componentLog().Warn("worker handler: liveness not recorded", "task_run_id", run.ID, "err", err)
+	}
+}
 
 // recordAgentRevision notes which definition this run was handed.
 //
