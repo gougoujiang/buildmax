@@ -42,9 +42,10 @@ func TestRewindDropsTheLaterMessagesAndReportsWhatItLeft(t *testing.T) {
 
 	points := RewindPoints(sess)
 	// Tool results are messages but not rewind points: "go back to that
-	// command's output" is not a place a person thinks of returning to.
-	if len(points) != 4 {
-		t.Fatalf("points = %+v, want the four user/assistant messages", points)
+	// command's output" is not a place a person thinks of returning to. Nor is
+	// the assistant message that asked for the tool, which is mid-turn.
+	if len(points) != 3 {
+		t.Fatalf("points = %+v, want the three turn-ending user/assistant messages", points)
 	}
 	target := points[1] // the assistant "ok", before the second exchange
 	if target.Content != "ok" {

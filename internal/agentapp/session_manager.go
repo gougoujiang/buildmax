@@ -145,6 +145,15 @@ func (s *SessionManager) Fork(parent *SessionContext, throughItemID, defaultMode
 // model sees, but "go back to the output of that command" is not a place a
 // person thinks of returning to, and offering it would put entries in the list
 // that only make sense to the machine.
+//
+// An assistant message that asked for tools is excluded for a harder reason
+// than taste. A branch ending there holds a tool call with no result: the fork
+// prefix stops before the result, and recovery does not answer a call that
+// never entered its tool. Only the Anthropic adapter prunes the unanswered
+// half; the OpenAI and Ollama adapters send it and the provider refuses the
+// request. Since the loop continues a turn only when the model asked for
+// tools, excluding those messages is exactly excluding the mid-turn ones, and
+// what remains is the reply that ended each turn.
 func RewindPoints(sess *SessionContext) []RewindPoint {
 	if sess == nil {
 		return nil
@@ -153,6 +162,9 @@ func RewindPoints(sess *SessionContext) []RewindPoint {
 	out := make([]RewindPoint, 0, len(msgs))
 	for i, m := range msgs {
 		if i >= len(ids) || (m.Role != "user" && m.Role != "assistant") {
+			continue
+		}
+		if m.Role == "assistant" && len(m.ToolCalls) > 0 {
 			continue
 		}
 		out = append(out, RewindPoint{ItemID: ids[i], Role: m.Role, Content: m.Content, Source: m.Source})
