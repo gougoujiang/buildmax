@@ -148,6 +148,16 @@ its agent loop, and a status written from outside would describe a run that is
 still executing. `StaleRunReaper` is the backstop for a worker that never
 confirms, and finishes such runs as `CANCELED` after a grace period.
 
+That same poll is what tells the server a worker is alive. The route records
+`task_run.last_seen_at` on every call, so a `RUNNING` run that goes silent for
+longer than the reaper's liveness grace is failed as having lost its worker —
+which is what a SIGKILL, an OOM kill, or a lost node looks like from here, none
+of which leave the worker a chance to report. `worker.run_timeout` stays the
+backstop for what that sweep cannot see: a run that never reached `RUNNING`, and
+one with no recorded signal at all. Nothing is re-run: a reaped run had a worker
+that may already have caused side effects, and the server cannot know whether
+the task was safe to repeat.
+
 A canceled run keeps its output and artifacts. It stopped early, but what it
 produced is real work, and discarding it would make cancelling more expensive
 than waiting.

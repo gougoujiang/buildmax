@@ -730,10 +730,11 @@ One execution attempt. This is the row quota and token accounting read.
 | `source_message_id` | `bigint unsigned` | yes | `conversation_message.id` this run was asked for in; `NULL` when no message asked for it |
 | `agent_revision` | `int` | yes | Which revision of `task.agent_id` this run was served; `NULL` for a run with no agent or one that never reached a worker |
 | `plugin_pins` | `text` | yes | JSON array of `{plugin_name, version, digest}`: the releases this run was given |
+| `last_seen_at` | `datetime(6)` | yes | When this run's worker last polled its own route; `NULL` until a worker claims the run |
 | `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 
 Indexes: PK `id`; index `cancel_requested_at`; index `created_by`; index
-`retry_of_task_run_id`; index `source_message_id`; index
+`last_seen_at`; index `retry_of_task_run_id`; index `source_message_id`; index
 `idx_task_run_task_created` on (`task_id`, `created_at`); unique `public_id`.
 
 `agent_revision` is not a reference to `agent_revision.id`: a revision is
@@ -776,6 +777,17 @@ end another process's agent loop. The worker sees the request by polling its own
 run route, and `StaleRunReaper` finishes runs whose worker never confirms — the
 same backstop that closes abandoned ones. Both columns are written once; a
 second cancel does not overwrite who asked first.
+
+`last_seen_at` is how the server tells a worker that died from one that is
+slow. It is written on `GET /api/worker/task-runs/{id}` and nowhere else: a
+worker polls that route every few seconds for the whole time its run is
+`RUNNING`, so the signal already existed and only had to be recorded. The
+streaming route deliberately does not stamp — it fires many times a second — and
+neither does the terminal `PATCH`, which would move the timestamp past the
+moment the work stopped. `StaleRunReaper` reads it to fail `RUNNING` runs that
+have gone silent, minutes after the fact rather than at `worker.run_timeout`.
+`NULL` is never reaped for silence: no signal was ever recorded, so there is
+nothing to have gone quiet.
 
 `worker_type`, `k8s_job_name`, and `k8s_job_created_at` have no writer in the
 current code — they round-trip through the store mapping and stay `NULL`. Do

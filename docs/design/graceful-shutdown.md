@@ -3,7 +3,8 @@
 > **Audience:** contributors · **Status:** implemented. The ladder, the draining
 > state, watcher-stream drain, turn quiescing, the managed terminal callbacks,
 > HTTP timeouts, the manifests, a worker that reports what it produced when it
-> is asked to stop, and a scheduler stop bounded by that same budget. What is
+> is asked to stop, a scheduler stop bounded by that same budget, and the
+> liveness signal that closes a run whose worker was never asked (§6.4). What is
 > deliberately not here: re-dispatching an interrupted run, which belongs to run
 > retry, and durable workflow advance (§9).
 
@@ -377,10 +378,11 @@ exit under `RestartPolicy: OnFailure` with `BackoffLimit: 3`
 pod whose new process immediately refuses the run for not being `SCHEDULED`.
 That is the same reasoning `main.go` already applies to a cancelled run.
 
-`worker.run_timeout` and the stale-run reaper stay exactly as they are. They
-remain the answer for a worker that is genuinely gone — SIGKILL, node loss, a
-crash — and this design only removes the case where they were standing in for a
-report the worker could have made.
+The stale-run reaper remains the answer for a worker that is genuinely gone —
+SIGKILL, node loss, a crash — and this design only removes the case where it was
+standing in for a report the worker could have made. `worker.run_timeout` was
+left as it stood here; §6.4 revisits how long that answer should take to
+arrive.
 
 ### 6.3 The two windows must nest
 
@@ -396,6 +398,53 @@ Kubernetes has the same constraint between the worker pod's own
 explicitly rather than inheriting 30s by accident. A worker pod is dispatched by
 a runner that will not be waiting for it, so it gets no window from the
 environment and uses the runtime default — chosen to fit inside that 30s.
+
+### 6.4 A worker that is never asked to stop
+
+§6.2 covers every stop that begins with a signal. The rest do not: SIGKILL, an
+OOM kill, a node that disappears, `kubectl delete pod --force`. The process is
+gone before it can report, and the reaper was the only thing that would ever
+close the run — after `worker.run_timeout`, six hours by default.
+
+Six hours is right for the question the timeout asks, which is whether a run
+that has stopped progressing was merely slow. It is wrong as the *only* answer,
+because a `RUNNING` run is not silent: `WatchCancel` polls
+`GET /api/worker/task-runs/{id}` every five seconds for the whole time the run
+executes, so it can learn about a cancel. The heartbeat already existed. Nothing
+recorded it.
+
+So that route stamps `task_run.last_seen_at`, and the reaper gains a sweep that
+fails `RUNNING` runs which have gone quiet for longer than a liveness grace. The
+decisions worth stating:
+
+- **Only that route stamps.** The streaming route fires many times a second and
+  would turn a heartbeat into a write amplifier. The terminal `PATCH` is also a
+  call scoped to the run, and letting it stamp would move the timestamp past the
+  moment the work stopped, which is the one thing the column has to mean.
+- **Only `RUNNING` runs are swept.** That is exactly the window in which the
+  poll is guaranteed to be running. A `SCHEDULED` run has claimed itself but may
+  be materializing a workspace or pulling plugin packages without touching the
+  API, and a slow setup is not a dead process. `SCHEDULED` keeps the timeout.
+- **A `NULL` stamp is never swept.** No signal was recorded, so nothing went
+  quiet. Absence of evidence is the timeout's case, not this one.
+- **Two minutes, not fifteen seconds.** A worker whose polls fail keeps working:
+  `WatchCancel` retries rather than treating a failed poll as a cancel, on the
+  reasoning that a server it cannot reach is not a server that canceled it. So
+  reaping early does not stop a partitioned worker — it throws away the result
+  that worker was about to report, and `TransitionTaskRun`'s expected-status
+  guard means the late report loses silently. Twenty-four missed polls is the
+  price of not doing that.
+- **Nothing is re-run.** The run is recorded as over, not retried. A worker that
+  died mid-run may already have written files, called an API, or opened a pull
+  request, and nothing here knows whether the task was safe to repeat. Retry
+  stays a decision someone makes, which is where it already lived.
+
+What this does not do: it says a worker stopped reporting, not why. From the
+server a SIGKILL, an evicted pod, and a network partition are the same
+observation, and the recorded message says only that — the same rule the other
+two sweeps already follow. Attributing the cause needs the Job status the
+scheduler already stores in `k8s_job_name` and nothing yet reads; that is a
+separate change, and it would cover the `k8s_job` runner only.
 
 ## 7. Deployment
 
