@@ -46,7 +46,7 @@ The main layers are:
 1. **Entry points**: `cmd/buildmax`, `cmd/buildmax-server`, `cmd/buildmax-worker`, `cmd/buildmax-desktop`.
 2. **Local interfaces**: `internal/interface/cli`, `internal/interface/desktop`, `internal/interface/auth`, `internal/interface/client`.
 3. **Server**: `internal/server` and `internal/server/handlers`.
-4. **Application services**: `internal/service/conversation`, `issue`, `task`, `workflow`, and `quota`.
+4. **Application services**: `internal/service/conversation`, `issue`, `task`, `workflow`, `quota`, `identity`, `llmcatalog`, `systemadmin`, and the rest. See [repo-layout.md](../repo-layout.md).
 5. **Shared runtime**: `internal/agentapp` and `internal/agentapp/taskrun`.
 6. **Pure core**: `internal/core/agent`, `internal/core/llm`, `internal/core/session`, and one package per domain — `task`, `team`, `issue`, `workflow`, `artifact`, `audit`, and the rest. See [repo-layout.md](../repo-layout.md).
 7. **Infrastructure**: `internal/infra/db`, `llm`, `objectstore`, `mcp`, `workerclient`, `k8s`, and `log`.

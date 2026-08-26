@@ -111,7 +111,7 @@ The trace tells you what the run actually did — every LLM call, every tool cal
 what was denied, and how it ended:
 
 ```bash
-ls -t ~/.buildmax/traces/<session-id>/ | head -1
+ls -t ~/.buildmax/sessions/<session-id>/traces/ | head -1
 ```
 
 See [sessions-and-traces.md](sessions-and-traces.md). Logs are file-only, under

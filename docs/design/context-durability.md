@@ -664,7 +664,7 @@ in `internal/agentapp/assembly.go`; `AppConfig.AdditionalSystemPrompt` and
 `internal/core/agent/notes.go`; the three flags in
 `internal/interface/cli/system_prompt.go`; `TaskRunTask.AgentInstructions` in
 `internal/infra/workerclient/api_types.go` with the server side in
-`internal/server/handlers/worker.go` and the worker side in
+`internal/server/handlers/worker/worker.go` and the worker side in
 `internal/agentapp/taskrun/runtime.go`; `Session.AdditionalSystemPrompt`; and
 the `prompt_layers` trace record. User documentation in
 [`reference/cli.md`](../reference/cli.md).

@@ -868,7 +868,7 @@ The dependency direction remains unchanged:
   merges plugin configuration layers;
 - `internal/agentapp` assembles the resolved skills, subagents, MCP servers, and
   hooks for CLI and Desktop;
-- `internal/core/model` owns Marketplace domain records and store interfaces;
+- `internal/core/plugin` owns Marketplace domain records and store interfaces;
 - `internal/service/plugin` owns publication and catalog lifecycle;
 - `internal/infra/db` persists catalog metadata;
 - `internal/infra/objectstore` stores immutable package bytes;

@@ -387,8 +387,8 @@ then runs the smoke. The smoke signs in, proves a team boundary, creates and
 runs work, reads its artifact, and proves that retry creates a second executed
 run. The managed variant also proves the run-scoped credential and call ledger.
 
-The old `./make setup && ./make deploy` spelling is retained only as hidden
-compatibility plumbing; it is not the contributor or operator path to document.
+The old `./make setup && ./make deploy` spelling is gone: `cmd/mk` no longer
+answers either name, and `./make kind up` is the only path.
 
 Acceptance met:
 

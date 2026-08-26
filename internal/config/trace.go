@@ -11,9 +11,10 @@ import (
 // sandbox convention) and registered by env_spec.go EnvVars.
 const EnvKeyBuildmaxTraceDisabled = "BUILDMAX_TRACE_DISABLED"
 
-// TracesDir returns the directory holding durable run traces under DataDir.
-// Layout: <DataDir>/traces/<session_id>/<run_id>.jsonl. Does not create the
-// directory; the recorder creates it on demand.
+// TracesDir returns the traces root under DataDir. It holds what belongs to no
+// single session: <DataDir>/traces/jobs/<job_id>.jsonl. A run's own trace lives
+// inside its session bundle instead — see sessionstore.SessionTracesDir. Does
+// not create the directory; the recorder creates it on demand.
 func TracesDir() string {
 	return filepath.Join(DataDir(), "traces")
 }

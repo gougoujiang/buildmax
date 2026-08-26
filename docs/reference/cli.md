@@ -60,8 +60,8 @@ what you want when calling BuildMax from a script or another program.
 
 Both carry `trace_id` and `trace_path`, naming the durable trace that run wrote.
 Use them rather than looking for the newest file under
-`<BUILDMAX_HOME>/traces/<session_id>/`: a session holds one trace per run, so
-the newest file is a race against any other run in the same session. Both are
+`<BUILDMAX_HOME>/sessions/<session_id>/traces/`: a session holds one trace per
+run, so the newest file is a race against any other run in the same session. Both are
 empty when tracing is off.
 
 ### Adding to the system prompt

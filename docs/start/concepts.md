@@ -64,7 +64,8 @@ Two mechanisms sit around this loop and are worth knowing about early:
   domain. See [guide/sandbox.md](../guide/sandbox.md).
 
 Every run also writes a **durable trace** — a redacted JSONL record of the LLM
-calls and tool calls — under `<BUILDMAX_HOME>/traces/`.
+calls and tool calls — inside its session's folder, under
+`<BUILDMAX_HOME>/sessions/<session_id>/traces/`.
 
 ## Local Objects
 

@@ -66,7 +66,7 @@ view. It contains:
 `internal/agentapp.SessionManager` persists that state under
 `<BUILDMAX_HOME>/sessions/`, with a separate local index used by CLI/TUI and
 Desktop. It saves after a completed turn. The same run also writes a bounded,
-redacted trace under `<BUILDMAX_HOME>/traces/<session_id>/`.
+redacted trace under `<BUILDMAX_HOME>/sessions/<session_id>/traces/`.
 
 Those two records answer different questions:
 

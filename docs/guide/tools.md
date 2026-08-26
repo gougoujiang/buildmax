@@ -12,17 +12,17 @@ so they are worth knowing exactly.
 
 | Name | Does | Key arguments |
 |---|---|---|
-| `Read` | Read a file, with line numbers | `path`, `offset`, `limit` (default 1000 lines) |
-| `Write` | Create or overwrite a file, creating parent directories | `path`, `content` |
-| `Edit` | Exact string replacement in a file | `path`, `old_string`, `new_string`, `replace_all` |
-| `Glob` | List files matching a pattern, newest first | `pattern` |
-| `Grep` | Regex search over file contents | `pattern`, `path`, `glob`, `type`, `output_mode`, `-A/-B/-C`, `-i`, `multiline`, `head_limit` |
-| `Bash` | Run a shell command in the workspace | `command`, `timeout` (default 120s, max 600s), `run_in_background` (TUI and Desktop) |
+| `Read` | Read a file, with line numbers | `file_path`, `offset`, `limit` (default 1000 lines) |
+| `Write` | Create or overwrite a file, creating parent directories | `file_path`, `content` |
+| `Edit` | Exact string replacement in a file | `file_path`, `old_string`, `new_string`, `replace_all` |
+| `Glob` | List files matching a pattern, newest first | `pattern`, `path` |
+| `Grep` | Regex search over file contents | `pattern`, `path`, `glob`, `type`, `output_mode`, `before_context`, `after_context`, `context`, `case_insensitive`, `line_numbers`, `multiline`, `head_limit`, `offset` |
+| `Bash` | Run a shell command in the workspace | `command`, `timeout` (milliseconds; default 120000, max 600000), `dangerously_disable_sandbox`, `run_in_background` and `deliver_result` (TUI and Desktop) |
 | `WebFetch` | Fetch a URL as markdown, optionally summarized by the model | `url`, `prompt` |
-| `TodoWrite` | Track multi-step progress | `todos[]` of `{id, content, status}` |
+| `TodoWrite` | Track multi-step progress | `todos[]` of `{content, status, active_form}` |
 | `NoteWrite` | Keep durable notes that survive compaction | `notes[]` of strings |
-| `Skill` | Load a skill's instructions | skill name |
-| `Task` | Delegate to a subagent | `description`, `prompt`, `subagent_type`, `run_in_background` (TUI and Desktop) |
+| `Skill` | Load a skill's instructions | `skill`, `args` |
+| `Task` | Delegate to a subagent | `description`, `prompt`, `subagent_type`, `run_in_background` and `deliver_result` (TUI and Desktop) |
 | `UploadArtifact` | Publish one finished file as a durable artifact | `path`, `title`, `purpose` |
 | `JobList` | List background jobs: ID, kind, state, age, command | — |
 | `JobOutput` | Read a background job's status and output incrementally | `job_id`, `stream`, `cursor` |

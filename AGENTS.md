@@ -131,7 +131,11 @@ Read the relevant architecture document before making a cross-package change:
   entry points under `cmd/` stay thin.
 - Settings use `<BUILDMAX_HOME>/settings.yaml`; server/worker settings use
   `<BUILDMAX_HOME>/server.yaml`. The default data directory is `~/.buildmax`.
-- An optional workspace-root `AGENTS.md` is appended to the core system prompt.
+- The system prompt is four additive layers: the runtime prompt, an optional
+  `<BUILDMAX_HOME>/AGENTS.md`, an optional workspace-root `AGENTS.md`, then this
+  run's additional system prompt. All four are stable for a session, so together
+  they are the cacheable prefix; the compaction summary is appended after them
+  by `RunLoop` and never belongs in a layer.
 - Runtime hooks merge global settings with `<workspace>/.buildmax/hooks.yaml`.
   Hook failures fail open; gating contracts are documented in
   [`docs/design/hook-system.md`](docs/design/hook-system.md).
@@ -155,8 +159,9 @@ Read the relevant architecture document before making a cross-package change:
 - Every run records a bounded, redacted JSONL trace by default. Trace failure is
   fail-open and must not break an agent run.
 - Server authentication requires a JWT secret. Login codes are single-use;
-  signup is disabled by default. The legacy development OTP is deliberately
-  unsafe and causes a startup warning.
+  signup is disabled by default, and enabling it causes a startup warning. The
+  `dev_login_otp` bypass is gone — do not reintroduce a fixed code, and do not
+  describe one as still available.
 - Worker runs materialize the team's persistent `home`, execute in a run-scoped
   directory, write artifacts, and use a run-scoped `BUILDMAX_HOME`.
 - Portal and Desktop share presentational components from `@buildmax/gui`, not
@@ -181,7 +186,7 @@ Use the cross-platform task runner from the repository root:
 ./make test ./internal/tool -run TestX   # narrow it; packages first, then flags
 ./make fmt             # gofmt every tracked Go file
 ./make lint            # pinned golangci-lint and govulncheck
-./make check <scope>   # go, portal, desktop, docs, all, or ci
+./make check <scope>   # go, gui, portal, desktop, docs, all, or ci
 ./make check ci        # required PR suite plus conditional release/Windows checks
 ./make e2e <suite>     # one end-to-end suite: cli, desktop, local, compose, kind, all
 ./make help            # every command, grouped, with the contributor path

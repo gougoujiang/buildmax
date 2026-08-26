@@ -59,9 +59,9 @@ The issue entity today:
   `Store`
 - `internal/infra/db/issue.go` — `issueRow`, table `issue`
 - `internal/service/issue/service.go` — title/status/assignee validation
-- `internal/server/handlers/issues.go` — list, create, get, patch, flow,
+- `internal/server/handlers/work/issues.go` — list, create, get, patch, flow,
   agent-runs
-- `internal/server/handlers/issue_outputs.go` — `latest_result` / `outputs[]`
+- `internal/server/handlers/work/issue_outputs.go` — `latest_result` / `outputs[]`
   aggregation from task-run artifacts
 - `internal/server/handlers/routes.go` — seven issue routes
 - `internal/mock/issue.go` — in-memory store for handler tests
@@ -77,7 +77,7 @@ What already holds and must keep holding:
 - Issues have **no delete path** — no `DeleteIssue` on `IssueStore`, no route.
 - Task carries an optional `issue_id`, so an issue's agent runs are already
   findable through `ListTasksByIssue`.
-- `handlePatchTerminalStatus` in `internal/server/handlers/worker.go` fires
+- `handlePatchTerminalStatus` in `internal/server/handlers/worker/worker.go` fires
   `OnTaskRunTerminal` callbacks asynchronously when a run reaches a terminal
   status. This is the existing seam for "something finished on this issue".
 
@@ -245,7 +245,8 @@ Bounds, so the thread stays readable:
 
 ### 5.5 Authorization
 
-New actions in `internal/server/handlers/team_authz.go`:
+New actions in `internal/core/team/policy.go`, which `internal/server/access`
+and the team service both decide against:
 
 | Action | Owner | Admin | Member |
 |---|---|---|---|

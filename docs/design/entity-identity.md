@@ -390,7 +390,7 @@ Public IDs cross process and persistence-system boundaries. Numeric IDs do not.
 | Object-storage key | Public ID |
 | Workflow definition JSON | Public ID |
 | Kubernetes Job name | Derived from the public ID |
-| `internal/core/model` and every repository interface | Public ID |
+| The domain packages under `internal/core` and every repository interface | Public ID |
 | Row structs and SQL inside `internal/infra/db` | Numeric ID |
 
 The core packages must not grow a second internal-ID API to save a lookup. That

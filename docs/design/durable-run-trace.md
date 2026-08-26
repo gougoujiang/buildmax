@@ -52,11 +52,16 @@ traceability), §3.8 (worker diagnostics), and Portal run diagnostics.
 ### 3.1 Layout
 
 ```
-<BUILDMAX_HOME>/traces/<session_id>/<run_id>.jsonl
+<BUILDMAX_HOME>/sessions/<session_id>/traces/<run_id>.jsonl
 ```
 
 - One file per `RunPrompt` invocation (one run).
 - Grouped by session so a conversation's runs sit together.
+- This record first put that directory at `<BUILDMAX_HOME>/traces/<session_id>/`.
+  [local-session-storage.md](./local-session-storage.md) §10 moved it inside the
+  session bundle; the per-run contract is unchanged, only where the file sits.
+  The traces root still exists for what belongs to no session — a local
+  background job writes `<BUILDMAX_HOME>/traces/jobs/<job_id>.jsonl`.
 - `run_id` uses the prefixed-ID format (CLAUDE.md §6.3) with prefix `rt_`
   ("run trace"): `rt_<20 base36 chars>`.
 - JSONL: one self-describing record per line, append-only. JSONL survives a
@@ -254,7 +259,7 @@ agentapp.RunPrompt(ctx, sess, prompt, stream, approval, eventSink)
   cause on `run_end`, which the event stream does not carry.
 - Retention/rotation/GC of the traces directory. **Consequence to accept
   knowingly:** tracing is on by default and nothing ever deletes a trace, so
-  `<BUILDMAX_HOME>/traces` grows without bound — one file per run, each capped
+  the session bundles grow without bound — one trace file per run, each capped
   at 10000 records × ~4KB of bounded fields. Local use is unlikely to notice;
   a long-lived worker container that keeps its `global/` home across runs is the
   real exposure. Until a retention policy lands, operators can size that volume
@@ -295,7 +300,7 @@ misleading unlinked child, preserving fail-open behavior.
 
 ## 9. Acceptance
 
-- After any `RunPrompt` on any surface, `<DataDir>/traces/<session>/<run>.jsonl`
+- After any `RunPrompt` on any surface, `<DataDir>/sessions/<session>/traces/<run>.jsonl`
   exists and contains a `run_start`, the per-iteration LLM/tool records, and a
   terminal `run_end`.
 - Tool arguments/results and model content over the bound are truncated;

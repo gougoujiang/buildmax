@@ -175,8 +175,10 @@ internal/
 │   └── llmgateway/     Model catalog, name resolution, routing, and managed calls
 │
 ├── tool/               Runtime agent tools: Read, Write, Edit, Bash, Glob, Grep,
-│                       WebFetch, TodoWrite, Skill, Task, and the MCP gateway.
-│                       names.go is the single source of truth for tool names.
+│                       WebFetch, TodoWrite, NoteWrite, Skill, Task, and the MCP
+│                       gateway, plus UploadArtifact, the Job tools, and Monitor
+│                       where the surface serves them. names.go is the single
+│                       source of truth for tool names.
 │
 ├── infra/              External-system implementations
 │   ├── db/             MySQL/GORM implementation of the core repositories

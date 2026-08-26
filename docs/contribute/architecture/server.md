@@ -184,9 +184,14 @@ quota applies to it identically.
   [design/worker-run-token.md](../../design/worker-run-token.md).
 - Signing in returns two credentials. The access token is a signed JWT the
   server does not store; the refresh token is a `user_refresh_token` row, which
-  is what makes a session revocable. `auth.go` owns both, and every rotation
+  is what makes a session revocable. `internal/service/identity` owns the
+  workflow and `internal/server/handlers/auth` its routes, and every rotation
   stays inside the session named by the access token's `sid` claim.
-- Team membership checks live in handler helpers such as `team_authz.go`.
+- Who the caller is, which team the request is about, and whether they may
+  proceed are all answered by `internal/server/access`. Its `Guard` writes the
+  refusal itself, so a route reads as a list of gates; the role/action decision
+  it consults is `team.Allows` in `internal/core/team/policy.go`, the one
+  implementation the team service shares with it.
 - `POST /api/login` accepts a password or an operator-issued, single-use login
   code. The latter is the account-claim and recovery path because BuildMax has
   no mail channel — see

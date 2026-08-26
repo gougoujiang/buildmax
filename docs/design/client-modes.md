@@ -18,7 +18,7 @@ single fact — whether a login exists — and everything else follows from it.
 
 | | Local mode | Managed mode |
 |---|---|---|
-| Trigger | no `auth.json` | `auth.json` present |
+| Trigger | no stored login | a stored login (§3) |
 | Model list | `settings.yaml` `models[]` | fetched from the server |
 | Provider credential | on this machine | never leaves the server |
 | LLM call | this machine calls the provider | this machine calls the server |
@@ -74,7 +74,13 @@ went out of step exactly as that always does.
 
 ## 3. Mode Resolution
 
-`auth.json` is the only input. It is present or it is not.
+A stored login is the only input. It is present or it is not.
+
+`auth.json` was that login whole when this record was written. The OS
+credential store since took the access and refresh tokens, leaving the file the
+non-secret half — server URL, user, email — so "is there a login" is now
+`auth.Info` reading both halves rather than one `os.Stat`. What the mode turns
+on did not change; where the secret sits did.
 
 Desktop's third mode flag is gone: `mode.go`, `desktopState`, and the
 `UseLocalMode` / `ConnectToServer` bindings were deleted. The comment that used

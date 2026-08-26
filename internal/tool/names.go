@@ -1,5 +1,8 @@
-// Package tool provides concrete agent tools (Read, Write, Edit, Glob, Grep, Bash,
-// WebFetch, TodoWrite, NoteWrite, Skill, Task, and MCP gateway tools).
+// Package tool provides concrete agent tools. Every runtime gets Read, Write,
+// Edit, Glob, Grep, Bash, WebFetch, TodoWrite, NoteWrite, Skill, Task, and the
+// MCP gateway tools; UploadArtifact, JobList, JobOutput, JobStop, and Monitor
+// are registered only where the surface can serve them, as the constants below
+// say.
 package tool
 
 // Tool name constants — single source of truth for every tool's Name(). Use camelCase for LLM-facing names.

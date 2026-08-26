@@ -92,7 +92,7 @@ buildmax -p "Add a --version flag to the CLI and update the README"
 The run is a tool-calling loop: the model requests file reads, edits, and shell
 commands; BuildMax executes them and feeds the results back until the model is
 done. Everything it did is recorded in a durable trace under
-`~/.buildmax/traces/`.
+`~/.buildmax/sessions/<session-id>/traces/`.
 
 **BuildMax edits files and runs shell commands for real.** Start in a git
 working tree you can `git diff` and revert. For stronger isolation, enable the
