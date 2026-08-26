@@ -111,7 +111,7 @@ design lives in [durable-run-trace.md](./durable-run-trace.md).
 Phase 1 shipped: a bounded, redacted JSONL trace written at the single
 `agentapp.RunPrompt` chokepoint, so CLI/TUI, Desktop, eval, and worker runs all
 produce traces with no per-surface code. Each run writes
-`<DataDir>/traces/<session_id>/<run_id>.jsonl` (run id prefix `rt_`) with a
+`<DataDir>/sessions/<session_id>/traces/<run_id>.jsonl` (run id prefix `rt_`) with a
 `run_start` record, a `sandbox_boundary` record, per-iteration
 `llm_*`/`tool_*`/`context_compacted` records, and a terminal `run_end`. Disable via `BUILDMAX_TRACE_DISABLED`. Fail-open: a
 trace failure never breaks or slows a run.
