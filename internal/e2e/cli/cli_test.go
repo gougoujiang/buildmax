@@ -4,10 +4,12 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -183,6 +185,14 @@ func startModel(t *testing.T, scenarioFile string) *mockllm.Server {
 // written down rather than inherited from whatever the tool defaults to today.
 func writeHome(t *testing.T, server *mockllm.Server, permissions map[string]string) string {
 	t.Helper()
+	return writeHomeWith(t, server, permissions, "")
+}
+
+// writeHomeWith is writeHome plus extra top-level settings, for a test whose
+// subject is a setting rather than a permission. extra is appended verbatim, so
+// it carries its own key and indentation.
+func writeHomeWith(t *testing.T, server *mockllm.Server, permissions map[string]string, extra string) string {
+	t.Helper()
 	home := t.TempDir()
 	settings := strings.Builder{}
 	settings.WriteString("log_level: error\n")
@@ -194,10 +204,13 @@ func writeHome(t *testing.T, server *mockllm.Server, permissions map[string]stri
 	settings.WriteString("    context_window: 128000\n")
 	if len(permissions) > 0 {
 		settings.WriteString("tools:\n  permissions:\n")
-		for tool, action := range permissions {
-			fmt.Fprintf(&settings, "    %s: %s\n", tool, action)
+		// Sorted, so two homes written from the same map are the same file. A
+		// test that compares two runs cannot have its own fixture vary.
+		for _, tool := range slices.Sorted(maps.Keys(permissions)) {
+			fmt.Fprintf(&settings, "    %s: %s\n", tool, permissions[tool])
 		}
 	}
+	settings.WriteString(extra)
 	if err := os.WriteFile(filepath.Join(home, "settings.yaml"), []byte(settings.String()), 0o600); err != nil {
 		t.Fatalf("write settings.yaml: %v", err)
 	}

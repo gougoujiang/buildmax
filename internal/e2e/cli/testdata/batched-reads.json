@@ -1,0 +1,18 @@
+{
+  "name": "three read-only calls in one turn, then a closing word",
+  "steps": [
+    {
+      "text": "reading all three",
+      "tool_calls": [
+        { "name": "Read", "args": { "file_path": "alpha.txt" } },
+        { "name": "Read", "args": { "file_path": "beta.txt" } },
+        { "name": "Read", "args": { "file_path": "gamma.txt" } }
+      ],
+      "usage": { "prompt_tokens": 130, "completion_tokens": 24 }
+    },
+    {
+      "text": "alpha, beta, and gamma",
+      "usage": { "prompt_tokens": 220, "completion_tokens": 6 }
+    }
+  ]
+}
