@@ -22,6 +22,7 @@ type resolvedAgentAppConfig struct {
 	plugins       PluginSnapshot
 	loadedPlugins []config.DiscoveredPlugin
 	hooks         corehook.Config
+	pluginHooks   corehook.Config
 	sandbox       config.SandboxResolution
 }
 
@@ -67,6 +68,7 @@ func resolveAgentAppConfig(cfg AppConfig) (resolvedAgentAppConfig, error) {
 		plugins:       plugins,
 		loadedPlugins: loadedPlugins,
 		hooks:         config.MergeHooks(settings.Hooks, pluginHooks.Config, workspaceHooks),
+		pluginHooks:   pluginHooks.Config,
 		sandbox:       config.ResolveSandboxForRun(settings.Sandbox, cfg.SandboxRunOverride, policySandbox, surface),
 	}, nil
 }
@@ -127,7 +129,9 @@ func buildAgentApp(cfg AppConfig, resolved resolvedAgentAppConfig) (_ *AgentApp,
 	if app.mcpManager != nil {
 		hookDeps.MCPCaller = &mcpCaller{m: app.mcpManager}
 	}
-	app.hooks = NewHookManager(resolved.hooks, hook.NewDriverRegistry(hookDeps))
+	app.hookManager = NewHookManager(resolved.hooks, hook.NewDriverRegistry(hookDeps))
+	app.hooks = app.hookManager
+	app.pluginHooks = resolved.pluginHooks
 
 	if err = app.skillsRegistry.Load(app.workspace.Root(), resolved.loadedPlugins); err != nil {
 		return nil, err
@@ -141,7 +145,10 @@ func buildAgentApp(cfg AppConfig, resolved resolvedAgentAppConfig) (_ *AgentApp,
 	app.plugins.addShadowed(app.subagentsRegistry.shadowed...)
 
 	if cfg.EnableWorktrees {
-		app.worktrees = worktree.NewManager(workspace)
+		// sessionRoot, not the bare root: moving it must re-resolve the
+		// configuration the root decides, or the session runs one tree's hooks
+		// and skills against another tree's files.
+		app.worktrees = worktree.NewManager(sessionRoot{app: app})
 	}
 	if cfg.EnableBackgroundJobs {
 		app.jobs = job.NewManager()

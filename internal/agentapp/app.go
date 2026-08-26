@@ -13,6 +13,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/agentapp/worktree"
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/agent"
+	corehook "github.com/gougoujiang/buildmax/internal/core/hook"
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/plugin"
 	"github.com/gougoujiang/buildmax/internal/core/session"
@@ -99,21 +100,27 @@ type AppConfig struct {
 type ManagedTokenFunc func(serverURL string) (string, error)
 
 type AgentApp struct {
-	workspace              *MovableRoot
-	worktrees              *worktree.Manager
-	settings               config.Settings
-	llmClients             *LLMClientCache
-	toolRegistriesMu       sync.Mutex
-	toolRegistries         map[string]cllm.ToolRegistry
-	mcpManager             *MCPManager
-	skillsRegistry         *SkillRegistry
-	subagentsRegistry      *SubAgentRegistry
-	plugins                PluginSnapshot
-	sessionManager         *SessionManager
-	modelMu                sync.Mutex
-	defaultModelOverride   string
-	policy                 agent.ToolPolicy
-	hooks                  agent.HookRunner
+	workspace            *MovableRoot
+	worktrees            *worktree.Manager
+	settings             config.Settings
+	llmClients           *LLMClientCache
+	toolRegistriesMu     sync.Mutex
+	toolRegistries       map[string]cllm.ToolRegistry
+	mcpManager           *MCPManager
+	skillsRegistry       *SkillRegistry
+	subagentsRegistry    *SubAgentRegistry
+	plugins              PluginSnapshot
+	sessionManager       *SessionManager
+	modelMu              sync.Mutex
+	defaultModelOverride string
+	policy               agent.ToolPolicy
+	hooks                agent.HookRunner
+	// hookManager is the same object as hooks, kept concretely so a workspace
+	// switch can re-merge the layers the root decides. See workspace_switch.go.
+	hookManager *HookManager
+	// pluginHooks is the plugin layer of the merge, held because the workspace
+	// layer is re-read whenever the root moves and the merge needs all three.
+	pluginHooks            corehook.Config
 	sandbox                agent.SandboxView
 	sandboxManager         *sandbox.Manager
 	sandboxResolved        config.SandboxResolution

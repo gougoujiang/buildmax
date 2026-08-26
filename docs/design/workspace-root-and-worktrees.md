@@ -1,6 +1,6 @@
 # Workspace Root And Worktrees
 
-> **Audience:** contributors · **Status:** phases 1-2 implemented; phases 3-5 open
+> **Audience:** contributors · **Status:** phases 1-3 implemented; phases 4-5 open
 
 Related: [roadmap](../ROADMAP.md) step 5,
 [session trees, agent mailboxes, and branched workspaces](../proposals/session-tree-and-agent-mailbox.md)
@@ -18,11 +18,12 @@ The workspace root becomes session state instead of construction state, and an
 agent can create a Git worktree, move the session into it, work there, leave,
 and clean up — without the user doing any of it by hand.
 
-Phases 1 and 2 are implemented: the root is session state, every tool consults
-it per call, and a `Worktree` tool creates, enters, leaves, lists, and removes
-them. What is still open is the configuration derived from the root — hooks,
-MCP, skills, and the `AGENTS.md` prompt layer are those of the launch tree
-until phase 3. This record exists so the implementation does not have to re-derive which of the root's
+Phases 1 to 3 are implemented: the root is session state, every tool consults
+it per call, a `Worktree` tool creates, enters, leaves, lists, and removes
+them, and the configuration the root decides — hooks, skills, subagent
+definitions, MCP servers, and the `AGENTS.md` prompt layer — follows a move.
+What is left is the hook events and Desktop display (phase 4) and worktrees for
+delegates (phase 5). This record exists so the implementation does not have to re-derive which of the root's
 dependents move with it and which do not, because that question, not the
 worktree command, is where this feature is easy to get subtly wrong.
 
@@ -302,6 +303,7 @@ the agent is writing to.
 | Git worktree mechanics: add, list, remove, exclude, and what removal would lose | `internal/infra/git` |
 | The occupancy lock the OS releases on exit | `internal/infra/flock` |
 | Lifecycle for one session: what may be entered, who occupies it, and the move | `internal/agentapp/worktree` |
+| Re-resolving what the root decides, as part of the move | `internal/agentapp` (`sessionRoot`) |
 | Runtime tool surface and its permission tiers | `internal/tool` (`Worktree`) |
 | `/worktree` panel, footer, and `/diff` following the root | `internal/interface/cli` |
 | Sandbox writable bind following the root | `internal/infra/sandbox` |
@@ -326,14 +328,22 @@ occupancy lock. The `Worktree` tool and the TUI's `/worktree` panel are the two
 surfaces. D3's containment check, D4's tiers, D5's refusal to delete anything on
 its own, D6's dirty report, D9's naming, and D10's lock are all in force.
 
-**Phase 3 — derived configuration.** Hooks, MCP, skills, subagents, and the
-`AGENTS.md` layer re-resolve on switch, per §4.
+**Phase 3 — derived configuration. Implemented.** Moving the root and
+re-resolving what it decides are one operation, in `sessionRoot.Set`: anything
+that moved the root without it would leave the session running one tree's
+hooks and skills against another tree's files, and nothing about that looks
+wrong from the outside. Hooks re-merge, skills and subagent definitions
+re-resolve, the cached tool registries drop, and MCP reconciles. The
+`AGENTS.md` layer needed no reload — the prompt is built from the current root
+every turn, so it already followed; a test holds that rather than a comment
+claiming it. Failures are logged rather than unwound: the move has happened,
+and stranding the session between two trees is worse than a degraded layer.
 
-Phase 2 shipped before phase 3, which is tolerable only because a worktree of
-the same repository normally carries identical workspace configuration, so the
-stale snapshot is usually the same snapshot. That argument disappears the
-moment D3 is relaxed, so phase 3 must land before the root is allowed anywhere
-else.
+Phase 2 shipped one release ahead of phase 3, which was tolerable only because
+a worktree of the same repository normally carries identical workspace
+configuration, so the stale snapshot was usually the same snapshot. That
+argument does not survive relaxing D3, and it no longer has to: phase 3 has
+landed.
 
 **Phase 4 — the rest of the surface.** The `WorktreeCreate`, `WorktreeRemove`,
 and `CwdChanged` hook events, which [hook system](hook-system.md) §6 lists as

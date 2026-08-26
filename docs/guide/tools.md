@@ -72,6 +72,11 @@ is left alone. Uncommitted changes do not come along — the agent lists what
 stayed behind rather than moving it, because a stash is shared with every other
 session in the repository.
 
+Everything the workspace decides moves with you: the worktree's own
+`<workspace>/.buildmax/hooks.yaml`, its skills and subagent definitions, its
+MCP servers, and its `AGENTS.md` all take effect when the session enters, and
+the tree you came from stops applying.
+
 Some things are deliberately not automatic:
 
 - **Creating and entering do not prompt**; removing does, and removing a
