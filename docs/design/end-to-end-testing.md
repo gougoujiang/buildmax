@@ -18,9 +18,12 @@
   done — agent execution and its trace, workflows and their execution, a
   conversation turn over the deployment's WebSocket, files, space settings, and
   the role matrix — and its deployment half landed retry and the team boundary
-  in the smoke. Step 5 landed the Desktop bridge, including rewind and fork.
-  Open: the two deployment paths §6.1 leaves for later, and the native
-  packaged-app smoke
+  in the smoke. Step 5 landed the Desktop bridge, including rewind and fork,
+  and CI now packages the desktop app on macOS and Windows — the prerequisite
+  the packaged-app smoke had and this record did not name. Open: the two
+  deployment paths §6.1 leaves for later, and the packaged-app smoke itself,
+  whose remaining unknown is whether a hosted runner gives a launched app a
+  usable GUI session
 - depends on: [tool-permissions.md](./tool-permissions.md), whose approval gate
   the CLI and Desktop paths exist to drive, and which decides what a surface
   with no human attached does with an `Ask`;
@@ -400,6 +403,27 @@ rather than discovered later.
    `TestBridge*` in `internal/interface/desktop`, run by `./make e2e desktop`;
    the packaged-app smoke is open, and it is what covers the window and the
    React app.
+
+   That step turned out to have a prerequisite this record did not name. Until
+   `desktop-package.yml`, **no CI job produced a packaged app at all**:
+   `go build ./...` compiles the desktop packages through the `!desktop` half
+   of the build tag, and the frontend job builds `desktop/dist` without ever
+   embedding it. A smoke has nothing to launch until something builds one, so
+   the first half of the step is the build — now running post-merge, weekly,
+   and on demand on macOS and Windows via `./make build desktop`.
+
+   Signing is not part of that prerequisite, which is worth stating because it
+   reads like it should be. Gatekeeper refuses a bundle that arrives with a
+   download's quarantine attribute; one built and launched on the same machine
+   has none, which is why `./make build` then `./make run desktop` is the
+   documented contributor path. A runner is that same case. Signing and
+   notarization gate **distribution** — which is why `.goreleaser.yaml` leaves
+   the app out, and why the build job publishes no artifact — and they do not
+   gate a smoke.
+
+   What is genuinely unproven is whether a hosted runner gives a launched app a
+   usable GUI session. That is the question the smoke has to answer first, and
+   it can now be answered against a real build.
 6. **Publish the contributor and agent runbook** in `docs/contribute/`,
    including suite selection, prerequisite checks, artifact locations, and a
    release-time full-matrix command. Landed as

@@ -101,20 +101,24 @@ func helpTopics() []helpTopic {
 		},
 		{
 			name:    "build",
-			usage:   "build [cli]",
-			summary: "Build every local target, or only the CLI.",
+			usage:   "build [cli|desktop]",
+			summary: "Build every local target, or one of them.",
 			details: []string{
 				"The full build is strict and covers the Go binaries, the shared gui package,\n" +
 					"Portal, and the Wails desktop app, so it needs the pinned Node and npm.\n" +
 					"`build cli` needs nothing but Go and is the fast inner loop.",
+				"`build desktop` packages the Wails app alone -- the frontend, the gui package\n" +
+					"it consumes, and the native bundle -- without spending the server, worker,\n" +
+					"and Portal builds to get at it.",
 				"Binaries land in " + binDir + "/ with the same version and commit ldflags a\n" +
 					"released build carries.",
 			},
 			args: []helpRow{
 				{"(none)", "Go binaries, gui, Portal, and the desktop app"},
 				{"cli", "Only " + exe(cliBinary)},
+				{"desktop", "Only the packaged desktop app, and the gui build it needs"},
 			},
-			examples: []string{"build cli", "build"},
+			examples: []string{"build cli", "build desktop", "build"},
 		},
 		{
 			name:    "test",

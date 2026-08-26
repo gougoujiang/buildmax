@@ -1,0 +1,109 @@
+# Packages the Wails desktop app on the platforms that can produce one.
+#
+# Nothing else in CI does. `go build ./...` compiles the desktop packages
+# through desktop/assets_stub.go, the `!desktop` half of the build tag, and the
+# frontend job in ci.yml builds desktop/dist without ever embedding it. So the
+# `desktop` tag path, cmd/buildmax-desktop/wails.json, and the native link
+# against WebKit and WebView2 had no coverage at all: a break in any of them
+# surfaced when a contributor next ran `./make build`, which could be weeks.
+#
+# Path-filtered on pull requests, the way windows.yml is. Moving end-to-end
+# suites off the pull-request gate was about suites that need containers, a
+# cluster, or a browser; this is a compile, it runs only when the app's own
+# inputs change, and catching a broken build before the merge beats catching it
+# after. It also runs after merge, weekly, and on demand.
+#
+# It builds and does not publish. The app is deliberately absent from
+# .goreleaser.yaml — an unsigned, unnotarized macOS bundle is refused by
+# Gatekeeper once it has been downloaded, so shipping one would be worse than
+# shipping none. Uploading it as a workflow artifact would recreate exactly that
+# download, so this job keeps its output and says only whether it built.
+name: Desktop package
+
+# The two path lists are duplicated rather than shared through a YAML anchor:
+# the Actions workflow parser does not resolve anchors, so one would silently
+# leave a trigger with no filter at all.
+on:
+  pull_request:
+    paths:
+      - 'cmd/buildmax-desktop/**'
+      - 'desktop/**'
+      - 'gui/**'
+      - 'internal/interface/desktop/**'
+      - 'cmd/mk/build.go'
+      - 'go.mod'
+      - 'go.sum'
+      - '.node-version'
+      - '.github/workflows/desktop-package.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'cmd/buildmax-desktop/**'
+      - 'desktop/**'
+      - 'gui/**'
+      - 'internal/interface/desktop/**'
+      - 'cmd/mk/build.go'
+      - 'go.mod'
+      - 'go.sum'
+      - '.node-version'
+      - '.github/workflows/desktop-package.yml'
+  schedule:
+    # Weekly. The inputs change rarely; what this catches between merges is
+    # drift underneath — a runner image, a WebView runtime, a toolchain.
+    - cron: '41 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # One group per pull request, one per commit elsewhere. A superseded pull
+  # request run is worth cancelling; a run on main is not, because there the ref
+  # is constant and cancelling would let a second merge discard the first one's
+  # result and leave that commit unproved -- the lesson deployment-smoke.yml
+  # records.
+  group: desktop-package-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  package:
+    name: Package (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # Both platforms report, rather than the second being cancelled by the
+      # first: "it builds on macOS and not on Windows" is the finding.
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: |
+            gui/package-lock.json
+            desktop/frontend/package-lock.json
+
+      - name: Use pinned npm
+        run: npm install --global npm@11.17.0
+
+      # Through the task runner, so the shim and cmd/mk are covered with it.
+      # `build desktop` builds gui first, which the desktop frontend consumes
+      # through a file: dependency.
+      - name: Package the desktop app
+        if: runner.os != 'Windows'
+        run: ./make build desktop
+
+      # shell is explicit because the matrix hides the runner OS from workflow
+      # linters, which then read a batch invocation as a bash script.
+      - name: Package the desktop app
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: .\make.bat build desktop

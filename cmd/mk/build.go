@@ -36,6 +36,14 @@ func cmdBuild(args []string) error {
 	case "all":
 	case "cli":
 		return buildGo("cli", cliBinary, "./cmd/buildmax")
+	case "desktop":
+		// gui first: buildDesktop refuses to run without gui/dist, and the
+		// desktop frontend consumes it through a file: dependency. The `all`
+		// path gets that ordering for free; this one has to ask for it.
+		if err := buildGUI(); err != nil {
+			return err
+		}
+		return buildDesktop()
 	default:
 		return usageErrorf("build", "unknown build target: %s", target)
 	}
