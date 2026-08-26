@@ -153,6 +153,7 @@ func TestK8sJobRunner_NoConfigMap(t *testing.T) {
 // model-chosen command in the pod the ability to mint tokens for any user and
 // read the whole database.
 func TestWorkerEnvFromEnviron_WithholdsServerOnlyCredentials(t *testing.T) {
+	t.Setenv(config.EnvKeyBuildmaxServerURL, "https://server.example")
 	t.Setenv(config.EnvKeyBuildmaxMinIOSecretKey, "minio-secret")
 	t.Setenv(config.EnvKeyBuildmaxMinIOAccessKey, "minio-key")
 	t.Setenv(config.EnvKeyBuildmaxJWTSecret, "jwt-secret")
@@ -171,7 +172,7 @@ func TestWorkerEnvFromEnviron_WithholdsServerOnlyCredentials(t *testing.T) {
 			t.Errorf("%s must not be forwarded to a worker pod", name)
 		}
 	}
-	for _, name := range []string{config.EnvKeyBuildmaxMinIOSecretKey, config.EnvKeyBuildmaxMinIOAccessKey} {
+	for _, name := range []string{config.EnvKeyBuildmaxServerURL, config.EnvKeyBuildmaxMinIOSecretKey, config.EnvKeyBuildmaxMinIOAccessKey} {
 		if _, ok := byName[name]; !ok {
 			t.Errorf("%s is read by a worker but was not forwarded", name)
 		}

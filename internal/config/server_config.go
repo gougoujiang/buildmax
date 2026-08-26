@@ -378,8 +378,8 @@ const (
 const EnvKeyBuildmaxCORSOrigin = "BUILDMAX_CORS_ORIGIN"
 
 // LoadServerConfig reads BUILDMAX_HOME/server.yaml via Viper and applies defaults.
-// Secret-bearing fields and cors_origin can be overridden by the environment
-// variables above.
+// Secret-bearing fields, cors_origin, and worker.server_url can be overridden
+// by the environment variables above and in env_spec.go.
 // A missing file is not an error — returns a config with all defaults applied.
 func LoadServerConfig() (ServerConfig, error) {
 	v := viper.New()
@@ -426,6 +426,7 @@ func LoadServerConfig() (ServerConfig, error) {
 	v.SetEnvPrefix("BUILDMAX")
 	_ = v.BindEnv("jwt_secret", EnvKeyBuildmaxJWTSecret)
 	_ = v.BindEnv("cors_origin", EnvKeyBuildmaxCORSOrigin)
+	_ = v.BindEnv("worker.server_url", EnvKeyBuildmaxServerURL)
 	_ = v.BindEnv("database.password", EnvKeyBuildmaxDatabasePassword)
 	_ = v.BindEnv("storage.minio.access_key", EnvKeyBuildmaxMinIOAccessKey)
 	_ = v.BindEnv("storage.minio.secret_key", EnvKeyBuildmaxMinIOSecretKey)

@@ -286,15 +286,17 @@ func RuntimeTaskRunGlobalDir(workspacesDir, workspaceID, taskID, taskRunID strin
 // ---------------------------------------------------------------------------
 
 // LoadSettings reads BUILDMAX_HOME/settings.yaml via Viper.
-// A missing file is not an error — returns (Settings{}, nil) so callers fall back gracefully.
+// BUILDMAX_SERVER_URL overrides server_url. A missing file is not an error;
+// environment overrides are still returned so callers can run from deploy-time
+// configuration alone.
 func LoadSettings() (Settings, error) {
 	v := viper.New()
 	v.SetConfigFile(SettingsPath())
+	_ = v.BindEnv("server_url", EnvKeyBuildmaxServerURL)
 	if err := v.ReadInConfig(); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return Settings{}, nil
+		if !errors.Is(err, os.ErrNotExist) {
+			return Settings{}, fmt.Errorf("read settings: %w", err)
 		}
-		return Settings{}, fmt.Errorf("read settings: %w", err)
 	}
 	var s Settings
 	if err := v.Unmarshal(&s); err != nil {

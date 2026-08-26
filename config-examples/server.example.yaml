@@ -139,7 +139,7 @@ webhook:
 worker:
   binary: buildmax-worker
   run_mode: local_process   # or k8s_job
-  server_url: http://localhost:5678
+  server_url: http://localhost:5678  # BUILDMAX_SERVER_URL overrides this
 
   # How a task run reaches a model.
   #

@@ -35,6 +35,7 @@ func TestWorkerEnv_WithholdsServerOnlyCredentials(t *testing.T) {
 func TestWorkerEnv_KeepsWhatTheWorkerReads(t *testing.T) {
 	needed := []string{
 		EnvKeyBuildmaxHome,
+		EnvKeyBuildmaxServerURL,
 		EnvKeyBuildmaxMinIOAccessKey,
 		EnvKeyBuildmaxMinIOSecretKey,
 		EnvKeyBuildmaxConversationAPIKey,
@@ -66,6 +67,7 @@ func TestFilterWorkerEnv(t *testing.T) {
 		"PATH=/usr/bin",
 		"HOME=/root",
 		EnvKeyBuildmaxHome + "=/run/home",
+		EnvKeyBuildmaxServerURL + "=https://server.example",
 		EnvKeyBuildmaxMinIOAccessKey + "=minio-key",
 		EnvKeyBuildmaxRunToken + "=some-other-runs-token",
 		EnvKeyBuildmaxJWTSecret + "=jwt-secret",
@@ -82,7 +84,7 @@ func TestFilterWorkerEnv(t *testing.T) {
 		}
 	}
 	// Non-BUILDMAX variables are what let the binary run at all.
-	for _, kept := range []string{"PATH=/usr/bin", "HOME=/root", EnvKeyBuildmaxHome + "=/run/home", EnvKeyBuildmaxMinIOAccessKey + "=minio-key"} {
+	for _, kept := range []string{"PATH=/usr/bin", "HOME=/root", EnvKeyBuildmaxHome + "=/run/home", EnvKeyBuildmaxServerURL + "=https://server.example", EnvKeyBuildmaxMinIOAccessKey + "=minio-key"} {
 		if !slices.Contains(got, kept) {
 			t.Errorf("filtered environment dropped %q: %v", kept, got)
 		}

@@ -44,7 +44,8 @@ implicit API-key environment variable.
 `env_spec.go` is the single source of truth: `EnvVars()` returns every variable
 BuildMax reads, and a test keeps it consistent. It returns a copy so a caller
 cannot change process-wide configuration metadata. Only bootstrap-level values
-live here — anything that can be in a file is in a file.
+live here. Most configuration belongs in a file; deploy-time values such as the
+server address may override the matching field without rewriting that file.
 
 Per-subsystem env constants sit next to the resolver that reads them
 (`EnvKeyBuildmaxSandboxEnabled` in `sandbox.go`, `EnvKeyBuildmaxTraceDisabled`
