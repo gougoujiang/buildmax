@@ -89,9 +89,15 @@ commands. See [CONTRIBUTING.md](../../CONTRIBUTING.md) for the full task list.
 
 ## Desktop App
 
-The desktop app is not published as a binary — launching it on macOS requires
-code signing and notarization. Build it locally with `./make build`, which
-produces it alongside the other binaries.
+The desktop app is not published as a binary: distributing a macOS bundle takes
+code signing and notarization, and one without them is refused by Gatekeeper
+after it has been downloaded.
+
+Building it yourself is not affected by that — an app built on your machine
+carries no download to be refused, and Wails signs the bundle ad-hoc as it
+packages it. `./make build desktop` produces it in `bin/` in about a minute,
+and `./make run desktop` starts it. `./make build` builds it too, alongside
+everything else.
 
 ## Next
 

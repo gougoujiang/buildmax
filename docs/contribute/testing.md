@@ -37,6 +37,7 @@ package whose code reads those paths gives itself a `TestMain` calling
 | The agent loop, tools, permissions, sessions, the TUI | `./make test`, then `./make e2e cli` |
 | Plugins, packaging, or the Marketplace routes | `./make test`, then `./make e2e cli` |
 | The Desktop bridge, its events, approvals, or session history | `./make e2e desktop` |
+| The Wails config, the desktop asset embedding, or the app's packaging | `./make build desktop` — nothing else builds the packaged app, and `go build ./...` compiles the `!desktop` stub instead |
 | A shared component in `gui/` | `./make check gui` |
 | Portal, `gui`, or a route Portal calls | `./make e2e local` |
 | Server, worker, scheduler, storage, or the model gateway | `./make compose smoke`, and `./make compose smoke managed` if the change touches the gateway |
