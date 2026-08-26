@@ -1,0 +1,9 @@
+{
+  "name": "the provider rejects the credential",
+  "steps": [
+    {
+      "status": 401,
+      "error": "invalid api key"
+    }
+  ]
+}

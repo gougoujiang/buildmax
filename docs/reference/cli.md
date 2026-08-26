@@ -244,7 +244,22 @@ buildmax --model gpt-4o -p "review this diff for race conditions"
 ## Exit Codes
 
 Print mode returns a non-zero exit code when the run fails, so it composes with
-shell scripts and CI steps.
+shell scripts and CI steps. The codes are a stable contract:
+
+| Code | Meaning |
+|---|---|
+| `0` | The run finished |
+| `1` | An error with no more specific code |
+| `2` | Bad flag, or missing configuration — no model configured, for instance |
+| `3` | A tool was blocked by the configured policy |
+| `4` | The model or the agent run failed: an unreachable provider, a refused credential, a run that could not continue |
+| `5` | Reserved for tool errors; nothing returns it yet |
+| `6` | Cancelled — `Ctrl+C`, or the context ended |
+
+`--output json` and `--output jsonl` carry the same fact as an `error` object
+with a `kind` (`usage`, `policy_denied`, `model_error`, `tool_error`,
+`cancelled`, or `error`) and a message, so a caller does not have to map the
+number back.
 
 ## Related
 
