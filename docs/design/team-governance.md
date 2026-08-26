@@ -47,9 +47,10 @@ console.
 Backend anchors:
 
 - roles in `internal/core/team/team.go`
-- authz helper in `internal/server/handlers/team_authz.go`
+- the role/action decision in `internal/core/team/policy.go`, applied to a
+  request by the `Guard` in `internal/server/access`
 - quota service in `internal/service/quota/service.go`
-- quota routes in `internal/server/handlers/usage.go`
+- quota routes in `internal/server/handlers/team/usage.go`
 - workflow lifecycle in `internal/core/workflow/workflow.go`
 - workflow lifecycle enforcement in `internal/service/workflow/service.go`
 - team persistence in `internal/infra/db/team.go`
@@ -362,8 +363,9 @@ Keep it boring: no policy DSL.
 
 ### M3. Team Event Store — DONE
 
-Shipped as `model.AuditEvent` and `model.AuditStore`
-(`RecordAuditEvent`/`ListAuditEvents`), with `auditEventRow` in
+Shipped as `audit.Event` and `audit.Store`
+(`RecordAuditEvent`/`ListAuditEvents`) in `internal/core/audit`, with
+`auditEventRow` in
 `internal/infra/db` on the singular table `audit_event`. The
 naming landed on *audit* rather than *team event* because a login is not
 team-scoped and the trail is evidence rather than an activity feed. See §5.4 for

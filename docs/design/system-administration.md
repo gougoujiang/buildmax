@@ -68,9 +68,9 @@ What exists today, with the anchors this design builds on:
 
 - Team roles and the team authorization helper:
   `internal/core/team/team.go`, `internal/core/team/policy.go`.
-- The single funnel for user identity on every JWT route: `requireAuth` in
-  `internal/server/handlers/auth.go`. Every authenticated handler reaches a
-  user id through it.
+- The single funnel for user identity on every JWT route: `Guard.ActiveUser` in
+  `internal/server/access`. Every authenticated handler reaches a user id
+  through it.
 - Route ownership: each handler subpackage's `Register` method, with a coverage
   test in `team_authz_matrix_test.go` that reads every one of them and fails
   when a team-scoped route has no authorization row.

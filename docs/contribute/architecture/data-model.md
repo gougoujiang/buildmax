@@ -219,7 +219,7 @@ The ownership and authorization boundary for every Portal resource.
 Indexes: PK `id`; unique `personal_for_user_id`; unique `public_id`.
 
 Every user gets a personal team named `My Space`
-(`model.DefaultPersonalTeamName`). It is a real team row, not a special case in
+(`team.DefaultPersonalName`). It is a real team row, not a special case in
 the authorization code, which is why quota and membership work identically for
 solo and shared use.
 
