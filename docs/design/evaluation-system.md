@@ -3,7 +3,8 @@
 > **Audience:** contributors, operators, and product designers · **Status:**
 > partly implemented — the [section 18](#18-vertical-slice-implementation-plan) vertical slice has
 > shipped for the CLI and worker surfaces; conversation and deployment adapters
-> and phase 2 onward are planned
+> and phase 2 onward are planned. Terminal-Bench 2.1 through Harbor is the
+> accepted first external target; its adapter is not implemented
 >
 > **Accepted:** 2026-08-22 · **Roadmap:** P0.6
 
@@ -33,7 +34,7 @@ This design decides that BuildMax will:
 4. evaluate built binaries and deployment artifacts through black-box execution adapters rather
    than making internal Go functions the benchmark interface;
 5. use external frameworks where they are strong — for example Inspect for experiment control and
-   statistics, Harbor for terminal environments and public benchmarks, and a self-hosted
+   statistics, Harbor for Terminal-Bench 2.1 and other container benchmarks, and a self-hosted
    observability platform as an optional viewer — without giving any one framework ownership of
    BuildMax's evaluation semantics;
 6. keep public benchmarks as external coordinates while product-owned suites determine BuildMax
@@ -323,7 +324,7 @@ The contract supports several adapters because no one environment represents the
 | Worker/TaskRun | Verify materialization, non-interactive execution, artifacts, transport, and boundary |
 | Conversation | Verify Tier 1 decisions, Tier 2 delegation, result return, and multi-turn outcomes |
 | Deployment | Verify Compose or Kubernetes dependencies and operator-visible failure behavior |
-| Harbor | Run standardized terminal environments and supported public benchmarks |
+| Harbor | Run Terminal-Bench 2.1 and other standardized container benchmarks |
 
 The deterministic end-to-end suites remain distinct. They may share environment and process-launch
 helpers with evaluation adapters, but a scripted model protocol test and a probabilistic real-model
@@ -476,7 +477,7 @@ follow only when a demonstrated workflow needs them.
 |---|---|---|
 | Inspect AI | Challenger to the default controller: epochs, limits, scoring, logs, and statistics | Must emit and consume the BuildMax trial contract; adopting it also adopts Python, so it must clear section 15.3's overturn condition |
 | Thin BuildMax controller | Default controller | Own only the minimum orchestration missing from the contract; do not grow an LLMOps platform |
-| Harbor | First-choice container and public-benchmark adapter, including Terminal-Bench | An execution adapter, not the controller or product-result model |
+| Harbor | First-choice container and public-benchmark adapter, beginning with Terminal-Bench 2.1 | An execution adapter, not the controller or product-result model |
 | Phoenix or Langfuse | Later, optional self-hosted trace, experiment, and annotation UI | Viewer/export target; never required or authoritative; select at most one after local reports prove insufficient |
 | Promptfoo | Optional adversarial prompt and red-team case generation | Generated cases return to BuildMax-owned tasks and graders; it is not in the main evaluation path |
 | Provider eval APIs | Optional semantic graders or comparison services | No provider becomes required for the core workflow |
@@ -492,13 +493,65 @@ public-benchmark bridge.
 
 ### 14.2 Public benchmark roles
 
-- Terminal-Bench is the first external capability benchmark. BuildMax runs a
-  pinned dataset release through Harbor using a BuildMax Agent adapter; it does
-  not maintain a second Terminal-Bench runner or copy those tasks into the
-  product suites. The vertical slice validates the adapter and oracle on a
-  bounded subset. Full benchmark runs are scheduled, release-time, or explicit
-  comparison jobs rather than ordinary pull-request gates.
-- SWE-bench-style tasks provide an external coding coordinate but do not define the product.
+Terminal-Bench 2.1 is the first external capability benchmark and the accepted
+Harbor integration target. Version 2.1 replaces 2.0 as BuildMax's baseline: it
+corrected 28 of the 89 tasks, so a 2.0 score must never be compared with a 2.1
+score as if only the Agent changed.
+
+It is selected because the live leaderboard names the Agent and model
+separately, accepts custom Agents, reports repeated trials with uncertainty,
+and includes Codex, Claude Code, and Harbor's reference Agent. That makes it a
+better harness coordinate than a leaderboard that fixes one scaffold and
+primarily compares models. Its deterministic container outcomes also fit the
+BuildMax black-box and final-state contracts without requiring a model grader.
+
+The integration has these boundaries:
+
+- Pin the Harbor version, the `terminal-bench/terminal-bench-2-1` dataset
+  release and digest, the BuildMax adapter version, and every container or
+  provider dependency that can change a result.
+- Expose the built BuildMax artifact through Harbor's custom-Agent boundary.
+  Harbor owns task materialization and official verification; BuildMax does not
+  maintain a second runner or copy Terminal-Bench tasks into product suites.
+- Validate the adapter, evidence conversion, and oracle boundary on a named
+  canary subset before spending on the complete benchmark. A full comparable
+  run uses all 89 tasks, five attempts per task, and the leaderboard resource
+  and timeout policy without modification.
+- Convert every attempt into the BuildMax trial contract and retain the Harbor
+  task identity, outcome, logs, resource limits, usage, and harness failure
+  separately from Agent failure. The external verifier remains authoritative
+  for the benchmark outcome.
+- Run canaries, full qualification, and baseline comparisons only as explicit,
+  scheduled, or release-time jobs. They are never ordinary pull-request gates.
+
+The primary harness comparison holds the model, reasoning effort, provider,
+task version, resources, and attempt count constant while changing only the
+Agent adapter. BuildMax should first compare against Harbor's reference Agent
+and, where the same model is accessible, Codex and Claude Code. Native
+Codex/model and Claude Code/model pairings remain useful product coordinates,
+but a difference between them is not evidence of a harness advantage because
+the model changed too.
+
+Each experiment snapshots the relevant live-leaderboard rows rather than
+copying mutable scores into this design record. Reports identify the complete
+subject tuple — Agent and version, model and version, reasoning effort,
+provider, Harbor and dataset versions, environment and resource profile — and
+show pass rate with uncertainty, per-task outcomes, cost, tokens, latency,
+timeouts, and harness faults. A headline percentage without that tuple is not a
+BuildMax qualification result.
+
+- SWE-bench-style tasks and
+  [SWE-rebench](https://swe-rebench.com/) provide later repository-editing
+  coordinates but do not define the product or replace the first Harbor target.
+- [BoundaryBench](https://github.com/boundary-bench/boundary-bench) informs a
+  later sandbox-policy coordinate. It reuses Terminal-Bench tasks under
+  hardened policies, so it complements rather than replaces the unmodified 2.1
+  baseline.
+- [METR's scaffold comparison](https://metr.substack.com/p/2026-02-13-measuring-time-horizon-using-claude-code-and-codex)
+  found no general statistically significant advantage for Codex or Claude Code
+  over its default scaffolds on the tested models and task distribution. That
+  is evidence for same-model paired comparisons, not for assuming one harness
+  has a universal multiplier.
 - tau-bench-style scenarios inform multi-turn user, policy, tool, and final-state evaluation.
 - BFCL provides a model/tool-call coordinate rather than an end-to-end BuildMax score.
 - GUI-computer benchmarks remain deferred while computer use is not a core product surface.
@@ -571,7 +624,7 @@ there is. Heavier analysis — power analysis, stratified sampling, inter-rater 
 phase 2 and later, and arrives as an offline Python script reading committed JSON bundles. The
 contract is language-neutral, so that route stays open without deciding anything now.
 
-Harbor and Terminal-Bench are not an argument for Python either. Section 14.2 runs Harbor as a
+Harbor and Terminal-Bench 2.1 are not an argument for Python either. Section 14.2 runs Harbor as a
 separate process calling a BuildMax Agent adapter — an external tool invoking a BuildMax binary,
 not a BuildMax controller importing a Harbor library — so the controller's language does not
 reach it.
@@ -585,7 +638,7 @@ supplies them along with a log viewer.
 The vertical slice must resolve these choices with evidence rather than
 preference:
 
-- Harbor's exact adapter mechanism;
+- Harbor's exact custom-Agent adapter mechanism for Terminal-Bench 2.1;
 - the report renderer, given that the statistics above are implemented rather than imported; and
 - Phoenix, Langfuse, or no external viewer.
 
@@ -625,7 +678,8 @@ The accepted direction is the final option.
 - Preserve hidden graders and an executable oracle.
 - Produce one canonical trial bundle per attempt.
 - Compare baseline and candidate over repeated trials.
-- Spike Inspect versus a thin controller and add a Harbor terminal adapter.
+- Spike Inspect versus a thin controller and add a Harbor adapter targeting
+  Terminal-Bench 2.1.
 
 The slice is successful when a failure hands a contributor a classification, trace, final-state
 evidence, subject manifest, and bounded reproduction path — not merely a lower aggregate score.
@@ -846,10 +900,12 @@ adapters against a contract that is still moving.
 
 ### 18.7 Deliberately outside the slice
 
-Naming these prevents the plan from reading as a commitment: conversation and deployment
-adapters; model-grader calibration; the private or rotating holdout; any external
-viewer; Terminal-Bench and every other public benchmark; and the hook-execution and file-change
-trace events. Each has a home in section 17 or in another design record.
+The original shipped slice deliberately excluded conversation and deployment
+adapters, model-grader calibration, the private or rotating holdout, any
+external viewer, public benchmarks, and the hook-execution and file-change
+trace events. That exclusion scoped the first slice; it was not a rejection of
+follow-on work. Section 14.2 now accepts Terminal-Bench 2.1 as the first
+external target while the other items retain their existing homes.
 
 ## 19. Risks And Mitigations
 
@@ -879,7 +935,8 @@ must not proceed past the first slice without evidence from:
    recorded by [section 18.3](#183-black-box-adapter-sketch);
 4. a privacy review of trial contents, retention, and export;
 5. an initial provider-cost and repetition estimate;
-6. an Inspect/controller spike and a Harbor adapter spike; and
+6. an Inspect/controller spike and a Harbor custom-Agent adapter spike against
+   Terminal-Bench 2.1; and
 7. oracle and grader review showing that the initial tasks measure the claimed capability.
 
 External practice supports the direction but does not decide BuildMax's product contract:
@@ -895,7 +952,10 @@ External practice supports the direction but does not decide BuildMax's product 
   sandboxes, limits, and epochs, while its [metrics](https://inspect.aisi.org.uk/metrics.html)
   include uncertainty and inter-rater agreement.
 - [Harbor](https://github.com/harbor-framework/harbor) evaluates arbitrary Agents in container
-  environments and is the official harness for Terminal-Bench 2.0.
+  environments and is the official harness for
+  [Terminal-Bench 2.1](https://www.tbench.ai/leaderboard/terminal-bench/2.1).
+  The [2.1 release](https://www.tbench.ai/news/terminal-bench-2-1) documents the
+  corrections that make 2.0 results a different dataset rather than a baseline.
 - The [Agentic Benchmark Checklist](https://github.com/uiuc-kang-lab/agentic-benchmarks/blob/main/ABC.md)
   emphasizes task and outcome validity, hidden ground truth, oracle solvers, contamination controls,
   and uncertainty reporting.
