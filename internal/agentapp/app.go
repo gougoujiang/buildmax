@@ -10,8 +10,10 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/agentapp/job"
+	"github.com/gougoujiang/buildmax/internal/agentapp/worktree"
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/agent"
+	corehook "github.com/gougoujiang/buildmax/internal/core/hook"
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/plugin"
 	"github.com/gougoujiang/buildmax/internal/core/session"
@@ -85,6 +87,12 @@ type AppConfig struct {
 	// a job, and eval and workers have no unattended lifecycle for one, per
 	// docs/design/local-background-jobs.md.
 	EnableBackgroundJobs bool
+
+	// EnableWorktrees lets a session create Git worktrees and move its own
+	// workspace root into them. CLI and TUI set it; a worker run does not,
+	// because its directory is run-scoped and is not the user's to branch.
+	// See docs/design/workspace-root-and-worktrees.md D8.
+	EnableWorktrees bool
 }
 
 // ManagedTokenFunc returns the BuildMax credential to use for serverURL. It is
@@ -92,20 +100,27 @@ type AppConfig struct {
 type ManagedTokenFunc func(serverURL string) (string, error)
 
 type AgentApp struct {
-	workspace              *MovableRoot
-	settings               config.Settings
-	llmClients             *LLMClientCache
-	toolRegistriesMu       sync.Mutex
-	toolRegistries         map[string]cllm.ToolRegistry
-	mcpManager             *MCPManager
-	skillsRegistry         *SkillRegistry
-	subagentsRegistry      *SubAgentRegistry
-	plugins                PluginSnapshot
-	sessionManager         *SessionManager
-	modelMu                sync.Mutex
-	defaultModelOverride   string
-	policy                 agent.ToolPolicy
-	hooks                  agent.HookRunner
+	workspace            *MovableRoot
+	worktrees            *worktree.Manager
+	settings             config.Settings
+	llmClients           *LLMClientCache
+	toolRegistriesMu     sync.Mutex
+	toolRegistries       map[string]cllm.ToolRegistry
+	mcpManager           *MCPManager
+	skillsRegistry       *SkillRegistry
+	subagentsRegistry    *SubAgentRegistry
+	plugins              PluginSnapshot
+	sessionManager       *SessionManager
+	modelMu              sync.Mutex
+	defaultModelOverride string
+	policy               agent.ToolPolicy
+	hooks                agent.HookRunner
+	// hookManager is the same object as hooks, kept concretely so a workspace
+	// switch can re-merge the layers the root decides. See workspace_switch.go.
+	hookManager *HookManager
+	// pluginHooks is the plugin layer of the merge, held because the workspace
+	// layer is re-read whenever the root moves and the merge needs all three.
+	pluginHooks            corehook.Config
 	sandbox                agent.SandboxView
 	sandboxManager         *sandbox.Manager
 	sandboxResolved        config.SandboxResolution
@@ -403,6 +418,15 @@ func (a *AgentApp) Close() error {
 			<-a.jobTraceDone
 		}
 	}
+	// The occupancy lock goes with the process, but releasing it explicitly
+	// makes the tree free the moment the runtime closes rather than whenever
+	// the descriptor happens to be collected. The worktree itself is left
+	// alone: removing it is the user's call, never a side effect of exiting.
+	if a.worktrees != nil {
+		if err := a.worktrees.Close(); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
 	if a.mcpManager != nil {
 		if err := a.mcpManager.Close(); err != nil && firstErr == nil {
 			firstErr = err
@@ -442,6 +466,15 @@ func (a *AgentApp) WorkspaceRoot() string {
 		return ""
 	}
 	return a.workspace.Root()
+}
+
+// Worktrees returns the worktree lifecycle for this runtime, nil on a surface
+// that does not offer it.
+func (a *AgentApp) Worktrees() *worktree.Manager {
+	if a == nil {
+		return nil
+	}
+	return a.worktrees
 }
 
 // Workspace returns the root itself, for a surface that must keep following it
@@ -1269,8 +1302,19 @@ func (a *AgentApp) buildToolRegistry(client cllm.LLMClient) (cllm.ToolRegistry, 
 			if a.jobs != nil {
 				taskTool = taskTool.WithJobs(a.jobs, a.workspace)
 			}
+			if a.worktrees != nil {
+				taskTool = taskTool.WithWorktrees(a.worktrees, func(agentType string, ws util.Workspace) []cllm.Tool {
+					return a.agentTypeToolsAt(client, agentType, ws)
+				})
+			}
 			registry.AppendTools(taskTool)
 		}
+	}
+	// After BuildAgentTypes like Task, so subagents never see it: a subagent
+	// shares the parent's root for the length of its run, and moving it
+	// underneath the parent is exactly the race worktrees exist to prevent.
+	if a.worktrees != nil {
+		registry.AppendTools(tools.NewWorktree(a.worktrees))
 	}
 	// After BuildAgentTypes like Task, so subagents never see the job tools:
 	// a job must be owned by a session the user can still reach.

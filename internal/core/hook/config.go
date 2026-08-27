@@ -27,6 +27,9 @@ const (
 	EventSubagentStop       = "SubagentStop"
 	EventStop               = "Stop"
 	EventStopFailure        = "StopFailure"
+	EventWorktreeCreate     = "WorktreeCreate"
+	EventWorktreeRemove     = "WorktreeRemove"
+	EventCwdChanged         = "CwdChanged"
 )
 
 // DefaultTimeoutSecs is the per-hook execution timeout when a hook entry
@@ -116,6 +119,9 @@ type Config struct {
 	SubagentStop       []Entry `mapstructure:"subagent_stop"          json:"subagent_stop,omitempty"          yaml:"subagent_stop,omitempty"`
 	Stop               []Entry `mapstructure:"stop"                   json:"stop,omitempty"                   yaml:"stop,omitempty"`
 	StopFailure        []Entry `mapstructure:"stop_failure"           json:"stop_failure,omitempty"           yaml:"stop_failure,omitempty"`
+	WorktreeCreate     []Entry `mapstructure:"worktree_create"        json:"worktree_create,omitempty"        yaml:"worktree_create,omitempty"`
+	WorktreeRemove     []Entry `mapstructure:"worktree_remove"        json:"worktree_remove,omitempty"        yaml:"worktree_remove,omitempty"`
+	CwdChanged         []Entry `mapstructure:"cwd_changed"            json:"cwd_changed,omitempty"            yaml:"cwd_changed,omitempty"`
 }
 
 // EventNames lists every event in dispatch order, for a surface that has to
@@ -127,6 +133,7 @@ func EventNames() []string {
 		EventNotification, EventPreCompact, EventPostCompact,
 		EventSubagentStart, EventSubagentStop,
 		EventStop, EventStopFailure,
+		EventWorktreeCreate, EventWorktreeRemove, EventCwdChanged,
 	}
 }
 
@@ -160,6 +167,12 @@ func (h Config) Entries(event string) []Entry {
 		return h.Stop
 	case EventStopFailure:
 		return h.StopFailure
+	case EventWorktreeCreate:
+		return h.WorktreeCreate
+	case EventWorktreeRemove:
+		return h.WorktreeRemove
+	case EventCwdChanged:
+		return h.CwdChanged
 	default:
 		return nil
 	}
@@ -179,7 +192,10 @@ func (h Config) IsEmpty() bool {
 		len(h.SubagentStart) == 0 &&
 		len(h.SubagentStop) == 0 &&
 		len(h.Stop) == 0 &&
-		len(h.StopFailure) == 0
+		len(h.StopFailure) == 0 &&
+		len(h.WorktreeCreate) == 0 &&
+		len(h.WorktreeRemove) == 0 &&
+		len(h.CwdChanged) == 0
 }
 
 // EachEntry applies fn to every entry, in dispatch order.
@@ -202,6 +218,7 @@ func (h *Config) eventSlices() []*[]Entry {
 		&h.Notification, &h.PreCompact, &h.PostCompact,
 		&h.SubagentStart, &h.SubagentStop,
 		&h.Stop, &h.StopFailure,
+		&h.WorktreeCreate, &h.WorktreeRemove, &h.CwdChanged,
 	}
 }
 

@@ -283,6 +283,9 @@ models:
 #   subagent_stop:             subagent finished (advisory)
 #   stop:                      main agent finished (advisory)
 #   stop_failure:              main agent finished with an error (advisory)
+#   worktree_create:           a worktree was created and entered (advisory)
+#   worktree_remove:           a worktree and its branch were removed (advisory)
+#   cwd_changed:               the session's workspace root moved (advisory)
 #
 # Each entry chooses a transport via "type":
 #   command:                   run a shell command; HookInput JSON arrives on stdin

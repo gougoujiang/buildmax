@@ -22,12 +22,13 @@ so they are worth knowing exactly.
 | `TodoWrite` | Track multi-step progress | `todos[]` of `{content, status, active_form}` |
 | `NoteWrite` | Keep durable notes that survive compaction | `notes[]` of strings |
 | `Skill` | Load a skill's instructions | `skill`, `args` |
-| `Task` | Delegate to a subagent | `description`, `prompt`, `subagent_type`, `run_in_background` and `deliver_result` (TUI and Desktop) |
+| `Task` | Delegate to a subagent | `description`, `prompt`, `subagent_type`, `run_in_background` and `deliver_result` (TUI and Desktop), `worktree` (TUI) |
 | `UploadArtifact` | Publish one finished file as a durable artifact | `path`, `title`, `purpose` |
 | `JobList` | List background jobs: ID, kind, state, age, command | — |
 | `JobOutput` | Read a background job's status and output incrementally | `job_id`, `stream`, `cursor` |
 | `JobStop` | Stop a background job (kills the whole process tree) | `job_id` |
 | `Monitor` | Watch logs, files, or CI: each stdout line becomes a bounded event | `command`, `description`, `timeout`, `persistent`, `react` |
+| `Worktree` | Create, enter, leave, list, or remove a Git worktree, moving the session into it | `action`, `name`, `path`, `discard_changes` |
 | `LoadMcpTools` / `CallMcpTool` | Discover and invoke MCP server tools | see [mcp.md](mcp.md) |
 
 Run `/tools` in the TUI to see the set active for the current run — it varies
@@ -55,6 +56,51 @@ background job shares the workspace with the conversation — avoid delegating
 edits that would race yours — and quitting the application stops every job it
 started. A background subagent's final reply appears in `JobOutput` when it
 completes.
+
+## Worktrees
+
+Ask for one in the conversation — "open a worktree and do the refactor there" —
+and the agent creates it, moves into it, and works there. Nothing needs a path
+prefix afterwards: `Read`, `Edit`, `Grep`, and `Bash` all resolve inside the
+worktree, `/diff` shows that tree, and the footer shows which one you are in.
+Committing and pushing from it are ordinary Bash.
+
+Worktrees live in `.buildmax/worktrees/<name>` on a `worktree/<name>` branch,
+created from the current `HEAD`. The directory is excluded through your clone's
+`.git/info/exclude`, so it never shows up in `git status` and your `.gitignore`
+is left alone. Uncommitted changes do not come along — the agent lists what
+stayed behind rather than moving it, because a stash is shared with every other
+session in the repository.
+
+Everything the workspace decides moves with you: the worktree's own
+`<workspace>/.buildmax/hooks.yaml`, its skills and subagent definitions, its
+MCP servers, and its `AGENTS.md` all take effect when the session enters, and
+the tree you came from stops applying.
+
+Some things are deliberately not automatic:
+
+- **Creating and entering do not prompt**; removing does, and removing a
+  worktree that holds uncommitted files or commits no other branch reaches is
+  refused outright unless you say the work can be discarded.
+- **Nothing is ever deleted for you** — not when the session ends, and not
+  later for one a crashed session left. Use `Worktree` with `action: "list"` to
+  see what exists, and remove what you no longer want.
+- **Two sessions cannot share one worktree.** A tree another live session is
+  working in is refused, naming who holds it; the lock is released when that
+  process exits, however it exits, so nothing stays blocked by a session that
+  died.
+
+A delegate can have one too. Pass `worktree` to `Task` and the subagent runs
+in a worktree of that name with its tools rooted there, while your session
+stays where it is. Nothing forces it — the agent decides per delegation, and
+for a read-only exploration a shared workspace is the cheaper answer, since the
+tree is left on disk afterwards like any other. The reply says where the
+delegate's changes are.
+
+Like the `Job` tools, `Worktree` is a TUI capability: print mode, eval, and
+worker runs do not get it, and neither do subagents, which share the parent's
+root for the length of their run. `buildmax --workspace <dir>` still starts a
+session anywhere you like, including in a worktree you made yourself.
 
 When the agent asks for several tools at once, the read-only ones run at the
 same time: `Read`, `Glob`, `Grep`, `Skill`, `WebFetch`, and a `Task` handed to

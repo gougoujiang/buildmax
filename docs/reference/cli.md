@@ -211,6 +211,7 @@ Typed into the input line:
 | `/diff` | Working-tree diff for the workspace |
 | `/stats` | This session's spend, context use, and heaviest tools |
 | `/tasks` | Background jobs: state, age, command; `s` stops the selected one |
+| `/worktree` | This repository's worktrees, and which session is in each |
 
 Slash commands are unavailable while the agent is running.
 

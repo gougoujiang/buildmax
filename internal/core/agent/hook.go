@@ -52,6 +52,20 @@ const (
 	// HookStopFailure fires when the agent loop exits with an error
 	// (whether main agent or subagent). Advisory.
 	HookStopFailure HookEvent = "StopFailure"
+
+	// HookWorktreeCreate fires after a worktree has been created and entered.
+	// Advisory: the tool call that asked for it already passed PreToolUse, and
+	// a second gate over the same decision would only be a way to half-create
+	// one.
+	HookWorktreeCreate HookEvent = "WorktreeCreate"
+	// HookWorktreeRemove fires after a worktree and its branch are gone.
+	// Advisory, and for the same reason.
+	HookWorktreeRemove HookEvent = "WorktreeRemove"
+	// HookCwdChanged fires whenever the session's workspace root moves,
+	// including the move a create performs. Advisory. It is the event to
+	// subscribe to for "where is this session working now"; the two worktree
+	// events say what happened to the tree itself.
+	HookCwdChanged HookEvent = "CwdChanged"
 )
 
 // NotificationKind enumerates the reasons a HookNotification event fires.
@@ -107,6 +121,13 @@ type HookInput struct {
 	Stats *RunStats `json:"stats,omitempty"`
 	// Populated for HookStopFailure (the failure message).
 	Error string `json:"error,omitempty"`
+
+	// Populated for HookWorktreeCreate, HookWorktreeRemove, and
+	// HookCwdChanged. Workspace carries where the session is now; these say
+	// which tree it is and, for a move, where it came from.
+	WorktreePath      string `json:"worktree_path,omitempty"`
+	WorktreeBranch    string `json:"worktree_branch,omitempty"`
+	PreviousWorkspace string `json:"previous_workspace,omitempty"`
 
 	// Sandbox is the runtime sandbox snapshot for the current run.
 	// Populated on HookSessionStart (always) and on every gating event

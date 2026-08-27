@@ -112,21 +112,10 @@ func (m *HookManager) Status() HookStatus {
 	if m == nil {
 		return HookStatus{EventCounts: map[string]int{}}
 	}
-	events := []string{
-		corehook.EventSessionStart,
-		corehook.EventSessionEnd,
-		corehook.EventUserPromptSubmit,
-		corehook.EventPreToolUse,
-		corehook.EventPostToolUse,
-		corehook.EventPostToolUseFailure,
-		corehook.EventNotification,
-		corehook.EventPreCompact,
-		corehook.EventPostCompact,
-		corehook.EventSubagentStart,
-		corehook.EventSubagentStop,
-		corehook.EventStop,
-		corehook.EventStopFailure,
-	}
+	// EventNames rather than a list of its own: a second copy is a second
+	// place to forget when an event is added, and this one was already
+	// drifting behind the config.
+	events := corehook.EventNames()
 	cfg := m.snapshot()
 	counts := make(map[string]int, len(events))
 	total := 0

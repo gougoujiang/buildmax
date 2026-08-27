@@ -21,6 +21,7 @@ var builtinSlashCommands = []string{
 	"/stats",
 	"/tasks",
 	"/tools",
+	"/worktree",
 }
 
 // slashPanel is the abstraction shared by all "/" overlays (sessions, models,
@@ -235,8 +236,10 @@ func dispatchSlashCommand(m *Model, cmd string, args ...string) (tea.Model, tea.
 		return openSlashJobs(m)
 	case "/tools":
 		return openSlashTools(m)
+	case "/worktree":
+		return openSlashWorktree(m)
 	default:
-		m.err = "unknown command " + cmd + " (try /diff, /fork, /mcp, /model, /rewind, /sessions, /skills, /stats, /tasks, /tools)"
+		m.err = "unknown command " + cmd + " (try /diff, /fork, /mcp, /model, /rewind, /sessions, /skills, /stats, /tasks, /tools, /worktree)"
 		return m, nil
 	}
 }

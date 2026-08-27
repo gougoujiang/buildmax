@@ -150,6 +150,8 @@ internal/
 ├── agentapp/           Agent runtime assembly: LLM client cache, tool registry,
 │   │                   MCP, hooks, sandbox, traces, skills, sessions, workspace
 │   ├── job/            Local background jobs: identity, state, output, shutdown
+│   ├── worktree/       Git worktree lifecycle for one session: what may be
+│   │                   entered, who occupies it, and the root it moves
 │   └── taskrun/        One task run inside its run-scoped directory (worker)
 │
 ├── service/            Application services: coordinate stores, enforce rules
@@ -201,7 +203,8 @@ internal/
 │   ├── k8s/            Kubernetes worker job launcher
 │   ├── workerclient/   Worker-side HTTP client for the server worker API
 │   ├── httpclient/     Decodes the server's error envelope for its Go clients
-│   ├── git/            Branch and diff helpers
+│   ├── flock/          Advisory file lock the OS releases when the holder exits
+│   ├── git/            Branch, diff, and worktree helpers
 │   └── log/            slog + lumberjack logging
 │
 ├── interface/          Local user-facing entry points

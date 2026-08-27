@@ -32,7 +32,7 @@ func TestResolvedTypeDefaultsToCommand(t *testing.T) {
 	}
 }
 
-// EachEntry and Entries must cover the same thirteen events. An event added to
+// EachEntry and Entries must cover the same events. An event added to
 // the struct but missed in either walk would silently skip expansion and
 // inspection, which is exactly the failure neither would report.
 func TestEachEntryVisitsEveryEvent(t *testing.T) {
@@ -90,6 +90,8 @@ func yamlKeyFor(t *testing.T, event string) string {
 		EventNotification: "notification", EventPreCompact: "pre_compact",
 		EventPostCompact: "post_compact", EventSubagentStart: "subagent_start",
 		EventSubagentStop: "subagent_stop", EventStop: "stop", EventStopFailure: "stop_failure",
+		EventWorktreeCreate: "worktree_create", EventWorktreeRemove: "worktree_remove",
+		EventCwdChanged: "cwd_changed",
 	}
 	key, ok := keys[event]
 	if !ok {

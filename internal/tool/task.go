@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/gougoujiang/buildmax/internal/agentapp/job"
+	"github.com/gougoujiang/buildmax/internal/agentapp/worktree"
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/session"
@@ -113,6 +114,29 @@ type TaskTool struct {
 	// readOnlyTypes marks the agent types whose whole tool set is read-only,
 	// computed once at construction because the sets never change afterwards.
 	readOnlyTypes map[string]bool
+
+	// worktrees and toolsAt together enable the optional isolation: one makes
+	// the delegate a worktree, the other rebuilds that agent type's tools
+	// against it. Both nil on a surface without worktrees, which keeps the
+	// parameter out of the schema rather than offering one that always fails.
+	worktrees *worktree.Manager
+	toolsAt   AgentTypeToolsAt
+}
+
+// AgentTypeToolsAt rebuilds one agent type's tool set against a workspace
+// root. Everything except the root is the set the parent would have used.
+type AgentTypeToolsAt func(agentType string, ws util.Workspace) []llm.Tool
+
+// WithWorktrees returns a copy of t that can give a delegate its own worktree.
+//
+// Offered, never imposed: nothing forces one worktree per subagent, and the
+// model decides per delegation whether the isolation is worth a tree the user
+// will have to clean up by hand. See docs/design/workspace-root-and-worktrees.md D7.
+func (t *TaskTool) WithWorktrees(m *worktree.Manager, toolsAt AgentTypeToolsAt) *TaskTool {
+	out := *t
+	out.worktrees = m
+	out.toolsAt = toolsAt
+	return &out
 }
 
 // WithJobs returns a copy of t that can detach subagents to the given job
@@ -236,6 +260,15 @@ func (t *TaskTool) Parameters() any {
 			"enum":        typeNames,
 		},
 	}
+	if t.worktrees != nil && t.toolsAt != nil {
+		properties["worktree"] = map[string]any{
+			"type": "string",
+			"description": "Optional: run this sub-agent in its own Git worktree of this name, instead of sharing your workspace. " +
+				"Worth it when the delegate writes files you are also editing, or when its changes should stay on a branch of their own. " +
+				"Not worth it for a read-only exploration: the worktree is left on disk afterwards for the user to inspect or delete. " +
+				"Name it after the work, one path segment.",
+		}
+	}
 	if t.jobs != nil {
 		properties["run_in_background"] = map[string]any{
 			"type":        "boolean",
@@ -296,10 +329,26 @@ func (t *TaskTool) Execute(ctx context.Context, args map[string]any) (string, er
 		MaxIter:      config.MaxIterations,
 		Model:        config.Model,
 	}
+
+	// Isolation is decided per delegation, and the parent never moves: it goes
+	// on working where it was, which is the difference between delegating into
+	// a tree and switching to one.
+	held, err := t.isolate(ctx, args, subagentType, &opts)
+	if err != nil {
+		return err.Error(), nil
+	}
+
 	if background, _ := args["run_in_background"].(bool); background {
 		deliver, _ := args["deliver_result"].(bool)
-		return t.executeBackground(ctx, description, opts, prompt, deliver)
+		out, err := t.executeBackground(ctx, description, opts, prompt, deliver, held)
+		if err != nil {
+			_ = held.Release()
+			return out, err
+		}
+		return withWorktreeNote(out, held), nil
 	}
+	defer func() { _ = held.Release() }()
+
 	reply, err := t.runner.RunSubAgent(ctx, opts, prompt)
 	if err != nil {
 		return "", fmt.Errorf("sub-agent failed: %w", err)
@@ -309,7 +358,49 @@ func (t *TaskTool) Execute(ctx context.Context, args map[string]any) (string, er
 	reply = truncateSubAgentReply(reply, maxSubAgentReplyRunes)
 
 	slog.Info("task: sub-agent completed", "type", subagentType, "reply_len", len(reply))
-	return reply, nil
+	return withWorktreeNote(reply, held), nil
+}
+
+// isolate gives the delegate its own worktree when one was asked for, and
+// repoints its tools at it. A nil result means the delegate shares the
+// parent's workspace, which is the default.
+func (t *TaskTool) isolate(ctx context.Context, args map[string]any, subagentType string, opts *SubAgentRunOpts) (*worktree.Held, error) {
+	name, _ := args["worktree"].(string)
+	name = strings.TrimSpace(name)
+	if name == "" || t.worktrees == nil || t.toolsAt == nil {
+		return nil, nil
+	}
+	held, err := t.worktrees.CreateDetached(ctx, name)
+	if err != nil {
+		// Reported, not fatal: the caller turns this into a tool result the
+		// model can act on, rather than a failure it can only retry.
+		return nil, fmt.Errorf("the sub-agent was not started: its worktree could not be created: %v", err)
+	}
+	rebuilt := t.toolsAt(subagentType, util.FixedRoot(held.Path))
+	if len(rebuilt) == 0 {
+		_ = held.Release()
+		return nil, fmt.Errorf("the sub-agent was not started: no tools could be built for %s in its worktree", subagentType)
+	}
+	var subTools []llm.Tool
+	for _, tl := range rebuilt {
+		if tl.Name() != ToolNameTask {
+			subTools = append(subTools, tl)
+		}
+	}
+	opts.Tools = subTools
+	return held, nil
+}
+
+// withWorktreeNote tells the parent where the delegate's changes are. Nothing
+// removes the tree afterwards, so saying nothing would leave the parent with
+// changes it cannot find and a directory it did not know about.
+func withWorktreeNote(reply string, held *worktree.Held) string {
+	if held == nil {
+		return reply
+	}
+	return reply + fmt.Sprintf(
+		"\n\n(This sub-agent worked in the worktree %s on branch %s. It is kept — inspect or merge its changes there, "+
+			"and remove it with the Worktree tool when you are done.)", held.Path, held.Branch)
 }
 
 // executeBackground detaches the subagent to the job manager and returns its
@@ -317,7 +408,7 @@ func (t *TaskTool) Execute(ctx context.Context, args map[string]any) (string, er
 // still needs — owner session, launching run and tool call — are copied onto
 // it explicitly, so nothing else of the request context leaks into work that
 // outlives the call.
-func (t *TaskTool) executeBackground(ctx context.Context, description string, opts SubAgentRunOpts, prompt string, deliver bool) (string, error) {
+func (t *TaskTool) executeBackground(ctx context.Context, description string, opts SubAgentRunOpts, prompt string, deliver bool, held *worktree.Held) (string, error) {
 	if agent.SubagentFromCtx(ctx) {
 		return "Background execution is not available inside a subagent. Return your findings and let the parent session delegate further work.", nil
 	}
@@ -333,7 +424,7 @@ func (t *TaskTool) executeBackground(ctx context.Context, description string, op
 		Description: description,
 		Deliver:     deliver,
 	}, job.Provenance{
-		Workspace:        t.workspace.Root(),
+		Workspace:        backgroundWorkspace(t.workspace, held),
 		SessionID:        sessionID,
 		ParentTraceID:    runID,
 		ParentToolCallID: toolCallID,
@@ -341,6 +432,10 @@ func (t *TaskTool) executeBackground(ctx context.Context, description string, op
 		jobCtx = session.CtxWithSessionID(jobCtx, sessionID)
 		jobCtx = agent.CtxWithRunID(jobCtx, runID)
 		jobCtx = agent.CtxWithToolCall(jobCtx, toolCallID)
+		// The delegate's worktree is held for as long as it runs, not for as
+		// long as the call that started it: a background job outlives its
+		// tool call, and releasing early would let another session in.
+		defer func() { _ = held.Release() }()
 		reply, err := runner.RunSubAgent(jobCtx, opts, prompt)
 		if err != nil {
 			return "", err
@@ -350,9 +445,22 @@ func (t *TaskTool) executeBackground(ctx context.Context, description string, op
 	if err != nil {
 		return "Cannot start background subagent: " + err.Error(), nil
 	}
+	where := "It runs in this workspace, so its file changes are shared with the conversation."
+	if held != nil {
+		where = "It runs in its own worktree, so its file changes are not shared with the conversation."
+	}
 	return "Started background subagent job " + j.ID + " — " + description + ".\n" +
 		"Its final reply appears in JobOutput {\"job_id\": \"" + j.ID + "\"} when it completes; stop it with JobStop. " +
-		"It runs in this workspace, so its file changes are shared with the conversation.", nil
+		where, nil
+}
+
+// backgroundWorkspace records where a detached delegate actually runs, which
+// is its own worktree when it has one.
+func backgroundWorkspace(parent util.Workspace, held *worktree.Held) string {
+	if held != nil {
+		return held.Path
+	}
+	return parent.Root()
 }
 
 // truncateSubAgentReply applies head+tail truncation when reply exceeds maxRunes.
