@@ -174,8 +174,8 @@ Focus:
 - maintainer regression workflows and operator model/config/deployment
   qualification
 - replaceable framework adapters: Inspect or a thin controller for experiments,
-  Harbor for container/public-benchmark execution, Terminal-Bench as the first
-  external capability coordinate, and optional viewers
+  Harbor for container/public-benchmark execution, Terminal-Bench 2.1 as the
+  first external capability coordinate, and optional viewers
 
 Acceptance:
 
@@ -188,6 +188,9 @@ Acceptance:
   their own environment
 - no private prompt, trace, workspace snapshot, or grader body must leave the
   owning environment
+- Harbor can run the built BuildMax Agent against a pinned Terminal-Bench 2.1
+  release, preserve one BuildMax trial bundle per attempt, and compare harnesses
+  under the same model, effort, resources, and attempt count
 - the legacy `eval/` catalog and `internal/agenteval` are retired rather than
   preserved behind compatibility code — **done**: both are deleted, and
   `./make eval` now measures the built CLI against the CLI tasks in
@@ -203,7 +206,7 @@ paired experiments, and three representative tasks are implemented.
 `cmd/buildmax-eval` is the entry point for that contract; the old `eval/`
 catalog and `internal/agenteval` are deleted. Conversation and deployment
 adapters, model-grader calibration, a private or rotating holdout, and the
-Inspect/Harbor spikes remain open.
+Inspect spike and Harbor/Terminal-Bench 2.1 adapter remain open.
 
 ### P3. Enterprise Deployment Loop — implementation mostly shipped; operating evidence open
 
@@ -338,8 +341,10 @@ recovers. The immediate work is therefore evidence-first.
 3. **Continue P0.6 from the shipped local and worker slice.** Add conversation
    and deployment adapters, then expand the product and trust suites around
    repeated trials and useful failure bundles. Calibrate model graders and
-   spike Inspect/Harbor only after the local workflow shows what those tools
-   need to add. This can run alongside step 2.
+   spike Inspect only after the local workflow shows what it needs to add. Add
+   Harbor's custom-Agent adapter against pinned Terminal-Bench 2.1, first on a
+   named canary subset and then under the full official comparison protocol.
+   This can run alongside step 2.
 4. **Finish worker hardening as a parallel security track.** First decide and
    document fail-closed versus recorded downgrade when `bwrap` is unavailable;
    then add the backend to the image, prove the pod supports it, select
