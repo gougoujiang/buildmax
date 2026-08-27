@@ -31,7 +31,7 @@ func openSlashSkills(m *Model) (tea.Model, tea.Cmd) {
 		// No runtime to borrow a snapshot from, so scan now: the listing must
 		// match what a run would load, plugins included.
 		plugins := config.DiscoverPlugins().Loadable()
-		entries = tools.ResolveSkills(config.SkillSources(m.opts.Workspace, plugins)).Entries
+		entries = tools.ResolveSkills(config.SkillSources(workspaceRoot(m.opts.Workspace), plugins)).Entries
 	}
 	st := &slashSkillsState{Entries: entries}
 	m.slashSkills = st

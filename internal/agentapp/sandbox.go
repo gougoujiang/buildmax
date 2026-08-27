@@ -7,6 +7,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	"github.com/gougoujiang/buildmax/internal/infra/sandbox"
+	"github.com/gougoujiang/buildmax/internal/util"
 )
 
 // SandboxStatus is the snapshot returned by AgentApp.SandboxStatus(), used
@@ -54,7 +55,7 @@ func (a *AgentApp) SandboxStatus() SandboxStatus {
 // resolved config. Returns ErrSandboxUnavailable when the host backend is
 // missing and fail_if_unavailable is set, so the caller refuses to start
 // (per docs/design/trust-harness.md §3.2 worker hardening).
-func buildSandboxManager(resolved config.SandboxResolution, workspace string) (*sandbox.Manager, error) {
+func buildSandboxManager(resolved config.SandboxResolution, workspace util.Workspace) (*sandbox.Manager, error) {
 	m, err := sandbox.NewManager(resolved.Config, workspace, slog.Default())
 	if err != nil {
 		return nil, fmt.Errorf("build sandbox manager: %w", err)

@@ -2,6 +2,7 @@ package agentapp
 
 import (
 	"context"
+	"github.com/gougoujiang/buildmax/internal/util"
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/core/llm"
@@ -23,11 +24,11 @@ func (noopSubAgentRunner) RunSubAgent(context.Context, tools.SubAgentRunOpts, st
 func TestAgentTypeAccess(t *testing.T) {
 	registry := llm.NewToolRegistry()
 	registry.AppendTools(
-		tools.NewReadFile(t.TempDir()),
-		tools.NewGlob(t.TempDir()),
-		tools.NewGrep(t.TempDir()),
-		tools.NewBash(t.TempDir()),
-		tools.NewWriteFile(t.TempDir()),
+		tools.NewReadFile(util.FixedRoot(t.TempDir())),
+		tools.NewGlob(util.FixedRoot(t.TempDir())),
+		tools.NewGrep(util.FixedRoot(t.TempDir())),
+		tools.NewBash(util.FixedRoot(t.TempDir())),
+		tools.NewWriteFile(util.FixedRoot(t.TempDir())),
 	)
 	userDefs := []subagent.Def{
 		{Name: "reader", ToolNames: []string{tools.ToolNameRead, tools.ToolNameGrep}, SystemPrompt: "read", Description: "read"},

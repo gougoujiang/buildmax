@@ -2,6 +2,7 @@ package tool
 
 import (
 	"context"
+	"github.com/gougoujiang/buildmax/internal/util"
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/core/agent"
@@ -29,7 +30,7 @@ func permissionTable(t *testing.T) []permissionCase {
 	ws := testWorkspace(t, t.TempDir())
 	task, err := NewTask(nil2Runner{}, map[string]AgentTypeConfig{
 		"general-purpose": {},
-		"explore":         {Tools: []llm.Tool{NewReadFile(ws), NewGrep(ws)}},
+		"explore":         {Tools: []llm.Tool{NewReadFile(util.FixedRoot(ws)), NewGrep(util.FixedRoot(ws))}},
 	})
 	if err != nil {
 		t.Fatalf("NewTask: %v", err)
@@ -38,9 +39,9 @@ func permissionTable(t *testing.T) []permissionCase {
 	loadMCP, callMCP := gateway[0], gateway[1]
 
 	return []permissionCase{
-		{"Read", NewReadFile(ws), map[string]any{"file_path": "a.txt"}, llm.AccessReadOnly, llm.ToolActionAllow, llm.ToolActionAllow},
-		{"Glob", NewGlob(ws), map[string]any{"pattern": "**/*.go"}, llm.AccessReadOnly, llm.ToolActionAllow, llm.ToolActionAllow},
-		{"Grep", NewGrep(ws), map[string]any{"pattern": "x"}, llm.AccessReadOnly, llm.ToolActionAllow, llm.ToolActionAllow},
+		{"Read", NewReadFile(util.FixedRoot(ws)), map[string]any{"file_path": "a.txt"}, llm.AccessReadOnly, llm.ToolActionAllow, llm.ToolActionAllow},
+		{"Glob", NewGlob(util.FixedRoot(ws)), map[string]any{"pattern": "**/*.go"}, llm.AccessReadOnly, llm.ToolActionAllow, llm.ToolActionAllow},
+		{"Grep", NewGrep(util.FixedRoot(ws)), map[string]any{"pattern": "x"}, llm.AccessReadOnly, llm.ToolActionAllow, llm.ToolActionAllow},
 		{"Skill", NewSkillFromEntries(nil), map[string]any{"skill": "s"}, llm.AccessReadOnly, llm.ToolActionAllow, llm.ToolActionAllow},
 		{"WebFetch", NewWebFetch(nil, 0), map[string]any{"url": "https://example.com"}, llm.AccessReadOnly, llm.ToolActionAllow, llm.ToolActionAllow},
 		{"LoadMcpTools", loadMCP, map[string]any{"server": "s", "tool_name": "t"}, llm.AccessReadOnly, llm.ToolActionAllow, llm.ToolActionAllow},
@@ -51,8 +52,8 @@ func permissionTable(t *testing.T) []permissionCase {
 
 		// Writes: the rows that gain an interactive prompt. CallMcpTool is the
 		// one row that also tightens on autonomous surfaces — see §6.
-		{"Write", NewWriteFile(ws), map[string]any{"file_path": "a.txt"}, llm.AccessWrite, llm.ToolActionAsk, llm.ToolActionAllow},
-		{"Edit", NewEditFile(ws), map[string]any{"file_path": "a.txt"}, llm.AccessWrite, llm.ToolActionAsk, llm.ToolActionAllow},
+		{"Write", NewWriteFile(util.FixedRoot(ws)), map[string]any{"file_path": "a.txt"}, llm.AccessWrite, llm.ToolActionAsk, llm.ToolActionAllow},
+		{"Edit", NewEditFile(util.FixedRoot(ws)), map[string]any{"file_path": "a.txt"}, llm.AccessWrite, llm.ToolActionAsk, llm.ToolActionAllow},
 		{"Task", task, map[string]any{"subagent_type": "general-purpose"}, llm.AccessWrite, llm.ToolActionAsk, llm.ToolActionAllow},
 		// An empty registry knows of no read-only tool, so this is the
 		// non-read-only path: it asks interactively and denies where nobody can
@@ -62,8 +63,8 @@ func permissionTable(t *testing.T) []permissionCase {
 
 		// Bash keeps its own risk classifier as the authority: an ordinary
 		// command must not start prompting just because Bash writes.
-		{"Bash/safe", NewBash(ws), map[string]any{"command": "ls"}, llm.AccessWrite, llm.ToolActionAllow, llm.ToolActionAllow},
-		{"Bash/risky", NewBash(ws), map[string]any{"command": "sudo rm -f /etc/hosts"}, llm.AccessWrite, llm.ToolActionAsk, llm.ToolActionAsk},
+		{"Bash/safe", NewBash(util.FixedRoot(ws)), map[string]any{"command": "ls"}, llm.AccessWrite, llm.ToolActionAllow, llm.ToolActionAllow},
+		{"Bash/risky", NewBash(util.FixedRoot(ws)), map[string]any{"command": "sudo rm -f /etc/hosts"}, llm.AccessWrite, llm.ToolActionAsk, llm.ToolActionAsk},
 
 		// Scratch-state writers opt out of the derivation via DefaultAction.
 		{"TodoWrite", NewTodoWrite(), map[string]any{}, llm.AccessWrite, llm.ToolActionAllow, llm.ToolActionAllow},

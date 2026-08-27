@@ -16,8 +16,8 @@ type WriteFile struct {
 }
 
 // NewWriteFile creates a WriteFile tool that writes files under the given workspace root.
-func NewWriteFile(workspaceRoot string) *WriteFile {
-	return &WriteFile{workspaceTool{root: workspaceRoot}}
+func NewWriteFile(ws util.Workspace) *WriteFile {
+	return &WriteFile{workspaceTool{ws: ws}}
 }
 
 // Name returns the tool name for the LLM.
@@ -76,7 +76,7 @@ func (w *WriteFile) Execute(ctx context.Context, args map[string]any) (string, e
 		return "", errors.New("content must be a string")
 	}
 
-	resolved, err := util.ResolvePath(w.root, filePath)
+	resolved, err := util.ResolvePath(w.root(), filePath)
 	if err != nil {
 		return "", err
 	}

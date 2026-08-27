@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"errors"
+	"github.com/gougoujiang/buildmax/internal/util"
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/agentapp"
@@ -80,7 +81,7 @@ func TestViewFooterPresent(t *testing.T) {
 	m := NewModel(TUIOpts{
 		Session:   sess,
 		ModelName: "test-model",
-		Workspace: "/tmp/workspace",
+		Workspace: util.FixedRoot("/tmp/workspace"),
 	})
 
 	m2, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
@@ -103,7 +104,7 @@ func TestViewFooterShowsCompactTokenUsage(t *testing.T) {
 	m := NewModel(TUIOpts{
 		Session:   testSessionContext(),
 		ModelName: "test-model",
-		Workspace: "/tmp/workspace",
+		Workspace: util.FixedRoot("/tmp/workspace"),
 		RunStatus: agentapp.RunUsage{
 			ContextTokens:         500,
 			ContextWindow:         1000,
@@ -187,7 +188,7 @@ func TestMergeRunStatusAccumulatesRunningTotals(t *testing.T) {
 func TestLLMEndRendersAndClearsCurrentResponseBuffer(t *testing.T) {
 	m := NewModel(TUIOpts{
 		Session:      testSessionContext(),
-		Workspace:    t.TempDir(),
+		Workspace:    util.FixedRoot(t.TempDir()),
 		GlamourStyle: "dark",
 	})
 	m.busy = true
@@ -248,7 +249,7 @@ func typeInto(t *testing.T, m *Model, text string) *Model {
 }
 
 func TestEnterWhileBusyQueuesMessage(t *testing.T) {
-	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: util.FixedRoot(t.TempDir())})
 	m.busy = true
 
 	m = typeInto(t, m, "later question")
@@ -273,7 +274,7 @@ func TestEnterWhileBusyQueuesMessage(t *testing.T) {
 }
 
 func TestEnterWhileBusyRejectsSlashCommand(t *testing.T) {
-	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: util.FixedRoot(t.TempDir())})
 	m.busy = true
 
 	m = typeInto(t, m, "/model")
@@ -289,7 +290,7 @@ func TestEnterWhileBusyRejectsSlashCommand(t *testing.T) {
 }
 
 func TestEnterWhileBusyReportsFullQueue(t *testing.T) {
-	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: util.FixedRoot(t.TempDir())})
 	m.busy = true
 	for i := 0; i < agent.DefaultMaxQueuedMessages; i++ {
 		if _, err := m.queue.Enqueue("filler"); err != nil {
@@ -313,7 +314,7 @@ func TestEnterWhileBusyReportsFullQueue(t *testing.T) {
 }
 
 func TestEscWhileBusyClearsInputThenUnqueues(t *testing.T) {
-	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: util.FixedRoot(t.TempDir())})
 	m.busy = true
 	if _, err := m.queue.Enqueue("queued one"); err != nil {
 		t.Fatalf("Enqueue: %v", err)
@@ -342,7 +343,7 @@ func TestEscWhileBusyClearsInputThenUnqueues(t *testing.T) {
 // The queue is drained one message per turn: agentDoneMsg asks for a drain, and the
 // drain starts exactly one run.
 func TestQueueDrainsOneMessagePerTurn(t *testing.T) {
-	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: util.FixedRoot(t.TempDir())})
 	m.busy = true
 	for _, text := range []string{"first queued", "second queued"} {
 		if _, err := m.queue.Enqueue(text); err != nil {
@@ -378,7 +379,7 @@ func TestQueueDrainsOneMessagePerTurn(t *testing.T) {
 // A failed run still drains: leaving queued messages stranded with no way to
 // release them is worse than letting each fail on its own turn.
 func TestQueueDrainsAfterFailedRun(t *testing.T) {
-	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: util.FixedRoot(t.TempDir())})
 	m.busy = true
 	if _, err := m.queue.Enqueue("still wanted"); err != nil {
 		t.Fatalf("Enqueue: %v", err)
@@ -401,7 +402,7 @@ func TestQueueDrainsAfterFailedRun(t *testing.T) {
 }
 
 func TestDrainQueueIsNoOpWhileBusy(t *testing.T) {
-	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: util.FixedRoot(t.TempDir())})
 	m.busy = true
 	if _, err := m.queue.Enqueue("wait your turn"); err != nil {
 		t.Fatalf("Enqueue: %v", err)
@@ -420,7 +421,7 @@ func TestDrainQueueIsNoOpWhileBusy(t *testing.T) {
 // The input has to stay on screen during a run now that enter queues: text typed
 // into a hidden box is text the user cannot see or correct.
 func TestInputVisibleWhileBusy(t *testing.T) {
-	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: util.FixedRoot(t.TempDir())})
 	m.busy = true
 	m = typeInto(t, m, "typed during run")
 
@@ -459,7 +460,7 @@ func TestEventSinkForwardsInjectedUserInput(t *testing.T) {
 }
 
 func TestInjectedUserInputPrintsAndKeepsReadingTheStream(t *testing.T) {
-	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: util.FixedRoot(t.TempDir())})
 	m.busy = true
 	m.streamChannel = make(chan tea.Msg, 1)
 
@@ -479,7 +480,7 @@ func TestInjectedUserInputPrintsAndKeepsReadingTheStream(t *testing.T) {
 // what the user types mid-run reaches the model at the next iteration rather than
 // waiting for the run to end.
 func TestQueueIsHandedToTheRun(t *testing.T) {
-	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: util.FixedRoot(t.TempDir())})
 	if m.queue == nil {
 		t.Fatal("model should own a queue")
 	}
@@ -595,7 +596,7 @@ func TestSlashModelArrowSelectionSwitchesModel(t *testing.T) {
 func TestSlashCompletionShowsPrefixMatch(t *testing.T) {
 	m0 := NewModel(TUIOpts{
 		Session:   testSessionContext(),
-		Workspace: t.TempDir(),
+		Workspace: util.FixedRoot(t.TempDir()),
 	})
 	m1, _ := m0.Update(tea.WindowSizeMsg{Width: 80, Height: 14})
 	mod := m1.(*Model)
@@ -615,7 +616,7 @@ func TestSlashCommandUnknownDoesNotAppendSession(t *testing.T) {
 	sess := agentapp.NewSessionContext("")
 	m := NewModel(TUIOpts{
 		Session:   sess,
-		Workspace: t.TempDir(),
+		Workspace: util.FixedRoot(t.TempDir()),
 	})
 	m2, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
 	mod := m2.(*Model)
@@ -645,7 +646,7 @@ func TestSlashSessionListsNewestFirst(t *testing.T) {
 	seedSession(t, dir, "sess-new", "newer chat", time.Date(2026, 6, 1, 10, 0, 0, 0, time.UTC))
 	m0 := NewModel(TUIOpts{
 		Session:     sess,
-		Workspace:   t.TempDir(),
+		Workspace:   util.FixedRoot(t.TempDir()),
 		SessionsDir: dir,
 	})
 	m1, _ := m0.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
@@ -681,7 +682,7 @@ func TestSlashSkillsDoesNotAppendSession(t *testing.T) {
 	ws := t.TempDir()
 	m := NewModel(TUIOpts{
 		Session:   sess,
-		Workspace: ws,
+		Workspace: util.FixedRoot(ws),
 	})
 	m2, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 14})
 	mod := m2.(*Model)
@@ -715,7 +716,7 @@ func TestSlashSkillsOpensOverlayAndEscCloses(t *testing.T) {
 	}
 	m0 := NewModel(TUIOpts{
 		Session:   sess,
-		Workspace: ws,
+		Workspace: util.FixedRoot(ws),
 	})
 	m1, _ := m0.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
 	mod := m1.(*Model)
@@ -752,7 +753,7 @@ func TestSlashSkillsEmptyOverlay(t *testing.T) {
 	ws := t.TempDir()
 	m0 := NewModel(TUIOpts{
 		Session:   sess,
-		Workspace: ws,
+		Workspace: util.FixedRoot(ws),
 	})
 	m1, _ := m0.Update(tea.WindowSizeMsg{Width: 80, Height: 16})
 	mod := m1.(*Model)
@@ -778,7 +779,7 @@ func TestSlashMCPOpensOverlayAndEmptyConfig(t *testing.T) {
 	m := NewModel(TUIOpts{
 		App:       testAgentApp(t, workspace),
 		Session:   sess,
-		Workspace: workspace,
+		Workspace: util.FixedRoot(workspace),
 	})
 	m2, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 12})
 	mod := m2.(*Model)
@@ -801,7 +802,7 @@ func TestMCPOverlayEscClosesAndShowsServers(t *testing.T) {
 	sess := agentapp.NewSessionContext("")
 	m0 := NewModel(TUIOpts{
 		Session:   sess,
-		Workspace: t.TempDir(),
+		Workspace: util.FixedRoot(t.TempDir()),
 	})
 	m1, _ := m0.Update(tea.WindowSizeMsg{Width: 80, Height: 18})
 	mod := m1.(*Model)
@@ -938,7 +939,7 @@ func TestModeTag(t *testing.T) {
 // failure both have. ManagedServerURL answers "" for a nil app, so the tag is
 // local — the mode a session with nothing configured is actually in.
 func TestFooterWithoutAnAppSaysLocal(t *testing.T) {
-	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir(), ModelName: "local"})
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: util.FixedRoot(t.TempDir()), ModelName: "local"})
 	footer := m.renderFooterView()
 	if !strings.Contains(footer, "model: local (local)") {
 		t.Errorf("footer = %q, want it to name the model and the mode", footer)
@@ -964,7 +965,7 @@ func doneWithDigest(recap, suggestion string) agentDoneMsg {
 }
 
 func TestSuggestionIsOfferedAsGhostAndAcceptedWithTab(t *testing.T) {
-	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: util.FixedRoot(t.TempDir())})
 	m.busy = true
 
 	next, _ := m.Update(doneWithDigest("", "yes, use the second option"))
@@ -989,7 +990,7 @@ func TestSuggestionIsOfferedAsGhostAndAcceptedWithTab(t *testing.T) {
 // Typing withdraws the offer: what the user is about to send is what they
 // typed, so tab must not overwrite it.
 func TestTypingWithdrawsTheSuggestion(t *testing.T) {
-	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: util.FixedRoot(t.TempDir())})
 	m.busy = true
 	next, _ := m.Update(doneWithDigest("", "yes"))
 	mod := typeInto(t, next.(*Model), "no, do the other thing")
@@ -1004,7 +1005,7 @@ func TestTypingWithdrawsTheSuggestion(t *testing.T) {
 }
 
 func TestStartingATurnClearsTheSuggestion(t *testing.T) {
-	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: util.FixedRoot(t.TempDir())})
 	m.busy = true
 	next, _ := m.Update(doneWithDigest("", "yes"))
 	mod := next.(*Model)
@@ -1016,7 +1017,7 @@ func TestStartingATurnClearsTheSuggestion(t *testing.T) {
 }
 
 func TestEscapeDismissesTheSuggestion(t *testing.T) {
-	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: util.FixedRoot(t.TempDir())})
 	m.busy = true
 	next, _ := m.Update(doneWithDigest("", "yes"))
 
@@ -1029,7 +1030,7 @@ func TestEscapeDismissesTheSuggestion(t *testing.T) {
 // The recap goes to scrollback, never to the session: a turn ending with one
 // still hands the same drain command back.
 func TestRecapPrintsToScrollbackBeforeDraining(t *testing.T) {
-	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: util.FixedRoot(t.TempDir())})
 	m.busy = true
 	m.width = 80
 
@@ -1045,7 +1046,7 @@ func TestRecapPrintsToScrollbackBeforeDraining(t *testing.T) {
 // When the reply is only rendered at agentDoneMsg, the recap has to wait for
 // it: printed first it would describe a turn the user cannot see yet.
 func TestRecapWaitsForTheFallbackReplyRender(t *testing.T) {
-	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: util.FixedRoot(t.TempDir())})
 	m.busy = true
 	m.width = 80
 	m.streamingBuffer = "the reply nobody printed yet"
@@ -1067,7 +1068,7 @@ func TestRecapWaitsForTheFallbackReplyRender(t *testing.T) {
 }
 
 func TestNoDigestPrintsNothingExtra(t *testing.T) {
-	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: t.TempDir()})
+	m := NewModel(TUIOpts{Session: testSessionContext(), Workspace: util.FixedRoot(t.TempDir())})
 	m.busy = true
 
 	_, cmd := m.Update(doneWithDigest("", ""))

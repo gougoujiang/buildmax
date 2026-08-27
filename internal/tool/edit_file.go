@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/gougoujiang/buildmax/internal/util"
 	"os"
 	"strings"
 
@@ -16,8 +17,8 @@ type EditFile struct {
 }
 
 // NewEditFile creates an EditFile tool that edits files under the given workspace root.
-func NewEditFile(workspaceRoot string) *EditFile {
-	return &EditFile{workspaceTool{root: workspaceRoot}}
+func NewEditFile(ws util.Workspace) *EditFile {
+	return &EditFile{workspaceTool{ws: ws}}
 }
 
 // Name returns the tool name for the LLM.

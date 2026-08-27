@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/gougoujiang/buildmax/internal/util"
 )
 
 func TestManagerEnforcesWorkspaceWriteBoundary(t *testing.T) {
@@ -37,7 +38,7 @@ func TestManagerEnforcesWorkspaceWriteBoundary(t *testing.T) {
 
 	m, err := NewManager(
 		config.SandboxConfig{Enabled: true},
-		workspace,
+		util.FixedRoot(workspace),
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
 	)
 	if err != nil {

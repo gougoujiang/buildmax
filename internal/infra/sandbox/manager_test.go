@@ -5,11 +5,12 @@ import (
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/gougoujiang/buildmax/internal/util"
 )
 
 // TestManager_Disabled asserts a disabled sandbox always falls back.
 func TestManager_Disabled(t *testing.T) {
-	m, err := NewManager(config.SandboxConfig{Enabled: false}, t.TempDir(), nil)
+	m, err := NewManager(config.SandboxConfig{Enabled: false}, util.FixedRoot(t.TempDir()), nil)
 	if err != nil {
 		t.Fatalf("NewManager: %v", err)
 	}
@@ -41,7 +42,7 @@ func TestManager_ExcludedCommand(t *testing.T) {
 	m, err := NewManager(config.SandboxConfig{
 		Enabled:          true,
 		ExcludedCommands: []string{"docker *"},
-	}, t.TempDir(), nil)
+	}, util.FixedRoot(t.TempDir()), nil)
 	if err != nil {
 		t.Fatalf("NewManager: %v", err)
 	}
@@ -64,7 +65,7 @@ func TestManager_ExcludedCommand(t *testing.T) {
 // when the backend is missing. Hard to simulate cleanly without patching;
 // we just assert the API shape on whichever host runs the test.
 func TestManager_UnavailableAPI(t *testing.T) {
-	m, err := NewManager(config.SandboxConfig{Enabled: true}, t.TempDir(), nil)
+	m, err := NewManager(config.SandboxConfig{Enabled: true}, util.FixedRoot(t.TempDir()), nil)
 	if err != nil {
 		t.Fatalf("NewManager: %v", err)
 	}

@@ -49,8 +49,8 @@ type UploadArtifact struct {
 
 // NewUploadArtifact creates the tool. It is only ever constructed where a
 // publisher exists; see agentapp's tool assembly.
-func NewUploadArtifact(root string, publisher ArtifactPublisher) *UploadArtifact {
-	return &UploadArtifact{workspaceTool: workspaceTool{root: root}, publisher: publisher}
+func NewUploadArtifact(ws util.Workspace, publisher ArtifactPublisher) *UploadArtifact {
+	return &UploadArtifact{workspaceTool: workspaceTool{ws: ws}, publisher: publisher}
 }
 
 func (t *UploadArtifact) Name() string { return ToolNameUploadArtifact }
@@ -149,9 +149,9 @@ func (t *UploadArtifact) resolvePublishablePath(path string) (string, error) {
 	// The root is resolved too. On macOS a temporary or home directory is itself
 	// reached through a link, so comparing a fully resolved file against an
 	// unresolved root would reject every legitimate path.
-	realRoot, err := filepath.EvalSymlinks(t.root)
+	realRoot, err := filepath.EvalSymlinks(t.root())
 	if err != nil {
-		realRoot = t.root
+		realRoot = t.root()
 	}
 	if _, err := util.ResolvePath(realRoot, real); err != nil {
 		return "", fmt.Errorf("%s resolves outside the workspace and cannot be published", path)

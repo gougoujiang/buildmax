@@ -8,6 +8,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/agent"
+	"github.com/gougoujiang/buildmax/internal/util"
 )
 
 // backend is the platform-specific wrap implementation. One concrete
@@ -45,7 +46,7 @@ type WrapParams struct {
 // refuse to start instead of running unsandboxed.
 type Manager struct {
 	cfg        config.SandboxConfig
-	workspace  string
+	workspace  util.Workspace
 	deps       DepsReport
 	backend    backend // nil when sandbox is disabled or unavailable
 	logger     *slog.Logger
@@ -55,21 +56,22 @@ type Manager struct {
 }
 
 // NewManager builds a Manager for the given config and workspace. workspace
-// must be an absolute path; it is the writable cwd inside the sandbox.
+// reports the writable cwd inside the sandbox, and is read per wrap: the root
+// moves when a session enters a worktree, and a profile built from the launch
+// directory would deny every write in the new tree.
 //
 // Returns a Manager even when the backend is unavailable so callers always
 // have a SandboxView to inject. Check Unavailable() to detect the case.
-func NewManager(cfg config.SandboxConfig, workspace string, logger *slog.Logger) (*Manager, error) {
+func NewManager(cfg config.SandboxConfig, workspace util.Workspace, logger *slog.Logger) (*Manager, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	abs, err := filepath.Abs(workspace)
-	if err != nil {
-		return nil, fmt.Errorf("sandbox: resolve workspace: %w", err)
+	if workspace == nil {
+		return nil, fmt.Errorf("sandbox: no workspace")
 	}
 	m := &Manager{
 		cfg:        cfg,
-		workspace:  abs,
+		workspace:  workspace,
 		deps:       CheckDeps(),
 		logger:     logger,
 		matcher:    NewHostMatcher(cfg.Network.AllowedDomains, cfg.Network.DeniedDomains),
@@ -277,10 +279,16 @@ func (m *Manager) WrapBashCommand(ctx context.Context, command, shell string) (s
 	if !m.ShouldSandboxCommand(command) {
 		return "", nil, nil
 	}
+	// Absolute here rather than at construction: the root can move, and the
+	// backend profile is written against the directory in force right now.
+	workspace, err := filepath.Abs(m.workspace.Root())
+	if err != nil {
+		return "", nil, fmt.Errorf("sandbox: resolve workspace: %w", err)
+	}
 	return m.backend.Wrap(ctx, WrapParams{
 		Command:   command,
 		Shell:     shell,
-		Workspace: m.workspace,
+		Workspace: workspace,
 		Cfg:       m.cfg,
 		ProxyAddr: m.ProxyAddress(),
 	})

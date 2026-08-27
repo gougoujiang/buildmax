@@ -13,6 +13,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	tools "github.com/gougoujiang/buildmax/internal/tool"
+	"github.com/gougoujiang/buildmax/internal/util"
 )
 
 // MaxAdditionalSystemPromptChars bounds the additional system prompt. It sits in the system
@@ -150,24 +151,24 @@ func ResolveAgentTypeTools(agentName string, toolNames []string, registry llm.To
 //
 // jobs follows the same rule for Bash's run_in_background: nil keeps the
 // parameter out of the schema entirely.
-func buildBaseTools(client llm.LLMClient, workspaceRoot string, skillTool llm.Tool, sandboxView agent.SandboxView, publisher tools.ArtifactPublisher, jobs *job.Manager) []llm.Tool {
+func buildBaseTools(client llm.LLMClient, ws util.Workspace, skillTool llm.Tool, sandboxView agent.SandboxView, publisher tools.ArtifactPublisher, jobs *job.Manager) []llm.Tool {
 	if sandboxView == nil {
 		sandboxView = agent.NoopSandbox{}
 	}
 	base := []llm.Tool{
-		tools.NewReadFile(workspaceRoot),
-		tools.NewWriteFile(workspaceRoot),
-		tools.NewBash(workspaceRoot).WithSandbox(sandboxView).WithJobs(jobs),
-		tools.NewGlob(workspaceRoot),
-		tools.NewEditFile(workspaceRoot),
-		tools.NewGrep(workspaceRoot),
+		tools.NewReadFile(ws),
+		tools.NewWriteFile(ws),
+		tools.NewBash(ws).WithSandbox(sandboxView).WithJobs(jobs),
+		tools.NewGlob(ws),
+		tools.NewEditFile(ws),
+		tools.NewGrep(ws),
 		tools.NewWebFetch(client, 15*time.Minute).WithSandbox(sandboxView),
 		tools.NewTodoWrite(),
 		tools.NewNoteWrite(),
 		skillTool,
 	}
 	if publisher != nil {
-		base = append(base, tools.NewUploadArtifact(workspaceRoot, publisher))
+		base = append(base, tools.NewUploadArtifact(ws, publisher))
 	}
 	return base
 }

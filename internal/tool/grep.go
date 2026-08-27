@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/gougoujiang/buildmax/internal/util"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -59,8 +60,8 @@ type Grep struct {
 }
 
 // NewGrep creates a Grep tool that searches file contents under the given workspace root.
-func NewGrep(workspaceRoot string) *Grep {
-	return &Grep{workspaceTool{root: workspaceRoot}}
+func NewGrep(ws util.Workspace) *Grep {
+	return &Grep{workspaceTool{ws: ws}}
 }
 
 // Name returns the tool name for the LLM.
@@ -233,7 +234,7 @@ func (g *Grep) compilePattern(pattern string, caseInsensitive, multiline bool) (
 func (g *Grep) resolvePath(args map[string]any) (resolved string, isFile bool, err error) {
 	v, ok := args["path"]
 	if !ok || v == nil {
-		return g.root, false, nil
+		return g.root(), false, nil
 	}
 	s, ok := v.(string)
 	if !ok {
@@ -241,7 +242,7 @@ func (g *Grep) resolvePath(args map[string]any) (resolved string, isFile bool, e
 	}
 	s = strings.TrimSpace(s)
 	if s == "" {
-		return g.root, false, nil
+		return g.root(), false, nil
 	}
 	return g.resolveAnyPath(s)
 }

@@ -1,6 +1,7 @@
 package tool
 
 import (
+	"github.com/gougoujiang/buildmax/internal/util"
 	"testing"
 
 	"github.com/gougoujiang/buildmax/internal/core/llm"
@@ -80,10 +81,10 @@ func TestSensitiveArgCheckers(t *testing.T) {
 	}
 
 	ws := testWorkspace(t, dir)
-	rf := NewReadFile(ws)
-	wf := NewWriteFile(ws)
-	ef := NewEditFile(ws)
-	gp := NewGrep(ws)
+	rf := NewReadFile(util.FixedRoot(ws))
+	wf := NewWriteFile(util.FixedRoot(ws))
+	ef := NewEditFile(util.FixedRoot(ws))
+	gp := NewGrep(util.FixedRoot(ws))
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

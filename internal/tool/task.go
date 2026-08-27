@@ -12,6 +12,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/session"
+	"github.com/gougoujiang/buildmax/internal/util"
 )
 
 // maxSubAgentReplyRunes is the character cap for a sub-agent reply returned to the parent.
@@ -105,8 +106,10 @@ type TaskTool struct {
 	// keeps the parameter out of the schema entirely.
 	jobs *job.Manager
 	// workspace names the workspace a background subagent shares, recorded in
-	// the job's provenance.
-	workspace string
+	// the job's provenance. Consulted when the subagent starts, so a delegate
+	// inherits the root the session is in then — see
+	// docs/design/workspace-root-and-worktrees.md D7.
+	workspace util.Workspace
 	// readOnlyTypes marks the agent types whose whole tool set is read-only,
 	// computed once at construction because the sets never change afterwards.
 	readOnlyTypes map[string]bool
@@ -114,7 +117,7 @@ type TaskTool struct {
 
 // WithJobs returns a copy of t that can detach subagents to the given job
 // manager. Nil leaves background execution unavailable.
-func (t *TaskTool) WithJobs(m *job.Manager, workspace string) *TaskTool {
+func (t *TaskTool) WithJobs(m *job.Manager, workspace util.Workspace) *TaskTool {
 	out := *t
 	out.jobs = m
 	out.workspace = workspace
@@ -330,7 +333,7 @@ func (t *TaskTool) executeBackground(ctx context.Context, description string, op
 		Description: description,
 		Deliver:     deliver,
 	}, job.Provenance{
-		Workspace:        t.workspace,
+		Workspace:        t.workspace.Root(),
 		SessionID:        sessionID,
 		ParentTraceID:    runID,
 		ParentToolCallID: toolCallID,

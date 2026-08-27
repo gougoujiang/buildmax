@@ -2,6 +2,7 @@ package tool
 
 import (
 	"context"
+	"github.com/gougoujiang/buildmax/internal/util"
 	"strings"
 	"testing"
 
@@ -26,7 +27,7 @@ func TestTaskRunInBackground(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	task = task.WithJobs(m, "/ws")
+	task = task.WithJobs(m, util.FixedRoot("/ws"))
 
 	ctx := session.CtxWithSessionID(context.Background(), "sess-1")
 	ctx = agent.CtxWithRunID(ctx, "rt_parent")
@@ -68,7 +69,7 @@ func TestTaskBackgroundRefusedInSubagent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	task = task.WithJobs(m, "/ws")
+	task = task.WithJobs(m, util.FixedRoot("/ws"))
 	ctx := agent.CtxMarkSubagent(context.Background())
 	out, err := task.Execute(ctx, backgroundTaskArgs())
 	if err != nil {
@@ -98,7 +99,7 @@ func TestTaskBackgroundUnavailableWithoutManager(t *testing.T) {
 	if _, ok := schema["run_in_background"]; ok {
 		t.Fatal("run_in_background advertised without a job manager")
 	}
-	withJobs := task.WithJobs(job.NewManager(), "/ws")
+	withJobs := task.WithJobs(job.NewManager(), util.FixedRoot("/ws"))
 	schema = withJobs.Parameters().(map[string]any)["properties"].(map[string]any)
 	if _, ok := schema["run_in_background"]; !ok {
 		t.Fatal("run_in_background missing with a job manager")

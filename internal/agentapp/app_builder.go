@@ -73,13 +73,14 @@ func resolveAgentAppConfig(cfg AppConfig) (resolvedAgentAppConfig, error) {
 // buildAgentApp opens runtime resources from already-resolved configuration.
 // Any partial construction is closed before an error is returned.
 func buildAgentApp(cfg AppConfig, resolved resolvedAgentAppConfig) (_ *AgentApp, err error) {
-	sandboxManager, err := buildSandboxManager(resolved.sandbox, resolved.workspaceRoot)
+	workspace := NewMovableRoot(resolved.workspaceRoot)
+	sandboxManager, err := buildSandboxManager(resolved.sandbox, workspace)
 	if err != nil {
 		return nil, err
 	}
 
 	app := &AgentApp{
-		workspaceRoot:          resolved.workspaceRoot,
+		workspace:              workspace,
 		settings:               resolved.settings,
 		toolRegistries:         make(map[string]cllm.ToolRegistry),
 		sessionManager:         NewSessionManager(config.SessionsDir()),
@@ -109,7 +110,7 @@ func buildAgentApp(cfg AppConfig, resolved resolvedAgentAppConfig) (_ *AgentApp,
 		clients:          make(map[string]cllm.LLMClient),
 	}
 	if cfg.EnableMCP {
-		mcpResolution, resolveErr := config.ResolveMCPConfig(app.workspaceRoot, resolved.loadedPlugins)
+		mcpResolution, resolveErr := config.ResolveMCPConfig(app.workspace.Root(), resolved.loadedPlugins)
 		if resolveErr != nil {
 			return nil, fmt.Errorf("load mcp config: %w", resolveErr)
 		}
@@ -127,10 +128,10 @@ func buildAgentApp(cfg AppConfig, resolved resolvedAgentAppConfig) (_ *AgentApp,
 	}
 	app.hooks = NewHookManager(resolved.hooks, hook.NewDriverRegistry(hookDeps))
 
-	if err = app.skillsRegistry.Load(app.workspaceRoot, resolved.loadedPlugins); err != nil {
+	if err = app.skillsRegistry.Load(app.workspace.Root(), resolved.loadedPlugins); err != nil {
 		return nil, err
 	}
-	if err = app.subagentsRegistry.Load(app.workspaceRoot, resolved.loadedPlugins); err != nil {
+	if err = app.subagentsRegistry.Load(app.workspace.Root(), resolved.loadedPlugins); err != nil {
 		return nil, err
 	}
 	app.plugins.addFindings(app.skillsRegistry.findings...)

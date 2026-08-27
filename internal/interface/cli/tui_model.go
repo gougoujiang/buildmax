@@ -15,6 +15,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	"github.com/gougoujiang/buildmax/internal/infra/git"
 	"github.com/gougoujiang/buildmax/internal/interface/auth"
+	"github.com/gougoujiang/buildmax/internal/util"
 
 	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
@@ -33,7 +34,7 @@ type TUIOpts struct {
 	App          *agentapp.AgentApp
 	Session      *agentapp.SessionContext
 	ModelName    string
-	Workspace    string
+	Workspace    util.Workspace
 	SessionsDir  string
 	Approval     agent.ApprovalHandler
 	GlamourStyle string // "dark" or "light", detected once before the program starts
@@ -256,7 +257,7 @@ func NewModel(opts TUIOpts) *Model {
 		width:      80,
 		height:     24,
 		focusInput: true,
-		branch:     git.CurrentBranch(opts.Workspace),
+		branch:     git.CurrentBranch(workspaceRoot(opts.Workspace)),
 		userEmail:  userEmail,
 		runStatus:  opts.RunStatus,
 		queue:      agent.NewMessageQueue(agent.DefaultMaxQueuedMessages),
@@ -891,8 +892,19 @@ func modeTag(serverURL string) string {
 	return strings.TrimPrefix(strings.TrimPrefix(serverURL, "https://"), "http://")
 }
 
+// workspaceRoot reads a possibly-absent workspace. A Model built without one
+// renders no path rather than panicking.
+func workspaceRoot(ws util.Workspace) string {
+	if ws == nil {
+		return ""
+	}
+	return ws.Root()
+}
+
 func (m *Model) renderFooterView() string {
-	workspacePart := "@" + m.opts.Workspace
+	// Read per render, not captured: the footer is how a user knows which tree
+	// the agent is writing to, so it must not lag a move.
+	workspacePart := "@" + workspaceRoot(m.opts.Workspace)
 	if m.branch != "" {
 		workspacePart += " (|-" + m.branch + ")"
 	}

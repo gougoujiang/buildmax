@@ -2,6 +2,7 @@ package tool
 
 import (
 	"context"
+	"github.com/gougoujiang/buildmax/internal/util"
 	"runtime"
 	"strings"
 	"testing"
@@ -42,7 +43,7 @@ func TestBash_RoutesThroughSandbox(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("test relies on /usr/bin/env shipping with the OS")
 	}
-	b := NewBash(testWorkspace(t, ""))
+	b := NewBash(util.FixedRoot(testWorkspace(t, "")))
 	called := false
 	// Use `env` to print an identifying string when invoked. This proves
 	// the sandbox-supplied argv is what actually ran.
@@ -71,7 +72,7 @@ func TestBash_NoopSandboxIsTransparent(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("test relies on echo working without sandbox-style wrap")
 	}
-	b := NewBash(testWorkspace(t, "")).WithSandbox(agent.NoopSandbox{})
+	b := NewBash(util.FixedRoot(testWorkspace(t, ""))).WithSandbox(agent.NoopSandbox{})
 	got, err := b.Execute(context.Background(), map[string]any{"command": "echo direct"})
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
@@ -94,7 +95,7 @@ func TestBash_DangerouslyDisableSandbox_Honored(t *testing.T) {
 		args:    []string{"sh", "-c", "echo SANDBOX_WRAPPED"},
 		called:  &called,
 	}
-	b := NewBash(testWorkspace(t, "")).WithSandbox(stub)
+	b := NewBash(util.FixedRoot(testWorkspace(t, ""))).WithSandbox(stub)
 	got, err := b.Execute(context.Background(), map[string]any{
 		"command":                     "echo DIRECT",
 		"dangerously_disable_sandbox": true,
@@ -132,7 +133,7 @@ func TestBash_DangerouslyDisableSandbox_Strict(t *testing.T) {
 			called:  &called,
 		},
 	}
-	b := NewBash(testWorkspace(t, "")).WithSandbox(strict)
+	b := NewBash(util.FixedRoot(testWorkspace(t, ""))).WithSandbox(strict)
 	got, err := b.Execute(context.Background(), map[string]any{
 		"command":                     "echo DIRECT",
 		"dangerously_disable_sandbox": true,
@@ -179,7 +180,7 @@ func (regularSandbox) ShouldSandboxCommand(_ string) bool { return true }
 // TestBash_AutoAllow_DemotesAsk asserts auto-allow mode demotes Ask → Allow
 // for risky commands when the command will actually be sandboxed.
 func TestBash_AutoAllow_DemotesAsk(t *testing.T) {
-	b := NewBash(testWorkspace(t, "")).WithSandbox(autoAllowSandbox{&stubSandbox{enabled: true}})
+	b := NewBash(util.FixedRoot(testWorkspace(t, ""))).WithSandbox(autoAllowSandbox{&stubSandbox{enabled: true}})
 	if got := b.CheckArgs(map[string]any{"command": "curl example.com"}); got != llm.ToolActionAllow {
 		t.Errorf("auto-allow risky curl: got %v, want Allow", got)
 	}
@@ -192,7 +193,7 @@ func TestBash_AutoAllow_DemotesAsk(t *testing.T) {
 // TestBash_AutoAllow_RegularModeKeepsAsk asserts that when sandbox mode is
 // "regular", Ask is preserved (sandbox is enforcement only, not approval).
 func TestBash_AutoAllow_RegularModeKeepsAsk(t *testing.T) {
-	b := NewBash(testWorkspace(t, "")).WithSandbox(regularSandbox{&stubSandbox{enabled: true}})
+	b := NewBash(util.FixedRoot(testWorkspace(t, ""))).WithSandbox(regularSandbox{&stubSandbox{enabled: true}})
 	if got := b.CheckArgs(map[string]any{"command": "curl example.com"}); got != llm.ToolActionAsk {
 		t.Errorf("regular-mode curl: got %v, want Ask", got)
 	}
@@ -201,7 +202,7 @@ func TestBash_AutoAllow_RegularModeKeepsAsk(t *testing.T) {
 // TestBash_AutoAllow_DisabledKeepsAsk asserts that with sandbox off, the
 // original Ask behavior is preserved (no regression for users not opting in).
 func TestBash_AutoAllow_DisabledKeepsAsk(t *testing.T) {
-	b := NewBash(testWorkspace(t, "")) // NoopSandbox by default
+	b := NewBash(util.FixedRoot(testWorkspace(t, ""))) // NoopSandbox by default
 	if got := b.CheckArgs(map[string]any{"command": "curl example.com"}); got != llm.ToolActionAsk {
 		t.Errorf("sandbox-off curl: got %v, want Ask", got)
 	}
@@ -211,7 +212,7 @@ func TestBash_AutoAllow_DisabledKeepsAsk(t *testing.T) {
 // dangerously_disable_sandbox=true (when honored) reinstates the Ask
 // prompt — the OS boundary is no longer there to contain the call.
 func TestBash_AutoAllow_DisableFlagReinstatesAsk(t *testing.T) {
-	b := NewBash(testWorkspace(t, "")).WithSandbox(autoAllowSandbox{&stubSandbox{enabled: true}})
+	b := NewBash(util.FixedRoot(testWorkspace(t, ""))).WithSandbox(autoAllowSandbox{&stubSandbox{enabled: true}})
 	got := b.CheckArgs(map[string]any{
 		"command":                     "curl example.com",
 		"dangerously_disable_sandbox": true,
@@ -228,7 +229,7 @@ func TestBash_ScrubAndInjectEnv(t *testing.T) {
 		t.Skip("not applicable on Windows")
 	}
 	t.Setenv("FOO_KEY", "should-not-leak")
-	b := NewBash(testWorkspace(t, "")).WithSandbox(scrubbingSandbox{&stubSandbox{enabled: true}})
+	b := NewBash(util.FixedRoot(testWorkspace(t, ""))).WithSandbox(scrubbingSandbox{&stubSandbox{enabled: true}})
 	got, err := b.Execute(context.Background(), map[string]any{
 		"command": "echo FOO_KEY=$FOO_KEY INJECTED=$INJECTED",
 	})
