@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gougoujiang/buildmax/internal/core/agent"
 	"github.com/gougoujiang/buildmax/internal/core/session"
 	"github.com/gougoujiang/buildmax/internal/infra/flock"
 	"github.com/gougoujiang/buildmax/internal/infra/git"
@@ -88,7 +89,11 @@ type Manager struct {
 	root Root
 	// launch is the directory the session started in. Leaving returns here,
 	// and it is the repository every containment check is made against.
-	launch  string
+	launch string
+	// hooks receives the advisory worktree events. Nil means nobody is
+	// listening, which is the common case.
+	hooks agent.HookRunner
+
 	mu      sync.Mutex
 	held    *flock.Lock
 	current string
@@ -98,6 +103,28 @@ type Manager struct {
 // session's launch directory.
 func NewManager(root Root) *Manager {
 	return &Manager{root: root, launch: root.Root()}
+}
+
+// WithHooks returns a copy of m that announces what it does. The events are
+// advisory: a hook cannot veto a move, because the tool call that asked for it
+// already passed PreToolUse and a second gate over the same decision could
+// only leave a worktree half-created.
+func (w *Manager) WithHooks(r agent.HookRunner) *Manager {
+	w.hooks = r
+	return w
+}
+
+// announce fires one advisory event. Hook failure is the hook's problem: the
+// worktree operation has already happened, and hooks fail open by standing
+// rule (docs/design/hook-system.md).
+func (w *Manager) announce(ctx context.Context, in agent.HookInput) {
+	if w.hooks == nil {
+		return
+	}
+	sessionID, _ := session.SessionIDFromContext(ctx)
+	in.SessionID = sessionID
+	in.Workspace = w.root.Root()
+	w.hooks.Run(ctx, in)
 }
 
 // Repo returns the repository the session launched in, or ErrNotARepository.
@@ -115,6 +142,70 @@ func (w *Manager) Repo() (string, error) {
 // silently suffixed: a model that meant to return to an existing tree would
 // otherwise quietly get a second one (D9).
 func (w *Manager) Create(ctx context.Context, name string) (Created, error) {
+	created, err := w.create(ctx, name)
+	if err != nil {
+		return created, err
+	}
+	if err := w.Enter(ctx, created.Path); err != nil {
+		return created, err
+	}
+	w.announce(ctx, agent.HookInput{
+		Event:          agent.HookWorktreeCreate,
+		WorktreePath:   created.Path,
+		WorktreeBranch: created.Branch,
+	})
+	return created, nil
+}
+
+// Held is a worktree this session made for something else to work in — a
+// delegate — and holds open on its behalf. The session's own root does not
+// move: the parent goes on working where it was, which is the whole point of
+// delegating rather than switching.
+type Held struct {
+	Created
+	lock *flock.Lock
+}
+
+// Release drops the occupancy lock. The worktree itself stays: nothing removes
+// one automatically, delegate or not (D5).
+func (h *Held) Release() error {
+	if h == nil || h.lock == nil {
+		return nil
+	}
+	lock := h.lock
+	h.lock = nil
+	return lock.Release()
+}
+
+// CreateDetached makes a worktree and holds it without entering it.
+//
+// The lock is taken for the same reason a session entering one takes it: while
+// a delegate is working there, nothing else may. It is released when the
+// delegate finishes, not when the tree is removed.
+func (w *Manager) CreateDetached(ctx context.Context, name string) (*Held, error) {
+	created, err := w.create(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+	lockPath, err := occupancyPath(ctx, created.Path)
+	if err != nil {
+		return nil, err
+	}
+	lock, err := flock.TryAcquire(lockPath, []byte(holderLine(ctx)))
+	if err != nil {
+		return nil, err
+	}
+	w.announce(ctx, agent.HookInput{
+		Event:          agent.HookWorktreeCreate,
+		WorktreePath:   created.Path,
+		WorktreeBranch: created.Branch,
+	})
+	return &Held{Created: created, lock: lock}, nil
+}
+
+// create makes the worktree and reports what stayed behind, without deciding
+// who works in it.
+func (w *Manager) create(ctx context.Context, name string) (Created, error) {
 	repo, err := w.Repo()
 	if err != nil {
 		return Created{}, err
@@ -150,9 +241,6 @@ func (w *Manager) Create(ctx context.Context, name string) (Created, error) {
 				created.Head = t.Head
 			}
 		}
-	}
-	if err := w.Enter(ctx, path); err != nil {
-		return created, err
 	}
 	return created, nil
 }
@@ -205,29 +293,48 @@ func (w *Manager) Enter(ctx context.Context, path string) error {
 	}
 
 	w.mu.Lock()
-	defer w.mu.Unlock()
 	// Entering a second worktree leaves the first; the lock is released before
 	// the new root is published so no window has this session holding two.
 	if w.held != nil {
 		_ = w.held.Release()
 	}
 	w.held = lock
+	previous := w.root.Root()
 	w.current = abs
 	w.root.Set(abs)
+	w.mu.Unlock()
+
+	// Announced outside the lock: a hook is someone else's process, and
+	// holding the manager's mutex across it would let a slow script block
+	// every other question about where this session is.
+	w.announce(ctx, agent.HookInput{
+		Event:             agent.HookCwdChanged,
+		WorktreePath:      abs,
+		WorktreeBranch:    target.Branch,
+		PreviousWorkspace: previous,
+	})
 	return nil
 }
 
 // Leave returns the session to its launch directory and releases the lock. It
 // is a no-op outside a worktree.
-func (w *Manager) Leave() string {
+func (w *Manager) Leave(ctx context.Context) string {
 	w.mu.Lock()
-	defer w.mu.Unlock()
+	previous := w.current
 	if w.held != nil {
 		_ = w.held.Release()
 		w.held = nil
 	}
 	w.current = ""
 	w.root.Set(w.launch)
+	w.mu.Unlock()
+
+	if previous != "" {
+		w.announce(ctx, agent.HookInput{
+			Event:             agent.HookCwdChanged,
+			PreviousWorkspace: previous,
+		})
+	}
 	return w.launch
 }
 
@@ -285,7 +392,7 @@ func (w *Manager) Remove(ctx context.Context, path string, discard bool) error {
 	// A tree this session is in must be left first, or the lock file is
 	// deleted underneath a descriptor this process still holds.
 	if sameDir(w.Current(), abs) {
-		w.Leave()
+		w.Leave(ctx)
 	} else if lockPath, lockErr := occupancyPath(ctx, abs); lockErr == nil {
 		probe, probeErr := flock.TryAcquire(lockPath, []byte(holderLine(ctx)))
 		if errors.Is(probeErr, flock.ErrHeld) {
@@ -304,6 +411,11 @@ func (w *Manager) Remove(ctx context.Context, path string, discard bool) error {
 			return fmt.Errorf("worktree removed, but its branch %s could not be deleted: %w", target.Branch, err)
 		}
 	}
+	w.announce(ctx, agent.HookInput{
+		Event:          agent.HookWorktreeRemove,
+		WorktreePath:   abs,
+		WorktreeBranch: target.Branch,
+	})
 	return nil
 }
 

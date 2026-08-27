@@ -22,7 +22,7 @@ so they are worth knowing exactly.
 | `TodoWrite` | Track multi-step progress | `todos[]` of `{content, status, active_form}` |
 | `NoteWrite` | Keep durable notes that survive compaction | `notes[]` of strings |
 | `Skill` | Load a skill's instructions | `skill`, `args` |
-| `Task` | Delegate to a subagent | `description`, `prompt`, `subagent_type`, `run_in_background` and `deliver_result` (TUI and Desktop) |
+| `Task` | Delegate to a subagent | `description`, `prompt`, `subagent_type`, `run_in_background` and `deliver_result` (TUI and Desktop), `worktree` (TUI) |
 | `UploadArtifact` | Publish one finished file as a durable artifact | `path`, `title`, `purpose` |
 | `JobList` | List background jobs: ID, kind, state, age, command | — |
 | `JobOutput` | Read a background job's status and output incrementally | `job_id`, `stream`, `cursor` |
@@ -89,6 +89,13 @@ Some things are deliberately not automatic:
   working in is refused, naming who holds it; the lock is released when that
   process exits, however it exits, so nothing stays blocked by a session that
   died.
+
+A delegate can have one too. Pass `worktree` to `Task` and the subagent runs
+in a worktree of that name with its tools rooted there, while your session
+stays where it is. Nothing forces it — the agent decides per delegation, and
+for a read-only exploration a shared workspace is the cheaper answer, since the
+tree is left on disk afterwards like any other. The reply says where the
+delegate's changes are.
 
 Like the `Job` tools, `Worktree` is a TUI capability: print mode, eval, and
 worker runs do not get it, and neither do subagents, which share the parent's

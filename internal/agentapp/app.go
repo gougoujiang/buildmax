@@ -1302,6 +1302,11 @@ func (a *AgentApp) buildToolRegistry(client cllm.LLMClient) (cllm.ToolRegistry, 
 			if a.jobs != nil {
 				taskTool = taskTool.WithJobs(a.jobs, a.workspace)
 			}
+			if a.worktrees != nil {
+				taskTool = taskTool.WithWorktrees(a.worktrees, func(agentType string, ws util.Workspace) []cllm.Tool {
+					return a.agentTypeToolsAt(client, agentType, ws)
+				})
+			}
 			registry.AppendTools(taskTool)
 		}
 	}

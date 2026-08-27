@@ -37,6 +37,8 @@ Thirteen events ship today. Four of them can block; the rest are advisory.
 | `post_compact` | — | After context compaction |
 | `subagent_start` / `subagent_stop` | — | Subagent lifecycle |
 | `stop` / `stop_failure` | — | The main agent finished |
+| `worktree_create` / `worktree_remove` | — | A worktree was created, or removed with its branch |
+| `cwd_changed` | — | The session's workspace root moved, including into a new worktree |
 
 Subagents inherit the parent's hooks, and every event is stamped with
 `is_subagent` and `agent_type` so a hook can tell the difference.

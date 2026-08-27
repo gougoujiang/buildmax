@@ -1,6 +1,6 @@
 # Workspace Root And Worktrees
 
-> **Audience:** contributors · **Status:** phases 1-3 implemented; phases 4-5 open
+> **Audience:** contributors · **Status:** implemented, phases 1-5
 
 Related: [roadmap](../ROADMAP.md) step 5,
 [session trees, agent mailboxes, and branched workspaces](../proposals/session-tree-and-agent-mailbox.md)
@@ -18,12 +18,11 @@ The workspace root becomes session state instead of construction state, and an
 agent can create a Git worktree, move the session into it, work there, leave,
 and clean up — without the user doing any of it by hand.
 
-Phases 1 to 3 are implemented: the root is session state, every tool consults
-it per call, a `Worktree` tool creates, enters, leaves, lists, and removes
-them, and the configuration the root decides — hooks, skills, subagent
-definitions, MCP servers, and the `AGENTS.md` prompt layer — follows a move.
-What is left is the hook events and Desktop display (phase 4) and worktrees for
-delegates (phase 5). This record exists so the implementation does not have to re-derive which of the root's
+All five phases are implemented. The root is session state every tool consults
+per call, a `Worktree` tool creates, enters, leaves, lists, and removes them,
+the configuration the root decides follows a move, three hook events announce
+what happened, and a delegate can be given a worktree of its own. This record
+exists so the implementation does not have to re-derive which of the root's
 dependents move with it and which do not, because that question, not the
 worktree command, is where this feature is easy to get subtly wrong.
 
@@ -78,11 +77,12 @@ a worktree's changes, worktree paths in Portal or worker runs (§9.2 of that
 proposal rules that out), and versioned snapshots for non-Git workspaces, whose
 design record was withdrawn and is not pending.
 
-Giving a subagent or a background job its own worktree is in scope, sequenced
-last (§8 phase 5) and never mandatory — see D7. It answers a different request
-than the rest of this record, delegating work to another tree rather than
-working in one, but it reuses the same mechanism and becomes cheap once a root
-can vary per runtime rather than per process.
+Giving a subagent or a background job its own worktree is in scope and never
+mandatory — see D7. It answers a different request than the rest of this
+record, delegating work to another tree rather than working in one, but it
+reuses the same mechanism: `Task` takes an optional `worktree` name, the tree
+is created and held without the parent's root moving, and that agent type's
+tools are rebuilt against it.
 
 ## 4. The Root Is Not Just A Path
 
@@ -306,6 +306,7 @@ the agent is writing to.
 | Re-resolving what the root decides, as part of the move | `internal/agentapp` (`sessionRoot`) |
 | Runtime tool surface and its permission tiers | `internal/tool` (`Worktree`) |
 | `/worktree` panel, footer, and `/diff` following the root | `internal/interface/cli` |
+| Rebuilding an agent type's tools against a delegate's root | `internal/agentapp` (`agentTypeToolsAt`) |
 | Sandbox writable bind following the root | `internal/infra/sandbox` |
 | Recorded workspace and resume behavior | `internal/agentapp/session_manager.go`, `internal/agentapp/session_workspace.go` |
 
@@ -345,25 +346,33 @@ configuration, so the stale snapshot was usually the same snapshot. That
 argument does not survive relaxing D3, and it no longer has to: phase 3 has
 landed.
 
-**Phase 4 — the rest of the surface.** The `WorktreeCreate`, `WorktreeRemove`,
-and `CwdChanged` hook events, which [hook system](hook-system.md) §6 lists as
-deferred for depending on a feature BuildMax does not have; Desktop's root
-display; and the user documentation in §10.
+**Phase 4 — the rest of the surface. Implemented.** `WorktreeCreate`,
+`WorktreeRemove`, and `CwdChanged` fire from the lifecycle, all advisory: the
+tool call already passed `PreToolUse`, so a second gate could only leave a
+worktree half-created, and a hook that fails never undoes a move that has
+happened. Desktop needed no code — it renders the project folder, which is its
+root, and it does not enable worktrees, so that root cannot move. The user
+documentation is in [guide/tools.md](../guide/tools.md) and
+[guide/hooks.md](../guide/hooks.md).
 
-**Phase 5 — worktrees for delegates.** A subagent or background job may be
-given its own worktree, at the model's discretion, per D7. It is last because
-it is the only phase the single-session slice does not need, and because
-whether it earns its cost is best judged after that slice has been used.
+**Phase 5 — worktrees for delegates. Implemented.** `Task` takes an optional
+`worktree` name. The tree is created and its occupancy lock held for as long
+as the delegate runs, foreground or background, and the parent's root does not
+move: delegating into a tree is not switching to one. The delegate's tools are
+rebuilt against it, since the parent's instances hold the parent's root and
+handing those over would defeat the isolation. The reply names the tree, which
+matters more here than anywhere else — nothing removes it afterwards, so a
+delegate's changes would otherwise be somewhere the parent never learns.
 
 ## 9. Open Questions
 
 - The measured prompt-cache cost of D2, which should be recorded once the usage
   stats can show it rather than argued from first principles.
 - Whether listing is enough to keep worktrees from accumulating. D5 removes
-  none of them automatically and phase 5 lets delegates create more, so the
-  only counterweight is that the user can see what exists and what it holds.
-  If that turns out to be insufficient, the answer is a better listing, not a
-  reaper.
+  none of them automatically and delegates can now create more, so the only
+  counterweight is that the user can see what exists and what it holds. This
+  is the question real use will answer first; if listing turns out to be
+  insufficient, the answer is a better listing, not a reaper.
 
 ## 10. User Documentation Obligations
 

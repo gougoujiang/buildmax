@@ -81,6 +81,9 @@ func MergeHooks(layers ...corehook.Config) corehook.Config {
 		out.SubagentStop = concatEntries(out.SubagentStop, l.SubagentStop)
 		out.Stop = concatEntries(out.Stop, l.Stop)
 		out.StopFailure = concatEntries(out.StopFailure, l.StopFailure)
+		out.WorktreeCreate = concatEntries(out.WorktreeCreate, l.WorktreeCreate)
+		out.WorktreeRemove = concatEntries(out.WorktreeRemove, l.WorktreeRemove)
+		out.CwdChanged = concatEntries(out.CwdChanged, l.CwdChanged)
 	}
 	return out
 }

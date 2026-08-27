@@ -148,7 +148,7 @@ func buildAgentApp(cfg AppConfig, resolved resolvedAgentAppConfig) (_ *AgentApp,
 		// sessionRoot, not the bare root: moving it must re-resolve the
 		// configuration the root decides, or the session runs one tree's hooks
 		// and skills against another tree's files.
-		app.worktrees = worktree.NewManager(sessionRoot{app: app})
+		app.worktrees = worktree.NewManager(sessionRoot{app: app}).WithHooks(app.hooks)
 	}
 	if cfg.EnableBackgroundJobs {
 		app.jobs = job.NewManager()

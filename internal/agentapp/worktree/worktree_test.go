@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"errors"
+	"github.com/gougoujiang/buildmax/internal/core/agent"
 	"github.com/gougoujiang/buildmax/internal/core/session"
 	"os"
 	"os/exec"
@@ -127,7 +128,7 @@ func TestLeaveReturnsToTheLaunchDirectory(t *testing.T) {
 	if !sameDir(root.Root(), created.Path) {
 		t.Fatal("Create did not enter the worktree")
 	}
-	m.Leave()
+	m.Leave(testCtx())
 	if !sameDir(root.Root(), repo) {
 		t.Errorf("root = %q after Leave, want the launch directory %q", root.Root(), repo)
 	}
@@ -167,7 +168,7 @@ func TestEnterAcceptsAnIdleWorktree(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
-	first.Leave() // the tree is now idle
+	first.Leave(testCtx()) // the tree is now idle
 
 	second, root := newManager(t, repo)
 	if err := second.Enter(testCtx(), created.Path); err != nil {
@@ -201,7 +202,7 @@ func TestEnterRefusesAnOccupiedWorktree(t *testing.T) {
 	}
 
 	// Once the holder leaves, the same entry succeeds.
-	holder.Leave()
+	holder.Leave(testCtx())
 	if err := other.Enter(testCtx(), created.Path); err != nil {
 		t.Fatalf("Enter after the holder left: %v", err)
 	}
@@ -277,7 +278,7 @@ func TestListReportsOccupancy(t *testing.T) {
 	if _, err := m.Create(ctx, "alpha"); err != nil {
 		t.Fatalf("Create alpha: %v", err)
 	}
-	m.Leave()
+	m.Leave(testCtx())
 	if _, err := m.Create(ctx, "beta"); err != nil {
 		t.Fatalf("Create beta: %v", err)
 	}
@@ -324,7 +325,7 @@ func TestCreateFailsOnACollidingName(t *testing.T) {
 	if _, err := m.Create(ctx, "same"); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
-	m.Leave()
+	m.Leave(testCtx())
 	if _, err := m.Create(ctx, "same"); err == nil {
 		t.Fatal("a second worktree with the same name succeeded; it must fail")
 	}
@@ -340,4 +341,96 @@ func TestOutsideARepositoryEverythingRefuses(t *testing.T) {
 	if _, err := m.List(testCtx()); !errors.Is(err, ErrNotARepository) {
 		t.Errorf("List outside a repository = %v, want ErrNotARepository", err)
 	}
+}
+
+// recordingHooks captures the advisory events the lifecycle announces.
+type recordingHooks struct {
+	mu     sync.Mutex
+	events []agent.HookInput
+}
+
+func (r *recordingHooks) Run(_ context.Context, in agent.HookInput) agent.HookOutput {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.events = append(r.events, in)
+	return agent.HookOutput{}
+}
+
+func (r *recordingHooks) seen() []agent.HookInput {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]agent.HookInput, len(r.events))
+	copy(out, r.events)
+	return out
+}
+
+// A hook subscriber has to be able to answer "where is this session working
+// now" and "what happened to that tree" separately, which is why creating
+// announces both its own event and the move it performed.
+func TestLifecycleAnnouncesItsEvents(t *testing.T) {
+	repo := t.TempDir()
+	initRepo(t, repo)
+	root := newTestRoot(repo)
+	hooks := &recordingHooks{}
+	m := NewManager(root).WithHooks(hooks)
+	t.Cleanup(func() { _ = m.Close() })
+	ctx := testCtx()
+
+	created, err := m.Create(ctx, "announced")
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	events := hooks.seen()
+	if len(events) != 2 {
+		t.Fatalf("create fired %d events, want the move and the creation", len(events))
+	}
+	if events[0].Event != agent.HookCwdChanged {
+		t.Errorf("first event = %q, want the move", events[0].Event)
+	}
+	if !sameDir(events[0].PreviousWorkspace, repo) {
+		t.Errorf("the move reported coming from %q, want the launch directory", events[0].PreviousWorkspace)
+	}
+	if events[1].Event != agent.HookWorktreeCreate || events[1].WorktreeBranch != created.Branch {
+		t.Errorf("second event = %+v, want the creation naming its branch", events[1])
+	}
+	if events[1].SessionID != "test-session" {
+		t.Errorf("session id = %q, want the one the context carries", events[1].SessionID)
+	}
+
+	m.Leave(ctx)
+	if last := hooks.seen(); last[len(last)-1].Event != agent.HookCwdChanged {
+		t.Errorf("leaving fired %q, want a move", last[len(last)-1].Event)
+	}
+
+	if err := m.Remove(ctx, created.Path, false); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	last := hooks.seen()
+	if last[len(last)-1].Event != agent.HookWorktreeRemove {
+		t.Errorf("removal fired %q, want the removal event", last[len(last)-1].Event)
+	}
+}
+
+// A hook that fails must not undo a move that already happened.
+func TestAFailingHookDoesNotUndoTheMove(t *testing.T) {
+	repo := t.TempDir()
+	initRepo(t, repo)
+	root := newTestRoot(repo)
+	m := NewManager(root).WithHooks(blockingHooks{})
+	t.Cleanup(func() { _ = m.Close() })
+
+	created, err := m.Create(testCtx(), "regardless")
+	if err != nil {
+		t.Fatalf("Create with a blocking hook: %v", err)
+	}
+	if !sameDir(root.Root(), created.Path) {
+		t.Errorf("root = %q, want the session still in the worktree it made", root.Root())
+	}
+}
+
+// blockingHooks refuses everything it is asked about.
+type blockingHooks struct{}
+
+func (blockingHooks) Run(_ context.Context, _ agent.HookInput) agent.HookOutput {
+	return agent.HookOutput{Decision: agent.HookDecisionBlock, Reason: "no"}
 }

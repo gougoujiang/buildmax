@@ -90,7 +90,7 @@ func (w *Worktree) Execute(ctx context.Context, args map[string]any) (string, er
 	case "enter":
 		return w.enter(ctx, args)
 	case "leave":
-		return w.leave()
+		return w.leave(ctx)
 	case "list":
 		return w.list(ctx)
 	case "remove":
@@ -136,12 +136,12 @@ func (w *Worktree) enter(ctx context.Context, args map[string]any) (string, erro
 		w.mgr.Current(), "leave"), nil
 }
 
-func (w *Worktree) leave() (string, error) {
+func (w *Worktree) leave(ctx context.Context) (string, error) {
 	if w.mgr.Current() == "" {
 		return "This session is already in the directory it started in.", nil
 	}
 	left := w.mgr.Current()
-	back := w.mgr.Leave()
+	back := w.mgr.Leave(ctx)
 	return fmt.Sprintf("Left %s; it and its branch are kept. This session is back in %s.", left, back), nil
 }
 

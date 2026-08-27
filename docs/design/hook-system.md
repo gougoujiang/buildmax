@@ -221,13 +221,22 @@ work and has no external consumers.
   `AgentType`.
 - `NotificationKind string` — `approval_required` | `permission_denied`.
 
-Deferred (matches the gap analysis against Claude Code):
+`WorktreeCreate`, `WorktreeRemove`, and `CwdChanged` were deferred for
+depending on a feature BuildMax did not have; it has it now, and all three
+ship with the worktree lifecycle in
+[workspace root and worktrees](workspace-root-and-worktrees.md). All three are
+advisory. The tool call that asks for a worktree already passes `PreToolUse`,
+so a second gate over the same decision could only leave one half-created, and
+a hook that fails never undoes a move that has already happened. `CwdChanged`
+is the one to subscribe to for "where is this session working now"; the other
+two say what became of the tree itself.
+
+Still deferred (matching the gap analysis against Claude Code):
 `Setup`, `UserPromptExpansion`, `TeammateIdle`, `TaskCreated`,
-`TaskCompleted`, `CwdChanged`, `FileChanged`, `WorktreeCreate`,
-`WorktreeRemove`, `Elicitation`, `ElicitationResult`, `ConfigChange`,
-`PostToolBatch`, `InstructionsLoaded`, `PermissionRequest`. They are either
-duplicated by other events in our model, or depend on features BuildMax does
-not yet have.
+`TaskCompleted`, `FileChanged`, `Elicitation`, `ElicitationResult`,
+`ConfigChange`, `PostToolBatch`, `InstructionsLoaded`, `PermissionRequest`.
+They are either duplicated by other events in our model, or depend on features
+BuildMax does not yet have.
 
 ## 7. HookManager
 

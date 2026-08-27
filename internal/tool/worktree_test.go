@@ -10,6 +10,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/agentapp/worktree"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/gougoujiang/buildmax/internal/util"
 )
 
 // movableTestRoot is the session root the manager moves, standing in for
@@ -148,5 +149,103 @@ func TestWorktreeToolWithoutAManager(t *testing.T) {
 	}
 	if !strings.Contains(out, "not available") {
 		t.Errorf("output = %q, want it to say the surface has no worktrees", out)
+	}
+}
+
+// stubRunner records the tools a delegate was given and writes a file through
+// one of them, which is how the test sees which tree the delegate is in.
+type stubRunner struct {
+	gotTools []llm.Tool
+	writeTo  string
+}
+
+func (s *stubRunner) RunSubAgent(ctx context.Context, opts SubAgentRunOpts, _ string) (string, error) {
+	s.gotTools = opts.Tools
+	for _, tl := range opts.Tools {
+		if tl.Name() != ToolNameWrite {
+			continue
+		}
+		if _, err := tl.Execute(ctx, map[string]any{
+			"file_path": s.writeTo,
+			"content":   "from the delegate\n",
+		}); err != nil {
+			return "", err
+		}
+	}
+	return "done", nil
+}
+
+// D7: a delegate given its own worktree must write there, not in the tree the
+// parent is working in. The whole point of the isolation is that the two do
+// not race, so a rebuilt tool set that still pointed at the parent's root
+// would be worse than no isolation at all.
+func TestDelegateWritesInItsOwnWorktree(t *testing.T) {
+	tool, root := newWorktreeTool(t)
+	repo := root.Root()
+	ctx := context.Background()
+
+	runner := &stubRunner{writeTo: "delegated.txt"}
+	task, err := NewTask(runner, map[string]AgentTypeConfig{
+		"general": {Tools: []llm.Tool{NewWriteFile(root)}, Description: "general"},
+	})
+	if err != nil {
+		t.Fatalf("NewTask: %v", err)
+	}
+	task = task.WithWorktrees(tool.mgr, func(_ string, ws util.Workspace) []llm.Tool {
+		return []llm.Tool{NewWriteFile(ws)}
+	})
+
+	out, err := task.Execute(ctx, map[string]any{
+		"description":   "do the thing",
+		"prompt":        "go",
+		"subagent_type": "general",
+		"worktree":      "delegated",
+	})
+	if err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+
+	wt := filepath.Join(repo, ".buildmax", "worktrees", "delegated")
+	if _, err := os.Stat(filepath.Join(wt, "delegated.txt")); err != nil {
+		t.Errorf("the delegate's file is not in its worktree: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(repo, "delegated.txt")); !os.IsNotExist(err) {
+		t.Error("the delegate wrote into the parent's tree; the isolation did nothing")
+	}
+	if root.Root() != repo {
+		t.Errorf("the parent's root moved to %q; delegating must not move the caller", root.Root())
+	}
+	if !strings.Contains(out, wt) || !strings.Contains(out, "worktree/delegated") {
+		t.Errorf("reply = %q, want it to tell the parent where the delegate's changes are", out)
+	}
+}
+
+// Without the parameter a delegate shares the parent's workspace, which stays
+// the default: a tree per read-only exploration costs disk and a cleanup the
+// user has to do by hand.
+func TestDelegateSharesTheWorkspaceByDefault(t *testing.T) {
+	tool, root := newWorktreeTool(t)
+	repo := root.Root()
+
+	runner := &stubRunner{writeTo: "shared.txt"}
+	task, err := NewTask(runner, map[string]AgentTypeConfig{
+		"general": {Tools: []llm.Tool{NewWriteFile(root)}, Description: "general"},
+	})
+	if err != nil {
+		t.Fatalf("NewTask: %v", err)
+	}
+	task = task.WithWorktrees(tool.mgr, func(_ string, ws util.Workspace) []llm.Tool {
+		return []llm.Tool{NewWriteFile(ws)}
+	})
+
+	if _, err := task.Execute(context.Background(), map[string]any{
+		"description":   "look around",
+		"prompt":        "go",
+		"subagent_type": "general",
+	}); err != nil {
+		t.Fatalf("Execute: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(repo, "shared.txt")); err != nil {
+		t.Errorf("the delegate did not write in the shared workspace: %v", err)
 	}
 }
