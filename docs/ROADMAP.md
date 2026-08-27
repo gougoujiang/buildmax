@@ -350,23 +350,29 @@ recovers. The immediate work is therefore evidence-first.
    contained rather than what permits them; see
    [design/plugin-team-distribution.md](design/plugin-team-distribution.md) §9.
    None of it hides steps 1–3 behind it.
-5. **Choose one product bet from evidence.** The lowest-risk candidate is the
-   local Issue work bridge. Durable Agent Sessions needed a decision on local
-   session storage, privacy, retention, and synchronization first;
+5. **Choose one product bet from evidence.** One has been taken and shipped:
+   agent-managed worktrees, in
+   [design/workspace-root-and-worktrees.md](design/workspace-root-and-worktrees.md).
+   A session moves its own workspace root, an agent creates and cleans up its
+   own worktrees, and a delegate can be given one. It was the smallest bet
+   available — settled decisions, no server or storage boundary touched — and
+   it is the prerequisite the session-tree paper assumes, so taking it costs
+   that direction nothing. What it still owes is use: nothing removes a
+   worktree automatically, and whether listing alone keeps them from
+   accumulating is the question real sessions answer first.
+
+   The remaining candidates are unchanged. The lowest-risk is the local Issue
+   work bridge. Durable Agent Sessions needed a decision on local session
+   storage, privacy, retention, and synchronization first;
    [design/local-session-storage.md](design/local-session-storage.md) settles
    local storage and the privacy of what it holds; its atomic bundle, rewind,
    and physical-copy fork phases have all landed. Server retention and
    synchronization remain separate decisions — that record leaves subagent
    bundle retention as a question and puts Server synchronization outside its
    scope. Session trees/mailboxes additionally require a workspace/change-set
-   ownership design. The other candidate is agent-managed worktrees: a session
-   that moves its own workspace root, decided in
-   [design/workspace-root-and-worktrees.md](design/workspace-root-and-worktrees.md)
-   and not started. It is the smaller bet — the decisions are settled, it
-   touches no server or storage boundary, and it is the prerequisite the
-   session-tree paper assumes. SSO and the executable half of team plugin
-   distribution stay behind the steps above unless a deployment partner
-   supplies the evidence to reprioritize them.
+   ownership design. SSO and the executable half of team plugin distribution
+   stay behind the steps above unless a deployment partner supplies the
+   evidence to reprioritize them.
 
 ## Avoid For Now
 
@@ -386,6 +392,7 @@ recovers. The immediate work is therefore evidence-first.
 - [design/evaluation-system.md](design/evaluation-system.md) — P0.6 evaluation and qualification design
 - [design/context-durability.md](design/context-durability.md) — P0.5 instructions and session notes that survive compaction
 - [design/local-background-jobs.md](design/local-background-jobs.md) — P0.5 local background jobs and monitors for TUI and Desktop
+- [design/workspace-root-and-worktrees.md](design/workspace-root-and-worktrees.md) — a session that moves its own workspace root into a worktree
 - [design/enterprise-deployment.md](design/enterprise-deployment.md) — P3 Enterprise deployment design
 - [design/llm-gateway.md](design/llm-gateway.md) — P3 Managed LLM gateway design
 - [design/graceful-shutdown.md](design/graceful-shutdown.md) — P3 shutdown ladder for server, scheduler, and worker
