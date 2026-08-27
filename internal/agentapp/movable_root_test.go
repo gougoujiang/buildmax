@@ -21,28 +21,27 @@ func TestMovableRootReportsTheCurrentRoot(t *testing.T) {
 // TestMovableRootIsSafeUnderConcurrentUse matters because read-only tools run
 // in parallel: a move racing a batch of reads must not tear.
 func TestMovableRootIsSafeUnderConcurrentUse(t *testing.T) {
-	r := NewMovableRoot("/repo")
+	// Set cleans what it stores, and cleaning is platform-specific, so the
+	// expected values are cleaned too rather than spelled with slashes.
+	first, second := filepath.Clean("/repo"), filepath.Clean("/other")
+	r := NewMovableRoot(first)
 	var wg sync.WaitGroup
-	for i := 0; i < 8; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for j := 0; j < 100; j++ {
-				if got := r.Root(); got != "/repo" && got != "/other" {
+	for range 8 {
+		wg.Go(func() {
+			for range 100 {
+				if got := r.Root(); got != first && got != second {
 					t.Errorf("Root() = %q, want one of the two written values", got)
 					return
 				}
 			}
-		}()
+		})
 	}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		for j := 0; j < 100; j++ {
-			r.Set("/other")
-			r.Set("/repo")
+	wg.Go(func() {
+		for range 100 {
+			r.Set(second)
+			r.Set(first)
 		}
-	}()
+	})
 	wg.Wait()
 }
 
