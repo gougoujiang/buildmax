@@ -15,6 +15,13 @@ func TestAcquireAndRelease(t *testing.T) {
 	if err != nil {
 		t.Fatalf("TryAcquire: %v", err)
 	}
+	// Released even when an assertion below fails: on Windows a held file
+	// cannot be deleted, so leaking the lock turns one failure into a
+	// confusing cleanup error on top of it.
+	t.Cleanup(func() { _ = l.Release() })
+
+	// Readable while held. Windows locks are mandatory, so a lock over the
+	// holder line would deny the one read it exists for.
 	if got := string(Holder(path)); got != "session-a" {
 		t.Fatalf("Holder = %q, want the holder line just written", got)
 	}

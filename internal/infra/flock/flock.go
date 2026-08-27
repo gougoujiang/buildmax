@@ -64,7 +64,8 @@ func (l *Lock) Release() error {
 }
 
 // Holder returns what the current holder wrote, or empty when the lock file
-// does not exist. It is for messages, never for deciding whether the lock is
+// does not exist. Readable while the lock is held on every platform: see
+// tryLock's byte-range choice on Windows, whose locks are mandatory. It is for messages, never for deciding whether the lock is
 // held: read a stale line and you are back to guessing.
 func Holder(path string) []byte {
 	b, err := os.ReadFile(path)
