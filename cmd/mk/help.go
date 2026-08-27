@@ -60,7 +60,7 @@ func allHelpSections() []helpSection {
 			{"lint", "Run pinned golangci-lint and govulncheck"},
 			{"agent-smoke", "Drive the agent's tools with a real model (needs an API key; not a deterministic test)"},
 			{"cache-qualify", "Qualify prompt caching against a real provider (needs an API key; not a test)"},
-			{"eval [flags]", "Measure the built binaries against evaluation/suite/ (needs an API key)"},
+			{"eval [flags]", "Measure the CLI against evaluation/suite/ (needs an API key)"},
 			{"models <list|info|check>", "List, look up on OpenRouter, or check settings.local.yaml models"},
 		}},
 		{"Deployment", []helpRow{
@@ -253,15 +253,14 @@ func helpTopics() []helpTopic {
 		{
 			name:    "eval",
 			usage:   "eval [flags]",
-			summary: "Evaluate the built binaries against the tasks in evaluation/suite/.",
+			summary: "Evaluate the CLI against the tasks in evaluation/suite/.",
 			details: []string{
-				"Builds " + exe(cliBinary) + ", " + exe(workerBinary) + ", and the runner, then measures them as\n" +
-					"a black box: each task names the surface it runs on, and a worker task is\n" +
-					"dispatched the way a scheduler dispatches one.\n" +
-					"Every trial runs the artifact a user would run:\n" +
-					"every trial runs the artifact a user would run, in a temporary home built from\n" +
-					"the subject alone, so your own settings, plugins, and hooks cannot change what\n" +
-					"is measured.",
+				"Builds " + exe(cliBinary) + " and the runner, then measures CLI tasks as a black box.\n" +
+					"Pass --surface worker to build " + exe(workerBinary) + " and run worker tasks,\n" +
+					"or --surface all to run both surfaces. A worker task is dispatched the way a\n" +
+					"scheduler dispatches one. Every trial runs the artifact a user would run, in a\n" +
+					"temporary home built from the subject alone, so your own settings, plugins,\n" +
+					"and hooks cannot change what is measured.",
 				"Arguments pass through, so `" + mk() + " eval --help` prints the runner's own flags\n" +
 					"rather than this page. --binary defaults to the CLI just built; pass it\n" +
 					"explicitly to measure a different artifact, and --baseline to compare two.",
@@ -274,6 +273,8 @@ func helpTopics() []helpTopic {
 			examples: []string{
 				"eval --help",
 				"eval --task local-summarize-data",
+				"eval --surface worker",
+				"eval --surface all",
 				"eval --trials 5",
 				"eval --baseline bin/buildmax-previous",
 			},

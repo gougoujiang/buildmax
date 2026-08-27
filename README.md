@@ -175,8 +175,9 @@ Two directories in the tree are fixtures rather than product code:
 [`sample-data/`](sample-data/README.md) holds the datasets above — upload them
 into a team workspace to give a fresh Portal deployment something to work on, or
 point the CLI at one — and `evaluation/suite/` holds the evaluation tasks, each
-with the state a trial starts from and the graders it is judged by, run by
-`./make eval`.
+with the state a trial starts from and the graders it is judged by. Run the CLI
+tasks with `./make eval`; select worker tasks explicitly with
+`./make eval --surface worker`, or both with `--surface all`.
 
 New here? **[docs/contribute/first-pr.md](docs/contribute/first-pr.md)** is the
 whole path from clone to pull request. Repository tree:

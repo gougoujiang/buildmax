@@ -675,7 +675,7 @@ in section 15.3 and resolves choices section 15.4 delegated to the slice.
 | `eval/001-read-summarize` … `eval/013-worker-pool` | Deleted. A few may be recreated later as low-value smoke cases under the new contract |
 | `internal/agenteval` | Deleted, formats included |
 | `cmd/buildmax-eval` | Rewritten as the entry point for the new contract and runner |
-| `./make eval` | Rewritten to dispatch the new runner |
+| `./make eval` | Rewritten to dispatch the new runner; defaults to CLI tasks, with worker and all-surface runs selected explicitly |
 
 Four defects justify replacement rather than extension, and they are more specific than
 section 2.1 states:
@@ -808,7 +808,7 @@ adapter answering its own model would report on the mock rather than on the subj
 | 1. Contract — **done** | `evaluation/contract`: versioned task, subject manifest, trial bundle, grader result, and experiment types with the failure taxonomy, in Go against the standard library alone per section 15.3; the trace audit above recorded in the repository | The physical trial-bundle encoding, settled on a directory in section 15.4; section 20 items 2 and 3 |
 | 2. CLI adapter — **done** | `trace_id`/`trace_path` in the print envelope; subject-built trial home; the hidden-grader boundary; deterministic state and trace graders; one canonical trial bundle per attempt | The contract holds for a real execution path: `evaluation/adapter` runs the built binary against a scripted model and returns a gradable bundle |
 | 3. Experiment — **done** | Repetition, paired baseline comparison, uncertainty, failure classification, preflight, and a local report; the mockllm pull-request gate | Section 15.3's Go controller holds: repetition, limits, cancellation, and the statistics came to roughly 700 lines with no new dependency. The report renderer is written rather than imported |
-| 4. Retirement — **done** | `eval/` and `internal/agenteval` deleted; `cmd/buildmax-eval` rewritten around the contract rather than removed, since the entry point is still where a run starts; `./make eval` builds the CLI and measures it | The last roadmap acceptance criterion |
+| 4. Retirement — **done** | `eval/` and `internal/agenteval` deleted; `cmd/buildmax-eval` rewritten around the contract rather than removed, since the entry point is still where a run starts; `./make eval` defaults to the CLI, while worker tasks are opt-in | The last roadmap acceptance criterion |
 
 Five things the slice found are worth carrying forward. Killing a subject at its budget does not
 end the call: the process dies but its output pipes stay open through any grandchild it started,
