@@ -96,12 +96,13 @@ larger than it looks.
   CLI suite: that is `internal/e2e/cli`, which drives the built binary against a
   scripted model. It was called `./make smoke` until the name collided with two
   deterministic things, and it now says what it needs before it starts.
-- `./make eval` runs the built binary against the task suite in
-  `evaluation/suite/`. This is behavioral evaluation of agent quality, not
-  boundary verification, and it is deliberately outside the suites below — but
-  it runs the same binary in a temporary workspace, so the CLI suite and the
-  eval runner must share their process-launch and isolation helpers rather than
-  grow two incompatible ones.
+- `./make eval` runs the built CLI against the CLI tasks in `evaluation/suite/`.
+  Worker tasks are opt-in with `--surface worker`, and `--surface all` runs both.
+  This is behavioral evaluation of agent quality, not boundary verification,
+  and it is deliberately outside the suites below — but it runs the same binary
+  in a temporary workspace, so the CLI suite and the eval runner must share
+  their process-launch and isolation helpers rather than grow two incompatible
+  ones.
 - Desktop has Go bridge tests and frontend unit tests, but no UI E2E suite.
 - `gui` has neither tests nor an ESLint step in CI; the Portal browser suite is
   today the only thing that executes the shared component package at all. Since

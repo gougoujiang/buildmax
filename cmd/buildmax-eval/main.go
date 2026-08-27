@@ -45,6 +45,7 @@ type options struct {
 	seed         uint64
 	keep         bool
 	taskID       string
+	surface      string
 	retention    string
 }
 
@@ -53,7 +54,7 @@ func run() error {
 	flag.StringVar(&opt.suite, "suite", filepath.Join("evaluation", "suite"), "directory of task directories to run")
 	flag.StringVar(&opt.binary, "binary", "", "buildmax binary to evaluate (required)")
 	flag.StringVar(&opt.workerBinary, "worker-binary", "",
-		"buildmax-worker binary, required when the suite holds worker tasks")
+		"buildmax-worker binary, required when the selected tasks use the worker surface")
 	flag.StringVar(&opt.baseline, "baseline", "", "a second binary to compare the first against")
 	flag.StringVar(&opt.model, "model", "", "model id or name from settings.yaml (default: the first entry)")
 	flag.IntVar(&opt.trials, "trials", 0, "minimum independent attempts per task; raises each task's own count")
@@ -61,6 +62,8 @@ func run() error {
 	flag.Uint64Var(&opt.seed, "seed", 1, "bootstrap seed, so a comparison is reproducible")
 	flag.BoolVar(&opt.keep, "keep-failures", false, "keep the workspace of every trial that did not pass")
 	flag.StringVar(&opt.taskID, "task", "", "run only this task id")
+	flag.StringVar(&opt.surface, "surface", string(contract.SurfaceCLI),
+		"task surface to run: cli, worker, or all")
 	flag.StringVar(&opt.retention, "retention", string(contract.RetentionBounded),
 		"how much free text bundles keep: full, bounded, or metadata")
 	flag.Parse()
@@ -73,14 +76,12 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	if opt.taskID != "" {
-		tasks = filterTasks(tasks, opt.taskID)
-		if len(tasks) == 0 {
-			return fmt.Errorf("no task with id %q in %s", opt.taskID, opt.suite)
-		}
+	tasks, err = selectTasks(tasks, opt.taskID, opt.surface)
+	if err != nil {
+		return err
 	}
-	if len(tasks) == 0 {
-		return fmt.Errorf("no tasks found in %s", opt.suite)
+	if needsSurface(tasks, contract.SurfaceWorker) && opt.workerBinary == "" {
+		return fmt.Errorf("the selected tasks need the worker surface; pass --worker-binary")
 	}
 
 	settings, err := config.LoadSettings()
@@ -93,7 +94,7 @@ func run() error {
 	}
 	cred := adapter.Credential{APIURL: model.APIURL, APIKey: model.APIKey}
 
-	dataset, err := datasetRef(opt.suite)
+	dataset, err := datasetRef(opt.suite, tasks)
 	if err != nil {
 		return err
 	}
@@ -231,32 +232,22 @@ func selectModel(settings config.Settings, want string) (config.ModelEntry, erro
 	return config.ModelEntry{}, fmt.Errorf("no model %q in settings.yaml; have %s", want, strings.Join(names, ", "))
 }
 
-// datasetRef pins the suite by a digest over its task definitions, so a report
-// names the dataset it actually ran rather than a directory that has since
-// changed.
-func datasetRef(suite string) (contract.DatasetRef, error) {
+// datasetRef pins the selected task definitions, so a filtered report names
+// the dataset it actually ran rather than every task present in its directory.
+func datasetRef(suite string, tasks []runner.TaskEntry) (contract.DatasetRef, error) {
 	h := sha256.New()
-	err := filepath.WalkDir(suite, func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() || d.Name() != contract.TaskFile {
-			return nil
-		}
+	for _, entry := range tasks {
+		path := filepath.Join(entry.Dir, contract.TaskFile)
 		rel, err := filepath.Rel(suite, path)
 		if err != nil {
-			return err
+			return contract.DatasetRef{}, fmt.Errorf("relativize task %s: %w", entry.Task.ID, err)
 		}
 		body, err := os.ReadFile(path)
 		if err != nil {
-			return err
+			return contract.DatasetRef{}, fmt.Errorf("read task %s: %w", entry.Task.ID, err)
 		}
 		fmt.Fprintf(h, "%s\x00", filepath.ToSlash(rel))
 		h.Write(body)
-		return nil
-	})
-	if err != nil {
-		return contract.DatasetRef{}, fmt.Errorf("digest suite: %w", err)
 	}
 	return contract.DatasetRef{
 		Name:   filepath.Base(suite),
@@ -277,13 +268,51 @@ func fileDigest(path string) (string, error) {
 	return "sha256:" + hex.EncodeToString(h.Sum(nil)), nil
 }
 
-func filterTasks(tasks []runner.TaskEntry, id string) []runner.TaskEntry {
-	for _, t := range tasks {
-		if t.Task.ID == id {
-			return []runner.TaskEntry{t}
+func selectTasks(tasks []runner.TaskEntry, id, surface string) ([]runner.TaskEntry, error) {
+	if surface != "all" && surface != string(contract.SurfaceCLI) && surface != string(contract.SurfaceWorker) {
+		return nil, fmt.Errorf("--surface must be cli, worker, or all; got %q", surface)
+	}
+
+	if id != "" {
+		for _, entry := range tasks {
+			if entry.Task.ID != id {
+				continue
+			}
+			if surface != "all" && string(entry.Task.Surface) != surface {
+				return nil, fmt.Errorf("task %q uses the %s surface; pass --surface %s",
+					id, entry.Task.Surface, entry.Task.Surface)
+			}
+			return []runner.TaskEntry{entry}, nil
+		}
+		return nil, fmt.Errorf("no task with id %q", id)
+	}
+
+	if surface == "all" {
+		if len(tasks) == 0 {
+			return nil, fmt.Errorf("no tasks found")
+		}
+		return tasks, nil
+	}
+
+	selected := make([]runner.TaskEntry, 0, len(tasks))
+	for _, entry := range tasks {
+		if string(entry.Task.Surface) == surface {
+			selected = append(selected, entry)
 		}
 	}
-	return nil
+	if len(selected) == 0 {
+		return nil, fmt.Errorf("no %s tasks found", surface)
+	}
+	return selected, nil
+}
+
+func needsSurface(tasks []runner.TaskEntry, surface contract.Surface) bool {
+	for _, entry := range tasks {
+		if entry.Task.Surface == surface {
+			return true
+		}
+	}
+	return false
 }
 
 // exitFor fails the process on a critical violation or on any trial that did

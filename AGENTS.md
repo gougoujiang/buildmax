@@ -204,11 +204,11 @@ covers what and what each one needs.
 
 `./make agent-smoke` is not a test: it drives the agent's tools with a real
 model, needs an API key, and reports a table the model wrote about itself.
-`./make eval` is not a gate either: it builds the CLI and worker and measures
-them as a black box against the tasks in `evaluation/suite/`, which needs a
-model API key and spends tokens. It answers how reliably a model drives a
-behavior, not whether the behavior is wired; run it deliberately, never as part
-of a handoff check. See
+`./make eval` is not a gate either: it builds the CLI and measures CLI tasks as
+a black box against `evaluation/suite/`; `--surface worker` selects the worker
+tasks, and `--surface all` selects both. Evaluation needs a model API key and
+spends tokens. It answers how reliably a model drives a behavior, not whether
+the behavior is wired; run it deliberately, never as part of a handoff check. See
 [`docs/design/evaluation-system.md`](docs/design/evaluation-system.md).
 
 On Windows use `make.bat`. Add or change commands under `cmd/mk`; the `make`

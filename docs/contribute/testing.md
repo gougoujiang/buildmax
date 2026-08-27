@@ -80,9 +80,11 @@ described as cache-capable until it passes. Unset, it skips like the
 MySQL-backed store tests do.
 
 `./make eval` is the third, and it measures something the suites deliberately do
-not. It builds the CLI and evaluates it as a black box against the tasks in
-`evaluation/suite/`: a real model, repeated trials, graders that read the final
-workspace and the run's trace, and a report of pass rate with its uncertainty.
+not. It builds the CLI and evaluates the CLI tasks in `evaluation/suite/` as a
+black box by default; `--surface worker` builds the worker and selects its tasks,
+and `--surface all` runs both surfaces. Each uses a real model, repeated trials,
+graders that read the final workspace and the run's trace, and a report of pass
+rate with its uncertainty.
 That is agent quality, not boundary verification — a suite above proves a
 behavior is wired, and evaluation asks how reliably a model drives it. It needs
 a key and spends tokens. Everything it can check without one — task validity,

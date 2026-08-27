@@ -379,10 +379,14 @@ func cmdEval(args []string) error {
 	if err := buildGo("eval", cliBinary, "./cmd/buildmax"); err != nil {
 		return err
 	}
-	// The worker is built too, because a suite may hold worker tasks and the
-	// runner refuses a suite it cannot dispatch rather than skipping those.
-	if err := buildGo("eval", workerBinary, "./cmd/buildmax-worker"); err != nil {
-		return err
+	// CLI is the cheap default. The worker artifact is built only when the
+	// caller explicitly selects worker tasks; otherwise a local evaluation
+	// should not pay for or accidentally widen to another execution surface.
+	needsWorker := evalNeedsWorker(args)
+	if needsWorker && !hasFlag(args, "--worker-binary") {
+		if err := buildGo("eval", workerBinary, "./cmd/buildmax-worker"); err != nil {
+			return err
+		}
 	}
 	out := filepath.Join(binDir, exe(evalBinary))
 	if err := runCmd("go", "build", "-ldflags", ldflags(), "-o", out, "./cmd/buildmax-eval"); err != nil {
@@ -394,10 +398,15 @@ func cmdEval(args []string) error {
 	if !hasFlag(args, "--binary") {
 		args = append([]string{"--binary", filepath.Join(binDir, exe(cliBinary))}, args...)
 	}
-	if !hasFlag(args, "--worker-binary") {
+	if needsWorker && !hasFlag(args, "--worker-binary") {
 		args = append([]string{"--worker-binary", filepath.Join(binDir, exe(workerBinary))}, args...)
 	}
 	return runCmd(out, args...)
+}
+
+func evalNeedsWorker(args []string) bool {
+	surface, ok := flagValue(args, "--surface")
+	return ok && (surface == "worker" || surface == "all")
 }
 
 // hasFlag reports whether args already carries a flag, in either the "--x v" or
@@ -409,6 +418,18 @@ func hasFlag(args []string, name string) bool {
 		}
 	}
 	return false
+}
+
+func flagValue(args []string, name string) (string, bool) {
+	for i, arg := range args {
+		if strings.HasPrefix(arg, name+"=") {
+			return strings.TrimPrefix(arg, name+"="), true
+		}
+		if arg == name && i+1 < len(args) {
+			return args[i+1], true
+		}
+	}
+	return "", false
 }
 
 // useSandboxHome points BUILDMAX_HOME at testing-sandbox for this process and

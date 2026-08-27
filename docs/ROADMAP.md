@@ -190,7 +190,8 @@ Acceptance:
   owning environment
 - the legacy `eval/` catalog and `internal/agenteval` are retired rather than
   preserved behind compatibility code — **done**: both are deleted, and
-  `./make eval` now measures a built binary against `evaluation/suite/`
+  `./make eval` now measures the built CLI against the CLI tasks in
+  `evaluation/suite/`; worker tasks are selected explicitly
 
 The black-box vertical slice is enabling work before substantial new Agent
 capability. Framework selection is deliberately downstream of that slice; see

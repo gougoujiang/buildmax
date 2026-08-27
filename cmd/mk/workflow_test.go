@@ -52,6 +52,22 @@ func TestCommandsRejectUnknownArgumentsBeforeRunning(t *testing.T) {
 	}
 }
 
+func TestEvalBuildsTheWorkerOnlyForAnExplicitWorkerSurface(t *testing.T) {
+	for _, tt := range []struct {
+		args []string
+		want bool
+	}{
+		{args: nil, want: false},
+		{args: []string{"--surface", "cli"}, want: false},
+		{args: []string{"--surface", "worker"}, want: true},
+		{args: []string{"--surface=all"}, want: true},
+	} {
+		if got := evalNeedsWorker(tt.args); got != tt.want {
+			t.Errorf("evalNeedsWorker(%q) = %v, want %v", tt.args, got, tt.want)
+		}
+	}
+}
+
 // TestE2ETargetsMatchTheirDeployments pins the difference the browser tests can
 // actually see: the kind reference serves Portal and server from one ingress,
 // so the bundle's API base is same-origin, while Compose publishes them
