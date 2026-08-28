@@ -16,6 +16,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gougoujiang/buildmax/evaluation/contract"
+	"github.com/gougoujiang/buildmax/evaluation/trace"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 )
 
@@ -37,7 +38,7 @@ type Worker struct {
 	// Binary is the built buildmax-worker executable under evaluation.
 	Binary string
 	// Credential is the provider access written into the run's server.yaml.
-	Credential Credential
+	Credential ModelAccess
 	// Retention is how much free text bundles keep.
 	Retention contract.RetentionLevel
 	// TeamID and UserID scope the run's directories. They are identifiers in a
@@ -442,7 +443,7 @@ func (w *Worker) collectTrace(bundle *contract.TrialBundle, layout workerLayout,
 	}
 	bundle.TracePath = contract.TraceFile
 
-	calls, err := countLLMCalls(filepath.Join(trialDir, contract.TraceFile))
+	calls, err := trace.CountLLMCalls(filepath.Join(trialDir, contract.TraceFile))
 	if err != nil {
 		return fmt.Errorf("count model calls: %w", err)
 	}

@@ -79,14 +79,14 @@ func subjectNamed(t *testing.T, name string) contract.SubjectManifest {
 	return subject
 }
 
-func serve(t *testing.T, scenario mockllm.Scenario) adapter.Credential {
+func serve(t *testing.T, scenario mockllm.Scenario) adapter.ModelAccess {
 	t.Helper()
 	server, err := mockllm.Start(scenario)
 	if err != nil {
 		t.Fatalf("start mock model: %v", err)
 	}
 	t.Cleanup(server.Close)
-	return adapter.Credential{APIURL: server.BaseURL(mockllm.ProtocolOpenAIChat), APIKey: "test-key"}
+	return adapter.ModelAccess{APIURL: server.BaseURL(mockllm.ProtocolOpenAIChat), APIKey: "test-key"}
 }
 
 // writeSuite builds two tasks: one the subject must act on, one that already
@@ -166,7 +166,7 @@ func TestRunnerComparesTwoSubjectsOverRepeatedTrials(t *testing.T) {
 	})
 	candidateCred := serve(t, mockllm.Scenario{Steps: writingSteps(trials)})
 
-	run := func(cred adapter.Credential, name string) Result {
+	run := func(cred adapter.ModelAccess, name string) Result {
 		t.Helper()
 		root := t.TempDir()
 		r := &Runner{
@@ -263,7 +263,7 @@ func TestRunnerRecordsAHarnessFaultWithoutFailingTheSubject(t *testing.T) {
 		Adapters: map[contract.Surface]adapter.Executor{
 			contract.SurfaceCLI: &adapter.CLI{
 				Binary:     binary,
-				Credential: adapter.Credential{APIURL: "http://127.0.0.1:1/v1", APIKey: "k"},
+				Credential: adapter.ModelAccess{APIURL: "http://127.0.0.1:1/v1", APIKey: "k"},
 			},
 		},
 		BundleRoot: t.TempDir(),

@@ -205,7 +205,7 @@ func TestWorkerRunReportsAFailedRunAsAnAgentError(t *testing.T) {
 
 	res, err := (&Worker{
 		Binary:     binary,
-		Credential: Credential{APIURL: "http://127.0.0.1:1/v1", APIKey: "k"},
+		Credential: ModelAccess{APIURL: "http://127.0.0.1:1/v1", APIKey: "k"},
 	}).Run(context.Background(), Trial{
 		Task: workerTask("worker-unreachable"), TaskDir: taskDir, Subject: testSubject(t),
 	}, t.TempDir())
@@ -231,7 +231,7 @@ func TestWorkerRunRejectsAMultiTurnTask(t *testing.T) {
 	task.Turns = []string{"first", "second"}
 	taskDir := writeTask(t, map[string]string{"state/notes.txt": "x\n"})
 
-	res, err := (&Worker{Binary: "/nonexistent", Credential: Credential{APIURL: "u", APIKey: "k"}}).
+	res, err := (&Worker{Binary: "/nonexistent", Credential: ModelAccess{APIURL: "u", APIKey: "k"}}).
 		Run(context.Background(), Trial{Task: task, TaskDir: taskDir, Subject: testSubject(t)}, t.TempDir())
 	if err != nil {
 		t.Fatalf("Run: %v", err)
@@ -252,7 +252,7 @@ func TestWorkerRunRejectsATaskThatShipsItsAnswer(t *testing.T) {
 		"state/expected.txt":   answer,
 	})
 
-	res, err := (&Worker{Binary: "/nonexistent", Credential: Credential{APIURL: "u", APIKey: "k"}}).
+	res, err := (&Worker{Binary: "/nonexistent", Credential: ModelAccess{APIURL: "u", APIKey: "k"}}).
 		Run(context.Background(), Trial{Task: workerTask("worker-leaky"), TaskDir: taskDir, Subject: testSubject(t)},
 			t.TempDir())
 	if err != nil {

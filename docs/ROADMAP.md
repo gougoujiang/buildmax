@@ -190,7 +190,10 @@ Acceptance:
   owning environment
 - Harbor can run the built BuildMax Agent against a pinned Terminal-Bench 2.1
   release, preserve one BuildMax trial bundle per attempt, and compare harnesses
-  under the same model, effort, resources, and attempt count
+  under the same model, effort, resources, and attempt count — **partly met**:
+  the oracle smoke and a one-task canary have run end to end and imported, so
+  the path works for one task; the criterion needs a canary subset and then the
+  full protocol
 - the legacy `eval/` catalog and `internal/agenteval` are retired rather than
   preserved behind compatibility code — **done**: both are deleted, and
   `./make eval` now measures the built CLI against the CLI tasks in
@@ -204,9 +207,20 @@ Code state: **partly shipped**. `evaluation/contract`, the black-box CLI and
 worker adapters, deterministic/command/trace graders, preflight, repeated and
 paired experiments, and three representative tasks are implemented.
 `cmd/buildmax-eval` is the entry point for that contract; the old `eval/`
-catalog and `internal/agenteval` are deleted. Conversation and deployment
-adapters, model-grader calibration, a private or rotating holdout, and the
-Inspect spike and Harbor/Terminal-Bench 2.1 adapter remain open.
+catalog and `internal/agenteval` are deleted.
+
+`evaluation/harbor` adds the external Terminal-Bench 2.1 target: pinned harness,
+dataset ref, and adapter versions; the Python custom-Agent that uploads the
+built CLI into a task container; the importer that files a finished job as trial
+bundles; `./make doctor harbor` and `./make eval harbor`. The oracle smoke
+passed 5/5 and a one-task canary ran through the adapter and imported cleanly,
+so the path is verified for one task and no further. There is **no
+Terminal-Bench score**, and running it found one product bug — a Bash command
+that left a background process behind hung the agent indefinitely — which is
+fixed. Expect the first wider run to find more.
+
+Conversation and deployment adapters, model-grader calibration, a private or
+rotating holdout, and the Inspect spike remain open.
 
 ### P3. Enterprise Deployment Loop — implementation mostly shipped; operating evidence open
 
@@ -338,14 +352,19 @@ recovers. The immediate work is therefore evidence-first.
    upgrade followed by binary rollback. Add only the smallest product diagnostics
    exposed by those exercises; do not turn readiness into a destructive storage
    probe or invent metrics before deciding what an operator needs.
-3. **Continue P0.6 from the shipped local and worker slice.** Add conversation
-   and deployment adapters, then expand the product and trust suites around
-   repeated trials and useful failure bundles. Calibrate model graders and
-   spike Inspect only after the local workflow shows what it needs to add. Add
-   Harbor's custom-Agent adapter against pinned Terminal-Bench 2.1, first on a
-   named canary subset and then under the full official comparison protocol.
-   This can run alongside step 2.
-4. **Finish worker hardening as a parallel security track.** First decide and
+3. **Widen the Harbor run.** The oracle smoke and a one-task canary have run;
+   next is a named canary subset, then the full 89 tasks at five attempts under
+   the leaderboard's unmodified resource and timeout policy, with a baseline
+   comparison. The one task that has run says the path works, not what BuildMax
+   scores, and the first canary found a product bug that had nothing to do with
+   evaluation — budget for the next widening to find more, and fix before going
+   wider. This can run alongside step 2.
+4. **Continue the rest of P0.6 from the shipped local and worker slice.** Add
+   conversation and deployment adapters, then expand the product and trust
+   suites around repeated trials and useful failure bundles. Calibrate model
+   graders and spike Inspect only after the local workflow shows what it needs
+   to add.
+5. **Finish worker hardening as a parallel security track.** First decide and
    document fail-closed versus recorded downgrade when `bwrap` is unavailable;
    then add the backend to the image, prove the pod supports it, select
    `SandboxSurfaceWorker`, add rlimits, sandbox hook transports, and test the
@@ -355,8 +374,8 @@ recovers. The immediate work is therefore evidence-first.
    covered them, on any surface — so it is what makes executable team plugins
    contained rather than what permits them; see
    [design/plugin-team-distribution.md](design/plugin-team-distribution.md) §9.
-   None of it hides steps 1–3 behind it.
-5. **Choose one product bet from evidence.** One has been taken and shipped:
+   None of it hides steps 1–4 behind it.
+6. **Choose one product bet from evidence.** One has been taken and shipped:
    agent-managed worktrees, in
    [design/workspace-root-and-worktrees.md](design/workspace-root-and-worktrees.md).
    A session moves its own workspace root, an agent creates and cleans up its

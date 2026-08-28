@@ -25,13 +25,20 @@ const (
 	ToolErrorPanic = "panic"
 )
 
+// ErrMaxIterations ends a run that reached its MaxIter bound.
+//
+// It is a sentinel rather than a message because it is not a failure of the
+// same kind as a provider outage: the run spent the budget it was given and
+// stopped, and everything it did up to that point stands. A caller that cannot
+// tell the two apart reports an exhausted budget as an incapable agent, which
+// is the distinction docs/design/evaluation-system.md section 7.4 exists to
+// keep.
+var ErrMaxIterations = errors.New("max iterations exceeded")
+
 const denyMsgPolicy = "error: tool call %q denied by policy"
 const denyMsgLoopGuard = "error: tool call %q blocked — repeated identical call detected (loop guard)"
 const denyMsgUser = "error: tool call %q denied by user"
 const denyMsgHook = "error: tool call %q denied by hook: %s"
-
-// DefaultMaxIterations is the default cap on agent loop iterations.
-const DefaultMaxIterations = 200
 
 // RunStats holds statistics collected during a single agent run.
 //
@@ -167,9 +174,13 @@ type RunLoopOpts struct {
 	// whatever is configured then restates money already spent.
 	Pricing      llm.Pricing
 	ToolRegistry llm.ToolRegistry
-	MaxIter      int
-	History      MessageHistory
-	StreamSink   llm.StreamSink
+	// MaxIter caps how many times the loop may call the model. The caller
+	// settles it — config.ResolveMaxIterations is where a surface gets one —
+	// because the bound belongs to the run being asked for, not to the loop.
+	// Zero runs nothing and reports the cap as exceeded.
+	MaxIter    int
+	History    MessageHistory
+	StreamSink llm.StreamSink
 	// Policy is consulted before each tool execution. Nil defaults to AllowAllPolicy().
 	Policy ToolPolicy
 	// Approval is invoked when Policy returns ToolActionAsk.
@@ -383,11 +394,10 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 			return "", s, err
 		}
 	}
-	slog.Warn("agent max iterations exceeded")
-	maxErr := errors.New("agent: max iterations exceeded")
-	emit(opts.EventSink, Event{Kind: EventRunEnd, Stats: s, Err: maxErr})
-	fireRunEndHook(ctx, opts, s, maxErr)
-	return "", s, maxErr
+	slog.Warn("agent max iterations exceeded", "max", opts.MaxIter)
+	emit(opts.EventSink, Event{Kind: EventRunEnd, Stats: s, Err: ErrMaxIterations})
+	fireRunEndHook(ctx, opts, s, ErrMaxIterations)
+	return "", s, ErrMaxIterations
 }
 
 // injectPendingInput appends every message waiting in opts.PendingInput to the

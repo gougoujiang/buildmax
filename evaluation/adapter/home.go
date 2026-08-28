@@ -10,12 +10,33 @@ import (
 	"github.com/gougoujiang/buildmax/evaluation/contract"
 )
 
-// Credential is the provider access a trial needs. It travels beside the
-// subject rather than inside it because section 8.2 keeps secrets out of the
-// manifest: a stored trial result must never become a credential store.
-type Credential struct {
+// ModelAccess is how a trial reaches its model and what that costs. It travels
+// beside the subject rather than inside it, for two different reasons that both
+// end in the same place.
+//
+// The credential is section 8.2: a stored trial result must never become a
+// credential store. The prices are section 12: they change what a run reports
+// spending without changing anything it did, so two subjects at different
+// prices are the same subject and must compare as one.
+type ModelAccess struct {
 	APIURL string
 	APIKey string
+	// Pricing lets a run report what it spent. Absent, the trial reports its
+	// cost as unavailable rather than as zero — BuildMax does not know what any
+	// provider charges, and guessing would be worse than silence.
+	Pricing *Pricing
+}
+
+// Pricing is what one model charges, in the shape settings.yaml takes. Rates
+// are strings for the reason internal/config keeps them as strings: a price is
+// a decimal, and parsing one through a float loses the last digits of a rate
+// quoted in millionths.
+type Pricing struct {
+	Currency          string `yaml:"currency"`
+	InputPerMTok      string `yaml:"input_per_mtok,omitempty"`
+	CacheReadPerMTok  string `yaml:"cache_read_per_mtok,omitempty"`
+	CacheWritePerMTok string `yaml:"cache_write_per_mtok,omitempty"`
+	OutputPerMTok     string `yaml:"output_per_mtok,omitempty"`
 }
 
 // settingsFile is the subset of settings.yaml a trial home needs.
@@ -32,14 +53,15 @@ type settingsFile struct {
 }
 
 type settingsModel struct {
-	Model         string `yaml:"model"`
-	Name          string `yaml:"name"`
-	Provider      string `yaml:"provider,omitempty"`
-	APIURL        string `yaml:"api_url,omitempty"`
-	APIKey        string `yaml:"api_key,omitempty"`
-	ContextWindow int    `yaml:"context_window,omitempty"`
-	MaxTokens     int    `yaml:"max_tokens,omitempty"`
-	Reasoning     string `yaml:"reasoning,omitempty"`
+	Model         string   `yaml:"model"`
+	Name          string   `yaml:"name"`
+	Provider      string   `yaml:"provider,omitempty"`
+	APIURL        string   `yaml:"api_url,omitempty"`
+	APIKey        string   `yaml:"api_key,omitempty"`
+	ContextWindow int      `yaml:"context_window,omitempty"`
+	MaxTokens     int      `yaml:"max_tokens,omitempty"`
+	Reasoning     string   `yaml:"reasoning,omitempty"`
+	Pricing       *Pricing `yaml:"pricing,omitempty"`
 }
 
 // WriteHome builds the BUILDMAX_HOME one trial runs under, from the subject
@@ -50,7 +72,7 @@ type settingsModel struct {
 // permissions among the things that silently change what a benchmark measures;
 // a home containing only the subject's model has none of them to inherit, and
 // a plugin installed on the machine cannot reach a run that never looks there.
-func WriteHome(dir string, subject contract.SubjectManifest, cred Credential) error {
+func WriteHome(dir string, subject contract.SubjectManifest, cred ModelAccess) error {
 	if subject.Model.Target == "" {
 		return fmt.Errorf("subject %q names no model target", subject.Name)
 	}
@@ -79,6 +101,7 @@ func WriteHome(dir string, subject contract.SubjectManifest, cred Credential) er
 			ContextWindow: subject.Model.ContextWindow,
 			MaxTokens:     subject.Model.MaxOutput,
 			Reasoning:     subject.Model.Reasoning,
+			Pricing:       cred.Pricing,
 		}},
 	}
 

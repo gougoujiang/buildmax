@@ -1,0 +1,38 @@
+{
+    "task_name": "terminal-bench/bn-fit-modify",
+    "trial_name": "bn-fit-modify__ccc3333",
+    "trial_uri": "package://terminal-bench/bn-fit-modify",
+    "source": "terminal-bench/terminal-bench-2-1",
+    "task_checksum": "2222222222222222222222222222222222222222222222222222222222222222",
+    "agent_info": {
+        "name": "buildmax",
+        "version": "1.4.0 (abc1234)",
+        "model_info": {"name": "claude-opus-4-7", "provider": "anthropic"}
+    },
+    "agent_result": {
+        "n_input_tokens": 50000,
+        "n_output_tokens": 1000,
+        "metadata": {
+            "exit_code": 0,
+            "session_id": "sess-3",
+            "trace_id": "trace-3",
+            "stopped_at_iteration_cap": false,
+            "adapter_version": 1,
+            "artifact_digest": "sha256:deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+            "buildmax_provider": "anthropic",
+            "harbor_provider": "anthropic",
+            "reasoning": "high",
+            "sandboxed": false,
+            "permissions": "allow_all"
+        }
+    },
+    "verifier_result": null,
+    "exception_info": {
+        "exception_type": "VerifierTimeoutError",
+        "exception_message": "verifier exceeded 300s",
+        "exception_traceback": "...",
+        "occurred_at": "2026-08-27T10:20:00Z"
+    },
+    "started_at": "2026-08-27T10:15:00Z",
+    "finished_at": "2026-08-27T10:20:00Z"
+}

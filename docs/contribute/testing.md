@@ -90,7 +90,23 @@ behavior is wired, and evaluation asks how reliably a model drives it. It needs
 a key and spends tokens. Everything it can check without one — task validity,
 oracles, graders, and the adapter — runs in `./make test` instead, so a task
 that measures nothing is caught before it costs anything. See
-[design/evaluation-system.md](../design/evaluation-system.md).
+[design/evaluation-system.md](../design/evaluation-system.md) for why it is
+shaped this way, and [evaluation/README.md](../../evaluation/README.md) for how
+to run it and what a task and a bundle hold.
+
+`./make eval harbor --job <dir>` reports the external coordinate rather than
+producing one. Harbor runs Terminal-Bench 2.1 and its verifier decides every
+outcome; this reads the finished job and files it in the same contract, so an
+external result and a local one carry the same subject tuple, the same failure
+taxonomy, and the same pass rate with its uncertainty. It builds nothing and
+calls no model, and it measures rather than gates — a task the subject did not
+solve is a score. `./make doctor harbor` reports what a run needs; see
+[evaluation/harbor/README.md](../../evaluation/harbor/README.md).
+
+The oracle smoke and a one-task canary have run through that path end to end.
+That verifies it for one task and no further; there is no Terminal-Bench score.
+Widening it is the open work, and the first canary found a product bug outside
+evaluation entirely, so expect the next one to find more.
 
 If a prerequisite is missing, the suite says which one before it starts. The two
 that catch people out:

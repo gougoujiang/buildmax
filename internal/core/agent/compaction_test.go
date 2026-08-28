@@ -112,7 +112,7 @@ func runOnce(t *testing.T, client llm.LLMClient, h MessageHistory, comp ContextC
 		LLMClient:    client,
 		SystemPrompt: testSystemPrompt,
 		ToolRegistry: newTestToolRegistry(),
-		MaxIter:      DefaultMaxIterations,
+		MaxIter:      testMaxIter,
 		History:      h,
 		Compactor:    comp,
 	})
@@ -330,7 +330,7 @@ func TestCompaction_PersistFailureStopsTheRun(t *testing.T) {
 		LLMClient:    client,
 		SystemPrompt: testSystemPrompt,
 		ToolRegistry: newTestToolRegistry(),
-		MaxIter:      DefaultMaxIterations,
+		MaxIter:      testMaxIter,
 		History:      h,
 		Compactor:    &factCompactor{},
 	})

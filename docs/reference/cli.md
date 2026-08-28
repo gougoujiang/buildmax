@@ -47,6 +47,7 @@ buildmax <command> [flags]
 | `--workspace DIR` | current directory | Directory the agent operates in |
 | `--sandbox` | off | Require the Bash sandbox for this run without changing settings; fail if its backend is unavailable |
 | `--sandbox-mode auto_allow\|regular` | configured mode | Select the approval mode for this run; requires `--sandbox` |
+| `--max-iterations N` | `agent.max_iterations`, else 200 | Cap this run's model calls; range 1-5000 |
 | `--append-system-prompt TEXT` | — | Text appended to this run's system prompt |
 | `--append-system-prompt-file PATH` | — | Same, read from a file |
 | `--agent NAME` | — | Append the body of a definition from `.buildmax/agents/` or `~/.buildmax/agents/` |
@@ -63,6 +64,13 @@ what you want when calling BuildMax from a script or another program.
 `--sandbox` applies to both the TUI and print mode. It can enable confinement
 for one run, but cannot disable it; operator `policy.yaml` remains authoritative
 over both flags.
+
+`--max-iterations` also applies to both, and outranks `agent.max_iterations` in
+`settings.yaml`. It is the bound on how many times one prompt may call the model
+before the run stops; a run that reaches it exits `7` and reports `agent: max
+iterations exceeded`. Raise it for a long unattended task, and lower it to put a
+hard ceiling on what one prompt can spend. Sub-agents keep their own, smaller
+cap either way.
 
 Both carry `trace_id` and `trace_path`, naming the durable trace that run wrote.
 Use them rather than looking for the newest file under
@@ -262,11 +270,16 @@ shell scripts and CI steps. The codes are a stable contract:
 | `4` | The model or the agent run failed: an unreachable provider, a refused credential, a run that could not continue |
 | `5` | Reserved for tool errors; nothing returns it yet |
 | `6` | Cancelled — `Ctrl+C`, or the context ended |
+| `7` | The run reached its iteration cap — see `--max-iterations` |
 
 `--output json` and `--output jsonl` carry the same fact as an `error` object
 with a `kind` (`usage`, `policy_denied`, `model_error`, `tool_error`,
-`cancelled`, or `error`) and a message, so a caller does not have to map the
-number back.
+`cancelled`, `iteration_cap`, or `error`) and a message, so a caller does not
+have to map the number back.
+
+`7` is deliberately not `4`. A model error is a fault worth retrying; an
+exhausted iteration budget is an answer, and retrying it pays for the same cap
+again. Whatever the run wrote before it stopped is still on disk.
 
 ## Related
 

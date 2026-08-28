@@ -61,9 +61,34 @@ func TestEvalBuildsTheWorkerOnlyForAnExplicitWorkerSurface(t *testing.T) {
 		{args: []string{"--surface", "cli"}, want: false},
 		{args: []string{"--surface", "worker"}, want: true},
 		{args: []string{"--surface=all"}, want: true},
+		// The Harbor import measures a job that already ran. It builds nothing,
+		// so a --surface flag meant for the local suite must not drag a worker
+		// build into it.
+		{args: []string{"harbor", "--job", "runs/x", "--surface", "all"}, want: false},
 	} {
 		if got := evalNeedsWorker(tt.args); got != tt.want {
 			t.Errorf("evalNeedsWorker(%q) = %v, want %v", tt.args, got, tt.want)
+		}
+	}
+}
+
+// The import reads evidence from a job Harbor already ran, so the CLI it
+// measures is not this tree's to build. Building one anyway would name an
+// artifact that may not be the one that produced the job, and a subject naming
+// the wrong artifact is a result nobody can reproduce.
+func TestTheHarborImportIsDispatchedOnTheSubcommand(t *testing.T) {
+	for _, tt := range []struct {
+		args []string
+		want bool
+	}{
+		{args: nil, want: false},
+		{args: []string{"harbor"}, want: true},
+		{args: []string{"harbor", "--job", "runs/x"}, want: true},
+		{args: []string{"--task", "harbor"}, want: false},
+		{args: []string{"--surface", "cli"}, want: false},
+	} {
+		if got := evalIsHarbor(tt.args); got != tt.want {
+			t.Errorf("evalIsHarbor(%q) = %v, want %v", tt.args, got, tt.want)
 		}
 	}
 }

@@ -95,6 +95,7 @@ func buildAgentApp(cfg AppConfig, resolved resolvedAgentAppConfig) (_ *AgentApp,
 		sandbox:                agent.SandboxView(sandboxManager),
 		sandboxManager:         sandboxManager,
 		sandboxResolved:        resolved.sandbox,
+		maxIterations:          config.ResolveMaxIterations(resolved.settings.Agent, cfg.MaxIterations),
 		plugins:                resolved.plugins,
 	}
 	complete := false

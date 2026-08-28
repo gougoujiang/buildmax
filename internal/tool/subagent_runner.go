@@ -10,8 +10,11 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/session"
 )
 
-// defaultSubAgentMaxIter is the iteration cap for sub-agents.
-// Lower than DefaultMaxIterations (200) because sub-agents are scoped, bounded tasks.
+// defaultSubAgentMaxIter is the iteration cap for sub-agents. Lower than
+// config.DefaultMaxIterations because sub-agents are scoped, bounded tasks, and
+// deliberately not raised by the parent run's own override: widening a
+// delegation because the caller wanted a longer main run is how one runaway
+// sub-agent becomes fifty.
 const defaultSubAgentMaxIter = 50
 
 // SubAgentRunOpts configures one sub-agent invocation.

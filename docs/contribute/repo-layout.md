@@ -262,21 +262,40 @@ evaluation/
 ├── grader/             Deterministic outcome, task-supplied command, and
 │                       trace/policy graders
 ├── runner/             Suite loading, preflight, repetition, statistics,
-│                       paired comparison, and the report
+│                       paired comparison, and the report. Summarize turns any
+│                       set of bundles into one subject's result vector, so an
+│                       imported benchmark and a local run share the arithmetic
+├── trace/              Reading a run's durable JSONL trace, under one set of
+│                       bounds, for the adapters, the trace grader, and the
+│                       Harbor importer
+├── harbor/             The external Terminal-Bench 2.1 target: pinned harness,
+│                       dataset, and adapter versions, the Python agent Harbor
+│                       loads to run the built CLI in a task container, and the
+│                       importer that files a finished job as trial bundles
 └── suite/<task>/       task.json, plus state/ materialized into the trial
                         workspace and graders/ and oracle/ that never are
 ```
 
-The package uses the standard library alone, so evaluation adds nothing to the
-product's `go.mod`. Being inside the root module, it is covered by `./make test`,
-`vet`, `lint`, and `govulncheck` without a second pipeline.
+The Go packages use the standard library alone, so evaluation adds nothing to
+the product's `go.mod`. Being inside the root module, they are covered by
+`./make test`, `vet`, `lint`, and `govulncheck` without a second pipeline.
+
+`evaluation/harbor/src/` is the repository's only Python, and the exception is
+narrow: Harbor's custom-Agent boundary is a Python class, so an adapter for it
+cannot be written in Go. It is not built, not shipped, not imported by any Go
+package, and not part of any `./make check` scope; the Go core and the CLI stay
+a single binary with no Python or Node. The Go files beside it pin the versions
+a result depends on and hold the Python to the trial-home shape
+`evaluation/adapter` writes. See
+[evaluation/harbor/README.md](../../evaluation/harbor/README.md).
 
 A trial bundle is a directory rather than a file: most of its evidence — the
 JSONL trace, workspace state, produced artifacts — is already files, and keeping
 one failure's evidence together is the reproduction path a failed trial owes a
 contributor. Bundles are written under `.artifacts/evaluation/` and are not
-committed. Run a suite with `./make eval`; the remaining ownership areas are in
-[design/evaluation-system.md](../design/evaluation-system.md).
+committed. How to run either path, and what a task and a bundle hold, is in
+[evaluation/README.md](../../evaluation/README.md); the remaining ownership
+areas are in [design/evaluation-system.md](../design/evaluation-system.md).
 
 ## Dependency Direction
 

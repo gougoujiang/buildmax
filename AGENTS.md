@@ -42,6 +42,10 @@ which is which, not to close the question.
 The primary implementation language is Go. The CLI/TUI must remain usable as a
 single binary without Node. Portal and Desktop have React frontends; this is an
 intentional exception, not a reason to add another runtime to the Go core.
+`evaluation/harbor/src/` is the second and last exception: it is Python because
+Harbor's custom-Agent boundary is a Python class, and an external benchmark's
+interface is not ours to choose. It is evaluation tooling — not built, not
+shipped, not imported by any Go package, and in no `./make check` scope.
 
 ## Find The Right Source Of Truth
 
@@ -169,7 +173,9 @@ Read the relevant architecture document before making a cross-package change:
 
 The planned but not implemented areas include team approvals, worker sandbox
 hardening, and complete CI coverage for Kubernetes and native Windows. Do not
-document them as shipped. Versioned workspace and timeline restore are not
+document them as shipped. `evaluation/harbor` is a separate case: the oracle smoke and a
+one-task canary have run through it, so the path is verified for one task and no
+further. There is no Terminal-Bench score; do not present one as existing. Versioned workspace and timeline restore are not
 planned at all: the design record was withdrawn, so do not describe them as
 upcoming either.
 
@@ -179,6 +185,7 @@ Use the cross-platform task runner from the repository root:
 
 ```bash
 ./make doctor          # read-only contributor environment diagnosis
+./make doctor harbor   # the same, for the external Terminal-Bench toolchain
 ./make build           # strict full build: Go binaries, gui, Portal, Desktop
 ./make build cli       # fast CLI-only build
 ./make test            # Go tests with an isolated BUILDMAX_HOME
@@ -208,8 +215,14 @@ model, needs an API key, and reports a table the model wrote about itself.
 a black box against `evaluation/suite/`; `--surface worker` selects the worker
 tasks, and `--surface all` selects both. Evaluation needs a model API key and
 spends tokens. It answers how reliably a model drives a behavior, not whether
-the behavior is wired; run it deliberately, never as part of a handoff check. See
-[`docs/design/evaluation-system.md`](docs/design/evaluation-system.md).
+the behavior is wired; run it deliberately, never as part of a handoff check.
+`./make eval harbor --job <dir>` is the other direction: it imports a
+Terminal-Bench job Harbor already ran, builds nothing, and calls no model. See
+[`evaluation/README.md`](evaluation/README.md) for how to run either path and
+what a task and a bundle hold,
+[`docs/design/evaluation-system.md`](docs/design/evaluation-system.md) for why,
+and [`evaluation/harbor/README.md`](evaluation/harbor/README.md) for the
+external target.
 
 On Windows use `make.bat`. Add or change commands under `cmd/mk`; the `make`
 and `make.bat` files remain one-line shims. Do not introduce a parallel shell

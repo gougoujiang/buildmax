@@ -63,35 +63,40 @@ func TestRootCommand_PassesWorkspaceToTUI(t *testing.T) {
 	workspace := t.TempDir()
 
 	var gotWorkspace string
-	var gotSandbox config.SandboxRunOverride
+	var gotOverrides runOverrides
 	orig := runTUIFunc
-	runTUIFunc = func(resumeID, modelName, additionalSystemPrompt, ws string, sandboxRun config.SandboxRunOverride) error {
+	runTUIFunc = func(resumeID, modelName, additionalSystemPrompt, ws string, overrides runOverrides) error {
 		gotWorkspace = ws
-		gotSandbox = sandboxRun
+		gotOverrides = overrides
 		return nil
 	}
 	t.Cleanup(func() { runTUIFunc = orig })
 
 	root := NewRootCommand()
-	root.SetArgs([]string{"--workspace", workspace, "--sandbox", "--sandbox-mode", "regular"})
+	root.SetArgs([]string{"--workspace", workspace, "--sandbox", "--sandbox-mode", "regular",
+		"--max-iterations", "1500"})
 	if err := root.Execute(); err != nil {
 		t.Fatalf("Execute: %v", err)
 	}
 	if gotWorkspace != workspace {
 		t.Errorf("workspace passed to the TUI = %q, want %q", gotWorkspace, workspace)
 	}
-	if !gotSandbox.Enable {
+	if !gotOverrides.Sandbox.Enable {
 		t.Error("--sandbox did not reach the TUI runtime")
 	}
-	if gotSandbox.AutoAllowBashIfSandboxed == nil || *gotSandbox.AutoAllowBashIfSandboxed {
-		t.Errorf("sandbox mode = %v, want regular", gotSandbox.AutoAllowBashIfSandboxed)
+	if gotOverrides.Sandbox.AutoAllowBashIfSandboxed == nil || *gotOverrides.Sandbox.AutoAllowBashIfSandboxed {
+		t.Errorf("sandbox mode = %v, want regular", gotOverrides.Sandbox.AutoAllowBashIfSandboxed)
+	}
+	if gotOverrides.MaxIterations != 1500 {
+		t.Errorf("MaxIterations reaching the TUI = %d, want 1500", gotOverrides.MaxIterations)
 	}
 }
 
 func TestTUIAppConfigCarriesWorkspace(t *testing.T) {
 	regular := false
 	sandboxRun := config.SandboxRunOverride{Enable: true, AutoAllowBashIfSandboxed: &regular}
-	cfg := tuiAppConfig("/tmp/some-workspace", "extra prompt", auth.ModelSource{}, sandboxRun)
+	cfg := tuiAppConfig("/tmp/some-workspace", "extra prompt", auth.ModelSource{},
+		runOverrides{Sandbox: sandboxRun, MaxIterations: 1500})
 	if cfg.WorkspaceDir != "/tmp/some-workspace" {
 		t.Errorf("WorkspaceDir = %q, want %q", cfg.WorkspaceDir, "/tmp/some-workspace")
 	}
@@ -107,12 +112,15 @@ func TestTUIAppConfigCarriesWorkspace(t *testing.T) {
 	if !cfg.SandboxRunOverride.Enable || cfg.SandboxRunOverride.AutoAllowBashIfSandboxed == nil || *cfg.SandboxRunOverride.AutoAllowBashIfSandboxed {
 		t.Errorf("SandboxRunOverride = %+v, want enabled regular mode", cfg.SandboxRunOverride)
 	}
+	if cfg.MaxIterations != 1500 {
+		t.Errorf("MaxIterations = %d, want 1500", cfg.MaxIterations)
+	}
 }
 
 // An empty --workspace still means "current directory"; the fix must not turn the
 // default into an empty path handed to the runtime.
 func TestTUIAppConfigWithoutWorkspaceLeavesTheDefault(t *testing.T) {
-	if cfg := tuiAppConfig("", "", auth.ModelSource{}, config.SandboxRunOverride{}); cfg.WorkspaceDir != "" {
+	if cfg := tuiAppConfig("", "", auth.ModelSource{}, runOverrides{}); cfg.WorkspaceDir != "" {
 		t.Errorf("WorkspaceDir = %q, want empty so the runtime falls back to the working directory", cfg.WorkspaceDir)
 	}
 }
@@ -127,6 +135,11 @@ func TestRootCommand_SandboxModeErrorsPrecedeModelCheck(t *testing.T) {
 	}{
 		{name: "mode requires sandbox", args: []string{"--sandbox-mode", "regular"}, want: "requires --sandbox"},
 		{name: "invalid mode", args: []string{"--sandbox", "--sandbox-mode", "permissive"}, want: "want auto_allow or regular"},
+		// A negative cap is rejected rather than clamped, unlike the same value
+		// in settings.yaml: a file states a preference the runtime may correct,
+		// while a flag is what this invocation asked for, and silently running
+		// something else is how a benchmark reports the wrong bound.
+		{name: "negative iteration cap", args: []string{"--max-iterations", "-1"}, want: "invalid --max-iterations"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -140,15 +153,21 @@ func TestRootCommand_SandboxModeErrorsPrecedeModelCheck(t *testing.T) {
 	}
 }
 
-func TestPrintAppConfigCarriesSandboxRunOverride(t *testing.T) {
+func TestPrintAppConfigCarriesRunOverrides(t *testing.T) {
 	autoAllow := true
-	opts := printOptions{SandboxRunOverride: config.SandboxRunOverride{
-		Enable:                   true,
-		AutoAllowBashIfSandboxed: &autoAllow,
+	opts := printOptions{Overrides: runOverrides{
+		Sandbox: config.SandboxRunOverride{
+			Enable:                   true,
+			AutoAllowBashIfSandboxed: &autoAllow,
+		},
+		MaxIterations: 1500,
 	}}
 	cfg := printAppConfig(opts, auth.ModelSource{})
 	if !cfg.SandboxRunOverride.Enable || cfg.SandboxRunOverride.AutoAllowBashIfSandboxed == nil || !*cfg.SandboxRunOverride.AutoAllowBashIfSandboxed {
 		t.Errorf("SandboxRunOverride = %+v, want enabled auto_allow mode", cfg.SandboxRunOverride)
+	}
+	if cfg.MaxIterations != 1500 {
+		t.Errorf("MaxIterations = %d, want 1500", cfg.MaxIterations)
 	}
 }
 

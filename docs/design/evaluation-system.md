@@ -3,8 +3,9 @@
 > **Audience:** contributors, operators, and product designers · **Status:**
 > partly implemented — the [section 18](#18-vertical-slice-implementation-plan) vertical slice has
 > shipped for the CLI and worker surfaces; conversation and deployment adapters
-> and phase 2 onward are planned. Terminal-Bench 2.1 through Harbor is the
-> accepted first external target; its adapter is not implemented
+> and phase 2 onward are planned. The Terminal-Bench 2.1 adapter and importer
+> are built and pinned, and have run the oracle smoke and a one-task canary end
+> to end. No wider run exists, so there is no Terminal-Bench score yet
 >
 > **Accepted:** 2026-08-22 · **Roadmap:** P0.6
 
@@ -494,9 +495,11 @@ public-benchmark bridge.
 ### 14.2 Public benchmark roles
 
 Terminal-Bench 2.1 is the first external capability benchmark and the accepted
-Harbor integration target. Version 2.1 replaces 2.0 as BuildMax's baseline: it
-corrected 28 of the 89 tasks, so a 2.0 score must never be compared with a 2.1
-score as if only the Agent changed.
+Harbor integration target. Version 2.1 replaces 2.0 as BuildMax's baseline: its
+own README states that 26 of the 89 tasks were modified — bugs, timeouts,
+resources, and reward-hacking robustness — so a 2.0 score must never be compared
+with a 2.1 score as if only the Agent changed. This paragraph said 28 when the
+record was accepted; the upstream figure is 26.
 
 It is selected because the live leaderboard names the Agent and model
 separately, accepts custom Agents, reports repeated trials with uncertainty,
@@ -523,6 +526,16 @@ The integration has these boundaries:
   for the benchmark outcome.
 - Run canaries, full qualification, and baseline comparisons only as explicit,
   scheduled, or release-time jobs. They are never ordinary pull-request gates.
+
+Two operational facts, both found while building the adapter and both narrower
+than they were assumed to be. A Harbor Hub account is not needed to run the
+benchmark: Harbor's client is anonymous when logged out and public reads keep
+working, so the pinned public dataset downloads and trials run without one.
+Sign-in gates publishing, `--upload`, org and key management, and private
+datasets. And community submissions to the 2.1 leaderboard are closed at the
+time of writing — only maintainer-run submissions are added — so results here
+can be compared against published rows but cannot yet become one. Neither
+changes what is measured; both change what a run can be used for.
 
 The primary harness comparison holds the model, reasoning effort, provider,
 task version, resources, and attempt count constant while changing only the
@@ -800,6 +813,7 @@ contract, and they map onto the section 8.3 taxonomy directly:
 | `ExitPolicyDenied` | Graders decide; a trust task may require denial, so this is not a failure by itself |
 | `ExitModelError` | `agent_error` |
 | `ExitUserCancelled` | `canceled` |
+| `ExitIterationCap` | `timed_out`: a stated budget expired, which is a judgement about the subject rather than a broken harness. Added later; see [section 18.7](#187-what-building-the-harbor-adapter-changed) |
 | Wall-time budget expired | `timed_out` |
 | Required grader could not run | `grader_error` |
 
@@ -863,6 +877,8 @@ adapter answering its own model would report on the mock rather than on the subj
 | 2. CLI adapter — **done** | `trace_id`/`trace_path` in the print envelope; subject-built trial home; the hidden-grader boundary; deterministic state and trace graders; one canonical trial bundle per attempt | The contract holds for a real execution path: `evaluation/adapter` runs the built binary against a scripted model and returns a gradable bundle |
 | 3. Experiment — **done** | Repetition, paired baseline comparison, uncertainty, failure classification, preflight, and a local report; the mockllm pull-request gate | Section 15.3's Go controller holds: repetition, limits, cancellation, and the statistics came to roughly 700 lines with no new dependency. The report renderer is written rather than imported |
 | 4. Retirement — **done** | `eval/` and `internal/agenteval` deleted; `cmd/buildmax-eval` rewritten around the contract rather than removed, since the entry point is still where a run starts; `./make eval` defaults to the CLI, while worker tasks are opt-in | The last roadmap acceptance criterion |
+| 5. Harbor adapter — **done** | `evaluation/harbor`: pinned harness, dataset ref, and adapter version; the Python custom-Agent that uploads the built CLI into a task container and runs one prompt; the importer that files a finished job as trial bundles; `./make doctor harbor` and `./make eval harbor` | The contract holds for an external harness whose verifier BuildMax does not own. The oracle smoke passed 5/5 and a one-task canary ran end to end and imported, so the adapter drives the real harness for one task. It says nothing about the other 88, about repeated attempts, or about a score |
+| 6. Canary subset and comparison — **open** | A pinned canary subset, then the full 89 tasks at five attempts under the leaderboard's unmodified resource and timeout policy; a baseline comparison against Harbor's reference agent | How BuildMax compares. One passing task is not a measurement |
 
 Five things the slice found are worth carrying forward. Killing a subject at its budget does not
 end the call: the process dies but its output pipes stay open through any grandchild it started,
@@ -898,7 +914,106 @@ The Inspect and Harbor spikes follow step 3. Section 14.1 already places framewo
 downstream of the slice, and a spike run before a canonical bundle exists would compare
 adapters against a contract that is still moving.
 
-### 18.7 Deliberately outside the slice
+### 18.7 What building and first running the Harbor adapter changed
+
+Six things came out of building it, four of which are contract or product
+decisions rather than adapter details. Running it added three more, and those
+are the ones worth reading: none was reachable by testing, and two of them
+would have made a published number wrong rather than absent.
+
+**The iteration cap needed its own exit code.** The agent loop's cap was fixed
+at 200 and reaching it exited `ExitModelError`, the same code as an unreachable
+provider. Those ask opposite things of a harness: a provider failure is a fault
+worth retrying, and an exhausted budget is an answer — retrying it pays for the
+same cap again and, worse, discards the verifier's verdict on work that really
+happened. The cap is now configurable through `agent.max_iterations` and
+`--max-iterations`, and reaching it exits `7` with error kind `iteration_cap`.
+The Harbor adapter swallows exactly that one code so the task's own verifier
+still judges the workspace, and records the cap as the trial's failure class.
+This is what keeps a spent budget out of the capability reading that
+section 7.4 exists to protect.
+
+**`Limits.Iterations` was decoration.** The contract had carried the field since
+step 1, and no adapter passed it to anything: a task stating an iteration limit
+ran to the binary's own default and the trial reported a bound nobody applied.
+There was no flag to pass it to until the change above.
+
+**Attempt indices are assigned, not read.** Harbor does not number attempts — a
+trial name is the task plus a random suffix — so the importer numbers them per
+task from a stable ordering by start time. The index is therefore a property of
+the import rather than an external identity, and two imports of one job must
+agree or a paired comparison would pair different attempts each time it ran.
+
+**The artifact digest belongs to the code holding the file.** Section 7.3 makes
+the digest what turns a result into a black-box measurement, and Harbor records
+only the kwarg naming a binary path. An importer taking the digest from its
+caller would let the caller name a file that never ran, with nothing downstream
+able to check it. The adapter hashes the binary it uploads and records that;
+the version and commit come from what the binary reported inside the container.
+A trial missing the digest is refused rather than imported without one.
+
+**Facts that cross a language boundary need a guard, because the failure is
+silent.** The trial home's settings file and the subject tuple are both produced
+in Python and consumed in Go. A key spelled differently on one side is not an
+error — the loader or the map lookup simply misses it — so the run proceeds with
+the field unset and the result is attributed to a subject that was never
+configured that way. Three tests hold the pairs to each other: the settings keys
+against `evaluation/adapter`'s own struct, the metadata keys against the
+importer's, and the Python adapter version against `pins.json`.
+
+**A Bash command that leaves a background process behind hung the agent
+forever.** This is a product bug and nothing to do with evaluation, and only
+running the benchmark found it. The Bash tool reads output through a pipe, and
+Go's `Wait` returns only when every write end closes — so a server the agent
+started earlier in a task held the pipe open, and a command killed at its own
+deadline never returned. A canary trial sat on one tool call for two hours under
+a documented 120-second timeout. The tool now bounds that wait.
+
+The repository already knew this failure: `evaluation/adapter/cli.go` documents
+it exactly, for the process the adapter launches. What it did not do was apply
+the same reasoning one level down, inside the tool that launches commands of its
+own. A hazard recorded in one place is not a hazard fixed everywhere, and this
+is worth remembering the next time one is written down.
+
+**An attempt that produced no usable evidence must not take the job with it.**
+A subject killed mid-run leaves an empty result envelope — the shell creates the
+file before the binary writes a byte — and treating that as a broken output
+contract lost five good imports to one killed container. An import degrades the
+trial and records the gap; it does not refuse the job.
+
+Four smaller findings came from comparing real output against what the source
+suggested: the trial result file is `result.json` and not the `results.json`
+Harbor's own docstring names twice; a task is `<org>/<name>`, which a bundle's
+task id cannot hold and which the task filter requires; and `task_checksum` is
+bare hex where the same tree's ref is labelled. Each was an assumption read from
+code rather than seen, and each would have failed on the first real import.
+
+**Cancelling a coroutine is not stopping a container.** Harbor bounds the
+agent phase with `asyncio.wait_for`, which is the right shape and the right
+per-task budget — and it did nothing. Cancelling a coroutine that is awaiting a
+`docker compose exec` ends the wait; the environment terminates the client only
+on its own per-exec timeout, which the adapter never set. So the container kept
+running the CLI after Harbor had given up on it, and a task declaring a
+thirty-minute budget was observed still working, and still spending, at
+ninety-eight minutes.
+
+A run that outlives its budget is not slightly less precise; it is not
+comparable at all, because every agent on the leaderboard was held to that
+budget. The adapter now reaps the in-container process in the cleanup that
+cancellation already runs, which is what makes the harness's own timeout mean
+something. The budget itself stays Harbor's: a custom agent cannot read it —
+Harbor passes `agent_timeout_sec` to the oracle agent alone — so an adapter that
+tried to enforce its own would be restating a per-task number it has no way to
+know.
+
+**Cost cannot round-trip through the harness.** Harbor re-encodes what an agent
+reports and holds cost as a float in dollars, while the runtime holds integer
+nano-units. The importer therefore prefers BuildMax's own print-mode envelope,
+which the adapter leaves in the trial's agent directory, and falls back to
+Harbor's numbers only when no envelope exists — marking the recovered cost
+incomplete, because a total rounded through a float should not read as exact.
+
+### 18.8 Deliberately outside the slice
 
 The original shipped slice deliberately excluded conversation and deployment
 adapters, model-grader calibration, the private or rotating holdout, any

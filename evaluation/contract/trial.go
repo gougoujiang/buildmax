@@ -22,7 +22,10 @@ const (
 	// StatusGraderError means required grading could not complete, so the
 	// attempt is unscored rather than failed.
 	StatusGraderError TrialStatus = "grader_error"
-	// StatusTimedOut means the task wall-time budget expired.
+	// StatusTimedOut means a stated budget expired: the task's wall time, or
+	// the iteration cap it asked the subject to run under. Both are the task
+	// saying how much the answer may cost, so a subject that ran out of either
+	// failed the task as written rather than hitting a broken harness.
 	StatusTimedOut TrialStatus = "timed_out"
 	// StatusCanceled means the experiment controller stopped the trial.
 	StatusCanceled TrialStatus = "canceled"

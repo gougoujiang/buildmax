@@ -1,0 +1,12 @@
+{
+    "trial_name": "build-cython-ext__aaa1111",
+    "agent": {
+        "import_path": "buildmax_harbor.agent:Buildmax",
+        "model_name": "anthropic/claude-opus-4-7",
+        "kwargs": {
+            "reasoning_effort": "high",
+            "max_iterations": 1000,
+            "binary": "bin/buildmax-linux-amd64"
+        }
+    }
+}

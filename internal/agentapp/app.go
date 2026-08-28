@@ -55,6 +55,13 @@ type AppConfig struct {
 	// SandboxRunOverride enables the sandbox or selects its approval mode for
 	// this AgentApp only. It cannot disable confinement or outrank policy.yaml.
 	SandboxRunOverride config.SandboxRunOverride
+	// MaxIterations caps this AgentApp's model calls per run, outranking
+	// settings.yaml. Zero takes the configured value. A surface exposes it for
+	// the run whose length nobody configured for: a benchmark task or an
+	// unattended job is asked once and has to finish inside whatever the
+	// machine was already set to, and the run that hits the cap is recorded as
+	// an agent failure rather than as the budget it actually was.
+	MaxIterations int
 	// ManagedToken supplies the BuildMax credential for models configured with
 	// transport "buildmax". Leaving it nil means this surface offers no managed
 	// inference, and such an entry fails with a clear error instead of falling
@@ -124,6 +131,7 @@ type AgentApp struct {
 	sandbox                agent.SandboxView
 	sandboxManager         *sandbox.Manager
 	sandboxResolved        config.SandboxResolution
+	maxIterations          int
 	additionalSystemPrompt string
 	artifactPublisher      tools.ArtifactPublisher
 	grantsMu               sync.Mutex
@@ -986,7 +994,7 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 		Pricing:      a.pricingFor(sess),
 		SystemPrompt: systemPrompt,
 		ToolRegistry: registry,
-		MaxIter:      agent.DefaultMaxIterations,
+		MaxIter:      a.maxIterations,
 		History:      sess,
 		StreamSink:   opts.Stream,
 		Policy:       a.policy,

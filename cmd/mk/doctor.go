@@ -15,13 +15,15 @@ import (
 const nodeNote = "needed for gui, Portal, Desktop, and the Markdown lint in ./make check docs"
 
 func cmdDoctor(args []string) error {
-	all := false
-	if len(args) > 1 || (len(args) == 1 && args[0] != "all") {
-		return usageErrorf("doctor", "doctor takes no argument but `all`")
-	}
+	scope := ""
 	if len(args) == 1 {
-		all = true
+		scope = args[0]
 	}
+	switch {
+	case len(args) > 1, scope != "" && scope != "all" && scope != "harbor":
+		return usageErrorf("doctor", "doctor takes no argument, `all`, or `harbor`")
+	}
+	all := scope == "all"
 	failures := 0
 	fmt.Println("BuildMax contributor doctor")
 	fmt.Println("===========================")
@@ -34,6 +36,24 @@ func cmdDoctor(args []string) error {
 
 	failures += requiredGoVersion(goWant)
 	failures += requiredPresence("git", "git", []string{"--version"})
+
+	// The benchmark scope is its own section rather than a tier of the default
+	// one. Harbor is not "needed if you touch the frontend"; it is needed only
+	// to spend money on an external benchmark, and every other contributor
+	// would read the lines as noise. Nothing here installs anything: each
+	// failing probe prints the command that fixes it.
+	if scope == "harbor" {
+		fmt.Println()
+		failures += reportHarborProbes(harborProbes())
+		fmt.Println()
+		if failures > 0 {
+			return fmt.Errorf("contributor doctor found %d problem(s) blocking a benchmark run", failures)
+		}
+		fmt.Println("Summary: this checkout can run the pinned Terminal-Bench target")
+		fmt.Println("See evaluation/harbor/README.md for what a run costs and how to start one")
+		return nil
+	}
+
 	if all {
 		failures += requiredExactVersion("Node", "node", []string{"--version"}, nodeWant)
 		failures += requiredExactVersion("npm", "npm", []string{"--version"}, npmWant)
@@ -74,6 +94,7 @@ func cmdDoctor(args []string) error {
 	} else {
 		fmt.Println("Summary: core contributor toolchain is ready; use 'doctor all' for frontend requirements")
 	}
+	fmt.Println("Benchmark toolchain: 'doctor harbor' checks what a Terminal-Bench run needs")
 	return nil
 }
 

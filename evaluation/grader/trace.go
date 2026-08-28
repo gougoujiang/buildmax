@@ -1,7 +1,6 @@
 package grader
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -11,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/gougoujiang/buildmax/evaluation/contract"
+	"github.com/gougoujiang/buildmax/evaluation/trace"
 )
 
 // TraceConfig asserts over recorded process events.
@@ -128,8 +128,7 @@ func readTrace(path string) (traceSummary, error) {
 	defer func() { _ = f.Close() }()
 
 	summary := traceSummary{used: map[string]int{}}
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 0, 64*1024), maxTraceLine)
+	scanner := trace.Scanner(f)
 	line := 0
 	for scanner.Scan() {
 		line++
@@ -165,8 +164,3 @@ func readTrace(path string) (traceSummary, error) {
 	}
 	return summary, nil
 }
-
-// maxTraceLine bounds one trace record. The recorder bounds each free-text
-// field at 4 KiB, so a record far above this is corruption rather than a large
-// tool result.
-const maxTraceLine = 4 * 1024 * 1024

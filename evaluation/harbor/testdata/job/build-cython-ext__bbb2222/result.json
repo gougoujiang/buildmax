@@ -1,0 +1,36 @@
+{
+    "task_name": "terminal-bench/build-cython-ext",
+    "trial_name": "build-cython-ext__bbb2222",
+    "trial_uri": "package://terminal-bench/build-cython-ext",
+    "source": "terminal-bench/terminal-bench-2-1",
+    "task_checksum": "1111111111111111111111111111111111111111111111111111111111111111",
+    "agent_info": {
+        "name": "buildmax",
+        "version": "1.4.0 (abc1234)",
+        "model_info": {"name": "claude-opus-4-7", "provider": "anthropic"}
+    },
+    "agent_result": {
+        "n_input_tokens": 400000,
+        "n_output_tokens": 22000,
+        "cost_usd": 4.0,
+        "metadata": {
+            "exit_code": 7,
+            "error_kind": "iteration_cap",
+            "error_message": "agent: max iterations exceeded",
+            "session_id": "sess-2",
+            "trace_id": "trace-2",
+            "stopped_at_iteration_cap": true,
+            "adapter_version": 1,
+            "artifact_digest": "sha256:deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+            "buildmax_provider": "anthropic",
+            "harbor_provider": "anthropic",
+            "reasoning": "high",
+            "sandboxed": false,
+            "permissions": "allow_all"
+        }
+    },
+    "verifier_result": {"rewards": {"reward": 0}},
+    "exception_info": null,
+    "started_at": "2026-08-27T10:10:00Z",
+    "finished_at": "2026-08-27T10:40:00Z"
+}

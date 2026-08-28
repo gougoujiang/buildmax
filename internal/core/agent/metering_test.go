@@ -29,7 +29,7 @@ func TestRunLoop_CompactionIsPriced(t *testing.T) {
 		LLMClient:    client,
 		SystemPrompt: testSystemPrompt,
 		ToolRegistry: newTestToolRegistry(),
-		MaxIter:      DefaultMaxIterations,
+		MaxIter:      testMaxIter,
 		History:      history,
 		Compactor:    comp,
 		Pricing:      testPricing(),

@@ -64,6 +64,9 @@ func NewRootCommand() *cobra.Command {
 	root.Flags().String("workspace", "", "workspace directory for the agent (default: current directory)")
 	root.Flags().Bool("sandbox", false, "require the Bash sandbox for this run without changing settings")
 	root.Flags().String("sandbox-mode", "", "sandbox approval mode for this run: auto_allow or regular (requires --sandbox)")
+	root.Flags().Int("max-iterations", 0,
+		fmt.Sprintf("cap this run's model calls (%d-%d; default %d, or agent.max_iterations)",
+			config.MinMaxIterations, config.MaxMaxIterations, config.DefaultMaxIterations))
 	root.Flags().String("agent", "", "append the body of a named definition from .buildmax/agents or ~/.buildmax/agents")
 	root.Flags().String("append-system-prompt", "", "text appended to this run's system prompt")
 	root.Flags().String("append-system-prompt-file", "", "file whose contents are appended to this run's system prompt")
@@ -99,6 +102,7 @@ func runRoot(cmd *cobra.Command, _ []string) error {
 	workspace, _ := cmd.Flags().GetString("workspace")
 	sandboxEnabled, _ := cmd.Flags().GetBool("sandbox")
 	sandboxMode, _ := cmd.Flags().GetString("sandbox-mode")
+	maxIterations, _ := cmd.Flags().GetInt("max-iterations")
 	promptFlags := systemPromptFlags{}
 	promptFlags.Agent, _ = cmd.Flags().GetString("agent")
 	promptFlags.AppendText, _ = cmd.Flags().GetString("append-system-prompt")
@@ -118,6 +122,13 @@ func runRoot(cmd *cobra.Command, _ []string) error {
 		fmt.Fprintln(os.Stderr, err.Error())
 		return &ExitError{Code: ExitUsage, Err: err}
 	}
+	if maxIterations < 0 {
+		err := fmt.Errorf("invalid --max-iterations %d: want %d-%d",
+			maxIterations, config.MinMaxIterations, config.MaxMaxIterations)
+		fmt.Fprintln(os.Stderr, err.Error())
+		return &ExitError{Code: ExitUsage, Err: err}
+	}
+	overrides := runOverrides{Sandbox: sandboxRun, MaxIterations: maxIterations}
 
 	if sessionID != "" {
 		if _, err := uuid.Parse(sessionID); err != nil {
@@ -162,11 +173,20 @@ func runRoot(cmd *cobra.Command, _ []string) error {
 			Quiet:                  quiet,
 			IncludeDeltas:          includeDeltas,
 			AdditionalSystemPrompt: additionalSystemPrompt,
-			SandboxRunOverride:     sandboxRun,
+			Overrides:              overrides,
 		})
 	}
 	slog.Info("starting TUI")
-	return runTUIFunc(effectiveSessionID, model, additionalSystemPrompt, workspace, sandboxRun)
+	return runTUIFunc(effectiveSessionID, model, additionalSystemPrompt, workspace, overrides)
+}
+
+// runOverrides are the per-run flags that outrank settings.yaml for this
+// invocation and nothing else. They travel as one value because both surfaces
+// resolve them identically and neither is a property of the prompt, the model,
+// or the workspace.
+type runOverrides struct {
+	Sandbox       config.SandboxRunOverride
+	MaxIterations int
 }
 
 func parseSandboxRunOverride(enabled bool, mode string) (config.SandboxRunOverride, error) {
