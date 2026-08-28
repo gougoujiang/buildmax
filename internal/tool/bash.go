@@ -24,6 +24,15 @@ const (
 	maxOutputRunes   = 30_000
 )
 
+// waitDelay is how long a finished or killed command may keep its output pipe
+// open before the tool stops waiting on it. It bounds the tool, not the
+// command: whatever it applies to has either already exited or already exceeded
+// its own timeout. See where it is used for why it is required.
+//
+// A variable so a test can observe the mechanism without spending the real
+// grace period on it. Nothing configurable reaches it.
+var waitDelay = 10 * time.Second
+
 // Bash runs a shell command in the workspace (one command per call).
 type Bash struct {
 	workspaceTool
@@ -197,6 +206,17 @@ func (b *Bash) Execute(ctx context.Context, args map[string]any) (string, error)
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &out
+	// Without this the timeout above does not bound anything. Writing into a
+	// buffer makes os/exec create a pipe and a copying goroutine, and Wait
+	// blocks until every write end closes — so a command that leaves a
+	// background process behind, a server or a daemon it started, holds the
+	// pipe open after the context has already killed the shell. The agent then
+	// waits forever on a tool call it believes has a 120-second budget.
+	//
+	// WaitDelay bounds both halves: a child that ignores the kill, and a
+	// lingering pipe. The grace is short because by the time it applies the
+	// command's own deadline has already passed.
+	cmd.WaitDelay = waitDelay
 
 	runErr := cmd.Run()
 
@@ -206,6 +226,14 @@ func (b *Bash) Execute(ctx context.Context, args map[string]any) (string, error)
 	if runErr != nil {
 		if runCtx.Err() == context.DeadlineExceeded {
 			return "Command timed out after " + timeout.String() + ".\n" + output, nil
+		}
+		// The command itself finished; something it started still holds the
+		// output pipe. Saying so matters because the output below is whatever
+		// arrived before the tool stopped listening, and reporting it as a
+		// plain failure would send the model to debug a command that worked.
+		if errors.Is(runErr, exec.ErrWaitDelay) {
+			return "Command finished but left a process holding its output, so the output may be incomplete." +
+				" Start long-running processes as a background job instead.\n" + output, nil
 		}
 		var exitErr *exec.ExitError
 		if errors.As(runErr, &exitErr) {
