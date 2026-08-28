@@ -420,6 +420,11 @@ func cmdEval(args []string) error {
 	// a result that cannot be reproduced. The adapter records the real digest
 	// inside the container instead.
 	if evalIsHarbor(args) {
+		if evalIsHarborRun(args) {
+			if err := harborRunPreflight(args); err != nil {
+				return err
+			}
+		}
 		out := filepath.Join(binDir, exe(evalBinary))
 		if err := runCmd("go", "build", "-ldflags", ldflags(), "-o", out, "./cmd/buildmax-eval"); err != nil {
 			return err
@@ -464,6 +469,12 @@ func cmdEval(args []string) error {
 // each caller pass the other's.
 func evalIsHarbor(args []string) bool {
 	return len(args) > 0 && args[0] == "harbor"
+}
+
+// evalIsHarborRun reports whether this starts a benchmark rather than importing
+// one. Only the run direction needs a toolchain: an import reads a directory.
+func evalIsHarborRun(args []string) bool {
+	return evalIsHarbor(args) && len(args) > 1 && args[1] == "run"
 }
 
 func evalNeedsWorker(args []string) bool {

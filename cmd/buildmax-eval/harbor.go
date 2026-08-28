@@ -26,8 +26,10 @@ type harborOptions struct {
 }
 
 const harborUsage = `usage: buildmax-eval harbor --job <dir> [flags]
+       buildmax-eval harbor run --model <provider/model> [flags]
 
-Import a finished Harbor job as BuildMax trial bundles and report it.
+Import a finished Harbor job as BuildMax trial bundles and report it. The run
+form starts the benchmark first and imports the job it produced.
 
 This measures rather than gates. Harbor ran the benchmark and its verifier
 decided every outcome; a task the subject did not solve is a score, not a
@@ -35,6 +37,14 @@ failure of this command. It exits non-zero only when nothing could be measured.
 `
 
 func runHarbor(args []string) error {
+	// `run` starts the benchmark; everything else imports a finished job. The
+	// two directions stay one command because the second is what makes the
+	// first worth doing, and a run this command started is a run it knows where
+	// to find.
+	if len(args) > 0 && args[0] == "run" {
+		return runHarborBenchmark(args[1:])
+	}
+
 	var opt harborOptions
 	fs := flag.NewFlagSet("harbor", flag.ContinueOnError)
 	fs.Usage = func() { fmt.Fprint(os.Stderr, harborUsage, "\nflags:\n"); fs.PrintDefaults() }

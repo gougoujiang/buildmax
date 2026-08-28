@@ -94,14 +94,19 @@ that measures nothing is caught before it costs anything. See
 shaped this way, and [evaluation/README.md](../../evaluation/README.md) for how
 to run it and what a task and a bundle hold.
 
-`./make eval harbor --job <dir>` reports the external coordinate rather than
-producing one. Harbor runs Terminal-Bench 2.1 and its verifier decides every
-outcome; this reads the finished job and files it in the same contract, so an
-external result and a local one carry the same subject tuple, the same failure
-taxonomy, and the same pass rate with its uncertainty. It builds nothing and
-calls no model, and it measures rather than gates — a task the subject did not
-solve is a score. `./make doctor harbor` reports what a run needs and
-`./make setup harbor` installs it; see
+`./make eval harbor` reports an external coordinate rather than producing one.
+Harbor runs Terminal-Bench 2.1 and its verifier decides every outcome; the
+import reads the finished job and files it in the same contract, so an external
+result and a local one carry the same subject tuple, the same failure taxonomy,
+and the same pass rate with its uncertainty. It measures rather than gates — a
+task the subject did not solve is a score.
+
+`./make eval harbor run` starts that run: it assembles the Harbor command from
+the pins, launches it, and imports the job. It needs Docker and a model API key
+and it spends money, so it is as deliberate as the local suite. `./make eval
+harbor --job <dir>` is the import on its own, for a job someone else ran; that
+half builds nothing and calls no model. `./make doctor harbor` reports what a
+run needs and `./make setup harbor` installs it; see
 [evaluation/harbor/README.md](../../evaluation/harbor/README.md).
 
 The oracle smoke and a one-task canary have run through that path end to end.

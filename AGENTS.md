@@ -217,8 +217,10 @@ a black box against `evaluation/suite/`; `--surface worker` selects the worker
 tasks, and `--surface all` selects both. Evaluation needs a model API key and
 spends tokens. It answers how reliably a model drives a behavior, not whether
 the behavior is wired; run it deliberately, never as part of a handoff check.
-`./make eval harbor --job <dir>` is the other direction: it imports a
-Terminal-Bench job Harbor already ran, builds nothing, and calls no model. See
+`./make eval harbor run` starts a Terminal-Bench run: it assembles the Harbor
+command from `evaluation/harbor/pins.json`, launches it, and imports the job.
+`./make eval harbor --job <dir>` is the import alone, for a job someone else
+ran; it builds nothing and calls no model. See
 [`evaluation/README.md`](evaluation/README.md) for how to run either path and
 what a task and a bundle hold,
 [`docs/design/evaluation-system.md`](docs/design/evaluation-system.md) for why,

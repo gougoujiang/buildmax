@@ -531,26 +531,19 @@ func appendReason(existing, add string) string {
 	return existing + "; " + add
 }
 
+// reproduceCommand is built by the same code that starts a run, so the command
+// filed as evidence is the command that would produce it. They were written
+// twice before, and the one nobody executed is the one that drifted: the run
+// documented in the README dropped the dataset ref, while this kept it.
 func reproduceCommand(t Trial, pins Pins) []string {
-	agent := t.Config.Agent.ImportPath
-	if agent == "" {
-		agent = pins.Adapter.ImportPath
-	}
-	cmd := []string{
-		"harbor", "run",
-		"-d", pins.Dataset.Name + "@" + pins.Dataset.Ref,
-		"-a", agent,
-	}
-	if model := modelTarget(t); model != "" {
-		cmd = append(cmd, "-m", model)
-	}
-	// The qualified name, which is what the filter matches: Harbor lists a
-	// packaged task as <org>/<name> and refuses a bare one.
-	cmd = append(cmd, "--include-task-name", t.Result.TaskName, "-k", "1")
-	for _, key := range sortedKeys(t.Config.Agent.Kwargs) {
-		cmd = append(cmd, "--ak", fmt.Sprintf("%s=%v", key, t.Config.Agent.Kwargs[key]))
-	}
-	return cmd
+	return RunCommand(pins, RunSpec{
+		Agent: t.Config.Agent.ImportPath,
+		Model: modelTarget(t),
+		Tasks: []string{t.Result.TaskName},
+		// One attempt: this reproduces a single trial, not the job it came from.
+		Attempts: 1,
+		Kwargs:   t.Config.Agent.Kwargs,
+	})
 }
 
 func metadataOf(t Trial) map[string]any {

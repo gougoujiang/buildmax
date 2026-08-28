@@ -306,25 +306,35 @@ func helpTopics() []helpTopic {
 				"Your model credential is read from settings.yaml, so this needs a model API key\n" +
 					"and spends tokens. Trial bundles are written under .artifacts/evaluation/ and\n" +
 					"stay on this machine.",
-				"`" + mk() + " eval harbor --job <dir>` is the other direction: it imports a\n" +
+				"`" + mk() + " eval harbor run` starts the external benchmark instead: it checks\n" +
+					"the toolchain, cross-builds the linux/amd64 CLI, assembles the Harbor command\n" +
+					"from evaluation/harbor/pins.json -- dataset ref included -- launches it, and\n" +
+					"imports the finished job. Select tasks with --task, --canary, --limit, or\n" +
+					"--all; there is no default, because the default would be the whole dataset.\n" +
+					"--oracle runs each task's own solution to prove the environment, and\n" +
+					"--dry-run prints the command without running it. It needs Docker and a model\n" +
+					"API key, and it spends money.",
+				"`" + mk() + " eval harbor --job <dir>` is the import alone: it files a\n" +
 					"Terminal-Bench job Harbor already ran and reports it in the same contract.\n" +
 					"It builds no CLI and calls no model — the artifact that produced the job is\n" +
 					"named by the evidence, not by whatever this tree compiles to now — and it\n" +
 					"measures rather than gates, so a task the subject did not solve is a score\n" +
-					"and not a failure. Run the benchmark first; see evaluation/harbor/README.md\n" +
-					"and `" + mk() + " doctor harbor`.",
+					"and not a failure. See evaluation/harbor/README.md and `" + mk() + " doctor harbor`.",
 				"See docs/design/evaluation-system.md for what the suites measure and what a\n" +
 					"bundle contains.",
 			},
 			args: []helpRow{
 				{"(none)", "Measure the built CLI against the local suite"},
 				{"harbor", "Import a finished Terminal-Bench job instead; takes --job"},
+				{"harbor run", "Run Terminal-Bench through Harbor, then import the job"},
 			},
 			examples: []string{
 				"eval --help",
 				"eval --task local-summarize-data",
 				"eval --surface worker",
 				"eval --surface all",
+				"eval harbor run --oracle --limit 5",
+				"eval harbor run --canary --model anthropic/claude-opus-4-7",
 				"eval --trials 5",
 				"eval --baseline bin/buildmax-previous",
 				"eval harbor --job .artifacts/harbor/jobs/<job>",

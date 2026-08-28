@@ -98,16 +98,23 @@ a tool was never reached, that the run did not take fifty attempts to get there.
 
 ## Harbor / Terminal-Bench
 
-Three steps, and the middle one is not this repository's code.
+Harbor owns the tasks, the containers, and the verdict; BuildMax is one of its
+agents. See [harbor/README.md](harbor/README.md) for the flags, the agent
+kwargs, and what the adapter does inside a container.
 
 ```shell
 ./make doctor harbor        # what is missing, and the command for each; installs nothing
 ./make setup harbor         # install those: uv, the pinned Harbor, the Linux CLI
+
+./make eval harbor run --oracle --limit 5                    # prove the environment
+./make eval harbor run --canary --model <provider>/<model>   # the pinned canary subset
+./make eval harbor run --all --attempts 5 --model <provider>/<model>
 ```
 
-Then run the benchmark. Harbor owns the tasks, the containers, and the verdict;
-BuildMax is one of its agents. See [harbor/README.md](harbor/README.md) for the
-run command, the agent kwargs, and what the adapter does inside a container.
+`run` assembles the Harbor command from `harbor/pins.json` — dataset ref
+included, which is what keeps a job from being filed under a version it did not
+measure — and imports the finished job. Importing is also a command of its own,
+for a job someone else ran:
 
 ```shell
 ./make eval harbor --job .artifacts/harbor/jobs/<job>   # file a finished job
