@@ -11,7 +11,6 @@ import (
 	"syscall"
 
 	"github.com/gougoujiang/buildmax/internal/agentapp"
-	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
@@ -33,7 +32,7 @@ type printOptions struct {
 	// prompt's last layer. Empty leaves a resumed session running under whatever text it
 	// already had.
 	AdditionalSystemPrompt string
-	SandboxRunOverride     config.SandboxRunOverride
+	Overrides              runOverrides
 }
 
 // stdoutStreamSink writes each delta to stdout and flushes so output appears incrementally.
@@ -140,7 +139,8 @@ func printAppConfig(opts printOptions, source auth.ModelSource) agentapp.AppConf
 		ArtifactPublisher:      auth.ArtifactPublisherForSession(),
 		Surface:                coregw.CallSurfaceCLI,
 		AdditionalSystemPrompt: opts.AdditionalSystemPrompt,
-		SandboxRunOverride:     opts.SandboxRunOverride,
+		SandboxRunOverride:     opts.Overrides.Sandbox,
+		MaxIterations:          opts.Overrides.MaxIterations,
 	}
 }
 

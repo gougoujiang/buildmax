@@ -524,6 +524,7 @@ mode.
 | `sandbox` | disabled | Bash sandboxing. Reference: [guide/sandbox.md](../guide/sandbox.md). |
 | `tools.permissions` | empty | Per-tool approval rules. See below. |
 | `agent.max_parallel_tools` | `4` | How many read-only tool calls from one model message may run at once. Range 1-16; 1 disables it. |
+| `agent.max_iterations` | `200` | How many times one prompt may call the model before the run stops. Range 1-5000. |
 | `agent.turn_digest.recap` | `true` | Print a dim summary of what each turn did, under the reply. |
 | `agent.turn_digest.suggest` | `true` | Offer the likely answer as ghost text when a turn ends by asking you something. |
 
@@ -596,6 +597,28 @@ its own reads rather than running them one at a time.
 Raise it for read-heavy work over slow storage or many `WebFetch` calls. Lower
 it to 1 to make a run reproduce exactly one call at a time. Design:
 [design/parallel-tool-execution.md](../design/parallel-tool-execution.md).
+
+### `agent.max_iterations`
+
+One prompt runs the model, executes the tools it asked for, and calls the model
+again with the results, until the model answers instead of calling a tool. This
+caps how many times that may go round:
+
+```yaml
+agent:
+  max_iterations: 200       # range 1-5000
+```
+
+A run that reaches the cap stops with `agent: max iterations exceeded` and exits
+`7` — its own code, so a caller can tell an exhausted budget from a provider
+that failed. Work already done stays done: the last iteration ran in full, so
+its file edits and commands are on disk.
+
+Raise it for a long unattended task — an overnight job or a benchmark run — where
+nobody is there to say "keep going". Lower it to bound what a single prompt can
+spend against your credential. `buildmax --max-iterations N` sets it for one run
+and outranks this file. Sub-agents keep their own, smaller cap, and neither
+setting raises it.
 
 ### `agent.turn_digest`
 

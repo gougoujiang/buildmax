@@ -9,6 +9,11 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 )
 
+// testMaxIter is a cap wide enough that no test here reaches it. The real
+// default lives in config.ResolveMaxIterations, which this package must not
+// import.
+const testMaxIter = 200
+
 // TestExecuteTool asserts ExecuteTool parses arguments, calls Execute, and returns result or error string.
 func TestExecuteTool(t *testing.T) {
 	ctx := context.Background()
@@ -138,7 +143,7 @@ func runLoopWithUserMsg(ctx context.Context, llmClient llm.LLMClient, registry l
 		LLMClient:    llmClient,
 		SystemPrompt: testSystemPrompt,
 		ToolRegistry: registry,
-		MaxIter:      DefaultMaxIterations,
+		MaxIter:      testMaxIter,
 		History:      history,
 	}
 	for _, opt := range opts {

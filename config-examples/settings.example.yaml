@@ -394,6 +394,12 @@ models:
 # batch means the same thing at any setting. 1 disables parallel execution.
 # Range 1-16; the default is 4.
 #
+# max_iterations bounds how many times one prompt may call the model before the
+# run stops. Reaching it ends the run with "max iterations exceeded"; whatever
+# the last iteration already wrote stays written. Raise it for a long unattended
+# task, lower it to cap what one prompt can spend. Range 1-5000; the default is
+# 200. `buildmax --max-iterations N` overrides it for a single run.
+#
 # turn_digest spends one small extra model call when a turn ends: recap prints
 # a dim summary of what the turn did under the reply, and suggest offers the
 # answer you are likely about to type as ghost text in the input box, which tab
@@ -403,6 +409,7 @@ models:
 #
 # agent:
 #   max_parallel_tools: 4
+#   max_iterations: 200
 #   turn_digest:
 #     recap: true
 #     suggest: true

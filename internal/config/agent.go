@@ -10,11 +10,26 @@ const (
 	MaxMaxParallelTools     = 16
 )
 
+// Agent loop iteration bounds. The cap exists so a run that stopped making
+// progress ends instead of spending until the credential does, and 200 covers
+// ordinary interactive work several times over. The ceiling is what a long
+// autonomous task may raise it to: an agent still calling tools after five
+// thousand iterations is looping, not working, and no honest task needs the
+// difference between that and unbounded.
+const (
+	DefaultMaxIterations = 200
+	MinMaxIterations     = 1
+	MaxMaxIterations     = 5000
+)
+
 // AgentConfig is the "agent" block of settings.yaml.
 type AgentConfig struct {
 	// MaxParallelTools bounds how many tool calls from one assistant message
 	// may run at once. 1 disables parallel execution; 0 means unset.
 	MaxParallelTools int `mapstructure:"max_parallel_tools" json:"max_parallel_tools,omitempty" yaml:"max_parallel_tools,omitempty"`
+	// MaxIterations bounds how many times the agent loop may call the model in
+	// one run. 0 means unset.
+	MaxIterations int `mapstructure:"max_iterations" json:"max_iterations,omitempty" yaml:"max_iterations,omitempty"`
 	// TurnDigest controls the after-the-turn side call. See TurnDigestConfig.
 	TurnDigest TurnDigestConfig `mapstructure:"turn_digest" json:"turn_digest" yaml:"turn_digest"`
 }
@@ -50,5 +65,29 @@ func ResolveMaxParallelTools(cfg AgentConfig) int {
 		return MaxMaxParallelTools
 	default:
 		return cfg.MaxParallelTools
+	}
+}
+
+// ResolveMaxIterations settles the loop cap for one run. A per-run override
+// outranks settings.yaml, which outranks the default; zero at either level
+// means unset rather than "no iterations", because a cap of nothing is a value
+// nobody can mean.
+//
+// Out-of-range is clamped rather than rejected, for the reason
+// ResolveMaxParallelTools gives.
+func ResolveMaxIterations(cfg AgentConfig, override int) int {
+	want := override
+	if want == 0 {
+		want = cfg.MaxIterations
+	}
+	switch {
+	case want == 0:
+		return DefaultMaxIterations
+	case want < MinMaxIterations:
+		return MinMaxIterations
+	case want > MaxMaxIterations:
+		return MaxMaxIterations
+	default:
+		return want
 	}
 }

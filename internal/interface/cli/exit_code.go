@@ -12,6 +12,12 @@ const (
 	ExitModelError    = 4 // LLM/agent runtime error
 	ExitToolError     = 5 // reserved
 	ExitUserCancelled = 6 // SIGINT / ctx cancelled
+	// ExitIterationCap is a run that reached agent.max_iterations. It is
+	// separate from ExitModelError because the two ask different things of a
+	// caller: a model error is a fault to retry, while an exhausted budget is
+	// an answer — the run stopped where it was told to, and whatever it wrote
+	// is real. A harness that retried this would pay for the same cap again.
+	ExitIterationCap = 7
 )
 
 // ExitError wraps an exit code so cobra's RunE can return it and main can

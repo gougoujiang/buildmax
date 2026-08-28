@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 
 	"github.com/gougoujiang/buildmax/internal/agentapp"
 	"github.com/gougoujiang/buildmax/internal/core/agent"
@@ -121,6 +122,8 @@ func errorKindForExitCode(code int) string {
 		return "cancelled"
 	case ExitUsage:
 		return "usage"
+	case ExitIterationCap:
+		return "iteration_cap"
 	default:
 		return "error"
 	}
@@ -128,15 +131,23 @@ func errorKindForExitCode(code int) string {
 
 // classifyExit derives a process exit code from the agent run outcome.
 //   - ctx cancellation (userCancelled true) → ExitUserCancelled
+//   - the iteration cap → ExitIterationCap
 //   - non-nil runErr with any policy denial observed → ExitPolicyDenied
 //   - non-nil runErr otherwise → ExitModelError
 //   - nil runErr → ExitOK
+//
+// The cap is checked before the denial: a run long enough to exhaust its
+// budget has usually had some call denied on the way, and reporting the last
+// denial as the reason it stopped would name a symptom instead of the bound.
 func classifyExit(runErr error, policyDenied bool, userCancelled bool) int {
 	if userCancelled {
 		return ExitUserCancelled
 	}
 	if runErr == nil {
 		return ExitOK
+	}
+	if errors.Is(runErr, agent.ErrMaxIterations) {
+		return ExitIterationCap
 	}
 	if policyDenied {
 		return ExitPolicyDenied

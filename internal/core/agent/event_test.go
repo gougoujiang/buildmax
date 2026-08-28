@@ -53,7 +53,7 @@ func runWithSink(ctx context.Context, llmClient llm.LLMClient, reg llm.ToolRegis
 		LLMClient:    llmClient,
 		SystemPrompt: "test",
 		ToolRegistry: reg,
-		MaxIter:      DefaultMaxIterations,
+		MaxIter:      testMaxIter,
 		History:      buf,
 		EventSink:    sink,
 	})
