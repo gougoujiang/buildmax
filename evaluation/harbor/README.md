@@ -125,6 +125,14 @@ verdict.
 # 3. The whole dataset, at the leaderboard's five attempts. This is the
 #    expensive one, which is why --all has to be asked for.
 ./make eval harbor run --all --attempts 5 --model anthropic/claude-opus-4-7
+
+# 4. Through a gateway. The window and the prices are passed, because the trial
+#    home holds only what this command puts in it.
+export OPENROUTER_API_KEY=...
+./make eval harbor run --canary \
+  --model openrouter/openai/gpt-5.6-luna \
+  --ak context_window=1050000 \
+  --ak 'pricing={"currency":"USD","input_per_mtok":"0.2","output_per_mtok":"1.2"}'
 ```
 
 A run needs a task selection: `--task` (repeatable, or comma-separated),
@@ -136,6 +144,15 @@ the provider key for the `-m <provider>/<model>` it was given from your
 environment, and the adapter writes it into the trial home. Your own
 `~/.buildmax/settings.yaml` is never consulted — a benchmark that inherited it
 would measure your local configuration along with the subject.
+
+The variable is the provider's own, named by the first segment of `-m`:
+`ANTHROPIC_API_KEY` for `anthropic/…`, `OPENROUTER_API_KEY` for `openrouter/…`.
+A key Harbor cannot resolve stops the job at its first trial, before any
+container is built. That check exists because the failure is otherwise
+misdirected: Harbor hands back a provider's default endpoint only once it has
+resolved that provider's key, so a missing key arrives downstream as a missing
+endpoint — reported once per task, after every image has been pulled and its
+system packages installed.
 
 Other flags worth knowing: `--dry-run` prints the Harbor command and stops,
 `--binary` names an artifact other than the one just built, `--jobs-dir` moves
@@ -175,7 +192,8 @@ Passed with `--ak key=value`.
 | `binary` | yes | Path to the built Linux CLI. Uploaded to `/usr/local/bin/buildmax`. |
 | `reasoning_effort` | no | `off`, `low`, `medium`, or `high`. Refused outside that set. |
 | `max_iterations` | no | `--max-iterations` for the run. Unset takes the CLI's own default. |
-| `context_window` | no | Overrides what the model entry declares. |
+| `provider` | no | The wire protocol to speak: `openai_compatible`, `openai`, `anthropic`, or `ollama`. Unset, it is inferred from the slug in `-m`. |
+| `context_window` | no | The window the trial runs at. Unset takes the CLI's own default, which is well below what a long-context model declares. |
 | `max_tokens` | no | Caps one response. |
 | `pricing` | no | A JSON price list, so the run reports what it spent. Unset, cost reports as unavailable rather than as zero. |
 
@@ -195,6 +213,16 @@ unversioned local file is not reproducible, and two people running the same
 command would report different money. A rate that is missing, misspelled, or not
 a number is refused before the job starts, because the alternative is a total
 that looks exact and is quietly wrong.
+
+A BuildMax provider names a wire protocol, not a vendor, and the slug in `-m`
+names a vendor or a gateway. The adapter infers one from the other — anything it
+does not recognise speaks Chat Completions, which is what `openai_compatible`
+means — and `provider` is there for the case where that inference is not the
+protocol you want measured. A gateway fronts several: OpenRouter answers Chat
+Completions at `openrouter/…`, and it also serves the vendors' own shapes, which
+BuildMax reaches as `openai` (the Responses API) or `anthropic` (Messages).
+Naming the protocol is how a benchmark measures the path a deployment actually
+takes rather than the one the slug suggests.
 
 Harbor's leaderboard vocabulary for `reasoning_effort` is wider than BuildMax's
 — it carries `xhigh` and `max` — and the adapter refuses those rather than

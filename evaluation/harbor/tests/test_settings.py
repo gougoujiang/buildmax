@@ -8,10 +8,12 @@ import pytest
 
 from buildmax_harbor.settings import (
     DEFAULT_PROVIDER,
+    PROTOCOLS,
     map_provider,
     model_id,
     render_settings,
     validate_pricing,
+    validate_protocol,
     validate_reasoning,
 )
 
@@ -42,6 +44,19 @@ def test_only_the_provider_prefix_is_stripped():
 
 def test_a_model_named_without_a_provider_is_left_alone():
     assert model_id("gpt-5.6-luna") == "gpt-5.6-luna"
+
+
+def test_a_named_protocol_overrides_the_slug():
+    # A gateway serves more than one protocol, so which one a trial speaks is a
+    # choice: OpenRouter answers Chat Completions, and it also fronts the
+    # vendors' own shapes. Inference picks one; naming one settles it.
+    assert PROTOCOLS == {"anthropic", "openai", "ollama", DEFAULT_PROVIDER}
+    assert validate_protocol("openai") == "openai"
+    assert validate_protocol(None) is None
+    # A protocol BuildMax does not implement would be refused by the CLI inside
+    # the container, one task at a time.
+    with pytest.raises(ValueError, match="Invalid provider"):
+        validate_protocol("openrouter")
 
 
 def test_reasoning_outside_buildmax_vocabulary_is_refused():
@@ -82,6 +97,7 @@ def test_pricing_is_rendered_as_quoted_decimals():
     rendered = render_settings(
         model="m",
         provider="anthropic",
+        api_key="secret",
         pricing={
             "currency": "USD",
             "input_per_mtok": "0.2",
@@ -108,13 +124,18 @@ def test_a_rate_given_as_a_number_is_still_quoted():
     # Written bare it would come back through YAML as a float too, and a rate
     # in millionths loses its last digits that way.
     rendered = render_settings(
-        model="m", provider="anthropic", pricing={"currency": "USD", "input_per_mtok": 0.2}
+        model="m",
+        provider="anthropic",
+        api_key="secret",
+        pricing={"currency": "USD", "input_per_mtok": 0.2},
     )
     assert '      input_per_mtok: "0.2"' in rendered
 
 
 def test_an_unpriced_run_renders_no_pricing_block():
-    assert "pricing" not in render_settings(model="m", provider="anthropic")
+    assert "pricing" not in render_settings(
+        model="m", provider="anthropic", api_key="secret"
+    )
 
 
 def test_pricing_that_would_report_a_wrong_number_is_refused():
@@ -133,9 +154,32 @@ def test_pricing_that_would_report_a_wrong_number_is_refused():
 
 def test_an_openai_compatible_provider_needs_an_endpoint():
     # Without a base URL the run would go to whatever the binary defaults to,
-    # which is a different subject than the one the manifest would claim.
+    # which is a different subject than the one the manifest would claim. The
+    # key is supplied because a home missing both is reported as missing the
+    # key: that is the one the reader has to fix first.
     with pytest.raises(ValueError, match="needs an endpoint"):
-        render_settings(model="some-model", provider=DEFAULT_PROVIDER)
+        render_settings(model="some-model", provider=DEFAULT_PROVIDER, api_key="secret")
+
+
+def test_a_home_without_a_key_is_refused():
+    # Harbor hands back a provider's default endpoint only once it has resolved
+    # that provider's key, so an unresolved key reaches here as an unset base
+    # URL. Reported as a missing endpoint it sends the reader to set the wrong
+    # variable — and only after every trial container is already built, since
+    # the CLI is what refuses a keyless home.
+    with pytest.raises(ValueError, match="needs an api_key"):
+        render_settings(model="m", provider="anthropic")
+    with pytest.raises(ValueError, match="needs an api_key"):
+        render_settings(
+            model="m", provider=DEFAULT_PROVIDER, base_url="https://gateway.example/v1"
+        )
+
+
+def test_a_local_provider_needs_no_key():
+    # A local daemon authenticates nothing: demanding a placeholder would refuse
+    # a setup that works.
+    rendered = render_settings(model="gemma4:e2b", provider="ollama")
+    assert "api_key" not in rendered
 
 
 def test_a_key_with_yaml_syntax_in_it_stays_one_scalar():
@@ -151,7 +195,7 @@ def test_a_key_with_yaml_syntax_in_it_stays_one_scalar():
 
 
 def test_optional_numbers_are_omitted_rather_than_zeroed():
-    rendered = render_settings(model="m", provider="anthropic")
+    rendered = render_settings(model="m", provider="anthropic", api_key="secret")
     assert "context_window" not in rendered
     assert "max_tokens" not in rendered
     assert "reasoning" not in rendered

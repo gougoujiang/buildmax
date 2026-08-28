@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any, override
 
 from harbor.agents.installed.base import BaseInstalledAgent, with_prompt_template
+from harbor.agents.model_connection import PROVIDERS as HARBOR_PROVIDERS
 from harbor.agents.model_connection import ModelConnectionSpec
 from harbor.environments.base import BaseEnvironment
 from harbor.models.agent.context import AgentContext
@@ -29,10 +30,13 @@ from buildmax_harbor.envelope import (
     trial_metadata,
 )
 from buildmax_harbor.settings import (
+    DEFAULT_PROVIDER,
+    KEYLESS_PROVIDERS,
     map_provider,
     model_id,
     render_settings,
     validate_pricing,
+    validate_protocol,
     validate_reasoning,
 )
 
@@ -61,6 +65,7 @@ class Buildmax(BaseInstalledAgent):
         self,
         *args: Any,
         binary: str | Path | None = None,
+        provider: str | None = None,
         reasoning_effort: str | None = None,
         max_iterations: int | None = None,
         context_window: int | None = None,
@@ -85,6 +90,10 @@ class Buildmax(BaseInstalledAgent):
         # can assert the wrong one: nothing downstream can check it.
         self._artifact_digest = digest_file(self._binary)
 
+        # An override, not a default: the slug Harbor was given names a vendor
+        # or a gateway, and which protocol to speak to it is a separate question
+        # a caller may already have answered in their own settings.yaml.
+        self._provider = validate_protocol(provider)
         self._reasoning_effort = validate_reasoning(reasoning_effort)
         # Validated here rather than at first use: a malformed price list should
         # stop the job before it starts, not after 89 tasks have been paid for.
@@ -92,6 +101,91 @@ class Buildmax(BaseInstalledAgent):
         self._max_iterations = max_iterations
         self._context_window = context_window
         self._max_tokens = max_tokens
+        if context_window is None:
+            # Said out loud because the CLI's default window is far below what a
+            # long-context model declares, and a subject measured through it
+            # scores as the model plus a limit nobody chose.
+            self.logger.warning(
+                "buildmax: no context_window kwarg, so the trial runs at the "
+                "CLI's own default. Pass --ak context_window=<tokens> to "
+                "measure the window the model actually has."
+            )
+        # Last, and here rather than at first use: resolving the credential
+        # needs nothing from a container, and Harbor builds the agent before it
+        # builds the environment. A job that can never reach the model stops
+        # now, instead of once per task after each image is pulled and its
+        # system packages are installed.
+        self._require_model_access()
+
+    def _require_model_access(self) -> None:
+        """Refuse a model this run has no way to reach.
+
+        The message names the variable Harbor actually reads. Without that a
+        reader gets the symptom — no key, or the missing endpoint a missing key
+        turns into — and has to work back to which of a provider's names was
+        the one that mattered.
+        """
+        if not self.model_name:
+            raise ValueError("buildmax needs a model: pass -m <provider>/<model>")
+
+        access = self.model_connection
+        provider = self._buildmax_provider()
+        if provider in KEYLESS_PROVIDERS:
+            return
+
+        key_envs, url_envs = self._provider_envs(access.provider)
+        if not access.api_key:
+            if not key_envs:
+                raise ValueError(
+                    f"Harbor knows no provider named {access.provider!r}, so it "
+                    f"reads no API key for {self.model_name!r}. Name a provider "
+                    "from its table in -m — a gateway is reached by its own "
+                    "slug, as in -m openrouter/openai/gpt-5.6-luna."
+                )
+            raise ValueError(
+                f"No API key for Harbor provider {access.provider!r} "
+                f"(model {self.model_name!r}). Export "
+                f"{' or '.join(key_envs)} in the shell that starts the run: "
+                "the trial home is written from that environment, and the "
+                "container is given no credential of its own."
+            )
+
+        # Harbor supplies a known provider's default endpoint once it has the
+        # key, so what is left here is a provider whose endpoint only ever comes
+        # from the environment.
+        if provider == DEFAULT_PROVIDER and not (
+            access.configured_base_url or access.base_url
+        ):
+            fix = (
+                f"Export {' or '.join(url_envs)} in the shell that starts the run"
+                if url_envs
+                else "Reach the model through a gateway slug Harbor does read a "
+                "base URL for, such as openrouter"
+            )
+            raise ValueError(
+                f"No endpoint for Harbor provider {access.provider!r} "
+                f"(model {self.model_name!r}). {fix}: an OpenAI-compatible "
+                "gateway has none for BuildMax to fall back to."
+            )
+
+    def _buildmax_provider(self) -> str:
+        """The wire protocol this trial speaks, named or inferred."""
+        return self._provider or map_provider(self.model_connection.provider)
+
+    @staticmethod
+    def _provider_envs(slug: str | None) -> tuple[tuple[str, ...], tuple[str, ...]]:
+        """The key and base-URL variables Harbor reads for a provider slug.
+
+        Mirrors resolve_model_connection rather than guessing: a provider
+        outside Harbor's table has no key variable at all, and its endpoint
+        falls back to the <PROVIDER>_BASE_URL convention.
+        """
+        access = HARBOR_PROVIDERS.get(slug or "")
+        if access is not None:
+            return access.api_key_envs, access.base_url_envs
+        if not slug:
+            return (), ()
+        return (), (f"{slug.upper().replace('-', '_')}_BASE_URL",)
 
     @staticmethod
     @override
@@ -281,7 +375,7 @@ class Buildmax(BaseInstalledAgent):
         return {
             "adapter_version": ADAPTER_VERSION,
             "artifact_digest": self._artifact_digest,
-            "buildmax_provider": map_provider(access.provider),
+            "buildmax_provider": self._buildmax_provider(),
             "harbor_provider": access.provider,
             "reasoning": self._reasoning_effort,
             # Whether the run could be priced at all, which decides how to read
@@ -325,7 +419,7 @@ class Buildmax(BaseInstalledAgent):
         access = self.model_connection
         return render_settings(
             model=model_id(self.model_name),
-            provider=map_provider(access.provider),
+            provider=self._buildmax_provider(),
             base_url=access.configured_base_url or access.base_url,
             api_key=access.api_key,
             context_window=self._context_window,

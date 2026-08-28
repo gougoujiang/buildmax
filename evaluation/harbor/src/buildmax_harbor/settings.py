@@ -25,6 +25,16 @@ PROVIDERS = {
 }
 DEFAULT_PROVIDER = "openai_compatible"
 
+# The one protocol a trial home can name without a credential: BuildMax reaches
+# a local daemon, so there is nothing to authenticate against.
+KEYLESS_PROVIDERS = frozenset({"ollama"})
+
+# Every protocol BuildMax implements. A gateway is reached over more than one of
+# them — OpenRouter serves Chat Completions and the vendors' own shapes — so
+# which one a trial speaks is a choice the caller can state rather than a fact
+# about the slug Harbor was given.
+PROTOCOLS = frozenset({*PROVIDERS.values(), DEFAULT_PROVIDER})
+
 
 def map_provider(slug: str | None) -> str:
     """Map a Harbor provider slug onto the protocol BuildMax speaks to it."""
@@ -43,6 +53,16 @@ def model_id(model_name: str) -> str:
     adapter that mangled it.
     """
     return model_name.split("/", 1)[-1]
+
+
+def validate_protocol(name: str | None) -> str | None:
+    """Check a protocol the caller named, rather than inferring one."""
+    if name is None or name in PROTOCOLS:
+        return name
+    raise ValueError(
+        f"Invalid provider {name!r} for buildmax. "
+        f"Valid values: {', '.join(sorted(PROTOCOLS))}"
+    )
 
 
 def validate_reasoning(level: str | None) -> str | None:
@@ -114,6 +134,16 @@ def render_settings(
     """
     if not model:
         raise ValueError("a trial home needs a model")
+    if provider not in KEYLESS_PROVIDERS and not api_key:
+        # Checked before the endpoint, because Harbor returns a provider's
+        # default base URL only when it also resolved that provider's key: a
+        # missing key arrives here disguised as a missing endpoint, and the
+        # reader is sent to set the wrong variable.
+        raise ValueError(
+            f"provider {provider!r} needs an api_key. Harbor resolves it from "
+            "the environment that started the run; a home without one makes the "
+            "CLI refuse to start, after the trial's container is already built."
+        )
     if provider == DEFAULT_PROVIDER and not base_url:
         raise ValueError(
             f"provider {provider!r} needs an endpoint. Set the provider's base-url "
