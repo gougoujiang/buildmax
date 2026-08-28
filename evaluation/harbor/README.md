@@ -26,6 +26,7 @@ with no Python or Node, as [AGENTS.md](../../AGENTS.md) requires.
 | `src/buildmax_harbor/settings.py` | Renders the trial home's `settings.yaml`. Imports no Harbor code. |
 | `src/buildmax_harbor/envelope.py` | Reads BuildMax's print-mode result envelope. Imports no Harbor code. |
 | `tests/` | Covers the two harness-free modules, so the credential rendering is checkable without installing Harbor. |
+| `run.go` | Builds the `harbor run` command from the pins and starts it. The same builder writes the reproduction command on every bundle. |
 | `job.go` | Reads a finished Harbor job directory: one `results.json` and `config.json` per trial. |
 | `convert.go` | Turns those into the BuildMax trial contract: subject manifest, status, verdict, usage. |
 | `import.go` | Writes the result as a bundle tree the rest of `evaluation/` can read. |
@@ -39,9 +40,11 @@ with no Python or Node, as [AGENTS.md](../../AGENTS.md) requires.
 ./make eval harbor --job runs/new --baseline-job runs/old
 ```
 
-A job directory is wherever Harbor was told to write one. `harbor run` defaults
-`--jobs-dir/-o` to `jobs/` under the working directory, so the runs below pass
-`-o` rather than leaving it to a default that a Harbor release is free to move.
+`./make eval harbor run` ends in this import, so it is needed on its own only
+for a job someone else ran, a job imported again under another name, or a
+comparison. A job directory is wherever Harbor was told to write one: runs
+started here land under `.artifacts/harbor/jobs`, while `harbor run` on its own
+defaults `--jobs-dir/-o` to `jobs/` in the working directory.
 
 It builds no CLI and calls no model. The artifact that produced the job is named
 by the evidence, not by whatever the tree compiles to now — building one here
@@ -49,10 +52,11 @@ could name a binary that never ran. It also measures rather than gates: a task
 the subject did not solve is a score, and the command fails only when nothing
 could be measured at all.
 
-Running the benchmark and recording it are separate directions, and only the
-second is BuildMax's. Harbor ran the tasks, its verifier decided each outcome,
-and its job directory keeps the trajectories; the importer copies none of that
-and rewrites none of it. What it produces is the record that makes an external
+Running the benchmark and recording it are separate directions. BuildMax starts
+the first — `./make eval harbor run` assembles the command and launches Harbor —
+but owns none of what happens inside it: Harbor materializes the tasks, its
+verifier decides each outcome, and its job directory keeps the trajectories. The
+importer copies none of that and rewrites none of it. What it produces is the record that makes an external
 result comparable with a local one: the subject tuple a qualification has to
 name, and one bundle per attempt.
 
@@ -96,50 +100,71 @@ pinned Harbor, cross-builds the Linux CLI, and finishes by re-running the
 doctor report. It will not choose a trial sandbox for you — Docker or a
 `DAYTONA_API_KEY` is yours to set up — and it never signs in to Hub.
 
-Run every command below from the repository root, with `src/` on `PYTHONPATH`
-so Harbor can import the agent. Running from this directory works too, but then
-`--ak binary=` needs an absolute path: it is resolved by Harbor, not by `make`.
+`./make eval harbor run` starts the benchmark. It builds the command from
+`pins.json` — the dataset with its immutable ref, the adapter's import path, and
+the `PYTHONPATH` that lets Harbor import it — checks the toolchain the way
+`doctor harbor` does, cross-builds the `linux/amd64` CLI if it is missing, and
+imports the finished job. Harbor still owns the tasks, the containers, and the
+verdict.
 
 ```shell
-export PYTHONPATH=$PWD/evaluation/harbor/src
+# 0. Prove the environment before spending anything on a model: the oracle runs
+#    each task's own reference solution. Nothing to import from it.
+./make eval harbor run --oracle --limit 5
 
-# 0. Steps 1 and 2, in one command; skips whatever is already done.
-./make setup harbor
+# 1. One task.
+./make eval harbor run \
+  --task terminal-bench/pypi-server \
+  --model anthropic/claude-opus-4-7 \
+  --reasoning high
 
-# 1. The artifact under test. It is uploaded into the container, not fetched,
-#    so the trial measures a binary whose digest is known up front. amd64 is the
-#    architecture of the task images, not of your machine: an arm64 binary
-#    uploaded into an emulated image dies with an exec format error once the
-#    trial is already running.
-./make build cli linux/amd64
+# 2. The canary subset pins.json names -- six tasks chosen to exercise
+#    different paths through the adapter, not to estimate a score.
+./make eval harbor run --canary --model anthropic/claude-opus-4-7
 
-# 2. Harbor, at the pinned version. No `harbor auth login` unless you intend to
-#    publish the run.
-uv tool install harbor==0.22.0
-
-# 3. Prove the environment before spending anything on the agent: this runs the
-#    tasks' own reference solutions.
-harbor run -d terminal-bench/terminal-bench-2-1 -a oracle -l 5 \
-  -o .artifacts/harbor/jobs
-
-# 4. One task through the BuildMax agent. -i is a glob over task names, and the
-#    six tasks the canary uses are in pins.json under `canary`.
-harbor run \
-  -d terminal-bench/terminal-bench-2-1 \
-  -a buildmax_harbor.agent:Buildmax \
-  -m anthropic/claude-opus-4-7 \
-  --ak binary=bin/buildmax-linux-amd64 \
-  --ak reasoning_effort=high \
-  -i '<task>' \
-  -k 1 \
-  -o .artifacts/harbor/jobs
+# 3. The whole dataset, at the leaderboard's five attempts. This is the
+#    expensive one, which is why --all has to be asked for.
+./make eval harbor run --all --attempts 5 --model anthropic/claude-opus-4-7
 ```
+
+A run needs a task selection: `--task` (repeatable, or comma-separated),
+`--canary`, `--limit`, or `--all`. There is no default, because the default
+would be 89 tasks at whatever `--attempts` says.
 
 The model credential is Harbor's to resolve, not this repository's: Harbor reads
 the provider key for the `-m <provider>/<model>` it was given from your
 environment, and the adapter writes it into the trial home. Your own
 `~/.buildmax/settings.yaml` is never consulted — a benchmark that inherited it
 would measure your local configuration along with the subject.
+
+Other flags worth knowing: `--dry-run` prints the Harbor command and stops,
+`--binary` names an artifact other than the one just built, `--jobs-dir` moves
+where the job lands, `--no-import` leaves it unfiled, and anything after `--` is
+passed to Harbor verbatim.
+
+### What it runs
+
+The command underneath, which `--dry-run` prints in full:
+
+```shell
+harbor run \
+  -d terminal-bench/terminal-bench-2-1@sha256:<the pinned ref> \
+  -a buildmax_harbor.agent:Buildmax \
+  -m anthropic/claude-opus-4-7 \
+  --include-task-name terminal-bench/pypi-server \
+  -k 1 \
+  -o .artifacts/harbor/jobs \
+  --ak binary=bin/buildmax-linux-amd64 \
+  --ak reasoning_effort=high
+```
+
+Typing it by hand works, with two things to get right that the wrapper does not
+leave to chance. The dataset must carry its `@<ref>`: Harbor resolves a bare
+name to `latest`, and the importer stamps the pinned digest on every bundle, so
+a run without the ref files evidence under a version it did not measure. And
+`src/` must be on `PYTHONPATH`, or Harbor cannot import the agent — running from
+this directory satisfies that, but then `--ak binary=` needs an absolute path,
+because Harbor resolves it, not `make`.
 
 ### Agent kwargs
 

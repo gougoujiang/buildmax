@@ -282,3 +282,43 @@ func reportHarborProbes(probes []probe) int {
 	}
 	return failures
 }
+
+// harborRunPreflight is the probe report used as a gate rather than as an
+// answer. Discovering an uninstalled Harbor after a container is already
+// pulling is the failure the probes exist to move earlier, and starting a run
+// is the moment that failure costs the most.
+//
+// It also builds the missing artifact rather than reporting it, because at this
+// point the caller has said they want a run: a cross-build is seconds, and the
+// alternative is an error that tells them to type the command they just implied.
+func harborRunPreflight(args []string) error {
+	if !harborRunStartsAnything(args) {
+		return nil
+	}
+	// The oracle uploads nothing: it runs each task's own reference solution.
+	// A named binary is the caller's to produce.
+	buildsBinary := !hasFlag(args, "--oracle") && !hasFlag(args, "--binary")
+	if buildsBinary && harborBinaryProbe().Level != probeOK {
+		if err := cmdBuild([]string{"cli", "linux/" + harborTrialArch}); err != nil {
+			return err
+		}
+	}
+	if failures := reportHarborProbes(harborProbes()); failures > 0 {
+		return fmt.Errorf("%d problem(s) block a benchmark run; `%s setup harbor` installs what is missing", failures, mk())
+	}
+	fmt.Println()
+	return nil
+}
+
+// harborRunStartsAnything reports whether this invocation will actually run the
+// benchmark. Asking for the help page or the command it would run needs no
+// toolchain, and probing for one printed a machine report above the answer.
+func harborRunStartsAnything(args []string) bool {
+	for _, arg := range args {
+		switch arg {
+		case "--dry-run", "-h", "--help", "help":
+			return false
+		}
+	}
+	return true
+}

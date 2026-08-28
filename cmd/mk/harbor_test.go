@@ -185,3 +185,21 @@ func write(t *testing.T, path string) {
 		t.Fatal(err)
 	}
 }
+
+// The preflight installs and builds, so it has to stay out of the way of the
+// two arguments that run nothing.
+func TestOnlyARealRunNeedsTheToolchain(t *testing.T) {
+	tests := []struct {
+		args []string
+		want bool
+	}{
+		{args: []string{"harbor", "run", "--canary", "--model", "m"}, want: true},
+		{args: []string{"harbor", "run", "--canary", "--dry-run"}, want: false},
+		{args: []string{"harbor", "run", "--help"}, want: false},
+	}
+	for _, tt := range tests {
+		if got := harborRunStartsAnything(tt.args); got != tt.want {
+			t.Errorf("harborRunStartsAnything(%q) = %v, want %v", tt.args, got, tt.want)
+		}
+	}
+}
