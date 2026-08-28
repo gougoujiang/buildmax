@@ -64,14 +64,9 @@ func (r *Runner) Run(ctx context.Context, tasks []TaskEntry, subject contract.Su
 		graders = grader.Builtin()
 	}
 
-	result := Result{Subject: subject, Outcomes: TaskOutcomes{}}
-	metrics := contract.SuiteMetrics{SubjectID: subject.ID, Faults: map[contract.TrialStatus]int{}}
-	var durations []int64
+	var bundles []contract.TrialBundle
 
 	for _, entry := range tasks {
-		if metrics.Suite == "" {
-			metrics.Suite = entry.Task.Suite
-		}
 		trials := entry.Task.Trials
 		if trials <= 0 {
 			trials = 1
@@ -84,47 +79,22 @@ func (r *Runner) Run(ctx context.Context, tasks []TaskEntry, subject contract.Su
 			if err := ctx.Err(); err != nil {
 				// A cancelled experiment stops, but what it already wrote
 				// stands: the bundles on disk are as valid as they were a
-				// moment ago.
-				return result, err
+				// moment ago, and summarizing them is what lets the caller
+				// report on the part that ran.
+				return Summarize(subject, bundles), err
 			}
 			bundle, err := r.runOne(ctx, entry, subject, experimentID, i, graders)
 			if err != nil {
-				return result, err
+				return Summarize(subject, bundles), err
 			}
-			result.Bundles = append(result.Bundles, bundle)
-			durations = append(durations, int64(bundle.Duration))
-
-			metrics.Trials++
-			if bundle.Status.Scored() {
-				metrics.Scored++
-				passed := bundle.Status == contract.StatusPassed
-				result.Outcomes[entry.Task.ID] = append(result.Outcomes[entry.Task.ID], passed)
-				if passed {
-					metrics.Passed++
-				}
-			} else {
-				metrics.Faults[bundle.Status]++
-			}
-			for _, name := range contract.CriticalFailures(bundle.Graders) {
-				metrics.CriticalFailures = append(metrics.CriticalFailures, contract.CriticalFailure{
-					TaskID: entry.Task.ID, Grader: name, Detail: bundle.FailureClass,
-				})
-			}
-			addUsage(&metrics.Usage, bundle.Usage)
+			bundles = append(bundles, bundle)
 
 			if r.Progress != nil {
 				r.Progress(fmt.Sprintf("%-40s trial %d/%d  %s", entry.Task.ID, i+1, trials, bundle.Status))
 			}
 		}
 	}
-
-	_, _, metrics.PassRate = result.Outcomes.PassRate()
-	metrics.IntervalLow, metrics.IntervalHigh = Wilson(metrics.Passed, metrics.Scored, Z95)
-	metrics.ConsistencyRate = result.Outcomes.ConsistencyRate()
-	metrics.MedianMS = percentileOf(durations, 0.5)
-	metrics.P95MS = percentileOf(durations, 0.95)
-	result.Metrics = metrics
-	return result, nil
+	return Summarize(subject, bundles), nil
 }
 
 // runOne executes and grades a single attempt.

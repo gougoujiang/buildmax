@@ -47,7 +47,7 @@ type helpTopic struct {
 func allHelpSections() []helpSection {
 	return []helpSection{
 		{"Development", []helpRow{
-			{"doctor [all]", "Inspect core tools; 'all' requires pinned frontend tools"},
+			{"doctor [all|harbor]", "Inspect core tools; 'all' adds frontend, 'harbor' the benchmark toolchain"},
 			{"build [cli]", "Strict full build, or build only " + exe(cliBinary)},
 			{"test [race] [pkg]", "Run Go tests; add packages or `go test` flags to narrow"},
 			{"check [scope]", "Run checks for go, gui, portal, desktop, docs, all, or ci"},
@@ -60,7 +60,7 @@ func allHelpSections() []helpSection {
 			{"lint", "Run pinned golangci-lint and govulncheck"},
 			{"agent-smoke", "Drive the agent's tools with a real model (needs an API key; not a deterministic test)"},
 			{"cache-qualify", "Qualify prompt caching against a real provider (needs an API key; not a test)"},
-			{"eval [flags]", "Measure the CLI against evaluation/suite/ (needs an API key)"},
+			{"eval [harbor] [flags]", "Measure the CLI against evaluation/suite/, or import a Terminal-Bench job"},
 			{"models <list|info|check>", "List, look up on OpenRouter, or check settings.local.yaml models"},
 		}},
 		{"Deployment", []helpRow{
@@ -83,25 +83,33 @@ func helpTopics() []helpTopic {
 	return []helpTopic{
 		{
 			name:    "doctor",
-			usage:   "doctor [all]",
+			usage:   "doctor [all|harbor]",
 			summary: "Report the contributor environment without changing anything.",
 			details: []string{
 				"Doctor only reads. It never installs a tool, edits a file, or touches the\n" +
-					"workspace, so it is safe as a first command in an unfamiliar checkout.",
+					"workspace, so it is safe as a first command in an unfamiliar checkout.\n" +
+					"A failing check prints the command that fixes it rather than running it.",
 				"Go and git are required; everything else is reported as a warning, because\n" +
 					"which of them you need depends on what you are changing. A Go-only change\n" +
 					"can ignore the Node, npm, Wails, Docker, and kubectl lines.",
+				"`doctor harbor` is its own section rather than a tier of the default one:\n" +
+					"Harbor is needed only to run the external Terminal-Bench target, so its\n" +
+					"lines would be noise for every other contributor. It reads the pinned\n" +
+					"versions from evaluation/harbor/pins.json, and blocks only on the pinned\n" +
+					"Harbor itself. Hub sign-in is reported and blocks nothing: a local run\n" +
+					"reads the public dataset anonymously, and only publishing needs an account.",
 			},
 			args: []helpRow{
 				{"(none)", "Core tools; frontend tools are warnings"},
 				{"all", "Require the pinned Node and npm as well"},
+				{"harbor", "What a Terminal-Bench run needs: the pinned Harbor, a trial sandbox, a Linux CLI"},
 			},
-			examples: []string{"doctor", "doctor all"},
+			examples: []string{"doctor", "doctor all", "doctor harbor"},
 			see:      "docs/contribute/first-pr.md",
 		},
 		{
 			name:    "build",
-			usage:   "build [cli|desktop]",
+			usage:   "build [cli [os/arch]|desktop]",
 			summary: "Build every local target, or one of them.",
 			details: []string{
 				"The full build is strict and covers the Go binaries, the shared gui package,\n" +
@@ -112,13 +120,17 @@ func helpTopics() []helpTopic {
 					"and Portal builds to get at it.",
 				"Binaries land in " + binDir + "/ with the same version and commit ldflags a\n" +
 					"released build carries.",
+				"`build cli linux/amd64` cross-builds a static CLI for another platform and\n" +
+					"names the artifact after it, leaving the host binary alone. That is what\n" +
+					"puts the CLI inside a container image someone else owns.",
 			},
 			args: []helpRow{
 				{"(none)", "Go binaries, gui, Portal, and the desktop app"},
 				{"cli", "Only " + exe(cliBinary)},
+				{"cli <os/arch>", "A static " + cliBinary + "-<os>-<arch> for another platform"},
 				{"desktop", "Only the packaged desktop app, and the gui build it needs"},
 			},
-			examples: []string{"build cli", "build desktop", "build"},
+			examples: []string{"build cli", "build cli linux/amd64", "build desktop", "build"},
 		},
 		{
 			name:    "test",
@@ -252,8 +264,8 @@ func helpTopics() []helpTopic {
 		},
 		{
 			name:    "eval",
-			usage:   "eval [flags]",
-			summary: "Evaluate the CLI against the tasks in evaluation/suite/.",
+			usage:   "eval [harbor] [flags]",
+			summary: "Evaluate the CLI against evaluation/suite/, or import an external benchmark.",
 			details: []string{
 				"Builds " + exe(cliBinary) + " and the runner, then measures CLI tasks as a black box.\n" +
 					"Pass --surface worker to build " + exe(workerBinary) + " and run worker tasks,\n" +
@@ -267,8 +279,19 @@ func helpTopics() []helpTopic {
 				"Your model credential is read from settings.yaml, so this needs a model API key\n" +
 					"and spends tokens. Trial bundles are written under .artifacts/evaluation/ and\n" +
 					"stay on this machine.",
+				"`" + mk() + " eval harbor --job <dir>` is the other direction: it imports a\n" +
+					"Terminal-Bench job Harbor already ran and reports it in the same contract.\n" +
+					"It builds no CLI and calls no model — the artifact that produced the job is\n" +
+					"named by the evidence, not by whatever this tree compiles to now — and it\n" +
+					"measures rather than gates, so a task the subject did not solve is a score\n" +
+					"and not a failure. Run the benchmark first; see evaluation/harbor/README.md\n" +
+					"and `" + mk() + " doctor harbor`.",
 				"See docs/design/evaluation-system.md for what the suites measure and what a\n" +
 					"bundle contains.",
+			},
+			args: []helpRow{
+				{"(none)", "Measure the built CLI against the local suite"},
+				{"harbor", "Import a finished Terminal-Bench job instead; takes --job"},
 			},
 			examples: []string{
 				"eval --help",
@@ -277,6 +300,8 @@ func helpTopics() []helpTopic {
 				"eval --surface all",
 				"eval --trials 5",
 				"eval --baseline bin/buildmax-previous",
+				"eval harbor --job ~/.harbor/jobs/<job>",
+				"eval harbor --job runs/new --baseline-job runs/old",
 			},
 		},
 		{

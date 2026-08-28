@@ -1,0 +1,42 @@
+{
+    "id": "0f2f1f4e-0000-4000-8000-000000000001",
+    "task_name": "terminal-bench/build-cython-ext",
+    "trial_name": "build-cython-ext__aaa1111",
+    "trial_uri": "package://terminal-bench/build-cython-ext",
+    "task_id": {"org": "terminal-bench", "name": "build-cython-ext", "ref": "latest"},
+    "source": "terminal-bench/terminal-bench-2-1",
+    "task_checksum": "1111111111111111111111111111111111111111111111111111111111111111",
+    "config": {"trial_name": "build-cython-ext__aaa1111"},
+    "agent_info": {
+        "name": "buildmax",
+        "version": "1.4.0 (abc1234)",
+        "model_info": {"name": "claude-opus-4-7", "provider": "anthropic"}
+    },
+    "agent_result": {
+        "n_input_tokens": 120000,
+        "n_cache_tokens": 90000,
+        "n_output_tokens": 4000,
+        "cost_usd": 1.23456789,
+        "metadata": {
+            "exit_code": 0,
+            "error_kind": null,
+            "session_id": "sess-1",
+            "trace_id": "trace-1",
+            "model": "claude-opus-4-7",
+            "tool_calls": 31,
+            "stopped_at_iteration_cap": false,
+            "adapter_version": 1,
+            "artifact_digest": "sha256:deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+            "buildmax_provider": "anthropic",
+            "harbor_provider": "anthropic",
+            "reasoning": "high",
+            "max_iterations": 1000,
+            "sandboxed": false,
+            "permissions": "allow_all"
+        }
+    },
+    "verifier_result": {"rewards": {"reward": 1.0}},
+    "exception_info": null,
+    "started_at": "2026-08-27T10:00:00Z",
+    "finished_at": "2026-08-27T10:04:00Z"
+}

@@ -50,6 +50,14 @@ type options struct {
 }
 
 func run() error {
+	// One subcommand, dispatched before the flag set is defined: the local
+	// suite and an external benchmark share a contract and a report but not a
+	// single flag, and folding both into one flag set would give every caller
+	// the other's arguments to ignore.
+	if len(os.Args) > 1 && os.Args[1] == "harbor" {
+		return runHarbor(os.Args[2:])
+	}
+
 	var opt options
 	flag.StringVar(&opt.suite, "suite", filepath.Join("evaluation", "suite"), "directory of task directories to run")
 	flag.StringVar(&opt.binary, "binary", "", "buildmax binary to evaluate (required)")
@@ -92,7 +100,14 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	cred := adapter.Credential{APIURL: model.APIURL, APIKey: model.APIKey}
+	// The prices come from the same settings entry as the endpoint, so a run
+	// reports what it spent instead of "unavailable". They are not part of the
+	// subject: repricing a model does not change what it did.
+	cred := adapter.ModelAccess{
+		APIURL:  model.APIURL,
+		APIKey:  model.APIKey,
+		Pricing: pricingOf(model),
+	}
 
 	dataset, err := datasetRef(opt.suite, tasks)
 	if err != nil {
@@ -130,7 +145,7 @@ func run() error {
 
 // evaluate runs one subject over the suite.
 func evaluate(ctx context.Context, opt options, binary, name string, model config.ModelEntry,
-	cred adapter.Credential, dataset contract.DatasetRef, tasks []runner.TaskEntry, experimentID string) (runner.Result, error) {
+	cred adapter.ModelAccess, dataset contract.DatasetRef, tasks []runner.TaskEntry, experimentID string) (runner.Result, error) {
 
 	subject, err := describeSubject(binary, name, model, dataset)
 	if err != nil {
@@ -209,6 +224,24 @@ func describeSubject(binary, name string, model config.ModelEntry, dataset contr
 		},
 		Dataset: dataset,
 	}.WithID()
+}
+
+// pricingOf carries a settings entry's price list into the trial home.
+//
+// The two structs are not shared: config's is tagged for mapstructure and the
+// adapter's for YAML, which is the same reason the adapter declares its own
+// settings shape. A test in evaluation/adapter holds the field sets equal.
+func pricingOf(model config.ModelEntry) *adapter.Pricing {
+	if model.Pricing == nil {
+		return nil
+	}
+	return &adapter.Pricing{
+		Currency:          model.Pricing.Currency,
+		InputPerMTok:      model.Pricing.InputPerMTok,
+		CacheReadPerMTok:  model.Pricing.CacheReadPerMTok,
+		CacheWritePerMTok: model.Pricing.CacheWritePerMTok,
+		OutputPerMTok:     model.Pricing.OutputPerMTok,
+	}
 }
 
 // selectModel resolves the settings entry a subject uses.

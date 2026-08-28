@@ -101,3 +101,10 @@ desktop/frontend/*.tsbuildinfo
 desktop/frontend/package.json.md5
 
 /eval-results
+
+# The Harbor adapter under evaluation/harbor is the repository's only Python,
+# and running its tests or the harness itself leaves these behind.
+__pycache__/
+.pytest_cache/
+evaluation/harbor/.venv/
+evaluation/harbor/*.egg-info/

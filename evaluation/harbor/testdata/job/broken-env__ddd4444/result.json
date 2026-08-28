@@ -1,0 +1,22 @@
+{
+    "task_name": "terminal-bench/broken-env",
+    "trial_name": "broken-env__ddd4444",
+    "trial_uri": "package://terminal-bench/broken-env",
+    "source": "terminal-bench/terminal-bench-2-1",
+    "task_checksum": "3333333333333333333333333333333333333333333333333333333333333333",
+    "agent_info": {
+        "name": "buildmax",
+        "version": "1.4.0 (abc1234)",
+        "model_info": {"name": "claude-opus-4-7", "provider": "anthropic"}
+    },
+    "agent_result": null,
+    "verifier_result": null,
+    "exception_info": {
+        "exception_type": "EnvironmentStartTimeoutError",
+        "exception_message": "container did not become healthy in 600s",
+        "exception_traceback": "...",
+        "occurred_at": "2026-08-27T10:35:00Z"
+    },
+    "started_at": "2026-08-27T10:25:00Z",
+    "finished_at": "2026-08-27T10:35:00Z"
+}

@@ -218,7 +218,7 @@ func TestWriteHomeCarriesOnlyTheSubject(t *testing.T) {
 			ContextWindow: 32000,
 		},
 	}
-	if err := WriteHome(dir, subject, Credential{APIURL: "http://127.0.0.1:1/v1", APIKey: "k"}); err != nil {
+	if err := WriteHome(dir, subject, ModelAccess{APIURL: "http://127.0.0.1:1/v1", APIKey: "k"}); err != nil {
 		t.Fatalf("WriteHome: %v", err)
 	}
 
@@ -249,7 +249,7 @@ func TestWriteHomeRefusesTheManagedGateway(t *testing.T) {
 		Name:  "managed",
 		Model: contract.ModelIdentity{Transport: "buildmax", Target: "default"},
 	}
-	err := WriteHome(filepath.Join(t.TempDir(), "home"), subject, Credential{})
+	err := WriteHome(filepath.Join(t.TempDir(), "home"), subject, ModelAccess{})
 	if err == nil {
 		t.Fatal("WriteHome accepted a managed subject, which it would have measured as a direct one")
 	}

@@ -25,16 +25,26 @@ const (
 const envCredentialStore = "BUILDMAX_CREDENTIAL_STORE"
 
 func cmdBuild(args []string) error {
-	if len(args) > 1 {
-		return usageErrorf("build", "build takes at most one target")
+	if len(args) > 2 {
+		return usageErrorf("build", "build takes at most a target and a platform")
 	}
 	target := "all"
 	if len(args) > 0 && args[0] != "" {
 		target = args[0]
 	}
+	platform := ""
+	if len(args) > 1 {
+		if target != "cli" {
+			return usageErrorf("build", "only `build cli` takes a platform; got %s %s", target, args[1])
+		}
+		platform = args[1]
+	}
 	switch target {
 	case "all":
 	case "cli":
+		if platform != "" {
+			return buildGoCross("cli", cliBinary, "./cmd/buildmax", platform)
+		}
 		return buildGo("cli", cliBinary, "./cmd/buildmax")
 	case "desktop":
 		// gui first: buildDesktop refuses to run without gui/dist, and the
@@ -64,6 +74,37 @@ func cmdBuild(args []string) error {
 		return err
 	}
 	return buildDesktop()
+}
+
+// buildGoCross builds one Go target for another platform, named for it. The
+// artifact carries the platform in its filename rather than replacing the host
+// binary: an evaluation run builds both — a Linux CLI to put inside a container
+// and a host runner to drive it — and a cross build that clobbered bin/buildmax
+// would leave the driver unable to execute.
+//
+// CGO is off so the result is static and runs on whatever libc the container
+// has, glibc or musl. That is a property the caller depends on, not an
+// optimization: the image belongs to the benchmark, not to us.
+func buildGoCross(tag, binary, pkg, platform string) error {
+	goos, goarch, ok := strings.Cut(platform, "/")
+	if !ok || goos == "" || goarch == "" {
+		return usageErrorf("build", "platform must read os/arch, such as linux/amd64; got %q", platform)
+	}
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		return err
+	}
+	name := binary + "-" + goos + "-" + goarch
+	if goos == "windows" {
+		name += ".exe"
+	}
+	out := filepath.Join(binDir, name)
+	logf(tag, "Building %s for %s...", name, platform)
+	env := []string{"CGO_ENABLED=0", "GOOS=" + goos, "GOARCH=" + goarch}
+	if err := runWith("", env, "go", "build", "-ldflags", ldflags(), "-o", out, pkg); err != nil {
+		return err
+	}
+	logf(tag, "Built %s", out)
+	return nil
 }
 
 func buildGo(tag, binary, pkg string) error {
@@ -372,6 +413,19 @@ func cmdEval(args []string) error {
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
 		return err
 	}
+	// The Harbor import reads a job Harbor already ran; it measures no binary of
+	// its own. Building one here would be worse than wasteful: the digest would
+	// come from whatever this tree compiles to now, which is not necessarily the
+	// artifact that produced the job, and a subject naming the wrong artifact is
+	// a result that cannot be reproduced. The adapter records the real digest
+	// inside the container instead.
+	if evalIsHarbor(args) {
+		out := filepath.Join(binDir, exe(evalBinary))
+		if err := runCmd("go", "build", "-ldflags", ldflags(), "-o", out, "./cmd/buildmax-eval"); err != nil {
+			return err
+		}
+		return runCmd(out, args...)
+	}
 	// Evaluation is black-box, so the CLI is built too and becomes the artifact
 	// under test. Building it with the release ldflags matters: the subject
 	// manifest records the version and commit the binary reports, and an
@@ -404,7 +458,18 @@ func cmdEval(args []string) error {
 	return runCmd(out, args...)
 }
 
+// evalIsHarbor reports whether this run imports an external benchmark rather
+// than measuring the local suite. It dispatches on the first argument rather
+// than a flag because the two share almost no arguments, and a flag would let
+// each caller pass the other's.
+func evalIsHarbor(args []string) bool {
+	return len(args) > 0 && args[0] == "harbor"
+}
+
 func evalNeedsWorker(args []string) bool {
+	if evalIsHarbor(args) {
+		return false
+	}
 	surface, ok := flagValue(args, "--surface")
 	return ok && (surface == "worker" || surface == "all")
 }

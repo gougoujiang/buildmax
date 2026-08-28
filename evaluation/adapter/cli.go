@@ -1,7 +1,6 @@
 package adapter
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -11,10 +10,12 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gougoujiang/buildmax/evaluation/contract"
+	"github.com/gougoujiang/buildmax/evaluation/trace"
 )
 
 // CLIAdapterVersion changes when this adapter changes how it invokes the
@@ -35,7 +36,7 @@ type CLI struct {
 	// Binary is the built buildmax executable under evaluation.
 	Binary string
 	// Credential is the provider access written into each trial home.
-	Credential Credential
+	Credential ModelAccess
 	// Retention is how much free text bundles keep. Callers exporting a bundle
 	// lower it; the default keeps replies for local diagnosis.
 	Retention contract.RetentionLevel
@@ -172,6 +173,13 @@ func (c *CLI) Run(ctx context.Context, tr Trial, bundleRoot string) (Result, err
 	)
 	for i, turn := range tr.Task.Turns {
 		args := []string{"-p", turn, "--workspace", workspace, "--output", "json", "--no-stream"}
+		// A task that states an iteration limit gets it enforced by the subject
+		// rather than hoped for. Without this the field was decoration: the
+		// binary ran to its own default, and the trial reported a bound nobody
+		// had applied.
+		if tr.Task.Limits.Iterations > 0 {
+			args = append(args, "--max-iterations", strconv.Itoa(tr.Task.Limits.Iterations))
+		}
 		if sessionID != "" {
 			args = append(args, "-r", sessionID)
 		}
@@ -299,7 +307,7 @@ func (c *CLI) collectTraces(bundle *contract.TrialBundle, env printEnvelope, tri
 	}
 	bundle.TracePath = contract.TraceFile
 
-	calls, err := countLLMCalls(filepath.Join(trialDir, contract.TraceFile))
+	calls, err := trace.CountLLMCalls(filepath.Join(trialDir, contract.TraceFile))
 	if err != nil {
 		return fmt.Errorf("count model calls: %w", err)
 	}
@@ -337,6 +345,11 @@ func statusForExit(code int) (contract.TrialStatus, bool) {
 	switch code {
 	case 0, 3: // ExitOK, ExitPolicyDenied
 		return "", false
+	case 7: // ExitIterationCap
+		// The subject spent the budget the task set. That is the same fact as a
+		// wall-time expiry and not the same fact as a runtime that broke, so it
+		// stays scored rather than counting against the harness.
+		return contract.StatusTimedOut, true
 	case 4: // ExitModelError
 		return contract.StatusAgentError, true
 	case 6: // ExitUserCancelled
@@ -420,47 +433,6 @@ func parseEnvelope(stdout []byte) (printEnvelope, error) {
 	}
 	return env, nil
 }
-
-// countLLMCalls reports how many model calls a trace recorded. The envelope
-// carries tool calls and tokens but not this, and reliability reporting needs
-// to tell one expensive call from ten cheap ones.
-//
-// A read that stops early returns its error rather than the count so far. A
-// truncated count is indistinguishable from a cheap run, and quietly reporting
-// one as the other is the kind of wrong number a qualification would act on.
-func countLLMCalls(tracePath string) (int, error) {
-	f, err := os.Open(tracePath)
-	if err != nil {
-		return 0, err
-	}
-	defer func() { _ = f.Close() }()
-
-	count := 0
-	scanner := bufio.NewScanner(f)
-	scanner.Buffer(make([]byte, 0, 64*1024), maxTraceLine)
-	for scanner.Scan() {
-		var rec struct {
-			Type string `json:"type"`
-		}
-		// A line that does not parse is not this function's to reject: it counts
-		// model calls, and trace validity is a grader's question.
-		if err := json.Unmarshal(scanner.Bytes(), &rec); err != nil {
-			continue
-		}
-		if rec.Type == "llm_end" {
-			count++
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		return 0, err
-	}
-	return count, nil
-}
-
-// maxTraceLine bounds one trace record. The recorder bounds each free-text
-// field at 4 KiB, so a record far above this is corruption rather than a large
-// tool result.
-const maxTraceLine = 4 * 1024 * 1024
 
 func bound(s string, max int) string {
 	if len(s) <= max {

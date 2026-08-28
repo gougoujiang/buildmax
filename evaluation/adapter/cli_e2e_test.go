@@ -82,14 +82,14 @@ func moduleRoot() (string, error) {
 
 // startModel serves a scripted scenario and returns the credential a trial home
 // needs to reach it.
-func startModel(t *testing.T, scenario mockllm.Scenario) Credential {
+func startModel(t *testing.T, scenario mockllm.Scenario) ModelAccess {
 	t.Helper()
 	server, err := mockllm.Start(scenario)
 	if err != nil {
 		t.Fatalf("start mock model: %v", err)
 	}
 	t.Cleanup(server.Close)
-	return Credential{APIURL: server.BaseURL(mockllm.ProtocolOpenAIChat), APIKey: "test-key"}
+	return ModelAccess{APIURL: server.BaseURL(mockllm.ProtocolOpenAIChat), APIKey: "test-key"}
 }
 
 func testSubject(t *testing.T) contract.SubjectManifest {
@@ -230,7 +230,7 @@ func TestCLIRunRejectsATaskThatShipsItsAnswer(t *testing.T) {
 		Limits: contract.Limits{WallSeconds: 30},
 	}
 
-	res, err := (&CLI{Binary: binary, Credential: Credential{APIURL: "http://127.0.0.1:1/v1", APIKey: "k"}}).
+	res, err := (&CLI{Binary: binary, Credential: ModelAccess{APIURL: "http://127.0.0.1:1/v1", APIKey: "k"}}).
 		Run(context.Background(), Trial{Task: task, TaskDir: taskDir, Subject: testSubject(t)}, t.TempDir())
 	if err != nil {
 		t.Fatalf("Run: %v", err)
@@ -256,7 +256,7 @@ func TestCLIRunReportsAnUnreachableModelAsAnAgentError(t *testing.T) {
 
 	// Port 1 refuses immediately, so this is a provider failure rather than a
 	// slow one. It must not be reported as a subject that cannot do the task.
-	res, err := (&CLI{Binary: binary, Credential: Credential{APIURL: "http://127.0.0.1:1/v1", APIKey: "k"}}).
+	res, err := (&CLI{Binary: binary, Credential: ModelAccess{APIURL: "http://127.0.0.1:1/v1", APIKey: "k"}}).
 		Run(context.Background(), Trial{Task: task, TaskDir: taskDir, Subject: testSubject(t)}, t.TempDir())
 	if err != nil {
 		t.Fatalf("Run: %v", err)
@@ -306,7 +306,7 @@ func TestCLIRunTimesOutOnItsOwnBudget(t *testing.T) {
 	}
 
 	start := time.Now()
-	res, err := (&CLI{Binary: binary, Credential: Credential{APIURL: stalled.URL + "/v1", APIKey: "k"}}).
+	res, err := (&CLI{Binary: binary, Credential: ModelAccess{APIURL: stalled.URL + "/v1", APIKey: "k"}}).
 		Run(context.Background(), Trial{Task: task, TaskDir: taskDir, Subject: testSubject(t)}, t.TempDir())
 	if err != nil {
 		t.Fatalf("Run: %v", err)
