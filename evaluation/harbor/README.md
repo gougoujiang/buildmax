@@ -33,11 +33,15 @@ with no Python or Node, as [AGENTS.md](../../AGENTS.md) requires.
 ## Importing a finished run
 
 ```shell
-./make eval harbor --job ~/.harbor/jobs/<job>
+./make eval harbor --job .artifacts/harbor/jobs/<job>
 
 # Two jobs, paired on task and attempt, for a candidate against a baseline.
 ./make eval harbor --job runs/new --baseline-job runs/old
 ```
+
+A job directory is wherever Harbor was told to write one. `harbor run` defaults
+`--jobs-dir/-o` to `jobs/` under the working directory, so the runs below pass
+`-o` rather than leaving it to a default that a Harbor release is free to move.
 
 It builds no CLI and calls no model. The artifact that produced the job is named
 by the evidence, not by whatever the tree compiles to now — building one here
@@ -86,14 +90,27 @@ resolve a user: publishing, `--upload`, org and key management, and private
 datasets.
 
 `./make doctor harbor` reports what is missing and prints the command that fixes
-each one. Like the rest of doctor it installs nothing.
+each one. Like the rest of doctor it installs nothing. `./make setup harbor`
+runs those commands: it installs uv through Astral's own installer, installs the
+pinned Harbor, cross-builds the Linux CLI, and finishes by re-running the
+doctor report. It will not choose a trial sandbox for you — Docker or a
+`DAYTONA_API_KEY` is yours to set up — and it never signs in to Hub.
+
+Run every command below from the repository root, with `src/` on `PYTHONPATH`
+so Harbor can import the agent. Running from this directory works too, but then
+`--ak binary=` needs an absolute path: it is resolved by Harbor, not by `make`.
 
 ```shell
-# 0. What is missing, and the command for each.
-./make doctor harbor
+export PYTHONPATH=$PWD/evaluation/harbor/src
+
+# 0. Steps 1 and 2, in one command; skips whatever is already done.
+./make setup harbor
 
 # 1. The artifact under test. It is uploaded into the container, not fetched,
-#    so the trial measures a binary whose digest is known up front.
+#    so the trial measures a binary whose digest is known up front. amd64 is the
+#    architecture of the task images, not of your machine: an arm64 binary
+#    uploaded into an emulated image dies with an exec format error once the
+#    trial is already running.
 ./make build cli linux/amd64
 
 # 2. Harbor, at the pinned version. No `harbor auth login` unless you intend to
@@ -102,21 +119,27 @@ uv tool install harbor==0.22.0
 
 # 3. Prove the environment before spending anything on the agent: this runs the
 #    tasks' own reference solutions.
-harbor run -d terminal-bench/terminal-bench-2-1 -a oracle -l 5
+harbor run -d terminal-bench/terminal-bench-2-1 -a oracle -l 5 \
+  -o .artifacts/harbor/jobs
 
-# 4. One task through the BuildMax agent.
+# 4. One task through the BuildMax agent. -i is a glob over task names, and the
+#    six tasks the canary uses are in pins.json under `canary`.
 harbor run \
   -d terminal-bench/terminal-bench-2-1 \
   -a buildmax_harbor.agent:Buildmax \
   -m anthropic/claude-opus-4-7 \
   --ak binary=bin/buildmax-linux-amd64 \
   --ak reasoning_effort=high \
-  --include-task-name <task> \
-  -k 1
+  -i '<task>' \
+  -k 1 \
+  -o .artifacts/harbor/jobs
 ```
 
-Run it from this directory, or put `src/` on `PYTHONPATH`, so Harbor can import
-the agent.
+The model credential is Harbor's to resolve, not this repository's: Harbor reads
+the provider key for the `-m <provider>/<model>` it was given from your
+environment, and the adapter writes it into the trial home. Your own
+`~/.buildmax/settings.yaml` is never consulted — a benchmark that inherited it
+would measure your local configuration along with the subject.
 
 ### Agent kwargs
 

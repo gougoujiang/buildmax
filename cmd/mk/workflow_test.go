@@ -166,11 +166,15 @@ func TestDefaultHelpListsEveryCommand(t *testing.T) {
 	}
 }
 
+// The names here are the old shell scripts' tasks, kept out of help so a
+// removed command cannot come back as a listing nothing dispatches. `setup` was
+// on this list until it became a live command again with a different meaning:
+// the write half of doctor, not the old dev-environment script.
 func TestFullHelpOmitsLegacyCommands(t *testing.T) {
 	sections := allHelpSections()
 	legacy := map[string]bool{
 		"bump": true, "verify-archive": true, "notices": true,
-		"npm-licenses": true, "pub_images": true, "setup": true,
+		"npm-licenses": true, "pub_images": true,
 		"unsetup": true, "deploy": true,
 	}
 	for _, section := range sections {

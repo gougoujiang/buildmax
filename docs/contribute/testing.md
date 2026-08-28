@@ -100,7 +100,8 @@ outcome; this reads the finished job and files it in the same contract, so an
 external result and a local one carry the same subject tuple, the same failure
 taxonomy, and the same pass rate with its uncertainty. It builds nothing and
 calls no model, and it measures rather than gates — a task the subject did not
-solve is a score. `./make doctor harbor` reports what a run needs; see
+solve is a score. `./make doctor harbor` reports what a run needs and
+`./make setup harbor` installs it; see
 [evaluation/harbor/README.md](../../evaluation/harbor/README.md).
 
 The oracle smoke and a one-task canary have run through that path end to end.

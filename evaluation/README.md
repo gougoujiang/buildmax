@@ -102,6 +102,7 @@ Three steps, and the middle one is not this repository's code.
 
 ```shell
 ./make doctor harbor        # what is missing, and the command for each; installs nothing
+./make setup harbor         # install those: uv, the pinned Harbor, the Linux CLI
 ```
 
 Then run the benchmark. Harbor owns the tasks, the containers, and the verdict;
@@ -109,7 +110,7 @@ BuildMax is one of its agents. See [harbor/README.md](harbor/README.md) for the
 run command, the agent kwargs, and what the adapter does inside a container.
 
 ```shell
-./make eval harbor --job ~/.harbor/jobs/<job>          # file a finished job
+./make eval harbor --job .artifacts/harbor/jobs/<job>   # file a finished job
 ./make eval harbor --job runs/new --baseline-job runs/old   # compare two
 ```
 

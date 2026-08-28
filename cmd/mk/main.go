@@ -74,6 +74,8 @@ func dispatch(args []string) error {
 		return cmdCheck(rest)
 	case "doctor":
 		return cmdDoctor(rest)
+	case "setup":
+		return cmdSetup(rest)
 	case "fmt":
 		return cmdFmt()
 	case "lint":

@@ -137,7 +137,9 @@ Run `./make doctor` after cloning. It checks the Go/git path, reports optional
 tools, and warns about local changes without modifying the workspace. Use
 `./make doctor all` before full or frontend work to require the pinned Node/npm
 versions, and `./make doctor harbor` before running the external Terminal-Bench
-target. A global Wails install is optional: production builds run the version
+target. `./make setup harbor` is the one command that installs rather than
+reports: it installs uv, the pinned Harbor, and the Linux CLI a trial uploads,
+and leaves the trial sandbox to you. A global Wails install is optional: production builds run the version
 pinned by `go.mod` through Go.
 
 ## Build, Test, and Run

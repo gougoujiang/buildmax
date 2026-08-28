@@ -143,3 +143,45 @@ func TestTheDatasetProbeNamesTheImmutableRef(t *testing.T) {
 		t.Errorf("dataset probe %q does not show the ref", got.Detail)
 	}
 }
+
+// The architecture a trial needs is the container's, and the container is not
+// this machine. An Apple Silicon contributor following a fix line that named
+// arm64 would upload a binary the emulated image cannot exec, and only find out
+// once the trial was running.
+func TestHarborBinaryProbeWantsTheContainerArchitecture(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	probe := harborBinaryProbe()
+	if probe.Level != probeWarn || !strings.Contains(probe.Detail, "none built") {
+		t.Errorf("empty bin/ reports %v: %q", probe.Level, probe.Detail)
+	}
+	if !strings.Contains(probe.Fix, "linux/amd64") {
+		t.Errorf("fix = %q, want it to name linux/amd64", probe.Fix)
+	}
+
+	write(t, filepath.Join(binDir, cliBinary+"-linux-arm64"))
+	probe = harborBinaryProbe()
+	if probe.Level != probeWarn {
+		t.Errorf("an arm64-only checkout reports %v: %q", probe.Level, probe.Detail)
+	}
+	if !strings.Contains(probe.Detail, "arm64") || !strings.Contains(probe.Detail, "amd64") {
+		t.Errorf("detail = %q, want it to name both what is built and what is needed", probe.Detail)
+	}
+
+	write(t, filepath.Join(binDir, cliBinary+"-linux-amd64"))
+	probe = harborBinaryProbe()
+	if probe.Level != probeOK || probe.Fix != "" {
+		t.Errorf("the amd64 binary reports %v: %q (fix %q)", probe.Level, probe.Detail, probe.Fix)
+	}
+}
+
+func write(t *testing.T, path string) {
+	t.Helper()
+	if err := os.WriteFile(path, nil, 0o755); err != nil {
+		t.Fatal(err)
+	}
+}
