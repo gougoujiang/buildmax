@@ -47,6 +47,7 @@ func cmdDoctor(args []string) error {
 		failures += reportHarborProbes(harborProbes())
 		fmt.Println()
 		if failures > 0 {
+			fmt.Printf("Run `%s setup harbor` to install these, or run the fix lines yourself\n", mk())
 			return fmt.Errorf("contributor doctor found %d problem(s) blocking a benchmark run", failures)
 		}
 		fmt.Println("Summary: this checkout can run the pinned Terminal-Bench target")
@@ -94,7 +95,7 @@ func cmdDoctor(args []string) error {
 	} else {
 		fmt.Println("Summary: core contributor toolchain is ready; use 'doctor all' for frontend requirements")
 	}
-	fmt.Println("Benchmark toolchain: 'doctor harbor' checks what a Terminal-Bench run needs")
+	fmt.Println("Benchmark toolchain: 'doctor harbor' checks what a Terminal-Bench run needs, 'setup harbor' installs it")
 	return nil
 }
 

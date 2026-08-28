@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 )
 
@@ -208,32 +207,55 @@ func harborSandboxProbe() probe {
 	}
 }
 
-// harborBinaryProbe looks for the artifact a trial would measure. It is a
-// warning: the run builds one, and doctor is answering a question rather than
-// standing in the way of the command that would fix it.
+// harborTrialArch is the architecture the uploaded CLI has to be built for.
+//
+// It is the container's, which is not the host's. The Terminal-Bench images are
+// amd64, so an Apple Silicon machine runs them emulated and an arm64 binary
+// uploaded into one dies with an exec format error — after the image has been
+// pulled and the trial has started. Reading runtime.GOARCH here told exactly
+// those contributors to build the one binary that cannot run.
+const harborTrialArch = "amd64"
+
+// harborBinaryProbe looks for the artifact a trial would measure. It never
+// blocks: the binary is one build away, and doctor answers questions rather
+// than standing in the way of the command that fixes them.
 func harborBinaryProbe() probe {
-	var found []string
-	for _, arch := range []string{"amd64", "arm64"} {
-		name := cliBinary + "-linux-" + arch
-		if exists(filepath.Join(binDir, name)) {
-			found = append(found, name)
+	wanted := cliBinary + "-linux-" + harborTrialArch
+	if exists(filepath.Join(binDir, wanted)) {
+		return probe{Label: "Linux CLI", Level: probeOK, Detail: wanted}
+	}
+	fix := mk() + " build cli linux/" + harborTrialArch
+	// A binary for another architecture is worth naming rather than ignoring:
+	// the reader built one deliberately, and "none built" would read as a bug in
+	// doctor rather than as the mismatch it is.
+	if other := otherLinuxBinaries(); len(other) > 0 {
+		return probe{
+			Label:  "Linux CLI",
+			Level:  probeWarn,
+			Detail: fmt.Sprintf("%s built, but the task images are %s", strings.Join(other, ", "), harborTrialArch),
+			Fix:    fix,
 		}
-	}
-	if len(found) > 0 {
-		return probe{Label: "Linux CLI", Level: probeOK, Detail: strings.Join(found, ", ")}
-	}
-	// The host's architecture is the likely container architecture, and naming
-	// it beats making the reader pick.
-	arch := runtime.GOARCH
-	if arch != "amd64" && arch != "arm64" {
-		arch = "amd64"
 	}
 	return probe{
 		Label:  "Linux CLI",
 		Level:  probeWarn,
 		Detail: "none built; a trial uploads this binary rather than fetching one",
-		Fix:    "./make build cli linux/" + arch,
+		Fix:    fix,
 	}
+}
+
+func otherLinuxBinaries() []string {
+	var found []string
+	for _, arch := range []string{"amd64", "arm64"} {
+		if arch == harborTrialArch {
+			continue
+		}
+		name := cliBinary + "-linux-" + arch
+		if exists(filepath.Join(binDir, name)) {
+			found = append(found, name)
+		}
+	}
+	return found
 }
 
 // reportHarborProbes prints one section and returns how many probes block a

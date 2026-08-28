@@ -186,6 +186,7 @@ Use the cross-platform task runner from the repository root:
 ```bash
 ./make doctor          # read-only contributor environment diagnosis
 ./make doctor harbor   # the same, for the external Terminal-Bench toolchain
+./make setup harbor    # install what that scope reports missing
 ./make build           # strict full build: Go binaries, gui, Portal, Desktop
 ./make build cli       # fast CLI-only build
 ./make test            # Go tests with an isolated BUILDMAX_HOME

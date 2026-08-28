@@ -48,6 +48,7 @@ func allHelpSections() []helpSection {
 	return []helpSection{
 		{"Development", []helpRow{
 			{"doctor [all|harbor]", "Inspect core tools; 'all' adds frontend, 'harbor' the benchmark toolchain"},
+			{"setup harbor", "Install what doctor reports missing for a Terminal-Bench run"},
 			{"build [cli]", "Strict full build, or build only " + exe(cliBinary)},
 			{"test [race] [pkg]", "Run Go tests; add packages or `go test` flags to narrow"},
 			{"check [scope]", "Run checks for go, gui, portal, desktop, docs, all, or ci"},
@@ -88,7 +89,8 @@ func helpTopics() []helpTopic {
 			details: []string{
 				"Doctor only reads. It never installs a tool, edits a file, or touches the\n" +
 					"workspace, so it is safe as a first command in an unfamiliar checkout.\n" +
-					"A failing check prints the command that fixes it rather than running it.",
+					"A failing check prints the command that fixes it rather than running it;\n" +
+					"`" + mk() + " setup harbor` is the command that runs those for the benchmark scope.",
 				"Go and git are required; everything else is reported as a warning, because\n" +
 					"which of them you need depends on what you are changing. A Go-only change\n" +
 					"can ignore the Node, npm, Wails, Docker, and kubectl lines.",
@@ -106,6 +108,31 @@ func helpTopics() []helpTopic {
 			},
 			examples: []string{"doctor", "doctor all", "doctor harbor"},
 			see:      "docs/contribute/first-pr.md",
+		},
+		{
+			name:    "setup",
+			usage:   "setup harbor",
+			summary: "Install the toolchain a scope needs, then report what is left.",
+			details: []string{
+				"Setup is doctor's write half, and stays a separate command so that doctor\n" +
+					"can keep changing nothing. It installs uv if it is missing, installs the\n" +
+					"Harbor version pinned by evaluation/harbor/pins.json, and cross-builds the\n" +
+					"linux/amd64 CLI a trial uploads -- the task images are amd64 whatever this\n" +
+					"machine is. Every step is skipped when it is already done.",
+				"Installing uv runs Astral's own installer, which downloads and executes a\n" +
+					"script from outside this repository. The exact command is printed before it\n" +
+					"runs. Nothing else here reaches beyond uv, Go, and this checkout.",
+				"It finishes by running `doctor harbor`, so what setup installs and what a\n" +
+					"benchmark run requires cannot drift apart. A trial sandbox is the piece it\n" +
+					"will not install for you: choose Docker or a DAYTONA_API_KEY yourself.",
+				"uv installs into ~/.local/bin. When that is not on your PATH, setup uses it\n" +
+					"for the rest of the run and prints how to make it permanent.",
+			},
+			args: []helpRow{
+				{"harbor", "uv, the pinned Harbor, and a Linux CLI for Terminal-Bench"},
+			},
+			examples: []string{"setup harbor"},
+			see:      "evaluation/harbor/README.md",
 		},
 		{
 			name:    "build",
@@ -300,7 +327,7 @@ func helpTopics() []helpTopic {
 				"eval --surface all",
 				"eval --trials 5",
 				"eval --baseline bin/buildmax-previous",
-				"eval harbor --job ~/.harbor/jobs/<job>",
+				"eval harbor --job .artifacts/harbor/jobs/<job>",
 				"eval harbor --job runs/new --baseline-job runs/old",
 			},
 		},
