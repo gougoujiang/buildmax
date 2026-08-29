@@ -311,8 +311,11 @@ later is additive DDL.
 - CLI, TUI, and Desktop surfaces. Per
   [surface-positioning.md](./surface-positioning.md), issue administration is
   Portal's job and Desktop must not duplicate it
-- an agent tool for reading or writing issues. Runtime tool names are
-  `internal/tool/names.go`'s business and adding one is a separate decision
+- an agent tool for reading or writing issues. That separate decision has
+  since been made in [issue-agent-access.md](./issue-agent-access.md) — two
+  tools scoped by construction to one issue, reading it and posting one
+  bounded comment, with status, assignment, and hierarchy never
+  tool-writable. It stays outside this record
 
 ## 7. Product Surface
 
