@@ -253,6 +253,14 @@ func TestOceanDatabaseForwardUsesNonstandardLocalPort(t *testing.T) {
 	}
 }
 
+func TestPathWithinTreatsUnrelatablePathsAsOutside(t *testing.T) {
+	// Windows CI checks out on D: while the default state directory is under
+	// C:, and filepath.Rel cannot relate two volumes.
+	if pathWithin(filepath.FromSlash("/repo"), "relative-path") {
+		t.Fatal("unrelatable paths reported as inside the repository")
+	}
+}
+
 func pathHasSuffix(path, suffix string) bool {
 	return strings.HasSuffix(filepath.Clean(path), filepath.Clean(suffix))
 }

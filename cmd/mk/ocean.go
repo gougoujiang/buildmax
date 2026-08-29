@@ -79,11 +79,7 @@ func loadOceanConfig() (oceanConfig, error) {
 	if err != nil {
 		return oceanConfig{}, err
 	}
-	inside, err := pathWithin(root, absStateDir)
-	if err != nil {
-		return oceanConfig{}, err
-	}
-	if inside {
+	if pathWithin(root, absStateDir) {
 		return oceanConfig{}, errors.New("BUILDMAX_OCEAN_STATE_DIR must be outside the repository because state contains credentials")
 	}
 
@@ -97,12 +93,14 @@ func loadOceanConfig() (oceanConfig, error) {
 	}, nil
 }
 
-func pathWithin(parent, child string) (bool, error) {
+// A Rel error means the paths share no common root -- different Windows
+// volumes -- so the child is outside the parent, which is what we want to know.
+func pathWithin(parent, child string) bool {
 	rel, err := filepath.Rel(parent, child)
 	if err != nil {
-		return false, fmt.Errorf("compare ocean state directory with repository: %w", err)
+		return false
 	}
-	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))), nil
+	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
 }
 
 func oceanDoctor(cfg oceanConfig) error {
