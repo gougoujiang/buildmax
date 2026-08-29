@@ -126,9 +126,12 @@ type assistantRenderedMsg struct {
 // Chat history lives in the terminal scrollback; this model only manages the
 // bottom live strip: streaming preview, input, slash panels, approval, and footer.
 type Model struct {
-	opts            TUIOpts
-	inputBlock      InputBlock
-	busy            bool
+	opts       TUIOpts
+	inputBlock InputBlock
+	busy       bool
+	// busyLabel names the work in flight in the busy hint. Empty is a turn,
+	// which is what "Generating" describes; a compaction is not one.
+	busyLabel       string
 	err             string // last error to show in footer
 	width           int
 	height          int
@@ -489,6 +492,7 @@ func handleKeyMsg(m *Model, msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 // suggestion, last turn's counters — is forgotten in one place.
 func beginRun(m *Model) chan tea.Msg {
 	m.busy = true
+	m.busyLabel = ""
 	m.err = ""
 	m.carouselDots = 0
 	m.streamingBuffer = ""
@@ -870,7 +874,11 @@ func (m *Model) renderInputView() string {
 // of being swallowed — typing has to echo for that to be usable.
 func (m *Model) renderBusyHint() string {
 	dots := []string{".", "..", "..."}
-	line := "Generating" + dots[m.carouselDots%3]
+	label := m.busyLabel
+	if label == "" {
+		label = "Generating"
+	}
+	line := label + dots[m.carouselDots%3]
 	if n := m.queue.Len(); n > 0 {
 		line += fmt.Sprintf("  ·  %d queued", n)
 	} else {
@@ -996,6 +1004,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return handleWindowSize(m, msg)
 	case agentDoneMsg:
 		return handleAgentDone(m, msg)
+	case compactDoneMsg:
+		return handleCompactDone(m, msg)
 	case llmStartMsg:
 		return handleLLMStart(m, msg)
 	case llmEndMsg:

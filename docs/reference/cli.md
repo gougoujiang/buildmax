@@ -207,19 +207,20 @@ taken when the panel opens, not a live counter.
 
 Typed into the input line:
 
-| Command | Opens |
+| Command | What it does |
 |---|---|
-| `/model` | Model picker (from `settings.yaml`) |
+| `/model` | Opens the model picker (from `settings.yaml`) |
+| `/compact` | Summarize the conversation so far and continue from the summary |
 | `/rewind` | Take one of your prompts back to edit and send again |
 | `/fork` | Branch a new session off an earlier message |
-| `/sessions` | Session picker |
-| `/tools` | Tools available this run |
-| `/skills` | Discovered skills |
-| `/mcp` | Connected MCP servers and their status |
-| `/diff` | Working-tree diff for the workspace |
-| `/stats` | This session's spend, context use, and heaviest tools |
-| `/tasks` | Background jobs: state, age, command; `s` stops the selected one |
-| `/worktree` | This repository's worktrees, and which session is in each |
+| `/sessions` | Opens the session picker |
+| `/tools` | Lists the tools available this run |
+| `/skills` | Lists the discovered skills |
+| `/mcp` | Lists connected MCP servers and their status |
+| `/diff` | Shows the working-tree diff for the workspace |
+| `/stats` | Shows this session's spend, context use, and heaviest tools |
+| `/tasks` | Lists background jobs: state, age, command; `s` stops the selected one |
+| `/worktree` | Lists this repository's worktrees, and which session is in each |
 
 Slash commands are unavailable while the agent is running.
 

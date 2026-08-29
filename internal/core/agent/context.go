@@ -19,6 +19,12 @@ const compactionThreshold = 0.80
 // 0.20 leaves ~55% runway before the next compaction fires, reducing compaction frequency.
 const compactionReserve = 0.20
 
+// manualCompactionReserve is the fraction of the context window a compaction the user
+// asked for keeps verbatim. It is far below compactionReserve because the request itself
+// says the context is wanted back now, and keeping the automatic fifth of the window would
+// leave an on-demand compaction with nothing to summarize on most sessions.
+const manualCompactionReserve = 0.05
+
 // compactionSummaryBudget is the fraction of the context window the stored compaction
 // summary may occupy. The summary lives in the system prompt, which is re-sent in full on
 // every call and is never trimmed, so it needs a ceiling that history does not need.

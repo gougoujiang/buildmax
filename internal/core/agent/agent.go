@@ -279,52 +279,17 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 			if cw := opts.LLMClient.ContextWindow(); cw > 0 {
 				sysTokens := EstimateMessageTokens(llm.Message{Role: "system", Content: opts.SystemPrompt})
 				if sysTokens+EstimateTokens(history) > int(float64(cw)*compactionThreshold) {
-					reserveTokens := int(float64(cw) * compactionReserve)
-					toSummarize, toKeep := splitForCompaction(history, reserveTokens)
-					if len(toSummarize) > 0 {
-						pre := baseHookInput(opts, HookPreCompact)
-						pre.Summarized = len(toSummarize)
-						pre.Kept = len(toKeep)
-						preOut := runHook(ctx, opts.Hooks, pre)
-						if preOut.Blocked() {
-							slog.Info("context compaction skipped by hook", "iter", i+1, "reason", preOut.Reason)
-						} else if summary, cusage, cerr := checkpointAndCompact(ctx, opts, i+1, compactionSummary, toSummarize); cerr == nil {
-							limit := maxSummaryChars(cw)
-							if clamped := clampSummary(summary, limit); clamped != summary {
-								slog.Warn("compaction summary exceeded its budget, clamped", "iter", i+1, "limit_chars", limit, "got_chars", len(summary))
-								summary = clamped
-							}
-							compactionSummary = summary
-							if ch, ok := opts.History.(CompactionHistory); ok {
-								// summarizedCount counts real history messages; the prior summary
-								// prepended above is synthetic and never entered the history.
-								if err := ch.AddCompaction(summary, len(toSummarize)); err != nil {
-									return "", s, fmt.Errorf("persist compaction: %w", err)
-								}
-							}
-							history = toKeep
-							slog.Info("context compacted", "iter", i+1, "summarized", len(toSummarize), "kept", len(toKeep))
-							// Priced here rather than at an llm_end: compaction is
-							// a call the run paid for, but it is not a turn, and
-							// reporting it as one would put a reply in the trace
-							// that the conversation never contained.
-							compactCost := s.addCall(cusage, opts.Pricing)
-							emit(opts.EventSink, Event{
-								Kind:       EventContextCompacted,
-								Iter:       i + 1,
-								Summarized: len(toSummarize),
-								Kept:       len(toKeep),
-								CallUsage:  cusage,
-								CallCost:   compactCost,
-							})
-							post := baseHookInput(opts, HookPostCompact)
-							post.Summarized = len(toSummarize)
-							post.Kept = len(toKeep)
-							post.Summary = summary
-							runHook(ctx, opts.Hooks, post)
-						} else {
-							slog.Warn("context compaction failed, falling back to trim", "err", cerr)
-						}
+					kept, res, cerr := compactOnce(ctx, opts, &s, i+1, compactionSummary, history, int(float64(cw)*compactionReserve))
+					switch {
+					case errors.Is(cerr, ErrCompactionNotPersisted):
+						// The summary landed nowhere, so the next turn would
+						// re-send the messages it covers as if it never ran.
+						return "", s, cerr
+					case cerr != nil:
+						slog.Warn("context compaction failed, falling back to trim", "err", cerr)
+					case res.Compacted():
+						history = kept
+						compactionSummary = res.Summary
 					}
 				}
 			}
