@@ -2,11 +2,14 @@ package main
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 )
 
 const versionPkg = "github.com/gougoujiang/buildmax/internal/config"
+
+var alphaVersionPattern = regexp.MustCompile(`^v((?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))-alpha(?:\.([1-9][0-9]*))?$`)
 
 // resolveCommitSHA reports the short git SHA for HEAD, or "dev" when git or the
 // repository is unavailable. A dirty working tree is marked, so a binary built
@@ -99,6 +102,44 @@ func cmdBump(args []string) error {
 	fmt.Printf("  git push origin %s\n", next)
 	fmt.Printf("Undo with: git tag -d %s\n", next)
 	return nil
+}
+
+// cmdNextVersion prints the next numbered alpha tag without changing git. The
+// scheduled release workflow uses it so a move to beta or stable fails for a
+// maintainer decision instead of silently guessing the next release line.
+func cmdNextVersion(args []string) error {
+	if len(args) != 0 {
+		return usageErrorf("release", "release next takes no arguments")
+	}
+	if !have("git") {
+		return fmt.Errorf("git is required to resolve the next release version")
+	}
+	current, err := capture("git", "describe", "--tags", "--match", "v[0-9]*", "--abbrev=0")
+	if err != nil || current == "" {
+		return fmt.Errorf("no release tag found; prepare the first release manually")
+	}
+	next, err := nextAlphaVersion(current)
+	if err != nil {
+		return err
+	}
+	fmt.Println(next)
+	return nil
+}
+
+func nextAlphaVersion(current string) (string, error) {
+	match := alphaVersionPattern.FindStringSubmatch(current)
+	if match == nil {
+		return "", fmt.Errorf("latest tag %q is not a numbered alpha release line; choose the next version manually", current)
+	}
+	n := 0
+	if match[2] != "" {
+		var err error
+		n, err = strconv.Atoi(match[2])
+		if err != nil || n == int(^uint(0)>>1) {
+			return "", fmt.Errorf("alpha sequence in tag %q cannot be incremented", current)
+		}
+	}
+	return fmt.Sprintf("v%s-alpha.%d", match[1], n+1), nil
 }
 
 // parseVersion reads "v0.1.0" or "v0.1.0-alpha" as 0, 1, 0. Missing components
