@@ -88,7 +88,12 @@ export interface ApiIssue {
 export interface ApiIssueComment {
   id: string
   issue_id: string
-  author_kind: "user" | "agent" | "system"
+  /**
+   * "agent" is a run the deployment scheduled and recorded. "local_agent" is an
+   * agent on someone's own machine, reported by them over their session — a
+   * claim, not something the deployment observed. author_id is that person.
+   */
+  author_kind: "user" | "agent" | "local_agent" | "system"
   author_id: string
   body: string
   source_task_id?: string | null

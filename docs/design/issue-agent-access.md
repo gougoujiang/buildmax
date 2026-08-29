@@ -20,10 +20,9 @@
 - roadmap_priority: `unscheduled` — this decides the item
   [issue-model.md](./issue-model.md) §6 deferred as "a separate decision"; it is
   not placed in [../ROADMAP.md](../ROADMAP.md)
-- status: `implemented on the worker plane` — §10 steps 1-5 are shipped: both
-  tools, the port, the two run-scoped worker routes, and registration in
-  `internal/agentapp/taskrun`. Step 6, the local surfaces, belongs to the
-  bridge. Artifact references in `GetIssue` are deferred; §5.1 says why
+- status: `implemented` — §10 is shipped on both planes: a worker run started
+  from an Issue, and a local CLI session started with `--issue`. Artifact
+  references in `GetIssue` are deferred; §5.1 says why
 - follows: [issue-model.md](./issue-model.md),
   [tool-permissions.md](./tool-permissions.md),
   [unified-artifacts.md](./unified-artifacts.md)
@@ -57,6 +56,8 @@ Four rules make that safe enough to be worth having:
 3. **Issue text arrives as a tool result, never as a prompt layer.** §7.
 4. **A surface with no Issue does not register the tools at all** — the
    `UploadArtifact` rule, not a tool that exists to answer "unavailable". §8.
+5. **A local Agent's report is stored as a claim.** `local_agent`, authored by
+   the person who relayed it, never `agent`. §6.1.
 
 `ReportToIssue` is named for its direction. `ReportIssue` would read to a model
 as filing a defect, and a tool name is prompt surface, not a symbol.
@@ -244,6 +245,28 @@ statement, not a report of what some process is doing.
 An Agent that believes work is finished says so in its report. A person moves
 the Issue.
 
+### 6.1 A Local Agent's Report Is A Claim, And Says So
+
+A worker run's report is stored as `agent`: the run token that wrote it is the
+Agent's own credential, and the task and run it names are records the
+deployment holds. A local session has none of that. It holds a *person's*
+session, it ran on a machine the deployment did not schedule, admitted no quota
+for, and recorded no trace of.
+
+Storing both under `agent` would make a Portal reader believe the deployment
+vouched for something it never saw. So a local report is stored as
+`local_agent`, authored by the person who relayed it — the one identity the
+server verified, and the accountable one. It names no task and no run, because
+there is none. Portal shows it as reported rather than said.
+
+The team comment route accepts `author_kind` only as absent or `local_agent`. A
+person's session may not write `agent` or `system`: those are the deployment's
+own voices, written by a run token and by the server.
+
+This is what the record now decides in place of §11's earlier question about
+local authorship. It does not make a local report evidence. It makes the claim
+legible as a claim, which is the most a client report can honestly be.
+
 ## 7. Untrusted Input And The Prompt Layers
 
 An Issue's description and comments are third-party text. Anyone on the team
@@ -275,7 +298,8 @@ absent from the tool list — not registered in a state where every call fails.
 |---|---|---|---|
 | Worker run started from an Issue | yes | yes | The task carries an Issue ID; the run token authorizes |
 | Worker run with no Issue | absent | absent | No scope exists |
-| Local CLI/TUI/Desktop session linked to an Issue | not yet | not yet | Requires login and a decision this record does not make; see §11 |
+| Local CLI/TUI session started with `--issue` | yes | yes | Requires login; reports as `local_agent`, §6.1 |
+| Desktop session | not yet | not yet | The capability exists; no Desktop surface offers it |
 | Local session not linked, or not logged in | absent | absent | Ordinary local work is unchanged |
 | Tier 1 conversation | deferred | deferred | §11 |
 | Subagents | absent | absent | See below |
@@ -324,11 +348,12 @@ already read.
    existing team Issue routes where the run token can be authorized against
    them.
 6. Implement the port in `internal/interface/client` for logged-in local
-   surfaces. This step belongs to the local Issue bridge and is the point at
-   which that proposal's first slice starts consuming this record.
+   surfaces, and scope a session to an Issue with `buildmax --issue <id>`.
+   Reports go through the team comment route as `local_agent` (§6.1).
 
-Steps 1–5 are worker-plane work and stand alone; they are done. Step 6 is the
-bridge.
+All six are done. Steps 1–5 are worker-plane work and stood alone; step 6 is
+the first piece of the local Issue bridge, and what it does not do — remember
+the link, offer an inbox in Desktop, return status — is still that proposal's.
 
 ## 11. Open Questions
 
@@ -351,18 +376,11 @@ bridge.
 5. **Does a scoped child Issue need to see its parent?** Reading upward is a
    wider scope than "the work order in front of me", and the parent's
    description is often where the actual requirement lives.
-6. **Who authors a local agent's report?** This blocks the local half. On the
-   worker plane the run token is the agent's own credential, so the comment is
-   stored as `agent` with the task and run recorded. A local session holds a
-   *person's* session instead, and the team comment route
-   (`internal/server/handlers/work/issue_comments.go`) hardcodes
-   `CommentAuthorUser` with the caller as author — so a local agent's report
-   would be stored as something the person said, and nobody reading the thread
-   could tell. Three answers are available and none is obviously right: let the
-   create-comment request claim `agent` authorship, which means the server
-   records a client's claim about who wrote something; give a local session a
-   credential of its own; or keep local reports as the person's words, on the
-   grounds that the person chose to send them. Until this is decided,
-   `ReportToIssue` is not registered on local surfaces, and `GetIssue` is not
-   registered alone — §8's rule is both or neither, and a read-only half would
-   teach an agent it can be heard when it cannot.
+6. **Does `local_agent` need a session of its own to become evidence?** §6.1
+   decides how a local report is recorded, not how far it can be trusted. A
+   report is a claim the relaying person is accountable for; making it evidence
+   would need the local session to hold a credential of its own, which is the
+   durable-Agent-sessions question, not this one.
+7. **How does a local session pick its Issue durably?** `--issue` scopes one
+   run and remembers nothing. The bridge's `IssueLink` sidecar is the durable
+   form, and it is that proposal's to design.

@@ -259,8 +259,12 @@
         "properties": {
           "id": {"type": "string"},
           "issue_id": {"type": "string"},
-          "author_kind": {"type": "string"},
-          "author_id": {"type": "string"},
+          "author_kind": {
+            "type": "string",
+            "enum": ["user", "agent", "local_agent", "system"],
+            "description": "\"agent\" is a run this deployment scheduled and recorded. \"local_agent\" is an agent on someone's own machine, reported over their session — a claim, not something the deployment observed."
+          },
+          "author_id": {"type": "string", "description": "A user_id, or an agent_id for \"agent\". For \"local_agent\" it is the person who reported it"},
           "body": {"type": "string"},
           "source_task_id": {"type": "string"},
           "source_task_run_id": {"type": "string"},
@@ -2804,7 +2808,20 @@
         "requestBody": {
           "required": true,
           "content": {
-            "application/json": {"schema": {"type": "object", "properties": {"body": {"type": "string"}}}}
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "body": {"type": "string"},
+                  "author_kind": {
+                    "type": "string",
+                    "enum": ["local_agent"],
+                    "description": "Omit for a person's own comment. \"local_agent\" relays what an agent on the caller's machine said; the caller stays the author, because that is the identity this route verified. \"agent\" and \"system\" are written by a run token and by the server and are refused here."
+                  }
+                },
+                "required": ["body"]
+              }
+            }
           }
         },
         "responses": {
@@ -2813,7 +2830,7 @@
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/IssueComment"}}}
           },
           "400": {
-            "description": "body is required",
+            "description": "body is required, or author_kind is not local_agent",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
           },
           "404": {

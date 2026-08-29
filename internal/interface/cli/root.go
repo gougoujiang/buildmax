@@ -13,6 +13,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/session"
 	"github.com/gougoujiang/buildmax/internal/interface/auth"
+	"github.com/gougoujiang/buildmax/internal/tool"
 
 	"github.com/google/uuid"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
@@ -67,6 +68,7 @@ func NewRootCommand() *cobra.Command {
 	root.Flags().Int("max-iterations", 0,
 		fmt.Sprintf("cap this run's model calls (%d-%d; default %d, or agent.max_iterations)",
 			config.MinMaxIterations, config.MaxMaxIterations, config.DefaultMaxIterations))
+	root.Flags().String("issue", "", "work on a team issue: the agent can read it and report back (requires login)")
 	root.Flags().String("agent", "", "append the body of a named definition from .buildmax/agents or ~/.buildmax/agents")
 	root.Flags().String("append-system-prompt", "", "text appended to this run's system prompt")
 	root.Flags().String("append-system-prompt-file", "", "file whose contents are appended to this run's system prompt")
@@ -130,6 +132,14 @@ func runRoot(cmd *cobra.Command, _ []string) error {
 		return &ExitError{Code: ExitUsage, Err: err}
 	}
 	overrides := runOverrides{Sandbox: sandboxRun, MaxIterations: maxIterations}
+	if issueID, _ := cmd.Flags().GetString("issue"); issueID != "" {
+		issueClient, err := auth.IssueClientForSession(cmd.Context(), issueID)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err.Error())
+			return &ExitError{Code: ExitUsage, Err: err}
+		}
+		overrides.Issue = issueClient
+	}
 
 	if sessionID != "" {
 		if _, err := uuid.Parse(sessionID); err != nil {
@@ -188,6 +198,11 @@ func runRoot(cmd *cobra.Command, _ []string) error {
 type runOverrides struct {
 	Sandbox       config.SandboxRunOverride
 	MaxIterations int
+	// Issue scopes this run to one team Issue, or is nil when --issue was not
+	// given. It is resolved once here rather than per turn: the Issue a session
+	// works must not change under it, and the tools are registered from it when
+	// the runtime is assembled.
+	Issue tool.IssueClient
 }
 
 func parseSandboxRunOverride(enabled bool, mode string) (config.SandboxRunOverride, error) {

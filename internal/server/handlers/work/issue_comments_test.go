@@ -240,3 +240,77 @@ func TestIssueComments_NotConfigured(t *testing.T) {
 		t.Fatalf("issue status = %d, want 200 — issues must survive without comments", rec.Code)
 	}
 }
+
+// A person may relay what an agent on their machine said, and the thread
+// records it as that: a claim, with the person who made it as the author. It is
+// not stored as `agent`, which is what a run this deployment scheduled and
+// recorded writes through a run token.
+func TestIssueComments_LocalAgentReport(t *testing.T) {
+	mux, _, comments := commentMux(t)
+	base := "/api/teams/" + commentTeam + "/issues/i_1/comments"
+	rec := commentRequest(t, mux, http.MethodPost, base, "u_member",
+		`{"body":"Adapter written and tested.","author_kind":"local_agent"}`)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201, body=%s", rec.Code, rec.Body.String())
+	}
+	list, _, err := comments.ListIssueComments(t.Context(), "i_1", 10, 0)
+	if err != nil {
+		t.Fatalf("ListIssueComments: %v", err)
+	}
+	if len(list) != 1 {
+		t.Fatalf("comments = %d, want 1", len(list))
+	}
+	got := list[0]
+	if got.AuthorKind != coreissue.CommentAuthorLocalAgent {
+		t.Fatalf("author_kind = %q, want %q", got.AuthorKind, coreissue.CommentAuthorLocalAgent)
+	}
+	if got.AuthorID != "u_member" {
+		t.Fatalf("author_id = %q, want the person who reported it", got.AuthorID)
+	}
+	// No run produced this, so nothing may claim one did.
+	if got.SourceTaskID != nil || got.SourceTaskRunID != nil {
+		t.Fatalf("a local report names a run: %v/%v", got.SourceTaskID, got.SourceTaskRunID)
+	}
+}
+
+// A session may not borrow the deployment's own voices. `agent` is written by a
+// run token and `system` by the server, and either one arriving from a person's
+// session would make the thread claim provenance nobody has.
+func TestIssueComments_RefusesBorrowedAuthorKinds(t *testing.T) {
+	mux, _, comments := commentMux(t)
+	base := "/api/teams/" + commentTeam + "/issues/i_1/comments"
+	for _, kind := range []string{"agent", "system", "robot"} {
+		rec := commentRequest(t, mux, http.MethodPost, base, "u_member",
+			`{"body":"not mine to claim","author_kind":"`+kind+`"}`)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("author_kind %q = %d, want 400, body=%s", kind, rec.Code, rec.Body.String())
+		}
+	}
+	list, _, err := comments.ListIssueComments(t.Context(), "i_1", 10, 0)
+	if err != nil {
+		t.Fatalf("ListIssueComments: %v", err)
+	}
+	if len(list) != 0 {
+		t.Fatalf("a refused claim still wrote a comment: %+v", list)
+	}
+}
+
+// A local agent's report is the agent's statement, not the person's prose. The
+// person who relayed it cannot then edit it into something else.
+func TestIssueComments_LocalAgentReportIsNotEditable(t *testing.T) {
+	mux, _, _ := commentMux(t)
+	base := "/api/teams/" + commentTeam + "/issues/i_1/comments"
+	rec := commentRequest(t, mux, http.MethodPost, base, "u_member",
+		`{"body":"Adapter written.","author_kind":"local_agent"}`)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("seed: status = %d, body=%s", rec.Code, rec.Body.String())
+	}
+	var created issueCommentResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	rec = commentRequest(t, mux, http.MethodPatch, base+"/"+created.ID, "u_member", `{"body":"rewritten"}`)
+	if rec.Code == http.StatusOK {
+		t.Fatal("a local agent report was edited by the person who relayed it")
+	}
+}

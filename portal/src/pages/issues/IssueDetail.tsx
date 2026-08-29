@@ -217,13 +217,24 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
     for (const comment of comments) {
       events.push({
         id: comment.id,
-        label: comment.author_kind === "user" ? "Comment" : "Agent comment",
+        label: commentEventLabel(comment.author_kind),
         detail: comment.body,
         timestamp: comment.created_at,
       })
     }
     return events.sort((a, b) => (a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0))
   }, [flow, comments])
+
+  function commentEventLabel(kind: ApiIssueComment["author_kind"]): string {
+    switch (kind) {
+      case "user":
+        return "Comment"
+      case "local_agent":
+        return "Local agent report"
+      default:
+        return "Agent comment"
+    }
+  }
 
   function memberLabel(member: ApiTeamMember): string {
     if (member.user_id === userId) return "Me"

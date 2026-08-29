@@ -29,6 +29,12 @@ type issueCommentListResponse struct {
 
 type issueCommentRequest struct {
 	Body string `json:"body"`
+	// AuthorKind is empty for a person writing on the thread, or "local_agent"
+	// when the caller is relaying what an agent on their machine said. No other
+	// value is accepted here: "agent" and "system" are the deployment's own
+	// voices, written by a run token and by the server, and a person's session
+	// may not borrow either.
+	AuthorKind string `json:"author_kind"`
 }
 
 func issueCommentToResponse(comment coreissue.Comment) issueCommentResponse {
@@ -105,9 +111,20 @@ func (h *Handler) createIssueCommentHandler(w http.ResponseWriter, r *http.Reque
 	if !httputil.DecodeJSONBody(w, r, &req) {
 		return
 	}
+	authorKind := coreissue.CommentAuthorUser
+	if req.AuthorKind != "" {
+		if req.AuthorKind != coreissue.CommentAuthorLocalAgent {
+			httputil.WriteJSONError(w, http.StatusBadRequest,
+				"author_kind may only be omitted or \"local_agent\": agent and system comments are written by the deployment, not by a session")
+			return
+		}
+		authorKind = coreissue.CommentAuthorLocalAgent
+	}
+	// The author is the caller either way. A local agent report is a claim, and
+	// the person who made it is the one identity this route verified.
 	created, err := h.issueService().CreateComment(r.Context(), issue.CreateCommentCmd{
 		IssueID:    issueID,
-		AuthorKind: coreissue.CommentAuthorUser,
+		AuthorKind: authorKind,
 		AuthorID:   userID,
 		Body:       req.Body,
 	})

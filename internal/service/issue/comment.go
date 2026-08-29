@@ -14,6 +14,9 @@ var (
 	ErrCommentTooLong        = apierr.New(apierr.KindInvalid, "comment too long")
 	ErrCommentNotFound       = apierr.New(apierr.KindNotFound, "comment not found")
 	ErrCommentNotEditable    = apierr.New(apierr.KindForbidden, "comment not editable")
+	// ErrInvalidCommentAuthorKind refuses an author kind the thread has no
+	// rendering for. A kind nobody displays is a comment nobody can attribute.
+	ErrInvalidCommentAuthorKind = apierr.New(apierr.KindInvalid, "invalid author_kind")
 )
 
 // CommentBodyLimit bounds a comment body in bytes.
@@ -64,6 +67,9 @@ func (s *Service) CreateComment(ctx context.Context, cmd CreateCommentCmd) (*cor
 	if kind == "" {
 		kind = coreissue.CommentAuthorUser
 	}
+	if !isKnownCommentAuthorKind(kind) {
+		return nil, ErrInvalidCommentAuthorKind
+	}
 	return s.Comments.CreateIssueComment(ctx, coreissue.CreateCommentInput{
 		IssueID:         cmd.IssueID,
 		AuthorKind:      kind,
@@ -72,6 +78,15 @@ func (s *Service) CreateComment(ctx context.Context, cmd CreateCommentCmd) (*cor
 		SourceTaskID:    cmd.SourceTaskID,
 		SourceTaskRunID: cmd.SourceTaskRunID,
 	})
+}
+
+func isKnownCommentAuthorKind(kind string) bool {
+	switch kind {
+	case coreissue.CommentAuthorUser, coreissue.CommentAuthorAgent,
+		coreissue.CommentAuthorLocalAgent, coreissue.CommentAuthorSystem:
+		return true
+	}
+	return false
 }
 
 // ListComments returns an issue's thread, oldest first.

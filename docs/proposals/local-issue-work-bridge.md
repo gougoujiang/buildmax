@@ -107,6 +107,11 @@ Several required pieces already exist:
   every team they are in. The server-side listing filters it needs — by
   assignee and by status — now exist; `openapi.json` had described them for a
   while before anything implemented them.
+- `buildmax --issue <id>` scopes one local session to one Issue: the Agent can
+  read it and report back. The report is stored as `local_agent`, a claim the
+  relaying person is accountable for, never as the `agent` a worker run writes.
+  It scopes one run and remembers nothing — the durable `IssueLink` below is
+  still this proposal's to design.
 - How an Agent itself reads and reports on the Issue it is working is decided
   by [Issue agent access](../design/issue-agent-access.md): two runtime tools
   scoped by construction to one Issue, with status, assignment, and hierarchy
@@ -458,26 +463,22 @@ claiming Server authority over behavior the Server cannot observe or control.
    workflows need a Session to contribute to several Issues?
 2. Should starting work offer to assign the Issue to the current user, require
    it already be assigned, or permit unassigned collaborative work?
-3. Who authors a local Agent's report on an Issue? The worker plane stores one
-   as `agent` because a run token is the Agent's own credential; a local
-   session holds a person's session, and the team comment route records the
-   caller as a user. [Issue agent access](../design/issue-agent-access.md) §11
-   holds the question, and it blocks registering the Issue tools on local
-   surfaces at all.
-4. Does Phase 1 need a durable outbox, or is explicit retry sufficient for the
+3. Does Phase 1 need a durable outbox, or is explicit retry sufficient for the
    first early adopters?
-5. What stable repository or workspace identity can safely remember local path
+4. What stable repository or workspace identity can safely remember local path
    mappings across Issues and devices?
-6. Should a local result create a specialized execution-summary record, a
+5. Should a local result create a specialized execution-summary record, a
    normal user comment with relations, or wait for Durable Agent Sessions?
    [Issue agent access](../design/issue-agent-access.md) §11 asks the same
    question from the tool side: an Artifact a runless Session publishes has no
    task run to hang on, and the Issue's outputs aggregation reads runs.
-7. Which Portal view distinguishes “worked locally” from “ran in a Worker”
-   without presenting unverifiable client claims as audit evidence?
-8. When may a deployment refuse direct models for Team-linked work, and what
+6. Which Portal view distinguishes “worked locally” from “ran in a Worker”
+   without presenting unverifiable client claims as audit evidence? The comment
+   thread already does, through the `local_agent` author kind; the Results
+   panel and the run list do not.
+7. When may a deployment refuse direct models for Team-linked work, and what
    device-management or signed-policy mechanism makes that enforceable?
-9. Do teams actually decompose and delegate work from the local context, or is
+8. Do teams actually decompose and delegate work from the local context, or is
    receive-and-return the dominant workflow?
 
 Evidence should come from a small number of real local-to-Team workflows:

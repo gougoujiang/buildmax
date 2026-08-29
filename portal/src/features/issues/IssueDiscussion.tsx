@@ -101,11 +101,18 @@ export function IssueDiscussion({
     return out
   }, [members])
 
+  function personLabel(authorID: string): string {
+    if (authorID === userId) return "Me"
+    return memberNames[authorID] || `Member ${authorID.slice(0, 8)}`
+  }
+
   function authorLabel(comment: ApiIssueComment): string {
     if (comment.author_kind === "agent") return agentNames[comment.author_id] || "Agent"
     if (comment.author_kind === "system") return "BuildMax"
-    if (comment.author_id === userId) return "Me"
-    return memberNames[comment.author_id] || `Member ${comment.author_id.slice(0, 8)}`
+    // Named as a report by a person, not as an agent this deployment ran: it
+    // scheduled nothing, admitted no quota, and recorded no trace for it.
+    if (comment.author_kind === "local_agent") return `Agent on ${personLabel(comment.author_id)}'s machine, reported`
+    return personLabel(comment.author_id)
   }
 
   function canEdit(comment: ApiIssueComment): boolean {

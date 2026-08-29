@@ -36,6 +36,7 @@ func tuiAppConfig(workspace, additionalSystemPrompt string, source auth.ModelSou
 		ManagedServerURL:       source.ServerURL,
 		ManagedToken:           auth.TokenForServer,
 		ArtifactPublisher:      auth.ArtifactPublisherForSession(),
+		IssueClient:            overrides.Issue,
 		Surface:                coregw.CallSurfaceCLI,
 		AdditionalSystemPrompt: additionalSystemPrompt,
 		SandboxRunOverride:     overrides.Sandbox,

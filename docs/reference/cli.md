@@ -26,6 +26,7 @@ buildmax <command> [flags]
 | `buildmax sandbox enable` / `disable` | Set `sandbox.enabled` in `settings.yaml` |
 | `buildmax sandbox mode <auto_allow\|regular>` | Set `sandbox.auto_allow_bash_if_sandboxed` |
 | `buildmax issue list` | List the issues a team assigned you, across every team you are in; `--status`, `--limit` |
+| `buildmax --issue <id>` | Work a team issue in this session: the agent can read it and report back |
 | `buildmax plugin list` | List installed plugins, where each came from, and whether it loads |
 | `buildmax plugin status [name]` | Show what a plugin contributes, its checkout or release, and what shadowed it |
 | `buildmax plugin validate [path]` | Parse a plugin directory and report every problem; non-zero if any would stop it loading |
@@ -177,6 +178,23 @@ reported as a warning and the rest of the inbox still prints.
 
 Managing the work — creating issues, assigning them, changing status, splitting
 them up — stays in Portal. This command reads.
+
+To work on one, start a session scoped to it:
+
+```bash
+buildmax --issue i_7Kq2...            # TUI, working that issue
+buildmax --issue i_7Kq2... -p "..."   # one print-mode run
+```
+
+The agent gains two tools: `GetIssue` reads the issue, its sub-issues, and
+recent discussion; `ReportToIssue` posts a short report on the thread, at most
+three times in a run. Neither can change the issue's status, assignee, or
+sub-issues — the agent says what it believes should happen and a person decides.
+
+A report from your machine is recorded as a **local agent report**, attributed
+to you, and Portal shows it as reported rather than said. It is not the same as
+a comment from a run the deployment scheduled: nothing here was queued, counted
+against quota, or traced. `--issue` scopes one run; it is not remembered.
 
 ### `buildmax doctor`
 
