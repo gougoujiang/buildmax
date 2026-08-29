@@ -39,7 +39,7 @@ resource "digitalocean_kubernetes_cluster" "beta" {
 resource "digitalocean_database_cluster" "beta" {
   name                 = var.database_cluster_name
   engine               = "mysql"
-  version              = "8"
+  version              = var.database_version
   size                 = var.database_size
   region               = var.region
   node_count           = 1

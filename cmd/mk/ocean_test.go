@@ -16,6 +16,7 @@ func TestOceanConfigUsesPersistentResourceDefaults(t *testing.T) {
 		"BUILDMAX_OCEAN_VPC",
 		"BUILDMAX_OCEAN_BUCKET",
 		"BUILDMAX_OCEAN_REGION",
+		"BUILDMAX_OCEAN_DATABASE_VERSION",
 	} {
 		t.Setenv(name, "")
 	}
@@ -24,7 +25,7 @@ func TestOceanConfigUsesPersistentResourceDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadOceanConfig: %v", err)
 	}
-	if cfg.project != "buildmax-beta" || cfg.vpc != "buildmax-beta" || cfg.bucket != "buildmax-beta" || cfg.region != "sgp1" {
+	if cfg.project != "buildmax-beta" || cfg.vpc != "buildmax-beta" || cfg.bucket != "buildmax-beta" || cfg.region != "sgp1" || cfg.databaseVersion != "8.4" {
 		t.Fatalf("defaults = %#v", cfg)
 	}
 	wantStateSuffix := filepath.Join(".buildmax", "qualification", "ocean")
@@ -40,12 +41,13 @@ func TestOceanConfigAcceptsExplicitPersistentResources(t *testing.T) {
 	t.Setenv("BUILDMAX_OCEAN_VPC", "vpc-x")
 	t.Setenv("BUILDMAX_OCEAN_BUCKET", "bucket-x")
 	t.Setenv("BUILDMAX_OCEAN_REGION", "nyc3")
+	t.Setenv("BUILDMAX_OCEAN_DATABASE_VERSION", "9.0")
 
 	cfg, err := loadOceanConfig()
 	if err != nil {
 		t.Fatalf("loadOceanConfig: %v", err)
 	}
-	if cfg.project != "project-x" || cfg.vpc != "vpc-x" || cfg.bucket != "bucket-x" || cfg.region != "nyc3" {
+	if cfg.project != "project-x" || cfg.vpc != "vpc-x" || cfg.bucket != "bucket-x" || cfg.region != "nyc3" || cfg.databaseVersion != "9.0" {
 		t.Fatalf("overrides = %#v", cfg)
 	}
 	if cfg.stateDir != stateDir {
@@ -91,11 +93,12 @@ func TestOceanFilesAreOwnerOnly(t *testing.T) {
 func TestOceanDoctorDoesNotCreateStateDirectory(t *testing.T) {
 	stateDir := filepath.Join(t.TempDir(), "not-created")
 	cfg := oceanConfig{
-		project:  "buildmax-beta",
-		vpc:      "buildmax-beta",
-		bucket:   "buildmax-beta",
-		region:   "sgp1",
-		stateDir: stateDir,
+		project:         "buildmax-beta",
+		vpc:             "buildmax-beta",
+		bucket:          "buildmax-beta",
+		region:          "sgp1",
+		databaseVersion: "8.4",
+		stateDir:        stateDir,
 	}
 	_ = oceanDoctor(cfg)
 	if exists(stateDir) {

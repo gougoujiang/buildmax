@@ -190,6 +190,7 @@ full lifecycle and credential scope are in
 | `BUILDMAX_OCEAN_VPC` | `buildmax-beta` | Existing VPC to reuse. |
 | `BUILDMAX_OCEAN_BUCKET` | `buildmax-beta` | Existing Spaces bucket to reuse. |
 | `BUILDMAX_OCEAN_REGION` | `sgp1` | Shared region for the existing and disposable resources. |
+| `BUILDMAX_OCEAN_DATABASE_VERSION` | `8.4` | Pinned DigitalOcean Managed MySQL version. |
 | `BUILDMAX_OCEAN_STATE_DIR` | `~/.buildmax/qualification/ocean` | Owner-only directory outside Git holding state, plans, providers, and kubeconfig. |
 
 The Compose stack is separate and does not use the root `.env`. It reads

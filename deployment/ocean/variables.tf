@@ -52,6 +52,12 @@ variable "database_size" {
   default     = "db-s-1vcpu-1gb"
 }
 
+variable "database_version" {
+  description = "DigitalOcean Managed MySQL version. Keep this explicit so qualification infrastructure is reproducible."
+  type        = string
+  default     = "8.4"
+}
+
 variable "database_name" {
   description = "Application database created in the managed MySQL cluster."
   type        = string

@@ -39,6 +39,7 @@ The DigitalOcean API token needs only the capabilities used by these resources:
 - account and actions: read
 - regions and sizes: read
 - Kubernetes: create, read, update, delete, access cluster
+- Tags: create (the OpenTofu provider tags its default DOKS node pool)
 - databases: create, read, update, delete, view credentials
 - Project: read and assign resource
 - VPC: read
@@ -85,6 +86,7 @@ Names and the region can be changed without editing it:
 | `BUILDMAX_OCEAN_VPC` | `buildmax-beta` |
 | `BUILDMAX_OCEAN_BUCKET` | `buildmax-beta` |
 | `BUILDMAX_OCEAN_REGION` | `sgp1` |
+| `BUILDMAX_OCEAN_DATABASE_VERSION` | `8.4` |
 | `BUILDMAX_OCEAN_STATE_DIR` | `~/.buildmax/qualification/ocean` |
 
 All three persistent resources must use the configured region.

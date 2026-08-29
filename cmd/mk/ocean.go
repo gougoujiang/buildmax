@@ -14,11 +14,12 @@ import (
 const oceanConfigDir = "deployment/ocean"
 
 type oceanConfig struct {
-	project  string
-	vpc      string
-	bucket   string
-	region   string
-	stateDir string
+	project         string
+	vpc             string
+	bucket          string
+	region          string
+	databaseVersion string
+	stateDir        string
 }
 
 func cmdOcean(args []string) error {
@@ -77,11 +78,12 @@ func loadOceanConfig() (oceanConfig, error) {
 	}
 
 	return oceanConfig{
-		project:  envOr("BUILDMAX_OCEAN_PROJECT", "buildmax-beta"),
-		vpc:      envOr("BUILDMAX_OCEAN_VPC", "buildmax-beta"),
-		bucket:   envOr("BUILDMAX_OCEAN_BUCKET", "buildmax-beta"),
-		region:   envOr("BUILDMAX_OCEAN_REGION", "sgp1"),
-		stateDir: absStateDir,
+		project:         envOr("BUILDMAX_OCEAN_PROJECT", "buildmax-beta"),
+		vpc:             envOr("BUILDMAX_OCEAN_VPC", "buildmax-beta"),
+		bucket:          envOr("BUILDMAX_OCEAN_BUCKET", "buildmax-beta"),
+		region:          envOr("BUILDMAX_OCEAN_REGION", "sgp1"),
+		databaseVersion: envOr("BUILDMAX_OCEAN_DATABASE_VERSION", "8.4"),
+		stateDir:        absStateDir,
 	}, nil
 }
 
@@ -116,7 +118,7 @@ func oceanDoctor(cfg oceanConfig) error {
 	}
 
 	fmt.Println("\nPersistent resources (read only)")
-	fmt.Printf("  Project  %s\n  VPC      %s\n  Bucket   %s\n  Region   %s\n", cfg.project, cfg.vpc, cfg.bucket, cfg.region)
+	fmt.Printf("  Project        %s\n  VPC            %s\n  Bucket         %s\n  Region         %s\n  MySQL version  %s\n", cfg.project, cfg.vpc, cfg.bucket, cfg.region, cfg.databaseVersion)
 	fmt.Printf("\nLocal state (contains credentials)\n  %s\n", cfg.stateDir)
 	if failed {
 		return errors.New("ocean prerequisites are incomplete; no resources were changed")
@@ -155,7 +157,7 @@ func oceanUp(cfg oceanConfig) error {
 		return err
 	}
 	if err := oceanTofu(cfg, nil, "apply", "-input=false", oceanPlanPath(cfg, false)); err != nil {
-		return err
+		return fmt.Errorf("%w; an apply can fail after creating some resources, so run `%s ocean status` before retrying", err, mk())
 	}
 	if err := oceanWriteKubeconfig(cfg); err != nil {
 		return err
@@ -291,6 +293,7 @@ func oceanEnv(cfg oceanConfig) []string {
 		"TF_VAR_vpc_name=" + cfg.vpc,
 		"TF_VAR_spaces_bucket_name=" + cfg.bucket,
 		"TF_VAR_region=" + cfg.region,
+		"TF_VAR_database_version=" + cfg.databaseVersion,
 	}
 }
 
