@@ -1,1 +1,0 @@
-- Add `./make ocean` to provision disposable DigitalOcean infrastructure, deploy a pinned private application trial, inspect it, and tear it down for beta qualification.
