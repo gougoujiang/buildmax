@@ -39,6 +39,9 @@ RUN node scripts/collect-notices.mjs --out dist/third-party-notices.txt /app/gui
 
 # Stage 2: serve.
 FROM nginx:alpine
+# The base tag lags the branch's security updates, so the image scan
+# fails on a CVE alpine has already fixed. See Dockerfile.release.
+RUN apk upgrade --no-cache
 COPY --from=build /app/portal/dist /usr/share/nginx/html
 COPY portal/nginx-default.conf /etc/nginx/conf.d/default.conf
 # The image itself distributes Apache-2.0 code, so it carries the license text,
