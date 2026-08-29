@@ -46,8 +46,11 @@ type AppConfig struct {
 	// source. A surface is in one mode or the other, and the mode decides where
 	// every prompt goes. See docs/design/client-modes.md section 4.
 	ManagedServerURL string
-	// Policy sets the tool permission policy for all runs in this AgentApp.
-	// Nil defaults to agent.AllowAllPolicy for backward compatibility.
+	// Policy is the surface's tool permission baseline, under the user's
+	// tools.permissions rules. Every surface states its own — CLI, TUI, Desktop,
+	// a Portal turn, and a task run all pass one — and nil is the library's
+	// nil-safe floor rather than a surface's choice: it allows every tool, which
+	// is only correct for a surface that meant to.
 	Policy agent.ToolPolicy
 	// SandboxSurface picks the per-surface default sandbox baseline (see
 	// config.SandboxSurfaceCLI / SandboxSurfaceWorker). Empty means
@@ -382,8 +385,8 @@ type ModelConfig struct {
 	Reasoning string
 	// CacheControl is the resolved prompt-cache policy: which calls ask the
 	// provider to cache the stable prefix, and for how long. Resolved here
-	// rather than in the client so one place folds the deprecated
-	// prompt_cache shorthand.
+	// rather than in the client so an entry that chose nothing takes the
+	// default once, in front of every protocol.
 	CacheControl config.CacheControl
 	// Pricing is what this model charges. Zero means the entry configured no
 	// prices, and a run against it reports its cost as unavailable rather than
@@ -1187,17 +1190,6 @@ func teeEventSink(record, caller func(agent.Event)) func(agent.Event) {
 			caller(e)
 		}
 	}
-}
-
-func (a *AgentApp) GenerateSessionTitle(ctx context.Context, sess *SessionContext) (string, cllm.Usage, error) {
-	if a == nil || sess == nil {
-		return "", cllm.Usage{}, nil
-	}
-	_, _, client, err := a.resolveRunContext(sess)
-	if err != nil {
-		return "", cllm.Usage{}, err
-	}
-	return a.sessionManager.GenerateTitle(ctx, client, sess)
 }
 
 func (a *AgentApp) finalizeTurn(sess *SessionContext, client cllm.LLMClient, stats agent.RunStats) (TurnFinalizeResult, error) {

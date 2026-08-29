@@ -91,12 +91,18 @@ not silently reversed; §8 decides it explicitly.
 
 ## 3. Decisions
 
+`internal/core/model` names the package the domain structs lived in while this
+was written. It has since been split into one package per domain — `core/task`,
+`core/team`, `core/issue`, `core/conversation`, and the rest — per
+[conventions](../contribute/conventions.md); every decision below applies to
+those packages together.
+
 | # | Decision |
 |---|---|
 | D1 | `id` is `bigint unsigned auto_increment` and is the relational key. `public_id` is the external handle, present only where one is needed. |
 | D2 | A public ID is 96 bits of crypto-random data, rendered as 20 lowercase base32 characters. Amended by §17: the canonical text is also the stored form, `char(20)` ascii_bin, not the raw bytes. |
 | D3 | Strict single-type relationships become `uint64` columns. No `FOREIGN KEY` constraints in this change. |
-| D4 | `internal/core/model` carries public identity only. A struct's own handle is `ID string`, serialized as `id`. |
+| D4 | The core domain structs carry public identity only. A struct's own handle is `ID string`, serialized as `id`. |
 | D5 | 18 tables carry a `public_id`, 8 carry none, 2 keep a natural key. |
 | D6 | A reference stays an opaque string only when it is polymorphic, externally owned, or a value. |
 | D7 | Public-to-numeric translation happens inside `internal/infra/db` and never produces an N+1 read. |
@@ -702,7 +708,7 @@ moved down from `internal/service/artifact`.
 
 - Architecture tests under `internal/architecture`: no row struct declares a
   `varchar` column for a strict entity relationship; every `public_id` is
-  `binary(12)`; no `internal/core/model` struct has a numeric ID field.
+  `binary(12)`; no core domain struct has a numeric ID field.
 - Boundary tests: no numeric ID appears in an API response body, a JWT claim,
   an object key, a trace record, or a WebSocket frame.
 - Authorization tests: cross-team lookups still return `404`, and a valid

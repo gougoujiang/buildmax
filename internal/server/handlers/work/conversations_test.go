@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -116,6 +117,65 @@ func TestListConversationsHidesTheOnesNobodyHolds(t *testing.T) {
 	for _, id := range ids {
 		if id == "conv_portal" || id == "conv_issue" {
 			t.Errorf("a conversation nobody holds is in the list: %s", id)
+		}
+	}
+}
+
+// A conversation on a synthetic channel is one the server made and nobody
+// holds: the Portal renders it as agent-owned and the list hides it. A caller
+// that could name one would be creating a conversation it then cannot see.
+func TestCreateConversationRejectsAChannelTheCallerMayNotClaim(t *testing.T) {
+	secret := "test-conversation-secret"
+	teamID := "tm_personal_u1"
+	h := New(Config{
+		JWTSecret: secret,
+		Teams: &mock.MockTeamStore{
+			Teams:   []coreteam.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}},
+			Members: []coreteam.Member{{TeamID: teamID, UserID: "u1", Role: coreteam.RoleOwner}},
+		},
+		Conversations: &mock.MockConversationStore{},
+		Messages:      &mock.MockConversationMessageStore{},
+	})
+	mux := http.NewServeMux()
+	h.Register(mux)
+
+	for _, channel := range []string{"issue_agent", "workflow", "system", "slack"} {
+		req := httptest.NewRequest(http.MethodPost, "/api/teams/"+teamID+"/conversations",
+			strings.NewReader(`{"channel":"`+channel+`"}`))
+		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", secret))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("channel %q: status = %d, want 400; body = %s", channel, rec.Code, rec.Body.String())
+		}
+	}
+}
+
+// An absent channel is the Portal, and the transport channels stay accepted.
+func TestCreateConversationAcceptsTheTransportChannels(t *testing.T) {
+	secret := "test-conversation-secret"
+	teamID := "tm_personal_u1"
+	for _, body := range []string{`{}`, `{"channel":"portal"}`, `{"channel":"telegram"}`, `{"channel":"cron"}`, `{"channel":"webhook"}`} {
+		h := New(Config{
+			JWTSecret: secret,
+			Teams: &mock.MockTeamStore{
+				Teams:   []coreteam.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}},
+				Members: []coreteam.Member{{TeamID: teamID, UserID: "u1", Role: coreteam.RoleOwner}},
+			},
+			Conversations: &mock.MockConversationStore{},
+			Messages:      &mock.MockConversationMessageStore{},
+		})
+		mux := http.NewServeMux()
+		h.Register(mux)
+
+		req := httptest.NewRequest(http.MethodPost, "/api/teams/"+teamID+"/conversations", strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", secret))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusCreated {
+			t.Errorf("body %s: status = %d, want 201; body = %s", body, rec.Code, rec.Body.String())
 		}
 	}
 }

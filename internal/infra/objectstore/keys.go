@@ -94,18 +94,6 @@ func PersistPrefix(prefix, teamID string) string {
 	return path.Join(prefix, teamID, "home") + "/"
 }
 
-// TaskBuildmaxObjectKey returns the S3 object key for a task run buildmax file (logs, sessions, settings).
-// Deprecated: use RunGlobalObjectKey. Kept for backward compatibility.
-func TaskBuildmaxObjectKey(prefix, createdBy, conversationID, taskID, taskRunID, relPath string) (string, error) {
-	return taskRunGlobalKey(runKeyScope{
-		Prefix:         prefix,
-		CreatedBy:      createdBy,
-		ConversationID: conversationID,
-		TaskID:         taskID,
-		TaskRunID:      taskRunID,
-	}, relPath)
-}
-
 // RunGlobalObjectKey returns the S3 object key for a task run global dir file (BUILDMAX_HOME: logs, sessions, settings).
 // relPath is validated with CleanRelPath (no .., no absolute).
 func RunGlobalObjectKey(prefix, createdBy, conversationID, taskID, taskRunID, relPath string) (string, error) {

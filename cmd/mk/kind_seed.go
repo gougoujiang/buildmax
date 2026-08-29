@@ -150,6 +150,22 @@ func seedKindCatalog(target smokeTarget, models []settingsModel, existing map[st
 }
 
 func addKindCatalogModel(target smokeTarget, m settingsModel, name string) (string, error) {
+	output, err := target.admin(kindCatalogModelArgs(m, name)...)
+	if err != nil {
+		return "", fmt.Errorf("add %q to the catalog: %w", name, err)
+	}
+	match := addedModelPattern.FindStringSubmatch(output)
+	if match == nil {
+		return "", fmt.Errorf("add %q to the catalog: the command printed no model ID: %s", name, output)
+	}
+	return match[1], nil
+}
+
+// kindCatalogModelArgs is the `model add` command line for one settings entry.
+// It is separate from running it so a test can hold the flags against the ones
+// the command actually defines: an entry field that stops reaching the catalog
+// is silent, and a flag that no longer exists fails the whole seed.
+func kindCatalogModelArgs(m settingsModel, name string) []string {
 	args := []string{"model", "add", "--name", name, "--model", m.id, "--api-url", kindReachableURL(m.apiURL, name)}
 	// An empty flag is not the same as an absent one here: the add command
 	// defaults --provider to openai_compatible and rejects an empty value, so an
@@ -172,22 +188,32 @@ func addKindCatalogModel(target smokeTarget, m settingsModel, name string) (stri
 	if m.reasoning != "" {
 		args = append(args, "--reasoning", m.reasoning)
 	}
-	if m.promptCache {
-		args = append(args, "--prompt-cache")
+	if m.cacheMode != "" {
+		args = append(args, "--cache-mode", m.cacheMode)
+	}
+	if m.cacheTTL != "" {
+		args = append(args, "--cache-ttl", m.cacheTTL)
+	}
+	// Prices are forwarded whole or not at all. The add command validates them
+	// as a set — rates without a currency price nothing — so half a price list
+	// would be rejected rather than partially applied.
+	if m.pricing.currency != "" {
+		args = append(args, "--currency", m.pricing.currency)
+		for _, p := range []struct{ flag, price string }{
+			{"--input-price", m.pricing.inputPerMTok},
+			{"--cache-read-price", m.pricing.cacheReadPerMTok},
+			{"--cache-write-price", m.pricing.cacheWritePerMTok},
+			{"--output-price", m.pricing.outputPerMTok},
+		} {
+			if p.price != "" {
+				args = append(args, p.flag, p.price)
+			}
+		}
 	}
 	if m.vision {
 		args = append(args, "--vision")
 	}
-
-	output, err := target.admin(args...)
-	if err != nil {
-		return "", fmt.Errorf("add %q to the catalog: %w", name, err)
-	}
-	match := addedModelPattern.FindStringSubmatch(output)
-	if match == nil {
-		return "", fmt.Errorf("add %q to the catalog: the command printed no model ID: %s", name, output)
-	}
-	return match[1], nil
+	return args
 }
 
 // kindReachableURL rewrites an address that means "this machine" into one a pod

@@ -98,8 +98,8 @@ func (l *llmStubLedger) ListLLMCallsByTaskRun(_ context.Context, taskRunID strin
 // llmDenyQuota refuses every team.
 type llmDenyQuota struct{}
 
-func (llmDenyQuota) Check(context.Context, string, int, int) (bool, string) {
-	return false, "quota exceeded: token limit"
+func (llmDenyQuota) Check(context.Context, string, int, int) (bool, string, error) {
+	return false, "quota exceeded: token limit", nil
 }
 
 func llmTestTeamStore() *mock.MockTeamStore {

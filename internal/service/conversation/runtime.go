@@ -9,6 +9,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
+	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
 	"github.com/gougoujiang/buildmax/internal/service/task"
 )
 
@@ -18,8 +19,7 @@ const (
 	// than by import: agent.max_parallel_tools is a local surface setting and
 	// no service package reads config. A Portal turn's read-only tools are
 	// ListTasks and GetTask, so the practical ceiling is well under this.
-	maxParallelTools      = 4
-	internalSystemChannel = "system"
+	maxParallelTools = 4
 )
 
 const systemPromptBase = `You are the user's assistant. You coordinate between the user and background tasks. Reply concisely.
@@ -64,7 +64,7 @@ type turnRunInput struct {
 // run these tools create records it, so the request a worker was given can be
 // compared with what the person actually asked for.
 func buildConversationTools(in turnRunInput, sourceMessageID *string) []llm.Tool {
-	if in.Channel == internalSystemChannel || in.TaskService == nil {
+	if in.Channel == convchannel.ChannelSystem || in.TaskService == nil {
 		return nil
 	}
 	svc := in.TaskService
@@ -150,12 +150,7 @@ func replayMessageFromStore(m coreconv.Message) llm.Message {
 	if m.ToolCallID != nil {
 		toolCallID = *m.ToolCallID
 	}
-	role := m.Role
-	// backward compat: old data stored system-channel messages with role "system"
-	if role == internalSystemChannel {
-		role = "user"
-	}
-	msg := llm.Message{Role: role, Content: m.Content, ToolCallID: toolCallID}
+	msg := llm.Message{Role: m.Role, Content: m.Content, ToolCallID: toolCallID}
 	if m.ToolCallsJSON != nil && *m.ToolCallsJSON != "" {
 		var toolCalls []llm.ToolCall
 		if err := json.Unmarshal([]byte(*m.ToolCallsJSON), &toolCalls); err == nil {

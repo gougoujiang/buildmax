@@ -41,7 +41,7 @@ type WorkflowStepLookup interface {
 
 // QuotaChecker is the narrow quota surface needed by task workflows.
 type QuotaChecker interface {
-	Check(ctx context.Context, teamID string, runsToAdd, tokensToAdd int) (allowed bool, reason string)
+	Check(ctx context.Context, teamID string, runsToAdd, tokensToAdd int) (allowed bool, reason string, err error)
 }
 
 // Service owns task-related application workflows.
@@ -322,7 +322,12 @@ func (s *Service) checkQuota(ctx context.Context, teamID string, tokens int) err
 	if teamID == "" {
 		return nil
 	}
-	allowed, reason := s.QuotaChecker.Check(ctx, teamID, 1, tokens)
+	allowed, reason, err := s.QuotaChecker.Check(ctx, teamID, 1, tokens)
+	if err != nil {
+		// A limit that could not be read is not a limit that passed. Admitting
+		// the run would spend a team's allowance without metering it.
+		return fmt.Errorf("check quota for team %s: %w", teamID, err)
+	}
 	if allowed {
 		return nil
 	}

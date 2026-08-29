@@ -25,6 +25,8 @@ func NewConfiguredPolicy(res config.PermissionResolution, fallback agent.ToolPol
 		if fallback != nil {
 			return fallback
 		}
+		// No rules and no surface baseline. Allowing is the floor a caller that
+		// named nothing gets; a surface that wants less passes its own.
 		return agent.AllowAllPolicy()
 	}
 	return configuredPolicy{res: res, fallback: fallback}

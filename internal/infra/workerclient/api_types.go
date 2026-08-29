@@ -107,7 +107,6 @@ type PatchTaskRunRequest struct {
 
 // ArtifactPayload is the artifact field in PATCH when status is SUCCEEDED (run output files).
 type ArtifactPayload struct {
-	RelativePath  string   `json:"relative_path,omitempty"`  // deprecated: use relative_paths
 	RelativePaths []string `json:"relative_paths,omitempty"` // all files in the run output (e.g. result.md)
 }
 

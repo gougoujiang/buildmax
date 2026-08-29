@@ -96,8 +96,16 @@ func TestParseSettingsModelsReadsEveryCatalogField(t *testing.T) {
     call_timeout: 300
     max_tokens: 8192
     reasoning: medium
-    prompt_cache: true
     vision: true
+    cache_control:
+      mode: force
+      ttl: 1h
+    pricing:
+      currency: USD
+      input_per_mtok: "3"
+      cache_read_per_mtok: "0.3"
+      cache_write_per_mtok: "3.75"
+      output_per_mtok: "15"
 
   - model: default
     name: Team Default
@@ -114,12 +122,58 @@ func TestParseSettingsModelsReadsEveryCatalogField(t *testing.T) {
 		id: "anthropic/claude-sonnet-5", name: "Claude Sonnet 5", provider: "anthropic",
 		apiURL: "https://api.anthropic.com", apiKey: "sk-test",
 		contextWindow: 1000000, callTimeout: 300, maxTokens: 8192,
-		reasoning: "medium", promptCache: true, vision: true,
+		reasoning: "medium", vision: true,
+		cacheMode: "force", cacheTTL: "1h",
+		pricing: settingsPricing{
+			currency: "USD", inputPerMTok: "3", cacheReadPerMTok: "0.3",
+			cacheWritePerMTok: "3.75", outputPerMTok: "15",
+		},
 	}
 	if got != want {
 		t.Errorf("parsed %+v, want %+v", got, want)
 	}
 	if !models[1].isManaged() {
 		t.Error("a transport: buildmax entry did not parse as managed")
+	}
+}
+
+// Seeding is the only path that turns a settings.local.yaml entry into a
+// catalog row, so a field it forgets is a difference between what a
+// contributor runs locally and what the kind deployment answers with.
+func TestKindCatalogModelArgsCarryEveryConfiguredField(t *testing.T) {
+	m := settingsModel{
+		id: "anthropic/claude-sonnet-5", provider: "anthropic",
+		apiURL: "https://api.anthropic.com", apiKey: "sk-test",
+		contextWindow: 1000000, callTimeout: 300, maxTokens: 8192,
+		reasoning: "medium", vision: true,
+		cacheMode: "force", cacheTTL: "1h",
+		pricing: settingsPricing{
+			currency: "USD", inputPerMTok: "3", cacheReadPerMTok: "0.3",
+			cacheWritePerMTok: "3.75", outputPerMTok: "15",
+		},
+	}
+	args := kindCatalogModelArgs(m, "Claude Sonnet 5")
+	line := strings.Join(args, " ")
+	for _, want := range []string{
+		"--name Claude Sonnet 5", "--model anthropic/claude-sonnet-5",
+		"--api-url https://api.anthropic.com", "--provider anthropic",
+		"--api-key sk-test", "--context-window 1000000", "--call-timeout 300",
+		"--max-tokens 8192", "--reasoning medium", "--cache-mode force",
+		"--cache-ttl 1h", "--currency USD", "--input-price 3",
+		"--cache-read-price 0.3", "--cache-write-price 3.75",
+		"--output-price 15", "--vision",
+	} {
+		if !strings.Contains(line, want) {
+			t.Errorf("model add command is missing %q: %s", want, line)
+		}
+	}
+}
+
+// A price list is validated as a set, so a currency-less one must not reach the
+// command as loose rates it will reject.
+func TestKindCatalogModelArgsSkipPricesWithoutACurrency(t *testing.T) {
+	m := settingsModel{id: "x", pricing: settingsPricing{inputPerMTok: "3"}}
+	if line := strings.Join(kindCatalogModelArgs(m, "X"), " "); strings.Contains(line, "--input-price") {
+		t.Errorf("a price list with no currency was forwarded: %s", line)
 	}
 }

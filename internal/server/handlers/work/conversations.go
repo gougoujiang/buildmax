@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/server/turnqueue"
@@ -225,7 +226,16 @@ func (h *Handler) createConversationHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	if req.Channel == "" {
-		req.Channel = "portal"
+		req.Channel = convchannel.ChannelPortal
+	}
+	// The synthetic channels — workflow, issue_agent, system — mark a
+	// conversation the server made that nobody holds. A caller that could name
+	// one would get a conversation the Portal renders as agent-owned and the
+	// transcript hides, so the accepted set is the transport list alone.
+	if !convchannel.ValidChannel(req.Channel) {
+		httputil.WriteJSONError(w, http.StatusBadRequest,
+			"unknown channel "+req.Channel+": use one of "+strings.Join(convchannel.ValidChannels(), ", "))
+		return
 	}
 	conv, err := h.cfg.Conversations.CreateConversationInTeam(r.Context(), teamID, userID, req.Channel, userID)
 	if err != nil {

@@ -222,8 +222,8 @@ func TestWorkerLLMCompletions(t *testing.T) {
 // workerDenyQuota refuses every team.
 type workerDenyQuota struct{}
 
-func (workerDenyQuota) Check(context.Context, string, int, int) (bool, string) {
-	return false, "quota exceeded: token limit"
+func (workerDenyQuota) Check(context.Context, string, int, int) (bool, string, error) {
+	return false, "quota exceeded: token limit", nil
 }
 
 // TestWorkerLLMCompletionRespectsQuota is where quota is enforced now that a

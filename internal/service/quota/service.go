@@ -2,6 +2,7 @@ package quota
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
@@ -43,12 +44,14 @@ func (c *Service) now() time.Time {
 	return time.Now()
 }
 
-// GetUsage returns the current team's usage and tier info in the same rolling window used by Check.
-// When team or tier is not found, returns usage for a default 30-day window with limits nil.
+// GetUsage returns the current team's usage and tier info in the same rolling
+// window used by Check. When team or tier is not found, returns usage for a
+// default 30-day window with limits nil; a read that fails is an error, because
+// a zeroed snapshot reads as "this team has used nothing".
 func (c *Service) GetUsage(ctx context.Context, teamID string) (*UsageInfo, error) {
 	team, err := c.TeamStore.GetTeam(ctx, teamID)
 	if err != nil {
-		return &UsageInfo{}, nil
+		return nil, fmt.Errorf("read team %s: %w", teamID, err)
 	}
 	if team == nil {
 		return &UsageInfo{}, nil
@@ -62,14 +65,14 @@ func (c *Service) GetUsage(ctx context.Context, teamID string) (*UsageInfo, erro
 	// Resolve tier limits; if not found, still return usage for default window with limits nil
 	tier, err := c.TierStore.GetQuotaTier(ctx, tierName)
 	if err != nil {
-		return &UsageInfo{}, err
+		return nil, fmt.Errorf("read quota tier %s: %w", tierName, err)
 	}
 	if tier == nil {
 		periodDays := defaultUsagePeriodDays
 		since := now.Add(-time.Duration(periodDays) * 24 * time.Hour)
 		runCount, totalTokens, err := c.UsageReader.TeamUsageInWindow(ctx, teamID, since, now)
 		if err != nil {
-			return &UsageInfo{}, err
+			return nil, fmt.Errorf("read team %s usage: %w", teamID, err)
 		}
 		return &UsageInfo{
 			RunCount:    runCount,
@@ -82,7 +85,7 @@ func (c *Service) GetUsage(ctx context.Context, teamID string) (*UsageInfo, erro
 	since := now.Add(-time.Duration(tier.PeriodDays) * 24 * time.Hour)
 	runCount, totalTokens, err := c.UsageReader.TeamUsageInWindow(ctx, teamID, since, now)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read team %s usage: %w", teamID, err)
 	}
 	maxRuns := tier.MaxRunsPerPeriod
 	maxTokens := tier.MaxTokensPerPeriod
@@ -96,36 +99,49 @@ func (c *Service) GetUsage(ctx context.Context, teamID string) (*UsageInfo, erro
 	}, nil
 }
 
-// Check returns whether the team is allowed to add addRuns and addTokens. If not allowed, reason is the 429 message.
-func (c *Service) Check(ctx context.Context, teamID string, addRuns, addTokens int) (allowed bool, reason string) {
+// Check returns whether the team is allowed to add addRuns and addTokens. If not
+// allowed, reason is the 429 message.
+//
+// A configured limit that cannot be read is an error, not an allowance. The two
+// look the same to a caller that only asks "allowed?", and answering yes means a
+// deployment whose database is unreachable serves unmetered work and records
+// nothing about having done so. Absence of a limit still means no limit: a team
+// with no record, no tier, or a tier that names nothing is admitted.
+func (c *Service) Check(ctx context.Context, teamID string, addRuns, addTokens int) (allowed bool, reason string, err error) {
 	team, err := c.TeamStore.GetTeam(ctx, teamID)
-	if err != nil || team == nil {
-		return true, "" // backward compatibility: no team or error => allow
+	if err != nil {
+		return false, "", fmt.Errorf("read team %s: %w", teamID, err)
+	}
+	if team == nil {
+		return true, "", nil // no team => no tier => no limit
 	}
 	tierName := team.QuotaTier
 	if tierName == "" {
 		tierName = c.DefaultTier
 	}
 	if tierName == "" {
-		return true, "" // no tier => allow
+		return true, "", nil // no tier => allow
 	}
 	tier, err := c.TierStore.GetQuotaTier(ctx, tierName)
-	if err != nil || tier == nil {
-		return true, "" // unknown tier => allow (no limit)
+	if err != nil {
+		return false, "", fmt.Errorf("read quota tier %s: %w", tierName, err)
+	}
+	if tier == nil {
+		return true, "", nil // the tier names nothing => no limit
 	}
 	now := c.now().UTC()
 	since := now.Add(-time.Duration(tier.PeriodDays) * 24 * time.Hour)
 	runCount, totalTokens, err := c.UsageReader.TeamUsageInWindow(ctx, teamID, since, now)
 	if err != nil {
-		return true, "" // aggregation error => allow to avoid blocking
+		return false, "", fmt.Errorf("read team %s usage: %w", teamID, err)
 	}
 	if runCount+addRuns > tier.MaxRunsPerPeriod {
 		c.noteUsage(ctx, teamID, limitRuns, runCount, tier.MaxRunsPerPeriod, since, true)
-		return false, "quota exceeded: run limit"
+		return false, "quota exceeded: run limit", nil
 	}
 	if totalTokens+addTokens > tier.MaxTokensPerPeriod {
 		c.noteUsage(ctx, teamID, limitTokens, totalTokens, tier.MaxTokensPerPeriod, since, true)
-		return false, "quota exceeded: token limit"
+		return false, "quota exceeded: token limit", nil
 	}
 
 	// Warn on the way past the threshold, on an admission that was allowed.
@@ -133,7 +149,7 @@ func (c *Service) Check(ctx context.Context, teamID string, addRuns, addTokens i
 	// window with no period boundary for a sweep to notice it at.
 	c.warnIfNear(ctx, teamID, limitRuns, runCount+addRuns, tier.MaxRunsPerPeriod, since)
 	c.warnIfNear(ctx, teamID, limitTokens, totalTokens+addTokens, tier.MaxTokensPerPeriod, since)
-	return true, ""
+	return true, "", nil
 }
 
 // warnIfNear records a threshold crossing, and does nothing below it.
