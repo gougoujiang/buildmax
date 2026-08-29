@@ -12,7 +12,8 @@ import (
 //
 // Unlike StaticCatalog it can change while the server runs, which is why the
 // router compares a target's connection details before reusing a cached client
-// and why a dangling alias is a call-time failure rather than a startup one.
+// and why a name that no longer resolves is a call-time failure rather than a
+// startup one.
 type StoreCatalog struct {
 	Models coregw.ModelStore
 }
