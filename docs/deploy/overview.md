@@ -15,6 +15,10 @@ To see it working before reading any of this, use the
 [Compose smoke](compose.md) for the fast local-process path or the
 [kind smoke](local-kind.md) for the Kubernetes Job path.
 
+Those development checks do not qualify a release for production use. To test
+a pinned candidate against external dependencies, failure cases, restore, and
+rollback, use the [Beta readiness record](beta-readiness.md).
+
 ## Topology
 
 ```text

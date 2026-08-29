@@ -37,6 +37,7 @@ Organized by what you are trying to do.
 | [deploy/overview.md](deploy/overview.md) | Topology, requirements, configuration, containers |
 | [deploy/authentication.md](deploy/authentication.md) | **Read before exposing a server** — accounts, login codes, what is missing |
 | [deploy/local-kind.md](deploy/local-kind.md) | One-command local cluster and Kubernetes Job smoke |
+| [deploy/beta-readiness.md](deploy/beta-readiness.md) | Qualify a pinned private-deployment candidate and record the evidence |
 
 ## Look It Up
 
