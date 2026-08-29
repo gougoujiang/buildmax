@@ -650,7 +650,7 @@ suggestion on a later turn — they are written for you and thrown away.
 The call is skipped on turns that could not produce anything: a turn that ran
 no tools and answered briefly gets no recap, and a turn that ended without
 asking you anything gets no suggestion. What it does spend counts towards the
-session's usage — `/stats` in the TUI, the status bar in Desktop. Set either key to `false` to switch that half off, or both
+session's usage — `/info` in the TUI, the status bar in Desktop. Set either key to `false` to switch that half off, or both
 to make the turn end with no extra call at all.
 
 ## `server.yaml` — Server and Worker

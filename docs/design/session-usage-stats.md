@@ -4,6 +4,14 @@
 > statistics on the CLI and in the TUI, and the metering fixes they required,
 > are shipped; cross-session aggregation is designed and not built
 >
+> The surfaces this record calls `buildmax stats` and `/stats` are now
+> `buildmax info` and the `session` tab of `/info`. They gained a second half —
+> what the session's Project remembers — which is a different scope with a
+> different lifetime, so it is a tab beside these figures rather than folded
+> into them. Everything below about what may be claimed of the numbers is
+> unchanged; see
+> [local project memory](local-project-memory.md) for the other tab.
+>
 > Related: [durable run trace](durable-run-trace.md),
 > [prompt cache control](prompt-cache-control.md) §6,
 > [local session storage](local-session-storage.md),
@@ -37,8 +45,8 @@ Two of those records were also wrong, in the same direction. See §3.
 ## 2. Decision
 
 A **stats** view: a read-only fold over what sessions and traces already
-record, per session, on the local surfaces — `buildmax stats` and a TUI
-`/stats` overlay.
+record, per session, on the local surfaces — `buildmax info` and the session
+tab of the TUI `/info` overlay.
 
 Stats is a reader. It introduces no durable state that is not a rebuildable
 projection and does not change how a run executes. Where it needed a number
@@ -137,8 +145,8 @@ to miss.
   and is the only layer that may; `internal/service/*` is server-domain and is
   the wrong home. The architecture test enforces the direction — core may not
   import infra — so the combiner cannot drift downward.
-- `interface/cli` renders twice: `buildmax stats [session-id]` with `--json`,
-  and the `/stats` TUI overlay. The two layouts are separate on purpose — a
+- `interface/cli` renders twice: `buildmax info [session-id]` with `--json`,
+  and the `/info` TUI overlay. The two layouts are separate on purpose — a
   boxed overlay a few dozen columns wide and a full terminal want different
   shapes — but the data and the caveat list are shared, because what a surface
   is allowed to claim is one answer and a warning that appeared on only one of

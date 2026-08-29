@@ -6,14 +6,19 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"text/tabwriter"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gougoujiang/buildmax/internal/agentapp"
 	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/gougoujiang/buildmax/internal/core/agent"
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/gougoujiang/buildmax/internal/core/session"
+	"github.com/gougoujiang/buildmax/internal/infra/localprojectstore"
 	"github.com/gougoujiang/buildmax/internal/util"
 
 	"github.com/spf13/cobra"
@@ -24,18 +29,23 @@ import (
 // something a person can take in.
 const maxStatsTools = 12
 
-func newStatsCommand() *cobra.Command {
+func newInfoCommand() *cobra.Command {
 	c := &cobra.Command{
-		Use:   "stats [session-id]",
-		Short: "Show what a session spent, what it did, and where its context went",
-		Long: `Show one session's statistics.
+		Use:   "info [session-id]",
+		Short: "Show what a session spent and did, and what its project remembers",
+		Long: `Show one session's statistics and the memories of the project it belongs to.
 
 With no argument, the most recent session by creation time is used.
 
 Tokens and cost come from the session file, which accumulated them turn by turn
 at the rates in force for each. Timings, per-tool detail, and the delegated
 breakdown come from the session's run traces; where no trace was written, those
-lines say so rather than reporting zero.`,
+lines say so rather than reporting zero.
+
+The memories are the project's, not the session's: every session of that project
+sees them. This lists each one's name and description, which is what a run
+carries on every model call; read a body by opening its file at the path printed
+below, or in the TUI with ` + "`/info`" + `.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var id string
@@ -43,20 +53,61 @@ lines say so rather than reporting zero.`,
 				id = args[0]
 			}
 			asJSON, _ := cmd.Flags().GetBool("json")
-			return runStats(os.Stdout, id, asJSON)
+			return runInfo(cmd.Context(), os.Stdout, id, asJSON)
 		},
 	}
-	c.Flags().Bool("json", false, "emit the statistics as JSON instead of a table")
+	c.Flags().Bool("json", false, "emit the report as JSON instead of a table")
 	return c
 }
 
-func runStats(w io.Writer, id string, asJSON bool) error {
+// sessionInfo is what `buildmax info` reports: one session's statistics, and
+// the memories of the project that session belongs to.
+//
+// The two are separate fields rather than a merged object because they have
+// different lifetimes and different owners. The statistics are this session's
+// and end with it; the memories outlive it and are shared by every session of
+// the project.
+type sessionInfo struct {
+	Stats  agentapp.SessionStats `json:"stats"`
+	Memory *memoryInfoReport     `json:"project_memory,omitempty"`
+}
+
+// memoryInfoReport is the JSON shape of the memory half. Bodies are deliberately
+// absent: this is a listing, and a listing that inlined twenty bodies would be
+// unreadable in a terminal and a surprise in a pipe. The path is printed so a
+// reader can open one.
+type memoryInfoReport struct {
+	ProjectID   string              `json:"project_id"`
+	ProjectName string              `json:"project_name"`
+	Directory   string              `json:"directory"`
+	IndexChars  int                 `json:"index_chars"`
+	IndexBudget int                 `json:"index_budget"`
+	Unavailable string              `json:"unavailable,omitempty"`
+	Memories    []memoryInfoEntry   `json:"memories"`
+	Skipped     []memoryInfoSkipped `json:"skipped,omitempty"`
+}
+
+type memoryInfoEntry struct {
+	Name        string `json:"name"`
+	Type        string `json:"type"`
+	Description string `json:"description"`
+	UpdatedAt   string `json:"updated_at,omitempty"`
+	VerifiedAt  string `json:"verified_at,omitempty"`
+	Chars       int    `json:"chars"`
+}
+
+type memoryInfoSkipped struct {
+	File   string `json:"file"`
+	Reason string `json:"reason"`
+}
+
+func runInfo(ctx context.Context, w io.Writer, id string, asJSON bool) error {
 	sessionsDir := config.SessionsDir()
 	if id == "" {
 		// Scoped like --continue, and for the same reason: "the last session"
 		// asked from inside a repository means the last one here, not whichever
 		// repository was touched most recently on this machine.
-		project, err := currentProject(context.Background(), "")
+		project, err := currentProject(ctx, "")
 		if err != nil {
 			return fmt.Errorf("resolve project: %w", err)
 		}
@@ -75,14 +126,101 @@ func runStats(w io.Writer, id string, asJSON bool) error {
 	if err != nil {
 		return err
 	}
+	report := sessionInfo{Stats: stats, Memory: memoryReportFor(ctx, sessionsDir, id)}
 	if asJSON {
 		enc := json.NewEncoder(w)
 		enc.SetEscapeHTML(false)
 		enc.SetIndent("", "  ")
-		return enc.Encode(stats)
+		return enc.Encode(report)
 	}
 	writeStats(w, stats)
+	writeMemoryReport(w, report.Memory)
 	return nil
+}
+
+// memoryReportFor loads the memories of the project the named session belongs
+// to, or nil when it belongs to none -- a session written before Projects
+// existed, or by a worker. Nothing is inferred from the session's directory:
+// that is the path coincidence the Project id replaced.
+func memoryReportFor(ctx context.Context, sessionsDir, sessionID string) *memoryInfoReport {
+	loaded, err := agentapp.NewSessionManager(sessionsDir).Load(sessionID, session.LoadMetaOnly)
+	if err != nil || loaded.Meta.ProjectID == "" {
+		return nil
+	}
+	manager := agentapp.NewProjectManager(config.ProjectsDir())
+	project, err := manager.Store().Get(ctx, loaded.Meta.ProjectID)
+	if err != nil {
+		return &memoryInfoReport{
+			ProjectID:   loaded.Meta.ProjectID,
+			Unavailable: err.Error(),
+			IndexBudget: agent.MaxMemoryIndexChars,
+			Memories:    []memoryInfoEntry{},
+		}
+	}
+	overview := manager.MemoryOverviewFor(ctx, project)
+
+	report := &memoryInfoReport{
+		ProjectID:   project.ID,
+		ProjectName: project.Name,
+		Directory: filepath.Join(config.ProjectsDir(), project.ID,
+			localprojectstore.MemoryDir),
+		IndexChars:  overview.IndexChars,
+		IndexBudget: overview.IndexBudget,
+		Unavailable: overview.Unavailable,
+		Memories:    make([]memoryInfoEntry, 0, len(overview.Memories)),
+	}
+	for _, m := range overview.Memories {
+		entry := memoryInfoEntry{
+			Name:        m.Name,
+			Type:        string(m.Type),
+			Description: m.Description,
+			Chars:       utf8.RuneCountInString(m.Body),
+		}
+		if !m.UpdatedAt.IsZero() {
+			entry.UpdatedAt = m.UpdatedAt.Format(time.RFC3339)
+		}
+		if m.VerifiedAt != nil {
+			entry.VerifiedAt = m.VerifiedAt.Format("2006-01-02")
+		}
+		report.Memories = append(report.Memories, entry)
+	}
+	for _, s := range overview.Skipped {
+		report.Skipped = append(report.Skipped, memoryInfoSkipped{File: s.File, Reason: s.Reason})
+	}
+	return report
+}
+
+// writeMemoryReport prints the memory half. A session with no Project prints
+// nothing rather than an empty heading: it has no memories to be missing.
+func writeMemoryReport(w io.Writer, r *memoryInfoReport) {
+	if r == nil {
+		return
+	}
+	fmt.Fprintf(w, "\nProject memory — %s\n", r.ProjectName)
+	if r.Unavailable != "" {
+		fmt.Fprintf(w, "  cannot be read: %s\n", r.Unavailable)
+		return
+	}
+	fmt.Fprintf(w, "  %s, index %d/%d characters sent on every call\n",
+		countLabelPlural(len(r.Memories), "memory", "memories"), r.IndexChars, r.IndexBudget)
+	if r.Directory != "" {
+		fmt.Fprintf(w, "  %s\n", r.Directory)
+	}
+	if len(r.Memories) > 0 {
+		fmt.Fprintln(w)
+		tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+		for _, m := range r.Memories {
+			verified := ""
+			if m.VerifiedAt != "" {
+				verified = " · verified " + m.VerifiedAt
+			}
+			fmt.Fprintf(tw, "  %s\t%s\t%s%s\n", m.Name, m.Type, m.Description, verified)
+		}
+		_ = tw.Flush()
+	}
+	for _, s := range r.Skipped {
+		fmt.Fprintf(w, "  ! %s is skipped and never loaded: %s\n", s.File, s.Reason)
+	}
 }
 
 func writeStats(w io.Writer, s agentapp.SessionStats) {

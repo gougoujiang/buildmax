@@ -61,7 +61,7 @@ func TestSlashPanelsFitTerminalHeight(t *testing.T) {
 	}
 
 	for _, height := range []int{16, 20, 24, 30, 40} {
-		for _, cmd := range []string{"/model", "/tools", "/skills", "/mcp", "/sessions", "/stats", "/tasks", "/diff"} {
+		for _, cmd := range []string{"/model", "/tools", "/skills", "/mcp", "/sessions", "/info", "/tasks", "/diff"} {
 			t.Run(fmt.Sprintf("%s_h%d", strings.TrimPrefix(cmd, "/"), height), func(t *testing.T) {
 				m := NewModel(TUIOpts{
 					App:         app,

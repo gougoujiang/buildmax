@@ -269,3 +269,66 @@ func (a *AgentApp) memoryIndexSourceInfo() []agent.MemorySourceInfo {
 		Chars:   utf8.RuneCountInString(agent.RenderMemoryIndex(index)),
 	}}
 }
+
+// MemoryOverview is what a surface shows a person about a Project's memories:
+// the store as it stands, plus why it might be empty.
+//
+// It carries bodies. That is the difference between this and what the model
+// sees — a person asking to look at their own memories is not paying a
+// per-call context cost, and the whole reason the model gets an index is that
+// it does. Surfaces still show bodies on request rather than all at once,
+// because a list of twenty full bodies is not a list.
+type MemoryOverview struct {
+	// Project is the scope these belong to. Its ID is empty when this run has
+	// none, which is one of the reasons Memories can be empty.
+	Project localproject.Project
+	// Disabled reports that the user turned memory off for this run. The
+	// memories below still exist; this run is simply not carrying them.
+	Disabled bool
+	// Unavailable is set when the store could not be read at all.
+	Unavailable string
+	Memories    []localproject.Memory
+	Skipped     []localproject.SkippedMemory
+	// IndexChars is what the rendered index costs on every model call, and
+	// IndexBudget what it may cost. A person deciding whether to prune is
+	// deciding against this pair, not against the count.
+	IndexChars  int
+	IndexBudget int
+}
+
+// MemoryOverviewFor returns the overview for a Project. It is on the manager
+// rather than on AgentApp so a command with no runtime -- `buildmax info` for a
+// session that is not open -- can ask the same question the TUI panel asks.
+func (m *ProjectManager) MemoryOverviewFor(ctx context.Context, project localproject.Project) MemoryOverview {
+	overview := MemoryOverview{Project: project, IndexBudget: agent.MaxMemoryIndexChars}
+	if project.ID == "" {
+		return overview
+	}
+	set, err := m.store.Memories(ctx, project.ID)
+	if err != nil {
+		overview.Unavailable = err.Error()
+		return overview
+	}
+	overview.Memories = set.Memories
+	overview.Skipped = set.Skipped
+
+	index := agent.MemoryIndex{ScopeID: project.ID}
+	for _, mem := range set.Memories {
+		index.Entries = append(index.Entries, agent.MemoryIndexEntry{Name: mem.Name, Description: mem.Description})
+	}
+	overview.IndexChars = utf8.RuneCountInString(agent.RenderMemoryIndex(index))
+	return overview
+}
+
+// MemoryOverview is this run's view of its own Project memories.
+func (a *AgentApp) MemoryOverview() MemoryOverview {
+	if a == nil || a.projects == nil {
+		return MemoryOverview{IndexBudget: agent.MaxMemoryIndexChars}
+	}
+	overview := a.projects.MemoryOverviewFor(context.Background(), a.project)
+	overview.Disabled = a.memoryDisabled
+	if a.memoryUnavailable != "" {
+		overview.Unavailable = a.memoryUnavailable
+	}
+	return overview
+}
