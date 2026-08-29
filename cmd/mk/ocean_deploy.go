@@ -17,6 +17,7 @@ import (
 
 const (
 	oceanManifestTemplate = "deployment/ocean/buildmax.yaml.tmpl"
+	oceanNamespace        = "buildmax"
 
 	// These are the immutable multi-platform release manifests, not mutable
 	// tags. A later candidate is selected explicitly through the matching env
@@ -248,6 +249,11 @@ worker:
       memory_request: 1Gi
       memory_limit: 2Gi
 `, yamlString("https://"+app.hostname), yamlString(outputs["database_private_host"]), outputs["database_port"], yamlString(outputs["database_user"]), yamlString(outputs["database_name"]), yamlString(outputs["spaces_endpoint"]), yamlString(cfg.region), yamlString(outputs["spaces_bucket_name"]), yamlString(app.buildmaxImage))
+	if target, err := os.ReadFile(oceanModelTargetPath(cfg)); err == nil {
+		serverConfig += fmt.Sprintf("\nconversation:\n  model_target: %s\n", yamlString(strings.TrimSpace(string(target))))
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return "", "", nil, fmt.Errorf("read Ocean conversation model target: %w", err)
+	}
 
 	return serverConfig, outputs["database_ca"], map[string]string{
 		"BUILDMAX_JWT_SECRET":               jwtSecret,
@@ -370,15 +376,39 @@ func oceanAppStatus(cfg oceanConfig) error {
 	if !exists(oceanKubeconfigPath(cfg)) {
 		return fmt.Errorf("ocean kubeconfig does not exist; run `%s ocean up` first", mk())
 	}
-	if err := oceanKubectl(cfg, "get", "pods,services", "-n", "buildmax", "-o", "wide"); err != nil {
+	if err := oceanKubectl(cfg, "get", "pods,services", "-n", oceanNamespace, "-o", "wide"); err != nil {
 		return err
 	}
 	fmt.Println()
 	return oceanPrintLoadBalancer(cfg)
 }
 
+func oceanShow(cfg oceanConfig, args []string) error {
+	kubectlArgs, err := oceanShowKubectlArgs(args)
+	if err != nil {
+		return err
+	}
+	if !exists(oceanKubeconfigPath(cfg)) {
+		return fmt.Errorf("ocean kubeconfig does not exist; run `%s ocean up` first", mk())
+	}
+	return oceanKubectl(cfg, kubectlArgs...)
+}
+
+func oceanShowKubectlArgs(args []string) ([]string, error) {
+	if len(args) == 0 {
+		return nil, usageErrorf("ocean", "ocean show needs a resource")
+	}
+	if len(args) > 1 {
+		return nil, usageErrorf("ocean", "ocean show takes exactly one resource")
+	}
+	if args[0] != "all" {
+		return nil, usageErrorf("ocean", "unknown ocean show resource: %s", args[0])
+	}
+	return []string{"get", "all", "--namespace", oceanNamespace, "--output", "wide"}, nil
+}
+
 func oceanPrintLoadBalancer(cfg oceanConfig) error {
-	address, err := oceanKubectlOutput(cfg, "get", "service", "buildmax-edge", "-n", "buildmax", "-o", `jsonpath={.status.loadBalancer.ingress[0].ip}`)
+	address, err := oceanKubectlOutput(cfg, "get", "service", "buildmax-edge", "-n", oceanNamespace, "-o", `jsonpath={.status.loadBalancer.ingress[0].ip}`)
 	if err != nil {
 		return err
 	}

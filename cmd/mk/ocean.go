@@ -26,7 +26,7 @@ func cmdOcean(args []string) error {
 	if len(args) == 0 {
 		return usageErrorf("ocean", "ocean needs an action")
 	}
-	if len(args) > 1 {
+	if args[0] != "show" && args[0] != "model" && args[0] != "database" && args[0] != "info" && len(args) > 1 {
 		return usageErrorf("ocean", "ocean takes exactly one action")
 	}
 
@@ -44,9 +44,15 @@ func cmdOcean(args []string) error {
 	case "deploy":
 		return oceanDeploy(cfg)
 	case "info":
-		return oceanInfo(cfg)
+		return oceanInfo(cfg, args[1:])
 	case "app-status":
 		return oceanAppStatus(cfg)
+	case "show":
+		return oceanShow(cfg, args[1:])
+	case "model":
+		return oceanModel(cfg, args[1:])
+	case "database":
+		return oceanDatabase(cfg, args[1:])
 	case "status":
 		return oceanStatus(cfg)
 	case "down":
@@ -173,7 +179,11 @@ func oceanUp(cfg oceanConfig) error {
 	return nil
 }
 
-func oceanInfo(cfg oceanConfig) error {
+func oceanInfo(cfg oceanConfig, args []string) error {
+	showSecrets, err := oceanInfoShowsSecrets(args)
+	if err != nil {
+		return err
+	}
 	if !exists(oceanStatePath(cfg)) {
 		fmt.Printf("No ocean state exists at %s. Run `%s ocean up` first.\n", oceanStatePath(cfg), mk())
 		return nil
@@ -203,8 +213,40 @@ func oceanInfo(cfg oceanConfig) error {
 		fmt.Printf("  %-20s %s\n", output.label, value)
 	}
 	fmt.Printf("  %-20s %s\n", "Kubeconfig", oceanKubeconfigPath(cfg))
-	fmt.Println("\nDatabase password and kubeconfig contents are intentionally not printed.")
+	if !showSecrets {
+		fmt.Printf("\nDatabase credentials are hidden. Run `%s ocean info --show-secrets` to print them.\n", mk())
+		fmt.Println("Kubeconfig contents are intentionally not printed.")
+		return nil
+	}
+	for _, output := range []struct {
+		label string
+		name  string
+	}{
+		{"MySQL user", "database_user"},
+		{"MySQL password", "database_password"},
+	} {
+		value, err := oceanOutput(cfg, output.name)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("  %-20s %s\n", output.label, value)
+	}
+	fmt.Println("\nWarning: the values above grant database access. Do not paste or commit this output.")
+	fmt.Println("Kubeconfig contents are intentionally not printed.")
 	return nil
+}
+
+func oceanInfoShowsSecrets(args []string) (bool, error) {
+	switch {
+	case len(args) == 0:
+		return false, nil
+	case len(args) == 1 && args[0] == "--show-secrets":
+		return true, nil
+	case len(args) > 1:
+		return false, usageErrorf("ocean", "ocean info takes at most one flag")
+	default:
+		return false, usageErrorf("ocean", "unknown ocean info flag: %s", args[0])
+	}
 }
 
 func oceanStatus(cfg oceanConfig) error {
@@ -240,6 +282,9 @@ func oceanDown(cfg oceanConfig) error {
 	}
 	if err := os.Remove(oceanKubeconfigPath(cfg)); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("remove expired ocean kubeconfig: %w", err)
+	}
+	if err := os.Remove(oceanModelTargetPath(cfg)); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("remove expired ocean model target: %w", err)
 	}
 	if err := protectOceanFiles(cfg); err != nil {
 		return fmt.Errorf("protect ocean files: %w", err)
@@ -337,6 +382,8 @@ func protectOceanFiles(cfg oceanConfig) error {
 		oceanStatePath(cfg),
 		oceanStatePath(cfg) + ".backup",
 		oceanKubeconfigPath(cfg),
+		oceanModelTargetPath(cfg),
+		oceanDatabaseCAPath(cfg),
 		oceanPlanPath(cfg, false),
 		oceanPlanPath(cfg, true),
 	} {

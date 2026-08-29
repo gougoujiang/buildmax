@@ -183,6 +183,76 @@ func TestOceanManifestUsesOnlyPinnedImages(t *testing.T) {
 	}
 }
 
+func TestOceanShowAllUsesBuildMaxNamespace(t *testing.T) {
+	got, err := oceanShowKubectlArgs([]string{"all"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"get", "all", "--namespace", "buildmax", "--output", "wide"}
+	if strings.Join(got, " ") != strings.Join(want, " ") {
+		t.Fatalf("kubectl args = %q, want %q", got, want)
+	}
+}
+
+func TestOceanShowRejectsMissingExtraAndUnknownResources(t *testing.T) {
+	for _, args := range [][]string{nil, {"all", "extra"}, {"secrets"}} {
+		if _, err := oceanShowKubectlArgs(args); err == nil {
+			t.Errorf("oceanShowKubectlArgs(%q) succeeded", args)
+		}
+	}
+}
+
+func TestOceanInfoRequiresExplicitSecretsFlag(t *testing.T) {
+	if show, err := oceanInfoShowsSecrets(nil); err != nil || show {
+		t.Fatalf("no flag = (%v, %v), want (false, nil)", show, err)
+	}
+	if show, err := oceanInfoShowsSecrets([]string{"--show-secrets"}); err != nil || !show {
+		t.Fatalf("show flag = (%v, %v), want (true, nil)", show, err)
+	}
+	if _, err := oceanInfoShowsSecrets([]string{"--bad"}); err == nil {
+		t.Fatal("unknown info flag succeeded")
+	}
+}
+
+func TestOceanModelDefaultsToOpenRouterBaseline(t *testing.T) {
+	t.Setenv("OPENROUTER_API_KEY", "secret-key")
+	for _, name := range []string{
+		"BUILDMAX_OCEAN_MODEL_NAME",
+		"BUILDMAX_OCEAN_MODEL_PROVIDER",
+		"BUILDMAX_OCEAN_MODEL_API_URL",
+		"BUILDMAX_OCEAN_MODEL_ID",
+		"BUILDMAX_OCEAN_MODEL_CONTEXT_WINDOW",
+	} {
+		t.Setenv(name, "")
+	}
+	model, err := loadOceanModelConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if model.name != "GPT-5.6 Luna" || model.provider != "openai" || model.model != "openai/gpt-5.6-luna" || model.contextWindow != 1050000 {
+		t.Fatalf("model defaults = %#v", model)
+	}
+}
+
+func TestOceanModelCommandDoesNotContainAPIKey(t *testing.T) {
+	model := oceanModelConfig{apiKey: "must-not-appear"}
+	args := oceanAddModelCommand(oceanConfig{stateDir: t.TempDir()}, model, "read-key-from-stdin")
+	if strings.Contains(strings.Join(args, " "), model.apiKey) {
+		t.Fatal("kubectl command line contains the model API key")
+	}
+}
+
+func TestOceanDatabaseForwardUsesNonstandardLocalPort(t *testing.T) {
+	t.Setenv("BUILDMAX_OCEAN_DATABASE_LOCAL_PORT", "")
+	port, err := oceanDatabaseLocalPort()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if port != 13306 {
+		t.Fatalf("local database port = %d, want 13306", port)
+	}
+}
+
 func pathHasSuffix(path, suffix string) bool {
 	return strings.HasSuffix(filepath.Clean(path), filepath.Clean(suffix))
 }

@@ -3,8 +3,8 @@
 > **Audience:** operators · **Status:** current
 >
 > This is the lowest-cost external infrastructure prepared for the BuildMax
-> beta gate. It provisions infrastructure only; it does not yet deploy the
-> BuildMax application or constitute beta-gate evidence.
+> beta gate. It provisions the infrastructure and deploys the pinned trial;
+> the operator journey still determines whether it constitutes beta-gate evidence.
 
 `./make ocean` manages a disposable DOKS cluster and managed MySQL cluster with
 OpenTofu. It deliberately reuses three resources that an operator creates and
@@ -111,7 +111,29 @@ Deploy the pinned trial images:
 
 ```bash
 ./make ocean deploy
+./make ocean model init
 ./make ocean app-status
+./make ocean show all
+```
+
+`show all` runs `kubectl get all --namespace buildmax --output wide` with the
+owner-only kubeconfig written by `ocean up`. It is read-only and does not depend
+on the contributor's current Kubernetes context.
+
+`model init` reads `OPENROUTER_API_KEY` from `.env`, adds the configured model
+when its name is not already present, selects its generated catalog ID for Tier
+1 conversations, and restarts only the BuildMax Server deployment. The key is
+sent to the operator command over stdin and is never printed or rendered into a
+Kubernetes manifest. Repeating the command reuses the existing catalog row.
+
+The default is the repository's low-cost OpenRouter baseline, `GPT-5.6 Luna`
+(`openai/gpt-5.6-luna`). Override its metadata with the
+`BUILDMAX_OCEAN_MODEL_*` variables documented in `.env.example`; if prices
+change, update them before initializing the catalog so call-cost records remain
+accurate. Inspect the redacted catalog at any time:
+
+```bash
+./make ocean model list
 ```
 
 The defaults are the immutable multi-platform digests published for
@@ -150,10 +172,31 @@ block-volume claim for Caddy's certificate state. Both are billable and are
 associated with the disposable DOKS cluster, so `./make ocean down` removes
 them with the cluster.
 
-This application trial validates the external MySQL, Spaces, Kubernetes,
-Load Balancer, and TLS path. It deliberately configures no model credential;
-select and record the candidate's approved managed model before performing the
-beta operator journey.
+The deployment step validates the external MySQL, Spaces, Kubernetes, Load
+Balancer, and TLS path without a model credential. `model init` is the separate,
+explicit step that selects the approved managed model before the beta operator
+journey.
+
+## Inspect MySQL Locally
+
+The managed database accepts traffic only from the DOKS cluster, and `info`
+prints its private VPC hostname. Keep that firewall boundary and tunnel through
+the Kubernetes API instead of adding a public database rule:
+
+```bash
+./make ocean info --show-secrets
+./make ocean database forward
+```
+
+The first command explicitly prints the database username and password; ordinary
+`info` keeps them hidden. The second creates a credential-free proxy deployment,
+writes the DigitalOcean CA to the owner-only Ocean state directory, and forwards
+MySQL to `127.0.0.1:13306` until interrupted. It prints a ready-to-run `mysql`
+command that verifies the database CA. Set
+`BUILDMAX_OCEAN_DATABASE_LOCAL_PORT` to override that local port.
+
+The proxy has no Service and does not make MySQL reachable outside the
+Kubernetes API. Its deployment disappears with the disposable DOKS cluster.
 
 ## State And Secrets
 
