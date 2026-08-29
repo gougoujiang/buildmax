@@ -251,7 +251,7 @@ agentapp.RunPrompt(ctx, sess, prompt, stream, approval, eventSink)
 - `config.TracesDir()` → `<DataDir>/traces`.
 - `config.TraceEnabled()` → true unless `BUILDMAX_TRACE_DISABLED` is a truthy
   value (`1/true/yes/on`). Default on; registered in `env_spec.go`'s `EnvVars()` inventory and
-  `.env.example`.
+  documented in `docs/reference/configuration.md`.
 - Worker inherits the same env, so worker runs trace by default; their trace
   dir is the run-scoped `global/` BUILDMAX_HOME, keeping trace data with the
   run for later upload/diagnostics.
@@ -282,7 +282,7 @@ agentapp.RunPrompt(ctx, sess, prompt, stream, approval, eventSink)
 
 ### Phase 1 (this pass)
 
-1. `config/trace.go`: `TracesDir()`, `TraceEnabled()`, `EnvKeyBuildmaxTraceDisabled`; register in `env_spec.go`; add to `.env.example`.
+1. `config/trace.go`: `TracesDir()`, `TraceEnabled()`, `EnvKeyBuildmaxTraceDisabled`; register in `env_spec.go`; document it in `docs/reference/configuration.md`.
 2. `infra/trace/redact.go` + test: keyword/Bearer/sk- redaction.
 3. `infra/trace/record.go` + test: `Record` struct, `FromEvent`, bounding.
 4. `infra/trace/recorder.go` + test: open file under `<dir>/<session>/<run>.jsonl`, write `run_start`, `Record(Event)`, record cap, `Close()`; fail-open constructor.

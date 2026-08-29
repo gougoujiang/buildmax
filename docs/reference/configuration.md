@@ -152,10 +152,11 @@ running anything, so a local `BUILDMAX_*` value applies to every task without
 exporting it in your shell. This is a **development convenience only** — a
 released binary never reads `.env`; it reads the environment it is given.
 
-The file is gitignored. There is deliberately no `.env.example`: the supported
-configuration surface is `settings.yaml` and `server.yaml`, and a second
-committed template would invite the two to disagree. Put in `.env` only what
-genuinely belongs to your machine:
+The file is gitignored. A committed [`.env.example`](../../.env.example) lists
+the optional personal credentials consumed by developer and operator tasks;
+copy it when you need those tasks, then fill only the entries you use. It does
+not duplicate the supported BuildMax configuration surface in `settings.yaml`
+and `server.yaml`. Put in `.env` only what genuinely belongs to your machine:
 
 ```bash
 # Point the local server and worker at a scratch data directory.
@@ -175,6 +176,21 @@ Two variables are read by the task runner itself rather than by BuildMax:
 |---|---|---|
 | `BUILDMAX_KIND_CLUSTER` | `buildmaxdev` | Which kind cluster `./make kind …` creates and addresses. Every `kubectl` call uses that cluster's explicit context. |
 | `BUILDMAX_IMAGE_PLATFORM` | host platform | Target platform for `./make kind images` — for example `linux/amd64` on Apple Silicon. |
+
+The DigitalOcean qualification command reads these task-runner variables. Its
+full lifecycle and credential scope are in
+[deploy/digitalocean.md](../deploy/digitalocean.md):
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `DIGITALOCEAN_TOKEN` | — | Manages the disposable DOKS and MySQL resources and reads the persistent Project and VPC. |
+| `SPACES_ACCESS_KEY_ID` | — | Reads the persistent Spaces bucket and later authenticates BuildMax to it. |
+| `SPACES_SECRET_ACCESS_KEY` | — | Secret half of the bucket-scoped Spaces key. |
+| `BUILDMAX_OCEAN_PROJECT` | `buildmax-beta` | Existing DigitalOcean Project to reuse. |
+| `BUILDMAX_OCEAN_VPC` | `buildmax-beta` | Existing VPC to reuse. |
+| `BUILDMAX_OCEAN_BUCKET` | `buildmax-beta` | Existing Spaces bucket to reuse. |
+| `BUILDMAX_OCEAN_REGION` | `sgp1` | Shared region for the existing and disposable resources. |
+| `BUILDMAX_OCEAN_STATE_DIR` | `~/.buildmax/qualification/ocean` | Owner-only directory outside Git holding state, plans, providers, and kubeconfig. |
 
 The Compose stack is separate and does not use the root `.env`. It reads
 `deployment/compose/.env`, which `deployment/compose/generate-env.sh` creates

@@ -67,6 +67,7 @@ func allHelpSections() []helpSection {
 		{"Deployment", []helpRow{
 			{"compose <action>", "Manage the Compose quickstart (up|smoke [managed]|status|logs|down)"},
 			{"kind <action>", "Manage local Kubernetes (up|images|smoke|info|forward|status|logs|down)"},
+			{"ocean <action>", "Manage the disposable DigitalOcean qualification infrastructure"},
 			{"e2e [suite]", "Run one end-to-end suite: kind, compose, local, cli, desktop, or all"},
 		}},
 		{"Release", []helpRow{
@@ -430,6 +431,34 @@ func helpTopics() []helpTopic {
 			},
 			examples: []string{"kind up", "kind info", "kind seed", "kind smoke", "kind forward"},
 			see:      "docs/deploy/local-kind.md",
+		},
+		{
+			name:    "ocean",
+			usage:   "ocean <doctor|plan|up|info|status|down>",
+			summary: "Manage the disposable DigitalOcean beta-qualification infrastructure.",
+			details: []string{
+				"This command uses OpenTofu to create one non-HA DOKS cluster and one single-node\n" +
+					"managed MySQL cluster in the existing buildmax-beta Project and VPC. The\n" +
+					"buildmax-beta Spaces bucket is also read as an existing resource. None of those\n" +
+					"three persistent resources is owned or deleted by this command.",
+				"DOKS and MySQL are billable until `" + mk() + " ocean down` succeeds. `up` and\n" +
+					"`down` show a saved plan and require the project name as confirmation before\n" +
+					"applying it. DOKS high availability is explicitly disabled for this temporary\n" +
+					"qualification environment.",
+				"OpenTofu state contains the database password and kubeconfig. It defaults to\n" +
+					"~/.buildmax/qualification/ocean, outside the checkout, with owner-only\n" +
+					"permissions. Back it up while resources exist and never publish it.",
+			},
+			args: []helpRow{
+				{"doctor", "Check tools, credentials, names, and the state location without changing anything"},
+				{"plan", "Initialize OpenTofu, validate the configuration, and save a create/update plan"},
+				{"up", "Plan, confirm, apply, and write an owner-only kubeconfig"},
+				{"info", "Print safe resource outputs and the kubeconfig path"},
+				{"status", "List OpenTofu state entries, including persistent read-only data sources"},
+				{"down", "Plan, confirm, and destroy only the disposable resources"},
+			},
+			examples: []string{"ocean doctor", "ocean plan", "ocean up", "ocean info", "ocean down"},
+			see:      "docs/deploy/digitalocean.md",
 		},
 		{
 			name:    "e2e",

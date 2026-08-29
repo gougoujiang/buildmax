@@ -50,6 +50,12 @@ func TestCommandsRejectUnknownArgumentsBeforeRunning(t *testing.T) {
 	if _, err := e2eTarget("docker"); err == nil {
 		t.Fatal("e2eTarget accepted an unknown deployment")
 	}
+	if err := cmdOcean([]string{"cloud"}); err == nil {
+		t.Fatal("cmdOcean accepted an unknown action")
+	}
+	if err := cmdOcean([]string{"doctor", "extra"}); err == nil {
+		t.Fatal("cmdOcean accepted extra arguments")
+	}
 }
 
 func TestEvalBuildsTheWorkerOnlyForAnExplicitWorkerSurface(t *testing.T) {

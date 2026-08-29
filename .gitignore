@@ -27,6 +27,12 @@ go.work.sum
 # env file
 .env
 
+# OpenTofu working directories and local state. Provider locks stay committed.
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.tfstate.lock.info
+
 # ./make models reads model configuration from this file; see config-examples/settings.example.yaml.
 /settings.local.yaml
 
