@@ -46,7 +46,8 @@ func tuiAppConfig(workspace, additionalSystemPrompt string, source auth.ModelSou
 		// The TUI is where a user can see which tree the session is in and
 		// answer a removal prompt, which is what makes moving the root safe
 		// to do autonomously. See docs/design/workspace-root-and-worktrees.md D8.
-		EnableWorktrees: true,
+		EnableWorktrees:    true,
+		EnableLocalProject: true,
 	}
 }
 

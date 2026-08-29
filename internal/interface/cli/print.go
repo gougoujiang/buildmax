@@ -141,6 +141,7 @@ func printAppConfig(opts printOptions, source auth.ModelSource) agentapp.AppConf
 		AdditionalSystemPrompt: opts.AdditionalSystemPrompt,
 		SandboxRunOverride:     opts.Overrides.Sandbox,
 		MaxIterations:          opts.Overrides.MaxIterations,
+		EnableLocalProject:     true,
 	}
 }
 

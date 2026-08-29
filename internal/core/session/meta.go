@@ -39,6 +39,19 @@ type Meta struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 
+	// ProjectID is the local Project this session belongs to. It is the
+	// relationship key --continue, the picker, and project memory all select
+	// by, and it is immutable: a session may move among the Workspace roots of
+	// its Project, but it never silently moves to another Project. MetaUpdate
+	// has no field for it.
+	//
+	// It is optional at this boundary rather than required because task-run and
+	// other non-local sessions have no local Project, and giving them a
+	// fabricated one to satisfy the shape would put fake rows in the catalog.
+	// CLI and Desktop enforce the stronger local invariant where they create
+	// sessions. See docs/design/local-project-memory.md §6.3.
+	ProjectID string `json:"project_id,omitempty"`
+
 	Title     string `json:"title,omitempty"`
 	Workspace string `json:"workspace,omitempty"`
 	Pinned    bool   `json:"pinned,omitempty"`
