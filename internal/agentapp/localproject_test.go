@@ -166,3 +166,34 @@ func TestResolveRefusesAMissingOrNonDirectoryWorkspace(t *testing.T) {
 		}
 	}
 }
+
+// A checkout reached through a symlink must resolve to the Project Git names,
+// not a second one. Git reports its own spelling of the common directory --
+// /private/var where the workspace was reached through /var -- so both sides of
+// the comparison have to end up in the same form. See §7.1.
+func TestResolveDoesNotDuplicateASymlinkedCheckout(t *testing.T) {
+	if os.PathSeparator == '\\' {
+		t.Skip("symlink creation needs privileges on Windows")
+	}
+	base := t.TempDir()
+	repo := filepath.Join(base, "repo")
+	initRepo(t, repo)
+	link := filepath.Join(base, "shortcut")
+	if err := os.Symlink(repo, link); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+
+	m := newProjectManager(t)
+	ctx := context.Background()
+	direct, err := m.Resolve(ctx, repo)
+	if err != nil {
+		t.Fatalf("Resolve(repo): %v", err)
+	}
+	viaLink, err := m.Resolve(ctx, link)
+	if err != nil {
+		t.Fatalf("Resolve(link): %v", err)
+	}
+	if viaLink.ID != direct.ID {
+		t.Errorf("the symlinked spelling made a second project %s, want %s", viaLink.ID, direct.ID)
+	}
+}

@@ -56,7 +56,8 @@ func NewRootCommand() *cobra.Command {
 	root.Flags().BoolP("help", "h", false, "help for buildmax")
 	root.Flags().StringP("print", "p", "", "send QUERY to the LLM and print the response (no TUI)")
 	root.Flags().StringP("resume", "r", "", "session id to resume (TUI or print mode)")
-	root.Flags().BoolP("continue", "c", false, "resume this project's most recent session (by creation time)")
+	root.Flags().BoolP("continue", "c", false, "resume this directory's most recent session (by creation time)")
+	root.Flags().Bool("project", false, "with --continue, widen the search to every directory of this project")
 	root.Flags().String("session-id", "", "use a specific session ID (load if exists, else create); must be a valid UUID")
 	root.Flags().String("model", "", "use model from settings by model id or name")
 	root.Flags().String("workspace", "", "workspace directory for the agent (default: current directory)")
@@ -85,6 +86,7 @@ func NewRootCommand() *cobra.Command {
 	root.AddCommand(newPluginCommand())
 	root.AddCommand(newModelsCommand())
 	root.AddCommand(newStatsCommand())
+	root.AddCommand(newProjectCommand())
 	return root
 }
 
@@ -96,6 +98,7 @@ func runRoot(cmd *cobra.Command, _ []string) error {
 	prompt, _ := cmd.Flags().GetString("print")
 	resumeID, _ := cmd.Flags().GetString("resume")
 	cont, _ := cmd.Flags().GetBool("continue")
+	acrossProject, _ := cmd.Flags().GetBool("project")
 	model, _ := cmd.Flags().GetString("model")
 	sessionID, _ := cmd.Flags().GetString("session-id")
 	workspace, _ := cmd.Flags().GetString("workspace")
@@ -141,7 +144,7 @@ func runRoot(cmd *cobra.Command, _ []string) error {
 	if sessionID != "" {
 		effectiveSessionID = sessionID
 	} else {
-		target, err := resolveSessionTarget(cmd.Context(), resumeID, cont,
+		target, err := resolveSessionTarget(cmd.Context(), resumeID, cont, acrossProject,
 			workspace, cmd.Flags().Changed("workspace"))
 		if err != nil {
 			return err

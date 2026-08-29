@@ -134,21 +134,25 @@ Code state:
 - shipped: one shared CLI/TUI/Desktop Project identity and bounded
   cross-session Project Memory
   ([design/local-project-memory.md](design/local-project-memory.md)). A Project
-  is one Git repository including its worktrees, or one directory; `--continue`,
-  the pickers, and session clearing select by it rather than by folder path,
-  and Desktop's private `projects.json` is gone. Memory is one bounded Markdown
-  document per Project, rendered as fallible recall rather than instruction,
-  replaced under a digest check, and switched off for a run with
-  `--no-project-memory`. The `context_sources` trace record replaces
-  `prompt_layers` and names every source a run loaded by its own kind;
-  `buildmax doctor` reports the Project, the memory file and its budget, and
-  detached sessions;
+  is one Git repository including its worktrees, or one directory; the session
+  pickers and session clearing select by it rather than by folder path,
+  `--continue` selects within the Workspace with `--project` to widen, and
+  Desktop's private `projects.json` is gone. Memory is a set of small Markdown
+  files, one per memory, with a generated index; only the index is resident,
+  bodies are read on demand, a replacement requires having read it, and
+  `--no-project-memory` withdraws index and tools together. `buildmax project`
+  lists and relinks. The `context_sources` trace record replaces `prompt_layers`
+  and names every source a run was assembled from by its own kind; `buildmax
+  doctor` reports the Project, the memory count and index size, skipped memory
+  files, and detached sessions;
 - still absent: a worker selecting `SandboxSurfaceWorker`, process rlimits,
   sandboxing of command/HTTP hook transports, trace retention, typed
   command-level boundary, file-change, hook, approval, retry, and failure-cause
-  records, and the Project Memory surface work — a Desktop viewer/editor, a
-  CLI inspection command beyond `doctor`, and the usage evidence that would
-  justify topic files, selective retrieval, or automatic extraction;
+  records, and the Project Memory surface work — a Desktop memory list and
+  editor, a CLI inspection command beyond `doctor`, the user-invoked
+  session-review command of the design's phase 2, and the usage evidence that
+  would justify raising the memory count, ranking the index, or promoting
+  memories automatically;
 - deliberately not covered by the local Project plan: global user memory,
   team memory, Portal/worker memory, semantic retrieval, and automatic memory
   extraction.

@@ -1,22 +1,27 @@
 # Local Projects And Project Memory
 
-> **Audience:** contributors and security reviewers · **Status:** implemented
-> through phase 2; phase 3 (Desktop viewer/editor, a CLI inspection command
-> beyond `buildmax doctor`, and the usage evidence) is not built.
+> **Audience:** contributors and security reviewers · **Status:** phase 1
+> implemented; phase 2 implemented except the user-invoked session review
+> command of §17, which is not built; phase 3 not started.
 >
 > Roadmap priority: P0.5 local follow-on. CLI/TUI and Desktop are in scope;
 > Portal, worker task runs, and team memory are not.
 >
-> Two things landed differently from §9.1 and §11.5 and are worth naming. An
-> unusable document — over the limit, or not valid text after a hand edit — is
-> skipped for the run and reported by `buildmax doctor`, but the write tool
-> stays registered: the tool registry is cached per model, so withdrawing it on
-> a file that can change at any moment would be a guarantee only by luck, while
-> the digest rule already refuses a replacement from a model that was never
-> shown the bytes. And Desktop still keys its runtime cache by Project alone,
+> One thing landed differently from §9.1. A memory file left unusable by a
+> direct edit is skipped and reported, but the write tool stays registered. The
+> tool registry is cached per model while the files can change at any moment, so
+> withdrawing a tool on the state of a file would be a guarantee only by luck;
+> the read-before-replace rule already refuses a replacement from a run that has
+> not read the body, which is the property the withdrawal was protecting. Both
+> tools are still withdrawn together when the store as a whole cannot be read,
+> and when memory is disabled for the run.
+>
+> Two more, smaller. Desktop keys its runtime cache by Project alone (§11.5),
 > because it opens a Project at its default workspace and so has exactly one
-> root per Project; the wider keying §11.5 describes is needed only when Desktop
-> can enter a worktree.
+> root per Project; the wider keying is needed only once Desktop can enter a
+> worktree. And the Desktop memory list and editor are phase 3 work, so today's
+> inspect/edit path is `buildmax doctor` for the location plus editing the
+> Markdown files directly.
 
 Related: [context durability](context-durability.md),
 [local session storage](local-session-storage.md),

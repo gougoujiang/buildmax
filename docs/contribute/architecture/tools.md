@@ -29,7 +29,8 @@ results are sent back to the model as tool-role messages.
 | **Grep** | struct | Searches file contents by regex |
 | **TodoWrite** | struct | Records the session task list |
 | **NoteWrite** | struct | Records durable session notes |
-| **ProjectMemoryWrite** | struct | Replaces what the project remembers across sessions |
+| **MemoryRead** | struct | Opens the bodies behind project-memory index lines |
+| **MemoryWrite** | struct | Creates, replaces, or deletes one project memory |
 | **SkillTool** | struct | Loads a discovered skill's instructions (`Skill`) |
 | **TaskTool** | struct | Runs a subagent of a named type (`Task`) |
 | MCP gateway | structs | `LoadMcpTools` and `CallMcpTool` |
@@ -82,11 +83,16 @@ results are sent back to the model as tool-role messages.
 - **Parameters**: `notes` (required array of strings)
 - **Behavior**: Replaces the session's durable notes. At most 15 entries of 200 characters; an over-limit call fails with a message naming the limit.
 
-### ProjectMemoryWrite (`ProjectMemoryWrite`)
+### MemoryRead (`MemoryRead`)
 
-- **Parameters**: `content` (required, may be empty), `expected_digest` (optional)
-- **Behavior**: Replaces the project's whole memory document, at most 8,192 characters, only if `expected_digest` still matches what is stored. An empty document clears it; an empty digest means "only if it is still empty". A conflict writes nothing and tells the model to merge into the block it is shown next.
-- **Registration**: only on a local primary run whose session belongs to a project and whose user did not pass `--no-project-memory`. It is appended after the agent types are built, so no subagent definition can name it. See [design/local-project-memory.md](../../design/local-project-memory.md) §9.
+- **Parameters**: `names` (required array of slugs)
+- **Behavior**: Returns those memory bodies. Names that do not exist are reported in the result rather than failing the call. The runtime records the digest of every body it returns, which is what lets a later replacement be refused.
+
+### MemoryWrite (`MemoryWrite`)
+
+- **Parameters**: `name` (required), `content` (required, may be empty), `description`, `type`
+- **Behavior**: Creates or replaces exactly one memory, at most 20 per project with a 100-character description and a 2,000-character body. Empty `content` deletes it. Creating a name that does not exist is always accepted; replacing one requires that this run read it — an unread replacement and a stale one are refused with different messages, because one needs a read and the other a merge. No version token appears in the schema: the comparison stays inside the runtime.
+- **Registration**: both are registered only on a local primary run whose session belongs to a project and whose user did not pass `--no-project-memory`. They are appended after the agent types are built, so no subagent definition can name them, and a delegate carries no index either. See [design/local-project-memory.md](../../design/local-project-memory.md) §9.
 
 An additional system prompt, when the run has one, contributes a fourth layer to
 the system prompt and its `## Invariants` section is restated in the same block
@@ -101,16 +107,17 @@ accumulates in the history. A subagent run is pointed at its own session, so it
 cannot overwrite the state of the run that delegated to it. See
 [design/context-durability.md](../../design/context-durability.md).
 
-`ProjectMemoryWrite` follows the same context-carried pattern
-(`agent.CtxWithMemoryWriter`) over a different lifetime: the document belongs to
-the project, not the session, and `agent.RenderSharedMemory` places it *before*
-the session-state block, so what the current task decided stays closest to
-generation. A subagent inherits the read side and not the write side — its
-context has the writer removed by `agent.CtxWithoutMemoryWriter`.
+The memory tools follow the same context-carried pattern
+(`agent.CtxWithMemoryStore`) over a different lifetime: the memories belong to
+the project, not the session, and `agent.RenderMemoryIndex` places the index
+*before* the session-state block, so what the current task decided stays closest
+to generation. Only the index is resident; bodies arrive as ordinary tool
+results. A subagent inherits neither — its context has the store removed by
+`agent.CtxWithoutMemoryStore`.
 
 LLM-facing names are the camelCase constants in `names.go` — `Read`, `Write`,
 `Edit`, `Glob`, `Grep`, `Bash`, `WebFetch`, `TodoWrite`, `NoteWrite`,
-`ProjectMemoryWrite`, `Skill`, `Task` — plus
+`MemoryRead`, `MemoryWrite`, `Skill`, `Task` — plus
 `LoadMcpTools` and `CallMcpTool` from `mcp_gateway.go`. `names.go` is the single
 source of truth; hook matchers and subagent `tools:` fields match against these
 exact strings.

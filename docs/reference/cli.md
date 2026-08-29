@@ -21,6 +21,9 @@ buildmax <command> [flags]
 | `buildmax models` | List the models the current mode uses and their prompt destination; `--local` also lists what a local Ollama daemon holds |
 | `buildmax tools status` | Inspect the tools currently available to the agent |
 | `buildmax stats [session-id]` | Show what a session spent, what it did, and where its context went; `--json` for the full record |
+| `buildmax project list` | List the local projects and mark the ones whose locator no longer resolves |
+| `buildmax project relink <project-id>` | Point an existing project, and the memory and sessions on it, at this directory |
+| `buildmax project forget <name>` / `--all` | Delete one of this project's memories, or all of them; sessions are untouched |
 | `buildmax sandbox status` | Print the resolved sandbox config and which layer set each value |
 | `buildmax sandbox deps` | Check host-side sandbox dependencies (`bwrap`, `sandbox-exec`, `socat`) |
 | `buildmax sandbox enable` / `disable` | Set `sandbox.enabled` in `settings.yaml` |
@@ -41,7 +44,8 @@ buildmax <command> [flags]
 |---|---|---|
 | `-p`, `--print QUERY` | — | Run one prompt and print the reply; no TUI |
 | `-r`, `--resume ID` | — | Resume a session by id (TUI or print mode) |
-| `-c`, `--continue` | — | Resume this project's most recent session |
+| `-c`, `--continue` | — | Resume this directory's most recent session |
+| `--project` | off | With `--continue`, widen the search to every directory of this project and run in the one that session recorded |
 | `--session-id UUID` | — | Use a specific session id; loads it if it exists, otherwise creates it |
 | `--model ID\|NAME` | first entry in `settings.yaml` | Pick a model from `models:` |
 | `--workspace DIR` | current directory | Directory the agent operates in |
@@ -174,6 +178,31 @@ It exits `2` when a required first-run prerequisite is missing. Warnings, such
 as running outside a git branch or leaving the local sandbox disabled, are
 reported but do not make the command fail.
 
+### `buildmax project`
+
+A project is the local unit of work a session belongs to: one Git repository
+including every one of its worktrees, or one plain folder. It is what
+`--continue`, the session picker, and [project memory](../guide/project-memory.md)
+are scoped to.
+
+A project is found again by a locator — a repository's common Git directory, or
+a folder's path. Moving a repository leaves the old project unreachable, and the
+next run there registers a new, empty one; that run says so and names the
+projects that no longer resolve, because otherwise the duplicate looks like the
+feature working.
+
+```bash
+buildmax project list                    # (missing) marks an unresolved locator
+buildmax project relink <project-id>     # point it at the current directory
+buildmax project relink <id> --workspace ../moved
+
+buildmax project forget rejected-sse-transport
+buildmax project forget --all             # sessions are untouched
+```
+
+Relinking names the project explicitly. The alternative is a heuristic, and a
+heuristic that joined two memory domains would leave no trace of having done so.
+
 ### `buildmax stats`
 
 `stats` reports one session: what it spent, what it did, and where its context
@@ -251,7 +280,7 @@ buildmax -p "list the exported symbols" --workspace ../lib -q
 # machine-readable run for a script
 buildmax -p "run the tests and summarize failures" --output json
 
-# continue where you left off in this project
+# continue where you left off in this directory
 buildmax --continue
 
 # pick a bigger model for one run

@@ -2,23 +2,19 @@ package localprojectstore
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/gougoujiang/buildmax/internal/core/localproject"
 	"github.com/gougoujiang/buildmax/internal/util"
 )
 
-// The memory bundle. MEMORY.md is the authoritative document and is meant to be
-// opened, read, and edited by a person; meta.json describes the last write
-// BuildMax made, and the lock serializes replacement.
+// MemoryDir holds one file per memory plus the generated index and the lock.
 const (
 	MemoryDir      = "memory"
-	MemoryFile     = "MEMORY.md"
-	MemoryMetaFile = "meta.json"
 	MemoryLockFile = "writer.lock"
 )
 
@@ -26,65 +22,99 @@ func (s *FileStore) memoryDir(projectID string) string {
 	return filepath.Join(s.bundleDir(projectID), MemoryDir)
 }
 
-// ReadMemory implements localproject.Store.
-func (s *FileStore) ReadMemory(ctx context.Context, projectID string) (localproject.Memory, error) {
+// Memories implements localproject.Store.
+func (s *FileStore) Memories(ctx context.Context, projectID string) (localproject.MemorySet, error) {
 	if _, err := s.Get(ctx, projectID); err != nil {
-		return localproject.Memory{}, err
+		return localproject.MemorySet{}, err
 	}
-	return readMemory(s.memoryDir(projectID))
+	return readMemories(s.memoryDir(projectID))
 }
 
-// readMemory loads the document and its metadata without taking the lock.
+// readMemories loads every memory file without taking the lock.
 //
-// It never writes. A read that repaired metadata would rewrite a person's file
-// on the way past, and the one moment they most want it left alone is the one
-// right after they edited it by hand.
-func readMemory(dir string) (localproject.Memory, error) {
-	content, err := os.ReadFile(filepath.Join(dir, MemoryFile))
+// A missing directory is an empty store, not damage: a Project that has never
+// written a memory is not broken. An unreadable directory is reported, because
+// a partial store rendered as if it were whole is the failure this exists to
+// prevent.
+func readMemories(dir string) (localproject.MemorySet, error) {
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			// No file and no memory are the same state. A Project that has
-			// never written one is not damaged.
-			return localproject.Memory{}, nil
+			return localproject.MemorySet{}, nil
 		}
-		return localproject.Memory{}, err
+		return localproject.MemorySet{}, err
 	}
-
-	mem := localproject.Memory{Content: string(content)}
-	meta, err := readMemoryMeta(dir)
-	if err != nil {
-		// Metadata is provenance, not content. Losing it costs the revision
-		// number and the session that last wrote; it must not cost the memory.
-		return localproject.Memory{Content: mem.Content, ManuallyEdited: true}, nil
+	var set localproject.MemorySet
+	for _, e := range entries {
+		name, ok := memoryNameOf(e)
+		if !ok {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(dir, e.Name()))
+		if err != nil {
+			set.Skipped = append(set.Skipped, localproject.SkippedMemory{File: e.Name(), Reason: err.Error()})
+			continue
+		}
+		m, err := localproject.ParseMemory(name, data)
+		if err != nil {
+			// Skipped rather than guessed at: an index line promising a body
+			// the read tool cannot return is worse than one memory missing.
+			set.Skipped = append(set.Skipped, localproject.SkippedMemory{File: e.Name(), Reason: reasonOf(err)})
+			continue
+		}
+		set.Memories = append(set.Memories, m)
 	}
-	mem.Meta = meta
-	mem.ManuallyEdited = meta.Digest != localproject.MemoryDigest(mem.Content)
-	return mem, nil
+	localproject.SortMemories(set.Memories)
+	return set, nil
 }
 
-func readMemoryMeta(dir string) (localproject.MemoryMeta, error) {
-	data, err := os.ReadFile(filepath.Join(dir, MemoryMetaFile))
-	if err != nil {
-		return localproject.MemoryMeta{}, err
+// memoryNameOf returns the slug a directory entry holds, if it is a memory
+// file at all. The generated index and the lock are not memories.
+func memoryNameOf(e os.DirEntry) (string, bool) {
+	if e.IsDir() {
+		return "", false
 	}
-	var meta localproject.MemoryMeta
-	if err := json.Unmarshal(data, &meta); err != nil {
-		return localproject.MemoryMeta{}, err
+	name := e.Name()
+	if name == localproject.IndexFileName || name == MemoryLockFile {
+		return "", false
 	}
-	return meta, nil
+	if !strings.HasSuffix(name, localproject.MemoryFileExt) {
+		return "", false
+	}
+	return strings.TrimSuffix(name, localproject.MemoryFileExt), true
+}
+
+// reasonOf strips the sentinel prefixes so a skip reason reads as a sentence
+// about the file rather than as an error chain. The caller already says the
+// file was skipped; repeating "invalid memory" there is noise.
+func reasonOf(err error) string {
+	msg := err.Error()
+	for _, prefix := range []string{"localproject: ", "invalid memory: "} {
+		msg = strings.TrimPrefix(msg, prefix)
+	}
+	return msg
 }
 
 // WriteMemory implements localproject.Store.
-func (s *FileStore) WriteMemory(ctx context.Context, projectID string, write localproject.MemoryWrite) (localproject.Memory, error) {
+func (s *FileStore) WriteMemory(ctx context.Context, projectID string, w localproject.MemoryWrite) (localproject.Memory, error) {
 	if _, err := s.Get(ctx, projectID); err != nil {
 		return localproject.Memory{}, err
 	}
-	// Before the lock: a document that was never going to be persisted must not
+	next := localproject.Memory{
+		Name:        w.Name,
+		Description: w.Description,
+		Type:        w.Type,
+		SessionID:   w.SessionID,
+		Body:        w.Body,
+		UpdatedAt:   s.now(),
+		VerifiedAt:  w.VerifiedAt,
+	}
+	// Before the lock: a memory that was never going to be persisted must not
 	// make a concurrent writer wait for it.
-	if err := localproject.ValidateMemory(write.Content); err != nil {
+	if err := next.Validate(); err != nil {
 		return localproject.Memory{}, err
 	}
-	if err := localproject.ScanMemoryForSecrets(write.Content); err != nil {
+	if err := localproject.ScanMemoryForSecrets(next.Description, next.Body); err != nil {
 		return localproject.Memory{}, err
 	}
 
@@ -95,49 +125,120 @@ func (s *FileStore) WriteMemory(ctx context.Context, projectID string, write loc
 	}
 	defer func() { _ = lock.Release() }()
 
-	current, err := readMemory(dir)
+	current, err := readMemories(dir)
 	if err != nil {
 		return localproject.Memory{}, err
 	}
-	// The digest of what is actually on disk, not of what metadata last
-	// recorded: a hand edit is content the writer has to have seen, and
-	// comparing against stale metadata would let a write overwrite it blind.
-	if localproject.MemoryDigest(current.Content) != write.ExpectedDigest {
-		return current, fmt.Errorf("%w (revision %d)", localproject.ErrDigestMismatch, current.Meta.Revision)
+	existing, replacing := current.Find(next.Name)
+	switch {
+	case !replacing:
+		if len(current.Memories) >= localproject.MaxMemories {
+			return localproject.Memory{}, fmt.Errorf("%w: %d memories, limit %d",
+				localproject.ErrMemoryFull, len(current.Memories), localproject.MaxMemories)
+		}
+	case w.PriorDigest == "":
+		// Not a conflict. There is nothing to merge against, because the
+		// writer has not seen what it would be overwriting.
+		return existing, fmt.Errorf("%w: %s", localproject.ErrMemoryUnread, next.Name)
+	case w.PriorDigest != localproject.BodyDigest(existing.Body):
+		return existing, fmt.Errorf("%w: %s", localproject.ErrMemoryConflict, next.Name)
+	}
+	// Carried rather than reset: a verified-at date belongs to the claim the
+	// memory makes, and a run that rewords the body has not re-verified it.
+	// A write that supplies its own date has re-checked and says so.
+	if replacing && next.VerifiedAt == nil {
+		next.VerifiedAt = existing.VerifiedAt
 	}
 
-	next := localproject.NextMemoryMeta(current.Meta, write, s.now())
-	if write.Content == "" {
-		// Clearing removes the file rather than leaving an empty one, so the
-		// bundle says the same thing a never-written Project does. Metadata
-		// stays: the revision it carries is how a later writer, and a person
-		// asking what happened, tell "cleared just now" from "never used".
-		if err := os.Remove(filepath.Join(dir, MemoryFile)); err != nil && !os.IsNotExist(err) {
-			return current, err
-		}
-	} else if err := util.WriteFileAtomic(filepath.Join(dir, MemoryFile), []byte(write.Content), 0o600); err != nil {
-		return current, err
+	if err := util.WriteFileAtomic(memoryPath(dir, next.Name), localproject.FormatMemory(next), 0o600); err != nil {
+		return localproject.Memory{}, err
 	}
-	if err := writeMemoryMeta(dir, next); err != nil {
-		// The document is committed and authoritative, so the write happened.
-		// Reporting the metadata failure is still right: the caller is about to
-		// tell a model which revision it wrote.
-		return localproject.Memory{Content: write.Content, Meta: next}, err
+	if err := regenerateIndex(dir); err != nil {
+		// The memory is written and authoritative, so the write happened. The
+		// index is a projection and is rebuilt by the next write or read.
+		return next, err
 	}
-	return localproject.Memory{Content: write.Content, Meta: next}, nil
+	return next, nil
 }
 
-func writeMemoryMeta(dir string, meta localproject.MemoryMeta) error {
-	data, err := json.MarshalIndent(meta, "", "  ")
+// DeleteMemory implements localproject.Store.
+func (s *FileStore) DeleteMemory(ctx context.Context, projectID, name string) error {
+	if _, err := s.Get(ctx, projectID); err != nil {
+		return err
+	}
+	if !localproject.ValidMemoryName(name) {
+		return fmt.Errorf("%w: %s", localproject.ErrMemoryNotFound, name)
+	}
+	dir := s.memoryDir(projectID)
+	lock, err := acquireMemory(ctx, dir)
 	if err != nil {
 		return err
 	}
-	return util.WriteFileAtomic(filepath.Join(dir, MemoryMetaFile), data, 0o600)
+	defer func() { _ = lock.Release() }()
+
+	if err := os.Remove(memoryPath(dir, name)); err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("%w: %s", localproject.ErrMemoryNotFound, name)
+		}
+		return err
+	}
+	return regenerateIndex(dir)
 }
 
-// acquireMemory takes one Project's memory writer lock. It waits like the
-// catalog lock and for the same reason: contention is two sessions of one
-// Project replacing a small document, not a person queued behind a turn.
+// ClearMemories implements localproject.Store.
+func (s *FileStore) ClearMemories(ctx context.Context, projectID string) (int, error) {
+	if _, err := s.Get(ctx, projectID); err != nil {
+		return 0, err
+	}
+	dir := s.memoryDir(projectID)
+	lock, err := acquireMemory(ctx, dir)
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = lock.Release() }()
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 0, nil
+		}
+		return 0, err
+	}
+	removed := 0
+	for _, e := range entries {
+		// Every memory file, including one that could not be parsed: clearing
+		// means the directory holds no memories afterwards, and a file that was
+		// skipped for being unreadable is still one of them.
+		if _, ok := memoryNameOf(e); !ok {
+			continue
+		}
+		if err := os.Remove(filepath.Join(dir, e.Name())); err != nil {
+			return removed, err
+		}
+		removed++
+	}
+	return removed, regenerateIndex(dir)
+}
+
+// regenerateIndex rebuilds MEMORY.md from the files. It runs under the writer
+// lock after every mutation, which is what keeps the index from being able to
+// disagree with its sources.
+func regenerateIndex(dir string) error {
+	set, err := readMemories(dir)
+	if err != nil {
+		return err
+	}
+	return util.WriteFileAtomic(filepath.Join(dir, localproject.IndexFileName),
+		localproject.FormatIndex(set.Memories), 0o600)
+}
+
+func memoryPath(dir, name string) string {
+	return filepath.Join(dir, name+localproject.MemoryFileExt)
+}
+
+// acquireMemory takes one Project's memory writer lock. Writes are serialized
+// even though they touch different files, because the index is regenerated with
+// them.
 func acquireMemory(ctx context.Context, dir string) (releaser, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
@@ -145,7 +246,7 @@ func acquireMemory(ctx context.Context, dir string) (releaser, error) {
 	lock, err := waitForLock(ctx, filepath.Join(dir, MemoryLockFile))
 	if err != nil {
 		if errors.Is(err, localproject.ErrCatalogBusy) {
-			return nil, fmt.Errorf("localprojectstore: project memory is being written by another session")
+			return nil, errors.New("localprojectstore: project memory is being written by another session")
 		}
 		return nil, err
 	}

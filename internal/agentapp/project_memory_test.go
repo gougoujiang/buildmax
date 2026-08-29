@@ -27,122 +27,203 @@ func memoryApp(t *testing.T) *AgentApp {
 	if err != nil {
 		t.Fatalf("resolve project: %v", err)
 	}
-	return &AgentApp{project: project, projects: projects}
+	return &AgentApp{project: project, projects: projects, workspace: NewMovableRoot(dir)}
 }
 
-func TestProjectMemoryRoundTripsThroughTheSeam(t *testing.T) {
-	app := memoryApp(t)
-	mem := app.projectMemoryFor("session-1", "run-1")
-	if mem == nil {
-		t.Fatal("a run in a project has no memory seam")
-	}
-
-	if got := mem.Memory(); got.Content != "" || got.Digest != "" {
-		t.Fatalf("fresh memory = %+v, want empty", got)
-	}
-
-	const doc = "# Project Memory\n\n- Prefer narrow table-driven tests.\n"
-	written, err := mem.WriteMemory(context.Background(), doc, "")
+func writeMemory(t *testing.T, m *projectMemory, name, body string) agent.MemoryBody {
+	t.Helper()
+	got, err := m.Write(context.Background(), agent.MemoryUpsert{
+		Name:        name,
+		Description: "what " + name + " is about",
+		Type:        string(localproject.MemoryTypeProject),
+		Body:        body,
+	})
 	if err != nil {
-		t.Fatalf("WriteMemory: %v", err)
+		t.Fatalf("Write(%s): %v", name, err)
 	}
-	if written.Revision != 1 || written.ScopeID != app.project.ID {
-		t.Errorf("write returned %+v, want revision 1 scoped to the project", written)
+	return got
+}
+
+func TestProjectMemoryIndexAndBodies(t *testing.T) {
+	app := memoryApp(t)
+	mem := app.projectMemoryFor("session-1")
+	if mem == nil {
+		t.Fatal("a run in a project has no memory store")
+	}
+	if got := mem.Index(); len(got.Entries) != 0 {
+		t.Fatalf("fresh index = %+v, want empty", got)
 	}
 
-	// Read again rather than trusting the returned value: the point of a shared
-	// document is that the next model call goes back to the store.
-	read := mem.Memory()
-	if read.Content != doc {
-		t.Errorf("Content = %q, want %q", read.Content, doc)
+	writeMemory(t, mem, "merge-commit", "Use merge commits.\n\n**Why:** per-commit revert.")
+
+	index := mem.Index()
+	if len(index.Entries) != 1 || index.Entries[0].Name != "merge-commit" {
+		t.Fatalf("index = %+v, want the one memory", index.Entries)
 	}
-	if read.Digest != written.Digest || read.Revision != 1 {
-		t.Errorf("read = %+v, want the digest and revision just written", read)
+	if index.ScopeID != app.project.ID {
+		t.Errorf("ScopeID = %q, want the project id", index.ScopeID)
 	}
-	if read.Scope != "project" {
-		t.Errorf("Scope = %q, want project", read.Scope)
+	// The index carries a pointer, not the knowledge. That is what makes it
+	// affordable to render on every call.
+	if strings.Contains(index.Entries[0].Description, "per-commit revert") {
+		t.Error("the index line carries the body")
+	}
+
+	bodies, missing, err := mem.Read(context.Background(), []string{"merge-commit", "absent"})
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+	if len(bodies) != 1 || !strings.Contains(bodies[0].Body, "per-commit revert") {
+		t.Errorf("Read returned %+v, want the body", bodies)
+	}
+	if len(missing) != 1 || missing[0] != "absent" {
+		t.Errorf("missing = %v, want the name that does not exist", missing)
 	}
 }
 
 // A write from one session is visible to the next call of another, which is the
-// whole reason the document lives on the Project rather than in a session.
+// whole reason the store lives on the Project rather than in a session.
 func TestProjectMemoryIsSharedBetweenSessions(t *testing.T) {
 	app := memoryApp(t)
-	first := app.projectMemoryFor("session-1", "run-1")
-	second := app.projectMemoryFor("session-2", "run-2")
+	first := app.projectMemoryFor("session-1")
+	second := app.projectMemoryFor("session-2")
 
-	if _, err := first.WriteMemory(context.Background(), "- Learned in session one.\n", ""); err != nil {
-		t.Fatalf("WriteMemory: %v", err)
-	}
-	if got := second.Memory(); !strings.Contains(got.Content, "Learned in session one.") {
-		t.Errorf("the second session read %q, want the first's memory", got.Content)
+	writeMemory(t, first, "learned", "Learned in session one.")
+
+	index := second.Index()
+	if len(index.Entries) != 1 || index.Entries[0].Name != "learned" {
+		t.Errorf("the second session saw %+v, want the first's memory", index.Entries)
 	}
 }
 
-func TestProjectMemoryConflictSurfacesTheStoredRevision(t *testing.T) {
+// The run that has not read a memory cannot replace it, and the digest it is
+// compared against never leaves the runtime.
+func TestReplacingRequiresThisRunToHaveRead(t *testing.T) {
 	app := memoryApp(t)
-	mem := app.projectMemoryFor("session-1", "run-1")
-	if _, err := mem.WriteMemory(context.Background(), "- First.\n", ""); err != nil {
-		t.Fatalf("WriteMemory: %v", err)
+	author := app.projectMemoryFor("session-1")
+	writeMemory(t, author, "merge-commit", "Use merge commits.")
+
+	stranger := app.projectMemoryFor("session-2")
+	_, err := stranger.Write(context.Background(), agent.MemoryUpsert{
+		Name:        "merge-commit",
+		Description: "d",
+		Type:        string(localproject.MemoryTypeProject),
+		Body:        "written blind",
+	})
+	if !errors.Is(err, localproject.ErrMemoryUnread) {
+		t.Fatalf("Write = %v, want ErrMemoryUnread", err)
 	}
 
-	stored, err := mem.WriteMemory(context.Background(), "- Blind overwrite.\n", "sha256:stale")
-	if !errors.Is(err, localproject.ErrDigestMismatch) {
-		t.Fatalf("WriteMemory = %v, want ErrDigestMismatch", err)
+	if _, _, err := stranger.Read(context.Background(), []string{"merge-commit"}); err != nil {
+		t.Fatalf("Read: %v", err)
 	}
-	if stored.Revision != 1 || !strings.Contains(stored.Content, "First.") {
-		t.Errorf("the conflict returned %+v, want what is actually stored", stored)
+	if _, err := stranger.Write(context.Background(), agent.MemoryUpsert{
+		Name:        "merge-commit",
+		Description: "d",
+		Type:        string(localproject.MemoryTypeProject),
+		Body:        "merged deliberately",
+	}); err != nil {
+		t.Fatalf("write after reading: %v", err)
 	}
 }
 
-// A hand edit can leave the file over the limit or not text at all. Sending a
-// prefix would be worse than sending none, so the run goes without.
-func TestUnusableMemoryIsNotRendered(t *testing.T) {
+// A run has read what it just wrote, so correcting it in the same turn does not
+// need a round trip through the read tool.
+func TestARunCanReplaceWhatItJustWrote(t *testing.T) {
+	mem := memoryApp(t).projectMemoryFor("session-1")
+	writeMemory(t, mem, "merge-commit", "Use merge commits.")
+	writeMemory(t, mem, "merge-commit", "Use merge commits, never squash.")
+}
+
+// A body that moved under this run is a different failure from one never read,
+// and gets a different answer.
+func TestReplacingAStaleBodyIsRefused(t *testing.T) {
 	app := memoryApp(t)
-	mem := app.projectMemoryFor("session-1", "run-1")
-	if _, err := mem.WriteMemory(context.Background(), "- Fine for now.\n", ""); err != nil {
-		t.Fatalf("WriteMemory: %v", err)
-	}
+	reader := app.projectMemoryFor("session-1")
+	writeMemory(t, reader, "merge-commit", "Use merge commits.")
 
-	path := filepath.Join(app.projects.Dir(), app.project.ID, "memory", "MEMORY.md")
-	oversize := strings.Repeat("a", localproject.MaxMemoryChars+1)
-	if err := os.WriteFile(path, []byte(oversize), 0o600); err != nil {
-		t.Fatalf("hand edit: %v", err)
+	other := app.projectMemoryFor("session-2")
+	if _, _, err := other.Read(context.Background(), []string{"merge-commit"}); err != nil {
+		t.Fatalf("Read: %v", err)
 	}
+	writeMemory(t, reader, "merge-commit", "Rewritten by the first session.")
 
-	if got := mem.Memory(); got.Content != "" {
-		t.Errorf("an oversize document was loaded: %d characters", len(got.Content))
-	}
-	// It is refused, not truncated: the file is still exactly what its author
-	// left, waiting to be repaired.
-	after, err := os.ReadFile(path)
-	if err != nil || string(after) != oversize {
-		t.Errorf("the unusable document was rewritten: %v", err)
+	_, err := other.Write(context.Background(), agent.MemoryUpsert{
+		Name:        "merge-commit",
+		Description: "d",
+		Type:        string(localproject.MemoryTypeProject),
+		Body:        "from the older reader",
+	})
+	if !errors.Is(err, localproject.ErrMemoryConflict) {
+		t.Fatalf("Write = %v, want ErrMemoryConflict", err)
 	}
 }
 
-// Two separate reasons a run has no memory, and both have to produce the same
-// nothing: a surface that never had a Project, and a user who turned it off.
-func TestNoMemorySeamWithoutAProjectOrWhenDisabled(t *testing.T) {
-	if seam := (&AgentApp{}).projectMemoryFor("session-1", "run-1"); seam != nil {
-		t.Error("a projectless run has a memory seam")
-	}
+func TestDeleteForgetsWhatWasRead(t *testing.T) {
+	mem := memoryApp(t).projectMemoryFor("session-1")
+	writeMemory(t, mem, "stale", "No longer true.")
 
+	if err := mem.Delete(context.Background(), "stale"); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+	if len(mem.Index().Entries) != 0 {
+		t.Error("the index still lists a deleted memory")
+	}
+	// Recreating is a create, not a replacement, so it needs no prior read --
+	// but the run must not be credited with having read the old body either.
+	writeMemory(t, mem, "stale", "True again, for a new reason.")
+}
+
+// Two separate reasons a run has no memory, and both produce the same nothing:
+// a surface that never had a Project, and a user who turned it off.
+func TestNoMemoryStoreWithoutAProjectOrWhenDisabled(t *testing.T) {
+	if store := (&AgentApp{}).projectMemoryFor("session-1"); store != nil {
+		t.Error("a projectless run has a memory store")
+	}
 	disabled := memoryApp(t)
 	disabled.memoryDisabled = true
-	if seam := disabled.projectMemoryFor("session-1", "run-1"); seam != nil {
-		t.Error("a run with memory turned off has a memory seam")
+	if store := disabled.projectMemoryFor("session-1"); store != nil {
+		t.Error("a run with memory turned off has a memory store")
 	}
-
 	var nilApp *AgentApp
-	if seam := nilApp.projectMemoryFor("session-1", "run-1"); seam != nil {
-		t.Error("a nil app has a memory seam")
+	if store := nilApp.projectMemoryFor("session-1"); store != nil {
+		t.Error("a nil app has a memory store")
 	}
 }
 
-// Registration follows the same rule as reading, and from the same condition:
-// a run that may not look at the document must not be able to replace it.
-func TestWriteToolFollowsWhetherTheRunHasMemory(t *testing.T) {
+// A file left unusable by a hand edit is silently absent from every run until
+// someone repairs it, so the surface says so at run start rather than only in
+// doctor.
+func TestMemoryStatusNamesSkippedFiles(t *testing.T) {
+	app := memoryApp(t)
+	mem := app.projectMemoryFor("session-1")
+	writeMemory(t, mem, "good", "Still fine.")
+
+	dir := filepath.Join(app.projects.Dir(), app.project.ID, "memory")
+	if err := os.WriteFile(filepath.Join(dir, "broken.md"), []byte("no frontmatter\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	report := app.MemoryStatus()
+	if report.Empty() {
+		t.Fatal("the report says nothing about a file that is never loaded")
+	}
+	lines := strings.Join(report.Lines(), "\n")
+	if !strings.Contains(lines, "broken.md") {
+		t.Errorf("report does not name the file: %q", lines)
+	}
+	// The good memory still renders; one bad file is not the whole store.
+	if len(mem.Index().Entries) != 1 {
+		t.Error("a skipped file stopped the other memories rendering")
+	}
+	if (&AgentApp{}).MemoryStatus().Empty() != true {
+		t.Error("a projectless run reports a memory problem")
+	}
+}
+
+// Registration follows the same rule as reading, and from the same condition: a
+// run that may not look at the store must not be able to change it.
+func TestMemoryToolsFollowWhetherTheRunHasMemory(t *testing.T) {
 	tests := []struct {
 		name string
 		cfg  AppConfig
@@ -162,75 +243,106 @@ func TestWriteToolFollowsWhetherTheRunHasMemory(t *testing.T) {
 			}
 			t.Cleanup(func() { _ = app.Close() })
 
-			var found bool
+			found := map[string]bool{}
 			for _, entry := range app.ToolEntries() {
-				if entry.Name == tools.ToolNameProjectMemoryWrite {
-					found = true
-				}
+				found[entry.Name] = true
 			}
-			if found != tt.want {
-				t.Errorf("%s registered = %v, want %v", tools.ToolNameProjectMemoryWrite, found, tt.want)
+			for _, name := range []string{tools.ToolNameMemoryRead, tools.ToolNameMemoryWrite} {
+				if found[name] != tt.want {
+					t.Errorf("%s registered = %v, want %v", name, found[name], tt.want)
+				}
 			}
 		})
 	}
 }
 
-// A delegate reads the same memory and does not curate it, so the tool must not
-// be resolvable from the set an agent definition draws on.
-func TestBaseToolsExcludeTheMemoryWriteTool(t *testing.T) {
+// A delegate carries neither tool, so no agent definition can name one.
+func TestBaseToolsExcludeTheMemoryTools(t *testing.T) {
 	base := buildBaseTools(nil, util.FixedRoot(t.TempDir()), stubTool{}, agent.NoopSandbox{}, nil, nil)
 	for _, tl := range base {
-		if tl.Name() == tools.ToolNameProjectMemoryWrite {
-			t.Fatal("the write tool is in the base set, so a subagent definition can name it")
+		if tl.Name() == tools.ToolNameMemoryRead || tl.Name() == tools.ToolNameMemoryWrite {
+			t.Fatalf("%s is in the base set, so a subagent definition can name it", tl.Name())
 		}
 	}
 }
 
-// The trace has to be able to say which sources put a line in front of the
-// model, and to do it without copying any of them into a third file with a
-// different retention.
-func TestContextSourcesNameEverySourceWithoutQuotingIt(t *testing.T) {
+// The trace says which sources put a line in front of the model, and does it
+// without copying any of them into a third file with a different retention.
+func TestContextSourcesReportTheIndexWithoutQuotingIt(t *testing.T) {
 	app := memoryApp(t)
-	const doc = "# Project Memory\n\n- A stable preference.\n"
-	if _, err := app.projectMemoryFor("session-1", "run-1").WriteMemory(context.Background(), doc, ""); err != nil {
-		t.Fatalf("WriteMemory: %v", err)
-	}
-	app.workspace = NewMovableRoot(t.TempDir())
+	writeMemory(t, app.projectMemoryFor("session-1"), "merge-commit", "Use merge commits, never squash.")
 
 	sources := app.contextSources(nil, []agent.PromptLayer{{Name: "runtime", Chars: 4000}})
 
 	if sources.ProjectID != app.project.ID {
 		t.Errorf("ProjectID = %q, want %q", sources.ProjectID, app.project.ID)
 	}
-	// The workspace is recorded separately: one Project can have several
-	// worktrees, so it is not derivable from the id.
 	if sources.Workspace != app.workspace.Root() {
 		t.Errorf("Workspace = %q, want the root this run used", sources.Workspace)
 	}
-	if len(sources.Memory) != 1 || sources.Memory[0].Name != "project" {
-		t.Fatalf("Memory = %+v, want the project document", sources.Memory)
+	if len(sources.Memory) != 1 || sources.Memory[0].Name != "project_index" {
+		t.Fatalf("Memory = %+v, want the index row", sources.Memory)
 	}
-	mem := sources.Memory[0]
-	if mem.Revision != 1 || mem.Digest == "" || mem.Chars != len([]rune(doc)) {
-		t.Errorf("memory row = %+v, want revision, digest, and size", mem)
+	row := sources.Memory[0]
+	if row.Entries != 1 || row.Chars == 0 {
+		t.Errorf("index row = %+v, want a count and a size", row)
 	}
-	if strings.Contains(mem.Digest, "stable preference") {
-		t.Error("the trace row quotes the memory it describes")
+	// Session notes and todos change every iteration, so a per-run count would
+	// report the value at run start while reading as a fact about the run.
+	for _, m := range sources.Memory {
+		if strings.HasPrefix(m.Name, "session_") {
+			t.Errorf("the run record carries per-iteration state: %+v", m)
+		}
 	}
 }
 
-// A project with no memory yet contributes no row, so a reader can tell "there
-// was nothing" from "there was something this size".
-func TestContextSourcesOmitEmptyMemory(t *testing.T) {
+func TestContextSourcesOmitAnEmptyIndex(t *testing.T) {
 	app := memoryApp(t)
-	app.workspace = NewMovableRoot(t.TempDir())
-
 	sources := app.contextSources(nil, nil)
-
 	if len(sources.Memory) != 0 {
-		t.Errorf("Memory = %+v, want nothing for a project that has written none", sources.Memory)
+		t.Errorf("Memory = %+v, want nothing for a project with no memories", sources.Memory)
 	}
 	if sources.HistoryProjection.CompactionPresent {
 		t.Error("a run that compacted nothing reports a compaction")
+	}
+}
+
+// §9.1: a store that cannot be read as a whole withdraws the index and both
+// tools together. A run that cannot see what it holds must not be able to add
+// to it, and a partial index would be worse than none.
+func TestAnUnreadableStoreWithdrawsIndexAndTools(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root can read a directory with no permissions")
+	}
+	workspace := t.TempDir()
+	projectsDir := t.TempDir()
+	project, err := NewProjectManager(projectsDir).Resolve(context.Background(), workspace)
+	if err != nil {
+		t.Fatalf("resolve project: %v", err)
+	}
+	dir := filepath.Join(projectsDir, project.ID, "memory")
+	if err := os.MkdirAll(dir, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+
+	app := &AgentApp{
+		project:           project,
+		projects:          NewProjectManager(projectsDir),
+		workspace:         NewMovableRoot(workspace),
+		memoryUnavailable: "permission denied",
+	}
+	if app.memoryEnabled() {
+		t.Error("an unreadable store still counts as enabled")
+	}
+	if app.projectMemoryFor("session-1") != nil {
+		t.Error("an unreadable store still produced a memory seam")
+	}
+	report := app.MemoryStatus()
+	if report.Unavailable == "" {
+		t.Error("the surface is not told the store is unavailable")
+	}
+	if len(app.memoryIndexSourceInfo()) != 0 {
+		t.Error("the trace claims an index the run never carried")
 	}
 }

@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"slices"
+	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -12,127 +14,238 @@ import (
 	"github.com/gougoujiang/buildmax/internal/util/secretscan"
 )
 
-// MemoryVersion is the memory/meta.json format this build writes and reads.
-const MemoryVersion = 1
-
-// MaxMemoryChars bounds the whole memory document.
+// One memory is one file, and an index over them is what a run carries.
 //
-// It is not a tuning knob. The document is rendered into every model call and
-// has no trimming path, so the ceiling is what keeps always-loaded context to
-// roughly a few thousand tokens at worst. It matches the additional
-// system-prompt ceiling for the same reason. See
-// docs/design/local-project-memory.md §9.1.
-const MaxMemoryChars = 8192
+// The split is the whole design. The index is resident -- rendered after the
+// message list on every call of every session in the Project -- so it is
+// bounded by the number of memories and the length of a description. Bodies are
+// a retrieval cost paid only when read, so one can afford the Why and the How
+// that make it actionable instead of being compressed into a bullet that
+// survives the budget by dropping its reason. See
+// docs/design/local-project-memory.md §8.3 and §9.1.
 
-var (
-	// ErrDigestMismatch reports that the document changed since the caller read
-	// it. Nothing is written: the next render shows the newer text, and the
-	// caller merges deliberately rather than overwriting another session's
-	// update.
-	ErrDigestMismatch = errors.New("localproject: project memory changed since it was read")
-	// ErrMemoryTooLarge reports a document over MaxMemoryChars.
-	ErrMemoryTooLarge = errors.New("localproject: project memory is too large")
-	// ErrMemoryNotText reports a document that is not valid UTF-8.
-	ErrMemoryNotText = errors.New("localproject: project memory is not valid UTF-8")
-	// ErrMemorySecret reports a document holding something that looks like a
-	// credential. It is a refusal to persist, not proof of harm, and its
-	// absence is not proof of safety.
-	ErrMemorySecret = errors.New("localproject: project memory looks like it holds a credential")
+// Budgets. Each is enforced on write; none truncates silently at render time.
+const (
+	// MaxMemories bounds the store. It is a starting bound chosen to be raised
+	// on evidence rather than lowered after users have filled it.
+	MaxMemories = 20
+	// MaxDescriptionChars bounds one index line's payload.
+	MaxDescriptionChars = 100
+	// MaxBodyChars bounds one body. Generous because it is not resident.
+	MaxBodyChars = 2000
+	// MaxMemoryNameChars bounds a slug, which is also a file name.
+	MaxMemoryNameChars = 64
 )
 
-// Memory is a Project's memory document and what is known about the last write
-// to it.
+// MemoryType says what kind of knowledge a memory holds.
+//
+// There is deliberately no user type. Who the user is would be global user
+// memory, which §5.2 keeps out of a Project-scoped store.
+type MemoryType string
+
+const (
+	// MemoryTypeFeedback is guidance the user gave about how to work in this
+	// Project. It records what the user wants, never what the user is.
+	MemoryTypeFeedback MemoryType = "feedback"
+	// MemoryTypeProject is ongoing work, goals, decisions, and constraints not
+	// derivable from the code or its history.
+	MemoryTypeProject MemoryType = "project"
+	// MemoryTypeReference points at external resources: dashboards, tickets,
+	// specifications.
+	MemoryTypeReference MemoryType = "reference"
+)
+
+// MemoryTypes returns every valid type, in the order a surface should list
+// them. It returns a fresh slice so no caller can reorder or extend the set the
+// validator trusts.
+func MemoryTypes() []MemoryType {
+	return []MemoryType{MemoryTypeFeedback, MemoryTypeProject, MemoryTypeReference}
+}
+
+var (
+	// ErrMemoryNotFound reports that no memory has that name.
+	ErrMemoryNotFound = errors.New("localproject: no such memory")
+	// ErrMemoryUnread reports an attempt to replace a memory this run has not
+	// read. It is not a conflict: there is nothing to merge against, because
+	// the writer has not seen what it would be overwriting.
+	ErrMemoryUnread = errors.New("localproject: memory was not read by this run")
+	// ErrMemoryConflict reports that the body changed since this run read it --
+	// another session's write, or a direct user edit.
+	ErrMemoryConflict = errors.New("localproject: memory changed since this run read it")
+	// ErrMemoryFull reports that the store already holds MaxMemories.
+	ErrMemoryFull = errors.New("localproject: project memory is full")
+	// ErrMemoryInvalid reports a memory this build will not persist.
+	ErrMemoryInvalid = errors.New("localproject: invalid memory")
+	// ErrMemorySecret reports a body holding something that looks like a
+	// credential. It is a refusal to persist, not proof of harm, and its
+	// absence is not proof of safety.
+	ErrMemorySecret = errors.New("localproject: memory looks like it holds a credential")
+)
+
+// Memory is one remembered thing: its own file, its own provenance.
+//
+// Name is the slug, the file name, and the identity all at once -- there is no
+// second identifier that can disagree with it.
 type Memory struct {
-	Content string
-	Meta    MemoryMeta
-	// ManuallyEdited reports that Content does not match the digest metadata
-	// records, so a person edited MEMORY.md directly. The Markdown is still the
-	// authority -- a read never rewrites a user's file to match stale metadata
-	// -- and this only says the provenance below describes an older revision.
-	ManuallyEdited bool
-}
-
-// MemoryMeta describes the last write BuildMax made. It is not a second copy of
-// the content: the Markdown is authoritative, and this exists so a user, a
-// diagnostic, and a concurrent writer can each tell revisions apart.
-type MemoryMeta struct {
-	Version  int    `json:"version"`
-	Revision int    `json:"revision"`
-	Digest   string `json:"digest,omitempty"`
-
-	UpdatedAt          time.Time `json:"updated_at"`
-	UpdatedBySessionID string    `json:"updated_by_session_id,omitempty"`
-	UpdatedByRunID     string    `json:"updated_by_run_id,omitempty"`
-}
-
-// MemoryWrite is one complete replacement of a Project's memory.
-//
-// There is no append: replacing the whole document is what makes the agent
-// remove what has gone stale instead of adding to a list that only grows.
-type MemoryWrite struct {
-	Content string
-	// ExpectedDigest is the digest of the document the writer was looking at.
-	// Empty means "write only if it is still empty" -- the case where no block
-	// was rendered because there is no memory yet. It is never an unconditional
-	// overwrite: a writer that saw nothing has no basis for discarding what
-	// another session has since written.
-	ExpectedDigest string
-
+	Name        string
+	Description string
+	Type        MemoryType
+	// SessionID and UpdatedAt are this memory's own provenance, which is why
+	// there is no sidecar metadata file: a lone Markdown document needed one
+	// because it had nowhere to record who wrote it, and per-file frontmatter
+	// removes that need rather than moving it.
 	SessionID string
-	RunID     string
+	UpdatedAt time.Time
+	// VerifiedAt is the date a memory that caches something expensive was last
+	// checked against its source of truth. Nil for the ordinary memory that
+	// asserts nothing it does not itself hold. Only the date is meaningful.
+	VerifiedAt *time.Time
+	Body       string
 }
 
-// MemoryDigest is the content's identity for optimistic concurrency.
-//
-// An empty document has no digest. That keeps one representation of "there is
-// nothing here" across the render, the tool argument, and the stored metadata,
-// rather than a hash that a caller would have to know to recognize as the empty
-// one.
-func MemoryDigest(content string) string {
-	if content == "" {
-		return ""
+// SkippedMemory is a file the store could not use. It is reported rather than
+// guessed at: skipping one memory is a smaller failure than rendering an index
+// line promising a body the read tool cannot return.
+type SkippedMemory struct {
+	File   string
+	Reason string
+}
+
+// MemorySet is what the store found in one Project's memory directory.
+type MemorySet struct {
+	// Memories are the usable ones, ordered by name so the index is stable.
+	Memories []Memory
+	Skipped  []SkippedMemory
+}
+
+// Find returns the memory with that name.
+func (s MemorySet) Find(name string) (Memory, bool) {
+	for _, m := range s.Memories {
+		if m.Name == name {
+			return m, true
+		}
 	}
-	sum := sha256.Sum256([]byte(content))
+	return Memory{}, false
+}
+
+// MemoryWrite creates or replaces exactly one memory.
+//
+// PriorDigest is supplied by the runtime from the bodies it has handed the
+// model this run, never by the model. Routing a correctness token out to the
+// least reliable component in the loop and expecting it back verbatim would add
+// an omitted-parameter case whose only plausible fallback is an unconditional
+// overwrite. Empty means this run has not read the memory, which is a refusal
+// on replacement and irrelevant on creation.
+type MemoryWrite struct {
+	Name        string
+	Description string
+	Type        MemoryType
+	Body        string
+	SessionID   string
+	PriorDigest string
+	// VerifiedAt is the date this memory was last checked against the source of
+	// truth its body names. Nil leaves an existing date alone -- rewording a
+	// body is not re-verifying it -- and clearing one is a hand edit, not
+	// something a run does on the way past.
+	VerifiedAt *time.Time
+}
+
+// BodyDigest identifies a body for the read-then-replace rule.
+func BodyDigest(body string) string {
+	sum := sha256.Sum256([]byte(body))
 	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
-// ValidateMemory rejects a document this build will not persist or render.
+// ValidMemoryName reports whether s is a usable slug: lowercase letters,
+// digits, and single hyphens between them.
 //
-// Size is enforced here, on write, rather than by truncating at render time: a
-// prefix of a document is not a smaller version of it, and silently sending one
-// can change what it says.
-func ValidateMemory(content string) error {
-	if !utf8.ValidString(content) {
-		return ErrMemoryNotText
+// The slug is a file name, so the character set is a containment guard as much
+// as a convention -- a name that could traverse a directory or collide under a
+// case-insensitive filesystem is one the store must never be asked to write.
+func ValidMemoryName(s string) bool {
+	if s == "" || len(s) > MaxMemoryNameChars {
+		return false
 	}
-	if n := utf8.RuneCountInString(content); n > MaxMemoryChars {
-		return fmt.Errorf("%w: %d characters, limit %d", ErrMemoryTooLarge, n, MaxMemoryChars)
+	if strings.HasPrefix(s, "-") || strings.HasSuffix(s, "-") || strings.Contains(s, "--") {
+		return false
+	}
+	for _, r := range s {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '-':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// ValidMemoryType reports whether t is one this build understands.
+func ValidMemoryType(t MemoryType) bool {
+	return slices.Contains(MemoryTypes(), t)
+}
+
+// Validate rejects a memory this build will not persist or render.
+func (m Memory) Validate() error {
+	if !ValidMemoryName(m.Name) {
+		return fmt.Errorf("%w: name %q must be lowercase letters, digits, and single hyphens, at most %d characters",
+			ErrMemoryInvalid, m.Name, MaxMemoryNameChars)
+	}
+	if !ValidMemoryType(m.Type) {
+		return fmt.Errorf("%w: type %q must be one of %s", ErrMemoryInvalid, m.Type, joinTypes())
+	}
+	desc := strings.TrimSpace(m.Description)
+	if desc == "" {
+		return fmt.Errorf("%w: %s has no description, and a description is the whole index line",
+			ErrMemoryInvalid, m.Name)
+	}
+	if strings.ContainsAny(desc, "\n\r") {
+		return fmt.Errorf("%w: %s has a multi-line description; an index line is one line", ErrMemoryInvalid, m.Name)
+	}
+	if n := utf8.RuneCountInString(desc); n > MaxDescriptionChars {
+		return fmt.Errorf("%w: %s has a %d-character description, limit %d",
+			ErrMemoryInvalid, m.Name, n, MaxDescriptionChars)
+	}
+	if !utf8.ValidString(m.Body) {
+		return fmt.Errorf("%w: %s has a body that is not valid UTF-8", ErrMemoryInvalid, m.Name)
+	}
+	if strings.TrimSpace(m.Body) == "" {
+		return fmt.Errorf("%w: %s has an empty body; an empty write is a delete, not a memory",
+			ErrMemoryInvalid, m.Name)
+	}
+	if n := utf8.RuneCountInString(m.Body); n > MaxBodyChars {
+		return fmt.Errorf("%w: %s has a %d-character body, limit %d", ErrMemoryInvalid, m.Name, n, MaxBodyChars)
 	}
 	return nil
 }
 
-// ScanMemoryForSecrets refuses a document holding a recognizable credential.
+func joinTypes() string {
+	types := MemoryTypes()
+	names := make([]string, 0, len(types))
+	for _, t := range types {
+		names = append(names, string(t))
+	}
+	return strings.Join(names, ", ")
+}
+
+// ScanMemoryForSecrets refuses a memory holding a recognizable credential.
 //
-// Best effort, and the agent's own contract -- do not persist credentials or
-// surprising sensitive content -- remains the real guard. This catches the
-// obvious copy-paste; it proves nothing about what it did not match. The error
-// names the shapes, never the values, so a refusal does not put the credential
-// into a log or back into the model's context.
-func ScanMemoryForSecrets(content string) error {
-	if found := secretscan.Findings(content); len(found) > 0 {
+// The description is scanned as well as the body, because it is the part that
+// goes to the model on every call: a token pasted into a one-line summary would
+// be the most exposed place in the store, not the least.
+//
+// Best effort, and the Agent's own contract -- do not persist credentials or
+// surprising sensitive information -- remains the real guard. The error names
+// the shapes, never the values, so a refusal does not put the credential into a
+// log or back into the model's context.
+func ScanMemoryForSecrets(description, body string) error {
+	if found := secretscan.Findings(description + "\n" + body); len(found) > 0 {
 		return fmt.Errorf("%w: %s", ErrMemorySecret, strings.Join(found, ", "))
 	}
 	return nil
 }
 
-// NextMemoryMeta is the metadata recorded for a committed write.
-func NextMemoryMeta(previous MemoryMeta, w MemoryWrite, now time.Time) MemoryMeta {
-	return MemoryMeta{
-		Version:            MemoryVersion,
-		Revision:           previous.Revision + 1,
-		Digest:             MemoryDigest(w.Content),
-		UpdatedAt:          now.UTC(),
-		UpdatedBySessionID: w.SessionID,
-		UpdatedByRunID:     w.RunID,
-	}
+// SortMemories orders a set by name, which is what makes the generated index
+// stable across writes.
+func SortMemories(memories []Memory) {
+	sort.Slice(memories, func(i, j int) bool { return memories[i].Name < memories[j].Name })
 }

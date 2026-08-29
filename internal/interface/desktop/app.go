@@ -382,6 +382,28 @@ func touchProjectLastUsed(projectID string) {
 	}
 }
 
+// ProjectNotices are the things the runtime wants said once when a project is
+// opened: a project registered for a directory that may be a moved repository,
+// and memory files that will be silently absent from every run until repaired.
+//
+// A source missing for a whole session without anyone being told is the failure
+// this prevents, and a desktop user never runs `buildmax doctor`. Building the
+// runtime is what produces them, so this is also what warms it.
+func (a *App) ProjectNotices(projectID string) ([]string, error) {
+	if projectID == "" {
+		return nil, fmt.Errorf("project ID required")
+	}
+	ag, err := a.agentAppForProject(projectID)
+	if err != nil {
+		return nil, err
+	}
+	notices := ag.StartupNotices("buildmax project relink " + projectID)
+	if notices == nil {
+		notices = []string{}
+	}
+	return notices, nil
+}
+
 // projectSessionIDs lists the sessions a Project still owns.
 func (a *App) projectSessionIDs(projectID string) ([]string, error) {
 	rows, err := sessionManager().List()
