@@ -159,7 +159,7 @@ becomes a weakened assertion.
 
 | Trigger | What runs |
 |---|---|
-| Every pull request | The required `ci.yml` jobs: Go, frontend, and open-source policy |
+| Every pull request | The required `ci.yml` jobs: Go, frontend, open-source policy, and deployment smoke health |
 | Relevant pull request | Windows for Go/task-runner changes, release configuration validation, or a Portal image build |
 | Merge to `main` | Required CI, Windows, CodeQL, release snapshot, and path-scoped deployment smoke |
 | Schedule | Daily deployment smoke and weekly CodeQL analysis |
@@ -169,6 +169,12 @@ End-to-end verification is deliberately not a pull-request gate. A post-merge
 failure is triaged by the author of the merge that broke it, and that merge is
 reverted if it is not fixed within one working day. A test that fails
 intermittently is quarantined the same day rather than retried.
+
+What holds anyone to that is the **Deployment smoke health** job: it does not
+verify your pull request, it refuses to add to a `main` whose last deployment
+smoke failed, and it names the run and the commit that left it that way. A pull
+request whose purpose is to repair the suite carries the
+`deployment-smoke-fix` label and is let through.
 
 Every post-merge run reports each suite as passed, failed, cancelled, or skipped
 by policy with the reason. A skipped suite is never evidence that a journey

@@ -223,3 +223,69 @@ jobs:
 
       - name: Check npm production dependency licenses
         run: go run ./cmd/mk release licenses
+
+  # Deployment and browser E2E run after merge, not here: they need a stack, and
+  # putting one in front of every pull request was judged too slow. The cost of
+  # that choice is that a break only appears once it is already on main, and the
+  # policy covering it — the author of the breaking merge triages it the same
+  # day — turned out to hold for exactly as long as someone was watching. It
+  # went red on a merge and stayed red through four more, none of which had any
+  # reason to notice.
+  #
+  # So the red state is what stops the next merge. This does not verify the pull
+  # request in front of it; it refuses to add to a main whose last verification
+  # failed, which is the pressure the written policy assumed and never had.
+  #
+  # See docs/design/end-to-end-testing.md §8.
+  deployment-smoke-health:
+    name: Deployment smoke health
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    steps:
+      - name: Refuse to merge onto an unverified main
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          # A pull request whose purpose is to repair the suite has to be able
+          # to land while it is still red. The label is the deliberate act that
+          # says so, and it is visible on the pull request rather than buried in
+          # a commit message.
+          BYPASS: ${{ contains(github.event.pull_request.labels.*.name, 'deployment-smoke-fix') }}
+        run: |
+          set -euo pipefail
+          if [ "$BYPASS" = "true" ]; then
+            echo "Labelled deployment-smoke-fix: this pull request may land while main is red."
+            exit 0
+          fi
+          run=$(gh api "repos/$REPO/actions/workflows/deployment-smoke.yml/runs?branch=main&status=completed&per_page=1" \
+            --jq '.workflow_runs[0] | "\(.conclusion)\t\(.html_url)\t\(.head_sha)\t\(.display_title)"' || true)
+          conclusion=$(printf '%s' "$run" | cut -f1)
+          url=$(printf '%s' "$run" | cut -f2)
+          sha=$(printf '%s' "$run" | cut -f3)
+          title=$(printf '%s' "$run" | cut -f4)
+          # No run to read, or the API would not answer. Neither is evidence
+          # that main is broken, and a gate that blocks on its own outage is a
+          # worse problem than the one it guards.
+          if [ -z "$conclusion" ] || [ "$conclusion" = "null" ]; then
+            echo "No completed deployment smoke run on main to read; nothing to hold this back."
+            exit 0
+          fi
+          if [ "$conclusion" = "success" ]; then
+            echo "main's last deployment smoke passed: $url"
+            exit 0
+          fi
+          {
+            echo "### main is not verified"
+            echo
+            echo "Its last completed deployment smoke ended in \`$conclusion\`."
+            echo
+            echo "- Run: $url"
+            echo "- Commit: \`$sha\` — $title"
+            echo
+            echo "Fix or revert that merge first. A pull request that repairs the"
+            echo "suite carries the \`deployment-smoke-fix\` label and is let through."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "main's last deployment smoke ended in $conclusion: $url ($sha, $title)"
+          exit 1

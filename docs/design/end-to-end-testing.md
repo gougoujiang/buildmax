@@ -422,10 +422,26 @@ rather than discovered later.
   a second merge cancels the first one's verification and no commit is ever
   proved. The post-merge job must either not cancel, or group per commit SHA.
   A cancelled run reports as cancelled, never as skipped-by-policy.
-- **A red `main` needs an owner and a deadline.** A post-merge E2E failure is
-  triaged by the author of the merge that broke it; if it is not fixed or
-  reverted within one working day, the merge is reverted. Without this the
-  suite decays into a dashboard nobody reads.
+- **A red `main` needs an owner and a deadline — and something that enforces
+  it.** A post-merge E2E failure is triaged by the author of the merge that
+  broke it; if it is not fixed or reverted within one working day, the merge is
+  reverted. This bullet was written as a rule and shipped as a sentence, and it
+  held for exactly as long as someone happened to be watching: the suite went
+  red on one merge and stayed red through four more, none of which had any
+  reason to notice, until an unrelated change looked at the run.
+
+  So the red state now stops the next merge. `ci.yml`'s **Deployment smoke
+  health** job reads the last completed `deployment-smoke.yml` run on `main` and
+  fails the pull request when that run failed, naming the run and the commit
+  that left it red. It verifies nothing about the pull request in front of it —
+  it refuses to add to an unverified `main`, which is the pressure this bullet
+  assumed and never had. A pull request repairing the suite carries the
+  `deployment-smoke-fix` label and is let through.
+
+  The alternative was moving the browser suite back onto the pull-request gate.
+  That would have caught this particular break earlier, at the cost of a stack
+  in front of every pull request — and it treats the problem as late detection.
+  The problem was that nobody owned a break everyone could see.
 - **Flakes are quarantined, not retried.** A test that fails intermittently is
   moved out of the gating set with an issue attached, on the same day. Blanket
   retries are not added: the browser suite sets `retries: 0` deliberately, and
