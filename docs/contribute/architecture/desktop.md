@@ -117,6 +117,14 @@ top-level under `<BUILDMAX_HOME>/sessions/` and name their Project by id;
 settings, traces, auth, and logs use the regular paths under `BUILDMAX_HOME`,
 and project source files stay in the user-selected folder.
 
+The **Memory** drawer lists what the project remembers and shows one memory's
+body, over the same store the CLI and TUI read. It is read-only: a memory is a
+Markdown file the user can edit directly, and the drawer prints the directory so
+they can. Editing from here needs the refusal path a digest-checked write takes
+— replacing a memory this session has not read, or one that changed underneath
+it — which is phase 3 in
+[local project memory](../../design/local-project-memory.md) §11.5.
+
 Desktop opens a Project at its default workspace, so one Project is one root
 here and the runtime cache is keyed by Project alone. Adding a folder resolves
 rather than creates: a worktree of a repository already in the list opens that

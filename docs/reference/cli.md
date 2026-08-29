@@ -20,7 +20,7 @@ buildmax <command> [flags]
 | `buildmax whoami` | Show current login status |
 | `buildmax models` | List the models the current mode uses and their prompt destination; `--local` also lists what a local Ollama daemon holds |
 | `buildmax tools status` | Inspect the tools currently available to the agent |
-| `buildmax stats [session-id]` | Show what a session spent, what it did, and where its context went; `--json` for the full record |
+| `buildmax info [session-id]` | Show what a session spent and did, and what its project remembers; `--json` for the full record |
 | `buildmax project list` | List the local projects and mark the ones whose locator no longer resolves |
 | `buildmax project relink <project-id>` | Point an existing project, and the memory and sessions on it, at this directory |
 | `buildmax project forget <name>` / `--all` | Delete one of this project's memories, or all of them; sessions are untouched |
@@ -263,10 +263,17 @@ buildmax project forget --all             # sessions are untouched
 Relinking names the project explicitly. The alternative is a heuristic, and a
 heuristic that joined two memory domains would leave no trace of having done so.
 
-### `buildmax stats`
+### `buildmax info`
 
-`stats` reports one session: what it spent, what it did, and where its context
-went. With no argument it reads the most recent session by creation time.
+`info` reports one session and the project it belongs to: what the session
+spent, what it did, where its context went, and what the project remembers. With
+no argument it reads the most recent session by creation time.
+
+The two halves have different owners and different lifetimes. The statistics are
+the session's and end with it; the memories are the project's and every session
+of that project sees them. A session that belongs to no project — one written
+before projects existed, or by a worker — prints no memory section rather than
+an empty one.
 
 It reads two records, and says which is which because they answer different
 questions:
@@ -285,13 +292,23 @@ a warning at the bottom names what the totals do not cover. The same applies to
 money: a session no model priced says `not priced` rather than `0.000000`, and
 a saving is reported only where caching actually saved.
 
-`--json` emits the whole record, including the tools the table truncates.
+The memory half lists each memory's name, type, and description — which is
+exactly what a run carries on every model call — with the index size against its
+budget, because that pair is what you prune against rather than the count. It
+does not print bodies: twenty of them is not a listing. The directory is printed
+so you can open one, and files that could not be parsed are named, since such a
+memory is silently absent from every run until it is repaired.
 
-In the TUI, `/stats` shows the same statistics for the session on screen,
-condensed to fit an overlay. It folds the **live** session rather than the file
-— a session is persisted after each assistant reply, so reading it back would
-answer about the turn before the one you are looking at — and it is a snapshot
-taken when the panel opens, not a live counter.
+`--json` emits the whole record under `stats` and `project_memory`, including
+the tools the table truncates. Bodies stay out of it for the same reason they
+stay out of the table.
+
+In the TUI, `/info` shows both halves as tabs — `tab` and `←`/`→` switch, and on
+the memory tab `enter` opens a body. The statistics tab folds the **live**
+session rather than the file — a session is persisted after each assistant
+reply, so reading it back would answer about the turn before the one you are
+looking at — and both halves are a snapshot taken when the panel opens, not live
+counters.
 
 ## TUI Slash Commands
 
@@ -308,7 +325,7 @@ Typed into the input line:
 | `/skills` | Lists the discovered skills |
 | `/mcp` | Lists connected MCP servers and their status |
 | `/diff` | Shows the working-tree diff for the workspace |
-| `/stats` | Shows this session's spend, context use, and heaviest tools |
+| `/info` | Two tabs: this session's spend, context use, and heaviest tools; and what this project remembers, with `enter` to read a memory |
 | `/tasks` | Lists background jobs: state, age, command; `s` stops the selected one |
 | `/worktree` | Lists this repository's worktrees, and which session is in each |
 

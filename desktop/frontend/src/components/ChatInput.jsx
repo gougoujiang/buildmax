@@ -4,6 +4,7 @@ import { formatRunStatus } from '../lib/format';
 import { ApprovalPanel } from './ApprovalPanel';
 import { DiffDrawer } from './DiffDrawer';
 import { JobsDrawer } from './JobsDrawer';
+import { MemoryDrawer } from './MemoryDrawer';
 import { HistoryModal } from './HistoryModal';
 import { AgentsModal, MCPModal, PluginsModal } from './Modals';
 import { EventsOn } from '../lib/wailsRuntime';
@@ -68,6 +69,7 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
   const [showPlugins, setShowPlugins] = useState(false);
   const [showDiff, setShowDiff] = useState(false);
   const [showJobs, setShowJobs] = useState(false);
+  const [showMemory, setShowMemory] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
 
   // Count of running background jobs for the status-bar badge. The Go side
@@ -337,6 +339,16 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
           History
         </button>
 
+        {/* Memory button */}
+        <button
+          type="button"
+          className="chat-status-bar__btn"
+          onClick={() => setShowMemory(true)}
+          title="What this project remembers across sessions"
+        >
+          Memory
+        </button>
+
         {/* Jobs button */}
         <button
           type="button"
@@ -359,6 +371,9 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
       )}
       {showDiff && (
         <DiffDrawer projectID={currentProject.id} app={app} onClose={() => setShowDiff(false)} />
+      )}
+      {showMemory && (
+        <MemoryDrawer projectID={currentProject.id} app={app} onClose={() => setShowMemory(false)} />
       )}
       {showJobs && (
         <JobsDrawer projectID={currentProject.id} app={app} onClose={() => setShowJobs(false)} />

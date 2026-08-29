@@ -91,10 +91,16 @@ func reportPackage(w io.Writer, dir string) (bool, error) {
 }
 
 func countLabel(n int, noun string) string {
+	return countLabelPlural(n, noun, noun+"s")
+}
+
+// countLabelPlural is countLabel for a noun whose plural is not the singular
+// plus an s. "2 memorys" is the shape this exists to prevent.
+func countLabelPlural(n int, singular, plural string) string {
 	if n == 1 {
-		return "1 " + noun
+		return "1 " + singular
 	}
-	return fmt.Sprintf("%d %ss", n, noun)
+	return fmt.Sprintf("%d %s", n, plural)
 }
 
 func displayName(name string) string {

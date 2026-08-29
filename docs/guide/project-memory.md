@@ -22,7 +22,10 @@ Two clones of the same repository are two projects. So are two unrelated folders
 Nothing is grouped by a remote URL.
 
 `buildmax doctor` names the project the current directory belongs to;
-`buildmax project list` shows them all.
+`buildmax project list` shows them all. In the TUI, `/info` has a `memory` tab
+that lists this project's memories and opens one with `enter`; `buildmax info`
+prints the same listing; and in Desktop the **Memory** button beside the message
+box opens the same list, with the body of whichever you select.
 
 ## Where They Live
 
@@ -56,7 +59,8 @@ resume. Related: [[worker-stream-contract]].
 
 They are yours: open one, edit it, or delete the file. The next run reads
 whatever the files say, and regenerates `MEMORY.md` from them. `buildmax doctor`
-prints the directory, the count, and the size of the index.
+prints the directory, the count, and the size of the index, and `buildmax info`
+lists what each one is about.
 
 A project holds at most **20 memories**, each with a description of at most 100
 characters and a body of at most 2,000. The description is the part that is
