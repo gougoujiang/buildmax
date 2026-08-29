@@ -30,6 +30,13 @@ worker:
     image: buildmax:local
     config_map: buildmax-config
     home_dir: /buildmax
+    # Required in this run mode, and small enough to schedule on a single-node
+    # kind cluster that is also running MySQL, MinIO, and the server.
+    resources:
+      cpu_request: 100m
+      cpu_limit: "1"
+      memory_request: 256Mi
+      memory_limit: 1Gi
 
 storage:
   persist_backend: minio

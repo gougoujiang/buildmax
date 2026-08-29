@@ -300,9 +300,9 @@ type ServerK8sConfig struct {
 	// commonly. The worker never needs a uid the image knows about — it writes
 	// only into mounted volumes.
 	RunAsUser int64 `mapstructure:"run_as_user"`
-	// Resources bounds a worker pod. Empty leaves the matching request or limit
-	// unset, so an existing deployment keeps running unbounded until an
-	// operator chooses values.
+	// Resources bounds a worker pod. Every bound is required in this run mode:
+	// the server refuses to start rather than schedule a worker that model-
+	// chosen commands could run unbounded.
 	Resources ServerK8sResources `mapstructure:"resources"`
 }
 

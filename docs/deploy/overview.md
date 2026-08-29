@@ -90,7 +90,8 @@ Boundaries](#operating-boundaries).
 
 Set `worker.run_mode: k8s_job` to have the scheduler create a Kubernetes Job per
 run instead of a local process, using `worker.k8s.namespace` and
-`worker.k8s.image`.
+`worker.k8s.image`. That mode also requires all four `worker.k8s.resources`
+bounds; the server refuses to start rather than schedule an unbounded worker.
 
 In that mode a worker pod needs the same `server.yaml` the server has.
 `worker.k8s.config_map` names a ConfigMap with a `server.yaml` key, which the

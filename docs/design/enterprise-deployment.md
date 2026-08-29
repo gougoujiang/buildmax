@@ -343,6 +343,11 @@ worker:
   k8s:
     namespace: "buildmax"
     image: "buildmax:local"
+    resources:
+      cpu_request: "500m"
+      cpu_limit: "2"
+      memory_request: "1Gi"
+      memory_limit: "4Gi"
 
 conversation:
   model:

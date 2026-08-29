@@ -338,7 +338,7 @@ is recorded in [deploy/beta-readiness.md](deploy/beta-readiness.md):
 | Entry proof | What the repository provides | Evidence required before Beta |
 |---|---|---|
 | Candidate deployment | Production manifest, migration ledger, `/readyz`, account bootstrap, managed worker inference, and deterministic Compose/kind smoke are implemented. | Deploy immutable candidate image digests against real external MySQL and S3 over TLS. Record the cluster and dependency versions, image digests, configuration, operator, and date. |
-| Constrained execution | Per-run JWT, minimized Job environment, non-root/read-only/capability-dropped pod, no service-account token, configured CPU/memory resources, and an explicit trace boundary are implemented. | Make invalid resource quantities fail closed instead of silently dropping the affected bound, then inspect a live candidate Job and record the effective security context, resources, token mount, environment, and reported sandbox boundary. |
+| Constrained execution | Per-run JWT, minimized Job environment, non-root/read-only/capability-dropped pod, no service-account token, required and validated CPU/memory bounds, and an explicit trace boundary are implemented. A `k8s_job` deployment whose bounds are missing, unparseable, non-positive, or inverted is refused at startup rather than scheduling an unbounded worker. | Inspect a live candidate Job and record the effective security context, resources, token mount, environment, and reported sandbox boundary. |
 | Failure behavior | Cancellation, interrupted-run reporting, liveness heartbeats, lost-worker reaping, partial artifact retention, and explicit retry exist with focused tests. | In the deployed candidate, cancel a running run, kill a worker without a graceful report, interrupt database access, and deny object-storage access. Prove each run reaches the documented terminal state, retains the available evidence, and can recover or be retried without an ambiguous or dangling result. |
 | Recovery and maintenance | Forward migrations, an N-1 binary compatibility rule, environment-injected credentials, and operator-visible readiness and status surfaces exist. | Restore the database and bucket as a pair, exercise an upgrade containing a schema change followed by binary rollback, and perform the documented drain/restart credential-rotation procedure. Record recovery time, data checks, and any accepted loss. |
 | Operator diagnosis and governance | Portal exposes the run result, stored trace, artifacts, managed-call usage, quota, audit history, and System Administration; authorization and retention/export paths are tested. | Have an operator who did not implement the feature perform the full journey and failure drills using documented surfaces. Record whether logs, `/readyz`, System Status, TaskRun/artifact state, trace, managed-call ledger, and audit are enough to explain every outcome. |
@@ -369,39 +369,38 @@ The immediate work closes the Beta gate in dependency order. Worker OS
 sandboxing remains a parallel security track: it is important defense in depth,
 but it does not prove that the existing deployment works or recovers.
 
-1. **Make resource limits fail closed.** Validate configured Kubernetes CPU and
-   memory quantities before scheduling workers, fail startup or scheduling with
-   a useful error, and make the production-reference test prove every required
-   bound is present and parseable. An invalid limit must never become an
-   unbounded candidate worker with only a warning.
-2. **Complete the negative deployment smoke.** Add deterministic cancellation,
+What this list opened with is done: configured worker CPU and memory bounds are
+validated before any Job is created, and a `k8s_job` deployment that would
+produce an unbounded worker now fails at startup with the key to edit named.
+
+1. **Complete the negative deployment smoke.** Add deterministic cancellation,
    hard worker loss, database unavailability, and object-storage denial cases to
    the existing login, worker, artifact, retry, managed-model, authorization,
    and Portal coverage. Assert terminal state and retained evidence, not merely
    that an error was returned.
-3. **Qualify immutable candidate images externally.** Use real external
+2. **Qualify immutable candidate images externally.** Use real external
    MySQL/S3/TLS to run the operator journey, paired database-and-bucket restore,
    schema upgrade and N-1 binary rollback, and a documented credential rotation.
    Record exact image digests, dependency versions, timings, data checks, and
    accepted loss in [deploy/beta-readiness.md](deploy/beta-readiness.md).
-4. **Close the candidate record.** Attach current CI, direct and managed
+3. **Close the candidate record.** Attach current CI, direct and managed
    Compose/kind smoke, Portal E2E, release archive, image scan, SBOM, and
    attestation evidence. Beta begins only when the record has no required open
    item and the accepted limits are repeated in the release notes.
-5. **Widen the Harbor run.** The oracle smoke and a one-task canary have run,
+4. **Widen the Harbor run.** The oracle smoke and a one-task canary have run,
    and `pins.json` names a six-task canary subset that `--canary` selects; next
    is running it, then the full 89 tasks at five attempts under the
    leaderboard's unmodified resource and timeout policy, with a baseline
    comparison. The one task that has run says the path works, not what BuildMax
    scores, and the first canary found a product bug that had nothing to do with
    evaluation — budget for the next widening to find more, and fix before going
-   wider. This can run alongside step 2.
-6. **Continue the rest of P0.6 from the shipped local and worker slice.** Add
+   wider. This can run alongside step 1.
+5. **Continue the rest of P0.6 from the shipped local and worker slice.** Add
    conversation and deployment adapters, then expand the product and trust
    suites around repeated trials and useful failure bundles. Calibrate model
    graders and spike Inspect only after the local workflow shows what it needs
    to add.
-7. **Finish worker hardening as a parallel security track.** First decide and
+6. **Finish worker hardening as a parallel security track.** First decide and
    document fail-closed versus recorded downgrade when `bwrap` is unavailable;
    then add the backend to the image, prove the pod supports it, select
    `SandboxSurfaceWorker`, add rlimits, sandbox hook transports, and test the
@@ -411,8 +410,8 @@ but it does not prove that the existing deployment works or recovers.
    covered them, on any surface — so it is what makes executable team plugins
    contained rather than what permits them; see
    [design/plugin-team-distribution.md](design/plugin-team-distribution.md) §9.
-   None of it hides steps 1–6 behind it.
-8. **Choose one product bet from evidence.** One has been taken and shipped:
+   None of it hides steps 1–5 behind it.
+7. **Choose one product bet from evidence.** One has been taken and shipped:
    agent-managed worktrees, in
    [design/workspace-root-and-worktrees.md](design/workspace-root-and-worktrees.md).
    A session moves its own workspace root, an agent creates and cleans up its

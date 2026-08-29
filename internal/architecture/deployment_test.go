@@ -15,7 +15,31 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/gougoujiang/buildmax/internal/infra/k8s"
 )
+
+// assertWorkerBoundsHold fails when a k8s_job manifest names resource bounds the
+// runner would refuse, or leaves one out.
+//
+// The server rejects such a configuration at startup, so a manifest that fails
+// here is one that crash-loops on apply. It is asserted through the runner's own
+// validation rather than a copy of it, so a rule added there reaches every
+// manifest in this file at once.
+func assertWorkerBoundsHold(t *testing.T, cfg config.ServerConfig) {
+	t.Helper()
+	if cfg.Worker.RunMode != "k8s_job" {
+		return
+	}
+	r := cfg.Worker.K8s.Resources
+	if _, err := (k8s.PodResources{
+		CPURequest:    r.CPURequest,
+		CPULimit:      r.CPULimit,
+		MemoryRequest: r.MemoryRequest,
+		MemoryLimit:   r.MemoryLimit,
+	}).Requirements(); err != nil {
+		t.Errorf("the manifest would not start: %v", err)
+	}
+}
 
 // repoRoot walks up from the test's working directory to the module root.
 func repoRoot(t *testing.T) string {
@@ -111,6 +135,7 @@ func TestDeploymentConfigMapLoads(t *testing.T) {
 	if cfg.Worker.RunMode == "k8s_job" && cfg.Worker.K8s.ConfigMap == "" {
 		t.Error("worker.run_mode is k8s_job but worker.k8s.config_map is empty; worker pods would get no server.yaml")
 	}
+	assertWorkerBoundsHold(t, cfg)
 }
 
 // TestDeploymentConfigMapCarriesNoSecrets keeps credentials out of the ConfigMap.
@@ -209,6 +234,7 @@ func TestDeploymentSmokeConfigsLoadWithoutSecrets(t *testing.T) {
 			if cfg.Conversation.Model.APIKey != "" || cfg.JWTSecret != "" {
 				t.Error("smoke server config contains credentials; inject them at runtime")
 			}
+			assertWorkerBoundsHold(t, cfg)
 		})
 	}
 }
@@ -259,6 +285,10 @@ func TestProductionReferenceLoads(t *testing.T) {
 	if !strings.Contains(cfg.Worker.ServerURL, ".svc.cluster.local") {
 		t.Errorf("worker.server_url = %q; workers should reach the server in-cluster", cfg.Worker.ServerURL)
 	}
+	// A worker pod runs model-chosen shell commands. The reference is what an
+	// operator copies, so an unbounded worker here becomes an unbounded worker
+	// in every deployment adapted from it.
+	assertWorkerBoundsHold(t, cfg)
 }
 
 // TestProductionReferenceRefusesToRunUnedited asserts the file cannot be

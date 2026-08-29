@@ -49,9 +49,10 @@ operator and participants accepted all of these limits:
 
 - [ ] Pin all three candidate image digests and archive the rendered deployment
   configuration with secrets redacted.
-- [ ] Confirm every configured worker CPU and memory request and limit is
-  present and parses. Deliberately supply one invalid quantity and verify the
-  server or scheduler rejects it instead of creating an unbounded Job.
+- [ ] Record the configured worker CPU and memory requests and limits. The
+  server validates them at startup, so deliberately supply one invalid quantity
+  and record that the candidate refuses to start and names the key, rather than
+  coming up and scheduling an unbounded Job.
 - [ ] Confirm MySQL and S3 are external to the BuildMax cluster and reached over
   TLS with the same identities the candidate server and workers will use.
 - [ ] Take a coordinated database and bucket backup and record their identifiers
