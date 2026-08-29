@@ -321,7 +321,7 @@ the agent is writing to.
 | `/worktree` panel, footer, and `/diff` following the root | `internal/interface/cli` |
 | Rebuilding an agent type's tools against a delegate's root | `internal/agentapp` (`agentTypeToolsAt`) |
 | Sandbox writable bind following the root | `internal/infra/sandbox` |
-| Recorded workspace and resume behavior | `internal/agentapp/session_manager.go`, `internal/agentapp/session_workspace.go` |
+| Recorded workspace and resume behavior | `internal/agentapp/session_manager.go`, `internal/agentapp/session_context.go` |
 
 `internal/core` is unaffected: the root is runtime assembly state, not domain
 state, and nothing here gives the agent loop a new concept.

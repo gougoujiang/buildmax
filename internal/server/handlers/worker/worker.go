@@ -137,9 +137,8 @@ func (h *Handler) handlePatchTerminalStatus(w http.ResponseWriter, r *http.Reque
 	relativePaths := []string(nil)
 	if req.Artifact != nil {
 		relativePaths = req.Artifact.RelativePaths
-		if len(relativePaths) == 0 && req.Artifact.RelativePath != "" {
-			relativePaths = []string{req.Artifact.RelativePath}
-		}
+		// An artifact field with no paths still means the run produced its
+		// result file; the worker names the others.
 		if len(relativePaths) == 0 {
 			relativePaths = []string{"result.md"}
 		}

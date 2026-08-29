@@ -453,14 +453,19 @@ func TestDocumentedFilePathsExist(t *testing.T) {
 
 	for _, file := range markdownFiles(t, root) {
 		rel := docPath(root, file)
-		if strings.HasPrefix(rel, "docs/design/") {
-			continue
-		}
 		body, err := os.ReadFile(file)
 		if err != nil {
 			t.Fatalf("read %s: %v", file, err)
 		}
-		for _, m := range documentedFileRe.FindAllStringSubmatch(string(body), -1) {
+		text := string(body)
+		// A design record's prose may name a file that was deleted or one the
+		// plan has not written yet — that is what a record is for. Its tables
+		// are the exception: a "where this lives" row is a reader's index, and
+		// an index that points nowhere is drift rather than history.
+		if strings.HasPrefix(rel, "docs/design/") {
+			text = tableRowsOnly(text)
+		}
+		for _, m := range documentedFileRe.FindAllStringSubmatch(text, -1) {
 			cited := m[1]
 			if isBuildArtifact(cited) {
 				continue
@@ -582,4 +587,18 @@ func assertAllReported(t *testing.T, name string, known map[string]string, seen 
 			t.Errorf("%s lists %q (%s), but nothing reported it; delete the entry if it is fixed", name, key, issue)
 		}
 	}
+}
+
+// tableRowsOnly keeps a document's Markdown table rows and drops everything
+// else, so a check can hold a reference table to a stricter standard than the
+// prose around it.
+func tableRowsOnly(text string) string {
+	var rows strings.Builder
+	for line := range strings.SplitSeq(text, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "|") {
+			rows.WriteString(line)
+			rows.WriteString("\n")
+		}
+	}
+	return rows.String()
 }

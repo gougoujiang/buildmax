@@ -86,17 +86,6 @@ func TestPersistPrefix(t *testing.T) {
 	}
 }
 
-func TestTaskBuildmaxObjectKey(t *testing.T) {
-	// TaskBuildmaxObjectKey delegates to RunGlobalObjectKey (segment "global").
-	key, err := TaskBuildmaxObjectKey("workspaces", "u1", "conv1", "chat1", "run1", "logs/buildmax.log")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if key != "workspaces/u1/conversations/conv1/tasks/chat1/run1/global/logs/buildmax.log" {
-		t.Errorf("got %q", key)
-	}
-}
-
 func TestRunGlobalObjectKey(t *testing.T) {
 	key, err := RunGlobalObjectKey("workspaces", "u1", "conv1", "chat1", "run1", "logs/buildmax.log")
 	if err != nil {

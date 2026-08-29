@@ -231,9 +231,10 @@ func formatContext(n int) string {
 // fixed "models: - key: value" shape the file actually has, rather than pulling
 // in a YAML library or the config package.
 //
-// keep_alive is absent because it has no catalog column: it tunes how long a
-// local daemon holds a model in memory for the client that called it, which is
-// a property of this machine rather than of the target.
+// keep_alive and integration are absent because neither has a catalog column.
+// keep_alive tunes how long a local daemon holds a model in memory for the
+// client that called it, and integration names a gateway profile the local
+// client trusts; both are properties of this machine rather than of the target.
 type settingsModel struct {
 	id            string
 	name          string
@@ -245,8 +246,21 @@ type settingsModel struct {
 	callTimeout   int
 	maxTokens     int
 	reasoning     string
-	promptCache   bool
+	cacheMode     string
+	cacheTTL      string
+	pricing       settingsPricing
 	vision        bool
+}
+
+// settingsPricing is the nested pricing block. Prices stay strings all the way
+// to the add command: they are decimal rates, and mk has no reason to parse one
+// it only forwards.
+type settingsPricing struct {
+	currency          string
+	inputPerMTok      string
+	cacheReadPerMTok  string
+	cacheWritePerMTok string
+	outputPerMTok     string
 }
 
 // isManaged reports whether an older entry already calls a BuildMax gateway
@@ -275,16 +289,23 @@ func readLocalModels() ([]settingsModel, error) {
 // lines until the next "- " or a line back at column 0. That is the only
 // shape this file's models block has ever had; a real YAML parser is not
 // worth the dependency for five fields.
+//
+// cache_control and pricing are one level deeper, so a key is read against the
+// block it sits under: a bare "mode:" means nothing on its own, and pricing
+// and cache_control could otherwise claim each other's keys.
 func parseSettingsModels(text string) []settingsModel {
 	var models []settingsModel
 	var current *settingsModel
 	inModels := false
+	block := ""
+	blockIndent := 0
 
 	flush := func() {
 		if current != nil && current.id != "" {
 			models = append(models, *current)
 		}
 		current = nil
+		block = ""
 	}
 
 	for raw := range strings.SplitSeq(text, "\n") {
@@ -307,6 +328,7 @@ func parseSettingsModels(text string) []settingsModel {
 			flush()
 			current = &settingsModel{}
 			trimmed = strings.TrimPrefix(trimmed, "- ")
+			indent += 2
 		}
 		if current == nil {
 			continue
@@ -317,6 +339,37 @@ func parseSettingsModels(text string) []settingsModel {
 		}
 		key = strings.TrimSpace(key)
 		value = unquote(strings.TrimSpace(value))
+		if block != "" && indent <= blockIndent {
+			block = ""
+		}
+		if block == "" && value == "" && (key == "cache_control" || key == "pricing") {
+			block, blockIndent = key, indent
+			continue
+		}
+		switch block {
+		case "cache_control":
+			switch key {
+			case "mode":
+				current.cacheMode = value
+			case "ttl":
+				current.cacheTTL = value
+			}
+			continue
+		case "pricing":
+			switch key {
+			case "currency":
+				current.pricing.currency = value
+			case "input_per_mtok":
+				current.pricing.inputPerMTok = value
+			case "cache_read_per_mtok":
+				current.pricing.cacheReadPerMTok = value
+			case "cache_write_per_mtok":
+				current.pricing.cacheWritePerMTok = value
+			case "output_per_mtok":
+				current.pricing.outputPerMTok = value
+			}
+			continue
+		}
 		switch key {
 		case "model":
 			current.id = value
@@ -338,8 +391,6 @@ func parseSettingsModels(text string) []settingsModel {
 			current.transport = value
 		case "reasoning":
 			current.reasoning = value
-		case "prompt_cache":
-			current.promptCache = value == "true"
 		case "vision":
 			current.vision = value == "true"
 		}

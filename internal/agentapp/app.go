@@ -382,8 +382,8 @@ type ModelConfig struct {
 	Reasoning string
 	// CacheControl is the resolved prompt-cache policy: which calls ask the
 	// provider to cache the stable prefix, and for how long. Resolved here
-	// rather than in the client so one place folds the deprecated
-	// prompt_cache shorthand.
+	// rather than in the client so an entry that chose nothing takes the
+	// default once, in front of every protocol.
 	CacheControl config.CacheControl
 	// Pricing is what this model charges. Zero means the entry configured no
 	// prices, and a run against it reports its cost as unavailable rather than
@@ -1187,17 +1187,6 @@ func teeEventSink(record, caller func(agent.Event)) func(agent.Event) {
 			caller(e)
 		}
 	}
-}
-
-func (a *AgentApp) GenerateSessionTitle(ctx context.Context, sess *SessionContext) (string, cllm.Usage, error) {
-	if a == nil || sess == nil {
-		return "", cllm.Usage{}, nil
-	}
-	_, _, client, err := a.resolveRunContext(sess)
-	if err != nil {
-		return "", cllm.Usage{}, err
-	}
-	return a.sessionManager.GenerateTitle(ctx, client, sess)
 }
 
 func (a *AgentApp) finalizeTurn(sess *SessionContext, client cllm.LLMClient, stats agent.RunStats) (TurnFinalizeResult, error) {

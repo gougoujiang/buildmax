@@ -34,7 +34,9 @@ epoch. The rule was deliberate and documented; it was also the wrong default
 once the schema grew large enough to be queried by hand and consumed by two
 frontends.
 
-The tree this replaced:
+The tree this replaced. `internal/core/model` was the domain package at the
+time; it has since been split into one package per domain, so the counts below
+are a snapshot of what the change touched rather than a map of the tree today:
 
 | Where | Count |
 |---|---|
