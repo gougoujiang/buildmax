@@ -179,11 +179,28 @@ export async function parseErrorResponse(res: Response, defaultMessage: string):
   }
 }
 
+/**
+ * An error carrying the status that produced it.
+ *
+ * Still an Error, so every existing `getErrorMessage(err, ...)` caller is
+ * unaffected; the status is there for the few cases where the response code
+ * changes what the UI should do rather than only what it says.
+ */
+export class ApiRequestError extends Error {
+  readonly status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = "ApiRequestError"
+    this.status = status
+  }
+}
+
 /** If res is not ok, read body, parse error message, and throw. Call after checkUnauthorized. */
 export async function throwIfNotOk(res: Response): Promise<void> {
   if (res.ok) return
   const msg = await parseErrorResponse(res, res.statusText)
-  throw new Error(msg)
+  throw new ApiRequestError(msg, res.status)
 }
 
 /** Fetch URL, refresh and retry on 401, throw if not ok, return JSON. Use for standard API calls. */

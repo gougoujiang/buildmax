@@ -559,6 +559,7 @@ func TestIssueStore_CreateListUpdate(t *testing.T) {
 	kind := coreissue.AssigneePerson
 	id := user.ID
 	updated, err := s.UpdateIssue(ctx, issue.ID, user.ID, coreissue.UpdateInput{
+		IfVersion:    issue.Version,
 		Title:        &title,
 		Status:       &status,
 		AssigneeKind: &kind,
@@ -572,6 +573,25 @@ func TestIssueStore_CreateListUpdate(t *testing.T) {
 	}
 	if updated.AssigneeKind == nil || *updated.AssigneeKind != coreissue.AssigneePerson {
 		t.Fatalf("updated assignee kind = %v", updated.AssigneeKind)
+	}
+	if updated.Version != issue.Version+1 {
+		t.Fatalf("version = %d, want %d", updated.Version, issue.Version+1)
+	}
+
+	// The second writer read the same row the first one did.
+	stale := "Written from a stale copy"
+	if _, err := s.UpdateIssue(ctx, issue.ID, user.ID, coreissue.UpdateInput{
+		IfVersion: issue.Version,
+		Title:     &stale,
+	}); !errors.Is(err, coreissue.ErrVersionConflict) {
+		t.Fatalf("stale UpdateIssue err = %v, want ErrVersionConflict", err)
+	}
+	current, err := s.GetIssue(ctx, issue.ID)
+	if err != nil {
+		t.Fatalf("GetIssue: %v", err)
+	}
+	if current.Title != title {
+		t.Fatalf("refused update still wrote: title = %q", current.Title)
 	}
 }
 

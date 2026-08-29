@@ -460,11 +460,21 @@ The primary user-facing work object.
 | `assignee_kind` | `varchar(32)` | yes | `person`, `agent`, or `workflow` |
 | `assignee_id` | `varchar(64)` | yes | Interpreted according to `assignee_kind`: a `user_id`, `agent_id`, or `workflow_id` |
 | `created_by` | `bigint unsigned` | no | `user.id` |
+| `version` | `bigint unsigned` | no | Optimistic-concurrency token, starts at 1 |
 | `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 | `updated_at` | `datetime(6)` | yes | `autoUpdateTime` |
 
 Indexes: PK `id`; index `parent_issue_id`; index `idx_issue_team_updated` on
 (`team_id`, `updated_at`); index `user_id`; unique `public_id`.
+
+`version` makes every update conditional. An update carries the version it was
+built from, the store writes with `WHERE public_id = ? AND version = ?` and sets
+`version = version + 1`, and a caller whose version no longer matches gets
+`coreissue.ErrVersionConflict` — a 409 — instead of overwriting a change it
+never read. There is no unconditional update path: an update with no version
+fails, because the zero value matches no row. `updated_at` was not reused for
+this; it is a display and ordering value whose exact round trip through RFC 3339
+is not something a correctness check should rest on.
 
 The `assignee_kind` / `assignee_id` pair is a polymorphic reference — no index
 or constraint ties it to a specific table, so validation lives in

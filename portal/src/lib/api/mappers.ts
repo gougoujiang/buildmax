@@ -105,6 +105,7 @@ export function apiIssueToIssue(api: ApiIssue): Issue {
     createdAt: api.created_at,
     updatedAt: api.updated_at,
     updatedLabel: formatRelativeTime(api.updated_at),
+    version: api.version,
   }
 }
 

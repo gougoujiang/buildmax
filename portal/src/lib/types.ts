@@ -87,6 +87,8 @@ export interface Issue {
   createdAt: string
   updatedAt: string
   updatedLabel: string
+  /** Optimistic-concurrency token; an update must send the version it read. */
+  version: number
   /** Derived server-side per response, never stored. */
   childCount: number
   doneChildCount: number

@@ -27,15 +27,16 @@ func TestCreateIssue_TitleRequired(t *testing.T) {
 func TestUpdateIssue_InvalidStatus(t *testing.T) {
 	svc := &Service{
 		Issues: &mock.MockIssueStore{
-			Issues: []coreissue.Issue{{ID: "i_1", UserID: "u1", TeamID: "tm_1"}},
+			Issues: []coreissue.Issue{{ID: "i_1", UserID: "u1", TeamID: "tm_1", Version: 1}},
 		},
 	}
 	status := "blocked"
 	_, err := svc.UpdateIssue(context.Background(), UpdateIssueCmd{
-		UserID:  "u1",
-		TeamID:  "tm_1",
-		IssueID: "i_1",
-		Status:  &status,
+		IfVersion: 1,
+		UserID:    "u1",
+		TeamID:    "tm_1",
+		IssueID:   "i_1",
+		Status:    &status,
 	})
 	if !errors.Is(err, ErrInvalidStatus) {
 		t.Fatalf("err = %v, want %v", err, ErrInvalidStatus)
@@ -45,13 +46,14 @@ func TestUpdateIssue_InvalidStatus(t *testing.T) {
 func TestUpdateIssue_AssignToPerson(t *testing.T) {
 	svc := &Service{
 		Issues: &mock.MockIssueStore{
-			Issues: []coreissue.Issue{{ID: "i_1", UserID: "u1", TeamID: "tm_1", Status: coreissue.StatusTodo}},
+			Issues: []coreissue.Issue{{ID: "i_1", UserID: "u1", TeamID: "tm_1", Status: coreissue.StatusTodo, Version: 1}},
 		},
 		Teams: &mock.MockTeamStore{Members: []coreteam.Member{{TeamID: "tm_1", UserID: "u1", Role: coreteam.RoleOwner}}},
 	}
 	kind := coreissue.AssigneePerson
 	id := "u1"
 	issue, err := svc.UpdateIssue(context.Background(), UpdateIssueCmd{
+		IfVersion:    1,
 		UserID:       "u1",
 		TeamID:       "tm_1",
 		IssueID:      "i_1",
@@ -69,7 +71,7 @@ func TestUpdateIssue_AssignToPerson(t *testing.T) {
 func TestUpdateIssue_AssignToAgent(t *testing.T) {
 	svc := &Service{
 		Issues: &mock.MockIssueStore{
-			Issues: []coreissue.Issue{{ID: "i_1", UserID: "u1", TeamID: "tm_1", Status: coreissue.StatusTodo}},
+			Issues: []coreissue.Issue{{ID: "i_1", UserID: "u1", TeamID: "tm_1", Status: coreissue.StatusTodo, Version: 1}},
 		},
 		Agents: &mock.MockAgentStore{
 			Agents: []agentdef.Agent{{ID: "a_1", UserID: "u1", TeamID: "tm_1", Name: "Agent 1"}},
@@ -78,6 +80,7 @@ func TestUpdateIssue_AssignToAgent(t *testing.T) {
 	kind := coreissue.AssigneeAgent
 	id := "a_1"
 	issue, err := svc.UpdateIssue(context.Background(), UpdateIssueCmd{
+		IfVersion:    1,
 		UserID:       "u1",
 		TeamID:       "tm_1",
 		IssueID:      "i_1",
@@ -95,7 +98,7 @@ func TestUpdateIssue_AssignToAgent(t *testing.T) {
 func TestUpdateIssue_AssignToWrongAgent(t *testing.T) {
 	svc := &Service{
 		Issues: &mock.MockIssueStore{
-			Issues: []coreissue.Issue{{ID: "i_1", UserID: "u1", TeamID: "tm_1", Status: coreissue.StatusTodo}},
+			Issues: []coreissue.Issue{{ID: "i_1", UserID: "u1", TeamID: "tm_1", Status: coreissue.StatusTodo, Version: 1}},
 		},
 		Agents: &mock.MockAgentStore{
 			Agents: []agentdef.Agent{{ID: "a_1", UserID: "u2", TeamID: "tm_2", Name: "Other Agent"}},
@@ -104,6 +107,7 @@ func TestUpdateIssue_AssignToWrongAgent(t *testing.T) {
 	kind := coreissue.AssigneeAgent
 	id := "a_1"
 	_, err := svc.UpdateIssue(context.Background(), UpdateIssueCmd{
+		IfVersion:    1,
 		UserID:       "u1",
 		TeamID:       "tm_1",
 		IssueID:      "i_1",
@@ -118,7 +122,7 @@ func TestUpdateIssue_AssignToWrongAgent(t *testing.T) {
 func TestUpdateIssue_AssignToWorkflow(t *testing.T) {
 	svc := &Service{
 		Issues: &mock.MockIssueStore{
-			Issues: []coreissue.Issue{{ID: "i_1", UserID: "u1", TeamID: "tm_1", Status: coreissue.StatusTodo}},
+			Issues: []coreissue.Issue{{ID: "i_1", UserID: "u1", TeamID: "tm_1", Status: coreissue.StatusTodo, Version: 1}},
 		},
 		Workflows: &mock.MockWorkflowStore{
 			Workflows: []coreworkflow.Workflow{{ID: "w_1", TeamID: "tm_1", Name: "WF", Status: coreworkflow.StatusPublished}},
@@ -127,6 +131,7 @@ func TestUpdateIssue_AssignToWorkflow(t *testing.T) {
 	kind := coreissue.AssigneeWorkflow
 	id := "w_1"
 	issue, err := svc.UpdateIssue(context.Background(), UpdateIssueCmd{
+		IfVersion:    1,
 		UserID:       "u1",
 		TeamID:       "tm_1",
 		IssueID:      "i_1",
@@ -144,7 +149,7 @@ func TestUpdateIssue_AssignToWorkflow(t *testing.T) {
 func TestUpdateIssue_AssignToUnpublishedWorkflow(t *testing.T) {
 	svc := &Service{
 		Issues: &mock.MockIssueStore{
-			Issues: []coreissue.Issue{{ID: "i_1", UserID: "u1", TeamID: "tm_1", Status: coreissue.StatusTodo}},
+			Issues: []coreissue.Issue{{ID: "i_1", UserID: "u1", TeamID: "tm_1", Status: coreissue.StatusTodo, Version: 1}},
 		},
 		Workflows: &mock.MockWorkflowStore{
 			Workflows: []coreworkflow.Workflow{{ID: "w_1", TeamID: "tm_1", Name: "WF", Status: coreworkflow.StatusDraft}},
@@ -153,6 +158,7 @@ func TestUpdateIssue_AssignToUnpublishedWorkflow(t *testing.T) {
 	kind := coreissue.AssigneeWorkflow
 	id := "w_1"
 	_, err := svc.UpdateIssue(context.Background(), UpdateIssueCmd{
+		IfVersion:    1,
 		UserID:       "u1",
 		TeamID:       "tm_1",
 		IssueID:      "i_1",
@@ -161,5 +167,61 @@ func TestUpdateIssue_AssignToUnpublishedWorkflow(t *testing.T) {
 	})
 	if !errors.Is(err, ErrWorkflowNotPublished) {
 		t.Fatalf("err = %v, want %v", err, ErrWorkflowNotPublished)
+	}
+}
+
+func TestUpdateIssue_VersionRequired(t *testing.T) {
+	svc := &Service{
+		Issues: &mock.MockIssueStore{
+			Issues: []coreissue.Issue{{ID: "i_1", UserID: "u1", TeamID: "tm_1", Status: coreissue.StatusTodo, Version: 1}},
+		},
+	}
+	title := "Renamed"
+	_, err := svc.UpdateIssue(context.Background(), UpdateIssueCmd{
+		UserID:  "u1",
+		TeamID:  "tm_1",
+		IssueID: "i_1",
+		Title:   &title,
+	})
+	if !errors.Is(err, ErrVersionRequired) {
+		t.Fatalf("err = %v, want %v", err, ErrVersionRequired)
+	}
+}
+
+// Two writers read version 1 and both try to write. The second is refused, and
+// the issue still holds what the first one said.
+func TestUpdateIssue_StaleVersionIsRefused(t *testing.T) {
+	store := &mock.MockIssueStore{
+		Issues: []coreissue.Issue{{ID: "i_1", UserID: "u1", TeamID: "tm_1", Status: coreissue.StatusTodo, Version: 1}},
+	}
+	svc := &Service{Issues: store}
+
+	first := "First writer"
+	updated, err := svc.UpdateIssue(context.Background(), UpdateIssueCmd{
+		IfVersion: 1,
+		UserID:    "u1",
+		TeamID:    "tm_1",
+		IssueID:   "i_1",
+		Title:     &first,
+	})
+	if err != nil {
+		t.Fatalf("first UpdateIssue: %v", err)
+	}
+	if updated.Version != 2 {
+		t.Fatalf("version after one update = %d, want 2", updated.Version)
+	}
+
+	second := "Second writer"
+	if _, err := svc.UpdateIssue(context.Background(), UpdateIssueCmd{
+		IfVersion: 1,
+		UserID:    "u1",
+		TeamID:    "tm_1",
+		IssueID:   "i_1",
+		Title:     &second,
+	}); !errors.Is(err, coreissue.ErrVersionConflict) {
+		t.Fatalf("err = %v, want %v", err, coreissue.ErrVersionConflict)
+	}
+	if store.Issues[0].Title != first {
+		t.Fatalf("title = %q, want the first writer's %q", store.Issues[0].Title, first)
 	}
 }

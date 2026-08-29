@@ -3,6 +3,8 @@ package issue
 import (
 	"context"
 	"time"
+
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 )
 
 const (
@@ -42,6 +44,10 @@ type Issue struct {
 	CreatedBy     string    `json:"created_by"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
+	// Version counts accepted updates, starting at 1. It is the precondition an
+	// update must carry, so a reader that acts on a stale copy is refused
+	// instead of overwriting whatever it never saw.
+	Version uint64 `json:"version"`
 }
 
 type CreateInput struct {
@@ -51,6 +57,13 @@ type CreateInput struct {
 }
 
 type UpdateInput struct {
+	// IfVersion is the Version the caller read. The update applies only while
+	// the row still carries it, and fails with ErrVersionConflict otherwise.
+	//
+	// Not a pointer: the zero value matches no row, so a caller that forgets it
+	// is refused rather than granted the unconditional write this exists to
+	// remove.
+	IfVersion     uint64
 	Title         *string
 	Description   *string
 	Status        *string
@@ -76,6 +89,11 @@ type ChildStats struct {
 	Total int `json:"total"`
 	Done  int `json:"done"`
 }
+
+// ErrVersionConflict means the issue moved on between the read and the write.
+// Both update methods return it rather than applying a change built from a
+// version of the issue that no longer exists.
+var ErrVersionConflict = apierr.New(apierr.KindConflict, "issue changed since it was read")
 
 // Store provides issue persistence. Issues are user-scoped.
 type Store interface {

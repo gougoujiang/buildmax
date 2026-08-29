@@ -3,6 +3,7 @@ import type { Agent, Issue, IssueFlow, IssueFlowRun, IssueOutput, Workflow } fro
 import type { ApiIssueComment, ApiIssueFlowResponse, ApiTeamMember } from "../../lib/api/types"
 import { navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
+import { ApiRequestError } from "../../lib/api/client"
 import { taskIsRetryable, taskIsStoppable } from "../../lib/taskStatus"
 import {
   apiAgentToAgent,
@@ -244,6 +245,7 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
       currentTeamId,
       flow.issue.id,
       {
+        version: flow.issue.version,
         title: title.trim(),
         description,
         status,
@@ -253,7 +255,17 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
       token,
     )
       .then(() => load())
-      .catch((err) => setError(getErrorMessage(err, "Failed to update issue")))
+      .catch((err) => {
+        // A conflict means someone else saved first. Reloading is what makes
+        // the form usable again: the version it holds is stale, so every
+        // further save would be refused for the same reason.
+        if (err instanceof ApiRequestError && err.status === 409) {
+          setError("This issue changed while you were editing it. It has been reloaded — reapply your change.")
+          void load()
+          return
+        }
+        setError(getErrorMessage(err, "Failed to update issue"))
+      })
       .finally(() => setSaving(false))
   }
 

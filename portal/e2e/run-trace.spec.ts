@@ -36,7 +36,7 @@ async function seedCompletedAgentRun(page: Page, session: Session): Promise<stri
     description: "Created by the Portal browser tests.",
     instructions: "Reply with exactly: deployment smoke ok",
   })
-  const issue = await postJSON<{ id: string }>(page, `${team}/issues`, session, {
+  const issue = await postJSON<{ id: string; version: number }>(page, `${team}/issues`, session, {
     title: tagged("Run trace probe"),
     description: "Created by the Portal browser tests to exercise the run trace view.",
   })
@@ -44,6 +44,7 @@ async function seedCompletedAgentRun(page: Page, session: Session): Promise<stri
   // An agent run is refused unless the issue is assigned to an agent, so this
   // is a precondition of the next call rather than a separate assertion.
   await patchJSON(page, `${team}/issues/${encodeURIComponent(issue.id)}`, session, {
+    version: issue.version,
     assignee_kind: "agent",
     assignee_id: agent.id,
   })

@@ -77,6 +77,8 @@ export interface ApiIssue {
   created_by: string
   created_at: string
   updated_at: string
+  /** Optimistic-concurrency token. Send it back on any update of this issue. */
+  version: number
   /** Derived per response, never stored. Absent on older servers. */
   child_count?: number
   done_child_count?: number

@@ -23,11 +23,15 @@ type issueRow struct {
 	Status        string  `gorm:"type:varchar(32);not null"`
 	// AssigneeID stays an opaque handle: assignee_kind admits person, agent, or
 	// workflow, and one numeric column cannot name rows in three tables.
-	AssigneeKind *string   `gorm:"type:varchar(32)"`
-	AssigneeID   *string   `gorm:"type:varchar(64)"`
-	CreatedBy    uint64    `gorm:"column:created_by;not null"`
-	CreatedAt    time.Time `gorm:"autoCreateTime"`
-	UpdatedAt    time.Time `gorm:"autoUpdateTime;index:idx_issue_team_updated,priority:2"`
+	AssigneeKind *string `gorm:"type:varchar(32)"`
+	AssigneeID   *string `gorm:"type:varchar(64)"`
+	CreatedBy    uint64  `gorm:"column:created_by;not null"`
+	// Version is the optimistic-concurrency token. Every accepted update carries
+	// the version it was built from and bumps it, so two writers racing on one
+	// issue produce one winner and one refusal instead of a silent overwrite.
+	Version   uint64    `gorm:"column:version;not null;default:1"`
+	CreatedAt time.Time `gorm:"autoCreateTime"`
+	UpdatedAt time.Time `gorm:"autoUpdateTime;index:idx_issue_team_updated,priority:2"`
 }
 
 func (issueRow) TableName() string { return "issue" }
@@ -72,6 +76,7 @@ func toIssue(row *issueReadRow) *coreissue.Issue {
 		CreatedBy:    row.CreatedByPublicID,
 		CreatedAt:    row.Row.CreatedAt,
 		UpdatedAt:    row.Row.UpdatedAt,
+		Version:      row.Row.Version,
 	}
 	if row.Row.ParentIssueID != nil {
 		parent := derefPublicID(row.ParentPublicID)
@@ -106,6 +111,7 @@ func (s *Store) CreateIssueInTeam(ctx context.Context, teamID, createdBy string,
 		Title:       in.Title,
 		Description: in.Description,
 		Status:      coreissue.StatusTodo,
+		Version:     1,
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
@@ -371,8 +377,27 @@ func (s *Store) updateIssue(ctx context.Context, issueID string, in coreissue.Up
 	if !ok {
 		return nil, nil
 	}
-	if err := s.db.WithContext(ctx).Model(&issueRow{}).Where("public_id = ?", id).Updates(updates).Error; err != nil {
-		return nil, err
+	// The version guard is in the WHERE clause, not a read-then-check: only the
+	// database can decide the race, and a check in this process would leave the
+	// window it is supposed to close.
+	updates["version"] = gorm.Expr("version + 1")
+	res := s.db.WithContext(ctx).Model(&issueRow{}).
+		Where("public_id = ? AND version = ?", id, in.IfVersion).
+		Updates(updates)
+	if res.Error != nil {
+		return nil, res.Error
+	}
+	if res.RowsAffected == 0 {
+		// Nothing matched. Re-read to say which of the two it was, so a caller
+		// does not report a vanished issue as a stale one.
+		current, err := s.GetIssue(ctx, issueID)
+		if err != nil {
+			return nil, err
+		}
+		if current == nil {
+			return nil, nil
+		}
+		return nil, coreissue.ErrVersionConflict
 	}
 	return s.GetIssue(ctx, issueID)
 }
