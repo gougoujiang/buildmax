@@ -60,6 +60,7 @@ func NewRootCommand() *cobra.Command {
 	root.Flags().String("session-id", "", "use a specific session ID (load if exists, else create); must be a valid UUID")
 	root.Flags().String("model", "", "use model from settings by model id or name")
 	root.Flags().String("workspace", "", "workspace directory for the agent (default: current directory)")
+	root.Flags().Bool("no-project-memory", false, "do not read or write this project's memory for this run")
 	root.Flags().Bool("sandbox", false, "require the Bash sandbox for this run without changing settings")
 	root.Flags().String("sandbox-mode", "", "sandbox approval mode for this run: auto_allow or regular (requires --sandbox)")
 	root.Flags().Int("max-iterations", 0,
@@ -98,6 +99,7 @@ func runRoot(cmd *cobra.Command, _ []string) error {
 	model, _ := cmd.Flags().GetString("model")
 	sessionID, _ := cmd.Flags().GetString("session-id")
 	workspace, _ := cmd.Flags().GetString("workspace")
+	noProjectMemory, _ := cmd.Flags().GetBool("no-project-memory")
 	sandboxEnabled, _ := cmd.Flags().GetBool("sandbox")
 	sandboxMode, _ := cmd.Flags().GetString("sandbox-mode")
 	maxIterations, _ := cmd.Flags().GetInt("max-iterations")
@@ -126,7 +128,7 @@ func runRoot(cmd *cobra.Command, _ []string) error {
 		fmt.Fprintln(os.Stderr, err.Error())
 		return &ExitError{Code: ExitUsage, Err: err}
 	}
-	overrides := runOverrides{Sandbox: sandboxRun, MaxIterations: maxIterations}
+	overrides := runOverrides{Sandbox: sandboxRun, MaxIterations: maxIterations, NoProjectMemory: noProjectMemory}
 
 	if sessionID != "" {
 		if _, err := uuid.Parse(sessionID); err != nil {
@@ -189,6 +191,10 @@ func runRoot(cmd *cobra.Command, _ []string) error {
 type runOverrides struct {
 	Sandbox       config.SandboxRunOverride
 	MaxIterations int
+	// NoProjectMemory keeps this run out of the project's memory in both
+	// directions. There is no read-only variant: a run that may not look at
+	// the document must not be able to replace it either.
+	NoProjectMemory bool
 }
 
 func parseSandboxRunOverride(enabled bool, mode string) (config.SandboxRunOverride, error) {

@@ -41,4 +41,24 @@ type Store interface {
 	// to remove them says so there, having shown the user which ones. See
 	// docs/design/local-project-memory.md §15.
 	Delete(ctx context.Context, id string) error
+
+	// ReadMemory returns the Project's memory document. A Project that has
+	// never written one reads as empty, not as an error: no memory and no
+	// memory file are the same state to every caller.
+	//
+	// A document a person edited by hand is returned as written, with
+	// ManuallyEdited set. The Markdown is the authority; a read never rewrites
+	// it to agree with metadata describing an older revision.
+	ReadMemory(ctx context.Context, projectID string) (Memory, error)
+
+	// WriteMemory replaces the document under the memory writer lock, but only
+	// if the stored digest still matches what the writer saw. Otherwise nothing
+	// is written and the error is ErrDigestMismatch: the loser of a race keeps
+	// its text and merges against what it is shown next, which is not true of a
+	// write that silently won.
+	//
+	// Validation and the credential scan run before the lock is taken, so a
+	// document that was never going to be persisted does not make a concurrent
+	// writer wait.
+	WriteMemory(ctx context.Context, projectID string, write MemoryWrite) (Memory, error)
 }

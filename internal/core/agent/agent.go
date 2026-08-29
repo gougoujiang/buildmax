@@ -212,6 +212,11 @@ type RunLoopOpts struct {
 	// leaves it; this is about proximity, not storage, so it carries only the part the author
 	// marked as non-negotiable. Empty is the normal case.
 	Invariants string
+	// Memory supplies the bounded cross-session recall rendered after the
+	// message list and before the session-state anchor. Nil is the normal case
+	// for a run that has no such scope -- a worker, an evaluation, a session
+	// whose user turned memory off -- and costs nothing.
+	Memory MemorySource
 	// EventSink receives structured runtime events from the agent loop.
 	// Nil disables event emission entirely (zero overhead).
 	// The callback may be invoked from the RunLoop goroutine or from a tool
@@ -501,9 +506,18 @@ func callLLM(ctx context.Context, opts RunLoopOpts, history []llm.Message, syste
 	if nh, ok := opts.History.(NotesHistory); ok {
 		notes, todos = nh.Notes(), nh.Todos()
 	}
+	// Shared memory first, then this session's state: memory is older, wider
+	// context, and what the current task decided stays closest to generation.
+	// Both are rebuilt per call, so another session's committed write is
+	// visible on the next iteration rather than at the end of the run.
 	var stateMsg []llm.Message
+	if opts.Memory != nil {
+		if block := RenderSharedMemory(opts.Memory.Memory()); block != "" {
+			stateMsg = append(stateMsg, llm.Message{Role: "user", Content: block})
+		}
+	}
 	if block := RenderSessionState(opts.Invariants, notes, todos); block != "" {
-		stateMsg = []llm.Message{{Role: "user", Content: block}}
+		stateMsg = append(stateMsg, llm.Message{Role: "user", Content: block})
 	}
 
 	systemTokens := EstimateMessageTokens(llm.Message{Role: "system", Content: systemPrompt}) + EstimateTokens(stateMsg)

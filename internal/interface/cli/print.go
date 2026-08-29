@@ -142,6 +142,7 @@ func printAppConfig(opts printOptions, source auth.ModelSource) agentapp.AppConf
 		SandboxRunOverride:     opts.Overrides.Sandbox,
 		MaxIterations:          opts.Overrides.MaxIterations,
 		EnableLocalProject:     true,
+		DisableProjectMemory:   opts.Overrides.NoProjectMemory,
 	}
 }
 

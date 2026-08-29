@@ -8,6 +8,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/plugin"
+	"github.com/gougoujiang/buildmax/internal/util/secretscan"
 )
 
 // traceVersion is stamped on the run_start record so future readers can detect
@@ -257,16 +258,16 @@ func recordFromEvent(e agent.Event, maxField int) (Record, bool) {
 		r.Cost = recordCost(e.CallCost)
 		r.ContextTokens = e.ContextTokens
 		r.ContextWindow = e.ContextWindow
-		r.Content = bound(Redact(e.Content), maxField)
+		r.Content = bound(secretscan.Redact(e.Content), maxField)
 	case agent.EventToolStart:
 		r.Tool = e.ToolName
 		r.ToolCallID = e.ToolCallID
-		r.Args = bound(Redact(e.ToolArgs), maxField)
+		r.Args = bound(secretscan.Redact(e.ToolArgs), maxField)
 	case agent.EventToolEnd:
 		r.Tool = e.ToolName
 		r.ToolCallID = e.ToolCallID
-		r.Args = bound(Redact(e.ToolArgs), maxField)
-		r.Result = bound(Redact(e.ToolResult), maxField)
+		r.Args = bound(secretscan.Redact(e.ToolArgs), maxField)
+		r.Result = bound(secretscan.Redact(e.ToolResult), maxField)
 		r.DurationMS = e.ToolDuration.Milliseconds()
 		r.ErrorKind = e.ToolErrorKind
 	case agent.EventToolDenied:
@@ -289,10 +290,10 @@ func recordFromEvent(e agent.Event, maxField int) (Record, bool) {
 		// A message that entered the run after it started is part of what the run
 		// was told to do, so a trace that omitted it would misreport its instructions.
 		r.Iter = e.Iter
-		r.Content = bound(Redact(e.Content), maxField)
+		r.Content = bound(secretscan.Redact(e.Content), maxField)
 	case agent.EventUserInputBlocked:
 		r.Iter = e.Iter
-		r.Content = bound(Redact(e.Content), maxField)
+		r.Content = bound(secretscan.Redact(e.Content), maxField)
 		r.DenyReason = e.DenyReason
 	case agent.EventRunEnd:
 		r.ToolCalls = e.Stats.ToolCalls

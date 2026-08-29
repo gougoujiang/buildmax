@@ -162,6 +162,12 @@ func (r *defaultSubAgentRunner) RunSubAgent(ctx context.Context, opts SubAgentRu
 	// context, and leaving it in place would let a subagent overwrite the notes and task list
 	// of the run that delegated to it.
 	ctx = coreagent.CtxWithNoteStore(ctx, sess)
+	// A delegate reads the project's memory -- it is working on the same
+	// project -- and cannot write it. The write tool is already absent from its
+	// registry; dropping the writer means a tool added later, or a user-defined
+	// agent definition, cannot reach it by accident either.
+	memory := coreagent.MemorySourceFromContext(ctx)
+	ctx = coreagent.CtxWithoutMemoryWriter(ctx)
 	ctx = coreagent.CtxMarkSubagent(ctx)
 
 	// Fire SubagentStart so audit hooks can correlate the subagent run with
@@ -199,6 +205,7 @@ func (r *defaultSubAgentRunner) RunSubAgent(ctx context.Context, opts SubAgentRu
 		SessionID:        sess.ID(),
 		IsSubagent:       true,
 		AgentType:        opts.Description,
+		Memory:           memory,
 		EventSink:        eventSink,
 		MaxParallelTools: r.maxParallel,
 	})
