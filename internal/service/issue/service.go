@@ -271,6 +271,16 @@ func (s *Service) GetIssue(ctx context.Context, teamID, issueID string) (*coreis
 	return found, nil
 }
 
+// ListChildren returns one issue's sub-issues, oldest first, after checking the
+// parent belongs to the team. Callers that already hold the parent still go
+// through here: the team check is the authorization, not a convenience.
+func (s *Service) ListChildren(ctx context.Context, teamID, issueID string) ([]coreissue.Issue, error) {
+	if _, err := s.GetIssue(ctx, teamID, issueID); err != nil {
+		return nil, err
+	}
+	return s.Issues.ListIssueChildren(ctx, issueID)
+}
+
 func (s *Service) ListIssues(ctx context.Context, teamID string, filter coreissue.ListFilter, limit, offset int) ([]coreissue.Issue, int, error) {
 	if s.Issues == nil {
 		return nil, 0, ErrIssuesNotConfigured

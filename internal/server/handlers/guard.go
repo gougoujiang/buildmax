@@ -10,6 +10,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/server/handlers/worker"
 	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
 	"github.com/gougoujiang/buildmax/internal/service/conversation"
+	issuesvc "github.com/gougoujiang/buildmax/internal/service/issue"
 	"github.com/gougoujiang/buildmax/internal/service/task"
 
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
@@ -73,6 +74,7 @@ func (h *Handler) buildWorkerHandler() *worker.Handler {
 		Agents:        h.cfg.AgentStore,
 		Gateway:       h.cfg.LLMGateway,
 		Artifacts:     h.artifacts,
+		Issues:        h.workerIssueAccess(),
 		Hub:           h.hub,
 		OnTerminal:    h.terminalListeners,
 		TerminalGroup: h.terminal,
@@ -82,6 +84,17 @@ func (h *Handler) buildWorkerHandler() *worker.Handler {
 		Activations: h.activationStore(),
 		Plugins:     h.cfg.PluginService,
 	})
+}
+
+// workerIssueAccess is the Issue capability a run token gets, or nil when this
+// deployment stores no issues or no comments. Both stores are required: an
+// agent that can read an issue but not report on it is worse than one that
+// knows it has neither.
+func (h *Handler) workerIssueAccess() worker.IssueAccess {
+	if h.cfg.IssueStore == nil || h.cfg.IssueCommentStore == nil {
+		return nil
+	}
+	return &issuesvc.Service{Issues: h.cfg.IssueStore, Comments: h.cfg.IssueCommentStore}
 }
 
 // activationStore is the plugin service's activation store, or nil when this

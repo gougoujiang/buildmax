@@ -20,7 +20,10 @@
 - roadmap_priority: `unscheduled` — this decides the item
   [issue-model.md](./issue-model.md) §6 deferred as "a separate decision"; it is
   not placed in [../ROADMAP.md](../ROADMAP.md)
-- status: `decided`, not implemented — nothing in this repository implements it
+- status: `implemented on the worker plane` — §10 steps 1-5 are shipped: both
+  tools, the port, the two run-scoped worker routes, and registration in
+  `internal/agentapp/taskrun`. Step 6, the local surfaces, belongs to the
+  bridge. Artifact references in `GetIssue` are deferred; §5.1 says why
 - follows: [issue-model.md](./issue-model.md),
   [tool-permissions.md](./tool-permissions.md),
   [unified-artifacts.md](./unified-artifacts.md)
@@ -164,6 +167,14 @@ Returns a bounded view of the scoped Issue:
 - references to Artifacts already related to the Issue, as identities, never as
   object-store paths.
 
+The Artifact references are **not implemented**. The only aggregation of an
+Issue's outputs is `aggregateIssueOutputs`, a method on the Portal work handler
+rather than a service, so a worker route cannot read it without either
+importing that handler or moving the aggregation — an ownership change that
+does not belong inside this one. The tool ships without them and says nothing
+that implies it saw them. Moving the aggregation into `internal/service/issue`
+is the migration to propose; §11 keeps the question.
+
 It declares `AccessReadOnly`, so it needs no approval and may overlap its
 neighbours under [parallel-tool-execution.md](./parallel-tool-execution.md).
 
@@ -300,9 +311,13 @@ already read.
    conditional tools carry.
 2. Define the `IssueClient` port and both tools in `internal/tool`, with
    `Access` declared and the scope held in the constructor.
-3. Thread an optional `IssueClient` through `agentapp.AppConfig` and
-   `buildBaseTools`, nil meaning absent, exactly as `ArtifactPublisher` is
-   threaded.
+3. Thread an optional `IssueClient` through `agentapp.AppConfig`, nil meaning
+   absent, exactly as `ArtifactPublisher` is threaded. Register the tools in
+   `buildToolRegistry` **after** `BuildAgentTypes`, not in `buildBaseTools`:
+   appending after that call is the mechanism that keeps `Worktree` and the Job
+   tools out of subagents, and it is what §8 needs. `buildBaseTools` is what
+   every delegate registry is built from, so a tool placed there would reach
+   one.
 4. Implement the port for the worker plane in the worker client, scoped by the
    run's task Issue ID, and register it in `internal/agentapp/taskrun`.
 5. Add the server-side read and comment routes the port needs, or reuse the
@@ -312,12 +327,15 @@ already read.
    surfaces. This step belongs to the local Issue bridge and is the point at
    which that proposal's first slice starts consuming this record.
 
-Steps 1–5 are worker-plane work and stand alone. Step 6 is the bridge.
+Steps 1–5 are worker-plane work and stand alone; they are done. Step 6 is the
+bridge.
 
 ## 11. Open Questions
 
-1. **Where does a runless session's result appear?** `issue_outputs.go`
-   aggregates an Issue's outputs from task runs. A local session produces no
+1. **Where does a runless session's result appear, and who owns the
+   aggregation?** `issue_outputs.go` aggregates an Issue's outputs from task
+   runs, as a Portal handler method rather than a service — which is also why
+   `GetIssue` ships without Artifact references (§5.1). A local session produces no
    run, so an Artifact it publishes has no row to hang on. Either outputs
    aggregation learns a session-originated source, or the bridge creates a
    record for local work. This must be answered before step 6, not before

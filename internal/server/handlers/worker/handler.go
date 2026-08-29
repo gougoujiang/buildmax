@@ -44,6 +44,11 @@ type Config struct {
 	// deployment has no artifact store, and the route answers 503 — which is
 	// also what makes the worker leave the tool unregistered.
 	Artifacts *artifactsvc.Service
+	// Issues lets a run's agent read the Issue its task names and add one
+	// comment to it. Nil answers 503, and a run whose task names no Issue gets
+	// 404 from a configured one — either way the worker leaves the tools
+	// unregistered rather than offering ones that always fail.
+	Issues IssueAccess
 
 	// OnTerminal is fired once a run reaches a terminal status, after the hub
 	// has been told. The server supplies it; this package does not know who is
@@ -81,6 +86,11 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.Handle("PATCH /api/worker/task-runs/{task_run_id}", h.runScopedWorkerMiddleware(http.HandlerFunc(h.patchTaskRun)))
 	mux.Handle("POST /api/worker/task-runs/{task_run_id}/stream", h.runScopedWorkerMiddleware(http.HandlerFunc(h.postStream)))
 	mux.Handle("POST /api/worker/task-runs/{task_run_id}/artifacts", h.runScopedWorkerMiddleware(http.HandlerFunc(h.postArtifact)))
+	// The Issue this run's task names, and one comment on it. There is no
+	// update route: what an agent may not say about its work is decided by the
+	// absence of the route, not by the tool that would have called it.
+	mux.Handle("GET /api/worker/task-runs/{task_run_id}/issue", h.runScopedWorkerMiddleware(http.HandlerFunc(h.getRunIssue)))
+	mux.Handle("POST /api/worker/task-runs/{task_run_id}/issue/comments", h.runScopedWorkerMiddleware(http.HandlerFunc(h.postRunIssueComment)))
 	// Inference authenticates the same way but reads the claims itself: it
 	// attributes the call to the token's user and team rather than only
 	// admitting it.

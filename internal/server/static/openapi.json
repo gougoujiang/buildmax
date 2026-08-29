@@ -222,6 +222,38 @@
           "comment_count"
         ]
       },
+      "RunIssue": {
+        "type": "object",
+        "description": "The bounded view of an issue a run's agent reads. Not the full issue: children are title and status only, and the comment thread is a recent window.",
+        "properties": {
+          "title": {"type": "string"},
+          "description": {"type": "string"},
+          "status": {"type": "string"},
+          "assignee_kind": {"type": "string"},
+          "children": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {"title": {"type": "string"}, "status": {"type": "string"}},
+              "required": ["title", "status"]
+            }
+          },
+          "comments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "author_kind": {"type": "string"},
+                "body": {"type": "string"},
+                "created_at": {"type": "string", "format": "date-time"}
+              },
+              "required": ["author_kind", "body", "created_at"]
+            }
+          },
+          "omitted_comments": {"type": "integer", "description": "How many older comments the window left out"}
+        },
+        "required": ["title", "description", "status", "children", "comments", "omitted_comments"]
+      },
       "IssueComment": {
         "type": "object",
         "properties": {
@@ -3380,6 +3412,61 @@
           },
           "404": {
             "description": "Run not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/worker/task-runs/{task_run_id}/issue": {
+      "get": {
+        "summary": "Read the issue this run is working",
+        "description": "The run token names the run, the run names the task, and the task names the issue. A worker never says which issue it wants.",
+        "security": [{"runTokenAuth": []}],
+        "parameters": [{"name": "task_run_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/RunIssue"}}}
+          },
+          "404": {
+            "description": "Run not found, or this run is not working an issue",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/worker/task-runs/{task_run_id}/issue/comments": {
+      "post": {
+        "summary": "Report on the issue this run is working",
+        "description": "Appends one agent-authored comment. There is no route that changes an issue's status, assignee, or hierarchy from a run token.",
+        "security": [{"runTokenAuth": []}],
+        "parameters": [{"name": "task_run_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "body": {"type": "string"},
+                  "artifact_ids": {"type": "array", "items": {"type": "string"}}
+                },
+                "required": ["body"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {"application/json": {"schema": {"type": "object", "properties": {"id": {"type": "string"}}, "required": ["id"]}}}
+          },
+          "400": {
+            "description": "Invalid comment body",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "404": {
+            "description": "Run not found, or this run is not working an issue",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
           }
         }
