@@ -196,8 +196,8 @@ repository's: through `./make eval harbor run` they go after `--`.
 | `reasoning_effort` | no | `off`, `low`, `medium`, or `high`. Refused outside that set. |
 | `max_iterations` | no | `--max-iterations` for the run. Unset takes the CLI's own default. |
 | `provider` | no | The wire protocol to speak: `openai_compatible`, `openai`, `anthropic`, or `ollama`. Unset, it is inferred from the slug in `-m`. |
-| `context_window` | no | The window the trial runs at. Unset takes the CLI's own default, which is well below what a long-context model declares. |
-| `max_tokens` | no | Caps one response. |
+| `context_window` | no | The window the trial runs at, and part of the subject the bundle records. Unset takes the CLI's own default, which is well below what a long-context model declares. |
+| `max_tokens` | no | Caps one response. Recorded on the subject as `max_output`. |
 | `pricing` | no | A JSON price list, so the run reports what it spent. Unset, cost reports as unavailable rather than as zero. |
 
 `--ak` parses its value as JSON, so pricing goes in as an object. It takes the

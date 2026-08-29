@@ -405,6 +405,15 @@ func TestTheSubjectNamesEveryVersionAResultDependsOn(t *testing.T) {
 	if s.Model.Reasoning != "high" {
 		t.Errorf("reasoning = %q, want the effort the run used", s.Model.Reasoning)
 	}
+	// The same binary against the same model is two subjects at two window
+	// sizes: the smaller one compacts sooner, so what it scores is the model
+	// plus a limit. A manifest that omits the window pairs them as one.
+	if s.Model.ContextWindow != 200000 {
+		t.Errorf("context window = %d, want the one the trial ran at", s.Model.ContextWindow)
+	}
+	if s.Model.MaxOutput != 32000 {
+		t.Errorf("max output = %d, want the cap the trial ran under", s.Model.MaxOutput)
+	}
 	// All three come from evidence. The digest is what the adapter hashed
 	// before uploading it; the version and commit are what the binary itself
 	// reported inside the container. None of it is asserted by whoever ran the

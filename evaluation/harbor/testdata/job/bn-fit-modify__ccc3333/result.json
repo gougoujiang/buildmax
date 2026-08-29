@@ -22,6 +22,8 @@
             "buildmax_provider": "anthropic",
             "harbor_provider": "anthropic",
             "reasoning": "high",
+            "context_window": 200000,
+            "max_output": 32000,
             "sandboxed": false,
             "permissions": "allow_all"
         }

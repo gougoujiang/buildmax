@@ -378,6 +378,12 @@ class Buildmax(BaseInstalledAgent):
             "buildmax_provider": self._buildmax_provider(),
             "harbor_provider": access.provider,
             "reasoning": self._reasoning_effort,
+            # The same binary against the same model is two subjects at two
+            # window sizes: the smaller one compacts sooner, and what it scores
+            # is the model plus a limit. Unset stays null rather than repeating
+            # the CLI's own default, which is the CLI's to change.
+            "context_window": self._context_window,
+            "max_output": self._max_tokens,
             # Whether the run could be priced at all, which decides how to read
             # a missing cost: unpriced, or priced and free.
             "priced": self._pricing is not None,

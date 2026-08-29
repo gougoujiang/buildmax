@@ -37,16 +37,19 @@ const nanoUnitsPerUnit = 1_000_000_000
 // A test holds the adapter to these names: a key spelled differently on one
 // side is not an error, it is a field that silently reads as absent.
 const (
-	metaProvider    = "buildmax_provider"
-	metaReasoning   = "reasoning"
-	metaPermissions = "permissions"
-	metaSandboxed   = "sandboxed"
-	metaArtifact    = "artifact_digest"
+	metaProvider      = "buildmax_provider"
+	metaReasoning     = "reasoning"
+	metaContextWindow = "context_window"
+	metaMaxOutput     = "max_output"
+	metaPermissions   = "permissions"
+	metaSandboxed     = "sandboxed"
+	metaArtifact      = "artifact_digest"
 )
 
 // subjectMetadataKeys is the set above, for the parity test.
 var subjectMetadataKeys = []string{
-	metaProvider, metaReasoning, metaPermissions, metaSandboxed, metaArtifact,
+	metaProvider, metaReasoning, metaContextWindow, metaMaxOutput,
+	metaPermissions, metaSandboxed, metaArtifact,
 }
 
 // SubjectInput is what a Harbor job cannot say about the subject it measured.
@@ -145,9 +148,11 @@ func buildSubject(trials []Trial, pins Pins, in SubjectInput) (contract.SubjectM
 	meta := metadataOf(first)
 
 	model := contract.ModelIdentity{
-		Transport: stringField(meta, metaProvider),
-		Target:    modelTarget(first),
-		Reasoning: stringField(meta, metaReasoning),
+		Transport:     stringField(meta, metaProvider),
+		Target:        modelTarget(first),
+		Reasoning:     stringField(meta, metaReasoning),
+		ContextWindow: intField(meta, metaContextWindow),
+		MaxOutput:     intField(meta, metaMaxOutput),
 	}
 	if model.Transport == "" {
 		// The adapter records the protocol it resolved. Deriving it here from
@@ -556,6 +561,19 @@ func metadataOf(t Trial) map[string]any {
 func stringField(m map[string]any, key string) string {
 	s, _ := m[key].(string)
 	return s
+}
+
+// intField reads a number the adapter recorded. A trial that left it unset
+// records null, and JSON carries every number as a float, so both arrive here
+// as the zero the manifest then omits — which is what an unstated window is.
+func intField(m map[string]any, key string) int {
+	switch v := m[key].(type) {
+	case float64:
+		return int(v)
+	case int:
+		return v
+	}
+	return 0
 }
 
 func intOrZero(v *int) int {
