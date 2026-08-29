@@ -25,6 +25,12 @@ const (
 	// workspace root — the CLI and TUI — and never inside subagents, which
 	// share the parent's root for the length of their run.
 	ToolNameWorktree = "Worktree"
+	// ToolNameProjectMemoryWrite is registered only on a local primary run
+	// whose session belongs to a Project and whose user has not turned memory
+	// off. A subagent reads the same memory but does not get this: the parent
+	// stays the single curator for one task. See
+	// docs/design/local-project-memory.md §9.4.
+	ToolNameProjectMemoryWrite = "ProjectMemoryWrite"
 	// The Job tools and Monitor are registered only where local background
 	// jobs are enabled (TUI and Desktop), and never inside subagents.
 	ToolNameJobList   = "JobList"

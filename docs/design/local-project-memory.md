@@ -1,9 +1,22 @@
 # Local Projects And Project Memory
 
-> **Audience:** contributors and security reviewers · **Status:** planned
+> **Audience:** contributors and security reviewers · **Status:** implemented
+> through phase 2; phase 3 (Desktop viewer/editor, a CLI inspection command
+> beyond `buildmax doctor`, and the usage evidence) is not built.
 >
 > Roadmap priority: P0.5 local follow-on. CLI/TUI and Desktop are in scope;
 > Portal, worker task runs, and team memory are not.
+>
+> Two things landed differently from §9.1 and §11.5 and are worth naming. An
+> unusable document — over the limit, or not valid text after a hand edit — is
+> skipped for the run and reported by `buildmax doctor`, but the write tool
+> stays registered: the tool registry is cached per model, so withdrawing it on
+> a file that can change at any moment would be a guarantee only by luck, while
+> the digest rule already refuses a replacement from a model that was never
+> shown the bytes. And Desktop still keys its runtime cache by Project alone,
+> because it opens a Project at its default workspace and so has exactly one
+> root per Project; the wider keying §11.5 describes is needed only when Desktop
+> can enter a worktree.
 
 Related: [context durability](context-durability.md),
 [local session storage](local-session-storage.md),

@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/gougoujiang/buildmax/internal/util/secretscan"
 )
 
 // A background job outlives the run trace of the tool call that launched it,
@@ -54,9 +56,9 @@ func AppendJobRecord(dir string, rec JobRecord) {
 		return
 	}
 	rec.TS = time.Now().Format(time.RFC3339Nano)
-	rec.Command = bound(Redact(rec.Command), defaultMaxFieldBytes)
-	rec.Line = bound(Redact(rec.Line), defaultMaxFieldBytes)
-	rec.Error = bound(Redact(rec.Error), defaultMaxFieldBytes)
+	rec.Command = bound(secretscan.Redact(rec.Command), defaultMaxFieldBytes)
+	rec.Line = bound(secretscan.Redact(rec.Line), defaultMaxFieldBytes)
+	rec.Error = bound(secretscan.Redact(rec.Error), defaultMaxFieldBytes)
 
 	jobsDir := filepath.Join(dir, "jobs")
 	if err := os.MkdirAll(jobsDir, 0o755); err != nil {

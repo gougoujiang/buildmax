@@ -19,8 +19,10 @@ import (
 // resource-owning AgentApp exists.
 type resolvedAgentAppConfig struct {
 	workspaceRoot string
-	// project is the zero value when the surface did not ask for one.
+	// project is the zero value when the surface did not ask for one, and
+	// projects is then nil.
 	project       localproject.Project
+	projects      *ProjectManager
 	settings      config.Settings
 	plugins       PluginSnapshot
 	loadedPlugins []config.DiscoveredPlugin
@@ -68,9 +70,13 @@ func resolveAgentAppConfig(cfg AppConfig) (resolvedAgentAppConfig, error) {
 	// Resolved here, before anything owning a resource exists, so a Project
 	// that could not be persisted stops construction rather than producing a
 	// runtime whose sessions have an identity nothing can resolve.
-	var project localproject.Project
+	var (
+		project  localproject.Project
+		projects *ProjectManager
+	)
 	if cfg.EnableLocalProject {
-		project, err = NewProjectManager(config.ProjectsDir()).Resolve(context.Background(), workspaceRoot)
+		projects = NewProjectManager(config.ProjectsDir())
+		project, err = projects.Resolve(context.Background(), workspaceRoot)
 		if err != nil {
 			return resolvedAgentAppConfig{}, fmt.Errorf("resolve local project: %w", err)
 		}
@@ -79,6 +85,7 @@ func resolveAgentAppConfig(cfg AppConfig) (resolvedAgentAppConfig, error) {
 	return resolvedAgentAppConfig{
 		workspaceRoot: workspaceRoot,
 		project:       project,
+		projects:      projects,
 		settings:      settings,
 		plugins:       plugins,
 		loadedPlugins: loadedPlugins,
@@ -100,6 +107,8 @@ func buildAgentApp(cfg AppConfig, resolved resolvedAgentAppConfig) (_ *AgentApp,
 	app := &AgentApp{
 		workspace:              workspace,
 		project:                resolved.project,
+		projects:               resolved.projects,
+		memoryDisabled:         cfg.DisableProjectMemory,
 		settings:               resolved.settings,
 		toolRegistries:         make(map[string]cllm.ToolRegistry),
 		sessionManager:         NewSessionManager(config.SessionsDir()).ForProject(resolved.project.ID),

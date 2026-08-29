@@ -131,13 +131,24 @@ Code state:
   sandboxing, bounded redacted traces, session notes/todos and compaction
   checkpoints, local background jobs, subagent trace parents, and the Portal
   run-trace view;
-- planned local follow-on: one shared CLI/Desktop Project identity and bounded
-  cross-session Project Memory, with the identity phase landing before memory
-  ([design/local-project-memory.md](design/local-project-memory.md));
+- shipped: one shared CLI/TUI/Desktop Project identity and bounded
+  cross-session Project Memory
+  ([design/local-project-memory.md](design/local-project-memory.md)). A Project
+  is one Git repository including its worktrees, or one directory; `--continue`,
+  the pickers, and session clearing select by it rather than by folder path,
+  and Desktop's private `projects.json` is gone. Memory is one bounded Markdown
+  document per Project, rendered as fallible recall rather than instruction,
+  replaced under a digest check, and switched off for a run with
+  `--no-project-memory`. The `context_sources` trace record replaces
+  `prompt_layers` and names every source a run loaded by its own kind;
+  `buildmax doctor` reports the Project, the memory file and its budget, and
+  detached sessions;
 - still absent: a worker selecting `SandboxSurfaceWorker`, process rlimits,
-  sandboxing of command/HTTP hook transports, trace retention, and typed
+  sandboxing of command/HTTP hook transports, trace retention, typed
   command-level boundary, file-change, hook, approval, retry, and failure-cause
-  records;
+  records, and the Project Memory surface work — a Desktop viewer/editor, a
+  CLI inspection command beyond `doctor`, and the usage evidence that would
+  justify topic files, selective retrieval, or automatic extraction;
 - deliberately not covered by the local Project plan: global user memory,
   team memory, Portal/worker memory, semantic retrieval, and automatic memory
   extraction.

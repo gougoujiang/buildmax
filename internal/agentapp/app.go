@@ -111,6 +111,13 @@ type AppConfig struct {
 	// which later costs it the project-memory context and tool by construction
 	// rather than by a second flag. See docs/design/local-project-memory.md §9.4.
 	EnableLocalProject bool
+
+	// DisableProjectMemory turns off project memory for this run: no block is
+	// rendered and the write tool is not registered. Turning off reading is
+	// what turns off writing -- a run must not be able to mutate a source it
+	// was not allowed to inspect. It has no effect on a run with no Project,
+	// which never had either.
+	DisableProjectMemory bool
 }
 
 // ManagedTokenFunc returns the BuildMax credential to use for serverURL. It is
@@ -122,7 +129,14 @@ type AgentApp struct {
 	// project is the local Project every session here belongs to. It is the
 	// zero value when the surface did not ask for one; Project().ID == "" is
 	// how a projectless run is recognized.
-	project              localproject.Project
+	project localproject.Project
+	// projects is the catalog behind it, held because project memory is read
+	// and written through it on every model call.
+	projects *ProjectManager
+	// memoryDisabled is the user's per-run switch, which is not the same as
+	// having no Project: one is a choice, the other is a surface that never
+	// had one.
+	memoryDisabled       bool
 	worktrees            *worktree.Manager
 	settings             config.Settings
 	llmClients           *LLMClientCache
@@ -964,13 +978,13 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 		// session's diagnostics are deleted, copied, and retained with the
 		// conversation they describe rather than from a second root.
 		recorder = trace.NewRecorder(sessionstore.SessionTracesDir(a.sessionManager.Dir(), sess.ID()), trace.Meta{
-			RunID:        runID,
-			SessionID:    sess.ID(),
-			Workspace:    a.workspace.Root(),
-			Model:        modelName,
-			Sandbox:      a.sandboxInfo(),
-			PromptLayers: promptLayers,
-			Plugins:      a.plugins.Provenance(ctx),
+			RunID:     runID,
+			SessionID: sess.ID(),
+			Workspace: a.workspace.Root(),
+			Model:     modelName,
+			Sandbox:   a.sandboxInfo(),
+			Sources:   a.contextSources(sess, promptLayers),
+			Plugins:   a.plugins.Provenance(ctx),
 		})
 		a.trackTrace(recorder)
 		defer a.releaseTrace(recorder)
@@ -1017,6 +1031,17 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 	// No compaction block here: RunLoop reads the stored summary through
 	// CompactionHistory and renders it itself. Appending it here as well put two
 	// <context_compaction> blocks in the prompt after the first in-run compaction.
+	// Built here rather than at construction so a write records which session
+	// and run made it. Nil means this run has no memory -- no Project, or a
+	// user who turned it off -- and then nothing is rendered, the write tool
+	// finds no writer, and a delegate inherits neither.
+	var memory agent.MemorySource
+	if pm := a.projectMemoryFor(sess.ID(), agent.RunIDFromCtx(ctx)); pm != nil {
+		memory = pm
+		ctx = agent.CtxWithMemorySource(ctx, pm)
+		ctx = agent.CtxWithMemoryWriter(ctx, pm)
+	}
+
 	reply, stats, err := agent.RunLoop(ctx, agent.RunLoopOpts{
 		LLMClient:    client,
 		Pricing:      a.pricingFor(sess),
@@ -1034,6 +1059,7 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 		Compactor:        NewLLMCompactor(client),
 		Checkpointer:     NewNoteCheckpointer(client),
 		Invariants:       agent.ExtractInvariants(extraPrompt),
+		Memory:           memory,
 		EventSink:        teeEventSink(recorder.Record, opts.EventSink),
 		Hooks:            a.hooks,
 		SessionID:        sess.ID(),
@@ -1352,6 +1378,13 @@ func (a *AgentApp) buildToolRegistry(client cllm.LLMClient) (cllm.ToolRegistry, 
 	if a.worktrees != nil {
 		registry.AppendTools(tools.NewWorktree(a.worktrees))
 	}
+	// Also after BuildAgentTypes: a delegate reads the same project memory but
+	// does not curate it. One task has one curator, and a memory written by a
+	// subagent would carry a conclusion the parent never saw into every future
+	// session. See docs/design/local-project-memory.md §9.4.
+	if a.project.ID != "" && !a.memoryDisabled {
+		registry.AppendTools(tools.NewProjectMemoryWrite())
+	}
 	// After BuildAgentTypes like Task, so subagents never see the job tools:
 	// a job must be owned by a session the user can still reach.
 	if a.jobs != nil {
@@ -1395,8 +1428,14 @@ func (a *AgentApp) newSubAgentTrace(ctx context.Context, sessionID string, opts 
 		Model:            modelName,
 		IsSubagent:       true,
 		Sandbox:          a.sandboxInfo(),
-		PromptLayers: []agent.PromptLayer{
-			{Name: "subagent_system_prompt", Chars: len(opts.SystemPrompt)},
+		Sources: agent.ContextSources{
+			ProjectID:    a.project.ID,
+			Workspace:    a.workspace.Root(),
+			Instructions: []agent.PromptLayer{{Name: "subagent_system_prompt", Chars: len(opts.SystemPrompt)}},
+			// A delegate reads the parent's project memory and starts with a
+			// journal of its own, so it has no session state and no compaction
+			// to report.
+			Memory: a.projectMemorySourceInfo(),
 		},
 	})
 }

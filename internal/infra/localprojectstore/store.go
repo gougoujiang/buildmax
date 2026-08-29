@@ -97,6 +97,14 @@ func (s *FileStore) touch(ctx context.Context, p localproject.Project) localproj
 	return touched
 }
 
+// Find implements localproject.Store.
+func (s *FileStore) Find(ctx context.Context, key localproject.Key) (localproject.Project, error) {
+	if key.Locator == "" {
+		return localproject.Project{}, fmt.Errorf("%w: empty locator", localproject.ErrNotFound)
+	}
+	return s.findByKey(ctx, key)
+}
+
 // findByKey resolves a locator through the catalog, rebuilding it when it
 // cannot answer. A locator present twice is refused rather than resolved: see
 // localproject.ErrDuplicateLocator.

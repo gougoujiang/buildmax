@@ -45,6 +45,7 @@ buildmax <command> [flags]
 | `--session-id UUID` | — | Use a specific session id; loads it if it exists, otherwise creates it |
 | `--model ID\|NAME` | first entry in `settings.yaml` | Pick a model from `models:` |
 | `--workspace DIR` | current directory | Directory the agent operates in |
+| `--no-project-memory` | off | Neither read nor write this project's memory for this run |
 | `--sandbox` | off | Require the Bash sandbox for this run without changing settings; fail if its backend is unavailable |
 | `--sandbox-mode auto_allow\|regular` | configured mode | Select the approval mode for this run; requires `--sandbox` |
 | `--max-iterations N` | `agent.max_iterations`, else 200 | Cap this run's model calls; range 1-5000 |

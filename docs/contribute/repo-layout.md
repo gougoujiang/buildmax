@@ -246,7 +246,9 @@ internal/
 ├── testsupport/        Test-only helpers that must not ship (JWT signing)
 │   └── mockllm/        Scripted model replies over the three LLM wire protocols
 └── util/               Public ID codec, prefixed IDs, workspace path resolution,
-                        small string and time helpers
+    │                   small string and time helpers
+    └── secretscan/     Recognizes common secret shapes; the run trace redacts
+                        what it finds, project memory refuses to persist it
 ```
 
 ## `evaluation/`

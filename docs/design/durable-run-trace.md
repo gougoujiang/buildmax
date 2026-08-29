@@ -226,7 +226,7 @@ agentapp.RunPrompt(ctx, sess, prompt, stream, approval, eventSink)
   │
   ├─ trace.NewRecorder(TracesDir, meta{run_id, session_id, workspace, model})
   │     └─ writes run_start,           (nil + warn on error → fail open)
-  │        then sandbox_boundary, prompt_layers, plugins
+  │        then sandbox_boundary, context_sources, plugins
   │
   ├─ sink := tee(recorder.Record, eventSink)   // recorder first, then caller
   │
