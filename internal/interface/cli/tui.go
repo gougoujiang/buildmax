@@ -37,7 +37,7 @@ func tuiAppConfig(workspace, additionalSystemPrompt string, source auth.ModelSou
 		ManagedServerURL:       source.ServerURL,
 		ManagedToken:           auth.TokenForServer,
 		ArtifactPublisher:      auth.ArtifactPublisherForSession(),
-		IssueClient:            overrides.Issue,
+		IssueClient:            overrides.Issue.ToolClient(),
 		Surface:                coregw.CallSurfaceCLI,
 		AdditionalSystemPrompt: additionalSystemPrompt,
 		SandboxRunOverride:     overrides.Sandbox,
@@ -103,6 +103,9 @@ func runTUI(resumeID, modelName, additionalSystemPrompt, workspace string, overr
 
 	// Print banner and any existing session history to the terminal scrollback
 	// before the TUI program takes over the bottom strip.
+	if notice := issueSessionNotice(overrides.Issue, source); notice != "" {
+		fmt.Print(notice + "\n")
+	}
 	fmt.Print(buildHistoryForScrollback(sess.Messages(), 80, glamourStyle))
 
 	approval := NewTUIApprovalHandler()

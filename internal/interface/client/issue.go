@@ -244,24 +244,90 @@ func (c *localIssueClient) Report(ctx context.Context, in tool.IssueReport) erro
 	return nil
 }
 
-// FindIssueTeam reports which of the caller's teams holds an issue.
+// FindIssue reports which of the caller's teams holds an issue, and the issue.
 //
 // One request per team until one answers, because the server addresses an issue
 // through its team and there is no route that resolves a bare issue id. Adding
 // one would let anyone probe whether an id exists in a team they cannot see,
 // which is a worse trade than a handful of requests a person makes once when
 // starting work.
-func (c *Client) FindIssueTeam(ctx context.Context, token, issueID string) (string, error) {
+//
+// The issue comes back with the team because every caller needs it next: to
+// print it, to say what a session is working on, or to read the version an
+// update has to carry.
+func (c *Client) FindIssue(ctx context.Context, token, issueID string) (coreteam.Team, coreissue.Issue, error) {
 	teams, err := c.ListTeams(ctx, token)
 	if err != nil {
-		return "", fmt.Errorf("list teams: %w", err)
+		return coreteam.Team{}, coreissue.Issue{}, fmt.Errorf("list teams: %w", err)
 	}
 	for _, team := range teams {
 		var issue coreissue.Issue
 		path := "/api/teams/" + url.PathEscape(team.ID) + "/issues/" + url.PathEscape(issueID)
 		if err := c.getJSON(ctx, token, path, &issue); err == nil && issue.ID != "" {
-			return team.ID, nil
+			return team, issue, nil
 		}
 	}
-	return "", fmt.Errorf("no team you belong to has issue %s", issueID)
+	return coreteam.Team{}, coreissue.Issue{}, fmt.Errorf("no team you belong to has issue %s", issueID)
+}
+
+// SetIssueStatus moves an issue, carrying the version it was read at.
+//
+// A person's action, never a tool's: status is what the team reads to plan
+// around, and `done` means a person accepted the work. See
+// docs/design/issue-agent-access.md section 6.
+//
+// The version is a parameter rather than something this re-reads, so the status
+// a caller confirmed is the status of the issue they looked at. Re-reading here
+// would turn a refused stale write into a silent one.
+func (c *Client) SetIssueStatus(ctx context.Context, token, teamID, issueID, status string, version uint64) (coreissue.Issue, error) {
+	payload, err := json.Marshal(map[string]any{"version": version, "status": status})
+	if err != nil {
+		return coreissue.Issue{}, err
+	}
+	path := "/api/teams/" + url.PathEscape(teamID) + "/issues/" + url.PathEscape(issueID)
+	resp, err := c.do(ctx, http.MethodPatch, token, path, "application/json", bytes.NewReader(payload))
+	if err != nil {
+		return coreissue.Issue{}, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return coreissue.Issue{}, httpclient.DecodeError(resp, "PATCH "+path)
+	}
+	var out coreissue.Issue
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return coreissue.Issue{}, err
+	}
+	return out, nil
+}
+
+// IssueThread reads an issue's children and recent comments for a person to
+// look at. Same window as the agent gets, for the same reason.
+func (c *Client) IssueThread(ctx context.Context, token, teamID, issueID string) ([]coreissue.Issue, []coreissue.Comment, int, error) {
+	var children issueListResponse
+	childPath := "/api/teams/" + url.PathEscape(teamID) + "/issues?parent_id=" + url.QueryEscape(issueID)
+	if err := c.getJSON(ctx, token, childPath, &children); err != nil {
+		return nil, nil, 0, err
+	}
+	var page struct {
+		Comments []coreissue.Comment `json:"comments"`
+		Total    int                 `json:"total"`
+	}
+	base := "/api/teams/" + url.PathEscape(teamID) + "/issues/" + url.PathEscape(issueID) + "/comments"
+	if err := c.getJSON(ctx, token, base+"?limit="+strconv.Itoa(issueCommentWindow), &page); err != nil {
+		return children.Issues, nil, 0, err
+	}
+	omitted := 0
+	if page.Total > issueCommentWindow {
+		omitted = page.Total - issueCommentWindow
+		var tail struct {
+			Comments []coreissue.Comment `json:"comments"`
+			Total    int                 `json:"total"`
+		}
+		if err := c.getJSON(ctx, token, base+"?limit="+strconv.Itoa(issueCommentWindow)+"&offset="+strconv.Itoa(omitted), &tail); err == nil {
+			page.Comments = tail.Comments
+		} else {
+			omitted = 0
+		}
+	}
+	return children.Issues, page.Comments, omitted, nil
 }

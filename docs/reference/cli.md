@@ -29,6 +29,8 @@ buildmax <command> [flags]
 | `buildmax sandbox enable` / `disable` | Set `sandbox.enabled` in `settings.yaml` |
 | `buildmax sandbox mode <auto_allow\|regular>` | Set `sandbox.auto_allow_bash_if_sandboxed` |
 | `buildmax issue list` | List the issues a team assigned you, across every team you are in; `--status`, `--limit` |
+| `buildmax issue show <id>` | Show one issue: what it asks for, its sub-issues, and recent discussion |
+| `buildmax issue status <id> <status>` | Move an issue to `todo`, `in_progress`, or `done` |
 | `buildmax --issue <id>` | Work a team issue in this session: the agent can read it and report back |
 | `buildmax plugin list` | List installed plugins, where each came from, and whether it loads |
 | `buildmax plugin status [name]` | Show what a plugin contributes, its checkout or release, and what shadowed it |
@@ -184,6 +186,12 @@ reported as a warning and the rest of the inbox still prints.
 Managing the work — creating issues, assigning them, changing status, splitting
 them up — stays in Portal. This command reads.
 
+Read one before starting:
+
+```bash
+buildmax issue show i_7Kq2...
+```
+
 To work on one, start a session scoped to it:
 
 ```bash
@@ -200,6 +208,22 @@ A report from your machine is recorded as a **local agent report**, attributed
 to you, and Portal shows it as reported rather than said. It is not the same as
 a comment from a run the deployment scheduled: nothing here was queued, counted
 against quota, or traced. `--issue` scopes one run; it is not remembered.
+
+Before the first model call the session prints which server, team, and issue it
+is working, and where prompts go — team work crossing to a personal model
+should be visible before it crosses, not inferable afterwards.
+
+When you are done, say so:
+
+```bash
+buildmax issue status i_7Kq2... done
+```
+
+That is yours to run, not the agent's. Status is what the team plans around and
+`done` means a person accepted the work, so the agent can say it believes the
+work is finished and you decide. The change carries the version the issue was
+read at; if someone else moved it meanwhile, this refuses instead of
+overwriting them.
 
 ### `buildmax doctor`
 
