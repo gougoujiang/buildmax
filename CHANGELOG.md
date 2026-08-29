@@ -14,7 +14,11 @@ Unreleased entries live one per file under
 touch the same line. `./make changelog` prints what they currently say, and
 release preparation folds them into a dated section here.
 
-## [0.2.0-alpha.5] - 2026-08-29
+## [0.2.0-alpha.6] - 2026-08-29
+
+`0.2.0-alpha.5` carries the same changes but published nothing: it was tagged,
+and its release build then failed before uploading any archive or image. Only
+its Portal image exists. This version replaces it.
 
 ### Highlights
 
@@ -181,6 +185,12 @@ release preparation folds them into a dated section here.
   `./make ocean info --show-secrets` while keeping ordinary output redacted.
 
 ### Fixed
+
+- The release build no longer fails after the tag exists. The image scan that
+  now runs before publication kept its database inside the checkout, and
+  GoReleaser refuses to publish from a worktree git reports as dirty, so
+  `v0.2.0-alpha.5` was tagged and then published nothing. The scanner now caches
+  outside the checkout.
 
 - Editing an issue no longer silently overwrites someone else's change. An
   update now carries the version it was built from, and the server refuses a
@@ -2065,8 +2075,8 @@ release preparation folds them into a dated section here.
 - Linux, macOS, and Windows archives with checksums and third-party notices.
 - Multi-architecture Linux container image published to GHCR.
 
-[Unreleased]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.5...HEAD
-[0.2.0-alpha.5]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.4...v0.2.0-alpha.5
+[Unreleased]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.6...HEAD
+[0.2.0-alpha.6]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.4...v0.2.0-alpha.6
 [0.2.0-alpha.4]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.3...v0.2.0-alpha.4
 [0.2.0-alpha.3]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.2...v0.2.0-alpha.3
 [0.2.0-alpha.2]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.1...v0.2.0-alpha.2

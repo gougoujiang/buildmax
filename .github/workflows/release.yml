@@ -82,10 +82,15 @@ jobs:
             echo "image_$arch=$image" >> "$GITHUB_OUTPUT"
           done
 
+      # The scanner's cache lives outside the checkout on purpose: its default
+      # is `$GITHUB_WORKSPACE/.cache`, and an untracked directory there makes
+      # GoReleaser refuse the release below as a dirty git state. v0.2.0-alpha.5
+      # was tagged and never published for exactly that.
       - name: Scan the linux/amd64 image
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ steps.scan.outputs.image_amd64 }}
+          cache-dir: ${{ runner.temp }}/trivy
           format: table
           exit-code: '1'
           ignore-unfixed: true
@@ -95,6 +100,7 @@ jobs:
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ steps.scan.outputs.image_arm64 }}
+          cache-dir: ${{ runner.temp }}/trivy
           format: table
           exit-code: '1'
           ignore-unfixed: true
