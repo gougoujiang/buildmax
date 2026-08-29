@@ -106,7 +106,7 @@ func (s *Store) RecordAuditEvent(ctx context.Context, in coreaudit.Event) error 
 }
 
 // truncateDetail bounds the one free-text column. Detail is meant for a role
-// name or a model alias; bounding it means a caller that passes something
+// name or a model name; bounding it means a caller that passes something
 // larger loses the tail rather than failing the write and, with it, the record
 // that the action happened.
 func truncateDetail(s string) string {

@@ -507,23 +507,27 @@ stops the run is an explicit block decision.
 ## 9. Layering
 
 ```
-internal/core/agent/hook.go             # HookRunner, HookInput/Output, event constants
-internal/config/hooks.go                # HookEntry (polymorphic), HooksConfig, load/merge
-internal/infra/hook/driver.go           # Driver + caller interfaces + Entry mirror struct
-internal/infra/hook/command.go          # CommandDriver (refactor of today's shell.go)
+internal/core/hook/config.go            # Entry, Config, event and transport constants
+internal/core/agent/hook.go             # HookRunner, HookEvent, HookInput/Output
+internal/config/hooks.go                # load, merge, and the plugin layer
+internal/infra/hook/driver.go           # Driver, caller interfaces, NewDriverRegistry(deps)
+internal/infra/hook/command.go          # CommandDriver
 internal/infra/hook/http.go             # HTTPDriver
 internal/infra/hook/mcp.go              # MCPDriver
 internal/infra/hook/prompt.go           # PromptDriver
-internal/infra/hook/registry.go         # NewDriverRegistry(deps) → map[type]Driver
+internal/infra/hook/output.go           # decode a driver's textual output into a decision
 internal/agentapp/hook_manager.go       # HookManager (implements agent.HookRunner)
 internal/agentapp/hook_callers.go       # mcpCaller / llmCaller adapters
 ```
 
+The entry and config types landed in `internal/core/hook` rather than in
+`internal/config` as planned, so the runtime contract does not travel through
+the package that loads files.
+
 Architecture-test compliance:
 
 - `core/agent` does not import infra/config (unchanged).
-- `infra/hook` imports `core/agent`, `core/llm`, `infra/mcp` — all sibling or
-  lower.
+- `infra/hook` imports `core/agent` and `core/hook` — both lower.
 - `agentapp` imports `infra/hook`, `infra/mcp`, `config` — already does.
 
 ## 10. Implementation steps
@@ -549,7 +553,7 @@ B4. Implement `MCPDriver` using `MCPCaller`; substitute `${field}`
     references from `HookInput` into `entry.Input`.
 B5. Implement `PromptDriver` using `LLMCaller`; replace `$ARGUMENTS` with
     `HookInput` JSON; parse response JSON for `{decision, reason}`.
-B6. `infra/hook/registry.go`: `NewDriverRegistry(deps) map[string]Driver`.
+B6. `infra/hook/driver.go`: `NewDriverRegistry(deps) map[string]Driver`.
 B7. Per-driver tests with stubs for MCP and LLM callers.
 
 ### Phase C — HookManager

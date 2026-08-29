@@ -1,12 +1,16 @@
-// Package llmgateway resolves a team's model alias to an operator-approved
-// upstream target. It owns the model catalog, team model policy, and the
-// capability contract.
+// Package llmgateway resolves a model name to an operator-approved upstream
+// target. It owns the model catalog and the capability contract.
+//
+// Models are global to a deployment: the alias layer and per-team model policy
+// this package once carried are withdrawn, so a name resolves the same way for
+// every caller. See docs/design/client-modes.md section 6.
 //
 // The package deliberately does not open provider connections, read
 // configuration files, or speak HTTP: process wiring supplies an already-built
-// catalog and policy, and higher layers turn a resolved target into a client.
+// catalog, and higher layers turn a resolved target into a client.
 //
-// Mirrors the design in docs/design/llm-gateway.md.
+// Mirrors the design in docs/design/llm-gateway.md, as revised by
+// docs/design/client-modes.md.
 package llmgateway
 
 import (
