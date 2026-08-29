@@ -176,23 +176,23 @@ be shared when debugging.
 
 ### 3.6 Memory And Instructions
 
-Support a clear memory mechanism for persistent instructions and reusable
-context.
+Keep three contracts distinct: instructions are normative protocol, memory is
+fallible Agent-curated recall, and session history is the ordered evidence of a
+conversation. A compaction summary is a lossy history projection, not a
+long-term memory merely because it helps recall.
 
-Memory should be scoped and visible:
+Memory should be scoped and visible. Session notes and todos are the shipped
+working-memory scope. Shared CLI/Desktop Project identity and bounded Project
+Memory are planned in [local-project-memory.md](local-project-memory.md).
+Global user memory, team memory, and reusable Agent memory remain separate
+future scopes rather than meanings assigned to `AGENTS.md` or agent
+instructions.
 
-- user memory: durable user preferences and working style
-- workspace memory: project-specific conventions and recurring facts
-- team memory: shared team guidance for Portal and worker runs
-- agent memory: guidance attached to a specific Agent capability
-- session memory: conversation-specific summary and current task state
-
-The Agent should expose which memory sources were loaded for a run. Users should
-be able to inspect, update, and delete memory. BuildMax should avoid silently
-persisting sensitive or surprising information.
-
-Memory should complement existing instruction sources such as `AGENTS.md`,
-skills, subagents, and agent instructions. It should not replace them.
+The Agent should expose which instruction, memory, and history-projection
+sources were loaded for a run. Users should be able to inspect, update, delete,
+or disable memory. BuildMax should avoid silently persisting sensitive or
+surprising information, and Memory must never override instruction sources such
+as `AGENTS.md`, skills, subagent definitions, or agent instructions.
 
 ### 3.7 Subagent Traceability
 
