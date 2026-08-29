@@ -131,12 +131,16 @@ Code state:
   sandboxing, bounded redacted traces, session notes/todos and compaction
   checkpoints, local background jobs, subagent trace parents, and the Portal
   run-trace view;
+- planned local follow-on: one shared CLI/Desktop Project identity and bounded
+  cross-session Project Memory, with the identity phase landing before memory
+  ([design/local-project-memory.md](design/local-project-memory.md));
 - still absent: a worker selecting `SandboxSurfaceWorker`, process rlimits,
   sandboxing of command/HTTP hook transports, trace retention, and typed
   command-level boundary, file-change, hook, approval, retry, and failure-cause
   records;
-- deliberately not covered by the shipped context work: general cross-session
-  user/workspace/team memory and a UI for editing every memory source.
+- deliberately not covered by the local Project plan: global user memory,
+  team memory, Portal/worker memory, semantic retrieval, and automatic memory
+  extraction.
 
 Acceptance:
 
@@ -416,6 +420,7 @@ recovers. The immediate work is therefore evidence-first.
 - [design/trust-harness.md](design/trust-harness.md) — P0.5 Agent Core trust harness design
 - [design/evaluation-system.md](design/evaluation-system.md) — P0.6 evaluation and qualification design
 - [design/context-durability.md](design/context-durability.md) — P0.5 instructions and session notes that survive compaction
+- [design/local-project-memory.md](design/local-project-memory.md) — shared CLI/Desktop Project identity and bounded cross-session Project Memory
 - [design/local-background-jobs.md](design/local-background-jobs.md) — P0.5 local background jobs and monitors for TUI and Desktop
 - [design/workspace-root-and-worktrees.md](design/workspace-root-and-worktrees.md) — a session that moves its own workspace root into a worktree
 - [design/enterprise-deployment.md](design/enterprise-deployment.md) — P3 Enterprise deployment design

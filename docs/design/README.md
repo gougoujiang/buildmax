@@ -30,6 +30,7 @@ reference, then delete the plan.
 |---|---|---|
 | [Agent Core trust harness](trust-harness.md) | P0.5 | Hooks shipped; sandbox worker hardening and trace follow-ups open |
 | [Context durability](context-durability.md) | P0.5 | Implemented: accumulating compaction, durable session notes, the pre-compaction checkpoint, and the additional system prompt |
+| [Local Projects and Project Memory](local-project-memory.md) | P0.5 local follow-on | Planned: shared CLI/Desktop Project identity first, then bounded cross-session Project Memory. Portal, team, and user memory remain outside this record |
 | [Local session storage](local-session-storage.md) | unscheduled | Implemented: atomic session bundles, linked journal history, rewind, and physical-copy fork. Server synchronization is outside this record |
 | [Session usage stats](session-usage-stats.md) | P1 follow-on | Per-session `buildmax stats` and the TUI `/stats` panel shipped, with the subagent and compaction metering fixes they required. Cross-session aggregation and the Desktop surface are designed and not built |
 | [Local background jobs](local-background-jobs.md) | P0.5 | Stages 1–3 shipped: background `Bash`/`Task` jobs, `Monitor`, typed delivery with parked wake-up on both surfaces, durable job logs. Durability beyond the process — spool, supervisor, scheduling — is decided against, not pending |

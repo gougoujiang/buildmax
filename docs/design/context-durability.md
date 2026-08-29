@@ -160,8 +160,8 @@ Consequences that shape the rest of this document:
 | # | Layer | Source | Lifetime |
 |---|---|---|---|
 | 1 | Runtime base | `DefaultSystemPrompt` + model line | Static |
-| 2 | User memory | `<BUILDMAX_HOME>/AGENTS.md` | Static per session |
-| 3 | Workspace memory | `<workspace>/AGENTS.md` | Static per session |
+| 2 | User instructions | `<BUILDMAX_HOME>/AGENTS.md` | Static per session |
+| 3 | Workspace instructions | `<workspace>/AGENTS.md` | Static per session |
 | 4 | **Additional system prompt** | flag, definition body, or agent record (§5.2) | Static per session |
 | 5 | Compaction summary | `Session.CompactionSummary` | Changes on compaction |
 
@@ -513,9 +513,11 @@ trimmed, so unbounded growth there is worse than losing a message.
 
 ## 6. Out Of Scope
 
-- **Cross-session memory.** Notes are session-scoped. User, workspace, and team
-  memory remain `AGENTS.md` files. Promoting a note to durable user memory is a
-  separate design.
+- **Cross-session memory.** Notes are session-scoped. `AGENTS.md` files are
+  instructions, not memory. Shared CLI/Desktop Project identity and the first
+  cross-session memory scope are designed separately in
+  [local-project-memory.md](local-project-memory.md); global user and team
+  memory remain outside both records.
 - **Automatic drift detection.** The runtime could count iterations since the
   in-progress todo last changed and inject a stronger reminder past a
   threshold — a task-level generalization of the existing `loopGuard`
