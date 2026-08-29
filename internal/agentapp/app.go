@@ -89,6 +89,11 @@ type AppConfig struct {
 	// has none — a session running straight against a model provider, with no
 	// BuildMax server — and no artifact tool is registered at all.
 	ArtifactPublisher tools.ArtifactPublisher
+	// IssueClient scopes this run to the one Issue it is working. Nil means the
+	// run has no Issue, or no way to reach the one it has, and neither Issue
+	// tool is registered. It is never a client the model may point elsewhere:
+	// the Issue is fixed when this is built. See docs/design/issue-agent-access.md.
+	IssueClient tools.IssueClient
 	// EnableBackgroundJobs turns on local background jobs: Bash gains
 	// run_in_background and the Job tools are registered. Only interactive
 	// surfaces (TUI, Desktop) set it — print mode has no host process to own
@@ -172,6 +177,7 @@ type AgentApp struct {
 	maxIterations          int
 	additionalSystemPrompt string
 	artifactPublisher      tools.ArtifactPublisher
+	issueClient            tools.IssueClient
 	grantsMu               sync.Mutex
 	grants                 map[string]*agent.SessionGrants
 	turns                  turnCoordinator
@@ -1399,6 +1405,12 @@ func (a *AgentApp) buildToolRegistry(client cllm.LLMClient) (cllm.ToolRegistry, 
 	// underneath the parent is exactly the race worktrees exist to prevent.
 	if a.worktrees != nil {
 		registry.AppendTools(tools.NewWorktree(a.worktrees))
+	}
+	// After BuildAgentTypes like Task, so subagents never see the Issue tools:
+	// a subagent reports to its parent, and several of them writing into one
+	// team thread would make that thread's attribution unreadable.
+	if a.issueClient != nil {
+		registry.AppendTools(tools.NewGetIssue(a.issueClient), tools.NewReportToIssue(a.issueClient))
 	}
 	// Also after BuildAgentTypes: a delegate carries no project memory at all.
 	// It is the highest-volume run in a session, so it would pay the resident

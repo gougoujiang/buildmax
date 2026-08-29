@@ -166,6 +166,22 @@ func artifactPublisher(cfg workerclient.WorkerAPIClientConfig, taskRunID string)
 	return workerclient.NewArtifactPublisher(cfg, taskRunID, cfg.BaseURL)
 }
 
+// issueClient gives a run the Issue capability, or nil when the run has no
+// Issue or no way to reach a server.
+//
+// The server derives the Issue from the run token and would answer 404 for a
+// run whose task names none. The task is checked here anyway, because a tool
+// that can only fail should never appear in the tool list at all.
+func issueClient(cfg workerclient.WorkerAPIClientConfig, task *coretask.Task, taskRunID string) tool.IssueClient {
+	if cfg.BaseURL == "" || cfg.Token == "" || taskRunID == "" {
+		return nil
+	}
+	if task == nil || task.IssueID == nil || *task.IssueID == "" {
+		return nil
+	}
+	return workerclient.NewIssueClient(cfg, taskRunID)
+}
+
 // RunTask runs a single task run: materialize workspace, optionally restore session from previous run, execute agent in-process, upload run state to blob, update run and task via updater.
 // If input.StreamSender is non-nil, stdout is streamed to the server as deltas; full output is still accumulated for persist and PATCH.
 //
@@ -350,7 +366,7 @@ func executeRunTask(ctx context.Context, input RunTaskInput, task *coretask.Task
 		effectiveSessionID = *task.SessionID
 	}
 	agentRun, err := runAgentTask(ctx, run, dirs.runDir, dirs.runGlobal, effectiveSessionID, input.StreamSender, input.Model, input.Managed, input.AdditionalSystemPrompt,
-		artifactPublisher(input.WorkerAPI, run.ID))
+		artifactPublisher(input.WorkerAPI, run.ID), issueClient(input.WorkerAPI, task, run.ID))
 	result := runResult{
 		EndTime:          time.Now().UTC(),
 		OutputStr:        string(agentRun.output),
@@ -456,7 +472,7 @@ func runtimeModelEntries(runtimeModel config.ModelEntry, managed ManagedInferenc
 	return []config.ModelEntry{runtimeModel}
 }
 
-func runAgentTask(ctx context.Context, run *coretask.Run, runDir, runGlobalDir, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry, managed ManagedInference, additionalSystemPrompt string, publisher tool.ArtifactPublisher) (agentRunOutput, error) {
+func runAgentTask(ctx context.Context, run *coretask.Run, runDir, runGlobalDir, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry, managed ManagedInference, additionalSystemPrompt string, publisher tool.ArtifactPublisher, issues tool.IssueClient) (agentRunOutput, error) {
 	var sink llm.StreamSink
 	if streamSender != nil {
 		sink = &streamSinkAdapter{ctx: ctx, streamSender: streamSender, taskRunID: run.ID}
@@ -475,6 +491,7 @@ func runAgentTask(ctx context.Context, run *coretask.Run, runDir, runGlobalDir, 
 			Surface:                managedSurface,
 			AdditionalSystemPrompt: additionalSystemPrompt,
 			ArtifactPublisher:      publisher,
+			IssueClient:            issues,
 		})
 		if err != nil {
 			return err
