@@ -127,10 +127,12 @@ verdict.
 ./make eval harbor run --all --attempts 5 --model anthropic/claude-opus-4-7
 
 # 4. Through a gateway. The window and the prices are passed, because the trial
-#    home holds only what this command puts in it.
+#    home holds only what this command puts in it. They sit after `--`, which
+#    is where this command stops reading flags and Harbor starts.
 export OPENROUTER_API_KEY=...
 ./make eval harbor run --canary \
-  --model openrouter/openai/gpt-5.6-luna \
+  --model openrouter/openai/gpt-5.6-luna -- \
+  --ak provider=openai \
   --ak context_window=1050000 \
   --ak 'pricing={"currency":"USD","input_per_mtok":"0.2","output_per_mtok":"1.2"}'
 ```
@@ -185,7 +187,8 @@ because Harbor resolves it, not `make`.
 
 ### Agent kwargs
 
-Passed with `--ak key=value`.
+Passed with `--ak key=value`, which is Harbor's flag rather than this
+repository's: through `./make eval harbor run` they go after `--`.
 
 | Kwarg | Required | Meaning |
 |---|---|---|
