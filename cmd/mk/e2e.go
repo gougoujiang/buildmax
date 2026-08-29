@@ -29,19 +29,25 @@ const artifactDir = ".artifacts/e2e"
 // Whichever it is, the command says so before it starts. A suite that silently
 // chose a mode leaves the reader guessing what its result covered.
 //
+// For the same reason there is no default suite. It used to be kind, the one
+// with the heaviest prerequisite: a bare `./make e2e` reached for a cluster the
+// reader had not started, and reported that as the failure. Refusing prints the
+// six suites and what each one needs, which is the answer that invocation was
+// asking for.
+//
 // The two deployments differ in a way the tests can see. kind puts one ingress
 // in front of Portal and server, so the bundle's API base is same-origin;
 // Compose publishes them on separate ports, so it is absolute. Neither is wrong
 // and the browser cannot guess which it is looking at, so the target decides and
 // passes the answer in.
 func cmdE2E(args []string) error {
-	suite := "kind"
-	if len(args) > 0 {
-		suite = args[0]
+	if len(args) == 0 {
+		return usageErrorf("e2e", "e2e needs a suite")
 	}
 	if len(args) > 1 {
 		return usageErrorf("e2e", "e2e runs one suite at a time")
 	}
+	suite := args[0]
 	switch suite {
 	case "cli":
 		return e2eCLI()

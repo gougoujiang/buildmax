@@ -6,8 +6,8 @@ import (
 	"strings"
 )
 
-// Help lives in two layers: `help` is every command, grouped by what it is for,
-// and `help <command>` is one command's own page.
+// Help lives in two layers: `help` is every command, grouped by what running one
+// does to you, and `help <command>` is one command's own page.
 //
 // It used to open on a six-command subset, with everything else behind
 // `help all`. That hid commands from the one reader who needs a list — the
@@ -44,6 +44,13 @@ type helpTopic struct {
 	see      string   // a document that carries the long version
 }
 
+// allHelpSections groups by effect rather than by how often a command is run.
+// The grouping before this one had an "Advanced" section holding gofmt next to
+// a command that bills a cloud provider, and filed e2e under Deployment, where
+// the two suites needing no deployment at all — cli and desktop, both plain Go
+// tests `test` already runs — were invisible to anyone looking for them. A
+// section header is the only place this list can answer "is it safe to run this
+// right now", so that is what the headers say.
 func allHelpSections() []helpSection {
 	return []helpSection{
 		{"Development", []helpRow{
@@ -52,23 +59,23 @@ func allHelpSections() []helpSection {
 			{"build [cli]", "Strict full build, or build only " + exe(cliBinary)},
 			{"test [race] [pkg]", "Run Go tests; add packages or `go test` flags to narrow"},
 			{"check [scope]", "Run checks for go, gui, portal, desktop, docs, all, or ci"},
+			{"fmt", "Format every tracked Go file with gofmt"},
+			{"lint", "Run pinned golangci-lint and govulncheck"},
+			{"e2e <suite>", "Run one end-to-end suite: cli, desktop, local, compose, kind, or all"},
 			{"run <target>", "Run cli, server, desktop, or Portal locally"},
 			{"clean", "Remove binaries, native app builds, node_modules, and dist"},
 			{"help [command]", "Show this list, or one command's arguments and examples"},
 		}},
-		{"Advanced", []helpRow{
-			{"fmt", "Format every tracked Go file with gofmt"},
-			{"lint", "Run pinned golangci-lint and govulncheck"},
+		{"Models and evaluation", []helpRow{
+			{"models <list|info|check>", "List, look up on OpenRouter, or check settings.local.yaml models"},
+			{"eval [harbor] [flags]", "Measure the CLI against evaluation/suite/, or import a Terminal-Bench job (needs an API key)"},
 			{"agent-smoke", "Drive the agent's tools with a real model (needs an API key; not a deterministic test)"},
 			{"cache-qualify", "Qualify prompt caching against a real provider (needs an API key; not a test)"},
-			{"eval [harbor] [flags]", "Measure the CLI against evaluation/suite/, or import a Terminal-Bench job"},
-			{"models <list|info|check>", "List, look up on OpenRouter, or check settings.local.yaml models"},
 		}},
-		{"Deployment", []helpRow{
+		{"Deployment (starts containers or bills a provider)", []helpRow{
 			{"compose <action>", "Manage the Compose quickstart (up|smoke [managed]|status|logs|down)"},
 			{"kind <action>", "Manage local Kubernetes (up|images|smoke|info|forward|status|logs|down)"},
 			{"ocean <action>", "Manage the disposable DigitalOcean qualification infrastructure"},
-			{"e2e [suite]", "Run one end-to-end suite: kind, compose, local, cli, desktop, or all"},
 		}},
 		{"Release", []helpRow{
 			{"changelog [new]", "Add or preview unreleased entries; 'release <version>' folds them in"},
@@ -206,6 +213,53 @@ func helpTopics() []helpTopic {
 			see:      "docs/contribute/testing.md",
 		},
 		{
+			name:    "fmt",
+			usage:   "fmt",
+			summary: "Format every tracked Go file with gofmt.",
+			details: []string{
+				"This is the fix `" + mk() + " check go` points at when it reports unformatted\n" +
+					"files. It runs over the files git tracks, not the whole tree, so ignored\n" +
+					"and generated directories stay untouched, and it names what it rewrote.",
+			},
+		},
+		{
+			name:    "lint",
+			usage:   "lint",
+			summary: "Run the pinned golangci-lint and govulncheck.",
+			details: []string{
+				"Both run through `go run` at the version pinned in cmd/mk, which is the\n" +
+					"version CI runs, so a locally installed linter cannot drift from the gate.\n" +
+					"The rule set is .golangci.yml. `" + mk() + " check go` ends with this command.",
+			},
+		},
+		{
+			name:    "e2e",
+			usage:   "e2e <cli|desktop|local|compose|kind|all>",
+			summary: "Run one end-to-end suite.",
+			details: []string{
+				"The suites are a local feedback loop, not a pull-request gate, and none of\n" +
+					"them needs a provider API key: every one answers the model from a committed\n" +
+					"scenario. They differ in what they own — the Portal suites attach to a\n" +
+					"deployment someone else started, `local` owns a Compose stack for one run,\n" +
+					"and `cli` owns nothing but a temporary directory. Each says which it is\n" +
+					"before it starts.",
+				"There is no default suite. Naming one is how you know what a green run\n" +
+					"covered, and the cheapest suites are the ones with no prerequisite at\n" +
+					"all: `cli` and `desktop` are Go tests that ./make test already runs.",
+				"Whatever the outcome, the suite leaves its evidence under " + artifactDir + "/.",
+			},
+			args: []helpRow{
+				{"cli", "The CLI and TUI suite: built binary, temporary home"},
+				{"desktop", "The Desktop bridge suite: bound methods, events, approvals"},
+				{"local", "Portal browser tests against a Compose stack this command owns"},
+				{"compose", "The same tests against a running Compose stack"},
+				{"kind", "The same tests against a running kind deployment"},
+				{"all", "Every suite that needs no cluster: cli, desktop, then local"},
+			},
+			examples: []string{"e2e cli", "e2e local"},
+			see:      "docs/contribute/testing.md",
+		},
+		{
 			name:    "run",
 			usage:   "run <cli|server|desktop|portal> [arguments]",
 			summary: "Run a built binary, or the Portal dev server, against the testing sandbox.",
@@ -237,58 +291,54 @@ func helpTopics() []helpTopic {
 			},
 		},
 		{
-			name:    "fmt",
-			usage:   "fmt",
-			summary: "Format every tracked Go file with gofmt.",
+			name:    "help",
+			usage:   "help [command]",
+			summary: "Show every command, or one command's own page.",
 			details: []string{
-				"This is the fix `" + mk() + " check go` points at when it reports unformatted\n" +
-					"files. It runs over the files git tracks, not the whole tree, so ignored\n" +
-					"and generated directories stay untouched, and it names what it rewrote.",
+				"With no argument it prints every command, grouped by what it is for, and\n" +
+					"the four-command path a first contribution takes. `help all` is the old\n" +
+					"spelling of that and prints the same list.",
+				"Every command also answers its own help flag: `" + mk() + " check --help` prints\n" +
+					"the same page as `" + mk() + " help check`. The exception is eval, whose\n" +
+					"arguments belong to the benchmark binary.",
 			},
+			args: []helpRow{
+				{"(none)", "Every command, grouped, and the contribution path"},
+				{"<command>", "That command's arguments, examples, and caveats"},
+			},
+			examples: []string{"help", "help test", "help eval"},
 		},
 		{
-			name:    "lint",
-			usage:   "lint",
-			summary: "Run the pinned golangci-lint and govulncheck.",
+			name:    "models",
+			usage:   "models <list|info [model or search term]|check>",
+			summary: "List locally configured models, look up one on OpenRouter, or check for drift.",
 			details: []string{
-				"Both run through `go run` at the version pinned in cmd/mk, which is the\n" +
-					"version CI runs, so a locally installed linter cannot drift from the gate.\n" +
-					"The rule set is .golangci.yml. `" + mk() + " check go` ends with this command.",
+				"Reads " + localSettingsPath + " at the repository root: a gitignored file in\n" +
+					"the same shape as BUILDMAX_HOME/settings.yaml, kept separate so this never\n" +
+					"touches your real runtime configuration. Copy " + localSettingsExample + "\n" +
+					"to " + localSettingsPath + " to get started.",
+				"`list` prints the models configured there — no network. `info` with no\n" +
+					"argument prints the full info block for every model configured in\n" +
+					"" + localSettingsPath + ", in file order. With a model id or search term,\n" +
+					"it fetches the live catalog from " + openRouterModelsURL + " and prints\n" +
+					"context window, modality, supported parameters, and full pricing. An exact\n" +
+					"model id (as it appears in " + localSettingsPath + ", e.g. openai/gpt-4o-mini)\n" +
+					"matches that one model; anything else is matched as a case-insensitive\n" +
+					"substring against every id and display name, and every match is printed.\n" +
+					"When a configured model has an api_key, `info` sends it, since OpenRouter\n" +
+					"can return an account-specific rate; the public catalog still answers with\n" +
+					"no key.",
+				"`check` compares every configured context_window against OpenRouter's\n" +
+					"current value and exits non-zero if any model has drifted or has\n" +
+					"disappeared from the catalog — provider catalogs change without notice.",
 			},
-		},
-		{
-			name:    "agent-smoke",
-			usage:   "agent-smoke",
-			summary: "Drive the agent's tools with a real model. Not a test.",
-			details: []string{
-				"It builds the CLI and asks a real model to exercise the tools, then the model\n" +
-					"writes its own PASS/FAIL table. Read that table: the exit code only says the\n" +
-					"process finished. Nothing here is deterministic, which is why no check runs it.",
-				"It needs a usable api_key in " + sandboxDir + "/settings.yaml and it calls a paid\n" +
-					"provider. Missing configuration is reported before anything starts.",
+			args: []helpRow{
+				{"list", "List the models in " + localSettingsPath},
+				{"info", "OpenRouter details for every model in " + localSettingsPath},
+				{"info <model or search term>", "OpenRouter details for a model"},
+				{"check", "Diff configured context_window against OpenRouter"},
 			},
-		},
-		{
-			name:    "cache-qualify",
-			usage:   "cache-qualify [go test flags]",
-			summary: "Qualify prompt caching against a real provider. Not a test.",
-			details: []string{
-				"Every other cache test in the tree proves what BuildMax sends and nothing\n" +
-					"about what a provider does with it, and a cache is where those two come\n" +
-					"apart: a request can be perfectly shaped and the provider can still decline\n" +
-					"to cache it, for a minimum prefix length, an unsupported model, or a\n" +
-					"retention window that expired.",
-				"It runs the scenarios docs/design/prompt-cache-control.md gates on — first\n" +
-					"write, sequential read, changed prefix, long-history lookback, streaming,\n" +
-					"concurrent cold starts, and retention — and prints what the provider\n" +
-					"reported for each. A provider is not described as cache-capable until it\n" +
-					"passes.",
-				"Name the target with BUILDMAX_CACHE_QUALIFY_PROVIDER, _MODEL, _API_KEY, and\n" +
-					"optionally _BASE_URL. It calls a paid provider. Set\n" +
-					"BUILDMAX_CACHE_QUALIFY_SLOW to include the scenarios that wait out a\n" +
-					"retention window, which take minutes of wall clock.",
-			},
-			examples: []string{"cache-qualify"},
+			examples: []string{"models list", "models info", "models info openai/gpt-4o-mini", "models check"},
 		},
 		{
 			name:    "eval",
@@ -343,36 +393,38 @@ func helpTopics() []helpTopic {
 			},
 		},
 		{
-			name:    "models",
-			usage:   "models <list|info [model or search term]|check>",
-			summary: "List locally configured models, look up one on OpenRouter, or check for drift.",
+			name:    "agent-smoke",
+			usage:   "agent-smoke",
+			summary: "Drive the agent's tools with a real model. Not a test.",
 			details: []string{
-				"Reads " + localSettingsPath + " at the repository root: a gitignored file in\n" +
-					"the same shape as BUILDMAX_HOME/settings.yaml, kept separate so this never\n" +
-					"touches your real runtime configuration. Copy " + localSettingsExample + "\n" +
-					"to " + localSettingsPath + " to get started.",
-				"`list` prints the models configured there — no network. `info` with no\n" +
-					"argument prints the full info block for every model configured in\n" +
-					"" + localSettingsPath + ", in file order. With a model id or search term,\n" +
-					"it fetches the live catalog from " + openRouterModelsURL + " and prints\n" +
-					"context window, modality, supported parameters, and full pricing. An exact\n" +
-					"model id (as it appears in " + localSettingsPath + ", e.g. openai/gpt-4o-mini)\n" +
-					"matches that one model; anything else is matched as a case-insensitive\n" +
-					"substring against every id and display name, and every match is printed.\n" +
-					"When a configured model has an api_key, `info` sends it, since OpenRouter\n" +
-					"can return an account-specific rate; the public catalog still answers with\n" +
-					"no key.",
-				"`check` compares every configured context_window against OpenRouter's\n" +
-					"current value and exits non-zero if any model has drifted or has\n" +
-					"disappeared from the catalog — provider catalogs change without notice.",
+				"It builds the CLI and asks a real model to exercise the tools, then the model\n" +
+					"writes its own PASS/FAIL table. Read that table: the exit code only says the\n" +
+					"process finished. Nothing here is deterministic, which is why no check runs it.",
+				"It needs a usable api_key in " + sandboxDir + "/settings.yaml and it calls a paid\n" +
+					"provider. Missing configuration is reported before anything starts.",
 			},
-			args: []helpRow{
-				{"list", "List the models in " + localSettingsPath},
-				{"info", "OpenRouter details for every model in " + localSettingsPath},
-				{"info <model or search term>", "OpenRouter details for a model"},
-				{"check", "Diff configured context_window against OpenRouter"},
+		},
+		{
+			name:    "cache-qualify",
+			usage:   "cache-qualify [go test flags]",
+			summary: "Qualify prompt caching against a real provider. Not a test.",
+			details: []string{
+				"Every other cache test in the tree proves what BuildMax sends and nothing\n" +
+					"about what a provider does with it, and a cache is where those two come\n" +
+					"apart: a request can be perfectly shaped and the provider can still decline\n" +
+					"to cache it, for a minimum prefix length, an unsupported model, or a\n" +
+					"retention window that expired.",
+				"It runs the scenarios docs/design/prompt-cache-control.md gates on — first\n" +
+					"write, sequential read, changed prefix, long-history lookback, streaming,\n" +
+					"concurrent cold starts, and retention — and prints what the provider\n" +
+					"reported for each. A provider is not described as cache-capable until it\n" +
+					"passes.",
+				"Name the target with BUILDMAX_CACHE_QUALIFY_PROVIDER, _MODEL, _API_KEY, and\n" +
+					"optionally _BASE_URL. It calls a paid provider. Set\n" +
+					"BUILDMAX_CACHE_QUALIFY_SLOW to include the scenarios that wait out a\n" +
+					"retention window, which take minutes of wall clock.",
 			},
-			examples: []string{"models list", "models info", "models info openai/gpt-4o-mini", "models check"},
+			examples: []string{"cache-qualify"},
 		},
 		{
 			name:    "compose",
@@ -473,30 +525,6 @@ func helpTopics() []helpTopic {
 			see:      "docs/deploy/digitalocean.md",
 		},
 		{
-			name:    "e2e",
-			usage:   "e2e [kind|compose|local|cli|desktop|all]",
-			summary: "Run one end-to-end suite.",
-			details: []string{
-				"The suites are a local feedback loop, not a pull-request gate, and none of\n" +
-					"them needs a provider API key: every one answers the model from a committed\n" +
-					"scenario. They differ in what they own — the Portal suites attach to a\n" +
-					"deployment someone else started, `local` owns a Compose stack for one run,\n" +
-					"and `cli` owns nothing but a temporary directory. Each says which it is\n" +
-					"before it starts.",
-				"Whatever the outcome, the suite leaves its evidence under " + artifactDir + "/.",
-			},
-			args: []helpRow{
-				{"kind", "Portal browser tests against a running kind deployment (default)"},
-				{"compose", "Portal browser tests against a running Compose stack"},
-				{"local", "The same tests against a Compose stack this command owns"},
-				{"cli", "The CLI and TUI suite: built binary, temporary home"},
-				{"desktop", "The Desktop bridge suite: bound methods, events, approvals"},
-				{"all", "Every suite that needs no cluster: cli, desktop, then local"},
-			},
-			examples: []string{"e2e cli", "e2e local"},
-			see:      "docs/contribute/testing.md",
-		},
-		{
 			name:    "changelog",
 			usage:   "changelog [new <category> <slug> | release <version>]",
 			summary: "Add, preview, or fold in the unreleased changelog entries.",
@@ -547,24 +575,6 @@ func helpTopics() []helpTopic {
 					"repository; it tells you how to put the directory on your PATH when it is\n" +
 					"not there already.",
 			},
-		},
-		{
-			name:    "help",
-			usage:   "help [command]",
-			summary: "Show every command, or one command's own page.",
-			details: []string{
-				"With no argument it prints every command, grouped by what it is for, and\n" +
-					"the four-command path a first contribution takes. `help all` is the old\n" +
-					"spelling of that and prints the same list.",
-				"Every command also answers its own help flag: `" + mk() + " check --help` prints\n" +
-					"the same page as `" + mk() + " help check`. The exception is eval, whose\n" +
-					"arguments belong to the benchmark binary.",
-			},
-			args: []helpRow{
-				{"(none)", "Every command, grouped, and the contribution path"},
-				{"<command>", "That command's arguments, examples, and caveats"},
-			},
-			examples: []string{"help", "help test", "help eval"},
 		},
 	}
 }

@@ -44,6 +44,13 @@ func TestCommandsRejectUnknownArgumentsBeforeRunning(t *testing.T) {
 	if err := cmdE2E([]string{"docker"}); err == nil {
 		t.Fatal("cmdE2E accepted an unknown suite")
 	}
+	// The bare command used to run the kind suite, so it failed against a
+	// cluster the reader never started rather than saying a suite was missing.
+	// The message is asserted because reaching a cluster fails too, and a test
+	// that only checks for an error cannot tell the two apart.
+	if err := cmdE2E(nil); err == nil || !strings.Contains(err.Error(), "e2e needs a suite") {
+		t.Fatalf("cmdE2E(nil) = %v, want a missing-suite usage error", err)
+	}
 	if err := cmdE2E([]string{"kind", "extra"}); err == nil {
 		t.Fatal("cmdE2E accepted extra arguments")
 	}
