@@ -275,7 +275,7 @@ absent from the tool list — not registered in a state where every call fails.
 |---|---|---|---|
 | Worker run started from an Issue | yes | yes | The task carries an Issue ID; the run token authorizes |
 | Worker run with no Issue | absent | absent | No scope exists |
-| Local CLI/TUI/Desktop session linked to an Issue | yes | yes | Requires login; supplied by the local Issue bridge |
+| Local CLI/TUI/Desktop session linked to an Issue | not yet | not yet | Requires login and a decision this record does not make; see §11 |
 | Local session not linked, or not logged in | absent | absent | Ordinary local work is unchanged |
 | Tier 1 conversation | deferred | deferred | §11 |
 | Subagents | absent | absent | See below |
@@ -351,3 +351,18 @@ bridge.
 5. **Does a scoped child Issue need to see its parent?** Reading upward is a
    wider scope than "the work order in front of me", and the parent's
    description is often where the actual requirement lives.
+6. **Who authors a local agent's report?** This blocks the local half. On the
+   worker plane the run token is the agent's own credential, so the comment is
+   stored as `agent` with the task and run recorded. A local session holds a
+   *person's* session instead, and the team comment route
+   (`internal/server/handlers/work/issue_comments.go`) hardcodes
+   `CommentAuthorUser` with the caller as author — so a local agent's report
+   would be stored as something the person said, and nobody reading the thread
+   could tell. Three answers are available and none is obviously right: let the
+   create-comment request claim `agent` authorship, which means the server
+   records a client's claim about who wrote something; give a local session a
+   credential of its own; or keep local reports as the person's words, on the
+   grounds that the person chose to send them. Until this is decided,
+   `ReportToIssue` is not registered on local surfaces, and `GetIssue` is not
+   registered alone — §8's rule is both or neither, and a read-only half would
+   teach an agent it can be heard when it cannot.

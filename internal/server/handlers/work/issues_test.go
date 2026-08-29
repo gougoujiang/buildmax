@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -275,4 +276,83 @@ func TestIssueHandlers(t *testing.T) {
 			t.Fatalf("status = %d, want %d", rec.Code, http.StatusForbidden)
 		}
 	})
+}
+
+// The listing filters openapi.json has always described now exist. `assignee=me`
+// is the inbox; the explicit pair answers for anyone else.
+func TestListIssuesFilters(t *testing.T) {
+	const team = "tm_filter"
+	person := coreissue.AssigneePerson
+	agent := coreissue.AssigneeAgent
+	mine, theirs, bot := "u1", "u2", "a_1"
+	store := &mock.MockIssueStore{
+		Issues: []coreissue.Issue{
+			{ID: "i_mine_open", TeamID: team, UserID: "u1", Title: "Mine, open", Status: coreissue.StatusTodo, AssigneeKind: &person, AssigneeID: &mine, Version: 1},
+			{ID: "i_mine_done", TeamID: team, UserID: "u1", Title: "Mine, done", Status: coreissue.StatusDone, AssigneeKind: &person, AssigneeID: &mine, Version: 1},
+			{ID: "i_theirs", TeamID: team, UserID: "u1", Title: "Someone else's", Status: coreissue.StatusTodo, AssigneeKind: &person, AssigneeID: &theirs, Version: 1},
+			{ID: "i_agent", TeamID: team, UserID: "u1", Title: "An agent's", Status: coreissue.StatusTodo, AssigneeKind: &agent, AssigneeID: &bot, Version: 1},
+			{ID: "i_unassigned", TeamID: team, UserID: "u1", Title: "Nobody's", Status: coreissue.StatusTodo, Version: 1},
+		},
+	}
+	h := New(Config{
+		JWTSecret: issueTestSecret,
+		Issues:    store,
+		Teams: &mock.MockTeamStore{
+			Teams:   []coreteam.Team{{ID: team, Name: "Filters", CreatedBy: "u1"}},
+			Members: []coreteam.Member{{TeamID: team, UserID: "u1", Role: coreteam.RoleOwner}},
+		},
+	})
+	mux := http.NewServeMux()
+	h.Register(mux)
+
+	list := func(t *testing.T, query string) []string {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodGet, "/api/teams/"+team+"/issues?"+query, nil)
+		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", issueTestSecret))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200 body=%s", rec.Code, rec.Body.String())
+		}
+		var out issueListResponse
+		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		ids := make([]string, 0, len(out.Issues))
+		for _, issue := range out.Issues {
+			ids = append(ids, issue.ID)
+		}
+		if out.Total != len(ids) {
+			t.Fatalf("total = %d but %d issues returned; the count must be filtered too", out.Total, len(ids))
+		}
+		return ids
+	}
+
+	for _, tc := range []struct {
+		name  string
+		query string
+		want  []string
+	}{
+		{"unfiltered", "", []string{"i_mine_open", "i_mine_done", "i_theirs", "i_agent", "i_unassigned"}},
+		{"assigned to me", "assignee=me", []string{"i_mine_open", "i_mine_done"}},
+		{"my open work", "assignee=me&status=todo", []string{"i_mine_open"}},
+		{"assigned to someone else", "assignee_kind=person&assignee_id=u2", []string{"i_theirs"}},
+		{"assigned to an agent", "assignee_kind=agent&assignee_id=a_1", []string{"i_agent"}},
+		{"one status", "status=done", []string{"i_mine_done"}},
+		// An id with no kind cannot say which table to read it against, so it
+		// narrows nothing rather than guessing person.
+		{"assignee_id alone narrows nothing", "assignee_id=u1", []string{"i_mine_open", "i_mine_done", "i_theirs", "i_agent", "i_unassigned"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := list(t, tc.query)
+			if len(got) != len(tc.want) {
+				t.Fatalf("got %v, want %v", got, tc.want)
+			}
+			for _, want := range tc.want {
+				if !slices.Contains(got, want) {
+					t.Fatalf("got %v, want %v", got, tc.want)
+				}
+			}
+		})
+	}
 }

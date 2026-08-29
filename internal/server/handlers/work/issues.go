@@ -173,6 +173,16 @@ func (h *Handler) listIssuesHandler(w http.ResponseWriter, r *http.Request) {
 	default:
 		filter.ParentIssueID = parentID
 	}
+	// assignee=me is the inbox: the caller is the one identity this route can
+	// resolve without being told, and spelling out one's own user id to ask
+	// what one has been given is a worse question than the one being asked.
+	if assignee := r.URL.Query().Get("assignee"); assignee == "me" {
+		filter.AssigneeKind, filter.AssigneeID = coreissue.AssigneePerson, userID
+	} else {
+		filter.AssigneeKind = r.URL.Query().Get("assignee_kind")
+		filter.AssigneeID = r.URL.Query().Get("assignee_id")
+	}
+	filter.Status = r.URL.Query().Get("status")
 	list, total, err := h.issueService().ListIssues(r.Context(), teamID, filter, limit, offset)
 	if err != nil {
 		if h.writeIssueServiceError(w, err) {

@@ -25,6 +25,7 @@ buildmax <command> [flags]
 | `buildmax sandbox deps` | Check host-side sandbox dependencies (`bwrap`, `sandbox-exec`, `socat`) |
 | `buildmax sandbox enable` / `disable` | Set `sandbox.enabled` in `settings.yaml` |
 | `buildmax sandbox mode <auto_allow\|regular>` | Set `sandbox.auto_allow_bash_if_sandboxed` |
+| `buildmax issue list` | List the issues a team assigned you, across every team you are in; `--status`, `--limit` |
 | `buildmax plugin list` | List installed plugins, where each came from, and whether it loads |
 | `buildmax plugin status [name]` | Show what a plugin contributes, its checkout or release, and what shadowed it |
 | `buildmax plugin validate [path]` | Parse a plugin directory and report every problem; non-zero if any would stop it loading |
@@ -159,6 +160,23 @@ System Administrator grant on the server you are signed in to.
 `activations` is read-only and requires a login. It reports the Team's curation
 mode and each activated release; activation changes stay in Portal, where they
 are visible with the Team's other shared automation and audit history.
+
+### `buildmax issue`
+
+`buildmax issue list` is the receiving end of team work: it shows what a
+BuildMax server assigned you, so you can start on it here instead of reading a
+board in a browser. Sign in with `buildmax login` first.
+
+```bash
+buildmax issue list                    # everything assigned to you
+buildmax issue list --status todo      # only what has not been started
+```
+
+One row per issue, with the team it belongs to. A team that cannot be read is
+reported as a warning and the rest of the inbox still prints.
+
+Managing the work — creating issues, assigning them, changing status, splitting
+them up — stays in Portal. This command reads.
 
 ### `buildmax doctor`
 

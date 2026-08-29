@@ -2584,8 +2584,15 @@
             "description": "An issue id, or \"none\" for top-level issues only"
           },
           {"name": "status", "in": "query", "required": false, "schema": {"type": "string"}},
+          {
+            "name": "assignee",
+            "in": "query",
+            "required": false,
+            "schema": {"type": "string", "enum": ["me"]},
+            "description": "\"me\" lists what is assigned to the caller. Overrides assignee_kind and assignee_id."
+          },
           {"name": "assignee_kind", "in": "query", "required": false, "schema": {"type": "string"}},
-          {"name": "assignee_id", "in": "query", "required": false, "schema": {"type": "string"}}
+          {"name": "assignee_id", "in": "query", "required": false, "schema": {"type": "string", "description": "Only narrows the listing together with assignee_kind"}}
         ],
         "responses": {
           "200": {
