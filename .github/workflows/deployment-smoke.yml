@@ -7,6 +7,10 @@
 # fixed within one working day. A test that fails intermittently is quarantined
 # the same day rather than retried — the browser suite sets retries: 0
 # deliberately. See docs/design/end-to-end-testing.md §8.
+#
+# That ownership rule is enforced rather than written down: while this workflow's
+# last completed run on main is red, ci.yml's "Deployment smoke health" job fails
+# every pull request that is not labelled deployment-smoke-fix.
 name: Deployment smoke
 
 on:
