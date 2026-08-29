@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -18,6 +19,7 @@ import (
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/core/localproject"
 	"github.com/gougoujiang/buildmax/internal/core/session"
+	"github.com/gougoujiang/buildmax/internal/infra/localprojectstore"
 	"github.com/gougoujiang/buildmax/internal/interface/auth"
 	"github.com/gougoujiang/buildmax/internal/interface/client"
 
@@ -402,6 +404,92 @@ func (a *App) ProjectNotices(projectID string) ([]string, error) {
 		notices = []string{}
 	}
 	return notices, nil
+}
+
+// MemoryEntry is one of a project's memories as the desktop shows it.
+//
+// It carries the body, unlike the index a model is given: a person opening
+// their own memories is not paying a per-call context cost, and the body is
+// where the reason lives. The frontend still shows one at a time, because a
+// list of twenty bodies is not a list.
+type MemoryEntry struct {
+	Name        string `json:"name"`
+	Type        string `json:"type"`
+	Description string `json:"description"`
+	Body        string `json:"body"`
+	UpdatedAt   string `json:"updated_at,omitempty"`
+	VerifiedAt  string `json:"verified_at,omitempty"`
+}
+
+// MemorySkipped is a memory file that could not be used. It is reported rather
+// than omitted: such a memory is silently absent from every run until someone
+// repairs it.
+type MemorySkipped struct {
+	File   string `json:"file"`
+	Reason string `json:"reason"`
+}
+
+// ProjectMemoryPayload is what a project remembers, for the memory drawer.
+type ProjectMemoryPayload struct {
+	ProjectName string `json:"project_name"`
+	Directory   string `json:"directory"`
+	// IndexChars is what the index costs on every model call and IndexBudget
+	// what it may cost. That pair is what a person prunes against, not the
+	// count.
+	IndexChars  int `json:"index_chars"`
+	IndexBudget int `json:"index_budget"`
+	// Unavailable distinguishes a store that could not be read from one with
+	// nothing in it.
+	Unavailable string          `json:"unavailable,omitempty"`
+	Memories    []MemoryEntry   `json:"memories"`
+	Skipped     []MemorySkipped `json:"skipped,omitempty"`
+}
+
+// ProjectMemory returns what this project remembers.
+//
+// Read-only. Editing a memory from the desktop is the phase 3 surface in
+// docs/design/local-project-memory.md §11.5, and needs the refusal path a
+// digest-checked write can take; the files are editable in the meantime and the
+// directory is returned so a person can open them.
+func (a *App) ProjectMemory(projectID string) (ProjectMemoryPayload, error) {
+	if projectID == "" {
+		return ProjectMemoryPayload{}, fmt.Errorf("project ID required")
+	}
+	ctx := context.Background()
+	manager := projectManager()
+	project, err := manager.Store().Get(ctx, projectID)
+	if err != nil {
+		return ProjectMemoryPayload{}, err
+	}
+	overview := manager.MemoryOverviewFor(ctx, project)
+
+	payload := ProjectMemoryPayload{
+		ProjectName: project.Name,
+		Directory:   filepath.Join(config.ProjectsDir(), project.ID, localprojectstore.MemoryDir),
+		IndexChars:  overview.IndexChars,
+		IndexBudget: overview.IndexBudget,
+		Unavailable: overview.Unavailable,
+		Memories:    make([]MemoryEntry, 0, len(overview.Memories)),
+	}
+	for _, m := range overview.Memories {
+		entry := MemoryEntry{
+			Name:        m.Name,
+			Type:        string(m.Type),
+			Description: m.Description,
+			Body:        m.Body,
+		}
+		if !m.UpdatedAt.IsZero() {
+			entry.UpdatedAt = m.UpdatedAt.Format(time.RFC3339)
+		}
+		if m.VerifiedAt != nil {
+			entry.VerifiedAt = m.VerifiedAt.Format("2006-01-02")
+		}
+		payload.Memories = append(payload.Memories, entry)
+	}
+	for _, s := range overview.Skipped {
+		payload.Skipped = append(payload.Skipped, MemorySkipped{File: s.File, Reason: s.Reason})
+	}
+	return payload, nil
 }
 
 // projectSessionIDs lists the sessions a Project still owns.

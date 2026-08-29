@@ -3,10 +3,16 @@ package desktop
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/gougoujiang/buildmax/internal/agentapp"
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/agent"
+	"github.com/gougoujiang/buildmax/internal/core/localproject"
+	"github.com/gougoujiang/buildmax/internal/infra/localprojectstore"
 )
 
 func TestApp_Startup_sets_data_dir(t *testing.T) {
@@ -158,5 +164,109 @@ func TestApp_SendMessageStream_queue_has_a_cap(t *testing.T) {
 	}
 	if !errors.Is(err, agent.ErrQueueFull) {
 		t.Errorf("error = %v, want it to wrap ErrQueueFull", err)
+	}
+}
+
+// The desktop is where a person looks at their own memories, so the payload
+// carries bodies -- unlike the index a model is given, which is bounded because
+// it is sent on every call.
+func TestProjectMemoryCarriesBodiesAndWhatTheIndexCosts(t *testing.T) {
+	t.Setenv("BUILDMAX_HOME", t.TempDir())
+	app := NewApp()
+	app.Startup(t.Context())
+	t.Cleanup(func() { app.Shutdown(t.Context()) })
+
+	project, err := app.OpenProject(t.TempDir(), "memory probe")
+	if err != nil {
+		t.Fatalf("OpenProject: %v", err)
+	}
+
+	empty, err := app.ProjectMemory(project.ID)
+	if err != nil {
+		t.Fatalf("ProjectMemory: %v", err)
+	}
+	if len(empty.Memories) != 0 || empty.Directory == "" {
+		t.Errorf("empty payload = %+v, want no memories and a directory to open", empty)
+	}
+
+	store := agentapp.NewProjectManager(config.ProjectsDir()).Store()
+	if _, err := store.WriteMemory(t.Context(), project.ID, localproject.MemoryWrite{
+		Name:        "merge-commit",
+		Description: "merge commits, not squash",
+		Type:        localproject.MemoryTypeFeedback,
+		Body:        "Use merge commits.\n\n**Why:** per-commit revert.",
+	}); err != nil {
+		t.Fatalf("WriteMemory: %v", err)
+	}
+
+	got, err := app.ProjectMemory(project.ID)
+	if err != nil {
+		t.Fatalf("ProjectMemory: %v", err)
+	}
+	if len(got.Memories) != 1 {
+		t.Fatalf("memories = %+v, want the one written", got.Memories)
+	}
+	m := got.Memories[0]
+	if m.Name != "merge-commit" || m.Type != "feedback" {
+		t.Errorf("memory = %+v, want its name and type", m)
+	}
+	// The body is the half a description cannot carry, and it is why this
+	// payload exists rather than the index.
+	if !strings.Contains(m.Body, "per-commit revert") {
+		t.Errorf("body = %q, want the reason", m.Body)
+	}
+	// What the index costs on every call is the number a person prunes
+	// against, not the count.
+	if got.IndexChars == 0 || got.IndexBudget == 0 {
+		t.Errorf("payload = %+v, want the index size against its budget", got)
+	}
+	if got.ProjectName != "memory probe" {
+		t.Errorf("ProjectName = %q, want the project's", got.ProjectName)
+	}
+}
+
+// A file that never loads is silently absent from every run, so the drawer a
+// person opens to look at their memories has to name it.
+func TestProjectMemoryNamesSkippedFiles(t *testing.T) {
+	t.Setenv("BUILDMAX_HOME", t.TempDir())
+	app := NewApp()
+	app.Startup(t.Context())
+	t.Cleanup(func() { app.Shutdown(t.Context()) })
+
+	project, err := app.OpenProject(t.TempDir(), "skips")
+	if err != nil {
+		t.Fatalf("OpenProject: %v", err)
+	}
+	dir := filepath.Join(config.ProjectsDir(), project.ID, localprojectstore.MemoryDir)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "broken.md"), []byte("no frontmatter\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := app.ProjectMemory(project.ID)
+	if err != nil {
+		t.Fatalf("ProjectMemory: %v", err)
+	}
+	if len(got.Skipped) != 1 || got.Skipped[0].File != "broken.md" {
+		t.Errorf("skipped = %+v, want the unusable file named", got.Skipped)
+	}
+	if got.Skipped[0].Reason == "" {
+		t.Error("the skipped file carries no reason")
+	}
+}
+
+func TestProjectMemoryNeedsAProject(t *testing.T) {
+	t.Setenv("BUILDMAX_HOME", t.TempDir())
+	app := NewApp()
+	app.Startup(t.Context())
+	t.Cleanup(func() { app.Shutdown(t.Context()) })
+
+	if _, err := app.ProjectMemory(""); err == nil {
+		t.Error("ProjectMemory accepted an empty project id")
+	}
+	if _, err := app.ProjectMemory("no-such-project"); err == nil {
+		t.Error("ProjectMemory accepted an unknown project id")
 	}
 }

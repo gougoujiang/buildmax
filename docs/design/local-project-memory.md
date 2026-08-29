@@ -19,9 +19,10 @@
 > Two more, smaller. Desktop keys its runtime cache by Project alone (§11.5),
 > because it opens a Project at its default workspace and so has exactly one
 > root per Project; the wider keying is needed only once Desktop can enter a
-> worktree. And the Desktop memory list and editor are phase 3 work, so today's
-> inspect/edit path is `buildmax doctor` for the location plus editing the
-> Markdown files directly.
+> worktree. And of §11.5's Desktop surface, the list and the one-at-a-time
+> reader are built; the editor, per-memory delete, and the enable toggle are
+> not, so editing still means opening the Markdown file. `buildmax info` and the
+> TUI `/info` memory tab list the same thing on the other surfaces.
 
 Related: [context durability](context-durability.md),
 [local session storage](local-session-storage.md),

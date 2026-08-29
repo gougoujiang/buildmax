@@ -24,7 +24,8 @@ Nothing is grouped by a remote URL.
 `buildmax doctor` names the project the current directory belongs to;
 `buildmax project list` shows them all. In the TUI, `/info` has a `memory` tab
 that lists this project's memories and opens one with `enter`; `buildmax info`
-prints the same listing.
+prints the same listing; and in Desktop the **Memory** button beside the message
+box opens the same list, with the body of whichever you select.
 
 ## Where They Live
 
