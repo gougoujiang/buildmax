@@ -4,6 +4,11 @@ services:
     build:
       context: ../..
       dockerfile: deployment/smoke/mock-llm/Dockerfile
+    # Published so the smoke can arm a stall and keep a run mid-turn long
+    # enough to cancel it. The server reaches the model over the Compose
+    # network, not through this port.
+    ports:
+      - "${BUILDMAX_SMOKE_LLM_PORT:-8091}:8080"
     healthcheck:
       test: ["CMD", "/mock-llm", "healthcheck"]
       interval: 2s

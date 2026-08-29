@@ -314,19 +314,68 @@ deployment-level fact no handler test can reach:
 - **Failure recovery** — a worker that dies mid-run leaves the run in a
   terminal, diagnosable state with its artifacts and logs retrievable.
 
-Retry and authorization denial are covered by the deployment smoke. The other
-two are not, and the reason belongs here rather than in a backlog: both need a
-run that is slow, or that fails on purpose, and the deployment's mock answers
-every call with the same scripted reply. Covering them means letting the
-deployment mock serve more than one scenario — selected by the model alias a
-run uses, never inferred from what a request says — and giving the smoke stack
-a second alias to point at. That is an enabling change, not a test someone
-forgot to write.
+Retry and authorization denial were covered by the deployment smoke first.
+Cancellation is covered now, and §6.2 records how — the mechanism is not the one
+this section originally proposed, and the reason it is not is worth keeping.
+
+That proposal was to let the deployment mock serve more than one scenario,
+selected by the model alias a run uses. It cannot be built as written: nothing
+in the Portal path chooses a model per run. A task carries an input and an
+optional `agent_id`; an `agentdef.Agent` carries instructions and plugins and no
+model at all. The model comes from deployment configuration — `llm.default_model`,
+or `worker.llm.model` for a managed run — so every run in a stack answers from
+the same alias by construction. Selecting a scenario by alias would mean adding
+per-run model selection, which is a product decision about who may pick a model
+and how it is authorized, not test plumbing. Nothing here should force that
+decision.
 
 Both assertions poll rather than read once. A task reports `SUCCEEDED` before
 its run output is queryable, so a single read fails on a run that did
 everything right; that ordering is a property of the deployment, and an
 assertion that ignores it measures the clock instead of the system.
+
+### 6.2 Making A Run Slow On Purpose
+
+A negative case has to act on a run while the run is still going. The scripted
+model answers immediately, so a smoke that asks a deployment to cancel a run
+usually finds it already finished — and a case that passes because the run ended
+on its own proves nothing about cancellation.
+
+The duration of a scripted turn is therefore controllable, and it is the only
+thing about a turn that is. A step may carry `delay_ms`, and a mock a suite
+cannot rescript — one already built into an image, answering a stack the suite
+reaches only over HTTP — takes a stall from `POST /control/stall`. Neither
+infers anything from what a request contains. The §4 rule stands unchanged: a
+mock that answers what it thinks was asked stops being evidence. How long an
+answer takes says nothing about what the agent did, which is exactly why it is
+the safe dial.
+
+The stall is armed out of band and applies to every later reply, so it cannot
+be aimed at one run — or even at one caller. Creating a task titles it with a
+model call of its own, so the create waits out the stall as well; the smoke
+gives that request a client patient enough rather than trying to arm the stall
+after the create. Arming it later would be the flakier choice by far: a smoke
+run measured 30 milliseconds between a worker spawning and its run succeeding,
+and a case that has to slip an HTTP call between those two events is a coin
+toss. That is why the cancellation case runs last in the
+deployment smoke: once it is armed, anything after it would be waiting on the
+mock rather than on the deployment. A case that needs a stall aimed at one run
+among several concurrent ones needs a different mechanism, and should say so
+rather than depend on the order calls happen to arrive in.
+
+Only the control route is published outside the stack — a published port under
+Compose, a single `Exact` ingress path under kind. The model protocol itself
+stays on the internal network, because a run reaching it is part of what the
+smoke is proving. Both are smoke-only; nothing under `deployment/production/`
+exposes a test double.
+
+What the cancellation case asserts is the deployment-level half named in §6.1:
+the run reaches `CANCELED` rather than `FAILED` or nothing, it is still
+`CANCELED` when asked again, and every artifact it lists can be downloaded. It
+does **not** yet prove that partial output produced before the cancellation
+survives, because a run stalled on its first model call has produced none. That
+half needs a scenario that does work before it stalls, which needs the stall
+aimed at one run — see above.
 
 ## 7. AI Agent Workflow
 
