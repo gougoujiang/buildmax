@@ -141,18 +141,32 @@ func (s *Store) CreateIssueInTeam(ctx context.Context, teamID, createdBy string,
 	}); err != nil {
 		return nil, err
 	}
+	return createdIssue(row, teamID, createdBy, in.ParentIssueID), nil
+}
+
+// createdIssue is what a caller gets back from a create. The row is already
+// written at this point and carries values the input never had, so they are
+// read from it rather than restated: the public id it was given, and the
+// version an update has to send back.
+//
+// Omitting the version is not a cosmetic loss. The API hands this straight to
+// the client as the token for the next update, and a zero there is refused as
+// absent — so a freshly created issue could not be updated until it had been
+// read again.
+func createdIssue(row *issueRow, teamID, createdBy string, parentIssueID *string) *coreissue.Issue {
 	return &coreissue.Issue{
 		ID:            row.PublicID,
 		UserID:        createdBy,
 		TeamID:        teamID,
-		ParentIssueID: in.ParentIssueID,
-		Title:         in.Title,
-		Description:   in.Description,
-		Status:        coreissue.StatusTodo,
+		ParentIssueID: parentIssueID,
+		Title:         row.Title,
+		Description:   row.Description,
+		Status:        row.Status,
 		CreatedBy:     createdBy,
-		CreatedAt:     now,
-		UpdatedAt:     now,
-	}, nil
+		CreatedAt:     row.CreatedAt,
+		UpdatedAt:     row.UpdatedAt,
+		Version:       row.Version,
+	}
 }
 
 // ListIssuesByUser returns issues for the user ordered by updated_at DESC.
