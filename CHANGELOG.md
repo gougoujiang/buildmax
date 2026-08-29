@@ -14,6 +14,194 @@ Unreleased entries live one per file under
 touch the same line. `./make changelog` prints what they currently say, and
 release preparation folds them into a dated section here.
 
+## [0.2.0-alpha.3] - 2026-08-29
+
+### Highlights
+
+- Ask the TUI agent for a worktree and it makes one, moves the session into it,
+  and works there — every tool follows, along with the tree's own hooks,
+  skills, and MCP servers. `/worktree` shows what exists and who is in it, and
+  a delegated subagent can be given a worktree of its own.
+- BuildMax can be measured on Terminal-Bench. `evaluation/harbor/` pins the
+  harness, the dataset, and the adapter that runs the built CLI inside a task
+  container, and `./make eval harbor run` starts a run and files it as trial
+  bundles in the same contract as the local suite. Harbor stays the harness and
+  its verifier stays authoritative.
+- A Bash command that leaves a background process behind no longer hangs the
+  agent. The tool waited on a pipe the process inherited, so a run was observed
+  sitting on one call for two hours under a documented 120-second budget.
+- A task run whose worker is killed without warning now fails within minutes.
+  The server records the poll a worker already makes, and the reaper closes a
+  run that has gone quiet — instead of leaving the Portal showing work in
+  progress until the six-hour timeout.
+- The agent loop's iteration cap is configurable with `agent.max_iterations`
+  and `--max-iterations`, so a long unattended task is not cut off at the fixed
+  200 that suited interactive work.
+- A run that fails part way through reports what it did before it failed. The
+  workspace, model, elapsed time, tool calls, and tokens already spent were all
+  dropped on the failure path, in text and in `--output json` alike.
+
+### Upgrade notes
+
+- **A run that reaches the iteration cap now exits `7`**, with error kind
+  `iteration_cap`, rather than sharing `4` with a failed model call. A script or
+  harness that read `4` as a spent budget should follow the new code; `4` now
+  means a fault worth retrying.
+- `/rewind` takes a prompt back rather than moving to a message: it removes the
+  prompt you pick along with everything after it and returns its text to the
+  input box to edit and send again. Neither `/rewind` nor `/fork` offers an
+  assistant message that asked for a tool any more, because choosing one left
+  the conversation holding a tool call with no result.
+- `./make eval` now measures CLI tasks only. Pass `--surface worker` for the
+  worker tasks, or `--surface all` for both, which is what it used to run.
+- A worker that finds its run already claimed exits `0` instead of `2`. Nothing
+  read the code, and under Kubernetes the non-zero exit restarted a pod that
+  could only refuse the run again.
+
+### Added
+
+- Ask the TUI agent for a worktree and it makes one, moves the session into it,
+  and works there — every tool follows, along with the tree's own hooks,
+  skills, and MCP servers. `/worktree` shows what exists and who is in it;
+  removal asks first and refuses to discard uncommitted work. A delegated
+  subagent can be given a worktree of its own with `Task`'s `worktree`
+  argument.
+
+- `./make build cli <os/arch>` cross-builds a static CLI for another platform
+  and names the artifact `buildmax-<os>-<arch>`, leaving the host binary in
+  place. It is how the CLI gets into a container image the project does not
+  own, such as an external benchmark's.
+
+- `./make build desktop` packages the Wails desktop app on its own, without
+  spending the server, worker, and Portal builds to get at it. CI now runs it
+  on macOS and Windows after a merge that touches the app, weekly, and on
+  demand: nothing built the packaged app before, so a break in the asset
+  embedding, the Wails configuration, or the native link waited for whoever ran
+  `./make build` next.
+
+- Add `./make eval harbor run`, which starts a Terminal-Bench run rather than
+  only importing one. It assembles the Harbor command from
+  `evaluation/harbor/pins.json` — dataset ref, adapter import path, and the
+  `PYTHONPATH` that lets Harbor import the adapter — checks the toolchain the
+  way `./make doctor harbor` does, cross-builds the `linux/amd64` CLI if it is
+  missing, and imports the finished job. Tasks are selected with `--task`,
+  `--canary`, `--limit`, or `--all`, and there is no default: the default would
+  be all 89. `--oracle` runs each task's own reference solution to prove the
+  environment, and `--dry-run` prints the command without running it. Harbor
+  still owns the tasks, the containers, and the verdict.
+
+- Add `evaluation/harbor/`: pinned Harbor, dataset, and adapter versions, the
+  custom-Agent adapter that runs the built CLI against Terminal-Bench 2.1 inside
+  a task container, and `./make eval harbor --job <dir>`, which files a finished
+  job as BuildMax trial bundles and reports it in the same contract as the local
+  suite — same subject tuple, same failure taxonomy, same pass rate with its
+  uncertainty. Harbor stays the harness and its verifier stays authoritative:
+  BuildMax neither re-runs the benchmark nor re-grades it, and an agent timeout,
+  a verifier timeout, and a container that never started stay three different
+  facts. `./make doctor harbor` reports what a run needs, reading the pinned
+  versions rather than restating them, and prints the fix for each missing piece
+  instead of installing anything.
+
+- Make the agent loop's iteration cap configurable with `agent.max_iterations`
+  in `settings.yaml` and `--max-iterations` for one run, so a long unattended
+  task is not cut off at the fixed 200 that suited interactive work. A run that
+  reaches the cap now exits `7` with error kind `iteration_cap` rather than
+  sharing `4` with a failed model call, so a script or harness can tell a spent
+  budget from a fault worth retrying.
+
+- Add fail-closed `--sandbox` and `--sandbox-mode` controls for requiring Bash
+  confinement on one CLI run without changing settings or weakening policy.
+
+- `BUILDMAX_SERVER_URL` can now select the BuildMax server offered at CLI and
+  Desktop sign-in and used by workers without rewriting configuration files.
+
+- Add `./make setup harbor`, the write half of `./make doctor harbor`: it
+  installs uv when it is missing, installs the Harbor version pinned by
+  `evaluation/harbor/pins.json`, cross-builds the `linux/amd64` CLI a trial
+  uploads, and finishes by re-running doctor's own probes, so what setup
+  installs and what a benchmark run requires cannot drift apart. Steps already
+  done are skipped. Installing uv runs Astral's installer, and the exact command
+  is printed before it runs. A trial sandbox stays yours to choose: setup reports
+  that Docker or a `DAYTONA_API_KEY` is missing rather than picking one. Doctor
+  still installs nothing. Both commands now name `linux/amd64` rather than the
+  host's architecture, because the architecture that matters is the task image's:
+  an arm64 binary uploaded into an emulated image fails with an exec format error
+  once the trial is already running.
+
+- Hooks can subscribe to `worktree_create`, `worktree_remove`, and
+  `cwd_changed`, so an audit or notification hook can follow which tree a
+  session is working in. All three are advisory.
+
+### Changed
+
+- `./make eval` now runs only CLI evaluation tasks by default; select worker
+  tasks with `--surface worker` or both surfaces with `--surface all`.
+
+- `/rewind` now takes a prompt back rather than moving to a message: it lists
+  the prompts you typed, removes the one you pick along with everything after
+  it, and returns its text to the input box to edit and send again. The Desktop
+  History panel does the same, and lists rewind and fork points separately.
+
+### Fixed
+
+- Stop a Bash command that leaves a background process behind from hanging the
+  agent forever. The tool reads output through a pipe, and a server or daemon
+  the command started inherits the write end and holds it open, so the wait
+  outlived both the command and its timeout — a run was observed sitting on one
+  call for two hours under a documented 120-second budget. The tool now stops
+  waiting shortly after the command ends or its deadline passes, and says so
+  when output was cut short.
+
+- Report what an evaluation run spent. The trial home a trial runs under carried
+  a model entry with no prices, so `./make eval` had always reported cost as
+  unavailable however the model was configured; it now carries the price list
+  from the same `settings.yaml` entry it takes the endpoint from. A
+  Terminal-Bench run takes one through the new `pricing` agent kwarg, passed
+  explicitly rather than read from the machine, so the figure is reproducible.
+
+- A run that fails part way through now reports what it did before it failed.
+  The workspace, the model, the elapsed time, the tool calls, and the tokens
+  already spent were all dropped on the failure path, so `buildmax -p` closed
+  with `Tool calls: 0`, `Duration: 0ms`, an empty `Workspace:`, and no token
+  line even when the run had edited files and been charged for the calls that
+  got it there. `--output json` reported the same blanks. The session's own
+  totals missed them too, so a conversation resumed after a failed turn counted
+  from zero for good.
+
+- Fix the documented Terminal-Bench run command, which named the dataset without
+  its pinned ref. Harbor resolves a bare name to `latest` while the importer
+  stamps the pinned digest on every bundle it writes, so a run started from the
+  README filed its evidence under a dataset version it had not measured. The run
+  command and the reproduction command recorded on each bundle are now built by
+  one function, so neither can drift from the pins again.
+
+- The `/rewind` and `/fork` pickers no longer offer an assistant message that
+  asked for a tool. Choosing one left the conversation holding a tool call with
+  no result, which OpenAI and Ollama refuse; the picker now offers the reply
+  that ended each turn.
+
+- A worker that finds its run already belongs to someone else now exits cleanly
+  instead of reporting a failed dispatch. It had exited `2` so the scheduler
+  could tell that case from a run that failed to start, but nothing read the
+  code: under Kubernetes `2` is non-zero like any other failure, so the Job
+  restarted a pod that could only refuse the run again, and under the local
+  runner it made the scheduler mark a run `FAILED` while another worker was
+  still executing it. The Job's retry budget stays at three, which is what
+  recovers a worker that died before claiming its run — while reading its
+  configuration, fetching the run, or resolving its model — since the run is
+  still `SCHEDULED` for a fresh pod to take.
+
+- A task run whose worker was killed without warning is now failed within
+  minutes instead of hours. A worker already polls its own run route every few
+  seconds so it can hear about a cancel; the server now records that poll, and
+  the stale-run reaper fails a `RUNNING` run that has gone quiet for two
+  minutes. Before this, only `worker.run_timeout` — six hours by default — ever
+  closed such a run, so a SIGKILL, an OOM kill, or a lost node left the Portal
+  showing work in progress for the rest of the day. The timeout stays as the
+  backstop for a run that never reached `RUNNING` or never reported at all.
+  Nothing is re-run: a worker that died may already have caused side effects,
+  and whether the task is safe to repeat is not the server's call.
+
 ## [0.2.0-alpha.2] - 2026-08-26
 
 ### Highlights
@@ -1676,7 +1864,9 @@ release preparation folds them into a dated section here.
 - Linux, macOS, and Windows archives with checksums and third-party notices.
 - Multi-architecture Linux container image published to GHCR.
 
-[Unreleased]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.1...HEAD
+[Unreleased]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.3...HEAD
+[0.2.0-alpha.3]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.2...v0.2.0-alpha.3
+[0.2.0-alpha.2]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.1...v0.2.0-alpha.2
 [0.2.0-alpha.1]: https://github.com/gougoujiang/buildmax/compare/v0.1.0-alpha.2...v0.2.0-alpha.1
 [0.1.0-alpha.2]: https://github.com/gougoujiang/buildmax/compare/v0.1.0-alpha.1...v0.1.0-alpha.2
 [0.1.0-alpha.1]: https://github.com/gougoujiang/buildmax/compare/v0.1.0-alpha...v0.1.0-alpha.1
