@@ -21,6 +21,8 @@ buildmax <command> [flags]
 | `buildmax models` | List the models the current mode uses and their prompt destination; `--local` also lists what a local Ollama daemon holds |
 | `buildmax tools status` | Inspect the tools currently available to the agent |
 | `buildmax stats [session-id]` | Show what a session spent, what it did, and where its context went; `--json` for the full record |
+| `buildmax project list` | List the local projects and mark the ones whose locator no longer resolves |
+| `buildmax project relink <project-id>` | Point an existing project, and the memory and sessions on it, at this directory |
 | `buildmax sandbox status` | Print the resolved sandbox config and which layer set each value |
 | `buildmax sandbox deps` | Check host-side sandbox dependencies (`bwrap`, `sandbox-exec`, `socat`) |
 | `buildmax sandbox enable` / `disable` | Set `sandbox.enabled` in `settings.yaml` |
@@ -174,6 +176,28 @@ are visible with the Team's other shared automation and audit history.
 It exits `2` when a required first-run prerequisite is missing. Warnings, such
 as running outside a git branch or leaving the local sandbox disabled, are
 reported but do not make the command fail.
+
+### `buildmax project`
+
+A project is the local unit of work a session belongs to: one Git repository
+including every one of its worktrees, or one plain folder. It is what
+`--continue`, the session picker, and [project memory](../guide/project-memory.md)
+are scoped to.
+
+A project is found again by a locator — a repository's common Git directory, or
+a folder's path. Moving a repository leaves the old project unreachable, and the
+next run there registers a new, empty one; that run says so and names the
+projects that no longer resolve, because otherwise the duplicate looks like the
+feature working.
+
+```bash
+buildmax project list                    # (missing) marks an unresolved locator
+buildmax project relink <project-id>     # point it at the current directory
+buildmax project relink <id> --workspace ../moved
+```
+
+Relinking names the project explicitly. The alternative is a heuristic, and a
+heuristic that joined two memory domains would leave no trace of having done so.
 
 ### `buildmax stats`
 

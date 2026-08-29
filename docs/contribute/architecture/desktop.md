@@ -111,8 +111,8 @@ nothing is starting or ending when a user edits history, and the transient open
 is an artifact of Desktop's ownership model, not an event a hook should see.
 
 Project metadata is stored under `<BUILDMAX_HOME>/projects/<project_id>/`,
-shared with the CLI and described in
-[local project memory](../../design/local-project-memory.md) §8. Sessions stay
+with one file per memory under `memory/` beside it, shared with the CLI and
+described in [local project memory](../../design/local-project-memory.md) §8. Sessions stay
 top-level under `<BUILDMAX_HOME>/sessions/` and name their Project by id;
 settings, traces, auth, and logs use the regular paths under `BUILDMAX_HOME`,
 and project source files stay in the user-selected folder.

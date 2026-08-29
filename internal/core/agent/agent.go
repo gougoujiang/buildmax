@@ -212,11 +212,11 @@ type RunLoopOpts struct {
 	// leaves it; this is about proximity, not storage, so it carries only the part the author
 	// marked as non-negotiable. Empty is the normal case.
 	Invariants string
-	// Memory supplies the bounded cross-session recall rendered after the
-	// message list and before the session-state anchor. Nil is the normal case
-	// for a run that has no such scope -- a worker, an evaluation, a session
-	// whose user turned memory off -- and costs nothing.
-	Memory MemorySource
+	// Memory supplies the resident index of cross-session recall, rendered
+	// after the message list and before the session-state anchor. Nil is the
+	// normal case for a run that has no such scope -- a worker, an evaluation,
+	// a subagent, a session whose user turned memory off -- and costs nothing.
+	Memory MemoryStore
 	// EventSink receives structured runtime events from the agent loop.
 	// Nil disables event emission entirely (zero overhead).
 	// The callback may be invoked from the RunLoop goroutine or from a tool
@@ -477,7 +477,7 @@ func callLLM(ctx context.Context, opts RunLoopOpts, history []llm.Message, syste
 	// visible on the next iteration rather than at the end of the run.
 	var stateMsg []llm.Message
 	if opts.Memory != nil {
-		if block := RenderSharedMemory(opts.Memory.Memory()); block != "" {
+		if block := RenderMemoryIndex(opts.Memory.Index()); block != "" {
 			stateMsg = append(stateMsg, llm.Message{Role: "user", Content: block})
 		}
 	}

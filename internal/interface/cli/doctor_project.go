@@ -9,6 +9,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/agentapp"
 	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/gougoujiang/buildmax/internal/core/agent"
 	"github.com/gougoujiang/buildmax/internal/core/localproject"
 	"github.com/gougoujiang/buildmax/internal/infra/localprojectstore"
 )
@@ -59,60 +60,59 @@ func checkProject(ctx context.Context, workspace string) []doctorCheck {
 		// and recognize a stale one after the repository moves.
 		detail += fmt.Sprintf("\n    repository: %s", project.GitCommonDir)
 	}
-	return []doctorCheck{
-		{Severity: doctorOK, Title: "project", Detail: detail},
-		checkProjectMemory(ctx, project),
-	}
+	return append([]doctorCheck{{Severity: doctorOK, Title: "project", Detail: detail}},
+		checkProjectMemory(ctx, project)...)
 }
 
-// checkProjectMemory reports whether memory exists, fits its budget, and still
-// matches the metadata BuildMax recorded.
-func checkProjectMemory(ctx context.Context, project localproject.Project) doctorCheck {
-	path := filepath.Join(config.ProjectsDir(), project.ID,
-		localprojectstore.MemoryDir, localprojectstore.MemoryFile)
+// checkProjectMemory reports how many memories exist, whether the index fits
+// its budget, and which files could not be used.
+//
+// The skipped list is the part that matters: such a memory is silently absent
+// from every run until someone repairs it, and a person who has hand-edited a
+// file needs to be told which edit made it unusable.
+func checkProjectMemory(ctx context.Context, project localproject.Project) []doctorCheck {
+	dir := filepath.Join(config.ProjectsDir(), project.ID, localprojectstore.MemoryDir)
 
-	memory, err := agentapp.NewProjectManager(config.ProjectsDir()).Store().ReadMemory(ctx, project.ID)
+	set, err := agentapp.NewProjectManager(config.ProjectsDir()).Store().Memories(ctx, project.ID)
 	if err != nil {
-		return doctorCheck{
-			Severity: doctorWarn,
+		return []doctorCheck{{
+			Severity: doctorFail,
 			Title:    "project memory",
-			Detail:   fmt.Sprintf("cannot read %s: %v", path, err),
-		}
+			Detail:   fmt.Sprintf("cannot read %s: %v", dir, err),
+			Next:     "Runs load no memory at all while the directory is unreadable.",
+		}}
 	}
-	if memory.Content == "" {
-		return doctorCheck{
+	if len(set.Memories) == 0 && len(set.Skipped) == 0 {
+		return []doctorCheck{{
 			Severity: doctorOK,
 			Title:    "project memory",
 			Detail:   "empty; nothing is remembered for this project yet",
-		}
+		}}
 	}
 
-	chars := utf8.RuneCountInString(memory.Content)
-	if err := localproject.ValidateMemory(memory.Content); err != nil {
-		// Named as a failure because the run silently goes without: a document
-		// this size or shape is skipped rather than sent as a prefix, and
-		// nothing else tells the user their memory stopped being loaded.
-		return doctorCheck{
+	index := agent.MemoryIndex{ScopeID: project.ID}
+	for _, m := range set.Memories {
+		index.Entries = append(index.Entries, agent.MemoryIndexEntry{Name: m.Name, Description: m.Description})
+	}
+	rendered := utf8.RuneCountInString(agent.RenderMemoryIndex(index))
+
+	checks := []doctorCheck{{
+		Severity: doctorOK,
+		Title:    "project memory",
+		Detail: fmt.Sprintf("%d/%d memories, index %d/%d characters\n    %s",
+			len(set.Memories), localproject.MaxMemories,
+			rendered, agent.MaxMemoryIndexChars, dir),
+	}}
+	for _, skipped := range set.Skipped {
+		checks = append(checks, doctorCheck{
 			Severity: doctorFail,
 			Title:    "project memory",
-			Detail:   fmt.Sprintf("%s is not usable and is not loaded into runs: %v", path, err),
-			Next: fmt.Sprintf("Edit %s down to %d characters of valid UTF-8, or empty it.",
-				path, localproject.MaxMemoryChars),
-		}
+			Detail:   fmt.Sprintf("%s is skipped and never loaded: %s", filepath.Join(dir, skipped.File), skipped.Reason),
+			Next: fmt.Sprintf("Repair its frontmatter, keep the description under %d characters and the body under %d, or delete the file.",
+				localproject.MaxDescriptionChars, localproject.MaxBodyChars),
+		})
 	}
-
-	detail := fmt.Sprintf("revision %d, %d/%d characters\n    %s",
-		memory.Meta.Revision, chars, localproject.MaxMemoryChars, path)
-	if memory.ManuallyEdited {
-		// Not a problem, and worth saying: the file is the authority, so the
-		// revision beside it describes an older write than what is loaded.
-		return doctorCheck{
-			Severity: doctorOK,
-			Title:    "project memory",
-			Detail:   detail + "\n    edited by hand since BuildMax last wrote it; the file is what runs load",
-		}
-	}
-	return doctorCheck{Severity: doctorOK, Title: "project memory", Detail: detail}
+	return checks
 }
 
 // checkDetachedSessions reports sessions naming a Project this machine no

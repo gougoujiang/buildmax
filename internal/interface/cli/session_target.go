@@ -157,12 +157,6 @@ func resolveResumeTarget(ctx context.Context, target sessionTarget, workspaceGiv
 	return sessionTarget{}, err
 }
 
-// currentProject resolves workspace to its Project, registering one if this is
-// the first run there.
-func currentProject(ctx context.Context, workspace string) (localproject.Project, error) {
-	return agentapp.NewProjectManager(config.ProjectsDir()).Resolve(ctx, workspace)
-}
-
 // projectLabel names a Project for a message. A Project that cannot be read is
 // named by its id alone: the point of the message is to tell two Projects
 // apart, and that still does.

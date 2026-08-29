@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/gougoujiang/buildmax/internal/agentapp"
@@ -66,6 +67,9 @@ func runTUI(resumeID, modelName, additionalSystemPrompt, workspace string, overr
 		return err
 	}
 	defer app.Close()
+	for _, notice := range app.StartupNotices(relinkCommandHint) {
+		fmt.Fprintln(os.Stderr, notice)
+	}
 	sess, err := app.OpenSession(resumeID)
 	if err != nil {
 		return err

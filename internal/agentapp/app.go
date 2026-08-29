@@ -133,6 +133,10 @@ type AgentApp struct {
 	// projects is the catalog behind it, held because project memory is read
 	// and written through it on every model call.
 	projects *ProjectManager
+	// projectReport is what resolution wants the surface to say once, at start:
+	// a Project registered here for the first time while others no longer
+	// resolve is how a moved repository silently becomes a duplicate.
+	projectReport ProjectReport
 	// memoryDisabled is the user's per-run switch, which is not the same as
 	// having no Project: one is a choice, the other is a surface that never
 	// had one.
@@ -509,6 +513,19 @@ func (a *AgentApp) Project() localproject.Project {
 		return localproject.Project{}
 	}
 	return a.project
+}
+
+// StartupNotices are the things a surface should print once, before the first
+// turn: a Project registered for a directory that may be a moved repository,
+// and memory files that will be silently absent from every run until repaired.
+//
+// A source missing for a whole session without anyone being told is the failure
+// this exists to prevent, and `doctor` is not where a person looks mid-task.
+func (a *AgentApp) StartupNotices(relinkCommand string) []string {
+	if a == nil {
+		return nil
+	}
+	return append(a.projectReport.Lines(relinkCommand), a.MemoryStatus().Lines()...)
 }
 
 func (a *AgentApp) WorkspaceRoot() string {
@@ -1031,15 +1048,15 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 	// No compaction block here: RunLoop reads the stored summary through
 	// CompactionHistory and renders it itself. Appending it here as well put two
 	// <context_compaction> blocks in the prompt after the first in-run compaction.
-	// Built here rather than at construction so a write records which session
-	// and run made it. Nil means this run has no memory -- no Project, or a
-	// user who turned it off -- and then nothing is rendered, the write tool
-	// finds no writer, and a delegate inherits neither.
-	var memory agent.MemorySource
-	if pm := a.projectMemoryFor(sess.ID(), agent.RunIDFromCtx(ctx)); pm != nil {
+	// Built here rather than at construction because it records what this run
+	// has read, which is what makes a replacement it has not read refusable.
+	// Nil means this run has no memory -- no Project, or a user who turned it
+	// off -- and then no index is rendered, the tools find no store, and a
+	// delegate inherits neither.
+	var memory agent.MemoryStore
+	if pm := a.projectMemoryFor(sess.ID()); pm != nil {
 		memory = pm
-		ctx = agent.CtxWithMemorySource(ctx, pm)
-		ctx = agent.CtxWithMemoryWriter(ctx, pm)
+		ctx = agent.CtxWithMemoryStore(ctx, pm)
 	}
 
 	reply, stats, err := agent.RunLoop(ctx, agent.RunLoopOpts{
@@ -1378,12 +1395,14 @@ func (a *AgentApp) buildToolRegistry(client cllm.LLMClient) (cllm.ToolRegistry, 
 	if a.worktrees != nil {
 		registry.AppendTools(tools.NewWorktree(a.worktrees))
 	}
-	// Also after BuildAgentTypes: a delegate reads the same project memory but
-	// does not curate it. One task has one curator, and a memory written by a
-	// subagent would carry a conclusion the parent never saw into every future
-	// session. See docs/design/local-project-memory.md §9.4.
+	// Also after BuildAgentTypes: a delegate carries no project memory at all.
+	// It is the highest-volume run in a session, so it would pay the resident
+	// cost of the index most often, and a parent that needs it to know
+	// something says so in the delegated task -- which is more precise than
+	// handing over a catalogue, and keeps memory reaching exactly the runs a
+	// user can see and correct. See docs/design/local-project-memory.md §9.4.
 	if a.project.ID != "" && !a.memoryDisabled {
-		registry.AppendTools(tools.NewProjectMemoryWrite())
+		registry.AppendTools(tools.NewMemoryRead(), tools.NewMemoryWrite())
 	}
 	// After BuildAgentTypes like Task, so subagents never see the job tools:
 	// a job must be owned by a session the user can still reach.
@@ -1432,10 +1451,7 @@ func (a *AgentApp) newSubAgentTrace(ctx context.Context, sessionID string, opts 
 			ProjectID:    a.project.ID,
 			Workspace:    a.workspace.Root(),
 			Instructions: []agent.PromptLayer{{Name: "subagent_system_prompt", Chars: len(opts.SystemPrompt)}},
-			// A delegate reads the parent's project memory and starts with a
-			// journal of its own, so it has no session state and no compaction
-			// to report.
-			Memory: a.projectMemorySourceInfo(),
+			// No memory row: a delegate carries no index.
 		},
 	})
 }

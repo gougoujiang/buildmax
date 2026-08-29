@@ -160,7 +160,7 @@ terminal `run_end`:
 |---|---|
 | `run_start` | The run begins |
 | `sandbox_boundary` | Always, right after `run_start` — reports the boundary the run actually ran under. `"sandboxed": false` means nothing confined the run's `Bash` commands |
-| `context_sources` | Always — every source the run started with, named by kind: the instruction layers and how large each was, the project memory it loaded with that document's revision and digest, the session notes and todos it inherited, and whether a compaction summary stood in for messages. Sizes and revisions only; no content |
+| `context_sources` | Always — every source the run was assembled from, named by kind: the instruction layers and how large each was, the project memory index it carried with its entry count and rendered size, and whether a compaction summary stood in for messages. Counts and sizes only; no content. Which memory bodies a run went on to read, and any write, are tool calls in the session journal rather than a second description here |
 | `plugins` | Always — which plugins the run loaded, and for one installed from a Git checkout its commit and whether the working tree was dirty |
 | `llm_start` / `llm_end` | Each model call |
 | `tool_start` / `tool_end` | Each tool call |
