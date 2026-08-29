@@ -1,5 +1,19 @@
 # Local End-to-End Verification
 
+## Contents
+
+- [Status](#status)
+- [1. Decision](#1-decision)
+- [2. Why](#2-why)
+- [3. Current Baseline](#3-current-baseline)
+- [4. Prerequisite: The Deterministic Model Harness](#4-prerequisite-the-deterministic-model-harness)
+- [5. Local Harness Contract](#5-local-harness-contract)
+- [6. Golden Paths](#6-golden-paths)
+- [7. AI Agent Workflow](#7-ai-agent-workflow)
+- [8. CI Policy](#8-ci-policy)
+- [9. Delivery Order](#9-delivery-order)
+- [10. Success Criteria](#10-success-criteria)
+
 ## Status
 
 - roadmap_priority: `unscheduled` — contributor and agent productivity work,

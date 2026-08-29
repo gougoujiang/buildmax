@@ -13,6 +13,29 @@ Related: [context durability](context-durability.md),
 [CLI architecture](../contribute/architecture/cli.md), and
 [Desktop architecture](../contribute/architecture/desktop.md).
 
+## Contents
+
+- [1. Decision](#1-decision)
+- [2. Why These Concepts Must Stay Separate](#2-why-these-concepts-must-stay-separate)
+- [3. Current State And The Gap](#3-current-state-and-the-gap)
+- [4. Lessons From Existing Local Layouts](#4-lessons-from-existing-local-layouts)
+- [5. Goals And Non-Goals](#5-goals-and-non-goals)
+- [6. Domain Model And Invariants](#6-domain-model-and-invariants)
+- [7. Project Resolution](#7-project-resolution)
+- [8. Storage](#8-storage)
+- [9. Project Memory Contract](#9-project-memory-contract)
+- [10. Model Context Composition](#10-model-context-composition)
+- [11. Runtime Flows](#11-runtime-flows)
+- [12. Visibility, Trace, And Diagnostics](#12-visibility-trace-and-diagnostics)
+- [13. Privacy And Trust Boundary](#13-privacy-and-trust-boundary)
+- [14. Ownership And Architecture](#14-ownership-and-architecture)
+- [15. Deletion And Lifecycle](#15-deletion-and-lifecycle)
+- [16. Alpha Cutover](#16-alpha-cutover)
+- [17. Delivery Phases](#17-delivery-phases)
+- [18. Acceptance](#18-acceptance)
+- [19. Alternatives Rejected](#19-alternatives-rejected)
+- [20. Open Questions](#20-open-questions)
+
 ## 1. Decision
 
 BuildMax will add one shared local Project model for CLI/TUI and Desktop, and

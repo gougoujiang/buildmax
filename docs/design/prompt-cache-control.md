@@ -15,6 +15,19 @@ Extends [llm-provider-adapters.md](llm-provider-adapters.md) and
 translation; this document owns the lifecycle policy that makes provider
 prompt caches a reliable, safe cost-control mechanism for an Agent.
 
+## Contents
+
+- [1. Problem](#1-problem)
+- [2. Decision](#2-decision)
+- [3. Goals and Non-goals](#3-goals-and-non-goals)
+- [4. Policy Model](#4-policy-model)
+- [5. Provider Capability Contract](#5-provider-capability-contract)
+- [6. Usage, Cost, and Diagnostics](#6-usage-cost-and-diagnostics)
+- [7. Security and Retention](#7-security-and-retention)
+- [8. Alternatives Considered](#8-alternatives-considered)
+- [9. Delivery Plan and Acceptance](#9-delivery-plan-and-acceptance)
+- [10. Sources and Follow-up Documents](#10-sources-and-follow-up-documents)
+
 ## 1. Problem
 
 An Agent repeatedly submits a large stable prefix: system instructions, tool

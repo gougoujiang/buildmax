@@ -12,6 +12,26 @@ Related: [roadmap](../ROADMAP.md),
 [CLI architecture](../contribute/architecture/cli.md), and the
 [durable Agent sessions proposal](durable-agent-sessions.md).
 
+## Contents
+
+- [Decision Question](#decision-question)
+- [Problem And Current Context](#problem-and-current-context)
+- [Current Foundations](#current-foundations)
+- [User Outcomes](#user-outcomes)
+- [Goals](#goals)
+- [Non-Goals](#non-goals)
+- [Ownership And Authority](#ownership-and-authority)
+- [Surface Boundary](#surface-boundary)
+- [Options And Trade-Offs](#options-and-trade-offs)
+- [Candidate Product Decisions](#candidate-product-decisions)
+- [Candidate First Slice](#candidate-first-slice)
+- [Offline And Conflict Semantics](#offline-and-conflict-semantics)
+- [Model, Data, And Trust Boundary](#model-data-and-trust-boundary)
+- [Relationship To Durable Agent Sessions](#relationship-to-durable-agent-sessions)
+- [Delivery Phases](#delivery-phases)
+- [Open Questions And Evidence Needed](#open-questions-and-evidence-needed)
+- [Likely Destination If Accepted](#likely-destination-if-accepted)
+
 ## Decision Question
 
 How should an authenticated CLI/TUI or Desktop client receive, execute,

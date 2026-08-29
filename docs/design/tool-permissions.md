@@ -1,5 +1,19 @@
 # Tool Permissions
 
+## Contents
+
+- [Status](#status)
+- [1. Purpose](#1-purpose)
+- [2. Current Baseline](#2-current-baseline)
+- [3. Gaps](#3-gaps)
+- [4. Direction](#4-direction)
+- [5. In Scope](#5-in-scope)
+- [6. Effective Behavior](#6-effective-behavior)
+- [7. Out Of Scope](#7-out-of-scope)
+- [8. Implementation Steps](#8-implementation-steps)
+- [9. Acceptance](#9-acceptance)
+- [10. Open Questions](#10-open-questions)
+
 ## Status
 
 - roadmap_priority: `unscheduled` — proposed as a P0.5 follow-on to

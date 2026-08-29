@@ -45,6 +45,28 @@ This is an active P3 design. It follows the deployment direction in
 work from [trust-harness.md](trust-harness.md), and supplies model governance
 data needed by [team-governance.md](team-governance.md).
 
+## Contents
+
+- [1. Decision](#1-decision)
+- [2. Product Goal](#2-product-goal)
+- [3. Current Baseline](#3-current-baseline)
+- [4. Why A BuildMax Gateway](#4-why-a-buildmax-gateway)
+- [5. Options Considered](#5-options-considered)
+- [6. Architecture And Ownership](#6-architecture-and-ownership)
+- [7. Model Catalog And Resolution](#7-model-catalog-and-resolution)
+- [8. Managed Protocol](#8-managed-protocol)
+- [9. Streaming, Retry, And Idempotency](#9-streaming-retry-and-idempotency)
+- [10. Call Ledger, Quota, And Audit](#10-call-ledger-quota-and-audit)
+- [11. Authentication And Security](#11-authentication-and-security)
+- [12. Client Configuration And UX](#12-client-configuration-and-ux)
+- [13. Provider Strategy](#13-provider-strategy)
+- [14. Operational Consequences](#14-operational-consequences)
+- [15. Delivery Plan](#15-delivery-plan)
+- [16. Validation](#16-validation)
+- [17. Out Of Scope For The Initial Release](#17-out-of-scope-for-the-initial-release)
+- [18. Open Questions](#18-open-questions)
+- [19. Recommended First Change](#19-recommended-first-change)
+
 ## 1. Decision
 
 BuildMax will support two explicit LLM connection modes:

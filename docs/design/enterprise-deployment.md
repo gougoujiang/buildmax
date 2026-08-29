@@ -1,5 +1,22 @@
 # Enterprise Deployment Loop
 
+## Contents
+
+- [Status](#status)
+- [1. Decision](#1-decision)
+- [2. Product Goal](#2-product-goal)
+- [3. Current Baseline](#3-current-baseline)
+- [4. Main Gaps](#4-main-gaps)
+- [5. In Scope](#5-in-scope)
+- [6. Out Of Scope](#6-out-of-scope)
+- [7. Target Deployment Architecture](#7-target-deployment-architecture)
+- [8. Configuration Shape](#8-configuration-shape)
+- [9. Implementation Plan](#9-implementation-plan)
+- [10. Validation](#10-validation)
+- [11. Risks](#11-risks)
+- [12. Open Questions](#12-open-questions)
+- [13. Initial Delivery Slice — Done](#13-initial-delivery-slice-done)
+
 ## Status
 
 - roadmap_priority: `P3`

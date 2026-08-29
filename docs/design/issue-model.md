@@ -1,5 +1,23 @@
 # Issue Model: Hierarchy And Comments
 
+## Contents
+
+- [Status](#status)
+- [1. Decision](#1-decision)
+- [2. Product Goal](#2-product-goal)
+- [3. Current Baseline](#3-current-baseline)
+- [4. Main Gaps](#4-main-gaps)
+- [5. In Scope](#5-in-scope)
+- [6. Out Of Scope](#6-out-of-scope)
+- [7. Product Surface](#7-product-surface)
+- [8. API Design](#8-api-design)
+- [9. Backend Plan](#9-backend-plan)
+- [10. Frontend Plan](#10-frontend-plan)
+- [11. Validation](#11-validation)
+- [12. Risks](#12-risks)
+- [13. Open Questions](#13-open-questions)
+- [14. Recommended First PR](#14-recommended-first-pr)
+
 ## Status
 
 - roadmap_priority: `P2 follow-on`

@@ -19,6 +19,26 @@ Related: [data model](../contribute/architecture/data-model.md),
 [Beta gate](../ROADMAP.md#beta-gate), whose versioned-migration requirement
 should start from this schema rather than preserve the Alpha one.
 
+## Contents
+
+- [1. Problem](#1-problem)
+- [2. Goals And Non-Goals](#2-goals-and-non-goals)
+- [3. Decisions](#3-decisions)
+- [4. Public ID Format](#4-public-id-format)
+- [5. Schema Shape](#5-schema-shape)
+- [6. Table-By-Table Decision](#6-table-by-table-decision)
+- [7. Which References Stay Opaque](#7-which-references-stay-opaque)
+- [8. Database Foreign Keys](#8-database-foreign-keys)
+- [9. The Store Boundary](#9-the-store-boundary)
+- [10. API Contract](#10-api-contract)
+- [11. Non-HTTP Boundaries](#11-non-http-boundaries)
+- [12. Alpha Transition](#12-alpha-transition)
+- [13. Execution Plan](#13-execution-plan)
+- [14. Measured Plans](#14-measured-plans)
+- [15. Validation](#15-validation)
+- [16. Resolved And Open Questions](#16-resolved-and-open-questions)
+- [17. Amendment: The Text Form Is The Stored Form (2026-08)](#17-amendment-the-text-form-is-the-stored-form-2026-08)
+
 ## 1. Problem
 
 Most server entities carry two identifiers: an auto-increment `id`, and a

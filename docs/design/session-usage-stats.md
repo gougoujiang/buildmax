@@ -14,6 +14,15 @@
 > [sessions and traces](../guide/sessions-and-traces.md), and
 > [reference/cli.md](../reference/cli.md).
 
+## Contents
+
+- [1. Problem](#1-problem)
+- [2. Decision](#2-decision)
+- [3. Metering Fixes This Required](#3-metering-fixes-this-required)
+- [4. Where The Code Lives](#4-where-the-code-lives)
+- [5. Honesty Rules](#5-honesty-rules)
+- [6. Open](#6-open)
+
 ## 1. Problem
 
 BuildMax measured almost everything worth knowing about what a run cost and

@@ -264,6 +264,9 @@ inspect their help and use them only when the task authorizes that effect.
 - Keep user documentation task-oriented. Keep contributor architecture factual.
   Keep rationale in design records. Follow
   [`docs/contribute/documentation.md`](docs/contribute/documentation.md).
+- A document under `docs/proposals/` or `docs/design/` opens with a
+  `## Contents` list of its top-level sections, so a reader sees the whole
+  shape before reading any of it. Keep the list correct when sections change.
 - Add a changelog entry for user-visible changes with
   `./make changelog new <added|changed|fixed|security> <slug>`, which writes
   `docs/changelog/<category>/<slug>.md` holding the one list item it will

@@ -89,6 +89,34 @@ Every document opens with its audience and status:
 `current — this describes a known gap`. A reader must be able to tell within one
 line whether a document can be trusted.
 
+## Contents Lists
+
+Every document in `proposals/` and `design/` opens with a `## Contents` list,
+placed after the header and any related-document links and before the first
+section:
+
+```markdown
+## Contents
+
+- [1. Decision](#1-decision)
+- [2. Why These Concepts Must Stay Separate](#2-why-these-concepts-must-stay-separate)
+```
+
+One line per `##` section, in document order. Subsections are left out: a list
+long enough to need scrolling has stopped being an overview.
+
+These documents run to several hundred lines and are usually read by someone
+deciding whether a section concerns them at all. Without a contents list that
+decision costs a scroll through the whole file, which is why the list is
+required here and not merely encouraged.
+
+The two `README.md` index files are exempt — they are already lists of links.
+`guide/` and `reference/` pages are exempt too: they are task-oriented, and a
+contents list competes with the task rather than serving it.
+
+Maintain the list with the document. A section renamed or added without its
+entry is worse than no list at all, because a reader trusts one that exists.
+
 ## Single Sources Of Truth
 
 Repeating a fact in two documents guarantees that one of them becomes wrong.

@@ -9,6 +9,28 @@
 > [durable Agent sessions](../proposals/durable-agent-sessions.md), and
 > [session trees and mailboxes](../proposals/session-tree-and-agent-mailbox.md).
 
+## Contents
+
+- [1. Decision](#1-decision)
+- [2. Current State And Problem](#2-current-state-and-problem)
+- [3. Goals And Non-Goals](#3-goals-and-non-goals)
+- [4. Record Ownership](#4-record-ownership)
+- [5. `meta.json`](#5-metajson)
+- [6. `history.jsonl`](#6-historyjsonl)
+- [7. Commit And Recovery Semantics](#7-commit-and-recovery-semantics)
+- [8. Rewind And Fork](#8-rewind-and-fork)
+- [9. Subagent Sessions](#9-subagent-sessions)
+- [10. Traces](#10-traces)
+- [11. Session Content And Privacy](#11-session-content-and-privacy)
+- [12. Index, Locking, And Lifecycle](#12-index-locking-and-lifecycle)
+- [13. Journal Growth](#13-journal-growth)
+- [14. Ownership And Interfaces](#14-ownership-and-interfaces)
+- [15. Alpha Cutover](#15-alpha-cutover)
+- [16. Alternatives](#16-alternatives)
+- [17. Verification](#17-verification)
+- [18. Delivery Phases](#18-delivery-phases)
+- [19. Open Questions](#19-open-questions)
+
 ## 1. Decision
 
 Replace each local session's mutable whole-file JSON with a session-owned

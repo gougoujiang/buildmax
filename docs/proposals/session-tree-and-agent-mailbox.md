@@ -14,6 +14,32 @@ Related: [roadmap](../ROADMAP.md) P0.5, [product vision](../design/product-visio
 [Agent Loop](../contribute/architecture/agent-loop.md), and the
 [data model](../contribute/architecture/data-model.md).
 
+## Contents
+
+- [1. Summary](#1-summary)
+- [2. Problem and Current Context](#2-problem-and-current-context)
+- [3. User Scenarios](#3-user-scenarios)
+- [4. Terms and Mental Model](#4-terms-and-mental-model)
+- [5. Goals](#5-goals)
+- [6. Non-Goals](#6-non-goals)
+- [7. Design Principles](#7-design-principles)
+- [8. Fork Semantics](#8-fork-semantics)
+- [9. Workspace Branch Semantics](#9-workspace-branch-semantics)
+- [10. Session Mailbox](#10-session-mailbox)
+- [11. Parent Supervisor and Automatic Resume](#11-parent-supervisor-and-automatic-resume)
+- [12. Concurrency, Ordering, and Consistency](#12-concurrency-ordering-and-consistency)
+- [13. Security, Governance, and Cost](#13-security-governance-and-cost)
+- [14. Lifecycle and Failure Semantics](#14-lifecycle-and-failure-semantics)
+- [15. Surface Behavior](#15-surface-behavior)
+- [16. Architecture Landing Areas](#16-architecture-landing-areas)
+- [17. Options and Trade-Offs](#17-options-and-trade-offs)
+- [18. Staged Delivery](#18-staged-delivery)
+- [19. Prototype Acceptance Criteria](#19-prototype-acceptance-criteria)
+- [20. Open Questions](#20-open-questions)
+- [21. Evidence Needed Before Acceptance](#21-evidence-needed-before-acceptance)
+- [22. Destination if Accepted](#22-destination-if-accepted)
+- [23. Candidate Direction](#23-candidate-direction)
+
 ## 1. Summary
 
 BuildMax currently has three related execution units that do not form one

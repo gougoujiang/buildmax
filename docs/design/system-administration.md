@@ -1,5 +1,26 @@
 # System Administration
 
+## Contents
+
+- [Status](#status)
+- [1. Decision](#1-decision)
+- [2. Product Goal](#2-product-goal)
+- [3. Current Baseline](#3-current-baseline)
+- [4. Principals And What Each May Reach](#4-principals-and-what-each-may-reach)
+- [5. Authority Model](#5-authority-model)
+- [6. Bootstrap And Lockout Recovery](#6-bootstrap-and-lockout-recovery)
+- [7. Server Administration API](#7-server-administration-api)
+- [8. Account Disablement Semantics](#8-account-disablement-semantics)
+- [9. Audit Events](#9-audit-events)
+- [10. Portal Administration Surface](#10-portal-administration-surface)
+- [11. The Authorization Matrix](#11-the-authorization-matrix)
+- [12. Out Of Scope](#12-out-of-scope)
+- [13. Backend Plan](#13-backend-plan)
+- [14. Frontend Plan](#14-frontend-plan)
+- [15. Validation](#15-validation)
+- [16. Risks](#16-risks)
+- [17. Open Questions](#17-open-questions)
+
 ## Status
 
 - roadmap_priority: `P4`

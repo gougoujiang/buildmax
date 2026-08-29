@@ -1,5 +1,18 @@
 # Durable Run Trace
 
+## Contents
+
+- [Status](#status)
+- [1. Purpose](#1-purpose)
+- [2. Direction](#2-direction)
+- [3. Storage model](#3-storage-model)
+- [4. Layering](#4-layering)
+- [5. Runtime flow](#5-runtime-flow)
+- [6. Configuration](#6-configuration)
+- [7. Out of scope for this pass](#7-out-of-scope-for-this-pass)
+- [8. Implementation steps](#8-implementation-steps)
+- [9. Acceptance](#9-acceptance)
+
 ## Status
 
 - roadmap_priority: `P0.5`

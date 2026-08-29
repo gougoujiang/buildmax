@@ -13,6 +13,25 @@ messages](queued-messages.md); [tool permissions](tool-permissions.md); [hook
 system](hook-system.md); [sandbox boundaries](sandbox-boundaries.md); [agent
 loop architecture](../contribute/architecture/agent-loop.md).
 
+## Contents
+
+- [Problem](#problem)
+- [Scope](#scope)
+- [Decision](#decision)
+- [Runtime Model](#runtime-model)
+- [Command Jobs](#command-jobs)
+- [Subagent Jobs](#subagent-jobs)
+- [Monitor Jobs](#monitor-jobs)
+- [Event Delivery And Wake-Up](#event-delivery-and-wake-up)
+- [Permission, Trust, And Safety](#permission-trust-and-safety)
+- [Output, Retention, And Traces](#output-retention-and-traces)
+- [Lifecycle And Limits](#lifecycle-and-limits)
+- [Delivery Stages](#delivery-stages)
+- [Durability Is Not Planned](#durability-is-not-planned)
+- [Prerequisites](#prerequisites)
+- [Open Questions](#open-questions)
+- [Evidence Before Widening](#evidence-before-widening)
+
 ## Problem
 
 BuildMax can perform long local work, but it cannot put that work aside and

@@ -1,5 +1,24 @@
 # Sandbox And Execution Boundaries
 
+## Contents
+
+- [Status](#status)
+- [1. Purpose](#1-purpose)
+- [2. Direction](#2-direction)
+- [3. Architectural shape](#3-architectural-shape)
+- [4. Configuration](#4-configuration)
+- [5. Sandbox modes](#5-sandbox-modes)
+- [6. The `dangerously_disable_sandbox` escape hatch](#6-the-dangerouslydisablesandbox-escape-hatch)
+- [7. How the OS backend works](#7-how-the-os-backend-works)
+- [8. The `buildmax sandbox` command](#8-the-buildmax-sandbox-command)
+- [9. Boundary enforcement summary](#9-boundary-enforcement-summary)
+- [10. Surface defaults](#10-surface-defaults)
+- [11. Visibility](#11-visibility)
+- [12. Hook integration](#12-hook-integration)
+- [13. Implementation steps](#13-implementation-steps)
+- [14. Out of scope (explicit)](#14-out-of-scope-explicit)
+- [15. Acceptance](#15-acceptance)
+
 ## Status
 
 - roadmap_priority: `P0.5`

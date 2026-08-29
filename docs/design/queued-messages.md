@@ -4,6 +4,14 @@
 > CLI/TUI, Desktop, and Portal; mid-run injection on CLI/TUI and Desktop.
 > Persistence and Portal injection are decided against.
 
+## Contents
+
+- [Problem](#problem)
+- [Approach](#approach)
+- [Limits](#limits)
+- [Mid-Run Injection](#mid-run-injection)
+- [Deliberately Not Done](#deliberately-not-done)
+
 ## Problem
 
 Every surface refused a message typed while the agent was working, and each one

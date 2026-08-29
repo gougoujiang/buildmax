@@ -1,5 +1,15 @@
 # Agent Core P0.5 Trust Harness
 
+## Contents
+
+- [Status](#status)
+- [1. Purpose](#1-purpose)
+- [2. Direction](#2-direction)
+- [3. Key Capabilities To Support](#3-key-capabilities-to-support)
+- [4. Explicitly Out Of Scope For Now](#4-explicitly-out-of-scope-for-now)
+- [5. Suggested Priority](#5-suggested-priority)
+- [6. Acceptance](#6-acceptance)
+
 ## Status
 
 - roadmap_priority: `P0.5`

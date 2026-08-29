@@ -7,6 +7,17 @@
 Related: [managed LLM gateway](llm-gateway.md) §11, [trust
 harness](trust-harness.md), and [ROADMAP.md](../ROADMAP.md) P0.5 and P3.
 
+## Contents
+
+- [Problem](#problem)
+- [Decision](#decision)
+- [Token Shape](#token-shape)
+- [Lifecycle](#lifecycle)
+- [What This Does Not Do](#what-this-does-not-do)
+- [Retiring The Shared Worker Token](#retiring-the-shared-worker-token)
+- [Validation](#validation)
+- [Related Documents](#related-documents)
+
 ## Problem
 
 A task run belongs to a user and a team. The worker executing it could prove

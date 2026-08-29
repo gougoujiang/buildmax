@@ -24,6 +24,26 @@
 > It changes nothing in `internal/core/llm`. Every difference is absorbed inside
 > the adapter, the same commitment §1 of the adapters design made.
 
+## Contents
+
+- [1. Problem](#1-problem)
+- [2. Decision](#2-decision)
+- [3. Why A Native Adapter Is Justified](#3-why-a-native-adapter-is-justified)
+- [4. Protocol Differences That Matter](#4-protocol-differences-that-matter)
+- [5. Architecture](#5-architecture)
+- [6. Adapter Responsibilities](#6-adapter-responsibilities)
+- [7. The Context Window Is One Number](#7-the-context-window-is-one-number)
+- [8. Local Inventory](#8-local-inventory)
+- [9. Surfaces](#9-surfaces)
+- [10. Configuration Surface](#10-configuration-surface)
+- [11. Errors, Retry, And Cold Start](#11-errors-retry-and-cold-start)
+- [12. The Managed Gateway](#12-the-managed-gateway)
+- [13. Delivery Plan](#13-delivery-plan)
+- [14. Validation](#14-validation)
+- [15. Alternatives Considered](#15-alternatives-considered)
+- [16. Out Of Scope](#16-out-of-scope)
+- [17. Open Questions](#17-open-questions)
+
 ## 1. Problem
 
 A local model can already be reached today: `provider: openai_compatible` with

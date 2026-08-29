@@ -1,5 +1,17 @@
 # Portal Execution Model: Tier 1, Tier 2, And What Carries Them
 
+## Contents
+
+- [Status](#status)
+- [1. Decision](#1-decision)
+- [2. What Divides Tier 1 From Tier 2](#2-what-divides-tier-1-from-tier-2)
+- [3. Transcript And Execution Events Stay Distinct](#3-transcript-and-execution-events-stay-distinct)
+- [4. What Shipped](#4-what-shipped)
+- [5. What Is Deferred, And Why](#5-what-is-deferred-and-why)
+- [6. Models Not Recommended](#6-models-not-recommended)
+- [7. Rejected Alternatives](#7-rejected-alternatives)
+- [8. Questions Still Requiring Evidence](#8-questions-still-requiring-evidence)
+
 ## Status
 
 - roadmap_priority: `P2 follow-on`
