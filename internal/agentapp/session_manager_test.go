@@ -273,15 +273,26 @@ func TestDeleteRemovesTheBundleAndTheListRow(t *testing.T) {
 	}
 }
 
-func TestDeleteByWorkspaceLeavesOtherWorkspacesAlone(t *testing.T) {
-	m := NewSessionManager(t.TempDir())
+// Clearing one Project's sessions selects by membership. It must not reach a
+// sibling Project, and it must not miss a session of its own that recorded a
+// different directory -- a worktree of the same repository does exactly that.
+func TestDeleteByProjectLeavesOtherProjectsAlone(t *testing.T) {
+	const mine, other = "hyzc3kqxa2vw7m4t9pbn", "q7wd4mnbz3vk8t2yjxs5"
+	dir := t.TempDir()
 	ids := map[string]string{}
-	for name, ws := range map[string]string{"mine": "/w", "other": "/elsewhere"} {
-		sess, err := m.Create("test-model")
+	for name, spec := range map[string]struct {
+		project   string
+		workspace string
+	}{
+		"main":     {mine, "/repo"},
+		"worktree": {mine, "/repo/worktrees/a"},
+		"stranger": {other, "/elsewhere"},
+	} {
+		sess, err := NewSessionManager(dir).ForProject(spec.project).Create("test-model")
 		if err != nil {
 			t.Fatalf("Create: %v", err)
 		}
-		if _, err := m.Finalize(context.Background(), nil, sess, ws, agent.RunStats{}, llm.Pricing{}); err != nil {
+		if _, err := NewSessionManager(dir).Finalize(context.Background(), nil, sess, spec.workspace, agent.RunStats{}, llm.Pricing{}); err != nil {
 			t.Fatalf("Finalize: %v", err)
 		}
 		ids[name] = sess.ID()
@@ -290,19 +301,46 @@ func TestDeleteByWorkspaceLeavesOtherWorkspacesAlone(t *testing.T) {
 		}
 	}
 
-	deleted, err := m.DeleteByWorkspace("/w")
+	deleted, err := NewSessionManager(dir).DeleteByProject(mine)
 	if err != nil {
-		t.Fatalf("DeleteByWorkspace: %v", err)
+		t.Fatalf("DeleteByProject: %v", err)
 	}
-	if len(deleted) != 1 || deleted[0] != ids["mine"] {
-		t.Fatalf("deleted = %v, want only the matching workspace", deleted)
+	if len(deleted) != 2 {
+		t.Fatalf("deleted = %v, want both sessions of that project including the worktree one", deleted)
 	}
-	rows, err := m.List()
+	rows, err := NewSessionManager(dir).List()
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
-	if len(rows) != 1 || rows[0].ID != ids["other"] {
-		t.Fatalf("rows = %v, want the other workspace untouched", rows)
+	if len(rows) != 1 || rows[0].ID != ids["stranger"] {
+		t.Fatalf("rows = %v, want the other project untouched", rows)
+	}
+}
+
+// A session belonging to no Project is not evidence of belonging to this one.
+func TestDeleteByProjectIgnoresProjectlessSessions(t *testing.T) {
+	dir := t.TempDir()
+	sess, err := NewSessionManager(dir).Create("test-model")
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if err := sess.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	deleted, err := NewSessionManager(dir).DeleteByProject("")
+	if err != nil {
+		t.Fatalf("DeleteByProject: %v", err)
+	}
+	if len(deleted) != 0 {
+		t.Fatalf("deleted = %v, want nothing", deleted)
+	}
+	rows, err := NewSessionManager(dir).List()
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("rows = %v, want the projectless session untouched", rows)
 	}
 }
 

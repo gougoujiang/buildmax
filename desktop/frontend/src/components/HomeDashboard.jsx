@@ -1,6 +1,6 @@
 import { folderBaseName, formatSessionMeta } from '../lib/format';
 
-export function HomeDashboard({ recentSessions, recentProjects, projectByWorkspace, onSelectSession, onOpenProject, onCreateProject }) {
+export function HomeDashboard({ recentSessions, recentProjects, projectById, onSelectSession, onOpenProject, onCreateProject }) {
   return (
     <div className="page-home">
       <div className="page-home__header">
@@ -23,7 +23,7 @@ export function HomeDashboard({ recentSessions, recentProjects, projectByWorkspa
           ) : (
             <div className="page-home__list">
               {recentSessions.map((s) => {
-                const project = projectByWorkspace.get(s.workspace);
+                const project = projectById.get(s.project_id);
                 return (
                   <button
                     key={s.id}
@@ -58,7 +58,7 @@ export function HomeDashboard({ recentSessions, recentProjects, projectByWorkspa
                   onClick={() => onOpenProject(p)}
                 >
                   <span className="page-home__item-title">{p.name}</span>
-                  <span className="page-home__item-meta">{p.folder_path}</span>
+                  <span className="page-home__item-meta">{p.default_workspace}</span>
                 </button>
               ))}
             </div>

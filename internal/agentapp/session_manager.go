@@ -289,17 +289,25 @@ func (s *SessionManager) Delete(id string) error {
 	return sessionstore.DeleteSession(s.dir, id)
 }
 
-// DeleteByWorkspace removes every visible session whose workspace matches dir,
+// DeleteByProject removes every visible session belonging to projectID,
 // returning the ids it deleted.
-func (s *SessionManager) DeleteByWorkspace(workspace string) ([]string, error) {
+//
+// Membership decides, not the path a session recorded. Matching on paths meant
+// a session that had moved between spellings of one directory survived a clear
+// that named it, and one started in a sibling directory could be taken by a
+// clear that did not. An empty projectID deletes nothing: a session that
+// belongs to no Project is not evidence of belonging to this one.
+func (s *SessionManager) DeleteByProject(projectID string) ([]string, error) {
+	if projectID == "" {
+		return nil, nil
+	}
 	rows, err := s.List()
 	if err != nil {
 		return nil, err
 	}
-	aliases := workspaceAliases(workspace)
 	var deleted []string
 	for _, row := range rows {
-		if !matchesWorkspace(row.Workspace, aliases) {
+		if row.ProjectID != projectID {
 			continue
 		}
 		if err := s.Delete(row.ID); err != nil {
