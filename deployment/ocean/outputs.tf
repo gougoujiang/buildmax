@@ -37,6 +37,11 @@ output "database_password" {
   sensitive = true
 }
 
+output "database_ca" {
+  value     = data.digitalocean_database_ca.beta.certificate
+  sensitive = true
+}
+
 output "database_name" {
   value = digitalocean_database_db.buildmax.name
 }

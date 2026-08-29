@@ -59,6 +59,10 @@ resource "digitalocean_database_db" "buildmax" {
   name       = var.database_name
 }
 
+data "digitalocean_database_ca" "beta" {
+  cluster_id = digitalocean_database_cluster.beta.id
+}
+
 resource "digitalocean_database_firewall" "beta" {
   cluster_id = digitalocean_database_cluster.beta.id
 

@@ -91,6 +91,70 @@ Names and the region can be changed without editing it:
 
 All three persistent resources must use the configured region.
 
+## Deploy The Application Trial
+
+The application phase needs a full hostname and at least one trusted client
+network. CIDRs are enforced by the Caddy edge while its automatic certificate
+challenge remains reachable:
+
+```bash
+BUILDMAX_OCEAN_HOSTNAME=buildmax.beta.cloudbb.io
+BUILDMAX_OCEAN_ALLOWED_CIDRS=203.0.113.7/32
+```
+
+Put those values in the repository `.env`, using the public CIDR of the machine
+or private network that will perform qualification. Multiple CIDRs may be
+separated by commas. A missing allow-list is a hard error: the beta limits do
+not permit exposing the application directly to an untrusted public network.
+
+Deploy the pinned trial images:
+
+```bash
+./make ocean deploy
+./make ocean app-status
+```
+
+The defaults are the immutable multi-platform digests published for
+`v0.2.0-alpha.4`, plus a pinned Caddy 2.10.2 image. Override them only with
+another digest, never a mutable tag:
+
+| Variable | Default artifact |
+|---|---|
+| `BUILDMAX_OCEAN_IMAGE` | `ghcr.io/gougoujiang/buildmax@sha256:64e6775796b4bf0cb1145e3aaa79084e170f1ec340bd5af1cddc1a28cc0336dd` |
+| `BUILDMAX_OCEAN_PORTAL_IMAGE` | `ghcr.io/gougoujiang/buildmax-portal@sha256:82165de877e4cae3c5a1c598b6f39b37a94db114ab6ce315b237d5913f7e2e2b` |
+| `BUILDMAX_OCEAN_EDGE_IMAGE` | `caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d` |
+
+`deploy` refreshes OpenTofu's read-only database CA output, combines that CA
+with the image's public trust bundle, and starts BuildMax with `database.tls:
+"true"`. The server therefore verifies both DigitalOcean MySQL and its public
+HTTPS dependencies; it never uses `skip-verify`. Kubernetes receives the
+database, Spaces, and generated JWT credentials through a Secret assembled in
+memory. The rendered Secret is not written to the checkout.
+
+The command ends by printing the DigitalOcean Load Balancer IP. Add the record
+manually in Route 53:
+
+```text
+buildmax.beta.cloudbb.io  A  <Load Balancer IP>
+```
+
+Caddy obtains the certificate after public DNS resolves. Rerun `app-status`
+while the Load Balancer is pending, then verify from an allowed network:
+
+```bash
+curl -I https://buildmax.beta.cloudbb.io/
+```
+
+The application phase also creates one DigitalOcean Load Balancer and a 1 GiB
+block-volume claim for Caddy's certificate state. Both are billable and are
+associated with the disposable DOKS cluster, so `./make ocean down` removes
+them with the cluster.
+
+This application trial validates the external MySQL, Spaces, Kubernetes,
+Load Balancer, and TLS path. It deliberately configures no model credential;
+select and record the candidate's approved managed model before performing the
+beta operator journey.
+
 ## State And Secrets
 
 OpenTofu state contains the generated MySQL password and DOKS kubeconfig. The
@@ -130,12 +194,10 @@ separately after preserving the beta-gate evidence.
 
 ## Next Qualification Step
 
-This command establishes the real external dependency boundary, but the beta
-gate still requires a pinned BuildMax candidate to be deployed and exercised.
-Before adding that application phase, BuildMax must support verifying
-DigitalOcean Managed MySQL with its provider CA certificate; using
-`skip-verify` would not satisfy the TLS requirement. DNS remains a manual
-Route 53 record after the Kubernetes load balancer receives an address.
+Infrastructure and application deployment establish the real external
+dependency boundary, but the beta gate still requires the pinned candidate to
+be exercised. Record an approved managed model, then perform the operator
+journey, failure drills, backup restore, and rollback below.
 
 Record the eventual deployment, smoke results, failure drills, restore, and
 rollback in the [Beta readiness record](beta-readiness.md).

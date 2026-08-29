@@ -192,6 +192,11 @@ full lifecycle and credential scope are in
 | `BUILDMAX_OCEAN_REGION` | `sgp1` | Shared region for the existing and disposable resources. |
 | `BUILDMAX_OCEAN_DATABASE_VERSION` | `8.4` | Pinned DigitalOcean Managed MySQL version. |
 | `BUILDMAX_OCEAN_STATE_DIR` | `~/.buildmax/qualification/ocean` | Owner-only directory outside Git holding state, plans, providers, and kubeconfig. |
+| `BUILDMAX_OCEAN_HOSTNAME` | — | Full hostname served by `./make ocean deploy`. |
+| `BUILDMAX_OCEAN_ALLOWED_CIDRS` | — | Comma-separated client networks permitted through the HTTPS edge; required for deploy. |
+| `BUILDMAX_OCEAN_IMAGE` | pinned `v0.2.0-alpha.4` digest | Immutable server and worker image override. Mutable tags are rejected. |
+| `BUILDMAX_OCEAN_PORTAL_IMAGE` | pinned `v0.2.0-alpha.4` digest | Immutable Portal image override. Mutable tags are rejected. |
+| `BUILDMAX_OCEAN_EDGE_IMAGE` | pinned Caddy 2.10.2 digest | Immutable HTTPS edge image override. Mutable tags are rejected. |
 
 The Compose stack is separate and does not use the root `.env`. It reads
 `deployment/compose/.env`, which `deployment/compose/generate-env.sh` creates

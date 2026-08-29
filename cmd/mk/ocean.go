@@ -41,8 +41,12 @@ func cmdOcean(args []string) error {
 		return oceanPlan(cfg, false)
 	case "up":
 		return oceanUp(cfg)
+	case "deploy":
+		return oceanDeploy(cfg)
 	case "info":
 		return oceanInfo(cfg)
+	case "app-status":
+		return oceanAppStatus(cfg)
 	case "status":
 		return oceanStatus(cfg)
 	case "down":

@@ -434,7 +434,7 @@ func helpTopics() []helpTopic {
 		},
 		{
 			name:    "ocean",
-			usage:   "ocean <doctor|plan|up|info|status|down>",
+			usage:   "ocean <doctor|plan|up|deploy|info|app-status|status|down>",
 			summary: "Manage the disposable DigitalOcean beta-qualification infrastructure.",
 			details: []string{
 				"This command uses OpenTofu to create one non-HA DOKS cluster and one single-node\n" +
@@ -448,16 +448,21 @@ func helpTopics() []helpTopic {
 				"OpenTofu state contains the database password and kubeconfig. It defaults to\n" +
 					"~/.buildmax/qualification/ocean, outside the checkout, with owner-only\n" +
 					"permissions. Back it up while resources exist and never publish it.",
+				"`deploy` requires BUILDMAX_OCEAN_HOSTNAME and BUILDMAX_OCEAN_ALLOWED_CIDRS.\n" +
+					"It deploys immutable image digests behind a Caddy HTTPS edge and prints the\n" +
+					"Load Balancer IP for the Route 53 record you manage manually.",
 			},
 			args: []helpRow{
 				{"doctor", "Check tools, credentials, names, and the state location without changing anything"},
 				{"plan", "Initialize OpenTofu, validate the configuration, and save a create/update plan"},
 				{"up", "Plan, confirm, apply, and write an owner-only kubeconfig"},
+				{"deploy", "Deploy the pinned BuildMax trial behind a restricted HTTPS edge"},
 				{"info", "Print safe resource outputs and the kubeconfig path"},
+				{"app-status", "Show application pods, services, and the Load Balancer address"},
 				{"status", "List OpenTofu state entries, including persistent read-only data sources"},
 				{"down", "Plan, confirm, and destroy only the disposable resources"},
 			},
-			examples: []string{"ocean doctor", "ocean plan", "ocean up", "ocean info", "ocean down"},
+			examples: []string{"ocean doctor", "ocean plan", "ocean up", "ocean deploy", "ocean app-status", "ocean down"},
 			see:      "docs/deploy/digitalocean.md",
 		},
 		{

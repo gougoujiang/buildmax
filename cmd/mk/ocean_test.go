@@ -106,6 +106,83 @@ func TestOceanDoctorDoesNotCreateStateDirectory(t *testing.T) {
 	}
 }
 
+func TestOceanApplicationConfigRequiresPrivateAccessBoundary(t *testing.T) {
+	t.Setenv("BUILDMAX_OCEAN_HOSTNAME", "buildmax.beta.cloudbb.io")
+	t.Setenv("BUILDMAX_OCEAN_ALLOWED_CIDRS", "")
+	if _, err := loadOceanApplicationConfig(); err == nil {
+		t.Fatal("loadOceanApplicationConfig accepted a public deployment with no allow-list")
+	}
+}
+
+func TestOceanApplicationConfigPinsImagesAndNormalizesCIDRs(t *testing.T) {
+	t.Setenv("BUILDMAX_OCEAN_HOSTNAME", "BuildMax.Beta.CloudBB.io")
+	t.Setenv("BUILDMAX_OCEAN_ALLOWED_CIDRS", "203.0.113.7/32, 2001:db8::1/128")
+	t.Setenv("BUILDMAX_OCEAN_IMAGE", "example/buildmax@sha256:"+strings.Repeat("a", 64))
+	t.Setenv("BUILDMAX_OCEAN_PORTAL_IMAGE", "example/portal@sha256:"+strings.Repeat("b", 64))
+	t.Setenv("BUILDMAX_OCEAN_EDGE_IMAGE", "example/edge@sha256:"+strings.Repeat("c", 64))
+
+	cfg, err := loadOceanApplicationConfig()
+	if err != nil {
+		t.Fatalf("loadOceanApplicationConfig: %v", err)
+	}
+	if cfg.hostname != "buildmax.beta.cloudbb.io" {
+		t.Errorf("hostname = %q", cfg.hostname)
+	}
+	if got := strings.Join(cfg.allowedCIDRs, ","); got != "203.0.113.7/32,2001:db8::1/128" {
+		t.Errorf("allowed CIDRs = %q", got)
+	}
+	if cfg.buildmaxImage != "example/buildmax@sha256:"+strings.Repeat("a", 64) {
+		t.Errorf("image = %q", cfg.buildmaxImage)
+	}
+}
+
+func TestOceanApplicationConfigRejectsMutableImageTags(t *testing.T) {
+	t.Setenv("BUILDMAX_OCEAN_HOSTNAME", "buildmax.beta.cloudbb.io")
+	t.Setenv("BUILDMAX_OCEAN_ALLOWED_CIDRS", "203.0.113.7/32")
+	t.Setenv("BUILDMAX_OCEAN_IMAGE", "ghcr.io/example/buildmax:latest")
+	if _, err := loadOceanApplicationConfig(); err == nil {
+		t.Fatal("loadOceanApplicationConfig accepted a mutable image tag")
+	}
+}
+
+func TestOceanCaddyfileRestrictsApplicationAndRoutesOneOrigin(t *testing.T) {
+	got := oceanCaddyfile(oceanApplicationConfig{
+		hostname:     "buildmax.beta.cloudbb.io",
+		allowedCIDRs: []string{"203.0.113.7/32"},
+	})
+	for _, want := range []string{
+		"buildmax.beta.cloudbb.io",
+		"not remote_ip 203.0.113.7/32",
+		"reverse_proxy buildmax:5678",
+		"reverse_proxy buildmax-portal:80",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("Caddyfile missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestOceanManifestUsesOnlyPinnedImages(t *testing.T) {
+	app := oceanApplicationConfig{
+		buildmaxImage: "example/buildmax@sha256:" + strings.Repeat("a", 64),
+		portalImage:   "example/portal@sha256:" + strings.Repeat("b", 64),
+		edgeImage:     "example/edge@sha256:" + strings.Repeat("c", 64),
+	}
+	manifest, err := renderOceanManifest(app)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(manifest)
+	for _, want := range []string{app.buildmaxImage, app.portalImage, app.edgeImage, "externalTrafficPolicy: Local"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("manifest missing %q", want)
+		}
+	}
+	if strings.Contains(text, "{{") {
+		t.Error("manifest contains an unresolved template expression")
+	}
+}
+
 func pathHasSuffix(path, suffix string) bool {
 	return strings.HasSuffix(filepath.Clean(path), filepath.Clean(suffix))
 }
