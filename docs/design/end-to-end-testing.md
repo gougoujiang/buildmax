@@ -94,7 +94,7 @@ larger than it looks.
   a conversation task, worker completion, and artifact retrieval. Managed-mode
   smoke additionally proves that a worker reaches the model through the
   gateway.
-- `./make e2e [kind|compose|local|cli]` selects a suite. The Portal ones run
+- `./make e2e <cli|desktop|local|compose|kind|all>` selects a suite. The Portal ones run
   serial Chromium Playwright checks in `portal/e2e/`: login, session
   restoration, the Portal shell, runtime API configuration, audit and admin
   routes, the run-trace view, team files, workflows, and what an ungranted

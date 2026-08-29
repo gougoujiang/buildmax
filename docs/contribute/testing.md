@@ -41,7 +41,7 @@ package whose code reads those paths gives itself a `TestMain` calling
 | A shared component in `gui/` | `./make check gui` |
 | Portal, `gui`, or a route Portal calls | `./make e2e local` |
 | Server, worker, scheduler, storage, or the model gateway | `./make compose smoke`, and `./make compose smoke managed` if the change touches the gateway |
-| Deployment manifests, the Dockerfiles, ingress, or the worker's Kubernetes path | `./make kind up`, then `./make e2e` |
+| Deployment manifests, the Dockerfiles, ingress, or the worker's Kubernetes path | `./make kind up`, then `./make e2e kind` |
 | Documentation | `./make check docs` |
 
 Start with the narrowest suite the change touches. Run a broader one when the
@@ -189,7 +189,7 @@ passed.
 
 `./make e2e all` deliberately leaves out kind: that suite needs a cluster, and a
 release check that quietly builds one is a surprise. Run `./make kind up`
-followed by `./make e2e` when the change is worth proving on Kubernetes.
+followed by `./make e2e kind` when the change is worth proving on Kubernetes.
 
 ## Frontend Component Tests
 
