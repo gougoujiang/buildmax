@@ -4,8 +4,14 @@
 
 BuildMax releases are created from `main` by maintainers. Pushing a version tag
 starts `.github/workflows/release.yml`, which builds archives and the container
-image, generates checksums and SBOMs, scans the image, and publishes provenance
-attestations.
+image, generates checksums and SBOMs, and publishes provenance attestations.
+
+The container image is scanned before it is published, and a HIGH or CRITICAL
+vulnerability with a fix available fails the release with nothing pushed. The
+same holds for the Portal image in `.github/workflows/portal-image.yml`, which
+scans on pull requests too. Both used to scan after pushing, where a finding
+could only turn the job red: `v0.2.0-alpha.3` published two images carrying a
+fixed openssl CVE and then failed on it.
 
 ## Versioning
 
@@ -96,7 +102,9 @@ After the workflow completes:
 4. Verify the GitHub attestation as described in
    [the installation guide](../start/install.md).
 5. Pull `ghcr.io/gougoujiang/buildmax:<version>` by digest and confirm the
-   container starts. Alpha versions must not move the `latest` tag.
+   container starts. Alpha versions must not move the `latest` tag. The image
+   scan already passed before publication, so a red release workflow here means
+   something after the push failed, not a vulnerable image.
 6. Confirm `ghcr.io/gougoujiang/buildmax-portal:<version>` exists and carries
    the **same** version. It is published by a separate workflow
    (`.github/workflows/portal-image.yml`) triggered by the same tag, so a
