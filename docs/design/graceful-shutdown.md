@@ -12,6 +12,23 @@ Related: [enterprise deployment](enterprise-deployment.md) M3,
 [worker run token](worker-run-token.md), [Portal execution
 model](portal-execution-model.md), and [ROADMAP.md](../ROADMAP.md) P3.
 
+## Contents
+
+- [Problem](#problem)
+- [Decision](#decision)
+- [1. What This Started From](#1-what-this-started-from)
+- [2. The Six Gaps](#2-the-six-gaps)
+- [3. The Ladder](#3-the-ladder)
+- [4. Server: Draining](#4-server-draining)
+- [5. Server: Closing Streams](#5-server-closing-streams)
+- [6. Scheduler And Worker](#6-scheduler-and-worker)
+- [7. Deployment](#7-deployment)
+- [8. HTTP Timeouts](#8-http-timeouts)
+- [9. Managing The Terminal Callbacks](#9-managing-the-terminal-callbacks)
+- [10. Phases](#10-phases)
+- [11. Validation](#11-validation)
+- [12. Open Questions](#12-open-questions)
+
 ## Problem
 
 A BuildMax deployment is stopped routinely: a rolling upgrade replaces the

@@ -1,5 +1,20 @@
 # Context Durability
 
+## Contents
+
+- [Status](#status)
+- [1. Purpose](#1-purpose)
+- [2. Current Baseline](#2-current-baseline)
+- [3. Gaps](#3-gaps)
+- [4. Direction](#4-direction)
+- [5. In Scope](#5-in-scope)
+- [6. Out Of Scope](#6-out-of-scope)
+- [7. Runtime Flow](#7-runtime-flow)
+- [8. Implementation Steps](#8-implementation-steps)
+- [9. Acceptance](#9-acceptance)
+- [10. Layering](#10-layering)
+- [11. Open Questions](#11-open-questions)
+
 ## Status
 
 - roadmap_priority: `P0.5`

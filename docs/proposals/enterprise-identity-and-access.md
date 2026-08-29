@@ -6,6 +6,16 @@
 
 Related: [../ROADMAP.md](../ROADMAP.md) P4, [team governance design](../design/team-governance.md), and [deployment authentication](../deploy/authentication.md).
 
+## Contents
+
+- [Problem](#problem)
+- [Goals](#goals)
+- [Non-Goals](#non-goals)
+- [Options To Evaluate](#options-to-evaluate)
+- [Questions To Resolve](#questions-to-resolve)
+- [Evidence Needed For A Decision](#evidence-needed-for-a-decision)
+- [Likely Destination If Accepted](#likely-destination-if-accepted)
+
 ## Problem
 
 BuildMax currently uses operator-created accounts and single-use login codes.

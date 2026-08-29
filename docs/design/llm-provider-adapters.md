@@ -31,6 +31,23 @@
 > orthogonal question: which wire protocol a `direct` call speaks, and which
 > upstream implementation the managed gateway builds for a catalog target.
 
+## Contents
+
+- [1. Decision](#1-decision)
+- [2. Protocol Is Orthogonal To Transport](#2-protocol-is-orthogonal-to-transport)
+- [3. The Baseline This Started From](#3-the-baseline-this-started-from)
+- [4. Protocol Differences That Matter](#4-protocol-differences-that-matter)
+- [5. Architecture](#5-architecture)
+- [6. The Canonical Message Format](#6-the-canonical-message-format)
+- [7. Adapter Responsibilities](#7-adapter-responsibilities)
+- [8. Configuration Surface](#8-configuration-surface)
+- [9. Errors, Retry, And Usage](#9-errors-retry-and-usage)
+- [10. Justification Against The Gateway's Provider Test](#10-justification-against-the-gateways-provider-test)
+- [11. Delivery Plan](#11-delivery-plan)
+- [12. Validation](#12-validation)
+- [13. Out Of Scope](#13-out-of-scope)
+- [14. Open Questions](#14-open-questions)
+
 ## 1. Decision
 
 BuildMax will support three LLM wire protocols behind the unchanged

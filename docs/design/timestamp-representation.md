@@ -17,6 +17,16 @@ Related: [data model](../contribute/architecture/data-model.md),
 Alpha schema change — and
 [configuration](../reference/configuration.md) for the database DSN.
 
+## Contents
+
+- [1. Problem](#1-problem)
+- [2. Goals And Non-Goals](#2-goals-and-non-goals)
+- [3. Decisions](#3-decisions)
+- [4. Why `DATETIME(6)`](#4-why-datetime6)
+- [5. Scope](#5-scope)
+- [6. Existing Databases](#6-existing-databases)
+- [7. Status And Open Questions](#7-status-and-open-questions)
+
 ## 1. Problem
 
 Every persisted instant in the server was an `int64` count of seconds since the

@@ -7,6 +7,15 @@ Related: [roadmap](../ROADMAP.md),
 [Issue model](issue-model.md), and
 [Portal execution model](portal-execution-model.md).
 
+## Contents
+
+- [Product Promise](#product-promise)
+- [Product Model](#product-model)
+- [Runtime Principles](#runtime-principles)
+- [Current Concepts](#current-concepts)
+- [Direction For New Product Bets](#direction-for-new-product-bets)
+- [Decision Test](#decision-test)
+
 ## Product Promise
 
 BuildMax is an out-of-the-box, privately deployable enterprise Agent platform

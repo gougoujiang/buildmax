@@ -8,6 +8,26 @@
 > User documentation for what ships:
 > [../guide/plugins.md](../guide/plugins.md)
 
+## Contents
+
+- [Status](#status)
+- [1. Decision](#1-decision)
+- [2. Why Two Distribution Modes](#2-why-two-distribution-modes)
+- [3. Plugin Directory Contract](#3-plugin-directory-contract)
+- [4. Discovery And Local State](#4-discovery-and-local-state)
+- [5. Runtime Resolution](#5-runtime-resolution)
+- [6. Repository Distribution](#6-repository-distribution)
+- [7. Private Marketplace Distribution](#7-private-marketplace-distribution)
+- [8. Trust And Capability Inspection](#8-trust-and-capability-inspection)
+- [9. Product Surfaces](#9-product-surfaces)
+- [10. Provenance And Worker Use](#10-provenance-and-worker-use)
+- [11. Implementation Ownership](#11-implementation-ownership)
+- [12. Delivery Phases](#12-delivery-phases)
+- [13. Alternatives Rejected](#13-alternatives-rejected)
+- [14. Validation](#14-validation)
+- [15. Open Questions](#15-open-questions)
+- [Related Documents](#related-documents)
+
 ## Status
 
 - roadmap_priority: `post-Beta, P4 follow-on`

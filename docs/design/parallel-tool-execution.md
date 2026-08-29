@@ -1,5 +1,20 @@
 # Parallel Tool Execution
 
+## Contents
+
+- [Status](#status)
+- [1. Purpose](#1-purpose)
+- [2. Current Baseline](#2-current-baseline)
+- [3. Gaps](#3-gaps)
+- [4. Direction](#4-direction)
+- [5. In Scope](#5-in-scope)
+- [6. Out Of Scope](#6-out-of-scope)
+- [7. Runtime Flow](#7-runtime-flow)
+- [8. Implementation Steps](#8-implementation-steps)
+- [9. Acceptance — met ✅](#9-acceptance-met)
+- [10. Sequencing](#10-sequencing)
+- [11. Open Questions](#11-open-questions)
+
 ## Status
 
 - roadmap_priority: `unscheduled` — performance work, not yet placed in

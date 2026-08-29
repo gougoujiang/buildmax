@@ -14,6 +14,21 @@
 CLI and Desktop run in one of two modes. Which one is in effect is decided by a
 single fact — whether a login exists — and everything else follows from it.
 
+## Contents
+
+- [1. Decision](#1-decision)
+- [2. What This Fixed](#2-what-this-fixed)
+- [3. Mode Resolution](#3-mode-resolution)
+- [4. Model List](#4-model-list)
+- [5. Models Are Global To The Deployment](#5-models-are-global-to-the-deployment)
+- [6. The Alias Layer Is Removed](#6-the-alias-layer-is-removed)
+- [7. The Default Model](#7-the-default-model)
+- [8. An Expired Login Does Not Silently Fall Back](#8-an-expired-login-does-not-silently-fall-back)
+- [9. Usage Is Attributed To A Person](#9-usage-is-attributed-to-a-person)
+- [10. What This Supersedes](#10-what-this-supersedes)
+- [11. Where It Lives](#11-where-it-lives)
+- [12. Not In Scope](#12-not-in-scope)
+
 ## 1. Decision
 
 | | Local mode | Managed mode |

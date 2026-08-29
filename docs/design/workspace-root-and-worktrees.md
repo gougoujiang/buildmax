@@ -12,6 +12,19 @@ Related: [roadmap](../ROADMAP.md) step 5,
 [Session architecture](../contribute/architecture/session.md),
 [CLI architecture](../contribute/architecture/cli.md).
 
+## Contents
+
+- [1. What This Record Decides](#1-what-this-record-decides)
+- [2. Why](#2-why)
+- [3. Scope](#3-scope)
+- [4. The Root Is Not Just A Path](#4-the-root-is-not-just-a-path)
+- [5. Decisions](#5-decisions)
+- [6. What The User Sees](#6-what-the-user-sees)
+- [7. Landing Areas](#7-landing-areas)
+- [8. Staged Delivery](#8-staged-delivery)
+- [9. Open Questions](#9-open-questions)
+- [10. User Documentation Obligations](#10-user-documentation-obligations)
+
 ## 1. What This Record Decides
 
 The workspace root becomes session state instead of construction state, and an

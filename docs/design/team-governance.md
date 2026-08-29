@@ -1,5 +1,22 @@
 # Team Governance Foundation
 
+## Contents
+
+- [Status](#status)
+- [1. Decision](#1-decision)
+- [2. Product Goal](#2-product-goal)
+- [3. Current Baseline](#3-current-baseline)
+- [4. Main Gaps](#4-main-gaps)
+- [5. In Scope](#5-in-scope)
+- [6. Out Of Scope](#6-out-of-scope)
+- [7. Permission Matrix](#7-permission-matrix)
+- [8. Backend Plan](#8-backend-plan)
+- [9. Frontend Plan](#9-frontend-plan)
+- [10. Validation](#10-validation)
+- [11. Risks](#11-risks)
+- [12. Open Questions](#12-open-questions)
+- [13. Recommended First PR](#13-recommended-first-pr)
+
 ## Status
 
 - roadmap_priority: `P4`

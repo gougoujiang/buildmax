@@ -13,6 +13,35 @@ Related: [roadmap](../ROADMAP.md) P0.5, P3, P4, and Desktop polish;
 [team governance](../design/team-governance.md), and
 [data model](../contribute/architecture/data-model.md).
 
+## Contents
+
+- [1. Decision Question](#1-decision-question)
+- [2. Problem And Current Context](#2-problem-and-current-context)
+- [3. Product Value Hypotheses](#3-product-value-hypotheses)
+- [4. Goals](#4-goals)
+- [5. Non-Goals](#5-non-goals)
+- [6. Terms And Mental Model](#6-terms-and-mental-model)
+- [7. Options](#7-options)
+- [8. Candidate Product Decisions](#8-candidate-product-decisions)
+- [9. Candidate Resource Model](#9-candidate-resource-model)
+- [10. Storage And Projection](#10-storage-and-projection)
+- [11. Synchronization Protocol](#11-synchronization-protocol)
+- [12. Workspace Identity And Cross-Device Continuation](#12-workspace-identity-and-cross-device-continuation)
+- [13. Server Viewer And Stable Links](#13-server-viewer-and-stable-links)
+- [14. Authorization And Governance](#14-authorization-and-governance)
+- [15. Privacy, Security, And Integrity](#15-privacy-security-and-integrity)
+- [16. Deployment Policy](#16-deployment-policy)
+- [17. Failure Semantics](#17-failure-semantics)
+- [18. Migration And Compatibility](#18-migration-and-compatibility)
+- [19. Surface Behavior](#19-surface-behavior)
+- [20. Architecture Placement](#20-architecture-placement)
+- [21. Phased Path](#21-phased-path)
+- [22. Prototype Acceptance Criteria](#22-prototype-acceptance-criteria)
+- [23. Evidence Needed Before Acceptance](#23-evidence-needed-before-acceptance)
+- [24. Open Questions](#24-open-questions)
+- [25. Likely Destination If Accepted](#25-likely-destination-if-accepted)
+- [26. Candidate Conclusion](#26-candidate-conclusion)
+
 ## 1. Decision Question
 
 Should BuildMax make an authenticated local Agent session a first-class,

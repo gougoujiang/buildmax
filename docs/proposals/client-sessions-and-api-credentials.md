@@ -12,6 +12,27 @@ Related: [roadmap](../ROADMAP.md) P3 and P4,
 [data model](../contribute/architecture/data-model.md), and the
 [enterprise identity and access proposal](enterprise-identity-and-access.md).
 
+## Contents
+
+- [Decision Question](#decision-question)
+- [Problem And Current Context](#problem-and-current-context)
+- [Current Code State](#current-code-state)
+- [Credential Responsibilities And Threat Model](#credential-responsibilities-and-threat-model)
+- [Goals](#goals)
+- [Non-Goals](#non-goals)
+- [Design Principles](#design-principles)
+- [Recommended Human Client Flows](#recommended-human-client-flows)
+- [Machine Credentials](#machine-credentials)
+- [Data Model Implications](#data-model-implications)
+- [HTTP API Implications](#http-api-implications)
+- [CLI, Desktop, And Portal UX](#cli-desktop-and-portal-ux)
+- [Options And Trade-Offs](#options-and-trade-offs)
+- [Code And Documentation Findings](#code-and-documentation-findings)
+- [Staged Direction If Accepted](#staged-direction-if-accepted)
+- [Product Decisions Needed](#product-decisions-needed)
+- [Evidence Needed For A Decision](#evidence-needed-for-a-decision)
+- [Likely Destination If Accepted](#likely-destination-if-accepted)
+
 ## Decision Question
 
 After an interactive login, should BuildMax return a third long-lived token in

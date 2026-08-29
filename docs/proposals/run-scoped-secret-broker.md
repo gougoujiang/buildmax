@@ -13,6 +13,34 @@ governance](../design/team-governance.md); [managed LLM
 gateway](../design/llm-gateway.md); and [configuration
 reference](../reference/configuration.md).
 
+## Contents
+
+- [Problem](#problem)
+- [Decision Sought](#decision-sought)
+- [Goals](#goals)
+- [Non-Goals](#non-goals)
+- [Evidence From Existing Platforms](#evidence-from-existing-platforms)
+- [Threat And Trust Boundaries](#threat-and-trust-boundaries)
+- [Design Principles](#design-principles)
+- [Credential Classes](#credential-classes)
+- [Candidate Resource Model](#candidate-resource-model)
+- [Binding Semantics](#binding-semantics)
+- [Run Lifecycle](#run-lifecycle)
+- [Injection Targets](#injection-targets)
+- [Storage Backends](#storage-backends)
+- [Authorization](#authorization)
+- [Audit And Provenance](#audit-and-provenance)
+- [Redaction And Data Flow](#redaction-and-data-flow)
+- [Existing Credential Debt](#existing-credential-debt)
+- [Failure Semantics](#failure-semantics)
+- [API Shape To Evaluate](#api-shape-to-evaluate)
+- [Runtime And Package Boundaries](#runtime-and-package-boundaries)
+- [Options And Trade-Offs](#options-and-trade-offs)
+- [Staged Delivery If Accepted](#staged-delivery-if-accepted)
+- [Acceptance Evidence](#acceptance-evidence)
+- [Open Questions](#open-questions)
+- [Likely Destination If Accepted](#likely-destination-if-accepted)
+
 ## Problem
 
 BuildMax is a cloud execution platform whose task-run workers execute

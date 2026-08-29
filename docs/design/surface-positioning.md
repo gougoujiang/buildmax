@@ -1,5 +1,17 @@
 # Agent Core / CLI / Desktop / Portal Product Positioning
 
+## Contents
+
+- [Status](#status)
+- [1. Purpose](#1-purpose)
+- [2. Product Layers](#2-product-layers)
+- [3. Positioning Decision](#3-positioning-decision)
+- [4. Functional Matrix](#4-functional-matrix)
+- [5. Desktop Scope](#5-desktop-scope)
+- [6. Product Mental Model](#6-product-mental-model)
+- [7. Roadmap Implications](#7-roadmap-implications)
+- [8. Decision Summary](#8-decision-summary)
+
 ## Status
 
 - status: `current_decision`

@@ -1,5 +1,22 @@
 # Unified Artifacts
 
+## Contents
+
+- [Status](#status)
+- [1. Decision](#1-decision)
+- [2. Product Goal](#2-product-goal)
+- [3. Current Baseline](#3-current-baseline)
+- [4. Scope](#4-scope)
+- [5. Domain Model](#5-domain-model)
+- [6. Access And URLs](#6-access-and-urls)
+- [7. Agent Tool Contract](#7-agent-tool-contract)
+- [8. Authorization, Governance, And Limits](#8-authorization-governance-and-limits)
+- [9. Storage And Failure Semantics](#9-storage-and-failure-semantics)
+- [10. Delivery Phases](#10-delivery-phases)
+- [11. Alternatives Rejected](#11-alternatives-rejected)
+- [12. Open Questions And Evidence Needed](#12-open-questions-and-evidence-needed)
+- [13. Acceptance Criteria](#13-acceptance-criteria)
+
 ## Status
 
 - roadmap_priority: `P2 follow-on`

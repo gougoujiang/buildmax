@@ -7,6 +7,26 @@
 > Follows [plugin-marketplace.md](./plugin-marketplace.md), whose §12 Phase D
 > asks for this record before anything here is built.
 
+## Contents
+
+- [Status](#status)
+- [1. Decision](#1-decision)
+- [2. What Already Crosses This Boundary](#2-what-already-crosses-this-boundary)
+- [3. Why Activation Is A Team Decision](#3-why-activation-is-a-team-decision)
+- [4. The Activation Record](#4-the-activation-record)
+- [5. Who May Activate What](#5-who-may-activate-what)
+- [6. Secrets Are Not In This Design](#6-secrets-are-not-in-this-design)
+- [7. Materializing A Run](#7-materializing-a-run)
+- [8. What A Run Records](#8-what-a-run-records)
+- [9. What Bounds Executable Content](#9-what-bounds-executable-content)
+- [10. Product Surfaces](#10-product-surfaces)
+- [11. Implementation Ownership](#11-implementation-ownership)
+- [12. Delivery Phases](#12-delivery-phases)
+- [13. Alternatives Rejected](#13-alternatives-rejected)
+- [14. Validation](#14-validation)
+- [15. Open Questions](#15-open-questions)
+- [Related Documents](#related-documents)
+
 ## Status
 
 - roadmap_priority: `post-Beta, after the Marketplace`

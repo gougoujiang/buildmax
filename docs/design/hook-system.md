@@ -1,5 +1,22 @@
 # Hook System v2
 
+## Contents
+
+- [Status](#status)
+- [1. Purpose](#1-purpose)
+- [2. Direction](#2-direction)
+- [3. Architectural shape](#3-architectural-shape)
+- [4. Configuration](#4-configuration)
+- [5. Hook types (drivers)](#5-hook-types-drivers)
+- [6. Event coverage](#6-event-coverage)
+- [7. HookManager](#7-hookmanager)
+- [8. Runtime flow](#8-runtime-flow)
+- [9. Layering](#9-layering)
+- [10. Implementation steps](#10-implementation-steps)
+- [11. Risks and call-outs](#11-risks-and-call-outs)
+- [12. Acceptance](#12-acceptance)
+- [13. Suggested ship order](#13-suggested-ship-order)
+
 ## Status
 
 - roadmap_priority: `P0.5`

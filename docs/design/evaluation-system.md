@@ -14,6 +14,30 @@ Related: [roadmap](../ROADMAP.md), [product vision](product-vision.md),
 [durable run trace](durable-run-trace.md), [end-to-end testing](end-to-end-testing.md),
 and [managed LLM gateway](llm-gateway.md).
 
+## Contents
+
+- [1. Summary](#1-summary)
+- [2. Problem And Current Context](#2-problem-and-current-context)
+- [3. Product Question](#3-product-question)
+- [4. Evaluation Consumers](#4-evaluation-consumers)
+- [5. Goals](#5-goals)
+- [6. Non-Goals](#6-non-goals)
+- [7. Design Principles](#7-design-principles)
+- [8. Proposed System Model](#8-proposed-system-model)
+- [9. Execution Adapters](#9-execution-adapters)
+- [10. Graders](#10-graders)
+- [11. Suite Strategy](#11-suite-strategy)
+- [12. Metrics, Comparisons, And Gates](#12-metrics-comparisons-and-gates)
+- [13. Repository And Dependency Boundary](#13-repository-and-dependency-boundary)
+- [14. External Frameworks And Benchmarks](#14-external-frameworks-and-benchmarks)
+- [15. Decisions](#15-decisions)
+- [16. Options And Trade-Offs](#16-options-and-trade-offs)
+- [17. Delivery Sequence](#17-delivery-sequence)
+- [18. Vertical Slice Implementation Plan](#18-vertical-slice-implementation-plan)
+- [19. Risks And Mitigations](#19-risks-and-mitigations)
+- [20. Evidence Required During Implementation](#20-evidence-required-during-implementation)
+- [21. Documentation Lifecycle](#21-documentation-lifecycle)
+
 ## 1. Summary
 
 BuildMax needs an evaluation system that measures its product promise, not a larger version of
