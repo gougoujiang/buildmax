@@ -357,6 +357,7 @@
 /* Agent and system comments are the record of what a run reported rather than
    something a person wrote, so they read as reported rather than said. */
 .issue-discussion__author--agent,
+.issue-discussion__author--local_agent,
 .issue-discussion__author--system {
   color: var(--color-text-muted);
   font-style: italic;

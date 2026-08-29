@@ -17,11 +17,24 @@ const (
 )
 
 // Issue comment author kinds. A comment is written by a person, reported by an
-// agent run, or stated by the server itself.
+// agent run, stated by the server itself, or reported by an agent the server
+// never observed.
+//
+// CommentAuthorLocalAgent is the last of those, and it is deliberately not
+// CommentAuthorAgent. An agent comment is evidence: the run token that wrote it
+// is the agent's own credential, and the task and run it names are records the
+// deployment holds. A local agent's report is a claim made by the person whose
+// machine ran it, over that person's session, about work no worker scheduled,
+// no quota admitted, and no trace recorded. Both are worth having on the
+// thread. Storing them under one name would make a Portal reader believe the
+// deployment vouched for something it never saw.
 const (
-	CommentAuthorUser   = "user"
-	CommentAuthorAgent  = "agent"
-	CommentAuthorSystem = "system"
+	CommentAuthorUser  = "user"
+	CommentAuthorAgent = "agent"
+	// CommentAuthorLocalAgent is authored by the person who ran it: that is the
+	// one identity the server verified, and the accountable one.
+	CommentAuthorLocalAgent = "local_agent"
+	CommentAuthorSystem     = "system"
 )
 
 // Issue is the user-facing work-management object. It is intentionally separate

@@ -498,11 +498,11 @@ One statement about an issue, addressed to people.
 | `id` | `bigint unsigned` | no | Internal primary key |
 | `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
 | `issue_id` | `bigint unsigned` | no | `issue.id` |
-| `author_kind` | `varchar(16)` | no | `user`, `agent`, or `system` |
-| `author_id` | `varchar(64)` | no | `user_id` or `agent_id`; empty for `system` |
+| `author_kind` | `varchar(16)` | no | `user`, `agent`, `local_agent`, or `system` |
+| `author_id` | `varchar(64)` | no | `user_id` or `agent_id`; the reporting person for `local_agent`; empty for `system` |
 | `body` | `text` | no | Markdown source, stored raw; capped at 16 KiB by the service |
-| `source_task_id` | `bigint unsigned` | yes | Set on an agent comment |
-| `source_task_run_id` | `bigint unsigned` | yes | Set on an agent comment |
+| `source_task_id` | `bigint unsigned` | yes | Set on an `agent` comment; never on a `local_agent` one, which names no run |
+| `source_task_run_id` | `bigint unsigned` | yes | Set on an `agent` comment; never on a `local_agent` one, which names no run |
 | `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 | `edited_at` | `datetime(6)` | yes | `NULL` until the body is changed |
 
