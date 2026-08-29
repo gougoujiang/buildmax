@@ -74,11 +74,13 @@ worktree that reports the same Git common directory. It does not automatically
 combine independent clones or unrelated folders. For a non-Git directory, one
 normalized root is one Project.
 
-Project memory is stored as a bounded, user-readable `MEMORY.md` inside the
-Project bundle. It is rendered as a lower-authority context block, not as a
-system-prompt instruction layer. The primary Agent may replace it through a
-dedicated `ProjectMemoryWrite` tool. Users can inspect, edit, clear, or disable
-it. No automatic extraction pass ships in the first implementation.
+Project memory is stored as a set of small user-readable Markdown files inside
+the Project bundle — one file per memory — with a generated `MEMORY.md`
+index over them. Only the index is rendered on every model call, as a
+lower-authority context block rather than a system-prompt instruction layer.
+The Agent reads a memory's body when the index line suggests it is relevant,
+and writes one memory at a time. Users can inspect, edit, delete, clear, or
+disable them. No automatic extraction pass ships in the first implementation.
 
 ## 2. Why These Concepts Must Stay Separate
 
@@ -123,11 +125,20 @@ BuildMax has two memory lifetimes after this design:
 | Lifetime | Existing or planned state | Purpose |
 |---|---|---|
 | Working/session memory | Existing notes and todos | Keep current decisions, constraints, and work state across trimming and compaction inside one session |
-| Project memory | Planned `MEMORY.md` | Carry stable, project-specific knowledge across CLI/Desktop sessions and related Git worktrees |
+| Project memory | Planned per-Project memory files | Carry stable, project-specific knowledge across CLI/Desktop sessions and related Git worktrees |
 
 Global user memory, team memory, and reusable Agent memory remain separate
 future scopes. A global mandatory preference can already be an instruction in
 `<BUILDMAX_HOME>/AGENTS.md`; that does not make it user Memory.
+
+What separates the two is not scope but origin. A preference the user **stated**
+is normative and belongs in an instruction layer, where the user authored it and
+can see it. A pattern the Agent **inferred** from repeated interaction — "the
+option lists I offer get cut to the first entry, so lead with the
+recommendation" — is something the user never said and may not agree with. An
+unconfirmed claim about a person cannot be written into a normative file, which
+is why this class is Memory by construction rather than by placement. §9.2
+bounds what may be inferred at all.
 
 ### 2.3 Session History
 
@@ -140,10 +151,11 @@ Session History is the ordered record needed to reconstruct a conversation:
 - replacements of session-scoped notes and todos.
 
 `history.jsonl` remains the authority. Project memory is not copied into every
-session journal because doing so would create stale snapshots and make a shared
-document look session-owned. A `ProjectMemoryWrite` call and its result remain
-in the session journal as provenance for the mutation, while the resulting
-shared document lives in the Project bundle.
+session journal because doing so would create stale snapshots and make shared
+documents look session-owned. A `MemoryWrite` call and its result remain
+in the session journal as provenance for the mutation, and a body returned by
+`MemoryRead` is an ordinary tool result there, while the memories
+themselves live in the Project bundle.
 
 ### 2.4 Conflict Rules
 
@@ -244,14 +256,37 @@ under an escaped absolute workspace path. Its strengths are simplicity and
 obvious locality: browsing one directory shows the sessions and memory that
 belong together.
 
+Inside `memory/`, the arrangement is an index over one file per memory, not a
+single document. The instance inspected held eleven memories totalling 14.4 kB
+of bodies under a 1.5 kB `MEMORY.md` whose every line is a link plus a
+one-clause hook. Each body carries YAML frontmatter — a slug, a one-line
+description, a type, the session that wrote it, and a modification time — then
+the fact, then **Why** it is believed and **How to apply** it. Bodies link to
+each other with `[[slug]]`, and a link to a memory that does not exist yet is
+tolerated as a marker rather than treated as an error. Several bodies name
+their own source of truth and the date they were last verified against it,
+which is how a memory that summarizes something expensive stays useful without
+pretending to be current.
+
+Two properties are what BuildMax takes from this. **The index is the part that
+is always loaded; bodies are read on demand.** That is why the store can hold
+ten times the always-resident budget without the resident cost growing. And
+**one memory is one file**, so two sessions recording different facts never
+contend, and a stale write can damage one memory rather than the whole store.
+
 The path is also the identity, which creates the weakness relevant here. The
 same BuildMax repository appeared once for the primary checkout and again for
-each worktree. Moving a checkout, opening it through a symlink, or using a
-second related root splits the history and memory unless another layer repairs
-the association.
+each worktree: twenty-two worktree directories, each with its own session
+JSONL. Only the primary checkout's directory held `memory/`, and a session
+running in a worktree read that one. So the association is repaired for
+memory and not for sessions — which is direct evidence for the split this
+record proposes, and for §8.2's claim that physical placement and logical
+ownership need not be the same hierarchy. Moving a checkout, opening it
+through a symlink, or using a second related root still splits whatever the
+repair layer does not cover.
 
-BuildMax adopts the readable per-project memory bundle, not the escaped path as
-identity.
+BuildMax adopts the readable per-project memory bundle and its index-plus-files
+shape, but not the escaped path as identity.
 
 ### 4.2 Codex-style logical projects
 
@@ -289,7 +324,7 @@ to one Git repository are grouped automatically.
 ### 5.2 Non-goals
 
 - Portal, worker, team, organization, or shared server Project memory.
-- Global user memory or automatic synchronization between machines.
+- Global user memory or automatic synchronization between machines (§20).
 - Arbitrary projects containing unrelated directories.
 - Treating two independent clones as one Project based on a remote URL.
 - Embeddings, a vector database, semantic search, or retrieval ranking.
@@ -363,8 +398,8 @@ leaving Project and its memory unchanged.
 For ordinary local CLI/Desktop sessions it is required at creation and does
 not change later. A session may move among Workspace roots belonging to that
 Project, but it does not silently move to another Project. A fork inherits the
-Project ID. A local subagent inherits it for provenance and read-only memory
-context.
+Project ID. A local subagent inherits it for provenance; it does not inherit
+memory context, per §9.4.
 
 The field remains optional at the serialization boundary because task-run and
 other non-local sessions do not acquire a fake local Project merely to satisfy
@@ -401,6 +436,14 @@ The resolver:
 3. verifies that it names an accessible directory; and
 4. asks Git whether it belongs to a worktree.
 
+Alias resolution means evaluating symlinks, not only cleaning the string.
+`filepath.Clean` plus `filepath.Abs` — what `workspaceAliases` does today —
+is not enough for the locator, because Git returns its own spelling of the
+common directory: on macOS a workspace reached through `/var` and a common
+directory reported under `/private/var` are the same directory and must not
+produce two Project keys. Both sides of every comparison are resolved before
+they are compared or stored.
+
 This normalization is for lookup. The session still records the usable path
 the runtime selected, and existing workspace-alias handling remains relevant
 for old or user-entered spellings.
@@ -424,6 +467,16 @@ the user opens the moved folder; it does not write an unsolicited marker into
 `.git`, infer identity from remote URLs, or merge repositories speculatively.
 The relink flow shows candidates with missing locators and requires the user to
 choose; no heuristic silently joins memory domains.
+
+Ordering decides whether that flow is ever reached. A moved repository misses
+lookup, so step 3 has already created a second Project with empty memory
+before the user could have asked for anything. Creation must therefore
+announce itself when the catalog holds Projects whose locators no longer
+resolve: the new Project is created — a run is never blocked on a naming
+decision — and the surface says a new Project was created and that N existing
+Projects have missing locators, naming the relink command. Without that, the
+recovery path exists and is never found, and the duplicate looks like the
+feature working.
 
 ### 7.3 Non-Git Project lookup
 
@@ -459,8 +512,8 @@ The local layout becomes:
     <project_id>/
       meta.json
       memory/
-        MEMORY.md
-        meta.json
+        MEMORY.md      # generated index
+        <slug>.md      # one file per memory
         writer.lock
 
   sessions/
@@ -503,62 +556,114 @@ Logical `project_id` gives filtering and ownership without those costs.
 
 ### 8.3 Memory files
 
-`MEMORY.md` is the authoritative current document and is intentionally human
-readable. `memory/meta.json` records:
+One memory is one file. `<slug>.md` is authoritative for that memory and is
+intentionally human readable:
 
-```json
-{
-  "version": 1,
-  "revision": 7,
-  "digest": "sha256:<hex>",
-  "updated_at": "2026-08-29T10:00:00Z",
-  "updated_by_session_id": "<session uuid>",
-  "updated_by_run_id": "<run id>"
-}
+```text
+projects/<project_id>/memory/
+  MEMORY.md            # generated index
+  writer.lock
+  merge-commit.md
+  rejected-sse-transport.md
+  fixture-layout.md
 ```
 
-The metadata describes the last BuildMax write; it is not a second copy of the
-content. If a user edits `MEMORY.md` directly and its digest no longer matches,
-the store accepts the Markdown as authority and reports a manual edit. The next
-mutating open reconciles metadata under the writer lock before an Agent may
-replace it. A read never rewrites the user's Markdown to match stale metadata.
+The file name is the slug and the slug is the memory's identity — there is no
+second identifier that can disagree with it. Each file is frontmatter plus
+body:
 
-There is no separate Project-memory revision journal in v1. The originating
-session already records the tool call and result, and copying every complete
-replacement into another append-only file would create an unbounded second
-history before a retention need is observed.
+```markdown
+---
+name: rejected-sse-transport
+description: SSE was rejected for the event stream; it cannot resume mid-turn
+type: project
+session_id: <session uuid that last wrote it>
+updated_at: 2026-08-29T10:00:00Z
+verified_at: 2026-08-29
+---
+
+The event stream uses WebSocket, not SSE.
+
+**Why:** SSE was tried in the worker-stream spike and dropped because a
+reconnect cannot resume a turn already in flight.
+
+**How to apply:** do not re-propose SSE for streaming without addressing
+resume. Related: [[worker-stream-contract]].
+```
+
+Frontmatter fields use `snake_case`, matching the repository's persisted-JSON
+convention. `session_id` and `updated_at` give each memory its own provenance,
+which is why there is no sidecar metadata file: the previous single-document
+design needed one because a lone Markdown file had nowhere to record who wrote
+it, and per-file frontmatter removes that need rather than moving it.
+
+`verified_at` is optional and is what lets a memory summarize something
+expensive without claiming to be current; §9.2 says when to use it.
+
+`MEMORY.md` is a **generated projection**, not a hand-maintained file: it is
+rebuilt from the memory files after every write, exactly as
+`projects/index.json` is rebuilt from Project metadata, and for the same
+reason — an index that can disagree with its sources is a defect surface with
+no compensating capability. Users edit memories, not the index. A memory file
+deleted by hand simply loses its line on the next rebuild.
+
+A body whose frontmatter is missing, unparseable, or over budget is reported
+and skipped rather than guessed at. Skipping one memory is a smaller failure
+than rendering a line that promises a body the read tool cannot return.
+
+There is no Project-memory revision journal in v1. The originating session
+already records the tool call and result, and copying every replacement into
+another append-only file would create an unbounded second history before a
+retention need is observed.
 
 ## 9. Project Memory Contract
 
 ### 9.1 Content shape and budget
 
-Project Memory is one Markdown document with a maximum of **8,192 Unicode
-characters**. The limit is enforced on write, not by truncating silently at
-render time. This matches the existing additional-system-prompt ceiling and
-keeps the always-loaded context to roughly a few thousand tokens at worst.
-If a direct filesystem edit makes the file invalid UTF-8 or over limit, the
-runtime does not send a prefix that could change meaning: it disables that
-source for the run, omits the write tool, and reports the exact repair needed
-through diagnostics and the surface.
+A Project holds at most **20 memories**. Each has a `description` of at most
+**100 characters** and a body of at most **2,000**. Every limit is enforced on
+write, not by truncating silently at render time.
 
-The recommended shape is a short heading and bullets grouped only when useful:
+Two budgets are in play because two things cost differently.
 
-```markdown
-# Project Memory
+**The index is the resident cost.** It is rendered after the message list on
+every call, and trailing blocks are never a prefix of the next call's request,
+so they are paid for in fresh input tokens on every iteration of every session
+in the Project — not once per write. Bounding the inputs bounds it by
+construction: twenty lines of a slug plus a 100-character description land
+near 3,200 characters, which is deliberately the ceiling `RenderSessionState`
+already applies to invariants, notes, and todos combined. The renderer also
+enforces 3,200 directly, so a hand-edited store cannot exceed it even if the
+per-memory limits were bypassed.
 
-## Preferences
-- Prefer narrow table-driven Go tests when several cases share one contract.
+The comparable budget is that anchor, not the additional system prompt. The
+additional-system-prompt ceiling of 8,192 bounds user-authored normative text
+the user chose to pay for; Project Memory is model-authored fallible text
+placed closer to generation than the system prompt, so it is held to the
+standard of the other always-rendered block.
 
-## Decisions
-- Keep local session bundles top-level; Project membership is a logical ID.
+**Bodies are a retrieval cost, paid only when read.** 2,000 characters each is
+generous precisely because it is not resident: a memory can afford the Why and
+the How that make it actionable, instead of being compressed into a bullet
+that survives the budget by dropping its reason. Twenty of them is 40 kB on
+disk that no run ever loads at once.
 
-## Known dead ends
-- Do not key Project identity by escaped workspace path; worktrees split it.
-```
+This is the split that makes the shape work. A single always-loaded document
+must delete an old memory to admit a new one; here, growth costs one index
+line, and pressure falls on the count and on writing a description worth its
+line rather than on the knowledge itself.
 
-The format has no required ontology. Headings are for readability, not a
-schema the runtime interprets. Full-document replacement forces the Agent to
-remove stale material instead of appending forever.
+Twenty is a starting bound chosen to be raised on evidence rather than lowered
+after users have filled it. Phase 3 measures observed counts and sizes.
+
+If a direct filesystem edit makes a file invalid UTF-8 or over budget, that
+memory is reported and skipped (§8.3). If the store as a whole cannot be read
+— a missing directory is not an error, but an unreadable one is — the
+runtime does not send a partial index that could mislead: it disables it for
+the run, omits both tools, and reports the exact repair needed through
+diagnostics and on the surface at run start. A source silently missing for a
+whole session is the failure this reporting exists to prevent, so `doctor` is
+not the only place it appears.
 
 ### 9.2 What the Agent may remember
 
@@ -573,70 +678,187 @@ The tool description and runtime prompt use a precision-first policy:
 - never store credentials or surprising sensitive content; and
 - update or remove a memory when current evidence or the user contradicts it.
 
+Every memory carries a `type`:
+
+| Type | Holds |
+|---|---|
+| `feedback` | Guidance the user gave about how to work in this Project — corrections and confirmed approaches alike |
+| `project` | Ongoing work, goals, decisions, and constraints not derivable from the code or its history |
+| `reference` | Pointers to external resources: dashboards, tickets, specifications |
+
+The fourth type in the inspected layout, a `user` scope holding who the user
+is, is deliberately absent: that is global user memory, which §5.2 keeps out
+of a Project-scoped store.
+
+A `feedback` or `project` body states the fact, then **Why** it is believed —
+when it came from, what it replaced — then **How to apply** it. That shape is
+what separates a memory from a fact fragment: a reader who disagrees with the
+Why can discard the memory on evidence instead of guessing at its warrant.
+
+A `feedback` memory records what the user **wants**, never what the user
+**is**. "Leads with the recommendation rather than a survey" is a preference,
+correctable by the user and useful on the next turn. "Is unfamiliar with
+concurrency" is a judgement about a person, and it fails in a way repository
+facts cannot: there is nothing to verify it against, it will be acted on for
+months, and the user is never told why the answers changed. Worse, it
+self-confirms — the Agent explains more, the user adapts to that, and the
+inference looks validated. This line holds whether or not a user-level scope
+is ever added, because the `feedback` type can already carry such a judgement
+today.
+
+An inference about the user needs repetition, not insight. The same correction
+recurring across several sessions is evidence; one confusing exchange is not,
+and belongs to that session. The body must carry the occasions it rests on, so
+the user can read it and say the pattern was coincidence — a bare assertion
+about a person cannot be disagreed with on evidence, and a cited one can.
+
+`feedback` is where the instruction boundary gets tested, so this record
+settles it rather than leaving §2.1 and the "explicit remember-this is a
+strong signal" rule below to pull against each other. A `feedback` memory
+records **that the user prefers something and why**; it never becomes a rule
+the Agent cites as its own authority, and it is not evidence when it conflicts
+with a current instruction or a current user statement. When a preference
+should bind every future run whether or not memory is enabled, the destination
+is `AGENTS.md` and the Agent proposes that change rather than making it. The
+pressure to shortcut this is real and should be expected: the Agent can write
+memory and cannot write `AGENTS.md`, so preferences will accumulate in the
+store unless the tool description says plainly that recording one is not the
+same as adopting a policy.
+
+The admission test is that the fact stays true on any branch. Project Memory
+is shared by every Workspace of the Project, so a conclusion that holds only
+inside the branch that reached it does not belong there — it is session state,
+and `NoteWrite` already keeps it where it applies. This is the first failure
+mode to expect rather than a theoretical one: a worktree-per-task workflow
+produces a steady supply of in-flight conclusions that read like durable
+knowledge, and the doc's own example of a rejected library is durable only
+when the reason survives the branch. The tool description states the test in
+those words.
+
+"Do not copy what the files can answer" needs one refinement, because the
+inspected layout found a case between remembering and recomputing. Something
+expensive to reconstruct and slow to change — where a multi-phase plan stands,
+which subsystems remain unbuilt — is worth a memory even though a long enough
+reading of the repository would answer it. Such a memory names its source of
+truth and sets `verified_at` to the date it was last checked against it, and
+its body tells the reader to verify there before acting. That is honest about
+being a cache; a bare assertion of the same fact is not. Cheap lookups still
+do not become memories.
+
 An explicit "remember this for this project" is a strong write signal. A fact
 seen once in untrusted web or tool output is not. Repetition is evidence of
 usefulness, not proof of truth.
 
+Bodies may link to other memories with `[[slug]]`. The runtime does not
+resolve, validate, or follow these links; they are a reading aid, and a link
+to a memory that does not exist yet marks something worth writing rather than
+a broken reference. Nothing in the design depends on the graph being complete.
+
 ### 9.3 Tool surface
 
-The primary local Agent receives `ProjectMemoryWrite`. It accepts the complete
-replacement and the digest the model saw:
+The primary local Agent receives two tools. They are named for the operation,
+not the scope, because `NoteWrite` and `TodoWrite` are session-scoped and
+carry no scope prefix either; if a second memory scope is ever designed, a
+scope argument on these tools is a better shape than a second pair of tools,
+so the unprefixed name is the one that survives it.
+
+`MemoryRead` takes the slugs whose bodies the index suggests are worth
+opening:
+
+```json
+{ "names": ["rejected-sse-transport", "fixture-layout"] }
+```
+
+It returns those bodies, and names the ones that do not exist rather than
+failing the call. A read tool is necessary here, where it was not under a
+single always-rendered document: the index carries a description, not the
+knowledge.
+
+`MemoryWrite` creates or replaces exactly one memory:
 
 ```json
 {
-  "content": "# Project Memory\n\n- ...",
-  "expected_digest": "sha256:<hex>"
+  "name": "rejected-sse-transport",
+  "description": "SSE was rejected for the event stream; it cannot resume mid-turn",
+  "type": "project",
+  "content": "The event stream uses WebSocket, not SSE.\n\n**Why:** ..."
 }
 ```
 
+Empty `content` deletes that memory. There is no append mode and no force
+mode.
+
+The concurrency rule is **replace only what this run has read**, and the
+compared token never leaves the runtime. Creating a memory whose slug does not
+exist is always accepted. Replacing an existing one requires that this run
+rendered or read the version now on disk; the runtime records the digest of
+every body it hands to the model, in the run context beside the note store,
+and compares it under the lock. A model that wants to change a memory it has
+only seen an index line for is told to read it first — which is the honest
+answer, since it cannot have merged content it never saw.
+
+Sending a version token out to the model and expecting it back verbatim would
+route a correctness token through the least reliable component in the loop,
+and would add an omitted-parameter case whose only plausible fallback is an
+unconditional overwrite.
+
 The operation:
 
-1. validates the size and applies a best-effort credential detector before
-   persistence;
+1. validates the slug, description, type, and body budgets, and applies a
+   best-effort credential detector before persistence;
 2. takes the Project memory writer lock;
-3. compares `expected_digest` with the current content digest;
-4. atomically replaces `MEMORY.md` only on a match;
-5. atomically updates metadata; and
-6. returns the new revision, digest, and character count in useful tool output.
+3. for a replacement, compares the digest this run read with the digest on
+   disk;
+4. atomically writes `<slug>.md` only on a match, or when creating;
+5. regenerates `MEMORY.md` from the files; and
+6. returns what changed and the resulting memory count in useful tool output.
 
-An empty document is the explicit forget operation. There is no append mode.
-When no memory block was rendered because the document is empty or absent, an
-empty `expected_digest` means "write only if it is still empty." It is not an
-unconditional overwrite.
-On a digest conflict, nothing is written. The next model iteration receives
-the newly rendered Project Memory and can merge deliberately rather than
-overwriting another session's update.
+On a conflict — a concurrent session's write, or a direct user edit since this
+run read the body — nothing is written and the tool says so. The Agent can
+read the current version and merge deliberately.
 
-`ProjectMemoryRead` is unnecessary in v1 because the complete bounded document
-is already rendered on every model call. A separate read tool becomes useful
-only if later evidence justifies topic files or selective retrieval.
+Per-file granularity is most of what makes this safe. Two sessions recording
+different facts touch different files and never contend at all, so the
+conflict path is reached only when two runs genuinely disagree about the same
+memory, and the blast radius of a stale write is one memory rather than the
+whole store. The writer lock still serializes writes because the index is
+regenerated with them.
 
 ### 9.4 Read and write permissions
 
-- Primary CLI/TUI and Desktop Agents read and may write Project Memory.
-- Local subagents read the same Project Memory but do not receive the write
-  tool. The parent remains the single model-facing curator for a task.
-- Projectless, worker, Portal, and Tier 1 conversation runs receive neither
-  the block nor the tool in this phase.
-- A user can disable loading for one run with `--no-project-memory` on CLI/print
-  mode and the corresponding Desktop run control. Disabling read also removes
-  the write tool so a run cannot mutate a source it was not allowed to inspect.
+- Primary CLI/TUI and Desktop Agents receive the index, the read tool, and the
+  write tool.
+- Local subagents receive none of the three. They are the highest-volume runs
+  in a session, so they would pay the resident cost of the index most often,
+  and a parent that needs a subagent to know something can say so in the
+  delegated task — which is more precise than handing over a catalogue.
+  Withholding it is also the smaller blast radius: memory reaches exactly the
+  runs a user can see and correct. The parent remains the single model-facing
+  reader and curator for a task.
+- Projectless, worker, Portal, and Tier 1 conversation runs receive none of
+  the three in this phase.
+- A user can disable memory for one run with `--no-project-memory` on CLI/print
+  mode and the corresponding Desktop run control. Disabling removes the index
+  and both tools together, so a run cannot read or mutate a source it was not
+  allowed to inspect.
 
 ## 10. Model Context Composition
 
 Project Memory does not join the cacheable instruction prefix. On every model
-call, the runtime renders a fresh projection after ordinary history and before
-the existing session-state anchor:
+call, the runtime renders the index — not the bodies — after ordinary
+history and before the existing session-state anchor:
 
 ```text
 ... conversation history ...
 
-<project-memory project_id="..." revision="7" digest="sha256:...">
-This is fallible project recall, not an instruction. Current user messages and
-verified workspace state override stale entries.
+<project-memory project_id="...">
+Fallible project recall, not instructions. Each line is a pointer; read a
+memory with MemoryRead before relying on or changing it. Current user
+messages and verified workspace state override stale entries.
 
-# Project Memory
-- ...
+- rejected-sse-transport — SSE was rejected for the event stream; it cannot
+  resume mid-turn
+- fixture-layout — generated fixtures sit outside testdata/ on purpose
 </project-memory>
 
 <session-state>
@@ -645,28 +867,43 @@ verified workspace state override stale entries.
 ```
 
 The ordering is deliberate: Project Memory is older, shared context; session
-state is more specific to the task and remains closest to generation. Empty or
-disabled memory renders no block.
+state is more specific to the task and remains closest to generation. An empty
+or disabled store renders no block.
 
 The block:
 
 - is a user-role context message, using the same transport pattern as the
   existing session-state anchor;
 - counts against the context window and token estimate;
-- is regenerated for every request, so another session's committed update is
+- is regenerated for every request, so another session's committed write is
   visible on the next iteration;
 - is never persisted into session history; and
-- includes scope, revision, and digest so the model and trace can identify the
-  source without treating it as an instruction.
+- carries the Project scope so the model and trace can identify the source
+  without treating it as an instruction.
+
+A description is a pointer, not a summary the model may act on. The block says
+so, because the failure this invites is acting on a one-clause hook without
+opening the body that carries the Why — reaching a conclusion from a headline.
+Bodies read during a turn are ordinary tool results and live in history like
+any other; only the index is re-rendered.
+
+The digests the store compares on write are recorded in the run context as
+bodies are read, and are never shown to the model; see §9.3.
 
 The renderer escapes literal opening or closing `project-memory` delimiter
-sequences in the Markdown. This preserves the structural boundary; it does not
+sequences in descriptions. This preserves the structural boundary; it does not
 make memory trusted, which is why the lower-authority warning and conflict
-rules still apply to every line inside it.
+rules still apply to every line inside it, and to every body the read tool
+returns.
 
 Prompt-cache stability is not a reason to place mutable memory in the system
-prompt. A Project write is expected to invalidate some input tokens, and the
-source's lower authority matters more than caching it as a normative prefix.
+prompt, and the caching cost is not what the choice turns on. Blocks rendered
+after the message list are already outside every reusable prefix: history
+grows in front of them on the next call, so a trailing block is paid for in
+fresh input tokens whether or not it changed. A Project write therefore
+invalidates nothing extra. The real cost is the constant per-call cost of
+carrying the index at all, which is what §9.1 budgets, and the reason to keep
+memory out of the instruction layers is its lower authority.
 
 ## 11. Runtime Flows
 
@@ -675,8 +912,8 @@ source's lower authority matters more than caching it as a normative prefix.
 1. Resolve the requested/current Workspace.
 2. Resolve or create its Local Project.
 3. Create the session with `project_id` and Workspace.
-4. Open the Project Memory snapshot and register its read context and write
-   tool.
+4. Open the Project Memory store, and register the index projection with the
+   read and write tools.
 5. Build instruction layers from runtime, global `AGENTS.md`, current
    Workspace `AGENTS.md`, and additional prompt.
 6. Run with Project Memory and session state rendered separately.
@@ -686,9 +923,24 @@ construct parallel stores or disagree about identity.
 
 ### 11.2 Resume and continue
 
-`--continue` means "continue the newest visible session in the Project
-resolved from the current Workspace." It no longer chooses the newest local
-session globally.
+`--continue` means "continue the newest visible session **in the current
+Workspace**." It no longer chooses the newest local session globally, and it
+does not widen to the Project.
+
+Project is the scope of shared memory. It is deliberately not the scope of
+resume, because the two answer different questions: memory asks what is true
+about this repository, and resume asks which conversation the user was just
+having. Those coincide in a single checkout and diverge exactly where this
+design adds worktrees. Continuing at Project scope would let `buildmax -c`
+in worktree B pick a session recorded in worktree A and, by the resume rule
+below, execute there — moving the user's working root out from under them, in
+the one workflow whose entire purpose is branch isolation.
+
+When the current Workspace has no session but the Project does, `--continue`
+does not silently borrow one. It reports how many sessions the Project holds
+in other Workspaces and names the flag that widens the search
+(`--continue --project`), which then resumes in the recorded Workspace with
+that root printed before the first turn. A root change is never implicit.
 
 `--resume <session_id>` remains a global explicit lookup. The stored
 `project_id` is authoritative:
@@ -702,6 +954,11 @@ session globally.
 
 The TUI session picker defaults to the current Project and offers an explicit
 "all projects" view. Search can include Project name in the all-project view.
+Because a Project may span Workspaces, the picker shows each session's
+Workspace and marks the ones outside the current root; choosing one is an
+explicit act and prints the root it will run in. The picker may cross
+Workspaces because the user is looking at the list; `--continue` may not
+because the user is not.
 
 ### 11.3 Worktree switch
 
@@ -713,10 +970,17 @@ not change.
 
 ### 11.4 Memory write
 
-A normal Agent turn may call `ProjectMemoryWrite` whenever it identifies
-durable project knowledge. The write commits before the tool returns. The
-tool call and result are then committed to the session journal through the
-ordinary tool boundary, giving the mutation a session and run provenance.
+A normal Agent turn may call `MemoryWrite` whenever it identifies
+durable project knowledge. Each call writes one memory. The write commits
+before the tool returns. The tool call and result are then committed to the
+session journal through the ordinary tool boundary, giving the mutation a
+session and run provenance, which the memory's own `session_id` frontmatter
+mirrors.
+
+Replacing an existing memory requires having read it (§9.3), so the ordinary
+shape of an update is a read followed by a write rather than a blind
+overwrite. That is one extra tool call on the path that changes durable shared
+state, and none on the path that adds a new one.
 
 Unlike session notes, Project Memory does not get a mandatory pre-compaction
 checkpoint in v1. Promoting session detail across every future session is a
@@ -738,10 +1002,12 @@ an open session. Project-level pending-message and one-run-at-a-time policy may
 remain keyed by Project in the first phase; changing concurrency is not needed
 to share identity or memory.
 
-Desktop initially needs only a Project Memory viewer/editor and an enable
-toggle. The editor uses the same digest-checked store as the Agent tool. It
-must label memory as fallible recall and keep `AGENTS.md` in the instructions
-surface rather than presenting both as one list.
+Desktop initially needs a list of memories — slug, description, type, and when
+each was last written — an editor for one at a time, per-memory delete, and an
+enable toggle. The editor uses the same digest-checked store as the Agent
+tool. It must label memory as fallible recall and keep `AGENTS.md` in the
+instructions surface rather than presenting both as one list; the `feedback`
+type makes that separation easy to blur and §9.2 is what the surface follows.
 
 ## 12. Visibility, Trace, And Diagnostics
 
@@ -760,13 +1026,20 @@ rather than leaving two sources that describe the prompt differently:
     {"name": "workspace_agents_md", "chars": 900}
   ],
   "memory": [
-    {"name": "project", "revision": 7, "digest": "sha256:...", "chars": 1200},
-    {"name": "session_notes", "entries": 4},
-    {"name": "session_todos", "entries": 3}
+    {"name": "project_index", "entries": 11, "chars": 1400}
   ],
   "history_projection": {"compaction_present": true, "chars": 1800}
 }
 ```
+
+The record is written once per run and describes what the run was assembled
+from. Session notes and todos are deliberately absent: they change every
+iteration, so a per-run count of them would report the value at run start
+while looking like a fact about the run. The memory index belongs here because
+what the run was assembled with is a property of the run. Which bodies were
+read, and any write, are tool calls — already in the session journal with
+their own timestamps, and not something the trace should describe a second
+time.
 
 This replaces the current tendency to call every context source "memory". Raw
 content stays out of the bounded trace because the session and Project stores
@@ -776,8 +1049,9 @@ already own it and trace redaction is fail-open.
 
 - the resolved Project ID and kind;
 - the Workspace and, for Git, its common-directory locator;
-- whether Project Memory exists, is enabled, and fits its budget;
-- digest or metadata mismatch indicating a manual edit;
+- how many memories exist, whether memory is enabled, and whether the index
+  fits its budget;
+- memories skipped for unparseable frontmatter or an over-budget body;
 - duplicate or missing Project locators; and
 - detached sessions referencing a missing Project.
 
@@ -786,8 +1060,12 @@ already own it and trace redaction is fail-open.
 Project Memory is private local state but is still model-visible content.
 
 - Project directories and files use `0700`/`0600` where supported.
-- Memory is sent to the selected model on every call when enabled. The UI and
-  user guide must say so plainly.
+- When enabled, the index — every memory's slug and description — is sent to
+  the selected model on every call. A body is sent when the Agent reads it,
+  which most turns will not do for most memories. The UI and user guide must
+  say both parts plainly; "only the index is always sent" is a real reduction
+  in what leaves the machine, and overstating it would be worse than not
+  claiming it.
 - The write tool refuses obvious secrets, but no detector proves content safe.
   The Agent contract remains "do not persist credentials or surprising
   sensitive information."
@@ -811,12 +1089,12 @@ CLI/Desktop runtime concept.
 
 | Responsibility | Owner |
 |---|---|
-| Local Project identity, validation, and Project Memory document contract | new pure `internal/core/localproject` capability |
-| Atomic Project bundle, index, memory lock, digest, and permissions | new `internal/infra/localprojectstore` |
+| Local Project identity, validation, and the Project Memory document contract | new pure `internal/core/localproject` capability |
+| Atomic Project bundle, both indexes, memory lock, digests, and permissions | new `internal/infra/localprojectstore` |
 | Git worktree/common-directory discovery | `internal/infra/git` |
 | Workspace-to-Project resolution and run wiring | `internal/agentapp` |
 | Generic memory render/write seam used by the Agent loop | `internal/core/agent` interface, implemented by `agentapp` over the Project store |
-| `ProjectMemoryWrite` and its LLM-facing contract | `internal/tool` |
+| `MemoryRead`/`MemoryWrite` and their LLM-facing contract | `internal/tool` |
 | Project-scoped continue/list commands and TUI surfaces | `internal/interface/cli` |
 | Folder picker and Project/Memory presentation | `internal/interface/desktop` |
 | Session membership and index projection | `internal/core/session`, persisted by `internal/infra/sessionstore` |
@@ -837,7 +1115,9 @@ Project presentation, memory, and sessions have separate destructive actions:
 
 - removing a Project from Desktop navigation does not delete its sessions or
   memory; it is a presentation choice, not domain deletion;
-- clearing Project Memory atomically replaces it with an empty document;
+- deleting one memory removes its file and its index line, and is offered
+  separately from clearing the store;
+- clearing Project Memory removes every memory file and leaves an empty index;
 - clearing Project sessions selects by `project_id`, shows exact session IDs,
   and leaves memory untouched; and
 - hard-deleting a Project bundle is offered only when no session references
@@ -859,7 +1139,7 @@ The implementation cuts CLI and Desktop over together:
 - create the shared Project store and resolver;
 - add `project_id` to session metadata and its picker index;
 - switch both surfaces and Project-session operations to the shared manager;
-- add Project Memory context and tool;
+- add the Project Memory store, its index projection, and both tools;
 - remove Desktop's private Project type and `projects.json` reader/writer; and
 - update architecture, user documentation, traces, and tests in the same
   feature series.
@@ -888,20 +1168,30 @@ needs and is independently testable.
 
 ### Phase 2 — bounded Project Memory
 
-1. Add `MEMORY.md`, metadata, lock, digest, and atomic full replacement.
-2. Add the optional Agent memory seam and render block.
-3. Register `ProjectMemoryWrite` only on enabled local primary runs.
-4. Give local subagents read-only context.
+1. Add the memory files, frontmatter parsing, lock, digests, atomic
+   single-memory replacement, and the generated `MEMORY.md` index.
+2. Add the optional Agent memory seam and the index render block.
+3. Register `MemoryRead` and `MemoryWrite` only on enabled local
+   primary runs, and render the index on those runs only — subagents receive
+   neither tool nor block.
+4. Add a user-invoked command that reviews the current session for material
+   worth remembering and proposes a replacement the user accepts or discards.
+   The trigger is a person, never a turn boundary or a background pass, which
+   is what separates it from the automatic extraction §19.7 rejects. Its exact
+   surface, output, and whether it writes directly or only proposes are
+   settled during this phase.
 5. Add trace source metadata and diagnostic checks.
 6. Document inspect/edit/clear/disable behavior for CLI/TUI and Desktop.
 
 ### Phase 3 — surface controls and evidence
 
-1. Add the Desktop memory viewer/editor and TUI/CLI inspection command.
-2. Measure size, write frequency, conflict rate, and how often users correct or
-   clear memory without recording raw content.
-3. Decide from evidence whether topic files, selective retrieval, or an
-   automatic promotion checkpoint is justified.
+1. Add the Desktop memory list/editor and the TUI/CLI inspection command.
+2. Measure memory count, body sizes, write frequency, how often a rendered
+   index line is followed by a read, conflict rate, and how often users
+   correct or delete memories — without recording raw content.
+3. Decide from evidence whether the count bound should rise, whether the index
+   needs grouping or ranking once it is full, and whether an automatic
+   promotion checkpoint is justified.
 
 Phases 1 and 2 are the feature. Phase 3 supplies the user-control acceptance
 criteria and the evidence needed before making memory more automatic.
@@ -912,25 +1202,53 @@ criteria and the evidence needed before making memory more automatic.
   Project ID and Project Memory while preserving different Workspace roots.
 - Two unrelated directories and two independent clones do not merge
   automatically.
-- CLI `--continue` and the default session picker select only the current
-  Project; an explicit all-project view and `--resume <id>` still work.
+- CLI `--continue` in a worktree selects a session recorded in that Workspace
+  and never one recorded in a sibling Workspace of the same Project; widening
+  is explicit and prints the root it will run in. The default session picker
+  selects only the current Project; an explicit all-project view and
+  `--resume <id>` still work.
+- A Workspace reached through a symlinked path resolves to the same Project as
+  the path Git reports, and creates no second Project.
+- Opening a moved repository creates a new Project and, in the same output,
+  reports the unresolved locator and the relink command.
 - Desktop and CLI opened on the same repository list the same Project sessions
-  and read the same memory revision.
-- A Project Memory written in one session appears on the next model iteration
-  of another session in that Project.
-- Concurrent stale replacement is refused by digest and loses neither writer's
-  content silently.
-- Project Memory never appears in the system-prompt instruction layers or the
-  session journal as a copied context block.
+  and render the same memory index.
+- A memory written in one session appears in the index rendered on the next
+  model iteration of another session in that Project, and its body is
+  retrievable there.
+- Two sessions writing two different memories both succeed, and the resulting
+  index lists both.
+- Replacing a memory this run has not read is refused and says to read it
+  first. Replacing one whose body changed since this run read it — a
+  concurrent session's write, or a direct user edit — is refused and leaves
+  the stored memory intact. Both refusals are observable from the tool result
+  alone; no memory-version token appears in either tool's input schema.
+- Creating a memory whose slug does not exist succeeds without a prior read.
+- A description containing the literal `project-memory` delimiter is rendered
+  without breaking the block boundary.
+- No memory body is rendered into context except as the result of an explicit
+  `MemoryRead` call.
+- Project Memory never appears in the system-prompt instruction layers, and
+  the index is never persisted into the session journal as a copied context
+  block.
 - A memory cannot override `AGENTS.md`, tool permissions, hooks, sandbox, or a
   current user correction.
-- Empty and disabled memory add no prompt tokens and expose no write tool.
-- An over-limit or suspected-secret write fails with useful model-facing
-  output and leaves the previous revision intact.
-- Traces identify Project, Workspace, instruction layers, memory revision, and
-  compaction presence without storing their raw text.
-- Users can inspect, edit, clear, and disable Project Memory independently of
-  sessions.
+- An empty or disabled store adds no prompt tokens and exposes neither tool.
+- A local subagent run renders no index and registers neither tool, while
+  still recording the parent's `project_id`.
+- A write that exceeds the memory count, the description limit, the body
+  limit, or trips the credential detector fails with useful model-facing
+  output and leaves the stored memory intact.
+- A hand-edited memory file with unparseable frontmatter or an over-budget
+  body is skipped, is named on the surface at run start rather than only in
+  `doctor`, and does not prevent the other memories from rendering.
+- Deleting a memory removes its file and its index line; the index is
+  regenerated from the files and never retains an entry for a file that is
+  gone.
+- Traces identify Project, Workspace, instruction layers, memory count and
+  index size, and compaction presence without storing their raw text.
+- Users can inspect, edit, delete, clear, and disable Project Memory
+  independently of sessions.
 - Project/session deletion never cascades by path coincidence.
 
 ## 19. Alternatives Rejected
@@ -969,10 +1287,11 @@ directory is the exact local relation shared by linked worktrees and no wider.
 
 ### 19.6 Add embeddings and semantic retrieval now
 
-One bounded document is cheap, inspectable, provider-neutral, and sufficient
-to learn whether Project Memory is useful. Retrieval infrastructure adds
-chunking, ranking, model compatibility, deletion, and explanation problems
-before there is enough data to require it.
+An index the model reads and chooses from is retrieval enough at this scale,
+and it is inspectable, provider-neutral, and deterministic. Embedding
+infrastructure adds chunking, ranking, model compatibility, deletion, and
+explanation problems before there is enough data to require it. The index does
+not become a ranking problem until it is full, which §17 Phase 3 measures.
 
 ### 19.7 Automatically extract memory every turn
 
@@ -981,18 +1300,65 @@ surprising content, and makes false memory common before user controls are
 proven. Explicit Agent writes plus direct user edits are the safer first
 instrumented path.
 
+What Phase 2 ships instead is a command the user invokes. That keeps the cost
+and the surprise where a person asked for them, and it is the reason rejecting
+automatic extraction does not also mean waiting for the Agent to volunteer
+every memory it should have written.
+
+### 19.8 One bounded always-loaded document
+
+This record previously specified a single `MEMORY.md` of a few thousand
+characters, replaced whole, rendered in full on every call. It was rejected
+after inspecting a working store of the other shape (§4.1).
+
+The single document is worse on three counts. Every memory is resident, so the
+budget is spent on knowledge the current task does not need, and admitting a
+new memory eventually means deleting an old one — the store stops growing at
+the point where it starts being useful. Every write contends on one document,
+so two sessions recording unrelated facts conflict for no reason, and a stale
+write risks the whole store rather than one entry. And a budget that must hold
+everything forces each memory down to a bullet, which is exactly where the
+**Why** gets dropped and a memory becomes an unfalsifiable assertion.
+
+The index-plus-files shape costs one extra tool call on the update path and a
+read before a body can be used. That is the price of the three properties
+above, and it is small because most memories are never read in a given turn.
+
 ## 20. Open Questions
 
-- Does an 8,192-character always-loaded document remain small enough in real
-  repositories, or should the measured limit be lower?
-- Do users want a manually triggered "review this session for project memory"
-  action before they want automatic extraction?
+- Are 20 memories and a ~3,200-character index the right always-loaded bound
+  in real repositories, and what happens at the moment the store fills — does
+  the index need grouping, or is deleting the weakest memory the right
+  pressure?
+- How often does a rendered index line actually lead to a read? A line that is
+  never followed is either a description doing the whole job, which is fine,
+  or a memory nobody needs, which is not, and the two are told apart by
+  whether users correct the Agent afterwards.
+- Does withholding memory from local subagents (§9.4) cost anything
+  observable, or does a parent's delegated task already carry what a subagent
+  needs?
+- What shape should the Phase 2 session-review command take, and should it
+  write directly or only propose? It ships in Phase 2 because Phase 3 measures
+  write frequency and a near-zero count is uninterpretable on its own — it
+  cannot distinguish memory being useless from the model never considering a
+  write, and a user-invoked path produces the contrast that makes the
+  measurement mean something.
 - Is explicit relink sufficient after repository moves, or does usage justify
   an opt-in marker inside the Git common directory?
 - Does one-run-at-a-time per Desktop Project remain the right concurrency rule
   once one Project can have several worktrees?
-- When user-level Memory is designed, which project entries should be promoted
-  rather than duplicated, and who authorizes that wider scope?
+- Is a user-level scope worth adding, and what is the evidence? The signal is
+  **the same correction recurring across sessions in unrelated Projects** —
+  not the same fact duplicated across Projects, which only measures storage
+  redundancy. Working agreements are the one memory class whose hit rate
+  approaches every turn, so the resident-cost argument that keeps other global
+  facts out does not apply to them; what does apply is that they are the least
+  verifiable class in the store (§9.2). If the scope is added it is a `scope`
+  field on the same files and the same tools, not a second store, and its
+  writes should go through the Phase 2 user-invoked review rather than
+  landing silently — confirmation is what makes an inference about a person
+  auditable. Who authorizes a promotion from Project to user scope is part of
+  the same question.
 
 None blocks phases 1 or 2. Each has an observable signal and should be decided
 from local use rather than by adding storage or automation speculatively.
