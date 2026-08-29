@@ -91,7 +91,10 @@ history + system prompt ──▶ LLMClient
 3. **Compact if needed** — when the context window is filling up, `Compactor`
    summarizes older messages and the summary is injected into the system prompt.
    `PreCompact` hooks can block this; without a compactor, `TrimHistory` drops
-   messages instead.
+   messages instead. The pass itself is `compactOnce`, shared with the exported
+   `Compact`, which runs the same pass on demand with no fill test and a shorter
+   reserve — that is what the TUI's `/compact` calls through
+   `AgentApp.CompactSession`.
 4. **Call the LLM** — `ChatCompletionStreaming` when `StreamSink` is set,
    otherwise `ChatCompletionBlocking`.
 5. **No tool calls** → append the assistant reply and return.

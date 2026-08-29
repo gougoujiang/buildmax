@@ -118,6 +118,13 @@ compacted into a summary, recorded in the journal as a `compaction` record
 naming exactly which messages it covers. The `pre_compact` hook can block this,
 and `post_compact` observes it — see [hooks.md](hooks.md).
 
+`/compact` in the TUI does the same thing when you ask rather than when the
+window fills, and keeps a much shorter tail verbatim. Use it before handing the
+agent a new task in a long session: what the summary covers is no longer
+quotable, only summarized. The summarizing model call is charged to the session
+like any other, and the messages themselves stay in the session file — the
+summary replaces what is sent to the model, not what was recorded.
+
 ## Traces
 
 Every run writes one JSONL file:
