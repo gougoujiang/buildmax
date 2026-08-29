@@ -12,13 +12,17 @@ import (
 )
 
 var (
-	ErrIssuesNotConfigured    = apierr.New(apierr.KindNotConfigured, "issues not configured")
-	ErrTeamsNotConfigured     = apierr.New(apierr.KindNotConfigured, "teams not configured")
-	ErrTitleRequired          = apierr.New(apierr.KindInvalid, "title required")
-	ErrInvalidStatus          = apierr.New(apierr.KindInvalid, "invalid status")
-	ErrInvalidAssigneeKind    = apierr.New(apierr.KindInvalid, "invalid assignee_kind")
-	ErrInvalidAssigneeID      = apierr.New(apierr.KindInvalid, "invalid assignee_id")
-	ErrIssueNotFound          = apierr.New(apierr.KindNotFound, "issue not found")
+	ErrIssuesNotConfigured = apierr.New(apierr.KindNotConfigured, "issues not configured")
+	ErrTeamsNotConfigured  = apierr.New(apierr.KindNotConfigured, "teams not configured")
+	ErrTitleRequired       = apierr.New(apierr.KindInvalid, "title required")
+	ErrInvalidStatus       = apierr.New(apierr.KindInvalid, "invalid status")
+	ErrInvalidAssigneeKind = apierr.New(apierr.KindInvalid, "invalid assignee_kind")
+	ErrInvalidAssigneeID   = apierr.New(apierr.KindInvalid, "invalid assignee_id")
+	ErrIssueNotFound       = apierr.New(apierr.KindNotFound, "issue not found")
+	// ErrVersionRequired means the caller sent no precondition. Refusing is the
+	// point: an update with no version is the unconditional overwrite this
+	// contract exists to remove, so it cannot be the permissive default.
+	ErrVersionRequired        = apierr.New(apierr.KindInvalid, "version is required: read the issue and send the version it returned")
 	ErrAgentsNotConfigured    = apierr.New(apierr.KindNotConfigured, "agents not configured")
 	ErrAgentNotFound          = apierr.New(apierr.KindInvalid, "agent not found")
 	ErrWorkflowsNotConfigured = apierr.New(apierr.KindNotConfigured, "workflows not configured")
@@ -51,9 +55,11 @@ type CreateIssueCmd struct {
 }
 
 type UpdateIssueCmd struct {
-	UserID        string
-	TeamID        string
-	IssueID       string
+	UserID  string
+	TeamID  string
+	IssueID string
+	// IfVersion is the Version the caller read. See coreissue.UpdateInput.
+	IfVersion     uint64
 	Title         *string
 	Description   *string
 	Status        *string
@@ -87,6 +93,9 @@ func (s *Service) UpdateIssue(ctx context.Context, cmd UpdateIssueCmd) (*coreiss
 	if s.Issues == nil {
 		return nil, ErrIssuesNotConfigured
 	}
+	if cmd.IfVersion == 0 {
+		return nil, ErrVersionRequired
+	}
 	if cmd.Status != nil && !isValidStatus(*cmd.Status) {
 		return nil, ErrInvalidStatus
 	}
@@ -109,6 +118,7 @@ func (s *Service) UpdateIssue(ctx context.Context, cmd UpdateIssueCmd) (*coreiss
 		}
 	}
 	issue, err := s.Issues.UpdateIssueInTeam(ctx, cmd.IssueID, cmd.TeamID, coreissue.UpdateInput{
+		IfVersion:     cmd.IfVersion,
 		Title:         cmd.Title,
 		Description:   cmd.Description,
 		Status:        cmd.Status,

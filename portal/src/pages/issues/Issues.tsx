@@ -140,6 +140,7 @@ export function Issues({ token, userId }: IssuesProps) {
             currentTeamId,
             created.id,
             {
+              version: created.version,
               status: values.status,
               assignee_kind: values.assignee_kind,
               assignee_id: values.assignee_id,

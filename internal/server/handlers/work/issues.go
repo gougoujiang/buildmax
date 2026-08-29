@@ -30,6 +30,10 @@ type IssueResponse struct {
 	CreatedBy     string    `json:"created_by"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
+	// Version is what a later update must send back. Every response that
+	// carries an issue carries it, because every one of them is a potential
+	// read half of a read-modify-write.
+	Version uint64 `json:"version"`
 	// ChildCount, DoneChildCount, and CommentCount are derived per response,
 	// never stored. They are zero on responses that do not compute them.
 	ChildCount     int `json:"child_count"`
@@ -73,6 +77,9 @@ type createIssueRequest struct {
 }
 
 type patchIssueRequest struct {
+	// Version is required: it is the version the client read. Absent or stale
+	// is refused rather than applied.
+	Version       uint64  `json:"version"`
 	Title         *string `json:"title"`
 	Description   *string `json:"description"`
 	Status        *string `json:"status"`
@@ -95,6 +102,7 @@ func issueToResponse(issue coreissue.Issue) IssueResponse {
 		CreatedBy:     issue.CreatedBy,
 		CreatedAt:     issue.CreatedAt,
 		UpdatedAt:     issue.UpdatedAt,
+		Version:       issue.Version,
 	}
 }
 
@@ -390,6 +398,7 @@ func (h *Handler) patchIssueHandler(w http.ResponseWriter, r *http.Request) {
 		UserID:        userID,
 		TeamID:        teamID,
 		IssueID:       issueID,
+		IfVersion:     req.Version,
 		Title:         req.Title,
 		Description:   req.Description,
 		Status:        req.Status,

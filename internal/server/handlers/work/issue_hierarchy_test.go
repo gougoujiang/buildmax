@@ -25,10 +25,10 @@ func hierarchyMux(t *testing.T) (*http.ServeMux, *mock.MockIssueStore) {
 	t.Helper()
 	issues := &mock.MockIssueStore{
 		Issues: []coreissue.Issue{
-			{ID: "i_parent", UserID: "u_owner", TeamID: hierarchyTeam, Title: "Parent", Status: coreissue.StatusInProgress},
-			{ID: "i_child_a", UserID: "u_owner", TeamID: hierarchyTeam, Title: "Child A", Status: coreissue.StatusDone, ParentIssueID: util.Ptr("i_parent")},
-			{ID: "i_child_b", UserID: "u_owner", TeamID: hierarchyTeam, Title: "Child B", Status: coreissue.StatusTodo, ParentIssueID: util.Ptr("i_parent")},
-			{ID: "i_loose", UserID: "u_owner", TeamID: hierarchyTeam, Title: "Loose", Status: coreissue.StatusTodo},
+			{ID: "i_parent", UserID: "u_owner", TeamID: hierarchyTeam, Title: "Parent", Status: coreissue.StatusInProgress, Version: 1},
+			{ID: "i_child_a", UserID: "u_owner", TeamID: hierarchyTeam, Title: "Child A", Status: coreissue.StatusDone, ParentIssueID: util.Ptr("i_parent"), Version: 1},
+			{ID: "i_child_b", UserID: "u_owner", TeamID: hierarchyTeam, Title: "Child B", Status: coreissue.StatusTodo, ParentIssueID: util.Ptr("i_parent"), Version: 1},
+			{ID: "i_loose", UserID: "u_owner", TeamID: hierarchyTeam, Title: "Loose", Status: coreissue.StatusTodo, Version: 1},
 		},
 	}
 	teams := &mock.MockTeamStore{
@@ -163,7 +163,7 @@ func TestCreateIssue_RejectedParents(t *testing.T) {
 
 func TestPatchIssue_Reparent(t *testing.T) {
 	mux, _ := hierarchyMux(t)
-	rec := hierarchyRequest(t, mux, http.MethodPatch, "/api/teams/"+hierarchyTeam+"/issues/i_loose", `{"parent_issue_id":"i_parent"}`)
+	rec := hierarchyRequest(t, mux, http.MethodPatch, "/api/teams/"+hierarchyTeam+"/issues/i_loose", `{"version":1,"parent_issue_id":"i_parent"}`)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200, body=%s", rec.Code, rec.Body.String())
 	}
@@ -178,7 +178,7 @@ func TestPatchIssue_Reparent(t *testing.T) {
 
 func TestPatchIssue_ClearParent(t *testing.T) {
 	mux, _ := hierarchyMux(t)
-	rec := hierarchyRequest(t, mux, http.MethodPatch, "/api/teams/"+hierarchyTeam+"/issues/i_child_b", `{"parent_issue_id":""}`)
+	rec := hierarchyRequest(t, mux, http.MethodPatch, "/api/teams/"+hierarchyTeam+"/issues/i_child_b", `{"version":1,"parent_issue_id":""}`)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200, body=%s", rec.Code, rec.Body.String())
 	}
@@ -193,7 +193,7 @@ func TestPatchIssue_ClearParent(t *testing.T) {
 
 func TestPatchIssue_ParentWithChildrenCannotBeAdopted(t *testing.T) {
 	mux, _ := hierarchyMux(t)
-	rec := hierarchyRequest(t, mux, http.MethodPatch, "/api/teams/"+hierarchyTeam+"/issues/i_parent", `{"parent_issue_id":"i_loose"}`)
+	rec := hierarchyRequest(t, mux, http.MethodPatch, "/api/teams/"+hierarchyTeam+"/issues/i_parent", `{"version":1,"parent_issue_id":"i_loose"}`)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400, body=%s", rec.Code, rec.Body.String())
 	}
@@ -201,7 +201,7 @@ func TestPatchIssue_ParentWithChildrenCannotBeAdopted(t *testing.T) {
 
 func TestPatchIssue_SelfParent(t *testing.T) {
 	mux, _ := hierarchyMux(t)
-	rec := hierarchyRequest(t, mux, http.MethodPatch, "/api/teams/"+hierarchyTeam+"/issues/i_loose", `{"parent_issue_id":"i_loose"}`)
+	rec := hierarchyRequest(t, mux, http.MethodPatch, "/api/teams/"+hierarchyTeam+"/issues/i_loose", `{"version":1,"parent_issue_id":"i_loose"}`)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400, body=%s", rec.Code, rec.Body.String())
 	}

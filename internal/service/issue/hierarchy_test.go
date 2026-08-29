@@ -18,7 +18,7 @@ func hierarchyService(issues ...coreissue.Issue) (*Service, *mock.MockIssueStore
 }
 
 func TestCreateIssue_WithParent(t *testing.T) {
-	svc, _ := hierarchyService(coreissue.Issue{ID: "i_parent", TeamID: "tm_1", Status: coreissue.StatusTodo})
+	svc, _ := hierarchyService(coreissue.Issue{ID: "i_parent", TeamID: "tm_1", Status: coreissue.StatusTodo, Version: 1})
 	child, err := svc.CreateIssue(context.Background(), CreateIssueCmd{
 		UserID:        "u1",
 		TeamID:        "tm_1",
@@ -36,7 +36,7 @@ func TestCreateIssue_WithParent(t *testing.T) {
 // H1: a parent in another team is reported as not found rather than forbidden,
 // so the response does not confirm that the ID exists somewhere.
 func TestCreateIssue_ParentInAnotherTeam(t *testing.T) {
-	svc, store := hierarchyService(coreissue.Issue{ID: "i_parent", TeamID: "tm_other"})
+	svc, store := hierarchyService(coreissue.Issue{ID: "i_parent", TeamID: "tm_other", Version: 1})
 	_, err := svc.CreateIssue(context.Background(), CreateIssueCmd{
 		UserID:        "u1",
 		TeamID:        "tm_1",
@@ -67,8 +67,8 @@ func TestCreateIssue_ParentMissing(t *testing.T) {
 // H2: the hierarchy is two levels deep, so a child cannot itself be a parent.
 func TestCreateIssue_GrandchildRejected(t *testing.T) {
 	svc, _ := hierarchyService(
-		coreissue.Issue{ID: "i_parent", TeamID: "tm_1"},
-		coreissue.Issue{ID: "i_child", TeamID: "tm_1", ParentIssueID: util.Ptr("i_parent")},
+		coreissue.Issue{ID: "i_parent", TeamID: "tm_1", Version: 1},
+		coreissue.Issue{ID: "i_child", TeamID: "tm_1", ParentIssueID: util.Ptr("i_parent"), Version: 1},
 	)
 	_, err := svc.CreateIssue(context.Background(), CreateIssueCmd{
 		UserID:        "u1",
@@ -83,10 +83,11 @@ func TestCreateIssue_GrandchildRejected(t *testing.T) {
 
 func TestUpdateIssue_SetParent(t *testing.T) {
 	svc, _ := hierarchyService(
-		coreissue.Issue{ID: "i_parent", TeamID: "tm_1", Status: coreissue.StatusTodo},
-		coreissue.Issue{ID: "i_loose", TeamID: "tm_1", Status: coreissue.StatusTodo},
+		coreissue.Issue{ID: "i_parent", TeamID: "tm_1", Status: coreissue.StatusTodo, Version: 1},
+		coreissue.Issue{ID: "i_loose", TeamID: "tm_1", Status: coreissue.StatusTodo, Version: 1},
 	)
 	updated, err := svc.UpdateIssue(context.Background(), UpdateIssueCmd{
+		IfVersion:     1,
 		UserID:        "u1",
 		TeamID:        "tm_1",
 		IssueID:       "i_loose",
@@ -104,10 +105,11 @@ func TestUpdateIssue_SetParent(t *testing.T) {
 // same endpoint.
 func TestUpdateIssue_ClearParent(t *testing.T) {
 	svc, _ := hierarchyService(
-		coreissue.Issue{ID: "i_parent", TeamID: "tm_1"},
-		coreissue.Issue{ID: "i_child", TeamID: "tm_1", ParentIssueID: util.Ptr("i_parent")},
+		coreissue.Issue{ID: "i_parent", TeamID: "tm_1", Version: 1},
+		coreissue.Issue{ID: "i_child", TeamID: "tm_1", ParentIssueID: util.Ptr("i_parent"), Version: 1},
 	)
 	updated, err := svc.UpdateIssue(context.Background(), UpdateIssueCmd{
+		IfVersion:     1,
 		UserID:        "u1",
 		TeamID:        "tm_1",
 		IssueID:       "i_child",
@@ -125,15 +127,16 @@ func TestUpdateIssue_ClearParent(t *testing.T) {
 // change is not a reparent.
 func TestUpdateIssue_ParentUntouchedWhenAbsent(t *testing.T) {
 	svc, _ := hierarchyService(
-		coreissue.Issue{ID: "i_parent", TeamID: "tm_1"},
-		coreissue.Issue{ID: "i_child", TeamID: "tm_1", ParentIssueID: util.Ptr("i_parent")},
+		coreissue.Issue{ID: "i_parent", TeamID: "tm_1", Version: 1},
+		coreissue.Issue{ID: "i_child", TeamID: "tm_1", ParentIssueID: util.Ptr("i_parent"), Version: 1},
 	)
 	status := coreissue.StatusDone
 	updated, err := svc.UpdateIssue(context.Background(), UpdateIssueCmd{
-		UserID:  "u1",
-		TeamID:  "tm_1",
-		IssueID: "i_child",
-		Status:  &status,
+		IfVersion: 1,
+		UserID:    "u1",
+		TeamID:    "tm_1",
+		IssueID:   "i_child",
+		Status:    &status,
 	})
 	if err != nil {
 		t.Fatalf("UpdateIssue: %v", err)
@@ -147,11 +150,12 @@ func TestUpdateIssue_ParentUntouchedWhenAbsent(t *testing.T) {
 // the other half of keeping the tree two levels deep.
 func TestUpdateIssue_ParentWithChildrenCannotBeAdopted(t *testing.T) {
 	svc, _ := hierarchyService(
-		coreissue.Issue{ID: "i_a", TeamID: "tm_1"},
-		coreissue.Issue{ID: "i_b", TeamID: "tm_1"},
-		coreissue.Issue{ID: "i_b_child", TeamID: "tm_1", ParentIssueID: util.Ptr("i_b")},
+		coreissue.Issue{ID: "i_a", TeamID: "tm_1", Version: 1},
+		coreissue.Issue{ID: "i_b", TeamID: "tm_1", Version: 1},
+		coreissue.Issue{ID: "i_b_child", TeamID: "tm_1", ParentIssueID: util.Ptr("i_b"), Version: 1},
 	)
 	_, err := svc.UpdateIssue(context.Background(), UpdateIssueCmd{
+		IfVersion:     1,
 		UserID:        "u1",
 		TeamID:        "tm_1",
 		IssueID:       "i_b",
@@ -165,8 +169,9 @@ func TestUpdateIssue_ParentWithChildrenCannotBeAdopted(t *testing.T) {
 // H4: an issue cannot be its own parent. Without this check the row would point
 // at itself and the board would render a cycle of one.
 func TestUpdateIssue_SelfParentRejected(t *testing.T) {
-	svc, store := hierarchyService(coreissue.Issue{ID: "i_1", TeamID: "tm_1"})
+	svc, store := hierarchyService(coreissue.Issue{ID: "i_1", TeamID: "tm_1", Version: 1})
 	_, err := svc.UpdateIssue(context.Background(), UpdateIssueCmd{
+		IfVersion:     1,
 		UserID:        "u1",
 		TeamID:        "tm_1",
 		IssueID:       "i_1",
@@ -182,10 +187,11 @@ func TestUpdateIssue_SelfParentRejected(t *testing.T) {
 
 func TestUpdateIssue_ReparentIntoAnotherTeam(t *testing.T) {
 	svc, _ := hierarchyService(
-		coreissue.Issue{ID: "i_mine", TeamID: "tm_1"},
-		coreissue.Issue{ID: "i_theirs", TeamID: "tm_other"},
+		coreissue.Issue{ID: "i_mine", TeamID: "tm_1", Version: 1},
+		coreissue.Issue{ID: "i_theirs", TeamID: "tm_other", Version: 1},
 	)
 	_, err := svc.UpdateIssue(context.Background(), UpdateIssueCmd{
+		IfVersion:     1,
 		UserID:        "u1",
 		TeamID:        "tm_1",
 		IssueID:       "i_mine",

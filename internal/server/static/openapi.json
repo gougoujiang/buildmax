@@ -202,6 +202,7 @@
           "created_by": {"type": "string"},
           "created_at": {"type": "string", "format": "date-time"},
           "updated_at": {"type": "string", "format": "date-time"},
+          "version": {"type": "integer", "description": "Optimistic-concurrency token; PATCH must send the version it read"},
           "child_count": {"type": "integer"},
           "done_child_count": {"type": "integer"},
           "comment_count": {"type": "integer"}
@@ -215,6 +216,7 @@
           "created_by",
           "created_at",
           "updated_at",
+          "version",
           "child_count",
           "done_child_count",
           "comment_count"
@@ -2607,18 +2609,41 @@
         "summary": "Update an issue",
         "security": [{"bearerAuth": []}],
         "parameters": [{"name": "issue_id", "in": "path", "required": true, "schema": {"type": "string"}}],
-        "requestBody": {"required": true, "content": {"application/json": {"schema": {"type": "object"}}}},
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "version": {"type": "integer", "description": "The version this change was built from"},
+                  "title": {"type": "string"},
+                  "description": {"type": "string"},
+                  "status": {"type": "string"},
+                  "assignee_kind": {"type": "string"},
+                  "assignee_id": {"type": "string"},
+                  "parent_issue_id": {"type": "string"}
+                },
+                "required": ["version"]
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "OK",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Issue"}}}
           },
           "400": {
-            "description": "Invalid change",
+            "description": "Invalid change, or no version sent",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
           },
           "404": {
             "description": "Issue not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "409": {
+            "description": "The issue changed since the version sent; re-read and retry",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
           }
         }

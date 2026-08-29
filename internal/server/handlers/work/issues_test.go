@@ -38,6 +38,7 @@ func TestIssueHandlers(t *testing.T) {
 				UpdatedAt:    time.Unix(100, 0).UTC(),
 				AssigneeKind: nil,
 				AssigneeID:   nil,
+				Version:      1,
 			},
 		},
 	}
@@ -132,7 +133,7 @@ func TestIssueHandlers(t *testing.T) {
 	})
 
 	t.Run("PATCH issue assign to agent", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPatch, "/api/teams/"+personalTeamID+"/issues/i_1", strings.NewReader(`{"status":"in_progress","assignee_kind":"agent","assignee_id":"a_1"}`))
+		req := httptest.NewRequest(http.MethodPatch, "/api/teams/"+personalTeamID+"/issues/i_1", strings.NewReader(`{"version":1,"status":"in_progress","assignee_kind":"agent","assignee_id":"a_1"}`))
 		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", issueTestSecret))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
@@ -191,7 +192,7 @@ func TestIssueHandlers(t *testing.T) {
 	})
 
 	t.Run("PATCH invalid status returns 400", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPatch, "/api/teams/"+personalTeamID+"/issues/i_1", strings.NewReader(`{"status":"blocked"}`))
+		req := httptest.NewRequest(http.MethodPatch, "/api/teams/"+personalTeamID+"/issues/i_1", strings.NewReader(`{"version":2,"status":"blocked"}`))
 		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", issueTestSecret))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
@@ -202,7 +203,7 @@ func TestIssueHandlers(t *testing.T) {
 	})
 
 	t.Run("PATCH issue assign to workflow", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPatch, "/api/teams/"+personalTeamID+"/issues/i_1", strings.NewReader(`{"assignee_kind":"workflow","assignee_id":"w_1"}`))
+		req := httptest.NewRequest(http.MethodPatch, "/api/teams/"+personalTeamID+"/issues/i_1", strings.NewReader(`{"version":2,"assignee_kind":"workflow","assignee_id":"w_1"}`))
 		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", issueTestSecret))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
@@ -220,13 +221,39 @@ func TestIssueHandlers(t *testing.T) {
 	})
 
 	t.Run("PATCH issue assign to workflow forbidden for member", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPatch, "/api/teams/"+personalTeamID+"/issues/i_1", strings.NewReader(`{"assignee_kind":"workflow","assignee_id":"w_1"}`))
+		req := httptest.NewRequest(http.MethodPatch, "/api/teams/"+personalTeamID+"/issues/i_1", strings.NewReader(`{"version":3,"assignee_kind":"workflow","assignee_id":"w_1"}`))
 		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u2", issueTestSecret))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 		if rec.Code != http.StatusForbidden {
 			t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusForbidden, rec.Body.String())
+		}
+	})
+
+	// Version 3 is current by now: the two accepted PATCHes above each bumped it.
+	t.Run("PATCH with a stale version returns 409", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPatch, "/api/teams/"+personalTeamID+"/issues/i_1", strings.NewReader(`{"version":1,"title":"Written from a stale copy"}`))
+		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", issueTestSecret))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusConflict {
+			t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusConflict, rec.Body.String())
+		}
+		if store.Issues[0].Title == "Written from a stale copy" {
+			t.Fatalf("refused patch still wrote the title")
+		}
+	})
+
+	t.Run("PATCH without a version returns 400", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPatch, "/api/teams/"+personalTeamID+"/issues/i_1", strings.NewReader(`{"title":"No precondition"}`))
+		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", issueTestSecret))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusBadRequest, rec.Body.String())
 		}
 	})
 

@@ -55,6 +55,12 @@ export async function updateIssue(
   teamId: string,
   issueId: string,
   body: {
+    /**
+     * The version this change was built from, required. The server refuses the
+     * write with 409 if the issue moved on, rather than overwriting whatever
+     * the caller never saw.
+     */
+    version: number
     title?: string
     description?: string
     status?: "todo" | "in_progress" | "done"

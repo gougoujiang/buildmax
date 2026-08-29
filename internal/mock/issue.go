@@ -126,7 +126,7 @@ func (m *MockIssueStore) UpdateIssue(_ context.Context, issueID, userID string, 
 		if m.Issues[i].ID != issueID || m.Issues[i].UserID != userID {
 			continue
 		}
-		return m.applyIssueUpdate(i, in), nil
+		return m.applyIssueUpdate(i, in)
 	}
 	return nil, nil
 }
@@ -136,12 +136,18 @@ func (m *MockIssueStore) UpdateIssueInTeam(_ context.Context, issueID, teamID st
 		if m.Issues[i].ID != issueID || m.Issues[i].TeamID != teamID {
 			continue
 		}
-		return m.applyIssueUpdate(i, in), nil
+		return m.applyIssueUpdate(i, in)
 	}
 	return nil, nil
 }
 
-func (m *MockIssueStore) applyIssueUpdate(i int, in coreissue.UpdateInput) *coreissue.Issue {
+// applyIssueUpdate mirrors the real store's version guard, so a service test
+// sees the refusal a real store would give. Fixtures set Version explicitly:
+// a production row starts at 1, and a zero-version issue does not exist.
+func (m *MockIssueStore) applyIssueUpdate(i int, in coreissue.UpdateInput) (*coreissue.Issue, error) {
+	if m.Issues[i].Version != in.IfVersion {
+		return nil, coreissue.ErrVersionConflict
+	}
 	if in.Title != nil {
 		m.Issues[i].Title = *in.Title
 	}
@@ -173,5 +179,6 @@ func (m *MockIssueStore) applyIssueUpdate(i int, in coreissue.UpdateInput) *core
 		}
 	}
 	m.Issues[i].UpdatedAt = time.Now().UTC()
-	return &m.Issues[i]
+	m.Issues[i].Version++
+	return &m.Issues[i], nil
 }

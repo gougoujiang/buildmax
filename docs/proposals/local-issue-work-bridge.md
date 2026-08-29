@@ -9,7 +9,8 @@ Related: [roadmap](../ROADMAP.md),
 [Issue model](../design/issue-model.md),
 [unified artifacts](../design/unified-artifacts.md),
 [Desktop architecture](../contribute/architecture/desktop.md),
-[CLI architecture](../contribute/architecture/cli.md), and the
+[CLI architecture](../contribute/architecture/cli.md),
+[Issue agent access](../design/issue-agent-access.md), and the
 [durable Agent sessions proposal](durable-agent-sessions.md).
 
 ## Contents
@@ -102,6 +103,11 @@ Several required pieces already exist:
 - An authenticated local Agent can publish a unified Artifact to the Server.
 - The current surface-positioning decision already permits an assigned-work
   inbox, starting a local Session from an Issue, and returning results.
+- How an Agent itself reads and reports on the Issue it is working is decided
+  by [Issue agent access](../design/issue-agent-access.md): two runtime tools
+  scoped by construction to one Issue, with status, assignment, and hierarchy
+  never tool-writable. This proposal supplies the local implementation of that
+  record's port; it does not redesign the boundary.
 
 The missing pieces are an authenticated Issue client in the local interfaces,
 a durable or explicitly local relation between an Issue and a local Session,
@@ -240,6 +246,11 @@ CLI and Desktop may modify the current Issue and its immediate children when
 the authenticated user has permission. Broad board management remains in
 Portal. Remote mutations require an explicit user action or an ordinary Agent
 tool approval; merely opening or discussing an Issue changes nothing.
+
+Which of those the Agent may do at all is settled:
+[Issue agent access](../design/issue-agent-access.md) gives it a bounded comment
+and nothing else. Status, assignment, hierarchy, and child creation are user
+actions in this proposal's surfaces, not tool calls.
 
 ### Decomposition Crosses Execution Planes
 
@@ -443,19 +454,20 @@ claiming Server authority over behavior the Server cannot observe or control.
    workflows need a Session to contribute to several Issues?
 2. Should starting work offer to assign the Issue to the current user, require
    it already be assigned, or permit unassigned collaborative work?
-3. Which contextual mutations should an Agent be allowed to propose through a
-   tool, and which should remain direct user UI actions?
-4. Does Phase 1 need a durable outbox, or is explicit retry sufficient for the
+3. Does Phase 1 need a durable outbox, or is explicit retry sufficient for the
    first early adopters?
-5. What stable repository or workspace identity can safely remember local path
+4. What stable repository or workspace identity can safely remember local path
    mappings across Issues and devices?
-6. Should a local result create a specialized execution-summary record, a
+5. Should a local result create a specialized execution-summary record, a
    normal user comment with relations, or wait for Durable Agent Sessions?
-7. Which Portal view distinguishes “worked locally” from “ran in a Worker”
+   [Issue agent access](../design/issue-agent-access.md) §11 asks the same
+   question from the tool side: an Artifact a runless Session publishes has no
+   task run to hang on, and the Issue's outputs aggregation reads runs.
+6. Which Portal view distinguishes “worked locally” from “ran in a Worker”
    without presenting unverifiable client claims as audit evidence?
-8. When may a deployment refuse direct models for Team-linked work, and what
+7. When may a deployment refuse direct models for Team-linked work, and what
    device-management or signed-policy mechanism makes that enforceable?
-9. Do teams actually decompose and delegate work from the local context, or is
+8. Do teams actually decompose and delegate work from the local context, or is
    receive-and-return the dominant workflow?
 
 Evidence should come from a small number of real local-to-Team workflows:
