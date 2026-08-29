@@ -43,15 +43,25 @@ readable rather than a list of ids.
 ### Resuming
 
 ```bash
-buildmax --continue              # most recent session
+buildmax --continue              # this project's most recent session
 buildmax --resume <session-id>   # a specific one
 buildmax --session-id <uuid>     # load if it exists, otherwise create it
 ```
 
+`--continue` and the `/sessions` picker are scoped to the project the current
+directory belongs to — a repository, including all of its worktrees, or a plain
+folder. The newest session on the machine is rarely the one you want, because it
+follows whichever repository you touched last.
+
+`--resume <id>` still looks a session up anywhere, but it resumes in the
+directory that session ran in, and refuses to continue a session that belongs to
+a different project rather than moving it.
+
 `--session-id` is the one to script with: it makes a run idempotent against a
 known id instead of depending on what happens to be most recent.
 
-In the TUI, `/sessions` opens the picker. The conversation is written as it
+In the TUI, `/sessions` opens the picker, showing this project's sessions;
+press `a` for every project on the machine. The conversation is written as it
 happens, so an interrupted run keeps everything up to the moment it stopped —
 not just up to the last completed reply.
 

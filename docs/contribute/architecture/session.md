@@ -40,7 +40,9 @@ Two records, two kinds of authority, and neither is a projection of the other:
   append-only and lossless.
 - **`meta.json`** is authoritative for current selections and running
   aggregates — title, pin, workspace, selected model, tokens, cost. Replay does
-  not recover these, and no history record needs to.
+  not recover these, and no history record needs to. It also carries
+  `project_id`, the local Project this session belongs to; unlike the fields
+  beside it that is immutable, and `MetaUpdate` has no way to change it.
 - **`index.json`** is the only pure projection, and the only file rebuilt by
   scanning.
 

@@ -10,6 +10,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	corehook "github.com/gougoujiang/buildmax/internal/core/hook"
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/gougoujiang/buildmax/internal/core/localproject"
 	"github.com/gougoujiang/buildmax/internal/infra/hook"
 )
 
@@ -18,6 +19,8 @@ import (
 // resource-owning AgentApp exists.
 type resolvedAgentAppConfig struct {
 	workspaceRoot string
+	// project is the zero value when the surface did not ask for one.
+	project       localproject.Project
 	settings      config.Settings
 	plugins       PluginSnapshot
 	loadedPlugins []config.DiscoveredPlugin
@@ -62,8 +65,20 @@ func resolveAgentAppConfig(cfg AppConfig) (resolvedAgentAppConfig, error) {
 		surface = config.SandboxSurfaceCLI
 	}
 
+	// Resolved here, before anything owning a resource exists, so a Project
+	// that could not be persisted stops construction rather than producing a
+	// runtime whose sessions have an identity nothing can resolve.
+	var project localproject.Project
+	if cfg.EnableLocalProject {
+		project, err = NewProjectManager(config.ProjectsDir()).Resolve(context.Background(), workspaceRoot)
+		if err != nil {
+			return resolvedAgentAppConfig{}, fmt.Errorf("resolve local project: %w", err)
+		}
+	}
+
 	return resolvedAgentAppConfig{
 		workspaceRoot: workspaceRoot,
+		project:       project,
 		settings:      settings,
 		plugins:       plugins,
 		loadedPlugins: loadedPlugins,
@@ -84,9 +99,10 @@ func buildAgentApp(cfg AppConfig, resolved resolvedAgentAppConfig) (_ *AgentApp,
 
 	app := &AgentApp{
 		workspace:              workspace,
+		project:                resolved.project,
 		settings:               resolved.settings,
 		toolRegistries:         make(map[string]cllm.ToolRegistry),
-		sessionManager:         NewSessionManager(config.SessionsDir()),
+		sessionManager:         NewSessionManager(config.SessionsDir()).ForProject(resolved.project.ID),
 		skillsRegistry:         &SkillRegistry{},
 		subagentsRegistry:      &SubAgentRegistry{},
 		policy:                 NewConfiguredPolicy(config.ResolvePermissions(resolved.settings.Tools), cfg.Policy),

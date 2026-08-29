@@ -15,6 +15,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	corehook "github.com/gougoujiang/buildmax/internal/core/hook"
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/gougoujiang/buildmax/internal/core/localproject"
 	"github.com/gougoujiang/buildmax/internal/core/plugin"
 	"github.com/gougoujiang/buildmax/internal/core/session"
 	llm "github.com/gougoujiang/buildmax/internal/infra/llm"
@@ -100,6 +101,16 @@ type AppConfig struct {
 	// because its directory is run-scoped and is not the user's to branch.
 	// See docs/design/workspace-root-and-worktrees.md D8.
 	EnableWorktrees bool
+
+	// EnableLocalProject resolves the workspace to a local Project and stamps
+	// it on every session this app creates. CLI, TUI, and Desktop set it.
+	//
+	// A worker or eval run does not: its directory is run-scoped and belongs to
+	// nobody's local catalog, and registering one would fill that catalog with
+	// Projects for directories that no longer exist. Such a run is projectless,
+	// which later costs it the project-memory context and tool by construction
+	// rather than by a second flag. See docs/design/local-project-memory.md §9.4.
+	EnableLocalProject bool
 }
 
 // ManagedTokenFunc returns the BuildMax credential to use for serverURL. It is
@@ -107,7 +118,11 @@ type AppConfig struct {
 type ManagedTokenFunc func(serverURL string) (string, error)
 
 type AgentApp struct {
-	workspace            *MovableRoot
+	workspace *MovableRoot
+	// project is the local Project every session here belongs to. It is the
+	// zero value when the surface did not ask for one; Project().ID == "" is
+	// how a projectless run is recognized.
+	project              localproject.Project
 	worktrees            *worktree.Manager
 	settings             config.Settings
 	llmClients           *LLMClientCache
@@ -467,6 +482,19 @@ func (a *AgentApp) SandboxResolution() config.SandboxResolution {
 		return config.SandboxResolution{}
 	}
 	return a.sandboxResolved
+}
+
+// Project is the local Project this app's sessions belong to, or the zero value
+// for a projectless run.
+//
+// It does not move when the workspace does: entering a worktree changes the
+// root and everything derived from it, and leaves the Project -- and the memory
+// that hangs off it -- alone. See docs/design/local-project-memory.md §6.2.
+func (a *AgentApp) Project() localproject.Project {
+	if a == nil {
+		return localproject.Project{}
+	}
+	return a.project
 }
 
 func (a *AgentApp) WorkspaceRoot() string {

@@ -100,7 +100,7 @@ export function ProjectItem({ project, sessions, isActive, selectedSessionId, on
           type="button"
           className="sidebar__project-toggle"
           onClick={() => !renaming && setExpanded((e) => !e)}
-          title={project.folder_path}
+          title={project.default_workspace}
         >
           <span className="sidebar__project-chevron" aria-hidden>{expanded ? '▾' : '▸'}</span>
           {renaming ? (

@@ -115,8 +115,10 @@ Important ownership boundaries:
 
 Team is the ownership and authorization boundary for Portal resources. Issue is
 the primary user-facing work object. Workflows are team-scoped reusable linear
-plans. Conversations orchestrate foreground turns and background tasks. The
-Desktop `Project` concept is local UI state, not a server domain entity.
+plans. Conversations orchestrate foreground turns and background tasks. Local
+`Project` is a shared CLI/TUI/Desktop runtime concept owned by
+`internal/core/localproject` -- one Git repository including its worktrees, or
+one directory -- and is not a server domain entity.
 
 Read the relevant architecture document before making a cross-package change:
 

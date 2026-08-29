@@ -195,9 +195,9 @@ func newPluginTestApp(t *testing.T, workspace string) (*App, string) {
 	app.Startup(t.Context())
 	t.Cleanup(func() { app.Shutdown(t.Context()) })
 
-	project, err := app.CreateProject("plugin probe", workspace)
+	project, err := app.OpenProject(workspace, "plugin probe")
 	if err != nil {
-		t.Fatalf("create project: %v", err)
+		t.Fatalf("open project: %v", err)
 	}
 	return app, project.ID
 }

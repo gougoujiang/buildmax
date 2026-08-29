@@ -223,6 +223,13 @@ func SessionsDir() string {
 	return filepath.Join(DataDir(), "sessions")
 }
 
+// ProjectsDir returns the path to the local Project bundles under DataDir.
+// Sessions stay under SessionsDir and are related to a Project by id, not by
+// living beneath one; see docs/design/local-project-memory.md §8.2.
+func ProjectsDir() string {
+	return filepath.Join(DataDir(), "projects")
+}
+
 // LogsDir returns the path to the logs directory under DataDir.
 func LogsDir() string {
 	return filepath.Join(DataDir(), "logs")
