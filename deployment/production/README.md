@@ -118,8 +118,14 @@ another pod, refuses new conversation turns while waiting for the ones already
 running, and drains the requests it accepted — all inside `shutdown_grace`,
 which the ConfigMap sets to 25s. `terminationGracePeriodSeconds: 45` and the
 five-second `preStop` pause exist to contain that: raising one without the
-others is what turns an orderly stop back into a kill. What a task run does
-when its own pod is stopped is a separate and still-open question — see
+others is what turns an orderly stop back into a kill.
+
+A worker pod also honours SIGTERM. It stops the agent loop, preserves the output
+and artifacts produced so far, reports the run as `FAILED` with an interrupted
+message, and exits. A worker that disappears before it can report is closed as
+`FAILED` by the liveness reaper after the configured grace; BuildMax does not
+silently re-dispatch it. Retrying is an explicit operator action and creates a
+new TaskRun. The exact shutdown contract is in
 [`docs/design/graceful-shutdown.md`](../../docs/design/graceful-shutdown.md).
 
 ## What This Reference Does Not Cover
@@ -140,4 +146,6 @@ Stated rather than left to be discovered:
   CI for whether its configuration parses into the config the server actually
   reads, and its container hardening is the same set `./make kind up` applies
   and exercises on every run. It has not been applied against a real RDS or S3
-  account — the dependency contract above is what stands in for that.
+  account — the dependency contract above is what stands in for that. Do not
+  treat the reference as Beta-qualified until the external exercises in the
+  [Beta readiness record](../../docs/deploy/beta-readiness.md) pass.

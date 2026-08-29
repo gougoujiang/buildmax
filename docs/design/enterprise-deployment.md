@@ -527,7 +527,9 @@ Manual product validation:
 
 The remaining questions came from the retired *Private production operations*
 proposal. The reference topology it asked for now exists; what it asked for and
-did not get is evidence that the topology can be operated:
+did not get is evidence that the topology can be operated. The required
+exercises and their still-open evidence live in the
+[Beta readiness record](../deploy/beta-readiness.md):
 
 6. What availability and recovery targets are realistic for the first Beta? The
    deployment reference states a recovery *procedure* — restore from backup,
@@ -538,10 +540,13 @@ did not get is evidence that the topology can be operated:
 8. Has an upgrade and rollback been exercised across at least one schema change?
    The N-1 promise in `docs/start/support.md` is a rule the code follows, not a
    run anyone has performed.
-9. Which metrics make a deployment supportable? There are none today — no
-   `/metrics` endpoint and no Prometheus dependency — so an operator diagnoses
-   from logs, `/readyz`, and the run trace. Deciding the required set is a
-   prerequisite for claiming the deployment is operable, not a later polish.
+9. ~~Which metrics make a deployment supportable?~~ **Decided for the first
+   Beta: a metrics endpoint is not a prerequisite.** The minimum diagnostic set
+   is logs, `/readyz`, System Status, TaskRun and artifact state, the run trace,
+   the managed-call ledger, and audit history. The qualification drills must
+   prove that set explains every required outcome. Add `/metrics` later only
+   when an exercise names a concrete signal that the existing surfaces cannot
+   provide.
 10. How are JWT signing keys, access/refresh sessions, per-run tokens, database,
     storage, and model credentials **rotated**? Injection is settled — env
     overrides sourced from a Secret — but nothing documents what a rotation
