@@ -55,7 +55,7 @@ func (e *QuotaError) Is(target error) bool { return target == ErrQuotaExceeded }
 
 // QuotaChecker is the narrow quota surface the gateway needs.
 type QuotaChecker interface {
-	Check(ctx context.Context, teamID string, addRuns, addTokens int) (allowed bool, reason string)
+	Check(ctx context.Context, teamID string, addRuns, addTokens int) (allowed bool, reason string, err error)
 }
 
 // Service runs one managed call: resolve, authorize, meter, dispatch, record.
@@ -193,7 +193,12 @@ func (s *Service) run(ctx context.Context, req CompleteRequest, onDelta func(str
 	// Only a call that belongs to a team is metered against one; a foreground
 	// call names no team and passes.
 	if s.Quota != nil && req.TeamID != "" {
-		allowed, reason := s.Quota.Check(ctx, req.TeamID, 0, 0)
+		allowed, reason, err := s.Quota.Check(ctx, req.TeamID, 0, 0)
+		if err != nil {
+			// Refusing here costs one call; admitting serves unmetered
+			// inference on a deployment that cannot see its own limits.
+			return CompleteResult{}, fmt.Errorf("check quota for team %s: %w", req.TeamID, err)
+		}
 		if !allowed {
 			return CompleteResult{}, &QuotaError{Reason: reason}
 		}

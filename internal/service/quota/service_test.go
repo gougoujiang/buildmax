@@ -2,6 +2,7 @@ package quota
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -76,7 +77,7 @@ func TestCheck_NoTeam_Allows(t *testing.T) {
 		TierStore:   &mockTierStore{},
 		DefaultTier: "free_trial",
 	}
-	allowed, _ := c.Check(context.Background(), "tm_any", 1, 0)
+	allowed, _, _ := c.Check(context.Background(), "tm_any", 1, 0)
 	if !allowed {
 		t.Error("Check: expected allow when team is nil")
 	}
@@ -89,7 +90,7 @@ func TestCheck_UnknownTier_Allows(t *testing.T) {
 		TierStore:   &mockTierStore{tier: nil},
 		DefaultTier: "free_trial",
 	}
-	allowed, _ := c.Check(context.Background(), "tm_1", 1, 0)
+	allowed, _, _ := c.Check(context.Background(), "tm_1", 1, 0)
 	if !allowed {
 		t.Error("Check: expected allow when tier not found")
 	}
@@ -102,7 +103,7 @@ func TestCheck_RunLimitExceeded_Denies(t *testing.T) {
 		TierStore:   &mockTierStore{tier: &corequota.Tier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
 		DefaultTier: "free_trial",
 	}
-	allowed, reason := c.Check(context.Background(), "tm_1", 1, 0)
+	allowed, reason, _ := c.Check(context.Background(), "tm_1", 1, 0)
 	if allowed {
 		t.Error("Check: expected deny when run count would exceed limit")
 	}
@@ -118,7 +119,7 @@ func TestCheck_TokenLimitExceeded_Denies(t *testing.T) {
 		TierStore:   &mockTierStore{tier: &corequota.Tier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
 		DefaultTier: "free_trial",
 	}
-	allowed, reason := c.Check(context.Background(), "tm_1", 0, 1)
+	allowed, reason, _ := c.Check(context.Background(), "tm_1", 0, 1)
 	if allowed {
 		t.Error("Check: expected deny when token count would exceed limit")
 	}
@@ -134,7 +135,7 @@ func TestCheck_UnderLimit_Allows(t *testing.T) {
 		TierStore:   &mockTierStore{tier: &corequota.Tier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
 		DefaultTier: "free_trial",
 	}
-	allowed, reason := c.Check(context.Background(), "tm_1", 1, 10000)
+	allowed, reason, _ := c.Check(context.Background(), "tm_1", 1, 10000)
 	if !allowed {
 		t.Errorf("Check: expected allow; reason = %q", reason)
 	}
@@ -150,7 +151,7 @@ func TestCheck_EmptyTeamTier_UsesDefault(t *testing.T) {
 		TierStore:   &mockTierStore{tier: &corequota.Tier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
 		DefaultTier: "free_trial",
 	}
-	allowed, _ := c.Check(context.Background(), "tm_1", 1, 0)
+	allowed, _, _ := c.Check(context.Background(), "tm_1", 1, 0)
 	if allowed {
 		t.Error("Check: expected deny when default tier limit reached")
 	}
@@ -158,4 +159,64 @@ func TestCheck_EmptyTeamTier_UsesDefault(t *testing.T) {
 
 func (m *mockTeamStore) SetTeamPluginCuration(_ context.Context, _ string, _ coreplugin.Curation) error {
 	return nil
+}
+
+// A store that cannot answer is not a team without a limit. Every one of these
+// used to return "allowed", so a deployment whose database was unreachable
+// served unmetered work and recorded nothing about having done so.
+func TestCheckReportsAReadItCouldNotMake(t *testing.T) {
+	boom := errors.New("database unreachable")
+	tier := &corequota.Tier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}
+	cases := []struct {
+		name string
+		svc  *Service
+	}{
+		{"team read fails", &Service{
+			TeamStore:   &mockTeamStore{err: boom},
+			UsageReader: &mockUsageReader{},
+			TierStore:   &mockTierStore{tier: tier},
+			DefaultTier: "free_trial",
+		}},
+		{"tier read fails", &Service{
+			TeamStore:   &mockTeamStore{team: &coreteam.Team{ID: "tm_1", QuotaTier: "free_trial"}},
+			UsageReader: &mockUsageReader{},
+			TierStore:   &mockTierStore{err: boom},
+			DefaultTier: "free_trial",
+		}},
+		{"usage aggregation fails", &Service{
+			TeamStore:   &mockTeamStore{team: &coreteam.Team{ID: "tm_1", QuotaTier: "free_trial"}},
+			UsageReader: &mockUsageReader{err: boom},
+			TierStore:   &mockTierStore{tier: tier},
+			DefaultTier: "free_trial",
+		}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			allowed, _, err := c.svc.Check(context.Background(), "tm_1", 1, 0)
+			if !errors.Is(err, boom) {
+				t.Fatalf("Check err = %v, want %v", err, boom)
+			}
+			if allowed {
+				t.Error("Check admitted a run whose limit it could not read")
+			}
+		})
+	}
+}
+
+// GetUsage has the same failure: a zeroed snapshot reads as "used nothing".
+func TestGetUsageReportsAReadItCouldNotMake(t *testing.T) {
+	boom := errors.New("database unreachable")
+	c := &Service{
+		TeamStore:   &mockTeamStore{err: boom},
+		UsageReader: &mockUsageReader{},
+		TierStore:   &mockTierStore{},
+		DefaultTier: "free_trial",
+	}
+	info, err := c.GetUsage(context.Background(), "tm_1")
+	if !errors.Is(err, boom) {
+		t.Fatalf("GetUsage err = %v, want %v", err, boom)
+	}
+	if info != nil {
+		t.Errorf("GetUsage returned a snapshot alongside an error: %+v", info)
+	}
 }

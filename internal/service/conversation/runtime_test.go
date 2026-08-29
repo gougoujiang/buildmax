@@ -7,18 +7,21 @@ import (
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 )
 
-func TestReplayMessageFromStore_SystemBecomesUser_BackwardCompat(t *testing.T) {
+// A task result is stored with role "user" so the model replays it as input,
+// and the system channel so the transcript knows nobody typed it. The role is
+// replayed as stored: nothing rewrites it on the way out.
+func TestReplayMessageFromStoreKeepsASystemChannelMessageAsInput(t *testing.T) {
 	channel := "system"
 	msg := replayMessageFromStore(coreconv.Message{
-		Role:    "system",
+		Role:    "user",
 		Content: "[Task Result] status: succeeded",
 		Channel: &channel,
 	})
 	if msg.Role != "user" {
-		t.Fatalf("replayMessageFromStore(system).Role = %q, want user", msg.Role)
+		t.Fatalf("replayMessageFromStore.Role = %q, want user", msg.Role)
 	}
 	if msg.Content != "[Task Result] status: succeeded" {
-		t.Fatalf("replayMessageFromStore(system).Content = %q", msg.Content)
+		t.Fatalf("replayMessageFromStore.Content = %q", msg.Content)
 	}
 }
 

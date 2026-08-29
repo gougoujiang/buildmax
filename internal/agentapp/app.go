@@ -46,8 +46,11 @@ type AppConfig struct {
 	// source. A surface is in one mode or the other, and the mode decides where
 	// every prompt goes. See docs/design/client-modes.md section 4.
 	ManagedServerURL string
-	// Policy sets the tool permission policy for all runs in this AgentApp.
-	// Nil defaults to agent.AllowAllPolicy for backward compatibility.
+	// Policy is the surface's tool permission baseline, under the user's
+	// tools.permissions rules. Every surface states its own — CLI, TUI, Desktop,
+	// a Portal turn, and a task run all pass one — and nil is the library's
+	// nil-safe floor rather than a surface's choice: it allows every tool, which
+	// is only correct for a surface that meant to.
 	Policy agent.ToolPolicy
 	// SandboxSurface picks the per-surface default sandbox baseline (see
 	// config.SandboxSurfaceCLI / SandboxSurfaceWorker). Empty means

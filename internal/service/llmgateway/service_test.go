@@ -129,14 +129,23 @@ func (l *fakeLedger) only(t *testing.T) (coregw.Call, coregw.CallOutcome) {
 // denyQuota refuses every team.
 type denyQuota struct{ reason string }
 
-func (q denyQuota) Check(context.Context, string, int, int) (bool, string) { return false, q.reason }
+func (q denyQuota) Check(context.Context, string, int, int) (bool, string, error) {
+	return false, q.reason, nil
+}
 
 // allowQuota accepts every team and records that it was asked.
 type allowQuota struct{ calls int }
 
-func (q *allowQuota) Check(context.Context, string, int, int) (bool, string) {
+func (q *allowQuota) Check(context.Context, string, int, int) (bool, string, error) {
 	q.calls++
-	return true, ""
+	return true, "", nil
+}
+
+// unreadableQuota cannot answer: the limit exists but the store is unreachable.
+type unreadableQuota struct{ err error }
+
+func (q unreadableQuota) Check(context.Context, string, int, int) (bool, string, error) {
+	return false, "", q.err
 }
 
 func serviceWith(t *testing.T, client cllm.LLMClient, ledger coregw.CallStore, quota llmgateway.QuotaChecker) *llmgateway.Service {
@@ -280,6 +289,25 @@ func TestCompleteRefusesOverQuota(t *testing.T) {
 	// A refused call is not a call: nothing is opened in the ledger.
 	if len(ledger.opened) != 0 {
 		t.Errorf("ledger opened %d calls for a refused request", len(ledger.opened))
+	}
+}
+
+// A store that cannot answer must not be read as "no limit": serving the call
+// would spend a team's allowance on a deployment that cannot see it.
+func TestCompleteRefusesWhenQuotaCannotBeRead(t *testing.T) {
+	ledger := newFakeLedger()
+	boom := errors.New("quota store unreachable")
+	svc := serviceWith(t, &scriptedClient{content: "hi"}, ledger, unreadableQuota{err: boom})
+
+	_, err := svc.Complete(context.Background(), userRequest())
+	if !errors.Is(err, boom) {
+		t.Fatalf("want the store error, got %v", err)
+	}
+	if errors.Is(err, llmgateway.ErrQuotaExceeded) {
+		t.Error("an unreadable quota was reported as an exceeded one")
+	}
+	if len(ledger.opened) != 0 {
+		t.Errorf("ledger opened %d calls for a request that was never admitted", len(ledger.opened))
 	}
 }
 
