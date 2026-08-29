@@ -80,6 +80,13 @@ type ListFilter struct {
 	// ParentIssueID restricts the listing to one parent's children. It is
 	// ignored when TopLevelOnly is set.
 	ParentIssueID string
+	// AssigneeKind and AssigneeID restrict the listing to one assignee. Both
+	// must be set to narrow anything: an assignee_id means nothing without the
+	// kind that says which table to read it against.
+	AssigneeKind string
+	AssigneeID   string
+	// Status restricts the listing to one status. Empty lists every status.
+	Status string
 }
 
 // ChildStats is a parent's sub-issue progress. It is always computed, never

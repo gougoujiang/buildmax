@@ -212,6 +212,12 @@ func (s *Store) ListIssuesByTeam(ctx context.Context, teamID string, filter core
 		case parentKey != nil:
 			q = q.Where(col+"parent_issue_id = ?", *parentKey)
 		}
+		if filter.AssigneeKind != "" && filter.AssigneeID != "" {
+			q = q.Where(col+"assignee_kind = ? AND "+col+"assignee_id = ?", filter.AssigneeKind, filter.AssigneeID)
+		}
+		if filter.Status != "" {
+			q = q.Where(col+"status = ?", filter.Status)
+		}
 		return q
 	}
 	var total int64

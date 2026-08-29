@@ -66,6 +66,15 @@ func (m *MockIssueStore) ListIssuesByTeam(_ context.Context, teamID string, filt
 		case filter.ParentIssueID != "" && (issue.ParentIssueID == nil || *issue.ParentIssueID != filter.ParentIssueID):
 			continue
 		}
+		if filter.AssigneeKind != "" && filter.AssigneeID != "" {
+			if issue.AssigneeKind == nil || *issue.AssigneeKind != filter.AssigneeKind ||
+				issue.AssigneeID == nil || *issue.AssigneeID != filter.AssigneeID {
+				continue
+			}
+		}
+		if filter.Status != "" && issue.Status != filter.Status {
+			continue
+		}
 		filtered = append(filtered, issue)
 	}
 	total := len(filtered)
