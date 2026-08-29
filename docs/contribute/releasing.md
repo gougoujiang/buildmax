@@ -13,6 +13,13 @@ scans on pull requests too. Both used to scan after pushing, where a finding
 could only turn the job red: `v0.2.0-alpha.3` published two images carrying a
 fixed openssl CVE and then failed on it.
 
+During alpha, `.github/workflows/release-prepare.yml` checks daily for a release
+that is due. Once the newest tag is at least 72 hours old and unreleased
+changelog entries exist, it creates the `release/next` pull request.
+It never publishes on a timer: a maintainer must review and merge that pull
+request. The merge creates the annotated tag and dispatches the existing binary,
+server-image, and Portal-image workflows.
+
 ## Versioning
 
 BuildMax follows Semantic Versioning. During alpha, use tags such as
@@ -23,6 +30,19 @@ Never move or reuse a published tag. Fix a bad release with a new patch or
 prerelease version.
 
 ## Prepare
+
+The scheduled pull request performs the mechanical parts of steps 1 and 2. The
+repository must allow GitHub Actions to create pull requests, and branch
+protection must permit the `github-actions[bot]` branch push. Because pushes
+made with `GITHUB_TOKEN` do not start another workflow, the preparation job
+explicitly dispatches CI, the full release snapshot, and the Portal image build
+on `release/next`.
+
+Run **Prepare release** manually to prepare a release before the 72-hour window;
+it still refuses to create an empty release. Close its pull request to defer the
+release. A later eligible run recreates it from the current `main` and all
+changelog entries then present. While the pull request remains open, scheduled
+runs leave its candidate and any maintainer edits unchanged.
 
 1. Confirm `main` is up to date and all required CI checks pass.
 2. Fold the unreleased entries into [CHANGELOG.md](../../CHANGELOG.md):
@@ -78,6 +98,18 @@ GitHub's attestation service. Consumers should identify container images by
 digest rather than relying on a mutable tag.
 
 ## Publish
+
+Merging the generated `release/next` pull request is the normal alpha publish
+approval. The promotion workflow validates that its title and changelog name the
+next numbered alpha, creates the tag, and explicitly dispatches both publication
+workflows. GitHub suppresses tag-triggered workflows when a tag is pushed with
+`GITHUB_TOKEN`, which is why the dispatch is intentional rather than duplicate.
+
+If either dispatch or publication fails after the tag exists, rerun **Release**
+and **Portal image** manually against that tag. Do not recreate or move it.
+
+For a version outside the current numbered alpha line, or if the automation is
+unavailable, create the tag manually:
 
 Create an annotated tag on the reviewed `main` commit and push only that tag:
 

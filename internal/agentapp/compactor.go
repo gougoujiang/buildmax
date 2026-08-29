@@ -2,9 +2,12 @@ package agentapp
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
 
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/gougoujiang/buildmax/internal/core/session"
 )
 
 const compactionSystemPrompt = `Summarize this AI agent conversation for context compaction.
@@ -55,4 +58,72 @@ func (c *LLMCompactor) Compact(ctx context.Context, msgs []llm.Message) (string,
 	messages = append(messages, msgs...)
 	completion, err := c.client.ChatCompletionBlocking(ctx, llm.Request{Messages: messages, Profile: llm.ProfileCompaction})
 	return completion.Content, completion.Usage, err
+}
+
+// CompactResult is what one compaction the user asked for did to a session.
+//
+// Summarized == 0 with no error means the pass found nothing worth replacing,
+// and Reason says why; the caller reports that rather than a failure.
+type CompactResult struct {
+	Summarized int
+	Kept       int
+	Reason     string
+	// BeforeTokens is the estimated context size the session carried into the
+	// compaction, so a surface can say what the pass actually freed. The size
+	// afterwards is Status.ContextTokens.
+	BeforeTokens int
+	// Status is the session's usage re-estimated after the boundary moved. A
+	// surface holding a context gauge would otherwise keep showing the size the
+	// compaction just removed.
+	Status RunUsage
+}
+
+// CompactSession compacts a session's context on demand.
+//
+// It is the same pass RunLoop makes on its own when the window fills, run
+// without the fill test, and it takes the session's turn lock for the same
+// reason a turn does: it rewrites the model-visible history, and doing that
+// under a running turn would race it.
+func (a *AgentApp) CompactSession(ctx context.Context, sess *SessionContext) (CompactResult, error) {
+	sess, modelName, client, err := a.resolveRunContext(sess)
+	if err != nil {
+		return CompactResult{}, err
+	}
+	if err := a.turns.begin(sess.ID()); err != nil {
+		return CompactResult{}, fmt.Errorf("session %s: %w", sess.ID(), err)
+	}
+	defer a.turns.end(sess.ID())
+
+	before := a.estimateRunUsage(sess, modelName, client.ContextWindow())
+	// The checkpointer writes notes and todos through the context, the same way
+	// it reaches the session during a run.
+	ctx = session.CtxWithSessionID(ctx, sess.ID())
+	ctx = agent.CtxWithNoteStore(ctx, sess)
+
+	res, stats, err := agent.Compact(ctx, agent.RunLoopOpts{
+		LLMClient:    client,
+		Pricing:      a.pricingFor(sess),
+		History:      sess,
+		Compactor:    NewLLMCompactor(client),
+		Checkpointer: NewNoteCheckpointer(client),
+		Hooks:        a.hooks,
+		SessionID:    sess.ID(),
+		Workspace:    a.workspace.Root(),
+	})
+	// Folded in before the error is returned: the summarizing call is spent
+	// whether or not its summary was usable, and a session whose totals omit it
+	// under-reports for good.
+	if _, ferr := a.finalizeTurn(sess, nil, stats); ferr != nil {
+		slog.Warn("could not record what the compaction spent", "err", ferr)
+	}
+	if err != nil {
+		return CompactResult{}, fmt.Errorf("compact session: %w", err)
+	}
+	return CompactResult{
+		Summarized:   res.Summarized,
+		Kept:         res.Kept,
+		Reason:       res.Reason,
+		BeforeTokens: before.ContextTokens,
+		Status:       a.estimateRunUsage(sess, modelName, client.ContextWindow()),
+	}, nil
 }

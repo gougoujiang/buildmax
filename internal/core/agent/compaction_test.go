@@ -341,3 +341,86 @@ func TestCompaction_PersistFailureStopsTheRun(t *testing.T) {
 		t.Errorf("err = %v, want it to name the failed commit", err)
 	}
 }
+
+// TestCompact_IgnoresTheFillThreshold is the difference between the automatic pass and the one
+// a user asks for: the same history RunLoop leaves alone because the window is nowhere near
+// full is compacted on request.
+func TestCompact_IgnoresTheFillThreshold(t *testing.T) {
+	client := &windowedClient{window: testContextWindow}
+	comp := &factCompactor{}
+	h := &compactingHistory{}
+	for i := 0; i < 4; i++ {
+		_ = h.Append(fillerMessage())
+	}
+	runOnce(t, client, h, comp)
+	if h.idx != 0 {
+		t.Fatalf("RunLoop compacted a history below the threshold (boundary at %d)", h.idx)
+	}
+	total := len(h.HistoryMessages())
+
+	res, stats, err := Compact(context.Background(), RunLoopOpts{
+		LLMClient: client,
+		History:   h,
+		Compactor: comp,
+	})
+	if err != nil {
+		t.Fatalf("Compact: %v", err)
+	}
+	if !res.Compacted() {
+		t.Fatalf("Compact reported nothing compacted (reason %q)", res.Reason)
+	}
+	if res.Summarized+res.Kept != total {
+		t.Errorf("summarized %d + kept %d, want the %d messages in the history", res.Summarized, res.Kept, total)
+	}
+	if got := len(h.HistoryMessages()); got != res.Kept {
+		t.Errorf("history holds %d model-visible messages, want the %d reported kept", got, res.Kept)
+	}
+	if stats.PromptTokens != 0 || stats.CompletionTokens != 0 {
+		t.Errorf("stats = %+v, want the zero usage this compactor reports", stats)
+	}
+}
+
+// TestCompact_ReportsAHookBlockAsAReason asserts a PreCompact block is not an error: the
+// session is intact, and the caller has something to tell the user.
+func TestCompact_ReportsAHookBlockAsAReason(t *testing.T) {
+	client := &windowedClient{window: testContextWindow}
+	h := &compactingHistory{}
+	for i := 0; i < 4; i++ {
+		_ = h.Append(fillerMessage())
+	}
+
+	res, _, err := Compact(context.Background(), RunLoopOpts{
+		LLMClient: client,
+		History:   h,
+		Compactor: &factCompactor{},
+		Hooks:     blockingHookRunner{event: HookPreCompact},
+	})
+	if err != nil {
+		t.Fatalf("Compact: %v", err)
+	}
+	if res.Compacted() {
+		t.Fatalf("compaction ran despite a blocking PreCompact hook")
+	}
+	if res.Reason != "blocked by test" {
+		t.Errorf("reason = %q, want the hook's own reason", res.Reason)
+	}
+	if h.idx != 0 {
+		t.Errorf("boundary moved to %d, want the history untouched", h.idx)
+	}
+}
+
+// TestCompact_ReportsAnEmptyHistory pins that asking for compaction with nothing to summarize
+// is answered, not failed.
+func TestCompact_ReportsAnEmptyHistory(t *testing.T) {
+	res, _, err := Compact(context.Background(), RunLoopOpts{
+		LLMClient: &windowedClient{window: testContextWindow},
+		History:   &compactingHistory{},
+		Compactor: &factCompactor{},
+	})
+	if err != nil {
+		t.Fatalf("Compact: %v", err)
+	}
+	if res.Compacted() || res.Reason == "" {
+		t.Errorf("result = %+v, want nothing compacted with a reason", res)
+	}
+}

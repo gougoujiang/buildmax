@@ -8,6 +8,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/config"
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/gougoujiang/buildmax/internal/core/localproject"
 )
 
 // switchApp builds the smallest AgentApp the derived-configuration reload
@@ -163,5 +164,28 @@ func TestPromptLayerFollowsTheRoot(t *testing.T) {
 	}
 	if before == after {
 		t.Error("the prompt did not change; the cacheable prefix should have been invalidated by the move")
+	}
+}
+
+// Everything the root decides follows a move; the Project does not. A session
+// that re-resolved its Project on entering a worktree would land in the same
+// one today and would silently start switching memory domains the moment
+// resolution changed. See docs/design/local-project-memory.md §6.2.
+func TestProjectDoesNotFollowTheRoot(t *testing.T) {
+	launch := t.TempDir()
+	app := switchApp(t, launch)
+	app.project = localproject.Project{ID: "hyzc3kqxa2vw7m4t9pbn", Name: "repo"}
+	app.sessionManager = NewSessionManager(t.TempDir()).ForProject(app.project.ID)
+
+	sessionRoot{app: app}.Set(t.TempDir())
+
+	if got := app.Project().ID; got != "hyzc3kqxa2vw7m4t9pbn" {
+		t.Errorf("Project after a root move = %q, want it unchanged", got)
+	}
+	if got := app.sessionManager.ProjectID(); got != "hyzc3kqxa2vw7m4t9pbn" {
+		t.Errorf("new sessions after a root move would belong to %q, want the unchanged project", got)
+	}
+	if app.workspace.Root() == launch {
+		t.Error("the root did not move, so this test proved nothing")
 	}
 }

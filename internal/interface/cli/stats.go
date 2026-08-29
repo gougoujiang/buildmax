@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -52,13 +53,20 @@ lines say so rather than reporting zero.`,
 func runStats(w io.Writer, id string, asJSON bool) error {
 	sessionsDir := config.SessionsDir()
 	if id == "" {
+		// Scoped like --continue, and for the same reason: "the last session"
+		// asked from inside a repository means the last one here, not whichever
+		// repository was touched most recently on this machine.
+		project, err := currentProject(context.Background(), "")
+		if err != nil {
+			return fmt.Errorf("resolve project: %w", err)
+		}
 		list, err := agentapp.NewSessionManager(sessionsDir).List()
 		if err != nil {
 			return fmt.Errorf("load session list: %w", err)
 		}
-		last := latestSessionItem(list)
+		last := latestSessionItem(filterByProject(list, project.ID))
 		if last == nil {
-			return fmt.Errorf("no sessions found; run one with -p PROMPT or start the TUI")
+			return fmt.Errorf("no sessions yet in %s; run one with -p PROMPT or start the TUI", project.Name)
 		}
 		id = last.ID
 	}

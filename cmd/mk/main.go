@@ -200,6 +200,8 @@ func cmdRelease(args []string) error {
 	switch subcommand {
 	case "bump":
 		return cmdBump(rest)
+	case "next":
+		return cmdNextVersion(rest)
 	case "verify":
 		return cmdVerifyArchive(rest)
 	case "notes":

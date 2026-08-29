@@ -476,7 +476,7 @@ func helpTopics() []helpTopic {
 		},
 		{
 			name:    "release",
-			usage:   "release <bump|notes|verify|notices|licenses>",
+			usage:   "release <bump|next|notes|verify|notices|licenses>",
 			summary: "Run one release chore.",
 			details: []string{
 				"`bump` tags the next version locally and stops there, because pushing the tag\n" +
@@ -487,6 +487,7 @@ func helpTopics() []helpTopic {
 			},
 			args: []helpRow{
 				{"bump [patch|minor|major]", "Tag the next version locally (default patch)"},
+				{"next", "Print the next numbered alpha tag without changing git"},
 				{"notes <version>", "Compose the release body from that version's CHANGELOG.md section"},
 				{"verify", "Validate the built GoReleaser archives"},
 				{"notices", "Regenerate NOTICE-THIRD-PARTY"},

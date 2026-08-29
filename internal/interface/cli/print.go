@@ -75,6 +75,13 @@ func runPrintMode(opts printOptions) error {
 		return printFatal(opts.Format, ExitModelError, err)
 	}
 	defer app.Close()
+	// Before the first turn, and on stderr: a run that quietly went without a
+	// memory source, or that has just registered a duplicate Project for a
+	// repository that moved, is the failure this reporting prevents. It stays
+	// out of stdout so a piped result is still only the reply.
+	for _, notice := range app.StartupNotices(relinkCommandHint) {
+		fmt.Fprintln(os.Stderr, notice)
+	}
 	sess, err := app.OpenSession(opts.ResumeID)
 	if err != nil {
 		return printFatal(opts.Format, ExitModelError, err)
@@ -142,6 +149,8 @@ func printAppConfig(opts printOptions, source auth.ModelSource) agentapp.AppConf
 		AdditionalSystemPrompt: opts.AdditionalSystemPrompt,
 		SandboxRunOverride:     opts.Overrides.Sandbox,
 		MaxIterations:          opts.Overrides.MaxIterations,
+		EnableLocalProject:     true,
+		DisableProjectMemory:   opts.Overrides.NoProjectMemory,
 	}
 }
 
