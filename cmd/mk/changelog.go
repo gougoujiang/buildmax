@@ -178,6 +178,10 @@ func releaseChangelog(version string) error {
 
 	heading := fmt.Sprintf("## [%s] - %s\n\n", version, time.Now().Format("2006-01-02"))
 	updated := body[:cut] + heading + section + body[cut:]
+	updated, err = withVersionLink(updated, version)
+	if err != nil {
+		return err
+	}
 	if err := os.WriteFile(changelogFile, []byte(updated), 0o644); err != nil {
 		return fmt.Errorf("write %s: %w", changelogFile, err)
 	}
@@ -190,6 +194,51 @@ func releaseChangelog(version string) error {
 			}
 		}
 	}
-	fmt.Printf("Folded %d entries into %s as %s.\n", count, changelogFile, version)
+	fmt.Printf("Folded %d entries into %s as %s, and moved the compare links onto it.\n", count, changelogFile, version)
 	return nil
+}
+
+// withVersionLink moves the reference definitions at the foot of the file onto
+// the new version: `[Unreleased]` compares from it to HEAD, and it compares
+// from whatever `[Unreleased]` named before.
+//
+// The fold used to leave this to whoever cut the release, so every version's
+// links were added by hand afterwards -- and 0.2.0-alpha.5, prepared by the
+// scheduled workflow with nobody editing the file, reached its release pull
+// request with a dangling `[0.2.0-alpha.5]` reference. The compare range is the
+// one thing here that is derivable rather than judged, so it is not a
+// maintainer's job.
+//
+// The previous version is read out of the existing link rather than out of git:
+// the fold's subject is the file, and a tag that does not exist yet cannot say
+// what the last released version was.
+func withVersionLink(body, version string) (string, error) {
+	const unreleased = "[Unreleased]: "
+	const head = "...HEAD"
+	const compare = "/compare/"
+
+	if strings.Contains(body, "\n["+version+"]: ") {
+		return "", fmt.Errorf("%s already links %s; it has been released already", changelogFile, version)
+	}
+	start := strings.Index(body, "\n"+unreleased)
+	if start < 0 {
+		return "", fmt.Errorf("%s has no %q link definition to move onto %s", changelogFile, "[Unreleased]", version)
+	}
+	start++
+	end := len(body)
+	if nl := strings.IndexByte(body[start:], '\n'); nl >= 0 {
+		end = start + nl
+	}
+
+	url := body[start+len(unreleased) : end]
+	at := strings.LastIndex(url, compare)
+	if at < 0 || !strings.HasSuffix(url, head) {
+		return "", fmt.Errorf("%s links [Unreleased] to %q, which is not a %s<previous>%s comparison", changelogFile, url, compare, head)
+	}
+	base, previous := url[:at], url[at+len(compare):len(url)-len(head)]
+
+	moved := fmt.Sprintf("%s%s%sv%s%s\n[%s]: %s%s%s...v%s",
+		unreleased, base, compare, version, head,
+		version, base, compare, previous, version)
+	return body[:start] + moved + body[end:], nil
 }
