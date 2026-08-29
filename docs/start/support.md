@@ -5,6 +5,11 @@
 > BuildMax is alpha. This page defines what the project tries to support today,
 > what is best-effort, and what is deliberately out of scope for now.
 
+A **Beta** label on one surface below describes that component's maturity; it
+does not mean the product has passed the release-level Beta gate. That decision
+requires the external exercises and signed evidence in the
+[Beta readiness record](../deploy/beta-readiness.md).
+
 ## Maturity Levels
 
 | Level | Meaning |

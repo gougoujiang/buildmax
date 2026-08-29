@@ -2,6 +2,7 @@ package git
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -190,5 +191,60 @@ func TestExcludeLocallyIsIdempotentAndLeavesGitignoreAlone(t *testing.T) {
 	}
 	if len(dirty) != 0 {
 		t.Fatalf("git reports %v; an excluded worktree directory must not show up", dirty)
+	}
+}
+
+// The pair a Repo carries is what local Project resolution keys on: one answer
+// must be shared by every working tree of a repository, and the other must not.
+// See docs/design/local-project-memory.md §7.2.
+func TestRepositoryCommonDirIsSharedByWorktreesAndTopLevelIsNot(t *testing.T) {
+	repo := t.TempDir()
+	initRepo(t, repo)
+	ctx := context.Background()
+
+	linked := filepath.Join(repo, ".buildmax", "worktrees", "memory")
+	if err := AddWorktree(ctx, repo, linked, "worktree/memory"); err != nil {
+		t.Fatalf("AddWorktree: %v", err)
+	}
+
+	primary, err := Repository(ctx, repo)
+	if err != nil {
+		t.Fatalf("Repository(primary): %v", err)
+	}
+	worktree, err := Repository(ctx, linked)
+	if err != nil {
+		t.Fatalf("Repository(linked): %v", err)
+	}
+	if primary.CommonDir != worktree.CommonDir {
+		t.Errorf("common dir differs across worktrees: %q vs %q", primary.CommonDir, worktree.CommonDir)
+	}
+	if !filepath.IsAbs(primary.CommonDir) {
+		t.Errorf("CommonDir = %q, want an absolute path", primary.CommonDir)
+	}
+	if primary.TopLevel == worktree.TopLevel {
+		t.Errorf("both worktrees report top level %q; the working roots must stay distinct", primary.TopLevel)
+	}
+
+	// A nested directory resolves to its enclosing tree, which is what lets a
+	// session started anywhere inside a checkout find its Project.
+	nested := filepath.Join(repo, "pkg", "deep")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	fromNested, err := Repository(ctx, nested)
+	if err != nil {
+		t.Fatalf("Repository(nested): %v", err)
+	}
+	if fromNested != primary {
+		t.Errorf("Repository(nested) = %+v, want the enclosing tree %+v", fromNested, primary)
+	}
+}
+
+// A plain directory has to be distinguishable from a failed lookup: one is a
+// directory Project, the other must not silently become one.
+func TestRepositoryOutsideACheckoutIsNotARepository(t *testing.T) {
+	_, err := Repository(context.Background(), t.TempDir())
+	if !errors.Is(err, ErrNotARepository) {
+		t.Errorf("Repository outside a checkout = %v, want ErrNotARepository", err)
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
+	"github.com/gougoujiang/buildmax/internal/core/localproject"
 	"github.com/gougoujiang/buildmax/internal/core/session"
 	"github.com/gougoujiang/buildmax/internal/interface/auth"
 	"github.com/gougoujiang/buildmax/internal/interface/client"
@@ -208,19 +210,9 @@ func (a *App) agentAppForProject(projectID string) (*agentapp.AgentApp, error) {
 		return ag, nil
 	}
 
-	projects, err := readProjects()
+	proj, err := projectManager().Store().Get(context.Background(), projectID)
 	if err != nil {
 		return nil, err
-	}
-	var proj *Project
-	for i := range projects {
-		if projects[i].ID == projectID {
-			proj = &projects[i]
-			break
-		}
-	}
-	if proj == nil {
-		return nil, fmt.Errorf("project not found: %s", projectID)
 	}
 
 	source, err := auth.ResolveModelSource(context.Background())
@@ -228,8 +220,12 @@ func (a *App) agentAppForProject(projectID string) (*agentapp.AgentApp, error) {
 		return nil, err
 	}
 	handler := newDesktopApprovalHandler(a, projectID)
+	// Desktop opens a Project at its default workspace, so one Project is one
+	// root here and the cache can be keyed by Project alone. A relink that
+	// moves the default workspace is picked up on the next launch; nothing
+	// changes a root under a running window.
 	ag, err = agentapp.NewAgentApp(agentapp.AppConfig{
-		WorkspaceDir:         proj.FolderPath,
+		WorkspaceDir:         proj.DefaultWorkspace,
 		EnableMCP:            true,
 		Policy:               agent.AllowAllPolicy(),
 		ModelEntries:         source.Entries,
@@ -239,6 +235,7 @@ func (a *App) agentAppForProject(projectID string) (*agentapp.AgentApp, error) {
 		ArtifactPublisher:    auth.ArtifactPublisherForSession(),
 		Surface:              coregw.CallSurfaceDesktop,
 		EnableBackgroundJobs: true,
+		EnableLocalProject:   true,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("init agent for project %q: %w", proj.Name, err)
@@ -263,9 +260,26 @@ func (a *App) agentAppForProject(projectID string) (*agentapp.AgentApp, error) {
 
 // --- Project bindings ---
 
-// ListProjects returns all saved projects.
-func (a *App) ListProjects() ([]Project, error) {
-	return readProjects()
+// projectManager is the shared local Project catalog. Desktop owns no Project
+// record of its own: CLI and Desktop opened on one repository have to be the
+// same Project, or the two surfaces would list different sessions and, once
+// project memory lands, read different memory. See
+// docs/design/local-project-memory.md §11.5.
+func projectManager() *agentapp.ProjectManager {
+	return agentapp.NewProjectManager(config.ProjectsDir())
+}
+
+// ListProjects returns the local Projects, most recently used first.
+func (a *App) ListProjects() ([]localproject.Summary, error) {
+	rows, err := projectManager().Store().List(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("list projects: %w", err)
+	}
+	if rows == nil {
+		return []localproject.Summary{}, nil
+	}
+	sort.Slice(rows, func(i, j int) bool { return rows[i].LastUsedAt.After(rows[j].LastUsedAt) })
+	return rows, nil
 }
 
 // OpenFolderDialog opens a native directory picker and returns the selected path.
@@ -285,27 +299,31 @@ func (a *App) OpenFolderDialog() (string, error) {
 	return path, nil
 }
 
-// CreateProject creates a new project with the given name and folder.
-func (a *App) CreateProject(name, folderPath string) (*Project, error) {
-	if name == "" {
-		return nil, fmt.Errorf("project name required")
-	}
+// OpenProject resolves a folder to its local Project, registering one the first
+// time that folder is opened.
+//
+// It replaces a create binding because adding a folder is no longer how a
+// Project comes to exist: a worktree of a repository Desktop already knows
+// opens that repository's Project rather than a second one beside it. A name is
+// applied when given, so opening a folder and calling it something reads the
+// way it looks.
+func (a *App) OpenProject(folderPath, name string) (*localproject.Summary, error) {
 	if folderPath == "" {
 		return nil, fmt.Errorf("folder path required")
 	}
-	projects, err := readProjects()
+	ctx := context.Background()
+	proj, err := projectManager().Resolve(ctx, folderPath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("open project: %w", err)
 	}
-	p, err := makeProject(name, folderPath)
-	if err != nil {
-		return nil, err
+	if name != "" && name != proj.Name {
+		if err := projectManager().Store().Update(ctx, proj.ID, localproject.Update{Name: &name}); err != nil {
+			return nil, fmt.Errorf("name project: %w", err)
+		}
+		proj.Name = name
 	}
-	projects = append(projects, p)
-	if err := writeProjects(projects); err != nil {
-		return nil, err
-	}
-	return &p, nil
+	summary := proj.Summarize()
+	return &summary, nil
 }
 
 // RenameProject updates the name of a project.
@@ -313,38 +331,35 @@ func (a *App) RenameProject(id, newName string) error {
 	if newName == "" {
 		return fmt.Errorf("project name required")
 	}
-	projects, err := readProjects()
-	if err != nil {
-		return err
-	}
-	for i := range projects {
-		if projects[i].ID == id {
-			projects[i].Name = newName
-			return writeProjects(projects)
-		}
-	}
-	return fmt.Errorf("project not found: %s", id)
+	return projectManager().Store().Update(context.Background(), id, localproject.Update{Name: &newName})
 }
 
-// DeleteProject removes a project and closes its AgentApp if one was running.
-func (a *App) DeleteProject(id string) error {
-	projects, err := readProjects()
+// DeleteProject removes a Project. Its sessions go only when deleteSessions
+// says so.
+//
+// A Project and its sessions are separate things to destroy, so removing one
+// never silently takes the other: a Project that still has sessions is refused
+// with the count, and the caller comes back having told the user what will be
+// lost. See docs/design/local-project-memory.md §15.
+func (a *App) DeleteProject(id string, deleteSessions bool) error {
+	ctx := context.Background()
+	if _, err := projectManager().Store().Get(ctx, id); err != nil {
+		return err
+	}
+	held, err := a.projectSessionIDs(id)
 	if err != nil {
 		return err
 	}
-	remaining := make([]Project, 0, len(projects))
-	found := false
-	for _, p := range projects {
-		if p.ID == id {
-			found = true
-			continue
+	switch {
+	case len(held) == 0:
+	case !deleteSessions:
+		return fmt.Errorf("project %s still has %d session(s); clear them first or confirm deleting them", id, len(held))
+	default:
+		if _, err := sessionManager().DeleteByProject(id); err != nil {
+			return fmt.Errorf("delete project sessions: %w", err)
 		}
-		remaining = append(remaining, p)
 	}
-	if !found {
-		return fmt.Errorf("project not found: %s", id)
-	}
-	if err := writeProjects(remaining); err != nil {
+	if err := projectManager().Store().Delete(ctx, id); err != nil {
 		return err
 	}
 	a.mu.Lock()
@@ -356,6 +371,52 @@ func (a *App) DeleteProject(id string) error {
 		_ = ag.Close()
 	}
 	return nil
+}
+
+// touchProjectLastUsed advances a Project's recency stamp. Best-effort: errors
+// are logged and dropped so they cannot interrupt a chat reply.
+func touchProjectLastUsed(projectID string) {
+	err := projectManager().Store().Update(context.Background(), projectID, localproject.Update{TouchLastUsed: true})
+	if err != nil {
+		slog.Warn("touch project last used failed", "project_id", projectID, "err", err)
+	}
+}
+
+// ProjectNotices are the things the runtime wants said once when a project is
+// opened: a project registered for a directory that may be a moved repository,
+// and memory files that will be silently absent from every run until repaired.
+//
+// A source missing for a whole session without anyone being told is the failure
+// this prevents, and a desktop user never runs `buildmax doctor`. Building the
+// runtime is what produces them, so this is also what warms it.
+func (a *App) ProjectNotices(projectID string) ([]string, error) {
+	if projectID == "" {
+		return nil, fmt.Errorf("project ID required")
+	}
+	ag, err := a.agentAppForProject(projectID)
+	if err != nil {
+		return nil, err
+	}
+	notices := ag.StartupNotices("buildmax project relink " + projectID)
+	if notices == nil {
+		notices = []string{}
+	}
+	return notices, nil
+}
+
+// projectSessionIDs lists the sessions a Project still owns.
+func (a *App) projectSessionIDs(projectID string) ([]string, error) {
+	rows, err := sessionManager().List()
+	if err != nil {
+		return nil, fmt.Errorf("list sessions: %w", err)
+	}
+	var ids []string
+	for _, row := range rows {
+		if row.ProjectID == projectID {
+			ids = append(ids, row.ID)
+		}
+	}
+	return ids, nil
 }
 
 // --- Session bindings ---
@@ -405,16 +466,10 @@ func (a *App) ClearProjectSessions(projectID string) ([]string, error) {
 	if projectID == "" {
 		return nil, fmt.Errorf("project ID required")
 	}
-	projects, err := readProjects()
-	if err != nil {
+	if _, err := projectManager().Store().Get(context.Background(), projectID); err != nil {
 		return nil, err
 	}
-	for _, p := range projects {
-		if p.ID == projectID {
-			return sessionManager().DeleteByWorkspace(p.FolderPath)
-		}
-	}
-	return nil, fmt.Errorf("project not found: %s", projectID)
+	return sessionManager().DeleteByProject(projectID)
 }
 
 // GetSession loads one session by ID and returns it for display.
@@ -802,7 +857,9 @@ func (a *App) SendMessageStream(projectID, sessionID, prompt string) (int, error
 				// emit already does — the frontend only reads a digest, so there
 				// is nothing here to race the close.
 				a.emitTurnDigest(ctx, out)
-				// Update last_used_at so the sidebar can order projects by recency.
+				// Advance last_used_at so the sidebar orders by recency.
+				// Best-effort: a recency stamp is not worth interrupting a
+				// reply over.
 				touchProjectLastUsed(projectID)
 			}
 			next, ok := queue.Dequeue()

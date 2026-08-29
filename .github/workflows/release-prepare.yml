@@ -1,0 +1,125 @@
+name: Prepare release
+
+on:
+  schedule:
+    # Check daily; the job below enforces 72 hours between release tags. A
+    # daily trigger avoids the short interval at a calendar-month boundary
+    # that `*/3` would produce.
+    - cron: '17 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  actions: write       # dispatch checks for the bot-created branch
+  contents: write      # create release/next
+  pull-requests: write # create the release PR
+
+concurrency:
+  group: release-prepare
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Prepare the next alpha
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Check whether a release is due
+        id: due
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pr=$(gh pr list --head release/next --base main --state open --json number --jq '.[0].number // empty')
+          if [[ -n "$pr" ]]; then
+            echo "Release PR #$pr is already open; leaving its reviewed candidate unchanged."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          mapfile -t entries < <(find docs/changelog -mindepth 2 -maxdepth 2 -type f -name '*.md' -print)
+          if (( ${#entries[@]} == 0 )); then
+            echo "No unreleased changelog entries; nothing to prepare."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          latest_tag=$(git describe --tags --match 'v[0-9]*' --abbrev=0)
+          if [[ "$EVENT_NAME" == "schedule" ]]; then
+            tag_time=$(git for-each-ref --format='%(creatordate:unix)' "refs/tags/$latest_tag")
+            age_seconds=$(( $(date +%s) - tag_time ))
+            if (( age_seconds < 259200 )); then
+              echo "$latest_tag is less than 72 hours old; keeping the changelog entries for the next check."
+              echo "ready=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+
+          echo "version=$(go run ./cmd/mk release next)" >> "$GITHUB_OUTPUT"
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: Fold the changelog on a release branch
+        if: steps.due.outputs.ready == 'true'
+        shell: bash
+        env:
+          VERSION: ${{ steps.due.outputs.version }}
+        run: |
+          remote_sha=$(git ls-remote --heads origin refs/heads/release/next | awk '{print $1}')
+          git switch -C release/next
+          go run ./cmd/mk changelog release "${VERSION#v}"
+          go run ./cmd/mk release notes "$VERSION" -o .artifacts/release-notes.md
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md docs/changelog
+          git commit -m "Prepare $VERSION for release"
+
+          if [[ -n "$remote_sha" ]]; then
+            git push --force-with-lease="refs/heads/release/next:$remote_sha" origin HEAD:refs/heads/release/next
+          else
+            git push origin HEAD:refs/heads/release/next
+          fi
+
+      - name: Dispatch release-candidate checks
+        if: steps.due.outputs.ready == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Branch pushes made with GITHUB_TOKEN do not emit more workflow
+          # runs, so dispatch the same named checks explicitly on the PR head.
+          gh workflow run ci.yml --ref release/next
+          gh workflow run release-snapshot.yml --ref release/next
+          gh workflow run portal-image.yml --ref release/next
+
+      - name: Create the release pull request
+        if: steps.due.outputs.ready == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.due.outputs.version }}
+        run: |
+          body=$(mktemp)
+          trap 'rm -f "$body"' EXIT
+          cat > "$body" <<EOF
+          ## What and why
+
+          Fold the current changelog entries into **$VERSION**. This PR was prepared by the scheduled release workflow; merging it authorizes creation of the annotated tag and dispatches the binary, server-image, and Portal-image release workflows.
+
+          ## Verification
+
+          The workflow dispatches CI, the full release snapshot, and the Portal image build against this frozen candidate branch.
+
+          ## Notes for the reviewer
+
+          Review the changelog ordering, release notes, known limitations, and current operational evidence before merging. The scheduled job will not overwrite edits while this PR is open. Close the PR to defer the release; the next eligible run will prepare it again from the then-current main branch.
+          EOF
+          gh pr create --base main --head release/next --title "chore: Prepare $VERSION" --body-file "$body"

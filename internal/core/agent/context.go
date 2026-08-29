@@ -19,6 +19,12 @@ const compactionThreshold = 0.80
 // 0.20 leaves ~55% runway before the next compaction fires, reducing compaction frequency.
 const compactionReserve = 0.20
 
+// manualCompactionReserve is the fraction of the context window a compaction the user
+// asked for keeps verbatim. It is far below compactionReserve because the request itself
+// says the context is wanted back now, and keeping the automatic fifth of the window would
+// leave an on-demand compaction with nothing to summarize on most sessions.
+const manualCompactionReserve = 0.05
+
 // compactionSummaryBudget is the fraction of the context window the stored compaction
 // summary may occupy. The summary lives in the system prompt, which is re-sent in full on
 // every call and is never trimmed, so it needs a ceiling that history does not need.
@@ -204,4 +210,53 @@ func RenderCompactionBlock(summary string) string {
 type PromptLayer struct {
 	Name  string `json:"name"`
 	Chars int    `json:"chars"`
+}
+
+// ContextSources is everything a run was given before its first model call, and
+// where each part came from.
+//
+// It exists because "memory" had been used for four different things -- an
+// instruction layer, a compaction summary, session notes, a shared document --
+// and a diagnostic that called them all by one name could not answer which of
+// them put a line in front of the model. Each source keeps its own kind here.
+//
+// No raw text. The session bundle and the Project bundle already hold the
+// content, trace redaction is fail-open, and a diagnostic that copied
+// instructions and memory into a third file would widen the blast radius of
+// every one of them to answer a question sizes and revisions already answer.
+type ContextSources struct {
+	// ProjectID names the scope shared memory belongs to, empty for a run that
+	// has none.
+	ProjectID string `json:"project_id,omitempty"`
+	// Workspace is the root this run executed against, which for a Project with
+	// several worktrees is not derivable from ProjectID.
+	Workspace string `json:"workspace,omitempty"`
+	// Instructions are the system-prompt layers, in order. Written even when
+	// there is nothing beyond the runtime prompt: an absent list would read as
+	// "nobody looked" rather than "there was nothing else".
+	Instructions []PromptLayer `json:"instructions,omitempty"`
+	// Memory is every fallible recall source this run loaded.
+	Memory []MemorySourceInfo `json:"memory,omitempty"`
+	// HistoryProjection describes what stood in for messages the run no longer
+	// holds in full.
+	HistoryProjection HistoryProjection `json:"history_projection"`
+}
+
+// MemorySourceInfo identifies one memory source without quoting it. Revision
+// and Digest are set for a versioned document; Entries for a counted list.
+type MemorySourceInfo struct {
+	Name     string `json:"name"`
+	Revision int    `json:"revision,omitempty"`
+	Digest   string `json:"digest,omitempty"`
+	Chars    int    `json:"chars,omitempty"`
+	Entries  int    `json:"entries,omitempty"`
+}
+
+// HistoryProjection reports whether a compaction summary stood in for messages
+// this run no longer holds, and how large it was. The journal remains the
+// authority on what actually happened; this says only that the model was
+// reading a lossy view of it.
+type HistoryProjection struct {
+	CompactionPresent bool `json:"compaction_present"`
+	Chars             int  `json:"chars,omitempty"`
 }

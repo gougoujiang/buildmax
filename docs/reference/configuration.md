@@ -124,7 +124,14 @@ Two settings under `worker.k8s` remain an operator's:
 | Setting | Default | Purpose |
 |---|---|---|
 | `run_as_user` | `65532` | The uid the pod runs as. Set it on a cluster that assigns its own uid range, OpenShift most commonly. The image needs no matching user — the worker writes only into mounted volumes, and `fsGroup` makes them writable. |
-| `resources.cpu_request` / `cpu_limit` / `memory_request` / `memory_limit` | unset | Kubernetes quantity strings. An empty value leaves that request or limit unset, so a deployment that has not chosen numbers keeps running unbounded rather than inheriting a limit nobody picked. An unparseable value is logged and skipped rather than failing the run. |
+| `resources.cpu_request` / `cpu_limit` / `memory_request` / `memory_limit` | none — required | Kubernetes quantity strings such as `500m`, `2`, `512Mi`, or `4Gi`. All four are required under `k8s_job`; BuildMax chooses no numbers for you, because the right ones depend on the work a deployment runs. |
+
+The server refuses to start when a bound is missing, is not a Kubernetes
+quantity, is zero or negative, or names a limit below its own request. The error
+names the key to edit. This is deliberate: an unbounded worker pod runs
+model-chosen shell commands, so one runaway build starves everything else on the
+node, and a bound that was silently dropped for a typo looks exactly like a bound
+that is in force.
 
 This applies to `run_mode: k8s_job`. Under `local_process` the worker is a child
 process of the server — same host, same uid, same filesystem — so the two are

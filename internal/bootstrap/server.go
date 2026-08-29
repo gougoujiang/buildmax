@@ -643,7 +643,7 @@ func buildWorkerRunner(wc config.ServerWorkerConfig, stopGrace time.Duration) (s
 		// Worker pods read the same server.yaml the server does: the ConfigMap
 		// supplies the file, the inherited BUILDMAX_* environment supplies the
 		// credentials that must not be written into it.
-		return k8s.NewK8sJobRunner(
+		runner, err := k8s.NewK8sJobRunner(
 			wc.K8s.Namespace,
 			wc.K8s.Image,
 			k8s.WorkerEnvFromEnviron(wc.LLM.Managed()),
@@ -659,7 +659,11 @@ func buildWorkerRunner(wc config.ServerWorkerConfig, stopGrace time.Duration) (s
 				},
 			},
 			jobClient,
-		), nil
+		)
+		if err != nil {
+			return nil, fmt.Errorf("server.yaml: %w", err)
+		}
+		return runner, nil
 	default:
 		if wc.Binary == "" {
 			return nil, fmt.Errorf("worker.binary is required in server.yaml for local_process mode")

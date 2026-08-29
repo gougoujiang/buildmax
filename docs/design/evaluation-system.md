@@ -792,7 +792,7 @@ This is the inventory section 20 requires before grading design is fixed. It was
 | Evidence a grader needs | Present in the trace today | Gap |
 |---|---|---|
 | Run identity, model, workspace, subagent lineage | `run_start`, with `trace_version` and parent run/tool-call links | None for the slice |
-| Instruction provenance | `prompt_layers`, written even when empty | None |
+| Instruction provenance | `context_sources`, written even when empty, alongside the memory and compaction sources of the same run | None |
 | Extension provenance | `plugins`, with repository-plugin mutability | MCP servers and skills are not separately named |
 | Sandbox boundary | `sandbox_boundary`, once per run, `sandboxed` explicitly false rather than absent | No per-command decision |
 | Tool use and argument scope | `tool_start`, `tool_end` with duration | Args and results are bounded at 4096 bytes, so a large-payload assertion cannot rely on them |

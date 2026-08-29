@@ -179,28 +179,18 @@ func (a *App) GetSlashAgents(projectID string) (SlashAgentsResult, error) {
 // GetGitBranch returns the current git branch for the given project's folder,
 // or an empty string if the folder is not a git repository.
 func (a *App) GetGitBranch(projectID string) (string, error) {
-	projects, err := readProjects()
+	proj, err := projectManager().Store().Get(context.Background(), projectID)
 	if err != nil {
 		return "", err
 	}
-	for _, p := range projects {
-		if p.ID == projectID {
-			return git.CurrentBranch(p.FolderPath), nil
-		}
-	}
-	return "", fmt.Errorf("project not found: %s", projectID)
+	return git.CurrentBranch(proj.DefaultWorkspace), nil
 }
 
 // GetWorkspaceDiff returns the current git-backed changed-file view for a project.
 func (a *App) GetWorkspaceDiff(projectID string) (git.WorkspaceDiff, error) {
-	projects, err := readProjects()
+	proj, err := projectManager().Store().Get(context.Background(), projectID)
 	if err != nil {
 		return git.WorkspaceDiff{}, err
 	}
-	for _, p := range projects {
-		if p.ID == projectID {
-			return git.ReadWorkspace(context.Background(), p.FolderPath)
-		}
-	}
-	return git.WorkspaceDiff{}, fmt.Errorf("project not found: %s", projectID)
+	return git.ReadWorkspace(context.Background(), proj.DefaultWorkspace)
 }

@@ -44,7 +44,9 @@ func newDoctorCommand() *cobra.Command {
 		Long: `Check the local BuildMax setup without contacting a hosted LLM provider.
 
 Doctor verifies the app data directory, settings.yaml, model entries, workspace
-state, git availability, and sandbox dependencies. A model entry served by a
+state, the local project this directory belongs to and the state of its memory,
+git availability, and sandbox dependencies. It reads: it never registers a
+project or changes one. A model entry served by a
 local runtime is checked against that runtime — which model is pulled and what
 it can do — because those are the answers no configuration file holds. It exits
 2 only when a required first-run prerequisite is missing.`,
@@ -74,6 +76,8 @@ func collectDoctorChecks(ctx context.Context, workspace string) []doctorCheck {
 	settings, settingsChecks := checkSettings(ctx)
 	checks = append(checks, settingsChecks...)
 	checks = append(checks, checkWorkspace(workspace))
+	checks = append(checks, checkProject(ctx, workspace)...)
+	checks = append(checks, checkDetachedSessions(ctx))
 	checks = append(checks, checkSandboxDeps(settings))
 	return checks
 }

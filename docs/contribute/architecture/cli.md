@@ -47,7 +47,11 @@ table is in [reference/cli.md](../../reference/cli.md).
 2. Parse `--output` into a format; a bad value is a **usage error**, not a crash.
 3. Validate `--session-id` as a UUID when given.
 4. Resolve the effective session id: explicit `--session-id`, else
-   `resolveResumeID(resumeID, cont)` for `--resume` / `--continue`.
+   `resolveSessionTarget` for `--resume` / `--continue`. It answers with a
+   session *and* a workspace, because the local Project decides both:
+   `--continue` selects within the Project the current directory resolves to,
+   and `--resume` returns to the directory its session ran in and refuses one
+   belonging to a different Project.
 5. `checkModelConfig()` — fails early with a usage error, rather than failing
    later at the LLM call. It distinguishes three states, because each has a
    different next step: no settings file (point at `buildmax init`), a file

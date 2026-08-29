@@ -73,6 +73,7 @@ calls and tool calls — inside its session's folder, under
 |---|---|
 | **Workspace** | The directory the agent operates in. Defaults to the current directory; set with `--workspace`. |
 | **Session** | A multi-turn conversation with its message history, saved under `<BUILDMAX_HOME>/sessions/`. Resume with `--continue` or `--resume <id>`. |
+| **Project** | The local unit of work a session belongs to: one Git repository including all its worktrees, or one plain folder. It is what `--continue` and the session picker are scoped to, and what [project memory](../guide/project-memory.md) belongs to. |
 | **`AGENTS.md`** | Optional file at the workspace root, appended to the system prompt so the agent picks up project conventions. |
 
 ## Team Objects (Portal)

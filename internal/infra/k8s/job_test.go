@@ -3,6 +3,7 @@ package k8s
 import (
 	"context"
 	"regexp"
+	"strings"
 	"testing"
 
 	batchv1 "k8s.io/api/batch/v1"
@@ -22,9 +23,25 @@ func (f *fakeJobCreator) CreateJob(ctx context.Context, namespace string, job *b
 	return nil
 }
 
+// newTestRunner builds a runner for a test whose subject is something other
+// than the resource bounds, supplying valid ones when the case did not set its
+// own. Every bound is required, so a test that says nothing about resources
+// still has to carry a set; TestJobPodResources owns the cases that do not.
+func newTestRunner(t *testing.T, namespace, image string, env []corev1.EnvVar, pod PodConfig, client JobCreator) *K8sJobRunner {
+	t.Helper()
+	if pod.Resources == (PodResources{}) {
+		pod.Resources = PodResources{CPURequest: "250m", CPULimit: "1", MemoryRequest: "512Mi", MemoryLimit: "1Gi"}
+	}
+	r, err := NewK8sJobRunner(namespace, image, env, pod, client)
+	if err != nil {
+		t.Fatalf("NewK8sJobRunner: %v", err)
+	}
+	return r
+}
+
 func TestK8sJobRunner_Run_SetsJobNamePattern(t *testing.T) {
 	fake := &fakeJobCreator{}
-	runner := NewK8sJobRunner("buildmax", "buildmax:local", []corev1.EnvVar{}, PodConfig{}, fake)
+	runner := newTestRunner(t, "buildmax", "buildmax:local", []corev1.EnvVar{}, PodConfig{}, fake)
 	run := coretask.Run{ID: "01ARZ3NDEKTSV4RRFFQ69G5FAV", TaskID: "chat1", Status: "SCHEDULED"}
 
 	workerType, k8sName, k8sAt, err := runner.Run(context.Background(), run, "")
@@ -59,7 +76,7 @@ func TestK8sJobRunner_MountsServerConfig(t *testing.T) {
 		{Name: config.EnvKeyBuildmaxMinIOAccessKey, Value: "minio-key"},
 		{Name: config.EnvKeyBuildmaxHome, Value: "/server-side-path"},
 	}
-	runner := NewK8sJobRunner("buildmax", "buildmax:local", inherited,
+	runner := newTestRunner(t, "buildmax", "buildmax:local", inherited,
 		PodConfig{ConfigMapName: "buildmax-config", HomeDir: "/buildmax"}, fake)
 
 	if _, _, _, err := runner.Run(context.Background(), coretask.Run{ID: "r_1"}, ""); err != nil {
@@ -126,7 +143,7 @@ func TestK8sJobRunner_MountsServerConfig(t *testing.T) {
 // ConfigMap configured the pod still gets a writable home, just no config file.
 func TestK8sJobRunner_NoConfigMap(t *testing.T) {
 	fake := &fakeJobCreator{}
-	runner := NewK8sJobRunner("buildmax", "buildmax:local", nil, PodConfig{}, fake)
+	runner := newTestRunner(t, "buildmax", "buildmax:local", nil, PodConfig{}, fake)
 	if _, _, _, err := runner.Run(context.Background(), coretask.Run{ID: "r_2"}, ""); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -187,7 +204,7 @@ func TestWorkerEnvFromEnviron_WithholdsServerOnlyCredentials(t *testing.T) {
 // rather than hygiene, and each has silently regressed elsewhere before.
 func TestJobPodIsConfined(t *testing.T) {
 	fake := &fakeJobCreator{}
-	r := NewK8sJobRunner("buildmax", "buildmax:local", nil, PodConfig{ConfigMapName: "buildmax-config"}, fake)
+	r := newTestRunner(t, "buildmax", "buildmax:local", nil, PodConfig{ConfigMapName: "buildmax-config"}, fake)
 	if _, _, _, err := r.Run(context.Background(), coretask.Run{ID: "run-1"}, ""); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -241,13 +258,14 @@ func TestJobPodIsConfined(t *testing.T) {
 	}
 }
 
-// TestJobPodResources covers both directions: configured limits reach the pod,
-// and an unconfigured deployment stays unbounded rather than inheriting a
-// number nobody chose.
+// TestJobPodResources covers what a deployment gets for each way of
+// configuring the bounds. The failing cases matter more than the passing one: a
+// worker pod runs model-chosen shell commands, so every path that would create
+// one without a bound has to end in a refusal an operator can read.
 func TestJobPodResources(t *testing.T) {
-	t.Run("configured", func(t *testing.T) {
+	t.Run("configured bounds reach the pod", func(t *testing.T) {
 		fake := &fakeJobCreator{}
-		r := NewK8sJobRunner("buildmax", "img", nil, PodConfig{
+		r := newTestRunner(t, "buildmax", "img", nil, PodConfig{
 			Resources: PodResources{CPURequest: "250m", CPULimit: "2", MemoryRequest: "512Mi", MemoryLimit: "4Gi"},
 		}, fake)
 		if _, _, _, err := r.Run(context.Background(), coretask.Run{ID: "run-1"}, ""); err != nil {
@@ -257,39 +275,71 @@ func TestJobPodResources(t *testing.T) {
 		if got := res.Limits.Memory().String(); got != "4Gi" {
 			t.Errorf("memory limit = %s, want 4Gi", got)
 		}
+		if got := res.Limits.Cpu().String(); got != "2" {
+			t.Errorf("cpu limit = %s, want 2", got)
+		}
+		if got := res.Requests.Memory().String(); got != "512Mi" {
+			t.Errorf("memory request = %s, want 512Mi", got)
+		}
 		if got := res.Requests.Cpu().String(); got != "250m" {
 			t.Errorf("cpu request = %s, want 250m", got)
 		}
 	})
 
-	t.Run("unset stays unbounded", func(t *testing.T) {
-		fake := &fakeJobCreator{}
-		r := NewK8sJobRunner("buildmax", "img", nil, PodConfig{}, fake)
-		if _, _, _, err := r.Run(context.Background(), coretask.Run{ID: "run-1"}, ""); err != nil {
-			t.Fatalf("Run: %v", err)
-		}
-		res := fake.lastJob.Spec.Template.Spec.Containers[0].Resources
-		if len(res.Limits) != 0 || len(res.Requests) != 0 {
-			t.Errorf("an unconfigured deployment must stay unbounded, got %+v", res)
-		}
-	})
-
-	t.Run("unparseable value is dropped, not fatal", func(t *testing.T) {
-		fake := &fakeJobCreator{}
-		r := NewK8sJobRunner("buildmax", "img", nil, PodConfig{
-			Resources: PodResources{MemoryLimit: "4 gigabytes", CPULimit: "1"},
-		}, fake)
-		if _, _, _, err := r.Run(context.Background(), coretask.Run{ID: "run-1"}, ""); err != nil {
-			t.Fatalf("a typo in a limit must not stop a run: %v", err)
-		}
-		res := fake.lastJob.Spec.Template.Spec.Containers[0].Resources
-		if _, ok := res.Limits["memory"]; ok {
-			t.Error("the unparseable memory limit should have been dropped")
-		}
-		if got := res.Limits.Cpu().String(); got != "1" {
-			t.Errorf("the valid cpu limit should survive, got %s", got)
-		}
-	})
+	// Each of these once produced a Job. Unset produced one with no bounds at
+	// all; the others produced one missing exactly the bound that was typed
+	// wrong, with a warning in the server log as the only trace.
+	rejected := []struct {
+		name      string
+		resources PodResources
+		wantField string
+	}{
+		{
+			name:      "nothing configured",
+			resources: PodResources{},
+			wantField: "cpu_request",
+		},
+		{
+			name:      "one bound left out",
+			resources: PodResources{CPURequest: "250m", CPULimit: "2", MemoryRequest: "512Mi"},
+			wantField: "memory_limit",
+		},
+		{
+			name:      "a unit Kubernetes does not use",
+			resources: PodResources{CPURequest: "250m", CPULimit: "2", MemoryRequest: "512Mi", MemoryLimit: "4 gigabytes"},
+			wantField: "memory_limit",
+		},
+		{
+			name:      "a bound of zero",
+			resources: PodResources{CPURequest: "250m", CPULimit: "0", MemoryRequest: "512Mi", MemoryLimit: "4Gi"},
+			wantField: "cpu_limit",
+		},
+		{
+			name:      "a limit below its request",
+			resources: PodResources{CPURequest: "250m", CPULimit: "2", MemoryRequest: "4Gi", MemoryLimit: "512Mi"},
+			wantField: "memory_limit",
+		},
+	}
+	for _, tc := range rejected {
+		t.Run(tc.name, func(t *testing.T) {
+			fake := &fakeJobCreator{}
+			r, err := NewK8sJobRunner("buildmax", "img", nil, PodConfig{Resources: tc.resources}, fake)
+			if err == nil {
+				t.Fatalf("the configuration was accepted; a worker Job would run unbounded")
+			}
+			if r != nil {
+				t.Error("a rejected configuration must not yield a runner")
+			}
+			// The message is what an operator has to act on, so it names the
+			// key they edit rather than the Go field or the type.
+			if !strings.Contains(err.Error(), tc.wantField) {
+				t.Errorf("error %q does not name %s", err, tc.wantField)
+			}
+			if fake.lastJob != nil {
+				t.Error("no Job may be created for a rejected configuration")
+			}
+		})
+	}
 }
 
 // TestK8sJobRunner_CarriesRunToken covers how a run's gateway credential reaches
@@ -309,7 +359,7 @@ func TestK8sJobRunner_CarriesRunToken(t *testing.T) {
 
 	t.Run("minted", func(t *testing.T) {
 		fake := &fakeJobCreator{}
-		runner := NewK8sJobRunner("buildmax", "buildmax:local", nil, PodConfig{HomeDir: "/buildmax"}, fake)
+		runner := newTestRunner(t, "buildmax", "buildmax:local", nil, PodConfig{HomeDir: "/buildmax"}, fake)
 		if _, _, _, err := runner.Run(context.Background(), coretask.Run{ID: "r_1"}, "signed-token"); err != nil {
 			t.Fatalf("Run: %v", err)
 		}
@@ -320,7 +370,7 @@ func TestK8sJobRunner_CarriesRunToken(t *testing.T) {
 
 	t.Run("none", func(t *testing.T) {
 		fake := &fakeJobCreator{}
-		runner := NewK8sJobRunner("buildmax", "buildmax:local", nil, PodConfig{HomeDir: "/buildmax"}, fake)
+		runner := newTestRunner(t, "buildmax", "buildmax:local", nil, PodConfig{HomeDir: "/buildmax"}, fake)
 		if _, _, _, err := runner.Run(context.Background(), coretask.Run{ID: "r_2"}, ""); err != nil {
 			t.Fatalf("Run: %v", err)
 		}

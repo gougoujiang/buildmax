@@ -50,7 +50,7 @@ func TestRecorder_WritesRunStartEventsAndEnd(t *testing.T) {
 
 	path := filepath.Join(dir, "c_sess1", "rt_test01.jsonl")
 	recs := readRecords(t, path)
-	// run_start, sandbox_boundary, prompt_layers, plugins, llm_start, tool_end,
+	// run_start, sandbox_boundary, context_sources, plugins, llm_start, tool_end,
 	// run_end (delta dropped)
 	if len(recs) != 7 {
 		t.Fatalf("got %d records, want 7: %+v", len(recs), recs)
@@ -171,7 +171,7 @@ func TestRecorder_BoundaryReportsUnsandboxedRun(t *testing.T) {
 
 			recs := readRecords(t, filepath.Join(dir, "s", "rt_b.jsonl"))
 			if len(recs) != 4 {
-				t.Fatalf("got %d records, want run_start + sandbox_boundary + prompt_layers + plugins: %+v",
+				t.Fatalf("got %d records, want run_start + sandbox_boundary + context_sources + plugins: %+v",
 					len(recs), recs)
 			}
 			got := recs[1]
@@ -207,39 +207,39 @@ func TestBoundaryRecord_FalseSurvivesEncoding(t *testing.T) {
 	}
 }
 
-// TestRecorder_ReportsPromptLayers covers the visibility trust-harness §3.6 asks for: a finished
+// TestRecorder_ReportsContextSources covers the visibility trust-harness §3.6 asks for: a finished
 // run can say which instruction sources it was given, so a system prompt that changed between
 // runs is observable rather than something a reader has to infer from behaviour.
-func TestRecorder_ReportsPromptLayers(t *testing.T) {
+func TestRecorder_ReportsContextSources(t *testing.T) {
 	dir := t.TempDir()
 	rec := NewRecorder(runDirFor(dir, "s"), Meta{
-		RunID:     "rt_layers",
+		RunID:     "rt_sources",
 		SessionID: "s",
-		PromptLayers: []agent.PromptLayer{
+		Sources: agent.ContextSources{Instructions: []agent.PromptLayer{
 			{Name: "runtime", Chars: 100},
 			{Name: "additional_system_prompt", Chars: 42},
-		},
+		}},
 	})
 	rec.Close()
 
-	recs := readRecords(t, filepath.Join(dir, "s", "rt_layers.jsonl"))
+	recs := readRecords(t, filepath.Join(dir, "s", "rt_sources.jsonl"))
 	var got *Record
 	for i := range recs {
-		if recs[i].Type == "prompt_layers" {
+		if recs[i].Type == "context_sources" {
 			got = &recs[i]
 		}
 	}
 	if got == nil {
-		t.Fatalf("no prompt_layers record: %+v", recs)
+		t.Fatalf("no context_sources record: %+v", recs)
 	}
-	if len(got.Layers) != 2 || got.Layers[1].Name != "additional_system_prompt" || got.Layers[1].Chars != 42 {
-		t.Errorf("layers = %+v, want the two supplied", got.Layers)
+	if len(got.Instructions) != 2 || got.Instructions[1].Name != "additional_system_prompt" || got.Instructions[1].Chars != 42 {
+		t.Errorf("instructions = %+v, want the two supplied", got.Instructions)
 	}
 }
 
-// TestRecorder_ReportsPromptLayersWhenBare asserts the record is written even for a run that
+// TestRecorder_ReportsContextSourcesWhenBare asserts the record is written even for a run that
 // loaded nothing beyond the runtime prompt. An absent record would read as "nobody looked".
-func TestRecorder_ReportsPromptLayersWhenBare(t *testing.T) {
+func TestRecorder_ReportsContextSourcesWhenBare(t *testing.T) {
 	dir := t.TempDir()
 	rec := NewRecorder(runDirFor(dir, "s"), Meta{RunID: "rt_bare", SessionID: "s"})
 	rec.Close()
@@ -247,12 +247,12 @@ func TestRecorder_ReportsPromptLayersWhenBare(t *testing.T) {
 	recs := readRecords(t, filepath.Join(dir, "s", "rt_bare.jsonl"))
 	found := false
 	for _, r := range recs {
-		if r.Type == "prompt_layers" {
+		if r.Type == "context_sources" {
 			found = true
 		}
 	}
 	if !found {
-		t.Errorf("no prompt_layers record for a run with no extra layers: %+v", recs)
+		t.Errorf("no context_sources record for a run with no extra layers: %+v", recs)
 	}
 }
 
@@ -278,7 +278,7 @@ func TestRecorder_RecordsAreDurableWithoutClose(t *testing.T) {
 	// Read while the recorder is still open — the abandoned-run path.
 	path := filepath.Join(dir, "c_sess1", "rt_kill01.jsonl")
 	recs := readRecords(t, path)
-	// run_start, sandbox_boundary, prompt_layers, plugins, tool_start, tool_end
+	// run_start, sandbox_boundary, context_sources, plugins, tool_start, tool_end
 	if len(recs) != 6 {
 		t.Fatalf("got %d records before Close, want 6: %+v", len(recs), recs)
 	}
