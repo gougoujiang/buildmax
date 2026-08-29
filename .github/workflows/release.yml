@@ -44,26 +44,61 @@ jobs:
       - name: Compose release notes
         run: go run ./cmd/mk release notes "${GITHUB_REF_NAME}" -o .artifacts/release-notes.md
 
+      # The image is scanned before anything is published, so a vulnerable
+      # base can only fail the release instead of shipping in it. dockers_v2
+      # builds and pushes in one buildx call and skips the build entirely under
+      # --skip=publish, so the only image that can exist beforehand is a
+      # snapshot one: same Dockerfile, same base, same binaries, a version
+      # string that differs. v0.2.0-alpha.3 published both images and then
+      # failed the scan that used to sit after this step.
+      - name: Build the images to scan
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          version: v2.17.1
+          args: release --clean --snapshot --skip=archive,sbom,announce
+
+      # GoReleaser names a snapshot image after the commit, so the tags are read
+      # back rather than reconstructed here.
+      - name: Resolve the scan targets
+        id: scan
+        shell: bash
+        run: |
+          set -euo pipefail
+          for arch in amd64 arm64; do
+            image=$(jq -er --arg suffix "-$arch" '
+              [.[] | select(.type == "Docker Image") | .name | select(endswith($suffix))]
+              | if length == 1 then .[0] else
+                  error("expected one \($suffix) image, got \(length)")
+                end' dist/artifacts.json)
+            echo "image_$arch=$image" >> "$GITHUB_OUTPUT"
+          done
+
+      - name: Scan the linux/amd64 image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ steps.scan.outputs.image_amd64 }}
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: HIGH,CRITICAL
+
+      - name: Scan the linux/arm64 image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ steps.scan.outputs.image_arm64 }}
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: HIGH,CRITICAL
+
+      # --clean drops the snapshot's dist/. The Go build cache carries over, so
+      # this run recompiles very little of what the scan build just built.
       - uses: goreleaser/goreleaser-action@v7
         with:
           version: v2.17.1
           args: release --clean --release-notes=.artifacts/release-notes.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Resolve container tag
-        id: release-meta
-        shell: bash
-        run: echo "image_tag=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
-
-      - name: Scan published container image
-        uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          image-ref: ghcr.io/gougoujiang/buildmax:${{ steps.release-meta.outputs.image_tag }}
-          format: table
-          exit-code: '1'
-          ignore-unfixed: true
-          severity: HIGH,CRITICAL
 
       # Artifact attestations are public infrastructure. Skip them while the
       # repository is private; they become mandatory when it is made public.

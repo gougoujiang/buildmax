@@ -45,9 +45,9 @@ jobs:
 
       - uses: docker/setup-buildx-action@v4
 
-      # Only a tag publishes. Everything else builds and throws the result
-      # away, which is what catches a broken Dockerfile or a portal build
-      # failure on the pull request that caused it.
+      # Only a tag publishes. Everything else builds and scans the result and
+      # throws it away, which is what catches a broken Dockerfile, a portal
+      # build failure, or a vulnerable base on the pull request that caused it.
       - name: Resolve tag and whether to publish
         id: meta
         shell: bash
@@ -55,20 +55,47 @@ jobs:
           if [[ "$GITHUB_REF" == refs/tags/* ]]; then
             # Same tag derivation as .github/workflows/release.yml, so the
             # Portal image and the server image carry identical versions.
+            # Alpha images must not move `latest`; the tag stays unset until
+            # there is a release line that deserves it. See
+            # docs/contribute/releasing.md.
             {
               echo "publish=true"
               echo "tags=${IMAGE}:${GITHUB_REF_NAME#v}"
               echo "platforms=linux/amd64,linux/arm64"
             } >> "$GITHUB_OUTPUT"
           else
-            # One platform is enough to prove the image builds, and it keeps
-            # the pull request check quick.
-            {
-              echo "publish=false"
-              echo "tags=${IMAGE}:ci"
-              echo "platforms=linux/amd64"
-            } >> "$GITHUB_OUTPUT"
+            echo "publish=false" >> "$GITHUB_OUTPUT"
           fi
+
+      # Scan before publishing, so a vulnerable base fails the run instead of
+      # shipping in it: v0.2.0-alpha.3 pushed this image and then failed the
+      # scan that used to sit after the push. A multi-platform build cannot be
+      # loaded into the daemon, so the scan target is the amd64 half; the base
+      # and its packages are what a scan finds here, and both platforms take
+      # them from the same alpine branch.
+      - name: Build the image to scan
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deployment/docker/Dockerfile.portal
+          platforms: linux/amd64
+          tags: ${{ env.IMAGE }}:scan
+          load: true
+          push: false
+          # The npm install and build dominate the runtime; caching them keeps
+          # a Portal-only change from paying for the whole tree every time, and
+          # lets the publishing build reuse what this one just built.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Scan it
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ env.IMAGE }}:scan
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: HIGH,CRITICAL
 
       - uses: docker/login-action@v4
         if: steps.meta.outputs.publish == 'true'
@@ -79,30 +106,17 @@ jobs:
 
       - uses: docker/build-push-action@v7
         id: build
+        if: steps.meta.outputs.publish == 'true'
         with:
           context: .
           file: deployment/docker/Dockerfile.portal
           platforms: ${{ steps.meta.outputs.platforms }}
           tags: ${{ steps.meta.outputs.tags }}
-          push: ${{ steps.meta.outputs.publish == 'true' }}
-          # The npm install and build dominate the runtime; caching them keeps
-          # a Portal-only change from paying for the whole tree every time.
+          push: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          provenance: ${{ steps.meta.outputs.publish == 'true' }}
-          sbom: ${{ steps.meta.outputs.publish == 'true' }}
-
-      # Alpha images must not move `latest`; the tag stays unset until there is
-      # a release line that deserves it. See docs/contribute/releasing.md.
-      - name: Scan the published image
-        if: steps.meta.outputs.publish == 'true'
-        uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          image-ref: ${{ steps.meta.outputs.tags }}
-          format: table
-          exit-code: '1'
-          ignore-unfixed: true
-          severity: HIGH,CRITICAL
+          provenance: true
+          sbom: true
 
       # Artifact attestations are public infrastructure. Skip them while the
       # repository is private; they become mandatory when it is made public.
