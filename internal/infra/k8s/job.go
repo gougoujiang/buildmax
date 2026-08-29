@@ -2,6 +2,7 @@ package k8s
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"strings"
@@ -50,14 +51,15 @@ type PodConfig struct {
 	// defaultWorkerUID. Clusters that assign their own uid ranges — OpenShift
 	// most commonly — set this to a value inside their range.
 	RunAsUser int64
-	// Resources bounds the pod's CPU and memory. Zero values leave the
-	// corresponding request or limit unset, which is what an unconfigured
-	// deployment gets: no limit, exactly as before this field existed. The
-	// reference manifest sets them.
+	// Resources bounds the pod's CPU and memory. Every bound is required;
+	// NewK8sJobRunner refuses a configuration that would leave one off the Job.
 	Resources PodResources
 }
 
-// PodResources holds Kubernetes quantity strings, e.g. "500m" or "1Gi".
+// PodResources holds Kubernetes quantity strings, e.g. "500m" or "1Gi". All
+// four are required: a worker pod executes model-chosen shell commands, so an
+// unbounded one is one runaway build away from starving every other pod on the
+// node. Requirements reports why a deployment may not schedule workers.
 type PodResources struct {
 	CPURequest    string
 	CPULimit      string
@@ -84,30 +86,71 @@ func (p PodConfig) runAsUser() int64 {
 	return p.RunAsUser
 }
 
-// resourceRequirements converts the configured quantities. An unparseable value
-// is dropped with a warning rather than failing the run: a typo in a limit
-// should not stop a deployment from executing work.
-func (p PodConfig) resourceRequirements() corev1.ResourceRequirements {
-	out := corev1.ResourceRequirements{}
-	add := func(list *corev1.ResourceList, name corev1.ResourceName, value, field string) {
-		if value == "" {
-			return
-		}
-		q, err := resource.ParseQuantity(value)
-		if err != nil {
-			slog.Warn("k8s: ignoring unparseable worker resource value", "field", field, "value", value, "err", err)
-			return
-		}
-		if *list == nil {
-			*list = corev1.ResourceList{}
-		}
-		(*list)[name] = q
+// Requirements converts the configured quantities into the bounds a worker
+// container carries, or reports the first one a deployment got wrong.
+//
+// This used to drop an unparseable value with a warning, so that a typo in a
+// limit would not stop a deployment from executing work. It should stop it: the
+// result was an unbounded pod that looked configured, and a warning in a server
+// log is not a bound. Rejecting the configuration is what makes the bound real.
+func (p PodResources) Requirements() (corev1.ResourceRequirements, error) {
+	cpuRequest, err := positiveQuantity("cpu_request", p.CPURequest)
+	if err != nil {
+		return corev1.ResourceRequirements{}, err
 	}
-	add(&out.Requests, corev1.ResourceCPU, p.Resources.CPURequest, "cpu_request")
-	add(&out.Requests, corev1.ResourceMemory, p.Resources.MemoryRequest, "memory_request")
-	add(&out.Limits, corev1.ResourceCPU, p.Resources.CPULimit, "cpu_limit")
-	add(&out.Limits, corev1.ResourceMemory, p.Resources.MemoryLimit, "memory_limit")
-	return out
+	memoryRequest, err := positiveQuantity("memory_request", p.MemoryRequest)
+	if err != nil {
+		return corev1.ResourceRequirements{}, err
+	}
+	cpuLimit, err := positiveQuantity("cpu_limit", p.CPULimit)
+	if err != nil {
+		return corev1.ResourceRequirements{}, err
+	}
+	memoryLimit, err := positiveQuantity("memory_limit", p.MemoryLimit)
+	if err != nil {
+		return corev1.ResourceRequirements{}, err
+	}
+	// Kubernetes rejects these at admission, which surfaces as every run
+	// failing to schedule with no obvious cause. Naming the pair here costs one
+	// comparison and answers the question the API server's error does not.
+	if cpuLimit.Cmp(cpuRequest) < 0 {
+		return corev1.ResourceRequirements{}, fmt.Errorf(
+			"worker.k8s.resources: cpu_limit %q is below cpu_request %q", p.CPULimit, p.CPURequest)
+	}
+	if memoryLimit.Cmp(memoryRequest) < 0 {
+		return corev1.ResourceRequirements{}, fmt.Errorf(
+			"worker.k8s.resources: memory_limit %q is below memory_request %q", p.MemoryLimit, p.MemoryRequest)
+	}
+	return corev1.ResourceRequirements{
+		Requests: corev1.ResourceList{
+			corev1.ResourceCPU:    cpuRequest,
+			corev1.ResourceMemory: memoryRequest,
+		},
+		Limits: corev1.ResourceList{
+			corev1.ResourceCPU:    cpuLimit,
+			corev1.ResourceMemory: memoryLimit,
+		},
+	}, nil
+}
+
+// positiveQuantity parses one bound. The error names the configuration key an
+// operator edits, not the Go field, and shows the shape a value should have:
+// the common mistake is a unit Kubernetes does not use, such as "4 gigabytes".
+func positiveQuantity(field, value string) (resource.Quantity, error) {
+	if strings.TrimSpace(value) == "" {
+		return resource.Quantity{}, fmt.Errorf(
+			"worker.k8s.resources.%s is required: a worker pod runs model-chosen commands and must be bounded", field)
+	}
+	q, err := resource.ParseQuantity(value)
+	if err != nil {
+		return resource.Quantity{}, fmt.Errorf(
+			"worker.k8s.resources.%s = %q is not a Kubernetes quantity such as 500m, 2, 512Mi, or 4Gi: %w", field, value, err)
+	}
+	if q.Sign() <= 0 {
+		return resource.Quantity{}, fmt.Errorf(
+			"worker.k8s.resources.%s = %q must be greater than zero", field, value)
+	}
+	return q, nil
 }
 
 // podSecurityContext confines the worker pod.
@@ -147,13 +190,22 @@ type K8sJobRunner struct {
 	image     string
 	env       []corev1.EnvVar
 	pod       PodConfig
+	resources corev1.ResourceRequirements
 	client    JobCreator
 }
 
 // NewK8sJobRunner returns a runner that creates a Job in the given namespace with
 // the given image, inherited env, and configuration source for the worker pod.
-func NewK8sJobRunner(namespace, image string, env []corev1.EnvVar, pod PodConfig, client JobCreator) *K8sJobRunner {
-	return &K8sJobRunner{namespace: namespace, image: image, env: env, pod: pod, client: client}
+//
+// The resource bounds are resolved here rather than per run, so a deployment
+// configured to produce an unbounded worker fails at startup, where an operator
+// is reading errors, instead of at the first run that needed the bound.
+func NewK8sJobRunner(namespace, image string, env []corev1.EnvVar, pod PodConfig, client JobCreator) (*K8sJobRunner, error) {
+	resources, err := pod.Resources.Requirements()
+	if err != nil {
+		return nil, err
+	}
+	return &K8sJobRunner{namespace: namespace, image: image, env: env, pod: pod, resources: resources, client: client}, nil
 }
 
 // podEnv returns the inherited environment with BUILDMAX_HOME set to the pod's
@@ -260,7 +312,7 @@ func (r *K8sJobRunner) Run(ctx context.Context, run coretask.Run, runToken strin
 							Env:             r.podEnv(runToken),
 							VolumeMounts:    mounts,
 							SecurityContext: containerSecurityContext(),
-							Resources:       r.pod.resourceRequirements(),
+							Resources:       r.resources,
 						},
 					},
 				},

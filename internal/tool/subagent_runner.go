@@ -162,6 +162,14 @@ func (r *defaultSubAgentRunner) RunSubAgent(ctx context.Context, opts SubAgentRu
 	// context, and leaving it in place would let a subagent overwrite the notes and task list
 	// of the run that delegated to it.
 	ctx = coreagent.CtxWithNoteStore(ctx, sess)
+	// A delegate carries no project memory: neither the index nor the tools.
+	// It is the highest-volume run in a session, so it would pay the resident
+	// cost most often, and a parent that needs it to know something says so in
+	// the delegated task, which is more precise than handing over a catalogue.
+	// Both tools are already absent from its registry; dropping the store means
+	// a tool added later, or a user-defined agent definition, cannot reach it
+	// by accident either.
+	ctx = coreagent.CtxWithoutMemoryStore(ctx)
 	ctx = coreagent.CtxMarkSubagent(ctx)
 
 	// Fire SubagentStart so audit hooks can correlate the subagent run with

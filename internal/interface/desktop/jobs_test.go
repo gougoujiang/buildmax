@@ -62,11 +62,11 @@ func newJobsTestApp(t *testing.T) (*App, *recordingEmitter, string) {
 	app.Startup(context.Background())
 	t.Cleanup(func() { app.Shutdown(context.Background()) })
 
-	const projectID = "p_jobs"
-	if err := writeProjects([]Project{{ID: projectID, Name: "jobs", FolderPath: t.TempDir()}}); err != nil {
-		t.Fatal(err)
+	project, err := app.OpenProject(t.TempDir(), "jobs")
+	if err != nil {
+		t.Fatalf("open project: %v", err)
 	}
-	return app, rec, projectID
+	return app, rec, project.ID
 }
 
 func TestDesktopJobBridge(t *testing.T) {

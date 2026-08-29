@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/gougoujiang/buildmax/internal/agentapp"
@@ -46,7 +47,9 @@ func tuiAppConfig(workspace, additionalSystemPrompt string, source auth.ModelSou
 		// The TUI is where a user can see which tree the session is in and
 		// answer a removal prompt, which is what makes moving the root safe
 		// to do autonomously. See docs/design/workspace-root-and-worktrees.md D8.
-		EnableWorktrees: true,
+		EnableWorktrees:      true,
+		EnableLocalProject:   true,
+		DisableProjectMemory: overrides.NoProjectMemory,
 	}
 }
 
@@ -64,6 +67,9 @@ func runTUI(resumeID, modelName, additionalSystemPrompt, workspace string, overr
 		return err
 	}
 	defer app.Close()
+	for _, notice := range app.StartupNotices(relinkCommandHint) {
+		fmt.Fprintln(os.Stderr, notice)
+	}
 	sess, err := app.OpenSession(resumeID)
 	if err != nil {
 		return err

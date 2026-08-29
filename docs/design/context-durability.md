@@ -683,7 +683,7 @@ in `internal/agentapp/assembly.go`; `AppConfig.AdditionalSystemPrompt` and
 `internal/infra/workerclient/api_types.go` with the server side in
 `internal/server/handlers/worker/worker.go` and the worker side in
 `internal/agentapp/taskrun/runtime.go`; `Session.AdditionalSystemPrompt`; and
-the `prompt_layers` trace record. User documentation in
+the `context_sources` trace record. User documentation in
 [`reference/cli.md`](../reference/cli.md).
 
 What this fixed on the Portal path was worse than the plan assumed. A Portal

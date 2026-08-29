@@ -273,15 +273,26 @@ func TestDeleteRemovesTheBundleAndTheListRow(t *testing.T) {
 	}
 }
 
-func TestDeleteByWorkspaceLeavesOtherWorkspacesAlone(t *testing.T) {
-	m := NewSessionManager(t.TempDir())
+// Clearing one Project's sessions selects by membership. It must not reach a
+// sibling Project, and it must not miss a session of its own that recorded a
+// different directory -- a worktree of the same repository does exactly that.
+func TestDeleteByProjectLeavesOtherProjectsAlone(t *testing.T) {
+	const mine, other = "hyzc3kqxa2vw7m4t9pbn", "q7wd4mnbz3vk8t2yjxs5"
+	dir := t.TempDir()
 	ids := map[string]string{}
-	for name, ws := range map[string]string{"mine": "/w", "other": "/elsewhere"} {
-		sess, err := m.Create("test-model")
+	for name, spec := range map[string]struct {
+		project   string
+		workspace string
+	}{
+		"main":     {mine, "/repo"},
+		"worktree": {mine, "/repo/worktrees/a"},
+		"stranger": {other, "/elsewhere"},
+	} {
+		sess, err := NewSessionManager(dir).ForProject(spec.project).Create("test-model")
 		if err != nil {
 			t.Fatalf("Create: %v", err)
 		}
-		if _, err := m.Finalize(context.Background(), nil, sess, ws, agent.RunStats{}, llm.Pricing{}); err != nil {
+		if _, err := NewSessionManager(dir).Finalize(context.Background(), nil, sess, spec.workspace, agent.RunStats{}, llm.Pricing{}); err != nil {
 			t.Fatalf("Finalize: %v", err)
 		}
 		ids[name] = sess.ID()
@@ -290,19 +301,46 @@ func TestDeleteByWorkspaceLeavesOtherWorkspacesAlone(t *testing.T) {
 		}
 	}
 
-	deleted, err := m.DeleteByWorkspace("/w")
+	deleted, err := NewSessionManager(dir).DeleteByProject(mine)
 	if err != nil {
-		t.Fatalf("DeleteByWorkspace: %v", err)
+		t.Fatalf("DeleteByProject: %v", err)
 	}
-	if len(deleted) != 1 || deleted[0] != ids["mine"] {
-		t.Fatalf("deleted = %v, want only the matching workspace", deleted)
+	if len(deleted) != 2 {
+		t.Fatalf("deleted = %v, want both sessions of that project including the worktree one", deleted)
 	}
-	rows, err := m.List()
+	rows, err := NewSessionManager(dir).List()
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
-	if len(rows) != 1 || rows[0].ID != ids["other"] {
-		t.Fatalf("rows = %v, want the other workspace untouched", rows)
+	if len(rows) != 1 || rows[0].ID != ids["stranger"] {
+		t.Fatalf("rows = %v, want the other project untouched", rows)
+	}
+}
+
+// A session belonging to no Project is not evidence of belonging to this one.
+func TestDeleteByProjectIgnoresProjectlessSessions(t *testing.T) {
+	dir := t.TempDir()
+	sess, err := NewSessionManager(dir).Create("test-model")
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if err := sess.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	deleted, err := NewSessionManager(dir).DeleteByProject("")
+	if err != nil {
+		t.Fatalf("DeleteByProject: %v", err)
+	}
+	if len(deleted) != 0 {
+		t.Fatalf("deleted = %v, want nothing", deleted)
+	}
+	rows, err := NewSessionManager(dir).List()
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("rows = %v, want the projectless session untouched", rows)
 	}
 }
 
@@ -369,5 +407,101 @@ func TestCloseSessionReleasesTheSessionForReopening(t *testing.T) {
 	// legitimately write both.
 	if err := second.Close(); err != nil {
 		t.Errorf("closing twice: %v", err)
+	}
+}
+
+// Project membership is a property of the manager that created a session, so a
+// surface cannot forget to stamp it on one creation path and remember on
+// another.
+func TestForProjectStampsEveryCreationPath(t *testing.T) {
+	const projectID = "hyzc3kqxa2vw7m4t9pbn"
+	m := NewSessionManager(t.TempDir()).ForProject(projectID)
+
+	parent, err := m.Create("test-model")
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	t.Cleanup(func() { _ = parent.Close() })
+	if got := parent.Meta().ProjectID; got != projectID {
+		t.Errorf("Create: project = %q, want %q", got, projectID)
+	}
+
+	sub, err := m.CreateSubagent("test-model", session.Meta{ParentSessionID: parent.ID(), AgentType: "explore"})
+	if err != nil {
+		t.Fatalf("CreateSubagent: %v", err)
+	}
+	t.Cleanup(func() { _ = sub.Close() })
+	if got := sub.Meta().ProjectID; got != projectID {
+		t.Errorf("CreateSubagent: project = %q, want %q", got, projectID)
+	}
+
+	if err := parent.Append(llm.Message{Role: "user", Content: "hello"}); err != nil {
+		t.Fatalf("Append: %v", err)
+	}
+	child, err := m.Fork(parent, ForkPoints(parent)[0].ItemID, "test-model")
+	if err != nil {
+		t.Fatalf("Fork: %v", err)
+	}
+	t.Cleanup(func() { _ = child.Close() })
+	if got := child.Meta().ProjectID; got != projectID {
+		t.Errorf("Fork: project = %q, want %q", got, projectID)
+	}
+}
+
+// A fork continues the conversation it copied, so it belongs where that
+// conversation did rather than wherever the forking manager happens to point.
+func TestForkTakesTheParentsProject(t *testing.T) {
+	dir := t.TempDir()
+	parent, err := NewSessionManager(dir).ForProject("hyzc3kqxa2vw7m4t9pbn").Create("test-model")
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	t.Cleanup(func() { _ = parent.Close() })
+	if err := parent.Append(llm.Message{Role: "user", Content: "hello"}); err != nil {
+		t.Fatalf("Append: %v", err)
+	}
+
+	elsewhere := NewSessionManager(dir).ForProject("q7wd4mnbz3vk8t2yjxs5")
+	child, err := elsewhere.Fork(parent, ForkPoints(parent)[0].ItemID, "test-model")
+	if err != nil {
+		t.Fatalf("Fork: %v", err)
+	}
+	t.Cleanup(func() { _ = child.Close() })
+	if got := child.Meta().ProjectID; got != "hyzc3kqxa2vw7m4t9pbn" {
+		t.Errorf("fork project = %q, want the parent's", got)
+	}
+}
+
+// A projectless manager is what a worker or an eval run gets. It must leave the
+// field empty rather than invent a local Project nothing can resolve.
+func TestSessionsWithoutAProjectCarryNoProjectID(t *testing.T) {
+	_, sess := openManaged(t)
+	if got := sess.Meta().ProjectID; got != "" {
+		t.Errorf("project = %q, want empty for a projectless manager", got)
+	}
+}
+
+// The picker projection has to answer "which sessions are this Project's"
+// without opening every session's meta.json.
+func TestListCarriesTheProjectID(t *testing.T) {
+	const projectID = "hyzc3kqxa2vw7m4t9pbn"
+	m := NewSessionManager(t.TempDir()).ForProject(projectID)
+	sess, err := m.Create("test-model")
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if err := sess.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	rows, err := m.List()
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("List returned %d rows, want 1", len(rows))
+	}
+	if rows[0].ProjectID != projectID {
+		t.Errorf("row project = %q, want %q", rows[0].ProjectID, projectID)
 	}
 }

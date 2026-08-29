@@ -211,3 +211,25 @@ func TestReleaseNotesFileReachesTheChangelogPipe(t *testing.T) {
 		t.Error(".goreleaser.yaml disables the changelog pipe, which silently discards --release-notes")
 	}
 }
+
+// Tags pushed with GITHUB_TOKEN do not recursively start tag workflows. Keep
+// the explicit dispatch path and the manual recovery triggers paired, or an
+// approved release would stop after creating an inert tag.
+func TestPreparedReleaseCanDispatchBothPublishers(t *testing.T) {
+	promote, err := os.ReadFile("../../.github/workflows/release-promote.yml")
+	if err != nil {
+		t.Fatalf("read release promotion workflow: %v", err)
+	}
+	for _, workflow := range []string{"release.yml", "portal-image.yml"} {
+		if !strings.Contains(string(promote), "gh workflow run "+workflow) {
+			t.Errorf("release promotion does not dispatch %s", workflow)
+		}
+		raw, readErr := os.ReadFile(filepath.Join("../../.github/workflows", workflow))
+		if readErr != nil {
+			t.Fatalf("read %s: %v", workflow, readErr)
+		}
+		if !strings.Contains(string(raw), "workflow_dispatch:") {
+			t.Errorf("%s cannot be dispatched after the automated tag push", workflow)
+		}
+	}
+}

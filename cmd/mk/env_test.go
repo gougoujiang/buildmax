@@ -97,6 +97,38 @@ func TestParseVersion(t *testing.T) {
 	}
 }
 
+func TestNextAlphaVersion(t *testing.T) {
+	cases := []struct {
+		current string
+		want    string
+		wantErr bool
+	}{
+		{current: "v0.1.0-alpha", want: "v0.1.0-alpha.1"},
+		{current: "v0.2.0-alpha.4", want: "v0.2.0-alpha.5"},
+		{current: "v10.20.30-alpha.99", want: "v10.20.30-alpha.100"},
+		{current: "v0.2.0", wantErr: true},
+		{current: "v0.2.0-beta.1", wantErr: true},
+		{current: "v0.02.0-alpha.1", wantErr: true},
+		{current: "not-a-version", wantErr: true},
+	}
+	for _, tc := range cases {
+		got, err := nextAlphaVersion(tc.current)
+		if tc.wantErr {
+			if err == nil {
+				t.Errorf("nextAlphaVersion(%q): expected an error", tc.current)
+			}
+			continue
+		}
+		if err != nil {
+			t.Errorf("nextAlphaVersion(%q): %v", tc.current, err)
+			continue
+		}
+		if got != tc.want {
+			t.Errorf("nextAlphaVersion(%q) = %q, want %q", tc.current, got, tc.want)
+		}
+	}
+}
+
 // mk imports nothing from internal, so the qualification variables it names are
 // a copy. A copy that drifts sends an operator to set a variable nothing reads,
 // which is worse than not offering the command at all.

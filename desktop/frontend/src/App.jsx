@@ -22,6 +22,10 @@ export default function App() {
   // transcript. It is about the move, not about the conversation, so it is not
   // a message and is not persisted.
   const [historyNotice, setHistoryNotice] = useState(null);
+  // Said once when a project is opened: a memory file that will not load, or
+  // a project registered beside one whose folder has moved. Neither is an
+  // error, and both are invisible if nobody says them here.
+  const [projectNotices, setProjectNotices] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [wailsReady, setWailsReady] = useState(false);
@@ -57,13 +61,15 @@ export default function App() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [userMenuOpen]);
 
-  // Group sessions by project ID (matched via folder_path).
+  // Group sessions by the project they belong to. Membership is recorded on the
+  // session, not inferred from its folder: one project can span a repository's
+  // worktrees, so matching directories both missed sessions and claimed others.
   const sessionsByProject = useMemo(() => {
     const map = {};
     const q = sessionFilter.trim().toLowerCase();
     for (const proj of projects) {
       map[proj.id] = sessions
-        .filter((s) => s.workspace === proj.folder_path)
+        .filter((s) => s.project_id === proj.id)
         .filter((s) => !q ||
           (s.title ?? '').toLowerCase().includes(q) ||
           (s.id ?? '').toLowerCase().includes(q))
@@ -81,14 +87,12 @@ export default function App() {
     if (!selectedId) return newChatProject ?? null;
     const sess = sessions.find((s) => s.id === selectedId);
     if (!sess) return null;
-    return projects.find((p) => p.folder_path === sess.workspace) ?? null;
+    return projects.find((p) => p.id === sess.project_id) ?? null;
   }, [selectedId, newChatProject, sessions, projects]);
 
-  const projectByWorkspace = useMemo(() => {
+  const projectById = useMemo(() => {
     const map = new Map();
-    for (const p of projects) {
-      if (p.folder_path) map.set(p.folder_path, p);
-    }
+    for (const p of projects) map.set(p.id, p);
     return map;
   }, [projects]);
 
@@ -426,6 +430,10 @@ export default function App() {
   }
 
   function handleNewChatInProject(project) {
+    setProjectNotices([]);
+    app?.ProjectNotices?.(project.id)
+      .then((lines) => setProjectNotices(lines ?? []))
+      .catch(() => {});
     setNewChatProject(project);
     setSelectedId(null);
     setMessages([]);
@@ -433,11 +441,16 @@ export default function App() {
     setTurnDigest(null);
   }
 
-  async function handleCreateProject(name, folderPath) {
+  async function handleOpenProjectFolder(name, folderPath) {
     try {
-      const project = await app.CreateProject(name, folderPath);
-      setProjects((prev) => [...prev, project]);
-      // Open a new chat in the freshly created project.
+      // A folder already known -- a worktree of a repository in the list, or
+      // the same directory under another spelling -- resolves to the project
+      // that owns it rather than adding a duplicate beside it.
+      const project = await app.OpenProject(folderPath, name);
+      setProjects((prev) => {
+        const without = prev.filter((p) => p.id !== project.id);
+        return [...without, project];
+      });
       handleNewChatInProject(project);
       setShowCreateModal(false);
     } catch (err) {
@@ -456,7 +469,20 @@ export default function App() {
 
   async function handleDeleteProject(id) {
     try {
-      await app.DeleteProject(id);
+      // A project and its sessions are separate things to destroy. The first
+      // attempt keeps the sessions; if the project still owns some, the backend
+      // refuses and says how many, and only then is deleting them offered.
+      try {
+        await app.DeleteProject(id, false);
+      } catch (refusal) {
+        const held = (sessions ?? []).filter((s) => s.project_id === id).length;
+        const ok = window.confirm(
+          `This project still has ${held || 'some'} session(s). Delete the project and its sessions? Files in the project folder are not touched.`);
+        if (!ok) return;
+        void refusal;
+        await app.DeleteProject(id, true);
+        setSessions((prev) => prev.filter((s) => s.project_id !== id));
+      }
       setProjects((prev) => prev.filter((p) => p.id !== id));
       // If the deleted project was in use, clear the chat area.
       if (currentProject?.id === id) {
@@ -702,6 +728,16 @@ export default function App() {
     }];
   });
 
+  for (const [i, line] of projectNotices.entries()) {
+    threadItems.push({
+      id: `project-notice-${i}`,
+      role: 'notice',
+      label: 'Project',
+      hideAvatar: true,
+      body: <div className="page-chat__msg-content">{line}</div>,
+    });
+  }
+
   if (historyNotice) {
     threadItems.push({
       id: 'history-notice',
@@ -869,7 +905,7 @@ export default function App() {
                 </span>
                 {currentProject && (
                   <span className="shell__subtitle">
-                    {currentProject.name} · {currentProject.folder_path}
+                    {currentProject.name} · {currentProject.default_workspace}
                   </span>
                 )}
               </div>
@@ -880,7 +916,7 @@ export default function App() {
                 <HomeDashboard
                   recentSessions={recentSessions}
                   recentProjects={recentProjects}
-                  projectByWorkspace={projectByWorkspace}
+                  projectById={projectById}
                   onSelectSession={handleSelectSession}
                   onOpenProject={handleNewChatInProject}
                   onCreateProject={() => setShowCreateModal(true)}
@@ -932,7 +968,7 @@ export default function App() {
       {showCreateModal && (
         <CreateProjectModal
           app={app}
-          onCreate={handleCreateProject}
+          onCreate={handleOpenProjectFolder}
           onClose={() => setShowCreateModal(false)}
         />
       )}

@@ -147,9 +147,9 @@ func bridge(t *testing.T, scenario mockllm.Scenario, permissions map[string]stri
 	t.Cleanup(func() { app.Shutdown(context.Background()) })
 
 	workspace := t.TempDir()
-	project, err := app.CreateProject("bridge probe", workspace)
+	project, err := app.OpenProject(workspace, "bridge probe")
 	if err != nil {
-		t.Fatalf("create project: %v", err)
+		t.Fatalf("open project: %v", err)
 	}
 	return app, events, server, project.ID
 }
@@ -285,7 +285,7 @@ func (a *App) mustProjectFolder(t *testing.T, projectID string) string {
 	}
 	for _, p := range projects {
 		if p.ID == projectID {
-			return p.FolderPath
+			return p.DefaultWorkspace
 		}
 	}
 	t.Fatalf("project %s is not listed", projectID)

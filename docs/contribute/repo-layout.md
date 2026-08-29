@@ -145,7 +145,10 @@ internal/
 │   │                   rotating sessions, and the deployment roles it holds
 │   ├── schema/         What a database says has been done to it: the applied
 │   │                   migrations infra/db reports and the admin route reads
-│   └── session/        Local session model; persistence lives in agentapp
+│   ├── session/        Local session model; persistence lives in agentapp
+│   └── localproject/   The local Project: the identity CLI, TUI, and Desktop
+│                       sessions share for one repository or directory, and the
+│                       scope its cross-session memory will belong to
 │
 ├── agentapp/           Agent runtime assembly: LLM client cache, tool registry,
 │   │                   MCP, hooks, sandbox, traces, skills, sessions, workspace
@@ -199,6 +202,8 @@ internal/
 │   ├── sandbox/        Seatbelt/bwrap backends, egress proxy, violations
 │   ├── sessionstore/   Session journal file backend: JSONL codec, single-writer
 │   │                   lock, tail repair, salvage
+│   ├── localprojectstore/ Local Project file backend: the bundle, the
+│   │                   rebuildable catalog projection, and the writer lock
 │   ├── trace/          Durable run-trace recorder (bounded, redacted JSONL)
 │   ├── k8s/            Kubernetes worker job launcher
 │   ├── workerclient/   Worker-side HTTP client for the server worker API
@@ -241,7 +246,9 @@ internal/
 ├── testsupport/        Test-only helpers that must not ship (JWT signing)
 │   └── mockllm/        Scripted model replies over the three LLM wire protocols
 └── util/               Public ID codec, prefixed IDs, workspace path resolution,
-                        small string and time helpers
+    │                   small string and time helpers
+    └── secretscan/     Recognizes common secret shapes; the run trace redacts
+                        what it finds, project memory refuses to persist it
 ```
 
 ## `evaluation/`

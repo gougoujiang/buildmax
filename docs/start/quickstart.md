@@ -122,8 +122,9 @@ conversation and shows the active model and workspace in the footer:
 buildmax
 ```
 
-Sessions persist. Resume the most recent one with `buildmax --continue`, or a
-specific one with `buildmax --resume <session-id>`.
+Sessions persist, and they belong to the project you started them in. Resume
+this project's most recent one with `buildmax --continue`, or a specific one
+with `buildmax --resume <session-id>`.
 
 ## 5. Give the Agent Project Instructions
 
