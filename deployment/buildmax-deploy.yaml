@@ -84,7 +84,8 @@ data:
         # assigns its own uid range, OpenShift most commonly.
         # run_as_user: 1000700000
         #
-        # Resource bounds are opt-in: unset means unbounded. These are a
+        # Every bound is required in this run mode: the server refuses to
+        # start rather than schedule an unbounded worker. These values are a
         # starting point, not a measurement — raise them if runs are killed.
         resources:
           cpu_request: 250m

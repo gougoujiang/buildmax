@@ -184,14 +184,16 @@ worker:
     # only on a cluster that assigns its own uid range (OpenShift most
     # commonly); 0 uses BuildMax's default of 65532.
     run_as_user: 0
-    # Kubernetes quantity strings. An empty value leaves that request or limit
-    # unset, so an unconfigured deployment stays unbounded rather than
-    # inheriting a limit nobody chose.
+    # Kubernetes quantity strings. All four are required under k8s_job: the
+    # server refuses to start rather than schedule a worker pod that
+    # model-chosen commands could run unbounded. These values are a starting
+    # point, not a measurement — a build or a test suite needs considerably
+    # more than an agent answering a question.
     resources:
-      cpu_request: ""
-      cpu_limit: ""
-      memory_request: ""
-      memory_limit: ""
+      cpu_request: 500m
+      cpu_limit: "2"
+      memory_request: 1Gi
+      memory_limit: 4Gi
 
 # Governance trail retention.
 #
