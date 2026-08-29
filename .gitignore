@@ -107,4 +107,8 @@ desktop/frontend/package.json.md5
 __pycache__/
 .pytest_cache/
 evaluation/harbor/.venv/
+# Written by `uv run` alongside that venv. The adapter's dependency is pinned
+# exactly in pins.json and pyproject.toml, which is what a run is reproduced
+# from; this file is a local resolution artifact of running its tests.
+evaluation/harbor/uv.lock
 evaluation/harbor/*.egg-info/

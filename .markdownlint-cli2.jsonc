@@ -22,6 +22,11 @@
     // generated, gitignored, and only present after someone runs `./make e2e`
     // locally — without this, a failed browser test also fails `check docs`.
     "**/test-results/**",
+    // Same category: the virtualenv `uv run` builds to run the Harbor
+    // adapter's Python tests. It is gitignored and holds every dependency's
+    // own README, so without this a contributor who ran those tests fails
+    // `check docs` on third-party markdown.
+    "**/.venv/**",
     ".buildmax/**",
     // Agent scratch state: git-ignored worktrees and their test output, which
     // is generated markdown nobody edits and every generator formats its own way.
