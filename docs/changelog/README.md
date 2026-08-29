@@ -53,7 +53,10 @@ refactors, test-only changes, and documentation edits do not need one.
 ```
 
 `release` writes the section into `CHANGELOG.md` under the version and today's
-date, then deletes the files it folded in. Order within a category follows the
+date, moves the `[Unreleased]` compare link onto the new version and adds that
+version's own link beneath it, then deletes the files it folded in. It refuses a
+version the file already links, so a second fold cannot append a duplicate
+section. Order within a category follows the
 filename, which is arbitrary — release preparation is where entries get ordered
 for readers.
 
