@@ -41,7 +41,7 @@ buildmax <command> [flags]
 |---|---|---|
 | `-p`, `--print QUERY` | — | Run one prompt and print the reply; no TUI |
 | `-r`, `--resume ID` | — | Resume a session by id (TUI or print mode) |
-| `-c`, `--continue` | — | Resume the most recent session |
+| `-c`, `--continue` | — | Resume this project's most recent session |
 | `--session-id UUID` | — | Use a specific session id; loads it if it exists, otherwise creates it |
 | `--model ID\|NAME` | first entry in `settings.yaml` | Pick a model from `models:` |
 | `--workspace DIR` | current directory | Directory the agent operates in |
@@ -249,7 +249,7 @@ buildmax -p "list the exported symbols" --workspace ../lib -q
 # machine-readable run for a script
 buildmax -p "run the tests and summarize failures" --output json
 
-# continue where you left off
+# continue where you left off in this project
 buildmax --continue
 
 # pick a bigger model for one run

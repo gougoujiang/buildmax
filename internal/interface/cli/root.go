@@ -9,9 +9,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gougoujiang/buildmax/internal/agentapp"
 	"github.com/gougoujiang/buildmax/internal/config"
-	"github.com/gougoujiang/buildmax/internal/core/session"
 	"github.com/gougoujiang/buildmax/internal/interface/auth"
 
 	"github.com/google/uuid"
@@ -58,7 +56,7 @@ func NewRootCommand() *cobra.Command {
 	root.Flags().BoolP("help", "h", false, "help for buildmax")
 	root.Flags().StringP("print", "p", "", "send QUERY to the LLM and print the response (no TUI)")
 	root.Flags().StringP("resume", "r", "", "session id to resume (TUI or print mode)")
-	root.Flags().BoolP("continue", "c", false, "resume the most recent session (by creation time)")
+	root.Flags().BoolP("continue", "c", false, "resume this project's most recent session (by creation time)")
 	root.Flags().String("session-id", "", "use a specific session ID (load if exists, else create); must be a valid UUID")
 	root.Flags().String("model", "", "use model from settings by model id or name")
 	root.Flags().String("workspace", "", "workspace directory for the agent (default: current directory)")
@@ -141,11 +139,15 @@ func runRoot(cmd *cobra.Command, _ []string) error {
 	if sessionID != "" {
 		effectiveSessionID = sessionID
 	} else {
-		var err error
-		effectiveSessionID, err = resolveResumeID(resumeID, cont)
+		target, err := resolveSessionTarget(cmd.Context(), resumeID, cont,
+			workspace, cmd.Flags().Changed("workspace"))
 		if err != nil {
 			return err
 		}
+		// A resumed session continues in the directory it ran in, so the
+		// workspace the rest of this function passes on is the target's, not
+		// the one the terminal happened to be in.
+		effectiveSessionID, workspace = target.SessionID, target.Workspace
 	}
 
 	// Argument errors are reported before the environment is inspected: a bad flag combination
@@ -266,35 +268,4 @@ func checkModelConfig() error {
 		return errors.New("api key not set")
 	}
 	return nil
-}
-
-// resolveResumeID resolves the --continue flag: if cont is true and resumeID
-// is empty, it loads the session list and returns the most recent session ID.
-func resolveResumeID(resumeID string, cont bool) (string, error) {
-	if !cont || resumeID != "" {
-		return resumeID, nil
-	}
-	sessionsDir := config.SessionsDir()
-	list, err := agentapp.NewSessionManager(sessionsDir).List()
-	if err != nil {
-		slog.Error("load session list failed", "err", err)
-		return "", fmt.Errorf("load session list: %w", err)
-	}
-	last := latestSessionItem(list)
-	if last == nil {
-		fmt.Fprintln(os.Stderr, "no sessions found; create one with -p PROMPT or start the TUI")
-		return "", fmt.Errorf("no sessions to continue")
-	}
-	slog.Info("continue with last session", "id", last.ID)
-	return last.ID, nil
-}
-
-func latestSessionItem(entries []session.ItemSummary) *session.ItemSummary {
-	var best *session.ItemSummary
-	for i := range entries {
-		if best == nil || entries[i].CreatedAt.After(best.CreatedAt) {
-			best = &entries[i]
-		}
-	}
-	return best
 }
