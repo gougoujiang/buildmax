@@ -29,8 +29,8 @@ model and proves the full flow through a real worker process:
 ```
 
 That check covers Portal reachability, account bootstrap, team storage,
-conversation and TaskRun creation, scheduler execution, model response, and
-artifact retrieval. It requires no provider key. Inspect failures with
+conversation and TaskRun creation, scheduler execution, model response,
+artifact retrieval, and cancelling a run that is executing. It requires no provider key. Inspect failures with
 `./make compose logs`, then stop the stack with `./make compose down`. On
 success it prints a fresh single-use Portal login code for the smoke account.
 

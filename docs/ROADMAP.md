@@ -373,11 +373,14 @@ What this list opened with is done: configured worker CPU and memory bounds are
 validated before any Job is created, and a `k8s_job` deployment that would
 produce an unbounded worker now fails at startup with the key to edit named.
 
-1. **Complete the negative deployment smoke.** Add deterministic cancellation,
-   hard worker loss, database unavailability, and object-storage denial cases to
-   the existing login, worker, artifact, retry, managed-model, authorization,
-   and Portal coverage. Assert terminal state and retained evidence, not merely
-   that an error was returned.
+1. **Complete the negative deployment smoke.** Cancellation is covered: the
+   smoke arms a stall on the scripted model so a run is still executing when it
+   is asked to stop, then proves the run settles as `CANCELED`, stays settled,
+   and lists no artifact it cannot serve. Hard worker loss, database
+   unavailability, and object-storage denial remain. Each must assert terminal
+   state and retained evidence, not merely that an error was returned, and each
+   needs a way to break one dependency of a live deployment — see
+   [design/end-to-end-testing.md](design/end-to-end-testing.md) §6.2.
 2. **Qualify immutable candidate images externally.** Use real external
    MySQL/S3/TLS to run the operator journey, paired database-and-bucket restore,
    schema upgrade and N-1 binary rollback, and a documented credential rotation.

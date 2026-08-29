@@ -46,7 +46,17 @@ type smokeTarget struct {
 	// managedLLM says this stack runs task-run inference through the gateway, so
 	// the smoke additionally proves the worker held no provider credential.
 	managedLLM bool
+	// llmControlURL arms a stall on this stack's mock model. It is the smoke's
+	// one way to change what the deployment does from outside, and it exists
+	// because a run that answers instantly is over before it can be canceled.
+	llmControlURL string
 }
+
+// cancelStall is how long the mock holds every model call while the
+// cancellation case runs. It has to outlast noticing the run is RUNNING and
+// asking it to stop, and it is paid twice — once by creating the task, once by
+// the run — so it stays as short as that allows.
+const cancelStall = 20 * time.Second
 
 func cmdCompose(args []string) error {
 	if len(args) == 0 || len(args) > 2 {
@@ -132,11 +142,24 @@ func composeSmokeTarget(managed bool) smokeTarget {
 		portalURL:            composePortalURL(),
 		portalRuntimeAPIBase: composeServerURL(),
 		managedLLM:           managed,
+		llmControlURL:        composeSmokeLLMControlURL(),
 		admin: func(args ...string) (string, error) {
 			cmdArgs := append(composeSmokeArgs(managed), "exec", "-T", "server", "buildmax-server")
 			return captureCombined("docker", append(cmdArgs, args...)...)
 		},
 	}
+}
+
+// llmControlStallPath must match mockllm.ControlStallPath, which this file
+// cannot import: the task runner ships, and mockllm is test-only. A mismatch
+// fails the smoke at the first arming rather than quietly skipping the case.
+const llmControlStallPath = "/control/stall"
+
+// composeSmokeLLMControlURL is the mock model's control route as published by
+// the smoke overlay. Only this route is published; the model protocol itself
+// stays on the Compose network.
+func composeSmokeLLMControlURL() string {
+	return "http://127.0.0.1:" + envOr("BUILDMAX_SMOKE_LLM_PORT", "8091") + llmControlStallPath
 }
 
 func composeEnvPath() string {
@@ -297,13 +320,160 @@ func runDeploymentSmoke(ctx context.Context, target smokeTarget) error {
 	if err := assertTeamBoundaryHolds(ctx, client, target, teamID); err != nil {
 		return err
 	}
+	// Last, because it arms a stall on the shared mock: anything after it would
+	// be waiting on that stall rather than on the deployment.
+	if err := assertCancellationSettles(ctx, client, target, teamID, conversation.ID, token); err != nil {
+		return err
+	}
 
-	covered := "portal, auth, team boundary, storage, scheduler, worker, artifact, and retry"
+	covered := "portal, auth, team boundary, storage, scheduler, worker, artifact, retry, and cancellation"
 	if target.managedLLM {
 		covered += ", with the run reaching its model through the gateway rather than a provider key"
 	}
 	fmt.Printf("Deployment smoke passed: %s (%s)\n", covered, target.portalURL)
 	return nil
+}
+
+// assertCancellationSettles proves a run stopped on request reaches CANCELED
+// and stays there.
+//
+// Below a deployment this is a state machine and a fake clock. Here it is a
+// worker process that has to notice, an agent unwinding a model call it is
+// blocked on, and a row that has to end up saying what happened. A run that
+// keeps going after the API accepted the cancellation, or that settles as
+// FAILED, or that never settles at all, is only visible from outside.
+//
+// The window comes from the mock: a run whose model call answers immediately is
+// finished before anything can cancel it, so the smoke arms a stall and takes it
+// away again. See docs/design/end-to-end-testing.md §6.2.
+func assertCancellationSettles(ctx context.Context, client *http.Client, target smokeTarget, teamID, conversationID, token string) error {
+	if err := armLLMStall(ctx, client, target, cancelStall); err != nil {
+		return err
+	}
+	// Cleared whatever happens below: every later wait is on the deployment, and
+	// a mock still stalling would be what those waits measured.
+	defer func() { _ = armLLMStall(ctx, client, target, 0) }()
+
+	// Creating the task waits out the stall too: the create path titles the task
+	// with a model call of its own, and a stall armed over HTTP cannot be aimed
+	// at one caller. So this case gets a client that outlasts it, rather than
+	// arming the stall later — the run is over 30ms after its worker spawns, and
+	// a case that has to slip between those two events is a coin toss, not a
+	// test.
+	patient := &http.Client{Timeout: cancelStall + 30*time.Second}
+
+	var task struct {
+		ID string `json:"id"`
+	}
+	tasksURL := target.apiBase + "/api/teams/" + url.PathEscape(teamID) + "/conversations/" + url.PathEscape(conversationID) + "/tasks"
+	if err := requestJSON(ctx, patient, http.MethodPost, tasksURL, token, map[string]string{"input": "Stall until this run is canceled."}, &task, http.StatusCreated); err != nil {
+		return fmt.Errorf("cancellation: create task: %w", err)
+	}
+	taskURL := target.apiBase + "/api/teams/" + url.PathEscape(teamID) + "/tasks/" + url.PathEscape(task.ID)
+
+	if err := waitForTaskStatus(ctx, patient, taskURL, token, "RUNNING", 2*time.Minute); err != nil {
+		return fmt.Errorf("cancellation: %w", err)
+	}
+
+	// 202, not 200: 200 is the answer for a run no worker had yet, and this one
+	// is executing. Accepting both would let the case pass without ever proving
+	// a worker gave a run up.
+	cancelBody, err := request(ctx, patient, http.MethodPost, taskURL+"/cancel", token, "", nil, http.StatusAccepted)
+	if err != nil {
+		return fmt.Errorf("cancellation: ask the running run to stop: %w", err)
+	}
+	if err := cancelBody.Close(); err != nil {
+		return err
+	}
+
+	if err := waitForTaskStatus(ctx, patient, taskURL, token, "CANCELED", 2*time.Minute); err != nil {
+		return fmt.Errorf("cancellation: %w", err)
+	}
+
+	// Terminal means terminal. A run resurrected by a retry nobody asked for, or
+	// a worker reporting a result after the fact, would show up here.
+	time.Sleep(5 * time.Second)
+	var settled struct {
+		Status string `json:"status"`
+	}
+	if err := requestJSON(ctx, patient, http.MethodGet, taskURL, token, nil, &settled, http.StatusOK); err != nil {
+		return fmt.Errorf("cancellation: re-read the canceled task: %w", err)
+	}
+	if settled.Status != "CANCELED" {
+		return fmt.Errorf("cancellation: the task left CANCELED for %s five seconds later", settled.Status)
+	}
+
+	return assertNoDanglingArtifacts(ctx, patient, target, teamID, taskURL, token)
+}
+
+// assertNoDanglingArtifacts checks that whatever a canceled run listed can
+// actually be downloaded.
+//
+// A canceled run keeps the artifacts it had already written, and an empty list
+// is a legitimate answer for one stopped before it wrote any. What is never
+// legitimate is a record for an object that is not there: it sends an operator
+// looking for evidence the deployment cannot produce.
+func assertNoDanglingArtifacts(ctx context.Context, client *http.Client, target smokeTarget, teamID, taskURL, token string) error {
+	var artifacts []struct {
+		TaskRunID string `json:"task_run_id"`
+	}
+	if err := requestJSON(ctx, client, http.MethodGet, taskURL+"/artifacts", token, nil, &artifacts, http.StatusOK); err != nil {
+		return fmt.Errorf("cancellation: list the canceled run's artifacts: %w", err)
+	}
+	for _, artifact := range artifacts {
+		endpoint := target.apiBase + "/api/teams/" + url.PathEscape(teamID) + "/task-runs/" + url.PathEscape(artifact.TaskRunID) + "/artifacts/content"
+		if _, err := requestText(ctx, client, http.MethodGet, endpoint, token, nil, http.StatusOK); err != nil {
+			return fmt.Errorf("cancellation: the canceled run lists an artifact that cannot be downloaded: %w", err)
+		}
+	}
+	return nil
+}
+
+// armLLMStall tells this stack's mock model to hold every later reply for d.
+// Zero clears it.
+func armLLMStall(ctx context.Context, client *http.Client, target smokeTarget, d time.Duration) error {
+	if target.llmControlURL == "" {
+		return errors.New("this stack does not publish its mock model's control route")
+	}
+	body := map[string]int{"ms": int(d.Milliseconds())}
+	if err := requestJSON(ctx, client, http.MethodPost, target.llmControlURL, "", body, nil, http.StatusOK); err != nil {
+		return fmt.Errorf("arm a %s model stall: %w", d, err)
+	}
+	return nil
+}
+
+// waitForTaskStatus polls until the task reads want, or reports what it settled
+// on instead. A terminal status that is not the one wanted ends the wait: no
+// amount of further polling moves a run that is already over.
+func waitForTaskStatus(ctx context.Context, client *http.Client, taskURL, token, want string, timeout time.Duration) error {
+	var current struct {
+		Status       string  `json:"status"`
+		ErrorMessage *string `json:"error_message"`
+	}
+	deadline := time.Now().Add(timeout)
+	for {
+		if err := requestJSON(ctx, client, http.MethodGet, taskURL, token, nil, &current, http.StatusOK); err != nil {
+			return err
+		}
+		switch {
+		case current.Status == want:
+			return nil
+		case isTerminalSmokeStatus(current.Status):
+			return fmt.Errorf("the run settled as %s rather than reaching %s: %s",
+				current.Status, want, stringValue(current.ErrorMessage))
+		case time.Now().After(deadline):
+			return fmt.Errorf("the run did not reach %s within %s (status %s)", want, timeout, current.Status)
+		}
+		time.Sleep(time.Second)
+	}
+}
+
+func isTerminalSmokeStatus(status string) bool {
+	switch status {
+	case "SUCCEEDED", "FAILED", "CANCELED":
+		return true
+	}
+	return false
 }
 
 // waitForTaskSuccess polls a task until it succeeds, and returns its output. A

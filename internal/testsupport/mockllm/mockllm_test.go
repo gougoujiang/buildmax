@@ -3,10 +3,13 @@ package mockllm_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/infra/llm"
@@ -321,5 +324,91 @@ func TestLoadScenarioReadsACommittedFile(t *testing.T) {
 	}
 	if _, err := mockllm.LoadScenario(empty); err == nil {
 		t.Fatal("a scenario with no steps should not load")
+	}
+}
+
+// TestScriptedDelayHoldsTheReply covers the property the cancellation drill
+// rests on: while a step is stalling, the call is still open, so the run that
+// made it is still going and can be acted on.
+func TestScriptedDelayHoldsTheReply(t *testing.T) {
+	const delay = 300 * time.Millisecond
+	server := start(t, mockllm.Scenario{Steps: []mockllm.Step{{Text: "slow", DelayMS: int(delay.Milliseconds())}}})
+
+	started := time.Now()
+	reply, err := client(t, server, mockllm.ProtocolOpenAIChat).ChatCompletionBlocking(
+		context.Background(), cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "hi"}}})
+	if err != nil {
+		t.Fatalf("blocking call: %v", err)
+	}
+	if elapsed := time.Since(started); elapsed < delay {
+		t.Errorf("the call returned in %s, before the scripted %s had passed", elapsed, delay)
+	}
+	if !strings.Contains(reply.Content, "slow") {
+		t.Errorf("reply = %q, want the scripted text", reply.Content)
+	}
+}
+
+// TestStalledReplyEndsWhenTheCallerGivesUp keeps a stall from outliving what it
+// was stalling for. A suite cancels a run mid-turn and then tears the stack
+// down; a mock still sleeping on that turn would hold the shutdown open.
+func TestStalledReplyEndsWhenTheCallerGivesUp(t *testing.T) {
+	server := start(t, mockllm.Scenario{Steps: []mockllm.Step{{Text: "never arrives", DelayMS: 60_000}}})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	started := time.Now()
+	_, err := client(t, server, mockllm.ProtocolOpenAIChat).ChatCompletionBlocking(
+		ctx, cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "hi"}}})
+	if err == nil {
+		t.Fatal("a call abandoned mid-stall should fail rather than wait out the stall")
+	}
+	if elapsed := time.Since(started); elapsed > 10*time.Second {
+		t.Errorf("the call took %s; the handler waited out its own stall instead of the caller", elapsed)
+	}
+}
+
+// TestControlStallArmsADeployedMock covers the route a deployment smoke uses.
+// It cannot rescript a mock that is already running in a container, so arming
+// the stall over HTTP is the only way it can ask for a slow turn.
+func TestControlStallArmsADeployedMock(t *testing.T) {
+	server := start(t, mockllm.Scenario{Steps: []mockllm.Step{{Text: "ok"}}, Repeat: true})
+	call := func() time.Duration {
+		t.Helper()
+		started := time.Now()
+		if _, err := client(t, server, mockllm.ProtocolOpenAIChat).ChatCompletionBlocking(
+			context.Background(), cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "hi"}}}); err != nil {
+			t.Fatalf("blocking call: %v", err)
+		}
+		return time.Since(started)
+	}
+	arm := func(ms int) *http.Response {
+		t.Helper()
+		body := strings.NewReader(fmt.Sprintf(`{"ms":%d}`, ms))
+		resp, err := http.Post(server.URL()+mockllm.ControlStallPath, "application/json", body)
+		if err != nil {
+			t.Fatalf("arm stall: %v", err)
+		}
+		t.Cleanup(func() { _ = resp.Body.Close() })
+		return resp
+	}
+
+	if resp := arm(300); resp.StatusCode != http.StatusOK {
+		t.Fatalf("arming the stall returned %d, want 200", resp.StatusCode)
+	}
+	if elapsed := call(); elapsed < 300*time.Millisecond {
+		t.Errorf("the armed call returned in %s, before the armed 300ms had passed", elapsed)
+	}
+
+	// Clearing matters as much as arming: a suite that stalls one turn and then
+	// waits for the run to settle would otherwise wait out its own stall again.
+	if resp := arm(0); resp.StatusCode != http.StatusOK {
+		t.Fatalf("clearing the stall returned %d, want 200", resp.StatusCode)
+	}
+	if elapsed := call(); elapsed > 250*time.Millisecond {
+		t.Errorf("the call took %s after the stall was cleared", elapsed)
+	}
+
+	if resp := arm(-1); resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("a negative stall returned %d, want 400", resp.StatusCode)
 	}
 }

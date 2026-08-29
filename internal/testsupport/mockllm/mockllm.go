@@ -7,6 +7,13 @@
 // a mock that answers what it thinks was asked stops being evidence — the run
 // it produces is the mock's opinion rather than the agent's behaviour.
 //
+// How long a reply takes is the exception, and it is set out of band rather
+// than guessed: a step can script its own stall, and a suite driving a deployed
+// mock arms one over the control route. A test that has to act on a run while
+// the run is still going — cancel it, take its worker away — otherwise races
+// the run to its own end, and duration is the one property of a scripted turn
+// that says nothing about what the agent did.
+//
 // See docs/design/end-to-end-testing.md §4.
 package mockllm
 
@@ -19,6 +26,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 )
 
 // ToolCall is one call the scripted assistant turn makes.
@@ -50,6 +58,10 @@ type Step struct {
 	// Status and Error make the step a provider failure instead of a reply.
 	Status int    `json:"status,omitempty"`
 	Error  string `json:"error,omitempty"`
+	// DelayMS holds the reply back before writing it, so a run stays mid-turn
+	// long enough for a suite to act on it. A failure step delays too: a
+	// provider that fails slowly is what a timeout looks like from here.
+	DelayMS int `json:"delay_ms,omitempty"`
 }
 
 // Scenario is the ordered script for one run.
@@ -102,7 +114,13 @@ type Handler struct {
 	repeat   bool
 	next     int
 	requests []Request
+	stall    time.Duration
 }
+
+// ControlStallPath is the route that arms a stall on a mock a suite cannot
+// rescript — one already deployed, answering a stack the suite only reaches
+// over HTTP. It is matched by suffix so an ingress may serve it under a prefix.
+const ControlStallPath = "/control/stall"
 
 // NewHandler returns a handler that replays s.
 func NewHandler(s Scenario) *Handler { return &Handler{steps: s.Steps, repeat: s.Repeat} }
@@ -110,6 +128,10 @@ func NewHandler(s Scenario) *Handler { return &Handler{steps: s.Steps, repeat: s
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "mockllm: only POST", http.StatusMethodNotAllowed)
+		return
+	}
+	if strings.HasSuffix(r.URL.Path, ControlStallPath) {
+		h.serveControlStall(w, r)
 		return
 	}
 	body, err := io.ReadAll(r.Body)
@@ -132,6 +154,15 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "mockllm: scenario exhausted, the run made more model calls than it scripts", http.StatusBadRequest)
 		return
 	}
+	if delay := h.delayFor(step); delay > 0 {
+		select {
+		case <-time.After(delay):
+		case <-r.Context().Done():
+			// The caller gave up, or the process is going down. Writing a reply
+			// nobody is reading would only hold the shutdown open.
+			return
+		}
+	}
 	if step.Status != 0 {
 		message := step.Error
 		if message == "" {
@@ -151,6 +182,48 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case ProtocolAnthropic:
 		writeAnthropic(w, step, modelOf(body), stream)
 	}
+}
+
+// serveControlStall arms or clears the stall every later reply waits out.
+//
+// It is deliberately not a scenario step: the deployed mock is built into an
+// image and its script is mounted before anything runs, so a suite that decides
+// mid-run that it needs a slow turn has no other way to say so.
+func (h *Handler) serveControlStall(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		MS int `json:"ms"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "mockllm: parse stall request: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	if body.MS < 0 {
+		http.Error(w, "mockllm: stall ms must not be negative", http.StatusBadRequest)
+		return
+	}
+	h.Stall(time.Duration(body.MS) * time.Millisecond)
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"stall_ms": body.MS})
+}
+
+// Stall makes every later reply wait d before it is written. Zero clears it.
+// It applies to replies the mock has not started yet, never to one in flight.
+func (h *Handler) Stall(d time.Duration) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.stall = d
+}
+
+// delayFor is the longer of the step's own stall and the armed one, so arming
+// one cannot make a step that scripts a longer delay finish early.
+func (h *Handler) delayFor(step Step) time.Duration {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	scripted := time.Duration(step.DelayMS) * time.Millisecond
+	if h.stall > scripted {
+		return h.stall
+	}
+	return scripted
 }
 
 // take consumes the next step and records the call that consumed it.
