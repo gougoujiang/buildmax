@@ -14,6 +14,153 @@ Unreleased entries live one per file under
 touch the same line. `./make changelog` prints what they currently say, and
 release preparation folds them into a dated section here.
 
+## [0.2.0-alpha.5] - 2026-08-29
+
+### Added
+
+- `/compact` in the TUI summarizes the conversation so far and continues from
+  the summary, instead of waiting for the context window to fill up. It keeps a
+  much shorter tail verbatim than the automatic pass, reports what it replaced
+  and what the context costs now, and honors the same `pre_compact` and
+  `post_compact` hooks.
+
+- Desktop has a **Memory** button beside the message box: it lists what the
+  project remembers and shows the body of whichever memory you select, over the
+  same store the CLI and TUI read. It is read-only for now — memories are
+  Markdown files and the drawer prints the directory so you can edit them
+  directly — and it names any file that could not be parsed, since such a memory
+  is silently absent from every run until it is repaired.
+
+- Add `./make ocean` to provision disposable DigitalOcean infrastructure, deploy a pinned private application trial, inspect it, and tear it down for beta qualification.
+
+- An agent working a team issue can now read it and report back. `GetIssue`
+  returns the issue, its sub-issues, and recent discussion; `ReportToIssue`
+  posts one bounded comment on the thread. Both are scoped to the issue the run
+  was started for, and neither can change its status, assignee, or sub-issues.
+
+- `buildmax issue list` shows the issues a team assigned you, across every team
+  you belong to, so team work can be picked up from the terminal instead of a
+  board in a browser. Listing issues by assignee and by status now works over
+  the API too; both filters were described but not implemented.
+
+- `buildmax issue show <id>` prints one issue with its sub-issues and recent
+  discussion, and `buildmax issue status <id> <status>` moves it when you are
+  done. Moving status stays a person's action: an agent working the issue can
+  say it believes the work is finished, and you decide. A session started with
+  `--issue` now also prints which server, team, and issue it is working and
+  where prompts go, before the first model call.
+
+- `buildmax --issue <id>` scopes a local session to a team issue: the agent can
+  read the issue, its sub-issues, and recent discussion, and post a short report
+  back. It cannot change the issue's status, assignee, or sub-issues. A report
+  from your machine is recorded as a local agent report attributed to you, and
+  Portal shows it as reported rather than said — it is not a run the deployment
+  scheduled, counted, or traced.
+
+- Add an owner-only Kubernetes tunnel for inspecting the qualification MySQL
+  database locally without opening its firewall to the public internet.
+
+- Add idempotent OpenRouter model initialization for the DigitalOcean trial,
+  including automatic selection and rollout of the Tier 1 conversation model.
+
+- Add `./make ocean show all` to inspect the standard Kubernetes workload
+  resources in the BuildMax namespace with the qualification cluster's isolated
+  kubeconfig.
+
+- The agent can now remember things about a project between sessions. It keeps
+  one bounded Markdown document per project at
+  `<BUILDMAX_HOME>/projects/<project_id>/memory/MEMORY.md`, shared by every
+  session of that project including those in other worktrees of the same
+  repository, and shown to the model on every turn as fallible recall rather
+  than as instruction -- `AGENTS.md` stays the place for rules. The file is
+  yours to read, edit, or empty at any time, and `--no-project-memory` runs
+  without it in either direction.
+
+- `buildmax project list` shows the local projects and marks the ones whose
+  locator no longer resolves; `buildmax project relink <project-id>` points one
+  at the current directory after a repository or folder has moved, keeping the
+  memories and sessions attached to it. A run that registers a new project while
+  others are unresolved now says so and names the command, since otherwise the
+  duplicate looks like the feature working.
+
+- A daily release check now prepares a reviewable pull request once the latest
+  alpha is at least 72 hours old and user-visible changes are waiting. Merging
+  that pull request creates the version tag and starts the existing publication
+  workflows; an empty or unreviewed release is never published on the timer.
+
+### Changed
+
+- The run trace's `prompt_layers` record is now `context_sources`, which names
+  every source a run started with rather than only the system-prompt layers: the
+  instruction layers and their sizes, the project and the project memory it
+  loaded with that document's revision and digest, the session notes and todos
+  it inherited, and whether a compaction summary stood in for messages. It
+  carries sizes and revisions, never content. `buildmax doctor` now also reports
+  which project the current directory belongs to, where its memory file is and
+  whether it fits its budget, and any sessions naming a project this machine no
+  longer has.
+
+- Desktop and the CLI now share one local project catalog, so both opened on the
+  same repository list the same sessions. A folder Desktop already knows --
+  including a worktree of a repository in the list -- opens that project instead
+  of adding a duplicate, session grouping follows the project a session belongs
+  to rather than matching folder paths, and deleting a project no longer takes
+  its sessions with it unless you confirm that as well.
+
+- Let operators explicitly print qualification database credentials with
+  `./make ocean info --show-secrets` while keeping ordinary output redacted.
+
+- Project memory is now a set of small Markdown files, one per memory, with a
+  generated `MEMORY.md` index over them. Only the index is carried into every
+  turn, and the agent opens a memory's body with `MemoryRead` when the line
+  suggests it is worth reading; `MemoryWrite` creates, replaces, or deletes one
+  memory at a time. This replaces the single always-loaded document: the store
+  can now grow without the per-call cost growing, a memory has room for the
+  reason it is believed, two sessions recording different facts never collide,
+  and a stale write risks one memory instead of the whole store. Changing a
+  memory requires having read it. Subagents receive neither the index nor the
+  tools.
+
+- `--continue` and the TUI `/sessions` picker now select within the project the
+  current directory belongs to -- one Git repository including all its
+  worktrees, or one plain folder -- instead of the newest session anywhere on
+  the machine. `--resume <id>` still finds a session by id, but returns to the
+  directory it ran in and refuses to continue one that belongs to a different
+  project; press `a` in the picker to see every project. `buildmax stats` with
+  no argument follows the same scope.
+
+- `buildmax stats` is now `buildmax info`, and the TUI `/stats` panel is
+  `/info`, because both now answer a second question: what the session's project
+  remembers. In the TUI the two halves are tabs — `tab` and the arrow keys
+  switch, and on the memory tab `enter` opens a memory to read the reason behind
+  it, which until now meant finding the file by hand. On the command line the
+  memory listing follows the statistics, and `--json` carries both under `stats`
+  and `project_memory`.
+
+- A deployment running workers as Kubernetes Jobs must now set all four
+  `worker.k8s.resources` bounds, and the server refuses to start when one is
+  missing, is not a Kubernetes quantity, is zero or negative, or names a limit
+  below its own request. The error names the key to edit. Previously a typo such
+  as `memory_limit: 4 gigabytes` was logged and dropped, which left worker pods
+  running model-chosen commands with no memory limit while the configuration
+  looked correct.
+
+### Fixed
+
+- `--continue` now resumes the newest session recorded in the directory you are
+  in, not the newest one anywhere in the project. In a repository with
+  worktrees the old behaviour could pick a session from a sibling worktree and
+  run there, moving your working root out from under the workflow whose whole
+  purpose is branch isolation. When this directory has no sessions but the
+  project does, `--continue` says how many and names `--continue --project`,
+  which widens the search and prints the directory it will run in. The
+  `/sessions` picker still spans the project and now marks sessions recorded in
+  another tree.
+
+- Editing an issue no longer silently overwrites someone else's change. An
+  update now carries the version it was built from, and the server refuses a
+  write built on a stale copy; Portal reloads the issue and asks you to reapply.
+
 ## [0.2.0-alpha.4] - 2026-08-29
 
 ### Highlights
