@@ -1,0 +1,73 @@
+name: Promote prepared release
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  actions: write  # dispatch the existing publication workflows on the new tag
+  contents: write # create the annotated release tag
+
+concurrency:
+  group: release-promote
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: Tag the approved alpha
+    if: >-
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.head.ref == 'release/next' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Validate the approved version
+        id: release
+        shell: bash
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          if [[ ! "$PR_TITLE" =~ ^chore:\ Prepare\ (v[0-9]+\.[0-9]+\.[0-9]+-alpha\.[1-9][0-9]*)$ ]]; then
+            echo "Release PR title must be 'chore: Prepare vX.Y.Z-alpha.N'." >&2
+            exit 1
+          fi
+          version=${BASH_REMATCH[1]}
+          expected=$(go run ./cmd/mk release next)
+          if [[ "$version" != "$expected" ]]; then
+            echo "Approved version $version is not the next tag after the current release ($expected)." >&2
+            exit 1
+          fi
+          go run ./cmd/mk release notes "$version" -o .artifacts/release-notes.md
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Create the annotated tag
+        shell: bash
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$VERSION" -m "$VERSION"
+          git push origin "refs/tags/$VERSION"
+
+      - name: Dispatch publication workflows
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          # GITHUB_TOKEN tag pushes intentionally do not start another workflow.
+          # Explicit dispatch also makes a failed publication recoverable by
+          # rerunning either workflow against the existing tag.
+          gh workflow run release.yml --ref "$VERSION"
+          gh workflow run portal-image.yml --ref "$VERSION"
