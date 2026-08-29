@@ -5,9 +5,10 @@
 ## Purpose
 
 `internal/infra/db` provides the MySQL/GORM persistence implementation for
-domain repository contracts. Most shared contracts remain in
-`internal/core/model`; capability-specific ports may live with their consumer,
-such as the Marketplace catalog and activation ports in `internal/service/plugin`.
+domain repository contracts. Most shared contracts live in the per-domain
+`internal/core/*` packages — `core/task`, `core/team`, `core/issue`, and the
+rest. Capability-specific ports may live with their consumer, such as the
+Marketplace catalog and activation ports in `internal/service/plugin`.
 
 The active persistence model is team-scoped for shared work:
 
@@ -37,7 +38,7 @@ halves are answered from indexes without reading a row.
 
 | Layer | Package | Role |
 |-------|---------|------|
-| Shared contracts/entities | `internal/core/model` | Shared structs and cross-service repository interfaces |
+| Shared contracts/entities | `internal/core/<domain>` | Shared structs and cross-service repository interfaces, one package per domain |
 | Consumer-owned ports | `internal/service/*` | Narrow persistence capabilities used by one orchestrator |
 | GORM implementation | `internal/infra/db` | MySQL-backed store implementing those interfaces |
 | Object storage | `internal/infra/objectstore` | Team home files, run output, and artifact content; local FS or S3/MinIO |
@@ -47,9 +48,10 @@ halves are answered from indexes without reading a row.
 This package is where a caller's handle becomes a row key, and the only place
 either representation meets the other.
 
-A repository interface speaks public IDs, because `internal/core/model` holds
-nothing else. Inside, `lookupKey` resolves one to the `bigint` the schema joins
-on, `publicIDForKey` goes back the other way, and `createWithPublicID`
+A repository interface speaks public IDs, because the `internal/core/*` domain
+packages hold nothing else. Inside, `lookupKey` resolves one to the `bigint` the
+schema joins on, `publicIDForKey` goes back the other way, and
+`createWithPublicID`
 generates a handle and retries when the unique index rejects that particular
 value — telling a generated collision from a duplicate email by the index the
 error names.

@@ -93,8 +93,9 @@ string or 0 in practice".
 
 **Names.** Table names are singular. Columns and JSON fields are `snake_case`.
 Enumerated values are stored as strings, not integers, and the constants live in
-`internal/core/model` — the spelling is inconsistent by table and is called out
-in each section (`task_run.status` shouts, `issue.status` does not).
+the domain's `internal/core/*` package — the spelling is inconsistent by table
+and is called out in each section (`task_run.status` shouts, `issue.status`
+does not).
 
 ## Entity Relationships
 
@@ -621,8 +622,9 @@ Transport channel constants are in
 but is not in `ValidChannels`, so it cannot be supplied by a caller.
 
 `workflow` and `issue_agent` are not transports and are defined in
-`internal/core/model` with the column, as `model.SyntheticChannels`. Nobody
-talks through them: a workflow step and an issue agent run each create a
+`internal/core/conversation` with the column, as
+`conversation.SyntheticChannels()`. Nobody talks through them: a workflow step
+and an issue agent run each create a
 conversation because Task requires one. `ListConversationsByTeam` excludes them,
 count and page together, so machinery cannot push a team's own conversations off
 a page. They are still stored and still reachable by handle — this hides them
@@ -1294,15 +1296,15 @@ missing columns, and adds missing indexes. It does not drop a column, rename a
 column, narrow a type, or change a primary key.
 
 **Adding a column or an index.** Edit the `xxxRow` struct and the matching
-`internal/core/model` struct plus the `toX` / `toXRow` mapping functions. Add
-the field to any handler DTO that should expose it. Nothing else is required —
-the next server start adds it. Give it a type tag; an untagged `string` becomes
+struct in that domain's `internal/core/*` package, plus the `toX` / `toXRow`
+mapping functions. Add the field to any handler DTO that should expose it.
+Nothing else is required — the next server start adds it. Give it a type tag; an untagged `string` becomes
 `longtext`.
 
 **Adding a table.** Add the row struct with a `TableName()` method returning a
 singular name, register it in the `AutoMigrate` call in `store.go`, define the
-repository interface in `internal/core/model`, and implement it in
-`internal/infra/db`. Decide whether the row needs a handle: give it a
+repository interface in that domain's `internal/core/*` package, and implement
+it in `internal/infra/db`. Decide whether the row needs a handle: give it a
 `public_id` — `char(20) CHARACTER SET ascii COLLATE ascii_bin` — with a
 `uq_<table>_public_id` unique index when another
 process must name it, and nothing when a parent plus a natural key already

@@ -196,8 +196,9 @@ Acceptance:
   release, preserve one BuildMax trial bundle per attempt, and compare harnesses
   under the same model, effort, resources, and attempt count — **partly met**:
   the oracle smoke and a one-task canary have run end to end and imported, so
-  the path works for one task; the criterion needs a canary subset and then the
-  full protocol
+  the path works for one task. The canary subset is pinned in
+  `evaluation/harbor/pins.json` and selectable with `--canary`; the criterion
+  needs that subset run, and then the full protocol
 - the legacy `eval/` catalog and `internal/agenteval` are retired rather than
   preserved behind compatibility code — **done**: both are deleted, and
   `./make eval` now measures the built CLI against the CLI tasks in
@@ -356,9 +357,10 @@ recovers. The immediate work is therefore evidence-first.
    upgrade followed by binary rollback. Add only the smallest product diagnostics
    exposed by those exercises; do not turn readiness into a destructive storage
    probe or invent metrics before deciding what an operator needs.
-3. **Widen the Harbor run.** The oracle smoke and a one-task canary have run;
-   next is a named canary subset, then the full 89 tasks at five attempts under
-   the leaderboard's unmodified resource and timeout policy, with a baseline
+3. **Widen the Harbor run.** The oracle smoke and a one-task canary have run,
+   and `pins.json` names a six-task canary subset that `--canary` selects; next
+   is running it, then the full 89 tasks at five attempts under the
+   leaderboard's unmodified resource and timeout policy, with a baseline
    comparison. The one task that has run says the path works, not what BuildMax
    scores, and the first canary found a product bug that had nothing to do with
    evaluation — budget for the next widening to find more, and fix before going

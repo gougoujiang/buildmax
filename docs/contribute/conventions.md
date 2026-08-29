@@ -38,9 +38,11 @@ narrow responsibility.
 
 `internal/core` is a dependency-layer prefix, not a package name. The packages
 beneath it each carry a capability: `core/agent`, `core/llm`, `core/session`.
-`internal/core/model` and `internal/util` are the shape this rule forbids — a
-container name holding several unrelated capabilities. They predate the rule
-and are known debt, not a pattern to copy or add to.
+`internal/util` is the shape this rule forbids — a container name holding
+several unrelated capabilities. It predates the rule and is known debt, not a
+pattern to copy or add to. `internal/core/model` was the other example and has
+since been split into one package per domain: `core/task`, `core/team`,
+`core/issue`, `core/conversation`, and the rest.
 
 Never resolve an import cycle by moving unrelated code into a general package.
 A cycle is evidence that ownership or dependency direction is wrong. Move the
@@ -53,7 +55,7 @@ A state transition, a validation rule, an authorization decision, a lifecycle
 constraint, retry eligibility, a defaulting rule, and an error's meaning each
 have exactly one authoritative implementation. HTTP handlers, CLI commands,
 workers, schedulers, and stores delegate to it; they never restate it. Task-run
-status is the shape to copy: `core/model` owns the legal transitions and
+status is the shape to copy: `core/task` owns the legal transitions and
 `infra/db.TransitionTaskRun` only applies one atomically.
 
 Before adding a rule of any of those kinds, search the whole repository for one

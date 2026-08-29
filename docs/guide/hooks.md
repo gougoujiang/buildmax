@@ -23,7 +23,7 @@ usable as an operator control.
 
 ## Events
 
-Thirteen events ship today. Four of them can block; the rest are advisory.
+Sixteen events ship today. Three of them can block; the rest are advisory.
 
 | Event | Gating | Fires when |
 |---|---|---|
