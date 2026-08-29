@@ -1,0 +1,339 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: buildmax-server
+  namespace: buildmax
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: buildmax-server
+  namespace: buildmax
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["create", "get", "list", "delete"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: buildmax-server
+  namespace: buildmax
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: buildmax-server
+subjects:
+  - kind: ServiceAccount
+    name: buildmax-server
+    namespace: buildmax
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: buildmax-edge-data
+  namespace: buildmax
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: buildmax-server
+  namespace: buildmax
+  labels:
+    app: buildmax-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: buildmax-server
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: buildmax-server
+    spec:
+      serviceAccountName: buildmax-server
+      terminationGracePeriodSeconds: 45
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: database-trust
+          image: {{ .BuildMaxImage }}
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -ec
+            - cp /etc/ssl/certs/ca-certificates.crt /trust/ca-certificates.crt && printf '\n' >> /trust/ca-certificates.crt && cat /database-ca/database-ca.pem >> /trust/ca-certificates.crt
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: database-ca
+              mountPath: /database-ca
+              readOnly: true
+            - name: trust
+              mountPath: /trust
+      containers:
+        - name: server
+          image: {{ .BuildMaxImage }}
+          imagePullPolicy: IfNotPresent
+          command: ["/usr/local/bin/buildmax-server"]
+          ports:
+            - containerPort: 5678
+              name: http
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sleep", "5"]
+          env:
+            - name: BUILDMAX_HOME
+              value: /buildmax
+            - name: SSL_CERT_FILE
+              value: /trust/ca-certificates.crt
+            - name: BUILDMAX_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: buildmax-secret
+                  key: BUILDMAX_JWT_SECRET
+            - name: BUILDMAX_DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: buildmax-secret
+                  key: BUILDMAX_DATABASE_PASSWORD
+            - name: BUILDMAX_STORAGE_MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: buildmax-secret
+                  key: BUILDMAX_STORAGE_MINIO_ACCESS_KEY
+            - name: BUILDMAX_STORAGE_MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: buildmax-secret
+                  key: BUILDMAX_STORAGE_MINIO_SECRET_KEY
+          volumeMounts:
+            - name: buildmax-home
+              mountPath: /buildmax
+            - name: buildmax-config
+              mountPath: /buildmax/server.yaml
+              subPath: server.yaml
+              readOnly: true
+            - name: trust
+              mountPath: /trust
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+      volumes:
+        - name: buildmax-home
+          emptyDir: {}
+        - name: buildmax-config
+          configMap:
+            name: buildmax-config
+        - name: database-ca
+          configMap:
+            name: buildmax-database-ca
+        - name: trust
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: buildmax
+  namespace: buildmax
+spec:
+  selector:
+    app: buildmax-server
+  ports:
+    - name: http
+      port: 5678
+      targetPort: 5678
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: buildmax-portal
+  namespace: buildmax
+  labels:
+    app: buildmax-portal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: buildmax-portal
+  template:
+    metadata:
+      labels:
+        app: buildmax-portal
+    spec:
+      containers:
+        - name: portal
+          image: {{ .PortalImage }}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+              name: http
+          env:
+            - name: BUILDMAX_API_BASE
+              value: "/"
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: buildmax-portal
+  namespace: buildmax
+spec:
+  selector:
+    app: buildmax-portal
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: buildmax-edge
+  namespace: buildmax
+  labels:
+    app: buildmax-edge
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: buildmax-edge
+  template:
+    metadata:
+      labels:
+        app: buildmax-edge
+    spec:
+      containers:
+        - name: caddy
+          image: {{ .EdgeImage }}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+              name: http
+            - containerPort: 443
+              name: https
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+              add: ["NET_BIND_SERVICE"]
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          volumeMounts:
+            - name: caddy-config
+              mountPath: /etc/caddy/Caddyfile
+              subPath: Caddyfile
+              readOnly: true
+            - name: caddy-data
+              mountPath: /data
+            - name: caddy-runtime
+              mountPath: /config
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+      volumes:
+        - name: caddy-config
+          configMap:
+            name: buildmax-edge
+        - name: caddy-data
+          persistentVolumeClaim:
+            claimName: buildmax-edge-data
+        - name: caddy-runtime
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: buildmax-edge
+  namespace: buildmax
+  annotations:
+    service.beta.kubernetes.io/do-loadbalancer-name: buildmax-beta
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  selector:
+    app: buildmax-edge
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+    - name: https
+      port: 443
+      targetPort: 443

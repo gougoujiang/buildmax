@@ -17,7 +17,9 @@ To see it working before reading any of this, use the
 
 Those development checks do not qualify a release for production use. To test
 a pinned candidate against external dependencies, failure cases, restore, and
-rollback, use the [Beta readiness record](beta-readiness.md).
+rollback, prepare the disposable
+[DigitalOcean qualification infrastructure](digitalocean.md) and use the
+[Beta readiness record](beta-readiness.md).
 
 ## Topology
 
@@ -194,5 +196,6 @@ Vulnerability disclosure: [SECURITY.md](../../SECURITY.md).
   in one trust domain
 - [authentication.md](authentication.md) — creating accounts and issuing login codes
 - [local-kind.md](local-kind.md) — one-command local cluster for development
+- [digitalocean.md](digitalocean.md) — disposable external DOKS and MySQL for beta qualification
 - [reference/webhook.md](../reference/webhook.md) — triggering runs from
   external systems

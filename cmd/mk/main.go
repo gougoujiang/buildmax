@@ -102,6 +102,8 @@ func dispatch(args []string) error {
 		return cmdCompose(rest)
 	case "kind":
 		return cmdKind(rest)
+	case "ocean":
+		return cmdOcean(rest)
 	case "help", "-h", "--help":
 		return cmdHelp(rest)
 	default:

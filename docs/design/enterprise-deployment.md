@@ -113,8 +113,9 @@ What shipped:
   and `conversation.model.api_key`
 - worker pods mount the same ConfigMap via `worker.k8s.config_map`, with
   `BUILDMAX_HOME` set to `worker.k8s.home_dir`
-- `.env.example` references are gone; `docs/reference/configuration.md` is the
-  config reference
+- runtime configuration stays in `docs/reference/configuration.md`; the root
+  `.env.example` lists only personal credentials consumed by repository tasks
+  and does not duplicate the runtime configuration surface
 - `TestDeploymentConfigMapLoads` fails the build if the manifest and
   `internal/config/server_config.go` drift apart again
 
@@ -389,7 +390,8 @@ not duplicate a second authoritative list.
 - ✅ Stale env vars removed; the ones that remain are overrides the code binds.
 - ✅ Documented sample: `config-examples/server.example.yaml` plus
   `docs/reference/configuration.md`.
-- ✅ `.env.example` references retired.
+- ✅ Runtime configuration is not duplicated into `.env.example`; that file is
+  reserved for personal credentials consumed by repository tasks.
 - ✅ `README.md`, `CONTRIBUTING.md`, and the kind guide (now
   `docs/deploy/local-kind.md`) match the YAML config contract.
 
