@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -45,6 +46,10 @@ type slashSessionState struct {
 	ProjectID   string
 	ProjectName string
 	AllProjects bool
+	// Root is the Workspace this TUI runs in. A Project can span worktrees, so
+	// a listed session may have been recorded somewhere else; the rows say
+	// which, and resuming one says where it will actually run.
+	Root string
 	// ProjectNames labels rows and widens the search in the all-projects view.
 	// Without it every row from another repository reads as an untitled session
 	// that cannot be told from its neighbours.
@@ -64,12 +69,17 @@ func openSlashSession(m *Model) (tea.Model, tea.Cmd) {
 	default:
 		sortSessionsByCreatedAtDesc(entries)
 		project := m.opts.App.Project()
+		root := ""
+		if m.opts.Workspace != nil {
+			root = m.opts.Workspace.Root()
+		}
 		st = &slashSessionState{
 			Everything:   entries,
 			ProjectID:    project.ID,
 			ProjectName:  project.Name,
 			AllProjects:  project.ID == "",
 			ProjectNames: projectNamesByID(),
+			Root:         root,
 		}
 		applySessionScope(st)
 		// Pre-select the current session if it is in the list.
@@ -311,6 +321,9 @@ func confirmSlashSessionResume(m *Model) (tea.Model, tea.Cmd) {
 		return m.closeActivePanel()
 	}
 	entry := m.slashSession.Filtered[m.slashSession.Selected]
+	// Captured before the panel state is cleared below.
+	recordedElsewhere := m.slashSession.elsewhere(&entry)
+	runningIn := m.slashSession.Root
 	sess, err := agentapp.NewSessionManager(m.opts.SessionsDir).Open(entry.ID, m.opts.ModelName)
 	if err != nil {
 		m.slashSession.LoadError = "load failed: " + err.Error()
@@ -339,7 +352,15 @@ func confirmSlashSessionResume(m *Model) (tea.Model, tea.Cmd) {
 	if title == "" {
 		title = entry.ID
 	}
-	separator := messageBarStyle.Render("─── Resumed: " + title + " ───")
+	label := "─── Resumed: " + title + " ───"
+	if recordedElsewhere {
+		// A session recorded in another tree runs here, in this TUI's root.
+		// Saying so is the whole reason crossing Workspaces is allowed from
+		// the picker and not from --continue.
+		label += "\n" + messageBarStyle.Render(
+			"recorded in "+entry.Workspace+"; running in "+runningIn)
+	}
+	separator := messageBarStyle.Render(label)
 	history := buildMessagesForScrollback(sess.Messages(), m.width, m.opts.GlamourStyle)
 	output := separator + "\n\n" + history
 	return m, tea.Sequence(
@@ -397,7 +418,7 @@ func sortSessionsByCreatedAtDesc(entries []session.ItemSummary) {
 	})
 }
 
-func formatSessionListRow(maxWidth int, e *session.ItemSummary, project string) string {
+func formatSessionListRow(maxWidth int, e *session.ItemSummary, project string, elsewhere bool) string {
 	timeStr := e.CreatedAt.Local().Format("01-02 15:04")
 	ago := humanAgo(time.Since(e.CreatedAt))
 	title := e.Title
@@ -406,6 +427,11 @@ func formatSessionListRow(maxWidth int, e *session.ItemSummary, project string) 
 	}
 	if project != "" {
 		title = project + " · " + title
+	}
+	if elsewhere {
+		// Named by its directory rather than flagged, because "which tree" is
+		// the question a worktree workflow is actually asking.
+		title = "[" + filepath.Base(filepath.Clean(e.Workspace)) + "] " + title
 	}
 	suffix := "  " + ago
 	prefix := timeStr + "  "
@@ -481,7 +507,7 @@ func (p *slashSessionState) Render(m *Model, maxLineWidth int) string {
 		if i == p.Selected {
 			cursor = "› "
 		}
-		row := formatSessionListRow(maxLineWidth-2, &p.Filtered[i], p.rowProject(&p.Filtered[i]))
+		row := formatSessionListRow(maxLineWidth-2, &p.Filtered[i], p.rowProject(&p.Filtered[i]), p.elsewhere(&p.Filtered[i]))
 		b.WriteString(truncateRunes(cursor+row, maxLineWidth))
 		b.WriteByte('\n')
 	}
@@ -520,6 +546,13 @@ func (p *slashSessionState) keyHints() string {
 		}
 	}
 	return hints + " · esc: close"
+}
+
+// elsewhere reports whether a row was recorded outside the root this TUI runs
+// in. The picker may cross Workspaces because the user is reading the list;
+// what it may not do is let one be chosen without saying so.
+func (p *slashSessionState) elsewhere(e *session.ItemSummary) bool {
+	return p.Root != "" && e.Workspace != "" && !sameWorkspace(e.Workspace, p.Root)
 }
 
 // rowProject is the label a row carries, and only in the view where rows come

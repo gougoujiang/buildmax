@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 
 	"github.com/gougoujiang/buildmax/internal/agentapp"
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/localproject"
 	"github.com/gougoujiang/buildmax/internal/core/session"
+	"github.com/gougoujiang/buildmax/internal/util"
 )
 
 // sessionTarget is what a run continues and where it runs.
@@ -23,30 +25,42 @@ type sessionTarget struct {
 	Workspace string
 }
 
-// resolveSessionTarget settles --continue and --resume against the local
-// Project the workspace resolves to.
+// resolveSessionTarget settles --continue and --resume against the Workspace
+// this run is in and the local Project that owns it.
 //
-// --continue means the newest session in *this* Project, not the newest session
-// on the machine: the global answer was almost never the one wanted, since it
-// followed whichever repository was touched last. --resume stays a global
-// lookup by id, but the Project recorded on the session is authoritative about
-// where it may be continued. See docs/design/local-project-memory.md §11.2.
-func resolveSessionTarget(ctx context.Context, resumeID string, cont bool, workspace string, workspaceGiven bool) (sessionTarget, error) {
+// --continue means the newest session recorded in *this* Workspace. Project is
+// the scope of shared memory and deliberately not the scope of resume: memory
+// asks what is true about this repository, resume asks which conversation the
+// user was just having. The two coincide in a single checkout and diverge
+// exactly where worktrees are used, and continuing at Project scope would let
+// `buildmax -c` in one worktree pick a session recorded in a sibling and
+// execute there — moving the working root out from under the one workflow
+// whose whole purpose is branch isolation.
+//
+// --resume stays a global lookup by id, with the Project recorded on the
+// session authoritative about where it may be continued. See
+// docs/design/local-project-memory.md §11.2.
+func resolveSessionTarget(ctx context.Context, resumeID string, cont, acrossProject bool, workspace string, workspaceGiven bool) (sessionTarget, error) {
 	target := sessionTarget{SessionID: resumeID, Workspace: workspace}
 	switch {
 	case resumeID != "":
 		return resolveResumeTarget(ctx, target, workspaceGiven)
 	case cont:
-		return resolveContinueTarget(ctx, target)
+		return resolveContinueTarget(ctx, target, acrossProject)
 	default:
 		return target, nil
 	}
 }
 
-// resolveContinueTarget picks the newest session of the Project the workspace
-// resolves to.
-func resolveContinueTarget(ctx context.Context, target sessionTarget) (sessionTarget, error) {
-	project, err := currentProject(ctx, target.Workspace)
+// resolveContinueTarget picks the newest session recorded in this Workspace,
+// widening to the Project only when the user asked for it.
+func resolveContinueTarget(ctx context.Context, target sessionTarget, acrossProject bool) (sessionTarget, error) {
+	root, err := util.ResolveWorkspaceRoot(target.Workspace)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "cannot resolve the workspace: %v\n", err)
+		return sessionTarget{}, err
+	}
+	project, err := currentProject(ctx, root)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "cannot tell which project this directory belongs to: %v\n", err)
 		return sessionTarget{}, err
@@ -57,12 +71,40 @@ func resolveContinueTarget(ctx context.Context, target sessionTarget) (sessionTa
 		slog.Error("load session list failed", "err", err)
 		return sessionTarget{}, fmt.Errorf("load session list: %w", err)
 	}
-	last := latestSessionItem(filterByProject(list, project.ID))
+	inProject := filterByProject(list, project.ID)
+
+	if !acrossProject {
+		if last := latestSessionItem(filterByWorkspace(inProject, root)); last != nil {
+			slog.Info("continue with last session", "id", last.ID, "workspace", root)
+			target.SessionID = last.ID
+			return target, nil
+		}
+		// Not silently borrowed from a sibling Workspace. Widening is the
+		// user's decision because it changes the directory the turn runs in,
+		// and it is named here so the recovery path is findable.
+		if elsewhere := len(inProject); elsewhere > 0 {
+			fmt.Fprintf(os.Stderr,
+				"no sessions yet in %s.\n%s has %d session(s) in other directories; "+
+					"continue the newest of those with `--continue --project`.\n",
+				root, project.Name, elsewhere)
+			return sessionTarget{}, fmt.Errorf("no sessions to continue in %s", root)
+		}
+		fmt.Fprintf(os.Stderr, "no sessions yet in %s; start one with -p PROMPT or the TUI\n", root)
+		return sessionTarget{}, fmt.Errorf("no sessions to continue in %s", root)
+	}
+
+	last := latestSessionItem(inProject)
 	if last == nil {
 		fmt.Fprintf(os.Stderr, "no sessions yet in %s; start one with -p PROMPT or the TUI\n", project.Name)
 		return sessionTarget{}, fmt.Errorf("no sessions to continue in project %s", project.ID)
 	}
-	slog.Info("continue with last session", "id", last.ID, "project_id", project.ID)
+	if last.Workspace != "" && !sameWorkspace(last.Workspace, root) {
+		// A root change is never implicit: the directory the turn will run in
+		// is printed before the first turn, not discovered from its output.
+		fmt.Fprintf(os.Stderr, "continuing in %s\n", last.Workspace)
+		target.Workspace = last.Workspace
+	}
+	slog.Info("continue with last session", "id", last.ID, "project_id", project.ID, "across_project", true)
 	target.SessionID = last.ID
 	return target, nil
 }
@@ -150,6 +192,31 @@ func filterByProject(entries []session.ItemSummary, projectID string) []session.
 		}
 	}
 	return out
+}
+
+// filterByWorkspace keeps the sessions recorded in root. A session that never
+// recorded a root never matches: it is not evidence of having run here.
+func filterByWorkspace(entries []session.ItemSummary, root string) []session.ItemSummary {
+	out := make([]session.ItemSummary, 0, len(entries))
+	for _, e := range entries {
+		if e.Workspace != "" && sameWorkspace(e.Workspace, root) {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+// sameWorkspace compares two recorded roots. Sessions store whichever spelling
+// the runtime selected, so the comparison resolves symlinks on both sides for
+// the same reason Project resolution does — one directory reached two ways is
+// one directory.
+func sameWorkspace(a, b string) bool {
+	if filepath.Clean(a) == filepath.Clean(b) {
+		return true
+	}
+	ra, aerr := filepath.EvalSymlinks(a)
+	rb, berr := filepath.EvalSymlinks(b)
+	return aerr == nil && berr == nil && filepath.Clean(ra) == filepath.Clean(rb)
 }
 
 func latestSessionItem(entries []session.ItemSummary) *session.ItemSummary {

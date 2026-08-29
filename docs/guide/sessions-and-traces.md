@@ -43,15 +43,24 @@ readable rather than a list of ids.
 ### Resuming
 
 ```bash
-buildmax --continue              # this project's most recent session
+buildmax --continue              # this directory's most recent session
+buildmax --continue --project    # widen to every directory of this project
 buildmax --resume <session-id>   # a specific one
 buildmax --session-id <uuid>     # load if it exists, otherwise create it
 ```
 
-`--continue` and the `/sessions` picker are scoped to the project the current
-directory belongs to — a repository, including all of its worktrees, or a plain
-folder. The newest session on the machine is rarely the one you want, because it
-follows whichever repository you touched last.
+`--continue` means the newest session recorded in the directory you are in. The
+newest session on the machine is rarely the one you want, because it follows
+whichever repository you touched last — and the newest one in a *sibling
+worktree* is not it either, since continuing there would move your working root
+out from under you. When this directory has no sessions but the project does,
+`--continue` says how many and names `--project`; widening then prints the
+directory it will run in before the first turn.
+
+The `/sessions` picker is scoped to the project — a repository including all of
+its worktrees, or a plain folder — and may cross directories, because you are
+reading the list. A session recorded in another tree is marked with that tree's
+name, and resuming it says which root it will actually run in.
 
 `--resume <id>` still looks a session up anywhere, but it resumes in the
 directory that session ran in, and refuses to continue a session that belongs to
