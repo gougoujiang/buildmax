@@ -11,8 +11,12 @@ the CLI. Wails hosts a React frontend and binds it to
 `internal/interface/desktop.App`; it does not call the Portal backend for local
 chat execution.
 
-The desktop `Project` type is a named local folder used to group sessions. It
-is not the server's team, issue, or project domain model.
+A `Project` is the local unit of work a session belongs to: one Git repository
+including every one of its worktrees, or one plain folder. Desktop owns no
+Project record of its own -- it resolves through the same
+`agentapp.ProjectManager` the CLI uses, so both surfaces opened on one
+repository are the same Project. It is not the server's team, issue, or project
+domain model.
 
 ## Modes
 
@@ -106,10 +110,19 @@ message naming the session as busy. Neither fires a session lifecycle hook —
 nothing is starting or ending when a user edits history, and the transient open
 is an artifact of Desktop's ownership model, not an event a hook should see.
 
-Project metadata is stored in
-`<BUILDMAX_HOME>/projects/projects.json`. Sessions, settings, traces, auth, and
-logs use the regular paths under `BUILDMAX_HOME`; project source files stay in
-the user-selected folder.
+Project metadata is stored under `<BUILDMAX_HOME>/projects/<project_id>/`,
+with one file per memory under `memory/` beside it, shared with the CLI and
+described in [local project memory](../../design/local-project-memory.md) §8. Sessions stay
+top-level under `<BUILDMAX_HOME>/sessions/` and name their Project by id;
+settings, traces, auth, and logs use the regular paths under `BUILDMAX_HOME`,
+and project source files stay in the user-selected folder.
+
+Desktop opens a Project at its default workspace, so one Project is one root
+here and the runtime cache is keyed by Project alone. Adding a folder resolves
+rather than creates: a worktree of a repository already in the list opens that
+repository's Project. Deleting a Project and deleting its sessions are separate
+decisions -- `DeleteProject` refuses a Project that still owns sessions until
+the caller says to take them too.
 
 ## Build Boundary
 

@@ -131,13 +131,28 @@ Code state:
   sandboxing, bounded redacted traces, session notes/todos and compaction
   checkpoints, local background jobs, subagent trace parents, and the Portal
   run-trace view;
-- planned local follow-on: one shared CLI/Desktop Project identity and bounded
-  cross-session Project Memory, with the identity phase landing before memory
-  ([design/local-project-memory.md](design/local-project-memory.md));
+- shipped: one shared CLI/TUI/Desktop Project identity and bounded
+  cross-session Project Memory
+  ([design/local-project-memory.md](design/local-project-memory.md)). A Project
+  is one Git repository including its worktrees, or one directory; the session
+  pickers and session clearing select by it rather than by folder path,
+  `--continue` selects within the Workspace with `--project` to widen, and
+  Desktop's private `projects.json` is gone. Memory is a set of small Markdown
+  files, one per memory, with a generated index; only the index is resident,
+  bodies are read on demand, a replacement requires having read it, and
+  `--no-project-memory` withdraws index and tools together. `buildmax project`
+  lists and relinks. The `context_sources` trace record replaces `prompt_layers`
+  and names every source a run was assembled from by its own kind; `buildmax
+  doctor` reports the Project, the memory count and index size, skipped memory
+  files, and detached sessions;
 - still absent: a worker selecting `SandboxSurfaceWorker`, process rlimits,
-  sandboxing of command/HTTP hook transports, trace retention, and typed
+  sandboxing of command/HTTP hook transports, trace retention, typed
   command-level boundary, file-change, hook, approval, retry, and failure-cause
-  records;
+  records, and the Project Memory surface work — a Desktop memory list and
+  editor, a CLI inspection command beyond `doctor`, the user-invoked
+  session-review command of the design's phase 2, and the usage evidence that
+  would justify raising the memory count, ranking the index, or promoting
+  memories automatically;
 - deliberately not covered by the local Project plan: global user memory,
   team memory, Portal/worker memory, semantic retrieval, and automatic memory
   extraction.
@@ -306,32 +321,41 @@ missing Beta prerequisite.
 ## Beta Gate
 
 Alpha to Beta is not more Agent capability. It is an **operating proof** for one
-trusted team. The former gate mixed code already present with evidence the
-repository cannot provide (a real restore or a customer cluster). The gate now
-names both, so a green unit suite is never misrepresented as production proof.
+trusted team, performed with the immutable artifacts proposed for release. Code
+and automated tests establish that a proof is worth attempting; they do not
+substitute for a restore, failure drill, or upgrade in the target environment.
 
-Beta is reached only after this is demonstrated and the resulting evidence is
-recorded in the release or deployment runbook:
+Beta is reached only after all entry checks below pass and their exact evidence
+is recorded in [deploy/beta-readiness.md](deploy/beta-readiness.md):
 
-> An operator can bootstrap a private Kubernetes deployment, sign in, use an
-> approved managed model, execute and retry work in a constrained worker, read
-> its result, trace, model usage, and audit history, and recover from the
-> documented dependency, cancellation, worker-loss, and upgrade cases.
+> An operator can deploy pinned BuildMax server, worker, and Portal artifacts to
+> a private Kubernetes environment backed by external MySQL, S3, and TLS; sign
+> in; execute and retry work with an approved managed model; diagnose the result
+> from the TaskRun, artifacts, trace, managed-call ledger, and audit history;
+> and recover predictably from cancellation, worker loss, dependency outage,
+> restore, credential rotation, and an upgrade rollback.
 
-| Gate | Code and automated-test state | Still needed for Beta |
+| Entry proof | What the repository provides | Evidence required before Beta |
 |---|---|---|
-| Worker boundary | Per-run JWT, minimized Job environment, non-root/read-only/capability-dropped pod, resource limits, no service-account token, and an explicit trace boundary are implemented. | Demonstrate the boundary in a clean cluster and state the policy for unsandboxed execution. Worker OS sandbox and egress restriction are not claimed. |
-| Private deployment | Production manifest, migration ledger, `/readyz`, Compose/kind smoke, account bootstrap, and managed worker inference are implemented. | Apply the reference against real external MySQL/S3/TLS; exercise backup/restore and an N-1-compatible upgrade/rollback. |
-| Explainable runs | Portal can read a stored run trace and managed-call ledger; traces contain model/tool timing and usage, artifacts, and the resolved sandbox boundary. Retry is deployment-smoke tested. | Deployment tests for cancellation, worker loss, and a dependency failure; typed failure classification and trace retention are follow-up hardening. |
-| Minimum governance | Route authorization matrix, audit writes/export/retention, quota controls, and System Administration are implemented and tested. | Run the workflow with a real operator; audit-to-run correlation is useful follow-up work, not a duplicate event requirement. |
-| Continuous verification | Post-merge/scheduled Compose and kind workflows plus Portal browser E2E are configured; support policy is published. | Treat the latest CI result as evidence at release time. Repository configuration alone cannot prove an external run passed. |
+| Candidate deployment | Production manifest, migration ledger, `/readyz`, account bootstrap, managed worker inference, and deterministic Compose/kind smoke are implemented. | Deploy immutable candidate image digests against real external MySQL and S3 over TLS. Record the cluster and dependency versions, image digests, configuration, operator, and date. |
+| Constrained execution | Per-run JWT, minimized Job environment, non-root/read-only/capability-dropped pod, no service-account token, required and validated CPU/memory bounds, and an explicit trace boundary are implemented. A `k8s_job` deployment whose bounds are missing, unparseable, non-positive, or inverted is refused at startup rather than scheduling an unbounded worker. | Inspect a live candidate Job and record the effective security context, resources, token mount, environment, and reported sandbox boundary. |
+| Failure behavior | Cancellation, interrupted-run reporting, liveness heartbeats, lost-worker reaping, partial artifact retention, and explicit retry exist with focused tests. | In the deployed candidate, cancel a running run, kill a worker without a graceful report, interrupt database access, and deny object-storage access. Prove each run reaches the documented terminal state, retains the available evidence, and can recover or be retried without an ambiguous or dangling result. |
+| Recovery and maintenance | Forward migrations, an N-1 binary compatibility rule, environment-injected credentials, and operator-visible readiness and status surfaces exist. | Restore the database and bucket as a pair, exercise an upgrade containing a schema change followed by binary rollback, and perform the documented drain/restart credential-rotation procedure. Record recovery time, data checks, and any accepted loss. |
+| Operator diagnosis and governance | Portal exposes the run result, stored trace, artifacts, managed-call usage, quota, audit history, and System Administration; authorization and retention/export paths are tested. | Have an operator who did not implement the feature perform the full journey and failure drills using documented surfaces. Record whether logs, `/readyz`, System Status, TaskRun/artifact state, trace, managed-call ledger, and audit are enough to explain every outcome. |
 
-The first gate deliberately does not require the OS sandbox. Without it, the
-worker's Bash path remains protected only by the in-process risky-command gate,
-and a trace/Portal must say that no OS sandbox applied. Network egress is also
-currently unbounded: no `NetworkPolicy` or evidenced allow-list is shipped. A
-Beta release may state those limits; it may not imply containment it does not
-enforce.
+Every candidate must also attach current results for `./make check ci`, the
+direct and managed Compose/kind deployment smoke, Portal browser E2E, release
+archive verification, image vulnerability scans, SBOMs, and provenance
+attestations. These are **per-release evidence**, not one-time substitutes for
+the entry proof above.
+
+The first Beta accepts explicit limits. It is for a trusted team on a private
+network, not direct public exposure. The worker's Bash path has no OS sandbox,
+worker egress is unrestricted, and storage credentials are available to the
+worker. The in-process risky-command gate and a visible `none`/unavailable
+sandbox boundary do not constitute OS containment. No `NetworkPolicy` or
+evidenced allow-list is shipped. The readiness record must repeat these limits;
+a Beta release may state them but may not imply controls it does not enforce.
 
 Deliberately outside the Beta gate: Desktop polish, SSO, executable team plugin
 content, additional model providers, and general durable Session sync. The
@@ -341,36 +365,42 @@ implemented; releases contributing hooks or MCP servers cannot be activated.
 
 ## Suggested Order
 
-The previous sequence treated worker OS sandboxing as the next universal
-dependency. That is not consistent with the Beta gate above: it is important
-defense in depth, but it does not prove that the existing deployment works or
-recovers. The immediate work is therefore evidence-first.
+The immediate work closes the Beta gate in dependency order. Worker OS
+sandboxing remains a parallel security track: it is important defense in depth,
+but it does not prove that the existing deployment works or recovers.
 
-1. **Make the existing deployment proof complete.** Extend the deterministic
-   Compose/kind smoke so it verifies cancellation, a worker that dies mid-run,
-   and a dependency failure, in addition to the existing login, worker,
-   artifact, retry, managed-model, authorization, and Portal checks. Keep these
-   as deployment-level tests; unit tests already cover parts of the state
-   machine but cannot prove the launched worker actually stops or reports.
-2. **Run and record the operating exercises.** Against a real private-cluster
-   dependency set, verify bucket permissions, backup/restore, and a migration
-   upgrade followed by binary rollback. Add only the smallest product diagnostics
-   exposed by those exercises; do not turn readiness into a destructive storage
-   probe or invent metrics before deciding what an operator needs.
-3. **Widen the Harbor run.** The oracle smoke and a one-task canary have run,
+What this list opened with is done: configured worker CPU and memory bounds are
+validated before any Job is created, and a `k8s_job` deployment that would
+produce an unbounded worker now fails at startup with the key to edit named.
+
+1. **Complete the negative deployment smoke.** Add deterministic cancellation,
+   hard worker loss, database unavailability, and object-storage denial cases to
+   the existing login, worker, artifact, retry, managed-model, authorization,
+   and Portal coverage. Assert terminal state and retained evidence, not merely
+   that an error was returned.
+2. **Qualify immutable candidate images externally.** Use real external
+   MySQL/S3/TLS to run the operator journey, paired database-and-bucket restore,
+   schema upgrade and N-1 binary rollback, and a documented credential rotation.
+   Record exact image digests, dependency versions, timings, data checks, and
+   accepted loss in [deploy/beta-readiness.md](deploy/beta-readiness.md).
+3. **Close the candidate record.** Attach current CI, direct and managed
+   Compose/kind smoke, Portal E2E, release archive, image scan, SBOM, and
+   attestation evidence. Beta begins only when the record has no required open
+   item and the accepted limits are repeated in the release notes.
+4. **Widen the Harbor run.** The oracle smoke and a one-task canary have run,
    and `pins.json` names a six-task canary subset that `--canary` selects; next
    is running it, then the full 89 tasks at five attempts under the
    leaderboard's unmodified resource and timeout policy, with a baseline
    comparison. The one task that has run says the path works, not what BuildMax
    scores, and the first canary found a product bug that had nothing to do with
    evaluation — budget for the next widening to find more, and fix before going
-   wider. This can run alongside step 2.
-4. **Continue the rest of P0.6 from the shipped local and worker slice.** Add
+   wider. This can run alongside step 1.
+5. **Continue the rest of P0.6 from the shipped local and worker slice.** Add
    conversation and deployment adapters, then expand the product and trust
    suites around repeated trials and useful failure bundles. Calibrate model
    graders and spike Inspect only after the local workflow shows what it needs
    to add.
-5. **Finish worker hardening as a parallel security track.** First decide and
+6. **Finish worker hardening as a parallel security track.** First decide and
    document fail-closed versus recorded downgrade when `bwrap` is unavailable;
    then add the backend to the image, prove the pod supports it, select
    `SandboxSurfaceWorker`, add rlimits, sandbox hook transports, and test the
@@ -380,8 +410,8 @@ recovers. The immediate work is therefore evidence-first.
    covered them, on any surface — so it is what makes executable team plugins
    contained rather than what permits them; see
    [design/plugin-team-distribution.md](design/plugin-team-distribution.md) §9.
-   None of it hides steps 1–4 behind it.
-6. **Choose one product bet from evidence.** One has been taken and shipped:
+   None of it hides steps 1–5 behind it.
+7. **Choose one product bet from evidence.** One has been taken and shipped:
    agent-managed worktrees, in
    [design/workspace-root-and-worktrees.md](design/workspace-root-and-worktrees.md).
    A session moves its own workspace root, an agent creates and cleans up its

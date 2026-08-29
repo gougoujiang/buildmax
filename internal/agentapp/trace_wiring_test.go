@@ -108,7 +108,7 @@ func TestAgentApp_RunPromptWritesTrace(t *testing.T) {
 
 	records := readTrace(t, sess.ID(), result.TraceID)
 	if len(records) != 5 {
-		t.Fatalf("got %d records, want run_start + sandbox_boundary + prompt_layers + plugins + run_end: %+v",
+		t.Fatalf("got %d records, want run_start + sandbox_boundary + context_sources + plugins + run_end: %+v",
 			len(records), records)
 	}
 
@@ -139,14 +139,22 @@ func TestAgentApp_RunPromptWritesTrace(t *testing.T) {
 		t.Errorf("sandboxed = %v, want an explicit false on this unsandboxed surface", boundary["sandboxed"])
 	}
 
-	// The prompt layers are recorded for the same reason: what the run was told before the
+	// The context sources are recorded for the same reason: what the run was told before the
 	// conversation started does not depend on how far it got.
-	layers := records[2]
-	if layers["type"] != "prompt_layers" {
-		t.Errorf("third record type = %v, want prompt_layers", layers["type"])
+	sources := records[2]
+	if sources["type"] != "context_sources" {
+		t.Errorf("third record type = %v, want context_sources", sources["type"])
 	}
-	if got, ok := layers["layers"].([]any); !ok || len(got) == 0 {
-		t.Errorf("prompt_layers records no layers: %+v", layers)
+	if got, ok := sources["instructions"].([]any); !ok || len(got) == 0 {
+		t.Errorf("context_sources records no instruction layers: %+v", sources)
+	}
+	// Written even when there is no summary, so a reader can tell "the model
+	// saw every message" from "nobody recorded whether it did".
+	projection, ok := sources["history_projection"].(map[string]any)
+	if !ok {
+		t.Errorf("context_sources omits history_projection: %+v", sources)
+	} else if present, ok := projection["compaction_present"].(bool); !ok || present {
+		t.Errorf("compaction_present = %v, want an explicit false on a run that compacted nothing", projection["compaction_present"])
 	}
 
 	end := records[len(records)-1]

@@ -11,6 +11,7 @@ import (
 
 // builtinSlashCommands is sorted; add new system commands here for completion.
 var builtinSlashCommands = []string{
+	"/compact",
 	"/diff",
 	"/fork",
 	"/mcp",
@@ -216,6 +217,8 @@ func (m *Model) renderSlashPopupPanel() string {
 // dispatchSlashCommand runs a resolved system command (no session append).
 func dispatchSlashCommand(m *Model, cmd string, args ...string) (tea.Model, tea.Cmd) {
 	switch cmd {
+	case "/compact":
+		return runSlashCompact(m)
 	case "/diff":
 		return openSlashDiff(m)
 	case "/fork":
@@ -239,7 +242,7 @@ func dispatchSlashCommand(m *Model, cmd string, args ...string) (tea.Model, tea.
 	case "/worktree":
 		return openSlashWorktree(m)
 	default:
-		m.err = "unknown command " + cmd + " (try /diff, /fork, /mcp, /model, /rewind, /sessions, /skills, /stats, /tasks, /tools, /worktree)"
+		m.err = "unknown command " + cmd + " (try /compact, /diff, /fork, /mcp, /model, /rewind, /sessions, /skills, /stats, /tasks, /tools, /worktree)"
 		return m, nil
 	}
 }

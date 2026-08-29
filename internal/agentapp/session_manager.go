@@ -20,12 +20,35 @@ import (
 type SessionManager struct {
 	store session.Store
 	dir   string
+	// projectID is stamped on every session this manager creates. It is empty
+	// for the read-only and non-local callers -- listing, renaming, a task run
+	// -- because a Project is a local relationship and inventing one to fill
+	// the field would put a session in a catalog nothing can resolve.
+	projectID string
 }
 
-// NewSessionManager returns a manager over the session bundles in dir.
+// NewSessionManager returns a manager over the session bundles in dir. Sessions
+// it creates belong to no local Project; a surface that has one says so with
+// ForProject.
 func NewSessionManager(dir string) *SessionManager {
 	return &SessionManager{store: sessionstore.NewFileStore(dir), dir: dir}
 }
+
+// ForProject returns a manager over the same sessions whose new ones belong to
+// projectID.
+//
+// It is a copy rather than a setter because the Project a session belongs to is
+// immutable: a manager that could be repointed would make "which Project did
+// this session start in" depend on when the question was asked.
+func (s *SessionManager) ForProject(projectID string) *SessionManager {
+	next := *s
+	next.projectID = projectID
+	return &next
+}
+
+// ProjectID is the Project this manager's new sessions belong to, or "" when it
+// has none.
+func (s *SessionManager) ProjectID() string { return s.projectID }
 
 // Dir is the sessions root this manager writes under.
 func (s *SessionManager) Dir() string { return s.dir }
@@ -46,6 +69,10 @@ func (s *SessionManager) Create(defaultModel string) (*SessionContext, error) {
 func (s *SessionManager) CreateSubagent(defaultModel string, lineage session.Meta) (*SessionContext, error) {
 	meta := session.NewMeta(session.NewID(), session.KindSubagent, time.Now())
 	meta.SelectedModel = defaultModel
+	// A subagent belongs to the Project its parent runs in: the delegation is
+	// part of the same work, and its provenance and read-only memory context
+	// have to resolve to the same place.
+	meta.ProjectID = s.projectID
 	meta.ParentSessionID = lineage.ParentSessionID
 	meta.ParentRunID = lineage.ParentRunID
 	meta.ParentToolCallID = lineage.ParentToolCallID
@@ -64,6 +91,7 @@ func (s *SessionManager) CreateSubagent(defaultModel string, lineage session.Met
 func (s *SessionManager) CreateWithID(id, defaultModel string) (*SessionContext, error) {
 	meta := session.NewMeta(id, session.KindUser, time.Now())
 	meta.SelectedModel = defaultModel
+	meta.ProjectID = s.projectID
 	if err := s.store.Create(context.Background(), meta); err != nil {
 		return nil, err
 	}
@@ -112,6 +140,10 @@ func (s *SessionManager) Fork(parent *SessionContext, throughItemID, defaultMode
 	// the default directory.
 	meta.Title = parent.Title()
 	meta.Workspace = parent.Meta().Workspace
+	// Taken from the parent rather than from this manager: a fork continues the
+	// conversation it copied, so it belongs where that conversation did even if
+	// the manager doing the forking was opened somewhere else.
+	meta.ProjectID = parent.Meta().ProjectID
 	meta.ForkedFrom = &session.ForkedFrom{
 		SessionID: parent.ID(),
 		HeadID:    throughItemID,
@@ -257,17 +289,25 @@ func (s *SessionManager) Delete(id string) error {
 	return sessionstore.DeleteSession(s.dir, id)
 }
 
-// DeleteByWorkspace removes every visible session whose workspace matches dir,
+// DeleteByProject removes every visible session belonging to projectID,
 // returning the ids it deleted.
-func (s *SessionManager) DeleteByWorkspace(workspace string) ([]string, error) {
+//
+// Membership decides, not the path a session recorded. Matching on paths meant
+// a session that had moved between spellings of one directory survived a clear
+// that named it, and one started in a sibling directory could be taken by a
+// clear that did not. An empty projectID deletes nothing: a session that
+// belongs to no Project is not evidence of belonging to this one.
+func (s *SessionManager) DeleteByProject(projectID string) ([]string, error) {
+	if projectID == "" {
+		return nil, nil
+	}
 	rows, err := s.List()
 	if err != nil {
 		return nil, err
 	}
-	aliases := workspaceAliases(workspace)
 	var deleted []string
 	for _, row := range rows {
-		if !matchesWorkspace(row.Workspace, aliases) {
+		if row.ProjectID != projectID {
 			continue
 		}
 		if err := s.Delete(row.ID); err != nil {

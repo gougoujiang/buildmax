@@ -43,15 +43,34 @@ readable rather than a list of ids.
 ### Resuming
 
 ```bash
-buildmax --continue              # most recent session
+buildmax --continue              # this directory's most recent session
+buildmax --continue --project    # widen to every directory of this project
 buildmax --resume <session-id>   # a specific one
 buildmax --session-id <uuid>     # load if it exists, otherwise create it
 ```
 
+`--continue` means the newest session recorded in the directory you are in. The
+newest session on the machine is rarely the one you want, because it follows
+whichever repository you touched last — and the newest one in a *sibling
+worktree* is not it either, since continuing there would move your working root
+out from under you. When this directory has no sessions but the project does,
+`--continue` says how many and names `--project`; widening then prints the
+directory it will run in before the first turn.
+
+The `/sessions` picker is scoped to the project — a repository including all of
+its worktrees, or a plain folder — and may cross directories, because you are
+reading the list. A session recorded in another tree is marked with that tree's
+name, and resuming it says which root it will actually run in.
+
+`--resume <id>` still looks a session up anywhere, but it resumes in the
+directory that session ran in, and refuses to continue a session that belongs to
+a different project rather than moving it.
+
 `--session-id` is the one to script with: it makes a run idempotent against a
 known id instead of depending on what happens to be most recent.
 
-In the TUI, `/sessions` opens the picker. The conversation is written as it
+In the TUI, `/sessions` opens the picker, showing this project's sessions;
+press `a` for every project on the machine. The conversation is written as it
 happens, so an interrupted run keeps everything up to the moment it stopped —
 not just up to the last completed reply.
 
@@ -118,6 +137,13 @@ compacted into a summary, recorded in the journal as a `compaction` record
 naming exactly which messages it covers. The `pre_compact` hook can block this,
 and `post_compact` observes it — see [hooks.md](hooks.md).
 
+`/compact` in the TUI does the same thing when you ask rather than when the
+window fills, and keeps a much shorter tail verbatim. Use it before handing the
+agent a new task in a long session: what the summary covers is no longer
+quotable, only summarized. The summarizing model call is charged to the session
+like any other, and the messages themselves stay in the session file — the
+summary replaces what is sent to the model, not what was recorded.
+
 ## Traces
 
 Every run writes one JSONL file:
@@ -134,7 +160,7 @@ terminal `run_end`:
 |---|---|
 | `run_start` | The run begins |
 | `sandbox_boundary` | Always, right after `run_start` — reports the boundary the run actually ran under. `"sandboxed": false` means nothing confined the run's `Bash` commands |
-| `prompt_layers` | Always — what the run was told before the conversation started, and how much of each |
+| `context_sources` | Always — every source the run was assembled from, named by kind: the instruction layers and how large each was, the project memory index it carried with its entry count and rendered size, and whether a compaction summary stood in for messages. Counts and sizes only; no content. Which memory bodies a run went on to read, and any write, are tool calls in the session journal rather than a second description here |
 | `plugins` | Always — which plugins the run loaded, and for one installed from a Git checkout its commit and whether the working tree was dirty |
 | `llm_start` / `llm_end` | Each model call |
 | `tool_start` / `tool_end` | Each tool call |

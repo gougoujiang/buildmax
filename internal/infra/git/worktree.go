@@ -2,6 +2,7 @@ package git
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -114,6 +115,53 @@ func DeleteBranch(ctx context.Context, repo, branch string, force bool) error {
 	return nil
 }
 
+// ErrNotARepository reports that a path is not inside any Git working tree.
+//
+// It is separated from other failures on purpose: "this is a plain directory"
+// is an answer a caller acts on, while "git timed out" is one it must not
+// mistake for that answer. Resolving a workspace to a Project turns on exactly
+// that distinction — treating a transient failure as "no repository" would give
+// a checkout a second identity and split the memory its worktrees share.
+var ErrNotARepository = errors.New("not a git repository")
+
+// Repo is what Git says about the working tree containing a path.
+type Repo struct {
+	// CommonDir is the repository's common Git directory, absolute — the
+	// `<repo>/.git` that a primary checkout and every linked worktree share, as
+	// distinct from the per-worktree AdminDir below.
+	//
+	// It is the only local relation that holds exactly across one repository's
+	// working trees and no wider: a path is not it, because worktrees have
+	// several; a remote URL is not it, because clones share one and it can be
+	// rewritten. See docs/design/local-project-memory.md §7.2.
+	CommonDir string
+	// TopLevel is the root of the working tree the path is in, absolute. Unlike
+	// CommonDir it differs per worktree, which is what makes the pair useful
+	// together: one names the repository, the other the tree being worked in.
+	TopLevel string
+}
+
+// Repository returns the common directory and working-tree root for dir, or
+// ErrNotARepository when dir is not inside a checkout.
+//
+// Both come from one rev-parse because both are wanted at the same moments —
+// resolving a Project, naming it — and a second process spawn on every session
+// start buys nothing.
+func Repository(ctx context.Context, dir string) (Repo, error) {
+	out, err := runGit(ctx, dir, "rev-parse", "--path-format=absolute", "--git-common-dir", "--show-toplevel")
+	if err != nil {
+		if strings.Contains(out, "not a git repository") {
+			return Repo{}, fmt.Errorf("%w: %s", ErrNotARepository, dir)
+		}
+		return Repo{}, fmt.Errorf("git rev-parse: %s", firstLine(out))
+	}
+	lines := strings.Fields(strings.TrimSpace(strings.ReplaceAll(out, "\r\n", "\n")))
+	if len(lines) != 2 {
+		return Repo{}, fmt.Errorf("git rev-parse: expected a common dir and a top level, got %q", strings.TrimSpace(out))
+	}
+	return Repo{CommonDir: filepath.Clean(lines[0]), TopLevel: filepath.Clean(lines[1])}, nil
+}
+
 // AdminDir returns the per-worktree administrative directory — the
 // `<repo>/.git/worktrees/<name>` a linked worktree's .git file points at.
 //
@@ -174,11 +222,11 @@ func UnreachableCommits(ctx context.Context, dir string) (int, error) {
 // is per-clone and untracked, which is exactly the scope of a local worktree
 // directory. See docs/design/workspace-root-and-worktrees.md D1.
 func ExcludeLocally(ctx context.Context, repo, pattern string) error {
-	commonDir, err := runGit(ctx, repo, "rev-parse", "--path-format=absolute", "--git-common-dir")
+	r, err := Repository(ctx, repo)
 	if err != nil {
-		return fmt.Errorf("git rev-parse: %s", firstLine(commonDir))
+		return err
 	}
-	path := filepath.Join(strings.TrimSpace(commonDir), "info", "exclude")
+	path := filepath.Join(r.CommonDir, "info", "exclude")
 	existing, err := os.ReadFile(path)
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("read %s: %w", path, err)

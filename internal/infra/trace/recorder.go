@@ -40,8 +40,9 @@ type Meta struct {
 	// Sandbox is the execution boundary resolved for this run. Nil is recorded
 	// as unsandboxed rather than unknown — see boundaryRecord.
 	Sandbox *agent.SandboxInfo
-	// PromptLayers are the system-prompt layers this run loaded, in order.
-	PromptLayers []agent.PromptLayer
+	// Sources are the instruction, memory, and history-projection inputs this
+	// run started with.
+	Sources agent.ContextSources
 	// Plugins is the plugin inventory active for this run.
 	Plugins []plugin.Provenance
 }
@@ -102,7 +103,7 @@ func NewRecorder(dir string, meta Meta) *Recorder {
 		TraceVersion:     traceVersion,
 	})
 	r.write(boundaryRecord(meta.Sandbox))
-	r.write(layersRecord(meta.PromptLayers))
+	r.write(sourcesRecord(meta.Sources))
 	r.write(pluginsRecord(meta.Plugins))
 	return r
 }

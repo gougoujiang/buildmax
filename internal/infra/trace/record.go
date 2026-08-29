@@ -8,6 +8,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/plugin"
+	"github.com/gougoujiang/buildmax/internal/util/secretscan"
 )
 
 // traceVersion is stamped on the run_start record so future readers can detect
@@ -52,13 +53,18 @@ type Record struct {
 	Sources     []string `json:"sources,omitempty"`
 	Downgraded  bool     `json:"downgraded,omitempty"`
 
-	// prompt_layers
+	// context_sources
 	//
-	// Layers names what the run was told before the conversation started, and how much of
-	// each. Like sandbox_boundary, the record is written even when there is nothing beyond
-	// the runtime prompt: an absent record would read as "nobody looked" rather than "there
-	// was nothing else".
-	Layers []agent.PromptLayer `json:"layers,omitempty"`
+	// What the run was given before its first model call, each source named by
+	// its own kind: instruction layers, memory, and whether a compaction
+	// summary stood in for messages. Like sandbox_boundary, the record is
+	// written even when there is nothing beyond the runtime prompt -- an absent
+	// record would read as "nobody looked" rather than "there was nothing
+	// else" -- and it carries sizes and revisions rather than any raw text.
+	ProjectID         string                   `json:"project_id,omitempty"`
+	Instructions      []agent.PromptLayer      `json:"instructions,omitempty"`
+	Memory            []agent.MemorySourceInfo `json:"memory,omitempty"`
+	HistoryProjection *agent.HistoryProjection `json:"history_projection,omitempty"`
 
 	// plugins
 	//
@@ -257,16 +263,16 @@ func recordFromEvent(e agent.Event, maxField int) (Record, bool) {
 		r.Cost = recordCost(e.CallCost)
 		r.ContextTokens = e.ContextTokens
 		r.ContextWindow = e.ContextWindow
-		r.Content = bound(Redact(e.Content), maxField)
+		r.Content = bound(secretscan.Redact(e.Content), maxField)
 	case agent.EventToolStart:
 		r.Tool = e.ToolName
 		r.ToolCallID = e.ToolCallID
-		r.Args = bound(Redact(e.ToolArgs), maxField)
+		r.Args = bound(secretscan.Redact(e.ToolArgs), maxField)
 	case agent.EventToolEnd:
 		r.Tool = e.ToolName
 		r.ToolCallID = e.ToolCallID
-		r.Args = bound(Redact(e.ToolArgs), maxField)
-		r.Result = bound(Redact(e.ToolResult), maxField)
+		r.Args = bound(secretscan.Redact(e.ToolArgs), maxField)
+		r.Result = bound(secretscan.Redact(e.ToolResult), maxField)
 		r.DurationMS = e.ToolDuration.Milliseconds()
 		r.ErrorKind = e.ToolErrorKind
 	case agent.EventToolDenied:
@@ -289,10 +295,10 @@ func recordFromEvent(e agent.Event, maxField int) (Record, bool) {
 		// A message that entered the run after it started is part of what the run
 		// was told to do, so a trace that omitted it would misreport its instructions.
 		r.Iter = e.Iter
-		r.Content = bound(Redact(e.Content), maxField)
+		r.Content = bound(secretscan.Redact(e.Content), maxField)
 	case agent.EventUserInputBlocked:
 		r.Iter = e.Iter
-		r.Content = bound(Redact(e.Content), maxField)
+		r.Content = bound(secretscan.Redact(e.Content), maxField)
 		r.DenyReason = e.DenyReason
 	case agent.EventRunEnd:
 		r.ToolCalls = e.Stats.ToolCalls
@@ -310,11 +316,21 @@ func recordFromEvent(e agent.Event, maxField int) (Record, bool) {
 	return r, true
 }
 
-// layersRecord reports the system-prompt layers this run loaded. Written for every run,
-// including one that loaded nothing beyond the runtime prompt: trust-harness §3.6 asks that a
-// run be able to say which instruction sources it received, and silence is not an answer.
-func layersRecord(layers []agent.PromptLayer) Record {
-	return Record{TS: now(), Type: "prompt_layers", Layers: append([]agent.PromptLayer(nil), layers...)}
+// sourcesRecord reports every context source this run loaded. Written for every
+// run, including one that loaded nothing beyond the runtime prompt: trust-harness
+// §3.6 asks that a run be able to say which sources it received, and silence is
+// not an answer.
+func sourcesRecord(sources agent.ContextSources) Record {
+	projection := sources.HistoryProjection
+	return Record{
+		TS:                now(),
+		Type:              "context_sources",
+		ProjectID:         sources.ProjectID,
+		Workspace:         sources.Workspace,
+		Instructions:      append([]agent.PromptLayer(nil), sources.Instructions...),
+		Memory:            append([]agent.MemorySourceInfo(nil), sources.Memory...),
+		HistoryProjection: &projection,
+	}
 }
 
 // pluginsRecord builds the plugins record written immediately after run_start.

@@ -1,13 +1,16 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/agentapp"
+	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/session"
 
 	"charm.land/bubbles/v2/textarea"
@@ -24,13 +27,33 @@ const slashSessionPanelChromeLines = 9
 type slashSessionState struct {
 	LoadError string
 	Empty     bool
-	All       []session.ItemSummary // full sorted list, unchanged by filtering
-	Filtered  []session.ItemSummary // view after applying Query
-	Selected  int
-	Offset    int
-	Query     string
-	Renaming  bool
-	RenameVal string
+	// Everything is every visible session on the machine. All is the current
+	// scope's slice of it, and Filtered is All after the search query. Keeping
+	// the widest list means toggling scope does not re-read the store, so the
+	// selection survives the toggle rather than being rebuilt under the cursor.
+	Everything []session.ItemSummary
+	All        []session.ItemSummary
+	Filtered   []session.ItemSummary
+	Selected   int
+	Offset     int
+	Query      string
+	Renaming   bool
+	RenameVal  string
+
+	// ProjectID is the Project the panel is scoped to by default. Empty means
+	// this run has none, and the panel opens on every session -- a scope of
+	// nothing would be an empty list with no way to explain itself.
+	ProjectID   string
+	ProjectName string
+	AllProjects bool
+	// Root is the Workspace this TUI runs in. A Project can span worktrees, so
+	// a listed session may have been recorded somewhere else; the rows say
+	// which, and resuming one says where it will actually run.
+	Root string
+	// ProjectNames labels rows and widens the search in the all-projects view.
+	// Without it every row from another repository reads as an untitled session
+	// that cannot be told from its neighbours.
+	ProjectNames map[string]string
 }
 
 var slashSessionTitleStyle = slashPanelTitleStyle
@@ -45,10 +68,23 @@ func openSlashSession(m *Model) (tea.Model, tea.Cmd) {
 		st = &slashSessionState{Empty: true}
 	default:
 		sortSessionsByCreatedAtDesc(entries)
-		st = &slashSessionState{All: entries, Filtered: entries}
+		project := m.opts.App.Project()
+		root := ""
+		if m.opts.Workspace != nil {
+			root = m.opts.Workspace.Root()
+		}
+		st = &slashSessionState{
+			Everything:   entries,
+			ProjectID:    project.ID,
+			ProjectName:  project.Name,
+			AllProjects:  project.ID == "",
+			ProjectNames: projectNamesByID(),
+			Root:         root,
+		}
+		applySessionScope(st)
 		// Pre-select the current session if it is in the list.
 		if m.opts.Session != nil {
-			for i, e := range entries {
+			for i, e := range st.Filtered {
 				if e.ID == m.opts.Session.ID() {
 					st.Selected = i
 					scrollSessionIntoView(m, st)
@@ -59,6 +95,34 @@ func openSlashSession(m *Model) (tea.Model, tea.Cmd) {
 	}
 	m.slashSession = st
 	return m.openPanel(st)
+}
+
+// projectNamesByID reads the Project catalog for labelling. A failure yields no
+// names rather than an error: the panel's job is to list sessions, and one that
+// refused to open because a label was unavailable would be worse than one whose
+// rows are named by id.
+func projectNamesByID() map[string]string {
+	rows, err := agentapp.NewProjectManager(config.ProjectsDir()).Store().List(context.Background())
+	if err != nil {
+		slog.Warn("list projects for the session panel failed", "err", err)
+		return nil
+	}
+	names := make(map[string]string, len(rows))
+	for _, r := range rows {
+		names[r.ID] = r.Name
+	}
+	return names
+}
+
+// applySessionScope narrows Everything to the current scope, then re-applies
+// the search query on top of it.
+func applySessionScope(st *slashSessionState) {
+	if st.AllProjects || st.ProjectID == "" {
+		st.All = st.Everything
+	} else {
+		st.All = filterByProject(st.Everything, st.ProjectID)
+	}
+	applySessionFilter(st)
 }
 
 func (p *slashSessionState) FooterHint() string { return "esc: close sessions panel" }
@@ -127,6 +191,13 @@ func (p *slashSessionState) HandleKey(m *Model, msg tea.KeyPressMsg) (bool, tea.
 			startSlashSessionRename(m)
 		}
 		return true, nil
+	case "a":
+		if p.ProjectID != "" {
+			p.AllProjects = !p.AllProjects
+			applySessionScope(p)
+			p.Selected, p.Offset = 0, 0
+		}
+		return true, nil
 	}
 	// Printable character → append to search filter.
 	s := msg.String()
@@ -166,8 +237,15 @@ func applySessionFilter(st *slashSessionState) {
 	q := strings.ToLower(st.Query)
 	filtered := make([]session.ItemSummary, 0, len(st.All))
 	for _, e := range st.All {
-		if strings.Contains(strings.ToLower(e.Title), q) ||
-			strings.Contains(strings.ToLower(e.ID), q) {
+		match := strings.Contains(strings.ToLower(e.Title), q) ||
+			strings.Contains(strings.ToLower(e.ID), q)
+		// Project name is searchable only where it is shown. In the scoped view
+		// every row shares one project, so matching on it would silently return
+		// the whole list for a query that appears to have found something.
+		if !match && st.AllProjects {
+			match = strings.Contains(strings.ToLower(st.ProjectNames[e.ProjectID]), q)
+		}
+		if match {
 			filtered = append(filtered, e)
 		}
 	}
@@ -243,6 +321,9 @@ func confirmSlashSessionResume(m *Model) (tea.Model, tea.Cmd) {
 		return m.closeActivePanel()
 	}
 	entry := m.slashSession.Filtered[m.slashSession.Selected]
+	// Captured before the panel state is cleared below.
+	recordedElsewhere := m.slashSession.elsewhere(&entry)
+	runningIn := m.slashSession.Root
 	sess, err := agentapp.NewSessionManager(m.opts.SessionsDir).Open(entry.ID, m.opts.ModelName)
 	if err != nil {
 		m.slashSession.LoadError = "load failed: " + err.Error()
@@ -271,7 +352,15 @@ func confirmSlashSessionResume(m *Model) (tea.Model, tea.Cmd) {
 	if title == "" {
 		title = entry.ID
 	}
-	separator := messageBarStyle.Render("─── Resumed: " + title + " ───")
+	label := "─── Resumed: " + title + " ───"
+	if recordedElsewhere {
+		// A session recorded in another tree runs here, in this TUI's root.
+		// Saying so is the whole reason crossing Workspaces is allowed from
+		// the picker and not from --continue.
+		label += "\n" + messageBarStyle.Render(
+			"recorded in "+entry.Workspace+"; running in "+runningIn)
+	}
+	separator := messageBarStyle.Render(label)
 	history := buildMessagesForScrollback(sess.Messages(), m.width, m.opts.GlamourStyle)
 	output := separator + "\n\n" + history
 	return m, tea.Sequence(
@@ -329,12 +418,20 @@ func sortSessionsByCreatedAtDesc(entries []session.ItemSummary) {
 	})
 }
 
-func formatSessionListRow(maxWidth int, e *session.ItemSummary) string {
+func formatSessionListRow(maxWidth int, e *session.ItemSummary, project string, elsewhere bool) string {
 	timeStr := e.CreatedAt.Local().Format("01-02 15:04")
 	ago := humanAgo(time.Since(e.CreatedAt))
 	title := e.Title
 	if title == "" {
 		title = "(no title)"
+	}
+	if project != "" {
+		title = project + " · " + title
+	}
+	if elsewhere {
+		// Named by its directory rather than flagged, because "which tree" is
+		// the question a worktree workflow is actually asking.
+		title = "[" + filepath.Base(filepath.Clean(e.Workspace)) + "] " + title
 	}
 	suffix := "  " + ago
 	prefix := timeStr + "  "
@@ -368,7 +465,7 @@ func humanAgo(d time.Duration) string {
 
 func (p *slashSessionState) Render(m *Model, maxLineWidth int) string {
 	var b strings.Builder
-	b.WriteString(slashSessionTitleStyle.Render("Sessions"))
+	b.WriteString(slashSessionTitleStyle.Render("Sessions" + p.scopeLabel()))
 	b.WriteString("\n\n")
 	if p.LoadError != "" {
 		b.WriteString("error: ")
@@ -388,12 +485,18 @@ func (p *slashSessionState) Render(m *Model, maxLineWidth int) string {
 		b.WriteString("█\n\n")
 	}
 	if p.Empty || len(p.Filtered) == 0 {
-		if p.Empty {
+		switch {
+		case p.Empty:
 			b.WriteString("No saved sessions yet.")
-		} else {
+		case p.Query == "" && !p.AllProjects:
+			// Say which scope is empty and how to widen it. Falling back to
+			// every session instead would answer a question the user did not
+			// ask, which is the behaviour this scoping exists to remove.
+			b.WriteString("No sessions in this project yet.")
+		default:
 			b.WriteString("No sessions match.")
 		}
-		return strings.TrimRight(b.String(), "\n") + "\n\nesc: close"
+		return strings.TrimRight(b.String(), "\n") + "\n\n" + p.keyHints()
 	}
 	end := p.Offset + m.sessionRowBudget(p)
 	if end > len(p.Filtered) {
@@ -404,7 +507,7 @@ func (p *slashSessionState) Render(m *Model, maxLineWidth int) string {
 		if i == p.Selected {
 			cursor = "› "
 		}
-		row := formatSessionListRow(maxLineWidth-2, &p.Filtered[i])
+		row := formatSessionListRow(maxLineWidth-2, &p.Filtered[i], p.rowProject(&p.Filtered[i]), p.elsewhere(&p.Filtered[i]))
 		b.WriteString(truncateRunes(cursor+row, maxLineWidth))
 		b.WriteByte('\n')
 	}
@@ -415,5 +518,51 @@ func (p *slashSessionState) Render(m *Model, maxLineWidth int) string {
 	if p.Renaming {
 		return out + "\n\nenter: save rename · esc: cancel"
 	}
-	return out + "\n\n↑↓ select · enter: resume · r: rename · d: delete · esc: close"
+	return out + "\n\n" + p.keyHints()
+}
+
+// scopeLabel names what the list is showing, so a short list is never mistaken
+// for the whole machine or the reverse.
+func (p *slashSessionState) scopeLabel() string {
+	switch {
+	case p.ProjectID == "":
+		return ""
+	case p.AllProjects:
+		return " — all projects"
+	case p.ProjectName != "":
+		return " — " + p.ProjectName
+	default:
+		return " — this project"
+	}
+}
+
+func (p *slashSessionState) keyHints() string {
+	hints := "↑↓ select · enter: resume · r: rename · d: delete"
+	if p.ProjectID != "" {
+		if p.AllProjects {
+			hints += " · a: this project"
+		} else {
+			hints += " · a: all projects"
+		}
+	}
+	return hints + " · esc: close"
+}
+
+// elsewhere reports whether a row was recorded outside the root this TUI runs
+// in. The picker may cross Workspaces because the user is reading the list;
+// what it may not do is let one be chosen without saying so.
+func (p *slashSessionState) elsewhere(e *session.ItemSummary) bool {
+	return p.Root != "" && e.Workspace != "" && !sameWorkspace(e.Workspace, p.Root)
+}
+
+// rowProject is the label a row carries, and only in the view where rows come
+// from more than one Project.
+func (p *slashSessionState) rowProject(e *session.ItemSummary) string {
+	if !p.AllProjects || e.ProjectID == "" {
+		return ""
+	}
+	if name := p.ProjectNames[e.ProjectID]; name != "" {
+		return name
+	}
+	return e.ProjectID
 }

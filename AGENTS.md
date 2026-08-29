@@ -115,8 +115,10 @@ Important ownership boundaries:
 
 Team is the ownership and authorization boundary for Portal resources. Issue is
 the primary user-facing work object. Workflows are team-scoped reusable linear
-plans. Conversations orchestrate foreground turns and background tasks. The
-Desktop `Project` concept is local UI state, not a server domain entity.
+plans. Conversations orchestrate foreground turns and background tasks. Local
+`Project` is a shared CLI/TUI/Desktop runtime concept owned by
+`internal/core/localproject` -- one Git repository including its worktrees, or
+one directory -- and is not a server domain entity.
 
 Read the relevant architecture document before making a cross-package change:
 
@@ -252,6 +254,13 @@ inspect their help and use them only when the task authorizes that effect.
 
 - Preserve unrelated work in a dirty worktree. Never reset or overwrite another
   contributor's changes to make checks pass.
+- A design record read at the start of a task can move under you. Before opening
+  a pull request, `git fetch origin` and check whether `main` has changed the
+  records the work implements — `git log origin/main -- <record>` answers it.
+  Rebase onto what you find before opening, and check again before merging. A
+  branch cut from a record that was superseded an hour later still builds,
+  still passes its own tests, and implements a design the repository has
+  rejected; nothing in the checks can catch that, so it has to be looked at.
 - Persisted JSON uses explicit `snake_case` tags. Database table names are
   singular. A server entity's public identifier uses `NewPublicID` from
   `internal/util`; see [`docs/design/entity-identity.md`](docs/design/entity-identity.md).

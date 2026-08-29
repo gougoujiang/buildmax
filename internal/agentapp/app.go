@@ -15,6 +15,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	corehook "github.com/gougoujiang/buildmax/internal/core/hook"
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/gougoujiang/buildmax/internal/core/localproject"
 	"github.com/gougoujiang/buildmax/internal/core/plugin"
 	"github.com/gougoujiang/buildmax/internal/core/session"
 	llm "github.com/gougoujiang/buildmax/internal/infra/llm"
@@ -105,6 +106,23 @@ type AppConfig struct {
 	// because its directory is run-scoped and is not the user's to branch.
 	// See docs/design/workspace-root-and-worktrees.md D8.
 	EnableWorktrees bool
+
+	// EnableLocalProject resolves the workspace to a local Project and stamps
+	// it on every session this app creates. CLI, TUI, and Desktop set it.
+	//
+	// A worker or eval run does not: its directory is run-scoped and belongs to
+	// nobody's local catalog, and registering one would fill that catalog with
+	// Projects for directories that no longer exist. Such a run is projectless,
+	// which later costs it the project-memory context and tool by construction
+	// rather than by a second flag. See docs/design/local-project-memory.md §9.4.
+	EnableLocalProject bool
+
+	// DisableProjectMemory turns off project memory for this run: no block is
+	// rendered and the write tool is not registered. Turning off reading is
+	// what turns off writing -- a run must not be able to mutate a source it
+	// was not allowed to inspect. It has no effect on a run with no Project,
+	// which never had either.
+	DisableProjectMemory bool
 }
 
 // ManagedTokenFunc returns the BuildMax credential to use for serverURL. It is
@@ -112,7 +130,27 @@ type AppConfig struct {
 type ManagedTokenFunc func(serverURL string) (string, error)
 
 type AgentApp struct {
-	workspace            *MovableRoot
+	workspace *MovableRoot
+	// project is the local Project every session here belongs to. It is the
+	// zero value when the surface did not ask for one; Project().ID == "" is
+	// how a projectless run is recognized.
+	project localproject.Project
+	// projects is the catalog behind it, held because project memory is read
+	// and written through it on every model call.
+	projects *ProjectManager
+	// projectReport is what resolution wants the surface to say once, at start:
+	// a Project registered here for the first time while others no longer
+	// resolve is how a moved repository silently becomes a duplicate.
+	projectReport ProjectReport
+	// memoryUnavailable is set when the whole store could not be read at run
+	// assembly. It withdraws the index and both tools together: a run that
+	// cannot see what it holds must not be able to add to it, and a partial
+	// index would be worse than none.
+	memoryUnavailable string
+	// memoryDisabled is the user's per-run switch, which is not the same as
+	// having no Project: one is a choice, the other is a surface that never
+	// had one.
+	memoryDisabled       bool
 	worktrees            *worktree.Manager
 	settings             config.Settings
 	llmClients           *LLMClientCache
@@ -473,6 +511,32 @@ func (a *AgentApp) SandboxResolution() config.SandboxResolution {
 		return config.SandboxResolution{}
 	}
 	return a.sandboxResolved
+}
+
+// Project is the local Project this app's sessions belong to, or the zero value
+// for a projectless run.
+//
+// It does not move when the workspace does: entering a worktree changes the
+// root and everything derived from it, and leaves the Project -- and the memory
+// that hangs off it -- alone. See docs/design/local-project-memory.md §6.2.
+func (a *AgentApp) Project() localproject.Project {
+	if a == nil {
+		return localproject.Project{}
+	}
+	return a.project
+}
+
+// StartupNotices are the things a surface should print once, before the first
+// turn: a Project registered for a directory that may be a moved repository,
+// and memory files that will be silently absent from every run until repaired.
+//
+// A source missing for a whole session without anyone being told is the failure
+// this exists to prevent, and `doctor` is not where a person looks mid-task.
+func (a *AgentApp) StartupNotices(relinkCommand string) []string {
+	if a == nil {
+		return nil
+	}
+	return append(a.projectReport.Lines(relinkCommand), a.MemoryStatus().Lines()...)
 }
 
 func (a *AgentApp) WorkspaceRoot() string {
@@ -942,13 +1006,13 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 		// session's diagnostics are deleted, copied, and retained with the
 		// conversation they describe rather than from a second root.
 		recorder = trace.NewRecorder(sessionstore.SessionTracesDir(a.sessionManager.Dir(), sess.ID()), trace.Meta{
-			RunID:        runID,
-			SessionID:    sess.ID(),
-			Workspace:    a.workspace.Root(),
-			Model:        modelName,
-			Sandbox:      a.sandboxInfo(),
-			PromptLayers: promptLayers,
-			Plugins:      a.plugins.Provenance(ctx),
+			RunID:     runID,
+			SessionID: sess.ID(),
+			Workspace: a.workspace.Root(),
+			Model:     modelName,
+			Sandbox:   a.sandboxInfo(),
+			Sources:   a.contextSources(sess, promptLayers),
+			Plugins:   a.plugins.Provenance(ctx),
 		})
 		a.trackTrace(recorder)
 		defer a.releaseTrace(recorder)
@@ -995,6 +1059,17 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 	// No compaction block here: RunLoop reads the stored summary through
 	// CompactionHistory and renders it itself. Appending it here as well put two
 	// <context_compaction> blocks in the prompt after the first in-run compaction.
+	// Built here rather than at construction because it records what this run
+	// has read, which is what makes a replacement it has not read refusable.
+	// Nil means this run has no memory -- no Project, or a user who turned it
+	// off -- and then no index is rendered, the tools find no store, and a
+	// delegate inherits neither.
+	var memory agent.MemoryStore
+	if pm := a.projectMemoryFor(sess.ID()); pm != nil {
+		memory = pm
+		ctx = agent.CtxWithMemoryStore(ctx, pm)
+	}
+
 	reply, stats, err := agent.RunLoop(ctx, agent.RunLoopOpts{
 		LLMClient:    client,
 		Pricing:      a.pricingFor(sess),
@@ -1012,6 +1087,7 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 		Compactor:        NewLLMCompactor(client),
 		Checkpointer:     NewNoteCheckpointer(client),
 		Invariants:       agent.ExtractInvariants(extraPrompt),
+		Memory:           memory,
 		EventSink:        teeEventSink(recorder.Record, opts.EventSink),
 		Hooks:            a.hooks,
 		SessionID:        sess.ID(),
@@ -1336,6 +1412,15 @@ func (a *AgentApp) buildToolRegistry(client cllm.LLMClient) (cllm.ToolRegistry, 
 	if a.issueClient != nil {
 		registry.AppendTools(tools.NewGetIssue(a.issueClient), tools.NewReportToIssue(a.issueClient))
 	}
+	// Also after BuildAgentTypes: a delegate carries no project memory at all.
+	// It is the highest-volume run in a session, so it would pay the resident
+	// cost of the index most often, and a parent that needs it to know
+	// something says so in the delegated task -- which is more precise than
+	// handing over a catalogue, and keeps memory reaching exactly the runs a
+	// user can see and correct. See docs/design/local-project-memory.md §9.4.
+	if a.memoryEnabled() {
+		registry.AppendTools(tools.NewMemoryRead(), tools.NewMemoryWrite())
+	}
 	// After BuildAgentTypes like Task, so subagents never see the job tools:
 	// a job must be owned by a session the user can still reach.
 	if a.jobs != nil {
@@ -1379,8 +1464,11 @@ func (a *AgentApp) newSubAgentTrace(ctx context.Context, sessionID string, opts 
 		Model:            modelName,
 		IsSubagent:       true,
 		Sandbox:          a.sandboxInfo(),
-		PromptLayers: []agent.PromptLayer{
-			{Name: "subagent_system_prompt", Chars: len(opts.SystemPrompt)},
+		Sources: agent.ContextSources{
+			ProjectID:    a.project.ID,
+			Workspace:    a.workspace.Root(),
+			Instructions: []agent.PromptLayer{{Name: "subagent_system_prompt", Chars: len(opts.SystemPrompt)}},
+			// No memory row: a delegate carries no index.
 		},
 	})
 }

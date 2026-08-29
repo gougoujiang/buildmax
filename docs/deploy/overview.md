@@ -15,6 +15,10 @@ To see it working before reading any of this, use the
 [Compose smoke](compose.md) for the fast local-process path or the
 [kind smoke](local-kind.md) for the Kubernetes Job path.
 
+Those development checks do not qualify a release for production use. To test
+a pinned candidate against external dependencies, failure cases, restore, and
+rollback, use the [Beta readiness record](beta-readiness.md).
+
 ## Topology
 
 ```text
@@ -86,7 +90,8 @@ Boundaries](#operating-boundaries).
 
 Set `worker.run_mode: k8s_job` to have the scheduler create a Kubernetes Job per
 run instead of a local process, using `worker.k8s.namespace` and
-`worker.k8s.image`.
+`worker.k8s.image`. That mode also requires all four `worker.k8s.resources`
+bounds; the server refuses to start rather than schedule an unbounded worker.
 
 In that mode a worker pod needs the same `server.yaml` the server has.
 `worker.k8s.config_map` names a ConfigMap with a `server.yaml` key, which the

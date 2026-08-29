@@ -212,6 +212,11 @@ type RunLoopOpts struct {
 	// leaves it; this is about proximity, not storage, so it carries only the part the author
 	// marked as non-negotiable. Empty is the normal case.
 	Invariants string
+	// Memory supplies the resident index of cross-session recall, rendered
+	// after the message list and before the session-state anchor. Nil is the
+	// normal case for a run that has no such scope -- a worker, an evaluation,
+	// a subagent, a session whose user turned memory off -- and costs nothing.
+	Memory MemoryStore
 	// EventSink receives structured runtime events from the agent loop.
 	// Nil disables event emission entirely (zero overhead).
 	// The callback may be invoked from the RunLoop goroutine or from a tool
@@ -279,52 +284,17 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 			if cw := opts.LLMClient.ContextWindow(); cw > 0 {
 				sysTokens := EstimateMessageTokens(llm.Message{Role: "system", Content: opts.SystemPrompt})
 				if sysTokens+EstimateTokens(history) > int(float64(cw)*compactionThreshold) {
-					reserveTokens := int(float64(cw) * compactionReserve)
-					toSummarize, toKeep := splitForCompaction(history, reserveTokens)
-					if len(toSummarize) > 0 {
-						pre := baseHookInput(opts, HookPreCompact)
-						pre.Summarized = len(toSummarize)
-						pre.Kept = len(toKeep)
-						preOut := runHook(ctx, opts.Hooks, pre)
-						if preOut.Blocked() {
-							slog.Info("context compaction skipped by hook", "iter", i+1, "reason", preOut.Reason)
-						} else if summary, cusage, cerr := checkpointAndCompact(ctx, opts, i+1, compactionSummary, toSummarize); cerr == nil {
-							limit := maxSummaryChars(cw)
-							if clamped := clampSummary(summary, limit); clamped != summary {
-								slog.Warn("compaction summary exceeded its budget, clamped", "iter", i+1, "limit_chars", limit, "got_chars", len(summary))
-								summary = clamped
-							}
-							compactionSummary = summary
-							if ch, ok := opts.History.(CompactionHistory); ok {
-								// summarizedCount counts real history messages; the prior summary
-								// prepended above is synthetic and never entered the history.
-								if err := ch.AddCompaction(summary, len(toSummarize)); err != nil {
-									return "", s, fmt.Errorf("persist compaction: %w", err)
-								}
-							}
-							history = toKeep
-							slog.Info("context compacted", "iter", i+1, "summarized", len(toSummarize), "kept", len(toKeep))
-							// Priced here rather than at an llm_end: compaction is
-							// a call the run paid for, but it is not a turn, and
-							// reporting it as one would put a reply in the trace
-							// that the conversation never contained.
-							compactCost := s.addCall(cusage, opts.Pricing)
-							emit(opts.EventSink, Event{
-								Kind:       EventContextCompacted,
-								Iter:       i + 1,
-								Summarized: len(toSummarize),
-								Kept:       len(toKeep),
-								CallUsage:  cusage,
-								CallCost:   compactCost,
-							})
-							post := baseHookInput(opts, HookPostCompact)
-							post.Summarized = len(toSummarize)
-							post.Kept = len(toKeep)
-							post.Summary = summary
-							runHook(ctx, opts.Hooks, post)
-						} else {
-							slog.Warn("context compaction failed, falling back to trim", "err", cerr)
-						}
+					kept, res, cerr := compactOnce(ctx, opts, &s, i+1, compactionSummary, history, int(float64(cw)*compactionReserve))
+					switch {
+					case errors.Is(cerr, ErrCompactionNotPersisted):
+						// The summary landed nowhere, so the next turn would
+						// re-send the messages it covers as if it never ran.
+						return "", s, cerr
+					case cerr != nil:
+						slog.Warn("context compaction failed, falling back to trim", "err", cerr)
+					case res.Compacted():
+						history = kept
+						compactionSummary = res.Summary
 					}
 				}
 			}
@@ -501,9 +471,18 @@ func callLLM(ctx context.Context, opts RunLoopOpts, history []llm.Message, syste
 	if nh, ok := opts.History.(NotesHistory); ok {
 		notes, todos = nh.Notes(), nh.Todos()
 	}
+	// Shared memory first, then this session's state: memory is older, wider
+	// context, and what the current task decided stays closest to generation.
+	// Both are rebuilt per call, so another session's committed write is
+	// visible on the next iteration rather than at the end of the run.
 	var stateMsg []llm.Message
+	if opts.Memory != nil {
+		if block := RenderMemoryIndex(opts.Memory.Index()); block != "" {
+			stateMsg = append(stateMsg, llm.Message{Role: "user", Content: block})
+		}
+	}
 	if block := RenderSessionState(opts.Invariants, notes, todos); block != "" {
-		stateMsg = []llm.Message{{Role: "user", Content: block}}
+		stateMsg = append(stateMsg, llm.Message{Role: "user", Content: block})
 	}
 
 	systemTokens := EstimateMessageTokens(llm.Message{Role: "system", Content: systemPrompt}) + EstimateTokens(stateMsg)
