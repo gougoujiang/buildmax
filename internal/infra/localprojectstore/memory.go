@@ -107,13 +107,14 @@ func (s *FileStore) WriteMemory(ctx context.Context, projectID string, w localpr
 		SessionID:   w.SessionID,
 		Body:        w.Body,
 		UpdatedAt:   s.now(),
+		VerifiedAt:  w.VerifiedAt,
 	}
 	// Before the lock: a memory that was never going to be persisted must not
 	// make a concurrent writer wait for it.
 	if err := next.Validate(); err != nil {
 		return localproject.Memory{}, err
 	}
-	if err := localproject.ScanMemoryForSecrets(next.Body); err != nil {
+	if err := localproject.ScanMemoryForSecrets(next.Description, next.Body); err != nil {
 		return localproject.Memory{}, err
 	}
 
@@ -144,7 +145,8 @@ func (s *FileStore) WriteMemory(ctx context.Context, projectID string, w localpr
 	}
 	// Carried rather than reset: a verified-at date belongs to the claim the
 	// memory makes, and a run that rewords the body has not re-verified it.
-	if replacing {
+	// A write that supplies its own date has re-checked and says so.
+	if replacing && next.VerifiedAt == nil {
 		next.VerifiedAt = existing.VerifiedAt
 	}
 

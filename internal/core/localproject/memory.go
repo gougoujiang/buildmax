@@ -143,6 +143,11 @@ type MemoryWrite struct {
 	Body        string
 	SessionID   string
 	PriorDigest string
+	// VerifiedAt is the date this memory was last checked against the source of
+	// truth its body names. Nil leaves an existing date alone -- rewording a
+	// body is not re-verifying it -- and clearing one is a hand edit, not
+	// something a run does on the way past.
+	VerifiedAt *time.Time
 }
 
 // BodyDigest identifies a body for the read-then-replace rule.
@@ -222,14 +227,18 @@ func joinTypes() string {
 	return strings.Join(names, ", ")
 }
 
-// ScanMemoryForSecrets refuses a body holding a recognizable credential.
+// ScanMemoryForSecrets refuses a memory holding a recognizable credential.
+//
+// The description is scanned as well as the body, because it is the part that
+// goes to the model on every call: a token pasted into a one-line summary would
+// be the most exposed place in the store, not the least.
 //
 // Best effort, and the Agent's own contract -- do not persist credentials or
 // surprising sensitive information -- remains the real guard. The error names
 // the shapes, never the values, so a refusal does not put the credential into a
 // log or back into the model's context.
-func ScanMemoryForSecrets(body string) error {
-	if found := secretscan.Findings(body); len(found) > 0 {
+func ScanMemoryForSecrets(description, body string) error {
+	if found := secretscan.Findings(description + "\n" + body); len(found) > 0 {
 		return fmt.Errorf("%w: %s", ErrMemorySecret, strings.Join(found, ", "))
 	}
 	return nil

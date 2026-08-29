@@ -96,6 +96,10 @@ func (m *projectMemory) Read(ctx context.Context, names []string) ([]agent.Memor
 // replacement the run has not read is refused by the store, which is the point:
 // a writer that has not seen the body cannot have merged it.
 func (m *projectMemory) Write(ctx context.Context, upsert agent.MemoryUpsert) (agent.MemoryBody, error) {
+	verified, err := localproject.ParseVerifiedAt(upsert.VerifiedAt)
+	if err != nil {
+		return agent.MemoryBody{}, err
+	}
 	written, err := m.store.WriteMemory(ctx, m.projectID, localproject.MemoryWrite{
 		Name:        upsert.Name,
 		Description: upsert.Description,
@@ -103,6 +107,7 @@ func (m *projectMemory) Write(ctx context.Context, upsert agent.MemoryUpsert) (a
 		Body:        upsert.Body,
 		SessionID:   m.sessionID,
 		PriorDigest: m.priorDigest(upsert.Name),
+		VerifiedAt:  verified,
 	})
 	if err != nil {
 		return agent.MemoryBody{}, err
@@ -154,10 +159,19 @@ func (m *projectMemory) priorDigest(name string) string {
 // a run must not be able to mutate a source it was not allowed to read. See
 // docs/design/local-project-memory.md §9.4.
 func (a *AgentApp) projectMemoryFor(sessionID string) *projectMemory {
-	if a == nil || a.project.ID == "" || a.projects == nil || a.memoryDisabled {
+	if !a.memoryEnabled() {
 		return nil
 	}
 	return newProjectMemory(a.projects.Store(), a.project.ID, sessionID)
+}
+
+// memoryEnabled is the one condition the index and both tools follow, so they
+// cannot disagree: a run that may not read the store must not be able to change
+// it, and one that cannot read it must not be able to add to what it cannot
+// see.
+func (a *AgentApp) memoryEnabled() bool {
+	return a != nil && a.projects != nil && a.project.ID != "" &&
+		!a.memoryDisabled && a.memoryUnavailable == ""
 }
 
 // MemoryReport is what a surface says at run start about a store that is not
@@ -167,8 +181,8 @@ func (a *AgentApp) projectMemoryFor(sessionID string) *projectMemory {
 // failure this reporting prevents, and `doctor` is not where a person looks
 // mid-task. Nothing here carries memory content.
 type MemoryReport struct {
-	// Unavailable is set when the store could not be read at all. No index is
-	// then rendered for the run.
+	// Unavailable is set when the store could not be read at all. Neither the
+	// index nor either tool is offered for the run.
 	Unavailable string
 	// Skipped names the files that could not be used, with the reason.
 	Skipped []localproject.SkippedMemory
@@ -192,11 +206,16 @@ func (r MemoryReport) Lines() []string {
 // MemoryStatus reports what this app's memory store looks like right now,
 // without putting any body where the model can see it.
 func (a *AgentApp) MemoryStatus() MemoryReport {
-	mem := a.projectMemoryFor("")
-	if mem == nil {
+	if a == nil || a.projects == nil || a.project.ID == "" {
 		return MemoryReport{}
 	}
-	set, err := mem.store.Memories(context.Background(), mem.projectID)
+	if a.memoryUnavailable != "" {
+		return MemoryReport{Unavailable: a.memoryUnavailable}
+	}
+	if a.memoryDisabled {
+		return MemoryReport{}
+	}
+	set, err := a.projects.Store().Memories(context.Background(), a.project.ID)
 	if err != nil {
 		return MemoryReport{Unavailable: err.Error()}
 	}

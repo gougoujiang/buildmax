@@ -21,15 +21,16 @@ type resolvedAgentAppConfig struct {
 	workspaceRoot string
 	// project is the zero value when the surface did not ask for one, and
 	// projects is then nil.
-	project       localproject.Project
-	projects      *ProjectManager
-	projectReport ProjectReport
-	settings      config.Settings
-	plugins       PluginSnapshot
-	loadedPlugins []config.DiscoveredPlugin
-	hooks         corehook.Config
-	pluginHooks   corehook.Config
-	sandbox       config.SandboxResolution
+	project           localproject.Project
+	projects          *ProjectManager
+	projectReport     ProjectReport
+	memoryUnavailable string
+	settings          config.Settings
+	plugins           PluginSnapshot
+	loadedPlugins     []config.DiscoveredPlugin
+	hooks             corehook.Config
+	pluginHooks       corehook.Config
+	sandbox           config.SandboxResolution
 }
 
 func resolveAgentAppConfig(cfg AppConfig) (resolvedAgentAppConfig, error) {
@@ -72,9 +73,10 @@ func resolveAgentAppConfig(cfg AppConfig) (resolvedAgentAppConfig, error) {
 	// that could not be persisted stops construction rather than producing a
 	// runtime whose sessions have an identity nothing can resolve.
 	var (
-		project       localproject.Project
-		projects      *ProjectManager
-		projectReport ProjectReport
+		project           localproject.Project
+		projects          *ProjectManager
+		projectReport     ProjectReport
+		memoryUnavailable string
 	)
 	if cfg.EnableLocalProject {
 		projects = NewProjectManager(config.ProjectsDir())
@@ -82,19 +84,27 @@ func resolveAgentAppConfig(cfg AppConfig) (resolvedAgentAppConfig, error) {
 		if err != nil {
 			return resolvedAgentAppConfig{}, fmt.Errorf("resolve local project: %w", err)
 		}
+		// Probed once, here, because it decides whether the tools are
+		// registered at all and the tool registry is built once per model. A
+		// store that cannot be read is a directory-level failure, not the
+		// per-file kind that can change under a run.
+		if _, memErr := projects.Store().Memories(context.Background(), project.ID); memErr != nil {
+			memoryUnavailable = memErr.Error()
+		}
 	}
 
 	return resolvedAgentAppConfig{
-		workspaceRoot: workspaceRoot,
-		project:       project,
-		projects:      projects,
-		projectReport: projectReport,
-		settings:      settings,
-		plugins:       plugins,
-		loadedPlugins: loadedPlugins,
-		hooks:         config.MergeHooks(settings.Hooks, pluginHooks.Config, workspaceHooks),
-		pluginHooks:   pluginHooks.Config,
-		sandbox:       config.ResolveSandboxForRun(settings.Sandbox, cfg.SandboxRunOverride, policySandbox, surface),
+		workspaceRoot:     workspaceRoot,
+		project:           project,
+		projects:          projects,
+		projectReport:     projectReport,
+		memoryUnavailable: memoryUnavailable,
+		settings:          settings,
+		plugins:           plugins,
+		loadedPlugins:     loadedPlugins,
+		hooks:             config.MergeHooks(settings.Hooks, pluginHooks.Config, workspaceHooks),
+		pluginHooks:       pluginHooks.Config,
+		sandbox:           config.ResolveSandboxForRun(settings.Sandbox, cfg.SandboxRunOverride, policySandbox, surface),
 	}, nil
 }
 
@@ -112,6 +122,7 @@ func buildAgentApp(cfg AppConfig, resolved resolvedAgentAppConfig) (_ *AgentApp,
 		project:                resolved.project,
 		projects:               resolved.projects,
 		projectReport:          resolved.projectReport,
+		memoryUnavailable:      resolved.memoryUnavailable,
 		memoryDisabled:         cfg.DisableProjectMemory,
 		settings:               resolved.settings,
 		toolRegistries:         make(map[string]cllm.ToolRegistry),

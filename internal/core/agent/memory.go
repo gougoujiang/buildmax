@@ -81,6 +81,10 @@ type MemoryUpsert struct {
 	Description string
 	Type        string
 	Body        string
+	// VerifiedAt is the date, as YYYY-MM-DD, that a memory caching something
+	// expensive was last checked against the source its body names. Empty
+	// leaves an existing date alone: rewording is not re-verifying.
+	VerifiedAt string
 }
 
 // MemoryStore is the seam between the loop and whatever owns the memories.

@@ -22,6 +22,10 @@ export default function App() {
   // transcript. It is about the move, not about the conversation, so it is not
   // a message and is not persisted.
   const [historyNotice, setHistoryNotice] = useState(null);
+  // Said once when a project is opened: a memory file that will not load, or
+  // a project registered beside one whose folder has moved. Neither is an
+  // error, and both are invisible if nobody says them here.
+  const [projectNotices, setProjectNotices] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [wailsReady, setWailsReady] = useState(false);
@@ -426,6 +430,10 @@ export default function App() {
   }
 
   function handleNewChatInProject(project) {
+    setProjectNotices([]);
+    app?.ProjectNotices?.(project.id)
+      .then((lines) => setProjectNotices(lines ?? []))
+      .catch(() => {});
     setNewChatProject(project);
     setSelectedId(null);
     setMessages([]);
@@ -719,6 +727,16 @@ export default function App() {
       ),
     }];
   });
+
+  for (const [i, line] of projectNotices.entries()) {
+    threadItems.push({
+      id: `project-notice-${i}`,
+      role: 'notice',
+      label: 'Project',
+      hideAvatar: true,
+      body: <div className="page-chat__msg-content">{line}</div>,
+    });
+  }
 
   if (historyNotice) {
     threadItems.push({

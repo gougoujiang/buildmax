@@ -306,3 +306,43 @@ func TestContextSourcesOmitAnEmptyIndex(t *testing.T) {
 		t.Error("a run that compacted nothing reports a compaction")
 	}
 }
+
+// §9.1: a store that cannot be read as a whole withdraws the index and both
+// tools together. A run that cannot see what it holds must not be able to add
+// to it, and a partial index would be worse than none.
+func TestAnUnreadableStoreWithdrawsIndexAndTools(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root can read a directory with no permissions")
+	}
+	workspace := t.TempDir()
+	projectsDir := t.TempDir()
+	project, err := NewProjectManager(projectsDir).Resolve(context.Background(), workspace)
+	if err != nil {
+		t.Fatalf("resolve project: %v", err)
+	}
+	dir := filepath.Join(projectsDir, project.ID, "memory")
+	if err := os.MkdirAll(dir, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o700) })
+
+	app := &AgentApp{
+		project:           project,
+		projects:          NewProjectManager(projectsDir),
+		workspace:         NewMovableRoot(workspace),
+		memoryUnavailable: "permission denied",
+	}
+	if app.memoryEnabled() {
+		t.Error("an unreadable store still counts as enabled")
+	}
+	if app.projectMemoryFor("session-1") != nil {
+		t.Error("an unreadable store still produced a memory seam")
+	}
+	report := app.MemoryStatus()
+	if report.Unavailable == "" {
+		t.Error("the surface is not told the store is unavailable")
+	}
+	if len(app.memoryIndexSourceInfo()) != 0 {
+		t.Error("the trace claims an index the run never carried")
+	}
+}

@@ -51,7 +51,7 @@ func (f *fakeMemoryStore) Write(_ context.Context, u agent.MemoryUpsert) (agent.
 	if _, exists := f.stored[u.Name]; exists && !f.read[u.Name] {
 		return agent.MemoryBody{}, fmt.Errorf("%w: %s", localproject.ErrMemoryUnread, u.Name)
 	}
-	body := agent.MemoryBody(u)
+	body := agent.MemoryBody{Name: u.Name, Description: u.Description, Type: u.Type, Body: u.Body}
 	f.stored[u.Name] = body
 	f.read[u.Name] = true
 	return body, nil

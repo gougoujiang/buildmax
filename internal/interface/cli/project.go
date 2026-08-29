@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -34,7 +35,7 @@ joining two memory domains by guess would be undetectable afterwards.`,
 		Args:         cobra.NoArgs,
 		SilenceUsage: true,
 	}
-	cmd.AddCommand(newProjectListCommand(), newProjectRelinkCommand())
+	cmd.AddCommand(newProjectListCommand(), newProjectRelinkCommand(), newProjectForgetCommand())
 	return cmd
 }
 
@@ -99,6 +100,56 @@ Run ` + "`buildmax project list`" + ` to see which projects no longer resolve.`,
 		},
 	}
 	cmd.Flags().String("workspace", "", "directory to point the project at (default: current directory)")
+	return cmd
+}
+
+func newProjectForgetCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "forget [memory-name]",
+		Short: "Delete one of this project's memories, or all of them",
+		Long: `Delete what this project remembers.
+
+Memories are Markdown files under <BUILDMAX_HOME>/projects/<id>/memory/ and can
+be edited or removed there directly; this is the same operation with the index
+regenerated for you. It touches no sessions, and no session touches it:
+forgetting and clearing a project's history are separate decisions.
+
+Run ` + "`buildmax doctor`" + ` to see how many memories this project holds and where.`,
+		Args:         cobra.MaximumNArgs(1),
+		SilenceUsage: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			all, _ := cmd.Flags().GetBool("all")
+			workspace, _ := cmd.Flags().GetString("workspace")
+			if (len(args) == 0) == !all {
+				return errors.New("name one memory, or pass --all to forget every one")
+			}
+			project, err := currentProject(cmd.Context(), workspace)
+			if err != nil {
+				return err
+			}
+			store := agentapp.NewProjectManager(config.ProjectsDir()).Store()
+			if all {
+				removed, err := store.ClearMemories(cmd.Context(), project.ID)
+				if err != nil {
+					return err
+				}
+				noun := "memories"
+				if removed == 1 {
+					noun = "memory"
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), "Forgot %d %s of %s. Its sessions are untouched.\n",
+					removed, noun, project.Name)
+				return nil
+			}
+			if err := store.DeleteMemory(cmd.Context(), project.ID, args[0]); err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "Forgot %s.\n", args[0])
+			return nil
+		},
+	}
+	cmd.Flags().Bool("all", false, "forget every memory of this project")
+	cmd.Flags().String("workspace", "", "directory whose project to forget from (default: current directory)")
 	return cmd
 }
 

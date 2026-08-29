@@ -137,6 +137,11 @@ type AgentApp struct {
 	// a Project registered here for the first time while others no longer
 	// resolve is how a moved repository silently becomes a duplicate.
 	projectReport ProjectReport
+	// memoryUnavailable is set when the whole store could not be read at run
+	// assembly. It withdraws the index and both tools together: a run that
+	// cannot see what it holds must not be able to add to it, and a partial
+	// index would be worse than none.
+	memoryUnavailable string
 	// memoryDisabled is the user's per-run switch, which is not the same as
 	// having no Project: one is a choice, the other is a surface that never
 	// had one.
@@ -1401,7 +1406,7 @@ func (a *AgentApp) buildToolRegistry(client cllm.LLMClient) (cllm.ToolRegistry, 
 	// something says so in the delegated task -- which is more precise than
 	// handing over a catalogue, and keeps memory reaching exactly the runs a
 	// user can see and correct. See docs/design/local-project-memory.md §9.4.
-	if a.project.ID != "" && !a.memoryDisabled {
+	if a.memoryEnabled() {
 		registry.AppendTools(tools.NewMemoryRead(), tools.NewMemoryWrite())
 	}
 	// After BuildAgentTypes like Task, so subagents never see the job tools:

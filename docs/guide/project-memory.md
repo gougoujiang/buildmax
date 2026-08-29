@@ -101,10 +101,16 @@ Telling the agent to forget one works the same way; so does deleting the file.
 ```bash
 buildmax --no-project-memory            # this run only
 buildmax -p "..." --no-project-memory
+
+buildmax project forget <name>          # delete one
+buildmax project forget --all           # delete them all
 ```
 
 The run then carries no index and is offered neither memory tool. Deleting the
-files has the same effect permanently.
+files has the same effect permanently, and `buildmax project forget` is the same
+operation with the index regenerated for you. If the whole directory becomes
+unreadable, the run says so at the start and carries neither the index nor the
+tools — it will not add to a store it cannot see.
 
 Clearing a project's sessions does not touch its memories, and deleting a memory
 does not touch its sessions.
@@ -116,8 +122,9 @@ does not touch its sessions.
   sent only when the agent opens it, which most turns will not do for most
   memories — a real reduction in what leaves the machine, but not the same as
   nothing.
-- **The agent refuses to write anything that looks like a credential**, but no
-  check proves text is safe. Do not put secrets in a memory, and look through
+- **The agent refuses to write anything that looks like a credential** — in the
+  description as well as the body, since the description is the part sent every
+  turn — but no check proves text is safe. Do not put secrets in a memory, and look through
   the files now and then if the project is sensitive.
 - **A memory cannot grant anything.** Nothing written in one changes tool
   permissions, sandbox policy, hooks, or which plugins load. A file, a web page,

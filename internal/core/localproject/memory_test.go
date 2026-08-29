@@ -105,15 +105,20 @@ func TestMemoryValidate(t *testing.T) {
 // The refusal has to be usable in a tool result and a log, so it names the
 // shape and never the value.
 func TestScanMemoryForSecretsNamesShapesNotValues(t *testing.T) {
-	err := ScanMemoryForSecrets("The deploy key is api_key=supersecretvalue")
+	err := ScanMemoryForSecrets("d", "The deploy key is api_key=supersecretvalue")
 	if !errors.Is(err, ErrMemorySecret) {
 		t.Fatalf("ScanMemoryForSecrets = %v, want ErrMemorySecret", err)
 	}
 	if strings.Contains(err.Error(), "supersecretvalue") {
 		t.Errorf("the refusal quotes the credential: %v", err)
 	}
-	if err := ScanMemoryForSecrets("Prefer narrow table-driven tests."); err != nil {
-		t.Errorf("an ordinary body was refused: %v", err)
+	if err := ScanMemoryForSecrets("how we test", "Prefer narrow table-driven tests."); err != nil {
+		t.Errorf("an ordinary memory was refused: %v", err)
+	}
+	// The description is the part that goes to the model on every call, so a
+	// token pasted there is the most exposed place in the store, not the least.
+	if err := ScanMemoryForSecrets("api_key=supersecretvalue", "an ordinary body"); !errors.Is(err, ErrMemorySecret) {
+		t.Errorf("a credential in the description was accepted: %v", err)
 	}
 }
 

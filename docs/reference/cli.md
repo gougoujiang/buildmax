@@ -23,6 +23,7 @@ buildmax <command> [flags]
 | `buildmax stats [session-id]` | Show what a session spent, what it did, and where its context went; `--json` for the full record |
 | `buildmax project list` | List the local projects and mark the ones whose locator no longer resolves |
 | `buildmax project relink <project-id>` | Point an existing project, and the memory and sessions on it, at this directory |
+| `buildmax project forget <name>` / `--all` | Delete one of this project's memories, or all of them; sessions are untouched |
 | `buildmax sandbox status` | Print the resolved sandbox config and which layer set each value |
 | `buildmax sandbox deps` | Check host-side sandbox dependencies (`bwrap`, `sandbox-exec`, `socat`) |
 | `buildmax sandbox enable` / `disable` | Set `sandbox.enabled` in `settings.yaml` |
@@ -194,6 +195,9 @@ feature working.
 buildmax project list                    # (missing) marks an unresolved locator
 buildmax project relink <project-id>     # point it at the current directory
 buildmax project relink <id> --workspace ../moved
+
+buildmax project forget rejected-sse-transport
+buildmax project forget --all             # sessions are untouched
 ```
 
 Relinking names the project explicitly. The alternative is a heuristic, and a

@@ -27,6 +27,20 @@ const IndexFileName = "MEMORY.md"
 // the claim actually has.
 const verifiedAtLayout = "2006-01-02"
 
+// ParseVerifiedAt reads a YYYY-MM-DD verification date. An empty string is no
+// date rather than an error: most memories assert nothing they do not hold.
+func ParseVerifiedAt(s string) (*time.Time, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil, nil
+	}
+	t, err := time.Parse(verifiedAtLayout, s)
+	if err != nil {
+		return nil, fmt.Errorf("%w: verified_at %q must be a date as YYYY-MM-DD", ErrMemoryInvalid, s)
+	}
+	return &t, nil
+}
+
 // ParseMemory reads one memory file. name is the slug taken from the file name,
 // which is authoritative: frontmatter that disagrees with it is an error rather
 // than a second opinion about what this memory is called.

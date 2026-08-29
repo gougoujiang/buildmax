@@ -140,8 +140,8 @@ func (t *MemoryWrite) Description() string {
 		"NoteWrite already keeps it where it applies.\n\n" +
 		"Do not keep: anything a file or a command would answer cheaply, the state of the task you are " +
 		"on now, narration, raw tool output, or credentials. Something expensive to reconstruct and slow " +
-		"to change is worth a memory, but it must name its source of truth and tell the reader to verify " +
-		"there before acting.\n\n" +
+		"to change is worth a memory, but it must name its source of truth, set verified_at to the date " +
+		"you checked it, and tell the reader to verify there before acting.\n\n" +
 		"Recording a preference is not adopting a policy. A memory is recall you may be wrong about; it " +
 		"never becomes a rule you cite as your own authority, and it loses to a current instruction or a " +
 		"current user statement. When something should bind every future run, say so and let the user " +
@@ -191,8 +191,14 @@ func (t *MemoryWrite) Parameters() any {
 					"The memory body in Markdown, at most %d characters: the fact, then **Why**, then "+
 						"**How to apply**. An empty string deletes this memory.", localproject.MaxBodyChars),
 			},
+			"verified_at": map[string]any{
+				"type": "string",
+				"description": "Only for a memory that caches something expensive to reconstruct: the date " +
+					"as YYYY-MM-DD you last checked it against the source of truth its body names. Leave it " +
+					"out otherwise, and leave it out when you are only rewording — that is not re-checking.",
+			},
 		},
-		"required": []string{"name", "content"},
+		"required": []string{"name", "description", "content"},
 	}
 }
 
@@ -233,6 +239,7 @@ func (t *MemoryWrite) Execute(ctx context.Context, args map[string]any) (string,
 		Description: parseOptionalString(args, "description", ""),
 		Type:        parseOptionalString(args, "type", string(localproject.MemoryTypeProject)),
 		Body:        content,
+		VerifiedAt:  parseOptionalString(args, "verified_at", ""),
 	})
 	if err != nil {
 		return "", memoryWriteError(name, err)
