@@ -197,8 +197,10 @@ Applied to `content`, `args`, `result` before writing:
   and a value → key kept, value → `[redacted]`
 
 Redaction is intentionally conservative (keyword/shape based) to avoid mangling
-normal output. The pattern set lives in one file (`infra/trace/redact.go`) so it
-can grow without touching the recorder.
+normal output. The pattern set was planned as one file beside the recorder and
+landed in `internal/util/secretscan` instead, because the job log and project
+memory need the same patterns; it can still grow without touching the recorder,
+and now without touching its two other callers either.
 
 ## 4. Layering
 
@@ -209,7 +211,7 @@ agentapp):
 internal/core/agent/event.go        # Event/EventKind — exists, unchanged
 internal/config/trace.go            # TracesDir(), TraceEnabled(), env key
 internal/infra/trace/record.go      # Record struct + FromEvent mapper + bounding
-internal/infra/trace/redact.go      # redaction patterns
+internal/util/secretscan/           # redaction patterns, shared with joblog and memory
 internal/infra/trace/recorder.go    # Recorder: open file, Record(Event), Close()
 internal/agentapp/app.go            # RunPrompt tees EventSink into a Recorder
 ```
@@ -283,7 +285,7 @@ agentapp.RunPrompt(ctx, sess, prompt, stream, approval, eventSink)
 ### Phase 1 (this pass)
 
 1. `config/trace.go`: `TracesDir()`, `TraceEnabled()`, `EnvKeyBuildmaxTraceDisabled`; register in `env_spec.go`; document it in `docs/reference/configuration.md`.
-2. `infra/trace/redact.go` + test: keyword/Bearer/sk- redaction.
+2. `util/secretscan` + test: keyword/Bearer/sk- redaction.
 3. `infra/trace/record.go` + test: `Record` struct, `FromEvent`, bounding.
 4. `infra/trace/recorder.go` + test: open file under `<dir>/<session>/<run>.jsonl`, write `run_start`, `Record(Event)`, record cap, `Close()`; fail-open constructor.
 5. `agentapp/app.go`: build recorder in `RunPrompt`, tee the sink, add `TraceID` to `RunResult`, handle the blocked-prompt early return.

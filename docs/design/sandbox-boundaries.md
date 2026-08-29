@@ -544,9 +544,13 @@ Still open — these block §15 acceptance:
    AGENTS.md §4.1 documents the sandbox only as of this pass.
 
 Naming deviations from the plan, harmless: the unsupported-platform stub is
-`unsupported_other.go` (not `unsupported_windows.go`), and the env denylist
-lives in `infra/sandbox/env_scrub.go` as `ScrubEnvList` rather than
-`core/agent.BuildChildEnv`.
+`unsupported_other.go` (not `unsupported_windows.go`), the env denylist lives in
+`infra/sandbox/env_scrub.go` as `ScrubEnvList` rather than
+`core/agent.BuildChildEnv`, and the baselines phase A put in
+`core/agent/sandbox_defaults.go` are `defaultSandbox` in `config/sandbox.go`,
+beside the resolution that consumes them. `AgentApp.Sandbox()` returns the
+`agent.SandboxView` the rest of this record names, not the `SandboxConfig` of
+the phase A list.
 
 **Deferred (post-P0.5).**
 - Native Edit/Read/WebFetch permission-rule grammar to feed
