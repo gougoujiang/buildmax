@@ -13,7 +13,6 @@ import (
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/session"
 	"github.com/gougoujiang/buildmax/internal/interface/auth"
-	"github.com/gougoujiang/buildmax/internal/tool"
 
 	"github.com/google/uuid"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
@@ -133,12 +132,12 @@ func runRoot(cmd *cobra.Command, _ []string) error {
 	}
 	overrides := runOverrides{Sandbox: sandboxRun, MaxIterations: maxIterations}
 	if issueID, _ := cmd.Flags().GetString("issue"); issueID != "" {
-		issueClient, err := auth.IssueClientForSession(cmd.Context(), issueID)
+		issueSession, err := auth.OpenIssueSession(cmd.Context(), issueID)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err.Error())
 			return &ExitError{Code: ExitUsage, Err: err}
 		}
-		overrides.Issue = issueClient
+		overrides.Issue = issueSession
 	}
 
 	if sessionID != "" {
@@ -202,7 +201,7 @@ type runOverrides struct {
 	// given. It is resolved once here rather than per turn: the Issue a session
 	// works must not change under it, and the tools are registered from it when
 	// the runtime is assembled.
-	Issue tool.IssueClient
+	Issue *auth.IssueSession
 }
 
 func parseSandboxRunOverride(enabled bool, mode string) (config.SandboxRunOverride, error) {

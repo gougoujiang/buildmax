@@ -112,6 +112,15 @@ Several required pieces already exist:
   relaying person is accountable for, never as the `agent` a worker run writes.
   It scopes one run and remembers nothing — the durable `IssueLink` below is
   still this proposal's to design.
+- Starting such a session prints the server, team, Issue, and where prompts go
+  before the first model call, which is the visibility rule under
+  [Model, Data, And Trust Boundary](#model-data-and-trust-boundary) in its
+  cheapest form. The Session header that shows sync state as well is still
+  unbuilt.
+- `buildmax issue show` reads one Issue, and `buildmax issue status` moves it.
+  Status stays a person's action, per
+  [Status Is A Team Statement, Not Presence](#status-is-a-team-statement-not-presence),
+  and the change carries the version it was read at.
 - How an Agent itself reads and reports on the Issue it is working is decided
   by [Issue agent access](../design/issue-agent-access.md): two runtime tools
   scoped by construction to one Issue, with status, assignment, and hierarchy
@@ -432,11 +441,19 @@ a second local-execution record.
 
 ### Phase 1: Receive, Work, Return
 
-- assigned Issue listing;
-- Issue detail and bounded context snapshot;
-- local Session link and workspace mapping;
-- explicit summary, Artifact, and status return; and
-- clear Server, Team, model destination, and sync state.
+- assigned Issue listing — **done**, `buildmax issue list`;
+- Issue detail and bounded context snapshot — **done**, `buildmax issue show`
+  for a person and `GetIssue` for the Agent;
+- local Session link and workspace mapping — **not done**. `--issue` scopes one
+  run and remembers nothing, and the workspace is wherever the command ran.
+  Both wait on open questions 1 and 4;
+- explicit summary, Artifact, and status return — **done** for a summary
+  (`ReportToIssue`) and status (`buildmax issue status`); an Artifact published
+  from a runless Session still has nowhere to appear in the Issue's Results
+  panel, which is open question 5; and
+- clear Server, Team, model destination, and sync state — **partly**: the first
+  three print before the first model call. There is no sync state to show yet,
+  because nothing is synchronized.
 
 ### Phase 2: Decompose And Coordinate
 

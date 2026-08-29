@@ -184,3 +184,85 @@ func TestNewIssueClientRefusesAnIncompleteScope(t *testing.T) {
 		t.Error("no token function: got a client anyway")
 	}
 }
+
+// The version travels from the read to the write. A client that re-read it
+// would turn the refusal a stale change deserves into a silent overwrite.
+func TestSetIssueStatusCarriesTheVersionItWasRead(t *testing.T) {
+	var sent map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPatch {
+			t.Errorf("unexpected method %s", r.Method)
+		}
+		if err := json.NewDecoder(r.Body).Decode(&sent); err != nil {
+			t.Errorf("decode: %v", err)
+		}
+		_, _ = w.Write([]byte(`{"id":"i_1","status":"done","version":8}`))
+	}))
+	defer srv.Close()
+
+	updated, err := NewClient(srv.URL).SetIssueStatus(t.Context(), "tok", "tm_1", "i_1", "done", 7)
+	if err != nil {
+		t.Fatalf("SetIssueStatus: %v", err)
+	}
+	if sent["version"] != float64(7) || sent["status"] != "done" {
+		t.Fatalf("sent = %v", sent)
+	}
+	if updated.Version != 8 {
+		t.Fatalf("version = %d, want the one the server returned", updated.Version)
+	}
+}
+
+// A conflict is surfaced, not swallowed: somebody else moved the issue.
+func TestSetIssueStatusSurfacesAConflict(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusConflict)
+		_, _ = w.Write([]byte(`{"error":"issue changed since it was read"}`))
+	}))
+	defer srv.Close()
+	if _, err := NewClient(srv.URL).SetIssueStatus(t.Context(), "tok", "tm_1", "i_1", "done", 1); err == nil {
+		t.Fatal("a refused status change was reported as applied")
+	}
+}
+
+// FindIssue returns the issue with the team, because every caller needs it
+// next -- to print it, or to read the version an update has to carry.
+func TestFindIssueReturnsTheIssueWithItsTeam(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/teams":
+			_, _ = w.Write([]byte(`[{"id":"tm_1","name":"Platform"},{"id":"tm_2","name":"Data"}]`))
+		case strings.Contains(r.URL.Path, "tm_2"):
+			_, _ = w.Write([]byte(`{"id":"i_1","title":"Ship it","status":"todo","version":3}`))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"error":"issue not found"}`))
+		}
+	}))
+	defer srv.Close()
+
+	team, issue, err := NewClient(srv.URL).FindIssue(t.Context(), "tok", "i_1")
+	if err != nil {
+		t.Fatalf("FindIssue: %v", err)
+	}
+	if team.ID != "tm_2" || team.Name != "Data" {
+		t.Fatalf("team = %+v", team)
+	}
+	if issue.Version != 3 {
+		t.Fatalf("version = %d, want 3", issue.Version)
+	}
+}
+
+func TestFindIssueSaysWhenNoTeamHasIt(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/teams" {
+			_, _ = w.Write([]byte(`[{"id":"tm_1","name":"Platform"}]`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"error":"issue not found"}`))
+	}))
+	defer srv.Close()
+	if _, _, err := NewClient(srv.URL).FindIssue(t.Context(), "tok", "i_nope"); err == nil {
+		t.Fatal("a missing issue resolved to a team")
+	}
+}

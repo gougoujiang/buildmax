@@ -70,6 +70,11 @@ func runPrintMode(opts printOptions) error {
 	if err != nil {
 		return printFatal(opts.Format, ExitModelError, err)
 	}
+	// stderr, so a --output json consumer still gets only the envelope on
+	// stdout while the person running it still sees what crossed the boundary.
+	if notice := issueSessionNotice(opts.Overrides.Issue, source); notice != "" {
+		fmt.Fprint(os.Stderr, notice)
+	}
 	app, err := agentapp.NewAgentApp(printAppConfig(opts, source))
 	if err != nil {
 		return printFatal(opts.Format, ExitModelError, err)
@@ -137,7 +142,7 @@ func printAppConfig(opts printOptions, source auth.ModelSource) agentapp.AppConf
 		ManagedServerURL:       source.ServerURL,
 		ManagedToken:           auth.TokenForServer,
 		ArtifactPublisher:      auth.ArtifactPublisherForSession(),
-		IssueClient:            opts.Overrides.Issue,
+		IssueClient:            opts.Overrides.Issue.ToolClient(),
 		Surface:                coregw.CallSurfaceCLI,
 		AdditionalSystemPrompt: opts.AdditionalSystemPrompt,
 		SandboxRunOverride:     opts.Overrides.Sandbox,
