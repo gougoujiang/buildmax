@@ -14,6 +14,35 @@ Unreleased entries live one per file under
 touch the same line. `./make changelog` prints what they currently say, and
 release preparation folds them into a dated section here.
 
+## [0.2.0-alpha.4] - 2026-08-29
+
+### Highlights
+
+- A container-image-only security fix. Both published images apply their base
+  image's pending security updates at build time, so they no longer ship an
+  openssl the alpine branch has already patched. Nothing else changed since
+  0.2.0-alpha.3.
+
+### Upgrade notes
+
+- **Operators running the 0.2.0-alpha.3 images should pull this version.**
+  `ghcr.io/gougoujiang/buildmax:0.2.0-alpha.3` and
+  `ghcr.io/gougoujiang/buildmax-portal:0.2.0-alpha.3` carry CVE-2026-14456 in
+  openssl `3.5.7-r0`; their base tags lagged the fix alpine had published as
+  `3.5.8-r0`. The archives are unaffected — the binaries are built with
+  `CGO_ENABLED=0` and do not link the system openssl — so an installation from
+  a 0.2.0-alpha.3 archive needs nothing.
+
+### Security
+
+- The published container images now apply their base image's pending security
+  updates at build time. A base tag lags its branch's updates, so
+  `ghcr.io/gougoujiang/buildmax:0.2.0-alpha.3` and the matching
+  `buildmax-portal` image shipped openssl 3.5.7-r0 while alpine had already
+  published 3.5.8-r0, and the release scan failed on CVE-2026-14456 after both
+  images were pushed. The binaries in the archives were never affected: they
+  are built with `CGO_ENABLED=0` and do not link the system openssl.
+
 ## [0.2.0-alpha.3] - 2026-08-29
 
 ### Highlights
@@ -1864,7 +1893,8 @@ release preparation folds them into a dated section here.
 - Linux, macOS, and Windows archives with checksums and third-party notices.
 - Multi-architecture Linux container image published to GHCR.
 
-[Unreleased]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.3...HEAD
+[Unreleased]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.4...HEAD
+[0.2.0-alpha.4]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.3...v0.2.0-alpha.4
 [0.2.0-alpha.3]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.2...v0.2.0-alpha.3
 [0.2.0-alpha.2]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.1...v0.2.0-alpha.2
 [0.2.0-alpha.1]: https://github.com/gougoujiang/buildmax/compare/v0.1.0-alpha.2...v0.2.0-alpha.1
