@@ -14,7 +14,10 @@ FROM alpine:3.23
 ARG TARGETOS
 ARG TARGETARCH
 
-RUN apk add --no-cache ca-certificates
+# Upgrade before installing: the base tag lags the branch's security
+# updates, and the release scan fails on a fixed CVE the base still
+# carries. v0.2.0-alpha.3 published with openssl 3.5.7-r0 this way.
+RUN apk upgrade --no-cache && apk add --no-cache ca-certificates
 
 # The server spawns the worker by name, so they have to share a PATH directory.
 COPY ${TARGETOS}/${TARGETARCH}/buildmax \
