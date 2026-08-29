@@ -53,6 +53,18 @@ func (m *ProjectManager) Resolve(ctx context.Context, workspace string) (localpr
 	return m.store.Resolve(ctx, key, proposed)
 }
 
+// Lookup returns the Project already registered for workspace, or ErrNotFound.
+//
+// It registers nothing. A diagnostic reporting which Project a directory
+// belongs to must not be the thing that decides it belongs to one.
+func (m *ProjectManager) Lookup(ctx context.Context, workspace string) (localproject.Project, error) {
+	key, _, _, err := identify(ctx, workspace)
+	if err != nil {
+		return localproject.Project{}, err
+	}
+	return m.store.Find(ctx, key)
+}
+
 // identify derives the lookup key and the metadata a new Project would carry.
 //
 // The normalization here is for lookup only. A session still records the path

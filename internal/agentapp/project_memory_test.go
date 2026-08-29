@@ -185,3 +185,52 @@ func TestBaseToolsExcludeTheMemoryWriteTool(t *testing.T) {
 		}
 	}
 }
+
+// The trace has to be able to say which sources put a line in front of the
+// model, and to do it without copying any of them into a third file with a
+// different retention.
+func TestContextSourcesNameEverySourceWithoutQuotingIt(t *testing.T) {
+	app := memoryApp(t)
+	const doc = "# Project Memory\n\n- A stable preference.\n"
+	if _, err := app.projectMemoryFor("session-1", "run-1").WriteMemory(context.Background(), doc, ""); err != nil {
+		t.Fatalf("WriteMemory: %v", err)
+	}
+	app.workspace = NewMovableRoot(t.TempDir())
+
+	sources := app.contextSources(nil, []agent.PromptLayer{{Name: "runtime", Chars: 4000}})
+
+	if sources.ProjectID != app.project.ID {
+		t.Errorf("ProjectID = %q, want %q", sources.ProjectID, app.project.ID)
+	}
+	// The workspace is recorded separately: one Project can have several
+	// worktrees, so it is not derivable from the id.
+	if sources.Workspace != app.workspace.Root() {
+		t.Errorf("Workspace = %q, want the root this run used", sources.Workspace)
+	}
+	if len(sources.Memory) != 1 || sources.Memory[0].Name != "project" {
+		t.Fatalf("Memory = %+v, want the project document", sources.Memory)
+	}
+	mem := sources.Memory[0]
+	if mem.Revision != 1 || mem.Digest == "" || mem.Chars != len([]rune(doc)) {
+		t.Errorf("memory row = %+v, want revision, digest, and size", mem)
+	}
+	if strings.Contains(mem.Digest, "stable preference") {
+		t.Error("the trace row quotes the memory it describes")
+	}
+}
+
+// A project with no memory yet contributes no row, so a reader can tell "there
+// was nothing" from "there was something this size".
+func TestContextSourcesOmitEmptyMemory(t *testing.T) {
+	app := memoryApp(t)
+	app.workspace = NewMovableRoot(t.TempDir())
+
+	sources := app.contextSources(nil, nil)
+
+	if len(sources.Memory) != 0 {
+		t.Errorf("Memory = %+v, want nothing for a project that has written none", sources.Memory)
+	}
+	if sources.HistoryProjection.CompactionPresent {
+		t.Error("a run that compacted nothing reports a compaction")
+	}
+}

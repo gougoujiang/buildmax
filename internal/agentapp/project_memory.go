@@ -3,6 +3,7 @@ package agentapp
 import (
 	"context"
 	"log/slog"
+	"unicode/utf8"
 
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	"github.com/gougoujiang/buildmax/internal/core/localproject"
@@ -97,4 +98,59 @@ func (a *AgentApp) projectMemoryFor(sessionID, runID string) *projectMemory {
 		sessionID: sessionID,
 		runID:     runID,
 	}
+}
+
+// contextSources is what this run started with, for the trace: which
+// instruction layers, which memory, and whether the model was reading a
+// compaction summary in place of messages.
+//
+// It is a snapshot at run start rather than a running tally. The question it
+// answers is what put a line in front of the model, and the state a turn
+// inherits is the part of that a later reader cannot reconstruct from the
+// journal.
+func (a *AgentApp) contextSources(sess *SessionContext, layers []agent.PromptLayer) agent.ContextSources {
+	sources := agent.ContextSources{
+		ProjectID:    a.project.ID,
+		Workspace:    a.workspace.Root(),
+		Instructions: layers,
+		Memory:       a.projectMemorySourceInfo(),
+	}
+	if sess == nil {
+		return sources
+	}
+	if n := len(sess.Notes()); n > 0 {
+		sources.Memory = append(sources.Memory, agent.MemorySourceInfo{Name: "session_notes", Entries: n})
+	}
+	if n := len(sess.Todos()); n > 0 {
+		sources.Memory = append(sources.Memory, agent.MemorySourceInfo{Name: "session_todos", Entries: n})
+	}
+	if summary := sess.PriorSummary(); summary != "" {
+		sources.HistoryProjection = agent.HistoryProjection{
+			CompactionPresent: true,
+			Chars:             utf8.RuneCountInString(summary),
+		}
+	}
+	return sources
+}
+
+// projectMemorySourceInfo describes the project memory this run loaded, or
+// nothing when it loaded none. It reports the revision and digest rather than
+// the text: the document lives in the Project bundle, and copying it into every
+// run's trace would put the same private content in a second place with a
+// different retention.
+func (a *AgentApp) projectMemorySourceInfo() []agent.MemorySourceInfo {
+	seam := a.projectMemoryFor("", "")
+	if seam == nil {
+		return nil
+	}
+	loaded := seam.Memory()
+	if loaded.Content == "" {
+		return nil
+	}
+	return []agent.MemorySourceInfo{{
+		Name:     "project",
+		Revision: loaded.Revision,
+		Digest:   loaded.Digest,
+		Chars:    utf8.RuneCountInString(loaded.Content),
+	}}
 }

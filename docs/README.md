@@ -19,6 +19,7 @@ Organized by what you are trying to do.
 | [guide/models-and-modes.md](guide/models-and-modes.md) | Which models a session runs on, and switching between your own and a deployment's |
 | [guide/tools.md](guide/tools.md) | The built-in tools, their arguments, and the path boundary |
 | [guide/agents-md.md](guide/agents-md.md) | Give the agent project instructions on every run |
+| [guide/project-memory.md](guide/project-memory.md) | What the agent remembers about a project between sessions, and how to read, edit, or switch it off |
 | [guide/skills-and-subagents.md](guide/skills-and-subagents.md) | Reusable workflows, and delegating with a restricted tool set |
 | [guide/mcp.md](guide/mcp.md) | Connect MCP servers for tools BuildMax does not ship |
 | [guide/plugins.md](guide/plugins.md) | Share skills, subagents, MCP servers, and hooks as one installable directory |

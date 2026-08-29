@@ -21,6 +21,12 @@ type Store interface {
 	// would silently join or split a memory domain, so repair is the user's.
 	Resolve(ctx context.Context, key Key, proposed Project) (Project, error)
 
+	// Find returns the Project registered for key, or ErrNotFound. Unlike
+	// Resolve it registers nothing, which is what a diagnostic needs: a command
+	// that reports which Project a directory belongs to must not be the thing
+	// that decides it belongs to one.
+	Find(ctx context.Context, key Key) (Project, error)
+
 	// Get returns one Project by ID, or ErrNotFound. It is the authoritative
 	// read: it opens the bundle rather than trusting the catalog projection.
 	Get(ctx context.Context, id string) (Project, error)

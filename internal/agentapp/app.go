@@ -978,13 +978,13 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 		// session's diagnostics are deleted, copied, and retained with the
 		// conversation they describe rather than from a second root.
 		recorder = trace.NewRecorder(sessionstore.SessionTracesDir(a.sessionManager.Dir(), sess.ID()), trace.Meta{
-			RunID:        runID,
-			SessionID:    sess.ID(),
-			Workspace:    a.workspace.Root(),
-			Model:        modelName,
-			Sandbox:      a.sandboxInfo(),
-			PromptLayers: promptLayers,
-			Plugins:      a.plugins.Provenance(ctx),
+			RunID:     runID,
+			SessionID: sess.ID(),
+			Workspace: a.workspace.Root(),
+			Model:     modelName,
+			Sandbox:   a.sandboxInfo(),
+			Sources:   a.contextSources(sess, promptLayers),
+			Plugins:   a.plugins.Provenance(ctx),
 		})
 		a.trackTrace(recorder)
 		defer a.releaseTrace(recorder)
@@ -1428,8 +1428,14 @@ func (a *AgentApp) newSubAgentTrace(ctx context.Context, sessionID string, opts 
 		Model:            modelName,
 		IsSubagent:       true,
 		Sandbox:          a.sandboxInfo(),
-		PromptLayers: []agent.PromptLayer{
-			{Name: "subagent_system_prompt", Chars: len(opts.SystemPrompt)},
+		Sources: agent.ContextSources{
+			ProjectID:    a.project.ID,
+			Workspace:    a.workspace.Root(),
+			Instructions: []agent.PromptLayer{{Name: "subagent_system_prompt", Chars: len(opts.SystemPrompt)}},
+			// A delegate reads the parent's project memory and starts with a
+			// journal of its own, so it has no session state and no compaction
+			// to report.
+			Memory: a.projectMemorySourceInfo(),
 		},
 	})
 }
