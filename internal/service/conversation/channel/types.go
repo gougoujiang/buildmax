@@ -30,7 +30,7 @@ const (
 	ChannelWebhook  = "webhook"
 	ChannelSystem   = "system"
 	// ChannelWorkflow and ChannelIssueAgent are not transports and are defined
-	// in core/model with the column they are written to. They are aliased here
+	// in core/conversation with the column they are written to. Aliased here
 	// so a caller that already speaks this package does not need both.
 	ChannelWorkflow   = coreconv.ChannelWorkflow
 	ChannelIssueAgent = coreconv.ChannelIssueAgent

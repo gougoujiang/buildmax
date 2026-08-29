@@ -60,9 +60,9 @@ type Completion struct {
 ```
 
 `Message`, `ToolDef`, `ToolCall`, `Usage`, `Completion`, and `ProviderState` are
-all defined in `internal/core/llm` — not in this package, and not in
-`internal/core/model`, which holds domain entities and repository contracts
-instead.
+all defined in `internal/core/llm` — not in this package, and not in the
+`internal/core/*` domain packages, which hold domain entities and repository
+contracts instead.
 
 `Completion` is a struct rather than a longer return list because every
 capability the contract has gained wanted another slot, and a fifth positional

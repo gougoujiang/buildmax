@@ -503,19 +503,19 @@ already are.
 
 ## 11. Implementation Ownership
 
-- `internal/core/model` — the activation record and its store contract.
+- `internal/core/plugin` — the activation record and its store contract.
 - `internal/infra/db` — one table, `plugin_activation`, singular, its public
   identifier from `util.NewPublicID` (prefixes are retired; see
   [entity-identity.md](./entity-identity.md) §4.4).
 - `internal/service/plugin` — activation lifecycle, the eligibility flag, and
   auto-activation for open-mode teams, beside publication.
-- `internal/core/model` and `internal/service/team` — the team's curation mode,
+- `internal/core/team` and `internal/service/team` — the team's curation mode,
   defaulting to open.
-- `internal/core/model` and `internal/service/agent` — the agent definition's
+- `internal/core/agentdef` and `internal/service/agent` — the agent definition's
   plugin selection, one JSON array of catalog names on `AgentRevision` so it
   versions with the rest of the definition and an old revision still answers
   what that agent named.
-- `internal/core/model` and `internal/infra/db` — the resolved pins on
+- `internal/core/task` and `internal/infra/db` — the resolved pins on
   `TaskRun`, beside `AgentRevision` and written at the same moment (§7).
 - `internal/server/handlers/team` — team-scoped activation routes, under the
   authority §5 names.

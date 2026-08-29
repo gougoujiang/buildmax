@@ -54,7 +54,7 @@ behavior.
 
 | Kind of code | Package |
 |---|---|
-| Domain entities and cross-service repository contracts | `internal/core/model` |
+| Domain entities and cross-service repository contracts | `internal/core/<domain>` |
 | A persistence port used by one orchestrator | The consuming `internal/service/*` package |
 | LLM contracts, tool contract, tool policy | `internal/core/llm` |
 | The tool-calling loop | `internal/core/agent` |

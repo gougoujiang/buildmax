@@ -3,7 +3,7 @@
 ## Status
 
 - roadmap_priority: `P0.5`
-- status: `implemented` — 13 events and all four transports are shipped;
+- status: `implemented` — 16 events and all four transports are shipped;
   optional inspector and frontmatter integrations remain deferred
 - follows: [trust-harness.md](./trust-harness.md)
 - roadmap: [../ROADMAP.md](../ROADMAP.md)
@@ -190,8 +190,9 @@ later without breaking existing hooks.
 
 ## 6. Event coverage
 
-v2 grows the event set from 5 to 13. CamelCase event names match Claude
-Code; YAML keys remain snake_case per CLAUDE.md §6.1.
+v2 grew the event set from 5 to 13, and the worktree lifecycle added the last
+three for 16. CamelCase event names match Claude Code; YAML keys remain
+snake_case per CLAUDE.md §6.1.
 
 | Event | Anchor point | Gating? | Change |
 |---|---|---|---|
@@ -208,6 +209,9 @@ Code; YAML keys remain snake_case per CLAUDE.md §6.1.
 | `SubagentStop` | `subagent_runner.RunSubAgent` exit (success) | no | new |
 | `Stop` | `RunLoop` exit (success, main only) | no | new (replaces `RunEnd` happy path) |
 | `StopFailure` | `RunLoop` exit (error path, main or subagent) | no | new (replaces `RunEnd` error path) |
+| `WorktreeCreate` | `worktree.Manager` after a tree is created | no | new |
+| `WorktreeRemove` | `worktree.Manager` after a tree is removed | no | new |
+| `CwdChanged` | the session's workspace root moves, including into a worktree | no | new |
 
 `RunEnd` is removed rather than aliased — it shipped in the same trust-harness
 work and has no external consumers.
