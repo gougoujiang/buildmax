@@ -1,5 +1,7 @@
 # BuildMax Roadmap
 
+> **Audience:** maintainers and contributors · **Status:** current
+
 ## Product Promise
 
 BuildMax is an out-of-the-box, privately deployable enterprise Agent platform.
@@ -25,18 +27,97 @@ automated tests. It does **not** mean that a real customer deployment, upgrade,
 or recovery exercise has happened; those are called out separately as operating
 evidence. When the code and this document disagree, update this document.
 
+The [current-state assessment](current-state.md) records the code evidence,
+maturity judgment, and gaps behind this roadmap. Keep detailed audit evidence
+there. This document owns only priority, sequencing, and release gates.
+
 The near-term goal is:
 
 > A company can privately deploy BuildMax and immediately use the same Agent
 > Core for local execution, team collaboration, background work, result
 > delivery, and basic governance.
 
-## Near-Term Priorities
+## Active Priority Order
 
-P0, P1, and P2 are **complete**. Active work starts at
-P0.5, P0.6, and P3. The completed sections are kept because their focus and
-acceptance criteria are the standard the surfaces are held to, not because the
-work is outstanding.
+The current milestone is operational trust, not another broad feature family.
+Work proceeds in this order unless new deployment evidence justifies changing
+it.
+
+### R0. Contain Unattended Worker Execution
+
+Worker runs currently omit `SandboxSurfaceWorker`, inherit the CLI baseline,
+and use an allow-all tool policy. The stricter configuration baseline is not an
+effective runtime boundary until the worker selects and proves it.
+
+Required outcomes:
+
+- every worker run records and enforces an explicit worker sandbox surface;
+- absence of the OS backend either fails closed or follows one documented,
+  visible downgrade policy;
+- process and resource limits are enforced and tested;
+- hook and MCP child processes have an explicit boundary of their own;
+- a Beta candidate does not run unrestricted worker Bash merely because it is
+  inside a Kubernetes pod.
+
+### R1. Make Multi-Instance Semantics Correct Or Declare One Replica
+
+The production manifest requests two Server replicas, while stream fan-out,
+WebSocket connection registration, and conversation turn queues are held in
+process memory.
+
+Required outcomes:
+
+- immediately make one Server replica the supported production topology; or
+- add shared pub/sub, delivery, and distributed conversation serialization
+  before advertising horizontal Server scaling;
+- test a worker update, browser session, reconnect, and concurrent turns across
+  the supported topology.
+
+### R2. Put Persistence In The Pull-Request Evidence Path
+
+The default Go suite skips MySQL store tests without `BUILDMAX_TEST_DSN`.
+Post-merge deployment smoke is useful but leaves critical persistence behavior
+outside ordinary change review.
+
+Required outcomes:
+
+- run a hermetic MySQL integration scope in CI for critical store and migration
+  behavior;
+- cover authorization-bearing and run-state transitions against the real
+  database;
+- retain broader Compose, kind, failure, restore, and upgrade drills as
+  deployment evidence rather than forcing every one into every pull request.
+
+### R3. Close Account And Team Operations
+
+Account creation, credential issuance, team invitation, role promotion,
+ownership transfer, access recovery, and team approvals must form complete,
+audited operator journeys. Existing authentication, role checks, system
+administration, quota, and audit code are the foundation, not the finished
+operation.
+
+### R4. Expand Qualification Breadth
+
+The evaluation framework is implemented, but three BuildMax-owned tasks and a
+one-task external canary do not qualify the platform. Expand representative
+local, worker, conversation, trust, failure-recovery, and deployment suites;
+add performance and soak evidence separately. Do not publish a Terminal-Bench
+claim until the pinned protocol has actually run.
+
+### R5. Deepen Product Capability From Evidence
+
+After R0–R4, choose workflow control flow, real channel adapters, executable
+team plugins, Portal performance, Desktop automation, or throughput work from
+observed user and qualification evidence. Do not let the existence of names,
+types, or partial adapters count as a shipped product surface.
+
+## Existing Capability Baseline
+
+The phase labels below describe capability already built and the acceptance
+criteria those surfaces remain subject to. They are retained as a compact
+baseline for existing design records; they do not override the active order
+above. "Complete" means the scoped capability landed, not that production
+readiness is complete.
 
 ### P0. Agent Core Stability — complete
 
@@ -165,12 +246,12 @@ Acceptance:
 - memory sources are visible, scoped, and user-controllable
 - local and worker runtime differences are explicit, not hidden in surface-specific code
 
-Worker OS sandboxing remains defense in depth rather than a Beta gate. A
-`k8s_job` worker runs in a constrained Kubernetes pod and reports that it is
-unsandboxed; it does **not** receive the stricter in-process sandbox baseline.
-`local_process` remains one trust domain with the Server. See
-[Beta Gate](#beta-gate) for the narrower boundary Beta requires and for the
-cost of deferring OS sandboxing.
+Worker execution containment is now a Beta gate. A `k8s_job` worker runs in a
+constrained Kubernetes pod and reports that it is unsandboxed; it does **not**
+receive the stricter in-process sandbox baseline. `local_process` remains one
+trust domain with the Server. The candidate must wire and prove the worker
+boundary, or disable unrestricted Bash on that path; recording an unavailable
+boundary is evidence of the gap, not containment.
 
 ### P0.6. Evaluation And Qualification System
 
@@ -338,7 +419,9 @@ is recorded in [deploy/beta-readiness.md](deploy/beta-readiness.md):
 | Entry proof | What the repository provides | Evidence required before Beta |
 |---|---|---|
 | Candidate deployment | Production manifest, migration ledger, `/readyz`, account bootstrap, managed worker inference, and deterministic Compose/kind smoke are implemented. | Deploy immutable candidate image digests against real external MySQL and S3 over TLS. Record the cluster and dependency versions, image digests, configuration, operator, and date. |
-| Constrained execution | Per-run JWT, minimized Job environment, non-root/read-only/capability-dropped pod, no service-account token, required and validated CPU/memory bounds, and an explicit trace boundary are implemented. A `k8s_job` deployment whose bounds are missing, unparseable, non-positive, or inverted is refused at startup rather than scheduling an unbounded worker. | Inspect a live candidate Job and record the effective security context, resources, token mount, environment, and reported sandbox boundary. |
+| Constrained execution | Per-run JWT, minimized Job environment, non-root/read-only/capability-dropped pod, no service-account token, required CPU/memory bounds, and an explicit trace boundary are implemented. The worker does not yet select `SandboxSurfaceWorker`; an empty surface resolves to the CLI baseline. | Wire the worker surface and prove its effective OS boundary, process/resource limits, and hook/MCP child-process treatment. If the backend is unavailable, prove the documented fail-closed or downgrade behavior. Unrestricted Bash with a recorded `none` boundary does not pass. |
+| Server topology | Durable state is shared through MySQL, but live stream fan-out, WebSocket connections, and conversation turn queues are process-local while the reference manifest requests two Server replicas. | Run exactly one Server replica, or implement and prove shared delivery plus distributed conversation serialization. Exercise cross-instance worker updates, reconnects, and concurrent turns if multiple replicas are claimed. |
+| Persistence gate | Store integration tests and deployment smoke exist, but the default suite skips the real store without `BUILDMAX_TEST_DSN`. | Attach a passing hermetic MySQL CI scope for critical schema, query, authorization, and state-transition behavior, then repeat the candidate deployment proof against its external database. |
 | Failure behavior | Cancellation, interrupted-run reporting, liveness heartbeats, lost-worker reaping, partial artifact retention, and explicit retry exist with focused tests. | In the deployed candidate, cancel a running run, kill a worker without a graceful report, interrupt database access, and deny object-storage access. Prove each run reaches the documented terminal state, retains the available evidence, and can recover or be retried without an ambiguous or dangling result. |
 | Recovery and maintenance | Forward migrations, an N-1 binary compatibility rule, environment-injected credentials, and operator-visible readiness and status surfaces exist. | Restore the database and bucket as a pair, exercise an upgrade containing a schema change followed by binary rollback, and perform the documented drain/restart credential-rotation procedure. Record recovery time, data checks, and any accepted loss. |
 | Operator diagnosis and governance | Portal exposes the run result, stored trace, artifacts, managed-call usage, quota, audit history, and System Administration; authorization and retention/export paths are tested. | Have an operator who did not implement the feature perform the full journey and failure drills using documented surfaces. Record whether logs, `/readyz`, System Status, TaskRun/artifact state, trace, managed-call ledger, and audit are enough to explain every outcome. |
@@ -349,13 +432,12 @@ archive verification, image vulnerability scans, SBOMs, and provenance
 attestations. These are **per-release evidence**, not one-time substitutes for
 the entry proof above.
 
-The first Beta accepts explicit limits. It is for a trusted team on a private
-network, not direct public exposure. The worker's Bash path has no OS sandbox,
-worker egress is unrestricted, and storage credentials are available to the
-worker. The in-process risky-command gate and a visible `none`/unavailable
-sandbox boundary do not constitute OS containment. No `NetworkPolicy` or
-evidenced allow-list is shipped. The readiness record must repeat these limits;
-a Beta release may state them but may not imply controls it does not enforce.
+The first Beta still accepts explicit limits. It is for a trusted team on a
+private network, not direct public exposure. Worker egress and storage
+credentials remain operator-owned threat-model decisions until an enforced
+network and credential boundary ships. The readiness record must repeat these
+limits. Unlike Alpha, however, Beta does not accept an accidentally inherited
+CLI sandbox baseline or multi-replica semantics that the Server cannot enforce.
 
 Deliberately outside the Beta gate: Desktop polish, SSO, executable team plugin
 content, additional model providers, and general durable Session sync. The
@@ -363,85 +445,40 @@ instruction half of team plugin distribution — a team activating skill and
 subagent releases, and a worker materializing exactly what it pinned — is
 implemented; releases contributing hooks or MCP servers cannot be activated.
 
-## Suggested Order
+## Beta Execution Order
 
-The immediate work closes the Beta gate in dependency order. Worker OS
-sandboxing remains a parallel security track: it is important defense in depth,
-but it does not prove that the existing deployment works or recovers.
+The active priorities define engineering order. The Beta proof then closes in
+this sequence:
 
-What this list opened with is done: configured worker CPU and memory bounds are
-validated before any Job is created, and a `k8s_job` deployment that would
-produce an unbounded worker now fails at startup with the key to edit named.
-
-1. **Complete the negative deployment smoke.** Cancellation is covered: the
-   smoke arms a stall on the scripted model so a run is still executing when it
-   is asked to stop, then proves the run settles as `CANCELED`, stays settled,
-   and lists no artifact it cannot serve. Hard worker loss, database
-   unavailability, and object-storage denial remain. Each must assert terminal
-   state and retained evidence, not merely that an error was returned, and each
-   needs a way to break one dependency of a live deployment — see
+1. **Contain worker execution and make topology honest.** Wire and test the
+   worker boundary. Change the supported manifest to one Server replica unless
+   shared coordination lands first.
+2. **Add real persistence evidence to CI.** Run critical store, migration,
+   authorization, and state-transition tests against hermetic MySQL.
+3. **Complete negative deployment smoke.** Cancellation is covered. Add hard
+   worker loss, database unavailability, and object-storage denial, asserting
+   terminal state and retained evidence rather than only an error response; see
    [design/end-to-end-testing.md](design/end-to-end-testing.md) §6.2.
-2. **Qualify immutable candidate images externally.** Use real external
-   MySQL/S3/TLS to run the operator journey, paired database-and-bucket restore,
-   schema upgrade and N-1 binary rollback, and a documented credential rotation.
-   Record exact image digests, dependency versions, timings, data checks, and
-   accepted loss in [deploy/beta-readiness.md](deploy/beta-readiness.md).
-3. **Close the candidate record.** Attach current CI, direct and managed
-   Compose/kind smoke, Portal E2E, release archive, image scan, SBOM, and
-   attestation evidence. Beta begins only when the record has no required open
-   item and the accepted limits are repeated in the release notes.
-4. **Widen the Harbor run.** The oracle smoke and a one-task canary have run,
-   and `pins.json` names a six-task canary subset that `--canary` selects; next
-   is running it, then the full 89 tasks at five attempts under the
-   leaderboard's unmodified resource and timeout policy, with a baseline
-   comparison. The one task that has run says the path works, not what BuildMax
-   scores, and the first canary found a product bug that had nothing to do with
-   evaluation — budget for the next widening to find more, and fix before going
-   wider. This can run alongside step 1.
-5. **Continue the rest of P0.6 from the shipped local and worker slice.** Add
-   conversation and deployment adapters, then expand the product and trust
-   suites around repeated trials and useful failure bundles. Calibrate model
-   graders and spike Inspect only after the local workflow shows what it needs
-   to add.
-6. **Finish worker hardening as a parallel security track.** First decide and
-   document fail-closed versus recorded downgrade when `bwrap` is unavailable;
-   then add the backend to the image, prove the pod supports it, select
-   `SandboxSurfaceWorker`, add rlimits, sandbox hook transports, and test the
-   result. Treat egress as a separate threat-model and operator-policy decision;
-   do not guess an allow-list. Sandboxing hook and MCP transports is the piece
-   that bounds an activated plugin's own processes — the Bash sandbox never
-   covered them, on any surface — so it is what makes executable team plugins
-   contained rather than what permits them; see
-   [design/plugin-team-distribution.md](design/plugin-team-distribution.md) §9.
-   None of it hides steps 1–5 behind it.
-7. **Choose one product bet from evidence.** One has been taken and shipped:
-   agent-managed worktrees, in
-   [design/workspace-root-and-worktrees.md](design/workspace-root-and-worktrees.md).
-   A session moves its own workspace root, an agent creates and cleans up its
-   own worktrees, and a delegate can be given one. It was the smallest bet
-   available — settled decisions, no server or storage boundary touched — and
-   it is the prerequisite the session-tree paper assumes, so taking it costs
-   that direction nothing. What it still owes is use: nothing removes a
-   worktree automatically, and whether listing alone keeps them from
-   accumulating is the question real sessions answer first.
+4. **Qualify immutable candidate images externally.** Use external MySQL, S3,
+   and TLS for the operator journey, paired restore, schema upgrade and binary
+   rollback, and credential rotation. Record exact artifacts and evidence in
+   [deploy/beta-readiness.md](deploy/beta-readiness.md).
+5. **Close the candidate record.** Attach current CI, direct and managed
+   Compose/kind smoke, Portal E2E, release archive verification, image scan,
+   SBOM, provenance, and every required readiness artifact.
+6. **Widen qualification in parallel after the safety gates are explicit.** Run
+   the pinned Harbor canary and then the full protocol, and expand BuildMax's
+   product-owned conversation, deployment, trust, and recovery tasks. A
+   one-task canary proves the adapter path, not a product score.
 
-   The remaining candidates are unchanged. The lowest-risk is the local Issue
-   work bridge. Durable Agent Sessions needed a decision on local session
-   storage, privacy, retention, and synchronization first;
-   [design/local-session-storage.md](design/local-session-storage.md) settles
-   local storage and the privacy of what it holds; its atomic bundle, rewind,
-   and physical-copy fork phases have all landed. Server retention and
-   synchronization remain separate decisions — that record leaves subagent
-   bundle retention as a question and puts Server synchronization outside its
-   scope. Session trees/mailboxes additionally require a workspace/change-set
-   ownership design. SSO and the executable half of team plugin distribution
-   stay behind the steps above unless a deployment partner supplies the
-   evidence to reprioritize them.
+Account/team closure can proceed alongside steps 2–4 when it does not distract
+from the execution boundary. New workflow, channel, plugin, or local-session
+features wait for evidence from these steps or a concrete deployment partner.
 
 ## Avoid For Now
 
 - a large workflow engine rewrite before results and runtime stability improve
-- a complex approval/audit platform before basic governance lands
+- a generic policy platform before the concrete team approval journey is clear
 - Desktop duplicating Portal issue/workflow/team administration
 - a full Git restore UI before the outcome and change model is clear
 - any Portal-only Agent capability that bypasses the shared runtime
@@ -449,11 +486,13 @@ produce an unbounded worker now fails at startup with the key to edit named.
 ## Related Documents
 
 - [../README.md](../README.md) — current system overview
+- [current-state.md](current-state.md) — code-based implementation and readiness assessment
 - [design/README.md](design/README.md) — design document index
 - [design/product-vision.md](design/product-vision.md) — long-range AI-native workspace vision
 - [design/surface-positioning.md](design/surface-positioning.md) — product surface positioning
 - [design/trust-harness.md](design/trust-harness.md) — P0.5 Agent Core trust harness design
 - [design/evaluation-system.md](design/evaluation-system.md) — P0.6 evaluation and qualification design
+- [design/verification-program.md](design/verification-program.md) — R0–R4 verification matrix, persistence gate, failure evidence, and release rehearsal
 - [design/context-durability.md](design/context-durability.md) — P0.5 instructions and session notes that survive compaction
 - [design/local-project-memory.md](design/local-project-memory.md) — shared CLI/Desktop Project identity and bounded cross-session Project Memory
 - [design/local-background-jobs.md](design/local-background-jobs.md) — P0.5 local background jobs and monitors for TUI and Desktop

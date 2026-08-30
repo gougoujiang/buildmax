@@ -1,0 +1,560 @@
+# Verification Program
+
+> **Audience:** maintainers and contributors · **Status:** planned — implementation backlog
+
+Related records: [Local end-to-end verification](end-to-end-testing.md),
+[evaluation and qualification](evaluation-system.md), and the
+[current-state assessment](../current-state.md).
+
+## Contents
+
+- [Status](#status)
+- [1. Decision](#1-decision)
+- [2. Verification Matrix](#2-verification-matrix)
+- [3. Critical User Journeys](#3-critical-user-journeys)
+- [4. Pull-Request MySQL Gate](#4-pull-request-mysql-gate)
+- [5. Deterministic End-To-End Verification](#5-deterministic-end-to-end-verification)
+- [6. Failure Injection](#6-failure-injection)
+- [7. Scheduled Deployment Verification](#7-scheduled-deployment-verification)
+- [8. Release-Candidate Qualification](#8-release-candidate-qualification)
+- [9. Quality Controls For AI-Generated Tests](#9-quality-controls-for-ai-generated-tests)
+- [10. Fuzzing And Mutation Testing](#10-fuzzing-and-mutation-testing)
+- [11. Product Evaluation And Dogfooding](#11-product-evaluation-and-dogfooding)
+- [12. Evidence Contract](#12-evidence-contract)
+- [13. Delivery Order And Completion Criteria](#13-delivery-order-and-completion-criteria)
+
+## Status
+
+- roadmap_priority: `R0–R4` — this program supplies the evidence required by
+  worker containment, topology correctness, persistence, account/team closure,
+  and qualification breadth in [../ROADMAP.md](../ROADMAP.md)
+- status: `planned` — the repository already has extensive unit and contract
+  tests, fast CLI and Desktop E2E suites, Portal Playwright coverage, Compose
+  and kind smoke, release evidence, and a black-box evaluation framework. The
+  unified matrix, pull-request MySQL gate, expanded failure paths, and complete
+  release rehearsal described here are not implemented
+- principle: implementation code, tests, and documentation can share the same
+  mistaken assumption when all are generated from one context. Acceptance must
+  therefore assert independently observable outcomes across public interfaces,
+  durable state, and forbidden side effects
+- non-goal: maximizing a repository-wide coverage percentage or putting every
+  container, browser, cluster, and real-model test on every pull request
+- touches: `cmd/mk`, `.github/workflows`, `internal/infra/db`,
+  `internal/testsupport/mockllm`, `deployment/smoke`, `portal/e2e`,
+  `.artifacts`, and contributor testing documentation
+- created_at: `2026-08-30`
+
+## 1. Decision
+
+BuildMax will maintain one risk-weighted verification program with four gates:
+
+| Gate | Purpose | Dependencies | Expected cadence |
+|---|---|---|---|
+| Pull request | Reject deterministic code, contract, authorization, persistence, and critical-journey regressions quickly. | Go, Node for frontend scopes, and hermetic MySQL in CI. | Every change. |
+| Scheduled deployment | Exercise real processes, browsers, storage, direct and managed inference, worker lifecycle, and controlled failures. | Compose and kind. | After merge, scheduled, or manually dispatched. |
+| Release candidate | Prove immutable artifacts in a private deployment with external dependencies, recovery, upgrade, rollback, and credential rotation. | Kubernetes, external MySQL, S3, TLS. | Every candidate. |
+| Product evaluation | Measure how reliably supported models use a correctly wired product. | Real model credentials and an explicit token budget. | Deliberate qualification runs. |
+
+The gates answer different questions. A real-model score cannot prove that
+authorization, persistence, or cancellation is wired correctly. A deterministic
+smoke cannot prove that a model reliably uses the behavior. Neither can replace
+an external restore and upgrade exercise.
+
+The program extends the existing task-runner and workflow surfaces. New test
+behavior belongs under `cmd/mk` and existing workflow families; it must not
+introduce a parallel shell-script command surface.
+
+## 2. Verification Matrix
+
+Create `docs/contribute/verification-matrix.md` when the first journey below is
+wired. It is the status-bearing index from product claims to evidence, not a
+directory of test files.
+
+Each matrix row records:
+
+| Field | Meaning |
+|---|---|
+| Journey ID | Stable `Vxx` identifier from this record. |
+| User outcome | What a user or operator can observe, without naming an implementation function. |
+| Surfaces | CLI, Desktop, Portal, Server, worker, or deployment boundaries involved. |
+| Risk | Security, data integrity, execution safety, reliability, or product quality. |
+| Deterministic evidence | Exact test or suite that proves the normal path. |
+| Real dependencies | MySQL, object storage, browser, Kubernetes, or model required by that evidence. |
+| Failure evidence | Exact controlled failure and expected terminal state. |
+| Gate | Pull request, scheduled deployment, release candidate, or evaluation. |
+| Last proof | Commit, date, environment, and evidence-bundle reference. |
+| Gap | `missing` plus a concrete reason when a required layer does not exist. |
+
+Rules:
+
+- every roadmap capability marked complete maps to at least one journey;
+- an empty cell is invalid — use `not applicable` or an explicit gap;
+- a passing unit test is not deployment or operating evidence;
+- the matrix links evidence rather than copying logs or status prose;
+- automated jobs update machine-readable result data, while maintainers update
+  the status-bearing matrix when a capability boundary changes;
+- obsolete journeys are removed with the behavior they described; git history
+  is the archive.
+
+## 3. Critical User Journeys
+
+The first matrix contains the following journeys. They are deliberately
+cross-package and user-visible.
+
+| ID | Journey | Required observable result | Minimum gate |
+|---|---|---|---|
+| V01 | CLI changes a workspace file | The requested content changes, paths outside the workspace do not, session history and trace explain the tool use. | Pull request |
+| V02 | CLI resumes and compacts a session | The selected session resumes, context sources remain correct, compaction preserves required state, and the task completes. | Pull request |
+| V03 | Desktop completes the same local task | The Desktop bridge assembles the shared runtime, surfaces approval and events, and persists the session consistently with CLI. | Pull request |
+| V04 | A user signs in and ends a session | A login code is single-use and expires; refresh rotation, logout, and revoked credentials behave against the real store. | Pull request with MySQL |
+| V05 | Teams are isolated | A member of Team A cannot read, mutate, stream, or download Team B resources even when given valid public IDs. | Pull request with MySQL |
+| V06 | Portal completes a foreground conversation turn | Streaming, durable history, refresh, reconnect, and final presentation agree. | Scheduled deployment |
+| V07 | Multiple turns target one conversation | Turns execute in submission order, the queue is bounded, nothing is lost, and no two turns mutate one conversation concurrently. | Pull request and scheduled multi-process proof |
+| V08 | An Issue produces a background result | Task, TaskRun, worker claim, model/tool execution, artifacts, Issue result projection, and conversation delivery form one explainable chain. | Pull request with MySQL and scheduled deployment |
+| V09 | Result delivery recovers after interruption | A failed delivery retries after restart, reaches one final result message, and never duplicates the underlying TaskRun result. | Scheduled deployment |
+| V10 | A running task is canceled | The run reaches `CANCELED`, stays terminal, stops further work, retains available evidence, and exposes no unavailable artifact. | Scheduled deployment |
+| V11 | A failed task is retried | Retry creates an explicit new attempt, preserves the old attempt, and does not duplicate outputs, usage, or result delivery. | Pull request with MySQL |
+| V12 | A workflow revision runs linearly | The run uses the revision captured at start; step output and failure propagation are ordered; cancellation blocks remaining steps. | Pull request with MySQL |
+| V13 | Managed inference serves local and worker clients | No provider credential reaches the client or worker; per-run authorization, usage ledger, and quota are correct. | Scheduled deployment |
+| V14 | Artifacts preserve authorization and integrity | Upload, list, preview, and download succeed for the owning team; cross-team access fails; bytes and metadata agree. | Pull request with MySQL |
+| V15 | A team activates a safe plugin release | Exactly the pinned skill/subagent content materializes; disallowed hook or MCP releases are rejected; nothing is inherited implicitly. | Pull request and worker smoke |
+| V16 | Server shutdown drains work | New claims and turns stop, in-flight work reports its documented outcome, and restart does not strand a running record. | Scheduled deployment |
+| V17 | A worker disappears without reporting | Heartbeats expire, the lost-worker path closes the run predictably, partial evidence remains, and retry is explicit. | Scheduled deployment |
+| V18 | Database or object storage becomes unavailable | Readiness changes, user-visible state is honest, no phantom artifact is published, and recovery or retry has an unambiguous path. | Scheduled deployment |
+| V19 | A database and bucket pair is restored | Relational records and stored objects agree after restore; every retained artifact reference resolves or is explicitly tombstoned. | Release candidate |
+| V20 | A candidate upgrades and rolls back | Forward schema change, N-1 binary rollback, drain, and credential rotation follow the documented contract without ambiguous data loss. | Release candidate |
+
+Every journey test uses the same assertion structure:
+
+1. arrange state through supported bootstrap or public interfaces;
+2. perform the user or operator action through the public surface;
+3. assert the public response and visible result;
+4. assert durable MySQL and object-storage state;
+5. assert trace, audit, artifact, and managed-call evidence where applicable;
+6. assert forbidden side effects, including cross-team reads, duplicate rows,
+   duplicate usage, files outside the workspace, and non-terminal runs;
+7. clean up or use an isolated namespace so order cannot affect the result.
+
+## 4. Pull-Request MySQL Gate
+
+### 4.1 Command Surface
+
+Add a named task-runner scope for the real store. The proposed interface is
+`./make test mysql`; the exact spelling must be added through `cmd/mk`, covered
+by its command-surface tests, documented in `./make help test`, and reflected in
+[../contribute/testing.md](../contribute/testing.md) when it ships.
+
+The command must:
+
+- require an explicit test DSN and refuse to fall back to contributor data;
+- create a uniquely named temporary database;
+- run `AutoMigrate` and every explicit migration;
+- run `internal/infra/db` plus the service/handler integration scopes selected
+  by the matrix;
+- fail when a test in this scope skips because the DSN is absent;
+- drop only the validated temporary database it created;
+- print the database name, migration version, failing package, and reproduction
+  command without printing credentials.
+
+CI supplies a pinned MySQL service container and invokes the same task-runner
+command contributors use. The local command may attach to MySQL started by the
+contributor; it must not silently start Docker as a side effect of `./make test`.
+
+### 4.2 First Persistence Cases
+
+The first gated cases cover:
+
+- login-code creation, single consumption, expiry, refresh rotation, logout,
+  and revocation;
+- owner/admin/member authorization and cross-team lookup rejection;
+- Task and TaskRun legal and illegal state transitions;
+- two workers attempting to claim one run concurrently;
+- cancellation racing with success or failure reporting;
+- retry producing a new attempt without rewriting the previous attempt;
+- workflow revision capture and ordered step advancement;
+- result-delivery lease, retry, restart recovery, and idempotency;
+- quota reservation and charging boundaries;
+- artifact metadata, TaskRun association, and tombstoned deletion;
+- migration fixtures representing the supported N-1 schema.
+
+### 4.3 Acceptance
+
+- pull-request CI contains no `BUILDMAX_TEST_DSN not set` skip in the MySQL job;
+- repeated and parallel runs do not depend on test order or shared IDs;
+- two claims cannot win one run;
+- repeated cancel, report, retry, and delivery operations preserve legal state;
+- an N-1 fixture upgrades to the current schema and passes the critical
+  journeys;
+- failure output identifies the relevant SQL or state transition without
+  leaking secrets;
+- coverage is reported per critical package. The program does not impose a
+  repository-wide coverage target.
+
+## 5. Deterministic End-To-End Verification
+
+System wiring uses the committed deterministic model harness. Real models are
+reserved for §11 because their variability makes them a poor oracle for
+authorization, persistence, and delivery.
+
+### 5.1 Harness Capabilities
+
+Extend `internal/testsupport/mockllm` and `deployment/smoke/mock-llm` only as
+required by matrix journeys. The shared scenario vocabulary must support:
+
+- fixed streamed responses and fixed tool-call sequences;
+- a failure on a selected request or iteration;
+- a stall released explicitly by the test;
+- malformed tool arguments and unknown tool names;
+- a stream that disconnects partway through;
+- delayed and duplicate protocol messages;
+- per-run controls so parallel tests do not interfere;
+- bounded recording of prompts, tools, model metadata, and request order for
+  assertions and diagnosis.
+
+The harness must not reproduce Agent Core decision logic. It supplies model
+protocol events; product code still owns every state transition and policy
+decision under test.
+
+### 5.2 First Pull-Request Journeys
+
+Wire V04, V05, V07, V08, V11, V12, V14, and V15 first. These journeys exercise
+identity, authorization, durable work, revision capture, artifacts, and plugin
+selection without requiring an externally deployed cluster.
+
+A deployment journey never stops at HTTP success. V08, for example, asserts:
+
+- Task and TaskRun public state;
+- one successful claim and one reporter identity;
+- the expected model and tool transcript;
+- exact artifact bytes and downloadable authorization;
+- Issue `latest_result` and output projection;
+- one durable result-delivery record and one conversation result;
+- trace, audit, and managed-call linkage when the mode supplies them;
+- absence of duplicate TaskRuns, result messages, artifacts, and usage rows.
+
+### 5.3 Existing Suite Placement
+
+- CLI and Desktop remain fast deterministic suites included by `./make test`;
+- Portal browser behavior runs through the existing Playwright and `e2e`
+  surfaces;
+- `./make e2e local` owns its Compose stack;
+- `./make e2e compose` and `./make e2e kind` remain guests of a deployment
+  another command or workflow started;
+- deployment smoke and browser E2E share journey IDs and scenario definitions
+  where possible, rather than becoming two unrelated claims about the same
+  behavior.
+
+## 6. Failure Injection
+
+Failures must be controlled and reproducible. Randomly killing services without
+recording the injection point produces noise, not evidence.
+
+### 6.1 Worker Lifecycle
+
+Add controls and cases for terminating a worker:
+
+- after claim and before model execution;
+- during a tool call;
+- while an artifact is being uploaded;
+- after producing output but before terminal report;
+- after terminal report but before Tier 1 result delivery.
+
+Each case asserts the documented terminal state, heartbeat and reaper timing,
+partial evidence retention, absence of a phantom result, and the explicit path
+to retry. No run may remain `RUNNING` beyond the bounded recovery interval.
+
+### 6.2 MySQL
+
+The Compose failure suite pauses or denies database access while:
+
+- a worker claims a run;
+- a service writes a state transition;
+- the result-delivery sweep leases work;
+- the Server drains during shutdown.
+
+Assertions cover `/readyz`, bounded retries, idempotency after reconnection,
+terminal state, and error classification. The test must distinguish a deliberate
+injection from an unrelated infrastructure failure.
+
+### 6.3 Object Storage
+
+Provide controlled failure modes for:
+
+- rejected upload;
+- rejected download;
+- stored bytes followed by a lost response;
+- metadata committed while the object is absent;
+- object stored while relational association fails.
+
+No failed path may advertise a downloadable artifact that does not exist. A
+recovery operation must reconcile or tombstone inconsistent state explicitly.
+
+### 6.4 Model And Streaming
+
+Cover rate limits, server errors, timeouts, partial streams, invalid tool calls,
+duplicate tool-call IDs, context exhaustion, and WebSocket disconnect/reconnect.
+Results classify failures as Agent/model, product, grader, or infrastructure;
+they must not collapse every failure into a false capability score.
+
+## 7. Scheduled Deployment Verification
+
+Extend the existing deployment-smoke workflow rather than adding an unrelated
+orchestrator.
+
+The scheduled matrix is:
+
+| Environment | Mode | Required scope |
+|---|---|---|
+| Compose | direct | Server, local-process worker, object storage, Portal, artifacts, and direct provider path. |
+| Compose | managed | Managed gateway, per-run authorization, call ledger, and quota. |
+| kind | direct | Ingress, Kubernetes Job worker, pod boundary reporting, artifacts, and cancellation. |
+| kind | managed | Job worker token, managed gateway, ledger, and quota through the deployed path. |
+| Compose | failure | Worker, MySQL, storage, model, and shutdown injections from §6. |
+| kind | lifecycle | Cancellation, hard worker loss, Server restart, and reconnect. |
+
+Workflow rules:
+
+- build or select images for the exact commit under test and record their
+  digests; never prove a commit with an older mutable image;
+- use unique team, user, task, run, and artifact identifiers for every matrix
+  cell;
+- do not retry a failed job into green. A diagnostic retry may run, but the
+  original failure remains in the result;
+- upload the §12 evidence bundle on success and failure;
+- label each failure product, test/harness, or infrastructure before it can be
+  ignored for release qualification;
+- a quarantined flaky test remains visible in the matrix with an owner and
+  reason; quarantine is not a silent pass.
+
+## 8. Release-Candidate Qualification
+
+Every Beta or later candidate is exercised with the immutable artifacts being
+considered for release.
+
+### 8.1 Environment
+
+- private Kubernetes environment;
+- external MySQL and S3-compatible storage;
+- TLS at the published endpoint;
+- Kubernetes Job workers;
+- one Server replica until shared stream delivery and distributed conversation
+  serialization are implemented and qualified;
+- no fixed development login or provider credential;
+- direct and managed inference qualified separately;
+- exact image digests, dependency versions, configuration digest, operator,
+  and date recorded before execution.
+
+### 8.2 Operator Journey
+
+The operator must:
+
+1. bootstrap the first System Administrator;
+2. create or provision a normal account and team;
+3. sign in through Portal;
+4. create Agent, Issue, and Workflow resources;
+5. complete a foreground conversation;
+6. complete a background task and inspect its result;
+7. download an artifact and inspect trace, audit, managed-call, and quota data;
+8. cancel an in-flight run and retry a failed run;
+9. restart the Server gracefully;
+10. kill a worker without a graceful report;
+11. interrupt database access and object-storage access separately;
+12. restore the database and bucket as a pair;
+13. upgrade through a schema-changing candidate and exercise N-1 binary
+   rollback;
+14. rotate JWT, database, object-storage, and provider credentials using the
+   documented drain/restart procedure.
+
+### 8.3 Acceptance
+
+- every run reaches an explainable terminal state;
+- no dangling run exceeds the documented recovery interval;
+- every retained artifact reference resolves after restore or is explicitly
+  tombstoned;
+- database and bucket state agree after paired recovery;
+- rollback behavior matches the supported migration contract;
+- an operator who did not implement the change can diagnose every injected
+  failure using documented surfaces and collected evidence;
+- [../deploy/beta-readiness.md](../deploy/beta-readiness.md) references the
+  immutable evidence bundle and records every accepted limitation.
+
+## 9. Quality Controls For AI-Generated Tests
+
+Every behavior-changing contribution includes the following review block in
+its issue, change notes, or pull-request description:
+
+```text
+Behavior:
+Observable result:
+Persistent result:
+Forbidden side effects:
+Failure cases:
+Tests added:
+Not tested:
+```
+
+Implementation and acceptance use separate contexts. The implementation pass
+may add focused tests. A fresh acceptance pass receives the requirement, public
+interfaces, and diff, and tries to falsify the behavior by finding missing
+outcomes, forbidden side effects, and shared assumptions.
+
+Review rules:
+
+- authorization, execution policy, quota, migration, and state-machine changes
+  contain at least one negative case;
+- a bug fix first gains a failing regression case with an independent oracle;
+- public API, filesystem, database, trace, audit, or artifact state is preferred
+  over private implementation calls as the acceptance oracle;
+- mocks supply dependencies and protocol events; they do not reimplement the
+  rule under test;
+- `err == nil` alone is not a behavior assertion;
+- tests must show useful diagnosis when they fail;
+- reviewers ask whether removing or reversing the changed guard would still let
+  the test pass.
+
+## 10. Fuzzing And Mutation Testing
+
+These techniques are targeted at high-risk invariants, not run indiscriminately
+over the repository.
+
+### 10.1 Fuzz Targets
+
+Add Go fuzz targets for:
+
+- workflow-definition parsing and validation;
+- public IDs and path containment;
+- tool argument decoding;
+- webhook payload and message-path extraction;
+- trace redaction and bounded serialization;
+- configuration-layer merge and environment parsing;
+- session/history decoding and recovery;
+- state-transition inputs that can be isolated as pure domain logic.
+
+Every discovered crash, hang, path escape, or invariant violation becomes a
+committed regression seed.
+
+### 10.2 Mutation Targets
+
+Start with team policy, Task/TaskRun transition rules, login-code consumption,
+quota, workflow validation, sandbox policy, and artifact authorization.
+
+The important mutations are deleted authorization checks, reversed role
+comparisons, changed terminal-state predicates, quota boundary changes,
+cancellation followed by success, and removed team filters. These mutations may
+not survive. The program does not require a global mutation score for DTOs,
+generated structures, or simple adapters.
+
+## 11. Product Evaluation And Dogfooding
+
+### 11.1 Product-Owned Evaluation
+
+Expand the current three tasks to a representative 12–20 task suite before
+using evaluation for release qualification. Cover:
+
+- file search and multi-file editing;
+- answering without unnecessary Bash;
+- safe recovery from a permission denial;
+- compaction and session resume;
+- Project Memory read and update;
+- subagent delegation;
+- artifact production;
+- worker access to team files;
+- tool failure and malformed result recovery;
+- cancellation and timeout response;
+- result explanation through the trace.
+
+Prefer deterministic graders: file hashes, JSON schemas, commands, directory
+state, trace events, forbidden tool calls, and database terminal state. Use a
+model grader only for genuinely subjective quality after calibration against
+human judgments.
+
+Real-model runs select a small supported model set, repeat each task enough to
+show variability, use an explicit token budget, and report Agent, product,
+grader, and infrastructure failures separately. External benchmarks remain a
+coordinate, not the product's release gate.
+
+### 11.2 Dogfooding
+
+Maintain a lightweight manual verification log containing commit, surface,
+model, real task, success, interventions, confusing behavior, and linked issue.
+Repeat a small set of useful tasks: a Go bug fix, a multi-file configuration
+change, a Portal Issue completed by a worker, cancellation and retry, session
+resume, and artifact generation/download.
+
+Manual use is not a substitute for automation. It detects the different class
+of failure where every asserted fact is true but the product remains confusing
+or impractical.
+
+## 12. Evidence Contract
+
+Every scheduled or release run writes a bounded bundle under:
+
+```text
+.artifacts/verification/<commit>/<environment>/<journey>/
+  manifest.json
+  result.json
+  server.log
+  worker.log
+  portal.log
+  trace.jsonl
+  audit.json
+  db-state.json
+  artifacts.json
+  screenshots/
+  playwright-trace/
+  junit.xml
+```
+
+Files that do not apply are omitted and recorded as not applicable in
+`manifest.json`; empty placeholder evidence is not success.
+
+The manifest records:
+
+- commit and dirty state;
+- image digests;
+- OS and architecture;
+- MySQL, object-storage, Kubernetes, and browser versions;
+- direct or managed inference mode;
+- journey and scenario versions;
+- start and end time;
+- injected fault and injection point;
+- final pass/fail classification;
+- bounded references to private logs or artifacts that cannot be exported.
+
+Bundles are private by default, redact credentials and model-sensitive content,
+and follow an explicit retention limit. A CI summary links the bundle and shows
+the terminal classification without requiring a maintainer to download every
+log.
+
+## 13. Delivery Order And Completion Criteria
+
+Implement in dependency order:
+
+1. create the verification matrix with V01–V20 and link existing evidence;
+2. add the pull-request MySQL command and CI job;
+3. wire deterministic V04, V05, V07, V08, V10, V11, V14, and V15 journeys;
+4. add worker, MySQL, object-storage, model, and shutdown failure controls;
+5. make scheduled Compose/kind runs emit the evidence contract;
+6. execute the external Kubernetes restore, upgrade, rollback, and credential
+   rotation rehearsal;
+7. add targeted fuzzing, mutation checks, evaluation breadth, and continuous
+   dogfooding.
+
+Gate rules:
+
+- pull-request deterministic checks pass without retry;
+- scheduled failures remain visible until classified, and an unclassified
+  failure blocks promotion;
+- a release candidate repeats every required proof with its own immutable
+  digests;
+- a roadmap capability is complete only when its matrix row has unit/contract
+  evidence and deterministic end-to-end evidence appropriate to its boundary;
+- Beta additionally requires real deployment, failure, recovery, and operator
+  evidence;
+- real-model evaluation is reported separately from deterministic system
+  correctness.
+
+This program is complete when every V01–V20 row has the evidence required by
+its minimum gate, the release rehearsal has been performed by an operator who
+did not implement the candidate, and no production-readiness claim depends on a
+test that silently skipped its real dependency.
