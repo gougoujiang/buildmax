@@ -281,6 +281,79 @@ func TestPinnedWailsVersionMatchesGoMod(t *testing.T) {
 	}
 }
 
+// makeInvocationRe matches a single-line `run: ./make ...` step. Multi-line
+// `run: |` blocks are deliberately not read: nothing in these workflows calls
+// the task runner from one, and parsing a shell script well enough to be sure
+// what it invokes is a bigger claim than this test needs to make.
+var makeInvocationRe = regexp.MustCompile(`(?m)^\s+run: \./make ([a-z0-9-]+)(.*)$`)
+
+// TestWorkflowsInvokeTheTaskRunnerCorrectly reads what CI actually types.
+//
+// cmdE2E already has a unit test proving a bare `./make e2e` is a usage error.
+// That did not stop the change which made it one from leaving the kind job
+// calling it that way: the behavior was covered, the caller was not, and the
+// break was only visible after a merge to main, in a job that takes twenty
+// minutes to reach the failing step. A workflow is the one caller no compiler
+// checks, so it is checked here.
+func TestWorkflowsInvokeTheTaskRunnerCorrectly(t *testing.T) {
+	dir := filepath.Join("..", "..", ".github", "workflows")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read %s: %v", dir, err)
+	}
+	known := map[string]bool{}
+	for _, name := range helpCommandNames() {
+		known[name] = true
+	}
+
+	seen := 0
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yml") {
+			continue
+		}
+		body, err := os.ReadFile(filepath.Join(dir, entry.Name()))
+		if err != nil {
+			t.Fatalf("read %s: %v", entry.Name(), err)
+		}
+		for _, m := range makeInvocationRe.FindAllStringSubmatch(string(body), -1) {
+			seen++
+			command, args := m[1], strings.Fields(m[2])
+			where := entry.Name() + ": ./make " + strings.TrimSpace(m[1]+" "+m[2])
+			if !known[command] {
+				t.Errorf("%s invokes a command the task runner does not have", where)
+				continue
+			}
+			if len(args) == 0 && !acceptsNoArguments(t, command) {
+				t.Errorf("%s passes no argument, but %s requires one", where, command)
+			}
+		}
+	}
+	// A regex that silently stopped matching would turn this into a test that
+	// passes by reading nothing.
+	if seen == 0 {
+		t.Fatal("no ./make invocations found in .github/workflows; the pattern no longer matches")
+	}
+}
+
+// acceptsNoArguments asks the command's own help page, which is already the
+// source of the usage line it prints when an argument is wrong. A topic listing
+// a "(none)" row is the page saying the bare form is a real invocation.
+func acceptsNoArguments(t *testing.T, command string) bool {
+	t.Helper()
+	topic, ok := lookupHelpTopic(command)
+	if !ok {
+		t.Fatalf("%s has no help topic; TestEveryCommandHasAHelpTopic should have caught this", command)
+	}
+	for _, row := range topic.args {
+		if row.name == "(none)" {
+			return true
+		}
+	}
+	// A topic with no argument rows at all takes no arguments, so the bare form
+	// is the only form -- `fmt` and `lint` are that shape.
+	return len(topic.args) == 0
+}
+
 // The task runner and CI must run the same tool versions, or `./make check ci`
 // promises a parity it does not have. The workflow is the source of truth
 // because that is what a pull request actually executes.
