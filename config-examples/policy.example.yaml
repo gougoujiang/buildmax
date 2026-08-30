@@ -1,16 +1,14 @@
 # BuildMax operator policy (BUILDMAX_HOME/policy.yaml)
 #
-# This file exists for the case where the person who owns the machine and the
-# person using the agent are not the same. It OVERRIDES the matching block in
-# settings.yaml, so a user cannot loosen what an operator sets here by editing
-# their own settings.
+# For when the machine owner and the agent user aren't the same person. This
+# OVERRIDES the matching block in settings.yaml, so a user can't loosen what
+# an operator sets here by editing their own settings.
 #
 # Resolution order, lowest to highest:
-#
 #   built-in default  <  settings.yaml  <  policy.yaml  <  environment variable
 #
-# `buildmax sandbox status` prints the resolved values and which layer set each
-# one, which is the fastest way to confirm a policy is taking effect.
+# `buildmax sandbox status` prints the resolved values and which layer set
+# each one — the fastest way to confirm a policy is taking effect.
 #
 # Guide: docs/guide/sandbox.md, docs/guide/plugins.md
 # Reference: docs/reference/configuration.md
@@ -19,14 +17,13 @@
 sandbox:
   enabled: true
 
-  # Refuse to run Bash at all rather than run it unsandboxed. On a host where
-  # the sandbox backend is missing this turns a silent downgrade into a clear
-  # failure — usually what an operator wants, and usually not what a developer
-  # wants on their laptop.
+  # Refuse to run Bash at all rather than run it unsandboxed. Turns a silent
+  # downgrade into a clear failure on a host missing the sandbox backend —
+  # usually what an operator wants, usually not what a laptop dev wants.
   fail_if_unavailable: true
 
-  # Leave the per-call escape hatch inert. With this false, a tool call asking
-  # for dangerously_disable_sandbox is ignored rather than honored.
+  # Leave the per-call escape hatch inert: a tool call asking for
+  # dangerously_disable_sandbox is ignored rather than honored.
   allow_unsandboxed_commands: false
 
   filesystem:
@@ -41,8 +38,8 @@ sandbox:
       - "~/.aws"
       - "~/.gnupg"
 
-    # Make this layer authoritative: entries in a lower layer's allow_read are
-    # ignored, so a user cannot widen read access from their own settings.yaml.
+    # Make this layer authoritative: a lower layer's allow_read is ignored,
+    # so a user can't widen read access from their own settings.yaml.
     allow_managed_read_paths_only: true
 
   network:
@@ -69,19 +66,15 @@ sandbox:
     read:
       - "/etc/ssl/**"
 
-# Which plugin sources may load.
+# Which plugin sources may load. Unset means every source loads. Setting it
+# constrains where plugins come from, not what they may do — tool
+# permissions, hook gates, and the sandbox above constrain the bytes that
+# load. A directory whose provenance can't be established doesn't pass a
+# policy that names one: unknown is not the source you asked for.
 #
-# Unset means every source loads, which is what a deployment that asserted
-# nothing gets. Setting it constrains where plugins come from — not what they
-# may do: tool permissions, hook gates, and the sandbox above are what
-# constrain the bytes that load.
-#
-# A directory whose provenance cannot be established does not pass a policy
-# that names one. That is deliberate: unknown is not the source you asked for.
-#
-# This is fleet management, not a security boundary. policy.yaml lives in the
-# user's own BUILDMAX_HOME, so it is worth setting on a machine an operator
-# controls — a managed device, a built image, a container — and worth
-# nothing against somebody who could write the configuration by hand.
+# This is fleet management, not a security boundary — policy.yaml lives in
+# the user's own BUILDMAX_HOME, so it's worth setting on a machine an
+# operator controls (managed device, built image, container) and worth
+# nothing against someone who could write the configuration by hand.
 plugins:
   allowed_sources: ["marketplace"]
