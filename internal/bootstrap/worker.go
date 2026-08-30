@@ -238,6 +238,8 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		WorkerAPI:              apiCfg,
 		AdditionalSystemPrompt: fetched.AgentInstructions,
 		Plugins:                fetched.Plugins,
+		SandboxNetworkTier:     config.SandboxNetworkTier(fetched.SandboxNetworkTier),
+		SandboxFilesystemTier:  config.SandboxFilesystemTier(fetched.SandboxFilesystemTier),
 		InterruptGrace:         interruptGraceFromEnv(),
 	})
 	if errors.Is(err, coretask.ErrRunCanceled) {

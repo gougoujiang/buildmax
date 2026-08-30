@@ -56,6 +56,9 @@ func (h *Handler) getTaskRun(w http.ResponseWriter, r *http.Request) {
 	pins, pluginRefusal := h.resolvePluginPins(r, run, task, runAgent)
 	h.recordPluginPins(r, run, pins)
 
+	networkTier, filesystemTier := resolveSandboxTiers(run, runAgent)
+	h.recordSandboxTiers(r, run, runAgent)
+
 	httputil.WriteJSON(w, http.StatusOK, workerclient.GetTaskRunResponse{
 		Run: workerclient.TaskRunRun{
 			ID:     run.ID,
@@ -78,6 +81,13 @@ func (h *Handler) getTaskRun(w http.ResponseWriter, r *http.Request) {
 		},
 		Plugins:     toWirePlugins(pins),
 		PluginError: pluginRefusal,
+		// Resolved alongside the agent revision and plugin pins, against the
+		// same runAgent: an agent that failed the team check above declares
+		// no tiers, the same way it names no plugins.
+		Sandbox: &workerclient.TaskRunSandbox{
+			NetworkTier:    networkTier,
+			FilesystemTier: filesystemTier,
+		},
 		// The server decides how the run reaches a model. A worker executes
 		// model-chosen code, so it is told the transport and alias rather than
 		// choosing them — and it is told nothing else about the model, because
@@ -225,6 +235,40 @@ func (h *Handler) recordSeen(r *http.Request, run *coretask.Run) {
 	}
 	if err := h.cfg.TaskRuns.MarkTaskRunSeen(r.Context(), run.ID, time.Now().UTC()); err != nil {
 		componentLog().Warn("worker handler: liveness not recorded", "task_run_id", run.ID, "err", err)
+	}
+}
+
+// resolveSandboxTiers returns this run's sandbox tiers: the pinned ones once
+// a worker has already claimed this run, or the agent's current declaration
+// on the first poll. Mirrors resolvePluginPins's first-write-wins read — see
+// docs/design/agent-sandbox-policy.md §4.4.
+func resolveSandboxTiers(run *coretask.Run, a *agentdef.Agent) (networkTier, filesystemTier string) {
+	if run.SandboxNetworkTier != nil {
+		if run.SandboxFilesystemTier != nil {
+			filesystemTier = *run.SandboxFilesystemTier
+		}
+		return *run.SandboxNetworkTier, filesystemTier
+	}
+	if a == nil {
+		return "", ""
+	}
+	return a.SandboxNetworkTier, a.SandboxFilesystemTier
+}
+
+// recordSandboxTiers notes which sandbox tiers this run's agent declared.
+//
+// Recorded even when both tiers are empty — that is itself the fact "this
+// run resolved to the strictest tier on both axes" — which is why the guard
+// below is run.SandboxNetworkTier == nil rather than "the tiers are
+// non-empty" the way recordPluginPins guards on. A failure to record is
+// logged and dropped: a worker waiting for its run must not be held up by
+// bookkeeping.
+func (h *Handler) recordSandboxTiers(r *http.Request, run *coretask.Run, a *agentdef.Agent) {
+	if a == nil || run.SandboxNetworkTier != nil || h.cfg.TaskRuns == nil {
+		return
+	}
+	if err := h.cfg.TaskRuns.RecordTaskRunSandboxTiers(r.Context(), run.ID, a.SandboxNetworkTier, a.SandboxFilesystemTier); err != nil {
+		componentLog().Warn("worker handler: sandbox tiers not recorded", "task_run_id", run.ID, "err", err)
 	}
 }
 

@@ -218,6 +218,22 @@ func (m *MockTaskRunStore) RecordTaskRunPluginPins(_ context.Context, taskRunID 
 	return nil
 }
 
+func (m *MockTaskRunStore) RecordTaskRunSandboxTiers(_ context.Context, taskRunID string, networkTier, filesystemTier string) error {
+	for i := range m.Runs {
+		if m.Runs[i].ID != taskRunID {
+			continue
+		}
+		// First write wins, as in the store. Written even when both tiers are
+		// empty, so the guard is nil-ness, not emptiness.
+		if m.Runs[i].SandboxNetworkTier == nil {
+			m.Runs[i].SandboxNetworkTier = &networkTier
+			m.Runs[i].SandboxFilesystemTier = &filesystemTier
+		}
+		return nil
+	}
+	return nil
+}
+
 func (m *MockTaskRunStore) RecordTaskRunAgentRevision(_ context.Context, taskRunID string, revision int) error {
 	for i := range m.Runs {
 		if m.Runs[i].ID != taskRunID {

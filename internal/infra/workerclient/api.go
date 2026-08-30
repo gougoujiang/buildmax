@@ -90,6 +90,11 @@ type WorkerTaskRun struct {
 	// fails the run rather than starting it without the plugin: an agent that
 	// names a plugin has declared it needs one.
 	PluginError string
+	// SandboxNetworkTier and SandboxFilesystemTier are this run's agent-
+	// declared sandbox tiers, resolved by the server. Empty means the
+	// strictest tier on that axis. See docs/design/agent-sandbox-policy.md.
+	SandboxNetworkTier    string
+	SandboxFilesystemTier string
 }
 
 // GetWorkerTaskRun fetches the run from the server (GET /api/worker/task-runs/{task_run_id}). Returns nil, nil if not found.
@@ -126,12 +131,32 @@ func GetWorkerTaskRun(ctx context.Context, cfg WorkerAPIClientConfig, taskRunID 
 			SessionID:      got.Task.SessionID,
 			LastRunID:      got.Task.LastRunID,
 		},
-		LLM:               got.LLM,
-		AgentInstructions: got.Task.AgentInstructions,
-		CancelRequested:   got.Run.CancelRequested,
-		Plugins:           toPluginPins(got.Plugins),
-		PluginError:       got.PluginError,
+		LLM:                   got.LLM,
+		AgentInstructions:     got.Task.AgentInstructions,
+		CancelRequested:       got.Run.CancelRequested,
+		Plugins:               toPluginPins(got.Plugins),
+		PluginError:           got.PluginError,
+		SandboxNetworkTier:    sandboxNetworkTierOf(got.Sandbox),
+		SandboxFilesystemTier: sandboxFilesystemTierOf(got.Sandbox),
 	}, nil
+}
+
+// sandboxNetworkTierOf and sandboxFilesystemTierOf read the GET response's
+// optional Sandbox field. Absent means a server built before this field
+// existed, so a worker reads both tiers as "" -- the strictest, exactly what
+// it applied before the field existed.
+func sandboxNetworkTierOf(s *TaskRunSandbox) string {
+	if s == nil {
+		return ""
+	}
+	return s.NetworkTier
+}
+
+func sandboxFilesystemTierOf(s *TaskRunSandbox) string {
+	if s == nil {
+		return ""
+	}
+	return s.FilesystemTier
 }
 
 func toPluginPins(wire []TaskRunPlugin) []coreplugin.Pin {

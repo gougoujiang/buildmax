@@ -21,7 +21,12 @@ RUN CGO_ENABLED=0 go build -o /buildmax ./cmd/buildmax && \
 
 # Stage 2: runtime
 FROM alpine:3.23
-RUN apk add --no-cache ca-certificates
+# bubblewrap + socat are the Linux sandbox backend buildmax-worker resolves to
+# once agentapp/taskrun selects config.SandboxSurfaceWorker (see
+# docs/design/sandbox-boundaries.md §7.2). The worker baseline sets
+# fail_if_unavailable: true, so a worker image missing either package refuses
+# every run rather than executing model-chosen shell commands unconfined.
+RUN apk add --no-cache ca-certificates bubblewrap socat
 
 COPY --from=build /buildmax /usr/local/bin/buildmax
 COPY --from=build /buildmax-server /usr/local/bin/buildmax-server

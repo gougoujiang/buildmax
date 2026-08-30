@@ -43,6 +43,53 @@ func TestCreateRequiresAName(t *testing.T) {
 	}
 }
 
+// TestCreateRejectsUnknownSandboxTier asserts a tier outside
+// config.ValidSandboxNetworkTier/ValidSandboxFilesystemTier is refused before
+// anything is stored, the same way an empty name is.
+func TestCreateRejectsUnknownSandboxTier(t *testing.T) {
+	s, _, ctx := newService(t)
+
+	_, err := s.CreateAgent(ctx, agent.CreateCmd{
+		TeamID: "tm_1", UserID: "u_1", Name: "reviewer",
+		SandboxNetworkTier: "unlimited",
+	})
+
+	if !errors.Is(err, agent.ErrInvalidSandboxTier) {
+		t.Fatalf("err = %v, want ErrInvalidSandboxTier", err)
+	}
+	if kind, _ := apierr.KindOf(err); kind != apierr.KindInvalid {
+		t.Errorf("kind = %q, want invalid", kind)
+	}
+}
+
+// TestCreateAndUpdateStoreSandboxTiers asserts a valid declared tier is
+// stored on create, versions with an update, and an update that omits it
+// resets that axis to the strictest tier rather than leaving it unchanged.
+func TestCreateAndUpdateStoreSandboxTiers(t *testing.T) {
+	s, _, ctx := newService(t)
+
+	a, err := s.CreateAgent(ctx, agent.CreateCmd{
+		TeamID: "tm_1", UserID: "u_1", Name: "builder",
+		SandboxNetworkTier: "registries", SandboxFilesystemTier: "workspace",
+	})
+	if err != nil {
+		t.Fatalf("CreateAgent: %v", err)
+	}
+	if a.SandboxNetworkTier != "registries" {
+		t.Errorf("SandboxNetworkTier = %q, want registries", a.SandboxNetworkTier)
+	}
+
+	updated, err := s.UpdateAgent(ctx, agent.UpdateCmd{
+		TeamID: "tm_1", UserID: "u_1", AgentID: a.ID, Name: "builder",
+	})
+	if err != nil {
+		t.Fatalf("UpdateAgent: %v", err)
+	}
+	if updated.SandboxNetworkTier != "" {
+		t.Errorf("SandboxNetworkTier after omitting it = %q, want empty (reset to strictest)", updated.SandboxNetworkTier)
+	}
+}
+
 // The ownership check was written out separately in four handlers. It belongs
 // in one place, and it has to answer not-found rather than forbidden so the
 // reply does not confirm that the id exists in another team.

@@ -121,6 +121,124 @@ const (
 	SandboxSurfaceWorker SandboxSurface = "worker"
 )
 
+// SandboxNetworkTier and SandboxFilesystemTier name a coarse, agent-declared
+// sandbox capability level for the worker surface. See
+// docs/design/agent-sandbox-policy.md §4.1: an agent author picks a tier
+// instead of authoring a raw domain or path list, and each tier is a fixed,
+// strictly-ordered superset of the one before it on its own axis.
+type SandboxNetworkTier string
+
+// SandboxFilesystemTier is the filesystem half of the same pair.
+type SandboxFilesystemTier string
+
+const (
+	// SandboxNetworkTierNone pre-allows no domain. The strictest tier and the
+	// default for an agent that declares nothing, matching today's
+	// SandboxSurfaceWorker baseline.
+	SandboxNetworkTierNone SandboxNetworkTier = "none"
+	// SandboxNetworkTierRegistries pre-allows DefaultRegistryDomains: enough
+	// to install a dependency without an operator hand-authoring policy.yaml.
+	SandboxNetworkTierRegistries SandboxNetworkTier = "registries"
+	// SandboxNetworkTierOpen pre-allows any outbound HTTPS destination. The
+	// filesystem tier is unaffected.
+	SandboxNetworkTierOpen SandboxNetworkTier = "open"
+
+	// SandboxFilesystemTierWorkspace confines writes to the run's own
+	// workspace, exactly as SandboxSurfaceWorker already does. The default
+	// for an agent that declares nothing.
+	SandboxFilesystemTierWorkspace SandboxFilesystemTier = "workspace"
+	// SandboxFilesystemTierWorkspacePlusSharedRead additionally allows
+	// reading a deployment-configured shared cache path.
+	SandboxFilesystemTierWorkspacePlusSharedRead SandboxFilesystemTier = "workspace_plus_shared_read"
+	// SandboxFilesystemTierWorkspacePlusExternalWrite additionally allows
+	// writing one deployment-configured external output path.
+	SandboxFilesystemTierWorkspacePlusExternalWrite SandboxFilesystemTier = "workspace_plus_external_write"
+)
+
+// defaultRegistryDomains backs DefaultRegistryDomains. Unexported so nothing
+// outside this file can mutate the shared slice; architecture_test.go forbids
+// exported mutable package state for exactly this reason.
+var defaultRegistryDomains = []string{
+	"registry.npmjs.org",
+	"pypi.org",
+	"files.pythonhosted.org",
+	"crates.io",
+	"static.crates.io",
+	"proxy.golang.org",
+	"sum.golang.org",
+	"rubygems.org",
+}
+
+// DefaultRegistryDomains returns the BuildMax-maintained default allow-list
+// for SandboxNetworkTierRegistries, copied so a caller cannot mutate the
+// shared default. A deployment extends it, never replaces it, via
+// policy.yaml's own network.allowed_domains -- see
+// docs/design/agent-sandbox-policy.md §4.6.
+func DefaultRegistryDomains() []string {
+	return append([]string(nil), defaultRegistryDomains...)
+}
+
+// ValidSandboxNetworkTier reports whether tier is a known network tier. The
+// empty string is valid and equivalent to SandboxNetworkTierNone, so an agent
+// that predates this field is not rejected on write.
+func ValidSandboxNetworkTier(tier string) bool {
+	switch SandboxNetworkTier(tier) {
+	case "", SandboxNetworkTierNone, SandboxNetworkTierRegistries, SandboxNetworkTierOpen:
+		return true
+	default:
+		return false
+	}
+}
+
+// ValidSandboxFilesystemTier reports whether tier is a known filesystem tier,
+// on the same empty-string terms as ValidSandboxNetworkTier.
+func ValidSandboxFilesystemTier(tier string) bool {
+	switch SandboxFilesystemTier(tier) {
+	case "", SandboxFilesystemTierWorkspace, SandboxFilesystemTierWorkspacePlusSharedRead, SandboxFilesystemTierWorkspacePlusExternalWrite:
+		return true
+	default:
+		return false
+	}
+}
+
+// SandboxSharedPaths names the deployment-configured paths the shared-read
+// and external-write filesystem tiers add. Both empty means those two tiers
+// behave exactly like SandboxFilesystemTierWorkspace: a tier can only add a
+// path a deployment actually configured, never invent one.
+type SandboxSharedPaths struct {
+	SharedReadPath    string
+	ExternalWritePath string
+}
+
+// TierSandboxConfig translates an agent's declared network/filesystem tier
+// pair into the SandboxConfig fragment ResolveSandboxForRun merges as one
+// layer. An unrecognized tier translates to the zero value -- the strictest
+// baseline -- rather than an error, so a run is never blocked by a tier this
+// binary does not recognize; ValidSandboxNetworkTier/ValidSandboxFilesystemTier
+// are what reject one on write. See docs/design/agent-sandbox-policy.md §4.1.
+func TierSandboxConfig(networkTier SandboxNetworkTier, filesystemTier SandboxFilesystemTier, shared SandboxSharedPaths) SandboxConfig {
+	var cfg SandboxConfig
+	switch networkTier {
+	case SandboxNetworkTierRegistries:
+		cfg.Network.AllowedDomains = DefaultRegistryDomains()
+	case SandboxNetworkTierOpen:
+		// "*" already means "allow every host" to HostMatcher.AllowAll --
+		// the same primitive the sandbox backend uses today, not a new one.
+		cfg.Network.AllowedDomains = []string{"*"}
+	}
+	switch filesystemTier {
+	case SandboxFilesystemTierWorkspacePlusSharedRead:
+		if shared.SharedReadPath != "" {
+			cfg.Filesystem.AllowRead = []string{shared.SharedReadPath}
+		}
+	case SandboxFilesystemTierWorkspacePlusExternalWrite:
+		if shared.ExternalWritePath != "" {
+			cfg.Filesystem.AllowWrite = []string{shared.ExternalWritePath}
+		}
+	}
+	return cfg
+}
+
 // PolicyFile is the on-disk shape of <BUILDMAX_HOME>/policy.yaml, the
 // operator-controlled layer above settings.yaml.
 type PolicyFile struct {
@@ -176,26 +294,31 @@ type SandboxResolution struct {
 const EnvKeyBuildmaxSandboxEnabled = "BUILDMAX_SANDBOX_ENABLED"
 
 // ResolveSandbox merges settings + env + policy + surface defaults into a
-// final SandboxConfig. It is the no-run-override form used by surfaces that
-// do not expose per-run sandbox controls.
+// final SandboxConfig. It is the no-run-override, no-agent-tier form used by
+// surfaces that do not expose per-run sandbox controls or agent-declared
+// tiers.
 func ResolveSandbox(global, policy SandboxConfig, surface SandboxSurface) SandboxResolution {
-	return ResolveSandboxForRun(global, SandboxRunOverride{}, policy, surface)
+	return ResolveSandboxForRun(global, SandboxRunOverride{}, policy, surface, SandboxConfig{})
 }
 
-// ResolveSandboxForRun also applies a narrow per-run override. Mirrors the
-// layering in docs/design/sandbox-boundaries.md §4.1.
+// ResolveSandboxForRun also applies a narrow per-run override and an agent's
+// declared network/filesystem tier. Mirrors the layering in
+// docs/design/sandbox-boundaries.md §4.1, extended by
+// docs/design/agent-sandbox-policy.md §4.3.
 //
 // Precedence (highest wins for scalars; arrays union):
 //  1. Policy file.
 //  2. Per-run override.
 //  3. Env (BUILDMAX_SANDBOX_ENABLED).
-//  4. Settings file.
-//  5. Surface default.
+//  4. Agent-declared tier (config.TierSandboxConfig; network/filesystem
+//     arrays only).
+//  5. Settings file.
+//  6. Surface default.
 //
 // For the managed-only flags (AllowManagedDomainsOnly,
 // AllowManagedReadPathsOnly) set in policy.yaml, the corresponding allow
 // array in lower sources is suppressed. Deny arrays always union.
-func ResolveSandboxForRun(global SandboxConfig, run SandboxRunOverride, policy SandboxConfig, surface SandboxSurface) SandboxResolution {
+func ResolveSandboxForRun(global SandboxConfig, run SandboxRunOverride, policy SandboxConfig, surface SandboxSurface, agentTier SandboxConfig) SandboxResolution {
 	base := defaultSandbox(surface)
 	res := SandboxResolution{Config: base, Sources: []string{"default:" + string(surface)}}
 
@@ -203,6 +326,13 @@ func ResolveSandboxForRun(global SandboxConfig, run SandboxRunOverride, policy S
 	if !sandboxEmpty(global) {
 		res.Config = mergeSandbox(res.Config, global, false)
 		res.Sources = append(res.Sources, "settings")
+	}
+	// The agent's declared tier sits above the team/user default but below
+	// everything that can already outrank settings.yaml today -- it is a
+	// workload's request, not an operator's or a caller's decision.
+	if !sandboxEmpty(agentTier) {
+		res.Config = mergeSandbox(res.Config, agentTier, false)
+		res.Sources = append(res.Sources, "agent_tier")
 	}
 	// The process environment sits above user settings but below an explicit
 	// run request and operator policy.

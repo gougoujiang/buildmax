@@ -20,8 +20,9 @@ workers, a Portal, deployment assets, and an unusually serious test and release
 harness for an Alpha project.
 
 It is also not yet a production-safe multi-tenant Agent platform. Three gaps
-dominate the assessment: unattended worker execution is not wired to the worker
-sandbox baseline, the reference deployment runs multiple Server replicas while
+dominate the assessment: unattended worker execution now selects the worker
+sandbox baseline but its interaction with the production pod's own hardening
+is unverified, the reference deployment runs multiple Server replicas while
 live coordination remains process-local, and ordinary pull-request tests do not
 exercise the real MySQL store.
 
@@ -104,24 +105,41 @@ that external path for one task only. There is no Terminal-Bench score.
 
 ## Readiness Blockers
 
-### P0 — Worker Execution Is Not Contained By Default
+### P0 — Worker Sandbox Surface Wired, K8s Interaction Unverified
 
-The worker task runtime constructs `agentapp.AppConfig` without setting
-`SandboxSurface` and uses `AllowAllPolicy` in
-[`internal/agentapp/taskrun/runtime.go`](../internal/agentapp/taskrun/runtime.go).
-The application builder resolves an empty sandbox surface to the CLI baseline
-in [`internal/agentapp/app_builder.go`](../internal/agentapp/app_builder.go).
+The worker task runtime now selects `config.SandboxSurfaceWorker` and applies
+an agent-declared network/filesystem tier in
+[`internal/agentapp/taskrun/runtime.go`](../internal/agentapp/taskrun/runtime.go),
+resolved by the server at claim time and pinned onto the run for audit, per
+[`docs/design/agent-sandbox-policy.md`](design/agent-sandbox-policy.md). The
+worker container images now install `bubblewrap` and `socat` in
+[`deployment/docker/Dockerfile.buildmax`](../deployment/docker/Dockerfile.buildmax)
+and
+[`deployment/docker/Dockerfile.release`](../deployment/docker/Dockerfile.release),
+which the Linux sandbox backend requires.
 
-The stricter worker baseline therefore exists in configuration but is not
-selected by worker runs. Kubernetes pod hardening limits the container, but it
-does not make the in-process Bash sandbox active. Local-process execution is in
-the Server trust domain. This is a release blocker for unattended execution,
-not optional defense in depth.
+What this closes: a worker run is no longer built with an empty
+`SandboxSurface` resolving to the permissive CLI baseline, and an agent
+author can request the `registries` or `open` network tier and a shared
+read/external-write filesystem tier without an operator hand-editing
+`policy.yaml` per agent.
 
-Completion requires an explicit worker surface, a documented fail-closed or
-recorded-downgrade policy when the OS backend is unavailable, resource limits,
-and tests that prove the effective boundary. Hook and MCP child processes need
-their own boundary; Bash containment alone does not cover them.
+What remains unverified, and why this stays P0 rather than closing outright:
+the worker baseline sets `fail_if_unavailable: true`, and `bwrap` creating an
+unprivileged user namespace inside the production pod's existing hardening —
+non-root, no service-account token, no added capabilities, `RuntimeDefault`
+seccomp, read-only root filesystem — has not been exercised end to end. If the
+node's kernel or a security profile blocks unprivileged user namespaces (the
+Ubuntu 24.04 AppArmor case [`sandbox-boundaries.md`](design/sandbox-boundaries.md)
+§7.3 already documents), every worker run refuses to start rather than
+executing unconfined, which is the documented fail-closed behavior but has not
+been proven against the actual production manifest. Closing this requires the
+kind smoke run [`trust-harness.md`](design/trust-harness.md) §3.9 calls for —
+one that completes a real task under the production pod security context —
+plus the cluster-level `NetworkPolicy` question that section still leaves
+open. Hook and MCP child processes also still do not consult `SandboxView`
+([`sandbox-boundaries.md`](design/sandbox-boundaries.md) §13.1 gap 3); Bash
+containment alone does not cover them.
 
 ### P0 — The Reference Replica Count Exceeds Coordination Semantics
 
@@ -219,8 +237,9 @@ throughput. None of these is a reason to block containment or correctness work.
 
 ## Rebased Priority Order
 
-1. Wire and prove the worker execution boundary, including hook and MCP child
-   processes.
+1. Prove the worker execution boundary against the production pod's own
+   hardening with a real cluster run, and close hook and MCP child processes'
+   boundary. The surface selection itself is wired.
 2. Make the production topology honest: one supported Server replica now, or
    shared coordination before horizontal scaling.
 3. Put critical MySQL persistence behavior in the pull-request evidence path.

@@ -59,6 +59,17 @@ type AppConfig struct {
 	// SandboxRunOverride enables the sandbox or selects its approval mode for
 	// this AgentApp only. It cannot disable confinement or outrank policy.yaml.
 	SandboxRunOverride config.SandboxRunOverride
+	// SandboxNetworkTier and SandboxFilesystemTier are this run's agent-
+	// declared sandbox tiers (see docs/design/agent-sandbox-policy.md).
+	// Empty means the strictest tier on that axis. Only a worker run sets
+	// these; every other surface leaves them empty and gets today's
+	// behavior unchanged.
+	SandboxNetworkTier    config.SandboxNetworkTier
+	SandboxFilesystemTier config.SandboxFilesystemTier
+	// SandboxSharedPaths supplies the deployment-configured paths
+	// SandboxFilesystemTier's non-workspace tiers add. See
+	// config.SandboxSharedPaths.
+	SandboxSharedPaths config.SandboxSharedPaths
 	// MaxIterations caps this AgentApp's model calls per run, outranking
 	// settings.yaml. Zero takes the configured value. A surface exposes it for
 	// the run whose length nobody configured for: a benchmark task or an

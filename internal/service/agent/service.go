@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/gougoujiang/buildmax/internal/config"
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
@@ -23,6 +24,7 @@ var (
 	ErrAgentNotFound        = apierr.New(apierr.KindNotFound, "agent not found")
 	ErrRevisionNotFound     = apierr.New(apierr.KindNotFound, "agent revision not found")
 	ErrNameRequired         = apierr.New(apierr.KindInvalid, "name required")
+	ErrInvalidSandboxTier   = apierr.New(apierr.KindInvalid, "unknown sandbox network or filesystem tier")
 	ErrUsedByPublishedFlows = apierr.New(apierr.KindConflict, "agent is used by published workflows")
 	ErrPluginsNotConfigured = apierr.New(apierr.KindNotConfigured,
 		"this deployment cannot resolve plugins, so an agent cannot name one")
@@ -70,16 +72,34 @@ type CreateCmd struct {
 	// Plugins names catalog plugins this agent loads. Nothing is inherited
 	// from the team's activations, so an empty list means no plugins.
 	Plugins []string
+	// SandboxNetworkTier and SandboxFilesystemTier declare this agent's
+	// worker sandbox needs. Empty means the strictest tier on that axis. See
+	// docs/design/agent-sandbox-policy.md §4.2.
+	SandboxNetworkTier    string
+	SandboxFilesystemTier string
 }
 
 type UpdateCmd struct {
-	TeamID       string
-	UserID       string
-	AgentID      string
-	Name         string
-	Description  string
-	Instructions string
-	Plugins      []string
+	TeamID                string
+	UserID                string
+	AgentID               string
+	Name                  string
+	Description           string
+	Instructions          string
+	Plugins               []string
+	SandboxNetworkTier    string
+	SandboxFilesystemTier string
+}
+
+// validateSandboxTiers checks a definition's declared tiers before it is
+// stored, the same way resolvePlugins checks a plugin selection: refused
+// while somebody is watching a create/update, rather than silently ignored
+// by whichever binary later resolves it.
+func validateSandboxTiers(networkTier, filesystemTier string) error {
+	if !config.ValidSandboxNetworkTier(networkTier) || !config.ValidSandboxFilesystemTier(filesystemTier) {
+		return ErrInvalidSandboxTier
+	}
+	return nil
 }
 
 type RestoreRevisionCmd struct {
@@ -103,6 +123,9 @@ func (s *Service) CreateAgent(ctx context.Context, cmd CreateCmd) (*agentdef.Age
 	if cmd.Name == "" {
 		return nil, ErrNameRequired
 	}
+	if err := validateSandboxTiers(cmd.SandboxNetworkTier, cmd.SandboxFilesystemTier); err != nil {
+		return nil, err
+	}
 	plugins, err := s.resolvePlugins(ctx, cmd.TeamID, cmd.Plugins, cmd.UserID)
 	if err != nil {
 		return nil, err
@@ -111,10 +134,12 @@ func (s *Service) CreateAgent(ctx context.Context, cmd CreateCmd) (*agentdef.Age
 		TeamID: cmd.TeamID,
 		UserID: cmd.UserID,
 		Def: agentdef.Definition{
-			Name:         cmd.Name,
-			Description:  cmd.Description,
-			Instructions: cmd.Instructions,
-			Plugins:      plugins,
+			Name:                  cmd.Name,
+			Description:           cmd.Description,
+			Instructions:          cmd.Instructions,
+			Plugins:               plugins,
+			SandboxNetworkTier:    cmd.SandboxNetworkTier,
+			SandboxFilesystemTier: cmd.SandboxFilesystemTier,
 		},
 	})
 }
@@ -189,6 +214,9 @@ func (s *Service) UpdateAgent(ctx context.Context, cmd UpdateCmd) (*agentdef.Age
 	if cmd.Name == "" {
 		return nil, ErrNameRequired
 	}
+	if err := validateSandboxTiers(cmd.SandboxNetworkTier, cmd.SandboxFilesystemTier); err != nil {
+		return nil, err
+	}
 	plugins, err := s.resolvePlugins(ctx, cmd.TeamID, cmd.Plugins, cmd.UserID)
 	if err != nil {
 		return nil, err
@@ -198,10 +226,12 @@ func (s *Service) UpdateAgent(ctx context.Context, cmd UpdateCmd) (*agentdef.Age
 		TeamID:    cmd.TeamID,
 		UpdatedBy: cmd.UserID,
 		Def: agentdef.Definition{
-			Name:         cmd.Name,
-			Description:  cmd.Description,
-			Instructions: cmd.Instructions,
-			Plugins:      plugins,
+			Name:                  cmd.Name,
+			Description:           cmd.Description,
+			Instructions:          cmd.Instructions,
+			Plugins:               plugins,
+			SandboxNetworkTier:    cmd.SandboxNetworkTier,
+			SandboxFilesystemTier: cmd.SandboxFilesystemTier,
 		},
 	})
 	if err != nil {
@@ -234,13 +264,15 @@ func (s *Service) RestoreRevision(ctx context.Context, cmd RestoreRevisionCmd) (
 		return nil, ErrRevisionNotFound
 	}
 	return s.UpdateAgent(ctx, UpdateCmd{
-		TeamID:       cmd.TeamID,
-		UserID:       cmd.UserID,
-		AgentID:      cmd.AgentID,
-		Name:         rev.Name,
-		Description:  rev.Description,
-		Instructions: rev.Instructions,
-		Plugins:      rev.Plugins,
+		TeamID:                cmd.TeamID,
+		UserID:                cmd.UserID,
+		AgentID:               cmd.AgentID,
+		Name:                  rev.Name,
+		Description:           rev.Description,
+		Instructions:          rev.Instructions,
+		Plugins:               rev.Plugins,
+		SandboxNetworkTier:    rev.SandboxNetworkTier,
+		SandboxFilesystemTier: rev.SandboxFilesystemTier,
 	})
 }
 

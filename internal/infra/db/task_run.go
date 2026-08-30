@@ -59,6 +59,13 @@ type taskRunRow struct {
 	// plugin_release.inspection is one: written once, read whole, and nothing
 	// queries inside it.
 	PluginPins string `gorm:"column:plugin_pins;type:text"`
+	// SandboxNetworkTier and SandboxFilesystemTier are the agent-declared
+	// sandbox tiers this run was given, written beside AgentRevision and
+	// PluginPins and at the same moment. Nullable, distinct from an empty
+	// string: NULL means "not yet resolved", empty means "resolved to the
+	// strictest tier."
+	SandboxNetworkTier    *string `gorm:"column:sandbox_network_tier;type:varchar(64)"`
+	SandboxFilesystemTier *string `gorm:"column:sandbox_filesystem_tier;type:varchar(64)"`
 	// LastSeenAt is when this run's worker last called a route scoped to it.
 	// Indexed because the stale-run reaper's liveness sweep is the only reader
 	// and it selects on this column.
@@ -105,29 +112,31 @@ func toTaskRun(row *taskRunReadRow) *coretask.Run {
 		return nil
 	}
 	out := &coretask.Run{
-		ID:                row.Row.PublicID,
-		TaskID:            row.TaskPublicID,
-		Input:             row.Row.Input,
-		CreatedBy:         row.Row.CreatedBy,
-		CreatedByType:     row.Row.CreatedByType,
-		TriggerSource:     row.Row.TriggerSource,
-		Status:            row.Row.Status,
-		Output:            row.Row.Output,
-		ErrorMessage:      row.Row.ErrorMessage,
-		StartedAt:         row.Row.StartedAt,
-		EndedAt:           row.Row.EndedAt,
-		SessionID:         row.Row.SessionID,
-		WorkerType:        row.Row.WorkerType,
-		K8sJobName:        row.Row.K8sJobName,
-		K8sJobCreatedAt:   row.Row.K8sJobCreatedAt,
-		PromptTokens:      row.Row.PromptTokens,
-		CompletionTokens:  row.Row.CompletionTokens,
-		TracePath:         row.Row.TracePath,
-		AgentRevision:     row.Row.AgentRevision,
-		PluginPins:        decodePluginPins(row.Row.PluginPins),
-		CancelRequestedAt: row.Row.CancelRequestedAt,
-		LastSeenAt:        row.Row.LastSeenAt,
-		CreatedAt:         row.Row.CreatedAt,
+		ID:                    row.Row.PublicID,
+		TaskID:                row.TaskPublicID,
+		Input:                 row.Row.Input,
+		CreatedBy:             row.Row.CreatedBy,
+		CreatedByType:         row.Row.CreatedByType,
+		TriggerSource:         row.Row.TriggerSource,
+		Status:                row.Row.Status,
+		Output:                row.Row.Output,
+		ErrorMessage:          row.Row.ErrorMessage,
+		StartedAt:             row.Row.StartedAt,
+		EndedAt:               row.Row.EndedAt,
+		SessionID:             row.Row.SessionID,
+		WorkerType:            row.Row.WorkerType,
+		K8sJobName:            row.Row.K8sJobName,
+		K8sJobCreatedAt:       row.Row.K8sJobCreatedAt,
+		PromptTokens:          row.Row.PromptTokens,
+		CompletionTokens:      row.Row.CompletionTokens,
+		TracePath:             row.Row.TracePath,
+		AgentRevision:         row.Row.AgentRevision,
+		PluginPins:            decodePluginPins(row.Row.PluginPins),
+		SandboxNetworkTier:    row.Row.SandboxNetworkTier,
+		SandboxFilesystemTier: row.Row.SandboxFilesystemTier,
+		CancelRequestedAt:     row.Row.CancelRequestedAt,
+		LastSeenAt:            row.Row.LastSeenAt,
+		CreatedAt:             row.Row.CreatedAt,
 	}
 	if row.Row.CancelRequestedBy != nil {
 		by := derefPublicID(row.CancelRequestedByPub)
@@ -296,6 +305,27 @@ func (s *Store) RecordTaskRunPluginPins(ctx context.Context, taskRunID string, p
 	return s.db.WithContext(ctx).Model(&taskRunRow{}).
 		Where("public_id = ? AND (plugin_pins IS NULL OR plugin_pins = '')", id).
 		Update("plugin_pins", string(encoded)).Error
+}
+
+// RecordTaskRunSandboxTiers stores the agent-declared sandbox tiers a run
+// was given.
+//
+// The `sandbox_network_tier IS NULL` guard is what makes the first write win,
+// for the same reason the agent revision and plugin pins have one. Both
+// columns are written together and unconditionally -- an empty string is a
+// resolved value ("strictest tier"), not "nothing to write" -- which is why
+// this does not skip on empty the way RecordTaskRunPluginPins does.
+func (s *Store) RecordTaskRunSandboxTiers(ctx context.Context, taskRunID string, networkTier, filesystemTier string) error {
+	id, ok := util.CanonicalPublicID(taskRunID)
+	if !ok {
+		return apierr.ErrNotFound
+	}
+	return s.db.WithContext(ctx).Model(&taskRunRow{}).
+		Where("public_id = ? AND sandbox_network_tier IS NULL", id).
+		Updates(map[string]any{
+			"sandbox_network_tier":    networkTier,
+			"sandbox_filesystem_tier": filesystemTier,
+		}).Error
 }
 
 // decodePluginPins reads the column. A document that will not decode costs the

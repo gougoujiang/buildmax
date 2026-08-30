@@ -104,7 +104,8 @@ func resolveAgentAppConfig(cfg AppConfig) (resolvedAgentAppConfig, error) {
 		loadedPlugins:     loadedPlugins,
 		hooks:             config.MergeHooks(settings.Hooks, pluginHooks.Config, workspaceHooks),
 		pluginHooks:       pluginHooks.Config,
-		sandbox:           config.ResolveSandboxForRun(settings.Sandbox, cfg.SandboxRunOverride, policySandbox, surface),
+		sandbox: config.ResolveSandboxForRun(settings.Sandbox, cfg.SandboxRunOverride, policySandbox, surface,
+			config.TierSandboxConfig(cfg.SandboxNetworkTier, cfg.SandboxFilesystemTier, cfg.SandboxSharedPaths)),
 	}, nil
 }
 

@@ -145,6 +145,12 @@ type RunTaskInput struct {
 	// materialized into the run's BUILDMAX_HOME before the runtime is
 	// assembled; a pin that cannot be materialized fails the run.
 	Plugins []coreplugin.Pin
+	// SandboxNetworkTier and SandboxFilesystemTier are this run's agent-
+	// declared sandbox tiers, resolved by the server when the worker claimed
+	// the run. Empty means the strictest tier on that axis. See
+	// docs/design/agent-sandbox-policy.md.
+	SandboxNetworkTier    config.SandboxNetworkTier
+	SandboxFilesystemTier config.SandboxFilesystemTier
 	// InterruptGrace is how long this run may spend reporting after its process
 	// is asked to stop. Zero uses interruptReportTimeout. A dispatcher that will
 	// kill the worker on its own deadline passes that deadline here, so the run
@@ -366,7 +372,8 @@ func executeRunTask(ctx context.Context, input RunTaskInput, task *coretask.Task
 		effectiveSessionID = *task.SessionID
 	}
 	agentRun, err := runAgentTask(ctx, run, dirs.runDir, dirs.runGlobal, effectiveSessionID, input.StreamSender, input.Model, input.Managed, input.AdditionalSystemPrompt,
-		artifactPublisher(input.WorkerAPI, run.ID), issueClient(input.WorkerAPI, task, run.ID))
+		artifactPublisher(input.WorkerAPI, run.ID), issueClient(input.WorkerAPI, task, run.ID),
+		input.SandboxNetworkTier, input.SandboxFilesystemTier)
 	result := runResult{
 		EndTime:          time.Now().UTC(),
 		OutputStr:        string(agentRun.output),
@@ -472,7 +479,7 @@ func runtimeModelEntries(runtimeModel config.ModelEntry, managed ManagedInferenc
 	return []config.ModelEntry{runtimeModel}
 }
 
-func runAgentTask(ctx context.Context, run *coretask.Run, runDir, runGlobalDir, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry, managed ManagedInference, additionalSystemPrompt string, publisher tool.ArtifactPublisher, issues tool.IssueClient) (agentRunOutput, error) {
+func runAgentTask(ctx context.Context, run *coretask.Run, runDir, runGlobalDir, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry, managed ManagedInference, additionalSystemPrompt string, publisher tool.ArtifactPublisher, issues tool.IssueClient, sandboxNetworkTier config.SandboxNetworkTier, sandboxFilesystemTier config.SandboxFilesystemTier) (agentRunOutput, error) {
 	var sink llm.StreamSink
 	if streamSender != nil {
 		sink = &streamSinkAdapter{ctx: ctx, streamSender: streamSender, taskRunID: run.ID}
@@ -492,6 +499,15 @@ func runAgentTask(ctx context.Context, run *coretask.Run, runDir, runGlobalDir, 
 			AdditionalSystemPrompt: additionalSystemPrompt,
 			ArtifactPublisher:      publisher,
 			IssueClient:            issues,
+			// A worker executes model-chosen shell commands, so it always
+			// resolves the stricter worker sandbox baseline -- see
+			// docs/design/sandbox-boundaries.md §13.1 gap 1 and
+			// docs/design/agent-sandbox-policy.md. The two tiers are this
+			// run's agent-declared exception to that baseline, not a
+			// replacement for it.
+			SandboxSurface:        config.SandboxSurfaceWorker,
+			SandboxNetworkTier:    sandboxNetworkTier,
+			SandboxFilesystemTier: sandboxFilesystemTier,
 		})
 		if err != nil {
 			return err

@@ -21,6 +21,18 @@ type GetTaskRunResponse struct {
 	// has declared it needs one, and a background run doing quietly less than
 	// its definition says is read by somebody who was not watching it.
 	PluginError string `json:"plugin_error,omitempty"`
+	// Sandbox declares this run's agent-declared network/filesystem sandbox
+	// tiers, resolved by the server when the worker claimed the run. Absent
+	// means both tiers are the strictest, so a worker built before this
+	// field existed applies the SandboxSurfaceWorker baseline it always did.
+	// See docs/design/agent-sandbox-policy.md.
+	Sandbox *TaskRunSandbox `json:"sandbox,omitempty"`
+}
+
+// TaskRunSandbox is the sandbox portion of the GET response.
+type TaskRunSandbox struct {
+	NetworkTier    string `json:"network_tier,omitempty"`
+	FilesystemTier string `json:"filesystem_tier,omitempty"`
 }
 
 // TaskRunPlugin is one release a run will fetch and verify. The digest is what

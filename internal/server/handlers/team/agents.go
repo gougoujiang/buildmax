@@ -12,26 +12,33 @@ import (
 )
 
 type AgentResponse struct {
-	ID           string    `json:"id"`
-	UserID       string    `json:"user_id"`
-	TeamID       string    `json:"team_id,omitempty"`
-	Name         string    `json:"name"`
-	Description  string    `json:"description"`
-	Instructions string    `json:"instructions"`
-	Plugins      []string  `json:"plugins,omitempty"`
-	Revision     int       `json:"revision"`
-	CreatedAt    time.Time `json:"created_at"`
+	ID           string   `json:"id"`
+	UserID       string   `json:"user_id"`
+	TeamID       string   `json:"team_id,omitempty"`
+	Name         string   `json:"name"`
+	Description  string   `json:"description"`
+	Instructions string   `json:"instructions"`
+	Plugins      []string `json:"plugins,omitempty"`
+	// SandboxNetworkTier and SandboxFilesystemTier declare this agent's
+	// worker sandbox needs. Empty means the strictest tier on that axis. See
+	// docs/design/agent-sandbox-policy.md.
+	SandboxNetworkTier    string    `json:"sandbox_network_tier,omitempty"`
+	SandboxFilesystemTier string    `json:"sandbox_filesystem_tier,omitempty"`
+	Revision              int       `json:"revision"`
+	CreatedAt             time.Time `json:"created_at"`
 }
 
 type agentRevisionResponse struct {
-	AgentID      string    `json:"agent_id"`
-	Revision     int       `json:"revision"`
-	Name         string    `json:"name"`
-	Description  string    `json:"description"`
-	Instructions string    `json:"instructions"`
-	Plugins      []string  `json:"plugins,omitempty"`
-	CreatedBy    string    `json:"created_by"`
-	CreatedAt    time.Time `json:"created_at"`
+	AgentID               string    `json:"agent_id"`
+	Revision              int       `json:"revision"`
+	Name                  string    `json:"name"`
+	Description           string    `json:"description"`
+	Instructions          string    `json:"instructions"`
+	Plugins               []string  `json:"plugins,omitempty"`
+	SandboxNetworkTier    string    `json:"sandbox_network_tier,omitempty"`
+	SandboxFilesystemTier string    `json:"sandbox_filesystem_tier,omitempty"`
+	CreatedBy             string    `json:"created_by"`
+	CreatedAt             time.Time `json:"created_at"`
 }
 
 type agentRevisionListResponse struct {
@@ -46,42 +53,56 @@ type createAgentRequest struct {
 	// Plugins names catalog plugins, never releases: the version comes from
 	// the team's activation.
 	Plugins []string `json:"plugins,omitempty"`
+	// SandboxNetworkTier and SandboxFilesystemTier declare this agent's
+	// worker sandbox needs. Empty means the strictest tier on that axis.
+	// Rejected on write if not one of config.ValidSandboxNetworkTier /
+	// ValidSandboxFilesystemTier. See docs/design/agent-sandbox-policy.md.
+	SandboxNetworkTier    string `json:"sandbox_network_tier,omitempty"`
+	SandboxFilesystemTier string `json:"sandbox_filesystem_tier,omitempty"`
 }
 
 // patchAgentRequest replaces the whole definition, plugins included. An absent
 // list is an empty one, because a patch that could not clear the selection
-// would leave no way to stop an agent loading a plugin.
+// would leave no way to stop an agent loading a plugin. The same is true of
+// the sandbox tiers: an absent field resets that axis to its strictest tier,
+// not "leave it as it was."
 type patchAgentRequest struct {
-	Name         string   `json:"name"`
-	Description  string   `json:"description"`
-	Instructions string   `json:"instructions"`
-	Plugins      []string `json:"plugins,omitempty"`
+	Name                  string   `json:"name"`
+	Description           string   `json:"description"`
+	Instructions          string   `json:"instructions"`
+	Plugins               []string `json:"plugins,omitempty"`
+	SandboxNetworkTier    string   `json:"sandbox_network_tier,omitempty"`
+	SandboxFilesystemTier string   `json:"sandbox_filesystem_tier,omitempty"`
 }
 
 func agentToResponse(a agentdef.Agent) AgentResponse {
 	return AgentResponse{
-		ID:           a.ID,
-		UserID:       a.UserID,
-		TeamID:       a.TeamID,
-		Name:         a.Name,
-		Description:  a.Description,
-		Instructions: a.Instructions,
-		Plugins:      a.Plugins,
-		Revision:     a.Revision,
-		CreatedAt:    a.CreatedAt,
+		ID:                    a.ID,
+		UserID:                a.UserID,
+		TeamID:                a.TeamID,
+		Name:                  a.Name,
+		Description:           a.Description,
+		Instructions:          a.Instructions,
+		Plugins:               a.Plugins,
+		SandboxNetworkTier:    a.SandboxNetworkTier,
+		SandboxFilesystemTier: a.SandboxFilesystemTier,
+		Revision:              a.Revision,
+		CreatedAt:             a.CreatedAt,
 	}
 }
 
 func agentRevisionToResponse(rev agentdef.Revision) agentRevisionResponse {
 	return agentRevisionResponse{
-		AgentID:      rev.AgentID,
-		Revision:     rev.Revision,
-		Name:         rev.Name,
-		Description:  rev.Description,
-		Instructions: rev.Instructions,
-		Plugins:      rev.Plugins,
-		CreatedBy:    rev.CreatedBy,
-		CreatedAt:    rev.CreatedAt,
+		AgentID:               rev.AgentID,
+		Revision:              rev.Revision,
+		Name:                  rev.Name,
+		Description:           rev.Description,
+		Instructions:          rev.Instructions,
+		Plugins:               rev.Plugins,
+		SandboxNetworkTier:    rev.SandboxNetworkTier,
+		SandboxFilesystemTier: rev.SandboxFilesystemTier,
+		CreatedBy:             rev.CreatedBy,
+		CreatedAt:             rev.CreatedAt,
 	}
 }
 
@@ -143,12 +164,14 @@ func (h *Handler) createAgentHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	created, err := h.agentService().CreateAgent(r.Context(), agent.CreateCmd{
-		TeamID:       teamID,
-		UserID:       userID,
-		Name:         req.Name,
-		Description:  req.Description,
-		Instructions: req.Instructions,
-		Plugins:      req.Plugins,
+		TeamID:                teamID,
+		UserID:                userID,
+		Name:                  req.Name,
+		Description:           req.Description,
+		Instructions:          req.Instructions,
+		Plugins:               req.Plugins,
+		SandboxNetworkTier:    req.SandboxNetworkTier,
+		SandboxFilesystemTier: req.SandboxFilesystemTier,
 	})
 	if err != nil {
 		if h.writeAgentServiceError(w, err) {
@@ -197,13 +220,15 @@ func (h *Handler) patchAgentHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	updated, err := h.agentService().UpdateAgent(r.Context(), agent.UpdateCmd{
-		TeamID:       teamID,
-		UserID:       userID,
-		AgentID:      agentID,
-		Name:         req.Name,
-		Description:  req.Description,
-		Instructions: req.Instructions,
-		Plugins:      req.Plugins,
+		TeamID:                teamID,
+		UserID:                userID,
+		AgentID:               agentID,
+		Name:                  req.Name,
+		Description:           req.Description,
+		Instructions:          req.Instructions,
+		Plugins:               req.Plugins,
+		SandboxNetworkTier:    req.SandboxNetworkTier,
+		SandboxFilesystemTier: req.SandboxFilesystemTier,
 	})
 	if err != nil {
 		if h.writeAgentServiceError(w, err) {

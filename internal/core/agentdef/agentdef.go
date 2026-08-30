@@ -17,6 +17,13 @@ type Agent struct {
 	// Nothing is inherited from the team's activations: an agent that names
 	// none loads none. See docs/design/plugin-team-distribution.md §5.3.
 	Plugins []string `json:"plugins,omitempty"`
+	// SandboxNetworkTier and SandboxFilesystemTier declare this agent's
+	// worker sandbox needs. Nothing is inherited from a team default: an
+	// agent that sets neither gets the strictest tier on both axes, the same
+	// way an agent that names no Plugins loads none. See
+	// docs/design/agent-sandbox-policy.md §4.2.
+	SandboxNetworkTier    string `json:"sandbox_network_tier,omitempty"`
+	SandboxFilesystemTier string `json:"sandbox_filesystem_tier,omitempty"`
 	// Revision numbers the agent_revision row holding this content. It starts
 	// at 1 and advances every time the definition changes.
 	Revision int `json:"revision"`
@@ -43,6 +50,10 @@ type Revision struct {
 	// rest of the definition, so an old revision still answers what that agent
 	// named.
 	Plugins []string `json:"plugins,omitempty"`
+	// SandboxNetworkTier and SandboxFilesystemTier are the tiers this
+	// revision recorded. See Agent.SandboxNetworkTier.
+	SandboxNetworkTier    string `json:"sandbox_network_tier,omitempty"`
+	SandboxFilesystemTier string `json:"sandbox_filesystem_tier,omitempty"`
 	// CreatedBy is the user who wrote this revision, which is not necessarily
 	// the agent's owner.
 	CreatedBy string    `json:"created_by"`
@@ -63,6 +74,11 @@ type Definition struct {
 	// come from the team's activation, so moving a plugin to a new release
 	// stays one edit in one place.
 	Plugins []string
+	// SandboxNetworkTier and SandboxFilesystemTier are validated against
+	// config.ValidSandboxNetworkTier / ValidSandboxFilesystemTier before a
+	// write is accepted. See Agent.SandboxNetworkTier.
+	SandboxNetworkTier    string
+	SandboxFilesystemTier string
 }
 
 // CreateInput and UpdateInput carry a whole definition plus who it
