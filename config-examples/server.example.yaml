@@ -11,46 +11,39 @@ port: 5678
 # Local dev: set directly.
 jwt_secret: your-jwt-secret-here
 
-# Who may create an account. Closed by default: accounts are created by an
-# operator, on the server, with
+# Who may create an account. Closed by default — an operator creates accounts
+# on the server:
 #
 #   buildmax-server user create alice@example.com
 #   buildmax-server user login-code alice@example.com
 #
-# People sign in with a password. A new account has none, so the second command
-# prints a single-use code — valid for an hour, usable by that account only —
-# which they redeem and then set a password from account settings. The same
-# command is how someone who forgot their password gets back in. Deliver the
-# code however you already talk to the person; BuildMax has no mail channel.
+# The second command prints a single-use code (valid an hour, that account
+# only), which the person redeems and then sets a password from account
+# settings — also how a forgotten password gets reset. Deliver the code
+# however you already talk to them; BuildMax has no mail channel.
 #
-# Setting this to true lets anyone who can reach the server register an address.
+# Setting this to true lets anyone who can reach the server register.
 # allow_signup: true
 
-# Token lifetimes. Signing in returns two credentials: a signed access token
-# sent with every request, and a refresh token exchanged for the next pair.
-#
-# The access token is not stored anywhere, so it cannot be revoked — its
-# lifetime is the window in which a leaked one still works. The refresh token
-# is a database row, so revoking a session takes effect at the next exchange.
-# Each exchange also rotates the refresh token, and presenting a spent one
-# revokes the whole session: that is how a copied credential is noticed.
+# Token lifetimes. Signing in returns an access token (sent with every
+# request, not stored anywhere so it can't be revoked before it expires) and
+# a refresh token (a database row, so revoking a session takes effect at the
+# next exchange). Each exchange rotates the refresh token; presenting a spent
+# one revokes the whole session — that's how a copied credential is noticed.
 access_token_ttl: 168h
 refresh_token_ttl: 720h
 
-# How long a just-rotated refresh token may be exchanged again before that
-# counts as reuse. It exists because the CLI and Desktop share one credentials
-# file between processes, and two of them refreshing at once is normal. Raising
-# it widens the window in which a stolen token goes unnoticed.
+# Grace window for reusing a just-rotated refresh token before it counts as
+# reuse. Needed because the CLI and Desktop share one credentials file and
+# may both refresh at once. Raising it widens the window in which a stolen
+# token goes unnoticed.
 refresh_rotation_grace: 30s
 
-# The whole budget for stopping this server in order: take it out of the load
-# balancer, end the streams watching a run, let in-flight runs report what they
-# produced, drain the requests already accepted, and stop the background loops.
-# The phases are derived from this one number.
-#
-# It must stay below whatever kills the process if it takes too long —
-# terminationGracePeriodSeconds on Kubernetes, TimeoutStopSec under systemd —
-# or the orderly stop is interrupted partway through.
+# Budget for an orderly shutdown: leave the load balancer, end run-watching
+# streams, let in-flight runs report their results, drain accepted requests,
+# stop background loops. Must stay below whatever force-kills the process if
+# it's slow (terminationGracePeriodSeconds on Kubernetes, TimeoutStopSec
+# under systemd), or the shutdown gets interrupted partway through.
 shutdown_grace: 25s
 
 cors_origin: http://localhost:5173
@@ -66,12 +59,9 @@ conversation:
     api_key: your-openrouter-api-key
     context_window: 128000
     call_timeout: 300            # per-call timeout in seconds (0 = default 300)
-    # provider: openai_compatible  # wire protocol: openai_compatible (default),
-                                   # openai (Responses API), anthropic, or
-                                   # ollama (a local daemon; needs no api_key,
-                                   # and api_url must be reachable from the
-                                   # server — inside a container that is not
-                                   # the host's localhost)
+    # provider: openai_compatible  # openai_compatible (default) | openai (Responses API)
+                                   # | anthropic | ollama (local daemon, no api_key;
+                                   # api_url must be reachable from the server)
     # max_tokens: 0                # cap on one response; 0 = the adapter default
     # reasoning: off               # off (default), low, medium, or high
     # cache_control:               # prompt cache policy for this model
@@ -85,15 +75,13 @@ conversation:
     #   output_per_mtok: "15.00"
     # vision: false                # this model accepts image input
 
-  # Use a catalog model for Tier 1 instead of the model above. This is an
-  # llm_model ID, not a team alias: the server picks its own model rather than
-  # being granted one. Leave unset to use conversation.model.
+  # Use a catalog model for Tier 1 instead of the model above (an llm_model
+  # ID, not a team alias). Leave unset to use conversation.model.
   # model_target: ivyoh5qcfu6ypfkhyedq
 
-# Team model policy for the managed LLM gateway.
-#
-# The catalog itself is in the llm_model database table, not here, because it
-# holds provider credentials and changes while the server runs:
+# Team model policy for the managed LLM gateway. The catalog itself lives in
+# the llm_model database table, not here, since it holds provider credentials
+# and changes at runtime:
 #
 #   buildmax-server model add --name Fast \
 #       --api-url https://openrouter.ai/api/v1 \
@@ -107,14 +95,13 @@ conversation:
 #       --api-url http://host.docker.internal:11434 \
 #       --model qwen3:8b --context-window 32000
 #
-# Every model in the catalog is available to every user of this deployment: a
-# team is a collaboration boundary, not a model authorization boundary. A client
+# Every catalog model is available to every user of this deployment — team is
+# a collaboration boundary, not a model authorization boundary. A client
 # names a model by the --name it was added with.
 #
-# This block only says which one a caller gets when it names none. Leaving it out
-# uses the first enabled model in the catalog, so a single-model deployment needs
-# nothing here. A name that is not in the catalog stops the server at startup.
-#
+# This block only picks which model a caller gets when it names none; leaving
+# it out uses the first enabled catalog model, so a single-model deployment
+# needs nothing here. A name not in the catalog stops the server at startup.
 # See docs/design/client-modes.md.
 # llm:
 #   default_model: Fast          # a --name from `model list`
@@ -125,11 +112,10 @@ database:
   user: buildmax
   password: buildmax
   name: buildmax
-  # go-sql-driver tls mode. Unset means "preferred": TLS whenever the server
-  # offers it, certificate not verified. Use "true" to require TLS and verify
-  # against the system roots — the right setting when pointing at a managed
-  # database such as RDS, Aurora, or Cloud SQL. "skip-verify" requires TLS and
-  # accepts any certificate; "false" never uses it.
+  # go-sql-driver tls mode. Unset = "preferred" (TLS when offered, cert not
+  # verified). "true" requires TLS and verifies against system roots — use
+  # this for a managed database (RDS, Aurora, Cloud SQL). "skip-verify"
+  # requires TLS but accepts any cert; "false" never uses it.
   tls: ""
 
 webhook:
@@ -141,15 +127,13 @@ worker:
   run_mode: local_process   # or k8s_job
   server_url: http://localhost:5678  # BUILDMAX_SERVER_URL overrides this
 
-  # How a task run reaches a model.
+  # How a task run reaches a model. "direct" (default): the worker calls a
+  # provider itself with conversation.model and its api_key. "buildmax": the
+  # run calls this server's managed gateway with a per-run credential and no
+  # provider key ever reaches the worker.
   #
-  # "direct" (the default) means the worker calls a provider itself, using
-  # conversation.model and its api_key. "buildmax" means the run calls this
-  # server's managed gateway with a per-run credential, and no provider key is
-  # given to the worker at all.
-  #
-  # The model name is the only model identity a run gets: the endpoint, the
-  # upstream model, and the credential stay on the server. Leave it empty to use
+  # The model name is the only model identity a run gets — endpoint, upstream
+  # model, and credential all stay on the server. Leave empty to use
   # llm.default_model.
   llm:
     transport: direct          # or buildmax
@@ -157,75 +141,71 @@ worker:
     context_window: 0
     call_timeout: 0            # per-call timeout in seconds (0 = client default)
 
-  # How long a run's credential stays valid. Every run gets one — it is what a
-  # worker presents on its own API routes, not only to the gateway. It is not
-  # renewable, so it must outlast the longest run: a run that outlives its token
-  # can no longer report anything, including its own result.
+  # How long a run's credential stays valid. Every run gets one (used on its
+  # own API routes, not just the gateway) and it's not renewable, so it must
+  # outlast the run — a run that outlives its token can no longer report
+  # anything, including its own result.
   run_token_ttl: 24h
 
-  # How long a run may stay SCHEDULED or RUNNING before the server records it as
-  # abandoned. Only the worker moves a run out of those states, so without this a
-  # run whose worker died stays there forever. Keep it at or below
-  # run_token_ttl — a run that outlived its credential cannot report an outcome,
-  # so nothing else will ever close it.
+  # How long a run may stay SCHEDULED or RUNNING before the server marks it
+  # abandoned. Only the worker moves a run out of those states, so without
+  # this a run whose worker died stays open forever. Keep it at or below
+  # run_token_ttl — a run that outlived its credential can never report an
+  # outcome anyway.
   run_timeout: 6h
 
   k8s:
     namespace: buildmax
     image: buildmax:local
-    # ConfigMap holding a server.yaml key, mounted into every worker pod so the
-    # worker reads the same configuration the server does. Empty means worker
-    # pods fall back to built-in defaults, which is almost never what you want.
+    # ConfigMap holding a server.yaml key, mounted into every worker pod so
+    # it reads the same configuration as the server. Empty falls back to
+    # built-in defaults — almost never what you want.
     config_map: buildmax-config
     home_dir: /buildmax          # BUILDMAX_HOME inside a worker pod
-    # Worker pods are always non-root, with no service-account token, no added
-    # capabilities, and a read-only root filesystem. That containment is not
-    # configurable — a worker runs model-chosen shell commands. Set run_as_user
-    # only on a cluster that assigns its own uid range (OpenShift most
-    # commonly); 0 uses BuildMax's default of 65532.
+    # Worker pods are always non-root, with no service-account token, no
+    # added capabilities, and a read-only root filesystem — not configurable,
+    # since a worker runs model-chosen shell commands. Set run_as_user only on
+    # a cluster that assigns its own uid range (OpenShift, commonly); 0 uses
+    # BuildMax's default of 65532.
     run_as_user: 0
-    # Kubernetes quantity strings. All four are required under k8s_job: the
-    # server refuses to start rather than schedule a worker pod that
-    # model-chosen commands could run unbounded. These values are a starting
-    # point, not a measurement — a build or a test suite needs considerably
-    # more than an agent answering a question.
+    # Kubernetes quantity strings, all required under k8s_job: the server
+    # refuses to start rather than schedule a pod that model-chosen commands
+    # could run unbounded. Starting points, not measurements — a build or
+    # test suite needs considerably more than an agent answering a question.
     resources:
       cpu_request: 500m
       cpu_limit: "2"
       memory_request: 1Gi
       memory_limit: 4Gi
 
-# Governance trail retention.
-#
-# 0 keeps every event forever, which is the default: a deployment that has not
-# chosen a retention policy has not decided to discard evidence. Setting a
-# window starts an hourly sweep, and each sweep that removed anything records an
-# audit.pruned event naming the range and the count — so a trail that begins
-# partway through says that policy shortened it. Nothing else deletes an audit
-# event, and no interface can delete a particular one.
+# Governance trail retention. 0 (default) keeps every event forever — a
+# deployment that hasn't chosen a retention policy hasn't decided to discard
+# evidence. Setting a window starts an hourly sweep; each sweep that removed
+# anything records an audit.pruned event naming the range and count. Nothing
+# else deletes an audit event, and no interface can delete a single one.
 audit:
   retention_days: 0
 
 storage:
   persist_backend: local_fs   # or minio
   artifact_backend: local_fs  # or minio
-  # Largest single artifact this deployment accepts, in MB. 0 uses the built-in
-  # default. This is a per-file limit, not a team storage allowance.
+  # Largest single artifact this deployment accepts, in MB (a per-file limit,
+  # not a team storage allowance). 0 uses the built-in default.
   max_artifact_mb: 0
   minio:
-    # Set endpoint for an S3-compatible store you run (MinIO, Ceph, a vendor's
-    # service). Leave it empty for AWS S3 so the SDK resolves the regional
-    # endpoint itself.
+    # Set endpoint for an S3-compatible store you run (MinIO, Ceph, a
+    # vendor's service). Leave empty for AWS S3 to let the SDK resolve the
+    # regional endpoint itself.
     endpoint: http://localhost:9000
     region: us-east-1
-    # Leave both keys empty to use the SDK's default credential chain, which is
-    # how a pod reaches a bucket through IRSA, workload identity, or an
-    # instance profile instead of a long-lived key.
+    # Leave both keys empty to use the SDK's default credential chain — how a
+    # pod reaches a bucket via IRSA, workload identity, or an instance
+    # profile instead of a long-lived key.
     access_key: minio
     secret_key: minio123
     bucket: bmstore
     prefix: workspaces
-    # Bucket addressing. Unset derives it from endpoint: set means a compatible
-    # store, which needs bucket-in-path; empty means AWS S3, which does not.
-    # Set it only for a compatible store that uses virtual-host addressing.
+    # Bucket addressing. Unset derives it from endpoint (set = compatible
+    # store needing bucket-in-path, empty = AWS S3 which doesn't). Set only
+    # for a compatible store that uses virtual-host addressing.
     # path_style: true

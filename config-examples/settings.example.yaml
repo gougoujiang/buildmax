@@ -6,30 +6,21 @@ log_level: info
 # Server URL shown as default when running `buildmax login`.
 # server_url: http://localhost:5678  # BUILDMAX_SERVER_URL overrides this
 
-# LLM models available in the CLI and desktop app.
-# The first entry is the default model.
-# context_window: 0 uses the built-in default (32 000 tokens).
+# LLM models available in the CLI and desktop app. The first entry is the
+# default model. context_window: 0 uses the built-in default (32000 tokens).
 #
-# The entries below are a broad-compatibility set, checked with
-# `./make models info <model>` (see tools/mk's help): a tool-calling model per
-# major lab behind current OpenRouter coding/agent usage, with OpenAI and
-# Anthropic's fast/mid/premium tiers each represented rather than just one
-# model. Swap in whatever you actually use — any OpenRouter model id works
-# the same way — but these are a reasonable baseline to test an agent runtime
-# against, since a single lab's model — or a single tier of it — can hide a
-# bug another one's tool-calling or streaming behavior would expose. Recheck
-# them periodically: `./make models check` flags entries whose
-# context_window has drifted from what OpenRouter reports now.
+# The entries below are a broad-compatibility baseline (OpenAI + Anthropic
+# tiers, plus one model per other major lab), checked with `./make models
+# info <model>` and kept current with `./make models check`. Swap in
+# whatever you actually use — any OpenRouter model id works the same way.
 #
-# `pricing` is what lets a run report what it cost; without it the run reports
-# `unavailable` rather than guessing. Three entries below carry it, one per
-# protocol, with OpenRouter's published rates in USD per million tokens. Copy
-# the block onto the models you actually use — `./make models info <model>`
-# prints current rates, which move.
+# `pricing` (USD per million tokens) lets a run report what it cost; without
+# it the run reports "unavailable" rather than guessing. Get current rates
+# with `./make models info <model>`.
 
-# Which of them a new session starts with, by name or by model id. Leave it out
-# and the first entry is the default. It applies when you are not signed in:
-# after `buildmax login` the deployment says which of its models is the default.
+# Which model a new session starts with, by name or model id. Leave unset
+# and the first entry is the default. Only applies when signed out — after
+# `buildmax login` the deployment's own default takes over.
 # default_model: GPT-5.6 Luna
 
 models:
@@ -135,97 +126,62 @@ models:
     api_key: your-openrouter-api-key
     context_window: 262144
 
-  # `provider` is the wire protocol the endpoint speaks, not a vendor name:
+  # `provider` is the wire protocol, not a vendor name:
   #   openai_compatible  OpenAI Chat Completions — OpenRouter, LiteLLM, vLLM,
   #                      LM Studio. The default.
   #   openai             the OpenAI Responses API
   #   anthropic          the Anthropic Messages API
   #   ollama             a local Ollama daemon's own API
   #
-  # One gateway can speak several of them, which is why the entries above reach
-  # one OpenRouter key three ways. The protocol decides what a request can
-  # carry: Anthropic caches nothing unless the request marks where, and Chat
-  # Completions has nowhere to put that mark, so a Claude model reached as
-  # openai_compatible cannot use a prompt cache at all. Everything else caches
-  # implicitly, so openai_compatible costs it nothing. Note the api_url differs
-  # too — Messages hangs off /api/, the other two off /api/v1.
+  # One gateway can speak several of them, which is why the entries above
+  # reach one OpenRouter key three ways. Only anthropic supports explicit
+  # prompt caching — Chat Completions has no field for it, so a Claude model
+  # reached as openai_compatible never caches. api_url also differs: Messages
+  # hangs off /api/, the other two off /api/v1.
 
-  # Reaching Anthropic directly rather than through a gateway: same protocol as
-  # the Claude entries above, different endpoint and credential.
-  #
-  # `max_tokens` caps one response. The Anthropic protocol requires the field,
-  # so leaving it 0 there uses the built-in default (8192) rather than the
-  # provider's.
+  # Reaching Anthropic directly rather than through a gateway. Full field
+  # rules: docs/reference/configuration.md.
   # - model: claude-sonnet-4-5
   #   name: Claude Sonnet 4.5
   #   provider: anthropic
   #   api_url: https://api.anthropic.com
   #   api_key: your-anthropic-api-key
   #   context_window: 200000
-  #   max_tokens: 8192
-  #   reasoning: medium            # off (default), low, medium, or high. Any
-                                   # level but off also replays the reasoning
-                                   # on later turns. No effect on
-                                   # openai_compatible, which carries none.
-  #   cache_control:               # cache the tool definitions and system
-  #     mode: auto                 # prompt so later calls in a run pay less.
-  #     ttl: provider_default      # auto (the default) asks on an agent turn
-                                   # and not on a one-shot call such as title
-                                   # generation, because a cache write costs
-                                   # more than ordinary input and only repays
-                                   # itself when a later call reads it. off
-                                   # never asks, force always does. ttl beyond
-                                   # provider_default only where the provider
-                                   # documents one: 5m and 1h on anthropic,
-                                   # 24h on openai. See the configuration
-                                   # reference for the full rules.
-  #   integration: openrouter      # a gateway whose cache behaviour BuildMax
-                                   # has qualified, for openai_compatible only.
-                                   # None is qualified, so any value is refused
-                                   # today: speaking a protocol is not a promise
-                                   # to implement its cache fields.
-  #   vision: true                 # this model accepts image input. Leave it
-                                   # off and an image an MCP tool returns is
-                                   # described in text instead of sent.
+  #   max_tokens: 8192             # caps one response; 0 = built-in default (8192)
+  #   reasoning: medium            # off (default) | low | medium | high; replays on later turns
+  #   cache_control:
+  #     mode: auto                 # auto (default) | off | force
+  #     ttl: provider_default      # provider_default | 5m/1h (anthropic) | 24h (openai)
+  #   integration: openrouter      # gateway cache behavior; none qualified yet, so refused today
+  #   vision: true                 # accepts image input; off sends MCP images as text instead
 
-  # A local model runs on this machine, so the entry carries no api_key at all.
-  # Use `provider: ollama` rather than the daemon's OpenAI-compatible endpoint:
-  # only the native API can set the context window, and without it the daemon
-  # applies its own default and truncates a longer prompt instead of refusing
-  # it — quietly dropping the system prompt and the tool definitions.
+  # Local model: no api_key needed. Use `provider: ollama`, not the daemon's
+  # OpenAI-compatible endpoint — only the native API can set context_window;
+  # otherwise the daemon applies its own default and silently truncates a
+  # longer prompt, dropping the system prompt and tool definitions.
   #
-  # `buildmax init --ollama` writes this entry for a model you already have, and
-  # `buildmax models --local` lists what the daemon holds, including which
-  # models can call tools. A model that cannot is unusable as an agent.
-  #
-  # Active rather than commented out: it needs no credential, and an entry for a
-  # model the daemon does not hold costs nothing until you select it. It carries
-  # no `pricing` because there is no per-token rate to state, so a run against it
-  # reports its cost as unavailable rather than as free.
+  # `buildmax init --ollama` writes this entry for a model you already have;
+  # `buildmax models --local` lists what the daemon holds and which of those
+  # can call tools (required to be usable as an agent).
 
   - model: qwen3:8b
     name: Qwen3 8B (local)
     provider: ollama
-    api_url: http://localhost:11434     # the daemon root, not its /v1 endpoint
-    context_window: 32000               # sent as num_ctx; costs memory to raise
-    keep_alive: 30m                     # how long the daemon keeps the model
-                                        # loaded between calls. "0" unloads at
-                                        # once, "-1" keeps it resident. Only a
-                                        # local provider has one to keep.
+    api_url: http://localhost:11434  # daemon root, not its /v1 endpoint
+    context_window: 32000            # sent as num_ctx; costs memory to raise
+    keep_alive: 30m                  # how long the daemon keeps it loaded (0 = unload, -1 = resident)
 
-  # Nothing in this file describes a BuildMax deployment's models. `buildmax
-  # login` switches this machine to that deployment's catalog, which it fetches
-  # and which then serves every prompt; `buildmax logout` switches back to the
-  # entries above. See docs/design/client-modes.md.
+  # `buildmax login` switches this machine to that deployment's own model
+  # catalog; `buildmax logout` switches back to the entries above.
+  # See docs/design/client-modes.md.
 
-# Bash sandbox. Confines the subprocesses started by the Bash tool by filesystem
-# path and network domain. Covers Bash only — Read, Write, Edit, Glob, and Grep
-# keep their own workspace-root boundary either way.
+# Bash sandbox: confines subprocesses started by the Bash tool by filesystem
+# path and network domain. Read, Write, Edit, Glob, and Grep keep their own
+# workspace-root boundary regardless.
 #
-# DISABLED BY DEFAULT on every surface, including workers. Requires Seatbelt on
-# macOS or bwrap on Linux/WSL2; unavailable on native Windows. Check the host
-# with `buildmax sandbox deps`, and the resolved config with
-# `buildmax sandbox status`.
+# Disabled by default on every surface, including workers. Requires Seatbelt
+# on macOS or bwrap on Linux/WSL2; unavailable on native Windows. Check with
+# `buildmax sandbox deps` and `buildmax sandbox status`.
 #
 # An operator can override this block from <BUILDMAX_HOME>/policy.yaml, and
 # BUILDMAX_SANDBOX_ENABLED overrides both.
@@ -266,57 +222,56 @@ models:
 #   enable_weaker_nested_sandbox: false
 #   enable_weaker_network_isolation: false
 
-# Runtime hooks (P0.5 trust harness). Hooks let you observe or block events in
-# the agent loop. Full design: design/hook-system.md.
+# Runtime hooks (P0.5 trust harness): observe or block events in the agent
+# loop. Full design: design/hook-system.md.
 #
-# Events:
-#   session_start:             session opened or resumed (advisory)
-#   session_end:               session closed (advisory)
-#   user_prompt_submit:        user prompt entering the agent (GATING)
-#   pre_tool_use:              before tool execution (GATING)
-#   post_tool_use:             tool succeeded (advisory)
-#   post_tool_use_failure:     tool returned an error (advisory)
-#   notification:              approval needed / permission denied (advisory)
-#   pre_compact:               before context compaction (GATING)
-#   post_compact:              after context compaction (advisory)
-#   subagent_start:            subagent started (advisory)
-#   subagent_stop:             subagent finished (advisory)
-#   stop:                      main agent finished (advisory)
-#   stop_failure:              main agent finished with an error (advisory)
-#   worktree_create:           a worktree was created and entered (advisory)
-#   worktree_remove:           a worktree and its branch were removed (advisory)
-#   cwd_changed:               the session's workspace root moved (advisory)
+# Events (GATING can block, advisory only observes):
+#   session_start:          session opened or resumed (advisory)
+#   session_end:            session closed (advisory)
+#   user_prompt_submit:     prompt entering the agent (GATING)
+#   pre_tool_use:           before tool execution (GATING)
+#   post_tool_use:          tool succeeded (advisory)
+#   post_tool_use_failure:  tool returned an error (advisory)
+#   notification:           approval needed / permission denied (advisory)
+#   pre_compact:            before context compaction (GATING)
+#   post_compact:           after context compaction (advisory)
+#   subagent_start:         subagent started (advisory)
+#   subagent_stop:          subagent finished (advisory)
+#   stop:                   main agent finished (advisory)
+#   stop_failure:           main agent finished with an error (advisory)
+#   worktree_create:        a worktree was created and entered (advisory)
+#   worktree_remove:        a worktree and its branch were removed (advisory)
+#   cwd_changed:            the session's workspace root moved (advisory)
 #
-# Each entry chooses a transport via "type":
-#   command:                   run a shell command; HookInput JSON arrives on stdin
-#   http:                      POST HookInput JSON to a URL
-#   mcp_tool:                  invoke a tool on a connected MCP server
-#   prompt:                    single-turn LLM call ($ARGUMENTS expands to the JSON payload)
-# Omitting "type" defaults to "command".
+# Transport via "type" (default "command"):
+#   command    run a shell command; HookInput JSON arrives on stdin
+#   http       POST HookInput JSON to a URL
+#   mcp_tool   invoke a tool on a connected MCP server
+#   prompt     single-turn LLM call ($ARGUMENTS expands to the JSON payload)
 #
 # "matcher" is a regex on the tool name (Read, Write, Edit, Glob, Grep, Bash,
-# WebFetch, TodoWrite, Skill, Task, LoadMcpTools, CallMcpTool); only applies to pre_tool_use,
-# post_tool_use, and post_tool_use_failure. Empty matcher matches every
-# invocation. "timeout" is seconds (default 30).
+# WebFetch, TodoWrite, Skill, Task, LoadMcpTools, CallMcpTool) — only used by
+# pre_tool_use, post_tool_use, and post_tool_use_failure; empty matches all.
+# "timeout" is seconds (default 30).
 #
 # Block contract: command exit 2 = block (stderr → reason); HTTP 422 = block
-# (body → reason); any transport may also return {"decision":"block","reason":"..."}
-# JSON on its response channel. Anything else fails open (allows).
+# (body → reason); any transport may also return
+# {"decision":"block","reason":"..."} JSON. Anything else fails open (allows).
 #
-# A per-workspace overlay at <workspace>/.buildmax/hooks.yaml can extend this
-# block; entries from both layers run, additively (global first, then workspace).
+# A per-workspace overlay at <workspace>/.buildmax/hooks.yaml extends this
+# block; both layers run, additively (global first, then workspace).
 #
 # hooks:
 #   user_prompt_submit:
-#     # Run a project-shipped script that scans for forbidden content. Exit 2
-#     # to block; the LLM never sees the prompt.
+#     # Project-shipped script that scans for forbidden content. Exit 2 to
+#     # block; the LLM never sees the prompt.
 #     - type: command
 #       command: "./.buildmax/hooks/redact.sh"
 #       timeout: 5
 #
 #   pre_tool_use:
-#     # Centralized HTTP policy service. POST receives the full HookInput; a
-#     # 200 response with {"decision":"block","reason":"..."} denies the call.
+#     # Centralized HTTP policy service. A 200 with
+#     # {"decision":"block","reason":"..."} denies the call.
 #     - type: http
 #       matcher: "Bash|Write|Edit"
 #       url: "https://policy.internal/check"
@@ -326,7 +281,7 @@ models:
 #       timeout: 5
 #
 #     # LLM-based judge. Prefer the cheapest model — this fires on every tool
-#     # call. Returning JSON {"decision":"block","reason":"..."} blocks.
+#     # call. Returning {"decision":"block","reason":"..."} blocks.
 #     - type: prompt
 #       matcher: "Bash"
 #       model: ""                      # empty = default model from this file
@@ -361,21 +316,18 @@ models:
 #       command: "/usr/local/bin/audit.sh"
 
 # Tool permissions. BuildMax asks before a tool call that changes something,
-# on surfaces where somebody can answer — the CLI TUI and Desktop. Print mode,
-# workers, and Portal conversations raise no prompt of their own.
-#
-# A rule set to "ask" is you asking for a human to look, so where there is no
-# human — a worker, print mode — the call is refused rather than run.
+# on surfaces where somebody can answer — the CLI TUI and Desktop. Print
+# mode, workers, and Portal conversations raise no prompt of their own.
+# "ask" refused where there's no human to ask, rather than run.
 #
 # Answer a prompt with `a` to allow that tool for the rest of the session
 # without writing anything here.
 #
-# Actions: allow | ask | deny. A key is a tool name, or a tool plus the target
-# it dispatches to, with an optional trailing "*". The most specific rule wins.
-#
-# A rule set to "allow" turns off the category prompt, not the safety checks:
-# reading a sensitive path and running a risky shell command still prompt. Only
-# "deny" outranks those. Full design: design/tool-permissions.md.
+# Actions: allow | ask | deny. A key is a tool name, or a tool plus the
+# target it dispatches to, with an optional trailing "*". The most specific
+# rule wins. "allow" turns off the category prompt, not the safety checks —
+# reading a sensitive path or running a risky shell command still prompts;
+# only "deny" outranks those. Full design: design/tool-permissions.md.
 #
 # tools:
 #   permissions:
@@ -388,24 +340,20 @@ models:
 
 # Agent loop tuning.
 #
-# max_parallel_tools bounds how many tool calls from one model message run at
-# the same time. Only calls the tool itself declares read-only ever overlap --
-# writes, shell commands, and MCP calls always run alone and in order, so a
-# batch means the same thing at any setting. 1 disables parallel execution.
-# Range 1-16; the default is 4.
+# max_parallel_tools bounds how many tool calls from one model message run
+# concurrently. Only calls a tool declares read-only ever overlap — writes,
+# shell commands, and MCP calls always run alone and in order. 1 disables
+# parallel execution. Range 1-16, default 4.
 #
-# max_iterations bounds how many times one prompt may call the model before the
-# run stops. Reaching it ends the run with "max iterations exceeded"; whatever
-# the last iteration already wrote stays written. Raise it for a long unattended
-# task, lower it to cap what one prompt can spend. Range 1-5000; the default is
-# 200. `buildmax --max-iterations N` overrides it for a single run.
+# max_iterations bounds how many model calls one prompt may make before the
+# run stops with "max iterations exceeded" (whatever was already written
+# stays written). Range 1-5000, default 200. `buildmax --max-iterations N`
+# overrides it for a single run.
 #
-# turn_digest spends one small extra model call when a turn ends: recap prints
-# a dim summary of what the turn did under the reply, and suggest offers the
-# answer you are likely about to type as ghost text in the input box, which tab
-# accepts. Neither ever enters the conversation -- the model does not see them
-# on a later turn. Both default to true; set either to false to switch that
-# half off, or both to end turns with no extra call.
+# turn_digest spends one small extra model call when a turn ends: recap
+# prints a dim summary under the reply, suggest offers a likely next answer
+# as ghost text (tab accepts). Neither re-enters the conversation. Both
+# default to true.
 #
 # agent:
 #   max_parallel_tools: 4
