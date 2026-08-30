@@ -277,6 +277,14 @@ model-chosen shell command, evaluated against the containment that now exists
 rather than against the state before it. It is what would make the egress
 allow-list an evidenced decision instead of a guess.
 
+[agent-sandbox-policy.md](./agent-sandbox-policy.md) proposes an answer to the
+first two rows above, narrower than "layered per-team profiles" in general: it
+reopens deployment-wide-by-default for the `Network`/`Filesystem` axes of
+`SandboxConfig` only, moving those two to a fixed, small set of
+agent-revision-scoped tiers, while every other axis and the operator's
+`policy.yaml` ceiling stay exactly as decided here. The cluster egress row
+remains open and belongs to this section, not that document.
+
 ## 4. Explicitly Out Of Scope For Now
 
 Do not include these in the current P0.5 scope:
