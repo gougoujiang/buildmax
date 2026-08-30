@@ -44,6 +44,29 @@ const (
 	// can reach a team's resources.
 	TeamMemberAdded   = "team.member_added"
 	TeamMemberRemoved = "team.member_removed"
+	// TeamMemberInvited, InvitationAccepted, InvitationRevoked, and
+	// InvitationExpired record a pending membership offer's whole life. Unlike
+	// a failed login, an invitation names a specific, already-resolved account
+	// before anyone acts on it, so every outcome is worth recording -- see
+	// docs/design/team-membership-lifecycle.md §5.1 and §8.
+	TeamMemberInvited  = "team.member_invited"
+	InvitationAccepted = "team.invitation_accepted"
+	InvitationRevoked  = "team.invitation_revoked"
+	InvitationExpired  = "team.invitation_expired"
+	// MemberRoleChanged and OwnershipTransferred record promotion, demotion,
+	// and the transfer that results from setting a target's role to owner.
+	// Transfer gets its own action distinct from a role change, even though it
+	// is implemented as one call, because an investigation asking "did
+	// ownership ever move" should not have to infer it from two
+	// member_role_changed rows. See
+	// docs/design/team-membership-lifecycle.md §5.2-§5.3, §8 M3.
+	MemberRoleChanged    = "team.member_role_changed"
+	OwnershipTransferred = "team.ownership_transferred"
+	// TeamMemberLoginCodeIssued is distinct from the deployment-scoped
+	// user.login_code_issued so a reader of the team's own trail (owner-only)
+	// sees it without needing system_admin visibility into the deployment-wide
+	// trail. See docs/design/team-membership-lifecycle.md §5.4, §8 M4.
+	TeamMemberLoginCodeIssued = "team.member_login_code_issued"
 	// ModelCreated, ModelEnabled, and ModelDisabled record
 	// changes to which models a deployment will call. The catalog holds
 	// provider credentials, so a change to it is a change to what the

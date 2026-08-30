@@ -21,8 +21,22 @@ const (
 	// ownership is not part of it: the service refuses any role but member, so
 	// an escalation cannot look like a routine invitation.
 	ActionManageTeamMembers Action = "manage_team_members"
-	ActionManageAgents      Action = "manage_agents"
-	ActionManageWorkflows   Action = "manage_workflows"
+	// ActionInviteTeamMember covers creating a pending invitation and revoking
+	// one before it is accepted. It is deliberately separate from
+	// ActionManageTeamMembers: admin holds this one too, but only at the
+	// member role -- a restriction Allows cannot express since it only knows
+	// the caller's own role, so the service enforces it. See
+	// docs/design/team-membership-lifecycle.md §5.1.
+	ActionInviteTeamMember Action = "invite_team_member"
+	// ActionChangeMemberRole covers promoting or demoting a member, including
+	// the transfer that results from setting a target's role to owner. It is
+	// its own action rather than folded into ActionManageTeamMembers so that a
+	// future change to who may invite or remove does not silently also change
+	// who may reshuffle roles. See docs/design/team-membership-lifecycle.md
+	// §5.2.
+	ActionChangeMemberRole Action = "change_member_role"
+	ActionManageAgents     Action = "manage_agents"
+	ActionManageWorkflows  Action = "manage_workflows"
 	// ActionAssignIssueWorkflow is assigning work to a workflow, which is a
 	// change to what the team automates rather than a use of it.
 	ActionAssignIssueWorkflow Action = "assign_issue_workflow"
@@ -40,6 +54,8 @@ const (
 func Actions() []Action {
 	return []Action{
 		ActionManageTeamMembers,
+		ActionInviteTeamMember,
+		ActionChangeMemberRole,
 		ActionManageAgents,
 		ActionManageWorkflows,
 		ActionAssignIssueWorkflow,
@@ -75,9 +91,9 @@ func EffectiveRole(role string) string {
 // row into the role to ask about.
 func Allows(role string, action Action) bool {
 	switch action {
-	case ActionManageTeamMembers, ActionReadAuditTrail, ActionModerateIssueComments:
+	case ActionManageTeamMembers, ActionChangeMemberRole, ActionReadAuditTrail, ActionModerateIssueComments:
 		return role == RoleOwner
-	case ActionManageAgents, ActionManageWorkflows, ActionAssignIssueWorkflow:
+	case ActionManageAgents, ActionManageWorkflows, ActionAssignIssueWorkflow, ActionInviteTeamMember:
 		return role == RoleOwner || role == RoleAdmin
 	case ActionRunWorkflow, ActionCommentIssue:
 		return role == RoleOwner || role == RoleAdmin || role == RoleMember

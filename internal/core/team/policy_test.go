@@ -16,6 +16,8 @@ func TestAllowsMatrix(t *testing.T) {
 	)
 	want := map[Action]map[string]bool{
 		ActionManageTeamMembers:     {owner: true, admin: false, member: false},
+		ActionInviteTeamMember:      {owner: true, admin: true, member: false},
+		ActionChangeMemberRole:      {owner: true, admin: false, member: false},
 		ActionReadAuditTrail:        {owner: true, admin: false, member: false},
 		ActionModerateIssueComments: {owner: true, admin: false, member: false},
 		ActionManageAgents:          {owner: true, admin: true, member: false},

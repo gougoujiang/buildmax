@@ -2,6 +2,7 @@ package team
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -16,6 +17,15 @@ import (
 )
 
 const teamTestSecret = "team-test-secret"
+
+func mustListTeamMembers(t *testing.T, store *mock.MockTeamStore, teamID string) []coreteam.Member {
+	t.Helper()
+	list, err := store.ListTeamMembers(context.Background(), teamID)
+	if err != nil {
+		t.Fatalf("ListTeamMembers: %v", err)
+	}
+	return list
+}
 
 func TestTeamHandlers(t *testing.T) {
 	personalTeamID := "tm_personal_u1"
@@ -36,17 +46,21 @@ func TestTeamHandlers(t *testing.T) {
 			"u1@example.com": {ID: "u1", Email: "u1@example.com", Name: "Alice"},
 			"u2@example.com": {ID: "u2", Email: "u2@example.com", Name: "Bob"},
 			"u3@example.com": {ID: "u3", Email: "u3@example.com", Name: "Carol"},
+			"u4@example.com": {ID: "u4", Email: "u4@example.com", Name: "Dana"},
 		},
 		ByID: map[string]*coreidentity.User{
 			"u1": {ID: "u1", Email: "u1@example.com", Name: "Alice"},
 			"u2": {ID: "u2", Email: "u2@example.com", Name: "Bob"},
 			"u3": {ID: "u3", Email: "u3@example.com", Name: "Carol"},
+			"u4": {ID: "u4", Email: "u4@example.com", Name: "Dana"},
 		},
 	}
+	loginCodes := &mock.MockLoginCodeStore{}
 	h := New(Config{
-		JWTSecret: teamTestSecret,
-		Users:     userStore,
-		Teams:     teamStore,
+		JWTSecret:  teamTestSecret,
+		Users:      userStore,
+		Teams:      teamStore,
+		LoginCodes: loginCodes,
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)
@@ -120,9 +134,9 @@ func TestTeamHandlers(t *testing.T) {
 		}
 	})
 
-	t.Run("POST add team member by owner", func(t *testing.T) {
+	t.Run("POST invite by owner then accept", func(t *testing.T) {
 		body := bytes.NewBufferString(`{"email":"u3@example.com"}`)
-		req := httptest.NewRequest(http.MethodPost, "/api/teams/"+sharedTeamID+"/members", body)
+		req := httptest.NewRequest(http.MethodPost, "/api/teams/"+sharedTeamID+"/invitations", body)
 		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", teamTestSecret))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
@@ -130,25 +144,43 @@ func TestTeamHandlers(t *testing.T) {
 		if rec.Code != http.StatusCreated {
 			t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusCreated, rec.Body.String())
 		}
-		var out teamMemberResponse
+		var out invitationResponse
 		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
-			t.Fatalf("decode add member: %v", err)
+			t.Fatalf("decode invitation: %v", err)
 		}
-		if out.UserEmail == nil || *out.UserEmail != "u3@example.com" {
-			t.Fatalf("added member email = %+v, want u3@example.com", out.UserEmail)
+		if out.UserID != "u3" {
+			t.Fatalf("invited user id = %q, want u3", out.UserID)
 		}
+
+		// Not yet a member: the invitation is pending, not active.
 		list, err := teamStore.ListTeamMembers(req.Context(), sharedTeamID)
 		if err != nil {
-			t.Fatalf("ListTeamMembers after add: %v", err)
+			t.Fatalf("ListTeamMembers after invite: %v", err)
+		}
+		if len(list) != 2 {
+			t.Fatalf("members len after invite = %d, want 2 (still pending)", len(list))
+		}
+
+		acceptReq := httptest.NewRequest(http.MethodPost, "/api/invitations/"+out.ID+"/accept", nil)
+		acceptReq.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u3", teamTestSecret))
+		acceptRec := httptest.NewRecorder()
+		mux.ServeHTTP(acceptRec, acceptReq)
+		if acceptRec.Code != http.StatusOK {
+			t.Fatalf("accept status = %d, want %d body=%s", acceptRec.Code, http.StatusOK, acceptRec.Body.String())
+		}
+
+		list, err = teamStore.ListTeamMembers(req.Context(), sharedTeamID)
+		if err != nil {
+			t.Fatalf("ListTeamMembers after accept: %v", err)
 		}
 		if len(list) != 3 {
-			t.Fatalf("members len after add = %d, want 3", len(list))
+			t.Fatalf("members len after accept = %d, want 3", len(list))
 		}
 	})
 
-	t.Run("POST add team member forbidden for non-owner", func(t *testing.T) {
+	t.Run("POST invite forbidden for non-owner-or-admin", func(t *testing.T) {
 		body := bytes.NewBufferString(`{"email":"u4@example.com"}`)
-		req := httptest.NewRequest(http.MethodPost, "/api/teams/"+sharedTeamID+"/members", body)
+		req := httptest.NewRequest(http.MethodPost, "/api/teams/"+sharedTeamID+"/invitations", body)
 		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u2", teamTestSecret))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
@@ -158,15 +190,208 @@ func TestTeamHandlers(t *testing.T) {
 		}
 	})
 
-	t.Run("POST add team member requires existing user", func(t *testing.T) {
+	t.Run("POST invite requires existing user", func(t *testing.T) {
 		body := bytes.NewBufferString(`{"email":"missing@example.com"}`)
-		req := httptest.NewRequest(http.MethodPost, "/api/teams/"+sharedTeamID+"/members", body)
+		req := httptest.NewRequest(http.MethodPost, "/api/teams/"+sharedTeamID+"/invitations", body)
 		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", teamTestSecret))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 		if rec.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusBadRequest, rec.Body.String())
+		}
+	})
+
+	t.Run("DELETE revoke a pending invitation", func(t *testing.T) {
+		body := bytes.NewBufferString(`{"email":"u4@example.com"}`)
+		req := httptest.NewRequest(http.MethodPost, "/api/teams/"+sharedTeamID+"/invitations", body)
+		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", teamTestSecret))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusCreated {
+			t.Fatalf("invite status = %d, want %d body=%s", rec.Code, http.StatusCreated, rec.Body.String())
+		}
+		var out invitationResponse
+		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+			t.Fatalf("decode invitation: %v", err)
+		}
+
+		delReq := httptest.NewRequest(http.MethodDelete, "/api/teams/"+sharedTeamID+"/invitations/"+out.ID, nil)
+		delReq.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", teamTestSecret))
+		delRec := httptest.NewRecorder()
+		mux.ServeHTTP(delRec, delReq)
+		if delRec.Code != http.StatusNoContent {
+			t.Fatalf("revoke status = %d, want %d body=%s", delRec.Code, http.StatusNoContent, delRec.Body.String())
+		}
+
+		acceptReq := httptest.NewRequest(http.MethodPost, "/api/invitations/"+out.ID+"/accept", nil)
+		acceptReq.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u4", teamTestSecret))
+		acceptRec := httptest.NewRecorder()
+		mux.ServeHTTP(acceptRec, acceptReq)
+		if acceptRec.Code != http.StatusConflict {
+			t.Fatalf("accepting a revoked invitation status = %d, want %d body=%s", acceptRec.Code, http.StatusConflict, acceptRec.Body.String())
+		}
+	})
+
+	t.Run("GET my invitations lists only my own", func(t *testing.T) {
+		body := bytes.NewBufferString(`{"email":"u4@example.com"}`)
+		req := httptest.NewRequest(http.MethodPost, "/api/teams/"+sharedTeamID+"/invitations", body)
+		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", teamTestSecret))
+		req.Header.Set("Content-Type", "application/json")
+		mux.ServeHTTP(httptest.NewRecorder(), req)
+
+		listReq := httptest.NewRequest(http.MethodGet, "/api/invitations", nil)
+		listReq.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u4", teamTestSecret))
+		listRec := httptest.NewRecorder()
+		mux.ServeHTTP(listRec, listReq)
+		if listRec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d body=%s", listRec.Code, http.StatusOK, listRec.Body.String())
+		}
+		var mine []invitationResponse
+		if err := json.Unmarshal(listRec.Body.Bytes(), &mine); err != nil {
+			t.Fatalf("decode invitations: %v", err)
+		}
+		for _, inv := range mine {
+			if inv.UserID != "u4" {
+				t.Fatalf("GET /api/invitations returned someone else's invitation: %+v", inv)
+			}
+		}
+
+		otherReq := httptest.NewRequest(http.MethodGet, "/api/invitations", nil)
+		otherReq.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u2", teamTestSecret))
+		otherRec := httptest.NewRecorder()
+		mux.ServeHTTP(otherRec, otherReq)
+		var notMine []invitationResponse
+		if err := json.Unmarshal(otherRec.Body.Bytes(), &notMine); err != nil {
+			t.Fatalf("decode invitations: %v", err)
+		}
+		if len(notMine) != 0 {
+			t.Fatalf("u2's invitations = %+v, want none", notMine)
+		}
+	})
+
+	t.Run("PATCH promote then demote a member", func(t *testing.T) {
+		var createdAt time.Time
+		for _, m := range mustListTeamMembers(t, teamStore, sharedTeamID) {
+			if m.UserID == "u2" {
+				createdAt = m.CreatedAt
+			}
+		}
+
+		promote := bytes.NewBufferString(`{"role":"admin"}`)
+		req := httptest.NewRequest(http.MethodPatch, "/api/teams/"+sharedTeamID+"/members/u2", promote)
+		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", teamTestSecret))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("promote status = %d, want %d body=%s", rec.Code, http.StatusOK, rec.Body.String())
+		}
+		var out memberRoleResponse
+		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+			t.Fatalf("decode role response: %v", err)
+		}
+		if out.Role != "admin" {
+			t.Fatalf("role = %q, want admin", out.Role)
+		}
+
+		demote := bytes.NewBufferString(`{"role":"member"}`)
+		demoteReq := httptest.NewRequest(http.MethodPatch, "/api/teams/"+sharedTeamID+"/members/u2", demote)
+		demoteReq.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", teamTestSecret))
+		demoteReq.Header.Set("Content-Type", "application/json")
+		demoteRec := httptest.NewRecorder()
+		mux.ServeHTTP(demoteRec, demoteReq)
+		if demoteRec.Code != http.StatusOK {
+			t.Fatalf("demote status = %d, want %d body=%s", demoteRec.Code, http.StatusOK, demoteRec.Body.String())
+		}
+
+		for _, m := range mustListTeamMembers(t, teamStore, sharedTeamID) {
+			if m.UserID == "u2" && !m.CreatedAt.Equal(createdAt) {
+				t.Fatalf("CreatedAt changed from %v to %v; a role change must not read as a fresh join", createdAt, m.CreatedAt)
+			}
+		}
+	})
+
+	t.Run("PATCH forbidden for non-owner", func(t *testing.T) {
+		body := bytes.NewBufferString(`{"role":"admin"}`)
+		req := httptest.NewRequest(http.MethodPatch, "/api/teams/"+sharedTeamID+"/members/u2", body)
+		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u2", teamTestSecret))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("status = %d, want %d", rec.Code, http.StatusForbidden)
+		}
+	})
+
+	t.Run("PATCH transfer ownership then transfer back", func(t *testing.T) {
+		transfer := bytes.NewBufferString(`{"role":"owner"}`)
+		req := httptest.NewRequest(http.MethodPatch, "/api/teams/"+sharedTeamID+"/members/u2", transfer)
+		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", teamTestSecret))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("transfer status = %d, want %d body=%s", rec.Code, http.StatusOK, rec.Body.String())
+		}
+
+		for _, m := range mustListTeamMembers(t, teamStore, sharedTeamID) {
+			if m.UserID == "u2" && m.Role != "owner" {
+				t.Errorf("u2 role = %q, want owner", m.Role)
+			}
+			if m.UserID == "u1" && m.Role != "admin" {
+				t.Errorf("u1 (former owner) role = %q, want admin", m.Role)
+			}
+		}
+
+		back := bytes.NewBufferString(`{"role":"owner"}`)
+		backReq := httptest.NewRequest(http.MethodPatch, "/api/teams/"+sharedTeamID+"/members/u1", back)
+		backReq.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u2", teamTestSecret))
+		backReq.Header.Set("Content-Type", "application/json")
+		backRec := httptest.NewRecorder()
+		mux.ServeHTTP(backRec, backReq)
+		if backRec.Code != http.StatusOK {
+			t.Fatalf("transfer back status = %d, want %d body=%s", backRec.Code, http.StatusOK, backRec.Body.String())
+		}
+	})
+
+	t.Run("PATCH sole owner cannot demote themselves without transferring", func(t *testing.T) {
+		body := bytes.NewBufferString(`{"role":"admin"}`)
+		req := httptest.NewRequest(http.MethodPatch, "/api/teams/"+sharedTeamID+"/members/u1", body)
+		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", teamTestSecret))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusConflict {
+			t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusConflict, rec.Body.String())
+		}
+	})
+
+	t.Run("POST issue a login code for a locked-out member", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/teams/"+sharedTeamID+"/members/u2/login-code", nil)
+		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", teamTestSecret))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d body=%s", rec.Code, http.StatusOK, rec.Body.String())
+		}
+		var out memberLoginCodeResponse
+		if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+			t.Fatalf("decode login code response: %v", err)
+		}
+		if out.Code == "" {
+			t.Fatal("code is empty")
+		}
+	})
+
+	t.Run("POST login code forbidden for non-owner", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/teams/"+sharedTeamID+"/members/u2/login-code", nil)
+		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u2", teamTestSecret))
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("status = %d, want %d", rec.Code, http.StatusForbidden)
 		}
 	})
 

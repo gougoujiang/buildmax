@@ -161,6 +161,34 @@ func (m *mockTeamStore) SetTeamPluginCuration(_ context.Context, _ string, _ cor
 	return nil
 }
 
+func (m *mockTeamStore) CreateInvitation(_ context.Context, _, _, _, _ string, _ time.Time) (*coreteam.Invitation, error) {
+	return nil, nil
+}
+
+func (m *mockTeamStore) GetInvitation(_ context.Context, _ string) (*coreteam.Invitation, error) {
+	return nil, nil
+}
+
+func (m *mockTeamStore) ListPendingInvitationsByTeam(_ context.Context, _ string, _ time.Time) ([]coreteam.Invitation, error) {
+	return nil, nil
+}
+
+func (m *mockTeamStore) ListPendingInvitationsByUser(_ context.Context, _ string, _ time.Time) ([]coreteam.Invitation, error) {
+	return nil, nil
+}
+
+func (m *mockTeamStore) AcceptInvitation(_ context.Context, _ string, _ time.Time) (*coreteam.Invitation, error) {
+	return nil, nil
+}
+
+func (m *mockTeamStore) RevokeInvitation(_ context.Context, _ string, _ time.Time) error {
+	return nil
+}
+
+func (m *mockTeamStore) TransferOwnership(_ context.Context, _, _, _ string) error {
+	return nil
+}
+
 // A store that cannot answer is not a team without a limit. Every one of these
 // used to return "allowed", so a deployment whose database was unreachable
 // served unmetered work and recorded nothing about having done so.

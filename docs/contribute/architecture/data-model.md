@@ -15,7 +15,7 @@ way, see [../../design/product-vision.md](../../design/product-vision.md) and
 
 There is no `.sql` file describing the current schema. The source of truth is
 the set of unexported `xxxRow` structs in `internal/infra/db`, and their GORM
-tags. `New` in `internal/infra/db/store.go` calls `AutoMigrate` over all 28 of
+tags. `New` in `internal/infra/db/store.go` calls `AutoMigrate` over all 31 of
 them at server startup, so the running database is whatever those structs say.
 
 The CLI and Desktop surfaces do not use this database at all. Sessions, traces,
@@ -143,6 +143,8 @@ erDiagram
     user ||--o{ team_member : "joins via"
     team ||--o{ team_member : "joins via"
     user ||--o| team : "has personal"
+    team ||--o{ team_invitation : offers
+    user ||--o{ team_invitation : "is invited by"
     quota_tier ||--o{ user : rates
     quota_tier ||--o{ team : rates
     user ||--o{ user_webhook_key : owns
@@ -264,6 +266,38 @@ service defaults an unset role before storing it — so that reading exists for
 rows a release before the default may have left behind. Team
 approvals are planned but not implemented. The audit trail is implemented in
 `audit_event`; neither approval nor audit state belongs in this membership row.
+
+### `team_invitation`
+
+A pending offer of team membership against an account that already exists.
+See [team membership lifecycle](../../design/team-membership-lifecycle.md).
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | `bigint unsigned` | no | Internal primary key |
+| `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
+| `team_id` | `bigint unsigned` | no | `team.id` |
+| `user_id` | `bigint unsigned` | no | `user.id` of the invited account |
+| `role` | `varchar(32)` | no | `member` or `admin`; never `owner` — see `SetMemberRole` |
+| `invited_by` | `bigint unsigned` | no | `user.id` of the sender |
+| `expires_at` | `datetime(6)` | no | Three days from creation by default (`team.InvitationTTLDefault`) |
+| `accepted_at` | `datetime(6)` | yes | Non-`NULL` means claimed; mutually exclusive with `revoked_at` |
+| `revoked_at` | `datetime(6)` | yes | Non-`NULL` means withdrawn before acceptance |
+| `created_at` | `datetime(6)` | yes | `autoCreateTime` |
+
+Indexes: PK `id`; unique `public_id`; index `team_id`; index `user_id`.
+
+There is no `status` column. `accepted_at`, `revoked_at`, and `expires_at`
+are the whole state, the same shape `user.disabled_at` and
+`system_grant.revoked_at` already use for "off until proven otherwise".
+`coreteam.Invitation.Pending` reads all three together.
+
+The row never carries a code or a code hash: unlike `login_code`, a team
+invitation targets an account that can already authenticate on its own, so
+there is nothing to issue or deliver. Accepting one
+(`AcceptInvitation`) is atomic with creating the resulting `team_member`
+row — an invitation marked accepted with no membership to show for it would
+be evidence of a bug no caller could act on.
 
 ### `system_grant`
 
