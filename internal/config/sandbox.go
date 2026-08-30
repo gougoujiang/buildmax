@@ -287,6 +287,16 @@ type SandboxResolution struct {
 	// Sources lists every layer that contributed a non-default value, in
 	// resolution order: "default", "settings", "env", "run", "policy".
 	Sources []string
+
+	// Downgraded reports whether Config is weaker than surface's own
+	// baseline on a dimension the worker-hardening promise in
+	// docs/design/trust-harness.md §3.2 depends on: enabled, fail-closed on
+	// an unavailable backend, or the dangerously_disable_sandbox escape
+	// hatch. A layer strengthening the baseline is not a downgrade, only one
+	// weakening it — see ResolveSandboxForRun. Runtime fallback (the backend
+	// itself turns out to be unavailable) is a second, distinct signal
+	// agentapp combines with this one; see sandboxInfo's own comment.
+	Downgraded bool
 }
 
 // Env override key. Phase A only honors BUILDMAX_SANDBOX_ENABLED; later
@@ -363,7 +373,17 @@ func ResolveSandboxForRun(global SandboxConfig, run SandboxRunOverride, policy S
 		res.Config = mergeSandbox(res.Config, policy, true)
 		res.Sources = append(res.Sources, "policy")
 	}
+	res.Downgraded = sandboxWeakerThan(res.Config, base)
 	return res
+}
+
+// sandboxWeakerThan reports whether resolved is weaker than base on any of
+// the three scalars trust-harness.md §3.2's worker-hardening promise depends
+// on. A layer strengthening base is not a downgrade, only one weakening it.
+func sandboxWeakerThan(resolved, base SandboxConfig) bool {
+	return (base.Enabled && !resolved.Enabled) ||
+		(base.FailIfUnavailable && !resolved.FailIfUnavailable) ||
+		(!base.EffectiveAllowUnsandboxed() && resolved.EffectiveAllowUnsandboxed())
 }
 
 // defaultSandbox returns the surface-appropriate baseline config.

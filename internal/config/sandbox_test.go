@@ -402,6 +402,63 @@ func TestSandboxResolution_AgentTierCannotBypassManagedOnly(t *testing.T) {
 	}
 }
 
+// TestSandboxWeakerThan asserts the diff logic directly, on each of the three
+// dimensions trust-harness.md §3.2's worker-hardening promise depends on, and
+// that strengthening a baseline is never mistaken for weakening it.
+func TestSandboxWeakerThan(t *testing.T) {
+	allowUnsandboxedOn := true
+	allowUnsandboxedOff := false
+	base := defaultSandbox(SandboxSurfaceWorker) // Enabled, FailIfUnavailable, AllowUnsandboxedCommands=false
+
+	cases := []struct {
+		name     string
+		resolved SandboxConfig
+		want     bool
+	}{
+		{"unchanged from baseline", base, false},
+		{"disabled", SandboxConfig{Enabled: false, FailIfUnavailable: true, AllowUnsandboxedCommands: &allowUnsandboxedOff}, true},
+		{"no longer fail-closed", SandboxConfig{Enabled: true, FailIfUnavailable: false, AllowUnsandboxedCommands: &allowUnsandboxedOff}, true},
+		{"escape hatch re-permitted", SandboxConfig{Enabled: true, FailIfUnavailable: true, AllowUnsandboxedCommands: &allowUnsandboxedOn}, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := sandboxWeakerThan(tc.resolved, base); got != tc.want {
+				t.Errorf("sandboxWeakerThan = %v, want %v", got, tc.want)
+			}
+		})
+	}
+
+	// The CLI baseline is already permissive (Enabled: false); resolving to
+	// exactly that baseline, or even stronger, is never a downgrade.
+	cliBase := defaultSandbox(SandboxSurfaceCLI)
+	if sandboxWeakerThan(cliBase, cliBase) {
+		t.Error("CLI baseline resolved to itself reported weaker")
+	}
+	strengthened := cliBase
+	strengthened.Enabled = true
+	if sandboxWeakerThan(strengthened, cliBase) {
+		t.Error("enabling the sandbox beyond the CLI baseline reported weaker, not stronger")
+	}
+}
+
+// TestSandboxResolution_DowngradedViaEnv asserts ResolveSandboxForRun's own
+// Downgraded field, through the one real layer that can force Enabled false
+// against a true baseline: mergeSandbox's scalar rule treats a bare `false`
+// as "no opinion" everywhere else, so only the env override assigns it
+// directly (sandbox.go's env-handling block).
+func TestSandboxResolution_DowngradedViaEnv(t *testing.T) {
+	t.Setenv(EnvKeyBuildmaxSandboxEnabled, "false")
+	res := ResolveSandboxForRun(SandboxConfig{}, SandboxRunOverride{}, SandboxConfig{}, SandboxSurfaceWorker, SandboxConfig{})
+	if !res.Downgraded {
+		t.Error("worker baseline disabled by env reported Downgraded=false")
+	}
+
+	notDowngraded := ResolveSandboxForRun(SandboxConfig{}, SandboxRunOverride{}, SandboxConfig{}, SandboxSurfaceCLI, SandboxConfig{})
+	if notDowngraded.Downgraded {
+		t.Error("CLI baseline (already disabled) with the same env var reported Downgraded=true")
+	}
+}
+
 func sliceEqual(a, b []string) bool {
 	if len(a) != len(b) {
 		return false

@@ -504,13 +504,20 @@ ignore_violations.** ⚠️ (rlimits not implemented — see §13.1)
 - TUI footer; `buildmax sandbox mode` / `enable` / `disable`.
 - `SessionStart` hook payload populated with `SandboxInfo`.
 
-**Phase F — Worker hardening + docs.** ⚠️ surface selection and k8s-pod
-verification done; downgrade marking and docs still open — see §13.1 gap 1
+**Phase F — Worker hardening + docs.** ⚠️ surface selection, k8s-pod
+verification, and downgrade marking done; docs still open
 - Worker bootstrap: hard-code `enabled: true,
   fail_if_unavailable: true, allow_unsandboxed_commands: false`
   unless explicitly overridden by `policy.yaml`. ✅
-- WARN + trace mark on downgrade. ❌ `Downgraded` exists as a trace field
-  (`core/agent/sandbox.go`) but nothing in `agentapp` ever sets it true.
+- WARN + trace mark on downgrade. ✅ `config.ResolveSandboxForRun` computes
+  `SandboxResolution.Downgraded` by diffing the resolved config against the
+  surface's own baseline (`sandboxWeakerThan`, `internal/config/sandbox.go`);
+  `agentapp.sandboxInfo` ORs in a second, runtime-only signal — the resolved
+  config asked for the sandbox but the live view reports disabled because the
+  backend was unavailable and `fail_if_unavailable` was false — and
+  `buildAgentApp` logs a `slog.Warn` at construction when either is true. The
+  `SessionStart` hook payload and every run's `sandbox_boundary` trace record
+  both carry the combined result.
 - `config-examples/sandbox.example.yaml`, CLAUDE.md §4.1 update,
   ROADMAP.md update.
 

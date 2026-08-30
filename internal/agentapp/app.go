@@ -846,6 +846,16 @@ func (a *AgentApp) fireSessionLifecycle(event agent.HookEvent, sess *SessionCont
 
 // sandboxInfo snapshots the active SandboxView into the hook payload
 // shape. Returns nil when no SandboxView is wired (older test paths).
+//
+// Downgraded combines two distinct signals, both computed here because this
+// is the one place that holds both: a configuration downgrade
+// (a.sandboxResolved.Downgraded, computed in config.ResolveSandboxForRun by
+// diffing against the surface's own baseline) and a runtime one -- the
+// resolved config asked for the sandbox but the backend turned out
+// unavailable and fail_if_unavailable was false, so Manager silently runs
+// unconfined instead of refusing to start. view.Enabled() reports the
+// runtime truth; a.sandboxResolved.Config.Enabled reports what was asked
+// for, and the two can diverge with no error in that one case.
 func (a *AgentApp) sandboxInfo() *agent.SandboxInfo {
 	if a == nil {
 		return nil
@@ -854,11 +864,13 @@ func (a *AgentApp) sandboxInfo() *agent.SandboxInfo {
 	if view == nil {
 		return nil
 	}
+	runtimeFallback := a.sandboxResolved.Config.Enabled && !view.Enabled()
 	return &agent.SandboxInfo{
-		Enabled: view.Enabled(),
-		Mode:    view.Mode(),
-		Backend: view.Backend(),
-		Sources: append([]string(nil), a.sandboxResolved.Sources...),
+		Enabled:    view.Enabled(),
+		Mode:       view.Mode(),
+		Backend:    view.Backend(),
+		Sources:    append([]string(nil), a.sandboxResolved.Sources...),
+		Downgraded: a.sandboxResolved.Downgraded || runtimeFallback,
 	}
 }
 
