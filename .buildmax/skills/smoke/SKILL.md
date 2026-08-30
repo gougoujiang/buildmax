@@ -194,7 +194,7 @@ At the end, print the summary table (see "Report Format" below).
 ### K0: Skill reports the workspace skills
 - Call `Skill` with `skill=no-such-skill-xyz`
 - **Pass** if the call fails with `unknown skill` and the message lists the
-  available skills, including `smoke` and `vibe`
+  available skills, including `smoke`
 - Do not invoke a real skill as a positive check. Loading another skill's
   instructions changes what the agent does for the rest of the run, and
   invoking `smoke` re-enters this file.

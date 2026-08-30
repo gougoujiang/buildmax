@@ -241,7 +241,6 @@ func TestWorkspaceAgentConfigMatchesRepository(t *testing.T) {
 	root := repoRoot(t)
 	for _, rel := range []string{
 		".buildmax/skills/smoke/SKILL.md",
-		".buildmax/skills/vibe/SKILL.md",
 	} {
 		body, err := os.ReadFile(filepath.Join(root, rel))
 		if err != nil {
@@ -336,8 +335,8 @@ func TestWorkspaceAgentConfigLoadsWithRuntimeParsers(t *testing.T) {
 	t.Setenv(config.EnvKeyBuildmaxHome, t.TempDir())
 
 	skills := tool.DiscoverSkillEntries([]string{filepath.Join(root, ".buildmax", "skills")})
-	if len(skills) != 2 || skills[0].Name != "smoke" || skills[1].Name != "vibe" {
-		t.Fatalf("workspace skills = %v, want smoke and vibe", skills)
+	if len(skills) != 1 || skills[0].Name != "smoke" {
+		t.Fatalf("workspace skills = %v, want smoke", skills)
 	}
 
 	defs, err := tool.LoadAgentDefs(filepath.Join(root, ".buildmax", "agents"))
