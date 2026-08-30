@@ -171,7 +171,7 @@ jobs:
         timeout-minutes: 6
         run: npm --prefix portal exec -- playwright install --with-deps chromium
       - name: Run Portal browser tests
-        run: ./make e2e
+        run: ./make e2e kind
       # Last, because it leaves the cluster in managed mode. It covers the
       # delivery path the Compose job cannot: a run token reaching a worker
       # through a Job spec rather than a child process environment.
