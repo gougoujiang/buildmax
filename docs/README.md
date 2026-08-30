@@ -81,6 +81,7 @@ The HTTP API describes itself: `GET /openapi.json`, browsable at `/swagger/`.
 | | |
 |---|---|
 | [proposals/](proposals/README.md) | Early cross-cutting directions that are open for discussion, not roadmap commitments |
+| [discussion/](discussion/README.md) | Topics where several participants record competing positions, seeking a sharper question rather than agreement |
 
 ## Conventions
 
