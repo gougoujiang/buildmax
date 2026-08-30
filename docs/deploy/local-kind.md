@@ -56,7 +56,7 @@ old one.
 ```bash
 ./make kind smoke   # rerun the end-to-end assertions without rebuilding
 ./make kind smoke managed  # the same, with task runs reaching models through the gateway
-./make kind seed    # put the models in settings.local.yaml into the cluster's catalog
+./make kind seed    # put the models in .local/settings.yaml into the cluster's catalog
 ./make kind images  # rebuild and load local images without applying manifests
 ./make kind info    # endpoints, plus a fresh login code for the smoke account
 ./make kind forward # forward the in-cluster MySQL and MinIO to 127.0.0.1
@@ -145,16 +145,18 @@ and an in-cluster OpenAI-compatible mock. This keeps contribution checks
 deterministic and ensures CI never needs a provider credential.
 
 For a private deployment, use `deployment/buildmax-deploy.yaml` as the readable
-baseline, create `buildmax-secret` from
-`deployment/buildmax-secret.example.yaml`, and configure a real model endpoint.
-Do not use the generated smoke Secret or mock model outside local verification.
+baseline and configure a real model endpoint. `./make setup local` writes
+`.local/buildmax-secret.yaml` from `deployment/buildmax-secret.example.yaml`;
+fill it in and `kubectl apply -f` it yourself. `./make kind up` never reads that
+file — it generates its own throwaway Secret — so do not use the generated smoke
+Secret or the mock model outside local verification.
 
 ### Drive The Cluster With Your Own Models
 
-`./make kind seed` puts every provider model in the repository-root
-`settings.local.yaml` into the cluster's catalog. It exists so the CLI and
-Desktop can exercise the managed transport — `transport: buildmax` — against
-real inference without a hosted deployment to point at.
+`./make kind seed` puts every provider model in `.local/settings.yaml` into the
+cluster's catalog. It exists so the CLI and Desktop can exercise the managed
+transport — `transport: buildmax` — against real inference without a hosted
+deployment to point at.
 
 ```bash
 ./make kind up      # the stack, still answering from the mock
@@ -169,7 +171,7 @@ configuration changes. Sign in with `buildmax login` against
 entries are not used.
 
 A model is named by the `name` it was added under, which is its display name in
-`settings.local.yaml`, or its model id when it has none. After login,
+`.local/settings.yaml`, or its model id when it has none. After login,
 `buildmax models` shows the name to use.
 
 What it deliberately does not touch is the cluster's own inference.
@@ -177,10 +179,10 @@ What it deliberately does not touch is the cluster's own inference.
 Portal conversations and `./make kind smoke` stay deterministic and cost
 nothing. A rerun is safe: a model whose name is already in the catalog keeps
 its row and its ID. Changing a seeded model's endpoint or credential means
-renaming it in `settings.local.yaml`, or rebuilding the cluster — `add` does not
+renaming it in `.local/settings.yaml`, or rebuilding the cluster — `add` does not
 update a row.
 
-A real credential in `settings.local.yaml` reaches the cluster's MySQL in plain
+A real credential in `.local/settings.yaml` reaches the cluster's MySQL in plain
 text. That database is thrown away with the cluster, and this path is for local
 verification only.
 

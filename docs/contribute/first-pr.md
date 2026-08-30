@@ -13,6 +13,7 @@ minute, including the full test suite and the pre-pull-request gate.
 git clone https://github.com/gougoujiang/buildmax.git
 cd buildmax
 ./make doctor
+./make setup local
 ./make build cli
 ```
 
@@ -21,6 +22,12 @@ one-line shim around the Go task runner in `cmd/mk`, so every platform runs the
 same task code. `./make help` lists every command, from the daily ones to the
 deployment and release tasks, and `./make help <command>` explains one command
 in full.
+
+`./make setup local` creates `.local/`, the one gitignored directory holding
+configuration that is yours rather than the repository's, and prints what is
+left to fill in. Nothing on this page needs any of it filled in — a first
+change needs no credentials — but running it once now is why `./make doctor`
+stops mentioning it, and it is where a model API key goes when you do want one.
 
 The binary lands in `bin/buildmax`. `./make build cli` skips the server, worker,
 and frontends, which is all you need for a first change.

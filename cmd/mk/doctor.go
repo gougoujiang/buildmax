@@ -71,6 +71,8 @@ func cmdDoctor(args []string) error {
 	optionalPresence("shellcheck", "shellcheck", "actionlint's shell script pass in ./make check ci needs it")
 	optionalPortalBrowserTests()
 
+	reportLocalConfig()
+
 	status, err := capture("git", "status", "--porcelain")
 	if err != nil {
 		fmt.Printf("[FAIL] workspace: %v\n", err)

@@ -146,9 +146,12 @@ pinned by `go.mod` through Go.
 
 The root `./make` script is the primary local workflow — on Windows, `make.bat`.
 Both are one-line shims around the task runner in [`cmd/mk`](cmd/mk), so every
-platform runs the same code. `.env` at the repo root is loaded automatically —
-[docs/reference/configuration.md](docs/reference/configuration.md#local-development-env)
-lists what is worth putting in it.
+platform runs the same code. Run `./make setup local` once in a fresh clone: it
+creates `.local/`, the one gitignored directory holding your own configuration,
+and prints what is left to fill in.
+[docs/reference/configuration.md](docs/reference/configuration.md#contributor-local-files-local)
+lists what each file is for. `.local/env` is loaded into the environment of
+every task automatically.
 
 ```bash
 ./make doctor         # read-only toolchain and workspace diagnosis
@@ -276,10 +279,11 @@ Set `BUILDMAX_IMAGE_PLATFORM` to cross-build — for example
 `BUILDMAX_IMAGE_PLATFORM=linux/amd64 ./make kind images` on Apple Silicon.
 
 `deployment/buildmax-deploy.yaml` is the readable Kubernetes baseline. It
-carries no credentials: copy
-`deployment/buildmax-secret.example.yaml` to `buildmax-secret.local.yaml`,
-fill it in, and apply it separately for a non-smoke deployment. The
-`.local.yaml` file is gitignored — never commit real values.
+carries no credentials: `./make setup local` writes
+`.local/buildmax-secret.yaml` from `deployment/buildmax-secret.example.yaml`;
+fill it in and `kubectl apply -f` it separately for a non-smoke deployment.
+`.local/` is gitignored — never commit real values. `./make kind up` does not
+read that file; it generates a throwaway secret of its own.
 
 ## Code Boundaries
 

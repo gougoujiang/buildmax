@@ -35,6 +35,10 @@
     // release notes and end-to-end evidence `./make` generates into .artifacts.
     ".vibe/**",
     ".artifacts/**",
+    // Same category: the README `./make setup local` writes into a contributor's
+    // own gitignored config directory. It is generated, not edited, so linting it
+    // would fail `check docs` on a file nobody can fix in the repository.
+    ".local/**",
     "docs/design/**",
     "testing-sandbox/**",
     "AGENTS.md",

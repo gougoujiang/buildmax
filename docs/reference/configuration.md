@@ -145,18 +145,36 @@ separated from the code a model chooses runs `k8s_job`, which is where that
 boundary is built; `local_process` is deliberately not being hardened towards
 one.
 
-### Local development `.env`
+### Contributor-local files: `.local/`
 
-`./make` and `make.bat` load a `.env` file from the repository root before
-running anything, so a local `BUILDMAX_*` value applies to every task without
-exporting it in your shell. This is a **development convenience only** — a
-released binary never reads `.env`; it reads the environment it is given.
+Everything a contributor configures for their own machine lives in one
+gitignored directory at the repository root. `./make setup local` creates it and
+fills it from the committed templates, then prints what is left to fill in;
+`./make doctor` reports whether it is there. Re-running the command never
+overwrites a file you have edited, and `.local/README.md` describes each file
+where a reader standing in the directory will find it.
 
-The file is gitignored. A committed [`.env.example`](../../.env.example) lists
-the optional personal credentials consumed by developer and operator tasks;
-copy it when you need those tasks, then fill only the entries you use. It does
-not duplicate the supported BuildMax configuration surface in `settings.yaml`
-and `server.yaml`. Put in `.env` only what genuinely belongs to your machine:
+| File | Read by | Template |
+|---|---|---|
+| `.local/env` | `./make` and `make.bat`, before running any task | [`.env.example`](../../.env.example) |
+| `.local/settings.yaml` | `./make models`, `./make kind seed` | [`config-examples/settings.example.yaml`](../../config-examples/settings.example.yaml) |
+| `.local/buildmax-secret.yaml` | nothing automatic; you `kubectl apply -f` it for a Kubernetes deployment of your own | [`deployment/buildmax-secret.example.yaml`](../../deployment/buildmax-secret.example.yaml) |
+
+One local file deliberately stays outside. `deployment/compose/.env` sits beside
+its `compose.yaml` because Compose reads it from that directory and the
+quickstart runs `docker compose` there directly; it is described at the end of
+this section.
+
+`./make` and `make.bat` load `.local/env` before running anything, so a local
+`BUILDMAX_*` value applies to every task without exporting it in your shell.
+This is a **development convenience only** — a released binary never reads it;
+it reads the environment it is given.
+
+The committed [`.env.example`](../../.env.example) lists the optional personal
+credentials consumed by developer and operator tasks; fill only the entries you
+use. It does not duplicate the supported BuildMax configuration surface in
+`settings.yaml` and `server.yaml`. Put in `.local/env` only what genuinely
+belongs to your machine:
 
 ```bash
 # Point the local server and worker at a scratch data directory.
@@ -198,7 +216,7 @@ full lifecycle and credential scope are in
 | `BUILDMAX_OCEAN_PORTAL_IMAGE` | pinned `v0.2.0-alpha.4` digest | Immutable Portal image override. Mutable tags are rejected. |
 | `BUILDMAX_OCEAN_EDGE_IMAGE` | pinned Caddy 2.10.2 digest | Immutable HTTPS edge image override. Mutable tags are rejected. |
 
-The Compose stack is separate and does not use the root `.env`. It reads
+The Compose stack is separate and does not read `.local/env`. It uses
 `deployment/compose/.env`, which `deployment/compose/generate-env.sh` creates
 with generated secrets and the host ports `BUILDMAX_SERVER_PORT` and
 `BUILDMAX_PORTAL_PORT`; `./make compose up` generates it on first run. Those two
