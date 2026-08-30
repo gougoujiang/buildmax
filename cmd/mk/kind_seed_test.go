@@ -53,7 +53,7 @@ func TestAddedModelPattern(t *testing.T) {
 	}
 }
 
-// A local runtime's address is loopback in settings.local.yaml, which inside a
+// A local runtime's address is loopback in the local settings file, which inside a
 // pod is the pod. Everything else has to be left exactly as configured.
 func TestKindReachableURL(t *testing.T) {
 	cases := []struct {
@@ -137,7 +137,7 @@ func TestParseSettingsModelsReadsEveryCatalogField(t *testing.T) {
 	}
 }
 
-// Seeding is the only path that turns a settings.local.yaml entry into a
+// Seeding is the only path that turns a local settings entry into a
 // catalog row, so a field it forgets is a difference between what a
 // contributor runs locally and what the kind deployment answers with.
 func TestKindCatalogModelArgsCarryEveryConfiguredField(t *testing.T) {

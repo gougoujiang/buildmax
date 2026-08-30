@@ -115,7 +115,7 @@ func oceanDoctor(cfg oceanConfig) error {
 		}
 	}
 
-	fmt.Println("\nCredentials loaded from the environment or repository .env")
+	fmt.Println("\nCredentials loaded from the environment or " + localEnvPath)
 	for _, name := range []string{"DIGITALOCEAN_TOKEN", "SPACES_ACCESS_KEY_ID", "SPACES_SECRET_ACCESS_KEY"} {
 		if os.Getenv(name) != "" {
 			fmt.Printf("  ok       %s\n", name)
@@ -294,7 +294,7 @@ func oceanDown(cfg oceanConfig) error {
 func oceanPrepare(cfg oceanConfig) error {
 	for _, name := range []string{"DIGITALOCEAN_TOKEN", "SPACES_ACCESS_KEY_ID", "SPACES_SECRET_ACCESS_KEY"} {
 		if os.Getenv(name) == "" {
-			return fmt.Errorf("%s is not set; add it to the repository .env", name)
+			return fmt.Errorf("%s is not set; add it to %s", name, localEnvPath)
 		}
 	}
 	return oceanInit(cfg)

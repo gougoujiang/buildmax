@@ -140,18 +140,32 @@ func TestToolNamesDocumented(t *testing.T) {
 // agentsMDPathRe matches repository paths written in backticks, e.g. `internal/config`.
 var agentsMDPathRe = regexp.MustCompile("`((?:internal|cmd|docs|portal|gui|desktop|config-examples|deployment|eval|scripts|\\.github|\\.buildmax)/[A-Za-z0-9_./-]*)`")
 
-// buildArtifactSegments name directories that only exist after a build. AGENTS.md
-// legitimately refers to them (gui/dist, portal/dist, gui/node_modules), but they
-// are absent from a fresh checkout, so their existence says nothing about whether
-// the document is accurate.
-var buildArtifactSegments = map[string]bool{
-	"dist": true, "node_modules": true, "bin": true, "build": true,
+// generatedSegments name directories absent from a fresh checkout. Documentation
+// legitimately refers to them -- gui/dist, portal/dist, gui/node_modules after a
+// build, .local after `./make setup local` -- but whether they happen to be on
+// the machine running the tests says nothing about whether the document is
+// accurate, and .local would make these tests depend on one contributor's own
+// configuration.
+var generatedSegments = map[string]bool{
+	"dist": true, "node_modules": true, "bin": true, "build": true, ".local": true,
 }
 
-// isBuildArtifact reports whether any segment of p is a build output directory.
-func isBuildArtifact(p string) bool {
+// generatedFiles are single paths in the same category: written by a command
+// rather than committed, so a fresh clone does not have them. Documentation
+// names deployment/compose/.env because that is where the Compose stack's
+// secrets live; deployment/compose/generate-env.sh writes it.
+var generatedFiles = map[string]bool{
+	"deployment/compose/.env": true,
+}
+
+// isGenerated reports whether p is a path a checkout has to be built or set up
+// to have, either by its own name or by sitting under such a directory.
+func isGenerated(p string) bool {
+	if generatedFiles[p] {
+		return true
+	}
 	for _, seg := range strings.Split(p, "/") {
-		if buildArtifactSegments[seg] {
+		if generatedSegments[seg] {
 			return true
 		}
 	}
@@ -163,8 +177,8 @@ func isBuildArtifact(p string) bool {
 // misleads more often than a stale path in any single document — and it has
 // repeatedly been the source that other documents copied from.
 //
-// Build outputs are skipped: they are absent from a fresh checkout, and requiring
-// them made this test pass on a developer machine and fail in CI.
+// Generated paths are skipped: they are absent from a fresh checkout, and
+// requiring them made this test pass on a developer machine and fail in CI.
 func TestAgentsMDPathsExist(t *testing.T) {
 	root := repoRoot(t)
 	body, err := os.ReadFile(filepath.Join(root, "AGENTS.md"))
@@ -173,7 +187,7 @@ func TestAgentsMDPathsExist(t *testing.T) {
 	}
 	for _, m := range agentsMDPathRe.FindAllStringSubmatch(string(body), -1) {
 		p := strings.TrimSuffix(m[1], "/")
-		if isBuildArtifact(p) {
+		if isGenerated(p) {
 			continue
 		}
 		if _, err := os.Stat(filepath.Join(root, p)); err != nil {
@@ -467,7 +481,7 @@ func TestDocumentedFilePathsExist(t *testing.T) {
 		}
 		for _, m := range documentedFileRe.FindAllStringSubmatch(text, -1) {
 			cited := m[1]
-			if isBuildArtifact(cited) {
+			if isGenerated(cited) {
 				continue
 			}
 			// Repository-relative only: a first segment that is not in the tree

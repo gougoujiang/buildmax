@@ -7,6 +7,19 @@ import (
 	"testing"
 )
 
+// writeLocalEnv puts a file where loadDotEnv looks for it, so a test cannot
+// pass by writing to the path the loader used to read.
+func writeLocalEnv(t *testing.T, dir, content string) {
+	t.Helper()
+	path := filepath.Join(dir, filepath.FromSlash(localEnvPath))
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestLoadDotEnv(t *testing.T) {
 	dir := t.TempDir()
 	content := "" +
@@ -20,9 +33,7 @@ func TestLoadDotEnv(t *testing.T) {
 		"EMPTY=\n" +
 		"URL=https://example.com/path?a=b\n" +
 		"OVERRIDE=from-file\r\n"
-	if err := os.WriteFile(filepath.Join(dir, ".env"), []byte(content), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	writeLocalEnv(t, dir, content)
 	t.Setenv("OVERRIDE", "from-environment")
 
 	if err := loadDotEnv(dir); err != nil {
@@ -51,15 +62,29 @@ func TestLoadDotEnv(t *testing.T) {
 
 func TestLoadDotEnvMissingFileIsNotAnError(t *testing.T) {
 	if err := loadDotEnv(t.TempDir()); err != nil {
-		t.Fatalf("loadDotEnv on a directory without .env: %v", err)
+		t.Fatalf("loadDotEnv on a checkout without %s: %v", localEnvPath, err)
+	}
+}
+
+// A .env left at the repository root is not read. `setup local` moves it, and
+// doctor reports one that is still there; silently loading both paths would
+// leave two files claiming to configure the same run.
+func TestLoadDotEnvIgnoresARootDotEnv(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, ".env"), []byte("LEGACY_ONLY=set\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := loadDotEnv(dir); err != nil {
+		t.Fatalf("loadDotEnv: %v", err)
+	}
+	if got := os.Getenv("LEGACY_ONLY"); got != "" {
+		t.Errorf("LEGACY_ONLY = %q, want it unset", got)
 	}
 }
 
 func TestLoadDotEnvRejectsMalformedLine(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, ".env"), []byte("NOT_A_PAIR\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	writeLocalEnv(t, dir, "NOT_A_PAIR\n")
 	if err := loadDotEnv(dir); err == nil {
 		t.Fatal("expected an error for a line without '='")
 	}

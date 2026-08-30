@@ -4,11 +4,12 @@
 # This file contains NO credentials. The buildmax-secret it references must be
 # created separately:
 #
-#   cp deployment/buildmax-secret.example.yaml deployment/buildmax-secret.local.yaml
+#   ./make setup local     # writes .local/buildmax-secret.yaml from the example
 #   # fill in real values, then:
-#   kubectl apply -f deployment/buildmax-secret.local.yaml
+#   kubectl apply -f .local/buildmax-secret.yaml
 #
-# buildmax-secret.local.yaml is gitignored; ./make kind up applies it for you.
+# .local/ is gitignored. ./make kind up does not read this file: that path
+# generates a throwaway Secret of its own, so apply this one yourself.
 #
 # The local kind path exposes Portal and API on http://localhost:8080.
 ---

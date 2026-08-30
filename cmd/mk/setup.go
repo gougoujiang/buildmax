@@ -15,14 +15,21 @@ import (
 // They stay two commands rather than one command with a flag. Doctor's contract
 // is that it changes nothing, which is what makes it the safe first command in
 // an unfamiliar checkout; a `--fix` flag would cost that sentence for every
-// reader who only wanted the diagnosis. The scope argument matches doctor's, so
-// the pair reads as one idea: `doctor harbor` says what is missing, `setup
-// harbor` installs it.
+// reader who only wanted the diagnosis. The scope argument matches what doctor
+// reports, so the pair reads as one idea: doctor says what is missing, `setup
+// <scope>` creates or installs it.
 func cmdSetup(args []string) error {
-	if len(args) != 1 || args[0] != "harbor" {
-		return usageErrorf("setup", "setup takes one scope: harbor")
+	if len(args) != 1 {
+		return usageErrorf("setup", "setup takes one scope: local or harbor")
 	}
-	return setupHarbor()
+	switch args[0] {
+	case "local":
+		return setupLocal()
+	case "harbor":
+		return setupHarbor()
+	default:
+		return usageErrorf("setup", "unknown setup scope: %s", args[0])
+	}
 }
 
 // harborSetup carries the directories setup had to add to this process's PATH.

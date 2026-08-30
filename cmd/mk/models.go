@@ -16,17 +16,7 @@ import (
 	"time"
 )
 
-// localSettingsPath is a repo-root, gitignored file in the same shape as
-// BUILDMAX_HOME/settings.yaml (internal/config.Settings) — config-examples/
-// localSettingsExample already documents that shape — kept separate from the
-// real one so `./make models` never reads or depends on a contributor's
-// actual runtime configuration.
-const (
-	localSettingsPath    = "settings.local.yaml"
-	localSettingsExample = "config-examples/settings.example.yaml"
-
-	openRouterModelsURL = "https://openrouter.ai/api/v1/models"
-)
+const openRouterModelsURL = "https://openrouter.ai/api/v1/models"
 
 func cmdModels(args []string) error {
 	if len(args) == 0 {
@@ -85,7 +75,7 @@ func modelsList() error {
 }
 
 // modelsInfo looks up the live OpenRouter catalog. A missing or unreadable
-// settings.local.yaml still leaves the public catalog searchable, so this
+// a missing local settings file still leaves the public catalog searchable, so this
 // only warns, unlike modelsList where the local file is the entire answer.
 func modelsInfo(query string) error {
 	configured, err := readLocalModels()
@@ -122,9 +112,9 @@ func modelsInfo(query string) error {
 }
 
 // modelsInfoLocal prints full OpenRouter details for every model configured
-// in settings.local.yaml, in the order they appear there — the "info every
+// in the local settings file, in the order they appear there — the "info every
 // model I actually use" shortcut for "models info <id>" run once per entry.
-// Unlike modelsInfo, a missing or unreadable settings.local.yaml is fatal
+// Unlike modelsInfo, a missing or unreadable local settings file is fatal
 // here: with no query, the local file is the entire input.
 func modelsInfoLocal() error {
 	configured, err := readLocalModels()
@@ -161,7 +151,7 @@ func modelsInfoLocal() error {
 	return nil
 }
 
-// modelsCheck flags configuration drift: a context_window in settings.local.yaml
+// modelsCheck flags configuration drift: a locally configured context_window
 // that no longer matches what OpenRouter actually offers, or a model id
 // OpenRouter no longer lists at all. Provider catalogs change without notice,
 // so this is the only way that drift would otherwise surface — a live call
@@ -225,7 +215,7 @@ func formatContext(n int) string {
 	return formatCount(n)
 }
 
-// settingsModel is the slice of a settings.local.yaml model entry mk needs.
+// settingsModel is the slice of a local settings model entry mk needs.
 // The full shape is internal/config.ModelEntry, but mk depends only on the
 // standard library, so this reads the file with a small parser tailored to the
 // fixed "models: - key: value" shape the file actually has, rather than pulling
@@ -269,14 +259,14 @@ type settingsPricing struct {
 // create these entries, but the reader still ignores one left in an older file.
 func (m settingsModel) isManaged() bool { return m.transport == "buildmax" }
 
-// readLocalModels reads settings.local.yaml from the repository root. main's
-// dispatch already chdirs there before running any command, so the bare
-// relative name is enough.
+// readLocalModels reads the models block from the local settings file. main's
+// dispatch already chdirs to the repository root before running any command, so
+// the bare relative path is enough.
 func readLocalModels() ([]settingsModel, error) {
 	data, err := os.ReadFile(localSettingsPath)
 	if errors.Is(err, fs.ErrNotExist) {
-		return nil, fmt.Errorf("%s not found; copy the template to get started: cp %s %s",
-			localSettingsPath, localSettingsExample, localSettingsPath)
+		return nil, fmt.Errorf("%s not found; run `%s setup local` to create it from %s",
+			localSettingsPath, mk(), localSettingsExample)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", localSettingsPath, err)

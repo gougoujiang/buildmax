@@ -26,12 +26,12 @@ independently. Confirm current provider prices before creating the resources.
 
 ## Prerequisites
 
-Install [OpenTofu](https://opentofu.org/docs/intro/install/) and `kubectl`. Copy
-the repository example and add the three credentials:
+Install [OpenTofu](https://opentofu.org/docs/intro/install/) and `kubectl`, then
+create the local configuration directory and add the three credentials to
+`.local/env`:
 
 ```bash
-cp .env.example .env
-chmod 600 .env
+./make setup local
 ```
 
 The DigitalOcean API token needs only the capabilities used by these resources:
@@ -102,7 +102,7 @@ BUILDMAX_OCEAN_HOSTNAME=buildmax.beta.cloudbb.io
 BUILDMAX_OCEAN_ALLOWED_CIDRS=203.0.113.7/32
 ```
 
-Put those values in the repository `.env`, using the public CIDR of the machine
+Put those values in `.local/env`, using the public CIDR of the machine
 or private network that will perform qualification. Multiple CIDRs may be
 separated by commas. A missing allow-list is a hard error: the beta limits do
 not permit exposing the application directly to an untrusted public network.
@@ -120,9 +120,9 @@ Deploy the pinned trial images:
 owner-only kubeconfig written by `ocean up`. It is read-only and does not depend
 on the contributor's current Kubernetes context.
 
-`model init` reads `OPENROUTER_API_KEY` from `.env`, adds the configured model
-when its name is not already present, selects its generated catalog ID for Tier
-1 conversations, and restarts only the BuildMax Server deployment. The key is
+`model init` reads `OPENROUTER_API_KEY` from `.local/env`, adds the configured
+model when its name is not already present, selects its generated catalog ID for
+Tier 1 conversations, and restarts only the BuildMax Server deployment. The key is
 sent to the operator command over stdin and is never printed or rendered into a
 Kubernetes manifest. Repeating the command reuses the existing catalog row.
 
@@ -213,9 +213,9 @@ Treat that directory as a credential:
 - do not delete it before `./make ocean down`
 - rotate database credentials and Kubernetes access if it is disclosed
 
-The repository `.env` also remains local and gitignored. OpenTofu reads its
-credentials through the environment populated by `./make`; no credential is
-written into the OpenTofu source.
+`.local/env` also remains local and gitignored. OpenTofu reads its credentials
+through the environment populated by `./make`; no credential is written into the
+OpenTofu source.
 
 ## Destroy
 

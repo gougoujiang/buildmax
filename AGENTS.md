@@ -137,6 +137,11 @@ Read the relevant architecture document before making a cross-package change:
   entry points under `cmd/` stay thin.
 - Settings use `<BUILDMAX_HOME>/settings.yaml`; server/worker settings use
   `<BUILDMAX_HOME>/server.yaml`. The default data directory is `~/.buildmax`.
+  A contributor's own repository configuration is separate and lives in one
+  gitignored `.local/` directory, created by `./make setup local` from the
+  committed templates; `cmd/mk/local.go` is the source of truth for what is in
+  it. `deployment/compose/.env` is the one local file outside it, because
+  Compose reads it from the compose file's own directory.
 - The system prompt is four additive layers: the runtime prompt, an optional
   `<BUILDMAX_HOME>/AGENTS.md`, an optional workspace-root `AGENTS.md`, then this
   run's additional system prompt. All four are stable for a session, so together
@@ -188,6 +193,7 @@ Use the cross-platform task runner from the repository root:
 ```bash
 ./make doctor          # read-only contributor environment diagnosis
 ./make doctor harbor   # the same, for the external Terminal-Bench toolchain
+./make setup local     # create .local/ from the templates, in a fresh clone
 ./make setup harbor    # install what that scope reports missing
 ./make build           # strict full build: Go binaries, gui, Portal, Desktop
 ./make build cli       # fast CLI-only build

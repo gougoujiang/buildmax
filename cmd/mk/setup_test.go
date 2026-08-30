@@ -8,13 +8,27 @@ import (
 )
 
 func TestSetupTakesExactlyOneKnownScope(t *testing.T) {
-	for _, args := range [][]string{nil, {}, {"portal"}, {"harbor", "extra"}} {
+	for _, args := range [][]string{nil, {}, {"local", "extra"}, {"harbor", "extra"}} {
 		err := cmdSetup(args)
 		if err == nil {
 			t.Fatalf("cmdSetup(%q) returned no error", args)
 		}
 		if !strings.Contains(err.Error(), "setup takes one scope") {
-			t.Errorf("cmdSetup(%q) error = %v, want the usage line", args, err)
+			t.Errorf("cmdSetup(%q) error = %v, want the arity line", args, err)
+		}
+	}
+	err := cmdSetup([]string{"portal"})
+	if err == nil {
+		t.Fatal("cmdSetup([portal]) returned no error")
+	}
+	if !strings.Contains(err.Error(), "unknown setup scope: portal") {
+		t.Errorf("cmdSetup([portal]) error = %v, want the unknown-scope line", err)
+	}
+	// The usage block comes from the help topic, so a scope added to one and not
+	// the other would be undiscoverable from the failure that names it.
+	for _, scope := range []string{"local", "harbor"} {
+		if !strings.Contains(err.Error(), scope) {
+			t.Errorf("cmdSetup([portal]) error does not name the %s scope: %v", scope, err)
 		}
 	}
 }

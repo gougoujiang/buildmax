@@ -24,7 +24,9 @@ profile.cov
 go.work
 go.work.sum
 
-# env file
+# Any .env anywhere. deployment/compose/.env is the one this repository still
+# writes: Compose reads it from the compose file's own directory, so it cannot
+# move into .local/. The pattern stays broad so a stray one is never committable.
 .env
 
 # OpenTofu working directories and local state. Provider locks stay committed.
@@ -33,11 +35,10 @@ go.work.sum
 *.tfstate.*
 .terraform.tfstate.lock.info
 
-# ./make models reads model configuration from this file; see config-examples/settings.example.yaml.
-/settings.local.yaml
-
-# Local deployment credentials (see deployment/buildmax-secret.example.yaml)
-deployment/*.local.yaml
+# Contributor-local configuration: credentials, model entries, and a hand-applied
+# Kubernetes Secret. `./make setup local` creates it from the committed
+# templates and `./make doctor` reports on it. Nothing in it is ever committed.
+/.local/
 
 # End-to-end suite evidence: traces, screenshots, and the note saying what ran.
 # `./make e2e` clears and rewrites it every run.

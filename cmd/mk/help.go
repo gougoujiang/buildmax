@@ -55,7 +55,7 @@ func allHelpSections() []helpSection {
 	return []helpSection{
 		{"Development", []helpRow{
 			{"doctor [all|harbor]", "Inspect core tools; 'all' adds frontend, 'harbor' the benchmark toolchain"},
-			{"setup harbor", "Install what doctor reports missing for a Terminal-Bench run"},
+			{"setup <local|harbor>", "Create " + localDir + "/ from the templates, or install the Terminal-Bench toolchain"},
 			{"build [cli]", "Strict full build, or build only " + exe(cliBinary)},
 			{"test [race] [pkg]", "Run Go tests; add packages or `go test` flags to narrow"},
 			{"check [scope]", "Run checks for go, gui, portal, desktop, docs, all, or ci"},
@@ -67,7 +67,7 @@ func allHelpSections() []helpSection {
 			{"help [command]", "Show this list, or one command's arguments and examples"},
 		}},
 		{"Models and evaluation", []helpRow{
-			{"models <list|info|check>", "List, look up on OpenRouter, or check settings.local.yaml models"},
+			{"models <list|info|check>", "List, look up on OpenRouter, or check " + localSettingsPath + " models"},
 			{"eval [harbor] [flags]", "Measure the CLI against evaluation/suite/, or import a Terminal-Bench job (needs an API key)"},
 			{"agent-smoke", "Drive the agent's tools with a real model (needs an API key; not a deterministic test)"},
 			{"cache-qualify", "Qualify prompt caching against a real provider (needs an API key; not a test)"},
@@ -119,14 +119,25 @@ func helpTopics() []helpTopic {
 		},
 		{
 			name:    "setup",
-			usage:   "setup harbor",
-			summary: "Install the toolchain a scope needs, then report what is left.",
+			usage:   "setup <local|harbor>",
+			summary: "Create or install what a scope needs, then report what is left.",
 			details: []string{
 				"Setup is doctor's write half, and stays a separate command so that doctor\n" +
-					"can keep changing nothing. It installs uv if it is missing, installs the\n" +
-					"Harbor version pinned by evaluation/harbor/pins.json, and cross-builds the\n" +
-					"linux/amd64 CLI a trial uploads -- the task images are amd64 whatever this\n" +
-					"machine is. Every step is skipped when it is already done.",
+					"can keep changing nothing.",
+				"`setup local` is the first command to run in a fresh clone. It creates\n" +
+					localDir + "/, the one directory holding your own configuration, and fills it\n" +
+					"from the committed templates: " + localEnvPath + " for the credentials `" + mk() + "`\n" +
+					"tasks use, " + localSettingsPath + " for the models `models` and `kind seed`\n" +
+					"read, and " + localSecretPath + " for a Kubernetes deployment you apply\n" +
+					"by hand. It then prints what is left to fill in.",
+				"The directory is gitignored in full, and the command never overwrites a file\n" +
+					"you have already edited -- delete one to start it over. A file left at its\n" +
+					"pre-" + localDir + "/ path is moved rather than duplicated, so credentials that\n" +
+					"were working keep working.",
+				"`setup harbor` installs uv if it is missing, installs the Harbor version\n" +
+					"pinned by evaluation/harbor/pins.json, and cross-builds the linux/amd64 CLI\n" +
+					"a trial uploads -- the task images are amd64 whatever this machine is. Every\n" +
+					"step is skipped when it is already done.",
 				"Installing uv runs Astral's own installer, which downloads and executes a\n" +
 					"script from outside this repository. The exact command is printed before it\n" +
 					"runs. Nothing else here reaches beyond uv, Go, and this checkout.",
@@ -137,10 +148,11 @@ func helpTopics() []helpTopic {
 					"for the rest of the run and prints how to make it permanent.",
 			},
 			args: []helpRow{
+				{"local", localDir + "/ and the config files a fresh clone needs"},
 				{"harbor", "uv, the pinned Harbor, and a Linux CLI for Terminal-Bench"},
 			},
-			examples: []string{"setup harbor"},
-			see:      "evaluation/harbor/README.md",
+			examples: []string{"setup local", "setup harbor"},
+			see:      "docs/reference/configuration.md",
 		},
 		{
 			name:    "build",
@@ -313,10 +325,10 @@ func helpTopics() []helpTopic {
 			usage:   "models <list|info [model or search term]|check>",
 			summary: "List locally configured models, look up one on OpenRouter, or check for drift.",
 			details: []string{
-				"Reads " + localSettingsPath + " at the repository root: a gitignored file in\n" +
-					"the same shape as BUILDMAX_HOME/settings.yaml, kept separate so this never\n" +
-					"touches your real runtime configuration. Copy " + localSettingsExample + "\n" +
-					"to " + localSettingsPath + " to get started.",
+				"Reads " + localSettingsPath + ": a gitignored file in the same shape as\n" +
+					"BUILDMAX_HOME/settings.yaml, kept separate so this never touches your real\n" +
+					"runtime configuration. `" + mk() + " setup local` creates it from\n" +
+					"" + localSettingsExample + ".",
 				"`list` prints the models configured there — no network. `info` with no\n" +
 					"argument prints the full info block for every model configured in\n" +
 					"" + localSettingsPath + ", in file order. With a model id or search term,\n" +

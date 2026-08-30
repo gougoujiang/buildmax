@@ -46,7 +46,7 @@ var addedModelPattern = regexp.MustCompile(`(?m)^Added model (\S+) \((.*)\)$`)
 // row from a log line that landed in the same stream.
 var publicIDPattern = regexp.MustCompile(`^[a-z2-7]{20}$`)
 
-// kindSeedEntry is one settings.local.yaml model as the cluster will hold it.
+// kindSeedEntry is one local settings model as the cluster will hold it.
 type kindSeedEntry struct {
 	// name is the catalog row's operator-facing name, unique in the deployment.
 	// It is what a managed client selects after login.
@@ -218,7 +218,7 @@ func kindCatalogModelArgs(m settingsModel, name string) []string {
 
 // kindReachableURL rewrites an address that means "this machine" into one a pod
 // can reach. A local runtime is the whole point of seeding for some
-// contributors, and its settings.local.yaml entry necessarily points at
+// contributors, and its local settings entry necessarily points at
 // loopback, which inside a pod is the pod itself.
 func kindReachableURL(rawURL, name string) string {
 	parsed, err := url.Parse(rawURL)

@@ -27,9 +27,10 @@ buildmax/
 └── *.md, LICENSE         README, CONTRIBUTING, SECURITY, CHANGELOG, AGENTS
 ```
 
-Generated and never committed: `bin/` (`./make build` output), `dist/`
-(GoReleaser), `NOTICE-THIRD-PARTY`, `testing-sandbox/` (`./make test` data
-directory), and every `node_modules/` and frontend `dist/`.
+Generated and never committed: `.local/` (your own configuration, written by
+`./make setup local`), `bin/` (`./make build` output), `dist/` (GoReleaser),
+`NOTICE-THIRD-PARTY`, `testing-sandbox/` (`./make test` data directory), and
+every `node_modules/` and frontend `dist/`.
 
 Root Markdown, and who each file is for:
 

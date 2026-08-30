@@ -9,8 +9,8 @@ import (
 	"strings"
 )
 
-// loadDotEnv reads .env at the repo root into the process environment so every
-// task, and every process a task starts, sees the same values. This is the one
+// loadDotEnv reads .local/env into the process environment so every task, and
+// every process a task starts, sees the same values. This is the one
 // implementation that replaced loadenv, loadenv.bat, and loadenv.ps1, which
 // parsed the same file three different ways.
 //
@@ -19,7 +19,7 @@ import (
 // there is no shell expansion, unlike the bash version's `source`. Entries
 // override the inherited environment, matching what `set -a; source .env` did.
 func loadDotEnv(root string) error {
-	path := filepath.Join(root, ".env")
+	path := filepath.Join(root, filepath.FromSlash(localEnvPath))
 	data, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil
