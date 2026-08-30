@@ -22,8 +22,9 @@
 ## Status
 
 - roadmap_priority: `P0.5`
-- status: `phases A–E implemented` (§13; phase F worker hardening + docs still
-  open, plus the gaps listed there — modelled on
+- status: `phases A–E implemented, phase F's worker surface selection and
+  production-pod verification done` (§13; downgrade marking, docs, and the
+  remaining §13.1 gaps still open — modelled on
   [Claude Code's sandbox docs](https://code.claude.com/docs/en/sandboxing))
 - follows: [trust-harness.md](./trust-harness.md), [hook-system.md](./hook-system.md)
 - roadmap: [../ROADMAP.md](../ROADMAP.md)
@@ -503,11 +504,13 @@ ignore_violations.** ⚠️ (rlimits not implemented — see §13.1)
 - TUI footer; `buildmax sandbox mode` / `enable` / `disable`.
 - `SessionStart` hook payload populated with `SandboxInfo`.
 
-**Phase F — Worker hardening + docs.** ❌ not started
+**Phase F — Worker hardening + docs.** ⚠️ surface selection and k8s-pod
+verification done; downgrade marking and docs still open — see §13.1 gap 1
 - Worker bootstrap: hard-code `enabled: true,
   fail_if_unavailable: true, allow_unsandboxed_commands: false`
-  unless explicitly overridden by `policy.yaml`.
-- WARN + trace mark on downgrade.
+  unless explicitly overridden by `policy.yaml`. ✅
+- WARN + trace mark on downgrade. ❌ `Downgraded` exists as a trace field
+  (`core/agent/sandbox.go`) but nothing in `agentapp` ever sets it true.
 - `config-examples/sandbox.example.yaml`, CLAUDE.md §4.1 update,
   ROADMAP.md update.
 
@@ -524,12 +527,19 @@ demotion and `dangerously_disable_sandbox`, the TUI footer tag, and
 
 Still open — these block §15 acceptance:
 
-1. **Worker default is not stricter than local.** `config.SandboxSurfaceWorker`
-   exists and carries the hardened baseline, but nothing selects it:
-   `agentapp/taskrun/runtime.go` builds its AgentApp with an empty
-   `SandboxSurface`, which resolves to the CLI baseline (`enabled: false`).
-   This is the single most load-bearing gap — [trust-harness.md](./trust-harness.md) §3.2's "stricter default
-   on the worker" is currently not true.
+1. ✅ **Worker default is now selected and verified against the production
+   pod security context.** `agentapp/taskrun/runtime.go` sets
+   `SandboxSurface: config.SandboxSurfaceWorker`. Selecting it alone was not
+   enough: `RuntimeDefault` seccomp drops the syscalls `bwrap` needs once the
+   worker pod's capabilities are empty, and a fresh `/proc` mount under
+   `--unshare-pid` trips the kernel's "mount too revealing" protection
+   independent of seccomp. Both are fixed —
+   [`deployment/seccomp/README.md`](../../deployment/seccomp/README.md) has
+   the full root-cause chain and how it was verified against a real pod
+   carrying the worker's exact security context. Not yet done: an organic
+   end-to-end run (a real task whose model turn calls `Bash` through the
+   actual server → worker → Job path) — the deployment smoke's own scenario
+   scripts no tool calls, so it has never exercised this and still does not.
 2. **Process limits are absent.** No `infra/sandbox/unix_rlimit.go`, no
    `Setrlimit` call anywhere. Phase D shipped without it, so the "process
    execution limits" boundary in [trust-harness.md](./trust-harness.md) §3.2 is

@@ -20,10 +20,11 @@ workers, a Portal, deployment assets, and an unusually serious test and release
 harness for an Alpha project.
 
 It is also not yet a production-safe multi-tenant Agent platform. Three gaps
-dominate the assessment: unattended worker execution now selects the worker
-sandbox baseline but its interaction with the production pod's own hardening
-is unverified, the reference deployment runs multiple Server replicas while
-live coordination remains process-local, and ordinary pull-request tests do not
+dominate the assessment: unattended worker execution now selects and passes
+the worker sandbox baseline against the production pod's own hardening, but
+hook/MCP child processes and cluster-level network egress remain outside it,
+the reference deployment runs multiple Server replicas while live
+coordination remains process-local, and ordinary pull-request tests do not
 exercise the real MySQL store.
 
 | Target | Current maturity | Assessment |
@@ -105,41 +106,73 @@ that external path for one task only. There is no Terminal-Bench score.
 
 ## Readiness Blockers
 
-### P0 — Worker Sandbox Surface Wired, K8s Interaction Unverified
+### P0 — Worker Sandbox Wired And Verified Against The Production Pod Security Context; Hook/MCP Boundary Still Open
 
 The worker task runtime now selects `config.SandboxSurfaceWorker` and applies
 an agent-declared network/filesystem tier in
 [`internal/agentapp/taskrun/runtime.go`](../internal/agentapp/taskrun/runtime.go),
 resolved by the server at claim time and pinned onto the run for audit, per
-[`docs/design/agent-sandbox-policy.md`](design/agent-sandbox-policy.md). The
-worker container images now install `bubblewrap` and `socat` in
+[`docs/design/agent-sandbox-policy.md`](design/agent-sandbox-policy.md).
+
+Selecting the surface alone was not enough. Reproducing the worker Job's exact
+`PodSecurityContext` (non-root, `Capabilities: {drop: [ALL]}`,
+`RuntimeDefault` seccomp, read-only root filesystem) in a real pod and running
+`bwrap` inside it failed outright: `RuntimeDefault` drops the
+`unshare`/`setns`/`mount`/`umount2`/`pivot_root`/`clone`/`clone3` rules a
+container's own default profile gates behind `CAP_SYS_ADMIN`, and an empty
+capability set drops the gated rule from the compiled filter entirely, not
+just the capability. `internal/infra/k8s/job.go` now requests a `Localhost`
+profile built for exactly this — [`deployment/seccomp/worker-bwrap.json`](../deployment/seccomp/worker-bwrap.json),
+Docker's own default profile with those seven syscalls made unconditional —
+distributed to every node by a `DaemonSet`
+([`deployment/buildmax-deploy.yaml`](../deployment/buildmax-deploy.yaml),
+[`deployment/production/buildmax.yaml`](../deployment/production/buildmax.yaml)).
+See [`deployment/seccomp/README.md`](../deployment/seccomp/README.md) for the
+full root-cause chain.
+
+A second, independent failure surfaced once namespace creation worked:
+mounting a fresh `/proc` inside `--unshare-pid` triggered the kernel's "mount
+too revealing" VFS protection (`SB_I_USERNS_VISIBLE`), reproducible even with
+seccomp fully disabled and real root — a genuine container-runtime mount
+namespace restriction, not a seccomp or capability gap.
+[`internal/infra/sandbox/bwrap_linux.go`](../internal/infra/sandbox/bwrap_linux.go)
+now re-binds the parent's `/proc` read-only instead of mounting a fresh one;
+the accepted cost is a sandboxed process seeing the host container's process
+list under `/proc` rather than an isolated one.
+
+Both fixes were verified against a real pod carrying the worker's exact
+security context and a `DaemonSet`-delivered profile, not a relaxed
+stand-in: the full `bwrap` invocation `bwrap_linux.go` builds ran a real
+command, correctly confined to the bound workspace and denied a write
+outside it. Not yet done: dispatching a real task whose model turn calls the
+`Bash` tool through the actual server → worker → Job path — the deployment
+smoke's own scenario scripts no tool calls at all
+(`deployment/smoke/mock-llm/main.go`), so its passing has never exercised
+this path and still does not. Wiring a `Bash`-calling scenario into that
+smoke, or a worker-surface evaluation task, so a regression here is caught
+automatically, remains open. The worker container images also now install
+`bubblewrap` and `socat` in
 [`deployment/docker/Dockerfile.buildmax`](../deployment/docker/Dockerfile.buildmax)
 and
 [`deployment/docker/Dockerfile.release`](../deployment/docker/Dockerfile.release),
-which the Linux sandbox backend requires.
+which the images lacked entirely before this pass and which the Linux
+sandbox backend requires regardless of the profile question.
 
 What this closes: a worker run is no longer built with an empty
-`SandboxSurface` resolving to the permissive CLI baseline, and an agent
-author can request the `registries` or `open` network tier and a shared
-read/external-write filesystem tier without an operator hand-editing
-`policy.yaml` per agent.
+`SandboxSurface` resolving to the permissive CLI baseline, `bwrap` now
+functions under the worker pod's actual production hardening rather than
+merely being installed and unable to run, and an agent author can request
+the `registries` or `open` network tier and a shared read/external-write
+filesystem tier without an operator hand-editing `policy.yaml` per agent.
 
-What remains unverified, and why this stays P0 rather than closing outright:
-the worker baseline sets `fail_if_unavailable: true`, and `bwrap` creating an
-unprivileged user namespace inside the production pod's existing hardening —
-non-root, no service-account token, no added capabilities, `RuntimeDefault`
-seccomp, read-only root filesystem — has not been exercised end to end. If the
-node's kernel or a security profile blocks unprivileged user namespaces (the
-Ubuntu 24.04 AppArmor case [`sandbox-boundaries.md`](design/sandbox-boundaries.md)
-§7.3 already documents), every worker run refuses to start rather than
-executing unconfined, which is the documented fail-closed behavior but has not
-been proven against the actual production manifest. Closing this requires the
-kind smoke run [`trust-harness.md`](design/trust-harness.md) §3.9 calls for —
-one that completes a real task under the production pod security context —
-plus the cluster-level `NetworkPolicy` question that section still leaves
-open. Hook and MCP child processes also still do not consult `SandboxView`
-([`sandbox-boundaries.md`](design/sandbox-boundaries.md) §13.1 gap 3); Bash
-containment alone does not cover them.
+What remains open: hook and MCP child processes still do not consult
+`SandboxView` ([`sandbox-boundaries.md`](design/sandbox-boundaries.md) §13.1
+gap 3), so Bash containment alone does not cover them; process resource
+limits (rlimits) are still unimplemented (§13.1 gap 2); and the cluster-level
+`NetworkPolicy` question [`trust-harness.md`](design/trust-harness.md) §3.9
+leaves open — a worker pod reaches whatever the cluster's network allows,
+independent of the in-process sandbox this section covers — is untouched by
+this pass.
 
 ### P0 — The Reference Replica Count Exceeds Coordination Semantics
 
@@ -237,9 +270,12 @@ throughput. None of these is a reason to block containment or correctness work.
 
 ## Rebased Priority Order
 
-1. Prove the worker execution boundary against the production pod's own
-   hardening with a real cluster run, and close hook and MCP child processes'
-   boundary. The surface selection itself is wired.
+1. Wire a `Bash`-calling scenario into the deployment smoke or a
+   worker-surface evaluation task, so the now-verified worker sandbox
+   boundary is exercised automatically rather than only by a one-off manual
+   pod reproduction, and close hook and MCP child processes' boundary. The
+   surface selection and its interaction with the production pod's hardening
+   are both proven; ongoing regression coverage is what remains.
 2. Make the production topology honest: one supported Server replica now, or
    shared coordination before horizontal scaling.
 3. Put critical MySQL persistence behavior in the pull-request evidence path.

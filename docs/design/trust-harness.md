@@ -83,7 +83,7 @@ subagent frontmatter hooks (session-scoped lifetime), `async` command flag,
 `buildmax hooks` inspector. See [hook-system.md](./hook-system.md) §10
 (implementation phase F).
 
-### 3.2 Sandbox And Execution Boundaries — local sandbox shipped ✅, worker hardening open
+### 3.2 Sandbox And Execution Boundaries — local sandbox and worker surface shipped ✅, hook/MCP boundary and rlimits open
 
 Explicit sandbox modes for command execution now exist. Detail design lives in
 [sandbox-boundaries.md](./sandbox-boundaries.md);
@@ -102,17 +102,28 @@ Boundary coverage against the list above:
 - environment variable exposure — ✅ secret-shaped vars scrubbed from bash env
 - process execution limits — ❌ not implemented (no rlimits;
   [sandbox-boundaries.md](./sandbox-boundaries.md) §13 phase D)
-- worker/container execution mode — ❌ **the stricter worker default is not
-  wired**: `agentapp/taskrun` builds its AgentApp without
-  `SandboxSurface: SandboxSurfaceWorker`, so worker runs fall back to the
-  local CLI baseline (`enabled: false`). See
+- worker/container execution mode — ✅ **wired and verified against the
+  production pod security context**: `agentapp/taskrun` sets
+  `SandboxSurface: SandboxSurfaceWorker`, and `internal/infra/k8s/job.go`'s
+  `RuntimeDefault` seccomp profile — which drops `bwrap`'s required syscalls
+  once the worker pod's capabilities are empty — is replaced by a `Localhost`
+  profile built for this
+  ([deployment/seccomp/README.md](../../deployment/seccomp/README.md)
+  has the full root-cause chain, including a second, independent kernel
+  restriction on mounting `/proc` under `--unshare-pid` inside a container).
+  Verified against a real pod carrying the worker's exact security context
+  and the profile as the reference `DaemonSet` actually distributes it. Not
+  yet done: an organic end-to-end run through the real server → worker → Job
+  path — the deployment smoke's own scenario has no tool calls, so it has
+  never exercised this and still does not; see
   [sandbox-boundaries.md](./sandbox-boundaries.md) §13 phase F.
 
 Also still open in [sandbox-boundaries.md](./sandbox-boundaries.md): `command` /
 `http` hook transports do not consult `SandboxView` yet (§9, §12), and
 `buildmax sandbox overrides` (§8) is not implemented. §3.2 is therefore **not**
-closed — the enforcement engine landed, the operator-facing worker hardening
-did not.
+closed — the enforcement engine and the worker surface both landed, but the
+hook/MCP boundary, process resource limits, and downgrade-marking to trace did
+not.
 
 ### 3.3 Durable Run Trace — phase 1 shipped ✅
 

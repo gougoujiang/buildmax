@@ -30,7 +30,7 @@ func TestBwrapArgs_Golden(t *testing.T) {
 	joined := strings.Join(args, " ")
 	mustContain := []string{
 		"--ro-bind / /",
-		"--proc /proc",
+		"--ro-bind /proc /proc",
 		"--dev /dev",
 		"--tmpfs /tmp",
 		"--bind /home/dev/proj /home/dev/proj",

@@ -32,6 +32,9 @@ func newBackend(name string) (backend, error) {
 //   - mount /dev/null over every entry in filesystem.deny_read so reads
 //     return empty
 //   - tmpfs /tmp inside the sandbox
+//   - re-bind /proc from the parent rather than mount a fresh instance, so
+//     bwrap can run inside a container's own PID namespace (see
+//     buildBwrapArgs)
 //   - --die-with-parent so a stuck bwrap can't outlive the agent
 //
 // Network and env scrubbing land in Phase C and Phase D. The sandbox
@@ -56,8 +59,17 @@ func buildBwrapArgs(p WrapParams) []string {
 		// Baseline mounts. Read-only / so allow_write entries are the
 		// only writable surface.
 		"--ro-bind", "/", "/",
-		// Pseudo-filesystems the runtime expects.
-		"--proc", "/proc",
+		// /proc is re-bound from the parent rather than mounted fresh
+		// (--proc) because a fresh procfs mount inside --unshare-pid, run
+		// from inside a container whose own runtime already masks parts of
+		// /proc, trips the kernel's "mount too revealing" check
+		// (SB_I_USERNS_VISIBLE in fs/namespace.c) and fails outright --
+		// confirmed against a real worker pod's PodSecurityContext, not
+		// merely a bwrap or seccomp limitation. A re-bound /proc shows the
+		// parent's process list rather than an isolated one; that is the
+		// accepted cost of the sandbox being able to run inside a
+		// container's own PID namespace at all.
+		"--ro-bind", "/proc", "/proc",
 		"--dev", "/dev",
 		// Private /tmp so subprocesses can't read each other's temp files.
 		"--tmpfs", "/tmp",

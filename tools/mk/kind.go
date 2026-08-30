@@ -198,7 +198,17 @@ func kindUp() error {
 	if err := applyKindSecret(); err != nil {
 		return err
 	}
+	if err := applyKindWorkerSeccompProfile(); err != nil {
+		return err
+	}
 	if err := kindKubectl("apply", "-f", "deployment/buildmax-deploy.yaml"); err != nil {
+		return err
+	}
+	// Before any worker Job can be dispatched: a worker pod's securityContext
+	// names this DaemonSet's installed file by path, and fails to start on a
+	// node it has not yet reached.
+	if err := kindKubectl("rollout", "status", "daemonset/buildmax-worker-seccomp", "-n", "buildmax", "--timeout=120s"); err != nil {
+		dumpKindNamespace("buildmax")
 		return err
 	}
 	if err := kindKubectl("apply", "-f", "deployment/smoke/mock-llm.kind.yaml"); err != nil {
@@ -795,6 +805,28 @@ func applyKindSecret() error {
 	)
 	if err != nil {
 		return fmt.Errorf("render local buildmax secret: %w", err)
+	}
+	return runStdin(manifest, "kubectl", "--context", kindContext(), "apply", "-f", "-")
+}
+
+// applyKindWorkerSeccompProfile puts the worker's custom seccomp profile into
+// a ConfigMap the DaemonSet in deployment/buildmax-deploy.yaml mounts and
+// copies onto every node's kubelet seccomp directory. See
+// deployment/seccomp/README.md for what the profile does and why
+// RuntimeDefault is not enough.
+//
+// From a file rather than embedded in buildmax-deploy.yaml: Kubernetes'
+// Localhost seccomp type needs the profile on every node's filesystem, not
+// inlined in a pod spec, and deployment/seccomp/worker-bwrap.json stays the
+// one place this ~600-line profile is edited.
+func applyKindWorkerSeccompProfile() error {
+	manifest, err := captureKindKubectl(
+		"create", "configmap", "buildmax-worker-seccomp", "-n", "buildmax",
+		"--from-file=worker-bwrap.json=deployment/seccomp/worker-bwrap.json",
+		"--dry-run=client", "-o", "yaml",
+	)
+	if err != nil {
+		return fmt.Errorf("render worker seccomp profile configmap: %w", err)
 	}
 	return runStdin(manifest, "kubectl", "--context", kindContext(), "apply", "-f", "-")
 }
