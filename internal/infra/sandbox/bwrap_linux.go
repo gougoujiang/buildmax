@@ -104,7 +104,7 @@ func buildBwrapArgs(p WrapParams) []string {
 		"--",
 		shellOrDefault(p.Shell),
 		"-c",
-		p.Command,
+		ulimitPrefix(p.Cfg)+p.Command,
 	)
 	return args
 }

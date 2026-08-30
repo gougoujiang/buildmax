@@ -213,6 +213,15 @@ models:
 #     http_proxy_port: 0
 #     socks_proxy_port: 0
 #
+#   # Bounds a sandboxed Bash command's own resource use. 0 = no limit from
+#   # this layer. max_memory_mb has no effect on macOS, which does not
+#   # support it at the OS level.
+#   process:
+#     max_cpu_seconds: 0
+#     max_memory_mb: 0
+#     max_processes: 0
+#     max_open_files: 0
+#
 #   # Silence known-harmless violations instead of loosening the boundary.
 #   ignore_violations:
 #     read: ["/etc/ssl/**"]

@@ -3,6 +3,7 @@
 package sandbox
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -98,5 +99,33 @@ func TestSeatbeltProfile_HomeExpansion(t *testing.T) {
 	got := buildSeatbeltProfile(p)
 	if !strings.Contains(got, `(deny file-read* (subpath "/Users/test/.aws"))`) {
 		t.Errorf("~ expansion missing:\n%s", got)
+	}
+}
+
+// TestSeatbeltWrap_ProcessLimitsPrefixTheCommand asserts a configured
+// process limit becomes a `ulimit` statement prefixed onto the inner
+// shell's -c argument, ahead of the user's own command — Seatbelt's .sb
+// profile grammar has no resource-limit primitive of its own
+// (docs/design/sandbox-boundaries.md §7.1), so this is the only mechanism
+// on macOS.
+func TestSeatbeltWrap_ProcessLimitsPrefixTheCommand(t *testing.T) {
+	b := &seatbeltBackend{path: "sandbox-exec", profileDir: t.TempDir()}
+	p := WrapParams{
+		Command:   "id",
+		Workspace: "/tmp/ws",
+		Cfg: config.SandboxConfig{
+			Process: config.SandboxProcessConfig{MaxCPUSeconds: 10, MaxOpenFiles: 64},
+		},
+	}
+	_, args, err := b.Wrap(context.Background(), p)
+	if err != nil {
+		t.Fatalf("Wrap: %v", err)
+	}
+	last := args[len(args)-1]
+	if !strings.HasPrefix(last, "ulimit -t 10 2>/dev/null; ulimit -n 64 2>/dev/null; ") {
+		t.Fatalf("-c argument = %q, want it to start with the ulimit statements", last)
+	}
+	if !strings.HasSuffix(last, "id") {
+		t.Errorf("-c argument = %q, want the user's own command last", last)
 	}
 }

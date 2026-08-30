@@ -47,8 +47,9 @@ type SandboxConfig struct {
 	// sandbox (convenience, not a security boundary).
 	ExcludedCommands []string `mapstructure:"excluded_commands" json:"excluded_commands,omitempty" yaml:"excluded_commands,omitempty"`
 
-	Filesystem SandboxFSConfig  `mapstructure:"filesystem" json:"filesystem,omitempty" yaml:"filesystem,omitempty"`
-	Network    SandboxNetConfig `mapstructure:"network"    json:"network,omitempty"    yaml:"network,omitempty"`
+	Filesystem SandboxFSConfig      `mapstructure:"filesystem" json:"filesystem,omitempty" yaml:"filesystem,omitempty"`
+	Network    SandboxNetConfig     `mapstructure:"network"    json:"network,omitempty"    yaml:"network,omitempty"`
+	Process    SandboxProcessConfig `mapstructure:"process"   json:"process,omitempty"    yaml:"process,omitempty"`
 
 	// IgnoreViolations: per-tool list of violation kinds to hide from
 	// status/trace. Internal counts are still kept.
@@ -103,6 +104,36 @@ type SandboxNetConfig struct {
 	// policy.yaml, lower sources' allowed_domains are ignored;
 	// denied_domains still merges from every source.
 	AllowManagedDomainsOnly bool `mapstructure:"allow_managed_domains_only" json:"allow_managed_domains_only,omitempty" yaml:"allow_managed_domains_only,omitempty"`
+}
+
+// SandboxProcessConfig bounds a sandboxed Bash command's own resource use.
+// Zero means unset -- no limit from this layer -- the same convention
+// SandboxNetConfig's proxy ports already use, and the same restraint
+// worker.k8s.resources documents: BuildMax chooses no numbers, because the
+// right ones depend on the work a deployment runs.
+//
+// Enforced as `ulimit` shell builtins prefixed onto the wrapped command
+// string (internal/infra/sandbox/bwrap_linux.go, seatbelt_darwin.go), not a
+// Go-side syscall.Setrlimit call: both backends already invoke the command
+// as `/bin/sh -c <command>`, so a shell builtin reaches the sandboxed child
+// on both platforms without new process-spawning machinery, where
+// os/exec.Cmd offers no pre-exec hook to apply a limit to only the child and
+// not the parent buildmax process. See docs/design/sandbox-boundaries.md §9.
+type SandboxProcessConfig struct {
+	// MaxCPUSeconds bounds CPU time (ulimit -t).
+	MaxCPUSeconds int `mapstructure:"max_cpu_seconds" json:"max_cpu_seconds,omitempty" yaml:"max_cpu_seconds,omitempty"`
+	// MaxMemoryMB bounds virtual memory (ulimit -v, in MB). Not enforced on
+	// macOS: Darwin's setrlimit does not support RLIMIT_AS the way Linux
+	// does, so bash's `ulimit -v` reports an error there rather than
+	// applying a limit. Seatbelt has no resource-limit primitive either
+	// (docs/design/sandbox-boundaries.md §7.1) -- this field is Linux-only
+	// in practice until a macOS-native mechanism exists.
+	MaxMemoryMB int `mapstructure:"max_memory_mb" json:"max_memory_mb,omitempty" yaml:"max_memory_mb,omitempty"`
+	// MaxProcesses bounds the number of processes/threads the command's
+	// user may hold (ulimit -u).
+	MaxProcesses int `mapstructure:"max_processes" json:"max_processes,omitempty" yaml:"max_processes,omitempty"`
+	// MaxOpenFiles bounds open file descriptors (ulimit -n).
+	MaxOpenFiles int `mapstructure:"max_open_files" json:"max_open_files,omitempty" yaml:"max_open_files,omitempty"`
 }
 
 // SandboxSurface names a runtime surface so ResolveSandbox can pick a
@@ -480,6 +511,18 @@ func mergeSandbox(dst, src SandboxConfig, isPolicy bool) SandboxConfig {
 	if src.Network.SOCKSProxyPort > 0 {
 		out.Network.SOCKSProxyPort = src.Network.SOCKSProxyPort
 	}
+	if src.Process.MaxCPUSeconds > 0 {
+		out.Process.MaxCPUSeconds = src.Process.MaxCPUSeconds
+	}
+	if src.Process.MaxMemoryMB > 0 {
+		out.Process.MaxMemoryMB = src.Process.MaxMemoryMB
+	}
+	if src.Process.MaxProcesses > 0 {
+		out.Process.MaxProcesses = src.Process.MaxProcesses
+	}
+	if src.Process.MaxOpenFiles > 0 {
+		out.Process.MaxOpenFiles = src.Process.MaxOpenFiles
+	}
 
 	// ignore_violations: union per key.
 	if len(src.IgnoreViolations) > 0 {
@@ -520,6 +563,9 @@ func sandboxEmpty(c SandboxConfig) bool {
 		return false
 	}
 	if c.Network.HTTPProxyPort > 0 || c.Network.SOCKSProxyPort > 0 {
+		return false
+	}
+	if c.Process.MaxCPUSeconds > 0 || c.Process.MaxMemoryMB > 0 || c.Process.MaxProcesses > 0 || c.Process.MaxOpenFiles > 0 {
 		return false
 	}
 	return true

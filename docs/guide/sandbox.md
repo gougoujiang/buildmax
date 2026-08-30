@@ -90,6 +90,12 @@ sandbox:
     denied_domains:  []
     allow_local_binding: false
     allow_all_unix_sockets: false
+
+  process:
+    max_cpu_seconds: 0    # 0 = no limit from this layer
+    max_memory_mb: 0
+    max_processes: 0
+    max_open_files: 0
 ```
 
 Network control works by routing egress through a Go-side HTTP/SOCKS proxy, so
@@ -97,6 +103,11 @@ domain rules apply to ordinary tools inside the sandbox without per-tool
 support. Environment variables that look like secrets (`*_TOKEN`, `*_KEY`,
 `*_SECRET`, and BuildMax's own credentials) are scrubbed from the child
 environment unless you list them explicitly.
+
+`sandbox.process` bounds a sandboxed command's own resource use — CPU time,
+memory, process count, and open file descriptors. `max_memory_mb` has no
+effect on macOS: Darwin does not support limiting a process's virtual memory
+the way Linux does, so the setting is silently a no-op there.
 
 ## Operator Policy
 
@@ -121,8 +132,6 @@ decision.
 
 The sandbox is genuinely useful today, but it is not finished:
 
-- workers do not yet default to the stricter profile
-- process rlimits are not wired
 - hook transports are not themselves sandboxed
 
 Track the remaining work in

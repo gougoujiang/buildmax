@@ -174,14 +174,19 @@ author can request the `registries` or `open` network tier and a shared
 read/external-write filesystem tier without an operator hand-editing
 `policy.yaml` per agent.
 
+Process resource limits (`sandbox.process.{max_cpu_seconds,max_memory_mb,
+max_processes,max_open_files}`) are also now implemented as `ulimit`
+statements prefixed onto the wrapped command, verified against real Alpine
+and macOS shells (`max_memory_mb` is a documented no-op on macOS, which has
+no `RLIMIT_AS`) — closing [`sandbox-boundaries.md`](design/sandbox-boundaries.md)
+§13.1 gap 2.
+
 What remains open: hook and MCP child processes still do not consult
-`SandboxView` ([`sandbox-boundaries.md`](design/sandbox-boundaries.md) §13.1
-gap 3), so Bash containment alone does not cover them; process resource
-limits (rlimits) are still unimplemented (§13.1 gap 2); and the cluster-level
-`NetworkPolicy` question [`trust-harness.md`](design/trust-harness.md) §3.9
-leaves open — a worker pod reaches whatever the cluster's network allows,
-independent of the in-process sandbox this section covers — is untouched by
-this pass.
+`SandboxView` (§13.1 gap 3), so Bash containment alone does not cover them;
+and the cluster-level `NetworkPolicy` question
+[`trust-harness.md`](design/trust-harness.md) §3.9 leaves open — a worker
+pod reaches whatever the cluster's network allows, independent of the
+in-process sandbox this section covers — is untouched by this pass.
 
 ### P0 — The Reference Replica Count Exceeds Coordination Semantics
 
@@ -279,11 +284,11 @@ throughput. None of these is a reason to block containment or correctness work.
 
 ## Rebased Priority Order
 
-1. Close hook and MCP child processes' sandbox boundary and add process
-   resource limits (rlimits). The worker sandbox surface, its interaction
-   with the production pod's hardening, and an organic Bash-calling run
-   through the real server → worker → Job path are all now proven and
-   exercised automatically by the deployment smoke.
+1. Close hook and MCP child processes' sandbox boundary. The worker sandbox
+   surface, its interaction with the production pod's hardening, process
+   resource limits, and an organic Bash-calling run through the real server
+   → worker → Job path are all now proven and exercised automatically by
+   the deployment smoke.
 2. Make the production topology honest: one supported Server replica now, or
    shared coordination before horizontal scaling.
 3. Put critical MySQL persistence behavior in the pull-request evidence path.

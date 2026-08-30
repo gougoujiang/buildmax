@@ -63,6 +63,28 @@ func TestBwrapArgs_ShellDefault(t *testing.T) {
 	}
 }
 
+// TestBwrapArgs_ProcessLimitsPrefixTheCommand asserts a configured process
+// limit becomes a `ulimit` statement prefixed onto the inner shell's -c
+// argument, ahead of the user's own command, rather than a separate bwrap
+// flag — bwrap has no per-process resource-limit flag of its own.
+func TestBwrapArgs_ProcessLimitsPrefixTheCommand(t *testing.T) {
+	p := WrapParams{
+		Command:   "id",
+		Workspace: "/tmp/ws",
+		Cfg: config.SandboxConfig{
+			Process: config.SandboxProcessConfig{MaxCPUSeconds: 10, MaxOpenFiles: 64},
+		},
+	}
+	args := buildBwrapArgs(p)
+	last := args[len(args)-1]
+	if !strings.HasPrefix(last, "ulimit -t 10 2>/dev/null; ulimit -n 64 2>/dev/null; ") {
+		t.Fatalf("-c argument = %q, want it to start with the ulimit statements", last)
+	}
+	if !strings.HasSuffix(last, "id") {
+		t.Errorf("-c argument = %q, want the user's own command last", last)
+	}
+}
+
 // TestBwrapArgs_ProxyEnvNotInArgv asserts proxy env is **not** stamped
 // onto the bwrap argv (it's set on cmd.Env by the Bash tool itself).
 func TestBwrapArgs_ProxyEnvNotInArgv(t *testing.T) {

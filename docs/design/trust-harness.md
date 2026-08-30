@@ -83,7 +83,7 @@ subagent frontmatter hooks (session-scoped lifetime), `async` command flag,
 `buildmax hooks` inspector. See [hook-system.md](./hook-system.md) §10
 (implementation phase F).
 
-### 3.2 Sandbox And Execution Boundaries — local sandbox and worker surface shipped ✅, hook/MCP boundary and rlimits open
+### 3.2 Sandbox And Execution Boundaries — local sandbox, worker surface, and process limits shipped ✅, hook/MCP boundary open
 
 Explicit sandbox modes for command execution now exist. Detail design lives in
 [sandbox-boundaries.md](./sandbox-boundaries.md);
@@ -100,8 +100,13 @@ Boundary coverage against the list above:
 - external directory access — ✅ `filesystem.allow_write` / `deny_read` etc.
 - network access — ✅ Go-side HTTP/SOCKS proxy with domain allow/deny
 - environment variable exposure — ✅ secret-shaped vars scrubbed from bash env
-- process execution limits — ❌ not implemented (no rlimits;
-  [sandbox-boundaries.md](./sandbox-boundaries.md) §13 phase D)
+- process execution limits — ✅ `sandbox.process.{max_cpu_seconds,
+  max_memory_mb,max_processes,max_open_files}` become `ulimit` statements
+  prefixed onto the wrapped command, one per limit; verified against real
+  Alpine and macOS shells, including a CPU-time limit actually killing a
+  busy loop on Linux (`max_memory_mb` is a documented no-op on macOS —
+  Darwin's `setrlimit` has no `RLIMIT_AS`). See
+  [sandbox-boundaries.md](./sandbox-boundaries.md) §13 phase D.
 - worker/container execution mode — ✅ **wired and verified against the
   production pod security context**: `agentapp/taskrun` sets
   `SandboxSurface: SandboxSurfaceWorker`, and `internal/infra/k8s/job.go`'s
@@ -122,9 +127,8 @@ Boundary coverage against the list above:
 Also still open in [sandbox-boundaries.md](./sandbox-boundaries.md): `command` /
 `http` hook transports do not consult `SandboxView` yet (§9, §12), and
 `buildmax sandbox overrides` (§8) is not implemented. §3.2 is therefore **not**
-closed — the enforcement engine and the worker surface both landed, but the
-hook/MCP boundary, process resource limits, and downgrade-marking to trace did
-not.
+closed — the enforcement engine, the worker surface, process limits, and
+downgrade-marking all landed, but the hook/MCP boundary did not.
 
 ### 3.3 Durable Run Trace — phase 1 shipped ✅
 
