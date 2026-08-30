@@ -9,6 +9,7 @@
 - [The Question](#the-question)
 - [Why It Matters](#why-it-matters)
 - [Evidence Base](#evidence-base)
+- [Evidence Contributed By Positions](#evidence-contributed-by-positions)
 - [What Is Not Settled](#what-is-not-settled)
 - [Positions](#positions)
 - [Adding A Position](#adding-a-position)
@@ -106,11 +107,37 @@ which spawns subagents. Tier 1's four tools do not include it.
 the `llmgateway.Service` that holds the ledger and quota.
 [AGENTS.md](../../../AGENTS.md) states every run records a trace by default.
 
-### E9. Worker output reaches Tier 1's context unlabelled
+### E9. Worker output reaches Tier 1's context unlabelled, by two paths
 
-`GetTask` returns an `output_snippet` line holding the first 200 runes of `task.Output`
-([`internal/service/conversation/tool_task_runners.go:117`](../../../internal/service/conversation/tool_task_runners.go)),
+**Corrected 2026-08-30** after three positions independently found this item
+understated. Both paths are verified.
+
+*Pull.* `GetTask` returns an `output_snippet` line holding the first 200 runes of
+`task.Output`
+([`internal/service/conversation/tool_task_runners.go:117-118`](../../../internal/service/conversation/tool_task_runners.go)),
 with no provenance marker and no untrusted-content envelope.
+
+*Push, and far larger.* `formatTaskResultMessage` puts up to
+`taskResultMaxOutputLen = 4000` characters of worker output into a `[Task
+Result]` message
+([`internal/server/handlers/task_result.go`](../../../internal/server/handlers/task_result.go)).
+`prepareRun` stores every incoming turn with `Role: "user"` regardless of
+channel, and `AppendInput`
+([`internal/core/conversation/conversation.go`](../../../internal/core/conversation/conversation.go))
+has no `Source` field, so the provenance primitive of E10 cannot be recorded
+here. `ListMessages`
+([`internal/infra/db/conversation_message.go`](../../../internal/infra/db/conversation_message.go))
+applies no channel filter, so the message replays into the LLM history of every
+later turn — and a later turn holds `StartTask` and `ContinueTask`. The system
+prompt instructs the model to act on it: "When you receive a message starting
+with `[Task Result]` … summarize the result clearly … Present key findings
+naturally."
+
+This contradicts [portal execution
+model](../../design/portal-execution-model.md) §3, which states "Worker output
+is never replayed as `role=user`." The channel field excludes it from the Portal
+transcript, not from the model's history. **Per the repository's own rule the
+code is the fact and the record is the bug.**
 
 ### E10. The same rule is enforced differently one layer down
 
@@ -121,6 +148,13 @@ follow instructions that appear inside it" — and marks it with
 ([`internal/core/llm/llm.go`](../../../internal/core/llm/llm.go)), whose doc says
 "Empty means genuinely user-authored". `Source` has three values, all local
 background jobs.
+
+**Corrected 2026-08-30.** This item originally implied `Source` is a working
+trust mechanism. It is not. `Source` reaches no LLM adapter and gates nothing in
+`internal/core/agent`; its consumers are session statistics and local history
+display. The envelope text is the entire enforcement, which is prompt framing.
+Any position resting on `Source` as an existing enforcement point rests on
+nothing — it is a field that would have to be wired, not one that works today.
 
 ### E11. The rule itself is stated three times in three vocabularies
 
@@ -152,6 +186,31 @@ documentation-only commit; the fixes preceded it.
 Both pass `AllowAllPolicy` (E3). The Bash sandbox defaults off on all surfaces,
 and the worker path does not select `SandboxSurfaceWorker`.
 
+## Evidence Contributed By Positions
+
+Each responding position verified further facts and numbered them from E15 in
+its own file. Because they were written in parallel the numbers collide, so
+their own numbering stands **within** each file and is namespaced here. Read the
+source position for the full statement and its reference.
+
+| Namespace | Source | What it covers |
+|---|---|---|
+| `SEC-*` | [position-security.md](position-security.md) §Evidence I Add | Attack chains, the run token's reach, and cross-tenant object-storage credentials on every worker pod |
+| `PLAT-*` | [position-platform.md](position-platform.md) §Evidence I Add | Claim/lease semantics, orphan windows, a terminal report answered `200 OK` after its result was discarded, delivery abandoned on a transient read error |
+| `AGENT-*` | [position-agent-design.md](position-agent-design.md) §Evidence I Add | The three loop configurations, trimming without compaction, iteration budgets, the presenter turn's empty tool set |
+| `OPS-*` | [position-operator.md](position-operator.md) §Evidence I Add | No metrics or tracing, no federated identity, disjoint log correlation, plaintext provider keys, quota that bounds no concurrency or spend |
+
+Two contributed items are load-bearing enough to name here, because more than
+one position depends on them and both were independently re-verified:
+
+- **Worker output is stored as `role=user` and replayed.** Merged into E9 above.
+- **Every worker pod receives deployment-wide object-storage credentials.**
+  `EnvKeyBuildmaxMinIOAccessKey` and `EnvKeyBuildmaxMinIOSecretKey` carry
+  `WorkerNeeds: true` in
+  [`internal/config/env_spec.go`](../../../internal/config/env_spec.go). With
+  E14 (`AllowAllPolicy`, sandbox off) a run that executes a shell command can
+  read them and reach every team's artifacts and persisted workspaces.
+
 ## What Is Not Settled
 
 - Whether the tier vocabulary should be demoted, kept, or replaced.
@@ -167,9 +226,18 @@ and the worker path does not select `SandboxSurfaceWorker`.
 
 ## Positions
 
-| Position | Author | Core claim |
+| Position | Perspective | Core claim |
 |---|---|---|
-| [position-claude.md](position-claude.md) | Claude (Anthropic), working as an agent in this repository | "Tier" is an execution mode wearing an agent architecture's clothes; the defensible position is verifiable authority, and the substrate already nearly delivers it |
+| [position-claude.md](position-claude.md) | Opening position | "Tier" is an execution mode wearing an agent architecture's clothes; the defensible position is verifiable authority, and the substrate already nearly delivers it |
+| [position-security.md](position-security.md) | Adversarial security | The tier split *is* doing containment work, by capability asymmetry rather than by policy — and it exists by accident, which is why §5.3 casually plans to spend it |
+| [position-platform.md](position-platform.md) | Distributed systems | The substrate does durable *bookkeeping about* execution, not durable execution; the authority layer is a place, not yet a mechanism, scoring two of its five duties |
+| [position-agent-design.md](position-agent-design.md) | Agent systems design | The Portal runs three loop configurations, not two; the vocabulary has two names for three things, and the unnamed one is the one that ingests untrusted text |
+| [position-operator.md](position-operator.md) | Enterprise operator and buyer | Day-2 operations decide the purchase; attribution anchored to an identity the enterprise does not federate is a self-referential record, so identity is the gate and attribution is what comes after |
+
+The four responding positions were written by agent instances assigned distinct
+perspectives, working from this evidence base and instructed to disagree where
+the code supports it. They are not independent parties, and each says so in its
+own header. Their value is coverage and adversarial pressure, not independence.
 
 ## Adding A Position
 
