@@ -86,6 +86,28 @@ describe("describeEvent", () => {
       .toBe(true)
   })
 
+  it("reads the invitation and role-change actions team-membership-lifecycle added", () => {
+    expect(describeEvent(event({ action: "team.member_invited", detail: "admin" })).summary)
+      .toContain("admin")
+    expect(describeEvent(event({ action: "team.invitation_accepted", detail: "member" })).summary)
+      .toContain("member")
+    expect(describeEvent(event({ action: "team.invitation_revoked" })).summary)
+      .toBe("Revoked a pending invitation")
+    expect(describeEvent(event({ action: "team.member_role_changed", detail: "owner" })).summary)
+      .toContain("owner")
+    expect(describeEvent(event({ action: "team.ownership_transferred" })).summary)
+      .toBe("Transferred ownership")
+    expect(describeEvent(event({ action: "team.member_login_code_issued" })).summary)
+      .toBe("Issued a login code for a member")
+  })
+
+  it("treats an accept found past its expiry as a denial, the same as access.denied", () => {
+    // An invitation names a specific, already-resolved account before anyone
+    // acts on it, so its outcome is worth calling out either way -- unlike a
+    // failed login, which says nothing about who the actor was.
+    expect(describeEvent(event({ action: "team.invitation_expired" })).denied).toBe(true)
+  })
+
   it("does not show a target for events whose target is already in the summary", () => {
     // A login's target is the platform, which the sentence already names.
     expect(describeEvent(event({ action: "user.login", target_id: "cli" })).target).toBeNull()

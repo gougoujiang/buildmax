@@ -187,6 +187,20 @@
         },
         "required": ["team_id", "user_id", "role", "created_at"]
       },
+      "Invitation": {
+        "type": "object",
+        "description": "A pending offer of team membership against an account that already exists. Never carries a code -- see docs/design/team-membership-lifecycle.md.",
+        "properties": {
+          "id": {"type": "string"},
+          "team_id": {"type": "string"},
+          "user_id": {"type": "string"},
+          "role": {"type": "string"},
+          "invited_by": {"type": "string"},
+          "expires_at": {"type": "string", "format": "date-time"},
+          "created_at": {"type": "string", "format": "date-time"}
+        },
+        "required": ["id", "team_id", "user_id", "role", "invited_by", "expires_at", "created_at"]
+      },
       "Issue": {
         "type": "object",
         "properties": {
@@ -1048,6 +1062,44 @@
         "responses": {
           "200": { "description": "OK" },
           "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/api/invitations": {
+      "get": {
+        "summary": "List the caller's own pending invitations, across every team",
+        "description": "Not team-scoped: it answers what is pending for the signed-in caller. See docs/design/team-membership-lifecycle.md.",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Invitation" } } }
+            }
+          },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/api/invitations/{invitation_id}/accept": {
+      "post": {
+        "summary": "Accept a pending invitation",
+        "description": "Takes no code: the caller already reached this session on their own, so this is authorized by the invitation being their own pending row, not by proving anything a second time.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "invitation_id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Invitation" } } }
+          },
+          "404": {
+            "description": "Not found -- covers an invitation belonging to someone else, the same as one that does not exist",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          },
+          "409": {
+            "description": "Already accepted or revoked, or expired",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          }
         }
       }
     },
@@ -2282,39 +2334,6 @@
             }
           }
         }
-      },
-      "post": {
-        "summary": "Add a member",
-        "security": [{"bearerAuth": []}],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {"email": {"type": "string"}, "role": {"type": "string"}}
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Created",
-            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/TeamMember"}}}
-          },
-          "400": {
-            "description": "Invalid email or role",
-            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
-          },
-          "403": {
-            "description": "Only an owner may add a member",
-            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
-          },
-          "404": {
-            "description": "Account not found",
-            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
-          }
-        }
       }
     },
     "/api/teams/{team_id}/members/{user_id}": {
@@ -2331,6 +2350,164 @@
           },
           "404": {
             "description": "Not a member of this team",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      },
+      "patch": {
+        "summary": "Change a member's role",
+        "description": "Setting role to owner is ownership transfer: the caller is demoted to admin in the same call, unilaterally and immediately, not subject to the target's acceptance. See docs/design/team-membership-lifecycle.md.",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name": "user_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"type": "object", "properties": {"role": {"type": "string"}}}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "team_id": {"type": "string"},
+                    "user_id": {"type": "string"},
+                    "role": {"type": "string"}
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Role must be owner, admin, or member",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "403": {
+            "description": "Only an owner may change a member's role",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "404": {
+            "description": "Not a member of this team",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "409": {
+            "description": "The last owner cannot be demoted; transfer ownership first",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/teams/{team_id}/members/{user_id}/login-code": {
+      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "post": {
+        "summary": "Issue a login code for a locked-out member of the caller's own team",
+        "description": "Owner only. Does not replace the system_admin route in system-administration.md, which still recovers an owner who has no co-owner and no admin left in their own team -- this only removes the dependency on a system_admin existing at all for the common case of one member locked out of an otherwise healthy team. See docs/design/team-membership-lifecycle.md.",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name": "user_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {
+          "200": {
+            "description": "OK -- the code is shown once and never recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {"code": {"type": "string"}, "expires_at": {"type": "string", "format": "date-time"}}
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Only an owner may issue a login code for a member",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "404": {
+            "description": "Not a member of this team",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "409": {
+            "description": "The account is disabled",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/teams/{team_id}/invitations": {
+      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "get": {
+        "summary": "List a team's pending invitations",
+        "description": "Reading who has been invited is the same authority as sending or revoking an invitation: owner or admin.",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/Invitation"}}}
+            }
+          },
+          "403": {
+            "description": "Only an owner or admin may list invitations",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      },
+      "post": {
+        "summary": "Invite an existing account to join the team",
+        "description": "Bounded to an account that already exists. Creating one is a system_admin operation (POST /api/admin/users), not a team-scoped one -- see docs/design/team-membership-lifecycle.md. Owner may invite at member or admin; admin may invite only at member.",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {"email": {"type": "string"}, "role": {"type": "string"}}
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Invitation"}}}
+          },
+          "400": {
+            "description": "Invalid email or role, or no account exists for this email",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "403": {
+            "description": "Only an owner or admin may invite, and only an owner may invite at admin",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "409": {
+            "description": "Already a member, or an invitation is already pending for this account",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/teams/{team_id}/invitations/{invitation_id}": {
+      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "delete": {
+        "summary": "Revoke a pending invitation",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name": "invitation_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {
+          "204": {"description": "Revoked"},
+          "403": {
+            "description": "Only an owner or admin may revoke an invitation",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "404": {
+            "description": "Invitation not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "409": {
+            "description": "Invitation is no longer pending",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
           }
         }

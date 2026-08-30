@@ -45,6 +45,7 @@ export function parseHash(hash: string): Route {
     if (parts[1] === "usage") return { name: "account", section: "usage" }
     if (parts[1] === "webhook") return { name: "account", section: "webhook" }
     if (parts[1] === "plugins") return { name: "account", section: "plugins" }
+    if (parts[1] === "invitations") return { name: "account", section: "invitations" }
     return { name: "account", section: "general" }
   }
   if (parts[0] === SEGMENT.space) {
@@ -110,6 +111,8 @@ export function buildHash(route: Route): string {
           return `#/${SEGMENT.account}/webhook`
         case "plugins":
           return `#/${SEGMENT.account}/plugins`
+        case "invitations":
+          return `#/${SEGMENT.account}/invitations`
         case "general":
         default:
           return `#/${SEGMENT.account}`

@@ -144,6 +144,7 @@ func (h *Handler) buildTeamHandler() *teamroutes.Handler {
 		Quota:            h.cfg.QuotaService,
 		Audit:            h.cfg.Audit,
 		Plugins:          h.cfg.PluginService,
+		LoginCodes:       h.cfg.LoginCodeStore,
 	})
 }
 

@@ -105,3 +105,31 @@ func (d *DenyQuotaTeamStore) CountTeamMembers(_ context.Context, _ []string) (ma
 func (d *DenyQuotaTeamStore) SetTeamPluginCuration(_ context.Context, _ string, _ coreplugin.Curation) error {
 	return nil
 }
+
+func (d *DenyQuotaTeamStore) CreateInvitation(_ context.Context, _, _, _, _ string, _ time.Time) (*coreteam.Invitation, error) {
+	return nil, nil
+}
+
+func (d *DenyQuotaTeamStore) GetInvitation(_ context.Context, _ string) (*coreteam.Invitation, error) {
+	return nil, nil
+}
+
+func (d *DenyQuotaTeamStore) ListPendingInvitationsByTeam(_ context.Context, _ string, _ time.Time) ([]coreteam.Invitation, error) {
+	return nil, nil
+}
+
+func (d *DenyQuotaTeamStore) ListPendingInvitationsByUser(_ context.Context, _ string, _ time.Time) ([]coreteam.Invitation, error) {
+	return nil, nil
+}
+
+func (d *DenyQuotaTeamStore) AcceptInvitation(_ context.Context, _ string, _ time.Time) (*coreteam.Invitation, error) {
+	return nil, nil
+}
+
+func (d *DenyQuotaTeamStore) RevokeInvitation(_ context.Context, _ string, _ time.Time) error {
+	return nil
+}
+
+func (d *DenyQuotaTeamStore) TransferOwnership(_ context.Context, _, _, _ string) error {
+	return nil
+}

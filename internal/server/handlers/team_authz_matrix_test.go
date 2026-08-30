@@ -74,8 +74,23 @@ var teamRoutes = []authzCase{
 	{"PUT", "/api/teams/{team_id}/plugin-curation", coreteam.RoleAdmin, false},
 
 	{"GET", "/api/teams/{team_id}/members", coreteam.RoleMember, false},
-	{"POST", "/api/teams/{team_id}/members", coreteam.RoleOwner, false},
 	{"DELETE", "/api/teams/{team_id}/members/{user_id}", coreteam.RoleOwner, false},
+	// Role change (including the ownership transfer that results from
+	// setting a target's role to owner) and team-scoped access recovery are
+	// both owner-only -- see docs/design/team-membership-lifecycle.md §5.2,
+	// §5.3, §5.4, and §7.
+	{"PATCH", "/api/teams/{team_id}/members/{user_id}", coreteam.RoleOwner, false},
+	{"POST", "/api/teams/{team_id}/members/{user_id}/login-code", coreteam.RoleOwner, false},
+
+	// Invitation is the one membership action admin holds, at member role
+	// only -- see docs/design/team-membership-lifecycle.md §5.1 and §7. That
+	// role-content restriction is enforced by the service, not the route, so
+	// this matrix -- which drives one representative request per case -- still
+	// reads minRole as admin: an admin's request with no role in the body
+	// defaults to member and succeeds.
+	{"POST", "/api/teams/{team_id}/invitations", coreteam.RoleAdmin, false},
+	{"GET", "/api/teams/{team_id}/invitations", coreteam.RoleAdmin, false},
+	{"DELETE", "/api/teams/{team_id}/invitations/{invitation_id}", coreteam.RoleAdmin, false},
 
 	{"GET", "/api/teams/{team_id}/conversations", coreteam.RoleMember, false},
 	{"POST", "/api/teams/{team_id}/conversations", coreteam.RoleMember, false},
@@ -203,6 +218,7 @@ func matrixMuxWithGrants(t *testing.T, grants coreidentity.SystemGrantStore) *ht
 		ConversationMessageStore: &mock.MockConversationMessageStore{},
 		AuditStore:               &mock.MockAuditStore{},
 		SystemGrantStore:         grants,
+		LoginCodeStore:           &mock.MockLoginCodeStore{},
 		PersistStorage:           mock.NewMockPersistStorage(),
 		RunOutputStorage:         mock.NewMockRunOutputStorage(),
 		ArtifactStore:            &mock.MockArtifactStore{},

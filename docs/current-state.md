@@ -169,11 +169,18 @@ deployment partner supplies evidence that changes the order.
   code. The code states this directly in
   [`internal/service/identity/account.go`](../internal/service/identity/account.go);
   an operator must finish access manually.
-- Team policy defines owner, admin, and member roles, but the public membership
-  service only grants `member` in
-  [`internal/service/team/service.go`](../internal/service/team/service.go).
-  There is no complete invitation, promotion, ownership-transfer, or recovery
-  journey.
+- Team policy defines owner, admin, and member roles. The membership service
+  now covers the full lifecycle — invitation bounded to an existing account,
+  role promotion and demotion, unilateral ownership transfer, and
+  member-scoped login-code recovery — in
+  [`internal/service/team/service.go`](../internal/service/team/service.go),
+  [`internal/server/handlers/team/teams.go`](../internal/server/handlers/team/teams.go),
+  and Portal's Space → Members and Account → Invitations surfaces. Bringing in
+  someone who has never had a BuildMax account is still deliberately a
+  `system_admin` operation, not a team-scoped one — see
+  [`design/team-membership-lifecycle.md`](design/team-membership-lifecycle.md)
+  §1 for why account creation and team membership are kept as two different
+  authorities.
 - System administration, quotas, role checks, and audit exist, but team-level
   approvals and a complete sensitive-action governance loop do not.
 
@@ -217,8 +224,10 @@ throughput. None of these is a reason to block containment or correctness work.
 2. Make the production topology honest: one supported Server replica now, or
    shared coordination before horizontal scaling.
 3. Put critical MySQL persistence behavior in the pull-request evidence path.
-4. Close account access, team role lifecycle, recovery, and team approval
-   operations.
+4. Close what remains of account and team operations: signup still leaves an
+   account without a credential until an operator finishes it, by design, and
+   team-level approvals are unscheduled. Team role lifecycle, ownership
+   transfer, and member-scoped recovery are done.
 5. Expand product-owned qualification from an architectural slice into a
    representative release suite.
 6. Deepen workflows, real channel adapters, executable team plugins, Portal

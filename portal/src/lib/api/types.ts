@@ -835,6 +835,31 @@ export interface ApiTeamMember {
   user_email?: string
 }
 
+/**
+ * A pending offer of team membership against an account that already
+ * exists. Never carries a code -- see docs/design/team-membership-lifecycle.md.
+ */
+export interface ApiInvitation {
+  id: string
+  team_id: string
+  user_id: string
+  role: string
+  invited_by: string
+  expires_at: string
+  created_at: string
+}
+
+export interface ApiMemberRole {
+  team_id: string
+  user_id: string
+  role: string
+}
+
+export interface ApiMemberLoginCode {
+  code: string
+  expires_at: string
+}
+
 /** Response from the team-scoped list conversations endpoint. */
 export interface ApiConversationsListResponse {
   conversations: ApiConversation[]

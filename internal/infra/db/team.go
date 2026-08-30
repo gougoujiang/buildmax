@@ -256,6 +256,34 @@ func (s *Store) AddTeamMember(ctx context.Context, teamID, userID, role string) 
 	return member, nil
 }
 
+// TransferOwnership implements coreteam.Store. It moves the owner role in
+// one transaction: a team must never be read with two owners or none because
+// a caller observed the change half-applied.
+func (s *Store) TransferOwnership(ctx context.Context, teamID, fromUserID, toUserID string) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		teamKey, err := lookupKey(ctx, tx, "team", teamID)
+		if err != nil {
+			return err
+		}
+		fromKey, err := lookupKey(ctx, tx, "user", fromUserID)
+		if err != nil {
+			return err
+		}
+		toKey, err := lookupKey(ctx, tx, "user", toUserID)
+		if err != nil {
+			return err
+		}
+		if err := tx.Model(&teamMemberRow{}).
+			Where("team_id = ? AND user_id = ?", teamKey, toKey).
+			Update("role", coreteam.RoleOwner).Error; err != nil {
+			return err
+		}
+		return tx.Model(&teamMemberRow{}).
+			Where("team_id = ? AND user_id = ?", teamKey, fromKey).
+			Update("role", coreteam.RoleAdmin).Error
+	})
+}
+
 // RemoveTeamMember removes a team membership when present.
 func (s *Store) RemoveTeamMember(ctx context.Context, teamID, userID string) error {
 	teamKey, err := lookupKey(ctx, s.db, "team", teamID)

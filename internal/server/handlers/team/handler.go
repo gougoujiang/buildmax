@@ -33,6 +33,11 @@ type Config struct {
 	Agents      agentdef.Store
 	WebhookKeys coreidentity.UserWebhookKeyStore
 	Audits      coreaudit.Store
+	// LoginCodes backs the team-scoped access-recovery route only -- issuing a
+	// code for a locked-out member of the caller's own team. Nil leaves that
+	// route unavailable, which is what a deployment with no login-code store
+	// has. See docs/design/team-membership-lifecycle.md §5.4.
+	LoginCodes coreidentity.LoginCodeStore
 	// Workflows answers one question here -- which published workflows still
 	// name an agent -- so that deleting one cannot silently break them. Nil
 	// leaves that check unmade, which is what a deployment without workflows
@@ -87,8 +92,16 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/teams", h.listTeamsHandler)
 	mux.HandleFunc("POST /api/teams", h.createTeamHandler)
 	mux.HandleFunc("GET /api/teams/{team_id}/members", h.listTeamMembersHandler)
-	mux.HandleFunc("POST /api/teams/{team_id}/members", h.addTeamMemberHandler)
 	mux.HandleFunc("DELETE /api/teams/{team_id}/members/{user_id}", h.removeTeamMemberHandler)
+	mux.HandleFunc("PATCH /api/teams/{team_id}/members/{user_id}", h.setMemberRoleHandler)
+	mux.HandleFunc("POST /api/teams/{team_id}/members/{user_id}/login-code", h.issueMemberLoginCodeHandler)
+
+	// Invitations. See docs/design/team-membership-lifecycle.md.
+	mux.HandleFunc("POST /api/teams/{team_id}/invitations", h.inviteMemberHandler)
+	mux.HandleFunc("GET /api/teams/{team_id}/invitations", h.listTeamInvitationsHandler)
+	mux.HandleFunc("DELETE /api/teams/{team_id}/invitations/{invitation_id}", h.revokeInvitationHandler)
+	mux.HandleFunc("GET /api/invitations", h.listMyInvitationsHandler)
+	mux.HandleFunc("POST /api/invitations/{invitation_id}/accept", h.acceptInvitationHandler)
 
 	// Agents
 	mux.HandleFunc("GET /api/teams/{team_id}/agents", h.listAgentsHandler)
