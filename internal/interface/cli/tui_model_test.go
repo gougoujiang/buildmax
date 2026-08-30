@@ -773,6 +773,115 @@ func TestSlashSkillsEmptyOverlay(t *testing.T) {
 	}
 }
 
+func writeSkillFixture(t *testing.T, ws, name, body string) {
+	t.Helper()
+	skillRoot := filepath.Join(ws, ".buildmax", "skills", name)
+	if err := os.MkdirAll(skillRoot, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(skillRoot, "SKILL.md"), []byte(body), 0644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSlashSkillsSelectFillsInputWithoutSending(t *testing.T) {
+	t.Setenv("BUILDMAX_HOME", t.TempDir())
+	sess := agentapp.NewSessionContext("")
+	ws := t.TempDir()
+	writeSkillFixture(t, ws, "listdemo", "# Listdemo\n\nA skill for the TUI list test.\n")
+	m0 := NewModel(TUIOpts{Session: sess, Workspace: util.FixedRoot(ws)})
+	m1, _ := m0.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
+	mod := m1.(*Model)
+	mod.inputBlock.SetValue("/skills")
+	mod.inputBlock.SyncHeight()
+	next, _ := mod.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	after := next.(*Model)
+	if after.slashSkills == nil || len(after.slashSkills.Filtered) != 1 {
+		t.Fatalf("expected one filtered skill, got %+v", after.slashSkills)
+	}
+	before := len(after.opts.Session.Messages())
+	next2, _ := after.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	closed := next2.(*Model)
+	if closed.slashSkills != nil {
+		t.Fatal("enter should close the skills panel")
+	}
+	if closed.busy {
+		t.Fatal("selecting a skill must not start a run")
+	}
+	if len(closed.opts.Session.Messages()) != before {
+		t.Fatal("selecting a skill must not append a session message")
+	}
+	if got := closed.inputBlock.Value(); got != "/listdemo" {
+		t.Fatalf("input = %q, want %q", got, "/listdemo")
+	}
+}
+
+func TestSlashSkillsSelectDoesNotClobberExistingDraft(t *testing.T) {
+	t.Setenv("BUILDMAX_HOME", t.TempDir())
+	sess := agentapp.NewSessionContext("")
+	ws := t.TempDir()
+	writeSkillFixture(t, ws, "listdemo", "# Listdemo\n\nA skill for the TUI list test.\n")
+	m0 := NewModel(TUIOpts{Session: sess, Workspace: util.FixedRoot(ws)})
+	m1, _ := m0.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
+	mod := m1.(*Model)
+	mod.inputBlock.SetValue("/skills")
+	mod.inputBlock.SyncHeight()
+	next, _ := mod.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	after := next.(*Model)
+	if after.slashSkills == nil {
+		t.Fatal("expected skills overlay")
+	}
+	// A draft left in the input before confirming wins over the fill.
+	after.inputBlock.SetValue("do not overwrite me")
+	next2, _ := after.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	closed := next2.(*Model)
+	if closed.slashSkills != nil {
+		t.Fatal("enter should still close the skills panel")
+	}
+	if got := closed.inputBlock.Value(); got != "do not overwrite me" {
+		t.Fatalf("input = %q, want the existing draft preserved", got)
+	}
+}
+
+func TestSlashCommandSendsSkillNameAsMessage(t *testing.T) {
+	t.Setenv("BUILDMAX_HOME", t.TempDir())
+	sess := agentapp.NewSessionContext("")
+	ws := t.TempDir()
+	writeSkillFixture(t, ws, "listdemo", "# Listdemo\n\nA skill for the TUI list test.\n")
+	m0 := NewModel(TUIOpts{Session: sess, Workspace: util.FixedRoot(ws)})
+	m1, _ := m0.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
+	mod := m1.(*Model)
+	mod.inputBlock.SetValue("/listdemo draw a poster")
+	mod.inputBlock.SyncHeight()
+	next, _ := mod.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	after := next.(*Model)
+	if after.err != "" {
+		t.Fatalf("typed skill name should not error, got %q", after.err)
+	}
+	if !after.busy {
+		t.Fatal("a message naming a loaded skill should start a run")
+	}
+}
+
+func TestSlashCommandUnknownStillErrors(t *testing.T) {
+	t.Setenv("BUILDMAX_HOME", t.TempDir())
+	sess := agentapp.NewSessionContext("")
+	ws := t.TempDir()
+	m0 := NewModel(TUIOpts{Session: sess, Workspace: util.FixedRoot(ws)})
+	m1, _ := m0.Update(tea.WindowSizeMsg{Width: 100, Height: 20})
+	mod := m1.(*Model)
+	mod.inputBlock.SetValue("/nonexistent-thing")
+	mod.inputBlock.SyncHeight()
+	next, _ := mod.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	after := next.(*Model)
+	if after.err == "" {
+		t.Fatal("an unrecognized command that is not a skill should still error")
+	}
+	if after.busy {
+		t.Fatal("an unrecognized command must not start a run")
+	}
+}
+
 func TestSlashMCPOpensOverlayAndEmptyConfig(t *testing.T) {
 	sess := agentapp.NewSessionContext("")
 	workspace := t.TempDir()
