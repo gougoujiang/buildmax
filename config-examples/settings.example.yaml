@@ -11,7 +11,7 @@ log_level: info
 # context_window: 0 uses the built-in default (32 000 tokens).
 #
 # The entries below are a broad-compatibility set, checked with
-# `./make models info <model>` (see cmd/mk's help): a tool-calling model per
+# `./make models info <model>` (see tools/mk's help): a tool-calling model per
 # major lab behind current OpenRouter coding/agent usage, with OpenAI and
 # Anthropic's fast/mid/premium tiers each represented rather than just one
 # model. Swap in whatever you actually use — any OpenRouter model id works

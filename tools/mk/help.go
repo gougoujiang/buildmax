@@ -239,7 +239,7 @@ func helpTopics() []helpTopic {
 			usage:   "lint",
 			summary: "Run the pinned golangci-lint and govulncheck.",
 			details: []string{
-				"Both run through `go run` at the version pinned in cmd/mk, which is the\n" +
+				"Both run through `go run` at the version pinned in tools/mk, which is the\n" +
 					"version CI runs, so a locally installed linter cannot drift from the gate.\n" +
 					"The rule set is .golangci.yml. `" + mk() + " check go` ends with this command.",
 			},

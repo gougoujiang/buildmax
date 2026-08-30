@@ -165,7 +165,7 @@ The Go in `go.mod` and git are enough for `./make doctor`, `./make build cli`,
 `./make test`, and `./make check go` — a complete Go contribution loop. Anything
 that builds a frontend needs the Node in `.node-version` as well: `./make build`,
 `./make check ci`, and `./make run portal`. On Windows use `make.bat` with the
-same commands — both forward to the Go task runner in `cmd/mk`. `./make help`
+same commands — both forward to the Go task runner in `tools/mk`. `./make help`
 lists every command, grouped by what it is for, with the contributor path under
 it, and `./make help <command>` — or `<command> --help` — shows one command's
 arguments and examples. None of build, test, check, or lint needs a model API

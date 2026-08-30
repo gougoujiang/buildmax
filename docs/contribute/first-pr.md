@@ -18,7 +18,7 @@ cd buildmax
 ```
 
 On Windows, use `make.bat build cli`. `./make` is not GNU make — it is a
-one-line shim around the Go task runner in `cmd/mk`, so every platform runs the
+one-line shim around the Go task runner in `tools/mk`, so every platform runs the
 same task code. `./make help` lists every command, from the daily ones to the
 deployment and release tasks, and `./make help <command>` explains one command
 in full.

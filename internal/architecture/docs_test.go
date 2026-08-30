@@ -357,15 +357,15 @@ func TestWorkspaceAgentConfigLoadsWithRuntimeParsers(t *testing.T) {
 		t.Fatalf("load workspace MCP config: %v", err)
 	}
 	if mcpConfig == nil || len(mcpConfig.MCPServers) != 1 {
-		t.Fatalf("workspace MCP servers = %v, want only local-test", mcpConfig)
+		t.Fatalf("workspace MCP servers = %v, want only mcp", mcpConfig)
 	}
-	server, ok := mcpConfig.MCPServers["local-test"]
+	server, ok := mcpConfig.MCPServers["mcp"]
 	if !ok {
-		t.Fatal("workspace MCP config did not load local-test")
+		t.Fatal("workspace MCP config did not load mcp")
 	}
-	wantServerPath := filepath.Join(root, "cmd", "local-test-mcp-server")
+	wantServerPath := filepath.Join(root, "tools", "mcp")
 	if len(server.Args) != 2 || server.Args[0] != "run" || filepath.Clean(server.Args[1]) != wantServerPath {
-		t.Fatalf("local-test args = %v, want [run %s]", server.Args, wantServerPath)
+		t.Fatalf("mcp args = %v, want [run %s]", server.Args, wantServerPath)
 	}
 }
 
@@ -378,7 +378,7 @@ func TestWorkspaceAgentConfigLoadsWithRuntimeParsers(t *testing.T) {
 // so a list cannot quietly become a permanent exemption for something already
 // repaired.
 
-// staleMakeCommands is documented `./make` usage that cmd/mk does not dispatch.
+// staleMakeCommands is documented `./make` usage that tools/mk does not dispatch.
 var staleMakeCommands = map[string]string{}
 
 var documentedMakeCommandRe = regexp.MustCompile(`(?:\./make|make\.bat) ([a-z][a-z0-9-]*)`)
@@ -412,28 +412,28 @@ func TestDocumentedMakeCommandsExist(t *testing.T) {
 				seen[key] = true
 				continue
 			}
-			t.Errorf("%s documents `./make %s`, which cmd/mk does not dispatch", rel, m[1])
+			t.Errorf("%s documents `./make %s`, which tools/mk does not dispatch", rel, m[1])
 		}
 	}
 	assertAllReported(t, "staleMakeCommands", staleMakeCommands, seen)
 }
 
-// taskRunnerCommands reads the names cmd/mk dispatches. The switch is bounded
+// taskRunnerCommands reads the names tools/mk dispatches. The switch is bounded
 // first: the file holds other switches whose cases are not commands.
 func taskRunnerCommands(t *testing.T, root string) map[string]bool {
 	t.Helper()
-	body, err := os.ReadFile(filepath.Join(root, "cmd", "mk", "main.go"))
+	body, err := os.ReadFile(filepath.Join(root, "tools", "mk", "main.go"))
 	if err != nil {
-		t.Fatalf("read cmd/mk/main.go: %v", err)
+		t.Fatalf("read tools/mk/main.go: %v", err)
 	}
 	const marker = "switch args[0] {"
 	start := strings.Index(string(body), marker)
 	if start < 0 {
-		t.Fatalf("cmd/mk/main.go has no %q; this test can no longer find the command list", marker)
+		t.Fatalf("tools/mk/main.go has no %q; this test can no longer find the command list", marker)
 	}
 	end := strings.Index(string(body)[start:], "\n\t}\n")
 	if end < 0 {
-		t.Fatal("cmd/mk/main.go: the dispatch switch does not close where expected")
+		t.Fatal("tools/mk/main.go: the dispatch switch does not close where expected")
 	}
 	names := map[string]bool{}
 	for _, m := range regexp.MustCompile(`case "([a-z][a-z0-9-]*)"`).

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # BuildMax cross-platform task runner shim.
-# Shim for the task runner. Every task lives in cmd/mk (Go) so that macOS,
+# Shim for the task runner. Every task lives in tools/mk (Go) so that macOS,
 # Linux, and Windows contributors run the same code; make.bat is the same shim
 # for cmd.exe. Run `./make help` for the command list.
 set -e
@@ -23,4 +23,4 @@ if ! command -v go >/dev/null 2>&1; then
 	exit 1
 fi
 
-exec go run ./cmd/mk "$@"
+exec go run ./tools/mk "$@"

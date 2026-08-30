@@ -77,6 +77,11 @@ server, agentapp, or interface packages. `internal/config` loads files and
 environment only; it does not assemble infrastructure. These boundaries are
 enforced by tests under `internal/architecture`.
 
+`cmd/` holds the entry points of the binaries that ship. Everything that only
+builds or tests the repository — the task runner, the evaluation runner, the
+test MCP server — lives in `tools/`, which nothing under `cmd/` or `internal/`
+may import. A tool may reach the other way into `internal/`.
+
 Within that direction, a package is an ownership boundary: it owns a business
 capability or one precise infrastructure concern, and every state transition,
 validation rule, and authorization decision has exactly one authoritative
@@ -139,7 +144,7 @@ Read the relevant architecture document before making a cross-package change:
   `<BUILDMAX_HOME>/server.yaml`. The default data directory is `~/.buildmax`.
   A contributor's own repository configuration is separate and lives in one
   gitignored `.local/` directory, created by `./make setup local` from the
-  committed templates; `cmd/mk/local.go` is the source of truth for what is in
+  committed templates; `tools/mk/local.go` is the source of truth for what is in
   it. `deployment/compose/.env` is the one local file outside it, because
   Compose reads it from the compose file's own directory.
 - The system prompt is four additive layers: the runtime prompt, an optional
@@ -235,7 +240,7 @@ what a task and a bundle hold,
 and [`evaluation/harbor/README.md`](evaluation/harbor/README.md) for the
 external target.
 
-On Windows use `make.bat`. Add or change commands under `cmd/mk`; the `make`
+On Windows use `make.bat`. Add or change commands under `tools/mk`; the `make`
 and `make.bat` files remain one-line shims. Do not introduce a parallel shell
 script workflow.
 

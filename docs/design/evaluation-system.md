@@ -765,7 +765,7 @@ in section 15.3 and resolves choices section 15.4 delegated to the slice.
 |---|---|
 | `eval/001-read-summarize` … `eval/013-worker-pool` | Deleted. A few may be recreated later as low-value smoke cases under the new contract |
 | `internal/agenteval` | Deleted, formats included |
-| `cmd/buildmax-eval` | Rewritten as the entry point for the new contract and runner |
+| `tools/eval` | Rewritten as the entry point for the new contract and runner |
 | `./make eval` | Rewritten to dispatch the new runner; defaults to CLI tasks, with worker and all-surface runs selected explicitly |
 
 Four defects justify replacement rather than extension, and they are more specific than
@@ -900,7 +900,7 @@ adapter answering its own model would report on the mock rather than on the subj
 | 1. Contract — **done** | `evaluation/contract`: versioned task, subject manifest, trial bundle, grader result, and experiment types with the failure taxonomy, in Go against the standard library alone per section 15.3; the trace audit above recorded in the repository | The physical trial-bundle encoding, settled on a directory in section 15.4; section 20 items 2 and 3 |
 | 2. CLI adapter — **done** | `trace_id`/`trace_path` in the print envelope; subject-built trial home; the hidden-grader boundary; deterministic state and trace graders; one canonical trial bundle per attempt | The contract holds for a real execution path: `evaluation/adapter` runs the built binary against a scripted model and returns a gradable bundle |
 | 3. Experiment — **done** | Repetition, paired baseline comparison, uncertainty, failure classification, preflight, and a local report; the mockllm pull-request gate | Section 15.3's Go controller holds: repetition, limits, cancellation, and the statistics came to roughly 700 lines with no new dependency. The report renderer is written rather than imported |
-| 4. Retirement — **done** | `eval/` and `internal/agenteval` deleted; `cmd/buildmax-eval` rewritten around the contract rather than removed, since the entry point is still where a run starts; `./make eval` defaults to the CLI, while worker tasks are opt-in | The last roadmap acceptance criterion |
+| 4. Retirement — **done** | `eval/` and `internal/agenteval` deleted; `tools/eval` rewritten around the contract rather than removed, since the entry point is still where a run starts; `./make eval` defaults to the CLI, while worker tasks are opt-in | The last roadmap acceptance criterion |
 | 5. Harbor adapter — **done** | `evaluation/harbor`: pinned harness, dataset ref, and adapter version; the Python custom-Agent that uploads the built CLI into a task container and runs one prompt; the importer that files a finished job as trial bundles; `./make doctor harbor` and `./make eval harbor` | The contract holds for an external harness whose verifier BuildMax does not own. The oracle smoke passed 5/5 and a one-task canary ran end to end and imported, so the adapter drives the real harness for one task. It says nothing about the other 88, about repeated attempts, or about a score |
 | 6. Canary run and comparison — **open** | The canary subset is pinned in `pins.json` and `--canary` selects it; running it is open, then the full 89 tasks at five attempts under the leaderboard's unmodified resource and timeout policy, and a baseline comparison against Harbor's reference agent | How BuildMax compares. One passing task is not a measurement |
 

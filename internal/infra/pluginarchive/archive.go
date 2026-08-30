@@ -332,7 +332,7 @@ func writeFile(r io.Reader, target string, mode fs.FileMode, lim Limits, written
 // it the write below is reported as using an unsanitized archive entry. The
 // shape matters as much as the check: one string return, and refusals returned
 // directly rather than through a helper, or the query stops following it. The
-// same note is on archiveDestination in cmd/mk/release_archive.go, which
+// same note is on archiveDestination in tools/mk/release_archive.go, which
 // reached this the same way.
 func archiveDestination(root, name string, maxLen int) (string, error) {
 	if len(name) > maxLen {

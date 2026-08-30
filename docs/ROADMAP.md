@@ -307,7 +307,7 @@ capability. Framework selection is deliberately downstream of that slice; see
 Code state: **partly shipped**. `evaluation/contract`, the black-box CLI and
 worker adapters, deterministic/command/trace graders, preflight, repeated and
 paired experiments, and three representative tasks are implemented.
-`cmd/buildmax-eval` is the entry point for that contract; the old `eval/`
+`tools/eval` is the entry point for that contract; the old `eval/`
 catalog and `internal/agenteval` are deleted.
 
 `evaluation/harbor` adds the external Terminal-Bench 2.1 target: pinned harness,

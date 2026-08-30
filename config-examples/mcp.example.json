@@ -35,7 +35,7 @@
     "project-tools": {
       "type": "stdio",
       "command": "go",
-      "args": ["run", "${WORKSPACE_ROOT}/cmd/local-test-mcp-server"]
+      "args": ["run", "${WORKSPACE_ROOT}/tools/mcp"]
     },
 
     "internal-api": {

@@ -23,7 +23,7 @@ const (
 	serverBinary  = "buildmax-server"
 	workerBinary  = "buildmax-worker"
 	desktopBinary = "buildmax-desktop"
-	evalBinary    = "buildmax-eval"
+	evalBinary    = "eval"
 
 	binDir     = "bin"
 	desktopDir = "cmd/buildmax-desktop"

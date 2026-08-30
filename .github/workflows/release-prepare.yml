@@ -63,7 +63,7 @@ jobs:
             fi
           fi
 
-          echo "version=$(go run ./cmd/mk release next)" >> "$GITHUB_OUTPUT"
+          echo "version=$(go run ./tools/mk release next)" >> "$GITHUB_OUTPUT"
           echo "ready=true" >> "$GITHUB_OUTPUT"
 
       - name: Fold the changelog on a release branch
@@ -74,8 +74,8 @@ jobs:
         run: |
           remote_sha=$(git ls-remote --heads origin refs/heads/release/next | awk '{print $1}')
           git switch -C release/next
-          go run ./cmd/mk changelog release "${VERSION#v}"
-          go run ./cmd/mk release notes "$VERSION" -o .artifacts/release-notes.md
+          go run ./tools/mk changelog release "${VERSION#v}"
+          go run ./tools/mk release notes "$VERSION" -o .artifacts/release-notes.md
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

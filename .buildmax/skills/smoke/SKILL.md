@@ -390,14 +390,14 @@ tool the surface does not register — see "Which Tools Exist Where" above.
 - Stop it with `JobStop` and clean up `smoke-test-tmp/`.
 
 ### M0: LoadMcpTools lists the workspace server's tools
-- Call `LoadMcpTools` with `server=local-test`
+- Call `LoadMcpTools` with `server=mcp`
 - **Pass** if the result names the `echo`, `text_stats`, and `sum_numbers`
   tools
 - The server is started with `go run`, so the first call may take several
   seconds.
 
 ### M1: CallMcpTool calls through the gateway
-- Call `CallMcpTool` with `server=local-test`, `tool_name=echo`,
+- Call `CallMcpTool` with `server=mcp`, `tool_name=echo`,
   `arguments={"message": "smoke-mcp-ok"}`
 - **Pass** if the result contains `smoke-mcp-ok`
 - The `echo` tool declares no `readOnlyHint`, so it counts as a write:

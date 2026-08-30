@@ -13,8 +13,8 @@ import (
 	"testing"
 )
 
-// changelogCategories mirrors cmd/mk. They are declared twice rather than
-// shared because a package under internal/ that cmd/mk imported would make the
+// changelogCategories mirrors tools/mk. They are declared twice rather than
+// shared because a package under internal/ that tools/mk imported would make the
 // task runner part of the application's dependency graph.
 var changelogCategories = map[string]bool{
 	"added": true, "changed": true, "fixed": true, "security": true,

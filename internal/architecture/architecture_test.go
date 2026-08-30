@@ -167,12 +167,14 @@ var testOnlyPackages = []string{
 
 // The rule covers cmd/ and deployment/ as well as internal/, because "must not
 // ship" is a statement about the binaries, and those are where they are built.
+// tools/ ships nothing, but a build-and-test tool that reached for the mock
+// would be testing itself rather than the repository.
 //
 // evaluation/ is listed even though it ships nothing. Its tests drive the real
 // binary against a scripted model and so import mockllm legitimately — test
 // files are skipped below — but its runner and adapters must reach a real
 // subject. An evaluation that answered its own model would report on the mock.
-var testOnlyImportTrees = []string{"internal", "cmd", "deployment", "evaluation"}
+var testOnlyImportTrees = []string{"internal", "cmd", "tools", "deployment", "evaluation"}
 
 // deployment/smoke exists only to make a smoke deterministic and is never
 // released, so it is where a test-only import is the point rather than a
@@ -197,6 +199,29 @@ func TestTestOnlyPackagesStayInTests(t *testing.T) {
 						t.Errorf("%s is not a test file but imports test-only package %s",
 							rel(root, path), importPath)
 					}
+				}
+			}
+		}
+	}
+}
+
+// TestShippedCodeDoesNotImportTools holds the cmd//tools split. tools/ is
+// build and test tooling: nothing releases it, so an import from a shipped
+// binary would put a build tool's dependencies into a distributed artifact
+// that go-licenses does not even scan. The reverse is fine and used --
+// tools/eval reads internal/ to drive the CLI it measures.
+func TestShippedCodeDoesNotImportTools(t *testing.T) {
+	root := moduleRoot(t)
+	const toolsPkg = "github.com/gougoujiang/buildmax/tools"
+	for _, tree := range []string{"cmd", "internal"} {
+		for _, path := range goFiles(t, filepath.Join(root, tree)) {
+			for _, imp := range parseFile(t, path).Imports {
+				importPath, err := strconv.Unquote(imp.Path.Value)
+				if err != nil {
+					t.Fatalf("unquote import in %s: %v", path, err)
+				}
+				if strings.HasPrefix(importPath, toolsPkg+"/") {
+					t.Errorf("%s imports %s; tools/ is not shipped", rel(root, path), importPath)
 				}
 			}
 		}

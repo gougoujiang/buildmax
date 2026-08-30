@@ -426,7 +426,7 @@ func cmdEval(args []string) error {
 			}
 		}
 		out := filepath.Join(binDir, exe(evalBinary))
-		if err := runCmd("go", "build", "-ldflags", ldflags(), "-o", out, "./cmd/buildmax-eval"); err != nil {
+		if err := runCmd("go", "build", "-ldflags", ldflags(), "-o", out, "./tools/eval"); err != nil {
 			return err
 		}
 		return runCmd(out, args...)
@@ -448,7 +448,7 @@ func cmdEval(args []string) error {
 		}
 	}
 	out := filepath.Join(binDir, exe(evalBinary))
-	if err := runCmd("go", "build", "-ldflags", ldflags(), "-o", out, "./cmd/buildmax-eval"); err != nil {
+	if err := runCmd("go", "build", "-ldflags", ldflags(), "-o", out, "./tools/eval"); err != nil {
 		return err
 	}
 

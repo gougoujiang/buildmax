@@ -13,7 +13,7 @@ import (
 	"github.com/gougoujiang/buildmax/evaluation/runner"
 )
 
-const harborRunUsage = `usage: buildmax-eval harbor run --model <provider/model> [flags] [harbor flags]
+const harborRunUsage = `usage: eval harbor run --model <provider/model> [flags] [harbor flags]
 
 Run the pinned Terminal-Bench target through Harbor, then import the job.
 
@@ -142,7 +142,7 @@ func runHarborBenchmark(args []string) error {
 		return runErr
 	}
 	if opt.noImport {
-		fmt.Printf("import it with: buildmax-eval harbor --job %s\n", jobDir)
+		fmt.Printf("import it with: eval harbor --job %s\n", jobDir)
 		return runErr
 	}
 	if err := importFinishedJob(jobDir, imp, pins); err != nil {

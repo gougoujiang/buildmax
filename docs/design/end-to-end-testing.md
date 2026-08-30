@@ -46,7 +46,7 @@
   batching the model harness must be able to script — see §4 and §6
 - relates: [llm-provider-adapters.md](./llm-provider-adapters.md) — the three
   wire protocols the harness has to serve
-- touches: `internal/testsupport`, `deployment/smoke/mock-llm`, `cmd/mk`,
+- touches: `internal/testsupport`, `deployment/smoke/mock-llm`, `tools/mk`,
   `portal/e2e`, `internal/interface/cli`, `.github/workflows`
 - created_at: `2026-08-21`
 
@@ -207,7 +207,7 @@ Every local E2E suite must meet these conditions.
 | Test data | Fixture helpers create the minimum account, role, team, project, and content through public boundaries where practical. They clean up what they create, or report an exact safe cleanup target when a deployment must retain evidence. |
 | Lifecycle | A suite can either attach to a named running deployment for diagnosis or own its disposable local deployment lifecycle. The command must say which mode it chose. |
 | Diagnostics | On failure retain Playwright traces/screenshots, command output, redacted server/worker logs, the model scenario and the transcript it produced, and a short reproduction command under one predictable artifact directory. |
-| Portability | Add task-runner commands under `cmd/mk`; do not create an OS-specific shell-script testing path. Platform-specific native Desktop smoke is an explicit exception and reports its unsupported platforms. |
+| Portability | Add task-runner commands under `tools/mk`; do not create an OS-specific shell-script testing path. Platform-specific native Desktop smoke is an explicit exception and reports its unsupported platforms. |
 | Time | Each suite declares a normal duration and a timeout, and holds to the budget in §5.1. A failed preflight names the missing dependency or service rather than timing out later in a browser assertion. |
 | Naming | A command name states what it is. `smoke` meant three different things — a model-driven skill run, a deterministic deployment check, and a future CLI suite — so the model-driven one is now `./make agent-smoke` and announces its API-key requirement in preflight. |
 

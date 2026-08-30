@@ -8,14 +8,14 @@ import (
 	"testing"
 )
 
-// kindSeedFlagRe matches a flag literal in cmd/mk's `model add` command line.
+// kindSeedFlagRe matches a flag literal in tools/mk's `model add` command line.
 var kindSeedFlagRe = regexp.MustCompile(`"(--[a-z][a-z0-9-]*)"`)
 
 // modelAddFlagRe matches a flag the add command defines.
 var modelAddFlagRe = regexp.MustCompile(`fs\.(?:String|Int|Bool)\("([a-z][a-z0-9-]*)"`)
 
 // TestKindSeedFlagsExist holds the task runner's model seeding against the
-// command it drives. cmd/mk depends only on the standard library, so it cannot
+// command it drives. tools/mk depends only on the standard library, so it cannot
 // import the flag set and the two drift apart silently: `model add` parses with
 // flag.ContinueOnError, which means a flag it no longer defines fails the whole
 // seed rather than being ignored. This caught `--prompt-cache`, left behind
@@ -23,18 +23,18 @@ var modelAddFlagRe = regexp.MustCompile(`fs\.(?:String|Int|Bool)\("([a-z][a-z0-9
 func TestKindSeedFlagsExist(t *testing.T) {
 	root := repoRoot(t)
 
-	seed, err := os.ReadFile(filepath.Join(root, "cmd", "mk", "kind_seed.go"))
+	seed, err := os.ReadFile(filepath.Join(root, "tools", "mk", "kind_seed.go"))
 	if err != nil {
-		t.Fatalf("read cmd/mk/kind_seed.go: %v", err)
+		t.Fatalf("read tools/mk/kind_seed.go: %v", err)
 	}
 	const marker = "func kindCatalogModelArgs("
 	start := strings.Index(string(seed), marker)
 	if start < 0 {
-		t.Fatalf("cmd/mk/kind_seed.go has no %q; this test can no longer find the command line", marker)
+		t.Fatalf("tools/mk/kind_seed.go has no %q; this test can no longer find the command line", marker)
 	}
 	end := strings.Index(string(seed)[start:], "\n}\n")
 	if end < 0 {
-		t.Fatal("cmd/mk/kind_seed.go: kindCatalogModelArgs does not close where expected")
+		t.Fatal("tools/mk/kind_seed.go: kindCatalogModelArgs does not close where expected")
 	}
 
 	admin, err := os.ReadFile(filepath.Join(root, "internal", "bootstrap", "model_admin.go"))
@@ -53,7 +53,7 @@ func TestKindSeedFlagsExist(t *testing.T) {
 	for _, m := range kindSeedFlagRe.FindAllStringSubmatch(string(seed)[start:start+end], -1) {
 		emitted[m[1]] = true
 		if !defined[m[1]] {
-			t.Errorf("cmd/mk passes %s to `model add`, which does not define it", m[1])
+			t.Errorf("tools/mk passes %s to `model add`, which does not define it", m[1])
 		}
 	}
 	if len(emitted) < 5 {

@@ -15,7 +15,7 @@ import (
 // needs `./make test` to work. That leaves mk with its own reader for the pin
 // file, and this is what stops the two from disagreeing.
 //
-// A test file is allowed the import the command is not: `go run ./cmd/mk` does
+// A test file is allowed the import the command is not: `go run ./tools/mk` does
 // not compile _test.go, so the guard costs the runner nothing.
 func TestTheTaskRunnerReadsTheSamePinsAsEvaluation(t *testing.T) {
 	authoritative, err := harbor.LoadPins(filepath.Join("..", "..", harborPinsPath))

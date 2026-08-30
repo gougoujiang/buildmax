@@ -3,7 +3,7 @@
 //
 // These ran as scripts/gen-third-party-notices.sh and
 // scripts/check-npm-licenses.mjs until they moved here. The shell half could
-// not run on native Windows, and the whole point of cmd/mk is that every
+// not run on native Windows, and the whole point of tools/mk is that every
 // contributor runs the same task code. Both still depend only on the standard
 // library.
 package main

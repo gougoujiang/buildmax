@@ -1,9 +1,9 @@
 {
   "mcpServers": {
-    "local-test": {
+    "mcp": {
       "type": "stdio",
       "command": "go",
-      "args": ["run", "${WORKSPACE_ROOT}/cmd/local-test-mcp-server"],
+      "args": ["run", "${WORKSPACE_ROOT}/tools/mcp"],
       "env": {
         "MCP_DEMO_CUSTOM": "$BUILDMAX_MCP_CUSTOM"
       }

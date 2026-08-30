@@ -33,7 +33,7 @@ package whose code reads those paths gives itself a `TestMain` calling
 
 | You changed | Run |
 |---|---|
-| Anything in `internal/`, `cmd/` | `./make test` |
+| Anything in `internal/`, `cmd/`, `tools/` | `./make test` |
 | The agent loop, tools, permissions, sessions, the TUI | `./make test`, then `./make e2e cli` |
 | Plugins, packaging, or the Marketplace routes | `./make test`, then `./make e2e cli` |
 | The Desktop bridge, its events, approvals, or session history | `./make e2e desktop` |

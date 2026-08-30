@@ -11,7 +11,7 @@
 - Docker with at least 6 GB available
 - kubectl
 
-kind itself is not a prerequisite: `cmd/mk` pins it and runs it through
+kind itself is not a prerequisite: `tools/mk` pins it and runs it through
 `go run`, so every cluster is created, inspected, and deleted by the same
 version. The command does not install system packages or start background
 port-forwards. It always addresses the selected cluster through an explicit
@@ -35,7 +35,7 @@ This creates the `buildmaxdev` cluster, then:
    its artifact through the API
 
 The cluster config and the dependency manifests it applies live in
-`deployment/kind/`; the orchestration is `cmd/mk/kind.go`. They are
+`deployment/kind/`; the orchestration is `tools/mk/kind.go`. They are
 development-only and are not part of a real deployment.
 
 Open <http://localhost:8080>. Portal and API share that origin, so no
