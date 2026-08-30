@@ -502,3 +502,4 @@ features wait for evidence from these steps or a concrete deployment partner.
 - [design/graceful-shutdown.md](design/graceful-shutdown.md) — P3 shutdown ladder for server, scheduler, and worker
 - [design/team-governance.md](design/team-governance.md) — P4 Team governance design
 - [design/system-administration.md](design/system-administration.md) — P4 Deployment-scoped system administration design
+- [design/team-membership-lifecycle.md](design/team-membership-lifecycle.md) — R3 team invitation, role change, ownership transfer, and member-scoped access recovery
