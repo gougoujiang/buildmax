@@ -25,8 +25,8 @@ type harborOptions struct {
 	seed         uint64
 }
 
-const harborUsage = `usage: buildmax-eval harbor --job <dir> [flags]
-       buildmax-eval harbor run --model <provider/model> [flags]
+const harborUsage = `usage: eval harbor --job <dir> [flags]
+       eval harbor run --model <provider/model> [flags]
 
 Import a finished Harbor job as BuildMax trial bundles and report it. The run
 form starts the benchmark first and imports the job it produced.

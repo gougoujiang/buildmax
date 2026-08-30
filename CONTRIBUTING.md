@@ -117,7 +117,7 @@ running the agent yourself and `./make eval`.
 
 That table is the whole list. Several tools a contributor might expect to
 install — golangci-lint, govulncheck, actionlint, gitleaks, go-licenses,
-GoReleaser, kind, and the Wails CLI — are pinned in [`cmd/mk`](cmd/mk) and run
+GoReleaser, kind, and the Wails CLI — are pinned in [`tools/mk`](tools/mk) and run
 through `go run`, so the version you get is the version CI runs and there is
 nothing to keep up to date.
 
@@ -145,7 +145,7 @@ pinned by `go.mod` through Go.
 ## Build, Test, and Run
 
 The root `./make` script is the primary local workflow — on Windows, `make.bat`.
-Both are one-line shims around the task runner in [`cmd/mk`](cmd/mk), so every
+Both are one-line shims around the task runner in [`tools/mk`](tools/mk), so every
 platform runs the same code. Run `./make setup local` once in a fresh clone: it
 creates `.local/`, the one gitignored directory holding your own configuration,
 and prints what is left to fill in.
@@ -173,7 +173,7 @@ every task automatically.
 `./make help` lists every command — development, advanced, deployment, and
 release — with the common contributor path under it; `./make help <command>`,
 which `<command> --help` also reaches, shows that command's arguments, examples,
-and caveats. To add or change a command, edit `cmd/mk` rather than the shims — a
+and caveats. To add or change a command, edit `tools/mk` rather than the shims — a
 new command belongs in the help tables and needs a page of its own, which a test
 enforces.
 

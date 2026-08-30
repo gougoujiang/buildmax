@@ -144,7 +144,7 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      # No kind install step: ./make runs the version cmd/mk pins.
+      # No kind install step: ./make runs the version tools/mk pins.
       - name: Run deployment smoke
         run: ./make kind up
       # The browser tests run against the stack the smoke just brought up.

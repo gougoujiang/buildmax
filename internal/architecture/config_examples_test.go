@@ -188,7 +188,7 @@ func TestMCPExampleLoads(t *testing.T) {
 	}
 	for id, s := range cfg.MCPServers {
 		for _, arg := range s.Args {
-			if strings.Contains(arg, "cmd/local-test-mcp-server") && !strings.HasPrefix(arg, dir) {
+			if strings.Contains(arg, "tools/mcp") && !strings.HasPrefix(arg, dir) {
 				t.Errorf("%s: %q did not expand against the workspace root; check the variable name", id, arg)
 			}
 		}

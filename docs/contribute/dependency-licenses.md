@@ -42,7 +42,7 @@ build runs `portal/scripts/collect-notices.mjs`, which concatenates the
 license text of every production dependency in the `gui` and `portal`
 lockfiles into `third-party-notices.txt`, served at the site root next to the
 bundle it attributes. That script is the npm counterpart of
-`./make release notices`; it lives in node rather than `cmd/mk` because it
+`./make release notices`; it lives in node rather than `tools/mk` because it
 runs inside the image build stage, which has `node_modules` and no Go
 toolchain. Regenerate locally with:
 
@@ -101,7 +101,7 @@ go install github.com/google/go-licenses@v1.6.0
 
 The document must be reproducible: the same dependency set has to produce the
 same bytes, so modules are concatenated in byte order and the header is fixed.
-`TestWriteNoticesBytes` and `TestLicenseFilesSortedByByteOrder` in `cmd/mk` hold
+`TestWriteNoticesBytes` and `TestLicenseFilesSortedByByteOrder` in `tools/mk` hold
 that contract.
 
 `go-licenses` v1.6.0 fails to resolve the standard library when `GOROOT` points
@@ -111,5 +111,5 @@ matching Go release normally, or generate the file in a container:
 
 ```bash
 docker run --rm -v "$PWD:/repo" -w /repo golang:1.26.6 bash -c \
-  'go install github.com/google/go-licenses@v1.6.0 && PATH=$PATH:$(go env GOPATH)/bin go run ./cmd/mk release notices'
+  'go install github.com/google/go-licenses@v1.6.0 && PATH=$PATH:$(go env GOPATH)/bin go run ./tools/mk release notices'
 ```

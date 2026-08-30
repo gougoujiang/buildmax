@@ -18,7 +18,7 @@ func TestCommandsRejectUnknownArgumentsBeforeRunning(t *testing.T) {
 	}
 	// Silently widening to ./... is worse than refusing: the run still passes,
 	// so the ordering mistake is only visible in the minutes it took.
-	if err := cmdTest([]string{"-run", "TestFileValue", "./cmd/mk"}); err == nil {
+	if err := cmdTest([]string{"-run", "TestFileValue", "./tools/mk"}); err == nil {
 		t.Fatal("cmdTest accepted a package after a flag")
 	}
 	if err := cmdCheck([]string{"unknown"}); err == nil {
@@ -381,7 +381,7 @@ func TestCIToolPinsMatchWorkflow(t *testing.T) {
 		module, _, _ := strings.Cut(pkg, "@")
 		match := regexp.MustCompile(regexp.QuoteMeta(module) + `@[^\s"']+`).FindString(workflow)
 		if match == "" {
-			t.Errorf("ci.yml no longer runs %s; drop or update the pin in cmd/mk", module)
+			t.Errorf("ci.yml no longer runs %s; drop or update the pin in tools/mk", module)
 			continue
 		}
 		_, version, _ := strings.Cut(match, "@")
@@ -394,7 +394,7 @@ func TestCIToolPinsMatchWorkflow(t *testing.T) {
 			version = resolved
 		}
 		if got := module + "@" + version; got != pkg {
-			t.Errorf("cmd/mk pins %s; ci.yml runs %s", pkg, got)
+			t.Errorf("tools/mk pins %s; ci.yml runs %s", pkg, got)
 		}
 	}
 }
@@ -422,13 +422,13 @@ func TestGoReleaserPinMatchesWorkflows(t *testing.T) {
 		}
 		for _, match := range matches {
 			if match[1] != goreleaserVersion {
-				t.Errorf("%s pins GoReleaser %s; cmd/mk reports %s", path, match[1], goreleaserVersion)
+				t.Errorf("%s pins GoReleaser %s; tools/mk reports %s", path, match[1], goreleaserVersion)
 			}
 		}
 	}
 }
 
-// kind runs from cmd/mk's pin, so no workflow needs to install it. A step that
+// kind runs from tools/mk's pin, so no workflow needs to install it. A step that
 // does is either redundant or, worse, a second version that creates the cluster
 // the pinned one then inspects — so any pin that reappears must match.
 func TestNoWorkflowInstallsADifferentKind(t *testing.T) {
@@ -444,7 +444,7 @@ func TestNoWorkflowInstallsADifferentKind(t *testing.T) {
 		}
 		for _, match := range regexp.MustCompile(`sigs\.k8s\.io/kind@(\S+)`).FindAllStringSubmatch(string(body), -1) {
 			if match[1] != want {
-				t.Errorf("%s installs kind %s; cmd/mk pins %s", filepath.Base(path), match[1], want)
+				t.Errorf("%s installs kind %s; tools/mk pins %s", filepath.Base(path), match[1], want)
 			}
 		}
 	}
@@ -608,8 +608,8 @@ func TestSplitTestTargetsKeepsFlagValuesOutOfPackages(t *testing.T) {
 		{name: "nothing"},
 		{name: "one package", args: []string{"./internal/config"}, packages: "./internal/config"},
 		{name: "package without prefix", args: []string{"internal/config"}, packages: "internal/config"},
-		{name: "two packages", args: []string{"./internal/config", "./cmd/mk"}, packages: "./internal/config ./cmd/mk"},
-		{name: "package then flag", args: []string{"./cmd/mk", "-run", "TestFileValue"}, packages: "./cmd/mk", flags: "-run TestFileValue"},
+		{name: "two packages", args: []string{"./internal/config", "./tools/mk"}, packages: "./internal/config ./tools/mk"},
+		{name: "package then flag", args: []string{"./tools/mk", "-run", "TestFileValue"}, packages: "./tools/mk", flags: "-run TestFileValue"},
 		{name: "subtest pattern is a flag value", args: []string{"-run", "Test/Sub"}, flags: "-run Test/Sub"},
 		{name: "flag only", args: []string{"-v"}, flags: "-v"},
 		{name: "the all pattern", args: []string{"all"}, packages: "all"},
@@ -733,7 +733,7 @@ func TestPackageAfterFlagLeavesFlagValuesAlone(t *testing.T) {
 		flags []string
 		want  string
 	}{
-		{name: "a package after a flag", flags: []string{"-run", "TestX", "./cmd/mk"}, want: "./cmd/mk"},
+		{name: "a package after a flag", flags: []string{"-run", "TestX", "./tools/mk"}, want: "./tools/mk"},
 		{name: "a subtest pattern is a flag value", flags: []string{"-run", "Test/Sub"}},
 		{name: "a bare word is a flag value", flags: []string{"-run", "internal/util"}},
 		{name: "nothing after -args belongs to go test", flags: []string{"-args", "./fixture"}},

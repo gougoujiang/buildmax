@@ -15,7 +15,7 @@ before:
     # Apache-2.0 4(d): the binaries below statically link their dependencies, so
     # every archive and image carries those dependencies' license texts.
     - go install github.com/google/go-licenses@v1.6.0
-    - go run ./cmd/mk release notices
+    - go run ./tools/mk release notices
 
 builds:
   - id: buildmax

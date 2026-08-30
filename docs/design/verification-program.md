@@ -39,7 +39,7 @@ Related records: [Local end-to-end verification](end-to-end-testing.md),
   durable state, and forbidden side effects
 - non-goal: maximizing a repository-wide coverage percentage or putting every
   container, browser, cluster, and real-model test on every pull request
-- touches: `cmd/mk`, `.github/workflows`, `internal/infra/db`,
+- touches: `tools/mk`, `.github/workflows`, `internal/infra/db`,
   `internal/testsupport/mockllm`, `deployment/smoke`, `portal/e2e`,
   `.artifacts`, and contributor testing documentation
 - created_at: `2026-08-30`
@@ -61,7 +61,7 @@ smoke cannot prove that a model reliably uses the behavior. Neither can replace
 an external restore and upgrade exercise.
 
 The program extends the existing task-runner and workflow surfaces. New test
-behavior belongs under `cmd/mk` and existing workflow families; it must not
+behavior belongs under `tools/mk` and existing workflow families; it must not
 introduce a parallel shell-script command surface.
 
 ## 2. Verification Matrix
@@ -140,7 +140,7 @@ Every journey test uses the same assertion structure:
 ### 4.1 Command Surface
 
 Add a named task-runner scope for the real store. The proposed interface is
-`./make test mysql`; the exact spelling must be added through `cmd/mk`, covered
+`./make test mysql`; the exact spelling must be added through `tools/mk`, covered
 by its command-surface tests, documented in `./make help test`, and reflected in
 [../contribute/testing.md](../contribute/testing.md) when it ships.
 

@@ -68,8 +68,8 @@ go.work.sum
 /buildmax-desktop
 /buildmax-server
 /buildmax-worker
-/buildmax-eval
-/local-test-mcp-server
+/eval
+/mcp
 /mk
 
 testing-sandbox/

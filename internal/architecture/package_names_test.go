@@ -50,7 +50,7 @@ var knownContainerNames = map[string]bool{
 // keep the debt, and it should read as one in review.
 func TestNoNewContainerNamedPackages(t *testing.T) {
 	root := moduleRoot(t)
-	for _, tree := range []string{"internal", "cmd", "evaluation"} {
+	for _, tree := range []string{"internal", "cmd", "tools", "evaluation"} {
 		base := filepath.Join(root, tree)
 		if _, err := os.Stat(base); err != nil {
 			continue

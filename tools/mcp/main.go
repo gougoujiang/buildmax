@@ -1,11 +1,11 @@
-// Command local-test-mcp-server is a small MCP server for local testing of BuildMax MCP integration.
+// Command mcp is a small MCP server for local testing of BuildMax MCP integration.
 // Supports stdio (default), SSE, and streamable HTTP transports.
 //
 // Usage:
 //
-//	go run ./cmd/local-test-mcp-server                  # stdio
-//	go run ./cmd/local-test-mcp-server --mode sse --addr :8080
-//	go run ./cmd/local-test-mcp-server --mode streamable-http --addr :8081
+//	go run ./tools/mcp                  # stdio
+//	go run ./tools/mcp --mode sse --addr :8080
+//	go run ./tools/mcp --mode streamable-http --addr :8081
 package main
 
 import (
@@ -26,7 +26,7 @@ func main() {
 	addr := flag.String("addr", ":8080", "listen address for sse or streamable-http modes")
 	flag.Parse()
 
-	srv := mcpsdk.NewServer(&mcpsdk.Implementation{Name: "local-test", Version: "0.0.1"}, nil)
+	srv := mcpsdk.NewServer(&mcpsdk.Implementation{Name: "mcp", Version: "0.0.1"}, nil)
 
 	mcpsdk.AddTool(srv, &mcpsdk.Tool{
 		Name:        "echo",
@@ -158,13 +158,13 @@ func main() {
 		}
 	case "sse":
 		handler := mcpsdk.NewSSEHandler(func(_ *http.Request) *mcpsdk.Server { return srv }, nil)
-		log.Printf("local-test-mcp-server: SSE mode listening on %s", *addr)
+		log.Printf("mcp: SSE mode listening on %s", *addr)
 		if err := http.ListenAndServe(*addr, handler); err != nil {
 			log.Fatal(err)
 		}
 	case "streamable-http":
 		handler := mcpsdk.NewStreamableHTTPHandler(func(_ *http.Request) *mcpsdk.Server { return srv }, nil)
-		log.Printf("local-test-mcp-server: streamable HTTP mode listening on %s", *addr)
+		log.Printf("mcp: streamable HTTP mode listening on %s", *addr)
 		if err := http.ListenAndServe(*addr, handler); err != nil {
 			log.Fatal(err)
 		}

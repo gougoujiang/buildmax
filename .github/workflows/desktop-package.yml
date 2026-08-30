@@ -30,7 +30,7 @@ on:
       - 'desktop/**'
       - 'gui/**'
       - 'internal/interface/desktop/**'
-      - 'cmd/mk/build.go'
+      - 'tools/mk/build.go'
       - 'go.mod'
       - 'go.sum'
       - '.node-version'
@@ -42,7 +42,7 @@ on:
       - 'desktop/**'
       - 'gui/**'
       - 'internal/interface/desktop/**'
-      - 'cmd/mk/build.go'
+      - 'tools/mk/build.go'
       - 'go.mod'
       - 'go.sum'
       - '.node-version'
@@ -94,7 +94,7 @@ jobs:
       - name: Use pinned npm
         run: npm install --global npm@11.17.0
 
-      # Through the task runner, so the shim and cmd/mk are covered with it.
+      # Through the task runner, so the shim and tools/mk are covered with it.
       # `build desktop` builds gui first, which the desktop frontend consumes
       # through a file: dependency.
       - name: Package the desktop app

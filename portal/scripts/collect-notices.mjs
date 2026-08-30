@@ -1,8 +1,8 @@
 // Collect third-party license notices for the Portal image.
 //
-// The Go binaries ship NOTICE-THIRD-PARTY (see cmd/mk/licenses.go); the Portal
+// The Go binaries ship NOTICE-THIRD-PARTY (see tools/mk/licenses.go); the Portal
 // image ships a JavaScript bundle whose npm dependencies carry the same
-// attribution obligation. This lives in node, not cmd/mk, because it runs
+// attribution obligation. This lives in node, not tools/mk, because it runs
 // inside the Docker build stage, which has node_modules and no Go toolchain.
 //
 // It reads each root's package-lock.json, takes every production package

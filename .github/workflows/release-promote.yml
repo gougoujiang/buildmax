@@ -42,12 +42,12 @@ jobs:
             exit 1
           fi
           version=${BASH_REMATCH[1]}
-          expected=$(go run ./cmd/mk release next)
+          expected=$(go run ./tools/mk release next)
           if [[ "$version" != "$expected" ]]; then
             echo "Approved version $version is not the next tag after the current release ($expected)." >&2
             exit 1
           fi
-          go run ./cmd/mk release notes "$version" -o .artifacts/release-notes.md
+          go run ./tools/mk release notes "$version" -o .artifacts/release-notes.md
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Create the annotated tag

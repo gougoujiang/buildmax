@@ -223,7 +223,7 @@ part of the surface:
   `WorkerNeeds` mark in `internal/config/env_spec.go` — a worker that cannot fall
   back has no reason to hold it;
 - the secret from the deployment manifests, `generate-env.sh`, and the kind
-  bootstrap in `cmd/mk`.
+  bootstrap in `tools/mk`.
 
 A `worker.token` left in an old `server.yaml` is now an unread key. The upgrade
 order is the server first: it is what mints the credential the worker presents.

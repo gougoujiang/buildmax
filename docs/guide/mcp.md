@@ -95,7 +95,7 @@ Full detail: [tool-permissions.md](tool-permissions.md).
 Run `/mcp` in the TUI to see connected servers and their status. A server that
 fails to start shows up there rather than failing silently mid-run.
 
-A small test server ships with the repository at `cmd/local-test-mcp-server`,
+A small test server ships with the repository at `tools/mcp`,
 supporting stdio, SSE, and streamable HTTP — useful for verifying an integration
 without a real backend.
 

@@ -51,7 +51,7 @@ jobs:
       # is composed here from the tag's CHANGELOG.md section. A tag with no
       # section fails the release rather than publishing notes without it.
       - name: Compose release notes
-        run: go run ./cmd/mk release notes "${GITHUB_REF_NAME}" -o .artifacts/release-notes.md
+        run: go run ./tools/mk release notes "${GITHUB_REF_NAME}" -o .artifacts/release-notes.md
 
       # The image is scanned before anything is published, so a vulnerable
       # base can only fail the release instead of shipping in it. dockers_v2

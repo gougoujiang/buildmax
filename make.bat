@@ -1,5 +1,5 @@
 @echo off
-rem Shim for the task runner. Every task lives in cmd/mk (Go) so that macOS,
+rem Shim for the task runner. Every task lives in tools/mk (Go) so that macOS,
 rem Linux, and Windows contributors run the same code; ./make is the same shim
 rem for bash. Run `make.bat help` for the command list.
 cd /d "%~dp0"
@@ -18,5 +18,5 @@ echo Install it from https://go.dev/dl/, or run: winget install GoLang.Go 1>&2
 exit /b 1
 
 :run
-go run ./cmd/mk %*
+go run ./tools/mk %*
 exit /b %errorlevel%

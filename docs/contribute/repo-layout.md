@@ -10,7 +10,8 @@
 
 ```text
 buildmax/
-├── cmd/                  Binary entry points (main.go only)
+├── cmd/                  Entry points for the shipped binaries (main.go only)
+├── tools/                Build and test tooling; never shipped
 ├── internal/             All Go implementation
 ├── portal/               Portal web app (React 19 + Vite + TypeScript)
 ├── desktop/frontend/     Desktop frontend (React 19 + Vite); src/lib holds the
@@ -23,7 +24,7 @@ buildmax/
 ├── sample-data/          Seed datasets to upload into a workspace or point the CLI at
 ├── .github/              CI workflows, issue and PR templates, community health files
 ├── .buildmax/            This repository's own workspace agent config — see .buildmax/README.md
-├── make, make.bat        One-line shims around the task runner in cmd/mk
+├── make, make.bat        One-line shims around the task runner in tools/mk
 └── *.md, LICENSE         README, CONTRIBUTING, SECURITY, CHANGELOG, AGENTS
 ```
 
@@ -50,7 +51,7 @@ one binary:
 |---|---|
 | `deployment/docker/` | `Dockerfile.buildmax` (Go binaries from source), `Dockerfile.portal` (Portal via nginx), `Dockerfile.release` (packages GoReleaser's cross-compiled binaries). All three take the **repository root** as their build context. |
 | `deployment/compose/` | Single-machine Compose stack — a **real deployment path**, running published GHCR images; see [deploy/compose.md](../deploy/compose.md) |
-| `deployment/kind/` | Manifests that stand up the **local development** kind cluster — kind config, ingress-nginx, MySQL, MinIO. Never part of a real deployment; applied by `cmd/mk/kind.go` behind `./make kind up`. |
+| `deployment/kind/` | Manifests that stand up the **local development** kind cluster — kind config, ingress-nginx, MySQL, MinIO. Never part of a real deployment; applied by `tools/mk/kind.go` behind `./make kind up`. |
 | `deployment/ocean/` | OpenTofu for the disposable DigitalOcean beta-qualification infrastructure. It reads the persistent Project, VPC, and Spaces bucket and owns only the temporary DOKS and MySQL resources behind `./make ocean`. |
 | `deployment/production/` | The private deployment reference: one plain-YAML manifest written to be read and adapted, plus the dependency contract it assumes. Deliberately not a chart or a kustomize base, so it converts to whatever a cluster is already managed with. Nothing applies it; `internal/architecture` parses it so it cannot rot |
 | `deployment/smoke/` | Overlays and the mock model that make the Compose and kind smokes deterministic |
@@ -67,9 +68,9 @@ smokes.
 
 There is no `scripts/` directory. Repository tooling — release-archive
 verification, third-party notice generation, npm license checks — lives in
-`cmd/mk` as `./make` commands, so every task runs the same way on macOS, Linux,
+`tools/mk` as `./make` commands, so every task runs the same way on macOS, Linux,
 and Windows and is covered by the same tests. CI and GoReleaser invoke those
-commands as `go run ./cmd/mk <task>`, which needs no shell.
+commands as `go run ./tools/mk <task>`, which needs no shell.
 
 ## Nested Go Modules
 
@@ -95,11 +96,31 @@ would need its own `go.mod` for the same reason as the frontends — otherwise
 | `cmd/buildmax-server` | `buildmax-server` | HTTP API + in-process scheduler |
 | `cmd/buildmax-worker` | `buildmax-worker` | Executes one task run, then exits |
 | `cmd/buildmax-desktop` | — | Wails desktop app; embeds `desktop/frontend` |
-| `cmd/buildmax-eval` | `buildmax-eval` | Evaluation runner: measures a built binary against `evaluation/suite/`; dev only, not released |
-| `cmd/local-test-mcp-server` | — | Small MCP server for testing MCP integration |
-| `cmd/mk` | — | Task runner behind `./make` and `make.bat`, plus the repository tooling CI and GoReleaser call; dev only, not released |
 
 Every `cmd/*` package is a thin `main.go` that delegates to `internal/`.
+
+## `tools/`
+
+`tools/` holds the Go programs that build and test this repository. They are the
+same language as the rest of the project so that every task runs on macOS,
+Linux, and Windows without a shell, but they are not part of the product: no
+release builds them, and nothing under `cmd/` or `internal/` may import them.
+The dependency runs one way — a tool may reach into `internal/`, and
+`tools/eval` does, but it measures the CLI as a black box by running
+the built binary.
+
+| Path | Binary | Role |
+|---|---|---|
+| `tools/mk` | — | Task runner behind `./make` and `make.bat`, plus the repository tooling CI and GoReleaser call |
+| `tools/eval` | `eval` | Evaluation runner: measures a built binary against `evaluation/suite/` as a black box |
+| `tools/mcp` | — | Small MCP server, so MCP wiring has something real to connect to in tests and in `/mcp` |
+
+The split from `cmd/` is what "not shipped" is written down as, and
+`go-licenses` reads it that way: it checks `./cmd/...`, because a dependency
+nothing redistributes carries no attribution obligation. Today the scope loses
+nothing either way — every third-party module under `tools/` is already
+reachable from a shipped binary, and `tools/mk` depends on the standard library
+alone.
 
 ## `internal/`
 
