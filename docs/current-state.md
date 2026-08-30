@@ -144,13 +144,20 @@ Both fixes were verified against a real pod carrying the worker's exact
 security context and a `DaemonSet`-delivered profile, not a relaxed
 stand-in: the full `bwrap` invocation `bwrap_linux.go` builds ran a real
 command, correctly confined to the bound workspace and denied a write
-outside it. Not yet done: dispatching a real task whose model turn calls the
-`Bash` tool through the actual server → worker → Job path — the deployment
-smoke's own scenario scripts no tool calls at all
-(`deployment/smoke/mock-llm/main.go`), so its passing has never exercised
-this path and still does not. Wiring a `Bash`-calling scenario into that
-smoke, or a worker-surface evaluation task, so a regression here is caught
-automatically, remains open. The worker container images also now install
+outside it.
+
+An organic run closes the loop: the deployment smoke now arms its mock model
+(`internal/testsupport/mockllm`'s queued one-shot tool-call override, `GET
+/control/requests` to read a tool result back) to make a real dispatched
+task call `Bash` through the actual server → worker → Kubernetes Job path,
+then asserts the *tool result* — not the task's scripted final text, which
+answers the same regardless of what a tool did — shows the command ran and a
+write outside the workspace was denied
+(`tools/mk/deploy_smoke.go`'s `assertWorkerSandboxConfines`). It is not a
+pull-request gate — kind and compose suites never are — but it is free, mock
+model only, and now runs automatically every `./make kind up` or `./make
+compose smoke`, closing the gap that let the bwrap/seccomp break above ship
+unnoticed in the first place. The worker container images also now install
 `bubblewrap` and `socat` in
 [`deployment/docker/Dockerfile.buildmax`](../deployment/docker/Dockerfile.buildmax)
 and
@@ -161,9 +168,11 @@ sandbox backend requires regardless of the profile question.
 What this closes: a worker run is no longer built with an empty
 `SandboxSurface` resolving to the permissive CLI baseline, `bwrap` now
 functions under the worker pod's actual production hardening rather than
-merely being installed and unable to run, and an agent author can request
-the `registries` or `open` network tier and a shared read/external-write
-filesystem tier without an operator hand-editing `policy.yaml` per agent.
+merely being installed and unable to run, that functioning is now proven by
+an organic run rather than a one-off manual pod reproduction, and an agent
+author can request the `registries` or `open` network tier and a shared
+read/external-write filesystem tier without an operator hand-editing
+`policy.yaml` per agent.
 
 What remains open: hook and MCP child processes still do not consult
 `SandboxView` ([`sandbox-boundaries.md`](design/sandbox-boundaries.md) §13.1
@@ -270,12 +279,11 @@ throughput. None of these is a reason to block containment or correctness work.
 
 ## Rebased Priority Order
 
-1. Wire a `Bash`-calling scenario into the deployment smoke or a
-   worker-surface evaluation task, so the now-verified worker sandbox
-   boundary is exercised automatically rather than only by a one-off manual
-   pod reproduction, and close hook and MCP child processes' boundary. The
-   surface selection and its interaction with the production pod's hardening
-   are both proven; ongoing regression coverage is what remains.
+1. Close hook and MCP child processes' sandbox boundary and add process
+   resource limits (rlimits). The worker sandbox surface, its interaction
+   with the production pod's hardening, and an organic Bash-calling run
+   through the real server → worker → Job path are all now proven and
+   exercised automatically by the deployment smoke.
 2. Make the production topology honest: one supported Server replica now, or
    shared coordination before horizontal scaling.
 3. Put critical MySQL persistence behavior in the pull-request evidence path.

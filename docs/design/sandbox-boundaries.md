@@ -536,10 +536,15 @@ Still open — these block §15 acceptance:
    independent of seccomp. Both are fixed —
    [`deployment/seccomp/README.md`](../../deployment/seccomp/README.md) has
    the full root-cause chain and how it was verified against a real pod
-   carrying the worker's exact security context. Not yet done: an organic
-   end-to-end run (a real task whose model turn calls `Bash` through the
-   actual server → worker → Job path) — the deployment smoke's own scenario
-   scripts no tool calls, so it has never exercised this and still does not.
+   carrying the worker's exact security context. The deployment smoke now
+   also runs an organic end-to-end check: it arms its mock model to make a
+   real dispatched task call `Bash` through the actual server → worker →
+   Job path, and asserts on the tool result — not the task's scripted final
+   text, which answers the same regardless of what a tool did — that the
+   command ran and a write outside the workspace was denied
+   (`tools/mk/deploy_smoke.go`'s `assertWorkerSandboxConfines`,
+   `internal/testsupport/mockllm`'s queued tool-call arming and
+   `GET /control/requests`).
 2. **Process limits are absent.** No `infra/sandbox/unix_rlimit.go`, no
    `Setrlimit` call anywhere. Phase D shipped without it, so the "process
    execution limits" boundary in [trust-harness.md](./trust-harness.md) §3.2 is

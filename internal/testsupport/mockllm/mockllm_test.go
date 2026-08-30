@@ -412,3 +412,117 @@ func TestControlStallArmsADeployedMock(t *testing.T) {
 		t.Errorf("a negative stall returned %d, want 400", resp.StatusCode)
 	}
 }
+
+// TestControlToolCallArmsOneReply asserts the armed call answers with the
+// named tool and nothing else, and that the very next call — unarmed — falls
+// straight through to the mounted scenario, proving arming never perturbed
+// its step index.
+func TestControlToolCallArmsOneReply(t *testing.T) {
+	server := start(t, mockllm.Scenario{Steps: []mockllm.Step{{Text: "scripted reply"}}, Repeat: true})
+	armBody := strings.NewReader(`{"name":"Bash","args":{"command":"id"}}`)
+	resp, err := http.Post(server.URL()+mockllm.ControlToolCallPath, "application/json", armBody)
+	if err != nil {
+		t.Fatalf("arm tool call: %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("arming returned %d, want 200", resp.StatusCode)
+	}
+
+	c := client(t, server, mockllm.ProtocolOpenAIChat)
+	armed, err := c.ChatCompletionBlocking(context.Background(),
+		cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "run it"}}})
+	if err != nil {
+		t.Fatalf("armed call: %v", err)
+	}
+	if len(armed.ToolCalls) != 1 || armed.ToolCalls[0].Name != "Bash" {
+		t.Fatalf("armed reply = %+v, want one Bash call", armed.ToolCalls)
+	}
+	if !strings.Contains(armed.ToolCalls[0].Arguments, "id") {
+		t.Errorf("armed call arguments = %q, want the command it was armed with", armed.ToolCalls[0].Arguments)
+	}
+
+	next, err := c.ChatCompletionBlocking(context.Background(),
+		cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "and then"}}})
+	if err != nil {
+		t.Fatalf("call after arming: %v", err)
+	}
+	if next.Content != "scripted reply" || len(next.ToolCalls) != 0 {
+		t.Errorf("call after arming = %+v, want the scenario's own scripted reply unchanged", next)
+	}
+}
+
+// TestControlToolCallTimesQueuesSeveral asserts arming with times covers a
+// preliminary call ahead of the one a suite actually cares about, and that a
+// still-queued arm never leaks into a later, unrelated call once cleared.
+func TestControlToolCallTimesQueuesSeveral(t *testing.T) {
+	server := start(t, mockllm.Scenario{Steps: []mockllm.Step{{Text: "scripted reply"}}, Repeat: true})
+	arm := func(body string) {
+		t.Helper()
+		resp, err := http.Post(server.URL()+mockllm.ControlToolCallPath, "application/json", strings.NewReader(body))
+		if err != nil {
+			t.Fatalf("post control/toolcall: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("control/toolcall returned %d, want 200", resp.StatusCode)
+		}
+	}
+	call := func() cllm.Completion {
+		t.Helper()
+		resp, err := client(t, server, mockllm.ProtocolOpenAIChat).ChatCompletionBlocking(
+			context.Background(), cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "hi"}}})
+		if err != nil {
+			t.Fatalf("call: %v", err)
+		}
+		return resp
+	}
+
+	arm(`{"name":"Bash","args":{"command":"first"},"times":3}`)
+	for i := range 3 {
+		got := call()
+		if len(got.ToolCalls) != 1 || got.ToolCalls[0].Name != "Bash" {
+			t.Fatalf("call %d = %+v, want a queued Bash call", i, got.ToolCalls)
+		}
+	}
+	if got := call(); len(got.ToolCalls) != 0 || got.Content != "scripted reply" {
+		t.Errorf("call after the queue drained = %+v, want the scenario's own reply", got)
+	}
+
+	// Arm more than a run consumes, then clear: nothing should leak forward.
+	arm(`{"name":"Bash","args":{},"times":5}`)
+	arm(`{"clear":true}`)
+	if got := call(); len(got.ToolCalls) != 0 || got.Content != "scripted reply" {
+		t.Errorf("call after clearing = %+v, want the scenario's own reply, not a leaked arm", got)
+	}
+}
+
+// TestControlRequestsReportsEveryCall asserts a suite that can only reach a
+// deployed mock over HTTP can still see what it was actually sent, which is
+// the only way to check a tool result a scripted final reply never echoes.
+func TestControlRequestsReportsEveryCall(t *testing.T) {
+	server := start(t, mockllm.Scenario{Steps: []mockllm.Step{{Text: "ok"}}, Repeat: true})
+	if _, err := client(t, server, mockllm.ProtocolOpenAIChat).ChatCompletionBlocking(
+		context.Background(), cllm.Request{Messages: []cllm.Message{{Role: "user", Content: "marker-content"}}}); err != nil {
+		t.Fatalf("call: %v", err)
+	}
+
+	resp, err := http.Get(server.URL() + mockllm.ControlRequestsPath)
+	if err != nil {
+		t.Fatalf("get requests: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("control requests returned %d, want 200", resp.StatusCode)
+	}
+	var got []mockllm.Request
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatalf("decode requests: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("recorded requests = %d, want 1", len(got))
+	}
+	if !strings.Contains(string(got[0].Body), "marker-content") {
+		t.Errorf("recorded request body missing the call's own content: %s", got[0].Body)
+	}
+}

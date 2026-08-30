@@ -34,12 +34,10 @@
   tier. §10's Portal selectors and §9 M3's team default tier are not started;
   an agent's tier is API-only until Portal ships. The k8s pod/`bwrap`
   interaction is now verified against a real pod carrying the worker's exact
-  security context — see [`deployment/seccomp/README.md`](../../deployment/seccomp/README.md)
+  security context and by an organic end-to-end run the deployment smoke
+  performs automatically — see [`deployment/seccomp/README.md`](../../deployment/seccomp/README.md)
   — but the cluster `NetworkPolicy` question this document leaves to
-  trust-harness.md §3.9 remains untouched, and no organic end-to-end run (a
-  real task whose model turn calls `Bash` through the actual server → worker
-  → Job path) has been done; the deployment smoke's own scenario has no tool
-  calls.
+  trust-harness.md §3.9 remains untouched.
 - follows: [sandbox-boundaries.md](./sandbox-boundaries.md),
   [trust-harness.md](./trust-harness.md) §3.2, §3.9,
   [plugin-team-distribution.md](./plugin-team-distribution.md) (the closest

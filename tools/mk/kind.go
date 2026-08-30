@@ -259,10 +259,13 @@ func kindSmokeTarget() smokeTarget {
 		apiBase:              kindPortalURL(),
 		portalURL:            kindPortalURL(),
 		portalRuntimeAPIBase: "/",
-		// Published by deployment/smoke/mock-llm.kind.yaml, and only this one
-		// route: a run reaching the model still goes through the in-cluster
-		// Service, which is what makes it evidence the deployment wired it up.
-		llmControlURL: kindPortalURL() + "/smoke-llm" + llmControlStallPath,
+		// Published by deployment/smoke/mock-llm.kind.yaml, and only these
+		// three routes: a run reaching the model still goes through the
+		// in-cluster Service, which is what makes it evidence the deployment
+		// wired it up.
+		llmControlURL:         kindPortalURL() + "/smoke-llm" + llmControlStallPath,
+		llmControlToolCallURL: kindPortalURL() + "/smoke-llm" + llmControlToolCallPath,
+		llmControlRequestsURL: kindPortalURL() + "/smoke-llm" + llmControlRequestsPath,
 		admin: func(args ...string) (string, error) {
 			cmdArgs := append([]string{"--context", kindContext(), "exec", "-n", "buildmax", "deployment/buildmax-server", "--", "buildmax-server"}, args...)
 			return captureCombined("kubectl", cmdArgs...)

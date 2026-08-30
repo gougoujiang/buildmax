@@ -115,6 +115,18 @@ type Handler struct {
 	next     int
 	requests []Request
 	stall    time.Duration
+	// armedSteps is a FIFO of one-shot overrides, the same reason Stall
+	// exists: a deployed mock's script is mounted before anything runs, so a
+	// suite that decides mid-run it needs specific calls to do something the
+	// mounted scenario does not — call a tool the suite names, to prove a
+	// real subprocess ran and was or was not confined — has no other way to
+	// say so. A queue rather than a single override because the caller
+	// dispatching a task is not always the very next call the runtime makes
+	// of the model; arming N covers however many calls come before the one
+	// the suite actually cares about. Popped front-first and never advances
+	// h.next, so the first call past the queue resumes exactly where
+	// Steps/Repeat would have answered had none of this happened.
+	armedSteps []Step
 }
 
 // ControlStallPath is the route that arms a stall on a mock a suite cannot
@@ -122,16 +134,33 @@ type Handler struct {
 // over HTTP. It is matched by suffix so an ingress may serve it under a prefix.
 const ControlStallPath = "/control/stall"
 
+// ControlToolCallPath arms a one-shot tool call the same way ControlStallPath
+// arms a stall. See Handler.armedStep.
+const ControlToolCallPath = "/control/toolcall"
+
+// ControlRequestsPath returns every request the mock has received so far, so
+// a suite driving a deployed mock over HTTP can inspect a tool result a
+// scripted final reply never echoes back. GET, unlike every other route here.
+const ControlRequestsPath = "/control/requests"
+
 // NewHandler returns a handler that replays s.
 func NewHandler(s Scenario) *Handler { return &Handler{steps: s.Steps, repeat: s.Repeat} }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if strings.HasSuffix(r.URL.Path, ControlRequestsPath) {
+		h.serveControlRequests(w, r)
+		return
+	}
 	if r.Method != http.MethodPost {
 		http.Error(w, "mockllm: only POST", http.StatusMethodNotAllowed)
 		return
 	}
 	if strings.HasSuffix(r.URL.Path, ControlStallPath) {
 		h.serveControlStall(w, r)
+		return
+	}
+	if strings.HasSuffix(r.URL.Path, ControlToolCallPath) {
+		h.serveControlToolCall(w, r)
 		return
 	}
 	body, err := io.ReadAll(r.Body)
@@ -214,6 +243,75 @@ func (h *Handler) Stall(d time.Duration) {
 	h.stall = d
 }
 
+// serveControlToolCall arms the one-shot tool call the next reply answers
+// with, instead of whatever Steps/Repeat would otherwise have said.
+func (h *Handler) serveControlToolCall(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Name  string         `json:"name"`
+		Args  map[string]any `json:"args,omitempty"`
+		Times int            `json:"times,omitempty"`
+		// Clear drops every still-queued arm without consuming a call, so a
+		// suite that armed more than the run actually used cannot leak an
+		// unconsumed override into whatever runs next.
+		Clear bool `json:"clear,omitempty"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "mockllm: parse tool call request: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	if body.Clear {
+		h.ClearArmedToolCalls()
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"cleared": true})
+		return
+	}
+	if body.Name == "" {
+		http.Error(w, "mockllm: tool call name required", http.StatusBadRequest)
+		return
+	}
+	times := body.Times
+	if times <= 0 {
+		times = 1
+	}
+	h.ArmToolCall(body.Name, body.Args, times)
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"armed": body.Name, "times": times})
+}
+
+// ArmToolCall queues times consecutive replies that answer with exactly one
+// call to name, regardless of what Steps/Repeat scripts there. A dispatched
+// task is rarely the very next call the runtime makes of the model — a
+// routing or classification call ahead of it is common — so times covers
+// however many of those come first; each is popped and discarded the same as
+// the one the suite actually wanted.
+func (h *Handler) ArmToolCall(name string, args map[string]any, times int) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for range times {
+		h.armedSteps = append(h.armedSteps, Step{ToolCalls: []ToolCall{{Name: name, Args: args}}})
+	}
+}
+
+// ClearArmedToolCalls drops every queued arm that was never consumed.
+func (h *Handler) ClearArmedToolCalls() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.armedSteps = nil
+}
+
+// serveControlRequests answers every request the mock has recorded so far, so
+// a suite driving a deployed mock over HTTP can inspect a tool result a
+// scripted final reply never echoes back — the only way to see one, since the
+// mock cannot be imported as a Go value from outside its own process.
+func (h *Handler) serveControlRequests(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "mockllm: only GET", http.StatusMethodNotAllowed)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(h.Requests())
+}
+
 // delayFor is the longer of the step's own stall and the armed one, so arming
 // one cannot make a step that scripts a longer delay finish early.
 func (h *Handler) delayFor(step Step) time.Duration {
@@ -226,11 +324,19 @@ func (h *Handler) delayFor(step Step) time.Duration {
 	return scripted
 }
 
-// take consumes the next step and records the call that consumed it.
+// take consumes the next step and records the call that consumed it. An
+// armed one-shot tool call answers before Steps/Repeat is even consulted, and
+// does not advance h.next: the call after it resumes exactly where the
+// script would have answered had the arming never happened.
 func (h *Handler) take(req Request) (Step, int, bool) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.requests = append(h.requests, req)
+	if len(h.armedSteps) > 0 {
+		step := h.armedSteps[0]
+		h.armedSteps = h.armedSteps[1:]
+		return step, h.next, true
+	}
 	if h.next >= len(h.steps) {
 		if !h.repeat || len(h.steps) == 0 {
 			return Step{}, 0, false

@@ -50,6 +50,13 @@ type smokeTarget struct {
 	// one way to change what the deployment does from outside, and it exists
 	// because a run that answers instantly is over before it can be canceled.
 	llmControlURL string
+	// llmControlToolCallURL arms a one-shot tool call on this stack's mock
+	// model, and llmControlRequestsURL reads back what it actually received —
+	// together the only way to prove the worker's Bash sandbox confined a
+	// real command, since the task's own final output is always the
+	// scenario's scripted text regardless of what the tool did.
+	llmControlToolCallURL string
+	llmControlRequestsURL string
 }
 
 // cancelStall is how long the mock holds every model call while the
@@ -148,11 +155,13 @@ func composeProjectName() string {
 // and the base is same-origin.
 func composeSmokeTarget(managed bool) smokeTarget {
 	return smokeTarget{
-		apiBase:              composeServerURL(),
-		portalURL:            composePortalURL(),
-		portalRuntimeAPIBase: composeServerURL(),
-		managedLLM:           managed,
-		llmControlURL:        composeSmokeLLMControlURL(),
+		apiBase:               composeServerURL(),
+		portalURL:             composePortalURL(),
+		portalRuntimeAPIBase:  composeServerURL(),
+		managedLLM:            managed,
+		llmControlURL:         composeSmokeLLMControlURL(),
+		llmControlToolCallURL: composeSmokeLLMControlBase() + llmControlToolCallPath,
+		llmControlRequestsURL: composeSmokeLLMControlBase() + llmControlRequestsPath,
 		admin: func(args ...string) (string, error) {
 			cmdArgs := append(composeSmokeArgs(managed), "exec", "-T", "server", "buildmax-server")
 			return captureCombined("docker", append(cmdArgs, args...)...)
@@ -160,16 +169,28 @@ func composeSmokeTarget(managed bool) smokeTarget {
 	}
 }
 
-// llmControlStallPath must match mockllm.ControlStallPath, which this file
-// cannot import: the task runner ships, and mockllm is test-only. A mismatch
-// fails the smoke at the first arming rather than quietly skipping the case.
-const llmControlStallPath = "/control/stall"
+// llmControlStallPath, llmControlToolCallPath, and llmControlRequestsPath must
+// match mockllm's ControlStallPath, ControlToolCallPath, and
+// ControlRequestsPath, which this file cannot import: the task runner ships,
+// and mockllm is test-only. A mismatch fails the smoke at the first arming
+// rather than quietly skipping the case.
+const (
+	llmControlStallPath    = "/control/stall"
+	llmControlToolCallPath = "/control/toolcall"
+	llmControlRequestsPath = "/control/requests"
+)
 
-// composeSmokeLLMControlURL is the mock model's control route as published by
-// the smoke overlay. Only this route is published; the model protocol itself
-// stays on the Compose network.
+// composeSmokeLLMControlBase is the mock model's control route prefix as
+// published by the smoke overlay. Compose maps the whole mock container port
+// to the host, so every control route is reachable through it — unlike kind,
+// where an ingress allowlists paths one at a time.
+func composeSmokeLLMControlBase() string {
+	return "http://127.0.0.1:" + envOr("BUILDMAX_SMOKE_LLM_PORT", "8091")
+}
+
+// composeSmokeLLMControlURL is the mock model's stall control route.
 func composeSmokeLLMControlURL() string {
-	return "http://127.0.0.1:" + envOr("BUILDMAX_SMOKE_LLM_PORT", "8091") + llmControlStallPath
+	return composeSmokeLLMControlBase() + llmControlStallPath
 }
 
 func composeEnvPath() string {
@@ -324,6 +345,9 @@ func runDeploymentSmoke(ctx context.Context, target smokeTarget) error {
 	if err := assertManagedRun(ctx, client, target, teamID, artifacts[0].TaskRunID, token); err != nil {
 		return err
 	}
+	if err := assertWorkerSandboxConfines(ctx, client, target, teamID, conversation.ID, token); err != nil {
+		return err
+	}
 	if err := assertRetryRunsAgain(ctx, client, target, teamID, task.ID, artifacts[0].TaskRunID, token); err != nil {
 		return err
 	}
@@ -448,6 +472,133 @@ func armLLMStall(ctx context.Context, client *http.Client, target smokeTarget, d
 	body := map[string]int{"ms": int(d.Milliseconds())}
 	if err := requestJSON(ctx, client, http.MethodPost, target.llmControlURL, "", body, nil, http.StatusOK); err != nil {
 		return fmt.Errorf("arm a %s model stall: %w", d, err)
+	}
+	return nil
+}
+
+// smokeSandboxProbeMarker and smokeSandboxDeniedMarker are what the probe
+// command prints, checked in the mock's own recorded tool result rather than
+// in the task's final output: the mock always answers with its scripted text
+// regardless of what a tool actually returned, so that alone proves nothing.
+const (
+	smokeSandboxProbeMarker   = "BUILDMAX_SANDBOX_PROBE_OK"
+	smokeSandboxDeniedMarker  = "BUILDMAX_SANDBOX_PROBE_WRITE_DENIED"
+	smokeSandboxEscapedMarker = "BUILDMAX_SANDBOX_PROBE_WRITE_ESCAPED"
+)
+
+// smokeSandboxProbeCommand runs inside the worker's Bash sandbox. It proves
+// two things a passing task never does on its own: that the sandbox actually
+// ran the command (smokeSandboxProbeMarker), and that it denied a write
+// outside the workspace (smokeSandboxDeniedMarker) rather than letting it
+// through (smokeSandboxEscapedMarker).
+const smokeSandboxProbeCommand = "echo " + smokeSandboxProbeMarker +
+	" && (echo x > /etc/buildmax-smoke-should-fail 2>&1 && echo " + smokeSandboxEscapedMarker +
+	" || echo " + smokeSandboxDeniedMarker + ")"
+
+// smokeSandboxProbeArmCount covers the routing call the conversation makes to
+// decide a message should become a task, ahead of the worker's own agent
+// turn — confirmed by inspecting a real deployment's mock-recorded requests
+// while building this probe: arming exactly once landed the tool call on
+// that routing call instead, and the worker's own turn went on to answer
+// with its ordinary scripted text, having never touched Bash. Arming both
+// means the routing call also gets a Bash tool call it does not expect;
+// empirically it tolerates that and still dispatches the task normally, and
+// the worker's own turn is what echoes the marker back.
+const smokeSandboxProbeArmCount = 2
+
+// assertWorkerSandboxConfines proves the worker's Bash sandbox confines a
+// real command on this deployment, not merely that the sandbox surface was
+// selected. Selecting it once already was not enough on its own — see
+// docs/design/agent-sandbox-policy.md and deployment/seccomp/README.md for
+// why the worker pod's own production hardening kept the sandbox from
+// running at all until this was verified against a real pod and fixed.
+//
+// It arms the shared mock to answer the probe task's next few calls with a
+// Bash call instead of scripted text, dispatches the task, waits for it to
+// succeed, and scans the mock's own request log for a follow-up call
+// carrying the tool result — the task's own final output is always the
+// scenario's scripted text regardless of what the tool did, so checking that
+// would prove nothing.
+//
+// Skips silently on a target with no control routes to arm: a target that
+// cannot script its mock cannot run this probe, the same way armLLMStall's
+// callers already gate on llmControlURL.
+func assertWorkerSandboxConfines(ctx context.Context, client *http.Client, target smokeTarget, teamID, conversationID, token string) error {
+	if target.llmControlToolCallURL == "" || target.llmControlRequestsURL == "" {
+		return nil
+	}
+
+	var before []struct{ Body []byte }
+	if err := requestJSON(ctx, client, http.MethodGet, target.llmControlRequestsURL, "", nil, &before, http.StatusOK); err != nil {
+		return fmt.Errorf("read sandbox probe baseline requests: %w", err)
+	}
+
+	armed := map[string]any{
+		"name": "Bash", "args": map[string]any{"command": smokeSandboxProbeCommand},
+		"times": smokeSandboxProbeArmCount,
+	}
+	if err := requestJSON(ctx, client, http.MethodPost, target.llmControlToolCallURL, "", armed, nil, http.StatusOK); err != nil {
+		return fmt.Errorf("arm sandbox probe tool call: %w", err)
+	}
+	// However much of the arming this run actually used, none of it may
+	// leak into whatever the smoke runs next.
+	defer func() {
+		_ = requestJSON(ctx, client, http.MethodPost, target.llmControlToolCallURL, "", map[string]any{"clear": true}, nil, http.StatusOK)
+	}()
+
+	tasksURL := target.apiBase + "/api/teams/" + url.PathEscape(teamID) + "/conversations/" + url.PathEscape(conversationID) + "/tasks"
+	var task struct {
+		ID string `json:"id"`
+	}
+	if err := requestJSON(ctx, client, http.MethodPost, tasksURL, token, map[string]string{"input": "Run the sandbox probe."}, &task, http.StatusCreated); err != nil {
+		return fmt.Errorf("create sandbox probe task: %w", err)
+	}
+	taskURL := target.apiBase + "/api/teams/" + url.PathEscape(teamID) + "/tasks/" + url.PathEscape(task.ID)
+	if _, err := waitForTaskSuccess(ctx, client, taskURL, token); err != nil {
+		return fmt.Errorf("sandbox probe task: %w", err)
+	}
+
+	var after []struct{ Body []byte }
+	if err := requestJSON(ctx, client, http.MethodGet, target.llmControlRequestsURL, "", nil, &after, http.StatusOK); err != nil {
+		return fmt.Errorf("read sandbox probe requests: %w", err)
+	}
+	if len(after) <= len(before) {
+		return fmt.Errorf("sandbox probe recorded no new requests")
+	}
+	// The command's own source carries every marker literally (it is an
+	// if/else that prints one or the other), and the conversation echoes
+	// that source back as the assistant's tool_calls arguments on every
+	// request from here on — so matching against a whole request body would
+	// find a marker whether or not the sandbox actually produced it. Only
+	// the tool role's own content is the command's real output.
+	var toolResult string
+	for _, req := range after[len(before):] {
+		var parsed struct {
+			Messages []struct {
+				Role    string `json:"role"`
+				Content string `json:"content"`
+			} `json:"messages"`
+		}
+		if err := json.Unmarshal(req.Body, &parsed); err != nil {
+			continue
+		}
+		for _, m := range parsed.Messages {
+			if m.Role == "tool" && strings.Contains(m.Content, smokeSandboxProbeMarker) {
+				toolResult = m.Content
+			}
+		}
+		if toolResult != "" {
+			break
+		}
+	}
+	if toolResult == "" {
+		return fmt.Errorf("no tool result the sandbox probe made echoed back %q — the worker's Bash sandbox may not have run the probe at all", smokeSandboxProbeMarker)
+	}
+	if strings.Contains(toolResult, smokeSandboxEscapedMarker) {
+		return fmt.Errorf("sandbox probe wrote outside its workspace — the worker's Bash sandbox is not confining commands: %s", toolResult)
+	}
+	if !strings.Contains(toolResult, smokeSandboxDeniedMarker) {
+		return fmt.Errorf("sandbox probe's tool result missing %q: %s", smokeSandboxDeniedMarker, toolResult)
 	}
 	return nil
 }

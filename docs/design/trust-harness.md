@@ -112,10 +112,11 @@ Boundary coverage against the list above:
   has the full root-cause chain, including a second, independent kernel
   restriction on mounting `/proc` under `--unshare-pid` inside a container).
   Verified against a real pod carrying the worker's exact security context
-  and the profile as the reference `DaemonSet` actually distributes it. Not
-  yet done: an organic end-to-end run through the real server → worker → Job
-  path — the deployment smoke's own scenario has no tool calls, so it has
-  never exercised this and still does not; see
+  and the profile as the reference `DaemonSet` actually distributes it, and
+  by an organic end-to-end run the deployment smoke now performs
+  automatically: it arms its mock model to make a real dispatched task call
+  `Bash` through the actual server → worker → Job path and asserts on the
+  tool result, not the task's scripted final text; see
   [sandbox-boundaries.md](./sandbox-boundaries.md) §13 phase F.
 
 Also still open in [sandbox-boundaries.md](./sandbox-boundaries.md): `command` /
