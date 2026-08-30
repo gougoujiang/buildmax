@@ -242,6 +242,21 @@ func dispatchSlashCommand(m *Model, cmd string, args ...string) (tea.Model, tea.
 	case "/worktree":
 		return openSlashWorktree(m)
 	default:
+		// An unrecognized "/word" that exactly names a loaded skill is sent
+		// as a normal message rather than rejected: this is the shorthand
+		// filled by the /skills panel (and typed freehand), and it must
+		// reach the LLM as plain text the way Desktop's chat input does.
+		// Anything else still errors, so a real typo in a command is not
+		// silently swallowed.
+		if name, ok := strings.CutPrefix(cmd, "/"); ok {
+			if _, found := m.findSkill(name); found {
+				text := cmd
+				if len(args) > 0 {
+					text += " " + strings.Join(args, " ")
+				}
+				return m, startRun(m, text)
+			}
+		}
 		m.err = "unknown command " + cmd + " (try /compact, /diff, /fork, /info, /mcp, /model, /rewind, /sessions, /skills, /tasks, /tools, /worktree)"
 		return m, nil
 	}
