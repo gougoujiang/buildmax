@@ -127,13 +127,43 @@ npm --prefix portal exec -- playwright install chromium # the browser itself
 A Portal suite either attaches to a deployment or owns one, and it says which
 before it starts.
 
-- **Owned** (`./make e2e local`) starts a Compose stack, tests it, and takes it
-  down. It refuses to adopt a stack that is already running, because taking one
-  down that someone else started is not its call.
+- **Owned** (`./make e2e local`) starts a Compose stack under a project name
+  and ports this run picked for itself, tests it, and takes it down again,
+  volumes included. Because the name and ports are chosen fresh every run, it
+  never has to guess whether something already answering on the usual port is
+  a contributor's persistent stack or a leftover of its own — several runs
+  (different worktrees, different agents, a human's `./make compose up`
+  alongside them) can each own a stack of their own at the same time.
 - **Attached** (`./make e2e compose`, `./make e2e kind`) is a guest. It uses the
   fixed diagnostic account `deployment-smoke@buildmax.local`, creates only
   uniquely tagged resources, and prints what it left behind — most of them have
   no delete route, so the line naming them is the cleanup instruction.
+
+### Running A Second Deployment Alongside The First
+
+`./make kind up` and `./make compose up` keep the fixed name and ports every
+doc assumes, because a contributor started one by hand and expects a
+predictable address. A second one, run deliberately alongside the first,
+needs to be told not to collide with it:
+
+```bash
+# A second Compose stack
+BUILDMAX_COMPOSE_PROJECT=buildmax-2 BUILDMAX_SERVER_PORT=15678 BUILDMAX_PORTAL_PORT=18080 \
+  ./make compose up
+
+# A second kind cluster
+BUILDMAX_KIND_CLUSTER=buildmaxdev2 BUILDMAX_KIND_PORTAL_PORT=18080 BUILDMAX_KIND_TLS_PORT=18443 \
+  ./make kind up
+```
+
+Pass the same variables to every later command against that stack (`compose
+status`/`logs`/`down`, `kind status`/`logs`/`down`, `e2e compose`/`e2e kind`)
+— nothing persists the mapping between a name and its ports, so the
+invocation is what remembers it.
+
+`./make e2e local` needs none of this: it already picks a fresh project and
+ports for itself on every run, which is what makes it safe to run alongside
+either of the above without checking what else is up first.
 
 ## When A Suite Fails
 

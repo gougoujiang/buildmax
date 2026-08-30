@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"regexp"
 	"strings"
 	"sync"
 	"syscall"
@@ -19,8 +18,9 @@ import (
 )
 
 const (
-	defaultKindCluster = "buildmaxdev"
-	kindPortalURL      = "http://localhost:8080"
+	defaultKindCluster    = "buildmaxdev"
+	defaultKindPortalPort = "8080"
+	defaultKindTLSPort    = "8443"
 
 	// kind is a plain Go program, so it runs from a pin here rather than from a
 	// contributor's PATH — the same treatment golangci-lint, actionlint, and the
@@ -86,6 +86,22 @@ func kindClusterName() string {
 	return envOr("BUILDMAX_KIND_CLUSTER", defaultKindCluster)
 }
 
+// kindPortalPort and kindTLSPort are the host ports this cluster's ingress
+// publishes. They default to the ports every doc and script assumes, so a
+// second cluster only has to name both this and BUILDMAX_KIND_CLUSTER to
+// exist alongside the first one without a port collision.
+func kindPortalPort() string {
+	return envOr("BUILDMAX_KIND_PORTAL_PORT", defaultKindPortalPort)
+}
+
+func kindTLSPort() string {
+	return envOr("BUILDMAX_KIND_TLS_PORT", defaultKindTLSPort)
+}
+
+func kindPortalURL() string {
+	return "http://localhost:" + kindPortalPort()
+}
+
 func kindContext() string {
 	return "kind-" + kindClusterName()
 }
@@ -119,8 +135,13 @@ func kindUp() error {
 		if err := checkKindHostPorts(cluster); err != nil {
 			return err
 		}
-		fmt.Printf("Creating kind cluster %q...\n", cluster)
-		if err := runKind("create", "cluster", "--name", cluster, "--config", kindConfigPath); err != nil {
+		fmt.Printf("Creating kind cluster %q on port %s...\n", cluster, kindPortalPort())
+		configPath, cleanup, err := renderKindConfig()
+		if err != nil {
+			return err
+		}
+		defer cleanup()
+		if err := runKind("create", "cluster", "--name", cluster, "--config", configPath); err != nil {
 			return err
 		}
 		// kind makes the new cluster globally current. Every command below uses
@@ -201,7 +222,7 @@ func kindUp() error {
 		fmt.Printf("Kind smoke failed. Run %s kind logs for diagnostics.\n", mk())
 		return err
 	}
-	fmt.Printf("Kind stack is ready at %s (cluster %s).\n", kindPortalURL, cluster)
+	fmt.Printf("Kind stack is ready at %s (cluster %s).\n", kindPortalURL(), cluster)
 	fmt.Printf("Lost the code above? %s kind info issues another one.\n", mk())
 	// `exists` the function is shadowed by the cluster check above.
 	if _, statErr := os.Stat(localSettingsPath); statErr == nil {
@@ -225,13 +246,13 @@ func kindSmoke() error {
 
 func kindSmokeTarget() smokeTarget {
 	return smokeTarget{
-		apiBase:              kindPortalURL,
-		portalURL:            kindPortalURL,
+		apiBase:              kindPortalURL(),
+		portalURL:            kindPortalURL(),
 		portalRuntimeAPIBase: "/",
 		// Published by deployment/smoke/mock-llm.kind.yaml, and only this one
 		// route: a run reaching the model still goes through the in-cluster
 		// Service, which is what makes it evidence the deployment wired it up.
-		llmControlURL: kindPortalURL + "/smoke-llm" + llmControlStallPath,
+		llmControlURL: kindPortalURL() + "/smoke-llm" + llmControlStallPath,
 		admin: func(args ...string) (string, error) {
 			cmdArgs := append([]string{"--context", kindContext(), "exec", "-n", "buildmax", "deployment/buildmax-server", "--", "buildmax-server"}, args...)
 			return captureCombined("kubectl", cmdArgs...)
@@ -501,7 +522,7 @@ func kindInfo(args []string) error {
 	}
 
 	fmt.Printf("Cluster: %s (context %s)\n", cluster, kindContext())
-	fmt.Printf("Portal:  %s (%s)\n", kindPortalURL, httpHealth(kindPortalURL+"/healthz"))
+	fmt.Printf("Portal:  %s (%s)\n", kindPortalURL(), httpHealth(kindPortalURL()+"/healthz"))
 	fmt.Printf("MinIO:   bucket bmstore, key minio, secret minio123\n")
 	fmt.Printf("MySQL and MinIO are in-cluster only; reach both with %s kind forward\n", mk())
 
@@ -509,7 +530,7 @@ func kindInfo(args []string) error {
 	if err != nil {
 		return fmt.Errorf("issue a login code for %s: %w", email, err)
 	}
-	fmt.Printf("\nSign in at %s\n\n%s\n", kindPortalURL, code)
+	fmt.Printf("\nSign in at %s\n\n%s\n", kindPortalURL(), code)
 	fmt.Printf("\nRun %s kind info again for another code.\n", mk())
 	return nil
 }
@@ -535,7 +556,7 @@ func kindStatus() error {
 	if err := validateKindPortMapping(cluster); err != nil {
 		fmt.Printf("Warning: %v\n", err)
 	}
-	fmt.Printf("Portal:  %s (%s)\n", kindPortalURL, httpHealth(kindPortalURL+"/healthz"))
+	fmt.Printf("Portal:  %s (%s)\n", kindPortalURL(), httpHealth(kindPortalURL()+"/healthz"))
 
 	printKindSection("Nodes", "get", "nodes", "-o", "wide")
 	for _, namespace := range []string{"ingress-nginx", "db", "storage", "buildmax"} {
@@ -628,33 +649,73 @@ func kindDown() error {
 }
 
 // checkKindHostPorts fails when something already holds a port the new cluster
-// would publish.
-//
-// The ports are read from the cluster config rather than repeated here, so the
-// preflight cannot drift from the mapping it is checking for.
+// would publish. It checks the two ports this run asked for — the defaults
+// unless BUILDMAX_KIND_PORTAL_PORT or BUILDMAX_KIND_TLS_PORT said otherwise —
+// rather than reading them back out of the rendered config, so the preflight
+// cannot drift from the request it is checking.
 func checkKindHostPorts(cluster string) error {
-	config, err := os.ReadFile(kindConfigPath)
-	if err != nil {
-		return fmt.Errorf("read %s: %w", kindConfigPath, err)
-	}
 	var busy []string
-	for _, match := range regexp.MustCompile(`(?m)^\s*hostPort:\s*(\d+)`).FindAllStringSubmatch(string(config), -1) {
+	for _, port := range []string{kindPortalPort(), kindTLSPort()} {
 		// Dial rather than bind. A probe that binds proves nothing here: every
 		// listener that matters sets SO_REUSEADDR, and so does net.Listen, so on
 		// macOS the probe succeeds against a port that is very much in use. What
 		// this needs to know is whether something answers, which is a connection.
-		conn, dialErr := net.DialTimeout("tcp", "127.0.0.1:"+match[1], 300*time.Millisecond)
+		conn, dialErr := net.DialTimeout("tcp", "127.0.0.1:"+port, 300*time.Millisecond)
 		if dialErr != nil {
 			continue
 		}
 		_ = conn.Close()
-		busy = append(busy, match[1])
+		busy = append(busy, port)
 	}
 	if len(busy) == 0 {
 		return nil
 	}
-	return fmt.Errorf("host port %s already in use, and kind cluster %q publishes it\n  Stop what is listening, or run another cluster with BUILDMAX_KIND_CLUSTER=<name> after changing the hostPort in %s",
-		strings.Join(busy, " and "), cluster, kindConfigPath)
+	return fmt.Errorf("host port %s already in use, and kind cluster %q would publish it\n  Stop what is listening, or run another cluster with BUILDMAX_KIND_CLUSTER=<name> BUILDMAX_KIND_PORTAL_PORT=<port> BUILDMAX_KIND_TLS_PORT=<port>",
+		strings.Join(busy, " and "), cluster)
+}
+
+// renderKindConfig substitutes this run's portal and TLS host ports into the
+// committed kind config and writes the result to a temporary file, because
+// kind reads its config from a path rather than accepting one inline. The
+// substitution is keyed to containerPort (80 and 443), not to the literal
+// default host ports, so it survives the committed file's defaults changing.
+// The caller must run the returned cleanup once it is done with the file.
+func renderKindConfig() (string, func(), error) {
+	template, err := os.ReadFile(kindConfigPath)
+	if err != nil {
+		return "", nil, fmt.Errorf("read %s: %w", kindConfigPath, err)
+	}
+	replacements := map[string]string{"80": kindPortalPort(), "443": kindTLSPort()}
+	lines := strings.Split(string(template), "\n")
+	var containerPort string
+	for i, line := range lines {
+		// The mapping is a YAML sequence, so containerPort carries a leading
+		// "- " that hostPort does not.
+		trimmed := strings.TrimPrefix(strings.TrimSpace(line), "- ")
+		switch {
+		case strings.HasPrefix(trimmed, "containerPort:"):
+			containerPort = strings.TrimSpace(strings.TrimPrefix(trimmed, "containerPort:"))
+		case strings.HasPrefix(trimmed, "hostPort:"):
+			if port, ok := replacements[containerPort]; ok {
+				indent := line[:len(line)-len(strings.TrimLeft(line, " "))]
+				lines[i] = indent + "hostPort: " + port
+			}
+		}
+	}
+	file, err := os.CreateTemp("", "buildmax-kind-config-*.yaml")
+	if err != nil {
+		return "", nil, fmt.Errorf("create a rendered kind config: %w", err)
+	}
+	if _, err := file.WriteString(strings.Join(lines, "\n")); err != nil {
+		_ = file.Close()
+		_ = os.Remove(file.Name())
+		return "", nil, fmt.Errorf("write %s: %w", file.Name(), err)
+	}
+	if err := file.Close(); err != nil {
+		_ = os.Remove(file.Name())
+		return "", nil, err
+	}
+	return file.Name(), func() { _ = os.Remove(file.Name()) }, nil
 }
 
 func kindClusterExists(name string) (bool, error) {
@@ -675,12 +736,13 @@ func validateKindPortMapping(cluster string) error {
 	if err != nil {
 		return fmt.Errorf("inspect ingress port for kind cluster %q: %w", cluster, err)
 	}
+	want := ":" + kindPortalPort()
 	for _, line := range strings.Split(output, "\n") {
-		if strings.HasSuffix(strings.TrimSpace(line), ":8080") {
+		if strings.HasSuffix(strings.TrimSpace(line), want) {
 			return nil
 		}
 	}
-	return fmt.Errorf("kind cluster %q uses an older ingress port mapping; run BUILDMAX_KIND_CLUSTER=%s %s kind down, then kind up", cluster, cluster, mk())
+	return fmt.Errorf("kind cluster %q does not publish the ingress on port %s; run BUILDMAX_KIND_CLUSTER=%s %s kind down, then kind up with the same BUILDMAX_KIND_PORTAL_PORT", cluster, kindPortalPort(), cluster, mk())
 }
 
 func ensureKindNamespace(namespace string) error {
@@ -741,16 +803,55 @@ func applyKindSmokeConfig() error {
 	return applyKindSmokeConfigFrom("deployment/smoke/server.kind.yaml")
 }
 
+// applyKindSmokeConfigFrom mounts path as the server's config, with its
+// cors_origin rewritten to this run's portal port. The committed file always
+// says 8080: the browser's Origin header is http://localhost:<port>, and the
+// server's WebSocket upgrade rejects any other origin, so a cluster on a
+// different port needs a config that agrees with it — a mismatch here is
+// invisible to every check except an actual conversation turn, which is what
+// made it worth getting right rather than leaving the ingress port to imply
+// it.
 func applyKindSmokeConfigFrom(path string) error {
+	renderedPath, cleanup, err := renderKindSmokeConfig(path)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
 	manifest, err := captureKindKubectl(
 		"create", "configmap", "buildmax-config", "-n", "buildmax",
-		"--from-file=server.yaml="+path,
+		"--from-file=server.yaml="+renderedPath,
 		"--dry-run=client", "-o", "yaml",
 	)
 	if err != nil {
 		return fmt.Errorf("render kind smoke config: %w", err)
 	}
 	return runStdin(manifest, "kubectl", "--context", kindContext(), "apply", "-f", "-")
+}
+
+func renderKindSmokeConfig(path string) (string, func(), error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return "", nil, fmt.Errorf("read %s: %w", path, err)
+	}
+	const defaultOrigin = "cors_origin: http://localhost:" + defaultKindPortalPort
+	if strings.Count(string(content), defaultOrigin) != 1 {
+		return "", nil, fmt.Errorf("%s does not contain exactly one %q line to rewrite", path, defaultOrigin)
+	}
+	rendered := strings.Replace(string(content), defaultOrigin, "cors_origin: "+kindPortalURL(), 1)
+	file, err := os.CreateTemp("", "buildmax-kind-server-*.yaml")
+	if err != nil {
+		return "", nil, fmt.Errorf("create a rendered server config: %w", err)
+	}
+	if _, err := file.WriteString(rendered); err != nil {
+		_ = file.Close()
+		_ = os.Remove(file.Name())
+		return "", nil, fmt.Errorf("write %s: %w", file.Name(), err)
+	}
+	if err := file.Close(); err != nil {
+		_ = os.Remove(file.Name())
+		return "", nil, err
+	}
+	return file.Name(), func() { _ = os.Remove(file.Name()) }, nil
 }
 
 // kindManagedSmoke reruns the smoke against a cluster switched to managed

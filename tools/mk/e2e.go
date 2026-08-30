@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -115,25 +117,24 @@ func e2eFullMatrix() error {
 	return nil
 }
 
-// e2eOwningCompose brings up a Compose stack, runs the browser tests, and takes
-// it down again. Failure still tears down: a stack left running after a failed
-// run is a trap for the next one, which would attach to it and report on the
-// wrong deployment.
+// e2eOwningCompose brings up a Compose stack under a project name and ports
+// this run picked for itself, runs the browser tests, and takes the stack
+// down again, volumes included. Failure still tears down: a stack left
+// running after a failed run is a trap for the next one, which would attach
+// to it and report on the wrong deployment.
+//
+// The project name and ports are chosen fresh every run rather than reused
+// from a fixed default, so this never has to guess whether something already
+// answering on the usual port is a contributor's persistent stack or a
+// leftover of its own — it is always neither, and several runs (different
+// worktrees, different agents, a human's `compose up` alongside them) can own
+// a stack of their own at the same time.
 func e2eOwningCompose() error {
-	// Owning a stack means taking it down afterwards, so refuse to adopt one
-	// that is already up: it may be someone's running deployment, and this
-	// command would end it. Attaching is what that case wants.
-	//
-	// What answers is not necessarily Compose — a kind cluster publishes the
-	// same 8080 — so the message names the port and both stacks rather than
-	// asserting which one it found and sending the reader to `compose down`
-	// for a stack that was never up.
-	probe := &http.Client{Timeout: 2 * time.Second}
-	if err := waitForHTTP(context.Background(), probe, composePortalURL(), 2*time.Second); err == nil {
-		return fmt.Errorf("something is already answering at %s, and `%s e2e local` would take down whatever it started there when it finished\nIf it is a Compose stack, test it with `%s e2e compose` or stop it with `%s compose down`; if it is a kind cluster, test it with `%s e2e kind`, stop it with `%s kind down`, or run this stack elsewhere with BUILDMAX_PORTAL_PORT",
-			composePortalURL(), mk(), mk(), mk(), mk(), mk())
+	if err := ephemeralComposeEnv(); err != nil {
+		return err
 	}
-	fmt.Println("[e2e] owning a Compose stack for this run: starting it, testing it, and taking it down")
+	fmt.Printf("[e2e] owning a Compose stack (project %s, port %s) for this run: starting it, testing it, and taking it down\n",
+		composeProjectName(), envOr("BUILDMAX_PORTAL_PORT", "8080"))
 	// The smoke overlay, not a plain `up`: the browser tests drive a run to
 	// completion, which needs the deterministic model in front of the server
 	// rather than a provider key this machine may not have.
@@ -141,10 +142,55 @@ func e2eOwningCompose() error {
 		return fmt.Errorf("start the Compose stack: %w", err)
 	}
 	testErr := e2ePortal(composeSmokeTarget(false), "local")
-	if downErr := cmdCompose([]string{"down"}); downErr != nil && testErr == nil {
+	// -v, unlike `compose down`: a project this run invented has no reason to
+	// keep its volumes around for a next run that will invent its own, and
+	// leaving them is a leak once every run picks a fresh name.
+	if downErr := runCmd("docker", append(composeSmokeArgs(true), "down", "-v")...); downErr != nil && testErr == nil {
 		return fmt.Errorf("take the Compose stack down: %w", downErr)
 	}
 	return testErr
+}
+
+// ephemeralComposeEnv picks a Compose project name and three host ports
+// nothing else is using and sets them as this process's environment, which is
+// what composeProjectName, composePortalURL, and the rest of this file read.
+// Every docker/npm child this run starts inherits that environment, so one
+// assignment here is what the whole stack, and the tests against it, agree on.
+func ephemeralComposeEnv() error {
+	suffix, err := randomHex(4)
+	if err != nil {
+		return fmt.Errorf("choose an ephemeral Compose project: %w", err)
+	}
+	ports := map[string]string{}
+	for _, key := range []string{"BUILDMAX_SERVER_PORT", "BUILDMAX_PORTAL_PORT", "BUILDMAX_SMOKE_LLM_PORT"} {
+		port, err := freeTCPPort()
+		if err != nil {
+			return fmt.Errorf("choose a free port for %s: %w", key, err)
+		}
+		ports[key] = strconv.Itoa(port)
+	}
+	if err := os.Setenv("BUILDMAX_COMPOSE_PROJECT", "buildmax-e2e-"+suffix); err != nil {
+		return err
+	}
+	for key, value := range ports {
+		if err := os.Setenv(key, value); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// freeTCPPort asks the OS for a port nothing is listening on right now, by
+// binding to one and giving it back. Another process could still claim it
+// before docker does, but that race is the same one any dev tool that picks
+// its own port runs, and it is not worth a retry loop here.
+func freeTCPPort() (int, error) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return 0, err
+	}
+	defer listener.Close()
+	return listener.Addr().(*net.TCPAddr).Port, nil
 }
 
 // e2ePortal runs the browser tests against an already-running deployment.

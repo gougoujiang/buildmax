@@ -67,7 +67,7 @@ func cmdCompose(args []string) error {
 		if err := ensureComposeEnv(); err != nil {
 			return err
 		}
-		return runCmd("docker", "compose", "-f", composeFile, "up", "-d", "--build", "--wait")
+		return runCmd("docker", "compose", "-p", composeProjectName(), "-f", composeFile, "up", "-d", "--build", "--wait")
 	case "smoke":
 		managed, err := composeSmokeMode(args[1:])
 		if err != nil {
@@ -125,11 +125,21 @@ func composeSmokeMode(args []string) (bool, error) {
 }
 
 func composeSmokeArgs(managed bool) []string {
-	files := []string{"compose", "-f", composeFile, "-f", composeSmokeFile}
+	files := []string{"compose", "-p", composeProjectName(), "-f", composeFile, "-f", composeSmokeFile}
 	if managed {
 		files = append(files, "-f", composeSmokeManagedFile)
 	}
 	return files
+}
+
+// composeProjectName names the Compose project docker groups these
+// containers, networks, and volumes under. Two stacks with different project
+// names never collide, whatever ports they publish — which is what lets
+// e2eOwningCompose hand each run of its own a name nothing else is using
+// rather than reusing the fixed one a contributor's persistent `compose up`
+// stack answers to.
+func composeProjectName() string {
+	return envOr("BUILDMAX_COMPOSE_PROJECT", "buildmax")
 }
 
 // composeSmokeTarget describes the quickstart stack. Its Portal and its server
