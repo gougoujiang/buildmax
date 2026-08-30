@@ -1,5 +1,6 @@
 import {
   ACCOUNT_NAV,
+  AccountInvitationsSection,
   AccountWebhookSection,
   SettingsGeneralSection,
   SettingsPasswordSection,
@@ -17,6 +18,11 @@ export function AccountSettings({ section }: { section: AccountSection }) {
     usage,
     usageLoading,
     pageError,
+    myInvitations,
+    myInvitationsLoading,
+    myInvitationsError,
+    acceptingInvitationId,
+    handleAcceptInvitation,
   } = useSettingsData()
 
   return (
@@ -70,6 +76,15 @@ export function AccountSettings({ section }: { section: AccountSection }) {
         ) : null}
         {section === "webhook" ? <AccountWebhookSection token={token} /> : null}
         {section === "plugins" ? <PluginCatalog token={token} /> : null}
+        {section === "invitations" ? (
+          <AccountInvitationsSection
+            loading={myInvitationsLoading}
+            invitations={myInvitations}
+            acceptingInvitationId={acceptingInvitationId}
+            error={myInvitationsError}
+            onAccept={handleAcceptInvitation}
+          />
+        ) : null}
       </div>
     </div>
   )

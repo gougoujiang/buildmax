@@ -1,10 +1,21 @@
 import { useCallback, useEffect, useMemo, useState, type ComponentType } from "react"
-import type { ApiTeamMember, ApiUsage } from "../../lib/api/types"
+import type { ApiInvitation, ApiTeamMember, ApiUsage } from "../../lib/api/types"
 import type { LoginUser } from "../../lib/api"
 import { useAuth } from "../../contexts/AuthContext"
 import { useTeam } from "../../contexts/TeamContext"
 import { describeQuotaPressure, getUsage } from "../../features/usage"
-import { addTeamMember, getTeamMembers, getTeamUsage, removeTeamMember } from "../../features/teams/api"
+import {
+  acceptInvitation,
+  getMyInvitations,
+  getTeamInvitations,
+  getTeamMembers,
+  getTeamUsage,
+  inviteMember,
+  issueMemberLoginCode,
+  removeTeamMember,
+  revokeInvitation,
+  setMemberRole,
+} from "../../features/teams/api"
 import { setPassword } from "../../features/auth"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { navigate } from "../../router"
@@ -17,7 +28,7 @@ import AgentsIcon from "../../icons/agents.svg?react"
 import IssueIcon from "../../icons/issue.svg?react"
 import { BaseModal } from "@buildmax/gui"
 
-export type AccountSection = "general" | "usage" | "webhook" | "plugins"
+export type AccountSection = "general" | "usage" | "webhook" | "plugins" | "invitations"
 export type SpaceSection =
   | "overview"
   | "members"
@@ -39,6 +50,9 @@ export const ACCOUNT_NAV: SettingsNavItem<Exclude<AccountSection, never>>[] = [
   // A reference list rather than a product area: what the deployment offers,
   // and the command that installs it where the agent actually runs.
   { id: "plugins", label: "Plugins", icon: ToolboxIcon },
+  // Not team-scoped: what is pending for this account, across every team it
+  // was invited to. See docs/design/team-membership-lifecycle.md §5.1, §9.
+  { id: "invitations", label: "Invitations", icon: AgentsIcon },
 ]
 
 export const SPACE_NAV: SettingsNavItem<Exclude<SpaceSection, "memberNew">>[] = [
@@ -377,45 +391,92 @@ export function SpaceOverviewSection({
   )
 }
 
+function memberDisplayLabel(invitation: ApiInvitation): string {
+  // The list this backs (GET .../invitations) resolves no email or name --
+  // only the two things a pending offer is defined by. Resolving one would
+  // mean a second round trip this section has no other reason to make.
+  return invitation.user_id
+}
+
 export function SpaceMembersSection({
   currentTeamName,
   currentUserIsOwner,
+  currentUserRole,
   loadingMembers,
   members,
   userId,
   removingUserId,
   onRemoveMember,
+  invitations,
+  invitationsLoading,
+  revokingInvitationId,
+  onRevokeInvitation,
+  changingRoleUserId,
+  roleError,
+  onChangeRole,
+  onTransferOwnership,
+  issuingLoginCodeUserId,
+  issuedLoginCode,
+  loginCodeError,
+  onIssueLoginCode,
 }: {
   currentTeamName: string
   currentUserIsOwner: boolean
+  currentUserRole: string | null
   loadingMembers: boolean
   members: ApiTeamMember[]
   userId?: string
   removingUserId: string | null
   onRemoveMember: (memberUserId: string) => Promise<void>
+  invitations: ApiInvitation[]
+  invitationsLoading: boolean
+  revokingInvitationId: string | null
+  onRevokeInvitation: (invitationId: string) => Promise<void>
+  changingRoleUserId: string | null
+  roleError: string | null
+  onChangeRole: (memberUserId: string, role: string) => Promise<void>
+  onTransferOwnership: (memberUserId: string) => Promise<void>
+  issuingLoginCodeUserId: string | null
+  issuedLoginCode: { userId: string; code: string; expiresAt: string } | null
+  loginCodeError: string | null
+  onIssueLoginCode: (memberUserId: string) => Promise<void>
 }) {
+  const canInvite = currentUserIsOwner || currentUserRole === "admin"
+
   return (
     <section className="settings-page__section">
       <div className="settings-page__section-head">
         <div>
           <h2 className="settings-page__section-title">Members</h2>
           <p className="settings-page__section-copy">
-            Owners can invite teammates and manage who has access to {currentTeamName}.
+            Owners and admins can invite teammates who already have a BuildMax
+            account. Only owners manage roles and access to {currentTeamName}.
           </p>
         </div>
         <div className="team-settings-page__member-head-actions">
           <span className="page-activity__meta">{members.length} members</span>
-          {currentUserIsOwner ? (
+          {canInvite ? (
             <button
               type="button"
               className="page-activity__action-btn"
               onClick={() => navigate({ name: "space", section: "memberNew" })}
             >
-              Add Member
+              Invite
             </button>
           ) : null}
         </div>
       </div>
+
+      {roleError ? (
+        <p className="settings-section__error" role="alert">
+          {roleError}
+        </p>
+      ) : null}
+      {loginCodeError ? (
+        <p className="settings-section__error" role="alert">
+          {loginCodeError}
+        </p>
+      ) : null}
 
       {loadingMembers ? (
         <p className="page-activity__empty">Loading members...</p>
@@ -423,67 +484,160 @@ export function SpaceMembersSection({
         <p className="page-activity__empty">No members yet.</p>
       ) : (
         <ul className="team-settings-page__member-list">
-          {members.map((member) => (
-            <li key={member.user_id} className="team-settings-page__member">
-              <div className="team-settings-page__member-main">
-                <span className="team-settings-page__member-name">
-                  {memberDisplayName(member, userId)}
-                </span>
-                <span className="team-settings-page__member-meta">
-                  {member.user_email ?? member.user_id}
-                </span>
-              </div>
-              <div className="team-settings-page__member-actions">
-                <span className="team-settings-page__role">{member.role}</span>
-                {currentUserIsOwner && member.user_id !== userId ? (
-                  <button
-                    type="button"
-                    className="team-settings-page__remove-btn"
-                    disabled={removingUserId === member.user_id}
-                    onClick={() => void onRemoveMember(member.user_id)}
-                  >
-                    {removingUserId === member.user_id ? "Removing..." : "Remove"}
-                  </button>
+          {members.map((member) => {
+            const isSelf = member.user_id === userId
+            // A member's own row never carries a role editor, a remove
+            // button, or a login-code action -- changing your own role
+            // (including demoting the sole owner) goes through transfer,
+            // not this list. See docs/design/team-membership-lifecycle.md
+            // §5.2-§5.3.
+            const canManageThisRow = currentUserIsOwner && !isSelf
+            return (
+              <li key={member.user_id} className="team-settings-page__member">
+                <div className="team-settings-page__member-main">
+                  <span className="team-settings-page__member-name">
+                    {memberDisplayName(member, userId)}
+                  </span>
+                  <span className="team-settings-page__member-meta">
+                    {member.user_email ?? member.user_id}
+                  </span>
+                </div>
+                <div className="team-settings-page__member-actions">
+                  {canManageThisRow ? (
+                    <select
+                      className="team-settings-page__role-select"
+                      value={member.role === "owner" ? "owner" : member.role}
+                      disabled={changingRoleUserId === member.user_id}
+                      onChange={(e) => void onChangeRole(member.user_id, e.target.value)}
+                      aria-label={`Role for ${memberDisplayName(member, userId)}`}
+                    >
+                      <option value="member">Member</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  ) : (
+                    <span className="team-settings-page__role">{member.role}</span>
+                  )}
+                  {canManageThisRow && member.role !== "owner" ? (
+                    <button
+                      type="button"
+                      className="team-settings-page__secondary-btn team-settings-page__transfer-btn"
+                      disabled={changingRoleUserId === member.user_id}
+                      onClick={() => void onTransferOwnership(member.user_id)}
+                    >
+                      Make owner
+                    </button>
+                  ) : null}
+                  {canManageThisRow ? (
+                    <button
+                      type="button"
+                      className="team-settings-page__secondary-btn"
+                      disabled={issuingLoginCodeUserId === member.user_id}
+                      onClick={() => void onIssueLoginCode(member.user_id)}
+                    >
+                      {issuingLoginCodeUserId === member.user_id ? "Issuing..." : "Login code"}
+                    </button>
+                  ) : null}
+                  {canManageThisRow ? (
+                    <button
+                      type="button"
+                      className="team-settings-page__remove-btn"
+                      disabled={removingUserId === member.user_id}
+                      onClick={() => void onRemoveMember(member.user_id)}
+                    >
+                      {removingUserId === member.user_id ? "Removing..." : "Remove"}
+                    </button>
+                  ) : null}
+                </div>
+                {issuedLoginCode && issuedLoginCode.userId === member.user_id ? (
+                  <div className="admin-code" role="status">
+                    <p className="admin-code__label">
+                      Shown once, for {memberDisplayName(member, userId)}. It is stored
+                      nowhere it can be read back, so a lost code means issuing another.
+                    </p>
+                    <code className="admin-code__value">{issuedLoginCode.code}</code>
+                  </div>
                 ) : null}
-              </div>
-            </li>
-          ))}
+              </li>
+            )
+          })}
         </ul>
       )}
+
+      {canInvite ? (
+        <div className="team-settings-page__invitations">
+          <h3 className="team-settings-page__subheading">Pending invitations</h3>
+          {invitationsLoading ? (
+            <p className="page-activity__empty">Loading invitations...</p>
+          ) : invitations.length === 0 ? (
+            <p className="page-activity__empty">No pending invitations.</p>
+          ) : (
+            <ul className="team-settings-page__member-list">
+              {invitations.map((invitation) => (
+                <li key={invitation.id} className="team-settings-page__member">
+                  <div className="team-settings-page__member-main">
+                    <span className="team-settings-page__member-name">
+                      {memberDisplayLabel(invitation)}
+                    </span>
+                    <span className="team-settings-page__member-meta">
+                      Invited as {invitation.role}, expires{" "}
+                      {new Date(invitation.expires_at).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="team-settings-page__member-actions">
+                    <button
+                      type="button"
+                      className="team-settings-page__remove-btn"
+                      disabled={revokingInvitationId === invitation.id}
+                      onClick={() => void onRevokeInvitation(invitation.id)}
+                    >
+                      {revokingInvitationId === invitation.id ? "Revoking..." : "Revoke"}
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : null}
     </section>
   )
 }
 
-export function SpaceAddMemberDialog({
+export function SpaceInviteMemberDialog({
   open,
   onClose,
   currentTeamName,
-  currentUserIsOwner,
+  currentUserRole,
   saving,
   email,
+  role,
   error,
   onEmailChange,
+  onRoleChange,
   onSubmit,
 }: {
   open: boolean
   onClose: () => void
   currentTeamName: string
-  currentUserIsOwner: boolean
+  currentUserRole: string | null
   saving: boolean
   email: string
+  role: string
   error: string | null
   onEmailChange: (value: string) => void
+  onRoleChange: (value: string) => void
   onSubmit: () => Promise<void>
 }) {
-  if (!currentUserIsOwner) {
+  const canInviteAsAdmin = currentUserRole === "owner"
+  if (currentUserRole !== "owner" && currentUserRole !== "admin") {
     return null
   }
 
   return (
     <BaseModal
       open={open}
-      title="Add Member"
-      titleId="space-add-member-dialog-title"
+      title="Invite"
+      titleId="space-invite-member-dialog-title"
       onClose={() => {
         if (saving) return
         onClose()
@@ -492,7 +646,9 @@ export function SpaceAddMemberDialog({
       <div className="modal__body">
         <div className="team-settings-page__dialog">
           <p className="team-settings-page__muted">
-            Invite a teammate to {currentTeamName} by email.
+            Invite a teammate to {currentTeamName} by email. The address must already
+            have a BuildMax account — a system administrator creates one when it
+            does not exist yet.
           </p>
           <label className="settings-page__field-label" htmlFor="settings-member-email">
             Teammate email
@@ -506,6 +662,22 @@ export function SpaceAddMemberDialog({
             placeholder="teammate@example.com"
             autoFocus
           />
+          {canInviteAsAdmin ? (
+            <>
+              <label className="settings-page__field-label" htmlFor="settings-member-role">
+                Role
+              </label>
+              <select
+                id="settings-member-role"
+                className="issues-page__input"
+                value={role}
+                onChange={(e) => onRoleChange(e.target.value)}
+              >
+                <option value="member">Member</option>
+                <option value="admin">Admin</option>
+              </select>
+            </>
+          ) : null}
           {error ? (
             <p className="modal__error" role="alert">
               {error}
@@ -526,7 +698,7 @@ export function SpaceAddMemberDialog({
               disabled={saving || !email.trim()}
               onClick={() => void onSubmit()}
             >
-              {saving ? "Adding..." : "Add Member"}
+              {saving ? "Inviting..." : "Send Invite"}
             </button>
           </div>
         </div>
@@ -535,9 +707,72 @@ export function SpaceAddMemberDialog({
   )
 }
 
+export function AccountInvitationsSection({
+  loading,
+  invitations,
+  acceptingInvitationId,
+  error,
+  onAccept,
+}: {
+  loading: boolean
+  invitations: ApiInvitation[]
+  acceptingInvitationId: string | null
+  error: string | null
+  onAccept: (invitationId: string) => Promise<void>
+}) {
+  return (
+    <section className="settings-page__section">
+      <div className="settings-page__section-head">
+        <div>
+          <h2 className="settings-page__section-title">Invitations</h2>
+          <p className="settings-page__section-copy">
+            Teams that have invited you. Accepting joins the team immediately; a
+            pending invitation you ignore simply expires.
+          </p>
+        </div>
+      </div>
+      {error ? (
+        <p className="settings-section__error" role="alert">
+          {error}
+        </p>
+      ) : null}
+      {loading ? (
+        <p className="page-activity__empty">Loading invitations...</p>
+      ) : invitations.length === 0 ? (
+        <p className="page-activity__empty">No pending invitations.</p>
+      ) : (
+        <ul className="team-settings-page__member-list">
+          {invitations.map((invitation) => (
+            <li key={invitation.id} className="team-settings-page__member">
+              <div className="team-settings-page__member-main">
+                <span className="team-settings-page__member-name">
+                  Invited as {invitation.role}
+                </span>
+                <span className="team-settings-page__member-meta">
+                  Expires {new Date(invitation.expires_at).toLocaleString()}
+                </span>
+              </div>
+              <div className="team-settings-page__member-actions">
+                <button
+                  type="button"
+                  className="page-activity__action-btn"
+                  disabled={acceptingInvitationId === invitation.id}
+                  onClick={() => void onAccept(invitation.id)}
+                >
+                  {acceptingInvitationId === invitation.id ? "Accepting..." : "Accept"}
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  )
+}
+
 export function useSettingsData() {
   const { token, user } = useAuth()
-  const { currentTeam, currentTeamId } = useTeam()
+  const { currentTeam, currentTeamId, refetchTeams } = useTeam()
   const [usage, setUsage] = useState<ApiUsage | null>(null)
   const [teamUsage, setTeamUsage] = useState<ApiUsage | null>(null)
   const [members, setMembers] = useState<ApiTeamMember[]>([])
@@ -546,9 +781,28 @@ export function useSettingsData() {
   const [membersLoading, setMembersLoading] = useState(false)
   const [pageError, setPageError] = useState<string | null>(null)
   const [email, setEmail] = useState("")
-  const [addMemberError, setAddMemberError] = useState<string | null>(null)
-  const [savingMember, setSavingMember] = useState(false)
+  const [inviteRole, setInviteRole] = useState("member")
+  const [inviteError, setInviteError] = useState<string | null>(null)
+  const [savingInvite, setSavingInvite] = useState(false)
   const [removingUserId, setRemovingUserId] = useState<string | null>(null)
+
+  const [invitations, setInvitations] = useState<ApiInvitation[]>([])
+  const [invitationsLoading, setInvitationsLoading] = useState(false)
+  const [revokingInvitationId, setRevokingInvitationId] = useState<string | null>(null)
+
+  const [changingRoleUserId, setChangingRoleUserId] = useState<string | null>(null)
+  const [roleError, setRoleError] = useState<string | null>(null)
+
+  const [issuingLoginCodeUserId, setIssuingLoginCodeUserId] = useState<string | null>(null)
+  const [issuedLoginCode, setIssuedLoginCode] = useState<
+    { userId: string; code: string; expiresAt: string } | null
+  >(null)
+  const [loginCodeError, setLoginCodeError] = useState<string | null>(null)
+
+  const [myInvitations, setMyInvitations] = useState<ApiInvitation[]>([])
+  const [myInvitationsLoading, setMyInvitationsLoading] = useState(false)
+  const [myInvitationsError, setMyInvitationsError] = useState<string | null>(null)
+  const [acceptingInvitationId, setAcceptingInvitationId] = useState<string | null>(null)
 
   const loadMembers = useCallback(async () => {
     if (!token || !currentTeamId) {
@@ -613,24 +867,85 @@ export function useSettingsData() {
     [members, user?.id],
   )
   const currentUserIsOwner = currentUserMember?.role === "owner"
+  const currentUserRole = currentUserMember?.role ?? null
+  const canInvite = currentUserRole === "owner" || currentUserRole === "admin"
   const isPersonalSpace = Boolean(currentTeam?.personalForUserId)
   const currentTeamName = currentTeam?.name ?? "Current Space"
 
-  async function handleAddMember(): Promise<boolean> {
-    if (!token || !currentTeamId || !email.trim() || savingMember) return false
-    setSavingMember(true)
-    setAddMemberError(null)
+  // Reading who has been invited is the same authority as sending or
+  // revoking an invitation -- owner or admin. A member simply sees none,
+  // rather than the page treating a 403 here as a page-level error.
+  const loadInvitations = useCallback(async () => {
+    if (!token || !currentTeamId || !canInvite) {
+      setInvitations([])
+      return
+    }
+    setInvitationsLoading(true)
     try {
-      await addTeamMember(currentTeamId, { email: email.trim() }, token)
+      setInvitations(await getTeamInvitations(currentTeamId, token))
+    } catch {
+      setInvitations([])
+    } finally {
+      setInvitationsLoading(false)
+    }
+  }, [token, currentTeamId, canInvite])
+
+  useEffect(() => {
+    void loadInvitations()
+  }, [loadInvitations])
+
+  const loadMyInvitations = useCallback(async () => {
+    if (!token) {
+      setMyInvitations([])
+      return
+    }
+    setMyInvitationsLoading(true)
+    setMyInvitationsError(null)
+    try {
+      setMyInvitations(await getMyInvitations(token))
+    } catch (err) {
+      setMyInvitationsError(getErrorMessage(err, "Failed to load invitations"))
+    } finally {
+      setMyInvitationsLoading(false)
+    }
+  }, [token])
+
+  useEffect(() => {
+    void loadMyInvitations()
+  }, [loadMyInvitations])
+
+  async function handleInviteMember(): Promise<boolean> {
+    if (!token || !currentTeamId || !email.trim() || savingInvite) return false
+    setSavingInvite(true)
+    setInviteError(null)
+    try {
+      await inviteMember(currentTeamId, { email: email.trim(), role: inviteRole }, token)
       setEmail("")
-      await loadMembers()
+      setInviteRole("member")
+      // Not yet a member: the invitation is pending, not active, so the
+      // roster does not change -- only the pending list does.
+      await loadInvitations()
       navigate({ name: "space", section: "members" })
       return true
     } catch (err) {
-      setAddMemberError(getErrorMessage(err, "Failed to add member"))
+      setInviteError(getErrorMessage(err, "Failed to invite"))
       return false
     } finally {
-      setSavingMember(false)
+      setSavingInvite(false)
+    }
+  }
+
+  async function handleRevokeInvitation(invitationId: string) {
+    if (!token || !currentTeamId || revokingInvitationId) return
+    setRevokingInvitationId(invitationId)
+    setPageError(null)
+    try {
+      await revokeInvitation(currentTeamId, invitationId, token)
+      await loadInvitations()
+    } catch (err) {
+      setPageError(getErrorMessage(err, "Failed to revoke the invitation"))
+    } finally {
+      setRevokingInvitationId(null)
     }
   }
 
@@ -648,6 +963,79 @@ export function useSettingsData() {
     }
   }
 
+  async function changeRole(memberUserId: string, role: string) {
+    if (!token || !currentTeamId || changingRoleUserId) return
+    setChangingRoleUserId(memberUserId)
+    setRoleError(null)
+    try {
+      await setMemberRole(currentTeamId, memberUserId, { role }, token)
+      await loadMembers()
+    } catch (err) {
+      setRoleError(getErrorMessage(err, "Failed to change the role"))
+    } finally {
+      setChangingRoleUserId(null)
+    }
+  }
+
+  async function handleChangeRole(memberUserId: string, role: string) {
+    await changeRole(memberUserId, role)
+  }
+
+  /**
+   * Transfer ownership. Unilateral and immediate on the backend, not subject
+   * to the target's acceptance -- see
+   * docs/design/team-membership-lifecycle.md §5.2-§5.3. The confirmation
+   * here is deliberately distinct from the ordinary role dropdown: that
+   * backend irreversibility-by-immediate-effect is a reason for more UI
+   * friction on this one action, not less.
+   */
+  async function handleTransferOwnership(memberUserId: string) {
+    const target = members.find((m) => m.user_id === memberUserId)
+    const label = target ? memberDisplayName(target, user?.id) : memberUserId
+    if (
+      !window.confirm(
+        `Make ${label} the owner of ${currentTeamName}?\n\n` +
+          "This takes effect immediately, without their confirmation. You become " +
+          "an admin. You can transfer ownership back the same way.",
+      )
+    ) {
+      return
+    }
+    await changeRole(memberUserId, "owner")
+  }
+
+  async function handleIssueLoginCode(memberUserId: string) {
+    if (!token || !currentTeamId || issuingLoginCodeUserId) return
+    setIssuingLoginCodeUserId(memberUserId)
+    setLoginCodeError(null)
+    setIssuedLoginCode(null)
+    try {
+      const res = await issueMemberLoginCode(currentTeamId, memberUserId, token)
+      setIssuedLoginCode({ userId: memberUserId, code: res.code, expiresAt: res.expires_at })
+    } catch (err) {
+      setLoginCodeError(getErrorMessage(err, "Failed to issue a login code"))
+    } finally {
+      setIssuingLoginCodeUserId(null)
+    }
+  }
+
+  async function handleAcceptInvitation(invitationId: string) {
+    if (!token || acceptingInvitationId) return
+    setAcceptingInvitationId(invitationId)
+    setMyInvitationsError(null)
+    try {
+      await acceptInvitation(invitationId, token)
+      await loadMyInvitations()
+      // The accepted team is now in the switcher's list, keeping the
+      // current selection where it was.
+      await refetchTeams(currentTeamId)
+    } catch (err) {
+      setMyInvitationsError(getErrorMessage(err, "Failed to accept the invitation"))
+    } finally {
+      setAcceptingInvitationId(null)
+    }
+  }
+
   return {
     token,
     user,
@@ -659,15 +1047,35 @@ export function useSettingsData() {
     membersLoading,
     pageError,
     email,
-    addMemberError,
-    savingMember,
+    inviteRole,
+    inviteError,
+    savingInvite,
     removingUserId,
+    invitations,
+    invitationsLoading,
+    revokingInvitationId,
+    changingRoleUserId,
+    roleError,
+    issuingLoginCodeUserId,
+    issuedLoginCode,
+    loginCodeError,
+    myInvitations,
+    myInvitationsLoading,
+    myInvitationsError,
+    acceptingInvitationId,
     currentUserMember,
     currentUserIsOwner,
+    currentUserRole,
     isPersonalSpace,
     currentTeamName,
     setEmail,
-    handleAddMember,
+    setInviteRole,
+    handleInviteMember,
+    handleRevokeInvitation,
     handleRemoveMember,
+    handleChangeRole,
+    handleTransferOwnership,
+    handleIssueLoginCode,
+    handleAcceptInvitation,
   }
 }

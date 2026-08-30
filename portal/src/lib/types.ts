@@ -39,7 +39,10 @@ export type Route =
   | { name: "conversations" }
   | { name: "explore" }
   | { name: "agents" }
-  | { name: "account"; section?: "general" | "usage" | "webhook" | "plugins" }
+  | {
+      name: "account"
+      section?: "general" | "usage" | "webhook" | "plugins" | "invitations"
+    }
   | {
       name: "space"
       section?: "overview" | "members" | "artifacts" | "plugins" | "audit" | "memberNew"

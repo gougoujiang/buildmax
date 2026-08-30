@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import {
   SPACE_NAV,
-  SpaceAddMemberDialog,
+  SpaceInviteMemberDialog,
   SpaceMembersSection,
   SpaceOverviewSection,
   type SpaceSection,
@@ -15,7 +15,7 @@ import { useAuth } from "../../contexts/AuthContext"
 import { useTeam } from "../../contexts/TeamContext"
 
 export function SpaceSettings({ section }: { section: SpaceSection }) {
-  const [addMemberOpen, setAddMemberOpen] = useState(section === "memberNew")
+  const [inviteOpen, setInviteOpen] = useState(section === "memberNew")
   const {
     user,
     teamUsage,
@@ -24,39 +24,56 @@ export function SpaceSettings({ section }: { section: SpaceSection }) {
     membersLoading,
     pageError,
     email,
-    addMemberError,
-    savingMember,
+    inviteRole,
+    inviteError,
+    savingInvite,
     removingUserId,
+    invitations,
+    invitationsLoading,
+    revokingInvitationId,
+    changingRoleUserId,
+    roleError,
+    issuingLoginCodeUserId,
+    issuedLoginCode,
+    loginCodeError,
     currentUserMember,
     currentUserIsOwner,
+    currentUserRole,
     isPersonalSpace,
     currentTeamName,
     setEmail,
-    handleAddMember,
+    setInviteRole,
+    handleInviteMember,
+    handleRevokeInvitation,
     handleRemoveMember,
+    handleChangeRole,
+    handleTransferOwnership,
+    handleIssueLoginCode,
   } = useSettingsData()
   const { token } = useAuth()
   const { currentTeamId } = useTeam()
 
   useEffect(() => {
-    setAddMemberOpen(section === "memberNew")
+    setInviteOpen(section === "memberNew")
     if (section !== "memberNew") {
       setEmail("")
+      setInviteRole("member")
     }
-  }, [section, setEmail])
+  }, [section, setEmail, setInviteRole])
 
-  function closeAddMemberDialog() {
-    setAddMemberOpen(false)
+  function closeInviteDialog() {
+    setInviteOpen(false)
     setEmail("")
+    setInviteRole("member")
     if (section === "memberNew") {
       navigate({ name: "space", section: "members" })
     }
   }
 
-  async function submitAddMember() {
-    const ok = await handleAddMember()
+  async function submitInvite() {
+    const ok = await handleInviteMember()
     if (ok) {
-      setAddMemberOpen(false)
+      setInviteOpen(false)
     }
   }
 
@@ -143,24 +160,39 @@ export function SpaceSettings({ section }: { section: SpaceSection }) {
           <SpaceMembersSection
             currentTeamName={currentTeamName}
             currentUserIsOwner={currentUserIsOwner}
+            currentUserRole={currentUserRole}
             loadingMembers={membersLoading}
             members={members}
             userId={user?.id}
             removingUserId={removingUserId}
             onRemoveMember={handleRemoveMember}
+            invitations={invitations}
+            invitationsLoading={invitationsLoading}
+            revokingInvitationId={revokingInvitationId}
+            onRevokeInvitation={handleRevokeInvitation}
+            changingRoleUserId={changingRoleUserId}
+            roleError={roleError}
+            onChangeRole={handleChangeRole}
+            onTransferOwnership={handleTransferOwnership}
+            issuingLoginCodeUserId={issuingLoginCodeUserId}
+            issuedLoginCode={issuedLoginCode}
+            loginCodeError={loginCodeError}
+            onIssueLoginCode={handleIssueLoginCode}
           />
         ) : null}
       </div>
-      <SpaceAddMemberDialog
-        open={addMemberOpen}
-        onClose={closeAddMemberDialog}
+      <SpaceInviteMemberDialog
+        open={inviteOpen}
+        onClose={closeInviteDialog}
         currentTeamName={currentTeamName}
-        currentUserIsOwner={currentUserIsOwner}
-        saving={savingMember}
+        currentUserRole={currentUserRole}
+        saving={savingInvite}
         email={email}
-        error={addMemberError}
+        role={inviteRole}
+        error={inviteError}
         onEmailChange={setEmail}
-        onSubmit={submitAddMember}
+        onRoleChange={setInviteRole}
+        onSubmit={submitInvite}
       />
     </div>
   )

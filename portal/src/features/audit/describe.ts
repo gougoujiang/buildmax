@@ -32,6 +32,35 @@ export function describeEvent(event: ApiAuditEvent): AuditEventDescription {
       }
     case "team.member_removed":
       return { summary: "Removed a member", denied: false, target }
+    case "team.member_invited":
+      return {
+        summary: event.detail ? `Invited a member as ${event.detail}` : "Invited a member",
+        denied: false,
+        target,
+      }
+    case "team.invitation_accepted":
+      return {
+        summary: event.detail ? `Accepted an invitation as ${event.detail}` : "Accepted an invitation",
+        denied: false,
+        target,
+      }
+    case "team.invitation_revoked":
+      return { summary: "Revoked a pending invitation", denied: false, target }
+    case "team.invitation_expired":
+      // Not a denial in the access.denied sense, but the same reasoning
+      // applies: an attempt against an expired invitation is worth noticing
+      // the same way a refusal is.
+      return { summary: "An invitation was accepted after it expired", denied: true, target }
+    case "team.member_role_changed":
+      return {
+        summary: event.detail ? `Changed a member's role to ${event.detail}` : "Changed a member's role",
+        denied: false,
+        target,
+      }
+    case "team.ownership_transferred":
+      return { summary: "Transferred ownership", denied: false, target }
+    case "team.member_login_code_issued":
+      return { summary: "Issued a login code for a member", denied: false, target }
     case "llm_model.created":
       return {
         summary: event.detail ? `Added the model ${event.detail}` : "Added a model",

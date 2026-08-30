@@ -186,6 +186,31 @@
   background: var(--color-bg-hover);
 }
 
+.team-settings-page__role-select {
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-bg-elevated);
+  color: var(--color-text);
+  padding: 0.3rem 0.6rem;
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+.team-settings-page__transfer-btn {
+  font-size: 0.8rem;
+  padding: 0.35rem 0.7rem;
+}
+
+.team-settings-page__subheading {
+  margin: 1.5rem 0 0.75rem;
+  font-size: 0.95rem;
+  color: var(--color-text);
+}
+
+.team-settings-page__invitations {
+  margin-top: 0.5rem;
+}
+
 @media (max-width: 900px) {
   .team-settings-page__grid,
   .team-settings-page__summary {
