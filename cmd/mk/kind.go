@@ -30,7 +30,7 @@ const (
 	// The first run builds it in a few seconds, then the Go build cache serves it.
 	kindPkg = "sigs.k8s.io/kind@v0.31.0"
 
-	kindConfigPath = "deployment/dev-kind/kind-config.yaml"
+	kindConfigPath = "deployment/kind/kind-config.yaml"
 )
 
 func runKind(args ...string) error {
@@ -141,7 +141,7 @@ func kindUp() error {
 	}
 
 	fmt.Println("Installing ingress and backing services...")
-	if err := kindKubectl("apply", "-f", "deployment/dev-kind/kind-ingress-nginx.yaml"); err != nil {
+	if err := kindKubectl("apply", "-f", "deployment/kind/kind-ingress-nginx.yaml"); err != nil {
 		return err
 	}
 	if err := waitForKindDeployment("ingress-nginx", "ingress-nginx-controller", "180s"); err != nil {
@@ -150,7 +150,7 @@ func kindUp() error {
 	if err := ensureKindNamespace("storage"); err != nil {
 		return err
 	}
-	for _, manifest := range []string{"deployment/dev-kind/mysql.yaml", "deployment/dev-kind/minio.yaml"} {
+	for _, manifest := range []string{"deployment/kind/mysql.yaml", "deployment/kind/minio.yaml"} {
 		if err := kindKubectl("apply", "-f", manifest); err != nil {
 			return err
 		}
@@ -288,7 +288,7 @@ func kindForwardTargets() []kindForwardTarget {
 // background is a socket into a database that outlives the terminal that
 // remembers it exists.
 //
-// The credentials printed are the development ones in deployment/dev-kind/.
+// The credentials printed are the development ones in deployment/kind/.
 // They are not a secret and not a deployment: those manifests exist to be
 // thrown away with the cluster.
 func kindForward() error {
@@ -693,7 +693,7 @@ func ensureKindNamespace(namespace string) error {
 
 func initializeKindBucket() error {
 	_ = kindKubectl("delete", "job/minio-init", "-n", "storage", "--ignore-not-found")
-	if err := kindKubectl("apply", "-f", "deployment/dev-kind/minio-init.yaml"); err != nil {
+	if err := kindKubectl("apply", "-f", "deployment/kind/minio-init.yaml"); err != nil {
 		return err
 	}
 	if err := kindKubectl("wait", "--for=condition=complete", "job/minio-init", "-n", "storage", "--timeout=180s"); err != nil {
@@ -704,10 +704,10 @@ func initializeKindBucket() error {
 }
 
 // initializeKindDatabase widens the dev account's grant so the server can
-// create whichever schema server.yaml names. See deployment/dev-kind/mysql-init.yaml.
+// create whichever schema server.yaml names. See deployment/kind/mysql-init.yaml.
 func initializeKindDatabase() error {
 	_ = kindKubectl("delete", "job/mysql-init", "-n", "db", "--ignore-not-found")
-	if err := kindKubectl("apply", "-f", "deployment/dev-kind/mysql-init.yaml"); err != nil {
+	if err := kindKubectl("apply", "-f", "deployment/kind/mysql-init.yaml"); err != nil {
 		return err
 	}
 	if err := kindKubectl("wait", "--for=condition=complete", "job/mysql-init", "-n", "db", "--timeout=180s"); err != nil {

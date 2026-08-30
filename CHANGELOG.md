@@ -2031,8 +2031,9 @@ its Portal image exists. This version replaces it.
   `goldmark` 1.7.17 — closing 23 vulnerabilities reachable from this code.
 - Release tools are pinned to exact versions for reproducible builds.
 - Release setup instructions now use the current YAML configuration flow.
-- The local kind manifests moved from `setup/` to `deployment/dev-kind/`, next to
-  the deployment files they resemble. `./make kind up` is unchanged.
+- The local kind manifests moved from `setup/` into `deployment/`, next to the
+  deployment files they resemble. Their current path is `deployment/kind/`;
+  `./make kind up` is unchanged.
 - Community health files — Code of Conduct, Support, Governance, Maintainers,
   Trademarks — moved to `.github/`, where GitHub surfaces them exactly as it does
   from the repository root. The root now carries only README, CONTRIBUTING,

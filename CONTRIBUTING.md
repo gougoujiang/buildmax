@@ -259,7 +259,7 @@ deploys every dependency, and runs the same TaskRun and artifact assertions:
 ```
 
 [docs/deploy/local-kind.md](docs/deploy/local-kind.md) documents what it
-installs; the manifests it applies are in `deployment/dev-kind/` and exist only
+installs; the manifests it applies are in `deployment/kind/` and exist only
 for local development. Override the cluster name with `BUILDMAX_KIND_CLUSTER`
 (default `buildmaxdev`); every kubectl call uses that cluster's explicit
 context.

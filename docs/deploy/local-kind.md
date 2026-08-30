@@ -35,7 +35,7 @@ This creates the `buildmaxdev` cluster, then:
    its artifact through the API
 
 The cluster config and the dependency manifests it applies live in
-`deployment/dev-kind/`; the orchestration is `cmd/mk/kind.go`. They are
+`deployment/kind/`; the orchestration is `cmd/mk/kind.go`. They are
 development-only and are not part of a real deployment.
 
 Open <http://localhost:8080>. Portal and API share that origin, so no
@@ -91,7 +91,7 @@ BUILDMAX_KIND_CLUSTER=buildmax-my-change ./make kind down
 ```
 
 The cluster uses host ports `8080` and `8443`, and neither can be moved without
-editing `deployment/dev-kind/kind-config.yaml`. Free `8080` before creating the
+editing `deployment/kind/kind-config.yaml`. Free `8080` before creating the
 cluster. The Compose stack publishes the Portal there too, so to run both at
 once, move that one:
 
@@ -121,7 +121,7 @@ of your choosing.
 While it runs, connect to MySQL with any client — `mysql -h 127.0.0.1 -P 3306
 -ubuildmax -pbuildmax buildmax`, or the DSN
 `buildmax:buildmax@tcp(127.0.0.1:3306)/buildmax`. Those are the development
-credentials in `deployment/dev-kind/mysql.yaml`; the database is `emptyDir` and
+credentials in `deployment/kind/mysql.yaml`; the database is `emptyDir` and
 goes away with the cluster. The account may use any schema, not just `buildmax`,
 so `database.name` in a local `server.yaml` can say whatever you like — the
 server creates the schema it is pointed at on first start. The same DSN in

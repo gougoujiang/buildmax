@@ -18,7 +18,7 @@ buildmax/
 ├── gui/                  Shared React package @buildmax/gui, used by both
 ├── docs/                 Documentation
 ├── config-examples/      settings.yaml / server.yaml / hooks.yaml examples
-├── deployment/           Deployment manifests, Compose, Dockerfiles, dev-kind
+├── deployment/           Deployment manifests, Compose, Dockerfiles, local kind
 ├── evaluation/           Evaluation and qualification system
 ├── sample-data/          Seed datasets to upload into a workspace or point the CLI at
 ├── .github/              CI workflows, issue and PR templates, community health files
@@ -50,20 +50,20 @@ one binary:
 |---|---|
 | `deployment/docker/` | `Dockerfile.buildmax` (Go binaries from source), `Dockerfile.portal` (Portal via nginx), `Dockerfile.release` (packages GoReleaser's cross-compiled binaries). All three take the **repository root** as their build context. |
 | `deployment/compose/` | Single-machine Compose stack — a **real deployment path**, running published GHCR images; see [deploy/compose.md](../deploy/compose.md) |
-| `deployment/dev-kind/` | Manifests that stand up the **local development** kind cluster — kind config, ingress-nginx, MySQL, MinIO. Never part of a real deployment; applied by `cmd/mk/kind.go` behind `./make kind up`. |
+| `deployment/kind/` | Manifests that stand up the **local development** kind cluster — kind config, ingress-nginx, MySQL, MinIO. Never part of a real deployment; applied by `cmd/mk/kind.go` behind `./make kind up`. |
 | `deployment/ocean/` | OpenTofu for the disposable DigitalOcean beta-qualification infrastructure. It reads the persistent Project, VPC, and Spaces bucket and owns only the temporary DOKS and MySQL resources behind `./make ocean`. |
 | `deployment/production/` | The private deployment reference: one plain-YAML manifest written to be read and adapted, plus the dependency contract it assumes. Deliberately not a chart or a kustomize base, so it converts to whatever a cluster is already managed with. Nothing applies it; `internal/architecture` parses it so it cannot rot |
 | `deployment/smoke/` | Overlays and the mock model that make the Compose and kind smokes deterministic |
 | `deployment/migrations/` | One-off SQL migrations |
 | `deployment/buildmax-deploy.yaml` | Working Kubernetes manifest used by `./make kind up` |
 
-**The `dev-` prefix means "not a deployment path".** `dev-kind` carries it
-because that cluster exists only so a contributor can exercise the Kubernetes
-worker locally; `compose` does not, because an operator is meant to run it — its
-audience is operators, `README.md` files it under "Running it for a team", and
-`compose.yaml` pulls `ghcr.io/gougoujiang/buildmax`. Renaming `compose/` for
-symmetry would tell operators the opposite of the truth. `smoke/` is test
-scaffolding shared by both smokes and keeps its plain name for that reason.
+`kind/` is still local test infrastructure, not a supported deployment path:
+the short name matches the `./make kind` command, while this table and
+[deploy/local-kind.md](../deploy/local-kind.md) define its scope. `compose/` is
+different because an operator is meant to run it — its audience is operators,
+`README.md` files it under "Running it for a team", and `compose.yaml` pulls
+`ghcr.io/gougoujiang/buildmax`. `smoke/` is test scaffolding shared by both
+smokes.
 
 There is no `scripts/` directory. Repository tooling — release-archive
 verification, third-party notice generation, npm license checks — lives in
