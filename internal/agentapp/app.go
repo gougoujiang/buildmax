@@ -59,6 +59,17 @@ type AppConfig struct {
 	// SandboxRunOverride enables the sandbox or selects its approval mode for
 	// this AgentApp only. It cannot disable confinement or outrank policy.yaml.
 	SandboxRunOverride config.SandboxRunOverride
+	// SandboxNetworkTier and SandboxFilesystemTier are this run's agent-
+	// declared sandbox tiers (see docs/design/agent-sandbox-policy.md).
+	// Empty means the strictest tier on that axis. Only a worker run sets
+	// these; every other surface leaves them empty and gets today's
+	// behavior unchanged.
+	SandboxNetworkTier    config.SandboxNetworkTier
+	SandboxFilesystemTier config.SandboxFilesystemTier
+	// SandboxSharedPaths supplies the deployment-configured paths
+	// SandboxFilesystemTier's non-workspace tiers add. See
+	// config.SandboxSharedPaths.
+	SandboxSharedPaths config.SandboxSharedPaths
 	// MaxIterations caps this AgentApp's model calls per run, outranking
 	// settings.yaml. Zero takes the configured value. A surface exposes it for
 	// the run whose length nobody configured for: a benchmark task or an
@@ -835,6 +846,16 @@ func (a *AgentApp) fireSessionLifecycle(event agent.HookEvent, sess *SessionCont
 
 // sandboxInfo snapshots the active SandboxView into the hook payload
 // shape. Returns nil when no SandboxView is wired (older test paths).
+//
+// Downgraded combines two distinct signals, both computed here because this
+// is the one place that holds both: a configuration downgrade
+// (a.sandboxResolved.Downgraded, computed in config.ResolveSandboxForRun by
+// diffing against the surface's own baseline) and a runtime one -- the
+// resolved config asked for the sandbox but the backend turned out
+// unavailable and fail_if_unavailable was false, so Manager silently runs
+// unconfined instead of refusing to start. view.Enabled() reports the
+// runtime truth; a.sandboxResolved.Config.Enabled reports what was asked
+// for, and the two can diverge with no error in that one case.
 func (a *AgentApp) sandboxInfo() *agent.SandboxInfo {
 	if a == nil {
 		return nil
@@ -843,11 +864,13 @@ func (a *AgentApp) sandboxInfo() *agent.SandboxInfo {
 	if view == nil {
 		return nil
 	}
+	runtimeFallback := a.sandboxResolved.Config.Enabled && !view.Enabled()
 	return &agent.SandboxInfo{
-		Enabled: view.Enabled(),
-		Mode:    view.Mode(),
-		Backend: view.Backend(),
-		Sources: append([]string(nil), a.sandboxResolved.Sources...),
+		Enabled:    view.Enabled(),
+		Mode:       view.Mode(),
+		Backend:    view.Backend(),
+		Sources:    append([]string(nil), a.sandboxResolved.Sources...),
+		Downgraded: a.sandboxResolved.Downgraded || runtimeFallback,
 	}
 }
 

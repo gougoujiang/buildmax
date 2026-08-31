@@ -143,3 +143,26 @@ func TestSetTeamPluginCurationRoundTrips(t *testing.T) {
 		t.Errorf("mode = %q, want curated", got.PluginCuration)
 	}
 }
+
+func TestSetTeamSandboxDefaultsRoundTrips(t *testing.T) {
+	s, ctx := newTestStore(t)
+	owner := newTestUser(t, s, "sandbox-defaults-owner")
+	team, err := s.CreateTeam(ctx, "sandbox defaults team", owner, "")
+	if err != nil {
+		t.Fatalf("CreateTeam: %v", err)
+	}
+	if team.DefaultSandboxNetworkTier != "" || team.DefaultSandboxFilesystemTier != "" {
+		t.Errorf("a new team's defaults = %q/%q, want empty", team.DefaultSandboxNetworkTier, team.DefaultSandboxFilesystemTier)
+	}
+
+	if err := s.SetTeamSandboxDefaults(ctx, team.ID, "registries", "workspace_plus_shared_read"); err != nil {
+		t.Fatalf("SetTeamSandboxDefaults: %v", err)
+	}
+	got, err := s.GetTeam(ctx, team.ID)
+	if err != nil {
+		t.Fatalf("GetTeam: %v", err)
+	}
+	if got.DefaultSandboxNetworkTier != "registries" || got.DefaultSandboxFilesystemTier != "workspace_plus_shared_read" {
+		t.Errorf("defaults = %q/%q, want registries/workspace_plus_shared_read", got.DefaultSandboxNetworkTier, got.DefaultSandboxFilesystemTier)
+	}
+}

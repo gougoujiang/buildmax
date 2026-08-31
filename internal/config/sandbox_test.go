@@ -117,6 +117,7 @@ func TestSandboxConfig_RunOverrideWinsOverEnv(t *testing.T) {
 		SandboxRunOverride{Enable: true, AutoAllowBashIfSandboxed: &regular},
 		SandboxConfig{},
 		SandboxSurfaceCLI,
+		SandboxConfig{},
 	)
 	if !res.Config.Enabled {
 		t.Error("per-run override did not enable the sandbox over env=false")
@@ -138,6 +139,7 @@ func TestSandboxConfig_PolicyWinsOverRunAndEnv(t *testing.T) {
 		SandboxRunOverride{Enable: true, AutoAllowBashIfSandboxed: &autoAllow},
 		SandboxConfig{Enabled: true, AutoAllowBashIfSandboxed: &regular},
 		SandboxSurfaceCLI,
+		SandboxConfig{},
 	)
 	if !res.Config.Enabled {
 		t.Error("env=false weakened policy enabled=true")
@@ -255,6 +257,7 @@ func TestSandboxResolution_SourcesOrder(t *testing.T) {
 		SandboxRunOverride{Enable: true, AutoAllowBashIfSandboxed: &regular},
 		SandboxConfig{FailIfUnavailable: true},
 		SandboxSurfaceCLI,
+		SandboxConfig{},
 	)
 	got := res.Sources
 	if len(got) != 5 ||
@@ -264,6 +267,213 @@ func TestSandboxResolution_SourcesOrder(t *testing.T) {
 		got[3] != "run" ||
 		got[4] != "policy" {
 		t.Errorf("sources = %v, want [default:cli settings env run policy]", got)
+	}
+}
+
+// TestTierSandboxConfig_None asserts the strictest tiers (including the
+// empty string an unmigrated agent carries) translate to no allow-entries.
+func TestTierSandboxConfig_None(t *testing.T) {
+	for _, tier := range []SandboxNetworkTier{"", SandboxNetworkTierNone} {
+		cfg := TierSandboxConfig(tier, SandboxFilesystemTierWorkspace, SandboxSharedPaths{})
+		if len(cfg.Network.AllowedDomains) != 0 {
+			t.Errorf("network tier %q: AllowedDomains = %v, want none", tier, cfg.Network.AllowedDomains)
+		}
+	}
+	cfg := TierSandboxConfig(SandboxNetworkTierNone, SandboxFilesystemTierWorkspace, SandboxSharedPaths{
+		SharedReadPath: "/shared/cache", ExternalWritePath: "/shared/out",
+	})
+	if len(cfg.Filesystem.AllowRead) != 0 || len(cfg.Filesystem.AllowWrite) != 0 {
+		t.Errorf("workspace filesystem tier added paths it should not have: %+v", cfg.Filesystem)
+	}
+}
+
+// TestTierSandboxConfig_Registries asserts the registries tier pre-allows
+// exactly the maintained catalog, copied rather than aliased.
+func TestTierSandboxConfig_Registries(t *testing.T) {
+	cfg := TierSandboxConfig(SandboxNetworkTierRegistries, SandboxFilesystemTierWorkspace, SandboxSharedPaths{})
+	want := DefaultRegistryDomains()
+	if !sliceEqual(cfg.Network.AllowedDomains, want) {
+		t.Errorf("registries tier AllowedDomains = %v, want %v", cfg.Network.AllowedDomains, want)
+	}
+	cfg.Network.AllowedDomains[0] = "mutated"
+	if DefaultRegistryDomains()[0] == "mutated" {
+		t.Error("TierSandboxConfig aliased DefaultRegistryDomains instead of copying it")
+	}
+}
+
+// TestTierSandboxConfig_Open asserts the open tier reuses HostMatcher's
+// existing "*" allow-all primitive rather than a new one.
+func TestTierSandboxConfig_Open(t *testing.T) {
+	cfg := TierSandboxConfig(SandboxNetworkTierOpen, SandboxFilesystemTierWorkspace, SandboxSharedPaths{})
+	if !sliceEqual(cfg.Network.AllowedDomains, []string{"*"}) {
+		t.Errorf("open tier AllowedDomains = %v, want [*]", cfg.Network.AllowedDomains)
+	}
+}
+
+// TestTierSandboxConfig_FilesystemTiers asserts the shared-read and
+// external-write tiers only add a path the deployment actually configured.
+func TestTierSandboxConfig_FilesystemTiers(t *testing.T) {
+	none := TierSandboxConfig(SandboxNetworkTierNone, SandboxFilesystemTierWorkspacePlusSharedRead, SandboxSharedPaths{})
+	if len(none.Filesystem.AllowRead) != 0 {
+		t.Errorf("shared-read tier with no configured path added one: %v", none.Filesystem.AllowRead)
+	}
+	withPath := TierSandboxConfig(SandboxNetworkTierNone, SandboxFilesystemTierWorkspacePlusSharedRead,
+		SandboxSharedPaths{SharedReadPath: "/shared/cache"})
+	if !sliceEqual(withPath.Filesystem.AllowRead, []string{"/shared/cache"}) {
+		t.Errorf("shared-read tier AllowRead = %v, want [/shared/cache]", withPath.Filesystem.AllowRead)
+	}
+	if len(withPath.Filesystem.AllowWrite) != 0 {
+		t.Errorf("shared-read tier must not add a write path: %v", withPath.Filesystem.AllowWrite)
+	}
+	write := TierSandboxConfig(SandboxNetworkTierNone, SandboxFilesystemTierWorkspacePlusExternalWrite,
+		SandboxSharedPaths{ExternalWritePath: "/shared/out"})
+	if !sliceEqual(write.Filesystem.AllowWrite, []string{"/shared/out"}) {
+		t.Errorf("external-write tier AllowWrite = %v, want [/shared/out]", write.Filesystem.AllowWrite)
+	}
+}
+
+// TestValidSandboxTier asserts the known tiers, the empty string, and nothing
+// else validate.
+func TestValidSandboxTier(t *testing.T) {
+	for _, tier := range []string{"", "none", "registries", "open"} {
+		if !ValidSandboxNetworkTier(tier) {
+			t.Errorf("ValidSandboxNetworkTier(%q) = false, want true", tier)
+		}
+	}
+	if ValidSandboxNetworkTier("unlimited") {
+		t.Error("ValidSandboxNetworkTier accepted an unknown tier")
+	}
+	for _, tier := range []string{"", "workspace", "workspace_plus_shared_read", "workspace_plus_external_write"} {
+		if !ValidSandboxFilesystemTier(tier) {
+			t.Errorf("ValidSandboxFilesystemTier(%q) = false, want true", tier)
+		}
+	}
+	if ValidSandboxFilesystemTier("anywhere") {
+		t.Error("ValidSandboxFilesystemTier accepted an unknown tier")
+	}
+}
+
+// TestSandboxResolution_AgentTierLayer asserts an agent's declared tier
+// unions into ResolveSandboxForRun's result and is tagged in Sources, per
+// docs/design/agent-sandbox-policy.md §4.3.
+func TestSandboxResolution_AgentTierLayer(t *testing.T) {
+	res := ResolveSandboxForRun(
+		SandboxConfig{Enabled: true, Network: SandboxNetConfig{AllowedDomains: []string{"team.example"}}},
+		SandboxRunOverride{},
+		SandboxConfig{},
+		SandboxSurfaceWorker,
+		TierSandboxConfig(SandboxNetworkTierRegistries, SandboxFilesystemTierWorkspace, SandboxSharedPaths{}),
+	)
+	want := append([]string{"team.example"}, DefaultRegistryDomains()...)
+	if !sliceEqual(res.Config.Network.AllowedDomains, want) {
+		t.Errorf("AllowedDomains = %v, want %v", res.Config.Network.AllowedDomains, want)
+	}
+	found := false
+	for _, s := range res.Sources {
+		if s == "agent_tier" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("Sources = %v, missing agent_tier", res.Sources)
+	}
+}
+
+// TestSandboxResolution_AgentTierCannotBypassManagedOnly asserts policy's
+// allow_managed_domains_only still suppresses an agent's declared tier, the
+// same way it suppresses settings.yaml -- the operator ceiling in
+// docs/design/agent-sandbox-policy.md §2 does not move.
+func TestSandboxResolution_AgentTierCannotBypassManagedOnly(t *testing.T) {
+	policy := SandboxConfig{
+		Network: SandboxNetConfig{
+			AllowedDomains:          []string{"corp.example"},
+			AllowManagedDomainsOnly: true,
+		},
+	}
+	res := ResolveSandboxForRun(
+		SandboxConfig{},
+		SandboxRunOverride{},
+		policy,
+		SandboxSurfaceWorker,
+		TierSandboxConfig(SandboxNetworkTierOpen, SandboxFilesystemTierWorkspace, SandboxSharedPaths{}),
+	)
+	if !sliceEqual(res.Config.Network.AllowedDomains, []string{"corp.example"}) {
+		t.Errorf("agent's open tier bypassed allow_managed_domains_only: %v", res.Config.Network.AllowedDomains)
+	}
+}
+
+// TestSandboxWeakerThan asserts the diff logic directly, on each of the three
+// dimensions trust-harness.md §3.2's worker-hardening promise depends on, and
+// that strengthening a baseline is never mistaken for weakening it.
+func TestSandboxWeakerThan(t *testing.T) {
+	allowUnsandboxedOn := true
+	allowUnsandboxedOff := false
+	base := defaultSandbox(SandboxSurfaceWorker) // Enabled, FailIfUnavailable, AllowUnsandboxedCommands=false
+
+	cases := []struct {
+		name     string
+		resolved SandboxConfig
+		want     bool
+	}{
+		{"unchanged from baseline", base, false},
+		{"disabled", SandboxConfig{Enabled: false, FailIfUnavailable: true, AllowUnsandboxedCommands: &allowUnsandboxedOff}, true},
+		{"no longer fail-closed", SandboxConfig{Enabled: true, FailIfUnavailable: false, AllowUnsandboxedCommands: &allowUnsandboxedOff}, true},
+		{"escape hatch re-permitted", SandboxConfig{Enabled: true, FailIfUnavailable: true, AllowUnsandboxedCommands: &allowUnsandboxedOn}, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := sandboxWeakerThan(tc.resolved, base); got != tc.want {
+				t.Errorf("sandboxWeakerThan = %v, want %v", got, tc.want)
+			}
+		})
+	}
+
+	// The CLI baseline is already permissive (Enabled: false); resolving to
+	// exactly that baseline, or even stronger, is never a downgrade.
+	cliBase := defaultSandbox(SandboxSurfaceCLI)
+	if sandboxWeakerThan(cliBase, cliBase) {
+		t.Error("CLI baseline resolved to itself reported weaker")
+	}
+	strengthened := cliBase
+	strengthened.Enabled = true
+	if sandboxWeakerThan(strengthened, cliBase) {
+		t.Error("enabling the sandbox beyond the CLI baseline reported weaker, not stronger")
+	}
+}
+
+// TestSandboxResolution_DowngradedViaEnv asserts ResolveSandboxForRun's own
+// Downgraded field, through the one real layer that can force Enabled false
+// against a true baseline: mergeSandbox's scalar rule treats a bare `false`
+// as "no opinion" everywhere else, so only the env override assigns it
+// directly (sandbox.go's env-handling block).
+func TestSandboxResolution_DowngradedViaEnv(t *testing.T) {
+	t.Setenv(EnvKeyBuildmaxSandboxEnabled, "false")
+	res := ResolveSandboxForRun(SandboxConfig{}, SandboxRunOverride{}, SandboxConfig{}, SandboxSurfaceWorker, SandboxConfig{})
+	if !res.Downgraded {
+		t.Error("worker baseline disabled by env reported Downgraded=false")
+	}
+
+	notDowngraded := ResolveSandboxForRun(SandboxConfig{}, SandboxRunOverride{}, SandboxConfig{}, SandboxSurfaceCLI, SandboxConfig{})
+	if notDowngraded.Downgraded {
+		t.Error("CLI baseline (already disabled) with the same env var reported Downgraded=true")
+	}
+}
+
+// TestWorkerSandboxSurface_RequiresTheBackendMarker asserts a bare process
+// -- no BUILDMAX_SANDBOX_BACKEND_INSTALLED, the state of local_process
+// deployments, CI, and every native-Windows worker -- gets the empty
+// surface (CLI baseline) rather than SandboxSurfaceWorker's
+// fail_if_unavailable: true, which would refuse to start on a host that
+// cannot guarantee the OS backend. Only an image carrying the Dockerfile's
+// ENV marker gets the stricter baseline.
+func TestWorkerSandboxSurface_RequiresTheBackendMarker(t *testing.T) {
+	if got := WorkerSandboxSurface(); got != "" {
+		t.Errorf("WorkerSandboxSurface() with no marker = %q, want empty (CLI baseline)", got)
+	}
+
+	t.Setenv(EnvKeyBuildmaxSandboxBackendInstalled, "1")
+	if got := WorkerSandboxSurface(); got != SandboxSurfaceWorker {
+		t.Errorf("WorkerSandboxSurface() with the marker set = %q, want %q", got, SandboxSurfaceWorker)
 	}
 }
 

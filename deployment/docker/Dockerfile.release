@@ -17,7 +17,20 @@ ARG TARGETARCH
 # Upgrade before installing: the base tag lags the branch's security
 # updates, and the release scan fails on a fixed CVE the base still
 # carries. v0.2.0-alpha.3 published with openssl 3.5.7-r0 this way.
-RUN apk upgrade --no-cache && apk add --no-cache ca-certificates
+#
+# bubblewrap + socat are the Linux sandbox backend buildmax-worker resolves to
+# once agentapp/taskrun selects config.SandboxSurfaceWorker (see
+# docs/design/sandbox-boundaries.md §7.2). The worker baseline sets
+# fail_if_unavailable: true, so a worker image missing either package refuses
+# every run rather than executing model-chosen shell commands unconfined.
+RUN apk upgrade --no-cache && apk add --no-cache ca-certificates bubblewrap socat
+
+# Tells agentapp/taskrun (config.WorkerSandboxSurface) that this image
+# actually installs the backend above, so it is safe to select the stricter
+# worker baseline. A bare host running the same binary -- local_process
+# deployments, CI, native Windows -- never sets this and keeps the CLI
+# baseline instead, exactly as it did before the worker surface existed.
+ENV BUILDMAX_SANDBOX_BACKEND_INSTALLED=1
 
 # The server spawns the worker by name, so they have to share a PATH directory.
 COPY ${TARGETOS}/${TARGETARCH}/buildmax \

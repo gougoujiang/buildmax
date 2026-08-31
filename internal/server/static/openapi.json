@@ -2749,6 +2749,75 @@
         }
       }
     },
+    "/api/teams/{team_id}/sandbox-defaults": {
+      "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "get": {
+        "summary": "Get the team's default sandbox tiers",
+        "security": [{"bearerAuth": []}],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sandbox_network_tier": {"type": "string"},
+                    "sandbox_filesystem_tier": {"type": "string"}
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Team not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      },
+      "put": {
+        "summary": "Set the team's default sandbox tiers",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sandbox_network_tier": {"type": "string"},
+                  "sandbox_filesystem_tier": {"type": "string"}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sandbox_network_tier": {"type": "string"},
+                    "sandbox_filesystem_tier": {"type": "string"}
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown sandbox tier",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "403": {
+            "description": "Only a team owner or admin may set the default tiers",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
     "/api/teams/{team_id}/issues": {
       "parameters": [{"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}],
       "get": {

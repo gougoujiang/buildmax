@@ -229,6 +229,15 @@ func TestJobPodIsConfined(t *testing.T) {
 	if psc.FSGroup == nil || *psc.FSGroup != defaultWorkerUID {
 		t.Error("fsGroup must match the uid or the mounted volumes are unwritable")
 	}
+	// Not RuntimeDefault: confirmed against a real pod carrying this exact
+	// security context that RuntimeDefault drops bubblewrap's required
+	// syscalls once capabilities are empty. See deployment/seccomp/README.md.
+	if psc.SeccompProfile == nil || psc.SeccompProfile.Type != corev1.SeccompProfileTypeLocalhost {
+		t.Errorf("seccomp profile type = %v, want Localhost", psc.SeccompProfile)
+	}
+	if psc.SeccompProfile == nil || psc.SeccompProfile.LocalhostProfile == nil || *psc.SeccompProfile.LocalhostProfile != workerSeccompProfilePath {
+		t.Errorf("seccomp localhost profile = %v, want %q", psc.SeccompProfile, workerSeccompProfilePath)
+	}
 
 	csc := spec.Containers[0].SecurityContext
 	if csc == nil {

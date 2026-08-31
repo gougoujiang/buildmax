@@ -215,6 +215,8 @@ The ownership and authorization boundary for every Portal resource.
 | `personal_for_user_id` | `bigint unsigned` | yes | Set on a user's personal team; unique, so a user has at most one |
 | `quota_tier` | `varchar(64)` | yes | References `quota_tier.tier_name` |
 | `plugin_curation` | `varchar(16)` | no | Default `'open'`; `open` or `curated`, see `plugin_activation` |
+| `default_sandbox_network_tier` | `varchar(64)` | yes | Tier an agent that declares no network tier inherits; empty means none, see `agent` |
+| `default_sandbox_filesystem_tier` | `varchar(64)` | yes | Filesystem counterpart of `default_sandbox_network_tier` |
 | `created_by` | `bigint unsigned` | no | `user.id` |
 | `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 | `updated_at` | `datetime(6)` | yes | `autoUpdateTime` |
@@ -571,6 +573,8 @@ under.
 | `description` | `text` | yes | Shown in pickers |
 | `instructions` | `text` | yes | Appended to the system prompt for runs using this agent |
 | `plugins` | `text` | yes | JSON array of catalog plugin names this agent loads |
+| `sandbox_network_tier` | `varchar(64)` | yes | `none`, `registries`, or `open`; empty inherits the team default, then the surface baseline |
+| `sandbox_filesystem_tier` | `varchar(64)` | yes | `workspace`, `workspace_plus_shared_read`, or `workspace_plus_external_write`; same fallback as the network tier |
 | `revision` | `bigint` | no | Number of the `agent_revision` row holding this content; starts at 1 |
 | `deleted_at` | `datetime(6)` | yes | Set when the agent was deleted; the row stays |
 | `created_at` | `datetime(6)` | yes | `autoCreateTime` |
@@ -619,6 +623,8 @@ deleted.
 | `description` | `text` | yes | |
 | `instructions` | `text` | yes | |
 | `plugins` | `text` | yes | JSON array; the selection this revision recorded |
+| `sandbox_network_tier` | `varchar(64)` | yes | The tier this revision recorded |
+| `sandbox_filesystem_tier` | `varchar(64)` | yes | The tier this revision recorded |
 | `created_by` | `bigint unsigned` | no | The user who wrote this revision, not necessarily the agent's owner |
 | `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 
@@ -776,6 +782,8 @@ One execution attempt. This is the row quota and token accounting read.
 | `source_message_id` | `bigint unsigned` | yes | `conversation_message.id` this run was asked for in; `NULL` when no message asked for it |
 | `agent_revision` | `int` | yes | Which revision of `task.agent_id` this run was served; `NULL` for a run with no agent or one that never reached a worker |
 | `plugin_pins` | `text` | yes | JSON array of `{plugin_name, version, digest}`: the releases this run was given |
+| `sandbox_network_tier` | `varchar(64)` | yes | The tier resolved on the first poll -- agent declaration, then team default, then the surface baseline; `NULL` until a worker claims the run |
+| `sandbox_filesystem_tier` | `varchar(64)` | yes | The tier resolved on the first poll, same fallback as `sandbox_network_tier` |
 | `last_seen_at` | `datetime(6)` | yes | When this run's worker last polled its own route; `NULL` until a worker claims the run |
 | `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 

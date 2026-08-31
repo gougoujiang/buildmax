@@ -20,26 +20,31 @@ type MockAgentStore struct {
 
 func (m *MockAgentStore) appendRevision(a *agentdef.Agent, createdBy string) {
 	m.Revisions = append(m.Revisions, agentdef.Revision{
-		AgentID:      a.ID,
-		Revision:     a.Revision,
-		Name:         a.Name,
-		Description:  a.Description,
-		Instructions: a.Instructions,
-		Plugins:      a.Plugins,
-		CreatedBy:    createdBy,
-		CreatedAt:    time.Now().UTC(),
+		AgentID:               a.ID,
+		Revision:              a.Revision,
+		Name:                  a.Name,
+		Description:           a.Description,
+		Instructions:          a.Instructions,
+		Plugins:               a.Plugins,
+		SandboxNetworkTier:    a.SandboxNetworkTier,
+		SandboxFilesystemTier: a.SandboxFilesystemTier,
+		CreatedBy:             createdBy,
+		CreatedAt:             time.Now().UTC(),
 	})
 }
 
 func (m *MockAgentStore) updateAgentAt(i int, updatedBy string, def agentdef.Definition) *agentdef.Agent {
 	if m.Agents[i].Name == def.Name && m.Agents[i].Description == def.Description &&
-		m.Agents[i].Instructions == def.Instructions && slices.Equal(m.Agents[i].Plugins, def.Plugins) {
+		m.Agents[i].Instructions == def.Instructions && slices.Equal(m.Agents[i].Plugins, def.Plugins) &&
+		m.Agents[i].SandboxNetworkTier == def.SandboxNetworkTier && m.Agents[i].SandboxFilesystemTier == def.SandboxFilesystemTier {
 		return &m.Agents[i]
 	}
 	m.Agents[i].Name = def.Name
 	m.Agents[i].Description = def.Description
 	m.Agents[i].Instructions = def.Instructions
 	m.Agents[i].Plugins = def.Plugins
+	m.Agents[i].SandboxNetworkTier = def.SandboxNetworkTier
+	m.Agents[i].SandboxFilesystemTier = def.SandboxFilesystemTier
 	if m.Agents[i].Revision < 1 {
 		m.Agents[i].Revision = 1
 	}
@@ -92,15 +97,17 @@ func (m *MockAgentStore) CreateAgentInTeam(_ context.Context, in agentdef.Create
 		teamID = "tm_personal"
 	}
 	a := agentdef.Agent{
-		ID:           fmt.Sprintf("a_%d", len(m.Agents)+1),
-		UserID:       in.UserID,
-		TeamID:       teamID,
-		Name:         in.Def.Name,
-		Description:  in.Def.Description,
-		Instructions: in.Def.Instructions,
-		Plugins:      in.Def.Plugins,
-		Revision:     1,
-		CreatedAt:    time.Now().UTC(),
+		ID:                    fmt.Sprintf("a_%d", len(m.Agents)+1),
+		UserID:                in.UserID,
+		TeamID:                teamID,
+		Name:                  in.Def.Name,
+		Description:           in.Def.Description,
+		Instructions:          in.Def.Instructions,
+		Plugins:               in.Def.Plugins,
+		SandboxNetworkTier:    in.Def.SandboxNetworkTier,
+		SandboxFilesystemTier: in.Def.SandboxFilesystemTier,
+		Revision:              1,
+		CreatedAt:             time.Now().UTC(),
 	}
 	m.Agents = append(m.Agents, a)
 	created := &m.Agents[len(m.Agents)-1]

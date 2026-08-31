@@ -68,7 +68,7 @@ func (s *seatbeltBackend) Wrap(_ context.Context, p WrapParams) (string, []strin
 	// HTTP_PROXY env is set on cmd.Env by the bash tool itself
 	// (sandbox.SandboxView.ChildEnv) — sandbox-exec's -D flag only
 	// substitutes profile parameters and does not affect child env.
-	args := []string{"-f", f.Name(), shellOrDefault(p.Shell), "-c", p.Command}
+	args := []string{"-f", f.Name(), shellOrDefault(p.Shell), "-c", ulimitPrefix(p.Cfg) + p.Command}
 	return s.path, args, nil
 }
 

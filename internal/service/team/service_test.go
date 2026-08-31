@@ -653,6 +653,47 @@ func TestIssueMemberLoginCodeRefusedForDisabledAccount(t *testing.T) {
 	}
 }
 
+// A member may not lower or raise the bar every undeclared agent in the team
+// runs under; an admin may.
+func TestSetSandboxDefaults_MemberForbiddenAdminAllowed(t *testing.T) {
+	s, teamID, _, memberID := newTeam(t)
+	ctx := context.Background()
+	adminID := addMemberWithRole(t, s, teamID, "admin@example.com", coreteam.RoleAdmin)
+
+	err := s.SetSandboxDefaults(ctx, team.SetSandboxDefaultsCmd{
+		TeamID: teamID, ActorID: memberID, NetworkTier: "registries", FilesystemTier: "workspace",
+	})
+	if !errors.Is(err, team.ErrOnlyOwnerOrAdminCanSetSandboxDefaults) {
+		t.Errorf("member setting defaults: %v, want ErrOnlyOwnerOrAdminCanSetSandboxDefaults", err)
+	}
+
+	err = s.SetSandboxDefaults(ctx, team.SetSandboxDefaultsCmd{
+		TeamID: teamID, ActorID: adminID, NetworkTier: "registries", FilesystemTier: "workspace",
+	})
+	if err != nil {
+		t.Fatalf("admin setting defaults: %v", err)
+	}
+	got, err := s.Teams.GetTeam(ctx, teamID)
+	if err != nil {
+		t.Fatalf("GetTeam: %v", err)
+	}
+	if got.DefaultSandboxNetworkTier != "registries" || got.DefaultSandboxFilesystemTier != "workspace" {
+		t.Errorf("team defaults = %+v, want registries/workspace", got)
+	}
+}
+
+// An unrecognized tier is refused even when the caller may otherwise change
+// the setting.
+func TestSetSandboxDefaults_InvalidTierRejected(t *testing.T) {
+	s, teamID, ownerID, _ := newTeam(t)
+	err := s.SetSandboxDefaults(context.Background(), team.SetSandboxDefaultsCmd{
+		TeamID: teamID, ActorID: ownerID, NetworkTier: "not-a-tier",
+	})
+	if !errors.Is(err, team.ErrInvalidSandboxTier) {
+		t.Errorf("err = %v, want ErrInvalidSandboxTier", err)
+	}
+}
+
 func TestMissingStoresAreReported(t *testing.T) {
 	ctx := context.Background()
 

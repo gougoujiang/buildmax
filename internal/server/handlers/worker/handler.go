@@ -15,12 +15,21 @@ import (
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 	"github.com/gougoujiang/buildmax/internal/server/websocket"
 	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
 	pluginsvc "github.com/gougoujiang/buildmax/internal/service/plugin"
 )
+
+// TeamSandboxDefaultsReader is the only team capability a run token receives
+// beyond plugin activation: the tiers an agent that declares neither inherits.
+// See resolveSandboxTiers. In particular, the worker surface cannot read
+// membership or change anything about the team.
+type TeamSandboxDefaultsReader interface {
+	GetTeam(ctx context.Context, teamID string) (*coreteam.Team, error)
+}
 
 type Config struct {
 	// JWTSecret verifies the run token every route here requires. Empty means
@@ -31,6 +40,10 @@ type Config struct {
 
 	TaskRuns coretask.RunStore
 	Agents   agentdef.Store
+	// Teams resolves a run's team default sandbox tiers -- what an agent that
+	// declares neither inherits. Nil means no team falls through beyond the
+	// agent's own declaration.
+	Teams TeamSandboxDefaultsReader
 	// Activations resolves what a run's team activated. Nil means this
 	// deployment cannot, which is a refusal only for an agent that names a
 	// plugin.

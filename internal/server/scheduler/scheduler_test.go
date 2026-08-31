@@ -143,6 +143,10 @@ func (s *spyTaskRunStore) RecordTaskRunPluginPins(_ context.Context, _ string, _
 	return nil
 }
 
+func (s *spyTaskRunStore) RecordTaskRunSandboxTiers(_ context.Context, _ string, _, _ string) error {
+	return nil
+}
+
 // failingRunner implements WorkerRunner and always returns an error.
 type failingRunner struct{ err error }
 

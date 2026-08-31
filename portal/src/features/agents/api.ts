@@ -13,7 +13,13 @@ export async function getAgents(teamId: string, token: string): Promise<ApiAgent
 
 export async function createAgent(
   teamId: string,
-  body: { name: string; description?: string; instructions?: string },
+  body: {
+    name: string
+    description?: string
+    instructions?: string
+    sandbox_network_tier?: string
+    sandbox_filesystem_tier?: string
+  },
   token: string
 ): Promise<ApiAgent> {
   return requestJson<ApiAgent>(
@@ -29,7 +35,13 @@ export async function createAgent(
 export async function updateAgent(
   teamId: string,
   agentId: string,
-  body: { name: string; description?: string; instructions?: string },
+  body: {
+    name: string
+    description?: string
+    instructions?: string
+    sandbox_network_tier?: string
+    sandbox_filesystem_tier?: string
+  },
   token: string
 ): Promise<ApiAgent> {
   return requestJson<ApiAgent>(

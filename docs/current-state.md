@@ -20,9 +20,11 @@ workers, a Portal, deployment assets, and an unusually serious test and release
 harness for an Alpha project.
 
 It is also not yet a production-safe multi-tenant Agent platform. Three gaps
-dominate the assessment: unattended worker execution is not wired to the worker
-sandbox baseline, the reference deployment runs multiple Server replicas while
-live coordination remains process-local, and ordinary pull-request tests do not
+dominate the assessment: unattended worker execution now selects and passes
+the worker sandbox baseline against the production pod's own hardening, but
+hook/MCP child processes and cluster-level network egress remain outside it,
+the reference deployment runs multiple Server replicas while live
+coordination remains process-local, and ordinary pull-request tests do not
 exercise the real MySQL store.
 
 | Target | Current maturity | Assessment |
@@ -104,24 +106,125 @@ that external path for one task only. There is no Terminal-Bench score.
 
 ## Readiness Blockers
 
-### P0 — Worker Execution Is Not Contained By Default
+### P0 — Worker Sandbox Wired And Verified Against The Production Pod Security Context; Cluster Egress Still Open
 
-The worker task runtime constructs `agentapp.AppConfig` without setting
-`SandboxSurface` and uses `AllowAllPolicy` in
-[`internal/agentapp/taskrun/runtime.go`](../internal/agentapp/taskrun/runtime.go).
-The application builder resolves an empty sandbox surface to the CLI baseline
-in [`internal/agentapp/app_builder.go`](../internal/agentapp/app_builder.go).
+The worker task runtime now selects `config.SandboxSurfaceWorker` and applies
+an agent-declared network/filesystem tier in
+[`internal/agentapp/taskrun/runtime.go`](../internal/agentapp/taskrun/runtime.go),
+resolved by the server at claim time and pinned onto the run for audit, per
+[`docs/design/agent-sandbox-policy.md`](design/agent-sandbox-policy.md).
 
-The stricter worker baseline therefore exists in configuration but is not
-selected by worker runs. Kubernetes pod hardening limits the container, but it
-does not make the in-process Bash sandbox active. Local-process execution is in
-the Server trust domain. This is a release blocker for unattended execution,
-not optional defense in depth.
+Selecting it unconditionally was tried first and broke CI outright: a bare
+Linux host without `bwrap` installed, and every native-Windows worker (no
+sandbox backend exists there at all), both hit
+`SandboxSurfaceWorker`'s own `fail_if_unavailable: true` and refused to run
+any task — caught by `evaluation`'s black-box worker-surface tests and a
+Windows CI run, not by local development on a Mac, where Seatbelt is always
+present and the failure never reproduces. `config.WorkerSandboxSurface`
+now selects the strict baseline only when
+`BUILDMAX_SANDBOX_BACKEND_INSTALLED` is set — an `ENV` line in
+`Dockerfile.buildmax`/`Dockerfile.release`, present in every container built
+from either image and therefore inside a `k8s_job` worker pod, absent on a
+bare host, CI, or native Windows, which keep the CLI baseline exactly as
+before this work started. An operator who has installed `bwrap` themselves
+on a bare host can still opt in explicitly via `BUILDMAX_SANDBOX_ENABLED`.
 
-Completion requires an explicit worker surface, a documented fail-closed or
-recorded-downgrade policy when the OS backend is unavailable, resource limits,
-and tests that prove the effective boundary. Hook and MCP child processes need
-their own boundary; Bash containment alone does not cover them.
+Selecting the surface alone was not enough. Reproducing the worker Job's exact
+`PodSecurityContext` (non-root, `Capabilities: {drop: [ALL]}`,
+`RuntimeDefault` seccomp, read-only root filesystem) in a real pod and running
+`bwrap` inside it failed outright: `RuntimeDefault` drops the
+`unshare`/`setns`/`mount`/`umount2`/`pivot_root`/`clone`/`clone3` rules a
+container's own default profile gates behind `CAP_SYS_ADMIN`, and an empty
+capability set drops the gated rule from the compiled filter entirely, not
+just the capability. `internal/infra/k8s/job.go` now requests a `Localhost`
+profile built for exactly this — [`deployment/seccomp/worker-bwrap.json`](../deployment/seccomp/worker-bwrap.json),
+Docker's own default profile with those seven syscalls made unconditional —
+distributed to every node by a `DaemonSet`
+([`deployment/buildmax-deploy.yaml`](../deployment/buildmax-deploy.yaml),
+[`deployment/production/buildmax.yaml`](../deployment/production/buildmax.yaml)).
+See [`deployment/seccomp/README.md`](../deployment/seccomp/README.md) for the
+full root-cause chain.
+
+A second, independent failure surfaced once namespace creation worked:
+mounting a fresh `/proc` inside `--unshare-pid` triggered the kernel's "mount
+too revealing" VFS protection (`SB_I_USERNS_VISIBLE`), reproducible even with
+seccomp fully disabled and real root — a genuine container-runtime mount
+namespace restriction, not a seccomp or capability gap.
+[`internal/infra/sandbox/bwrap_linux.go`](../internal/infra/sandbox/bwrap_linux.go)
+now re-binds the parent's `/proc` read-only instead of mounting a fresh one;
+the accepted cost is a sandboxed process seeing the host container's process
+list under `/proc` rather than an isolated one.
+
+Both fixes were verified against a real pod carrying the worker's exact
+security context and a `DaemonSet`-delivered profile, not a relaxed
+stand-in: the full `bwrap` invocation `bwrap_linux.go` builds ran a real
+command, correctly confined to the bound workspace and denied a write
+outside it.
+
+An organic run closes the loop: the deployment smoke now arms its mock model
+(`internal/testsupport/mockllm`'s queued one-shot tool-call override, `GET
+/control/requests` to read a tool result back) to make a real dispatched
+task call `Bash` through the actual server → worker → Kubernetes Job path,
+then asserts the *tool result* — not the task's scripted final text, which
+answers the same regardless of what a tool did — shows the command ran and a
+write outside the workspace was denied
+(`tools/mk/deploy_smoke.go`'s `assertWorkerSandboxConfines`). It is not a
+pull-request gate — kind and compose suites never are — but it is free, mock
+model only, and now runs automatically every `./make kind up` or `./make
+compose smoke`, closing the gap that let the bwrap/seccomp break above ship
+unnoticed in the first place. The worker container images also now install
+`bubblewrap` and `socat` in
+[`deployment/docker/Dockerfile.buildmax`](../deployment/docker/Dockerfile.buildmax)
+and
+[`deployment/docker/Dockerfile.release`](../deployment/docker/Dockerfile.release),
+which the images lacked entirely before this pass and which the Linux
+sandbox backend requires regardless of the profile question.
+
+What this closes: a worker run is no longer built with an empty
+`SandboxSurface` resolving to the permissive CLI baseline, `bwrap` now
+functions under the worker pod's actual production hardening rather than
+merely being installed and unable to run, that functioning is now proven by
+an organic run rather than a one-off manual pod reproduction, and an agent
+author can request the `registries` or `open` network tier and a shared
+read/external-write filesystem tier without an operator hand-editing
+`policy.yaml` per agent.
+
+Process resource limits (`sandbox.process.{max_cpu_seconds,max_memory_mb,
+max_processes,max_open_files}`) are also now implemented as `ulimit`
+statements prefixed onto the wrapped command, verified against real Alpine
+and macOS shells (`max_memory_mb` is a documented no-op on macOS, which has
+no `RLIMIT_AS`) — closing [`sandbox-boundaries.md`](design/sandbox-boundaries.md)
+§13.1 gap 2.
+
+The `command` and `http` hook transports now also consult `SandboxView`
+(§13.1 gap 3): a hook's command runs through the same `WrapBashCommand` call
+and scrubbed environment `Bash` uses, and a hook's HTTP request is checked
+against the same `HostAllowed` policy `WebFetch` uses, with no
+`dangerously_disable_sandbox`-equivalent escape hatch, since hooks are
+config-authored automation rather than an LLM-chosen call an operator is
+watching turn by turn. Verified against a real `sandbox.Manager` (Seatbelt),
+not only a test double.
+
+Portal's agent editor now exposes both tiers as selectors beside name and
+instructions, defaulting to "Team default" (the empty string, which inherits
+the team's own default and only then falls through to the strictest
+baseline) rather than a hardcoded strictest choice, and a team's Plugins
+settings tab gains a "Sandbox defaults" section, visible to any member and
+editable by owner or admin, that sets what an agent declaring nothing
+inherits (`PUT /api/teams/{team_id}/sandbox-defaults`,
+`internal/service/team.SetSandboxDefaults`, resolved into the worker's
+`GetTaskRun` response alongside the agent's own declaration). An agent's own
+declared tier still always overrides the team default. This closes both
+halves of [`agent-sandbox-policy.md`](design/agent-sandbox-policy.md) §9/§10
+that were previously not started.
+
+What remains open: the cluster-level `NetworkPolicy` question
+[`trust-harness.md`](design/trust-harness.md) §3.9 leaves open — a worker
+pod reaches whatever the cluster's network allows, independent of the
+in-process sandbox this section covers — is untouched by this pass;
+`buildmax sandbox overrides` is still unimplemented; and neither plugin pins
+nor the resolved sandbox tiers are yet surfaced in a task run's own detail
+view in Portal, only in the API response and audit trail.
 
 ### P0 — The Reference Replica Count Exceeds Coordination Semantics
 
@@ -219,8 +322,13 @@ throughput. None of these is a reason to block containment or correctness work.
 
 ## Rebased Priority Order
 
-1. Wire and prove the worker execution boundary, including hook and MCP child
-   processes.
+1. Decide the cluster-level `NetworkPolicy` question
+   [`trust-harness.md`](design/trust-harness.md) §3.9 leaves open — the
+   in-process sandbox boundary this section covers is otherwise closed: the
+   worker sandbox surface, its interaction with the production pod's
+   hardening, process resource limits, the command/http hook boundary, and
+   an organic Bash-calling run through the real server → worker → Job path
+   are all now proven and exercised automatically by the deployment smoke.
 2. Make the production topology honest: one supported Server replica now, or
    shared coordination before horizontal scaling.
 3. Put critical MySQL persistence behavior in the pull-request evidence path.

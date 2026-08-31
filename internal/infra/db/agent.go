@@ -26,10 +26,16 @@ type agentRow struct {
 	// join table because nothing queries inside it: the selection is written
 	// and read whole, and "which agents name this plugin" is a scan of a
 	// team's agents, which is a small set.
-	Plugins   string     `gorm:"type:text"`
-	Revision  int        `gorm:"column:revision;not null;default:1"`
-	DeletedAt *time.Time `gorm:"column:deleted_at;index"`
-	CreatedAt time.Time  `gorm:"autoCreateTime"`
+	Plugins string `gorm:"type:text"`
+	// SandboxNetworkTier and SandboxFilesystemTier hold config.SandboxNetworkTier
+	// / config.SandboxFilesystemTier values validated by internal/service/agent
+	// before a write. Kept as plain strings here, the same way Plugins is a
+	// JSON string: this row does not depend on the config package.
+	SandboxNetworkTier    string     `gorm:"column:sandbox_network_tier;type:varchar(64)"`
+	SandboxFilesystemTier string     `gorm:"column:sandbox_filesystem_tier;type:varchar(64)"`
+	Revision              int        `gorm:"column:revision;not null;default:1"`
+	DeletedAt             *time.Time `gorm:"column:deleted_at;index"`
+	CreatedAt             time.Time  `gorm:"autoCreateTime"`
 }
 
 func (agentRow) TableName() string { return "agent" }
@@ -57,15 +63,19 @@ func agentSelectTx(tx *gorm.DB) *gorm.DB {
 // appended, never updated or deleted, and they outlive the agent: deleting an
 // agent leaves its history in place.
 type agentRevisionRow struct {
-	ID           uint64    `gorm:"primaryKey;autoIncrement"`
-	AgentID      uint64    `gorm:"column:agent_id;not null;index:idx_agent_revision,unique,priority:1"`
-	Revision     int       `gorm:"column:revision;not null;index:idx_agent_revision,unique,priority:2"`
-	Name         string    `gorm:"type:varchar(255);not null"`
-	Description  string    `gorm:"type:text"`
-	Instructions string    `gorm:"type:text"`
-	Plugins      string    `gorm:"type:text"`
-	CreatedBy    uint64    `gorm:"column:created_by;not null"`
-	CreatedAt    time.Time `gorm:"autoCreateTime"`
+	ID           uint64 `gorm:"primaryKey;autoIncrement"`
+	AgentID      uint64 `gorm:"column:agent_id;not null;index:idx_agent_revision,unique,priority:1"`
+	Revision     int    `gorm:"column:revision;not null;index:idx_agent_revision,unique,priority:2"`
+	Name         string `gorm:"type:varchar(255);not null"`
+	Description  string `gorm:"type:text"`
+	Instructions string `gorm:"type:text"`
+	Plugins      string `gorm:"type:text"`
+	// SandboxNetworkTier and SandboxFilesystemTier mirror agentRow's columns
+	// of the same name, versioned with the rest of the revision.
+	SandboxNetworkTier    string    `gorm:"column:sandbox_network_tier;type:varchar(64)"`
+	SandboxFilesystemTier string    `gorm:"column:sandbox_filesystem_tier;type:varchar(64)"`
+	CreatedBy             uint64    `gorm:"column:created_by;not null"`
+	CreatedAt             time.Time `gorm:"autoCreateTime"`
 }
 
 func (agentRevisionRow) TableName() string { return "agent_revision" }
@@ -118,16 +128,18 @@ func toAgent(row *agentReadRow) *agentdef.Agent {
 		return nil
 	}
 	return &agentdef.Agent{
-		ID:           row.Row.PublicID,
-		UserID:       row.UserPublicID,
-		TeamID:       derefPublicID(row.TeamPublicID),
-		Name:         row.Row.Name,
-		Description:  row.Row.Description,
-		Instructions: row.Row.Instructions,
-		Plugins:      decodePluginSelection(row.Row.Plugins),
-		Revision:     row.Row.Revision,
-		DeletedAt:    row.Row.DeletedAt,
-		CreatedAt:    row.Row.CreatedAt,
+		ID:                    row.Row.PublicID,
+		UserID:                row.UserPublicID,
+		TeamID:                derefPublicID(row.TeamPublicID),
+		Name:                  row.Row.Name,
+		Description:           row.Row.Description,
+		Instructions:          row.Row.Instructions,
+		Plugins:               decodePluginSelection(row.Row.Plugins),
+		SandboxNetworkTier:    row.Row.SandboxNetworkTier,
+		SandboxFilesystemTier: row.Row.SandboxFilesystemTier,
+		Revision:              row.Row.Revision,
+		DeletedAt:             row.Row.DeletedAt,
+		CreatedAt:             row.Row.CreatedAt,
 	}
 }
 
@@ -136,14 +148,16 @@ func toAgentRevision(row *agentRevisionReadRow) *agentdef.Revision {
 		return nil
 	}
 	return &agentdef.Revision{
-		AgentID:      row.AgentPublicID,
-		Revision:     row.Row.Revision,
-		Name:         row.Row.Name,
-		Description:  row.Row.Description,
-		Instructions: row.Row.Instructions,
-		Plugins:      decodePluginSelection(row.Row.Plugins),
-		CreatedBy:    row.CreatedByPublicID,
-		CreatedAt:    row.Row.CreatedAt,
+		AgentID:               row.AgentPublicID,
+		Revision:              row.Row.Revision,
+		Name:                  row.Row.Name,
+		Description:           row.Row.Description,
+		Instructions:          row.Row.Instructions,
+		Plugins:               decodePluginSelection(row.Row.Plugins),
+		SandboxNetworkTier:    row.Row.SandboxNetworkTier,
+		SandboxFilesystemTier: row.Row.SandboxFilesystemTier,
+		CreatedBy:             row.CreatedByPublicID,
+		CreatedAt:             row.Row.CreatedAt,
 	}
 }
 
@@ -173,14 +187,16 @@ func appendAgentRevision(ctx context.Context, tx *gorm.DB, agentKey uint64, a *a
 		return err
 	}
 	return tx.Create(&agentRevisionRow{
-		AgentID:      agentKey,
-		Revision:     a.Revision,
-		Name:         a.Name,
-		Description:  a.Description,
-		Instructions: a.Instructions,
-		Plugins:      encodePluginSelection(a.Plugins),
-		CreatedBy:    creator,
-		CreatedAt:    time.Now().UTC(),
+		AgentID:               agentKey,
+		Revision:              a.Revision,
+		Name:                  a.Name,
+		Description:           a.Description,
+		Instructions:          a.Instructions,
+		Plugins:               encodePluginSelection(a.Plugins),
+		SandboxNetworkTier:    a.SandboxNetworkTier,
+		SandboxFilesystemTier: a.SandboxFilesystemTier,
+		CreatedBy:             creator,
+		CreatedAt:             time.Now().UTC(),
 	}).Error
 }
 
@@ -258,22 +274,26 @@ func (s *Store) CreateAgentInTeam(ctx context.Context, in agentdef.CreateInput) 
 		teamID = resolved
 	}
 	a := &agentdef.Agent{
-		UserID:       in.UserID,
-		TeamID:       teamID,
-		Name:         in.Def.Name,
-		Description:  in.Def.Description,
-		Instructions: in.Def.Instructions,
-		Plugins:      in.Def.Plugins,
-		Revision:     1,
-		CreatedAt:    time.Now().UTC(),
+		UserID:                in.UserID,
+		TeamID:                teamID,
+		Name:                  in.Def.Name,
+		Description:           in.Def.Description,
+		Instructions:          in.Def.Instructions,
+		Plugins:               in.Def.Plugins,
+		SandboxNetworkTier:    in.Def.SandboxNetworkTier,
+		SandboxFilesystemTier: in.Def.SandboxFilesystemTier,
+		Revision:              1,
+		CreatedAt:             time.Now().UTC(),
 	}
 	row := &agentRow{
-		Name:         a.Name,
-		Description:  a.Description,
-		Instructions: a.Instructions,
-		Plugins:      encodePluginSelection(a.Plugins),
-		Revision:     1,
-		CreatedAt:    a.CreatedAt,
+		Name:                  a.Name,
+		Description:           a.Description,
+		Instructions:          a.Instructions,
+		Plugins:               encodePluginSelection(a.Plugins),
+		SandboxNetworkTier:    a.SandboxNetworkTier,
+		SandboxFilesystemTier: a.SandboxFilesystemTier,
+		Revision:              1,
+		CreatedAt:             a.CreatedAt,
 	}
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		userKey, err := lookupKey(ctx, tx, "user", in.UserID)
@@ -319,7 +339,8 @@ func (s *Store) UpdateAgentInTeam(ctx context.Context, in agentdef.UpdateInput) 
 // row that a reader has to compare against its predecessor to dismiss.
 func (s *Store) updateAgent(ctx context.Context, a *agentdef.Agent, updatedBy string, def agentdef.Definition) (*agentdef.Agent, error) {
 	if a.Name == def.Name && a.Description == def.Description &&
-		a.Instructions == def.Instructions && slices.Equal(a.Plugins, def.Plugins) {
+		a.Instructions == def.Instructions && slices.Equal(a.Plugins, def.Plugins) &&
+		a.SandboxNetworkTier == def.SandboxNetworkTier && a.SandboxFilesystemTier == def.SandboxFilesystemTier {
 		return a, nil
 	}
 	updated := *a
@@ -327,6 +348,8 @@ func (s *Store) updateAgent(ctx context.Context, a *agentdef.Agent, updatedBy st
 	updated.Description = def.Description
 	updated.Instructions = def.Instructions
 	updated.Plugins = def.Plugins
+	updated.SandboxNetworkTier = def.SandboxNetworkTier
+	updated.SandboxFilesystemTier = def.SandboxFilesystemTier
 	updated.Revision = nextRevision(a.Revision)
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Addressed by its handle rather than by saving a row built from the
@@ -337,11 +360,13 @@ func (s *Store) updateAgent(ctx context.Context, a *agentdef.Agent, updatedBy st
 			return err
 		}
 		res := tx.Model(&agentRow{}).Where("id = ?", agentKey).Updates(map[string]any{
-			"name":         updated.Name,
-			"description":  updated.Description,
-			"instructions": updated.Instructions,
-			"plugins":      encodePluginSelection(updated.Plugins),
-			"revision":     updated.Revision,
+			"name":                    updated.Name,
+			"description":             updated.Description,
+			"instructions":            updated.Instructions,
+			"plugins":                 encodePluginSelection(updated.Plugins),
+			"sandbox_network_tier":    updated.SandboxNetworkTier,
+			"sandbox_filesystem_tier": updated.SandboxFilesystemTier,
+			"revision":                updated.Revision,
 		})
 		if res.Error != nil {
 			return res.Error

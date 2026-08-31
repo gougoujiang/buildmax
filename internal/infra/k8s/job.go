@@ -153,6 +153,14 @@ func positiveQuantity(field, value string) (resource.Quantity, error) {
 	return q, nil
 }
 
+// workerSeccompProfilePath is where deployment/buildmax-deploy.yaml's and
+// deployment/production/buildmax.yaml's DaemonSet installs
+// deployment/seccomp/worker-bwrap.json on every node, relative to the
+// kubelet's seccomp root (<kubelet-root-dir>/seccomp, default
+// /var/lib/kubelet/seccomp). Kubernetes' Localhost profile type takes this
+// path, not file contents, so it has to match the DaemonSet's target exactly.
+const workerSeccompProfilePath = "buildmax/worker-bwrap.json"
+
 // podSecurityContext confines the worker pod.
 //
 // A worker executes model-chosen shell commands, so the pod is treated as
@@ -162,14 +170,25 @@ func positiveQuantity(field, value string) (resource.Quantity, error) {
 //
 // runAsNonRoot with an explicit uid needs no cooperation from the image, and
 // fsGroup makes the mounted volumes writable by it.
+//
+// The seccomp profile is Localhost, not RuntimeDefault: confirmed against a
+// real pod carrying this exact security context, RuntimeDefault's own
+// unshare/setns/mount/umount2/pivot_root/clone/clone3 rules are dropped
+// entirely once capabilities are empty (below), which makes bubblewrap unable
+// to create its own sandbox namespaces at all -- see
+// deployment/seccomp/README.md for the full root-cause chain and how it was
+// verified.
 func (p PodConfig) podSecurityContext() *corev1.PodSecurityContext {
 	uid := p.runAsUser()
 	return &corev1.PodSecurityContext{
-		RunAsNonRoot:   util.Ptr(true),
-		RunAsUser:      util.Ptr(uid),
-		RunAsGroup:     util.Ptr(uid),
-		FSGroup:        util.Ptr(uid),
-		SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
+		RunAsNonRoot: util.Ptr(true),
+		RunAsUser:    util.Ptr(uid),
+		RunAsGroup:   util.Ptr(uid),
+		FSGroup:      util.Ptr(uid),
+		SeccompProfile: &corev1.SeccompProfile{
+			Type:             corev1.SeccompProfileTypeLocalhost,
+			LocalhostProfile: util.Ptr(workerSeccompProfilePath),
+		},
 	}
 }
 

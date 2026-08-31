@@ -22,8 +22,10 @@
 ## Status
 
 - roadmap_priority: `P0.5`
-- status: `phases A–E implemented` (§13; phase F worker hardening + docs still
-  open, plus the gaps listed there — modelled on
+- status: `phases A–E implemented (process limits and hook transports
+  included), phase F's worker surface selection, production-pod
+  verification, and downgrade marking done` (§13; docs and
+  `buildmax sandbox overrides` remain — modelled on
   [Claude Code's sandbox docs](https://code.claude.com/docs/en/sandboxing))
 - follows: [trust-harness.md](./trust-harness.md), [hook-system.md](./hook-system.md)
 - roadmap: [../ROADMAP.md](../ROADMAP.md)
@@ -171,6 +173,18 @@ sandbox:
 
   ignore_violations: {}       # map[string][]string of violations to suppress
                               # (per-tool, claude-code parity)
+
+  # Not part of upstream SandboxSettings; BuildMax's own extension for the
+  # process-limits boundary trust-harness.md §3.2 lists. 0 = no limit from
+  # this layer. max_memory_mb has no effect on macOS -- Darwin's setrlimit
+  # does not support RLIMIT_AS, and Seatbelt's .sb grammar has no
+  # resource-limit primitive either (§7.1) -- so it is Linux-only in
+  # practice.
+  process:
+    max_cpu_seconds: 0
+    max_memory_mb: 0
+    max_processes: 0
+    max_open_files: 0
 
   enable_weaker_nested_sandbox: false   # allow inside Docker w/o privileged ns
   enable_weaker_network_isolation: false # macOS: allow trustd for Go CLIs
@@ -357,7 +371,7 @@ the only tab shown until you install it").
 | Bash filesystem | OS backend (`bwrap` bind/ro-bind; Seatbelt `file-read*` / `file-write*`) | `infra/sandbox/bwrap_linux.go`, `seatbelt_darwin.go` |
 | Bash network egress | Go HTTP/SOCKS proxy (allow_list/deny_list); sandbox forces `HTTP_PROXY` env | `infra/sandbox/proxy.go` |
 | Bash env | Built via `BuildChildEnv`; secret-shaped vars (`*_TOKEN`, `*_KEY`, `*_SECRET`, plus `BUILDMAX_API_KEY`, `BUILDMAX_RUN_TOKEN`, `BUILDMAX_JWT_SECRET`, `AWS_SECRET_ACCESS_KEY`) filtered out unless explicitly listed | `core/agent/sandbox.go` |
-| Bash process limits | `syscall.Setrlimit` on Unix; `bwrap --rlimit` on Linux | `infra/sandbox/unix_rlimit.go` |
+| Bash process limits | `ulimit` shell statements prefixed onto the wrapped `/bin/sh -c` command, one per limit -- not `syscall.Setrlimit`, which `os/exec.Cmd` has no pre-exec hook to apply to only the child; `max_memory_mb` has no effect on macOS (Darwin's setrlimit lacks `RLIMIT_AS`) | `infra/sandbox/unix_rlimit.go` |
 | `command` hook | Same wrap + env as Bash (so hooks can't escape) | `infra/hook/command.go` consults `SandboxView` |
 | `http` hook | Same `allowed_domains` / `denied_domains` matcher | `infra/hook/http.go` consults `SandboxView` |
 | Non-bash tools (Read/Write/Edit/Glob/Grep/WebFetch) | **Existing permission flow** (`policy.go`, `safety.go`, `util.ResolvePath`) — unchanged by this doc | `internal/tool/*` |
@@ -488,9 +502,11 @@ below, and everything still open, are collected in §13.1.
   up new allow_list without restart.
 
 **Phase D — Env scrubbing, rlimits, dangerously_disable_sandbox,
-ignore_violations.** ⚠️ (rlimits not implemented — see §13.1)
+ignore_violations.** ✅
 - `core/agent.BuildChildEnv` + secret denylist.
-- `infra/sandbox/unix_rlimit.go` + windows noop.
+- `infra/sandbox/unix_rlimit.go`: `ulimit` statements prefixed onto the
+  wrapped command, not a Windows-specific path -- Windows has no sandbox
+  backend at all (§14), so there is nothing to prefix a limit onto there.
 - Bash tool: `dangerously_disable_sandbox` arg + status surfacing
   "strict sandbox mode."
 - `ignore_violations` filter on display.
@@ -503,11 +519,20 @@ ignore_violations.** ⚠️ (rlimits not implemented — see §13.1)
 - TUI footer; `buildmax sandbox mode` / `enable` / `disable`.
 - `SessionStart` hook payload populated with `SandboxInfo`.
 
-**Phase F — Worker hardening + docs.** ❌ not started
+**Phase F — Worker hardening + docs.** ⚠️ surface selection, k8s-pod
+verification, and downgrade marking done; docs still open
 - Worker bootstrap: hard-code `enabled: true,
   fail_if_unavailable: true, allow_unsandboxed_commands: false`
-  unless explicitly overridden by `policy.yaml`.
-- WARN + trace mark on downgrade.
+  unless explicitly overridden by `policy.yaml`. ✅
+- WARN + trace mark on downgrade. ✅ `config.ResolveSandboxForRun` computes
+  `SandboxResolution.Downgraded` by diffing the resolved config against the
+  surface's own baseline (`sandboxWeakerThan`, `internal/config/sandbox.go`);
+  `agentapp.sandboxInfo` ORs in a second, runtime-only signal — the resolved
+  config asked for the sandbox but the live view reports disabled because the
+  backend was unavailable and `fail_if_unavailable` was false — and
+  `buildAgentApp` logs a `slog.Warn` at construction when either is true. The
+  `SessionStart` hook payload and every run's `sandbox_boundary` trace record
+  both carry the combined result.
 - `config-examples/sandbox.example.yaml`, CLAUDE.md §4.1 update,
   ROADMAP.md update.
 
@@ -524,20 +549,61 @@ demotion and `dangerously_disable_sandbox`, the TUI footer tag, and
 
 Still open — these block §15 acceptance:
 
-1. **Worker default is not stricter than local.** `config.SandboxSurfaceWorker`
-   exists and carries the hardened baseline, but nothing selects it:
-   `agentapp/taskrun/runtime.go` builds its AgentApp with an empty
-   `SandboxSurface`, which resolves to the CLI baseline (`enabled: false`).
-   This is the single most load-bearing gap — [trust-harness.md](./trust-harness.md) §3.2's "stricter default
-   on the worker" is currently not true.
-2. **Process limits are absent.** No `infra/sandbox/unix_rlimit.go`, no
-   `Setrlimit` call anywhere. Phase D shipped without it, so the "process
-   execution limits" boundary in [trust-harness.md](./trust-harness.md) §3.2 is
-   unenforced.
-3. **Hook transports do not consult `SandboxView`.** §9 and §12 require the
-   `command` and `http` drivers to honor the sandbox so hooks cannot be used
-   to escape it; `infra/hook/command.go` and `infra/hook/http.go` have no
-   sandbox reference today.
+1. ✅ **Worker default is now selected and verified against the production
+   pod security context.** `agentapp/taskrun/runtime.go` sets
+   `SandboxSurface: config.WorkerSandboxSurface()`, not the unconditional
+   `SandboxSurfaceWorker` first tried: that broke every worker task on a
+   bare Linux host without `bwrap` and every native-Windows worker outright
+   (both hit `fail_if_unavailable: true` with no backend to satisfy it),
+   caught by `evaluation`'s black-box worker-surface tests and Windows CI,
+   not by local development on a Mac, where Seatbelt always exists and the
+   failure never reproduces. `WorkerSandboxSurface` selects the strict
+   baseline only when `BUILDMAX_SANDBOX_BACKEND_INSTALLED` is set — an `ENV`
+   line in `Dockerfile.buildmax`/`Dockerfile.release`, present in any
+   container built from either image and therefore inside a `k8s_job`
+   worker pod, absent on a bare host. Selecting it alone was also not
+   enough on a properly-provisioned image: `RuntimeDefault` seccomp drops
+   the syscalls `bwrap` needs once the
+   worker pod's capabilities are empty, and a fresh `/proc` mount under
+   `--unshare-pid` trips the kernel's "mount too revealing" protection
+   independent of seccomp. Both are fixed —
+   [`deployment/seccomp/README.md`](../../deployment/seccomp/README.md) has
+   the full root-cause chain and how it was verified against a real pod
+   carrying the worker's exact security context. The deployment smoke now
+   also runs an organic end-to-end check: it arms its mock model to make a
+   real dispatched task call `Bash` through the actual server → worker →
+   Job path, and asserts on the tool result — not the task's scripted final
+   text, which answers the same regardless of what a tool did — that the
+   command ran and a write outside the workspace was denied
+   (`tools/mk/deploy_smoke.go`'s `assertWorkerSandboxConfines`,
+   `internal/testsupport/mockllm`'s queued tool-call arming and
+   `GET /control/requests`).
+2. ✅ **Process limits.** `sandbox.process.{max_cpu_seconds,max_memory_mb,
+   max_processes,max_open_files}` (`config.SandboxProcessConfig`) become
+   `ulimit` statements prefixed onto the wrapped `/bin/sh -c` command,
+   one statement per limit rather than one call with several flags, so
+   `max_memory_mb` failing outright on macOS (Darwin's setrlimit has no
+   `RLIMIT_AS`) does not stop the others from applying
+   (`infra/sandbox/unix_rlimit.go`). Verified against real Alpine (`docker
+   run`) and macOS `/bin/sh`: all four limits took effect on Linux
+   (including a CPU-time limit actually killing a busy loop), and on macOS
+   `max_cpu_seconds`/`max_processes`/`max_open_files` applied while
+   `max_memory_mb` silently no-opped as documented. Zero means unset, the
+   same restraint `worker.k8s.resources` documents — no default value is
+   chosen for the worker surface.
+3. ✅ **Hook transports consult `SandboxView`.** `hook.Deps.Sandbox` (plumbed
+   from `AgentApp.sandbox` in `app_builder.go`) reaches both drivers.
+   `CommandDriver` mirrors `Bash.spawnArgs`/`childEnv` exactly — same
+   `WrapBashCommand` call, same `excluded_commands` handling, same scrubbed
+   environment — with no `dangerously_disable_sandbox`-equivalent: hooks are
+   config-authored automation, not an LLM-chosen call an operator is
+   watching turn by turn, so there is no per-invocation argument for one to
+   opt out with. `HTTPDriver` mirrors `WebFetch`'s `HostAllowed` check
+   before building the request, failing the hook closed with the sandbox's
+   own reason on denial rather than reaching the network at all. Verified
+   against a real `sandbox.Manager` (Seatbelt, not a stub): a command hook
+   printed its own output, then had a write outside the workspace denied
+   with `Operation not permitted`, exactly as `Bash` would.
 4. **`buildmax sandbox overrides <strict|permissive>`** (§8) is not
    implemented; `allow_unsandboxed_commands` can only be edited by hand.
 5. **Docs from phase F**: no `config-examples/sandbox.example.yaml`, and

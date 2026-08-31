@@ -45,6 +45,13 @@ export interface ApiAgent {
    * inherited from the team's activations: an agent that names none loads none.
    */
   plugins?: string[]
+  /**
+   * config.SandboxNetworkTier / config.SandboxFilesystemTier this agent
+   * declares. Empty inherits the team's default, then the strictest
+   * baseline. See docs/design/agent-sandbox-policy.md.
+   */
+  sandbox_network_tier?: string
+  sandbox_filesystem_tier?: string
   revision: number
   created_at: string
 }
@@ -824,6 +831,15 @@ export interface ApiTeam {
   name: string
   personal_for_user_id?: string | null
   created_at?: string
+}
+
+/**
+ * The tiers an agent that declares neither inherits. See
+ * docs/design/agent-sandbox-policy.md §9 M3.
+ */
+export interface ApiTeamSandboxDefaults {
+  sandbox_network_tier?: string
+  sandbox_filesystem_tier?: string
 }
 
 export interface ApiTeamMember {

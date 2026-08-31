@@ -20,7 +20,7 @@ func TestHTTPDriver_2xxNoBodyAllows(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	d := NewHTTPDriver()
+	d := NewHTTPDriver(nil)
 	out := d.Run(context.Background(),
 		corehook.Entry{URL: srv.URL},
 		agent.HookInput{Event: agent.HookPreToolUse, ToolName: "x"},
@@ -39,7 +39,7 @@ func TestHTTPDriver_JSONBlocks(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	d := NewHTTPDriver()
+	d := NewHTTPDriver(nil)
 	out := d.Run(context.Background(),
 		corehook.Entry{URL: srv.URL},
 		agent.HookInput{Event: agent.HookPreToolUse, ToolName: "x"},
@@ -61,7 +61,7 @@ func TestHTTPDriver_422Blocks(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	d := NewHTTPDriver()
+	d := NewHTTPDriver(nil)
 	out := d.Run(context.Background(),
 		corehook.Entry{URL: srv.URL},
 		agent.HookInput{Event: agent.HookPreToolUse, ToolName: "x"},
@@ -81,7 +81,7 @@ func TestHTTPDriver_5xxFailsOpen(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	d := NewHTTPDriver()
+	d := NewHTTPDriver(nil)
 	out := d.Run(context.Background(),
 		corehook.Entry{URL: srv.URL},
 		agent.HookInput{Event: agent.HookPreToolUse, ToolName: "x"},
@@ -104,7 +104,7 @@ func TestHTTPDriver_HeaderInterpolationWhitelist(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	d := NewHTTPDriver()
+	d := NewHTTPDriver(nil)
 	d.Run(context.Background(),
 		corehook.Entry{
 			URL:        srv.URL,
@@ -134,7 +134,7 @@ func TestHTTPDriver_PostsHookInputAsBody(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	d := NewHTTPDriver()
+	d := NewHTTPDriver(nil)
 	d.Run(context.Background(),
 		corehook.Entry{URL: srv.URL},
 		agent.HookInput{Event: agent.HookPreToolUse, ToolName: "writefile", SessionID: "s1"},
@@ -146,7 +146,7 @@ func TestHTTPDriver_PostsHookInputAsBody(t *testing.T) {
 }
 
 func TestHTTPDriver_Type(t *testing.T) {
-	if NewHTTPDriver().Type() != corehook.TypeHTTP {
-		t.Errorf("Type() = %q", NewHTTPDriver().Type())
+	if NewHTTPDriver(nil).Type() != corehook.TypeHTTP {
+		t.Errorf("Type() = %q", NewHTTPDriver(nil).Type())
 	}
 }

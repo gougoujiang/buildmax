@@ -83,7 +83,7 @@ subagent frontmatter hooks (session-scoped lifetime), `async` command flag,
 `buildmax hooks` inspector. See [hook-system.md](./hook-system.md) §10
 (implementation phase F).
 
-### 3.2 Sandbox And Execution Boundaries — local sandbox shipped ✅, worker hardening open
+### 3.2 Sandbox And Execution Boundaries — local sandbox, worker surface, process limits, and hook boundary shipped ✅, `buildmax sandbox overrides` open
 
 Explicit sandbox modes for command execution now exist. Detail design lives in
 [sandbox-boundaries.md](./sandbox-boundaries.md);
@@ -100,19 +100,47 @@ Boundary coverage against the list above:
 - external directory access — ✅ `filesystem.allow_write` / `deny_read` etc.
 - network access — ✅ Go-side HTTP/SOCKS proxy with domain allow/deny
 - environment variable exposure — ✅ secret-shaped vars scrubbed from bash env
-- process execution limits — ❌ not implemented (no rlimits;
-  [sandbox-boundaries.md](./sandbox-boundaries.md) §13 phase D)
-- worker/container execution mode — ❌ **the stricter worker default is not
-  wired**: `agentapp/taskrun` builds its AgentApp without
-  `SandboxSurface: SandboxSurfaceWorker`, so worker runs fall back to the
-  local CLI baseline (`enabled: false`). See
+- process execution limits — ✅ `sandbox.process.{max_cpu_seconds,
+  max_memory_mb,max_processes,max_open_files}` become `ulimit` statements
+  prefixed onto the wrapped command, one per limit; verified against real
+  Alpine and macOS shells, including a CPU-time limit actually killing a
+  busy loop on Linux (`max_memory_mb` is a documented no-op on macOS —
+  Darwin's `setrlimit` has no `RLIMIT_AS`). See
+  [sandbox-boundaries.md](./sandbox-boundaries.md) §13 phase D.
+- worker/container execution mode — ✅ **wired and verified against the
+  production pod security context**: `agentapp/taskrun` sets
+  `SandboxSurface: config.WorkerSandboxSurface()`, which selects
+  `SandboxSurfaceWorker` only when `BUILDMAX_SANDBOX_BACKEND_INSTALLED` is
+  set (an `ENV` line in both worker Dockerfiles) — selecting the strict
+  baseline unconditionally was tried first and broke every worker task on a
+  bare Linux host or native Windows outright (`fail_if_unavailable: true`
+  with no backend to satisfy it), caught by CI rather than by local
+  development on a Mac, where Seatbelt always exists. `internal/infra/k8s/job.go`'s
+  `RuntimeDefault` seccomp profile — which drops `bwrap`'s required syscalls
+  once the worker pod's capabilities are empty — is replaced by a `Localhost`
+  profile built for this
+  ([deployment/seccomp/README.md](../../deployment/seccomp/README.md)
+  has the full root-cause chain, including a second, independent kernel
+  restriction on mounting `/proc` under `--unshare-pid` inside a container).
+  Verified against a real pod carrying the worker's exact security context
+  and the profile as the reference `DaemonSet` actually distributes it, and
+  by an organic end-to-end run the deployment smoke now performs
+  automatically: it arms its mock model to make a real dispatched task call
+  `Bash` through the actual server → worker → Job path and asserts on the
+  tool result, not the task's scripted final text; see
   [sandbox-boundaries.md](./sandbox-boundaries.md) §13 phase F.
 
-Also still open in [sandbox-boundaries.md](./sandbox-boundaries.md): `command` /
-`http` hook transports do not consult `SandboxView` yet (§9, §12), and
-`buildmax sandbox overrides` (§8) is not implemented. §3.2 is therefore **not**
-closed — the enforcement engine landed, the operator-facing worker hardening
-did not.
+`command` and `http` hook transports now consult `SandboxView` too — a hook
+mirrors the same `WrapBashCommand`/`HostAllowed` calls `Bash`/`WebFetch`
+make, with no `dangerously_disable_sandbox`-equivalent escape hatch, since
+hooks are config-authored automation rather than an LLM-chosen call an
+operator is watching turn by turn. Verified against a real `sandbox.Manager`
+(Seatbelt), not only a test double. Still open in
+[sandbox-boundaries.md](./sandbox-boundaries.md): `buildmax sandbox
+overrides` (§8) is not implemented. §3.2 is therefore **not** fully closed,
+but only that one operator-facing command and its documentation remain —
+the enforcement engine, the worker surface, process limits, downgrade
+marking, and the hook boundary have all landed.
 
 ### 3.3 Durable Run Trace — phase 1 shipped ✅
 
@@ -276,6 +304,14 @@ The cheapest missing input is a threat model covering a malicious prompt and a
 model-chosen shell command, evaluated against the containment that now exists
 rather than against the state before it. It is what would make the egress
 allow-list an evidenced decision instead of a guess.
+
+[agent-sandbox-policy.md](./agent-sandbox-policy.md) proposes an answer to the
+first two rows above, narrower than "layered per-team profiles" in general: it
+reopens deployment-wide-by-default for the `Network`/`Filesystem` axes of
+`SandboxConfig` only, moving those two to a fixed, small set of
+agent-revision-scoped tiers, while every other axis and the operator's
+`policy.yaml` ceiling stay exactly as decided here. The cluster egress row
+remains open and belongs to this section, not that document.
 
 ## 4. Explicitly Out Of Scope For Now
 

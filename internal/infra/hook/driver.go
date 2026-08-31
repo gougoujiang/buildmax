@@ -48,6 +48,12 @@ type LLMCaller interface {
 type Deps struct {
 	MCPCaller MCPCaller
 	LLMCaller LLMCaller
+	// Sandbox gates the command and http drivers the same way it gates the
+	// Bash and WebFetch tools, so a hook cannot reach a boundary those tools
+	// are confined by. Nil (the zero value) is treated as agent.NoopSandbox{}
+	// by NewCommandDriver/NewHTTPDriver, matching WithSandbox's nil-guard
+	// elsewhere -- no enforcement, today's pre-sandbox behavior.
+	Sandbox agent.SandboxView
 }
 
 // NewDriverRegistry builds the per-type driver map used by the HookManager.
@@ -55,8 +61,8 @@ type Deps struct {
 // available; dispatch then skips the corresponding configured entries.
 func NewDriverRegistry(deps Deps) map[string]Driver {
 	registry := map[string]Driver{
-		corehook.TypeCommand: NewCommandDriver(),
-		corehook.TypeHTTP:    NewHTTPDriver(),
+		corehook.TypeCommand: NewCommandDriver(deps.Sandbox),
+		corehook.TypeHTTP:    NewHTTPDriver(deps.Sandbox),
 	}
 	if deps.MCPCaller != nil {
 		registry[corehook.TypeMCP] = NewMCPDriver(deps.MCPCaller)

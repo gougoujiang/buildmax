@@ -156,6 +156,15 @@ type Run struct {
 	// is fail-open and lives in run-global storage, while this is the queryable
 	// fact and what a retry reads. Nil for a run that resolved no plugins.
 	PluginPins []coreplugin.Pin `json:"plugin_pins,omitempty"`
+	// SandboxNetworkTier and SandboxFilesystemTier are this run's agent-
+	// declared sandbox tiers, resolved and recorded at the same moment as
+	// AgentRevision and PluginPins, for the same reason: afterwards nothing
+	// else can say what boundary this run actually had, even if the agent's
+	// declared tier changes later. Nil for a run with no agent, one that
+	// predates this column, or one whose agent declared no tier on that
+	// axis. See docs/design/agent-sandbox-policy.md §4.4.
+	SandboxNetworkTier    *string `json:"sandbox_network_tier,omitempty"`
+	SandboxFilesystemTier *string `json:"sandbox_filesystem_tier,omitempty"`
 	// SourceMessageID names the conversation message this run was asked for in.
 	//
 	// Input is what Tier 1 decided to send a worker; this is what the person
@@ -323,4 +332,8 @@ type RunStore interface {
 	// agent revision, the first write wins: a worker polls its run, and a
 	// team's activation edited mid-run must not rewrite what actually ran.
 	RecordTaskRunPluginPins(ctx context.Context, taskRunID string, pins []coreplugin.Pin) error
+	// RecordTaskRunSandboxTiers stores the agent-declared sandbox tiers a run
+	// was given. Like the agent revision, the first write wins, and it is
+	// written even when both tiers are empty -- see Run.SandboxNetworkTier.
+	RecordTaskRunSandboxTiers(ctx context.Context, taskRunID string, networkTier, filesystemTier string) error
 }

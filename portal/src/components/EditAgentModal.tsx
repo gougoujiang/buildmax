@@ -14,6 +14,8 @@ interface EditAgentModalProps {
     name: string
     description?: string
     instructions?: string
+    sandbox_network_tier?: string
+    sandbox_filesystem_tier?: string
   }) => void
   onDelete: () => void
   history?: ReactNode
@@ -36,6 +38,8 @@ export function EditAgentModal({
           name: agent.name,
           description: agent.description ?? "",
           instructions: agent.instructions ?? "",
+          sandbox_network_tier: agent.sandboxNetworkTier ?? "",
+          sandbox_filesystem_tier: agent.sandboxFilesystemTier ?? "",
         }
       : undefined
 
@@ -76,6 +80,8 @@ export function EditAgentModal({
           name,
           description: values.description?.trim() || undefined,
           instructions: values.instructions?.trim() || undefined,
+          sandbox_network_tier: values.sandbox_network_tier || undefined,
+          sandbox_filesystem_tier: values.sandbox_filesystem_tier || undefined,
         })
       }}
     >

@@ -28,7 +28,8 @@ reference, then delete the plan.
 
 | Document | Priority | Current state |
 |---|---|---|
-| [Agent Core trust harness](trust-harness.md) | P0.5 | Hooks shipped; sandbox worker hardening, trace follow-ups, and the §3.9 worker-boundary authority question open |
+| [Agent Core trust harness](trust-harness.md) | P0.5 | Hooks and sandbox worker hardening (surface selection, process limits, downgrade marking, the command/http hook boundary) shipped; trace follow-ups and the §3.9 worker-boundary authority question open — its network/filesystem granularity half is proposed in [agent-sandbox-policy.md](agent-sandbox-policy.md) |
+| [Agent-scoped sandbox policy](agent-sandbox-policy.md) | P0.5 follow-on | Backend implemented: agent-revision-scoped network/filesystem sandbox tiers, claim-time resolution and pinning, and `SandboxSurfaceWorker` selection. Portal selectors, the team default tier, and cluster-level verification are open |
 | [Context durability](context-durability.md) | P0.5 | Implemented: accumulating compaction, durable session notes, the pre-compaction checkpoint, and the additional system prompt. The §6 and §11 follow-ups are open |
 | [Local Projects and Project Memory](local-project-memory.md) | P0.5 local follow-on | Phases 1 and 2 shipped: shared CLI/Desktop Project identity, bounded cross-session Project Memory, `MemoryRead` and `MemoryWrite` on enabled local primary runs, and the memory half of `buildmax info` and the TUI `/info` panel. Desktop lists and reads memories and nothing more; its editor, per-memory delete, and enable toggle are unbuilt, as is the §17 session review command. Phase 3 not started. Portal, team, and user memory remain outside this record |
 | [Local session storage](local-session-storage.md) | unscheduled | Implemented: atomic session bundles, linked journal history, rewind, and physical-copy fork. Server synchronization is outside this record |
@@ -68,7 +69,7 @@ aligned with code and link user-facing behavior to `guide/` or `reference/`.
 |---|---|---|
 | [Client modes: local and managed](client-modes.md) | Implemented: the mode is whether a login is stored, models come from one source, the alias layer and per-team model policy are gone, and the call ledger is user-scoped | [guide/models-and-modes.md](../guide/models-and-modes.md) |
 | [Hook system](hook-system.md) | 16 events and 4 transports implemented; the optional inspector and frontmatter integrations stay deferred | [guide/hooks.md](../guide/hooks.md) |
-| [Sandbox boundaries](sandbox-boundaries.md) | Local phases A–E implemented; phase F — worker hardening and its documentation — open, with it the §13 gaps: no process rlimits, hook transports that do not consult `SandboxView`, and no `sandbox overrides` command | [guide/sandbox.md](../guide/sandbox.md) |
+| [Sandbox boundaries](sandbox-boundaries.md) | Local phases A–E implemented, process limits and the command/http hook boundary included; phase F's worker surface selection, production-pod verification, and downgrade marking shipped, its example-config docs and the `sandbox overrides` command open | [guide/sandbox.md](../guide/sandbox.md) |
 | [Durable run trace](durable-run-trace.md) | Phase 1 implemented; richer events and retention open | [guide/sessions-and-traces.md](../guide/sessions-and-traces.md) |
 | [Queued messages](queued-messages.md) | Queueing on all three surfaces, mid-run injection on CLI/TUI and Desktop; persistence and Portal injection decided against | [reference/cli.md](../reference/cli.md) |
 

@@ -47,8 +47,9 @@ type SandboxConfig struct {
 	// sandbox (convenience, not a security boundary).
 	ExcludedCommands []string `mapstructure:"excluded_commands" json:"excluded_commands,omitempty" yaml:"excluded_commands,omitempty"`
 
-	Filesystem SandboxFSConfig  `mapstructure:"filesystem" json:"filesystem,omitempty" yaml:"filesystem,omitempty"`
-	Network    SandboxNetConfig `mapstructure:"network"    json:"network,omitempty"    yaml:"network,omitempty"`
+	Filesystem SandboxFSConfig      `mapstructure:"filesystem" json:"filesystem,omitempty" yaml:"filesystem,omitempty"`
+	Network    SandboxNetConfig     `mapstructure:"network"    json:"network,omitempty"    yaml:"network,omitempty"`
+	Process    SandboxProcessConfig `mapstructure:"process"   json:"process,omitempty"    yaml:"process,omitempty"`
 
 	// IgnoreViolations: per-tool list of violation kinds to hide from
 	// status/trace. Internal counts are still kept.
@@ -105,6 +106,36 @@ type SandboxNetConfig struct {
 	AllowManagedDomainsOnly bool `mapstructure:"allow_managed_domains_only" json:"allow_managed_domains_only,omitempty" yaml:"allow_managed_domains_only,omitempty"`
 }
 
+// SandboxProcessConfig bounds a sandboxed Bash command's own resource use.
+// Zero means unset -- no limit from this layer -- the same convention
+// SandboxNetConfig's proxy ports already use, and the same restraint
+// worker.k8s.resources documents: BuildMax chooses no numbers, because the
+// right ones depend on the work a deployment runs.
+//
+// Enforced as `ulimit` shell builtins prefixed onto the wrapped command
+// string (internal/infra/sandbox/bwrap_linux.go, seatbelt_darwin.go), not a
+// Go-side syscall.Setrlimit call: both backends already invoke the command
+// as `/bin/sh -c <command>`, so a shell builtin reaches the sandboxed child
+// on both platforms without new process-spawning machinery, where
+// os/exec.Cmd offers no pre-exec hook to apply a limit to only the child and
+// not the parent buildmax process. See docs/design/sandbox-boundaries.md §9.
+type SandboxProcessConfig struct {
+	// MaxCPUSeconds bounds CPU time (ulimit -t).
+	MaxCPUSeconds int `mapstructure:"max_cpu_seconds" json:"max_cpu_seconds,omitempty" yaml:"max_cpu_seconds,omitempty"`
+	// MaxMemoryMB bounds virtual memory (ulimit -v, in MB). Not enforced on
+	// macOS: Darwin's setrlimit does not support RLIMIT_AS the way Linux
+	// does, so bash's `ulimit -v` reports an error there rather than
+	// applying a limit. Seatbelt has no resource-limit primitive either
+	// (docs/design/sandbox-boundaries.md §7.1) -- this field is Linux-only
+	// in practice until a macOS-native mechanism exists.
+	MaxMemoryMB int `mapstructure:"max_memory_mb" json:"max_memory_mb,omitempty" yaml:"max_memory_mb,omitempty"`
+	// MaxProcesses bounds the number of processes/threads the command's
+	// user may hold (ulimit -u).
+	MaxProcesses int `mapstructure:"max_processes" json:"max_processes,omitempty" yaml:"max_processes,omitempty"`
+	// MaxOpenFiles bounds open file descriptors (ulimit -n).
+	MaxOpenFiles int `mapstructure:"max_open_files" json:"max_open_files,omitempty" yaml:"max_open_files,omitempty"`
+}
+
 // SandboxSurface names a runtime surface so ResolveSandbox can pick a
 // surface-appropriate default. Surfaces differ on:
 //   - default Enabled (off for interactive local, on for the worker)
@@ -120,6 +151,124 @@ const (
 	// Defaults satisfy docs/design/trust-harness.md §3.2's "stricter than trusted local."
 	SandboxSurfaceWorker SandboxSurface = "worker"
 )
+
+// SandboxNetworkTier and SandboxFilesystemTier name a coarse, agent-declared
+// sandbox capability level for the worker surface. See
+// docs/design/agent-sandbox-policy.md §4.1: an agent author picks a tier
+// instead of authoring a raw domain or path list, and each tier is a fixed,
+// strictly-ordered superset of the one before it on its own axis.
+type SandboxNetworkTier string
+
+// SandboxFilesystemTier is the filesystem half of the same pair.
+type SandboxFilesystemTier string
+
+const (
+	// SandboxNetworkTierNone pre-allows no domain. The strictest tier and the
+	// default for an agent that declares nothing, matching today's
+	// SandboxSurfaceWorker baseline.
+	SandboxNetworkTierNone SandboxNetworkTier = "none"
+	// SandboxNetworkTierRegistries pre-allows DefaultRegistryDomains: enough
+	// to install a dependency without an operator hand-authoring policy.yaml.
+	SandboxNetworkTierRegistries SandboxNetworkTier = "registries"
+	// SandboxNetworkTierOpen pre-allows any outbound HTTPS destination. The
+	// filesystem tier is unaffected.
+	SandboxNetworkTierOpen SandboxNetworkTier = "open"
+
+	// SandboxFilesystemTierWorkspace confines writes to the run's own
+	// workspace, exactly as SandboxSurfaceWorker already does. The default
+	// for an agent that declares nothing.
+	SandboxFilesystemTierWorkspace SandboxFilesystemTier = "workspace"
+	// SandboxFilesystemTierWorkspacePlusSharedRead additionally allows
+	// reading a deployment-configured shared cache path.
+	SandboxFilesystemTierWorkspacePlusSharedRead SandboxFilesystemTier = "workspace_plus_shared_read"
+	// SandboxFilesystemTierWorkspacePlusExternalWrite additionally allows
+	// writing one deployment-configured external output path.
+	SandboxFilesystemTierWorkspacePlusExternalWrite SandboxFilesystemTier = "workspace_plus_external_write"
+)
+
+// defaultRegistryDomains backs DefaultRegistryDomains. Unexported so nothing
+// outside this file can mutate the shared slice; architecture_test.go forbids
+// exported mutable package state for exactly this reason.
+var defaultRegistryDomains = []string{
+	"registry.npmjs.org",
+	"pypi.org",
+	"files.pythonhosted.org",
+	"crates.io",
+	"static.crates.io",
+	"proxy.golang.org",
+	"sum.golang.org",
+	"rubygems.org",
+}
+
+// DefaultRegistryDomains returns the BuildMax-maintained default allow-list
+// for SandboxNetworkTierRegistries, copied so a caller cannot mutate the
+// shared default. A deployment extends it, never replaces it, via
+// policy.yaml's own network.allowed_domains -- see
+// docs/design/agent-sandbox-policy.md §4.6.
+func DefaultRegistryDomains() []string {
+	return append([]string(nil), defaultRegistryDomains...)
+}
+
+// ValidSandboxNetworkTier reports whether tier is a known network tier. The
+// empty string is valid and equivalent to SandboxNetworkTierNone, so an agent
+// that predates this field is not rejected on write.
+func ValidSandboxNetworkTier(tier string) bool {
+	switch SandboxNetworkTier(tier) {
+	case "", SandboxNetworkTierNone, SandboxNetworkTierRegistries, SandboxNetworkTierOpen:
+		return true
+	default:
+		return false
+	}
+}
+
+// ValidSandboxFilesystemTier reports whether tier is a known filesystem tier,
+// on the same empty-string terms as ValidSandboxNetworkTier.
+func ValidSandboxFilesystemTier(tier string) bool {
+	switch SandboxFilesystemTier(tier) {
+	case "", SandboxFilesystemTierWorkspace, SandboxFilesystemTierWorkspacePlusSharedRead, SandboxFilesystemTierWorkspacePlusExternalWrite:
+		return true
+	default:
+		return false
+	}
+}
+
+// SandboxSharedPaths names the deployment-configured paths the shared-read
+// and external-write filesystem tiers add. Both empty means those two tiers
+// behave exactly like SandboxFilesystemTierWorkspace: a tier can only add a
+// path a deployment actually configured, never invent one.
+type SandboxSharedPaths struct {
+	SharedReadPath    string
+	ExternalWritePath string
+}
+
+// TierSandboxConfig translates an agent's declared network/filesystem tier
+// pair into the SandboxConfig fragment ResolveSandboxForRun merges as one
+// layer. An unrecognized tier translates to the zero value -- the strictest
+// baseline -- rather than an error, so a run is never blocked by a tier this
+// binary does not recognize; ValidSandboxNetworkTier/ValidSandboxFilesystemTier
+// are what reject one on write. See docs/design/agent-sandbox-policy.md §4.1.
+func TierSandboxConfig(networkTier SandboxNetworkTier, filesystemTier SandboxFilesystemTier, shared SandboxSharedPaths) SandboxConfig {
+	var cfg SandboxConfig
+	switch networkTier {
+	case SandboxNetworkTierRegistries:
+		cfg.Network.AllowedDomains = DefaultRegistryDomains()
+	case SandboxNetworkTierOpen:
+		// "*" already means "allow every host" to HostMatcher.AllowAll --
+		// the same primitive the sandbox backend uses today, not a new one.
+		cfg.Network.AllowedDomains = []string{"*"}
+	}
+	switch filesystemTier {
+	case SandboxFilesystemTierWorkspacePlusSharedRead:
+		if shared.SharedReadPath != "" {
+			cfg.Filesystem.AllowRead = []string{shared.SharedReadPath}
+		}
+	case SandboxFilesystemTierWorkspacePlusExternalWrite:
+		if shared.ExternalWritePath != "" {
+			cfg.Filesystem.AllowWrite = []string{shared.ExternalWritePath}
+		}
+	}
+	return cfg
+}
 
 // PolicyFile is the on-disk shape of <BUILDMAX_HOME>/policy.yaml, the
 // operator-controlled layer above settings.yaml.
@@ -169,33 +318,78 @@ type SandboxResolution struct {
 	// Sources lists every layer that contributed a non-default value, in
 	// resolution order: "default", "settings", "env", "run", "policy".
 	Sources []string
+
+	// Downgraded reports whether Config is weaker than surface's own
+	// baseline on a dimension the worker-hardening promise in
+	// docs/design/trust-harness.md §3.2 depends on: enabled, fail-closed on
+	// an unavailable backend, or the dangerously_disable_sandbox escape
+	// hatch. A layer strengthening the baseline is not a downgrade, only one
+	// weakening it — see ResolveSandboxForRun. Runtime fallback (the backend
+	// itself turns out to be unavailable) is a second, distinct signal
+	// agentapp combines with this one; see sandboxInfo's own comment.
+	Downgraded bool
 }
 
 // Env override key. Phase A only honors BUILDMAX_SANDBOX_ENABLED; later
 // phases may add more.
 const EnvKeyBuildmaxSandboxEnabled = "BUILDMAX_SANDBOX_ENABLED"
 
-// ResolveSandbox merges settings + env + policy + surface defaults into a
-// final SandboxConfig. It is the no-run-override form used by surfaces that
-// do not expose per-run sandbox controls.
-func ResolveSandbox(global, policy SandboxConfig, surface SandboxSurface) SandboxResolution {
-	return ResolveSandboxForRun(global, SandboxRunOverride{}, policy, surface)
+// EnvKeyBuildmaxSandboxBackendInstalled marks an image as one where the
+// sandbox's OS backend (bwrap + socat) is actually installed. Set via `ENV`
+// in Dockerfile.buildmax and Dockerfile.release, not by any Go code --
+// Kubernetes does not strip an image's own ENV entries from a Job's
+// container, so this is visible inside a k8s_job worker pod without any
+// pod-spec change.
+const EnvKeyBuildmaxSandboxBackendInstalled = "BUILDMAX_SANDBOX_BACKEND_INSTALLED"
+
+// WorkerSandboxSurface returns SandboxSurfaceWorker only when this process is
+// running from an image that installs the sandbox's OS backend --
+// otherwise SandboxSurfaceWorker's own fail_if_unavailable: true baseline
+// would refuse to start every task on a host that cannot provide one. That
+// is exactly what selecting it unconditionally broke: local_process
+// deployments (documented in configuration.md as "deliberately not being
+// hardened towards" this boundary, same trust domain as the server by
+// construction), the evaluation runner's black-box worker-surface adapter,
+// and every native-Windows worker, since Windows has no sandbox backend at
+// all -- none of those run from the Docker image this marker names.
+//
+// An operator who has installed bwrap themselves on a bare host can still
+// opt the sandbox in explicitly via BUILDMAX_SANDBOX_ENABLED, which this
+// does not affect; it only changes which surface's baseline a run without
+// an explicit opinion inherits.
+func WorkerSandboxSurface() SandboxSurface {
+	if _, ok := os.LookupEnv(EnvKeyBuildmaxSandboxBackendInstalled); ok {
+		return SandboxSurfaceWorker
+	}
+	return ""
 }
 
-// ResolveSandboxForRun also applies a narrow per-run override. Mirrors the
-// layering in docs/design/sandbox-boundaries.md §4.1.
+// ResolveSandbox merges settings + env + policy + surface defaults into a
+// final SandboxConfig. It is the no-run-override, no-agent-tier form used by
+// surfaces that do not expose per-run sandbox controls or agent-declared
+// tiers.
+func ResolveSandbox(global, policy SandboxConfig, surface SandboxSurface) SandboxResolution {
+	return ResolveSandboxForRun(global, SandboxRunOverride{}, policy, surface, SandboxConfig{})
+}
+
+// ResolveSandboxForRun also applies a narrow per-run override and an agent's
+// declared network/filesystem tier. Mirrors the layering in
+// docs/design/sandbox-boundaries.md §4.1, extended by
+// docs/design/agent-sandbox-policy.md §4.3.
 //
 // Precedence (highest wins for scalars; arrays union):
 //  1. Policy file.
 //  2. Per-run override.
 //  3. Env (BUILDMAX_SANDBOX_ENABLED).
-//  4. Settings file.
-//  5. Surface default.
+//  4. Agent-declared tier (config.TierSandboxConfig; network/filesystem
+//     arrays only).
+//  5. Settings file.
+//  6. Surface default.
 //
 // For the managed-only flags (AllowManagedDomainsOnly,
 // AllowManagedReadPathsOnly) set in policy.yaml, the corresponding allow
 // array in lower sources is suppressed. Deny arrays always union.
-func ResolveSandboxForRun(global SandboxConfig, run SandboxRunOverride, policy SandboxConfig, surface SandboxSurface) SandboxResolution {
+func ResolveSandboxForRun(global SandboxConfig, run SandboxRunOverride, policy SandboxConfig, surface SandboxSurface, agentTier SandboxConfig) SandboxResolution {
 	base := defaultSandbox(surface)
 	res := SandboxResolution{Config: base, Sources: []string{"default:" + string(surface)}}
 
@@ -203,6 +397,13 @@ func ResolveSandboxForRun(global SandboxConfig, run SandboxRunOverride, policy S
 	if !sandboxEmpty(global) {
 		res.Config = mergeSandbox(res.Config, global, false)
 		res.Sources = append(res.Sources, "settings")
+	}
+	// The agent's declared tier sits above the team/user default but below
+	// everything that can already outrank settings.yaml today -- it is a
+	// workload's request, not an operator's or a caller's decision.
+	if !sandboxEmpty(agentTier) {
+		res.Config = mergeSandbox(res.Config, agentTier, false)
+		res.Sources = append(res.Sources, "agent_tier")
 	}
 	// The process environment sits above user settings but below an explicit
 	// run request and operator policy.
@@ -233,7 +434,17 @@ func ResolveSandboxForRun(global SandboxConfig, run SandboxRunOverride, policy S
 		res.Config = mergeSandbox(res.Config, policy, true)
 		res.Sources = append(res.Sources, "policy")
 	}
+	res.Downgraded = sandboxWeakerThan(res.Config, base)
 	return res
+}
+
+// sandboxWeakerThan reports whether resolved is weaker than base on any of
+// the three scalars trust-harness.md §3.2's worker-hardening promise depends
+// on. A layer strengthening base is not a downgrade, only one weakening it.
+func sandboxWeakerThan(resolved, base SandboxConfig) bool {
+	return (base.Enabled && !resolved.Enabled) ||
+		(base.FailIfUnavailable && !resolved.FailIfUnavailable) ||
+		(!base.EffectiveAllowUnsandboxed() && resolved.EffectiveAllowUnsandboxed())
 }
 
 // defaultSandbox returns the surface-appropriate baseline config.
@@ -330,6 +541,18 @@ func mergeSandbox(dst, src SandboxConfig, isPolicy bool) SandboxConfig {
 	if src.Network.SOCKSProxyPort > 0 {
 		out.Network.SOCKSProxyPort = src.Network.SOCKSProxyPort
 	}
+	if src.Process.MaxCPUSeconds > 0 {
+		out.Process.MaxCPUSeconds = src.Process.MaxCPUSeconds
+	}
+	if src.Process.MaxMemoryMB > 0 {
+		out.Process.MaxMemoryMB = src.Process.MaxMemoryMB
+	}
+	if src.Process.MaxProcesses > 0 {
+		out.Process.MaxProcesses = src.Process.MaxProcesses
+	}
+	if src.Process.MaxOpenFiles > 0 {
+		out.Process.MaxOpenFiles = src.Process.MaxOpenFiles
+	}
 
 	// ignore_violations: union per key.
 	if len(src.IgnoreViolations) > 0 {
@@ -370,6 +593,9 @@ func sandboxEmpty(c SandboxConfig) bool {
 		return false
 	}
 	if c.Network.HTTPProxyPort > 0 || c.Network.SOCKSProxyPort > 0 {
+		return false
+	}
+	if c.Process.MaxCPUSeconds > 0 || c.Process.MaxMemoryMB > 0 || c.Process.MaxProcesses > 0 || c.Process.MaxOpenFiles > 0 {
 		return false
 	}
 	return true

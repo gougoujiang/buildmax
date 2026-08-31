@@ -86,6 +86,27 @@ Set `ingressClassName`, and add whatever annotations your controller needs.
 kubelet reaches them directly on the pod; publishing them only exposes
 dependency status to anyone who asks.
 
+### Worker sandbox
+
+A worker pod executes model-chosen shell commands inside `bubblewrap`, not
+unconfined and not under Kubernetes' `RuntimeDefault` seccomp profile —
+`RuntimeDefault` blocks `bubblewrap` from creating its own sandbox namespaces
+once capabilities are dropped, which every worker pod's `securityContext`
+does. Before applying this file, create the ConfigMap the manifest's
+`buildmax-worker-seccomp` `DaemonSet` installs onto every node:
+
+```sh
+kubectl create configmap buildmax-worker-seccomp -n buildmax \
+  --from-file=worker-bwrap.json=deployment/seccomp/worker-bwrap.json
+```
+
+Re-run it whenever `deployment/seccomp/worker-bwrap.json` changes. See
+[`deployment/seccomp/README.md`](../seccomp/README.md) for what the profile
+allows and why, and
+[`docs/design/agent-sandbox-policy.md`](../../docs/design/agent-sandbox-policy.md)
+for how this fits the rest of the sandbox effort. A worker pod refuses to
+start on any node the `DaemonSet` has not yet reached.
+
 ### Model access
 
 The reference points `conversation.model` at an OpenAI-compatible endpoint. A

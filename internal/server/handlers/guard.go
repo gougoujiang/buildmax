@@ -72,6 +72,7 @@ func (h *Handler) buildWorkerHandler() *worker.Handler {
 		WorkerLLM:     h.cfg.WorkerLLM,
 		TaskRuns:      h.cfg.TaskRunStore,
 		Agents:        h.cfg.AgentStore,
+		Teams:         h.cfg.TeamStore,
 		Gateway:       h.cfg.LLMGateway,
 		Artifacts:     h.artifacts,
 		Issues:        h.workerIssueAccess(),

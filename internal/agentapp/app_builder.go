@@ -3,6 +3,7 @@ package agentapp
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/gougoujiang/buildmax/internal/agentapp/job"
 	"github.com/gougoujiang/buildmax/internal/agentapp/worktree"
@@ -104,7 +105,8 @@ func resolveAgentAppConfig(cfg AppConfig) (resolvedAgentAppConfig, error) {
 		loadedPlugins:     loadedPlugins,
 		hooks:             config.MergeHooks(settings.Hooks, pluginHooks.Config, workspaceHooks),
 		pluginHooks:       pluginHooks.Config,
-		sandbox:           config.ResolveSandboxForRun(settings.Sandbox, cfg.SandboxRunOverride, policySandbox, surface),
+		sandbox: config.ResolveSandboxForRun(settings.Sandbox, cfg.SandboxRunOverride, policySandbox, surface,
+			config.TierSandboxConfig(cfg.SandboxNetworkTier, cfg.SandboxFilesystemTier, cfg.SandboxSharedPaths)),
 	}, nil
 }
 
@@ -139,6 +141,15 @@ func buildAgentApp(cfg AppConfig, resolved resolvedAgentAppConfig) (_ *AgentApp,
 		maxIterations:          config.ResolveMaxIterations(resolved.settings.Agent, cfg.MaxIterations),
 		plugins:                resolved.plugins,
 	}
+	// A worker that resolves weaker than its own surface's baseline says so
+	// out loud, not only in the trace: docs/design/sandbox-boundaries.md §10.
+	// info is nil only when app.sandbox is nil, which sandboxManager above
+	// never leaves it.
+	if info := app.sandboxInfo(); info != nil && info.Downgraded {
+		slog.Warn("sandbox resolved weaker than this surface's own baseline",
+			"enabled", info.Enabled, "mode", info.Mode, "backend", info.Backend, "sources", info.Sources)
+	}
+
 	complete := false
 	defer func() {
 		if !complete {
@@ -167,7 +178,10 @@ func buildAgentApp(cfg AppConfig, resolved resolvedAgentAppConfig) (_ *AgentApp,
 		}
 	}
 
-	hookDeps := hook.Deps{LLMCaller: &llmCaller{cache: app.llmClients, defaultModel: app.DefaultModelName}}
+	hookDeps := hook.Deps{
+		LLMCaller: &llmCaller{cache: app.llmClients, defaultModel: app.DefaultModelName},
+		Sandbox:   app.sandbox,
+	}
 	if app.mcpManager != nil {
 		hookDeps.MCPCaller = &mcpCaller{m: app.mcpManager}
 	}

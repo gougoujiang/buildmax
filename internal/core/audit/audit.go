@@ -116,6 +116,10 @@ const (
 	PluginSuspended    = "plugin.suspended"
 	PluginResumed      = "plugin.resumed"
 	TeamPluginCuration = "team.plugin_curation_set"
+	// TeamSandboxDefaultsSet records a team's default sandbox tiers changing --
+	// the tiers an agent that declares neither inherits. See
+	// docs/design/agent-sandbox-policy.md §9 M3.
+	TeamSandboxDefaultsSet = "team.sandbox_defaults_set"
 	// EventsExported records the trail itself being read out in bulk.
 	// Reading every recorded action is a sensitive action, and an export that
 	// left no trace would be the one way to consult the record without

@@ -1,4 +1,8 @@
 import { FormModal, type FormModalFieldConfig } from "@buildmax/gui"
+import {
+  AGENT_SANDBOX_FILESYSTEM_TIER_OPTIONS,
+  AGENT_SANDBOX_NETWORK_TIER_OPTIONS,
+} from "../lib/sandboxTiers"
 
 export const AGENT_FIELDS: FormModalFieldConfig[] = [
   {
@@ -24,6 +28,20 @@ export const AGENT_FIELDS: FormModalFieldConfig[] = [
     optional: true,
     rows: 4,
   },
+  {
+    key: "sandbox_network_tier",
+    label: "Network access",
+    type: "select",
+    optional: true,
+    options: AGENT_SANDBOX_NETWORK_TIER_OPTIONS,
+  },
+  {
+    key: "sandbox_filesystem_tier",
+    label: "Filesystem access",
+    type: "select",
+    optional: true,
+    options: AGENT_SANDBOX_FILESYSTEM_TIER_OPTIONS,
+  },
 ]
 
 interface CreateAgentModalProps {
@@ -35,6 +53,8 @@ interface CreateAgentModalProps {
     name: string
     description?: string
     instructions?: string
+    sandbox_network_tier?: string
+    sandbox_filesystem_tier?: string
   }) => void
 }
 
@@ -63,6 +83,8 @@ export function CreateAgentModal({
           name,
           description: values.description?.trim() || undefined,
           instructions: values.instructions?.trim() || undefined,
+          sandbox_network_tier: values.sandbox_network_tier || undefined,
+          sandbox_filesystem_tier: values.sandbox_filesystem_tier || undefined,
         })
       }}
     />

@@ -45,10 +45,14 @@ spec:
       port: 8080
       targetPort: http
 ---
-# The smoke reaches the mock from outside the cluster for one purpose: arming a
-# stall, so a run stays mid-turn long enough to cancel it. Only that route is
-# published — the model protocol itself stays on the in-cluster Service, where a
-# run reaching it is evidence the deployment wired the model up.
+# The smoke reaches the mock from outside the cluster for three purposes:
+# arming a stall so a run stays mid-turn long enough to cancel it, arming a
+# one-shot tool call so a run's worker actually invokes Bash instead of
+# answering directly, and reading back what the mock recorded so the smoke
+# can inspect a tool result the task's own scripted final text never echoes.
+# Only these routes are published — the model protocol itself stays on the
+# in-cluster Service, where a run reaching it is evidence the deployment
+# wired the model up.
 #
 # Smoke-only. Nothing in deployment/production/ exposes a test double.
 apiVersion: networking.k8s.io/v1
@@ -64,6 +68,20 @@ spec:
     - http:
         paths:
           - path: /smoke-llm/control/stall
+            pathType: Exact
+            backend:
+              service:
+                name: buildmax-smoke-llm
+                port:
+                  number: 8080
+          - path: /smoke-llm/control/toolcall
+            pathType: Exact
+            backend:
+              service:
+                name: buildmax-smoke-llm
+                port:
+                  number: 8080
+          - path: /smoke-llm/control/requests
             pathType: Exact
             backend:
               service:

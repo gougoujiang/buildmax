@@ -138,6 +138,62 @@ subjects:
     name: buildmax-server
     namespace: buildmax
 ---
+# Puts the worker's custom seccomp profile on every node's kubelet seccomp
+# directory, from the buildmax-worker-seccomp ConfigMap (created by
+# ./make kind up from deployment/seccomp/worker-bwrap.json, not embedded
+# here -- see deployment/seccomp/README.md for what it does and why
+# RuntimeDefault is not enough for a worker pod). A worker Job's
+# securityContext.seccompProfile.localhostProfile names this path; the pod
+# fails to start on any node this DaemonSet has not yet reached.
+#
+# Runs as root and writes to a host path outside any pod's own namespace by
+# necessity -- Kubernetes' Localhost seccomp type takes a node-local file
+# path, not a value inlined in the pod spec, and there is no in-cluster way
+# to put a file there except a privileged installer. Its blast radius is one
+# static file this repository owns, not model-chosen commands.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: buildmax-worker-seccomp
+  namespace: buildmax
+spec:
+  selector:
+    matchLabels:
+      app: buildmax-worker-seccomp
+  template:
+    metadata:
+      labels:
+        app: buildmax-worker-seccomp
+    spec:
+      automountServiceAccountToken: false
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: install
+          image: buildmax:local
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              mkdir -p /host-seccomp/buildmax
+              cp /profile/worker-bwrap.json /host-seccomp/buildmax/worker-bwrap.json
+              echo "installed worker-bwrap.json; watching for updates"
+              while true; do sleep 3600; done
+          volumeMounts:
+            - name: profile
+              mountPath: /profile
+            - name: host-seccomp
+              mountPath: /host-seccomp
+      volumes:
+        - name: profile
+          configMap:
+            name: buildmax-worker-seccomp
+        - name: host-seccomp
+          hostPath:
+            path: /var/lib/kubelet/seccomp
+            type: DirectoryOrCreate
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
