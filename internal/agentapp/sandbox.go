@@ -61,6 +61,9 @@ func buildSandboxManager(resolved config.SandboxResolution, workspace util.Works
 		return nil, fmt.Errorf("build sandbox manager: %w", err)
 	}
 	if resolved.Config.Enabled && resolved.Config.FailIfUnavailable && m.Unavailable() {
+		if reason := m.UnavailableReason(); reason != "" {
+			return nil, fmt.Errorf("sandbox: fail_if_unavailable set but %s", reason)
+		}
 		miss := m.Deps().FirstMissingRequired()
 		return nil, fmt.Errorf("sandbox: fail_if_unavailable set but %s is missing (%s)", miss.Name, miss.Hint)
 	}
