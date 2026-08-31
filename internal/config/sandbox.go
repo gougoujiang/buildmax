@@ -334,6 +334,36 @@ type SandboxResolution struct {
 // phases may add more.
 const EnvKeyBuildmaxSandboxEnabled = "BUILDMAX_SANDBOX_ENABLED"
 
+// EnvKeyBuildmaxSandboxBackendInstalled marks an image as one where the
+// sandbox's OS backend (bwrap + socat) is actually installed. Set via `ENV`
+// in Dockerfile.buildmax and Dockerfile.release, not by any Go code --
+// Kubernetes does not strip an image's own ENV entries from a Job's
+// container, so this is visible inside a k8s_job worker pod without any
+// pod-spec change.
+const EnvKeyBuildmaxSandboxBackendInstalled = "BUILDMAX_SANDBOX_BACKEND_INSTALLED"
+
+// WorkerSandboxSurface returns SandboxSurfaceWorker only when this process is
+// running from an image that installs the sandbox's OS backend --
+// otherwise SandboxSurfaceWorker's own fail_if_unavailable: true baseline
+// would refuse to start every task on a host that cannot provide one. That
+// is exactly what selecting it unconditionally broke: local_process
+// deployments (documented in configuration.md as "deliberately not being
+// hardened towards" this boundary, same trust domain as the server by
+// construction), the evaluation runner's black-box worker-surface adapter,
+// and every native-Windows worker, since Windows has no sandbox backend at
+// all -- none of those run from the Docker image this marker names.
+//
+// An operator who has installed bwrap themselves on a bare host can still
+// opt the sandbox in explicitly via BUILDMAX_SANDBOX_ENABLED, which this
+// does not affect; it only changes which surface's baseline a run without
+// an explicit opinion inherits.
+func WorkerSandboxSurface() SandboxSurface {
+	if _, ok := os.LookupEnv(EnvKeyBuildmaxSandboxBackendInstalled); ok {
+		return SandboxSurfaceWorker
+	}
+	return ""
+}
+
 // ResolveSandbox merges settings + env + policy + surface defaults into a
 // final SandboxConfig. It is the no-run-override, no-agent-tier form used by
 // surfaces that do not expose per-run sandbox controls or agent-declared

@@ -28,6 +28,13 @@ FROM alpine:3.23
 # every run rather than executing model-chosen shell commands unconfined.
 RUN apk add --no-cache ca-certificates bubblewrap socat
 
+# Tells agentapp/taskrun (config.WorkerSandboxSurface) that this image
+# actually installs the backend above, so it is safe to select the stricter
+# worker baseline. A bare host running the same binary -- local_process
+# deployments, CI, native Windows -- never sets this and keeps the CLI
+# baseline instead, exactly as it did before the worker surface existed.
+ENV BUILDMAX_SANDBOX_BACKEND_INSTALLED=1
+
 COPY --from=build /buildmax /usr/local/bin/buildmax
 COPY --from=build /buildmax-server /usr/local/bin/buildmax-server
 COPY --from=build /buildmax-worker /usr/local/bin/buildmax-worker

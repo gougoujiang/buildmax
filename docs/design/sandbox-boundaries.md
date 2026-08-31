@@ -551,8 +551,19 @@ Still open — these block §15 acceptance:
 
 1. ✅ **Worker default is now selected and verified against the production
    pod security context.** `agentapp/taskrun/runtime.go` sets
-   `SandboxSurface: config.SandboxSurfaceWorker`. Selecting it alone was not
-   enough: `RuntimeDefault` seccomp drops the syscalls `bwrap` needs once the
+   `SandboxSurface: config.WorkerSandboxSurface()`, not the unconditional
+   `SandboxSurfaceWorker` first tried: that broke every worker task on a
+   bare Linux host without `bwrap` and every native-Windows worker outright
+   (both hit `fail_if_unavailable: true` with no backend to satisfy it),
+   caught by `evaluation`'s black-box worker-surface tests and Windows CI,
+   not by local development on a Mac, where Seatbelt always exists and the
+   failure never reproduces. `WorkerSandboxSurface` selects the strict
+   baseline only when `BUILDMAX_SANDBOX_BACKEND_INSTALLED` is set — an `ENV`
+   line in `Dockerfile.buildmax`/`Dockerfile.release`, present in any
+   container built from either image and therefore inside a `k8s_job`
+   worker pod, absent on a bare host. Selecting it alone was also not
+   enough on a properly-provisioned image: `RuntimeDefault` seccomp drops
+   the syscalls `bwrap` needs once the
    worker pod's capabilities are empty, and a fresh `/proc` mount under
    `--unshare-pid` trips the kernel's "mount too revealing" protection
    independent of seccomp. Both are fixed —

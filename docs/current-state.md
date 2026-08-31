@@ -114,6 +114,21 @@ an agent-declared network/filesystem tier in
 resolved by the server at claim time and pinned onto the run for audit, per
 [`docs/design/agent-sandbox-policy.md`](design/agent-sandbox-policy.md).
 
+Selecting it unconditionally was tried first and broke CI outright: a bare
+Linux host without `bwrap` installed, and every native-Windows worker (no
+sandbox backend exists there at all), both hit
+`SandboxSurfaceWorker`'s own `fail_if_unavailable: true` and refused to run
+any task — caught by `evaluation`'s black-box worker-surface tests and a
+Windows CI run, not by local development on a Mac, where Seatbelt is always
+present and the failure never reproduces. `config.WorkerSandboxSurface`
+now selects the strict baseline only when
+`BUILDMAX_SANDBOX_BACKEND_INSTALLED` is set — an `ENV` line in
+`Dockerfile.buildmax`/`Dockerfile.release`, present in every container built
+from either image and therefore inside a `k8s_job` worker pod, absent on a
+bare host, CI, or native Windows, which keep the CLI baseline exactly as
+before this work started. An operator who has installed `bwrap` themselves
+on a bare host can still opt in explicitly via `BUILDMAX_SANDBOX_ENABLED`.
+
 Selecting the surface alone was not enough. Reproducing the worker Job's exact
 `PodSecurityContext` (non-root, `Capabilities: {drop: [ALL]}`,
 `RuntimeDefault` seccomp, read-only root filesystem) in a real pod and running

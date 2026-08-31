@@ -31,7 +31,11 @@
   and `SandboxSurfaceWorker` selection in `taskrun/runtime.go` — closing
   [current-state.md](../current-state.md)'s worker-surface-selection P0 for an
   agent that declares nothing, independent of whether an agent ever declares a
-  tier. §10's Portal selectors and §9 M3's team default tier are not started;
+  tier. Selecting it unconditionally broke every worker task on a bare Linux
+  host or native Windows (`fail_if_unavailable: true` with no backend to
+  satisfy it); `config.WorkerSandboxSurface` now gates the selection on
+  `BUILDMAX_SANDBOX_BACKEND_INSTALLED`, set only inside the worker Docker
+  images. §10's Portal selectors and §9 M3's team default tier are not started;
   an agent's tier is API-only until Portal ships. The k8s pod/`bwrap`
   interaction is now verified against a real pod carrying the worker's exact
   security context and by an organic end-to-end run the deployment smoke

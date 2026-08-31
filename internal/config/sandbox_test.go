@@ -459,6 +459,24 @@ func TestSandboxResolution_DowngradedViaEnv(t *testing.T) {
 	}
 }
 
+// TestWorkerSandboxSurface_RequiresTheBackendMarker asserts a bare process
+// -- no BUILDMAX_SANDBOX_BACKEND_INSTALLED, the state of local_process
+// deployments, CI, and every native-Windows worker -- gets the empty
+// surface (CLI baseline) rather than SandboxSurfaceWorker's
+// fail_if_unavailable: true, which would refuse to start on a host that
+// cannot guarantee the OS backend. Only an image carrying the Dockerfile's
+// ENV marker gets the stricter baseline.
+func TestWorkerSandboxSurface_RequiresTheBackendMarker(t *testing.T) {
+	if got := WorkerSandboxSurface(); got != "" {
+		t.Errorf("WorkerSandboxSurface() with no marker = %q, want empty (CLI baseline)", got)
+	}
+
+	t.Setenv(EnvKeyBuildmaxSandboxBackendInstalled, "1")
+	if got := WorkerSandboxSurface(); got != SandboxSurfaceWorker {
+		t.Errorf("WorkerSandboxSurface() with the marker set = %q, want %q", got, SandboxSurfaceWorker)
+	}
+}
+
 func sliceEqual(a, b []string) bool {
 	if len(a) != len(b) {
 		return false

@@ -109,7 +109,13 @@ Boundary coverage against the list above:
   [sandbox-boundaries.md](./sandbox-boundaries.md) §13 phase D.
 - worker/container execution mode — ✅ **wired and verified against the
   production pod security context**: `agentapp/taskrun` sets
-  `SandboxSurface: SandboxSurfaceWorker`, and `internal/infra/k8s/job.go`'s
+  `SandboxSurface: config.WorkerSandboxSurface()`, which selects
+  `SandboxSurfaceWorker` only when `BUILDMAX_SANDBOX_BACKEND_INSTALLED` is
+  set (an `ENV` line in both worker Dockerfiles) — selecting the strict
+  baseline unconditionally was tried first and broke every worker task on a
+  bare Linux host or native Windows outright (`fail_if_unavailable: true`
+  with no backend to satisfy it), caught by CI rather than by local
+  development on a Mac, where Seatbelt always exists. `internal/infra/k8s/job.go`'s
   `RuntimeDefault` seccomp profile — which drops `bwrap`'s required syscalls
   once the worker pod's capabilities are empty — is replaced by a `Localhost`
   profile built for this

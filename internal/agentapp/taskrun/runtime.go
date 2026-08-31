@@ -499,13 +499,16 @@ func runAgentTask(ctx context.Context, run *coretask.Run, runDir, runGlobalDir, 
 			AdditionalSystemPrompt: additionalSystemPrompt,
 			ArtifactPublisher:      publisher,
 			IssueClient:            issues,
-			// A worker executes model-chosen shell commands, so it always
-			// resolves the stricter worker sandbox baseline -- see
-			// docs/design/sandbox-boundaries.md §13.1 gap 1 and
-			// docs/design/agent-sandbox-policy.md. The two tiers are this
+			// A worker executes model-chosen shell commands, so it resolves
+			// the stricter worker sandbox baseline whenever it is running
+			// from an image that actually installs the OS backend -- see
+			// docs/design/sandbox-boundaries.md §13.1 gap 1,
+			// docs/design/agent-sandbox-policy.md, and
+			// config.WorkerSandboxSurface's own comment for why this is
+			// conditional rather than unconditional. The two tiers are this
 			// run's agent-declared exception to that baseline, not a
 			// replacement for it.
-			SandboxSurface:        config.SandboxSurfaceWorker,
+			SandboxSurface:        config.WorkerSandboxSurface(),
 			SandboxNetworkTier:    sandboxNetworkTier,
 			SandboxFilesystemTier: sandboxFilesystemTier,
 		})
