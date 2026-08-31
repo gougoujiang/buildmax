@@ -2,9 +2,10 @@
 
 > **Audience:** maintainers and contributors · **Status:** current as of 2026-08-31
 
-This document is a code-first assessment of BuildMax whose full sweep was made
-at `origin/main` commit `67e9e4df77d42351c435fd21d74422c67a9f8a38`, with the
-sections since amended in place as the boundaries they describe moved. It
+This document is a code-first assessment of BuildMax. Its full sweep was made
+at `origin/main` commit `67e9e4df77d42351c435fd21d74422c67a9f8a38`; the
+sections have since been amended in place as the boundaries they describe
+moved, and every count and measurement below was re-taken at `a7ee821`. It
 answers what the repository actually implements and how close those
 implementations are to dependable use. It is not derived from the roadmap,
 proposals, design records, or feature copy.
@@ -33,7 +34,7 @@ MySQL store; what is left there is the breadth of the cases, not the gate.
 |---|---:|---|
 | Local general-purpose Agent | 80–85% | Useful and broadly implemented; remaining work is mostly reliability evidence, edge cases, and surface polish. |
 | End-to-end private team platform | 60–65% | The vertical path exists across Server, Portal, worker, artifacts, traces, and deployment, but several operational loops are incomplete. |
-| Production-safe multi-tenant platform | 45–55% | Authorization and governance foundations exist, but execution containment, multi-instance correctness, persistence evidence, and account operations are below the production bar. |
+| Production-safe multi-tenant platform | 45–55% | Authorization and governance foundations exist, worker Bash is confined, and persistence is in the pull-request evidence path. Multi-instance correctness, the MCP child-process boundary, cluster-level egress, and operating evidence from a real deployment are still below the production bar. The range is unchanged because what closed was mechanism, and what is left is the part no code change can supply. |
 
 The most accurate short description is:
 
@@ -43,19 +44,20 @@ The most accurate short description is:
 
 ## Evidence Snapshot
 
-The repository at the assessment base contains:
+The repository contains:
 
-- 108 Go packages and 1,005 tracked Go files;
-- 119 documented HTTP operations across 95 paths;
-- 30 row types passed to the store's authoritative `AutoMigrate` call;
-- 2,605 Go test, benchmark, and example functions;
+- 108 Go packages and 1,021 tracked Go files;
+- 127 documented HTTP operations across 101 paths;
+- 31 row types passed to the store's authoritative `AutoMigrate` call;
+- 2,697 Go test, benchmark, and example functions;
 - three BuildMax-owned black-box evaluation tasks.
 
 The reassessment exercised the contributor environment, full build, Go and
 frontend checks, CI-equivalent checks, and the fast CLI and Desktop end-to-end
-suites. They passed. Go statement coverage measured 56.1%; the database package
-measured 3.7% without a configured MySQL integration DSN, and 53.6% under
-`./make test mysql`, which is what every pull request now runs.
+suites. They passed. Go statement coverage measured 59.7% with a MySQL DSN
+configured, so the store's own tests ran rather than skipping. The database
+package measured 53.3% that way and 3.5% without a DSN — the difference is the
+whole reason `./make test mysql` exists, and every pull request now runs it.
 
 The reassessment did not start the Compose, local deployment, or kind suites,
 because those mutate Docker or cluster state. The store integration tests still
@@ -308,12 +310,12 @@ fixture is blocked rather than deferred: the explicit migration list is empty
 after the identity cutover, so a fixture would encode a history no database
 ever had. The quota bullet in that list is withdrawn — there is no reservation
 to test, only a rolling-window read, which §4.2 now records. The database
-package measures 53.6% under the gate against 3.7% without it, though coverage
+package measures 53.3% under the gate against 3.5% without it, though coverage
 is not yet reported per critical package the way §4.3 asks.
 
 ## Product And Operating Gaps
 
-These are material, but they should follow the three P0 boundaries unless a
+These are material, but they should follow the P0 boundaries above unless a
 deployment partner supplies evidence that changes the order.
 
 ### P1 — Account And Team Operations
@@ -334,8 +336,14 @@ deployment partner supplies evidence that changes the order.
   [`design/team-membership-lifecycle.md`](design/team-membership-lifecycle.md)
   §1 for why account creation and team membership are kept as two different
   authorities.
-- System administration, quotas, role checks, and audit exist, but team-level
-  approvals and a complete sensitive-action governance loop do not.
+- System administration, quotas, role checks, and audit exist. Team-level
+  approvals do not, and that is a decision rather than a backlog item:
+  [`design/team-governance.md`](design/team-governance.md) §6 lists approval
+  workflows as out of scope and §11 gives the reason — avoid custom roles and
+  approvals until basic traceability lands.
+  [`design/team-membership-lifecycle.md`](design/team-membership-lifecycle.md)
+  §6 declines to reopen it. Read a missing approval loop as unbuilt on
+  purpose, pending a concrete team's need for one.
 
 ### P1 — Qualification Breadth
 
@@ -388,10 +396,12 @@ throughput. None of these is a reason to block containment or correctness work.
    the contention cases are written; what is missing is retry, workflow
    revision, delivery restart recovery, and artifact tombstoning per
    [`verification-program.md`](design/verification-program.md) §4.2.
-4. Close what remains of account and team operations: signup still leaves an
-   account without a credential until an operator finishes it, by design, and
-   team-level approvals are unscheduled. Team role lifecycle, ownership
-   transfer, and member-scoped recovery are done.
+4. Close what remains of account and team operations. Less remains than this
+   position suggests: team role lifecycle, ownership transfer, and
+   member-scoped recovery are done, signup leaving an account without a
+   credential is deliberate, and team approvals are out of scope by decision.
+   What is left is whether a deployment's own experience argues for reopening
+   either decision.
 5. Expand product-owned qualification from an architectural slice into a
    representative release suite.
 6. Deepen workflows, real channel adapters, executable team plugins, Portal
