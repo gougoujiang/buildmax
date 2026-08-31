@@ -226,6 +226,25 @@ in-process sandbox this section covers — is untouched by this pass;
 nor the resolved sandbox tiers are yet surfaced in a task run's own detail
 view in Portal, only in the API response and audit trail.
 
+**Later correction to the pod security context described above:** the
+non-root `PodSecurityContext` this section describes turned out to be
+incompatible with `bwrap` actually running on a real cluster. A container
+runtime lands a capability added to a *non-root* pod (`Capabilities.Add`) in
+that pod's capability bounding set only, never its effective set at exec
+time — confirmed by isolating every other variable (this section's own
+seccomp and `/proc` fixes, an AppArmor override, `no-new-privileges`, file
+capabilities on `bwrap` itself) one at a time against a real Deployment
+smoke run and a throwaway container carrying the same configuration. The
+worker Job pod now runs root with `SYS_ADMIN` added, which does not have
+this gap; see `docs/reference/configuration.md`'s "How A Worker Pod Is
+Confined" for the current pod security context and
+`internal/infra/k8s/job.go`'s `containerSecurityContext` for the full
+finding. The Compose target's `local_process` worker needed the equivalent
+fix (`cap_add: SYS_ADMIN` plus the same seccomp and an `apparmor:unconfined`
+override, since it also runs root and Docker's default seccomp *and*
+AppArmor profiles each independently blocked a different syscall `bwrap`
+needs) — see `deployment/compose/compose.yaml`.
+
 ### P0 — The Reference Replica Count Exceeds Coordination Semantics
 
 The production manifest configures two Server replicas in

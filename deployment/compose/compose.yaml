@@ -48,6 +48,36 @@ services:
       dockerfile: deployment/docker/Dockerfile.buildmax
     entrypoint: ["/usr/local/bin/buildmax-server"]
     restart: unless-stopped
+    # The worker this server spawns (worker.run_mode: local_process in
+    # server.yaml) wraps its Bash commands in bwrap the same as a k8s_job
+    # worker does -- see internal/config/sandbox.go's WorkerSandboxSurface.
+    # This server runs as root (no USER in Dockerfile.buildmax), and building
+    # bwrap's sandbox as root needs all three of the below, isolated one at a
+    # time against a real Deployment smoke run and the exact seccomp profile
+    # below -- each removes exactly one Operation-not-permitted failure and
+    # the next one is only visible once the one before it is gone:
+    #   - cap_add SYS_ADMIN: without it, unshare(CLONE_NEWUSER) itself fails
+    #     ("Creating new namespace failed"). Root has no capabilities gated
+    #     behind CAP_SYS_ADMIN in Docker's default set (it is not root in the
+    #     sense of "has every capability"), the same reason the k8s Job pod's
+    #     seccomp profile below exists.
+    #   - security_opt seccomp: with SYS_ADMIN but Docker's default seccomp
+    #     profile, bwrap gets past namespace creation and pivot_root but then
+    #     fails the mount(MS_SLAVE) call bwrap makes on `/` afterward ("Failed
+    #     to make / slave"). Same profile as the k8s Job's Localhost seccomp
+    #     profile; see deployment/seccomp/README.md.
+    #   - security_opt apparmor: unconfined: with both of the above, Docker's
+    #     default AppArmor profile (docker-default) still denies that same
+    #     mount(MS_SLAVE) call independently of seccomp -- AppArmor mediates
+    #     `mount,` operations on its own policy, which the seccomp profile
+    #     cannot reach. A k8s/containerd pod is not confined by an AppArmor
+    #     profile the way `docker run` is by default, which is a difference
+    #     worth keeping in mind if bwrap ever needs debugging there too.
+    cap_add:
+      - SYS_ADMIN
+    security_opt:
+      - seccomp:../seccomp/worker-bwrap.json
+      - apparmor:unconfined
     depends_on:
       mysql:
         condition: service_healthy

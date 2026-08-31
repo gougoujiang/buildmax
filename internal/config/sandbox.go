@@ -346,12 +346,21 @@ const EnvKeyBuildmaxSandboxBackendInstalled = "BUILDMAX_SANDBOX_BACKEND_INSTALLE
 // running from an image that installs the sandbox's OS backend --
 // otherwise SandboxSurfaceWorker's own fail_if_unavailable: true baseline
 // would refuse to start every task on a host that cannot provide one. That
-// is exactly what selecting it unconditionally broke: local_process
-// deployments (documented in configuration.md as "deliberately not being
-// hardened towards" this boundary, same trust domain as the server by
-// construction), the evaluation runner's black-box worker-surface adapter,
-// and every native-Windows worker, since Windows has no sandbox backend at
-// all -- none of those run from the Docker image this marker names.
+// is exactly what selecting it unconditionally broke: a bare-host
+// local_process deployment, the evaluation runner's black-box worker-surface
+// adapter, and every native-Windows worker, since Windows has no sandbox
+// backend at all -- none of those run from the Docker image this marker
+// names. A Compose local_process deployment does run from that image, so it
+// gets the same baseline a k8s_job worker does: this is about whether the
+// worker's own Bash commands are confined to the run's workspace, a separate
+// question from configuration.md's "local_process is deliberately not being
+// hardened towards" the worker-runs-as-a-different-process-than-the-server
+// boundary, which this does not touch.
+//
+// EnvKeyBuildmaxSandboxBackendInstalled is WorkerNeeds, because a
+// local_process worker is exec'd with a filtered environment
+// (config.FilterWorkerEnv), not the server's raw one -- unlike a k8s_job pod,
+// which reads the image's own ENV directly and needs no entry here at all.
 //
 // An operator who has installed bwrap themselves on a bare host can still
 // opt the sandbox in explicitly via BUILDMAX_SANDBOX_ENABLED, which this

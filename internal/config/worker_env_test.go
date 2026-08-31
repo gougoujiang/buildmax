@@ -40,6 +40,7 @@ func TestWorkerEnv_KeepsWhatTheWorkerReads(t *testing.T) {
 		EnvKeyBuildmaxMinIOSecretKey,
 		EnvKeyBuildmaxConversationAPIKey,
 		EnvKeyBuildmaxSandboxEnabled,
+		EnvKeyBuildmaxSandboxBackendInstalled,
 		EnvKeyBuildmaxTraceDisabled,
 	}
 	for _, name := range needed {

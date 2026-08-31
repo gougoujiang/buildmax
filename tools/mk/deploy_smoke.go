@@ -500,11 +500,18 @@ const smokeSandboxProbeCommand = "echo " + smokeSandboxProbeMarker +
 // turn — confirmed by inspecting a real deployment's mock-recorded requests
 // while building this probe: arming exactly once landed the tool call on
 // that routing call instead, and the worker's own turn went on to answer
-// with its ordinary scripted text, having never touched Bash. Arming both
-// means the routing call also gets a Bash tool call it does not expect;
+// with its ordinary scripted text, having never touched Bash. Arming a few
+// extra means an earlier call also gets a Bash tool call it does not expect;
 // empirically it tolerates that and still dispatches the task normally, and
-// the worker's own turn is what echoes the marker back.
-const smokeSandboxProbeArmCount = 2
+// the worker's own turn is what echoes the marker back. Generous on purpose:
+// a slower or more loaded deployment can insert more calls ahead of the
+// worker's turn than the two seen locally -- a plausible explanation for a
+// kind CI run that reported no Bash tool result at all despite the same
+// probe passing repeatedly on a local kind cluster, though not confirmed
+// against that run's own request log. Any arm the run does not use is
+// dropped by the deferred clear below rather than leaking into whatever runs
+// next.
+const smokeSandboxProbeArmCount = 6
 
 // assertWorkerSandboxConfines proves the worker's Bash sandbox confines a
 // real command on this deployment, not merely that the sandbox surface was

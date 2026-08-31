@@ -53,6 +53,11 @@ type Manager struct {
 	matcher    *HostMatcher    // shared with proxy; never nil
 	proxy      *Proxy          // nil when sandbox is disabled or unavailable
 	violations *ViolationStore // always present; non-nil even when disabled
+	// unavailableReason explains Unavailable()==true beyond what
+	// Deps().FirstMissingRequired() can: that only names a missing binary,
+	// not a present one that failed to init or failed probeBackend. Empty
+	// when the backend is available or the sandbox was never enabled.
+	unavailableReason string
 }
 
 // NewManager builds a Manager for the given config and workspace. workspace
@@ -90,8 +95,23 @@ func NewManager(cfg config.SandboxConfig, workspace util.Workspace, logger *slog
 	}
 	b, err := newBackend(m.deps.Backend)
 	if err != nil {
+		m.unavailableReason = fmt.Sprintf("%s backend init failed: %v", m.deps.Backend, err)
 		logger.Warn("sandbox backend init failed; falling back to unsandboxed",
 			"backend", m.deps.Backend, "err", err)
+		return m, nil
+	}
+	// CheckDeps only proved the backend binary is on PATH; it may still be
+	// unable to actually confine a command on this host (a container whose
+	// seccomp policy blocks the syscalls bwrap needs, for example) --
+	// proven in production, where a worker ran the backend and it let a
+	// write outside the workspace through. Probing here makes that the same
+	// "unavailable" Unavailable()/FailIfUnavailable already know how to
+	// refuse to start on, instead of a silent pass-through.
+	if err := probeBackend(context.Background(), b, cfg); err != nil {
+		m.unavailableReason = fmt.Sprintf("%s backend probe failed: %v", m.deps.Backend, err)
+		logger.Warn("sandbox backend probe failed; falling back to unsandboxed",
+			"backend", m.deps.Backend, "err", err)
+		_ = b.Close()
 		return m, nil
 	}
 	m.backend = b
@@ -139,6 +159,18 @@ func (m *Manager) Unavailable() bool {
 		return false
 	}
 	return m.backend == nil
+}
+
+// UnavailableReason explains why Unavailable() is true, when the cause is
+// something Deps().FirstMissingRequired() cannot name: a backend binary that
+// was present but failed to initialize, or failed its own confinement
+// probe. Empty whenever the reason is fully covered by a missing required
+// dependency, or the backend is available.
+func (m *Manager) UnavailableReason() string {
+	if m == nil {
+		return ""
+	}
+	return m.unavailableReason
 }
 
 // --- agent.SandboxView ---

@@ -71,9 +71,10 @@ must not need source-code knowledge.
   create a team, and verify access boundaries with a second role.
 - [ ] Configure an approved managed model without distributing its provider key
   to the client, then create work and run it in a Kubernetes worker Job.
-- [ ] Inspect the live Job. Record its non-root user, read-only root filesystem,
-  dropped capabilities, seccomp profile, absent service-account token, effective
-  CPU/memory resources, minimized environment, and per-run credential.
+- [ ] Inspect the live Job. Record its read-only root filesystem, dropped
+  capabilities (all but `SYS_ADMIN`), seccomp and AppArmor profiles, absent
+  service-account token, effective CPU/memory resources, minimized
+  environment, and per-run credential.
 - [ ] View the completed output and download its artifact. Record an artifact
   checksum and confirm it matches the object in external storage.
 - [ ] Explain the run from the TaskRun outcome and artifacts, stored trace,

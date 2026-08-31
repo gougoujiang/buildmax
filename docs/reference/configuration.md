@@ -43,6 +43,7 @@ anything not listed here is not read by BuildMax.
 | `BUILDMAX_JWT_SECRET` | — | Overrides `jwt_secret` in `server.yaml`. Inject this at deploy time rather than committing the secret to a file. |
 | `BUILDMAX_CORS_ORIGIN` | — | Overrides `cors_origin` in `server.yaml`. It has to name the origin the Portal is served from, which is a host port the deployment picks — the Compose stack derives it from `BUILDMAX_PORTAL_PORT`, so moving that port is one change rather than two. |
 | `BUILDMAX_SANDBOX_ENABLED` | — | Overrides user `sandbox.enabled`, below per-run CLI and operator policy. Accepts `1/true/yes/on` or `0/false/no/off`. |
+| `BUILDMAX_SANDBOX_BACKEND_INSTALLED` | — | Not an operator setting. Set via `ENV` in `Dockerfile.buildmax`/`Dockerfile.release`, present in every container built from either image; marks that the image installs the sandbox's OS backend (`bwrap`+`socat`), which is what `config.WorkerSandboxSurface` gates the worker's strict sandbox baseline on. |
 | `BUILDMAX_TRACE_DISABLED` | — | Disables durable run traces when truthy. Traces are on by default. |
 | `BUILDMAX_CREDENTIAL_STORE` | — | Set to `file` to keep a CLI or Desktop login's access and refresh tokens in `auth.json` instead of the OS credential store (Keychain, Credential Manager, Secret Service). `buildmax login`, `buildmax whoami`, and `buildmax doctor` report which one a login actually used. |
 | `BUILDMAX_RUN_TOKEN` | — | One task run's credential for every `/api/worker/*` route. Minted per run by the scheduler and placed in the worker process or Job pod — not something an operator sets. |
@@ -84,7 +85,7 @@ local process or a Kubernetes Job:
 | `BUILDMAX_SERVER_URL` | Reaches the server that owns the task run |
 | `BUILDMAX_STORAGE_MINIO_ACCESS_KEY` / `_SECRET_KEY` | Reads and writes run state and artifacts |
 | `BUILDMAX_CONVERSATION_MODEL_API_KEY` | Calls a provider directly — **withheld** when `worker.llm.transport` is `buildmax` |
-| `BUILDMAX_SANDBOX_ENABLED`, `BUILDMAX_TRACE_DISABLED` | Runtime toggles |
+| `BUILDMAX_SANDBOX_ENABLED`, `BUILDMAX_SANDBOX_BACKEND_INSTALLED`, `BUILDMAX_TRACE_DISABLED` | Runtime toggles |
 
 `BUILDMAX_RUN_TOKEN` reaches a worker by a different route. It is not inherited
 from the server — the filter above strips it, so a stale value cannot be picked
@@ -112,18 +113,34 @@ variable there is what sends it to workers.
 
 ### How A Worker Pod Is Confined
 
-Every worker Job pod is created non-root, with no service-account token, no
-added capabilities, `RuntimeDefault` seccomp, and a read-only root filesystem
-plus a writable `/tmp`. None of that is configurable: a worker executes
-model-chosen shell commands, so it is treated as running untrusted code even
-when the team that submitted the task is trusted — the prompt, the repository
-content, and the tool output steering those commands are not.
+Every worker Job pod is created with no service-account token, a `Localhost`
+seccomp profile (`deployment/seccomp/worker-bwrap.json`, distributed by a
+`DaemonSet`), an `Unconfined` AppArmor profile, a read-only root filesystem
+plus a writable `/tmp`, and every Linux capability dropped except `SYS_ADMIN`.
+None of that is configurable: a worker executes model-chosen shell commands,
+so it is treated as running untrusted code even when the team that submitted
+the task is trusted — the prompt, the repository content, and the tool
+output steering those commands are not. What confines those commands is
+`bwrap`'s own sandbox, built inside this pod using exactly the seccomp,
+AppArmor, and capability grants above; see
+[`deployment/seccomp/README.md`](../../deployment/seccomp/README.md) for why
+each one is there — each was found by isolating one `Operation not
+permitted` failure at a time against a real cluster.
 
-Two settings under `worker.k8s` remain an operator's:
+The pod runs as root (uid 0), not non-root: a capability a container runtime
+adds to a non-root pod (`SYS_ADMIN` here, `SETUID`/`SETGID` in an earlier,
+reverted attempt) lands in that pod's capability *bounding* set only, never
+its *effective* set at exec time, on a real cluster this was verified
+against — `bwrap` needs the capability effective, not merely permitted, to
+build its own sandbox at all. Root does not have this gap. The pod's
+confinement is therefore entirely the capability/seccomp/AppArmor set above
+plus `bwrap`'s own workspace-scoped sandboxing of the worker's Bash calls,
+not the pod's own uid.
+
+One setting under `worker.k8s` remains an operator's:
 
 | Setting | Default | Purpose |
 |---|---|---|
-| `run_as_user` | `65532` | The uid the pod runs as. Set it on a cluster that assigns its own uid range, OpenShift most commonly. The image needs no matching user — the worker writes only into mounted volumes, and `fsGroup` makes them writable. |
 | `resources.cpu_request` / `cpu_limit` / `memory_request` / `memory_limit` | none — required | Kubernetes quantity strings such as `500m`, `2`, `512Mi`, or `4Gi`. All four are required under `k8s_job`; BuildMax chooses no numbers for you, because the right ones depend on the work a deployment runs. |
 
 The server refuses to start when a bound is missing, is not a Kubernetes
@@ -144,6 +161,18 @@ deployments are supported on those terms. A deployment that needs the server
 separated from the code a model chooses runs `k8s_job`, which is where that
 boundary is built; `local_process` is deliberately not being hardened towards
 one.
+
+That is a separate question from whether a `local_process` worker's own
+Bash commands are confined to the run's workspace. They are: `local_process`
+gets the same `SandboxSurfaceWorker` baseline a `k8s_job` worker does
+whenever its image installs the sandbox backend (`BUILDMAX_SANDBOX_BACKEND_INSTALLED`,
+now `WorkerNeeds` so a `local_process` worker's filtered environment carries
+it too) — a Compose deployment's server container needs the same seccomp
+override as the worker Job pod for `bwrap` to actually build that sandbox;
+see `deployment/compose/compose.yaml`'s `security_opt` and
+[`deployment/seccomp/README.md`](../../deployment/seccomp/README.md). What
+`local_process` does not get, and `k8s_job` does, is the worker running as a
+*different process* than the server at all.
 
 ### Contributor-local files: `.local/`
 

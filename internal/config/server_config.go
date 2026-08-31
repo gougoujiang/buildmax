@@ -295,11 +295,6 @@ type ServerK8sConfig struct {
 	ConfigMap string `mapstructure:"config_map"`
 	// HomeDir is BUILDMAX_HOME inside a worker pod; server.yaml is mounted there.
 	HomeDir string `mapstructure:"home_dir"`
-	// RunAsUser is the uid a worker pod runs as. Zero uses BuildMax's default.
-	// Set it on clusters that assign their own uid ranges, OpenShift most
-	// commonly. The worker never needs a uid the image knows about — it writes
-	// only into mounted volumes.
-	RunAsUser int64 `mapstructure:"run_as_user"`
 	// Resources bounds a worker pod. Every bound is required in this run mode:
 	// the server refuses to start rather than schedule a worker that model-
 	// chosen commands could run unbounded.
