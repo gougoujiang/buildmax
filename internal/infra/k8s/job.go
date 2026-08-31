@@ -47,10 +47,6 @@ type PodConfig struct {
 	// HomeDir becomes BUILDMAX_HOME in the pod and is where server.yaml lands.
 	// Empty defaults to /buildmax.
 	HomeDir string
-	// RunAsUser is the uid the worker runs as. Empty defaults to
-	// defaultWorkerUID. Clusters that assign their own uid ranges — OpenShift
-	// most commonly — set this to a value inside their range.
-	RunAsUser int64
 	// Resources bounds the pod's CPU and memory. Every bound is required;
 	// NewK8sJobRunner refuses a configuration that would leave one off the Job.
 	Resources PodResources
@@ -67,23 +63,11 @@ type PodResources struct {
 	MemoryLimit   string
 }
 
-// defaultWorkerUID is an unprivileged uid with no meaning to the image. The
-// worker writes only into mounted volumes, whose ownership fsGroup fixes up, so
-// nothing in the image needs to belong to this user.
-const defaultWorkerUID int64 = 65532
-
 func (p PodConfig) homeDir() string {
 	if p.HomeDir == "" {
 		return "/buildmax"
 	}
 	return p.HomeDir
-}
-
-func (p PodConfig) runAsUser() int64 {
-	if p.RunAsUser == 0 {
-		return defaultWorkerUID
-	}
-	return p.RunAsUser
 }
 
 // Requirements converts the configured quantities into the bounds a worker
@@ -166,25 +150,20 @@ const workerSeccompProfilePath = "buildmax/worker-bwrap.json"
 // A worker executes model-chosen shell commands, so the pod is treated as
 // running untrusted code even though the team that submitted the task is
 // trusted: the prompt, the repository content, and the tool output that steer
-// those commands are not.
-//
-// runAsNonRoot with an explicit uid needs no cooperation from the image, and
-// fsGroup makes the mounted volumes writable by it.
+// those commands are not. The containment this pod relies on is bwrap's own
+// sandboxing of that worker's Bash commands, confined to the run's own
+// workspace -- not the pod running non-root, which this pod does not do; see
+// containerSecurityContext for why.
 //
 // The seccomp profile is Localhost, not RuntimeDefault: confirmed against a
 // real pod carrying this exact security context, RuntimeDefault's own
 // unshare/setns/mount/umount2/pivot_root/clone/clone3 rules are dropped
-// entirely once capabilities are empty (below), which makes bubblewrap unable
-// to create its own sandbox namespaces at all -- see
+// entirely once capabilities are empty, which makes bubblewrap unable to
+// create its own sandbox namespaces at all -- see
 // deployment/seccomp/README.md for the full root-cause chain and how it was
 // verified.
 func (p PodConfig) podSecurityContext() *corev1.PodSecurityContext {
-	uid := p.runAsUser()
 	return &corev1.PodSecurityContext{
-		RunAsNonRoot: util.Ptr(true),
-		RunAsUser:    util.Ptr(uid),
-		RunAsGroup:   util.Ptr(uid),
-		FSGroup:      util.Ptr(uid),
 		SeccompProfile: &corev1.SeccompProfile{
 			Type:             corev1.SeccompProfileTypeLocalhost,
 			LocalhostProfile: util.Ptr(workerSeccompProfilePath),
@@ -192,14 +171,42 @@ func (p PodConfig) podSecurityContext() *corev1.PodSecurityContext {
 	}
 }
 
-// containerSecurityContext drops everything the worker does not need. The
-// binary writes only into mounted volumes, so the root filesystem is read-only;
-// tmpVolumeName restores the one writable path shell commands assume.
+// containerSecurityContext drops every Linux capability the worker does not
+// need except SYS_ADMIN, and runs root rather than non-root -- both against
+// this package's own prior design, and both forced by the same finding: on a
+// real Deployment smoke run, a non-root pod with SYS_ADMIN (or any other
+// capability) added via Capabilities.Add never had it in its effective set at
+// exec time, only its bounding set -- a capability a container runtime adds
+// for a non-root container lands in the bounding set only, confirmed by
+// isolating every other variable (seccomp, AppArmor, no-new-privileges, file
+// capabilities on bwrap itself -- which bwrap explicitly refuses as a
+// suspicious configuration) one at a time against a throwaway container. Root
+// does not have this gap: an added capability is effective immediately. The
+// read-only root filesystem, dropped capability set otherwise, and AppArmor
+// override below are what still confine this pod; running as uid 0 is the
+// one property this pod no longer has, in exchange for bwrap's own sandbox
+// actually running instead of failing fail_if_unavailable's own closed
+// refusal to start any task at all.
+//
+// AppArmorProfile is Unconfined for the same reason the seccomp profile above
+// is Localhost rather than the default: this pod set no AppArmor field at
+// all before this change, so a node applied its own default confinement
+// (RuntimeDefault) automatically, and bwrap failed with "Creating new
+// namespace failed" -- AppArmor's own apparmor_restrict_unprivileged_userns
+// hardening denying the unprivileged unshare(CLONE_NEWUSER) bwrap needs on a
+// host carrying it.
+//
+// tmpVolumeName restores the one writable path shell commands assume, since
+// the root filesystem stays read-only even as root.
 func containerSecurityContext() *corev1.SecurityContext {
 	return &corev1.SecurityContext{
 		AllowPrivilegeEscalation: util.Ptr(false),
 		ReadOnlyRootFilesystem:   util.Ptr(true),
-		Capabilities:             &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
+		Capabilities: &corev1.Capabilities{
+			Drop: []corev1.Capability{"ALL"},
+			Add:  []corev1.Capability{"SYS_ADMIN"},
+		},
+		AppArmorProfile: &corev1.AppArmorProfile{Type: corev1.AppArmorProfileTypeUnconfined},
 	}
 }
 

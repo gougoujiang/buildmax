@@ -3,6 +3,7 @@ package k8s
 import (
 	"context"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -220,14 +221,11 @@ func TestJobPodIsConfined(t *testing.T) {
 	if psc == nil {
 		t.Fatal("pod security context missing")
 	}
-	if psc.RunAsNonRoot == nil || !*psc.RunAsNonRoot {
-		t.Error("worker pods must not run as root")
-	}
-	if psc.RunAsUser == nil || *psc.RunAsUser != defaultWorkerUID {
-		t.Errorf("run as uid = %v, want %d", psc.RunAsUser, defaultWorkerUID)
-	}
-	if psc.FSGroup == nil || *psc.FSGroup != defaultWorkerUID {
-		t.Error("fsGroup must match the uid or the mounted volumes are unwritable")
+	// Root, not non-root: see containerSecurityContext's own comment for why
+	// -- a non-root pod's added capabilities never land in its effective set
+	// on a real cluster, confirmed against a real Deployment smoke run.
+	if psc.RunAsNonRoot != nil && *psc.RunAsNonRoot {
+		t.Error("worker pods run as root now; RunAsNonRoot must not be set true")
 	}
 	// Not RuntimeDefault: confirmed against a real pod carrying this exact
 	// security context that RuntimeDefault drops bubblewrap's required
@@ -251,6 +249,20 @@ func TestJobPodIsConfined(t *testing.T) {
 	}
 	if len(csc.Capabilities.Drop) != 1 || csc.Capabilities.Drop[0] != "ALL" {
 		t.Errorf("capabilities drop = %v, want [ALL]", csc.Capabilities.Drop)
+	}
+	// SYS_ADMIN added back: bwrap needs it to build its sandbox, and running
+	// root (above) is what makes an added capability actually effective.
+	wantAdd := []corev1.Capability{"SYS_ADMIN"}
+	if !slices.Equal(csc.Capabilities.Add, wantAdd) {
+		t.Errorf("capabilities add = %v, want %v", csc.Capabilities.Add, wantAdd)
+	}
+	// Unconfined rather than a node's default AppArmor confinement: a
+	// Deployment smoke run on a host carrying Ubuntu's
+	// apparmor_restrict_unprivileged_userns hardening reproduced bubblewrap's
+	// "Creating new namespace failed" even with the seccomp profile above in
+	// place, the same way RuntimeDefault seccomp broke it before that fix.
+	if csc.AppArmorProfile == nil || csc.AppArmorProfile.Type != corev1.AppArmorProfileTypeUnconfined {
+		t.Errorf("apparmor profile type = %v, want Unconfined", csc.AppArmorProfile)
 	}
 
 	// A read-only root filesystem without a writable /tmp breaks ordinary

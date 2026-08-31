@@ -66,6 +66,52 @@ same failure reproduced with seccomp fully disabled and the pod running as
 real root, so it would reproduce on any container runtime that masks `/proc`
 paths in the way containerd and dockerd both do by default.
 
+## A third restriction: AppArmor, not just seccomp
+
+This profile alone was not sufficient on a host carrying Ubuntu's
+`apparmor_restrict_unprivileged_userns` hardening: even with every syscall
+above unconditionally allowed, `bwrap` still failed with `Creating new
+namespace failed: Operation not permitted`, because a node's default
+AppArmor confinement independently denies the unprivileged
+`unshare(CLONE_NEWUSER)` `bwrap` needs. `internal/infra/k8s/job.go`'s
+container `securityContext` now also sets `appArmorProfile: {type:
+Unconfined}`; `deployment/compose/compose.yaml`'s `security_opt` carries the
+Compose equivalent (`apparmor:unconfined`), alongside its own copy of this
+seccomp profile. Not every host runs AppArmor, so this was invisible in
+earlier testing that happened not to hit one that does — same shape of gap
+as the seccomp fix above being invisible from a Mac, where the sandbox
+backend is Seatbelt and neither restriction exists.
+
+## A fourth restriction: non-root capability grants are not effective at exec
+
+With the seccomp and AppArmor overrides above, the pod got past
+`unshare(CLONE_NEWUSER)` itself and failed a step later: `bwrap: setting up
+uid map: Permission denied`, writing its own `/proc/self/uid_map` — the
+self-mapping an unprivileged user makes into the namespace it just created,
+which needs no capability at all in the ordinary (uncontained) case.
+Granting the pod `SETUID`/`SETGID` via `securityContext.capabilities.add`
+did not fix it: a capability a container runtime adds to a **non-root**
+pod lands in that pod's capability *bounding* set only, never its
+*effective* set at the initial process's exec time — confirmed directly
+(`cat /proc/self/status` inside a throwaway container showed `CapBnd` set
+and `CapEff` all zero) and ruled out every other candidate one at a time:
+`no-new-privileges` on or off, `SYS_ADMIN` added instead, Docker's
+completely untouched default capability set instead of `cap-drop ALL` plus
+an explicit add, and file capabilities on the `bwrap` binary itself (which
+`bwrap` explicitly refuses to run with — `Unexpected capabilities but not
+setuid, old file caps config?` — as a suspicious configuration). None of
+that gap exists for a **root** pod: an added capability is effective
+immediately.
+
+The worker Job pod therefore now runs as **root (uid 0)** with `SYS_ADMIN`
+added rather than non-root with `SETUID`/`SETGID` added — see
+`internal/infra/k8s/job.go`'s `containerSecurityContext` and
+`docs/reference/configuration.md`'s "How A Worker Pod Is Confined." The
+pod's containment is the capability/seccomp/AppArmor set here plus `bwrap`'s
+own workspace-scoped sandboxing of the worker's Bash calls, not the pod's
+own uid. The Compose target's `local_process` worker needed the identical
+`cap_add: SYS_ADMIN` fix, for the same reason: it also runs root.
+
 ## Distribution
 
 Kubernetes' `Localhost` seccomp profile type requires the JSON file to exist

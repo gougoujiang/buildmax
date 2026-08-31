@@ -162,12 +162,11 @@ worker:
     # built-in defaults — almost never what you want.
     config_map: buildmax-config
     home_dir: /buildmax          # BUILDMAX_HOME inside a worker pod
-    # Worker pods are always non-root, with no service-account token, no
-    # added capabilities, and a read-only root filesystem — not configurable,
-    # since a worker runs model-chosen shell commands. Set run_as_user only on
-    # a cluster that assigns its own uid range (OpenShift, commonly); 0 uses
-    # BuildMax's default of 65532.
-    run_as_user: 0
+    # Worker pods run root with every Linux capability dropped except
+    # SYS_ADMIN, a Localhost seccomp profile, and an Unconfined AppArmor
+    # profile — not configurable, since a worker runs model-chosen shell
+    # commands. See docs/reference/configuration.md's "How A Worker Pod Is
+    # Confined" for why.
     # Kubernetes quantity strings, all required under k8s_job: the server
     # refuses to start rather than schedule a pod that model-chosen commands
     # could run unbounded. Starting points, not measurements — a build or

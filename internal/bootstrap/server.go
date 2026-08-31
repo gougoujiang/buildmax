@@ -650,7 +650,6 @@ func buildWorkerRunner(wc config.ServerWorkerConfig, stopGrace time.Duration) (s
 			k8s.PodConfig{
 				ConfigMapName: wc.K8s.ConfigMap,
 				HomeDir:       wc.K8s.HomeDir,
-				RunAsUser:     wc.K8s.RunAsUser,
 				Resources: k8s.PodResources{
 					CPURequest:    wc.K8s.Resources.CPURequest,
 					CPULimit:      wc.K8s.Resources.CPULimit,

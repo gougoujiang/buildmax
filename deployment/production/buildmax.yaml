@@ -92,12 +92,11 @@ data:
         image: REPLACE_ME_IMAGE
         config_map: buildmax-config
         home_dir: /buildmax
-        # Worker pods are always created non-root, with no service-account
-        # token, no added capabilities, and a read-only root filesystem. That
-        # containment is not configurable: a worker executes model-chosen shell
-        # commands. Set run_as_user only on a cluster that assigns its own uid
-        # range, OpenShift most commonly.
-        # run_as_user: 1000700000
+        # Worker pods run root with every Linux capability dropped except
+        # SYS_ADMIN, a Localhost seccomp profile, and an Unconfined AppArmor
+        # profile -- see docs/reference/configuration.md's "How A Worker Pod
+        # Is Confined" for why. None of that is configurable: a worker
+        # executes model-chosen shell commands.
         #
         # A worker runs one task. Size these for the work you expect it to do,
         # not for the server; a build or a test suite needs considerably more
