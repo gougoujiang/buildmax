@@ -53,8 +53,11 @@ func seedAuditEvents(t *testing.T, s *Store, ctx context.Context, actor, teamID 
 // because the file looks complete.
 //
 // Three of the four events deliberately share a timestamp: a cursor on
-// created_at alone would drop the ties, and created_at has one-second
-// resolution so ties are ordinary rather than exotic.
+// created_at alone would drop the ties. The column is a DATETIME(6), so a tie
+// is not the certainty an earlier version of this comment claimed -- but a
+// bulk import, a replayed batch, or any writer stamping one time across
+// several rows produces one, and an export that skipped a record then would
+// look complete.
 func TestExportTeamAuditEventsWalksEveryEventAcrossTies(t *testing.T) {
 	s, ctx := newTestStore(t)
 	actor := newTestUser(t, s, "audit")
@@ -126,7 +129,13 @@ func TestPruneAuditEventsRemovesOnlyWhatExpired(t *testing.T) {
 	teamID := newTestTeam(t, s, actor)
 	t.Cleanup(func() { _ = s.db.WithContext(ctx).Delete(&auditEventRow{}, "actor_id = ?", actor).Error })
 
-	now := time.Now().UTC()
+	// Truncated to what a DATETIME(6) column can hold. Every other test here
+	// stamps whole seconds through at(), so only this one, which needs times
+	// relative to the present, can carry a remainder the column drops -- and
+	// then reading a row back would not Equal the value that was written.
+	// Linux keeps that remainder and macOS usually does not, so a developer's
+	// machine is the wrong place to find out.
+	now := time.Now().UTC().Truncate(time.Microsecond)
 	// Retention is deployment-wide, so the counts below are over the whole
 	// table and cannot tolerate a row this test did not write -- a sign-in from
 	// a stack sharing this database, or an earlier run that was interrupted
