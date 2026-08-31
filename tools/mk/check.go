@@ -2,8 +2,11 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"sort"
 	"strings"
+
+	"github.com/gougoujiang/buildmax/internal/config"
 )
 
 // scopeOrder is the order `all` and `ci` run their scopes in: the Go gate
@@ -268,11 +271,33 @@ func checkCI(checks map[string]func() error) error {
 	if err := runScopes(checks); err != nil {
 		return err
 	}
+	// The persistence job is part of the pull-request suite, but it needs a
+	// MySQL this command must not start for you. Running it when the DSN is
+	// there and naming it when it is not beats a green "ci passed" that quietly
+	// covered one job fewer than CI will.
+	mysqlRan, err := checkMySQLIfConfigured()
+	if err != nil {
+		return fmt.Errorf("check ci mysql: %w", err)
+	}
 	if err := reportWorktreeDrift(before); err != nil {
 		return err
 	}
 	fmt.Printf("[check] ci passed; the Windows job still needs a Windows machine\n")
+	if !mysqlRan {
+		fmt.Printf("[check] ci did not run the MySQL job: set %s and run `./make test mysql`\n",
+			config.EnvKeyBuildmaxTestDSN)
+	}
 	return nil
+}
+
+// checkMySQLIfConfigured runs the persistence scope when a DSN says where, and
+// reports whether it did.
+func checkMySQLIfConfigured() (bool, error) {
+	if os.Getenv(config.EnvKeyBuildmaxTestDSN) == "" {
+		return false, nil
+	}
+	fmt.Printf("[check] ci: mysql\n")
+	return true, cmdTestMySQL(nil)
 }
 
 func checkWorkflows() error {

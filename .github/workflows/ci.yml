@@ -151,6 +151,70 @@ jobs:
             ~/go/pkg/mod
           key: ${{ steps.go-build-cache.outputs.cache-primary-key }}
 
+  # The store tests skip themselves without a DSN, so the job above proves
+  # nothing about schema, query, transaction, or MySQL-specific behavior — it
+  # runs them and they opt out. That gap let a defect sit on main for 387
+  # commits: CreateTeam returned a Team whose plugin_curation was "" while
+  # GetTeam answered "open" for the same row, and the test that says so had been
+  # skipping since the day it was written.
+  #
+  # A separate job because it needs a service container the rest do not, and
+  # because a red "Persistence" is attributable at a glance. It restores the go
+  # job's build cache but never saves one: two jobs writing the same key is how
+  # the entry the heavier job depends on gets evicted.
+  #
+  # See docs/design/verification-program.md §4.
+  mysql:
+    name: Persistence (MySQL)
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        # The version the deployment manifests run (deployment/kind/mysql.yaml).
+        # Testing persistence against a different server than production uses
+        # would answer a question nobody asked.
+        image: mysql:8.0
+        env:
+          # An ephemeral container on the runner's own network, reachable by
+          # nothing else for the length of one job. root because the scope
+          # creates and drops a database of its own, which a single-schema
+          # grant cannot do.
+          MYSQL_ROOT_PASSWORD: buildmax
+          MYSQL_DATABASE: buildmax
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -pbuildmax"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+          --health-start-period=30s
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Restore Go build cache
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: go-build-${{ runner.os }}-${{ hashFiles('go.mod', 'go.sum') }}
+          restore-keys: |
+            go-build-${{ runner.os }}-
+
+      # The same command a contributor runs. It requires the DSN rather than
+      # skipping without one, runs on a uniquely named database it creates and
+      # drops, and fails if a test in the scope skips for want of the DSN
+      # anyway — so this job cannot go green by testing nothing.
+      - name: Test against MySQL
+        env:
+          BUILDMAX_TEST_DSN: root:buildmax@tcp(127.0.0.1:3306)/buildmax
+        run: ./make test mysql
+
   frontend:
     name: Frontend (gui, portal, desktop)
     runs-on: ubuntu-latest

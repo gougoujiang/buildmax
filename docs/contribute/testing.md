@@ -12,6 +12,7 @@ loop rather than a pull-request gate — is in
 ```bash
 ./make test           # everything below the deployment: unit, integration, CLI, Desktop bridge
 ./make test ./internal/tool -run TestX   # one package or one test, same isolated home
+./make test mysql     # the store scope, against a real MySQL you point it at
 ./make e2e cli        # just the CLI and TUI suite
 ./make e2e desktop    # just the Desktop bridge suite
 ./make e2e local      # Portal in a browser, against a Compose stack this command owns
@@ -34,6 +35,7 @@ package whose code reads those paths gives itself a `TestMain` calling
 | You changed | Run |
 |---|---|
 | Anything in `internal/`, `cmd/`, `tools/` | `./make test` |
+| A row struct, a store method, or a query in `internal/infra/db` | `./make test mysql` — `./make test` alone skips every one of those tests |
 | The agent loop, tools, permissions, sessions, the TUI | `./make test`, then `./make e2e cli` |
 | Plugins, packaging, or the Marketplace routes | `./make test`, then `./make e2e cli` |
 | The Desktop bridge, its events, approvals, or session history | `./make e2e desktop` |
@@ -63,6 +65,35 @@ failure you already have.
 No suite needs a provider API key. Every one of them answers the model from
 `internal/testsupport/mockllm`, which replays a committed scenario.
 
+## The Store Scope
+
+Every test in `internal/infra/db` skips itself when `BUILDMAX_TEST_DSN` is
+unset, so a green `./make test` says nothing about schema, query, transaction,
+or MySQL-specific behavior. `./make test mysql` is the scope that does:
+
+```bash
+docker run --rm -d --name buildmax-test-mysql \
+  -e MYSQL_ROOT_PASSWORD=buildmax -e MYSQL_DATABASE=buildmax \
+  -p 3306:3306 mysql:8.0
+export BUILDMAX_TEST_DSN='root:buildmax@tcp(127.0.0.1:3306)/buildmax'
+./make test mysql
+./make test mysql -run TestCreateTeam    # `go test` flags pass through
+```
+
+The account needs `CREATE DATABASE`: the scope runs on a uniquely named
+database it creates and drops, so it never writes to the one your DSN names.
+It refuses to run without a DSN rather than skipping, and fails if a test in
+the scope skips for the DSN's absence anyway — a gate that can go green by
+testing nothing is the problem it exists to solve.
+
+It never starts Docker for you. Point it at a server you already run; a test
+command that starts containers as a side effect is one that mutates the machine.
+
+CI runs this same command against a pinned `mysql:8.0` service container on
+every pull request. `./make check ci` runs it too when `BUILDMAX_TEST_DSN` is
+set, and says it did not when the variable is absent. The design record is
+[../design/verification-program.md](../design/verification-program.md) §4.
+
 `./make agent-smoke` is the exception, and it is not a test: it drives the
 agent's tools with a real model, needs a key, and reports a PASS/FAIL table the
 model wrote about itself. Read its output; its exit code says only that the
@@ -76,8 +107,9 @@ minimum prefix length, an unsupported model, or an expired retention window.
 The suite runs the scenarios
 [prompt-cache-control.md](../design/prompt-cache-control.md) gates on against a
 real provider named by `BUILDMAX_CACHE_QUALIFY_*`, and no provider or gateway is
-described as cache-capable until it passes. Unset, it skips like the
-MySQL-backed store tests do.
+described as cache-capable until it passes. Unset, it skips the way the store
+tests do under a plain `./make test` — with no scope of its own that refuses to,
+because unlike MySQL there is no free local stand-in for a paid provider.
 
 `./make eval` is the third, and it measures something the suites deliberately do
 not. It builds the CLI and evaluates the CLI tasks in `evaluation/suite/` as a
