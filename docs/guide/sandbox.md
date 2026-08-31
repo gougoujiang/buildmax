@@ -132,7 +132,14 @@ decision.
 
 The sandbox is genuinely useful today, but it is not finished:
 
-- hook transports are not themselves sandboxed
+- `buildmax sandbox overrides <strict|permissive>` is not implemented;
+  `allow_unsandboxed_commands` can only be edited by hand
+
+A `command` or `http` hook now runs through the same confinement a sandboxed
+`Bash`/`WebFetch` call does — a hook cannot reach what the sandbox exists to
+contain — but hooks carry no `dangerously_disable_sandbox`-equivalent: they
+are config-authored automation, not an LLM-chosen call you watch turn by
+turn, so there is no per-invocation argument for one to opt out with.
 
 Track the remaining work in
 [sandbox design §13.1](../design/sandbox-boundaries.md). Do not

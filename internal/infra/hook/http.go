@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -31,16 +32,30 @@ const HTTPBlockingStatus = 422
 // Header values may contain "$VAR" / "${VAR}" placeholders. Only env vars
 // listed in entry.AllowedEnv are substituted — this prevents accidental
 // leakage of arbitrary process env into outbound requests.
+//
+// When the sandbox is active, entry.URL's host is checked against the same
+// allowed_domains/denied_domains policy WebFetch enforces, before the
+// request is ever built — a hook is a non-bash egress path exactly like
+// WebFetch is, so it honors the same allow-list rather than reaching the
+// network unconstrained.
 type HTTPDriver struct {
 	// Client is the http.Client used for outbound requests. Tests inject
 	// their own; production constructs one with the per-entry timeout.
 	Client *http.Client
+	// sandbox gates outbound requests by hostname. Never nil after
+	// NewHTTPDriver; defaults to agent.NoopSandbox{} (no enforcement).
+	sandbox agent.SandboxView
 }
 
 // NewHTTPDriver returns a driver with a default client. Per-entry timeout is
 // applied via context, so the client itself does not need a global timeout.
-func NewHTTPDriver() *HTTPDriver {
-	return &HTTPDriver{Client: &http.Client{}}
+// sandbox nil is treated as agent.NoopSandbox{}, matching every other
+// SandboxView consumer's nil-guard.
+func NewHTTPDriver(sandbox agent.SandboxView) *HTTPDriver {
+	if sandbox == nil {
+		sandbox = agent.NoopSandbox{}
+	}
+	return &HTTPDriver{Client: &http.Client{}, sandbox: sandbox}
 }
 
 // Type satisfies Driver.
@@ -51,6 +66,14 @@ func (d *HTTPDriver) Run(ctx context.Context, entry corehook.Entry, in agent.Hoo
 	if entry.URL == "" {
 		componentLog().Warn("http entry missing url", "event", in.Event)
 		return agent.HookOutput{}
+	}
+	if d.sandbox.Enabled() {
+		if u, err := url.Parse(entry.URL); err == nil {
+			if ok, reason := d.sandbox.HostAllowed(u.Host); !ok {
+				componentLog().Info("http blocked by sandbox host policy", "event", in.Event, "tool", in.ToolName, "url", entry.URL, "reason", reason)
+				return agent.HookOutput{Decision: agent.HookDecisionBlock, Reason: reason}
+			}
+		}
 	}
 	body, err := json.Marshal(in)
 	if err != nil {

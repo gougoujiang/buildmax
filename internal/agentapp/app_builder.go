@@ -178,7 +178,10 @@ func buildAgentApp(cfg AppConfig, resolved resolvedAgentAppConfig) (_ *AgentApp,
 		}
 	}
 
-	hookDeps := hook.Deps{LLMCaller: &llmCaller{cache: app.llmClients, defaultModel: app.DefaultModelName}}
+	hookDeps := hook.Deps{
+		LLMCaller: &llmCaller{cache: app.llmClients, defaultModel: app.DefaultModelName},
+		Sandbox:   app.sandbox,
+	}
 	if app.mcpManager != nil {
 		hookDeps.MCPCaller = &mcpCaller{m: app.mcpManager}
 	}

@@ -21,7 +21,7 @@ func skipOnWindows(t *testing.T) {
 // returns the no-op decision.
 func TestCommandDriver_SuccessAllows(t *testing.T) {
 	skipOnWindows(t)
-	d := NewCommandDriver()
+	d := NewCommandDriver(nil)
 	out := d.Run(context.Background(),
 		corehook.Entry{Command: "exit 0"},
 		agent.HookInput{Event: agent.HookPreToolUse, ToolName: "echo"},
@@ -35,7 +35,7 @@ func TestCommandDriver_SuccessAllows(t *testing.T) {
 // the block reason.
 func TestCommandDriver_Exit2Blocks(t *testing.T) {
 	skipOnWindows(t)
-	d := NewCommandDriver()
+	d := NewCommandDriver(nil)
 	out := d.Run(context.Background(),
 		corehook.Entry{Command: "echo forbidden 1>&2; exit 2"},
 		agent.HookInput{Event: agent.HookPreToolUse, ToolName: "writefile"},
@@ -52,7 +52,7 @@ func TestCommandDriver_Exit2Blocks(t *testing.T) {
 // on stdout is honored.
 func TestCommandDriver_JSONBlocks(t *testing.T) {
 	skipOnWindows(t)
-	d := NewCommandDriver()
+	d := NewCommandDriver(nil)
 	out := d.Run(context.Background(),
 		corehook.Entry{Command: `printf '%s' '{"decision":"block","reason":"json says no"}'`},
 		agent.HookInput{Event: agent.HookPreToolUse, ToolName: "writefile"},
@@ -69,7 +69,7 @@ func TestCommandDriver_JSONBlocks(t *testing.T) {
 // timeout fails open.
 func TestCommandDriver_FailsOpenOnTimeout(t *testing.T) {
 	skipOnWindows(t)
-	d := NewCommandDriver()
+	d := NewCommandDriver(nil)
 	start := time.Now()
 	out := d.Run(context.Background(),
 		corehook.Entry{Command: "sleep 5", Timeout: 1},
@@ -90,7 +90,7 @@ func TestCommandDriver_FailsOpenOnTimeout(t *testing.T) {
 // child's full lifetime without a WaitDelay — letting a hook outlive its timeout.
 func TestCommandDriver_TimeoutIgnoresBackgroundChild(t *testing.T) {
 	skipOnWindows(t)
-	d := NewCommandDriver()
+	d := NewCommandDriver(nil)
 	start := time.Now()
 	out := d.Run(context.Background(),
 		corehook.Entry{Command: "sleep 5 &", Timeout: 1},
@@ -108,7 +108,7 @@ func TestCommandDriver_TimeoutIgnoresBackgroundChild(t *testing.T) {
 // TestCommandDriver_FailsOpenOnMiscError asserts that a non-2 exit fails open.
 func TestCommandDriver_FailsOpenOnMiscError(t *testing.T) {
 	skipOnWindows(t)
-	d := NewCommandDriver()
+	d := NewCommandDriver(nil)
 	out := d.Run(context.Background(),
 		corehook.Entry{Command: "exit 7"},
 		agent.HookInput{Event: agent.HookPreToolUse, ToolName: "anything"},
@@ -121,7 +121,7 @@ func TestCommandDriver_FailsOpenOnMiscError(t *testing.T) {
 // TestCommandDriver_EmptyCommandFailsOpen asserts that an entry missing the
 // command field is treated as allow rather than panicking.
 func TestCommandDriver_EmptyCommandFailsOpen(t *testing.T) {
-	d := NewCommandDriver()
+	d := NewCommandDriver(nil)
 	out := d.Run(context.Background(),
 		corehook.Entry{},
 		agent.HookInput{Event: agent.HookPreToolUse, ToolName: "x"},
@@ -132,7 +132,7 @@ func TestCommandDriver_EmptyCommandFailsOpen(t *testing.T) {
 }
 
 func TestCommandDriver_Type(t *testing.T) {
-	if NewCommandDriver().Type() != corehook.TypeCommand {
-		t.Errorf("Type() = %q, want %q", NewCommandDriver().Type(), corehook.TypeCommand)
+	if NewCommandDriver(nil).Type() != corehook.TypeCommand {
+		t.Errorf("Type() = %q, want %q", NewCommandDriver(nil).Type(), corehook.TypeCommand)
 	}
 }

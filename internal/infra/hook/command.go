@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -32,16 +33,33 @@ const waitDelayAfterKill = 500 * time.Millisecond
 //     {"decision":"block","reason":"..."}. Empty or non-JSON stdout = allow.
 //   - Exit 2: explicit block; stderr text is surfaced as the reason.
 //   - Other non-zero exit / timeout: fails open (allows) with a warning log.
-type CommandDriver struct{}
+//
+// When the sandbox is active, entry.Command runs through it exactly as the
+// Bash tool's own commands do -- same wrap, same excluded_commands, same
+// scrubbed environment -- so a hook cannot reach what the sandbox exists to
+// contain. Unlike Bash, a hook has no dangerously_disable_sandbox escape
+// hatch: hooks are config-authored automation, not an LLM-chosen call the
+// operator is watching turn by turn, so there is no per-invocation argument
+// for one to opt out with.
+type CommandDriver struct {
+	sandbox agent.SandboxView
+}
 
-// NewCommandDriver constructs a stateless command driver.
-func NewCommandDriver() *CommandDriver { return &CommandDriver{} }
+// NewCommandDriver constructs a command driver. sandbox nil is treated as
+// agent.NoopSandbox{} -- no enforcement, matching every other SandboxView
+// consumer's nil-guard.
+func NewCommandDriver(sandbox agent.SandboxView) *CommandDriver {
+	if sandbox == nil {
+		sandbox = agent.NoopSandbox{}
+	}
+	return &CommandDriver{sandbox: sandbox}
+}
 
 // Type satisfies Driver.
-func (CommandDriver) Type() string { return corehook.TypeCommand }
+func (*CommandDriver) Type() string { return corehook.TypeCommand }
 
 // Run executes entry.Command with the HookInput JSON on stdin.
-func (CommandDriver) Run(ctx context.Context, entry corehook.Entry, in agent.HookInput) agent.HookOutput {
+func (d *CommandDriver) Run(ctx context.Context, entry corehook.Entry, in agent.HookInput) agent.HookOutput {
 	if entry.Command == "" {
 		componentLog().Warn("command entry missing command", "event", in.Event)
 		return agent.HookOutput{}
@@ -56,8 +74,13 @@ func (CommandDriver) Run(ctx context.Context, entry corehook.Entry, in agent.Hoo
 	cmdCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	name, args := shellInvocation(entry.Command)
+	name, args, err := d.spawnArgs(cmdCtx, entry.Command)
+	if err != nil {
+		componentLog().Warn("sandbox wrap failed; failing open", "event", in.Event, "command", entry.Command, "err", err)
+		return agent.HookOutput{}
+	}
 	cmd := exec.CommandContext(cmdCtx, name, args...)
+	cmd.Env = d.childEnv()
 	cmd.Stdin = bytes.NewReader(payload)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -121,4 +144,33 @@ func shellInvocation(command string) (string, []string) {
 		return "cmd", []string{"/C", command}
 	}
 	return "sh", []string{"-c", command}
+}
+
+// spawnArgs returns the (binary, argv) to exec for command, wrapped by the
+// sandbox when it is active and accepts the command -- mirrors
+// internal/tool.Bash.spawnArgs, minus the dangerously_disable_sandbox branch
+// a hook has no argument to carry.
+func (d *CommandDriver) spawnArgs(ctx context.Context, command string) (string, []string, error) {
+	shell, _ := shellInvocation(command)
+	name, args, err := d.sandbox.WrapBashCommand(ctx, command, shell)
+	if err != nil {
+		return "", nil, err
+	}
+	if name != "" {
+		return name, args, nil
+	}
+	name, args = shellInvocation(command)
+	return name, args, nil
+}
+
+// childEnv composes the child environment exactly as internal/tool.Bash's
+// own childEnv does: secret-shaped vars stripped, proxy routing added, nil
+// (inherit everything) when the sandbox contributed nothing.
+func (d *CommandDriver) childEnv() []string {
+	extra := d.sandbox.ChildEnv()
+	scrubbed := d.sandbox.ScrubEnv(os.Environ())
+	if len(extra) > 0 || len(scrubbed) != len(os.Environ()) {
+		return append(scrubbed, extra...)
+	}
+	return nil
 }

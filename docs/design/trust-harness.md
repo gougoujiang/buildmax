@@ -83,7 +83,7 @@ subagent frontmatter hooks (session-scoped lifetime), `async` command flag,
 `buildmax hooks` inspector. See [hook-system.md](./hook-system.md) §10
 (implementation phase F).
 
-### 3.2 Sandbox And Execution Boundaries — local sandbox, worker surface, and process limits shipped ✅, hook/MCP boundary open
+### 3.2 Sandbox And Execution Boundaries — local sandbox, worker surface, process limits, and hook boundary shipped ✅, `buildmax sandbox overrides` open
 
 Explicit sandbox modes for command execution now exist. Detail design lives in
 [sandbox-boundaries.md](./sandbox-boundaries.md);
@@ -124,11 +124,17 @@ Boundary coverage against the list above:
   tool result, not the task's scripted final text; see
   [sandbox-boundaries.md](./sandbox-boundaries.md) §13 phase F.
 
-Also still open in [sandbox-boundaries.md](./sandbox-boundaries.md): `command` /
-`http` hook transports do not consult `SandboxView` yet (§9, §12), and
-`buildmax sandbox overrides` (§8) is not implemented. §3.2 is therefore **not**
-closed — the enforcement engine, the worker surface, process limits, and
-downgrade-marking all landed, but the hook/MCP boundary did not.
+`command` and `http` hook transports now consult `SandboxView` too — a hook
+mirrors the same `WrapBashCommand`/`HostAllowed` calls `Bash`/`WebFetch`
+make, with no `dangerously_disable_sandbox`-equivalent escape hatch, since
+hooks are config-authored automation rather than an LLM-chosen call an
+operator is watching turn by turn. Verified against a real `sandbox.Manager`
+(Seatbelt), not only a test double. Still open in
+[sandbox-boundaries.md](./sandbox-boundaries.md): `buildmax sandbox
+overrides` (§8) is not implemented. §3.2 is therefore **not** fully closed,
+but only that one operator-facing command and its documentation remain —
+the enforcement engine, the worker surface, process limits, downgrade
+marking, and the hook boundary have all landed.
 
 ### 3.3 Durable Run Trace — phase 1 shipped ✅
 

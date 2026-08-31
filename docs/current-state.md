@@ -106,7 +106,7 @@ that external path for one task only. There is no Terminal-Bench score.
 
 ## Readiness Blockers
 
-### P0 — Worker Sandbox Wired And Verified Against The Production Pod Security Context; Hook/MCP Boundary Still Open
+### P0 — Worker Sandbox Wired And Verified Against The Production Pod Security Context; Cluster Egress Still Open
 
 The worker task runtime now selects `config.SandboxSurfaceWorker` and applies
 an agent-declared network/filesystem tier in
@@ -181,12 +181,20 @@ and macOS shells (`max_memory_mb` is a documented no-op on macOS, which has
 no `RLIMIT_AS`) — closing [`sandbox-boundaries.md`](design/sandbox-boundaries.md)
 §13.1 gap 2.
 
-What remains open: hook and MCP child processes still do not consult
-`SandboxView` (§13.1 gap 3), so Bash containment alone does not cover them;
-and the cluster-level `NetworkPolicy` question
+The `command` and `http` hook transports now also consult `SandboxView`
+(§13.1 gap 3): a hook's command runs through the same `WrapBashCommand` call
+and scrubbed environment `Bash` uses, and a hook's HTTP request is checked
+against the same `HostAllowed` policy `WebFetch` uses, with no
+`dangerously_disable_sandbox`-equivalent escape hatch, since hooks are
+config-authored automation rather than an LLM-chosen call an operator is
+watching turn by turn. Verified against a real `sandbox.Manager` (Seatbelt),
+not only a test double.
+
+What remains open: the cluster-level `NetworkPolicy` question
 [`trust-harness.md`](design/trust-harness.md) §3.9 leaves open — a worker
 pod reaches whatever the cluster's network allows, independent of the
-in-process sandbox this section covers — is untouched by this pass.
+in-process sandbox this section covers — is untouched by this pass, and
+`buildmax sandbox overrides` is still unimplemented.
 
 ### P0 — The Reference Replica Count Exceeds Coordination Semantics
 
@@ -284,11 +292,13 @@ throughput. None of these is a reason to block containment or correctness work.
 
 ## Rebased Priority Order
 
-1. Close hook and MCP child processes' sandbox boundary. The worker sandbox
-   surface, its interaction with the production pod's hardening, process
-   resource limits, and an organic Bash-calling run through the real server
-   → worker → Job path are all now proven and exercised automatically by
-   the deployment smoke.
+1. Decide the cluster-level `NetworkPolicy` question
+   [`trust-harness.md`](design/trust-harness.md) §3.9 leaves open — the
+   in-process sandbox boundary this section covers is otherwise closed: the
+   worker sandbox surface, its interaction with the production pod's
+   hardening, process resource limits, the command/http hook boundary, and
+   an organic Bash-calling run through the real server → worker → Job path
+   are all now proven and exercised automatically by the deployment smoke.
 2. Make the production topology honest: one supported Server replica now, or
    shared coordination before horizontal scaling.
 3. Put critical MySQL persistence behavior in the pull-request evidence path.

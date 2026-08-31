@@ -22,9 +22,9 @@
 ## Status
 
 - roadmap_priority: `P0.5`
-- status: `phases A–E implemented (process limits included), phase F's
-  worker surface selection, production-pod verification, and downgrade
-  marking done` (§13; hook/MCP transports honoring the sandbox, docs, and
+- status: `phases A–E implemented (process limits and hook transports
+  included), phase F's worker surface selection, production-pod
+  verification, and downgrade marking done` (§13; docs and
   `buildmax sandbox overrides` remain — modelled on
   [Claude Code's sandbox docs](https://code.claude.com/docs/en/sandboxing))
 - follows: [trust-harness.md](./trust-harness.md), [hook-system.md](./hook-system.md)
@@ -580,10 +580,19 @@ Still open — these block §15 acceptance:
    `max_memory_mb` silently no-opped as documented. Zero means unset, the
    same restraint `worker.k8s.resources` documents — no default value is
    chosen for the worker surface.
-3. **Hook transports do not consult `SandboxView`.** §9 and §12 require the
-   `command` and `http` drivers to honor the sandbox so hooks cannot be used
-   to escape it; `infra/hook/command.go` and `infra/hook/http.go` have no
-   sandbox reference today.
+3. ✅ **Hook transports consult `SandboxView`.** `hook.Deps.Sandbox` (plumbed
+   from `AgentApp.sandbox` in `app_builder.go`) reaches both drivers.
+   `CommandDriver` mirrors `Bash.spawnArgs`/`childEnv` exactly — same
+   `WrapBashCommand` call, same `excluded_commands` handling, same scrubbed
+   environment — with no `dangerously_disable_sandbox`-equivalent: hooks are
+   config-authored automation, not an LLM-chosen call an operator is
+   watching turn by turn, so there is no per-invocation argument for one to
+   opt out with. `HTTPDriver` mirrors `WebFetch`'s `HostAllowed` check
+   before building the request, failing the hook closed with the sandbox's
+   own reason on denial rather than reaching the network at all. Verified
+   against a real `sandbox.Manager` (Seatbelt, not a stub): a command hook
+   printed its own output, then had a write outside the workspace denied
+   with `Operation not permitted`, exactly as `Bash` would.
 4. **`buildmax sandbox overrides <strict|permissive>`** (§8) is not
    implemented; `allow_unsandboxed_commands` can only be edited by hand.
 5. **Docs from phase F**: no `config-examples/sandbox.example.yaml`, and
