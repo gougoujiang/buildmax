@@ -9,7 +9,9 @@ import (
 	"testing"
 	"time"
 
+	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -345,4 +347,55 @@ func TestGetWorkerTaskRunHandler_TellsTheRunHowToReachAModel(t *testing.T) {
 			t.Errorf("a direct deployment sent an llm field: %s", w.Body.String())
 		}
 	})
+}
+
+// An agent that declares neither tier inherits the team's default -- see
+// docs/design/agent-sandbox-policy.md §9 M3. Once resolved, the tiers pin to
+// the run so a later change to the team's default cannot alter a run already
+// under way.
+func TestGetWorkerTaskRunHandler_FallsBackToTeamSandboxDefaults(t *testing.T) {
+	runStore := &mock.MockTaskRunStore{
+		Runs: []coretask.Run{{ID: "run-1", TaskID: "task-1", Input: "input", Status: "SCHEDULED", CreatedAt: time.Unix(1, 0).UTC()}},
+		TaskList: []coretask.Task{
+			{ID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1", AgentID: util.Ptr("a_1")},
+		},
+	}
+	agentStore := &mock.MockAgentStore{
+		Agents: []agentdef.Agent{{ID: "a_1", TeamID: "tm_1", Name: "no-tiers"}},
+	}
+	teamStore := &mock.MockTeamStore{
+		Teams: []coreteam.Team{{ID: "tm_1", DefaultSandboxNetworkTier: "registries", DefaultSandboxFilesystemTier: "workspace_plus_shared_read"}},
+	}
+	cfg := Config{JWTSecret: workerTestSecret, TaskRuns: runStore, Agents: agentStore, Teams: teamStore}
+
+	get := func(t *testing.T) workerclient.GetTaskRunResponse {
+		t.Helper()
+		mux := http.NewServeMux()
+		New(cfg).Register(mux)
+		req := httptest.NewRequest(http.MethodGet, "/api/worker/task-runs/run-1", nil)
+		req.Header.Set("Authorization", "Bearer "+runTokenFor(t, "run-1", "task-1"))
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
+		}
+		var got workerclient.GetTaskRunResponse
+		if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		return got
+	}
+
+	got := get(t)
+	if got.Sandbox == nil || got.Sandbox.NetworkTier != "registries" || got.Sandbox.FilesystemTier != "workspace_plus_shared_read" {
+		t.Fatalf("sandbox = %+v, want the team's defaults", got.Sandbox)
+	}
+
+	// The team raises its default after this run already resolved once; the
+	// pin already written must not move.
+	teamStore.Teams[0].DefaultSandboxNetworkTier = "open"
+	got = get(t)
+	if got.Sandbox.NetworkTier != "registries" {
+		t.Errorf("network tier = %q after the team default changed, want the pinned value registries", got.Sandbox.NetworkTier)
+	}
 }

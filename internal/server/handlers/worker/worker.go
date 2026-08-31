@@ -56,8 +56,8 @@ func (h *Handler) getTaskRun(w http.ResponseWriter, r *http.Request) {
 	pins, pluginRefusal := h.resolvePluginPins(r, run, task, runAgent)
 	h.recordPluginPins(r, run, pins)
 
-	networkTier, filesystemTier := resolveSandboxTiers(run, runAgent)
-	h.recordSandboxTiers(r, run, runAgent)
+	networkTier, filesystemTier := h.resolveSandboxTiers(r, run, task, runAgent)
+	h.recordSandboxTiers(r, run, runAgent, networkTier, filesystemTier)
 
 	httputil.WriteJSON(w, http.StatusOK, workerclient.GetTaskRunResponse{
 		Run: workerclient.TaskRunRun{
@@ -240,9 +240,15 @@ func (h *Handler) recordSeen(r *http.Request, run *coretask.Run) {
 
 // resolveSandboxTiers returns this run's sandbox tiers: the pinned ones once
 // a worker has already claimed this run, or the agent's current declaration
-// on the first poll. Mirrors resolvePluginPins's first-write-wins read — see
-// docs/design/agent-sandbox-policy.md §4.4.
-func resolveSandboxTiers(run *coretask.Run, a *agentdef.Agent) (networkTier, filesystemTier string) {
+// resolved against the team's default on the first poll. Mirrors
+// resolvePluginPins's first-write-wins read — see
+// docs/design/agent-sandbox-policy.md §4.4 and §9 M3.
+//
+// A tier the agent leaves undeclared falls through to the team's default for
+// that axis, and only then to the surface baseline an empty string resolves
+// to elsewhere. Each axis falls through independently, the same way
+// ResolveSandboxForRun's layers do.
+func (h *Handler) resolveSandboxTiers(r *http.Request, run *coretask.Run, task *coretask.Task, a *agentdef.Agent) (networkTier, filesystemTier string) {
 	if run.SandboxNetworkTier != nil {
 		if run.SandboxFilesystemTier != nil {
 			filesystemTier = *run.SandboxFilesystemTier
@@ -252,22 +258,38 @@ func resolveSandboxTiers(run *coretask.Run, a *agentdef.Agent) (networkTier, fil
 	if a == nil {
 		return "", ""
 	}
-	return a.SandboxNetworkTier, a.SandboxFilesystemTier
+	networkTier, filesystemTier = a.SandboxNetworkTier, a.SandboxFilesystemTier
+	if (networkTier == "" || filesystemTier == "") && h.cfg.Teams != nil {
+		team, err := h.cfg.Teams.GetTeam(r.Context(), task.TeamID)
+		if err != nil {
+			componentLog().Warn("worker handler: team sandbox defaults unavailable", "task_run_id", run.ID, "team_id", task.TeamID, "err", err)
+		} else if team != nil {
+			if networkTier == "" {
+				networkTier = team.DefaultSandboxNetworkTier
+			}
+			if filesystemTier == "" {
+				filesystemTier = team.DefaultSandboxFilesystemTier
+			}
+		}
+	}
+	return networkTier, filesystemTier
 }
 
-// recordSandboxTiers notes which sandbox tiers this run's agent declared.
+// recordSandboxTiers notes which sandbox tiers this run resolved to.
 //
 // Recorded even when both tiers are empty — that is itself the fact "this
 // run resolved to the strictest tier on both axes" — which is why the guard
 // below is run.SandboxNetworkTier == nil rather than "the tiers are
-// non-empty" the way recordPluginPins guards on. A failure to record is
-// logged and dropped: a worker waiting for its run must not be held up by
-// bookkeeping.
-func (h *Handler) recordSandboxTiers(r *http.Request, run *coretask.Run, a *agentdef.Agent) {
+// non-empty" the way recordPluginPins guards on. The resolved tiers are
+// recorded, not the agent's raw declaration, so a run the team's default
+// tier upgraded shows that in the audit trail rather than the empty
+// declaration that started it. A failure to record is logged and dropped: a
+// worker waiting for its run must not be held up by bookkeeping.
+func (h *Handler) recordSandboxTiers(r *http.Request, run *coretask.Run, a *agentdef.Agent, networkTier, filesystemTier string) {
 	if a == nil || run.SandboxNetworkTier != nil || h.cfg.TaskRuns == nil {
 		return
 	}
-	if err := h.cfg.TaskRuns.RecordTaskRunSandboxTiers(r.Context(), run.ID, a.SandboxNetworkTier, a.SandboxFilesystemTier); err != nil {
+	if err := h.cfg.TaskRuns.RecordTaskRunSandboxTiers(r.Context(), run.ID, networkTier, filesystemTier); err != nil {
 		componentLog().Warn("worker handler: sandbox tiers not recorded", "task_run_id", run.ID, "err", err)
 	}
 }

@@ -22,24 +22,33 @@
   half of the gap [`current-state.md`](../current-state.md) calls P0 ("Worker
   Execution Is Not Contained By Default") and answers the granularity row of
   [trust-harness.md](./trust-harness.md) §3.9
-- status: `backend implemented, Portal and team default open` — this document
-  reopens and narrows trust-harness.md §3.9's "deployment-wide holds until
-  evidence says otherwise" call; see §2 for what changes and what does not.
-  §9's M1, M2, and M4 are shipped: the three tiers per axis, the maintained
-  registry catalog, `agentdef.Agent`/`Revision` fields with
-  create/update validation, claim-time resolution and pinning on `task.Run`,
-  and `SandboxSurfaceWorker` selection in `taskrun/runtime.go` — closing
+- status: `backend and Portal implemented` — this document reopens and
+  narrows trust-harness.md §3.9's "deployment-wide holds until evidence says
+  otherwise" call; see §2 for what changes and what does not. §9's M1, M2,
+  M3, and M4 are shipped: the three tiers per axis, the maintained registry
+  catalog, `agentdef.Agent`/`Revision` fields with create/update validation,
+  claim-time resolution and pinning on `task.Run`, `SandboxSurfaceWorker`
+  selection in `taskrun/runtime.go`, and a team-scoped default tier
+  (`team.DefaultSandboxNetworkTier`/`DefaultSandboxFilesystemTier`,
+  `PUT /api/teams/{team_id}/sandbox-defaults`) an undeclared agent inherits
+  before falling through to the strictest baseline — closing
   [current-state.md](../current-state.md)'s worker-surface-selection P0 for an
   agent that declares nothing, independent of whether an agent ever declares a
   tier. Selecting it unconditionally broke every worker task on a bare Linux
   host or native Windows (`fail_if_unavailable: true` with no backend to
   satisfy it); `config.WorkerSandboxSurface` now gates the selection on
   `BUILDMAX_SANDBOX_BACKEND_INSTALLED`, set only inside the worker Docker
-  images. §10's Portal selectors and §9 M3's team default tier are not started;
-  an agent's tier is API-only until Portal ships. The k8s pod/`bwrap`
-  interaction is now verified against a real pod carrying the worker's exact
-  security context and by an organic end-to-end run the deployment smoke
-  performs automatically — see [`deployment/seccomp/README.md`](../../deployment/seccomp/README.md)
+  images. §10's Portal selectors are shipped too: the agent editor's two
+  selectors default to "Team default" (empty, meaning inherit) rather than a
+  hardcoded strictest tier, since a hardcoded default would bypass the team
+  default this same section adds; team settings gets a "Sandbox defaults"
+  section on the Plugins tab, the closest existing precedent for "what this
+  team's background runs may use." Resolved tiers are not yet surfaced in a
+  task run's own detail view in Portal -- neither are plugin pins, so that
+  gap was pre-existing, not introduced here. The k8s pod/`bwrap` interaction
+  is now verified against a real pod carrying the worker's exact security
+  context and by an organic end-to-end run the deployment smoke performs
+  automatically — see [`deployment/seccomp/README.md`](../../deployment/seccomp/README.md)
   — but the cluster `NetworkPolicy` question this document leaves to
   trust-harness.md §3.9 remains untouched.
 - follows: [sandbox-boundaries.md](./sandbox-boundaries.md),
@@ -232,6 +241,18 @@ arrays from every layer still always apply; an operator's `deny_write`/
 `denied_domains` in policy.yaml cannot be widened by an agent's tier
 regardless of which tier it names.
 
+As implemented, the team default sits one level above this, not inside
+`ResolveSandboxForRun` itself: it is a tier name on the same three-value
+vocabulary as the agent's own declaration (`team.DefaultSandboxNetworkTier`/
+`DefaultSandboxFilesystemTier`), not an arbitrary `SandboxConfig` a team would
+need a raw domain/path editor to author — that editor is exactly what §6
+keeps out of scope. `internal/server/handlers/worker/worker.go`'s
+`resolveSandboxTiers` fills in whichever axis the agent leaves undeclared
+from the team's default before either reaches `TierSandboxConfig`, so
+`ResolveSandboxForRun` itself sees one already-resolved tier pair — the
+agent-declared-tier layer above is unchanged, it is simply fed a value that
+may have come from the team rather than the agent.
+
 ### 4.4 Pinning at claim time
 
 `getTaskRun` (`internal/server/handlers/worker/worker.go:41-57`) already
@@ -261,10 +282,16 @@ if the agent's tier or the team's default changed since.
 
 ### 4.5 Team default and operator ceiling
 
-A team may set its own default tier (stored beside other team-scoped
-settings), which is what makes the common case free: a team that mostly builds
-Node services sets its default network tier to `registries` once, and every
-agent that declares nothing inherits it. `allow_managed_domains_only` /
+A team may set its own default tier, stored on the `team` row beside
+`quota_tier` and `plugin_curation`
+(`default_sandbox_network_tier`/`default_sandbox_filesystem_tier`), which is
+what makes the common case free: a team that mostly builds Node services sets
+its default network tier to `registries` once, and every agent that declares
+nothing inherits it. `internal/service/team.Service.SetSandboxDefaults`
+gates changing it on `ActionManageAgents` (owner or admin, the same
+authority the team's other shared automation needs) and validates both tiers
+the same way agent creation does; reading it is any member's, the same split
+plugin curation uses. `allow_managed_domains_only` /
 `allow_managed_read_paths_only` in `policy.yaml` remain the operator's cap —
 setting them turns `registries`/`open` from self-service into "whatever
 policy.yaml's own `allowed_domains` already lists," without any change to how
@@ -283,12 +310,21 @@ releases, and can be extended (never replaced) by a deployment's own
 
 ## 5. Portal Surface
 
-The agent editor gains two selectors beside the existing plugin picker —
+The agent editor gains two selectors beside name and instructions —
 "Network access" and "Filesystem access," each showing the three tiers above
-with a one-line description, defaulting to the strictest. Team settings gains
-one "default worker sandbox tier" control that sets what an agent inherits
-when it declares nothing. Neither surface exposes a raw domain or path field;
-that stays an operator-only `policy.yaml` edit, unchanged from today.
+plus a "Team default" option, with a one-line description per option. The
+default selection is "Team default" (the empty string), not a hardcoded
+strictest tier: once §4.5's team default exists, defaulting an agent to a
+hardcoded tier would silently opt every new agent out of inheriting it. Team
+settings gains one "Sandbox defaults" section, on the Plugins tab next to
+plugin curation — the existing "what this team's background runs may use"
+surface — with the same two selectors, first option "No default (strictest
+baseline)" since a team has nothing further to inherit from. Neither surface
+exposes a raw domain or path field; that stays an operator-only `policy.yaml`
+edit, unchanged from today. (The agent editor did not yet have a plugin
+picker wired up when this section was implemented — `plugins` was API-only —
+so the two selectors sit beside the base fields rather than an existing
+picker.)
 
 ## 6. Out Of Scope
 
@@ -370,10 +406,19 @@ that stays an operator-only `policy.yaml` edit, unchanged from today.
   [data-model.md](../contribute/architecture/data-model.md)'s rules for a
   schema change.
 
-### M3. Team Default Tier
+### M3. Team Default Tier — shipped
 
-- A team-scoped default tier, stored and read the way other team settings are,
-  consumed by `ResolveSandboxForRun`'s new layer (§4.3).
+- `default_sandbox_network_tier`/`default_sandbox_filesystem_tier` on the
+  `team` row (`internal/core/team.Team`, `internal/infra/db/team.go`), read
+  and written the way `quota_tier`/`plugin_curation` already are.
+- `internal/service/team.Service.SetSandboxDefaults` validates both tiers and
+  gates the change on `ActionManageAgents`;
+  `GET`/`PUT /api/teams/{team_id}/sandbox-defaults` in
+  `internal/server/handlers/team`.
+- Consumed in `resolveSandboxTiers`
+  (`internal/server/handlers/worker/worker.go`) as the fallback for whichever
+  axis the agent leaves undeclared, per §4.3's note on how this differs from
+  a `ResolveSandboxForRun` layer.
 
 ### M4. Claim-Time Resolution And Pinning
 
@@ -389,13 +434,22 @@ that stays an operator-only `policy.yaml` edit, unchanged from today.
 
 ## 10. Frontend Plan
 
-- Agent editor: two tier selectors beside the plugin picker, each a short
-  dropdown with the descriptions from §4.1, defaulting to the strictest tier
-  for a new agent.
-- Team settings: one default-tier control (§4.5), visible to owner/admin.
-- Task-run detail view: surface the resolved tiers the way plugin pins are
-  already shown, so a reader can see what boundary a specific run had without
-  reading the trace file.
+- Agent editor: two tier selectors, each a short dropdown with the
+  descriptions from §4.1 plus a "Team default" option, defaulting to it for a
+  new agent rather than a hardcoded tier — shipped in
+  `portal/src/components/CreateAgentModal.tsx`/`EditAgentModal.tsx`, via a new
+  `"select"` field type on `@buildmax/gui`'s `FormModal`
+  (`gui/src/FormModal.tsx`).
+- Team settings: one default-tier control per axis (§4.5), visible to any
+  member and editable by owner/admin — shipped as `TeamSandboxDefaults`
+  (`portal/src/features/teamSandbox/`) on the Plugins settings tab, beside
+  plugin curation.
+- Task-run detail view: surface the resolved tiers the way plugin pins would
+  be shown, so a reader can see what boundary a specific run had without
+  reading the trace file -- not started. Plugin pins are not actually shown
+  there today either (`plugin_pins`/`agent_revision` are recorded but Portal
+  has no run detail view that reads them), so this is a pre-existing gap this
+  document does not close.
 
 ## 11. Validation
 

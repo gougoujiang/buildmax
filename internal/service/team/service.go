@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
@@ -63,6 +64,16 @@ var (
 	// ErrUnsupportedMemberRole is ErrUnsupportedRole's counterpart for
 	// SetMemberRole, which -- unlike an invitation -- does accept owner.
 	ErrUnsupportedMemberRole = apierr.New(apierr.KindInvalid, "role must be owner, admin, or member")
+
+	// ErrOnlyOwnerOrAdminCanSetSandboxDefaults gates SetSandboxDefaults --
+	// the same authority as managing agents, since a team's default sandbox
+	// tier shapes what every agent that declares nothing may do. See
+	// docs/design/agent-sandbox-policy.md §9 M3.
+	ErrOnlyOwnerOrAdminCanSetSandboxDefaults = apierr.New(apierr.KindForbidden,
+		"only a team owner or admin may set the team's default sandbox tiers")
+	// ErrInvalidSandboxTier rejects a network or filesystem tier this binary
+	// does not recognize.
+	ErrInvalidSandboxTier = apierr.New(apierr.KindInvalid, "unknown sandbox network or filesystem tier")
 
 	// ErrOnlyOwnerCanIssueMemberLoginCode gates the one place in this package
 	// a login code is issued: a locked-out member of the caller's own team.
@@ -148,6 +159,16 @@ type IssueMemberLoginCodeCmd struct {
 	TeamID       string
 	ActorID      string
 	TargetUserID string
+}
+
+// SetSandboxDefaultsCmd sets the tiers an agent that declares neither
+// inherits. Either field may be empty, meaning this team sets no default on
+// that axis and the surface baseline applies instead.
+type SetSandboxDefaultsCmd struct {
+	TeamID         string
+	ActorID        string
+	NetworkTier    string
+	FilesystemTier string
 }
 
 // ListMembers returns the roster with each member's account resolved.
@@ -437,6 +458,27 @@ func (s *Service) IssueMemberLoginCode(ctx context.Context, cmd IssueMemberLogin
 		}
 	}
 	return s.LoginCodes.CreateLoginCode(ctx, cmd.TargetUserID, coreidentity.LoginCodeTTLDefault)
+}
+
+// SetSandboxDefaults sets the tiers an agent that declares neither inherits.
+// ActionManageAgents, not a new action: a team's default sandbox tier shapes
+// agent behavior the same way the agents themselves do. See
+// docs/design/agent-sandbox-policy.md §9 M3.
+func (s *Service) SetSandboxDefaults(ctx context.Context, cmd SetSandboxDefaultsCmd) error {
+	if s.Teams == nil {
+		return ErrTeamsNotConfigured
+	}
+	members, err := s.Teams.ListTeamMembers(ctx, cmd.TeamID)
+	if err != nil {
+		return err
+	}
+	if !allows(members, cmd.ActorID, coreteam.ActionManageAgents) {
+		return ErrOnlyOwnerOrAdminCanSetSandboxDefaults
+	}
+	if !config.ValidSandboxNetworkTier(cmd.NetworkTier) || !config.ValidSandboxFilesystemTier(cmd.FilesystemTier) {
+		return ErrInvalidSandboxTier
+	}
+	return s.Teams.SetTeamSandboxDefaults(ctx, cmd.TeamID, cmd.NetworkTier, cmd.FilesystemTier)
 }
 
 func countOwners(members []coreteam.Member) int {

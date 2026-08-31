@@ -123,6 +123,11 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("PATCH /api/teams/{team_id}/plugin-activations/{plugin_name}", h.patchPluginActivationHandler)
 	mux.HandleFunc("PUT /api/teams/{team_id}/plugin-curation", h.setPluginCurationHandler)
 
+	// Sandbox defaults -- the tiers an agent that declares neither inherits.
+	// See docs/design/agent-sandbox-policy.md §9 M3.
+	mux.HandleFunc("GET /api/teams/{team_id}/sandbox-defaults", h.getSandboxDefaultsHandler)
+	mux.HandleFunc("PUT /api/teams/{team_id}/sandbox-defaults", h.setSandboxDefaultsHandler)
+
 	// Usage and the audit trail
 	mux.HandleFunc("GET /api/usage", h.usageHandler)
 	mux.HandleFunc("GET /api/teams/{team_id}/usage", h.teamUsageHandler)

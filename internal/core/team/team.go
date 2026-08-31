@@ -27,9 +27,15 @@ type Team struct {
 	// PluginCuration is who fills this team's plugin activation list; empty
 	// reads as plugin.CurationOpen. See core/plugin/activation.go.
 	PluginCuration coreplugin.Curation `json:"plugin_curation,omitempty"`
-	CreatedBy      string              `json:"created_by"`
-	CreatedAt      time.Time           `json:"created_at"`
-	UpdatedAt      time.Time           `json:"updated_at"`
+	// DefaultSandboxNetworkTier and DefaultSandboxFilesystemTier are the
+	// config.SandboxNetworkTier / config.SandboxFilesystemTier values an agent
+	// that declares neither tier inherits. Empty means the surface baseline
+	// applies instead -- see docs/design/agent-sandbox-policy.md §9 M3.
+	DefaultSandboxNetworkTier    string    `json:"default_sandbox_network_tier,omitempty"`
+	DefaultSandboxFilesystemTier string    `json:"default_sandbox_filesystem_tier,omitempty"`
+	CreatedBy                    string    `json:"created_by"`
+	CreatedAt                    time.Time `json:"created_at"`
+	UpdatedAt                    time.Time `json:"updated_at"`
 }
 
 // Member is one user's membership in a team.
@@ -105,6 +111,10 @@ type Store interface {
 	// SetTeamPluginCuration records who fills the team's plugin activation
 	// list, or returns ErrNotFound. The value is validated above this layer.
 	SetTeamPluginCuration(ctx context.Context, teamID string, mode coreplugin.Curation) error
+	// SetTeamSandboxDefaults records the tiers an agent that declares neither
+	// inherits, or returns ErrNotFound. The values are validated above this
+	// layer, the same way SetTeamPluginCuration's mode is.
+	SetTeamSandboxDefaults(ctx context.Context, teamID, networkTier, filesystemTier string) error
 
 	// CreateInvitation creates a pending invitation for userID to join teamID
 	// at role, sent by invitedBy, acceptable until expiresAt.

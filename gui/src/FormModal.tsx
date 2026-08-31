@@ -1,14 +1,23 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react"
 import { BaseModal } from "./BaseModal"
 
+export interface FormModalSelectOption {
+  value: string
+  label: string
+  /** Shown below the control when this option is selected. */
+  description?: string
+}
+
 export interface FormModalFieldConfig {
   key: string
   label: string
-  type: "text" | "textarea"
+  type: "text" | "textarea" | "select"
   placeholder?: string
   optional?: boolean
   maxLength?: number
   rows?: number
+  /** Required when type is "select". */
+  options?: FormModalSelectOption[]
 }
 
 export interface FormModalProps {
@@ -91,6 +100,27 @@ export function FormModal({
                 rows={field.rows ?? 3}
                 maxLength={field.maxLength}
               />
+            ) : field.type === "select" ? (
+              <>
+                <select
+                  id={field.key}
+                  className="modal__input"
+                  value={values[field.key] ?? ""}
+                  onChange={(e) => setValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
+                  disabled={loading}
+                >
+                  {(field.options ?? []).map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                {field.options?.find((option) => option.value === (values[field.key] ?? ""))?.description ? (
+                  <p className="modal__hint">
+                    {field.options.find((option) => option.value === (values[field.key] ?? ""))?.description}
+                  </p>
+                ) : null}
+              </>
             ) : (
               <input
                 id={field.key}

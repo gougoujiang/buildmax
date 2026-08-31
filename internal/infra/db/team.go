@@ -22,10 +22,16 @@ type teamRow struct {
 	// PluginCuration is who fills the team's plugin activation list. It
 	// defaults to open: the gate that crosses teams is operator eligibility,
 	// not a team's housekeeping. See docs/design/plugin-team-distribution.md.
-	PluginCuration string    `gorm:"column:plugin_curation;type:varchar(16);not null;default:'open'"`
-	CreatedBy      uint64    `gorm:"column:created_by;not null"`
-	CreatedAt      time.Time `gorm:"autoCreateTime"`
-	UpdatedAt      time.Time `gorm:"autoUpdateTime"`
+	PluginCuration string `gorm:"column:plugin_curation;type:varchar(16);not null;default:'open'"`
+	// DefaultSandboxNetworkTier and DefaultSandboxFilesystemTier mirror
+	// agentRow's columns of the same names: empty means this team sets no
+	// default and an agent that declares neither tier falls through to the
+	// surface baseline.
+	DefaultSandboxNetworkTier    string    `gorm:"column:default_sandbox_network_tier;type:varchar(64)"`
+	DefaultSandboxFilesystemTier string    `gorm:"column:default_sandbox_filesystem_tier;type:varchar(64)"`
+	CreatedBy                    uint64    `gorm:"column:created_by;not null"`
+	CreatedAt                    time.Time `gorm:"autoCreateTime"`
+	UpdatedAt                    time.Time `gorm:"autoUpdateTime"`
 }
 
 func (teamRow) TableName() string { return "team" }
@@ -88,13 +94,15 @@ func toTeam(row *teamReadRow) *coreteam.Team {
 		return nil
 	}
 	out := &coreteam.Team{
-		ID:             row.Row.PublicID,
-		Name:           row.Row.Name,
-		QuotaTier:      row.Row.QuotaTier,
-		PluginCuration: coreplugin.NormalizeCuration(row.Row.PluginCuration),
-		CreatedBy:      derefPublicID(row.CreatedByPublicID),
-		CreatedAt:      row.Row.CreatedAt,
-		UpdatedAt:      row.Row.UpdatedAt,
+		ID:                           row.Row.PublicID,
+		Name:                         row.Row.Name,
+		QuotaTier:                    row.Row.QuotaTier,
+		PluginCuration:               coreplugin.NormalizeCuration(row.Row.PluginCuration),
+		DefaultSandboxNetworkTier:    row.Row.DefaultSandboxNetworkTier,
+		DefaultSandboxFilesystemTier: row.Row.DefaultSandboxFilesystemTier,
+		CreatedBy:                    derefPublicID(row.CreatedByPublicID),
+		CreatedAt:                    row.Row.CreatedAt,
+		UpdatedAt:                    row.Row.UpdatedAt,
 	}
 	if row.Row.PersonalForUserID != nil {
 		personal := derefPublicID(row.PersonalForUserPublicID)
@@ -406,4 +414,22 @@ func (s *Store) SetTeamPluginCuration(ctx context.Context, teamID string, mode c
 	// resolved a moment ago, so it is not a missing row.
 	return s.db.WithContext(ctx).Model(&teamRow{}).Where("id = ?", key).
 		Update("plugin_curation", string(mode)).Error
+}
+
+// SetTeamSandboxDefaults records the tiers an agent that declares neither
+// inherits.
+//
+// The values are validated above this layer, which is why an unrecognized one
+// reaches the columns rather than being rejected here: this package
+// translates, it does not decide what a tier means.
+func (s *Store) SetTeamSandboxDefaults(ctx context.Context, teamID, networkTier, filesystemTier string) error {
+	key, err := lookupKey(ctx, s.db, "team", teamID)
+	if err != nil {
+		return err
+	}
+	return s.db.WithContext(ctx).Model(&teamRow{}).Where("id = ?", key).
+		Updates(map[string]any{
+			"default_sandbox_network_tier":    networkTier,
+			"default_sandbox_filesystem_tier": filesystemTier,
+		}).Error
 }

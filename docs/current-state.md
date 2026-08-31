@@ -205,11 +205,26 @@ config-authored automation rather than an LLM-chosen call an operator is
 watching turn by turn. Verified against a real `sandbox.Manager` (Seatbelt),
 not only a test double.
 
+Portal's agent editor now exposes both tiers as selectors beside name and
+instructions, defaulting to "Team default" (the empty string, which inherits
+the team's own default and only then falls through to the strictest
+baseline) rather than a hardcoded strictest choice, and a team's Plugins
+settings tab gains a "Sandbox defaults" section, visible to any member and
+editable by owner or admin, that sets what an agent declaring nothing
+inherits (`PUT /api/teams/{team_id}/sandbox-defaults`,
+`internal/service/team.SetSandboxDefaults`, resolved into the worker's
+`GetTaskRun` response alongside the agent's own declaration). An agent's own
+declared tier still always overrides the team default. This closes both
+halves of [`agent-sandbox-policy.md`](design/agent-sandbox-policy.md) §9/§10
+that were previously not started.
+
 What remains open: the cluster-level `NetworkPolicy` question
 [`trust-harness.md`](design/trust-harness.md) §3.9 leaves open — a worker
 pod reaches whatever the cluster's network allows, independent of the
-in-process sandbox this section covers — is untouched by this pass, and
-`buildmax sandbox overrides` is still unimplemented.
+in-process sandbox this section covers — is untouched by this pass;
+`buildmax sandbox overrides` is still unimplemented; and neither plugin pins
+nor the resolved sandbox tiers are yet surfaced in a task run's own detail
+view in Portal, only in the API response and audit trail.
 
 ### P0 — The Reference Replica Count Exceeds Coordination Semantics
 

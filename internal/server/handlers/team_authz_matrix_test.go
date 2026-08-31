@@ -73,6 +73,12 @@ var teamRoutes = []authzCase{
 	{"PATCH", "/api/teams/{team_id}/plugin-activations/{plugin_name}", coreteam.RoleAdmin, false},
 	{"PUT", "/api/teams/{team_id}/plugin-curation", coreteam.RoleAdmin, false},
 
+	// Reading the team's default sandbox tiers answers "what would an
+	// undeclared agent run under here", which is any member's question.
+	// Changing it is the same authority as managing agents.
+	{"GET", "/api/teams/{team_id}/sandbox-defaults", coreteam.RoleMember, false},
+	{"PUT", "/api/teams/{team_id}/sandbox-defaults", coreteam.RoleAdmin, false},
+
 	{"GET", "/api/teams/{team_id}/members", coreteam.RoleMember, false},
 	{"DELETE", "/api/teams/{team_id}/members/{user_id}", coreteam.RoleOwner, false},
 	// Role change (including the ownership transfer that results from

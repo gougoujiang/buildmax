@@ -106,6 +106,10 @@ func (d *DenyQuotaTeamStore) SetTeamPluginCuration(_ context.Context, _ string, 
 	return nil
 }
 
+func (d *DenyQuotaTeamStore) SetTeamSandboxDefaults(_ context.Context, _, _, _ string) error {
+	return nil
+}
+
 func (d *DenyQuotaTeamStore) CreateInvitation(_ context.Context, _, _, _, _ string, _ time.Time) (*coreteam.Invitation, error) {
 	return nil, nil
 }

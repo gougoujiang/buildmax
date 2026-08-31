@@ -61,6 +61,8 @@ export interface Agent {
   name: string
   description?: string
   instructions?: string
+  sandboxNetworkTier?: string
+  sandboxFilesystemTier?: string
   revision: number
   createdAt: string
 }

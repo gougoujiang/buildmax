@@ -101,6 +101,8 @@ export function AgentList({ token }: AgentListProps) {
     name: string
     description?: string
     instructions?: string
+    sandbox_network_tier?: string
+    sandbox_filesystem_tier?: string
   }) {
     if (!token || !currentTeamId) return
     setError(null)
@@ -118,6 +120,8 @@ export function AgentList({ token }: AgentListProps) {
     name: string
     description?: string
     instructions?: string
+    sandbox_network_tier?: string
+    sandbox_filesystem_tier?: string
   }) {
     if (!token || !currentTeamId || editingAgent == null) return
     setError(null)

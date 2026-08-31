@@ -161,6 +161,10 @@ func (m *mockTeamStore) SetTeamPluginCuration(_ context.Context, _ string, _ cor
 	return nil
 }
 
+func (m *mockTeamStore) SetTeamSandboxDefaults(_ context.Context, _, _, _ string) error {
+	return nil
+}
+
 func (m *mockTeamStore) CreateInvitation(_ context.Context, _, _, _, _ string, _ time.Time) (*coreteam.Invitation, error) {
 	return nil, nil
 }

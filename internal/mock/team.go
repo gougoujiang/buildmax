@@ -162,6 +162,17 @@ func (m *MockTeamStore) SetTeamPluginCuration(_ context.Context, teamID string, 
 	return apierr.ErrNotFound
 }
 
+func (m *MockTeamStore) SetTeamSandboxDefaults(_ context.Context, teamID, networkTier, filesystemTier string) error {
+	for i := range m.Teams {
+		if m.Teams[i].ID == teamID {
+			m.Teams[i].DefaultSandboxNetworkTier = networkTier
+			m.Teams[i].DefaultSandboxFilesystemTier = filesystemTier
+			return nil
+		}
+	}
+	return apierr.ErrNotFound
+}
+
 func (m *MockTeamStore) CreateInvitation(_ context.Context, teamID, userID, role, invitedBy string, expiresAt time.Time) (*coreteam.Invitation, error) {
 	m.invitationSeq++
 	inv := coreteam.Invitation{
