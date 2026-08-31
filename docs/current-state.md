@@ -1,11 +1,13 @@
 # BuildMax Current State
 
-> **Audience:** maintainers and contributors · **Status:** current as of 2026-08-30
+> **Audience:** maintainers and contributors · **Status:** current as of 2026-08-31
 
-This document is a code-first assessment of BuildMax at `origin/main` commit
-`67e9e4df77d42351c435fd21d74422c67a9f8a38`. It answers what the repository
-actually implements and how close those implementations are to dependable use.
-It is not derived from the roadmap, proposals, design records, or feature copy.
+This document is a code-first assessment of BuildMax whose full sweep was made
+at `origin/main` commit `67e9e4df77d42351c435fd21d74422c67a9f8a38`, with the
+sections since amended in place as the boundaries they describe moved. It
+answers what the repository actually implements and how close those
+implementations are to dependable use. It is not derived from the roadmap,
+proposals, design records, or feature copy.
 
 The code remains the source of truth. The maturity percentages below are
 engineering judgments, not mechanically calculated completion scores or release
@@ -19,13 +21,13 @@ runtime, complete local surfaces, a broad team/server domain, background
 workers, a Portal, deployment assets, and an unusually serious test and release
 harness for an Alpha project.
 
-It is also not yet a production-safe multi-tenant Agent platform. Three gaps
+It is also not yet a production-safe multi-tenant Agent platform. Two gaps now
 dominate the assessment: unattended worker execution now selects and passes
 the worker sandbox baseline against the production pod's own hardening, but
 hook/MCP child processes and cluster-level network egress remain outside it,
-the reference deployment runs multiple Server replicas while live
-coordination remains process-local, and ordinary pull-request tests do not
-exercise the real MySQL store.
+and the reference deployment runs multiple Server replicas while live
+coordination remains process-local. Pull-request tests do now exercise the real
+MySQL store; what is left there is the breadth of the cases, not the gate.
 
 | Target | Current maturity | Assessment |
 |---|---:|---|
@@ -52,11 +54,13 @@ The repository at the assessment base contains:
 The reassessment exercised the contributor environment, full build, Go and
 frontend checks, CI-equivalent checks, and the fast CLI and Desktop end-to-end
 suites. They passed. Go statement coverage measured 56.1%; the database package
-measured 3.7% without a configured MySQL integration DSN.
+measured 3.7% without a configured MySQL integration DSN, and 53.6% under
+`./make test mysql`, which is what every pull request now runs.
 
 The reassessment did not start the Compose, local deployment, or kind suites,
-because those mutate Docker or cluster state. The standard store integration
-tests skip when `BUILDMAX_TEST_DSN` is absent, so a passing default suite is not
+because those mutate Docker or cluster state. The store integration tests still
+skip under a plain `./make test`, which is why `./make test mysql` exists and
+runs them on every pull request instead; a passing default suite remains no
 evidence that MySQL behavior was exercised. Real-provider smoke and evaluation
 runs were also not repeated: they spend credentials or tokens and answer a
 different question from whether code is wired.
@@ -266,19 +270,46 @@ use one Server replica. Alternatively, implement a shared stream/pub-sub,
 connection delivery strategy, and distributed conversation lock/queue before
 advertising horizontal Server scaling.
 
-### P0 — The Default Gate Does Not Prove MySQL Behavior
+### P0 — The Pull-Request Gate Now Proves MySQL Behavior, For The Cases That Are Written
 
-The store tests in
-[`internal/infra/db/store_test.go`](../internal/infra/db/store_test.go) skip
-when `BUILDMAX_TEST_DSN` is not set. Deployment smoke covers important real
-paths after merge or when run deliberately, but it is not a pull-request gate.
-Low database coverage makes schema, query, transaction, and MySQL-specific
-regressions disproportionately likely to escape the default suite.
+`./make test mysql` (`tools/mk/test_mysql.go`) runs the store scope against a
+real server: it requires `BUILDMAX_TEST_DSN` rather than skipping without one,
+creates and drops a uniquely named database so it never writes to the one the
+DSN names, and fails when a test in the scope skips for the DSN's absence
+anyway — the property that keeps the gate from going green by testing nothing.
+A pinned `mysql:8.0` service container runs it on every pull request
+([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)), and `./make check
+ci` runs it when a DSN is present and says it did not when one is absent.
 
-Completion requires a hermetic MySQL integration scope in CI, migration and
-rollback fixtures, and explicit coverage of critical state transitions. This
-does not require putting every end-to-end deployment suite on every pull
-request.
+The gate justified itself on its first run. `CreateTeam` returned a `Team`
+whose `PluginCuration` was empty while `GetTeam` answered `open` for the same
+row, so a create and a later read disagreed and the API omitted the field on
+one path. `TestSetTeamPluginCurationRoundTrips` had asserted that since
+2026-08-23 and skipped every time; the defect sat on `main` for 387 commits
+because nothing ever ran the test.
+
+Four store methods claim in their own comments that exactly one of several
+simultaneous callers may win — `ClaimTask`, `TransitionTaskRun`,
+`ClaimTaskResultDelivery`, and `RequestTaskRunCancel` — and each implements
+that as a conditional UPDATE resting on the server serializing two writes to
+one row. `internal/infra/db/concurrency_test.go` now tests all four under
+contention, and each was checked by mutation: replacing the conditional UPDATE
+with a read-then-write makes its test fail. That check mattered. The first
+task-claim test passed against a deliberately broken implementation, because
+MySQL reports rows *changed* rather than rows *matched*, so the seven losing
+callers writing a status the row already held were counted as zero affected
+rows — a concurrency test nobody has watched fail proves nothing.
+
+What remains is case breadth, not mechanism.
+[`design/verification-program.md`](design/verification-program.md) §4.2 still
+lists retry attempts, workflow revision advancement, delivery restart
+recovery, cross-team store lookups, and artifact tombstoning. The N-1 migration
+fixture is blocked rather than deferred: the explicit migration list is empty
+after the identity cutover, so a fixture would encode a history no database
+ever had. The quota bullet in that list is withdrawn — there is no reservation
+to test, only a rolling-window read, which §4.2 now records. The database
+package measures 53.6% under the gate against 3.7% without it, though coverage
+is not yet reported per critical package the way §4.3 asks.
 
 ## Product And Operating Gaps
 
@@ -350,7 +381,10 @@ throughput. None of these is a reason to block containment or correctness work.
    are all now proven and exercised automatically by the deployment smoke.
 2. Make the production topology honest: one supported Server replica now, or
    shared coordination before horizontal scaling.
-3. Put critical MySQL persistence behavior in the pull-request evidence path.
+3. Widen the persistence gate's cases. The gate runs on every pull request and
+   the contention cases are written; what is missing is retry, workflow
+   revision, delivery restart recovery, and artifact tombstoning per
+   [`verification-program.md`](design/verification-program.md) §4.2.
 4. Close what remains of account and team operations: signup still leaves an
    account without a credential until an operator finishes it, by design, and
    team-level approvals are unscheduled. Team role lifecycle, ownership

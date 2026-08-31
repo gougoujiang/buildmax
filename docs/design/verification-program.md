@@ -28,11 +28,17 @@ Related records: [Local end-to-end verification](end-to-end-testing.md),
 - roadmap_priority: `R0–R4` — this program supplies the evidence required by
   worker containment, topology correctness, persistence, account/team closure,
   and qualification breadth in [../ROADMAP.md](../ROADMAP.md)
-- status: `planned` — the repository already has extensive unit and contract
-  tests, fast CLI and Desktop E2E suites, Portal Playwright coverage, Compose
-  and kind smoke, release evidence, and a black-box evaluation framework. The
-  unified matrix, pull-request MySQL gate, expanded failure paths, and complete
-  release rehearsal described here are not implemented
+- status: `partially_implemented` — the repository already has extensive unit
+  and contract tests, fast CLI and Desktop E2E suites, Portal Playwright
+  coverage, Compose and kind smoke, release evidence, and a black-box
+  evaluation framework. §4.1's command surface is shipped as `./make test
+  mysql` and runs on every pull request, and §4.2's contention cases — task
+  claiming, run transition, result-delivery claiming, and cancellation — are
+  written and mutation-checked. Retry, workflow revision, restart recovery,
+  cross-team store lookups, and artifact tombstoning remain; the N-1 fixture is
+  blocked on the first appended migration and the quota bullet is withdrawn,
+  both explained in §4.2. The unified matrix, expanded failure paths, and
+  complete release rehearsal described here are not implemented
 - principle: implementation code, tests, and documentation can share the same
   mistaken assumption when all are generated from one context. Acceptance must
   therefore assert independently observable outcomes across public interfaces,
@@ -139,10 +145,9 @@ Every journey test uses the same assertion structure:
 
 ### 4.1 Command Surface
 
-Add a named task-runner scope for the real store. The proposed interface is
-`./make test mysql`; the exact spelling must be added through `tools/mk`, covered
-by its command-surface tests, documented in `./make help test`, and reflected in
-[../contribute/testing.md](../contribute/testing.md) when it ships.
+**Shipped** as `./make test mysql` (`tools/mk/test_mysql.go`), covered by its
+command-surface tests, documented in `./make help test` and
+[../contribute/testing.md](../contribute/testing.md).
 
 The command must:
 
@@ -162,20 +167,49 @@ contributor; it must not silently start Docker as a side effect of `./make test`
 
 ### 4.2 First Persistence Cases
 
-The first gated cases cover:
+Covered today: user and team creation, login codes, refresh tokens, public IDs,
+system grants, plugin activation, LLM models and calls, audit search, revision
+queries, task run transitions and claiming, issues, conversations, the team
+invitation and ownership-transfer lifecycle, and — in
+`internal/infra/db/concurrency_test.go` — the four conditional-UPDATE claims
+under contention: task claiming, run transition, result-delivery claiming, and
+cancellation beside a worker's report.
 
-- login-code creation, single consumption, expiry, refresh rotation, logout,
-  and revocation;
-- owner/admin/member authorization and cross-team lookup rejection;
-- Task and TaskRun legal and illegal state transitions;
-- two workers attempting to claim one run concurrently;
-- cancellation racing with success or failure reporting;
+Each of those four was checked by mutation rather than assumed: replacing the
+conditional UPDATE with a read-then-write makes the corresponding test fail.
+That step is the point. The first attempt at the task-claim test passed against
+a deliberately broken implementation, because MySQL reports rows *changed*
+rather than rows *matched*, so seven losing callers writing the status it
+already held were counted as zero affected rows. A concurrency test that has
+not been shown to fail is not evidence.
+
+Still to write:
+
 - retry producing a new attempt without rewriting the previous attempt;
 - workflow revision capture and ordered step advancement;
-- result-delivery lease, retry, restart recovery, and idempotency;
-- quota reservation and charging boundaries;
-- artifact metadata, TaskRun association, and tombstoned deletion;
-- migration fixtures representing the supported N-1 schema.
+- result-delivery retry backoff and restart recovery — the lease itself is
+  covered by the contention case above, but a sweep resuming after a restart
+  is not;
+- cross-team lookup rejection at the store, distinct from the role matrix the
+  handler tests already assert;
+- artifact tombstoned deletion; metadata and TaskRun association are covered
+  by the transition case;
+- migration fixtures representing the supported N-1 schema. **Blocked, not
+  deferred**: `migrations` in `internal/infra/db/migration.go` is empty after
+  the identity cutover, so there is no prior schema to upgrade from. Write
+  this with the first migration that is appended, not before — a fixture
+  invented now would encode a history no database ever had.
+
+One item from this list is withdrawn rather than pending. **Quota reservation
+and charging boundaries** describes a design that does not exist: there is no
+reservation. `internal/service/quota.Check` reads a rolling window through
+`TeamUsageInWindow` and compares, and the store holds only `GetQuotaTier` and
+`SeedDefaultQuotaTiers`. Concurrent runs can therefore overshoot a limit, and
+that is a property of the current design rather than a defect a test should
+pin. What is worth covering there is the window-boundary arithmetic of the
+usage query — query correctness, not a concurrency guarantee — and it belongs
+under §3's matrix rather than here. Reinstate this bullet if reservation is
+ever built.
 
 ### 4.3 Acceptance
 
