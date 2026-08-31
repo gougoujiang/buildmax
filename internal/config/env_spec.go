@@ -112,6 +112,13 @@ var envVars = []EnvVar{
 	{Name: EnvKeyBuildmaxCacheQualifyBaseURL, Description: "Base URL override for the prompt-cache qualification suite"},
 	{Name: EnvKeyBuildmaxCacheQualifySlow, Description: "Include the qualification scenarios that wait out a retention window (1/true/yes/on)"},
 	{Name: EnvKeyBuildmaxSandboxEnabled, Description: "Override sandbox.enabled in settings; values: 1/true/yes/on or 0/false/no/off", WorkerNeeds: true},
+	// WorkerNeeds: a k8s_job worker reads this straight off its image's own ENV
+	// (Kubernetes never strips that), but a local_process worker is exec'd with
+	// FilterWorkerEnv's filtered slice, not the server's raw environment -- the
+	// same image ENV never reached it without this entry, silently resolving
+	// WorkerSandboxSurface to the CLI baseline and leaving that worker's Bash
+	// commands unsandboxed on every host FilterWorkerEnv runs on.
+	{Name: EnvKeyBuildmaxSandboxBackendInstalled, Description: "Marks an image as installing the sandbox OS backend (bwrap+socat); set via Dockerfile ENV, not by an operator", WorkerNeeds: true},
 	{Name: EnvKeyBuildmaxTraceDisabled, Description: "Disable durable run traces when truthy (1/true/yes/on); traces are on by default", WorkerNeeds: true},
 }
 
