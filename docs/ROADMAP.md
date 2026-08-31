@@ -75,18 +75,30 @@ Required outcomes:
 
 ### R2. Put Persistence In The Pull-Request Evidence Path
 
-The default Go suite skips MySQL store tests without `BUILDMAX_TEST_DSN`.
-Post-merge deployment smoke is useful but leaves critical persistence behavior
-outside ordinary change review.
+The scope exists and runs: `./make test mysql` requires a DSN rather than
+skipping without one, runs on a database it creates and drops, fails if a test
+in the scope skips for the DSN's absence, and a pinned `mysql:8.0` service
+container runs it on every pull request. It found a defect on its first run
+that had been on `main` for 387 commits.
 
 Required outcomes:
 
 - run a hermetic MySQL integration scope in CI for critical store and migration
-  behavior;
+  behavior — **done**;
 - cover authorization-bearing and run-state transitions against the real
-  database;
+  database — **largely**: task-run transitions, claiming, system grants, plugin
+  activation, and the team invitation and ownership-transfer lifecycle are
+  covered, and the four conditional-UPDATE claims that decide whether one
+  caller wins — task claiming, run transition, result-delivery claiming, and
+  cancellation beside a report — are now tested under contention and checked by
+  mutation. Retry attempts, workflow revision advancement, restart recovery,
+  cross-team store lookups, and artifact tombstoning remain; see
+  [`design/verification-program.md`](design/verification-program.md) §4.2,
+  which also records why the N-1 fixture is blocked and the quota bullet
+  withdrawn;
 - retain broader Compose, kind, failure, restore, and upgrade drills as
-  deployment evidence rather than forcing every one into every pull request.
+  deployment evidence rather than forcing every one into every pull request —
+  unchanged, and deliberately so.
 
 ### R3. Close Account And Team Operations
 
@@ -421,7 +433,7 @@ is recorded in [deploy/beta-readiness.md](deploy/beta-readiness.md):
 | Candidate deployment | Production manifest, migration ledger, `/readyz`, account bootstrap, managed worker inference, and deterministic Compose/kind smoke are implemented. | Deploy immutable candidate image digests against real external MySQL and S3 over TLS. Record the cluster and dependency versions, image digests, configuration, operator, and date. |
 | Constrained execution | Per-run JWT, minimized Job environment, read-only/capability-dropped pod (root, not non-root — see `docs/reference/configuration.md`), no service-account token, required CPU/memory bounds, an explicit trace boundary, and the worker's own `SandboxSurfaceWorker` selection with `bwrap`-confined Bash calls are implemented and organically verified by the deployment smoke's own probe. | Prove process/resource limits and hook/MCP child-process treatment against the deployed candidate, not only the smoke probe. Unrestricted Bash with a recorded `none` boundary does not pass. |
 | Server topology | Durable state is shared through MySQL, but live stream fan-out, WebSocket connections, and conversation turn queues are process-local while the reference manifest requests two Server replicas. | Run exactly one Server replica, or implement and prove shared delivery plus distributed conversation serialization. Exercise cross-instance worker updates, reconnects, and concurrent turns if multiple replicas are claimed. |
-| Persistence gate | Store integration tests and deployment smoke exist, but the default suite skips the real store without `BUILDMAX_TEST_DSN`. | Attach a passing hermetic MySQL CI scope for critical schema, query, authorization, and state-transition behavior, then repeat the candidate deployment proof against its external database. |
+| Persistence gate | `./make test mysql` runs the store scope against a pinned MySQL service container on every pull request, refusing to skip for an absent DSN. Its case list is still narrower than [`design/verification-program.md`](design/verification-program.md) §4.2 asks for. | Attach a passing hermetic MySQL CI scope for critical schema, query, authorization, and state-transition behavior, then repeat the candidate deployment proof against its external database. |
 | Failure behavior | Cancellation, interrupted-run reporting, liveness heartbeats, lost-worker reaping, partial artifact retention, and explicit retry exist with focused tests. | In the deployed candidate, cancel a running run, kill a worker without a graceful report, interrupt database access, and deny object-storage access. Prove each run reaches the documented terminal state, retains the available evidence, and can recover or be retried without an ambiguous or dangling result. |
 | Recovery and maintenance | Forward migrations, an N-1 binary compatibility rule, environment-injected credentials, and operator-visible readiness and status surfaces exist. | Restore the database and bucket as a pair, exercise an upgrade containing a schema change followed by binary rollback, and perform the documented drain/restart credential-rotation procedure. Record recovery time, data checks, and any accepted loss. |
 | Operator diagnosis and governance | Portal exposes the run result, stored trace, artifacts, managed-call usage, quota, audit history, and System Administration; authorization and retention/export paths are tested. | Have an operator who did not implement the feature perform the full journey and failure drills using documented surfaces. Record whether logs, `/readyz`, System Status, TaskRun/artifact state, trace, managed-call ledger, and audit are enough to explain every outcome. |
@@ -453,8 +465,10 @@ this sequence:
 1. **Contain worker execution and make topology honest.** Wire and test the
    worker boundary. Change the supported manifest to one Server replica unless
    shared coordination lands first.
-2. **Add real persistence evidence to CI.** Run critical store, migration,
-   authorization, and state-transition tests against hermetic MySQL.
+2. **Add real persistence evidence to CI.** The gate runs and the contention
+   cases are written; what remains is retry, workflow revision, restart
+   recovery, and artifact tombstoning per
+   [`design/verification-program.md`](design/verification-program.md) §4.2.
 3. **Complete negative deployment smoke.** Cancellation is covered. Add hard
    worker loss, database unavailability, and object-storage denial, asserting
    terminal state and retained evidence rather than only an error response; see

@@ -244,6 +244,11 @@ func cmdClean() error {
 // `go test` to narrow it used to be the only option, and that is the path with
 // no BUILDMAX_HOME.
 func cmdTest(args []string) error {
+	// The MySQL scope selects its own packages and owns a database, so it is a
+	// mode rather than a package pattern. See docs/design/verification-program.md §4.
+	if len(args) > 0 && args[0] == "mysql" {
+		return cmdTestMySQL(args[1:])
+	}
 	race := len(args) > 0 && args[0] == "race"
 	if race {
 		args = args[1:]

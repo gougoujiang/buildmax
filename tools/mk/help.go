@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/gougoujiang/buildmax/internal/config"
 )
 
 // Help lives in two layers: `help` is every command, grouped by what running one
@@ -181,7 +183,7 @@ func helpTopics() []helpTopic {
 		},
 		{
 			name:    "test",
-			usage:   "test [race] [packages] [go test flags]",
+			usage:   "test [race|mysql] [packages] [go test flags]",
 			summary: "Run Go tests with BUILDMAX_HOME pointed at the testing sandbox.",
 			details: []string{
 				"Narrowing a run belongs here rather than in a bare `go test`: only this\n" +
@@ -190,13 +192,19 @@ func helpTopics() []helpTopic {
 				"Packages have to come before flags. A pattern written after one cannot be\n" +
 					"told from a flag value, so the run would silently widen to ./... — this\n" +
 					"refuses instead of passing for the wrong reason.",
+				"`test mysql` is the persistence gate. The store tests skip themselves\n" +
+					"without " + config.EnvKeyBuildmaxTestDSN + ", so a plain run proves nothing about\n" +
+					"schema, query, or transaction behavior; this scope requires the DSN, runs\n" +
+					"on a database it creates and drops, and fails if a test skips anyway.\n" +
+					"It never starts Docker — point it at a MySQL you already run.",
 			},
 			args: []helpRow{
 				{"race", "Add the race detector"},
+				{"mysql", "Run the store scope against the " + config.EnvKeyBuildmaxTestDSN + " server"},
 				{"packages", "Package patterns, default ./..."},
 				{"go test flags", "Passed to `go test` verbatim: -run, -count, -v"},
 			},
-			examples: []string{"test", "test race", "test ./internal/tool -run TestNames"},
+			examples: []string{"test", "test race", "test ./internal/tool -run TestNames", "test mysql", "test mysql -run TestCreateTeam"},
 			see:      "docs/contribute/testing.md",
 		},
 		{

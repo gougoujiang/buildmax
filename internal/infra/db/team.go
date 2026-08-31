@@ -217,9 +217,14 @@ func (s *Store) CreateTeam(ctx context.Context, name, createdBy, quotaTier strin
 		ID:        teamDB.PublicID,
 		Name:      name,
 		QuotaTier: quotaTier,
-		CreatedBy: createdBy,
-		CreatedAt: now,
-		UpdatedAt: now,
+		// Normalized through the same call toTeam uses. The column's own
+		// 'open' default lands in the row but not in this struct, so reading
+		// the field back off a create used to answer "" where reading the same
+		// row through GetTeam answered "open".
+		PluginCuration: coreplugin.NormalizeCuration(teamDB.PluginCuration),
+		CreatedBy:      createdBy,
+		CreatedAt:      now,
+		UpdatedAt:      now,
 	}, nil
 }
 
