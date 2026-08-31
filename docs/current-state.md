@@ -24,7 +24,7 @@ harness for an Alpha project.
 It is also not yet a production-safe multi-tenant Agent platform. Two gaps now
 dominate the assessment: unattended worker execution now selects and passes
 the worker sandbox baseline against the production pod's own hardening, but
-hook/MCP child processes and cluster-level network egress remain outside it,
+MCP child processes and cluster-level network egress remain outside it,
 and the reference deployment runs multiple Server replicas while live
 coordination remains process-local. Pull-request tests do now exercise the real
 MySQL store; what is left there is the breadth of the cases, not the gate.
@@ -373,12 +373,15 @@ throughput. None of these is a reason to block containment or correctness work.
 ## Rebased Priority Order
 
 1. Decide the cluster-level `NetworkPolicy` question
-   [`trust-harness.md`](design/trust-harness.md) §3.9 leaves open — the
-   in-process sandbox boundary this section covers is otherwise closed: the
-   worker sandbox surface, its interaction with the production pod's
-   hardening, process resource limits, the command/http hook boundary, and
-   an organic Bash-calling run through the real server → worker → Job path
-   are all now proven and exercised automatically by the deployment smoke.
+   [`trust-harness.md`](design/trust-harness.md) §3.9 leaves open, and give
+   MCP stdio child processes a boundary. Everything else in the in-process
+   sandbox is closed: the worker sandbox surface, its interaction with the
+   pod's hardening, process resource limits, the command/http hook boundary,
+   a backend self-test that fails closed, and an organic Bash-calling run
+   through the real server → worker → Job path are all proven and exercised
+   automatically by the deployment smoke. MCP is the one child process the
+   boundary still does not reach — `internal/infra/mcp/transport.go` execs a
+   stdio server directly.
 2. Make the production topology honest: one supported Server replica now, or
    shared coordination before horizontal scaling.
 3. Widen the persistence gate's cases. The gate runs on every pull request and

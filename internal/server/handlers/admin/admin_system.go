@@ -37,8 +37,9 @@ type DeploymentInfo struct {
 	WorkerLLMTransport string
 	AllowSignup        bool
 	// SandboxSurface is the execution boundary worker runs resolve to. Empty
-	// means none was passed, which is what every deployment has today — the
-	// admin API says so rather than implying a boundary that is not applied.
+	// means this deployment did not report one, which is every deployment
+	// today — not that runs are unconfined. See deploymentInfoFor in
+	// internal/bootstrap for why the server does not answer for the worker.
 	SandboxSurface string
 	// DefaultModel is the catalog model a caller gets when it names none.
 	// Empty means the first enabled model in the catalog, so the admin view

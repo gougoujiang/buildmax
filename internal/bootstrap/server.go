@@ -485,9 +485,14 @@ const readinessProbeTeam = "_readiness_probe"
 // layer does not know what a run mode or a model transport is, and keeping that
 // mapping here is what stops configuration detail leaking into it.
 //
-// SandboxSurface is deliberately left empty. No worker path passes one today —
-// internal/agentapp/taskrun leaves AppConfig.SandboxSurface unset — and
-// reporting a boundary that is not applied would be worse than reporting none.
+// SandboxSurface is still left empty, but no longer because there is nothing
+// to report: internal/agentapp/taskrun now passes config.WorkerSandboxSurface().
+// What a worker resolves to depends on the environment that worker runs in,
+// and this runs in the server's. The two agree in every deployment shipped
+// today, since both come from the same image, but agreeing by construction is
+// not the same as observing it, and a security surface that infers a boundary
+// it cannot see is how an operator gets told the wrong one. Reporting what the
+// worker actually resolved belongs with the run that resolved it.
 func deploymentInfoFor(sc config.ServerConfig) admin.DeploymentInfo {
 	transport := sc.Worker.LLM.Transport
 	if transport == "" {

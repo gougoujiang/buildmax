@@ -45,19 +45,37 @@ it.
 
 ### R0. Contain Unattended Worker Execution
 
-Worker runs currently omit `SandboxSurfaceWorker`, inherit the CLI baseline,
-and use an allow-all tool policy. The stricter configuration baseline is not an
-effective runtime boundary until the worker selects and proves it.
+Mostly closed. A worker run selects the stricter surface, `bwrap` actually
+confines its Bash commands on both the `k8s_job` and `local_process` paths, and
+the deployment smoke's own probe proves it organically rather than by
+inspection. What is left is a child process the boundary does not reach and a
+network boundary that was never in it.
 
 Required outcomes:
 
-- every worker run records and enforces an explicit worker sandbox surface;
+- every worker run records and enforces an explicit worker sandbox surface —
+  **done**: `internal/agentapp/taskrun` passes `config.WorkerSandboxSurface()`,
+  and the resolved tiers are pinned onto the run for audit;
 - absence of the OS backend either fails closed or follows one documented,
-  visible downgrade policy;
-- process and resource limits are enforced and tested;
-- hook and MCP child processes have an explicit boundary of their own;
+  visible downgrade policy — **done**: the strict baseline is selected only
+  where `BUILDMAX_SANDBOX_BACKEND_INSTALLED` marks the backend as installed,
+  and a `Manager` probes its backend with a real confined command before
+  trusting it, so one that cannot enforce anything fails closed;
+- process and resource limits are enforced and tested — **done**;
+- hook and MCP child processes have an explicit boundary of their own —
+  **half**: the `command` and `http` hook transports go through the same
+  wrapper and host policy `Bash` and `WebFetch` use; MCP does not.
+  `internal/infra/mcp/transport.go` execs a stdio server directly, with no
+  sandbox involvement anywhere in that package;
 - a Beta candidate does not run unrestricted worker Bash merely because it is
-  inside a Kubernetes pod.
+  inside a Kubernetes pod — **done**.
+
+Still open beyond that list: the cluster-level `NetworkPolicy` question
+[`design/trust-harness.md`](design/trust-harness.md) §3.9 leaves open — a
+worker pod reaches whatever the cluster's network allows, independent of the
+in-process sandbox — `buildmax sandbox overrides`, and surfacing a run's
+resolved tiers in Portal's task-run detail view rather than only in the API
+response and audit trail.
 
 ### R1. Make Multi-Instance Semantics Correct Or Declare One Replica
 

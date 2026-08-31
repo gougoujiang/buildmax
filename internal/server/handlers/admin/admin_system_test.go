@@ -108,7 +108,8 @@ func TestAdminSystemStatus(t *testing.T) {
 		t.Errorf("schema_migrations = %+v", got.SchemaMigrations)
 	}
 	if got.SandboxSurface != "" {
-		t.Errorf("sandbox_surface = %q; no worker path passes one, and claiming a boundary that is not applied is worse than claiming none", got.SandboxSurface)
+		t.Errorf("sandbox_surface = %q; the server does not answer for the worker's environment, "+
+			"and a security surface that infers a boundary it cannot observe can name the wrong one", got.SandboxSurface)
 	}
 }
 

@@ -155,12 +155,22 @@ Read the relevant architecture document before making a cross-package change:
 - Runtime hooks merge global settings with `<workspace>/.buildmax/hooks.yaml`.
   Hook failures fail open; gating contracts are documented in
   [`docs/design/hook-system.md`](docs/design/hook-system.md).
-- The Bash sandbox is available on macOS and Linux but currently defaults off
-  on all surfaces. `config.defaultSandbox` defines a stricter
-  `SandboxSurfaceWorker` baseline, but no worker path passes that surface —
-  `internal/agentapp/taskrun` leaves `AppConfig.SandboxSurface` empty, which
-  resolves to the CLI baseline. The baseline is written, not wired. Do not
-  claim the deferred worker hardening is active.
+- The Bash sandbox is available on macOS and Linux. It defaults off on the CLI
+  baseline and on for the stricter `SandboxSurfaceWorker` one, which also fails
+  closed when no backend is available. `internal/agentapp/taskrun` passes
+  `config.WorkerSandboxSurface()`, and that returns the worker baseline only
+  when `BUILDMAX_SANDBOX_BACKEND_INSTALLED` is set — a Dockerfile `ENV`, so it
+  is present in every container built from the official images and absent on a
+  bare host, in CI, and on native Windows, which keep the CLI baseline. A
+  `Manager` also probes its backend with a real confined command before
+  trusting it, so a backend that is installed but cannot enforce anything fails
+  closed rather than passing commands through. Both the `k8s_job` and
+  `local_process` paths are verified organically by the deployment smoke's own
+  sandbox probe. The worker Job pod runs root with `SYS_ADMIN`, not non-root:
+  a capability added to a non-root pod never reaches its effective set, so
+  `bwrap` could not run at all. See
+  [`docs/design/agent-sandbox-policy.md`](docs/design/agent-sandbox-policy.md)
+  and [`deployment/seccomp/README.md`](deployment/seccomp/README.md).
 - Plugins load from `<BUILDMAX_HOME>/plugins/<name>/`, contributing skills,
   subagents, MCP servers, and hooks beneath the global and workspace layers.
   `agentapp` resolves them once per runtime and keeps that snapshot, so an
@@ -183,9 +193,8 @@ Read the relevant architecture document before making a cross-package change:
 - Portal and Desktop share presentational components from `@buildmax/gui`, not
   data/auth/routing logic. Both use React 19.
 
-The planned but not implemented areas include team approvals, worker sandbox
-hardening, and complete CI coverage for Kubernetes and native Windows. Do not
-document them as shipped. `evaluation/harbor` is a separate case: the oracle smoke and a
+The planned but not implemented areas include team approvals and complete CI
+coverage for Kubernetes and native Windows. Do not document them as shipped. `evaluation/harbor` is a separate case: the oracle smoke and a
 one-task canary have run through it, so the path is verified for one task and no
 further. There is no Terminal-Bench score; do not present one as existing. Versioned workspace and timeline restore are not
 planned at all: the design record was withdrawn, so do not describe them as
@@ -204,6 +213,7 @@ Use the cross-platform task runner from the repository root:
 ./make build cli       # fast CLI-only build
 ./make test            # Go tests with an isolated BUILDMAX_HOME
 ./make test race       # the same suite with the race detector
+./make test mysql      # the store scope against a real MySQL; every PR runs it
 ./make test ./internal/tool -run TestX   # narrow it; packages first, then flags
 ./make fmt             # gofmt every tracked Go file
 ./make lint            # pinned golangci-lint and govulncheck
@@ -251,6 +261,12 @@ for reproducible installs. Normal CLI development has no Node dependency.
 Narrow a test run with `./make test`, never a bare `go test`: only the task
 runner sets `BUILDMAX_HOME`, and `config.DataDir` panics rather than fall back
 to a contributor's real `~/.buildmax` under test.
+
+A change to `internal/infra/db` needs `./make test mysql`. Every test there
+skips itself without `BUILDMAX_TEST_DSN`, so a green `./make test` says nothing
+about schema, query, or transaction behavior; that scope requires the DSN,
+runs on a database it creates and drops, and refuses to pass on a skip. It
+needs a MySQL you already run — it will not start one for you.
 
 Run checks in proportion to the change, and prefer the narrow scope while
 iterating. Before handoff, run every relevant scope. A full check requires no

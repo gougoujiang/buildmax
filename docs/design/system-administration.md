@@ -623,9 +623,16 @@ Acceptance met, with three decisions worth recording:
   not import `internal/config` — the architecture test enforces it — and the
   same rule that keeps infrastructure detail out of the readiness endpoint
   keeps configuration detail out of this one.
-- **`sandbox_surface` is reported empty**, because no worker path passes one.
-  Reporting a boundary that is not applied would be worse than reporting none,
-  which is the rule AGENTS.md already states for this field.
+- **`sandbox_surface` is reported empty**, and no longer because there is
+  nothing to report: `internal/agentapp/taskrun` now passes
+  `config.WorkerSandboxSurface()`. What a worker resolves to depends on the
+  environment that worker runs in, and this endpoint answers from the
+  server's. They agree in every deployment shipped today — both come from the
+  same image — but agreeing by construction is not observing it, and a
+  security surface that infers a boundary it cannot see can name the wrong
+  one. Reporting the boundary a run actually resolved belongs with that run,
+  which already pins its tiers for audit; wiring it into this endpoint is
+  open work rather than a decision this record has made.
 
 `GET /api/admin/system` degrades rather than failing: each of its reads is
 best-effort, because a status page that answers 500 when one of its five
