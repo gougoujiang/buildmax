@@ -12,6 +12,18 @@ export function artifactContentUrl(artifactId: string): string {
   return `${getApiBase()}/api/artifacts/${encodeURIComponent(artifactId)}/content`
 }
 
+/**
+ * Read one artifact by id.
+ *
+ * A caller outside the owning team gets 404, exactly as a caller asking for an
+ * id that never existed does — the server refuses to be an existence oracle, so
+ * this reports "not found" for both rather than inventing a distinction.
+ */
+export async function getArtifact(artifactId: string, token: string): Promise<ApiArtifact> {
+  const url = `${getApiBase()}/api/artifacts/${encodeURIComponent(artifactId)}`
+  return requestJson<ApiArtifact>(url, { headers: authHeaders(token) })
+}
+
 export async function listArtifacts(
   teamId: string,
   token: string,

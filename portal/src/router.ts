@@ -19,6 +19,8 @@ export const SEGMENT = {
   workflowRun: "workflow-run",
   issues: "issues",
   issue: "issue",
+  artifacts: "artifacts",
+  artifact: "artifact",
 } as const
 
 /**
@@ -51,7 +53,10 @@ export function parseHash(hash: string): Route {
   if (parts[0] === SEGMENT.space) {
     if (parts[1] === "members" && parts[2] === "new") return { name: "space", section: "memberNew" }
     if (parts[1] === "members") return { name: "space", section: "members" }
-    if (parts[1] === "artifacts") return { name: "space", section: "artifacts" }
+    // Artifacts left space settings for their own top-level area. Kept as a
+    // redirect rather than dropped, because the old address is what any saved
+    // link points at, and falling through would land on Overview silently.
+    if (parts[1] === "artifacts") return { name: "artifacts" }
     if (parts[1] === "plugins") return { name: "space", section: "plugins" }
     if (parts[1] === "audit") return { name: "space", section: "audit" }
     return { name: "space", section: "overview" }
@@ -81,6 +86,14 @@ export function parseHash(hash: string): Route {
   }
   if (parts[0] === SEGMENT.issue && parts[1]) {
     return { name: "issue", issueId: parts[1] }
+  }
+  if (parts[0] === SEGMENT.artifacts) {
+    return { name: "artifacts" }
+  }
+  // An artifact's address is its id alone -- no team in the path, matching the
+  // API. See docs/design/unified-artifacts.md section 6.1.
+  if (parts[0] === SEGMENT.artifact && parts[1]) {
+    return { name: "artifact", artifactId: parts[1] }
   }
   if (parts[0] === SEGMENT.conversation && parts[1]) {
     return { name: "conversation", conversationId: parts[1] }
@@ -123,8 +136,6 @@ export function buildHash(route: Route): string {
           return `#/${SEGMENT.space}/members`
         case "memberNew":
           return `#/${SEGMENT.space}/members/new`
-        case "artifacts":
-          return `#/${SEGMENT.space}/artifacts`
         case "plugins":
           return `#/${SEGMENT.space}/plugins`
         case "audit":
@@ -159,6 +170,10 @@ export function buildHash(route: Route): string {
       return `#/${SEGMENT.issues}`
     case "issue":
       return `#/${SEGMENT.issue}/${route.issueId}`
+    case "artifacts":
+      return `#/${SEGMENT.artifacts}`
+    case "artifact":
+      return `#/${SEGMENT.artifact}/${route.artifactId}`
   }
 }
 

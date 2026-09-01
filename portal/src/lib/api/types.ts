@@ -354,7 +354,12 @@ export interface RetryTaskResponse {
   status: string
 }
 
-/** Run output (artifact) as returned by task/run artifact endpoints */
+/**
+ * A durable file the team keeps, addressed by its own `ar_` id.
+ *
+ * Not a run output: those are paths inside one run's directory and come from
+ * the task-run routes instead. See docs/design/unified-artifacts.md section 5.3.
+ */
 export interface ApiArtifact {
   id: string
   team_id: string

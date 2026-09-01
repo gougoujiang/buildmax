@@ -45,7 +45,7 @@ export type Route =
     }
   | {
       name: "space"
-      section?: "overview" | "members" | "artifacts" | "plugins" | "audit" | "memberNew"
+      section?: "overview" | "members" | "plugins" | "audit" | "memberNew"
     }
   | { name: "admin"; section?: "overview" | "accounts" | "teams" | "models" | "plugins" | "audit" }
   | { name: "workflows" }
@@ -53,6 +53,8 @@ export type Route =
   | { name: "workflowRun"; workflowRunId: string }
   | { name: "issues" }
   | { name: "issue"; issueId: string }
+  | { name: "artifacts" }
+  | { name: "artifact"; artifactId: string }
 
 // --- Agent (user-owned persona) ---
 
