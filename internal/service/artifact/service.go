@@ -33,16 +33,29 @@ var (
 	ErrNoTeam        = apierr.New(apierr.KindInvalid, "a team is required")
 	ErrEmptyContent  = apierr.New(apierr.KindInvalid, "the file is empty")
 	ErrTooLarge      = apierr.New(apierr.KindInvalid, "the file is larger than this deployment accepts")
+	// ErrStorageQuota is the team's allowance, not this file's size. It is a
+	// quota kind so it answers 429 like the run and token limits rather than
+	// 400 like a file this deployment would never accept at any allowance.
+	ErrStorageQuota = apierr.New(apierr.KindQuotaExceeded, "this space has no room for more artifacts")
 )
+
+// StorageAdmitter decides whether a team may hold more bytes.
+//
+// Declared here rather than imported from the quota service so this package
+// depends on the one question it asks. A nil admitter admits everything, which
+// is what a deployment with no quota service has.
+type StorageAdmitter interface {
+	// CheckStorage reports whether the team may hold addBytes more, and why
+	// not when it may not.
+	CheckStorage(ctx context.Context, teamID string, addBytes int64) (bool, string, error)
+}
 
 // DefaultMaxFileBytes caps one artifact when a deployment sets no limit.
 //
-// A cap is the whole of the first slice's admission control. A team storage
-// total is a stock, and the existing quota model measures rates in a window
-// (corequota.Tier), so counting bytes held is a new dimension rather than a
-// value to slot in; it waits for its own decision. What this cap already buys
-// is the property that matters most here — one request cannot cost the
-// deployment an unbounded amount of disk.
+// It bounds one request. What a team may hold in total is the quota tier's
+// max_storage_bytes, checked through StorageAdmitter: the two answer different
+// questions, and neither substitutes for the other — a thousand small files
+// pass this cap and can still exhaust an allowance.
 const DefaultMaxFileBytes int64 = 100 << 20
 
 // FallbackMediaType is what an unrecognised extension gets. Unknown types
@@ -60,6 +73,8 @@ type Service struct {
 	Audit *audit.Recorder
 	// MaxFileBytes caps one artifact. Zero means DefaultMaxFileBytes.
 	MaxFileBytes int64
+	// Quota decides whether the team may hold more. Nil admits everything.
+	Quota StorageAdmitter
 
 	clock func() time.Time
 }
@@ -130,6 +145,14 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*coreartifact.Art
 		return nil, ErrEmptyContent
 	}
 
+	// Asked before reading the body, so a team that is already full is refused
+	// without first streaming a file to disk. It cannot be the only check: the
+	// size is not known until the bytes have gone by, so the exact one happens
+	// below and this is the cheap rejection in front of it.
+	if err := s.admitStorage(ctx, in.TeamID, 0); err != nil {
+		return nil, err
+	}
+
 	// Generated here rather than in the store because the content is written to
 	// object storage under this ID before the row exists; moving generation down
 	// is part of giving the store its collision retry.
@@ -161,6 +184,14 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*coreartifact.Art
 		return nil, apierr.Detail(ErrTooLarge, "limit is %d bytes", limit)
 	}
 
+	// The exact check, now that the size is known. It runs after the object is
+	// durable because that is the first moment the size exists; refusing here
+	// removes what was written, so an over-quota upload leaves nothing behind.
+	if err := s.admitStorage(ctx, in.TeamID, counter.n); err != nil {
+		s.discard(ctx, ref)
+		return nil, err
+	}
+
 	rec, err := s.Artifacts.CreateArtifact(ctx, coreartifact.CreateInput{
 		TeamID:        in.TeamID,
 		ArtifactID:    artifactID,
@@ -182,6 +213,28 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*coreartifact.Art
 	}
 	s.audit(ctx, rec, coreaudit.ArtifactCreated, rec.SourceType)
 	return rec, nil
+}
+
+// admitStorage asks whether the team may hold addBytes more.
+//
+// A quota that cannot be read refuses, matching the run and token limits: the
+// alternative is that a deployment whose database is unreachable accepts
+// unmetered storage and has no record of having done so.
+func (s *Service) admitStorage(ctx context.Context, teamID string, addBytes int64) error {
+	if s.Quota == nil {
+		return nil
+	}
+	allowed, reason, err := s.Quota.CheckStorage(ctx, teamID, addBytes)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		if reason == "" {
+			return ErrStorageQuota
+		}
+		return apierr.Detail(ErrStorageQuota, "%s", reason)
+	}
+	return nil
 }
 
 // discard removes content that no committed record describes.

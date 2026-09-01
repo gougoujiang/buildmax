@@ -699,7 +699,9 @@
           "tier": {"type": "string"},
           "period_days": {"type": "integer"},
           "max_runs_per_period": {"type": "integer"},
-          "max_tokens_per_period": {"type": "integer"}
+          "max_tokens_per_period": {"type": "integer"},
+          "storage_bytes": {"type": "integer", "format": "int64"},
+          "max_storage_bytes": {"type": "integer", "format": "int64"}
         },
         "required": ["run_count", "total_tokens", "tier", "period_days"]
       },

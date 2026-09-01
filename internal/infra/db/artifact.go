@@ -203,3 +203,119 @@ func (s *Store) SoftDeleteArtifact(ctx context.Context, artifactID string, delet
 	}
 	return res.RowsAffected > 0, nil
 }
+
+// TeamArtifactBytes sums what the team's live artifacts hold.
+//
+// Computed rather than kept as a running total, for the reason the run and
+// token counts are: a stored counter has to be corrected by every path that
+// creates, deletes, or expires an artifact, and one that drifts is worse than
+// one that costs a scan. The outer COALESCE is what keeps an empty result set
+// from scanning NULL.
+func (s *Store) TeamArtifactBytes(ctx context.Context, teamID string) (int64, error) {
+	teamKey, err := lookupKey(ctx, s.db, "team", teamID)
+	if errors.Is(err, apierr.ErrNotFound) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	var total int64
+	err = s.db.WithContext(ctx).Model(&artifactRow{}).
+		Select("COALESCE(SUM(size_bytes), 0)").
+		Where("team_id = ? AND deleted_at IS NULL", teamKey).
+		Scan(&total).Error
+	return total, err
+}
+
+// ExpireArtifacts tombstones live artifacts whose expiry has passed.
+//
+// The rows are read before the update so the sweep can say which artifacts it
+// took. An expiry is the one tombstone nobody asked for, so it is the one that
+// most needs a record naming what went.
+func (s *Store) ExpireArtifacts(ctx context.Context, now time.Time, limit int) ([]coreartifact.Expired, error) {
+	if now.IsZero() {
+		return nil, nil
+	}
+	if limit <= 0 {
+		limit = 500
+	}
+	var rows []artifactReadRow
+	err := s.artifactSelect(ctx).
+		Where("artifact.deleted_at IS NULL AND artifact.expires_at IS NOT NULL AND artifact.expires_at <= ?", now).
+		Order("artifact.expires_at ASC, artifact.id ASC").
+		Limit(limit).
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	out := make([]coreartifact.Expired, 0, len(rows))
+	for i := range rows {
+		// One at a time, conditional on the row still being live, so a
+		// concurrent delete wins and is not reported here as an expiry. A bulk
+		// update would be one statement and could not tell the two apart.
+		changed, err := s.SoftDeleteArtifact(ctx, rows[i].Row.PublicID, now)
+		if err != nil {
+			return out, err
+		}
+		if !changed {
+			continue
+		}
+		out = append(out, coreartifact.Expired{
+			ArtifactID: rows[i].Row.PublicID,
+			TeamID:     rows[i].TeamPublicID,
+		})
+	}
+	return out, nil
+}
+
+// PurgeableArtifacts returns tombstoned artifacts whose bytes are still held.
+//
+// The cutoff is the tombstone time plus the deployment's grace period, so an
+// artifact deleted a moment ago is not swept when the operator asked for a
+// window. A non-empty storage key is what marks the object as still present.
+func (s *Store) PurgeableArtifacts(ctx context.Context, before time.Time, limit int) ([]coreartifact.Purgeable, error) {
+	if before.IsZero() {
+		return nil, nil
+	}
+	if limit <= 0 {
+		limit = 500
+	}
+	var rows []artifactReadRow
+	err := s.artifactSelect(ctx).
+		Where("artifact.deleted_at IS NOT NULL AND artifact.deleted_at <= ? AND artifact.storage_key <> ''", before).
+		Order("artifact.deleted_at ASC, artifact.id ASC").
+		Limit(limit).
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	out := make([]coreartifact.Purgeable, len(rows))
+	for i := range rows {
+		out[i] = coreartifact.Purgeable{
+			ArtifactID: rows[i].Row.PublicID,
+			TeamID:     rows[i].TeamPublicID,
+			SizeBytes:  rows[i].Row.SizeBytes,
+		}
+	}
+	return out, nil
+}
+
+// MarkArtifactPurged clears the storage key once the object is gone.
+//
+// Conditional on the key still being set, so two servers sweeping the same
+// artifact reclaim it once as far as any count is concerned. Removing the
+// object twice is already harmless — ContentStore.RemoveArtifact treats absent
+// content as success — but a doubled byte total in the trail is not.
+func (s *Store) MarkArtifactPurged(ctx context.Context, artifactID string) (bool, error) {
+	id, ok := util.CanonicalPublicID(artifactID)
+	if !ok {
+		return false, nil
+	}
+	res := s.db.WithContext(ctx).Model(&artifactRow{}).
+		Where("public_id = ? AND storage_key <> ''", id).
+		Update("storage_key", "")
+	if res.Error != nil {
+		return false, res.Error
+	}
+	return res.RowsAffected > 0, nil
+}
