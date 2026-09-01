@@ -13,6 +13,10 @@ type usageResponse struct {
 	PeriodDays         int    `json:"period_days"`
 	MaxRunsPerPeriod   *int   `json:"max_runs_per_period,omitempty"`
 	MaxTokensPerPeriod *int   `json:"max_tokens_per_period,omitempty"`
+	// StorageBytes is what the team holds now, not a windowed total, and is
+	// absent on a deployment with no artifact storage to read.
+	StorageBytes    *int64 `json:"storage_bytes,omitempty"`
+	MaxStorageBytes *int64 `json:"max_storage_bytes,omitempty"`
 }
 
 // usageHandler keeps the legacy /api/usage route as a personal-team alias.
@@ -69,5 +73,7 @@ func (h *Handler) writeUsageForTeam(w http.ResponseWriter, r *http.Request, team
 		PeriodDays:         info.PeriodDays,
 		MaxRunsPerPeriod:   info.MaxRunsPerPeriod,
 		MaxTokensPerPeriod: info.MaxTokensPerPeriod,
+		StorageBytes:       info.StorageBytes,
+		MaxStorageBytes:    info.MaxStorageBytes,
 	})
 }

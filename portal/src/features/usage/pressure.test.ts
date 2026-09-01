@@ -74,3 +74,60 @@ describe("describeQuotaPressure", () => {
     expect(got?.text).toContain("30-day")
   })
 })
+
+describe("describeQuotaPressure and artifact storage", () => {
+  it("says nothing when the tier sets no storage limit", () => {
+    // The case every deployment that seeded its tiers before storage was
+    // measured is in: bytes held, no limit, nothing to report.
+    expect(describeQuotaPressure(usage({ storage_bytes: 5_000_000 }))).toBeNull()
+  })
+
+  it("warns before artifacts start being refused", () => {
+    const got = describeQuotaPressure(
+      usage({ storage_bytes: 850, max_storage_bytes: 1000 })
+    )
+    expect(got?.tone).toBe("near")
+    expect(got?.text).toContain("artifact storage")
+  })
+
+  // Storage does not free itself as the window moves, so its message must not
+  // tell anyone to wait — deleting is the only remedy.
+  it("tells someone at the limit to delete rather than to wait", () => {
+    const got = describeQuotaPressure(
+      usage({ storage_bytes: 1200, max_storage_bytes: 1000 })
+    )
+    expect(got?.tone).toBe("reached")
+    expect(got?.text).toContain("deleted")
+    expect(got?.text).not.toContain("window")
+  })
+
+  // A spent run quota is the more urgent problem and stays the headline, but
+  // the storage message must never be the one carrying the run remedy.
+  it("reports a spent rate limit ahead of storage", () => {
+    const got = describeQuotaPressure(
+      usage({
+        run_count: 10,
+        max_runs_per_period: 10,
+        storage_bytes: 1200,
+        max_storage_bytes: 1000,
+      })
+    )
+    expect(got?.text).toContain("runs")
+    expect(got?.text).toContain("window")
+  })
+
+  // A full space with comfortable rates must still be reported: folding storage
+  // into the rate sentence would have hidden this case entirely.
+  it("reports storage when the rates are fine", () => {
+    const got = describeQuotaPressure(
+      usage({
+        run_count: 1,
+        max_runs_per_period: 100,
+        storage_bytes: 1000,
+        max_storage_bytes: 1000,
+      })
+    )
+    expect(got?.tone).toBe("reached")
+    expect(got?.text).toContain("artifact storage")
+  })
+})

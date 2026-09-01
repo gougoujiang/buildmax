@@ -4,6 +4,7 @@ import type { LoginUser } from "../../lib/api"
 import { useAuth } from "../../contexts/AuthContext"
 import { useTeam } from "../../contexts/TeamContext"
 import { describeQuotaPressure, getUsage } from "../../features/usage"
+import { formatSize } from "../../features/artifacts"
 import {
   acceptInvitation,
   getMyInvitations,
@@ -282,9 +283,23 @@ export function SettingsUsageSection({
                 : ""}
             </span>
           </p>
+          {/* Reported apart from the rates above, and without the period line,
+              because it is not measured over one: it is what the space holds
+              until somebody deletes an artifact. */}
+          {usage.storage_bytes != null ? (
+            <p className="settings-usage__row">
+              <span className="settings-usage__label">Artifact storage</span>
+              <span>
+                {formatSize(usage.storage_bytes)}
+                {usage.max_storage_bytes != null && usage.max_storage_bytes > 0
+                  ? ` / ${formatSize(usage.max_storage_bytes)}`
+                  : ""}
+              </span>
+            </p>
+          ) : null}
           {usage.period_days > 0 ? (
             <p className="settings-usage__row settings-usage__period">
-              Rolling {usage.period_days} days
+              Rolling {usage.period_days} days — runs and tokens only
             </p>
           ) : null}
         </div>

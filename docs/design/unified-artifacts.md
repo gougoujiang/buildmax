@@ -24,9 +24,10 @@
   and Portal's top-level artifact list and detail page; `UploadArtifact` on
   every surface with a server, and artifacts on issue result cards. Registering
   a run's output directory and phase 3 external sharing are both decided
-  against — §12 questions 6 and 4. Phase 4 follow-ons stay open, and so does
-  retention: §8 tombstones, but nothing yet removes the object or reads
-  `ExpiresAt`)
+  against — §12 questions 6 and 4. Retention and the team storage quota are
+  implemented too: `ArtifactRetainer` applies `ExpiresAt` and reclaims
+  tombstoned objects, and `max_storage_bytes` on the quota tier is a hard
+  admission check — §8 and §12 question 2. Phase 4 follow-ons stay open)
 - follows: [surface-positioning.md](./surface-positioning.md) and
   [team-governance.md](./team-governance.md)
 - roadmap: [../ROADMAP.md](../ROADMAP.md)
@@ -393,16 +394,45 @@ content access, records an audit event, then schedules physical object removal
 under retention policy. It does not rewrite task-run history. A run page can
 say its former output has been removed without leaking a storage key.
 
+`ArtifactRetainer` in `internal/server/scheduler` is that retention policy and
+the only thing that removes artifact content outside the upload-rollback path.
+It sweeps hourly in two phases: expiry tombstones artifacts whose `ExpiresAt`
+has passed, then the purge reclaims the objects of artifacts tombstoned before
+`storage.artifact_purge_after_days` ago. That grace defaults to **0** —
+deletion has already taken effect at the authorization boundary, so holding the
+bytes afterwards is cost and exposure rather than safety. Setting days is for a
+deployment whose bucket tooling offers an undelete; BuildMax offers none.
+
+An artifact's `StorageKey` is the record of whether its bytes are still held.
+Every artifact gets one at creation, so an empty key on a tombstoned row means
+the object is gone. The sweep clears it rather than adding a `purged_at`
+column: "no key" and "nothing stored" are the same fact, and two columns that
+must eventually agree will one day not.
+
+The object is removed before the row is updated. The reverse would let a crash
+in between leave a row claiming the bytes are gone while the bucket still bills
+for them; this way a crash leaves a row saying the object is there, and the
+next sweep removes what is already absent — which §9's content-store contract
+makes a success.
+
 The service enforces per-file size and team storage quota before accepting a
-file, and counts the final stored bytes. Quota configuration, retention
-duration, permitted MIME categories, and virus-scanning integration remain
-operator policy decisions; the Artifact service exposes the required decision
-points but does not invent configuration fields before they exist.
+file, and counts the final stored bytes. The per-file cap is
+`storage.max_artifact_mb`; the team allowance is the quota tier's
+`max_storage_bytes`, checked through `artifact.StorageAdmitter` — see §12
+question 2 for why it is a hard admission check. Permitted MIME categories and
+virus-scanning integration remain operator policy decisions; the Artifact
+service exposes the required decision points but does not invent configuration
+fields before they exist.
 
 At minimum, audit these metadata-only actions: artifact created, artifact
-deleted, share created, and share revoked. Audit records must not contain file
-contents, signed URLs, share tokens, or a user-provided description that has
-not been bounded and reviewed.
+deleted, artifact expired, artifacts purged, share created, and share revoked.
+Expiry is recorded per artifact, because it is the one tombstone no member
+asked for and a reader looking for why a file went has to find it named. A
+purge is recorded per sweep with a count and a byte total, because the
+tombstone that authorized each one is already in the trail and this says only
+that the bytes are now gone. Audit records must not contain file contents,
+signed URLs, share tokens, or a user-provided description that has not been
+bounded and reviewed.
 
 ## 9. Storage And Failure Semantics
 
@@ -543,8 +573,21 @@ model and the user one legible publishing event.
    of. A local client therefore publishes without ever being told about teams.
    What remains open is only whether a client should be able to *choose* and
    remember a team, which is a settings question rather than an API one.
-2. **Team storage quota:** which limits belong in the existing quota model,
-   and should storage use be a hard admission check or alert-only initially?
+2. **Team storage quota:** ~~decided: the quota tier, as a hard admission
+   check~~. `max_storage_bytes` joins `quota_tier` beside the run and token
+   limits, and `QuotaService.CheckStorage` refuses an upload that would cross
+   it — a 429, like the other two, because the file is fine and the space is
+   full. It is separate from `Check` because storage is a stock and the others
+   are rates: there is no window, `period_days` does not apply, and the total
+   falls when an artifact is deleted rather than when time passes.
+
+   Hard rather than alert-only, which is the opposite of what a rate limit
+   would argue for. Tokens are already spent by the time a total is read, so
+   refusing later work only stops more spending; bytes accepted stay accepted,
+   and an operator who finds out afterwards has no remedy inside BuildMax. The
+   seeded tiers deliberately set no storage limit, so a deployment acquires one
+   only by choosing it — the same principle as `audit.retention_days`
+   defaulting to keep everything.
 3. **Sensitive-content controls:** which private deployments require malware
    scanning, DLP, or MIME restrictions before agent upload is enabled? Gather
    operator requirements rather than hardcoding a cloud-oriented policy.

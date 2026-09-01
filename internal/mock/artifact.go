@@ -100,6 +100,74 @@ func (m *MockArtifactStore) SoftDeleteArtifact(_ context.Context, artifactID str
 	return false, nil
 }
 
+func (m *MockArtifactStore) TeamArtifactBytes(_ context.Context, teamID string) (int64, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var total int64
+	for i := range m.items {
+		if m.items[i].TeamID == teamID && m.items[i].DeletedAt == nil {
+			total += m.items[i].SizeBytes
+		}
+	}
+	return total, nil
+}
+
+func (m *MockArtifactStore) ExpireArtifacts(_ context.Context, now time.Time, limit int) ([]coreartifact.Expired, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if limit <= 0 {
+		limit = 500
+	}
+	var out []coreartifact.Expired
+	for i := range m.items {
+		if len(out) >= limit {
+			break
+		}
+		it := &m.items[i]
+		if it.DeletedAt != nil || it.ExpiresAt == nil || it.ExpiresAt.After(now) {
+			continue
+		}
+		at := now
+		it.DeletedAt = &at
+		out = append(out, coreartifact.Expired{ArtifactID: it.ID, TeamID: it.TeamID})
+	}
+	return out, nil
+}
+
+func (m *MockArtifactStore) PurgeableArtifacts(_ context.Context, before time.Time, limit int) ([]coreartifact.Purgeable, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if limit <= 0 {
+		limit = 500
+	}
+	var out []coreartifact.Purgeable
+	for i := range m.items {
+		if len(out) >= limit {
+			break
+		}
+		it := m.items[i]
+		if it.DeletedAt == nil || it.DeletedAt.After(before) || it.StorageKey == "" {
+			continue
+		}
+		out = append(out, coreartifact.Purgeable{
+			ArtifactID: it.ID, TeamID: it.TeamID, SizeBytes: it.SizeBytes,
+		})
+	}
+	return out, nil
+}
+
+func (m *MockArtifactStore) MarkArtifactPurged(_ context.Context, artifactID string) (bool, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for i := range m.items {
+		if m.items[i].ID == artifactID && m.items[i].StorageKey != "" {
+			m.items[i].StorageKey = ""
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // Count reports how many records exist, tombstoned ones included. Tests use it
 // to prove that a failed create left none.
 func (m *MockArtifactStore) Count() int {

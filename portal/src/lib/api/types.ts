@@ -818,6 +818,13 @@ export interface ApiUsage {
   period_days: number
   max_runs_per_period?: number
   max_tokens_per_period?: number
+  /**
+   * What the space's artifacts hold now. A stock, not a windowed total:
+   * period_days does not apply to it, and it falls only when an artifact is
+   * deleted or expires. Absent on a deployment with no artifact storage.
+   */
+  storage_bytes?: number
+  max_storage_bytes?: number
 }
 
 /** Tier 1 conversation as returned by team-scoped conversation endpoints. */
