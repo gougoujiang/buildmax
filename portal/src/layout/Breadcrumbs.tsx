@@ -86,6 +86,13 @@ export function Breadcrumbs({ route, conversations = [] }: BreadcrumbsProps) {
       { label: "Issues", route: { name: "issues" } },
       { label: route.issueId, route },
     ]
+  } else if (route.name === "artifacts") {
+    crumbs = [{ label: "Artifacts", route: { name: "artifacts" } }]
+  } else if (route.name === "artifact") {
+    crumbs = [
+      { label: "Artifacts", route: { name: "artifacts" } },
+      { label: route.artifactId, route },
+    ]
   } else if (route.name === "conversation") {
     const conv = conversations.find((c) => c.id === route.conversationId)
     const convLabel = conv?.title?.trim() || conv?.timeLabel || "Conversation"

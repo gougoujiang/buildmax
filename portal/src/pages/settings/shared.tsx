@@ -29,13 +29,7 @@ import IssueIcon from "../../icons/issue.svg?react"
 import { BaseModal } from "@buildmax/gui"
 
 export type AccountSection = "general" | "usage" | "webhook" | "plugins" | "invitations"
-export type SpaceSection =
-  | "overview"
-  | "members"
-  | "artifacts"
-  | "plugins"
-  | "audit"
-  | "memberNew"
+export type SpaceSection = "overview" | "members" | "plugins" | "audit" | "memberNew"
 
 interface SettingsNavItem<T extends string> {
   id: T
@@ -58,7 +52,6 @@ export const ACCOUNT_NAV: SettingsNavItem<Exclude<AccountSection, never>>[] = [
 export const SPACE_NAV: SettingsNavItem<Exclude<SpaceSection, "memberNew">>[] = [
   { id: "overview", label: "Overview", icon: IssueIcon },
   { id: "members", label: "Members", icon: AgentsIcon },
-  { id: "artifacts", label: "Artifacts", icon: IssueIcon },
   // What this team's background runs may use. Readable by any member, because
   // "why did this run have this plugin" is a question anyone debugging asks.
   { id: "plugins", label: "Plugins", icon: ToolboxIcon },

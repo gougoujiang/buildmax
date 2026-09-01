@@ -19,8 +19,10 @@ describe("hash router", () => {
     ["#/space/members/new", { name: "space", section: "memberNew" }],
     // A section reachable only by clicking a tab cannot be linked, shared, or
     // survive a reload, so every one of them needs a URL.
-    ["#/space/artifacts", { name: "space", section: "artifacts" }],
     ["#/space/audit", { name: "space", section: "audit" }],
+    // Artifacts left space settings for their own area; the old address still
+    // lands on them rather than silently falling through to Overview.
+    ["#/space/artifacts", { name: "artifacts" }],
     ["#/team-settings", { name: "space", section: "overview" }],
     // Deployment administration is a separate area from space settings, and
     // its sections are linkable for the same reason the space ones are.
@@ -36,6 +38,10 @@ describe("hash router", () => {
     ["#/workflow-run/wr_123", { name: "workflowRun", workflowRunId: "wr_123" }],
     ["#/issues", { name: "issues" }],
     ["#/issue/i_123", { name: "issue", issueId: "i_123" }],
+    ["#/artifacts", { name: "artifacts" }],
+    // No team in the path: an artifact's id is the whole address, matching the
+    // API. See docs/design/unified-artifacts.md section 6.1.
+    ["#/artifact/ar_123", { name: "artifact", artifactId: "ar_123" }],
   ] satisfies Array<[string, Route]>)("parses %s", (hash, route) => {
     expect(parseHash(hash)).toEqual(route)
   })
@@ -59,7 +65,6 @@ describe("hash router", () => {
     [{ name: "account", section: "webhook" }, "#/account/webhook"],
     [{ name: "account", section: "invitations" }, "#/account/invitations"],
     [{ name: "space", section: "overview" }, "#/space"],
-    [{ name: "space", section: "artifacts" }, "#/space/artifacts"],
     [{ name: "space", section: "audit" }, "#/space/audit"],
     [{ name: "space", section: "members" }, "#/space/members"],
     [{ name: "space", section: "memberNew" }, "#/space/members/new"],
@@ -68,6 +73,8 @@ describe("hash router", () => {
     [{ name: "workflowRun", workflowRunId: "wr_123" }, "#/workflow-run/wr_123"],
     [{ name: "issues" }, "#/issues"],
     [{ name: "issue", issueId: "i_123" }, "#/issue/i_123"],
+    [{ name: "artifacts" }, "#/artifacts"],
+    [{ name: "artifact", artifactId: "ar_123" }, "#/artifact/ar_123"],
   ] satisfies Array<[Route, string]>)("builds %s", (route, hash) => {
     expect(buildHash(route)).toBe(hash)
   })

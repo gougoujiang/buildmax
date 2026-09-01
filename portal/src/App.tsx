@@ -46,6 +46,12 @@ function AppContent() {
     }
     if (route.name === "workflowRun") {
       navigate({ name: "workflows" })
+      return
+    }
+    // An artifact belongs to one team, so the detail open before the switch is
+    // not readable after it -- leaving it would render the 404 page.
+    if (route.name === "artifact") {
+      navigate({ name: "artifacts" })
     }
   }, [currentTeamId, route, setPendingConversation])
 

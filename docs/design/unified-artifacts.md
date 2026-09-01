@@ -21,10 +21,12 @@
 
 - roadmap_priority: `P2 follow-on`
 - status: `implemented` (§10 phases 1 and 2: the artifact object, storage, API,
-  and Portal listing; `UploadArtifact` on every surface with a server, and
-  artifacts on issue result cards. Registering a run's output directory and
-  phase 3 external sharing are both decided against — §12 questions 6 and 4.
-  Phase 4 follow-ons stay open)
+  and Portal's top-level artifact list and detail page; `UploadArtifact` on
+  every surface with a server, and artifacts on issue result cards. Registering
+  a run's output directory and phase 3 external sharing are both decided
+  against — §12 questions 6 and 4. Phase 4 follow-ons stay open, and so does
+  retention: §8 tombstones, but nothing yet removes the object or reads
+  `ExpiresAt`)
 - follows: [surface-positioning.md](./surface-positioning.md) and
   [team-governance.md](./team-governance.md)
 - roadmap: [../ROADMAP.md](../ROADMAP.md)
@@ -270,8 +272,14 @@ criterion means in practice.
 The team-scoped route is the listing and team-view surface. It is not a second
 address for one artifact.
 
-The Portal may provide a human-facing detail route in addition to these API
-routes. It must resolve the same Artifact and enforce the same authorization.
+The Portal provides a human-facing detail route in addition to these API
+routes: `#/artifact/{artifact_id}`, resolving the same Artifact through the
+same ID-addressed API and therefore under the same authorization. It carries no
+team in its address for the reason this section gives, and reports a refusal in
+the words the API's 404 permits — not found, without saying whether it exists.
+The listing is `#/artifacts`, a top-level area rather than a space-settings
+tab, because an artifact is what work produced rather than a knob that
+configures the space.
 
 ### 6.2 External Share Links
 
@@ -454,7 +462,8 @@ storage-provider URL behavior, defines the product contract.
   workspace in product UI.
 - Add migrations, identifier generation, authorization tests, quota checks,
   and redacted audit events.
-- Provide Portal listing/detail with download and narrow safe previews.
+- Provide Portal listing/detail with download and narrow safe previews, as a
+  top-level area — see §6.1.
 - Keep public sharing disabled.
 
 ### Phase 2 — Agent And Worker Producers

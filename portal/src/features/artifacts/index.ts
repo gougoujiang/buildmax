@@ -2,7 +2,16 @@ export {
   artifactContentUrl,
   deleteArtifact,
   fetchArtifactPreview,
+  getArtifact,
   listArtifacts,
   uploadArtifact,
 } from "./api"
-export { SpaceArtifactsSection } from "./SpaceArtifactsSection"
+export {
+  artifactLabel,
+  formatSize,
+  formatTime,
+  mayDelete,
+  sourceLabel,
+} from "./display"
+export { confirmArtifactDeletion } from "./confirmDelete"
+export { ArtifactPreview } from "./ArtifactPreview"
