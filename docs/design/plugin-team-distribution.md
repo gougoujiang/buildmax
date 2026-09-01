@@ -593,11 +593,15 @@ administrator marks it eligible; an activated hook fires in a background run for
 the agent that named it, and a second agent on the same team — one that did not
 name it — runs without it.
 
-### Phase D3 — Secret Delivery, Deferred
+### Phase D3 — Secret Delivery, Answered Elsewhere
 
-Write a follow-on record. It must decide who may name a value a worker will
-hold, where it is stored, how it rotates, and what the trail says about a value
-nobody should read.
+[team-secrets.md](team-secrets.md) is that follow-on record. It decides that a
+Team owns the value, an Agent revision declares which Secrets it needs and how
+they arrive, and delivery is run-level rather than into a named plugin consumer.
+That last decision removes the release digest from the authorization path: a
+value delivered to the run is visible to every process in it, so pinning which
+plugin release receives it would protect nothing. The pin still governs what
+code a run loads, which is §10's concern and unaffected.
 
 ## 13. Alternatives Rejected
 
