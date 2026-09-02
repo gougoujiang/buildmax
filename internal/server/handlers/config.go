@@ -14,6 +14,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	coreschema "github.com/gougoujiang/buildmax/internal/core/schema"
+	coresecret "github.com/gougoujiang/buildmax/internal/core/secret"
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
@@ -35,6 +36,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
 	pluginsvc "github.com/gougoujiang/buildmax/internal/service/plugin"
 	"github.com/gougoujiang/buildmax/internal/service/quota"
+	secretsvc "github.com/gougoujiang/buildmax/internal/service/secret"
 )
 
 // Config holds all dependencies for the unified handler (auth, user API, worker API, inbound webhook).
@@ -91,6 +93,12 @@ type Config struct {
 	// entries. Nil leaves the catalog routes reporting that this deployment
 	// has no Marketplace.
 	PluginService *pluginsvc.Service
+	// SecretStore is the Team Secret store, used by the agent consumption
+	// validator and the secret service. Nil disables the secret feature.
+	SecretStore coresecret.Store
+	// SecretService backs the Secret management routes. Nil when no KEK file is
+	// configured; then the routes report the feature off.
+	SecretService *secretsvc.Service
 	// SchemaStore reports which migrations a database has had applied. Nil
 	// leaves that field of the system status empty.
 	SchemaStore coreschema.Store

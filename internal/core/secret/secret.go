@@ -81,16 +81,20 @@ type Sealer interface {
 	Open(s Sealed, aad []byte) (Items, error)
 }
 
-// AAD builds the associated data that binds a sealed blob to one owner:
-// deployment and Team. A ciphertext moved to another Team's row then fails to
-// open, which is the cross-Team isolation the threat model defends. It binds
-// no Secret public id: that id is minted when the row is inserted, after the
-// value is sealed, and an intra-Team ciphertext swap needs database write
-// access, which is the deployment operator the model already trusts. Kept
-// here so seal and open cannot disagree on it.
-func AAD(deploymentID, teamPublicID string) []byte {
-	// A NUL-separated join so distinct field pairs cannot collide.
-	return fmt.Appendf(nil, "bmax-secret\x00%s\x00%s", deploymentID, teamPublicID)
+// AAD builds the associated data that binds a sealed blob to its Team. A
+// ciphertext moved to another Team's row then fails to open, which is the
+// cross-Team isolation the threat model defends.
+//
+// It binds nothing else. Per-deployment isolation is already cryptographic --
+// another deployment has a different KEK, so unwrapping the DEK fails before
+// GCM is even reached -- and binding a deployment id here would instead break
+// a disaster-recovery replica that deliberately shares the KEK to read the same
+// rows. It binds no Secret public id either: that id is minted when the row is
+// inserted, after the value is sealed, and an intra-Team ciphertext swap needs
+// database write access, which is the deployment operator the model trusts.
+// Kept here so seal and open cannot disagree on it.
+func AAD(teamPublicID string) []byte {
+	return fmt.Appendf(nil, "bmax-secret\x00%s", teamPublicID)
 }
 
 // CreateInput carries one new Secret. ItemNames is the plaintext key set the

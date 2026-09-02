@@ -16,9 +16,11 @@ import (
 	"github.com/gougoujiang/buildmax/internal/config"
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
+	coresecret "github.com/gougoujiang/buildmax/internal/core/secret"
 	"github.com/gougoujiang/buildmax/internal/infra/db"
 	"github.com/gougoujiang/buildmax/internal/infra/k8s"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
+	infrasecret "github.com/gougoujiang/buildmax/internal/infra/secret"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 	httpserver "github.com/gougoujiang/buildmax/internal/server"
 	"github.com/gougoujiang/buildmax/internal/server/authtoken"
@@ -27,6 +29,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
 	pluginsvc "github.com/gougoujiang/buildmax/internal/service/plugin"
 	"github.com/gougoujiang/buildmax/internal/service/quota"
+	secretsvc "github.com/gougoujiang/buildmax/internal/service/secret"
 )
 
 const taskTitlePrompt = `Generate a short task title (3-5 words) from this user request. Return ONLY the title, no quotes or punctuation.`
@@ -397,6 +400,19 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 		// without anyone having to notice a 429 in a log.
 		Audit: st,
 	}
+	// The Team Secret feature is on only when a KEK file is configured. When it
+	// is, a KEK that will not load fails startup rather than leaving the values
+	// silently unreadable -- see docs/design/team-secrets.md §9.1.
+	var secretStore coresecret.Store
+	var secretService *secretsvc.Service
+	if sc.Secret.KEKFile != "" {
+		kek, err := infrasecret.LoadKEKFile(sc.Secret.KEKFile)
+		if err != nil {
+			return httpserver.Config{}, fmt.Errorf("secret store: %w", err)
+		}
+		secretStore = st
+		secretService = &secretsvc.Service{Store: st, Sealer: infrasecret.NewCipher(kek)}
+	}
 	cfg := httpserver.Config{
 		Addr: fmt.Sprintf(":%d", port),
 		Auth: httpserver.AuthConfig{
@@ -430,8 +446,9 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 			SchemaStore:             st,
 			LLMModelStore:           st,
 			ArtifactStore:           st,
+			SecretStore:             secretStore,
 		},
-		Services: httpserver.ServicesConfig{Plugin: pluginService},
+		Services: httpserver.ServicesConfig{Plugin: pluginService, Secret: secretService},
 		Storage: httpserver.StorageConfig{
 			PersistStorage:   storage.persist,
 			RunOutputStorage: storage.runOutput,

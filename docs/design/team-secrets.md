@@ -485,12 +485,16 @@ wrapped data-encryption keys are stored in MySQL.
 
 Each Secret's item map is encrypted with AES-256-GCM or an equivalently
 reviewed AEAD under a fresh random DEK and nonce, rewritten whole on every edit.
-Associated data binds the ciphertext to the deployment and the Team public ID,
-so a ciphertext moved to another Team's row fails authentication -- the
-cross-Team isolation the threat model defends. It deliberately does not bind the
-Secret's public ID: that ID is minted when the row is inserted, after the value
-is sealed, and an intra-Team ciphertext swap needs database write access, which
-is the deployment operator the model already trusts.
+Associated data binds the ciphertext to the Team public ID, so a ciphertext
+moved to another Team's row fails authentication -- the cross-Team isolation
+the threat model defends. It binds nothing else. Per-deployment isolation is
+already cryptographic: another deployment has a different KEK, so unwrapping the
+DEK fails before GCM is reached, and binding a deployment id in the associated
+data would instead break a disaster-recovery replica that deliberately shares
+the KEK to read the same rows. It binds no Secret public ID either: that ID is
+minted when the row is inserted, after the value is sealed, and an intra-Team
+ciphertext swap needs database write access, which is the deployment operator
+the model already trusts.
 
 The DEK is wrapped by a KEK, which never belongs in the database or
 `server.yaml`. A KEK provider interface (§16) has three implementations, and a
@@ -783,7 +787,7 @@ of a reveal operation.
 | `internal/infra/secret` | AEAD/envelope implementation, external provider adapters, and credential-exchange clients |
 | `internal/bootstrap` | The `buildmax-server secret rewrap` KEK-rotation command, alongside the existing `run-token` admin command |
 | `internal/infra/db` | Row structs and metadata/ciphertext persistence; no provider calls |
-| `internal/server/handlers` | User and worker authentication, Team authorization, request/response shaping |
+| `internal/server/handlers` | User and worker authentication, Team authorization, request/response shaping. The Team Secret routes are owner-only (`team.ActionManageSecrets`) and value-write-only; they report 503 when no KEK file is configured |
 | `internal/agentapp/taskrun` | Consume an authorized in-memory grant set, place environment grants, run renderers into the run's `HOME` |
 | `internal/infra/sandbox` | Apply the §13.1 deny-by-default environment policy and admit exactly this run's declared names |
 
@@ -926,8 +930,9 @@ a worker holds only what its run needs.
 - **done** — environment consumption config on the Agent revision, validated
   against the team's live Secrets when the revision is saved and versioned with
   it;
-- owner-only create, item edit (per-item patch and whole-map replace), disable,
-  and destroy, over HTTP;
+- **done** — owner-only create, item edit (per-item patch and whole-map
+  replace), disable, and destroy over HTTP, gated on a configured KEK file, with
+  the agent request carrying the consumption config;
 - delivery of the declared grants into the run;
 - Portal Secret metadata and item editor (row view and raw JSON),
   consumption-health, carrying §3's two consequences in the copy;

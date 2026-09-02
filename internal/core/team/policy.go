@@ -47,6 +47,12 @@ const (
 	// write. Editing another author's comment is permitted to nobody, so it is
 	// not an action here — see internal/service/issue.
 	ActionModerateIssueComments Action = "moderate_issue_comments"
+	// ActionManageSecrets covers creating, editing, disabling, destroying, and
+	// listing Team Secrets. Owner-only for now: value authority stays with the
+	// owner until BuildMax has finer team grants, and whether an admin may even
+	// list secret metadata is an open question. See
+	// docs/design/team-secrets.md §10 and §20.
+	ActionManageSecrets Action = "manage_secrets"
 )
 
 // Actions returns every action, so a test can prove the matrix covers each one
@@ -63,6 +69,7 @@ func Actions() []Action {
 		ActionReadAuditTrail,
 		ActionCommentIssue,
 		ActionModerateIssueComments,
+		ActionManageSecrets,
 	}
 }
 
@@ -91,7 +98,7 @@ func EffectiveRole(role string) string {
 // row into the role to ask about.
 func Allows(role string, action Action) bool {
 	switch action {
-	case ActionManageTeamMembers, ActionChangeMemberRole, ActionReadAuditTrail, ActionModerateIssueComments:
+	case ActionManageTeamMembers, ActionChangeMemberRole, ActionReadAuditTrail, ActionModerateIssueComments, ActionManageSecrets:
 		return role == RoleOwner
 	case ActionManageAgents, ActionManageWorkflows, ActionAssignIssueWorkflow, ActionInviteTeamMember:
 		return role == RoleOwner || role == RoleAdmin

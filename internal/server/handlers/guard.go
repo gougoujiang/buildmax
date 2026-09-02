@@ -146,6 +146,8 @@ func (h *Handler) buildTeamHandler() *teamroutes.Handler {
 		Audit:            h.cfg.Audit,
 		Plugins:          h.cfg.PluginService,
 		LoginCodes:       h.cfg.LoginCodeStore,
+		Secrets:          h.cfg.SecretStore,
+		SecretService:    h.cfg.SecretService,
 	})
 }
 

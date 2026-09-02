@@ -26,13 +26,12 @@ var (
 	ErrItemNotFound = apierr.New(apierr.KindInvalid, "no such item to remove")
 )
 
-// Service owns Secret lifecycle. Store persists metadata and sealed bytes,
-// Sealer does the cryptography, and DeploymentID is bound into the associated
-// data so a ciphertext cannot be opened under another deployment.
+// Service owns Secret lifecycle. Store persists metadata and sealed bytes and
+// Sealer does the cryptography. The associated data binds each ciphertext to
+// its team; see coresecret.AAD.
 type Service struct {
-	Store        coresecret.Store
-	Sealer       coresecret.Sealer
-	DeploymentID string
+	Store  coresecret.Store
+	Sealer coresecret.Sealer
 }
 
 // CreateCmd creates a Secret with its first items.
@@ -53,7 +52,7 @@ func (s *Service) Create(ctx context.Context, cmd CreateCmd) (*coresecret.Secret
 	if err != nil {
 		return nil, err
 	}
-	sealed, err := s.Sealer.Seal(coresecret.Items(cmd.Items), coresecret.AAD(s.DeploymentID, cmd.TeamID))
+	sealed, err := s.Sealer.Seal(coresecret.Items(cmd.Items), coresecret.AAD(cmd.TeamID))
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +110,7 @@ func (s *Service) PatchItems(ctx context.Context, teamID, id string, set map[str
 	if sec.State == coresecret.StateDestroyed {
 		return nil, ErrDestroyed
 	}
-	items, err := s.Sealer.Open(*sealed, coresecret.AAD(s.DeploymentID, sec.TeamID))
+	items, err := s.Sealer.Open(*sealed, coresecret.AAD(sec.TeamID))
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +147,7 @@ func (s *Service) SetState(ctx context.Context, teamID, id string, state coresec
 
 // seal re-seals items and stores them. Item names are pre-validated.
 func (s *Service) seal(ctx context.Context, teamID, id string, items map[string]string, names []string) (*coresecret.Secret, error) {
-	sealed, err := s.Sealer.Seal(coresecret.Items(items), coresecret.AAD(s.DeploymentID, teamID))
+	sealed, err := s.Sealer.Seal(coresecret.Items(items), coresecret.AAD(teamID))
 	if err != nil {
 		return nil, err
 	}

@@ -100,7 +100,7 @@ func testService(t *testing.T) *Service {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &Service{Store: newMemStore(), Sealer: infrasecret.NewCipher(kek), DeploymentID: "dep1"}
+	return &Service{Store: newMemStore(), Sealer: infrasecret.NewCipher(kek)}
 }
 
 func TestService_CreateAndEdit(t *testing.T) {
@@ -131,7 +131,7 @@ func TestService_CreateAndEdit(t *testing.T) {
 
 	// Confirm the merged plaintext by reading the sealed bytes back.
 	_, sealed, _ := svc.Store.GetSealed(ctx, created.ID)
-	items, err := svc.Sealer.Open(*sealed, coresecret.AAD("dep1", "tm_1"))
+	items, err := svc.Sealer.Open(*sealed, coresecret.AAD("tm_1"))
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}

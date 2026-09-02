@@ -20,6 +20,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	coreschema "github.com/gougoujiang/buildmax/internal/core/schema"
+	coresecret "github.com/gougoujiang/buildmax/internal/core/secret"
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
@@ -35,6 +36,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
 	pluginsvc "github.com/gougoujiang/buildmax/internal/service/plugin"
 	"github.com/gougoujiang/buildmax/internal/service/quota"
+	secretsvc "github.com/gougoujiang/buildmax/internal/service/secret"
 	"github.com/gougoujiang/buildmax/internal/service/task"
 	"github.com/gougoujiang/buildmax/internal/service/workflow"
 )
@@ -88,6 +90,8 @@ type StoresConfig struct {
 	// ArtifactStore records durable files. Nil leaves the artifact routes
 	// answering 503, which is what a deployment with no database has.
 	ArtifactStore coreartifact.Store
+	// SecretStore is the Team Secret store. Nil disables the secret feature.
+	SecretStore coresecret.Store
 }
 
 // ServicesConfig holds application services the handlers reach through rather
@@ -97,6 +101,9 @@ type ServicesConfig struct {
 	// is a deployment with no Marketplace, which those routes report rather
 	// than serving an empty catalog.
 	Plugin *pluginsvc.Service
+	// Secret backs the Team Secret management routes. Nil when no KEK file is
+	// configured; those routes then report the feature off.
+	Secret *secretsvc.Service
 }
 
 // StorageConfig holds blob storage and workspace paths.
@@ -248,7 +255,9 @@ func buildHandlersConfig(cfg Config, drain <-chan struct{}) handlers.Config {
 		SchemaStore:              cfg.Stores.SchemaStore,
 		LLMModelStore:            cfg.Stores.LLMModelStore,
 		ArtifactStore:            cfg.Stores.ArtifactStore,
+		SecretStore:              cfg.Stores.SecretStore,
 		PluginService:            cfg.Services.Plugin,
+		SecretService:            cfg.Services.Secret,
 		Deployment:               cfg.Deployment,
 		DependencyProbes:         dependencyProbes(cfg.Readiness),
 		RedactedConfig:           cfg.RedactedConfig,

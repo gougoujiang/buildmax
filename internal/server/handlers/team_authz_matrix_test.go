@@ -79,6 +79,15 @@ var teamRoutes = []authzCase{
 	{"GET", "/api/teams/{team_id}/sandbox-defaults", coreteam.RoleMember, false},
 	{"PUT", "/api/teams/{team_id}/sandbox-defaults", coreteam.RoleAdmin, false},
 
+	// Team Secrets are owner-only across the board in this slice: value
+	// authority stays with the owner, and whether an admin may even list is an
+	// open question. See docs/design/team-secrets.md §10 and §20.
+	{"GET", "/api/teams/{team_id}/secrets", coreteam.RoleOwner, false},
+	{"POST", "/api/teams/{team_id}/secrets", coreteam.RoleOwner, false},
+	{"GET", "/api/teams/{team_id}/secrets/{secret_id}", coreteam.RoleOwner, false},
+	{"PATCH", "/api/teams/{team_id}/secrets/{secret_id}", coreteam.RoleOwner, false},
+	{"PUT", "/api/teams/{team_id}/secrets/{secret_id}/state", coreteam.RoleOwner, false},
+
 	{"GET", "/api/teams/{team_id}/members", coreteam.RoleMember, false},
 	{"DELETE", "/api/teams/{team_id}/members/{user_id}", coreteam.RoleOwner, false},
 	// Role change (including the ownership transfer that results from
