@@ -242,6 +242,13 @@ type RunLoopOpts struct {
 	// AgentType is the subagent definition name when IsSubagent is true.
 	// Empty for main-agent runs.
 	AgentType string
+	// RedactResult removes a run's materialized Team Secret values from a tool
+	// result before it enters the model context, the trace, the hooks, and the
+	// application log. It is a plain function so this package depends on no
+	// redactor; agentapp supplies one built from the run's grant values. Nil
+	// leaves results unredacted, which is what every surface with no Secret
+	// grants passes. See docs/design/team-secrets.md §12.
+	RedactResult func(string) string
 }
 
 // RunLoop runs the LLM loop once: build messages from history, call LLM, handle tool_calls, append to history, repeat until final reply.
@@ -822,6 +829,13 @@ func executeCall(ctx context.Context, opts RunLoopOpts, c *pendingCall) {
 		c.result = fmt.Sprintf("error: %v", err)
 	} else {
 		c.result, c.parts = result, parts
+	}
+	// Redact the run's Secret values before c.result reaches anything: the
+	// EventToolEnd below, the model context, the hooks, and the log all read
+	// it, so redacting once here covers every downstream sink. See
+	// docs/design/team-secrets.md §12.
+	if opts.RedactResult != nil {
+		c.result = opts.RedactResult(c.result)
 	}
 	emit(opts.EventSink, Event{
 		Kind:          EventToolEnd,

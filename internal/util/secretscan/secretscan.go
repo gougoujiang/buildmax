@@ -89,15 +89,22 @@ func NewRedactor(values []string) *Redactor {
 // Redact replaces exact registered values first, then recognized shapes. A nil
 // Redactor redacts by shape only, so a caller never needs to nil-check.
 func (r *Redactor) Redact(s string) string {
-	if s == "" {
+	return Redact(r.RedactExact(s))
+}
+
+// RedactExact replaces only the registered exact values, not recognized shapes.
+// It is for a sink where shape-based redaction would mangle output a consumer
+// still needs -- a tool result the model must read to continue its work, where
+// blanking every token-shaped substring would break the run. A nil Redactor
+// returns s unchanged.
+func (r *Redactor) RedactExact(s string) string {
+	if r == nil || s == "" {
 		return s
 	}
-	if r != nil {
-		for _, v := range r.exact {
-			s = strings.ReplaceAll(s, v, "[redacted]")
-		}
+	for _, v := range r.exact {
+		s = strings.ReplaceAll(s, v, "[redacted]")
 	}
-	return Redact(s)
+	return s
 }
 
 // Findings names the secret shapes recognized in s, in the order the patterns

@@ -26,6 +26,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 	tool "github.com/gougoujiang/buildmax/internal/tool"
 	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/gougoujiang/buildmax/internal/util/secretscan"
 )
 
 // Identity belongs in an attr, not in every message string.
@@ -505,7 +506,8 @@ func runtimeModelEntries(runtimeModel config.ModelEntry, managed ManagedInferenc
 func runAgentTask(ctx context.Context, run *coretask.Run, runDir, runGlobalDir, runOSHome, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry, managed ManagedInference, additionalSystemPrompt string, publisher tool.ArtifactPublisher, issues tool.IssueClient, sandboxNetworkTier config.SandboxNetworkTier, sandboxFilesystemTier config.SandboxFilesystemTier, secretGrants map[string]string) (agentRunOutput, error) {
 	var sink llm.StreamSink
 	if streamSender != nil {
-		sink = &streamSinkAdapter{ctx: ctx, streamSender: streamSender, taskRunID: run.ID}
+		sink = &streamSinkAdapter{ctx: ctx, streamSender: streamSender, taskRunID: run.ID,
+			redactor: secretscan.NewRedactor(mapValues(secretGrants))}
 	}
 
 	var out agentapp.RunResult
@@ -603,12 +605,17 @@ type streamSinkAdapter struct {
 	ctx          context.Context
 	streamSender workerclient.StreamSender
 	taskRunID    string
+	// redactor removes this run's exact Secret values from a streamed delta
+	// before it reaches the watcher. Nil is a no-op. See
+	// docs/design/team-secrets.md §12.
+	redactor *secretscan.Redactor
 }
 
 func (s *streamSinkAdapter) OnDelta(delta string) {
 	if s.streamSender == nil || delta == "" {
 		return
 	}
+	delta = s.redactor.RedactExact(delta)
 	if err := s.streamSender.SendDelta(s.ctx, s.taskRunID, delta); err != nil {
 		componentLog().Warn("stream send delta failed", "task_run_id", s.taskRunID, "err", err)
 	}

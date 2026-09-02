@@ -25,6 +25,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/infra/trace"
 	tools "github.com/gougoujiang/buildmax/internal/tool"
 	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/gougoujiang/buildmax/internal/util/secretscan"
 )
 
 type AppConfig struct {
@@ -201,7 +202,11 @@ type AgentApp struct {
 	maxIterations   int
 	// secretEnvValues are this run's Team Secret grant values, registered with
 	// each trace recorder so they are redacted from the durable trace.
-	secretEnvValues        []string
+	secretEnvValues []string
+	// secretRedactor redacts those exact values from tool results before they
+	// enter the model context and from streamed output. Non-nil for every app;
+	// a no-op when the run has no grants. See docs/design/team-secrets.md §12.
+	secretRedactor         *secretscan.Redactor
 	additionalSystemPrompt string
 	artifactPublisher      tools.ArtifactPublisher
 	issueClient            tools.IssueClient
@@ -1132,6 +1137,7 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 		Hooks:            a.hooks,
 		SessionID:        sess.ID(),
 		Workspace:        a.workspace.Root(),
+		RedactResult:     a.secretRedactor.RedactExact,
 	})
 	// Failed runs still leave a complete trace (RunLoop emits run_end with the
 	// error), so carry TraceID out even on the error paths — a failed run is
