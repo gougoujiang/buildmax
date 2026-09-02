@@ -774,7 +774,7 @@ of a reveal operation.
 
 | Area | Responsibility |
 |---|---|
-| `internal/core/model` | Secret metadata, encrypted item maps, consumption config, run grants, errors, and narrow store interfaces |
+| `internal/core/secret` | Secret metadata, item map and sealed-bytes types, consumption config, run grants, errors, and narrow store interfaces |
 | `internal/service/secret` | Lifecycle rules, consumption validation, renderer parameter resolution, materialization, exchange, and revocation |
 | `internal/infra/secret` | AEAD/envelope implementation, external provider adapters, and credential-exchange clients |
 | `internal/bootstrap` | The `buildmax-server secret rewrap` KEK-rotation command, alongside the existing `run-token` admin command |
