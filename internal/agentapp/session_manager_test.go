@@ -215,6 +215,34 @@ func TestRenameAndPinShowUpInTheList(t *testing.T) {
 	}
 }
 
+// Switching a conversation's model has to reach its next turn. Desktop opens a
+// session fresh per turn, so a switch that only set an app-level default was
+// lost: the session was created carrying its own SelectedModel, which won at
+// request time. SetSessionModel records the switch on the session so the reopen
+// resolves to it rather than to the model it was created with.
+func TestSetSessionModelWinsOverTheCreationDefault(t *testing.T) {
+	m, sess := openManaged(t) // created with "test-model"
+	id := sess.ID()
+	if err := sess.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	if err := m.SetSessionModel(id, "switched-model"); err != nil {
+		t.Fatalf("SetSessionModel: %v", err)
+	}
+
+	// The reopen carries no per-open default that would mask the stored value,
+	// which is the shape a next-turn open takes.
+	reopened, err := m.Open(id, "test-model")
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	defer func() { _ = reopened.Close() }()
+	if got := reopened.ModelName("test-model"); got != "switched-model" {
+		t.Errorf("model = %q, want the switched-to model to survive the reopen", got)
+	}
+}
+
 func TestSubagentSessionsAreHiddenFromTheList(t *testing.T) {
 	m := NewSessionManager(t.TempDir())
 	visible, err := m.Create("test-model")

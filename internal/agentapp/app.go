@@ -634,6 +634,38 @@ func (a *AgentApp) SetDefaultModel(name string) {
 	a.modelMu.Unlock()
 }
 
+// SessionModelName is the model a persisted conversation runs under: its own
+// recorded selection, or the app default when it records none or is not found.
+//
+// It exists because a conversation's model is per-session state, not the app
+// default: once one conversation's model is switched, the picker must show that
+// conversation's model rather than whatever the app default happens to be.
+func (a *AgentApp) SessionModelName(sessionID string) string {
+	if a == nil || a.sessionManager == nil || sessionID == "" {
+		return a.DefaultModelName()
+	}
+	loaded, err := a.sessionManager.Load(sessionID, session.LoadMetaOnly)
+	if err != nil || loaded.Meta.SelectedModel == "" {
+		return a.DefaultModelName()
+	}
+	return loaded.Meta.SelectedModel
+}
+
+// SetSessionModel records the model an existing conversation runs under, so its
+// next turn resolves to that model rather than the one it was created with.
+//
+// It writes the session's metadata directly, without opening it for writing:
+// the model is a current selection, like a rename, so it never touches history.
+// A conversation with a run in flight holds the writer lock and reports
+// session.ErrLocked here — its live turn already fixed its model, and the
+// switch lands on the next one.
+func (a *AgentApp) SetSessionModel(sessionID, modelName string) error {
+	if a == nil || a.sessionManager == nil {
+		return fmt.Errorf("session store is not initialized")
+	}
+	return a.sessionManager.SetSessionModel(sessionID, modelName)
+}
+
 // AgentDefs returns the user-defined sub-agent definitions for this workspace.
 func (a *AgentApp) AgentDefs() []subagent.Def {
 	if a == nil || a.subagentsRegistry == nil {
