@@ -140,7 +140,7 @@ characters; a longer list is rejected and the agent is asked to merge it. A
 session that never writes either one carries nothing extra.
 
 **`UploadArtifact` publishes; it does not save.** It hands one file to the team
-and returns an `ar_...` reference anyone with access can open. Content is
+and returns an opaque reference anyone with access can open. Content is
 immutable, so a corrected version is a second artifact rather than a change to
 the first. The agent chooses the file: nothing is uploaded automatically, which
 is what keeps `.env` files, caches, and intermediate output out of the team's

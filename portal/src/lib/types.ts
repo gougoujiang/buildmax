@@ -1,10 +1,5 @@
 // --- Entity types ---
 
-export interface Profile {
-  id: string
-  name: string
-}
-
 /** Background task (Tier 2) created from a conversation. Backend: Task. */
 export interface Task {
   id: string
@@ -45,7 +40,7 @@ export type Route =
     }
   | {
       name: "space"
-      section?: "overview" | "members" | "artifacts" | "plugins" | "secrets" | "audit" | "memberNew"
+      section?: "overview" | "members" | "plugins" | "secrets" | "audit" | "memberNew"
     }
   | { name: "admin"; section?: "overview" | "accounts" | "teams" | "models" | "plugins" | "audit" }
   | { name: "workflows" }
@@ -53,6 +48,8 @@ export type Route =
   | { name: "workflowRun"; workflowRunId: string }
   | { name: "issues" }
   | { name: "issue"; issueId: string }
+  | { name: "artifacts" }
+  | { name: "artifact"; artifactId: string }
 
 // --- Agent (user-owned persona) ---
 

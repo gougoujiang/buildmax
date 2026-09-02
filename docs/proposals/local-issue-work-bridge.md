@@ -6,7 +6,7 @@
 
 Related: [roadmap](../ROADMAP.md),
 [surface positioning](../design/surface-positioning.md),
-[Issue model](../design/issue-model.md),
+[data model](../contribute/architecture/data-model.md),
 [unified artifacts](../design/unified-artifacts.md),
 [Desktop architecture](../contribute/architecture/desktop.md),
 [CLI architecture](../contribute/architecture/cli.md),

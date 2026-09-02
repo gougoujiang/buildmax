@@ -339,7 +339,7 @@ func TestIssueFlowOutputs_ArtifactsPublishedByARun(t *testing.T) {
 	}}
 	fx.taskRuns.Runs = []coretask.Run{{ID: runID, TaskID: taskID, Status: "SUCCEEDED", CreatedAt: time.Unix(200, 0).UTC()}}
 	if _, err := fx.published.CreateArtifact(context.Background(), coreartifact.CreateInput{
-		TeamID: fx.personalID, ArtifactID: "ar_published", Filename: "report.pdf",
+		TeamID: fx.personalID, ArtifactID: "tsyt7at6cjfr33d73mta", Filename: "report.pdf",
 		MediaType: "application/pdf", SizeBytes: 2048,
 		SourceType: coreartifact.SourceAgent, SourceID: runID,
 		CreatedByType: coreartifact.CreatorAgent, Title: "Quarterly report",
@@ -360,7 +360,7 @@ func TestIssueFlowOutputs_ArtifactsPublishedByARun(t *testing.T) {
 	if found == nil {
 		t.Fatalf("no artifact output in %+v", flow.Outputs)
 	}
-	if found.ArtifactID != "ar_published" {
+	if found.ArtifactID != "tsyt7at6cjfr33d73mta" {
 		t.Errorf("artifact id = %q", found.ArtifactID)
 	}
 	if found.Title != "Quarterly report" || found.Filename != "report.pdf" || found.SizeBytes != 2048 {
@@ -415,8 +415,8 @@ func TestIssueFlowOutputs_ArtifactsSurviveARetry(t *testing.T) {
 		{ID: secondRun, TaskID: taskID, Status: "SUCCEEDED", CreatedAt: time.Unix(300, 0).UTC()},
 	}
 	for _, c := range []struct{ id, run, name string }{
-		{"ar_from_first", firstRun, "draft.pdf"},
-		{"ar_from_second", secondRun, "final.pdf"},
+		{"usyt7at6cjfr33d73mta", firstRun, "draft.pdf"},
+		{"vsyt7at6cjfr33d73mta", secondRun, "final.pdf"},
 	} {
 		if _, err := fx.published.CreateArtifact(context.Background(), coreartifact.CreateInput{
 			TeamID: fx.personalID, ArtifactID: c.id, Filename: c.name,
@@ -434,10 +434,10 @@ func TestIssueFlowOutputs_ArtifactsSurviveARetry(t *testing.T) {
 			seen[o.ArtifactID] = true
 		}
 	}
-	if !seen["ar_from_second"] {
+	if !seen["vsyt7at6cjfr33d73mta"] {
 		t.Error("the latest run's artifact is missing")
 	}
-	if !seen["ar_from_first"] {
+	if !seen["usyt7at6cjfr33d73mta"] {
 		t.Error("an earlier run's artifact was dropped; a retry must not hide what the first attempt published")
 	}
 }

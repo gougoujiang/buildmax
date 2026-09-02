@@ -162,9 +162,27 @@ func (w *Worktree) list(ctx context.Context) (string, error) {
 		case info.Occupied:
 			fmt.Fprintf(&b, "\t(in use by %s)", info.Holder)
 		}
+		// What removing the tree would discard (D5): report it so the model can
+		// tell a spent tree from one holding the only copy of its work.
+		if summary := worktreeWorkSummary(info); summary != "" {
+			fmt.Fprintf(&b, "\t(%s)", summary)
+		}
 		b.WriteString("\n")
 	}
 	return strings.TrimRight(b.String(), "\n"), nil
+}
+
+// worktreeWorkSummary describes a tree's uncommitted work for the list, empty
+// when the tree is clean.
+func worktreeWorkSummary(info worktree.Info) string {
+	var parts []string
+	if info.Dirty > 0 {
+		parts = append(parts, fmt.Sprintf("%d uncommitted file(s)", info.Dirty))
+	}
+	if info.Unmerged > 0 {
+		parts = append(parts, fmt.Sprintf("%d commit(s) no other branch reaches", info.Unmerged))
+	}
+	return strings.Join(parts, ", ")
 }
 
 func (w *Worktree) remove(ctx context.Context, args map[string]any) (string, error) {

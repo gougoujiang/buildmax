@@ -14,6 +14,178 @@ Unreleased entries live one per file under
 touch the same line. `./make changelog` prints what they currently say, and
 release preparation folds them into a dated section here.
 
+## [0.2.0-alpha.7] - 2026-09-02
+
+### Added
+
+- Portal's agent editor can now set an agent's network and filesystem
+  sandbox tier directly, and a team can set the default tier an agent
+  inherits when it declares neither, from a new "Sandbox defaults" section
+  on the team's Plugins settings tab.
+
+- A background agent definition can now declare a network sandbox tier
+  (none/registries/open) and a filesystem tier (workspace/shared-read/
+  external-write) that its worker runs apply, without an operator
+  hand-editing `policy.yaml` per agent.
+
+- Deleted and expired artifacts now have their stored objects reclaimed by an
+  hourly retention sweep, so deleting an artifact eventually frees the bytes
+  instead of only hiding it; `storage.artifact_purge_after_days` delays that,
+  and the sweep records what it expired and reclaimed in the audit trail.
+
+- `./make test mysql` runs the store tests against a real MySQL on a database
+  it creates and drops, and every pull request now runs it against a pinned
+  server. The tests existed but skipped themselves without a DSN, so schema,
+  query, and transaction behavior was outside ordinary change review.
+
+- Artifacts are now a top-level area in Portal instead of a space-settings
+  tab, and each one has its own page at `#/artifact/<id>` showing its
+  provenance, size, digest, and preview — so an `ar_` reference an agent
+  returns is something a teammate can open, not just look up in a list.
+
+- A run whose sandbox resolved weaker than its surface's own baseline — or
+  fell back to unconfined because the OS backend was unavailable — now logs a
+  warning at startup and marks the run's trace and `SessionStart` hook
+  payload as downgraded, instead of proceeding silently.
+
+- The sandbox can now bound a Bash command's own CPU time, memory, process
+  count, and open file descriptors (`sandbox.process.*` in settings.yaml /
+  policy.yaml). Memory limits have no effect on macOS, which does not
+  support them at the OS level.
+
+- The CLI's `/skills` panel is now selectable: arrow keys move, typing filters
+  by name or description, and Enter fills the input with `/<skill-name>` for
+  you to finish and send, matching Desktop's skill picker.
+
+- The store's four conditional-update claims — task claiming, run transition,
+  result-delivery claiming, and cancellation beside a worker's report — are now
+  tested against a real MySQL under contention, so a run cannot quietly be
+  claimed twice or a task summary delivered twice.
+
+- A quota tier can now cap what a space's artifacts hold in total with
+  `max_storage_bytes`, refusing an upload that would cross it; space settings
+  report storage alongside runs and tokens. The seeded tiers set no limit, so
+  an existing deployment is unaffected until an operator chooses one.
+
+- The deployment smoke now dispatches a real task that calls the `Bash` tool
+  through the worker and checks the sandbox actually confined it, so a
+  regression in worker sandboxing is caught automatically instead of only by
+  manual reproduction.
+
+### Changed
+
+- `./make e2e local` now picks a fresh Compose project name and ports for
+  every run instead of a fixed one, so it never collides with a contributor's
+  persistent stack or another concurrent run. `./make compose up`/`kind up`
+  can also be pointed at a second, differently named and ported stack with
+  `BUILDMAX_COMPOSE_PROJECT`/`BUILDMAX_KIND_CLUSTER` and matching port
+  variables, so multiple deployments can run side by side.
+
+- `./make e2e` now requires a suite instead of defaulting to `kind`. The default
+  was the suite with the heaviest prerequisite, so a bare invocation reported a
+  missing cluster rather than a missing argument; it now prints the six suites
+  and what each one needs.
+
+- Local kind manifests now live under `deployment/kind/`, dropping the old
+  `dev-` directory prefix; the `./make kind` command surface is unchanged.
+
+- Contributor-local configuration now lives in one gitignored `.local/`
+  directory, created by `./make setup local` from the committed templates. The
+  repository-root `.env` became `.local/env`, `settings.local.yaml` became
+  `.local/settings.yaml`, and the local copy of
+  `deployment/buildmax-secret.example.yaml` became `.local/buildmax-secret.yaml`.
+  `./make doctor` reports whether the directory is there, and the command moves
+  files left at the old paths rather than duplicating them.
+  `deployment/compose/.env` is unchanged: Compose reads it from the compose
+  file's own directory.
+
+- `./make help` now groups commands by what running one does — the everyday
+  local ones, the model runs that need an API key, the deployments that start
+  containers or bill a provider, and the release chores — replacing an
+  "Advanced" section that held `fmt` next to the DigitalOcean infrastructure.
+
+- Trimmed the long-winded comments in `config-examples/*.example.yaml` down
+  to the facts a reader needs, keeping every documented key and default.
+
+- Adding a team member is now an invitation: `POST /api/teams/{team_id}/members`
+  is replaced by `POST /api/teams/{team_id}/invitations`, which creates a
+  pending offer instead of adding the account immediately. The invited
+  account sees it at `GET /api/invitations` and confirms it at
+  `POST /api/invitations/{invitation_id}/accept`. Inviting an email with no
+  BuildMax account is refused, naming the `system_admin` path to create one
+  first — team-scoped invitation never creates an account. Admin may now
+  invite at the member role; owner may invite at member or admin. A team
+  owner can also `PATCH /api/teams/{team_id}/members/{user_id}` to promote or
+  demote a member without a remove/re-add round trip, transfer ownership by
+  setting a target's role to owner (unilateral and immediate), and
+  `POST /api/teams/{team_id}/members/{user_id}/login-code` to recover a
+  locked-out member of their own team without needing a `system_admin`.
+  Portal's Space → Members page has an Invite dialog, a pending-invitations
+  list with revoke, a role selector, a distinct ownership-transfer
+  confirmation, and a login-code action; Account → Invitations lists and
+  accepts what has been sent to the signed-in user.
+
+### Fixed
+
+- Creating a conversation now rejects a channel the caller may not claim.
+  `workflow`, `issue_agent`, and `system` mark a conversation the server made
+  and nobody holds; naming one produced a conversation the Portal rendered as
+  agent-owned and the list hid. Only `portal`, `telegram`, `cron`, and
+  `webhook` are accepted, and an unknown channel is a 400 rather than a stored
+  string nothing understands.
+
+- `./make kind seed` reads a model's `cache_control` and `pricing` blocks and
+  passes them to the catalog, so a seeded deployment answers with the same
+  cache policy and rates as the local settings it was seeded from. It no longer
+  reads the removed `prompt_cache` key, whose flag the catalog command dropped —
+  a settings file that still carried it failed the whole seed.
+
+- A quota limit that cannot be read now refuses the work instead of admitting
+  it. A failed team, tier, or usage lookup was reported as "allowed", so a
+  deployment whose database was unreachable served unmetered runs and managed
+  inference and recorded nothing about having done so. Such a failure is a 500
+  naming the read that failed, distinct from the 429 an over-quota team gets;
+  a team with no record, no tier, or a tier that names nothing is still
+  admitted, because absence of a limit is not the same as not knowing. Team
+  usage reports the same way rather than showing a zeroed snapshot.
+
+- Creating a team now reports its plugin curation mode as `open` rather than
+  leaving the field empty, so the team returned by a create and the same team
+  returned by a later read no longer disagree about who fills its plugin
+  activation list.
+
+- Worker pods now use a custom seccomp profile instead of Kubernetes'
+  `RuntimeDefault`, and the sandbox re-binds `/proc` instead of mounting a
+  fresh one — both were silently preventing the worker's Bash sandbox from
+  running at all once deployed to a real cluster.
+
+### Security
+
+- `command` and `http` hooks now run through the same sandbox confinement
+  that already applies to `Bash` and `WebFetch`, instead of reaching a shell
+  or the network unconstrained regardless of the sandbox being enabled.
+
+- The sandbox now probes its backend with a real confined command before
+  trusting it, instead of only checking that `bwrap`/`sandbox-exec` is on
+  `PATH`. A backend that cannot actually confine a command now reports
+  unavailable, so `fail_if_unavailable` refuses to start the run instead of
+  silently executing commands unsandboxed.
+
+- Fixed the worker Bash sandbox being silently unconfined under
+  `worker.run_mode: local_process` (Compose): the marker that gates the
+  strict worker baseline never reached that worker's filtered environment,
+  so model-chosen commands ran with no filesystem confinement at all. A
+  Compose deployment also needs the Job pod's seccomp override for `bwrap`
+  to build its sandbox at all; `deployment/compose/compose.yaml` now sets
+  it.
+
+- Worker task runs built from the official container images now select the
+  stricter worker sandbox baseline instead of resolving to the permissive
+  CLI default; the worker container images now install `bubblewrap` and
+  `socat`, the Linux sandbox backend's dependencies. A worker running
+  outside those images (a bare host or native Windows) keeps the CLI
+  default, since it cannot guarantee the backend is present.
+
 ## [0.2.0-alpha.6] - 2026-08-29
 
 `0.2.0-alpha.5` carries the same changes but published nothing: it was tagged,
@@ -2076,7 +2248,8 @@ its Portal image exists. This version replaces it.
 - Linux, macOS, and Windows archives with checksums and third-party notices.
 - Multi-architecture Linux container image published to GHCR.
 
-[Unreleased]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.6...HEAD
+[Unreleased]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.7...HEAD
+[0.2.0-alpha.7]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.6...v0.2.0-alpha.7
 [0.2.0-alpha.6]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.4...v0.2.0-alpha.6
 [0.2.0-alpha.4]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.3...v0.2.0-alpha.4
 [0.2.0-alpha.3]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.2...v0.2.0-alpha.3

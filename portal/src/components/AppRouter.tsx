@@ -7,6 +7,8 @@ import { NewConversation } from "../pages/conversations/NewConversation"
 import { Explore } from "../pages/explore/Explore"
 import { Issues } from "../pages/issues/Issues"
 import { IssueDetail } from "../pages/issues/IssueDetail"
+import { Artifacts } from "../pages/artifacts/Artifacts"
+import { ArtifactDetail } from "../pages/artifacts/ArtifactDetail"
 import { Workflows } from "../pages/workflows/Workflows"
 import { WorkflowDetail } from "../pages/workflows/WorkflowDetail"
 import { WorkflowRunDetail } from "../pages/workflows/WorkflowRunDetail"
@@ -82,6 +84,14 @@ export function AppRouter({
 
   if (route.name === "issue") {
     return <IssueDetail token={token ?? null} issueId={route.issueId} userId={userId} />
+  }
+
+  if (route.name === "artifacts") {
+    return <Artifacts />
+  }
+
+  if (route.name === "artifact") {
+    return <ArtifactDetail artifactId={route.artifactId} />
   }
 
   if (route.name === "conversation") {

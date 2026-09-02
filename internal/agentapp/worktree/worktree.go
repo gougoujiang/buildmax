@@ -64,6 +64,13 @@ type Info struct {
 	Occupied bool
 	// Holder names the session in the tree, when one is there.
 	Holder string
+	// Dirty counts uncommitted files and Unmerged counts commits no other ref
+	// reaches: what removing the tree would discard, which is the signal D5 says
+	// a listing owes the user in place of automatic cleanup. Both are
+	// best-effort — a tree whose status cannot be read reports zero rather than
+	// failing the whole list.
+	Dirty    int
+	Unmerged int
 }
 
 // Created reports what a creation produced, including what did not
@@ -449,6 +456,14 @@ func (w *Manager) List(ctx context.Context) ([]Info, error) {
 			} else if err == nil {
 				_ = probe.Release()
 			}
+		}
+		// Best-effort: a status that cannot be read leaves the counts at zero
+		// rather than failing the list a user opened to decide what to clean up.
+		if dirty, err := git.UncommittedPaths(ctx, t.Path); err == nil {
+			info.Dirty = len(dirty)
+		}
+		if unmerged, err := git.UnreachableCommits(ctx, t.Path); err == nil {
+			info.Unmerged = unmerged
 		}
 		out = append(out, info)
 	}

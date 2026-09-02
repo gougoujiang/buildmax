@@ -197,12 +197,18 @@ func (h *Handler) buildArtifactService() *artifactsvc.Service {
 	if h.cfg.ArtifactStore == nil || h.cfg.ArtifactStorage == nil {
 		return nil
 	}
-	return &artifactsvc.Service{
+	svc := &artifactsvc.Service{
 		Artifacts:    h.cfg.ArtifactStore,
 		Storage:      h.cfg.ArtifactStorage,
 		Audit:        h.cfg.Audit,
 		MaxFileBytes: h.cfg.MaxArtifactBytes,
 	}
+	// Assigned through the nil check rather than directly: a typed nil in the
+	// interface field would satisfy "not nil" and then panic on the first call.
+	if h.cfg.QuotaService != nil {
+		svc.Quota = h.cfg.QuotaService
+	}
+	return svc
 }
 
 // workHandler builds the work surface from the stores those routes read.

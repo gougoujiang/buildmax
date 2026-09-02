@@ -5,11 +5,23 @@ import type { ApiArtifact, ApiArtifactList } from "../../lib/api/types"
 /**
  * The team route lists and receives; the id route reads one.
  *
- * An artifact's address is its `ar_` id, so everything after upload is reached
+ * An artifact's opaque id is its address, so everything after upload is reached
  * without naming a team — see docs/design/unified-artifacts.md section 6.1.
  */
 export function artifactContentUrl(artifactId: string): string {
   return `${getApiBase()}/api/artifacts/${encodeURIComponent(artifactId)}/content`
+}
+
+/**
+ * Read one artifact by id.
+ *
+ * A caller outside the owning team gets 404, exactly as a caller asking for an
+ * id that never existed does — the server refuses to be an existence oracle, so
+ * this reports "not found" for both rather than inventing a distinction.
+ */
+export async function getArtifact(artifactId: string, token: string): Promise<ApiArtifact> {
+  const url = `${getApiBase()}/api/artifacts/${encodeURIComponent(artifactId)}`
+  return requestJson<ApiArtifact>(url, { headers: authHeaders(token) })
 }
 
 export async function listArtifacts(

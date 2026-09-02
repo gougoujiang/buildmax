@@ -148,6 +148,12 @@ func RunServer(ctx context.Context, portOverride int) error {
 	retainer := scheduler.NewAuditRetainer(store, store, sc.Audit.RetentionDays, 0)
 	retainer.Start()
 
+	// Unconditional where artifact storage exists: an artifact whose bytes are
+	// never reclaimed is a leak, not a retained record, so there is no window
+	// that switches this off. The grace period only delays it.
+	artifacts := scheduler.NewArtifactRetainer(store, storage.artifact, store, sc.Storage.ArtifactPurgeAfterDays, 0)
+	artifacts.Start()
+
 	s := httpserver.New(serverConfig)
 	s.StartBackground()
 	slog.Info("server starting",
@@ -166,7 +172,7 @@ func RunServer(ctx context.Context, portOverride int) error {
 	case err := <-serveErr:
 		// The listener failed before any signal — a taken port, a bad address.
 		// Nothing has started serving, so there is nothing to drain.
-		shutdownServer(context.Background(), targetsFor(s, sched, cleaner, reaper, retainer), budget)
+		shutdownServer(context.Background(), targetsFor(s, sched, cleaner, reaper, retainer, artifacts), budget)
 		return err
 	case <-signalCtx.Done():
 	}
@@ -176,7 +182,7 @@ func RunServer(ctx context.Context, portOverride int) error {
 	// handler that is already running one.
 	stopSignals()
 	slog.Info("shutdown requested", "grace", sc.ShutdownGrace)
-	shutdownServer(ctx, targetsFor(s, sched, cleaner, reaper, retainer), budget)
+	shutdownServer(ctx, targetsFor(s, sched, cleaner, reaper, retainer, artifacts), budget)
 
 	slog.Info("server stopped")
 	return <-serveErr
@@ -211,12 +217,13 @@ type shutdownTargets struct {
 }
 
 // targetsFor names what RunServer started in the order the ladder stops it.
-func targetsFor(s *httpserver.Server, sched *scheduler.Scheduler, cleaner *scheduler.CredentialCleaner, reaper *scheduler.StaleRunReaper, retainer *scheduler.AuditRetainer) shutdownTargets {
+func targetsFor(s *httpserver.Server, sched *scheduler.Scheduler, cleaner *scheduler.CredentialCleaner, reaper *scheduler.StaleRunReaper, retainer *scheduler.AuditRetainer, artifacts *scheduler.ArtifactRetainer) shutdownTargets {
 	return shutdownTargets{
 		server:    s,
 		scheduler: namedStop{name: "scheduler", stop: func(ctx context.Context) { sched.Stop(ctx) }},
 		loops: []namedStop{
 			{name: "audit retainer", stop: ignoringContext(retainer.Stop)},
+			{name: "artifact retainer", stop: ignoringContext(artifacts.Stop)},
 			{name: "stale run reaper", stop: ignoringContext(reaper.Stop)},
 			{name: "credential cleaner", stop: ignoringContext(cleaner.Stop)},
 		},
@@ -395,7 +402,11 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 		TeamStore:   st,
 		UsageReader: st,
 		TierStore:   st,
-		DefaultTier: sc.DefaultQuotaTier,
+		// The stock dimension. Runs and tokens come from UsageReader over a
+		// window; bytes held have no window and are read straight from what
+		// the team's live artifacts add up to.
+		StorageReader: st,
+		DefaultTier:   sc.DefaultQuotaTier,
 		// So a team admin can see that the team approached or hit its limits
 		// without anyone having to notice a 429 in a log.
 		Audit: st,

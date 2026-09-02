@@ -102,7 +102,7 @@ func TestReportToIssuePostsAndNamesArtifacts(t *testing.T) {
 	client := &stubIssueClient{}
 	out, err := NewReportToIssue(client).Execute(t.Context(), map[string]any{
 		"summary":      "Adapter written and tested.",
-		"artifact_ids": []any{"ar_1", "  ", "ar_2"},
+		"artifact_ids": []any{"gsyt7at6cjfr33d73mta", "  ", "ivyoh5qcfu6ypfkhyedq"},
 	})
 	if err != nil {
 		t.Fatalf("Execute: %v", err)
@@ -110,7 +110,7 @@ func TestReportToIssuePostsAndNamesArtifacts(t *testing.T) {
 	if len(client.reports) != 1 {
 		t.Fatalf("reports = %d, want 1", len(client.reports))
 	}
-	if got := client.reports[0].ArtifactIDs; len(got) != 2 || got[0] != "ar_1" || got[1] != "ar_2" {
+	if got := client.reports[0].ArtifactIDs; len(got) != 2 || got[0] != "gsyt7at6cjfr33d73mta" || got[1] != "ivyoh5qcfu6ypfkhyedq" {
 		t.Fatalf("artifact ids = %v", got)
 	}
 	if !strings.Contains(out, "2 report(s) left") {

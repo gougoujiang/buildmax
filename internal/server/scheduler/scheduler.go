@@ -24,6 +24,7 @@ func (s *Scheduler) log() *slog.Logger         { return componentLog("scheduler"
 func (c *CredentialCleaner) log() *slog.Logger { return componentLog("credential_cleaner") }
 func (c *StaleRunReaper) log() *slog.Logger    { return componentLog("stale_run_reaper") }
 func (a *AuditRetainer) log() *slog.Logger     { return componentLog("audit_retention") }
+func (a *ArtifactRetainer) log() *slog.Logger  { return componentLog("artifact_retention") }
 
 const (
 	defaultPollInterval   = 5 * time.Second

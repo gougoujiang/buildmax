@@ -317,11 +317,19 @@ type ServerStorageConfig struct {
 	MinIO           ServerMinIOConfig `mapstructure:"minio"`
 	// MaxArtifactMB caps one artifact upload. Zero uses the built-in default.
 	//
-	// It is a per-file limit and deliberately not a team storage allowance: a
-	// stock of bytes held is a different measurement from the rates the quota
-	// model records, and it waits for its own decision. What this already
-	// settles is that one request cannot cost the deployment unbounded disk.
+	// It is a per-file limit, not a team storage allowance. The allowance is a
+	// stock rather than a rate and lives in the quota tier as
+	// max_storage_bytes; this stays the cap on any one request.
 	MaxArtifactMB int `mapstructure:"max_artifact_mb"`
+	// ArtifactPurgeAfterDays delays reclaiming a deleted artifact's object.
+	//
+	// Zero, the default, reclaims it on the next retention sweep: deletion has
+	// already taken effect at the authorization boundary, so holding the bytes
+	// afterwards is cost and exposure rather than safety. A deployment that
+	// wants a window in which an operator could still recover the object from
+	// the bucket sets a number of days here — BuildMax itself offers no
+	// undelete, so the window is for the bucket's own tooling.
+	ArtifactPurgeAfterDays int `mapstructure:"artifact_purge_after_days"`
 }
 
 // ServerSecretConfig configures the Team Secret store. KEKFile is the path to

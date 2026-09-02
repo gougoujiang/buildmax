@@ -31,6 +31,11 @@ type quotaLimit string
 const (
 	limitRuns   quotaLimit = "runs"
 	limitTokens quotaLimit = "tokens"
+	// limitStorage is a stock rather than a rate, so its events say what the
+	// team holds now rather than what it spent in a window. The dedupe still
+	// uses the tier's period, which bounds how often a team sitting at its
+	// storage limit writes the same row.
+	limitStorage quotaLimit = "storage"
 )
 
 // noteUsage records that a team crossed a share of its quota, or was refused by
@@ -42,7 +47,7 @@ const (
 // The cost is a read and a write on an admission that is already at the
 // threshold, and neither is allowed to change the admission decision — a
 // deployment whose audit table is unreachable must still run work.
-func (c *Service) noteUsage(ctx context.Context, teamID string, limit quotaLimit, used, max int, windowStart time.Time, denied bool) {
+func (c *Service) noteUsage(ctx context.Context, teamID string, limit quotaLimit, used, max int64, windowStart time.Time, denied bool) {
 	if c.Audit == nil || max <= 0 {
 		return
 	}

@@ -91,10 +91,19 @@ const (
 	SystemAdminRevoked = "system.admin_revoked"
 	// ArtifactCreated and ArtifactDeleted record a durable file
 	// entering and leaving a team's keeping. They are metadata-only by
-	// construction: the target is the ar_ ID, and neither the storage key, the
+	// construction: the target is the artifact ID, and neither the storage key, the
 	// content, nor an uploader-supplied description belongs in the trail.
 	ArtifactCreated = "artifact.created"
 	ArtifactDeleted = "artifact.deleted"
+	// ArtifactExpired is the tombstone nobody asked for: retention applied an
+	// artifact's own ExpiresAt. It names the artifact, because it is what a
+	// reader finds instead of the artifact.deleted they would otherwise expect.
+	ArtifactExpired = "artifact.expired"
+	// ArtifactsPurged records a sweep reclaiming the objects of already
+	// tombstoned artifacts, with the count and the bytes. It is per sweep
+	// rather than per artifact: the tombstone that authorized each one is
+	// already in the trail, and this says only that the bytes are now gone.
+	ArtifactsPurged = "artifact.purged"
 	// The plugin actions record changes to what a deployment's members can
 	// install. A release is instructions that cause tool use, processes that
 	// start with someone's credentials, and hooks that run local programs, so

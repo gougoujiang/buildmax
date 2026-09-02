@@ -8,7 +8,6 @@ import {
   useSettingsData,
 } from "./shared"
 import { navigate } from "../../router"
-import { SpaceArtifactsSection } from "../../features/artifacts"
 import { SpaceAuditSection } from "../../features/audit"
 import { TeamPlugins } from "../../features/teamPlugins"
 import { TeamSandboxDefaults } from "../../features/teamSandbox"
@@ -127,15 +126,6 @@ export function SpaceSettings({ section }: { section: SpaceSection }) {
             loadingUsage={teamUsageLoading}
             members={members}
             usage={teamUsage}
-            currentUserRole={currentUserMember?.role ?? null}
-          />
-        ) : null}
-        {section === "artifacts" ? (
-          <SpaceArtifactsSection
-            teamId={currentTeamId}
-            token={token}
-            currentUserId={user?.id}
-            currentUserIsOwner={currentUserIsOwner}
             currentUserRole={currentUserMember?.role ?? null}
           />
         ) : null}

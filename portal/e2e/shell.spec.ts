@@ -14,7 +14,7 @@ test("the signed-in shell renders against a real deployment", async ({ page }) =
   await expect(page.locator(".login-page__card")).toHaveCount(0)
   // The other half: the shell actually rendered. Navigation is asserted rather
   // than the wordmark, which is ASCII art and carries no text to match.
-  for (const item of ["Issues", "Workflows", "Agents"]) {
+  for (const item of ["Issues", "Workflows", "Agents", "Artifacts"]) {
     await expect(page.getByRole("link", { name: item }).or(page.getByRole("button", { name: item })).first()).toBeVisible()
   }
 })

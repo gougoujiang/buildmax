@@ -308,27 +308,6 @@ export interface ApiRunSourceMessage {
   created_at: string
 }
 
-/** Conversation as returned by the team-scoped task conversation endpoint. */
-export interface ApiSession {
-  id: string
-  title: string
-  created_at: string
-  messages: ApiSessionMessage[]
-}
-
-export interface ApiSessionMessage {
-  role: string
-  content: string
-  tool_call_id?: string
-  tool_calls?: { id: string; name: string; arguments?: string }[]
-}
-
-/** Response from the team-scoped create task run endpoint. */
-export interface CreateTaskRunResponse {
-  task_run_id: string
-  task_id: string
-}
-
 /**
  * Response from the team-scoped cancel endpoint.
  *
@@ -356,7 +335,12 @@ export interface RetryTaskResponse {
   status: string
 }
 
-/** Run output (artifact) as returned by task/run artifact endpoints */
+/**
+ * A durable file the team keeps, addressed by its own opaque id.
+ *
+ * Not a run output: those are paths inside one run's directory and come from
+ * the task-run routes instead. See docs/design/unified-artifacts.md section 5.3.
+ */
 export interface ApiArtifact {
   id: string
   team_id: string
@@ -543,10 +527,6 @@ export interface ApiSystemGrant {
 export interface ApiAdminMe {
   user_id: string
   roles: string[]
-  grants: ApiSystemGrant[]
-}
-
-export interface ApiAdminGrantsResponse {
   grants: ApiSystemGrant[]
 }
 
@@ -771,11 +751,6 @@ export interface ApiPluginResponse {
   releases: ApiPluginRelease[]
 }
 
-/** Whether a credential is configured. Never its value, length, or prefix. */
-export interface ApiSecretStatus {
-  set: boolean
-}
-
 export interface ApiAdminTeam {
   id: string
   name: string
@@ -815,6 +790,13 @@ export interface ApiUsage {
   period_days: number
   max_runs_per_period?: number
   max_tokens_per_period?: number
+  /**
+   * What the space's artifacts hold now. A stock, not a windowed total:
+   * period_days does not apply to it, and it falls only when an artifact is
+   * deleted or expires. Absent on a deployment with no artifact storage.
+   */
+  storage_bytes?: number
+  max_storage_bytes?: number
 }
 
 /** Tier 1 conversation as returned by team-scoped conversation endpoints. */

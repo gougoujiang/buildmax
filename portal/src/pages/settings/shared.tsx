@@ -4,6 +4,7 @@ import type { LoginUser } from "../../lib/api"
 import { useAuth } from "../../contexts/AuthContext"
 import { useTeam } from "../../contexts/TeamContext"
 import { describeQuotaPressure, getUsage } from "../../features/usage"
+import { formatSize } from "../../features/artifacts"
 import {
   acceptInvitation,
   getMyInvitations,
@@ -29,14 +30,7 @@ import IssueIcon from "../../icons/issue.svg?react"
 import { BaseModal } from "@buildmax/gui"
 
 export type AccountSection = "general" | "usage" | "webhook" | "plugins" | "invitations"
-export type SpaceSection =
-  | "overview"
-  | "members"
-  | "artifacts"
-  | "plugins"
-  | "secrets"
-  | "audit"
-  | "memberNew"
+export type SpaceSection = "overview" | "members" | "plugins" | "secrets" | "audit" | "memberNew"
 
 interface SettingsNavItem<T extends string> {
   id: T
@@ -59,7 +53,6 @@ export const ACCOUNT_NAV: SettingsNavItem<Exclude<AccountSection, never>>[] = [
 export const SPACE_NAV: SettingsNavItem<Exclude<SpaceSection, "memberNew">>[] = [
   { id: "overview", label: "Overview", icon: IssueIcon },
   { id: "members", label: "Members", icon: AgentsIcon },
-  { id: "artifacts", label: "Artifacts", icon: IssueIcon },
   // What this team's background runs may use. Readable by any member, because
   // "why did this run have this plugin" is a question anyone debugging asks.
   { id: "plugins", label: "Plugins", icon: ToolboxIcon },
@@ -293,9 +286,23 @@ export function SettingsUsageSection({
                 : ""}
             </span>
           </p>
+          {/* Reported apart from the rates above, and without the period line,
+              because it is not measured over one: it is what the space holds
+              until somebody deletes an artifact. */}
+          {usage.storage_bytes != null ? (
+            <p className="settings-usage__row">
+              <span className="settings-usage__label">Artifact storage</span>
+              <span>
+                {formatSize(usage.storage_bytes)}
+                {usage.max_storage_bytes != null && usage.max_storage_bytes > 0
+                  ? ` / ${formatSize(usage.max_storage_bytes)}`
+                  : ""}
+              </span>
+            </p>
+          ) : null}
           {usage.period_days > 0 ? (
             <p className="settings-usage__row settings-usage__period">
-              Rolling {usage.period_days} days
+              Rolling {usage.period_days} days — runs and tokens only
             </p>
           ) : null}
         </div>

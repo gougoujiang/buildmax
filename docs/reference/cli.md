@@ -327,7 +327,7 @@ Typed into the input line:
 | `/diff` | Shows the working-tree diff for the workspace |
 | `/info` | Two tabs: this session's spend, context use, and heaviest tools; and what this project remembers, with `enter` to read a memory |
 | `/tasks` | Lists background jobs: state, age, command; `s` stops the selected one |
-| `/worktree` | Lists this repository's worktrees, and which session is in each |
+| `/worktree` | Lists this repository's worktrees, which session is in each, and what each holds uncommitted; `d` removes the selected one after a confirm |
 
 Slash commands are unavailable while the agent is running.
 

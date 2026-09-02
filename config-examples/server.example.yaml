@@ -189,8 +189,15 @@ storage:
   persist_backend: local_fs   # or minio
   artifact_backend: local_fs  # or minio
   # Largest single artifact this deployment accepts, in MB (a per-file limit,
-  # not a team storage allowance). 0 uses the built-in default.
+  # not a team storage allowance). 0 uses the built-in default. The allowance
+  # is per team and lives in its quota tier, as max_storage_bytes.
   max_artifact_mb: 0
+  # How long a deleted artifact's bytes stay in the bucket after the delete.
+  # 0, the default, reclaims them on the next hourly retention sweep — the
+  # artifact is already unreachable the moment it is deleted. Set a number of
+  # days only to give your bucket's own tooling a window to recover from;
+  # BuildMax itself offers no undelete.
+  artifact_purge_after_days: 0
   minio:
     # Set endpoint for an S3-compatible store you run (MinIO, Ceph, a
     # vendor's service). Leave empty for AWS S3 to let the SDK resolve the

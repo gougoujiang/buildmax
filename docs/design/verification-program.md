@@ -34,8 +34,9 @@ Related records: [Local end-to-end verification](end-to-end-testing.md),
   evaluation framework. §4.1's command surface is shipped as `./make test
   mysql` and runs on every pull request, and §4.2's contention cases — task
   claiming, run transition, result-delivery claiming, and cancellation — are
-  written and mutation-checked. Retry, workflow revision, restart recovery,
-  cross-team store lookups, and artifact tombstoning remain; the N-1 fixture is
+  written and mutation-checked. Artifact tombstoning and the retention that
+  follows it are written and mutation-checked too. Retry, workflow revision,
+  restart recovery, and cross-team store lookups remain; the N-1 fixture is
   blocked on the first appended migration and the quota bullet is withdrawn,
   both explained in §4.2. The unified matrix, expanded failure paths, and
   complete release rehearsal described here are not implemented
@@ -192,8 +193,6 @@ Still to write:
   is not;
 - cross-team lookup rejection at the store, distinct from the role matrix the
   handler tests already assert;
-- artifact tombstoned deletion; metadata and TaskRun association are covered
-  by the transition case;
 - migration fixtures representing the supported N-1 schema. **Blocked, not
   deferred**: `migrations` in `internal/infra/db/migration.go` is empty after
   the identity cutover, so there is no prior schema to upgrade from. Write

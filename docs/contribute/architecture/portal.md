@@ -23,6 +23,8 @@ Portal owns the cloud/team lane:
   whatever it ended as, and show the server's own reason when it refuses
 - the space audit trail, for owners
 - agents
+- artifacts: the space's durable files, listed and opened at their own opaque
+  address rather than through the run that produced them
 - team files
 - usage and webhook keys
 
@@ -61,8 +63,11 @@ Unit tests are Vitest over pure modules; `vite.config.ts` excludes `e2e/` from
 them. Portal has no DOM test environment, so display decisions live in pure
 modules — `features/runs/summary.ts`, `features/runs/spend.ts`,
 `features/audit/describe.ts`, `features/usage/pressure.ts`,
-`features/conversations/thread.ts`, `features/runs/origin.ts` — where they can
-be asserted without one.
+`features/conversations/thread.ts`, `features/runs/origin.ts`,
+`features/artifacts/display.ts` — where they can be asserted without one. The
+artifact one mirrors a server authorization rule to decide whether to offer a
+delete button, so it is pinned in both directions: a mirror that drifts either
+shows a button that is refused or hides one that would have worked.
 
 `portal/e2e/` holds Playwright specs, run by `./make e2e` against a deployment.
 They cover only what a browser can show: that the published bundle works

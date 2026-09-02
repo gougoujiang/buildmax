@@ -69,12 +69,16 @@ type RedactedStorageConfig struct {
 	ArtifactBackend string `json:"artifact_backend,omitempty"`
 	// MaxArtifactMB is shown because an operator diagnosing a refused upload
 	// needs to see the limit that refused it. Zero means the built-in default.
-	MaxArtifactMB  int          `json:"max_artifact_mb,omitempty"`
-	MinIOEndpoint  string       `json:"minio_endpoint,omitempty"`
-	MinIOBucket    string       `json:"minio_bucket,omitempty"`
-	MinIORegion    string       `json:"minio_region,omitempty"`
-	MinIOAccessKey SecretStatus `json:"minio_access_key"`
-	MinIOSecretKey SecretStatus `json:"minio_secret_key"`
+	MaxArtifactMB int `json:"max_artifact_mb,omitempty"`
+	// ArtifactPurgeAfterDays is shown for the same reason: an operator asking
+	// why a deleted artifact's bytes are still in the bucket is reading for
+	// this number. Zero means the next sweep reclaims them.
+	ArtifactPurgeAfterDays int          `json:"artifact_purge_after_days,omitempty"`
+	MinIOEndpoint          string       `json:"minio_endpoint,omitempty"`
+	MinIOBucket            string       `json:"minio_bucket,omitempty"`
+	MinIORegion            string       `json:"minio_region,omitempty"`
+	MinIOAccessKey         SecretStatus `json:"minio_access_key"`
+	MinIOSecretKey         SecretStatus `json:"minio_secret_key"`
 }
 
 // RedactedWorkerConfig shows how runs are launched.
@@ -125,14 +129,15 @@ func (sc ServerConfig) Redacted() RedactedServerConfig {
 			Password: secretStatus(sc.Database.Password),
 		},
 		Storage: RedactedStorageConfig{
-			PersistBackend:  sc.Storage.PersistBackend,
-			ArtifactBackend: sc.Storage.ArtifactBackend,
-			MaxArtifactMB:   sc.Storage.MaxArtifactMB,
-			MinIOEndpoint:   sc.Storage.MinIO.Endpoint,
-			MinIOBucket:     sc.Storage.MinIO.Bucket,
-			MinIORegion:     sc.Storage.MinIO.Region,
-			MinIOAccessKey:  secretStatus(sc.Storage.MinIO.AccessKey),
-			MinIOSecretKey:  secretStatus(sc.Storage.MinIO.SecretKey),
+			PersistBackend:         sc.Storage.PersistBackend,
+			ArtifactBackend:        sc.Storage.ArtifactBackend,
+			MaxArtifactMB:          sc.Storage.MaxArtifactMB,
+			ArtifactPurgeAfterDays: sc.Storage.ArtifactPurgeAfterDays,
+			MinIOEndpoint:          sc.Storage.MinIO.Endpoint,
+			MinIOBucket:            sc.Storage.MinIO.Bucket,
+			MinIORegion:            sc.Storage.MinIO.Region,
+			MinIOAccessKey:         secretStatus(sc.Storage.MinIO.AccessKey),
+			MinIOSecretKey:         secretStatus(sc.Storage.MinIO.SecretKey),
 		},
 		Worker: RedactedWorkerConfig{
 			RunMode:      sc.Worker.RunMode,

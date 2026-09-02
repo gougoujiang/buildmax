@@ -34,11 +34,18 @@ function shareOf(used: number, max?: number): number | null {
  * Runs and tokens are reported together when both are under pressure, because
  * a team that is at its run limit and its token limit has one problem, not two,
  * and reading two separate warnings invites fixing only the first.
+ *
+ * Storage is reported apart from them even when both are tight. It is a stock
+ * rather than a rate, so the remedy is different in kind: waiting clears a run
+ * or token quota as the window moves, and only deleting an artifact clears
+ * this one. Folding it into the same sentence would tell someone at their
+ * storage limit to wait, which would never work.
  */
 export function describeQuotaPressure(usage: ApiUsage | null): QuotaPressure | null {
   if (!usage) return null
   const runs = shareOf(usage.run_count, usage.max_runs_per_period)
   const tokens = shareOf(usage.total_tokens, usage.max_tokens_per_period)
+  const storage = shareOf(usage.storage_bytes ?? 0, usage.max_storage_bytes)
 
   const reached: string[] = []
   const near: string[] = []
@@ -48,16 +55,29 @@ export function describeQuotaPressure(usage: ApiUsage | null): QuotaPressure | n
   else if (tokens != null && tokens >= QUOTA_WARN_THRESHOLD) near.push("tokens")
 
   const period = usage.period_days > 0 ? ` in this ${usage.period_days}-day window` : ""
+  // A spent rate limit is the more urgent of the two, so it is said first.
   if (reached.length > 0) {
     return {
       tone: "reached",
       text: `This space has used its full ${reached.join(" and ")} quota${period}. New work is refused until usage falls out of the window or the tier changes.`,
     }
   }
+  if (storage != null && storage >= 1) {
+    return {
+      tone: "reached",
+      text: "This space has used its full artifact storage. New artifacts are refused until some are deleted or the tier changes.",
+    }
+  }
   if (near.length > 0) {
     return {
       tone: "near",
       text: `This space has used most of its ${near.join(" and ")} quota${period}.`,
+    }
+  }
+  if (storage != null && storage >= QUOTA_WARN_THRESHOLD) {
+    return {
+      tone: "near",
+      text: "This space has used most of its artifact storage.",
     }
   }
   return null

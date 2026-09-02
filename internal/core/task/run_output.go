@@ -3,7 +3,7 @@ package task
 import "time"
 
 // Run output is not an Artifact. An Artifact is a file somebody chose to keep,
-// addressed by its own ar_ ID and governed by team authorization and retention;
+// addressed by its own opaque ID and governed by team authorization and retention;
 // a run output is what a run left behind, which is reproducibility state keyed
 // by the run. They were named TaskRunArtifact and ArtifactWithTask, which read
 // as Artifact types and are not. See docs/design/unified-artifacts.md.

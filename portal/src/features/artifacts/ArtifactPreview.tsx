@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react"
 import type { ApiArtifact } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
+import { artifactLabel } from "./display"
 import { fetchArtifactPreview } from "./api"
 
 interface ArtifactPreviewProps {
   artifact: ApiArtifact | null
   token: string | null
-  onClose: () => void
+  /** Omitted where the preview is part of the page rather than laid over it. */
+  onClose?: () => void
 }
 
 /**
@@ -57,14 +59,24 @@ export function ArtifactPreview({ artifact, token, onClose }: ArtifactPreviewPro
 
   if (!artifact) return null
 
+  // A dialog role is a claim about focus and dismissal. Embedded in a page it
+  // is neither, so only the overlaid form -- the one with a way out -- says so.
+  const overlaid = onClose != null
+
   return (
-    <div className="artifact-preview" role="dialog" aria-label={artifact.filename}>
-      <div className="artifact-preview__head">
-        <span className="artifact-preview__title">{artifact.title || artifact.filename}</span>
-        <button type="button" className="page-activity__action-btn" onClick={onClose}>
-          Close
-        </button>
-      </div>
+    <div
+      className="artifact-preview"
+      role={overlaid ? "dialog" : undefined}
+      aria-label={overlaid ? artifact.filename : undefined}
+    >
+      {overlaid ? (
+        <div className="artifact-preview__head">
+          <span className="artifact-preview__title">{artifactLabel(artifact)}</span>
+          <button type="button" className="page-activity__action-btn" onClick={onClose}>
+            Close
+          </button>
+        </div>
+      ) : null}
       <div className="artifact-preview__body">
         {loading ? <p className="page-activity__empty">Loading…</p> : null}
         {error ? (

@@ -779,6 +779,8 @@ storage:
   persist_backend: local_fs          # or minio — team uploads
   artifact_backend: local_fs         # or minio — run outputs and artifacts
   max_artifact_mb: 0                 # per-file upload cap; 0 uses the default
+  artifact_purge_after_days: 0       # 0 — reclaim a deleted artifact's bytes
+                                     # on the next hourly sweep
   minio:
     endpoint: http://localhost:9000
     region: us-east-1
@@ -832,9 +834,28 @@ The worker reads the same `server.yaml` and needs at minimum `worker.server_url`
 to blob storage directly rather than proxying through the server.
 
 `storage.max_artifact_mb` caps one artifact upload. It defaults to **0**, which
-uses the built-in 100 MB limit. It is a per-file limit and not a team storage
-allowance: how many bytes a team may hold in total is a separate decision that
-the quota model does not yet express.
+uses the built-in 100 MB limit. It is a per-file limit rather than a team
+storage allowance: the allowance is `max_storage_bytes` on the team's quota
+tier, and the two answer different questions — a thousand small files pass this
+cap and can still fill an allowance. A tier that leaves `max_storage_bytes` at
+**0**, which the seeded tiers do, imposes no allowance at all; set it to make
+BuildMax refuse an upload that would take a space past it, the same 429 a run
+or token limit answers with.
+
+`storage.artifact_purge_after_days` delays reclaiming a deleted artifact's
+bytes. It defaults to **0**, which reclaims them on the next hourly retention
+sweep: deleting an artifact takes effect at the authorization boundary
+immediately, so holding the object afterwards is cost and exposure rather than
+safety. Set a number of days only to give your object store's own tooling a
+window to recover from — BuildMax itself offers no undelete, and a reclaimed
+artifact cannot be restored under its old opaque reference.
+
+The same sweep is the only reader of an artifact's expiry. An artifact created
+with one is tombstoned when it passes, recorded as `artifact.expired` naming
+the artifact, and its bytes then wait out the grace period like any other
+deletion. Each sweep that reclaimed anything writes one `artifact.purged` event
+with the count and the bytes. Nothing else in BuildMax removes artifact content
+except the rollback of an upload that failed.
 
 `audit.retention_days` expires events in the governance trail. It defaults to
 **0**, which keeps everything: a deployment that has not chosen a retention
