@@ -99,10 +99,12 @@ func (a *App) GetSlashWorktrees(projectID string) (SlashWorktreesResult, error) 
 
 // --- Models ---
 
+// The active model is Current on the result, not a per-entry flag: the frontend
+// derives it by matching each entry against Current, which stays correct after a
+// SetProjectModel without refetching the list.
 type SlashModelEntry struct {
 	Name          string `json:"name"`
 	ProviderModel string `json:"provider_model,omitempty"`
-	IsCurrent     bool   `json:"is_current"`
 }
 
 type SlashModelsResult struct {
@@ -129,7 +131,6 @@ func (a *App) GetSlashModels(projectID string) (SlashModelsResult, error) {
 		models[i] = SlashModelEntry{
 			Name:          c.Name,
 			ProviderModel: c.ProviderModel,
-			IsCurrent:     c.Name == current || c.ProviderModel == current,
 		}
 	}
 	// Where prompts go is the app's mode, so it is reported once for the list

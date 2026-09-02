@@ -143,7 +143,7 @@ describe('ChatInput command palette', () => {
     // A running app that has not regenerated its Wails bindings has no
     // GetSlashCommands; calling it must not take the model load down with it.
     const app = makeApp({
-      GetSlashModels: () => Promise.resolve({ models: [{ name: 'gpt-4o', is_current: true }], current: 'gpt-4o' }),
+      GetSlashModels: () => Promise.resolve({ models: [{ name: 'gpt-4o' }], current: 'gpt-4o' }),
     });
     delete app.GetSlashCommands;
     renderInput({ app });
@@ -160,5 +160,31 @@ describe('ChatInput command palette', () => {
     fireEvent.change(composer(), { target: { value: '/review ' } });
     fireEvent.keyDown(composer(), { key: 'Enter' });
     expect(onSend).toHaveBeenCalledWith('/review');
+  });
+
+  it('marks the switched-to model as active on the next open', async () => {
+    // Regression: the picker used to read a per-entry is_current computed once at
+    // load, so after a switch it still checked the originally-current model.
+    const SetProjectModel = vi.fn(() => Promise.resolve());
+    const app = makeApp({
+      GetSlashModels: () => Promise.resolve({
+        models: [{ name: 'gpt-4o' }, { name: 'claude' }],
+        current: 'gpt-4o',
+      }),
+      SetProjectModel,
+      GetRunStatus: () => Promise.resolve(null),
+    });
+    renderInput({ app });
+
+    // Open the picker and switch to the second model.
+    fireEvent.click(await screen.findByTitle('gpt-4o'));
+    fireEvent.click(await screen.findByRole('option', { name: /claude/ }));
+    await waitFor(() => expect(SetProjectModel).toHaveBeenCalledWith('p1', 'claude'));
+
+    // Reopen: the newly selected model is the active option, not the first.
+    fireEvent.click(await screen.findByTitle('claude'));
+    const active = await screen.findByRole('option', { name: /claude/ });
+    expect(active.getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByRole('option', { name: /gpt-4o/ }).getAttribute('aria-selected')).toBe('false');
   });
 });

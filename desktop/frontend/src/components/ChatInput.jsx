@@ -423,22 +423,28 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
               {modelMode && (
                 <div className="model-selector__mode">{modelMode}</div>
               )}
-              {models.map((m) => (
-                <button
-                  key={m.name}
-                  type="button"
-                  role="option"
-                  aria-selected={m.is_current}
-                  className={`model-selector__option ${m.is_current ? 'model-selector__option--active' : ''}`}
-                  onClick={() => handleModelSwitch(m.name)}
-                >
-                  <span className="model-selector__option-name">{m.name}</span>
-                  {m.provider_model && m.provider_model !== m.name && (
-                    <span className="model-selector__option-sub">{m.provider_model}</span>
-                  )}
-                  {m.is_current && <span className="model-selector__option-check" aria-hidden>✓</span>}
-                </button>
-              ))}
+              {models.map((m) => {
+                // Derive the active mark from currentModel, the state a switch
+                // updates. The is_current flags from GetSlashModels are computed
+                // once at load and go stale after every SetProjectModel.
+                const isCurrent = m.name === currentModel || m.provider_model === currentModel;
+                return (
+                  <button
+                    key={m.name}
+                    type="button"
+                    role="option"
+                    aria-selected={isCurrent}
+                    className={`model-selector__option ${isCurrent ? 'model-selector__option--active' : ''}`}
+                    onClick={() => handleModelSwitch(m.name)}
+                  >
+                    <span className="model-selector__option-name">{m.name}</span>
+                    {m.provider_model && m.provider_model !== m.name && (
+                      <span className="model-selector__option-sub">{m.provider_model}</span>
+                    )}
+                    {isCurrent && <span className="model-selector__option-check" aria-hidden>✓</span>}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
