@@ -78,17 +78,6 @@ export function formatBytes(n) {
   return `${value} B`;
 }
 
-// formatRunStatus is the status bar's label: only the context share, the one
-// number a reader watches turn to turn. The token and cache breakdowns belong
-// in the /info panel, not the bar.
-export function formatRunStatus(status) {
-  const ctxTokens = Number(status?.context_tokens) || 0;
-  const ctxWindow = Number(status?.context_window) || 0;
-  return ctxWindow > 0
-    ? `ctx: ${Math.round((ctxTokens / ctxWindow) * 100)}% (${formatTokenCount(ctxTokens)}/${formatTokenCount(ctxWindow)})`
-    : 'ctx: unknown';
-}
-
 export function statusGlyph(status) {
   switch (status) {
     case 'added': return '+';

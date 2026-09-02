@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChatComposer } from '@buildmax/gui';
-import { formatRunStatus } from '../lib/format';
+import { formatTokenCount } from '../lib/format';
 import { ApprovalPanel } from './ApprovalPanel';
 import { DiffDrawer } from './DiffDrawer';
 import { JobsDrawer } from './JobsDrawer';
@@ -44,6 +44,91 @@ export function CommandPalette({ items, selected, onSelect, onHighlight }) {
           {item.description && <span className="slash-popup__desc">{item.description}</span>}
         </button>
       ))}
+    </div>
+  );
+}
+
+// ContextDonut is the status bar's context-window gauge. It replaces the old
+// "ctx: N%" text with a ring whose filled arc is the share of the window in
+// use, and turns amber then red as the window fills so a run nearing compaction
+// reads at a glance. Clicking it opens the exact counts a ring can only
+// approximate.
+export function ContextDonut({ status }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    function onOutside(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    }
+    function onKey(e) { if (e.key === 'Escape') setOpen(false); }
+    document.addEventListener('mousedown', onOutside);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onOutside);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  const used = Number(status?.context_tokens) || 0;
+  const limit = Number(status?.context_window) || 0;
+  const known = limit > 0;
+  const share = known ? Math.min(used / limit, 1) : 0;
+  const pct = Math.round(share * 100);
+  const free = Math.max(limit - used, 0);
+
+  // Ring geometry: the fill arc starts at 12 o'clock (the -90° rotation) and
+  // grows clockwise with the share.
+  const radius = 7;
+  const circumference = 2 * Math.PI * radius;
+  const level = pct >= 90 ? 'danger' : pct >= 75 ? 'warn' : 'ok';
+  const label = known ? `Context: ${pct}% used` : 'Context usage unknown';
+
+  return (
+    <div className="ctx-donut" ref={ref}>
+      <button
+        type="button"
+        className="ctx-donut__btn"
+        onClick={() => setOpen((v) => !v)}
+        aria-label={label}
+        aria-expanded={open}
+        title={label}
+      >
+        <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden focusable="false">
+          <circle className="ctx-donut__track" cx="10" cy="10" r={radius} fill="none" strokeWidth="4" />
+          {known && (
+            <circle
+              className={`ctx-donut__fill ctx-donut__fill--${level}`}
+              cx="10"
+              cy="10"
+              r={radius}
+              fill="none"
+              strokeWidth="4"
+              strokeDasharray={`${share * circumference} ${circumference}`}
+              strokeLinecap={share > 0 ? 'round' : 'butt'}
+              transform="rotate(-90 10 10)"
+            />
+          )}
+        </svg>
+      </button>
+
+      {open && (
+        <div className="ctx-donut__popover" role="dialog" aria-label="Context window">
+          {known ? (
+            <>
+              <div className="ctx-donut__popover-pct">{pct}%</div>
+              <dl className="ctx-donut__popover-list">
+                <div><dt>Used</dt><dd>{formatTokenCount(used)}</dd></div>
+                <div><dt>Free</dt><dd>{formatTokenCount(free)}</dd></div>
+                <div><dt>Window</dt><dd>{formatTokenCount(limit)}</dd></div>
+              </dl>
+            </>
+          ) : (
+            <p className="ctx-donut__popover-empty">No context reading yet.</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -358,16 +443,14 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
           )}
         </div>
 
-        <span className="chat-status-bar__run">
-          {formatRunStatus(runStatus)}
-        </span>
-
         {/* Git branch */}
         {gitBranch && (
           <span className="chat-status-bar__branch" title={`Branch: ${gitBranch}`}>
             ⎇ {gitBranch}
           </span>
         )}
+
+        <ContextDonut status={runStatus} />
 
         <div className="chat-status-bar__spacer" />
 
