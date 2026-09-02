@@ -4,7 +4,7 @@ import { artifactLabel, formatSize, mayDelete, sourceLabel } from "./display"
 
 function artifact(overrides: Partial<ApiArtifact> = {}): ApiArtifact {
   return {
-    id: "ar_1",
+    id: "gsyt7at6cjfr33d73mta",
     team_id: "t_1",
     filename: "report.md",
     media_type: "text/markdown",

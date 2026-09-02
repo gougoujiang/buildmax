@@ -41,7 +41,7 @@ describe("hash router", () => {
     ["#/artifacts", { name: "artifacts" }],
     // No team in the path: an artifact's id is the whole address, matching the
     // API. See docs/design/unified-artifacts.md section 6.1.
-    ["#/artifact/ar_123", { name: "artifact", artifactId: "ar_123" }],
+    ["#/artifact/gsyt7at6cjfr33d73mta", { name: "artifact", artifactId: "gsyt7at6cjfr33d73mta" }],
   ] satisfies Array<[string, Route]>)("parses %s", (hash, route) => {
     expect(parseHash(hash)).toEqual(route)
   })
@@ -74,7 +74,7 @@ describe("hash router", () => {
     [{ name: "issues" }, "#/issues"],
     [{ name: "issue", issueId: "i_123" }, "#/issue/i_123"],
     [{ name: "artifacts" }, "#/artifacts"],
-    [{ name: "artifact", artifactId: "ar_123" }, "#/artifact/ar_123"],
+    [{ name: "artifact", artifactId: "gsyt7at6cjfr33d73mta" }, "#/artifact/gsyt7at6cjfr33d73mta"],
   ] satisfies Array<[Route, string]>)("builds %s", (route, hash) => {
     expect(buildHash(route)).toBe(hash)
   })

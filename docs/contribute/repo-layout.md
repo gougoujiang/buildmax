@@ -55,7 +55,6 @@ one binary:
 | `deployment/ocean/` | OpenTofu for the disposable DigitalOcean beta-qualification infrastructure. It reads the persistent Project, VPC, and Spaces bucket and owns only the temporary DOKS and MySQL resources behind `./make ocean`. |
 | `deployment/production/` | The private deployment reference: one plain-YAML manifest written to be read and adapted, plus the dependency contract it assumes. Deliberately not a chart or a kustomize base, so it converts to whatever a cluster is already managed with. Nothing applies it; `internal/architecture` parses it so it cannot rot |
 | `deployment/smoke/` | Overlays and the mock model that make the Compose and kind smokes deterministic |
-| `deployment/migrations/` | One-off SQL migrations |
 | `deployment/buildmax-deploy.yaml` | Working Kubernetes manifest used by `./make kind up` |
 
 `kind/` is still local test infrastructure, not a supported deployment path:
@@ -246,7 +245,7 @@ internal/
 ├── server/             HTTP API for Portal and worker callbacks
 │   ├── handlers/       Route handlers
 │   │   ├── admin/      Deployment-scoped routes; a Config that cannot reach a team
-│   │   ├── artifact/   Artifacts, addressed by ar_ ID; team comes from the record
+│   │   ├── artifact/   Artifacts, addressed by opaque ID; team comes from the record
 │   │   ├── auth/       Establishing a session: login, refresh, logout, password
 │   │   ├── auditexport/  CSV export shared by the team and admin audit routes
 │   │   ├── llmhttp/    Managed gateway over HTTP, shared by the team and worker routes

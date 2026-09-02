@@ -188,7 +188,7 @@ func (s *Store) UpdateIssueComment(ctx context.Context, commentID, body string) 
 //
 // The delete is hard: this schema has no soft-delete precedent, and adding
 // deleted_at to one table would set a convention every other table has to
-// answer to. See docs/design/issue-model.md.
+// answer to. See docs/contribute/architecture/data-model.md.
 func (s *Store) DeleteIssueComment(ctx context.Context, commentID string) error {
 	id, ok := util.CanonicalPublicID(commentID)
 	if !ok {

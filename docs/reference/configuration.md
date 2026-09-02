@@ -848,7 +848,7 @@ sweep: deleting an artifact takes effect at the authorization boundary
 immediately, so holding the object afterwards is cost and exposure rather than
 safety. Set a number of days only to give your object store's own tooling a
 window to recover from — BuildMax itself offers no undelete, and a reclaimed
-artifact cannot be restored under its old `ar_` reference.
+artifact cannot be restored under its old opaque reference.
 
 The same sweep is the only reader of an artifact's expiry. An artifact created
 with one is tombstoned when it passes, recorded as `artifact.expired` naming

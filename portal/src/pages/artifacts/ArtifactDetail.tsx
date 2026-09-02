@@ -23,7 +23,7 @@ interface ArtifactDetailProps {
   artifactId: string
 }
 
-/** The `ar_` id is the reference people cite, so it is offered for copying. */
+/** The artifact id is the reference people cite, so it is offered for copying. */
 function ArtifactReference({ artifactId }: { artifactId: string }) {
   const [copied, setCopied] = useState(false)
 
@@ -52,7 +52,7 @@ function ArtifactReference({ artifactId }: { artifactId: string }) {
 /**
  * One artifact, at an address that can be pasted into a message or a document.
  *
- * A reader who was handed an `ar_` id has somewhere to open it; before this
+ * A reader who was handed an artifact id has somewhere to open it; before this
  * page the only way to act on one was to find it again in a list.
  */
 export function ArtifactDetail({ artifactId }: ArtifactDetailProps) {

@@ -2,7 +2,7 @@
 //
 // It is its own package because an artifact is its own object, and because its
 // authorization is a different shape from every other route here: an artifact
-// is addressed by its ar_ ID, and the team comes from the record rather than
+// is addressed by its opaque ID, and the team comes from the record rather than
 // from the path. Folding it into the work surface would put that different
 // shape next to routes that all take their team from the URL, which is the
 // mistake most likely to be copied. See docs/design/unified-artifacts.md.

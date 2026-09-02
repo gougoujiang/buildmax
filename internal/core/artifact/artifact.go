@@ -107,7 +107,7 @@ type CreateInput struct {
 // acquiring an owner it should not have.
 type Store interface {
 	CreateArtifact(ctx context.Context, in CreateInput) (*Artifact, error)
-	// GetArtifact returns the artifact by its ar_ ID, or (nil, nil) when there
+	// GetArtifact returns the artifact by its opaque ID, or (nil, nil) when there
 	// is none. A tombstoned artifact is returned, not hidden: the caller has to
 	// tell "never existed" from "deleted" to answer either one correctly.
 	GetArtifact(ctx context.Context, artifactID string) (*Artifact, error)

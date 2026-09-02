@@ -121,8 +121,8 @@ func retainerFor(store *fakeArtifactStore, remover *fakeRemover, writer *recordi
 func TestSweepReclaimsATombstonedArtifact(t *testing.T) {
 	now := time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
 	store := &fakeArtifactStore{items: []coreartifact.Artifact{
-		{ID: "ar_gone", TeamID: "t_1", StorageKey: "k1", SizeBytes: 100, DeletedAt: ptr(now.Add(-time.Hour))},
-		{ID: "ar_live", TeamID: "t_1", StorageKey: "k2", SizeBytes: 200},
+		{ID: "nsyt7at6cjfr33d73mta", TeamID: "t_1", StorageKey: "k1", SizeBytes: 100, DeletedAt: ptr(now.Add(-time.Hour))},
+		{ID: "osyt7at6cjfr33d73mta", TeamID: "t_1", StorageKey: "k2", SizeBytes: 200},
 	}}
 	remover := &fakeRemover{}
 	writer := &recordingWriter{}
@@ -132,15 +132,15 @@ func TestSweepReclaimsATombstonedArtifact(t *testing.T) {
 	if purged != 1 {
 		t.Fatalf("purged = %d, want 1", purged)
 	}
-	if len(remover.removed) != 1 || remover.removed[0] != "ar_gone" {
-		t.Fatalf("removed = %v, want [ar_gone]", remover.removed)
+	if len(remover.removed) != 1 || remover.removed[0] != "nsyt7at6cjfr33d73mta" {
+		t.Fatalf("removed = %v, want [nsyt7at6cjfr33d73mta]", remover.removed)
 	}
 	// The live artifact keeps its bytes. A sweep that touched it would be
 	// deleting a file nobody asked to delete.
-	if store.find("ar_live").StorageKey == "" {
+	if store.find("osyt7at6cjfr33d73mta").StorageKey == "" {
 		t.Fatal("the live artifact was purged")
 	}
-	if !store.find("ar_gone").Purged() {
+	if !store.find("nsyt7at6cjfr33d73mta").Purged() {
 		t.Fatal("the tombstoned artifact is not marked purged")
 	}
 	events := writer.withAction(coreaudit.ArtifactsPurged)
@@ -157,7 +157,7 @@ func TestSweepReclaimsATombstonedArtifact(t *testing.T) {
 func TestSweepHoldsBytesUntilTheGracePeriodPasses(t *testing.T) {
 	now := time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
 	store := &fakeArtifactStore{items: []coreartifact.Artifact{
-		{ID: "ar_recent", TeamID: "t_1", StorageKey: "k1", DeletedAt: ptr(now.Add(-24 * time.Hour))},
+		{ID: "psyt7at6cjfr33d73mta", TeamID: "t_1", StorageKey: "k1", DeletedAt: ptr(now.Add(-24 * time.Hour))},
 	}}
 	remover := &fakeRemover{}
 
@@ -179,9 +179,9 @@ func TestSweepHoldsBytesUntilTheGracePeriodPasses(t *testing.T) {
 func TestSweepTombstonesWhatExpiredAndNamesIt(t *testing.T) {
 	now := time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
 	store := &fakeArtifactStore{items: []coreartifact.Artifact{
-		{ID: "ar_old", TeamID: "t_1", StorageKey: "k1", ExpiresAt: ptr(now.Add(-time.Minute))},
-		{ID: "ar_later", TeamID: "t_1", StorageKey: "k2", ExpiresAt: ptr(now.Add(time.Hour))},
-		{ID: "ar_never", TeamID: "t_1", StorageKey: "k3"},
+		{ID: "qsyt7at6cjfr33d73mta", TeamID: "t_1", StorageKey: "k1", ExpiresAt: ptr(now.Add(-time.Minute))},
+		{ID: "rsyt7at6cjfr33d73mta", TeamID: "t_1", StorageKey: "k2", ExpiresAt: ptr(now.Add(time.Hour))},
+		{ID: "ssyt7at6cjfr33d73mta", TeamID: "t_1", StorageKey: "k3"},
 	}}
 	writer := &recordingWriter{}
 
@@ -190,17 +190,17 @@ func TestSweepTombstonesWhatExpiredAndNamesIt(t *testing.T) {
 	if expired != 1 {
 		t.Fatalf("expired = %d, want 1", expired)
 	}
-	if !store.find("ar_old").Deleted() {
+	if !store.find("qsyt7at6cjfr33d73mta").Deleted() {
 		t.Fatal("the expired artifact was not tombstoned")
 	}
-	if store.find("ar_later").Deleted() || store.find("ar_never").Deleted() {
+	if store.find("rsyt7at6cjfr33d73mta").Deleted() || store.find("ssyt7at6cjfr33d73mta").Deleted() {
 		t.Fatal("an unexpired artifact was tombstoned")
 	}
 	// Per artifact, not a summary: this is the one tombstone no member asked
 	// for, so a reader looking for why it went has to find it named.
 	events := writer.withAction(coreaudit.ArtifactExpired)
-	if len(events) != 1 || events[0].TargetID != "ar_old" {
-		t.Fatalf("expiry events = %+v, want one naming ar_old", events)
+	if len(events) != 1 || events[0].TargetID != "qsyt7at6cjfr33d73mta" {
+		t.Fatalf("expiry events = %+v, want one naming qsyt7at6cjfr33d73mta", events)
 	}
 	if events[0].TeamID != "t_1" {
 		t.Fatalf("event team = %q, want t_1", events[0].TeamID)
@@ -217,7 +217,7 @@ func TestExpiryIsReclaimedUnderTheSameGraceAsADelete(t *testing.T) {
 	expiredAt := ptr(now.Add(-time.Minute))
 
 	immediate := &fakeArtifactStore{items: []coreartifact.Artifact{
-		{ID: "ar_old", TeamID: "t_1", StorageKey: "k1", ExpiresAt: expiredAt},
+		{ID: "qsyt7at6cjfr33d73mta", TeamID: "t_1", StorageKey: "k1", ExpiresAt: expiredAt},
 	}}
 	expired, purged := retainerFor(immediate, &fakeRemover{}, &recordingWriter{}, 0, now).sweep(context.Background())
 	if expired != 1 || purged != 1 {
@@ -227,14 +227,14 @@ func TestExpiryIsReclaimedUnderTheSameGraceAsADelete(t *testing.T) {
 	// With a grace the tombstone lands now and the bytes wait for it, exactly
 	// as they would for an artifact somebody deleted by hand.
 	held := &fakeArtifactStore{items: []coreartifact.Artifact{
-		{ID: "ar_old", TeamID: "t_1", StorageKey: "k1", ExpiresAt: expiredAt},
+		{ID: "qsyt7at6cjfr33d73mta", TeamID: "t_1", StorageKey: "k1", ExpiresAt: expiredAt},
 	}}
 	remover := &fakeRemover{}
 	expired, purged = retainerFor(held, remover, &recordingWriter{}, 7, now).sweep(context.Background())
 	if expired != 1 || purged != 0 {
 		t.Fatalf("seven-day grace: expired=%d purged=%d, want 1 and 0", expired, purged)
 	}
-	if !held.find("ar_old").Deleted() || held.find("ar_old").Purged() {
+	if !held.find("qsyt7at6cjfr33d73mta").Deleted() || held.find("qsyt7at6cjfr33d73mta").Purged() {
 		t.Fatal("the expired artifact should be tombstoned but still hold its bytes")
 	}
 
@@ -249,7 +249,7 @@ func TestExpiryIsReclaimedUnderTheSameGraceAsADelete(t *testing.T) {
 func TestAFailedRemovalLeavesTheArtifactPurgeable(t *testing.T) {
 	now := time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
 	store := &fakeArtifactStore{items: []coreartifact.Artifact{
-		{ID: "ar_gone", TeamID: "t_1", StorageKey: "k1", DeletedAt: ptr(now.Add(-time.Hour))},
+		{ID: "nsyt7at6cjfr33d73mta", TeamID: "t_1", StorageKey: "k1", DeletedAt: ptr(now.Add(-time.Hour))},
 	}}
 	writer := &recordingWriter{}
 
@@ -258,7 +258,7 @@ func TestAFailedRemovalLeavesTheArtifactPurgeable(t *testing.T) {
 	if purged != 0 {
 		t.Fatalf("purged = %d after a failed removal, want 0", purged)
 	}
-	if store.find("ar_gone").Purged() {
+	if store.find("nsyt7at6cjfr33d73mta").Purged() {
 		t.Fatal("the artifact was marked purged although removal failed")
 	}
 	if len(writer.withAction(coreaudit.ArtifactsPurged)) != 0 {
@@ -271,7 +271,7 @@ func TestAFailedRemovalLeavesTheArtifactPurgeable(t *testing.T) {
 func TestAnIdleSweepRecordsNothing(t *testing.T) {
 	now := time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
 	store := &fakeArtifactStore{items: []coreartifact.Artifact{
-		{ID: "ar_live", TeamID: "t_1", StorageKey: "k1"},
+		{ID: "osyt7at6cjfr33d73mta", TeamID: "t_1", StorageKey: "k1"},
 	}}
 	writer := &recordingWriter{}
 
@@ -290,7 +290,7 @@ func TestAnIdleSweepRecordsNothing(t *testing.T) {
 func TestReclaimingSurvivesAnUnwritableTrail(t *testing.T) {
 	now := time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
 	store := &fakeArtifactStore{items: []coreartifact.Artifact{
-		{ID: "ar_gone", TeamID: "t_1", StorageKey: "k1", DeletedAt: ptr(now.Add(-time.Hour))},
+		{ID: "nsyt7at6cjfr33d73mta", TeamID: "t_1", StorageKey: "k1", DeletedAt: ptr(now.Add(-time.Hour))},
 	}}
 	remover := &fakeRemover{}
 
@@ -299,7 +299,7 @@ func TestReclaimingSurvivesAnUnwritableTrail(t *testing.T) {
 	if purged != 1 {
 		t.Fatalf("purged = %d with the trail down, want 1", purged)
 	}
-	if !store.find("ar_gone").Purged() {
+	if !store.find("nsyt7at6cjfr33d73mta").Purged() {
 		t.Fatal("the artifact was not reclaimed when the trail was unwritable")
 	}
 }
@@ -331,7 +331,7 @@ func TestAZeroGraceStillBuildsARetainer(t *testing.T) {
 func TestStartAndStopRunASweep(t *testing.T) {
 	now := time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
 	store := &fakeArtifactStore{items: []coreartifact.Artifact{
-		{ID: "ar_gone", TeamID: "t_1", StorageKey: "k1", DeletedAt: ptr(now.Add(-time.Hour))},
+		{ID: "nsyt7at6cjfr33d73mta", TeamID: "t_1", StorageKey: "k1", DeletedAt: ptr(now.Add(-time.Hour))},
 	}}
 	remover := &fakeRemover{}
 	a := retainerFor(store, remover, &recordingWriter{}, 0, now)

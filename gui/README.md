@@ -7,7 +7,12 @@ Shared React UI components and styles for BuildMax portal and desktop app. Imple
 - **Theme**: `ThemeProvider`, `useTheme`, `ThemeToggle`, and type `Theme` (`"light" | "dark"`).
 - **Styles**: `theme.css` — CSS variables for light/dark (`data-theme`). Import as `@buildmax/gui/theme.css`.
 - **BaseModal**: Presentational modal component; props: `open`, `title`, `titleId`, `onClose`, optional `className`, optional `hideHeader`, `children`. Type `BaseModalProps` is exported for TypeScript.
+- **FormModal**: Form-oriented modal shell and its field/select configuration types.
+- **Avatar**: Shared avatar presentation and `getInitials` helper.
+- **ChatComposer**: Shared chat input and submission presentation.
+- **ChatThread**: Shared transcript presentation and item types.
 - **Modal styles**: `modal.css` — base modal layout (overlay, `.modal`, `.modal--large`, `.modal__header`, `.modal__title`, `.modal__close`, `.modal__body`). Uses theme variables; import `theme.css` first, then `@buildmax/gui/modal.css`.
+- **Widget styles**: `widgets.css` — styles for the shared avatar and chat components.
 
 ## Local dependency (portal & desktop)
 
@@ -32,7 +37,5 @@ Consumers keep their own layout/sidebar and any `.theme-toggle` button styles; t
 
 Future components to consider moving into this package (presentational only; each app keeps its own data and callbacks):
 
-- **PromptArea / composer** — Single-line or multi-line input + primary action; used in portal and reusable in desktop chat.
-- **Chat message bubble** — Presentational message block (user/assistant); shared rendering for both apps.
 - **Primary / secondary button** — Shared button styles and variants to keep actions consistent.
 - **Icons** — Shared icon set or sprite so both apps use the same symbols.

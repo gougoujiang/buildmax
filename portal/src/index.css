@@ -7,7 +7,6 @@
 @import './css/login.css';
 @import './css/sidebar.css';
 @import './css/breadcrumbs.css';
-@import './css/prompt-area.css';
 @import './css/pages/home.css';
 @import './css/pages/activity.css';
 @import './css/pages/agent-list.css';
@@ -16,7 +15,6 @@
 @import './css/pages/settings.css';
 @import './css/pages/team-settings.css';
 @import './css/pages/explore.css';
-@import './css/pages/project.css';
 @import './css/pages/task-detail.css';
 @import './css/pages/artifact.css';
 @import './css/pages/artifacts.css';

@@ -244,7 +244,7 @@ func TestUnconfiguredServiceRefusesEveryCall(t *testing.T) {
 	if _, err := svc.Create(context.Background(), CreateInput{}); !errors.Is(err, ErrNotConfigured) {
 		t.Errorf("create = %v, want ErrNotConfigured", err)
 	}
-	if _, err := svc.Get(context.Background(), "ar_x"); !errors.Is(err, ErrNotConfigured) {
+	if _, err := svc.Get(context.Background(), "hsyt7at6cjfr33d73mta"); !errors.Is(err, ErrNotConfigured) {
 		t.Errorf("get = %v, want ErrNotConfigured", err)
 	}
 	if _, _, err := svc.List(context.Background(), "tm_1", 10, 0); !errors.Is(err, ErrNotConfigured) {

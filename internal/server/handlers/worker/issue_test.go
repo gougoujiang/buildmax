@@ -123,7 +123,7 @@ func TestPostRunIssueComment(t *testing.T) {
 	comments := &mock.MockIssueCommentStore{}
 	mux, _ := issueWorkerMux(t, comments)
 	rec := issueWorkerRequest(t, mux, http.MethodPost, "/api/worker/task-runs/run-1/issue/comments",
-		`{"body":"Adapter written and tested.","artifact_ids":["ar_1"]}`)
+		`{"body":"Adapter written and tested.","artifact_ids":["gsyt7at6cjfr33d73mta"]}`)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want 201, body=%s", rec.Code, rec.Body.String())
 	}
@@ -141,7 +141,7 @@ func TestPostRunIssueComment(t *testing.T) {
 	if got.SourceTaskID == nil || *got.SourceTaskID != "task-1" || got.SourceTaskRunID == nil || *got.SourceTaskRunID != "run-1" {
 		t.Fatalf("source = %v/%v", got.SourceTaskID, got.SourceTaskRunID)
 	}
-	if !strings.Contains(got.Body, "ar_1") {
+	if !strings.Contains(got.Body, "gsyt7at6cjfr33d73mta") {
 		t.Fatalf("body does not name the artifact: %q", got.Body)
 	}
 }

@@ -62,7 +62,10 @@ and write run state, and a worker executes model-chosen shell commands — so a
 static key is a long-lived credential inside that blast radius, while a
 projected identity is not.
 
-Lifecycle rules are yours to set. BuildMax never deletes run state or artifacts.
+Lifecycle rules are yours to set. BuildMax tombstones deleted or expired
+artifacts and, when `storage.artifact_purge_after_days` is non-zero, reclaims
+their object content after that recovery window. Run retention is otherwise an
+operator concern.
 
 Before accepting production traffic, validate this contract from the adapted
 deployment with the same workload identity the server and workers will use. The

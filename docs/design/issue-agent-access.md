@@ -17,14 +17,13 @@
 
 ## Status
 
-- roadmap_priority: `unscheduled` — this decides the item
-  [issue-model.md](./issue-model.md) §6 deferred as "a separate decision"; it is
-  not placed in [../ROADMAP.md](../ROADMAP.md)
+- roadmap_priority: `unscheduled` — this decides the Agent-mutation question
+  that the implemented Issue model deliberately left separate; it is not
+  placed in [../ROADMAP.md](../ROADMAP.md)
 - status: `implemented` — §10 is shipped on both planes: a worker run started
   from an Issue, and a local CLI session started with `--issue`. Artifact
   references in `GetIssue` are deferred; §5.1 says why
-- follows: [issue-model.md](./issue-model.md),
-  [tool-permissions.md](./tool-permissions.md),
+- follows: [tool-permissions.md](./tool-permissions.md),
   [unified-artifacts.md](./unified-artifacts.md)
 - relates: [surface-positioning.md](./surface-positioning.md),
   [portal-execution-model.md](./portal-execution-model.md)

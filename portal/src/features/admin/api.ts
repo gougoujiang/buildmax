@@ -2,7 +2,6 @@ import { getApiBase, requestJson } from "../../lib/api/client"
 import { authHeaders, jsonHeaders } from "../../lib/api/common"
 import { downloadAuthenticated } from "../../lib/download"
 import type {
-  ApiAdminGrantsResponse,
   ApiAdminLoginCode,
   ApiAdminMe,
   ApiAdminModel,
@@ -18,7 +17,6 @@ import type {
   ApiAuditEventsResponse,
   ApiPluginReleasesResponse,
   ApiPluginsResponse,
-  ApiSystemGrant,
 } from "../../lib/api/types"
 
 /**
@@ -96,25 +94,6 @@ export function setAdminUserDisabled(
 
 export function revokeAdminUserSessions(token: string, userId: string): Promise<ApiAdminSessionsRevoked> {
   return send<ApiAdminSessionsRevoked>("DELETE", `/users/${encodeURIComponent(userId)}/sessions`, token)
-}
-
-export function listAdminGrants(token: string, includeRevoked = false): Promise<ApiAdminGrantsResponse> {
-  return get<ApiAdminGrantsResponse>("/grants", token, {
-    include_revoked: includeRevoked ? "true" : undefined,
-  })
-}
-
-export function grantAdminRole(token: string, userId: string): Promise<ApiSystemGrant> {
-  return send<ApiSystemGrant>("POST", "/grants", token, { user_id: userId })
-}
-
-/**
- * Revokes a grant. The server refuses to revoke the deployment's last one —
- * that is what `buildmax-server admin revoke` is for — so a 409 here is a
- * boundary doing its job.
- */
-export function revokeAdminRole(token: string, userId: string): Promise<void> {
-  return send<void>("DELETE", `/grants/${encodeURIComponent(userId)}`, token)
 }
 
 /**

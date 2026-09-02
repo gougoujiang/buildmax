@@ -306,27 +306,6 @@ export interface ApiRunSourceMessage {
   created_at: string
 }
 
-/** Conversation as returned by the team-scoped task conversation endpoint. */
-export interface ApiSession {
-  id: string
-  title: string
-  created_at: string
-  messages: ApiSessionMessage[]
-}
-
-export interface ApiSessionMessage {
-  role: string
-  content: string
-  tool_call_id?: string
-  tool_calls?: { id: string; name: string; arguments?: string }[]
-}
-
-/** Response from the team-scoped create task run endpoint. */
-export interface CreateTaskRunResponse {
-  task_run_id: string
-  task_id: string
-}
-
 /**
  * Response from the team-scoped cancel endpoint.
  *
@@ -355,7 +334,7 @@ export interface RetryTaskResponse {
 }
 
 /**
- * A durable file the team keeps, addressed by its own `ar_` id.
+ * A durable file the team keeps, addressed by its own opaque id.
  *
  * Not a run output: those are paths inside one run's directory and come from
  * the task-run routes instead. See docs/design/unified-artifacts.md section 5.3.
@@ -546,10 +525,6 @@ export interface ApiSystemGrant {
 export interface ApiAdminMe {
   user_id: string
   roles: string[]
-  grants: ApiSystemGrant[]
-}
-
-export interface ApiAdminGrantsResponse {
   grants: ApiSystemGrant[]
 }
 
@@ -772,11 +747,6 @@ export interface ApiPluginReleasesResponse {
 export interface ApiPluginResponse {
   plugin: ApiPlugin
   releases: ApiPluginRelease[]
-}
-
-/** Whether a credential is configured. Never its value, length, or prefix. */
-export interface ApiSecretStatus {
-  set: boolean
 }
 
 export interface ApiAdminTeam {

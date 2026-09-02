@@ -23,8 +23,8 @@ Portal owns the cloud/team lane:
   whatever it ended as, and show the server's own reason when it refuses
 - the space audit trail, for owners
 - agents
-- artifacts: the space's durable files, listed and opened at their own
-  `ar_` address rather than through the run that produced them
+- artifacts: the space's durable files, listed and opened at their own opaque
+  address rather than through the run that produced them
 - team files
 - usage and webhook keys
 

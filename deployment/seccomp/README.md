@@ -3,10 +3,11 @@
 `worker-bwrap.json` is a `securityContext.seccompProfile: {type: Localhost}`
 profile for the worker Job pod (`internal/infra/k8s/job.go`). It exists
 because Kubernetes' `RuntimeDefault` seccomp profile blocks bubblewrap from
-creating the unprivileged user/mount/pid namespace it needs, confirmed
-against a real pod running the worker's exact `PodSecurityContext` (non-root,
-`Capabilities: {drop: [ALL]}`, `RuntimeDefault`, read-only root filesystem):
-`bwrap` failed with `Creating new namespace failed: Operation not permitted`.
+creating the user/mount/pid namespace it needs. The current worker pod runs as
+root with every capability dropped except `SYS_ADMIN`, uses this profile and
+an unconfined AppArmor setting, and keeps a read-only root filesystem. Those
+settings are the result of testing `bwrap` against real pods; the initial
+non-root configuration could not make an added capability effective at exec.
 See [`docs/design/agent-sandbox-policy.md`](../../docs/design/agent-sandbox-policy.md)
 and [`docs/current-state.md`](../../docs/current-state.md) for how this fits
 the broader sandbox effort.

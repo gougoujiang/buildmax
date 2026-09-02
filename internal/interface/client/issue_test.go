@@ -112,14 +112,14 @@ func TestLocalIssueClientReportsAsALocalAgent(t *testing.T) {
 	defer srv.Close()
 
 	client := NewIssueClient(srv.URL, "tm_1", "i_1", func(string) (string, error) { return "tok", nil })
-	if err := client.Report(t.Context(), tool.IssueReport{Body: "done", ArtifactIDs: []string{"ar_1"}}); err != nil {
+	if err := client.Report(t.Context(), tool.IssueReport{Body: "done", ArtifactIDs: []string{"gsyt7at6cjfr33d73mta"}}); err != nil {
 		t.Fatalf("Report: %v", err)
 	}
 	if got["author_kind"] != coreissue.CommentAuthorLocalAgent {
 		t.Fatalf("author_kind = %v, want %q", got["author_kind"], coreissue.CommentAuthorLocalAgent)
 	}
 	body, _ := got["body"].(string)
-	if !strings.Contains(body, "done") || !strings.Contains(body, "ar_1") {
+	if !strings.Contains(body, "done") || !strings.Contains(body, "gsyt7at6cjfr33d73mta") {
 		t.Fatalf("body = %q", body)
 	}
 }
