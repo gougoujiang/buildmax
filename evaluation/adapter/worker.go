@@ -260,14 +260,14 @@ func (w *Worker) layout(root string, tr Trial) workerLayout {
 	runID := fmt.Sprintf("rt_%s_%d", sanitizeID(tr.Task.ID), tr.Index)
 	taskID := "tk_" + sanitizeID(tr.Task.ID)
 	conversationID := "cv_evaluation"
-	user, team := w.userID(), w.teamID()
+	team := w.teamID()
 
 	// This mirrors taskrun.NewRuntimePathsFromRoot and
 	// config.PersistentWorkspaceDir. It is duplicated rather than imported
 	// because the adapter must describe where it expects the worker to write:
 	// computing both sides from one function would make a layout change look
 	// like agreement.
-	runDir := filepath.Join(workspaces, user, "conversations", conversationID, "tasks", taskID, runID)
+	runDir := filepath.Join(workspaces, team, "tasks", taskID, runID)
 	return workerLayout{
 		home:           filepath.Join(root, "home"),
 		workspaces:     workspaces,

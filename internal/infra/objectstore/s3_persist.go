@@ -61,7 +61,7 @@ func (s *S3PersistStorage) ListFiles(ctx context.Context, teamID string) ([]stri
 
 // PutRunGlobal writes one file under the task run global key space.
 func (s *S3PersistStorage) PutRunGlobal(ctx context.Context, ref RunObjectRef, r io.Reader) error {
-	key, err := RunGlobalObjectKey(s.prefix, ref.CreatedBy, ref.ConversationID, ref.TaskID, ref.TaskRunID, ref.RelPath)
+	key, err := RunGlobalObjectKey(s.prefix, ref.TeamID, ref.TaskID, ref.TaskRunID, ref.RelPath)
 	if err != nil {
 		return err
 	}
@@ -70,7 +70,7 @@ func (s *S3PersistStorage) PutRunGlobal(ctx context.Context, ref RunObjectRef, r
 
 // GetRunGlobal reads one file from the task run global key space. Returns apierr.ErrNotFound if the object does not exist.
 func (s *S3PersistStorage) GetRunGlobal(ctx context.Context, ref RunObjectRef) ([]byte, error) {
-	key, err := RunGlobalObjectKey(s.prefix, ref.CreatedBy, ref.ConversationID, ref.TaskID, ref.TaskRunID, ref.RelPath)
+	key, err := RunGlobalObjectKey(s.prefix, ref.TeamID, ref.TaskID, ref.TaskRunID, ref.RelPath)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +79,7 @@ func (s *S3PersistStorage) GetRunGlobal(ctx context.Context, ref RunObjectRef) (
 
 // PutRunArtifacts writes one file under the task run artifacts key space (prefix/.../tasks/taskID/taskRunID/artifacts/relPath).
 func (s *S3PersistStorage) PutRunArtifacts(ctx context.Context, ref RunObjectRef, r io.Reader) error {
-	key, err := RunArtifactsObjectKey(s.prefix, ref.CreatedBy, ref.ConversationID, ref.TaskID, ref.TaskRunID, ref.RelPath)
+	key, err := RunArtifactsObjectKey(s.prefix, ref.TeamID, ref.TaskID, ref.TaskRunID, ref.RelPath)
 	if err != nil {
 		return err
 	}
@@ -88,7 +88,7 @@ func (s *S3PersistStorage) PutRunArtifacts(ctx context.Context, ref RunObjectRef
 
 // GetRunArtifacts reads one file from the task run artifacts key space. Returns apierr.ErrNotFound if the object does not exist.
 func (s *S3PersistStorage) GetRunArtifacts(ctx context.Context, ref RunObjectRef) ([]byte, error) {
-	key, err := RunArtifactsObjectKey(s.prefix, ref.CreatedBy, ref.ConversationID, ref.TaskID, ref.TaskRunID, ref.RelPath)
+	key, err := RunArtifactsObjectKey(s.prefix, ref.TeamID, ref.TaskID, ref.TaskRunID, ref.RelPath)
 	if err != nil {
 		return nil, err
 	}

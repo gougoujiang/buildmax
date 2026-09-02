@@ -1,6 +1,6 @@
 # Agent Execution And Task Threads
 
-> **Audience:** contributors, product designers, and operators · **Status:** planned — direction accepted, current execution paths still require a Conversation
+> **Audience:** contributors, product designers, and operators · **Status:** in progress — the ownership cutover (§13.1), direct Agent admission (§13.2), the Task thread backend and Portal Task page (§13.3), synthetic-Conversation removal (§13.4), Continue's API-boundary idempotency, and a store-level guarantee that concurrent Continue requests admit only one active run (§12) have shipped, each with MySQL contention evidence; the §14 Portal browser evidence remains open
 
 Related: [product vision](product-vision.md),
 [surface positioning](surface-positioning.md),

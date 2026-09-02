@@ -48,7 +48,7 @@ func (h *Handler) listTaskArtifactsHandler(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	list, err := h.cfg.RunOutputs.ListRunOutputsByConversation(r.Context(), task.ConversationID, &task.ID)
+	list, err := h.cfg.RunOutputs.ListRunOutputsByTask(r.Context(), task.ID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "list_artifacts", "task_id", taskID)
 		return
@@ -86,7 +86,7 @@ func (h *Handler) getArtifactRunAndTaskForTeam(w http.ResponseWriter, r *http.Re
 	if !ok {
 		return nil, nil, false
 	}
-	if _, ok = h.getConversationForTeam(w, r, teamID, task.ConversationID); !ok {
+	if task.TeamID != teamID {
 		httputil.WriteJSONError(w, http.StatusNotFound, "artifact not found")
 		return nil, nil, false
 	}
@@ -176,18 +176,11 @@ func (h *Handler) artifactContentHandler(w http.ResponseWriter, r *http.Request)
 	var err error
 	if pathParam == artifactResultFilename {
 		data, err = h.cfg.RunOutputStorage.GetResult(r.Context(), blob.RunRef{
-			CreatedBy:      task.CreatedBy,
-			ConversationID: task.ConversationID,
-			TaskID:         task.ID,
-			TaskRunID:      taskRunID,
+			TeamID: task.TeamID, TaskID: task.ID, TaskRunID: taskRunID,
 		})
 	} else {
 		data, err = h.cfg.RunOutputStorage.GetRunOutputFile(r.Context(), blob.RunObjectRef{
-			CreatedBy:      task.CreatedBy,
-			ConversationID: task.ConversationID,
-			TaskID:         task.ID,
-			TaskRunID:      taskRunID,
-			RelPath:        pathParam,
+			TeamID: task.TeamID, TaskID: task.ID, TaskRunID: taskRunID, RelPath: pathParam,
 		})
 	}
 	if err != nil {

@@ -18,10 +18,9 @@ func TestArtifactObjectKeyIsDisjointFromTheOtherKeySpaces(t *testing.T) {
 	if got != "workspaces/teams/tm_1/artifacts/jsyt7at6cjfr33d73mta/content" {
 		t.Fatalf("key = %q", got)
 	}
-	// The run-output tree is keyed by the creating user and the home tree by
-	// the team itself. A literal "teams" segment cannot collide with either,
-	// because no id is that string.
-	runOutput, err := RunOutputFileKey("workspaces", "u_1", "c_1", "t_1", "r_1", "out.md")
+	// Unified artifacts retain their own literal "teams" namespace while run
+	// output and home files live directly under the owning team's ID.
+	runOutput, err := RunOutputFileKey("workspaces", "tm_1", "t_1", "r_1", "out.md")
 	if err != nil {
 		t.Fatal(err)
 	}

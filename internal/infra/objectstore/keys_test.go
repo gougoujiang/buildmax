@@ -52,29 +52,29 @@ func TestPersistObjectKey(t *testing.T) {
 }
 
 func TestRunOutputResultKey(t *testing.T) {
-	key := RunOutputResultKey("workspaces", "u1", "conv1", "chat1", "run1")
-	if key != "workspaces/u1/artifacts/conv1/chat1/run1/result.md" {
+	key := RunOutputResultKey("workspaces", "tm1", "task1", "run1")
+	if key != "workspaces/tm1/tasks/task1/run1/artifacts/result.md" {
 		t.Errorf("got %q", key)
 	}
-	key = runOutputResultKey(runKeyScope{Prefix: "workspaces", CreatedBy: "u1", ConversationID: "conv1", TaskID: "chat1", TaskRunID: "run1"})
-	if key != "workspaces/u1/artifacts/conv1/chat1/run1/result.md" {
+	key = runOutputResultKey(runKeyScope{Prefix: "workspaces", TeamID: "tm1", TaskID: "task1", TaskRunID: "run1"})
+	if key != "workspaces/tm1/tasks/task1/run1/artifacts/result.md" {
 		t.Errorf("runOutputResultKey got %q", key)
 	}
 }
 
 func TestRunOutputFileKey(t *testing.T) {
-	key, err := RunOutputFileKey("workspaces", "u1", "conv1", "chat1", "run1", "result.md")
+	key, err := RunOutputFileKey("workspaces", "tm1", "task1", "run1", "result.md")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if key != "workspaces/u1/artifacts/conv1/chat1/run1/result.md" {
+	if key != "workspaces/tm1/tasks/task1/run1/artifacts/result.md" {
 		t.Errorf("got %q", key)
 	}
-	key, err = RunOutputFileKey("w", "u", "conv", "c", "r", "sub/file.txt")
+	key, err = RunOutputFileKey("w", "tm", "task", "run", "sub/file.txt")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if key != "w/u/artifacts/conv/c/r/sub/file.txt" {
+	if key != "w/tm/tasks/task/run/artifacts/sub/file.txt" {
 		t.Errorf("got %q", key)
 	}
 }
@@ -87,40 +87,40 @@ func TestPersistPrefix(t *testing.T) {
 }
 
 func TestRunGlobalObjectKey(t *testing.T) {
-	key, err := RunGlobalObjectKey("workspaces", "u1", "conv1", "chat1", "run1", "logs/buildmax.log")
+	key, err := RunGlobalObjectKey("workspaces", "tm1", "task1", "run1", "logs/buildmax.log")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if key != "workspaces/u1/conversations/conv1/tasks/chat1/run1/global/logs/buildmax.log" {
+	if key != "workspaces/tm1/tasks/task1/run1/global/logs/buildmax.log" {
 		t.Errorf("got %q", key)
 	}
-	key, err = RunGlobalObjectKey("w", "u", "conv", "cid", "rid", "sessions/sessions.json")
+	key, err = RunGlobalObjectKey("w", "tm", "task", "run", "sessions/sessions.json")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if key != "w/u/conversations/conv/tasks/cid/rid/global/sessions/sessions.json" {
+	if key != "w/tm/tasks/task/run/global/sessions/sessions.json" {
 		t.Errorf("got %q", key)
 	}
-	_, err = RunGlobalObjectKey("w", "u", "conv", "cid", "rid", "../x")
+	_, err = RunGlobalObjectKey("w", "tm", "task", "run", "../x")
 	if err != ErrInvalidPath {
 		t.Errorf("want ErrInvalidPath for .. path, got %v", err)
 	}
-	_, err = RunGlobalObjectKey("w", "u", "conv", "cid", "rid", "")
+	_, err = RunGlobalObjectKey("w", "tm", "task", "run", "")
 	if err != ErrInvalidPath {
 		t.Errorf("want ErrInvalidPath for empty path, got %v", err)
 	}
-	_, err = RunGlobalObjectKey("w", "u", "conv", "cid", "rid", "/abs")
+	_, err = RunGlobalObjectKey("w", "tm", "task", "run", "/abs")
 	if err != ErrInvalidPath {
 		t.Errorf("want ErrInvalidPath for absolute path, got %v", err)
 	}
 }
 
 func TestRunArtifactsObjectKey(t *testing.T) {
-	key, err := RunArtifactsObjectKey("workspaces", "u1", "conv1", "chat1", "run1", "result.md")
+	key, err := RunArtifactsObjectKey("workspaces", "tm1", "task1", "run1", "result.md")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if key != "workspaces/u1/conversations/conv1/tasks/chat1/run1/artifacts/result.md" {
+	if key != "workspaces/tm1/tasks/task1/run1/artifacts/result.md" {
 		t.Errorf("got %q", key)
 	}
 }

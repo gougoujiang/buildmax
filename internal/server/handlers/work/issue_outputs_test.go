@@ -149,7 +149,7 @@ func TestIssueFlowOutputs_AgentTaskResultMD(t *testing.T) {
 		{TaskRunID: runID, RelativePath: "result.md"},
 	}
 	if err := artifacts.PutResult(context.Background(), blob.RunRef{
-		CreatedBy: "u1", ConversationID: "c_1", TaskID: taskID, TaskRunID: runID,
+		TeamID: fx.personalID, TaskID: taskID, TaskRunID: runID,
 	}, []byte("# Hello\n\nResult body.")); err != nil {
 		t.Fatalf("put result: %v", err)
 	}
@@ -207,8 +207,8 @@ func TestIssueFlowOutputs_WorkflowStepProvenance(t *testing.T) {
 	// step provenance comes from ListWorkflowRunsByIssue / ListWorkflowStepRuns.
 	fx.workflows.Runs = []coreworkflow.Run{{
 		ID: workflowRunID, WorkflowID: wfID,
-		IssueID: util.Ptr("i_1"), ConversationID: "c_1",
-		Status: coreworkflow.RunStatusSucceeded, CreatedBy: "u1", CreatedAt: time.Unix(300, 0).UTC(),
+		IssueID: util.Ptr("i_1"),
+		Status:  coreworkflow.RunStatusSucceeded, CreatedBy: "u1", CreatedAt: time.Unix(300, 0).UTC(),
 	}}
 	fx.workflows.StepRuns = []coreworkflow.StepRun{{
 		ID: stepRunID, WorkflowRunID: workflowRunID,
@@ -231,7 +231,7 @@ func TestIssueFlowOutputs_WorkflowStepProvenance(t *testing.T) {
 		{TaskRunID: runID, RelativePath: "result.md"},
 	}
 	_ = artifacts.PutResult(context.Background(), blob.RunRef{
-		CreatedBy: "u1", ConversationID: "c_1", TaskID: taskID, TaskRunID: runID,
+		TeamID: fx.personalID, TaskID: taskID, TaskRunID: runID,
 	}, []byte("step body"))
 
 	rec, flow := fetchIssueFlow(t, fx.mux, fx.personalID, "i_1", "u1")
@@ -299,7 +299,7 @@ func TestIssueFlowOutputs_TeamScoped(t *testing.T) {
 		{TaskRunID: runID, RelativePath: "result.md"},
 	}
 	_ = artifacts.PutResult(context.Background(), blob.RunRef{
-		CreatedBy: "u2", ConversationID: "c_other", TaskID: taskID, TaskRunID: runID,
+		TeamID: fx.otherTeamID, TaskID: taskID, TaskRunID: runID,
 	}, []byte("leak"))
 
 	// u1 reading another team's issue must be forbidden, regardless of outputs.

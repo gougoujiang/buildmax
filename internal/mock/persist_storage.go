@@ -13,7 +13,7 @@ import (
 // interface and are inert, because the handlers that need this mock read run
 // state, not team files.
 type MockPersistStorage struct {
-	// RunGlobal is keyed by createdBy/conversationID/taskID/taskRunID/relPath.
+	// RunGlobal is keyed by teamID/taskID/taskRunID/relPath.
 	RunGlobal map[string][]byte
 	// RunArtifacts uses the same key shape.
 	RunArtifacts map[string][]byte
@@ -28,7 +28,7 @@ func NewMockPersistStorage() *MockPersistStorage {
 }
 
 func runObjectKey(ref blob.RunObjectRef) string {
-	return ref.CreatedBy + "/" + ref.ConversationID + "/" + ref.TaskID + "/" + ref.TaskRunID + "/" + ref.RelPath
+	return ref.TeamID + "/" + ref.TaskID + "/" + ref.TaskRunID + "/" + ref.RelPath
 }
 
 func (m *MockPersistStorage) PutRunGlobal(_ context.Context, ref blob.RunObjectRef, r io.Reader) error {

@@ -9,6 +9,13 @@
   margin-right: 5rem;
 }
 
+.task-thread__header {
+  flex-shrink: 0;
+  padding: 0 1rem 1rem;
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 1rem;
+}
+
 /* Chat history — scrollable message list, takes remaining space */
 .page-chat__history {
   display: flex;

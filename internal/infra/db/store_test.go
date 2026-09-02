@@ -264,7 +264,7 @@ func TestTransitionTaskRun_ListRunOutputs(t *testing.T) {
 	defer func() {
 		_ = s.db.WithContext(ctx).Delete(&conversationRow{}, "public_id = ?", canonicalPublicID(conv.ID))
 	}()
-	task, err := s.CreateTask(ctx, &coretask.CreateInput{ConversationID: conv.ID, Input: "input", Title: "", CreatedBy: runOutputUser})
+	task, err := s.CreateTask(ctx, &coretask.CreateInput{TeamID: conv.TeamID, ConversationID: conv.ID, Input: "input", Title: "", CreatedBy: runOutputUser})
 	if err != nil {
 		t.Fatalf("CreateTask: %v", err)
 	}
@@ -352,6 +352,7 @@ func TestTaskRunProvenancePersistence(t *testing.T) {
 		_ = s.db.WithContext(ctx).Delete(&conversationRow{}, "public_id = ?", canonicalPublicID(conv.ID))
 	}()
 	task, err := s.CreateTask(ctx, &coretask.CreateInput{
+		TeamID:                  conv.TeamID,
 		ConversationID:          conv.ID,
 		Input:                   "initial input",
 		Title:                   "initial title",
@@ -454,7 +455,7 @@ func TestClaimTask(t *testing.T) {
 		_ = s.db.WithContext(ctx).Delete(&conversationRow{}, "public_id = ?", canonicalPublicID(conv.ID))
 		deleteTestUser(t, s, user.ID)
 	}()
-	task, err := s.CreateTask(ctx, &coretask.CreateInput{ConversationID: conv.ID, Input: "input", Title: "", CreatedBy: user.ID})
+	task, err := s.CreateTask(ctx, &coretask.CreateInput{TeamID: conv.TeamID, ConversationID: conv.ID, Input: "input", Title: "", CreatedBy: user.ID})
 	if err != nil {
 		t.Fatalf("CreateTask: %v", err)
 	}

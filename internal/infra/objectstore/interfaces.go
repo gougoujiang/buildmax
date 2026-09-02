@@ -7,18 +7,16 @@ import (
 )
 
 type RunObjectRef struct {
-	CreatedBy      string
-	ConversationID string
-	TaskID         string
-	TaskRunID      string
-	RelPath        string
+	TeamID    string
+	TaskID    string
+	TaskRunID string
+	RelPath   string
 }
 
 type RunRef struct {
-	CreatedBy      string
-	ConversationID string
-	TaskID         string
-	TaskRunID      string
+	TeamID    string
+	TaskID    string
+	TaskRunID string
 }
 
 // HomeStorage reads and writes persistent team home files (Put/Get/ListFiles/MaterializeToDir).
@@ -31,7 +29,7 @@ type HomeStorage interface {
 }
 
 // RunStorage reads and writes run-scoped files: the task run global dir (BUILDMAX_HOME state)
-// and the task run artifacts dir. Key space: conversations/<cID>/tasks/<tID>/<rID>/{global,artifacts}/.
+// and the task run artifacts dir. Key space: <teamID>/tasks/<taskID>/<runID>/{global,artifacts}/.
 // For local-FS deployments these files live on worker disk; all methods are no-ops or return apierr.ErrNotFound.
 type RunStorage interface {
 	PutRunGlobal(ctx context.Context, ref RunObjectRef, r io.Reader) error
@@ -47,7 +45,8 @@ type PersistStorage interface {
 	RunStorage
 }
 
-// RunOutputStorage reads/writes run output files. Path: artifacts/<conversationID>/<taskID>/<taskRunID>/<relPath>. One namespace per task run.
+// RunOutputStorage reads/writes run output files in the task run's team-owned
+// artifact namespace. One namespace exists per task run.
 // PutResult/GetResult are for result.md. PutRunOutputFile/GetRunOutputFile support multiple files per run.
 type RunOutputStorage interface {
 	PutResult(ctx context.Context, ref RunRef, data []byte) error

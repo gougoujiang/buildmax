@@ -38,11 +38,10 @@ func CleanRelPath(p string) (string, error) {
 
 // runKeyScope groups prefix and run identifiers for blob key construction.
 type runKeyScope struct {
-	Prefix         string
-	CreatedBy      string
-	ConversationID string
-	TaskID         string
-	TaskRunID      string
+	Prefix    string
+	TeamID    string
+	TaskID    string
+	TaskRunID string
 }
 
 // PersistObjectKey returns the S3 object key for a persistent team file.
@@ -56,29 +55,21 @@ func PersistObjectKey(prefix, teamID, relPath string) (string, error) {
 }
 
 // RunOutputResultKey returns the S3 object key for a run's result.md (one artifact per task run).
-func RunOutputResultKey(prefix, createdBy, conversationID, taskID, taskRunID string) string {
+func RunOutputResultKey(prefix, teamID, taskID, taskRunID string) string {
 	return runOutputResultKey(runKeyScope{
-		Prefix:         prefix,
-		CreatedBy:      createdBy,
-		ConversationID: conversationID,
-		TaskID:         taskID,
-		TaskRunID:      taskRunID,
+		Prefix: prefix, TeamID: teamID, TaskID: taskID, TaskRunID: taskRunID,
 	})
 }
 
 // RunOutputFileKey returns the S3 object key for one file under a run's output. relPath is validated with CleanRelPath.
-func RunOutputFileKey(prefix, createdBy, conversationID, taskID, taskRunID, relPath string) (string, error) {
+func RunOutputFileKey(prefix, teamID, taskID, taskRunID, relPath string) (string, error) {
 	return runOutputFileKey(runKeyScope{
-		Prefix:         prefix,
-		CreatedBy:      createdBy,
-		ConversationID: conversationID,
-		TaskID:         taskID,
-		TaskRunID:      taskRunID,
+		Prefix: prefix, TeamID: teamID, TaskID: taskID, TaskRunID: taskRunID,
 	}, relPath)
 }
 
 func runOutputResultKey(scope runKeyScope) string {
-	return path.Join(scope.Prefix, scope.CreatedBy, "artifacts", scope.ConversationID, scope.TaskID, scope.TaskRunID, "result.md")
+	return path.Join(scope.Prefix, scope.TeamID, "tasks", scope.TaskID, scope.TaskRunID, "artifacts", "result.md")
 }
 
 func runOutputFileKey(scope runKeyScope, relPath string) (string, error) {
@@ -86,7 +77,7 @@ func runOutputFileKey(scope runKeyScope, relPath string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return path.Join(scope.Prefix, scope.CreatedBy, "artifacts", scope.ConversationID, scope.TaskID, scope.TaskRunID, clean), nil
+	return path.Join(scope.Prefix, scope.TeamID, "tasks", scope.TaskID, scope.TaskRunID, "artifacts", clean), nil
 }
 
 // PersistPrefix returns the key prefix under which all persist files for a team live (for ListObjectsV2).
@@ -96,13 +87,9 @@ func PersistPrefix(prefix, teamID string) string {
 
 // RunGlobalObjectKey returns the S3 object key for a task run global dir file (BUILDMAX_HOME: logs, sessions, settings).
 // relPath is validated with CleanRelPath (no .., no absolute).
-func RunGlobalObjectKey(prefix, createdBy, conversationID, taskID, taskRunID, relPath string) (string, error) {
+func RunGlobalObjectKey(prefix, teamID, taskID, taskRunID, relPath string) (string, error) {
 	return taskRunGlobalKey(runKeyScope{
-		Prefix:         prefix,
-		CreatedBy:      createdBy,
-		ConversationID: conversationID,
-		TaskID:         taskID,
-		TaskRunID:      taskRunID,
+		Prefix: prefix, TeamID: teamID, TaskID: taskID, TaskRunID: taskRunID,
 	}, relPath)
 }
 
@@ -111,18 +98,14 @@ func taskRunGlobalKey(scope runKeyScope, relPath string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return path.Join(scope.Prefix, scope.CreatedBy, "conversations", scope.ConversationID, "tasks", scope.TaskID, scope.TaskRunID, "global", clean), nil
+	return path.Join(scope.Prefix, scope.TeamID, "tasks", scope.TaskID, scope.TaskRunID, "global", clean), nil
 }
 
 // RunArtifactsObjectKey returns the S3 object key for a task run artifacts dir file (run output files).
 // relPath is validated with CleanRelPath (no .., no absolute).
-func RunArtifactsObjectKey(prefix, createdBy, conversationID, taskID, taskRunID, relPath string) (string, error) {
+func RunArtifactsObjectKey(prefix, teamID, taskID, taskRunID, relPath string) (string, error) {
 	return taskRunArtifactsKey(runKeyScope{
-		Prefix:         prefix,
-		CreatedBy:      createdBy,
-		ConversationID: conversationID,
-		TaskID:         taskID,
-		TaskRunID:      taskRunID,
+		Prefix: prefix, TeamID: teamID, TaskID: taskID, TaskRunID: taskRunID,
 	}, relPath)
 }
 
@@ -131,7 +114,7 @@ func taskRunArtifactsKey(scope runKeyScope, relPath string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return path.Join(scope.Prefix, scope.CreatedBy, "conversations", scope.ConversationID, "tasks", scope.TaskID, scope.TaskRunID, "artifacts", clean), nil
+	return path.Join(scope.Prefix, scope.TeamID, "tasks", scope.TaskID, scope.TaskRunID, "artifacts", clean), nil
 }
 
 // PluginPackagesPrefix is where every published package lives.

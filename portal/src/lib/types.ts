@@ -1,9 +1,9 @@
 // --- Entity types ---
 
-/** Background task (Tier 2) created from a conversation. Backend: Task. */
+/** Team-owned Agent execution thread. Backend: Task. */
 export interface Task {
   id: string
-  conversationId: string
+  conversationId?: string
   sessionId?: string
   title: string
   status: "pending" | "running" | "success" | "failed" | "canceled"
@@ -31,6 +31,7 @@ export type Route =
   | { name: "home" }
   | { name: "login" }
   | { name: "conversation"; conversationId: string }
+  | { name: "task"; taskId: string }
   | { name: "conversations" }
   | { name: "explore" }
   | { name: "agents" }
@@ -130,7 +131,6 @@ export interface WorkflowRun {
   workflowId: string
   workflowRevision?: number | null
   issueId?: string | null
-  conversationId: string
   status: "pending" | "running" | "succeeded" | "failed" | "canceled"
   createdBy: string
   createdAt: string

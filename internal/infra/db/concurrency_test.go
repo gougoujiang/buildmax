@@ -1,6 +1,7 @@
 package db
 
 import (
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -9,15 +10,19 @@ import (
 	"github.com/gougoujiang/buildmax/internal/util"
 )
 
-// Four store methods claim, in their own comments, that exactly one of several
-// simultaneous callers may win: ClaimTask ("exactly one row was updated"),
-// TransitionTaskRun ("a worker and a recovery loop cannot overwrite one
-// another's outcome"), ClaimTaskResultDelivery ("two servers sweeping at once
-// both see the same due row"), and RequestTaskRunCancel. Each implements that
-// as a conditional UPDATE and rests on the server serializing two writes to one
-// row.
+// Four store methods claim, in their own comments or their own rules, that
+// exactly one of several simultaneous callers may win: ClaimTask ("exactly one
+// row was updated"), TransitionTaskRun ("a worker and a recovery loop cannot
+// overwrite one another's outcome"), RequestTaskRunCancel, and CreateTaskRun
+// ("at most one active TaskRun exists per Task"). The first three implement
+// that as a conditional UPDATE resting on the server serializing two writes to
+// one row; CreateTaskRun implements it as a locking read of the task row
+// followed by a count-then-insert inside one transaction, because the
+// guarantee it needs is "at most one row matching a predicate", which a
+// conditional UPDATE on an existing row cannot express for a row that does not
+// exist yet.
 //
-// They are grouped here rather than filed under their three subjects because
+// They are grouped here rather than filed under their four subjects because
 // the property, the harness, and the way they fail are one thing: a sequential
 // test passes against any implementation that merely reads before it writes,
 // and only contention tells the two apart. The existing sequential cases stay
@@ -67,11 +72,13 @@ func newRunForTest(t *testing.T, s *Store, label string) (task *coretask.Task, r
 	t.Helper()
 	ctx := t.Context()
 	userID := newTestUser(t, s, label)
-	conversation, err := s.CreateConversation(ctx, userID, "portal", userID)
+	teamID := newTestTeam(t, s, userID)
+	conversation, err := s.CreateConversationInTeam(ctx, teamID, userID, "portal", userID)
 	if err != nil {
-		t.Fatalf("CreateConversation: %v", err)
+		t.Fatalf("CreateConversationInTeam: %v", err)
 	}
 	task, err = s.CreateTask(ctx, &coretask.CreateInput{
+		TeamID:         teamID,
 		ConversationID: conversation.ID,
 		Input:          "input",
 		CreatedBy:      userID,
@@ -182,45 +189,50 @@ func TestTransitionTaskRunHasOneWinnerUnderContention(t *testing.T) {
 	}
 }
 
-// The delivery sweep is written for several servers running it at once. A
-// second winner is a user reading the same task summary twice in one
-// conversation.
-func TestClaimTaskResultDeliveryHasOneWinnerUnderContention(t *testing.T) {
+// Two concurrent Continue requests -- a doubled client retry, or a person
+// clicking twice -- are the case the one-active-run-per-task rule exists for.
+// A second winner means two TaskRuns execute the same Task's session at once.
+func TestCreateTaskRunHasOneActiveWinnerUnderContention(t *testing.T) {
 	s, ctx := newTestStore(t)
-	_, runID, conversationID := newRunForTest(t, s, "delivery-race")
-
-	now := time.Now().UTC()
-	if err := s.EnqueueTaskResultDelivery(ctx, runID, conversationID, now); err != nil {
-		t.Fatalf("EnqueueTaskResultDelivery: %v", err)
+	task, firstRunID, _ := newRunForTest(t, s, "create-run-race")
+	// The task's own first run is PENDING and already active; finish it so the
+	// race below starts from zero active runs, same as a real Continue would.
+	startTaskRunForTest(t, s, ctx, firstRunID)
+	if updated, err := s.TransitionTaskRun(ctx, coretask.TransitionRunInput{
+		TaskRunID:      firstRunID,
+		ExpectedStatus: coretask.RunStatusRunning,
+		NewStatus:      coretask.RunStatusSucceeded,
+	}); err != nil || !updated {
+		t.Fatalf("TransitionTaskRun to SUCCEEDED: updated=%v err=%v", updated, err)
 	}
-	t.Cleanup(func() {
-		key, err := lookupKey(ctx, s.db, "task_run", runID)
-		if err != nil {
-			return
-		}
-		_ = s.db.Delete(&taskResultDeliveryRow{}, "task_run_id = ?", key).Error
-	})
 
+	var mu sync.Mutex
+	var createdRunIDs []string
 	winners := race(t, func(int) (bool, error) {
-		claimed, err := s.ClaimTaskResultDelivery(ctx, runID, now, now.Add(time.Hour))
-		return claimed != nil, err
+		run, err := s.CreateTaskRun(ctx, coretask.CreateRunInput{
+			TaskID: task.ID, Input: "continue", CreatedBy: task.CreatedBy,
+		})
+		if err != nil {
+			if errors.Is(err, coretask.ErrRunInProgress) {
+				return false, nil
+			}
+			return false, err
+		}
+		mu.Lock()
+		createdRunIDs = append(createdRunIDs, run.ID)
+		mu.Unlock()
+		return true, nil
+	})
+	t.Cleanup(func() {
+		for _, id := range createdRunIDs {
+			_ = s.db.Delete(&taskRunRow{}, "public_id = ?", canonicalPublicID(id)).Error
+		}
 	})
 	if winners != 1 {
-		t.Errorf("%d of %d concurrent delivery claims succeeded, want exactly 1", winners, raceCount)
+		t.Errorf("%d of %d concurrent Continue requests created a run, want exactly 1", winners, raceCount)
 	}
-
-	// The attempt counter is the durable evidence: a second claim that slipped
-	// through would have counted itself even if its caller discarded the row.
-	key, err := lookupKey(ctx, s.db, "task_run", runID)
-	if err != nil {
-		t.Fatalf("resolve run: %v", err)
-	}
-	var row taskResultDeliveryRow
-	if err := s.db.Where("task_run_id = ?", key).Take(&row).Error; err != nil {
-		t.Fatalf("read delivery: %v", err)
-	}
-	if row.Attempts != 1 {
-		t.Errorf("attempts = %d after one round of contention, want 1", row.Attempts)
+	if len(createdRunIDs) != winners {
+		t.Fatalf("created %d run rows but counted %d winners", len(createdRunIDs), winners)
 	}
 }
 

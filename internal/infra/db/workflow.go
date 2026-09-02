@@ -83,7 +83,6 @@ type workflowRunRow struct {
 	WorkflowID       uint64     `gorm:"column:workflow_id;not null;index:idx_workflow_run_workflow_created,priority:1"`
 	WorkflowRevision int        `gorm:"column:workflow_revision;not null;default:0"`
 	IssueID          *uint64    `gorm:"column:issue_id;index"`
-	ConversationID   uint64     `gorm:"column:conversation_id;not null;index"`
 	Status           string     `gorm:"type:varchar(32);not null"`
 	CreatedBy        uint64     `gorm:"column:created_by;not null"`
 	CreatedAt        time.Time  `gorm:"autoCreateTime;index:idx_workflow_run_workflow_created,priority:2"`
@@ -97,20 +96,18 @@ func (workflowRunRow) TableName() string { return "workflow_run" }
 // workflowRunReadRow is the row plus the handles its references resolve to. A
 // pointer field is one a LEFT JOIN may leave NULL.
 type workflowRunReadRow struct {
-	Row                  workflowRunRow `gorm:"embedded"`
-	WorkflowPublicID     string         `gorm:"column:workflow_public_id"`
-	IssuePublicID        *string        `gorm:"column:issue_public_id"`
-	ConversationPublicID string         `gorm:"column:conversation_public_id"`
-	CreatedByPublicID    string         `gorm:"column:created_by_public_id"`
+	Row               workflowRunRow `gorm:"embedded"`
+	WorkflowPublicID  string         `gorm:"column:workflow_public_id"`
+	IssuePublicID     *string        `gorm:"column:issue_public_id"`
+	CreatedByPublicID string         `gorm:"column:created_by_public_id"`
 }
 
 func (s *Store) workflowRunSelect(ctx context.Context) *gorm.DB {
 	return s.db.WithContext(ctx).Model(&workflowRunRow{}).
 		Select("workflow_run.*, w.public_id AS workflow_public_id, i.public_id AS issue_public_id, " +
-			"c.public_id AS conversation_public_id, cb.public_id AS created_by_public_id").
+			"cb.public_id AS created_by_public_id").
 		Joins("INNER JOIN workflow w ON w.id = workflow_run.workflow_id").
 		Joins("LEFT JOIN issue i ON i.id = workflow_run.issue_id").
-		Joins("INNER JOIN conversation c ON c.id = workflow_run.conversation_id").
 		Joins("INNER JOIN `user` cb ON cb.id = workflow_run.created_by")
 }
 
@@ -223,7 +220,6 @@ func toWorkflowRun(row *workflowRunReadRow) *coreworkflow.Run {
 		ID:               row.Row.PublicID,
 		WorkflowID:       row.WorkflowPublicID,
 		WorkflowRevision: row.Row.WorkflowRevision,
-		ConversationID:   row.ConversationPublicID,
 		Status:           row.Row.Status,
 		CreatedBy:        row.CreatedByPublicID,
 		CreatedAt:        row.Row.CreatedAt,
@@ -479,7 +475,6 @@ func (s *Store) CreateWorkflowRun(ctx context.Context, in coreworkflow.CreateRun
 		WorkflowID:       in.WorkflowID,
 		WorkflowRevision: in.WorkflowRevision,
 		IssueID:          in.IssueID,
-		ConversationID:   in.ConversationID,
 		Status:           in.Status,
 		CreatedBy:        in.CreatedBy,
 		CreatedAt:        now,
@@ -497,11 +492,6 @@ func (s *Store) CreateWorkflowRun(ctx context.Context, in coreworkflow.CreateRun
 			return err
 		}
 		row.WorkflowID = workflowKey
-		convKey, err := lookupKey(ctx, tx, "conversation", in.ConversationID)
-		if err != nil {
-			return err
-		}
-		row.ConversationID = convKey
 		creator, err := lookupKey(ctx, tx, "user", in.CreatedBy)
 		if err != nil {
 			return err

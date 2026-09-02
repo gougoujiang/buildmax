@@ -66,7 +66,6 @@ type Run struct {
 	// runs started before workflows recorded revisions.
 	WorkflowRevision int        `json:"workflow_revision,omitempty"`
 	IssueID          *string    `json:"issue_id,omitempty"`
-	ConversationID   string     `json:"conversation_id"`
 	Status           string     `json:"status"`
 	CreatedBy        string     `json:"created_by"`
 	CreatedAt        time.Time  `json:"created_at"`
@@ -118,7 +117,6 @@ type CreateRunInput struct {
 	WorkflowID       string
 	WorkflowRevision int
 	IssueID          *string
-	ConversationID   string
 	Status           string
 	CreatedBy        string
 	StartedAt        *time.Time

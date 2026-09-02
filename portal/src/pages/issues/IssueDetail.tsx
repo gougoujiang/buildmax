@@ -138,6 +138,8 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
   }, [load])
 
   const currentRun = latestRun(flow)
+  const currentRunLatestTaskId =
+    [...(currentRun?.steps ?? [])].reverse().find((step) => step.taskId)?.taskId ?? null
   const latestAgentTask = flow?.agentTasks[0] ?? null
   const isWorkflowAssigned = flow?.issue.assigneeKind === "workflow" && Boolean(flow.issue.assigneeId)
   const isAgentAssigned = flow?.issue.assigneeKind === "agent" && Boolean(flow.issue.assigneeId)
@@ -610,13 +612,15 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
                   >
                     Open Run Detail
                   </button>
-                  <button
-                    type="button"
-                    className="page-activity__action-btn"
-                    onClick={() => navigate({ name: "conversation", conversationId: currentRun.run.conversationId })}
-                  >
-                    Open Conversation Trace
-                  </button>
+                  {currentRunLatestTaskId ? (
+                    <button
+                      type="button"
+                      className="page-activity__action-btn"
+                      onClick={() => navigate({ name: "task", taskId: currentRunLatestTaskId })}
+                    >
+                      Open Task
+                    </button>
+                  ) : null}
                 </div>
               </div>
             ) : latestAgentTask ? (
@@ -629,9 +633,9 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
                   <button
                     type="button"
                     className="page-activity__action-btn"
-                    onClick={() => navigate({ name: "conversation", conversationId: latestAgentTask.conversationId })}
+                    onClick={() => navigate({ name: "task", taskId: latestAgentTask.id })}
                   >
-                    Open Conversation Trace
+                    Open Task
                   </button>
                   {taskIsStoppable(latestAgentTask.status) ? (
                     <button
@@ -752,7 +756,7 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
                     <button
                       type="button"
                       className="workflow-page__run-row"
-                      onClick={() => navigate({ name: "conversation", conversationId: task.conversationId })}
+                      onClick={() => navigate({ name: "task", taskId: task.id })}
                     >
                       <span>
                         <strong>{task.title}</strong>

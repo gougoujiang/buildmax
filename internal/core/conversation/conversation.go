@@ -5,33 +5,6 @@ import (
 	"time"
 )
 
-const (
-	// ChannelWorkflow and ChannelIssueAgent mark a conversation nobody holds. A
-	// workflow step and an issue agent run each need one because Task requires
-	// a conversation, not because anyone is talking through it.
-	//
-	// They live here rather than with the transports in
-	// service/conversation/channel because they are not transports: nothing
-	// sends or receives through them, and the store has to know them to keep
-	// them out of a list of conversations people hold.
-	ChannelWorkflow   = "workflow"
-	ChannelIssueAgent = "issue_agent"
-)
-
-// SyntheticChannels returns the channels of conversations that exist only to
-// satisfy the schema.
-//
-// They are kept out of the conversation list rather than deleted: a workflow
-// run and an issue agent run still hold their transcript, and a link straight
-// to one still opens it. What they must not do is push a person's own
-// conversations off a page of the list.
-//
-// It is a deny-list rather than "anything that is not a transport" so that
-// adding a real channel does not silently hide it.
-func SyntheticChannels() []string {
-	return []string{ChannelWorkflow, ChannelIssueAgent}
-}
-
 // Conversation is the Tier 1 conversation container.
 type Conversation struct {
 	ID        string    `json:"id"`

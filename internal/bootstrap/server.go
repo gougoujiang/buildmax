@@ -352,8 +352,8 @@ func buildBlobStorage(ctx context.Context, sc config.ServerStorageConfig, worksp
 	if err != nil {
 		return blobStorage{}, fmt.Errorf("persist storage: %w", err)
 	}
-	runOutputRoot := func(userID, conversationID, taskID, taskRunID string) string {
-		return filepath.Join(workspacesDir, userID, "artifacts", conversationID, taskID, taskRunID)
+	runOutputRoot := func(teamID, taskID, taskRunID string) string {
+		return config.RuntimeTaskRunArtifactsDir(workspacesDir, teamID, taskID, taskRunID)
 	}
 	runOutputStorage, err := BuildRunOutputStorage(wsCfg, runOutputRoot, s3Client)
 	if err != nil {
@@ -437,27 +437,26 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 			RefreshRotationGrace: sc.RefreshRotationGrace,
 		},
 		Stores: httpserver.StoresConfig{
-			UserStore:               st,
-			LoginCodeStore:          st,
-			PasswordStore:           st,
-			RefreshTokenStore:       st,
-			TeamStore:               st,
-			WorkflowStore:           st,
-			AgentStore:              st,
-			IssueStore:              st,
-			IssueCommentStore:       st,
-			TaskStore:               st,
-			TaskRunStore:            st,
-			TaskResultDeliveryStore: st,
-			LLMCallStore:            st,
-			RunOutputLister:         st,
-			UserWebhookKeyStore:     st,
-			AuditStore:              st,
-			SystemGrantStore:        st,
-			SchemaStore:             st,
-			LLMModelStore:           st,
-			ArtifactStore:           st,
-			SecretStore:             secretStore,
+			UserStore:           st,
+			LoginCodeStore:      st,
+			PasswordStore:       st,
+			RefreshTokenStore:   st,
+			TeamStore:           st,
+			WorkflowStore:       st,
+			AgentStore:          st,
+			IssueStore:          st,
+			IssueCommentStore:   st,
+			TaskStore:           st,
+			TaskRunStore:        st,
+			LLMCallStore:        st,
+			RunOutputLister:     st,
+			UserWebhookKeyStore: st,
+			AuditStore:          st,
+			SystemGrantStore:    st,
+			SchemaStore:         st,
+			LLMModelStore:       st,
+			ArtifactStore:       st,
+			SecretStore:         secretStore,
 		},
 		Services: httpserver.ServicesConfig{Plugin: pluginService, Secret: secretService},
 		Storage: httpserver.StorageConfig{

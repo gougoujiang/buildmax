@@ -149,7 +149,6 @@ export function apiWorkflowRunToWorkflowRun(api: ApiWorkflowRun): WorkflowRun {
     workflowId: api.workflow_id,
     workflowRevision: api.workflow_revision ?? null,
     issueId: api.issue_id ?? null,
-    conversationId: api.conversation_id,
     status: api.status as WorkflowRun["status"],
     createdBy: api.created_by,
     createdAt: api.created_at,

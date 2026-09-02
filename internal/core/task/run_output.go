@@ -24,7 +24,8 @@ type RunOutputListing struct {
 	ArtifactID       string    `json:"artifact_id"`
 	TaskID           string    `json:"task_id"`
 	TaskRunID        string    `json:"task_run_id"`
-	ConversationID   string    `json:"conversation_id"`
+	ConversationID   string    `json:"conversation_id,omitempty"`
+	TeamID           string    `json:"team_id"`
 	UserID           string    `json:"user_id"`
 	CreatedAt        time.Time `json:"created_at"`
 	TaskInputSnippet string    `json:"task_input_snippet"`

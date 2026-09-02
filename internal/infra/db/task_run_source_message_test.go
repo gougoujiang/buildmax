@@ -29,6 +29,7 @@ func TestCreateTaskRunPersistsSourceMessage(t *testing.T) {
 		t.Fatalf("AppendMessage: %v", err)
 	}
 	task, err := s.CreateTask(ctx, &coretask.CreateInput{
+		TeamID:                    conv.TeamID,
 		ConversationID:            conv.ID,
 		Input:                     "investigate the flaky test",
 		CreatedBy:                 user,
@@ -114,6 +115,7 @@ func TestCreateTaskRunWithoutASourceMessage(t *testing.T) {
 		t.Fatalf("NewPublicID: %v", err)
 	}
 	task, err := s.CreateTask(ctx, &coretask.CreateInput{
+		TeamID:                    conv.TeamID,
 		ConversationID:            conv.ID,
 		Input:                     "run the nightly sweep",
 		CreatedBy:                 user,

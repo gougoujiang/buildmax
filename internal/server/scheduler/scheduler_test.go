@@ -83,6 +83,10 @@ func (s *spyTaskRunStore) GetTaskRun(_ context.Context, _ string) (*coretask.Run
 	return s.storedRun, nil
 }
 
+func (s *spyTaskRunStore) ListTaskRunsByTask(_ context.Context, _ string) ([]coretask.Run, error) {
+	return nil, nil
+}
+
 func (s *spyTaskRunStore) GetTaskRunWithTask(_ context.Context, _ string) (*coretask.Run, *coretask.Task, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

@@ -20,12 +20,12 @@ func NewMockRunOutputStorage() *MockRunOutputStorage {
 }
 
 func (m *MockRunOutputStorage) PutResult(_ context.Context, ref blob.RunRef, data []byte) error {
-	m.Results[ref.CreatedBy+"/"+ref.ConversationID+"/"+ref.TaskID+"/"+ref.TaskRunID] = append([]byte(nil), data...)
+	m.Results[ref.TeamID+"/"+ref.TaskID+"/"+ref.TaskRunID] = append([]byte(nil), data...)
 	return nil
 }
 
 func (m *MockRunOutputStorage) GetResult(_ context.Context, ref blob.RunRef) ([]byte, error) {
-	key := ref.CreatedBy + "/" + ref.ConversationID + "/" + ref.TaskID + "/" + ref.TaskRunID
+	key := ref.TeamID + "/" + ref.TaskID + "/" + ref.TaskRunID
 	if data, ok := m.Results[key]; ok {
 		return data, nil
 	}
@@ -36,7 +36,7 @@ func (m *MockRunOutputStorage) PutRunOutputFile(_ context.Context, ref blob.RunO
 	if m.Files == nil {
 		m.Files = make(map[string][]byte)
 	}
-	key := ref.CreatedBy + "/" + ref.ConversationID + "/" + ref.TaskID + "/" + ref.TaskRunID + "/" + ref.RelPath
+	key := ref.TeamID + "/" + ref.TaskID + "/" + ref.TaskRunID + "/" + ref.RelPath
 	data, _ := io.ReadAll(r)
 	m.Files[key] = data
 	return nil
@@ -46,7 +46,7 @@ func (m *MockRunOutputStorage) GetRunOutputFile(_ context.Context, ref blob.RunO
 	if m.Files == nil {
 		return nil, apierr.ErrNotFound
 	}
-	key := ref.CreatedBy + "/" + ref.ConversationID + "/" + ref.TaskID + "/" + ref.TaskRunID + "/" + ref.RelPath
+	key := ref.TeamID + "/" + ref.TaskID + "/" + ref.TaskRunID + "/" + ref.RelPath
 	if data, ok := m.Files[key]; ok {
 		return data, nil
 	}

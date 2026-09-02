@@ -74,15 +74,15 @@ func (f *fakePersistStorage) MaterializeToDir(ctx context.Context, workspaceID, 
 }
 
 func (f *fakePersistStorage) PutRunGlobal(ctx context.Context, ref blob.RunObjectRef, r io.Reader) error {
-	key := ref.CreatedBy + "/" + ref.ConversationID + "/" + ref.TaskID + "/" + ref.TaskRunID + "/" + ref.RelPath
+	key := ref.TeamID + "/" + ref.TaskID + "/" + ref.TaskRunID + "/" + ref.RelPath
 	data, _ := io.ReadAll(r)
 	f.taskGlobal[key] = data
 	return nil
 }
 
-// taskGlobalRelPaths returns the set of relPaths uploaded for the given userID/conversationID/taskID/taskRunID.
-func (f *fakePersistStorage) taskGlobalRelPaths(userID, conversationID, taskID, taskRunID string) []string {
-	prefix := userID + "/" + conversationID + "/" + taskID + "/" + taskRunID + "/"
+// taskGlobalRelPaths returns the set of relPaths uploaded for one task run.
+func (f *fakePersistStorage) taskGlobalRelPaths(teamID, taskID, taskRunID string) []string {
+	prefix := teamID + "/" + taskID + "/" + taskRunID + "/"
 	var out []string
 	for k := range f.taskGlobal {
 		if len(k) > len(prefix) && k[:len(prefix)] == prefix {
@@ -93,7 +93,7 @@ func (f *fakePersistStorage) taskGlobalRelPaths(userID, conversationID, taskID, 
 }
 
 func (f *fakePersistStorage) GetRunGlobal(ctx context.Context, ref blob.RunObjectRef) ([]byte, error) {
-	key := ref.CreatedBy + "/" + ref.ConversationID + "/" + ref.TaskID + "/" + ref.TaskRunID + "/" + ref.RelPath
+	key := ref.TeamID + "/" + ref.TaskID + "/" + ref.TaskRunID + "/" + ref.RelPath
 	data, ok := f.taskGlobal[key]
 	if !ok {
 		return nil, apierr.ErrNotFound
@@ -102,7 +102,7 @@ func (f *fakePersistStorage) GetRunGlobal(ctx context.Context, ref blob.RunObjec
 }
 
 func (f *fakePersistStorage) PutRunArtifacts(ctx context.Context, ref blob.RunObjectRef, r io.Reader) error {
-	key := ref.CreatedBy + "/" + ref.ConversationID + "/" + ref.TaskID + "/" + ref.TaskRunID + "/artifacts/" + ref.RelPath
+	key := ref.TeamID + "/" + ref.TaskID + "/" + ref.TaskRunID + "/artifacts/" + ref.RelPath
 	data, _ := io.ReadAll(r)
 	if f.taskGlobal == nil {
 		f.taskGlobal = make(map[string][]byte)
@@ -112,7 +112,7 @@ func (f *fakePersistStorage) PutRunArtifacts(ctx context.Context, ref blob.RunOb
 }
 
 func (f *fakePersistStorage) GetRunArtifacts(ctx context.Context, ref blob.RunObjectRef) ([]byte, error) {
-	key := ref.CreatedBy + "/" + ref.ConversationID + "/" + ref.TaskID + "/" + ref.TaskRunID + "/artifacts/" + ref.RelPath
+	key := ref.TeamID + "/" + ref.TaskID + "/" + ref.TaskRunID + "/artifacts/" + ref.RelPath
 	data, ok := f.taskGlobal[key]
 	if !ok {
 		return nil, apierr.ErrNotFound
@@ -177,9 +177,9 @@ func TestUploadTaskGlobal_UploadsPresentFiles(t *testing.T) {
 	}
 
 	fake := newFakePersistStorage()
-	uploadTaskGlobal(ctx, globalDir, RunScope{CreatedBy: "u1", ConversationID: "conv1", TaskID: "chat1", TaskRunID: "run1"}, fake, "")
+	uploadTaskGlobal(ctx, globalDir, RunScope{TeamID: "tm1", TaskID: "task1", TaskRunID: "run1"}, fake, "")
 
-	got := fake.taskGlobalRelPaths("u1", "conv1", "chat1", "run1")
+	got := fake.taskGlobalRelPaths("tm1", "task1", "run1")
 	if len(got) != 5 {
 		t.Fatalf("want 5 uploaded relPaths, got %d: %v", len(got), got)
 	}
@@ -196,7 +196,7 @@ func TestUploadTaskGlobal_UploadsPresentFiles(t *testing.T) {
 		}
 	}
 	// Content sanity
-	key := "u1/conv1/chat1/run1/settings.yaml"
+	key := "tm1/task1/run1/settings.yaml"
 	if string(fake.taskGlobal[key]) != "{}" {
 		t.Errorf("settings.yaml content mismatch")
 	}
@@ -207,8 +207,8 @@ func TestUploadTaskGlobal_SkipsMissingFiles(t *testing.T) {
 	globalDir := t.TempDir()
 	// Empty global dir: no files created
 	fake := newFakePersistStorage()
-	uploadTaskGlobal(ctx, globalDir, RunScope{CreatedBy: "u1", ConversationID: "conv1", TaskID: "chat1", TaskRunID: "run1"}, fake, "")
-	got := fake.taskGlobalRelPaths("u1", "conv1", "chat1", "run1")
+	uploadTaskGlobal(ctx, globalDir, RunScope{TeamID: "tm1", TaskID: "task1", TaskRunID: "run1"}, fake, "")
+	got := fake.taskGlobalRelPaths("tm1", "task1", "run1")
 	if len(got) != 0 {
 		t.Errorf("want 0 uploads for empty dir, got %v", got)
 	}
@@ -311,9 +311,9 @@ func TestTraceRelPath_MatchesUploadedKey(t *testing.T) {
 	}
 
 	fake := newFakePersistStorage()
-	scope := RunScope{CreatedBy: "u1", ConversationID: "conv1", TaskID: "chat1", TaskRunID: "run1"}
+	scope := RunScope{TeamID: "tm1", TaskID: "task1", TaskRunID: "run1"}
 	uploadTaskGlobal(ctx, globalDir, scope, fake, recorded)
-	uploaded := fake.taskGlobalRelPaths("u1", "conv1", "chat1", "run1")
+	uploaded := fake.taskGlobalRelPaths("tm1", "task1", "run1")
 	for _, p := range uploaded {
 		if p == recorded {
 			return
@@ -352,13 +352,13 @@ func TestRestoreSessionFromPreviousRun_RoundTripsTheBundle(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(bundle, "history.jsonl"), []byte("{\"type\":\"history\"}\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	scope := RunScope{CreatedBy: "u1", ConversationID: "conv1", TaskID: "chat1", TaskRunID: "run1"}
+	scope := RunScope{TeamID: "tm1", TaskID: "task1", TaskRunID: "run1"}
 	uploadTaskGlobal(ctx, prevDir, scope, fake, "")
 
 	nextDir := t.TempDir()
 	sessionID, lastRun := "sid-1", "run1"
 	restoreSessionFromPreviousRun(ctx,
-		&coretask.Task{CreatedBy: "u1", ConversationID: "conv1", ID: "chat1", SessionID: &sessionID, LastRunID: &lastRun},
+		&coretask.Task{TeamID: "tm1", ID: "task1", SessionID: &sessionID, LastRunID: &lastRun},
 		&coretask.Run{ID: "run2"}, nextDir, fake)
 
 	for _, name := range sessionBundleFiles {
@@ -382,13 +382,13 @@ func TestRestoreSessionFromPreviousRun_PartialBundleRestoresNothing(t *testing.T
 	if err := os.WriteFile(filepath.Join(bundle, "history.jsonl"), []byte("{}\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	scope := RunScope{CreatedBy: "u1", ConversationID: "conv1", TaskID: "chat1", TaskRunID: "run1"}
+	scope := RunScope{TeamID: "tm1", TaskID: "task1", TaskRunID: "run1"}
 	uploadTaskGlobal(ctx, prevDir, scope, fake, "")
 
 	nextDir := t.TempDir()
 	sessionID, lastRun := "sid-1", "run1"
 	restoreSessionFromPreviousRun(ctx,
-		&coretask.Task{CreatedBy: "u1", ConversationID: "conv1", ID: "chat1", SessionID: &sessionID, LastRunID: &lastRun},
+		&coretask.Task{TeamID: "tm1", ID: "task1", SessionID: &sessionID, LastRunID: &lastRun},
 		&coretask.Run{ID: "run2"}, nextDir, fake)
 
 	if _, err := os.Stat(filepath.Join(nextDir, "sessions", "sid-1")); !os.IsNotExist(err) {

@@ -209,13 +209,15 @@ the cards survive a refresh, a dropped socket, and a summary that never arrives.
 The transcript excludes the system channel, so a `[Task Result]` message is no
 longer drawn as the user's own.
 
-The current summary delivery is durable too: when a Task names a Conversation,
-`task_result_delivery` records and retries the presentation attempt after a
-failed model call, a full queue, or a restart. A presentation can be abandoned
-without losing the result, because `task_run` is authoritative and the card
-reads it directly. This delivery is no longer the target execution contract:
-direct Agent Tasks require no Conversation, and a related Conversation may
-project their result without becoming a mandatory return path. See
+The forced Tier 1 summary delivery is gone. A finished run no longer enqueues a
+presentation attempt (`task_result_delivery` and its retry sweep were removed
+along with the code that replayed a `[Task Result]` message into the
+conversation); a terminal run now only broadcasts an invalidation
+(`task.status.changed`) to connected clients, and the Conversation task card
+reads `task_run` directly. `task_run` was always authoritative for the
+result — this removed the obligation that a foreground model call had to
+succeed, or even run, before that result was durable or visible. Direct Agent
+Tasks require no Conversation at all. See
 [Agent execution and Task threads](design/agent-execution-and-task-threads.md).
 
 What was deliberately not done, and why, is in the [Portal execution

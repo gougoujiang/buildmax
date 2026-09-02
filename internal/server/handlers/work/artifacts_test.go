@@ -139,10 +139,7 @@ func TestArtifactContentHandler(t *testing.T) {
 	}
 	runOutputStorage := mock.NewMockRunOutputStorage()
 	if err := runOutputStorage.PutResult(context.Background(), blob.RunRef{
-		CreatedBy:      userID,
-		ConversationID: conversationID,
-		TaskID:         taskID,
-		TaskRunID:      taskRunID,
+		TeamID: teamID, TaskID: taskID, TaskRunID: taskRunID,
 	}, []byte("hello")); err != nil {
 		t.Fatal(err)
 	}

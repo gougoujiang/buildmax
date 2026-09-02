@@ -3,6 +3,7 @@ import type { Conversation } from "../lib/types"
 import { useApp } from "../contexts/AppContext"
 import { AgentList } from "../pages/agents/AgentList"
 import { ConversationDetail } from "../pages/conversations/ConversationDetail"
+import { TaskDetail } from "../pages/tasks/TaskDetail"
 import { NewConversation } from "../pages/conversations/NewConversation"
 import { Explore } from "../pages/explore/Explore"
 import { Issues } from "../pages/issues/Issues"
@@ -106,6 +107,10 @@ export function AppRouter({
           initialMessage={initialMessage}
         />
       )
+  }
+
+  if (route.name === "task") {
+    return <TaskDetail token={token ?? null} taskId={route.taskId} />
   }
 
   return fallbackHome

@@ -7,20 +7,18 @@ import (
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 )
 
-// A task result is stored with role "user" so the model replays it as input,
-// and the system channel so the transcript knows nobody typed it. The role is
-// replayed as stored: nothing rewrites it on the way out.
+// Internal input keeps its stored role when a conversation is replayed.
 func TestReplayMessageFromStoreKeepsASystemChannelMessageAsInput(t *testing.T) {
 	channel := "system"
 	msg := replayMessageFromStore(coreconv.Message{
 		Role:    "user",
-		Content: "[Task Result] status: succeeded",
+		Content: "internal context",
 		Channel: &channel,
 	})
 	if msg.Role != "user" {
 		t.Fatalf("replayMessageFromStore.Role = %q, want user", msg.Role)
 	}
-	if msg.Content != "[Task Result] status: succeeded" {
+	if msg.Content != "internal context" {
 		t.Fatalf("replayMessageFromStore.Content = %q", msg.Content)
 	}
 }

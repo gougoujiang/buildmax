@@ -23,16 +23,10 @@ var (
 // Admitter reports whether a team may start one more background run.
 //
 // It is asked before anything is written. The task service checks the same
-// allowance when it creates the task, but by then this orchestration has
-// already created a conversation for the task to hang on -- and a refusal there
-// leaves that conversation behind, in a team's list, with nothing to delete it.
+// allowance when it creates the task; this early check keeps admission failures
+// ahead of persistence.
 type Admitter interface {
 	Admits(ctx context.Context, teamID string) error
-}
-
-// ConversationOpener creates the thread an Issue's run reports into.
-type ConversationOpener interface {
-	OpenForIssue(ctx context.Context, teamID, userID string) (conversationID string, err error)
 }
 
 // StartAssignedAgentCmd starts the Agent an Issue is assigned to.
@@ -45,11 +39,10 @@ type StartAssignedAgentCmd struct {
 }
 
 // StartAssignedAgentPlan is a validated, admitted start: what to run, on what
-// input, in which conversation.
+// input.
 type StartAssignedAgentPlan struct {
-	Issue          coreissue.Issue
-	AgentID        string
-	ConversationID string
+	Issue   coreissue.Issue
+	AgentID string
 }
 
 // PlanAssignedAgentRun validates the Issue and its assignment, asks whether the
@@ -63,7 +56,6 @@ func (s *Service) PlanAssignedAgentRun(
 	ctx context.Context,
 	cmd StartAssignedAgentCmd,
 	admitter Admitter,
-	opener ConversationOpener,
 ) (*StartAssignedAgentPlan, error) {
 	if s.Issues == nil {
 		return nil, ErrIssuesNotConfigured
@@ -91,11 +83,7 @@ func (s *Service) PlanAssignedAgentRun(
 			return nil, err
 		}
 	}
-	conversationID, err := opener.OpenForIssue(ctx, cmd.TeamID, cmd.UserID)
-	if err != nil {
-		return nil, fmt.Errorf("open conversation: %w", err)
-	}
-	return &StartAssignedAgentPlan{Issue: *issue, AgentID: agentID, ConversationID: conversationID}, nil
+	return &StartAssignedAgentPlan{Issue: *issue, AgentID: agentID}, nil
 }
 
 // AssignedWorkflowID validates that the Issue names a Workflow to start and

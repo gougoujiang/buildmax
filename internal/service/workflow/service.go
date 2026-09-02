@@ -7,11 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
-
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
-	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
@@ -21,7 +18,6 @@ import (
 
 var (
 	ErrWorkflowsNotConfigured     = apierr.New(apierr.KindNotConfigured, "workflows not configured")
-	ErrConversationsNotConfigured = apierr.New(apierr.KindNotConfigured, "conversations not configured")
 	ErrIssuesNotConfigured        = apierr.New(apierr.KindNotConfigured, "issues not configured")
 	ErrTasksNotConfigured         = apierr.New(apierr.KindNotConfigured, "tasks not configured")
 	ErrWorkflowNameRequired       = apierr.New(apierr.KindInvalid, "workflow name required")
@@ -41,11 +37,10 @@ var (
 )
 
 type Service struct {
-	Workflows     coreworkflow.Store
-	Agents        agentdef.Store
-	Issues        coreissue.Store
-	Conversations coreconv.Store
-	TaskService   *task.Service
+	Workflows   coreworkflow.Store
+	Agents      agentdef.Store
+	Issues      coreissue.Store
+	TaskService *task.Service
 }
 
 type CreateWorkflowCmd struct {
@@ -270,9 +265,6 @@ func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd)
 	if s.Workflows == nil {
 		return nil, nil, ErrWorkflowsNotConfigured
 	}
-	if s.Conversations == nil {
-		return nil, nil, ErrConversationsNotConfigured
-	}
 	if s.TaskService == nil || s.TaskService.Tasks == nil {
 		return nil, nil, ErrTasksNotConfigured
 	}
@@ -293,16 +285,11 @@ func (s *Service) StartWorkflowRun(ctx context.Context, cmd StartWorkflowRunCmd)
 	if err := s.validateIssueForRun(ctx, cmd.TeamID, workflow.ID, cmd.IssueID); err != nil {
 		return nil, nil, err
 	}
-	conv, err := s.Conversations.CreateConversationInTeam(ctx, cmd.TeamID, cmd.UserID, convchannel.ChannelWorkflow, cmd.UserID)
-	if err != nil {
-		return nil, nil, err
-	}
 	now := time.Now().UTC()
 	run, err := s.Workflows.CreateWorkflowRun(ctx, coreworkflow.CreateRunInput{
 		WorkflowID:       workflow.ID,
 		WorkflowRevision: workflow.Revision,
 		IssueID:          cmd.IssueID,
-		ConversationID:   conv.ID,
 		Status:           coreworkflow.RunStatusRunning,
 		CreatedBy:        cmd.UserID,
 		StartedAt:        &now,
@@ -442,7 +429,7 @@ func (s *Service) dispatchNextStep(ctx context.Context, teamID, userID string, r
 		}
 		startedAt := time.Now().UTC()
 		running := coreworkflow.StepRunStatusRunning
-		taskItem, taskRunID, err := s.createStepTask(ctx, teamID, userID, run.ConversationID, steps[i])
+		taskItem, taskRunID, err := s.createStepTask(ctx, teamID, userID, steps[i])
 		if err != nil {
 			failed := coreworkflow.RunStatusFailed
 			_, _ = s.Workflows.UpdateWorkflowRun(ctx, run.ID, coreworkflow.UpdateRunInput{
@@ -509,7 +496,7 @@ func (s *Service) stepAgent(ctx context.Context, teamID, agentID string, step co
 	return agent, nil
 }
 
-func (s *Service) createStepTask(ctx context.Context, teamID, userID, conversationID string, step coreworkflow.StepRun) (*coretask.Task, string, error) {
+func (s *Service) createStepTask(ctx context.Context, teamID, userID string, step coreworkflow.StepRun) (*coretask.Task, string, error) {
 	agentID := ""
 	if step.TargetAgentID != nil {
 		agentID = *step.TargetAgentID
@@ -523,13 +510,12 @@ func (s *Service) createStepTask(ctx context.Context, teamID, userID, conversati
 	}
 	input := buildWorkflowTaskInput(agent, step.Prompt)
 	taskItem, err := s.TaskService.CreateTask(ctx, task.CreateTaskCmd{
-		ConversationID: conversationID,
-		UserID:         userID,
-		TeamID:         teamID,
-		Input:          input,
-		AgentID:        &agentID,
-		CreatedByType:  coretask.RunCreatedByTypeUser,
-		TriggerSource:  coretask.RunTriggerSourceWorkflowStep,
+		UserID:        userID,
+		TeamID:        teamID,
+		Input:         input,
+		AgentID:       &agentID,
+		CreatedByType: coretask.RunCreatedByTypeUser,
+		TriggerSource: coretask.RunTriggerSourceWorkflowStep,
 	})
 	if err != nil {
 		return nil, "", err

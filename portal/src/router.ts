@@ -7,6 +7,7 @@ import type { Route } from "./lib/types"
 export const SEGMENT = {
   login: "login",
   conversation: "conversation",
+  task: "task",
   conversations: "conversations",
   explore: "explore",
   agents: "agents",
@@ -99,6 +100,9 @@ export function parseHash(hash: string): Route {
   if (parts[0] === SEGMENT.conversation && parts[1]) {
     return { name: "conversation", conversationId: parts[1] }
   }
+  if (parts[0] === SEGMENT.task && parts[1]) {
+    return { name: "task", taskId: parts[1] }
+  }
   return { name: "home" }
 }
 
@@ -111,6 +115,8 @@ export function buildHash(route: Route): string {
       return `#/${SEGMENT.login}`
     case "conversation":
       return `#/${SEGMENT.conversation}/${route.conversationId}`
+    case "task":
+      return `#/${SEGMENT.task}/${route.taskId}`
     case "conversations":
       return `#/${SEGMENT.conversations}`
     case "explore":

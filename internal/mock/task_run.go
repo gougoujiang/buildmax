@@ -19,6 +19,15 @@ type MockTaskRunStore struct {
 }
 
 func (m *MockTaskRunStore) CreateTaskRun(_ context.Context, in coretask.CreateRunInput) (*coretask.Run, error) {
+	// An idempotency key wins over the active-run check below, the same order
+	// the real store applies inside its task-row lock: see internal/infra/db.
+	if in.IdempotencyKey != nil && *in.IdempotencyKey != "" {
+		for i := range m.Runs {
+			if m.Runs[i].TaskID == in.TaskID && m.Runs[i].IdempotencyKey != nil && *m.Runs[i].IdempotencyKey == *in.IdempotencyKey {
+				return &m.Runs[i], nil
+			}
+		}
+	}
 	// One task holds at most one active run. The real store enforces this, and
 	// callers handle the refusal, so a double that quietly allowed a second one
 	// would let a test pass on behavior the deployment does not have.
@@ -28,16 +37,20 @@ func (m *MockTaskRunStore) CreateTaskRun(_ context.Context, in coretask.CreateRu
 		}
 	}
 	run := coretask.Run{
-		ID:               fmt.Sprintf("r_mock_%d", len(m.Runs)+1),
-		TaskID:           in.TaskID,
-		Input:            in.Input,
-		CreatedBy:        in.CreatedBy,
-		CreatedByType:    in.CreatedByType,
-		TriggerSource:    in.TriggerSource,
-		Status:           string(coretask.RunStatusPending),
-		RetryOfTaskRunID: in.RetryOfTaskRunID,
-		SourceMessageID:  in.SourceMessageID,
-		CreatedAt:        time.Now().UTC(),
+		ID:                    fmt.Sprintf("r_mock_%d", len(m.Runs)+1),
+		TaskID:                in.TaskID,
+		Input:                 in.Input,
+		CreatedBy:             in.CreatedBy,
+		CreatedByType:         in.CreatedByType,
+		TriggerSource:         in.TriggerSource,
+		Status:                string(coretask.RunStatusPending),
+		RetryOfTaskRunID:      in.RetryOfTaskRunID,
+		SourceMessageID:       in.SourceMessageID,
+		AgentRevision:         in.AgentRevision,
+		SandboxNetworkTier:    in.SandboxNetworkTier,
+		SandboxFilesystemTier: in.SandboxFilesystemTier,
+		IdempotencyKey:        in.IdempotencyKey,
+		CreatedAt:             time.Now().UTC(),
 	}
 	m.Runs = append(m.Runs, run)
 	return &m.Runs[len(m.Runs)-1], nil
@@ -60,6 +73,16 @@ func (m *MockTaskRunStore) GetTaskRun(_ context.Context, taskRunID string) (*cor
 		}
 	}
 	return nil, nil
+}
+
+func (m *MockTaskRunStore) ListTaskRunsByTask(_ context.Context, taskID string) ([]coretask.Run, error) {
+	var out []coretask.Run
+	for _, run := range m.Runs {
+		if run.TaskID == taskID {
+			out = append(out, run)
+		}
+	}
+	return out, nil
 }
 func (m *MockTaskRunStore) GetTaskRunWithTask(_ context.Context, taskRunID string) (*coretask.Run, *coretask.Task, error) {
 	var run *coretask.Run

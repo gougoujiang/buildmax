@@ -1,5 +1,10 @@
 export {
   cancelTask,
+  continueTask,
+  createAgentTask,
+  getTask,
+  getTaskRuns,
+  listAgentTasks,
   getTasks,
   getTasksPaginated,
   retryTask,
