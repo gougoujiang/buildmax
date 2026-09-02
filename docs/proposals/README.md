@@ -41,6 +41,7 @@ last column says so, and the paper's own delivery phases hold the detail.
 | [Local Issue work bridge](local-issue-work-bridge.md) | How should connected CLI/TUI and Desktop handle Team Issues locally without becoming Portal clones or weakening direct local use? | Most of phase 1: `buildmax issue list`, `show`, and `status`, `buildmax --issue`, and the two Issue tools of [issue agent access](../design/issue-agent-access.md). The durable Issue-to-Session link is not built, and phases 2 and 3 are untouched |
 | [Run-scoped Secret Broker and workload identity](run-scoped-secret-broker.md) | How should a Team authorize one run and one plugin consumer to use a stored or externally managed credential without exposing it to the whole worker? | Nothing |
 | [Session tree, agent mailbox, and branched workspaces](session-tree-and-agent-mailbox.md) | Should interactive sessions fork isolated workspaces, return structured child reports, and resume their parent through a durable mailbox? | Nothing |
+| [Two-tier Agent architecture roundtable](two-tier-agent-architecture/README.md) | Is the durable Portal abstraction two Agent tiers, or separate interaction, semantic coordination, deterministic orchestration, execution, and presentation roles? | Current Tier 1 conversations and the Task/TaskRun worker substrate; this roundtable changes no behavior |
 
 Ten papers have been retired. Six were accepted into a design
 record. *System administration* asked how a private
@@ -119,6 +120,13 @@ Use a semantic filename. Start from the sections used by the existing papers:
 Add its row to [Open Proposals](#open-proposals), and keep the last column
 true as slices land. A reader who consults only the index and finds "Built so
 far" stale will conclude the wrong thing about the whole directory.
+
+When a question needs independently authored Agent positions, use a semantic
+directory with a `README.md` that owns the question and decision process, plus
+one explicitly attributed `<agent-name>-view.md` per contributor. Index only
+the directory's README here. Contributors do not edit one another's positions;
+a later synthesis preserves disagreements and moves accepted rationale into the
+normal design record.
 
 Do not create a proposal for a focused bug, a documentation correction, or an
 implementation task that already has acceptance criteria. Use an Issue instead.

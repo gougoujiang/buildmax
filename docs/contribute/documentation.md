@@ -34,6 +34,14 @@ A proposal must:
   needed to make a decision;
 - avoid documenting behavior as though it has shipped.
 
+A multi-Agent roundtable is a proposal directory rather than one paper. Its
+`README.md` owns the question, decision boundary, contribution index, and
+evidence standard. Each participant adds one explicitly attributed
+`<agent-name>-view.md` and does not rewrite another participant's position.
+Only the roundtable README appears in `proposals/README.md`; an accepted
+synthesis still retires the directory and moves durable rationale into a
+design record.
+
 Keep a proposal while the decision is genuinely open. Once accepted, put the
 committed priority in `ROADMAP.md`, move durable rationale into `design/`, and
 create implementation issues as appropriate. Then delete the proposal. Delete
