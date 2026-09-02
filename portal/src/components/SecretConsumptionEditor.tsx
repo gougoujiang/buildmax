@@ -6,7 +6,37 @@ import type { ApiSecret, ApiSecretConsumption, ApiSecretEnvGrant } from "../lib/
  * group under each item's own name with an optional prefix. Values are never
  * shown here -- only which secret and item a run receives. See
  * docs/design/team-secrets.md §6.
+ *
+ * Consumption-health: each grant is checked against the team's live secrets and
+ * an unresolvable one is flagged in place -- a secret that no longer exists, is
+ * disabled or destroyed, or an item its secret no longer has. This is the
+ * read-only health of §15, surfaced where it is fixed.
  */
+
+/**
+ * grantHealth returns a message when a grant will not resolve at run time, or
+ * null when it is fine. A grant with no secret chosen yet is not a health
+ * problem -- it is an unfinished row -- so it returns null.
+ */
+export function grantHealth(grant: ApiSecretEnvGrant, secrets: ApiSecret[]): string | null {
+  if (!grant.secret) return null
+  const secret = secrets.find((s) => s.id === grant.secret)
+  if (!secret) return "This secret no longer exists in the team."
+  if (secret.state === "destroyed") return `Secret "${secret.name}" has been destroyed.`
+  if (secret.state === "disabled") return `Secret "${secret.name}" is disabled; the run will fail unless the grant is optional.`
+  if (grant.item && !secret.item_names.includes(grant.item)) {
+    return `Secret "${secret.name}" no longer has an item "${grant.item}".`
+  }
+  return null
+}
+
+/** consumptionHealthCount reports how many grants will not resolve. */
+export function consumptionHealthCount(
+  consumption: ApiSecretConsumption | undefined,
+  secrets: ApiSecret[],
+): number {
+  return (consumption?.env ?? []).filter((g) => grantHealth(g, secrets) != null).length
+}
 
 export function SecretConsumptionEditor({
   value,
@@ -47,8 +77,14 @@ export function SecretConsumptionEditor({
       {grants.map((grant, i) => {
         const chosen = secrets.find((s) => s.id === grant.secret)
         const wholeGroup = !grant.item
+        const health = grantHealth(grant, secrets)
         return (
           <div key={i} className="admin-card">
+            {health ? (
+              <p className="settings-section__error" role="alert">
+                {health}
+              </p>
+            ) : null}
             <div className="secret-item-row">
               <select
                 className="modal__input"

@@ -18,6 +18,7 @@ import { useApp } from "../../contexts/AppContext"
 import { AgentAvatar } from "../../components/UserAvatar"
 import { CreateAgentModal } from "../../components/CreateAgentModal"
 import { EditAgentModal } from "../../components/EditAgentModal"
+import { consumptionHealthCount } from "../../components/SecretConsumptionEditor"
 import { RevisionHistory } from "../../components/RevisionHistory"
 import { NewConversationFromAgent } from "../../components/NewConversationFromAgent"
 import { useTeam } from "../../contexts/TeamContext"
@@ -266,6 +267,13 @@ export function AgentList({ token }: AgentListProps) {
                 </header>
                 {a.description ? (
                   <p className="agent-card__description">{a.description}</p>
+                ) : null}
+                {canManageAgents && consumptionHealthCount(a.secretConsumption, secrets) > 0 ? (
+                  <p className="agent-card__secret-warning" role="alert">
+                    ⚠ {consumptionHealthCount(a.secretConsumption, secrets)} secret grant
+                    {consumptionHealthCount(a.secretConsumption, secrets) === 1 ? "" : "s"} no longer
+                    resolve. Edit the agent to fix.
+                  </p>
                 ) : null}
                 {a.instructions ? (
                   <div className="agent-card__instructions-wrap">

@@ -30,15 +30,19 @@
   [`R3`](../ROADMAP.md) for the team-facing surface. It answers Phase D3 of
   [plugin-team-distribution.md](plugin-team-distribution.md), which deferred
   secret delivery to a follow-on record.
-- status: `Phase 1 complete bar one view` — a Team owner stores a Secret (encrypted,
+- status: `Phase 1 complete` — a Team owner stores a Secret (encrypted,
   no reveal), an Agent revision declares it, a run receives it in its
   environment through the worker route and the `env_scrub` allow-list, the
   materialization is recorded in `task_run_secret`, and the run's values are
   redacted from the trace, from tool results before the model, and from streamed
   output, manages Secrets through an owner-only Portal page, and configures an
-  Agent's consumption in the agent editor. What remains in Phase 1 is the Portal
-  consumption-health view; Phases 2–5 (file delivery, short-lived exchange,
-  external providers, workload identity) follow.
+  Agent's consumption in the agent editor, which flags a grant whose Secret or
+  item no longer resolves. Phase 1 is complete; Phases 2–5 (file delivery,
+  short-lived exchange, external providers, workload identity) follow.
+- phase_1: complete — storage, agent consumption and its validation, the
+  owner-only HTTP surface and worker delivery, the `task_run_secret` audit,
+  exact-value redaction across trace, tool results, and stream, the Portal
+  management page, the agent consumption editor, and its consumption-health.
 - supersedes: the `run-scoped-secret-broker` proposal, whose settled decisions
   are here and whose remaining uncertainty is §20.
 - model: a Secret is one Team-owned group of named items, stored as a single
@@ -981,8 +985,9 @@ a worker holds only what its run needs.
   items, create with a row editor or raw JSON, per-item edit, disable, destroy,
   §3's consequences in a notice) and the agent-side consumption editor (an
   owner or admin configures an Agent's env grants against the team's secrets in
-  the create and edit modals). Consumption-health -- surfacing a grant whose
-  Secret or item no longer resolves -- is the one remaining frontend follow-on.
+  the create and edit modals). Consumption-health surfaces a grant whose Secret
+  or item no longer resolves, in the editor and as a count on the agent card.
+  Phase 1 is complete.
 
 Environment delivery is first because it is universal and needs no renderer.
 The core loop — a Team owner stores a Secret, an Agent declares it, a run
