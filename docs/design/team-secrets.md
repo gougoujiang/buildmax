@@ -30,13 +30,15 @@
   [`R3`](../ROADMAP.md) for the team-facing surface. It answers Phase D3 of
   [plugin-team-distribution.md](plugin-team-distribution.md), which deferred
   secret delivery to a follow-on record.
-- status: `Phase 1 backend complete` — a Team owner stores a Secret (encrypted,
+- status: `Phase 1 nearly complete` — a Team owner stores a Secret (encrypted,
   no reveal), an Agent revision declares it, a run receives it in its
   environment through the worker route and the `env_scrub` allow-list, the
   materialization is recorded in `task_run_secret`, and the run's values are
   redacted from the trace, from tool results before the model, and from streamed
-  output. What remains in Phase 1 is the Portal surface; Phases 2–5 (file
-  delivery, short-lived exchange, external providers, workload identity) follow.
+  output, and manages Secrets through an owner-only Portal page. What remains in
+  Phase 1 is the Portal consumption-health view and agent-side consumption
+  editor; Phases 2–5 (file delivery, short-lived exchange, external providers,
+  workload identity) follow.
 - supersedes: the `run-scoped-secret-broker` proposal, whose settled decisions
   are here and whose remaining uncertainty is §20.
 - model: a Secret is one Team-owned group of named items, stored as a single
@@ -975,9 +977,12 @@ a worker holds only what its run needs.
 - **done** — per-run exact-value redaction removes a run's grant values from the
   durable trace, from tool results before they enter model context (and the
   hooks and log with them), and from streamed output; and
-- Portal Secret metadata and item editor (row view and raw JSON),
-  consumption-health, carrying §3's two consequences in the copy — the one
-  remaining Phase 1 item, and a frontend rather than a backend change.
+- **mostly done** — the Portal Secrets page: owner-only list of Secret metadata
+  and item names, create with a row editor or raw JSON, per-item edit
+  (set/remove), disable, and destroy, with §3's two consequences stated in a
+  notice above the list. What remains is consumption-health (which Agent
+  consumes which Secret, and a reference that no longer resolves) and the
+  agent-side consumption editor, both frontend follow-ons.
 
 Environment delivery is first because it is universal and needs no renderer.
 The core loop — a Team owner stores a Secret, an Agent declares it, a run

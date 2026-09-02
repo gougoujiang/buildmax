@@ -45,7 +45,7 @@ export type Route =
     }
   | {
       name: "space"
-      section?: "overview" | "members" | "artifacts" | "plugins" | "audit" | "memberNew"
+      section?: "overview" | "members" | "artifacts" | "plugins" | "secrets" | "audit" | "memberNew"
     }
   | { name: "admin"; section?: "overview" | "accounts" | "teams" | "models" | "plugins" | "audit" }
   | { name: "workflows" }
