@@ -91,7 +91,7 @@ const (
 	SystemAdminRevoked = "system.admin_revoked"
 	// ArtifactCreated and ArtifactDeleted record a durable file
 	// entering and leaving a team's keeping. They are metadata-only by
-	// construction: the target is the ar_ ID, and neither the storage key, the
+	// construction: the target is the artifact ID, and neither the storage key, the
 	// content, nor an uploader-supplied description belongs in the trail.
 	ArtifactCreated = "artifact.created"
 	ArtifactDeleted = "artifact.deleted"

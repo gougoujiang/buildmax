@@ -43,7 +43,7 @@ const (
 // ParentIssueID makes the issue a sub-issue of another issue in the same team.
 // The hierarchy is capped at two levels — a parent must itself have no parent —
 // which is enforced in internal/service/issue, not by the schema. See
-// docs/design/issue-model.md.
+// docs/contribute/architecture/data-model.md.
 type Issue struct {
 	ID            string    `json:"id"`
 	UserID        string    `json:"user_id"`
@@ -136,7 +136,7 @@ type Store interface {
 // It is deliberately not a conversation_message: that table is LLM turn history
 // carrying roles and tool traffic, replayed into a model context. A comment
 // outlives any particular conversation and is never replayed. See
-// docs/design/issue-model.md.
+// docs/contribute/architecture/data-model.md.
 type Comment struct {
 	ID              string    `json:"id"`
 	IssueID         string    `json:"issue_id"`

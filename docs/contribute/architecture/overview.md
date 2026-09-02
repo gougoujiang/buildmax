@@ -57,34 +57,9 @@ immutable assembly description; `buildAgentApp` opens MCP, sandbox, registry,
 job, and trace resources from that description. `AgentApp.Close` owns those
 resources, and a failed partial build closes what it already opened.
 
-## Directory Layout
-
-```text
-cmd/
-  buildmax/              CLI/TUI binary
-  buildmax-server/       HTTP server + scheduler binary
-  buildmax-worker/       Worker binary for one task run
-  buildmax-desktop/      Wails desktop binary
-internal/
-  agentapp/              Shared agent runtime assembly
-    taskrun/             Worker task-run execution runtime
-  bootstrap/             Process startup and dependency wiring
-  config/                Env/config/path loading
-  core/                  Pure domain contracts and agent loop primitives
-  service/               Application orchestration
-  server/                HTTP API, handlers, websocket, scheduler
-  infra/                 DB, LLM, object storage, MCP, worker client, logging
-  interface/             CLI, desktop, auth, server client
-  tool/                  Runtime agent tools
-portal/                  React Portal app
-desktop/frontend/        React Desktop frontend
-gui/                     Shared React component package
-```
-
 ## Notes
 
-- The full repository tree lives in [../repo-layout.md](../repo-layout.md); the
-  abbreviated version above is for orientation only.
+- The repository tree lives in [../repo-layout.md](../repo-layout.md).
 - Current product planning starts in [../../design/README.md](../../design/README.md)
   and [ROADMAP.md](../../ROADMAP.md).
 - The product-level picture — what BuildMax is and who each surface is for —

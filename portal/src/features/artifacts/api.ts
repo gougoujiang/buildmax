@@ -5,7 +5,7 @@ import type { ApiArtifact, ApiArtifactList } from "../../lib/api/types"
 /**
  * The team route lists and receives; the id route reads one.
  *
- * An artifact's address is its `ar_` id, so everything after upload is reached
+ * An artifact's opaque id is its address, so everything after upload is reached
  * without naming a team — see docs/design/unified-artifacts.md section 6.1.
  */
 export function artifactContentUrl(artifactId: string): string {

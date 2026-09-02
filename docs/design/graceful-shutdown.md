@@ -281,22 +281,18 @@ reintroduce §2.3 silently. An architecture test covers that: every handler
 writing `text/event-stream` either observes the latch or appears in an
 explicitly justified list of work streams.
 
-The Portal does not use `EventSource`, so nothing reconnects on its own — it
-reads the stream with `fetch` and a manual SSE parser
-([`portal/src/lib/api/sse.ts`](../../portal/src/lib/api/sse.ts)). A closed
-connection reached `onDone`, which reads as "the run finished". So the
-`draining` event is a protocol addition on both sides: the parser surfaces
-named events, and `subscribeTaskStream` resubscribes after a short delay
-instead of reporting completion. Without that half, rung 4 would have replaced
-a hung stream with a wrong answer.
+The task SSE endpoint emits a named `draining` event before the server closes
+the connection. Clients that consume that API must treat it as a reconnect
+signal rather than run completion. Portal no longer consumes the endpoint; it
+uses team WebSocket events as invalidations and reloads task state.
 
 ### 5.1 The bigger hole was not a stream at all
 
-The task SSE endpoint turned out to have no live consumer in the Portal, which
-watches a run over the WebSocket instead. That does not make rung 4 pointless —
-the endpoint is API surface, and its one client implementation is the Portal's
-— but it means the connection that actually carries user-visible work during a
-shutdown is the socket, and a socket is worse than an SSE stream in two ways.
+The task SSE endpoint has no live consumer in the Portal, which watches a run
+over the WebSocket instead. That does not make rung 4 pointless — the endpoint
+remains API surface — but it means the connection that actually carries
+user-visible work during a shutdown is the socket, and a socket is worse than
+an SSE stream in two ways.
 
 It is **hijacked**, so `http.Server.Shutdown` returns without waiting for it.
 And it carries **Tier 1 turns**: `conversation.create` and

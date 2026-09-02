@@ -1,10 +1,5 @@
 // --- Entity types ---
 
-export interface Profile {
-  id: string
-  name: string
-}
-
 /** Background task (Tier 2) created from a conversation. Backend: Task. */
 export interface Task {
   id: string

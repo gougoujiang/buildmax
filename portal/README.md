@@ -2,8 +2,6 @@
 
 Web UI for BuildMax. Built with React, TypeScript, and Vite.
 
-**URL scheme**: The app uses hash-based routing. See [URL scheme](docs/url-scheme.md) for route patterns and examples.
-
 ## Current Role
 
 The Portal is the main browser UI for the team-scoped BuildMax product.

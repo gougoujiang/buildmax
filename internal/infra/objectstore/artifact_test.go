@@ -13,9 +13,9 @@ import (
 )
 
 func TestArtifactObjectKeyIsDisjointFromTheOtherKeySpaces(t *testing.T) {
-	ref := coreartifact.Ref{TeamID: "tm_1", ArtifactID: "ar_abc"}
+	ref := coreartifact.Ref{TeamID: "tm_1", ArtifactID: "jsyt7at6cjfr33d73mta"}
 	got := ArtifactObjectKey("workspaces", ref)
-	if got != "workspaces/teams/tm_1/artifacts/ar_abc/content" {
+	if got != "workspaces/teams/tm_1/artifacts/jsyt7at6cjfr33d73mta/content" {
 		t.Fatalf("key = %q", got)
 	}
 	// The run-output tree is keyed by the creating user and the home tree by
@@ -42,7 +42,7 @@ func TestLocalFSArtifactRoundTrip(t *testing.T) {
 		return filepath.Join(root, teamID, artifactID)
 	})
 	ctx := context.Background()
-	ref := coreartifact.Ref{TeamID: "tm_1", ArtifactID: "ar_abc"}
+	ref := coreartifact.Ref{TeamID: "tm_1", ArtifactID: "jsyt7at6cjfr33d73mta"}
 
 	key, err := s.PutArtifact(ctx, ref, strings.NewReader("hello"))
 	if err != nil {
@@ -70,7 +70,7 @@ func TestLocalFSArtifactMissingContentIsNotFound(t *testing.T) {
 	s := NewLocalFSArtifactStorage(func(teamID, artifactID string) string {
 		return filepath.Join(root, teamID, artifactID)
 	})
-	_, err := s.OpenArtifact(context.Background(), coreartifact.Ref{TeamID: "tm_1", ArtifactID: "ar_missing"})
+	_, err := s.OpenArtifact(context.Background(), coreartifact.Ref{TeamID: "tm_1", ArtifactID: "ksyt7at6cjfr33d73mta"})
 	if !errors.Is(err, apierr.ErrNotFound) {
 		t.Errorf("err = %v, want apierr.ErrNotFound", err)
 	}
@@ -84,7 +84,7 @@ func TestLocalFSArtifactRemoveIsRepeatable(t *testing.T) {
 		return filepath.Join(root, teamID, artifactID)
 	})
 	ctx := context.Background()
-	ref := coreartifact.Ref{TeamID: "tm_1", ArtifactID: "ar_abc"}
+	ref := coreartifact.Ref{TeamID: "tm_1", ArtifactID: "jsyt7at6cjfr33d73mta"}
 	if _, err := s.PutArtifact(ctx, ref, strings.NewReader("hello")); err != nil {
 		t.Fatal(err)
 	}

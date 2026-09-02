@@ -18,8 +18,7 @@
 - status: `partly implemented` — phases 0 and 3 shipped, phase 1 half shipped,
   phase 2 reduced to what evidence supports, phases 4 and 5 deferred
 - follows: [product-vision.md](./product-vision.md),
-  [surface-positioning.md](./surface-positioning.md),
-  [issue-model.md](./issue-model.md)
+  [surface-positioning.md](./surface-positioning.md)
 - roadmap: [../ROADMAP.md](../ROADMAP.md)
 - created_at: `2026-08-23`
 

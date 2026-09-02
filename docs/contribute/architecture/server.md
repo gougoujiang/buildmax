@@ -46,7 +46,7 @@ methods do not assemble fresh service graphs per call.
   one, which is how CLI and Desktop publish. The
   ID-addressed routes take the team from the record rather than the path, so
   they use `Guard.MemberOfResourceTeam` and answer a non-member with `404` — an
-  `ar_` ID is an identifier, not a credential, and a `403` would make the route
+  artifact ID is an identifier, not a credential, and a `403` would make the route
   an oracle for which IDs exist. See
   [../../design/unified-artifacts.md](../../design/unified-artifacts.md)
 - Run outputs (the compatibility surface):

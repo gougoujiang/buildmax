@@ -166,7 +166,7 @@ func TestNonMemberCannotTellAnArtifactFromNothing(t *testing.T) {
 	created := f.upload(t, userOwner, teamA, "report.md", "# hello")
 
 	real := f.do(t, http.MethodGet, "/api/artifacts/"+created.ID, userOther, nil, "")
-	invented := f.do(t, http.MethodGet, "/api/artifacts/ar_doesnotexist000000000", userOther, nil, "")
+	invented := f.do(t, http.MethodGet, "/api/artifacts/msyt7at6cjfr33d73mta", userOther, nil, "")
 
 	if real.Code != http.StatusNotFound {
 		t.Errorf("a non-member got %d for a real artifact, want 404", real.Code)
@@ -352,7 +352,7 @@ func TestUnconfiguredDeploymentStillAuthenticatesFirst(t *testing.T) {
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)
-	for _, path := range []string{"/api/artifacts/ar_x", "/api/artifacts/ar_x/content", "/api/teams/" + teamA + "/artifacts"} {
+	for _, path := range []string{"/api/artifacts/hsyt7at6cjfr33d73mta", "/api/artifacts/hsyt7at6cjfr33d73mta/content", "/api/teams/" + teamA + "/artifacts"} {
 		req := httptest.NewRequest(http.MethodGet, path, nil)
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)

@@ -21,7 +21,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	h.work.Register(mux)
 
 	// Artifacts are their own object with their own authorization shape: a
-	// route addressed by ar_ ID takes the team from the record, not the path.
+	// route addressed by artifact ID takes the team from the record, not the path.
 	// See docs/design/unified-artifacts.md.
 	h.artifact.Register(mux)
 

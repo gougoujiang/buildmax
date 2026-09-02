@@ -4,7 +4,7 @@
 
 Related: [roadmap](../ROADMAP.md),
 [surface positioning](surface-positioning.md),
-[Issue model](issue-model.md), and
+[data model](../contribute/architecture/data-model.md), and
 [Portal execution model](portal-execution-model.md).
 
 ## Contents

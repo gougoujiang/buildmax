@@ -1,14 +1,13 @@
 # BuildMax Current State
 
-> **Audience:** maintainers and contributors · **Status:** current as of 2026-08-31
+> **Audience:** maintainers and contributors · **Status:** current as of 2026-09-02
 
 This document is a code-first assessment of BuildMax. Its full sweep was made
 at `origin/main` commit `67e9e4df77d42351c435fd21d74422c67a9f8a38`; the
 sections have since been amended in place as the boundaries they describe
-moved, and every count and measurement below was re-taken at `a7ee821`. It
-answers what the repository actually implements and how close those
-implementations are to dependable use. It is not derived from the roadmap,
-proposals, design records, or feature copy.
+moved, most recently against `c8ef5bd`. It answers what the repository actually
+implements and how close those implementations are to dependable use. It is
+not derived from the roadmap, proposals, design records, or feature copy.
 
 The code remains the source of truth. The maturity percentages below are
 engineering judgments, not mechanically calculated completion scores or release
@@ -44,13 +43,11 @@ The most accurate short description is:
 
 ## Evidence Snapshot
 
-The repository contains:
-
-- 108 Go packages and 1,021 tracked Go files;
-- 127 documented HTTP operations across 101 paths;
-- 31 row types passed to the store's authoritative `AutoMigrate` call;
-- 2,697 Go test, benchmark, and example functions;
-- three BuildMax-owned black-box evaluation tasks.
+The repository contains a shared Go runtime and four shipped binaries, a
+server API described by the checked OpenAPI document, an authoritative GORM
+schema, Go and frontend test suites, and BuildMax-owned black-box evaluation
+tasks. Exact file, route, row, and test counts are intentionally omitted: they
+change too frequently to be useful maintained facts.
 
 The reassessment exercised the contributor environment, full build, Go and
 frontend checks, CI-equivalent checks, and the fast CLI and Desktop end-to-end
@@ -135,9 +132,8 @@ bare host, CI, or native Windows, which keep the CLI baseline exactly as
 before this work started. An operator who has installed `bwrap` themselves
 on a bare host can still opt in explicitly via `BUILDMAX_SANDBOX_ENABLED`.
 
-Selecting the surface alone was not enough. Reproducing the worker Job's exact
-`PodSecurityContext` (non-root, `Capabilities: {drop: [ALL]}`,
-`RuntimeDefault` seccomp, read-only root filesystem) in a real pod and running
+Selecting the surface alone was not enough. Reproducing the worker Job's
+initial non-root `PodSecurityContext` in a real pod and running
 `bwrap` inside it failed outright: `RuntimeDefault` drops the
 `unshare`/`setns`/`mount`/`umount2`/`pivot_root`/`clone`/`clone3` rules a
 container's own default profile gates behind `CAP_SYS_ADMIN`, and an empty
@@ -232,9 +228,8 @@ in-process sandbox this section covers — is untouched by this pass;
 nor the resolved sandbox tiers are yet surfaced in a task run's own detail
 view in Portal, only in the API response and audit trail.
 
-**Later correction to the pod security context described above:** the
-non-root `PodSecurityContext` this section describes turned out to be
-incompatible with `bwrap` actually running on a real cluster. A container
+The non-root configuration turned out to be incompatible with `bwrap`
+actually running on a real cluster. A container
 runtime lands a capability added to a *non-root* pod (`Capabilities.Add`) in
 that pod's capability bounding set only, never its effective set at exec
 time — confirmed by isolating every other variable (this section's own
@@ -245,7 +240,7 @@ worker Job pod now runs root with `SYS_ADMIN` added, which does not have
 this gap; see `docs/reference/configuration.md`'s "How A Worker Pod Is
 Confined" for the current pod security context and
 `internal/infra/k8s/job.go`'s `containerSecurityContext` for the full
-finding. The Compose target's `local_process` worker needed the equivalent
+finding. The Compose target's `local_process` worker needs the equivalent
 fix (`cap_add: SYS_ADMIN` plus the same seccomp and an `apparmor:unconfined`
 override, since it also runs root and Docker's default seccomp *and*
 AppArmor profiles each independently blocked a different syscall `bwrap`

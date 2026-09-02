@@ -523,7 +523,7 @@ live in `internal/service/issue`, which also rejects a parent in another team, a
 self-parent, and giving a parent to an issue that already has children. Progress
 (`child_count`, `done_child_count`) is computed per response with a grouped
 query and never stored. See
-[../../design/issue-model.md](../../design/issue-model.md).
+`internal/service/issue` for the authoritative validation.
 
 ### `issue_comment`
 
@@ -1380,9 +1380,6 @@ Three rules govern that list:
   Probe `information_schema` first and return `nil` when there is nothing to do.
 - **Copy before dropping.** Move the data in the same `Apply` that removes its
   old home, so a half-applied migration never loses rows.
-
-A dated SQL file under `deployment/migrations/` remains available for a change
-an operator should apply deliberately. Nothing runs those automatically.
 
 **Do not** add a third automatic mechanism, and do not reach for a migration
 framework for an additive change `AutoMigrate` already handles.

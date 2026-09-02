@@ -28,7 +28,7 @@ func (f *fakePublisher) PublishArtifact(_ context.Context, in ArtifactUpload) (P
 func newUploadFixture(t *testing.T) (string, *fakePublisher, *UploadArtifact) {
 	t.Helper()
 	root := t.TempDir()
-	pub := &fakePublisher{res: PublishedArtifact{ArtifactID: "ar_1", Filename: "report.md", SizeBytes: 5, URL: "https://bm.example/api/artifacts/ar_1"}}
+	pub := &fakePublisher{res: PublishedArtifact{ArtifactID: "gsyt7at6cjfr33d73mta", Filename: "report.md", SizeBytes: 5, URL: "https://bm.example/api/artifacts/gsyt7at6cjfr33d73mta"}}
 	return root, pub, NewUploadArtifact(util.FixedRoot(root), pub)
 }
 
@@ -58,10 +58,10 @@ func TestUploadArtifactPublishesAndReportsTheReference(t *testing.T) {
 	}
 	// The id is what the model has to carry into its answer, so it has to be in
 	// the result the model reads.
-	if !strings.Contains(out, "ar_1") {
+	if !strings.Contains(out, "gsyt7at6cjfr33d73mta") {
 		t.Errorf("result does not name the artifact: %q", out)
 	}
-	if !strings.Contains(out, "https://bm.example/api/artifacts/ar_1") {
+	if !strings.Contains(out, "https://bm.example/api/artifacts/gsyt7at6cjfr33d73mta") {
 		t.Errorf("result does not carry the URL: %q", out)
 	}
 }
