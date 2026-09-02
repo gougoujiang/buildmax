@@ -4046,6 +4046,67 @@
         }
       }
     },
+    "/api/worker/task-runs/{task_run_id}/secrets": {
+      "get": {
+        "summary": "Get the run's resolved secret env grants",
+        "description": "The variable names this run's agent declared, mapped to the values the server decrypted. Values ride this route alone so the response is Cache-Control: no-store and unlogged. An empty object means the agent consumes no secret; a non-2xx means a required grant could not be produced and the run must fail.",
+        "security": [
+          {
+            "runTokenAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "task_run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "env": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Run not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A required secret is disabled or destroyed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/worker/task-runs/{task_run_id}/issue": {
       "get": {
         "summary": "Read the issue this run is working",

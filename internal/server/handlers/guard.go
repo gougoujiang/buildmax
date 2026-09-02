@@ -84,7 +84,19 @@ func (h *Handler) buildWorkerHandler() *worker.Handler {
 		// activate anything on a run token's behalf.
 		Activations: h.activationStore(),
 		Plugins:     h.cfg.PluginService,
+		// The secret service materializes a run's declared grants. Nil when the
+		// feature is off, which the route reads as an empty grant set.
+		Secrets: h.secretMaterializer(),
 	})
+}
+
+// secretMaterializer adapts the secret service to the worker route's narrow
+// materializer, or nil when the feature is off.
+func (h *Handler) secretMaterializer() worker.SecretMaterializer {
+	if h.cfg.SecretService == nil {
+		return nil
+	}
+	return h.cfg.SecretService
 }
 
 // workerIssueAccess is the Issue capability a run token gets, or nil when this

@@ -24,6 +24,7 @@ var (
 	ErrNotFound     = apierr.New(apierr.KindNotFound, "secret not found")
 	ErrDestroyed    = apierr.New(apierr.KindConflict, "secret is destroyed")
 	ErrItemNotFound = apierr.New(apierr.KindInvalid, "no such item to remove")
+	ErrDisabled     = apierr.New(apierr.KindConflict, "secret is disabled")
 )
 
 // Service owns Secret lifecycle. Store persists metadata and sealed bytes and
@@ -130,6 +131,21 @@ func (s *Service) PatchItems(ctx context.Context, teamID, id string, set map[str
 		return nil, err
 	}
 	return s.seal(ctx, teamID, id, merged, names)
+}
+
+// Materialize returns a Secret's decrypted items for an authorized runtime
+// consumer. It refuses a disabled or destroyed Secret: a run must not receive a
+// value the owner has withdrawn. The caller is responsible for the run
+// authorization; this only enforces team ownership and Secret state.
+func (s *Service) Materialize(ctx context.Context, teamID, id string) (coresecret.Items, error) {
+	sec, sealed, err := s.scopedSealed(ctx, teamID, id)
+	if err != nil {
+		return nil, err
+	}
+	if sec.State != coresecret.StateActive {
+		return nil, ErrDisabled
+	}
+	return s.Sealer.Open(*sealed, coresecret.AAD(teamID))
 }
 
 // SetState disables, re-enables, or destroys a Secret.

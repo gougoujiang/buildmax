@@ -771,7 +771,11 @@ only. Request fields carrying values are excluded from request logging,
 validation errors, and audit details.
 
 The worker-facing surface returns only the grant set already computed for its
-run — no list, get-by-name, or provider lookup.
+run — no list, get-by-name, or provider lookup. It is
+`GET /api/worker/task-runs/{task_run_id}/secrets`, authenticated by the run
+token, and its response carries the decrypted values, so it sets
+`Cache-Control: no-store` and rides its own route rather than the run bundle
+that carries plugins and instructions.
 
 Route strings live in `internal/server/handlers/routes.go`, and
 `internal/server/static/openapi.json` must describe them, including the absence
@@ -933,7 +937,12 @@ a worker holds only what its run needs.
 - **done** — owner-only create, item edit (per-item patch and whole-map
   replace), disable, and destroy over HTTP, gated on a configured KEK file, with
   the agent request carrying the consumption config;
-- delivery of the declared grants into the run;
+- **server half done** — a run-token worker route resolves the run's agent
+  consumption, decrypts each grant against the run's team, and returns the env
+  bundle over a `no-store` response; a required grant that is disabled,
+  destroyed, or gone fails the request, an optional one is skipped. The worker
+  fetching and injecting these, plus the `env_scrub` allow-list, are the
+  remaining half;
 - Portal Secret metadata and item editor (row view and raw JSON),
   consumption-health, carrying §3's two consequences in the copy;
 - audit actions and per-run exact-value redaction; and
