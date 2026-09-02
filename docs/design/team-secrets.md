@@ -494,6 +494,12 @@ than left to implementation:**
 - The file is mounted read-only into the Server process, mode `0400`, and lives
   nowhere under a workspace, `BUILDMAX_HOME`, artifact path, or trace path. A
   Kubernetes Secret or Compose volume delivers it.
+- **`key_id` is `<backend>:<name>:<version>`** — `file:root:1`,
+  `vault:transit/buildmax:2`, `kms:<alias>:<ver>`. The backend prefix is not
+  decoration: a deployment that migrates from the file backend to KMS keeps
+  rows wrapped by each, and unwrap has to route to the right one. `name` allows
+  more than one logical root key, and `version` is the rotation counter. For the
+  file backend the map is keyed by this exact string.
 - **The file holds a set of KEKs, not one.** It is a map of `key_id` to key
   material plus a pointer to the one KEK new writes use. A single key would make
   the row's `key_id` versioning inert and would make KEK rotation a stop-the-
@@ -505,6 +511,35 @@ than left to implementation:**
   children, which is the exposure this whole design withholds a value from; the
   root key that unwraps every value is the last thing to place there. Compose
   mounts the file like every other deployment.
+
+DEK rotation needs no operation: every edit rewrites a Secret's row under a
+fresh DEK, so a compromised or aged DEK is replaced by the next write. KEK
+rotation is an operator action, `buildmax-server secret rewrap`, and its
+mechanics are decided:
+
+- The operator generates a new KEK, adds it to the key file under a new
+  `key_id`, and moves the current pointer to it. New writes use it immediately.
+  Existing rows keep their old `key_id` and stay decryptable because the file
+  still holds the old KEK.
+- `rewrap` walks every row carrying a `wrapped_dek` — embedded values and
+  external descriptors alike — and for each unwraps the DEK with the row's named
+  KEK, rewraps it under the current KEK, and updates `wrapped_dek` and `key_id`.
+  The `ciphertext` never changes, because the DEK did not. It is batched,
+  idempotent, resumable after interruption, and skips rows already on the target
+  `key_id`, so re-running it is always safe.
+- It runs with no downtime and takes no lock on the feature: rows are readable
+  and writable throughout, since both KEKs are present. A concurrent edit that
+  rewrites a row under the current KEK simply leaves nothing for `rewrap` to do
+  on that row; `rewrap` uses an optimistic check so it never clobbers a newer
+  write.
+- Removing the old KEK from the file is a separate, explicit step, refused while
+  any row still names it. Because `key_id` is plaintext, the gate is one
+  `SELECT count(*) WHERE key_id = <old>`; removing a KEK a row still references
+  would make that row permanently undecryptable, so the command will not.
+
+KEK rotation is a deployment maintenance action, not a Team action: it emits a
+server operational log, not a Team Secret audit event (§11), because no Team
+value changed and the audit trail is Team-scoped.
 
 The Server fails startup when encrypted data exists and its KEK is missing or
 unusable. It must not generate a replacement key or treat values as empty.
@@ -734,6 +769,7 @@ of a reveal operation.
 | `internal/core/model` | Secret metadata, encrypted item maps, consumption config, run grants, errors, and narrow store interfaces |
 | `internal/service/secret` | Lifecycle rules, consumption validation, renderer parameter resolution, materialization, exchange, and revocation |
 | `internal/infra/secret` | AEAD/envelope implementation, external provider adapters, and credential-exchange clients |
+| `internal/bootstrap` | The `buildmax-server secret rewrap` KEK-rotation command, alongside the existing `run-token` admin command |
 | `internal/infra/db` | Row structs and metadata/ciphertext persistence; no provider calls |
 | `internal/server/handlers` | User and worker authentication, Team authorization, request/response shaping |
 | `internal/agentapp/taskrun` | Consume an authorized in-memory grant set, place environment grants, run renderers into the run's `HOME` |
@@ -942,7 +978,9 @@ Phase 1 does not ship until these hold:
 Supporting work: a schema and crypto review covering nonce generation, AEAD
 associated data, DEK wrapping, KEK loss, rotation, and destruction; an
 operational drill restoring an encrypted backup with the correct KEK and failing
-safely without it; a rendered-file test proving every write constraint,
+safely without it; a KEK-rotation drill proving `rewrap` re-wraps every row with
+no downtime, is resumable after interruption, and that removing the old KEK is
+refused while any row still names it; a rendered-file test proving every write constraint,
 including refusal of a template targeting a shell-startup file or a path outside
 the run's `HOME`; cross-Team and cross-run authorization matrix tests;
 failure-injection for KMS and Vault timeouts, provider denial, lease expiry, and
