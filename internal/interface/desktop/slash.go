@@ -103,10 +103,6 @@ type SlashModelEntry struct {
 	Name          string `json:"name"`
 	ProviderModel string `json:"provider_model,omitempty"`
 	IsCurrent     bool   `json:"is_current"`
-	// Destination is the provider endpoint a local model is called at. Empty in
-	// managed mode, where the deployment on the result says where every prompt
-	// goes and no model has an endpoint of its own.
-	Destination string `json:"destination,omitempty"`
 }
 
 type SlashModelsResult struct {
@@ -134,7 +130,6 @@ func (a *App) GetSlashModels(projectID string) (SlashModelsResult, error) {
 			Name:          c.Name,
 			ProviderModel: c.ProviderModel,
 			IsCurrent:     c.Name == current || c.ProviderModel == current,
-			Destination:   c.BaseURL,
 		}
 	}
 	// Where prompts go is the app's mode, so it is reported once for the list

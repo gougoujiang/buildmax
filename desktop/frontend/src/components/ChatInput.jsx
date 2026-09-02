@@ -351,9 +351,6 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
                   {m.provider_model && m.provider_model !== m.name && (
                     <span className="model-selector__option-sub">{m.provider_model}</span>
                   )}
-                  {m.destination && (
-                    <span className="model-selector__option-sub">{m.destination}</span>
-                  )}
                   {m.is_current && <span className="model-selector__option-check" aria-hidden>✓</span>}
                 </button>
               ))}
