@@ -25,6 +25,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/infra/trace"
 	tools "github.com/gougoujiang/buildmax/internal/tool"
 	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/gougoujiang/buildmax/internal/util/secretscan"
 )
 
 type AppConfig struct {
@@ -70,6 +71,16 @@ type AppConfig struct {
 	// SandboxFilesystemTier's non-workspace tiers add. See
 	// config.SandboxSharedPaths.
 	SandboxSharedPaths config.SandboxSharedPaths
+	// SecretEnvNames are the environment variable names this run declared as
+	// Team Secret grants. The sandbox admits them past its secret-shaped
+	// denylist, so a grant like GH_TOKEN reaches the agent's commands.
+	// BuildMax's own credentials are never admitted. Empty on every surface
+	// that consumes no Secret. See docs/design/team-secrets.md §13.1.
+	SecretEnvNames []string
+	// SecretEnvValues are the corresponding grant values, registered with the
+	// run's trace redactor so they do not drift into a durable trace. Defense
+	// in depth, not a boundary. See docs/design/team-secrets.md §12.
+	SecretEnvValues []string
 	// MaxIterations caps this AgentApp's model calls per run, outranking
 	// settings.yaml. Zero takes the configured value. A surface exposes it for
 	// the run whose length nobody configured for: a benchmark task or an
@@ -184,11 +195,18 @@ type AgentApp struct {
 	hookManager *HookManager
 	// pluginHooks is the plugin layer of the merge, held because the workspace
 	// layer is re-read whenever the root moves and the merge needs all three.
-	pluginHooks            corehook.Config
-	sandbox                agent.SandboxView
-	sandboxManager         *sandbox.Manager
-	sandboxResolved        config.SandboxResolution
-	maxIterations          int
+	pluginHooks     corehook.Config
+	sandbox         agent.SandboxView
+	sandboxManager  *sandbox.Manager
+	sandboxResolved config.SandboxResolution
+	maxIterations   int
+	// secretEnvValues are this run's Team Secret grant values, registered with
+	// each trace recorder so they are redacted from the durable trace.
+	secretEnvValues []string
+	// secretRedactor redacts those exact values from tool results before they
+	// enter the model context and from streamed output. Non-nil for every app;
+	// a no-op when the run has no grants. See docs/design/team-secrets.md §12.
+	secretRedactor         *secretscan.Redactor
 	additionalSystemPrompt string
 	artifactPublisher      tools.ArtifactPublisher
 	issueClient            tools.IssueClient
@@ -1032,13 +1050,14 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 		// session's diagnostics are deleted, copied, and retained with the
 		// conversation they describe rather than from a second root.
 		recorder = trace.NewRecorder(sessionstore.SessionTracesDir(a.sessionManager.Dir(), sess.ID()), trace.Meta{
-			RunID:     runID,
-			SessionID: sess.ID(),
-			Workspace: a.workspace.Root(),
-			Model:     modelName,
-			Sandbox:   a.sandboxInfo(),
-			Sources:   a.contextSources(sess, promptLayers),
-			Plugins:   a.plugins.Provenance(ctx),
+			RunID:        runID,
+			SessionID:    sess.ID(),
+			Workspace:    a.workspace.Root(),
+			Model:        modelName,
+			Sandbox:      a.sandboxInfo(),
+			Sources:      a.contextSources(sess, promptLayers),
+			Plugins:      a.plugins.Provenance(ctx),
+			SecretValues: a.secretEnvValues,
 		})
 		a.trackTrace(recorder)
 		defer a.releaseTrace(recorder)
@@ -1118,6 +1137,7 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 		Hooks:            a.hooks,
 		SessionID:        sess.ID(),
 		Workspace:        a.workspace.Root(),
+		RedactResult:     a.secretRedactor.RedactExact,
 	})
 	// Failed runs still leave a complete trace (RunLoop emits run_end with the
 	// error), so carry TraceID out even on the error paths — a failed run is
@@ -1479,6 +1499,7 @@ func (a *AgentApp) newSubAgentTrace(ctx context.Context, sessionID string, opts 
 		Model:            modelName,
 		IsSubagent:       true,
 		Sandbox:          a.sandboxInfo(),
+		SecretValues:     a.secretEnvValues,
 		Sources: agent.ContextSources{
 			ProjectID:    a.project.ID,
 			Workspace:    a.workspace.Root(),

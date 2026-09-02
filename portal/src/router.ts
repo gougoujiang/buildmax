@@ -58,6 +58,7 @@ export function parseHash(hash: string): Route {
     // link points at, and falling through would land on Overview silently.
     if (parts[1] === "artifacts") return { name: "artifacts" }
     if (parts[1] === "plugins") return { name: "space", section: "plugins" }
+    if (parts[1] === "secrets") return { name: "space", section: "secrets" }
     if (parts[1] === "audit") return { name: "space", section: "audit" }
     return { name: "space", section: "overview" }
   }
@@ -138,6 +139,8 @@ export function buildHash(route: Route): string {
           return `#/${SEGMENT.space}/members/new`
         case "plugins":
           return `#/${SEGMENT.space}/plugins`
+        case "secrets":
+          return `#/${SEGMENT.space}/secrets`
         case "audit":
           return `#/${SEGMENT.space}/audit`
         case "overview":

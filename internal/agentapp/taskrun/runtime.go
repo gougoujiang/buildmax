@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -25,6 +26,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 	tool "github.com/gougoujiang/buildmax/internal/tool"
 	"github.com/gougoujiang/buildmax/internal/util"
+	"github.com/gougoujiang/buildmax/internal/util/secretscan"
 )
 
 // Identity belongs in an attr, not in every message string.
@@ -66,6 +68,13 @@ type runDirs struct {
 	runHome      string
 	runArtifacts string
 	runGlobal    string
+	// runOSHome is the run's own operating-system HOME, empty at start and not
+	// uploaded. It is separate from runHome (the team's materialized persistent
+	// files) and runGlobal (BUILDMAX_HOME): a run must not inherit the shared
+	// container HOME, or one run's tool state under ~/.config leaks into the
+	// next. It is also where rendered credential files will land -- see
+	// docs/design/team-secrets.md §8.
+	runOSHome string
 }
 
 // ManagedInference is what a run needs to reach the managed LLM gateway instead
@@ -151,6 +160,12 @@ type RunTaskInput struct {
 	// docs/design/agent-sandbox-policy.md.
 	SandboxNetworkTier    config.SandboxNetworkTier
 	SandboxFilesystemTier config.SandboxFilesystemTier
+	// SecretEnvGrants are this run's resolved Team Secret grants, variable name
+	// to value, computed by the server from the agent's consumption config.
+	// They are set in the run's environment and their names are allow-listed
+	// past env scrubbing. Empty when the agent consumes no Secret. See
+	// docs/design/team-secrets.md §8.2.
+	SecretEnvGrants map[string]string
 	// InterruptGrace is how long this run may spend reporting after its process
 	// is asked to stop. Zero uses interruptReportTimeout. A dispatcher that will
 	// kill the worker on its own deadline passes that deadline here, so the run
@@ -334,17 +349,21 @@ func finishStoppedRun(ctx context.Context, scope RunScope, result runResult, dir
 }
 
 func resolveRunDirs(paths RuntimePaths, task *coretask.Task, run *coretask.Run) runDirs {
+	runDir := paths.RuntimeTaskRunDir(task.CreatedBy, task.ConversationID, task.ID, run.ID)
 	return runDirs{
-		runDir:       paths.RuntimeTaskRunDir(task.CreatedBy, task.ConversationID, task.ID, run.ID),
+		runDir:       runDir,
 		runHome:      paths.RuntimeTaskRunHomeDir(task.CreatedBy, task.ConversationID, task.ID, run.ID),
 		runArtifacts: paths.RuntimeTaskRunArtifactsDir(task.CreatedBy, task.ConversationID, task.ID, run.ID),
 		runGlobal:    paths.RuntimeTaskRunGlobalDir(task.CreatedBy, task.ConversationID, task.ID, run.ID),
+		// Derived here rather than through RuntimePaths: nothing outside this
+		// package needs to locate the run's OS HOME.
+		runOSHome: filepath.Join(runDir, "oshome"),
 	}
 }
 
 func prepareRunWorkspace(ctx context.Context, input RunTaskInput, task *coretask.Task, run *coretask.Run, dirs runDirs) error {
 	persist := input.Persist
-	if err := ensureRunDirs(dirs.runHome, dirs.runArtifacts, dirs.runGlobal); err != nil {
+	if err := ensureRunDirs(dirs.runHome, dirs.runArtifacts, dirs.runGlobal, dirs.runOSHome); err != nil {
 		return err
 	}
 	// Before the runtime is assembled, because agentapp discovers plugins from
@@ -371,9 +390,9 @@ func executeRunTask(ctx context.Context, input RunTaskInput, task *coretask.Task
 	if task.SessionID != nil {
 		effectiveSessionID = *task.SessionID
 	}
-	agentRun, err := runAgentTask(ctx, run, dirs.runDir, dirs.runGlobal, effectiveSessionID, input.StreamSender, input.Model, input.Managed, input.AdditionalSystemPrompt,
+	agentRun, err := runAgentTask(ctx, run, dirs.runDir, dirs.runGlobal, dirs.runOSHome, effectiveSessionID, input.StreamSender, input.Model, input.Managed, input.AdditionalSystemPrompt,
 		artifactPublisher(input.WorkerAPI, run.ID), issueClient(input.WorkerAPI, task, run.ID),
-		input.SandboxNetworkTier, input.SandboxFilesystemTier)
+		input.SandboxNetworkTier, input.SandboxFilesystemTier, input.SecretEnvGrants)
 	result := runResult{
 		EndTime:          time.Now().UTC(),
 		OutputStr:        string(agentRun.output),
@@ -395,7 +414,7 @@ func reportPersistedRunState(ctx context.Context, persist blob.RunStorage, scope
 	uploadTaskRunArtifacts(ctx, dirs.runArtifacts, scope, persist)
 }
 
-func ensureRunDirs(runHome, runArtifacts, runGlobal string) error {
+func ensureRunDirs(runHome, runArtifacts, runGlobal, runOSHome string) error {
 	if err := os.MkdirAll(runHome, 0755); err != nil {
 		return fmt.Errorf("create run home dir: %w", err)
 	}
@@ -404,6 +423,11 @@ func ensureRunDirs(runHome, runArtifacts, runGlobal string) error {
 	}
 	if err := os.MkdirAll(runGlobal, 0755); err != nil {
 		return fmt.Errorf("create run global dir: %w", err)
+	}
+	// 0700: the run's HOME will hold credential files, so it is private even
+	// though the run is the only principal on this filesystem.
+	if err := os.MkdirAll(runOSHome, 0700); err != nil {
+		return fmt.Errorf("create run OS home dir: %w", err)
 	}
 	return nil
 }
@@ -479,14 +503,15 @@ func runtimeModelEntries(runtimeModel config.ModelEntry, managed ManagedInferenc
 	return []config.ModelEntry{runtimeModel}
 }
 
-func runAgentTask(ctx context.Context, run *coretask.Run, runDir, runGlobalDir, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry, managed ManagedInference, additionalSystemPrompt string, publisher tool.ArtifactPublisher, issues tool.IssueClient, sandboxNetworkTier config.SandboxNetworkTier, sandboxFilesystemTier config.SandboxFilesystemTier) (agentRunOutput, error) {
+func runAgentTask(ctx context.Context, run *coretask.Run, runDir, runGlobalDir, runOSHome, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry, managed ManagedInference, additionalSystemPrompt string, publisher tool.ArtifactPublisher, issues tool.IssueClient, sandboxNetworkTier config.SandboxNetworkTier, sandboxFilesystemTier config.SandboxFilesystemTier, secretGrants map[string]string) (agentRunOutput, error) {
 	var sink llm.StreamSink
 	if streamSender != nil {
-		sink = &streamSinkAdapter{ctx: ctx, streamSender: streamSender, taskRunID: run.ID}
+		sink = &streamSinkAdapter{ctx: ctx, streamSender: streamSender, taskRunID: run.ID,
+			redactor: secretscan.NewRedactor(mapValues(secretGrants))}
 	}
 
 	var out agentapp.RunResult
-	err := withBuildmaxHome(runGlobalDir, func() error {
+	err := withRunEnv(runOSHome, runGlobalDir, secretGrants, func() error {
 		app, err := agentapp.NewAgentApp(agentapp.AppConfig{
 			WorkspaceDir:           runDir,
 			EnableMCP:              true,
@@ -511,6 +536,12 @@ func runAgentTask(ctx context.Context, run *coretask.Run, runDir, runGlobalDir, 
 			SandboxSurface:        config.WorkerSandboxSurface(),
 			SandboxNetworkTier:    sandboxNetworkTier,
 			SandboxFilesystemTier: sandboxFilesystemTier,
+			// The grants are set in the run's environment by withRunEnv above;
+			// their names are admitted past env scrubbing so a secret-shaped
+			// grant like GH_TOKEN actually reaches the agent's commands, and
+			// their values are registered with the trace redactor.
+			SecretEnvNames:  mapKeys(secretGrants),
+			SecretEnvValues: mapValues(secretGrants),
 		})
 		if err != nil {
 			return err
@@ -574,19 +605,61 @@ type streamSinkAdapter struct {
 	ctx          context.Context
 	streamSender workerclient.StreamSender
 	taskRunID    string
+	// redactor removes this run's exact Secret values from a streamed delta
+	// before it reaches the watcher. Nil is a no-op. See
+	// docs/design/team-secrets.md §12.
+	redactor *secretscan.Redactor
 }
 
 func (s *streamSinkAdapter) OnDelta(delta string) {
 	if s.streamSender == nil || delta == "" {
 		return
 	}
+	delta = s.redactor.RedactExact(delta)
 	if err := s.streamSender.SendDelta(s.ctx, s.taskRunID, delta); err != nil {
 		componentLog().Warn("stream send delta failed", "task_run_id", s.taskRunID, "err", err)
 	}
 }
 
-func withBuildmaxHome(home string, fn func() error) error {
-	return util.WithEnvVar(config.EnvKeyBuildmaxHome, home, fn)
+// withRunEnv scopes BUILDMAX_HOME, the operating-system HOME, and this run's
+// Team Secret grants to the process for the duration of fn. A worker process
+// runs one run, so setting the process environment is safe -- the same
+// assumption withBuildmaxHome already made for BUILDMAX_HOME alone. USERPROFILE
+// mirrors HOME so tools that read the Windows home variable land in the same
+// run-private directory. The grants are placed under the names the agent
+// declared; env scrubbing admits those names (see AppConfig.SecretEnvNames).
+func withRunEnv(osHome, buildmaxHome string, grants map[string]string, fn func() error) error {
+	vars := map[string]string{
+		config.EnvKeyBuildmaxHome: buildmaxHome,
+		"HOME":                    osHome,
+		"USERPROFILE":             osHome,
+	}
+	maps.Copy(vars, grants)
+	return util.WithEnvVars(vars, fn)
+}
+
+// mapKeys returns a map's keys, or nil for an empty map.
+func mapKeys(m map[string]string) []string {
+	if len(m) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	return out
+}
+
+// mapValues returns a map's values, or nil for an empty map.
+func mapValues(m map[string]string) []string {
+	if len(m) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(m))
+	for _, v := range m {
+		out = append(out, v)
+	}
+	return out
 }
 
 func persistRunResult(runArtifactsDir string, output []byte) {

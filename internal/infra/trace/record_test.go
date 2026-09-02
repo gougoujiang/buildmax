@@ -9,6 +9,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
+	"github.com/gougoujiang/buildmax/internal/util/secretscan"
 )
 
 func TestRecordFromEvent_Mapping(t *testing.T) {
@@ -108,7 +109,7 @@ func TestRecordFromEvent_Mapping(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			r, ok := recordFromEvent(c.ev, defaultMaxFieldBytes)
+			r, ok := recordFromEvent(c.ev, defaultMaxFieldBytes, nil)
 			if !ok {
 				t.Fatal("expected ok")
 			}
@@ -121,18 +122,18 @@ func TestRecordFromEvent_Mapping(t *testing.T) {
 }
 
 func TestRecordFromEvent_DeltaSkipped(t *testing.T) {
-	if _, ok := recordFromEvent(agent.Event{Kind: agent.EventLLMDelta, Content: "x"}, defaultMaxFieldBytes); ok {
+	if _, ok := recordFromEvent(agent.Event{Kind: agent.EventLLMDelta, Content: "x"}, defaultMaxFieldBytes, nil); ok {
 		t.Error("EventLLMDelta should not be persisted")
 	}
 }
 
 func TestRecordFromEvent_BoundsAndRedacts(t *testing.T) {
 	big := strings.Repeat("a", 100) + " Bearer secrettoken123456"
-	r, _ := recordFromEvent(agent.Event{Kind: agent.EventLLMEnd, Content: big}, 20)
+	r, _ := recordFromEvent(agent.Event{Kind: agent.EventLLMEnd, Content: big}, 20, nil)
 	if !strings.Contains(r.Content, "truncated") {
 		t.Errorf("expected truncation marker, got %q", r.Content)
 	}
-	full, _ := recordFromEvent(agent.Event{Kind: agent.EventToolEnd, ToolResult: "x Bearer secrettoken123456"}, defaultMaxFieldBytes)
+	full, _ := recordFromEvent(agent.Event{Kind: agent.EventToolEnd, ToolResult: "x Bearer secrettoken123456"}, defaultMaxFieldBytes, nil)
 	if strings.Contains(full.Result, "secrettoken123456") {
 		t.Errorf("token not redacted: %q", full.Result)
 	}
@@ -166,5 +167,21 @@ func TestBound_RuneBoundary(t *testing.T) {
 	}
 	if !strings.Contains(got, "truncated 9 bytes") {
 		t.Errorf("bound = %q, want 9 dropped bytes", got)
+	}
+}
+
+// TestRecordFromEvent_RedactsExactSecretValue proves a run's materialized
+// Secret value is redacted from a tool result before it is written to the
+// trace, even though it matches no secret shape.
+func TestRecordFromEvent_RedactsExactSecretValue(t *testing.T) {
+	red := secretscan.NewRedactor([]string{"ghs_deadbeefcafe0001"})
+	r, _ := recordFromEvent(
+		agent.Event{Kind: agent.EventToolEnd, ToolResult: "cloned with token ghs_deadbeefcafe0001 ok"},
+		defaultMaxFieldBytes, red)
+	if strings.Contains(r.Result, "ghs_deadbeefcafe0001") {
+		t.Fatalf("exact secret value not redacted from trace: %q", r.Result)
+	}
+	if !strings.Contains(r.Result, "[redacted]") {
+		t.Fatalf("expected a redaction marker: %q", r.Result)
 	}
 }

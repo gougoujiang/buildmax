@@ -161,6 +161,9 @@ internal/
 │   │                   the comments people and agents leave on it
 │   ├── audit/          The append-only trail: what an event is, the actions
 │   │                   worth recording, and how it is read and pruned
+│   ├── secret/         The Team Secret: a group of named items, its lifecycle,
+│   │                   the sealed-bytes and store contracts — no crypto, no
+│   │                   persistence
 │   ├── task/           Tier 2 durable work: the Task, its runs and their one
 │   │                   legal set of transitions, run output, and delivery
 │   ├── identity/       Who a caller is: the account, its credentials, its
@@ -197,6 +200,8 @@ internal/
 │   │                   not diagnostics — see the package doc)
 │   ├── plugin/         Marketplace publication and catalog lifecycle
 │   ├── plugininspect/  Sanitized inspection of what a plugin archive contributes
+│   ├── secret/         Team Secret lifecycle: validate items, seal them through
+│   │                   a Sealer, store metadata and sealed bytes; no reveal path
 │   ├── team/           Membership: who is in a team and who may change that
 │   ├── quota/          Team quota enforcement
 │   └── llmgateway/     Model catalog, name resolution, routing, and managed calls
@@ -221,6 +226,8 @@ internal/
 │   ├── pluginarchive/  Packing and hardened extraction of plugin archives
 │   ├── proc/           Process supervision for local background jobs:
 │   │                   group spawn, bounded output rings, tree termination
+│   ├── secret/         Team Secret cryptography: envelope encryption of the
+│   │                   item map, and the KEK providers that wrap the DEKs
 │   ├── sandbox/        Seatbelt/bwrap backends, egress proxy, violations
 │   ├── sessionstore/   Session journal file backend: JSONL codec, single-writer
 │   │                   lock, tail repair, salvage

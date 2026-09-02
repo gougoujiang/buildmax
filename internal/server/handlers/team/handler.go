@@ -13,6 +13,7 @@ import (
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
+	coresecret "github.com/gougoujiang/buildmax/internal/core/secret"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	"github.com/gougoujiang/buildmax/internal/server/access"
@@ -20,6 +21,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 	"github.com/gougoujiang/buildmax/internal/service/plugin"
 	"github.com/gougoujiang/buildmax/internal/service/quota"
+	secretsvc "github.com/gougoujiang/buildmax/internal/service/secret"
 	teamsvc "github.com/gougoujiang/buildmax/internal/service/team"
 	"github.com/gougoujiang/buildmax/internal/service/workflow"
 )
@@ -50,6 +52,13 @@ type Config struct {
 	// team's background runs may use. Nil in a deployment without a
 	// Marketplace, which is why every route here checks before using it.
 	Plugins *plugin.Service
+	// Secrets is the low-level Secret read the agent consumption validator
+	// uses. Nil when the deployment has no secret store; then consuming a
+	// Secret is refused. See docs/design/team-secrets.md.
+	Secrets coresecret.Store
+	// SecretService backs the Secret management routes. Nil when the secret
+	// feature is off (no KEK file configured), and then those routes report it.
+	SecretService *secretsvc.Service
 }
 
 type Handler struct {
@@ -127,6 +136,14 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	// See docs/design/agent-sandbox-policy.md §9 M3.
 	mux.HandleFunc("GET /api/teams/{team_id}/sandbox-defaults", h.getSandboxDefaultsHandler)
 	mux.HandleFunc("PUT /api/teams/{team_id}/sandbox-defaults", h.setSandboxDefaultsHandler)
+
+	// Team Secrets. Owner-only; values are write-only, with no reveal route.
+	// See docs/design/team-secrets.md.
+	mux.HandleFunc("GET /api/teams/{team_id}/secrets", h.listSecretsHandler)
+	mux.HandleFunc("POST /api/teams/{team_id}/secrets", h.createSecretHandler)
+	mux.HandleFunc("GET /api/teams/{team_id}/secrets/{secret_id}", h.getSecretHandler)
+	mux.HandleFunc("PATCH /api/teams/{team_id}/secrets/{secret_id}", h.editSecretHandler)
+	mux.HandleFunc("PUT /api/teams/{team_id}/secrets/{secret_id}/state", h.setSecretStateHandler)
 
 	// Usage and the audit trail
 	mux.HandleFunc("GET /api/usage", h.usageHandler)

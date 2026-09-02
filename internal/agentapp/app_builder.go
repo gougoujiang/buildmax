@@ -13,6 +13,7 @@ import (
 	cllm "github.com/gougoujiang/buildmax/internal/core/llm"
 	"github.com/gougoujiang/buildmax/internal/core/localproject"
 	"github.com/gougoujiang/buildmax/internal/infra/hook"
+	"github.com/gougoujiang/buildmax/internal/util/secretscan"
 )
 
 // resolvedAgentAppConfig is the immutable input to runtime construction. File,
@@ -118,6 +119,9 @@ func buildAgentApp(cfg AppConfig, resolved resolvedAgentAppConfig) (_ *AgentApp,
 	if err != nil {
 		return nil, err
 	}
+	// This run's Secret grant names pass env scrubbing; BuildMax's own
+	// credentials never do, whatever is passed. See docs/design/team-secrets.md.
+	sandboxManager.AllowEnvNames(cfg.SecretEnvNames)
 
 	app := &AgentApp{
 		workspace:              workspace,
@@ -140,6 +144,8 @@ func buildAgentApp(cfg AppConfig, resolved resolvedAgentAppConfig) (_ *AgentApp,
 		sandboxResolved:        resolved.sandbox,
 		maxIterations:          config.ResolveMaxIterations(resolved.settings.Agent, cfg.MaxIterations),
 		plugins:                resolved.plugins,
+		secretEnvValues:        cfg.SecretEnvValues,
+		secretRedactor:         secretscan.NewRedactor(cfg.SecretEnvValues),
 	}
 	// A worker that resolves weaker than its own surface's baseline says so
 	// out loud, not only in the trace: docs/design/sandbox-boundaries.md §10.

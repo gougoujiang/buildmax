@@ -229,6 +229,7 @@ func TestPrepareRunWorkspace_MaterializesTeamFiles(t *testing.T) {
 		runHome:      filepath.Join(t.TempDir(), "home"),
 		runArtifacts: filepath.Join(t.TempDir(), "artifacts"),
 		runGlobal:    filepath.Join(t.TempDir(), "global"),
+		runOSHome:    filepath.Join(t.TempDir(), "oshome"),
 	}
 	task := &coretask.Task{
 		ID:             "t1",
@@ -251,6 +252,40 @@ func TestPrepareRunWorkspace_MaterializesTeamFiles(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dirs.runHome, "private.txt")); !os.IsNotExist(err) {
 		t.Fatalf("private creator file should not be materialized, stat err = %v", err)
+	}
+
+	// The run's OS HOME exists and is empty: it must not inherit team files
+	// (those go to runHome) or anything from a previous run.
+	entries, err := os.ReadDir(dirs.runOSHome)
+	if err != nil {
+		t.Fatalf("read run OS home: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("run OS home should start empty, has %d entries", len(entries))
+	}
+}
+
+// TestResolveRunDirs_OSHomeIsRunPrivate pins that the OS HOME is a dedicated
+// per-run directory, distinct from the team home and BUILDMAX_HOME, so one
+// run's tool state cannot leak into another and rendered credential files do
+// not land among uploaded files.
+func TestResolveRunDirs_OSHomeIsRunPrivate(t *testing.T) {
+	paths := NewRuntimePathsFromRoot(t.TempDir())
+	task := &coretask.Task{ID: "t1", ConversationID: "c1", CreatedBy: "u1"}
+	run := &coretask.Run{ID: "r1"}
+	dirs := resolveRunDirs(paths, task, run)
+
+	if dirs.runOSHome == dirs.runHome || dirs.runOSHome == dirs.runGlobal || dirs.runOSHome == dirs.runDir {
+		t.Fatalf("OS home %q must differ from home/global/run dirs", dirs.runOSHome)
+	}
+	if filepath.Dir(dirs.runOSHome) != dirs.runDir {
+		t.Fatalf("OS home %q should live under the run dir %q", dirs.runOSHome, dirs.runDir)
+	}
+
+	// Two different runs get different OS homes.
+	other := resolveRunDirs(paths, task, &coretask.Run{ID: "r2"})
+	if other.runOSHome == dirs.runOSHome {
+		t.Fatalf("distinct runs share an OS home: %q", dirs.runOSHome)
 	}
 }
 
@@ -358,5 +393,29 @@ func TestRestoreSessionFromPreviousRun_PartialBundleRestoresNothing(t *testing.T
 
 	if _, err := os.Stat(filepath.Join(nextDir, "sessions", "sid-1")); !os.IsNotExist(err) {
 		t.Errorf("a partial bundle was left behind (stat err = %v)", err)
+	}
+}
+
+// TestWithRunEnv_InjectsGrantsAndRestores proves a run's Secret grants are set
+// in the process environment for the duration of the run and cleared after,
+// alongside HOME and BUILDMAX_HOME.
+func TestWithRunEnv_InjectsGrantsAndRestores(t *testing.T) {
+	const name = "GH_TOKEN_TEST_GRANT"
+	_ = os.Unsetenv(name)
+	grants := map[string]string{name: "ghs_secret"}
+	err := withRunEnv(t.TempDir(), t.TempDir(), grants, func() error {
+		if got := os.Getenv(name); got != "ghs_secret" {
+			t.Fatalf("inside run: %s = %q, want the grant value", name, got)
+		}
+		if os.Getenv("HOME") == "" {
+			t.Fatal("inside run: HOME should be set")
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("withRunEnv: %v", err)
+	}
+	if _, ok := os.LookupEnv(name); ok {
+		t.Fatalf("after run: %s should be cleared", name)
 	}
 }

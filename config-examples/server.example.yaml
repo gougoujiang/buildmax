@@ -215,3 +215,14 @@ storage:
     # store needing bucket-in-path, empty = AWS S3 which doesn't). Set only
     # for a compatible store that uses virtual-host addressing.
     # path_style: true
+
+# Team Secrets: a Team-owned group of named items, sealed with envelope
+# encryption. See docs/design/team-secrets.md.
+secret:
+  # Path to the key file that wraps every secret's data key. The key material
+  # is never in this file or the environment -- only this path is. The file
+  # holds a set of KEKs plus a pointer to the one new writes use, so a KEK can
+  # be rotated without re-encrypting stored values. Empty disables the feature:
+  # an agent that consumes a Secret is then refused, the same way naming a
+  # plugin is refused with no Marketplace.
+  kek_file: ""

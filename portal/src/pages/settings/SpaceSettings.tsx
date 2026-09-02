@@ -11,6 +11,7 @@ import { navigate } from "../../router"
 import { SpaceAuditSection } from "../../features/audit"
 import { TeamPlugins } from "../../features/teamPlugins"
 import { TeamSandboxDefaults } from "../../features/teamSandbox"
+import { TeamSecrets } from "../../features/teamSecrets"
 import { useAuth } from "../../contexts/AuthContext"
 import { useTeam } from "../../contexts/TeamContext"
 
@@ -147,6 +148,16 @@ export function SpaceSettings({ section }: { section: SpaceSection }) {
               }
             />
           </>
+        ) : null}
+        {section === "secrets" ? (
+          <TeamSecrets
+            token={token}
+            teamId={currentTeamId}
+            // Secrets are owner-only: value authority stays with the owner
+            // until BuildMax has finer team grants. See
+            // docs/design/team-secrets.md §10.
+            canManage={currentUserMember?.role === "owner"}
+          />
         ) : null}
         {section === "audit" ? (
           <SpaceAuditSection

@@ -141,6 +141,31 @@ func GetWorkerTaskRun(ctx context.Context, cfg WorkerAPIClientConfig, taskRunID 
 	}, nil
 }
 
+// GetWorkerTaskRunSecrets fetches the run's resolved Secret env grants. An
+// empty map (or a 404 from a server built before this route) means the run's
+// agent consumes no Secret. A non-2xx means the server could not produce a
+// required grant, which the caller surfaces as a run failure -- a run must not
+// proceed without a credential its definition declared.
+func GetWorkerTaskRunSecrets(ctx context.Context, cfg WorkerAPIClientConfig, taskRunID string) (map[string]string, error) {
+	pathSuffix := "/api/worker/task-runs/" + taskRunID + "/secrets"
+	resp, err := workerDo(ctx, cfg, http.MethodGet, pathSuffix, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, nil
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, httpclient.DecodeError(resp, "worker API GET "+cfg.BaseURL+pathSuffix)
+	}
+	var got TaskRunSecretsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		return nil, err
+	}
+	return got.Env, nil
+}
+
 // sandboxNetworkTierOf and sandboxFilesystemTierOf read the GET response's
 // optional Sandbox field. Absent means a server built before this field
 // existed, so a worker reads both tiers as "" -- the strictest, exactly what

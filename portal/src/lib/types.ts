@@ -40,7 +40,7 @@ export type Route =
     }
   | {
       name: "space"
-      section?: "overview" | "members" | "plugins" | "audit" | "memberNew"
+      section?: "overview" | "members" | "plugins" | "secrets" | "audit" | "memberNew"
     }
   | { name: "admin"; section?: "overview" | "accounts" | "teams" | "models" | "plugins" | "audit" }
   | { name: "workflows" }
@@ -60,6 +60,7 @@ export interface Agent {
   instructions?: string
   sandboxNetworkTier?: string
   sandboxFilesystemTier?: string
+  secretConsumption?: import("./api/types").ApiSecretConsumption
   revision: number
   createdAt: string
 }

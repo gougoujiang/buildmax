@@ -46,6 +46,7 @@ var opaqueColumns = map[string]string{
 	"user_refresh_token.token_hash":     "an authentication format",
 	"user_webhook_key.key_hash":         "an authentication format",
 	"user_refresh_token.replaced_by":    "the hash of the next token in the chain, not a reference to a row",
+	"secret.key_id":                     "names the KEK that wrapped this row's DEK, a <backend>:<name>:<version> string, not a reference to a row",
 }
 
 // numericRelationExempt are columns whose name ends in _id but which are not

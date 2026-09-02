@@ -39,11 +39,10 @@ last column says so, and the paper's own delivery phases hold the detail.
 | [Enterprise identity and access](enterprise-identity-and-access.md) | How should a private deployment connect corporate identity to BuildMax teams and roles? | Nothing |
 | [Durable Agent sessions](durable-agent-sessions.md) | Should authenticated local Agent sessions become revisioned Server resources for recovery, provenance, sharing, and cross-device continuation? | Nothing; no server route serves a session resource |
 | [Local Issue work bridge](local-issue-work-bridge.md) | How should connected CLI/TUI and Desktop handle Team Issues locally without becoming Portal clones or weakening direct local use? | Most of phase 1: `buildmax issue list`, `show`, and `status`, `buildmax --issue`, and the two Issue tools of [issue agent access](../design/issue-agent-access.md). The durable Issue-to-Session link is not built, and phases 2 and 3 are untouched |
-| [Run-scoped Secret Broker and workload identity](run-scoped-secret-broker.md) | How should a Team authorize one run and one plugin consumer to use a stored or externally managed credential without exposing it to the whole worker? | Nothing |
 | [Session tree, agent mailbox, and branched workspaces](session-tree-and-agent-mailbox.md) | Should interactive sessions fork isolated workspaces, return structured child reports, and resume their parent through a durable mailbox? | Nothing |
 | [Two-tier Agent architecture roundtable](two-tier-agent-architecture/README.md) | Is the durable Portal abstraction two Agent tiers, or separate interaction, semantic coordination, deterministic orchestration, execution, and presentation roles? | Current Tier 1 conversations and the Task/TaskRun worker substrate; this roundtable changes no behavior |
 
-Ten papers have been retired. Six were accepted into a design
+Eleven papers have been retired. Seven were accepted into a design
 record. *System administration* asked how a private
 deployment should authorize and audit System Administrators; the direction was
 accepted and is now the [system administration
@@ -75,6 +74,18 @@ definition narrows it, and the two levels split by what an unwanted item costs:
 inert content is inherited when an agent names none, executable content is
 loaded only when an agent names it.
 
+*Run-scoped Secret Broker and workload identity* asked how a Team should
+authorize a stored or externally managed credential for a run without exposing
+it to the whole worker; the direction was accepted and is now the [Team Secrets
+design](../design/team-secrets.md). It answers the delivery half against the
+paper's own first recommendation: a credential is delivered to the run, as an
+environment variable or a rendered credential file, not into one named plugin
+consumer, because an Agent invokes tools it selects at run time and per-tool
+adaptation cannot reach them. A Secret is a Team-owned group of key/values in
+one encrypted row, consumption is configured on the Agent, and the record states
+plainly that an Agent can read what its run was granted — moving the safety onto
+Team ownership, per-Agent consumption, short-lived credentials, and audit.
+
 *Agent-managed worktrees and a mutable workspace root* asked whether one
 interactive session should create a Git worktree and move its own workspace
 root into it; the direction was accepted and is now the [workspace root and
@@ -105,7 +116,7 @@ by, and records all became settled behaviour while it was open, leaving one
 question that belongs to an existing plan — it is now §3.9 of the [trust harness
 design](../design/trust-harness.md), with the egress half it blocks.
 
-Git history holds all ten papers.
+Git history holds all eleven papers.
 
 ## Starting A Proposal
 

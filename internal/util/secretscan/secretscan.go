@@ -12,7 +12,10 @@
 // recognize cannot drift apart.
 package secretscan
 
-import "regexp"
+import (
+	"regexp"
+	"strings"
+)
 
 // pattern is one recognizable secret shape and how a redaction replaces it.
 type pattern struct {
@@ -45,6 +48,61 @@ func Redact(s string) string {
 	}
 	for _, p := range patterns {
 		s = p.re.ReplaceAllString(s, p.repl)
+	}
+	return s
+}
+
+const (
+	// minExactValue is the shortest exact value worth redacting. Below it, a
+	// value is as likely to be an ordinary word as a credential, and replacing
+	// every "abc" in output would mangle more than it protects. See
+	// docs/design/team-secrets.md §12.
+	minExactValue = 6
+	// maxExactValue bounds a single exact value so one very large credential
+	// (a certificate, a key file) cannot make every redaction pass unbounded.
+	maxExactValue = 4096
+)
+
+// Redactor redacts both recognized secret shapes and a fixed set of exact
+// values. The exact set is a run's materialized Team Secret values, registered
+// before the Agent starts so they do not drift into a durable trace, a log, or
+// a tool result. It is defense in depth, not a boundary: a value can be encoded
+// or transformed past it, which is why the primary control is withholding the
+// value from the general environment. See docs/design/team-secrets.md §12.
+type Redactor struct {
+	exact []string
+}
+
+// NewRedactor builds a Redactor over the given exact values, dropping empty,
+// very short, and oversized ones. A Redactor with no usable values redacts by
+// shape only, exactly like the package Redact.
+func NewRedactor(values []string) *Redactor {
+	var exact []string
+	for _, v := range values {
+		if len(v) >= minExactValue && len(v) <= maxExactValue {
+			exact = append(exact, v)
+		}
+	}
+	return &Redactor{exact: exact}
+}
+
+// Redact replaces exact registered values first, then recognized shapes. A nil
+// Redactor redacts by shape only, so a caller never needs to nil-check.
+func (r *Redactor) Redact(s string) string {
+	return Redact(r.RedactExact(s))
+}
+
+// RedactExact replaces only the registered exact values, not recognized shapes.
+// It is for a sink where shape-based redaction would mangle output a consumer
+// still needs -- a tool result the model must read to continue its work, where
+// blanking every token-shaped substring would break the run. A nil Redactor
+// returns s unchanged.
+func (r *Redactor) RedactExact(s string) string {
+	if r == nil || s == "" {
+		return s
+	}
+	for _, v := range r.exact {
+		s = strings.ReplaceAll(s, v, "[redacted]")
 	}
 	return s
 }

@@ -30,7 +30,7 @@ import IssueIcon from "../../icons/issue.svg?react"
 import { BaseModal } from "@buildmax/gui"
 
 export type AccountSection = "general" | "usage" | "webhook" | "plugins" | "invitations"
-export type SpaceSection = "overview" | "members" | "plugins" | "audit" | "memberNew"
+export type SpaceSection = "overview" | "members" | "plugins" | "secrets" | "audit" | "memberNew"
 
 interface SettingsNavItem<T extends string> {
   id: T
@@ -56,6 +56,9 @@ export const SPACE_NAV: SettingsNavItem<Exclude<SpaceSection, "memberNew">>[] = 
   // What this team's background runs may use. Readable by any member, because
   // "why did this run have this plugin" is a question anyone debugging asks.
   { id: "plugins", label: "Plugins", icon: ToolboxIcon },
+  // Owner-only content, but the tab stays visible for everyone, the same as
+  // Audit: the section itself explains why a member cannot manage it.
+  { id: "secrets", label: "Secrets", icon: ToolboxIcon },
   // Owner-only content, but the tab stays visible for everyone: the section
   // explains why a member cannot read it, which is more useful than a tab that
   // silently exists for some people and not others.

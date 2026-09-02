@@ -28,6 +28,8 @@ var (
 	ErrUsedByPublishedFlows = apierr.New(apierr.KindConflict, "agent is used by published workflows")
 	ErrPluginsNotConfigured = apierr.New(apierr.KindNotConfigured,
 		"this deployment cannot resolve plugins, so an agent cannot name one")
+	ErrSecretsNotConfigured = apierr.New(apierr.KindNotConfigured,
+		"this deployment has no secret store, so an agent cannot consume one")
 )
 
 // WorkflowUsage reports which published workflows still name an agent.
@@ -61,6 +63,10 @@ type Service struct {
 	// workflows use an agent, so a delete is not blocked on that check -- the
 	// same behaviour as before, when the handler skipped it on a nil store.
 	Workflows WorkflowUsage
+	// Secrets is optional, and nil means the deployment has no secret store.
+	// An agent that consumes a Secret is then refused rather than saved, the
+	// same way a plugin selection is refused with no Marketplace.
+	Secrets SecretLookup
 }
 
 type CreateCmd struct {
@@ -77,6 +83,8 @@ type CreateCmd struct {
 	// docs/design/agent-sandbox-policy.md §4.2.
 	SandboxNetworkTier    string
 	SandboxFilesystemTier string
+	// SecretConsumption declares which Team Secrets this agent consumes.
+	SecretConsumption agentdef.SecretConsumption
 }
 
 type UpdateCmd struct {
@@ -89,6 +97,7 @@ type UpdateCmd struct {
 	Plugins               []string
 	SandboxNetworkTier    string
 	SandboxFilesystemTier string
+	SecretConsumption     agentdef.SecretConsumption
 }
 
 // validateSandboxTiers checks a definition's declared tiers before it is
@@ -126,6 +135,9 @@ func (s *Service) CreateAgent(ctx context.Context, cmd CreateCmd) (*agentdef.Age
 	if err := validateSandboxTiers(cmd.SandboxNetworkTier, cmd.SandboxFilesystemTier); err != nil {
 		return nil, err
 	}
+	if err := s.validateConsumption(ctx, cmd.TeamID, cmd.SecretConsumption); err != nil {
+		return nil, err
+	}
 	plugins, err := s.resolvePlugins(ctx, cmd.TeamID, cmd.Plugins, cmd.UserID)
 	if err != nil {
 		return nil, err
@@ -140,6 +152,7 @@ func (s *Service) CreateAgent(ctx context.Context, cmd CreateCmd) (*agentdef.Age
 			Plugins:               plugins,
 			SandboxNetworkTier:    cmd.SandboxNetworkTier,
 			SandboxFilesystemTier: cmd.SandboxFilesystemTier,
+			SecretConsumption:     cmd.SecretConsumption.Canonical(),
 		},
 	})
 }
@@ -217,6 +230,9 @@ func (s *Service) UpdateAgent(ctx context.Context, cmd UpdateCmd) (*agentdef.Age
 	if err := validateSandboxTiers(cmd.SandboxNetworkTier, cmd.SandboxFilesystemTier); err != nil {
 		return nil, err
 	}
+	if err := s.validateConsumption(ctx, cmd.TeamID, cmd.SecretConsumption); err != nil {
+		return nil, err
+	}
 	plugins, err := s.resolvePlugins(ctx, cmd.TeamID, cmd.Plugins, cmd.UserID)
 	if err != nil {
 		return nil, err
@@ -232,6 +248,7 @@ func (s *Service) UpdateAgent(ctx context.Context, cmd UpdateCmd) (*agentdef.Age
 			Plugins:               plugins,
 			SandboxNetworkTier:    cmd.SandboxNetworkTier,
 			SandboxFilesystemTier: cmd.SandboxFilesystemTier,
+			SecretConsumption:     cmd.SecretConsumption.Canonical(),
 		},
 	})
 	if err != nil {
@@ -273,6 +290,7 @@ func (s *Service) RestoreRevision(ctx context.Context, cmd RestoreRevisionCmd) (
 		Plugins:               rev.Plugins,
 		SandboxNetworkTier:    rev.SandboxNetworkTier,
 		SandboxFilesystemTier: rev.SandboxFilesystemTier,
+		SecretConsumption:     rev.SecretConsumption,
 	})
 }
 

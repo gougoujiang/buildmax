@@ -52,6 +52,8 @@ export interface ApiAgent {
    */
   sandbox_network_tier?: string
   sandbox_filesystem_tier?: string
+  /** How this agent consumes Team Secrets. See docs/design/team-secrets.md §6. */
+  secret_consumption?: ApiSecretConsumption
   revision: number
   created_at: string
 }
@@ -822,6 +824,66 @@ export interface ApiTeam {
 export interface ApiTeamSandboxDefaults {
   sandbox_network_tier?: string
   sandbox_filesystem_tier?: string
+}
+
+/**
+ * A Team Secret: a group of named items, sealed. The API never returns an item
+ * value -- item_names lists the keys present, and there is no reveal route. See
+ * docs/design/team-secrets.md.
+ */
+export interface ApiSecret {
+  id: string
+  team_id: string
+  name: string
+  description: string
+  provider: string
+  state: "active" | "disabled" | "destroyed"
+  item_names: string[]
+  created_by: string
+  created_at: string
+  updated_at: string
+}
+
+export interface ApiSecretListResponse {
+  secrets: ApiSecret[]
+}
+
+export interface ApiCreateSecretRequest {
+  name: string
+  description?: string
+  items: Record<string, string>
+}
+
+/**
+ * One of two shapes over the edit route: items replaces the whole map (a
+ * raw-JSON editor), set/remove patch named keys (a row editor). Sending both is
+ * refused.
+ */
+export interface ApiEditSecretRequest {
+  items?: Record<string, string>
+  set?: Record<string, string>
+  remove?: string[]
+}
+
+export interface ApiSetSecretStateRequest {
+  state: "active" | "disabled" | "destroyed"
+}
+
+/**
+ * How an agent consumes a Team Secret's item as an environment variable: a
+ * selected item under a chosen name, or -- when item is empty -- the whole
+ * group under each item's own name with an optional prefix.
+ */
+export interface ApiSecretEnvGrant {
+  secret: string
+  item?: string
+  env_name?: string
+  prefix?: string
+  optional?: boolean
+}
+
+export interface ApiSecretConsumption {
+  env?: ApiSecretEnvGrant[]
 }
 
 export interface ApiTeamMember {

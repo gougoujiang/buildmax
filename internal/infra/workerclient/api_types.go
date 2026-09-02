@@ -35,6 +35,15 @@ type TaskRunSandbox struct {
 	FilesystemTier string `json:"filesystem_tier,omitempty"`
 }
 
+// TaskRunSecretsResponse carries a run's resolved Secret env grants: the
+// variable names its agent declared, mapped to the values the server decrypted.
+// It is fetched on its own route, not folded into GetTaskRunResponse, so the
+// values ride a response that is Cache-Control: no-store and never logged. See
+// docs/design/team-secrets.md §7.
+type TaskRunSecretsResponse struct {
+	Env map[string]string `json:"env,omitempty"`
+}
+
 // TaskRunPlugin is one release a run will fetch and verify. The digest is what
 // the worker checks the bytes against before it extracts them.
 type TaskRunPlugin struct {

@@ -62,6 +62,13 @@ type Config struct {
 	// 404 from a configured one — either way the worker leaves the tools
 	// unregistered rather than offering ones that always fail.
 	Issues IssueAccess
+	// Secrets decrypts a run's declared Team Secret grants. Nil means the
+	// feature is off; the secrets route then returns an empty grant set, which
+	// is correct because no agent could have saved a consumption config.
+	Secrets SecretMaterializer
+	// SecretAudit records what a run was granted. Nil records nothing, which is
+	// fail-open: a run that got its grant is not failed for a missing audit.
+	SecretAudit SecretGrantRecorder
 
 	// OnTerminal is fired once a run reaches a terminal status, after the hub
 	// has been told. The server supplies it; this package does not know who is
@@ -102,6 +109,9 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	// The Issue this run's task names, and one comment on it. There is no
 	// update route: what an agent may not say about its work is decided by the
 	// absence of the route, not by the tool that would have called it.
+	// The run's resolved Secret env grants, on their own route so the values
+	// ride a no-store, unlogged response. See docs/design/team-secrets.md §7.
+	mux.Handle("GET /api/worker/task-runs/{task_run_id}/secrets", h.runScopedWorkerMiddleware(http.HandlerFunc(h.getTaskRunSecrets)))
 	mux.Handle("GET /api/worker/task-runs/{task_run_id}/issue", h.runScopedWorkerMiddleware(http.HandlerFunc(h.getRunIssue)))
 	mux.Handle("POST /api/worker/task-runs/{task_run_id}/issue/comments", h.runScopedWorkerMiddleware(http.HandlerFunc(h.postRunIssueComment)))
 	// Inference authenticates the same way but reads the claims itself: it

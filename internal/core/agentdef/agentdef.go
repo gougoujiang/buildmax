@@ -24,6 +24,10 @@ type Agent struct {
 	// docs/design/agent-sandbox-policy.md §4.2.
 	SandboxNetworkTier    string `json:"sandbox_network_tier,omitempty"`
 	SandboxFilesystemTier string `json:"sandbox_filesystem_tier,omitempty"`
+	// SecretConsumption declares which Team Secrets this agent consumes and
+	// how. It versions with the definition, so an old revision still answers
+	// what a run of it received. See docs/design/team-secrets.md §6.
+	SecretConsumption SecretConsumption `json:"secret_consumption,omitempty"`
 	// Revision numbers the agent_revision row holding this content. It starts
 	// at 1 and advances every time the definition changes.
 	Revision int `json:"revision"`
@@ -54,6 +58,8 @@ type Revision struct {
 	// revision recorded. See Agent.SandboxNetworkTier.
 	SandboxNetworkTier    string `json:"sandbox_network_tier,omitempty"`
 	SandboxFilesystemTier string `json:"sandbox_filesystem_tier,omitempty"`
+	// SecretConsumption is the Secret consumption this revision recorded.
+	SecretConsumption SecretConsumption `json:"secret_consumption,omitempty"`
 	// CreatedBy is the user who wrote this revision, which is not necessarily
 	// the agent's owner.
 	CreatedBy string    `json:"created_by"`
@@ -79,6 +85,9 @@ type Definition struct {
 	// write is accepted. See Agent.SandboxNetworkTier.
 	SandboxNetworkTier    string
 	SandboxFilesystemTier string
+	// SecretConsumption is validated against the team's live Secrets before a
+	// write is accepted. See docs/design/team-secrets.md §6.
+	SecretConsumption SecretConsumption
 }
 
 // CreateInput and UpdateInput carry a whole definition plus who it
