@@ -407,14 +407,99 @@
   max-width: 12rem;
 }
 
-.chat-status-bar__run {
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
+/* Context-window gauge: a clickable donut standing in for the old ctx text. */
+.ctx-donut {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.ctx-donut__btn {
+  display: flex;
+  align-items: center;
+  padding: 0.2rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-radius: 5px;
+  line-height: 0;
+}
+
+.ctx-donut__btn:hover {
+  background: var(--color-bg-hover, rgba(0, 0, 0, 0.05));
+}
+
+.ctx-donut__track {
+  stroke: var(--color-border);
+}
+
+.ctx-donut__fill {
+  transition: stroke-dasharray 0.3s ease;
+}
+
+.ctx-donut__fill--ok {
+  stroke: var(--color-accent, #3b82f6);
+}
+
+.ctx-donut__fill--warn {
+  stroke: #f59e0b;
+}
+
+.ctx-donut__fill--danger {
+  stroke: #ef4444;
+}
+
+.ctx-donut__popover {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 8.5rem;
+  background: var(--color-bg-elevated, var(--color-bg));
+  border: 1px solid var(--color-border);
+  border-radius: 7px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  z-index: 200;
+  padding: 0.5rem 0.6rem;
+}
+
+.ctx-donut__popover-pct {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-text);
   font-family: var(--font-mono, monospace);
+  margin-bottom: 0.35rem;
+}
+
+.ctx-donut__popover-list {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.ctx-donut__popover-list > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.75rem;
+  font-family: var(--font-mono, monospace);
+}
+
+.ctx-donut__popover-list dt {
+  color: var(--color-text-subtle);
+}
+
+.ctx-donut__popover-list dd {
+  margin: 0;
+  color: var(--color-text);
+}
+
+.ctx-donut__popover-empty {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--color-text-subtle);
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: min(30rem, 50vw);
 }
 
 .chat-status-bar__hint {
