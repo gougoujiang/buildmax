@@ -97,6 +97,19 @@ func AAD(teamPublicID string) []byte {
 	return fmt.Appendf(nil, "bmax-secret\x00%s", teamPublicID)
 }
 
+// GrantRecord is the non-secret audit of one materialized env grant: which
+// item of which Secret a run received, under which variable name, authorized by
+// which Agent revision. It carries no value. See docs/design/team-secrets.md
+// §5.2 and §11.
+type GrantRecord struct {
+	TaskRunID     string
+	SecretID      string
+	ItemName      string
+	AgentID       string
+	AgentRevision int
+	EnvName       string
+}
+
 // CreateInput carries one new Secret. ItemNames is the plaintext key set the
 // caller sealed, stored in the clear; Sealed is the encrypted map.
 type CreateInput struct {
@@ -133,4 +146,7 @@ type Store interface {
 	GetSealed(ctx context.Context, id string) (*Secret, *Sealed, error)
 	UpdateItems(ctx context.Context, in UpdateItemsInput) (*Secret, error)
 	SetState(ctx context.Context, id string, state State) (*Secret, error)
+	// RecordEnvGrant records the non-secret audit of one materialized grant,
+	// idempotent on (run, secret, item). It carries no value.
+	RecordEnvGrant(ctx context.Context, in GrantRecord) error
 }

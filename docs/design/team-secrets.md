@@ -31,11 +31,11 @@
   [plugin-team-distribution.md](plugin-team-distribution.md), which deferred
   secret delivery to a follow-on record.
 - status: `Phase 1 core loop closed` — a Team owner stores a Secret (encrypted,
-  no reveal), an Agent revision declares it, and a run receives it in its
-  environment through the worker route and the `env_scrub` allow-list. What
-  remains in Phase 1 is the Portal surface, the `task_run_secret` audit
-  snapshot, and per-run exact-value redaction; Phases 2–5 (file delivery,
-  short-lived exchange, external providers, workload identity) follow.
+  no reveal), an Agent revision declares it, a run receives it in its
+  environment through the worker route and the `env_scrub` allow-list, and the
+  materialization is recorded in `task_run_secret`. What remains in Phase 1 is
+  the Portal surface and per-run exact-value redaction; Phases 2–5 (file
+  delivery, short-lived exchange, external providers, workload identity) follow.
 - supersedes: the `run-scoped-secret-broker` proposal, whose settled decisions
   are here and whose remaining uncertainty is §20.
 - model: a Secret is one Team-owned group of named items, stored as a single
@@ -953,15 +953,18 @@ a worker holds only what its run needs.
   destroyed, or gone fails the run; an optional one is skipped;
 - **done** — a required grant that cannot be produced fails the run before the
   Agent does its work, an optional one is skipped;
+- **done** — the `task_run_secret` audit snapshot: the worker route records one
+  row per materialized grant, idempotent on (run, secret, item) so a retried
+  fetch records once, carrying no value; the write is fail-open beside a run
+  that already got its grant; and
 - Portal Secret metadata and item editor (row view and raw JSON),
-  consumption-health, carrying §3's two consequences in the copy; and
-- audit actions (the `task_run_secret` snapshot) and per-run exact-value
-  redaction — the remaining Phase 1 work.
+  consumption-health, carrying §3's two consequences in the copy, and per-run
+  exact-value redaction — the remaining Phase 1 work.
 
 Environment delivery is first because it is universal and needs no renderer.
-The core loop — a Team owner stores a Secret, an Agent declares it, and a run
-receives it in its environment — is closed; the Portal surface and the audit
-and redaction records are what remain.
+The core loop — a Team owner stores a Secret, an Agent declares it, a run
+receives it in its environment, and the materialization is recorded — is
+closed; the Portal surface and per-run exact-value redaction are what remain.
 
 ### Phase 2 — Credential File Delivery
 

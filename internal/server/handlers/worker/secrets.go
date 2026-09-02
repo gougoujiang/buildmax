@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
@@ -18,6 +19,21 @@ import (
 // on secret crypto or lifecycle.
 type SecretMaterializer interface {
 	Materialize(ctx context.Context, teamID, id string) (coresecret.Items, error)
+}
+
+// SecretGrantRecorder records the non-secret audit of a materialized grant. The
+// db store satisfies it. Nil disables the audit write, which is fail-open: the
+// run already got its grant, and a failed audit insert must not fail the run.
+type SecretGrantRecorder interface {
+	RecordEnvGrant(ctx context.Context, in coresecret.GrantRecord) error
+}
+
+// resolvedGrant is one item this run received, ready to deliver and to audit.
+type resolvedGrant struct {
+	secretID string
+	itemName string
+	envName  string
+	value    string
 }
 
 // getTaskRunSecrets returns the env grants this run's agent declared, decrypted
@@ -37,8 +53,7 @@ func (h *Handler) getTaskRunSecrets(w http.ResponseWriter, r *http.Request) {
 	// have saved a consumption config in that case, so the answer is an empty
 	// grant set, not an error.
 	if h.cfg.Secrets == nil || h.cfg.Agents == nil || h.cfg.TaskRuns == nil {
-		writeNoStore(w)
-		httputil.WriteJSON(w, http.StatusOK, workerclient.TaskRunSecretsResponse{})
+		writeEmptySecrets(w)
 		return
 	}
 	run, task, err := h.cfg.TaskRuns.GetTaskRunWithTask(r.Context(), taskRunID)
@@ -51,14 +66,13 @@ func (h *Handler) getTaskRunSecrets(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cons := h.runConsumption(r.Context(), task)
-	if cons.IsEmpty() {
-		writeNoStore(w)
-		httputil.WriteJSON(w, http.StatusOK, workerclient.TaskRunSecretsResponse{})
+	agent := h.runAgent(r.Context(), task)
+	if agent == nil || agent.SecretConsumption.IsEmpty() {
+		writeEmptySecrets(w)
 		return
 	}
 
-	env, err := resolveEnvGrants(r.Context(), h.cfg.Secrets, task.TeamID, cons)
+	grants, err := resolveEnvGrants(r.Context(), h.cfg.Secrets, task.TeamID, agent.SecretConsumption)
 	if err != nil {
 		if httputil.WriteServiceError(w, err) {
 			return
@@ -66,41 +80,74 @@ func (h *Handler) getTaskRunSecrets(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteInternalError(w, err, "worker handler error", "handler", "resolve_secret_grants", "task_run_id", taskRunID)
 		return
 	}
+
+	h.recordGrants(r.Context(), taskRunID, agent, grants)
+
+	env := make(map[string]string, len(grants))
+	for _, g := range grants {
+		env[g.envName] = g.value
+	}
 	writeNoStore(w)
 	httputil.WriteJSON(w, http.StatusOK, workerclient.TaskRunSecretsResponse{Env: env})
 }
 
-// runConsumption resolves the consumption config of the agent this run named,
-// against the run's team. This mirrors how getTaskRun resolves the agent's
-// instructions: the current revision is used, which is the revision recorded on
-// the run at claim. No agent, or an agent whose team does not match the run's,
-// yields no consumption.
-func (h *Handler) runConsumption(ctx context.Context, task *coretask.Task) agentdef.SecretConsumption {
+// recordGrants writes the audit snapshot of what this run received. It is
+// fail-open: the run already has its grants, so a failed insert is logged, not
+// returned. Nil recorder means the deployment records nothing here.
+func (h *Handler) recordGrants(ctx context.Context, taskRunID string, agent *agentdef.Agent, grants []resolvedGrant) {
+	if h.cfg.SecretAudit == nil {
+		return
+	}
+	for _, g := range grants {
+		err := h.cfg.SecretAudit.RecordEnvGrant(ctx, coresecret.GrantRecord{
+			TaskRunID:     taskRunID,
+			SecretID:      g.secretID,
+			ItemName:      g.itemName,
+			AgentID:       agent.ID,
+			AgentRevision: agent.Revision,
+			EnvName:       g.envName,
+		})
+		if err != nil {
+			slog.Warn("worker handler: could not record a secret materialization",
+				"task_run_id", taskRunID, "secret_id", g.secretID, "err", err)
+		}
+	}
+}
+
+// runAgent resolves the agent this run named, against the run's team. This
+// mirrors how getTaskRun resolves the agent's instructions: the current
+// revision is used, which is the revision recorded on the run at claim. No
+// agent, or an agent whose team does not match the run's, yields nil.
+func (h *Handler) runAgent(ctx context.Context, task *coretask.Task) *agentdef.Agent {
 	if task.AgentID == nil || *task.AgentID == "" {
-		return agentdef.SecretConsumption{}
+		return nil
 	}
 	a, err := h.cfg.Agents.GetAgentIncludingDeleted(ctx, *task.AgentID)
 	if err != nil {
 		componentLog().Warn("worker handler: agent consumption unavailable", "task_id", task.ID, "agent_id", *task.AgentID, "err", err)
-		return agentdef.SecretConsumption{}
+		return nil
 	}
 	if a == nil || a.TeamID != task.TeamID {
-		return agentdef.SecretConsumption{}
+		return nil
 	}
-	return a.SecretConsumption
+	return a
 }
 
 func writeNoStore(w http.ResponseWriter) {
 	w.Header().Set("Cache-Control", "no-store")
 }
 
-// resolveEnvGrants turns a consumption config into resolved environment
-// variables. Each grant materializes its Secret against the run's team. A
-// required grant that fails is returned as an error; an optional one is
-// skipped. Names cannot collide -- the agent service refused a config that
-// would, when it was saved.
-func resolveEnvGrants(ctx context.Context, mat SecretMaterializer, teamID string, cons agentdef.SecretConsumption) (map[string]string, error) {
-	out := map[string]string{}
+func writeEmptySecrets(w http.ResponseWriter) {
+	writeNoStore(w)
+	httputil.WriteJSON(w, http.StatusOK, workerclient.TaskRunSecretsResponse{})
+}
+
+// resolveEnvGrants turns a consumption config into resolved grants. Each grant
+// materializes its Secret against the run's team. A required grant that fails is
+// returned as an error; an optional one is skipped. Names cannot collide -- the
+// agent service refused a config that would, when it was saved.
+func resolveEnvGrants(ctx context.Context, mat SecretMaterializer, teamID string, cons agentdef.SecretConsumption) ([]resolvedGrant, error) {
+	var out []resolvedGrant
 	for _, g := range cons.Env {
 		items, err := mat.Materialize(ctx, teamID, g.Secret)
 		if err != nil {
@@ -111,7 +158,7 @@ func resolveEnvGrants(ctx context.Context, mat SecretMaterializer, teamID string
 		}
 		if g.WholeGroup() {
 			for name, val := range items {
-				out[g.Prefix+name] = val
+				out = append(out, resolvedGrant{secretID: g.Secret, itemName: name, envName: g.Prefix + name, value: val})
 			}
 			continue
 		}
@@ -122,7 +169,7 @@ func resolveEnvGrants(ctx context.Context, mat SecretMaterializer, teamID string
 			}
 			return nil, apierr.New(apierr.KindInvalid, "secret grant: item "+g.Item+" is gone from secret "+g.Secret)
 		}
-		out[g.EnvName] = val
+		out = append(out, resolvedGrant{secretID: g.Secret, itemName: g.Item, envName: g.EnvName, value: val})
 	}
 	return out, nil
 }

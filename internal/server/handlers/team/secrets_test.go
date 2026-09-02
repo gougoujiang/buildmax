@@ -210,3 +210,7 @@ func TestSecretHandlers_FeatureOff(t *testing.T) {
 		t.Fatalf("feature-off status = %d, want 503", rec.Code)
 	}
 }
+
+func (m *memSecretStore) RecordEnvGrant(_ context.Context, _ coresecret.GrantRecord) error {
+	return nil
+}

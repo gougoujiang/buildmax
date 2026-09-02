@@ -192,3 +192,5 @@ func TestService_PatchRemoveMissing(t *testing.T) {
 		t.Fatalf("remove-all err = %v", err)
 	}
 }
+
+func (m *memStore) RecordEnvGrant(_ context.Context, _ coresecret.GrantRecord) error { return nil }

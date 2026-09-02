@@ -87,6 +87,10 @@ func (h *Handler) buildWorkerHandler() *worker.Handler {
 		// The secret service materializes a run's declared grants. Nil when the
 		// feature is off, which the route reads as an empty grant set.
 		Secrets: h.secretMaterializer(),
+		// The store records the audit of what a run was granted, independent of
+		// the feature flag: recording is fail-open. Nil when no secret store is
+		// configured, which records nothing.
+		SecretAudit: h.secretGrantRecorder(),
 	})
 }
 
@@ -97,6 +101,15 @@ func (h *Handler) secretMaterializer() worker.SecretMaterializer {
 		return nil
 	}
 	return h.cfg.SecretService
+}
+
+// secretGrantRecorder adapts the secret store to the worker route's audit
+// recorder, or nil when no secret store is configured.
+func (h *Handler) secretGrantRecorder() worker.SecretGrantRecorder {
+	if h.cfg.SecretStore == nil {
+		return nil
+	}
+	return h.cfg.SecretStore
 }
 
 // workerIssueAccess is the Issue capability a run token gets, or nil when this

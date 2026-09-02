@@ -66,6 +66,9 @@ type Config struct {
 	// feature is off; the secrets route then returns an empty grant set, which
 	// is correct because no agent could have saved a consumption config.
 	Secrets SecretMaterializer
+	// SecretAudit records what a run was granted. Nil records nothing, which is
+	// fail-open: a run that got its grant is not failed for a missing audit.
+	SecretAudit SecretGrantRecorder
 
 	// OnTerminal is fired once a run reaches a terminal status, after the hub
 	// has been told. The server supplies it; this package does not know who is
