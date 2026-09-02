@@ -1,6 +1,6 @@
 # Agent Execution And Task Threads
 
-> **Audience:** contributors, product designers, and operators · **Status:** in progress — the ownership cutover (§13.1), direct Agent admission (§13.2), the Task thread backend and Portal Task page (§13.3), synthetic-Conversation removal (§13.4), Continue's API-boundary idempotency, and a store-level guarantee that concurrent Continue requests admit only one active run (§12) have shipped, each with MySQL contention evidence; `portal/e2e/task-thread.spec.ts` now covers §14's items 1 and 4-7 (direct Run reaches a Conversation-free Task, history survives a reload, Continue and Retry are data-distinguishable) against a real deployment; §14 item 9 (a deleted Agent refuses both direct admission and Continue) is pinned by `TestCreateTaskRefusesADeletedAgent` and `TestCreateRunRefusesWhenTheTasksAgentWasDeleted` — the deleted-Agent case was already enforced through `GetAgent`'s existing `deleted_at` filter, and there is no separate "disabled" state in the codebase, so this closes the item rather than adding new production code. Still open: the revision-used and usage/trace detail §11.2 asks the Task page to show per turn, streaming, session-restore-failure visibility, and worker-loss/Server-restart recovery for this path specifically (§14 items 3 in part, 8, 13)
+> **Audience:** contributors, product designers, and operators · **Status:** in progress — the ownership cutover (§13.1), direct Agent admission (§13.2), the Task thread backend and Portal Task page (§13.3), and synthetic-Conversation removal (§13.4) have shipped, each with MySQL contention or browser evidence. §14 tracks exactly what is verified and what remains open, item by item; do not duplicate that list here.
 
 Related: [product vision](product-vision.md),
 [surface positioning](surface-positioning.md),
@@ -576,37 +576,72 @@ authorization or key rules side by side.
 
 ## 14. Verification
 
-The implementation is accepted when automated evidence covers at least:
+The implementation is accepted when automated evidence covers at least the
+following. Each item's current state is marked; an item with open work names
+it rather than leaving the gap implicit.
 
-1. Starting an Agent from its Portal card creates one Task and one TaskRun and
-   creates no Conversation.
-2. The exact typed `agent_id` and admitted revision reach the worker without a
-   foreground Conversation model call.
-3. Direct Task execution, streaming, terminal output, Artifacts, trace, usage,
-   cancellation, and retry work with `conversation_id` absent.
-4. A refreshed Task page reconstructs every user input and Agent output from
-   TaskRun records.
-5. Submitting from the Task page creates one new-input TaskRun on the same Task
-   and restores the Task session.
-6. Retry repeats the selected run and is distinguishable from Continue in data
-   and UI.
-7. Concurrent Continue requests admit at most one active run; an idempotent
-   client retry does not duplicate it.
-8. Agent edits do not change an admitted run, and every run displays the
-   revision it used.
-9. A deleted or disabled Agent cannot accept new work while an admitted run can
-   finish under its snapshot.
-10. Issue Agent and Workflow execution create no synthetic Conversation.
-11. A Conversation can create a Task and receives a durable card without
-    becoming the Task's authorization or storage parent.
-12. Cross-Team Task, TaskRun, Artifact, trace, model-call, Continue, retry, and
-    cancellation access is refused through Team ownership.
-13. Worker loss, Server restart, and session-restore failure leave an
-    explainable state and never invent a successful continuation.
-14. MySQL integration tests exercise the nullable relation, direct creation,
-    run concurrency, and Team authorization using `./make test mysql`.
-15. Portal browser coverage exercises direct Run, history reload, Continue,
-    Retry, and a Conversation-originated Task card.
+1. **Done.** Starting an Agent from its Portal card creates one Task and one
+   TaskRun and creates no Conversation. `portal/e2e/task-thread.spec.ts`.
+2. **Done.** The exact typed `agent_id` and admitted revision reach the worker
+   without a foreground Conversation model call. True by construction — direct
+   admission never opens a Conversation or calls a foreground model — and
+   `task.agent_id` is asserted directly in the same spec.
+3. **Partly done.** Terminal output, cancellation, and retry work with
+   `conversation_id` absent — covered by the same spec and by the Task page's
+   Stop/Retry actions. **Open:** streaming, and Artifacts/trace/usage evidence
+   specific to a direct (Conversation-less) Task. A backend SSE endpoint
+   already exists (`GET /api/teams/{team_id}/tasks/{task_id}/stream`,
+   `internal/server/handlers/work/stream.go`, built for Conversation) but the
+   Task page consumes it nowhere — it polls every 1.5s instead.
+4. **Done.** A refreshed Task page reconstructs every user input and Agent
+   output from TaskRun records — the page holds no state a reload cannot
+   rebuild from `GET .../tasks/{task_id}/runs`.
+5. **Partly done.** Submitting from the Task page creates one new-input TaskRun
+   on the same Task — verified. **Open:** explicit evidence that the Task
+   session was actually restored for that new run, as opposed to started
+   fresh; see item 13 and §16.
+6. **Done.** Retry repeats the selected run and is distinguishable from
+   Continue in data (`retry_of_task_run_id`) and UI (separate actions).
+7. **Done.** Concurrent Continue requests admit at most one active run, and an
+   idempotent client retry does not duplicate it — `TestCreateTaskRunHasOneActiveWinnerUnderContention`
+   and `TestCreateTaskRunIsIdempotentByKey` in `internal/infra/db`, run against
+   real MySQL and checked by mutation.
+8. **Partly done.** Agent edits do not change an admitted run (the existing
+   first-write-wins `agent_revision` guard, unchanged by this design). **Open:**
+   the Task page does not display which revision a run used (§11.2).
+9. **Done.** A deleted Agent cannot accept new work —
+   `TestCreateTaskRefusesADeletedAgent` and
+   `TestCreateRunRefusesWhenTheTasksAgentWasDeleted` in
+   `internal/service/task`. There is no separate "disabled" state in this
+   codebase; deleted is the only one. An admitted run finishing under its
+   snapshot follows from the worker never re-checking Agent existence
+   mid-run, and is not separately tested.
+10. **Done.** Issue Agent and Workflow execution create no synthetic
+    Conversation — the `workflow`/`issue_agent` channels and their filtering
+    machinery were deleted, not merely hidden.
+11. **Unverified, likely unaffected.** A Conversation can create a Task and
+    receives a durable card without becoming the Task's authorization or
+    storage parent — this path is unchanged by this design and
+    `portal/e2e/conversation.spec.ts` still passes, but nothing added this
+    round exercises it directly.
+12. **Done for the routes this design added or changed.**
+    `team_authz_matrix_test.go` covers cross-team refusal for
+    Task/TaskRun/Artifact/trace/llm-call/cancel/retry routes.
+13. **Open.** Worker loss, Server restart, and session-restore failure leaving
+    an explainable state, verified specifically for a direct (Conversation-less)
+    Task. `StaleRunReaper` and the existing restart-safety mechanisms predate
+    this design and are not known to be broken by it, but this round added no
+    test naming this path. Session-restore failure visibility is itself an
+    open design question — see §16.
+14. **Done.** MySQL integration tests exercise the nullable relation
+    (`TestCreateTaskDirectHasNoConversation`), direct creation, run concurrency
+    (§7 above), and Team authorization (the cross-team case in the same test)
+    using `./make test mysql`.
+15. **Partly done.** Portal browser coverage exercises direct Run, history
+    reload, Continue, and Retry (`task-thread.spec.ts`, run twice against a
+    real Compose deployment with no failures). **Open:** a
+    Conversation-originated Task card is not covered by a new browser test
+    this round.
 
 The scoped documentation, OpenAPI exact-match test, architecture tests,
 `git diff --check`, and relevant `./make check` scopes must pass with the same
