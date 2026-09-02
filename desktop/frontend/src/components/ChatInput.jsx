@@ -275,7 +275,7 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
           )}
         </div>
 
-        <span className="chat-status-bar__run" title={formatRunStatus(runStatus)}>
+        <span className="chat-status-bar__run">
           {formatRunStatus(runStatus)}
         </span>
 

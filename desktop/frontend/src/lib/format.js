@@ -71,20 +71,15 @@ export function formatTokenCount(n) {
   return `${(value / 1000).toFixed(1)}k`;
 }
 
+// formatRunStatus is the status bar's label: only the context share, the one
+// number a reader watches turn to turn. The token and cache breakdowns belong
+// in the planned /info panel, not the bar.
 export function formatRunStatus(status) {
   const ctxTokens = Number(status?.context_tokens) || 0;
   const ctxWindow = Number(status?.context_window) || 0;
-  const input = Number(status?.prompt_tokens) || 0;
-  const output = Number(status?.completion_tokens) || 0;
-  const totalInput = Number(status?.total_prompt_tokens) || 0;
-  const totalOutput = Number(status?.total_completion_tokens) || 0;
-  const ctx = ctxWindow > 0
+  return ctxWindow > 0
     ? `ctx: ${Math.round((ctxTokens / ctxWindow) * 100)}% (${formatTokenCount(ctxTokens)}/${formatTokenCount(ctxWindow)})`
     : 'ctx: unknown';
-  const totals = totalInput > 0 || totalOutput > 0
-    ? ` (${formatTokenCount(totalInput)}/${formatTokenCount(totalOutput)})`
-    : '';
-  return `${ctx} | tokens(in/out): ${formatTokenCount(input)}/${formatTokenCount(output)}${totals}`;
 }
 
 export function statusGlyph(status) {

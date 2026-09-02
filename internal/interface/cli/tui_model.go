@@ -950,31 +950,18 @@ func (m *Model) renderFooterView() string {
 	return line1 + "\n" + line2
 }
 
+// formatRunStatus renders only the context share in the footer. The per-run
+// token and cache breakdowns live in /info, which has room for them; the footer
+// is scarce and keeps just the number a reader watches turn to turn.
 func formatRunStatus(st agentapp.RunUsage) string {
-	ctx := "ctx: unknown"
-	if st.ContextWindow > 0 {
-		percent := 0
-		if st.ContextTokens > 0 {
-			percent = int(float64(st.ContextTokens)/float64(st.ContextWindow)*100 + 0.5)
-		}
-		ctx = fmt.Sprintf("ctx: %d%% (%s/%s)", percent, formatTokenCount(st.ContextTokens), formatTokenCount(st.ContextWindow))
+	if st.ContextWindow == 0 {
+		return "ctx: unknown"
 	}
-	return ctx + " | " + formatTokenUsage(st.PromptTokens, st.CompletionTokens, st.TotalPromptTokens, st.TotalCompletionTokens) +
-		formatCacheUsageSuffix(st.CacheReadTokens, st.CacheWriteTokens)
-}
-
-// formatCacheUsageSuffix appends the cached breakdown of the prompt, and only
-// when a provider actually reported one. A permanent "cache: 0/0" beside every
-// run would read as a proven miss on providers that report nothing at all.
-func formatCacheUsageSuffix(cacheRead, cacheWrite int) string {
-	if cacheRead == 0 && cacheWrite == 0 {
-		return ""
+	percent := 0
+	if st.ContextTokens > 0 {
+		percent = int(float64(st.ContextTokens)/float64(st.ContextWindow)*100 + 0.5)
 	}
-	return fmt.Sprintf(" | cache(r/w): %s/%s", formatTokenCount(cacheRead), formatTokenCount(cacheWrite))
-}
-
-func formatTokenUsage(promptTokens, completionTokens, totalPromptTokens, totalCompletionTokens int) string {
-	return "tokens(in/out): " + formatTokenUsageValue(promptTokens, completionTokens, totalPromptTokens, totalCompletionTokens)
+	return fmt.Sprintf("ctx: %d%% (%s/%s)", percent, formatTokenCount(st.ContextTokens), formatTokenCount(st.ContextWindow))
 }
 
 func formatTokenUsageValue(promptTokens, completionTokens, totalPromptTokens, totalCompletionTokens int) string {

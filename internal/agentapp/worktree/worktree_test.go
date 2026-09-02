@@ -302,6 +302,40 @@ func TestListReportsOccupancy(t *testing.T) {
 	}
 }
 
+// D5: the listing owes the user what each tree holds that is not committed, so
+// a cleanup decision can tell a safe tree from the one holding the only copy.
+func TestListReportsUncommittedWork(t *testing.T) {
+	repo := t.TempDir()
+	initRepo(t, repo)
+	m, _ := newManager(t, repo)
+	ctx := testCtx()
+
+	created, err := m.Create(ctx, "wip")
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	m.Leave(ctx)
+	// An untracked file left in the tree is exactly the "only copy" case.
+	writeFile(t, created.Path, "scratch.txt", "unsaved\n")
+
+	all, err := m.List(ctx)
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	var wip *Info
+	for i := range all {
+		if all[i].Name == "wip" {
+			wip = &all[i]
+		}
+	}
+	if wip == nil {
+		t.Fatal("wip worktree missing from the list")
+	}
+	if wip.Dirty != 1 {
+		t.Errorf("Dirty = %d, want 1 for one untracked file", wip.Dirty)
+	}
+}
+
 func TestCreateRejectsNamesThatAreNotOneSegment(t *testing.T) {
 	repo := t.TempDir()
 	initRepo(t, repo)

@@ -100,7 +100,7 @@ func TestViewFooterPresent(t *testing.T) {
 	}
 }
 
-func TestViewFooterShowsCompactTokenUsage(t *testing.T) {
+func TestViewFooterShowsOnlyContextShare(t *testing.T) {
 	m := NewModel(TUIOpts{
 		Session:   testSessionContext(),
 		ModelName: "test-model",
@@ -116,11 +116,12 @@ func TestViewFooterShowsCompactTokenUsage(t *testing.T) {
 	})
 
 	view := m.View().Content
-	if !strings.Contains(view, "tokens(in/out): 100/20 (3.3k/998)") {
-		t.Fatalf("view should contain compact token usage, got %q", view)
+	if !strings.Contains(view, "ctx: 50% (500/1k)") {
+		t.Fatalf("view should contain context share, got %q", view)
 	}
-	if strings.Contains(view, "input /") || strings.Contains(view, "output") {
-		t.Fatalf("view should not contain old token wording, got %q", view)
+	// Per-run token and cache breakdowns moved to /info; the footer keeps only ctx.
+	if strings.Contains(view, "tokens(in/out)") || strings.Contains(view, "cache(r/w)") {
+		t.Fatalf("view should not contain token or cache breakdown, got %q", view)
 	}
 }
 
@@ -153,7 +154,7 @@ func TestEventSinkForwardsLLMBoundaries(t *testing.T) {
 	}
 }
 
-func TestFormatRunStatusIncludesSessionTotals(t *testing.T) {
+func TestFormatRunStatusShowsOnlyContext(t *testing.T) {
 	got := formatRunStatus(agentapp.RunUsage{
 		ContextTokens:         500,
 		ContextWindow:         1000,
@@ -162,9 +163,15 @@ func TestFormatRunStatusIncludesSessionTotals(t *testing.T) {
 		TotalPromptTokens:     3334,
 		TotalCompletionTokens: 998,
 	})
-	want := "ctx: 50% (500/1k) | tokens(in/out): 100/20 (3.3k/998)"
+	want := "ctx: 50% (500/1k)"
 	if got != want {
 		t.Fatalf("formatRunStatus() = %q, want %q", got, want)
+	}
+}
+
+func TestFormatRunStatusUnknownWindow(t *testing.T) {
+	if got := formatRunStatus(agentapp.RunUsage{}); got != "ctx: unknown" {
+		t.Fatalf("formatRunStatus() = %q, want %q", got, "ctx: unknown")
 	}
 }
 
