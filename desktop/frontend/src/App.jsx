@@ -2,6 +2,7 @@ import { compareRecent, formatToolArgs, shortToolArgs, toolDisplayName } from '.
 import { addLiveToolCall, addLiveToolResult, appendAssistantForNextLLM, buildToolResultMap, mergeRunStatus } from './lib/messages';
 import { getApp } from './lib/app';
 import { ChatInput } from './components/ChatInput';
+import { Inspector } from './components/Inspector';
 import { HomeDashboard } from './components/HomeDashboard';
 import { MarkdownMessage } from './components/MarkdownMessage';
 import { CreateProjectModal } from './components/Modals';
@@ -9,9 +10,118 @@ import { ProjectItem } from './components/ProjectItem';
 
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import Markdown from 'react-markdown';
-import { Avatar, ChatComposer, ChatThread, ThemeProvider, ThemeToggle } from '@buildmax/gui';
+import { Avatar, ChatComposer, ChatThread, ThemeProvider, useTheme } from '@buildmax/gui';
 import { EventsOn, EventsOff } from './lib/wailsRuntime';
 import LoginPage from './LoginPage';
+
+// Inspector column layout is a per-machine preference, remembered across runs.
+// Storage can be unavailable (private windows, cleared data), so every access
+// is guarded and falls back to the default.
+const INSPECTOR_MIN_WIDTH = 260;
+const INSPECTOR_MAX_WIDTH = 720;
+const INSPECTOR_DEFAULT_WIDTH = 340;
+const SIDEBAR_MIN_WIDTH = 180;
+const SIDEBAR_MAX_WIDTH = 480;
+const SIDEBAR_DEFAULT_WIDTH = 288;
+const LS_INSPECTOR = 'bm.desktop.inspector';
+const LS_INSPECTOR_WIDTH = 'bm.desktop.inspectorWidth';
+const LS_SIDEBAR_COLLAPSED = 'bm.desktop.sidebarCollapsed';
+const LS_SIDEBAR_WIDTH = 'bm.desktop.sidebarWidth';
+
+function readStored(key, fallback) {
+  try {
+    const v = localStorage.getItem(key);
+    return v == null ? fallback : JSON.parse(v);
+  } catch {
+    return fallback;
+  }
+}
+
+function writeStored(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* storage may be unavailable; the preference just does not persist */
+  }
+}
+
+function clampInspectorWidth(w) {
+  const n = Number(w);
+  if (!Number.isFinite(n)) return INSPECTOR_DEFAULT_WIDTH;
+  return Math.min(INSPECTOR_MAX_WIDTH, Math.max(INSPECTOR_MIN_WIDTH, n));
+}
+
+function clampSidebarWidth(w) {
+  const n = Number(w);
+  if (!Number.isFinite(n)) return SIDEBAR_DEFAULT_WIDTH;
+  return Math.min(SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, n));
+}
+
+function SunIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+    </svg>
+  );
+}
+
+function MoonIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+    </svg>
+  );
+}
+
+// Inspector toolbar icons — line icons matching the app's SVG icon style
+// (24-grid, currentColor stroke). Folder for the file tree, a page with +/- for
+// the diff, a circled i for info.
+function FilesIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M3 7a2 2 0 0 1 2-2h3.5l2 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
+    </svg>
+  );
+}
+
+function ChangesIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="5" y="3" width="14" height="18" rx="2" />
+      <path d="M12 7v4M10 9h4M10 16h4" />
+    </svg>
+  );
+}
+
+function InfoIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5" />
+      <circle cx="12" cy="7.75" r="0.6" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+// Theme toggle lives in the user menu, not the header: switching light/dark is a
+// rare action. Rendered inside ThemeProvider, so it reads the live theme. The
+// icon and label name the destination — moon to go dark, sun to go light.
+function ThemeMenuItem() {
+  const { theme, toggleTheme } = useTheme();
+  const dark = theme === 'dark';
+  return (
+    <button
+      type="button"
+      className="sidebar__user-menu-item sidebar__user-menu-item--icon"
+      role="menuitem"
+      onClick={toggleTheme}
+    >
+      <span className="sidebar__user-menu-icon">{dark ? <SunIcon /> : <MoonIcon />}</span>
+      <span>{dark ? 'Light mode' : 'Dark mode'}</span>
+    </button>
+  );
+}
 
 export default function App() {
   const [sessions, setSessions] = useState([]);
@@ -39,6 +149,76 @@ export default function App() {
   const [sessionFilter, setSessionFilter] = useState('');
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef(null);
+
+  // Right-hand inspector column: which content it shows and whether it is open,
+  // widened, or expanded to fill the main area. `open`/`view` persist; a run
+  // starts un-expanded. Width and the left-sidebar collapse are per-machine
+  // preferences too. `expanded` is a transient review state, not remembered.
+  const [inspector, setInspector] = useState(() => {
+    const saved = readStored(LS_INSPECTOR, null);
+    return {
+      open: saved?.open === true,
+      view: ['files', 'diff', 'info'].includes(saved?.view) ? saved.view : 'diff',
+      expanded: false,
+    };
+  });
+  const [inspectorWidth, setInspectorWidth] = useState(() =>
+    clampInspectorWidth(readStored(LS_INSPECTOR_WIDTH, INSPECTOR_DEFAULT_WIDTH)),
+  );
+  const [leftCollapsed, setLeftCollapsed] = useState(() => readStored(LS_SIDEBAR_COLLAPSED, false) === true);
+  const [sidebarWidth, setSidebarWidth] = useState(() =>
+    clampSidebarWidth(readStored(LS_SIDEBAR_WIDTH, SIDEBAR_DEFAULT_WIDTH)),
+  );
+
+  useEffect(() => { writeStored(LS_INSPECTOR, { open: inspector.open, view: inspector.view }); }, [inspector.open, inspector.view]);
+  useEffect(() => { writeStored(LS_INSPECTOR_WIDTH, inspectorWidth); }, [inspectorWidth]);
+  useEffect(() => { writeStored(LS_SIDEBAR_COLLAPSED, leftCollapsed); }, [leftCollapsed]);
+  useEffect(() => { writeStored(LS_SIDEBAR_WIDTH, sidebarWidth); }, [sidebarWidth]);
+
+  const openInspector = useCallback((view) => {
+    setInspector((s) => ({ ...s, open: true, view: view ?? s.view }));
+  }, []);
+  // The toolbar icons toggle: clicking the active view (when not expanded)
+  // closes the column rather than reopening the same thing.
+  const toggleInspectorView = useCallback((view) => {
+    setInspector((s) => (
+      s.open && s.view === view && !s.expanded
+        ? { ...s, open: false, expanded: false }
+        : { ...s, open: true, view }
+    ));
+  }, []);
+  const closeInspector = useCallback(() => {
+    setInspector((s) => ({ ...s, open: false, expanded: false }));
+  }, []);
+  const toggleInspectorExpand = useCallback(() => {
+    setInspector((s) => ({ ...s, open: true, expanded: !s.expanded }));
+  }, []);
+
+  const startInspectorResize = useCallback((e) => {
+    e.preventDefault();
+    const onMove = (ev) => setInspectorWidth(clampInspectorWidth(window.innerWidth - ev.clientX));
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      document.body.style.userSelect = '';
+    };
+    document.body.style.userSelect = 'none';
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }, []);
+
+  const startSidebarResize = useCallback((e) => {
+    e.preventDefault();
+    const onMove = (ev) => setSidebarWidth(clampSidebarWidth(ev.clientX));
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      document.body.style.userSelect = '';
+    };
+    document.body.style.userSelect = 'none';
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }, []);
 
   const PROJECT_PAGE_SIZE = 10;
 
@@ -437,14 +617,6 @@ export default function App() {
     }
   }
 
-  function handleGoHome() {
-    setNewChatProject(null);
-    setSelectedId(null);
-    setMessages([]);
-    setSessionTitle('');
-    setError(null);
-    setTurnDigest(null);
-  }
 
   function handleNewChatInProject(project) {
     setProjectNotices([]);
@@ -795,33 +967,44 @@ export default function App() {
     });
   }
 
+  const inspectorOpen = !!currentProject && inspector.open;
+  const inspectorExpanded = inspectorOpen && inspector.expanded;
+  const shellClass = [
+    'shell',
+    leftCollapsed ? 'shell--left-collapsed' : '',
+    inspectorExpanded ? 'shell--inspector-expanded' : '',
+  ].filter(Boolean).join(' ');
+
   return (
     <ThemeProvider>
-      <div className="shell">
+      <div className={shellClass}>
         <div className="shell__body">
 
-          <aside className="sidebar" aria-label="Sidebar">
+          <aside className="sidebar" aria-label="Sidebar" style={{ width: sidebarWidth }}>
             <nav className="sidebar__nav" aria-label="Primary">
               <div className="sidebar__projects-header">
                 <span className="sidebar__projects-label">Projects</span>
-                <button
-                  type="button"
-                  className="sidebar__projects-add"
-                  onClick={() => setShowCreateModal(true)}
-                  title="New Project"
-                  aria-label="New Project"
-                >
-                  +
-                </button>
+                <div className="sidebar__projects-header-actions">
+                  <button
+                    type="button"
+                    className="sidebar__projects-collapse"
+                    onClick={() => setLeftCollapsed(true)}
+                    title="Collapse sidebar"
+                    aria-label="Collapse sidebar"
+                  >
+                    «
+                  </button>
+                  <button
+                    type="button"
+                    className="sidebar__projects-add"
+                    onClick={() => setShowCreateModal(true)}
+                    title="New Project"
+                    aria-label="New Project"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
-              <button
-                type="button"
-                className={`sidebar__home-btn ${!currentProject ? 'sidebar__home-btn--active' : ''}`}
-                onClick={handleGoHome}
-              >
-                <span className="sidebar__home-icon" aria-hidden>⌂</span>
-                <span>Home</span>
-              </button>
               <div className="sidebar__session-search">
                 <input
                   type="search"
@@ -899,6 +1082,7 @@ export default function App() {
                     {localMode ? 'Models from settings.yaml' : authStatus.email}
                   </div>
                   <div className="sidebar__user-menu-divider" />
+                  <ThemeMenuItem />
                   <button
                     type="button"
                     className="sidebar__user-menu-item"
@@ -916,19 +1100,66 @@ export default function App() {
             </div>
           </aside>
 
+          <div
+            className="sidebar-resizer"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize sidebar"
+            onMouseDown={startSidebarResize}
+          />
+
           <main className="shell__main">
             <div className="shell__top">
+              {leftCollapsed && (
+                <button
+                  type="button"
+                  className="shell__sidebar-toggle"
+                  onClick={() => setLeftCollapsed(false)}
+                  title="Show sidebar"
+                  aria-label="Show sidebar"
+                >
+                  ☰
+                </button>
+              )}
               <div className="shell__top-titles">
                 <span className="shell__title">
                   {currentProject ? (sessionTitle || 'New Chat') : 'Home'}
                 </span>
-                {currentProject && (
-                  <span className="shell__subtitle">
-                    {currentProject.name} · {currentProject.default_workspace}
-                  </span>
-                )}
               </div>
-              <ThemeToggle />
+              {currentProject && (
+                <div className="inspector-tabs" role="group" aria-label="Inspector views">
+                  <button
+                    type="button"
+                    className="inspector-tabs__btn"
+                    aria-pressed={inspectorOpen && inspector.view === 'files'}
+                    onClick={() => toggleInspectorView('files')}
+                    title="Files"
+                    aria-label="Files"
+                  >
+                    <span className="inspector-tabs__icon"><FilesIcon /></span>
+                  </button>
+                  <button
+                    type="button"
+                    className="inspector-tabs__btn"
+                    aria-pressed={inspectorOpen && inspector.view === 'diff'}
+                    onClick={() => toggleInspectorView('diff')}
+                    title="Changes"
+                    aria-label="Changes"
+                  >
+                    <span className="inspector-tabs__icon"><ChangesIcon /></span>
+                  </button>
+                  <button
+                    type="button"
+                    className="inspector-tabs__btn"
+                    aria-pressed={inspectorOpen && inspector.view === 'info'}
+                    onClick={() => toggleInspectorView('info')}
+                    title="Session info"
+                    aria-label="Session info"
+                  >
+                    <span className="inspector-tabs__icon"><InfoIcon /></span>
+                  </button>
+                </div>
+              )}
             </div>
             <div className="shell__content">
               {!currentProject ? (
@@ -964,6 +1195,7 @@ export default function App() {
                       suggestion={turnDigest?.suggestion ?? ''}
                       onAcceptSuggestion={() => setTurnDigest(null)}
                       sessionId={selectedId || ''}
+                      onOpenInspector={openInspector}
                       onRewound={handleRewound}
                       onForked={handleForked}
                       onCompacted={handleCompacted}
@@ -983,6 +1215,30 @@ export default function App() {
               )}
             </div>
           </main>
+
+          {inspectorOpen && (
+            <>
+              <div
+                className="inspector-resizer"
+                role="separator"
+                aria-orientation="vertical"
+                aria-label="Resize inspector"
+                onMouseDown={startInspectorResize}
+              />
+              <Inspector
+                view={inspector.view}
+                expanded={inspector.expanded}
+                width={inspector.expanded ? null : inspectorWidth}
+                projectID={currentProject.id}
+                sessionID={selectedId || ''}
+                projectName={currentProject.name}
+                workspace={currentProject.default_workspace}
+                app={app}
+                onToggleExpand={toggleInspectorExpand}
+                onClose={closeInspector}
+              />
+            </>
+          )}
         </div>
       </div>
 

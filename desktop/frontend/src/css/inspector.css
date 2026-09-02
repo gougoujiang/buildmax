@@ -1,0 +1,471 @@
+/* Inspector column, sidebar collapse, and the shell toolbar that drives them.
+   The three-pane shell is: collapsible sidebar | chat | docked inspector. */
+
+/* ── Left sidebar collapse ──────────────────────────────────────────────── */
+
+.shell--left-collapsed .sidebar {
+  display: none;
+}
+
+.sidebar__projects-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+}
+
+.sidebar__projects-collapse {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  font-size: 0.9rem;
+  line-height: 1;
+  color: var(--color-text-subtle);
+  cursor: pointer;
+  padding: 0;
+}
+
+.sidebar__projects-collapse:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text);
+}
+
+.shell__sidebar-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 1.9rem;
+  height: 1.9rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: none;
+  font-size: 0.95rem;
+  line-height: 1;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 0;
+}
+
+.shell__sidebar-toggle:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text);
+}
+
+/* ── Shell toolbar: inspector view switch ───────────────────────────────── */
+
+.inspector-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  flex-shrink: 0;
+}
+
+.inspector-tabs__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.inspector-tabs__btn:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text);
+}
+
+.inspector-tabs__btn[aria-pressed='true'] {
+  background: var(--color-bg-hover);
+  border-color: var(--color-border);
+  color: var(--color-text);
+}
+
+.inspector-tabs__icon {
+  display: inline-flex;
+  line-height: 1;
+}
+
+.inspector-tabs__icon svg {
+  width: 1.05rem;
+  height: 1.05rem;
+  display: block;
+}
+
+/* ── Resize handles (sidebar | chat | inspector) ────────────────────────── */
+
+.inspector-resizer,
+.sidebar-resizer,
+.file-browser__resizer,
+.diff-panel__resizer {
+  flex-shrink: 0;
+  width: 5px;
+  cursor: col-resize;
+  background: transparent;
+  position: relative;
+}
+
+.inspector-resizer::after,
+.sidebar-resizer::after,
+.file-browser__resizer::after,
+.diff-panel__resizer::after {
+  content: '';
+  position: absolute;
+  inset: 0 2px;
+  background: var(--color-border);
+  opacity: 0;
+}
+
+.inspector-resizer:hover::after,
+.sidebar-resizer:hover::after,
+.file-browser__resizer:hover::after,
+.diff-panel__resizer:hover::after {
+  opacity: 1;
+}
+
+.shell--left-collapsed .sidebar-resizer {
+  display: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .inspector-resizer::after,
+  .sidebar-resizer::after,
+  .file-browser__resizer::after,
+  .diff-panel__resizer::after {
+    transition: opacity 0.12s;
+  }
+}
+
+/* ── Inspector column ───────────────────────────────────────────────────── */
+
+.inspector {
+  flex-shrink: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--color-bg-elevated, var(--color-bg));
+  border-left: 1px solid var(--color-border);
+  color: var(--color-text);
+}
+
+.inspector__head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+  height: 3.15rem;
+  padding: 0 0.5rem 0 0.9rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.inspector__title {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.9rem;
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inspector__actions {
+  display: flex;
+  gap: 0.1rem;
+}
+
+.inspector__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  font: inherit;
+  font-size: 0.95rem;
+  line-height: 1;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: 0;
+}
+
+.inspector__btn:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text);
+}
+
+.inspector__body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Expanded: the inspector fills the main + inspector area ─────────────── */
+
+.shell--inspector-expanded .shell__main,
+.shell--inspector-expanded .inspector-resizer {
+  display: none;
+}
+
+.shell--inspector-expanded .inspector {
+  flex: 1;
+}
+
+/* ── Diff content docked in the inspector ───────────────────────────────── */
+
+.diff-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  outline: none;
+}
+
+/* Narrow: stack the file list over the patch. Expanded: side by side. The
+   base .diff-drawer__body rule is a grid sized for the wide overlay; override
+   it for the docked column. */
+.inspector .diff-drawer__body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.inspector .diff-drawer__sidebar {
+  flex-shrink: 0;
+  max-height: 42%;
+  border-right: none;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.inspector .diff-drawer__viewer {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* The list/patch divider only exists in the side-by-side (expanded) layout. */
+.diff-panel__resizer {
+  display: none;
+}
+
+.inspector--expanded .diff-drawer__body {
+  display: grid;
+  grid-template-columns: var(--list-w, 16rem) 5px minmax(0, 1fr);
+}
+
+.inspector--expanded .diff-drawer__sidebar {
+  max-height: none;
+  border-right: 1px solid var(--color-border);
+  border-bottom: none;
+}
+
+.inspector--expanded .diff-panel__resizer {
+  display: block;
+}
+
+/* ── Info content docked in the inspector ───────────────────────────────── */
+
+.info-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.info-panel__meta {
+  flex-shrink: 0;
+  padding: 0.6rem 0.9rem 0.5rem;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.info-panel__project {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.info-panel__path {
+  margin-top: 0.15rem;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.76rem;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.info-panel__tabs {
+  flex-shrink: 0;
+  padding: 0.5rem 0.9rem 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.info-panel .info-stats {
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── Files content docked in the inspector ──────────────────────────────── */
+
+/* Narrow: tree over preview. Expanded: side by side, like the diff view. */
+.file-browser {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.file-browser__tree {
+  flex-shrink: 0;
+  max-height: 42%;
+  overflow: auto;
+  border-bottom: 1px solid var(--color-border);
+  padding: 0.4rem 0.3rem;
+  font-size: 0.84rem;
+}
+
+.file-browser__view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* The tree/preview divider only exists in the side-by-side (expanded) layout. */
+.file-browser__resizer {
+  display: none;
+}
+
+.inspector--expanded .file-browser {
+  display: grid;
+  grid-template-columns: var(--tree-w, 16rem) 5px minmax(0, 1fr);
+}
+
+.inspector--expanded .file-browser__tree {
+  max-height: none;
+  border-bottom: none;
+  border-right: 1px solid var(--color-border);
+}
+
+.inspector--expanded .file-browser__resizer {
+  display: block;
+}
+
+.file-tree__row {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 5px;
+  white-space: nowrap;
+  cursor: pointer;
+  color: var(--color-text-muted);
+}
+
+.file-tree__row--dir {
+  color: var(--color-text);
+}
+
+.file-tree__row:hover {
+  background: var(--color-bg-hover);
+}
+
+.file-tree__row--active {
+  background: var(--color-bg-hover);
+  color: var(--color-text);
+  box-shadow: inset 2px 0 0 var(--color-text);
+}
+
+.file-tree__caret {
+  flex-shrink: 0;
+  width: 0.8rem;
+  text-align: center;
+  font-size: 0.65rem;
+  color: var(--color-text-subtle);
+}
+
+.file-tree__icon {
+  flex-shrink: 0;
+  font-size: 0.82rem;
+}
+
+.file-tree__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-tree__hint {
+  padding: 0.15rem 0.4rem;
+  font-size: 0.8rem;
+  color: var(--color-text-subtle);
+}
+
+.file-tree__hint--error {
+  color: var(--color-error, #dc2626);
+}
+
+/* File preview pane */
+
+.file-view__header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.85rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.file-view__path {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.file-view__badge {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 0 0.4rem;
+}
+
+.file-view__code {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  margin: 0;
+  padding: 0.6rem 0.85rem;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  white-space: pre;
+  tab-size: 4;
+  color: var(--color-text);
+}
+
+.file-view__hint {
+  margin: 1rem;
+  font-size: 0.85rem;
+  color: var(--color-text-subtle);
+}
+
+.file-view__hint--error {
+  color: var(--color-error, #dc2626);
+}
