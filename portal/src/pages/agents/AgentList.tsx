@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 import type { Agent, AgentRevision } from "../../lib/types"
+import type { ApiSecret } from "../../lib/api/types"
+import { listSecrets } from "../../features/teamSecrets/api"
 import { navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { apiAgentToAgent, apiAgentRevisionToAgentRevision } from "../../lib/api/mappers"
@@ -28,6 +30,7 @@ export function AgentList({ token }: AgentListProps) {
   const { setPendingConversation } = useApp()
   const { currentTeamId, currentUserRole } = useTeam()
   const [agents, setAgents] = useState<Agent[]>([])
+  const [secrets, setSecrets] = useState<ApiSecret[]>([])
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
   const [creating, setCreating] = useState(false)
@@ -56,6 +59,20 @@ export function AgentList({ token }: AgentListProps) {
       })
       .finally(() => setLoading(false))
   }, [token, currentTeamId])
+
+  // The team's secrets, to populate the consumption editor. Owner-or-admin may
+  // list them; a member editing nothing here never reaches this page's manage
+  // controls. A failure leaves the editor with no options rather than blocking
+  // agent editing.
+  useEffect(() => {
+    if (!token || !currentTeamId || !canManageAgents) {
+      setSecrets([])
+      return
+    }
+    listSecrets(token, currentTeamId)
+      .then((res) => setSecrets(res.secrets ?? []))
+      .catch(() => setSecrets([]))
+  }, [token, currentTeamId, canManageAgents])
 
   useEffect(() => {
     fetchAgents()
@@ -103,6 +120,7 @@ export function AgentList({ token }: AgentListProps) {
     instructions?: string
     sandbox_network_tier?: string
     sandbox_filesystem_tier?: string
+    secret_consumption?: import("../../lib/api/types").ApiSecretConsumption
   }) {
     if (!token || !currentTeamId) return
     setError(null)
@@ -122,6 +140,7 @@ export function AgentList({ token }: AgentListProps) {
     instructions?: string
     sandbox_network_tier?: string
     sandbox_filesystem_tier?: string
+    secret_consumption?: import("../../lib/api/types").ApiSecretConsumption
   }) {
     if (!token || !currentTeamId || editingAgent == null) return
     setError(null)
@@ -280,6 +299,7 @@ export function AgentList({ token }: AgentListProps) {
         open={modalOpen}
         loading={creating}
         error={error}
+        secrets={secrets}
         onClose={() => {
           setModalOpen(false)
           setError(null)
@@ -290,6 +310,7 @@ export function AgentList({ token }: AgentListProps) {
       <EditAgentModal
         open={editingAgent != null}
         agent={editingAgent}
+        secrets={secrets}
         loading={saving}
         error={error}
         deleting={deleting}

@@ -79,22 +79,22 @@ func (h *Handler) secretService(w http.ResponseWriter) (*secretsvc.Service, bool
 	return h.cfg.SecretService, true
 }
 
-// authorizeSecrets resolves the caller and team and requires owner. Every
-// secret route is owner-only in this slice; see docs/design/team-secrets.md
-// §10 and open question §20.
-func (h *Handler) authorizeSecrets(w http.ResponseWriter, r *http.Request) (userID, teamID string, ok bool) {
+// authorizeSecrets resolves the caller and team and requires the given secret
+// action: reading metadata is owner-or-admin, managing values is owner-only.
+// See docs/design/team-secrets.md §10.
+func (h *Handler) authorizeSecrets(w http.ResponseWriter, r *http.Request, action coreteam.Action) (userID, teamID string, ok bool) {
 	userID, teamID, ok = h.guard().UserAndPathTeam(w, r, h.cfg.Teams, "teams not configured")
 	if !ok {
 		return "", "", false
 	}
-	if _, ok = h.guard().TeamAction(w, r, userID, teamID, coreteam.ActionManageSecrets); !ok {
+	if _, ok = h.guard().TeamAction(w, r, userID, teamID, action); !ok {
 		return "", "", false
 	}
 	return userID, teamID, true
 }
 
 func (h *Handler) listSecretsHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.authorizeSecrets(w, r)
+	_, teamID, ok := h.authorizeSecrets(w, r, coreteam.ActionReadSecrets)
 	if !ok {
 		return
 	}
@@ -118,7 +118,7 @@ func (h *Handler) listSecretsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) getSecretHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.authorizeSecrets(w, r)
+	_, teamID, ok := h.authorizeSecrets(w, r, coreteam.ActionReadSecrets)
 	if !ok {
 		return
 	}
@@ -142,7 +142,7 @@ func (h *Handler) getSecretHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) createSecretHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.authorizeSecrets(w, r)
+	userID, teamID, ok := h.authorizeSecrets(w, r, coreteam.ActionManageSecrets)
 	if !ok {
 		return
 	}
@@ -175,7 +175,7 @@ func (h *Handler) createSecretHandler(w http.ResponseWriter, r *http.Request) {
 // the same Secret through the same route; sending both shapes at once is a bad
 // request.
 func (h *Handler) editSecretHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.authorizeSecrets(w, r)
+	_, teamID, ok := h.authorizeSecrets(w, r, coreteam.ActionManageSecrets)
 	if !ok {
 		return
 	}
@@ -221,7 +221,7 @@ func (h *Handler) editSecretHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) setSecretStateHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.authorizeSecrets(w, r)
+	_, teamID, ok := h.authorizeSecrets(w, r, coreteam.ActionManageSecrets)
 	if !ok {
 		return
 	}

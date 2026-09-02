@@ -1,8 +1,12 @@
+import { useState } from "react"
 import { FormModal, type FormModalFieldConfig } from "@buildmax/gui"
+import type { ApiSecret, ApiSecretConsumption } from "../lib/api/types"
 import {
   AGENT_SANDBOX_FILESYSTEM_TIER_OPTIONS,
   AGENT_SANDBOX_NETWORK_TIER_OPTIONS,
 } from "../lib/sandboxTiers"
+import { normalizeConsumption } from "./EditAgentModal"
+import { SecretConsumptionEditor } from "./SecretConsumptionEditor"
 
 export const AGENT_FIELDS: FormModalFieldConfig[] = [
   {
@@ -48,6 +52,7 @@ interface CreateAgentModalProps {
   open: boolean
   loading: boolean
   error: string | null
+  secrets: ApiSecret[]
   onClose: () => void
   onCreate: (values: {
     name: string
@@ -55,6 +60,7 @@ interface CreateAgentModalProps {
     instructions?: string
     sandbox_network_tier?: string
     sandbox_filesystem_tier?: string
+    secret_consumption?: ApiSecretConsumption
   }) => void
 }
 
@@ -62,9 +68,11 @@ export function CreateAgentModal({
   open,
   loading,
   error,
+  secrets,
   onClose,
   onCreate,
 }: CreateAgentModalProps) {
+  const [consumption, setConsumption] = useState<ApiSecretConsumption>({})
   return (
     <FormModal
       open={open}
@@ -85,8 +93,11 @@ export function CreateAgentModal({
           instructions: values.instructions?.trim() || undefined,
           sandbox_network_tier: values.sandbox_network_tier || undefined,
           sandbox_filesystem_tier: values.sandbox_filesystem_tier || undefined,
+          secret_consumption: normalizeConsumption(consumption),
         })
       }}
-    />
+    >
+      <SecretConsumptionEditor value={consumption} onChange={setConsumption} secrets={secrets} />
+    </FormModal>
   )
 }

@@ -79,12 +79,13 @@ var teamRoutes = []authzCase{
 	{"GET", "/api/teams/{team_id}/sandbox-defaults", coreteam.RoleMember, false},
 	{"PUT", "/api/teams/{team_id}/sandbox-defaults", coreteam.RoleAdmin, false},
 
-	// Team Secrets are owner-only across the board in this slice: value
-	// authority stays with the owner, and whether an admin may even list is an
-	// open question. See docs/design/team-secrets.md §10 and §20.
-	{"GET", "/api/teams/{team_id}/secrets", coreteam.RoleOwner, false},
+	// Team Secrets: reading metadata is owner-or-admin, because an admin editing
+	// an agent must see which secrets exist to configure its consumption;
+	// managing values -- create, edit, disable, destroy -- is owner-only. No
+	// role reads a value. See docs/design/team-secrets.md §10.
+	{"GET", "/api/teams/{team_id}/secrets", coreteam.RoleAdmin, false},
 	{"POST", "/api/teams/{team_id}/secrets", coreteam.RoleOwner, false},
-	{"GET", "/api/teams/{team_id}/secrets/{secret_id}", coreteam.RoleOwner, false},
+	{"GET", "/api/teams/{team_id}/secrets/{secret_id}", coreteam.RoleAdmin, false},
 	{"PATCH", "/api/teams/{team_id}/secrets/{secret_id}", coreteam.RoleOwner, false},
 	{"PUT", "/api/teams/{team_id}/secrets/{secret_id}/state", coreteam.RoleOwner, false},
 

@@ -26,6 +26,7 @@ func TestAllowsMatrix(t *testing.T) {
 		ActionRunWorkflow:           {owner: true, admin: true, member: true},
 		ActionCommentIssue:          {owner: true, admin: true, member: true},
 		ActionManageSecrets:         {owner: true, admin: false, member: false},
+		ActionReadSecrets:           {owner: true, admin: true, member: false},
 	}
 	for _, action := range Actions() {
 		roles, ok := want[action]

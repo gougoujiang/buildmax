@@ -30,15 +30,15 @@
   [`R3`](../ROADMAP.md) for the team-facing surface. It answers Phase D3 of
   [plugin-team-distribution.md](plugin-team-distribution.md), which deferred
   secret delivery to a follow-on record.
-- status: `Phase 1 nearly complete` — a Team owner stores a Secret (encrypted,
+- status: `Phase 1 complete bar one view` — a Team owner stores a Secret (encrypted,
   no reveal), an Agent revision declares it, a run receives it in its
   environment through the worker route and the `env_scrub` allow-list, the
   materialization is recorded in `task_run_secret`, and the run's values are
   redacted from the trace, from tool results before the model, and from streamed
-  output, and manages Secrets through an owner-only Portal page. What remains in
-  Phase 1 is the Portal consumption-health view and agent-side consumption
-  editor; Phases 2–5 (file delivery, short-lived exchange, external providers,
-  workload identity) follow.
+  output, manages Secrets through an owner-only Portal page, and configures an
+  Agent's consumption in the agent editor. What remains in Phase 1 is the Portal
+  consumption-health view; Phases 2–5 (file delivery, short-lived exchange,
+  external providers, workload identity) follow.
 - supersedes: the `run-scoped-secret-broker` proposal, whose settled decisions
   are here and whose remaining uncertainty is §20.
 - model: a Secret is one Team-owned group of named items, stored as a single
@@ -816,7 +816,7 @@ of a reveal operation.
 | `internal/infra/secret` | AEAD/envelope implementation, external provider adapters, and credential-exchange clients |
 | `internal/bootstrap` | The `buildmax-server secret rewrap` KEK-rotation command, alongside the existing `run-token` admin command |
 | `internal/infra/db` | Row structs and metadata/ciphertext persistence; no provider calls |
-| `internal/server/handlers` | User and worker authentication, Team authorization, request/response shaping. The Team Secret routes are owner-only (`team.ActionManageSecrets`) and value-write-only; they report 503 when no KEK file is configured |
+| `internal/server/handlers` | User and worker authentication, Team authorization, request/response shaping. Reading Secret metadata is owner-or-admin (`team.ActionReadSecrets`), managing values is owner-only (`team.ActionManageSecrets`); all routes are value-write-only and report 503 when no KEK file is configured |
 | `internal/agentapp/taskrun` | Consume an authorized in-memory grant set, place environment grants, run renderers into the run's `HOME` |
 | `internal/infra/sandbox` | Apply the §13.1 deny-by-default environment policy and admit exactly this run's declared names |
 
@@ -977,12 +977,12 @@ a worker holds only what its run needs.
 - **done** — per-run exact-value redaction removes a run's grant values from the
   durable trace, from tool results before they enter model context (and the
   hooks and log with them), and from streamed output; and
-- **mostly done** — the Portal Secrets page: owner-only list of Secret metadata
-  and item names, create with a row editor or raw JSON, per-item edit
-  (set/remove), disable, and destroy, with §3's two consequences stated in a
-  notice above the list. What remains is consumption-health (which Agent
-  consumes which Secret, and a reference that no longer resolves) and the
-  agent-side consumption editor, both frontend follow-ons.
+- **done** — the Portal Secrets page (owner-only management of metadata and
+  items, create with a row editor or raw JSON, per-item edit, disable, destroy,
+  §3's consequences in a notice) and the agent-side consumption editor (an
+  owner or admin configures an Agent's env grants against the team's secrets in
+  the create and edit modals). Consumption-health -- surfacing a grant whose
+  Secret or item no longer resolves -- is the one remaining frontend follow-on.
 
 Environment delivery is first because it is universal and needs no renderer.
 The core loop — a Team owner stores a Secret, an Agent declares it, a run
@@ -1065,8 +1065,10 @@ them.
 
 ## 20. Open Questions
 
-1. Is `admin` visibility of Secret metadata and consumption health right, or
-   should even listing be owner-only?
+1. **Decided** — reading Secret metadata (list and get, never a value) is
+   owner-or-admin via `team.ActionReadSecrets`; managing values stays owner-only
+   via `team.ActionManageSecrets`. An admin needs the list to configure an
+   Agent's consumption, and the metadata carries no value.
 2. Is an external-provider locator encrypted with the value, or is
    database-visible provider metadata necessary for operation and audit?
 3. Which object-storage replacement preserves large-file performance across

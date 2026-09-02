@@ -5,7 +5,11 @@ import {
   throwIfNotOk,
 } from "../../lib/api/client"
 import { authHeaders, jsonHeaders } from "../../lib/api/common"
-import type { ApiAgent, ApiAgentRevisionListResponse } from "../../lib/api/types"
+import type {
+  ApiAgent,
+  ApiAgentRevisionListResponse,
+  ApiSecretConsumption,
+} from "../../lib/api/types"
 
 export async function getAgents(teamId: string, token: string): Promise<ApiAgent[]> {
   return requestJson<ApiAgent[]>(`${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/agents`, { headers: authHeaders(token) })
@@ -19,6 +23,7 @@ export async function createAgent(
     instructions?: string
     sandbox_network_tier?: string
     sandbox_filesystem_tier?: string
+    secret_consumption?: ApiSecretConsumption
   },
   token: string
 ): Promise<ApiAgent> {
@@ -41,6 +46,7 @@ export async function updateAgent(
     instructions?: string
     sandbox_network_tier?: string
     sandbox_filesystem_tier?: string
+    secret_consumption?: ApiSecretConsumption
   },
   token: string
 ): Promise<ApiAgent> {

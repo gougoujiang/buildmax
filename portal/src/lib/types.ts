@@ -63,6 +63,7 @@ export interface Agent {
   instructions?: string
   sandboxNetworkTier?: string
   sandboxFilesystemTier?: string
+  secretConsumption?: import("./api/types").ApiSecretConsumption
   revision: number
   createdAt: string
 }

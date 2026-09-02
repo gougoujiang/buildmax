@@ -52,6 +52,8 @@ export interface ApiAgent {
    */
   sandbox_network_tier?: string
   sandbox_filesystem_tier?: string
+  /** How this agent consumes Team Secrets. See docs/design/team-secrets.md §6. */
+  secret_consumption?: ApiSecretConsumption
   revision: number
   created_at: string
 }
