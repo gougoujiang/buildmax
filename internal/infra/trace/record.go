@@ -236,7 +236,7 @@ var recordTypes = map[agent.EventKind]string{
 // recordFromEvent maps a runtime event to a trace Record, applying bounding and
 // redaction to free-text fields. It returns ok=false for events that are not
 // persisted (e.g. EventLLMDelta).
-func recordFromEvent(e agent.Event, maxField int) (Record, bool) {
+func recordFromEvent(e agent.Event, maxField int, red *secretscan.Redactor) (Record, bool) {
 	typ, ok := recordTypes[e.Kind]
 	if !ok {
 		return Record{}, false
@@ -263,16 +263,16 @@ func recordFromEvent(e agent.Event, maxField int) (Record, bool) {
 		r.Cost = recordCost(e.CallCost)
 		r.ContextTokens = e.ContextTokens
 		r.ContextWindow = e.ContextWindow
-		r.Content = bound(secretscan.Redact(e.Content), maxField)
+		r.Content = bound(red.Redact(e.Content), maxField)
 	case agent.EventToolStart:
 		r.Tool = e.ToolName
 		r.ToolCallID = e.ToolCallID
-		r.Args = bound(secretscan.Redact(e.ToolArgs), maxField)
+		r.Args = bound(red.Redact(e.ToolArgs), maxField)
 	case agent.EventToolEnd:
 		r.Tool = e.ToolName
 		r.ToolCallID = e.ToolCallID
-		r.Args = bound(secretscan.Redact(e.ToolArgs), maxField)
-		r.Result = bound(secretscan.Redact(e.ToolResult), maxField)
+		r.Args = bound(red.Redact(e.ToolArgs), maxField)
+		r.Result = bound(red.Redact(e.ToolResult), maxField)
 		r.DurationMS = e.ToolDuration.Milliseconds()
 		r.ErrorKind = e.ToolErrorKind
 	case agent.EventToolDenied:
@@ -295,10 +295,10 @@ func recordFromEvent(e agent.Event, maxField int) (Record, bool) {
 		// A message that entered the run after it started is part of what the run
 		// was told to do, so a trace that omitted it would misreport its instructions.
 		r.Iter = e.Iter
-		r.Content = bound(secretscan.Redact(e.Content), maxField)
+		r.Content = bound(red.Redact(e.Content), maxField)
 	case agent.EventUserInputBlocked:
 		r.Iter = e.Iter
-		r.Content = bound(secretscan.Redact(e.Content), maxField)
+		r.Content = bound(red.Redact(e.Content), maxField)
 		r.DenyReason = e.DenyReason
 	case agent.EventRunEnd:
 		r.ToolCalls = e.Stats.ToolCalls

@@ -12,6 +12,7 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/core/agent"
 	"github.com/gougoujiang/buildmax/internal/core/plugin"
+	"github.com/gougoujiang/buildmax/internal/util/secretscan"
 )
 
 // Identity belongs in an attr, not in every message string.
@@ -45,6 +46,10 @@ type Meta struct {
 	Sources agent.ContextSources
 	// Plugins is the plugin inventory active for this run.
 	Plugins []plugin.Provenance
+	// SecretValues are this run's materialized Team Secret values, redacted from
+	// every record's free-text fields so a durable trace does not carry them.
+	// Empty when the run consumes no Secret. See docs/design/team-secrets.md §12.
+	SecretValues []string
 }
 
 // Recorder appends trace records for one run to a JSONL file. All methods are
@@ -61,6 +66,9 @@ type Recorder struct {
 	maxRecord int
 	count     int
 	dropped   bool
+	// redactor redacts this run's exact Secret values on top of the shape-based
+	// scan every record already gets. Non-nil for every recorder.
+	redactor *secretscan.Redactor
 }
 
 // NewRecorder opens <dir>/<session_id>/<run_id>.jsonl and writes the run_start
@@ -89,6 +97,7 @@ func NewRecorder(dir string, meta Meta) *Recorder {
 		w:         bufio.NewWriter(f),
 		maxField:  defaultMaxFieldBytes,
 		maxRecord: defaultMaxRecords,
+		redactor:  secretscan.NewRedactor(meta.SecretValues),
 	}
 	r.write(Record{
 		TS:               now(),
@@ -134,7 +143,7 @@ func (r *Recorder) Record(e agent.Event) {
 	if r == nil {
 		return
 	}
-	rec, ok := recordFromEvent(e, r.maxField)
+	rec, ok := recordFromEvent(e, r.maxField, r.redactor)
 	if !ok {
 		return
 	}

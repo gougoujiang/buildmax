@@ -143,6 +143,7 @@ func buildAgentApp(cfg AppConfig, resolved resolvedAgentAppConfig) (_ *AgentApp,
 		sandboxResolved:        resolved.sandbox,
 		maxIterations:          config.ResolveMaxIterations(resolved.settings.Agent, cfg.MaxIterations),
 		plugins:                resolved.plugins,
+		secretEnvValues:        cfg.SecretEnvValues,
 	}
 	// A worker that resolves weaker than its own surface's baseline says so
 	// out loud, not only in the trace: docs/design/sandbox-boundaries.md §10.

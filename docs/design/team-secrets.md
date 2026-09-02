@@ -32,10 +32,12 @@
   secret delivery to a follow-on record.
 - status: `Phase 1 core loop closed` — a Team owner stores a Secret (encrypted,
   no reveal), an Agent revision declares it, a run receives it in its
-  environment through the worker route and the `env_scrub` allow-list, and the
-  materialization is recorded in `task_run_secret`. What remains in Phase 1 is
-  the Portal surface and per-run exact-value redaction; Phases 2–5 (file
-  delivery, short-lived exchange, external providers, workload identity) follow.
+  environment through the worker route and the `env_scrub` allow-list, the
+  materialization is recorded in `task_run_secret`, and the run's values are
+  redacted from the durable trace. What remains in Phase 1 is the Portal surface
+  and wiring exact-value redaction into the remaining sinks (logs, tool results,
+  streamed output); Phases 2–5 (file delivery, short-lived exchange, external
+  providers, workload identity) follow.
 - supersedes: the `run-scoped-secret-broker` proposal, whose settled decisions
   are here and whose remaining uncertainty is §20.
 - model: a Secret is one Team-owned group of named items, stored as a single
@@ -656,16 +658,19 @@ value.
 
 ## 12. Redaction
 
-Every materialized static value is registered with a per-run exact-value
-redactor before the Agent starts, covering application logs, worker status
-errors, tool results before they enter model context, streamed output, and
-durable traces.
+A run's materialized static values are registered with a per-run exact-value
+redactor before the Agent starts. **Done for the durable trace**: `secretscan`
+gains a `Redactor` that replaces the exact values on top of the shape-based
+scan, the trace `Recorder` carries one built from the run's grant values, and
+every free-text field it writes passes through it. The other sinks the design
+names — application logs, worker status errors, tool results before they enter
+model context, and streamed output — are not yet wired to it; the trace is the
+persisted artifact most likely to reach an operator, so it comes first.
 
-Exact-value redaction ignores empty and very short values, so ordinary output is
-not replaced everywhere, and uses a bounded representation so a large
-certificate does not make every trace operation unbounded. The existing
-shape-based redaction stays for credentials that did not come through the
-Broker.
+Exact-value redaction ignores empty and very short values (below six bytes), so
+ordinary output is not replaced everywhere, and skips oversized values so a
+large certificate does not make every redaction pass unbounded. The shape-based
+scan still runs for credentials that did not come through the Broker.
 
 Under run-level delivery this is mitigation against **accident**, not against
 the Agent. A run holding a value can encode, split, transform, or transmit it,
@@ -957,9 +962,12 @@ a worker holds only what its run needs.
   row per materialized grant, idempotent on (run, secret, item) so a retried
   fetch records once, carrying no value; the write is fail-open beside a run
   that already got its grant; and
+- **trace half done** — per-run exact-value redaction removes a run's grant
+  values from the durable trace; wiring it into logs, tool results, and streamed
+  output remains; and
 - Portal Secret metadata and item editor (row view and raw JSON),
-  consumption-health, carrying §3's two consequences in the copy, and per-run
-  exact-value redaction — the remaining Phase 1 work.
+  consumption-health, carrying §3's two consequences in the copy — the remaining
+  Phase 1 work.
 
 Environment delivery is first because it is universal and needs no renderer.
 The core loop — a Team owner stores a Secret, an Agent declares it, a run

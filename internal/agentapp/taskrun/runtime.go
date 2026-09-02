@@ -536,8 +536,10 @@ func runAgentTask(ctx context.Context, run *coretask.Run, runDir, runGlobalDir, 
 			SandboxFilesystemTier: sandboxFilesystemTier,
 			// The grants are set in the run's environment by withRunEnv above;
 			// their names are admitted past env scrubbing so a secret-shaped
-			// grant like GH_TOKEN actually reaches the agent's commands.
-			SecretEnvNames: mapKeys(secretGrants),
+			// grant like GH_TOKEN actually reaches the agent's commands, and
+			// their values are registered with the trace redactor.
+			SecretEnvNames:  mapKeys(secretGrants),
+			SecretEnvValues: mapValues(secretGrants),
 		})
 		if err != nil {
 			return err
@@ -637,6 +639,18 @@ func mapKeys(m map[string]string) []string {
 	out := make([]string, 0, len(m))
 	for k := range m {
 		out = append(out, k)
+	}
+	return out
+}
+
+// mapValues returns a map's values, or nil for an empty map.
+func mapValues(m map[string]string) []string {
+	if len(m) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(m))
+	for _, v := range m {
+		out = append(out, v)
 	}
 	return out
 }

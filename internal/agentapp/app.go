@@ -76,6 +76,10 @@ type AppConfig struct {
 	// BuildMax's own credentials are never admitted. Empty on every surface
 	// that consumes no Secret. See docs/design/team-secrets.md §13.1.
 	SecretEnvNames []string
+	// SecretEnvValues are the corresponding grant values, registered with the
+	// run's trace redactor so they do not drift into a durable trace. Defense
+	// in depth, not a boundary. See docs/design/team-secrets.md §12.
+	SecretEnvValues []string
 	// MaxIterations caps this AgentApp's model calls per run, outranking
 	// settings.yaml. Zero takes the configured value. A surface exposes it for
 	// the run whose length nobody configured for: a benchmark task or an
@@ -190,11 +194,14 @@ type AgentApp struct {
 	hookManager *HookManager
 	// pluginHooks is the plugin layer of the merge, held because the workspace
 	// layer is re-read whenever the root moves and the merge needs all three.
-	pluginHooks            corehook.Config
-	sandbox                agent.SandboxView
-	sandboxManager         *sandbox.Manager
-	sandboxResolved        config.SandboxResolution
-	maxIterations          int
+	pluginHooks     corehook.Config
+	sandbox         agent.SandboxView
+	sandboxManager  *sandbox.Manager
+	sandboxResolved config.SandboxResolution
+	maxIterations   int
+	// secretEnvValues are this run's Team Secret grant values, registered with
+	// each trace recorder so they are redacted from the durable trace.
+	secretEnvValues        []string
 	additionalSystemPrompt string
 	artifactPublisher      tools.ArtifactPublisher
 	issueClient            tools.IssueClient
@@ -1038,13 +1045,14 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 		// session's diagnostics are deleted, copied, and retained with the
 		// conversation they describe rather than from a second root.
 		recorder = trace.NewRecorder(sessionstore.SessionTracesDir(a.sessionManager.Dir(), sess.ID()), trace.Meta{
-			RunID:     runID,
-			SessionID: sess.ID(),
-			Workspace: a.workspace.Root(),
-			Model:     modelName,
-			Sandbox:   a.sandboxInfo(),
-			Sources:   a.contextSources(sess, promptLayers),
-			Plugins:   a.plugins.Provenance(ctx),
+			RunID:        runID,
+			SessionID:    sess.ID(),
+			Workspace:    a.workspace.Root(),
+			Model:        modelName,
+			Sandbox:      a.sandboxInfo(),
+			Sources:      a.contextSources(sess, promptLayers),
+			Plugins:      a.plugins.Provenance(ctx),
+			SecretValues: a.secretEnvValues,
 		})
 		a.trackTrace(recorder)
 		defer a.releaseTrace(recorder)
@@ -1485,6 +1493,7 @@ func (a *AgentApp) newSubAgentTrace(ctx context.Context, sessionID string, opts 
 		Model:            modelName,
 		IsSubagent:       true,
 		Sandbox:          a.sandboxInfo(),
+		SecretValues:     a.secretEnvValues,
 		Sources: agent.ContextSources{
 			ProjectID:    a.project.ID,
 			Workspace:    a.workspace.Root(),
