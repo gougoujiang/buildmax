@@ -106,6 +106,30 @@ describe("ChatComposer submit", () => {
   })
 })
 
+// The buttons are icon-only, so the state's word lives on the accessible name.
+describe("ChatComposer action button", () => {
+  it("names the send button and submits on click", () => {
+    const onSubmit = vi.fn()
+    render(<Controlled value="hi" onSubmit={onSubmit} />)
+    const send = screen.getByRole("button", { name: "Send" })
+    fireEvent.click(send)
+    expect(onSubmit).toHaveBeenCalledOnce()
+  })
+
+  it("shows a Stop button while a cancellable run is in flight", () => {
+    const onCancel = vi.fn()
+    render(<Controlled loading onCancel={onCancel} />)
+    expect(screen.queryByRole("button", { name: "Send" })).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }))
+    expect(onCancel).toHaveBeenCalledOnce()
+  })
+
+  it("names the button Queue when a message is typed mid-run", () => {
+    render(<Controlled value="later" loading queueWhileLoading />)
+    expect(screen.getByRole("button", { name: "Queue" })).toBeTruthy()
+  })
+})
+
 // fireEvent.keyDown builds its own event, and the object it returns says only
 // whether the event was cancelled by a handler — which is exactly what these
 // tests assert on, so the event is built here and kept.
