@@ -23,6 +23,35 @@ func WithEnvVar(envKey, value string, fn func() error) error {
 	return fn()
 }
 
+// WithEnvVars sets several environment variables for the duration of fn, then
+// restores each to its previous state. Like WithEnvVar it mutates process
+// environment, so it assumes the caller is not running fn concurrently with
+// another that touches the same keys.
+func WithEnvVars(vars map[string]string, fn func() error) error {
+	type saved struct {
+		val string
+		had bool
+	}
+	prev := make(map[string]saved, len(vars))
+	for k, v := range vars {
+		old, had := os.LookupEnv(k)
+		prev[k] = saved{val: old, had: had}
+		if err := os.Setenv(k, v); err != nil {
+			return err
+		}
+	}
+	defer func() {
+		for k, s := range prev {
+			if s.had {
+				_ = os.Setenv(k, s.val)
+			} else {
+				_ = os.Unsetenv(k)
+			}
+		}
+	}()
+	return fn()
+}
+
 // Ptr returns a pointer to v. Useful for filling optional pointer fields.
 func Ptr[T any](v T) *T {
 	return &v

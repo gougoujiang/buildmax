@@ -229,6 +229,7 @@ func TestPrepareRunWorkspace_MaterializesTeamFiles(t *testing.T) {
 		runHome:      filepath.Join(t.TempDir(), "home"),
 		runArtifacts: filepath.Join(t.TempDir(), "artifacts"),
 		runGlobal:    filepath.Join(t.TempDir(), "global"),
+		runOSHome:    filepath.Join(t.TempDir(), "oshome"),
 	}
 	task := &coretask.Task{
 		ID:             "t1",
@@ -251,6 +252,40 @@ func TestPrepareRunWorkspace_MaterializesTeamFiles(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dirs.runHome, "private.txt")); !os.IsNotExist(err) {
 		t.Fatalf("private creator file should not be materialized, stat err = %v", err)
+	}
+
+	// The run's OS HOME exists and is empty: it must not inherit team files
+	// (those go to runHome) or anything from a previous run.
+	entries, err := os.ReadDir(dirs.runOSHome)
+	if err != nil {
+		t.Fatalf("read run OS home: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("run OS home should start empty, has %d entries", len(entries))
+	}
+}
+
+// TestResolveRunDirs_OSHomeIsRunPrivate pins that the OS HOME is a dedicated
+// per-run directory, distinct from the team home and BUILDMAX_HOME, so one
+// run's tool state cannot leak into another and rendered credential files do
+// not land among uploaded files.
+func TestResolveRunDirs_OSHomeIsRunPrivate(t *testing.T) {
+	paths := NewRuntimePathsFromRoot(t.TempDir())
+	task := &coretask.Task{ID: "t1", ConversationID: "c1", CreatedBy: "u1"}
+	run := &coretask.Run{ID: "r1"}
+	dirs := resolveRunDirs(paths, task, run)
+
+	if dirs.runOSHome == dirs.runHome || dirs.runOSHome == dirs.runGlobal || dirs.runOSHome == dirs.runDir {
+		t.Fatalf("OS home %q must differ from home/global/run dirs", dirs.runOSHome)
+	}
+	if filepath.Dir(dirs.runOSHome) != dirs.runDir {
+		t.Fatalf("OS home %q should live under the run dir %q", dirs.runOSHome, dirs.runDir)
+	}
+
+	// Two different runs get different OS homes.
+	other := resolveRunDirs(paths, task, &coretask.Run{ID: "r2"})
+	if other.runOSHome == dirs.runOSHome {
+		t.Fatalf("distinct runs share an OS home: %q", dirs.runOSHome)
 	}
 }
 

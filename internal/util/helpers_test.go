@@ -47,6 +47,32 @@ func TestWithEnvVar_RestoresUnsetState(t *testing.T) {
 	}
 }
 
+func TestWithEnvVars_SetsAndRestoresEach(t *testing.T) {
+	const set = "BUILDMAX_TEST_ENVS_SET"
+	const unset = "BUILDMAX_TEST_ENVS_UNSET"
+	t.Setenv(set, "before")
+	_ = os.Unsetenv(unset)
+
+	if err := WithEnvVars(map[string]string{set: "during", unset: "during"}, func() error {
+		if got := os.Getenv(set); got != "during" {
+			t.Fatalf("inside: %s = %q, want during", set, got)
+		}
+		if got := os.Getenv(unset); got != "during" {
+			t.Fatalf("inside: %s = %q, want during", unset, got)
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("WithEnvVars: %v", err)
+	}
+
+	if got := os.Getenv(set); got != "before" {
+		t.Fatalf("after: %s = %q, want before", set, got)
+	}
+	if _, ok := os.LookupEnv(unset); ok {
+		t.Fatalf("after: %s should be unset again", unset)
+	}
+}
+
 func TestTruncateRunes(t *testing.T) {
 	tests := []struct {
 		name     string

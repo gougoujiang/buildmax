@@ -30,7 +30,8 @@
   [`R3`](../ROADMAP.md) for the team-facing surface. It answers Phase D3 of
   [plugin-team-distribution.md](plugin-team-distribution.md), which deferred
   secret delivery to a follow-on record.
-- status: `designed, not started` — no table, route, or runtime path exists.
+- status: `Phase 0 started` — the run-scoped OS `HOME` prerequisite (§8.1) is
+  implemented; no secret table, route, or runtime path exists yet.
   `internal/infra/db` has no secret row, and the only credential a worker
   legitimately holds today is its run token.
 - supersedes: the `run-scoped-secret-broker` proposal, whose settled decisions
@@ -401,17 +402,24 @@ successful materialization is recorded.
 
 Two modes. An Agent revision configures each independently; §6 says how.
 
-### 8.1 Prerequisite: A Run-Scoped `HOME`
+### 8.1 Prerequisite: A Run-Scoped `HOME` — implemented
 
-Neither mode is well-defined until the run owns its `HOME`. A worker receives a
-run-scoped `BUILDMAX_HOME` (`taskrun.RuntimePaths.RuntimeTaskRunHomeDir`) but no
-run-scoped operating-system `HOME`; it inherits whatever the container image
-sets, which is shared across runs.
+Neither mode is well-defined until the run owns its operating-system `HOME`.
+A worker already gets a run-scoped `BUILDMAX_HOME` (the run's global directory,
+`RuntimeTaskRunGlobalDir`) and a run-scoped directory of the team's persistent
+files (`RuntimeTaskRunHomeDir`), but its OS `HOME` was whatever the container
+image set, shared across every run in that container.
 
-That changes first, for two reasons: a rendered credential file needs a private
-location tools look in by default, and anything a tool writes to `~/.config`
-today survives into unrelated runs. The run's `HOME` becomes the existing
-per-run home directory, created empty and removed with the run.
+This is now fixed. `taskrun` gives each run a dedicated, empty OS `HOME` —
+`<run-dir>/oshome`, distinct from both directories above — created `0700`,
+scoped over the agent run with `HOME` and `USERPROFILE`, and gone with the
+run's ephemeral tree. It is deliberately not `RuntimeTaskRunHomeDir`: that
+directory holds the team's materialized files and is the wrong place for a
+run's private tool state or a rendered credential, and it is deliberately not
+`BUILDMAX_HOME`, whose global directory is uploaded after the run — a rendered
+credential must not be. The two reasons it was needed: a rendered credential
+file needs a private location tools look in by default, and anything a tool
+writes to `~/.config` must not survive into an unrelated run.
 
 ### 8.2 Environment Variables
 
@@ -890,17 +898,21 @@ carefully brokered. External backends belong under §9.2, not instead of it.
 
 ### Phase 0 — Unblock And Isolate The Run
 
+- **done** — give each run its own empty operating-system `HOME` (§8.1),
+  distinct from `BUILDMAX_HOME` and the team-files directory;
 - replace the `env_scrub` denylist with §13.1's deny-by-default,
-  allow-declared policy, keeping BuildMax's own credentials denied;
-- give each run its own operating-system `HOME`, created empty and removed with
-  the run;
+  allow-declared policy, keeping BuildMax's own credentials denied. This lands
+  with Phase 1's grant delivery, not alone: the allow-list is empty until a
+  consumed name exists, the deny-by-default baseline needs the operational-env
+  set defined, and it touches the escape-hatch open question (§20);
 - replace deployment-wide object-store credentials with Server-mediated or
   run-scoped access (§13.2);
 - make managed inference the cloud-worker default (§13.3); and
 - move Kubernetes run-token delivery out of the Job environment (§13.4).
 
-The first two are prerequisites for any delivery at all. The rest must be
-explicit before BuildMax claims a worker holds only what its run needs.
+The OS `HOME` and the `env_scrub` policy are prerequisites for any delivery at
+all; the `HOME` half is done. The rest must be explicit before BuildMax claims
+a worker holds only what its run needs.
 
 ### Phase 1 — Embedded Team Secrets With Environment Delivery
 
