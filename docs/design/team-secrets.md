@@ -8,7 +8,7 @@
 - [3. What This Does Not Protect](#3-what-this-does-not-protect)
 - [4. Scope And Ownership](#4-scope-and-ownership)
 - [5. Resource Model](#5-resource-model)
-- [6. Declaration And Binding](#6-declaration-and-binding)
+- [6. Consumption Configuration](#6-consumption-configuration)
 - [7. Run Lifecycle](#7-run-lifecycle)
 - [8. Delivery Modes](#8-delivery-modes)
 - [9. Storage Backends](#9-storage-backends)
@@ -35,6 +35,10 @@
   legitimately holds today is its run token.
 - supersedes: the `run-scoped-secret-broker` proposal, whose settled decisions
   are here and whose remaining uncertainty is §20.
+- model: a Secret is one Team-owned group of named items, stored as a single
+  encrypted row; items are not versioned. Consumption is configured on the Agent
+  revision, which pins it. §5 and §6 carry the reasoning; §17 records what a
+  version table and a per-item flag would have added and why they are out.
 
 ## 1. Problem
 
@@ -107,7 +111,7 @@ What remains, and what each part is worth:
 | Control | What it buys |
 |---|---|
 | Team ownership | One Team's values are unreachable from another Team's runs |
-| Agent-revision binding | A run receives only what its Agent declared, not the Team's whole set |
+| Agent-revision consumption config | A run receives only the items its Agent configured, not the Team's whole set |
 | TaskRun snapshot | The authorization is fixed when the run is claimed and cannot be widened from inside the run |
 | Short-lived credentials | A disclosed value expires; exchange at run start is the main exfiltration control |
 | Narrow provider scope | A repository-scoped token cannot act outside that repository, whoever holds it |
@@ -135,8 +139,9 @@ lever.
 
 **Team is the only ownership scope.** A Secret belongs to exactly one Team,
 which is the same boundary that owns Agents, plugin activations, and audit. An
-Agent definition may reference only Secrets in its own Team; a binding whose
-Agent and Secret disagree is refused at write time, not at run time.
+Agent definition may consume only Secrets in its own Team; a consumption config
+naming another Team's Secret is refused when the revision is saved, not at run
+time.
 
 There is deliberately no deployment-global, Team-independent Secret that Agents
 across Teams could name. The pressure to add one is real — an operator with one
@@ -150,7 +155,7 @@ answerable.
 This does not describe BuildMax's own credentials. The database password, JWT
 signing key, KEK, object-store administration credential, and managed provider
 keys are operator-owned deployment configuration, never Team Secrets, and never
-delivered to a run as a grant. §5.6 keeps the classes apart.
+delivered to a run as a grant. §5.3 keeps the classes apart.
 
 There is also no Server-side Project or deployment-environment entity
 introduced to scope Secrets. Team is the Server ownership boundary; the local
@@ -164,213 +169,79 @@ once written; the shapes below are what they must express. Public identifiers
 use `NewPublicID` per [entity-identity.md](entity-identity.md); timestamps
 follow [timestamp-representation.md](timestamp-representation.md).
 
+The model is deliberately two tables: a Secret, and a per-run audit snapshot.
+How a run consumes a Secret is not a table at all — it is configuration on the
+Agent revision (§6), which is already append-only, so the revision pins what a
+run consumed while the Secret's values stay live and rotatable.
+
 ### 5.1 `secret`
 
-One Team-owned named group of entries.
+One Team-owned Secret. A **Secret is a group**: one name holding several named
+**items** — `access_key_id` and `secret_access_key`, or `username` and
+`password`. A single-value credential is just a group with one item.
 
 | Field | Meaning |
 |---|---|
 | `id`, `public_id` | Numeric relational key and opaque public handle |
 | `team_id` | Ownership and authorization boundary; see §4 |
 | `name` | Team-unique, non-secret display name |
-| `description` | Optional bounded explanation; must not carry a value or locator |
+| `description` | Optional bounded explanation; must not carry an item value |
 | `provider` | `embedded`, or an operator-configured external provider name |
 | `state` | `active`, `disabled`, or `destroyed` |
-| `current_version_id` | The version a following declaration resolves for the next run |
+| `ciphertext`, `nonce` | The AEAD-encrypted item map, or an encrypted provider descriptor |
+| `item_names` | The keys present, stored in the clear |
+| `wrapped_dek`, `key_id` | Envelope-encryption metadata |
 | `created_by`, timestamps | Administrative attribution |
 
-A Secret is a **group, not a single value**: one name holding several named
-entries — `access_key_id` and `secret_access_key`, or `username` and
-`password`. §5.2 gives the reason, and it is correctness rather than
-convenience.
+The items are **one encrypted JSON object in one row**. The value is a
+`map[string]string` — item name to item value — sealed as a whole. This is the
+shape a small deployment reasons about, a backup carries, and a KMS wraps, and
+it is what makes rotation correct without a version table: replacing the map is
+one atomic write, so a run reading it reads a self-consistent set. There is no
+window in which a run sees a new `access_key_id` beside an old
+`secret_access_key`, which is the whole reason the items live together.
+
+`item_names` is plaintext because a name is not a value, and because Portal
+listing and §6 validation must work without decrypting anything. An item name is
+an identifier — `[A-Za-z_][A-Za-z0-9_]*`, validated on write — so a whole group
+can be injected as environment variables (§6.2) with no item that silently
+cannot be.
+
+Every item is write-only through the API; §15 has no reveal operation. The
+non-secret parameters a rendered file also needs — a cluster's server URL and CA
+certificate, an AWS region — are not items: §6.3 supplies them as literals on
+the Agent, where they stay readable. Placement expresses the classification, so
+no item carries a secret-or-config flag and creating a Secret is nothing but
+typing item names and values.
 
 `(team_id, name)` is unique. Renaming changes display metadata, not identity.
 Disabling refuses new run grants and new materializations. Destruction erases
-recoverable version material once no active reference remains; it does not
-rewrite audit history.
+recoverable material once no active reference remains; it does not rewrite audit
+history.
 
-An entry name is an identifier: `[A-Za-z_][A-Za-z0-9_]*`, validated on every
-write. The constraint exists so a group can be injected wholesale as environment
-variables (§5.3) without a class of entries that silently cannot be, and it
-costs nothing elsewhere — template parameters match by name too.
+This design does not version a Secret's items. Grouping already gives atomic
+rotation, which was the only correctness the version table bought; the rest —
+an in-flight run keeping an old value — is moot because a run materializes once
+at claim time and does not re-read. Two runs claimed on either side of a
+rotation each get an internally consistent set, which is the honest guarantee.
+§17 records what versioning would have added and why it is not worth its weight
+here.
 
-Every entry is write-only. The non-secret parameters a rendered file also needs
-— a cluster's server URL and CA certificate, an AWS region — do not belong
-here: §5.4 and §5.5 supply them as literals, where they stay readable. Placement
-expresses the classification, so no entry carries a secret-or-config flag and
-creating a Secret is nothing but typing names and values.
+There is deliberately no `kind` field. Tagging a Secret with a credential family
+would make storage responsible for interpreting the value and would assert that
+one Secret is one whole rendered file — sealing a kubeconfig's non-secret server
+URL and CA certificate inside the encrypted blob. Item names carry whatever
+structure a credential has, and the rendering is chosen on the Agent.
 
-There is deliberately no `kind` field. An earlier draft carried one to select a
-default file renderer. It made storage responsible for interpreting the value,
-duplicated a decision §5.5 already owns, and forced "one Secret is one whole
-rendered file" — under which a kubeconfig's non-secret server URL and CA
-certificate would have been sealed inside an encrypted blob nobody could read or
-diff. The rendering is chosen at declaration time instead, and whatever
-structure a credential has is carried by its entry names.
+### 5.2 `task_run_secret`
 
-### 5.2 `secret_version`
-
-One immutable snapshot of the whole entry set.
-
-| Field | Meaning |
-|---|---|
-| `id`, `secret_id`, `version` | Identity and monotonically increasing logical version |
-| `ciphertext`, `nonce` | AEAD-encrypted entry map, or encrypted provider descriptor |
-| `entry_names` | The keys present in this version, stored in the clear |
-| `wrapped_dek`, `key_id` | Envelope-encryption metadata |
-| `provider_version` | Exact external version when one is pinned rather than followed |
-| `created_by`, `created_at` | Rotation attribution |
-| `destroyed_at` | Cryptographic erasure or confirmed external deletion |
-
-**The version covers the entire set, and that is why the group exists.**
-Rotating an AWS credential produces a new access key ID and a new secret access
-key together. Were those two Secrets with independent versions, a run claimed
-between the two writes would receive the old ID with the new key — and would do
-so non-deterministically, depending on timing. One version of one set removes
-the window. The same holds for a username and password pair, and for a cluster
-token reissued alongside its CA.
-
-A value update appends a version and atomically moves `current_version_id`. It
-never updates ciphertext in place. A rewrap for KEK rotation may update only
-`wrapped_dek` and `key_id`; the logical version does not advance, because no
-value changed.
-
-`entry_names` is plaintext because a name is not a value, and because
-declaration validation (§5.5) and Portal listing must work without decrypting
-anything.
-
-The stored material must not be assumed to be a static string map. An exchanged
-short-lived credential and a provider lease have to fit the same grant path
-without a migration; see §9.3.
-
-### 5.3 `agent_secret_env`
-
-One Agent revision's declaration that a Secret arrives as environment
-variables.
-
-| Field | Meaning |
-|---|---|
-| `agent_revision_id` | Immutable Agent definition that declares the requirement |
-| `secret_id` | Team-owned Secret group, in the Agent's own Team |
-| `entry_name` | Which entry of the group, or empty for every entry |
-| `env_name` | Variable name, when one entry is named |
-| `prefix` | Optional prefix applied to each entry name, when the whole group is taken |
-| `version_mode` | Follow `current`, or pin an exact logical version |
-| `required` | Whether the run fails when the grant cannot be produced |
-| `created_by`, `created_at`, `revoked_at` | Administrative lifecycle |
-
-Two forms, and the choice is the Agent's:
-
-- **One entry, one variable.** `entry_name` and `env_name` are both given, and
-  the entry arrives under the declared name. This is the recommended default:
-  the run receives what the Agent said it needed and the declaration reads as
-  documentation of what the Agent uses.
-- **The whole group.** `entry_name` is empty and every entry arrives under its
-  own name, optionally with `prefix`. This is Kubernetes' `envFrom` shape, and
-  it is supported because a Team that has already grouped a credential
-  correctly should not have to restate every member of it. §5.1's identifier
-  constraint on entry names is what makes it well-defined.
-
-The convenience is real and so is its cost: the run receives entries the Agent
-never named, which widens what §3 already concedes. It is a Team's call to make,
-not a mode to reach for by default, and Portal should show a whole-group
-declaration as exactly that rather than expanding it into a list that implies
-each was chosen.
-
-A write is valid only when the Agent and Secret belong to the same Team, a named
-`entry_name` appears in the resolved version's `entry_names`, and the caller
-holds the required Team permission. The resolved variable names of a revision
-must not collide — across two whole-group declarations, or a whole-group and a
-named one — and the collision is refused at write time against the current
-version, with `prefix` available to resolve it.
-
-There is deliberately no `plugin_activation_id`, `plugin_name`,
-`consumer_name`, or `approved_digest` on this record or on §5.5's. Those fields
-belonged to per-consumer delivery, where "exactly which code receives this" was
-an enforceable question. Run-level delivery makes it unenforceable — every
-process in the run sees an environment grant — so pinning a release digest would
-be ceremony that protects nothing. They return only with a per-consumer mode, if
-one ever does.
-
-### 5.4 `secret_file_template`
-
-One Team-scoped reusable rendering.
-
-| Field | Meaning |
-|---|---|
-| `id`, `public_id`, `team_id` | Identity and ownership |
-| `name` | Team-unique display name |
-| `target_path` | Path relative to the run's `HOME` |
-| `mode` | Permission bits, constrained to non-executable |
-| `parameters` | Declared parameter names, and which are required |
-| `literals` | Non-secret parameter values shared by every Agent using this template |
-| `template` | Text template substituting the resolved parameters |
-| `created_by`, timestamps | Attribution |
-
-A template declares parameters by name and says nothing about where their values
-come from; §5.5 wires them. `literals` is where a cluster's server URL and CA
-certificate belong — Team-scoped, readable, written once, and shared by every
-Agent that renders against that cluster.
-
-BuildMax ships built-in templates of exactly this shape, so the shipped list is
-a default rather than a ceiling and a Team meeting a credential family BuildMax
-has not heard of writes its own:
-
-| Template | Parameters |
-|---|---|
-| `aws_credentials` | `access_key_id`, `secret_access_key`, `session_token`, `region` |
-| `kubeconfig` | `server`, `certificate_authority_data`, `token` |
-| `git_credentials` | `host`, `username`, `password` |
-| `netrc` | `machine`, `login`, `password` |
-| `npmrc` | `registry`, `auth_token` |
-| `docker_config` | `registry`, `username`, `password` |
-
-§8.3's write constraints are load-bearing and belong to this record, because
-`target_path` and `mode` live here: a template that can write an executable or a
-shell-startup file injects code into the run instead of delivering a credential.
-
-### 5.5 `agent_file_render` And `agent_file_render_param`
-
-One Agent revision's declaration that a file is rendered, and how each parameter
-is satisfied.
-
-| Field | Meaning |
-|---|---|
-| `agent_revision_id` | Immutable Agent definition that declares the rendering |
-| `template_id` | The Team template or built-in to render |
-| `required` | Whether the run fails when the file cannot be produced |
-| `created_by`, `created_at`, `revoked_at` | Administrative lifecycle |
-
-Each parameter is one row:
-
-| Field | Meaning |
-|---|---|
-| `render_id`, `param_name` | Which rendering, which declared parameter |
-| `secret_id`, `entry_name` | The group entry supplying it, when the source is a Secret |
-| `literal` | The value supplying it, when the source is not a Secret |
-| `version_mode` | Follow `current`, or pin an exact logical version |
-
-A parameter resolves by name from three sources, in order: this declaration's
-row, the template's `literals`, then nothing. A declaration literal overrides a
-template literal, which is how one Agent uses a shared cluster template against
-a different region without copying the template.
-
-A write is valid only when every required parameter of the template is
-satisfied, every referenced Secret belongs to the Agent's Team, every referenced
-`entry_name` appears in the resolved version's `entry_names`, and the caller
-holds the required Team permission. This replaces the earlier rule that a file
-binding was valid when "the Secret's `kind` has a renderer" — the question is
-now about the parameters a template actually declares, which is checkable.
-
-### 5.6 `task_run_secret`
-
-One non-secret snapshot of a run grant.
+One non-secret audit snapshot of what a run was granted.
 
 | Field | Meaning |
 |---|---|
 | `task_run_id` | The run |
-| `source` | The `agent_secret_env` or `agent_file_render_param` row that produced it |
-| `secret_id`, `secret_version_id`, `entry_name` | Exactly which entry of which version resolved |
+| `secret_id`, `item_name` | Exactly which item of which Secret resolved |
+| `agent_revision_id` | The consumption configuration that authorized it |
 | `provider_version` | Exact external version resolved, if available |
 | `delivery` | `env` or `file` |
 | `env_name`, `file_target` | Resolved delivery target |
@@ -379,10 +250,10 @@ One non-secret snapshot of a run grant.
 | `materialized_at`, `revoked_at` | Runtime lifecycle evidence |
 
 It holds no ciphertext, plaintext, lease token, provider error body, or hash of
-a value. A hash would enable offline guessing for a low-entropy Secret and is
-not needed to explain the run.
+a value. A hash would enable offline guessing for a low-entropy item and is not
+needed to explain the run.
 
-### 5.7 Credential Classes Kept Apart
+### 5.3 Credential Classes Kept Apart
 
 One storage and delivery mechanism must not absorb credentials whose lifecycle
 is already different.
@@ -395,71 +266,107 @@ is already different.
 | Ephemeral run authority | run token, presigned URL, STS credential, Vault lease | Server or external issuer | minted or exchanged at run time; short TTL; not a reusable Team Secret |
 | User authentication | password verifier, refresh token, webhook key | account subsystem | existing hash, rotation, and revocation models |
 
-## 6. Declaration And Binding
+## 6. Consumption Configuration
 
-### 6.1 Why The Declaration Belongs To An Agent Revision
+How a run consumes Secrets is configured on the Agent, per the requirement that
+a Team sets this up where the Agent is defined. It is not a separate binding
+resource: it is a structured field on the Agent definition, carried into each
+append-only Agent revision, and validated by the Secret service on save and
+again when the worker claims the run.
 
-Agent revisions are append-only and already answer which instructions and
-selections a run used, so declaring on one gives the authorization a stable
-definition without putting mutable Secret names into task input. It is also the
-narrowest scope available: two Agents in a Team may legitimately use different
-accounts for the same service, and a run with no Agent receives no grants at
-all.
+Putting it on the revision is what replaces the version table. The revision pins
+exactly which items a run consumes and how, so "what did this run use" is
+answerable from immutable state, while the item values behind those names stay
+live and rotatable.
 
-An Agent edit that changes declarations creates a new revision. Replacing the
-values behind a Secret does not — that is rotation, not an Agent behavior
-change. The TaskRun snapshot joins the two histories.
+### 6.1 What An Agent Declares
 
-### 6.2 What An Agent Declares
+An Agent's consumption config is a list of entries, each either an environment
+grant or a file grant. A grant may draw items from any Secret the Agent's Team
+owns; one Agent commonly mixes several groups.
 
-An Agent declares, independently:
+Every grant carries `required` (default true). A required grant that cannot be
+produced fails the run before the Agent starts; an optional one is skipped and
+the skip is recorded.
 
-- zero or more `agent_secret_env` rows (§5.3) — a named entry under a chosen
-  variable name, or a whole group under its own entry names; and
-- zero or more `agent_file_render` rows (§5.5) — a template, with each of its
-  parameters wired to a Secret entry or a literal.
+### 6.2 Environment Variables
 
-The two are separate records rather than modes of one, because their arity
-differs. A variable holds one value. A file often needs several values plus
-non-secret configuration, and that shape is what §5.4's parameters express.
+Two forms, and the choice is the Agent's:
 
-Nothing stops the same entry feeding both. A token is useful as `GH_TOKEN` and
-as the `password` parameter of a `git_credentials` rendering at the same time,
-and the two reach different tools. Both resolve from the same version in a given
-run.
+- **Selected items.** Name a `secret` and an `item`, and a variable name. The
+  item arrives under that name. Items from different groups sit side by side —
+  a `GITHUB_TOKEN` from one Secret and a `SLACK_TOKEN` from another — which is
+  the ordinary case and the recommended default, because the config reads as a
+  list of exactly what the Agent uses.
+- **The whole group.** Name a `secret` with no item, and every item arrives
+  under its own name, optionally with a `prefix`. This is Kubernetes' `envFrom`
+  shape. It is supported as a convenience so a Team that has already grouped a
+  credential need not restate every member, and §5.1's identifier constraint on
+  item names is what makes it well-defined.
 
-This is a property of how the Agent works — one driving `kubectl` needs a
-rendered `~/.kube/config`, one calling an internal HTTP API needs a variable —
-so it belongs beside the Agent's other run-shaping configuration rather than in
-Team-wide Secret settings.
+The whole-group form hands the run items the Agent did not name individually,
+widening what §3 already concedes. It is a Team's call, not a default to reach
+for, and Portal shows it as a whole-group grant rather than expanding it into a
+list that implies each item was chosen.
 
-### 6.3 Missing And Optional Grants
+The resolved variable names of a revision must not collide — across two
+whole-group grants, or a whole-group and a selected one — and the collision is
+refused when the config is saved, with `prefix` available to resolve it.
 
-A `required` declaration whose grant cannot be produced fails the run before the
-Agent starts, naming the Secret's display name, the entry or parameter, and the
-reason — never a value, locator, or provider response. A declaration that is not
-required is skipped, and the run records that it was skipped.
+### 6.3 Credential Files
 
-A background run whose declared authenticated capability cannot start fails
-rather than continuing without it, matching plugin materialization. Silent
-degradation produces an output that does not reflect the Agent definition.
+A file grant names a **renderer** and maps its parameters. The renderer is
+BuildMax code that knows one credential family's file layout; the Agent supplies
+each parameter from a Secret item or a literal.
+
+| Renderer | Target | Parameters |
+|---|---|---|
+| `aws_credentials` | `~/.aws/credentials` | `access_key_id`, `secret_access_key`, `session_token?`, `region?` |
+| `kubeconfig` | `~/.kube/config` | `server`, `certificate_authority_data`, `token` |
+| `git_credentials` | `~/.git-credentials` (+ `~/.gitconfig`) | `host`, `username`, `password` |
+| `netrc` | `~/.netrc` | `machine`, `login`, `password` |
+| `npmrc` | `~/.npmrc` | `registry`, `auth_token` |
+| `docker_config` | `~/.docker/config.json` | `registry`, `username`, `password` |
+
+A parameter is satisfied by a `{secret, item}` reference or by a literal. The
+literal is where a cluster's server URL and CA certificate belong — on the
+Agent, readable, not sealed in a Secret. A `region` is a literal; only the
+genuinely secret parameter is an item.
+
+The renderer, not free text, owns `target_path` and file `mode`, which is what
+keeps §8.3's write constraints enforceable: an Agent chooses a renderer and
+fills its parameters but never names an output path, so it cannot render into
+`.bashrc`. Built-in renderers cover the common families; a Team-defined template
+for a family BuildMax does not ship is a Phase 2 open question (§20), not part
+of the first shape.
+
+A file validates when every required parameter is satisfied, every referenced
+Secret belongs to the Agent's Team, and every referenced item appears in that
+Secret's `item_names`.
+
+### 6.4 Using An Item Twice
+
+Nothing stops one item feeding both an environment grant and a file parameter —
+a token useful as `GH_TOKEN` and as the `password` of a `git_credentials`
+render. Both resolve from the Secret's current items in a given run, and the
+snapshot records each target separately.
 
 ## 7. Run Lifecycle
 
 ```text
 Team Owner                 Server                         Worker
     |                         |                              |
-    |-- write/rotate Secret -->| encrypt or record reference |
-    |-- declare Agent grants ->| validate same-Team ownership|
+    |-- write/rotate Secret -->| re-encrypt the item map    |
+    |-- configure consumption->| validate same-Team ownership|
     |                         |                              |
     |                    dispatch TaskRun                    |
     |                         |-- resolve Agent revision     |
-    |                         |-- resolve declared bindings  |
+    |                         |-- read its consumption config|
     |                         |-- snapshot task_run_secret   |
     |                         |                              |
     |                         |<---- claim with run token ---|
     |                         |-- require live matching run  |
-    |                         |-- resolve exact versions     |
+    |                         |-- decrypt current items      |
     |                         |-- exchange short-lived creds |
     |                         |-- return computed bundle --->|
     |                         |                              |-- set declared env grants
@@ -470,18 +377,20 @@ Team Owner                 Server                         Worker
 ```
 
 The snapshot happens where the Agent revision and plugin pins are already
-resolved: while the worker claims the run. Resolution never uses values the
-worker supplied, and a worker cannot browse Team state.
+resolved: while the worker claims the run. The items are decrypted once, at
+claim, so the run reads a self-consistent map even if a rotation lands a moment
+later. Resolution never uses values the worker supplied, and a worker cannot
+browse Team state.
 
 The worker-facing operation returns the bundle computed for one TaskRun. It
-accepts no Secret ID, name, provider path, or version selector. Its route is
+accepts no Secret ID, name, or provider path. Its route is
 registered in `internal/server/handlers/routes.go` and described in
 `internal/server/static/openapi.json` when built.
 
 Materialization requires all of: a valid run token whose run matches the path;
-a non-terminal run in the expected execution state; the stored grant set; an
-enabled Secret and non-destroyed version; a binding still valid for the pinned
-Agent revision; and a configured, healthy backend.
+a non-terminal run in the expected execution state; the pinned revision's
+consumption config; an enabled Secret whose current items still satisfy that
+config; and a configured, healthy backend.
 
 The response uses TLS, sets `Cache-Control: no-store`, and bypasses body
 logging. Retrying a failed fetch is allowed — "read exactly once" is not useful
@@ -490,7 +399,7 @@ successful materialization is recorded.
 
 ## 8. Delivery Modes
 
-Two modes. An Agent revision declares each independently; §6.2 says how.
+Two modes. An Agent revision configures each independently; §6 says how.
 
 ### 8.1 Prerequisite: A Run-Scoped `HOME`
 
@@ -507,8 +416,8 @@ per-run home directory, created empty and removed with the run.
 ### 8.2 Environment Variables
 
 The runtime places each `env` grant into the environment of the commands the run
-executes: a named entry under the variable name the Agent chose, or every entry
-of a group under its own name with an optional prefix (§5.3).
+executes: a selected item under the variable name the Agent chose, or every item
+of a group under its own name with an optional prefix (§6.2).
 
 This is the universal mode. It needs no cooperation from the tool, covers
 non-HTTP protocols, and works for a program written during the run. It is the
@@ -517,7 +426,7 @@ to implement.
 
 Two rules bound it:
 
-- a grant is placed under the name the declaration resolved to and no other,
+- a grant is placed under the name the config resolved to and no other,
   never additionally exported under a guessed alias; and
 - the run's environment is otherwise the deny-by-default baseline of §13.1, not
   the worker's inherited environment. Delivering declared grants is not a reason
@@ -525,9 +434,9 @@ Two rules bound it:
 
 ### 8.3 Run-Scoped Credential Files
 
-The runtime renders a template (§5.4) into a file under the run's `HOME`, in
+The runtime runs a renderer (§6.3) to write a file under the run's `HOME`, in
 the layout the credential family already defines, and tools find it themselves.
-Each parameter is resolved from a Secret entry or a literal before the Agent
+Each parameter is resolved from a Secret item or a literal before the Agent
 starts.
 
 The unit is the credential family, not the tool — this is what keeps the work
@@ -553,10 +462,11 @@ Write constraints, all mandatory:
 
 ### 8.4 Using Both
 
-An Agent may declare an entry as a variable and wire the same entry into a
-template parameter. Both resolve from one version in a given run, and the
-snapshot records each target separately. Where a family's file form references a
-variable rather than embedding the value, the template uses that form.
+An Agent may place an item in a variable and wire the same item into a renderer
+parameter (§6.4). Both resolve from the Secret's current items in a given run,
+and the snapshot records each target separately. Where a family's file form
+references a variable rather than embedding the value, the renderer uses that
+form.
 
 ## 9. Storage Backends
 
@@ -565,10 +475,10 @@ variable rather than embedding the value, the template uses that form.
 The default for an out-of-the-box private deployment. Only ciphertext and
 wrapped data-encryption keys are stored in MySQL.
 
-Each `secret_version` receives a fresh random DEK and nonce, and the value is
-encrypted with AES-256-GCM or an equivalently reviewed AEAD. Associated data
-binds the ciphertext to at least the deployment, Team public ID, Secret public
-ID, and logical version, so moving a ciphertext row between owners fails
+Each Secret's item map is encrypted with AES-256-GCM or an equivalently
+reviewed AEAD under a fresh random DEK and nonce, rewritten whole on every edit.
+Associated data binds the ciphertext to at least the deployment, Team public ID,
+and Secret public ID, so moving a ciphertext row between owners fails
 authentication.
 
 The DEK is wrapped by a KEK, which never belongs in the database or
@@ -610,8 +520,8 @@ reachable by the Agent, so lifetime and provider-side scope carry most of what
 is left of the exfiltration control. A one-hour repository-scoped token that
 leaks is a bounded incident; a stored organization-wide token that leaks is not.
 An exchanged credential is preferred over a stored one whenever both are
-possible, and §5.5's `expires_at` exists so a run and its operator can see when
-it stops working.
+possible, and `task_run_secret.expires_at` (§5.2) exists so a run and its
+operator can see when it stops working.
 
 Workload identity — a dedicated OIDC issuer letting a live TaskRun federate
 directly with Vault, AWS, or Google — is the same idea without the stored
@@ -624,10 +534,10 @@ The roles are `owner`, `admin`, and `member`, per
 
 | Action | Owner | Admin | Member |
 |---|---:|---:|---:|
-| List Secret metadata and binding health | yes | yes | no |
-| Create, replace, disable, or destroy a value | yes | no | no |
-| Create or revoke an Agent Secret declaration, or a file template | yes | no | no |
-| Save an Agent revision declaring a Secret the Team has not bound | yes | yes | no |
+| List Secret metadata and consumption health | yes | yes | no |
+| Create a Secret, edit its items, disable, or destroy it | yes | no | no |
+| Configure an Agent revision's Secret consumption | yes | yes | no |
+| Save an Agent revision consuming a Secret that does not exist | no | no | no |
 | Trigger an already authorized Agent run | yes | yes | yes |
 | Read Secret audit events | yes | no | no |
 | Reveal a value | no | no | no |
@@ -637,8 +547,9 @@ authorized it. That is necessary for shared automation, and under §3 it also
 means the member can read the value. Both facts belong in the Portal surface;
 neither may be implied away.
 
-Value and binding authority stays with the owner until BuildMax has finer Team
-grants. If operator evidence shows owners cannot be the operational Secret
+Value authority stays with the owner until BuildMax has finer Team grants;
+consumption sits with `admin` because it edits an Agent, which `admin` already
+owns, and it grants no ability to read a value the owner did not place. If operator evidence shows owners cannot be the operational Secret
 managers, add an explicit `secret_manager` grant rather than quietly widening
 `admin`.
 
@@ -649,11 +560,12 @@ model.
 ## 11. Audit And Provenance
 
 Audit actions: `secret.created`, `secret.rotated`, `secret.disabled`,
-`secret.destroyed`, `secret.declaration_created`, `secret.declaration_revoked`,
-`secret.materialized`, `secret.revoked`, and `secret.access_denied`.
+`secret.destroyed`, `secret.consumption_changed`, `secret.materialized`,
+`secret.revoked`, and `secret.access_denied`.
 
-An event names the actor, Team, Secret public ID, binding or TaskRun, action,
-and a bounded non-sensitive detail such as the delivery mode and target name. It
+An event names the actor, Team, Secret public ID, Agent revision or TaskRun,
+action, and a bounded non-sensitive detail such as the delivery mode and target
+name. It
 never carries plaintext or ciphertext, a hash of plaintext, a provider token,
 lease ID, response body, or full path, an HTTP header or environment value, or
 prompt, tool output, command arguments, or file contents.
@@ -664,8 +576,9 @@ awkward, a dedicated append-only access ledger is the alternative. Two
 partially overlapping trails would be worse than either, so exactly one is
 authoritative for "which runs materialized this Secret?"
 
-Trace provenance records handles, binding IDs, delivery modes, target names,
-and materialization outcomes. It records no provider locator and no value.
+Trace provenance records handles, Agent revision IDs, delivery modes, target
+names, and materialization outcomes. It records no provider locator and no
+value.
 
 ## 12. Redaction
 
@@ -759,9 +672,9 @@ checks either way.
 
 | Failure | Run behavior |
 |---|---|
-| Required declaration unsatisfiable | Fail before the Agent starts, naming the Secret and the entry or parameter |
-| Secret disabled or destroyed | Fail before materialization |
-| File render refused by a write constraint | Fail before the Agent starts, naming the constraint; do not fall back to environment delivery |
+| Required grant unsatisfiable | Fail before the Agent starts, naming the Secret and the item or parameter |
+| Secret disabled, destroyed, or missing a consumed item | Fail before materialization, naming the Secret and item |
+| Renderer parameter unsatisfied | Fail before the Agent starts, naming the parameter; do not write a partial file |
 | Embedded KEK unavailable | Server health degraded; refuse affected materialization without treating the value as empty |
 | External provider unavailable | Retry within a bounded startup budget, then fail with a sanitized provider-class error |
 | Run token invalid or run terminal | Refuse without revealing whether a Secret exists outside the run grant |
@@ -771,19 +684,22 @@ checks either way.
 ## 15. API Shape
 
 User-facing operations are conventional resource APIs that are write-only for
-values: list and get Secret metadata; create a Secret with its first value or
-external reference; replace the value to create a version; disable, re-enable,
-and destroy; list version metadata without values; create and revoke Agent
-revision declarations; create, edit, and delete file templates; and inspect
-declaration health for a revision, which reports a named entry that no longer
-exists in the current version and a template parameter nothing satisfies.
+item values: list and get Secret metadata, including `item_names`; create a
+Secret with its items; edit items; disable, re-enable, and destroy. Editing
+items supports two request shapes over the same operation — a per-item patch
+(set or remove named keys) for a row-by-row editor, and a whole-map replace for
+a raw-JSON editor — because Portal offers both and they must not be two
+divergent code paths. An Agent revision's consumption config is written through
+the Agent API and validated against Team Secrets there; a read-only
+consumption-health view reports an item a revision consumes that a Secret no
+longer has, and a renderer parameter nothing satisfies.
 
-No response includes a value. Create and replace return metadata and the new
-version number only. Request fields carrying values are excluded from request
-logging, validation errors, and audit details.
+No response includes an item value. A write returns metadata and `item_names`
+only. Request fields carrying values are excluded from request logging,
+validation errors, and audit details.
 
 The worker-facing surface returns only the grant set already computed for its
-run — no list, get-by-name, provider lookup, or version selection.
+run — no list, get-by-name, or provider lookup.
 
 Route strings live in `internal/server/handlers/routes.go`, and
 `internal/server/static/openapi.json` must describe them, including the absence
@@ -793,12 +709,12 @@ of a reveal operation.
 
 | Area | Responsibility |
 |---|---|
-| `internal/core/model` | Secret metadata, entry-set versions, declarations, templates, run grants, errors, and narrow store interfaces |
-| `internal/service/secret` | Lifecycle rules, declaration validation, parameter resolution, materialization, exchange, and revocation |
+| `internal/core/model` | Secret metadata, encrypted item maps, consumption config, run grants, errors, and narrow store interfaces |
+| `internal/service/secret` | Lifecycle rules, consumption validation, renderer parameter resolution, materialization, exchange, and revocation |
 | `internal/infra/secret` | AEAD/envelope implementation, external provider adapters, and credential-exchange clients |
 | `internal/infra/db` | Row structs and metadata/ciphertext persistence; no provider calls |
 | `internal/server/handlers` | User and worker authentication, Team authorization, request/response shaping |
-| `internal/agentapp/taskrun` | Consume an authorized in-memory grant set, place declared environment grants, render declared files into the run's `HOME` |
+| `internal/agentapp/taskrun` | Consume an authorized in-memory grant set, place environment grants, run renderers into the run's `HOME` |
 | `internal/infra/sandbox` | Apply the §13.1 deny-by-default environment policy and admit exactly this run's declared names |
 
 `internal/core` imports no configuration, cryptography provider,
@@ -821,7 +737,7 @@ delivery condition. It is rejected because it reaches only the consumers
 BuildMax has adapted, which is the wrong side of an unbounded set: the Agent's
 central capability is invoking tools it selects at run time, and under this
 model those receive nothing. It remains the right shape for a future consumer
-that genuinely is one named process, and §5.3's removed fields return with it.
+that genuinely is one named process, and the plugin-digest binding it needs returns with it.
 
 ### Credential Helpers And `PATH` Wrappers
 
@@ -859,26 +775,38 @@ looks.
 Tag each Secret with a credential family — `github_token`, `kubeconfig` — and
 use it to pick a default file renderer.
 
-Rejected on two counts. It duplicated a decision §5.5 already owns, leaving a
-validation rule that depended on a field existing only to supply someone else's
-default. Worse, it asserted that a Secret's value *is* one whole rendered file,
-which sealed a kubeconfig's non-secret server URL and CA certificate inside an
-encrypted blob no operator could read or diff. Entry names carry whatever
-structure a credential has, and the template is chosen where it is used.
+Rejected because it makes storage interpret the value and asserts that one
+Secret is one whole rendered file, which would seal a kubeconfig's non-secret
+server URL and CA certificate inside the encrypted blob. Item names carry a
+credential's structure, and §6.3's renderer is chosen on the Agent.
 
-### A Secret-Or-Config Flag On Each Entry
+### A Secret-Or-Config Flag On Each Item
 
-Mark every entry as write-only or as readable metadata, so non-secret
-configuration could live beside the credential and still be visible — the split
-Kubernetes draws between Secret and ConfigMap, and GitHub Actions between
-secrets and variables.
+Mark every item write-only or readable, so non-secret configuration could live
+beside the credential and still be visible — the split Kubernetes draws between
+Secret and ConfigMap, and GitHub Actions between secrets and variables.
 
-Rejected because it charges a per-entry classification to every Team on every
-write to serve a case that placement already answers. A group holds what should
-be write-only; §5.4's template literals hold what a cluster shares and should be
-readable; §5.5's declaration literals hold what one Agent varies. Each piece of
-configuration is visible in the place that owns it, and creating a Secret stays
-nothing but typing names and values.
+Rejected because it charges a per-item classification to every Team on every
+write to serve a case that placement already answers. A Secret holds what should
+be write-only; §6.3's renderer literals hold what a cluster shares and should be
+readable. Configuration is visible where it lives, and creating a Secret stays
+nothing but typing item names and values.
+
+### Versioning A Secret's Items
+
+Keep an immutable version per write, so a run pins an exact version and rotation
+never disturbs it.
+
+Rejected as weight without a matching gain. The correctness a version table
+would buy — no run seeing a half-rotated credential — is already delivered by
+storing a group's items as one atomic row (§5.1): replacing the map is one
+write, and a run decrypts it once at claim. The remaining property, an in-flight
+run keeping a superseded value, is moot because a run does not re-read, and the
+consumption config that says *what* a run used is already pinned by the Agent
+revision. A version table would add a second history to reconcile, a retention
+question for abandoned runs, and a decrypt-old-version path, for a guarantee the
+single-row rewrite already makes. It can be added later if evidence demands
+point-in-time value recovery; nothing here forecloses it.
 
 ### Deployment Environment Variables Only
 
@@ -918,28 +846,30 @@ explicit before BuildMax claims a worker holds only what its run needs.
 
 ### Phase 1 — Embedded Team Secrets With Environment Delivery
 
-- the `secret`, `secret_version`, `agent_secret_env`, and `task_run_secret`
-  rows, with the entry set versioned as a unit;
+- the `secret` and `task_run_secret` rows, items as one encrypted map;
 - envelope encryption with a portable mounted KEK;
-- owner-only create, replace, disable, destroy, and binding operations;
-- `env` declaration on an Agent revision, and delivery into the run;
-- Portal metadata, rotation, and binding-health surfaces, carrying §3's two
-  consequences in the copy;
+- owner-only create, item edit (per-item patch and whole-map replace), disable,
+  and destroy;
+- environment consumption config on the Agent revision, and delivery into the
+  run;
+- Portal Secret metadata and item editor (row view and raw JSON),
+  consumption-health, carrying §3's two consequences in the copy;
 - audit actions and per-run exact-value redaction; and
 - failure before the Agent starts on a missing or unusable required grant.
 
-Environment delivery is first because it is universal and needs no template.
+Environment delivery is first because it is universal and needs no renderer.
 
 ### Phase 2 — Credential File Delivery
 
-- `secret_file_template`, `agent_file_render`, and `agent_file_render_param`,
-  with three-source parameter resolution;
-- the built-in templates of §5.4, beginning with the families that have no
-  usable environment form — `kubeconfig`, container-registry credentials — then
-  those where a file additionally helps: version control, AWS, npm;
-- every §8.3 write constraint, including refusal of shell-startup and
-  command-bearing targets; and
-- one entry usable as a variable and a template parameter at once.
+- the built-in renderers of §6.3, beginning with the families that have no
+  usable environment form — `kubeconfig`, `docker_config` — then those where a
+  file additionally helps: `git_credentials`, `aws_credentials`, `npmrc`,
+  `netrc`;
+- file consumption config on the Agent revision, mapping parameters to items or
+  literals;
+- every §8.3 write constraint, enforced by the renderer owning `target_path`
+  and `mode`; and
+- one item usable as a variable and a renderer parameter at once.
 
 ### Phase 3 — Short-Lived Credential Exchange
 
@@ -973,14 +903,14 @@ Phase 1 does not ship until these hold:
 1. a database backup alone cannot recover a value;
 2. no user-facing operation reveals a value;
 3. a worker cannot obtain a Secret outside its stored TaskRun grants, and a run
-   receives nothing its Agent revision did not declare;
-4. a declaration referencing another Team's Secret is refused at write time,
-   as is one naming an entry the current version does not have;
-5. rotating a multi-entry Secret is atomic: no run resolves one entry from one
-   version and another entry from the next;
+   receives nothing its Agent revision did not configure;
+4. an Agent revision consuming another Team's Secret is refused when saved, as
+   is one naming an item the Secret does not have;
+5. rotating a multi-item Secret is atomic: a run resolves every item from one
+   decrypt, never one item from before a rotation and another from after;
 6. the worker's inherited environment does not reach model-chosen commands, and
    BuildMax's own credentials are never delivered as grants;
-7. rotation affects the next run rather than mutating one in flight;
+7. rotation affects a run claimed after it, never one already materialized;
 8. a terminal run cannot materialize again;
 9. audit and trace metadata explain the grant without containing credential
    material; and
@@ -1003,8 +933,8 @@ them.
 
 ## 20. Open Questions
 
-1. May an `admin` see Secret metadata and binding health without gaining value
-   or binding authority, or is listing owner-only?
+1. Is `admin` visibility of Secret metadata and consumption health right, or
+   should even listing be owner-only?
 2. Is an external-provider locator encrypted with the value, or is
    database-visible provider metadata necessary for operation and audit?
 3. Does the embedded KEK baseline accept an environment value for Compose
@@ -1017,17 +947,13 @@ them.
    and what happens when renewal cannot complete?
 7. Which OIDC claims are stable and useful to Vault, AWS, and GCP without
    exposing mutable names?
-8. Does a Secret version stay decryptable while a queued or retryable run
-   references it, and what retention stops an abandoned run from blocking
-   destruction?
-9. What artifact behavior is honest when a credential-bearing process writes the
+8. What artifact behavior is honest when a credential-bearing process writes the
    value, or a transformed form of it, into an output file?
-10. Are Team-defined file templates worth their write-path risk in Phase 2, or
-    should it ship built-in templates only until a deployment names a family
-    BuildMax does not cover?
-11. Does the run's environment baseline need an operator escape hatch for
+9. Do the built-in renderers suffice, or does a deployment need Team-defined file
+   templates — and if so, how are `target_path` and `mode` constrained so a
+   template cannot render into a shell-startup file?
+10. Does the run's environment baseline need an operator escape hatch for
     deployments that legitimately pass ambient configuration into runs, or does
-    declaring a grant cover every real case?
-12. May an Agent declare a Secret requirement the Team has not yet bound, so
-    Portal can show the gap, or must declaration and binding be written
-    together?
+    a grant cover every real case?
+11. Does any real credential need point-in-time value recovery strongly enough
+    to reintroduce item versioning, given §17 leaves the door open?

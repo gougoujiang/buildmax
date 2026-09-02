@@ -77,12 +77,13 @@ loaded only when an agent names it.
 authorize a stored or externally managed credential for a run without exposing
 it to the whole worker; the direction was accepted and is now the [Team Secrets
 design](../design/team-secrets.md). It answers the delivery half against the
-paper's own first recommendation: a credential is delivered to the run, as a
-declared environment variable or a rendered credential file, not into one named
-plugin consumer, because an Agent invokes tools it selects at run time and
-per-tool adaptation cannot reach them. The record states plainly that an Agent
-can read what its run was granted, and moves the safety onto Team ownership,
-per-Agent declaration, short-lived credentials, and audit.
+paper's own first recommendation: a credential is delivered to the run, as an
+environment variable or a rendered credential file, not into one named plugin
+consumer, because an Agent invokes tools it selects at run time and per-tool
+adaptation cannot reach them. A Secret is a Team-owned group of key/values in
+one encrypted row, consumption is configured on the Agent, and the record states
+plainly that an Agent can read what its run was granted — moving the safety onto
+Team ownership, per-Agent consumption, short-lived credentials, and audit.
 
 *Agent-managed worktrees and a mutable workspace root* asked whether one
 interactive session should create a Git worktree and move its own workspace
