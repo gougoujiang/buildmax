@@ -139,6 +139,18 @@ describe('ChatInput command palette', () => {
     expect(onSend).not.toHaveBeenCalled();
   });
 
+  it('still loads the model picker when the commands binding is absent', async () => {
+    // A running app that has not regenerated its Wails bindings has no
+    // GetSlashCommands; calling it must not take the model load down with it.
+    const app = makeApp({
+      GetSlashModels: () => Promise.resolve({ models: [{ name: 'gpt-4o', is_current: true }], current: 'gpt-4o' }),
+    });
+    delete app.GetSlashCommands;
+    renderInput({ app });
+
+    expect(await screen.findByText('gpt-4o')).toBeTruthy();
+  });
+
   it('sends a "/name" that is not a command as a normal message', async () => {
     const onSend = vi.fn();
     const app = makeApp({ GetSlashCommands: () => Promise.resolve(commands) });

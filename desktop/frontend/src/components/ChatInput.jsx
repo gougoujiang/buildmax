@@ -108,7 +108,10 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
       app.GetSlashModels(currentProject.id),
       app.GetSlashSkills(currentProject.id),
       app.GetGitBranch(currentProject.id),
-      app.GetSlashCommands(),
+      // Guarded: a call to a binding the running app has not regenerated yet
+      // would throw synchronously here and take the model and skill loads down
+      // with it. The palette simply has no commands until the app is rebuilt.
+      app.GetSlashCommands ? app.GetSlashCommands() : Promise.resolve([]),
     ]).then(([modelsRes, skillsRes, branchRes, cmdRes]) => {
       if (modelsRes.status === 'fulfilled') {
         setModels(modelsRes.value.models ?? []);
