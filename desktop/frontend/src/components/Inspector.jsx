@@ -42,8 +42,8 @@ export function Inspector({ view, expanded, width, projectID, sessionID, project
         </div>
       </div>
       <div className="inspector__body">
-        {view === 'files' && <FileTree projectID={projectID} app={app} />}
-        {view === 'diff' && <DiffPanel projectID={projectID} app={app} />}
+        {view === 'files' && <FileTree projectID={projectID} sessionID={sessionID} app={app} />}
+        {view === 'diff' && <DiffPanel projectID={projectID} sessionID={sessionID} app={app} />}
         {view === 'info' && <InfoPanel projectID={projectID} sessionID={sessionID} projectName={projectName} workspace={workspace} app={app} />}
       </div>
     </aside>

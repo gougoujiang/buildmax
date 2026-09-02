@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/gougoujiang/buildmax/internal/core/session"
 )
 
 // maxFilePreviewBytes bounds a file preview so opening a huge file in the tree
@@ -34,16 +36,36 @@ type WorkspaceListing struct {
 	Error   string           `json:"error,omitempty"`
 }
 
-// ListWorkspaceDir lists one directory of a project's workspace so the Desktop
+// resolveWorkspace returns the workspace root a Desktop panel should read: the
+// session's own Workspace when it has one, since a session may run in a
+// worktree distinct from its Project's DefaultWorkspace (see
+// session.Meta.Workspace). It falls back to the Project's DefaultWorkspace
+// when sessionID is empty (a pending new chat) or the session has no
+// Workspace of its own.
+func resolveWorkspace(projectID, sessionID string) (string, error) {
+	if sessionID != "" {
+		loaded, err := sessionManager().Load(sessionID, session.LoadMetaOnly)
+		if err == nil && loaded.Meta.Workspace != "" {
+			return loaded.Meta.Workspace, nil
+		}
+	}
+	proj, err := projectManager().Store().Get(context.Background(), projectID)
+	if err != nil {
+		return "", err
+	}
+	return proj.DefaultWorkspace, nil
+}
+
+// ListWorkspaceDir lists one directory of a session's workspace so the Desktop
 // file tree can expand lazily instead of walking the whole repository. relPath
 // is slash-separated and relative to the workspace root; "" lists the root. The
 // path is normalised so it can never escape the root.
-func (a *App) ListWorkspaceDir(projectID, relPath string) (WorkspaceListing, error) {
-	proj, err := projectManager().Store().Get(context.Background(), projectID)
+func (a *App) ListWorkspaceDir(projectID, sessionID, relPath string) (WorkspaceListing, error) {
+	root, err := resolveWorkspace(projectID, sessionID)
 	if err != nil {
 		return WorkspaceListing{}, err
 	}
-	return listWorkspaceDir(proj.DefaultWorkspace, relPath)
+	return listWorkspaceDir(root, relPath)
 }
 
 // WorkspaceFile is a text preview of one workspace file. Binary content is
@@ -56,14 +78,14 @@ type WorkspaceFile struct {
 	Error     string `json:"error,omitempty"`
 }
 
-// ReadWorkspaceFile returns a bounded text preview of one file in a project's
+// ReadWorkspaceFile returns a bounded text preview of one file in a session's
 // workspace. relPath is slash-separated and cannot escape the workspace root.
-func (a *App) ReadWorkspaceFile(projectID, relPath string) (WorkspaceFile, error) {
-	proj, err := projectManager().Store().Get(context.Background(), projectID)
+func (a *App) ReadWorkspaceFile(projectID, sessionID, relPath string) (WorkspaceFile, error) {
+	root, err := resolveWorkspace(projectID, sessionID)
 	if err != nil {
 		return WorkspaceFile{}, err
 	}
-	return readWorkspaceFile(proj.DefaultWorkspace, relPath)
+	return readWorkspaceFile(root, relPath)
 }
 
 func readWorkspaceFile(root, relPath string) (WorkspaceFile, error) {

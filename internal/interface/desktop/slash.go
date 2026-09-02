@@ -276,21 +276,21 @@ func (a *App) GetSlashAgents(projectID string) (SlashAgentsResult, error) {
 
 // --- Git branch ---
 
-// GetGitBranch returns the current git branch for the given project's folder,
-// or an empty string if the folder is not a git repository.
-func (a *App) GetGitBranch(projectID string) (string, error) {
-	proj, err := projectManager().Store().Get(context.Background(), projectID)
+// GetGitBranch returns the current git branch for the given session's
+// workspace, or an empty string if that folder is not a git repository.
+func (a *App) GetGitBranch(projectID, sessionID string) (string, error) {
+	root, err := resolveWorkspace(projectID, sessionID)
 	if err != nil {
 		return "", err
 	}
-	return git.CurrentBranch(proj.DefaultWorkspace), nil
+	return git.CurrentBranch(root), nil
 }
 
-// GetWorkspaceDiff returns the current git-backed changed-file view for a project.
-func (a *App) GetWorkspaceDiff(projectID string) (git.WorkspaceDiff, error) {
-	proj, err := projectManager().Store().Get(context.Background(), projectID)
+// GetWorkspaceDiff returns the current git-backed changed-file view for a session's workspace.
+func (a *App) GetWorkspaceDiff(projectID, sessionID string) (git.WorkspaceDiff, error) {
+	root, err := resolveWorkspace(projectID, sessionID)
 	if err != nil {
 		return git.WorkspaceDiff{}, err
 	}
-	return git.ReadWorkspace(context.Background(), proj.DefaultWorkspace)
+	return git.ReadWorkspace(context.Background(), root)
 }

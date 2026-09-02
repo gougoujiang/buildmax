@@ -270,6 +270,10 @@ export default function App() {
     return projects.find((p) => p.id === sess.project_id) ?? null;
   }, [selectedId, newChatProject, sessions, projects]);
 
+  const currentSession = useMemo(() => (
+    selectedId ? sessions.find((s) => s.id === selectedId) ?? null : null
+  ), [selectedId, sessions]);
+
   const projectById = useMemo(() => {
     const map = new Map();
     for (const p of projects) map.set(p.id, p);
@@ -1232,7 +1236,7 @@ export default function App() {
                 projectID={currentProject.id}
                 sessionID={selectedId || ''}
                 projectName={currentProject.name}
-                workspace={currentProject.default_workspace}
+                workspace={currentSession?.workspace || currentProject.default_workspace}
                 app={app}
                 onToggleExpand={toggleInspectorExpand}
                 onClose={closeInspector}
