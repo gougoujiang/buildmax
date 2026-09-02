@@ -2,9 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ChatComposer } from '@buildmax/gui';
 import { formatTokenCount } from '../lib/format';
 import { ApprovalPanel } from './ApprovalPanel';
-import { DiffDrawer } from './DiffDrawer';
 import { JobsDrawer } from './JobsDrawer';
-import { InfoPanel } from './InfoPanel';
 import { HistoryModal } from './HistoryModal';
 import { AgentsModal, MCPModal, PluginsModal, ToolsModal, WorktreeModal } from './Modals';
 import { EventsOn } from '../lib/wailsRuntime';
@@ -135,7 +133,7 @@ export function ContextDonut({ status }) {
 
 // --- ChatInput ---
 
-export function ChatInput({ onSend, onCancel, loading, error, onDismissError, currentProject, app, approvalRequest, onRespond, toolActivity, runStatus, sessionId, onRunStatusContext, onRewound, onForked, onCompacted, onCommandError, suggestion, onAcceptSuggestion }) {
+export function ChatInput({ onSend, onCancel, loading, error, onDismissError, currentProject, app, approvalRequest, onRespond, toolActivity, runStatus, sessionId, onRunStatusContext, onRewound, onForked, onCompacted, onCommandError, suggestion, onAcceptSuggestion, onOpenInspector }) {
   const [prompt, setPrompt] = useState('');
 
   // Palette state.
@@ -157,11 +155,9 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
   const [showMCP, setShowMCP] = useState(false);
   const [showAgents, setShowAgents] = useState(false);
   const [showPlugins, setShowPlugins] = useState(false);
-  const [showDiff, setShowDiff] = useState(false);
   const [showJobs, setShowJobs] = useState(false);
   const [showTools, setShowTools] = useState(false);
   const [showWorktree, setShowWorktree] = useState(false);
-  const [showInfo, setShowInfo] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
 
   // Count of running background jobs for the status-bar badge. The Go side
@@ -271,14 +267,14 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
     setSelected(0);
     switch (name) {
       case 'model': setShowModelDropdown(true); break;
-      case 'diff': setShowDiff(true); break;
+      case 'diff': onOpenInspector?.('diff'); break;
       case 'mcp': setShowMCP(true); break;
       case 'agents': setShowAgents(true); break;
       case 'plugins': setShowPlugins(true); break;
       case 'tasks': setShowJobs(true); break;
       case 'tools': setShowTools(true); break;
       case 'worktree': setShowWorktree(true); break;
-      case 'info': setShowInfo(true); break;
+      case 'info': onOpenInspector?.('info'); break;
       case 'rewind':
       case 'fork':
         if (sessionId) setShowHistory(true);
@@ -476,22 +472,11 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
       {showPlugins && (
         <PluginsModal projectID={currentProject.id} app={app} onClose={() => setShowPlugins(false)} />
       )}
-      {showDiff && (
-        <DiffDrawer projectID={currentProject.id} app={app} onClose={() => setShowDiff(false)} />
-      )}
       {showTools && (
         <ToolsModal projectID={currentProject.id} app={app} onClose={() => setShowTools(false)} />
       )}
       {showWorktree && (
         <WorktreeModal projectID={currentProject.id} app={app} onClose={() => setShowWorktree(false)} />
-      )}
-      {showInfo && (
-        <InfoPanel
-          projectID={currentProject.id}
-          sessionID={sessionId || ''}
-          app={app}
-          onClose={() => setShowInfo(false)}
-        />
       )}
       {showJobs && (
         <JobsDrawer projectID={currentProject.id} app={app} onClose={() => setShowJobs(false)} />

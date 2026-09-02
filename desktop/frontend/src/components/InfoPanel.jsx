@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { formatTokenCount, formatBytes } from '../lib/format';
 import { MemoryView } from './MemoryDrawer';
 
@@ -119,49 +119,30 @@ function SessionTab({ projectID, sessionID, app }) {
 // directions — what this session has done, and what this project knows. They
 // share nothing else (one ends with the session, the other outlives it), so
 // they are tabs rather than one merged view. See docs/reference/cli.md.
-export function InfoPanel({ projectID, sessionID, app, onClose }) {
+export function InfoPanel({ projectID, sessionID, app }) {
   const [tab, setTab] = useState('session');
-  const drawerRef = useRef(null);
-
-  useEffect(() => {
-    function onKey(e) { if (e.key === 'Escape') onClose(); }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
-  useEffect(() => { drawerRef.current?.focus(); }, []);
 
   return (
-    <div
-      ref={drawerRef}
-      className="diff-drawer"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Session info"
-      tabIndex={-1}
-    >
-      <div className="diff-drawer__header">
-        <div className="info-tabs" role="tablist" aria-label="Info">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === 'session'}
-            className={`info-tabs__tab ${tab === 'session' ? 'info-tabs__tab--active' : ''}`}
-            onClick={() => setTab('session')}
-          >
-            Session
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === 'memory'}
-            className={`info-tabs__tab ${tab === 'memory' ? 'info-tabs__tab--active' : ''}`}
-            onClick={() => setTab('memory')}
-          >
-            Memory
-          </button>
-        </div>
-        <button type="button" className="diff-drawer__close" onClick={onClose} aria-label="Close">×</button>
+    <div className="info-panel">
+      <div className="info-panel__tabs info-tabs" role="tablist" aria-label="Info">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'session'}
+          className={`info-tabs__tab ${tab === 'session' ? 'info-tabs__tab--active' : ''}`}
+          onClick={() => setTab('session')}
+        >
+          Session
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'memory'}
+          className={`info-tabs__tab ${tab === 'memory' ? 'info-tabs__tab--active' : ''}`}
+          onClick={() => setTab('memory')}
+        >
+          Memory
+        </button>
       </div>
 
       {tab === 'session'

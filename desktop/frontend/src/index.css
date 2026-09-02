@@ -3,6 +3,7 @@
 @import './css/layout.css';
 @import './css/sidebar.css';
 @import './css/chat-detail.css';
+@import './css/inspector.css';
 @import './css/login.css';
 
 * {
