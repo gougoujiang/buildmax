@@ -190,7 +190,7 @@ One Team-owned Secret. A **Secret is a group**: one name holding several named
 | `state` | `active`, `disabled`, or `destroyed` |
 | `ciphertext`, `nonce` | The AEAD-encrypted item map, or an encrypted provider descriptor |
 | `item_names` | The keys present, stored in the clear |
-| `wrapped_dek`, `key_id` | Envelope-encryption metadata |
+| `wrapped_dek`, `key_id` | The DEK sealed by a KEK, and which KEK sealed it (§9.1) |
 | `created_by`, timestamps | Administrative attribution |
 
 The items are **one encrypted JSON object in one row**. The value is a
@@ -482,13 +482,35 @@ and Secret public ID, so moving a ciphertext row between owners fails
 authentication.
 
 The DEK is wrapped by a KEK, which never belongs in the database or
-`server.yaml`. Its sources are a root-key file mounted read-only into the Server
-process for the portable baseline, a cloud KMS using workload identity, or a
-Vault transit key where a deployment already runs Vault.
+`server.yaml`. A KEK provider interface (§16) has three implementations, and a
+deployment selects one: a mounted key file for the portable baseline, a cloud
+KMS using workload identity, or a Vault transit key where a deployment already
+runs Vault. `key_id` on the row names which KEK wrapped that DEK, so unwrap
+selects the right key without a value ever being stored.
+
+**The default is the mounted key file, and these properties are decided rather
+than left to implementation:**
+
+- The file is mounted read-only into the Server process, mode `0400`, and lives
+  nowhere under a workspace, `BUILDMAX_HOME`, artifact path, or trace path. A
+  Kubernetes Secret or Compose volume delivers it.
+- **The file holds a set of KEKs, not one.** It is a map of `key_id` to key
+  material plus a pointer to the one KEK new writes use. A single key would make
+  the row's `key_id` versioning inert and would make KEK rotation a stop-the-
+  world re-encryption. With a set, rotation adds a new KEK, moves the pointer,
+  and rewraps each row's `wrapped_dek` in the background — the ciphertext never
+  changes because the DEK did not.
+- **The KEK is never passed through an environment variable**, not even for
+  Compose convenience. A process environment is visible to the process and its
+  children, which is the exposure this whole design withholds a value from; the
+  root key that unwraps every value is the last thing to place there. Compose
+  mounts the file like every other deployment.
 
 The Server fails startup when encrypted data exists and its KEK is missing or
 unusable. It must not generate a replacement key or treat values as empty.
-Losing the KEK means losing the values, and backup documentation says so.
+Losing the KEK means losing every value it wrapped, and backup documentation
+states that the key file is backed up and custodied separately from the
+database — a backup holding both is a backup with no protection at all.
 
 ### 9.2 External Secret Reference
 
@@ -937,23 +959,21 @@ them.
    should even listing be owner-only?
 2. Is an external-provider locator encrypted with the value, or is
    database-visible provider metadata necessary for operation and audit?
-3. Does the embedded KEK baseline accept an environment value for Compose
-   convenience, or a mounted file only?
-4. Which object-storage replacement preserves large-file performance across
+3. Which object-storage replacement preserves large-file performance across
    local-process, Compose, and Kubernetes deployments?
-5. Does a materialization append to the existing audit trail, a dedicated access
+4. Does a materialization append to the existing audit trail, a dedicated access
    ledger, or both with one explicitly derived from the other?
-6. How is a lease renewed when the Agent loop is blocked in a long tool call,
+5. How is a lease renewed when the Agent loop is blocked in a long tool call,
    and what happens when renewal cannot complete?
-7. Which OIDC claims are stable and useful to Vault, AWS, and GCP without
+6. Which OIDC claims are stable and useful to Vault, AWS, and GCP without
    exposing mutable names?
-8. What artifact behavior is honest when a credential-bearing process writes the
+7. What artifact behavior is honest when a credential-bearing process writes the
    value, or a transformed form of it, into an output file?
-9. Do the built-in renderers suffice, or does a deployment need Team-defined file
+8. Do the built-in renderers suffice, or does a deployment need Team-defined file
    templates — and if so, how are `target_path` and `mode` constrained so a
    template cannot render into a shell-startup file?
-10. Does the run's environment baseline need an operator escape hatch for
-    deployments that legitimately pass ambient configuration into runs, or does
-    a grant cover every real case?
-11. Does any real credential need point-in-time value recovery strongly enough
+9. Does the run's environment baseline need an operator escape hatch for
+   deployments that legitimately pass ambient configuration into runs, or does a
+   grant cover every real case?
+10. Does any real credential need point-in-time value recovery strongly enough
     to reintroduce item versioning, given §17 leaves the door open?
