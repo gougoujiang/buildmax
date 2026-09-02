@@ -13,13 +13,19 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/util"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type taskRunRow struct {
 	ID       uint64 `gorm:"primaryKey;autoIncrement"`
 	PublicID string `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_task_run_public_id;not null"`
-	TaskID   uint64 `gorm:"column:task_id;not null;index:idx_task_run_task_created,priority:1"`
+	TaskID   uint64 `gorm:"column:task_id;not null;index:idx_task_run_task_created,priority:1;uniqueIndex:idx_task_run_idempotency,priority:1"`
 	Input    string `gorm:"type:text;not null"`
+	// IdempotencyKey is the caller's dedup key for Continue, scoped to this
+	// task by the composite unique index above. NULL is not a duplicate of
+	// NULL in MySQL's unique index, so every run created without a key (the
+	// common case: retries, workflow steps, issue agent runs) coexists freely.
+	IdempotencyKey *string `gorm:"column:idempotency_key;type:varchar(128);uniqueIndex:idx_task_run_idempotency,priority:2"`
 	// CreatedBy stays an opaque handle: created_by_type admits "webhook" and
 	// "system", neither of which is a user row.
 	CreatedBy        string     `gorm:"type:varchar(64);index"`
@@ -137,6 +143,7 @@ func toTaskRun(row *taskRunReadRow) *coretask.Run {
 		CancelRequestedAt:     row.Row.CancelRequestedAt,
 		LastSeenAt:            row.Row.LastSeenAt,
 		CreatedAt:             row.Row.CreatedAt,
+		IdempotencyKey:        row.Row.IdempotencyKey,
 	}
 	if row.Row.CancelRequestedBy != nil {
 		by := derefPublicID(row.CancelRequestedByPub)
@@ -218,56 +225,107 @@ func buildTaskRunUpdates(in taskRunUpdate) map[string]interface{} {
 }
 
 // CreateTaskRun creates a new run (PENDING). Returns coretask.ErrRunInProgress if the task has any run in PENDING, SCHEDULED, or RUNNING.
+//
+// The idempotency check, the active-run check, and the insert run inside one
+// transaction that first takes a locking read on the task row. Without that
+// lock, two concurrent callers for the same task — a doubled client retry of
+// Continue, or a Continue racing a scheduler-issued retry — could each count
+// zero active runs and each insert one, defeating the one-active-run-per-task
+// rule the count exists to enforce. Locking the task row rather than the count
+// query itself is what makes the second caller wait instead of racing it:
+// MySQL has no locking read over an aggregate. The same lock is what lets a
+// repeated idempotency key be looked up and an in-flight active run be
+// refused as one atomic decision rather than two separate racing reads.
 func (s *Store) CreateTaskRun(ctx context.Context, in coretask.CreateRunInput) (*coretask.Run, error) {
-	taskKey, err := lookupKey(ctx, s.db, "task", in.TaskID)
-	if err != nil {
-		return nil, err
+	canonicalTaskID, ok := util.CanonicalPublicID(in.TaskID)
+	if !ok {
+		return nil, apierr.ErrNotFound
 	}
-	var inProgress int64
-	err = s.db.WithContext(ctx).Model(&taskRunRow{}).Where("task_id = ? AND status IN ?", taskKey, coretask.ActiveRunStatuses()).Count(&inProgress).Error
-	if err != nil {
-		return nil, err
-	}
-	if inProgress > 0 {
-		return nil, coretask.ErrRunInProgress
-	}
-	row := &taskRunRow{
-		TaskID:        taskKey,
-		Input:         in.Input,
-		CreatedBy:     in.CreatedBy,
-		CreatedByType: defaultString(in.CreatedByType, coretask.RunCreatedByTypeUser),
-		TriggerSource: defaultString(in.TriggerSource, coretask.RunTriggerSourceTaskRerun),
-		Status:        "PENDING",
-		CreatedAt:     time.Now().UTC(),
-	}
-	var retryOf *string
-	if in.RetryOfTaskRunID != nil && *in.RetryOfTaskRunID != "" {
-		key, err := lookupKey(ctx, s.db, "task_run", *in.RetryOfTaskRunID)
-		if err != nil {
-			return nil, err
+	var row *taskRunRow
+	var retryOf, sourceMessage *string
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var taskLock taskRow
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Select("id").Where("public_id = ?", canonicalTaskID).Take(&taskLock).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return apierr.ErrNotFound
+			}
+			return err
 		}
-		row.RetryOfTaskRunID = &key
-		retryOf = optionalCanonicalPublicID(in.RetryOfTaskRunID)
-	}
-	// A message that cannot be resolved leaves the run unattributed rather than
-	// refusing it. Losing the provenance of work someone asked for is bad;
-	// refusing to do the work because its provenance would not resolve is worse.
-	sourceKey, err := optionalKey(ctx, s.db, "conversation_message", in.SourceMessageID)
-	if err != nil && !errors.Is(err, apierr.ErrNotFound) {
+		taskKey := taskLock.ID
+
+		// An idempotency key wins over everything below it, including the
+		// active-run check: a client retrying a Continue it already sent must
+		// get back the run that request created, whether that run is still
+		// active or has since finished — not ErrRunInProgress while it runs and
+		// a second row once it does not.
+		if in.IdempotencyKey != nil && *in.IdempotencyKey != "" {
+			var existing taskRunReadRow
+			err := taskRunSelectTx(tx).
+				Where("task_run.task_id = ? AND task_run.idempotency_key = ?", taskKey, *in.IdempotencyKey).
+				Take(&existing).Error
+			if err == nil {
+				row = &existing.Row
+				retryOf = existing.RetryOfPublicID
+				sourceMessage = existing.SourceMessagePublicID
+				return nil
+			}
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return err
+			}
+		}
+
+		var inProgress int64
+		if err := tx.Model(&taskRunRow{}).Where("task_id = ? AND status IN ?", taskKey, coretask.ActiveRunStatuses()).
+			Count(&inProgress).Error; err != nil {
+			return err
+		}
+		if inProgress > 0 {
+			return coretask.ErrRunInProgress
+		}
+
+		row = &taskRunRow{
+			TaskID:                taskKey,
+			Input:                 in.Input,
+			CreatedBy:             in.CreatedBy,
+			CreatedByType:         defaultString(in.CreatedByType, coretask.RunCreatedByTypeUser),
+			TriggerSource:         defaultString(in.TriggerSource, coretask.RunTriggerSourceTaskRerun),
+			Status:                "PENDING",
+			CreatedAt:             time.Now().UTC(),
+			AgentRevision:         in.AgentRevision,
+			SandboxNetworkTier:    in.SandboxNetworkTier,
+			SandboxFilesystemTier: in.SandboxFilesystemTier,
+			IdempotencyKey:        in.IdempotencyKey,
+		}
+		if in.RetryOfTaskRunID != nil && *in.RetryOfTaskRunID != "" {
+			key, err := lookupKey(ctx, tx, "task_run", *in.RetryOfTaskRunID)
+			if err != nil {
+				return err
+			}
+			row.RetryOfTaskRunID = &key
+			retryOf = optionalCanonicalPublicID(in.RetryOfTaskRunID)
+		}
+		// A message that cannot be resolved leaves the run unattributed rather
+		// than refusing it. Losing the provenance of work someone asked for is
+		// bad; refusing to do the work because its provenance would not resolve
+		// is worse.
+		sourceKey, err := optionalKey(ctx, tx, "conversation_message", in.SourceMessageID)
+		if err != nil && !errors.Is(err, apierr.ErrNotFound) {
+			return err
+		}
+		row.SourceMessageID = sourceKey
+		if sourceKey != nil {
+			sourceMessage = optionalCanonicalPublicID(in.SourceMessageID)
+		}
+		return createWithPublicID(ctx, tx, "uq_task_run_public_id",
+			func(id string) { row.PublicID = id }, row)
+	})
+	if err != nil {
 		return nil, err
-	}
-	row.SourceMessageID = sourceKey
-	if err := createWithPublicID(ctx, s.db, "uq_task_run_public_id",
-		func(id string) { row.PublicID = id }, row); err != nil {
-		return nil, err
-	}
-	var sourceMessage *string
-	if sourceKey != nil {
-		sourceMessage = optionalCanonicalPublicID(in.SourceMessageID)
 	}
 	return toTaskRun(&taskRunReadRow{
 		Row:                   *row,
-		TaskPublicID:          canonicalPublicID(in.TaskID),
+		TaskPublicID:          canonicalTaskID,
 		RetryOfPublicID:       retryOf,
 		SourceMessagePublicID: sourceMessage,
 	}), nil
@@ -390,6 +448,26 @@ func (s *Store) GetTaskRun(ctx context.Context, taskRunID string) (*coretask.Run
 		return nil, err
 	}
 	return toTaskRun(&r), nil
+}
+
+func (s *Store) ListTaskRunsByTask(ctx context.Context, taskID string) ([]coretask.Run, error) {
+	key, err := lookupKey(ctx, s.db, "task", taskID)
+	if errors.Is(err, apierr.ErrNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var rows []taskRunReadRow
+	if err := s.taskRunSelect(ctx).Where("task_run.task_id = ?", key).
+		Order("task_run.created_at ASC, task_run.id ASC").Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	out := make([]coretask.Run, len(rows))
+	for i := range rows {
+		out[i] = *toTaskRun(&rows[i])
+	}
+	return out, nil
 }
 
 // GetTaskRunWithTask returns the run and its task, or (nil, nil, nil) if run not found.

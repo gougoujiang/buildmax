@@ -96,8 +96,8 @@ func BuildArtifactStorage(cfg config.WorkspaceStorageConfig, artifactDir func(te
 }
 
 // BuildRunOutputStorage returns the configured run-output storage implementation.
-// runOutputDir is (userID, conversationID, taskID, taskRunID) -> path for run output files.
-func BuildRunOutputStorage(cfg config.WorkspaceStorageConfig, runOutputDir func(userID, conversationID, taskID, taskRunID string) string, s3Client blob.S3Client) (blob.RunOutputStorage, error) {
+// runOutputDir is (teamID, taskID, taskRunID) -> path for run output files.
+func BuildRunOutputStorage(cfg config.WorkspaceStorageConfig, runOutputDir func(teamID, taskID, taskRunID string) string, s3Client blob.S3Client) (blob.RunOutputStorage, error) {
 	switch cfg.ArtifactProvider {
 	case config.ProviderMinIO:
 		if s3Client == nil {

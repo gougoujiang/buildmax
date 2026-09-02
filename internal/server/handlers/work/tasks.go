@@ -13,13 +13,13 @@ import (
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
-	"github.com/gougoujiang/buildmax/internal/service/conversation"
 	"github.com/gougoujiang/buildmax/internal/service/task"
 )
 
 type TaskResponse struct {
 	ID             string     `json:"id"`
-	ConversationID string     `json:"conversation_id"`
+	TeamID         string     `json:"team_id"`
+	ConversationID string     `json:"conversation_id,omitempty"`
 	SessionID      *string    `json:"session_id,omitempty"`
 	Status         string     `json:"status"`
 	Input          string     `json:"input"`
@@ -49,6 +49,7 @@ type createTaskRequest struct {
 func taskToResponse(task coretask.Task) TaskResponse {
 	return TaskResponse{
 		ID:             task.ID,
+		TeamID:         task.TeamID,
 		ConversationID: task.ConversationID,
 		SessionID:      task.SessionID,
 		Status:         task.Status,
@@ -64,6 +65,86 @@ func taskToResponse(task coretask.Task) TaskResponse {
 		IssueID:        task.IssueID,
 		LastRunID:      task.LastRunID,
 	}
+}
+
+func (h *Handler) createTeamTaskHandler(w http.ResponseWriter, r *http.Request) {
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Tasks, "tasks not configured")
+	if !ok {
+		return
+	}
+	var req createTaskRequest
+	if !httputil.DecodeJSONBody(w, r, &req) {
+		return
+	}
+	h.createDirectTask(w, r, userID, teamID, req)
+}
+
+func (h *Handler) createAgentTaskHandler(w http.ResponseWriter, r *http.Request) {
+	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Tasks, "tasks not configured")
+	if !ok {
+		return
+	}
+	agentID, ok := httputil.PathValue(w, r, "agent_id")
+	if !ok {
+		return
+	}
+	var req createTaskRequest
+	if !httputil.DecodeJSONBody(w, r, &req) {
+		return
+	}
+	req.AgentID = &agentID
+	h.createDirectTask(w, r, userID, teamID, req)
+}
+
+func (h *Handler) createDirectTask(w http.ResponseWriter, r *http.Request, userID, teamID string, req createTaskRequest) {
+	created, err := h.taskService().CreateTask(r.Context(), task.CreateTaskCmd{
+		UserID: userID, TeamID: teamID, Input: req.Input, AgentID: req.AgentID,
+		CreatedByType: coretask.RunCreatedByTypeUser,
+		TriggerSource: coretask.RunTriggerSourcePortalTaskCreate,
+	})
+	if err != nil {
+		if h.writeTaskServiceError(w, r, err, req.AgentID) {
+			return
+		}
+		httputil.WriteInternalError(w, err, "handler error", "handler", "create_direct_task", "team_id", teamID)
+		return
+	}
+	httputil.WriteJSON(w, http.StatusCreated, taskToResponse(*created))
+}
+
+func (h *Handler) listAgentTasksHandler(w http.ResponseWriter, r *http.Request) {
+	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Tasks, "tasks not configured")
+	if !ok {
+		return
+	}
+	agentID, ok := httputil.PathValue(w, r, "agent_id")
+	if !ok {
+		return
+	}
+	if h.cfg.Agents == nil {
+		httputil.WriteJSONError(w, http.StatusServiceUnavailable, "agents not configured")
+		return
+	}
+	agent, err := h.cfg.Agents.GetAgent(r.Context(), agentID)
+	if err != nil {
+		httputil.WriteInternalError(w, err, "handler error", "handler", "list_agent_tasks", "agent_id", agentID)
+		return
+	}
+	if agent == nil || agent.TeamID != teamID {
+		httputil.WriteJSONError(w, http.StatusNotFound, "agent not found")
+		return
+	}
+	limit, offset := httputil.LimitOffset(r.URL.Query(), "limit", "offset", httputil.BulkPageDefault, httputil.BulkPageMax)
+	list, total, err := h.cfg.Tasks.ListTasksByAgent(r.Context(), teamID, agentID, limit, offset)
+	if err != nil {
+		httputil.WriteInternalError(w, err, "handler error", "handler", "list_agent_tasks", "agent_id", agentID)
+		return
+	}
+	out := make([]TaskResponse, len(list))
+	for i := range list {
+		out[i] = taskToResponse(list[i])
+	}
+	httputil.WriteJSON(w, http.StatusOK, tasksListResponse{Tasks: out, Total: total})
 }
 
 func (h *Handler) taskService() *task.Service {
@@ -111,15 +192,11 @@ func (h *Handler) getTaskForTeam(w http.ResponseWriter, r *http.Request, teamID,
 		httputil.WriteJSONError(w, http.StatusNotFound, "task not found")
 		return nil, nil, false
 	}
-	conv, ok := h.getConversationForTeam(w, r, teamID, task.ConversationID)
-	if !ok {
-		return nil, nil, false
-	}
-	if task.TeamID != "" && task.TeamID != teamID {
+	if task.TeamID != teamID {
 		httputil.WriteJSONError(w, http.StatusNotFound, "task not found")
 		return nil, nil, false
 	}
-	return task, conv, true
+	return task, nil, true
 }
 
 type tasksListResponse struct {
@@ -235,41 +312,20 @@ func (h *Handler) getTaskHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	task, _, ok := h.getTaskForTeam(w, r, teamID, taskID)
+	target, _, ok := h.getTaskForTeam(w, r, teamID, taskID)
 	if !ok {
 		return
 	}
-	httputil.WriteJSON(w, http.StatusOK, taskToResponse(*task))
+	httputil.WriteJSON(w, http.StatusOK, taskToResponse(*target))
 }
 
 type createTaskRunRequest struct {
 	Input string `json:"input"`
-}
-
-func (h *Handler) createTaskRunViaConversation(w http.ResponseWriter, r *http.Request, userID, taskID, input string) bool {
-	result, err := h.conversationService().RerunTask(r.Context(), conversation.RerunTaskCmd{
-		UserID:  userID,
-		Channel: "portal",
-		Message: input,
-		TaskID:  taskID,
-	})
-	if err != nil {
-		if h.writeConversationServiceError(w, r, err, nil) {
-			return true
-		}
-		if errors.Is(err, coretask.ErrRunInProgress) {
-			httputil.WriteJSONError(w, http.StatusConflict, "a run is already in progress for this task")
-			return true
-		}
-		httputil.WriteInternalError(w, err, "handler error", "handler", "create_run", "task_id", taskID)
-		return true
-	}
-	if len(result.Runs) == 0 {
-		httputil.WriteJSONError(w, http.StatusInternalServerError, "no run created")
-		return true
-	}
-	httputil.WriteJSON(w, http.StatusCreated, map[string]string{"task_run_id": result.Runs[0].RunID, "task_id": taskID})
-	return true
+	// IdempotencyKey lets a client that cannot tell whether its Continue
+	// request landed retry safely: a repeat with the same key on the same task
+	// returns the run the first request created instead of starting a second
+	// one. Optional; omitting it creates a new run unconditionally, as before.
+	IdempotencyKey *string `json:"idempotency_key,omitempty"`
 }
 
 func (h *Handler) createTaskRunHandler(w http.ResponseWriter, r *http.Request) {
@@ -281,7 +337,7 @@ func (h *Handler) createTaskRunHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	task, _, ok := h.getTaskForTeam(w, r, teamID, taskID)
+	target, _, ok := h.getTaskForTeam(w, r, teamID, taskID)
 	if !ok {
 		return
 	}
@@ -293,7 +349,45 @@ func (h *Handler) createTaskRunHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusBadRequest, "input required")
 		return
 	}
-	h.createTaskRunViaConversation(w, r, userID, task.ID, req.Input)
+	run, err := h.taskService().CreateRun(r.Context(), task.CreateRunCmd{
+		UserID: userID, TaskID: target.ID, Input: req.Input,
+		CreatedByType:  coretask.RunCreatedByTypeUser,
+		TriggerSource:  coretask.RunTriggerSourcePortalTaskRerun,
+		IdempotencyKey: req.IdempotencyKey,
+	})
+	if err != nil {
+		if h.writeTaskServiceError(w, r, err, target.AgentID) {
+			return
+		}
+		if errors.Is(err, coretask.ErrRunInProgress) {
+			httputil.WriteJSONError(w, http.StatusConflict, "a run is already in progress for this task")
+			return
+		}
+		httputil.WriteInternalError(w, err, "handler error", "handler", "continue_task", "task_id", target.ID)
+		return
+	}
+	httputil.WriteJSON(w, http.StatusCreated, run)
+}
+
+func (h *Handler) listTaskRunsHandler(w http.ResponseWriter, r *http.Request) {
+	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.TaskRuns, "task runs not configured")
+	if !ok {
+		return
+	}
+	taskID, ok := httputil.PathValue(w, r, "task_id")
+	if !ok {
+		return
+	}
+	target, _, ok := h.getTaskForTeam(w, r, teamID, taskID)
+	if !ok {
+		return
+	}
+	runs, err := h.cfg.TaskRuns.ListTaskRunsByTask(r.Context(), target.ID)
+	if err != nil {
+		httputil.WriteInternalError(w, err, "handler error", "handler", "list_task_runs", "task_id", taskID)
+		return
+	}
+	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{"runs": runs})
 }
 
 // retryTaskResponse names the new run and the one it repeats, so a caller that

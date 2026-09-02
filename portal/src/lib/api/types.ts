@@ -155,7 +155,6 @@ export interface ApiWorkflowRun {
   workflow_id: string
   workflow_revision?: number | null
   issue_id?: string | null
-  conversation_id: string
   status: string
   created_by: string
   created_at: string
@@ -254,7 +253,8 @@ export interface ApiTasksListResponse {
 /** Task as returned by team-scoped task endpoints. */
 export interface ApiTask {
   id: string
-  conversation_id: string
+  team_id: string
+  conversation_id?: string
   session_id: string | null
   status: string
   input: string
@@ -271,6 +271,26 @@ export interface ApiTask {
   last_run_id?: string | null
   /** Runs of this task that stored output files, newest first. */
   artifact_run_ids?: string[]
+}
+
+export interface ApiTaskRun {
+  id: string
+  task_id: string
+  input: string
+  created_by?: string
+  trigger_source?: string
+  status: string
+  output?: string | null
+  error_message?: string | null
+  created_at: string
+  started_at?: string | null
+  ended_at?: string | null
+  agent_revision?: number | null
+  retry_of_task_run_id?: string | null
+}
+
+export interface ApiTaskRunsResponse {
+  runs: ApiTaskRun[]
 }
 
 /** Where one task run came from, as returned by the run provenance endpoint. */

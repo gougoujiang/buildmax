@@ -86,6 +86,30 @@ func (m *MockTaskStore) ListTasksByIssue(_ context.Context, issueID string, limi
 	return filtered[offset:end], total, nil
 }
 
+func (m *MockTaskStore) ListTasksByAgent(_ context.Context, teamID, agentID string, limit, offset int) ([]coretask.Task, int, error) {
+	if m.ListErr != nil {
+		return nil, 0, m.ListErr
+	}
+	var filtered []coretask.Task
+	for _, task := range m.List {
+		if task.TeamID == teamID && task.AgentID != nil && *task.AgentID == agentID {
+			filtered = append(filtered, task)
+		}
+	}
+	for i, j := 0, len(filtered)-1; i < j; i, j = i+1, j-1 {
+		filtered[i], filtered[j] = filtered[j], filtered[i]
+	}
+	total := len(filtered)
+	if offset >= total {
+		return []coretask.Task{}, total, nil
+	}
+	end := offset + limit
+	if limit <= 0 || end > total {
+		end = total
+	}
+	return filtered[offset:end], total, nil
+}
+
 func (m *MockTaskStore) CreateTask(_ context.Context, in *coretask.CreateInput) (*coretask.Task, error) {
 	if m.CreateErr != nil {
 		return nil, m.CreateErr

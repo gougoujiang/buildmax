@@ -47,7 +47,6 @@ type workflowRunResponse struct {
 	WorkflowID       string     `json:"workflow_id"`
 	WorkflowRevision int        `json:"workflow_revision,omitempty"`
 	IssueID          *string    `json:"issue_id,omitempty"`
-	ConversationID   string     `json:"conversation_id"`
 	Status           string     `json:"status"`
 	CreatedBy        string     `json:"created_by"`
 	CreatedAt        time.Time  `json:"created_at"`
@@ -143,7 +142,6 @@ func workflowRunToResponse(run coreworkflow.Run) workflowRunResponse {
 		WorkflowID:       run.WorkflowID,
 		WorkflowRevision: run.WorkflowRevision,
 		IssueID:          run.IssueID,
-		ConversationID:   run.ConversationID,
 		Status:           run.Status,
 		CreatedBy:        run.CreatedBy,
 		CreatedAt:        run.CreatedAt,
@@ -183,11 +181,10 @@ func (h *Handler) workflowService() *workflow.Service {
 
 func newWorkflowService(cfg Config, tasks *task.Service) *workflow.Service {
 	return &workflow.Service{
-		Workflows:     cfg.Workflows,
-		Agents:        cfg.Agents,
-		Issues:        cfg.Issues,
-		Conversations: cfg.Conversations,
-		TaskService:   tasks,
+		Workflows:   cfg.Workflows,
+		Agents:      cfg.Agents,
+		Issues:      cfg.Issues,
+		TaskService: tasks,
 	}
 }
 

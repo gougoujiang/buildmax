@@ -93,7 +93,10 @@ audit, system administration, and a plugin catalog and activation model.
 Background execution supports local-process and Kubernetes Job launch modes,
 direct and managed inference, team-home materialization, run-scoped homes,
 artifact publication, heartbeats, cancellation, retry, stale-run recovery, and
-result delivery back into Tier 1 conversations.
+the current legacy result-presentation path into Conversations. TaskRun already
+holds the authoritative result; direct Agent execution and optional
+Conversation projection are planned in
+[design/agent-execution-and-task-threads.md](design/agent-execution-and-task-threads.md).
 
 Portal exposes the main collaboration and administration journeys. The
 production tree also includes Compose, kind, Kubernetes, release, SBOM,
@@ -285,17 +288,20 @@ one path. `TestSetTeamPluginCurationRoundTrips` had asserted that since
 2026-08-23 and skipped every time; the defect sat on `main` for 387 commits
 because nothing ever ran the test.
 
-Four store methods claim in their own comments that exactly one of several
-simultaneous callers may win — `ClaimTask`, `TransitionTaskRun`,
-`ClaimTaskResultDelivery`, and `RequestTaskRunCancel` — and each implements
-that as a conditional UPDATE resting on the server serializing two writes to
-one row. `internal/infra/db/concurrency_test.go` now tests all four under
-contention, and each was checked by mutation: replacing the conditional UPDATE
-with a read-then-write makes its test fail. That check mattered. The first
-task-claim test passed against a deliberately broken implementation, because
-MySQL reports rows *changed* rather than rows *matched*, so the seven losing
-callers writing a status the row already held were counted as zero affected
-rows — a concurrency test nobody has watched fail proves nothing.
+Three store methods claim in their own comments that exactly one of several
+simultaneous callers may win — `ClaimTask`, `TransitionTaskRun`, and
+`RequestTaskRunCancel` — and each implements that as a conditional UPDATE
+resting on the server serializing two writes to one row.
+`internal/infra/db/concurrency_test.go` now tests all three under contention,
+and each was checked by mutation: replacing the conditional UPDATE with a
+read-then-write makes its test fail. That check mattered. The first task-claim
+test passed against a deliberately broken implementation, because MySQL
+reports rows *changed* rather than rows *matched*, so the seven losing callers
+writing a status the row already held were counted as zero affected rows — a
+concurrency test nobody has watched fail proves nothing. A fourth method,
+`ClaimTaskResultDelivery`, made the same claim until the Tier 1 result-delivery
+mechanism it belonged to was removed; see
+[agent execution and Task threads](design/agent-execution-and-task-threads.md).
 
 What remains is case breadth, not mechanism.
 [`design/verification-program.md`](design/verification-program.md) §4.2 still

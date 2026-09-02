@@ -15,6 +15,7 @@ function message(id: string, at: number, role = "user"): ApiConversationMessage 
 function task(id: string, at: number, status = "RUNNING"): ApiTask {
   return {
     id,
+    team_id: "tm1",
     conversation_id: "conv1",
     session_id: null,
     status,

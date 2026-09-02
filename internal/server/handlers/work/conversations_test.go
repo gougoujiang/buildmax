@@ -68,11 +68,8 @@ func TestGetConversationMessagesHandler_HidesSystemMessages(t *testing.T) {
 	}
 }
 
-// A workflow step and an issue agent run each create a conversation because
-// Task requires one. They are not conversations anyone holds, and a team that
-// runs either would otherwise find its own pushed off the first page.
-func TestListConversationsHidesTheOnesNobodyHolds(t *testing.T) {
-	secret := "test-synthetic-conversations-secret"
+func TestListConversationsReturnsTeamConversations(t *testing.T) {
+	secret := "test-conversation-list-secret"
 	teamID := "tm_personal_u1"
 	h := New(Config{
 		JWTSecret: secret,
@@ -81,9 +78,7 @@ func TestListConversationsHidesTheOnesNobodyHolds(t *testing.T) {
 			Members: []coreteam.Member{{TeamID: teamID, UserID: "u1", Role: coreteam.RoleOwner}},
 		},
 		Conversations: &mock.MockConversationStore{Conversations: []coreconv.Conversation{
-			{ID: "conv_portal", UserID: "u1", TeamID: teamID, Channel: coreconv.ChannelWorkflow, CreatedBy: "u1"},
 			{ID: "conv_mine", UserID: "u1", TeamID: teamID, Channel: "portal", CreatedBy: "u1"},
-			{ID: "conv_issue", UserID: "u1", TeamID: teamID, Channel: coreconv.ChannelIssueAgent, CreatedBy: "u1"},
 			{ID: "conv_hook", UserID: "u1", TeamID: teamID, Channel: "webhook", CreatedBy: "u1"},
 		}},
 	})
@@ -102,22 +97,8 @@ func TestListConversationsHidesTheOnesNobodyHolds(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 		t.Fatalf("decode body: %v", err)
 	}
-	ids := make([]string, len(out.Conversations))
-	for i := range out.Conversations {
-		ids[i] = out.Conversations[i].ID
-	}
-	if len(ids) != 2 {
-		t.Fatalf("conversations = %v, want the portal and webhook ones only", ids)
-	}
-	// The total has to agree with the page: a count that included the hidden
-	// ones would make the list look paginated when it is not.
-	if out.Total != 2 {
-		t.Errorf("total = %d, want 2", out.Total)
-	}
-	for _, id := range ids {
-		if id == "conv_portal" || id == "conv_issue" {
-			t.Errorf("a conversation nobody holds is in the list: %s", id)
-		}
+	if out.Total != 2 || len(out.Conversations) != 2 {
+		t.Fatalf("conversations = %+v, total = %d, want both team conversations", out.Conversations, out.Total)
 	}
 }
 

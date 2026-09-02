@@ -2,15 +2,14 @@ package taskrun
 
 import "path/filepath"
 
-// RuntimePaths provides filesystem layout for user files, tasks, runs, and artifacts.
+// RuntimePaths provides the team-owned filesystem layout for tasks and runs.
 // It is injected for testability and to avoid hard dependency on internal/config.
 type RuntimePaths interface {
-	PersistentUserDir(userID string) string
-	RuntimeTaskRunDir(userID, conversationID, taskID, taskRunID string) string
-	RuntimeTaskRunHomeDir(userID, conversationID, taskID, taskRunID string) string
-	RuntimeTaskRunArtifactsDir(userID, conversationID, taskID, taskRunID string) string
-	RuntimeTaskRunGlobalDir(userID, conversationID, taskID, taskRunID string) string
-	RunOutputDir(userID, conversationID, taskID, taskRunID string) string
+	RuntimeTaskRunDir(teamID, taskID, taskRunID string) string
+	RuntimeTaskRunHomeDir(teamID, taskID, taskRunID string) string
+	RuntimeTaskRunArtifactsDir(teamID, taskID, taskRunID string) string
+	RuntimeTaskRunGlobalDir(teamID, taskID, taskRunID string) string
+	RunOutputDir(teamID, taskID, taskRunID string) string
 }
 
 // runtimePathsRoot implements RuntimePaths with a single root directory.
@@ -18,31 +17,27 @@ type runtimePathsRoot struct {
 	root string
 }
 
-// NewRuntimePathsFromRoot returns a RuntimePaths that uses root as the parent of all user dirs.
+// NewRuntimePathsFromRoot returns a RuntimePaths that uses root as the parent of all team dirs.
 func NewRuntimePathsFromRoot(root string) RuntimePaths {
 	return &runtimePathsRoot{root: root}
 }
 
-func (p *runtimePathsRoot) PersistentUserDir(userID string) string {
-	return filepath.Join(p.root, userID, "home")
+func (p *runtimePathsRoot) RuntimeTaskRunDir(teamID, taskID, taskRunID string) string {
+	return filepath.Join(p.root, teamID, "tasks", taskID, taskRunID)
 }
 
-func (p *runtimePathsRoot) RuntimeTaskRunDir(userID, conversationID, taskID, taskRunID string) string {
-	return filepath.Join(p.root, userID, "conversations", conversationID, "tasks", taskID, taskRunID)
+func (p *runtimePathsRoot) RuntimeTaskRunHomeDir(teamID, taskID, taskRunID string) string {
+	return filepath.Join(p.RuntimeTaskRunDir(teamID, taskID, taskRunID), "home")
 }
 
-func (p *runtimePathsRoot) RuntimeTaskRunHomeDir(userID, conversationID, taskID, taskRunID string) string {
-	return filepath.Join(p.RuntimeTaskRunDir(userID, conversationID, taskID, taskRunID), "home")
+func (p *runtimePathsRoot) RuntimeTaskRunArtifactsDir(teamID, taskID, taskRunID string) string {
+	return filepath.Join(p.RuntimeTaskRunDir(teamID, taskID, taskRunID), "artifacts")
 }
 
-func (p *runtimePathsRoot) RuntimeTaskRunArtifactsDir(userID, conversationID, taskID, taskRunID string) string {
-	return filepath.Join(p.RuntimeTaskRunDir(userID, conversationID, taskID, taskRunID), "artifacts")
+func (p *runtimePathsRoot) RuntimeTaskRunGlobalDir(teamID, taskID, taskRunID string) string {
+	return filepath.Join(p.RuntimeTaskRunDir(teamID, taskID, taskRunID), "global")
 }
 
-func (p *runtimePathsRoot) RuntimeTaskRunGlobalDir(userID, conversationID, taskID, taskRunID string) string {
-	return filepath.Join(p.RuntimeTaskRunDir(userID, conversationID, taskID, taskRunID), "global")
-}
-
-func (p *runtimePathsRoot) RunOutputDir(userID, conversationID, taskID, taskRunID string) string {
-	return filepath.Join(p.root, userID, "artifacts", conversationID, taskID, taskRunID)
+func (p *runtimePathsRoot) RunOutputDir(teamID, taskID, taskRunID string) string {
+	return p.RuntimeTaskRunArtifactsDir(teamID, taskID, taskRunID)
 }

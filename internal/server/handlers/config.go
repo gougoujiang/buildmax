@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
@@ -159,11 +158,6 @@ type Config struct {
 	// terminal status (after the internal hub/registry callbacks run).
 	OnTaskRunTerminal func(ctx context.Context, info coretask.RunTerminalInfo)
 
-	// TaskResultDeliveries records the reports the server owes finished runs.
-	// Nil means a report that fails is not retried, which is what a deployment
-	// with no database has.
-	TaskResultDeliveries coretask.ResultDeliveryStore
-
 	// Drain is closed when the server is going away. Watcher streams — the ones
 	// that only observe state living in the database — end on it so they stop
 	// holding the shutdown open, and so the browser knows to resubscribe
@@ -196,12 +190,6 @@ type Handler struct {
 	artifact      *artifactroutes.Handler
 	artifacts     *artifactsvc.Service
 	conversations *conversation.Service
-
-	// sweeper retries the reports this server owes. Started by the server that
-	// owns this handler, not by construction: a test builds handlers freely and
-	// should not acquire a goroutine by doing so.
-	sweepMu sync.Mutex
-	sweeper *deliverySweeper
 }
 
 // NewHandler returns a configured Handler. If cfg.Hub is nil a new StreamHub is created internally.

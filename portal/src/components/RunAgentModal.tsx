@@ -2,12 +2,7 @@ import { useState, useEffect } from "react"
 import type { Agent } from "../lib/types"
 import { BaseModal } from "@buildmax/gui"
 
-/** Builds the agent preview including ID so Tier 1 can pass it to StartTask. */
-export function buildAgentPreview(agent: Agent): string {
-  return `Agent: ${agent.name} (id: ${agent.id})\nDescription: ${agent.description ?? ""}\nInstructions:\n${agent.instructions ?? ""}\n\nPlease start a background task with this agent.`
-}
-
-interface NewConversationFromAgentProps {
+interface RunAgentModalProps {
   open: boolean
   agent: Agent | null
   loading: boolean
@@ -16,19 +11,19 @@ interface NewConversationFromAgentProps {
   onStart: (input: string) => void
 }
 
-export function NewConversationFromAgent({
+export function RunAgentModal({
   open,
   agent,
   loading,
   error,
   onClose,
   onStart,
-}: NewConversationFromAgentProps) {
+}: RunAgentModalProps) {
   const [input, setInput] = useState("")
 
   useEffect(() => {
     if (open && agent) {
-      setInput(buildAgentPreview(agent))
+      setInput("")
     }
   }, [open, agent])
 
@@ -41,30 +36,30 @@ export function NewConversationFromAgent({
   return (
     <BaseModal
       open={open}
-      title={`New conversation with ${agent.name}`}
-      titleId="new-conversation-from-agent-title"
+      title={`Run ${agent.name}`}
+      titleId="run-agent-modal-title"
       onClose={onClose}
       className="modal--large"
     >
       <div className="modal__body">
-        <p className="modal__hint" id="new-conversation-from-agent-hint">
-          Review and edit the instructions below. You can add more context before starting.
+        <p className="modal__hint" id="run-agent-modal-hint">
+          Describe what you want this agent to do. Its saved instructions are applied by the worker.
         </p>
-        <label className="modal__label" htmlFor="new-conversation-from-agent-input">
-          Instructions
+        <label className="modal__label" htmlFor="run-agent-modal-input">
+          Task
         </label>
         <textarea
-          id="new-conversation-from-agent-input"
-          className="modal__textarea new-conversation-from-agent-modal__textarea"
+          id="run-agent-modal-input"
+          className="modal__textarea run-agent-modal__textarea"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           rows={10}
           disabled={loading}
-          placeholder="Agent: ..."
-          aria-describedby="new-conversation-from-agent-hint"
+          placeholder="What should the agent do?"
+          aria-describedby="run-agent-modal-hint"
         />
         {error ? (
-          <p className="modal__error" id="new-conversation-from-agent-error" role="alert">
+          <p className="modal__error" id="run-agent-modal-error" role="alert">
             {error}
           </p>
         ) : null}
@@ -82,7 +77,7 @@ export function NewConversationFromAgent({
           type="button"
           className="modal__btn modal__btn--secondary"
           onClick={handleSubmit}
-          disabled={loading}
+          disabled={loading || input.trim() === ""}
         >
           {loading ? "Starting…" : "Start"}
         </button>

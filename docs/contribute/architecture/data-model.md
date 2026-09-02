@@ -157,9 +157,11 @@ erDiagram
 
 Team is the authorization boundary: a request is allowed because the caller has
 a `team_member` row for the resource's `team_id`. Issue is the primary
-user-facing work object. Conversation is Tier 1 and speaks to the user; task
-plus task_run is Tier 2 and reports back through Tier 1. See
-[../../design/surface-positioning.md](../../design/surface-positioning.md).
+user-facing work object. Conversation owns foreground chat and may create or
+project a Task. Task plus task_run is the durable Agent execution plane and its
+result is authoritative without a Conversation. The current non-null relation
+below is implementation debt; the target ownership and continuation model are
+in [Agent execution and Task threads](../../design/agent-execution-and-task-threads.md).
 
 ## Identity And Authorization
 
@@ -649,8 +651,8 @@ that produced the content it holds.
 
 ### `conversation`
 
-Tier 1. The orchestrator that holds foreground turns and is the single voice to
-the user.
+The independent foreground chat and optional Agent-task orchestrator. It owns
+its messages, not the Tasks it may start or display.
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
@@ -671,16 +673,10 @@ Transport channel constants are in
 `internal/service/conversation/channel/types.go`. `system` exists as a constant
 but is not in `ValidChannels`, so it cannot be supplied by a caller.
 
-`workflow` and `issue_agent` are not transports and are defined in
-`internal/core/conversation` with the column, as
-`conversation.SyntheticChannels()`. Nobody talks through them: a workflow step
-and an issue agent run each create a
-conversation because Task requires one. `ListConversationsByTeam` excludes them,
-count and page together, so machinery cannot push a team's own conversations off
-a page. They are still stored and still reachable by handle — this hides them
-from a list, it does not make them unreadable. Removing the need for them is
-deferred; see
-[../../design/portal-execution-model.md](../../design/portal-execution-model.md).
+A workflow step and an issue agent run each create a Task directly, with
+`task.team_id` as owner and no `conversation_id`; neither creates a
+conversation for Task to hang on. See
+[agent execution and Task threads](../../design/agent-execution-and-task-threads.md).
 
 ### `conversation_message`
 
@@ -716,8 +712,9 @@ failing the turn. See
 
 ## Background Execution
 
-Task plus task_run is Tier 2: durable background execution that reports results
-to Tier 1 rather than speaking to the user directly.
+Task plus task_run is durable Agent execution. TaskRun owns the result;
+Conversation, Issue, and Workflow views may project it through explicit
+optional relations.
 
 ### `task`
 
@@ -727,8 +724,8 @@ The durable unit of background work. One task, many attempts.
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
 | `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
-| `conversation_id` | `bigint unsigned` | no | The Tier 1 conversation that owns the result |
-| `team_id` | `bigint unsigned` | yes | Owning team; used by quota aggregation |
+| `conversation_id` | `bigint unsigned` | yes | Optional origin/projection relation; a direct Agent, Issue, or Workflow task has none |
+| `team_id` | `bigint unsigned` | no | Owning team, authoritative for every Task operation |
 | `issue_id` | `bigint unsigned` | yes | The issue this task advances, if any |
 | `status` | `varchar(32)` | no | `PENDING`, `SCHEDULED`, `RUNNING`, `SUCCEEDED`, `FAILED`, `CANCELED` |
 | `input` | `text` | no | The prompt |
@@ -785,11 +782,22 @@ One execution attempt. This is the row quota and token accounting read.
 | `sandbox_network_tier` | `varchar(64)` | yes | The tier resolved on the first poll -- agent declaration, then team default, then the surface baseline; `NULL` until a worker claims the run |
 | `sandbox_filesystem_tier` | `varchar(64)` | yes | The tier resolved on the first poll, same fallback as `sandbox_network_tier` |
 | `last_seen_at` | `datetime(6)` | yes | When this run's worker last polled its own route; `NULL` until a worker claims the run |
+| `idempotency_key` | `varchar(128)` | yes | Caller's dedup key for a Continue request; `NULL` for a run created without one — a retry, a workflow step, an issue agent run, or an older client |
 | `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 
 Indexes: PK `id`; index `cancel_requested_at`; index `created_by`; index
 `last_seen_at`; index `retry_of_task_run_id`; index `source_message_id`; index
-`idx_task_run_task_created` on (`task_id`, `created_at`); unique `public_id`.
+`idx_task_run_task_created` on (`task_id`, `created_at`); unique `public_id`;
+unique `idx_task_run_idempotency` on (`task_id`, `idempotency_key`).
+
+A repeated `POST .../tasks/{task_id}/runs` naming the same idempotency key on
+the same task returns the run the first call created rather than starting a
+second one — while that run is still active and after it has finished. `NULL`
+is not a duplicate of `NULL` in a MySQL unique index, so every run created
+without a key coexists with every other one. `CreateTaskRun` takes a locking
+read on the task row before checking this and the active-run count below, so
+two concurrent callers for one task cannot both see a clean slate and both
+insert; see [agent execution and Task threads §12](../../design/agent-execution-and-task-threads.md#12-failure-recovery-and-concurrency).
 
 `agent_revision` is not a reference to `agent_revision.id`: a revision is
 addressed by its agent plus its number, and the task already holds the agent. It
@@ -894,44 +902,6 @@ table; both migrations are in `internal/infra/db/migration.go`.
 It is not `artifact`, below. This is a run's index of the files it left in its
 own output directory; that is a durable object a team keeps.
 
-### `task_result_delivery`
-
-One report the server owes: a run that finished and a conversation that has not
-yet been told. One row per run.
-
-| Column | Type | Null | Notes |
-|---|---|---|---|
-| `id` | `bigint unsigned` | no | Internal primary key |
-| `task_run_id` | `bigint unsigned` | no | `task_run.id`, unique — one run owes one report |
-| `conversation_id` | `bigint unsigned` | no | `conversation.id` the report is owed to |
-| `status` | `varchar(16)` | no | `PENDING`, `DELIVERED`, or `ABANDONED` |
-| `attempts` | `int` | no | Claims, not failures: an attempt that died mid-flight still counts |
-| `last_error` | `text` | yes | Why the last attempt did not succeed |
-| `next_attempt_at` | `datetime(6)` | no | Both the backoff and the claim lease |
-| `created_at` | `datetime(6)` | yes | `autoCreateTime` |
-| `updated_at` | `datetime(6)` | yes | `autoUpdateTime` |
-
-Indexes: PK `id`; unique `uq_task_result_delivery_run` on `task_run_id`; index
-`idx_task_result_delivery_due` on (`status`, `next_attempt_at`).
-
-No public handle: nothing addresses a delivery from outside. It is machinery the
-server owes itself.
-
-What the report says is not stored. It is derived from the run on each attempt,
-so a retry reports the run as it is rather than as it was when the first attempt
-was made, and there is one copy of the outcome rather than two that can disagree.
-
-`next_attempt_at` does double duty. Claiming a delivery pushes it out by a lease
-long enough to cover a turn still running, which is what stops two servers
-reporting one run; a failed attempt then pulls it back in by the backoff, since
-an attempt that has already failed no longer needs the protection. A process
-that dies mid-attempt leaves the lease in place and the delivery is retried when
-it expires.
-
-`ABANDONED` is a bounded give-up, not a lost result. The outcome is on
-`task_run` and a conversation's task card reads it directly; what is abandoned
-is the sentence Tier 1 would have written about it.
-
 ### `artifact`
 
 One durable file the team owns, with one immutable content object. Content
@@ -1035,7 +1005,6 @@ revision cannot unpublish a workflow teams are running.
 | `workflow_id` | `bigint unsigned` | no | `workflow.id` |
 | `workflow_revision` | `bigint` | no | The revision this run expanded; 0 for runs started before workflows recorded revisions |
 | `issue_id` | `bigint unsigned` | yes | Issue this run advances |
-| `conversation_id` | `bigint unsigned` | no | Tier 1 conversation that reports progress |
 | `status` | `varchar(32)` | no | `pending`, `running`, `succeeded`, `failed`, `canceled` — lowercase, unlike `task` |
 | `created_by` | `bigint unsigned` | no | `user.id` |
 | `created_at` | `datetime(6)` | yes | `autoCreateTime` |
@@ -1043,9 +1012,13 @@ revision cannot unpublish a workflow teams are running.
 | `ended_at` | `datetime(6)` | yes | |
 | `error_message` | `text` | yes | |
 
-Indexes: PK `id`; index `conversation_id`; index `issue_id`; index
+Indexes: PK `id`; index `issue_id`; index
 `idx_workflow_run_workflow_created` on (`workflow_id`, `created_at`); unique
 `public_id`.
+
+Each step run creates a Team-owned Task directly (`task.team_id`, no
+`conversation_id`); a run's progress is read from its steps' `task_id` /
+`task_run_id`, not from a Conversation.
 
 ### `workflow_step_run`
 

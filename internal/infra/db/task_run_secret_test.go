@@ -32,11 +32,11 @@ func TestRecordEnvGrant_Idempotent(t *testing.T) {
 		s.db.Where("team_id IN (SELECT id FROM team WHERE public_id = ?)", teamID).Delete(&secretRow{})
 	})
 
-	conversation, err := s.CreateConversation(ctx, userID, "portal", userID)
+	conversation, err := s.CreateConversationInTeam(ctx, teamID, userID, "portal", userID)
 	if err != nil {
-		t.Fatalf("CreateConversation: %v", err)
+		t.Fatalf("CreateConversationInTeam: %v", err)
 	}
-	task, err := s.CreateTask(ctx, &coretask.CreateInput{ConversationID: conversation.ID, Input: "in", CreatedBy: userID})
+	task, err := s.CreateTask(ctx, &coretask.CreateInput{TeamID: teamID, ConversationID: conversation.ID, Input: "in", CreatedBy: userID})
 	if err != nil {
 		t.Fatalf("CreateTask: %v", err)
 	}

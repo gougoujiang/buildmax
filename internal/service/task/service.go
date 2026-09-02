@@ -81,6 +81,10 @@ type CreateRunCmd struct {
 	RetryOfTaskRunID *string
 	// SourceMessageID names the conversation message that asked for this run.
 	SourceMessageID *string
+	// IdempotencyKey is the caller's dedup key for this Continue request. A
+	// repeat with the same key on the same task returns the run the first call
+	// created instead of starting a second one.
+	IdempotencyKey *string
 }
 
 // RetryRunCmd repeats a task's most recent run.
@@ -106,7 +110,7 @@ func (s *Service) CreateTask(ctx context.Context, cmd CreateTaskCmd) (*coretask.
 	if s.Tasks == nil {
 		return nil, ErrTasksNotConfigured
 	}
-	input, agentID, err := s.resolveInput(ctx, cmd.TeamID, cmd.UserID, cmd.Input, cmd.AgentID)
+	input, agentID, selectedAgent, err := s.resolveInput(ctx, cmd.TeamID, cmd.UserID, cmd.Input, cmd.AgentID)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +119,7 @@ func (s *Service) CreateTask(ctx context.Context, cmd CreateTaskCmd) (*coretask.
 	if err := s.checkQuota(ctx, cmd.TeamID, promptTokens+completionTokens); err != nil {
 		return nil, err
 	}
-	return s.Tasks.CreateTask(ctx, &coretask.CreateInput{
+	create := &coretask.CreateInput{
 		ConversationID:            cmd.ConversationID,
 		TeamID:                    cmd.TeamID,
 		Input:                     input,
@@ -129,7 +133,16 @@ func (s *Service) CreateTask(ctx context.Context, cmd CreateTaskCmd) (*coretask.
 		TitleCompletionTokens:     completionTokens,
 		AgentID:                   agentID,
 		IssueID:                   cmd.IssueID,
-	})
+	}
+	if selectedAgent != nil {
+		revision := selectedAgent.Revision
+		networkTier := selectedAgent.SandboxNetworkTier
+		filesystemTier := selectedAgent.SandboxFilesystemTier
+		create.InitialRunAgentRevision = &revision
+		create.InitialRunSandboxNetworkTier = &networkTier
+		create.InitialRunSandboxFilesystemTier = &filesystemTier
+	}
+	return s.Tasks.CreateTask(ctx, create)
 }
 
 // CreateRun enforces basic run creation rules and delegates to TaskRunStore.
@@ -140,26 +153,50 @@ func (s *Service) CreateRun(ctx context.Context, cmd CreateRunCmd) (*coretask.Ru
 	if cmd.Input == "" {
 		return nil, ErrInputRequired
 	}
-	if s.QuotaChecker != nil && s.Tasks != nil {
-		task, err := s.Tasks.GetTask(ctx, cmd.TaskID)
+	if s.Tasks == nil {
+		return nil, ErrTasksNotConfigured
+	}
+	target, err := s.Tasks.GetTask(ctx, cmd.TaskID)
+	if err != nil {
+		return nil, err
+	}
+	if target == nil {
+		return nil, ErrTaskNotFound
+	}
+	if err := s.checkQuota(ctx, target.TeamID, 0); err != nil {
+		return nil, err
+	}
+	var revision *int
+	var networkTier, filesystemTier *string
+	if target.AgentID != nil && *target.AgentID != "" {
+		if s.Agents == nil {
+			return nil, ErrAgentsNotConfigured
+		}
+		agent, err := s.Agents.GetAgent(ctx, *target.AgentID)
 		if err != nil {
 			return nil, err
 		}
-		if task != nil {
-			if err := s.checkQuota(ctx, task.TeamID, 0); err != nil {
-				return nil, err
-			}
+		if agent == nil || agent.TeamID != target.TeamID {
+			return nil, ErrAgentNotFound
 		}
+		rev := agent.Revision
+		network := agent.SandboxNetworkTier
+		filesystem := agent.SandboxFilesystemTier
+		revision, networkTier, filesystemTier = &rev, &network, &filesystem
 	}
 	createdByType, triggerSource := normalizeCreateRunProvenance(cmd.CreatedByType, cmd.TriggerSource)
 	return s.TaskRuns.CreateTaskRun(ctx, coretask.CreateRunInput{
-		TaskID:           cmd.TaskID,
-		Input:            cmd.Input,
-		CreatedBy:        cmd.UserID,
-		CreatedByType:    createdByType,
-		TriggerSource:    triggerSource,
-		RetryOfTaskRunID: cmd.RetryOfTaskRunID,
-		SourceMessageID:  cmd.SourceMessageID,
+		TaskID:                cmd.TaskID,
+		Input:                 cmd.Input,
+		CreatedBy:             cmd.UserID,
+		CreatedByType:         createdByType,
+		TriggerSource:         triggerSource,
+		RetryOfTaskRunID:      cmd.RetryOfTaskRunID,
+		SourceMessageID:       cmd.SourceMessageID,
+		AgentRevision:         revision,
+		SandboxNetworkTier:    networkTier,
+		SandboxFilesystemTier: filesystemTier,
+		IdempotencyKey:        cmd.IdempotencyKey,
 	})
 }
 
@@ -253,37 +290,27 @@ func (s *Service) StartBackgroundTask(ctx context.Context, cmd CreateTaskCmd) (*
 	}, nil
 }
 
-func (s *Service) resolveInput(ctx context.Context, teamID, userID, input string, agentID *string) (string, *string, error) {
+func (s *Service) resolveInput(ctx context.Context, teamID, userID, input string, agentID *string) (string, *string, *agentdef.Agent, error) {
 	if agentID == nil || *agentID == "" {
 		if input == "" {
-			return "", nil, ErrInputRequired
+			return "", nil, nil, ErrInputRequired
 		}
-		return input, nil, nil
+		return input, nil, nil, nil
 	}
 	if s.Agents == nil {
-		return "", nil, ErrAgentsNotConfigured
+		return "", nil, nil, ErrAgentsNotConfigured
 	}
-	// With an input the caller already rendered, the agent is provenance and a
-	// deleted one still names it truthfully — that is how a workflow run whose
-	// agent was deleted mid-flight finishes its remaining steps. With no input
-	// the agent is the source of the prompt, so it has to be live.
-	var agent *agentdef.Agent
-	var err error
-	if input != "" {
-		agent, err = s.Agents.GetAgentIncludingDeleted(ctx, *agentID)
-	} else {
-		agent, err = s.Agents.GetAgent(ctx, *agentID)
-	}
+	agent, err := s.Agents.GetAgent(ctx, *agentID)
 	if err != nil {
-		return "", nil, err
+		return "", nil, nil, err
 	}
 	if agent == nil || agent.TeamID != teamID {
-		return "", nil, ErrAgentNotFound
+		return "", nil, nil, ErrAgentNotFound
 	}
 	if input != "" {
-		return input, agentID, nil
+		return input, agentID, agent, nil
 	}
-	return buildTaskInputFromAgent(agent, ""), agentID, nil
+	return buildTaskInputFromAgent(agent, ""), agentID, agent, nil
 }
 
 func (s *Service) resolveTitle(ctx context.Context, input string) (string, int, int) {

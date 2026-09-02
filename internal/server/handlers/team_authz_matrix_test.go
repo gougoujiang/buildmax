@@ -114,6 +114,9 @@ var teamRoutes = []authzCase{
 	{"POST", "/api/teams/{team_id}/conversations/{conversation_id}/messages", coreteam.RoleMember, false},
 	{"GET", "/api/teams/{team_id}/conversations/{conversation_id}/tasks", coreteam.RoleMember, false},
 	{"POST", "/api/teams/{team_id}/conversations/{conversation_id}/tasks", coreteam.RoleMember, false},
+	{"POST", "/api/teams/{team_id}/tasks", coreteam.RoleMember, false},
+	{"GET", "/api/teams/{team_id}/agents/{agent_id}/tasks", coreteam.RoleMember, false},
+	{"POST", "/api/teams/{team_id}/agents/{agent_id}/tasks", coreteam.RoleMember, false},
 
 	{"GET", "/api/teams/{team_id}/issues", coreteam.RoleMember, false},
 	{"POST", "/api/teams/{team_id}/issues", coreteam.RoleMember, false},
@@ -142,6 +145,7 @@ var teamRoutes = []authzCase{
 	{"GET", "/api/teams/{team_id}/workflow-runs/{workflow_run_id}", coreteam.RoleMember, false},
 
 	{"GET", "/api/teams/{team_id}/tasks/{task_id}", coreteam.RoleMember, false},
+	{"GET", "/api/teams/{team_id}/tasks/{task_id}/runs", coreteam.RoleMember, false},
 	{"POST", "/api/teams/{team_id}/tasks/{task_id}/runs", coreteam.RoleMember, false},
 	// Starting a run and stopping one are the same level of act on the same
 	// resource. A member who may spend the team's budget may also stop

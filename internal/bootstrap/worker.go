@@ -207,8 +207,8 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		slog.Error("failed to build persist storage", "err", err)
 		return fmt.Errorf("persist storage: %w", err)
 	}
-	artifactRoot := func(userID, conversationID, taskID, taskRunID string) string {
-		return filepath.Join(workspacesDir, userID, "artifacts", conversationID, taskID, taskRunID)
+	artifactRoot := func(teamID, taskID, taskRunID string) string {
+		return config.RuntimeTaskRunArtifactsDir(workspacesDir, teamID, taskID, taskRunID)
 	}
 	runOutputStorage, err := BuildRunOutputStorage(wsCfg, artifactRoot, s3Client)
 	if err != nil {

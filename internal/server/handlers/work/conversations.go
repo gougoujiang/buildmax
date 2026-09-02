@@ -64,10 +64,8 @@ type addMessageResponse struct {
 // isVisibleConversationMessage reports whether a stored message belongs in the
 // Portal transcript.
 //
-// Tool traffic is excluded by role. The system channel is excluded by channel: a
-// "[Task Result]" message is stored with role "user" so the model replays it as
-// input, but nobody typed it, and showing it as the user's own message is a lie
-// about who said what. The run's card is what reports the outcome.
+// Tool traffic is excluded by role. System-channel messages are internal input,
+// not something a person said in the transcript.
 func isVisibleConversationMessage(m coreconv.Message) bool {
 	if m.Channel != nil && *m.Channel == convchannel.ChannelSystem {
 		return false

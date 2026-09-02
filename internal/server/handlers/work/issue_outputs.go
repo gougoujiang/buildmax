@@ -257,10 +257,7 @@ func (h *Handler) readArtifactPreview(ctx context.Context, t coretask.Task, task
 		return "", false
 	}
 	data, err := h.cfg.RunOutputStorage.GetResult(ctx, blob.RunRef{
-		CreatedBy:      t.CreatedBy,
-		ConversationID: t.ConversationID,
-		TaskID:         t.ID,
-		TaskRunID:      taskRunID,
+		TeamID: t.TeamID, TaskID: t.ID, TaskRunID: taskRunID,
 	})
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) || errors.Is(err, apierr.ErrNotFound) {

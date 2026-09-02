@@ -67,6 +67,53 @@ func (s *Store) ListRunOutputsByConversation(ctx context.Context, conversationID
 	return out, nil
 }
 
+// ListRunOutputsByTask returns every succeeded run output for one task. Task
+// identity, rather than an optional conversation projection, is the scope.
+func (s *Store) ListRunOutputsByTask(ctx context.Context, taskID string) ([]coretask.RunOutputListing, error) {
+	tid, ok := util.CanonicalPublicID(taskID)
+	if !ok {
+		return nil, nil
+	}
+	q := `SELECT r.public_id AS artifact_id, t.public_id AS task_id, r.public_id AS task_run_id,
+			c.public_id AS conversation_id, tm.public_id AS team_id, u.public_id AS user_id,
+			r.created_at, LEFT(r.input, ?) AS task_input_snippet
+		FROM task_run_artifact o
+		JOIN task_run r ON o.task_run_id = r.id
+		JOIN task t ON r.task_id = t.id
+		JOIN team tm ON t.team_id = tm.id
+		JOIN ` + "`user`" + ` u ON u.id = t.created_by
+		LEFT JOIN conversation c ON t.conversation_id = c.id
+		WHERE t.public_id = ? AND r.status = 'SUCCEEDED'
+		GROUP BY r.public_id, t.public_id, c.public_id, tm.public_id, u.public_id, r.created_at, r.input
+		ORDER BY r.created_at DESC`
+	return s.scanRunOutputListings(ctx, q, chatInputSnippetMaxLen, tid)
+}
+
+func (s *Store) scanRunOutputListings(ctx context.Context, q string, args ...interface{}) ([]coretask.RunOutputListing, error) {
+	var rows []struct {
+		ArtifactID       string
+		TaskID           string
+		TaskRunID        string
+		ConversationID   string
+		TeamID           string
+		UserID           string
+		CreatedAt        time.Time
+		TaskInputSnippet string
+	}
+	if err := s.db.WithContext(ctx).Raw(q, args...).Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	out := make([]coretask.RunOutputListing, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, coretask.RunOutputListing{
+			ArtifactID: r.ArtifactID, TaskID: r.TaskID, TaskRunID: r.TaskRunID,
+			ConversationID: r.ConversationID, TeamID: r.TeamID, UserID: r.UserID,
+			CreatedAt: r.CreatedAt, TaskInputSnippet: r.TaskInputSnippet,
+		})
+	}
+	return out, nil
+}
+
 // GetTaskRunOutputFiles returns all artifact rows for the given task_run_id, ordered by relative_path.
 func (s *Store) GetTaskRunOutputFiles(ctx context.Context, taskRunID string) ([]coretask.RunOutputFile, error) {
 	runKey, err := lookupKey(ctx, s.db, "task_run", taskRunID)

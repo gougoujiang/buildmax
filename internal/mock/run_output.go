@@ -20,6 +20,13 @@ func (m *MockRunOutputLister) ListRunOutputsByConversation(_ context.Context, co
 	return m.List, nil
 }
 
+func (m *MockRunOutputLister) ListRunOutputsByTask(_ context.Context, taskID string) ([]coretask.RunOutputListing, error) {
+	if m.ListErr != nil {
+		return nil, m.ListErr
+	}
+	return m.List, nil
+}
+
 func (m *MockRunOutputLister) GetTaskRunOutputFiles(_ context.Context, taskRunID string) ([]coretask.RunOutputFile, error) {
 	if m.OutputFiles != nil {
 		return m.OutputFiles[taskRunID], nil

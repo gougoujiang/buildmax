@@ -30,6 +30,7 @@ const testTraceBody = `{"ts":"t0","type":"run_start","run_id":"rt_abc","session_
 
 const (
 	traceTestUserID         = "user-1"
+	traceTestTeamID         = "tm_personal_user1"
 	traceTestConversationID = "conv-1"
 	traceTestTaskID         = "task-1"
 	traceTestTaskRunID      = "run-1"
@@ -44,7 +45,7 @@ func traceTestFixture(t *testing.T, tracePath *string, persist blob.PersistStora
 	const (
 		secret         = "test-secret"
 		userID         = traceTestUserID
-		teamID         = "tm_personal_user1"
+		teamID         = traceTestTeamID
 		conversationID = traceTestConversationID
 		taskID         = traceTestTaskID
 		taskRunID      = traceTestTaskRunID
@@ -76,7 +77,7 @@ func traceTestFixture(t *testing.T, tracePath *string, persist blob.PersistStora
 func tracePersist(tracePath *string, stored bool) blob.PersistStorage {
 	persist := mock.NewMockPersistStorage()
 	if stored && tracePath != nil {
-		key := traceTestUserID + "/" + traceTestConversationID + "/" + traceTestTaskID + "/" + traceTestTaskRunID + "/" + *tracePath
+		key := traceTestTeamID + "/" + traceTestTaskID + "/" + traceTestTaskRunID + "/" + *tracePath
 		persist.RunGlobal[key] = []byte(testTraceBody)
 	}
 	return persist
@@ -87,8 +88,7 @@ func tracePersist(tracePath *string, stored bool) blob.PersistStorage {
 func writeRunGlobalOnDisk(t *testing.T, workspacesDir, relPath, body string) {
 	t.Helper()
 	full := filepath.Join(
-		workspacesDir, traceTestUserID,
-		"conversations", traceTestConversationID,
+		workspacesDir, traceTestTeamID,
 		"tasks", traceTestTaskID,
 		traceTestTaskRunID, "global",
 		filepath.FromSlash(relPath),

@@ -36,9 +36,17 @@ methods do not assemble fresh service graphs per call.
 - Issues: `/api/teams/{team_id}/issues...`
 - Workflows: `/api/teams/{team_id}/workflows...`
 - Files: `/api/teams/{team_id}/upload`, `/files...`
-- Conversations and tasks: `/api/teams/{team_id}/conversations...`, `/tasks...`,
-  including `POST /tasks/{task_id}/cancel` — see "Cancelling a run" below — and
-  `POST /tasks/{task_id}/retry` — see "Retrying a run"
+- Conversations: `/api/teams/{team_id}/conversations...`
+- Tasks: `POST /api/teams/{team_id}/tasks` creates a Team-owned Task and its
+  first TaskRun directly, from a typed `agent_id` — no Conversation is
+  created or consulted. `GET .../tasks/{task_id}` and `GET
+  .../tasks/{task_id}/runs` read a Task's thread; `POST
+  .../tasks/{task_id}/runs` is Continue, creating a new-input TaskRun on the
+  same Task. `POST .../tasks/{task_id}/cancel` — see "Cancelling a run" below
+  — and `POST .../tasks/{task_id}/retry` — see "Retrying a run" — round out
+  the set. `GET`/`POST .../agents/{agent_id}/tasks` are the Agent-nested
+  convenience routes: same Task service, same resource. See
+  [agent execution and Task threads](../../design/agent-execution-and-task-threads.md)
 - Artifacts: `/api/artifacts/{artifact_id}` and `/content`, with
   `/api/teams/{team_id}/artifacts` for the team's listing and upload, and
   `POST /api/artifacts` for a client that has a login but has not chosen a team
@@ -113,21 +121,16 @@ conversation, is left out rather than failing the request.
 
 ## Reporting A Finished Run
 
-A run that reaches a terminal status does two independent things
-(`internal/server/handlers/task_result.go`). Every WebSocket connection on the
-task's team receives `task.status.changed`, which is an invalidation and not the
-outcome: a client answers it by re-reading the task. Separately, the report owed
-to the conversation is recorded in `task_result_delivery` and attempted — one
-Tier 1 turn submitted to the turn queue, belonging to no connection, so a run
-finishing while nobody is watching still leaves its reply in the conversation.
-
-The report is a model call, so it can fail, be refused because the
-conversation's queue is full, or be interrupted by a restart between the run
-finishing and the turn starting. The delivery row is what survives all three: a
-sweep every minute retries what is due, claiming each delivery so two servers
-cannot report one run twice, and giving up after a bounded number of attempts
-with the reason recorded. Giving up does not lose the result — that is on
-`task_run` and the conversation's task card reads it directly.
+A run that reaches a terminal status announces one thing
+(`internal/server/handlers/task_result.go`): every WebSocket connection on the
+task's team receives `task.status.changed`, an invalidation and not the
+outcome. A client answers it by re-reading the task from `task_run`, which is
+authoritative and requires no separate delivery mechanism, model call, or
+Conversation to be readable — a direct Agent Task has no Conversation at all.
+An earlier design routed every finished run through a Tier 1 turn and a
+durable `task_result_delivery` retry queue so a Conversation always received a
+summary sentence; that forced path has been removed. See
+[agent execution and Task threads](../../design/agent-execution-and-task-threads.md).
 
 ## Cancelling A Run
 

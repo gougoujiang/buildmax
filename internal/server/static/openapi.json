@@ -73,6 +73,7 @@
         "type": "object",
         "properties": {
           "id": { "type": "string" },
+          "team_id": { "type": "string" },
           "conversation_id": { "type": "string" },
           "session_id": { "type": "string", "nullable": true },
           "status": { "type": "string" },
@@ -85,6 +86,23 @@
           "ended_at": { "type": "string", "format": "date-time", "nullable": true },
           "error_message": { "type": "string", "nullable": true },
           "agent_id": { "type": "string", "nullable": true }
+        }
+      },
+      "TaskRun": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "task_id": { "type": "string" },
+          "input": { "type": "string" },
+          "status": { "type": "string" },
+          "output": { "type": "string", "nullable": true },
+          "error_message": { "type": "string", "nullable": true },
+          "created_by": { "type": "string" },
+          "trigger_source": { "type": "string" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "started_at": { "type": "string", "format": "date-time", "nullable": true },
+          "ended_at": { "type": "string", "format": "date-time", "nullable": true },
+          "agent_revision": { "type": "integer", "nullable": true }
         }
       },
       "Conversation": {
@@ -1595,6 +1613,28 @@
         }
       }
     },
+    "/api/teams/{team_id}/agents/{agent_id}/tasks": {
+      "parameters": [
+        {"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}},
+        {"name": "agent_id", "in": "path", "required": true, "schema": {"type": "string"}}
+      ],
+      "get": {
+        "summary": "List an agent's task threads",
+        "security": [{ "bearerAuth": [] }],
+        "responses": {"200": {"description": "OK"}}
+      },
+      "post": {
+        "summary": "Run an agent directly",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"type": "object", "required": ["input"], "properties": {"input": {"type": "string"}}}}}
+        },
+        "responses": {
+          "201": {"description": "Task and initial run created", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Task"}}}}
+        }
+      }
+    },
     "/api/teams/{team_id}/files": {
       "get": {
         "summary": "List team files",
@@ -1793,6 +1833,20 @@
         }
       }
     },
+    "/api/teams/{team_id}/tasks": {
+      "parameters": [
+        {"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}
+      ],
+      "post": {
+        "summary": "Create a team-owned task and its initial run",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {"type": "object", "required": ["input"], "properties": {"agent_id": {"type": "string"}, "input": {"type": "string"}}}}}
+        },
+        "responses": {"201": {"description": "Created", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Task"}}}}}
+      }
+    },
     "/api/teams/{team_id}/tasks/{task_id}": {
       "parameters": [
         {"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}
@@ -1819,8 +1873,16 @@
       "parameters": [
         {"name": "team_id", "in": "path", "required": true, "schema": {"type": "string"}}
       ],
+      "get": {
+        "summary": "List a task thread's runs",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "task_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {"200": {"description": "OK"}}
+      },
       "post": {
-        "summary": "Create task run",
+        "summary": "Continue a task with a new input",
         "security": [{ "bearerAuth": [] }],
         "parameters": [
           { "name": "task_id", "in": "path", "required": true, "schema": { "type": "string" } }

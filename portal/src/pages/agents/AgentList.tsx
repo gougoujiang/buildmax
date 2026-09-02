@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from "react"
 import type { Agent, AgentRevision } from "../../lib/types"
 import type { ApiSecret } from "../../lib/api/types"
+import type { ApiTask } from "../../lib/api/types"
 import { listSecrets } from "../../features/teamSecrets/api"
 import { navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { apiAgentToAgent, apiAgentRevisionToAgentRevision } from "../../lib/api/mappers"
-import { createConversation } from "../../features/conversations"
+import { createAgentTask, listAgentTasks } from "../../features/tasks"
 import {
   getAgents,
   createAgent,
@@ -14,13 +15,12 @@ import {
   getAgentRevisions,
   restoreAgentRevision,
 } from "../../features/agents"
-import { useApp } from "../../contexts/AppContext"
 import { AgentAvatar } from "../../components/UserAvatar"
 import { CreateAgentModal } from "../../components/CreateAgentModal"
 import { EditAgentModal } from "../../components/EditAgentModal"
 import { consumptionHealthCount } from "../../components/SecretConsumptionEditor"
 import { RevisionHistory } from "../../components/RevisionHistory"
-import { NewConversationFromAgent } from "../../components/NewConversationFromAgent"
+import { RunAgentModal } from "../../components/RunAgentModal"
 import { useTeam } from "../../contexts/TeamContext"
 
 interface AgentListProps {
@@ -28,7 +28,6 @@ interface AgentListProps {
 }
 
 export function AgentList({ token }: AgentListProps) {
-  const { setPendingConversation } = useApp()
   const { currentTeamId, currentUserRole } = useTeam()
   const [agents, setAgents] = useState<Agent[]>([])
   const [secrets, setSecrets] = useState<ApiSecret[]>([])
@@ -40,6 +39,9 @@ export function AgentList({ token }: AgentListProps) {
   const [deleting, setDeleting] = useState(false)
   const [newTaskAgent, setNewTaskAgent] = useState<Agent | null>(null)
   const [startingTaskAgentId, setStartingTaskAgentId] = useState<string | null>(null)
+  const [historyAgent, setHistoryAgent] = useState<Agent | null>(null)
+  const [historyTasks, setHistoryTasks] = useState<ApiTask[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [revisions, setRevisions] = useState<AgentRevision[]>([])
   const [revisionsLoading, setRevisionsLoading] = useState(false)
@@ -179,19 +181,26 @@ export function AgentList({ token }: AgentListProps) {
     if (!token || !currentTeamId || !newTaskAgent) return
     setError(null)
     setStartingTaskAgentId(newTaskAgent.id)
-    createConversation(currentTeamId, { channel: "portal" }, token)
+    createAgentTask(currentTeamId, newTaskAgent.id, editedInput, token)
       .then((created) => {
         setNewTaskAgent(null)
-        setPendingConversation({
-          conversationId: created.conversation_id,
-          initialMessage: editedInput,
-        })
-        navigate({ name: "conversation", conversationId: created.conversation_id })
+        navigate({ name: "task", taskId: created.id })
       })
       .catch((err) => {
-        setError(getErrorMessage(err, "Failed to start conversation"))
+        setError(getErrorMessage(err, "Failed to run agent"))
       })
       .finally(() => setStartingTaskAgentId(null))
+  }
+
+  function handleShowHistory(agent: Agent) {
+    if (!token || !currentTeamId) return
+    setHistoryAgent(agent)
+    setHistoryLoading(true)
+    setError(null)
+    listAgentTasks(currentTeamId, agent.id, token)
+      .then((response) => setHistoryTasks(response.tasks))
+      .catch((err) => setError(getErrorMessage(err, "Failed to load execution history")))
+      .finally(() => setHistoryLoading(false))
   }
 
   return (
@@ -289,12 +298,23 @@ export function AgentList({ token }: AgentListProps) {
                     className="agent-card__new-task-btn"
                     onClick={(e) => {
                       e.stopPropagation()
+                      handleShowHistory(a)
+                    }}
+                    disabled={!token}
+                  >
+                    History
+                  </button>
+                  <button
+                    type="button"
+                    className="agent-card__new-task-btn"
+                    onClick={(e) => {
+                      e.stopPropagation()
                       handleOpenNewTaskModal(a)
                     }}
                     disabled={!token}
-                    aria-label={`New conversation with ${a.name}`}
+                    aria-label={`Run ${a.name}`}
                   >
-                    New Conversation
+                    Run Agent
                   </button>
                 </div>
               </article>
@@ -302,6 +322,29 @@ export function AgentList({ token }: AgentListProps) {
           </div>
         )}
       </section>
+
+      {historyAgent ? (
+        <section className="page-activity__section" aria-label={`${historyAgent.name} execution history`}>
+          <div className="page-activity__head">
+            <div>
+              <h2 className="page-activity__title">{historyAgent.name} history</h2>
+              <p className="page-activity__subtitle">Each item is a durable Task thread.</p>
+            </div>
+          </div>
+          {historyLoading ? <p className="page-activity__empty">Loading…</p> : historyTasks.length === 0 ? (
+            <p className="page-activity__empty">No executions yet.</p>
+          ) : (
+            <div className="agent-list__grid">
+              {historyTasks.map((task) => (
+                <button key={task.id} type="button" className="agent-card" onClick={() => navigate({ name: "task", taskId: task.id })}>
+                  <strong>{task.title || task.input}</strong>
+                  <span className="page-activity__meta">{task.status.toLowerCase()}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
+      ) : null}
 
       <CreateAgentModal
         open={modalOpen}
@@ -348,7 +391,7 @@ export function AgentList({ token }: AgentListProps) {
         }
       />
 
-      <NewConversationFromAgent
+      <RunAgentModal
         open={newTaskAgent != null}
         agent={newTaskAgent}
         loading={startingTaskAgentId !== null}

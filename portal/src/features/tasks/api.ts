@@ -8,6 +8,8 @@ import {
 import { authHeaders, jsonHeaders } from "../../lib/api/common"
 import type {
   ApiTask,
+  ApiTaskRun,
+  ApiTaskRunsResponse,
   ApiTasksListResponse,
   CancelTaskResponse,
   RetryTaskResponse,
@@ -17,6 +19,60 @@ export interface GetTasksPaginatedOptions {
   limit?: number
   offset?: number
   executedOnly?: boolean
+}
+
+export async function createAgentTask(teamId: string, agentId: string, input: string, token: string): Promise<ApiTask> {
+  return requestJson<ApiTask>(
+    `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/agents/${encodeURIComponent(agentId)}/tasks`,
+    { method: "POST", headers: { ...jsonHeaders, ...authHeaders(token) }, body: JSON.stringify({ input }) }
+  )
+}
+
+export async function listAgentTasks(teamId: string, agentId: string, token: string): Promise<ApiTasksListResponse> {
+  return requestJson<ApiTasksListResponse>(
+    `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/agents/${encodeURIComponent(agentId)}/tasks`,
+    { headers: authHeaders(token) }
+  )
+}
+
+export async function getTask(teamId: string, taskId: string, token: string): Promise<ApiTask> {
+  return requestJson<ApiTask>(
+    `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/tasks/${encodeURIComponent(taskId)}`,
+    { headers: authHeaders(token) }
+  )
+}
+
+export async function getTaskRuns(teamId: string, taskId: string, token: string): Promise<ApiTaskRun[]> {
+  const response = await requestJson<ApiTaskRunsResponse>(
+    `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/tasks/${encodeURIComponent(taskId)}/runs`,
+    { headers: authHeaders(token) }
+  )
+  return response.runs
+}
+
+/**
+ * Continue a task with a new input.
+ *
+ * idempotencyKey lets a caller that cannot tell whether an earlier attempt
+ * landed retry safely: the server returns the run the first attempt created
+ * instead of starting a second one. Optional so a caller with no retry logic
+ * of its own is unaffected.
+ */
+export async function continueTask(
+  teamId: string,
+  taskId: string,
+  input: string,
+  token: string,
+  idempotencyKey?: string
+): Promise<ApiTaskRun> {
+  return requestJson<ApiTaskRun>(
+    `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/tasks/${encodeURIComponent(taskId)}/runs`,
+    {
+      method: "POST",
+      headers: { ...jsonHeaders, ...authHeaders(token) },
+      body: JSON.stringify({ input, idempotency_key: idempotencyKey }),
+    }
+  )
 }
 
 export async function getTasks(

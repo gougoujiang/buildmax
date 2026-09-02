@@ -12,17 +12,17 @@ const resultFilename = "result.md"
 
 // LocalFSRunOutputStorage implements RunOutputStorage using the local filesystem.
 type LocalFSRunOutputStorage struct {
-	runOutputDir func(userID, conversationID, taskID, taskRunID string) string
+	runOutputDir func(teamID, taskID, taskRunID string) string
 }
 
 // NewLocalFSRunOutputStorage returns an RunOutputStorage that uses the given dir function (run output dir, no artifactID).
-func NewLocalFSRunOutputStorage(runOutputDir func(userID, conversationID, taskID, taskRunID string) string) *LocalFSRunOutputStorage {
+func NewLocalFSRunOutputStorage(runOutputDir func(teamID, taskID, taskRunID string) string) *LocalFSRunOutputStorage {
 	return &LocalFSRunOutputStorage{runOutputDir: runOutputDir}
 }
 
 // PutResult writes the run result file as result.md.
 func (s *LocalFSRunOutputStorage) PutResult(ctx context.Context, ref RunRef, data []byte) error {
-	dir := s.runOutputDir(ref.CreatedBy, ref.ConversationID, ref.TaskID, ref.TaskRunID)
+	dir := s.runOutputDir(ref.TeamID, ref.TaskID, ref.TaskRunID)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return err
 	}
@@ -31,7 +31,7 @@ func (s *LocalFSRunOutputStorage) PutResult(ctx context.Context, ref RunRef, dat
 
 // GetResult reads result.md. Returns os.ErrNotExist if not found.
 func (s *LocalFSRunOutputStorage) GetResult(ctx context.Context, ref RunRef) ([]byte, error) {
-	dir := s.runOutputDir(ref.CreatedBy, ref.ConversationID, ref.TaskID, ref.TaskRunID)
+	dir := s.runOutputDir(ref.TeamID, ref.TaskID, ref.TaskRunID)
 	return os.ReadFile(filepath.Join(dir, resultFilename))
 }
 
@@ -41,7 +41,7 @@ func (s *LocalFSRunOutputStorage) PutRunOutputFile(ctx context.Context, ref RunO
 	if err != nil {
 		return err
 	}
-	dir := s.runOutputDir(ref.CreatedBy, ref.ConversationID, ref.TaskID, ref.TaskRunID)
+	dir := s.runOutputDir(ref.TeamID, ref.TaskID, ref.TaskRunID)
 	fullPath := filepath.Join(dir, filepath.FromSlash(clean))
 	if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
 		return err
@@ -61,7 +61,7 @@ func (s *LocalFSRunOutputStorage) GetRunOutputFile(ctx context.Context, ref RunO
 	if err != nil {
 		return nil, err
 	}
-	dir := s.runOutputDir(ref.CreatedBy, ref.ConversationID, ref.TaskID, ref.TaskRunID)
+	dir := s.runOutputDir(ref.TeamID, ref.TaskID, ref.TaskRunID)
 	data, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(clean)))
 	if err != nil {
 		if os.IsNotExist(err) {

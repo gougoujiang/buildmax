@@ -18,6 +18,7 @@ Durable product decisions that guide more than one roadmap phase.
 |---|---|
 | [Product vision](product-vision.md) | Long-range product model, ownership boundaries, and rules for future bets |
 | [Surface positioning](surface-positioning.md) | How Agent Core, CLI, Desktop, and Portal relate |
+| [Agent execution and Task threads](agent-execution-and-task-threads.md) | Agent definitions execute directly through Team-owned Task/TaskRun threads; Conversation is an optional foreground origin, not an execution parent |
 
 ## Active Roadmap Plans
 
@@ -54,7 +55,7 @@ reference, then delete the plan.
 | [Local end-to-end verification](end-to-end-testing.md) | unscheduled | Harness, CLI, Desktop bridge, CI policy, named suites, and the runbook done; some Portal paths, the deployment cancellation and failure-recovery paths, and the packaged-app smoke open |
 | [Verification program](verification-program.md) | R0–R4 | Planned risk-weighted verification matrix, pull-request MySQL gate, deterministic critical journeys, controlled failure injection, scheduled deployment evidence, and external release rehearsal |
 | [Unified artifacts](unified-artifacts.md) | P2 follow-on | Implemented: durable team artifacts with stable opaque references, upload/preview/download, tombstoned deletion, and `UploadArtifact` on every surface with a server. Registering a run's output directory and external sharing are decided against; the phase 4 follow-ons stay open |
-| [Portal execution model](portal-execution-model.md) | P2 follow-on | Phases 0 and 3 shipped and phase 1 half shipped: outcome projection, durable result delivery, and run provenance. Phase 2 is reduced to what evidence supports; phases 4 and 5, including removing Conversation ownership, are deferred |
+| [Portal execution model](portal-execution-model.md) | P2 follow-on | Phases 0 and 3 shipped and phase 1 half shipped: outcome projection, durable result delivery, and run provenance. Its mandatory Tier 1 hierarchy and Conversation-owned Task shape are superseded by [agent execution and Task threads](agent-execution-and-task-threads.md) |
 
 ## Subsystem Specifications
 

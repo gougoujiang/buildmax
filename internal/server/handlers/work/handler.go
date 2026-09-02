@@ -41,6 +41,7 @@ import (
 // that answers it is assembled above this package.
 type RunOutputLister interface {
 	ListRunOutputsByConversation(ctx context.Context, conversationID string, taskID *string) ([]coretask.RunOutputListing, error)
+	ListRunOutputsByTask(ctx context.Context, taskID string) ([]coretask.RunOutputListing, error)
 	GetTaskRunOutputFiles(ctx context.Context, taskRunID string) ([]coretask.RunOutputFile, error)
 }
 
@@ -176,7 +177,11 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/teams/{team_id}/conversations/{conversation_id}/tasks", h.createConversationTaskHandler)
 
 	// Tasks and task runs
+	mux.HandleFunc("POST /api/teams/{team_id}/tasks", h.createTeamTaskHandler)
+	mux.HandleFunc("GET /api/teams/{team_id}/agents/{agent_id}/tasks", h.listAgentTasksHandler)
+	mux.HandleFunc("POST /api/teams/{team_id}/agents/{agent_id}/tasks", h.createAgentTaskHandler)
 	mux.HandleFunc("GET /api/teams/{team_id}/tasks/{task_id}", h.getTaskHandler)
+	mux.HandleFunc("GET /api/teams/{team_id}/tasks/{task_id}/runs", h.listTaskRunsHandler)
 	mux.HandleFunc("POST /api/teams/{team_id}/tasks/{task_id}/runs", h.createTaskRunHandler)
 	mux.HandleFunc("POST /api/teams/{team_id}/tasks/{task_id}/cancel", h.cancelTaskHandler)
 	mux.HandleFunc("POST /api/teams/{team_id}/tasks/{task_id}/retry", h.retryTaskHandler)

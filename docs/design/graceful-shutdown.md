@@ -79,10 +79,10 @@ budget, and treated `ErrServerClosed` as a clean exit. `bootstrap.RunServer`
 ([`internal/bootstrap/server.go`](../../internal/bootstrap/server.go)) started
 four background loops — the scheduler, the credential cleaner, the stale-run
 reaper, and the audit retainer — each with a `Stop` that closes a channel and
-waits for the loop goroutine, called from a `defer` *below* the HTTP server. The
-delivery sweeper
-([`internal/server/handlers/task_result_sweep.go`](../../internal/server/handlers/task_result_sweep.go))
-was started and stopped by `Server.Run` itself.
+waits for the loop goroutine, called from a `defer` *below* the HTTP server.
+The handler lifecycle
+([`internal/server/handlers/lifecycle.go`](../../internal/server/handlers/lifecycle.go))
+is started and stopped by `Server.Run` itself.
 
 So the *mechanisms* mostly existed. What was missing was sequence, bounds, and
 the run-level semantics. Signal handling has since moved to `RunServer`, which

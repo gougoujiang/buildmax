@@ -83,9 +83,11 @@ const (
 
 // Task holds the user-visible state for a background task.
 type Task struct {
-	ID                    string     `json:"id"`
-	ConversationID        string     `json:"conversation_id"`
-	TeamID                string     `json:"team_id,omitempty"`
+	ID string `json:"id"`
+	// ConversationID is an optional projection target for a task started from
+	// a foreground conversation. It is never the task's ownership boundary.
+	ConversationID        string     `json:"conversation_id,omitempty"`
+	TeamID                string     `json:"team_id"`
 	IssueID               *string    `json:"issue_id,omitempty"`
 	Status                string     `json:"status"`
 	Input                 string     `json:"input"`
@@ -182,6 +184,11 @@ type Run struct {
 	// timeout, hours later. Nil for a run no worker has claimed yet.
 	LastSeenAt *time.Time `json:"last_seen_at,omitempty"`
 	CreatedAt  time.Time  `json:"created_at"`
+	// IdempotencyKey is the caller's dedup key for this run, when it supplied
+	// one. Unique per task: a Continue request that repeats a key gets back
+	// this same run rather than a second one. Nil for a run created without a
+	// key — a retry, a workflow step, an issue agent run, or an older client.
+	IdempotencyKey *string `json:"idempotency_key,omitempty"`
 }
 
 // RunTerminalInfo describes a task run that reached a terminal state.
@@ -190,8 +197,7 @@ type RunTerminalInfo struct {
 	TaskRunID      string
 	TaskID         string
 	ConversationID string
-	// TeamID is the team that owns the task. Empty on a task created before
-	// tasks carried one, which is why UserID is still here to fall back to.
+	// TeamID is the team that owns the task.
 	TeamID       string
 	UserID       string
 	Status       string
@@ -210,11 +216,14 @@ type CreateInput struct {
 	InitialRunCreatedByType string
 	InitialRunTriggerSource string
 	// InitialRunSourceMessageID names the message that asked for this task.
-	InitialRunSourceMessageID *string
-	TitlePromptTokens         int
-	TitleCompletionTokens     int
-	AgentID                   *string
-	IssueID                   *string
+	InitialRunSourceMessageID       *string
+	TitlePromptTokens               int
+	TitleCompletionTokens           int
+	AgentID                         *string
+	InitialRunAgentRevision         *int
+	InitialRunSandboxNetworkTier    *string
+	InitialRunSandboxFilesystemTier *string
+	IssueID                         *string
 }
 
 // UpdateInput updates a task to the given status with optional fields.
@@ -258,7 +267,8 @@ type TransitionRunInput struct {
 	ArtifactRelativePaths []string
 }
 
-// Store provides task persistence. Tasks belong to a conversation.
+// Store provides task persistence. Tasks belong to a team and may optionally
+// retain the conversation that requested them.
 // CreateTask creates a task plus its first Run (both in one transaction).
 type Store interface {
 	// ListTasksByConversation returns tasks in the conversation. order is "asc" (oldest first) or "desc" (latest first); default "desc".
@@ -266,6 +276,7 @@ type Store interface {
 	// ListTasksByConversationPaginated returns tasks with optional executed_only filter, ordered by created_at DESC. total is total matching count.
 	ListTasksByConversationPaginated(ctx context.Context, conversationID string, executedOnly bool, limit, offset int) ([]Task, int, error)
 	ListTasksByIssue(ctx context.Context, issueID string, limit, offset int) ([]Task, int, error)
+	ListTasksByAgent(ctx context.Context, teamID, agentID string, limit, offset int) ([]Task, int, error)
 	GetTask(ctx context.Context, taskID string) (*Task, error)
 	GetTaskBySessionID(ctx context.Context, sessionID string) (*Task, error)
 	// CreateTask creates a new task and its first Run (input, title, PENDING). Returns the task with last_run_id set.
@@ -284,7 +295,16 @@ type CreateRunInput struct {
 	// RetryOfTaskRunID names the run this one repeats, when it repeats one.
 	RetryOfTaskRunID *string
 	// SourceMessageID names the conversation message that asked for this run.
-	SourceMessageID *string
+	SourceMessageID       *string
+	AgentRevision         *int
+	SandboxNetworkTier    *string
+	SandboxFilesystemTier *string
+	// IdempotencyKey scopes this request against the task's other runs: a
+	// second CreateTaskRun for the same task with the same key returns the run
+	// the first call created instead of starting another one. Nil (the common
+	// case) creates a new run unconditionally, the same as before this field
+	// existed.
+	IdempotencyKey *string
 }
 
 // RunStore provides task run persistence.
@@ -298,6 +318,8 @@ type RunStore interface {
 	// GetNextPendingTaskRun returns the oldest run with status PENDING (by created_at), or (nil, nil) if none.
 	GetNextPendingTaskRun(ctx context.Context) (*Run, error)
 	GetTaskRun(ctx context.Context, taskRunID string) (*Run, error)
+	// ListTaskRunsByTask returns every turn and attempt in chronological order.
+	ListTaskRunsByTask(ctx context.Context, taskID string) ([]Run, error)
 	// GetTaskRunWithTask returns the run and its task, or (nil, nil, nil) if run not found.
 	GetTaskRunWithTask(ctx context.Context, taskRunID string) (*Run, *Task, error)
 	// ListTaskRunIDsByTasks returns each task's run IDs, newest first, keyed by

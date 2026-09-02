@@ -39,12 +39,11 @@ type TaskRunUpdater interface {
 	UpdateRunStatus(ctx context.Context, taskRunID string, req *workerclient.PatchTaskRunRequest) error
 }
 
-// RunScope identifies a task run by creator, conversation, task, and run IDs.
+// RunScope identifies a task run inside its owning team.
 type RunScope struct {
-	CreatedBy      string
-	ConversationID string
-	TaskID         string
-	TaskRunID      string
+	TeamID    string
+	TaskID    string
+	TaskRunID string
 }
 
 // runResult is the evidence taskrun persists and reports after execution.
@@ -223,7 +222,7 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 		return errors.New("runtime: paths, persist, runOutputStorage and updater must not be nil")
 	}
 	dirs := resolveRunDirs(input.Paths, task, run)
-	scope := RunScope{CreatedBy: task.CreatedBy, ConversationID: task.ConversationID, TaskID: task.ID, TaskRunID: run.ID}
+	scope := RunScope{TeamID: task.TeamID, TaskID: task.ID, TaskRunID: run.ID}
 
 	if err := prepareRunWorkspace(ctx, input, task, run, dirs); err != nil {
 		if stopped, stopErr := reportStoppedRun(ctx, scope, runResult{RunArtifactsDir: dirs.runArtifacts}, dirs, input); stopped {
@@ -349,12 +348,12 @@ func finishStoppedRun(ctx context.Context, scope RunScope, result runResult, dir
 }
 
 func resolveRunDirs(paths RuntimePaths, task *coretask.Task, run *coretask.Run) runDirs {
-	runDir := paths.RuntimeTaskRunDir(task.CreatedBy, task.ConversationID, task.ID, run.ID)
+	runDir := paths.RuntimeTaskRunDir(task.TeamID, task.ID, run.ID)
 	return runDirs{
 		runDir:       runDir,
-		runHome:      paths.RuntimeTaskRunHomeDir(task.CreatedBy, task.ConversationID, task.ID, run.ID),
-		runArtifacts: paths.RuntimeTaskRunArtifactsDir(task.CreatedBy, task.ConversationID, task.ID, run.ID),
-		runGlobal:    paths.RuntimeTaskRunGlobalDir(task.CreatedBy, task.ConversationID, task.ID, run.ID),
+		runHome:      paths.RuntimeTaskRunHomeDir(task.TeamID, task.ID, run.ID),
+		runArtifacts: paths.RuntimeTaskRunArtifactsDir(task.TeamID, task.ID, run.ID),
+		runGlobal:    paths.RuntimeTaskRunGlobalDir(task.TeamID, task.ID, run.ID),
 		// Derived here rather than through RuntimePaths: nothing outside this
 		// package needs to locate the run's OS HOME.
 		runOSHome: filepath.Join(runDir, "oshome"),
@@ -449,11 +448,8 @@ func restoreSessionFromPreviousRun(ctx context.Context, task *coretask.Task, run
 	bundleDir := filepath.Join(runGlobalDir, "sessions", *task.SessionID)
 	for _, name := range sessionBundleFiles {
 		data, err := persist.GetRunGlobal(ctx, blob.RunObjectRef{
-			CreatedBy:      task.CreatedBy,
-			ConversationID: task.ConversationID,
-			TaskID:         task.ID,
-			TaskRunID:      *task.LastRunID,
-			RelPath:        "sessions/" + *task.SessionID + "/" + name,
+			TeamID: task.TeamID, TaskID: task.ID, TaskRunID: *task.LastRunID,
+			RelPath: "sessions/" + *task.SessionID + "/" + name,
 		})
 		if err != nil {
 			// Best-effort: a run that cannot recover the previous session
@@ -764,11 +760,7 @@ func uploadTaskRunArtifacts(ctx context.Context, artifactsDir string, scope RunS
 		"runtime: upload run artifacts open failed",
 		func(ctx context.Context, scope RunScope, relPath string, f *os.File) error {
 			return persist.PutRunArtifacts(ctx, blob.RunObjectRef{
-				CreatedBy:      scope.CreatedBy,
-				ConversationID: scope.ConversationID,
-				TaskID:         scope.TaskID,
-				TaskRunID:      scope.TaskRunID,
-				RelPath:        relPath,
+				TeamID: scope.TeamID, TaskID: scope.TaskID, TaskRunID: scope.TaskRunID, RelPath: relPath,
 			}, f)
 		},
 		slog.Warn,
@@ -785,11 +777,7 @@ func uploadRunArtifactsToStorage(ctx context.Context, runArtifactsDir string, sc
 		"runtime: artifact file open failed",
 		func(ctx context.Context, scope RunScope, relPath string, f *os.File) error {
 			return runOutputStorage.PutRunOutputFile(ctx, blob.RunObjectRef{
-				CreatedBy:      scope.CreatedBy,
-				ConversationID: scope.ConversationID,
-				TaskID:         scope.TaskID,
-				TaskRunID:      scope.TaskRunID,
-				RelPath:        relPath,
+				TeamID: scope.TeamID, TaskID: scope.TaskID, TaskRunID: scope.TaskRunID, RelPath: relPath,
 			}, f)
 		},
 		slog.Warn,
@@ -837,11 +825,8 @@ func uploadTaskGlobal(ctx context.Context, globalDir string, scope RunScope, per
 			continue
 		}
 		putErr := persist.PutRunGlobal(ctx, blob.RunObjectRef{
-			CreatedBy:      scope.CreatedBy,
-			ConversationID: scope.ConversationID,
-			TaskID:         scope.TaskID,
-			TaskRunID:      scope.TaskRunID,
-			RelPath:        filepath.ToSlash(relPath),
+			TeamID: scope.TeamID, TaskID: scope.TaskID, TaskRunID: scope.TaskRunID,
+			RelPath: filepath.ToSlash(relPath),
 		}, f)
 		_ = f.Close()
 		if putErr != nil {

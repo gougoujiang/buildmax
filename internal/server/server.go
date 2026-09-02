@@ -66,27 +66,24 @@ type AuthConfig struct {
 
 // StoresConfig holds entity store interfaces used by handlers.
 type StoresConfig struct {
-	UserStore         coreidentity.UserStore
-	LoginCodeStore    coreidentity.LoginCodeStore
-	PasswordStore     coreidentity.PasswordStore
-	RefreshTokenStore coreidentity.RefreshTokenStore
-	TeamStore         coreteam.Store
-	WorkflowStore     coreworkflow.Store
-	AgentStore        agentdef.Store
-	IssueStore        coreissue.Store
-	IssueCommentStore coreissue.CommentStore
-	TaskStore         coretask.Store
-	TaskRunStore      coretask.RunStore
-	// TaskResultDeliveryStore records the reports the server owes finished
-	// runs. Nil means a report that fails is not retried.
-	TaskResultDeliveryStore coretask.ResultDeliveryStore
-	LLMCallStore            coregw.CallStore
-	RunOutputLister         workroutes.RunOutputLister
-	UserWebhookKeyStore     coreidentity.UserWebhookKeyStore
-	AuditStore              coreaudit.Store
-	SystemGrantStore        coreidentity.SystemGrantStore
-	SchemaStore             coreschema.Store
-	LLMModelStore           coregw.ModelStore
+	UserStore           coreidentity.UserStore
+	LoginCodeStore      coreidentity.LoginCodeStore
+	PasswordStore       coreidentity.PasswordStore
+	RefreshTokenStore   coreidentity.RefreshTokenStore
+	TeamStore           coreteam.Store
+	WorkflowStore       coreworkflow.Store
+	AgentStore          agentdef.Store
+	IssueStore          coreissue.Store
+	IssueCommentStore   coreissue.CommentStore
+	TaskStore           coretask.Store
+	TaskRunStore        coretask.RunStore
+	LLMCallStore        coregw.CallStore
+	RunOutputLister     workroutes.RunOutputLister
+	UserWebhookKeyStore coreidentity.UserWebhookKeyStore
+	AuditStore          coreaudit.Store
+	SystemGrantStore    coreidentity.SystemGrantStore
+	SchemaStore         coreschema.Store
+	LLMModelStore       coregw.ModelStore
 	// ArtifactStore records durable files. Nil leaves the artifact routes
 	// answering 503, which is what a deployment with no database has.
 	ArtifactStore coreartifact.Store
@@ -272,7 +269,6 @@ func buildHandlersConfig(cfg Config, drain <-chan struct{}) handlers.Config {
 		IssueCommentStore:        cfg.Stores.IssueCommentStore,
 		TaskStore:                cfg.Stores.TaskStore,
 		TaskRunStore:             cfg.Stores.TaskRunStore,
-		TaskResultDeliveries:     cfg.Stores.TaskResultDeliveryStore,
 		LLMCallStore:             cfg.Stores.LLMCallStore,
 		RunOutputLister:          cfg.Stores.RunOutputLister,
 		UserWebhookKeyStore:      cfg.Stores.UserWebhookKeyStore,
@@ -314,11 +310,10 @@ func buildOnTaskRunTerminal(cfg Config) func(ctx context.Context, info coretask.
 			TitleGenerator: nil,
 		}
 		workflowSvc = &workflow.Service{
-			Workflows:     cfg.Stores.WorkflowStore,
-			Agents:        cfg.Stores.AgentStore,
-			Issues:        cfg.Stores.IssueStore,
-			Conversations: cfg.Conv.ConversationStore,
-			TaskService:   taskSvc,
+			Workflows:   cfg.Stores.WorkflowStore,
+			Agents:      cfg.Stores.AgentStore,
+			Issues:      cfg.Stores.IssueStore,
+			TaskService: taskSvc,
 		}
 	}
 	var runReporter *issue.RunReporter

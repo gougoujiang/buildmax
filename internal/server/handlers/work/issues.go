@@ -12,7 +12,6 @@ import (
 	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
-	convchannel "github.com/gougoujiang/buildmax/internal/service/conversation/channel"
 	"github.com/gougoujiang/buildmax/internal/service/issue"
 	"github.com/gougoujiang/buildmax/internal/service/task"
 )
@@ -337,9 +336,6 @@ func (h *Handler) createIssueAgentRunHandler(w http.ResponseWriter, r *http.Requ
 	if !httputil.RequireStore(w, h.cfg.Tasks, "tasks not configured") {
 		return
 	}
-	if !httputil.RequireStore(w, h.cfg.Conversations, "conversations not configured") {
-		return
-	}
 	issueID, ok := httputil.PathValue(w, r, "issue_id")
 	if !ok {
 		return
@@ -353,7 +349,6 @@ func (h *Handler) createIssueAgentRunHandler(w http.ResponseWriter, r *http.Requ
 	plan, err := h.issueService().PlanAssignedAgentRun(r.Context(),
 		issue.StartAssignedAgentCmd{TeamID: teamID, IssueID: issueID, UserID: userID, Input: req.Input},
 		h.taskService(),
-		issueConversationOpener{h: h},
 	)
 	if err != nil {
 		if httputil.WriteServiceError(w, err) {
@@ -367,14 +362,13 @@ func (h *Handler) createIssueAgentRunHandler(w http.ResponseWriter, r *http.Requ
 		input = buildIssueAgentRunInput(plan.Issue)
 	}
 	createdTask, err := h.taskService().CreateTask(r.Context(), task.CreateTaskCmd{
-		ConversationID: plan.ConversationID,
-		UserID:         userID,
-		TeamID:         teamID,
-		Input:          input,
-		AgentID:        &plan.AgentID,
-		IssueID:        &issueID,
-		CreatedByType:  coretask.RunCreatedByTypeUser,
-		TriggerSource:  coretask.RunTriggerSourceIssueAgentRun,
+		UserID:        userID,
+		TeamID:        teamID,
+		Input:         input,
+		AgentID:       &plan.AgentID,
+		IssueID:       &issueID,
+		CreatedByType: coretask.RunCreatedByTypeUser,
+		TriggerSource: coretask.RunTriggerSourceIssueAgentRun,
 	})
 	if err != nil {
 		if h.writeTaskServiceError(w, r, err, &plan.AgentID) {
@@ -429,15 +423,3 @@ func (h *Handler) patchIssueHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func newWorkAgentService(cfg Config) *agentsvc.Service { return &agentsvc.Service{Agents: cfg.Agents} }
-
-// issueConversationOpener lets the issue orchestration open the thread a run
-// reports into without knowing which store holds one.
-type issueConversationOpener struct{ h *Handler }
-
-func (o issueConversationOpener) OpenForIssue(ctx context.Context, teamID, userID string) (string, error) {
-	conv, err := o.h.cfg.Conversations.CreateConversationInTeam(ctx, teamID, userID, convchannel.ChannelIssueAgent, userID)
-	if err != nil {
-		return "", err
-	}
-	return conv.ID, nil
-}

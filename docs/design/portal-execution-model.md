@@ -15,17 +15,25 @@
 ## Status
 
 - roadmap_priority: `P2 follow-on`
-- status: `partly implemented` — phases 0 and 3 shipped, phase 1 half shipped,
-  phase 2 reduced to what evidence supports, phases 4 and 5 deferred
+- status: `superseded` — §5.1's target (Team-owned Task, `conversation_id`
+  optional) has shipped, and the §4.2 result-delivery mechanism it describes
+  has been removed rather than kept transitional. The mandatory Tier 1-to-Tier
+  2 hierarchy and Conversation-owned Task shape are superseded by
+  [agent execution and Task threads](agent-execution-and-task-threads.md),
+  which is authoritative for the current execution model; this record is kept
+  for the Tier 1/Tier 2 boundary reasoning in §1-§3
 - follows: [product-vision.md](./product-vision.md),
-  [surface-positioning.md](./surface-positioning.md)
+  [surface-positioning.md](./surface-positioning.md), and
+  [agent-execution-and-task-threads.md](./agent-execution-and-task-threads.md)
 - roadmap: [../ROADMAP.md](../ROADMAP.md)
 - created_at: `2026-08-23`
 
-Opened as a proposal on 2026-08-22 and accepted; this record replaces it. The
-direction was never in doubt — keep Tier 1 and Tier 2, keep background workers,
-and fix the seams between them. What the proposal was actually deciding was
-which seams, and in what order.
+Opened as a proposal on 2026-08-22 and accepted; this record replaced it. Its
+outcome-projection decision remains current; its result-delivery decision does
+not — see §4.2. The later Agent execution design rejects its mandatory
+hierarchy: Conversation is an independent foreground caller, while Team-owned
+Task and TaskRun carry direct and Conversation-originated Agent execution
+alike.
 
 Current schema is in
 [../contribute/architecture/data-model.md](../contribute/architecture/data-model.md)
@@ -34,6 +42,13 @@ and the request path is in
 this record keeps the reasoning.
 
 ## 1. Decision
+
+This section describes the implemented model that produced the shipped outcome
+and delivery work. For new execution paths, the later
+[Agent execution and Task threads](agent-execution-and-task-threads.md) record
+is authoritative: Tier 1 is optional, a direct Agent run creates Task and
+TaskRun without Conversation, and result presentation does not require Tier 1
+synthesis.
 
 Four things, described separately because conflating them is what produced the
 defects this record closes:
@@ -118,17 +133,22 @@ had three.
 The transcript excludes the system channel, so a `[Task Result]` message is no
 longer drawn as the user's own.
 
-### 4.2 Delivery Is Durable
+### 4.2 Delivery Is Durable — Superseded
 
-The report a finished run owes its conversation is a row
-(`task_result_delivery`), not a queued closure. One per run, claimed so two
-servers cannot report one run twice, retried by a sweep, abandoned after a
-bounded number of attempts with the reason kept. What the report says is derived
-from the run on each attempt rather than stored.
+This subsection described the original mechanism: a row (`task_result_delivery`)
+per run, claimed so two servers could not present one run twice, retried by a
+sweep, abandoned after a bounded number of attempts with the reason kept, with
+the presentation text derived from the run on each attempt rather than stored.
 
-The boundary is worth stating plainly: **what is durable is the obligation, not
-the sentence.** An abandoned report is a lost sentence about the result, never a
-lost result — the outcome is on `task_run` and the card reads it directly.
+That mechanism has been removed, not kept as a transitional path. A terminal
+run now only broadcasts an invalidation event (`task.status.changed`); nothing
+enqueues a presentation attempt, retries one, or requires a foreground model
+call before a result is durable or visible. The boundary this subsection
+argued for is now structural rather than a retry policy: **the TaskRun result
+is durable without a sentence about it**, because the Conversation task card
+reads `task_run` directly and no code path ever needed to write one. See
+[agent execution and Task threads §4](agent-execution-and-task-threads.md#4-supported-entry-paths)
+and §12.
 
 ### 4.3 Intent Is Traceably Connected To Execution
 
@@ -159,29 +179,30 @@ same fact would only give it a way to drift. It stops being derivable the first
 time one trigger admits two ways of choosing — a conversation run where the user
 pins an agent and Tier 1 passes it through — and that is when to add it.
 
-### 4.5 Machinery Is Out Of The Conversation List
+### 4.5 Synthetic Conversations Are Gone, Not Just Hidden — Superseded
 
-A workflow step and an issue agent run each create a conversation because Task
-requires one. `ListConversationsByTeam` excludes those channels, count and page
-together. This is the visible half of §5.1, not a fix for it.
+A workflow step and an issue agent run used to each create a conversation
+because Task required one, hidden from `ListConversationsByTeam` by a channel
+filter. Neither creates one any more: both create a Team-owned Task directly
+(§5.1). The `workflow` and `issue_agent` synthetic channels, `SyntheticChannels()`,
+and the list filter that excluded them have been deleted rather than left in
+place with nothing to produce them.
 
 ## 5. What Is Deferred, And Why
 
-### 5.1 Conversation Is Still The Mandatory Parent Of Every Execution
+### 5.1 Conversation Was The Mandatory Parent Of Every Execution — Shipped
 
-`task.conversation_id` is required. The target is `task.team_id` authoritative
-for ownership and `conversation_id` a nullable origin and delivery relation, so
-an issue run, a workflow step, and a webhook each create a task directly.
-
-Deferred because it is not a nullable-column change. It must first address
-`ConversationID` in worker directories and object-storage keys, artifact
-handlers that authorize through Conversation, session restoration, API paths
-that assume Conversation, and compatibility between one release of workers and
-servers. New run-storage paths should be authoritative by Team, Task, and
-TaskRun.
-
-The user-visible cost of waiting was synthetic conversations crowding the
-conversation list; §4.5 removed it for a few lines rather than a migration.
+This was deferred here as not a nullable-column change: it needed
+`ConversationID` addressed in worker directories and object-storage keys,
+artifact handlers that authorized through Conversation, session restoration,
+and API paths that assumed Conversation. That cutover has since shipped in one
+change, as the deferral note said it had to: `task.team_id` is required and
+authoritative for ownership, `task.conversation_id` is a nullable origin
+relation, run storage is addressed by team/task/task-run rather than creator
+and Conversation, an issue run and a workflow step each create a Task directly,
+and Task/TaskRun/Artifact/trace/model-call authorization all resolve through
+`task.team_id`. See
+[agent execution and Task threads §13.1](agent-execution-and-task-threads.md#131-ownership-cutover).
 
 ### 5.2 The Tier 2 Catalog
 

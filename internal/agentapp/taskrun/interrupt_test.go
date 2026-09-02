@@ -48,7 +48,7 @@ func TestReportInterruptedRunReportsFailedAndKeepsPartialWork(t *testing.T) {
 	}
 	storage := &fakeRunOutputStorage{}
 	updater := &fakeUpdater{}
-	scope := RunScope{CreatedBy: "u1", ConversationID: "c1", TaskID: "t1", TaskRunID: "r1"}
+	scope := RunScope{TeamID: "tm1", TaskID: "t1", TaskRunID: "r1"}
 	result := runResult{
 		EndTime:         time.Unix(1_800_000_000, 0).UTC(),
 		OutputStr:       "as far as I got",
@@ -100,7 +100,7 @@ func TestReportInterruptedRunReportsFailedAndKeepsPartialWork(t *testing.T) {
 // to see.
 func TestCancelWinsOverAnInterruptionOnTheSameRun(t *testing.T) {
 	updater := &fakeUpdater{}
-	scope := RunScope{CreatedBy: "u1", ConversationID: "c1", TaskID: "t1", TaskRunID: "r1"}
+	scope := RunScope{TeamID: "tm1", TaskID: "t1", TaskRunID: "r1"}
 	dirs := runDirs{runGlobal: t.TempDir(), runArtifacts: t.TempDir()}
 	input := RunTaskInput{
 		Persist:          newFakePersistStorage(),

@@ -183,7 +183,7 @@ internal/
 │   └── taskrun/        One task run inside its run-scoped directory (worker)
 │
 ├── service/            Application services: coordinate stores, enforce rules
-│   ├── conversation/   Tier 1 orchestrator — the single voice to the user
+│   ├── conversation/   Portal foreground chat and optional Task orchestration
 │   │   └── channel/    Normalized turn types and channel adapters (webhook)
 │   ├── agent/          Agent definitions, their revisions, and the delete guard
 │   ├── artifact/       Durable files a team keeps; knows no producer

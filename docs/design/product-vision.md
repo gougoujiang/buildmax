@@ -58,15 +58,18 @@ Issue is the primary user-facing work object. It states the work, relates its
 discussion and execution, and makes results easy to find without requiring a
 user to understand scheduler internals.
 
-### Foreground Orchestration And Background Execution Stay Distinct
+### Foreground Interaction And Durable Execution Stay Distinct
 
-A Conversation is Tier 1: it is the single voice to the user and coordinates
-foreground turns. Task plus TaskRun is Tier 2: it is durable background
-execution, reports its outcome to Tier 1, and never speaks to the user directly.
+A Conversation is an independent foreground chat and optional orchestrator. It
+may answer directly or create an Agent-backed Task when work needs durable
+execution. It is not the mandatory parent of that Task.
 
-These units may relate to the same Issue, but they keep distinct identity,
-lifecycle, authority, and storage. A future proposal may improve how work moves
-between them; it must not erase those boundaries by accident.
+Task plus TaskRun is the durable execution plane. An Agent may be invoked
+directly through it, and a Task retains the Agent session across later
+TaskRuns. A Conversation, Issue, Workflow, API request, or webhook may be the
+origin, but Team remains the owner and no origin becomes an execution or
+authorization parent. The full boundary and continuation model are in
+[agent-execution-and-task-threads.md](agent-execution-and-task-threads.md).
 
 ### Outcomes Are First-Class
 
@@ -133,8 +136,8 @@ providers.
 | Team | Ownership and authorization boundary | Server |
 | Issue | Primary shared work object | Team |
 | Workflow | Reusable linear plan | Team |
-| Conversation | Tier 1 foreground orchestrator and user voice | Team |
-| Task / TaskRun | Tier 2 durable background execution | Team and scheduler |
+| Conversation | Independent foreground chat and optional orchestrator | Team |
+| Task / TaskRun | Durable Agent thread and its execution turns or attempts | Team and scheduler |
 | Artifact | Explicit durable output with stable identity | Team |
 | Plugin activation | Team allow-list and release pin for Agent selection | Team; exact pins snapshot onto a TaskRun |
 
@@ -165,5 +168,6 @@ authority, durability, failure behavior, and evidence can be explained plainly.
 
 Prefer changes that make Agent outcomes easier to obtain, trust, and reuse.
 Reject shortcuts that create a Portal-only Agent, make a local client a second
-administration surface, let a background run speak around Tier 1, or present an
-unimplemented recovery or security boundary as product behavior.
+administration surface, make Conversation a mandatory execution parent, let a
+background run impersonate a user's message, or present an unimplemented
+recovery or security boundary as product behavior.

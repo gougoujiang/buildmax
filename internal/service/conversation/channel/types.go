@@ -1,10 +1,6 @@
 package channel
 
-import (
-	"context"
-
-	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
-)
+import "context"
 
 // Adapter normalizes channel-specific input into a Turn and can deliver output
 // back to that channel.
@@ -29,11 +25,6 @@ const (
 	ChannelCron     = "cron"
 	ChannelWebhook  = "webhook"
 	ChannelSystem   = "system"
-	// ChannelWorkflow and ChannelIssueAgent are not transports and are defined
-	// in core/conversation with the column they are written to. Aliased here
-	// so a caller that already speaks this package does not need both.
-	ChannelWorkflow   = coreconv.ChannelWorkflow
-	ChannelIssueAgent = coreconv.ChannelIssueAgent
 )
 
 // ValidChannels returns the transport channels accepted from a caller.

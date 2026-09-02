@@ -108,15 +108,6 @@ export function WorkflowRunDetail({ token, workflowRunId }: WorkflowRunDetailPro
               Back to Workflow
             </button>
           ) : null}
-          {run?.conversationId ? (
-            <button
-              type="button"
-              className="page-activity__action-btn"
-              onClick={() => navigate({ name: "conversation", conversationId: run.conversationId })}
-            >
-              Open Conversation
-            </button>
-          ) : null}
         </div>
       </div>
 
@@ -142,7 +133,6 @@ export function WorkflowRunDetail({ token, workflowRunId }: WorkflowRunDetailPro
               {run.startedAt ? <div><strong>Started:</strong> {new Date(run.startedAt).toLocaleString()}</div> : null}
               {run.endedAt ? <div><strong>Ended:</strong> {new Date(run.endedAt).toLocaleString()}</div> : null}
               {run.issueId ? <div><strong>Issue ID:</strong> {run.issueId}</div> : null}
-              <div><strong>Conversation:</strong> {run.conversationId}</div>
               <div>
                 <strong>Mode:</strong> {isLive ? "Live updates enabled" : "Final snapshot"}
               </div>
@@ -187,14 +177,14 @@ export function WorkflowRunDetail({ token, workflowRunId }: WorkflowRunDetailPro
                           {step.taskRunId ? ` / Run: ${step.taskRunId}` : ""}
                         </div>
                       ) : null}
-                      {step.taskId && run.conversationId ? (
+					  {step.taskId ? (
                         <div className="workflow-run-page__step-actions">
                           <button
                             type="button"
                             className="page-activity__action-btn"
-                            onClick={() => navigate({ name: "conversation", conversationId: run.conversationId })}
+							onClick={() => navigate({ name: "task", taskId: step.taskId! })}
                           >
-                            Open Conversation Trace
+							Open Task
                           </button>
                         </div>
                       ) : null}

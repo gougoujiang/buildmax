@@ -55,9 +55,8 @@ func TestStartWorkflowRunAndAdvanceOnTerminal(t *testing.T) {
 		},
 	}
 	svc := &Service{
-		Workflows:     workflowStore,
-		Agents:        agentStore,
-		Conversations: &mock.MockConversationStore{},
+		Workflows: workflowStore,
+		Agents:    agentStore,
 		TaskService: &task.Service{
 			Agents: agentStore,
 			Tasks:  taskStore,
@@ -125,9 +124,8 @@ func TestStartWorkflowRun_StepsUseAgentSnapshot(t *testing.T) {
 		},
 	}
 	svc := &Service{
-		Workflows:     workflowStore,
-		Agents:        agentStore,
-		Conversations: &mock.MockConversationStore{},
+		Workflows: workflowStore,
+		Agents:    agentStore,
 		TaskService: &task.Service{
 			Agents: agentStore,
 			Tasks:  taskStore,
@@ -289,10 +287,10 @@ func TestRestoreWorkflowRevision_AppendsAndKeepsStatus(t *testing.T) {
 	}
 }
 
-// TestDeletedAgent_RunFinishesButNewWorkIsRefused pins the two halves of soft
-// deletion: a run already in flight completes, and nothing new may name the
-// agent.
-func TestDeletedAgent_RunFinishesButNewWorkIsRefused(t *testing.T) {
+// TestDeletedAgent_RunFinishesButNextStepIsRefused pins the admission boundary:
+// a TaskRun already in flight completes, but a later workflow step cannot
+// create a new Task for an agent deleted in the meantime.
+func TestDeletedAgent_RunFinishesButNextStepIsRefused(t *testing.T) {
 	definition := `{"steps":[{"step_id":"collect","type":"agent_task","target_agent_id":"a_1","prompt":"collect data"},{"step_id":"summarize","type":"agent_task","target_agent_id":"a_2","prompt":"summarize"}]}`
 	workflowStore := &mock.MockWorkflowStore{
 		Workflows: []coreworkflow.Workflow{{
@@ -312,9 +310,8 @@ func TestDeletedAgent_RunFinishesButNewWorkIsRefused(t *testing.T) {
 		},
 	}
 	svc := &Service{
-		Workflows:     workflowStore,
-		Agents:        agentStore,
-		Conversations: &mock.MockConversationStore{},
+		Workflows: workflowStore,
+		Agents:    agentStore,
 		TaskService: &task.Service{
 			Agents: agentStore,
 			Tasks:  taskStore,
@@ -338,18 +335,18 @@ func TestDeletedAgent_RunFinishesButNewWorkIsRefused(t *testing.T) {
 		UserID:    "u1",
 		Status:    string(coretask.RunStatusSucceeded),
 		Output:    &output,
-	}); err != nil {
-		t.Fatalf("HandleTaskRunTerminal: %v", err)
+	}); err != task.ErrAgentNotFound {
+		t.Fatalf("HandleTaskRunTerminal err = %v, want ErrAgentNotFound", err)
 	}
 	updated, err := workflowStore.ListWorkflowStepRuns(context.Background(), run.ID)
 	if err != nil {
 		t.Fatalf("ListWorkflowStepRuns: %v", err)
 	}
-	if updated[1].Status != coreworkflow.StepRunStatusRunning {
-		t.Fatalf("step[1] status = %q, want running — deleting the agent must not strand a run", updated[1].Status)
+	if updated[1].Status != coreworkflow.StepRunStatusFailed {
+		t.Fatalf("step[1] status = %q, want failed after admission refusal", updated[1].Status)
 	}
-	if !strings.Contains(taskStore.List[1].Input, "summarize carefully") {
-		t.Fatalf("second task input = %q, want the snapshot of the deleted agent", taskStore.List[1].Input)
+	if len(taskStore.List) != 1 {
+		t.Fatalf("created %d tasks, want only the already-admitted first task", len(taskStore.List))
 	}
 
 	// Nothing new may name the deleted agent: not a fresh run of the workflow
@@ -426,10 +423,9 @@ func TestHandleTaskRunTerminal_CancelStopsTheRunWithoutFailingIt(t *testing.T) {
 		},
 	}
 	svc := &Service{
-		Workflows:     workflowStore,
-		Agents:        agentStore,
-		Conversations: &mock.MockConversationStore{},
-		TaskService:   &task.Service{Agents: agentStore, Tasks: &mock.MockTaskStore{}},
+		Workflows:   workflowStore,
+		Agents:      agentStore,
+		TaskService: &task.Service{Agents: agentStore, Tasks: &mock.MockTaskStore{}},
 	}
 	run, steps, err := svc.StartWorkflowRun(context.Background(), StartWorkflowRunCmd{
 		TeamID: "tm_1", UserID: "u1", WorkflowID: "w_1",

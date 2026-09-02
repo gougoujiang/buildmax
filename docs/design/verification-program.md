@@ -172,25 +172,29 @@ Covered today: user and team creation, login codes, refresh tokens, public IDs,
 system grants, plugin activation, LLM models and calls, audit search, revision
 queries, task run transitions and claiming, issues, conversations, the team
 invitation and ownership-transfer lifecycle, and — in
-`internal/infra/db/concurrency_test.go` — the four conditional-UPDATE claims
-under contention: task claiming, run transition, result-delivery claiming, and
-cancellation beside a worker's report.
+`internal/infra/db/concurrency_test.go` — four store methods under contention:
+`ClaimTask`, `TransitionTaskRun`, and `RequestTaskRunCancel` each as a
+conditional UPDATE, and `CreateTaskRun`'s one-active-run-per-task and
+idempotency-key guarantees as a locking read on the task row followed by a
+count-then-insert inside one transaction, since neither guarantee is a
+conditional UPDATE on a row that exists yet. A fifth method, result-delivery
+claiming, was covered the same way until the Tier 1 result-delivery mechanism
+it belonged to was removed; see
+[agent execution and Task threads](agent-execution-and-task-threads.md).
 
-Each of those four was checked by mutation rather than assumed: replacing the
-conditional UPDATE with a read-then-write makes the corresponding test fail.
-That step is the point. The first attempt at the task-claim test passed against
-a deliberately broken implementation, because MySQL reports rows *changed*
-rather than rows *matched*, so seven losing callers writing the status it
-already held were counted as zero affected rows. A concurrency test that has
-not been shown to fail is not evidence.
+Each of those four was checked by mutation rather than assumed: removing the
+locking clause or replacing the conditional UPDATE with a read-then-write
+makes the corresponding test fail. That step is the point. The first attempt
+at the task-claim test passed against a deliberately broken implementation,
+because MySQL reports rows *changed* rather than rows *matched*, so seven
+losing callers writing the status it already held were counted as zero
+affected rows. A concurrency test that has not been shown to fail is not
+evidence.
 
 Still to write:
 
 - retry producing a new attempt without rewriting the previous attempt;
 - workflow revision capture and ordered step advancement;
-- result-delivery retry backoff and restart recovery — the lease itself is
-  covered by the contention case above, but a sweep resuming after a restart
-  is not;
 - cross-team lookup rejection at the store, distinct from the role matrix the
   handler tests already assert;
 - migration fixtures representing the supported N-1 schema. **Blocked, not
@@ -290,11 +294,13 @@ Add controls and cases for terminating a worker:
 - during a tool call;
 - while an artifact is being uploaded;
 - after producing output but before terminal report;
-- after terminal report but before Tier 1 result delivery.
+- after terminal report but before an optional Conversation projection.
 
 Each case asserts the documented terminal state, heartbeat and reaper timing,
 partial evidence retention, absence of a phantom result, and the explicit path
 to retry. No run may remain `RUNNING` beyond the bounded recovery interval.
+The same cases must prove that a direct Agent Task needs no Conversation
+delivery in order to reach or expose its terminal result.
 
 ### 6.2 MySQL
 
