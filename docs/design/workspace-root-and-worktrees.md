@@ -236,7 +236,14 @@ whether a subagent is warranted at all.
 ### D8. CLI and TUI get the full capability; Desktop only displays the root
 
 The TUI gets the runtime tool, a `/worktree` command, and the current root in
-its header. Desktop shows the current root and does not switch. A Desktop
+its header. The command is the user-facing side of D5's visibility: it lists
+each worktree, which session holds it, and what it holds uncommitted, and it
+lets the user remove one from the same view — the only action that follows from
+seeing a tree nothing else will reap. Removal there obeys D4: the current tree
+and one another session holds are refused, a clean tree is removed on a
+confirm, and a tree with work is removed only after a confirm that names what
+will be discarded. This is the user's explicit cleanup, not the automation D5
+rejects. Desktop shows the current root and does not switch. A Desktop
 `Project` is local UI state, not a server entity, and deciding whether a
 worktree becomes a Project, a state within one, or nothing Desktop shows is a
 product question this record does not need to answer to be useful.
