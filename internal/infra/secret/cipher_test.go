@@ -25,7 +25,7 @@ func testKEK(t *testing.T) KEKProvider {
 func TestCipher_RoundTrip(t *testing.T) {
 	c := NewCipher(testKEK(t))
 	items := coresecret.Items{"access_key_id": "AKIA", "secret_access_key": "wJa/secret", "region": "us-east-1"}
-	aad := AAD("dep1", "tm_1", "sec_1")
+	aad := []byte("dep1|tm_1|sec_1")
 
 	sealed, err := c.Seal(items, aad)
 	if err != nil {
@@ -52,7 +52,7 @@ func TestCipher_RoundTrip(t *testing.T) {
 func TestCipher_FreshNoncePerSeal(t *testing.T) {
 	c := NewCipher(testKEK(t))
 	items := coresecret.Items{"k": "v"}
-	aad := AAD("d", "t", "s")
+	aad := []byte("d|t|s")
 	a, err := c.Seal(items, aad)
 	if err != nil {
 		t.Fatal(err)
@@ -71,20 +71,20 @@ func TestCipher_FreshNoncePerSeal(t *testing.T) {
 
 func TestCipher_WrongAADFails(t *testing.T) {
 	c := NewCipher(testKEK(t))
-	sealed, err := c.Seal(coresecret.Items{"k": "v"}, AAD("d", "tm_1", "sec_1"))
+	sealed, err := c.Seal(coresecret.Items{"k": "v"}, []byte("d|tm_1|sec_1"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	// Same deployment and secret, different team: a ciphertext moved to another
 	// owner must not open.
-	if _, err := c.Open(sealed, AAD("d", "tm_2", "sec_1")); err == nil {
+	if _, err := c.Open(sealed, []byte("d|tm_2|sec_1")); err == nil {
 		t.Fatal("opened under mismatched AAD")
 	}
 }
 
 func TestCipher_TamperedCiphertextFails(t *testing.T) {
 	c := NewCipher(testKEK(t))
-	aad := AAD("d", "t", "s")
+	aad := []byte("d|t|s")
 	sealed, err := c.Seal(coresecret.Items{"k": "v"}, aad)
 	if err != nil {
 		t.Fatal(err)
@@ -97,7 +97,7 @@ func TestCipher_TamperedCiphertextFails(t *testing.T) {
 
 func TestCipher_EmptyItemsRoundTrip(t *testing.T) {
 	c := NewCipher(testKEK(t))
-	aad := AAD("d", "t", "s")
+	aad := []byte("d|t|s")
 	sealed, err := c.Seal(coresecret.Items{}, aad)
 	if err != nil {
 		t.Fatal(err)

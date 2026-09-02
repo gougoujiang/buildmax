@@ -55,6 +55,7 @@ type ServerConfig struct {
 	Worker           ServerWorkerConfig  `mapstructure:"worker"`
 	Storage          ServerStorageConfig `mapstructure:"storage"`
 	Audit            ServerAuditConfig   `mapstructure:"audit"`
+	Secret           ServerSecretConfig  `mapstructure:"secret"`
 }
 
 // ServerAuditConfig decides how long the governance trail is kept.
@@ -321,6 +322,16 @@ type ServerStorageConfig struct {
 	// model records, and it waits for its own decision. What this already
 	// settles is that one request cannot cost the deployment unbounded disk.
 	MaxArtifactMB int `mapstructure:"max_artifact_mb"`
+}
+
+// ServerSecretConfig configures the Team Secret store. KEKFile is the path to
+// the mounted key file that wraps every secret's data key; the key material
+// itself is never in server.yaml or the environment, only the path is. Empty
+// disables the Team Secret feature: an agent that consumes a Secret is refused,
+// the same way naming a plugin is refused with no Marketplace. See
+// docs/design/team-secrets.md §9.1.
+type ServerSecretConfig struct {
+	KEKFile string `mapstructure:"kek_file"`
 }
 
 // ServerMinIOConfig holds MinIO/S3 connection settings.

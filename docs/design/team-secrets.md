@@ -485,9 +485,12 @@ wrapped data-encryption keys are stored in MySQL.
 
 Each Secret's item map is encrypted with AES-256-GCM or an equivalently
 reviewed AEAD under a fresh random DEK and nonce, rewritten whole on every edit.
-Associated data binds the ciphertext to at least the deployment, Team public ID,
-and Secret public ID, so moving a ciphertext row between owners fails
-authentication.
+Associated data binds the ciphertext to the deployment and the Team public ID,
+so a ciphertext moved to another Team's row fails authentication -- the
+cross-Team isolation the threat model defends. It deliberately does not bind the
+Secret's public ID: that ID is minted when the row is inserted, after the value
+is sealed, and an intra-Team ciphertext swap needs database write access, which
+is the deployment operator the model already trusts.
 
 The DEK is wrapped by a KEK, which never belongs in the database or
 `server.yaml`. A KEK provider interface (§16) has three implementations, and a
@@ -775,7 +778,7 @@ of a reveal operation.
 | Area | Responsibility |
 |---|---|
 | `internal/core/secret` | Secret metadata, item map and sealed-bytes types, consumption config, run grants, errors, and narrow store interfaces |
-| `internal/service/secret` | Secret lifecycle rules, renderer parameter resolution, materialization, exchange, and revocation |
+| `internal/service/secret` | Secret lifecycle: item-name validation, sealing through a `Sealer`, item edits (patch and replace), state changes, team scoping; later renderer parameter resolution, materialization, exchange, and revocation |
 | `internal/service/agent` | Validates an Agent revision's consumption against the team's live Secrets when it is saved, through a narrow `SecretLookup`, the same way it validates a plugin selection |
 | `internal/infra/secret` | AEAD/envelope implementation, external provider adapters, and credential-exchange clients |
 | `internal/bootstrap` | The `buildmax-server secret rewrap` KEK-rotation command, alongside the existing `run-token` admin command |

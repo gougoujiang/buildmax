@@ -117,11 +117,3 @@ func (p *kekFileProvider) Unwrap(wrapped []byte, keyID string) ([]byte, error) {
 	}
 	return dek, nil
 }
-
-// aadFor builds the associated data that binds a sealed blob to one place:
-// deployment, team, and secret. Moving a ciphertext row to another owner then
-// fails authentication. Kept here so seal and open cannot disagree on it.
-func AAD(deploymentID, teamPublicID, secretPublicID string) []byte {
-	// A NUL-separated join so distinct field triples cannot collide.
-	return fmt.Appendf(nil, "bmax-secret\x00%s\x00%s\x00%s", deploymentID, teamPublicID, secretPublicID)
-}

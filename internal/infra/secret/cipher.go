@@ -41,6 +41,9 @@ type Cipher struct {
 // NewCipher returns a Cipher over the given KEK provider.
 func NewCipher(kek KEKProvider) *Cipher { return &Cipher{kek: kek} }
 
+// Cipher is the Sealer the secret service depends on.
+var _ coresecret.Sealer = (*Cipher)(nil)
+
 // Seal encrypts items into a Sealed blob. aad is bound into the ciphertext, so
 // a blob authenticated for one deployment/team/secret fails to open under
 // another -- the caller passes the associated data that names those.

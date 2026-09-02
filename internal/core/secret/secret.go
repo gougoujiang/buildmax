@@ -8,8 +8,18 @@ package secret
 
 import (
 	"context"
+	"fmt"
+	"regexp"
 	"time"
 )
+
+// itemNamePattern is the identifier an item name must be, so a whole group can
+// be injected as environment variables without an item that cannot become a
+// variable. See docs/design/team-secrets.md §5.1.
+var itemNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+// IsItemName reports whether name is a valid Secret item name.
+func IsItemName(name string) bool { return itemNamePattern.MatchString(name) }
 
 // State is a Secret's lifecycle. Disabling refuses new run grants and
 // materializations; destruction erases recoverable material once nothing
@@ -60,6 +70,27 @@ type Sealed struct {
 	Nonce      []byte
 	WrappedDEK []byte
 	KeyID      string
+}
+
+// Sealer is the cryptography the secret service depends on: seal an item map,
+// open a sealed blob. It is an interface so the embedded, Vault, and cloud
+// implementations do not leak into the service, handlers, or runtime. The
+// implementation lives in internal/infra/secret.
+type Sealer interface {
+	Seal(items Items, aad []byte) (Sealed, error)
+	Open(s Sealed, aad []byte) (Items, error)
+}
+
+// AAD builds the associated data that binds a sealed blob to one owner:
+// deployment and Team. A ciphertext moved to another Team's row then fails to
+// open, which is the cross-Team isolation the threat model defends. It binds
+// no Secret public id: that id is minted when the row is inserted, after the
+// value is sealed, and an intra-Team ciphertext swap needs database write
+// access, which is the deployment operator the model already trusts. Kept
+// here so seal and open cannot disagree on it.
+func AAD(deploymentID, teamPublicID string) []byte {
+	// A NUL-separated join so distinct field pairs cannot collide.
+	return fmt.Appendf(nil, "bmax-secret\x00%s\x00%s", deploymentID, teamPublicID)
 }
 
 // CreateInput carries one new Secret. ItemNames is the plaintext key set the

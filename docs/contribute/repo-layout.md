@@ -201,6 +201,8 @@ internal/
 │   │                   not diagnostics — see the package doc)
 │   ├── plugin/         Marketplace publication and catalog lifecycle
 │   ├── plugininspect/  Sanitized inspection of what a plugin archive contributes
+│   ├── secret/         Team Secret lifecycle: validate items, seal them through
+│   │                   a Sealer, store metadata and sealed bytes; no reveal path
 │   ├── team/           Membership: who is in a team and who may change that
 │   ├── quota/          Team quota enforcement
 │   └── llmgateway/     Model catalog, name resolution, routing, and managed calls
