@@ -5,7 +5,7 @@ import { ChatComposer, ChatThread, type ChatThreadItem } from "@buildmax/gui"
 import { AgentAvatar, UserAvatar } from "../../components/UserAvatar"
 import { useAuth } from "../../contexts/AuthContext"
 import { useTeam } from "../../contexts/TeamContext"
-import { continueTask, getTask, getTaskRuns } from "../../features/tasks"
+import { cancelTask, continueTask, getTask, getTaskRuns, retryTask } from "../../features/tasks"
 import type { ApiTask, ApiTaskRun } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 
@@ -25,6 +25,8 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
   const [input, setInput] = useState("")
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
+  const [stopping, setStopping] = useState(false)
+  const [retrying, setRetrying] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
@@ -93,7 +95,10 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
     setSending(true)
     setError(null)
     try {
-      const run = await continueTask(currentTeamId, taskId, message, token)
+      // Generated fresh per attempt: this call's own retry-on-401 reuses it, so
+      // a token refresh cannot turn one Continue into two runs. It is not
+      // meant to survive a page reload or a second manual click.
+      const run = await continueTask(currentTeamId, taskId, message, token, crypto.randomUUID())
       setRuns((current) => [...current, run])
       setInput("")
     } catch (err) {
@@ -103,12 +108,43 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
     }
   }
 
+  function handleStop() {
+    if (!token || !currentTeamId || stopping || !running) return
+    setStopping(true)
+    setError(null)
+    cancelTask(currentTeamId, taskId, token)
+      .then(() => load())
+      .catch((err) => setError(getErrorMessage(err, "Failed to stop this run")))
+      .finally(() => setStopping(false))
+  }
+
+  function handleRetry() {
+    if (!token || !currentTeamId || retrying || running) return
+    setRetrying(true)
+    setError(null)
+    retryTask(currentTeamId, taskId, token)
+      .then(() => load())
+      .catch((err) => setError(getErrorMessage(err, "Failed to retry this run")))
+      .finally(() => setRetrying(false))
+  }
+
   return (
     <div className="page-chat task-thread">
       <header className="task-thread__header">
         <div>
           <h1 className="page-activity__title">{task?.title || "Task"}</h1>
           <p className="page-activity__subtitle">Agent execution history · {task?.status?.toLowerCase() || "loading"}</p>
+        </div>
+        <div className="task-thread__header-actions">
+          {running ? (
+            <button type="button" className="page-activity__action-btn" disabled={stopping} onClick={handleStop}>
+              {stopping ? "Stopping..." : "Stop"}
+            </button>
+          ) : runs.length > 0 ? (
+            <button type="button" className="page-activity__action-btn" disabled={retrying} onClick={handleRetry}>
+              {retrying ? "Retrying..." : "Retry last run"}
+            </button>
+          ) : null}
         </div>
       </header>
       <ChatThread

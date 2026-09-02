@@ -50,10 +50,28 @@ export async function getTaskRuns(teamId: string, taskId: string, token: string)
   return response.runs
 }
 
-export async function continueTask(teamId: string, taskId: string, input: string, token: string): Promise<ApiTaskRun> {
+/**
+ * Continue a task with a new input.
+ *
+ * idempotencyKey lets a caller that cannot tell whether an earlier attempt
+ * landed retry safely: the server returns the run the first attempt created
+ * instead of starting a second one. Optional so a caller with no retry logic
+ * of its own is unaffected.
+ */
+export async function continueTask(
+  teamId: string,
+  taskId: string,
+  input: string,
+  token: string,
+  idempotencyKey?: string
+): Promise<ApiTaskRun> {
   return requestJson<ApiTaskRun>(
     `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/tasks/${encodeURIComponent(taskId)}/runs`,
-    { method: "POST", headers: { ...jsonHeaders, ...authHeaders(token) }, body: JSON.stringify({ input }) }
+    {
+      method: "POST",
+      headers: { ...jsonHeaders, ...authHeaders(token) },
+      body: JSON.stringify({ input, idempotency_key: idempotencyKey }),
+    }
   )
 }
 
