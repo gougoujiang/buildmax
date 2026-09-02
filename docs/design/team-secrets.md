@@ -30,10 +30,12 @@
   [`R3`](../ROADMAP.md) for the team-facing surface. It answers Phase D3 of
   [plugin-team-distribution.md](plugin-team-distribution.md), which deferred
   secret delivery to a follow-on record.
-- status: `Phase 0 started` — the run-scoped OS `HOME` prerequisite (§8.1) is
-  implemented; no secret table, route, or runtime path exists yet.
-  `internal/infra/db` has no secret row, and the only credential a worker
-  legitimately holds today is its run token.
+- status: `Phase 1 core loop closed` — a Team owner stores a Secret (encrypted,
+  no reveal), an Agent revision declares it, and a run receives it in its
+  environment through the worker route and the `env_scrub` allow-list. What
+  remains in Phase 1 is the Portal surface, the `task_run_secret` audit
+  snapshot, and per-run exact-value redaction; Phases 2–5 (file delivery,
+  short-lived exchange, external providers, workload identity) follow.
 - supersedes: the `run-scoped-secret-broker` proposal, whose settled decisions
   are here and whose remaining uncertainty is §20.
 - model: a Secret is one Team-owned group of named items, stored as a single
@@ -692,24 +694,30 @@ suffix rule matching `_TOKEN`, `_KEY`, `_SECRET`, `_PASSWORD`, `_PASSWD`, and
 `_PWD`. `Bash.childEnv` applies it whenever the sandbox is active, which on the
 worker baseline is always.
 
-It is the right instinct at the wrong altitude, and it blocks this design
-outright: a Team's declared `GH_TOKEN` grant never reaches the shell, and
+It was the right instinct at the wrong altitude, and blocked this design
+outright: a Team's declared `GH_TOKEN` grant never reached the shell, and
 because the sandbox defaults off on the CLI baseline and on for workers, the
-same Agent configuration works locally and fails silently in a pod. The suffix
-rule also swallows any similarly named variable an operator legitimately set.
+same Agent configuration worked locally and failed silently in a pod.
 
-It becomes a policy:
+**Done — it is now an allow-list over the denylist:**
 
-- deny by default, so the worker's inherited environment does not reach
-  model-chosen commands;
-- always deny BuildMax's own credentials — `BUILDMAX_RUN_TOKEN`,
-  `BUILDMAX_JWT_SECRET`, `BUILDMAX_API_KEY` — which are never Team Secrets and
-  are never legitimately granted to a run; and
-- allow exactly the names this run's grants declared.
+- BuildMax's own credentials — `BUILDMAX_RUN_TOKEN`, `BUILDMAX_JWT_SECRET`,
+  `BUILDMAX_API_KEY` — are an `alwaysDenyExact` set that no allow-list can
+  re-admit: they are the deployment's own authority, never a value a run is
+  granted;
+- a name this run declared as a grant passes even though it is secret-shaped —
+  `Manager.AllowEnvNames` records the run's grant names, and `ScrubEnvList`
+  admits them; and
+- every other secret-shaped name is still stripped, as before.
 
-Deleting the file is not the fix. The run token is a live credential for the
-managed inference gateway and the worker routes; letting it into every Bash
-child would be a regression this design must not pay for.
+`agentapp` sets the run's grant values in the process environment and passes
+the grant names to the sandbox, so a grant like `GH_TOKEN` reaches the agent's
+commands while the run token does not. The full deny-by-default flip of the
+inherited environment — with an enumerated operational baseline (`PATH`,
+`HOME`, `LANG`…) — is deliberately not part of this: it needs that baseline
+defined and touches the escape-hatch open question (§20), so it stays separate.
+Deleting the file was never the fix; the run token is a live credential for the
+managed inference gateway and the worker routes.
 
 ### 13.2 Object Storage
 
@@ -937,18 +945,23 @@ a worker holds only what its run needs.
 - **done** — owner-only create, item edit (per-item patch and whole-map
   replace), disable, and destroy over HTTP, gated on a configured KEK file, with
   the agent request carrying the consumption config;
-- **server half done** — a run-token worker route resolves the run's agent
-  consumption, decrypts each grant against the run's team, and returns the env
-  bundle over a `no-store` response; a required grant that is disabled,
-  destroyed, or gone fails the request, an optional one is skipped. The worker
-  fetching and injecting these, plus the `env_scrub` allow-list, are the
-  remaining half;
+- **done** — a run-token worker route resolves the run's agent consumption,
+  decrypts each grant against the run's team, and returns the env bundle over a
+  `no-store` response; the worker fetches it, sets the grants in the run's
+  environment, and the `env_scrub` allow-list admits the declared names while
+  still denying BuildMax's own credentials. A required grant that is disabled,
+  destroyed, or gone fails the run; an optional one is skipped;
+- **done** — a required grant that cannot be produced fails the run before the
+  Agent does its work, an optional one is skipped;
 - Portal Secret metadata and item editor (row view and raw JSON),
-  consumption-health, carrying §3's two consequences in the copy;
-- audit actions and per-run exact-value redaction; and
-- failure before the Agent starts on a missing or unusable required grant.
+  consumption-health, carrying §3's two consequences in the copy; and
+- audit actions (the `task_run_secret` snapshot) and per-run exact-value
+  redaction — the remaining Phase 1 work.
 
 Environment delivery is first because it is universal and needs no renderer.
+The core loop — a Team owner stores a Secret, an Agent declares it, and a run
+receives it in its environment — is closed; the Portal surface and the audit
+and redaction records are what remain.
 
 ### Phase 2 — Credential File Delivery
 

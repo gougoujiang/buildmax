@@ -161,6 +161,16 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		return reportPluginRefusal(ctx, updater, taskRunID, fetched.PluginError)
 	}
 
+	// The run's resolved Team Secret grants, on their own no-store route. An
+	// error here is the server refusing to produce a required grant -- a
+	// disabled or destroyed Secret the agent declared -- and a run must not
+	// proceed without a credential its definition named, the same as a plugin
+	// it cannot load.
+	secretGrants, err := workerclient.GetWorkerTaskRunSecrets(ctx, apiCfg, taskRunID)
+	if err != nil {
+		return reportPluginRefusal(ctx, updater, taskRunID, "secret grant unavailable: "+err.Error())
+	}
+
 	sessionID := session.NewID()
 	if task.SessionID != nil {
 		sessionID = *task.SessionID
@@ -240,6 +250,7 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		Plugins:                fetched.Plugins,
 		SandboxNetworkTier:     config.SandboxNetworkTier(fetched.SandboxNetworkTier),
 		SandboxFilesystemTier:  config.SandboxFilesystemTier(fetched.SandboxFilesystemTier),
+		SecretEnvGrants:        secretGrants,
 		InterruptGrace:         interruptGraceFromEnv(),
 	})
 	if errors.Is(err, coretask.ErrRunCanceled) {

@@ -395,3 +395,27 @@ func TestRestoreSessionFromPreviousRun_PartialBundleRestoresNothing(t *testing.T
 		t.Errorf("a partial bundle was left behind (stat err = %v)", err)
 	}
 }
+
+// TestWithRunEnv_InjectsGrantsAndRestores proves a run's Secret grants are set
+// in the process environment for the duration of the run and cleared after,
+// alongside HOME and BUILDMAX_HOME.
+func TestWithRunEnv_InjectsGrantsAndRestores(t *testing.T) {
+	const name = "GH_TOKEN_TEST_GRANT"
+	_ = os.Unsetenv(name)
+	grants := map[string]string{name: "ghs_secret"}
+	err := withRunEnv(t.TempDir(), t.TempDir(), grants, func() error {
+		if got := os.Getenv(name); got != "ghs_secret" {
+			t.Fatalf("inside run: %s = %q, want the grant value", name, got)
+		}
+		if os.Getenv("HOME") == "" {
+			t.Fatal("inside run: HOME should be set")
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("withRunEnv: %v", err)
+	}
+	if _, ok := os.LookupEnv(name); ok {
+		t.Fatalf("after run: %s should be cleared", name)
+	}
+}

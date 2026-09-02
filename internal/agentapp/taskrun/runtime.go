@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -158,6 +159,12 @@ type RunTaskInput struct {
 	// docs/design/agent-sandbox-policy.md.
 	SandboxNetworkTier    config.SandboxNetworkTier
 	SandboxFilesystemTier config.SandboxFilesystemTier
+	// SecretEnvGrants are this run's resolved Team Secret grants, variable name
+	// to value, computed by the server from the agent's consumption config.
+	// They are set in the run's environment and their names are allow-listed
+	// past env scrubbing. Empty when the agent consumes no Secret. See
+	// docs/design/team-secrets.md §8.2.
+	SecretEnvGrants map[string]string
 	// InterruptGrace is how long this run may spend reporting after its process
 	// is asked to stop. Zero uses interruptReportTimeout. A dispatcher that will
 	// kill the worker on its own deadline passes that deadline here, so the run
@@ -384,7 +391,7 @@ func executeRunTask(ctx context.Context, input RunTaskInput, task *coretask.Task
 	}
 	agentRun, err := runAgentTask(ctx, run, dirs.runDir, dirs.runGlobal, dirs.runOSHome, effectiveSessionID, input.StreamSender, input.Model, input.Managed, input.AdditionalSystemPrompt,
 		artifactPublisher(input.WorkerAPI, run.ID), issueClient(input.WorkerAPI, task, run.ID),
-		input.SandboxNetworkTier, input.SandboxFilesystemTier)
+		input.SandboxNetworkTier, input.SandboxFilesystemTier, input.SecretEnvGrants)
 	result := runResult{
 		EndTime:          time.Now().UTC(),
 		OutputStr:        string(agentRun.output),
@@ -495,14 +502,14 @@ func runtimeModelEntries(runtimeModel config.ModelEntry, managed ManagedInferenc
 	return []config.ModelEntry{runtimeModel}
 }
 
-func runAgentTask(ctx context.Context, run *coretask.Run, runDir, runGlobalDir, runOSHome, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry, managed ManagedInference, additionalSystemPrompt string, publisher tool.ArtifactPublisher, issues tool.IssueClient, sandboxNetworkTier config.SandboxNetworkTier, sandboxFilesystemTier config.SandboxFilesystemTier) (agentRunOutput, error) {
+func runAgentTask(ctx context.Context, run *coretask.Run, runDir, runGlobalDir, runOSHome, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry, managed ManagedInference, additionalSystemPrompt string, publisher tool.ArtifactPublisher, issues tool.IssueClient, sandboxNetworkTier config.SandboxNetworkTier, sandboxFilesystemTier config.SandboxFilesystemTier, secretGrants map[string]string) (agentRunOutput, error) {
 	var sink llm.StreamSink
 	if streamSender != nil {
 		sink = &streamSinkAdapter{ctx: ctx, streamSender: streamSender, taskRunID: run.ID}
 	}
 
 	var out agentapp.RunResult
-	err := withRunEnv(runOSHome, runGlobalDir, func() error {
+	err := withRunEnv(runOSHome, runGlobalDir, secretGrants, func() error {
 		app, err := agentapp.NewAgentApp(agentapp.AppConfig{
 			WorkspaceDir:           runDir,
 			EnableMCP:              true,
@@ -527,6 +534,10 @@ func runAgentTask(ctx context.Context, run *coretask.Run, runDir, runGlobalDir, 
 			SandboxSurface:        config.WorkerSandboxSurface(),
 			SandboxNetworkTier:    sandboxNetworkTier,
 			SandboxFilesystemTier: sandboxFilesystemTier,
+			// The grants are set in the run's environment by withRunEnv above;
+			// their names are admitted past env scrubbing so a secret-shaped
+			// grant like GH_TOKEN actually reaches the agent's commands.
+			SecretEnvNames: mapKeys(secretGrants),
 		})
 		if err != nil {
 			return err
@@ -601,17 +612,33 @@ func (s *streamSinkAdapter) OnDelta(delta string) {
 	}
 }
 
-// withRunEnv scopes both BUILDMAX_HOME and the operating-system HOME to this
-// run for the duration of fn. A worker process runs one run, so setting the
-// process environment is safe -- this is the same assumption withBuildmaxHome
-// already made for BUILDMAX_HOME alone. USERPROFILE mirrors HOME so tools that
-// read the Windows home variable land in the same run-private directory.
-func withRunEnv(osHome, buildmaxHome string, fn func() error) error {
-	return util.WithEnvVars(map[string]string{
+// withRunEnv scopes BUILDMAX_HOME, the operating-system HOME, and this run's
+// Team Secret grants to the process for the duration of fn. A worker process
+// runs one run, so setting the process environment is safe -- the same
+// assumption withBuildmaxHome already made for BUILDMAX_HOME alone. USERPROFILE
+// mirrors HOME so tools that read the Windows home variable land in the same
+// run-private directory. The grants are placed under the names the agent
+// declared; env scrubbing admits those names (see AppConfig.SecretEnvNames).
+func withRunEnv(osHome, buildmaxHome string, grants map[string]string, fn func() error) error {
+	vars := map[string]string{
 		config.EnvKeyBuildmaxHome: buildmaxHome,
 		"HOME":                    osHome,
 		"USERPROFILE":             osHome,
-	}, fn)
+	}
+	maps.Copy(vars, grants)
+	return util.WithEnvVars(vars, fn)
+}
+
+// mapKeys returns a map's keys, or nil for an empty map.
+func mapKeys(m map[string]string) []string {
+	if len(m) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	return out
 }
 
 func persistRunResult(runArtifactsDir string, output []byte) {

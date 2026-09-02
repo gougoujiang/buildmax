@@ -70,6 +70,12 @@ type AppConfig struct {
 	// SandboxFilesystemTier's non-workspace tiers add. See
 	// config.SandboxSharedPaths.
 	SandboxSharedPaths config.SandboxSharedPaths
+	// SecretEnvNames are the environment variable names this run declared as
+	// Team Secret grants. The sandbox admits them past its secret-shaped
+	// denylist, so a grant like GH_TOKEN reaches the agent's commands.
+	// BuildMax's own credentials are never admitted. Empty on every surface
+	// that consumes no Secret. See docs/design/team-secrets.md §13.1.
+	SecretEnvNames []string
 	// MaxIterations caps this AgentApp's model calls per run, outranking
 	// settings.yaml. Zero takes the configured value. A surface exposes it for
 	// the run whose length nobody configured for: a benchmark task or an

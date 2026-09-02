@@ -58,6 +58,11 @@ type Manager struct {
 	// not a present one that failed to init or failed probeBackend. Empty
 	// when the backend is available or the sandbox was never enabled.
 	unavailableReason string
+	// allowedEnvNames are the environment variable names this run declared as
+	// Team Secret grants, which ScrubEnv admits even though they are
+	// secret-shaped. BuildMax's own credentials are never admitted. Empty on
+	// every surface that consumes no Secret. See docs/design/team-secrets.md.
+	allowedEnvNames map[string]bool
 }
 
 // NewManager builds a Manager for the given config and workspace. workspace
@@ -255,13 +260,31 @@ func (m *Manager) Proxy() *Proxy {
 	return m.proxy
 }
 
-// ScrubEnv removes secret-shaped variables from env. When the sandbox
-// is disabled this returns env unchanged (no enforcement).
+// ScrubEnv removes secret-shaped variables from env, keeping the names this
+// run declared as Secret grants (AllowEnvNames). When the sandbox is disabled
+// this returns env unchanged (no enforcement).
 func (m *Manager) ScrubEnv(env []string) []string {
 	if !m.Enabled() {
 		return env
 	}
-	return ScrubEnvList(env)
+	return ScrubEnvList(env, m.allowedEnvNames)
+}
+
+// AllowEnvNames records the environment variable names this run declared as
+// Team Secret grants, so ScrubEnv admits them. Called once as the runtime is
+// assembled; BuildMax's own credentials are never admitted, whatever is passed.
+func (m *Manager) AllowEnvNames(names []string) {
+	if len(names) == 0 {
+		m.allowedEnvNames = nil
+		return
+	}
+	allowed := make(map[string]bool, len(names))
+	for _, n := range names {
+		if n != "" && !isAlwaysDenyEnvName(n) {
+			allowed[n] = true
+		}
+	}
+	m.allowedEnvNames = allowed
 }
 
 // AllowUnsandboxed reports whether the per-call dangerously_disable_sandbox

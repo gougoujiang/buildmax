@@ -56,9 +56,43 @@ func TestScrubEnvList(t *testing.T) {
 		"STRIPE_SECRET_KEY=sk_test_", // dropped (matches both _SECRET and _KEY)
 		"MY_PASSWORD=hunter2",
 	}
-	got := ScrubEnvList(in)
+	got := ScrubEnvList(in, nil)
 	want := []string{"PATH=/usr/bin", "HOME=/home/me", "GOPATH=/go", "WEIRD_NO_EQUALS"}
 	if !slices.Equal(got, want) {
 		t.Errorf("ScrubEnvList:\n got %v\nwant %v", got, want)
+	}
+}
+
+// TestScrubEnvList_AllowsDeclaredGrants proves a run's declared grant name
+// passes even though it is secret-shaped, while BuildMax's own credential is
+// never admitted, whatever the allow-list says.
+func TestScrubEnvList_AllowsDeclaredGrants(t *testing.T) {
+	in := []string{
+		"GITHUB_TOKEN=ghp_abc",      // declared grant -> kept
+		"AWS_SECRET_ACCESS_KEY=abc", // not declared -> dropped
+		"BUILDMAX_RUN_TOKEN=rt",     // always denied even if declared
+		"PATH=/usr/bin",
+	}
+	allowed := map[string]bool{"GITHUB_TOKEN": true, "BUILDMAX_RUN_TOKEN": true}
+	got := ScrubEnvList(in, allowed)
+	want := []string{"GITHUB_TOKEN=ghp_abc", "PATH=/usr/bin"}
+	if !slices.Equal(got, want) {
+		t.Errorf("ScrubEnvList with allow-list:\n got %v\nwant %v", got, want)
+	}
+}
+
+// TestManagerAllowEnvNames_DropsAlwaysDeny proves the allow-list can never
+// re-admit BuildMax's own credentials, whatever names are passed.
+func TestManagerAllowEnvNames_DropsAlwaysDeny(t *testing.T) {
+	m := &Manager{}
+	m.AllowEnvNames([]string{"GH_TOKEN", "BUILDMAX_RUN_TOKEN", ""})
+	if !m.allowedEnvNames["GH_TOKEN"] {
+		t.Error("GH_TOKEN should be allow-listed")
+	}
+	if m.allowedEnvNames["BUILDMAX_RUN_TOKEN"] {
+		t.Error("BUILDMAX_RUN_TOKEN must never be allow-listed")
+	}
+	if _, ok := m.allowedEnvNames[""]; ok {
+		t.Error("empty name must not be stored")
 	}
 }

@@ -118,6 +118,9 @@ func buildAgentApp(cfg AppConfig, resolved resolvedAgentAppConfig) (_ *AgentApp,
 	if err != nil {
 		return nil, err
 	}
+	// This run's Secret grant names pass env scrubbing; BuildMax's own
+	// credentials never do, whatever is passed. See docs/design/team-secrets.md.
+	sandboxManager.AllowEnvNames(cfg.SecretEnvNames)
 
 	app := &AgentApp{
 		workspace:              workspace,
