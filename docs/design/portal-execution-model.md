@@ -16,16 +16,20 @@
 
 - roadmap_priority: `P2 follow-on`
 - status: `partly implemented` — phases 0 and 3 shipped, phase 1 half shipped,
-  phase 2 reduced to what evidence supports, phases 4 and 5 deferred
+  phase 2 reduced to what evidence supports. The mandatory Tier 1-to-Tier 2
+  hierarchy and Conversation-owned Task shape are superseded by
+  [agent execution and Task threads](agent-execution-and-task-threads.md)
 - follows: [product-vision.md](./product-vision.md),
-  [surface-positioning.md](./surface-positioning.md)
+  [surface-positioning.md](./surface-positioning.md), and
+  [agent-execution-and-task-threads.md](./agent-execution-and-task-threads.md)
 - roadmap: [../ROADMAP.md](../ROADMAP.md)
 - created_at: `2026-08-23`
 
-Opened as a proposal on 2026-08-22 and accepted; this record replaces it. The
-direction was never in doubt — keep Tier 1 and Tier 2, keep background workers,
-and fix the seams between them. What the proposal was actually deciding was
-which seams, and in what order.
+Opened as a proposal on 2026-08-22 and accepted; this record replaced it. Its
+shipped outcome-projection and result-delivery decisions remain current. The
+later Agent execution design rejects its mandatory hierarchy: Conversation is
+an independent foreground caller, while Team-owned Task and TaskRun carry
+direct and Conversation-originated Agent execution alike.
 
 Current schema is in
 [../contribute/architecture/data-model.md](../contribute/architecture/data-model.md)
@@ -34,6 +38,13 @@ and the request path is in
 this record keeps the reasoning.
 
 ## 1. Decision
+
+This section describes the implemented model that produced the shipped outcome
+and delivery work. For new execution paths, the later
+[Agent execution and Task threads](agent-execution-and-task-threads.md) record
+is authoritative: Tier 1 is optional, a direct Agent run creates Task and
+TaskRun without Conversation, and result presentation does not require Tier 1
+synthesis.
 
 Four things, described separately because conflating them is what produced the
 defects this record closes:
@@ -120,15 +131,18 @@ longer drawn as the user's own.
 
 ### 4.2 Delivery Is Durable
 
-The report a finished run owes its conversation is a row
-(`task_result_delivery`), not a queued closure. One per run, claimed so two
-servers cannot report one run twice, retried by a sweep, abandoned after a
-bounded number of attempts with the reason kept. What the report says is derived
-from the run on each attempt rather than stored.
+For the current Conversation-owned Task shape, the presentation attempt is a
+row (`task_result_delivery`), not a queued closure. One per run, claimed so two
+servers cannot present one run twice, retried by a sweep, abandoned after a
+bounded number of attempts with the reason kept. What the presentation says is
+derived from the run on each attempt rather than stored. This mechanism is
+transitional: direct Agent Tasks require no delivery row, and a Conversation
+relation makes presentation optional rather than an execution obligation.
 
-The boundary is worth stating plainly: **what is durable is the obligation, not
-the sentence.** An abandoned report is a lost sentence about the result, never a
-lost result — the outcome is on `task_run` and the card reads it directly.
+The boundary is worth stating plainly: **the TaskRun result is durable without
+the sentence.** An abandoned presentation is a lost sentence about the result,
+never a lost result — the outcome is on `task_run` and the card reads it
+directly.
 
 ### 4.3 Intent Is Traceably Connected To Execution
 

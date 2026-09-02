@@ -93,7 +93,10 @@ audit, system administration, and a plugin catalog and activation model.
 Background execution supports local-process and Kubernetes Job launch modes,
 direct and managed inference, team-home materialization, run-scoped homes,
 artifact publication, heartbeats, cancellation, retry, stale-run recovery, and
-result delivery back into Tier 1 conversations.
+the current legacy result-presentation path into Conversations. TaskRun already
+holds the authoritative result; direct Agent execution and optional
+Conversation projection are planned in
+[design/agent-execution-and-task-threads.md](design/agent-execution-and-task-threads.md).
 
 Portal exposes the main collaboration and administration journeys. The
 production tree also includes Compose, kind, Kubernetes, release, SBOM,

@@ -47,8 +47,8 @@ user-facing model:
 
 - local Sessions in CLI, TUI, and Desktop that users can resume and interact
   with directly;
-- Portal Conversations, which are Tier 1 and retain the single voice to the
-  user; and
+- Portal Conversations, which own foreground chat and may orchestrate Tasks;
+  and
 - subagents with private, temporary Sessions, plus durable background execution
   represented by Task and TaskRun.
 
@@ -122,17 +122,19 @@ That is appropriate for bounded, one-shot delegation. It does not cover a user
 who wants to inspect exploration, redirect a child, keep a branch, continue it
 later, or return selected findings to the parent.
 
-### 2.3 Portal already has a narrow return-to-parent pattern
+### 2.3 Portal currently has a narrow return-to-origin pattern
 
 When a Portal Tier 2 TaskRun completes, BuildMax sends a `[Task Result]` back to
 the Tier 1 Conversation that started it. The Conversation Agent then produces
-the user-facing reply. This proves that “background execution completes, then
-its parent reasons about the result and remains the user-facing voice” fits the
-current product boundary.
+the user-facing reply. This is current implementation, not the accepted product
+boundary. [Agent execution and Task threads](../design/agent-execution-and-task-threads.md)
+makes TaskRun result state authoritative, makes Conversation an optional origin
+and projection, and gives a Task its own user-visible continuation surface.
 
 The current path is not a general Session communication mechanism:
 
-- the result returns only to the fixed Conversation that owns the Task;
+- the result returns only to the fixed Conversation currently required by the
+  Task schema;
 - the result is truncated, unstructured text;
 - delivery depends on an active user WebSocket connection and is skipped while
   the user is offline;

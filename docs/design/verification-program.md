@@ -290,11 +290,13 @@ Add controls and cases for terminating a worker:
 - during a tool call;
 - while an artifact is being uploaded;
 - after producing output but before terminal report;
-- after terminal report but before Tier 1 result delivery.
+- after terminal report but before an optional Conversation projection.
 
 Each case asserts the documented terminal state, heartbeat and reaper timing,
 partial evidence retention, absence of a phantom result, and the explicit path
 to retry. No run may remain `RUNNING` beyond the bounded recovery interval.
+The same cases must prove that a direct Agent Task needs no Conversation
+delivery in order to reach or expose its terminal result.
 
 ### 6.2 MySQL
 

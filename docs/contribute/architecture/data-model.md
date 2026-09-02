@@ -157,9 +157,11 @@ erDiagram
 
 Team is the authorization boundary: a request is allowed because the caller has
 a `team_member` row for the resource's `team_id`. Issue is the primary
-user-facing work object. Conversation is Tier 1 and speaks to the user; task
-plus task_run is Tier 2 and reports back through Tier 1. See
-[../../design/surface-positioning.md](../../design/surface-positioning.md).
+user-facing work object. Conversation owns foreground chat and may create or
+project a Task. Task plus task_run is the durable Agent execution plane and its
+result is authoritative without a Conversation. The current non-null relation
+below is implementation debt; the target ownership and continuation model are
+in [Agent execution and Task threads](../../design/agent-execution-and-task-threads.md).
 
 ## Identity And Authorization
 
@@ -649,8 +651,8 @@ that produced the content it holds.
 
 ### `conversation`
 
-Tier 1. The orchestrator that holds foreground turns and is the single voice to
-the user.
+The independent foreground chat and optional Agent-task orchestrator. It owns
+its messages, not the Tasks it may start or display.
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
@@ -716,8 +718,9 @@ failing the turn. See
 
 ## Background Execution
 
-Task plus task_run is Tier 2: durable background execution that reports results
-to Tier 1 rather than speaking to the user directly.
+Task plus task_run is durable Agent execution. TaskRun owns the result;
+Conversation, Issue, and Workflow views may project it through explicit
+optional relations.
 
 ### `task`
 
@@ -727,8 +730,8 @@ The durable unit of background work. One task, many attempts.
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
 | `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
-| `conversation_id` | `bigint unsigned` | no | The Tier 1 conversation that owns the result |
-| `team_id` | `bigint unsigned` | yes | Owning team; used by quota aggregation |
+| `conversation_id` | `bigint unsigned` | no | Current required Conversation relation; planned to become an optional origin/projection relation |
+| `team_id` | `bigint unsigned` | yes | Owning team; planned to become required and authoritative for every Task operation |
 | `issue_id` | `bigint unsigned` | yes | The issue this task advances, if any |
 | `status` | `varchar(32)` | no | `PENDING`, `SCHEDULED`, `RUNNING`, `SUCCEEDED`, `FAILED`, `CANCELED` |
 | `input` | `text` | no | The prompt |

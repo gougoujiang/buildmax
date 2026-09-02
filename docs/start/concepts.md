@@ -105,23 +105,28 @@ under, so a past run stays readable after the definitions move on.
 
 ## Two Tiers
 
-The Portal separates *talking* from *doing*:
+The Portal separates foreground chat from durable Agent execution:
 
 ```text
-Tier 1  conversation  ──creates──▶  Tier 2  task / task_run
-   ▲                                            │
-   └──────────── reports back ──────────────────┘
+conversation ──may create──▶ task ──contains──▶ task_run
+                                  └───────────▶ result / artifacts
+
+agent / issue / workflow / API ──may create──▶ task
 ```
 
-- **Tier 1** is the conversation orchestrator. It is the single voice to the
-  user: it decides whether a message can be answered directly or needs
-  background work, and it turns results into replies.
-- **Tier 2** is execution in the back. A worker process materializes the team's
-  files into a run directory, runs the shared agent runtime there, writes
-  artifacts, and reports status. It never messages the user directly.
+- **Conversation** is foreground chat. It can answer directly or start
+  background work when coordination is useful.
+- **Task** is a durable Agent execution thread. A Task can also start directly
+  from an Agent, Issue, Workflow, or API without a Conversation.
+- **TaskRun** is one execution turn or attempt. A worker materializes the
+  team's files, runs the shared Agent runtime, writes artifacts, and records
+  the result on the TaskRun.
 
-This is why a long-running job does not block the conversation, and why the
-result of a job always comes back through the conversation that started it.
+A Conversation that started a Task may show its result as a card or link. That
+projection is optional: the TaskRun result remains complete and inspectable on
+its own. Direct Agent execution and the Task-thread Continue surface are the
+accepted direction and are not implemented yet; see the
+[Agent execution design](../design/agent-execution-and-task-threads.md).
 
 ## How Work Actually Executes
 

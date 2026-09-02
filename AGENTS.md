@@ -98,10 +98,15 @@ Important ownership boundaries:
 - `internal/agentapp` assembles the runtime used by CLI, Desktop, eval, and
   workers: models, tools, MCP, hooks, sandbox, traces, skills, sessions, and
   workspace resolution.
-- `internal/service/conversation` is Tier 1, the Portal-facing orchestrator and
-  single voice to the user.
-- Task plus TaskRun is Tier 2, durable background execution. Tier 2 reports
-  results to Tier 1; it does not speak directly to the user.
+- `internal/service/conversation` owns Portal foreground chat and optional
+  semantic orchestration. A Conversation may create a Task, but is not its
+  execution, authorization, or storage parent.
+- Task plus TaskRun is the durable Agent execution plane. An Agent can be
+  invoked directly through it; Task owns the continuing execution thread and
+  TaskRun owns one turn or attempt. Results are authoritative on TaskRun and
+  may be projected into a related Conversation, Issue, or Workflow without any
+  of them becoming a mandatory return path. See
+  [`docs/design/agent-execution-and-task-threads.md`](docs/design/agent-execution-and-task-threads.md).
 - `internal/tool/names.go` is the source of truth for LLM-facing runtime tool
   names. Hook matchers and subagent `tools:` entries use those exact strings.
 - HTTP routes are registered by each handler subpackage's `Register` method and

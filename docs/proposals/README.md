@@ -40,9 +40,8 @@ last column says so, and the paper's own delivery phases hold the detail.
 | [Durable Agent sessions](durable-agent-sessions.md) | Should authenticated local Agent sessions become revisioned Server resources for recovery, provenance, sharing, and cross-device continuation? | Nothing; no server route serves a session resource |
 | [Local Issue work bridge](local-issue-work-bridge.md) | How should connected CLI/TUI and Desktop handle Team Issues locally without becoming Portal clones or weakening direct local use? | Most of phase 1: `buildmax issue list`, `show`, and `status`, `buildmax --issue`, and the two Issue tools of [issue agent access](../design/issue-agent-access.md). The durable Issue-to-Session link is not built, and phases 2 and 3 are untouched |
 | [Session tree, agent mailbox, and branched workspaces](session-tree-and-agent-mailbox.md) | Should interactive sessions fork isolated workspaces, return structured child reports, and resume their parent through a durable mailbox? | Nothing |
-| [Two-tier Agent architecture roundtable](two-tier-agent-architecture/README.md) | Is the durable Portal abstraction two Agent tiers, or separate interaction, semantic coordination, deterministic orchestration, execution, and presentation roles? | Current Tier 1 conversations and the Task/TaskRun worker substrate; this roundtable changes no behavior |
 
-Eleven papers have been retired. Seven were accepted into a design
+Twelve papers have been retired. Eight were accepted into a design
 record. *System administration* asked how a private
 deployment should authorize and audit System Administrators; the direction was
 accepted and is now the [system administration
@@ -65,6 +64,13 @@ the [Portal execution design](../design/portal-execution-model.md), which
 separates the two Agent tiers from the substrate that carries them and from the
 projection derived off it, and records which of its phases shipped, which are
 evidence-gated, and which are deferred behind a storage migration.
+
+*Two-tier Agent architecture* reopened whether that hierarchy was the stable
+product boundary. Its synthesis is now the [Agent execution and Task threads
+design](../design/agent-execution-and-task-threads.md): an Agent can execute
+directly through a Team-owned Task and TaskRun, Task is its durable interaction
+thread, and Conversation is an independent foreground caller and optional
+result surface rather than an execution parent.
 
 *Plugin scope for background runs* asked whether a team's plugin set is decided
 once for the team or per agent definition; the answer is both, and §5.3 of the
@@ -116,7 +122,7 @@ by, and records all became settled behaviour while it was open, leaving one
 question that belongs to an existing plan — it is now §3.9 of the [trust harness
 design](../design/trust-harness.md), with the egress half it blocks.
 
-Git history holds all eleven papers.
+Git history holds all twelve papers.
 
 ## Starting A Proposal
 

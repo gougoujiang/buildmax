@@ -347,7 +347,7 @@ The contract supports several adapters because no one environment represents the
 | CLI binary | Verify the shipped local command and workspace behavior |
 | Desktop runtime | Verify local workbench parity below UI presentation |
 | Worker/TaskRun | Verify materialization, non-interactive execution, artifacts, transport, and boundary |
-| Conversation | Verify Tier 1 decisions, Tier 2 delegation, result return, and multi-turn outcomes |
+| Conversation | Verify foreground replies, optional Agent-task delegation, structured result projection, and multi-turn chat outcomes |
 | Deployment | Verify Compose or Kubernetes dependencies and operator-visible failure behavior |
 | Harbor | Run Terminal-Bench 2.1 and other standardized container benchmarks |
 
