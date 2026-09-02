@@ -4,40 +4,44 @@ import { formatRunStatus } from '../lib/format';
 import { ApprovalPanel } from './ApprovalPanel';
 import { DiffDrawer } from './DiffDrawer';
 import { JobsDrawer } from './JobsDrawer';
-import { MemoryDrawer } from './MemoryDrawer';
+import { InfoPanel } from './InfoPanel';
 import { HistoryModal } from './HistoryModal';
-import { AgentsModal, MCPModal, PluginsModal } from './Modals';
+import { AgentsModal, MCPModal, PluginsModal, ToolsModal, WorktreeModal } from './Modals';
 import { EventsOn } from '../lib/wailsRuntime';
 
-export function SkillsPopup({ skills, filter, selected, onSelect, onHighlight }) {
-  const filtered = skills.filter(
-    (s) => !filter || s.name.toLowerCase().includes(filter.toLowerCase()),
-  );
-  if (!filtered.length) {
+// CommandPalette is the "/" overlay: the slash commands the surface offers,
+// then the skills, filtered by what follows the slash. It is the Desktop
+// counterpart to the TUI's completion popup — selecting a command dispatches
+// it, selecting a skill drops its "/name" into the composer to send.
+export function CommandPalette({ items, selected, onSelect, onHighlight }) {
+  if (!items.length) {
     return (
       <div className="slash-popup">
-        <div className="slash-popup__title">Skills</div>
-        <p className="slash-popup__empty">
-          {skills.length === 0 ? 'No skills found.' : 'No match.'}
-        </p>
+        <div className="slash-popup__title">Commands</div>
+        <p className="slash-popup__empty">No match.</p>
       </div>
     );
   }
   return (
-    <div className="slash-popup" role="listbox" aria-label="Skills">
-      <div className="slash-popup__title">Skills — select to run</div>
-      {filtered.map((s, i) => (
+    <div className="slash-popup" role="listbox" aria-label="Commands">
+      <div className="slash-popup__title">Commands &amp; skills</div>
+      {items.map((item, i) => (
         <button
-          key={s.name}
+          key={item.key}
           type="button"
           role="option"
           aria-selected={i === selected}
-          className={`slash-popup__item ${i === selected ? 'slash-popup__item--active' : ''}`}
+          disabled={item.disabled}
+          className={`slash-popup__item ${i === selected ? 'slash-popup__item--active' : ''} ${item.disabled ? 'slash-popup__item--disabled' : ''}`}
           onMouseEnter={() => onHighlight(i)}
-          onClick={() => onSelect(s)}
+          onClick={() => onSelect(item)}
+          title={item.disabled ? 'Send a message first' : item.description}
         >
-          <span className="slash-popup__cmd">{s.name}</span>
-          {s.description && <span className="slash-popup__desc">{s.description}</span>}
+          <span className="slash-popup__cmd">
+            /{item.name}
+            {item.kind === 'skill' && <span className="slash-popup__tag"> skill</span>}
+          </span>
+          {item.description && <span className="slash-popup__desc">{item.description}</span>}
         </button>
       ))}
     </div>
@@ -46,12 +50,13 @@ export function SkillsPopup({ skills, filter, selected, onSelect, onHighlight })
 
 // --- ChatInput ---
 
-export function ChatInput({ onSend, onCancel, loading, error, onDismissError, currentProject, app, approvalRequest, onRespond, toolActivity, runStatus, sessionId, onRunStatusContext, onRewound, onForked, suggestion, onAcceptSuggestion }) {
+export function ChatInput({ onSend, onCancel, loading, error, onDismissError, currentProject, app, approvalRequest, onRespond, toolActivity, runStatus, sessionId, onRunStatusContext, onRewound, onForked, onCompacted, onCommandError, suggestion, onAcceptSuggestion }) {
   const [prompt, setPrompt] = useState('');
 
-  // Skills popup state
+  // Palette state.
+  const [commands, setCommands] = useState([]);
   const [skills, setSkills] = useState([]);
-  const [skillsSelected, setSkillsSelected] = useState(0);
+  const [selected, setSelected] = useState(0);
 
   // Status bar state (loaded per project)
   const [models, setModels] = useState([]);
@@ -63,13 +68,15 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
   const [showModelDropdown, setShowModelDropdown] = useState(false);
   const modelDropdownRef = useRef(null);
 
-  // Lazy-loaded panel state
+  // Lazy-loaded panel state, one per command that opens a panel.
   const [showMCP, setShowMCP] = useState(false);
   const [showAgents, setShowAgents] = useState(false);
   const [showPlugins, setShowPlugins] = useState(false);
   const [showDiff, setShowDiff] = useState(false);
   const [showJobs, setShowJobs] = useState(false);
-  const [showMemory, setShowMemory] = useState(false);
+  const [showTools, setShowTools] = useState(false);
+  const [showWorktree, setShowWorktree] = useState(false);
+  const [showInfo, setShowInfo] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
 
   // Count of running background jobs for the status-bar badge. The Go side
@@ -101,7 +108,8 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
       app.GetSlashModels(currentProject.id),
       app.GetSlashSkills(currentProject.id),
       app.GetGitBranch(currentProject.id),
-    ]).then(([modelsRes, skillsRes, branchRes]) => {
+      app.GetSlashCommands(),
+    ]).then(([modelsRes, skillsRes, branchRes, cmdRes]) => {
       if (modelsRes.status === 'fulfilled') {
         setModels(modelsRes.value.models ?? []);
         setCurrentModel(modelsRes.value.current ?? '');
@@ -113,6 +121,7 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
       }
       if (skillsRes.status === 'fulfilled') setSkills(skillsRes.value.skills ?? []);
       if (branchRes.status === 'fulfilled') setGitBranch(branchRes.value ?? '');
+      if (cmdRes.status === 'fulfilled') setCommands(cmdRes.value ?? []);
     });
   }, [currentProject, app]);
 
@@ -128,23 +137,93 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
     return () => document.removeEventListener('mousedown', onOutside);
   }, [showModelDropdown]);
 
-  // Skills popup: trigger on "/" prefix; text after "/" is the filter.
-  const skillsFilter = (() => {
+  // Palette: trigger on a leading "/"; the text after it filters. A space means
+  // the command name is finished and arguments have begun, so the palette hides.
+  const paletteFilter = (() => {
     const first = prompt.split('\n')[0].trimStart();
     if (!first.startsWith('/')) return null;
     const after = first.slice(1);
-    // Hide once a space appears — user has finished the skill name and is typing args.
     if (after.includes(' ')) return null;
     return after;
   })();
-  const showSkillsPopup = skillsFilter !== null;
-  const filteredSkills = showSkillsPopup
-    ? skills.filter((s) => !skillsFilter || s.name.toLowerCase().includes(skillsFilter.toLowerCase()))
+  const showPalette = paletteFilter !== null;
+
+  // The palette's items: matching commands first, then matching skills. A
+  // command that acts on a saved session is disabled until there is one.
+  const paletteItems = showPalette
+    ? [
+        ...commands
+          .filter((c) => !paletteFilter || c.name.toLowerCase().includes(paletteFilter.toLowerCase()))
+          .map((c) => ({
+            key: `cmd:${c.name}`,
+            kind: 'command',
+            name: c.name,
+            description: c.description,
+            disabled: c.requires_session && !sessionId,
+          })),
+        ...skills
+          .filter((s) => !paletteFilter || s.name.toLowerCase().includes(paletteFilter.toLowerCase()))
+          .map((s) => ({
+            key: `skill:${s.name}`,
+            kind: 'skill',
+            name: s.name,
+            description: s.description,
+            disabled: false,
+          })),
+      ]
     : [];
+
+  const isCommand = (name) => commands.some((c) => c.name === name);
+
+  // dispatchCommand runs a command by name: it opens the panel or performs the
+  // action, mirroring the TUI's dispatchSlashCommand. The input is cleared so
+  // the typed command does not linger.
+  function dispatchCommand(name) {
+    setPrompt('');
+    setSelected(0);
+    switch (name) {
+      case 'model': setShowModelDropdown(true); break;
+      case 'diff': setShowDiff(true); break;
+      case 'mcp': setShowMCP(true); break;
+      case 'agents': setShowAgents(true); break;
+      case 'plugins': setShowPlugins(true); break;
+      case 'tasks': setShowJobs(true); break;
+      case 'tools': setShowTools(true); break;
+      case 'worktree': setShowWorktree(true); break;
+      case 'info': setShowInfo(true); break;
+      case 'rewind':
+      case 'fork':
+        if (sessionId) setShowHistory(true);
+        break;
+      case 'compact': handleCompact(); break;
+      case 'skills': /* skills are listed inline in the palette */ break;
+      default: break;
+    }
+  }
+
+  async function handleCompact() {
+    if (!sessionId) return;
+    try {
+      const res = await app.CompactProjectSession(currentProject.id, sessionId);
+      onCompacted?.(res);
+    } catch (err) {
+      onCommandError?.(err?.message ?? String(err));
+    }
+  }
 
   function handleSubmit() {
     const value = prompt.trim();
     if (!value) return;
+    // A bare command (optionally with arguments) is dispatched, not sent: the
+    // first token names it. Anything else — including a "/skillname" the user
+    // typed freehand — is sent as a message.
+    if (value.startsWith('/')) {
+      const firstToken = value.slice(1).split(/\s+/)[0];
+      if (isCommand(firstToken)) {
+        dispatchCommand(firstToken);
+        return;
+      }
+    }
     // No loading guard: onSend queues the message when a run is in flight.
     onSend(value);
     setPrompt('');
@@ -153,7 +232,7 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
   function handleChange(value) {
     setPrompt(value);
     onDismissError();
-    setSkillsSelected(0);
+    setSelected(0);
   }
 
   // Accepting puts the suggestion in the box for the user to send or edit; it
@@ -163,9 +242,14 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
     onAcceptSuggestion?.();
   }
 
-  function handleSelectSkill(skill) {
-    setPrompt(`/${skill.name}`);
-    setSkillsSelected(0);
+  function handleSelectItem(item) {
+    if (item.disabled) return;
+    if (item.kind === 'command') {
+      dispatchCommand(item.name);
+      return;
+    }
+    setPrompt(`/${item.name}`);
+    setSelected(0);
   }
 
   async function handleModelSwitch(modelName) {
@@ -179,17 +263,17 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
   }
 
   function handleKeyDown(e) {
-    if (!showSkillsPopup || !filteredSkills.length) return;
+    if (!showPalette || !paletteItems.length) return;
     if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setSkillsSelected((p) => (p - 1 + filteredSkills.length) % filteredSkills.length);
+      setSelected((p) => (p - 1 + paletteItems.length) % paletteItems.length);
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setSkillsSelected((p) => (p + 1) % filteredSkills.length);
+      setSelected((p) => (p + 1) % paletteItems.length);
     } else if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      const skill = filteredSkills[skillsSelected];
-      if (skill) handleSelectSkill(skill);
+      const item = paletteItems[selected];
+      if (item) handleSelectItem(item);
     } else if (e.key === 'Escape') {
       setPrompt('');
     }
@@ -209,13 +293,12 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
         <div className="tool-activity-bar">{toolActivity}</div>
       )}
 
-      {showSkillsPopup && (
-        <SkillsPopup
-          skills={skills}
-          filter={skillsFilter}
-          selected={skillsSelected}
-          onSelect={handleSelectSkill}
-          onHighlight={setSkillsSelected}
+      {showPalette && (
+        <CommandPalette
+          items={paletteItems}
+          selected={selected}
+          onSelect={handleSelectItem}
+          onHighlight={setSelected}
         />
       )}
 
@@ -226,7 +309,7 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
         onCancel={onCancel}
         loading={loading}
         error={error}
-        placeholder="Type a message… (/ for skills, Enter to send)"
+        placeholder="Type a message… (/ for commands, Enter to send)"
         queueWhileLoading
         queuePlaceholder="Type a message… (Enter to queue it for the next turn)"
         ariaLabel="Message"
@@ -236,7 +319,7 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
       />
 
       <div className="chat-status-bar">
-        {/* Model dropdown */}
+        {/* Model dropdown — kept as a persistent control; /model opens it too. */}
         <div className="model-selector" ref={modelDropdownRef}>
           <button
             type="button"
@@ -288,76 +371,11 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
 
         <div className="chat-status-bar__spacer" />
 
-        {/* MCP button */}
-        <button
-          type="button"
-          className="chat-status-bar__btn"
-          onClick={() => setShowDiff(true)}
-          title="Changed files"
-        >
-          Diff
-        </button>
-
-        <button
-          type="button"
-          className="chat-status-bar__btn"
-          onClick={() => setShowMCP(true)}
-          title="MCP server status"
-        >
-          MCP
-        </button>
-
-        {/* Agents button */}
-        <button
-          type="button"
-          className="chat-status-bar__btn"
-          onClick={() => setShowAgents(true)}
-          title="Available agents"
-        >
-          Agents
-        </button>
-
-        {/* Plugins button */}
-        <button
-          type="button"
-          className="chat-status-bar__btn"
-          onClick={() => setShowPlugins(true)}
-          title="Installed plugins"
-        >
-          Plugins
-        </button>
-
-        {/* History button: rewind and fork both act on a saved session, so
-            there is nothing to offer until this chat has one. */}
-        <button
-          type="button"
-          className="chat-status-bar__btn"
-          onClick={() => setShowHistory(true)}
-          disabled={!sessionId}
-          title={sessionId ? 'Rewind or fork this conversation' : 'Send a message first'}
-        >
-          History
-        </button>
-
-        {/* Memory button */}
-        <button
-          type="button"
-          className="chat-status-bar__btn"
-          onClick={() => setShowMemory(true)}
-          title="What this project remembers across sessions"
-        >
-          Memory
-        </button>
-
-        {/* Jobs button */}
-        <button
-          type="button"
-          className="chat-status-bar__btn"
-          onClick={() => setShowJobs(true)}
-          title="Background jobs"
-        >
-          {runningJobs > 0 ? `Jobs (${runningJobs})` : 'Jobs'}
-        </button>
+        {/* Everything the status bar used to offer as buttons is now a slash
+            command; the hint says how to reach them. */}
+        <span className="chat-status-bar__hint">
+          {runningJobs > 0 ? `${runningJobs} running · ` : ''}/ for commands
+        </span>
       </div>
 
       {showMCP && (
@@ -372,8 +390,19 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
       {showDiff && (
         <DiffDrawer projectID={currentProject.id} app={app} onClose={() => setShowDiff(false)} />
       )}
-      {showMemory && (
-        <MemoryDrawer projectID={currentProject.id} app={app} onClose={() => setShowMemory(false)} />
+      {showTools && (
+        <ToolsModal projectID={currentProject.id} app={app} onClose={() => setShowTools(false)} />
+      )}
+      {showWorktree && (
+        <WorktreeModal projectID={currentProject.id} app={app} onClose={() => setShowWorktree(false)} />
+      )}
+      {showInfo && (
+        <InfoPanel
+          projectID={currentProject.id}
+          sessionID={sessionId || ''}
+          app={app}
+          onClose={() => setShowInfo(false)}
+        />
       )}
       {showJobs && (
         <JobsDrawer projectID={currentProject.id} app={app} onClose={() => setShowJobs(false)} />

@@ -4,26 +4,18 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/gougoujiang/buildmax/internal/interface/slashcmd"
+
 	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 )
 
-// builtinSlashCommands is sorted; add new system commands here for completion.
-var builtinSlashCommands = []string{
-	"/compact",
-	"/diff",
-	"/fork",
-	"/info",
-	"/mcp",
-	"/model",
-	"/rewind",
-	"/sessions",
-	"/skills",
-	"/tasks",
-	"/tools",
-	"/worktree",
-}
+// builtinSlashCommands is the sorted completion list, derived from the shared
+// slashcmd registry so the TUI and Desktop offer the same commands. Add a
+// command in internal/interface/slashcmd; wire its handler in
+// dispatchSlashCommand below.
+var builtinSlashCommands = slashcmd.Names(slashcmd.CLI)
 
 // slashPanel is the abstraction shared by all "/" overlays (sessions, models,
 // tools, skills, mcp, diff, info). The Model holds at most one active panel; key
@@ -217,6 +209,8 @@ func (m *Model) renderSlashPopupPanel() string {
 // dispatchSlashCommand runs a resolved system command (no session append).
 func dispatchSlashCommand(m *Model, cmd string, args ...string) (tea.Model, tea.Cmd) {
 	switch cmd {
+	case "/agents":
+		return openSlashAgents(m)
 	case "/compact":
 		return runSlashCompact(m)
 	case "/diff":
@@ -227,6 +221,8 @@ func dispatchSlashCommand(m *Model, cmd string, args ...string) (tea.Model, tea.
 		return openSlashMCP(m)
 	case "/model":
 		return runSlashModel(m, args)
+	case "/plugins":
+		return openSlashPlugins(m)
 	case "/rewind":
 		return openSlashRewind(m)
 	case "/sessions":
@@ -257,7 +253,7 @@ func dispatchSlashCommand(m *Model, cmd string, args ...string) (tea.Model, tea.
 				return m, startRun(m, text)
 			}
 		}
-		m.err = "unknown command " + cmd + " (try /compact, /diff, /fork, /info, /mcp, /model, /rewind, /sessions, /skills, /tasks, /tools, /worktree)"
+		m.err = "unknown command " + cmd + " (try " + strings.Join(builtinSlashCommands, ", ") + ")"
 		return m, nil
 	}
 }

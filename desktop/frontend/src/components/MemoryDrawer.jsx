@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 function formatWritten(entry) {
   if (!entry.updated_at) return '';
@@ -8,17 +8,17 @@ function formatWritten(entry) {
   return entry.verified_at ? `${written} · verified ${entry.verified_at}` : written;
 }
 
-// MemoryDrawer lists what the project remembers and shows one memory's body.
-// It reuses the diff-drawer layout: same shell, list pane, and content pane.
+// MemoryView lists what the project remembers and shows one memory's body. It
+// is the memory half of the /info panel, over the same store the CLI and TUI
+// read; the panel provides the surrounding tab shell.
 //
 // Read-only. A memory is a Markdown file the user can edit directly, and the
 // directory is shown so they can; editing here needs the refusal path a
 // digest-checked write can take, which is its own piece of work.
-export function MemoryDrawer({ projectID, app, onClose }) {
+export function MemoryView({ projectID, app }) {
   const [payload, setPayload] = useState(null);
   const [error, setError] = useState(null);
   const [selectedName, setSelectedName] = useState('');
-  const drawerRef = useRef(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -31,14 +31,6 @@ export function MemoryDrawer({ projectID, app, onClose }) {
       .catch((err) => { if (!cancelled) setError(err?.message ?? String(err)); });
     return () => { cancelled = true; };
   }, [projectID, app]);
-
-  useEffect(() => {
-    function onKey(e) { if (e.key === 'Escape') onClose(); }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
-  useEffect(() => { drawerRef.current?.focus(); }, []);
 
   const memories = payload?.memories ?? [];
   const skipped = payload?.skipped ?? [];
@@ -56,24 +48,9 @@ export function MemoryDrawer({ projectID, app, onClose }) {
   }
 
   return (
-    <div
-      ref={drawerRef}
-      className="diff-drawer"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Project memory"
-      tabIndex={-1}
-    >
-      <div className="diff-drawer__header">
-        <div>
-          <h2 className="diff-drawer__title">Project Memory</h2>
-          <p className="diff-drawer__meta">{meta}</p>
-          {payload?.directory && (
-            <p className="diff-drawer__meta">{payload.directory}</p>
-          )}
-        </div>
-        <button type="button" className="diff-drawer__close" onClick={onClose} aria-label="Close">×</button>
-      </div>
+    <div className="info-memory">
+      {meta && <p className="diff-drawer__meta">{meta}</p>}
+      {payload?.directory && <p className="diff-drawer__meta">{payload.directory}</p>}
 
       {skipped.map((s) => (
         <p key={s.file} className="diff-drawer__error">

@@ -364,6 +364,24 @@
   white-space: nowrap;
 }
 
+.slash-popup__tag {
+  font-family: var(--font-sans, inherit);
+  font-weight: 500;
+  font-size: 0.7rem;
+  color: var(--color-text-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.slash-popup__item--disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.slash-popup__item--disabled:hover {
+  background: none;
+}
+
 /* ── Chat status bar (below the composer) ───────────────────────────────── */
 
 .chat-status-bar {
@@ -397,6 +415,12 @@
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: min(30rem, 50vw);
+}
+
+.chat-status-bar__hint {
+  font-size: 0.75rem;
+  color: var(--color-text-subtle);
+  white-space: nowrap;
 }
 
 .chat-status-bar__btn {
@@ -1104,4 +1128,103 @@
   font-size: 0.82rem;
   color: var(--color-text-muted);
   font-style: italic;
+}
+
+/* ── Info panel (/info): tabbed session stats and project memory ─────────── */
+
+.info-tabs {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.info-tabs__tab {
+  padding: 0.25rem 0.7rem;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-subtle);
+  cursor: pointer;
+}
+
+.info-tabs__tab--active {
+  color: var(--color-text);
+  border-bottom-color: var(--color-accent, var(--color-text));
+}
+
+.info-stats {
+  padding: 0.75rem 1rem 1rem;
+  overflow: auto;
+}
+
+.info-stats__list {
+  margin: 0 0 0.75rem;
+}
+
+.info-stats__row {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.2rem 0;
+  align-items: baseline;
+}
+
+.info-stats__label {
+  flex: 0 0 5.5rem;
+  font-weight: 600;
+  font-size: 0.82rem;
+  color: var(--color-text-subtle);
+}
+
+.info-stats__value {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--color-text);
+}
+
+.info-stats__subhead {
+  margin: 0.5rem 0 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-subtle);
+}
+
+.info-stats__tools {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.info-stats__tools td {
+  padding: 0.15rem 0.5rem 0.15rem 0;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.info-stats__tool-name {
+  font-family: var(--font-mono, monospace);
+}
+
+.info-stats__tool-note {
+  color: var(--color-text-subtle);
+  white-space: normal;
+}
+
+.info-stats__more,
+.info-stats__caveat {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  color: var(--color-text-subtle);
+}
+
+.info-memory {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  padding: 0.5rem 1rem 0;
+  overflow: hidden;
 }

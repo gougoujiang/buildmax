@@ -328,6 +328,8 @@ Typed into the input line:
 | `/info` | Two tabs: this session's spend, context use, and heaviest tools; and what this project remembers, with `enter` to read a memory |
 | `/tasks` | Lists background jobs: state, age, command; `s` stops the selected one |
 | `/worktree` | Lists this repository's worktrees, which session is in each, and what each holds uncommitted; `d` removes the selected one after a confirm |
+| `/agents` | Lists the agent types the `Task` tool can delegate to |
+| `/plugins` | Lists installed plugins, their state, and what each contributes |
 
 Slash commands are unavailable while the agent is running.
 

@@ -94,6 +94,25 @@ placeholder while the input is empty and accepted with Tab.
 `agent.turn_digest` in `settings.yaml` switches either half off. See
 [tui.md](tui.md) for the same feature in the terminal.
 
+## Command Palette
+
+The chat input offers the same slash commands as the TUI, typed rather than
+clicked: a leading `/` opens a palette (`ChatInput.jsx`) listing the commands
+and the project's skills, filtered by what follows the slash. Selecting a
+command opens its panel or runs its action; selecting a skill drops its `/name`
+into the composer to send. There is no longer a row of status-bar buttons — the
+model picker, git branch, and run status stay, and everything else is a command.
+
+The command set is the shared `internal/interface/slashcmd` registry, read over
+the `GetSlashCommands` binding, so the TUI and Desktop offer the same commands
+and descriptions from one source. Each command maps to a binding that already
+existed or a thin new one: `/info` to `GetSlashInfo` (session statistics; the
+memory half reuses `ProjectMemory`), `/tools` to `GetSlashTools`, `/worktree` to
+`GetSlashWorktrees`, and `/compact` to `CompactProjectSession`, which takes the
+session's writer lock the way a run does and is refused while one is in flight.
+`/sessions` is the one command Desktop does not offer, because the session list
+is always visible in the sidebar; the registry records that per surface.
+
 ## Session Ownership
 
 Desktop holds no session between calls. A run opens one, owns it for its whole
@@ -117,10 +136,11 @@ top-level under `<BUILDMAX_HOME>/sessions/` and name their Project by id;
 settings, traces, auth, and logs use the regular paths under `BUILDMAX_HOME`,
 and project source files stay in the user-selected folder.
 
-The **Memory** drawer lists what the project remembers and shows one memory's
-body, over the same store the CLI and TUI read. It is read-only: a memory is a
-Markdown file the user can edit directly, and the drawer prints the directory so
-they can. Editing from here needs the refusal path a digest-checked write takes
+The **memory** tab of the `/info` panel lists what the project remembers and
+shows one memory's body, over the same store the CLI and TUI read. It is
+read-only: a memory is a Markdown file the user can edit directly, and the tab
+prints the directory so they can. Editing from here needs the refusal path a
+digest-checked write takes
 — replacing a memory this session has not read, or one that changed underneath
 it — which is phase 3 in
 [local project memory](../../design/local-project-memory.md) §11.5.

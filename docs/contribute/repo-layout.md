@@ -244,6 +244,8 @@ internal/
 ├── interface/          Local user-facing entry points
 │   ├── cli/            Cobra CLI, Bubble Tea TUI, print mode
 │   ├── desktop/        Wails app bridge
+│   ├── slashcmd/       Shared source of truth for the chat's slash-command set,
+│   │                   read by both the TUI and Desktop
 │   ├── pluginmgr/      Installing, publishing, and removing plugins locally —
 │   │                   the mechanism the CLI and Desktop both run
 │   ├── auth/           Login client and credential persistence

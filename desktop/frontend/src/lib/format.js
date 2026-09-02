@@ -71,9 +71,16 @@ export function formatTokenCount(n) {
   return `${(value / 1000).toFixed(1)}k`;
 }
 
+export function formatBytes(n) {
+  const value = Number(n) || 0;
+  if (value >= 1 << 20) return `${(value / (1 << 20)).toFixed(1)} MB`;
+  if (value >= 1 << 10) return `${(value / (1 << 10)).toFixed(1)} KB`;
+  return `${value} B`;
+}
+
 // formatRunStatus is the status bar's label: only the context share, the one
 // number a reader watches turn to turn. The token and cache breakdowns belong
-// in the planned /info panel, not the bar.
+// in the /info panel, not the bar.
 export function formatRunStatus(status) {
   const ctxTokens = Number(status?.context_tokens) || 0;
   const ctxWindow = Number(status?.context_window) || 0;

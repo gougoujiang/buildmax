@@ -6,8 +6,96 @@ import (
 	"strings"
 
 	"github.com/gougoujiang/buildmax/internal/infra/git"
+	"github.com/gougoujiang/buildmax/internal/interface/slashcmd"
 	tools "github.com/gougoujiang/buildmax/internal/tool"
 )
+
+// --- Command registry ---
+
+// GetSlashCommands returns the slash commands Desktop offers, from the shared
+// registry so the CLI/TUI and Desktop stay in step. The frontend renders these
+// in the "/" palette and dispatches each to the matching panel or action.
+func (a *App) GetSlashCommands() []slashcmd.Command {
+	return slashcmd.For(slashcmd.Desktop)
+}
+
+// --- Tools ---
+
+type SlashToolEntry struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	// Access is "read-only" or "write"; Action is the no-argument policy
+	// outcome ("allow", "ask", "deny"), the category answer rather than a
+	// promise about every call.
+	Access string `json:"access,omitempty"`
+	Action string `json:"action,omitempty"`
+}
+
+type SlashToolsResult struct {
+	Tools []SlashToolEntry `json:"tools"`
+}
+
+// GetSlashTools returns the tools available to the given project's agent.
+func (a *App) GetSlashTools(projectID string) (SlashToolsResult, error) {
+	ag, err := a.agentAppForProject(projectID)
+	if err != nil {
+		return SlashToolsResult{}, err
+	}
+	entries := ag.ToolEntries()
+	out := make([]SlashToolEntry, len(entries))
+	for i, e := range entries {
+		out[i] = SlashToolEntry{Name: e.Name, Description: e.Description, Access: e.Access, Action: e.Action}
+	}
+	return SlashToolsResult{Tools: out}, nil
+}
+
+// --- Worktrees ---
+
+type SlashWorktreeEntry struct {
+	Name     string `json:"name"`
+	Path     string `json:"path"`
+	Branch   string `json:"branch,omitempty"`
+	Current  bool   `json:"current"`
+	Occupied bool   `json:"occupied"`
+	// Holder names the session occupying the tree, when one is.
+	Holder string `json:"holder,omitempty"`
+}
+
+type SlashWorktreesResult struct {
+	// Available is false when this project is not a Git repository, so the
+	// panel says so rather than showing an empty list.
+	Available bool                 `json:"available"`
+	Current   string               `json:"current,omitempty"`
+	Worktrees []SlashWorktreeEntry `json:"worktrees"`
+}
+
+// GetSlashWorktrees lists the worktrees of the given project's repository.
+func (a *App) GetSlashWorktrees(projectID string) (SlashWorktreesResult, error) {
+	ag, err := a.agentAppForProject(projectID)
+	if err != nil {
+		return SlashWorktreesResult{}, err
+	}
+	mgr := ag.Worktrees()
+	if mgr == nil {
+		return SlashWorktreesResult{Available: false}, nil
+	}
+	infos, err := mgr.List(context.Background())
+	if err != nil {
+		return SlashWorktreesResult{}, fmt.Errorf("list worktrees: %w", err)
+	}
+	out := SlashWorktreesResult{Available: true, Current: mgr.Current()}
+	for _, w := range infos {
+		out.Worktrees = append(out.Worktrees, SlashWorktreeEntry{
+			Name:     w.Name,
+			Path:     w.Path,
+			Branch:   w.Branch,
+			Current:  w.Current,
+			Occupied: w.Occupied,
+			Holder:   w.Holder,
+		})
+	}
+	return out, nil
+}
 
 // --- Models ---
 

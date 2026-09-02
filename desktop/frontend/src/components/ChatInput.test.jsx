@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { ChatInput } from './ChatInput';
 
 afterEach(cleanup);
@@ -11,16 +11,21 @@ vi.mock('../lib/wailsRuntime', () => ({
   EventsOff: () => {},
 }));
 
-// The project and app bindings ChatInput loads its status bar from. Every call
-// resolves empty: none of it is what these tests are about.
-const app = {
-  ListJobs: () => Promise.resolve([]),
-  GetSlashModels: () => Promise.resolve({ models: [], current: '' }),
-  GetSlashSkills: () => Promise.resolve({ skills: [] }),
-  GetGitBranch: () => Promise.resolve(''),
-};
+// The project and app bindings ChatInput loads its status bar and palette from.
+// Callers override the pieces a given test is about.
+function makeApp(overrides = {}) {
+  return {
+    ListJobs: () => Promise.resolve([]),
+    GetSlashModels: () => Promise.resolve({ models: [], current: '' }),
+    GetSlashSkills: () => Promise.resolve({ skills: [] }),
+    GetGitBranch: () => Promise.resolve(''),
+    GetSlashCommands: () => Promise.resolve([]),
+    ...overrides,
+  };
+}
 
 function renderInput(props = {}) {
+  const { app: appOverride, ...rest } = props;
   return render(
     <ChatInput
       onSend={() => {}}
@@ -29,13 +34,13 @@ function renderInput(props = {}) {
       error={null}
       onDismissError={() => {}}
       currentProject={{ id: 'p1' }}
-      app={app}
+      app={appOverride ?? makeApp()}
       approvalRequest={null}
       onRespond={() => {}}
       toolActivity=""
       runStatus={null}
       sessionId="s1"
-      {...props}
+      {...rest}
     />,
   );
 }
@@ -79,5 +84,69 @@ describe('ChatInput suggestion', () => {
     renderInput({ suggestion: '', onAcceptSuggestion: () => {} });
     pressTab();
     expect(composer().value).toBe('');
+  });
+});
+
+describe('ChatInput command palette', () => {
+  const commands = [
+    { name: 'mcp', description: 'MCP servers', requires_session: false },
+    { name: 'info', description: 'Session info', requires_session: true },
+  ];
+
+  it('lists commands and skills when "/" is typed', async () => {
+    const app = makeApp({
+      GetSlashCommands: () => Promise.resolve(commands),
+      GetSlashSkills: () => Promise.resolve({ skills: [{ name: 'review', description: 'Review code' }] }),
+    });
+    renderInput({ app });
+    fireEvent.change(composer(), { target: { value: '/' } });
+
+    expect(await screen.findByText('/mcp')).toBeTruthy();
+    expect(screen.getByText('/info')).toBeTruthy();
+    // The skill is listed too, tagged so it is not mistaken for a command.
+    expect(screen.getByText('/review')).toBeTruthy();
+    expect(screen.getByText('skill')).toBeTruthy();
+  });
+
+  it('disables a session-scoped command until there is a session', async () => {
+    const app = makeApp({ GetSlashCommands: () => Promise.resolve(commands) });
+    renderInput({ app, sessionId: '' });
+    fireEvent.change(composer(), { target: { value: '/info' } });
+
+    const info = await screen.findByRole('option', { name: /info/ });
+    expect(info.disabled).toBe(true);
+  });
+
+  it('dispatches a command on Enter instead of sending it', async () => {
+    const onSend = vi.fn();
+    const onCompacted = vi.fn();
+    const CompactProjectSession = vi.fn(() => Promise.resolve({ summarized: 3, kept: 2 }));
+    const app = makeApp({
+      GetSlashCommands: () => Promise.resolve([
+        { name: 'compact', description: 'Compact', requires_session: true },
+      ]),
+      CompactProjectSession,
+    });
+    renderInput({ app, onSend, onCompacted });
+
+    fireEvent.change(composer(), { target: { value: '/compact' } });
+    await screen.findByText('/compact');
+    fireEvent.keyDown(composer(), { key: 'Enter' });
+
+    await waitFor(() => expect(CompactProjectSession).toHaveBeenCalledWith('p1', 's1'));
+    await waitFor(() => expect(onCompacted).toHaveBeenCalled());
+    // A command is not a message.
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it('sends a "/name" that is not a command as a normal message', async () => {
+    const onSend = vi.fn();
+    const app = makeApp({ GetSlashCommands: () => Promise.resolve(commands) });
+    renderInput({ app, onSend });
+
+    // A trailing space closes the palette, so Enter submits rather than picking.
+    fireEvent.change(composer(), { target: { value: '/review ' } });
+    fireEvent.keyDown(composer(), { key: 'Enter' });
+    expect(onSend).toHaveBeenCalledWith('/review');
   });
 });
