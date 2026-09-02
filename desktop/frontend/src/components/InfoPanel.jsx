@@ -119,11 +119,17 @@ function SessionTab({ projectID, sessionID, app }) {
 // directions — what this session has done, and what this project knows. They
 // share nothing else (one ends with the session, the other outlives it), so
 // they are tabs rather than one merged view. See docs/reference/cli.md.
-export function InfoPanel({ projectID, sessionID, app }) {
+export function InfoPanel({ projectID, sessionID, projectName, workspace, app }) {
   const [tab, setTab] = useState('session');
 
   return (
     <div className="info-panel">
+      {(projectName || workspace) && (
+        <div className="info-panel__meta">
+          {projectName && <div className="info-panel__project">{projectName}</div>}
+          {workspace && <div className="info-panel__path" title={workspace}>{workspace}</div>}
+        </div>
+      )}
       <div className="info-panel__tabs info-tabs" role="tablist" aria-label="Info">
         <button
           type="button"

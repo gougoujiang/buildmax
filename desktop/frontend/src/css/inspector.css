@@ -68,13 +68,13 @@
 .inspector-tabs__btn {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  padding: 0.28rem 0.6rem;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
   border: 1px solid transparent;
   border-radius: 6px;
   background: none;
-  font: inherit;
-  font-size: 0.82rem;
   color: var(--color-text-muted);
   cursor: pointer;
 }
@@ -91,14 +91,22 @@
 }
 
 .inspector-tabs__icon {
-  font-size: 0.95rem;
+  display: inline-flex;
   line-height: 1;
+}
+
+.inspector-tabs__icon svg {
+  width: 1.05rem;
+  height: 1.05rem;
+  display: block;
 }
 
 /* ── Resize handles (sidebar | chat | inspector) ────────────────────────── */
 
 .inspector-resizer,
-.sidebar-resizer {
+.sidebar-resizer,
+.file-browser__resizer,
+.diff-panel__resizer {
   flex-shrink: 0;
   width: 5px;
   cursor: col-resize;
@@ -107,7 +115,9 @@
 }
 
 .inspector-resizer::after,
-.sidebar-resizer::after {
+.sidebar-resizer::after,
+.file-browser__resizer::after,
+.diff-panel__resizer::after {
   content: '';
   position: absolute;
   inset: 0 2px;
@@ -116,7 +126,9 @@
 }
 
 .inspector-resizer:hover::after,
-.sidebar-resizer:hover::after {
+.sidebar-resizer:hover::after,
+.file-browser__resizer:hover::after,
+.diff-panel__resizer:hover::after {
   opacity: 1;
 }
 
@@ -126,7 +138,9 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .inspector-resizer::after,
-  .sidebar-resizer::after {
+  .sidebar-resizer::after,
+  .file-browser__resizer::after,
+  .diff-panel__resizer::after {
     transition: opacity 0.12s;
   }
 }
@@ -241,15 +255,24 @@
   overflow: auto;
 }
 
+/* The list/patch divider only exists in the side-by-side (expanded) layout. */
+.diff-panel__resizer {
+  display: none;
+}
+
 .inspector--expanded .diff-drawer__body {
   display: grid;
-  grid-template-columns: minmax(15rem, 24rem) minmax(0, 1fr);
+  grid-template-columns: var(--list-w, 16rem) 5px minmax(0, 1fr);
 }
 
 .inspector--expanded .diff-drawer__sidebar {
   max-height: none;
   border-right: 1px solid var(--color-border);
   border-bottom: none;
+}
+
+.inspector--expanded .diff-panel__resizer {
+  display: block;
 }
 
 /* ── Info content docked in the inspector ───────────────────────────────── */
@@ -259,6 +282,26 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+.info-panel__meta {
+  flex-shrink: 0;
+  padding: 0.6rem 0.9rem 0.5rem;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.info-panel__project {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.info-panel__path {
+  margin-top: 0.15rem;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.76rem;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
 }
 
 .info-panel__tabs {
@@ -299,15 +342,24 @@
   overflow: hidden;
 }
 
+/* The tree/preview divider only exists in the side-by-side (expanded) layout. */
+.file-browser__resizer {
+  display: none;
+}
+
 .inspector--expanded .file-browser {
   display: grid;
-  grid-template-columns: minmax(15rem, 24rem) minmax(0, 1fr);
+  grid-template-columns: var(--tree-w, 16rem) 5px minmax(0, 1fr);
 }
 
 .inspector--expanded .file-browser__tree {
   max-height: none;
   border-bottom: none;
   border-right: 1px solid var(--color-border);
+}
+
+.inspector--expanded .file-browser__resizer {
+  display: block;
 }
 
 .file-tree__row {

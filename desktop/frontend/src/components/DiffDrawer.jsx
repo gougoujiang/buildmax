@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { displayDiffPath, parsePatchLines, splitPathForDisplay, statusGlyph, statusTitle, truncateMiddleText } from '../lib/format';
+import { usePaneResize } from '../lib/usePaneResize';
 
 // DiffPanel is the workspace-changes content of the inspector column: a
 // changed-file list and the selected file's patch. It owns only the content —
@@ -12,6 +13,8 @@ export function DiffPanel({ projectID, app }) {
   const [selectedPath, setSelectedPath] = useState('');
   const [focusedPane, setFocusedPane] = useState('list');
   const rootRef = useRef(null);
+  // File-list column width in the expanded (side-by-side) layout only.
+  const { width: listWidth, ref: bodyRef, onMouseDown: startListResize } = usePaneResize('bm.desktop.diffListWidth', 260);
 
   useEffect(() => {
     let cancelled = false;
@@ -62,7 +65,7 @@ export function DiffPanel({ projectID, app }) {
       onKeyDown={handleKeyDown}
       aria-label="Changed files"
     >
-      <div className="diff-drawer__body">
+      <div className="diff-drawer__body" ref={bodyRef} style={{ '--list-w': `${listWidth}px` }}>
         <aside
           className={`diff-drawer__sidebar ${focusedPane === 'list' ? 'diff-drawer__pane--focused' : ''}`}
           aria-label="Changed files"
@@ -94,6 +97,14 @@ export function DiffPanel({ projectID, app }) {
             );
           })}
         </aside>
+
+        <div
+          className="diff-panel__resizer"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize file list"
+          onMouseDown={startListResize}
+        />
 
         <section
           className={`diff-drawer__viewer ${focusedPane === 'content' ? 'diff-drawer__pane--focused' : ''}`}

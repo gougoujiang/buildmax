@@ -74,6 +74,36 @@ function MoonIcon() {
   );
 }
 
+// Inspector toolbar icons — line icons matching the app's SVG icon style
+// (24-grid, currentColor stroke). Folder for the file tree, a page with +/- for
+// the diff, a circled i for info.
+function FilesIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M3 7a2 2 0 0 1 2-2h3.5l2 2H19a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
+    </svg>
+  );
+}
+
+function ChangesIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="5" y="3" width="14" height="18" rx="2" />
+      <path d="M12 7v4M10 9h4M10 16h4" />
+    </svg>
+  );
+}
+
+function InfoIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5" />
+      <circle cx="12" cy="7.75" r="0.6" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 // Theme toggle lives in the user menu, not the header: switching light/dark is a
 // rare action. Rendered inside ThemeProvider, so it reads the live theme. The
 // icon and label name the destination — moon to go dark, sun to go light.
@@ -1095,11 +1125,6 @@ export default function App() {
                 <span className="shell__title">
                   {currentProject ? (sessionTitle || 'New Chat') : 'Home'}
                 </span>
-                {currentProject && (
-                  <span className="shell__subtitle">
-                    {currentProject.name} · {currentProject.default_workspace}
-                  </span>
-                )}
               </div>
               {currentProject && (
                 <div className="inspector-tabs" role="group" aria-label="Inspector views">
@@ -1109,9 +1134,9 @@ export default function App() {
                     aria-pressed={inspectorOpen && inspector.view === 'files'}
                     onClick={() => toggleInspectorView('files')}
                     title="Files"
+                    aria-label="Files"
                   >
-                    <span className="inspector-tabs__icon" aria-hidden>▤</span>
-                    Files
+                    <span className="inspector-tabs__icon"><FilesIcon /></span>
                   </button>
                   <button
                     type="button"
@@ -1119,9 +1144,9 @@ export default function App() {
                     aria-pressed={inspectorOpen && inspector.view === 'diff'}
                     onClick={() => toggleInspectorView('diff')}
                     title="Changes"
+                    aria-label="Changes"
                   >
-                    <span className="inspector-tabs__icon" aria-hidden>⧉</span>
-                    Diff
+                    <span className="inspector-tabs__icon"><ChangesIcon /></span>
                   </button>
                   <button
                     type="button"
@@ -1129,9 +1154,9 @@ export default function App() {
                     aria-pressed={inspectorOpen && inspector.view === 'info'}
                     onClick={() => toggleInspectorView('info')}
                     title="Session info"
+                    aria-label="Session info"
                   >
-                    <span className="inspector-tabs__icon" aria-hidden>ⓘ</span>
-                    Info
+                    <span className="inspector-tabs__icon"><InfoIcon /></span>
                   </button>
                 </div>
               )}
@@ -1206,6 +1231,8 @@ export default function App() {
                 width={inspector.expanded ? null : inspectorWidth}
                 projectID={currentProject.id}
                 sessionID={selectedId || ''}
+                projectName={currentProject.name}
+                workspace={currentProject.default_workspace}
                 app={app}
                 onToggleExpand={toggleInspectorExpand}
                 onClose={closeInspector}

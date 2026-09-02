@@ -10,7 +10,7 @@ import { InfoPanel } from './InfoPanel';
 // panel `view` names.
 const TITLES = { files: 'Files', diff: 'Changes', info: 'Info' };
 
-export function Inspector({ view, expanded, width, projectID, sessionID, app, onToggleExpand, onClose }) {
+export function Inspector({ view, expanded, width, projectID, sessionID, projectName, workspace, app, onToggleExpand, onClose }) {
   return (
     <aside
       className={`inspector ${expanded ? 'inspector--expanded' : ''}`}
@@ -44,7 +44,7 @@ export function Inspector({ view, expanded, width, projectID, sessionID, app, on
       <div className="inspector__body">
         {view === 'files' && <FileTree projectID={projectID} app={app} />}
         {view === 'diff' && <DiffPanel projectID={projectID} app={app} />}
-        {view === 'info' && <InfoPanel projectID={projectID} sessionID={sessionID} app={app} />}
+        {view === 'info' && <InfoPanel projectID={projectID} sessionID={sessionID} projectName={projectName} workspace={workspace} app={app} />}
       </div>
     </aside>
   );

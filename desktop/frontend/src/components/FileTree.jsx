@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { usePaneResize } from '../lib/usePaneResize';
 
 // FileTree browses a project's workspace in the inspector: a lazily expanded
 // directory tree plus a preview of the selected file. Directories are listed
@@ -11,6 +12,8 @@ export function FileTree({ projectID, app }) {
   // selected file path -> { content, binary, truncated, error, loading }
   const [selected, setSelected] = useState('');
   const [fileByPath, setFileByPath] = useState({});
+  // Tree column width in the expanded (side-by-side) layout only.
+  const { width: treeWidth, ref: browserRef, onMouseDown: startTreeResize } = usePaneResize('bm.desktop.fileTreeWidth', 260);
 
   const loadDir = useCallback((dir) => {
     if (!app?.ListWorkspaceDir) {
@@ -94,10 +97,17 @@ export function FileTree({ projectID, app }) {
   const file = selected ? fileByPath[selected] : null;
 
   return (
-    <div className="file-browser">
+    <div className="file-browser" ref={browserRef} style={{ '--tree-w': `${treeWidth}px` }}>
       <div className="file-browser__tree" aria-label="Workspace files">
         {renderEntries('', 0)}
       </div>
+      <div
+        className="file-browser__resizer"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize file tree"
+        onMouseDown={startTreeResize}
+      />
       <div className="file-browser__view" aria-label="File preview">
         {!selected ? (
           <p className="file-view__hint">Select a file to preview it.</p>
