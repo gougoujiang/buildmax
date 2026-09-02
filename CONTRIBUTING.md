@@ -269,14 +269,15 @@ context.
 The Dockerfiles live in `deployment/docker/`: `Dockerfile.buildmax` for the Go
 binaries, `Dockerfile.portal` for the Portal, and `Dockerfile.release` for the
 GoReleaser-built published image. All three take the repository root as their
-build context. To build the first two and load them into the kind cluster:
+build context. To build the first two, load them into the kind cluster, and
+restart the deployments so a code change takes effect:
 
 ```bash
-./make kind images
+./make kind reload
 ```
 
 Set `BUILDMAX_IMAGE_PLATFORM` to cross-build — for example
-`BUILDMAX_IMAGE_PLATFORM=linux/amd64 ./make kind images` on Apple Silicon.
+`BUILDMAX_IMAGE_PLATFORM=linux/amd64 ./make kind reload` on Apple Silicon.
 
 `deployment/buildmax-deploy.yaml` is the readable Kubernetes baseline. It
 carries no credentials: `./make setup local` writes

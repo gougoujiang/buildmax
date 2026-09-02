@@ -87,14 +87,36 @@ func printPathHint(dir string) {
 	fmt.Println("Then start a new terminal session, or source the file you edited.")
 }
 
-// cmdPubImages builds the server and portal images and loads them into the
-// local kind cluster, which has no registry to pull from.
-func cmdPubImages() error {
-	cluster := os.Getenv("BUILDMAX_KIND_CLUSTER")
-	if cluster == "" {
-		cluster = "buildmaxdev"
+// cmdKindReload builds the server and Portal images, loads them into the local
+// kind cluster — which has no registry to pull from — and restarts the running
+// deployments so a code change takes effect. Loading an image under the fixed
+// :local tag does not by itself replace a running pod, so without the restart
+// the new code would sit on the node unused; that gap made a bare image load
+// the wrong default for the local development loop.
+func cmdKindReload() error {
+	cluster := kindClusterName()
+	if err := buildAndLoadKindImages(cluster, false); err != nil {
+		return err
 	}
-	return buildAndLoadKindImages(cluster, false)
+	// The two deployments whose images this just rebuilt. A restart on a
+	// deployment that does not exist yet is an error, not a no-op, so skip the
+	// missing ones: a cluster that is up but not yet deployed (a manual non-smoke
+	// apply is still pending) will pick up the loaded image when its pods are
+	// first created, and needs no restart.
+	for _, deployment := range []string{"buildmax-server", "buildmax-portal"} {
+		if !succeeds("kubectl", "--context", kindContext(), "get", "deployment/"+deployment, "-n", "buildmax") {
+			fmt.Printf("Deployment %s not found, skipping restart.\n", deployment)
+			continue
+		}
+		fmt.Printf("Restarting deployment %s...\n", deployment)
+		if err := kindKubectl("rollout", "restart", "deployment/"+deployment, "-n", "buildmax"); err != nil {
+			return err
+		}
+		if err := kindKubectl("rollout", "status", "deployment/"+deployment, "-n", "buildmax", "--timeout=180s"); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func buildAndLoadKindImages(cluster string, includeSmoke bool) error {

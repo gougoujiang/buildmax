@@ -75,7 +75,7 @@ Current deployment assets:
 - `./make kind up` owns the local Kubernetes loop: it creates the pinned kind
   cluster, installs MySQL, MinIO, and ingress-nginx, builds and loads images,
   applies the manifests, and runs the deterministic deployment smoke.
-- `./make kind images`, `smoke`, `status`, `logs`, `forward`, and `down` expose
+- `./make kind reload`, `smoke`, `status`, `logs`, `forward`, and `down` expose
   the narrower lifecycle operations without a parallel script workflow.
 - `deployment/docker/Dockerfile.buildmax` builds the Go binaries into a
   container image.

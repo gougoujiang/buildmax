@@ -339,7 +339,7 @@ spec:
 ---
 # Portal (React app served by nginx).
 #
-# Image: buildmax-portal:local, built by ./make kind images. This manifest
+# Image: buildmax-portal:local, built by ./make kind reload. This manifest
 # targets the local kind cluster; a real deployment pulls the published image,
 # ghcr.io/gougoujiang/buildmax-portal:<version>, and sets the same
 # BUILDMAX_API_BASE. See docs/deploy/overview.md.

@@ -8,7 +8,7 @@
 # through TARGETOS and TARGETARCH. BuildKit sets both automatically.
 #
 # It is not meant to be run by hand — GoReleaser supplies the context. For a
-# local image, use ./make kind images, which uses Dockerfile.buildmax.
+# local image, use ./make kind reload, which uses Dockerfile.buildmax.
 FROM alpine:3.23
 
 ARG TARGETOS

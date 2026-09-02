@@ -48,8 +48,8 @@ func cmdKind(args []string) error {
 	switch args[0] {
 	case "up":
 		return kindUp()
-	case "images":
-		return cmdPubImages()
+	case "reload":
+		return cmdKindReload()
 	case "seed":
 		if len(args) > 1 {
 			return usageErrorf("kind", "seed takes no arguments")

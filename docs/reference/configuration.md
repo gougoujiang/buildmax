@@ -222,7 +222,7 @@ Two variables are read by the task runner itself rather than by BuildMax:
 | Variable | Default | Purpose |
 |---|---|---|
 | `BUILDMAX_KIND_CLUSTER` | `buildmaxdev` | Which kind cluster `./make kind …` creates and addresses. Every `kubectl` call uses that cluster's explicit context. |
-| `BUILDMAX_IMAGE_PLATFORM` | host platform | Target platform for `./make kind images` — for example `linux/amd64` on Apple Silicon. |
+| `BUILDMAX_IMAGE_PLATFORM` | host platform | Target platform for `./make kind reload` — for example `linux/amd64` on Apple Silicon. |
 
 The DigitalOcean qualification command reads these task-runner variables. Its
 full lifecycle and credential scope are in

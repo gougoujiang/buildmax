@@ -5,7 +5,7 @@
 #
 #   docker build -f deployment/docker/Dockerfile.buildmax -t buildmax:local .
 #
-# ./make kind images does that for you.
+# ./make kind reload does that for you.
 
 # Stage 1: build
 FROM golang:1.26-alpine3.23 AS build
