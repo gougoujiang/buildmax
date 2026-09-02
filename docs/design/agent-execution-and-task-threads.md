@@ -10,6 +10,17 @@ Related: [product vision](product-vision.md),
 
 Created: 2026-09-02
 
+This record is the synthesis of the retired two-tier Agent architecture
+roundtable (see [proposals index](../proposals/README.md); git history holds
+its four position papers, retired with this record). §1's decision — direct
+execution when the user or product already selected the capability, admitted
+through an immutable Task/TaskRun authorization boundary — is that
+roundtable's own contrarian-view recommendation, evaluated and shipped. It
+does not answer the roundtable's wider open questions: explicit Agent
+principals and grants, a topology-neutral work substrate, or governed
+peer/blackboard coordination. Those were left open when the roundtable
+retired and are out of scope here.
+
 ## Contents
 
 - [1. Decision](#1-decision)
