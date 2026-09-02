@@ -57,7 +57,7 @@ old one.
 ./make kind smoke   # rerun the end-to-end assertions without rebuilding
 ./make kind smoke managed  # the same, with task runs reaching models through the gateway
 ./make kind seed    # put the models in .local/settings.yaml into the cluster's catalog
-./make kind images  # rebuild and load local images without applying manifests
+./make kind reload  # rebuild and load local images, then restart the deployments
 ./make kind info    # endpoints, plus a fresh login code for the smoke account
 ./make kind forward # forward the in-cluster MySQL and MinIO to 127.0.0.1
 ./make kind status  # read-only summary of the cluster, ingress, and workloads

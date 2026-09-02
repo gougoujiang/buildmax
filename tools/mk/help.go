@@ -76,7 +76,7 @@ func allHelpSections() []helpSection {
 		}},
 		{"Deployment (starts containers or bills a provider)", []helpRow{
 			{"compose <action>", "Manage the Compose quickstart (up|smoke [managed]|status|logs|down)"},
-			{"kind <action>", "Manage local Kubernetes (up|images|smoke|info|forward|status|logs|down)"},
+			{"kind <action>", "Manage local Kubernetes (up|reload|smoke|info|forward|status|logs|down)"},
 			{"ocean <action>", "Manage the disposable DigitalOcean qualification infrastructure"},
 		}},
 		{"Release", []helpRow{
@@ -470,12 +470,14 @@ func helpTopics() []helpTopic {
 		},
 		{
 			name:    "kind",
-			usage:   "kind <up|images|seed|smoke [managed]|info [email]|forward|status|logs|down>",
+			usage:   "kind <up|reload|seed|smoke [managed]|info [email]|forward|status|logs|down>",
 			summary: "Manage the local Kubernetes reference deployment.",
 			details: []string{
 				"Needs Docker and kubectl, and creates a kind cluster — set BUILDMAX_KIND_CLUSTER\n" +
-					"to use a name other than the default. The cluster has no registry, so `images`\n" +
-					"builds the server and Portal images locally and loads them into it.",
+					"to use a name other than the default. The cluster has no registry, so `reload`\n" +
+					"builds the server and Portal images locally, loads them into it, and restarts the\n" +
+					"deployments so a code change takes effect. It is the local development loop after\n" +
+					"`up`; a deployment that does not exist yet is skipped rather than failed.",
 				"The kind reference serves Portal and the server from one ingress, which is the\n" +
 					"difference the browser tests can see: here the bundle's API base is\n" +
 					"same-origin, under Compose it is absolute.",
@@ -492,7 +494,7 @@ func helpTopics() []helpTopic {
 			},
 			args: []helpRow{
 				{"up", "Create the cluster and apply the reference deployment"},
-				{"images", "Build the images and load them into the cluster"},
+				{"reload", "Build and load the images, then restart the deployments"},
 				{"seed", "Put the models in " + localSettingsPath + " into the cluster's catalog"},
 				{"smoke [managed]", "Run the deployment smoke against the cluster"},
 				{"info [email]", "Print the endpoints and issue a fresh login code"},
