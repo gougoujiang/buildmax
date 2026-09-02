@@ -420,6 +420,23 @@ export default function App() {
     app?.ListSessions().then((list) => setSessions(list ?? [])).catch(() => {});
   }
 
+  // A compaction rewrites the session's model-visible history in place, so the
+  // transcript and the context gauge both re-read. The notice says what it did.
+  function handleCompacted(result) {
+    reloadSession(selectedId);
+    const summarized = result?.summarized ?? 0;
+    const text = summarized > 0
+      ? `Summarized ${summarized} message${summarized === 1 ? '' : 's'}, kept ${result?.kept ?? 0}. Context now ${result?.after_tokens ?? 0} tokens (was ${result?.before_tokens ?? 0}).`
+      : (result?.reason || 'Nothing to compact yet.');
+    setHistoryNotice({ kind: 'compact', text });
+    setTurnDigest(null);
+    if (app && selectedId) {
+      app.GetRunStatus(currentProject?.id ?? '', selectedId)
+        .then((status) => setRunStatus((prev) => mergeRunStatus(prev, status)))
+        .catch(() => {});
+    }
+  }
+
   function handleGoHome() {
     setNewChatProject(null);
     setSelectedId(null);
@@ -742,7 +759,9 @@ export default function App() {
     threadItems.push({
       id: 'history-notice',
       role: 'system',
-      label: historyNotice.kind === 'fork' ? 'Forked' : 'Rewound',
+      label: historyNotice.kind === 'fork' ? 'Forked'
+        : historyNotice.kind === 'compact' ? 'Compacted'
+        : 'Rewound',
       hideAvatar: true,
       body: <div className="page-chat__msg-content page-chat__history-notice">{historyNotice.text}</div>,
     });
@@ -947,6 +966,8 @@ export default function App() {
                       sessionId={selectedId || ''}
                       onRewound={handleRewound}
                       onForked={handleForked}
+                      onCompacted={handleCompacted}
+                      onCommandError={(msg) => setError(msg)}
                       onRunStatusContext={(status) => {
                         setRunStatus((prev) => ({
                           ...(status ?? {}),

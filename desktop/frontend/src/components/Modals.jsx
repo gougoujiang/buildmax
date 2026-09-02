@@ -196,6 +196,78 @@ export function AgentsModal({ projectID, app, onClose }) {
   );
 }
 
+// --- Tools modal ---
+
+export function ToolsModal({ projectID, app, onClose }) {
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
+  useEffect(() => {
+    app.GetSlashTools(projectID)
+      .then(setResult)
+      .catch((err) => setError(err?.message ?? String(err)));
+  }, [projectID, app]);
+
+  const items = result
+    ? (result.tools ?? []).map((t) => ({
+        key: t.name,
+        name: t.name,
+        // Allow is the unremarkable case and stays silent; ask and deny are why
+        // a reader looks here.
+        badge: t.action && t.action !== 'allow' ? t.action : undefined,
+        badgeVariant: t.action === 'deny' ? 'err' : 'default',
+        sub: [t.access, t.description].filter(Boolean).join(' · '),
+      }))
+    : null;
+  return (
+    <InfoModal title="Tools" onClose={onClose}>
+      {error
+        ? <p className="info-modal__error">{error}</p>
+        : <InfoList items={items} emptyText="No tools available." />}
+    </InfoModal>
+  );
+}
+
+// --- Worktree modal ---
+
+export function WorktreeModal({ projectID, app, onClose }) {
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
+  useEffect(() => {
+    app.GetSlashWorktrees(projectID)
+      .then(setResult)
+      .catch((err) => setError(err?.message ?? String(err)));
+  }, [projectID, app]);
+
+  if (result && !result.available) {
+    return (
+      <InfoModal title="Worktrees" onClose={onClose}>
+        <p className="info-modal__muted">
+          This project is not a Git repository, so it has no worktrees.
+        </p>
+      </InfoModal>
+    );
+  }
+
+  const items = result
+    ? (result.worktrees ?? []).map((w) => ({
+        key: w.path,
+        name: w.name || w.path,
+        badge: w.current ? 'current' : (w.occupied ? 'in use' : undefined),
+        badgeVariant: w.current ? 'ok' : 'default',
+        sub: [w.branch ? `⎇ ${w.branch}` : '', w.holder ? `held by ${w.holder}` : '']
+          .filter(Boolean).join(' · '),
+        path: w.path,
+      }))
+    : null;
+  return (
+    <InfoModal title="Worktrees" onClose={onClose}>
+      {error
+        ? <p className="info-modal__error">{error}</p>
+        : <InfoList items={items} emptyText="No worktrees." />}
+    </InfoModal>
+  );
+}
+
 // --- Diff drawer ---
 
 // --- Plugins modal ---

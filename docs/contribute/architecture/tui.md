@@ -136,10 +136,19 @@ waiting for input.
 
 ## Slash Panels
 
-`/model`, `/sessions`, `/tools`, `/skills`, `/mcp`, `/diff`. Each has a
-`chat_*.go` file and its own state struct, unified behind the `slashPanel`
-interface (`activePanel`, `openPanel`, `closeActivePanel`) so key handling and
-the footer hint work the same for all of them.
+`/model`, `/sessions`, `/tools`, `/skills`, `/mcp`, `/diff`, `/info`, `/tasks`,
+`/worktree`, `/agents`, `/plugins`. Each has a `chat_*.go` file and its own
+state struct, unified behind the `slashPanel` interface (`activePanel`,
+`openPanel`, `closeActivePanel`) so key handling and the footer hint work the
+same for all of them. `/compact` is an action rather than a panel, and `/rewind`
+and `/fork` share the one history panel.
+
+The command names, their descriptions, and which surface offers each are the
+shared `internal/interface/slashcmd` registry, not a list private to the TUI:
+the completion popup (`builtinSlashCommands`) and the Desktop palette both read
+it, so a command added there appears on both surfaces. `dispatchSlashCommand`
+still owns how the TUI runs each one; a test holds it to the registry so a new
+command cannot ship without a handler.
 
 ## Keys
 
