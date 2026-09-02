@@ -282,6 +282,13 @@ func (s *SessionManager) SetPinned(id string, pinned bool) error {
 	return s.store.UpdateMeta(context.Background(), id, session.MetaUpdate{Pinned: &pinned})
 }
 
+// SetSessionModel records the model a session runs under, without opening it
+// for writing. Like Rename, it is a metadata change the next open reads back,
+// so a model switched between turns takes effect on the following turn.
+func (s *SessionManager) SetSessionModel(id, modelName string) error {
+	return s.store.UpdateMeta(context.Background(), id, session.MetaUpdate{SelectedModel: &modelName})
+}
+
 // Delete removes a session bundle: its journal, metadata, traces, and
 // artifacts. Because it is destructive and irreversible, it names one session
 // rather than matching a pattern.

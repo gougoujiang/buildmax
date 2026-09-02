@@ -179,7 +179,7 @@ describe('ChatInput command palette', () => {
     // Open the picker and switch to the second model.
     fireEvent.click(await screen.findByTitle('gpt-4o'));
     fireEvent.click(await screen.findByRole('option', { name: /claude/ }));
-    await waitFor(() => expect(SetProjectModel).toHaveBeenCalledWith('p1', 'claude'));
+    await waitFor(() => expect(SetProjectModel).toHaveBeenCalledWith('p1', 's1', 'claude'));
 
     // Reopen: the newly selected model is the active option, not the first.
     fireEvent.click(await screen.findByTitle('claude'));

@@ -117,13 +117,16 @@ type SlashModelsResult struct {
 	Models    []SlashModelEntry `json:"models"`
 }
 
-// GetSlashModels returns configured models and the active model for a project.
-func (a *App) GetSlashModels(projectID string) (SlashModelsResult, error) {
+// GetSlashModels returns configured models and the active model for a project's
+// conversation. The active model is the conversation's own: a switch is recorded
+// per session, so a project's two conversations can sit on different models, and
+// an empty sessionID (a chat not yet started) falls back to the app default.
+func (a *App) GetSlashModels(projectID, sessionID string) (SlashModelsResult, error) {
 	ag, err := a.agentAppForProject(projectID)
 	if err != nil {
 		return SlashModelsResult{}, err
 	}
-	current := ag.DefaultModelName()
+	current := ag.SessionModelName(sessionID)
 	serverURL := ag.ManagedServerURL()
 	configs := ag.ModelConfigs()
 	models := make([]SlashModelEntry, len(configs))
@@ -144,8 +147,16 @@ func (a *App) GetSlashModels(projectID string) (SlashModelsResult, error) {
 	}, nil
 }
 
-// SetProjectModel switches the active model for a project's agent.
-func (a *App) SetProjectModel(projectID, modelName string) error {
+// SetProjectModel switches the model for a project's conversation.
+//
+// It records the choice in two places for two reasons: SetDefaultModel makes it
+// the model this project's next new conversation starts on, and SetSessionModel
+// writes it onto the conversation on screen so that conversation's next turn
+// resolves to it. Without the second write the switch was lost — the app default
+// is only a fallback, and an existing session already carries its own model,
+// which won at request time. An empty sessionID is a chat not yet started; the
+// default alone is enough, and it becomes that session's model when it is created.
+func (a *App) SetProjectModel(projectID, sessionID, modelName string) error {
 	if modelName == "" {
 		return fmt.Errorf("model name required")
 	}
@@ -154,6 +165,11 @@ func (a *App) SetProjectModel(projectID, modelName string) error {
 		return err
 	}
 	ag.SetDefaultModel(modelName)
+	if sessionID != "" {
+		if err := ag.SetSessionModel(sessionID, modelName); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

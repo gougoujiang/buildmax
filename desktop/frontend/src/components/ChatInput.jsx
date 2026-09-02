@@ -190,7 +190,10 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
     setGitBranch('');
     setSkills([]);
     Promise.allSettled([
-      app.GetSlashModels(currentProject.id),
+      // The model list and its mode are project-scoped, so they load here with
+      // an empty session; the active model is per conversation and tracked in
+      // the effect below, which re-resolves it whenever the session changes.
+      app.GetSlashModels(currentProject.id, ''),
       app.GetSlashSkills(currentProject.id),
       app.GetGitBranch(currentProject.id),
       // Guarded: a call to a binding the running app has not regenerated yet
@@ -200,7 +203,6 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
     ]).then(([modelsRes, skillsRes, branchRes, cmdRes]) => {
       if (modelsRes.status === 'fulfilled') {
         setModels(modelsRes.value.models ?? []);
-        setCurrentModel(modelsRes.value.current ?? '');
         setModelMode(
           modelsRes.value.managed
             ? `Prompts go to ${modelsRes.value.server_url}`
@@ -212,6 +214,19 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
       if (cmdRes.status === 'fulfilled') setCommands(cmdRes.value ?? []);
     });
   }, [currentProject, app]);
+
+  // The active model is per conversation: a switch is recorded on the session,
+  // so the picker's current entry re-resolves when the session changes, not only
+  // when the project does. An empty session (a chat not yet started) reports the
+  // app default.
+  useEffect(() => {
+    if (!currentProject || !app) return undefined;
+    let cancelled = false;
+    app.GetSlashModels(currentProject.id, sessionId || '')
+      .then((res) => { if (!cancelled) setCurrentModel(res.current ?? ''); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [currentProject, app, sessionId]);
 
   // Close model dropdown on outside click.
   useEffect(() => {
@@ -343,7 +358,7 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
   async function handleModelSwitch(modelName) {
     setShowModelDropdown(false);
     try {
-      await app.SetProjectModel(currentProject.id, modelName);
+      await app.SetProjectModel(currentProject.id, sessionId || '', modelName);
       setCurrentModel(modelName);
       const status = await app.GetRunStatus(currentProject.id, sessionId || '');
       onRunStatusContext?.(status);
