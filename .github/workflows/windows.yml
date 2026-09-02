@@ -32,6 +32,26 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      # Defender's real-time scan of every object file the Go toolchain writes
+      # is what makes Build and Test slow on the Windows runner, not a cold
+      # cache -- setup-go already restores the module and build caches above.
+      # Excluding the workspace and the Go caches from the scan is the standard
+      # fix. It is best-effort: the exclusions only speed the run up, so a
+      # runner that will not set them must not fail the job over it.
+      - name: Exclude Go paths from Defender
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $paths = @(
+            $env:GITHUB_WORKSPACE,
+            (go env GOCACHE),
+            (go env GOMODCACHE),
+            $env:TEMP
+          ) | Where-Object { $_ }
+          foreach ($p in $paths) {
+            Add-MpPreference -ExclusionPath $p -ErrorAction SilentlyContinue
+          }
+
       - name: Build
         run: go build ./...
 
