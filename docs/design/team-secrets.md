@@ -775,7 +775,8 @@ of a reveal operation.
 | Area | Responsibility |
 |---|---|
 | `internal/core/secret` | Secret metadata, item map and sealed-bytes types, consumption config, run grants, errors, and narrow store interfaces |
-| `internal/service/secret` | Lifecycle rules, consumption validation, renderer parameter resolution, materialization, exchange, and revocation |
+| `internal/service/secret` | Secret lifecycle rules, renderer parameter resolution, materialization, exchange, and revocation |
+| `internal/service/agent` | Validates an Agent revision's consumption against the team's live Secrets when it is saved, through a narrow `SecretLookup`, the same way it validates a plugin selection |
 | `internal/infra/secret` | AEAD/envelope implementation, external provider adapters, and credential-exchange clients |
 | `internal/bootstrap` | The `buildmax-server secret rewrap` KEK-rotation command, alongside the existing `run-token` admin command |
 | `internal/infra/db` | Row structs and metadata/ciphertext persistence; no provider calls |
@@ -916,12 +917,15 @@ a worker holds only what its run needs.
 
 ### Phase 1 — Embedded Team Secrets With Environment Delivery
 
-- the `secret` and `task_run_secret` rows, items as one encrypted map;
-- envelope encryption with a portable mounted KEK;
+- **done** — the `secret` and `task_run_secret` rows, items as one encrypted
+  map, with the store scope passing against MySQL;
+- **done** — envelope encryption with a portable mounted KEK;
+- **done** — environment consumption config on the Agent revision, validated
+  against the team's live Secrets when the revision is saved and versioned with
+  it;
 - owner-only create, item edit (per-item patch and whole-map replace), disable,
-  and destroy;
-- environment consumption config on the Agent revision, and delivery into the
-  run;
+  and destroy, over HTTP;
+- delivery of the declared grants into the run;
 - Portal Secret metadata and item editor (row view and raw JSON),
   consumption-health, carrying §3's two consequences in the copy;
 - audit actions and per-run exact-value redaction; and

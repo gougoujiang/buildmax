@@ -31,11 +31,14 @@ type agentRow struct {
 	// / config.SandboxFilesystemTier values validated by internal/service/agent
 	// before a write. Kept as plain strings here, the same way Plugins is a
 	// JSON string: this row does not depend on the config package.
-	SandboxNetworkTier    string     `gorm:"column:sandbox_network_tier;type:varchar(64)"`
-	SandboxFilesystemTier string     `gorm:"column:sandbox_filesystem_tier;type:varchar(64)"`
-	Revision              int        `gorm:"column:revision;not null;default:1"`
-	DeletedAt             *time.Time `gorm:"column:deleted_at;index"`
-	CreatedAt             time.Time  `gorm:"autoCreateTime"`
+	SandboxNetworkTier    string `gorm:"column:sandbox_network_tier;type:varchar(64)"`
+	SandboxFilesystemTier string `gorm:"column:sandbox_filesystem_tier;type:varchar(64)"`
+	// SecretConsumption is a JSON object describing which Team Secrets this
+	// agent consumes and how, written and read whole like Plugins.
+	SecretConsumption string     `gorm:"column:secret_consumption;type:text"`
+	Revision          int        `gorm:"column:revision;not null;default:1"`
+	DeletedAt         *time.Time `gorm:"column:deleted_at;index"`
+	CreatedAt         time.Time  `gorm:"autoCreateTime"`
 }
 
 func (agentRow) TableName() string { return "agent" }
@@ -74,6 +77,7 @@ type agentRevisionRow struct {
 	// of the same name, versioned with the rest of the revision.
 	SandboxNetworkTier    string    `gorm:"column:sandbox_network_tier;type:varchar(64)"`
 	SandboxFilesystemTier string    `gorm:"column:sandbox_filesystem_tier;type:varchar(64)"`
+	SecretConsumption     string    `gorm:"column:secret_consumption;type:text"`
 	CreatedBy             uint64    `gorm:"column:created_by;not null"`
 	CreatedAt             time.Time `gorm:"autoCreateTime"`
 }
@@ -108,6 +112,28 @@ func decodePluginSelection(raw string) []string {
 	return out
 }
 
+func encodeSecretConsumption(c agentdef.SecretConsumption) string {
+	if c.IsEmpty() {
+		return ""
+	}
+	encoded, err := json.Marshal(c.Canonical())
+	if err != nil {
+		return ""
+	}
+	return string(encoded)
+}
+
+func decodeSecretConsumption(raw string) agentdef.SecretConsumption {
+	if raw == "" {
+		return agentdef.SecretConsumption{}
+	}
+	var c agentdef.SecretConsumption
+	if err := json.Unmarshal([]byte(raw), &c); err != nil {
+		return agentdef.SecretConsumption{}
+	}
+	return c
+}
+
 // agentRevisionReadRow is the row plus the handles its references resolve to.
 // The revision itself has none: it is addressed by its agent plus its number.
 type agentRevisionReadRow struct {
@@ -137,6 +163,7 @@ func toAgent(row *agentReadRow) *agentdef.Agent {
 		Plugins:               decodePluginSelection(row.Row.Plugins),
 		SandboxNetworkTier:    row.Row.SandboxNetworkTier,
 		SandboxFilesystemTier: row.Row.SandboxFilesystemTier,
+		SecretConsumption:     decodeSecretConsumption(row.Row.SecretConsumption),
 		Revision:              row.Row.Revision,
 		DeletedAt:             row.Row.DeletedAt,
 		CreatedAt:             row.Row.CreatedAt,
@@ -156,6 +183,7 @@ func toAgentRevision(row *agentRevisionReadRow) *agentdef.Revision {
 		Plugins:               decodePluginSelection(row.Row.Plugins),
 		SandboxNetworkTier:    row.Row.SandboxNetworkTier,
 		SandboxFilesystemTier: row.Row.SandboxFilesystemTier,
+		SecretConsumption:     decodeSecretConsumption(row.Row.SecretConsumption),
 		CreatedBy:             row.CreatedByPublicID,
 		CreatedAt:             row.Row.CreatedAt,
 	}
@@ -195,6 +223,7 @@ func appendAgentRevision(ctx context.Context, tx *gorm.DB, agentKey uint64, a *a
 		Plugins:               encodePluginSelection(a.Plugins),
 		SandboxNetworkTier:    a.SandboxNetworkTier,
 		SandboxFilesystemTier: a.SandboxFilesystemTier,
+		SecretConsumption:     encodeSecretConsumption(a.SecretConsumption),
 		CreatedBy:             creator,
 		CreatedAt:             time.Now().UTC(),
 	}).Error
@@ -282,6 +311,7 @@ func (s *Store) CreateAgentInTeam(ctx context.Context, in agentdef.CreateInput) 
 		Plugins:               in.Def.Plugins,
 		SandboxNetworkTier:    in.Def.SandboxNetworkTier,
 		SandboxFilesystemTier: in.Def.SandboxFilesystemTier,
+		SecretConsumption:     in.Def.SecretConsumption,
 		Revision:              1,
 		CreatedAt:             time.Now().UTC(),
 	}
@@ -292,6 +322,7 @@ func (s *Store) CreateAgentInTeam(ctx context.Context, in agentdef.CreateInput) 
 		Plugins:               encodePluginSelection(a.Plugins),
 		SandboxNetworkTier:    a.SandboxNetworkTier,
 		SandboxFilesystemTier: a.SandboxFilesystemTier,
+		SecretConsumption:     encodeSecretConsumption(a.SecretConsumption),
 		Revision:              1,
 		CreatedAt:             a.CreatedAt,
 	}
@@ -340,7 +371,8 @@ func (s *Store) UpdateAgentInTeam(ctx context.Context, in agentdef.UpdateInput) 
 func (s *Store) updateAgent(ctx context.Context, a *agentdef.Agent, updatedBy string, def agentdef.Definition) (*agentdef.Agent, error) {
 	if a.Name == def.Name && a.Description == def.Description &&
 		a.Instructions == def.Instructions && slices.Equal(a.Plugins, def.Plugins) &&
-		a.SandboxNetworkTier == def.SandboxNetworkTier && a.SandboxFilesystemTier == def.SandboxFilesystemTier {
+		a.SandboxNetworkTier == def.SandboxNetworkTier && a.SandboxFilesystemTier == def.SandboxFilesystemTier &&
+		a.SecretConsumption.Equal(def.SecretConsumption) {
 		return a, nil
 	}
 	updated := *a
@@ -350,6 +382,7 @@ func (s *Store) updateAgent(ctx context.Context, a *agentdef.Agent, updatedBy st
 	updated.Plugins = def.Plugins
 	updated.SandboxNetworkTier = def.SandboxNetworkTier
 	updated.SandboxFilesystemTier = def.SandboxFilesystemTier
+	updated.SecretConsumption = def.SecretConsumption
 	updated.Revision = nextRevision(a.Revision)
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Addressed by its handle rather than by saving a row built from the
@@ -366,6 +399,7 @@ func (s *Store) updateAgent(ctx context.Context, a *agentdef.Agent, updatedBy st
 			"plugins":                 encodePluginSelection(updated.Plugins),
 			"sandbox_network_tier":    updated.SandboxNetworkTier,
 			"sandbox_filesystem_tier": updated.SandboxFilesystemTier,
+			"secret_consumption":      encodeSecretConsumption(updated.SecretConsumption),
 			"revision":                updated.Revision,
 		})
 		if res.Error != nil {
