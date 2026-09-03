@@ -42,6 +42,9 @@ anything not listed here is not read by BuildMax.
 | `BUILDMAX_SERVER_URL` | — | Address this process uses to reach `buildmax-server`. Overrides `settings.yaml` `server_url` for CLI/Desktop and `server.yaml` `worker.server_url` for workers. |
 | `BUILDMAX_JWT_SECRET` | — | Overrides `jwt_secret` in `server.yaml`. Inject this at deploy time rather than committing the secret to a file. |
 | `BUILDMAX_CORS_ORIGIN` | — | Overrides `cors_origin` in `server.yaml`. It has to name the origin the Portal is served from, which is a host port the deployment picks — the Compose stack derives it from `BUILDMAX_PORTAL_PORT`, so moving that port is one change rather than two. |
+| `BUILDMAX_WORKER_LLM_TRANSPORT` | — | Overrides `worker.llm.transport` (`direct` or `buildmax`). Flips task runs between a direct provider call and the managed gateway. The server reads it and tells each worker its transport per run, so the choice stays on the server; a worker is never handed this variable. |
+| `BUILDMAX_LLM_DEFAULT_MODEL` | — | Overrides `llm.default_model` — the catalog model name a managed run and any caller that names none resolves to. A name not in the catalog stops the server at startup. |
+| `BUILDMAX_CONVERSATION_MODEL_TARGET` | — | Overrides `conversation.model_target` — a catalog model name or ID for Tier 1 conversations. Together with the two above, this flips a running cluster between the mock and a seeded model by environment alone; `./make kind use-model` and `./make kind mock` do exactly that. |
 | `BUILDMAX_SANDBOX_ENABLED` | — | Overrides user `sandbox.enabled`, below per-run CLI and operator policy. Accepts `1/true/yes/on` or `0/false/no/off`. |
 | `BUILDMAX_SANDBOX_BACKEND_INSTALLED` | — | Not an operator setting. Set via `ENV` in `Dockerfile.buildmax`/`Dockerfile.release`, present in every container built from either image; marks that the image installs the sandbox's OS backend (`bwrap`+`socat`), which is what `config.WorkerSandboxSurface` gates the worker's strict sandbox baseline on. |
 | `BUILDMAX_TRACE_DISABLED` | — | Disables durable run traces when truthy. Traces are on by default. |
@@ -745,7 +748,7 @@ conversation:                        # Tier 1 model used by the Portal agent loo
     context_window: 128000
   # provider: openai_compatible      # wire protocol; see settings.yaml above
   # max_tokens: 0                    # cap on one response; 0 = protocol default
-  # model_target: fast               # use an llm.targets id for Tier 1 instead
+  # model_target: "Claude Sonnet 5" # a catalog id or model name for Tier 1 instead
 
 # llm:                               # catalog is in the DB; this names a default
 #   default_model: Fast              # a --name from `model list`
@@ -948,7 +951,7 @@ connection details changed.
 | Key | Meaning |
 |---|---|
 | `llm.default_model` | The `--name` a caller gets when it names none. Empty uses the first enabled model in the catalog, so a single-model deployment needs nothing here. |
-| `conversation.model_target` | Runs Tier 1 on a catalog model instead of `conversation.model`. An `llm_model` ID, not a name: the server picks its own model rather than naming one the way a client does. |
+| `conversation.model_target` | Runs Tier 1 on a catalog model instead of `conversation.model` — the server picks its own model rather than being granted one. Accepts either the `llm_model` ID or the `--name` it was added with; the name is what an operator can write down before the row's runtime ID exists. `BUILDMAX_CONVERSATION_MODEL_TARGET` overrides it. |
 
 A server with no `llm` block serves the catalog with its first enabled model as
 the default. `conversation.model` stays the bootstrap path — a fresh deployment
@@ -1025,7 +1028,7 @@ instead, and the worker stops needing an upstream key:
 
 | Key | Meaning |
 |---|---|
-| `worker.llm.transport` | `direct` (default) or `buildmax`. Under `buildmax`, `BUILDMAX_CONVERSATION_MODEL_API_KEY` is withheld from the worker. |
+| `worker.llm.transport` | `direct` (default) or `buildmax`. Under `buildmax`, `BUILDMAX_CONVERSATION_MODEL_API_KEY` is withheld from the worker. `BUILDMAX_WORKER_LLM_TRANSPORT` overrides it, so one image flips between the two without rewriting the mounted file. |
 | `worker.llm.model` | Which catalog model a run calls, by `--name`. Empty uses `llm.default_model`. |
 | `worker.llm.context_window`, `worker.llm.call_timeout` | Describe the model to the run; the protocol does not report them per call. |
 | `worker.run_token_ttl` | How long a run's credential stays valid. Defaults to 24h. Every run gets one, managed or not. |

@@ -590,13 +590,38 @@ func wireLLM(cfg *httpserver.Config, sc config.ServerConfig, st *db.Store, quota
 	if routing.Tier1TargetID == "" {
 		return nil
 	}
-	routed, err := routing.Router.ClientForTarget(context.Background(), routing.Tier1TargetID, llmgateway.BaselineCapabilities())
+	// conversation.model_target may be a catalog ID or an operator-facing model
+	// name. Resolving it here, at the wiring step that already reads the catalog,
+	// keeps buildLLMRouting free of catalog lookups and lets an operator point
+	// Tier 1 at a seeded model without discovering its runtime ID first.
+	targetID, err := resolveTier1TargetID(context.Background(), routing.Router.Resolver.Catalog, routing.Tier1TargetID)
 	if err != nil {
-		return fmt.Errorf("conversation model %q: %w", routing.Tier1TargetID, err)
+		return err
+	}
+	routed, err := routing.Router.ClientForTarget(context.Background(), targetID, llmgateway.BaselineCapabilities())
+	if err != nil {
+		return fmt.Errorf("conversation model %q: %w", targetID, err)
 	}
 	cfg.Conv.TitleGenerator = &titleGenAdapter{client: routed.Client}
 	cfg.Conv.ConversationLLMClient = routed.Client
 	return nil
+}
+
+// resolveTier1TargetID maps a conversation.model_target value to a catalog
+// target ID. The field accepts either a catalog ID or an operator-facing model
+// name: the ID is generated at `model add`/`kind seed` time and is not known
+// when the config is authored, so a name is what an operator can write down. An
+// ID is tried first, so a deployment that named one keeps resolving to exactly
+// that row.
+func resolveTier1TargetID(ctx context.Context, catalog llmgateway.Catalog, target string) (string, error) {
+	if _, err := catalog.Target(ctx, target); err == nil {
+		return target, nil
+	}
+	resolved, err := catalog.TargetByName(ctx, target)
+	if err != nil {
+		return "", fmt.Errorf("conversation.model_target %q is not a catalog ID or model name: %w", target, err)
+	}
+	return resolved.ID, nil
 }
 
 // runTokenMinter returns the signer the scheduler gives each dispatched run.

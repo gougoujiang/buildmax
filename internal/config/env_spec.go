@@ -93,6 +93,13 @@ var envVars = []EnvVar{
 	{Name: EnvKeyBuildmaxMinIOSecretKey, Description: "Override for storage.minio.secret_key in server.yaml", WorkerNeeds: true},
 	{Name: EnvKeyBuildmaxConversationAPIKey, Description: "Override for conversation.model.api_key in server.yaml", WorkerNeeds: true, DirectLLMOnly: true},
 	{Name: EnvKeyBuildmaxCORSOrigin, Description: "Override for cors_origin in server.yaml; set where the Portal's host port is chosen"},
+	// The three model-selection overrides are read by the server, which decides
+	// the transport and resolves the catalog, and delivered to each worker per
+	// run through the task-run API — never inherited as environment. They stay
+	// unmarked so a worker process is not handed a knob it does not read.
+	{Name: EnvKeyBuildmaxWorkerLLMTransport, Description: "Override for worker.llm.transport (direct or buildmax); flips task runs between a direct provider call and the managed gateway"},
+	{Name: EnvKeyBuildmaxLLMDefaultModel, Description: "Override for llm.default_model; the catalog model name managed runs and unqualified callers resolve to"},
+	{Name: EnvKeyBuildmaxConversationModelTarget, Description: "Override for conversation.model_target; a catalog model name or ID for Tier 1 conversations"},
 	// Deliberately not WorkerNeeds: a worker reads this, but it is injected per
 	// run by the scheduler, never inherited from the server. Leaving it unmarked
 	// is what strips a stale value the server happens to be holding, so the only

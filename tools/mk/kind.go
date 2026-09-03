@@ -15,6 +15,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/gougoujiang/buildmax/internal/config"
 )
 
 const (
@@ -55,6 +57,13 @@ func cmdKind(args []string) error {
 			return usageErrorf("kind", "seed takes no arguments")
 		}
 		return kindSeed()
+	case "use-model":
+		return kindUseModel(args[1:])
+	case "mock":
+		if len(args) > 1 {
+			return usageErrorf("kind", "mock takes no arguments")
+		}
+		return kindMock()
 	case "forward":
 		if len(args) > 1 {
 			return usageErrorf("kind", "forward takes no arguments")
@@ -919,6 +928,91 @@ func kindManagedSmoke() error {
 	}
 	printSmokeLogin(target)
 	return nil
+}
+
+// kindUseModel points a running cluster's conversations and task runs at a
+// seeded catalog model through the managed gateway, instead of the free mock.
+//
+// It sets three environment overrides on the server Deployment rather than
+// editing the mounted ConfigMap: the server is the only process that reads them
+// (it resolves the catalog and tells each worker its transport per run), and env
+// keeps the committed server.yaml the mock default so `kind smoke` stays free
+// and deterministic. Reverse it with `kind mock`.
+func kindUseModel(args []string) error {
+	if len(args) != 1 || strings.TrimSpace(args[0]) == "" {
+		return usageErrorf("kind", "use-model needs a model name (as shown by `buildmax-server model list`)")
+	}
+	name := strings.TrimSpace(args[0])
+	if err := requireCommands("kubectl"); err != nil {
+		return err
+	}
+	cluster := kindClusterName()
+	exists, err := kindClusterExists(cluster)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("kind cluster %q does not exist; run %s kind up", cluster, mk())
+	}
+	// The name has to be in the catalog before the server is told to use it: an
+	// unresolvable model_target stops the server from starting, so a typo here
+	// would take the cluster down rather than print a message.
+	catalog, err := kindCatalogIDs(kindSmokeTarget())
+	if err != nil {
+		return err
+	}
+	if _, ok := catalog[name]; !ok {
+		return fmt.Errorf("no catalog model named %q; run %s kind seed first, or pick one from `buildmax-server model list`", name, mk())
+	}
+	if err := kindSetServerEnv(
+		config.EnvKeyBuildmaxWorkerLLMTransport+"="+config.TransportBuildMax,
+		config.EnvKeyBuildmaxLLMDefaultModel+"="+name,
+		config.EnvKeyBuildmaxConversationModelTarget+"="+name,
+	); err != nil {
+		return err
+	}
+	fmt.Printf("Cluster %s now answers conversations and task runs through the managed gateway using %q.\n", cluster, name)
+	fmt.Printf("This calls the real provider and spends its quota. Run `%s kind mock` to switch back to the free mock.\n", mk())
+	return nil
+}
+
+// kindMock returns a cluster switched with `kind use-model` to the free mock:
+// it clears the three model-selection overrides so the server rereads the
+// committed ConfigMap, whose conversation.model is the in-cluster mock and whose
+// worker runs direct.
+func kindMock() error {
+	if err := requireCommands("kubectl"); err != nil {
+		return err
+	}
+	cluster := kindClusterName()
+	exists, err := kindClusterExists(cluster)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("kind cluster %q does not exist; run %s kind up", cluster, mk())
+	}
+	// A trailing "-" is how `kubectl set env` removes a variable.
+	if err := kindSetServerEnv(
+		config.EnvKeyBuildmaxWorkerLLMTransport+"-",
+		config.EnvKeyBuildmaxLLMDefaultModel+"-",
+		config.EnvKeyBuildmaxConversationModelTarget+"-",
+	); err != nil {
+		return err
+	}
+	fmt.Printf("Cluster %s is back on the free in-cluster mock; conversations and task runs no longer spend provider quota.\n", cluster)
+	return nil
+}
+
+// kindSetServerEnv sets or clears environment on the server Deployment and waits
+// for the rollout it triggers. Only the server has to reread model selection;
+// worker Jobs learn their transport per run from the task-run API.
+func kindSetServerEnv(pairs ...string) error {
+	setArgs := append([]string{"set", "env", "deployment/buildmax-server", "-n", "buildmax"}, pairs...)
+	if err := kindKubectl(setArgs...); err != nil {
+		return err
+	}
+	return kindKubectl("rollout", "status", "deployment/buildmax-server", "-n", "buildmax", "--timeout=180s")
 }
 
 func randomHex(bytes int) (string, error) {

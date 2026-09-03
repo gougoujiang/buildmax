@@ -76,8 +76,10 @@ type ServerAuditConfig struct {
 type ServerConvConfig struct {
 	Model ServerModelEntry `mapstructure:"model"`
 	// ModelTarget names a catalog model (an llm_model row) to use for Tier 1
-	// inference instead of the model above. It is a catalog ID, not a team
-	// alias: the server picks its own model rather than being granted one.
+	// inference instead of the model above. It is the server picking its own
+	// model rather than being granted one, and accepts either the catalog ID or
+	// the operator-facing model name — the name is what an operator can write
+	// down before the row's runtime ID exists (after `model add`/`kind seed`).
 	ModelTarget string `mapstructure:"model_target"`
 }
 
@@ -391,6 +393,24 @@ const (
 // chosen is what keeps moving that port a one-variable change.
 const EnvKeyBuildmaxCORSOrigin = "BUILDMAX_CORS_ORIGIN"
 
+// Model-selection overrides. None carries a secret: the credential still comes
+// from the catalog row (managed) or conversation.model.api_key (direct). They
+// exist so one built image can flip between a deterministic mock and a seeded
+// catalog model by environment alone, without rewriting the mounted server.yaml
+// — which is what lets `kind use-model`/`kind mock` switch a running cluster.
+const (
+	// BUILDMAX_WORKER_LLM_TRANSPORT overrides worker.llm.transport ("direct" or
+	// "buildmax"). The server reads it and tells each worker which transport to
+	// use, so the choice still lives on the server, not in the worker's hands.
+	EnvKeyBuildmaxWorkerLLMTransport = "BUILDMAX_WORKER_LLM_TRANSPORT"
+	// BUILDMAX_LLM_DEFAULT_MODEL overrides llm.default_model: the catalog model
+	// name a managed run and any caller that names none resolves to.
+	EnvKeyBuildmaxLLMDefaultModel = "BUILDMAX_LLM_DEFAULT_MODEL"
+	// BUILDMAX_CONVERSATION_MODEL_TARGET overrides conversation.model_target: a
+	// catalog model name or ID for Tier 1 conversations.
+	EnvKeyBuildmaxConversationModelTarget = "BUILDMAX_CONVERSATION_MODEL_TARGET"
+)
+
 // LoadServerConfig reads BUILDMAX_HOME/server.yaml via Viper and applies defaults.
 // Secret-bearing fields, cors_origin, and worker.server_url can be overridden
 // by the environment variables above and in env_spec.go.
@@ -445,6 +465,9 @@ func LoadServerConfig() (ServerConfig, error) {
 	_ = v.BindEnv("storage.minio.access_key", EnvKeyBuildmaxMinIOAccessKey)
 	_ = v.BindEnv("storage.minio.secret_key", EnvKeyBuildmaxMinIOSecretKey)
 	_ = v.BindEnv("conversation.model.api_key", EnvKeyBuildmaxConversationAPIKey)
+	_ = v.BindEnv("worker.llm.transport", EnvKeyBuildmaxWorkerLLMTransport)
+	_ = v.BindEnv("llm.default_model", EnvKeyBuildmaxLLMDefaultModel)
+	_ = v.BindEnv("conversation.model_target", EnvKeyBuildmaxConversationModelTarget)
 
 	if err := v.ReadInConfig(); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return ServerConfig{}, err

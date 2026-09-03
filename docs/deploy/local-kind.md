@@ -57,6 +57,8 @@ old one.
 ./make kind smoke   # rerun the end-to-end assertions without rebuilding
 ./make kind smoke managed  # the same, with task runs reaching models through the gateway
 ./make kind seed    # put the models in .local/settings.yaml into the cluster's catalog
+./make kind use-model "Claude Sonnet 5"  # run the cluster's own inference on a seeded model
+./make kind mock    # switch the cluster's own inference back to the free mock
 ./make kind reload  # rebuild and load local images, then restart the deployments
 ./make kind info    # endpoints, plus a fresh login code for the smoke account
 ./make kind forward # forward the in-cluster MySQL and MinIO to 127.0.0.1
@@ -174,13 +176,27 @@ A model is named by the `name` it was added under, which is its display name in
 `.local/settings.yaml`, or its model id when it has none. After login,
 `buildmax models` shows the name to use.
 
-What it deliberately does not touch is the cluster's own inference.
+`seed` deliberately leaves the cluster's own inference alone.
 `conversation.model` and the worker keep answering from the in-cluster mock, so
 Portal conversations and `./make kind smoke` stay deterministic and cost
 nothing. A rerun is safe: a model whose name is already in the catalog keeps
 its row and its ID. Changing a seeded model's endpoint or credential means
 renaming it in `.local/settings.yaml`, or rebuilding the cluster — `add` does not
 update a row.
+
+To make the cluster's own Portal conversations and task runs answer from a
+seeded model, switch them over explicitly:
+
+```bash
+./make kind use-model "Claude Sonnet 5"   # conversations + task runs via the gateway
+./make kind mock                          # back to the free in-cluster mock
+```
+
+`use-model` sets `BUILDMAX_WORKER_LLM_TRANSPORT`, `BUILDMAX_LLM_DEFAULT_MODEL`,
+and `BUILDMAX_CONVERSATION_MODEL_TARGET` on the server Deployment and restarts
+it; the committed ConfigMap is untouched, so `mock` — which clears them — puts
+the cluster back exactly. It calls the real provider and spends its quota, which
+is why it is a separate step from `seed` rather than part of it.
 
 A real credential in `.local/settings.yaml` reaches the cluster's MySQL in plain
 text. That database is thrown away with the cluster, and this path is for local

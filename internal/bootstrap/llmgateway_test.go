@@ -239,6 +239,43 @@ func TestBuildLLMRoutingConfiguredDefaultMustExist(t *testing.T) {
 	}
 }
 
+// TestResolveTier1TargetIDByName is the point of conversation.model_target
+// accepting a name: an operator points Tier 1 at a seeded catalog row by the
+// name it was added with, without discovering the runtime ID first.
+func TestResolveTier1TargetIDByName(t *testing.T) {
+	sc := config.ServerConfig{Conversation: config.ServerConvConfig{Model: conversationModel()}}
+	routing, err := buildLLMRouting(sc, newFakeModels(catalogRow("lm_fast")))
+	if err != nil {
+		t.Fatalf("buildLLMRouting: %v", err)
+	}
+	catalog := routing.Router.Resolver.Catalog
+
+	// A name resolves to the row's runtime ID.
+	if id, err := resolveTier1TargetID(context.Background(), catalog, "LM_FAST"); err != nil {
+		t.Fatalf("resolveTier1TargetID by name: %v", err)
+	} else if id != "lm_fast" {
+		t.Errorf("resolved ID = %q, want %q", id, "lm_fast")
+	}
+
+	// An ID passes through unchanged, so a deployment that named one keeps working.
+	if id, err := resolveTier1TargetID(context.Background(), catalog, "lm_fast"); err != nil {
+		t.Fatalf("resolveTier1TargetID by ID: %v", err)
+	} else if id != "lm_fast" {
+		t.Errorf("resolved ID = %q, want the ID unchanged", id)
+	}
+
+	// The derived conversation target resolves by its own ID.
+	if _, err := resolveTier1TargetID(context.Background(), catalog, conversationTargetID); err != nil {
+		t.Errorf("the derived target did not resolve: %v", err)
+	}
+
+	// A value that is neither an ID nor a name stops startup rather than serving
+	// conversations from a model that does not exist.
+	if _, err := resolveTier1TargetID(context.Background(), catalog, "nope"); err == nil {
+		t.Error("an unresolvable model_target was accepted")
+	}
+}
+
 // TestBuildLLMRoutingServesEveryCatalogModel records that the catalog is the
 // grant: every model in it is callable, with no per-team policy in between.
 func TestBuildLLMRoutingServesEveryCatalogModel(t *testing.T) {
