@@ -288,6 +288,15 @@ func RuntimeTaskRunGlobalDir(workspacesDir, workspaceID, taskID, taskRunID strin
 	return filepath.Join(RuntimeTaskRunDir(workspacesDir, workspaceID, taskID, taskRunID), "global")
 }
 
+// RunOutputDir returns the durable run-output directory the local-FS run-output
+// store reads and writes. It is a sibling of the runtime task-run tree, never
+// inside it: the store copies the run's produced files out of the runtime
+// artifacts dir into this one, so if the two aliased, that copy would open a
+// file for writing while reading the same path and truncate it to nothing.
+func RunOutputDir(workspacesDir, workspaceID, taskID, taskRunID string) string {
+	return filepath.Join(workspacesDir, workspaceID, "run-outputs", taskID, taskRunID)
+}
+
 // ---------------------------------------------------------------------------
 // Settings loader
 // ---------------------------------------------------------------------------
