@@ -118,6 +118,52 @@ export function truncateMiddleText(value, max = 34) {
   return `${text.slice(0, head)}…${text.slice(text.length - tail)}`;
 }
 
+const byNodeName = (a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+
+// buildDiffTree groups a flat list of changed files into a directory tree for
+// the diff sidebar's tree view. Nodes are either { type: 'dir', name, path,
+// children } or { type: 'file', name, file } (file is the original changed-file
+// object). Directories sort before files, each case-insensitively by name. A
+// directory whose only content is a single subdirectory is merged into one
+// "a/b/c" row (compact folders, as common editors do), so a deep refactor does
+// not render as a column of near-empty nesting.
+export function buildDiffTree(files) {
+  const root = { dirs: new Map(), files: [] };
+  for (const file of files ?? []) {
+    const segments = String(file?.path ?? '').split('/');
+    const name = segments.pop() || String(file?.path ?? '');
+    let node = root;
+    let acc = '';
+    for (const segment of segments) {
+      if (!segment) continue;
+      acc = acc ? `${acc}/${segment}` : segment;
+      let child = node.dirs.get(segment);
+      if (!child) {
+        child = { name: segment, path: acc, dirs: new Map(), files: [] };
+        node.dirs.set(segment, child);
+      }
+      node = child;
+    }
+    node.files.push({ type: 'file', name, file });
+  }
+  return finalizeDiffChildren(root);
+}
+
+function finalizeDiffChildren(node) {
+  const dirs = [...node.dirs.values()].map(finalizeDiffDir).sort(byNodeName);
+  const fileNodes = node.files.slice().sort(byNodeName);
+  return [...dirs, ...fileNodes];
+}
+
+function finalizeDiffDir(node) {
+  let dir = { type: 'dir', name: node.name, path: node.path, children: finalizeDiffChildren(node) };
+  while (dir.children.length === 1 && dir.children[0].type === 'dir') {
+    const only = dir.children[0];
+    dir = { type: 'dir', name: `${dir.name}/${only.name}`, path: only.path, children: only.children };
+  }
+  return dir;
+}
+
 export function parseRangeStart(token) {
   const n = Number.parseInt(token.replace(/^[-+]/, '').split(',')[0], 10);
   return Number.isFinite(n) ? n : 0;
@@ -127,31 +173,63 @@ export function parsePatchLines(patch) {
   const rows = [];
   let oldLine = 0;
   let newLine = 0;
+  let hunk = -1;
   for (const raw of String(patch ?? '').replace(/\r\n/g, '\n').split('\n')) {
     if (raw.startsWith('@@')) {
       const parts = raw.split(/\s+/);
       oldLine = parseRangeStart(parts.find((p) => p.startsWith('-')) ?? '');
       newLine = parseRangeStart(parts.find((p) => p.startsWith('+')) ?? '');
-      rows.push({ kind: 'hunk', text: raw, oldLine: '', newLine: '' });
+      hunk += 1;
+      rows.push({ kind: 'hunk', text: raw, oldLine: '', newLine: '', hunk });
       continue;
     }
     if (raw.startsWith('diff --git') || raw.startsWith('index ') || raw.startsWith('--- ') || raw.startsWith('+++ ')) {
-      rows.push({ kind: 'header', text: raw, oldLine: '', newLine: '' });
+      rows.push({ kind: 'header', text: raw, oldLine: '', newLine: '', hunk });
       continue;
     }
     if (raw.startsWith('+')) {
-      rows.push({ kind: 'add', text: raw, oldLine: '', newLine: newLine || '' });
+      rows.push({ kind: 'add', text: raw, oldLine: '', newLine: newLine || '', hunk });
       newLine += 1;
       continue;
     }
     if (raw.startsWith('-')) {
-      rows.push({ kind: 'del', text: raw, oldLine: oldLine || '', newLine: '' });
+      rows.push({ kind: 'del', text: raw, oldLine: oldLine || '', newLine: '', hunk });
       oldLine += 1;
       continue;
     }
-    rows.push({ kind: 'context', text: raw, oldLine: oldLine || '', newLine: newLine || '' });
+    rows.push({ kind: 'context', text: raw, oldLine: oldLine || '', newLine: newLine || '', hunk });
     if (oldLine) oldLine += 1;
     if (newLine) newLine += 1;
   }
   return rows;
+}
+
+// Attaches Shiki token lines to each add/del/context row of a parsed patch,
+// grouped and tokenized per hunk (rather than per isolated line) so multi-line
+// constructs like block comments and strings get correct context. Rows whose
+// kind isn't add/del/context (header, hunk marker) are left untouched. Returns
+// a new array; rows get a `tokens` field, `undefined` when unavailable.
+export async function highlightDiffRows(rows, path, theme, highlightToLines) {
+  const byHunk = new Map();
+  for (const row of rows) {
+    if (row.kind !== 'add' && row.kind !== 'del' && row.kind !== 'context') continue;
+    if (!byHunk.has(row.hunk)) byHunk.set(row.hunk, []);
+    byHunk.get(row.hunk).push(row);
+  }
+
+  const tokensByRow = new Map();
+  for (const hunkRows of byHunk.values()) {
+    const oldRows = hunkRows.filter((r) => r.kind === 'del' || r.kind === 'context');
+    const newRows = hunkRows.filter((r) => r.kind === 'add' || r.kind === 'context');
+    const oldText = oldRows.map((r) => r.text.slice(1)).join('\n');
+    const newText = newRows.map((r) => r.text.slice(1)).join('\n');
+    const [oldLines, newLines] = await Promise.all([
+      oldText ? highlightToLines(oldText, path, theme) : [],
+      newText ? highlightToLines(newText, path, theme) : [],
+    ]);
+    oldRows.forEach((r, i) => { if (r.kind === 'del') tokensByRow.set(r, oldLines[i]); });
+    newRows.forEach((r, i) => { if (r.kind !== 'del') tokensByRow.set(r, newLines[i]); });
+  }
+
+  return rows.map((row) => (tokensByRow.has(row) ? { ...row, tokens: tokensByRow.get(row) } : row));
 }

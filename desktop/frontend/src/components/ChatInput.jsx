@@ -183,7 +183,6 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
     if (!currentProject || !app) return;
     setModels([]);
     setCurrentModel('');
-    setGitBranch('');
     setSkills([]);
     Promise.allSettled([
       // The model list and its mode are project-scoped, so they load here with
@@ -191,12 +190,11 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
       // the effect below, which re-resolves it whenever the session changes.
       app.GetSlashModels(currentProject.id, ''),
       app.GetSlashSkills(currentProject.id),
-      app.GetGitBranch(currentProject.id),
       // Guarded: a call to a binding the running app has not regenerated yet
       // would throw synchronously here and take the model and skill loads down
       // with it. The palette simply has no commands until the app is rebuilt.
       app.GetSlashCommands ? app.GetSlashCommands() : Promise.resolve([]),
-    ]).then(([modelsRes, skillsRes, branchRes, cmdRes]) => {
+    ]).then(([modelsRes, skillsRes, cmdRes]) => {
       if (modelsRes.status === 'fulfilled') {
         setModels(modelsRes.value.models ?? []);
         setModelMode(
@@ -206,21 +204,24 @@ export function ChatInput({ onSend, onCancel, loading, error, onDismissError, cu
         );
       }
       if (skillsRes.status === 'fulfilled') setSkills(skillsRes.value.skills ?? []);
-      if (branchRes.status === 'fulfilled') setGitBranch(branchRes.value ?? '');
       if (cmdRes.status === 'fulfilled') setCommands(cmdRes.value ?? []);
     });
   }, [currentProject, app]);
 
-  // The active model is per conversation: a switch is recorded on the session,
-  // so the picker's current entry re-resolves when the session changes, not only
-  // when the project does. An empty session (a chat not yet started) reports the
-  // app default.
+  // The active model and git branch are per session, not per project: a
+  // session may run in a worktree distinct from the project's default
+  // workspace, so both re-resolve when the session changes, not only when the
+  // project does. An empty session (a chat not yet started) reports the
+  // project's own default (model) or its default workspace (branch).
   useEffect(() => {
     if (!currentProject || !app) return undefined;
     let cancelled = false;
     app.GetSlashModels(currentProject.id, sessionId || '')
       .then((res) => { if (!cancelled) setCurrentModel(res.current ?? ''); })
       .catch(() => {});
+    app.GetGitBranch(currentProject.id, sessionId || '')
+      .then((branch) => { if (!cancelled) setGitBranch(branch ?? ''); })
+      .catch(() => { if (!cancelled) setGitBranch(''); });
     return () => { cancelled = true; };
   }, [currentProject, app, sessionId]);
 

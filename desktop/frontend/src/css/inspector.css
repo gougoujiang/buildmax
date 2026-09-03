@@ -446,6 +446,29 @@
   padding: 0 0.4rem;
 }
 
+.file-view__mode {
+  flex-shrink: 0;
+  display: flex;
+  gap: 1px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.file-view__mode-btn {
+  border: none;
+  background: transparent;
+  color: var(--color-text-subtle);
+  font-size: 0.72rem;
+  padding: 0.15rem 0.55rem;
+  cursor: pointer;
+}
+
+.file-view__mode-btn--active {
+  background: var(--color-bg-hover);
+  color: var(--color-text);
+}
+
 .file-view__code {
   flex: 1;
   min-height: 0;
@@ -458,6 +481,24 @@
   white-space: pre;
   tab-size: 4;
   color: var(--color-text);
+}
+
+/* Shiki renders its own <pre class="shiki">; strip its chrome so it sits
+   flush inside the .file-view__code container instead of doubling it. */
+.file-view__code pre.shiki {
+  margin: 0;
+  padding: 0;
+  background: transparent !important;
+  font: inherit;
+  white-space: inherit;
+  tab-size: inherit;
+}
+
+.file-view__preview {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0.6rem 0.85rem;
 }
 
 .file-view__hint {
