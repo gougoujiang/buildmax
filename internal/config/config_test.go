@@ -551,3 +551,24 @@ func TestLoadSettings_LocalEntryNeedsNoKey(t *testing.T) {
 		t.Errorf("keep_alive = %q, want 30m", m.KeepAlive)
 	}
 }
+
+// TestRunOutputDir_DisjointFromRuntimeArtifacts locks the invariant a regression
+// once broke: the local-FS run-output store copies a run's produced files out of
+// the runtime artifacts dir into its own directory. If that directory were the
+// artifacts dir (or nested with it), the copy would open a file for writing while
+// reading the same path and truncate result.md to nothing — the compose smoke's
+// "artifact content = \"\"" failure. Keep the two trees disjoint.
+func TestRunOutputDir_DisjointFromRuntimeArtifacts(t *testing.T) {
+	const ws, team, task, run = "/ws", "team1", "task1", "run1"
+	out := RunOutputDir(ws, team, task, run)
+	art := RuntimeTaskRunArtifactsDir(ws, team, task, run)
+	sep := string(filepath.Separator)
+	switch {
+	case out == art:
+		t.Fatalf("run-output dir equals runtime artifacts dir: %q", out)
+	case strings.HasPrefix(out, art+sep):
+		t.Fatalf("run-output dir %q is nested under runtime artifacts dir %q", out, art)
+	case strings.HasPrefix(art, out+sep):
+		t.Fatalf("runtime artifacts dir %q is nested under run-output dir %q", art, out)
+	}
+}

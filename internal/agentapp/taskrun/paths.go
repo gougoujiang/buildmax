@@ -9,7 +9,6 @@ type RuntimePaths interface {
 	RuntimeTaskRunHomeDir(teamID, taskID, taskRunID string) string
 	RuntimeTaskRunArtifactsDir(teamID, taskID, taskRunID string) string
 	RuntimeTaskRunGlobalDir(teamID, taskID, taskRunID string) string
-	RunOutputDir(teamID, taskID, taskRunID string) string
 }
 
 // runtimePathsRoot implements RuntimePaths with a single root directory.
@@ -36,8 +35,4 @@ func (p *runtimePathsRoot) RuntimeTaskRunArtifactsDir(teamID, taskID, taskRunID 
 
 func (p *runtimePathsRoot) RuntimeTaskRunGlobalDir(teamID, taskID, taskRunID string) string {
 	return filepath.Join(p.RuntimeTaskRunDir(teamID, taskID, taskRunID), "global")
-}
-
-func (p *runtimePathsRoot) RunOutputDir(teamID, taskID, taskRunID string) string {
-	return p.RuntimeTaskRunArtifactsDir(teamID, taskID, taskRunID)
 }

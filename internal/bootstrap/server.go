@@ -353,14 +353,14 @@ func buildBlobStorage(ctx context.Context, sc config.ServerStorageConfig, worksp
 		return blobStorage{}, fmt.Errorf("persist storage: %w", err)
 	}
 	runOutputRoot := func(teamID, taskID, taskRunID string) string {
-		return config.RuntimeTaskRunArtifactsDir(workspacesDir, teamID, taskID, taskRunID)
+		return config.RunOutputDir(workspacesDir, teamID, taskID, taskRunID)
 	}
 	runOutputStorage, err := BuildRunOutputStorage(wsCfg, runOutputRoot, s3Client)
 	if err != nil {
 		return blobStorage{}, fmt.Errorf("run output storage: %w", err)
 	}
-	// Under "teams" so it cannot collide with the run-output tree above, which
-	// is keyed by user, or with a team's home directory.
+	// Under "teams" so it cannot collide with the run-output tree above or with
+	// a team's home directory.
 	artifactRoot := func(teamID, artifactID string) string {
 		return filepath.Join(workspacesDir, "teams", teamID, "artifacts", artifactID)
 	}
