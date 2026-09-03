@@ -21,6 +21,8 @@ func cmdRun(args []string) error {
 		return runLocalBinary(cliBinary, "Starting CLI...", args[1:])
 	case "desktop":
 		return runLocalBinary(desktopBinary, "Starting desktop app (Ctrl+C to stop)...", nil)
+	case "desktop-dev":
+		return runDesktopDev()
 	case "portal":
 		return runPortal()
 	default:
@@ -146,6 +148,30 @@ func seedSandboxConfig() (string, error) {
 		logf("sandbox", "Copied %s -> %s", from, to)
 	}
 	return sandbox, nil
+}
+
+// runDesktopDev starts `wails dev` in the foreground against the testing
+// sandbox, the same browser bridge `./make e2e desktop-ui` drives and the one
+// a `.claude/skills` driver script attaches to for ad hoc, agent-driven UI
+// exploration. `./make run desktop` starts the built, packaged app instead —
+// this one live-reloads and answers over HTTP at desktopDevServerURL, with no
+// native window required to reach it.
+func runDesktopDev() error {
+	if !isDir(desktopDir) {
+		return fmt.Errorf("%s not found", desktopDir)
+	}
+	// wails dev builds the frontend once before it starts watching, and that
+	// build fails on a missing gui/dist the same way `build desktop` does — but
+	// from inside the Wails CLI's own output, where it is hard to place.
+	if isDir("gui") && !exists(filepath.Join("gui", "dist", "index.js")) {
+		return fmt.Errorf("gui not built (missing gui/dist/index.js); run `cd gui && npm ci && npm run build`")
+	}
+	sandbox, err := seedSandboxConfig()
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Starting desktop dev server (Ctrl+C to stop). Browser bridge at %s (BUILDMAX_HOME=./%s)\n", desktopDevServerURL, sandboxDir)
+	return runWith(desktopDir, []string{"BUILDMAX_HOME=" + sandbox}, "go", "run", wailsCLIPkg, "dev", "-tags", "desktop")
 }
 
 func runPortal() error {

@@ -55,6 +55,8 @@ func cmdE2E(args []string) error {
 		return e2eCLI()
 	case "desktop":
 		return e2eDesktopBridge()
+	case "desktop-ui":
+		return e2eDesktopUI()
 	case "all":
 		return e2eFullMatrix()
 	case "local":
@@ -81,9 +83,10 @@ func e2eCLI() error {
 	return runCmd("go", "test", "-count=1", "./internal/e2e/cli/...")
 }
 
-// e2eDesktopBridge runs the Wails bridge suite. It stops at the bridge: the
-// window, the webview, and the React app need a display and a running
-// `wails dev`, which is the packaged-app smoke this design still defers.
+// e2eDesktopBridge runs the Wails bridge suite. It stops at the bridge, in Go:
+// no browser, no window. `desktop-ui` drives the React app and the same bound
+// methods through `wails dev`'s browser dev server; the native window and the
+// packaged, signed build are what still has no suite — see e2eDesktopUI.
 //
 // The name is the suite: a bridge test called anything but TestBridge* is not
 // selected here, so it runs only in `./make test` and this command reports a

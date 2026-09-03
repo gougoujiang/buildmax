@@ -480,9 +480,17 @@ rather than discovered later.
    the server and worker paths the deployment-level assertions in §6.1.
 5. **Add the Wails bridge suite**, then a small native packaged-app smoke on
    supported platform runners. The bridge suite has landed as
-   `TestBridge*` in `internal/interface/desktop`, run by `./make e2e desktop`;
-   the packaged-app smoke is open, and it is what covers the window and the
-   React app.
+   `TestBridge*` in `internal/interface/desktop`, run by `./make e2e desktop`.
+
+   A second suite, `./make e2e desktop-ui`, has landed since: it drives
+   desktop/frontend's real React app and its bound Go methods through `wails
+   dev`'s own browser dev server (see tools/mk/desktop_ui.go). That covers the
+   React app and the bridge together, against a real (if headless-launched)
+   Chromium — narrower than what this step originally asked for, on purpose:
+   it says nothing about how the native window renders that same page, and
+   nothing about the signed, packaged build. `wails dev` opens a native window
+   too, as a side effect of starting, but the suite makes no assertion about
+   it. The native-window and packaged-build smoke is still open work.
 
    That step turned out to have a prerequisite this record did not name. Until
    `desktop-package.yml`, **no CI job produced a packaged app at all**:

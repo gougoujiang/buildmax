@@ -15,6 +15,7 @@ loop rather than a pull-request gate — is in
 ./make test mysql     # the store scope, against a real MySQL you point it at
 ./make e2e cli        # just the CLI and TUI suite
 ./make e2e desktop    # just the Desktop bridge suite
+./make e2e desktop-ui # desktop/frontend through `wails dev`'s browser bridge
 ./make e2e local      # Portal in a browser, against a Compose stack this command owns
 ./make e2e all        # cli, desktop, then local — the release-time matrix
 ```
@@ -39,6 +40,7 @@ package whose code reads those paths gives itself a `TestMain` calling
 | The agent loop, tools, permissions, sessions, the TUI | `./make test`, then `./make e2e cli` |
 | Plugins, packaging, or the Marketplace routes | `./make test`, then `./make e2e cli` |
 | The Desktop bridge, its events, approvals, or session history | `./make e2e desktop` |
+| desktop/frontend's React app, or how it calls a bound Go method | `./make e2e desktop-ui` |
 | The Wails config, the desktop asset embedding, or the app's packaging | `./make build desktop` — nothing else builds the packaged app, and `go build ./...` compiles the `!desktop` stub instead |
 | A shared component in `gui/` | `./make check gui` |
 | Portal, `gui`, or a route Portal calls | `./make e2e local` |
@@ -56,6 +58,7 @@ failure you already have.
 |---|---|---|---|
 | `./make e2e cli` | Go | under 60 s | a temporary `BUILDMAX_HOME`, a workspace, and a Marketplace server it starts in process |
 | `./make e2e desktop` | Go | under 60 s | the same |
+| `./make e2e desktop-ui` | Go, Node, Chromium | under 60 s | a `wails dev` process and a fresh, discarded `BUILDMAX_HOME` |
 | `./make e2e local` | Docker, Node, Chromium | under 10 min | a Compose stack it starts and stops |
 | `./make e2e compose` | a Compose stack already running | under 2 min | nothing — it is a guest |
 | `./make e2e kind` | a kind cluster already running | under 2 min | nothing — it is a guest |
@@ -64,6 +67,13 @@ failure you already have.
 
 No suite needs a provider API key. Every one of them answers the model from
 `internal/testsupport/mockllm`, which replays a committed scenario.
+
+`./make e2e desktop-ui` is a fixed, scripted check — for poking at
+desktop/frontend's UI ad hoc (click through a flow, screenshot a view, read
+what a bound Go method returns, before you know what to assert), start
+`./make run desktop-dev` and drive it with
+[`.buildmax/skills/drive-desktop/`](../../.buildmax/skills/drive-desktop/SKILL.md)
+instead.
 
 ## The Store Scope
 

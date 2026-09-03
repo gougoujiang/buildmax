@@ -335,8 +335,13 @@ func TestWorkspaceAgentConfigLoadsWithRuntimeParsers(t *testing.T) {
 	t.Setenv(config.EnvKeyBuildmaxHome, t.TempDir())
 
 	skills := tool.DiscoverSkillEntries([]string{filepath.Join(root, ".buildmax", "skills")})
-	if len(skills) != 1 || skills[0].Name != "smoke" {
-		t.Fatalf("workspace skills = %v, want smoke", skills)
+	var skillNames []string
+	for _, skill := range skills {
+		skillNames = append(skillNames, skill.Name)
+	}
+	wantSkills := []string{"drive-desktop", "smoke"}
+	if strings.Join(skillNames, ",") != strings.Join(wantSkills, ",") {
+		t.Fatalf("workspace skills = %v, want %v", skillNames, wantSkills)
 	}
 
 	defs, err := tool.LoadAgentDefs(filepath.Join(root, ".buildmax", "agents"))
