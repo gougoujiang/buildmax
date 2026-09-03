@@ -63,7 +63,7 @@ func allHelpSections() []helpSection {
 			{"check [scope]", "Run checks for go, gui, portal, desktop, docs, all, or ci"},
 			{"fmt", "Format every tracked Go file with gofmt"},
 			{"lint", "Run pinned golangci-lint and govulncheck"},
-			{"e2e <suite>", "Run one end-to-end suite: cli, desktop, local, compose, kind, or all"},
+			{"e2e <suite>", "Run one end-to-end suite: cli, desktop, desktop-ui, local, compose, kind, or all"},
 			{"run <target>", "Run cli, server, desktop, or Portal locally"},
 			{"clean", "Remove binaries, native app builds, node_modules, and dist"},
 			{"help [command]", "Show this list, or one command's arguments and examples"},
@@ -254,23 +254,31 @@ func helpTopics() []helpTopic {
 		},
 		{
 			name:    "e2e",
-			usage:   "e2e <cli|desktop|local|compose|kind|all>",
+			usage:   "e2e <cli|desktop|desktop-ui|local|compose|kind|all>",
 			summary: "Run one end-to-end suite.",
 			details: []string{
 				"The suites are a local feedback loop, not a pull-request gate, and none of\n" +
 					"them needs a provider API key: every one answers the model from a committed\n" +
 					"scenario. They differ in what they own — the Portal suites attach to a\n" +
-					"deployment someone else started, `local` owns a Compose stack for one run,\n" +
-					"and `cli` owns nothing but a temporary directory. Each says which it is\n" +
-					"before it starts.",
+					"deployment someone else started, `local` and `desktop-ui` each own a stack\n" +
+					"for one run (a Compose deployment, a `wails dev` process), and `cli` owns\n" +
+					"nothing but a temporary directory. Each says which it is before it starts.",
 				"There is no default suite. Naming one is how you know what a green run\n" +
 					"covered, and the cheapest suites are the ones with no prerequisite at\n" +
 					"all: `cli` and `desktop` are Go tests that ./make test already runs.",
+				"`desktop-ui` needs Node, npm, and a Playwright Chromium install, same as\n" +
+					"`local`. It drives desktop/frontend through `wails dev`'s own browser dev\n" +
+					"server, bindings and all, against a fresh isolated BUILDMAX_HOME it creates\n" +
+					"and discards — never a contributor's real ~/.buildmax. `wails dev` opens a\n" +
+					"native window too, as a side effect of starting; this suite makes no\n" +
+					"assertion about it and does not need one to be present. It stops what it\n" +
+					"started when the run ends either way.",
 				"Whatever the outcome, the suite leaves its evidence under " + artifactDir + "/.",
 			},
 			args: []helpRow{
 				{"cli", "The CLI and TUI suite: built binary, temporary home"},
-				{"desktop", "The Desktop bridge suite: bound methods, events, approvals"},
+				{"desktop", "The Desktop bridge suite: bound methods, events, approvals — no window"},
+				{"desktop-ui", "desktop/frontend driven through `wails dev`'s browser bridge"},
 				{"local", "Portal browser tests against a Compose stack this command owns"},
 				{"compose", "The same tests against a running Compose stack"},
 				{"kind", "The same tests against a running kind deployment"},
@@ -281,8 +289,8 @@ func helpTopics() []helpTopic {
 		},
 		{
 			name:    "run",
-			usage:   "run <cli|server|desktop|portal> [arguments]",
-			summary: "Run a built binary, or the Portal dev server, against the testing sandbox.",
+			usage:   "run <cli|server|desktop|desktop-dev|portal> [arguments]",
+			summary: "Run a built binary, or a dev server, against the testing sandbox.",
 			details: []string{
 				"The binaries run with BUILDMAX_HOME set to ./" + sandboxDir + ", so a local\n" +
 					"run never reads or writes your real ~/.buildmax. Build them first; the\n" +
@@ -294,9 +302,10 @@ func helpTopics() []helpTopic {
 				{"cli", "Run " + exe(cliBinary)},
 				{"server", "Run " + exe(serverBinary)},
 				{"desktop", "Run " + exe(desktopBinary)},
+				{"desktop-dev", "Run `wails dev`: the browser bridge at " + desktopDevServerURL + ", live-reloading"},
 				{"portal", "Start the Portal dev server (Vite)"},
 			},
-			examples: []string{"run cli", "run cli -- init", "run server", "run portal"},
+			examples: []string{"run cli", "run cli -- init", "run server", "run desktop-dev"},
 		},
 		{
 			name:    "clean",

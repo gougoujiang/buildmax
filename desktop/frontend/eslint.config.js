@@ -35,4 +35,12 @@ export default [
       'react-hooks/set-state-in-effect': 'off',
     },
   },
+  {
+    // The Playwright driver and its config run under Node, not the browser.
+    files: ['e2e/**/*.js', 'playwright.config.js'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      globals: globals.node,
+    },
+  },
 ]

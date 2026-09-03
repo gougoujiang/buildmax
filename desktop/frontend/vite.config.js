@@ -12,6 +12,10 @@ export default defineConfig({
   // environment for the whole suite beats per-file annotations.
   test: {
     environment: 'jsdom',
+    // e2e/ holds Playwright specs, which need a browser and a running `wails
+    // dev`. Vitest would otherwise collect them by extension and fail on the
+    // import. `./make e2e desktop-ui` runs those.
+    exclude: ['node_modules/**', 'dist/**', 'e2e/**'],
   },
   resolve: {
     // @buildmax/gui is a symlinked workspace package that externalises react,
