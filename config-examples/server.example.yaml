@@ -75,9 +75,12 @@ conversation:
     #   output_per_mtok: "15.00"
     # vision: false                # this model accepts image input
 
-  # Use a catalog model for Tier 1 instead of the model above (an llm_model
-  # ID, not a team alias). Leave unset to use conversation.model.
-  # model_target: ivyoh5qcfu6ypfkhyedq
+  # Use a catalog model for Tier 1 instead of the model above. Accepts either
+  # the llm_model ID or the --name it was added with — the name is what you can
+  # write down before the row's runtime ID exists. Leave unset to use
+  # conversation.model. BUILDMAX_CONVERSATION_MODEL_TARGET overrides it, so one
+  # image can point Tier 1 at a seeded model without rewriting this file.
+  # model_target: "Claude Sonnet 5"
 
 # Team model policy for the managed LLM gateway. The catalog itself lives in
 # the llm_model database table, not here, since it holds provider credentials
@@ -102,7 +105,7 @@ conversation:
 # This block only picks which model a caller gets when it names none; leaving
 # it out uses the first enabled catalog model, so a single-model deployment
 # needs nothing here. A name not in the catalog stops the server at startup.
-# See docs/design/client-modes.md.
+# BUILDMAX_LLM_DEFAULT_MODEL overrides it. See docs/design/client-modes.md.
 # llm:
 #   default_model: Fast          # a --name from `model list`
 
@@ -130,7 +133,9 @@ worker:
   # How a task run reaches a model. "direct" (default): the worker calls a
   # provider itself with conversation.model and its api_key. "buildmax": the
   # run calls this server's managed gateway with a per-run credential and no
-  # provider key ever reaches the worker.
+  # provider key ever reaches the worker. BUILDMAX_WORKER_LLM_TRANSPORT
+  # overrides this, so one image flips a run between the two by environment
+  # alone; the server reads it and tells each worker its transport per run.
   #
   # The model name is the only model identity a run gets — endpoint, upstream
   # model, and credential all stay on the server. Leave empty to use

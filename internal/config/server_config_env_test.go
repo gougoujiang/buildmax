@@ -114,6 +114,64 @@ func TestServerConfigServerURLEnvOverride(t *testing.T) {
 	}
 }
 
+// TestServerConfigModelSelectionEnvOverrides is the contract kind use-model
+// depends on: one built image flips between the mock and a seeded catalog model
+// by environment alone, without rewriting the mounted server.yaml.
+func TestServerConfigModelSelectionEnvOverrides(t *testing.T) {
+	writeServerYAML(t, `
+conversation:
+  model:
+    name: BuildMax smoke
+worker:
+  llm:
+    transport: direct
+llm:
+  default_model: BuildMax smoke
+`)
+	t.Setenv(config.EnvKeyBuildmaxWorkerLLMTransport, config.TransportBuildMax)
+	t.Setenv(config.EnvKeyBuildmaxLLMDefaultModel, "Claude Sonnet 5")
+	t.Setenv(config.EnvKeyBuildmaxConversationModelTarget, "Claude Sonnet 5")
+
+	cfg, err := config.LoadServerConfig()
+	if err != nil {
+		t.Fatalf("LoadServerConfig: %v", err)
+	}
+	if cfg.Worker.LLM.Transport != config.TransportBuildMax || !cfg.Worker.LLM.Managed() {
+		t.Errorf("worker.llm.transport = %q, want the environment override %q", cfg.Worker.LLM.Transport, config.TransportBuildMax)
+	}
+	if cfg.LLM.DefaultModel != "Claude Sonnet 5" {
+		t.Errorf("llm.default_model = %q, want the environment override", cfg.LLM.DefaultModel)
+	}
+	if cfg.Conversation.ModelTarget != "Claude Sonnet 5" {
+		t.Errorf("conversation.model_target = %q, want the environment override", cfg.Conversation.ModelTarget)
+	}
+}
+
+// Unset overrides must leave the committed file values in place, so a cluster
+// that was never switched keeps answering from the mock.
+func TestServerConfigModelSelectionFromFile(t *testing.T) {
+	writeServerYAML(t, `
+worker:
+  llm:
+    transport: direct
+llm:
+  default_model: BuildMax smoke
+`)
+	cfg, err := config.LoadServerConfig()
+	if err != nil {
+		t.Fatalf("LoadServerConfig: %v", err)
+	}
+	if cfg.Worker.LLM.Managed() {
+		t.Errorf("worker.llm.transport = %q, want direct from the file", cfg.Worker.LLM.Transport)
+	}
+	if cfg.LLM.DefaultModel != "BuildMax smoke" {
+		t.Errorf("llm.default_model = %q, want the file value", cfg.LLM.DefaultModel)
+	}
+	if cfg.Conversation.ModelTarget != "" {
+		t.Errorf("conversation.model_target = %q, want empty from the file", cfg.Conversation.ModelTarget)
+	}
+}
+
 func TestServerConfigServerURLFromFile(t *testing.T) {
 	writeServerYAML(t, "worker:\n  server_url: https://from-file.example\n")
 

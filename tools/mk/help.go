@@ -479,7 +479,7 @@ func helpTopics() []helpTopic {
 		},
 		{
 			name:    "kind",
-			usage:   "kind <up|reload|seed|smoke [managed]|info [email]|forward|status|logs|down>",
+			usage:   "kind <up|reload|seed|use-model <name>|mock|smoke [managed]|info [email]|forward|status|logs|down>",
 			summary: "Manage the local Kubernetes reference deployment.",
 			details: []string{
 				"Needs Docker and kubectl, and creates a kind cluster — set BUILDMAX_KIND_CLUSTER\n" +
@@ -500,11 +500,17 @@ func helpTopics() []helpTopic {
 					"A seeded row is callable at once and needs no restart. The cluster's own Portal\n" +
 					"conversations and task runs keep answering from the mock, so `smoke` stays\n" +
 					"deterministic and free.",
+				"`use-model` then points the cluster's own conversations and task runs at a\n" +
+					"seeded model through the managed gateway — it spends real provider quota, so\n" +
+					"`mock` switches back to the free in-cluster mock. Both take effect by setting\n" +
+					"environment on the server and restarting it; the committed config is untouched.",
 			},
 			args: []helpRow{
 				{"up", "Create the cluster and apply the reference deployment"},
 				{"reload", "Build and load the images, then restart the deployments"},
 				{"seed", "Put the models in " + localSettingsPath + " into the cluster's catalog"},
+				{"use-model <name>", "Point conversations and task runs at a seeded catalog model"},
+				{"mock", "Switch conversations and task runs back to the free in-cluster mock"},
 				{"smoke [managed]", "Run the deployment smoke against the cluster"},
 				{"info [email]", "Print the endpoints and issue a fresh login code"},
 				{"forward", "Forward MySQL (3306) and MinIO (9000, 9001) to 127.0.0.1"},
@@ -512,7 +518,7 @@ func helpTopics() []helpTopic {
 				{"logs", "Tail the deployment's logs"},
 				{"down", "Delete the cluster"},
 			},
-			examples: []string{"kind up", "kind info", "kind seed", "kind smoke", "kind forward"},
+			examples: []string{"kind up", "kind seed", "kind use-model \"Claude Sonnet 5\"", "kind mock", "kind smoke"},
 			see:      "docs/deploy/local-kind.md",
 		},
 		{
