@@ -80,3 +80,31 @@ describe("FormModal grouping", () => {
     expect(submit.disabled).toBe(true)
   })
 })
+
+describe("FormModal tabs layout", () => {
+  it("shows only the active tab's fields, hiding the others until selected", () => {
+    render(<FormModal {...base()} fields={FIELDS} groups={GROUPS} layout="tabs" />)
+    // First group is the active tab; the second group's field is not rendered.
+    expect(screen.getByLabelText("Name")).toBeTruthy()
+    expect(screen.queryByLabelText(/Endpoint/)).toBeNull()
+  })
+
+  it("switches the panel when a sidebar tab is clicked", () => {
+    render(<FormModal {...base()} fields={FIELDS} groups={GROUPS} layout="tabs" />)
+    fireEvent.click(screen.getByRole("button", { name: "Advanced" }))
+    expect(screen.getByLabelText(/Endpoint/)).toBeTruthy()
+    // Leaving Basics hides its field — one tab at a time.
+    expect(screen.queryByLabelText("Name")).toBeNull()
+  })
+
+  it("renders a tab's extra content when its tab is active", () => {
+    const groups: FormModalGroup[] = [
+      { id: "basics", title: "Basics" },
+      { id: "history", title: "History", content: <p>revision list</p> },
+    ]
+    render(<FormModal {...base()} fields={FIELDS} groups={groups} layout="tabs" />)
+    expect(screen.queryByText("revision list")).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "History" }))
+    expect(screen.getByText("revision list")).toBeTruthy()
+  })
+})

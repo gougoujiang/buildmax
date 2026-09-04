@@ -54,11 +54,11 @@ export const AGENT_FIELDS: FormModalFieldConfig[] = [
   },
 ]
 
-// Section metadata shared by the create and edit dialogs. Basics stays open;
-// the sandbox, plugin, and secret groups collapse so the dialog opens compact
-// and only the essentials show until the user asks for the rest. The plugin and
-// secret groups' content (their editors) is injected per dialog via
-// buildAgentGroups, because it needs the dialog's live state.
+// Section metadata shared by the create and edit dialogs. The dialog lays these
+// out as tabs (a left sidebar), so every section is one click away and the
+// dialog's height never runs away with a long Instructions field or the history.
+// The plugin and secret groups' content (their editors) is injected per dialog
+// via buildAgentGroups, because it needs the dialog's live state.
 const AGENT_GROUP_META: FormModalGroup[] = [
   { id: "basics", title: "Basics" },
   {
@@ -66,45 +66,38 @@ const AGENT_GROUP_META: FormModalGroup[] = [
     title: "Sandbox access",
     description:
       "Restrict what this agent's runs can reach. Leave on the team default unless this agent needs something different.",
-    collapsible: true,
   },
   {
     id: "plugins",
     title: "Plugins",
     description:
       "Catalog plugins this agent loads for background runs. Nothing is inherited — an agent that names none loads none.",
-    collapsible: true,
   },
   {
     id: "secrets",
     title: "Secrets",
     description: "Grant Team Secrets to this agent's runs as environment variables.",
-    collapsible: true,
   },
 ]
 
 /**
- * buildAgentGroups injects the live plugin and secret editors into their groups
- * and lets a dialog open specific collapsible groups. The edit dialog opens the
- * sandbox, plugin, and secret groups when the agent already has non-default
- * values there, so editing never hides settings that are actually set.
+ * buildAgentGroups injects the live plugin and secret editors into their groups,
+ * and appends a History tab when the edit dialog passes one (create has none).
  */
 export function buildAgentGroups(opts: {
   pluginEditor: ReactNode
   secretEditor: ReactNode
-  open?: { sandbox?: boolean; plugins?: boolean; secrets?: boolean }
+  historyContent?: ReactNode
 }): FormModalGroup[] {
-  const open = opts.open ?? {}
-  return AGENT_GROUP_META.map((group) => {
-    if (group.id === "sandbox") return { ...group, defaultOpen: open.sandbox ?? false }
-    if (group.id === "plugins") {
-      return { ...group, content: opts.pluginEditor, defaultOpen: open.plugins ?? false }
-    }
-    if (group.id === "secrets") {
-      return { ...group, content: opts.secretEditor, defaultOpen: open.secrets ?? false }
-    }
+  const groups = AGENT_GROUP_META.map((group) => {
+    if (group.id === "plugins") return { ...group, content: opts.pluginEditor }
+    if (group.id === "secrets") return { ...group, content: opts.secretEditor }
     return group
   })
+  if (opts.historyContent != null) {
+    groups.push({ id: "history", title: "History", content: opts.historyContent })
+  }
+  return groups
 }
 
 interface CreateAgentModalProps {
@@ -151,6 +144,7 @@ export function CreateAgentModal({
       titleId="create-agent-title"
       fields={AGENT_FIELDS}
       groups={groups}
+      layout="tabs"
       hint="Agents are personas or task templates you can use across your account."
       loading={loading}
       error={error}

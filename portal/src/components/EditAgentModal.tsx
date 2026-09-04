@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
 import type { ApiSecret, ApiSecretConsumption } from "../lib/api/types"
 import type { Agent } from "../lib/types"
 import { FormModal } from "@buildmax/gui"
@@ -50,16 +50,22 @@ export function EditAgentModal({
     setPlugins(agent?.plugins ?? [])
   }, [agent])
 
-  const initialValues =
-    agent != null
-      ? {
-          name: agent.name,
-          description: agent.description ?? "",
-          instructions: agent.instructions ?? "",
-          sandbox_network_tier: agent.sandboxNetworkTier ?? "",
-          sandbox_filesystem_tier: agent.sandboxFilesystemTier ?? "",
-        }
-      : undefined
+  // Keyed on the agent so a plugin or secret edit (which re-renders this modal)
+  // does not hand FormModal a fresh object and reset the text fields the user is
+  // still editing.
+  const initialValues = useMemo(
+    () =>
+      agent != null
+        ? {
+            name: agent.name,
+            description: agent.description ?? "",
+            instructions: agent.instructions ?? "",
+            sandbox_network_tier: agent.sandboxNetworkTier ?? "",
+            sandbox_filesystem_tier: agent.sandboxFilesystemTier ?? "",
+          }
+        : undefined,
+    [agent],
+  )
 
   function handleDelete() {
     if (
@@ -80,11 +86,7 @@ export function EditAgentModal({
     secretEditor: (
       <SecretConsumptionEditor value={consumption} onChange={setConsumption} secrets={secrets} />
     ),
-    open: {
-      sandbox: Boolean(agent.sandboxNetworkTier || agent.sandboxFilesystemTier),
-      plugins: (agent.plugins?.length ?? 0) > 0,
-      secrets: (agent.secretConsumption?.env?.length ?? 0) > 0,
-    },
+    historyContent: history,
   })
 
   return (
@@ -94,9 +96,9 @@ export function EditAgentModal({
       titleId="edit-agent-title"
       fields={AGENT_FIELDS}
       groups={groups}
+      layout="tabs"
       hint="Agents are personas or task templates you can use across your account."
       initialValues={initialValues}
-      className="modal--large"
       dangerAction={{
         label: "Delete",
         onClick: handleDelete,
@@ -119,9 +121,7 @@ export function EditAgentModal({
           secret_consumption: normalizeConsumption(consumption),
         })
       }}
-    >
-      {history}
-    </FormModal>
+    />
   )
 }
 

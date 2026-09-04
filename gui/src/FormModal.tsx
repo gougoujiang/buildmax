@@ -28,19 +28,19 @@ export interface FormModalFieldConfig {
 
 export interface FormModalGroup {
   id: string
-  /** Section heading. Omit to render the group's fields without a header. */
+  /** Section heading, and the tab label in the "tabs" layout. */
   title?: string
   /** Short explanatory line shown at the top of the group's body. */
   description?: string
-  /** When true the group shows a toggle and can be collapsed. */
+  /** When true the group can be collapsed in the "stacked" layout (ignored by "tabs"). */
   collapsible?: boolean
   /** Initial open state for a collapsible group. Defaults to closed. */
   defaultOpen?: boolean
   /**
    * Extra content rendered inside the group, below its fields — for sub-forms a
-   * plain field cannot express (a secret editor, a preview). Keep required
-   * inputs out of a collapsed group: submit stays disabled while a required
-   * field is empty, and a collapsed group hides the reason.
+   * plain field cannot express (a secret editor, a preview, a history). Keep
+   * required inputs out of a collapsed group: submit stays disabled while a
+   * required field is empty, and a collapsed group hides the reason.
    */
   content?: ReactNode
 }
@@ -56,6 +56,13 @@ export interface FormModalProps {
    * is one flat stack, as before.
    */
   groups?: FormModalGroup[]
+  /**
+   * How grouped fields are laid out. "stacked" (default) renders the groups as
+   * one column of optionally-collapsible sections. "tabs" renders a left
+   * sidebar of the group titles and shows one group at a time in the main area,
+   * which keeps a tall form's height bounded. Ignored without `groups`.
+   */
+  layout?: "stacked" | "tabs"
   hint?: string
   initialValues?: Record<string, string>
   dangerAction?: { label: string; onClick: () => void; disabled?: boolean }
@@ -77,6 +84,7 @@ export function FormModal({
   titleId,
   fields,
   groups,
+  layout = "stacked",
   hint,
   initialValues,
   dangerAction,
@@ -93,6 +101,7 @@ export function FormModal({
     Object.fromEntries(fields.map((field) => [field.key, ""]))
   )
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
+  const [activeTab, setActiveTab] = useState<string>("")
 
   useEffect(() => {
     if (!open) return
@@ -105,10 +114,10 @@ export function FormModal({
     setValues(Object.fromEntries(fields.map((field) => [field.key, ""])))
   }, [open, fields, initialValues])
 
-  // Reset collapsible groups to their default each time the modal opens. Keyed
+  // Reset collapsible groups and the active tab each time the modal opens. Keyed
   // on a primitive signature so a freshly-built `groups` array (its `content` is
   // JSX, new every render) does not retrigger this and clobber the user's
-  // toggles while the modal is open.
+  // choices while the modal is open.
   const groupsKey = (groups ?? [])
     .map((g) => `${g.id}:${g.collapsible ? 1 : 0}:${g.defaultOpen ? 1 : 0}`)
     .join("|")
@@ -119,6 +128,7 @@ export function FormModal({
       if (g.collapsible) next[g.id] = g.defaultOpen ?? false
     }
     setOpenGroups(next)
+    setActiveTab((groups ?? [])[0]?.id ?? "")
     // groups intentionally excluded; groupsKey captures the parts that matter.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, groupsKey])
@@ -187,85 +197,129 @@ export function FormModal({
     )
   }
 
-  const ungroupedFields = groups ? fields.filter((field) => !field.group) : fields
+  function renderGroupBody(group: FormModalGroup) {
+    return (
+      <>
+        {group.description ? <p className="modal__hint">{group.description}</p> : null}
+        {fields.filter((field) => field.group === group.id).map(renderField)}
+        {group.content}
+      </>
+    )
+  }
 
-  return (
-    <BaseModal open={open} title={title} titleId={titleId} onClose={onClose} className={className}>
-      <form onSubmit={handleSubmit} className="modal__body">
-        {ungroupedFields.map(renderField)}
-        {(groups ?? []).map((group) => {
-          const groupFields = fields.filter((field) => field.group === group.id)
-          const isOpen = !group.collapsible || (openGroups[group.id] ?? group.defaultOpen ?? false)
-          return (
-            <section key={group.id} className="modal__group">
-              {group.title ? (
-                group.collapsible ? (
-                  <button
-                    type="button"
-                    className="modal__group-header"
-                    aria-expanded={isOpen}
-                    onClick={() =>
-                      setOpenGroups((prev) => ({
-                        ...prev,
-                        [group.id]: !(prev[group.id] ?? group.defaultOpen ?? false),
-                      }))
-                    }
-                  >
-                    <span className="modal__group-title">{group.title}</span>
-                    <span className="modal__group-chevron" aria-hidden>
-                      {isOpen ? "▾" : "▸"}
-                    </span>
-                  </button>
-                ) : (
-                  <div className="modal__group-header modal__group-header--static">
-                    <span className="modal__group-title">{group.title}</span>
-                  </div>
-                )
-              ) : null}
-              {isOpen ? (
-                <div className="modal__group-body">
-                  {group.description ? <p className="modal__hint">{group.description}</p> : null}
-                  {groupFields.map(renderField)}
-                  {group.content}
-                </div>
-              ) : null}
-            </section>
-          )
-        })}
-        {hint ? <p className="modal__hint">{hint}</p> : null}
-        {children}
-        {error ? (
-          <p className="modal__error" role="alert">
-            {error}
-          </p>
-        ) : null}
-        <div className="modal__actions">
-          {dangerAction ? (
-            <button
-              type="button"
-              className="modal__btn modal__btn--danger"
-              onClick={dangerAction.onClick}
-              disabled={loading || dangerAction.disabled}
-            >
-              {dangerAction.disabled ? `${dangerAction.label}…` : dangerAction.label}
-            </button>
-          ) : null}
+  const ungroupedFields = groups ? fields.filter((field) => !field.group) : fields
+  const groupList = groups ?? []
+  const asTabs = layout === "tabs" && groupList.length > 0
+  // Fall back to the first tab if the active one is gone (groups changed).
+  const activeGroup =
+    groupList.find((g) => g.id === activeTab) ?? groupList[0]
+
+  const composedClassName = [className, asTabs ? "modal--tabs" : ""].filter(Boolean).join(" ") || undefined
+
+  const footer = (
+    <>
+      {hint ? <p className="modal__hint">{hint}</p> : null}
+      {children}
+      {error ? (
+        <p className="modal__error" role="alert">
+          {error}
+        </p>
+      ) : null}
+      <div className="modal__actions">
+        {dangerAction ? (
           <button
             type="button"
-            className="modal__btn modal__btn--secondary"
-            onClick={onClose}
-            disabled={loading}
+            className="modal__btn modal__btn--danger"
+            onClick={dangerAction.onClick}
+            disabled={loading || dangerAction.disabled}
           >
-            {cancelLabel}
+            {dangerAction.disabled ? `${dangerAction.label}…` : dangerAction.label}
           </button>
-          <button
-            type="submit"
-            className="modal__btn modal__btn--secondary"
-            disabled={loading || hasMissingRequiredField}
-          >
-            {loading ? `${submitLabel}…` : submitLabel}
-          </button>
-        </div>
+        ) : null}
+        <button
+          type="button"
+          className="modal__btn modal__btn--secondary"
+          onClick={onClose}
+          disabled={loading}
+        >
+          {cancelLabel}
+        </button>
+        <button
+          type="submit"
+          className="modal__btn modal__btn--secondary"
+          disabled={loading || hasMissingRequiredField}
+        >
+          {loading ? `${submitLabel}…` : submitLabel}
+        </button>
+      </div>
+    </>
+  )
+
+  return (
+    <BaseModal open={open} title={title} titleId={titleId} onClose={onClose} className={composedClassName}>
+      <form onSubmit={handleSubmit} className="modal__body">
+        {asTabs ? (
+          <div className="modal__tabs">
+            <nav className="modal__tabs-nav" aria-label={title}>
+              {groupList.map((group) => (
+                <button
+                  key={group.id}
+                  type="button"
+                  className={
+                    group.id === activeGroup?.id
+                      ? "modal__tabs-nav-item modal__tabs-nav-item--active"
+                      : "modal__tabs-nav-item"
+                  }
+                  aria-current={group.id === activeGroup?.id}
+                  onClick={() => setActiveTab(group.id)}
+                >
+                  {group.title ?? group.id}
+                </button>
+              ))}
+            </nav>
+            <div className="modal__tabs-panel">
+              {ungroupedFields.map(renderField)}
+              {activeGroup ? renderGroupBody(activeGroup) : null}
+            </div>
+          </div>
+        ) : (
+          <>
+            {ungroupedFields.map(renderField)}
+            {groupList.map((group) => {
+              const isOpen = !group.collapsible || (openGroups[group.id] ?? group.defaultOpen ?? false)
+              return (
+                <section key={group.id} className="modal__group">
+                  {group.title ? (
+                    group.collapsible ? (
+                      <button
+                        type="button"
+                        className="modal__group-header"
+                        aria-expanded={isOpen}
+                        onClick={() =>
+                          setOpenGroups((prev) => ({
+                            ...prev,
+                            [group.id]: !(prev[group.id] ?? group.defaultOpen ?? false),
+                          }))
+                        }
+                      >
+                        <span className="modal__group-title">{group.title}</span>
+                        <span className="modal__group-chevron" aria-hidden>
+                          {isOpen ? "▾" : "▸"}
+                        </span>
+                      </button>
+                    ) : (
+                      <div className="modal__group-header modal__group-header--static">
+                        <span className="modal__group-title">{group.title}</span>
+                      </div>
+                    )
+                  ) : null}
+                  {isOpen ? <div className="modal__group-body">{renderGroupBody(group)}</div> : null}
+                </section>
+              )
+            })}
+          </>
+        )}
+        {footer}
       </form>
     </BaseModal>
   )
