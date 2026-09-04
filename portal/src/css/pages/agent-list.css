@@ -177,3 +177,29 @@
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+/* Plugin picker inside the agent dialog's Plugins group: a compact checklist of
+   the plugins this team can name. */
+.agent-plugins {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.agent-plugins__row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.agent-plugins__name {
+  flex: 0 1 auto;
+}
+
+.agent-plugins__note {
+  font-size: 0.78rem;
+  color: var(--color-text-subtle);
+}

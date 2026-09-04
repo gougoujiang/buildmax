@@ -2,13 +2,15 @@ import { useEffect, useState, type ReactNode } from "react"
 import type { ApiSecret, ApiSecretConsumption } from "../lib/api/types"
 import type { Agent } from "../lib/types"
 import { FormModal } from "@buildmax/gui"
-import { AGENT_FIELDS } from "./CreateAgentModal"
+import { AGENT_FIELDS, buildAgentGroups } from "./CreateAgentModal"
 import { SecretConsumptionEditor } from "./SecretConsumptionEditor"
+import { PluginSelectionEditor } from "./PluginSelectionEditor"
 
 interface EditAgentModalProps {
   open: boolean
   agent: Agent | null
   secrets: ApiSecret[]
+  availablePlugins: string[]
   loading: boolean
   error: string | null
   deleting?: boolean
@@ -17,6 +19,7 @@ interface EditAgentModalProps {
     name: string
     description?: string
     instructions?: string
+    plugins?: string[]
     sandbox_network_tier?: string
     sandbox_filesystem_tier?: string
     secret_consumption?: ApiSecretConsumption
@@ -29,6 +32,7 @@ export function EditAgentModal({
   open,
   agent,
   secrets,
+  availablePlugins,
   loading,
   error,
   deleting = false,
@@ -38,10 +42,12 @@ export function EditAgentModal({
   history,
 }: EditAgentModalProps) {
   const [consumption, setConsumption] = useState<ApiSecretConsumption>({})
+  const [plugins, setPlugins] = useState<string[]>([])
 
-  // Reset the consumption editor whenever a different agent is opened.
+  // Reset both editors whenever a different agent is opened.
   useEffect(() => {
     setConsumption(agent?.secretConsumption ?? {})
+    setPlugins(agent?.plugins ?? [])
   }, [agent])
 
   const initialValues =
@@ -67,12 +73,27 @@ export function EditAgentModal({
 
   if (agent == null) return null
 
+  const groups = buildAgentGroups({
+    pluginEditor: (
+      <PluginSelectionEditor value={plugins} onChange={setPlugins} available={availablePlugins} />
+    ),
+    secretEditor: (
+      <SecretConsumptionEditor value={consumption} onChange={setConsumption} secrets={secrets} />
+    ),
+    open: {
+      sandbox: Boolean(agent.sandboxNetworkTier || agent.sandboxFilesystemTier),
+      plugins: (agent.plugins?.length ?? 0) > 0,
+      secrets: (agent.secretConsumption?.env?.length ?? 0) > 0,
+    },
+  })
+
   return (
     <FormModal
       open={open}
       title="Edit agent"
       titleId="edit-agent-title"
       fields={AGENT_FIELDS}
+      groups={groups}
       hint="Agents are personas or task templates you can use across your account."
       initialValues={initialValues}
       className="modal--large"
@@ -92,13 +113,13 @@ export function EditAgentModal({
           name,
           description: values.description?.trim() || undefined,
           instructions: values.instructions?.trim() || undefined,
+          plugins,
           sandbox_network_tier: values.sandbox_network_tier || undefined,
           sandbox_filesystem_tier: values.sandbox_filesystem_tier || undefined,
           secret_consumption: normalizeConsumption(consumption),
         })
       }}
     >
-      <SecretConsumptionEditor value={consumption} onChange={setConsumption} secrets={secrets} />
       {history}
     </FormModal>
   )

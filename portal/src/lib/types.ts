@@ -59,6 +59,7 @@ export interface Agent {
   name: string
   description?: string
   instructions?: string
+  plugins?: string[]
   sandboxNetworkTier?: string
   sandboxFilesystemTier?: string
   secretConsumption?: import("./api/types").ApiSecretConsumption

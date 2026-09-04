@@ -3,6 +3,9 @@ import type { Agent, AgentRevision } from "../../lib/types"
 import type { ApiSecret } from "../../lib/api/types"
 import type { ApiTask } from "../../lib/api/types"
 import { listSecrets } from "../../features/teamSecrets/api"
+import { listActivations } from "../../features/teamPlugins/api"
+import { listPlugins } from "../../features/plugins/api"
+import { nameablePlugins } from "../../features/plugins/nameablePlugins"
 import { navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { apiAgentToAgent, apiAgentRevisionToAgentRevision } from "../../lib/api/mappers"
@@ -31,6 +34,7 @@ export function AgentList({ token }: AgentListProps) {
   const { currentTeamId, currentUserRole } = useTeam()
   const [agents, setAgents] = useState<Agent[]>([])
   const [secrets, setSecrets] = useState<ApiSecret[]>([])
+  const [availablePlugins, setAvailablePlugins] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
   const [creating, setCreating] = useState(false)
@@ -77,6 +81,25 @@ export function AgentList({ token }: AgentListProps) {
       .catch(() => setSecrets([]))
   }, [token, currentTeamId, canManageAgents])
 
+  // The plugin names an agent in this team may name, for the plugins picker.
+  // Curation and the catalog together decide the set (see nameablePlugins); a
+  // deployment without a Marketplace, or a failed request, leaves it empty and
+  // the picker shows its empty state rather than blocking agent editing.
+  useEffect(() => {
+    if (!token || !currentTeamId || !canManageAgents) {
+      setAvailablePlugins([])
+      return
+    }
+    Promise.all([
+      listActivations(token, currentTeamId).catch(() => null),
+      listPlugins(token).catch(() => null),
+    ])
+      .then(([activations, catalog]) =>
+        setAvailablePlugins(nameablePlugins(activations, catalog?.plugins ?? null)),
+      )
+      .catch(() => setAvailablePlugins([]))
+  }, [token, currentTeamId, canManageAgents])
+
   useEffect(() => {
     fetchAgents()
   }, [fetchAgents])
@@ -121,6 +144,7 @@ export function AgentList({ token }: AgentListProps) {
     name: string
     description?: string
     instructions?: string
+    plugins?: string[]
     sandbox_network_tier?: string
     sandbox_filesystem_tier?: string
     secret_consumption?: import("../../lib/api/types").ApiSecretConsumption
@@ -141,6 +165,7 @@ export function AgentList({ token }: AgentListProps) {
     name: string
     description?: string
     instructions?: string
+    plugins?: string[]
     sandbox_network_tier?: string
     sandbox_filesystem_tier?: string
     secret_consumption?: import("../../lib/api/types").ApiSecretConsumption
@@ -351,6 +376,7 @@ export function AgentList({ token }: AgentListProps) {
         loading={creating}
         error={error}
         secrets={secrets}
+        availablePlugins={availablePlugins}
         onClose={() => {
           setModalOpen(false)
           setError(null)
@@ -362,6 +388,7 @@ export function AgentList({ token }: AgentListProps) {
         open={editingAgent != null}
         agent={editingAgent}
         secrets={secrets}
+        availablePlugins={availablePlugins}
         loading={saving}
         error={error}
         deleting={deleting}
