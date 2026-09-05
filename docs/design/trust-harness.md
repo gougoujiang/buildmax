@@ -273,9 +273,16 @@ can be given a different one, and nothing defines what happens when a requested
 constraint is unavailable. The sandbox is off on every surface today, so the
 question does not yet arise — wiring the worker surface (§3.2) is what raises it.
 
-The concrete gap this leaves is network egress. A worker pod reaches anything
-the cluster allows, and `deployment/production/README.md` states that absence
-rather than implying a boundary it does not have.
+One part of this is now closed: how a worker reaches the *Server*. The worker
+control channel is served on its own internal listener over TLS, fronted by an
+internal Service and a NetworkPolicy that admits only labelled worker pods — see
+[worker-api-network-boundary.md](./worker-api-network-boundary.md). That bounds
+worker-to-Server traffic; it does not decide worker egress to Git hosts,
+registries, or model endpoints.
+
+The concrete gap that remains is general network egress. A worker pod reaches
+anything the cluster allows, and `deployment/production/README.md` states that
+absence rather than implying a boundary it does not have.
 
 Four shapes were considered. Per-user runtime settings are disqualified: they
 cannot give an operator an authoritative worker boundary. Leaving it entirely to
