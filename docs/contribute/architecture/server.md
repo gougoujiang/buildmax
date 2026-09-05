@@ -96,7 +96,11 @@ it for every call back, managed inference included. See
   `/api/worker/task-runs/{task_run_id}...`, including `/llm/completions` so a
   worker needs no provider credential and `/artifacts` so a run's agent can keep
   a file for the team. The worker never says which team it is writing to: the
-  run token names the run, the run names the task, and the task names the team
+  run token names the run, the run names the task, and the task names the team.
+  Each route also enforces the run's lifecycle (`requireRunning`): everything but
+  the `GET` poll is refused unless the run is RUNNING, so a leaked but unexpired
+  token cannot act before the claim or after the run is terminal. See
+  docs/design/worker-api-network-boundary.md §8
 - Inbound webhook: `/api/webhook`
 
 ## Conversation Turns

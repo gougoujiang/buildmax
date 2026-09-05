@@ -176,16 +176,12 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		return reportPluginRefusal(ctx, updater, taskRunID, fetched.PluginError)
 	}
 
-	// The run's resolved Team Secret grants, on their own no-store route. An
-	// error here is the server refusing to produce a required grant -- a
-	// disabled or destroyed Secret the agent declared -- and a run must not
-	// proceed without a credential its definition named, the same as a plugin
-	// it cannot load.
-	secretGrants, err := workerclient.GetWorkerTaskRunSecrets(ctx, apiCfg, taskRunID)
-	if err != nil {
-		return reportPluginRefusal(ctx, updater, taskRunID, "secret grant unavailable: "+err.Error())
-	}
-
+	// Claim the run before anything it authorizes. The RUNNING transition is the
+	// atomic claim, and the worker API now refuses to release Secret values,
+	// stream, publish an artifact, or spend tokens for a run that is not RUNNING
+	// -- so the claim has to come first, and the Secret fetch below happens as a
+	// claimed run. See docs/design/worker-api-network-boundary.md §8 and
+	// docs/design/team-secrets.md §7.
 	sessionID := session.NewID()
 	if task.SessionID != nil {
 		sessionID = *task.SessionID
@@ -202,6 +198,16 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		}
 		slog.Error("failed to mark run RUNNING", "err", err)
 		return fmt.Errorf("mark RUNNING: %w", err)
+	}
+
+	// The run's resolved Team Secret grants, on their own no-store route. An
+	// error here is the server refusing to produce a required grant -- a
+	// disabled or destroyed Secret the agent declared -- and a run must not
+	// proceed without a credential its definition named, the same as a plugin
+	// it cannot load.
+	secretGrants, err := workerclient.GetWorkerTaskRunSecrets(ctx, apiCfg, taskRunID)
+	if err != nil {
+		return reportPluginRefusal(ctx, updater, taskRunID, "secret grant unavailable: "+err.Error())
 	}
 
 	wsCfg := toWorkspaceStorageConfig(sc.Storage)

@@ -46,7 +46,7 @@ func newPinFixture(t *testing.T, agentPlugins []string) *pinFixture {
 	}
 	agentID := created.ID
 	runs := &mock.MockTaskRunStore{
-		Runs:     []coretask.Run{{ID: pluginTestRun, TaskID: "tk_1", Status: string(coretask.RunStatusPending)}},
+		Runs:     []coretask.Run{{ID: pluginTestRun, TaskID: "tk_1", Status: string(coretask.RunStatusRunning)}},
 		TaskList: []coretask.Task{{ID: "tk_1", TeamID: pluginTestTeam, CreatedBy: "u_1", AgentID: &agentID}},
 	}
 	catalog := mock.NewMockPluginStore()

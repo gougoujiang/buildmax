@@ -88,6 +88,11 @@ func (h *Handler) runIssue(w http.ResponseWriter, r *http.Request) (*coretask.Ta
 		httputil.WriteJSONError(w, http.StatusNotFound, "run not found")
 		return nil, "", false
 	}
+	// The issue tool is the running agent's, both to read and to comment: a
+	// terminal run has no agent, and must not add to an issue after it is over.
+	if !requireRunning(w, run.Status) {
+		return nil, "", false
+	}
 	if task.IssueID == nil || *task.IssueID == "" || task.TeamID == "" {
 		httputil.WriteJSONError(w, http.StatusNotFound, "this run is not working an issue")
 		return nil, "", false

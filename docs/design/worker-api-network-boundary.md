@@ -28,18 +28,19 @@ policy](agent-sandbox-policy.md), [Graceful shutdown](graceful-shutdown.md), and
 ## 1. Status
 
 - roadmap_priority: `R0` — contain unattended worker execution
-- status: in progress. M1–M3 have shipped — the worker control API is served on
+- status: in progress. M1–M4 have shipped — the worker control API is served on
   a second in-process listener with its own mux and fail-closed configuration
   (M1); that listener speaks TLS while the worker reaches it through one
   explicit HTTP client built from the configured trust, with an http `k8s_job`
-  URL refused unless opted into (M2); and the reference production and kind
+  URL refused unless opted into (M2); the reference production and kind
   manifests now carry the `buildmax-api` and `buildmax-worker-api` Services, the
   worker port, the `NetworkPolicy` admitting only labelled worker pods to it,
   the Ingress pointing only at `buildmax-api`, and the CA mount into worker Jobs
-  (M3). M4 (route lifecycle authorization) and M5 (deployment evidence — the
-  kind smoke that actually exercises HTTPS and proves the cross-pod denial)
-  remain planned; the kind manifests run the worker listener over HTTP until M5
-  adds its certificates.
+  (M3); and every worker route now enforces its allowed TaskRun states — claim
+  before Secret, the pinned revision's consumption, and no capability after a
+  run is terminal (M4). M5 (deployment evidence — the kind smoke that actually
+  exercises HTTPS and proves the cross-pod denial) remains planned; the kind
+  manifests run the worker listener over HTTP until M5 adds its certificates.
 - decision_date: `2026-09-05`
 - scope: isolate the Server's worker control channel from its public HTTP
   surface and authenticate its transport
@@ -337,22 +338,24 @@ derive Team and user attribution from Server state and signed claims rather
 than a request body.
 
 The listener work must not encode the current lifecycle gaps as intended
-behavior. In particular, the implemented Secret route currently checks the
-token and run identity but does not reject a terminal run or load the pinned
-Agent revision. That disagrees with [Team Secrets and run
-delivery](team-secrets.md) §7 and §19. Listener separation does not repair it.
+behavior. This lifecycle authorization is now enforced on the worker routes
+themselves (M4), on top of the run token:
 
-Before the production topology is called secure:
+- Secret materialization requires the run to be RUNNING — the claimed, live
+  state — and the worker claims the run before it fetches Secret values;
+- materialization reads the consumption config from the Agent revision pinned
+  onto the TaskRun, not the agent's current revision, so a config edited
+  mid-run cannot widen what an in-flight run receives;
+- a terminal run cannot stream, publish an artifact, read a Secret, add an
+  Issue comment, download a plugin, or make a managed model call — a leaked but
+  unexpired run token is refused once the run is over; and
+- `getTaskRun` remains the one exemption, because a restarted worker must read a
+  run in any status to discover it is already terminal.
 
-- Secret materialization must require the expected live state;
-- the worker must atomically claim the run before receiving Secret values;
-- materialization must use the Agent revision pinned onto the TaskRun;
-- terminal runs must be unable to publish new artifacts, stream output, add
-  Issue comments, download plugins, or make managed model calls; and
-- tests must enumerate every worker route and its allowed TaskRun states.
-
-This is application authorization on top of the network boundary, not scope to
-delete from this record because it is implemented in another package.
+A route×state matrix test enumerates every worker route and its allowed TaskRun
+states, including the leaked-token-after-completion case. This is application
+authorization on top of the network boundary, agreeing with [Team Secrets and
+run delivery](team-secrets.md) §7.
 
 ## 9. Lifecycle And Availability
 
@@ -506,7 +509,7 @@ Acceptance: a labeled worker Pod reaches the worker listener; an unlabeled Pod
 in the same namespace cannot; neither can reach a worker handler through the
 `buildmax-api` Service.
 
-### M4. Route Lifecycle Authorization
+### M4. Route Lifecycle Authorization — shipped
 
 - Claim a run before releasing Team Secret material.
 - Enforce a status matrix for every worker route.

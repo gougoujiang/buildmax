@@ -109,6 +109,9 @@ func (h *Handler) downloadPluginPackage(w http.ResponseWriter, r *http.Request) 
 		httputil.WriteJSONError(w, http.StatusNotFound, "run not found")
 		return
 	}
+	if !requireRunning(w, run.Status) {
+		return
+	}
 
 	// The recorded pins are the authorization. They were resolved when this run
 	// claimed itself, so a team activation changed since then cannot widen what

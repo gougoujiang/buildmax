@@ -115,6 +115,9 @@ func (h *Handler) postStream(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+	if !requireRunning(w, run.Status) {
+		return
+	}
 	var req workerclient.StreamDeltaRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid JSON body")
