@@ -57,6 +57,7 @@ old one.
 ./make kind smoke   # rerun the end-to-end assertions without rebuilding
 ./make kind smoke managed  # the same, with task runs reaching models through the gateway
 ./make kind seed    # put the models in .local/settings.yaml into the cluster's catalog
+./make kind fixtures # seed idempotent business data for automated testing
 ./make kind use-model "Claude Sonnet 5"  # run the cluster's own inference on a seeded model
 ./make kind mock    # switch the cluster's own inference back to the free mock
 ./make kind reload  # rebuild and load local images, then restart the deployments
@@ -85,6 +86,25 @@ by default, or for the account named as `./make kind info alice@example.com`.
 JSON instead, creating the account first if it does not exist yet; the
 `drive-portal` skill (`.buildmax/skills/drive-portal/`) uses it to sign in a
 headless browser without anyone copying a code by hand.
+
+`fixtures` fills the running deployment with **business data**, where `seed`
+fills the **model catalog** — the two do not overlap. A fresh `kind up` leaves
+the deployment nearly empty, so its Portal list and detail views have nothing to
+exercise; `fixtures` creates a small, representative, deterministic set:
+
+- two accounts, `alice@buildmax.local` and `bob@buildmax.local`, each with the
+  personal team they get on creation;
+- for Alice, an agent (`Docs Writer`), a workflow that drives it
+  (`Release Notes`), and four issues spread across `todo`, `in_progress`, and
+  `done`, one of them carrying a comment thread;
+- for Bob, two issues of his own, so a second team with its own data is present
+  for boundary and list testing.
+
+It is idempotent: every entity is matched by its fixture title or name and
+skipped when already present, so rerunning it adds nothing. Combined with
+`login`, it is the setup step for driving the Portal from an automated test —
+seed the data once, then sign in as `alice@buildmax.local` and assert against
+populated views.
 
 `status` changes nothing. It prints the selected cluster and context, probes
 <http://localhost:8080/healthz> through the ingress, and lists nodes plus the
