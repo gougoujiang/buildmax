@@ -28,15 +28,18 @@ policy](agent-sandbox-policy.md), [Graceful shutdown](graceful-shutdown.md), and
 ## 1. Status
 
 - roadmap_priority: `R0` — contain unattended worker execution
-- status: in progress. M1 and M2 have shipped — the worker control API is
-  served on a second in-process listener with its own mux and fail-closed
-  configuration (M1), and that listener now speaks TLS while the worker reaches
-  it through one explicit HTTP client built from the configured trust, with an
-  http `k8s_job` URL refused unless opted into (M2). M3 (the internal Service,
-  `NetworkPolicy`, and the CA mount into worker Jobs), M4 (route lifecycle
-  authorization), and M5 (deployment evidence) remain planned; no Service or
-  `NetworkPolicy` change described here has shipped, and the reference k8s
-  manifests still reach the worker API over the public HTTP port pending M3.
+- status: in progress. M1–M3 have shipped — the worker control API is served on
+  a second in-process listener with its own mux and fail-closed configuration
+  (M1); that listener speaks TLS while the worker reaches it through one
+  explicit HTTP client built from the configured trust, with an http `k8s_job`
+  URL refused unless opted into (M2); and the reference production and kind
+  manifests now carry the `buildmax-api` and `buildmax-worker-api` Services, the
+  worker port, the `NetworkPolicy` admitting only labelled worker pods to it,
+  the Ingress pointing only at `buildmax-api`, and the CA mount into worker Jobs
+  (M3). M4 (route lifecycle authorization) and M5 (deployment evidence — the
+  kind smoke that actually exercises HTTPS and proves the cross-pod denial)
+  remain planned; the kind manifests run the worker listener over HTTP until M5
+  adds its certificates.
 - decision_date: `2026-09-05`
 - scope: isolate the Server's worker control channel from its public HTTP
   surface and authenticate its transport
@@ -491,7 +494,7 @@ worker listener.
 Acceptance: the worker completes a run through HTTPS, rejects the wrong server
 name and wrong CA, and never falls back to HTTP.
 
-### M3. Kubernetes Boundary
+### M3. Kubernetes Boundary — shipped in the reference manifests (kind HTTPS is M5)
 
 - Add the internal Service and worker port to production and kind manifests.
 - Point Ingress only at the `buildmax-api` Service.

@@ -72,9 +72,11 @@ data:
     worker:
       binary: buildmax-worker
       run_mode: k8s_job
-      # STOPGAP: public HTTP port; worker-api-network-boundary M3 switches this
-      # to the https buildmax-worker-api Service and drops allow_insecure_http.
-      server_url: http://buildmax.buildmax.svc.cluster.local:5678
+      # The internal worker Service below. kind runs it over HTTP for now, gated
+      # by allow_insecure_http; worker-api-network-boundary M5 adds TLS and the
+      # cross-pod denial probe. The network boundary — a distinct port, its own
+      # Service, and the NetworkPolicy — is already in place here.
+      server_url: http://buildmax-worker-api.buildmax.svc.cluster.local:5679
       allow_insecure_http: true
       k8s:
         namespace: buildmax
@@ -96,6 +98,12 @@ data:
           cpu_limit: "2"
           memory_request: 512Mi
           memory_limit: 2Gi
+
+    # The internal worker listener, bound to all interfaces so the
+    # buildmax-worker-api Service reaches it. No TLS here yet (M5); the boundary
+    # in kind is the distinct port, the Service, and the NetworkPolicy.
+    worker_api:
+      listen: 0.0.0.0:5679
 
     storage:
       persist_backend: minio
@@ -236,6 +244,10 @@ spec:
           ports:
             - containerPort: 5678
               name: http
+            # The internal worker control API, reached only through the
+            # buildmax-worker-api Service.
+            - containerPort: 5679
+              name: worker-api
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -327,10 +339,11 @@ spec:
           configMap:
             name: buildmax-config
 ---
+# The public API Service. The Ingress points here; it carries no worker route.
 apiVersion: v1
 kind: Service
 metadata:
-  name: buildmax
+  name: buildmax-api
   namespace: buildmax
 spec:
   selector:
@@ -339,6 +352,48 @@ spec:
     - name: http
       port: 5678
       targetPort: 5678
+---
+# The internal worker control API. Its NetworkPolicy is below; a ClusterIP alone
+# is discoverability, not authorization.
+apiVersion: v1
+kind: Service
+metadata:
+  name: buildmax-worker-api
+  namespace: buildmax
+spec:
+  type: ClusterIP
+  selector:
+    app: buildmax-server
+  ports:
+    - name: worker-api
+      port: 5679
+      targetPort: 5679
+---
+# Only worker pods may reach the worker port; the public port stays open to the
+# cluster (Ingress exposure is intentional and public auth is at the app layer).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: buildmax-server
+  namespace: buildmax
+spec:
+  podSelector:
+    matchLabels:
+      app: buildmax-server
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 5678
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: buildmax-worker
+              app.kubernetes.io/component: worker
+      ports:
+        - protocol: TCP
+          port: 5679
 ---
 # Portal (React app served by nginx).
 #
@@ -424,28 +479,28 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: buildmax
+                name: buildmax-api
                 port:
                   number: 5678
           - path: /healthz
             pathType: Exact
             backend:
               service:
-                name: buildmax
+                name: buildmax-api
                 port:
                   number: 5678
           - path: /openapi.json
             pathType: Exact
             backend:
               service:
-                name: buildmax
+                name: buildmax-api
                 port:
                   number: 5678
           - path: /swagger
             pathType: Prefix
             backend:
               service:
-                name: buildmax
+                name: buildmax-api
                 port:
                   number: 5678
           - path: /

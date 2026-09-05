@@ -298,10 +298,26 @@ func TestProductionReferenceLoads(t *testing.T) {
 		t.Errorf("worker.run_mode = %q; local_process runs the worker beside the server with no boundary",
 			cfg.Worker.RunMode)
 	}
-	// Workers reach the server in-cluster. A public URL here would send worker
-	// traffic out through the ingress and back.
+	// Workers reach the server in-cluster, on the internal worker listener over
+	// HTTPS — not the public port, and not plaintext. A public URL here would
+	// send worker traffic out through the ingress and back.
 	if !strings.Contains(cfg.Worker.ServerURL, ".svc.cluster.local") {
 		t.Errorf("worker.server_url = %q; workers should reach the server in-cluster", cfg.Worker.ServerURL)
+	}
+	if !strings.HasPrefix(cfg.Worker.ServerURL, "https://") || !strings.Contains(cfg.Worker.ServerURL, "buildmax-worker-api") {
+		t.Errorf("worker.server_url = %q; the production reference must reach the worker Service over https", cfg.Worker.ServerURL)
+	}
+	if cfg.Worker.AllowInsecureHTTP {
+		t.Error("allow_insecure_http is on in the production reference; the worker channel must be encrypted")
+	}
+	if cfg.Worker.ServerCAFile == "" || cfg.Worker.K8s.CAConfigMap == "" {
+		t.Errorf("worker CA is not wired: server_ca_file=%q ca_config_map=%q", cfg.Worker.ServerCAFile, cfg.Worker.K8s.CAConfigMap)
+	}
+	if cfg.WorkerAPI.Listen != "0.0.0.0:5679" {
+		t.Errorf("worker_api.listen = %q; a Kubernetes deployment binds the worker listener to all interfaces on 5679", cfg.WorkerAPI.Listen)
+	}
+	if cfg.WorkerAPI.TLS.CertFile == "" || cfg.WorkerAPI.TLS.KeyFile == "" {
+		t.Error("worker_api.tls has no certificate; the production worker listener must serve TLS")
 	}
 	// A worker pod runs model-chosen shell commands. The reference is what an
 	// operator copies, so an unbounded worker here becomes an unbounded worker

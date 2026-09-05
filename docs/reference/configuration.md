@@ -869,8 +869,14 @@ unless `worker.allow_insecure_http` is set, because `.cluster.local` and
 loopback are routing facts, not evidence a network is confidential. Setting
 `worker_api.tls.client_ca_file` (and the worker's `client_cert_file` /
 `client_key_file`) turns on optional native mTLS in addition to the run token.
-The Kubernetes Service, NetworkPolicy, and CA mount that complete the boundary
-are still being built; see
+
+On Kubernetes the reference manifests front the two listeners with two Services
+— `buildmax-api` (public, behind the Ingress) and `buildmax-worker-api` (an
+internal `ClusterIP` on 5679) — and a `NetworkPolicy` that admits only pods
+labelled `app.kubernetes.io/name: buildmax-worker` to the worker port. The
+worker-api CA is delivered to worker pods by `worker.k8s.ca_config_map`, a
+ConfigMap mounted read-only at `worker.server_ca_file`. The Ingress points only
+at `buildmax-api`, so the worker API is never internet-reachable. See
 [design/worker-api-network-boundary.md](../design/worker-api-network-boundary.md).
 
 `storage.max_artifact_mb` caps one artifact upload. It defaults to **0**, which

@@ -724,8 +724,10 @@ func buildWorkerRunner(wc config.ServerWorkerConfig, stopGrace time.Duration) (s
 			wc.K8s.Image,
 			k8s.WorkerEnvFromEnviron(wc.LLM.Managed()),
 			k8s.PodConfig{
-				ConfigMapName: wc.K8s.ConfigMap,
-				HomeDir:       wc.K8s.HomeDir,
+				ConfigMapName:   wc.K8s.ConfigMap,
+				CAConfigMapName: wc.K8s.CAConfigMap,
+				CAMountPath:     wc.ServerCAFile,
+				HomeDir:         wc.K8s.HomeDir,
 				Resources: k8s.PodResources{
 					CPURequest:    wc.K8s.Resources.CPURequest,
 					CPULimit:      wc.K8s.Resources.CPULimit,
