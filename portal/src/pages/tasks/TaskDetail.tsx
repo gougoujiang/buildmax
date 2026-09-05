@@ -38,6 +38,18 @@ function fmtWhen(ts?: string | null): string {
   return Number.isNaN(d.getTime()) ? "—" : d.toLocaleString()
 }
 
+/** A working indicator shown while a run is still in flight, in place of the
+ *  raw pending/scheduled/running status the user does not need to see. */
+function TypingDots() {
+  return (
+    <span className="typing-dots" role="status" aria-label="Agent is working">
+      <span />
+      <span />
+      <span />
+    </span>
+  )
+}
+
 export function TaskDetail({ token, taskId }: TaskDetailProps) {
   const { currentTeamId } = useTeam()
   const { user } = useAuth()
@@ -138,7 +150,7 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
   // task Details panel, not under every message.
   const items = useMemo<ChatThreadItem[]>(() => {
     return runs.flatMap((run) => {
-      const status = run.status.toLowerCase()
+      const active = activeStatuses.has(run.status)
       return [
         {
           id: `${run.id}-input`,
@@ -154,16 +166,20 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
         {
           id: `${run.id}-output`,
           role: "assistant",
-          label: `Agent · ${status}`,
+          // While a run is in flight the label stays "Agent" — the working dots
+          // carry the state; only a finished run shows Done / Failed / Stopped.
+          label: active ? "Agent" : `Agent · ${runStatusLabel(run.status)}`,
           avatar: <AgentAvatar size="sm" />,
           body: run.output ? (
             <div className="page-chat__msg-content page-chat__markdown">
               <Markdown remarkPlugins={[remarkGfm]}>{run.output}</Markdown>
             </div>
+          ) : active ? (
+            <TypingDots />
+          ) : run.error_message ? (
+            <p className="bm-chat-thread__text bm-chat-thread__text--muted">{run.error_message}</p>
           ) : (
-            <p className="bm-chat-thread__text bm-chat-thread__text--muted">
-              {run.error_message || (activeStatuses.has(run.status) ? `Run ${status}…` : `Run ${status}`)}
-            </p>
+            <p className="bm-chat-thread__text bm-chat-thread__text--muted">No output.</p>
           ),
         },
       ]
