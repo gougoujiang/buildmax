@@ -231,12 +231,24 @@ Use the cross-platform task runner from the repository root:
 
 End-to-end suites are a local feedback loop, not a pull-request gate. `cli` and
 `desktop` need nothing but Go and run in seconds, so `./make test` includes
-them; `local` owns a Compose stack for one run; `compose` and `kind` attach to a
-deployment someone else started. None needs a provider API key — every suite
-answers the model from a committed scenario. Pick a suite, read the artifacts it
-leaves in `.artifacts/e2e/`, and see
+them; `local` owns a Compose stack for one run; the `compose` and `kind` suites
+attach to a deployment someone else started. None needs a provider API key —
+every suite answers the model from a committed scenario. Pick a suite, read the
+artifacts it leaves in `.artifacts/e2e/`, and see
 [`docs/contribute/testing.md`](docs/contribute/testing.md) for which suite
 covers what and what each one needs.
+
+When a change is Portal-, worker-, or deployment-shaped and a unit test cannot
+show it working, gather the end-to-end evidence yourself rather than handing the
+verification back: the `kind` command family stands up and drives the whole
+stack without a second person. `./make kind up` builds the images, creates the
+cluster, and runs a real worker Job; `./make kind fixtures` seeds representative
+Portal business data (idempotently), while `kind seed`/`kind use-model` manage
+the model catalog; and `./make kind login` plus the `drive-portal` skill sign a
+headless browser into Portal to assert against populated views. This needs
+Docker and changes the machine, so it stays a deliberate step chosen in
+proportion to the change, not a default for every task — but the evidence is now
+yours to produce. See [`docs/deploy/local-kind.md`](docs/deploy/local-kind.md).
 
 `./make agent-smoke` is not a test: it drives the agent's tools with a real
 model, needs an API key, and reports a table the model wrote about itself.
