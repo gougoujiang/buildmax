@@ -6,7 +6,7 @@ import { AgentAvatar, UserAvatar } from "../../components/UserAvatar"
 import { useApp } from "../../contexts/AppContext"
 import { useAuth } from "../../contexts/AuthContext"
 import { useTeam } from "../../contexts/TeamContext"
-import { cancelTask, continueTask, getTask, getTaskRuns } from "../../features/tasks"
+import { cancelTask, continueTask, getTask, getTaskRuns, retryTask } from "../../features/tasks"
 import { getAgent } from "../../features/agents"
 import { RunTraceModal } from "../../features/runs"
 import { TaskFilesModal } from "../../features/conversations"
@@ -62,6 +62,7 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const [stopping, setStopping] = useState(false)
+  const [retrying, setRetrying] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [traceRunId, setTraceRunId] = useState<string | null>(null)
@@ -214,6 +215,16 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
       .finally(() => setStopping(false))
   }
 
+  function handleRetry() {
+    if (!token || !currentTeamId || retrying || running) return
+    setRetrying(true)
+    setError(null)
+    retryTask(currentTeamId, taskId, token)
+      .then(() => load())
+      .catch((err) => setError(getErrorMessage(err, "Failed to retry this run")))
+      .finally(() => setRetrying(false))
+  }
+
   const traceRun = task?.last_run_id ?? runs[runs.length - 1]?.id ?? null
   const filesRun = task?.artifact_run_ids?.[0] ?? null
 
@@ -231,6 +242,10 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
           {running ? (
             <button type="button" className="page-activity__action-btn" disabled={stopping} onClick={handleStop}>
               {stopping ? "Stopping..." : "Stop"}
+            </button>
+          ) : runs.length > 0 ? (
+            <button type="button" className="page-activity__action-btn" disabled={retrying} onClick={handleRetry}>
+              {retrying ? "Retrying..." : "Retry last run"}
             </button>
           ) : null}
           <button
