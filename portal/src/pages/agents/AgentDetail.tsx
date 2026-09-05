@@ -243,9 +243,6 @@ export function AgentDetail({ token, agentId }: AgentDetailProps) {
               {agent?.name ?? "Agent"}
               {stats.running ? <span className="agent-detail__running">running</span> : null}
             </h1>
-            <p className="page-activity__subtitle agent-detail__meta">
-              {agent ? `${agent.id} · rev ${agent.revision}` : agentId}
-            </p>
             {agent?.description ? <p className="agent-detail__desc">{agent.description}</p> : null}
           </div>
         </div>

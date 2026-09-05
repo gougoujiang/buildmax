@@ -174,7 +174,6 @@ export function Artifacts() {
                   </span>
                 </div>
                 <div className="artifact-row__meta">
-                  <code className="artifact-row__id">{artifact.id}</code>
                   <time>{formatTime(artifact.created_at)}</time>
                 </div>
                 <div className="artifact-row__actions">

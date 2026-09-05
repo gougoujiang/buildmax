@@ -234,13 +234,6 @@ export function ArtifactDetail({ artifactId }: ArtifactDetailProps) {
             </div>
           ) : null}
           <div>
-            <dt>Reference</dt>
-            <dd className="artifact-details__copyable">
-              <code>{artifact.id}</code>
-              <CopyButton value={artifact.id} label="Copy" />
-            </dd>
-          </div>
-          <div>
             {/* Proves what was stored, computed while streaming the upload. */}
             <dt>SHA-256</dt>
             <dd className="artifact-details__copyable">
