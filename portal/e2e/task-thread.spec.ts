@@ -82,7 +82,7 @@ test("running an Agent directly reaches a Task with no Conversation, and Continu
   expect(task.conversation_id ?? "").toBe("")
   expect(task.agent_id).toBe(agent.id)
 
-  const history = page.getByLabel("Agent task history")
+  const history = page.getByLabel("Task conversation")
   await expect(history.locator(".bm-chat-thread__row--user")).toHaveCount(1)
 
   await waitForTaskSucceeded(page, current, taskId)
