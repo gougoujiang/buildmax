@@ -84,6 +84,13 @@ accepted direction and its limits are in
 [`design/worker-api-network-boundary.md`](design/worker-api-network-boundary.md).
 It does not close the wider domain-aware worker egress question above.
 
+The Pod-to-host boundary has a separate qualified direction: support an
+operator-selected, fail-closed gVisor RuntimeClass around the complete worker
+while retaining `bwrap` for command-to-worker policy. The exact BuildMax worker
+and sandbox probe must pass under `runsc` before this becomes a supported or
+recommended production profile; see
+[`design/gvisor-worker-runtime.md`](design/gvisor-worker-runtime.md).
+
 ### R1. Make Multi-Instance Semantics Correct Or Declare One Replica
 
 The production manifest requests two Server replicas, while stream fan-out,
