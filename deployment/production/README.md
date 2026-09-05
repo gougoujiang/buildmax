@@ -89,6 +89,27 @@ Set `ingressClassName`, and add whatever annotations your controller needs.
 kubelet reaches them directly on the pod; publishing them only exposes
 dependency status to anyone who asks.
 
+### Worker API boundary
+
+The server exposes two listeners. The public API is the `buildmax-api` Service,
+and it is the only backend the Ingress names — the broad `/api` rule is safe
+because the public listener carries no worker route. The worker control API
+(`/api/worker/*`) is served on a second listener, fronted by the internal
+`buildmax-worker-api` `ClusterIP` on port 5679, and the `buildmax-server`
+`NetworkPolicy` admits that port only from pods carrying the worker labels the
+runner stamps on every worker Job. A `ClusterIP` alone is discoverability, not
+authorization; the policy is what makes it a boundary, and it protects direct
+pod-IP access as well as Service access.
+
+That listener serves TLS. Supply its certificate — valid for
+`buildmax-worker-api.buildmax.svc.cluster.local` — as the `buildmax-worker-api-tls`
+Secret (keys `tls.crt`, `tls.key`), mounted only into server pods. Publish the
+signing CA as the `buildmax-worker-api-ca` ConfigMap (key `worker-api-ca.crt`),
+named in `worker.k8s.ca_config_map`; the runner mounts it read-only into each
+worker pod at `worker.server_ca_file`, and the worker verifies the server
+against it with no insecure fallback. cert-manager can issue both from one
+internal Issuer. The server refuses to start if the keypair will not load.
+
 ### Worker sandbox
 
 A worker pod executes model-chosen shell commands inside `bubblewrap`, not
@@ -156,10 +177,12 @@ new TaskRun. The exact shutdown contract is in
 
 Stated rather than left to be discovered:
 
-- **NetworkPolicy.** Worker pods reach the model endpoint, object storage, and
-  the server. Restricting egress is worth doing and is not settled here — see
-  [`docs/design/trust-harness.md`](../../docs/design/trust-harness.md) §3.9,
-  which holds the open question and what would settle it.
+- **Worker egress NetworkPolicy.** The manifest ships the server-ingress policy
+  that gates the worker port (see "Worker API boundary" above), but not a
+  default-deny on worker *egress*. Worker pods reach the model endpoint, object
+  storage, and the server; restricting that is worth doing and is not settled
+  here — see [`docs/design/trust-harness.md`](../../docs/design/trust-harness.md)
+  §3.9, which holds the open question and what would settle it.
 - **Backups.** Database and bucket backups are yours. BuildMax has no export or
   import command.
 - **Horizontal scaling of workers.** Worker Jobs are created per task run and

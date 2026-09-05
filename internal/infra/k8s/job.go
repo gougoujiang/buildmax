@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -30,9 +31,32 @@ type JobCreator interface {
 const (
 	homeVolumeName   = "buildmax-home"
 	configVolumeName = "buildmax-config"
+	caVolumeName     = "worker-api-ca"
 	tmpVolumeName    = "tmp"
 	serverConfigFile = "server.yaml"
 )
+
+// Worker pod labels. The production NetworkPolicy admits only pods carrying
+// these to the worker listener, so they are a security selector rather than
+// decoration, and a worker cannot relabel itself: it has no ServiceAccount
+// token and never reaches the Kubernetes API. See
+// docs/design/worker-api-network-boundary.md §7.2.
+const (
+	labelName       = "app.kubernetes.io/name"
+	labelComponent  = "app.kubernetes.io/component"
+	workerNameLabel = "buildmax-worker"
+	workerComponent = "worker"
+)
+
+// WorkerPodLabels are stamped on every worker Job and its pod template. Exported
+// so the manifest tests can assert the NetworkPolicy selects the same labels the
+// runner actually sets.
+func WorkerPodLabels() map[string]string {
+	return map[string]string{
+		labelName:      workerNameLabel,
+		labelComponent: workerComponent,
+	}
+}
 
 // PodConfig describes how a worker pod obtains its configuration.
 //
@@ -47,6 +71,13 @@ type PodConfig struct {
 	// HomeDir becomes BUILDMAX_HOME in the pod and is where server.yaml lands.
 	// Empty defaults to /buildmax.
 	HomeDir string
+	// CAConfigMapName holds the worker-api CA certificate, mounted read-only at
+	// CAMountPath so the worker verifies the server listener. Empty mounts no CA
+	// — the worker then uses the system roots, or plain HTTP in development.
+	CAConfigMapName string
+	// CAMountPath is where the CA lands in the pod; it equals worker.server_ca_file.
+	// The ConfigMap key mounted there is that path's base name.
+	CAMountPath string
 	// Resources bounds the pod's CPU and memory. Every bound is required;
 	// NewK8sJobRunner refuses a configuration that would leave one off the Job.
 	Resources PodResources
@@ -277,6 +308,27 @@ func (r *K8sJobRunner) podVolumes() ([]corev1.Volume, []corev1.VolumeMount) {
 		{Name: tmpVolumeName, MountPath: "/tmp"},
 	}
 
+	// The worker-api CA, when the deployment mounts one. Independent of the
+	// server.yaml ConfigMap: a worker over HTTPS needs the CA even where the rest
+	// of its configuration arrives by inherited environment.
+	if r.pod.CAConfigMapName != "" && r.pod.CAMountPath != "" {
+		key := filepath.Base(r.pod.CAMountPath)
+		volumes = append(volumes, corev1.Volume{
+			Name: caVolumeName,
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{Name: r.pod.CAConfigMapName},
+				},
+			},
+		})
+		mounts = append(mounts, corev1.VolumeMount{
+			Name:      caVolumeName,
+			MountPath: r.pod.CAMountPath,
+			SubPath:   key,
+			ReadOnly:  true,
+		})
+	}
+
 	if r.pod.ConfigMapName == "" {
 		return volumes, mounts
 	}
@@ -310,10 +362,13 @@ func (r *K8sJobRunner) Run(ctx context.Context, run coretask.Run, runToken strin
 
 	volumes, mounts := r.podVolumes()
 	job := &batchv1.Job{
-		ObjectMeta: metav1.ObjectMeta{Name: jobName, Namespace: r.namespace},
+		ObjectMeta: metav1.ObjectMeta{Name: jobName, Namespace: r.namespace, Labels: WorkerPodLabels()},
 		Spec: batchv1.JobSpec{
 			BackoffLimit: util.Ptr(int32(3)),
 			Template: corev1.PodTemplateSpec{
+				// The pod labels are what the NetworkPolicy selects, so they must
+				// be on the template, not only the Job.
+				ObjectMeta: metav1.ObjectMeta{Labels: WorkerPodLabels()},
 				Spec: corev1.PodSpec{
 					RestartPolicy: corev1.RestartPolicyOnFailure,
 					// A drained or evicted worker stops its agent, uploads what

@@ -452,3 +452,81 @@ func TestWorkerEnvFromEnviron_ManagedPodHasNoProviderKey(t *testing.T) {
 		t.Errorf("%s was withheld from a direct worker pod", config.EnvKeyBuildmaxConversationAPIKey)
 	}
 }
+
+// TestK8sJobRunner_LabelsWorkerPod covers the selector the production
+// NetworkPolicy relies on: the labels must be on the pod template, not only the
+// Job, or the policy would admit nothing. See
+// docs/design/worker-api-network-boundary.md §7.2.
+func TestK8sJobRunner_LabelsWorkerPod(t *testing.T) {
+	fake := &fakeJobCreator{}
+	runner := newTestRunner(t, "buildmax", "buildmax:local", nil, PodConfig{}, fake)
+	if _, _, _, err := runner.Run(context.Background(), coretask.Run{ID: "run1", Status: "SCHEDULED"}, ""); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	want := WorkerPodLabels()
+	for _, got := range []map[string]string{fake.lastJob.Labels, fake.lastJob.Spec.Template.Labels} {
+		for k, v := range want {
+			if got[k] != v {
+				t.Errorf("label %q = %q, want %q (labels = %v)", k, got[k], v, got)
+			}
+		}
+	}
+	if fake.lastJob.Spec.Template.Labels["app.kubernetes.io/name"] != "buildmax-worker" {
+		t.Error("the pod template must carry the worker name label the NetworkPolicy selects")
+	}
+}
+
+// TestK8sJobRunner_MountsWorkerAPICA covers the CA delivery a worker over HTTPS
+// depends on: the configured ConfigMap is mounted read-only at server_ca_file.
+func TestK8sJobRunner_MountsWorkerAPICA(t *testing.T) {
+	fake := &fakeJobCreator{}
+	runner := newTestRunner(t, "buildmax", "buildmax:local", nil, PodConfig{
+		CAConfigMapName: "buildmax-worker-api-ca",
+		CAMountPath:     "/buildmax/tls/worker-api-ca.crt",
+	}, fake)
+	if _, _, _, err := runner.Run(context.Background(), coretask.Run{ID: "run1", Status: "SCHEDULED"}, ""); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	spec := fake.lastJob.Spec.Template.Spec
+
+	var caMount *corev1.VolumeMount
+	for i, m := range spec.Containers[0].VolumeMounts {
+		if m.MountPath == "/buildmax/tls/worker-api-ca.crt" {
+			caMount = &spec.Containers[0].VolumeMounts[i]
+		}
+	}
+	if caMount == nil {
+		t.Fatalf("CA is not mounted; mounts = %+v", spec.Containers[0].VolumeMounts)
+	}
+	if !caMount.ReadOnly {
+		t.Error("the CA mount must be read-only")
+	}
+	if caMount.SubPath != "worker-api-ca.crt" {
+		t.Errorf("CA SubPath = %q, want the file's base name", caMount.SubPath)
+	}
+
+	var caVol *corev1.Volume
+	for i, v := range spec.Volumes {
+		if v.Name == caMount.Name {
+			caVol = &spec.Volumes[i]
+		}
+	}
+	if caVol == nil || caVol.ConfigMap == nil || caVol.ConfigMap.Name != "buildmax-worker-api-ca" {
+		t.Errorf("CA volume does not come from the configured ConfigMap: %+v", caVol)
+	}
+}
+
+// TestK8sJobRunner_NoCAWithoutConfig keeps the mount opt-in: a deployment that
+// configures none (plain HTTP development) gets no CA volume.
+func TestK8sJobRunner_NoCAWithoutConfig(t *testing.T) {
+	fake := &fakeJobCreator{}
+	runner := newTestRunner(t, "buildmax", "buildmax:local", nil, PodConfig{}, fake)
+	if _, _, _, err := runner.Run(context.Background(), coretask.Run{ID: "run1", Status: "SCHEDULED"}, ""); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	for _, v := range fake.lastJob.Spec.Template.Spec.Volumes {
+		if v.Name == caVolumeName {
+			t.Error("a CA volume was mounted with no ca_config_map configured")
+		}
+	}
+}

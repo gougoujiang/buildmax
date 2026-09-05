@@ -84,20 +84,22 @@ data:
 
     worker:
       run_mode: k8s_job
-      # In-cluster address of the Service below. Workers call the server's
-      # worker API; they never reach the database.
-      #
-      # STOPGAP: still the public HTTP port. The worker control API moved to its
-      # own listener (worker-api-network-boundary M1); M3 adds the
-      # buildmax-worker-api Service and TLS and switches this to
-      # https://buildmax-worker-api.buildmax.svc.cluster.local:5679, dropping
-      # allow_insecure_http. Until then k8s worker execution is not wired.
-      server_url: http://buildmax.buildmax.svc.cluster.local:5678
-      allow_insecure_http: true
+      # The internal worker Service below, over HTTPS. The worker control API
+      # (/api/worker/*) is served only on that listener, off the public port,
+      # so worker traffic never leaves through the Ingress and a NetworkPolicy
+      # can admit only worker pods to it.
+      server_url: https://buildmax-worker-api.buildmax.svc.cluster.local:5679
+      # The CA the worker verifies the worker listener against, mounted into
+      # every worker pod from the ConfigMap named in k8s.ca_config_map.
+      server_ca_file: /buildmax/tls/worker-api-ca.crt
       k8s:
         namespace: buildmax
         image: REPLACE_ME_IMAGE
         config_map: buildmax-config
+        # ConfigMap holding the worker-api CA (key: worker-api-ca.crt), mounted
+        # read-only into each worker pod at worker.server_ca_file above. Create
+        # it from the same CA that signed the buildmax-worker-api-tls Secret.
+        ca_config_map: buildmax-worker-api-ca
         home_dir: /buildmax
         # Worker pods run root with every Linux capability dropped except
         # SYS_ADMIN, a Localhost seccomp profile, and an Unconfined AppArmor
@@ -113,6 +115,16 @@ data:
           cpu_limit: "2"
           memory_request: 1Gi
           memory_limit: 4Gi
+
+    # The internal worker listener. Bound to all interfaces here (not the
+    # loopback default) so the buildmax-worker-api Service can reach it, and
+    # fronted by that Service and a NetworkPolicy below. Its certificate must
+    # carry the Service DNS name buildmax-worker-api.buildmax.svc.cluster.local.
+    worker_api:
+      listen: 0.0.0.0:5679
+      tls:
+        cert_file: /buildmax/tls/worker-api/tls.crt
+        key_file: /buildmax/tls/worker-api/tls.key
 
     conversation:
       model:
@@ -288,6 +300,10 @@ spec:
           ports:
             - containerPort: 5678
               name: http
+            # The internal worker control API. Reached only through the
+            # buildmax-worker-api Service, never the Ingress.
+            - containerPort: 5679
+              name: worker-api
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -367,6 +383,11 @@ spec:
               mountPath: /buildmax/server.yaml
               subPath: server.yaml
               readOnly: true
+            # The worker listener's server certificate and key. Mounted only
+            # into server pods; a worker pod never sees the private key.
+            - name: worker-api-tls
+              mountPath: /buildmax/tls/worker-api
+              readOnly: true
             # The root filesystem is read-only; this is the writable path
             # ordinary tooling assumes.
             - name: tmp
@@ -386,6 +407,13 @@ spec:
         - name: buildmax-config
           configMap:
             name: buildmax-config
+        # A TLS Secret (keys tls.crt, tls.key) holding the worker listener's
+        # certificate for buildmax-worker-api.buildmax.svc.cluster.local. Supply
+        # it from cert-manager or your own CA; the server refuses to start if it
+        # cannot load the keypair.
+        - name: worker-api-tls
+          secret:
+            secretName: buildmax-worker-api-tls
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
@@ -398,10 +426,11 @@ spec:
     matchLabels:
       app: buildmax-server
 ---
+# The public API Service. The Ingress points here; it carries no worker route.
 apiVersion: v1
 kind: Service
 metadata:
-  name: buildmax
+  name: buildmax-api
   namespace: buildmax
 spec:
   selector:
@@ -410,6 +439,23 @@ spec:
     - name: http
       port: 5678
       targetPort: 5678
+---
+# The internal worker control API. A ClusterIP with no Ingress in front of it;
+# the NetworkPolicy below is what limits who may connect, since a ClusterIP
+# alone is discoverability, not authorization.
+apiVersion: v1
+kind: Service
+metadata:
+  name: buildmax-worker-api
+  namespace: buildmax
+spec:
+  type: ClusterIP
+  selector:
+    app: buildmax-server
+  ports:
+    - name: worker-api
+      port: 5679
+      targetPort: 5679
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -501,21 +547,21 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: buildmax
+                name: buildmax-api
                 port:
                   number: 5678
           - path: /openapi.json
             pathType: Exact
             backend:
               service:
-                name: buildmax
+                name: buildmax-api
                 port:
                   number: 5678
           - path: /swagger
             pathType: Prefix
             backend:
               service:
-                name: buildmax
+                name: buildmax-api
                 port:
                   number: 5678
           - path: /
@@ -525,3 +571,39 @@ spec:
                 name: buildmax-portal
                 port:
                   number: 80
+---
+# The boundary the two Services make enforceable. Without it a ClusterIP is only
+# a name: any pod could still dial the worker port by Service or pod IP. This
+# selects the server pods and states who may reach each port.
+#
+# The public port is left open to the cluster here because public API auth is at
+# the application layer and Ingress exposure is intentional; narrow it to your
+# ingress-controller namespace, where your CNI and health-probe behaviour are
+# known. The worker port is restricted to pods carrying the worker labels the
+# Kubernetes runner stamps on every worker Job. See
+# docs/design/worker-api-network-boundary.md §7.3.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: buildmax-server
+  namespace: buildmax
+spec:
+  podSelector:
+    matchLabels:
+      app: buildmax-server
+  policyTypes:
+    - Ingress
+  ingress:
+    # Public API and Portal traffic.
+    - ports:
+        - protocol: TCP
+          port: 5678
+    # Worker control API: only from worker pods in this namespace.
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: buildmax-worker
+              app.kubernetes.io/component: worker
+      ports:
+        - protocol: TCP
+          port: 5679

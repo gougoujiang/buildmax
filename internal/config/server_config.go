@@ -343,6 +343,11 @@ type ServerK8sConfig struct {
 	// Empty means no config file is mounted and the worker relies on inherited
 	// environment variables alone, which is rarely enough.
 	ConfigMap string `mapstructure:"config_map"`
+	// CAConfigMap names a ConfigMap holding the worker-api CA certificate,
+	// mounted read-only into every worker pod at worker.server_ca_file so the
+	// worker verifies the server listener. Empty mounts none. See
+	// docs/design/worker-api-network-boundary.md §6.
+	CAConfigMap string `mapstructure:"ca_config_map"`
 	// HomeDir is BUILDMAX_HOME inside a worker pod; server.yaml is mounted there.
 	HomeDir string `mapstructure:"home_dir"`
 	// Resources bounds a worker pod. Every bound is required in this run mode:
