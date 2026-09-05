@@ -92,6 +92,12 @@ The Server will expose two independently routed HTTP listeners:
 | Public | existing configured port, normally `:5678` | Every non-worker route, including Portal, user API, webhooks, WebSocket, health, OpenAPI, and Swagger | Ingress, operators, CLI, Desktop |
 | Worker | `127.0.0.1:5679` unless explicitly configured | `/api/worker/*` only | `local_process` workers on the same host, or worker Pods through the internal Service |
 
+Their canonical Kubernetes Service names are `buildmax-api` and
+`buildmax-worker-api`, respectively. Listener names in logs and internal code
+are `api` and `worker-api`; `public` describes reachability but is not part of
+the resource name, because a `ClusterIP` behind an Ingress is not itself a
+public Service type.
+
 The secure default binds the worker listener to loopback. A Kubernetes
 deployment must deliberately bind it to `:5679`, configure TLS, and create the
 internal Service. An accidental default deployment therefore does not expose a
@@ -104,7 +110,7 @@ Internet / Portal
        |
        | HTTPS
        v
-Ingress --> buildmax-public Service :5678 --> public listener
+Ingress --> buildmax-api Service :5678 --> public listener
 
 Worker Pod
        |
@@ -255,10 +261,10 @@ token identifies the run.
 
 The production manifest defines:
 
-- `buildmax-public`, selecting Server Pods and targeting the public port;
+- `buildmax-api`, selecting Server Pods and targeting the public port;
 - `buildmax-worker-api`, a `ClusterIP` selecting the same Server Pods and
   targeting the worker port; and
-- an Ingress whose backends include `buildmax-public` only.
+- an Ingress whose backends include `buildmax-api` only.
 
 The broad public `/api` Ingress rule can remain because the public mux does not
 contain worker routes. An operator-specific reverse proxy path rule is useful
@@ -481,14 +487,14 @@ name and wrong CA, and never falls back to HTTP.
 ### M3. Kubernetes Boundary
 
 - Add the internal Service and worker port to production and kind manifests.
-- Point Ingress only at the public Service.
+- Point Ingress only at the `buildmax-api` Service.
 - Label generated Jobs and Pods consistently.
 - Add the Server ingress `NetworkPolicy` for the worker port.
 - Keep worker ServiceAccount-token automount disabled.
 
 Acceptance: a labeled worker Pod reaches the worker listener; an unlabeled Pod
 in the same namespace cannot; neither can reach a worker handler through the
-public Service.
+`buildmax-api` Service.
 
 ### M4. Route Lifecycle Authorization
 
@@ -531,8 +537,9 @@ of the same deployment, not separate hand-built reproductions.
 
 The kind smoke must prove all of the following in one installed topology:
 
-1. public API and Portal traffic still enter through the public Service;
-2. `/api/worker/*` on the public Service returns `404`;
+1. public API and Portal traffic still enter through the `buildmax-api`
+   Service;
+2. `/api/worker/*` on the `buildmax-api` Service returns `404`;
 3. a labeled worker completes a TaskRun over HTTPS;
 4. an unlabeled probe Pod cannot connect to the worker port;
 5. the worker rejects a certificate not valid for the Service DNS name;
