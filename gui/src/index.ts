@@ -4,6 +4,7 @@ export { BaseModal, type BaseModalProps } from "./BaseModal"
 export {
   FormModal,
   type FormModalFieldConfig,
+  type FormModalGroup,
   type FormModalProps,
   type FormModalSelectOption,
 } from "./FormModal"

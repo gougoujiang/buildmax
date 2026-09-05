@@ -21,6 +21,7 @@ export async function createAgent(
     name: string
     description?: string
     instructions?: string
+    plugins?: string[]
     sandbox_network_tier?: string
     sandbox_filesystem_tier?: string
     secret_consumption?: ApiSecretConsumption
@@ -44,6 +45,7 @@ export async function updateAgent(
     name: string
     description?: string
     instructions?: string
+    plugins?: string[]
     sandbox_network_tier?: string
     sandbox_filesystem_tier?: string
     secret_consumption?: ApiSecretConsumption
