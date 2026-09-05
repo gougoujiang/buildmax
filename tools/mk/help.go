@@ -479,14 +479,15 @@ func helpTopics() []helpTopic {
 		},
 		{
 			name:    "kind",
-			usage:   "kind <up|reload|seed|use-model <name>|mock|smoke [managed]|info [email]|forward|status|logs|down>",
+			usage:   "kind <up|reload [service]|seed|use-model <name>|mock|smoke [managed]|info [email]|forward|status|logs [service]|down>",
 			summary: "Manage the local Kubernetes reference deployment.",
 			details: []string{
 				"Needs Docker and kubectl, and creates a kind cluster — set BUILDMAX_KIND_CLUSTER\n" +
 					"to use a name other than the default. The cluster has no registry, so `reload`\n" +
 					"builds the server and Portal images locally, loads them into it, and restarts the\n" +
-					"deployments so a code change takes effect. It is the local development loop after\n" +
-					"`up`; a deployment that does not exist yet is skipped rather than failed.",
+					"deployments so a code change takes effect; name `server` or `portal` to reload\n" +
+					"just one. It is the local development loop after `up`; a deployment that does\n" +
+					"not exist yet is skipped rather than failed.",
 				"The kind reference serves Portal and the server from one ingress, which is the\n" +
 					"difference the browser tests can see: here the bundle's API base is\n" +
 					"same-origin, under Compose it is absolute.",
@@ -507,7 +508,7 @@ func helpTopics() []helpTopic {
 			},
 			args: []helpRow{
 				{"up", "Create the cluster and apply the reference deployment"},
-				{"reload", "Build and load the images, then restart the deployments"},
+				{"reload [service]", "Build and load the images, then restart the deployments; server or portal for just one"},
 				{"seed", "Put the models in " + localSettingsPath + " into the cluster's catalog"},
 				{"use-model <name>", "Point conversations and task runs at a seeded catalog model"},
 				{"mock", "Switch conversations and task runs back to the free in-cluster mock"},
@@ -515,7 +516,7 @@ func helpTopics() []helpTopic {
 				{"info [email]", "Print the endpoints and issue a fresh login code"},
 				{"forward", "Forward MySQL (3306) and MinIO (9000, 9001) to 127.0.0.1"},
 				{"status", "Report pod, service, and ingress state"},
-				{"logs", "Tail the deployment's logs"},
+				{"logs [service]", "Tail every namespace's logs, or one of ingress, mysql, minio, server, portal, worker"},
 				{"down", "Delete the cluster"},
 			},
 			examples: []string{"kind up", "kind seed", "kind use-model \"Claude Sonnet 5\"", "kind mock", "kind smoke"},

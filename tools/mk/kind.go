@@ -51,7 +51,7 @@ func cmdKind(args []string) error {
 	case "up":
 		return kindUp()
 	case "reload":
-		return cmdKindReload()
+		return cmdKindReload(args[1:])
 	case "seed":
 		if len(args) > 1 {
 			return usageErrorf("kind", "seed takes no arguments")
@@ -83,7 +83,7 @@ func cmdKind(args []string) error {
 	case "status":
 		return kindStatus()
 	case "logs":
-		return kindLogs()
+		return kindLogs(args[1:])
 	case "down":
 		return kindDown()
 	default:
@@ -198,7 +198,7 @@ func kindUp() error {
 		return err
 	}
 
-	if err := buildAndLoadKindImages(cluster, true); err != nil {
+	if err := buildAndLoadKindImages(cluster, []kindImage{kindImageServer, kindImagePortal, kindImageSmoke}); err != nil {
 		return err
 	}
 	if err := ensureKindNamespace("buildmax"); err != nil {
@@ -595,9 +595,79 @@ func printKindSection(title string, args ...string) {
 	}
 }
 
-func kindLogs() error {
+// kindLogService is one thing `kind logs <service>` can target: the describe
+// and log commands specific to that workload. Namespace-wide commands (pod
+// list, events) live in dumpKindNamespace itself, so `kind logs` (no
+// argument, dumps every namespace) and `kind logs <service>` share this one
+// definition instead of keeping two lists in sync.
+type kindLogService struct {
+	name      string
+	namespace string
+	commands  [][]string
+}
+
+// kindLogServices is ordered the way `kind logs` (no argument) has always
+// printed it: ingress, then db, then storage, then buildmax's server, portal,
+// and worker Jobs.
+var kindLogServices = []kindLogService{
+	{"ingress", "ingress-nginx", [][]string{
+		{"describe", "deployment/ingress-nginx-controller", "-n", "ingress-nginx"},
+		{"logs", "-n", "ingress-nginx", "deployment/ingress-nginx-controller", "--all-containers", "--tail=200"},
+	}},
+	{"mysql", "db", [][]string{
+		{"describe", "deployment/mysql", "-n", "db"},
+		{"logs", "-n", "db", "deployment/mysql", "--all-containers", "--tail=200"},
+		{"logs", "-n", "db", "job/mysql-init", "--all-containers", "--tail=200"},
+	}},
+	{"minio", "storage", [][]string{
+		{"describe", "deployment/minio", "-n", "storage"},
+		{"logs", "-n", "storage", "deployment/minio", "--all-containers", "--tail=200"},
+		{"logs", "-n", "storage", "job/minio-init", "--all-containers", "--tail=200"},
+	}},
+	{"server", "buildmax", [][]string{
+		{"logs", "-n", "buildmax", "deployment/buildmax-server", "--all-containers", "--tail=200"},
+	}},
+	{"portal", "buildmax", [][]string{
+		{"logs", "-n", "buildmax", "deployment/buildmax-portal", "--all-containers", "--tail=100"},
+	}},
+	{"worker", "buildmax", [][]string{
+		{"logs", "-n", "buildmax", "-l", "job-name", "--all-containers", "--tail=200"},
+	}},
+}
+
+func kindLogServiceNames() []string {
+	names := make([]string, len(kindLogServices))
+	for i, svc := range kindLogServices {
+		names[i] = svc.name
+	}
+	return names
+}
+
+// kindLogs tails every namespace, or one named service's own describe/log
+// commands when args names one. The name is validated before requiring
+// kubectl, so a typo is reported without needing the cluster tooling at all.
+func kindLogs(args []string) error {
+	if len(args) > 1 {
+		return usageErrorf("kind", "logs takes at most one service name (%s)", strings.Join(kindLogServiceNames(), ", "))
+	}
+	var svc *kindLogService
+	if len(args) == 1 {
+		for i := range kindLogServices {
+			if kindLogServices[i].name == args[0] {
+				svc = &kindLogServices[i]
+				break
+			}
+		}
+		if svc == nil {
+			return usageErrorf("kind", "unknown service %q for logs; want one of %s", args[0], strings.Join(kindLogServiceNames(), ", "))
+		}
+	}
 	if err := requireCommands("kubectl"); err != nil {
 		return err
+	}
+	if svc != nil {
+		runKindLogCommands(svc.commands)
+		return nil
 	}
 	for _, namespace := range []string{"ingress-nginx", "db", "storage", "buildmax"} {
 		dumpKindNamespace(namespace)
@@ -618,33 +688,15 @@ func dumpKindNamespace(namespace string) {
 		{"get", "pods,jobs,deployments,services,ingresses", "-n", namespace, "-o", "wide"},
 		{"get", "events", "-n", namespace, "--sort-by=.lastTimestamp"},
 	}
-
-	switch namespace {
-	case "ingress-nginx":
-		commands = append(commands,
-			[]string{"describe", "deployment/ingress-nginx-controller", "-n", namespace},
-			[]string{"logs", "-n", namespace, "deployment/ingress-nginx-controller", "--all-containers", "--tail=200"},
-		)
-	case "db":
-		commands = append(commands,
-			[]string{"describe", "deployment/mysql", "-n", namespace},
-			[]string{"logs", "-n", namespace, "deployment/mysql", "--all-containers", "--tail=200"},
-			[]string{"logs", "-n", namespace, "job/mysql-init", "--all-containers", "--tail=200"},
-		)
-	case "storage":
-		commands = append(commands,
-			[]string{"describe", "deployment/minio", "-n", namespace},
-			[]string{"logs", "-n", namespace, "deployment/minio", "--all-containers", "--tail=200"},
-			[]string{"logs", "-n", namespace, "job/minio-init", "--all-containers", "--tail=200"},
-		)
-	case "buildmax":
-		commands = append(commands,
-			[]string{"logs", "-n", namespace, "deployment/buildmax-server", "--all-containers", "--tail=200"},
-			[]string{"logs", "-n", namespace, "deployment/buildmax-portal", "--all-containers", "--tail=100"},
-			[]string{"logs", "-n", namespace, "-l", "job-name", "--all-containers", "--tail=200"},
-		)
+	for _, svc := range kindLogServices {
+		if svc.namespace == namespace {
+			commands = append(commands, svc.commands...)
+		}
 	}
+	runKindLogCommands(commands)
+}
 
+func runKindLogCommands(commands [][]string) {
 	for _, args := range commands {
 		if err := kindKubectl(args...); err != nil {
 			fmt.Printf("Warning: %v\n", err)

@@ -60,10 +60,12 @@ old one.
 ./make kind use-model "Claude Sonnet 5"  # run the cluster's own inference on a seeded model
 ./make kind mock    # switch the cluster's own inference back to the free mock
 ./make kind reload  # rebuild and load local images, then restart the deployments
+./make kind reload server  # the same, for just the server (or portal)
 ./make kind info    # endpoints, plus a fresh login code for the smoke account
 ./make kind forward # forward the in-cluster MySQL and MinIO to 127.0.0.1
 ./make kind status  # read-only summary of the cluster, ingress, and workloads
 ./make kind logs    # pods, jobs, events, server, Portal, and worker logs
+./make kind logs server  # just the server's logs (or portal, worker, mysql, minio, ingress)
 ./make kind down    # delete the selected cluster
 ```
 
