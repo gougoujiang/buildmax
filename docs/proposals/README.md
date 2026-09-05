@@ -41,8 +41,14 @@ last column says so, and the paper's own delivery phases hold the detail.
 | [Local Issue work bridge](local-issue-work-bridge.md) | How should connected CLI/TUI and Desktop handle Team Issues locally without becoming Portal clones or weakening direct local use? | Most of phase 1: `buildmax issue list`, `show`, and `status`, `buildmax --issue`, and the two Issue tools of [issue agent access](../design/issue-agent-access.md). The durable Issue-to-Session link is not built, and phases 2 and 3 are untouched |
 | [Session tree, agent mailbox, and branched workspaces](session-tree-and-agent-mailbox.md) | Should interactive sessions fork isolated workspaces, return structured child reports, and resume their parent through a durable mailbox? | Nothing |
 
-Twelve papers have been retired. Eight were accepted into a design
-record. *System administration* asked how a private
+Thirteen papers have been retired. Nine were accepted into a design
+record. *Durable Workflow graphs* asked whether Workflow should remain a linear
+prompt sequencer, delegate control to one LLM, or become a durable graph over
+Task/TaskRun. The accepted [Workflow runtime design](../design/workflow-runtime.md)
+chooses deterministic state and policy around Agent execution, then adds typed
+model decisions and bounded dynamic expansion on that substrate.
+
+*System administration* asked how a private
 deployment should authorize and audit System Administrators; the direction was
 accepted and is now the [system administration
 design](../design/system-administration.md), which decides the grant model,

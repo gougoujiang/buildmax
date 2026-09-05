@@ -135,7 +135,7 @@ providers.
 | Desktop Project | Local UI state around a workspace | Desktop only; not a Server entity |
 | Team | Ownership and authorization boundary | Server |
 | Issue | Primary shared work object | Team |
-| Workflow | Reusable linear plan | Team |
+| Workflow | Reusable durable execution plan; currently linear, targeting a revision-pinned adaptive graph | Team |
 | Conversation | Independent foreground chat and optional orchestrator | Team |
 | Task / TaskRun | Durable Agent thread and its execution turns or attempts | Team and scheduler |
 | Artifact | Explicit durable output with stable identity | Team |

@@ -150,10 +150,13 @@ claim until the pinned protocol has actually run.
 
 ### R5. Deepen Product Capability From Evidence
 
-After R0–R4, choose workflow control flow, real channel adapters, executable
-team plugins, Portal performance, Desktop automation, or throughput work from
-observed user and qualification evidence. Do not let the existence of names,
-types, or partial adapters count as a shipped product surface.
+After R0–R4, deepen the durable Workflow runtime selected in
+[the design record](design/workflow-runtime.md), or choose real channel
+adapters, executable team plugins, Portal performance, Desktop automation, or
+throughput work from observed user and qualification evidence. Workflow work
+starts with reconciliation and typed dataflow before graph breadth. Do not let
+the existence of names, types, or partial adapters count as a shipped product
+surface.
 
 ## Existing Capability Baseline
 
