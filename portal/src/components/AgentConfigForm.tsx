@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import type { FormModalFieldConfig } from "@buildmax/gui"
 import type { Agent } from "../lib/types"
 import type { ApiSecret, ApiSecretConsumption } from "../lib/api/types"
-import { agentFields, buildAgentDefinition, type AgentDefinitionInput } from "../features/agents"
+import { AGENT_GROUP_META, agentFields, buildAgentDefinition, type AgentDefinitionInput } from "../features/agents"
 import { SecretConsumptionEditor } from "./SecretConsumptionEditor"
 import { PluginSelectionEditor } from "./PluginSelectionEditor"
 
@@ -52,6 +52,7 @@ export function AgentConfigForm({
   const [values, setValues] = useState<Record<string, string>>(() => seedValues(agent))
   const [plugins, setPlugins] = useState<string[]>(agent.plugins ?? [])
   const [consumption, setConsumption] = useState<ApiSecretConsumption>(agent.secretConsumption ?? {})
+  const [activeGroup, setActiveGroup] = useState<string>(AGENT_GROUP_META[0]?.id ?? "basics")
 
   useEffect(() => {
     setValues(seedValues(agent))
@@ -140,39 +141,47 @@ export function AgentConfigForm({
   }
 
   const fields = agentFields(availableModels)
-  const basics = fields.filter((f) => f.group === "basics")
-  const sandbox = fields.filter((f) => f.group === "sandbox")
   const nameEmpty = !values.name?.trim()
+  const group = AGENT_GROUP_META.find((g) => g.id === activeGroup) ?? AGENT_GROUP_META[0]
+
+  // The active section's body. Basics and Sandbox are plain fields split by
+  // group; Plugins and Secrets are their own sub-editors.
+  function renderPanel() {
+    switch (group?.id) {
+      case "plugins":
+        return <PluginSelectionEditor value={plugins} onChange={setPlugins} available={availablePlugins} />
+      case "secrets":
+        return <SecretConsumptionEditor value={consumption} onChange={setConsumption} secrets={secrets} />
+      default:
+        return fields.filter((f) => f.group === group?.id).map(renderField)
+    }
+  }
 
   return (
     <div className="agent-config">
-      <section className="agent-config__card">
-        <h3 className="agent-config__card-title">Basics</h3>
-        {basics.map(renderField)}
-      </section>
-
-      <section className="agent-config__card">
-        <h3 className="agent-config__card-title">Sandbox access</h3>
-        <p className="modal__hint">
-          Restrict what this agent's runs can reach. Leave on the team default unless this agent needs
-          something different.
-        </p>
-        {sandbox.map(renderField)}
-      </section>
-
-      <section className="agent-config__card">
-        <h3 className="agent-config__card-title">Plugins</h3>
-        <p className="modal__hint">
-          Catalog plugins this agent loads for background runs. Nothing is inherited — an agent that names
-          none loads none.
-        </p>
-        <PluginSelectionEditor value={plugins} onChange={setPlugins} available={availablePlugins} />
-      </section>
-
-      <section className="agent-config__card">
-        <h3 className="agent-config__card-title">Secrets</h3>
-        <SecretConsumptionEditor value={consumption} onChange={setConsumption} secrets={secrets} />
-      </section>
+      <div className="agent-config__body">
+        <nav className="agent-config__nav" aria-label="Configuration sections">
+          {AGENT_GROUP_META.map((g) => (
+            <button
+              key={g.id}
+              type="button"
+              className={
+                g.id === group?.id
+                  ? "agent-config__nav-item agent-config__nav-item--active"
+                  : "agent-config__nav-item"
+              }
+              aria-current={g.id === group?.id}
+              onClick={() => setActiveGroup(g.id)}
+            >
+              {g.title ?? g.id}
+            </button>
+          ))}
+        </nav>
+        <div className="agent-config__panel">
+          {group?.description ? <p className="modal__hint">{group.description}</p> : null}
+          {renderPanel()}
+        </div>
+      </div>
 
       {error ? (
         <p className="modal__error" role="alert">

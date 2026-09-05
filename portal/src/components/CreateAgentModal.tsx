@@ -1,50 +1,9 @@
-import { useState, type ReactNode } from "react"
-import { FormModal, type FormModalGroup } from "@buildmax/gui"
+import { useState } from "react"
+import { FormModal } from "@buildmax/gui"
 import type { ApiSecret, ApiSecretConsumption } from "../lib/api/types"
-import { agentFields, buildAgentDefinition } from "../features/agents"
+import { agentFields, buildAgentDefinition, buildAgentGroups } from "../features/agents"
 import { SecretConsumptionEditor } from "./SecretConsumptionEditor"
 import { PluginSelectionEditor } from "./PluginSelectionEditor"
-
-// Section metadata shared by the create dialog. The dialog lays these out as
-// tabs (a left sidebar), so every section is one click away and the dialog's
-// height never runs away with a long Instructions field or the history. The
-// plugin and secret groups' content (their editors) is injected per dialog via
-// buildAgentGroups, because it needs the dialog's live state.
-const AGENT_GROUP_META: FormModalGroup[] = [
-  { id: "basics", title: "Basics" },
-  {
-    id: "sandbox",
-    title: "Sandbox access",
-    description:
-      "Restrict what this agent's runs can reach. Leave on the team default unless this agent needs something different.",
-  },
-  {
-    id: "plugins",
-    title: "Plugins",
-    description:
-      "Catalog plugins this agent loads for background runs. Nothing is inherited — an agent that names none loads none.",
-  },
-  {
-    id: "secrets",
-    title: "Secrets",
-    description: "Grant Team Secrets to this agent's runs as environment variables.",
-  },
-]
-
-/**
- * buildAgentGroups injects the live plugin and secret editors into their groups.
- * Kept exported because the dialog's tab layout is built from it.
- */
-export function buildAgentGroups(opts: {
-  pluginEditor: ReactNode
-  secretEditor: ReactNode
-}): FormModalGroup[] {
-  return AGENT_GROUP_META.map((group) => {
-    if (group.id === "plugins") return { ...group, content: opts.pluginEditor }
-    if (group.id === "secrets") return { ...group, content: opts.secretEditor }
-    return group
-  })
-}
 
 interface CreateAgentModalProps {
   open: boolean
