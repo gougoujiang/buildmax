@@ -86,6 +86,69 @@ func TestValidateListeners(t *testing.T) {
 	})
 }
 
+// TestValidateWorkerURL covers the worker-URL rules: a k8s_job must not use
+// plaintext without an explicit opt-in, and no worker URL may point back at the
+// public listener. See docs/design/worker-api-network-boundary.md §6 and §10.
+func TestValidateWorkerURL(t *testing.T) {
+	base := func() ServerConfig {
+		return ServerConfig{WorkerAPI: ServerWorkerAPIConfig{Listen: "127.0.0.1:5679"}}
+	}
+
+	t.Run("k8s_job over http without the opt-in is refused", func(t *testing.T) {
+		c := base()
+		c.Worker.RunMode = "k8s_job"
+		c.Worker.ServerURL = "http://buildmax-worker-api.buildmax.svc.cluster.local:5679"
+		if err := c.ValidateListeners(":5678"); err == nil {
+			t.Fatal("a k8s_job over plaintext http was accepted without allow_insecure_http")
+		}
+	})
+
+	t.Run("k8s_job over http with the opt-in passes", func(t *testing.T) {
+		c := base()
+		c.Worker.RunMode = "k8s_job"
+		c.Worker.ServerURL = "http://buildmax-worker-api.buildmax.svc.cluster.local:5679"
+		c.Worker.AllowInsecureHTTP = true
+		if err := c.ValidateListeners(":5678"); err != nil {
+			t.Fatalf("a k8s_job with allow_insecure_http was rejected: %v", err)
+		}
+	})
+
+	t.Run("k8s_job over https passes without the opt-in", func(t *testing.T) {
+		c := base()
+		c.Worker.RunMode = "k8s_job"
+		c.Worker.ServerURL = "https://buildmax-worker-api.buildmax.svc.cluster.local:5679"
+		if err := c.ValidateListeners(":5678"); err != nil {
+			t.Fatalf("a k8s_job over https was rejected: %v", err)
+		}
+	})
+
+	t.Run("local_process over http is fine", func(t *testing.T) {
+		c := base()
+		c.Worker.RunMode = "local_process"
+		c.Worker.ServerURL = "http://127.0.0.1:5679"
+		if err := c.ValidateListeners(":5678"); err != nil {
+			t.Fatalf("local_process over loopback http was rejected: %v", err)
+		}
+	})
+
+	t.Run("a loopback worker URL on the public port is refused", func(t *testing.T) {
+		c := base()
+		c.Worker.RunMode = "local_process"
+		c.Worker.ServerURL = "http://127.0.0.1:5678"
+		if err := c.ValidateListeners(":5678"); err == nil {
+			t.Fatal("a worker URL pointing at the public listener was accepted")
+		}
+	})
+
+	t.Run("an empty worker URL is left to the worker to reject", func(t *testing.T) {
+		c := base()
+		c.Worker.ServerURL = ""
+		if err := c.ValidateListeners(":5678"); err != nil {
+			t.Fatalf("an empty server_url was rejected at the server: %v", err)
+		}
+	})
+}
+
 // TestLoadServerConfigDefaultsWorkerAPIListen pins the secure default: a
 // deployment that configures nothing gets a loopback worker listener, not a
 // zero value that would bind everything or fail to bind at all.

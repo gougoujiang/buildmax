@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"time"
@@ -574,7 +575,54 @@ func (sc ServerConfig) ValidateListeners(publicAddr string) error {
 		return errors.New("worker.client_cert_file and worker.client_key_file must be set together for native mTLS, or neither")
 	}
 
+	if err := sc.validateWorkerURL(publicPort); err != nil {
+		return err
+	}
+
 	return nil
+}
+
+// validateWorkerURL checks the address workers are handed. An empty URL is left
+// to the worker to reject at run time; a set one must not be plaintext for a
+// k8s_job without an explicit opt-in, and must not point back at the public
+// listener. publicPort is the resolved public listener port.
+func (sc ServerConfig) validateWorkerURL(publicPort string) error {
+	raw := sc.Worker.ServerURL
+	if raw == "" {
+		return nil
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return fmt.Errorf("worker.server_url %q: %w", raw, err)
+	}
+	if u.Host == "" {
+		return fmt.Errorf("worker.server_url %q has no host", raw)
+	}
+
+	// Plaintext is a routing fact, not a confidential channel. A k8s_job over
+	// http must say so deliberately; .cluster.local is not evidence of privacy.
+	if u.Scheme == "http" && sc.Worker.RunMode == "k8s_job" && !sc.Worker.AllowInsecureHTTP {
+		return errors.New("worker.server_url uses http with run_mode k8s_job; set worker.allow_insecure_http to accept a plaintext control channel, or use https")
+	}
+
+	// A worker URL on the public listener would route worker calls to a mux that
+	// does not serve them. Only decidable for a loopback host, where the port is
+	// this same process; a DNS name may resolve anywhere.
+	if isLoopbackHost(u.Hostname()) && u.Port() == publicPort {
+		return fmt.Errorf("worker.server_url %q points at the public listener port %s; workers must reach the worker listener", raw, publicPort)
+	}
+	return nil
+}
+
+// isLoopbackHost reports whether host is a loopback name or address.
+func isLoopbackHost(host string) bool {
+	if host == "localhost" {
+		return true
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.IsLoopback()
+	}
+	return false
 }
 
 // listenPort extracts the port from a listen address such as ":5678",

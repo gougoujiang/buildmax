@@ -27,7 +27,11 @@ and single-listener embeddings; the server never uses it. CORS wraps only the
 public listener; request logging wraps both. On shutdown the public listener
 closes before the worker one, so a worker can still report while the public
 surface drains. The `Config.WorkerAddr`-empty case (used by handler tests)
-builds the worker handler but opens no second socket. See
+builds the worker handler but opens no second socket. When `Config.WorkerTLS`
+is set the worker listener serves HTTPS (`ListenAndServeTLS`); the public
+listener never carries TLS because it terminates at the Ingress. The worker
+side builds one `workerclient` HTTP client from its configured trust and uses
+it for every call back, managed inference included. See
 [design/worker-api-network-boundary.md](../../design/worker-api-network-boundary.md).
 
 ## Key Areas

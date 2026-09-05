@@ -857,10 +857,21 @@ internal Service. `worker.server_url` must point at that worker listener, not
 the public port — the public listener answers `404` for a worker route even
 with a valid run token. The two listeners must use different ports, and the
 server refuses to start if they collide or if only half a TLS keypair is set.
-TLS on the worker listener and the Kubernetes Service and NetworkPolicy that
-complete the boundary are described in
-[design/worker-api-network-boundary.md](../design/worker-api-network-boundary.md);
-this release ships the listener split and its configuration.
+
+Set `worker_api.tls.cert_file` and `key_file` to serve the worker listener over
+TLS; its certificate must carry the internal Service DNS name a worker verifies.
+A worker builds one HTTP client from `worker.server_ca_file` (or the system
+roots when empty) and verifies the server against it on every call — there is no
+insecure-skip mode, so a wrong hostname or a certificate outside that CA is
+rejected. Plain HTTP stays available for `local_process`, Compose, and kind
+development; a `k8s_job` whose `server_url` is `http://` is refused at startup
+unless `worker.allow_insecure_http` is set, because `.cluster.local` and
+loopback are routing facts, not evidence a network is confidential. Setting
+`worker_api.tls.client_ca_file` (and the worker's `client_cert_file` /
+`client_key_file`) turns on optional native mTLS in addition to the run token.
+The Kubernetes Service, NetworkPolicy, and CA mount that complete the boundary
+are still being built; see
+[design/worker-api-network-boundary.md](../design/worker-api-network-boundary.md).
 
 `storage.max_artifact_mb` caps one artifact upload. It defaults to **0**, which
 uses the built-in 100 MB limit. It is a per-file limit rather than a team

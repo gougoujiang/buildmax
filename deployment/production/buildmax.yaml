@@ -86,7 +86,14 @@ data:
       run_mode: k8s_job
       # In-cluster address of the Service below. Workers call the server's
       # worker API; they never reach the database.
+      #
+      # STOPGAP: still the public HTTP port. The worker control API moved to its
+      # own listener (worker-api-network-boundary M1); M3 adds the
+      # buildmax-worker-api Service and TLS and switches this to
+      # https://buildmax-worker-api.buildmax.svc.cluster.local:5679, dropping
+      # allow_insecure_http. Until then k8s worker execution is not wired.
       server_url: http://buildmax.buildmax.svc.cluster.local:5678
+      allow_insecure_http: true
       k8s:
         namespace: buildmax
         image: REPLACE_ME_IMAGE

@@ -28,12 +28,15 @@ policy](agent-sandbox-policy.md), [Graceful shutdown](graceful-shutdown.md), and
 ## 1. Status
 
 - roadmap_priority: `R0` — contain unattended worker execution
-- status: in progress. M1 has shipped — the worker control API is served on a
-  second in-process listener with its own mux, fail-closed listener
-  configuration, and the route-boundary tests. M2 (worker-listener TLS and an
-  explicit worker HTTP client), M3 (the internal Service and `NetworkPolicy`),
-  M4 (route lifecycle authorization), and M5 (deployment evidence) remain
-  planned; no TLS, Service, or `NetworkPolicy` change described here has shipped.
+- status: in progress. M1 and M2 have shipped — the worker control API is
+  served on a second in-process listener with its own mux and fail-closed
+  configuration (M1), and that listener now speaks TLS while the worker reaches
+  it through one explicit HTTP client built from the configured trust, with an
+  http `k8s_job` URL refused unless opted into (M2). M3 (the internal Service,
+  `NetworkPolicy`, and the CA mount into worker Jobs), M4 (route lifecycle
+  authorization), and M5 (deployment evidence) remain planned; no Service or
+  `NetworkPolicy` change described here has shipped, and the reference k8s
+  manifests still reach the worker API over the public HTTP port pending M3.
 - decision_date: `2026-09-05`
 - scope: isolate the Server's worker control channel from its public HTTP
   surface and authenticate its transport
@@ -477,7 +480,7 @@ Acceptance: a valid run token cannot reach a worker handler through the public
 listener, and a valid user token cannot reach a public handler through the
 worker listener.
 
-### M2. TLS And Worker Client Trust
+### M2. TLS And Worker Client Trust — shipped (CA mount into Jobs is M3)
 
 - Add native TLS to the worker listener.
 - Give `workerclient` an explicit, reusable HTTP client built from the configured

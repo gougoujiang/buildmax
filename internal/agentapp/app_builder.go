@@ -164,12 +164,13 @@ func buildAgentApp(cfg AppConfig, resolved resolvedAgentAppConfig) (_ *AgentApp,
 	}()
 
 	app.llmClients = &LLMClientCache{
-		settings:         app.settings,
-		managedServerURL: cfg.ManagedServerURL,
-		managedToken:     cfg.ManagedToken,
-		managedTaskRunID: cfg.ManagedTaskRunID,
-		surface:          cfg.Surface,
-		clients:          make(map[string]cllm.LLMClient),
+		settings:          app.settings,
+		managedServerURL:  cfg.ManagedServerURL,
+		managedToken:      cfg.ManagedToken,
+		managedTaskRunID:  cfg.ManagedTaskRunID,
+		managedHTTPClient: cfg.ManagedHTTPClient,
+		surface:           cfg.Surface,
+		clients:           make(map[string]cllm.LLMClient),
 	}
 	if cfg.EnableMCP {
 		mcpResolution, resolveErr := config.ResolveMCPConfig(app.workspace.Root(), resolved.loadedPlugins)

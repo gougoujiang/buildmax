@@ -99,6 +99,21 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		slog.Error("server_url not set in server.yaml")
 		return fmt.Errorf("worker.server_url is required in server.yaml")
 	}
+
+	// One reusable client for every call back to the server, built from the
+	// configured trust rather than http.DefaultClient. An unreadable CA fails
+	// here rather than at the first HTTPS handshake. A plain-HTTP server_url
+	// never exercises the TLS config. See
+	// docs/design/worker-api-network-boundary.md §6.
+	httpClient, err := workerclient.NewHTTPClient(workerclient.TLSClientOptions{
+		CAFile:         sc.Worker.ServerCAFile,
+		ClientCertFile: sc.Worker.ClientCertFile,
+		ClientKeyFile:  sc.Worker.ClientKeyFile,
+	})
+	if err != nil {
+		slog.Error("worker TLS client", "err", err)
+		return fmt.Errorf("worker TLS client: %w", err)
+	}
 	workspacesDir := sc.WorkspacesDir
 	if workspacesDir == "" {
 		slog.Error("workspaces_dir not set in server.yaml")
@@ -123,7 +138,7 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		return fmt.Errorf("this run was dispatched without %s", config.EnvKeyBuildmaxRunToken)
 	}
 
-	fetched, err := workerclient.GetWorkerTaskRun(ctx, workerclient.WorkerAPIClientConfig{BaseURL: serverURL, Token: runToken}, taskRunID)
+	fetched, err := workerclient.GetWorkerTaskRun(ctx, workerclient.WorkerAPIClientConfig{BaseURL: serverURL, Token: runToken, Client: httpClient}, taskRunID)
 	if err != nil {
 		slog.Error("get run failed", "err", err)
 		return fmt.Errorf("get run: %w", err)
@@ -146,8 +161,8 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		slog.Error("run not in SCHEDULED status", "status", run.Status)
 		return fmt.Errorf("%w (status=%s)", ErrAlreadyClaimed, run.Status)
 	}
-	apiCfg := workerclient.WorkerAPIClientConfig{BaseURL: serverURL, Token: runToken}
-	updater := &workerclient.WorkerHTTPUpdater{BaseURL: serverURL, Token: runToken}
+	apiCfg := workerclient.WorkerAPIClientConfig{BaseURL: serverURL, Token: runToken, Client: httpClient}
+	updater := &workerclient.WorkerHTTPUpdater{BaseURL: serverURL, Token: runToken, Client: httpClient}
 	// A cancel that landed between dispatch and now: the run is over before it
 	// starts, and nothing below needs to be built for it.
 	if fetched.CancelRequested {
@@ -217,7 +232,7 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 	}
 
 	paths := taskrun.NewRuntimePathsFromRoot(workspacesDir)
-	httpSender := &workerclient.WorkerHTTPStreamSender{BaseURL: serverURL, Token: runToken}
+	httpSender := &workerclient.WorkerHTTPStreamSender{BaseURL: serverURL, Token: runToken, Client: httpClient}
 	streamSender := &workerclient.DebouncedStreamSender{Inner: httpSender}
 
 	// The run's own context, so both ways it can be stopped reach the agent loop
@@ -245,6 +260,7 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		StreamSender:           streamSender,
 		Model:                  runtimeModel,
 		Managed:                managed,
+		ManagedHTTPClient:      httpClient,
 		WorkerAPI:              apiCfg,
 		AdditionalSystemPrompt: fetched.AgentInstructions,
 		Plugins:                fetched.Plugins,

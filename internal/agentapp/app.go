@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/gougoujiang/buildmax/internal/core/subagent"
 	"log/slog"
+	"net/http"
 	"sync"
 	"time"
 
@@ -93,6 +94,11 @@ type AppConfig struct {
 	// inference, and such an entry fails with a clear error instead of falling
 	// back to a direct provider call.
 	ManagedToken ManagedTokenFunc
+	// ManagedHTTPClient is the HTTP client managed inference uses to reach the
+	// gateway. Nil uses http.DefaultClient. A worker sets it to the client that
+	// carries its server trust, so managed calls verify the worker listener the
+	// same way its other calls do.
+	ManagedHTTPClient *http.Client
 	// ManagedTaskRunID makes managed calls from this app run-scoped: they go to
 	// the worker route, carrying a run token instead of a login, and the server
 	// derives user and team from it. Empty means managed calls are team-scoped,
@@ -323,6 +329,9 @@ type LLMClientCache struct {
 	// managedTaskRunID scopes managed calls to one task run, which sends them to
 	// the worker route. Empty means they carry the user's own login.
 	managedTaskRunID string
+	// managedHTTPClient carries the caller's server trust to managed inference.
+	// Nil uses http.DefaultClient.
+	managedHTTPClient *http.Client
 	// surface labels managed calls for correlation only.
 	surface string
 	mu      sync.Mutex
@@ -1404,6 +1413,7 @@ func (r *LLMClientCache) build(cfg ModelConfig) (cllm.LLMClient, error) {
 			ContextWindow: cfg.ContextWindow,
 			Surface:       r.surface,
 			CallTimeout:   time.Duration(cfg.CallTimeout) * time.Second,
+			HTTPClient:    r.managedHTTPClient,
 		}), nil
 	}
 

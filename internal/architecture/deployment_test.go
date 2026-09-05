@@ -7,6 +7,7 @@ package architecture_test
 // noticing. These tests close that gap.
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,6 +18,21 @@ import (
 	"github.com/gougoujiang/buildmax/internal/config"
 	"github.com/gougoujiang/buildmax/internal/infra/k8s"
 )
+
+// assertListenersValid fails when a shipped server.yaml would refuse to start
+// because of the two-listener rules — a port collision, half a TLS keypair, or
+// a k8s_job over plaintext http without the explicit opt-in. A manifest that
+// merely parses is not one the server would actually boot from.
+func assertListenersValid(t *testing.T, cfg config.ServerConfig) {
+	t.Helper()
+	port := cfg.Port
+	if port == 0 {
+		port = 5678
+	}
+	if err := cfg.ValidateListeners(fmt.Sprintf(":%d", port)); err != nil {
+		t.Errorf("shipped config would refuse startup: %v", err)
+	}
+}
 
 // assertWorkerBoundsHold fails when a k8s_job manifest names resource bounds the
 // runner would refuse, or leaves one out.
@@ -136,6 +152,7 @@ func TestDeploymentConfigMapLoads(t *testing.T) {
 		t.Error("worker.run_mode is k8s_job but worker.k8s.config_map is empty; worker pods would get no server.yaml")
 	}
 	assertWorkerBoundsHold(t, cfg)
+	assertListenersValid(t, cfg)
 }
 
 // TestDeploymentConfigMapCarriesNoSecrets keeps credentials out of the ConfigMap.
@@ -235,6 +252,7 @@ func TestDeploymentSmokeConfigsLoadWithoutSecrets(t *testing.T) {
 				t.Error("smoke server config contains credentials; inject them at runtime")
 			}
 			assertWorkerBoundsHold(t, cfg)
+			assertListenersValid(t, cfg)
 		})
 	}
 }
@@ -289,6 +307,7 @@ func TestProductionReferenceLoads(t *testing.T) {
 	// operator copies, so an unbounded worker here becomes an unbounded worker
 	// in every deployment adapted from it.
 	assertWorkerBoundsHold(t, cfg)
+	assertListenersValid(t, cfg)
 }
 
 // TestProductionReferenceRefusesToRunUnedited asserts the file cannot be
