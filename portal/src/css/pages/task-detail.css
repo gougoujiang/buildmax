@@ -407,3 +407,105 @@
   gap: 0.4rem;
   flex-wrap: wrap;
 }
+
+/* Task details: a dialog opened from the header's Details button, summarising
+   this task (agent, timing, origin) with trace/files entry points. One place,
+   not a control under every message, and off the conversation area. */
+.task-details__kv {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.45rem 1rem;
+  margin: 0;
+  align-items: baseline;
+}
+
+.task-details__kv dt {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.task-details__kv dd {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.task-details__mono {
+  font-family: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
+  font-size: 0.72rem !important;
+  color: var(--color-text-subtle) !important;
+}
+
+.task-details__link {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--color-link);
+  cursor: pointer;
+  text-align: left;
+}
+
+.task-details__link:hover {
+  text-decoration: underline;
+}
+
+.task-details__actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-top: 0.85rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.page-activity__action-btn--sm {
+  padding: 0.25rem 0.55rem;
+  font-size: 0.78rem;
+}
+
+/* Working indicator: three dots that bounce while a run is in flight, standing
+   in for the raw pending/scheduled/running status. */
+.typing-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  height: 1.2em;
+  padding: 0.15rem 0;
+}
+
+.typing-dots span {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 50%;
+  background: var(--color-text-subtle);
+  animation: typing-bounce 1.2s infinite ease-in-out;
+}
+
+.typing-dots span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.typing-dots span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes typing-bounce {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.35;
+  }
+  30% {
+    transform: translateY(-0.28rem);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .typing-dots span {
+    animation: none;
+    opacity: 0.6;
+  }
+}

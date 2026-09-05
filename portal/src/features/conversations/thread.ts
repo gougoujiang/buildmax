@@ -21,6 +21,33 @@ export function taskRunFailed(status: string): boolean {
   return normalized === "FAILED" || normalized === "CANCELED"
 }
 
+/** A run's coarse tone for status chips: still going, finished ok, or failed. */
+export function runStatusTone(status: string): "running" | "done" | "failed" {
+  if (!taskRunFinished(status)) return "running"
+  return taskRunFailed(status) ? "failed" : "done"
+}
+
+/** The human label for a run status, in the server's own vocabulary. */
+export function runStatusLabel(status: string): string {
+  switch (status.toUpperCase()) {
+    case "PENDING":
+      return "Queued"
+    case "SCHEDULED":
+      return "Starting"
+    case "RUNNING":
+      return "Running"
+    case "SUCCEEDED":
+    case "SUCCESS":
+      return "Done"
+    case "FAILED":
+      return "Failed"
+    case "CANCELED":
+      return "Stopped"
+    default:
+      return status
+  }
+}
+
 /**
  * Order the transcript and the conversation's task cards into one list.
  *

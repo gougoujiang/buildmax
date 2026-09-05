@@ -35,6 +35,7 @@ export type Route =
   | { name: "conversations" }
   | { name: "explore" }
   | { name: "agents" }
+  | { name: "agent"; agentId: string }
   | {
       name: "account"
       section?: "general" | "usage" | "webhook" | "plugins" | "invitations"
@@ -51,6 +52,12 @@ export type Route =
   | { name: "issue"; issueId: string }
   | { name: "artifacts" }
   | { name: "artifact"; artifactId: string }
+
+/** One breadcrumb segment: a label and the route it links to. */
+export interface BreadcrumbCrumb {
+  label: string
+  route: Route
+}
 
 // --- Agent (user-owned persona) ---
 

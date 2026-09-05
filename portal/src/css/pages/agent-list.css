@@ -28,6 +28,8 @@
   transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
   position: relative;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .agent-card::before {
@@ -202,4 +204,182 @@
 .agent-plugins__note {
   font-size: 0.78rem;
   color: var(--color-text-subtle);
+}
+
+/* ---- Overview (Phase 2): KPI strip, split layout, activity feed ---- */
+
+.agent-kpis {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.agent-kpi {
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-bg-elevated);
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.agent-kpi__label {
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+}
+
+.agent-kpi__value {
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+}
+
+.agent-home {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 1.5rem;
+  align-items: start;
+  margin-top: 1.5rem;
+}
+
+/* Inside the split the grid supplies the top gap. */
+.agent-home .agent-list {
+  margin-top: 0;
+}
+
+/* Card footer: run count + quick Run, pinned to the bottom edge. */
+.agent-card__foot {
+  margin-top: auto;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.agent-card__stat {
+  font-size: 0.75rem;
+  color: var(--color-text-subtle);
+  font-family: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
+}
+
+.agent-card__running {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-text-subtle);
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+}
+
+.agent-activity {
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-bg-elevated);
+  overflow: hidden;
+}
+
+.agent-activity__title {
+  margin: 0;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.agent-activity__feed {
+  display: flex;
+  flex-direction: column;
+}
+
+.agent-activity__row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.65rem 1rem;
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  background: none;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.agent-activity__row:last-child {
+  border-bottom: none;
+}
+
+.agent-activity__row:hover {
+  background: var(--color-bg-muted);
+}
+
+.agent-activity__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.agent-activity__row-title {
+  font-size: 0.82rem;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agent-activity__row-sub {
+  font-size: 0.72rem;
+  color: var(--color-text-subtle);
+}
+
+.agent-activity__status {
+  flex-shrink: 0;
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-muted);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.agent-activity__status--running {
+  color: var(--color-text);
+  border-color: var(--color-text-subtle);
+}
+
+.agent-activity__status--failed {
+  color: var(--color-text);
+  border-color: var(--color-text);
+  background: var(--color-bg-hover);
+}
+
+.agent-activity__time {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  color: var(--color-text-subtle);
+  font-family: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .agent-home {
+    grid-template-columns: 1fr;
+  }
+  .agent-kpis {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }

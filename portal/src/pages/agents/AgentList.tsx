@@ -1,28 +1,19 @@
-import { useCallback, useEffect, useState } from "react"
-import type { Agent, AgentRevision } from "../../lib/types"
-import type { ApiSecret } from "../../lib/api/types"
-import type { ApiTask } from "../../lib/api/types"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import type { Agent } from "../../lib/types"
+import type { ApiSecret, ApiTask } from "../../lib/api/types"
 import { listSecrets } from "../../features/teamSecrets/api"
 import { listActivations } from "../../features/teamPlugins/api"
 import { listPlugins } from "../../features/plugins/api"
 import { nameablePlugins } from "../../features/plugins/nameablePlugins"
 import { navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
-import { apiAgentToAgent, apiAgentRevisionToAgentRevision } from "../../lib/api/mappers"
+import { apiAgentToAgent, apiTaskToTask } from "../../lib/api/mappers"
 import { createAgentTask, listAgentTasks } from "../../features/tasks"
-import {
-  getAgents,
-  createAgent,
-  updateAgent,
-  deleteAgent,
-  getAgentRevisions,
-  restoreAgentRevision,
-} from "../../features/agents"
+import { getAgents, createAgent } from "../../features/agents"
+import { runStatusLabel, runStatusTone, taskRunFailed, taskRunFinished } from "../../features/conversations/thread"
 import { AgentAvatar } from "../../components/UserAvatar"
 import { CreateAgentModal } from "../../components/CreateAgentModal"
-import { EditAgentModal } from "../../components/EditAgentModal"
 import { consumptionHealthCount } from "../../components/SecretConsumptionEditor"
-import { RevisionHistory } from "../../components/RevisionHistory"
 import { RunAgentModal } from "../../components/RunAgentModal"
 import { useTeam } from "../../contexts/TeamContext"
 
@@ -35,22 +26,13 @@ export function AgentList({ token }: AgentListProps) {
   const [agents, setAgents] = useState<Agent[]>([])
   const [secrets, setSecrets] = useState<ApiSecret[]>([])
   const [availablePlugins, setAvailablePlugins] = useState<string[]>([])
+  const [tasksByAgent, setTasksByAgent] = useState<Record<string, ApiTask[]>>({})
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
   const [creating, setCreating] = useState(false)
-  const [editingAgent, setEditingAgent] = useState<Agent | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [deleting, setDeleting] = useState(false)
   const [newTaskAgent, setNewTaskAgent] = useState<Agent | null>(null)
   const [startingTaskAgentId, setStartingTaskAgentId] = useState<string | null>(null)
-  const [historyAgent, setHistoryAgent] = useState<Agent | null>(null)
-  const [historyTasks, setHistoryTasks] = useState<ApiTask[]>([])
-  const [historyLoading, setHistoryLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [revisions, setRevisions] = useState<AgentRevision[]>([])
-  const [revisionsLoading, setRevisionsLoading] = useState(false)
-  const [revisionsError, setRevisionsError] = useState<string | null>(null)
-  const [restoringRevision, setRestoringRevision] = useState<number | null>(null)
   const canManageAgents = currentUserRole === "owner" || currentUserRole === "admin"
 
   const fetchAgents = useCallback(() => {
@@ -67,10 +49,9 @@ export function AgentList({ token }: AgentListProps) {
       .finally(() => setLoading(false))
   }, [token, currentTeamId])
 
-  // The team's secrets, to populate the consumption editor. Owner-or-admin may
-  // list them; a member editing nothing here never reaches this page's manage
-  // controls. A failure leaves the editor with no options rather than blocking
-  // agent editing.
+  // The team's secrets, to populate the create dialog's consumption editor and
+  // flag broken grants on the cards and overview. Owner-or-admin may list them;
+  // a failure leaves the editor with no options rather than blocking the page.
   useEffect(() => {
     if (!token || !currentTeamId || !canManageAgents) {
       setSecrets([])
@@ -81,10 +62,9 @@ export function AgentList({ token }: AgentListProps) {
       .catch(() => setSecrets([]))
   }, [token, currentTeamId, canManageAgents])
 
-  // The plugin names an agent in this team may name, for the plugins picker.
-  // Curation and the catalog together decide the set (see nameablePlugins); a
-  // deployment without a Marketplace, or a failed request, leaves it empty and
-  // the picker shows its empty state rather than blocking agent editing.
+  // The plugin names an agent in this team may name, for the create dialog's
+  // plugins picker. A deployment without a Marketplace, or a failed request,
+  // leaves it empty and the picker shows its empty state.
   useEffect(() => {
     if (!token || !currentTeamId || !canManageAgents) {
       setAvailablePlugins([])
@@ -104,40 +84,60 @@ export function AgentList({ token }: AgentListProps) {
     fetchAgents()
   }, [fetchAgents])
 
-  const loadRevisions = useCallback(
-    (agentId: string) => {
-      if (!token || !currentTeamId) return
-      setRevisionsLoading(true)
-      setRevisionsError(null)
-      getAgentRevisions(currentTeamId, agentId, token)
-        .then((res) => setRevisions(res.revisions.map(apiAgentRevisionToAgentRevision)))
-        .catch((err) => setRevisionsError(getErrorMessage(err, "Failed to load history")))
-        .finally(() => setRevisionsLoading(false))
-    },
-    [token, currentTeamId],
-  )
-
+  // Runs per agent feed both the overview aggregates and each card's activity.
+  // There is no team-wide task endpoint, so this fans out one request per agent;
+  // each is independent and a failure leaves that agent with no runs rather than
+  // breaking the page. Tasks are stored newest-first for the "last run" label.
   useEffect(() => {
-    if (editingAgent == null) {
-      setRevisions([])
-      setRevisionsError(null)
+    if (!token || !currentTeamId || agents.length === 0) {
+      setTasksByAgent({})
       return
     }
-    loadRevisions(editingAgent.id)
-  }, [editingAgent, loadRevisions])
+    let cancelled = false
+    Promise.all(
+      agents.map((a) =>
+        listAgentTasks(currentTeamId, a.id, token)
+          .then((res) => [a.id, [...res.tasks].sort((x, y) => y.created_at.localeCompare(x.created_at))] as const)
+          .catch(() => [a.id, [] as ApiTask[]] as const),
+      ),
+    ).then((entries) => {
+      if (!cancelled) setTasksByAgent(Object.fromEntries(entries))
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [token, currentTeamId, agents])
 
-  function handleRestoreRevision(revision: number) {
-    if (!token || !currentTeamId || editingAgent == null) return
-    setRevisionsError(null)
-    setRestoringRevision(revision)
-    restoreAgentRevision(currentTeamId, editingAgent.id, revision, token)
-      .then((restored) => {
-        const mapped = apiAgentToAgent(restored)
-        setAgents((prev) => prev.map((a) => (a.id === mapped.id ? mapped : a)))
-        setEditingAgent(mapped)
-      })
-      .catch((err) => setRevisionsError(getErrorMessage(err, "Failed to restore revision")))
-      .finally(() => setRestoringRevision(null))
+  const allTasks = useMemo(
+    () => agents.flatMap((a) => (tasksByAgent[a.id] ?? []).map((task) => ({ task, agent: a }))),
+    [agents, tasksByAgent],
+  )
+
+  const stats = useMemo(() => {
+    const tasks = allTasks.map((x) => x.task)
+    const finished = tasks.filter((t) => taskRunFinished(t.status))
+    const failed = finished.filter((t) => taskRunFailed(t.status)).length
+    const succeeded = finished.length - failed
+    const running = tasks.filter((t) => !taskRunFinished(t.status)).length
+    const successRate = finished.length > 0 ? `${Math.round((succeeded / finished.length) * 100)}%` : "—"
+    const warnings = canManageAgents
+      ? agents.reduce((n, a) => n + consumptionHealthCount(a.secretConsumption, secrets), 0)
+      : 0
+    return { total: tasks.length, running, successRate, warnings }
+  }, [allTasks, agents, secrets, canManageAgents])
+
+  const recent = useMemo(
+    () => [...allTasks].sort((a, b) => b.task.created_at.localeCompare(a.task.created_at)).slice(0, 6),
+    [allTasks],
+  )
+
+  function agentMeta(agent: Agent) {
+    const ts = tasksByAgent[agent.id] ?? []
+    return {
+      count: ts.length,
+      running: ts.some((t) => !taskRunFinished(t.status)),
+      last: ts[0] ? apiTaskToTask(ts[0]).timeLabel : null,
+    }
   }
 
   function handleCreateAgent(values: {
@@ -154,47 +154,13 @@ export function AgentList({ token }: AgentListProps) {
     setCreating(true)
     createAgent(currentTeamId, values, token)
       .then((created) => {
-        setAgents((prev) => [...prev, apiAgentToAgent(created)])
+        const mapped = apiAgentToAgent(created)
+        setAgents((prev) => [...prev, mapped])
         setModalOpen(false)
+        navigate({ name: "agent", agentId: mapped.id })
       })
       .catch((err) => setError(getErrorMessage(err, "Failed to create agent")))
       .finally(() => setCreating(false))
-  }
-
-  function handleSaveAgent(values: {
-    name: string
-    description?: string
-    instructions?: string
-    plugins?: string[]
-    sandbox_network_tier?: string
-    sandbox_filesystem_tier?: string
-    secret_consumption?: import("../../lib/api/types").ApiSecretConsumption
-  }) {
-    if (!token || !currentTeamId || editingAgent == null) return
-    setError(null)
-    setSaving(true)
-    updateAgent(currentTeamId, editingAgent.id, values, token)
-      .then((updated) => {
-        setAgents((prev) =>
-          prev.map((a) => (a.id === editingAgent.id ? apiAgentToAgent(updated) : a))
-        )
-        setEditingAgent(null)
-      })
-      .catch((err) => setError(getErrorMessage(err, "Failed to update agent")))
-      .finally(() => setSaving(false))
-  }
-
-  function handleDeleteAgent() {
-    if (!token || !currentTeamId || editingAgent == null) return
-    setError(null)
-    setDeleting(true)
-    deleteAgent(currentTeamId, editingAgent.id, token)
-      .then(() => {
-        setAgents((prev) => prev.filter((a) => a.id !== editingAgent.id))
-        setEditingAgent(null)
-      })
-      .catch((err) => setError(getErrorMessage(err, "Failed to delete agent")))
-      .finally(() => setDeleting(false))
   }
 
   function handleOpenNewTaskModal(agent: Agent) {
@@ -217,16 +183,13 @@ export function AgentList({ token }: AgentListProps) {
       .finally(() => setStartingTaskAgentId(null))
   }
 
-  function handleShowHistory(agent: Agent) {
-    if (!token || !currentTeamId) return
-    setHistoryAgent(agent)
-    setHistoryLoading(true)
-    setError(null)
-    listAgentTasks(currentTeamId, agent.id, token)
-      .then((response) => setHistoryTasks(response.tasks))
-      .catch((err) => setError(getErrorMessage(err, "Failed to load execution history")))
-      .finally(() => setHistoryLoading(false))
-  }
+  const kpis: { label: string; value: string | number; show: boolean }[] = [
+    { label: "Agents", value: agents.length, show: true },
+    { label: "Running now", value: stats.running, show: true },
+    { label: "Total runs", value: stats.total, show: true },
+    { label: "Success rate", value: stats.successRate, show: true },
+    { label: "Config warnings", value: stats.warnings, show: canManageAgents },
+  ]
 
   return (
     <div className="page-activity">
@@ -254,122 +217,134 @@ export function AgentList({ token }: AgentListProps) {
         </div>
       </div>
 
+      {error ? <p className="page-activity__empty">{error}</p> : null}
+
       {!canManageAgents ? (
         <p className="page-activity__empty">
           You can start conversations with team agents, but only team owners and admins can create or edit them.
         </p>
       ) : null}
 
-      <section className="agent-list">
-        {loading ? (
-          <p className="page-activity__empty">Loading…</p>
-        ) : agents.length === 0 ? (
-          <p className="page-activity__empty agent-list__empty">
-            {canManageAgents
-              ? "No agents yet. Click \"Create agent\" to add one."
-              : "No agents are available in this team yet. Team owners and admins can add one when you're ready to share a reusable agent."}
-          </p>
-        ) : (
-          <div className="agent-list__grid">
-            {agents.map((a) => (
-              <article
-                key={a.id}
-                className="agent-card"
-                role="button"
-                tabIndex={0}
-                aria-label={canManageAgents ? `Edit agent ${a.name}` : `${a.name}`}
-                onClick={() => {
-                  if (!canManageAgents) return
-                  setError(null)
-                  setEditingAgent(a)
-                }}
-                onKeyDown={(e) => {
-                  if (!canManageAgents) return
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault()
-                    setError(null)
-                    setEditingAgent(a)
-                  }
-                }}
-              >
-                <header className="agent-card__header">
-                  <AgentAvatar size="md" className="agent-card__avatar" />
-                  <div className="agent-card__title-row">
-                    <h3 className="agent-card__name">{a.name}</h3>
-                    {canManageAgents ? <span className="agent-card__edit-hint" aria-hidden>Edit</span> : null}
-                  </div>
-                </header>
-                {a.description ? (
-                  <p className="agent-card__description">{a.description}</p>
-                ) : null}
-                {canManageAgents && consumptionHealthCount(a.secretConsumption, secrets) > 0 ? (
-                  <p className="agent-card__secret-warning" role="alert">
-                    ⚠ {consumptionHealthCount(a.secretConsumption, secrets)} secret grant
-                    {consumptionHealthCount(a.secretConsumption, secrets) === 1 ? "" : "s"} no longer
-                    resolve. Edit the agent to fix.
-                  </p>
-                ) : null}
-                {a.instructions ? (
-                  <div className="agent-card__instructions-wrap">
-                    <span className="agent-card__instructions-label">Instructions</span>
-                    <p className="agent-card__instructions" title={a.instructions}>
-                      {a.instructions}
-                    </p>
-                  </div>
-                ) : null}
-                <div className="agent-card__actions">
-                  <button
-                    type="button"
-                    className="agent-card__new-task-btn"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleShowHistory(a)
-                    }}
-                    disabled={!token}
-                  >
-                    History
-                  </button>
-                  <button
-                    type="button"
-                    className="agent-card__new-task-btn"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      handleOpenNewTaskModal(a)
-                    }}
-                    disabled={!token}
-                    aria-label={`Run ${a.name}`}
-                  >
-                    Run Agent
-                  </button>
-                </div>
-              </article>
+      {!loading && agents.length > 0 ? (
+        <div className="agent-kpis">
+          {kpis
+            .filter((k) => k.show)
+            .map((k) => (
+              <div key={k.label} className="agent-kpi">
+                <span className="agent-kpi__label">{k.label}</span>
+                <span className="agent-kpi__value">{k.value}</span>
+              </div>
             ))}
-          </div>
-        )}
-      </section>
+        </div>
+      ) : null}
 
-      {historyAgent ? (
-        <section className="page-activity__section" aria-label={`${historyAgent.name} execution history`}>
-          <div className="page-activity__head">
-            <div>
-              <h2 className="page-activity__title">{historyAgent.name} history</h2>
-              <p className="page-activity__subtitle">Each item is a durable Task thread.</p>
-            </div>
-          </div>
-          {historyLoading ? <p className="page-activity__empty">Loading…</p> : historyTasks.length === 0 ? (
-            <p className="page-activity__empty">No executions yet.</p>
+      <div className="agent-home">
+        <section className="agent-list">
+          {loading ? (
+            <p className="page-activity__empty">Loading…</p>
+          ) : agents.length === 0 ? (
+            <p className="page-activity__empty agent-list__empty">
+              {canManageAgents
+                ? "No agents yet. Click \"Create agent\" to add one."
+                : "No agents are available in this team yet. Team owners and admins can add one when you're ready to share a reusable agent."}
+            </p>
           ) : (
             <div className="agent-list__grid">
-              {historyTasks.map((task) => (
-                <button key={task.id} type="button" className="agent-card" onClick={() => navigate({ name: "task", taskId: task.id })}>
-                  <strong>{task.title || task.input}</strong>
-                  <span className="page-activity__meta">{task.status.toLowerCase()}</span>
-                </button>
-              ))}
+              {agents.map((a) => {
+                const meta = agentMeta(a)
+                return (
+                  <article
+                    key={a.id}
+                    className="agent-card"
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Open agent ${a.name}`}
+                    onClick={() => navigate({ name: "agent", agentId: a.id })}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault()
+                        navigate({ name: "agent", agentId: a.id })
+                      }
+                    }}
+                  >
+                    <header className="agent-card__header">
+                      <AgentAvatar size="md" className="agent-card__avatar" />
+                      <div className="agent-card__title-row">
+                        <h3 className="agent-card__name">{a.name}</h3>
+                        {meta.running ? (
+                          <span className="agent-card__running">running</span>
+                        ) : (
+                          <span className="agent-card__edit-hint" aria-hidden>Open</span>
+                        )}
+                      </div>
+                    </header>
+                    {a.description ? (
+                      <p className="agent-card__description">{a.description}</p>
+                    ) : null}
+                    {canManageAgents && consumptionHealthCount(a.secretConsumption, secrets) > 0 ? (
+                      <p className="agent-card__secret-warning" role="alert">
+                        ⚠ {consumptionHealthCount(a.secretConsumption, secrets)} secret grant
+                        {consumptionHealthCount(a.secretConsumption, secrets) === 1 ? "" : "s"} no longer
+                        resolve. Open the agent to fix.
+                      </p>
+                    ) : null}
+                    <div className="agent-card__foot">
+                      <span className="agent-card__stat">
+                        {meta.count} run{meta.count === 1 ? "" : "s"}
+                        {meta.last ? ` · last ${meta.last}` : ""}
+                      </span>
+                      <button
+                        type="button"
+                        className="agent-card__new-task-btn"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleOpenNewTaskModal(a)
+                        }}
+                        disabled={!token}
+                        aria-label={`Run ${a.name}`}
+                      >
+                        Run
+                      </button>
+                    </div>
+                  </article>
+                )
+              })}
             </div>
           )}
         </section>
-      ) : null}
+
+        {!loading && agents.length > 0 ? (
+          <aside className="agent-activity">
+            <h2 className="agent-activity__title">Recent activity</h2>
+            {recent.length === 0 ? (
+              <p className="page-activity__empty">No runs yet.</p>
+            ) : (
+              <div className="agent-activity__feed">
+                {recent.map(({ task, agent }) => {
+                  const ui = apiTaskToTask(task)
+                  return (
+                    <button
+                      key={task.id}
+                      type="button"
+                      className="agent-activity__row"
+                      onClick={() => navigate({ name: "task", taskId: task.id })}
+                    >
+                      <div className="agent-activity__body">
+                        <span className="agent-activity__row-title">{ui.title}</span>
+                        <span className="agent-activity__row-sub">{agent.name}</span>
+                      </div>
+                      <span className={`agent-activity__status agent-activity__status--${runStatusTone(task.status)}`}>
+                        {runStatusLabel(task.status)}
+                      </span>
+                      <span className="agent-activity__time">{ui.timeLabel}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </aside>
+        ) : null}
+      </div>
 
       <CreateAgentModal
         open={modalOpen}
@@ -382,40 +357,6 @@ export function AgentList({ token }: AgentListProps) {
           setError(null)
         }}
         onCreate={handleCreateAgent}
-      />
-
-      <EditAgentModal
-        open={editingAgent != null}
-        agent={editingAgent}
-        secrets={secrets}
-        availablePlugins={availablePlugins}
-        loading={saving}
-        error={error}
-        deleting={deleting}
-        onClose={() => {
-          setEditingAgent(null)
-          setError(null)
-        }}
-        onSave={handleSaveAgent}
-        onDelete={handleDeleteAgent}
-        history={
-          <RevisionHistory
-            title="History"
-            entries={revisions.map((rev) => ({
-              id: rev.id,
-              revision: rev.revision,
-              createdBy: rev.createdBy,
-              createdLabel: rev.createdLabel,
-              summary: rev.instructions,
-            }))}
-            currentRevision={editingAgent?.revision ?? 0}
-            loading={revisionsLoading}
-            error={revisionsError}
-            canRestore={canManageAgents}
-            restoringRevision={restoringRevision}
-            onRestore={handleRestoreRevision}
-          />
-        }
       />
 
       <RunAgentModal

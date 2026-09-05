@@ -15,6 +15,13 @@ export async function getAgents(teamId: string, token: string): Promise<ApiAgent
   return requestJson<ApiAgent[]>(`${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/agents`, { headers: authHeaders(token) })
 }
 
+export async function getAgent(teamId: string, agentId: string, token: string): Promise<ApiAgent> {
+  return requestJson<ApiAgent>(
+    `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/agents/${encodeURIComponent(agentId)}`,
+    { headers: authHeaders(token) },
+  )
+}
+
 export async function createAgent(
   teamId: string,
   body: {

@@ -30,5 +30,6 @@
 }
 
 .breadcrumbs__current {
-  color: var(--color-text-muted);
+  color: var(--color-text);
+  font-weight: 600;
 }

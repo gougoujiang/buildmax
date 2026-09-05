@@ -35,7 +35,7 @@ interface SidebarProps {
 }
 
 function isAgentsActive(route: Route): boolean {
-  return route.name === "agents"
+  return route.name === "agents" || route.name === "agent"
 }
 
 function isIssuesActive(route: Route): boolean {
