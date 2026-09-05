@@ -87,57 +87,102 @@ func printPathHint(dir string) {
 	fmt.Println("Then start a new terminal session, or source the file you edited.")
 }
 
-// cmdKindReload builds the server and Portal images, loads them into the local
-// kind cluster — which has no registry to pull from — and restarts the running
-// deployments so a code change takes effect. Loading an image under the fixed
-// :local tag does not by itself replace a running pod, so without the restart
-// the new code would sit on the node unused; that gap made a bare image load
-// the wrong default for the local development loop.
-func cmdKindReload() error {
+// kindImage is one image ./make kind builds locally and loads into the kind
+// cluster, which has no registry to pull from.
+type kindImage struct {
+	tag        string
+	dockerfile string
+}
+
+var (
+	kindImageServer = kindImage{"buildmax:local", filepath.Join("deployment", "docker", "Dockerfile.buildmax")}
+	kindImagePortal = kindImage{"buildmax-portal:local", filepath.Join("deployment", "docker", "Dockerfile.portal")}
+	kindImageSmoke  = kindImage{"buildmax-smoke-llm:local", "deployment/smoke/mock-llm/Dockerfile"}
+)
+
+// kindReloadService maps a `kind reload <service>` name to the deployment it
+// restarts and the image that deployment runs.
+type kindReloadService struct {
+	name       string
+	deployment string
+	image      kindImage
+}
+
+// kindReloadServices only lists the two services this cluster runs as
+// Deployments; the worker still runs as an ad-hoc Job, so there is no
+// deployment for `reload` to restart.
+var kindReloadServices = []kindReloadService{
+	{"server", "buildmax-server", kindImageServer},
+	{"portal", "buildmax-portal", kindImagePortal},
+}
+
+func kindReloadServiceNames() []string {
+	names := make([]string, len(kindReloadServices))
+	for i, svc := range kindReloadServices {
+		names[i] = svc.name
+	}
+	return names
+}
+
+// cmdKindReload builds and loads the image for one service, or both when none
+// is named, then restarts the matching deployment so a code change takes
+// effect. Loading an image under the fixed :local tag does not by itself
+// replace a running pod, so without the restart the new code would sit on the
+// node unused; that gap made a bare image load the wrong default for the
+// local development loop.
+func cmdKindReload(args []string) error {
+	if len(args) > 1 {
+		return usageErrorf("kind", "reload takes at most one service name (%s)", strings.Join(kindReloadServiceNames(), " or "))
+	}
+	services := kindReloadServices
+	if len(args) == 1 {
+		found := false
+		for _, svc := range kindReloadServices {
+			if svc.name == args[0] {
+				services = []kindReloadService{svc}
+				found = true
+				break
+			}
+		}
+		if !found {
+			return usageErrorf("kind", "unknown service %q for reload; want %s", args[0], strings.Join(kindReloadServiceNames(), " or "))
+		}
+	}
+
 	cluster := kindClusterName()
-	if err := buildAndLoadKindImages(cluster, false); err != nil {
+	images := make([]kindImage, len(services))
+	for i, svc := range services {
+		images[i] = svc.image
+	}
+	if err := buildAndLoadKindImages(cluster, images); err != nil {
 		return err
 	}
-	// The two deployments whose images this just rebuilt. A restart on a
-	// deployment that does not exist yet is an error, not a no-op, so skip the
-	// missing ones: a cluster that is up but not yet deployed (a manual non-smoke
-	// apply is still pending) will pick up the loaded image when its pods are
-	// first created, and needs no restart.
-	for _, deployment := range []string{"buildmax-server", "buildmax-portal"} {
-		if !succeeds("kubectl", "--context", kindContext(), "get", "deployment/"+deployment, "-n", "buildmax") {
-			fmt.Printf("Deployment %s not found, skipping restart.\n", deployment)
+	// A restart on a deployment that does not exist yet is an error, not a
+	// no-op, so skip the missing ones: a cluster that is up but not yet
+	// deployed (a manual non-smoke apply is still pending) will pick up the
+	// loaded image when its pods are first created, and needs no restart.
+	for _, svc := range services {
+		if !succeeds("kubectl", "--context", kindContext(), "get", "deployment/"+svc.deployment, "-n", "buildmax") {
+			fmt.Printf("Deployment %s not found, skipping restart.\n", svc.deployment)
 			continue
 		}
-		fmt.Printf("Restarting deployment %s...\n", deployment)
-		if err := kindKubectl("rollout", "restart", "deployment/"+deployment, "-n", "buildmax"); err != nil {
+		fmt.Printf("Restarting deployment %s...\n", svc.deployment)
+		if err := kindKubectl("rollout", "restart", "deployment/"+svc.deployment, "-n", "buildmax"); err != nil {
 			return err
 		}
-		if err := kindKubectl("rollout", "status", "deployment/"+deployment, "-n", "buildmax", "--timeout=180s"); err != nil {
+		if err := kindKubectl("rollout", "status", "deployment/"+svc.deployment, "-n", "buildmax", "--timeout=180s"); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func buildAndLoadKindImages(cluster string, includeSmoke bool) error {
+func buildAndLoadKindImages(cluster string, images []kindImage) error {
 	var platform []string
 	if p := os.Getenv("BUILDMAX_IMAGE_PLATFORM"); p != "" {
 		platform = []string{"--platform", p}
 	}
 
-	images := []struct {
-		tag        string
-		dockerfile string
-	}{
-		{"buildmax:local", filepath.Join("deployment", "docker", "Dockerfile.buildmax")},
-		{"buildmax-portal:local", filepath.Join("deployment", "docker", "Dockerfile.portal")},
-	}
-	if includeSmoke {
-		images = append(images, struct {
-			tag        string
-			dockerfile string
-		}{"buildmax-smoke-llm:local", "deployment/smoke/mock-llm/Dockerfile"})
-	}
 	for _, image := range images {
 		fmt.Printf("Building image %s...\n", image.tag)
 		args := append([]string{"build", "-f", image.dockerfile}, platform...)

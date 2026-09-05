@@ -339,7 +339,7 @@ func TestWorkspaceAgentConfigLoadsWithRuntimeParsers(t *testing.T) {
 	for _, skill := range skills {
 		skillNames = append(skillNames, skill.Name)
 	}
-	wantSkills := []string{"drive-desktop", "smoke"}
+	wantSkills := []string{"drive-desktop", "drive-portal", "smoke"}
 	if strings.Join(skillNames, ",") != strings.Join(wantSkills, ",") {
 		t.Fatalf("workspace skills = %v, want %v", skillNames, wantSkills)
 	}

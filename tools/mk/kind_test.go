@@ -141,6 +141,67 @@ func TestRenderKindSmokeConfigRewritesCorsOrigin(t *testing.T) {
 	}
 }
 
+func TestKindLogServices(t *testing.T) {
+	seen := map[string]bool{}
+	for _, svc := range kindLogServices {
+		if svc.name == "" || svc.namespace == "" {
+			t.Errorf("service %+v is missing a name or namespace", svc)
+		}
+		if seen[svc.name] {
+			t.Errorf("service name %q is listed more than once", svc.name)
+		}
+		seen[svc.name] = true
+		if len(svc.commands) == 0 {
+			t.Errorf("service %q has no log commands", svc.name)
+		}
+	}
+}
+
+func TestKindLogsRejectsUnknownService(t *testing.T) {
+	// An unknown name is a usage error caught before requireCommands, so this
+	// must not need kubectl on the machine running the test.
+	err := kindLogs([]string{"nope"})
+	if err == nil || !strings.Contains(err.Error(), "unknown service") {
+		t.Errorf("kindLogs([nope]) error = %v, want an unknown service error", err)
+	}
+}
+
+func TestKindLogsRejectsTooManyArgs(t *testing.T) {
+	err := kindLogs([]string{"server", "portal"})
+	if err == nil || !strings.Contains(err.Error(), "at most one service name") {
+		t.Errorf("kindLogs([server, portal]) error = %v, want an at-most-one-argument error", err)
+	}
+}
+
+func TestKindReloadServices(t *testing.T) {
+	seen := map[string]bool{}
+	for _, svc := range kindReloadServices {
+		if svc.name == "" || svc.deployment == "" || svc.image.tag == "" || svc.image.dockerfile == "" {
+			t.Errorf("service %+v is missing a name, deployment, or image", svc)
+		}
+		if seen[svc.name] {
+			t.Errorf("service name %q is listed more than once", svc.name)
+		}
+		seen[svc.name] = true
+	}
+}
+
+func TestCmdKindReloadRejectsUnknownService(t *testing.T) {
+	// An unknown name fails before docker or kubectl are touched, so this must
+	// not need either on the machine running the test.
+	err := cmdKindReload([]string{"nope"})
+	if err == nil || !strings.Contains(err.Error(), "unknown service") {
+		t.Errorf("cmdKindReload([nope]) error = %v, want an unknown service error", err)
+	}
+}
+
+func TestCmdKindReloadRejectsTooManyArgs(t *testing.T) {
+	err := cmdKindReload([]string{"server", "portal"})
+	if err == nil || !strings.Contains(err.Error(), "at most one service name") {
+		t.Errorf("cmdKindReload([server, portal]) error = %v, want an at-most-one-argument error", err)
+	}
+}
+
 func TestCheckKindHostPortsAcceptsFreePorts(t *testing.T) {
 	t.Setenv("BUILDMAX_KIND_PORTAL_PORT", "18081")
 	t.Setenv("BUILDMAX_KIND_TLS_PORT", "18444")

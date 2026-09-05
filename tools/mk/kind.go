@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -51,7 +52,7 @@ func cmdKind(args []string) error {
 	case "up":
 		return kindUp()
 	case "reload":
-		return cmdKindReload()
+		return cmdKindReload(args[1:])
 	case "seed":
 		if len(args) > 1 {
 			return usageErrorf("kind", "seed takes no arguments")
@@ -71,6 +72,8 @@ func cmdKind(args []string) error {
 		return kindForward()
 	case "info":
 		return kindInfo(args[1:])
+	case "login":
+		return kindLogin(args[1:])
 	case "smoke":
 		managed, err := composeSmokeMode(args[1:])
 		if err != nil {
@@ -83,7 +86,7 @@ func cmdKind(args []string) error {
 	case "status":
 		return kindStatus()
 	case "logs":
-		return kindLogs()
+		return kindLogs(args[1:])
 	case "down":
 		return kindDown()
 	default:
@@ -198,7 +201,7 @@ func kindUp() error {
 		return err
 	}
 
-	if err := buildAndLoadKindImages(cluster, true); err != nil {
+	if err := buildAndLoadKindImages(cluster, []kindImage{kindImageServer, kindImagePortal, kindImageSmoke}); err != nil {
 		return err
 	}
 	if err := ensureKindNamespace("buildmax"); err != nil {
@@ -557,6 +560,41 @@ func kindInfo(args []string) error {
 	return nil
 }
 
+// kindLogin is `info`'s machine-readable counterpart: a driver script (not a
+// human) needs the bare code, not the human-readable banner `user
+// login-code` prints, and it needs the account to exist rather than fail on
+// one `kind info` assumes was already created by a smoke run.
+func kindLogin(args []string) error {
+	if len(args) > 1 {
+		return usageErrorf("kind", "login takes at most one email address")
+	}
+	email := smokeEmail
+	if len(args) == 1 && args[0] != "" {
+		email = args[0]
+	}
+	if err := requireCommands("kubectl"); err != nil {
+		return err
+	}
+	target := kindSmokeTarget()
+	if output, err := target.admin("user", "create", email); err != nil && !strings.Contains(output, "already has an account") {
+		return fmt.Errorf("create account for %s: %w", email, err)
+	}
+	code, err := issueLoginCode(target, email)
+	if err != nil {
+		return err
+	}
+	out, err := json.Marshal(struct {
+		Email     string `json:"email"`
+		Code      string `json:"code"`
+		PortalURL string `json:"portal_url"`
+	}{email, code, kindPortalURL()})
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(out))
+	return nil
+}
+
 // kindStatus reports what the selected cluster is running without changing it,
 // so a contributor can tell "nothing deployed" from "deployed but unhealthy"
 // before reaching for the much noisier kind logs.
@@ -595,9 +633,79 @@ func printKindSection(title string, args ...string) {
 	}
 }
 
-func kindLogs() error {
+// kindLogService is one thing `kind logs <service>` can target: the describe
+// and log commands specific to that workload. Namespace-wide commands (pod
+// list, events) live in dumpKindNamespace itself, so `kind logs` (no
+// argument, dumps every namespace) and `kind logs <service>` share this one
+// definition instead of keeping two lists in sync.
+type kindLogService struct {
+	name      string
+	namespace string
+	commands  [][]string
+}
+
+// kindLogServices is ordered the way `kind logs` (no argument) has always
+// printed it: ingress, then db, then storage, then buildmax's server, portal,
+// and worker Jobs.
+var kindLogServices = []kindLogService{
+	{"ingress", "ingress-nginx", [][]string{
+		{"describe", "deployment/ingress-nginx-controller", "-n", "ingress-nginx"},
+		{"logs", "-n", "ingress-nginx", "deployment/ingress-nginx-controller", "--all-containers", "--tail=200"},
+	}},
+	{"mysql", "db", [][]string{
+		{"describe", "deployment/mysql", "-n", "db"},
+		{"logs", "-n", "db", "deployment/mysql", "--all-containers", "--tail=200"},
+		{"logs", "-n", "db", "job/mysql-init", "--all-containers", "--tail=200"},
+	}},
+	{"minio", "storage", [][]string{
+		{"describe", "deployment/minio", "-n", "storage"},
+		{"logs", "-n", "storage", "deployment/minio", "--all-containers", "--tail=200"},
+		{"logs", "-n", "storage", "job/minio-init", "--all-containers", "--tail=200"},
+	}},
+	{"server", "buildmax", [][]string{
+		{"logs", "-n", "buildmax", "deployment/buildmax-server", "--all-containers", "--tail=200"},
+	}},
+	{"portal", "buildmax", [][]string{
+		{"logs", "-n", "buildmax", "deployment/buildmax-portal", "--all-containers", "--tail=100"},
+	}},
+	{"worker", "buildmax", [][]string{
+		{"logs", "-n", "buildmax", "-l", "job-name", "--all-containers", "--tail=200"},
+	}},
+}
+
+func kindLogServiceNames() []string {
+	names := make([]string, len(kindLogServices))
+	for i, svc := range kindLogServices {
+		names[i] = svc.name
+	}
+	return names
+}
+
+// kindLogs tails every namespace, or one named service's own describe/log
+// commands when args names one. The name is validated before requiring
+// kubectl, so a typo is reported without needing the cluster tooling at all.
+func kindLogs(args []string) error {
+	if len(args) > 1 {
+		return usageErrorf("kind", "logs takes at most one service name (%s)", strings.Join(kindLogServiceNames(), ", "))
+	}
+	var svc *kindLogService
+	if len(args) == 1 {
+		for i := range kindLogServices {
+			if kindLogServices[i].name == args[0] {
+				svc = &kindLogServices[i]
+				break
+			}
+		}
+		if svc == nil {
+			return usageErrorf("kind", "unknown service %q for logs; want one of %s", args[0], strings.Join(kindLogServiceNames(), ", "))
+		}
+	}
 	if err := requireCommands("kubectl"); err != nil {
 		return err
+	}
+	if svc != nil {
+		runKindLogCommands(svc.commands)
+		return nil
 	}
 	for _, namespace := range []string{"ingress-nginx", "db", "storage", "buildmax"} {
 		dumpKindNamespace(namespace)
@@ -618,33 +726,15 @@ func dumpKindNamespace(namespace string) {
 		{"get", "pods,jobs,deployments,services,ingresses", "-n", namespace, "-o", "wide"},
 		{"get", "events", "-n", namespace, "--sort-by=.lastTimestamp"},
 	}
-
-	switch namespace {
-	case "ingress-nginx":
-		commands = append(commands,
-			[]string{"describe", "deployment/ingress-nginx-controller", "-n", namespace},
-			[]string{"logs", "-n", namespace, "deployment/ingress-nginx-controller", "--all-containers", "--tail=200"},
-		)
-	case "db":
-		commands = append(commands,
-			[]string{"describe", "deployment/mysql", "-n", namespace},
-			[]string{"logs", "-n", namespace, "deployment/mysql", "--all-containers", "--tail=200"},
-			[]string{"logs", "-n", namespace, "job/mysql-init", "--all-containers", "--tail=200"},
-		)
-	case "storage":
-		commands = append(commands,
-			[]string{"describe", "deployment/minio", "-n", namespace},
-			[]string{"logs", "-n", namespace, "deployment/minio", "--all-containers", "--tail=200"},
-			[]string{"logs", "-n", namespace, "job/minio-init", "--all-containers", "--tail=200"},
-		)
-	case "buildmax":
-		commands = append(commands,
-			[]string{"logs", "-n", namespace, "deployment/buildmax-server", "--all-containers", "--tail=200"},
-			[]string{"logs", "-n", namespace, "deployment/buildmax-portal", "--all-containers", "--tail=100"},
-			[]string{"logs", "-n", namespace, "-l", "job-name", "--all-containers", "--tail=200"},
-		)
+	for _, svc := range kindLogServices {
+		if svc.namespace == namespace {
+			commands = append(commands, svc.commands...)
+		}
 	}
+	runKindLogCommands(commands)
+}
 
+func runKindLogCommands(commands [][]string) {
 	for _, args := range commands {
 		if err := kindKubectl(args...); err != nil {
 			fmt.Printf("Warning: %v\n", err)
