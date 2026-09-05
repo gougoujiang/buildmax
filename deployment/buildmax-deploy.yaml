@@ -331,6 +331,13 @@ spec:
             - name: worker-api-tls
               mountPath: /buildmax/tls/worker-api
               readOnly: true
+            # Team Secret key-encryption key. optional so a deployment that does
+            # not use Team Secrets starts without the Secret present; the feature
+            # turns on only when secret.kek_file also points here (kind does; the
+            # baseline config above does not). See docs/design/team-secrets.md.
+            - name: buildmax-kek
+              mountPath: /buildmax/kek
+              readOnly: true
             # The root filesystem is read-only; this is the writable path
             # ordinary tooling assumes.
             - name: tmp
@@ -354,6 +361,13 @@ spec:
         - name: worker-api-tls
           secret:
             secretName: buildmax-worker-api-tls
+        # Team Secret KEK. optional: a real deployment that does not use Team
+        # Secrets never creates this Secret and the pod still starts; kind's
+        # `applyKindKEK` creates it and turns the feature on via secret.kek_file.
+        - name: buildmax-kek
+          secret:
+            secretName: buildmax-kek
+            optional: true
 ---
 # The public API Service. The Ingress points here; it carries no worker route.
 apiVersion: v1

@@ -56,6 +56,12 @@ worker_api:
     cert_file: /buildmax/tls/worker-api/tls.crt
     key_file: /buildmax/tls/worker-api/tls.key
 
+# Team Secret encryption key, mounted from the buildmax-kek Secret that
+# `./make kind up` generates (tools/mk/kind.go). Present only in kind, so the
+# Secrets feature is on here and stays off in the committed baseline config.
+secret:
+  kek_file: /buildmax/kek/kek.json
+
 storage:
   persist_backend: minio
   artifact_backend: minio
