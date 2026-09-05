@@ -20,7 +20,11 @@ type taskRunRow struct {
 	ID       uint64 `gorm:"primaryKey;autoIncrement"`
 	PublicID string `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_task_run_public_id;not null"`
 	TaskID   uint64 `gorm:"column:task_id;not null;index:idx_task_run_task_created,priority:1;uniqueIndex:idx_task_run_idempotency,priority:1"`
-	Input    string `gorm:"type:text;not null"`
+	// PreviousTaskRunID is the immutable predecessor in this Task's linear run
+	// history. Task.last_run_id is a mutable projection and cannot answer which
+	// bundle this run must restore after the new run becomes current.
+	PreviousTaskRunID *uint64 `gorm:"column:previous_task_run_id;index"`
+	Input             string  `gorm:"type:text;not null"`
 	// IdempotencyKey is the caller's dedup key for Continue, scoped to this
 	// task by the composite unique index above. NULL is not a duplicate of
 	// NULL in MySQL's unique index, so every run created without a key (the
@@ -94,6 +98,7 @@ func (taskRunArtifactRow) TableName() string { return "task_run_artifact" }
 type taskRunReadRow struct {
 	Row                   taskRunRow `gorm:"embedded"`
 	TaskPublicID          string     `gorm:"column:task_public_id"`
+	PreviousPublicID      *string    `gorm:"column:previous_public_id"`
 	RetryOfPublicID       *string    `gorm:"column:retry_of_public_id"`
 	CancelRequestedByPub  *string    `gorm:"column:cancel_requested_by_public_id"`
 	SourceMessagePublicID *string    `gorm:"column:source_message_public_id"`
@@ -105,9 +110,10 @@ func (s *Store) taskRunSelect(ctx context.Context) *gorm.DB {
 
 func taskRunSelectTx(tx *gorm.DB) *gorm.DB {
 	return tx.Model(&taskRunRow{}).
-		Select("task_run.*, t.public_id AS task_public_id, ro.public_id AS retry_of_public_id, " +
+		Select("task_run.*, t.public_id AS task_public_id, pr.public_id AS previous_public_id, ro.public_id AS retry_of_public_id, " +
 			"cb.public_id AS cancel_requested_by_public_id, sm.public_id AS source_message_public_id").
 		Joins("INNER JOIN task t ON t.id = task_run.task_id").
+		Joins("LEFT JOIN task_run pr ON pr.id = task_run.previous_task_run_id").
 		Joins("LEFT JOIN task_run ro ON ro.id = task_run.retry_of_task_run_id").
 		Joins("LEFT JOIN `user` cb ON cb.id = task_run.cancel_requested_by").
 		Joins("LEFT JOIN conversation_message sm ON sm.id = task_run.source_message_id")
@@ -120,6 +126,7 @@ func toTaskRun(row *taskRunReadRow) *coretask.Run {
 	out := &coretask.Run{
 		ID:                    row.Row.PublicID,
 		TaskID:                row.TaskPublicID,
+		PreviousTaskRunID:     optionalCanonicalPublicID(row.PreviousPublicID),
 		Input:                 row.Row.Input,
 		CreatedBy:             row.Row.CreatedBy,
 		CreatedByType:         row.Row.CreatedByType,
@@ -242,11 +249,11 @@ func (s *Store) CreateTaskRun(ctx context.Context, in coretask.CreateRunInput) (
 		return nil, apierr.ErrNotFound
 	}
 	var row *taskRunRow
-	var retryOf, sourceMessage *string
+	var previous, retryOf, sourceMessage *string
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var taskLock taskRow
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Select("id").Where("public_id = ?", canonicalTaskID).Take(&taskLock).Error; err != nil {
+			Select("id", "last_run_id").Where("public_id = ?", canonicalTaskID).Take(&taskLock).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return apierr.ErrNotFound
 			}
@@ -266,6 +273,7 @@ func (s *Store) CreateTaskRun(ctx context.Context, in coretask.CreateRunInput) (
 				Take(&existing).Error
 			if err == nil {
 				row = &existing.Row
+				previous = existing.PreviousPublicID
 				retryOf = existing.RetryOfPublicID
 				sourceMessage = existing.SourceMessagePublicID
 				return nil
@@ -283,9 +291,18 @@ func (s *Store) CreateTaskRun(ctx context.Context, in coretask.CreateRunInput) (
 		if inProgress > 0 {
 			return coretask.ErrRunInProgress
 		}
+		if taskLock.LastRunID != nil {
+			var previousRow taskRunRow
+			if err := tx.Select("public_id").Where("id = ?", *taskLock.LastRunID).
+				Take(&previousRow).Error; err != nil {
+				return err
+			}
+			previous = &previousRow.PublicID
+		}
 
 		row = &taskRunRow{
 			TaskID:                taskKey,
+			PreviousTaskRunID:     taskLock.LastRunID,
 			Input:                 in.Input,
 			CreatedBy:             in.CreatedBy,
 			CreatedByType:         defaultString(in.CreatedByType, coretask.RunCreatedByTypeUser),
@@ -342,6 +359,7 @@ func (s *Store) CreateTaskRun(ctx context.Context, in coretask.CreateRunInput) (
 	return toTaskRun(&taskRunReadRow{
 		Row:                   *row,
 		TaskPublicID:          canonicalTaskID,
+		PreviousPublicID:      previous,
 		RetryOfPublicID:       retryOf,
 		SourceMessagePublicID: sourceMessage,
 	}), nil

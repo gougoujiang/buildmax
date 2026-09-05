@@ -225,10 +225,10 @@ func (s *Service) RetryRun(ctx context.Context, cmd RetryRunCmd) (*RetryResult, 
 	if err := s.refuseWorkflowStepRetry(ctx, cmd.TaskID); err != nil {
 		return nil, err
 	}
-	// Ask about an in-flight run before looking at the last finished one. The
-	// store refuses a second active run anyway, but a task whose current run is
-	// still going has a more useful answer than "nothing to retry" — and while
-	// it runs, last_run_id still names the run before it.
+	// Ask about an in-flight run before looking for a finished one. The store
+	// refuses a second active run anyway, but task.last_run_id already names the
+	// active run, so without this check Retry would misreport it as having no
+	// finished run to repeat.
 	active, err := s.TaskRuns.GetActiveTaskRunByTask(ctx, cmd.TaskID)
 	if err != nil {
 		return nil, err

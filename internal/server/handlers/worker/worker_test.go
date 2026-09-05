@@ -89,6 +89,43 @@ func TestGetWorkerTaskRunHandler_ReportsACancelRequest(t *testing.T) {
 	}
 }
 
+// The Task projection already points at the run being claimed. Continuity must
+// therefore travel on the run's immutable predecessor rather than task.last_run_id.
+func TestGetWorkerTaskRunHandler_ReportsSessionPredecessor(t *testing.T) {
+	taskRunID, previousRunID := "run-current", "run-previous"
+	runs := &mock.MockTaskRunStore{
+		Runs: []coretask.Run{{
+			ID: taskRunID, TaskID: "task-1", Input: "continue",
+			Status: string(coretask.RunStatusScheduled), PreviousTaskRunID: &previousRunID,
+		}},
+		TaskList: []coretask.Task{{
+			ID: "task-1", TeamID: "tm_1", CreatedBy: "u1", LastRunID: &taskRunID,
+		}},
+	}
+	h := New(Config{JWTSecret: workerTestSecret, TaskRuns: runs})
+	mux := http.NewServeMux()
+	h.Register(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/worker/task-runs/"+taskRunID, nil)
+	req.Header.Set("Authorization", "Bearer "+runTokenFor(t, taskRunID, "task-1"))
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	var got workerclient.GetTaskRunResponse
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got.Run.PreviousTaskRunID == nil || *got.Run.PreviousTaskRunID != previousRunID {
+		t.Errorf("previous_task_run_id = %v, want %q", got.Run.PreviousTaskRunID, previousRunID)
+	}
+	if strings.Contains(w.Body.String(), "last_run_id") {
+		t.Errorf("worker response exposed mutable task.last_run_id: %s", w.Body.String())
+	}
+}
+
 // A canceled run is registered like a finished one: its artifacts are kept and
 // its task follows it out of "running". Losing either would make cancelling
 // cost more than waiting.

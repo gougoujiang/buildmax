@@ -126,6 +126,9 @@ func TestCreateTaskRunContinuesADirectTaskWithoutAConversation(t *testing.T) {
 	if second.ID == firstRunID {
 		t.Error("continue should create a new run, not reuse the first")
 	}
+	if second.PreviousTaskRunID == nil || *second.PreviousTaskRunID != firstRunID {
+		t.Errorf("second run previous_task_run_id = %v, want %q", second.PreviousTaskRunID, firstRunID)
+	}
 
 	// The task row has to track the run it just created, not keep reporting
 	// the first run's terminal state until a scheduler tick later claims the
@@ -143,6 +146,13 @@ func TestCreateTaskRunContinuesADirectTaskWithoutAConversation(t *testing.T) {
 	}
 	if afterContinue.Output != nil {
 		t.Errorf("task output after continue = %v, want nil (the first run's output must not linger)", *afterContinue.Output)
+	}
+	storedSecond, err := s.GetTaskRun(ctx, second.ID)
+	if err != nil {
+		t.Fatalf("GetTaskRun second: %v", err)
+	}
+	if storedSecond.PreviousTaskRunID == nil || *storedSecond.PreviousTaskRunID != firstRunID {
+		t.Errorf("stored second run previous_task_run_id = %v, want %q", storedSecond.PreviousTaskRunID, firstRunID)
 	}
 }
 
@@ -189,6 +199,9 @@ func TestCreateTaskRunIsIdempotentByKey(t *testing.T) {
 	if first.IdempotencyKey == nil || *first.IdempotencyKey != key {
 		t.Errorf("first.IdempotencyKey = %v, want %q", first.IdempotencyKey, key)
 	}
+	if first.PreviousTaskRunID == nil || *first.PreviousTaskRunID != firstRunID {
+		t.Errorf("first.PreviousTaskRunID = %v, want %q", first.PreviousTaskRunID, firstRunID)
+	}
 
 	// Retried while the run it created is still active: must return that run,
 	// not ErrRunInProgress.
@@ -200,6 +213,9 @@ func TestCreateTaskRunIsIdempotentByKey(t *testing.T) {
 	}
 	if retry.ID != first.ID {
 		t.Errorf("retried Continue returned run %q, want the original %q", retry.ID, first.ID)
+	}
+	if retry.PreviousTaskRunID == nil || *retry.PreviousTaskRunID != firstRunID {
+		t.Errorf("retried Continue changed previous_task_run_id to %v, want %q", retry.PreviousTaskRunID, firstRunID)
 	}
 
 	// Retried again after the run it created has since finished: must still
@@ -218,6 +234,9 @@ func TestCreateTaskRunIsIdempotentByKey(t *testing.T) {
 	}
 	if afterFinish.ID != first.ID {
 		t.Errorf("Continue retried after the run finished returned %q, want the original %q", afterFinish.ID, first.ID)
+	}
+	if afterFinish.PreviousTaskRunID == nil || *afterFinish.PreviousTaskRunID != firstRunID {
+		t.Errorf("finished idempotent run changed previous_task_run_id to %v, want %q", afterFinish.PreviousTaskRunID, firstRunID)
 	}
 
 	// A different key on the same task is not a duplicate: it creates its own

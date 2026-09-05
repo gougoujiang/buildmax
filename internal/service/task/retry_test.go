@@ -81,9 +81,9 @@ func TestRetryRunAcceptsASucceededRun(t *testing.T) {
 	}
 }
 
-// While a run is in flight, last_run_id still names the run before it. Reporting
-// "nothing to retry" there would be wrong twice over: there is something, and
-// the reason it cannot be repeated yet is the run that is still going.
+// While a run is in flight, last_run_id names that active run. Reporting
+// "nothing to retry" would hide the real reason: the current attempt is still
+// going and a Task cannot admit another one yet.
 func TestRetryRunRefusesWhileARunIsInFlight(t *testing.T) {
 	svc, runs := retryFixture(string(coretask.RunStatusSucceeded))
 	runs.Runs = append(runs.Runs, coretask.Run{

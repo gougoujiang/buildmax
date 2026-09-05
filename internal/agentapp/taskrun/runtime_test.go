@@ -3,14 +3,17 @@ package taskrun
 import (
 	"bytes"
 	"context"
-	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/gougoujiang/buildmax/internal/config"
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
+	"github.com/gougoujiang/buildmax/internal/testsupport/mockllm"
 )
 
 // fakePersistStorage is an in-memory PersistStorage for tests.
@@ -356,16 +359,82 @@ func TestRestoreSessionFromPreviousRun_RoundTripsTheBundle(t *testing.T) {
 	uploadTaskGlobal(ctx, prevDir, scope, fake, "")
 
 	nextDir := t.TempDir()
-	sessionID, lastRun := "sid-1", "run1"
+	sessionID, previousRun, currentRun := "sid-1", "run1", "run2"
 	restoreSessionFromPreviousRun(ctx,
-		&coretask.Task{TeamID: "tm1", ID: "task1", SessionID: &sessionID, LastRunID: &lastRun},
-		&coretask.Run{ID: "run2"}, nextDir, fake)
+		&coretask.Task{TeamID: "tm1", ID: "task1", SessionID: &sessionID, LastRunID: &currentRun},
+		&coretask.Run{ID: currentRun, PreviousTaskRunID: &previousRun}, nextDir, fake)
 
 	for _, name := range sessionBundleFiles {
 		if _, err := os.Stat(filepath.Join(nextDir, "sessions", "sid-1", name)); err != nil {
 			t.Errorf("%s not restored: %v", name, err)
 		}
 	}
+}
+
+// This is the worker-runtime continuity proof: two runs use different local
+// directories, the second downloads the first one's object-store bundle, and
+// the model receives the earlier exchange. A unit test of the copy alone could
+// pass while OpenOrCreateSession still opened a fresh conversation.
+func TestContinueRunSendsRestoredHistoryToModel(t *testing.T) {
+	ctx := context.Background()
+	server, err := mockllm.Start(mockllm.Scenario{Steps: []mockllm.Step{
+		{Text: "noted: the code word is albatross"},
+		{Text: "the code word was albatross"},
+	}})
+	if err != nil {
+		t.Fatalf("start mock model: %v", err)
+	}
+	t.Cleanup(server.Close)
+	model := config.ModelEntry{
+		Model: "mock-model", Name: "mock", APIURL: server.BaseURL(mockllm.ProtocolOpenAIChat),
+		APIKey: "mock-key", ContextWindow: 128000,
+	}
+	persist := newFakePersistStorage()
+	sessionID := "sid-continue"
+	task := &coretask.Task{ID: "task1", TeamID: "tm1", SessionID: &sessionID}
+
+	firstRun := &coretask.Run{ID: "run1", Input: "remember the code word: albatross"}
+	firstDirs := testRunDirs(t)
+	if _, err := runAgentTask(ctx, firstRun, firstDirs.runDir, firstDirs.runGlobal, firstDirs.runOSHome,
+		sessionID, nil, model, ManagedInference{}, nil, "", nil, nil, "", "", nil); err != nil {
+		t.Fatalf("first run: %v", err)
+	}
+	uploadTaskGlobal(ctx, firstDirs.runGlobal, RunScope{TeamID: task.TeamID, TaskID: task.ID, TaskRunID: firstRun.ID}, persist, "")
+
+	secondRun := &coretask.Run{ID: "run2", PreviousTaskRunID: &firstRun.ID, Input: "what was the code word?"}
+	secondDirs := testRunDirs(t)
+	restoreSessionFromPreviousRun(ctx, task, secondRun, secondDirs.runGlobal, persist)
+	if _, err := runAgentTask(ctx, secondRun, secondDirs.runDir, secondDirs.runGlobal, secondDirs.runOSHome,
+		sessionID, nil, model, ManagedInference{}, nil, "", nil, nil, "", "", nil); err != nil {
+		t.Fatalf("continued run: %v", err)
+	}
+
+	calls := server.Requests()
+	if len(calls) != 2 {
+		t.Fatalf("model calls = %d, want one per run", len(calls))
+	}
+	secondRequest := string(calls[1].Body)
+	for _, want := range []string{firstRun.Input, "noted: the code word is albatross", secondRun.Input} {
+		if !strings.Contains(secondRequest, want) {
+			t.Errorf("continued request omitted %q:\n%s", want, secondRequest)
+		}
+	}
+}
+
+func testRunDirs(t *testing.T) runDirs {
+	t.Helper()
+	runDir := t.TempDir()
+	dirs := runDirs{
+		runDir:       runDir,
+		runHome:      filepath.Join(runDir, "home"),
+		runArtifacts: filepath.Join(runDir, "artifacts"),
+		runGlobal:    filepath.Join(runDir, "global"),
+		runOSHome:    filepath.Join(runDir, "oshome"),
+	}
+	if err := ensureRunDirs(dirs.runHome, dirs.runArtifacts, dirs.runGlobal, dirs.runOSHome); err != nil {
+		t.Fatalf("prepare run dirs: %v", err)
+	}
+	return dirs
 }
 
 // A bundle missing one of its parts must not be half-restored: a history with
@@ -386,10 +455,10 @@ func TestRestoreSessionFromPreviousRun_PartialBundleRestoresNothing(t *testing.T
 	uploadTaskGlobal(ctx, prevDir, scope, fake, "")
 
 	nextDir := t.TempDir()
-	sessionID, lastRun := "sid-1", "run1"
+	sessionID, previousRun := "sid-1", "run1"
 	restoreSessionFromPreviousRun(ctx,
-		&coretask.Task{TeamID: "tm1", ID: "task1", SessionID: &sessionID, LastRunID: &lastRun},
-		&coretask.Run{ID: "run2"}, nextDir, fake)
+		&coretask.Task{TeamID: "tm1", ID: "task1", SessionID: &sessionID},
+		&coretask.Run{ID: "run2", PreviousTaskRunID: &previousRun}, nextDir, fake)
 
 	if _, err := os.Stat(filepath.Join(nextDir, "sessions", "sid-1")); !os.IsNotExist(err) {
 		t.Errorf("a partial bundle was left behind (stat err = %v)", err)
