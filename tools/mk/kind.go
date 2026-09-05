@@ -210,6 +210,12 @@ func kindUp() error {
 	if err := applyKindSecret(); err != nil {
 		return err
 	}
+	// The worker listener's TLS material, so kind exercises the worker control
+	// channel over HTTPS: the server pod mounts the certificate, worker pods
+	// mount the CA. Created before the deployment that references them.
+	if err := applyKindWorkerAPITLS(); err != nil {
+		return err
+	}
 	if err := applyKindWorkerSeccompProfile(); err != nil {
 		return err
 	}
@@ -262,7 +268,85 @@ func kindSmoke() error {
 	if err := runDeploymentSmoke(context.Background(), target); err != nil {
 		return err
 	}
+	if err := kindWorkerBoundaryProbe(); err != nil {
+		return err
+	}
 	printSmokeLogin(target)
+	return nil
+}
+
+// workerProbeLabels are the labels the Kubernetes runner stamps on a worker pod,
+// which the NetworkPolicy selects. A probe pod carrying them stands in for a
+// worker; one without them stands in for any other pod in the namespace.
+const workerProbeLabels = "app.kubernetes.io/name=buildmax-worker,app.kubernetes.io/component=worker"
+
+// kindWorkerBoundaryProbe proves, against the same running deployment the smoke
+// just exercised, the two facts a unit test cannot: the NetworkPolicy admits a
+// labelled worker pod to the worker port and denies an unlabelled one, and the
+// public Service does not serve a worker route. This is what makes the boundary
+// evidence rather than a hand-built reproduction. See
+// docs/design/worker-api-network-boundary.md §13.2.
+func kindWorkerBoundaryProbe() error {
+	fmt.Println("Probing the worker API boundary...")
+
+	if reachable, err := kindTCPReachable("np-allow", workerProbeLabels, workerAPIServiceDNS, "5679"); err != nil {
+		return err
+	} else if !reachable {
+		return errors.New("a labelled worker pod could not reach the worker port; the NetworkPolicy denies traffic it must admit")
+	}
+	if reachable, err := kindTCPReachable("np-deny", "role=probe", workerAPIServiceDNS, "5679"); err != nil {
+		return err
+	} else if reachable {
+		return errors.New("an unlabelled pod reached the worker port; the NetworkPolicy admits traffic it must deny")
+	}
+	if err := kindExpectPublicWorkerRoute404(); err != nil {
+		return err
+	}
+
+	fmt.Println("Worker API boundary verified: worker pods reach :5679, other pods are denied, and /api/worker 404s on the public Service.")
+	return nil
+}
+
+// kindTCPReachable runs a throwaway pod and reports whether it can open a TCP
+// connection to host:port. It uses the already-loaded server image (busybox nc,
+// no registry pull) and a sentinel echo, so the pod always exits 0 and the
+// stdout — not kubectl's own exit code — carries the answer. That keeps a real
+// tooling failure distinct from a deliberately blocked connection.
+func kindTCPReachable(name, labels, host, port string) (bool, error) {
+	script := fmt.Sprintf("nc -z -w 5 %s %s && echo BM_REACHABLE || echo BM_BLOCKED", host, port)
+	out, err := captureCombined("kubectl", "--context", kindContext(),
+		"run", name, "-n", "buildmax", "--rm", "-i", "--restart=Never", "--quiet",
+		"--image=buildmax:local", "--image-pull-policy=Never", "--labels="+labels,
+		"--command", "--", "sh", "-c", script)
+	if err != nil {
+		return false, fmt.Errorf("boundary probe %q: %w\n%s", name, err, out)
+	}
+	switch {
+	case strings.Contains(out, "BM_REACHABLE"):
+		return true, nil
+	case strings.Contains(out, "BM_BLOCKED"):
+		return false, nil
+	default:
+		return false, fmt.Errorf("boundary probe %q was inconclusive:\n%s", name, out)
+	}
+}
+
+// kindExpectPublicWorkerRoute404 confirms the public Service answers 404 for a
+// worker route: the route is absent from the public mux, so even an in-cluster
+// caller that can reach :5678 cannot dispatch it.
+func kindExpectPublicWorkerRoute404() error {
+	const url = "http://buildmax-api.buildmax.svc.cluster.local:5678/api/worker/task-runs/probe"
+	script := fmt.Sprintf("if wget -T 5 -O /dev/null %s 2>&1 | grep -q ' 404 '; then echo BM_404; else echo BM_NOT404; fi", url)
+	out, err := captureCombined("kubectl", "--context", kindContext(),
+		"run", "worker-route-probe", "-n", "buildmax", "--rm", "-i", "--restart=Never", "--quiet",
+		"--image=buildmax:local", "--image-pull-policy=Never", "--labels=role=probe",
+		"--command", "--", "sh", "-c", script)
+	if err != nil {
+		return fmt.Errorf("public worker-route probe: %w\n%s", err, out)
+	}
+	if !strings.Contains(out, "BM_404") {
+		return fmt.Errorf("the public Service did not answer 404 for a worker route:\n%s", out)
+	}
 	return nil
 }
 

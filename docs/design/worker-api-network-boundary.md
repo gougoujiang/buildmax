@@ -1,6 +1,6 @@
 # Worker API Network Boundary
 
-> **Audience:** contributors and operators · **Status:** planned
+> **Audience:** contributors and operators · **Status:** shipped
 
 Related: [Worker run token](worker-run-token.md), [Agent Core trust
 harness](trust-harness.md) §3.9, [Agent-scoped sandbox
@@ -28,19 +28,21 @@ policy](agent-sandbox-policy.md), [Graceful shutdown](graceful-shutdown.md), and
 ## 1. Status
 
 - roadmap_priority: `R0` — contain unattended worker execution
-- status: in progress. M1–M4 have shipped — the worker control API is served on
-  a second in-process listener with its own mux and fail-closed configuration
-  (M1); that listener speaks TLS while the worker reaches it through one
-  explicit HTTP client built from the configured trust, with an http `k8s_job`
-  URL refused unless opted into (M2); the reference production and kind
-  manifests now carry the `buildmax-api` and `buildmax-worker-api` Services, the
-  worker port, the `NetworkPolicy` admitting only labelled worker pods to it,
-  the Ingress pointing only at `buildmax-api`, and the CA mount into worker Jobs
-  (M3); and every worker route now enforces its allowed TaskRun states — claim
-  before Secret, the pinned revision's consumption, and no capability after a
-  run is terminal (M4). M5 (deployment evidence — the kind smoke that actually
-  exercises HTTPS and proves the cross-pod denial) remains planned; the kind
-  manifests run the worker listener over HTTP until M5 adds its certificates.
+- status: shipped. M1 serves the worker control API on a second in-process
+  listener with its own mux and fail-closed configuration; M2 makes that
+  listener speak TLS while the worker reaches it through one explicit HTTP
+  client built from the configured trust, refusing an http `k8s_job` URL unless
+  opted into; M3 gives the reference production and kind manifests the
+  `buildmax-api` and `buildmax-worker-api` Services, the worker port, the
+  `NetworkPolicy` admitting only labelled worker pods, an Ingress pointing only
+  at `buildmax-api`, and the CA mount into worker Jobs; M4 makes every worker
+  route enforce its allowed TaskRun states — claim before Secret, the pinned
+  revision's consumption, and no capability after a run is terminal; and M5
+  makes the kind smoke generate the worker-listener certificate, run the worker
+  over HTTPS, and prove the boundary in the same deployment — a labelled worker
+  pod reaches the worker port, an unlabelled one is denied, and `/api/worker`
+  answers `404` on the public Service. The wider domain-aware worker egress
+  question stays open in [trust-harness.md](trust-harness.md) §3.9.
 - decision_date: `2026-09-05`
 - scope: isolate the Server's worker control channel from its public HTTP
   surface and authenticate its transport
@@ -520,7 +522,7 @@ in the same namespace cannot; neither can reach a worker handler through the
 Acceptance: the route-table test proves both credential scope and lifecycle
 scope, including a leaked but unexpired token used after completion.
 
-### M5. Deployment Evidence
+### M5. Deployment Evidence — shipped
 
 - Update Compose for explicit development HTTP.
 - Update kind to exercise HTTPS and the NetworkPolicy denial case.
