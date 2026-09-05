@@ -27,10 +27,18 @@ import UsageIcon from "../../icons/usage.svg?react"
 import ToolboxIcon from "../../icons/toolbox.svg?react"
 import AgentsIcon from "../../icons/agents.svg?react"
 import IssueIcon from "../../icons/issue.svg?react"
+import ShieldIcon from "../../icons/shield.svg?react"
 import { BaseModal } from "@buildmax/gui"
 
 export type AccountSection = "general" | "usage" | "webhook" | "plugins" | "invitations"
-export type SpaceSection = "overview" | "members" | "plugins" | "secrets" | "audit" | "memberNew"
+export type SpaceSection =
+  | "overview"
+  | "members"
+  | "plugins"
+  | "security"
+  | "secrets"
+  | "audit"
+  | "memberNew"
 
 interface SettingsNavItem<T extends string> {
   id: T
@@ -56,6 +64,10 @@ export const SPACE_NAV: SettingsNavItem<Exclude<SpaceSection, "memberNew">>[] = 
   // What this team's background runs may use. Readable by any member, because
   // "why did this run have this plugin" is a question anyone debugging asks.
   { id: "plugins", label: "Plugins", icon: ToolboxIcon },
+  // The sandbox tiers a background run inherits. Separate from Plugins because
+  // "what may run" and "how confined it runs" are different decisions a reader
+  // should not have to disentangle from one list.
+  { id: "security", label: "Security", icon: ShieldIcon },
   // Owner-only content, but the tab stays visible for everyone, the same as
   // Audit: the section itself explains why a member cannot manage it.
   { id: "secrets", label: "Secrets", icon: ToolboxIcon },

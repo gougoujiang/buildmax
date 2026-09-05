@@ -21,6 +21,7 @@ describe("hash router", () => {
     // A section reachable only by clicking a tab cannot be linked, shared, or
     // survive a reload, so every one of them needs a URL.
     ["#/space/audit", { name: "space", section: "audit" }],
+    ["#/space/security", { name: "space", section: "security" }],
     // Artifacts left space settings for their own area; the old address still
     // lands on them rather than silently falling through to Overview.
     ["#/space/artifacts", { name: "artifacts" }],
@@ -43,6 +44,7 @@ describe("hash router", () => {
     // No team in the path: an artifact's id is the whole address, matching the
     // API. See docs/design/unified-artifacts.md section 6.1.
     ["#/artifact/gsyt7at6cjfr33d73mta", { name: "artifact", artifactId: "gsyt7at6cjfr33d73mta" }],
+    ["#/marketplace", { name: "marketplace" }],
   ] satisfies Array<[string, Route]>)("parses %s", (hash, route) => {
     expect(parseHash(hash)).toEqual(route)
   })
@@ -68,6 +70,7 @@ describe("hash router", () => {
     [{ name: "account", section: "invitations" }, "#/account/invitations"],
     [{ name: "space", section: "overview" }, "#/space"],
     [{ name: "space", section: "audit" }, "#/space/audit"],
+    [{ name: "space", section: "security" }, "#/space/security"],
     [{ name: "space", section: "members" }, "#/space/members"],
     [{ name: "space", section: "memberNew" }, "#/space/members/new"],
     [{ name: "workflows" }, "#/workflows"],
@@ -77,6 +80,7 @@ describe("hash router", () => {
     [{ name: "issue", issueId: "i_123" }, "#/issue/i_123"],
     [{ name: "artifacts" }, "#/artifacts"],
     [{ name: "artifact", artifactId: "gsyt7at6cjfr33d73mta" }, "#/artifact/gsyt7at6cjfr33d73mta"],
+    [{ name: "marketplace" }, "#/marketplace"],
   ] satisfies Array<[Route, string]>)("builds %s", (route, hash) => {
     expect(buildHash(route)).toBe(hash)
   })

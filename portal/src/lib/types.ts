@@ -42,7 +42,7 @@ export type Route =
     }
   | {
       name: "space"
-      section?: "overview" | "members" | "plugins" | "secrets" | "audit" | "memberNew"
+      section?: "overview" | "members" | "plugins" | "security" | "secrets" | "audit" | "memberNew"
     }
   | { name: "admin"; section?: "overview" | "accounts" | "teams" | "models" | "plugins" | "audit" }
   | { name: "workflows" }
@@ -52,6 +52,7 @@ export type Route =
   | { name: "issue"; issueId: string }
   | { name: "artifacts" }
   | { name: "artifact"; artifactId: string }
+  | { name: "marketplace" }
 
 /** One breadcrumb segment: a label and the route it links to. */
 export interface BreadcrumbCrumb {

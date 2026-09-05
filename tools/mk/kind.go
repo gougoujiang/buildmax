@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -213,6 +214,11 @@ func kindUp() error {
 		return err
 	}
 	if err := applyKindSecret(); err != nil {
+		return err
+	}
+	// The Team Secret KEK, so kind can exercise the Secrets feature end to end
+	// rather than answering 503. Ephemeral like the JWT above.
+	if err := applyKindKEK(); err != nil {
 		return err
 	}
 	// The worker listener's TLS material, so kind exercises the worker control
@@ -996,6 +1002,36 @@ func applyKindSecret() error {
 	)
 	if err != nil {
 		return fmt.Errorf("render local buildmax secret: %w", err)
+	}
+	return runStdin(manifest, "kubectl", "--context", kindContext(), "apply", "-f", "-")
+}
+
+// applyKindKEK creates the buildmax-kek Secret holding an ephemeral Team Secret
+// key-encryption key, in the on-disk shape internal/infra/secret expects: a
+// `current` key id and a `keys` map of id to base64 32-byte material. The
+// server mounts it at /buildmax/kek/kek.json and the smoke config points
+// secret.kek_file there, so the Secrets feature is on in kind. The key is thrown
+// away with the cluster, exactly like the JWT secret.
+func applyKindKEK() error {
+	raw := make([]byte, 32)
+	if _, err := rand.Read(raw); err != nil {
+		return fmt.Errorf("generate KEK: %w", err)
+	}
+	const keyID = "kek-kind-1"
+	body, err := json.Marshal(map[string]any{
+		"current": keyID,
+		"keys":    map[string]string{keyID: base64.StdEncoding.EncodeToString(raw)},
+	})
+	if err != nil {
+		return fmt.Errorf("marshal KEK file: %w", err)
+	}
+	manifest, err := captureKindKubectl(
+		"create", "secret", "generic", "buildmax-kek", "-n", "buildmax",
+		"--from-literal=kek.json="+string(body),
+		"--dry-run=client", "-o", "yaml",
+	)
+	if err != nil {
+		return fmt.Errorf("render KEK secret: %w", err)
 	}
 	return runStdin(manifest, "kubectl", "--context", kindContext(), "apply", "-f", "-")
 }

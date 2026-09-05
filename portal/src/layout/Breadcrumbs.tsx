@@ -45,6 +45,14 @@ export function Breadcrumbs({ route, conversations = [] }: BreadcrumbsProps) {
           return "Members"
         case "memberNew":
           return "Invite Member"
+        case "plugins":
+          return "Plugins"
+        case "security":
+          return "Security"
+        case "secrets":
+          return "Secrets"
+        case "audit":
+          return "Audit"
         case "overview":
         default:
           return "Overview"
@@ -100,6 +108,8 @@ export function Breadcrumbs({ route, conversations = [] }: BreadcrumbsProps) {
       { label: "Artifacts", route: { name: "artifacts" } },
       { label: entityLabels[route.artifactId] ?? "Artifact", route },
     ]
+  } else if (route.name === "marketplace") {
+    crumbs = [{ label: "Marketplace", route: { name: "marketplace" } }]
   } else if (route.name === "task") {
     // A task's parents (agent / issue / conversation) are not in the route, so
     // the detail page publishes the trail; fall back until it loads.

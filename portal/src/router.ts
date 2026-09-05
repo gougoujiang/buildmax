@@ -23,6 +23,7 @@ export const SEGMENT = {
   issue: "issue",
   artifacts: "artifacts",
   artifact: "artifact",
+  marketplace: "marketplace",
 } as const
 
 /**
@@ -63,6 +64,7 @@ export function parseHash(hash: string): Route {
     // link points at, and falling through would land on Overview silently.
     if (parts[1] === "artifacts") return { name: "artifacts" }
     if (parts[1] === "plugins") return { name: "space", section: "plugins" }
+    if (parts[1] === "security") return { name: "space", section: "security" }
     if (parts[1] === "secrets") return { name: "space", section: "secrets" }
     if (parts[1] === "audit") return { name: "space", section: "audit" }
     return { name: "space", section: "overview" }
@@ -95,6 +97,9 @@ export function parseHash(hash: string): Route {
   }
   if (parts[0] === SEGMENT.artifacts) {
     return { name: "artifacts" }
+  }
+  if (parts[0] === SEGMENT.marketplace) {
+    return { name: "marketplace" }
   }
   // An artifact's address is its id alone -- no team in the path, matching the
   // API. See docs/design/unified-artifacts.md section 6.1.
@@ -151,6 +156,8 @@ export function buildHash(route: Route): string {
           return `#/${SEGMENT.space}/members/new`
         case "plugins":
           return `#/${SEGMENT.space}/plugins`
+        case "security":
+          return `#/${SEGMENT.space}/security`
         case "secrets":
           return `#/${SEGMENT.space}/secrets`
         case "audit":
@@ -189,6 +196,8 @@ export function buildHash(route: Route): string {
       return `#/${SEGMENT.artifacts}`
     case "artifact":
       return `#/${SEGMENT.artifact}/${route.artifactId}`
+    case "marketplace":
+      return `#/${SEGMENT.marketplace}`
   }
 }
 
