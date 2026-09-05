@@ -10,7 +10,7 @@ import { getErrorMessage } from "../../lib/errorMessage"
 import { apiAgentToAgent, apiTaskToTask } from "../../lib/api/mappers"
 import { createAgentTask, listAgentTasks } from "../../features/tasks"
 import { getAgents, createAgent } from "../../features/agents"
-import { taskRunFailed, taskRunFinished } from "../../features/conversations/thread"
+import { runStatusLabel, runStatusTone, taskRunFailed, taskRunFinished } from "../../features/conversations/thread"
 import { AgentAvatar } from "../../components/UserAvatar"
 import { CreateAgentModal } from "../../components/CreateAgentModal"
 import { consumptionHealthCount } from "../../components/SecretConsumptionEditor"
@@ -19,31 +19,6 @@ import { useTeam } from "../../contexts/TeamContext"
 
 interface AgentListProps {
   token: string | null
-}
-
-function runLabel(status: string): string {
-  switch (status.toUpperCase()) {
-    case "PENDING":
-      return "Queued"
-    case "SCHEDULED":
-      return "Starting"
-    case "RUNNING":
-      return "Running"
-    case "SUCCEEDED":
-    case "SUCCESS":
-      return "Done"
-    case "FAILED":
-      return "Failed"
-    case "CANCELED":
-      return "Stopped"
-    default:
-      return status
-  }
-}
-
-function runTone(status: string): "running" | "done" | "failed" {
-  if (!taskRunFinished(status)) return "running"
-  return taskRunFailed(status) ? "failed" : "done"
 }
 
 export function AgentList({ token }: AgentListProps) {
@@ -358,8 +333,8 @@ export function AgentList({ token }: AgentListProps) {
                         <span className="agent-activity__row-title">{ui.title}</span>
                         <span className="agent-activity__row-sub">{agent.name}</span>
                       </div>
-                      <span className={`agent-activity__status agent-activity__status--${runTone(task.status)}`}>
-                        {runLabel(task.status)}
+                      <span className={`agent-activity__status agent-activity__status--${runStatusTone(task.status)}`}>
+                        {runStatusLabel(task.status)}
                       </span>
                       <span className="agent-activity__time">{ui.timeLabel}</span>
                     </button>

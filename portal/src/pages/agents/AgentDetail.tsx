@@ -17,7 +17,7 @@ import { listSecrets } from "../../features/teamSecrets/api"
 import { listActivations } from "../../features/teamPlugins/api"
 import { listPlugins } from "../../features/plugins/api"
 import { nameablePlugins } from "../../features/plugins/nameablePlugins"
-import { taskRunFailed, taskRunFinished } from "../../features/conversations/thread"
+import { runStatusLabel, runStatusTone, taskRunFailed, taskRunFinished } from "../../features/conversations/thread"
 import { AgentAvatar } from "../../components/UserAvatar"
 import { AgentConfigForm } from "../../components/AgentConfigForm"
 import { RevisionHistory } from "../../components/RevisionHistory"
@@ -39,31 +39,6 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "runs", label: "Runs" },
   { id: "revisions", label: "Revisions" },
 ]
-
-function runTone(status: string): "running" | "done" | "failed" {
-  if (!taskRunFinished(status)) return "running"
-  return taskRunFailed(status) ? "failed" : "done"
-}
-
-function runLabel(status: string): string {
-  switch (status.toUpperCase()) {
-    case "PENDING":
-      return "Queued"
-    case "SCHEDULED":
-      return "Starting"
-    case "RUNNING":
-      return "Running"
-    case "SUCCEEDED":
-    case "SUCCESS":
-      return "Done"
-    case "FAILED":
-      return "Failed"
-    case "CANCELED":
-      return "Stopped"
-    default:
-      return status
-  }
-}
 
 export function AgentDetail({ token, agentId }: AgentDetailProps) {
   const { currentTeamId, currentUserRole } = useTeam()
@@ -231,7 +206,7 @@ export function AgentDetail({ token, agentId }: AgentDetailProps) {
         <tbody>
           {rows.map((t) => {
             const ui = apiTaskToTask(t)
-            const tone = runTone(t.status)
+            const tone = runStatusTone(t.status)
             return (
               <tr key={t.id} onClick={() => navigate({ name: "task", taskId: t.id })} tabIndex={0}
                 onKeyDown={(e) => {
@@ -239,7 +214,7 @@ export function AgentDetail({ token, agentId }: AgentDetailProps) {
                 }}>
                 <td className="agent-runs__title">{ui.title}</td>
                 <td>
-                  <span className={`agent-runs__status agent-runs__status--${tone}`}>{runLabel(t.status)}</span>
+                  <span className={`agent-runs__status agent-runs__status--${tone}`}>{runStatusLabel(t.status)}</span>
                 </td>
                 <td className="agent-runs__when">{ui.timeLabel}</td>
               </tr>
