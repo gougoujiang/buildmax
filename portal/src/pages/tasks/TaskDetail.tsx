@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
-import { ChatComposer, ChatThread, type ChatThreadItem } from "@buildmax/gui"
+import { BaseModal, ChatComposer, ChatThread, type ChatThreadItem } from "@buildmax/gui"
 import { AgentAvatar, UserAvatar } from "../../components/UserAvatar"
 import { useApp } from "../../contexts/AppContext"
 import { useAuth } from "../../contexts/AuthContext"
 import { useTeam } from "../../contexts/TeamContext"
-import { cancelTask, continueTask, getTask, getTaskRuns, retryTask } from "../../features/tasks"
+import { cancelTask, continueTask, getTask, getTaskRuns } from "../../features/tasks"
 import { getAgent } from "../../features/agents"
 import { RunTraceModal } from "../../features/runs"
 import { TaskFilesModal } from "../../features/conversations"
@@ -50,7 +50,6 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const [stopping, setStopping] = useState(false)
-  const [retrying, setRetrying] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [traceRunId, setTraceRunId] = useState<string | null>(null)
@@ -199,16 +198,6 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
       .finally(() => setStopping(false))
   }
 
-  function handleRetry() {
-    if (!token || !currentTeamId || retrying || running) return
-    setRetrying(true)
-    setError(null)
-    retryTask(currentTeamId, taskId, token)
-      .then(() => load())
-      .catch((err) => setError(getErrorMessage(err, "Failed to retry this run")))
-      .finally(() => setRetrying(false))
-  }
-
   const traceRun = task?.last_run_id ?? runs[runs.length - 1]?.id ?? null
   const filesRun = task?.artifact_run_ids?.[0] ?? null
 
@@ -227,18 +216,12 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
             <button type="button" className="page-activity__action-btn" disabled={stopping} onClick={handleStop}>
               {stopping ? "Stopping..." : "Stop"}
             </button>
-          ) : runs.length > 0 ? (
-            <button type="button" className="page-activity__action-btn" disabled={retrying} onClick={handleRetry}>
-              {retrying ? "Retrying..." : "Retry last run"}
-            </button>
           ) : null}
           <button
             type="button"
-            className={
-              detailsOpen ? "page-activity__action-btn page-activity__action-btn--active" : "page-activity__action-btn"
-            }
-            aria-expanded={detailsOpen}
-            onClick={() => setDetailsOpen((v) => !v)}
+            className="page-activity__action-btn"
+            aria-haspopup="dialog"
+            onClick={() => setDetailsOpen(true)}
           >
             Details
           </button>
@@ -254,8 +237,14 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
         </div>
       </header>
 
-      {detailsOpen && task ? (
-        <section className="task-details" aria-label="Task details">
+      {task ? (
+        <BaseModal
+          open={detailsOpen}
+          title="Task details"
+          titleId="task-details-title"
+          onClose={() => setDetailsOpen(false)}
+        >
+          <div className="modal__body">
           <dl className="task-details__kv">
             <dt>Agent</dt>
             <dd>
@@ -319,7 +308,10 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
               <button
                 type="button"
                 className="page-activity__action-btn page-activity__action-btn--sm"
-                onClick={() => setTraceRunId(traceRun)}
+                onClick={() => {
+                  setDetailsOpen(false)
+                  setTraceRunId(traceRun)
+                }}
               >
                 View trace
               </button>
@@ -328,13 +320,17 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
               <button
                 type="button"
                 className="page-activity__action-btn page-activity__action-btn--sm"
-                onClick={() => setFilesRunId(filesRun)}
+                onClick={() => {
+                  setDetailsOpen(false)
+                  setFilesRunId(filesRun)
+                }}
               >
                 Files
               </button>
             ) : null}
           </div>
-        </section>
+          </div>
+        </BaseModal>
       ) : null}
 
       <ChatThread

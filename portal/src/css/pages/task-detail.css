@@ -408,18 +408,9 @@
   flex-wrap: wrap;
 }
 
-/* Task details: a collapsible panel opened from the header's Details button,
-   summarising this task (agent, timing, origin) with trace/files entry points.
-   One place, not a control under every message. */
-.task-details {
-  flex-shrink: 0;
-  margin: 0 1rem 1rem;
-  padding: 0.9rem 1rem;
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
-  background: var(--color-bg-elevated);
-}
-
+/* Task details: a dialog opened from the header's Details button, summarising
+   this task (agent, timing, origin) with trace/files entry points. One place,
+   not a control under every message, and off the conversation area. */
 .task-details__kv {
   display: grid;
   grid-template-columns: max-content 1fr;
