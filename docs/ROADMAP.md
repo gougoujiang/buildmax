@@ -77,6 +77,13 @@ in-process sandbox — `buildmax sandbox overrides`, and surfacing a run's
 resolved tiers in Portal's task-run detail view rather than only in the API
 response and audit trail.
 
+The Server control channel is the first bounded network slice: separate the
+public and worker listeners, keep worker routes off the public mux, encrypt the
+Pod-to-Server path, and admit only worker Pods to its internal port. The
+accepted direction and its limits are in
+[`design/worker-api-network-boundary.md`](design/worker-api-network-boundary.md).
+It does not close the wider domain-aware worker egress question above.
+
 ### R1. Make Multi-Instance Semantics Correct Or Declare One Replica
 
 The production manifest requests two Server replicas, while stream fan-out,
