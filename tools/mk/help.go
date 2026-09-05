@@ -479,7 +479,7 @@ func helpTopics() []helpTopic {
 		},
 		{
 			name:    "kind",
-			usage:   "kind <up|reload [service]|seed|use-model <name>|mock|smoke [managed]|info [email]|forward|status|logs [service]|down>",
+			usage:   "kind <up|reload [service]|seed|use-model <name>|mock|smoke [managed]|info [email]|login [email]|forward|status|logs [service]|down>",
 			summary: "Manage the local Kubernetes reference deployment.",
 			details: []string{
 				"Needs Docker and kubectl, and creates a kind cluster — set BUILDMAX_KIND_CLUSTER\n" +
@@ -495,7 +495,9 @@ func helpTopics() []helpTopic {
 					"to this machine for as long as it runs, which is how you read what a run wrote.\n" +
 					"A target whose host port is already taken is skipped, not fatal.",
 				"A login code is single-use and printed once, so `info` issues a fresh one\n" +
-					"rather than trying to show a code that is already spent.",
+					"rather than trying to show a code that is already spent. `login` is the same\n" +
+					"code path as JSON on stdout instead of a banner, for a script — such as the\n" +
+					"`drive-portal` skill — to sign in without a human copying anything.",
 				"`seed` puts the models in " + localSettingsPath + " into the cluster's catalog, so\n" +
 					"the CLI and Desktop can drive it over the managed transport with real inference.\n" +
 					"A seeded row is callable at once and needs no restart. The cluster's own Portal\n" +
@@ -514,6 +516,7 @@ func helpTopics() []helpTopic {
 				{"mock", "Switch conversations and task runs back to the free in-cluster mock"},
 				{"smoke [managed]", "Run the deployment smoke against the cluster"},
 				{"info [email]", "Print the endpoints and issue a fresh login code"},
+				{"login [email]", "Issue a fresh login code as {email,code,portal_url} JSON, for a script"},
 				{"forward", "Forward MySQL (3306) and MinIO (9000, 9001) to 127.0.0.1"},
 				{"status", "Report pod, service, and ingress state"},
 				{"logs [service]", "Tail every namespace's logs, or one of ingress, mysql, minio, server, portal, worker"},

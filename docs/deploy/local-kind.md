@@ -62,6 +62,7 @@ old one.
 ./make kind reload  # rebuild and load local images, then restart the deployments
 ./make kind reload server  # the same, for just the server (or portal)
 ./make kind info    # endpoints, plus a fresh login code for the smoke account
+./make kind login   # the same code as JSON on stdout, for a script instead of a human
 ./make kind forward # forward the in-cluster MySQL and MinIO to 127.0.0.1
 ./make kind status  # read-only summary of the cluster, ingress, and workloads
 ./make kind logs    # pods, jobs, events, server, Portal, and worker logs
@@ -80,6 +81,10 @@ it to direct.
 `info` prints the cluster, the Portal URL and its health, the MinIO credentials,
 and issues a single-use login code — for `deployment-smoke@buildmax.local`
 by default, or for the account named as `./make kind info alice@example.com`.
+`login` skips the human-readable banner and prints `{"email","code","portal_url"}`
+JSON instead, creating the account first if it does not exist yet; the
+`drive-portal` skill (`.buildmax/skills/drive-portal/`) uses it to sign in a
+headless browser without anyone copying a code by hand.
 
 `status` changes nothing. It prints the selected cluster and context, probes
 <http://localhost:8080/healthz> through the ingress, and lists nodes plus the

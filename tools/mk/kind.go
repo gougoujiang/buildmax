@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -71,6 +72,8 @@ func cmdKind(args []string) error {
 		return kindForward()
 	case "info":
 		return kindInfo(args[1:])
+	case "login":
+		return kindLogin(args[1:])
 	case "smoke":
 		managed, err := composeSmokeMode(args[1:])
 		if err != nil {
@@ -554,6 +557,41 @@ func kindInfo(args []string) error {
 	}
 	fmt.Printf("\nSign in at %s\n\n%s\n", kindPortalURL(), code)
 	fmt.Printf("\nRun %s kind info again for another code.\n", mk())
+	return nil
+}
+
+// kindLogin is `info`'s machine-readable counterpart: a driver script (not a
+// human) needs the bare code, not the human-readable banner `user
+// login-code` prints, and it needs the account to exist rather than fail on
+// one `kind info` assumes was already created by a smoke run.
+func kindLogin(args []string) error {
+	if len(args) > 1 {
+		return usageErrorf("kind", "login takes at most one email address")
+	}
+	email := smokeEmail
+	if len(args) == 1 && args[0] != "" {
+		email = args[0]
+	}
+	if err := requireCommands("kubectl"); err != nil {
+		return err
+	}
+	target := kindSmokeTarget()
+	if output, err := target.admin("user", "create", email); err != nil && !strings.Contains(output, "already has an account") {
+		return fmt.Errorf("create account for %s: %w", email, err)
+	}
+	code, err := issueLoginCode(target, email)
+	if err != nil {
+		return err
+	}
+	out, err := json.Marshal(struct {
+		Email     string `json:"email"`
+		Code      string `json:"code"`
+		PortalURL string `json:"portal_url"`
+	}{email, code, kindPortalURL()})
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(out))
 	return nil
 }
 
