@@ -28,8 +28,12 @@ policy](agent-sandbox-policy.md), [Graceful shutdown](graceful-shutdown.md), and
 ## 1. Status
 
 - roadmap_priority: `R0` — contain unattended worker execution
-- status: planned; no listener, Service, TLS, or NetworkPolicy change described
-  here has shipped
+- status: in progress. M1 has shipped — the worker control API is served on a
+  second in-process listener with its own mux, fail-closed listener
+  configuration, and the route-boundary tests. M2 (worker-listener TLS and an
+  explicit worker HTTP client), M3 (the internal Service and `NetworkPolicy`),
+  M4 (route lifecycle authorization), and M5 (deployment evidence) remain
+  planned; no TLS, Service, or `NetworkPolicy` change described here has shipped.
 - decision_date: `2026-09-05`
 - scope: isolate the Server's worker control channel from its public HTTP
   surface and authenticate its transport
@@ -459,7 +463,7 @@ that cost is necessary. The two-listener design keeps this migration possible.
 
 ## 12. Implementation Plan
 
-### M1. Route And Listener Separation
+### M1. Route And Listener Separation — shipped
 
 - Build distinct public and worker muxes.
 - Run two coordinated `http.Server` instances with the existing timeout and

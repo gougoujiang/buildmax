@@ -25,7 +25,7 @@ conversation:
 worker:
   binary: buildmax-worker
   run_mode: local_process
-  server_url: http://127.0.0.1:5678
+  server_url: http://127.0.0.1:5679
 
 storage:
   persist_backend: local_fs

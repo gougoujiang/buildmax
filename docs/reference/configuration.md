@@ -767,13 +767,25 @@ webhook:
 worker:
   binary: buildmax-worker
   run_mode: local_process            # or k8s_job
-  server_url: http://localhost:5678  # how the worker reaches the server;
-                                      # BUILDMAX_SERVER_URL overrides it
+  server_url: http://127.0.0.1:5679  # the worker control listener below, not
+                                      # the public port; BUILDMAX_SERVER_URL
+                                      # overrides it
+  allow_insecure_http: true          # required for a k8s_job over http://
+  # server_ca_file: ""               # CA for the worker listener's certificate
+  # client_cert_file: ""             # optional native mTLS client identity
+  # client_key_file: ""
   k8s:
     namespace: buildmax
     image: buildmax:local
     config_map: buildmax-config      # ConfigMap holding server.yaml for worker pods
     home_dir: /buildmax              # BUILDMAX_HOME inside a worker pod
+
+worker_api:                          # the internal listener serving /api/worker/*
+  listen: 127.0.0.1:5679             # loopback by default; :5679 on Kubernetes
+  tls:
+    cert_file: ""                    # server certificate; empty serves plain HTTP
+    key_file: ""
+    client_ca_file: ""               # optional native mTLS
 
 # audit:                             # governance trail retention
 #   retention_days: 365              # default 0 — keep every event forever
@@ -835,6 +847,20 @@ a server to an untrusted network.
 The worker reads the same `server.yaml` and needs at minimum `worker.server_url`
 (or `BUILDMAX_SERVER_URL`), `workspaces_dir`, and the `storage` block — it talks
 to blob storage directly rather than proxying through the server.
+
+The server exposes two HTTP listeners. The public one on `port` serves Portal,
+the user API, webhooks, health, and OpenAPI. The worker control API
+(`/api/worker/*`) is served only on the `worker_api` listener, which binds
+`127.0.0.1:5679` by default so an accidental deployment opens no new cluster
+port; a Kubernetes deployment binds it to `:5679` and fronts it with its own
+internal Service. `worker.server_url` must point at that worker listener, not
+the public port — the public listener answers `404` for a worker route even
+with a valid run token. The two listeners must use different ports, and the
+server refuses to start if they collide or if only half a TLS keypair is set.
+TLS on the worker listener and the Kubernetes Service and NetworkPolicy that
+complete the boundary are described in
+[design/worker-api-network-boundary.md](../design/worker-api-network-boundary.md);
+this release ships the listener split and its configuration.
 
 `storage.max_artifact_mb` caps one artifact upload. It defaults to **0**, which
 uses the built-in 100 MB limit. It is a per-file limit rather than a team

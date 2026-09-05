@@ -17,6 +17,19 @@ The root handler constructs its route-group handlers and their application
 services once in `handlers.NewHandler`. Requests reuse those instances; helper
 methods do not assemble fresh service graphs per call.
 
+`server.New` builds two muxes on two listeners. `handlers.RegisterPublic` puts
+every route except the worker package on the public listener (`Config.Addr`);
+`handlers.RegisterWorker` puts only `/api/worker/*` on the worker listener
+(`Config.WorkerAddr`, default `127.0.0.1:5679`). The worker routes are absent
+from the public mux, so the public socket returns `404` for them regardless of
+the token presented. `handlers.Register` composes both onto one mux for tests
+and single-listener embeddings; the server never uses it. CORS wraps only the
+public listener; request logging wraps both. On shutdown the public listener
+closes before the worker one, so a worker can still report while the public
+surface drains. The `Config.WorkerAddr`-empty case (used by handler tests)
+builds the worker handler but opens no second socket. See
+[design/worker-api-network-boundary.md](../../design/worker-api-network-boundary.md).
+
 ## Key Areas
 
 | Area | Package / File | Role |
@@ -75,11 +88,11 @@ methods do not assemble fresh service graphs per call.
   written to while it streams cannot skip a record
 - Webhook keys (user-scoped, not team-scoped): `/api/webhook-keys...`
 - WebSocket: `/api/teams/{team_id}/ws`
-- Worker API: `/api/worker/task-runs/{task_run_id}...`, including
-  `/llm/completions` so a worker needs no provider credential and `/artifacts`
-  so a run's agent can keep a file for the team. The worker never says which
-  team it is writing to: the run token names the run, the run names the task,
-  and the task names the team
+- Worker API (**internal listener only**, not the public port):
+  `/api/worker/task-runs/{task_run_id}...`, including `/llm/completions` so a
+  worker needs no provider credential and `/artifacts` so a run's agent can keep
+  a file for the team. The worker never says which team it is writing to: the
+  run token names the run, the run names the task, and the task names the team
 - Inbound webhook: `/api/webhook`
 
 ## Conversation Turns
