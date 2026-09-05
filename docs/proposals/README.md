@@ -35,6 +35,7 @@ last column says so, and the paper's own delivery phases hold the detail.
 
 | Proposal | Question | Built so far |
 |---|---|---|
+| [System administration operations](system-administration-operations.md) | How should the automation-friendly operator CLI and the human-facing Portal provide safe outcome parity for authority, accounts, sessions, catalogs, quotas, and runtime health? | The grant model, operator command, admin API, six-section Portal area, model and plugin catalog controls, and deployment-wide audit already exist; grant integrity hardening and full Portal parity do not |
 | [Client sessions and API credentials](client-sessions-and-api-credentials.md) | Should interactive login issue any long-lived credential beyond a rotating refresh token, and how should native managed clients and unattended callers authenticate? | None of its stages. The rotating two-token session it proposes to harden is in `internal/infra/db/user_refresh_token.go` |
 | [Enterprise identity and access](enterprise-identity-and-access.md) | How should a private deployment connect corporate identity to BuildMax teams and roles? | Nothing |
 | [Durable Agent sessions](durable-agent-sessions.md) | Should authenticated local Agent sessions become revisioned Server resources for recovery, provenance, sharing, and cross-device continuation? | Nothing; no server route serves a session resource |
