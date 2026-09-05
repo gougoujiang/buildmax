@@ -24,12 +24,6 @@
   color: var(--color-text-muted);
 }
 
-.agent-detail__meta {
-  font-family: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
-  font-size: 0.8rem;
-  margin-bottom: 0.35rem;
-}
-
 .agent-detail__desc {
   margin: 0;
   font-size: 0.9rem;

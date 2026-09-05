@@ -57,12 +57,6 @@
   color: var(--color-text-muted);
 }
 
-.artifact-row__id {
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 11px;
-  overflow-wrap: anywhere;
-}
-
 .artifact-row__actions {
   display: flex;
   gap: 8px;
