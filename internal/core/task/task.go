@@ -107,23 +107,28 @@ type Task struct {
 
 // Run is one execution (initial or follow-up) of a task.
 type Run struct {
-	ID               string     `json:"id"`
-	TaskID           string     `json:"task_id"`
-	Input            string     `json:"input"`
-	CreatedBy        string     `json:"created_by,omitempty"`
-	CreatedByType    string     `json:"created_by_type,omitempty"`
-	TriggerSource    string     `json:"trigger_source,omitempty"`
-	Status           string     `json:"status"`
-	Output           *string    `json:"output,omitempty"`
-	ErrorMessage     *string    `json:"error_message,omitempty"`
-	StartedAt        *time.Time `json:"started_at,omitempty"`
-	EndedAt          *time.Time `json:"ended_at,omitempty"`
-	SessionID        *string    `json:"session_id,omitempty"`
-	WorkerType       string     `json:"worker_type,omitempty"`
-	K8sJobName       *string    `json:"k8s_job_name,omitempty"`
-	K8sJobCreatedAt  *time.Time `json:"k8s_job_created_at,omitempty"`
-	PromptTokens     *int       `json:"prompt_tokens,omitempty"`
-	CompletionTokens *int       `json:"completion_tokens,omitempty"`
+	ID     string `json:"id"`
+	TaskID string `json:"task_id"`
+	// PreviousTaskRunID names the immediately preceding run in this Task's
+	// linear history. It is fixed when the run is created, so later updates to
+	// Task.LastRunID cannot change where this run restores its session from.
+	// Nil for the Task's first run.
+	PreviousTaskRunID *string    `json:"previous_task_run_id,omitempty"`
+	Input             string     `json:"input"`
+	CreatedBy         string     `json:"created_by,omitempty"`
+	CreatedByType     string     `json:"created_by_type,omitempty"`
+	TriggerSource     string     `json:"trigger_source,omitempty"`
+	Status            string     `json:"status"`
+	Output            *string    `json:"output,omitempty"`
+	ErrorMessage      *string    `json:"error_message,omitempty"`
+	StartedAt         *time.Time `json:"started_at,omitempty"`
+	EndedAt           *time.Time `json:"ended_at,omitempty"`
+	SessionID         *string    `json:"session_id,omitempty"`
+	WorkerType        string     `json:"worker_type,omitempty"`
+	K8sJobName        *string    `json:"k8s_job_name,omitempty"`
+	K8sJobCreatedAt   *time.Time `json:"k8s_job_created_at,omitempty"`
+	PromptTokens      *int       `json:"prompt_tokens,omitempty"`
+	CompletionTokens  *int       `json:"completion_tokens,omitempty"`
 	// TracePath locates this run's durable trace inside run-global storage,
 	// e.g. "traces/<session>/rt_….jsonl". Nil when no trace was written — the
 	// run failed before an agent started, or tracing was disabled.

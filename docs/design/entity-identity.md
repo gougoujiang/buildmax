@@ -224,10 +224,11 @@ CREATE TABLE task (
 );
 
 CREATE TABLE task_run (
-    id          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-    public_id   CHAR(20) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-    task_id     BIGINT UNSIGNED NOT NULL,
-    retry_of_id BIGINT UNSIGNED NULL,
+    id                   BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    public_id            CHAR(20) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    task_id              BIGINT UNSIGNED NOT NULL,
+    previous_task_run_id BIGINT UNSIGNED NULL,
+    retry_of_task_run_id BIGINT UNSIGNED NULL,
     PRIMARY KEY (id),
     UNIQUE KEY uq_task_run_public_id (public_id),
     KEY idx_task_run_task (task_id)
@@ -274,7 +275,7 @@ Each replaces its current prefixed public column with `public_id BINARY(12)`.
 | `conversation` | `user_id`, `team_id`, `created_by` |
 | `conversation_message` | `conversation_id` |
 | `task` | `conversation_id`, `team_id`, `issue_id`, `agent_id`, `last_run_id`, `created_by` |
-| `task_run` | `task_id`, `retry_of_id`, `cancel_requested_by` |
+| `task_run` | `task_id`, `previous_task_run_id`, `retry_of_task_run_id`, `cancel_requested_by` |
 | `workflow` | `team_id`, `created_by` |
 | `workflow_run` | `workflow_id`, `issue_id`, `conversation_id`, `created_by` |
 | `workflow_step_run` | `workflow_run_id`, `target_agent_id`, `task_id`, `task_run_id` |

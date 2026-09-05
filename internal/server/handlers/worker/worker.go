@@ -61,10 +61,11 @@ func (h *Handler) getTaskRun(w http.ResponseWriter, r *http.Request) {
 
 	httputil.WriteJSON(w, http.StatusOK, workerclient.GetTaskRunResponse{
 		Run: workerclient.TaskRunRun{
-			ID:     run.ID,
-			TaskID: run.TaskID,
-			Input:  run.Input,
-			Status: run.Status,
+			ID:                run.ID,
+			TaskID:            run.TaskID,
+			PreviousTaskRunID: run.PreviousTaskRunID,
+			Input:             run.Input,
+			Status:            run.Status,
 			// The worker polls this route while it executes, so this field is
 			// how a cancel reaches a run that is already under way.
 			CancelRequested: run.CancelRequestedAt != nil,
@@ -76,7 +77,6 @@ func (h *Handler) getTaskRun(w http.ResponseWriter, r *http.Request) {
 			TeamID:            task.TeamID,
 			UserID:            task.CreatedBy,
 			SessionID:         task.SessionID,
-			LastRunID:         task.LastRunID,
 			AgentInstructions: agentInstructions,
 		},
 		Plugins:     toWirePlugins(pins),

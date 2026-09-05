@@ -335,6 +335,7 @@ normal direct execution, not an error.
 Each TaskRun records at least:
 
 - Task id;
+- the immutable previous TaskRun that supplies session continuity;
 - input and creator;
 - trigger source;
 - source message when one exists;
@@ -345,9 +346,10 @@ Each TaskRun records at least:
 - status, timestamps, usage, output, trace, and Artifacts; and
 - whether session restoration succeeded, degraded, or was not requested.
 
-A future explicit `continues_task_run_id` may make the continuation edge
-queryable. Task order and a shared session id are not enough if a later feature
-allows branching.
+`previous_task_run_id` makes the linear continuation edge queryable and fixes
+the session source before `task.last_run_id` advances to the new run. Task order
+and a shared session id would not be enough if a later feature allowed
+branching; that feature would need a distinct accepted design.
 
 ### 8.3 API Direction
 
@@ -596,10 +598,11 @@ it rather than leaving the gap implicit.
 4. **Done.** A refreshed Task page reconstructs every user input and Agent
    output from TaskRun records — the page holds no state a reload cannot
    rebuild from `GET .../tasks/{task_id}/runs`.
-5. **Partly done.** Submitting from the Task page creates one new-input TaskRun
-   on the same Task — verified. **Open:** explicit evidence that the Task
-   session was actually restored for that new run, as opposed to started
-   fresh; see item 13 and §16.
+5. **Done.** Submitting from the Task page creates one new-input TaskRun on the
+   same Task. `TestContinueRunSendsRestoredHistoryToModel` executes two worker
+   runs in separate directories through object storage and proves that the
+   second model request contains the first exchange; `task-thread.spec.ts`
+   proves the admitted run names the first as its immutable predecessor.
 6. **Done.** Retry repeats the selected run and is distinguishable from
    Continue in data (`retry_of_task_run_id`) and UI (separate actions).
 7. **Done.** Concurrent Continue requests admit at most one active run, and an

@@ -757,6 +757,7 @@ One execution attempt. This is the row quota and token accounting read.
 | `id` | `bigint unsigned` | no | Internal primary key |
 | `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
 | `task_id` | `bigint unsigned` | no | `task.id` |
+| `previous_task_run_id` | `bigint unsigned` | yes | Immutable predecessor in the Task's linear run history; the worker restores this run's session bundle |
 | `input` | `text` | no | Prompt for this attempt; a rerun may differ from the task's |
 | `created_by` | `varchar(64)` | yes | `user.id`, empty for system-triggered runs |
 | `created_by_type` | `varchar(32)` | yes | `user`, `webhook`, or `system` |
@@ -786,7 +787,7 @@ One execution attempt. This is the row quota and token accounting read.
 | `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 
 Indexes: PK `id`; index `cancel_requested_at`; index `created_by`; index
-`last_seen_at`; index `retry_of_task_run_id`; index `source_message_id`; index
+`last_seen_at`; index `previous_task_run_id`; index `retry_of_task_run_id`; index `source_message_id`; index
 `idx_task_run_task_created` on (`task_id`, `created_at`); unique `public_id`;
 unique `idx_task_run_idempotency` on (`task_id`, `idempotency_key`).
 
@@ -832,6 +833,13 @@ retry of a retry names the run it repeated, not the first of the chain. It is
 not a foreign key, and the run it names is never modified — a retry is a new
 attempt, not a rewrite of the record that explains why one was needed. The
 matching `trigger_source` is `task_retry`.
+
+`previous_task_run_id` is different from retry lineage: it names the run that
+was current immediately before this run was admitted, whether the new run is a
+Continue or a Retry. It is written in the same transaction that advances
+`task.last_run_id` and never changes afterwards. Workers use this immutable
+value to restore the prior session bundle; reading the Task projection would
+only return the current run after admission.
 
 `cancel_requested_at` is a request, not a status: a run a worker already holds
 stays `RUNNING` until that worker reports `CANCELED`, because nothing else can

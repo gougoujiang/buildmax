@@ -94,13 +94,14 @@ test("running an Agent directly reaches a Task with no Conversation, and Continu
   await page.getByRole("button", { name: "Continue" }).click()
   await expect(history.locator(".bm-chat-thread__row--user")).toHaveCount(2)
 
-  const afterContinue = await getJSON<{ runs: { id: string; input: string }[] }>(
+  const afterContinue = await getJSON<{ runs: { id: string; input: string; previous_task_run_id?: string | null }[] }>(
     page,
     `${current.team}/tasks/${encodeURIComponent(taskId)}/runs`,
     current
   )
   expect(afterContinue.runs).toHaveLength(2)
   expect(afterContinue.runs[1].input).toBe(followUp)
+  expect(afterContinue.runs[1].previous_task_run_id).toBe(afterContinue.runs[0].id)
 
   await waitForTaskSucceeded(page, current, taskId)
   await expect(history.locator(".bm-chat-thread__row--assistant").last()).toContainText(REPLY)

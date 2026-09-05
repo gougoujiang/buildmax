@@ -449,13 +449,13 @@ func ensureRunDirs(runHome, runArtifacts, runGlobal, runOSHome string) error {
 var sessionBundleFiles = []string{"meta.json", "history.jsonl"}
 
 func restoreSessionFromPreviousRun(ctx context.Context, task *coretask.Task, run *coretask.Run, runGlobalDir string, persist blob.RunStorage) {
-	if task.SessionID == nil || task.LastRunID == nil || *task.LastRunID == run.ID {
+	if task.SessionID == nil || run.PreviousTaskRunID == nil {
 		return
 	}
 	bundleDir := filepath.Join(runGlobalDir, "sessions", *task.SessionID)
 	for _, name := range sessionBundleFiles {
 		data, err := persist.GetRunGlobal(ctx, blob.RunObjectRef{
-			TeamID: task.TeamID, TaskID: task.ID, TaskRunID: *task.LastRunID,
+			TeamID: task.TeamID, TaskID: task.ID, TaskRunID: *run.PreviousTaskRunID,
 			RelPath: "sessions/" + *task.SessionID + "/" + name,
 		})
 		if err != nil {

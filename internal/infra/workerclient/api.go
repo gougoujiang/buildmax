@@ -117,11 +117,12 @@ func GetWorkerTaskRun(ctx context.Context, cfg WorkerAPIClientConfig, taskRunID 
 	}
 	return &WorkerTaskRun{
 		Run: &coretask.Run{
-			ID:        got.Run.ID,
-			TaskID:    got.Run.TaskID,
-			Input:     got.Run.Input,
-			Status:    got.Run.Status,
-			CreatedAt: got.Run.CreatedAt,
+			ID:                got.Run.ID,
+			TaskID:            got.Run.TaskID,
+			PreviousTaskRunID: got.Run.PreviousTaskRunID,
+			Input:             got.Run.Input,
+			Status:            got.Run.Status,
+			CreatedAt:         got.Run.CreatedAt,
 		},
 		Task: &coretask.Task{
 			ID:             got.Task.ID,
@@ -129,7 +130,6 @@ func GetWorkerTaskRun(ctx context.Context, cfg WorkerAPIClientConfig, taskRunID 
 			TeamID:         got.Task.TeamID,
 			CreatedBy:      got.Task.UserID,
 			SessionID:      got.Task.SessionID,
-			LastRunID:      got.Task.LastRunID,
 		},
 		LLM:                   got.LLM,
 		AgentInstructions:     got.Task.AgentInstructions,

@@ -93,6 +93,7 @@
         "properties": {
           "id": { "type": "string" },
           "task_id": { "type": "string" },
+          "previous_task_run_id": { "type": "string", "nullable": true },
           "input": { "type": "string" },
           "status": { "type": "string" },
           "output": { "type": "string", "nullable": true },
@@ -854,6 +855,7 @@
             "properties": {
               "id": {"type": "string"},
               "task_id": {"type": "string"},
+              "previous_task_run_id": {"type": "string"},
               "input": {"type": "string"},
               "status": {"type": "string"},
               "cancel_requested": {"type": "boolean"},
@@ -869,7 +871,6 @@
               "team_id": {"type": "string"},
               "user_id": {"type": "string"},
               "session_id": {"type": "string"},
-              "last_run_id": {"type": "string"},
               "agent_instructions": {"type": "string"}
             },
             "required": ["id", "conversation_id", "team_id", "user_id"]

@@ -276,6 +276,8 @@ export interface ApiTask {
 export interface ApiTaskRun {
   id: string
   task_id: string
+  /** The immutable predecessor whose session bundle this run restores. */
+  previous_task_run_id?: string | null
   input: string
   created_by?: string
   trigger_source?: string

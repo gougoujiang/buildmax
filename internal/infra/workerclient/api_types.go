@@ -75,10 +75,11 @@ type TaskRunLLM struct {
 
 // TaskRunRun is the run portion of the GET response.
 type TaskRunRun struct {
-	ID     string `json:"id"`
-	TaskID string `json:"task_id"`
-	Input  string `json:"input"`
-	Status string `json:"status"`
+	ID                string  `json:"id"`
+	TaskID            string  `json:"task_id"`
+	PreviousTaskRunID *string `json:"previous_task_run_id,omitempty"`
+	Input             string  `json:"input"`
+	Status            string  `json:"status"`
 	// CancelRequested is true once someone has asked this run to stop. The
 	// worker polls for it and is what actually stops: the server records the
 	// intent, the run's own process ends it. Absent means no request, so a
@@ -94,7 +95,6 @@ type TaskRunTask struct {
 	TeamID         string  `json:"team_id"`
 	UserID         string  `json:"user_id"`
 	SessionID      *string `json:"session_id,omitempty"`
-	LastRunID      *string `json:"last_run_id,omitempty"`
 	// AgentInstructions is the instruction text of the agent this task names, resolved by
 	// the server. The worker appends it to the run's system prompt, which is re-sent whole on
 	// every call, rather than leaving it in the task input, which the conversation eventually
