@@ -317,8 +317,24 @@ func (s *Store) CreateTaskRun(ctx context.Context, in coretask.CreateRunInput) (
 		if sourceKey != nil {
 			sourceMessage = optionalCanonicalPublicID(in.SourceMessageID)
 		}
-		return createWithPublicID(ctx, tx, "uq_task_run_public_id",
-			func(id string) { row.PublicID = id }, row)
+		if err := createWithPublicID(ctx, tx, "uq_task_run_public_id",
+			func(id string) { row.PublicID = id }, row); err != nil {
+			return err
+		}
+		// Mirror the new run onto the task immediately, the same fields
+		// TransitionTaskRun keeps in sync on every later transition. Without
+		// this, the task row keeps reporting the previous run's terminal
+		// status — output included — until the scheduler's next tick claims
+		// this one, which a caller reading the task right after Continue or
+		// Retry would otherwise see as a stale success or failure.
+		return tx.Model(&taskRow{}).Where("id = ?", taskKey).Updates(map[string]interface{}{
+			"last_run_id":   row.ID,
+			"status":        row.Status,
+			"output":        nil,
+			"started_at":    nil,
+			"ended_at":      nil,
+			"error_message": nil,
+		}).Error
 	})
 	if err != nil {
 		return nil, err

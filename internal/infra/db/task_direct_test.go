@@ -126,6 +126,24 @@ func TestCreateTaskRunContinuesADirectTaskWithoutAConversation(t *testing.T) {
 	if second.ID == firstRunID {
 		t.Error("continue should create a new run, not reuse the first")
 	}
+
+	// The task row has to track the run it just created, not keep reporting
+	// the first run's terminal state until a scheduler tick later claims the
+	// second one — a reader of the task in between would otherwise see a
+	// finished task with a still-active run underneath it.
+	afterContinue, err := s.GetTask(ctx, task.ID)
+	if err != nil {
+		t.Fatalf("GetTask after continue: %v", err)
+	}
+	if afterContinue.Status != string(coretask.RunStatusPending) {
+		t.Errorf("task status after continue = %q, want %q", afterContinue.Status, coretask.RunStatusPending)
+	}
+	if afterContinue.LastRunID == nil || *afterContinue.LastRunID != second.ID {
+		t.Errorf("task last_run_id after continue = %v, want %q", afterContinue.LastRunID, second.ID)
+	}
+	if afterContinue.Output != nil {
+		t.Errorf("task output after continue = %v, want nil (the first run's output must not linger)", *afterContinue.Output)
+	}
 }
 
 // A client that cannot tell whether its Continue request landed retries it
