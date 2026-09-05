@@ -386,6 +386,54 @@ func TestGetWorkerTaskRunHandler_TellsTheRunHowToReachAModel(t *testing.T) {
 	})
 }
 
+// TestGetWorkerTaskRunHandler_AgentModelOverridesTheAlias covers per-agent model
+// selection: a run whose agent names a model reaches that model, not the
+// deployment default, while an agent that names none keeps the default. The
+// override rides the same managed descriptor, so the transport is unchanged.
+func TestGetWorkerTaskRunHandler_AgentModelOverridesTheAlias(t *testing.T) {
+	get := func(t *testing.T, agentModel string) workerclient.GetTaskRunResponse {
+		t.Helper()
+		store := &mock.MockTaskRunStore{
+			Runs:     []coretask.Run{{ID: "run-1", TaskID: "task-1", Input: "input", Status: "SCHEDULED", CreatedAt: time.Unix(1, 0).UTC()}},
+			TaskList: []coretask.Task{{ID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1", AgentID: util.Ptr("a_1")}},
+		}
+		agents := &mock.MockAgentStore{Agents: []agentdef.Agent{{ID: "a_1", TeamID: "tm_1", Name: "picker", Model: agentModel}}}
+		mux := http.NewServeMux()
+		New(Config{
+			JWTSecret: workerTestSecret,
+			TaskRuns:  store,
+			Agents:    agents,
+			WorkerLLM: &workerclient.TaskRunLLM{Transport: "buildmax", Model: "Deep", ContextWindow: 128000},
+		}).Register(mux)
+		req := httptest.NewRequest(http.MethodGet, "/api/worker/task-runs/run-1", nil)
+		req.Header.Set("Authorization", "Bearer "+runTokenFor(t, "run-1", "task-1"))
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200: %s", w.Code, w.Body.String())
+		}
+		var got workerclient.GetTaskRunResponse
+		if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		return got
+	}
+
+	t.Run("agent names a model", func(t *testing.T) {
+		got := get(t, "Fast")
+		if got.LLM == nil || got.LLM.Transport != "buildmax" || got.LLM.Model != "Fast" {
+			t.Errorf("llm = %+v, want transport buildmax model Fast", got.LLM)
+		}
+	})
+
+	t.Run("agent names none keeps the deployment default", func(t *testing.T) {
+		got := get(t, "")
+		if got.LLM == nil || got.LLM.Model != "Deep" {
+			t.Errorf("llm = %+v, want the deployment default Deep", got.LLM)
+		}
+	})
+}
+
 // An agent that declares neither tier inherits the team's default -- see
 // docs/design/agent-sandbox-policy.md §9 M3. Once resolved, the tiers pin to
 // the run so a later change to the team's default cannot alter a run already

@@ -59,6 +59,11 @@ type Config struct {
 	// SecretService backs the Secret management routes. Nil when the secret
 	// feature is off (no KEK file configured), and then those routes report it.
 	SecretService *secretsvc.Service
+	// Models enumerates the deployment's model catalog so an agent naming a
+	// model it does not offer is refused on write. Nil in a direct-transport
+	// deployment, which has no catalog; a model name is then stored unchecked.
+	// See agentsvc.ModelCatalog.
+	Models agentsvc.ModelCatalog
 }
 
 type Handler struct {

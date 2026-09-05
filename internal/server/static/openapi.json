@@ -66,6 +66,7 @@
           "name": { "type": "string" },
           "description": { "type": "string" },
           "instructions": { "type": "string" },
+          "model": { "type": "string" },
           "created_at": { "type": "string", "format": "date-time" }
         }
       },
@@ -744,6 +745,7 @@
           "name": {"type": "string"},
           "description": {"type": "string"},
           "instructions": {"type": "string"},
+          "model": {"type": "string"},
           "plugins": {"type": "array", "items": {"type": "string"}},
           "created_by": {"type": "string"},
           "created_at": {"type": "string", "format": "date-time"}

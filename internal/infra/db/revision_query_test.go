@@ -66,6 +66,52 @@ func TestAgentRevisionsPageNewestFirst(t *testing.T) {
 	}
 }
 
+// TestAgentModelPersistsAndVersions asserts the model survives a round trip and
+// that changing it appends a revision recording the old value, the same way the
+// sandbox tiers do.
+func TestAgentModelPersistsAndVersions(t *testing.T) {
+	s, ctx := revisionTestStore(t)
+	userID := newTestUser(t, s, "agentmodel")
+	teamID := newTestTeam(t, s, userID)
+
+	created, err := s.CreateAgentInTeam(ctx, agentdef.CreateInput{TeamID: teamID, UserID: userID,
+		Def: agentdef.Definition{Name: "picker", Description: "d", Instructions: "i", Model: "Fast"}})
+	if err != nil {
+		t.Fatalf("CreateAgentInTeam: %v", err)
+	}
+	if created.Model != "Fast" {
+		t.Fatalf("created model = %q, want Fast", created.Model)
+	}
+
+	got, err := s.GetAgent(ctx, created.ID)
+	if err != nil || got == nil {
+		t.Fatalf("GetAgent = %v, %v", got, err)
+	}
+	if got.Model != "Fast" {
+		t.Errorf("read-back model = %q, want Fast", got.Model)
+	}
+
+	if _, err := s.UpdateAgentInTeam(ctx, agentdef.UpdateInput{AgentID: created.ID, TeamID: teamID, UpdatedBy: userID,
+		Def: agentdef.Definition{Name: "picker", Description: "d", Instructions: "i", Model: "Deep"}}); err != nil {
+		t.Fatalf("UpdateAgentInTeam: %v", err)
+	}
+
+	first, err := s.GetAgentRevision(ctx, created.ID, 1)
+	if err != nil || first == nil {
+		t.Fatalf("GetAgentRevision(1) = %v, %v", first, err)
+	}
+	if first.Model != "Fast" {
+		t.Errorf("revision 1 model = %q, want Fast", first.Model)
+	}
+	second, err := s.GetAgentRevision(ctx, created.ID, 2)
+	if err != nil || second == nil {
+		t.Fatalf("GetAgentRevision(2) = %v, %v", second, err)
+	}
+	if second.Model != "Deep" {
+		t.Errorf("revision 2 model = %q, want Deep", second.Model)
+	}
+}
+
 func TestGetAgentRevisionReportsMissingAsNil(t *testing.T) {
 	s, ctx := revisionTestStore(t)
 	userID := newTestUser(t, s, "revision")

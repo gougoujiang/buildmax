@@ -66,6 +66,7 @@ export interface Agent {
   name: string
   description?: string
   instructions?: string
+  model?: string
   plugins?: string[]
   sandboxNetworkTier?: string
   sandboxFilesystemTier?: string
@@ -81,6 +82,7 @@ export interface AgentRevision {
   name: string
   description: string
   instructions: string
+  model?: string
   createdBy: string
   createdAt: string
   createdLabel: string

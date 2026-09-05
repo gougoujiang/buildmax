@@ -9,7 +9,7 @@ import { navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { apiAgentToAgent, apiTaskToTask } from "../../lib/api/mappers"
 import { createAgentTask, listAgentTasks } from "../../features/tasks"
-import { getAgents, createAgent } from "../../features/agents"
+import { getAgents, createAgent, listAgentModels } from "../../features/agents"
 import { runStatusLabel, runStatusTone, taskRunFailed, taskRunFinished } from "../../features/conversations/thread"
 import { AgentAvatar } from "../../components/UserAvatar"
 import { CreateAgentModal } from "../../components/CreateAgentModal"
@@ -26,6 +26,7 @@ export function AgentList({ token }: AgentListProps) {
   const [agents, setAgents] = useState<Agent[]>([])
   const [secrets, setSecrets] = useState<ApiSecret[]>([])
   const [availablePlugins, setAvailablePlugins] = useState<string[]>([])
+  const [availableModels, setAvailableModels] = useState<string[]>([])
   const [tasksByAgent, setTasksByAgent] = useState<Record<string, ApiTask[]>>({})
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
@@ -78,6 +79,11 @@ export function AgentList({ token }: AgentListProps) {
         setAvailablePlugins(nameablePlugins(activations, catalog?.plugins ?? null)),
       )
       .catch(() => setAvailablePlugins([]))
+    // Deployment-wide catalog, fetched independently of the team-scoped plugin
+    // options; an empty list leaves the picker at just the deployment default.
+    listAgentModels(token)
+      .then(setAvailableModels)
+      .catch(() => setAvailableModels([]))
   }, [token, currentTeamId, canManageAgents])
 
   useEffect(() => {
@@ -144,6 +150,7 @@ export function AgentList({ token }: AgentListProps) {
     name: string
     description?: string
     instructions?: string
+    model?: string
     plugins?: string[]
     sandbox_network_tier?: string
     sandbox_filesystem_tier?: string
@@ -352,6 +359,7 @@ export function AgentList({ token }: AgentListProps) {
         error={error}
         secrets={secrets}
         availablePlugins={availablePlugins}
+        availableModels={availableModels}
         onClose={() => {
           setModalOpen(false)
           setError(null)

@@ -41,6 +41,11 @@ export interface ApiAgent {
   description: string
   instructions: string
   /**
+   * Catalog model name this agent's runs call, or empty for the deployment
+   * default. Takes effect on the managed worker transport.
+   */
+  model?: string
+  /**
    * Catalog plugin names this agent loads for a background run. Nothing is
    * inherited from the team's activations: an agent that names none loads none.
    */
@@ -64,6 +69,7 @@ export interface ApiAgentRevision {
   name: string
   description: string
   instructions: string
+  model?: string
   created_by: string
   created_at: string
 }

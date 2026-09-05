@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 import type { FormModalFieldConfig } from "@buildmax/gui"
 import type { Agent } from "../lib/types"
 import type { ApiSecret, ApiSecretConsumption } from "../lib/api/types"
-import { AGENT_FIELDS, buildAgentDefinition, type AgentDefinitionInput } from "../features/agents"
+import { agentFields, buildAgentDefinition, type AgentDefinitionInput } from "../features/agents"
 import { SecretConsumptionEditor } from "./SecretConsumptionEditor"
 import { PluginSelectionEditor } from "./PluginSelectionEditor"
 
@@ -10,6 +10,7 @@ interface AgentConfigFormProps {
   agent: Agent
   secrets: ApiSecret[]
   availablePlugins: string[]
+  availableModels: string[]
   canManage: boolean
   saving: boolean
   deleting: boolean
@@ -23,6 +24,7 @@ function seedValues(agent: Agent): Record<string, string> {
     name: agent.name,
     description: agent.description ?? "",
     instructions: agent.instructions ?? "",
+    model: agent.model ?? "",
     sandbox_network_tier: agent.sandboxNetworkTier ?? "",
     sandbox_filesystem_tier: agent.sandboxFilesystemTier ?? "",
   }
@@ -39,6 +41,7 @@ export function AgentConfigForm({
   agent,
   secrets,
   availablePlugins,
+  availableModels,
   canManage,
   saving,
   deleting,
@@ -136,8 +139,9 @@ export function AgentConfigForm({
     )
   }
 
-  const basics = AGENT_FIELDS.filter((f) => f.group === "basics")
-  const sandbox = AGENT_FIELDS.filter((f) => f.group === "sandbox")
+  const fields = agentFields(availableModels)
+  const basics = fields.filter((f) => f.group === "basics")
+  const sandbox = fields.filter((f) => f.group === "sandbox")
   const nameEmpty = !values.name?.trim()
 
   return (

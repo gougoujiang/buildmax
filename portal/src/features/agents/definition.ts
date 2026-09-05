@@ -5,10 +5,15 @@ import {
   AGENT_SANDBOX_NETWORK_TIER_OPTIONS,
 } from "../../lib/sandboxTiers"
 
+// The empty-value option for the model select: no name means the run uses the
+// deployment's default model.
+export const DEPLOYMENT_DEFAULT_MODEL_OPTION = { value: "", label: "Deployment default" }
+
 // The scalar agent fields (everything but the plugin and secret sub-editors),
 // the single source both the create dialog and the inline detail-page editor
 // render from. `group` keys are used only by the create dialog's tabbed
-// FormModal; the inline editor ignores them.
+// FormModal; the inline editor ignores them. The model select's options are a
+// placeholder here; call agentFields(models) to fill them from the catalog.
 export const AGENT_FIELDS: FormModalFieldConfig[] = [
   {
     key: "name",
@@ -37,6 +42,16 @@ export const AGENT_FIELDS: FormModalFieldConfig[] = [
     group: "basics",
   },
   {
+    key: "model",
+    label: "Model",
+    type: "select",
+    optional: true,
+    // Options are the deployment default plus whatever the catalog lists;
+    // agentFields fills them in, since they are not known at module load.
+    options: [DEPLOYMENT_DEFAULT_MODEL_OPTION],
+    group: "basics",
+  },
+  {
     key: "sandbox_network_tier",
     label: "Network access",
     type: "select",
@@ -54,10 +69,23 @@ export const AGENT_FIELDS: FormModalFieldConfig[] = [
   },
 ]
 
+// agentFields returns the field set with the model select's options filled from
+// the catalog: the deployment default first, then every model the deployment
+// offers. Both editors call it with the models they fetched, so a deployment
+// with no catalog (or one still loading) shows only the default.
+export function agentFields(models: string[]): FormModalFieldConfig[] {
+  const options = [
+    DEPLOYMENT_DEFAULT_MODEL_OPTION,
+    ...models.map((name) => ({ value: name, label: name })),
+  ]
+  return AGENT_FIELDS.map((field) => (field.key === "model" ? { ...field, options } : field))
+}
+
 export interface AgentDefinitionInput {
   name: string
   description?: string
   instructions?: string
+  model?: string
   plugins?: string[]
   sandbox_network_tier?: string
   sandbox_filesystem_tier?: string
@@ -97,6 +125,7 @@ export function buildAgentDefinition(
     name,
     description: values.description?.trim() || undefined,
     instructions: values.instructions?.trim() || undefined,
+    model: values.model || undefined,
     plugins,
     sandbox_network_tier: values.sandbox_network_tier || undefined,
     sandbox_filesystem_tier: values.sandbox_filesystem_tier || undefined,

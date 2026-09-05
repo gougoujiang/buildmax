@@ -6,9 +6,12 @@ export {
   updateAgent,
   getAgentRevisions,
   restoreAgentRevision,
+  listAgentModels,
 } from "./api"
 export {
   AGENT_FIELDS,
+  agentFields,
+  DEPLOYMENT_DEFAULT_MODEL_OPTION,
   buildAgentDefinition,
   normalizeConsumption,
   type AgentDefinitionInput,

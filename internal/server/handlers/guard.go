@@ -8,9 +8,11 @@ import (
 	teamroutes "github.com/gougoujiang/buildmax/internal/server/handlers/team"
 	"github.com/gougoujiang/buildmax/internal/server/handlers/work"
 	"github.com/gougoujiang/buildmax/internal/server/handlers/worker"
+	agentsvc "github.com/gougoujiang/buildmax/internal/service/agent"
 	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
 	"github.com/gougoujiang/buildmax/internal/service/conversation"
 	issuesvc "github.com/gougoujiang/buildmax/internal/service/issue"
+	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/service/task"
 
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
@@ -173,7 +175,33 @@ func (h *Handler) buildTeamHandler() *teamroutes.Handler {
 		LoginCodes:       h.cfg.LoginCodeStore,
 		Secrets:          h.cfg.SecretStore,
 		SecretService:    h.cfg.SecretService,
+		Models:           h.modelCatalog(),
 	})
+}
+
+// modelCatalog adapts the LLM gateway to the narrow name list the agent service
+// checks a chosen model against. Nil when this deployment has no gateway (a
+// direct-transport deployment), which leaves an agent's model name stored
+// unchecked because there is no catalog to check it against.
+func (h *Handler) modelCatalog() agentsvc.ModelCatalog {
+	if h.cfg.LLMGateway == nil {
+		return nil
+	}
+	return gatewayModelCatalog{gw: h.cfg.LLMGateway}
+}
+
+type gatewayModelCatalog struct{ gw *llmgateway.Service }
+
+func (g gatewayModelCatalog) ModelNames(ctx context.Context) ([]string, error) {
+	models, err := g.gw.Models(ctx)
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(models))
+	for _, m := range models {
+		names = append(names, m.Name)
+	}
+	return names, nil
 }
 
 // artifactHandler builds the artifact surface.
