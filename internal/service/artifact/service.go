@@ -76,6 +76,17 @@ type Service struct {
 	// Quota decides whether the team may hold more. Nil admits everything.
 	Quota StorageAdmitter
 
+	// Shares persists public links. Nil means this deployment cannot create
+	// them, which is what a deployment without the share store has.
+	Shares coreartifact.ShareStore
+	// PublicBaseURL is the externally reachable origin share links are rendered
+	// against. Empty refuses share creation rather than emitting a link nobody
+	// can open — see docs/design/artifact-public-sharing-and-preview.md §9.
+	PublicBaseURL string
+	// ShareTTL bounds a link's lifetime (default and maximum). Zero means
+	// DefaultShareTTL.
+	ShareTTL time.Duration
+
 	clock func() time.Time
 }
 
@@ -373,10 +384,27 @@ func cleanFilename(name string) (string, error) {
 // bytes the server is about to serve back to a browser, so it is not the basis
 // for the header that decides how the browser treats them.
 func mediaTypeFor(filename string) string {
-	if t := mime.TypeByExtension(filepath.Ext(filename)); t != "" {
+	ext := strings.ToLower(filepath.Ext(filename))
+	// Pinned before the system table: preview depends on these being recognised,
+	// and Go's mime does not register Markdown at all, while the system table is
+	// a deployment variable we do not want the render decision to ride on. HTML
+	// is pinned too so an artifact previews under the same type on every host.
+	if t, ok := pinnedMediaTypes[ext]; ok {
+		return t
+	}
+	if t := mime.TypeByExtension(ext); t != "" {
 		return t
 	}
 	return FallbackMediaType
+}
+
+// pinnedMediaTypes fixes the types the preview surface keys on, independent of
+// the host's mime database.
+var pinnedMediaTypes = map[string]string{
+	".md":       "text/markdown; charset=utf-8",
+	".markdown": "text/markdown; charset=utf-8",
+	".html":     "text/html; charset=utf-8",
+	".htm":      "text/html; charset=utf-8",
 }
 
 // countingWriter counts bytes and keeps none of them.

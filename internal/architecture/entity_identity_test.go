@@ -31,6 +31,7 @@ var opaqueColumns = map[string]string{
 	"issue_comment.author_id":      "author_kind admits an agent as well as a person",
 	"artifact.created_by_id":       "created_by_type admits a worker",
 	"artifact.source_id":           "source_type admits a run, a conversation, or an upload",
+	"artifact_share.created_by_id": "created_by_type admits a worker, mirroring artifact.created_by_id",
 	"task_run.created_by":          "created_by_type admits webhook and system",
 	"system_grant.granted_by":      "the operator who bootstraps the first grant is a command line",
 	"task_run.cancel_requested_by": "a cancel can be recorded for a run whose canceller is not a user row",

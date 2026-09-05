@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
@@ -33,6 +34,7 @@ func (h *Handler) uploadArtifactHandler(w http.ResponseWriter, r *http.Request) 
 		SourceType:    coreartifact.SourceUserUpload,
 		CreatedByType: coreartifact.CreatorUser,
 		CreatedByID:   userID,
+		Share:         WantShare(r),
 	})
 }
 
@@ -50,7 +52,20 @@ func (h *Handler) uploadToDefaultTeamHandler(w http.ResponseWriter, r *http.Requ
 		SourceType:    coreartifact.SourceUserUpload,
 		CreatedByType: coreartifact.CreatorUser,
 		CreatedByID:   userID,
+		Share:         WantShare(r),
 	})
+}
+
+// WantShare reads the ?share=1 flag an upload uses to ask for a public link in
+// the same request. Exported because the worker upload route, in another
+// package, shares this contract.
+func WantShare(r *http.Request) bool {
+	switch strings.ToLower(strings.TrimSpace(r.URL.Query().Get("share"))) {
+	case "1", "true", "yes":
+		return true
+	default:
+		return false
+	}
 }
 
 // ReceiveInput is who the artifact belongs to and what produced it. The caller
@@ -61,6 +76,10 @@ type ReceiveInput struct {
 	SourceID      string
 	CreatedByType string
 	CreatedByID   string
+	// Share asks for a public link to be created alongside the artifact and
+	// returned in the response. A share failure never fails the upload: the
+	// artifact is durable, and the response reports the share error instead.
+	Share bool
 }
 
 // ReceiveUpload streams one multipart file into the artifact service and writes
@@ -106,7 +125,38 @@ func ReceiveUpload(w http.ResponseWriter, r *http.Request, svc *artifactsvc.Serv
 		writeUploadError(w, err, in.TeamID)
 		return
 	}
-	httputil.WriteJSON(w, http.StatusCreated, toResponse(rec))
+	resp := toResponse(rec)
+	if in.Share {
+		attachShare(r, svc, rec, &resp)
+	}
+	httputil.WriteJSON(w, http.StatusCreated, resp)
+}
+
+// attachShare creates a public link for a just-uploaded artifact and folds it
+// into the response, or records why it could not. The upload has already
+// succeeded and is not undone: a share is a separate commit, so a deployment
+// with sharing off, or a transient share-store failure, still returns the
+// artifact — with a share_error the tool can relay rather than a missing link
+// it might invent.
+func attachShare(r *http.Request, svc *artifactsvc.Service, rec *coreartifact.Artifact, resp *artifactResponse) {
+	share, err := svc.CreateShare(r.Context(), artifactsvc.CreateShareInput{
+		ArtifactID:    rec.ID,
+		CreatedByType: rec.CreatedByType,
+		CreatedByID:   rec.CreatedByID,
+	})
+	if err != nil {
+		msg, _ := apierr.Message(err)
+		if msg == "" {
+			msg = "could not create a public link"
+		}
+		resp.ShareError = msg
+		return
+	}
+	out := toShareResponse(share.Record)
+	out.Token = share.Token
+	out.URL = share.PageURL
+	out.DownloadURL = share.DownloadURL
+	resp.Share = &out
 }
 
 var errNoFilePart = errors.New("no file part in upload")

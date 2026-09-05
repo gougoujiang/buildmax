@@ -98,7 +98,7 @@ export function Breadcrumbs({ route, conversations = [] }: BreadcrumbsProps) {
   } else if (route.name === "artifact") {
     crumbs = [
       { label: "Artifacts", route: { name: "artifacts" } },
-      { label: route.artifactId, route },
+      { label: entityLabels[route.artifactId] ?? "Artifact", route },
     ]
   } else if (route.name === "task") {
     // A task's parents (agent / issue / conversation) are not in the route, so

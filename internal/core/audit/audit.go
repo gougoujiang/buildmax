@@ -104,6 +104,13 @@ const (
 	// rather than per artifact: the tombstone that authorized each one is
 	// already in the trail, and this says only that the bytes are now gone.
 	ArtifactsPurged = "artifact.purged"
+	// ArtifactShareCreated and ArtifactShareRevoked record a public link to an
+	// artifact being opened and withdrawn. Metadata-only like the artifact
+	// events: the target is the artifact ID and the detail is the share ID —
+	// the token never appears, because a trail that held it would hand a reader
+	// the very credential the link is.
+	ArtifactShareCreated = "artifact.share_created"
+	ArtifactShareRevoked = "artifact.share_revoked"
 	// The plugin actions record changes to what a deployment's members can
 	// install. A release is instructions that cause tool use, processes that
 	// start with someone's credentials, and hooks that run local programs, so

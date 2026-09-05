@@ -23,7 +23,7 @@ so they are worth knowing exactly.
 | `NoteWrite` | Keep durable notes that survive compaction | `notes[]` of strings |
 | `Skill` | Load a skill's instructions | `skill`, `args` |
 | `Task` | Delegate to a subagent | `description`, `prompt`, `subagent_type`, `run_in_background` and `deliver_result` (TUI and Desktop), `worktree` (TUI) |
-| `UploadArtifact` | Publish one finished file as a durable artifact | `path`, `title`, `purpose` |
+| `UploadArtifact` | Publish one finished file as a durable artifact | `path`, `title`, `purpose`, `share` |
 | `JobList` | List background jobs: ID, kind, state, age, command | — |
 | `JobOutput` | Read a background job's status and output incrementally | `job_id`, `stream`, `cursor` |
 | `JobStop` | Stop a background job (kills the whole process tree) | `job_id` |
@@ -148,6 +148,14 @@ artifact list. A symlink whose target is outside the workspace is refused even
 though the link itself is inside it. See
 [../reference/configuration.md](../reference/configuration.md) for
 `storage.max_artifact_mb`, the per-file limit an operator sets.
+
+Set `share: true` to also create a public link the agent receives and can hand
+to a person: it opens without a BuildMax login and renders in the Portal — a
+Markdown document as formatted text, an HTML file as a live page. The link is
+revocable and expires. It needs the deployment to have `public_base_url` set;
+without it the file still publishes and the tool reports that no link could be
+made. A team member can also create or revoke a link from the artifact's Portal
+page.
 
 ## The Path Boundary
 

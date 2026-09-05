@@ -58,4 +58,19 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/artifacts/{artifact_id}", h.getArtifactHandler)
 	mux.HandleFunc("GET /api/artifacts/{artifact_id}/content", h.artifactContentHandler)
 	mux.HandleFunc("DELETE /api/artifacts/{artifact_id}", h.deleteArtifactHandler)
+
+	// Share management is an authenticated app action on one artifact, so it
+	// keeps the /api prefix and the same team authorization as the routes above.
+	mux.HandleFunc("POST /api/artifacts/{artifact_id}/shares", h.createShareHandler)
+	mux.HandleFunc("GET /api/artifacts/{artifact_id}/shares", h.listSharesHandler)
+	mux.HandleFunc("DELETE /api/artifacts/{artifact_id}/shares/{share_id}", h.revokeShareHandler)
+
+	// The public share surface is sessionless and token-only, so it wears a
+	// friendly top-level namespace rather than /api. The bare
+	// /shared/artifacts/{token} page is the Portal SPA's; only these two machine
+	// leaves are the backend's. The namespace is /shared/<resource>/ so a future
+	// shared issue or conversation is a sibling rather than a special case. See
+	// docs/design/artifact-public-sharing-and-preview.md §6.
+	mux.HandleFunc("GET /shared/artifacts/{token}/meta", h.sharedMetaHandler)
+	mux.HandleFunc("GET /shared/artifacts/{token}/raw", h.sharedContentHandler)
 }

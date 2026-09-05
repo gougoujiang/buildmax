@@ -13,7 +13,7 @@ function artifact(overrides: Partial<ApiArtifact> = {}): ApiArtifact {
     created_by_type: "user",
     created_by_id: "u_1",
     source_type: "user_upload",
-    inline: true,
+    preview: "inline",
     created_at: "2026-09-01T00:00:00Z",
     ...overrides,
   }

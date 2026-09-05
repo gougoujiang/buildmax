@@ -3,6 +3,7 @@ import type { ApiArtifact } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { artifactLabel } from "./display"
 import { fetchArtifactPreview } from "./api"
+import { ArtifactContentView } from "./ArtifactContentView"
 
 interface ArtifactPreviewProps {
   artifact: ApiArtifact | null
@@ -12,12 +13,9 @@ interface ArtifactPreviewProps {
 }
 
 /**
- * ArtifactPreview shows content the server marked safe to display.
- *
- * It renders text as text and images as images, and nothing else — no markup is
- * interpreted here. The server has already decided which types may be displayed
- * at all; this narrows further rather than widening, so a type that slipped
- * into the allowlist still cannot become a way to run something.
+ * ArtifactPreview fetches an artifact's content with the caller's session and
+ * hands it to the shared renderer. A type the server did not mark previewable
+ * never reaches here — ArtifactDetail gates on `preview`.
  */
 export function ArtifactPreview({ artifact, token, onClose }: ArtifactPreviewProps) {
   const [text, setText] = useState<string | null>(null)
@@ -84,9 +82,13 @@ export function ArtifactPreview({ artifact, token, onClose }: ArtifactPreviewPro
             {error}
           </p>
         ) : null}
-        {text != null ? <pre className="artifact-preview__text">{text}</pre> : null}
-        {objectUrl ? (
-          <img className="artifact-preview__image" src={objectUrl} alt={artifact.filename} />
+        {!loading && !error ? (
+          <ArtifactContentView
+            filename={artifact.filename}
+            mediaType={artifact.media_type}
+            text={text}
+            objectUrl={objectUrl}
+          />
         ) : null}
       </div>
     </div>

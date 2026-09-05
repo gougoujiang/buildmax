@@ -42,6 +42,7 @@ anything not listed here is not read by BuildMax.
 | `BUILDMAX_SERVER_URL` | — | Address this process uses to reach `buildmax-server`. Overrides `settings.yaml` `server_url` for CLI/Desktop and `server.yaml` `worker.server_url` for workers. |
 | `BUILDMAX_JWT_SECRET` | — | Overrides `jwt_secret` in `server.yaml`. Inject this at deploy time rather than committing the secret to a file. |
 | `BUILDMAX_CORS_ORIGIN` | — | Overrides `cors_origin` in `server.yaml`. It has to name the origin the Portal is served from, which is a host port the deployment picks — the Compose stack derives it from `BUILDMAX_PORTAL_PORT`, so moving that port is one change rather than two. |
+| `BUILDMAX_PUBLIC_BASE_URL` | — | Overrides `public_base_url` in `server.yaml`: the externally reachable origin at which people open BuildMax. Artifact public share links are built from it; leave it unset to keep public sharing off. It is distinct from `BUILDMAX_SERVER_URL`, which is the address a process uses to *reach* the server. |
 | `BUILDMAX_WORKER_LLM_TRANSPORT` | — | Overrides `worker.llm.transport` (`direct` or `buildmax`). Flips task runs between a direct provider call and the managed gateway. The server reads it and tells each worker its transport per run, so the choice stays on the server; a worker is never handed this variable. |
 | `BUILDMAX_LLM_DEFAULT_MODEL` | — | Overrides `llm.default_model` — the catalog model name a managed run and any caller that names none resolves to. A name not in the catalog stops the server at startup. |
 | `BUILDMAX_CONVERSATION_MODEL_TARGET` | — | Overrides `conversation.model_target` — a catalog model name or ID for Tier 1 conversations. Together with the two above, this flips a running cluster between the mock and a seeded model by environment alone; `./make kind use-model` and `./make kind mock` do exactly that. |
@@ -737,6 +738,7 @@ refresh_token_ttl: 720h              # a stored row, so a session can be revoked
 refresh_rotation_grace: 30s          # window for processes sharing one credentials file to refresh at once
 shutdown_grace: 25s                  # whole budget for an orderly stop; keep below the orchestrator's kill deadline
 cors_origin: http://localhost:5173   # or inject via BUILDMAX_CORS_ORIGIN where the Portal's port is chosen
+public_base_url: ""                  # externally reachable origin for artifact share links; empty keeps sharing off
 workspaces_dir: /data/buildmax/workspaces
 default_quota_tier: free_trial
 
@@ -794,6 +796,7 @@ storage:
   persist_backend: local_fs          # or minio — team uploads
   artifact_backend: local_fs         # or minio — run outputs and artifacts
   max_artifact_mb: 0                 # per-file upload cap; 0 uses the default
+  artifact_share_ttl_hours: 0        # public share link lifetime bound; 0 uses the default (30 days)
   artifact_purge_after_days: 0       # 0 — reclaim a deleted artifact's bytes
                                      # on the next hourly sweep
   minio:

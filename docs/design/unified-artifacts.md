@@ -23,8 +23,10 @@
 - status: `implemented` (§10 phases 1 and 2: the artifact object, storage, API,
   and Portal's top-level artifact list and detail page; `UploadArtifact` on
   every surface with a server, and artifacts on issue result cards. Registering
-  a run's output directory and phase 3 external sharing are both decided
-  against — §12 questions 6 and 4. Retention and the team storage quota are
+  a run's output directory is decided against — §12 question 6. Phase 3 external
+  sharing, once decided against, is reopened and specified in
+  [artifact-public-sharing-and-preview.md](./artifact-public-sharing-and-preview.md)
+  — §12 question 4. Retention and the team storage quota are
   implemented too: `ArtifactRetainer` applies `ExpiresAt` and reclaims
   tombstoned objects, and `max_storage_bytes` on the quota tier is a hard
   admission check — §8 and §12 question 2. Phase 4 follow-ons stay open)
@@ -299,12 +301,15 @@ A share link identifies one artifact and has at least:
 - revoked time; and
 - optional download count for audit and future limits.
 
-MVP policy is **authenticated team access only**. Public sharing is added only
-when the authorization matrix specifies who may create it (expected: owner or
-admin), how a recipient sees the data policy, how it is revoked, and which
-audit events are written. Do not implement permanent S3 presigned URLs as a
-shortcut: they bypass BuildMax authorization, cannot be centrally revoked, and
-couple saved links to object-store configuration.
+MVP policy was **authenticated team access only**. Public sharing is now
+specified and reopened in
+[artifact-public-sharing-and-preview.md](./artifact-public-sharing-and-preview.md):
+a revocable stored share token, an anonymous `/api/shared/...` route, and a
+server-rendered public link. That record answers the authorization matrix, the
+revocation model, and the audit events this paragraph left open. Do not
+implement permanent S3 presigned URLs as a shortcut: they bypass BuildMax
+authorization, cannot be centrally revoked, and couple saved links to
+object-store configuration.
 
 ### 6.3 Content Delivery
 
@@ -506,15 +511,17 @@ storage-provider URL behavior, defines the product contract.
   A run's output directory is not registered — see §12 question 6.
 - Retain task-run artifact route compatibility and migrate Portal consumers.
 
-### Phase 3 — Intentional External Sharing — not planned
+### Phase 3 — Intentional External Sharing — reopened
 
-Sharing an artifact outside the deployment is not built and is not queued. An
-agent publishing a file with `UploadArtifact` and an authorized team member
-fetching it covers the workflow this design exists for. Everything the phase
-would have to settle first — approved roles, expiry defaults, revocable tokens,
-anonymous access, malware scanning, audit retention — is cost paid ahead of
-anyone asking for the capability. A deployment that needs it reopens this, not
-a design that anticipates it.
+Originally not planned. It is now reopened and specified in
+[artifact-public-sharing-and-preview.md](./artifact-public-sharing-and-preview.md),
+because the product now needs an agent to hand a person one link that opens and
+renders — most often a Markdown document, sometimes an HTML prototype. That
+record settles the questions this phase deferred (approved roles, expiry
+defaults, revocable tokens, anonymous access, audit) for the anonymous-link
+slice; malware scanning stays out of scope there as here. The reopening is
+exactly the "a deployment that needs it reopens this" this paragraph
+anticipated, not a design that pre-empted the need.
 
 ### Phase 4 — Follow-ons
 
@@ -591,8 +598,10 @@ model and the user one legible publishing event.
 3. **Sensitive-content controls:** which private deployments require malware
    scanning, DLP, or MIME restrictions before agent upload is enabled? Gather
    operator requirements rather than hardcoding a cloud-oriented policy.
-4. **External sharing:** ~~decided: not planned~~. Neither public links nor
-   authenticated cross-organization sharing is built. See phase 3.
+4. **External sharing:** ~~decided: not planned~~ → **reopened**. Public
+   anonymous links are now specified in
+   [artifact-public-sharing-and-preview.md](./artifact-public-sharing-and-preview.md);
+   authenticated cross-organization sharing stays out of scope there. See phase 3.
 5. **Preview support:** which types can be rendered safely and usefully on all
    Portal clients? Start with an allowlist and measure demand.
 6. **Run output as artifacts:** ~~decided: no~~. A run's output directory is

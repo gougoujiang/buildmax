@@ -30,12 +30,19 @@ type artifactResponse struct {
 	CreatedByID   string `json:"created_by_id,omitempty"`
 	SourceType    string `json:"source_type"`
 	SourceID      string `json:"source_id,omitempty"`
-	// Inline reports whether this deployment will render the content in a
-	// browser. The client uses it to decide between a preview and a download
-	// action instead of guessing from the media type itself.
-	Inline    bool       `json:"inline"`
+	// Preview reports how this deployment will show the content: "inline" to
+	// render it directly, "sandbox" for an active document (HTML) that runs only
+	// in an opaque-origin frame, or "none" for download-only. The client uses it
+	// to choose a renderer instead of guessing from the media type itself.
+	Preview   string     `json:"preview"`
 	ExpiresAt *time.Time `json:"expires_at,omitempty"`
 	CreatedAt time.Time  `json:"created_at"`
+	// Share is present only on an upload that asked for a public link and got
+	// one; it is the sole place the link's token is returned. ShareError is set
+	// instead when a link was asked for but could not be made — the artifact is
+	// still here, so the caller reports the error rather than a missing link.
+	Share      *shareResponse `json:"share,omitempty"`
+	ShareError string         `json:"share_error,omitempty"`
 }
 
 type artifactListResponse struct {
@@ -58,7 +65,7 @@ func toResponse(a *coreartifact.Artifact) artifactResponse {
 		CreatedByID:   a.CreatedByID,
 		SourceType:    a.SourceType,
 		SourceID:      a.SourceID,
-		Inline:        inlineAllowed(a.MediaType),
+		Preview:       string(previewModeFor(a.MediaType)),
 		CreatedAt:     a.CreatedAt,
 	}
 	out.ExpiresAt = a.ExpiresAt

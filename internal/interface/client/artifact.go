@@ -13,9 +13,17 @@ import (
 // artifactResponse is the part of the server's answer a local surface reports.
 // The storage key is not in it and never leaves the server.
 type artifactResponse struct {
-	ID        string `json:"id"`
-	Filename  string `json:"filename"`
-	SizeBytes int64  `json:"size_bytes"`
+	ID         string         `json:"id"`
+	Filename   string         `json:"filename"`
+	SizeBytes  int64          `json:"size_bytes"`
+	Share      *artifactShare `json:"share,omitempty"`
+	ShareError string         `json:"share_error,omitempty"`
+}
+
+// artifactShare is the public-link half of an upload that asked for one.
+type artifactShare struct {
+	URL         string `json:"url"`
+	DownloadURL string `json:"download_url"`
 }
 
 // TokenFunc supplies the session credential for serverURL. It is the same seam
@@ -61,6 +69,9 @@ func (p *artifactPublisher) PublishArtifact(ctx context.Context, in tool.Artifac
 	if in.Title != "" {
 		query.Set("title", in.Title)
 	}
+	if in.Share {
+		query.Set("share", "1")
+	}
 	endpoint := p.ServerURL + "/api/artifacts"
 	if encoded := query.Encode(); encoded != "" {
 		endpoint += "?" + encoded
@@ -78,10 +89,16 @@ func (p *artifactPublisher) PublishArtifact(ctx context.Context, in tool.Artifac
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
 		return tool.PublishedArtifact{}, err
 	}
-	return tool.PublishedArtifact{
+	published := tool.PublishedArtifact{
 		ArtifactID: out.ID,
 		Filename:   out.Filename,
 		SizeBytes:  out.SizeBytes,
 		URL:        p.ServerURL + "/api/artifacts/" + url.PathEscape(out.ID),
-	}, nil
+		ShareError: out.ShareError,
+	}
+	if out.Share != nil {
+		published.ShareURL = out.Share.URL
+		published.ShareDownloadURL = out.Share.DownloadURL
+	}
+	return published, nil
 }

@@ -226,10 +226,13 @@ func (h *Handler) buildArtifactService() *artifactsvc.Service {
 		return nil
 	}
 	svc := &artifactsvc.Service{
-		Artifacts:    h.cfg.ArtifactStore,
-		Storage:      h.cfg.ArtifactStorage,
-		Audit:        h.cfg.Audit,
-		MaxFileBytes: h.cfg.MaxArtifactBytes,
+		Artifacts:     h.cfg.ArtifactStore,
+		Storage:       h.cfg.ArtifactStorage,
+		Audit:         h.cfg.Audit,
+		MaxFileBytes:  h.cfg.MaxArtifactBytes,
+		Shares:        h.cfg.ArtifactShareStore,
+		PublicBaseURL: h.cfg.ArtifactPublicBaseURL,
+		ShareTTL:      h.cfg.ArtifactShareTTL,
 	}
 	// Assigned through the nil check rather than directly: a typed nil in the
 	// interface field would satisfy "not nil" and then panic on the first call.

@@ -47,6 +47,12 @@ refresh_rotation_grace: 30s
 shutdown_grace: 25s
 
 cors_origin: http://localhost:5173
+# The externally reachable origin at which people open BuildMax (the Portal, or
+# the shared origin behind a reverse proxy). Artifact public share links are
+# built from it. Leave empty to keep public sharing off — the server refuses to
+# create a link it cannot make openable rather than emitting an internal URL.
+# Also settable with BUILDMAX_PUBLIC_BASE_URL.
+public_base_url: ""
 workspaces_dir: /data/buildmax/workspaces
 default_quota_tier: free_trial
 
@@ -247,6 +253,10 @@ storage:
   # days only to give your bucket's own tooling a window to recover from;
   # BuildMax itself offers no undelete.
   artifact_purge_after_days: 0
+  # Default and maximum lifetime of a public artifact share link, in hours. A
+  # create request may ask for less, never more. 0 uses the built-in default
+  # (30 days). Requires public_base_url to be set for sharing to work at all.
+  artifact_share_ttl_hours: 0
   minio:
     # Set endpoint for an S3-compatible store you run (MinIO, Ceph, a
     # vendor's service). Leave empty for AWS S3 to let the SDK resolve the

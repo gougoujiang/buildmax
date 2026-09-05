@@ -1,6 +1,9 @@
 log_level: info
 port: 5678
 cors_origin: http://localhost:8080
+# Single-origin ingress, so artifact share links are built from the same host
+# the Portal and API are served on.
+public_base_url: http://localhost:8080
 workspaces_dir: /buildmax/workspaces
 # The smoke deployment runs many agent runs and is meant to be kept: free_trial
 # caps a team at ten runs in thirty days, which turns a long-lived local stack

@@ -50,5 +50,6 @@ func (h *Handler) postArtifact(w http.ResponseWriter, r *http.Request) {
 		SourceType:    coreartifact.SourceAgent,
 		SourceID:      taskRunID,
 		CreatedByType: coreartifact.CreatorAgent,
+		Share:         artifactroutes.WantShare(r),
 	})
 }

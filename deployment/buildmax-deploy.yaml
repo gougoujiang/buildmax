@@ -32,6 +32,9 @@ data:
     log_level: info
     port: 5678
     cors_origin: http://localhost:8080
+    # Single-origin ingress, so artifact share links are built from the same
+    # host the Portal and API are served on.
+    public_base_url: http://localhost:8080
     # Below terminationGracePeriodSeconds minus the preStop sleep.
     shutdown_grace: 25s
     workspaces_dir: /buildmax/workspaces
@@ -523,3 +526,29 @@ spec:
                 name: buildmax-portal
                 port:
                   number: 80
+---
+# The public artifact-share surface is single-origin here: the bare
+# /shared/artifacts/{token} page is the Portal SPA (caught by "/" above), but
+# its two machine leaves — the metadata and the bytes — are the API's. A regex
+# ingress routes only those two to the server; the page still falls through to
+# the SPA. See docs/design/artifact-public-sharing-and-preview.md §6.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: buildmax-shared-content
+  namespace: buildmax
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/use-regex: "true"
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - path: /shared/artifacts/[^/]+/(raw|meta)$
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: buildmax-api
+                port:
+                  number: 5678
