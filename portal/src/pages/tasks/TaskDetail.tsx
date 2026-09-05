@@ -1,15 +1,15 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
-import { ChatComposer } from "@buildmax/gui"
-import { AgentAvatar } from "../../components/UserAvatar"
+import { ChatComposer, ChatThread, type ChatThreadItem } from "@buildmax/gui"
+import { AgentAvatar, UserAvatar } from "../../components/UserAvatar"
 import { useApp } from "../../contexts/AppContext"
+import { useAuth } from "../../contexts/AuthContext"
 import { useTeam } from "../../contexts/TeamContext"
 import { cancelTask, continueTask, getTask, getTaskRuns, retryTask } from "../../features/tasks"
 import { getAgent } from "../../features/agents"
 import { RunTraceModal } from "../../features/runs"
 import { TaskFilesModal } from "../../features/conversations"
-import { runStatusLabel, runStatusTone } from "../../features/conversations/thread"
 import { navigate } from "../../router"
 import type { ApiTask, ApiTaskRun } from "../../lib/api/types"
 import type { BreadcrumbCrumb } from "../../lib/types"
@@ -22,30 +22,20 @@ interface TaskDetailProps {
 
 const activeStatuses = new Set(["PENDING", "SCHEDULED", "RUNNING"])
 
-function fmtDuration(start?: string | null, end?: string | null): string {
-  if (!start || !end) return "—"
+function fmtDuration(start?: string | null, end?: string | null): string | null {
+  if (!start || !end) return null
   const ms = new Date(end).getTime() - new Date(start).getTime()
-  if (!Number.isFinite(ms) || ms < 0) return "—"
+  if (!Number.isFinite(ms) || ms < 0) return null
   const s = Math.round(ms / 1000)
   const m = Math.floor(s / 60)
   return m > 0 ? `${m}m ${s % 60}s` : `${s}s`
 }
 
-function fmtWhen(ts?: string | null): string {
-  if (!ts) return "—"
-  const d = new Date(ts)
-  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleString()
-}
-
-function StatusPill({ status }: { status: string }) {
-  return (
-    <span className={`run-pill run-pill--${runStatusTone(status)}`}>{runStatusLabel(status)}</span>
-  )
-}
-
 export function TaskDetail({ token, taskId }: TaskDetailProps) {
   const { currentTeamId } = useTeam()
+  const { user } = useAuth()
   const { entityLabels, setEntityLabel, setBreadcrumbTrail } = useApp()
+  const historyRef = useRef<HTMLElement | null>(null)
   const [task, setTask] = useState<ApiTask | null>(null)
   const [runs, setRuns] = useState<ApiTaskRun[]>([])
   const [agentName, setAgentName] = useState<string | null>(null)
@@ -87,8 +77,12 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
     return () => window.clearInterval(timer)
   }, [load, running])
 
-  // Resolve the agent's name for the header, the "Open agent" link, and the
-  // info panel, and share it so this task's breadcrumb reads the name too.
+  useEffect(() => {
+    historyRef.current?.scrollTo({ top: historyRef.current.scrollHeight, behavior: "smooth" })
+  }, [runs])
+
+  // Resolve the agent's name for the header link, and share it so this task's
+  // breadcrumb reads the name too.
   useEffect(() => {
     if (!token || !currentTeamId || !task?.agent_id) {
       setAgentName(null)
@@ -132,6 +126,69 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
     setBreadcrumbTrail(taskId, trail)
   }, [task, taskId, entityLabels, setBreadcrumbTrail])
 
+  const hasFiles = useCallback(
+    (runId: string) => task?.artifact_run_ids?.includes(runId) ?? false,
+    [task],
+  )
+
+  // The task rendered as a conversation: each run is one user turn (its input)
+  // and one agent turn (its output). The run's technical detail — status,
+  // timing, trace, files — is secondary, tucked into a small footer on the
+  // agent turn rather than a heading, so the conversation stays the subject.
+  const items = useMemo<ChatThreadItem[]>(() => {
+    return runs.flatMap((run) => {
+      const status = run.status.toLowerCase()
+      const duration = fmtDuration(run.started_at, run.ended_at)
+      const turns: ChatThreadItem[] = [
+        {
+          id: `${run.id}-input`,
+          role: "user",
+          label: "You",
+          avatar: user ? <UserAvatar user={user} size="sm" /> : undefined,
+          body: (
+            <div className="page-chat__msg-content page-chat__markdown">
+              <Markdown remarkPlugins={[remarkGfm]}>{run.input}</Markdown>
+            </div>
+          ),
+        },
+      ]
+      const detail = (
+        <div className="run-turn__foot">
+          {duration ? <span className="run-turn__meta">{duration}</span> : null}
+          <button type="button" className="run-turn__link" onClick={() => setTraceRunId(run.id)}>
+            Details
+          </button>
+          {hasFiles(run.id) ? (
+            <button type="button" className="run-turn__link" onClick={() => setFilesRunId(run.id)}>
+              Files
+            </button>
+          ) : null}
+        </div>
+      )
+      turns.push({
+        id: `${run.id}-output`,
+        role: "assistant",
+        label: `Agent · ${status}`,
+        avatar: <AgentAvatar size="sm" />,
+        body: (
+          <div>
+            {run.output ? (
+              <div className="page-chat__msg-content page-chat__markdown">
+                <Markdown remarkPlugins={[remarkGfm]}>{run.output}</Markdown>
+              </div>
+            ) : (
+              <p className="bm-chat-thread__text bm-chat-thread__text--muted">
+                {run.error_message || (activeStatuses.has(run.status) ? `Run ${status}…` : `Run ${status}`)}
+              </p>
+            )}
+            {detail}
+          </div>
+        ),
+      })
+      return turns
+    })
+  }, [runs, user, hasFiles])
+
   async function handleContinue() {
     const message = input.trim()
     if (!message || !token || !currentTeamId || sending || running) return
@@ -170,38 +227,24 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
       .finally(() => setRetrying(false))
   }
 
-  function runIndexOf(runId: string | null | undefined): number {
-    if (!runId) return -1
-    return runs.findIndex((r) => r.id === runId)
-  }
-
-  const hasFiles = (runId: string) => task?.artifact_run_ids?.includes(runId) ?? false
-
   return (
-    <div className="task-detail">
-      <header className="task-detail__header">
-        <div className="task-detail__ident">
-          <AgentAvatar size="md" className="task-detail__avatar" />
-          <div>
-            <h1 className="page-activity__title">{task?.title || "Task"}</h1>
-            <div className="task-detail__sub">
-              {task ? <StatusPill status={task.status} /> : <span>loading…</span>}
-              {runs[0]?.trigger_source ? <span>· {runs[0].trigger_source}</span> : null}
-              {task?.started_at ? <span>· started {fmtWhen(task.started_at)}</span> : null}
-              {task?.started_at && task?.ended_at ? (
-                <span>· {fmtDuration(task.started_at, task.ended_at)}</span>
-              ) : null}
-            </div>
-          </div>
+    <div className="page-chat task-thread">
+      <header className="task-thread__header">
+        <div>
+          <h1 className="page-activity__title">{task?.title || "Task"}</h1>
+          <p className="page-activity__subtitle">
+            {agentName ? `${agentName} · ` : ""}
+            {task?.status?.toLowerCase() || "loading"}
+          </p>
         </div>
-        <div className="task-detail__actions">
+        <div className="task-thread__header-actions">
           {running ? (
             <button type="button" className="page-activity__action-btn" disabled={stopping} onClick={handleStop}>
-              {stopping ? "Stopping…" : "Stop"}
+              {stopping ? "Stopping..." : "Stop"}
             </button>
           ) : runs.length > 0 ? (
             <button type="button" className="page-activity__action-btn" disabled={retrying} onClick={handleRetry}>
-              {retrying ? "Retrying…" : "Retry last run"}
+              {retrying ? "Retrying..." : "Retry last run"}
             </button>
           ) : null}
           {task?.agent_id ? (
@@ -215,156 +258,27 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
           ) : null}
         </div>
       </header>
-
-      <div className="task-detail__body">
-        <div className="task-detail__main">
-          {loading ? (
-            <p className="page-activity__empty">Loading…</p>
-          ) : error ? (
-            <p className="page-activity__empty">{error}</p>
-          ) : runs.length === 0 ? (
-            <p className="page-activity__empty">No runs yet.</p>
-          ) : (
-            <div className="run-cards">
-              {runs.map((run, i) => {
-                const retryIdx = runIndexOf(run.retry_of_task_run_id)
-                return (
-                  <article key={run.id} className="run-card">
-                    <header className="run-card__head">
-                      <span className="run-card__n">Run {i + 1}</span>
-                      <StatusPill status={run.status} />
-                      {run.trigger_source ? <span className="run-card__meta">{run.trigger_source}</span> : null}
-                      <span className="run-card__meta">{fmtDuration(run.started_at, run.ended_at)}</span>
-                      {run.agent_revision != null ? (
-                        <span className="run-card__meta">rev {run.agent_revision}</span>
-                      ) : null}
-                      {run.retry_of_task_run_id ? (
-                        <span className="run-card__meta">
-                          retry of {retryIdx >= 0 ? `run ${retryIdx + 1}` : "an earlier run"}
-                        </span>
-                      ) : null}
-                      <div className="run-card__actions">
-                        <button
-                          type="button"
-                          className="page-activity__action-btn page-activity__action-btn--sm"
-                          onClick={() => setTraceRunId(run.id)}
-                        >
-                          Trace
-                        </button>
-                        {hasFiles(run.id) ? (
-                          <button
-                            type="button"
-                            className="page-activity__action-btn page-activity__action-btn--sm"
-                            onClick={() => setFilesRunId(run.id)}
-                          >
-                            Files
-                          </button>
-                        ) : null}
-                      </div>
-                    </header>
-                    <div className="run-card__io">
-                      <span className="run-card__label">Input</span>
-                      <div className="page-chat__markdown">
-                        <Markdown remarkPlugins={[remarkGfm]}>{run.input}</Markdown>
-                      </div>
-                      <span className="run-card__label">Output</span>
-                      {run.output ? (
-                        <div className="page-chat__markdown">
-                          <Markdown remarkPlugins={[remarkGfm]}>{run.output}</Markdown>
-                        </div>
-                      ) : run.error_message ? (
-                        <p className="run-card__error">{run.error_message}</p>
-                      ) : (
-                        <p className="run-card__pending">
-                          {activeStatuses.has(run.status)
-                            ? `Run ${run.status.toLowerCase()}…`
-                            : `Run ${run.status.toLowerCase()}`}
-                        </p>
-                      )}
-                    </div>
-                  </article>
-                )
-              })}
-            </div>
-          )}
-
-          <section className="task-detail__composer" aria-label="Continue task">
-            <ChatComposer
-              value={input}
-              onChange={setInput}
-              onSubmit={handleContinue}
-              loading={sending}
-              disabled={running || !task?.agent_id}
-              error={error}
-              placeholder={running ? "Wait for the current run to finish…" : "Continue this task…"}
-              ariaLabel="Continue task"
-              submitLabel="Continue"
-            />
-          </section>
-        </div>
-
-        <aside className="task-detail__info" aria-label="Run details">
-          <h2 className="task-detail__info-title">Run details</h2>
-          <dl className="task-kv">
-            <dt>Agent</dt>
-            <dd>
-              {task?.agent_id ? (
-                <button
-                  type="button"
-                  className="task-kv__link"
-                  onClick={() => navigate({ name: "agent", agentId: task.agent_id! })}
-                >
-                  {agentName ?? "Agent"}
-                </button>
-              ) : (
-                "—"
-              )}
-            </dd>
-            <dt>Status</dt>
-            <dd>{task ? <StatusPill status={task.status} /> : "—"}</dd>
-            <dt>Trigger</dt>
-            <dd>{runs[0]?.trigger_source ?? "—"}</dd>
-            <dt>Started</dt>
-            <dd>{fmtWhen(task?.started_at)}</dd>
-            <dt>Ended</dt>
-            <dd>{fmtWhen(task?.ended_at)}</dd>
-            <dt>Duration</dt>
-            <dd>{fmtDuration(task?.started_at, task?.ended_at)}</dd>
-            <dt>Runs</dt>
-            <dd>{runs.length}</dd>
-            <dt>Task</dt>
-            <dd className="task-kv__mono">{task?.id ?? taskId}</dd>
-            {task?.issue_id ? (
-              <>
-                <dt>Issue</dt>
-                <dd>
-                  <button
-                    type="button"
-                    className="task-kv__link"
-                    onClick={() => navigate({ name: "issue", issueId: task.issue_id! })}
-                  >
-                    Open issue
-                  </button>
-                </dd>
-              </>
-            ) : null}
-            {task?.conversation_id ? (
-              <>
-                <dt>Conversation</dt>
-                <dd>
-                  <button
-                    type="button"
-                    className="task-kv__link"
-                    onClick={() => navigate({ name: "conversation", conversationId: task.conversation_id! })}
-                  >
-                    Open conversation
-                  </button>
-                </dd>
-              </>
-            ) : null}
-          </dl>
-        </aside>
-      </div>
+      <ChatThread
+        historyRef={historyRef}
+        ariaLabel="Task conversation"
+        items={items}
+        loadingText={loading ? "Loading conversation…" : null}
+        errorText={error}
+        emptyText="No runs yet."
+      />
+      <section className="page-chat__input" aria-label="Continue task">
+        <ChatComposer
+          value={input}
+          onChange={setInput}
+          onSubmit={handleContinue}
+          loading={sending}
+          disabled={running || !task?.agent_id}
+          error={error}
+          placeholder={running ? "Wait for the current run to finish…" : "Continue this task…"}
+          ariaLabel="Continue task"
+          submitLabel="Continue"
+        />
+      </section>
 
       <RunTraceModal
         open={traceRunId != null}
