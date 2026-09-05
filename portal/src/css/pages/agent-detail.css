@@ -231,7 +231,8 @@
   background: var(--color-bg-hover);
 }
 
-/* Inline configuration form */
+/* Inline configuration form: a left sidebar of sections + one panel at a time,
+   matching the create dialog's FormModal tabs so the two surfaces feel identical. */
 .agent-config {
   display: flex;
   flex-direction: column;
@@ -239,18 +240,60 @@
   max-width: 780px;
 }
 
-.agent-config__card {
+.agent-config__body {
+  display: flex;
+  flex-direction: row;
+  min-height: 320px;
   border: 1px solid var(--color-border);
   border-radius: 10px;
   background: var(--color-bg-elevated);
-  padding: 1.1rem 1.25rem;
+  overflow: hidden;
 }
 
-.agent-config__card-title {
-  margin: 0 0 0.6rem;
-  font-size: 0.95rem;
-  font-weight: 600;
+.agent-config__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  width: 12rem;
+  flex-shrink: 0;
+  padding: 0.5rem;
+  background: var(--color-bg-muted);
+  border-right: 1px solid var(--color-border);
+  overflow-y: auto;
+}
+
+.agent-config__nav-item {
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-align: left;
+  color: var(--color-text-subtle);
+  background: none;
+  border: none;
+  border-radius: 6px;
+  padding: 0.55rem 0.65rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.agent-config__nav-item:hover {
+  background: var(--color-bg-hover);
   color: var(--color-text);
+}
+
+.agent-config__nav-item--active {
+  background: var(--color-bg-elevated);
+  color: var(--color-text);
+}
+
+.agent-config__panel {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1.1rem 1.25rem;
 }
 
 .agent-config__field {
@@ -293,5 +336,23 @@
 @media (max-width: 640px) {
   .agent-detail__stats {
     grid-template-columns: 1fr;
+  }
+
+  /* Stack the section nav above the panel: a horizontal scroll strip of the
+     section buttons instead of a left rail. */
+  .agent-config__body {
+    flex-direction: column;
+  }
+
+  .agent-config__nav {
+    flex-direction: row;
+    width: auto;
+    overflow-x: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .agent-config__nav-item {
+    white-space: nowrap;
   }
 }

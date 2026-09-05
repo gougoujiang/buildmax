@@ -11,9 +11,9 @@ export const DEPLOYMENT_DEFAULT_MODEL_OPTION = { value: "", label: "Deployment d
 
 // The scalar agent fields (everything but the plugin and secret sub-editors),
 // the single source both the create dialog and the inline detail-page editor
-// render from. `group` keys are used only by the create dialog's tabbed
-// FormModal; the inline editor ignores them. The model select's options are a
-// placeholder here; call agentFields(models) to fill them from the catalog.
+// render from. `group` keys split the fields into the sections both surfaces
+// show in their sidebars (see AGENT_GROUP_META). The model select's options are
+// a placeholder here; call agentFields(models) to fill them from the catalog.
 export const AGENT_FIELDS: FormModalFieldConfig[] = [
   {
     key: "name",

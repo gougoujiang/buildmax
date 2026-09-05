@@ -16,3 +16,4 @@ export {
   normalizeConsumption,
   type AgentDefinitionInput,
 } from "./definition"
+export { AGENT_GROUP_META, buildAgentGroups } from "./groups"
