@@ -58,6 +58,11 @@ func cmdKind(args []string) error {
 			return usageErrorf("kind", "seed takes no arguments")
 		}
 		return kindSeed()
+	case "fixtures":
+		if len(args) > 1 {
+			return usageErrorf("kind", "fixtures takes no arguments")
+		}
+		return kindFixtures()
 	case "use-model":
 		return kindUseModel(args[1:])
 	case "mock":

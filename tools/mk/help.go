@@ -479,7 +479,7 @@ func helpTopics() []helpTopic {
 		},
 		{
 			name:    "kind",
-			usage:   "kind <up|reload [service]|seed|use-model <name>|mock|smoke [managed]|info [email]|login [email]|forward|status|logs [service]|down>",
+			usage:   "kind <up|reload [service]|seed|fixtures|use-model <name>|mock|smoke [managed]|info [email]|login [email]|forward|status|logs [service]|down>",
 			summary: "Manage the local Kubernetes reference deployment.",
 			details: []string{
 				"Needs Docker and kubectl, and creates a kind cluster — set BUILDMAX_KIND_CLUSTER\n" +
@@ -507,11 +507,19 @@ func helpTopics() []helpTopic {
 					"seeded model through the managed gateway — it spends real provider quota, so\n" +
 					"`mock` switches back to the free in-cluster mock. Both take effect by setting\n" +
 					"environment on the server and restarting it; the committed config is untouched.",
+				"`fixtures` fills the running deployment with business data — `seed` fills the\n" +
+					"model catalog; the two do not overlap. It creates a couple of accounts, each\n" +
+					"with its personal team, and for the first (alice@buildmax.local) an agent, a\n" +
+					"workflow that drives it, and issues across every status with a comment thread.\n" +
+					"It is idempotent: every entity is matched by title or name and skipped when\n" +
+					"present, so automated Portal testing can start from populated views. Sign in\n" +
+					"with `login alice@buildmax.local`.",
 			},
 			args: []helpRow{
 				{"up", "Create the cluster and apply the reference deployment"},
 				{"reload [service]", "Build and load the images, then restart the deployments; server or portal for just one"},
 				{"seed", "Put the models in " + localSettingsPath + " into the cluster's catalog"},
+				{"fixtures", "Seed idempotent test data: accounts, an agent, a workflow, and issues"},
 				{"use-model <name>", "Point conversations and task runs at a seeded catalog model"},
 				{"mock", "Switch conversations and task runs back to the free in-cluster mock"},
 				{"smoke [managed]", "Run the deployment smoke against the cluster"},
@@ -522,7 +530,7 @@ func helpTopics() []helpTopic {
 				{"logs [service]", "Tail every namespace's logs, or one of ingress, mysql, minio, server, portal, worker"},
 				{"down", "Delete the cluster"},
 			},
-			examples: []string{"kind up", "kind seed", "kind use-model \"Claude Sonnet 5\"", "kind mock", "kind smoke"},
+			examples: []string{"kind up", "kind fixtures", "kind seed", "kind use-model \"Claude Sonnet 5\"", "kind mock", "kind smoke"},
 			see:      "docs/deploy/local-kind.md",
 		},
 		{
