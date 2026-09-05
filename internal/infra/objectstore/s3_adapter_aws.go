@@ -8,6 +8,7 @@ import (
 	"io"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
@@ -34,16 +35,28 @@ type S3Client interface {
 
 // s3ClientAdapter adapts *s3.Client to S3Client.
 type s3ClientAdapter struct {
-	client *s3.Client
+	client   *s3.Client
+	uploader *transfermanager.Client
 }
 
 // NewS3ClientAdapter returns an S3Client that uses the given AWS S3 client.
 func NewS3ClientAdapter(client *s3.Client) S3Client {
-	return &s3ClientAdapter{client: client}
+	return &s3ClientAdapter{client: client, uploader: transfermanager.New(client)}
 }
 
+// PutObject uploads through the transfer manager, not a bare PutObject.
+//
+// A bare PutObject cannot send a body that is neither seekable nor of known
+// length: over plain HTTP the SDK can compute neither the signing payload hash
+// (which needs to rewind the stream) nor a trailing checksum (which needs TLS),
+// and it fails the request outright with "unseekable stream is not supported".
+// Artifact uploads are exactly that body — a multipart part streamed straight
+// from the request. The transfer manager reads the stream into bounded parts
+// and sends each as its own signable request, so an unseekable source works
+// without spooling the whole object to the server's disk. A seekable body
+// still uploads correctly through the same path.
 func (a *s3ClientAdapter) PutObject(ctx context.Context, bucket, key string, body io.Reader) error {
-	_, err := a.client.PutObject(ctx, &s3.PutObjectInput{
+	_, err := a.uploader.UploadObject(ctx, &transfermanager.UploadObjectInput{
 		Bucket: aws.String(bucket),
 		Key:    aws.String(key),
 		Body:   body,
