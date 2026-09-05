@@ -5,9 +5,12 @@ import { ApiRequestError } from "../../lib/api/client"
 import { downloadAuthenticated } from "../../lib/download"
 import { navigate } from "../../router"
 import { useAuth } from "../../contexts/AuthContext"
+import { useApp } from "../../contexts/AppContext"
 import { useTeam } from "../../contexts/TeamContext"
+import { CopyButton } from "../../components/CopyButton"
 import {
   ArtifactPreview,
+  ArtifactShareDialog,
   artifactContentUrl,
   artifactLabel,
   confirmArtifactDeletion,
@@ -23,46 +26,24 @@ interface ArtifactDetailProps {
   artifactId: string
 }
 
-/** The artifact id is the reference people cite, so it is offered for copying. */
-function ArtifactReference({ artifactId }: { artifactId: string }) {
-  const [copied, setCopied] = useState(false)
-
-  useEffect(() => {
-    if (!copied) return
-    const timer = window.setTimeout(() => setCopied(false), 2000)
-    return () => window.clearTimeout(timer)
-  }, [copied])
-
-  return (
-    <div className="page-artifact__reference">
-      <code className="artifact-row__id">{artifactId}</code>
-      <button
-        type="button"
-        className="page-activity__action-btn"
-        onClick={() => {
-          void navigator.clipboard.writeText(artifactId).then(() => setCopied(true))
-        }}
-      >
-        {copied ? "Copied" : "Copy reference"}
-      </button>
-    </div>
-  )
-}
-
 /**
  * One artifact, at an address that can be pasted into a message or a document.
  *
- * A reader who was handed an artifact id has somewhere to open it; before this
- * page the only way to act on one was to find it again in a list.
+ * The page leads with the content itself: the rendered preview is the body,
+ * actions sit in the header, and the file's metadata lives in a Details
+ * disclosure rather than a card that competes with the content for the top of
+ * the page.
  */
 export function ArtifactDetail({ artifactId }: ArtifactDetailProps) {
   const { token, user } = useAuth()
+  const { setEntityLabel } = useApp()
   const { currentUserRole } = useTeam()
   const [artifact, setArtifact] = useState<ApiArtifact | null>(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [shareOpen, setShareOpen] = useState(false)
 
   const load = useCallback(() => {
     if (!token) return
@@ -88,6 +69,12 @@ export function ArtifactDetail({ artifactId }: ArtifactDetailProps) {
   useEffect(() => {
     load()
   }, [load])
+
+  // Publish the human label so the breadcrumb reads "Artifacts / Newton laws"
+  // rather than the opaque id, the same seam agent and issue pages use.
+  useEffect(() => {
+    if (artifact) setEntityLabel(artifact.id, artifactLabel(artifact))
+  }, [artifact, setEntityLabel])
 
   async function onDownload() {
     if (!artifact || !token) return
@@ -126,7 +113,7 @@ export function ArtifactDetail({ artifactId }: ArtifactDetailProps) {
 
   if (!artifact) {
     // The server answers 404 both for an artifact that never existed and for
-    // one in a team the reader is not in — deliberately, so an id cannot be
+    // one in a team the reader is not in -- deliberately, so an id cannot be
     // used to probe. This page must not narrate a difference the API refuses
     // to make. A request that simply failed says so instead, and offers a
     // retry, because that one is worth trying again.
@@ -165,6 +152,8 @@ export function ArtifactDetail({ artifactId }: ArtifactDetailProps) {
     )
   }
 
+  const canDelete = mayDelete(artifact, user?.id, currentUserRole)
+
   return (
     <div className="page-activity">
       <div className="page-activity__head">
@@ -183,7 +172,14 @@ export function ArtifactDetail({ artifactId }: ArtifactDetailProps) {
           >
             Download
           </button>
-          {mayDelete(artifact, user?.id, currentUserRole) ? (
+          <button
+            type="button"
+            className="page-activity__action-btn"
+            onClick={() => setShareOpen(true)}
+          >
+            Share
+          </button>
+          {canDelete ? (
             <button
               type="button"
               className="page-activity__action-btn"
@@ -202,52 +198,65 @@ export function ArtifactDetail({ artifactId }: ArtifactDetailProps) {
         </p>
       ) : null}
 
-      <ArtifactReference artifactId={artifact.id} />
-
-      <dl className="page-artifact__facts">
-        <div>
-          <dt>Filename</dt>
-          <dd>{artifact.filename}</dd>
-        </div>
-        <div>
-          <dt>Type</dt>
-          <dd>{artifact.media_type || "Unknown"}</dd>
-        </div>
-        <div>
-          <dt>Size</dt>
-          <dd>{formatSize(artifact.size_bytes)}</dd>
-        </div>
-        <div>
-          <dt>Origin</dt>
-          <dd>{sourceLabel(artifact)}</dd>
-        </div>
-        <div>
-          <dt>Created</dt>
-          <dd>{formatTime(artifact.created_at)}</dd>
-        </div>
-        {artifact.expires_at ? (
-          <div>
-            <dt>Expires</dt>
-            <dd>{formatTime(artifact.expires_at)}</dd>
-          </div>
-        ) : null}
-        <div>
-          {/* Proves what was stored, computed while streaming the upload. Shown
-              because a reader checking a file against its source needs it. */}
-          <dt>SHA-256</dt>
-          <dd className="page-artifact__digest">{artifact.sha256}</dd>
-        </div>
-      </dl>
-
-      {/* Only what the server said it will serve for display. A type it refuses
-          to render inline is not one to open in a viewer. */}
-      {artifact.inline ? (
+      {/* The content itself, front and centre. A type the server will not render
+          says so in place of a preview. */}
+      {artifact.preview !== "none" ? (
         <ArtifactPreview artifact={artifact} token={token} />
       ) : (
         <p className="page-activity__empty">
           This type is served as a download rather than displayed, so there is no preview.
         </p>
       )}
+
+      <details className="artifact-details">
+        <summary className="artifact-details__summary">Details</summary>
+        <dl className="artifact-details__facts">
+          <div>
+            <dt>Type</dt>
+            <dd>{artifact.media_type || "Unknown"}</dd>
+          </div>
+          <div>
+            <dt>Size</dt>
+            <dd>{formatSize(artifact.size_bytes)}</dd>
+          </div>
+          <div>
+            <dt>Origin</dt>
+            <dd>{sourceLabel(artifact)}</dd>
+          </div>
+          <div>
+            <dt>Created</dt>
+            <dd>{formatTime(artifact.created_at)}</dd>
+          </div>
+          {artifact.expires_at ? (
+            <div>
+              <dt>Expires</dt>
+              <dd>{formatTime(artifact.expires_at)}</dd>
+            </div>
+          ) : null}
+          <div>
+            <dt>Reference</dt>
+            <dd className="artifact-details__copyable">
+              <code>{artifact.id}</code>
+              <CopyButton value={artifact.id} label="Copy" />
+            </dd>
+          </div>
+          <div>
+            {/* Proves what was stored, computed while streaming the upload. */}
+            <dt>SHA-256</dt>
+            <dd className="artifact-details__copyable">
+              <code className="artifact-details__digest">{artifact.sha256}</code>
+              <CopyButton value={artifact.sha256} label="Copy" />
+            </dd>
+          </div>
+        </dl>
+      </details>
+
+      <ArtifactShareDialog
+        artifactId={artifact.id}
+        token={token}
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+      />
     </div>
   )
 }

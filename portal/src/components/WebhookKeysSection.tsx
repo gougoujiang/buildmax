@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
 import { getErrorMessage } from "../lib/errorMessage"
+import { CopyButton } from "./CopyButton"
 import {
   listWebhookKeys,
   createWebhookKey,
@@ -21,7 +22,6 @@ export function WebhookKeysSection({ token }: WebhookKeysSectionProps) {
   const [keyName, setKeyName] = useState("")
   const [revokingId, setRevokingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
 
   const fetchKeys = useCallback(() => {
     if (!token) return
@@ -49,14 +49,6 @@ export function WebhookKeysSection({ token }: WebhookKeysSectionProps) {
       })
       .catch((err) => setError(getErrorMessage(err, "Failed to create key")))
       .finally(() => setCreating(false))
-  }
-
-  function handleCopyKey() {
-    if (!newKey?.key) return
-    navigator.clipboard.writeText(newKey.key).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    })
   }
 
   function handleCloseNewKey() {
@@ -96,13 +88,10 @@ export function WebhookKeysSection({ token }: WebhookKeysSectionProps) {
           </p>
           <div className="settings-webhook__new-key-row">
             <code className="settings-webhook__new-key-value">{newKey.key}</code>
-            <button
-              type="button"
+            <CopyButton
+              value={newKey.key}
               className="settings-webhook__btn settings-webhook__btn--copy"
-              onClick={handleCopyKey}
-            >
-              {copied ? "Copied" : "Copy"}
-            </button>
+            />
           </div>
           <button
             type="button"

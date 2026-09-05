@@ -3918,20 +3918,110 @@
         "parameters": [
           {"name": "artifact_id", "in": "path", "required": true, "schema": {"type": "string"}},
           {
-            "name": "disposition",
+            "name": "dl",
             "in": "query",
             "required": false,
             "schema": {"type": "string"},
-            "description": "attachment (default) or inline"
+            "description": "1/true/yes forces an attachment download even for a previewable type"
           }
         ],
         "responses": {
           "200": {
-            "description": "The stored bytes, with the artifact's own content type",
+            "description": "The stored bytes. Previewable types keep their own content type served inline (HTML under a sandbox CSP); other types download as application/octet-stream",
             "content": {"application/octet-stream": {"schema": {"type": "string", "format": "binary"}}}
           },
           "404": {
             "description": "Artifact content not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/artifacts/{artifact_id}/shares": {
+      "get": {
+        "summary": "List an artifact's public share links",
+        "description": "Metadata only; a hashed token cannot be reconstructed, so the link itself is returned only at creation.",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name": "artifact_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {
+          "200": {"description": "OK"},
+          "404": {
+            "description": "Artifact not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a public share link for an artifact",
+        "description": "Returns the link and its one-time token. Refused with 503 when the deployment has no public base URL configured.",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {"name": "artifact_id", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "ttl_hours", "in": "query", "required": false, "schema": {"type": "integer"}, "description": "Requested lifetime in hours; clamped down to the deployment bound"}
+        ],
+        "responses": {
+          "201": {"description": "The created link, with its token and URLs"},
+          "404": {
+            "description": "Artifact not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "503": {
+            "description": "Public sharing is not configured",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/artifacts/{artifact_id}/shares/{share_id}": {
+      "delete": {
+        "summary": "Revoke a public share link",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {"name": "artifact_id", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "share_id", "in": "path", "required": true, "schema": {"type": "string"}}
+        ],
+        "responses": {
+          "204": {"description": "Revoked"},
+          "403": {
+            "description": "Not allowed to revoke this share",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "404": {
+            "description": "Artifact or share not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/shared/artifacts/{token}/meta": {
+      "get": {
+        "summary": "Public metadata for a shared artifact",
+        "description": "Sessionless; the share token is the whole authorization. A revoked, expired, or unknown token, or a deleted artifact, all answer 404.",
+        "parameters": [{"name": "token", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {
+          "200": {"description": "Filename, media type, size, title, and preview mode"},
+          "404": {
+            "description": "Not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/shared/artifacts/{token}/raw": {
+      "get": {
+        "summary": "Public content for a shared artifact",
+        "description": "Sessionless; the token is the whole authorization. Previewable types serve inline (HTML under a sandbox CSP); other types download.",
+        "parameters": [
+          {"name": "token", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "dl", "in": "query", "required": false, "schema": {"type": "string"}, "description": "1/true/yes forces an attachment download even for a previewable type"}
+        ],
+        "responses": {
+          "200": {
+            "description": "The stored bytes",
+            "content": {"application/octet-stream": {"schema": {"type": "string", "format": "binary"}}}
+          },
+          "404": {
+            "description": "Not found",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
           }
         }

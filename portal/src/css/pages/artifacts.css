@@ -109,3 +109,60 @@
   height: auto;
   display: block;
 }
+
+/* An HTML artifact runs here; the height is generous because a prototype is a
+   page, not a snippet. The sandbox attribute (set on the element) is what makes
+   this safe, not anything in the CSS. */
+.artifact-preview__frame {
+  width: 100%;
+  height: 60vh;
+  border: 0;
+  background: #fff;
+}
+
+/* Rendered Markdown. Kept narrow and readable rather than styled as a document;
+   the shared markdown rules elsewhere handle headings, lists, and code. */
+.artifact-preview__markdown {
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.artifact-preview__markdown :first-child {
+  margin-top: 0;
+}
+
+.artifact-preview__markdown pre {
+  overflow-x: auto;
+}
+
+/* The standalone public share page (no app shell). */
+.shared-page {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+
+.shared-page__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.shared-page__title {
+  font-size: 18px;
+  margin: 0;
+}
+
+.shared-page__subtitle {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin: 4px 0 0;
+}
+
+.shared-page__card {
+  text-align: center;
+  padding: 48px 16px;
+}

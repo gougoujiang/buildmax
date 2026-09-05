@@ -1,6 +1,12 @@
 import { apiFetch, getApiBase, parseErrorResponse, requestJson } from "../../lib/api/client"
 import { authHeaders } from "../../lib/api/common"
-import type { ApiArtifact, ApiArtifactList } from "../../lib/api/types"
+import type {
+  ApiArtifact,
+  ApiArtifactList,
+  ApiArtifactShare,
+  ApiArtifactShareList,
+  ApiSharedMeta,
+} from "../../lib/api/types"
 
 /**
  * The team route lists and receives; the id route reads one.
@@ -62,6 +68,61 @@ export async function deleteArtifact(artifactId: string, token: string): Promise
   if (!res.ok) {
     throw new Error(await parseErrorResponse(res, "Delete failed"))
   }
+}
+
+// --- Share management (authenticated) ---
+
+export async function createShare(artifactId: string, token: string): Promise<ApiArtifactShare> {
+  const url = `${getApiBase()}/api/artifacts/${encodeURIComponent(artifactId)}/shares`
+  const res = await apiFetch(url, { method: "POST", headers: authHeaders(token) })
+  if (!res.ok) {
+    throw new Error(await parseErrorResponse(res, "Could not create a public link"))
+  }
+  return (await res.json()) as ApiArtifactShare
+}
+
+export async function listShares(artifactId: string, token: string): Promise<ApiArtifactShareList> {
+  const url = `${getApiBase()}/api/artifacts/${encodeURIComponent(artifactId)}/shares`
+  return requestJson<ApiArtifactShareList>(url, { headers: authHeaders(token) })
+}
+
+export async function revokeShare(artifactId: string, shareId: string, token: string): Promise<void> {
+  const url = `${getApiBase()}/api/artifacts/${encodeURIComponent(artifactId)}/shares/${encodeURIComponent(shareId)}`
+  const res = await apiFetch(url, { method: "DELETE", headers: authHeaders(token) })
+  if (!res.ok) {
+    throw new Error(await parseErrorResponse(res, "Could not revoke the link"))
+  }
+}
+
+// --- Public share access (no session) ---
+
+/** sharedRawUrl is the token-authorized content URL an iframe or link uses. */
+export function sharedRawUrl(shareToken: string, download = false): string {
+  const base = `${getApiBase()}/shared/artifacts/${encodeURIComponent(shareToken)}/raw`
+  return download ? `${base}?dl=1` : base
+}
+
+export async function fetchSharedMeta(shareToken: string): Promise<ApiSharedMeta> {
+  const res = await fetch(`${getApiBase()}/shared/artifacts/${encodeURIComponent(shareToken)}/meta`)
+  if (!res.ok) {
+    throw new Error(await parseErrorResponse(res, "This link is not available"))
+  }
+  return (await res.json()) as ApiSharedMeta
+}
+
+/** Fetch shared content with no session, as text or a blob URL. */
+export async function fetchSharedContent(
+  shareToken: string
+): Promise<{ text?: string; objectUrl?: string; mediaType: string }> {
+  const res = await fetch(sharedRawUrl(shareToken))
+  if (!res.ok) {
+    throw new Error(await parseErrorResponse(res, "This link is not available"))
+  }
+  const mediaType = res.headers.get("Content-Type") ?? ""
+  if (mediaType.startsWith("text/")) {
+    return { text: await res.text(), mediaType }
+  }
+  return { objectUrl: URL.createObjectURL(await res.blob()), mediaType }
 }
 
 /**

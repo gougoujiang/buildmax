@@ -18,6 +18,9 @@ type ArtifactUpload struct {
 	// Filename is the name the artifact carries, already reduced to one element.
 	Filename string
 	Title    string
+	// Share asks the server to also create a public link and return it, so an
+	// agent can hand a person one link that opens and renders.
+	Share bool
 }
 
 // PublishedArtifact is what the artifact service made of it.
@@ -28,6 +31,13 @@ type PublishedArtifact struct {
 	// URL is where an authorized person opens it. Empty when the surface knows
 	// the id but not the address to render it at.
 	URL string
+	// ShareURL is a public link anyone can open, set only when Share was asked
+	// for and the server created one. ShareDownloadURL is its raw-download form.
+	ShareURL         string
+	ShareDownloadURL string
+	// ShareError explains why a requested link could not be made. The artifact
+	// still published; only the link is missing.
+	ShareError string
 }
 
 // ArtifactPublisher hands one local file to the artifact service.
@@ -89,6 +99,14 @@ func (t *UploadArtifact) Parameters() any {
 				"description": "Optional one-line note on what this file is for, shown alongside " +
 					"it. Not a place for file contents.",
 			},
+			"share": map[string]any{
+				"type": "boolean",
+				"description": "Set true to also create a public link anyone can open without a " +
+					"BuildMax login, and receive it in the result. Use it when the person should " +
+					"be able to open the file — a report to read, an HTML prototype to view — from " +
+					"a link you give them. The link is revocable and expires. Defaults to false: " +
+					"without it the artifact is reachable only by team members.",
+			},
 		},
 		"required": []string{"path"},
 	}
@@ -124,6 +142,7 @@ func (t *UploadArtifact) Execute(ctx context.Context, args map[string]any) (stri
 		Path:     resolved,
 		Filename: filepath.Base(resolved),
 		Title:    title,
+		Share:    parseOptionalBool(args, "share", false),
 	})
 	if err != nil {
 		return "", err
@@ -186,6 +205,22 @@ func formatPublishedArtifact(a PublishedArtifact, purpose string) string {
 	if purpose != "" {
 		fmt.Fprintf(&b, "\nPurpose: %s", purpose)
 	}
-	b.WriteString("\nCite this reference in your final answer so the person can find the file.")
+	switch {
+	case a.ShareURL != "":
+		// The public link is what a person opens, so it leads the closing
+		// instruction rather than the team-only reference.
+		fmt.Fprintf(&b, "\nPublic link (opens without a login): %s", a.ShareURL)
+		if a.ShareDownloadURL != "" {
+			fmt.Fprintf(&b, "\nDownload: %s", a.ShareDownloadURL)
+		}
+		b.WriteString("\nCite the public link in your final answer so the person can open the file.")
+	case a.ShareError != "":
+		// The file published; only the link failed. Say both, so the model
+		// reports what happened rather than inventing a link.
+		fmt.Fprintf(&b, "\nA public link was requested but could not be created: %s", a.ShareError)
+		b.WriteString("\nCite the artifact reference in your final answer; there is no public link.")
+	default:
+		b.WriteString("\nCite this reference in your final answer so the person can find the file.")
+	}
 	return b.String()
 }

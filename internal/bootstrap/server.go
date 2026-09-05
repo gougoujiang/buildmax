@@ -449,6 +449,7 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 			JWTSecret:            jwtSecret,
 			AllowSignup:          sc.AllowSignup,
 			CORSOrigin:           sc.CORSOrigin,
+			PublicBaseURL:        sc.PublicBaseURL,
 			QuotaService:         quotaService,
 			DefaultQuotaTier:     sc.DefaultQuotaTier,
 			AccessTokenTTL:       sc.AccessTokenTTL,
@@ -475,6 +476,7 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 			SchemaStore:         st,
 			LLMModelStore:       st,
 			ArtifactStore:       st,
+			ArtifactShareStore:  st,
 			SecretStore:         secretStore,
 		},
 		Services: httpserver.ServicesConfig{Plugin: pluginService, Secret: secretService},
@@ -483,6 +485,7 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 			RunOutputStorage: storage.runOutput,
 			ArtifactStorage:  storage.artifact,
 			MaxArtifactBytes: int64(sc.Storage.MaxArtifactMB) << 20,
+			ArtifactShareTTL: time.Duration(sc.Storage.ArtifactShareTTLHours) * time.Hour,
 			WorkspacesDir:    workspacesDir,
 		},
 		Worker: httpserver.WorkerConfig{

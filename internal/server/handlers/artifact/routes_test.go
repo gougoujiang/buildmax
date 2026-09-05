@@ -28,10 +28,13 @@ const (
 	userStrand = "u_outsider"
 )
 
+const testPublicBaseURL = "https://buildmax.example.com"
+
 type fixture struct {
 	mux     *http.ServeMux
 	store   *mock.MockArtifactStore
 	storage *mock.MockArtifactStorage
+	shares  *mock.MockArtifactShareStore
 	svc     *artifactsvc.Service
 }
 
@@ -39,7 +42,13 @@ func newFixture(t *testing.T) *fixture {
 	t.Helper()
 	store := &mock.MockArtifactStore{}
 	storage := mock.NewMockArtifactStorage()
-	svc := &artifactsvc.Service{Artifacts: store, Storage: storage}
+	shares := mock.NewMockArtifactShareStore(store)
+	svc := &artifactsvc.Service{
+		Artifacts:     store,
+		Storage:       storage,
+		Shares:        shares,
+		PublicBaseURL: testPublicBaseURL,
+	}
 	teams := &mock.MockTeamStore{
 		Teams: []coreteam.Team{
 			{ID: teamA, Name: "A", CreatedBy: userOwner},
@@ -61,7 +70,7 @@ func newFixture(t *testing.T) *fixture {
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)
-	return &fixture{mux: mux, store: store, storage: storage, svc: svc}
+	return &fixture{mux: mux, store: store, storage: storage, shares: shares, svc: svc}
 }
 
 func (f *fixture) do(t *testing.T, method, path, userID string, body io.Reader, contentType string) *httptest.ResponseRecorder {
@@ -211,26 +220,31 @@ func TestListShowsOnlyTheTeamsOwnArtifacts(t *testing.T) {
 
 // Anything a browser might execute leaves as a download, announced as bytes
 // rather than as the type it claims to be.
-func TestContentDispositionFollowsTheInlineAllowlist(t *testing.T) {
+func TestContentPreviewModeAndDisposition(t *testing.T) {
 	cases := []struct {
 		filename    string
-		wantInline  bool
+		wantPreview string
 		wantType    string
 		wantDisposi string
+		wantSandbox bool // an HTML response must carry the opaque-origin CSP
 	}{
-		{"notes.txt", true, "text/plain; charset=utf-8", "inline"},
-		{"logo.png", true, "image/png", "inline"},
-		{"page.html", false, artifactsvc.FallbackMediaType, "attachment"},
-		{"icon.svg", false, artifactsvc.FallbackMediaType, "attachment"},
-		{"paper.pdf", false, artifactsvc.FallbackMediaType, "attachment"},
-		{"archive.zip", false, artifactsvc.FallbackMediaType, "attachment"},
+		{"notes.txt", "inline", "text/plain; charset=utf-8", "inline", false},
+		{"logo.png", "inline", "image/png", "inline", false},
+		// HTML now previews, but only under the sandbox CSP that forces an
+		// opaque origin. It is served as its real type, inline, with the header.
+		{"page.html", "sandbox", "text/html; charset=utf-8", "inline", true},
+		// Still download-only: an active document we do not sandbox, and opaque
+		// binary types.
+		{"icon.svg", "none", artifactsvc.FallbackMediaType, "attachment", false},
+		{"paper.pdf", "none", artifactsvc.FallbackMediaType, "attachment", false},
+		{"archive.zip", "none", artifactsvc.FallbackMediaType, "attachment", false},
 	}
 	for _, c := range cases {
 		t.Run(c.filename, func(t *testing.T) {
 			f := newFixture(t)
 			created := f.upload(t, userOwner, teamA, c.filename, "content")
-			if created.Inline != c.wantInline {
-				t.Errorf("inline = %v, want %v", created.Inline, c.wantInline)
+			if created.Preview != c.wantPreview {
+				t.Errorf("preview = %q, want %q", created.Preview, c.wantPreview)
 			}
 			rec := f.do(t, http.MethodGet, "/api/artifacts/"+created.ID+"/content", userOwner, nil, "")
 			if got := rec.Header().Get("Content-Type"); got != c.wantType {
@@ -242,7 +256,32 @@ func TestContentDispositionFollowsTheInlineAllowlist(t *testing.T) {
 			if got := rec.Header().Get("X-Content-Type-Options"); got != "nosniff" {
 				t.Errorf("X-Content-Type-Options = %q, want nosniff", got)
 			}
+			csp := rec.Header().Get("Content-Security-Policy")
+			if c.wantSandbox {
+				if !strings.HasPrefix(csp, "sandbox") || strings.Contains(csp, "allow-same-origin") {
+					t.Errorf("CSP = %q, want a sandbox policy without allow-same-origin", csp)
+				}
+			} else if csp != "" {
+				t.Errorf("CSP = %q, want none for a non-sandboxed type", csp)
+			}
 		})
+	}
+}
+
+// ?dl=1 forces a download even for a type that would otherwise preview, and
+// drops the sandbox rendering headers because nothing is being rendered.
+func TestContentDownloadOverride(t *testing.T) {
+	f := newFixture(t)
+	created := f.upload(t, userOwner, teamA, "page.html", "<h1>hi</h1>")
+	rec := f.do(t, http.MethodGet, "/api/artifacts/"+created.ID+"/content?dl=1", userOwner, nil, "")
+	if got := rec.Header().Get("Content-Disposition"); !strings.HasPrefix(got, "attachment") {
+		t.Errorf("Content-Disposition = %q, want attachment", got)
+	}
+	if got := rec.Header().Get("Content-Type"); got != artifactsvc.FallbackMediaType {
+		t.Errorf("Content-Type = %q, want %q", got, artifactsvc.FallbackMediaType)
+	}
+	if csp := rec.Header().Get("Content-Security-Policy"); csp != "" {
+		t.Errorf("CSP = %q, want none on a forced download", csp)
 	}
 }
 

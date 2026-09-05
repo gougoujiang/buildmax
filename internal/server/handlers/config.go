@@ -105,6 +105,8 @@ type Config struct {
 	// the artifact routes answering 503: metadata without content is not an
 	// artifact capability.
 	ArtifactStore coreartifact.Store
+	// ArtifactShareStore persists public share links. Nil leaves sharing off.
+	ArtifactShareStore coreartifact.ShareStore
 	// SystemGrantStore reads deployment-scoped role grants. Nil leaves every
 	// /api/admin route answering 503 to an authenticated caller, which is what
 	// a deployment with no database has: no way to know whether anyone is an
@@ -116,6 +118,11 @@ type Config struct {
 	RunOutputStorage blob.RunOutputStorage
 	ArtifactStorage  artifactsvc.ContentStore
 	MaxArtifactBytes int64
+	// ArtifactPublicBaseURL is the externally reachable origin share links are
+	// rendered against. Empty refuses share creation.
+	ArtifactPublicBaseURL string
+	// ArtifactShareTTL bounds a share link's lifetime. Zero uses the default.
+	ArtifactShareTTL time.Duration
 	WorkspacesDir    string
 
 	// Auth / quota

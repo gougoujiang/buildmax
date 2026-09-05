@@ -381,8 +381,12 @@ export interface ApiArtifact {
   created_by_id?: string
   source_type: string
   source_id?: string
-  /** Whether the server will serve this content for display rather than download. */
-  inline: boolean
+  /**
+   * How the server will show this content: "inline" to render directly,
+   * "sandbox" for an active document (HTML) that runs only in an opaque-origin
+   * frame, or "none" for download-only.
+   */
+  preview: "inline" | "sandbox" | "none"
   expires_at?: string
   created_at: string
 }
@@ -390,6 +394,40 @@ export interface ApiArtifact {
 export interface ApiArtifactList {
   items: ApiArtifact[]
   total: number
+}
+
+/**
+ * A public share link. `url`, `download_url`, and `token` are present only in
+ * the create response — a hashed token cannot be reconstructed, so a later
+ * listing shows the link's metadata but never the link itself.
+ */
+export interface ApiArtifactShare {
+  share_id: string
+  artifact_id: string
+  url?: string
+  download_url?: string
+  token?: string
+  created_by_type: string
+  created_by_id?: string
+  expires_at?: string
+  revoked_at?: string
+  retrieval_count: number
+  last_retrieved_at?: string
+  created_at: string
+}
+
+export interface ApiArtifactShareList {
+  items: ApiArtifactShare[]
+}
+
+/** Public metadata for a shared artifact, served without a session. */
+export interface ApiSharedMeta {
+  filename: string
+  media_type: string
+  size_bytes: number
+  title?: string
+  preview: "inline" | "sandbox" | "none"
+  created_at: string
 }
 
 /** The execution boundary a run actually ran under. */

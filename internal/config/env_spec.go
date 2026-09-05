@@ -25,6 +25,13 @@ const (
 	// storing the value in the YAML file on disk.
 	EnvKeyBuildmaxJWTSecret = "BUILDMAX_JWT_SECRET"
 
+	// BUILDMAX_PUBLIC_BASE_URL — optional override for public_base_url in
+	// server.yaml: the externally reachable origin at which people open BuildMax.
+	// Artifact share links are rendered against it. It is distinct from
+	// BUILDMAX_SERVER_URL, which is the address a process uses to reach the
+	// server, not one the server advertises for itself.
+	EnvKeyBuildmaxPublicBaseURL = "BUILDMAX_PUBLIC_BASE_URL"
+
 	// BUILDMAX_RUN_TOKEN — the credential one task run presents to the managed LLM
 	// gateway. The scheduler mints it per run and puts it in the worker process or
 	// Job pod; nothing inherits it, which is why it is not marked WorkerNeeds
@@ -88,6 +95,7 @@ var envVars = []EnvVar{
 	{Name: EnvKeyBuildmaxHome, Default: "~/.buildmax", Description: "Application data directory; locates settings.yaml and server.yaml", WorkerNeeds: true},
 	{Name: EnvKeyBuildmaxServerURL, Description: "Override for settings.yaml server_url and server.yaml worker.server_url", WorkerNeeds: true},
 	{Name: EnvKeyBuildmaxJWTSecret, Description: "Override for jwt_secret in server.yaml; inject at deploy time in production"},
+	{Name: EnvKeyBuildmaxPublicBaseURL, Description: "Override for public_base_url in server.yaml; the externally reachable origin artifact share links are built from"},
 	{Name: EnvKeyBuildmaxDatabasePassword, Description: "Override for database.password in server.yaml"},
 	{Name: EnvKeyBuildmaxMinIOAccessKey, Description: "Override for storage.minio.access_key in server.yaml", WorkerNeeds: true},
 	{Name: EnvKeyBuildmaxMinIOSecretKey, Description: "Override for storage.minio.secret_key in server.yaml", WorkerNeeds: true},

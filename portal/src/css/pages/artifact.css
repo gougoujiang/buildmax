@@ -1,35 +1,109 @@
 /* Page: Artifact detail */
 
-.page-artifact__reference {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 12px;
-  margin-top: 12px;
+/* Metadata lives in a disclosure, closed by default, so the content leads. */
+.artifact-details {
+  margin: 20px 0 0;
+  border-top: 1px solid var(--color-border-subtle);
+  padding-top: 12px;
 }
 
-.page-artifact__facts {
+.artifact-details__summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  user-select: none;
+}
+
+.artifact-details__facts {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 12px 24px;
-  margin: 16px 0 0;
-  padding: 16px;
-  border: 1px solid var(--color-border-subtle);
-  border-radius: 8px;
+  margin: 12px 0 0;
 }
 
-.page-artifact__facts dt {
+.artifact-details__facts dt {
   font-size: 12px;
   color: var(--color-text-muted);
   margin-bottom: 2px;
 }
 
-.page-artifact__facts dd {
+.artifact-details__facts dd {
   margin: 0;
   overflow-wrap: anywhere;
 }
 
-.page-artifact__digest {
+.artifact-details__copyable {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.artifact-details__copyable code {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.artifact-details__digest {
   font-family: var(--font-mono, ui-monospace, monospace);
   font-size: 11px;
+}
+
+/* Share dialog (opened from the Share action). Layout and padding come from
+   .modal__body; this only adds the spacing and wrapping the content needs. The
+   modal caps its own width, so nothing here sets one — a long link wraps. */
+.artifact-share-dialog {
+  gap: 12px;
+}
+
+.artifact-share-dialog__hint {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.artifact-share-dialog__note {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin: 0 0 6px;
+}
+
+.artifact-share-dialog__fresh {
+  padding: 10px 12px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: 8px;
+}
+
+.artifact-share-dialog__link-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.artifact-share-dialog__link {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.artifact-share-dialog__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.artifact-share-dialog__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--color-border-subtle);
+  font-size: 12px;
+}
+
+.artifact-share-dialog__meta {
+  color: var(--color-text-muted);
 }

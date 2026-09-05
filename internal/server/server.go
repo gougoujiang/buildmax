@@ -55,9 +55,13 @@ const (
 
 // AuthConfig holds auth and CORS settings plus optional quota for signup and create-chat/run.
 type AuthConfig struct {
-	JWTSecret        string         // Required for login when UserStore is set
-	AllowSignup      bool           // Open POST /api/otp/request to self-registration; closed by default
-	CORSOrigin       string         // If set, enable CORS with this origin (e.g. "http://localhost:5173")
+	JWTSecret   string // Required for login when UserStore is set
+	AllowSignup bool   // Open POST /api/otp/request to self-registration; closed by default
+	CORSOrigin  string // If set, enable CORS with this origin (e.g. "http://localhost:5173")
+	// PublicBaseURL is the externally reachable origin at which people open
+	// BuildMax. Artifact share links are rendered against it; empty refuses
+	// share creation rather than emitting an unreachable link.
+	PublicBaseURL    string
 	QuotaService     *quota.Service // Optional; when set, create chat/run enforce quota and return 429 when exceeded
 	DefaultQuotaTier string         // Default quota tier for new users (e.g. signup); used when calling CreateUser
 	// Token lifetimes; zero means the default in internal/core/identity.
@@ -89,6 +93,9 @@ type StoresConfig struct {
 	// ArtifactStore records durable files. Nil leaves the artifact routes
 	// answering 503, which is what a deployment with no database has.
 	ArtifactStore coreartifact.Store
+	// ArtifactShareStore persists public share links. Nil leaves sharing off
+	// while artifacts otherwise work.
+	ArtifactShareStore coreartifact.ShareStore
 	// SecretStore is the Team Secret store. Nil disables the secret feature.
 	SecretStore coresecret.Store
 }
@@ -115,6 +122,9 @@ type StorageConfig struct {
 	ArtifactStorage artifactsvc.ContentStore
 	// MaxArtifactBytes caps one artifact. Zero uses the service default.
 	MaxArtifactBytes int64
+	// ArtifactShareTTL bounds a public share link's lifetime. Zero uses the
+	// service default.
+	ArtifactShareTTL time.Duration
 	WorkspacesDir    string // Overrides config.WorkspacesDir() for workspace file operations
 }
 
@@ -318,7 +328,10 @@ func buildHandlersConfig(cfg Config, drain <-chan struct{}) handlers.Config {
 		PersistStorage:           cfg.Storage.PersistStorage,
 		RunOutputStorage:         cfg.Storage.RunOutputStorage,
 		ArtifactStorage:          cfg.Storage.ArtifactStorage,
+		ArtifactShareStore:       cfg.Stores.ArtifactShareStore,
+		ArtifactPublicBaseURL:    cfg.Auth.PublicBaseURL,
 		MaxArtifactBytes:         cfg.Storage.MaxArtifactBytes,
+		ArtifactShareTTL:         cfg.Storage.ArtifactShareTTL,
 		WorkspacesDir:            cfg.Storage.WorkspacesDir,
 		DefaultQuotaTier:         cfg.Auth.DefaultQuotaTier,
 		QuotaService:             cfg.Auth.QuotaService,

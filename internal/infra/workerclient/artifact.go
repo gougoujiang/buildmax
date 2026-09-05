@@ -14,9 +14,18 @@ import (
 // a worker reports back to the model are decoded; the storage key is not among
 // them and never leaves the server.
 type artifactResponse struct {
-	ID        string `json:"id"`
-	Filename  string `json:"filename"`
-	SizeBytes int64  `json:"size_bytes"`
+	ID         string         `json:"id"`
+	Filename   string         `json:"filename"`
+	SizeBytes  int64          `json:"size_bytes"`
+	Share      *artifactShare `json:"share,omitempty"`
+	ShareError string         `json:"share_error,omitempty"`
+}
+
+// artifactShare is the public-link half of an upload that asked for one. The
+// server builds the URLs from its public base URL; the worker only relays them.
+type artifactShare struct {
+	URL         string `json:"url"`
+	DownloadURL string `json:"download_url"`
 }
 
 // artifactPublisher publishes a run's chosen file through the worker API.
@@ -42,8 +51,15 @@ func NewArtifactPublisher(cfg WorkerAPIClientConfig, taskRunID, serverBaseURL st
 // PublishArtifact implements tool.ArtifactPublisher.
 func (p *artifactPublisher) PublishArtifact(ctx context.Context, in tool.ArtifactUpload) (tool.PublishedArtifact, error) {
 	endpoint := p.Cfg.BaseURL + "/api/worker/task-runs/" + url.PathEscape(p.TaskRunID) + "/artifacts"
+	query := url.Values{}
 	if in.Title != "" {
-		endpoint += "?title=" + url.QueryEscape(in.Title)
+		query.Set("title", in.Title)
+	}
+	if in.Share {
+		query.Set("share", "1")
+	}
+	if encoded := query.Encode(); encoded != "" {
+		endpoint += "?" + encoded
 	}
 	resp, err := httpclient.UploadFile(ctx, p.Cfg.Client, endpoint, p.Cfg.Token, "file", in.Path, in.Filename)
 	if err != nil {
@@ -57,12 +73,18 @@ func (p *artifactPublisher) PublishArtifact(ctx context.Context, in tool.Artifac
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
 		return tool.PublishedArtifact{}, err
 	}
-	return tool.PublishedArtifact{
+	published := tool.PublishedArtifact{
 		ArtifactID: out.ID,
 		Filename:   out.Filename,
 		SizeBytes:  out.SizeBytes,
 		URL:        ArtifactURL(p.ServerBaseURL, out.ID),
-	}, nil
+		ShareError: out.ShareError,
+	}
+	if out.Share != nil {
+		published.ShareURL = out.Share.URL
+		published.ShareDownloadURL = out.Share.DownloadURL
+	}
+	return published, nil
 }
 
 // ArtifactURL renders where an authorized person opens the artifact. Empty when

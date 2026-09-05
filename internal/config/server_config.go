@@ -47,8 +47,15 @@ type ServerConfig struct {
 	// terminationGracePeriodSeconds on Kubernetes, TimeoutStopSec under systemd
 	// — or the process is killed partway through an orderly stop. See
 	// docs/design/graceful-shutdown.md.
-	ShutdownGrace    time.Duration       `mapstructure:"shutdown_grace"`
-	CORSOrigin       string              `mapstructure:"cors_origin"`
+	ShutdownGrace time.Duration `mapstructure:"shutdown_grace"`
+	CORSOrigin    string        `mapstructure:"cors_origin"`
+	// PublicBaseURL is the externally reachable origin at which people open
+	// BuildMax (the Portal, or the shared origin behind a reverse proxy).
+	// Artifact share links are rendered against it. Empty refuses share
+	// creation rather than emitting an internal URL nobody can open. It is not
+	// derived from worker.server_url (a cluster-internal listener) or
+	// BUILDMAX_SERVER_URL (the address a process uses to reach the server).
+	PublicBaseURL    string              `mapstructure:"public_base_url"`
 	WorkspacesDir    string              `mapstructure:"workspaces_dir"`
 	DefaultQuotaTier string              `mapstructure:"default_quota_tier"`
 	Conversation     ServerConvConfig    `mapstructure:"conversation"`
@@ -384,6 +391,10 @@ type ServerStorageConfig struct {
 	// the bucket sets a number of days here — BuildMax itself offers no
 	// undelete, so the window is for the bucket's own tooling.
 	ArtifactPurgeAfterDays int `mapstructure:"artifact_purge_after_days"`
+	// ArtifactShareTTLHours bounds a public share link's lifetime, as both the
+	// default and the maximum a create request may ask for. Zero uses the
+	// built-in default (30 days).
+	ArtifactShareTTLHours int `mapstructure:"artifact_share_ttl_hours"`
 }
 
 // ServerSecretConfig configures the Team Secret store. KEKFile is the path to
@@ -516,6 +527,7 @@ func LoadServerConfig() (ServerConfig, error) {
 	v.SetEnvPrefix("BUILDMAX")
 	_ = v.BindEnv("jwt_secret", EnvKeyBuildmaxJWTSecret)
 	_ = v.BindEnv("cors_origin", EnvKeyBuildmaxCORSOrigin)
+	_ = v.BindEnv("public_base_url", EnvKeyBuildmaxPublicBaseURL)
 	_ = v.BindEnv("worker.server_url", EnvKeyBuildmaxServerURL)
 	_ = v.BindEnv("database.password", EnvKeyBuildmaxDatabasePassword)
 	_ = v.BindEnv("storage.minio.access_key", EnvKeyBuildmaxMinIOAccessKey)
