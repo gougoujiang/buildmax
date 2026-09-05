@@ -130,24 +130,24 @@ export function SpaceSettings({ section }: { section: SpaceSection }) {
           />
         ) : null}
         {section === "plugins" ? (
-          <>
-            <TeamPlugins
-              token={token}
-              teamId={currentTeamId}
-              // Changing an activation is owner-or-admin, the authority the
-              // team's other shared automation already needs. Reading is not.
-              canManage={
-                currentUserMember?.role === "owner" || currentUserMember?.role === "admin"
-              }
-            />
-            <TeamSandboxDefaults
-              token={token}
-              teamId={currentTeamId}
-              canManage={
-                currentUserMember?.role === "owner" || currentUserMember?.role === "admin"
-              }
-            />
-          </>
+          <TeamPlugins
+            token={token}
+            teamId={currentTeamId}
+            // Changing an activation is owner-or-admin, the authority the
+            // team's other shared automation already needs. Reading is not.
+            canManage={
+              currentUserMember?.role === "owner" || currentUserMember?.role === "admin"
+            }
+          />
+        ) : null}
+        {section === "security" ? (
+          <TeamSandboxDefaults
+            token={token}
+            teamId={currentTeamId}
+            canManage={
+              currentUserMember?.role === "owner" || currentUserMember?.role === "admin"
+            }
+          />
         ) : null}
         {section === "secrets" ? (
           <TeamSecrets

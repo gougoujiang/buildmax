@@ -35,6 +35,13 @@
   flex-shrink: 0;
 }
 
+.shell__top-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
 .theme-toggle {
   flex-shrink: 0;
   width: 2.25rem;
@@ -52,6 +59,11 @@
 }
 
 .theme-toggle:hover {
+  color: var(--color-text);
+  background: var(--color-bg-hover);
+}
+
+.theme-toggle--active {
   color: var(--color-text);
   background: var(--color-bg-hover);
 }

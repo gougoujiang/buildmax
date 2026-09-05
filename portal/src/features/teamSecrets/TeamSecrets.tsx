@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react"
+import { getInitials } from "@buildmax/gui"
 import type { ApiSecret } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { createSecret, editSecret, listSecrets, setSecretState } from "./api"
@@ -63,12 +64,12 @@ export function TeamSecrets({
 
   if (!canManage) {
     return (
-      <section className="settings-page__section">
-        <div className="settings-page__section-head">
+      <section className="sec">
+        <div className="sec__head">
           <div>
-            <h2 className="settings-page__section-title">Secrets</h2>
-            <p className="settings-page__section-copy">
-              Only a team owner can view or manage this team's secrets.
+            <h2 className="sec__title">Secrets</h2>
+            <p className="sec__copy">
+              Only a team owner can view or manage this team&apos;s secrets.
             </p>
           </div>
         </div>
@@ -76,14 +77,17 @@ export function TeamSecrets({
     )
   }
 
+  const live = secrets.filter((s) => s.state !== "destroyed")
+
   return (
-    <section className="settings-page__section">
-      <div className="settings-page__section-head">
+    <section className="sec">
+      <div className="sec__head">
         <div>
-          <h2 className="settings-page__section-title">Secrets</h2>
-          <p className="settings-page__section-copy">
-            Credentials this team's agents can use — a GitHub token, an internal API
-            key. Stored encrypted; values are never shown again after you save them.
+          <h2 className="sec__title">Secrets</h2>
+          <p className="sec__copy">
+            Credentials this team&apos;s agents can use — a GitHub token, an internal
+            API key. Stored encrypted; values are never shown again after you save
+            them.
           </p>
         </div>
         {!creating ? (
@@ -93,17 +97,19 @@ export function TeamSecrets({
         ) : null}
       </div>
 
-      <div className="settings-section__notice" role="note">
-        <strong>Before you add one:</strong> an agent you grant a secret to can read
-        its value — it runs commands the model chooses, and a value in its
-        environment can be printed. Anyone who can trigger such an agent can obtain
-        the value, without owning the secret. Prefer a short-lived, narrowly scoped
-        credential, and don't grant a secret to an agent you would not hand it to
-        directly.
+      <div className="sec-callout" role="note">
+        <KeyIcon />
+        <div>
+          <strong>An agent you grant a secret to can read its value.</strong> It runs
+          commands the model chooses, and a value in its environment can be printed —
+          so anyone who can trigger that agent can obtain the value without owning the
+          secret. Prefer a short-lived, narrowly scoped credential, and don&apos;t
+          grant one to an agent you would not hand it to directly.
+        </div>
       </div>
 
       {error ? (
-        <p className="settings-section__error" role="alert">
+        <p className="sec__error" role="alert">
           {error}
         </p>
       ) : null}
@@ -121,14 +127,25 @@ export function TeamSecrets({
       ) : null}
 
       {loading ? (
-        <p className="admin-empty">Loading…</p>
-      ) : secrets.length === 0 && !creating ? (
-        <p className="admin-empty">This team has no secrets yet.</p>
+        <div className="sec-list" aria-hidden>
+          {[0, 1].map((i) => (
+            <div key={i} className="sec-card sec-card--skeleton" />
+          ))}
+        </div>
+      ) : live.length === 0 && !creating && !error ? (
+        <div className="sec-empty">
+          <KeyIcon />
+          <p className="sec-empty__title">No secrets yet</p>
+          <p className="sec-empty__copy">
+            Add a credential your team&apos;s agents can use. Its value is encrypted on
+            save and never shown again.
+          </p>
+        </div>
       ) : (
-        <ul className="admin-list">
+        <ul className="sec-list">
           {secrets.map((secret) => (
-            <li key={secret.id} className="admin-list__item">
-              <SecretRow
+            <li key={secret.id}>
+              <SecretCard
                 secret={secret}
                 open={editing === secret.id}
                 onToggle={() => setEditing(editing === secret.id ? null : secret.id)}
@@ -202,59 +219,69 @@ function CreateSecretForm({
   }
 
   return (
-    <div className="admin-card">
-      <label className="modal__label" htmlFor="secret-name">
-        Name
-      </label>
-      <input
-        id="secret-name"
-        className="modal__input"
-        value={name}
-        placeholder="aws-prod"
-        onChange={(e) => setName(e.target.value)}
-      />
-      <label className="modal__label" htmlFor="secret-description">
-        Description
-      </label>
-      <input
-        id="secret-description"
-        className="modal__input"
-        value={description}
-        placeholder="Optional — must not contain a value"
-        onChange={(e) => setDescription(e.target.value)}
-      />
-
-      <div className="settings-page__section-head">
-        <span className="modal__label">Items</span>
-        <button className="btn btn--secondary" onClick={() => setRaw(!raw)}>
-          {raw ? "Row editor" : "Raw JSON"}
-        </button>
+    <div className="sec-form">
+      <div className="sec-form__head">
+        <h3 className="sec-form__title">New secret</h3>
       </div>
 
-      {raw ? (
-        <textarea
+      <div className="sec-field">
+        <label className="modal__label" htmlFor="secret-name">
+          Name
+        </label>
+        <input
+          id="secret-name"
           className="modal__input"
-          rows={6}
-          value={rawText}
-          spellCheck={false}
-          onChange={(e) => setRawText(e.target.value)}
+          value={name}
+          placeholder="aws-prod"
+          onChange={(e) => setName(e.target.value)}
         />
-      ) : (
-        <ItemRowsEditor rows={rows} setRows={setRows} />
-      )}
+      </div>
+
+      <div className="sec-field">
+        <label className="modal__label" htmlFor="secret-description">
+          Description <span className="sec-field__optional">optional</span>
+        </label>
+        <input
+          id="secret-description"
+          className="modal__input"
+          value={description}
+          placeholder="What it is for — never the value itself"
+          onChange={(e) => setDescription(e.target.value)}
+        />
+      </div>
+
+      <div className="sec-field">
+        <div className="sec-field__row">
+          <span className="modal__label">Items</span>
+          <button className="btn btn--ghost btn--sm" onClick={() => setRaw(!raw)}>
+            {raw ? "Row editor" : "Paste JSON"}
+          </button>
+        </div>
+        {raw ? (
+          <textarea
+            className="modal__input sec-json"
+            rows={6}
+            value={rawText}
+            spellCheck={false}
+            onChange={(e) => setRawText(e.target.value)}
+          />
+        ) : (
+          <ItemRowsEditor rows={rows} setRows={setRows} />
+        )}
+      </div>
 
       {error ? (
-        <p className="settings-section__error" role="alert">
+        <p className="sec__error" role="alert">
           {error}
         </p>
       ) : null}
 
-      <div className="modal__actions">
+      <div className="sec-form__actions">
         <button className="btn btn--secondary" onClick={onCancel} disabled={busy}>
           Cancel
         </button>
         <button className="btn btn--primary" onClick={() => void submit()} disabled={busy}>
-          Create
+          {busy ? "Saving…" : "Create secret"}
         </button>
       </div>
     </div>
@@ -269,12 +296,12 @@ function ItemRowsEditor({
   setRows: (rows: ItemRow[]) => void
 }) {
   return (
-    <div className="admin-sections">
+    <div className="sec-items">
       {rows.map((row, i) => (
-        <div key={i} className="secret-item-row">
+        <div key={i} className="sec-item">
           <input
-            className="modal__input"
-            placeholder="item name"
+            className="modal__input sec-item__key"
+            placeholder="ITEM_NAME"
             value={row.key}
             onChange={(e) => {
               const next = rows.slice()
@@ -283,7 +310,7 @@ function ItemRowsEditor({
             }}
           />
           <input
-            className="modal__input"
+            className="modal__input sec-item__val"
             placeholder="value"
             type="password"
             value={row.value}
@@ -294,22 +321,32 @@ function ItemRowsEditor({
             }}
           />
           <button
-            className="btn btn--secondary"
+            className="sec-item__remove"
             onClick={() => setRows(rows.filter((_, j) => j !== i))}
             aria-label="Remove item"
+            title="Remove item"
           >
             ✕
           </button>
         </div>
       ))}
-      <button className="btn btn--secondary" onClick={() => setRows([...rows, { key: "", value: "" }])}>
-        Add item
+      <button
+        className="btn btn--ghost btn--sm sec-items__add"
+        onClick={() => setRows([...rows, { key: "", value: "" }])}
+      >
+        + Add item
       </button>
     </div>
   )
 }
 
-function SecretRow({
+const STATE_TONE: Record<ApiSecret["state"], string> = {
+  active: "active",
+  disabled: "suspended",
+  destroyed: "blocked",
+}
+
+function SecretCard({
   secret,
   open,
   onToggle,
@@ -328,44 +365,62 @@ function SecretRow({
 }) {
   const destroyed = secret.state === "destroyed"
   return (
-    <div>
-      <div className="admin-list__row">
-        <div>
-          <div className="admin-list__title">{secret.name}</div>
-          <div className="admin-list__subtitle">
-            {secret.item_names.join(", ") || "no items"} · {secret.state}
-          </div>
+    <div className={`sec-card ${open ? "sec-card--open" : ""} ${destroyed ? "sec-card--dead" : ""}`}>
+      <div className="sec-card__head">
+        <span className="sec-card__logo" aria-hidden>
+          {getInitials(secret.name)}
+        </span>
+        <div className="sec-card__ident">
+          <span className="sec-card__name">{secret.name}</span>
           {secret.description ? (
-            <div className="admin-list__subtitle">{secret.description}</div>
+            <span className="sec-card__desc">{secret.description}</span>
           ) : null}
         </div>
-        {!destroyed ? (
-          <div className="admin-list__actions">
-            <button className="btn btn--secondary" onClick={onToggle}>
-              {open ? "Close" : "Edit items"}
-            </button>
-            {secret.state === "active" ? (
-              <button className="btn btn--secondary" onClick={() => void onSetState("disabled")}>
-                Disable
-              </button>
-            ) : (
-              <button className="btn btn--secondary" onClick={() => void onSetState("active")}>
-                Enable
-              </button>
-            )}
-            <button
-              className="btn btn--danger"
-              onClick={() => {
-                if (window.confirm(`Destroy secret "${secret.name}"? This cannot be undone.`)) {
-                  void onSetState("destroyed")
-                }
-              }}
-            >
-              Destroy
-            </button>
-          </div>
-        ) : null}
+        <span className={`sec-status sec-status--${STATE_TONE[secret.state]}`}>
+          <span className="sec-status__dot" aria-hidden />
+          {secret.state}
+        </span>
       </div>
+
+      <div className="sec-card__items">
+        {secret.item_names.length > 0 ? (
+          secret.item_names.map((n) => (
+            <span key={n} className="sec-chip">
+              {n}
+            </span>
+          ))
+        ) : (
+          <span className="sec-card__noitems">no items</span>
+        )}
+      </div>
+
+      {!destroyed ? (
+        <div className="sec-card__actions">
+          <button className="btn btn--secondary btn--sm" onClick={onToggle}>
+            {open ? "Close" : "Edit items"}
+          </button>
+          {secret.state === "active" ? (
+            <button className="btn btn--ghost btn--sm" onClick={() => void onSetState("disabled")}>
+              Disable
+            </button>
+          ) : (
+            <button className="btn btn--ghost btn--sm" onClick={() => void onSetState("active")}>
+              Enable
+            </button>
+          )}
+          <button
+            className="btn btn--danger btn--sm sec-card__destroy"
+            onClick={() => {
+              if (window.confirm(`Destroy secret "${secret.name}"? This cannot be undone.`)) {
+                void onSetState("destroyed")
+              }
+            }}
+          >
+            Destroy
+          </button>
+        </div>
+      ) : null}
+
       {open && !destroyed ? (
         <EditItemsForm secret={secret} onEditItems={onEditItems} />
       ) : null}
@@ -415,15 +470,15 @@ function EditItemsForm({
   }
 
   return (
-    <div className="admin-card">
-      <p className="modal__hint">
-        Current items: {secret.item_names.join(", ") || "none"}. Values are never shown;
-        set an item to replace its value, or mark one to remove.
+    <div className="sec-edit">
+      <p className="sec-edit__hint">
+        Values are never shown. Set an item to replace its value, or mark one to
+        remove.
       </p>
       {secret.item_names.length > 0 ? (
-        <div className="admin-sections">
+        <div className="sec-remove">
           {secret.item_names.map((name) => (
-            <label key={name} className="secret-remove-row">
+            <label key={name} className={`sec-remove__row ${remove.has(name) ? "sec-remove__row--on" : ""}`}>
               <input
                 type="checkbox"
                 checked={remove.has(name)}
@@ -439,16 +494,37 @@ function EditItemsForm({
       <ItemRowsEditor rows={rows} setRows={setRows} />
 
       {error ? (
-        <p className="settings-section__error" role="alert">
+        <p className="sec__error" role="alert">
           {error}
         </p>
       ) : null}
 
-      <div className="modal__actions">
-        <button className="btn btn--primary" onClick={() => void submit()} disabled={busy}>
-          Save items
+      <div className="sec-form__actions">
+        <button className="btn btn--primary btn--sm" onClick={() => void submit()} disabled={busy}>
+          {busy ? "Saving…" : "Save items"}
         </button>
       </div>
     </div>
+  )
+}
+
+function KeyIcon() {
+  return (
+    <svg
+      className="sec-icon"
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <circle cx="7.5" cy="15.5" r="4.5" />
+      <path d="m10.7 12.3 8.3-8.3" />
+      <path d="m16 5 3 3" />
+      <path d="m13 8 2.5 2.5" />
+    </svg>
   )
 }

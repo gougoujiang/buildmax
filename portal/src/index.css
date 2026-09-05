@@ -3,6 +3,7 @@
 @import '@buildmax/gui/theme.css';
 @import '@buildmax/gui/widgets.css';
 @import './css/base.css';
+@import './css/buttons.css';
 @import './css/layout.css';
 @import './css/login.css';
 @import './css/sidebar.css';
@@ -19,6 +20,8 @@
 @import './css/pages/task-detail.css';
 @import './css/pages/artifact.css';
 @import './css/pages/artifacts.css';
+@import './css/pages/marketplace.css';
+@import './css/pages/team-plugins.css';
 @import './css/pages/run-trace.css';
 @import './css/pages/audit.css';
 @import './css/pages/admin.css';
