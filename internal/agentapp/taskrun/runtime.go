@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"maps"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -145,6 +146,12 @@ type RunTaskInput struct {
 	StreamSender           workerclient.StreamSender
 	Model                  config.ModelEntry
 	Managed                ManagedInference
+	// ManagedHTTPClient carries the worker's server trust to managed inference,
+	// which reaches the gateway on the same internal listener as every other
+	// worker call. Nil uses http.DefaultClient, which is correct only for a
+	// plain-HTTP development server. See
+	// docs/design/worker-api-network-boundary.md §6.
+	ManagedHTTPClient *http.Client
 	// WorkerAPI is how this run reaches the server it was dispatched by. Its
 	// zero value leaves the run without the artifact capability, so the agent
 	// gets no artifact tool rather than one that always fails.
@@ -389,7 +396,7 @@ func executeRunTask(ctx context.Context, input RunTaskInput, task *coretask.Task
 	if task.SessionID != nil {
 		effectiveSessionID = *task.SessionID
 	}
-	agentRun, err := runAgentTask(ctx, run, dirs.runDir, dirs.runGlobal, dirs.runOSHome, effectiveSessionID, input.StreamSender, input.Model, input.Managed, input.AdditionalSystemPrompt,
+	agentRun, err := runAgentTask(ctx, run, dirs.runDir, dirs.runGlobal, dirs.runOSHome, effectiveSessionID, input.StreamSender, input.Model, input.Managed, input.ManagedHTTPClient, input.AdditionalSystemPrompt,
 		artifactPublisher(input.WorkerAPI, run.ID), issueClient(input.WorkerAPI, task, run.ID),
 		input.SandboxNetworkTier, input.SandboxFilesystemTier, input.SecretEnvGrants)
 	result := runResult{
@@ -499,7 +506,7 @@ func runtimeModelEntries(runtimeModel config.ModelEntry, managed ManagedInferenc
 	return []config.ModelEntry{runtimeModel}
 }
 
-func runAgentTask(ctx context.Context, run *coretask.Run, runDir, runGlobalDir, runOSHome, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry, managed ManagedInference, additionalSystemPrompt string, publisher tool.ArtifactPublisher, issues tool.IssueClient, sandboxNetworkTier config.SandboxNetworkTier, sandboxFilesystemTier config.SandboxFilesystemTier, secretGrants map[string]string) (agentRunOutput, error) {
+func runAgentTask(ctx context.Context, run *coretask.Run, runDir, runGlobalDir, runOSHome, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry, managed ManagedInference, managedHTTPClient *http.Client, additionalSystemPrompt string, publisher tool.ArtifactPublisher, issues tool.IssueClient, sandboxNetworkTier config.SandboxNetworkTier, sandboxFilesystemTier config.SandboxFilesystemTier, secretGrants map[string]string) (agentRunOutput, error) {
 	var sink llm.StreamSink
 	if streamSender != nil {
 		sink = &streamSinkAdapter{ctx: ctx, streamSender: streamSender, taskRunID: run.ID,
@@ -515,6 +522,7 @@ func runAgentTask(ctx context.Context, run *coretask.Run, runDir, runGlobalDir, 
 			ModelEntries:           runtimeModelEntries(runtimeModel, managed),
 			ManagedServerURL:       managed.ServerURL,
 			ManagedToken:           managed.tokenFunc(),
+			ManagedHTTPClient:      managedHTTPClient,
 			ManagedTaskRunID:       managedRunScope(managed, run.ID),
 			Surface:                managedSurface,
 			AdditionalSystemPrompt: additionalSystemPrompt,

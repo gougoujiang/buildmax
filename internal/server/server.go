@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"crypto/tls"
 	"embed"
 	"errors"
 	"fmt"
@@ -152,13 +153,18 @@ type Config struct {
 	// WorkerHandler is testable without opening a second socket. See
 	// docs/design/worker-api-network-boundary.md.
 	WorkerAddr string
-	Auth       AuthConfig
-	Stores     StoresConfig
-	Services   ServicesConfig
-	Storage    StorageConfig
-	Worker     WorkerConfig
-	Conv       ConversationConfig
-	Webhook    WebhookConfig
+	// WorkerTLS is the worker listener's TLS configuration. Nil serves plain
+	// HTTP, which is a development-only mode; production sets the server
+	// certificate and, for native mTLS, the client CA. The public listener has
+	// no TLS field because TLS terminates at the Ingress in front of it.
+	WorkerTLS *tls.Config
+	Auth      AuthConfig
+	Stores    StoresConfig
+	Services  ServicesConfig
+	Storage   StorageConfig
+	Worker    WorkerConfig
+	Conv      ConversationConfig
+	Webhook   WebhookConfig
 	// Audit records sensitive actions. Nil discards them.
 	Audit *audit.Recorder
 	// Deployment describes this deployment for the admin system status.
@@ -224,6 +230,9 @@ func New(cfg Config) *Server {
 	s.workerHandler = requestLoggingMiddleware(http.Handler(workerMux))
 	if cfg.WorkerAddr != "" {
 		s.workerSrv = newHTTPServer(cfg.WorkerAddr, s.workerHandler)
+		// Nil in development (plain HTTP) and set in production. ListenAndServe
+		// serves TLS whenever this is present.
+		s.workerSrv.TLSConfig = cfg.WorkerTLS
 	}
 	return s
 }
@@ -401,7 +410,16 @@ func (s *Server) ListenAndServe() error {
 	// docs/design/worker-api-network-boundary.md §9.1.
 	errs := make(chan error, 2)
 	serve := func(name string, srv *http.Server) {
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		// The certificate and key live in srv.TLSConfig, so ListenAndServeTLS is
+		// called with empty paths. Only the worker listener ever carries TLS
+		// here; the public listener terminates it at the Ingress.
+		var err error
+		if srv.TLSConfig != nil {
+			err = srv.ListenAndServeTLS("", "")
+		} else {
+			err = srv.ListenAndServe()
+		}
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errs <- fmt.Errorf("%s listener: %w", name, err)
 			return
 		}

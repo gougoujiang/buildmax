@@ -432,11 +432,19 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 		secretStore = st
 		secretService = &secretsvc.Service{Store: st, Sealer: infrasecret.NewCipher(kek)}
 	}
+	// Built before the scheduler starts (buildHTTPServerConfig runs before
+	// NewScheduler): a certificate that will not load fails startup rather than
+	// scheduling Jobs that then cannot complete a handshake with this listener.
+	workerTLS, err := buildWorkerListenerTLS(sc.WorkerAPI.TLS)
+	if err != nil {
+		return httpserver.Config{}, err
+	}
 	cfg := httpserver.Config{
 		Addr: fmt.Sprintf(":%d", port),
 		// The worker control API is served on its own listener, off the public
 		// HTTP surface. See docs/design/worker-api-network-boundary.md.
 		WorkerAddr: sc.WorkerAPI.Listen,
+		WorkerTLS:  workerTLS,
 		Auth: httpserver.AuthConfig{
 			JWTSecret:            jwtSecret,
 			AllowSignup:          sc.AllowSignup,

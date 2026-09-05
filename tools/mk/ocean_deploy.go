@@ -237,7 +237,10 @@ storage:
 
 worker:
   run_mode: k8s_job
+  # STOPGAP: public HTTP port; M3 switches to the https buildmax-worker-api
+  # Service and drops allow_insecure_http.
   server_url: http://buildmax.buildmax.svc.cluster.local:5678
+  allow_insecure_http: true
   k8s:
     namespace: buildmax
     image: %s
