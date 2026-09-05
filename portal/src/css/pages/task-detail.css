@@ -408,32 +408,69 @@
   flex-wrap: wrap;
 }
 
-/* Secondary run detail on an agent turn: duration plus click-through to the
-   run's trace and files. Muted, so the conversation stays the subject. */
-.run-turn__foot {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-top: 0.4rem;
+/* Task details: a collapsible panel opened from the header's Details button,
+   summarising this task (agent, timing, origin) with trace/files entry points.
+   One place, not a control under every message. */
+.task-details {
+  flex-shrink: 0;
+  margin: 0 1rem 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-bg-elevated);
+}
+
+.task-details__kv {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.45rem 1rem;
+  margin: 0;
+  align-items: baseline;
+}
+
+.task-details__kv dt {
   font-size: 0.78rem;
-  color: var(--color-text-subtle);
+  color: var(--color-text-muted);
 }
 
-.run-turn__meta {
+.task-details__kv dd {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.task-details__mono {
   font-family: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
+  font-size: 0.72rem !important;
+  color: var(--color-text-subtle) !important;
 }
 
-.run-turn__link {
+.task-details__link {
   border: none;
   background: none;
   padding: 0;
   font: inherit;
-  font-size: 0.78rem;
-  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  color: var(--color-link);
   cursor: pointer;
+  text-align: left;
 }
 
-.run-turn__link:hover {
-  color: var(--color-text);
+.task-details__link:hover {
   text-decoration: underline;
+}
+
+.task-details__actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-top: 0.85rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.page-activity__action-btn--sm {
+  padding: 0.25rem 0.55rem;
+  font-size: 0.78rem;
 }
