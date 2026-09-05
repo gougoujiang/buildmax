@@ -11,6 +11,18 @@ import type {
   ApiSecretConsumption,
 } from "../../lib/api/types"
 
+// listAgentModels returns the model names the deployment offers, for the agent
+// editor's model picker. The endpoint is deployment-wide (any signed-in user),
+// so it takes no team. A deployment with no catalog yields an empty list, which
+// the picker renders as just the deployment default.
+export async function listAgentModels(token: string): Promise<string[]> {
+  const res = await requestJson<{ models?: Array<{ name: string }> }>(
+    `${getApiBase()}/api/llm/models`,
+    { headers: authHeaders(token) },
+  )
+  return (res.models ?? []).map((m) => m.name)
+}
+
 export async function getAgents(teamId: string, token: string): Promise<ApiAgent[]> {
   return requestJson<ApiAgent[]>(`${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/agents`, { headers: authHeaders(token) })
 }
@@ -28,6 +40,7 @@ export async function createAgent(
     name: string
     description?: string
     instructions?: string
+    model?: string
     plugins?: string[]
     sandbox_network_tier?: string
     sandbox_filesystem_tier?: string
@@ -52,6 +65,7 @@ export async function updateAgent(
     name: string
     description?: string
     instructions?: string
+    model?: string
     plugins?: string[]
     sandbox_network_tier?: string
     sandbox_filesystem_tier?: string

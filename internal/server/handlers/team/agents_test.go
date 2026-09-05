@@ -195,7 +195,7 @@ func TestPatchAgentHandler(t *testing.T) {
 			name:        "PATCH success",
 			method:      http.MethodPatch,
 			url:         "/api/teams/" + personalTeamID + "/agents/a_1",
-			body:        `{"name":"Updated","description":"d2","instructions":"i2"}`,
+			body:        `{"name":"Updated","description":"d2","instructions":"i2","model":"Fast"}`,
 			authHeader:  "Bearer " + testsupport.SignJWT("u1", agentTestSecret),
 			wantStatus:  http.StatusOK,
 			wantBodyHas: "Updated",
@@ -264,12 +264,13 @@ func TestPatchAgentHandler(t *testing.T) {
 					Name         string `json:"name"`
 					Description  string `json:"description"`
 					Instructions string `json:"instructions"`
+					Model        string `json:"model"`
 				}
 				if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 					t.Fatalf("decode body: %v", err)
 				}
-				if out.ID != "a_1" || out.Name != "Updated" || out.Description != "d2" || out.Instructions != "i2" {
-					t.Errorf("response id=%q name=%q description=%q instructions=%q", out.ID, out.Name, out.Description, out.Instructions)
+				if out.ID != "a_1" || out.Name != "Updated" || out.Description != "d2" || out.Instructions != "i2" || out.Model != "Fast" {
+					t.Errorf("response id=%q name=%q description=%q instructions=%q model=%q", out.ID, out.Name, out.Description, out.Instructions, out.Model)
 				}
 			}
 		})

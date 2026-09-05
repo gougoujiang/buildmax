@@ -236,3 +236,83 @@ func TestNoStoreIsReportedNotPanicked(t *testing.T) {
 		}
 	}
 }
+
+// fakeModelCatalog answers a fixed set of model names, and optionally an error,
+// so validateModel's paths can be exercised without a gateway.
+type fakeModelCatalog struct {
+	names []string
+	err   error
+}
+
+func (f fakeModelCatalog) ModelNames(context.Context) ([]string, error) {
+	return f.names, f.err
+}
+
+// TestCreateRejectsUnknownModel asserts a model the deployment's catalog does
+// not list is refused before anything is stored, the same way an unknown
+// sandbox tier is.
+func TestCreateRejectsUnknownModel(t *testing.T) {
+	s, _, ctx := newService(t)
+	s.Models = fakeModelCatalog{names: []string{"Fast", "Deep"}}
+
+	_, err := s.CreateAgent(ctx, agent.CreateCmd{
+		TeamID: "tm_1", UserID: "u_1", Name: "reviewer", Model: "Nonesuch",
+	})
+
+	if !errors.Is(err, agent.ErrUnknownModel) {
+		t.Fatalf("err = %v, want ErrUnknownModel", err)
+	}
+	if kind, _ := apierr.KindOf(err); kind != apierr.KindInvalid {
+		t.Errorf("kind = %q, want invalid", kind)
+	}
+}
+
+// TestCreateAcceptsAKnownModel stores a model the catalog lists, trimmed.
+func TestCreateAcceptsAKnownModel(t *testing.T) {
+	s, _, ctx := newService(t)
+	s.Models = fakeModelCatalog{names: []string{"Fast", "Deep"}}
+
+	a, err := s.CreateAgent(ctx, agent.CreateCmd{
+		TeamID: "tm_1", UserID: "u_1", Name: "reviewer", Model: "  Fast  ",
+	})
+	if err != nil {
+		t.Fatalf("CreateAgent: %v", err)
+	}
+	if a.Model != "Fast" {
+		t.Errorf("Model = %q, want trimmed Fast", a.Model)
+	}
+}
+
+// TestCreateAcceptsAnEmptyModel is the deployment default: no name, no catalog
+// call, no refusal.
+func TestCreateAcceptsAnEmptyModel(t *testing.T) {
+	s, _, ctx := newService(t)
+	s.Models = fakeModelCatalog{err: errors.New("catalog must not be consulted for an empty model")}
+
+	a, err := s.CreateAgent(ctx, agent.CreateCmd{
+		TeamID: "tm_1", UserID: "u_1", Name: "reviewer",
+	})
+	if err != nil {
+		t.Fatalf("CreateAgent: %v", err)
+	}
+	if a.Model != "" {
+		t.Errorf("Model = %q, want empty", a.Model)
+	}
+}
+
+// TestCreateStoresModelUncheckedWithoutACatalog covers the direct-transport
+// deployment: no catalog is wired, so a model name is stored as given rather
+// than refused.
+func TestCreateStoresModelUncheckedWithoutACatalog(t *testing.T) {
+	s, _, ctx := newService(t)
+
+	a, err := s.CreateAgent(ctx, agent.CreateCmd{
+		TeamID: "tm_1", UserID: "u_1", Name: "reviewer", Model: "whatever",
+	})
+	if err != nil {
+		t.Fatalf("CreateAgent: %v", err)
+	}
+	if a.Model != "whatever" {
+		t.Errorf("Model = %q, want whatever", a.Model)
+	}
+}

@@ -24,6 +24,7 @@ var (
 	ErrAgentNotFound        = apierr.New(apierr.KindNotFound, "agent not found")
 	ErrRevisionNotFound     = apierr.New(apierr.KindNotFound, "agent revision not found")
 	ErrNameRequired         = apierr.New(apierr.KindInvalid, "name required")
+	ErrUnknownModel         = apierr.New(apierr.KindInvalid, "unknown model")
 	ErrInvalidSandboxTier   = apierr.New(apierr.KindInvalid, "unknown sandbox network or filesystem tier")
 	ErrUsedByPublishedFlows = apierr.New(apierr.KindConflict, "agent is used by published workflows")
 	ErrPluginsNotConfigured = apierr.New(apierr.KindNotConfigured,
@@ -52,6 +53,20 @@ type PluginSelection interface {
 	ResolveSelection(ctx context.Context, teamID string, names []string, actorID string) ([]coreplugin.Activation, error)
 }
 
+// ModelCatalog lists the model names this deployment offers, so an agent naming
+// a model its deployment does not serve is refused while somebody is watching a
+// create/update rather than failing at its first run. The gateway checks again
+// at call time -- a model can be disabled after the agent was saved -- but that
+// later refusal is a failed run, and this one is a correction.
+//
+// An interface rather than the gateway service itself, for the reason
+// WorkflowUsage and PluginSelection are: this package needs one question
+// answered, and depending on the whole service would tie an agent edit to
+// inference routing.
+type ModelCatalog interface {
+	ModelNames(ctx context.Context) ([]string, error)
+}
+
 type Service struct {
 	Agents agentdef.Store
 	// Plugins is optional, and nil means the deployment has no Marketplace.
@@ -67,6 +82,13 @@ type Service struct {
 	// An agent that consumes a Secret is then refused rather than saved, the
 	// same way a plugin selection is refused with no Marketplace.
 	Secrets SecretLookup
+	// Models is optional, and nil means this deployment cannot enumerate its
+	// models -- a direct-transport deployment reads its one model from
+	// server.yaml and has no catalog to check against. A model name is then
+	// stored unchecked and takes effect only if the run's transport can reach
+	// it; unlike a plugin, an unresolvable model has a defined fallback (the
+	// deployment default) at run time, so it is accepted rather than refused.
+	Models ModelCatalog
 }
 
 type CreateCmd struct {
@@ -75,6 +97,9 @@ type CreateCmd struct {
 	Name         string
 	Description  string
 	Instructions string
+	// Model is the catalog model name this agent's runs call. Empty means the
+	// deployment default. See agentdef.Agent.Model.
+	Model string
 	// Plugins names catalog plugins this agent loads. Nothing is inherited
 	// from the team's activations, so an empty list means no plugins.
 	Plugins []string
@@ -94,6 +119,7 @@ type UpdateCmd struct {
 	Name                  string
 	Description           string
 	Instructions          string
+	Model                 string
 	Plugins               []string
 	SandboxNetworkTier    string
 	SandboxFilesystemTier string
@@ -109,6 +135,26 @@ func validateSandboxTiers(networkTier, filesystemTier string) error {
 		return ErrInvalidSandboxTier
 	}
 	return nil
+}
+
+// validateModel checks a chosen model against the deployment's catalog and
+// returns the name to store, trimmed.
+//
+// An empty model is the deployment default and always valid. With no catalog to
+// check against (s.Models nil), the name is stored as given; see Service.Models.
+func (s *Service) validateModel(ctx context.Context, model string) (string, error) {
+	model = strings.TrimSpace(model)
+	if model == "" || s.Models == nil {
+		return model, nil
+	}
+	names, err := s.Models.ModelNames(ctx)
+	if err != nil {
+		return "", err
+	}
+	if slices.Contains(names, model) {
+		return model, nil
+	}
+	return "", apierr.Detail(ErrUnknownModel, "%s", model)
 }
 
 type RestoreRevisionCmd struct {
@@ -135,6 +181,10 @@ func (s *Service) CreateAgent(ctx context.Context, cmd CreateCmd) (*agentdef.Age
 	if err := validateSandboxTiers(cmd.SandboxNetworkTier, cmd.SandboxFilesystemTier); err != nil {
 		return nil, err
 	}
+	model, err := s.validateModel(ctx, cmd.Model)
+	if err != nil {
+		return nil, err
+	}
 	if err := s.validateConsumption(ctx, cmd.TeamID, cmd.SecretConsumption); err != nil {
 		return nil, err
 	}
@@ -149,6 +199,7 @@ func (s *Service) CreateAgent(ctx context.Context, cmd CreateCmd) (*agentdef.Age
 			Name:                  cmd.Name,
 			Description:           cmd.Description,
 			Instructions:          cmd.Instructions,
+			Model:                 model,
 			Plugins:               plugins,
 			SandboxNetworkTier:    cmd.SandboxNetworkTier,
 			SandboxFilesystemTier: cmd.SandboxFilesystemTier,
@@ -230,6 +281,10 @@ func (s *Service) UpdateAgent(ctx context.Context, cmd UpdateCmd) (*agentdef.Age
 	if err := validateSandboxTiers(cmd.SandboxNetworkTier, cmd.SandboxFilesystemTier); err != nil {
 		return nil, err
 	}
+	model, err := s.validateModel(ctx, cmd.Model)
+	if err != nil {
+		return nil, err
+	}
 	if err := s.validateConsumption(ctx, cmd.TeamID, cmd.SecretConsumption); err != nil {
 		return nil, err
 	}
@@ -245,6 +300,7 @@ func (s *Service) UpdateAgent(ctx context.Context, cmd UpdateCmd) (*agentdef.Age
 			Name:                  cmd.Name,
 			Description:           cmd.Description,
 			Instructions:          cmd.Instructions,
+			Model:                 model,
 			Plugins:               plugins,
 			SandboxNetworkTier:    cmd.SandboxNetworkTier,
 			SandboxFilesystemTier: cmd.SandboxFilesystemTier,
@@ -287,6 +343,7 @@ func (s *Service) RestoreRevision(ctx context.Context, cmd RestoreRevisionCmd) (
 		Name:                  rev.Name,
 		Description:           rev.Description,
 		Instructions:          rev.Instructions,
+		Model:                 rev.Model,
 		Plugins:               rev.Plugins,
 		SandboxNetworkTier:    rev.SandboxNetworkTier,
 		SandboxFilesystemTier: rev.SandboxFilesystemTier,

@@ -1,6 +1,7 @@
 package worker
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -92,8 +93,38 @@ func (h *Handler) getTaskRun(w http.ResponseWriter, r *http.Request) {
 		// model-chosen code, so it is told the transport and alias rather than
 		// choosing them — and it is told nothing else about the model, because
 		// endpoint, upstream identifier, and credential stay on this side.
-		LLM: h.cfg.WorkerLLM,
+		LLM: h.resolveRunLLM(r.Context(), runAgent),
 	})
+}
+
+// resolveRunLLM is the descriptor telling this run how to reach a model: the
+// deployment default, with the alias and its context window overridden when the
+// run's agent names a model.
+//
+// The override copies the shared descriptor rather than mutating it, and takes
+// effect only on the managed transport: a direct-transport worker reads its
+// model from its own server.yaml and ignores the alias here. The chosen model's
+// own context window is looked up so the run compacts against the window of the
+// model it actually calls, not the deployment default's; a lookup that comes up
+// empty keeps the default window rather than disabling windowing.
+func (h *Handler) resolveRunLLM(ctx context.Context, a *agentdef.Agent) *workerclient.TaskRunLLM {
+	base := h.cfg.WorkerLLM
+	if base == nil || a == nil || a.Model == "" {
+		return base
+	}
+	over := *base
+	over.Model = a.Model
+	if h.cfg.Gateway != nil {
+		if models, err := h.cfg.Gateway.Models(ctx); err == nil {
+			for _, m := range models {
+				if m.Name == a.Model {
+					over.ContextWindow = m.ContextWindow
+					break
+				}
+			}
+		}
+	}
+	return &over
 }
 
 func (h *Handler) postStream(w http.ResponseWriter, r *http.Request) {

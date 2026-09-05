@@ -13,6 +13,12 @@ type Agent struct {
 	Name         string `json:"name"`
 	Description  string `json:"description"`
 	Instructions string `json:"instructions"`
+	// Model names the catalog model this agent's background runs call, by the
+	// operator-facing model name the LLM gateway lists. Empty means the
+	// deployment default. It takes effect only on the managed (buildmax)
+	// worker transport; a direct-transport worker reads the model from its
+	// own server.yaml and ignores this field.
+	Model string `json:"model,omitempty"`
 	// Plugins names the catalog plugins this agent loads for a background run.
 	// Nothing is inherited from the team's activations: an agent that names
 	// none loads none. See docs/design/plugin-team-distribution.md §5.3.
@@ -50,6 +56,9 @@ type Revision struct {
 	Name         string `json:"name"`
 	Description  string `json:"description"`
 	Instructions string `json:"instructions"`
+	// Model is the model this revision recorded, versioned with the rest of the
+	// definition. See Agent.Model.
+	Model string `json:"model,omitempty"`
 	// Plugins is the selection this revision recorded. It versions with the
 	// rest of the definition, so an old revision still answers what that agent
 	// named.
@@ -76,6 +85,10 @@ type Definition struct {
 	Name         string
 	Description  string
 	Instructions string
+	// Model is the catalog model name this agent's runs call, validated against
+	// the deployment's model catalog before a write is accepted when a catalog
+	// is available. Empty means the deployment default. See Agent.Model.
+	Model string
 	// Plugins names catalog plugins, never releases. The version and digest
 	// come from the team's activation, so moving a plugin to a new release
 	// stays one edit in one place.

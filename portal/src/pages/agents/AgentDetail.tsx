@@ -10,6 +10,7 @@ import {
   deleteAgent,
   getAgentRevisions,
   restoreAgentRevision,
+  listAgentModels,
   type AgentDefinitionInput,
 } from "../../features/agents"
 import { createAgentTask, listAgentTasks } from "../../features/tasks"
@@ -48,6 +49,7 @@ export function AgentDetail({ token, agentId }: AgentDetailProps) {
   const [agent, setAgent] = useState<Agent | null>(null)
   const [secrets, setSecrets] = useState<ApiSecret[]>([])
   const [availablePlugins, setAvailablePlugins] = useState<string[]>([])
+  const [availableModels, setAvailableModels] = useState<string[]>([])
   const [tasks, setTasks] = useState<ApiTask[]>([])
   const [revisions, setRevisions] = useState<AgentRevision[]>([])
   const [tab, setTab] = useState<Tab>("overview")
@@ -118,6 +120,12 @@ export function AgentDetail({ token, agentId }: AgentDetailProps) {
         setAvailablePlugins(nameablePlugins(activations, catalog?.plugins ?? null)),
       )
       .catch(() => setAvailablePlugins([]))
+    // The model catalog is deployment-wide, so it is fetched independently of
+    // the team-scoped plugin and secret options; an empty list leaves the
+    // picker at just the deployment default.
+    listAgentModels(token)
+      .then(setAvailableModels)
+      .catch(() => setAvailableModels([]))
   }, [token, currentTeamId, canManage])
 
   const loadRevisions = useCallback(() => {
@@ -340,6 +348,7 @@ export function AgentDetail({ token, agentId }: AgentDetailProps) {
                 agent={agent}
                 secrets={secrets}
                 availablePlugins={availablePlugins}
+                availableModels={availableModels}
                 canManage={canManage}
                 saving={saving}
                 deleting={deleting}

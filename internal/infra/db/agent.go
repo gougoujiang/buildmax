@@ -22,6 +22,11 @@ type agentRow struct {
 	Name         string `gorm:"type:varchar(255);not null"`
 	Description  string `gorm:"type:text"`
 	Instructions string `gorm:"type:text"`
+	// Model is the catalog model name this agent's runs call, validated by
+	// internal/service/agent before a write. Empty means the deployment
+	// default. A plain string like the sandbox tiers: this row does not
+	// depend on the gateway.
+	Model string `gorm:"column:model;type:varchar(255)"`
 	// Plugins is a JSON array of catalog names. A JSON column rather than a
 	// join table because nothing queries inside it: the selection is written
 	// and read whole, and "which agents name this plugin" is a scan of a
@@ -72,7 +77,10 @@ type agentRevisionRow struct {
 	Name         string `gorm:"type:varchar(255);not null"`
 	Description  string `gorm:"type:text"`
 	Instructions string `gorm:"type:text"`
-	Plugins      string `gorm:"type:text"`
+	// Model mirrors agentRow's column of the same name, versioned with the
+	// rest of the revision.
+	Model   string `gorm:"column:model;type:varchar(255)"`
+	Plugins string `gorm:"type:text"`
 	// SandboxNetworkTier and SandboxFilesystemTier mirror agentRow's columns
 	// of the same name, versioned with the rest of the revision.
 	SandboxNetworkTier    string    `gorm:"column:sandbox_network_tier;type:varchar(64)"`
@@ -160,6 +168,7 @@ func toAgent(row *agentReadRow) *agentdef.Agent {
 		Name:                  row.Row.Name,
 		Description:           row.Row.Description,
 		Instructions:          row.Row.Instructions,
+		Model:                 row.Row.Model,
 		Plugins:               decodePluginSelection(row.Row.Plugins),
 		SandboxNetworkTier:    row.Row.SandboxNetworkTier,
 		SandboxFilesystemTier: row.Row.SandboxFilesystemTier,
@@ -180,6 +189,7 @@ func toAgentRevision(row *agentRevisionReadRow) *agentdef.Revision {
 		Name:                  row.Row.Name,
 		Description:           row.Row.Description,
 		Instructions:          row.Row.Instructions,
+		Model:                 row.Row.Model,
 		Plugins:               decodePluginSelection(row.Row.Plugins),
 		SandboxNetworkTier:    row.Row.SandboxNetworkTier,
 		SandboxFilesystemTier: row.Row.SandboxFilesystemTier,
@@ -220,6 +230,7 @@ func appendAgentRevision(ctx context.Context, tx *gorm.DB, agentKey uint64, a *a
 		Name:                  a.Name,
 		Description:           a.Description,
 		Instructions:          a.Instructions,
+		Model:                 a.Model,
 		Plugins:               encodePluginSelection(a.Plugins),
 		SandboxNetworkTier:    a.SandboxNetworkTier,
 		SandboxFilesystemTier: a.SandboxFilesystemTier,
@@ -308,6 +319,7 @@ func (s *Store) CreateAgentInTeam(ctx context.Context, in agentdef.CreateInput) 
 		Name:                  in.Def.Name,
 		Description:           in.Def.Description,
 		Instructions:          in.Def.Instructions,
+		Model:                 in.Def.Model,
 		Plugins:               in.Def.Plugins,
 		SandboxNetworkTier:    in.Def.SandboxNetworkTier,
 		SandboxFilesystemTier: in.Def.SandboxFilesystemTier,
@@ -319,6 +331,7 @@ func (s *Store) CreateAgentInTeam(ctx context.Context, in agentdef.CreateInput) 
 		Name:                  a.Name,
 		Description:           a.Description,
 		Instructions:          a.Instructions,
+		Model:                 a.Model,
 		Plugins:               encodePluginSelection(a.Plugins),
 		SandboxNetworkTier:    a.SandboxNetworkTier,
 		SandboxFilesystemTier: a.SandboxFilesystemTier,
@@ -370,7 +383,7 @@ func (s *Store) UpdateAgentInTeam(ctx context.Context, in agentdef.UpdateInput) 
 // row that a reader has to compare against its predecessor to dismiss.
 func (s *Store) updateAgent(ctx context.Context, a *agentdef.Agent, updatedBy string, def agentdef.Definition) (*agentdef.Agent, error) {
 	if a.Name == def.Name && a.Description == def.Description &&
-		a.Instructions == def.Instructions && slices.Equal(a.Plugins, def.Plugins) &&
+		a.Instructions == def.Instructions && a.Model == def.Model && slices.Equal(a.Plugins, def.Plugins) &&
 		a.SandboxNetworkTier == def.SandboxNetworkTier && a.SandboxFilesystemTier == def.SandboxFilesystemTier &&
 		a.SecretConsumption.Equal(def.SecretConsumption) {
 		return a, nil
@@ -379,6 +392,7 @@ func (s *Store) updateAgent(ctx context.Context, a *agentdef.Agent, updatedBy st
 	updated.Name = def.Name
 	updated.Description = def.Description
 	updated.Instructions = def.Instructions
+	updated.Model = def.Model
 	updated.Plugins = def.Plugins
 	updated.SandboxNetworkTier = def.SandboxNetworkTier
 	updated.SandboxFilesystemTier = def.SandboxFilesystemTier
@@ -396,6 +410,7 @@ func (s *Store) updateAgent(ctx context.Context, a *agentdef.Agent, updatedBy st
 			"name":                    updated.Name,
 			"description":             updated.Description,
 			"instructions":            updated.Instructions,
+			"model":                   updated.Model,
 			"plugins":                 encodePluginSelection(updated.Plugins),
 			"sandbox_network_tier":    updated.SandboxNetworkTier,
 			"sandbox_filesystem_tier": updated.SandboxFilesystemTier,

@@ -12,13 +12,16 @@ import (
 )
 
 type AgentResponse struct {
-	ID           string   `json:"id"`
-	UserID       string   `json:"user_id"`
-	TeamID       string   `json:"team_id,omitempty"`
-	Name         string   `json:"name"`
-	Description  string   `json:"description"`
-	Instructions string   `json:"instructions"`
-	Plugins      []string `json:"plugins,omitempty"`
+	ID           string `json:"id"`
+	UserID       string `json:"user_id"`
+	TeamID       string `json:"team_id,omitempty"`
+	Name         string `json:"name"`
+	Description  string `json:"description"`
+	Instructions string `json:"instructions"`
+	// Model is the catalog model name this agent's runs call, or empty for the
+	// deployment default. See agentdef.Agent.Model.
+	Model   string   `json:"model,omitempty"`
+	Plugins []string `json:"plugins,omitempty"`
 	// SandboxNetworkTier and SandboxFilesystemTier declare this agent's
 	// worker sandbox needs. Empty means the strictest tier on that axis. See
 	// docs/design/agent-sandbox-policy.md.
@@ -35,6 +38,7 @@ type agentRevisionResponse struct {
 	Name                  string                     `json:"name"`
 	Description           string                     `json:"description"`
 	Instructions          string                     `json:"instructions"`
+	Model                 string                     `json:"model,omitempty"`
 	Plugins               []string                   `json:"plugins,omitempty"`
 	SandboxNetworkTier    string                     `json:"sandbox_network_tier,omitempty"`
 	SandboxFilesystemTier string                     `json:"sandbox_filesystem_tier,omitempty"`
@@ -52,6 +56,10 @@ type createAgentRequest struct {
 	Name         string `json:"name"`
 	Description  string `json:"description"`
 	Instructions string `json:"instructions"`
+	// Model is the catalog model name this agent's runs call. Empty is the
+	// deployment default. Rejected on write if the deployment offers a catalog
+	// and does not list it. See agentdef.Agent.Model.
+	Model string `json:"model,omitempty"`
 	// Plugins names catalog plugins, never releases: the version comes from
 	// the team's activation.
 	Plugins []string `json:"plugins,omitempty"`
@@ -73,6 +81,7 @@ type patchAgentRequest struct {
 	Name                  string                     `json:"name"`
 	Description           string                     `json:"description"`
 	Instructions          string                     `json:"instructions"`
+	Model                 string                     `json:"model,omitempty"`
 	Plugins               []string                   `json:"plugins,omitempty"`
 	SandboxNetworkTier    string                     `json:"sandbox_network_tier,omitempty"`
 	SandboxFilesystemTier string                     `json:"sandbox_filesystem_tier,omitempty"`
@@ -87,6 +96,7 @@ func agentToResponse(a agentdef.Agent) AgentResponse {
 		Name:                  a.Name,
 		Description:           a.Description,
 		Instructions:          a.Instructions,
+		Model:                 a.Model,
 		Plugins:               a.Plugins,
 		SandboxNetworkTier:    a.SandboxNetworkTier,
 		SandboxFilesystemTier: a.SandboxFilesystemTier,
@@ -103,6 +113,7 @@ func agentRevisionToResponse(rev agentdef.Revision) agentRevisionResponse {
 		Name:                  rev.Name,
 		Description:           rev.Description,
 		Instructions:          rev.Instructions,
+		Model:                 rev.Model,
 		Plugins:               rev.Plugins,
 		SandboxNetworkTier:    rev.SandboxNetworkTier,
 		SandboxFilesystemTier: rev.SandboxFilesystemTier,
@@ -130,6 +141,11 @@ func newTeamAgentService(cfg Config, workflowUsage *workflow.Service) *agent.Ser
 	// Secret a refusal there rather than a stored config nothing resolves.
 	if cfg.Secrets != nil {
 		svc.Secrets = cfg.Secrets
+	}
+	// Nil in a direct-transport deployment with no catalog to check against;
+	// a model name is then stored unchecked. See agent.Service.Models.
+	if cfg.Models != nil {
+		svc.Models = cfg.Models
 	}
 	return svc
 }
@@ -180,6 +196,7 @@ func (h *Handler) createAgentHandler(w http.ResponseWriter, r *http.Request) {
 		Name:                  req.Name,
 		Description:           req.Description,
 		Instructions:          req.Instructions,
+		Model:                 req.Model,
 		Plugins:               req.Plugins,
 		SandboxNetworkTier:    req.SandboxNetworkTier,
 		SandboxFilesystemTier: req.SandboxFilesystemTier,
@@ -238,6 +255,7 @@ func (h *Handler) patchAgentHandler(w http.ResponseWriter, r *http.Request) {
 		Name:                  req.Name,
 		Description:           req.Description,
 		Instructions:          req.Instructions,
+		Model:                 req.Model,
 		Plugins:               req.Plugins,
 		SandboxNetworkTier:    req.SandboxNetworkTier,
 		SandboxFilesystemTier: req.SandboxFilesystemTier,

@@ -25,6 +25,7 @@ func (m *MockAgentStore) appendRevision(a *agentdef.Agent, createdBy string) {
 		Name:                  a.Name,
 		Description:           a.Description,
 		Instructions:          a.Instructions,
+		Model:                 a.Model,
 		Plugins:               a.Plugins,
 		SandboxNetworkTier:    a.SandboxNetworkTier,
 		SandboxFilesystemTier: a.SandboxFilesystemTier,
@@ -35,13 +36,15 @@ func (m *MockAgentStore) appendRevision(a *agentdef.Agent, createdBy string) {
 
 func (m *MockAgentStore) updateAgentAt(i int, updatedBy string, def agentdef.Definition) *agentdef.Agent {
 	if m.Agents[i].Name == def.Name && m.Agents[i].Description == def.Description &&
-		m.Agents[i].Instructions == def.Instructions && slices.Equal(m.Agents[i].Plugins, def.Plugins) &&
+		m.Agents[i].Instructions == def.Instructions && m.Agents[i].Model == def.Model &&
+		slices.Equal(m.Agents[i].Plugins, def.Plugins) &&
 		m.Agents[i].SandboxNetworkTier == def.SandboxNetworkTier && m.Agents[i].SandboxFilesystemTier == def.SandboxFilesystemTier {
 		return &m.Agents[i]
 	}
 	m.Agents[i].Name = def.Name
 	m.Agents[i].Description = def.Description
 	m.Agents[i].Instructions = def.Instructions
+	m.Agents[i].Model = def.Model
 	m.Agents[i].Plugins = def.Plugins
 	m.Agents[i].SandboxNetworkTier = def.SandboxNetworkTier
 	m.Agents[i].SandboxFilesystemTier = def.SandboxFilesystemTier
@@ -103,6 +106,7 @@ func (m *MockAgentStore) CreateAgentInTeam(_ context.Context, in agentdef.Create
 		Name:                  in.Def.Name,
 		Description:           in.Def.Description,
 		Instructions:          in.Def.Instructions,
+		Model:                 in.Def.Model,
 		Plugins:               in.Def.Plugins,
 		SandboxNetworkTier:    in.Def.SandboxNetworkTier,
 		SandboxFilesystemTier: in.Def.SandboxFilesystemTier,
