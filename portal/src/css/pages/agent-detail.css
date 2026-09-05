@@ -1,0 +1,297 @@
+/* Agent detail page: identity header, tabs, stats, runs table, inline config */
+
+.agent-detail__ident {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.agent-detail__avatar {
+  flex-shrink: 0;
+  background: var(--color-text-muted) !important;
+  color: var(--color-bg-elevated) !important;
+}
+
+.agent-detail__running {
+  margin-left: 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  vertical-align: middle;
+  padding: 0.15rem 0.55rem;
+  border: 1px solid var(--color-text-subtle);
+  border-radius: 999px;
+  color: var(--color-text-muted);
+}
+
+.agent-detail__meta {
+  font-family: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  margin-bottom: 0.35rem;
+}
+
+.agent-detail__desc {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+  max-width: 68ch;
+}
+
+/* Tabs */
+.agent-detail__tabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--color-border);
+  margin: 1.5rem 0;
+}
+
+.agent-detail__tab {
+  padding: 0.55rem 0.9rem;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.agent-detail__tab:hover {
+  color: var(--color-text);
+}
+
+.agent-detail__tab--active {
+  color: var(--color-text);
+  border-bottom-color: var(--color-text);
+  font-weight: 600;
+}
+
+.agent-detail__tab-count {
+  margin-left: 0.4rem;
+  font-family: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
+  font-size: 0.72rem;
+  color: var(--color-text-subtle);
+}
+
+.agent-detail__panel {
+  animation: agent-detail-fade 0.18s ease;
+}
+
+@keyframes agent-detail-fade {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-detail__panel { animation: none; }
+}
+
+/* Overview banner */
+.agent-detail__banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.7rem 0.9rem;
+  margin-bottom: 1.25rem;
+  border: 1px solid var(--color-text-subtle);
+  border-radius: 8px;
+  background: var(--color-bg-muted);
+  font-size: 0.85rem;
+  color: var(--color-text);
+}
+
+.agent-detail__banner span {
+  flex: 1;
+}
+
+/* Overview stats */
+.agent-detail__stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.agent-detail__stat {
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg-elevated);
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.agent-detail__stat-label {
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+}
+
+.agent-detail__stat-value {
+  font-size: 1.4rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+}
+
+.agent-detail__stat-value--sm {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.agent-detail__section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.6rem;
+}
+
+/* Runs table */
+.agent-runs {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--color-bg-elevated);
+}
+
+.agent-runs thead th {
+  text-align: left;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-subtle);
+  font-weight: 600;
+  padding: 0.6rem 0.85rem;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-muted);
+}
+
+.agent-runs tbody td {
+  padding: 0.7rem 0.85rem;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 0.85rem;
+  vertical-align: middle;
+}
+
+.agent-runs tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.agent-runs tbody tr {
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.agent-runs tbody tr:hover {
+  background: var(--color-bg-muted);
+}
+
+.agent-runs tbody tr:focus-visible {
+  outline: 2px solid var(--color-text);
+  outline-offset: -2px;
+}
+
+.agent-runs__title {
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.agent-runs__when {
+  font-family: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.agent-runs__status {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-muted);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.agent-runs__status--running {
+  color: var(--color-text);
+  border-color: var(--color-text-subtle);
+}
+
+.agent-runs__status--failed {
+  color: var(--color-text);
+  border-color: var(--color-text);
+  background: var(--color-bg-hover);
+}
+
+/* Inline configuration form */
+.agent-config {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 780px;
+}
+
+.agent-config__card {
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-bg-elevated);
+  padding: 1.1rem 1.25rem;
+}
+
+.agent-config__card-title {
+  margin: 0 0 0.6rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.agent-config__field {
+  margin-bottom: 0.85rem;
+}
+
+.agent-config__field:last-child {
+  margin-bottom: 0;
+}
+
+.agent-config__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.agent-config__delete {
+  margin-left: auto;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 0.4rem 0.75rem;
+  cursor: pointer;
+}
+
+.agent-config__delete:hover:not(:disabled) {
+  color: var(--color-text);
+  border-color: var(--color-text-muted);
+  background: var(--color-bg-muted);
+}
+
+.agent-config__delete:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 640px) {
+  .agent-detail__stats {
+    grid-template-columns: 1fr;
+  }
+}

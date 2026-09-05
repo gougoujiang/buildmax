@@ -2,6 +2,7 @@ import { useEffect } from "react"
 import type { Conversation } from "../lib/types"
 import { useApp } from "../contexts/AppContext"
 import { AgentList } from "../pages/agents/AgentList"
+import { AgentDetail } from "../pages/agents/AgentDetail"
 import { ConversationDetail } from "../pages/conversations/ConversationDetail"
 import { TaskDetail } from "../pages/tasks/TaskDetail"
 import { NewConversation } from "../pages/conversations/NewConversation"
@@ -61,6 +62,10 @@ export function AppRouter({
         token={token ?? null}
       />
     )
+  }
+
+  if (route.name === "agent") {
+    return <AgentDetail token={token ?? null} agentId={route.agentId} />
   }
 
   if (route.name === "account") return <AccountSettings section={route.section ?? "general"} />

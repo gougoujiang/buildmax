@@ -1,5 +1,6 @@
 import type { Route, Conversation } from "../lib/types"
 import { navigate } from "../router"
+import { useApp } from "../contexts/AppContext"
 
 interface BreadcrumbsProps {
   route: Route
@@ -7,6 +8,7 @@ interface BreadcrumbsProps {
 }
 
 export function Breadcrumbs({ route, conversations = [] }: BreadcrumbsProps) {
+  const { entityLabels } = useApp()
   let crumbs: { label: string; route: Route }[] = []
 
   if (route.name === "conversations") {
@@ -15,6 +17,11 @@ export function Breadcrumbs({ route, conversations = [] }: BreadcrumbsProps) {
     crumbs = [{ label: "Files", route: { name: "explore" } }]
   } else if (route.name === "agents") {
     crumbs = [{ label: "Agents", route: { name: "agents" } }]
+  } else if (route.name === "agent") {
+    crumbs = [
+      { label: "Agents", route: { name: "agents" } },
+      { label: entityLabels[route.agentId] ?? "Agent", route },
+    ]
   } else if (route.name === "account") {
     const sectionLabel = (() => {
       switch (route.section) {
