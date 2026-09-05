@@ -41,8 +41,10 @@ worker:
   # The server spawns this binary per run; it is on PATH in the same image.
   binary: buildmax-worker
   run_mode: local_process
-  # The worker calls the server back over the API, from inside this container.
-  server_url: http://127.0.0.1:5678
+  # The worker calls the server back over the internal worker listener
+  # (worker_api.listen, default 127.0.0.1:5679), from inside this container.
+  # /api/worker/* lives only on that listener, not the public 5678 port.
+  server_url: http://127.0.0.1:5679
 
 # The server and the workers it spawns share this container's filesystem, so
 # the local backend is enough. Workers running elsewhere need storage both can

@@ -58,14 +58,17 @@ func loadOpenAPI(t *testing.T, root string) openAPIDoc {
 	return doc
 }
 
-// registeredRoutes returns every "METHOD /pattern" the server registers.
+// registeredRoutes returns every "METHOD /pattern" the server registers, across
+// both listeners.
 //
 // It scans every package under internal/server, not just handlers/routes.go:
 // that file composes the subpackages and registers only a handful itself, so
-// scanning it alone would miss most of the API.
+// scanning it alone would miss most of the API. The variable is matched loosely
+// -- mux, publicMux, workerMux -- because the server registers the public and
+// worker route sets on two separate muxes, and this scan is the union of both.
 func registeredRoutes(t *testing.T, root string) map[string]string {
 	t.Helper()
-	pattern := regexp.MustCompile(`mux\.Handle(?:Func)?\("([A-Z]+) ([^"]+)"`)
+	pattern := regexp.MustCompile(`\w*[Mm]ux\.Handle(?:Func)?\("([A-Z]+) ([^"]+)"`)
 	routes := map[string]string{}
 	serverDir := filepath.Join(root, "internal", "server")
 	err := filepath.Walk(serverDir, func(path string, info os.FileInfo, err error) error {

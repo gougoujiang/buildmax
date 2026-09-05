@@ -128,7 +128,26 @@ webhook:
 worker:
   binary: buildmax-worker
   run_mode: local_process   # or k8s_job
-  server_url: http://localhost:5678  # BUILDMAX_SERVER_URL overrides this
+  # Where a worker reaches this server. It is the worker control listener
+  # (worker_api.listen below), NOT the public port: /api/worker/* lives only on
+  # that listener now. On one host that is loopback; on Kubernetes it is the
+  # internal worker Service, e.g.
+  # https://buildmax-worker-api.buildmax.svc.cluster.local:5679.
+  # BUILDMAX_SERVER_URL overrides this.
+  server_url: http://127.0.0.1:5679
+
+  # Plain HTTP to the server is a development-only mode (local_process, Compose,
+  # kind). A k8s_job with an http:// server_url is refused unless this is true,
+  # because .cluster.local and loopback are routing facts, not confidentiality.
+  allow_insecure_http: true
+  # The CA the worker verifies the worker listener's certificate against. Empty
+  # uses the system trust roots. On Kubernetes this is a read-only mount.
+  server_ca_file: ""
+  # Optional native mTLS: a client certificate the worker presents in addition
+  # to its run token. Both or neither. Only useful where a platform issues
+  # per-pod identities; the run token is still the mandatory authentication.
+  client_cert_file: ""
+  client_key_file: ""
 
   # How a task run reaches a model. "direct" (default): the worker calls a
   # provider itself with conversation.model and its api_key. "buildmax": the
@@ -181,6 +200,27 @@ worker:
       cpu_limit: "2"
       memory_request: 1Gi
       memory_limit: 4Gi
+
+# The internal listener that serves the worker control API (/api/worker/*),
+# kept off the public HTTP surface so a broad public Ingress rule cannot expose
+# it and a Kubernetes NetworkPolicy can admit only worker pods to it. See
+# docs/design/worker-api-network-boundary.md.
+worker_api:
+  # Bind address. Loopback by default so an accidental deployment opens no new
+  # unauthenticated cluster port; a Kubernetes deployment sets 0.0.0.0:5679 and
+  # fronts it with the buildmax-worker-api Service. It must not share the
+  # public port.
+  listen: 127.0.0.1:5679
+  # Server certificate for the worker listener. Empty cert and key serve plain
+  # HTTP (development only, alongside worker.allow_insecure_http). In production
+  # this is the internal Service DNS name's certificate, mounted only into
+  # server pods.
+  tls:
+    cert_file: ""
+    key_file: ""
+    # Optional native mTLS: when set, the listener also requires a client
+    # certificate this CA issued, in addition to the run token.
+    client_ca_file: ""
 
 # Governance trail retention. 0 (default) keeps every event forever — a
 # deployment that hasn't chosen a retention policy hasn't decided to discard

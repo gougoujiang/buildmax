@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 	"errors"
+	"fmt"
 	"github.com/gougoujiang/buildmax/internal/server/handlers/admin"
 	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
 	"log/slog"
@@ -143,14 +144,21 @@ type WebhookConfig struct {
 
 // Config holds server configuration. Grouped fields document what is required for auth, storage, worker, and conversation.
 type Config struct {
-	Addr     string // Listen address (e.g. ":5678")
-	Auth     AuthConfig
-	Stores   StoresConfig
-	Services ServicesConfig
-	Storage  StorageConfig
-	Worker   WorkerConfig
-	Conv     ConversationConfig
-	Webhook  WebhookConfig
+	Addr string // Public listen address (e.g. ":5678")
+	// WorkerAddr is the internal worker-control listener address (e.g.
+	// "127.0.0.1:5679"). Empty leaves the worker listener off, which is what a
+	// test that only builds the public handler wants; the server binary always
+	// sets it. The worker routes are registered on their own mux regardless, so
+	// WorkerHandler is testable without opening a second socket. See
+	// docs/design/worker-api-network-boundary.md.
+	WorkerAddr string
+	Auth       AuthConfig
+	Stores     StoresConfig
+	Services   ServicesConfig
+	Storage    StorageConfig
+	Worker     WorkerConfig
+	Conv       ConversationConfig
+	Webhook    WebhookConfig
 	// Audit records sensitive actions. Nil discards them.
 	Audit *audit.Recorder
 	// Deployment describes this deployment for the admin system status.
@@ -167,7 +175,12 @@ type Config struct {
 // Server wraps the HTTP server and runs it.
 type Server struct {
 	srv *http.Server
-	cfg Config
+	// workerSrv serves the worker control API on its own listener. Nil when
+	// cfg.WorkerAddr is empty. workerHandler is kept separately so tests can
+	// exercise the worker route set without a socket.
+	workerSrv     *http.Server
+	workerHandler http.Handler
+	cfg           Config
 	// handlers is kept so the server can run and stop the background work the
 	// API surface owns — see StartBackground.
 	handlers *handlers.Handler
@@ -178,28 +191,48 @@ type Server struct {
 	drainOnce sync.Once
 }
 
-// New builds an HTTP server with routes for healthz, readyz, openapi, swagger, and all API handlers.
+// New builds the server. The public listener serves healthz, readyz, openapi,
+// swagger, and every non-worker API handler; a separate worker listener serves
+// only /api/worker/*. The two never share a mux, so the public socket cannot
+// dispatch a worker route even under a broad Ingress rule. See
+// docs/design/worker-api-network-boundary.md.
 func New(cfg Config) *Server {
 	s := &Server{cfg: cfg, drain: make(chan struct{})}
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", healthzHandler)
-	mux.HandleFunc("GET /readyz", s.readyzHandler)
-	mux.HandleFunc("GET /openapi.json", openAPIHandler)
-	mux.HandleFunc("GET /swagger/", swaggerUIHandler)
-	mux.HandleFunc("GET /swagger/index.html", swaggerUIHandler)
-	mux.HandleFunc("GET /swagger", swaggerUIHandler)
-
 	s.handlers = handlers.NewHandler(buildHandlersConfig(cfg, s.drain))
-	s.handlers.Register(mux)
 
-	handler := http.Handler(mux)
+	publicMux := http.NewServeMux()
+	publicMux.HandleFunc("GET /healthz", healthzHandler)
+	publicMux.HandleFunc("GET /readyz", s.readyzHandler)
+	publicMux.HandleFunc("GET /openapi.json", openAPIHandler)
+	publicMux.HandleFunc("GET /swagger/", swaggerUIHandler)
+	publicMux.HandleFunc("GET /swagger/index.html", swaggerUIHandler)
+	publicMux.HandleFunc("GET /swagger", swaggerUIHandler)
+	s.handlers.RegisterPublic(publicMux)
+
+	// CORS is a browser control and belongs only to the public listener: the
+	// worker is not a browser, and a worker route must not become reachable by a
+	// cross-origin fallback path. Request logging wraps both.
+	publicHandler := http.Handler(publicMux)
 	if cfg.Auth.CORSOrigin != "" {
-		handler = corsMiddleware(handler, cfg.Auth.CORSOrigin)
+		publicHandler = corsMiddleware(publicHandler, cfg.Auth.CORSOrigin)
 	}
-	handler = requestLoggingMiddleware(handler)
-	s.srv = &http.Server{
-		Addr:    cfg.Addr,
+	s.srv = newHTTPServer(cfg.Addr, requestLoggingMiddleware(publicHandler))
+
+	workerMux := http.NewServeMux()
+	s.handlers.RegisterWorker(workerMux)
+	s.workerHandler = requestLoggingMiddleware(http.Handler(workerMux))
+	if cfg.WorkerAddr != "" {
+		s.workerSrv = newHTTPServer(cfg.WorkerAddr, s.workerHandler)
+	}
+	return s
+}
+
+// newHTTPServer builds an http.Server with the shared timeout policy both
+// listeners use.
+func newHTTPServer(addr string, handler http.Handler) *http.Server {
+	return &http.Server{
+		Addr:    addr,
 		Handler: handler,
 		// A connection that never completes its header is neither idle nor
 		// active, so Shutdown neither closes it nor finishes waiting for it.
@@ -213,7 +246,6 @@ func New(cfg Config) *Server {
 		// upload is legitimately slow to read, and a write deadline would
 		// truncate every SSE stream and every long managed model call.
 	}
-	return s
 }
 
 func buildHandlersConfig(cfg Config, drain <-chan struct{}) handlers.Config {
@@ -341,9 +373,17 @@ func buildOnTaskRunTerminal(cfg Config) func(ctx context.Context, info coretask.
 	}
 }
 
-// Handler returns the HTTP handler for use in tests.
+// Handler returns the public HTTP handler for use in tests.
 func (s *Server) Handler() http.Handler {
 	return s.srv.Handler
+}
+
+// WorkerHandler returns the worker-control HTTP handler for use in tests. It is
+// built whether or not a worker socket is opened, so a test can prove the route
+// boundary — a worker route answers here and 404s on Handler, and the reverse —
+// without binding a second port.
+func (s *Server) WorkerHandler() http.Handler {
+	return s.workerHandler
 }
 
 // ListenAndServe serves until Shutdown is called, and reports nil for the
@@ -354,10 +394,24 @@ func (s *Server) Handler() http.Handler {
 // — and the layer that assembles the scheduler and the background loops is the
 // only one that can walk it in the right order.
 func (s *Server) ListenAndServe() error {
-	if err := s.srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		return err
+	// Both listeners run in this one process. A bind failure on either is fatal
+	// the same way a taken public port is: accepting user tasks while no worker
+	// can report them is not a degraded mode, so the first listener to fail
+	// returns and the caller walks the shutdown ladder. See
+	// docs/design/worker-api-network-boundary.md §9.1.
+	errs := make(chan error, 2)
+	serve := func(name string, srv *http.Server) {
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			errs <- fmt.Errorf("%s listener: %w", name, err)
+			return
+		}
+		errs <- nil
 	}
-	return nil
+	if s.workerSrv != nil {
+		go serve("worker", s.workerSrv)
+	}
+	go serve("public", s.srv)
+	return <-errs
 }
 
 // StartBackground launches the background work the API surface owns.
@@ -403,7 +457,19 @@ func (s *Server) Draining() bool {
 func (s *Server) Shutdown(ctx context.Context) error {
 	s.Drain()
 	s.handlers.WaitTurns(ctx)
-	return s.srv.Shutdown(ctx)
+	// Public first, worker last. A worker reports its outcome over the worker
+	// listener, so it outlives the public one; by the time the ladder reaches
+	// here the scheduler has already stopped and its runs have reported, but
+	// closing the worker listener last keeps the ordering the design states
+	// rather than relying on that timing. See
+	// docs/design/worker-api-network-boundary.md §9.2.
+	err := s.srv.Shutdown(ctx)
+	if s.workerSrv != nil {
+		if werr := s.workerSrv.Shutdown(ctx); werr != nil && err == nil {
+			err = werr
+		}
+	}
+	return err
 }
 
 func serveStatic(w http.ResponseWriter, path, contentType string) {

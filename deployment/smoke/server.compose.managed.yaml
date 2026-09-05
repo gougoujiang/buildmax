@@ -44,7 +44,7 @@ llm:
 worker:
   binary: buildmax-worker
   run_mode: local_process
-  server_url: http://127.0.0.1:5678
+  server_url: http://127.0.0.1:5679
   llm:
     transport: buildmax
     # Left unset on purpose: a run then uses llm.default_model, which is the

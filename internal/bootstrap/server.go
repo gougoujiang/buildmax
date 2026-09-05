@@ -99,6 +99,13 @@ func RunServer(ctx context.Context, portOverride int) error {
 		port = 5678
 	}
 
+	// Fail closed before anything binds: a worker listener that shares the
+	// public port, or half a TLS keypair, is a boundary that is not there. See
+	// docs/design/worker-api-network-boundary.md §9.1 and §10.
+	if err := sc.ValidateListeners(fmt.Sprintf(":%d", port)); err != nil {
+		return fmt.Errorf("listener configuration: %w", err)
+	}
+
 	workspacesDir, err := resolveWorkspacesDir(sc.WorkspacesDir)
 	if err != nil {
 		return err
@@ -158,6 +165,7 @@ func RunServer(ctx context.Context, portOverride int) error {
 	s.StartBackground()
 	slog.Info("server starting",
 		"addr", serverConfig.Addr,
+		"worker_addr", serverConfig.WorkerAddr,
 		"version", config.Version,
 		"commit", config.Commit,
 	)
@@ -426,6 +434,9 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 	}
 	cfg := httpserver.Config{
 		Addr: fmt.Sprintf(":%d", port),
+		// The worker control API is served on its own listener, off the public
+		// HTTP surface. See docs/design/worker-api-network-boundary.md.
+		WorkerAddr: sc.WorkerAPI.Listen,
 		Auth: httpserver.AuthConfig{
 			JWTSecret:            jwtSecret,
 			AllowSignup:          sc.AllowSignup,

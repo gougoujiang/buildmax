@@ -2,6 +2,8 @@ package config
 
 import (
 	"errors"
+	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"time"
@@ -53,9 +55,40 @@ type ServerConfig struct {
 	Database         ServerDBConfig      `mapstructure:"database"`
 	Webhook          ServerWebhookConfig `mapstructure:"webhook"`
 	Worker           ServerWorkerConfig  `mapstructure:"worker"`
-	Storage          ServerStorageConfig `mapstructure:"storage"`
-	Audit            ServerAuditConfig   `mapstructure:"audit"`
-	Secret           ServerSecretConfig  `mapstructure:"secret"`
+	// WorkerAPI is the internal listener that serves the worker control API,
+	// kept off the public HTTP surface.
+	WorkerAPI ServerWorkerAPIConfig `mapstructure:"worker_api"`
+	Storage   ServerStorageConfig   `mapstructure:"storage"`
+	Audit     ServerAuditConfig     `mapstructure:"audit"`
+	Secret    ServerSecretConfig    `mapstructure:"secret"`
+}
+
+// ServerWorkerAPIConfig configures the second HTTP listener that serves only
+// the worker control API (/api/worker/*). Splitting it off the public listener
+// is what lets a Kubernetes NetworkPolicy admit a worker to those routes while
+// denying it the rest of the API, and keeps /api/worker off the public Ingress.
+// See docs/design/worker-api-network-boundary.md.
+type ServerWorkerAPIConfig struct {
+	// Listen is the worker listener's bind address. It defaults to loopback so
+	// an accidental deployment opens no new unauthenticated cluster port; a
+	// Kubernetes deployment binds it to :5679 deliberately and fronts it with
+	// its own internal Service.
+	Listen string `mapstructure:"listen"`
+	// TLS is the worker listener's server certificate and optional native mTLS
+	// client CA. Empty cert and key serve plain HTTP, which is a development-only
+	// mode. Enforcing HTTPS in production is the worker-client trust work in the
+	// design record's M2, not this listener's parsing.
+	TLS ServerWorkerAPITLSConfig `mapstructure:"tls"`
+}
+
+// ServerWorkerAPITLSConfig holds the worker listener's TLS material. The
+// certificate and key are the server identity a worker verifies; client_ca_file
+// is optional and, when set, turns on native mTLS so the listener also requires
+// a client certificate the CA issued.
+type ServerWorkerAPITLSConfig struct {
+	CertFile     string `mapstructure:"cert_file"`
+	KeyFile      string `mapstructure:"key_file"`
+	ClientCAFile string `mapstructure:"client_ca_file"` // optional native mTLS
 }
 
 // ServerAuditConfig decides how long the governance trail is kept.
@@ -263,6 +296,19 @@ type ServerWorkerConfig struct {
 	// run that outlived its credential cannot report an outcome, so nothing else
 	// will ever close it.
 	RunTimeout time.Duration `mapstructure:"run_timeout"`
+	// AllowInsecureHTTP permits a worker to reach the server over plain HTTP.
+	// Off by default and required for a k8s_job whose server_url is http://,
+	// because .cluster.local, loopback, and private addresses are routing facts,
+	// not evidence that a network is confidential. local_process, Compose, and
+	// kind development set it. Enforcing this is the design record's M2.
+	AllowInsecureHTTP bool `mapstructure:"allow_insecure_http"`
+	// ServerCAFile is the CA the worker verifies the worker listener's
+	// certificate against. Empty uses the system trust roots.
+	ServerCAFile string `mapstructure:"server_ca_file"`
+	// ClientCertFile and ClientKeyFile are the optional native mTLS client
+	// identity a worker presents in addition to its run token. Both or neither.
+	ClientCertFile string `mapstructure:"client_cert_file"`
+	ClientKeyFile  string `mapstructure:"client_key_file"`
 }
 
 // ServerWorkerLLMConfig decides how a task run reaches a model.
@@ -432,6 +478,10 @@ func LoadServerConfig() (ServerConfig, error) {
 	v.SetDefault("webhook.user_id", "webhook")
 	v.SetDefault("worker.binary", "buildmax-worker")
 	v.SetDefault("worker.run_mode", "local_process")
+	// Loopback by default: the secure default opens no new cluster port. A
+	// Kubernetes deployment overrides it to :5679 and fronts it with an internal
+	// Service. See docs/design/worker-api-network-boundary.md §3.
+	v.SetDefault("worker_api.listen", "127.0.0.1:5679")
 	v.SetDefault("worker.k8s.namespace", "buildmax")
 	v.SetDefault("worker.k8s.image", "buildmax:local")
 	v.SetDefault("worker.k8s.config_map", "buildmax-config")
@@ -478,4 +528,64 @@ func LoadServerConfig() (ServerConfig, error) {
 		return ServerConfig{}, err
 	}
 	return cfg, nil
+}
+
+// ValidateListeners enforces the fail-closed two-listener rules from
+// docs/design/worker-api-network-boundary.md §10 that can be decided from
+// configuration alone. publicAddr is the resolved public listen address (e.g.
+// ":5678"). It reports the first problem it finds so a misconfigured deployment
+// refuses to start rather than opening a socket that undoes the boundary.
+//
+// The rules that need TLS trust-root probing or the resolved worker URL — an
+// http:// k8s_job without allow_insecure_http, an https:// URL with no usable
+// roots, a worker URL that points back at the public listener — are the design
+// record's M2 and are not enforced here yet.
+func (sc ServerConfig) ValidateListeners(publicAddr string) error {
+	workerListen := sc.WorkerAPI.Listen
+	if workerListen == "" {
+		return errors.New("worker_api.listen is required")
+	}
+
+	// A shared port is the failure this whole design exists to prevent: two
+	// names for one socket. The public listener binds every interface on its
+	// port, so a worker listener on the same port collides whatever its host.
+	publicPort, err := listenPort(publicAddr)
+	if err != nil {
+		return fmt.Errorf("public listen address %q: %w", publicAddr, err)
+	}
+	workerPort, err := listenPort(workerListen)
+	if err != nil {
+		return fmt.Errorf("worker_api.listen %q: %w", workerListen, err)
+	}
+	if publicPort == workerPort {
+		return fmt.Errorf("worker_api.listen port %s collides with the public listener; the two listeners must use different ports", workerPort)
+	}
+
+	// Half a keypair serves no TLS and hides the intent to. Both or neither.
+	cert, key := sc.WorkerAPI.TLS.CertFile, sc.WorkerAPI.TLS.KeyFile
+	if (cert == "") != (key == "") {
+		return errors.New("worker_api.tls needs both cert_file and key_file, or neither")
+	}
+
+	// Native mTLS is the worker presenting a client certificate. Half of one is
+	// a deployment that meant to and cannot.
+	clientCert, clientKey := sc.Worker.ClientCertFile, sc.Worker.ClientKeyFile
+	if (clientCert == "") != (clientKey == "") {
+		return errors.New("worker.client_cert_file and worker.client_key_file must be set together for native mTLS, or neither")
+	}
+
+	return nil
+}
+
+// listenPort extracts the port from a listen address such as ":5678",
+// "127.0.0.1:5679", or "0.0.0.0:5678".
+func listenPort(addr string) (string, error) {
+	_, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return "", err
+	}
+	if port == "" {
+		return "", errors.New("no port")
+	}
+	return port, nil
 }

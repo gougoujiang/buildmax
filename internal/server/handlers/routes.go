@@ -4,8 +4,21 @@ import (
 	"net/http"
 )
 
-// Register adds all routes to mux: auth (unauthenticated), user API (JWT), worker API (run token), inbound webhook.
+// Register adds every route to one mux: auth (unauthenticated), user API (JWT),
+// worker API (run token), inbound webhook. It composes RegisterPublic and
+// RegisterWorker for callers that want the whole surface on a single mux —
+// tests, and any single-listener embedding. The server itself does not use it:
+// it registers the two sets on two listeners so the public socket cannot
+// dispatch a worker route. See docs/design/worker-api-network-boundary.md.
 func (h *Handler) Register(mux *http.ServeMux) {
+	h.RegisterPublic(mux)
+	h.RegisterWorker(mux)
+}
+
+// RegisterPublic adds every route except the worker control API. This is the
+// public listener's route set: Portal, user API, webhooks, WebSocket, plugins,
+// and managed inference.
+func (h *Handler) RegisterPublic(mux *http.ServeMux) {
 	// Establishing a session lives in its own package: those routes run before a
 	// caller has one, and its Config holds no team store, so nothing there can
 	// decide what a session may reach.
@@ -47,11 +60,14 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	// cannot reach a team's data at all.
 	h.admin.Register(mux)
 
-	// The worker API lives in its own package: its routes authenticate with a
-	// run token rather than a user's session, and a Config that holds neither
-	// user store nor team store cannot be talked into honouring one.
-	h.worker.Register(mux)
-
 	// Inbound webhook
 	mux.HandleFunc("POST /api/webhook", h.serveWebhook)
+}
+
+// RegisterWorker adds only the worker control API (/api/worker/*). This is the
+// internal listener's route set. It lives in its own package: its routes
+// authenticate with a run token rather than a user's session, and a Config that
+// holds neither user store nor team store cannot be talked into honouring one.
+func (h *Handler) RegisterWorker(mux *http.ServeMux) {
+	h.worker.Register(mux)
 }
