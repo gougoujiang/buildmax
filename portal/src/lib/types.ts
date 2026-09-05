@@ -53,6 +53,12 @@ export type Route =
   | { name: "artifacts" }
   | { name: "artifact"; artifactId: string }
 
+/** One breadcrumb segment: a label and the route it links to. */
+export interface BreadcrumbCrumb {
+  label: string
+  route: Route
+}
+
 // --- Agent (user-owned persona) ---
 
 export interface Agent {

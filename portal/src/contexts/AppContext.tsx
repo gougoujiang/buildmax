@@ -5,7 +5,7 @@ import {
   useCallback,
   type ReactNode,
 } from "react"
-import type { Route } from "../lib/types"
+import type { BreadcrumbCrumb, Route } from "../lib/types"
 import { useHashRoute } from "../router"
 import { useAuth } from "./AuthContext"
 
@@ -27,6 +27,13 @@ export interface AppContextValue {
    */
   entityLabels: Record<string, string>
   setEntityLabel: (id: string, label: string) => void
+  /**
+   * Origin-aware breadcrumb trails a detail page has computed for a leaf whose
+   * parents cannot be derived from the route alone — a Task links back to its
+   * agent, issue, or conversation. Keyed by the leaf id.
+   */
+  breadcrumbTrails: Record<string, BreadcrumbCrumb[]>
+  setBreadcrumbTrail: (id: string, trail: BreadcrumbCrumb[]) => void
 }
 
 const AppContext = createContext<AppContextValue | null>(null)
@@ -44,6 +51,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setEntityLabels((prev) => (prev[id] === label ? prev : { ...prev, [id]: label }))
   }, [])
 
+  const [breadcrumbTrails, setBreadcrumbTrails] = useState<Record<string, BreadcrumbCrumb[]>>({})
+  const setBreadcrumbTrail = useCallback((id: string, trail: BreadcrumbCrumb[]) => {
+    setBreadcrumbTrails((prev) => {
+      const cur = prev[id]
+      // Skip the update when the labels are unchanged, so a re-publish (e.g. an
+      // agent name arriving) does not churn every breadcrumb consumer.
+      if (cur && cur.length === trail.length && cur.every((c, i) => c.label === trail[i].label)) {
+        return prev
+      }
+      return { ...prev, [id]: trail }
+    })
+  }, [])
+
   const value: AppContextValue = {
     token,
     route,
@@ -51,6 +71,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setPendingConversation,
     entityLabels,
     setEntityLabel,
+    breadcrumbTrails,
+    setBreadcrumbTrail,
   }
 
   return (

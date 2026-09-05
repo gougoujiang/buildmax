@@ -8,7 +8,7 @@ interface BreadcrumbsProps {
 }
 
 export function Breadcrumbs({ route, conversations = [] }: BreadcrumbsProps) {
-  const { entityLabels } = useApp()
+  const { entityLabels, breadcrumbTrails } = useApp()
   let crumbs: { label: string; route: Route }[] = []
 
   if (route.name === "conversations") {
@@ -99,6 +99,13 @@ export function Breadcrumbs({ route, conversations = [] }: BreadcrumbsProps) {
     crumbs = [
       { label: "Artifacts", route: { name: "artifacts" } },
       { label: route.artifactId, route },
+    ]
+  } else if (route.name === "task") {
+    // A task's parents (agent / issue / conversation) are not in the route, so
+    // the detail page publishes the trail; fall back until it loads.
+    crumbs = breadcrumbTrails[route.taskId] ?? [
+      { label: "Home", route: { name: "home" } },
+      { label: "Task", route },
     ]
   } else if (route.name === "conversation") {
     const conv = conversations.find((c) => c.id === route.conversationId)

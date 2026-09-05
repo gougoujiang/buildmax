@@ -3,10 +3,12 @@ import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { ChatComposer, ChatThread, type ChatThreadItem } from "@buildmax/gui"
 import { AgentAvatar, UserAvatar } from "../../components/UserAvatar"
+import { useApp } from "../../contexts/AppContext"
 import { useAuth } from "../../contexts/AuthContext"
 import { useTeam } from "../../contexts/TeamContext"
 import { cancelTask, continueTask, getTask, getTaskRuns, retryTask } from "../../features/tasks"
 import type { ApiTask, ApiTaskRun } from "../../lib/api/types"
+import type { BreadcrumbCrumb } from "../../lib/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 
 interface TaskDetailProps {
@@ -19,6 +21,7 @@ const activeStatuses = new Set(["PENDING", "SCHEDULED", "RUNNING"])
 export function TaskDetail({ token, taskId }: TaskDetailProps) {
   const { currentTeamId } = useTeam()
   const { user } = useAuth()
+  const { entityLabels, setBreadcrumbTrail } = useApp()
   const historyRef = useRef<HTMLElement | null>(null)
   const [task, setTask] = useState<ApiTask | null>(null)
   const [runs, setRuns] = useState<ApiTaskRun[]>([])
@@ -50,6 +53,37 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
     setLoading(true)
     void load()
   }, [load])
+
+  // Publish an origin-aware breadcrumb trail so the shell shows the way back to
+  // wherever this task belongs, not just "Home". The agent/issue label is
+  // whatever that detail page has already registered, else a generic fallback.
+  useEffect(() => {
+    if (!task) return
+    const leaf: BreadcrumbCrumb = { label: task.title || "Task", route: { name: "task", taskId } }
+    let trail: BreadcrumbCrumb[]
+    if (task.agent_id) {
+      trail = [
+        { label: "Agents", route: { name: "agents" } },
+        { label: entityLabels[task.agent_id] ?? "Agent", route: { name: "agent", agentId: task.agent_id } },
+        leaf,
+      ]
+    } else if (task.issue_id) {
+      trail = [
+        { label: "Issues", route: { name: "issues" } },
+        { label: entityLabels[task.issue_id] ?? "Issue", route: { name: "issue", issueId: task.issue_id } },
+        leaf,
+      ]
+    } else if (task.conversation_id) {
+      trail = [
+        { label: "Home", route: { name: "home" } },
+        { label: "Conversation", route: { name: "conversation", conversationId: task.conversation_id } },
+        leaf,
+      ]
+    } else {
+      trail = [{ label: "Home", route: { name: "home" } }, leaf]
+    }
+    setBreadcrumbTrail(taskId, trail)
+  }, [task, taskId, entityLabels, setBreadcrumbTrail])
 
   const running = runs.some((run) => activeStatuses.has(run.status))
   useEffect(() => {
