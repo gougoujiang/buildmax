@@ -38,6 +38,9 @@ func (h *Handler) postArtifact(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusNotFound, "run not found")
 		return
 	}
+	if !requireRunning(w, run.Status) {
+		return
+	}
 	if task.TeamID == "" {
 		httputil.WriteJSONError(w, http.StatusConflict, "this run has no team to keep an artifact for")
 		return

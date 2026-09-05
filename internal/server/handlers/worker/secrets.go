@@ -65,14 +65,21 @@ func (h *Handler) getTaskRunSecrets(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusNotFound, "run not found")
 		return
 	}
+	// The worker must have claimed the run before it can read a Secret. A run
+	// that is not RUNNING has either not been claimed or has finished, and a
+	// finished run reading a credential is exactly what a leaked token would do.
+	// See docs/design/team-secrets.md §7.
+	if !requireRunning(w, run.Status) {
+		return
+	}
 
-	agent := h.runAgent(r.Context(), task)
-	if agent == nil || agent.SecretConsumption.IsEmpty() {
+	agentID, revision, cons, ok := h.pinnedConsumption(r.Context(), run, task)
+	if !ok || cons.IsEmpty() {
 		writeEmptySecrets(w)
 		return
 	}
 
-	grants, err := resolveEnvGrants(r.Context(), h.cfg.Secrets, task.TeamID, agent.SecretConsumption)
+	grants, err := resolveEnvGrants(r.Context(), h.cfg.Secrets, task.TeamID, cons)
 	if err != nil {
 		if httputil.WriteServiceError(w, err) {
 			return
@@ -81,7 +88,7 @@ func (h *Handler) getTaskRunSecrets(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.recordGrants(r.Context(), taskRunID, agent, grants)
+	h.recordGrants(r.Context(), taskRunID, agentID, revision, grants)
 
 	env := make(map[string]string, len(grants))
 	for _, g := range grants {
@@ -91,10 +98,11 @@ func (h *Handler) getTaskRunSecrets(w http.ResponseWriter, r *http.Request) {
 	httputil.WriteJSON(w, http.StatusOK, workerclient.TaskRunSecretsResponse{Env: env})
 }
 
-// recordGrants writes the audit snapshot of what this run received. It is
-// fail-open: the run already has its grants, so a failed insert is logged, not
-// returned. Nil recorder means the deployment records nothing here.
-func (h *Handler) recordGrants(ctx context.Context, taskRunID string, agent *agentdef.Agent, grants []resolvedGrant) {
+// recordGrants writes the audit snapshot of what this run received, against the
+// pinned revision that authorized it. It is fail-open: the run already has its
+// grants, so a failed insert is logged, not returned. Nil recorder means the
+// deployment records nothing here.
+func (h *Handler) recordGrants(ctx context.Context, taskRunID, agentID string, revision int, grants []resolvedGrant) {
 	if h.cfg.SecretAudit == nil {
 		return
 	}
@@ -103,8 +111,8 @@ func (h *Handler) recordGrants(ctx context.Context, taskRunID string, agent *age
 			TaskRunID:     taskRunID,
 			SecretID:      g.secretID,
 			ItemName:      g.itemName,
-			AgentID:       agent.ID,
-			AgentRevision: agent.Revision,
+			AgentID:       agentID,
+			AgentRevision: revision,
 			EnvName:       g.envName,
 		})
 		if err != nil {
@@ -114,23 +122,41 @@ func (h *Handler) recordGrants(ctx context.Context, taskRunID string, agent *age
 	}
 }
 
-// runAgent resolves the agent this run named, against the run's team. This
-// mirrors how getTaskRun resolves the agent's instructions: the current
-// revision is used, which is the revision recorded on the run at claim. No
-// agent, or an agent whose team does not match the run's, yields nil.
-func (h *Handler) runAgent(ctx context.Context, task *coretask.Task) *agentdef.Agent {
-	if task.AgentID == nil || *task.AgentID == "" {
-		return nil
+// pinnedConsumption resolves the Secret consumption this run is authorized for
+// from the Agent revision pinned onto the TaskRun, not the agent's current
+// revision. Pinning at claim is what stops a consumption config edited mid-run
+// from widening what an in-flight run receives — the whole point of snapshotting
+// the authorization. See docs/design/team-secrets.md §6 and §7.
+//
+// The agent is still resolved once, to confirm it belongs to the run's team: a
+// revision carries no team of its own, and the run token names the team the
+// agent must be owned by. No agent, a team mismatch, or a run with no pinned
+// revision yields ok=false, which the caller treats as no consumption rather
+// than falling back to the live config.
+func (h *Handler) pinnedConsumption(ctx context.Context, run *coretask.Run, task *coretask.Task) (agentID string, revision int, cons agentdef.SecretConsumption, ok bool) {
+	if task.AgentID == nil || *task.AgentID == "" || run.AgentRevision == nil {
+		return "", 0, agentdef.SecretConsumption{}, false
 	}
-	a, err := h.cfg.Agents.GetAgentIncludingDeleted(ctx, *task.AgentID)
+	agent, err := h.cfg.Agents.GetAgentIncludingDeleted(ctx, *task.AgentID)
 	if err != nil {
-		componentLog().Warn("worker handler: agent consumption unavailable", "task_id", task.ID, "agent_id", *task.AgentID, "err", err)
-		return nil
+		componentLog().Warn("worker handler: agent unavailable", "task_id", task.ID, "agent_id", *task.AgentID, "err", err)
+		return "", 0, agentdef.SecretConsumption{}, false
 	}
-	if a == nil || a.TeamID != task.TeamID {
-		return nil
+	if agent == nil || agent.TeamID != task.TeamID {
+		return "", 0, agentdef.SecretConsumption{}, false
 	}
-	return a
+	rev, err := h.cfg.Agents.GetAgentRevision(ctx, *task.AgentID, *run.AgentRevision)
+	if err != nil {
+		componentLog().Warn("worker handler: pinned agent revision unavailable",
+			"task_id", task.ID, "agent_id", *task.AgentID, "revision", *run.AgentRevision, "err", err)
+		return "", 0, agentdef.SecretConsumption{}, false
+	}
+	if rev == nil {
+		componentLog().Warn("worker handler: pinned agent revision is gone",
+			"task_id", task.ID, "agent_id", *task.AgentID, "revision", *run.AgentRevision)
+		return "", 0, agentdef.SecretConsumption{}, false
+	}
+	return agent.ID, *run.AgentRevision, rev.SecretConsumption, true
 }
 
 func writeNoStore(w http.ResponseWriter) {

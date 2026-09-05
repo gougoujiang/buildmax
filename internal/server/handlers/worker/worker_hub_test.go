@@ -18,7 +18,7 @@ func TestPostWorkerStreamHandler_AppendsToHub(t *testing.T) {
 	cfg := Config{
 		JWTSecret: workerTestSecret,
 		TaskRuns: &mock.MockTaskRunStore{
-			Runs:     []coretask.Run{{ID: taskRunID, TaskID: taskID}},
+			Runs:     []coretask.Run{{ID: taskRunID, TaskID: taskID, Status: string(coretask.RunStatusRunning)}},
 			TaskList: []coretask.Task{{ID: taskID}},
 		},
 		Hub: hub,
