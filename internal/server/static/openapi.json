@@ -2275,6 +2275,43 @@
       }
     },
     "/api/admin/users/{user_id}/sessions": {
+      "parameters": [{"name": "user_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "get": {
+        "summary": "List an account's live sessions",
+        "security": [{"bearerAuth": []}],
+        "parameters": [{"name": "user_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sessions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "session_id": {"type": "string"},
+                          "platform": {"type": "string"},
+                          "created_at": {"type": "string", "format": "date-time"},
+                          "last_rotated_at": {"type": "string", "format": "date-time"},
+                          "expires_at": {"type": "string", "format": "date-time"}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Account not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      },
       "delete": {
         "summary": "Revoke every refresh session for an account",
         "security": [{"bearerAuth": []}],
@@ -2288,6 +2325,32 @@
           },
           "404": {
             "description": "Account not found",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
+      }
+    },
+    "/api/admin/users/{user_id}/sessions/{session_id}": {
+      "parameters": [
+        {"name": "user_id", "in": "path", "required": true, "schema": {"type": "string"}},
+        {"name": "session_id", "in": "path", "required": true, "schema": {"type": "string"}}
+      ],
+      "delete": {
+        "summary": "Revoke one login session for an account",
+        "security": [{"bearerAuth": []}],
+        "parameters": [
+          {"name": "user_id", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "session_id", "in": "path", "required": true, "schema": {"type": "string"}}
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {"schema": {"type": "object", "properties": {"revoked": {"type": "integer"}}}}
+            }
+          },
+          "404": {
+            "description": "Account or session not found",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
           }
         }

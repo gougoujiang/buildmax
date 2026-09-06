@@ -3,6 +3,7 @@ package mock
 import (
 	"context"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -14,6 +15,7 @@ type MockRefreshToken struct {
 	UserID    string
 	SessionID string
 	Platform  string
+	CreatedAt time.Time
 	ExpiresAt time.Time
 	UsedAt    *time.Time
 	RevokedAt *time.Time
@@ -60,6 +62,7 @@ func (m *MockRefreshTokenStore) mint(userID, sessionID, platform string, now tim
 		UserID:    userID,
 		SessionID: sessionID,
 		Platform:  platform,
+		CreatedAt: now,
 		ExpiresAt: expiresAt,
 	}
 	return plaintext, expiresAt, nil
@@ -166,6 +169,43 @@ func (m *MockRefreshTokenStore) CountUserSessions(_ context.Context, userID stri
 		}
 	}
 	return len(sessions), nil
+}
+
+func (m *MockRefreshTokenStore) ListUserSessions(_ context.Context, userID string, now time.Time) ([]coreidentity.Session, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	byID := make(map[string]*coreidentity.Session)
+	for _, tok := range m.Tokens {
+		if tok.UserID != userID || tok.RevokedAt != nil || !tok.ExpiresAt.After(now) {
+			continue
+		}
+		s, ok := byID[tok.SessionID]
+		if !ok {
+			byID[tok.SessionID] = &coreidentity.Session{
+				SessionID:     tok.SessionID,
+				Platform:      tok.Platform,
+				CreatedAt:     tok.CreatedAt,
+				LastRotatedAt: tok.CreatedAt,
+				ExpiresAt:     tok.ExpiresAt,
+			}
+			continue
+		}
+		if tok.CreatedAt.Before(s.CreatedAt) {
+			s.CreatedAt = tok.CreatedAt
+		}
+		if tok.CreatedAt.After(s.LastRotatedAt) {
+			s.LastRotatedAt = tok.CreatedAt
+		}
+		if tok.ExpiresAt.After(s.ExpiresAt) {
+			s.ExpiresAt = tok.ExpiresAt
+		}
+	}
+	out := make([]coreidentity.Session, 0, len(byID))
+	for _, s := range byID {
+		out = append(out, *s)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].LastRotatedAt.After(out[j].LastRotatedAt) })
+	return out, nil
 }
 
 func (m *MockRefreshTokenStore) DeleteExpiredRefreshTokens(_ context.Context, before time.Time) (int64, error) {

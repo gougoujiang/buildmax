@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -103,6 +104,60 @@ func TestDisablingTheLastAdministratorIsRefused(t *testing.T) {
 	rec := f.do(t, "POST", "/api/admin/users/"+f.target.ID+"/disable", adminUser, "")
 	if rec.Code != http.StatusConflict {
 		t.Errorf("got %d, want 409: %s", rec.Code, rec.Body.String())
+	}
+}
+
+// TestAdminSessionsListAndSingleRevoke is the "revoke one device" journey: an
+// operator lists an account's sessions, retires one, and the other stays live.
+func TestAdminSessionsListAndSingleRevoke(t *testing.T) {
+	f := newDisableFixture(t)
+	for _, s := range []struct{ id, platform string }{{"as_laptop", "portal"}, {"as_phone", "cli"}} {
+		if _, _, err := f.sessions.CreateRefreshToken(t.Context(), coreidentity.NewRefreshToken{
+			UserID: f.target.ID, SessionID: s.id, Platform: s.platform, TTL: time.Hour,
+		}); err != nil {
+			t.Fatalf("CreateRefreshToken: %v", err)
+		}
+	}
+
+	rec := f.do(t, "GET", "/api/admin/users/"+f.target.ID+"/sessions", adminUser, "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list got %d: %s", rec.Code, rec.Body.String())
+	}
+	// The list carries metadata to recognise a device, never the credential.
+	body := strings.ToLower(rec.Body.String())
+	for _, forbidden := range []string{"token", "hash", "bmxrefresh", "mock-refresh"} {
+		if strings.Contains(body, forbidden) {
+			t.Errorf("the session list leaked %q: %s", forbidden, rec.Body.String())
+		}
+	}
+	var list AdminSessionsResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &list); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(list.Sessions) != 2 {
+		t.Fatalf("sessions = %d, want 2", len(list.Sessions))
+	}
+
+	if got := f.do(t, "DELETE", "/api/admin/users/"+f.target.ID+"/sessions/as_laptop", adminUser, "").Code; got != http.StatusOK {
+		t.Fatalf("revoke one got %d", got)
+	}
+
+	rec = f.do(t, "GET", "/api/admin/users/"+f.target.ID+"/sessions", adminUser, "")
+	if err := json.Unmarshal(rec.Body.Bytes(), &list); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(list.Sessions) != 1 || list.Sessions[0].SessionID != "as_phone" {
+		t.Fatalf("after revoke sessions = %+v, want only as_phone", list.Sessions)
+	}
+
+	// Revoking one that is not this account's live session is a 404, not a
+	// success recorded against the wrong person.
+	if got := f.do(t, "DELETE", "/api/admin/users/"+f.target.ID+"/sessions/as_bogus", adminUser, "").Code; got != http.StatusNotFound {
+		t.Errorf("revoke unknown session got %d, want 404", got)
+	}
+
+	if !slices.Contains(f.actions(), coreaudit.SessionRevoked) {
+		t.Errorf("actions = %v, want a %s event", f.actions(), coreaudit.SessionRevoked)
 	}
 }
 

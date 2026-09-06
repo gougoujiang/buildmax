@@ -50,6 +50,24 @@ type RotatedRefreshToken struct {
 	ExpiresAt time.Time
 }
 
+// Session is one live login chain as an administrator sees it: safe metadata by
+// which to recognise a device, never a token or its hash. It is what makes
+// revoking one device rather than all of them possible.
+type Session struct {
+	// SessionID names the chain. It is not a secret — it is already a claim in
+	// every access token issued under it — so it is the handle a revoke names.
+	SessionID string
+	// Platform is the surface that logged in ("portal", "cli", "desktop"), a
+	// label rather than something the server enforced.
+	Platform string
+	// CreatedAt is when the chain began: the login.
+	CreatedAt time.Time
+	// LastRotatedAt is when the most recent token in the chain was issued.
+	LastRotatedAt time.Time
+	// ExpiresAt is when the chain's current token expires.
+	ExpiresAt time.Time
+}
+
 // RefreshTokenStore issues, rotates, and revokes the stored half of a login.
 //
 // Rotation is what makes a stolen refresh token detectable: each exchange
@@ -97,6 +115,11 @@ type RefreshTokenStore interface {
 	// chains, not tokens, since a chain is what a person would recognise as
 	// "signed in on my laptop".
 	CountUserSessions(ctx context.Context, userID string, now time.Time) (int, error)
+
+	// ListUserSessions returns the user's live login chains as safe metadata,
+	// newest first, so an administrator can revoke one device by its SessionID
+	// rather than all of them. It never returns a token or a hash.
+	ListUserSessions(ctx context.Context, userID string, now time.Time) ([]Session, error)
 
 	// DeleteExpiredRefreshTokens removes rows that can no longer be exchanged.
 	DeleteExpiredRefreshTokens(ctx context.Context, before time.Time) (int64, error)

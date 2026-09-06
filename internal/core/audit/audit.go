@@ -40,6 +40,10 @@ const (
 	// retired at once. It is separate from user.logout, which is a person
 	// ending their own.
 	SessionsRevoked = "user.sessions_revoked"
+	// SessionRevoked records one login chain being retired by an administrator,
+	// naming the chain by its session id. The plural above is revoke-all; this
+	// is signing out one device.
+	SessionRevoked = "user.session_revoked"
 	// SpaceMemberAdded and SpaceMemberRemoved record changes to who
 	// can reach a space's resources.
 	SpaceMemberAdded   = "space.member_added"

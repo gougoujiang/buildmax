@@ -305,6 +305,55 @@ func (s *Store) CountUserSessions(ctx context.Context, userID string, now time.T
 	return int(n), nil
 }
 
+// ListUserSessions implements coreidentity.RefreshTokenStore.
+//
+// One row per live login chain, aggregated from its tokens: the login is the
+// earliest created_at, the last rotation the latest, the expiry the furthest
+// out. The same live filter CountUserSessions uses keeps a revoked or expired
+// chain off the list. It selects only safe metadata — no token_hash ever leaves
+// the store.
+func (s *Store) ListUserSessions(ctx context.Context, userID string, now time.Time) ([]coreidentity.Session, error) {
+	if userID == "" {
+		return nil, nil
+	}
+	userKey, err := lookupKey(ctx, s.db, "user", userID)
+	if errors.Is(err, apierr.ErrNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	type sessionRow struct {
+		SessionID     string    `gorm:"column:session_id"`
+		Platform      string    `gorm:"column:platform"`
+		CreatedAt     time.Time `gorm:"column:created_at"`
+		LastRotatedAt time.Time `gorm:"column:last_rotated_at"`
+		ExpiresAt     time.Time `gorm:"column:expires_at"`
+	}
+	var rows []sessionRow
+	if err := s.db.WithContext(ctx).
+		Model(&userRefreshTokenRow{}).
+		Select("session_id, MAX(platform) AS platform, MIN(created_at) AS created_at, "+
+			"MAX(created_at) AS last_rotated_at, MAX(expires_at) AS expires_at").
+		Where("user_id = ? AND revoked_at IS NULL AND expires_at > ?", userKey, now).
+		Group("session_id").
+		Order("last_rotated_at DESC").
+		Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	out := make([]coreidentity.Session, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, coreidentity.Session{
+			SessionID:     r.SessionID,
+			Platform:      r.Platform,
+			CreatedAt:     r.CreatedAt,
+			LastRotatedAt: r.LastRotatedAt,
+			ExpiresAt:     r.ExpiresAt,
+		})
+	}
+	return out, nil
+}
+
 func revokeSessionTx(tx *gorm.DB, sessionID string, now time.Time) error {
 	if sessionID == "" {
 		return nil
