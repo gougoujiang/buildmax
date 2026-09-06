@@ -9,6 +9,12 @@ import (
 // ErrModelNameTaken is returned when an operator reuses a model name.
 var ErrModelNameTaken = errors.New("a model with this name already exists")
 
+// ErrCredentialEncryptionUnavailable is returned when a model carries a
+// provider credential but the deployment has no encryption key configured to
+// protect it at rest. The credential is refused rather than stored in the
+// clear: the store never writes a plaintext key.
+var ErrCredentialEncryptionUnavailable = errors.New("no deployment encryption key is configured; a model credential cannot be stored")
+
 // Model is one operator-approved upstream the managed gateway may call.
 //
 // The record deliberately has no credential field. The key lives in the same

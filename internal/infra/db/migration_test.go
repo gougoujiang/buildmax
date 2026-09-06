@@ -40,6 +40,7 @@ func TestMigrationsAreWellFormed(t *testing.T) {
 func TestMigrationsArePermanent(t *testing.T) {
 	want := []string{
 		"system_grant_live_marker",
+		"llm_model_credential_encryption",
 	}
 	if len(migrations) != len(want) {
 		t.Fatalf("migrations = %d entries, permanent list has %d; append the new ID to want", len(migrations), len(want))

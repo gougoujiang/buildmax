@@ -110,3 +110,52 @@ func TestCipher_EmptyItemsRoundTrip(t *testing.T) {
 		t.Fatalf("got %d items, want 0", len(got))
 	}
 }
+
+func TestCipher_SealValueRoundTrip(t *testing.T) {
+	c := NewCipher(testKEK(t))
+	const key = "sk-provider-CREDENTIAL-value"
+	aad := []byte("bmax-llm-credential\x00")
+
+	blob, err := c.SealValue(key, aad)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(blob, []byte(key)) {
+		t.Fatal("sealed blob contains the plaintext credential")
+	}
+
+	got, err := c.OpenValue(blob, aad)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != key {
+		t.Fatalf("OpenValue = %q, want %q", got, key)
+	}
+}
+
+func TestCipher_SealValueWrongAADFails(t *testing.T) {
+	c := NewCipher(testKEK(t))
+	blob, err := c.SealValue("sk-value", []byte("bmax-llm-credential\x00"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.OpenValue(blob, []byte("some-other-domain")); err == nil {
+		t.Fatal("opened a credential blob under a different aad")
+	}
+}
+
+// A value sealed as one domain must not open as another even under the one
+// shared KEK -- the reason model credentials and Space Secrets can share it.
+func TestCipher_SealValueDomainSeparation(t *testing.T) {
+	c := NewCipher(testKEK(t))
+	credAAD := []byte("bmax-llm-credential\x00")
+	secretAAD := coresecret.AAD("sp_1")
+
+	blob, err := c.SealValue("sk-value", credAAD)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.OpenValue(blob, secretAAD); err == nil {
+		t.Fatal("a credential blob opened under a Space Secret aad")
+	}
+}

@@ -98,6 +98,21 @@ var migrations = []Migration{
 			return m.CreateIndex(&systemGrantRow{}, "idx_system_grant_live")
 		},
 	},
+	{
+		// Model provider credentials became encrypted at rest: the plaintext
+		// api_key column gave way to api_key_sealed (an envelope blob under the
+		// deployment KEK). AutoMigrate adds the new column from the row struct;
+		// this drops the old one. Existing plaintext keys are not carried over --
+		// at Alpha there is no data to preserve, so those models are re-added.
+		ID: "llm_model_credential_encryption",
+		Apply: func(ctx context.Context, db *gorm.DB) error {
+			m := db.WithContext(ctx).Migrator()
+			if m.HasColumn(&llmModelRow{}, "api_key") {
+				return m.DropColumn(&llmModelRow{}, "api_key")
+			}
+			return nil
+		},
+	},
 }
 
 // runMigrations applies every migration this binary knows and the database has

@@ -419,8 +419,13 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 		if err != nil {
 			return httpserver.Config{}, fmt.Errorf("secret store: %w", err)
 		}
+		cipher := infrasecret.NewCipher(kek)
 		secretStore = st
-		secretService = &secretsvc.Service{Store: st, Sealer: infrasecret.NewCipher(kek)}
+		secretService = &secretsvc.Service{Store: st, Sealer: cipher}
+		// The same deployment KEK protects managed-model credentials at rest, so
+		// the catalog can accept a model with a key. Without a KEK the catalog
+		// refuses a credentialed model rather than storing the key in the clear.
+		st.SetCredentialCipher(cipher)
 	}
 	// Built before the scheduler starts (buildHTTPServerConfig runs before
 	// NewScheduler): a certificate that will not load fails startup rather than
