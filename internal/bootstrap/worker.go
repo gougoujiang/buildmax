@@ -228,6 +228,16 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		slog.Error("failed to build persist storage", "err", err)
 		return fmt.Errorf("persist storage: %w", err)
 	}
+	// The worker writes captured payloads here; the server reads the same
+	// backend and prefix to verify them and derive their key. The local-
+	// filesystem root matches the server's (workspacesDir/checkpoints), which
+	// the two share on a single node; a clustered deployment addresses the same
+	// object-store bucket instead.
+	checkpointStore, err := BuildWorkerCheckpointStore(wsCfg, filepath.Join(workspacesDir, "checkpoints"), s3Client)
+	if err != nil {
+		slog.Error("failed to build checkpoint store", "err", err)
+		return fmt.Errorf("checkpoint store: %w", err)
+	}
 	paths := taskrun.NewRuntimePathsFromRoot(workspacesDir)
 	httpSender := &workerclient.WorkerHTTPStreamSender{BaseURL: serverURL, Token: runToken, Client: httpClient}
 	streamSender := &workerclient.DebouncedStreamSender{Inner: httpSender}
@@ -258,6 +268,7 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		Managed:                managed,
 		ManagedHTTPClient:      httpClient,
 		WorkerAPI:              apiCfg,
+		Checkpoints:            checkpointStore,
 		AdditionalSystemPrompt: fetched.AgentInstructions,
 		SpaceAgentInstructions: fetched.SpaceAgentInstructions,
 		Plugins:                fetched.Plugins,

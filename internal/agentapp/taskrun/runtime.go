@@ -158,6 +158,12 @@ type RunTaskInput struct {
 	// materialized into the run's BUILDMAX_HOME before the runtime is
 	// assembled; a pin that cannot be materialized fails the run.
 	Plugins []coreplugin.Pin
+	// Checkpoints writes captured workspace-checkpoint payloads to the object
+	// store. Nil leaves the run without workspace continuity — a CLI or eval run
+	// that has no server to record the pointer with — so the run seeds and
+	// restores nothing rather than failing. See
+	// docs/design/task-workspace-checkpoints.md §8.
+	Checkpoints CheckpointPayloadStore
 	// SandboxNetworkTier and SandboxFilesystemTier are this run's agent-
 	// declared sandbox tiers, resolved by the server when the worker claimed
 	// the run. Empty means the strictest tier on that axis. See
@@ -383,6 +389,15 @@ func prepareRunWorkspace(ctx context.Context, input RunTaskInput, task *coretask
 	// it. See docs/design/task-workspace-checkpoints.md §4.1.
 	if err := persist.MaterializeToDir(ctx, task.SpaceID, dirs.runWorkspace); err != nil {
 		componentLog().Error("failed to materialize space files", "task_run_id", run.ID, "space_id", task.SpaceID, "err", err)
+		return err
+	}
+	// The materialized tree is the Task's starting point. On its first run it is
+	// captured as the seed checkpoint, before any model or tool call, so a later
+	// run has a base to continue from. A run that already has a base restores it
+	// instead (a later slice); this fails closed, because a run whose seed did
+	// not commit leaves the Task with no recoverable workspace (§13).
+	if err := seedWorkspaceIfFirstRun(ctx, input, task, run, dirs); err != nil {
+		componentLog().Error("failed to seed the task workspace", "task_run_id", run.ID, "space_id", task.SpaceID, "err", err)
 		return err
 	}
 	return nil
