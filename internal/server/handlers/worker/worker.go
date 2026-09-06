@@ -210,13 +210,14 @@ func (h *Handler) handlePatchTerminalStatus(w http.ResponseWriter, r *http.Reque
 		httputil.WriteInternalError(w, err, "worker handler error", "handler", "patch_worker_task_run", "task_run_id", taskRunID)
 		return false
 	}
-	// Commit the result checkpoint the run captured, if any. It runs whether or
+	// Commit the checkpoint the run captured, if any — a successful result or a
+	// failed run's partial, decided by the terminal status. It runs whether or
 	// not this transition won: the finalizer is idempotent, so a duplicate or
 	// recovery report still lands the checkpoint a crashed worker uploaded but
 	// never got to commit. Fail-open — the run's outcome is already accepted, and
 	// a checkpoint that cannot be committed must not undo it (§8, §13).
-	if req.Status == string(coretask.RunStatusSucceeded) && req.WorkspaceCheckpoint != nil {
-		h.finalizeResultCheckpoint(r.Context(), taskRunID, req.WorkspaceCheckpoint)
+	if req.WorkspaceCheckpoint != nil {
+		h.finalizeRunCheckpoint(r.Context(), taskRunID, req.Status, req.WorkspaceCheckpoint)
 	}
 	if !updated {
 		// A recovery loop or an earlier retry already committed the outcome. A
@@ -227,19 +228,20 @@ func (h *Handler) handlePatchTerminalStatus(w http.ResponseWriter, r *http.Reque
 	return true
 }
 
-// finalizeResultCheckpoint commits a successful run's result checkpoint as the
-// authoritative pointer over bytes the worker already uploaded, advancing the
-// Task head from the run's base. It is best-effort: every failure is logged and
-// swallowed, because the terminal outcome is already accepted and a checkpoint
-// that cannot be committed leaves the head where it was rather than failing the
-// run (§13). The finalizer is idempotent by (run, kind).
-func (h *Handler) finalizeResultCheckpoint(ctx context.Context, taskRunID string, desc *workerclient.WorkspaceCheckpointDescriptor) {
+// finalizeRunCheckpoint commits a terminal run's checkpoint over bytes the
+// worker already uploaded: a successful result, which advances the Task head from
+// the run's base, or a failed run's partial, which preserves the work and leaves
+// the head where it is. The kind follows the terminal status. It is best-effort:
+// every failure is logged and swallowed, because the terminal outcome is already
+// accepted and a checkpoint that cannot be committed must not fail the run (§13).
+// The finalizer is idempotent by (run, kind).
+func (h *Handler) finalizeRunCheckpoint(ctx context.Context, taskRunID, status string, desc *workerclient.WorkspaceCheckpointDescriptor) {
 	if h.cfg.Checkpoints == nil || h.cfg.TaskRuns == nil {
 		return
 	}
 	run, task, err := h.cfg.TaskRuns.GetTaskRunWithTask(ctx, taskRunID)
 	if err != nil || run == nil || task == nil {
-		componentLog().Error("could not load run to commit its result checkpoint", "task_run_id", taskRunID, "err", err)
+		componentLog().Error("could not load run to commit its workspace checkpoint", "task_run_id", taskRunID, "err", err)
 		return
 	}
 	if _, err := h.cfg.Checkpoints.FinalizeResult(ctx, workspacesvc.FinalizeResultInput{
@@ -247,7 +249,7 @@ func (h *Handler) finalizeResultCheckpoint(ctx context.Context, taskRunID string
 		TaskID:           task.ID,
 		SourceTaskRunID:  taskRunID,
 		BaseCheckpointID: run.WorkspaceBaseCheckpointID,
-		Succeeded:        true,
+		Succeeded:        status == string(coretask.RunStatusSucceeded),
 		Payload: workspacesvc.PayloadDescriptor{
 			Format:            desc.PayloadFormat,
 			SHA256:            desc.PayloadSHA256,
@@ -256,7 +258,7 @@ func (h *Handler) finalizeResultCheckpoint(ctx context.Context, taskRunID string
 			EntryCount:        desc.EntryCount,
 		},
 	}); err != nil {
-		componentLog().Error("could not commit the result checkpoint; run outcome stands", "task_run_id", taskRunID, "err", err)
+		componentLog().Error("could not commit the workspace checkpoint; run outcome stands", "task_run_id", taskRunID, "err", err)
 	}
 }
 

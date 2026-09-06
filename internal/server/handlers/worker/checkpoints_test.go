@@ -237,3 +237,28 @@ func TestPatchTerminal_ResultCheckpointFailureIsFailOpen(t *testing.T) {
 		t.Fatalf("a checkpoint that cannot commit must not fail the run, got %d; body = %s", rec.Code, rec.Body.String())
 	}
 }
+
+// TestPatchTerminal_CommitsPartialCheckpointOnFailure pins that a failed
+// terminal report carrying a checkpoint commits a partial — the kind follows the
+// status, and a partial preserves the work without claiming success.
+func TestPatchTerminal_CommitsPartialCheckpointOnFailure(t *testing.T) {
+	taskRunID := "run-partial"
+	meta := &seedMetadata{out: &coretask.WorkspaceCheckpoint{ID: "cp_partial", Kind: coretask.CheckpointKindPartial}}
+	svc := workspacesvc.New(meta, &seedPayloads{exists: true})
+	h := New(Config{JWTSecret: workerTestSecret, TaskRuns: runningRunAndTask(taskRunID, "t1", "tm_1"), Checkpoints: svc})
+	mux := http.NewServeMux()
+	h.Register(mux)
+
+	body := `{"status":"FAILED","error_message":"boom","workspace_checkpoint":{"payload_format":"tar.zst.v1","payload_sha256":"` + seedDigest + `","size_bytes":10,"uncompressed_bytes":20,"entry_count":3}}`
+	req := httptest.NewRequest(http.MethodPatch, "/api/worker/task-runs/"+taskRunID, strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+runTokenFor(t, taskRunID, "t1"))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+	}
+	if meta.got.Kind != coretask.CheckpointKindPartial {
+		t.Errorf("checkpoint kind = %q, want partial", meta.got.Kind)
+	}
+}
