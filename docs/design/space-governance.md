@@ -227,7 +227,7 @@ failure, because a denial is what shows someone probing at a boundary.
 A failed write is logged and dropped rather than failing the action that
 triggered it. That is the decision, not a gap: refusing the action would turn a
 logging outage into an outage of the thing being logged. It is a real limit and
-`docs/start/support.md` states it — the trail records what happened while the
+`help/support.md` states it — the trail records what happened while the
 database was reachable, which is not the same as guaranteeing every action was
 recorded. Whether any one action should instead be recorded transactionally is
 the residue of open question 2.
@@ -392,7 +392,7 @@ the shape and for what was dropped from the sketch here.
 
 Events are written after the mutation succeeds. A failed write is logged and
 dropped, so a governance record never fails the action it describes — the
-trade-off is stated in §5.4 and in `docs/start/support.md` rather than left for
+trade-off is stated in §5.4 and in `help/support.md` rather than left for
 an operator to discover during an investigation. The compact-JSON metadata rule
 did not survive: there is no metadata column, only a short `Detail` string.
 

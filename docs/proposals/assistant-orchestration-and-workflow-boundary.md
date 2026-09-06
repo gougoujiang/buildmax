@@ -8,7 +8,7 @@ Related: [roadmap](../ROADMAP.md),
 [Workflow runtime](../design/workflow-runtime.md),
 [Agent execution and Task threads](../design/agent-execution-and-task-threads.md),
 [Portal execution model](../design/portal-execution-model.md), and
-[skills and subagents](../guide/skills-and-subagents.md).
+[skills and subagents](../../help/skills-and-subagents.md).
 
 ## Contents
 

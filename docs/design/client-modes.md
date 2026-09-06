@@ -290,7 +290,7 @@ decide, and its status block summarises what changed here.
 | Expired login | `auth.ErrLoginExpired`, `internal/interface/cli/mode.go`, Desktop `AuthStatus.Expired` |
 
 The user-facing half is
-[guide/models-and-modes.md](../guide/models-and-modes.md); the fields are in
+[help/models-and-modes.md](../../help/models-and-modes.md); the fields are in
 [reference/configuration.md](../reference/configuration.md).
 
 One thing the implementation found that the design did not anticipate:

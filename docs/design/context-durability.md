@@ -684,7 +684,7 @@ in `internal/agentapp/assembly.go`; `AppConfig.AdditionalSystemPrompt` and
 `internal/server/handlers/worker/worker.go` and the worker side in
 `internal/agentapp/taskrun/runtime.go`; `Session.AdditionalSystemPrompt`; and
 the `context_sources` trace record. User documentation in
-[`reference/cli.md`](../reference/cli.md).
+[`reference/cli.md`](../../help/cli.md).
 
 What this fixed on the Portal path was worse than the plan assumed. A Portal
 agent's `Instructions` were rendered into the **task input** by

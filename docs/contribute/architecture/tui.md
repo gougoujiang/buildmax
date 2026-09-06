@@ -2,7 +2,7 @@
 
 > **Audience:** contributors · **Status:** current
 >
-> User-facing key and slash-command reference: [reference/cli.md](../../reference/cli.md)
+> User-facing key and slash-command reference: [help/cli.md](../../../help/cli.md)
 
 ## Purpose
 

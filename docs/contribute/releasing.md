@@ -132,7 +132,7 @@ After the workflow completes:
 3. Confirm the archive contains `LICENSE`, `NOTICE-THIRD-PARTY`, `README.md`,
    `SECURITY.md`, `CHANGELOG.md`, and `config-examples/`.
 4. Verify the GitHub attestation as described in
-   [the installation guide](../start/install.md).
+   [the installation guide](../../help/install.md).
 5. Pull `ghcr.io/gougoujiang/buildmax:<version>` by digest and confirm the
    container starts. Alpha versions must not move the `latest` tag. The image
    scan already passed before publication, so a red release workflow here means

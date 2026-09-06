@@ -83,7 +83,7 @@ deterministic checks, bounded task scope, and actionable failures. Do not add a
 second agent implementation or a workflow that bypasses the shared runtime just
 to optimize one surface.
 
-Before picking work, read the [support matrix](docs/start/support.md). It names
+Before picking work, read the [support matrix](help/support.md). It names
 the surfaces and deployment paths the project supports today, plus the alpha
 non-goals that should not become surprise PR scope. Documentation fixes, focused
 tests, small CLI/TUI usability fixes, and reproducible bug fixes are the best
@@ -342,7 +342,7 @@ The rest:
     the only place the tree is written down
   - direction changes → add or update a semantic design record in
     [docs/design/](docs/design/README.md), and delete the superseded one
-  - user-facing behavior or configuration changes → update `docs/guide/`,
+  - user-facing behavior or configuration changes → update `help/`,
     `docs/reference/`, and `config-examples/`
 
   The full rules are in

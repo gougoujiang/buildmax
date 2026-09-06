@@ -79,7 +79,7 @@ and runs shell commands there, for real. Start in a git tree you can revert, or
 in [`sample-data/`](sample-data/README.md) — fifteen throwaway datasets that
 exist so you can point the agent at something and watch it work.
 
-Full walkthrough: **[docs/start/quickstart.md](docs/start/quickstart.md)**.
+Full walkthrough: **[help/quickstart.md](help/quickstart.md)**.
 
 ## Run BuildMax For A Space
 
@@ -99,10 +99,10 @@ or a private cluster, start with the
 [Compose quickstart](docs/deploy/compose.md), the
 [deployment overview](docs/deploy/overview.md) and the readable Kubernetes
 reference under [`deployment/production/`](deployment/production/README.md).
-The [support matrix](docs/start/support.md) states the current Alpha/Beta
+The [support matrix](help/support.md) states the current Alpha/Beta
 boundaries; do not expose a deployment before reading the
 [authentication](docs/deploy/authentication.md) and
-[sandbox](docs/guide/sandbox.md) guidance.
+[sandbox](help/sandbox.md) guidance.
 
 ## Documentation
 
@@ -110,10 +110,10 @@ boundaries; do not expose a deployment before reading the
 
 | | |
 |---|---|
-| [Install](docs/start/install.md) · [Quickstart](docs/start/quickstart.md) · [Support matrix](docs/start/support.md) · [Concepts](docs/start/concepts.md) | Getting started |
-| [Hooks](docs/guide/hooks.md) · [Sandbox](docs/guide/sandbox.md) | Controlling what the agent may do |
+| [Install](help/install.md) · [Quickstart](help/quickstart.md) · [Support matrix](help/support.md) · [Concepts](help/concepts.md) | Getting started |
+| [Hooks](help/hooks.md) · [Sandbox](help/sandbox.md) | Controlling what the agent may do |
 | [Compose quickstart](docs/deploy/compose.md) · [Local kind](docs/deploy/local-kind.md) · [Deployment](docs/deploy/overview.md) · [Authentication](docs/deploy/authentication.md) | Running it for a space |
-| [Configuration](docs/reference/configuration.md) · [CLI](docs/reference/cli.md) · [Webhook](docs/reference/webhook.md) | Reference |
+| [Configuration](docs/reference/configuration.md) · [CLI](help/cli.md) · [Webhook](docs/reference/webhook.md) | Reference |
 | [docs/ROADMAP.md](docs/ROADMAP.md) · [Design records](docs/design/README.md) | Where it is going, and why |
 | [Contributing](CONTRIBUTING.md) · [Support](.github/SUPPORT.md) · [Changelog](CHANGELOG.md) | Project participation and releases |
 
@@ -188,7 +188,7 @@ whole path from clone to pull request. Repository tree:
 BuildMax invokes model-selected tools and shell commands. Treat every runtime
 configuration as an execution boundary: dedicated credentials, least-privilege
 workspace access, an explicit network policy. The [bash
-sandbox](docs/guide/sandbox.md) and [runtime hooks](docs/guide/hooks.md) tighten
+sandbox](help/sandbox.md) and [runtime hooks](help/hooks.md) tighten
 that boundary, but do not replace reviewing what a deployment is allowed to
 reach. Never commit credentials.
 

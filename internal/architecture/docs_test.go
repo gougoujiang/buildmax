@@ -1,7 +1,8 @@
 package architecture_test
 
-// Documentation constraints. These keep docs/ honest about things the code is
-// the source of truth for: every relative link must resolve, every environment
+// Documentation constraints. These keep docs/ and the help/ manual honest about
+// things the code is the source of truth for: every relative link must resolve,
+// every environment
 // variable must be documented, every LLM-facing tool name must appear in the
 // user-facing tool guide, every cited file and `./make` command must exist, and
 // every CLI command must reach the reference page.
@@ -24,21 +25,24 @@ import (
 )
 
 // markdownFiles returns every documentation file whose links are checked.
+// help/ is the end-user manual and docs/ the contributor and design set; both
+// are held to the same link and path integrity.
 func markdownFiles(t *testing.T, root string) []string {
 	t.Helper()
 	var files []string
-	docsDir := filepath.Join(root, "docs")
-	err := filepath.WalkDir(docsDir, func(path string, d os.DirEntry, err error) error {
+	for _, dir := range []string{"docs", "help"} {
+		err := filepath.WalkDir(filepath.Join(root, dir), func(path string, d os.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if !d.IsDir() && strings.HasSuffix(path, ".md") {
+				files = append(files, path)
+			}
+			return nil
+		})
 		if err != nil {
-			return err
+			t.Fatalf("walk %s: %v", dir, err)
 		}
-		if !d.IsDir() && strings.HasSuffix(path, ".md") {
-			files = append(files, path)
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("walk docs: %v", err)
 	}
 	for _, name := range []string{
 		"README.md",
@@ -120,7 +124,7 @@ func TestEnvVarsDocumented(t *testing.T) {
 // silently breaks working configuration.
 func TestToolNamesDocumented(t *testing.T) {
 	root := repoRoot(t)
-	path := filepath.Join(root, "docs", "guide", "tools.md")
+	path := filepath.Join(root, "help", "tools.md")
 	body, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read tool guide: %v", err)
@@ -135,7 +139,7 @@ func TestToolNamesDocumented(t *testing.T) {
 	}
 	for _, name := range names {
 		if !strings.Contains(doc, "`"+name+"`") {
-			t.Errorf("tool %q is registered but not documented in docs/guide/tools.md", name)
+			t.Errorf("tool %q is registered but not documented in help/tools.md", name)
 		}
 	}
 }
@@ -553,11 +557,11 @@ func TestDocumentedFilePathsExist(t *testing.T) {
 var undocumentedCLICommands = map[string]string{}
 
 // TestCLIReferenceCoversEveryCommand fails when a command reaches the binary
-// without reaching docs/reference/cli.md. That page is where a user looks for
-// the command list, so a command missing from it is one nobody finds.
+// without reaching help/cli.md. That page is where a user looks for the command
+// list, so a command missing from it is one nobody finds.
 func TestCLIReferenceCoversEveryCommand(t *testing.T) {
 	root := repoRoot(t)
-	const page = "docs/reference/cli.md"
+	const page = "help/cli.md"
 	body, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(page)))
 	if err != nil {
 		t.Fatalf("read %s: %v", page, err)

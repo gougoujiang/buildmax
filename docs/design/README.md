@@ -4,7 +4,7 @@
 
 Why BuildMax is built the way it is. These are **rationale, not user
 documentation** — when a design ships something configurable, the user-facing
-half lives in [../guide/](../guide/) or [../reference/](../reference/), and the
+half lives in the [help manual](../../help) or [../reference/](../reference/), and the
 design record keeps the trade-offs and the open gaps.
 
 Documents use stable, semantic filenames. The index supplies their lifecycle
@@ -71,15 +71,15 @@ aligned with code and link user-facing behavior to `guide/` or `reference/`.
 
 | Document | Current state | User docs |
 |---|---|---|
-| [Client modes: local and managed](client-modes.md) | Implemented: the mode is whether a login is stored, models come from one source, the alias layer and per-space model policy are gone, and the call ledger is user-scoped | [guide/models-and-modes.md](../guide/models-and-modes.md) |
-| [LLM provider adapters](llm-provider-adapters.md) | Three wire protocols, reasoning, prompt caching, and image input are implemented | [guide/models-and-modes.md](../guide/models-and-modes.md) |
+| [Client modes: local and managed](client-modes.md) | Implemented: the mode is whether a login is stored, models come from one source, the alias layer and per-space model policy are gone, and the call ledger is user-scoped | [help/models-and-modes.md](../../help/models-and-modes.md) |
+| [LLM provider adapters](llm-provider-adapters.md) | Three wire protocols, reasoning, prompt caching, and image input are implemented | [help/models-and-modes.md](../../help/models-and-modes.md) |
 | [Worker run token](worker-run-token.md) | The run-scoped credential is the only credential accepted by worker routes; the shared worker token is removed | [reference/configuration.md](../reference/configuration.md) |
 | [Space membership lifecycle](space-membership-lifecycle.md) | Invitation, role change, ownership transfer, access recovery, and their Portal surfaces are implemented | — |
 | [Timestamp representation](timestamp-representation.md) | Persisted instants use `time.Time`, `DATETIME(6)`, and RFC 3339 with UTC-pinned database connections | — |
-| [Hook system](hook-system.md) | 16 events and 4 transports implemented; the optional inspector and frontmatter integrations stay deferred | [guide/hooks.md](../guide/hooks.md) |
-| [Sandbox boundaries](sandbox-boundaries.md) | Local phases A–E implemented, process limits and the command/http hook boundary included; phase F's worker surface selection, production-pod verification, and downgrade marking shipped, its example-config docs and the `sandbox overrides` command open | [guide/sandbox.md](../guide/sandbox.md) |
-| [Durable run trace](durable-run-trace.md) | Phase 1 implemented; richer events and retention open | [guide/sessions-and-traces.md](../guide/sessions-and-traces.md) |
-| [Queued messages](queued-messages.md) | Queueing on all three surfaces, mid-run injection on CLI/TUI and Desktop; persistence and Portal injection decided against | [reference/cli.md](../reference/cli.md) |
+| [Hook system](hook-system.md) | 16 events and 4 transports implemented; the optional inspector and frontmatter integrations stay deferred | [help/hooks.md](../../help/hooks.md) |
+| [Sandbox boundaries](sandbox-boundaries.md) | Local phases A–E implemented, process limits and the command/http hook boundary included; phase F's worker surface selection, production-pod verification, and downgrade marking shipped, its example-config docs and the `sandbox overrides` command open | [help/sandbox.md](../../help/sandbox.md) |
+| [Durable run trace](durable-run-trace.md) | Phase 1 implemented; richer events and retention open | [help/sessions-and-traces.md](../../help/sessions-and-traces.md) |
+| [Queued messages](queued-messages.md) | Queueing on all three surfaces, mid-run injection on CLI/TUI and Desktop; persistence and Portal injection decided against | [help/cli.md](../../help/cli.md) |
 
 ## Where The Designs Land
 

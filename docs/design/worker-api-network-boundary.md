@@ -597,5 +597,5 @@ When the design ships:
   as if token scope were the whole boundary;
 - [Trust harness](trust-harness.md) marks the Server-control-channel part of
   §3.9 closed while keeping general worker egress open; and
-- [Support matrix](../start/support.md) describes the deployed boundary only
+- [Support matrix](../../help/support.md) describes the deployed boundary only
   after the kind denial probe is part of the normal smoke.

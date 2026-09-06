@@ -372,8 +372,8 @@ tool call already passed `PreToolUse`, so a second gate could only leave a
 worktree half-created, and a hook that fails never undoes a move that has
 happened. Desktop needed no code — it renders the project folder, which is its
 root, and it does not enable worktrees, so that root cannot move. The user
-documentation is in [guide/tools.md](../guide/tools.md) and
-[guide/hooks.md](../guide/hooks.md).
+documentation is in [help/tools.md](../../help/tools.md) and
+[help/hooks.md](../../help/hooks.md).
 
 **Phase 5 — worktrees for delegates. Implemented.** `Task` takes an optional
 `worktree` name. The tree is created and its occupancy lock held for as long
@@ -397,7 +397,7 @@ delegate's changes would otherwise be somewhere the parent never learns.
 ## 10. User Documentation Obligations
 
 This record is rationale. When the phases land, the user-facing half belongs in
-`docs/guide/` — how to ask for a worktree, what the agent does with uncommitted
+`help/` — how to ask for a worktree, what the agent does with uncommitted
 changes, and how cleanup works — and the `/worktree` command belongs in
-[reference/cli.md](../reference/cli.md), whose coverage is enforced by a test.
+[help/cli.md](../../help/cli.md), whose coverage is enforced by a test.
 Neither should restate the decisions above.

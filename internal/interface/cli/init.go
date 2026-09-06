@@ -34,7 +34,7 @@ const (
 	initDefaultName          = "GPT-4o mini"
 	initDefaultContextWindow = 128000
 	openRouterKeysURL        = "https://openrouter.ai/keys"
-	quickstartURL            = "https://github.com/gougoujiang/buildmax/blob/main/docs/start/quickstart.md"
+	quickstartURL            = "https://github.com/gougoujiang/buildmax/blob/main/help/quickstart.md"
 	// initDefaultOllamaModel is written when --ollama finds no daemon to ask.
 	// A model that is not pulled yet is still the right thing to configure: the
 	// next step printed is the command that pulls it.

@@ -4,14 +4,18 @@
 
 ## Organized By Reader, Not By Artifact
 
-`docs/` is split by the question someone is trying to answer:
+The **end-user manual is [`help/`](../../help)** — a task-oriented directory, one
+page per capability, that ships inside the Portal image and is served in-app
+under **Help**. Everything a person needs to install, run, and drive BuildMax
+lives there, from the quickstart and core concepts to every CLI command;
+[`help/manifest.json`](../../help/manifest.json) is its table of contents.
+
+`docs/` holds everything else, split by the question someone is trying to answer:
 
 | Directory | Reader | Contains |
 |---|---|---|
-| `start/` | Someone who just installed it | Install, quickstart, concepts |
-| `guide/` | Someone using it | One document per capability, task-oriented |
 | `deploy/` | Someone running it for a space | Topology, authentication, local cluster |
-| `reference/` | Someone looking something up | Configuration, CLI, webhook — tables, not prose |
+| `reference/` | Someone looking something up | Configuration, webhook — tables, not prose |
 | `contribute/` | Someone changing the code | Layout, architecture, these conventions |
 | `design/` | Someone asking "why is it like this" | Semantic design records indexed by lifecycle |
 | `proposals/` | Someone evaluating a possible future direction | Exploratory cross-cutting papers that are not committed work |
@@ -66,9 +70,9 @@ comments and other documents can cite it without inheriting planning metadata:
   partly implemented subsystem is designed. These stay current.
 
 A design document is **rationale, not user documentation**. When a design ships
-a user-configurable feature, the user-facing half belongs in `guide/` or
-`reference/`, and the design document links to it and keeps the trade-offs and
-open gaps.
+a user-configurable feature, the user-facing half belongs in the `help/` manual
+(or in `reference/` when it is a lookup table), and the design document links to
+it and keeps the trade-offs and open gaps.
 
 ## Retiring A Document
 
@@ -82,8 +86,8 @@ git show <commit>^:docs/path/to/file.md
 ```
 
 If a retired document contains something still true and still needed, move that
-content to `guide/` or `reference/` first, verified against the code, then
-delete the original.
+content to the `help/` manual or `reference/` first, verified against the code,
+then delete the original.
 
 ## Document Header
 
@@ -119,8 +123,9 @@ decision costs a scroll through the whole file, which is why the list is
 required here and not merely encouraged.
 
 The two `README.md` index files are exempt — they are already lists of links.
-`guide/` and `reference/` pages are exempt too: they are task-oriented, and a
-contents list competes with the task rather than serving it.
+The `help/` manual pages and `reference/` pages are exempt too: they are
+task-oriented, and a contents list competes with the task rather than serving
+it.
 
 Maintain the list with the document. A section renamed or added without its
 entry is worse than no list at all, because a reader trusts one that exists.
@@ -146,12 +151,12 @@ the build on the ways documentation rots silently:
 |---|---|
 | `TestDocsLinksResolve` | A relative markdown link points at a file that does not exist |
 | `TestEnvVarsDocumented` | `config.EnvVars()` gains a variable missing from [reference/configuration.md](../reference/configuration.md) |
-| `TestToolNamesDocumented` | A tool name constant is missing from [guide/tools.md](../guide/tools.md) |
+| `TestToolNamesDocumented` | A tool name constant is missing from [help/tools.md](../../help/tools.md) |
 | `TestArchitectureToolInventoryCoversEveryToolNameConstant` | A tool declared in `internal/tool/names.go` is missing from the contributor [tool inventory](architecture/tools.md) |
 | `TestAgentsMDPathsExist` / `TestAgentsMDRoutesExist` | [AGENTS.md](../../AGENTS.md) cites a path or route that does not exist |
 | `TestDocumentedFilePathsExist` | Any document cites a repository file that does not exist |
 | `TestDocumentedMakeCommandsExist` | Any document names a `./make` command the task runner does not dispatch |
-| `TestCLIReferenceCoversEveryCommand` | A command reaches the binary without reaching [reference/cli.md](../reference/cli.md) |
+| `TestCLIReferenceCoversEveryCommand` | A command reaches the binary without reaching [help/cli.md](../../help/cli.md) |
 
 The tool-name checks exist because those strings are user-visible contract —
 they appear in hook `matcher` regexes and subagent `tools:` fields, so renaming
@@ -172,7 +177,7 @@ Everything else is convention, upheld in review.
 | Change | Update |
 |---|---|
 | Package boundary or runtime contract | The matching document in [architecture/](architecture/README.md), same pull request |
-| User-visible behavior or configuration | `guide/`, `reference/`, and `config-examples/` |
+| User-visible behavior or configuration | The `help/` manual, `reference/`, and `config-examples/` |
 | Direction | Add or update a semantic record in [../design/](../design/README.md) |
 | A package moves | [repo-layout.md](repo-layout.md) — and nowhere else |
 
