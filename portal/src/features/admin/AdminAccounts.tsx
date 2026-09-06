@@ -15,6 +15,15 @@ import {
 
 const PAGE_SIZE = 50
 
+interface AccountFilters {
+  status: string
+  hasPassword: string
+  systemRole: string
+  platform: string
+}
+
+const emptyFilters: AccountFilters = { status: "", hasPassword: "", systemRole: "", platform: "" }
+
 function accountState(user: ApiAdminUser): { label: string; disabled: boolean } {
   if (user.disabled_at) return { label: "Disabled", disabled: true }
   if (!user.has_password) return { label: "No password yet", disabled: false }
@@ -52,13 +61,22 @@ export function AdminAccounts({ token }: { token: string | null }) {
   const [busy, setBusy] = useState(false)
   const [loginCode, setLoginCode] = useState<string | null>(null)
   const [offset, setOffset] = useState(0)
+  const [filters, setFilters] = useState<AccountFilters>(emptyFilters)
 
   const load = useCallback(
-    (q: string, off: number) => {
+    (q: string, off: number, f: AccountFilters) => {
       if (!token) return
       setLoading(true)
       setError(null)
-      listAdminUsers(token, { q, limit: PAGE_SIZE, offset: off })
+      listAdminUsers(token, {
+        q,
+        limit: PAGE_SIZE,
+        offset: off,
+        status: f.status || undefined,
+        has_password: f.hasPassword || undefined,
+        system_role: f.systemRole || undefined,
+        platform: f.platform || undefined,
+      })
         .then((res) => {
           setUsers(res.users)
           setTotal(res.total)
@@ -71,7 +89,7 @@ export function AdminAccounts({ token }: { token: string | null }) {
   )
 
   useEffect(() => {
-    load("", 0)
+    load("", 0, emptyFilters)
   }, [load])
 
   function openDetail(userId: string) {
@@ -93,13 +111,21 @@ export function AdminAccounts({ token }: { token: string | null }) {
     try {
       const result = await run()
       setNotice(done(result))
-      load(query, offset)
+      load(query, offset, filters)
       if (selected) openDetail(selected.id)
     } catch (err) {
       setError(getErrorMessage(err, "The action did not complete"))
     } finally {
       setBusy(false)
     }
+  }
+
+  // A filter change always returns to the first page: the offset it was on may
+  // not exist in the narrower result.
+  function applyFilter(patch: Partial<AccountFilters>) {
+    const next = { ...filters, ...patch }
+    setFilters(next)
+    load(query, 0, next)
   }
 
   function confirmDisable(user: ApiAdminUser): boolean {
@@ -129,7 +155,7 @@ export function AdminAccounts({ token }: { token: string | null }) {
           className="admin-toolbar"
           onSubmit={(e) => {
             e.preventDefault()
-            load(query, 0)
+            load(query, 0, filters)
           }}
         >
           <input
@@ -144,6 +170,49 @@ export function AdminAccounts({ token }: { token: string | null }) {
             Search
           </button>
         </form>
+
+        <div className="admin-toolbar" role="group" aria-label="Filter accounts">
+          <select
+            className="admin-input"
+            aria-label="Filter by status"
+            value={filters.status}
+            onChange={(e) => applyFilter({ status: e.target.value })}
+          >
+            <option value="">Any status</option>
+            <option value="enabled">Enabled</option>
+            <option value="disabled">Disabled</option>
+          </select>
+          <select
+            className="admin-input"
+            aria-label="Filter by password state"
+            value={filters.hasPassword}
+            onChange={(e) => applyFilter({ hasPassword: e.target.value })}
+          >
+            <option value="">Any password</option>
+            <option value="true">Has a password</option>
+            <option value="false">No password yet</option>
+          </select>
+          <select
+            className="admin-input"
+            aria-label="Filter by system role"
+            value={filters.systemRole}
+            onChange={(e) => applyFilter({ systemRole: e.target.value })}
+          >
+            <option value="">Any role</option>
+            <option value="system_admin">Administrators</option>
+          </select>
+          <select
+            className="admin-input"
+            aria-label="Filter by last-login platform"
+            value={filters.platform}
+            onChange={(e) => applyFilter({ platform: e.target.value })}
+          >
+            <option value="">Any platform</option>
+            <option value="portal">Portal</option>
+            <option value="cli">CLI</option>
+            <option value="desktop">Desktop</option>
+          </select>
+        </div>
 
         {error ? (
           <p className="settings-section__error" role="alert">
@@ -194,7 +263,7 @@ export function AdminAccounts({ token }: { token: string | null }) {
                     type="button"
                     className="admin-button"
                     disabled={loading || !page.hasPrev}
-                    onClick={() => load(query, page.prevOffset)}
+                    onClick={() => load(query, page.prevOffset, filters)}
                   >
                     Previous
                   </button>
@@ -205,7 +274,7 @@ export function AdminAccounts({ token }: { token: string | null }) {
                     type="button"
                     className="admin-button"
                     disabled={loading || !page.hasNext}
-                    onClick={() => load(query, page.nextOffset)}
+                    onClick={() => load(query, page.nextOffset, filters)}
                   >
                     Next
                   </button>

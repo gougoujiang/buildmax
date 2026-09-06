@@ -91,7 +91,15 @@ export function getAdminConfig(token: string): Promise<Record<string, unknown>> 
 
 export function listAdminUsers(
   token: string,
-  options?: { q?: string; limit?: number; offset?: number },
+  options?: {
+    q?: string
+    limit?: number
+    offset?: number
+    status?: string
+    has_password?: string
+    system_role?: string
+    platform?: string
+  },
 ): Promise<ApiAdminUsersResponse> {
   return get<ApiAdminUsersResponse>("/users", token, options)
 }

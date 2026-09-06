@@ -31,6 +31,25 @@ type User struct {
 func (u User) Disabled() bool { return u.DisabledAt != nil }
 
 // UserStore looks up users by email and creates new users.
+// UserFilter narrows a ListUsers result. A zero value matches every account;
+// each set field is an AND.
+type UserFilter struct {
+	// Query matches the email as a substring.
+	Query string
+	// Disabled, when set, keeps only disabled (true) or only enabled (false)
+	// accounts.
+	Disabled *bool
+	// HasPassword, when set, keeps only accounts that have set a password (true)
+	// or have not (false) — the latter is who still needs a login code.
+	HasPassword *bool
+	// SystemRole, when non-empty, keeps only accounts holding that role as an
+	// active grant.
+	SystemRole string
+	// Platform, when non-empty, keeps only accounts whose last login was on it.
+	// An account that never logged in is excluded.
+	Platform string
+}
+
 type UserStore interface {
 	// UserByEmail matches the address without regard to case, and returns
 	// (nil, nil) when nobody has it. Login resolves the account this way and
@@ -43,9 +62,9 @@ type UserStore interface {
 	CreateUser(ctx context.Context, email string, defaultQuotaTier string) (*User, error)
 	// UpdateLoginMeta records the last login timestamp and platform for the user.
 	UpdateLoginMeta(ctx context.Context, userID string, loginAt time.Time, platform string) error
-	// ListUsers returns accounts newest first with the total count. A non-empty
-	// query filters on email as a substring.
-	ListUsers(ctx context.Context, query string, limit, offset int) ([]User, int, error)
+	// ListUsers returns accounts newest first with the total count of accounts
+	// the filter matched (not the page size), so a caller can page through them.
+	ListUsers(ctx context.Context, filter UserFilter, limit, offset int) ([]User, int, error)
 	// SetUserDisabled disables the account at the given time, or enables it
 	// when disabledAt is nil. Returns ErrUserNotFound when there is no such
 	// account.

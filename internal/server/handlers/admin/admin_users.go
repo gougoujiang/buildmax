@@ -102,6 +102,22 @@ type AdminSessionsResponse struct {
 	Sessions []AdminSession `json:"sessions"`
 }
 
+// triState reads a query param that means true, false, or "either". It returns
+// a pointer so the absent value (match either) stays distinct from an explicit
+// false.
+func triState(value, trueVal, falseVal string) *bool {
+	switch value {
+	case trueVal:
+		t := true
+		return &t
+	case falseVal:
+		f := false
+		return &f
+	default:
+		return nil
+	}
+}
+
 // listAdminUsersHandler serves GET /api/admin/users.
 func (h *Handler) listAdminUsersHandler(w http.ResponseWriter, r *http.Request) {
 	if _, ok := h.guard().SystemAdmin(w, r); !ok {
@@ -110,8 +126,16 @@ func (h *Handler) listAdminUsersHandler(w http.ResponseWriter, r *http.Request) 
 	if !httputil.RequireStore(w, h.cfg.Users, "accounts not configured") {
 		return
 	}
-	limit, offset := httputil.LimitOffset(r.URL.Query(), "limit", "offset", httputil.BulkPageDefault, httputil.BulkPageMax)
-	users, total, err := h.cfg.Users.ListUsers(r.Context(), strings.TrimSpace(r.URL.Query().Get("q")), limit, offset)
+	query := r.URL.Query()
+	limit, offset := httputil.LimitOffset(query, "limit", "offset", httputil.BulkPageDefault, httputil.BulkPageMax)
+	filter := coreidentity.UserFilter{
+		Query:       strings.TrimSpace(query.Get("q")),
+		SystemRole:  query.Get("system_role"),
+		Platform:    query.Get("platform"),
+		Disabled:    triState(query.Get("status"), "disabled", "enabled"),
+		HasPassword: triState(query.Get("has_password"), "true", "false"),
+	}
+	users, total, err := h.cfg.Users.ListUsers(r.Context(), filter, limit, offset)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "admin_list_users")
 		return
