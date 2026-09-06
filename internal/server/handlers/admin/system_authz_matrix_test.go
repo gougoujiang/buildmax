@@ -68,6 +68,7 @@ var adminRoutes = []adminCase{
 	{"GET", "/api/admin/spaces"},
 	{"GET", "/api/admin/spaces/{space_id}"},
 	{"GET", "/api/admin/llm/models"},
+	{"POST", "/api/admin/llm/models"},
 	{"POST", "/api/admin/llm/models/{model_id}/enable"},
 	{"POST", "/api/admin/llm/models/{model_id}/disable"},
 	// Publishing changes what every member of the deployment can install, so

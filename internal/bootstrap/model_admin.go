@@ -11,13 +11,11 @@ import (
 
 	"github.com/gougoujiang/buildmax/internal/config"
 	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
-	"github.com/gougoujiang/buildmax/internal/core/llm"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/infra/db"
 	infrasecret "github.com/gougoujiang/buildmax/internal/infra/secret"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 	"github.com/gougoujiang/buildmax/internal/service/llmcatalog"
-	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
 )
 
 // The operator-side half of the managed model catalog. The catalog holds
@@ -98,7 +96,7 @@ func runModelAdd(ctx context.Context, args []string, out io.Writer) error {
 	apiURL := fs.String("api-url", "", "upstream base URL")
 	apiKey := fs.String("api-key", "", "upstream credential")
 	providerModel := fs.String("model", "", "the provider's own model identifier")
-	provider := fs.String("provider", llm.ProviderOpenAICompatible, "wire protocol the upstream speaks")
+	provider := fs.String("provider", "", "wire protocol the upstream speaks (default openai_compatible)")
 	contextWindow := fs.Int("context-window", 0, "usable context size")
 	callTimeout := fs.Int("call-timeout", 0, "per-call timeout in seconds")
 	maxTokens := fs.Int("max-tokens", 0, "cap on one response")
@@ -232,16 +230,10 @@ func runModelSetEnabled(ctx context.Context, args []string, out io.Writer, enabl
 	return nil
 }
 
-// parseCapabilityList defaults to the capability set an OpenAI-compatible
-// client already guarantees, matching what the runtime assumes elsewhere.
+// parseCapabilityList splits the comma-separated flag. An empty value yields no
+// entries; the catalog service fills the baseline default, so the shell and the
+// admin API agree on it without either restating it.
 func parseCapabilityList(s string) []string {
-	if strings.TrimSpace(s) == "" {
-		out := make([]string, 0, 4)
-		for _, c := range llmgateway.BaselineCapabilities() {
-			out = append(out, string(c))
-		}
-		return out
-	}
 	parts := strings.Split(s, ",")
 	out := make([]string, 0, len(parts))
 	for _, p := range parts {

@@ -17,6 +17,20 @@ const testSecret = "matrix-secret"
 
 const matrixSpace = "tm_matrix"
 
+// adminPostJSON drives one POST with a JSON body as the given user, for the
+// handlers that take a request body rather than only a path.
+func adminPostJSON(t *testing.T, mux *http.ServeMux, path, userID, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	if userID != "" {
+		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT(userID, testSecret))
+	}
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	return rec
+}
+
 func adminRequestAs(t *testing.T, mux *http.ServeMux, c adminCase, userID string) *httptest.ResponseRecorder {
 	t.Helper()
 	path := regexp.MustCompile(`\{[^}]+\}`).ReplaceAllString(c.path, "nonexistent")

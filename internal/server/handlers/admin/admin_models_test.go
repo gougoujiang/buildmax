@@ -124,6 +124,73 @@ func TestAdminModelEnableDisable(t *testing.T) {
 	}
 }
 
+// TestAdminModelCreate adds a model over HTTP and checks the whole contract:
+// created, audited, and the credential in neither the response nor the audit.
+func TestAdminModelCreate(t *testing.T) {
+	mux, models, audits := adminModelsMux(t)
+
+	const newSecret = "sk-CREATE-must-never-be-served"
+	body := `{
+		"name": "Created",
+		"provider_type": "openai_compatible",
+		"api_url": "https://example.test/v1",
+		"api_key": "` + newSecret + `",
+		"model": "provider/created",
+		"context_window": 128000
+	}`
+	rec := adminPostJSON(t, mux, "/api/admin/llm/models", adminUser, body)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	// The response is the whole surface a browser sees; the key must not be on it.
+	out := rec.Body.String()
+	if strings.Contains(out, newSecret) || strings.Contains(strings.ToLower(out), "api_key") {
+		t.Errorf("the create response carried a credential: %s", out)
+	}
+	var created AdminModel
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if created.Name != "Created" {
+		t.Errorf("created.Name = %q", created.Name)
+	}
+
+	// It is really in the catalog now.
+	if _, err := models.GetLLMModel(t.Context(), created.ID); err != nil {
+		t.Errorf("the created model is not in the catalog: %v", err)
+	}
+
+	// Audited as a creation by the administrator, and the record names the model,
+	// not the key.
+	if len(audits.Events) != 1 {
+		t.Fatalf("got %d audit events, want 1: %+v", len(audits.Events), audits.Events)
+	}
+	e := audits.Events[0]
+	if e.Action != coreaudit.ModelCreated || e.ActorType != coreaudit.ActorUser || e.ActorID != adminUser {
+		t.Errorf("event = %+v, want %s by the administrator", e, coreaudit.ModelCreated)
+	}
+	if strings.Contains(e.Detail, newSecret) {
+		t.Errorf("the audit detail carried the credential: %+v", e)
+	}
+}
+
+func TestAdminModelCreateRejectsInvalidAndDuplicate(t *testing.T) {
+	mux, _, _ := adminModelsMux(t)
+
+	// Missing api_url: the catalog refuses it, and the edge answers 400.
+	missing := `{"name":"Bad","provider_type":"openai_compatible","api_key":"sk-x","model":"m"}`
+	if got := adminPostJSON(t, mux, "/api/admin/llm/models", adminUser, missing).Code; got != http.StatusBadRequest {
+		t.Errorf("missing api_url got %d, want 400", got)
+	}
+
+	// A name the seed already holds: 409, not a second row.
+	dup := `{"name":"Fast","provider_type":"openai_compatible","api_url":"https://example.test/v1","api_key":"sk-x","model":"m"}`
+	if got := adminPostJSON(t, mux, "/api/admin/llm/models", adminUser, dup).Code; got != http.StatusConflict {
+		t.Errorf("duplicate name got %d, want 409", got)
+	}
+}
+
 func TestAdminModelToggleOnAnUnknownModel(t *testing.T) {
 	mux, _, _ := adminModelsMux(t)
 	if got := adminRequestAs(t, mux, adminCase{"POST", "/api/admin/llm/models/lm_nobody/disable"}, adminUser).Code; got != http.StatusNotFound {
