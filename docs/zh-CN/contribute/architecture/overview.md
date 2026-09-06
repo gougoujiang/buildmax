@@ -55,4 +55,4 @@ Portal -> server/handlers -> service/conversation -> service/task -> scheduler -
 
 - 仓库目录树见 [../repo-layout.md](../repo-layout.md)。
 - 当前产品规划从 [../../design/README.md](../../../design/README.md) 和 [ROADMAP.md](../../../ROADMAP.md) 开始。
-- 产品层面的介绍——BuildMax 是什么、各界面面向谁——见 [help/concepts.md](../../../../help/concepts.md)。
+- 产品层面的介绍——BuildMax 是什么、各界面面向谁——见 [help/concepts.md](../../../../manual/concepts.md)。

@@ -47,7 +47,7 @@ CLI/TUI 和 Desktop 是完整的本地入口，并非 Portal 的试用界面。�
 - 工作区、会话和结果处理
 - 跨平台打包和诊断
 
-根据要修改的界面，阅读 [CLI](architecture/cli.md)、[TUI](architecture/tui.md) 或 [Desktop](architecture/desktop.md) 架构。按照[本地快速入门](../../../help/quickstart.md)操作时发现的小型易用性问题，很适合作为首次贡献。
+根据要修改的界面，阅读 [CLI](architecture/cli.md)、[TUI](architecture/tui.md) 或 [Desktop](architecture/desktop.md) 架构。按照[本地快速入门](../../../manual/quickstart.md)操作时发现的小型易用性问题，很适合作为首次贡献。
 
 ### 企业平台
 

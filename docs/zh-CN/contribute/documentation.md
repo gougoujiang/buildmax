@@ -5,9 +5,9 @@
 
 ## 按读者组织，而非按产物组织
 
-**最终用户手册是 [`help/`](../../../help)**：按任务组织，每项能力一页，随 Portal 镜像交付，并在应用内的 **Help** 下提供。从快速入门、核心概念到每个 CLI 命令，安装、运行和使用 BuildMax 所需的一切都在这里；[`help/manifest.json`](../../../help/manifest.json) 是其目录。
+**最终用户手册是 [`manual/`](../../../manual)**：按任务组织，每项能力一页，随 Portal 镜像交付，并在应用内的 **Help** 下提供。从快速入门、核心概念到每个 CLI 命令，安装、运行和使用 BuildMax 所需的一切都在这里；[`manual/manifest.json`](../../../manual/manifest.json) 是其目录。
 
-英文是源文档。[`help/zh/`](../../../help/zh) 是简体中文镜像，每个英文页面对应一页，并有自己的 `manifest.json`；Help 页面提供 EN / 中文切换。中文文件使用中文名称（`沙箱.md`），因此每个 manifest 条目保留英文 `slug` 作为稳定 URL 键，并增加 `file` 指定磁盘上的文件。两种语言必须同步：修改英文页面时，在同一个拉取请求中更新 `zh/` 对应页面。
+英文是源文档。[`manual/zh/`](../../../manual/zh) 是简体中文镜像，每个英文页面对应一页，并有自己的 `manifest.json`；Help 页面提供 EN / 中文切换。中文文件使用中文名称（`沙箱.md`），因此每个 manifest 条目保留英文 `slug` 作为稳定 URL 键，并增加 `file` 指定磁盘上的文件。两种语言必须同步：修改英文页面时，在同一个拉取请求中更新 `zh/` 对应页面。
 
 `docs/` 保存其余内容，按读者想回答的问题划分：
 
@@ -131,12 +131,12 @@ git show <commit>^:docs/path/to/file.md
 | `TestDocsLinksResolve` | 相对 Markdown 链接指向不存在的文件 |
 | `TestDesignTranslationsMirrorEnglish` | 中文设计镜像缺失、孤立、链接不正确，或落后于英文源文档 |
 | `TestEnvVarsDocumented` | `config.EnvVars()` 新增的变量未出现在 [reference/configuration.md](../../reference/configuration.md) |
-| `TestToolNamesDocumented` | 工具名称常量未出现在 [help/tools.md](../../../help/tools.md) |
+| `TestToolNamesDocumented` | 工具名称常量未出现在 [help/tools.md](../../../manual/tools.md) |
 | `TestArchitectureToolInventoryCoversEveryToolNameConstant` | `internal/tool/names.go` 声明的工具未出现在贡献者[工具清单](architecture/tools.md) |
 | `TestAgentsMDPathsExist` / `TestAgentsMDRoutesExist` | [AGENTS.md](../../../AGENTS.md) 引用了不存在的路径或路由 |
 | `TestDocumentedFilePathsExist` | 任一文档引用了不存在的仓库文件 |
 | `TestDocumentedMakeCommandsExist` | 任一文档提及任务运行器无法分发的 `./make` 命令 |
-| `TestCLIReferenceCoversEveryCommand` | 二进制中存在某命令，但 [help/cli.md](../../../help/cli.md) 未记录 |
+| `TestCLIReferenceCoversEveryCommand` | 二进制中存在某命令，但 [help/cli.md](../../../manual/cli.md) 未记录 |
 
 工具名称检查存在的原因是：这些字符串是用户可见契约，会出现在 hook 的 `matcher` 正则和 subagent 的 `tools:` 字段中。重命名工具却不更新文档会悄悄破坏可用配置。架构检查从 `names.go` 读取声明，避免手工维护的测试列表遗漏新增的界面限定工具。
 
