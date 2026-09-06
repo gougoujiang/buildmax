@@ -13,9 +13,14 @@ import (
 // MockUserStore is an in-memory UserStore for tests.
 // Use ByEmail and ByID to pre-seed users; CreateErr and NextUserID for behavior.
 type MockUserStore struct {
-	ByEmail    map[string]*coreidentity.User
-	ByID       map[string]*coreidentity.User
-	CreateErr  error
+	ByEmail   map[string]*coreidentity.User
+	ByID      map[string]*coreidentity.User
+	CreateErr error
+	// DisableErr, when set, is returned by SetUserDisabled instead of applying
+	// the change. It lets a handler test drive the last-holder refusal, which
+	// the real store decides atomically against the grant table and this
+	// in-memory double cannot reproduce on its own.
+	DisableErr error
 	NextUserID int
 }
 
@@ -100,6 +105,9 @@ func (m *MockUserStore) ListUsers(_ context.Context, query string, limit, offset
 }
 
 func (m *MockUserStore) SetUserDisabled(_ context.Context, userID string, disabledAt *time.Time) error {
+	if m.DisableErr != nil {
+		return m.DisableErr
+	}
 	u, ok := m.ByID[userID]
 	if !ok || u == nil {
 		return coreidentity.ErrUserNotFound

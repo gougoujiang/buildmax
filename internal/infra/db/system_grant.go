@@ -9,6 +9,7 @@ import (
 	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	"github.com/gougoujiang/buildmax/internal/util"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // systemGrantRow is one deployment-scoped authority held by one user.
@@ -19,14 +20,18 @@ type systemGrantRow struct {
 	ID       uint64 `gorm:"primaryKey;autoIncrement"`
 	PublicID string `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_system_grant_public_id;not null"`
 
-	// The composite unique index is what keeps one user from holding two
-	// active grants for the same role. RevokedAt participates in it so that
-	// revoked rows do not collide with each other or with a later re-grant:
-	// MySQL treats NULLs as distinct in a unique index, which here means at
-	// most one live row per (user, role) and any number of retired ones.
-	UserID    uint64     `gorm:"column:user_id;not null;uniqueIndex:idx_system_grant_live,priority:1;index:idx_system_grant_user"`
-	Role      string     `gorm:"type:varchar(32);not null;uniqueIndex:idx_system_grant_live,priority:2"`
-	RevokedAt *time.Time `gorm:"uniqueIndex:idx_system_grant_live,priority:3"`
+	// The composite unique index is what keeps one user from holding two active
+	// grants for the same role. LiveMarker is its third column: it holds a fixed
+	// non-NULL value while the grant is active and NULL once it is revoked, and
+	// MySQL treats NULLs as distinct in a unique index. So any number of revoked
+	// rows may share a (user, role) while at most one live row can. RevokedAt
+	// cannot play this part — two revocations at the same instant would carry the
+	// same value and collide — which is why the marker, not the timestamp, is
+	// what the index constrains.
+	UserID     uint64 `gorm:"column:user_id;not null;uniqueIndex:idx_system_grant_live,priority:1;index:idx_system_grant_user"`
+	Role       string `gorm:"type:varchar(32);not null;uniqueIndex:idx_system_grant_live,priority:2"`
+	RevokedAt  *time.Time
+	LiveMarker *uint8 `gorm:"column:live_marker;uniqueIndex:idx_system_grant_live,priority:3"`
 
 	// GrantedBy stays an opaque handle. The operator who bootstraps the first
 	// grant is a command line, not a user row, so this column cannot be a
@@ -36,6 +41,15 @@ type systemGrantRow struct {
 }
 
 func (systemGrantRow) TableName() string { return "system_grant" }
+
+// liveMarker is the fixed value LiveMarker carries while a grant is active. Its
+// only property that matters is being the same non-NULL value for every live
+// row, so the unique index rejects a second one. A fresh pointer per row keeps
+// GORM from sharing one address across inserts.
+func liveMarker() *uint8 {
+	v := uint8(1)
+	return &v
+}
 
 // systemGrantReadRow is the row plus the handle its holder resolves to.
 type systemGrantReadRow struct {
@@ -109,10 +123,11 @@ func (s *Store) ListSystemGrants(ctx context.Context, includeRevoked bool) ([]co
 // GrantSystemRole grants role to userID.
 //
 // The existence check and the insert are not in one transaction, and do not
-// need to be: the unique index on (user_id, role, revoked_at) is what actually
-// enforces one active grant, so a lost race ends as a duplicate-key error
-// rather than as a second row. The check exists to turn the common case into a
-// clear message instead of a driver error.
+// need to be: the unique index on (user_id, role, live_marker) is what actually
+// enforces one active grant, so a lost race ends as a duplicate-key error on
+// that index rather than as a second row. The check exists to turn the common
+// case into a clear message instead of relying on the driver error, and the
+// error translation below turns the race into the same message.
 func (s *Store) GrantSystemRole(ctx context.Context, userID, role, grantedBy string, now time.Time) (*coreidentity.SystemGrant, error) {
 	if !coreidentity.ValidSystemRole(role) {
 		return nil, coreidentity.ErrSystemRoleUnknown
@@ -133,20 +148,33 @@ func (s *Store) GrantSystemRole(ctx context.Context, userID, role, grantedBy str
 	}
 
 	row := systemGrantRow{
-		UserID:    userKey,
-		Role:      role,
-		GrantedBy: grantedBy,
-		GrantedAt: now,
+		UserID:     userKey,
+		Role:       role,
+		GrantedBy:  grantedBy,
+		GrantedAt:  now,
+		LiveMarker: liveMarker(),
 	}
-	if err := createWithPublicID(ctx, s.db, "uq_system_grant_public_id",
-		func(id string) { row.PublicID = id }, &row); err != nil {
+	err = createWithPublicID(ctx, s.db, "uq_system_grant_public_id",
+		func(id string) { row.PublicID = id }, &row)
+	if isDuplicateOnIndex(err, "idx_system_grant_live") {
+		return nil, coreidentity.ErrSystemGrantExists
+	}
+	if err != nil {
 		return nil, err
 	}
 	return toSystemGrant(&systemGrantReadRow{Row: row, UserPublicID: canonicalPublicID(userID)}), nil
 }
 
 // RevokeSystemRole revokes the active grant, reporting whether one was found.
-func (s *Store) RevokeSystemRole(ctx context.Context, userID, role string, now time.Time) (bool, error) {
+//
+// When keepLastHolder is set, the check and the revoke run in one transaction
+// that first locks every live grant for the role FOR UPDATE. That lock is what
+// makes the last-holder rule safe under concurrency: two revokes of different
+// holders would otherwise each read the other's grant as still live and both
+// proceed, leaving the role empty. Serialized behind the lock, the second one
+// sees the first's revocation and refuses. The operator shell passes false: it
+// is the way back from an empty role, so it must be able to empty it.
+func (s *Store) RevokeSystemRole(ctx context.Context, userID, role string, now time.Time, keepLastHolder bool) (bool, error) {
 	userKey, err := lookupKey(ctx, s.db, "user", userID)
 	if errors.Is(err, apierr.ErrNotFound) {
 		return false, nil
@@ -154,22 +182,111 @@ func (s *Store) RevokeSystemRole(ctx context.Context, userID, role string, now t
 	if err != nil {
 		return false, err
 	}
-	res := s.db.WithContext(ctx).
-		Model(&systemGrantRow{}).
-		Where("user_id = ? AND role = ? AND revoked_at IS NULL", userKey, role).
-		Update("revoked_at", now)
-	if res.Error != nil {
-		return false, res.Error
+	var revoked bool
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if keepLastHolder {
+			// Lock the role's live rows so a concurrent revoke serializes behind
+			// this one. Only grant rows are locked, never the joined user rows,
+			// so contention stays on the authority being changed.
+			var lockedIDs []uint64
+			if err := tx.Model(&systemGrantRow{}).
+				Clauses(clause.Locking{Strength: "UPDATE"}).
+				Where("role = ? AND revoked_at IS NULL", role).
+				Pluck("id", &lockedIDs).Error; err != nil {
+				return err
+			}
+		}
+		res := tx.Model(&systemGrantRow{}).
+			Where("user_id = ? AND role = ? AND revoked_at IS NULL", userKey, role).
+			Updates(map[string]any{"revoked_at": now, "live_marker": nil})
+		if res.Error != nil {
+			return res.Error
+		}
+		revoked = res.RowsAffected > 0
+		if !keepLastHolder || !revoked {
+			return nil
+		}
+		remaining, err := countEffectiveSystemGrants(ctx, tx, role)
+		if err != nil {
+			return err
+		}
+		if remaining == 0 {
+			// Roll back the revoke: removing this grant would leave the role
+			// with no effective holder.
+			return coreidentity.ErrSystemGrantLastHolder
+		}
+		return nil
+	})
+	if errors.Is(err, coreidentity.ErrSystemGrantLastHolder) {
+		return false, err
 	}
-	return res.RowsAffected > 0, nil
+	if err != nil {
+		return false, err
+	}
+	return revoked, nil
 }
 
-// CountActiveSystemGrants counts live grants for role.
+// CountActiveSystemGrants counts the effective holders of role.
 func (s *Store) CountActiveSystemGrants(ctx context.Context, role string) (int, error) {
+	return countEffectiveSystemGrants(ctx, s.db.WithContext(ctx), role)
+}
+
+// ensureNotLastSystemHolder refuses, with ErrSystemGrantLastHolder, to remove
+// the account from the effective holders of a system role it holds when that
+// would leave the role with none. It is called inside the disable transaction,
+// before the account is disabled.
+//
+// For each role the account holds it locks that role's live grants FOR UPDATE,
+// the same rows RevokeSystemRole locks, so a disable and a concurrent revoke
+// serialize on one lock and cannot each read the other's holder as still
+// effective and both proceed.
+func ensureNotLastSystemHolder(ctx context.Context, tx *gorm.DB, userPublicID string) error {
+	userKey, err := lookupKey(ctx, tx, "user", userPublicID)
+	if errors.Is(err, apierr.ErrNotFound) {
+		// No such account; the caller's update reports it.
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	var roles []string
+	if err := tx.WithContext(ctx).Model(&systemGrantRow{}).
+		Where("user_id = ? AND revoked_at IS NULL", userKey).
+		Pluck("role", &roles).Error; err != nil {
+		return err
+	}
+	for _, role := range roles {
+		var lockedIDs []uint64
+		if err := tx.WithContext(ctx).Model(&systemGrantRow{}).
+			Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("role = ? AND revoked_at IS NULL", role).
+			Pluck("id", &lockedIDs).Error; err != nil {
+			return err
+		}
+		var others int64
+		if err := tx.WithContext(ctx).Model(&systemGrantRow{}).
+			Joins("INNER JOIN `user` u ON u.id = system_grant.user_id").
+			Where("system_grant.role = ? AND system_grant.revoked_at IS NULL AND u.disabled_at IS NULL AND system_grant.user_id <> ?", role, userKey).
+			Count(&others).Error; err != nil {
+			return err
+		}
+		if others == 0 {
+			return coreidentity.ErrSystemGrantLastHolder
+		}
+	}
+	return nil
+}
+
+// countEffectiveSystemGrants counts live grants for role held by accounts that
+// are not disabled. A disabled account is refused before its grant is consulted,
+// so it cannot be the holder that keeps the deployment reachable — counting it
+// would let the last usable administrator be revoked.
+func countEffectiveSystemGrants(ctx context.Context, tx *gorm.DB, role string) (int, error) {
 	var n int64
-	if err := s.db.WithContext(ctx).
+	if err := tx.WithContext(ctx).
 		Model(&systemGrantRow{}).
-		Where("role = ? AND revoked_at IS NULL", role).
+		Joins("INNER JOIN `user` u ON u.id = system_grant.user_id").
+		Where("system_grant.role = ? AND system_grant.revoked_at IS NULL AND u.disabled_at IS NULL", role).
 		Count(&n).Error; err != nil {
 		return 0, err
 	}

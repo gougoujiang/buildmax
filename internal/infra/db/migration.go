@@ -64,13 +64,41 @@ type Migration struct {
 // editing or reordering one changes what an upgraded database gets relative to
 // a fresh one — which is exactly the divergence this list exists to prevent.
 //
-// The list is empty because the identity cutover reset every database that had
-// entries in it. Its three predecessors — folding the old artifact tables into
-// task_run_artifact, and seeding a first revision for agents and workflows that
-// predated revisions — described a schema that no longer exists and data no
-// deployment kept, so keeping them would have left migrations that cannot run
-// against any database this binary can create. Append-only starts again here.
-var migrations []Migration
+// The identity cutover reset every database that had entries in it; its three
+// predecessors described a schema that no longer exists and data no deployment
+// kept. Append-only restarts from there.
+var migrations = []Migration{
+	{
+		// system_grant's live-uniqueness index moved off revoked_at, whose NULLs
+		// MySQL treats as distinct — so it never stopped a second live grant —
+		// onto live_marker, which is one fixed value while active and NULL once
+		// revoked. AutoMigrate adds the column and builds the index on a fresh
+		// database, but it will not rebuild an index of the same name on an
+		// existing one, so the change is expressed here for those.
+		ID: "system_grant_live_marker",
+		Apply: func(ctx context.Context, db *gorm.DB) error {
+			m := db.WithContext(ctx).Migrator()
+			if !m.HasTable(&systemGrantRow{}) {
+				// AutoMigrate builds the table and the correct index from the row
+				// struct on a fresh database, so there is nothing to convert.
+				return nil
+			}
+			// Set the marker on the live rows before the unique index exists, so
+			// a second live grant collides once it does. Guarded on IS NULL so a
+			// retry after a crash is a no-op.
+			if err := db.WithContext(ctx).Exec(
+				"UPDATE system_grant SET live_marker = 1 WHERE revoked_at IS NULL AND live_marker IS NULL").Error; err != nil {
+				return err
+			}
+			if m.HasIndex(&systemGrantRow{}, "idx_system_grant_live") {
+				if err := m.DropIndex(&systemGrantRow{}, "idx_system_grant_live"); err != nil {
+					return err
+				}
+			}
+			return m.CreateIndex(&systemGrantRow{}, "idx_system_grant_live")
+		},
+	},
+}
 
 // runMigrations applies every migration this binary knows and the database has
 // not recorded.

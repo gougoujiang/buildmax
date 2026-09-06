@@ -99,31 +99,42 @@ func (s *Store) ListUsers(ctx context.Context, query string, limit, offset int) 
 //
 // Enabling reverses the state and nothing else: sessions revoked by the disable
 // stay revoked, and runs it stopped stay stopped. Undo is not a goal.
+//
+// Disabling refuses when the account is the last effective holder of a system
+// role. The check and the update run in one transaction that locks the role's
+// live grants, so it serializes with a concurrent revoke — the two together
+// cannot leave the role with nobody.
 func (s *Store) SetUserDisabled(ctx context.Context, userID string, disabledAt *time.Time) error {
 	id, ok := util.CanonicalPublicID(userID)
 	if !ok {
 		return coreidentity.ErrUserNotFound
 	}
-	res := s.db.WithContext(ctx).
-		Model(&userRow{}).
-		Where("public_id = ?", id).
-		Update("disabled_at", disabledAt)
-	if res.Error != nil {
-		return res.Error
-	}
-	if res.RowsAffected == 0 {
-		// Distinguishing "no such account" from "already in that state" needs a
-		// read, because an update to the value a row already holds affects no
-		// rows under MySQL's default client flags.
-		user, err := s.GetUser(ctx, userID)
-		if err != nil {
-			return err
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if disabledAt != nil {
+			if err := ensureNotLastSystemHolder(ctx, tx, id); err != nil {
+				return err
+			}
 		}
-		if user == nil {
-			return coreidentity.ErrUserNotFound
+		res := tx.Model(&userRow{}).
+			Where("public_id = ?", id).
+			Update("disabled_at", disabledAt)
+		if res.Error != nil {
+			return res.Error
 		}
-	}
-	return nil
+		if res.RowsAffected == 0 {
+			// Distinguishing "no such account" from "already in that state" needs
+			// a read, because an update to the value a row already holds affects
+			// no rows under MySQL's default client flags.
+			var count int64
+			if err := tx.Model(&userRow{}).Where("public_id = ?", id).Count(&count).Error; err != nil {
+				return err
+			}
+			if count == 0 {
+				return coreidentity.ErrUserNotFound
+			}
+		}
+		return nil
+	})
 }
 
 // UserByEmail returns the user with the given email, or (nil, nil) when not found.

@@ -93,6 +93,19 @@ func TestLoginCodeForADisabledAccountIsRefused(t *testing.T) {
 	}
 }
 
+// TestDisablingTheLastAdministratorIsRefused: the store decides the last-holder
+// rule atomically against the grant table; this proves the handler turns that
+// refusal into a 409 an operator can read, not a 500.
+func TestDisablingTheLastAdministratorIsRefused(t *testing.T) {
+	f := newDisableFixture(t)
+	f.users.DisableErr = coreidentity.ErrSystemGrantLastHolder
+
+	rec := f.do(t, "POST", "/api/admin/users/"+f.target.ID+"/disable", adminUser, "")
+	if rec.Code != http.StatusConflict {
+		t.Errorf("got %d, want 409: %s", rec.Code, rec.Body.String())
+	}
+}
+
 // TestAdminAccountActionsAreRecorded: every privileged action names the person
 // who took it, not the binary — the caller proved who they are.
 func TestAdminAccountActionsAreRecorded(t *testing.T) {

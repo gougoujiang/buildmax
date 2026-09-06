@@ -12,6 +12,10 @@ import (
 // MockSystemGrantStore is an in-memory coreidentity.SystemGrantStore for tests.
 type MockSystemGrantStore struct {
 	Grants []coreidentity.SystemGrant
+	// DisabledUsers marks accounts whose grants are not effective holders, so a
+	// test can exercise the rule that a disabled account cannot be the holder
+	// that keeps the deployment reachable. A user absent from the map is enabled.
+	DisabledUsers map[string]bool
 	// Err, when set, is returned by every read so a caller's behaviour on a
 	// store failure can be exercised. An authorization check that fails open
 	// on a database error is the bug worth having a test for.
@@ -80,18 +84,41 @@ func (m *MockSystemGrantStore) GrantSystemRole(_ context.Context, userID, role, 
 	return &grant, nil
 }
 
-func (m *MockSystemGrantStore) RevokeSystemRole(_ context.Context, userID, role string, now time.Time) (bool, error) {
+func (m *MockSystemGrantStore) RevokeSystemRole(_ context.Context, userID, role string, now time.Time, keepLastHolder bool) (bool, error) {
 	if m.Err != nil {
 		return false, m.Err
 	}
+	idx := -1
 	for i := range m.Grants {
 		if m.Grants[i].UserID == userID && m.Grants[i].Role == role && m.Grants[i].Active() {
-			revoked := now
-			m.Grants[i].RevokedAt = &revoked
-			return true, nil
+			idx = i
+			break
 		}
 	}
-	return false, nil
+	if idx == -1 {
+		return false, nil
+	}
+	if keepLastHolder {
+		// Effective holders left after this revoke, mirroring the store: an
+		// active grant on an account that is not disabled, excluding the one
+		// being revoked. None left means this was the last one.
+		remaining := 0
+		for i := range m.Grants {
+			if i == idx {
+				continue
+			}
+			g := m.Grants[i]
+			if g.Role == role && g.Active() && !m.DisabledUsers[g.UserID] {
+				remaining++
+			}
+		}
+		if remaining == 0 {
+			return false, coreidentity.ErrSystemGrantLastHolder
+		}
+	}
+	revoked := now
+	m.Grants[idx].RevokedAt = &revoked
+	return true, nil
 }
 
 func (m *MockSystemGrantStore) CountActiveSystemGrants(_ context.Context, role string) (int, error) {
@@ -100,7 +127,7 @@ func (m *MockSystemGrantStore) CountActiveSystemGrants(_ context.Context, role s
 	}
 	n := 0
 	for _, g := range m.Grants {
-		if g.Role == role && g.Active() {
+		if g.Role == role && g.Active() && !m.DisabledUsers[g.UserID] {
 			n++
 		}
 	}

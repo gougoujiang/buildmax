@@ -30,6 +30,10 @@ var (
 	ErrNotHeld = apierr.New(apierr.KindNotFound, "the account does not hold this role")
 	// ErrUnknownRole means the role is not one this deployment implements.
 	ErrUnknownRole = apierr.New(apierr.KindInvalid, "unknown system role")
+	// ErrAccountDisabled means the target account is disabled. A grant on it
+	// could not authorize a request, so it is refused with an actionable
+	// conflict rather than stored as dormant authority an operator cannot see.
+	ErrAccountDisabled = apierr.New(apierr.KindConflict, "the account is disabled; enable it before granting a role")
 	// ErrLastHolder means revoking would leave the deployment with nobody in
 	// the role. Only the shell may do that, because only the shell can undo it.
 	ErrLastHolder = apierr.New(apierr.KindConflict, "this is the deployment's last holder of the role")
@@ -55,6 +59,9 @@ func (s *Service) Grant(ctx context.Context, userID, role string, actor coreaudi
 	}
 	if user == nil {
 		return nil, ErrAccountNotFound
+	}
+	if user.Disabled() {
+		return nil, ErrAccountDisabled
 	}
 	grant, err := s.Grants.GrantSystemRole(ctx, userID, role, actor.ID, time.Now().UTC())
 	if err != nil {
@@ -82,17 +89,17 @@ func (s *Service) Revoke(ctx context.Context, userID, role string, actor coreaud
 	if !coreidentity.ValidSystemRole(role) {
 		return ErrUnknownRole
 	}
-	if actor.Type != coreaudit.ActorSystem {
-		remaining, err := s.Grants.CountActiveSystemGrants(ctx, role)
-		if err != nil {
-			return fmt.Errorf("count %s holders: %w", role, err)
-		}
-		if remaining <= 1 {
+	// The shell (a system actor) may empty the role because it is the way back
+	// from an empty role; a signed-in caller may not. The store makes that
+	// decision atomically with the revoke, so two concurrent callers cannot both
+	// read one holder each and both proceed — the old count-then-revoke here
+	// could.
+	keepLastHolder := actor.Type != coreaudit.ActorSystem
+	revoked, err := s.Grants.RevokeSystemRole(ctx, userID, role, time.Now().UTC(), keepLastHolder)
+	if err != nil {
+		if errors.Is(err, coreidentity.ErrSystemGrantLastHolder) {
 			return ErrLastHolder
 		}
-	}
-	revoked, err := s.Grants.RevokeSystemRole(ctx, userID, role, time.Now().UTC())
-	if err != nil {
 		return fmt.Errorf("revoke %s: %w", role, err)
 	}
 	if !revoked {
