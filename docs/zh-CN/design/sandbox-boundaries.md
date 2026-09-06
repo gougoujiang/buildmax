@@ -24,7 +24,7 @@
 ## 状态
 
 - roadmap_priority: `P0.5`
-- status: `已实现阶段 A–E（包括进程限制和钩子传输），阶段 F 的 worker 表面选择、生产 Pod 验证和降级标记` (§13; 文档和 `buildmax sandbox overrides` 保持不变——基于 [Claude Code 的沙箱文档](https://code.claude.com/docs/en/sandboxing))
+- status: `阶段 A–E 已实现（包括进程限制和 Hook 传输）；阶段 F 已完成 Worker 界面选择、生产 Pod 验证和降级标记`（§13；文档和 `buildmax sandbox overrides` 仍待完成，设计参考 [Claude Code 沙箱文档](https://code.claude.com/docs/en/sandboxing)）
 - follows: [trust-harness.md](./trust-harness.md), [hook-system.md](./hook-system.md)
 - roadmap: [../ROADMAP.md](../../ROADMAP.md)
 - created_at: `2026-05-23`
@@ -50,8 +50,8 @@ P0.5 §3.2 要求对命令和工具执行提供明确的沙箱模式，在工作
 从 Claude Code 文档中提炼出的三个原则：
 
 1. **沙箱 Shell，而非参数。** 模式匹配 Bash 字符串是不可靠的；操作系统级别的隔离是持久的答案。macOS 使用 Seatbelt；Linux/WSL2 使用 `bubblewrap` + `socat`。
-2. **用户选择加入，操作员选择退出。** 默认设置 worker 的 `enabled: false` on local CLI/Desktop (no regression). **Default `enabled: true` with `fail_if_unavailable: true`，以满足信任护栏的“比受信任的本地更严格”的要求。
-3. **可见的失败优于静默的失败开放。** 当 `enabled: true` 但后端无法启动（缺少 `bwrap`，不支持的平台）时，显示清晰的启动消息。在 worker 上，拒绝启动。
+2. **用户选择加入，运维人员选择退出。** 本地 CLI/Desktop 默认 `enabled: false`，保持现有行为不变。Worker 默认 `enabled: true` 且 `fail_if_unavailable: true`，满足信任保障中“比受信任的本地环境更严格”的要求。
+3. **可见的失败优于静默放行。** 当 `enabled: true` 但后端无法启动（例如缺少 `bwrap` 或平台不支持）时，显示清晰的启动错误。Worker 应拒绝启动。
 
 我们**不**发布我们自己的 `@anthropic-ai/sandbox-runtime` 克隆。我们从 Go 中调用 `bwrap` / `sandbox-exec`，并通过一个小的 Go 端的 HTTP/SOCKS 代理进行网络出口过滤。
 

@@ -7,13 +7,13 @@
 
 相关文档：[企业部署](enterprise-deployment.md) M3、[Worker 运行令牌](worker-run-token.md)、[Portal 执行模型](portal-execution-model.md)和 [ROADMAP.md](../../ROADMAP.md) P3。
 
-## 内容
+## 目录
 
 - [问题](#问题)
 - [决策](#决策)
 - [1. 现状](#1-现状)
-- [2.六个缺口](#2六个缺口)
-- [3。 梯子](#3-梯子)
+- [2. 六个缺口](#2-六个缺口)
+- [3. 关闭阶梯](#3-关闭阶梯)
 - [服务器：排水](#服务器排水)
 - [5。 服务器：关闭流](#5-服务器关闭流)
 - [子代理 Scheduler Worker](#子代理-scheduler-worker)
@@ -48,31 +48,31 @@ BuildMax 部署会因日常运维而停止：滚动升级会替换服务器 Pod�
 
 由于这些系统的存在，所以这些机制主要存在.所缺少的是序列，边界和运行水平的语义.此后信号处理已转移到`RunServer`，这是唯一能够看到整个梯子的层次;[`internal/server`](../../../internal/server/server.go)暴露了`ListenAndServe`,`Drain`,`Shutdown`，以及`StopBackground`。
 
-## 2.六个缺口
+## 2. 六个缺口
 
 标题说明它现在的位置；第3节描述了所建造的形状；第10节说明每个设计的阶段。
 
-### 2.1 时间表的停机是无限的 固定
+### 2.1 调度器停止没有上限
 
-`LocalRunner.Run` ([`internal/server/scheduler/runner.go`](../../../internal/server/scheduler/runner.go)) 调用`cmd.Run`，它被阻止直到工人流程出发，并从调度者投票循环中被称作直线.`Scheduler.Stop`关闭`stopCh`并等待该循环，因此在发送中降落的停车站等待整个代理运行分到几个小时.在系统d或Compose下，宽恕期会过期，并且流程会被杀死；顺序的路径从来没有达到。
+`LocalRunner.Run`（[`internal/server/scheduler/runner.go`](../../../internal/server/scheduler/runner.go)）调用 `cmd.Run`，会一直阻塞到 Worker 进程退出；调度器轮询循环又直接调用它。`Scheduler.Stop` 关闭 `stopCh` 并等待轮询循环，因此停止时正在运行的 Agent 可能让进程等待数小时。在 systemd 或 Compose 下，宽限期最终耗尽，进程被强制终止，后续关闭阶段也无法执行。
 
 开发者对停止的预期形成的位置， 构建和本地开发做。 `K8sJobRunner.Run` [`internal/infra/k8s/job.go`](../../../internal/infra/k8s/job.go)
 
-循环的背景是`context.Background()`，所以即使一个想要放弃发送的时间表达者也没有办法向孩子发出信号。
+该循环使用 `context.Background()`，因此调度器即使决定放弃，也无法向子进程发送取消信号。
 
-### 2.2 工人完全忽略信号
+### 2.2 Worker 完全忽略信号
 
-[`cmd/buildmax-worker/main.go`](../../../cmd/buildmax-worker/main.go)运行在`context.Background()`上.SIGTERM使用Go的默认配置来杀死该过程：没有上传运行产生的内容，没有状态报告，没有痕迹流.运行保持在`RUNNING`上，直到`StaleRunReaper` ([`internal/server/scheduler/stale_runs.go`](../../../internal/server/scheduler/stale_runs.go)) 失败后，默认6小时.收获器是正确设计的，如果它存在于一个工人 * 过了 *      但一个工人被要求停止，并未停止，并且使用[`internal/server/scheduler/stale_runs.go`](../../../internal/server/scheduler/stale_runs.go) 后，收获器在6秒内转换为一个                     `worker.run_timeout` Portal
+[`cmd/buildmax-worker/main.go`](../../../cmd/buildmax-worker/main.go) 在 `context.Background()` 上运行。SIGTERM 会触发 Go 默认行为，直接终止进程：运行产生的内容不会上传，没有状态报告，也没有轨迹流。运行会保持 `RUNNING`，直到 `StaleRunReaper`（[`internal/server/scheduler/stale_runs.go`](../../../internal/server/scheduler/stale_runs.go)）默认在六小时后将其标记失败。这个回收器适合处理 Worker *意外消失*，不适合处理 Worker *收到停止请求后正常退出*；后者应在几秒内报告 `worker.run_timeout` 或更准确的终态。
 
 在生产中，这最重要：一个工人囊是一个工作囊，
 
-### 2.3 流通连接占整个预算
+### 2.3 流式连接占满整个预算
 
-`http.Server.Shutdown`关闭听众并等待连接变得无效.它不会取消飞行中请求的文本，服务器发送事件处理器永远不会无效。  相关标识符的循环在`r.Context().Done()`中等待`r.Context().Done()`，而关闭不会关闭。 因此，一个Portal 页面观看一个任务，保证`Shutdown`运行完整的10s并返回相关标识符，作为警告，之后的过程出口和连接都会被删除.切断实际的预算要求是为了一个任务的预期。 `DeadlineExceeded` [`internal/server/handlers/work/stream.go`](../../../internal/server/handlers/work/stream.go)
+`http.Server.Shutdown` 会关闭 listener，并等待连接变为空闲；它不会取消正在执行的请求，而 Server-Sent Events 处理器通常不会自行返回。处理器等待 `r.Context().Done()`，但关闭过程不会触发它。因此，一个正在观看 Task 的 Portal 页面可能占满完整的 10 秒预算，随后进程退出、连接被删除。关闭必须为流式观察者设置明确的排空信号，不能让它独占整个预算（[`internal/server/handlers/work/stream.go`](../../../internal/server/handlers/work/stream.go)）。
 
-### 2.4 没有固定的排水状态
+### 2.4 没有明确的排空状态
 
-相关标识符 ([`internal/server/health.go`](../../../internal/server/health.go)) 探测依赖性，并且在关闭期间仍然响应`ready`。 Kubernetes在SIGTERM之后不同步删除一个终端点，因此在传播窗口中，服务继续向已经停止听取的服务器传送新的请求 连接拒绝，而不是重新尝试的503。 `readyzHandler` `terminationGracePeriodSeconds` `preStop` [`deployment/production/buildmax.yaml`](../../../deployment/production/buildmax.yaml) [`deployment/buildmax-deploy.yaml`](../../../deployment/buildmax-deploy.yaml)
+`readyzHandler`（[`internal/server/health.go`](../../../internal/server/health.go)）检查依赖，但关闭期间仍返回 `ready`。Kubernetes 在 SIGTERM 后不会同步删除 Endpoint，因此传播窗口内 Service 仍会把新请求发送到已经停止监听的服务器，调用方得到连接拒绝，而不是可重试的 503。`terminationGracePeriodSeconds` 和 `preStop`（[`deployment/production/buildmax.yaml`](../../../deployment/production/buildmax.yaml)、[`deployment/buildmax-deploy.yaml`](../../../deployment/buildmax-deploy.yaml)）必须配合排空状态。
 
 ### 2.5 终端回调的规律未经管理 缩小
 
