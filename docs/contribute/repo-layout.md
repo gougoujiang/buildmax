@@ -224,6 +224,8 @@ internal/
 │   ├── hook/           Hook transports: command, http, mcp_tool, prompt
 │   ├── pluginwire/     Wire contract for the private plugin Marketplace
 │   ├── pluginarchive/  Packing and hardened extraction of plugin archives
+│   ├── wsarchive/      Task workspace checkpoint payload: tar.zst.v1 packing
+│   │                   and hardened, adversarial-validated extraction
 │   ├── proc/           Process supervision for local background jobs:
 │   │                   group spawn, bounded output rings, tree termination
 │   ├── secret/         Space Secret cryptography: envelope encryption of the
