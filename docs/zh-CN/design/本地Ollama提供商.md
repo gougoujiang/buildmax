@@ -1,6 +1,6 @@
 # 本地 Ollama 提供商
 
-> **翻译说明：** 本文是[英文原文](../../design/local-ollama-provider.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `ecc6725ec41a9eab09ba2a546f9cab283c6ddd020d00c914e7d29cc52fd1a586`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **翻译说明：** 本文是[英文原文](../../design/local-ollama-provider.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `c926c858ce20ae98d008390308ec071deaec236f3b15dac4644f5a6667a8c5d6`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
 
 **受众：**贡献者 · **状态：**第 1、2 阶段已交付。适配器、始终发送的 `num_ctx`、生成的工具调用标识符、本地模型清单、`buildmax init --ollama`、`buildmax models --local`、`doctor` 分支、凭证豁免和 `keep_alive` 均已实现。第 3 阶段增加托管目标：目录项或 `conversation.model` 可以指定该提供商且无需凭证（§12）。
 
@@ -32,7 +32,7 @@
 
 ## 1. 问题
 
-本地模型今天已经可以访问：`provider: openai_compatible` 通过 `api_url: http://localhost:11434/v1` 与 Ollama 的兼容端点通信，简单的聊天是可行的。[quickstart.md](../../start/quickstart.md) 和 [configuration.md](../../reference/configuration.md) 都说明了这一点。
+本地模型今天已经可以访问：`provider: openai_compatible` 通过 `api_url: http://localhost:11434/v1` 与 Ollama 的兼容端点通信，简单的聊天是可行的。[quickstart.md](../../../help/quickstart.md) 和 [configuration.md](../../reference/configuration.md) 都说明了这一点。
 
 一旦该端点承载的是一个 *Agent* 运行而不是聊天，就会出现四种问题。
 

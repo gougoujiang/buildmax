@@ -1,6 +1,6 @@
 # gVisor Worker 运行时
 
-> **翻译说明：** 本文是[英文原文](../../design/gvisor-worker-runtime.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `f8af2fe4bf7dbe6eacb5f58a346728ab0849abca2de38c2b8e5e2aab3519c50f`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **翻译说明：** 本文是[英文原文](../../design/gvisor-worker-runtime.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `2ae48e7e95c6664b7208668fef695e4f5f7353be5f95b426a04f413b2f3af4fb`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
 
 
 > **受众：** 贡献者和运维人员 · **状态：** 规划中 — 必须先完成资格验证才能提供支持
@@ -552,13 +552,13 @@ TaskRun。
 诊断不假装BuildMax安装`runsc`；
 - 光的光 [子代理 Worker](../../../deployment/seccomp/README.md)
 产品和gVisor Pod的配置文件；
-- [沙箱指南](../../guide/sandbox.md)解释了外部运行时间隔离与
+- [沙箱指南](../../../help/sandbox.md)解释了外部运行时间隔离与
 内部指挥政策；
 - 记录运行时间的[服务器架构](../../contribute/architecture/server.md)记录
 验证和工作失败观察；
 - 报告了准确的资格证明 [现状](../../current-state.md)
 测量限制；
-- 克相关标识符区分原生和合格 [支持矩阵](../../start/support.md)
+- 克相关标识符区分原生和合格 [支持矩阵](../../../help/support.md)
 工人gVisor；以及
 - 标记了Pod-to-host运行时间切片关闭 [靠谱带](信任保障.md)
 保持目的地出口和内部MCP政策的准确开放。

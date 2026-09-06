@@ -1,6 +1,6 @@
 # Space 与 Worker 的插件分发
 
-> **翻译说明：** 本文是[英文原文](../../design/plugin-space-distribution.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `0d9a130b15541d62871d6fd1aaa9deed7a13d67a361af5efd32ca23676347200`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **翻译说明：** 本文是[英文原文](../../design/plugin-space-distribution.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `10082ec48cec9160cee0aaf21ba7f4876a251ac53a1cf1b43fd10dd7cb530d54`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
 
 
 > **读者：** 贡献者和运营人员 · **状态：** 部分实施——D1 已端到端运行，
@@ -522,4 +522,4 @@ Space activation ceiling + Agent revision + Task additions
 - 证书第7条使用 [Worker运行代币.md](./Worker运行令牌.md)
 - [任务-工作空间-检查点.md](./Task工作区检查点.md)
 采用Task的环境和新TaskRun的能力界限
-- 今天的船只 [导航/插件.md](../../guide/plugins.md)
+- 今天的船只 [导航/插件.md](../../../help/plugins.md)
