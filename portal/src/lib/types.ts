@@ -56,6 +56,7 @@ export type Route =
   | { name: "artifacts" }
   | { name: "artifact"; artifactId: string }
   | { name: "marketplace" }
+  | { name: "help"; slug?: string }
 
 /** One breadcrumb segment: a label and the route it links to. */
 export interface BreadcrumbCrumb {

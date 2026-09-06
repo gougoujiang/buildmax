@@ -1,0 +1,60 @@
+{
+  "title": "BuildMax Help",
+  "sections": [
+    {
+      "title": "Getting started",
+      "pages": [
+        { "slug": "introduction", "title": "Introduction" },
+        { "slug": "install", "title": "Install BuildMax" },
+        { "slug": "quickstart", "title": "Quickstart" },
+        { "slug": "concepts", "title": "Core concepts" }
+      ]
+    },
+    {
+      "title": "Command line",
+      "pages": [
+        { "slug": "cli", "title": "CLI & TUI reference" },
+        { "slug": "sessions-and-traces", "title": "Sessions & traces" },
+        { "slug": "project-instructions", "title": "Project instructions & memory" }
+      ]
+    },
+    {
+      "title": "Models & tools",
+      "pages": [
+        { "slug": "models-and-modes", "title": "Models & modes" },
+        { "slug": "tools", "title": "Tools" }
+      ]
+    },
+    {
+      "title": "Extending the agent",
+      "pages": [
+        { "slug": "skills-and-subagents", "title": "Skills & subagents" },
+        { "slug": "mcp", "title": "MCP servers" },
+        { "slug": "plugins", "title": "Plugins" },
+        { "slug": "hooks", "title": "Hooks" }
+      ]
+    },
+    {
+      "title": "Safety",
+      "pages": [
+        { "slug": "sandbox", "title": "Sandbox" },
+        { "slug": "tool-permissions", "title": "Tool permissions" }
+      ]
+    },
+    {
+      "title": "Portal (web app)",
+      "pages": [
+        { "slug": "portal-overview", "title": "Portal overview" },
+        { "slug": "portal-issues", "title": "Conversations & issues" },
+        { "slug": "portal-agents-workflows", "title": "Agents & workflows" }
+      ]
+    },
+    {
+      "title": "Reference",
+      "pages": [
+        { "slug": "troubleshooting", "title": "Troubleshooting" },
+        { "slug": "support", "title": "Supported platforms & status" }
+      ]
+    }
+  ]
+}

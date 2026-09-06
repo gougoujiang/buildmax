@@ -298,7 +298,10 @@ export function Sidebar({
               type="button"
               className="sidebar__user-menu-item"
               role="menuitem"
-              onClick={() => setUserMenuOpen(false)}
+              onClick={() => {
+                setUserMenuOpen(false)
+                navigate({ name: "help" })
+              }}
             >
               <span className="sidebar__user-menu-item-icon" aria-hidden>
                 <HelpIcon />

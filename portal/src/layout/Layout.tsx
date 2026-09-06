@@ -33,6 +33,7 @@ export function Layout({
           <div className="shell__top">
             <Breadcrumbs route={route} conversations={conversations} />
             <div className="shell__top-actions">
+              <HelpButton active={route.name === "help"} />
               <MarketplaceButton active={route.name === "marketplace"} />
               <ThemeToggle />
             </div>
@@ -41,6 +42,42 @@ export function Layout({
         </main>
       </div>
     </div>
+  )
+}
+
+/** HelpButton opens the end-user help manual served from the portal image. */
+function HelpButton({ active }: { active: boolean }) {
+  return (
+    <button
+      type="button"
+      className={`theme-toggle ${active ? "theme-toggle--active" : ""}`}
+      onClick={() => navigate({ name: "help" })}
+      aria-label="Help"
+      aria-current={active ? "page" : undefined}
+      title="Help"
+    >
+      <HelpIcon className="theme-toggle__icon" />
+    </button>
+  )
+}
+
+function HelpIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.5 9.2a2.5 2.5 0 0 1 4.9.8c0 1.7-2.4 2-2.4 3.6" />
+      <path d="M12 17.2h.01" />
+    </svg>
   )
 }
 
