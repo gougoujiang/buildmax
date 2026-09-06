@@ -47,15 +47,11 @@ func TestOperatorAccountCommandsAreRecorded(t *testing.T) {
 		t.Fatalf("the account was not created: %+v, %v", user, err)
 	}
 
-	if err := runUserSetPassword(ctx, []string{email}, &strings.Builder{},
-		strings.NewReader("correct horse battery staple\n"), store); err != nil {
-		t.Fatalf("runUserSetPassword: %v", err)
-	}
 	if err := runUserLoginCode(ctx, []string{email}, &strings.Builder{}, store); err != nil {
 		t.Fatalf("runUserLoginCode: %v", err)
 	}
 
-	want := []string{coreaudit.UserCreated, coreaudit.PasswordSet, coreaudit.LoginCodeIssued}
+	want := []string{coreaudit.UserCreated, coreaudit.LoginCodeIssued}
 	events := store.MockAuditStore.Events
 	if len(events) != len(want) {
 		t.Fatalf("got %d events, want %d: %+v", len(events), len(want), events)
@@ -91,10 +87,6 @@ func TestOperatorCommandsRecordNothingWhenTheyFail(t *testing.T) {
 
 	if err := runUserLoginCode(ctx, []string{"nobody@example.com"}, &strings.Builder{}, store); err == nil {
 		t.Fatal("issuing a code for an unknown account should fail")
-	}
-	if err := runUserSetPassword(ctx, []string{"nobody@example.com"}, &strings.Builder{},
-		strings.NewReader("correct horse battery staple"), store); err == nil {
-		t.Fatal("setting a password on an unknown account should fail")
 	}
 	if len(store.MockAuditStore.Events) != 0 {
 		t.Errorf("refused commands were recorded: %+v", store.MockAuditStore.Events)

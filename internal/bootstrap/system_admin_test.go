@@ -162,51 +162,6 @@ func TestAdminRevokeIsIdempotent(t *testing.T) {
 	}
 }
 
-func TestAdminListShowsHoldersAndHistory(t *testing.T) {
-	store, user := newAdminFixture(t)
-	ctx := context.Background()
-
-	var empty strings.Builder
-	if err := runAdminList(ctx, nil, &empty, store); err != nil {
-		t.Fatalf("runAdminList: %v", err)
-	}
-	if !strings.Contains(empty.String(), "No account holds a system role") {
-		t.Errorf("empty list should say so, got:\n%s", empty.String())
-	}
-
-	if err := runAdminGrant(ctx, []string{user.Email}, &strings.Builder{}, store); err != nil {
-		t.Fatalf("runAdminGrant: %v", err)
-	}
-	var listed strings.Builder
-	if err := runAdminList(ctx, nil, &listed, store); err != nil {
-		t.Fatalf("runAdminList: %v", err)
-	}
-	if !strings.Contains(listed.String(), user.Email) || !strings.Contains(listed.String(), "active") {
-		t.Errorf("list should name the holder and its state, got:\n%s", listed.String())
-	}
-
-	if err := runAdminRevoke(ctx, []string{user.Email}, &strings.Builder{}, store); err != nil {
-		t.Fatalf("runAdminRevoke: %v", err)
-	}
-	var afterRevoke strings.Builder
-	if err := runAdminList(ctx, nil, &afterRevoke, store); err != nil {
-		t.Fatalf("runAdminList: %v", err)
-	}
-	if strings.Contains(afterRevoke.String(), user.Email) {
-		t.Errorf("default list should show only live grants, got:\n%s", afterRevoke.String())
-	}
-
-	// --all is how the history is read: the row stays, so who held authority
-	// and when it ended is still answerable.
-	var all strings.Builder
-	if err := runAdminList(ctx, []string{"--all"}, &all, store); err != nil {
-		t.Fatalf("runAdminList --all: %v", err)
-	}
-	if !strings.Contains(all.String(), user.Email) || !strings.Contains(all.String(), "revoked") {
-		t.Errorf("--all should show the retired grant, got:\n%s", all.String())
-	}
-}
-
 // TestAdminCommandsRejectBadArguments keeps the argument handling matching the
 // sibling `user` commands, which a copied flag set makes easy to get wrong.
 func TestAdminCommandsRejectBadArguments(t *testing.T) {

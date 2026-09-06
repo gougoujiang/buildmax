@@ -35,16 +35,10 @@ sets a password from account settings. After that they sign in normally and you
 are not involved again. `--ttl` changes the code's lifetime, which defaults to
 an hour.
 
-To set a password yourself instead, pipe one in rather than passing it as an
-argument, which would put it in shell history and in the process list:
-
-```bash
-echo -n 'correct horse battery staple' | \
-  buildmax-server user set-password alice@example.com
-```
-
-Letting the person set their own is better: the password then exists only where
-they put it.
+A login code is the only way to set a first password: the person signs in with
+it and chooses their own, which then exists only where they put it. There is no
+command that sets a password for someone — that would put a secret in shell
+history and hand it to them over a channel you would then have to trust.
 
 Both commands read the same `server.yaml` the server does, so inside a container
 they need no extra configuration:
@@ -78,9 +72,13 @@ server. A grant is what says something about the server.
 
 ```bash
 buildmax-server admin grant alice@example.com
-buildmax-server admin list
 buildmax-server admin revoke alice@example.com
 ```
+
+`buildmax-server admin` is the break-glass path: the first grant, and revoking
+the last administrator to recover a deployment that has none. Listing who holds
+a grant, and routine grants and revocations, are done with `buildmax admin`
+against a running server, or in the Portal.
 
 Granting does not create the account — run `buildmax-server user create` first.
 Like the account commands, these read the same `server.yaml` the server does,
