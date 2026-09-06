@@ -8,15 +8,15 @@
 
 相关文档：[持久运行追踪](durable-run-trace.md)、[排队消息](queued-messages.md)、[工具权限](tool-permissions.md)、[Hook 系统](hook-system.md)、[沙箱边界](sandbox-boundaries.md)和 [Agent 循环架构](../../contribute/architecture/agent-loop.md)。
 
-## 内容
+## 目录
 
 - [问题](#问题)
 - [范围](#范围)
 - [决策](#决策)
-- [型号:Runtime](#子代理-runtime)
-- [司令部工作](#司令部工作)
-- [位工作](#位工作)
-- [监督工作](#监督工作)
+- [Job Runtime](#job-runtime)
+- [命令 Job](#命令-job)
+- [Agent Job](#agent-job)
+- [Monitor Job](#monitor-job)
 - [活动的举报和唤醒](#活动的举报和唤醒)
 - [允许，信任和安全](#允许信任和安全)
 - [产量，保留和痕迹](#产量保留和痕迹)
