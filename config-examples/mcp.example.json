@@ -17,7 +17,7 @@
     "writing them into a file you check in.",
     "",
     "Run /mcp in the TUI to see connected servers and their status.",
-    "Guide: help/mcp.md",
+    "Guide: manual/mcp.md",
     "",
     "Remove this _comment key before use — it is documentation, not config."
   ],

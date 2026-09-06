@@ -2,7 +2,7 @@
 
 Separate from agent.py, and importing nothing from Harbor, so the mapping from
 a BuildMax run to a Harbor trial can be tested without a benchmark harness.
-The envelope's shape is documented in help/cli.md.
+The envelope's shape is documented in manual/cli.md.
 """
 
 import hashlib

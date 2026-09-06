@@ -29,10 +29,10 @@ WORKDIR /app/portal
 COPY portal/package.json portal/package-lock.json /app/portal/
 RUN npm ci
 COPY portal/ /app/portal/
-# The end-user help manual lives at the repository root. portal's prebuild hook
-# (scripts/sync-help.mjs) mirrors it into public/help so the Vite build ships it
+# The end-user manual lives at the repository root. portal's prebuild hook
+# (scripts/sync-manual.mjs) mirrors it into public/help so the Vite build ships it
 # into dist/; copy it into the stage first so that hook finds it.
-COPY help/ /app/help/
+COPY manual/ /app/manual/
 RUN npm run build
 
 # The bundle distributes MIT/ISC-licensed npm code to every browser, so the

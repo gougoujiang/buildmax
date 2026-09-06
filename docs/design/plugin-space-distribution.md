@@ -863,4 +863,4 @@ session, and materialization boundary is specified in
 - [worker-run-token.md](./worker-run-token.md) — the credential §7 uses
 - [task-workspace-checkpoints.md](./task-workspace-checkpoints.md) — the
   Task-scoped environment and new-TaskRun capability boundary
-- [help/plugins.md](../../help/plugins.md) — what ships today
+- [manual/plugins.md](../../manual/plugins.md) — what ships today

@@ -10,7 +10,7 @@
 # `buildmax sandbox status` prints the resolved values and which layer set
 # each one — the fastest way to confirm a policy is taking effect.
 #
-# Guide: help/sandbox.md, help/plugins.md
+# Guide: manual/sandbox.md, manual/plugins.md
 # Reference: docs/reference/configuration.md
 # Design: docs/design/sandbox-boundaries.md, docs/design/plugin-marketplace.md
 

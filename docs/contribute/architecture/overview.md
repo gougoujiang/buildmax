@@ -65,4 +65,4 @@ resources, and a failed partial build closes what it already opened.
 - Current product planning starts in [../../design/README.md](../../design/README.md)
   and [ROADMAP.md](../../ROADMAP.md).
 - The product-level picture — what BuildMax is and who each surface is for —
-  is in [help/concepts.md](../../../help/concepts.md).
+  is in [manual/concepts.md](../../../manual/concepts.md).
