@@ -2,7 +2,7 @@
 
 > **Audience:** operators · **Status:** current
 >
-> A team deployment on one machine, in about five minutes. For what the pieces
+> A space deployment on one machine, in about five minutes. For what the pieces
 > are and how to run them anywhere else, read [overview.md](overview.md) first
 > or after — this page is the short path.
 
@@ -15,7 +15,7 @@ workers run elsewhere needs blob storage both can reach.
 
 Sharing that container is also the security deal this stack makes: a task run is
 a child process of the server it was scheduled by, under the same uid, so the
-two are one trust domain. That is fine for a team that already trusts everyone
+two are one trust domain. That is fine for a space that already trusts everyone
 who can submit work. If you need the server separated from the code a model
 chooses, run workers as Kubernetes Jobs instead — [overview.md](overview.md).
 
@@ -28,7 +28,7 @@ model and proves the full flow through a real worker process:
 ./make compose smoke
 ```
 
-That check covers Portal reachability, account bootstrap, team storage,
+That check covers Portal reachability, account bootstrap, space storage,
 conversation and TaskRun creation, scheduler execution, model response,
 artifact retrieval, and cancelling a run that is executing. It requires no provider key. Inspect failures with
 `./make compose logs`, then stop the stack with `./make compose down`. On
@@ -104,8 +104,8 @@ then `docker compose up -d` to apply it. The endpoint and model id are in
 
 ## Put Something In The Workspace
 
-A new team starts empty, and an agent with nothing to read cannot show you much.
-Each team has a persistent file space — the workspace — that the worker
+A new space starts empty, and an agent with nothing to read cannot show you much.
+Each space has a persistent file space — the workspace — that the worker
 materializes into every task run, so whatever you put there is what the agent
 sees when it works.
 

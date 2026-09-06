@@ -9,8 +9,8 @@ Organized by what you are trying to do.
 | [start/install.md](start/install.md) | Get the binaries |
 | [start/quickstart.md](start/quickstart.md) | First agent run, in five minutes |
 | [start/support.md](start/support.md) | Supported platforms, surfaces, deployment paths, and non-goals |
-| [start/concepts.md](start/concepts.md) | Surfaces, the agent loop, teams, and the two tiers |
-| [../sample-data/](../sample-data/README.md) | Fifteen throwaway datasets — upload them into a team workspace, or point the CLI at one |
+| [start/concepts.md](start/concepts.md) | Surfaces, the agent loop, spaces, and the two tiers |
+| [../sample-data/](../sample-data/README.md) | Fifteen throwaway datasets — upload them into a space workspace, or point the CLI at one |
 
 ## Use It
 
@@ -29,11 +29,11 @@ Organized by what you are trying to do.
 | [guide/sessions-and-traces.md](guide/sessions-and-traces.md) | Resume conversations; inspect what a run actually did |
 | [guide/troubleshooting.md](guide/troubleshooting.md) | When something does not work |
 
-## Run It For A Team
+## Run It For A Space
 
 | | |
 |---|---|
-| [deploy/compose.md](deploy/compose.md) | A team deployment on one machine, in about five minutes |
+| [deploy/compose.md](deploy/compose.md) | A space deployment on one machine, in about five minutes |
 | [deploy/overview.md](deploy/overview.md) | Topology, requirements, configuration, containers |
 | [deploy/authentication.md](deploy/authentication.md) | **Read before exposing a server** — accounts, login codes, what is missing |
 | [deploy/local-kind.md](deploy/local-kind.md) | One-command local cluster and Kubernetes Job smoke |

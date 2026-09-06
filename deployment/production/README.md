@@ -39,7 +39,7 @@ start — `AutoMigrate` for additive changes plus an ordered migration list for
 everything else — so a user restricted to DML cannot bring the server up. Grant
 it on the BuildMax schema alone, not server-wide.
 
-Sizing is driven by task runs and messages rather than by user count. A team
+Sizing is driven by task runs and messages rather than by user count. A space
 running a few hundred task runs a day is a small database.
 
 ### Object storage

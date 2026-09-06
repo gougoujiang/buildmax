@@ -34,7 +34,7 @@ Related: [roadmap](../ROADMAP.md),
 BuildMax has accepted a durable adaptive Workflow design centered on a
 revision-pinned execution graph. A competing product direction is now worth
 testing: let one configured Agent act as a manager that may invoke a bounded
-roster of existing Team Agents and dynamically decide how to complete an
+roster of existing Space Agents and dynamically decide how to complete an
 objective. This paper calls that provisional user-facing concept an
 **Assistant**.
 
@@ -59,7 +59,7 @@ The provisional recommendation is:
 
 The resulting product principle would be:
 
-> Use an Agent for direct work, bounded delegation for adaptive teamwork, and
+> Use an Agent for direct work, bounded delegation for adaptive spacework, and
 > Workflow for reliable automation. All three execute through Task and
 > TaskRun.
 
@@ -75,7 +75,7 @@ graph breadth worth shipping, and the Portal vocabulary.
 
 Portal currently exposes Home, Issues, Workflows, Agents, and Artifacts at the
 same navigation level. Home starts a Conversation; an Agent can also be invoked
-directly through a durable Task and TaskRun. Workflow is a Team-scoped reusable
+directly through a durable Task and TaskRun. Workflow is a Space-scoped reusable
 linear plan whose steps each start an Agent Task.
 
 The current Workflow editor asks an administrator to maintain ordered step
@@ -186,7 +186,7 @@ Assistant is a provisional product label for an Agent revision that declares:
 - the structured result the coordinating Agent must return.
 
 An Assistant is therefore not intrinsically more intelligent than an Agent.
-It is a reusable Team interface with a delegation and governance envelope.
+It is a reusable Space interface with a delegation and governance envelope.
 
 Initially, Assistant should not be a separate table, execution plane, run type,
 or model loop. The internal name can remain a coordinating or delegation-enabled
@@ -238,7 +238,7 @@ graph.
 | Permission separation | Coarse per Agent | Per coordinator and specialist | Per declared node and run policy |
 | Failure diagnosis | One trace and Task | Parent decision ledger plus child Tasks | Declared topology plus NodeRuns |
 | Durable recovery need | Task/TaskRun | Parent Task plus durable child Tasks | WorkflowRun, NodeRuns, Tasks, and TaskRuns |
-| Primary UX | Ask this Agent | Give work to this managed team | When this happens, reliably do this |
+| Primary UX | Ask this Agent | Give work to this managed space | When this happens, reliably do this |
 
 ### 5.2 What A Stronger Model Changes
 
@@ -343,14 +343,14 @@ SPACE
   Artifacts
 
 BUILD
-  AI Team
+  AI Space
     Assistants
     Specialists
   Automations
 ```
 
 This is a direction for usability testing, not committed navigation or naming.
-`AI Team`, `Assistant`, `Specialist`, and `Automation` are provisional labels.
+`AI Space`, `Assistant`, `Specialist`, and `Automation` are provisional labels.
 
 ### 7.2 Home Is The Default Work Surface
 
@@ -493,7 +493,7 @@ The first experiment should enforce:
 - maximum delegation depth of one;
 - only ordinary worker Agents in the delegate catalog;
 - no Assistant-to-Assistant recursion;
-- no dynamically discovered Team Agent;
+- no dynamically discovered Space Agent;
 - no mutation of the catalog during a run;
 - no direct child side-effect permission inherited from the parent;
 - no worker held while a parent waits; and
@@ -575,7 +575,7 @@ bindings, limits, Agent revisions, and side-effect policy.
 ### 10.1 Option A: Continue With Workflow-First Product Development
 
 Build the accepted durable graph, semantic form, topology view, and bounded
-adaptive patterns before adding Team Agent delegation.
+adaptive patterns before adding Space Agent delegation.
 
 **Advantages**
 
@@ -598,7 +598,7 @@ Workflow and expose all three in Portal.
 
 **Advantages**
 
-- makes the managed-team concept explicit;
+- makes the managed-space concept explicit;
 - permits independent Assistant lifecycle and product presentation; and
 - can optimize APIs and analytics around orchestration.
 
@@ -617,7 +617,7 @@ This option is not recommended for the first experiment.
 Extend an Agent revision with an optional pinned delegate catalog and run every
 delegation as a durable child Task. Keep one strong Agent as the default. If
 evidence is positive, present selected delegation-enabled Agents as Assistants
-inside an `AI Team` surface and narrow Workflow toward Automation.
+inside an `AI Space` surface and narrow Workflow toward Automation.
 
 **Advantages**
 
@@ -654,7 +654,7 @@ and direct Task experience. Retain Workflow only for deterministic automation.
 - no child-context isolation or independent parallel work;
 - coarse capability and permission boundaries;
 - large investigations compete for one context; and
-- no reusable Team roster contract.
+- no reusable Space roster contract.
 
 This is not a rejected fallback. It is the baseline that Option C must beat.
 
@@ -701,7 +701,7 @@ content persuades it to invoke a specialist with privileges the initiating
 user did not intend.
 
 Admission must intersect caller authority, parent policy, child policy, and
-Team policy. Consequential delegation may require human approval even when the
+Space policy. Consequential delegation may require human approval even when the
 child Agent is in the catalog.
 
 ### 11.6 UX Taxonomy Becomes The Architecture
@@ -779,10 +779,10 @@ Show participants three navigation and creation models without explaining the
 architecture first:
 
 1. Agents, Assistants, and Workflows as peer items;
-2. Assistants and Specialists nested under `AI Team`, plus Automations; and
+2. Assistants and Specialists nested under `AI Space`, plus Automations; and
 3. one Agent catalog with optional delegation settings, plus Workflows.
 
-Ask participants to start an open-ended analysis, configure a reusable team,
+Ask participants to start an open-ended analysis, configure a reusable space,
 and schedule a governed repeat run. Record first-click success, completion
 time, taxonomy errors, and their explanation of each concept afterward.
 
@@ -813,7 +813,7 @@ This phase proves runtime value. It does not promise an Assistant product.
 ### 13.3 Phase 2: Product Projection If Evidence Is Positive
 
 - Present qualifying delegation-enabled Agents as Assistants.
-- Test the `AI Team` grouping and `Specialist` vocabulary.
+- Test the `AI Space` grouping and `Specialist` vocabulary.
 - Let a Space select a default Assistant for Home.
 - Add semantic roster and policy authoring without a graph editor.
 - Preserve direct execution for ordinary Agents and simple work.
@@ -866,12 +866,12 @@ Portal terminology together. This proposal is then retired.
 2. Should the parent Task enter a new durable waiting state, or can waiting be
    represented without expanding the public Task state machine?
 3. What minimum structured input and result contract is necessary before a
-   Team Agent can appear in a delegate catalog?
+   Space Agent can appear in a delegate catalog?
 4. Can a child Task continue independently when its parent is canceled, or
    must cancellation always propagate downward?
 5. Who may add a privileged Specialist to a coordinating Agent revision, and
    what publication review is required?
-6. Is `Assistant` clearer than `Team`, `Coordinator`, or simply a named Agent
+6. Is `Assistant` clearer than `Space`, `Coordinator`, or simply a named Agent
    in user research?
 7. Is `Automation` clearer than `Workflow` once the latter may invoke an
    adaptive Assistant?
@@ -891,7 +891,7 @@ paper:
 - Agent roster, revision pinning, parent-child Task ownership, and result
   propagation belong in
   [Agent execution and Task threads](../design/agent-execution-and-task-threads.md).
-- The user-facing role of Assistant, AI Team, and Home belongs in
+- The user-facing role of Assistant, AI Space, and Home belongs in
   [product vision](../design/product-vision.md) and the relevant Portal design.
 - The deterministic Automation boundary, Assistant node contract, and delivery
   sequence belong in [Workflow runtime](../design/workflow-runtime.md).

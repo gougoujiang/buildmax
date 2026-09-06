@@ -370,7 +370,7 @@ the only tab shown until you install it").
 |---|---|---|
 | Bash filesystem | OS backend (`bwrap` bind/ro-bind; Seatbelt `file-read*` / `file-write*`) | `infra/sandbox/bwrap_linux.go`, `seatbelt_darwin.go` |
 | Bash network egress | Go HTTP/SOCKS proxy (allow_list/deny_list); sandbox forces `HTTP_PROXY` env | `infra/sandbox/proxy.go` |
-| Bash env | Secret-shaped vars (`*_TOKEN`, `*_KEY`, `*_SECRET`, plus an exact list) stripped, except names a run declared as Team Secret grants (`Manager.AllowEnvNames`); `BUILDMAX_API_KEY`, `BUILDMAX_RUN_TOKEN`, `BUILDMAX_JWT_SECRET` are `alwaysDenyExact` and no allow-list re-admits them. See [team-secrets.md](team-secrets.md) §13.1 | `infra/sandbox/env_scrub.go` |
+| Bash env | Secret-shaped vars (`*_TOKEN`, `*_KEY`, `*_SECRET`, plus an exact list) stripped, except names a run declared as Space Secret grants (`Manager.AllowEnvNames`); `BUILDMAX_API_KEY`, `BUILDMAX_RUN_TOKEN`, `BUILDMAX_JWT_SECRET` are `alwaysDenyExact` and no allow-list re-admits them. See [space-secrets.md](space-secrets.md) §13.1 | `infra/sandbox/env_scrub.go` |
 | Bash process limits | `ulimit` shell statements prefixed onto the wrapped `/bin/sh -c` command, one per limit -- not `syscall.Setrlimit`, which `os/exec.Cmd` has no pre-exec hook to apply to only the child; `max_memory_mb` has no effect on macOS (Darwin's setrlimit lacks `RLIMIT_AS`) | `infra/sandbox/unix_rlimit.go` |
 | `command` hook | Same wrap + env as Bash (so hooks can't escape) | `infra/hook/command.go` consults `SandboxView` |
 | `http` hook | Same `allowed_domains` / `denied_domains` matcher | `infra/hook/http.go` consults `SandboxView` |
@@ -398,7 +398,7 @@ stamps the trace `sandbox.downgraded=true`, and exposes the
 overriding source in `SessionStart` hook payload (see §11.2).
 
 This table says what the boundary *is*, not who gets to choose it. That
-question — one deployment-wide profile against layered operator/team/task
+question — one deployment-wide profile against layered operator/space/task
 profiles, and whether an inapplicable profile fails the run or downgrades it
 with a recorded warning — is open in
 [trust-harness.md](./trust-harness.md) §3.9, together with the cluster-level

@@ -95,11 +95,11 @@ the deployment nearly empty, so its Portal list and detail views have nothing to
 exercise; `fixtures` creates a small, representative, deterministic set:
 
 - two accounts, `alice@buildmax.local` and `bob@buildmax.local`, each with the
-  personal team they get on creation;
+  personal space they get on creation;
 - for Alice, an agent (`Docs Writer`), a workflow that drives it
   (`Release Notes`), and four issues spread across `todo`, `in_progress`, and
   `done`, one of them carrying a comment thread;
-- for Bob, two issues of his own, so a second team with its own data is present
+- for Bob, two issues of his own, so a second space with its own data is present
   for boundary and list testing.
 
 It is idempotent: every entity is matched by its fixture title or name and

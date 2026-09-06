@@ -3,7 +3,7 @@
 Ready-made datasets to give the agent something real to work on, in either
 surface:
 
-- **Portal** — upload them into a team workspace so a fresh deployment has
+- **Portal** — upload them into a space workspace so a fresh deployment has
   content to reason about from the first conversation. Files page →
   **Upload Folder**, which preserves the directory structure.
   [deploy/compose.md](../docs/deploy/compose.md#put-something-in-the-workspace)

@@ -9,10 +9,10 @@ BuildMax is an out-of-the-box, privately deployable enterprise Agent platform.
 It is built around one shared Go Agent Core:
 
 - local single-user execution through CLI/TUI and Desktop
-- enterprise/team operation through Server and Portal
+- enterprise/space operation through Server and Portal
 - background execution through worker task runs
 
-This is not a choice between a local AI file assistant and a team AI workspace.
+This is not a choice between a local AI file assistant and a space AI workspace.
 Users can use only the local surfaces, deploy the Portal for a company, or use
 both together. The core rule is that important Agent capability belongs in the
 shared runtime first, then each surface exposes it in the way that fits its job.
@@ -34,7 +34,7 @@ there. This document owns only priority, sequencing, and release gates.
 The near-term goal is:
 
 > A company can privately deploy BuildMax and immediately use the same Agent
-> Core for local execution, team collaboration, background work, result
+> Core for local execution, space collaboration, background work, result
 > delivery, and basic governance.
 
 ## Active Priority Order
@@ -119,12 +119,12 @@ Required outcomes:
   behavior — **done**;
 - cover authorization-bearing and run-state transitions against the real
   database — **largely**: task-run transitions, claiming, system grants, plugin
-  activation, and the team invitation and ownership-transfer lifecycle are
+  activation, and the space invitation and ownership-transfer lifecycle are
   covered, and the four conditional-UPDATE claims that decide whether one
   caller wins — task claiming, run transition, result-delivery claiming, and
   cancellation beside a report — are now tested under contention and checked by
   mutation. Retry attempts, workflow revision advancement, restart recovery,
-  cross-team store lookups, and artifact tombstoning remain; see
+  cross-space store lookups, and artifact tombstoning remain; see
   [`design/verification-program.md`](design/verification-program.md) §4.2,
   which also records why the N-1 fixture is blocked and the quota bullet
   withdrawn;
@@ -132,10 +132,10 @@ Required outcomes:
   deployment evidence rather than forcing every one into every pull request —
   unchanged, and deliberately so.
 
-### R3. Close Account And Team Operations
+### R3. Close Account And Space Operations
 
-Account creation, credential issuance, team invitation, role promotion,
-ownership transfer, access recovery, and team approvals must form complete,
+Account creation, credential issuance, space invitation, role promotion,
+ownership transfer, access recovery, and space approvals must form complete,
 audited operator journeys. Existing authentication, role checks, system
 administration, quota, and audit code are the foundation, not the finished
 operation.
@@ -152,7 +152,7 @@ claim until the pinned protocol has actually run.
 
 After R0–R4, deepen the durable Workflow runtime selected in
 [the design record](design/workflow-runtime.md), or choose real channel
-adapters, executable team plugins, Portal performance, Desktop automation, or
+adapters, executable space plugins, Portal performance, Desktop automation, or
 throughput work from observed user and qualification evidence. Workflow work
 starts with reconciliation and typed dataflow before graph breadth. Do not let
 the existence of names, types, or partial adapters count as a shipped product
@@ -256,7 +256,7 @@ Focus:
 - sandbox and execution boundaries for filesystem, network, env, and process behavior
 - runtime hooks for approvals, tools, file changes, compaction, and run outcome
 - durable run traces with redaction, bounded tool output, usage, and latency
-- scoped memory and instruction loading across user, workspace, team, agent, and session
+- scoped memory and instruction loading across user, workspace, space, agent, and session
 - TUI/Desktop activity views and local diagnostics
 - local background jobs and monitors shared by TUI and Desktop
   (see [design/local-background-jobs.md](design/local-background-jobs.md))
@@ -292,7 +292,7 @@ Code state:
   would justify raising the memory count, ranking the index, or promoting
   memories automatically;
 - deliberately not covered by the local Project plan: global user memory,
-  team memory, Portal/worker memory, semantic retrieval, and automatic memory
+  space memory, Portal/worker memory, semantic retrieval, and automatic memory
   extraction.
 
 Acceptance:
@@ -390,7 +390,7 @@ Focus:
 - synchronized server config, storage config, and deployment docs
 - clear startup errors and health checks
 - Docker/kind/k8s path that runs end to end
-- default admin/user/team/quota/model initialization story
+- default admin/user/space/quota/model initialization story
 - optional managed LLM connection mode, so a deployment can supply approved
   models without distributing provider credentials to users and workers —
   shipped for CLI, TUI, Desktop, and task runs, none of which hold a provider
@@ -399,7 +399,7 @@ Focus:
 - an operator model catalog behind the shared LLM contract, with per-call usage
   recorded before any spending limit is claimed — the catalog and call ledger
   exist; catalog names and availability are deployment-wide, and the withdrawn
-  per-team alias layer must not be described as current
+  per-space alias layer must not be described as current
   (see [design/client-modes.md](design/client-modes.md))
 - an orderly stop: a restart or a rolling upgrade drains connections, stops
   claiming runs, and lets an interrupted run report what happened instead of
@@ -414,7 +414,7 @@ Code state:
   managed inference for local clients and workers, per-run worker tokens, an
   ordered shutdown across server, scheduler, and worker, and
   post-merge/scheduled Compose and kind smoke workflows;
-- the smoke paths exercise account bootstrap, login, team authorization,
+- the smoke paths exercise account bootstrap, login, space authorization,
   worker execution, artifacts, retry, managed inference, the call ledger, and
   Portal browser views;
 - still unproven or incomplete: a deployment against real external MySQL/S3 and
@@ -428,20 +428,20 @@ Acceptance:
 - a new environment can reach login, create work, run a worker task, and view the result without reading code
 - a deployment can serve approved models to CLI, Desktop, and worker runs without distributing provider keys, while direct mode still runs with no server
 
-### P4. Team Governance Foundation — first slice shipped
+### P4. Space Governance Foundation — first slice shipped
 
 Keep this practical. The near-term need is basic enterprise confidence, not a
 full policy platform.
 
 Focus:
 
-- team-scoped quota UI and documentation
+- space-scoped quota UI and documentation
 - role/permission boundary tests
 - clear workflow lifecycle UI and copy for draft/published/archived
 - design the smallest audit/event model
 - make sensitive assets traceable over time: webhook keys, agent definitions, workflows
-- a deployment-scoped System Administrator, separate from every Team role, so
-  account lifecycle, access recovery, system status, and cross-team audit stop
+- a deployment-scoped System Administrator, separate from every Space role, so
+  account lifecycle, access recovery, system status, and cross-space audit stop
   requiring database or cluster credentials
   (see [design/system-administration.md](design/system-administration.md))
 
@@ -459,7 +459,7 @@ missing Beta prerequisite.
 ## Beta Gate
 
 Alpha to Beta is not more Agent capability. It is an **operating proof** for one
-trusted team, performed with the immutable artifacts proposed for release. Code
+trusted space, performed with the immutable artifacts proposed for release. Code
 and automated tests establish that a proof is worth attempting; they do not
 substitute for a restore, failure drill, or upgrade in the target environment.
 
@@ -489,16 +489,16 @@ archive verification, image vulnerability scans, SBOMs, and provenance
 attestations. These are **per-release evidence**, not one-time substitutes for
 the entry proof above.
 
-The first Beta still accepts explicit limits. It is for a trusted team on a
+The first Beta still accepts explicit limits. It is for a trusted space on a
 private network, not direct public exposure. Worker egress and storage
 credentials remain operator-owned threat-model decisions until an enforced
 network and credential boundary ships. The readiness record must repeat these
 limits. Unlike Alpha, however, Beta does not accept an accidentally inherited
 CLI sandbox baseline or multi-replica semantics that the Server cannot enforce.
 
-Deliberately outside the Beta gate: Desktop polish, SSO, executable team plugin
+Deliberately outside the Beta gate: Desktop polish, SSO, executable space plugin
 content, additional model providers, and general durable Session sync. The
-instruction half of team plugin distribution — a team activating skill and
+instruction half of space plugin distribution — a space activating skill and
 subagent releases, and a worker materializing exactly what it pinned — is
 implemented; releases contributing hooks or MCP servers cannot be activated.
 
@@ -530,15 +530,15 @@ this sequence:
    product-owned conversation, deployment, trust, and recovery tasks. A
    one-task canary proves the adapter path, not a product score.
 
-Account/team closure can proceed alongside steps 2–4 when it does not distract
+Account/space closure can proceed alongside steps 2–4 when it does not distract
 from the execution boundary. New workflow, channel, plugin, or local-session
 features wait for evidence from these steps or a concrete deployment partner.
 
 ## Avoid For Now
 
 - a large workflow engine rewrite before results and runtime stability improve
-- a generic policy platform before the concrete team approval journey is clear
-- Desktop duplicating Portal issue/workflow/team administration
+- a generic policy platform before the concrete space approval journey is clear
+- Desktop duplicating Portal issue/workflow/space administration
 - a full Git restore UI before the outcome and change model is clear
 - any Portal-only Agent capability that bypasses the shared runtime
 
@@ -559,6 +559,6 @@ features wait for evidence from these steps or a concrete deployment partner.
 - [design/enterprise-deployment.md](design/enterprise-deployment.md) — P3 Enterprise deployment design
 - [design/llm-gateway.md](design/llm-gateway.md) — P3 Managed LLM gateway design
 - [design/graceful-shutdown.md](design/graceful-shutdown.md) — P3 shutdown ladder for server, scheduler, and worker
-- [design/team-governance.md](design/team-governance.md) — P4 Team governance design
+- [design/space-governance.md](design/space-governance.md) — P4 Space governance design
 - [design/system-administration.md](design/system-administration.md) — P4 Deployment-scoped system administration design
-- [design/team-membership-lifecycle.md](design/team-membership-lifecycle.md) — R3 team invitation, role change, ownership transfer, and member-scoped access recovery
+- [design/space-membership-lifecycle.md](design/space-membership-lifecycle.md) — R3 space invitation, role change, ownership transfer, and member-scoped access recovery

@@ -7,7 +7,7 @@
 > current deployment support boundaries are in
 > [start/support.md](../start/support.md).
 
-Deploying BuildMax for a team means running two Go binaries plus two backing
+Deploying BuildMax for a space means running two Go binaries plus two backing
 services. There is nothing to install into the agent runtime itself — the
 worker is the same runtime the CLI uses, started by the server.
 
@@ -41,10 +41,10 @@ rollback, prepare the disposable
 
 | Component | Role |
 |---|---|
-| `buildmax-server` | HTTP API, auth, team data, WebSocket fan-out, and the in-process scheduler that claims `PENDING` runs |
+| `buildmax-server` | HTTP API, auth, space data, WebSocket fan-out, and the in-process scheduler that claims `PENDING` runs |
 | `buildmax-worker` | Executes exactly one task run and exits. Reads and writes blob storage **directly**, not through the server. |
-| MySQL | Teams, conversations, issues, workflows, tasks, runs, usage |
-| Blob storage | Team file uploads (`persist_backend`) and run artifacts (`artifact_backend`). Local filesystem or any S3-compatible service such as MinIO. |
+| MySQL | Spaces, conversations, issues, workflows, tasks, runs, usage |
+| Blob storage | Space file uploads (`persist_backend`) and run artifacts (`artifact_backend`). Local filesystem or any S3-compatible service such as MinIO. |
 | Portal | Static frontend built from `portal/`; talks to the server over HTTP |
 
 ## Requirements

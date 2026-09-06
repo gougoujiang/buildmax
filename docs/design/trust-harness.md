@@ -222,7 +222,7 @@ long-term memory merely because it helps recall.
 Memory should be scoped and visible. Session notes and todos are the shipped
 working-memory scope. Shared CLI/Desktop Project identity and bounded Project
 Memory are planned in [local-project-memory.md](local-project-memory.md).
-Global user memory, team memory, and reusable Agent memory remain separate
+Global user memory, space memory, and reusable Agent memory remain separate
 future scopes rather than meanings assigned to `AGENTS.md` or agent
 instructions.
 
@@ -257,7 +257,7 @@ Worker runs should:
 - fail closed when approval would be required
 - run with explicit sandbox boundaries
 - record enough trace data for Portal diagnostics
-- load only the memory and instructions appropriate for the team/run scope
+- load only the memory and instructions appropriate for the space/run scope
 - make denied actions understandable
 - avoid hiding local/remote capability drift
 
@@ -268,7 +268,7 @@ worker execution are settled and described above or in
 [sandbox-boundaries.md](./sandbox-boundaries.md): what a run holds, what it runs
 inside, its resource bounds, and what it records. What is not settled is
 **authority**. The boundary is fixed by the deployment's manifests rather than
-chosen: a cluster operator hardens every worker equally or not at all, no team
+chosen: a cluster operator hardens every worker equally or not at all, no space
 can be given a different one, and nothing defines what happens when a requested
 constraint is unavailable. The sandbox is off on every surface today, so the
 question does not yet arise — wiring the worker surface (§3.2) is what raises it.
@@ -288,18 +288,18 @@ Four shapes were considered. Per-user runtime settings are disqualified: they
 cannot give an operator an authoritative worker boundary. Leaving it entirely to
 cluster manifests is coherent, but leaves BuildMax unable to record or explain a
 boundary it does not model, which the Beta gate requires. So the live choice is
-one deployment-wide profile in `server.yaml` against layered operator/team/task
+one deployment-wide profile in `server.yaml` against layered operator/space/task
 profiles, and **deployment-wide holds until evidence says otherwise** — it is
-materially cheaper, and a per-team boundary should be paid for by an operator
+materially cheaper, and a per-space boundary should be paid for by an operator
 who asks for it rather than assumed.
 
 What remains open, and what each needs:
 
 | Question | What would settle it |
 |---|---|
-| Is a per-team boundary a real requirement? | An operator statement either way. Until there is one, deployment-wide stands |
+| Is a per-space boundary a real requirement? | An operator statement either way. Until there is one, deployment-wide stands |
 | Does an inapplicable profile fail the run or downgrade it with a recorded warning? | Downgrade is defensible now that a trace reports an unsandboxed run as unsandboxed (§3.3). It must be decided before the worker surface is passed, because that baseline sets `FailIfUnavailable: true` |
-| Which destinations does a worker legitimately need? | A default-deny NetworkPolicy in the production reference, proven by a kind smoke run that still completes a task. The allow-list has to be grounded in what real runs reach — package registries, Git hosts, whatever a team configures — not assumed. Whether it is a NetworkPolicy alone or a proxy enforcing the host allow-list the sandbox contract already models with `HostAllowed`/`ProxyAddress` is part of the same question |
+| Which destinations does a worker legitimately need? | A default-deny NetworkPolicy in the production reference, proven by a kind smoke run that still completes a task. The allow-list has to be grounded in what real runs reach — package registries, Git hosts, whatever a space configures — not assumed. Whether it is a NetworkPolicy alone or a proxy enforcing the host allow-list the sandbox contract already models with `HostAllowed`/`ProxyAddress` is part of the same question |
 | Does an approval gate belong here at all? | Unattended scheduled work is a primary use and nothing gates it today, so the burden is on adding one |
 | How is a profile change versioned and attached to an existing TaskRun record? | Falls out of whichever shape wins |
 
@@ -313,7 +313,7 @@ rather than against the state before it. It is what would make the egress
 allow-list an evidenced decision instead of a guess.
 
 [agent-sandbox-policy.md](./agent-sandbox-policy.md) proposes an answer to the
-first two rows above, narrower than "layered per-team profiles" in general: it
+first two rows above, narrower than "layered per-space profiles" in general: it
 reopens deployment-wide-by-default for the `Network`/`Filesystem` axes of
 `SandboxConfig` only, moving those two to a fixed, small set of
 agent-revision-scoped tiers, while every other axis and the operator's
@@ -350,7 +350,7 @@ Recommended implementation order:
 7. Subagent traceability
 8. Safer worker execution polish
 
-This order gives the team better visibility first, then better control, then
+This order gives the space better visibility first, then better control, then
 more extensibility.
 
 ## 6. Acceptance

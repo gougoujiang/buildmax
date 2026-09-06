@@ -154,8 +154,8 @@ jobs:
   # The store tests skip themselves without a DSN, so the job above proves
   # nothing about schema, query, transaction, or MySQL-specific behavior — it
   # runs them and they opt out. That gap let a defect sit on main for 387
-  # commits: CreateTeam returned a Team whose plugin_curation was "" while
-  # GetTeam answered "open" for the same row, and the test that says so had been
+  # commits: CreateSpace returned a Space whose plugin_curation was "" while
+  # GetSpace answered "open" for the same row, and the test that says so had been
   # skipping since the day it was written.
   #
   # A separate job because it needs a service container the rest do not, and

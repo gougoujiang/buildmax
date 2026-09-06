@@ -26,7 +26,7 @@ Related records: [Local end-to-end verification](end-to-end-testing.md),
 ## Status
 
 - roadmap_priority: `R0–R4` — this program supplies the evidence required by
-  worker containment, topology correctness, persistence, account/team closure,
+  worker containment, topology correctness, persistence, account/space closure,
   and qualification breadth in [../ROADMAP.md](../ROADMAP.md)
 - status: `partially_implemented` — the repository already has extensive unit
   and contract tests, fast CLI and Desktop E2E suites, Portal Playwright
@@ -36,7 +36,7 @@ Related records: [Local end-to-end verification](end-to-end-testing.md),
   claiming, run transition, result-delivery claiming, and cancellation — are
   written and mutation-checked. Artifact tombstoning and the retention that
   follows it are written and mutation-checked too. Retry, workflow revision,
-  restart recovery, and cross-team store lookups remain; the N-1 fixture is
+  restart recovery, and cross-space store lookups remain; the N-1 fixture is
   blocked on the first appended migration and the quota bullet is withdrawn,
   both explained in §4.2. The unified matrix, expanded failure paths, and
   complete release rehearsal described here are not implemented
@@ -114,7 +114,7 @@ cross-package and user-visible.
 | V02 | CLI resumes and compacts a session | The selected session resumes, context sources remain correct, compaction preserves required state, and the task completes. | Pull request |
 | V03 | Desktop completes the same local task | The Desktop bridge assembles the shared runtime, surfaces approval and events, and persists the session consistently with CLI. | Pull request |
 | V04 | A user signs in and ends a session | A login code is single-use and expires; refresh rotation, logout, and revoked credentials behave against the real store. | Pull request with MySQL |
-| V05 | Teams are isolated | A member of Team A cannot read, mutate, stream, or download Team B resources even when given valid public IDs. | Pull request with MySQL |
+| V05 | Spaces are isolated | A member of Space A cannot read, mutate, stream, or download Space B resources even when given valid public IDs. | Pull request with MySQL |
 | V06 | Portal completes a foreground conversation turn | Streaming, durable history, refresh, reconnect, and final presentation agree. | Scheduled deployment |
 | V07 | Multiple turns target one conversation | Turns execute in submission order, the queue is bounded, nothing is lost, and no two turns mutate one conversation concurrently. | Pull request and scheduled multi-process proof |
 | V08 | An Issue produces a background result | Task, TaskRun, worker claim, model/tool execution, artifacts, Issue result projection, and conversation delivery form one explainable chain. | Pull request with MySQL and scheduled deployment |
@@ -123,8 +123,8 @@ cross-package and user-visible.
 | V11 | A failed task is retried | Retry creates an explicit new attempt, preserves the old attempt, and does not duplicate outputs, usage, or result delivery. | Pull request with MySQL |
 | V12 | A workflow revision runs linearly | The run uses the revision captured at start; step output and failure propagation are ordered; cancellation blocks remaining steps. | Pull request with MySQL |
 | V13 | Managed inference serves local and worker clients | No provider credential reaches the client or worker; per-run authorization, usage ledger, and quota are correct. | Scheduled deployment |
-| V14 | Artifacts preserve authorization and integrity | Upload, list, preview, and download succeed for the owning team; cross-team access fails; bytes and metadata agree. | Pull request with MySQL |
-| V15 | A team activates a safe plugin release | Exactly the pinned skill/subagent content materializes; disallowed hook or MCP releases are rejected; nothing is inherited implicitly. | Pull request and worker smoke |
+| V14 | Artifacts preserve authorization and integrity | Upload, list, preview, and download succeed for the owning space; cross-space access fails; bytes and metadata agree. | Pull request with MySQL |
+| V15 | A space activates a safe plugin release | Exactly the pinned skill/subagent content materializes; disallowed hook or MCP releases are rejected; nothing is inherited implicitly. | Pull request and worker smoke |
 | V16 | Server shutdown drains work | New claims and turns stop, in-flight work reports its documented outcome, and restart does not strand a running record. | Scheduled deployment |
 | V17 | A worker disappears without reporting | Heartbeats expire, the lost-worker path closes the run predictably, partial evidence remains, and retry is explicit. | Scheduled deployment |
 | V18 | Database or object storage becomes unavailable | Readiness changes, user-visible state is honest, no phantom artifact is published, and recovery or retry has an unambiguous path. | Scheduled deployment |
@@ -138,7 +138,7 @@ Every journey test uses the same assertion structure:
 3. assert the public response and visible result;
 4. assert durable MySQL and object-storage state;
 5. assert trace, audit, artifact, and managed-call evidence where applicable;
-6. assert forbidden side effects, including cross-team reads, duplicate rows,
+6. assert forbidden side effects, including cross-space reads, duplicate rows,
    duplicate usage, files outside the workspace, and non-terminal runs;
 7. clean up or use an isolated namespace so order cannot affect the result.
 
@@ -168,9 +168,9 @@ contributor; it must not silently start Docker as a side effect of `./make test`
 
 ### 4.2 First Persistence Cases
 
-Covered today: user and team creation, login codes, refresh tokens, public IDs,
+Covered today: user and space creation, login codes, refresh tokens, public IDs,
 system grants, plugin activation, LLM models and calls, audit search, revision
-queries, task run transitions and claiming, issues, conversations, the team
+queries, task run transitions and claiming, issues, conversations, the space
 invitation and ownership-transfer lifecycle, and — in
 `internal/infra/db/concurrency_test.go` — four store methods under contention:
 `ClaimTask`, `TransitionTaskRun`, and `RequestTaskRunCancel` each as a
@@ -195,7 +195,7 @@ Still to write:
 
 - retry producing a new attempt without rewriting the previous attempt;
 - workflow revision capture and ordered step advancement;
-- cross-team lookup rejection at the store, distinct from the role matrix the
+- cross-space lookup rejection at the store, distinct from the role matrix the
   handler tests already assert;
 - migration fixtures representing the supported N-1 schema. **Blocked, not
   deferred**: `migrations` in `internal/infra/db/migration.go` is empty after
@@ -206,7 +206,7 @@ Still to write:
 One item from this list is withdrawn rather than pending. **Quota reservation
 and charging boundaries** describes a design that does not exist: there is no
 reservation. `internal/service/quota.Check` reads a rolling window through
-`TeamUsageInWindow` and compares, and the store holds only `GetQuotaTier` and
+`SpaceUsageInWindow` and compares, and the store holds only `GetQuotaTier` and
 `SeedDefaultQuotaTiers`. Concurrent runs can therefore overshoot a limit, and
 that is a property of the current design rather than a defect a test should
 pin. What is worth covering there is the window-boundary arithmetic of the
@@ -355,7 +355,7 @@ Workflow rules:
 
 - build or select images for the exact commit under test and record their
   digests; never prove a commit with an older mutable image;
-- use unique team, user, task, run, and artifact identifiers for every matrix
+- use unique space, user, task, run, and artifact identifiers for every matrix
   cell;
 - do not retry a failed job into green. A diagnostic retry may run, but the
   original failure remains in the result;
@@ -388,7 +388,7 @@ considered for release.
 The operator must:
 
 1. bootstrap the first System Administrator;
-2. create or provision a normal account and team;
+2. create or provision a normal account and space;
 3. sign in through Portal;
 4. create Agent, Issue, and Workflow resources;
 5. complete a foreground conversation;
@@ -474,12 +474,12 @@ committed regression seed.
 
 ### 10.2 Mutation Targets
 
-Start with team policy, Task/TaskRun transition rules, login-code consumption,
+Start with space policy, Task/TaskRun transition rules, login-code consumption,
 quota, workflow validation, sandbox policy, and artifact authorization.
 
 The important mutations are deleted authorization checks, reversed role
 comparisons, changed terminal-state predicates, quota boundary changes,
-cancellation followed by success, and removed team filters. These mutations may
+cancellation followed by success, and removed space filters. These mutations may
 not survive. The program does not require a global mutation score for DTOs,
 generated structures, or simple adapters.
 
@@ -497,7 +497,7 @@ using evaluation for release qualification. Cover:
 - Project Memory read and update;
 - subagent delegation;
 - artifact production;
-- worker access to team files;
+- worker access to space files;
 - tool failure and malformed result recovery;
 - cancellation and timeout response;
 - result explanation through the trace.

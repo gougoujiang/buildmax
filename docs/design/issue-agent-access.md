@@ -182,7 +182,7 @@ Bounds are part of the decision, not a tuning detail. The thread on a
 long-running Issue can exceed any sane context budget, and an Agent that spends
 its window reading discussion has less left for the work. The tool returns a
 recent window and says how much it omitted, rather than paginating the model
-through a team's history.
+through a space's history.
 
 ### 5.2 `ReportToIssue`
 
@@ -203,14 +203,14 @@ not an extension.
 
 The reason is that the alternative fails in a way permissions cannot catch. If
 the model can name an Issue, then every prompt-injection payload in a comment
-thread — and comments may come from anyone on the team, or from an external
+thread — and comments may come from anyone on the space, or from an external
 connector — gains a working verb: *read issue X, post its contents to issue Y*.
 An approval prompt does not help, because the person approving sees a
 syntactically ordinary call. Removing the parameter removes the class.
 
 The same rule makes authorization simple: `internal/tool` makes no access
 decision. The port holds one credential and one scope, and the server checks
-team authorization on every call, as it does for any other route.
+space authorization on every call, as it does for any other route.
 
 ### 5.4 The Report Budget
 
@@ -232,13 +232,13 @@ writable by any tool. Creating a child Issue is not a tool either.
 
 This preserves an invariant the product already holds — nothing in the codebase
 moves an Issue's status on its own (§3) — rather than inventing one. The
-reasoning is asymmetric cost: `done` is what a team reads to plan around, and
+reasoning is asymmetric cost: `done` is what a space reads to plan around, and
 its meaning is *a person accepted this*. If a model can write it, the word stops
-carrying that, and the loss is a team coordination failure. What is saved by
+carrying that, and the loss is a space coordination failure. What is saved by
 letting the model write it is one click by someone who was going to read the
 result anyway.
 
-The bridge proposal states the same rule from the other side: status is a Team
+The bridge proposal states the same rule from the other side: status is a Space
 statement, not a report of what some process is doing.
 
 An Agent that believes work is finished says so in its report. A person moves
@@ -258,7 +258,7 @@ vouched for something it never saw. So a local report is stored as
 server verified, and the accountable one. It names no task and no run, because
 there is none. Portal shows it as reported rather than said.
 
-The team comment route accepts `author_kind` only as absent or `local_agent`. A
+The space comment route accepts `author_kind` only as absent or `local_agent`. A
 person's session may not write `agent` or `system`: those are the deployment's
 own voices, written by a run token and by the server.
 
@@ -268,7 +268,7 @@ legible as a claim, which is the most a client report can honestly be.
 
 ## 7. Untrusted Input And The Prompt Layers
 
-An Issue's description and comments are third-party text. Anyone on the team
+An Issue's description and comments are third-party text. Anyone on the space
 can write them, and a future inbound connector could carry them in from an
 external tracker. They are the same trust class as `WebFetch` output.
 
@@ -282,7 +282,7 @@ Two consequences, both binding:
   break that prefix on every edit as surely as it would launder a comment into
   an instruction.
 - **`GetIssue` labels every comment with its author kind.** The kinds already
-  exist. A model that cannot tell a teammate's comment from its own principal's
+  exist. A model that cannot tell a spacemate's comment from its own principal's
   instruction has no basis for treating them differently.
 
 Starting a run still flattens the Issue into the run's initial message today
@@ -316,7 +316,7 @@ already read.
   child creation, delete, or archive.
 - Addressing an Issue other than the scoped one, including a sibling or the
   parent of a scoped child.
-- Listing a team's Issues from a tool. An assigned-work inbox is a surface
+- Listing a space's Issues from a tool. An assigned-work inbox is a surface
   feature for a person, decided by the local Issue bridge proposal, not a model
   capability.
 - Registering these tools in Tier 1 conversations. Deferred, §11.
@@ -345,11 +345,11 @@ already read.
 4. Implement the port for the worker plane in the worker client, scoped by the
    run's task Issue ID, and register it in `internal/agentapp/taskrun`.
 5. Add the server-side read and comment routes the port needs, or reuse the
-   existing team Issue routes where the run token can be authorized against
+   existing space Issue routes where the run token can be authorized against
    them.
 6. Implement the port in `internal/interface/client` for logged-in local
    surfaces, and scope a session to an Issue with `buildmax --issue <id>`.
-   Reports go through the team comment route as `local_agent` (§6.1).
+   Reports go through the space comment route as `local_agent` (§6.1).
 
 All six are done. Steps 1–5 are worker-plane work and stood alone; step 6 is
 the first piece of the local Issue bridge, and what it does not do — remember

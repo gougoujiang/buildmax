@@ -55,7 +55,7 @@ export const AGENT_SANDBOX_FILESYSTEM_TIER_OPTIONS: FormModalSelectOption[] = [
 /** A space's own default has no further tier to inherit from -- leaving it
  * unset means the strictest baseline applies to every agent that declares
  * nothing. */
-export const TEAM_SANDBOX_NETWORK_TIER_OPTIONS: FormModalSelectOption[] = [
+export const SPACE_SANDBOX_NETWORK_TIER_OPTIONS: FormModalSelectOption[] = [
   {
     value: "",
     label: "No default (strictest baseline)",
@@ -64,7 +64,7 @@ export const TEAM_SANDBOX_NETWORK_TIER_OPTIONS: FormModalSelectOption[] = [
   ...NETWORK_TIERS,
 ]
 
-export const TEAM_SANDBOX_FILESYSTEM_TIER_OPTIONS: FormModalSelectOption[] = [
+export const SPACE_SANDBOX_FILESYSTEM_TIER_OPTIONS: FormModalSelectOption[] = [
   {
     value: "",
     label: "No default (strictest baseline)",

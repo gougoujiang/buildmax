@@ -8,7 +8,7 @@ no Tier 1 LLM call is spent deciding what to do with it.
 
 ## Create a Key
 
-Webhook keys are **user-scoped**, not team-scoped, and are managed through the
+Webhook keys are **user-scoped**, not space-scoped, and are managed through the
 authenticated user API:
 
 | Method | Route |
@@ -64,6 +64,6 @@ afterwards.
 - The run executes exactly like any other task run: a worker materializes the
   files, runs the shared agent runtime, and writes artifacts.
 - Because the key identifies a user, everything the run touches is scoped by
-  that user's team membership.
+  that user's space membership.
 - Treat a webhook key as a credential that can spend LLM budget and execute
   tools. Rotate it the same way you would an API token.

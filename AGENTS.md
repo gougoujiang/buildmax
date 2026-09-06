@@ -108,8 +108,8 @@ Important ownership boundaries:
   continuing thread; TaskRun owns one turn or attempt and its authoritative
   result. See
   [`docs/design/agent-execution-and-task-threads.md`](docs/design/agent-execution-and-task-threads.md).
-- Team is the ownership and authorization boundary for Portal resources. Issue
-  is the primary user-facing work object; Workflows are team-scoped reusable
+- Space is the ownership and authorization boundary for Portal resources. Issue
+  is the primary user-facing work object; Workflows are space-scoped reusable
   linear plans.
 - Local `Project` is owned by `internal/core/localproject`: one Git repository,
   including its worktrees, or one directory. It is not a server entity.
@@ -147,15 +147,15 @@ Architecture tests under `internal/architecture` enforce these boundaries.
   backend is unavailable. See
   [`docs/design/agent-sandbox-policy.md`](docs/design/agent-sandbox-policy.md)
   and [`deployment/seccomp/README.md`](deployment/seccomp/README.md).
-- Plugins are resolved once per runtime. Workers receive only the team's
+- Plugins are resolved once per runtime. Workers receive only the space's
   explicit, server-resolved activation in a run-scoped `BUILDMAX_HOME`; agents
   inherit no plugins implicitly. See
-  [`docs/design/plugin-team-distribution.md`](docs/design/plugin-team-distribution.md).
+  [`docs/design/plugin-space-distribution.md`](docs/design/plugin-space-distribution.md).
 - Every run records a bounded, redacted JSONL trace by default. Trace failure
   is fail-open.
 - Server authentication requires a JWT secret. Login codes are single-use and
   signup defaults off. Never reintroduce or document a fixed development OTP.
-- Worker runs materialize the team's persistent home, execute in a run-scoped
+- Worker runs materialize the space's persistent home, execute in a run-scoped
   workspace, write artifacts, and use a run-scoped `BUILDMAX_HOME`.
 - Portal and Desktop share presentation through `@buildmax/gui`, not data,
   authentication, or routing logic. Both use React 19.

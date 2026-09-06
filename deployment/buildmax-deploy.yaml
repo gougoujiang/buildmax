@@ -331,10 +331,10 @@ spec:
             - name: worker-api-tls
               mountPath: /buildmax/tls/worker-api
               readOnly: true
-            # Team Secret key-encryption key. optional so a deployment that does
-            # not use Team Secrets starts without the Secret present; the feature
+            # Space Secret key-encryption key. optional so a deployment that does
+            # not use Space Secrets starts without the Secret present; the feature
             # turns on only when secret.kek_file also points here (kind does; the
-            # baseline config above does not). See docs/design/team-secrets.md.
+            # baseline config above does not). See docs/design/space-secrets.md.
             - name: buildmax-kek
               mountPath: /buildmax/kek
               readOnly: true
@@ -361,7 +361,7 @@ spec:
         - name: worker-api-tls
           secret:
             secretName: buildmax-worker-api-tls
-        # Team Secret KEK. optional: a real deployment that does not use Team
+        # Space Secret KEK. optional: a real deployment that does not use Space
         # Secrets never creates this Secret and the pod still starts; kind's
         # `applyKindKEK` creates it and turns the feature on via secret.kek_file.
         - name: buildmax-kek

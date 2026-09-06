@@ -1,4 +1,4 @@
-# Team Governance Foundation
+# Space Governance Foundation
 
 ## Contents
 
@@ -30,20 +30,20 @@
 
 ## 1. Decision
 
-P4 should turn BuildMax's existing team controls into a practical governance
-foundation for private team operation.
+P4 should turn BuildMax's existing space controls into a practical governance
+foundation for private space operation.
 
 Several foundations already exist:
 
-- team roles: `owner`, `admin`, `member`
-- team-scoped quota service
-- team usage endpoint
+- space roles: `owner`, `admin`, `member`
+- space-scoped quota service
+- space usage endpoint
 - centralized handler authorization helper
 - workflow lifecycle: `draft`, `published`, `archived`
 - workflow assignment and execution checks
 
 The remaining work is not a giant enterprise policy platform. It is making the
-existing controls visible, tested, and traceable enough that team admins can
+existing controls visible, tested, and traceable enough that space admins can
 trust shared automation.
 
 ## 2. Product Goal
@@ -52,7 +52,7 @@ Admins should understand:
 
 - who can do what
 - what shared resources are governed
-- what capacity the team is using
+- what capacity the space is using
 - which workflows are draft, published, or archived
 - which sensitive assets changed over time
 
@@ -63,26 +63,26 @@ console.
 
 Backend anchors:
 
-- roles in `internal/core/team/team.go`
-- the role/action decision in `internal/core/team/policy.go`, applied to a
+- roles in `internal/core/space/space.go`
+- the role/action decision in `internal/core/space/policy.go`, applied to a
   request by the `Guard` in `internal/server/access`
 - quota service in `internal/service/quota/service.go`
-- quota routes in `internal/server/handlers/team/usage.go`
+- quota routes in `internal/server/handlers/space/usage.go`
 - workflow lifecycle in `internal/core/workflow/workflow.go`
 - workflow lifecycle enforcement in `internal/service/workflow/service.go`
-- team persistence in `internal/infra/db/team.go`
+- space persistence in `internal/infra/db/space.go`
 - default quota tier seeding in `internal/infra/db/quota_tier.go`
 
 Frontend anchors:
 
-- team settings in `portal/src/pages/settings/SpaceSettings.tsx`
+- space settings in `portal/src/pages/settings/SpaceSettings.tsx`
 - shared settings UI in `portal/src/pages/settings/shared.tsx`
 - workflow pages in `portal/src/pages/workflows`
 - issues assignment UI in `portal/src/pages/issues`
 
 Current action model:
 
-- `owner` manages team members.
+- `owner` manages space members.
 - `owner` and `admin` manage agents, workflows, and workflow assignment.
 - `owner`, `admin`, and `member` can run workflows.
 
@@ -96,19 +96,19 @@ explanation:
 - what each role means
 - why an action is unavailable
 - which workflow states are runnable
-- current team usage and quota limits
+- current space usage and quota limits
 
 ### 4.2 Permission Boundaries Need Broader Tests — RESOLVED
 
 **This gap is closed.** A matrix drives real requests through the mux for an
-owner, an admin, a member, a member of another team, and an anonymous caller,
-covering every team-scoped route the server registers.
+owner, an admin, a member, a member of another space, and an anonymous caller,
+covering every space-scoped route the server registers.
 Driving requests rather than unit-testing the authorization helper is the
-point. The role rules now have one implementation, `core/team.Allows`, with its
+point. The role rules now have one implementation, `core/space.Allows`, with its
 own table test; what the matrix proves is the other half — that each route
 actually asks. A rule with one owner that a route never consults is still an
 open route. A second test reads every route registration and fails when a
-team-scoped route has no entry — and when an entry names a route that no longer
+space-scoped route has no entry — and when an entry names a route that no longer
 exists, because a dead row reads as coverage.
 
 What it was built to prove:
@@ -117,7 +117,7 @@ What it was built to prove:
 - admins cannot manage ownership-sensitive membership actions
 - owners can manage members
 - workflow lifecycle restrictions apply consistently
-- team-scoped resources cannot leak across teams
+- space-scoped resources cannot leak across spaces
 
 ### 4.3 Workflow Lifecycle Needs Product Polish
 
@@ -132,10 +132,10 @@ The UI should avoid making users learn this by failed requests.
 ### 4.4 Sensitive Assets Are Not Traceable — PARTLY RESOLVED
 
 The audit trail described in §5.4 now exists, but it covers the identity and
-model-catalog half of the list. Of the shared assets that affect team
+model-catalog half of the list. Of the shared assets that affect space
 execution:
 
-- team members and roles — **recorded**
+- space members and roles — **recorded**
 - the model catalog, which holds provider credentials — **recorded**
 - webhook keys — not recorded
 - agent definitions — not recorded
@@ -143,18 +143,18 @@ execution:
 - quota tier assignment — not recorded
 
 The first slice was chosen for what a compromise costs rather than for how
-often the asset changes: a membership change grants access to everything a team
+often the asset changes: a membership change grants access to everything a space
 holds, and a catalog change moves prompts and spending. The rest is additive —
 each one is a `Record` call at the point of change plus a permanent action
 string — and is the obvious second slice.
 
 ## 5. In Scope
 
-### 5.1 Team Quota UI And Documentation
+### 5.1 Space Quota UI And Documentation
 
 Make quota visible where admins expect it:
 
-- current team usage
+- current space usage
 - tier name
 - rolling period
 - run limit
@@ -163,9 +163,9 @@ Make quota visible where admins expect it:
 
 Document:
 
-- quota is team-scoped
-- personal use is represented by the default personal team
-- task creation/rerun checks the active team
+- quota is space-scoped
+- personal use is represented by the default personal space
+- task creation/rerun checks the active space
 
 ### 5.2 Role And Permission Boundary Tests
 
@@ -173,12 +173,12 @@ Add a table-driven permission matrix for server handlers and services.
 
 Minimum actions:
 
-- manage team members
+- manage space members
 - create/update/delete agent
 - create/update/publish/archive workflow
 - assign issue to workflow
 - run workflow
-- read team resources
+- read space resources
 - create normal work
 
 ### 5.3 Workflow Lifecycle UI
@@ -203,8 +203,8 @@ decisions, not drift:
 - **No `MetadataJSON`.** A free-form JSON column is where prompts, request
   bodies, and credentials end up. `Detail` is a short non-sensitive note — a
   role name, a model alias — and nothing more.
-- **A `TeamID` that may be empty.** A login is not team-scoped, and forcing one
-  would have meant inventing a team for the event.
+- **A `SpaceID` that may be empty.** A login is not space-scoped, and forcing one
+  would have meant inventing a space for the event.
 
 The event carries no prompts, no generated content, no tool output, and no
 credentials: only who did what to which object. Run diagnostics live in the
@@ -216,8 +216,8 @@ a record that can be edited is not evidence. Action strings are persisted and
 therefore permanent; renaming one rewrites history for every reader filtering
 on it.
 
-The actions that shipped are `user.login`, `team.member_added`,
-`team.member_removed`, `llm_model.created`, `llm_model.enabled`,
+The actions that shipped are `user.login`, `space.member_added`,
+`space.member_removed`, `llm_model.created`, `llm_model.enabled`,
 `llm_model.disabled`, and `access.denied`. Two are worth stating for anyone
 extending the list: a failed login is deliberately *not* recorded, because it
 says nothing about who the actor was and would turn the trail into a place to
@@ -236,8 +236,8 @@ The remaining actions from §4.4 are the second slice.
 
 ### 5.5 Event Visibility — SHIPPED
 
-`GET /api/teams/{team_id}/audit-events` serves a team's trail newest-first with
-limit/offset, and Portal renders it as an audit section in team settings
+`GET /api/spaces/{space_id}/audit-events` serves a space's trail newest-first with
+limit/offset, and Portal renders it as an audit section in space settings
 (`portal/src/features/audit/`).
 
 It is **owner-only**, in the API and in the UI. The trail names who did what
@@ -265,11 +265,11 @@ younger than the cutoff that produced it, so it survives its own sweep, and by
 the time the window passes it a later sweep says the same about a later stretch.
 
 This answers open question 6: retention is configuration, defaulting to keep,
-applied by the deployment rather than by a team.
+applied by the deployment rather than by a space.
 
 ### 5.7 Export — SHIPPED
 
-`GET /api/teams/{team_id}/audit-events/export` gives a team owner their trail,
+`GET /api/spaces/{space_id}/audit-events/export` gives a space owner their trail,
 and `GET /api/admin/audit-events/export` gives a System Administrator the
 deployment's under the same filters the search takes. Both stream CSV or JSONL.
 
@@ -280,15 +280,15 @@ Three decisions are worth keeping:
   downloads has neither problem, and shipping the pull first means the event
   shape does not have to be final before anyone can get their data out. A push
   integration would still have to answer question 8; this does not.
-- **The team route takes no filters.** The reason to export is to hold the
+- **The space route takes no filters.** The reason to export is to hold the
   record elsewhere, and a filter applied on the way out is a decision the file
   cannot show it made. The admin route does take them, because there they are
   an operator narrowing a read they already hold.
 - **An export is recorded**, as `audit.exported`, with the count that actually
   left and whether it stopped at the cap. Reading the whole record is an action
   on it; an export that left no trace would be the one way to consult the trail
-  without appearing in it. An admin export narrowed to one team is recorded in
-  that team's trail too, so its owner can see that the deployment read it.
+  without appearing in it. An admin export narrowed to one space is recorded in
+  that space's trail too, so its owner can see that the deployment read it.
 
 Paging uses a keyset cursor rather than an offset. An export reads across many
 round trips while rows are appended at one end and, under retention, removed at
@@ -297,19 +297,19 @@ skipped page is the worst kind of bug, because the file still looks complete.
 
 ### 5.8 Quota Alerting — SHIPPED
 
-`QuotaService.Check` records two actions: `quota.threshold_reached` when a team
+`QuotaService.Check` records two actions: `quota.threshold_reached` when a space
 passes 80% of a limit, and `quota.exceeded` when work is refused. They are
 separate because they call for different responses — one is a heads-up, the
 other is work not happening.
 
 Both are written at most once per limit per period, deduplicated against the
-trail itself, so a team that keeps submitting does not turn its own record into
+trail itself, so a space that keeps submitting does not turn its own record into
 a log of retries. The actor is the system, not whoever submitted the work that
-tipped the total over: a quota belongs to the team, and naming the last member
+tipped the total over: a quota belongs to the space, and naming the last member
 to submit would read as blame for a shared budget.
 
 The admission path is where this has to live. Usage is a rolling window, so
-there is no period boundary at which a sweep could notice a team sitting at
+there is no period boundary at which a sweep could notice a space sitting at
 80%. Neither the read nor the write may change the admission decision — a
 deployment whose audit table is unreachable still runs work, and still enforces
 the limit.
@@ -335,15 +335,15 @@ Recommended starting matrix:
 
 | Action | Owner | Admin | Member |
 |---|---:|---:|---:|
-| View team resources | yes | yes | yes |
+| View space resources | yes | yes | yes |
 | Create issue/conversation work | yes | yes | yes |
 | Run assigned workflow | yes | yes | yes |
 | Manage agents | yes | yes | no |
 | Manage workflows | yes | yes | no |
 | Assign issue to workflow | yes | yes | no |
-| Manage team members | yes | no | no |
+| Manage space members | yes | no | no |
 | Change member roles | yes | no | no |
-| View team usage | yes | yes | yes |
+| View space usage | yes | yes | yes |
 | Change quota tier | yes | no | no |
 | View activity events | yes | yes | no |
 
@@ -356,12 +356,12 @@ control, build from observed needs rather than inventing custom RBAC now.
 
 Shipped as a route matrix rather than tests around the role predicate, for the
 reason given in §4.2: the predicate cannot show that a route consulted it.
-Every team-scoped route the server registers has a row naming who may call it, the
+Every space-scoped route the server registers has a row naming who may call it, the
 rows are driven as real requests for five callers including a member of another
-team, and a route without a row fails the build.
+space, and a route without a row fails the build.
 
 Acceptance met: the permission matrix is enforced by tests, and a new
-team-scoped route cannot ship without someone deciding who may call it.
+space-scoped route cannot ship without someone deciding who may call it.
 
 ### M2. Governance Service Boundary
 
@@ -371,21 +371,21 @@ keep spreading, move the policy into a small service/package.
 Target API:
 
 ```go
-type TeamAuthorizer interface {
-	Authorize(ctx context.Context, teamID, userID string, action TeamAction) (role string, err error)
+type SpaceAuthorizer interface {
+	Authorize(ctx context.Context, spaceID, userID string, action SpaceAction) (role string, err error)
 }
 ```
 
 Keep it boring: no policy DSL.
 
-### M3. Team Event Store — DONE
+### M3. Space Event Store — DONE
 
 Shipped as `audit.Event` and `audit.Store`
 (`RecordAuditEvent`/`ListAuditEvents`) in `internal/core/audit`, with
 `auditEventRow` in
 `internal/infra/db` on the singular table `audit_event`. The
-naming landed on *audit* rather than *team event* because a login is not
-team-scoped and the trail is evidence rather than an activity feed. See §5.4 for
+naming landed on *audit* rather than *space event* because a login is not
+space-scoped and the trail is evidence rather than an activity feed. See §5.4 for
 the shape and for what was dropped from the sketch here.
 
 ### M4. Event Writes — DONE
@@ -401,7 +401,7 @@ did not survive: there is no metadata column, only a short `Detail` string.
 Shipped as:
 
 ```text
-GET /api/teams/{team_id}/audit-events
+GET /api/spaces/{space_id}/audit-events
 ```
 
 Authorization is **owner-only**, narrower than the owner/admin sketched here,
@@ -414,13 +414,13 @@ limit/offset paging.
 
 Update Portal copy:
 
-- team member role descriptions
+- space member role descriptions
 - disabled action text for member/admin limits
 - workflow lifecycle explanations
 
-### M2. Team Usage Panel
+### M2. Space Usage Panel
 
-In team settings, show:
+In space settings, show:
 
 - tier
 - period
@@ -440,7 +440,7 @@ In workflow pages:
 
 ### M4. Activity Section — DONE
 
-Shipped in team settings as "Audit trail" (`portal/src/features/audit/`), with
+Shipped in space settings as "Audit trail" (`portal/src/features/audit/`), with
 concise labels and paging. A non-owner sees the section explain why it is empty
 for them rather than seeing nothing, so the boundary is legible instead of
 looking like a missing feature.
@@ -472,8 +472,8 @@ Manual scenarios:
 3. Member cannot manage workflows or agents.
 4. Published workflow can be assigned and run.
 5. Draft/archived workflow cannot be assigned for new work.
-6. Team usage is visible and matches active team.
-7. Sensitive actions appear in Team Activity.
+6. Space usage is visible and matches active space.
+7. Sensitive actions appear in Space Activity.
 
 ## 11. Risks
 
@@ -487,7 +487,7 @@ Manual scenarios:
 
 ## 12. Open Questions
 
-1. ~~Should members be able to view Team Activity, or is it admin-only?~~
+1. ~~Should members be able to view Space Activity, or is it admin-only?~~
    **Decided: owner-only**, narrower than either option. The trail records who
    was refused a request, and that is administrative information — see §5.5.
 2. ~~Should event writes be best-effort or required for sensitive actions?~~
@@ -507,14 +507,14 @@ Manual scenarios:
 5. Should webhook key creation/revocation require owner/admin only?
 
 The remaining questions came from the retired *Audit and data governance*
-proposal. Its recommended direction — an internal team ledger first, export
+proposal. Its recommended direction — an internal space ledger first, export
 later — is what shipped; these are the parts that were not settled by shipping
 it:
 
 6. ~~What retention applies to audit events, and is it configuration or an
    operational responsibility?~~ **Decided: configuration, defaulting to keep
    everything** — `audit.retention_days`, applied by the deployment rather than
-   by a team, with each sweep recording what it removed. See §5.6.
+   by a space, with each sweep recording what it removed. See §5.6.
 7. What correlation identifiers may connect a task, worker, model call, and
    artifact? Partly answered: a run's trace and the `llm_call` rows it produced
    are now joined in Portal's run details, so what a run did and what the
@@ -530,8 +530,8 @@ it:
 9. Who may read run traces, artifacts, and model usage? The audit trail's
    answer is settled; these three were never decided together, and they carry
    more than the trail does — a trace holds tool output.
-10. Which deletion controls does a team get? There is no export or import
-    command and nothing deletes a team's records, so "delete our data" has no
+10. Which deletion controls does a space get? There is no export or import
+    command and nothing deletes a space's records, so "delete our data" has no
     answer beyond dropping the database and the bucket.
 
 ## 13. Recommended First PR
@@ -539,8 +539,8 @@ it:
 The first P4 PR should make existing governance explicit:
 
 1. Add the permission matrix tests.
-2. Polish team settings role/quota UI copy.
+2. Polish space settings role/quota UI copy.
 3. Polish workflow lifecycle UI states.
 4. Add missing handler tests for forbidden role paths.
 
-Then the second PR can add the small `team_event` model and Team Activity UI.
+Then the second PR can add the small `space_event` model and Space Activity UI.

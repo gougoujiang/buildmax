@@ -8,7 +8,7 @@ show that the candidate is ready to exercise; only results produced with the
 same immutable artifacts proposed for release count as qualification evidence.
 
 Do not change the status above to `qualified` until every required item below
-passes, every evidence link is durable and readable by the release team, and
+passes, every evidence link is durable and readable by the release space, and
 the final decision is signed. A failed item stays in the record with its
 diagnosis and the later successful rerun.
 
@@ -32,7 +32,7 @@ Fill this table before starting. Tags alone are not immutable evidence.
 
 ## Accepted Limits
 
-The first Beta is for one trusted team on a private network. Record that the
+The first Beta is for one trusted space on a private network. Record that the
 operator and participants accepted all of these limits:
 
 - [ ] The deployment is not exposed directly to an untrusted public network.
@@ -68,7 +68,7 @@ Use documented UI and operator surfaces. The person performing this journey
 must not need source-code knowledge.
 
 - [ ] Bootstrap the System Administrator, create or invite the account, sign in,
-  create a team, and verify access boundaries with a second role.
+  create a space, and verify access boundaries with a second role.
 - [ ] Configure an approved managed model without distributing its provider key
   to the client, then create work and run it in a Kubernetes worker Job.
 - [ ] Inspect the live Job. Record its read-only root filesystem, dropped
@@ -108,7 +108,7 @@ screens, TaskRun JSON, trace, audit rows, and artifact listings for each case.
 ## Recovery And Maintenance
 
 - [ ] Restore the coordinated database and bucket backup into an empty recovery
-  environment. Sign in and compare team, task, TaskRun, trace, audit, usage, and
+  environment. Sign in and compare space, task, TaskRun, trace, audit, usage, and
   artifact identifiers and checksums with the pre-backup record. State the
   measured recovery time and any accepted data loss.
 - [ ] Upgrade from the previous release to the candidate through at least one

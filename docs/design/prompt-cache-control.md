@@ -84,7 +84,7 @@ model request into a cache write or silently enable extended retention.
 ### Goals
 
 - Reduce cost and latency for repeated Agent prefixes on supported providers.
-- Preserve direct-mode portability and the managed gateway's team boundary.
+- Preserve direct-mode portability and the managed gateway's space boundary.
 - Explain requested control, provider report, and absent capability in telemetry.
 - Allow an operator to select provider-supported retention deliberately.
 - Keep provider policy outside `internal/core/agent`; core expresses intent and
@@ -156,12 +156,12 @@ Direct CLI/Desktop calls resolve the selected `settings.yaml` model's policy in
 local provider adapter. This is the only path where a user's local settings can
 select cache control for their own provider account.
 
-Managed CLI/Desktop calls use `infra/llmremote` and the team completion
+Managed CLI/Desktop calls use `infra/llmremote` and the space completion
 endpoint. Worker calls use the worker completion endpoint and a run token. In
 both cases the remote request carries only `call_profile`; it carries neither
 `mode`, TTL, provider integration profile, nor cache key. The server:
 
-1. authenticates the caller and resolves the team or task-run identity;
+1. authenticates the caller and resolves the space or task-run identity;
 2. resolves the approved alias to its catalog target;
 3. validates the target's cache capability and deployment policy;
 4. combines that policy with the received call profile; and
@@ -176,7 +176,7 @@ BuildMax endpoint request.
 `llmwire.CompletionRequest` gains an additive, validated `call_profile` field.
 `CompletionResponse` gains only safe effective diagnostics and usage counts;
 it never returns an opaque cache key or upstream provider configuration. The
-team, worker, and HTTP completion handlers must share this server-side
+space, worker, and HTTP completion handlers must share this server-side
 resolution function so their behavior cannot drift. Server-owned Tier 1 calls
 the same function in process, not by issuing an HTTP call back to the server.
 
@@ -218,7 +218,7 @@ must not bucket unrelated prompt populations. BuildMax derives an opaque,
 versioned key from:
 
 ```text
-provider-account/credential identity + target/model + team (managed only)
+provider-account/credential identity + target/model + space (managed only)
 + system-prompt fingerprint + toolset fingerprint + cache-policy version
 ```
 
@@ -259,7 +259,7 @@ an estimate only when all rates and usage are reported; otherwise show
 counterfactual base-input cost; and reports a saving only when positive.
 
 Quota remains a workload/token control until separately redesigned. Cache
-discounts must not make a team appear to have performed less work or silently
+discounts must not make a space appear to have performed less work or silently
 loosen an existing token limit.
 
 ## 7. Security and Retention
@@ -269,8 +269,8 @@ local performance flag.
 
 - Capability profiles declare retention choices; extended retention is opt-in.
 - A direct user selects the provider/account exposure. A managed operator
-  chooses it for the target; teams do not receive a policy-bypassing override.
-- Keys and profiles are scoped by credential and, for managed inference, team.
+  chooses it for the target; spaces do not receive a policy-bypassing override.
+- Keys and profiles are scoped by credential and, for managed inference, space.
 - `force` or extended retention warns on likely secrets in static instructions.
   The warning is not a complete secret detector and does not block normal work.
 - Ledger, trace, and diagnostics contain counts and outcomes only, never
@@ -295,7 +295,7 @@ local performance flag.
 - Propagate existing cache counters to stats, events, traces, local results,
   managed completion responses, managed ledger API, and Portal.
 - Cover direct CLI/Desktop construction and all managed completion endpoints:
-  team, worker task-run, and the Server's in-process Tier 1 path.
+  space, worker task-run, and the Server's in-process Tier 1 path.
 - Add cache counters/diagnostics to the run-spend view and retain `unreported`.
 - Add fixtures for all current protocol usage shapes and managed round trips.
 
@@ -305,7 +305,7 @@ to surface without double-counting prompt tokens.
 Counts travel `llm.Usage` → `agent.RunStats` and `agent.Event` → trace `llm_end`
 and `run_end` → `session.Session` totals → `agentapp.RunResult`/`RunUsage` →
 CLI, Desktop, and — for a managed call — `llmwire.Usage` → the `llm_call` ledger
-row → the team run-ledger route → Portal's run-spend view. Every surface prints
+row → the space run-ledger route → Portal's run-spend view. Every surface prints
 the breakdown only where a provider reported one: a permanent `0 / 0` would read
 as a measured miss on the many providers that report nothing.
 
@@ -356,7 +356,7 @@ still nothing truthful to say beyond the counts.
 - Add pricing-versioned estimates and explicit unavailable states.
 
 **Acceptance:** request-shape tests pin key/options, keys change across
-team/static-prefix boundaries, and reported counters produce reproducible cost.
+space/static-prefix boundaries, and reported counters produce reproducible cost.
 
 Where the pricing record lives was left open above and is settled here. There is
 no separate temporal price table. Current rates sit on the thing they describe —

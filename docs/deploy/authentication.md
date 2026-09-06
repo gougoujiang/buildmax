@@ -72,8 +72,8 @@ on the way to a password:
 ## System Administrators
 
 A System Administrator is an authority over the **deployment**, held by an
-account and separate from every Team role. Team `owner`, `admin`, and `member`
-govern one team's people and shared automation; they say nothing about the
+account and separate from every Space role. Space `owner`, `admin`, and `member`
+govern one space's people and shared automation; they say nothing about the
 server. A grant is what says something about the server.
 
 ```bash
@@ -90,8 +90,8 @@ What the grant carries today is `/api/admin`: listing and inspecting accounts,
 creating one, issuing a login code, disabling and enabling access, revoking
 sessions, and granting or revoking the role itself. The Portal area that will
 use those is still being built. What the grant will never carry is access to a
-team's issues, conversations, artifacts, files, or run traces. Those stay behind
-team membership, and an administrator who is not in your team cannot read them.
+space's issues, conversations, artifacts, files, or run traces. Those stay behind
+space membership, and an administrator who is not in your space cannot read them.
 
 Disabling an account refuses every credential it holds: password, login code,
 refresh token, the access token it is already carrying, and its webhook keys.
@@ -217,7 +217,7 @@ immediately and signing out one device does not.
 | Credential | Config | Guards |
 |---|---|---|
 | **JWT secret** | `jwt_secret` / `BUILDMAX_JWT_SECRET` | Signing for all user access tokens. Required. Generate with `openssl rand -hex 32` and inject at deploy time rather than committing it. |
-| **Run token** | minted per run, delivered as `BUILDMAX_RUN_TOKEN` | The `/api/worker/*` routes. Signed with the JWT secret, it names one run's user, team, and task, and authorizes that run alone. Not an operator setting — the scheduler issues one for every dispatched run. Lifetime is `worker.run_token_ttl`; there is no renewal, so it must outlast your longest run. |
+| **Run token** | minted per run, delivered as `BUILDMAX_RUN_TOKEN` | The `/api/worker/*` routes. Signed with the JWT secret, it names one run's user, space, and task, and authorizes that run alone. Not an operator setting — the scheduler issues one for every dispatched run. Lifetime is `worker.run_token_ttl`; there is no renewal, so it must outlast your longest run. |
 | **Webhook keys** | created per user via the API | Inbound `POST /api/webhook`. Stored as a SHA-256 hash; the plaintext is shown once at creation. See [reference/webhook.md](../reference/webhook.md). |
 
 Rotating the JWT secret invalidates every issued access token at once. Refresh

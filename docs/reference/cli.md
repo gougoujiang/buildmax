@@ -28,10 +28,10 @@ buildmax <command> [flags]
 | `buildmax sandbox deps` | Check host-side sandbox dependencies (`bwrap`, `sandbox-exec`, `socat`) |
 | `buildmax sandbox enable` / `disable` | Set `sandbox.enabled` in `settings.yaml` |
 | `buildmax sandbox mode <auto_allow\|regular>` | Set `sandbox.auto_allow_bash_if_sandboxed` |
-| `buildmax issue list` | List the issues a team assigned you, across every team you are in; `--status`, `--limit` |
+| `buildmax issue list` | List the issues a space assigned you, across every space you are in; `--status`, `--limit` |
 | `buildmax issue show <id>` | Show one issue: what it asks for, its sub-issues, and recent discussion |
 | `buildmax issue status <id> <status>` | Move an issue to `todo`, `in_progress`, or `done` |
-| `buildmax --issue <id>` | Work a team issue in this session: the agent can read it and report back |
+| `buildmax --issue <id>` | Work a space issue in this session: the agent can read it and report back |
 | `buildmax plugin list` | List installed plugins, where each came from, and whether it loads |
 | `buildmax plugin status [name]` | Show what a plugin contributes, its checkout or release, and what shadowed it |
 | `buildmax plugin validate [path]` | Parse a plugin directory and report every problem; non-zero if any would stop it loading |
@@ -40,7 +40,7 @@ buildmax <command> [flags]
 | `buildmax plugin update <name>` | Replace an installed Marketplace plugin with a newer release |
 | `buildmax plugin uninstall <name>` | Remove an installed plugin |
 | `buildmax plugin publish <path>` | Pack a directory and publish it (System Administrator only) |
-| `buildmax plugin activations --team <team-id>` | List the exact plugin releases a Team has activated for background runs |
+| `buildmax plugin activations --space <space-id>` | List the exact plugin releases a Space has activated for background runs |
 
 ## Flags
 
@@ -165,13 +165,13 @@ without `--force`: a working tree can hold work that exists nowhere else.
 `publish` takes the version from the directory's own `plugin.yaml` and needs a
 System Administrator grant on the server you are signed in to.
 
-`activations` is read-only and requires a login. It reports the Team's curation
+`activations` is read-only and requires a login. It reports the Space's curation
 mode and each activated release; activation changes stay in Portal, where they
-are visible with the Team's other shared automation and audit history.
+are visible with the Space's other shared automation and audit history.
 
 ### `buildmax issue`
 
-`buildmax issue list` is the receiving end of team work: it shows what a
+`buildmax issue list` is the receiving end of space work: it shows what a
 BuildMax server assigned you, so you can start on it here instead of reading a
 board in a browser. Sign in with `buildmax login` first.
 
@@ -180,7 +180,7 @@ buildmax issue list                    # everything assigned to you
 buildmax issue list --status todo      # only what has not been started
 ```
 
-One row per issue, with the team it belongs to. A team that cannot be read is
+One row per issue, with the space it belongs to. A space that cannot be read is
 reported as a warning and the rest of the inbox still prints.
 
 Managing the work — creating issues, assigning them, changing status, splitting
@@ -209,8 +209,8 @@ to you, and Portal shows it as reported rather than said. It is not the same as
 a comment from a run the deployment scheduled: nothing here was queued, counted
 against quota, or traced. `--issue` scopes one run; it is not remembered.
 
-Before the first model call the session prints which server, team, and issue it
-is working, and where prompts go — team work crossing to a personal model
+Before the first model call the session prints which server, space, and issue it
+is working, and where prompts go — space work crossing to a personal model
 should be visible before it crosses, not inferable afterwards.
 
 When you are done, say so:
@@ -219,7 +219,7 @@ When you are done, say so:
 buildmax issue status i_7Kq2... done
 ```
 
-That is yours to run, not the agent's. Status is what the team plans around and
+That is yours to run, not the agent's. Status is what the space plans around and
 `done` means a person accepted the work, so the agent can say it believes the
 work is finished and you decide. The change carries the version the issue was
 read at; if someone else moved it meanwhile, this refuses instead of

@@ -17,7 +17,7 @@ boundary changes; put future sequencing in the [roadmap](ROADMAP.md).
 ## Executive Assessment
 
 BuildMax is no longer a prototype. It contains a substantial shared Agent
-runtime, complete local surfaces, a broad team/server domain, background
+runtime, complete local surfaces, a broad space/server domain, background
 workers, a Portal, deployment assets, and an unusually serious test and release
 harness for an Alpha project.
 
@@ -32,7 +32,7 @@ MySQL store; what is left there is the breadth of the cases, not the gate.
 | Target | Current maturity | Assessment |
 |---|---:|---|
 | Local general-purpose Agent | 80–85% | Useful and broadly implemented; remaining work is mostly reliability evidence, edge cases, and surface polish. |
-| End-to-end private team platform | 60–65% | The vertical path exists across Server, Portal, worker, artifacts, traces, and deployment, but several operational loops are incomplete. |
+| End-to-end private space platform | 60–65% | The vertical path exists across Server, Portal, worker, artifacts, traces, and deployment, but several operational loops are incomplete. |
 | Production-safe multi-tenant platform | 45–55% | Authorization and governance foundations exist, worker Bash is confined, and persistence is in the pull-request evidence path. Multi-instance correctness, the MCP child-process boundary, cluster-level egress, and operating evidence from a real deployment are still below the production bar. The range is unchanged because what closed was mechanism, and what is left is the part no code change can supply. |
 
 The most accurate short description is:
@@ -83,15 +83,15 @@ chat, OpenAI Responses, Anthropic, and Ollama paths.
 CLI/TUI and Desktop assemble this shared runtime. They are functional local
 Agent products, not thin placeholders for Portal.
 
-### Team And Background Platform
+### Space And Background Platform
 
-The Server implements authentication, teams, agents and revisions, issues and
+The Server implements authentication, spaces, agents and revisions, issues and
 comments, workflows and revisions, conversations, tasks and task runs, worker
 claim/report flows, artifacts and files, traces, a managed LLM gateway, quota,
 audit, system administration, and a plugin catalog and activation model.
 
 Background execution supports local-process and Kubernetes Job launch modes,
-direct and managed inference, team-home materialization, run-scoped homes,
+direct and managed inference, space-home materialization, run-scoped homes,
 artifact publication, heartbeats, cancellation, retry, stale-run recovery, and
 the current legacy result-presentation path into Conversations. TaskRun already
 holds the authoritative result; direct Agent execution and optional
@@ -211,15 +211,15 @@ watching turn by turn. Verified against a real `sandbox.Manager` (Seatbelt),
 not only a test double.
 
 Portal's agent editor now exposes both tiers as selectors beside name and
-instructions, defaulting to "Team default" (the empty string, which inherits
-the team's own default and only then falls through to the strictest
-baseline) rather than a hardcoded strictest choice, and a team's Plugins
+instructions, defaulting to "Space default" (the empty string, which inherits
+the space's own default and only then falls through to the strictest
+baseline) rather than a hardcoded strictest choice, and a space's Plugins
 settings tab gains a "Sandbox defaults" section, visible to any member and
 editable by owner or admin, that sets what an agent declaring nothing
-inherits (`PUT /api/teams/{team_id}/sandbox-defaults`,
-`internal/service/team.SetSandboxDefaults`, resolved into the worker's
+inherits (`PUT /api/spaces/{space_id}/sandbox-defaults`,
+`internal/service/space.SetSandboxDefaults`, resolved into the worker's
 `GetTaskRun` response alongside the agent's own declaration). An agent's own
-declared tier still always overrides the team default. This closes both
+declared tier still always overrides the space default. This closes both
 halves of [`agent-sandbox-policy.md`](design/agent-sandbox-policy.md) §9/§10
 that were previously not started.
 
@@ -281,10 +281,10 @@ A pinned `mysql:8.0` service container runs it on every pull request
 ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)), and `./make check
 ci` runs it when a DSN is present and says it did not when one is absent.
 
-The gate justified itself on its first run. `CreateTeam` returned a `Team`
-whose `PluginCuration` was empty while `GetTeam` answered `open` for the same
+The gate justified itself on its first run. `CreateSpace` returned a `Space`
+whose `PluginCuration` was empty while `GetSpace` answered `open` for the same
 row, so a create and a later read disagreed and the API omitted the field on
-one path. `TestSetTeamPluginCurationRoundTrips` had asserted that since
+one path. `TestSetSpacePluginCurationRoundTrips` had asserted that since
 2026-08-23 and skipped every time; the defect sat on `main` for 387 commits
 because nothing ever ran the test.
 
@@ -306,7 +306,7 @@ mechanism it belonged to was removed; see
 What remains is case breadth, not mechanism.
 [`design/verification-program.md`](design/verification-program.md) §4.2 still
 lists retry attempts, workflow revision advancement, delivery restart
-recovery, cross-team store lookups, and artifact tombstoning. The N-1 migration
+recovery, cross-space store lookups, and artifact tombstoning. The N-1 migration
 fixture is blocked rather than deferred: the explicit migration list is empty
 after the identity cutover, so a fixture would encode a history no database
 ever had. The quota bullet in that list is withdrawn — there is no reservation
@@ -319,13 +319,13 @@ is not yet reported per critical package the way §4.3 asks.
 These are material, but they should follow the P0 boundaries above unless a
 deployment partner supplies evidence that changes the order.
 
-### P1 — Account And Team Operations
+### P1 — Account And Space Operations
 
 - Signup can create an account that still has neither a password nor a login
   code. The code states this directly in
   [`internal/service/identity/account.go`](../internal/service/identity/account.go);
   an operator must finish access manually.
-- Team policy defines owner, admin, and member roles. The membership service
+- Space policy defines owner, admin, and member roles. The membership service
   now covers the full lifecycle — invitation bounded to an existing account,
   role promotion and demotion, unilateral ownership transfer, and
   member-scoped login-code recovery — in
@@ -333,18 +333,18 @@ deployment partner supplies evidence that changes the order.
   [`internal/server/handlers/space/spaces.go`](../internal/server/handlers/space/spaces.go),
   and Portal's Space → Members and Account → Invitations surfaces. Bringing in
   someone who has never had a BuildMax account is still deliberately a
-  `system_admin` operation, not a team-scoped one — see
-  [`design/team-membership-lifecycle.md`](design/team-membership-lifecycle.md)
-  §1 for why account creation and team membership are kept as two different
+  `system_admin` operation, not a space-scoped one — see
+  [`design/space-membership-lifecycle.md`](design/space-membership-lifecycle.md)
+  §1 for why account creation and space membership are kept as two different
   authorities.
-- System administration, quotas, role checks, and audit exist. Team-level
+- System administration, quotas, role checks, and audit exist. Space-level
   approvals do not, and that is a decision rather than a backlog item:
-  [`design/team-governance.md`](design/team-governance.md) §6 lists approval
+  [`design/space-governance.md`](design/space-governance.md) §6 lists approval
   workflows as out of scope and §11 gives the reason — avoid custom roles and
   approvals until basic traceability lands.
-  [`design/team-membership-lifecycle.md`](design/team-membership-lifecycle.md)
+  [`design/space-membership-lifecycle.md`](design/space-membership-lifecycle.md)
   §6 declines to reopen it. Read a missing approval loop as unbuilt on
-  purpose, pending a concrete team's need for one.
+  purpose, pending a concrete space's need for one.
 
 ### P1 — Qualification Breadth
 
@@ -366,10 +366,10 @@ separately; correctness trials do not measure throughput or resource behavior.
   but only Portal and inbound webhook paths are assembled. Telegram and cron
   are vocabulary, not shipped adapters; the webhook callback sender is not
   assembled by the Server.
-- Team background runs can materialize activated skill and subagent content,
+- Space background runs can materialize activated skill and subagent content,
   but plugin releases containing hooks or MCP servers are rejected by
   [`internal/service/plugin/activation.go`](../internal/service/plugin/activation.go),
-  and Tier 1 conversations do not load team plugins.
+  and Tier 1 conversations do not load space plugins.
 
 ### P2 — Surface And Throughput Evidence
 
@@ -397,15 +397,15 @@ throughput. None of these is a reason to block containment or correctness work.
    the contention cases are written; what is missing is retry, workflow
    revision, delivery restart recovery, and artifact tombstoning per
    [`verification-program.md`](design/verification-program.md) §4.2.
-4. Close what remains of account and team operations. Less remains than this
-   position suggests: team role lifecycle, ownership transfer, and
+4. Close what remains of account and space operations. Less remains than this
+   position suggests: space role lifecycle, ownership transfer, and
    member-scoped recovery are done, signup leaving an account without a
-   credential is deliberate, and team approvals are out of scope by decision.
+   credential is deliberate, and space approvals are out of scope by decision.
    What is left is whether a deployment's own experience argues for reopening
    either decision.
 5. Expand product-owned qualification from an architectural slice into a
    representative release suite.
-6. Deepen workflows, real channel adapters, executable team plugins, Portal
+6. Deepen workflows, real channel adapters, executable space plugins, Portal
    performance, Desktop automation, and throughput based on observed demand.
 
 This ordering treats safety, consistency, and evidence as product capability.

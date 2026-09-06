@@ -9,7 +9,7 @@ It contributes:
 - `agents/reviewer.md` — a read-only reviewer subagent that inspects a diff and
   reports findings without modifying files.
 
-This plugin ships **instruction-only** content (skills and subagents), so a Team
+This plugin ships **instruction-only** content (skills and subagents), so a Space
 can activate it for background runs.
 
 ## Try it

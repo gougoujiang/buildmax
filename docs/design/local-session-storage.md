@@ -129,7 +129,7 @@ answer.
   it does not undo what the conversation did.
 - Persisting credentials, approval grants, process handles, or shell sessions.
 - Making a local transcript tamper-proof audit evidence.
-- Implementing Server synchronization, Team sharing, or remote authorization.
+- Implementing Server synchronization, Space sharing, or remote authorization.
 - Sharing a physical history prefix between forked sessions in the first
   implementation.
 - Supporting simultaneous writers to one session.

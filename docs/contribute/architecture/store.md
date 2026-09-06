@@ -6,20 +6,20 @@
 
 `internal/infra/db` provides the MySQL/GORM persistence implementation for
 domain repository contracts. Most shared contracts live in the per-domain
-`internal/core/*` packages — `core/task`, `core/team`, `core/issue`, and the
+`internal/core/*` packages — `core/task`, `core/space`, `core/issue`, and the
 rest. Capability-specific ports may live with their consumer, such as the
 Marketplace catalog and activation ports in `internal/service/plugin`.
 
-The active persistence model is team-scoped for shared work:
+The active persistence model is space-scoped for shared work:
 
 - user / login_code / user_webhook_key
-- team / team_member
+- space / space_member
 - conversation / conversation_message
 - issue
 - agent / agent_revision
 - workflow / workflow_revision / workflow_run / workflow_step_run
 - task / task_run / task_run_artifact
-- artifact (durable team files; see data-model.md)
+- artifact (durable space files; see data-model.md)
 - quota_tier
 - llm_model / llm_call
 
@@ -27,11 +27,11 @@ Table names are singular per project convention. For every column, index, and
 relationship, and for the rules on changing them, see
 [data-model.md](data-model.md).
 
-There is no usage table. `TeamUsageInWindow` aggregates on read: it counts
-`task_run` rows joined to `task` by team and sums their prompt and completion
+There is no usage table. `SpaceUsageInWindow` aggregates on read: it counts
+`task_run` rows joined to `task` by space and sums their prompt and completion
 tokens, plus the title-generation tokens recorded on tasks created in the same
 window. Metering therefore has no separate write path to keep in sync. It
-resolves the team's handle once and is numeric after that, which is why both
+resolves the space's handle once and is numeric after that, which is why both
 halves are answered from indexes without reading a row.
 
 ## Key Boundaries
@@ -41,7 +41,7 @@ halves are answered from indexes without reading a row.
 | Shared contracts/entities | `internal/core/<domain>` | Shared structs and cross-service repository interfaces, one package per domain |
 | Consumer-owned ports | `internal/service/*` | Narrow persistence capabilities used by one orchestrator |
 | GORM implementation | `internal/infra/db` | MySQL-backed store implementing those interfaces |
-| Object storage | `internal/infra/objectstore` | Team home files, run output, and artifact content; local FS or S3/MinIO |
+| Object storage | `internal/infra/objectstore` | Space home files, run output, and artifact content; local FS or S3/MinIO |
 
 ## The Translation Boundary
 

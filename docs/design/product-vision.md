@@ -24,11 +24,11 @@ powered by one shared Go Agent Core.
 The same runtime serves three operating profiles:
 
 - direct local execution through CLI/TUI and Desktop;
-- team collaboration and governance through Server and Portal; and
+- space collaboration and governance through Server and Portal; and
 - durable background execution through worker TaskRuns.
 
 A Server is optional for local use. Connecting a local client adds identity,
-managed models, Team work, and publication to the private deployment; it does
+managed models, Space work, and publication to the private deployment; it does
 not turn local execution into a remote-only product.
 
 ## Product Model
@@ -47,12 +47,12 @@ execution semantics.
 - Portal is the enterprise operation layer; and
 - workers execute durable background runs without speaking directly to users.
 
-### Team Owns Shared Resources
+### Space Owns Shared Resources
 
-Team is the ownership and authorization boundary for Portal resources. Roles,
+Space is the ownership and authorization boundary for Portal resources. Roles,
 quota, workflows, issues, conversations, tasks, artifacts, plugins, audit, and
 usage are interpreted within that boundary. Deployment-wide administration is
-a separate grant and does not imply access to another Team's content.
+a separate grant and does not imply access to another Space's content.
 
 Issue is the primary user-facing work object. It states the work, relates its
 discussion and execution, and makes results easy to find without requiring a
@@ -67,7 +67,7 @@ execution. It is not the mandatory parent of that Task.
 Task plus TaskRun is the durable execution plane. An Agent may be invoked
 directly through it, and a Task retains the Agent session across later
 TaskRuns. A Conversation, Issue, Workflow, API request, or webhook may be the
-origin, but Team remains the owner and no origin becomes an execution or
+origin, but Space remains the owner and no origin becomes an execution or
 authorization parent. The full boundary and continuation model are in
 [agent-execution-and-task-threads.md](agent-execution-and-task-threads.md).
 
@@ -139,12 +139,12 @@ providers.
 | Local workspace | Directory the local Agent reads and changes | Local user and operating system |
 | Local Session | Resumable interaction with one local Agent | Local session bundle |
 | Desktop Project | Local UI state around a workspace | Desktop only; not a Server entity |
-| Team | Ownership and authorization boundary | Server |
-| Issue | Primary shared work object | Team |
-| Workflow | Reusable durable execution plan; currently linear, targeting a revision-pinned adaptive graph | Team |
-| Conversation | Independent foreground chat and optional orchestrator | Team |
-| Task / TaskRun | Durable Agent thread and its execution turns or attempts | Team and scheduler |
-| Artifact | Explicit durable output with stable identity | Team |
+| Space | Ownership and authorization boundary | Server |
+| Issue | Primary shared work object | Space |
+| Workflow | Reusable durable execution plan; currently linear, targeting a revision-pinned adaptive graph | Space |
+| Conversation | Independent foreground chat and optional orchestrator | Space |
+| Task / TaskRun | Durable Agent thread and its execution turns or attempts | Space and scheduler |
+| Artifact | Explicit durable output with stable identity | Space |
 | Plugin environment | Space/Agent activations plus Task-scoped autonomous additions; expanded run directories are projections | Immutable package pins and environment revision recorded on TaskRun |
 
 The table is a product map, not a database schema. Current fields and
@@ -169,7 +169,7 @@ must describe only what ships.
 ## Decision Test
 
 A proposed capability fits BuildMax when it strengthens at least one operating
-profile without weakening the shared runtime or the Team boundary, and when its
+profile without weakening the shared runtime or the Space boundary, and when its
 authority, durability, failure behavior, and evidence can be explained plainly.
 
 Prefer changes that make Agent outcomes easier to obtain, trust, and reuse.

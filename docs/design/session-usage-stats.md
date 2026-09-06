@@ -65,7 +65,7 @@ Three sources, with different contracts, kept apart rather than blended:
   per-run detail the session file never kept: durations, denials, failure
   kinds, which model ran, how much a delegation did.
 - The **managed call ledger** (`llm_call`) is the only source that sees every
-  HTTP call a surface made. It stays Portal's, and team-level analytics over it
+  HTTP call a surface made. It stays Portal's, and space-level analytics over it
   is out of scope here — a different question, a different authorization
   boundary, and §6 of [prompt cache control](prompt-cache-control.md) already
   sketches the spend view it belongs to.

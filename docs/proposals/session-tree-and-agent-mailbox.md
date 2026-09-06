@@ -761,13 +761,13 @@ A child receives only a scoped return capability:
 
 - the target is its direct parent;
 - kind and report count are limited;
-- Artifact and change references must belong to the same user, Team, or
+- Artifact and change references must belong to the same user, Space, or
   workspace scope;
 - the capability expires when the child is archived, cancelled, or its tree
   policy expires; and
 - a report cannot ask the parent to bypass its tool policy.
 
-Cross-Team forks and reports are outside the first slice.
+Cross-Space forks and reports are outside the first slice.
 
 ### 13.2 Prompt injection
 
@@ -897,18 +897,18 @@ by this proposal; an implementation must update the CLI reference.
 
 ### 15.3 Portal
 
-Portal may eventually let team members branch a shared Conversation and
+Portal may eventually let space members branch a shared Conversation and
 collaborate asynchronously, but it is materially more complex than the local
 MVP:
 
-- a Conversation is a Team resource, so forks and child reads need Team
+- a Conversation is a Space resource, so forks and child reads need Space
   authorization;
 - a Task belongs to one Conversation, so copied child context does not confer
   Task ownership;
 - continuing a parent Task needs an explicit result-routing decision;
 - shared work requires fork creator, child owner, and visibility provenance;
 - durable delivery and scheduling must work while everyone is offline; and
-- workspace changes refer to Team snapshots and change sets rather than a local
+- workspace changes refer to Space snapshots and change sets rather than a local
   worktree.
 
 A conservative default is that a child inherits parent Task results already in
@@ -1029,13 +1029,13 @@ first building automatic scheduling.
   1–4 do not commit BuildMax to a generic versioned workspace.
 - Create Change Sets, conflict preflight, and parent review.
 - Apply only after user approval.
-- Make Server or Workspace Service own Team workspace writes.
+- Make Server or Workspace Service own Space workspace writes.
 - Record applied change-set causality in trace and audit data.
 - Evaluate a safe automatic-apply profile.
 
 ### Phase 6: Align Portal and detached execution
 
-- Add Team authorization and shared Conversation branches.
+- Add Space authorization and shared Conversation branches.
 - Add offline Server supervision.
 - Move TaskRun completion to durable reports.
 - Evaluate Task clone or adopt semantics.
@@ -1117,10 +1117,10 @@ Phase 3 automatic resume must additionally show that:
 
 ### Permissions and governance
 
-- How are owner and visibility chosen for a Team Conversation branch?
+- How are owner and visibility chosen for a Space Conversation branch?
 - How does BuildMax degrade when a child report references an Artifact the
   parent may not read?
-- Is automatic-resume budget user-, Team-, tree-, or multi-layer scoped?
+- Is automatic-resume budget user-, Space-, tree-, or multi-layer scoped?
 - Which operations become audit events and which remain trace or operational
   records?
 - Which provenance must appear when parent and child use different Agent

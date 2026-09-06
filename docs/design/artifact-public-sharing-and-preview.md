@@ -35,7 +35,7 @@
   override (§9 named one); and share-**expired** audit is not emitted, because
   no share retention sweep exists yet to notice an expiry — expiry is enforced
   lazily at resolve time (§14 item 6). Phase 3 follow-ons stay open.
-- supersedes: unified-artifacts.md §6.2 "MVP policy is authenticated team
+- supersedes: unified-artifacts.md §6.2 "MVP policy is authenticated space
   access only", §10 phase 3 "not planned", §12 question 4 "not planned", and
   §6.3's "HTML, SVG … download as attachments in the first slice" for the
   preview surface. Those records said a deployment that needed sharing would
@@ -51,7 +51,7 @@
 Two capabilities are added on top of the unified artifact object, and they are
 distinct:
 
-1. **Preview.** Any artifact a team member can already read gains an in-Portal
+1. **Preview.** Any artifact a space member can already read gains an in-Portal
    rendered view. Markdown renders as formatted text; HTML renders as a live
    page inside a sandboxed frame; images and text keep today's inline view;
    everything else keeps its download. This needs no new authorization — it is a
@@ -87,10 +87,10 @@ an HTML prototype — and wants to hand that person one link that just works:
 
 - opening it shows the content, rendered, without a download-and-open detour;
 - for an HTML prototype, opening it shows the working page, not its source;
-- the link can be sent to someone outside the team when that is the intent; and
+- the link can be sent to someone outside the space when that is the intent; and
 - the owner can later revoke it, and see whether it was used.
 
-The recipient needs no account and no knowledge of teams, artifacts, or storage
+The recipient needs no account and no knowledge of spaces, artifacts, or storage
 keys. The link is durable until it expires or is revoked.
 
 ## 3. What This Reopens
@@ -134,7 +134,7 @@ change to what a canonical artifact ID grants. Those stay out of scope.
 ### 4.2 Out Of Scope
 
 - Public-by-default access: the canonical ID and its `/api/artifacts/{id}`
-  routes keep requiring team membership. A share is a separate, additive grant.
+  routes keep requiring space membership. A share is a separate, additive grant.
 - Cross-organization authenticated sharing (a named external user with an
   account). This slice is anonymous-link only.
 - Malware scanning, DLP, or MIME restriction on upload — unchanged operator
@@ -159,7 +159,7 @@ type ArtifactShare struct {
 	ID              uint       `json:"-"`
 	ShareID         string     `json:"share_id"`     // opaque public handle for management
 	ArtifactID      string     `json:"artifact_id"`  // the shared artifact's public handle
-	TeamID          string     `json:"team_id"`      // denormalized for authz and listing
+	SpaceID          string     `json:"space_id"`      // denormalized for authz and listing
 	TokenSHA256     string     `json:"-"`            // sha256 of the token; the token itself is never stored
 	CreatedByType   string     `json:"created_by_type"`
 	CreatedByID     string     `json:"created_by_id"`
@@ -181,9 +181,9 @@ no signature.
 
 The `xxxShareRow` struct in `internal/infra/db` is the schema source of truth,
 following [data-model.md](../contribute/architecture/data-model.md). It carries
-a unique index on `token_sha256` and an index on `(team_id, created_at)` for
+a unique index on `token_sha256` and an index on `(space_id, created_at)` for
 the management listing. `artifact_id` is stored as the internal `uint64`
-foreign key (like `artifact.team_id`) and exposed as the public handle through
+foreign key (like `artifact.space_id`) and exposed as the public handle through
 the read projection.
 
 ### 5.2 Relationship To The Artifact
@@ -262,8 +262,8 @@ GET    /api/artifacts/{artifact_id}/shares              # list this artifact's l
 DELETE /api/artifacts/{artifact_id}/shares/{share_id}   # revoke
 ```
 
-These resolve the artifact, read its team, and require the caller's role per
-§10 — the same `MemberOfResourceTeam` shape the canonical ID routes use, with a
+These resolve the artifact, read its space, and require the caller's role per
+§10 — the same `MemberOfResourceSpace` shape the canonical ID routes use, with a
 role check layered on create/revoke.
 
 ## 7. Content Delivery And Preview
@@ -398,15 +398,15 @@ A share TTL bound:
   named: the public base URL is the value a deployment injects at runtime, and
   the TTL is a policy the operator writes once.
 
-The per-file cap, team storage quota, and retention sweep are unchanged; a
+The per-file cap, space storage quota, and retention sweep are unchanged; a
 share holds no bytes of its own.
 
 ## 10. Authorization, Governance, And Limits
 
-Sharing is a team-authority action. The first-slice matrix extends
+Sharing is a space-authority action. The first-slice matrix extends
 unified-artifacts.md §8 (which had share creation as "no initially"):
 
-| Action | Member | Admin | Owner | Outside team | Anonymous with token |
+| Action | Member | Admin | Owner | Outside space | Anonymous with token |
 |---|---:|---:|---:|---:|---:|
 | Create share for an artifact | yes¹ | yes | yes | no | — |
 | Revoke a share | own² | yes | yes | no | — |
@@ -420,9 +420,9 @@ link. ² A member may revoke a share they created; an admin or owner may revoke
 any.
 
 An agent or worker creating a share through `UploadArtifact(share=true)` acts
-as its run's identity. The run token already carries `UserID`/`TeamID`
+as its run's identity. The run token already carries `UserID`/`SpaceID`
 (worker-run-token.md), so a worker-created share records the initiating user as
-creator and the team as owner — the share is attributable, not anonymous at
+creator and the space as owner — the share is attributable, not anonymous at
 creation. The agent creates a link; it cannot revoke or enumerate others.
 
 Audit events, metadata-only, on the existing trail: **share created**, **share
@@ -463,7 +463,7 @@ links resolve to 404 with no separate revocation step (§5.2).
 - The backend change that serves `text/html` with the sandbox CSP under a new
   previewable category, distinct from the plain inline allowlist, plus the
   `?dl=1` override.
-- Delivers requirement 2 (preview) for team members with no sharing machinery.
+- Delivers requirement 2 (preview) for space members with no sharing machinery.
 
 ### Phase 2 — Public share links
 
@@ -481,7 +481,7 @@ links resolve to 404 with no separate revocation step (§5.2).
 
 - A distinct `ShareArtifact` runtime tool if agents need to share after the
   fact (§14).
-- Admin-only share restriction as a team policy, if a deployment asks.
+- Admin-only share restriction as a space policy, if a deployment asks.
 - Safe SVG preview, syntax highlighting, and a dedicated content origin as a
   first-class configuration.
 
@@ -496,7 +496,7 @@ because a stateless token cannot be revoked before it expires without a
 server-side denylist, which reintroduces the storage a stored token already is,
 and cannot carry a retrieval count or a per-link creator without more claims
 than a URL should hold. It is the right tool when revocation is genuinely not
-needed; sharing a file with someone outside the team is exactly where "I sent
+needed; sharing a file with someone outside the space is exactly where "I sent
 that to the wrong person, kill the link" must work. The stored token costs one
 indexed lookup and buys revocation, listing, and audit.
 
@@ -536,7 +536,7 @@ holds the public base URL and the share record; it names the link.
    enough? Adding a tool costs model surface; defer until an agent flow needs to
    share a file it did not just upload.
 2. **Who may create a share.** The matrix defaults to any member. Some
-   deployments will want admin/owner-only. Left as a bounded team policy rather
+   deployments will want admin/owner-only. Left as a bounded space policy rather
    than hardcoded, pending a request.
 3. **Safe SVG preview.** SVG is an active document; whether it can be previewed
    under the same sandbox model or must keep downloading needs its own look.
@@ -559,7 +559,7 @@ holds the public base URL and the share record; it names the link.
 
 The increment is complete when:
 
-- a team member can open any readable artifact's Portal detail page and see
+- a space member can open any readable artifact's Portal detail page and see
   Markdown rendered and an HTML artifact running in a sandboxed frame, with
   non-previewable types still offering download;
 - an agent can call `UploadArtifact(share=true)` and receive a public Portal

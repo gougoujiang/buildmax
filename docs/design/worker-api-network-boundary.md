@@ -79,7 +79,7 @@ Worker Pod -- plain HTTP --> buildmax Service :5678 --> one route set
 The run token still authenticates every worker request, which prevents an
 unauthenticated caller from using a worker route. It does not provide transport
 confidentiality or server authentication. A bearer token, task input, streamed
-output, and a Team Secret response all cross the pod network in plaintext in
+output, and a Space Secret response all cross the pod network in plaintext in
 the reference topology.
 
 The shared listener also prevents Kubernetes network policy from expressing
@@ -154,7 +154,7 @@ into another binary or Deployment without changing the protocol decided here.
 
 ### 4.2 Threats This Decision Does Not Address
 
-- A valid worker can read the Team Secrets and task data its run is authorized
+- A valid worker can read the Space Secrets and task data its run is authorized
   to receive.
 - A compromised Server process owns both listeners and the scheduler.
 - A Kubernetes administrator, node administrator, CNI administrator, or holder
@@ -175,7 +175,7 @@ No one control replaces another:
 | Internal `ClusterIP` Service | No deliberate external Kubernetes service exposure |
 | `NetworkPolicy` | Only selected worker Pods may connect to the worker port |
 | TLS | Server identity and confidentiality in transit |
-| Run token | User, Team, Task, and TaskRun application authority |
+| Run token | User, Space, Task, and TaskRun application authority |
 | TaskRun state checks | Whether that authority is currently exercisable |
 
 ## 5. Listener And Route Model
@@ -196,7 +196,7 @@ An unknown route returns `404` on either listener. In particular:
 
 - `/api/worker/task-runs/...` on the public listener returns `404`, even with a
   valid run token;
-- `/api/teams/...`, `/api/login`, `/api/webhook`, `/swagger`, and
+- `/api/spaces/...`, `/api/login`, `/api/webhook`, `/swagger`, and
   `/openapi.json` on the worker listener return `404`.
 
 The public OpenAPI document may continue to describe the complete protocol for
@@ -336,7 +336,7 @@ work rather than a hidden prerequisite.
 
 Moving a handler to an internal listener does not make it trusted. Every worker
 route continues to require a run token, match its `rid` claim to the path, and
-derive Team and user attribution from Server state and signed claims rather
+derive Space and user attribution from Server state and signed claims rather
 than a request body.
 
 The listener work must not encode the current lifecycle gaps as intended
@@ -356,8 +356,8 @@ themselves (M4), on top of the run token:
 
 A route×state matrix test enumerates every worker route and its allowed TaskRun
 states, including the leaked-token-after-completion case. This is application
-authorization on top of the network boundary, agreeing with [Team Secrets and
-run delivery](team-secrets.md) §7.
+authorization on top of the network boundary, agreeing with [Space Secrets and
+run delivery](space-secrets.md) §7.
 
 ## 9. Lifecycle And Availability
 
@@ -513,7 +513,7 @@ in the same namespace cannot; neither can reach a worker handler through the
 
 ### M4. Route Lifecycle Authorization — shipped
 
-- Claim a run before releasing Team Secret material.
+- Claim a run before releasing Space Secret material.
 - Enforce a status matrix for every worker route.
 - Resolve Secret consumption from the pinned Agent revision.
 - Refuse every worker capability after terminal state except a deliberately

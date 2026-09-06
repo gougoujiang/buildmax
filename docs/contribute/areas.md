@@ -2,7 +2,7 @@
 
 > **Audience:** contributors · **Status:** current
 >
-> BuildMax is an open-source Agent runtime for both local work and private team
+> BuildMax is an open-source Agent runtime for both local work and private space
 > deployment. This page maps the problems where outside experience is most
 > useful; the active priority order remains in [ROADMAP.md](../ROADMAP.md).
 
@@ -71,7 +71,7 @@ change. Small usability fixes found while following the
 
 ### Enterprise Platform
 
-The Server, Portal, and workers turn the same Agent Core into a private team
+The Server, Portal, and workers turn the same Agent Core into a private space
 platform: shared work, background execution, managed models, results, and
 governance.
 
@@ -143,7 +143,7 @@ The near-term center is not adding unrelated features to one surface. It is:
 
 1. make Agent runs explainable and their execution boundaries visible;
 2. make private deployment repeatable and diagnosable;
-3. complete the practical team governance loop;
+3. complete the practical space governance loop;
 4. keep the local Agent experience complete while those enterprise layers grow.
 
 Those statements are a summary, not a second roadmap. Check

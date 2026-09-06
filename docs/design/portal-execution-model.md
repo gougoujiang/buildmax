@@ -15,7 +15,7 @@
 ## Status
 
 - roadmap_priority: `P2 follow-on`
-- status: `superseded` — §5.1's target (Team-owned Task, `conversation_id`
+- status: `superseded` — §5.1's target (Space-owned Task, `conversation_id`
   optional) has shipped, and the §4.2 result-delivery mechanism it describes
   has been removed rather than kept transitional. The mandatory Tier 1-to-Tier
   2 hierarchy and Conversation-owned Task shape are superseded by
@@ -31,7 +31,7 @@
 Opened as a proposal on 2026-08-22 and accepted; this record replaced it. Its
 outcome-projection decision remains current; its result-delivery decision does
 not — see §4.2. The later Agent execution design rejects its mandatory
-hierarchy: Conversation is an independent foreground caller, while Team-owned
+hierarchy: Conversation is an independent foreground caller, while Space-owned
 Task and TaskRun carry direct and Conversation-originated Agent execution
 alike.
 
@@ -126,7 +126,7 @@ run details, stop, and run again. The cards survive a refresh, a dropped socket,
 and a summary that never arrives.
 
 A terminal run broadcasts `task.status.changed` to every connection on the
-team — an invalidation, not the outcome. It used to pick the creator's first
+space — an invalidation, not the outcome. It used to pick the creator's first
 socket, which announced nothing when they had none and told one tab when they
 had three.
 
@@ -158,7 +158,7 @@ it, a continuation names the message that asked for it. It is bound per turn
 rather than passed per tool call, so the model cannot choose or omit what its
 work is attributed to.
 
-`GET /api/teams/{team_id}/task-runs/{task_run_id}` quotes that message next to
+`GET /api/spaces/{space_id}/task-runs/{task_run_id}` quotes that message next to
 the instruction the worker was given. They are different texts and that is the
 point: a constraint missing from the instruction is either one the model dropped
 or one the user never gave, and nothing else can tell those apart.
@@ -182,8 +182,8 @@ pins an agent and Tier 1 passes it through — and that is when to add it.
 ### 4.5 Synthetic Conversations Are Gone, Not Just Hidden — Superseded
 
 A workflow step and an issue agent run used to each create a conversation
-because Task required one, hidden from `ListConversationsByTeam` by a channel
-filter. Neither creates one any more: both create a Team-owned Task directly
+because Task required one, hidden from `ListConversationsBySpace` by a channel
+filter. Neither creates one any more: both create a Space-owned Task directly
 (§5.1). The `workflow` and `issue_agent` synthetic channels, `SyntheticChannels()`,
 and the list filter that excluded them have been deleted rather than left in
 place with nothing to produce them.
@@ -196,12 +196,12 @@ This was deferred here as not a nullable-column change: it needed
 `ConversationID` addressed in worker directories and object-storage keys,
 artifact handlers that authorized through Conversation, session restoration,
 and API paths that assumed Conversation. That cutover has since shipped in one
-change, as the deferral note said it had to: `task.team_id` is required and
+change, as the deferral note said it had to: `task.space_id` is required and
 authoritative for ownership, `task.conversation_id` is a nullable origin
-relation, run storage is addressed by team/task/task-run rather than creator
+relation, run storage is addressed by space/task/task-run rather than creator
 and Conversation, an issue run and a workflow step each create a Task directly,
 and Task/TaskRun/Artifact/trace/model-call authorization all resolve through
-`task.team_id`. See
+`task.space_id`. See
 [agent execution and Task threads §13.1](agent-execution-and-task-threads.md#131-ownership-cutover).
 
 ### 5.2 The Tier 2 Catalog
@@ -214,9 +214,9 @@ would be inventing demand.
 Do not predefine `ResearchAgent`, `CodingAgent`, or similar Go types before that
 evidence exists.
 
-What already works: Tier 1 recommends an agent from the team's summaries via
+What already works: Tier 1 recommends an agent from the space's summaries via
 `StartTask`, and Workflow, Issue, and the task route each pin one explicitly.
-Team membership is validated; model and execution policy are not.
+Space membership is validated; model and execution policy are not.
 
 ### 5.3 Tier 1's Foreground Budget And ExecutionSpec
 
@@ -225,7 +225,7 @@ read, and a validated ExecutionSpec are all open.
 
 Deferred safely because Tier 1 is already bounded in practice: ten iterations, a
 non-interactive policy, and four task tools with no filesystem or shell access.
-The budget becomes a **prerequisite** the moment Tier 1 is allowed to read team
+The budget becomes a **prerequisite** the moment Tier 1 is allowed to read space
 files, issues, and results — not before.
 
 Attachments and context references are also unrecorded. `source_message_id` is

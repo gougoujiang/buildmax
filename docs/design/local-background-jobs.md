@@ -57,7 +57,7 @@ alive and lets the Agent react to them.
 This design covers the **local surfaces only**: CLI/TUI and Desktop. Portal's
 Tier 1 conversation orchestrator and Tier 2 `Task`/`TaskRun` execution are out
 of scope and unchanged. A local job is a process-lifetime object; `TaskRun`
-remains the durable team execution object. They may later share state names
+remains the durable space execution object. They may later share state names
 and `@buildmax/gui` presentation, but never storage or service ownership.
 
 Explicitly out of scope for the first version:
@@ -69,7 +69,7 @@ Explicitly out of scope for the first version:
 - Background start from `buildmax -p`, eval, or worker execution. Print mode
   has no host process to own a job; eval and workers get background tools only
   with an explicit unattended lifecycle and policy.
-- Cron, recurring prompts, agent teams, peer-to-peer messaging, or nested
+- Cron, recurring prompts, agent spaces, peer-to-peer messaging, or nested
   delegation.
 - Automatic merging of concurrent edits to one workspace.
 - Treating a monitor as a security boundary; it observes whatever its command

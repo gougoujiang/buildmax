@@ -7,7 +7,7 @@ with one shared Go runtime and three product surfaces:
 
 - CLI/TUI for fast local terminal execution
 - Desktop for local project/session workbench usage
-- Portal for team-scoped conversations, issues, workflows, agents, files, and results
+- Portal for space-scoped conversations, issues, workflows, agents, files, and results
 
 The backend includes a Go HTTP server, a scheduler, and worker task-run
 execution. Portal and Desktop share React presentation components from `gui/`.
@@ -20,7 +20,7 @@ core.
 
 The active collaboration model is:
 
-- `team`
+- `space`
 - `conversation`
 - `issue`
 - `agent`
@@ -28,7 +28,7 @@ The active collaboration model is:
 - `task`
 - `task_run`
 
-Team is the ownership boundary for shared Portal work. CLI and Desktop operate
+Space is the ownership boundary for shared Portal work. CLI and Desktop operate
 against local folders and local sessions, with optional server login for identity.
 
 ## Architecture
@@ -48,7 +48,7 @@ The main layers are:
 3. **Server**: `internal/server` and `internal/server/handlers`.
 4. **Application services**: `internal/service/conversation`, `issue`, `task`, `workflow`, `quota`, `identity`, `llmcatalog`, `systemadmin`, and the rest. See [repo-layout.md](../repo-layout.md).
 5. **Shared runtime**: `internal/agentapp` and `internal/agentapp/taskrun`.
-6. **Pure core**: `internal/core/agent`, `internal/core/llm`, `internal/core/session`, and one package per domain — `task`, `team`, `issue`, `workflow`, `artifact`, `audit`, and the rest. See [repo-layout.md](../repo-layout.md).
+6. **Pure core**: `internal/core/agent`, `internal/core/llm`, `internal/core/session`, and one package per domain — `task`, `space`, `issue`, `workflow`, `artifact`, `audit`, and the rest. See [repo-layout.md](../repo-layout.md).
 7. **Infrastructure**: `internal/infra/db`, `llm`, `objectstore`, `mcp`, `workerclient`, `k8s`, and `log`.
 
 `agentapp.NewAgentApp` has two explicit phases. `resolveAgentAppConfig` reads and

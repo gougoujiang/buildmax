@@ -253,7 +253,7 @@ is the one to subscribe to for "where is this session working now"; the other
 two say what became of the tree itself.
 
 Still deferred (matching the gap analysis against Claude Code):
-`Setup`, `UserPromptExpansion`, `TeammateIdle`, `TaskCreated`,
+`Setup`, `UserPromptExpansion`, `SpacemateIdle`, `TaskCreated`,
 `TaskCompleted`, `FileChanged`, `Elicitation`, `ElicitationResult`,
 `ConfigChange`, `PostToolBatch`, `InstructionsLoaded`, `PermissionRequest`.
 They are either duplicated by other events in our model, or depend on features

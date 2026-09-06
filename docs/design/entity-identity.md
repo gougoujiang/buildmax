@@ -81,7 +81,7 @@ response, URL, JWT claim, log line, trace, workflow definition, or
 object-storage path. One coherent Alpha schema change, with no dual-read path.
 
 **Non-goals.** An identifier is not an authorization credential — every lookup
-still enforces team membership and returns the same `404` regardless of
+still enforces space membership and returns the same `404` regardless of
 identifier entropy. Ordering never uses a public identifier; durable ordering
 stays `created_at` plus the numeric key as tie-breaker. Provider IDs, tool-call
 IDs, agent session IDs, trace run IDs, and idempotency keys are owned outside
@@ -93,7 +93,7 @@ not silently reversed; §8 decides it explicitly.
 
 `internal/core/model` names the package the domain structs lived in while this
 was written. It has since been split into one package per domain — `core/task`,
-`core/team`, `core/issue`, `core/conversation`, and the rest — per
+`core/space`, `core/issue`, `core/conversation`, and the rest — per
 [conventions](../contribute/conventions.md); every decision below applies to
 those packages together.
 
@@ -122,7 +122,7 @@ about `6.3e-12`. The unique index is still the final guard: a create that hits
 a duplicate on `uq_<table>_public_id` regenerates and retries within a small
 fixed limit, and every other duplicate-key error is returned unchanged. With a
 billion live values, a uniform guess names one of them with probability about
-`1.3e-20`. That opacity is defense in depth behind team authorization and
+`1.3e-20`. That opacity is defense in depth behind space authorization and
 indistinguishable not-found responses, never a replacement for them.
 
 The value is not UUIDv7, carries no timestamp, and reveals neither insertion
@@ -150,12 +150,12 @@ lowercase-base36 format silently protects against and base64url would not:
 | Boundary | Base64url (`A-Za-z0-9-_`) | Base32 (`a-z2-7`) |
 |---|---|---|
 | Kubernetes Job name — `util.WorkerJobNameForTaskRun` lowercases the run ID and replaces every non-DNS-1123 character with `-` | Case and `-`/`_` collapse. Two distinct runs created in the same second can produce one Job name, because the only suffix is a second-resolution timestamp | Passes through the sanitizer unchanged |
-| Local-FS object store on a case-insensitive filesystem (macOS default), which keys artifact content as `teams/<team>/artifacts/<id>/content` | Two IDs differing only in case silently share one path. The database unique index is on the raw bytes and cannot see the collision | Cannot occur |
+| Local-FS object store on a case-insensitive filesystem (macOS default), which keys artifact content as `spaces/<space>/artifacts/<id>/content` | Two IDs differing only in case silently share one path. The database unique index is on the raw bytes and cannot see the collision | Cannot occur |
 | Copy, paste, and dictation of a bare ID | Case-sensitive, and `_` is invisible under an underline | Case-insensitive, one double-click word |
 
 The residual entropy under case folding is what makes the local-FS hazard real
 rather than theoretical: folding base64url leaves a 38-symbol alphabet, so a
-billion values in one team fold-collide with probability around `2.6e-8` — four
+billion values in one space fold-collide with probability around `2.6e-8` — four
 orders of magnitude worse than the raw bound, and the failure mode is a silent
 content overwrite rather than a database error.
 
@@ -211,7 +211,7 @@ CREATE TABLE task (
     id              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     public_id       CHAR(20) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
     conversation_id BIGINT UNSIGNED NOT NULL,
-    team_id         BIGINT UNSIGNED NOT NULL,
+    space_id         BIGINT UNSIGNED NOT NULL,
     issue_id        BIGINT UNSIGNED NULL,
     agent_id        BIGINT UNSIGNED NULL,
     last_run_id     BIGINT UNSIGNED NULL,
@@ -219,7 +219,7 @@ CREATE TABLE task (
     -- status, input, title, output, timings, session_id unchanged
     PRIMARY KEY (id),
     UNIQUE KEY uq_task_public_id (public_id),
-    KEY idx_task_team_created (team_id, created_at),
+    KEY idx_task_space_created (space_id, created_at),
     KEY idx_task_conversation (conversation_id)
 );
 
@@ -252,8 +252,8 @@ lowercase spelling of each value ever reaches the column, and `ascii_bin`
 keeps the comparison memcmp rather than a collation decision.
 
 Numeric conversion is also the moment to make composite indexes right. A
-team-scoped list ordered by `created_at` wants `(team_id, created_at)`, not the
-single-column `team_id` index the string model left behind.
+space-scoped list ordered by `created_at` wants `(space_id, created_at)`, not the
+single-column `space_id` index the string model left behind.
 
 ## 6. Table-By-Table Decision
 
@@ -268,36 +268,36 @@ Each replaces its current prefixed public column with `public_id BINARY(12)`.
 | Table | Numeric relations it gains |
 |---|---|
 | `user` | none — no entity parent |
-| `team` | `personal_for_user_id`, `created_by` |
-| `issue` | `team_id`, `user_id`, `parent_issue_id`, `created_by` |
+| `space` | `personal_for_user_id`, `created_by` |
+| `issue` | `space_id`, `user_id`, `parent_issue_id`, `created_by` |
 | `issue_comment` | `issue_id`, `source_task_id`, `source_task_run_id` |
-| `agent` | `user_id`, `team_id` |
-| `conversation` | `user_id`, `team_id`, `created_by` |
+| `agent` | `user_id`, `space_id` |
+| `conversation` | `user_id`, `space_id`, `created_by` |
 | `conversation_message` | `conversation_id` |
-| `task` | `conversation_id`, `team_id`, `issue_id`, `agent_id`, `last_run_id`, `created_by` |
+| `task` | `conversation_id`, `space_id`, `issue_id`, `agent_id`, `last_run_id`, `created_by` |
 | `task_run` | `task_id`, `previous_task_run_id`, `retry_of_task_run_id`, `cancel_requested_by` |
-| `workflow` | `team_id`, `created_by` |
+| `workflow` | `space_id`, `created_by` |
 | `workflow_run` | `workflow_id`, `issue_id`, `conversation_id`, `created_by` |
 | `workflow_step_run` | `workflow_run_id`, `target_agent_id`, `task_id`, `task_run_id` |
 | `user_webhook_key` | `user_id` |
 | `llm_model` | none — no entity parent |
-| `llm_call` | `team_id`, `user_id`, `task_id`, `task_run_id` |
-| `audit_event` | `team_id` |
+| `llm_call` | `space_id`, `user_id`, `task_id`, `task_run_id` |
+| `audit_event` | `space_id` |
 | `system_grant` | `user_id` |
-| `artifact` | `team_id` |
+| `artifact` | `space_id` |
 
 `workflow_step_run` keeps a public ID despite having no detail route: issue
 outputs persist it as a source correlation handle. `system_grant` keeps one
 because the admin API and the operator CLI return the grant record as durable
 authority history. `artifact` keeps one and depends on it more than any other
-table — `GET /api/artifacts/{artifact_id}` is addressed without a team in the
-path and takes the team from the record before authorizing.
+table — `GET /api/artifacts/{artifact_id}` is addressed without a space in the
+path and takes the space from the record before authorizing.
 
 ### 6.2 Tables With No Public ID — 8
 
 | Table | Identity |
 |---|---|
-| `team_member` | Join row. `team_id` and `user_id` become numeric |
+| `space_member` | Join row. `space_id` and `user_id` become numeric |
 | `agent_revision` | Drop `agent_revision_id`. Identified by numeric `agent_id` plus `revision`; `created_by` numeric |
 | `workflow_revision` | Drop `workflow_revision_id`. Identified by numeric `workflow_id` plus `revision`; `created_by` numeric |
 | `task_run_artifact` | Numeric `task_run_id`, still paired with the relative path |
@@ -326,7 +326,7 @@ than consequences to discover later:
 
 | Table | Reason |
 |---|---|
-| `quota_tier` | `tier_name` is a configuration-owned natural key. `user.quota_tier` and `team.quota_tier` keep referencing it by name |
+| `quota_tier` | `tier_name` is a configuration-owned natural key. `user.quota_tier` and `space.quota_tier` keep referencing it by name |
 | `schema_migration` | `id` is the migration's permanent authored name |
 
 ## 7. Which References Stay Opaque
@@ -385,7 +385,7 @@ none of them removes a row anything else references:
 still resolve. Everything else that goes away goes away the same way —
 `deleted_at` on an artifact, `archived_at` on a plugin, `revoked_at` on a
 grant, `disabled_at` on an account. There is no path that deletes a user, a
-team, a task, a run, a conversation, an issue, or a workflow.
+space, a task, a run, a conversation, an issue, or a workflow.
 
 So `RESTRICT` would guard a hazard that does not exist, and would charge for it
 immediately. Every fixture that creates a user would have to tear down seven
@@ -393,7 +393,7 @@ tables in dependency order — `deleteTestUser` in the store tests already does
 exactly that, by hand, and it is the shape every cleanup path would take. That
 is a real cost against a benefit that is currently zero.
 
-The answer changes when a real deletion feature arrives — "delete this team and
+The answer changes when a real deletion feature arrives — "delete this space and
 everything in it" is the obvious one. That feature has to specify an order
 whether or not the database enforces it, and the constraints are worth adding
 in the same change, where the order is being written down anyway. Adding them
@@ -448,14 +448,14 @@ The task aggregate — the prototype the proposal asked for — is:
 ```sql
 SELECT  t.*,
         c.public_id  AS conversation_public_id,
-        tm.public_id AS team_public_id,
+        tm.public_id AS space_public_id,
         i.public_id  AS issue_public_id,
         a.public_id  AS agent_public_id,
         lr.public_id AS last_run_public_id,
         u.public_id  AS created_by_public_id
 FROM        task         t
 JOIN        conversation c  ON c.id  = t.conversation_id
-JOIN        team         tm ON tm.id = t.team_id
+JOIN        space         tm ON tm.id = t.space_id
 JOIN        user         u  ON u.id  = t.created_by
 LEFT JOIN   issue        i  ON i.id  = t.issue_id
 LEFT JOIN   agent        a  ON a.id  = t.agent_id
@@ -470,15 +470,15 @@ run-output read, so the join set cannot drift between them.
 The row must be a **named** field tagged `gorm:"embedded"`, never an anonymous
 one. GORM reads an anonymous embedded struct that carries its own `TableName`
 as an association and scans none of its columns — the joined handles arrive and
-the row's own fields stay at their zero values, with no error anywhere. A team
-read returns a nameless team rather than failing, so nothing catches it until a
+the row's own fields stay at their zero values, with no error anywhere. A space
+read returns a nameless space rather than failing, so nothing catches it until a
 test asserts on a field. The list form
 is the same statement with `WHERE tm.public_id = ? ORDER BY t.created_at DESC,
-t.id DESC LIMIT ?`, which is why `idx_task_team_created` exists.
+t.id DESC LIMIT ?`, which is why `idx_task_space_created` exists.
 
 Writes go the other way: resolve the root once, then take every other key from
 the row already read. Creating a task resolves the conversation and reads its
-`team_id` from that same row rather than resolving the team a second time.
+`space_id` from that same row rather than resolving the space a second time.
 
 A locking read never joins. `SELECT ... FOR UPDATE` over a join locks the
 joined rows too, so resolving a refresh token's owner inside its locking read
@@ -509,8 +509,8 @@ same shape.
 
 ### 9.4 Aggregation
 
-`TeamUsageInWindow` currently joins `task ON task.task_id = task_run.task_id
-AND task.team_id = ?` — two string comparisons per row. After the team's public
+`SpaceUsageInWindow` currently joins `task ON task.task_id = task_run.task_id
+AND task.space_id = ?` — two string comparisons per row. After the space's public
 ID is resolved once at the top, both become numeric and the query never touches
 a string again. This is the query whose `EXPLAIN` output is required evidence
 in §12.
@@ -531,13 +531,13 @@ which leaves the retry loop with no way to reach the generator.
 ## 10. API Contract
 
 The HTTP resource topology does not change. Every path in
-[routes.go](../../internal/server/handlers/routes.go) and the `team`, `work`,
+[routes.go](../../internal/server/handlers/routes.go) and the `space`, `work`,
 `artifact`, `admin`, and `worker` handler packages keeps its shape and its
 semantic parameter names; only the parameter's value format changes.
 
 ```text
-GET  /api/teams/{team_id}/tasks/{task_id}
-GET  /api/teams/{team_id}/task-runs/{task_run_id}/trace
+GET  /api/spaces/{space_id}/tasks/{task_id}
+GET  /api/spaces/{space_id}/task-runs/{task_run_id}/trace
 GET  /api/artifacts/{artifact_id}
 POST /api/worker/task-runs/{task_run_id}/llm/completions
 ```
@@ -548,7 +548,7 @@ its own handle as `id`; relationships keep semantic names:
 ```json
 {
   "id": "ivyoh5qcfu6ypfkhyedq",
-  "team_id": "lzmomgl6mzg2bve3bgka",
+  "space_id": "lzmomgl6mzg2bve3bgka",
   "conversation_id": "2l73hqqx6fcl7eecggda",
   "status": "SUCCEEDED"
 }
@@ -558,7 +558,7 @@ This renames the self-handle field on every entity response —
 `task_id` → `id`, `task_run_id` → `id`, and so on — across `internal/core/model`
 JSON tags, `internal/server/websocket/protocol.go`,
 `internal/infra/workerclient/api_types.go`, Portal's `lib/api/types.ts` and
-`lib/api/mappers.ts`, and Desktop. Relationship fields such as `team_id` and
+`lib/api/mappers.ts`, and Desktop. Relationship fields such as `space_id` and
 `conversation_id` are unaffected. Create responses that return a related handle
 under a semantic name keep it; this change does not require unrelated
 response-shape churn.
@@ -574,11 +574,11 @@ bodies:
 |---|---|
 | Not canonical text | `400 Bad Request` |
 | Canonical, names no row | `404 Not Found` |
-| Canonical, names a row outside the caller's team | `404 Not Found` |
+| Canonical, names a row outside the caller's space | `404 Not Found` |
 
-A team-scoped lookup resolves the team's public ID first, then constrains the
-resource by both its public ID and the numeric team key, so a valid public ID
-cannot become a cross-team existence oracle.
+A space-scoped lookup resolves the space's public ID first, then constrains the
+resource by both its public ID and the numeric space key, so a valid public ID
+cannot become a cross-space existence oracle.
 
 Access-token `sub` and run-token `sub`, `tid`, `rid`, `kid` continue to carry
 public IDs, in the new format. Worker routes still compare the canonical `rid`
@@ -690,7 +690,7 @@ sub-PR's join set stable while it lands.
 
 | | Tables |
 |---|---|
-| 4a | `user`, `team`, `team_member`, `login_code`, `user_refresh_token`, `user_webhook_key`, `system_grant` |
+| 4a | `user`, `space`, `space_member`, `login_code`, `user_refresh_token`, `user_webhook_key`, `system_grant` |
 | 4b | `conversation`, `conversation_message`, `task`, `task_run`, `task_run_artifact` |
 | 4c | `issue`, `issue_comment`, `agent`, `agent_revision`, `workflow`, `workflow_revision`, `workflow_run`, `workflow_step_run` |
 | 4d | `llm_model`, `llm_call`, `audit_event`, `artifact`, `plugin`, `plugin_release` |
@@ -712,9 +712,9 @@ moved down from `internal/service/artifact`.
   `binary(12)`; no core domain struct has a numeric ID field.
 - Boundary tests: no numeric ID appears in an API response body, a JWT claim,
   an object key, a trace record, or a WebSocket frame.
-- Authorization tests: cross-team lookups still return `404`, and a valid
+- Authorization tests: cross-space lookups still return `404`, and a valid
   foreign public ID is indistinguishable from an unknown one.
-- `EXPLAIN` output for quota aggregation, the team task list, the conversation
+- `EXPLAIN` output for quota aggregation, the space task list, the conversation
   message list, and the run-output read, captured before and after, recorded in
   the PR body — this is the measurement the proposal listed as required
   evidence and this design does not pre-judge.
@@ -756,17 +756,17 @@ on row keys after that.
 
 | Query | Access path |
 |---|---|
-| Quota: run count | `task` on `idx_task_team_created` (`ref`, covering), then `task_run` on `idx_task_run_task_created` (`ref`, covering) |
-| Quota: title tokens | `task` on `idx_task_team_created` (`range`, index condition) |
-| Team task list | `task` on `idx_task_team_created` as a **backward index scan** — no sort — then all six joins `eq_ref` on `PRIMARY` |
+| Quota: run count | `task` on `idx_task_space_created` (`ref`, covering), then `task_run` on `idx_task_run_task_created` (`ref`, covering) |
+| Quota: title tokens | `task` on `idx_task_space_created` (`range`, index condition) |
+| Space task list | `task` on `idx_task_space_created` as a **backward index scan** — no sort — then all six joins `eq_ref` on `PRIMARY` |
 | Conversation messages | `conversation` on `uq_conversation_public_id` (`const`, covering), then `conversation_message` on `idx_conversation_message_conversation` (`ref`) |
 | Run output read | `conversation` on `uq_conversation_public_id` (`const`), then `user`, `task`, `task_run`, `task_run_artifact` each on a key |
 
 Three things in that table are the conversion paying for itself. The task list
 sorts by reading its composite index backwards rather than sorting rows, which
-the single-column `team_id` index the string model left behind could not do.
+the single-column `space_id` index the string model left behind could not do.
 Both quota queries are answered from indexes alone — `Using index`, no row
-reads — because a `bigint` team reference fits in one. And every join is
+reads — because a `bigint` space reference fits in one. And every join is
 `eq_ref` on a primary key, which is what makes a listing one query rather than
 one query per row.
 
@@ -782,7 +782,7 @@ The work is complete when all of the following hold:
   relationship, and no legacy prefixed public ID anywhere.
 - Architecture tests reject both, so a regression fails in CI rather than in
   review.
-- Repository authorization tests still prevent cross-team lookups, and a
+- Repository authorization tests still prevent cross-space lookups, and a
   well-formed foreign public ID is indistinguishable from an unknown one.
 - Quota, artifact, workflow, issue-hierarchy, revision, and audit queries join
   numerically wherever the relationship is strict.

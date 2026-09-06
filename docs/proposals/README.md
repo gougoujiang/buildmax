@@ -38,10 +38,10 @@ last column says so, and the paper's own delivery phases hold the detail.
 | [Single-maintainer Agent development workflow](single-maintainer-agent-development.md) | How can one maintainer use multiple coding Agents to increase accepted development throughput without becoming the task-preparation, review, conflict-resolution, and cleanup bottleneck? | The task runner, layered verification, implementation Issue template, `agent-ready` label, worktrees, CI, deployment smoke, and evaluation harness exist; readiness revalidation, leases, changed-scope verification, and independent acceptance are not one closed contribution loop |
 | [System administration operations](system-administration-operations.md) | How should the automation-friendly operator CLI and the human-facing Portal provide safe outcome parity for authority, accounts, sessions, catalogs, quotas, and runtime health? | The grant model, operator command, admin API, six-section Portal area, model and plugin catalog controls, and deployment-wide audit already exist; grant integrity hardening and full Portal parity do not |
 | [Client sessions and API credentials](client-sessions-and-api-credentials.md) | Should interactive login issue any long-lived credential beyond a rotating refresh token, and how should native managed clients and unattended callers authenticate? | None of its stages. The rotating two-token session it proposes to harden is in `internal/infra/db/user_refresh_token.go` |
-| [Enterprise identity and access](enterprise-identity-and-access.md) | How should a private deployment connect corporate identity to BuildMax teams and roles? | Nothing |
+| [Enterprise identity and access](enterprise-identity-and-access.md) | How should a private deployment connect corporate identity to BuildMax spaces and roles? | Nothing |
 | [Durable Agent sessions](durable-agent-sessions.md) | Should authenticated local Agent sessions become revisioned Server resources for recovery, provenance, sharing, and cross-device continuation? | Nothing; no server route serves a session resource |
-| [Assistant orchestration and the Workflow boundary](assistant-orchestration-and-workflow-boundary.md) | Does a bounded manager Agent create enough value over one strong Agent to become an Assistant product, and should Workflow narrow toward deterministic Automation? | Nothing; current Agents cannot admit durable child Team Agent Tasks |
-| [Local Issue work bridge](local-issue-work-bridge.md) | How should connected CLI/TUI and Desktop handle Team Issues locally without becoming Portal clones or weakening direct local use? | Most of phase 1: `buildmax issue list`, `show`, and `status`, `buildmax --issue`, and the two Issue tools of [issue agent access](../design/issue-agent-access.md). The durable Issue-to-Session link is not built, and phases 2 and 3 are untouched |
+| [Assistant orchestration and the Workflow boundary](assistant-orchestration-and-workflow-boundary.md) | Does a bounded manager Agent create enough value over one strong Agent to become an Assistant product, and should Workflow narrow toward deterministic Automation? | Nothing; current Agents cannot admit durable child Space Agent Tasks |
+| [Local Issue work bridge](local-issue-work-bridge.md) | How should connected CLI/TUI and Desktop handle Space Issues locally without becoming Portal clones or weakening direct local use? | Most of phase 1: `buildmax issue list`, `show`, and `status`, `buildmax --issue`, and the two Issue tools of [issue agent access](../design/issue-agent-access.md). The durable Issue-to-Session link is not built, and phases 2 and 3 are untouched |
 | [Session tree, agent mailbox, and branched workspaces](session-tree-and-agent-mailbox.md) | Should interactive sessions fork isolated workspaces, return structured child reports, and resume their parent through a durable mailbox? | Nothing |
 
 Thirteen papers have been retired. Nine were accepted into a design
@@ -77,29 +77,29 @@ evidence-gated, and which are deferred behind a storage migration.
 *Two-tier Agent architecture* reopened whether that hierarchy was the stable
 product boundary. Its synthesis is now the [Agent execution and Task threads
 design](../design/agent-execution-and-task-threads.md): an Agent can execute
-directly through a Team-owned Task and TaskRun, Task is its durable interaction
+directly through a Space-owned Task and TaskRun, Task is its durable interaction
 thread, and Conversation is an independent foreground caller and optional
 result surface rather than an execution parent.
 
-*Plugin scope for background runs* asked whether a team's plugin set is decided
-once for the team or per agent definition; the answer is both, and §5.3 of the
-[team and worker plugin distribution design](../design/plugin-team-distribution.md)
-now decides it. A team's activation is the allow-list and the pin, an agent
+*Plugin scope for background runs* asked whether a space's plugin set is decided
+once for the space or per agent definition; the answer is both, and §5.3 of the
+[space and worker plugin distribution design](../design/plugin-space-distribution.md)
+now decides it. A space's activation is the allow-list and the pin, an agent
 definition narrows it, and the two levels split by what an unwanted item costs:
 inert content is inherited when an agent names none, executable content is
 loaded only when an agent names it.
 
-*Run-scoped Secret Broker and workload identity* asked how a Team should
+*Run-scoped Secret Broker and workload identity* asked how a Space should
 authorize a stored or externally managed credential for a run without exposing
-it to the whole worker; the direction was accepted and is now the [Team Secrets
-design](../design/team-secrets.md). It answers the delivery half against the
+it to the whole worker; the direction was accepted and is now the [Space Secrets
+design](../design/space-secrets.md). It answers the delivery half against the
 paper's own first recommendation: a credential is delivered to the run, as an
 environment variable or a rendered credential file, not into one named plugin
 consumer, because an Agent invokes tools it selects at run time and per-tool
-adaptation cannot reach them. A Secret is a Team-owned group of key/values in
+adaptation cannot reach them. A Secret is a Space-owned group of key/values in
 one encrypted row, consumption is configured on the Agent, and the record states
 plainly that an Agent can read what its run was granted — moving the safety onto
-Team ownership, per-Agent consumption, short-lived credentials, and audit.
+Space ownership, per-Agent consumption, short-lived credentials, and audit.
 
 *Agent-managed worktrees and a mutable workspace root* asked whether one
 interactive session should create a Git worktree and move its own workspace
@@ -117,13 +117,13 @@ lacks is operational evidence, now recorded as open questions in the
 [enterprise deployment design](../design/enterprise-deployment.md). *Audit and
 data governance* asked for the smallest useful evidence model; the append-only
 audit trail is it, and retention, export, and correlation remain open in the
-[team governance design](../design/team-governance.md). *Trusted private
-execution loop* asked whether one constrained, managed, auditable private team
+[space governance design](../design/space-governance.md). *Trusted private
+execution loop* asked whether one constrained, managed, auditable private space
 task should be proven before broader expansion; managed inference in the worker
 and the run-scoped credential shipped, the Beta gate was restated so it no
 longer claims a bounded egress it does not have, and the reachability the paper
 called its remaining work is the
-`GET /api/teams/{team_id}/task-runs/{task_run_id}/llm-calls` route.
+`GET /api/spaces/{space_id}/task-runs/{task_run_id}/llm-calls` route.
 
 One was narrowed rather than answered. *Agent execution policy* asked who
 chooses a worker's execution boundary; what a run holds, runs inside, is bounded

@@ -4,13 +4,13 @@
 
 ## Purpose
 
-The Portal is the team collaboration surface under `portal/`. It is a React 19,
+The Portal is the space collaboration surface under `portal/`. It is a React 19,
 Vite, and TypeScript app that talks to the Go server over HTTP and WebSocket.
 
-Portal owns the cloud/team lane:
+Portal owns the cloud/space lane:
 
 - login/signup
-- team/space switching and settings
+- space/space switching and settings
 - conversations
 - issues
 - workflows and workflow runs
@@ -27,7 +27,7 @@ Portal owns the cloud/team lane:
   revisioned at worker claim time; they do not alter the Tier 1 coordinator
 - artifacts: the space's durable files, listed and opened at their own opaque
   address rather than through the run that produced them
-- team files
+- space files
 - usage and webhook keys
 
 ## Current Shape
@@ -37,7 +37,7 @@ Portal owns the cloud/team lane:
 - API calls live under `portal/src/features/*/api.ts` and `portal/src/lib/api`.
 - Shared presentation components come from `@buildmax/gui`.
 - Cross-cutting state lives in `portal/src/contexts/` — `AppContext`,
-  `AuthContext`, `TeamContext`, and `WebSocketContext`, which carries
+  `AuthContext`, `SpaceContext`, and `WebSocketContext`, which carries
   conversation streaming.
 - The HTTP layer is `portal/src/lib/api/` (`client`, `mappers`, `types`, plus
   `sse` and `ws` for streaming transports).
@@ -105,7 +105,7 @@ module's claim about boundaries honest in the one place it is actually shown:
 
 ## Product Boundary
 
-Portal is the cloud team workspace. CLI and Desktop are the local execution
+Portal is the cloud space workspace. CLI and Desktop are the local execution
 lane. Desktop may bridge to Portal later, but Portal remains the place for
-team administration, issue/workflow management, team files, governance, and
+space administration, issue/workflow management, space files, governance, and
 cloud results.

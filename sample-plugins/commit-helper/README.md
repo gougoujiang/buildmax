@@ -8,7 +8,7 @@ It contributes:
 - `skills/commit-message/` — reads the staged change and drafts a commit subject
   and body.
 
-Skill-only, so a Team can activate it for background runs.
+Skill-only, so a Space can activate it for background runs.
 
 ## Try it
 

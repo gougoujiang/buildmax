@@ -65,21 +65,21 @@ go somewhere else.
 Managed mode used to be configured by hand-editing `settings.yaml`:
 
 ```yaml
-- name: Team default
+- name: Space default
   model: default
   transport: buildmax
   server_url: https://buildmax.example.com
-  team_id: tm_example
+  space_id: tm_example
 ```
 
 Every field except `model` was something the login had already established, and
-`buildmax models --team <team_id>` printed this block for the user to copy —
+`buildmax models --space <space_id>` printed this block for the user to copy —
 the design gap stated out loud.
 
 The root cause was structural: **`settings.yaml` is load-only.** The only writer
 in the repository is `buildmax init`, which renders the whole file from a
 template; `internal/config` has no save function. So a stateful action (login)
-and a configuration edit (using a team model) were never connected, and could
+and a configuration edit (using a space model) were never connected, and could
 not be.
 
 It also produced dangling state. After `buildmax logout`, the managed entries
@@ -137,18 +137,18 @@ list has one source.
 
 ## 5. Models Are Global To The Deployment
 
-A team is a collaboration boundary — shared issues, agents, workflows. It is
+A space is a collaboration boundary — shared issues, agents, workflows. It is
 **not** a model authorization boundary. Every model in the catalog is available
 to every user of the deployment.
 
 This is a deliberate narrowing of [llm-gateway.md §4.2](llm-gateway.md), which
-planned per-team model policy in the database. That capability is withdrawn,
-not deferred. Gating models per team would mean a user who belongs to several
-teams has to declare which team a prompt is for — a workspace-selection concept
+planned per-space model policy in the database. That capability is withdrawn,
+not deferred. Gating models per space would mean a user who belongs to several
+spaces has to declare which space a prompt is for — a workspace-selection concept
 this product does not have and is not adding.
 
 The code was already deployment-wide when this was decided: `llm.aliases` in
-`server.yaml` exposed the same set to every team, and the per-team database
+`server.yaml` exposed the same set to every space, and the per-space database
 policy was never built. So this deleted an unbuilt abstraction rather than
 changing behavior.
 
@@ -158,20 +158,20 @@ changing behavior.
 a model by `llm_model.name`. The `llm:` block itself stays, holding the one key
 that survives: `default_model` ([§7](#7-the-default-model)).
 
-The alias layer existed to give teams stable names that survive provider
+The alias layer existed to give spaces stable names that survive provider
 routing changes. `llm_model.Name` already does that job: it is
 `uniqueIndex; not null`, operator-facing, and unique across the deployment.
 Repointing a name at a different upstream is editing that row's `api_url` and
 `model` — the name never moves. An alias-to-ID map on top of a unique name is
 indirection with no second job, and the resolver already conceded as much: it
-described aliases as the team-facing half of something that could address
+described aliases as the space-facing half of something that could address
 catalog entries directly.
 
-With teams out of the resolution path, that half has nothing left to be.
+With spaces out of the resolution path, that half has nothing left to be.
 Resolution goes from:
 
 ```text
-(team_id, alias) -> catalog ID -> LLMClient
+(space_id, alias) -> catalog ID -> LLMClient
 ```
 
 to:
@@ -243,23 +243,23 @@ know the difference between "has a login" and "has a working login".
 
 ## 9. Usage Is Attributed To A Person
 
-The `llm_call` ledger records the user. `team_id` is **dropped from the row**,
+The `llm_call` ledger records the user. `space_id` is **dropped from the row**,
 not made nullable: the ledger already carries `task_run_id`, and run → task →
-team reconstructs the team whenever the question is asked. A team column on
+space reconstructs the space whenever the question is asked. A space column on
 every call would be a denormalization that only a foreground call — which
-belongs to no team — could fail to fill.
+belongs to no space — could fail to fill.
 
 The composite unique index `idx_llm_call_client` was rebuilt to lead with the
 user key, which is also the right scope for the idempotency key it guards: the
 key belongs to the caller who sent it.
 
 Reading a run's ledger is authorized by authorizing the run — it belongs to
-exactly one team — so `ListLLMCallsByTaskRun` takes only the run and the handler
+exactly one space — so `ListLLMCallsByTaskRun` takes only the run and the handler
 checks ownership first.
 
-Quota per team is out of scope here. It returns only if team workspace
-selection is ever added, because a per-team ceiling needs each call to belong to
-exactly one team, and today a foreground call does not.
+Quota per space is out of scope here. It returns only if space workspace
+selection is ever added, because a per-space ceiling needs each call to belong to
+exactly one space, and today a foreground call does not.
 
 ## 10. What This Supersedes
 
@@ -268,9 +268,9 @@ In [llm-gateway.md](llm-gateway.md):
 | Section | Was | Is now |
 |---|---|---|
 | §1 Decision | transport is a per-model-entry property | mode is per client, decided by `auth.json` |
-| §4.2 Team Model Policy | per-team model authorization in the database | withdrawn; models are deployment-global |
-| §7 Model Catalog And Resolution | `(team_id, alias)` resolution, alias map in `server.yaml` | `name` resolution against `llm_model` |
-| §10 Call Ledger | team-scoped ledger rows | user-scoped; team reached through the run |
+| §4.2 Space Model Policy | per-space model authorization in the database | withdrawn; models are deployment-global |
+| §7 Model Catalog And Resolution | `(space_id, alias)` resolution, alias map in `server.yaml` | `name` resolution against `llm_model` |
+| §10 Call Ledger | space-scoped ledger rows | user-scoped; space reached through the run |
 | §12 Client Configuration | hand-written `transport: buildmax` entries | server-supplied list, no client-side model config |
 
 The gateway record keeps its own reasoning for everything those sections did not
@@ -304,9 +304,9 @@ its own answer. `auth.StoredLogin` is that distinction, and
 
 ## 12. Not In Scope
 
-- **Team workspace selection.** Without it, per-team quota and per-team model
-  policy cannot be built, and both stay out. A per-team ceiling needs each call
-  to belong to exactly one team, and a foreground call belongs to none.
+- **Space workspace selection.** Without it, per-space quota and per-space model
+  policy cannot be built, and both stay out. A per-space ceiling needs each call
+  to belong to exactly one space, and a foreground call belongs to none.
 - **Migration.** BuildMax is alpha; `AutoMigrate` applied the new row shapes and
   no compatibility path was owed to an existing deployment.
 - **A merged model list.** Rejected in §1, not deferred.

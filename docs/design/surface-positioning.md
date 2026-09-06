@@ -33,10 +33,10 @@ The current product decision is:
 
 > BuildMax is an out-of-the-box, privately deployable enterprise Agent platform
 > powered by one shared Agent core. CLI and Desktop expose direct local
-> single-agent capability; Portal operationalizes the same capability for teams
+> single-agent capability; Portal operationalizes the same capability for spaces
 > with collaboration, workflows, governance, and results.
 
-This is not a choice between "local Agent" and "team workspace." Users can use
+This is not a choice between "local Agent" and "space workspace." Users can use
 only local surfaces, deploy Portal for a company, or use both together.
 
 ---
@@ -91,29 +91,29 @@ Desktop should feel like:
 
 not:
 
-> a second place to administer team work.
+> a second place to administer space work.
 
 ### 2.4 Portal: Enterprise Operation Layer
 
-Portal is the enterprise/team operation layer over the same Agent Core.
+Portal is the enterprise/space operation layer over the same Agent Core.
 
 Primary job:
 
-- Team
+- Space
 - Issue
 - Workflow
 - Agent definitions
-- Team files
+- Space files
 - Results and artifacts
 - Governance
 
-Portal owns the team operating model:
+Portal owns the space operating model:
 
-- manage teams, members, roles, and shared resources
+- manage spaces, members, roles, and shared resources
 - manage issues as the user-facing work object
 - define, publish, and inspect workflows
 - track task runs, artifacts, usage, and eventually audit/history
-- provide the canonical team workspace view
+- provide the canonical space workspace view
 
 ---
 
@@ -125,7 +125,7 @@ Full Portal alignment would imply Desktop needs to manage:
 
 - issues
 - workflows
-- team settings
+- space settings
 - members
 - roles
 - governance
@@ -133,7 +133,7 @@ Full Portal alignment would imply Desktop needs to manage:
 
 That exceeds the natural scope of a local app and creates product confusion:
 
-- users would have two places to manage the same team objects
+- users would have two places to manage the same space objects
 - Desktop would become a local Portal replica
 - local-first value would be diluted by cloud administration features
 - implementation complexity would rise without clarifying the user promise
@@ -150,7 +150,7 @@ But Desktop should provide a more visual and persistent experience than CLI.
 
 Portal should align with the same Agent Core on execution capability. Its added
 value is enterprise operation: organizing, reusing, governing, and observing
-that capability across teams.
+that capability across spaces.
 
 ---
 
@@ -161,10 +161,10 @@ that capability across teams.
 | Agent tool-calling execution | Strong | Strong | Strong | Strong via worker |
 | Local workspace agent execution | Foundation | Strong | Strong | Not primary |
 | Terminal scripting and automation | Foundation | Strong | Weak | None |
-| Local session history | Foundation | Medium | Strong | Separate team conversations |
-| Local file context and edits | Foundation | Strong | Strong | Team file space, not local disk |
-| Rich result viewing | Foundation | Medium | Strong local | Strong team/cloud |
-| Team and member management | None | None | None | Strong |
+| Local session history | Foundation | Medium | Strong | Separate space conversations |
+| Local file context and edits | Foundation | Strong | Strong | Space file space, not local disk |
+| Rich result viewing | Foundation | Medium | Strong local | Strong space/cloud |
+| Space and member management | None | None | None | Strong |
 | Issue management | None | None | Lightweight inbox / launcher only | Strong |
 | Workflow authoring | None | None | None | Strong |
 | Workflow triggering | Execution substrate | Possible later | Optional, for published workflows | Strong |
@@ -199,7 +199,7 @@ Desktop should not own:
 
 - full issue tracker management
 - workflow authoring or lifecycle management
-- team membership management
+- space membership management
 - role and permission administration
 - quota administration
 - audit/event administration
@@ -233,13 +233,13 @@ Recommended product explanation:
 
 > BuildMax is a privately deployable enterprise Agent platform powered by one
 > shared Agent core. CLI and Desktop expose that core locally; Portal
-> operationalizes it for teams.
+> operationalizes it for spaces.
 
 Slightly longer version:
 
 > BuildMax gives companies practical Agent capability out of the box. A user can
 > run the Agent locally through CLI or Desktop, while a company can deploy Portal
-> to organize the same capability into teams, issues, workflows, shared files,
+> to organize the same capability into spaces, issues, workflows, shared files,
 > results, quota, and governance.
 
 Surface-specific version:
@@ -250,7 +250,7 @@ Surface-specific version:
 Desktop-specific sentence:
 
 > Desktop is the local AI workbench for personal Agent execution. It can connect
-> to Portal for identity and assigned work, but it does not manage the team
+> to Portal for identity and assigned work, but it does not manage the space
 > operating system.
 
 ---
@@ -296,7 +296,7 @@ Avoid adding these to Desktop unless the product direction changes explicitly:
 
 - full issue CRUD
 - workflow builder
-- team settings
+- space settings
 - member management
 - quota dashboard
 - audit log UI
@@ -311,9 +311,9 @@ These belong in Portal.
 BuildMax should be Agent-core-first.
 
 CLI and Desktop show the direct local Agent experience. Portal packages the same
-Agent capability into an enterprise platform for teams, workflows, governance,
+Agent capability into an enterprise platform for spaces, workflows, governance,
 and results. Desktop may integrate with Portal, but the integration should be
-intentionally narrow: receive work from the team system, execute locally when
+intentionally narrow: receive work from the space system, execute locally when
 appropriate, and return results.
 
-Portal remains the source of truth for team collaboration, issue/workflow management, shared results, and governance.
+Portal remains the source of truth for space collaboration, issue/workflow management, shared results, and governance.
