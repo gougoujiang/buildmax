@@ -1,12 +1,12 @@
 #!/bin/sh
 # The reference solution, run from the run's workspace.
 #
-# It reads from home/ and writes at the root, which is the split a worker run
-# has: the space's persistent files come in under home/, and what the run
-# produces belongs to the run.
+# The space's persistent files are materialized at the workspace root, the same
+# place the run writes what it produces — a worker run and a CLI run present the
+# one working directory.
 
-open_count=$(grep -c '^- \[ \]' home/backlog.md)
-urgent=$(grep -i 'URGENT' home/backlog.md | sed 's/^- \[ \] *//')
+open_count=$(grep -c '^- \[ \]' backlog.md)
+urgent=$(grep -i 'URGENT' backlog.md | sed 's/^- \[ \] *//')
 
 cat > summary.md <<EOF
 # Backlog Summary

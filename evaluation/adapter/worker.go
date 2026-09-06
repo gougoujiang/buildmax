@@ -90,7 +90,7 @@ func (w *Worker) Run(ctx context.Context, tr Trial, bundleRoot string) (Result, 
 		bundle.Status = status
 		bundle.Error = cause.Error()
 		bundle.Duration = contract.FromDuration(time.Since(started))
-		return Result{Bundle: bundle, Workspace: layout.runDir, TrialDir: trialDir, Cleanup: cleanup}, nil
+		return Result{Bundle: bundle, Workspace: layout.runWorkspace, TrialDir: trialDir, Cleanup: cleanup}, nil
 	}
 
 	if len(tr.Task.Turns) == 0 {
@@ -202,14 +202,12 @@ func (w *Worker) Run(ctx context.Context, tr Trial, bundleRoot string) (Result, 
 			fmt.Errorf("the worker reported an unexpected status %q", outcome.Status))
 	}
 
-	// The final state is the agent's workspace. The initial digest above is the
-	// space's persistent directory, which is what the run materialized from
-	// rather than what it started from: a worker creates its run directory
-	// itself, so no adapter can observe the workspace at the instant before the
-	// agent began. The two digests therefore describe different trees, and
-	// comparing them across a worker trial says nothing. On the CLI they are
-	// the same tree and comparing them is meaningful.
-	final, err := DigestDir(layout.runDir)
+	// The final state is the agent's workspace/. The initial digest above is the
+	// space's persistent directory the run materialized that workspace from, so
+	// the two describe the same tree lineage: an unchanged run digests equal and
+	// a run that wrote a file digests different, the same way the CLI surface
+	// compares them.
+	final, err := DigestDir(layout.runWorkspace)
 	if err != nil {
 		return fail(contract.StatusInfrastructureError, err)
 	}
@@ -230,9 +228,9 @@ func (w *Worker) Run(ctx context.Context, tr Trial, bundleRoot string) (Result, 
 		Bundle:   bundle,
 		Gradable: true,
 		// Graders read the agent's workspace. A path assertion resolves against
-		// its root, so a file the space supplied is at `home/<name>` here while
-		// the same task on the CLI has it at `<name>`.
-		Workspace: layout.runDir,
+		// its root, and a file the space supplied is at `<name>` there — the same
+		// place the CLI surface puts it, so one grader reads both.
+		Workspace: layout.runWorkspace,
 		TrialDir:  trialDir,
 		Cleanup:   cleanup,
 	}, nil
@@ -243,13 +241,13 @@ type workerLayout struct {
 	home       string // BUILDMAX_HOME for the worker process
 	workspaces string // server.yaml workspaces_dir
 	spaceHome  string // the space's persistent workspace
-	// runDir is the agent's workspace. The space's files are materialized into
-	// its `home` subdirectory rather than into the directory itself, so what
-	// the agent sees at its root and what it inherited are not the same tree.
+	// runDir is the run's root. The agent's workspace is its `workspace`
+	// subdirectory: the space's files are materialized there and the agent works
+	// there, so its root and what it inherited are one tree — the same shape the
+	// CLI surface presents.
 	runDir         string
-	runHome        string // runDir/home: where the space's files land
+	runWorkspace   string // runDir/workspace: the agent's cwd and tool root
 	runGlobal      string // run-global state, including the trace
-	runArtifacts   string
 	runID          string
 	taskID         string
 	conversationID string
@@ -273,9 +271,8 @@ func (w *Worker) layout(root string, tr Trial) workerLayout {
 		workspaces:     workspaces,
 		spaceHome:      filepath.Join(workspaces, space, "home"),
 		runDir:         runDir,
-		runHome:        filepath.Join(runDir, "home"),
+		runWorkspace:   filepath.Join(runDir, "workspace"),
 		runGlobal:      filepath.Join(runDir, "global"),
-		runArtifacts:   filepath.Join(runDir, "artifacts"),
 		runID:          runID,
 		taskID:         taskID,
 		conversationID: conversationID,
@@ -451,21 +448,24 @@ func (w *Worker) collectTrace(bundle *contract.TrialBundle, layout workerLayout,
 	return nil
 }
 
-// collectArtifacts records what the run produced, by hash.
+// collectArtifacts records what the run left in its workspace, by hash. The
+// workspace is the run's output: there is no separate output directory, and a
+// checkpoint of it is the durable record. The top-level files are recorded here
+// for a grader that reads them by name.
 func (w *Worker) collectArtifacts(bundle *contract.TrialBundle, layout workerLayout, trialDir string) error {
-	entries, err := os.ReadDir(layout.runArtifacts)
+	entries, err := os.ReadDir(layout.runWorkspace)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
 		}
-		return fmt.Errorf("read artifacts: %w", err)
+		return fmt.Errorf("read workspace: %w", err)
 	}
 	dest := filepath.Join(trialDir, contract.ArtifactsDir)
 	for _, e := range entries {
 		if e.IsDir() {
 			continue
 		}
-		source := filepath.Join(layout.runArtifacts, e.Name())
+		source := filepath.Join(layout.runWorkspace, e.Name())
 		info, err := e.Info()
 		if err != nil {
 			continue

@@ -4,11 +4,11 @@
   "version": 1,
   "suite": "worker-and-taskrun",
   "title": "Produce a report from the space's files in a worker run",
-  "tags": ["worker", "materialization", "artifacts"],
+  "tags": ["worker", "materialization", "output"],
   "domain": "product_outcome",
   "surface": "worker",
   "turns": [
-    "The space's files are in the home directory. Read home/backlog.md and write summary.md in your working directory, listing how many items are open and naming the one marked urgent."
+    "The space's files are in your working directory. Read backlog.md and write summary.md there, listing how many items are open and naming the one marked urgent."
   ],
   "limits": {
     "wall_seconds": 240,
@@ -21,7 +21,7 @@
       "version": 1,
       "kind": "deterministic",
       "required": true,
-      "config": { "exists": ["summary.md", "home/backlog.md"] }
+      "config": { "exists": ["summary.md", "backlog.md"] }
     },
     {
       "name": "command",

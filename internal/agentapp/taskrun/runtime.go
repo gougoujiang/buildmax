@@ -51,7 +51,6 @@ type RunScope struct {
 type runResult struct {
 	EndTime          time.Time
 	OutputStr        string
-	RunArtifactsDir  string
 	Output           []byte
 	PromptTokens     *int
 	CompletionTokens *int
@@ -65,12 +64,11 @@ type runResult struct {
 
 type runDirs struct {
 	runDir       string
-	runHome      string
-	runArtifacts string
+	runWorkspace string
 	runGlobal    string
 	// runOSHome is the run's own operating-system HOME, empty at start and not
-	// uploaded. It is separate from runHome (the space's materialized persistent
-	// files) and runGlobal (BUILDMAX_HOME): a run must not inherit the shared
+	// uploaded. It is separate from runWorkspace (the space's materialized files,
+	// the Agent's cwd) and runGlobal (BUILDMAX_HOME): a run must not inherit the shared
 	// container HOME, or one run's tool state under ~/.config leaks into the
 	// next. It is also where rendered credential files will land -- see
 	// docs/design/space-secrets.md §8.
@@ -233,7 +231,7 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 	scope := RunScope{SpaceID: task.SpaceID, TaskID: task.ID, TaskRunID: run.ID}
 
 	if err := prepareRunWorkspace(ctx, input, task, run, dirs); err != nil {
-		if stopped, stopErr := reportStoppedRun(ctx, scope, runResult{RunArtifactsDir: dirs.runArtifacts}, dirs, input); stopped {
+		if stopped, stopErr := reportStoppedRun(ctx, scope, runResult{}, dirs, input); stopped {
 			return stopErr
 		}
 		reportRunFailure(ctx, run.ID, err, "", input.Updater)
@@ -359,8 +357,7 @@ func resolveRunDirs(paths RuntimePaths, task *coretask.Task, run *coretask.Run) 
 	runDir := paths.RuntimeTaskRunDir(task.SpaceID, task.ID, run.ID)
 	return runDirs{
 		runDir:       runDir,
-		runHome:      paths.RuntimeTaskRunHomeDir(task.SpaceID, task.ID, run.ID),
-		runArtifacts: paths.RuntimeTaskRunArtifactsDir(task.SpaceID, task.ID, run.ID),
+		runWorkspace: paths.RuntimeTaskRunWorkspaceDir(task.SpaceID, task.ID, run.ID),
 		runGlobal:    paths.RuntimeTaskRunGlobalDir(task.SpaceID, task.ID, run.ID),
 		// Derived here rather than through RuntimePaths: nothing outside this
 		// package needs to locate the run's OS HOME.
@@ -370,7 +367,7 @@ func resolveRunDirs(paths RuntimePaths, task *coretask.Task, run *coretask.Run) 
 
 func prepareRunWorkspace(ctx context.Context, input RunTaskInput, task *coretask.Task, run *coretask.Run, dirs runDirs) error {
 	persist := input.Persist
-	if err := ensureRunDirs(dirs.runHome, dirs.runArtifacts, dirs.runGlobal, dirs.runOSHome); err != nil {
+	if err := ensureRunDirs(dirs.runWorkspace, dirs.runGlobal, dirs.runOSHome); err != nil {
 		return err
 	}
 	// Before the runtime is assembled, because agentapp discovers plugins from
@@ -381,12 +378,12 @@ func prepareRunWorkspace(ctx context.Context, input RunTaskInput, task *coretask
 		return err
 	}
 	restoreSessionFromPreviousRun(ctx, task, run, dirs.runGlobal, persist)
-	if err := persist.MaterializeToDir(ctx, task.SpaceID, dirs.runHome); err != nil {
+	// Space files land directly in workspace/, the Agent's cwd and single tool
+	// root. Its AGENTS.md is discovered there by the runtime's normal
+	// workspace-root prompt layer; the run writes no synthesized AGENTS.md above
+	// it. See docs/design/task-workspace-checkpoints.md §4.1.
+	if err := persist.MaterializeToDir(ctx, task.SpaceID, dirs.runWorkspace); err != nil {
 		componentLog().Error("failed to materialize space files", "task_run_id", run.ID, "space_id", task.SpaceID, "err", err)
-		return err
-	}
-	if err := WriteRunAgentsMd(dirs.runDir, dirs.runHome); err != nil {
-		componentLog().Error("failed to prepare run AGENTS.md", "task_run_id", run.ID, "err", err)
 		return err
 	}
 	return nil
@@ -397,13 +394,12 @@ func executeRunTask(ctx context.Context, input RunTaskInput, task *coretask.Task
 	if task.SessionID != nil {
 		effectiveSessionID = *task.SessionID
 	}
-	agentRun, err := runAgentTask(ctx, run, dirs.runDir, dirs.runGlobal, dirs.runOSHome, effectiveSessionID, input.StreamSender, input.Model, input.Managed, input.ManagedHTTPClient, input.SpaceAgentInstructions, input.AdditionalSystemPrompt,
+	agentRun, err := runAgentTask(ctx, run, dirs.runWorkspace, dirs.runGlobal, dirs.runOSHome, effectiveSessionID, input.StreamSender, input.Model, input.Managed, input.ManagedHTTPClient, input.SpaceAgentInstructions, input.AdditionalSystemPrompt,
 		artifactPublisher(input.WorkerAPI, run.ID), issueClient(input.WorkerAPI, task, run.ID),
 		input.SandboxNetworkTier, input.SandboxFilesystemTier, input.SecretEnvGrants)
 	result := runResult{
 		EndTime:          time.Now().UTC(),
 		OutputStr:        string(agentRun.output),
-		RunArtifactsDir:  dirs.runArtifacts,
 		Output:           agentRun.output,
 		PromptTokens:     agentRun.promptTokens,
 		CompletionTokens: agentRun.completionTokens,
@@ -416,17 +412,12 @@ func executeRunTask(ctx context.Context, input RunTaskInput, task *coretask.Task
 }
 
 func reportPersistedRunState(ctx context.Context, persist blob.RunStorage, scope RunScope, dirs runDirs, result runResult) {
-	persistRunResult(dirs.runArtifacts, result.Output)
 	uploadTaskGlobal(ctx, dirs.runGlobal, scope, persist, result.TracePath)
-	uploadTaskRunArtifacts(ctx, dirs.runArtifacts, scope, persist)
 }
 
-func ensureRunDirs(runHome, runArtifacts, runGlobal, runOSHome string) error {
-	if err := os.MkdirAll(runHome, 0755); err != nil {
-		return fmt.Errorf("create run home dir: %w", err)
-	}
-	if err := os.MkdirAll(runArtifacts, 0755); err != nil {
-		return fmt.Errorf("create run artifacts dir: %w", err)
+func ensureRunDirs(runWorkspace, runGlobal, runOSHome string) error {
+	if err := os.MkdirAll(runWorkspace, 0755); err != nil {
+		return fmt.Errorf("create run workspace dir: %w", err)
 	}
 	if err := os.MkdirAll(runGlobal, 0755); err != nil {
 		return fmt.Errorf("create run global dir: %w", err)
@@ -507,7 +498,7 @@ func runtimeModelEntries(runtimeModel config.ModelEntry, managed ManagedInferenc
 	return []config.ModelEntry{runtimeModel}
 }
 
-func runAgentTask(ctx context.Context, run *coretask.Run, runDir, runGlobalDir, runOSHome, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry, managed ManagedInference, managedHTTPClient *http.Client, spaceAgentInstructions, additionalSystemPrompt string, publisher tool.ArtifactPublisher, issues tool.IssueClient, sandboxNetworkTier config.SandboxNetworkTier, sandboxFilesystemTier config.SandboxFilesystemTier, secretGrants map[string]string) (agentRunOutput, error) {
+func runAgentTask(ctx context.Context, run *coretask.Run, runWorkspaceDir, runGlobalDir, runOSHome, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry, managed ManagedInference, managedHTTPClient *http.Client, spaceAgentInstructions, additionalSystemPrompt string, publisher tool.ArtifactPublisher, issues tool.IssueClient, sandboxNetworkTier config.SandboxNetworkTier, sandboxFilesystemTier config.SandboxFilesystemTier, secretGrants map[string]string) (agentRunOutput, error) {
 	var sink llm.StreamSink
 	if streamSender != nil {
 		sink = &streamSinkAdapter{ctx: ctx, streamSender: streamSender, taskRunID: run.ID,
@@ -517,7 +508,7 @@ func runAgentTask(ctx context.Context, run *coretask.Run, runDir, runGlobalDir, 
 	var out agentapp.RunResult
 	err := withRunEnv(runOSHome, runGlobalDir, secretGrants, func() error {
 		app, err := agentapp.NewAgentApp(agentapp.AppConfig{
-			WorkspaceDir:                runDir,
+			WorkspaceDir:                runWorkspaceDir,
 			EnableMCP:                   true,
 			Policy:                      agent.AllowAllPolicy(),
 			ModelEntries:                runtimeModelEntries(runtimeModel, managed),
@@ -669,13 +660,6 @@ func mapValues(m map[string]string) []string {
 	return out
 }
 
-func persistRunResult(runArtifactsDir string, output []byte) {
-	resultPath := filepath.Join(runArtifactsDir, "result.md")
-	if err := os.WriteFile(resultPath, output, 0644); err != nil {
-		componentLog().Error("failed to write result file", "path", resultPath, "err", err)
-	}
-}
-
 // reportRunFailure records the failure. tracePath may be empty — the run can
 // fail before an agent ever starts — but when a trace exists it is recorded
 // here too: diagnosing a failure is the trace's main job.
@@ -696,23 +680,24 @@ func reportRunFailure(ctx context.Context, taskRunID string, err error, tracePat
 // reportRunOutcome uploads a run's artifacts and records its terminal status.
 //
 // Every outcome that leaves something behind shares it — succeeded, canceled,
-// and interrupted — because they leave the same thing: a result file, whatever
-// artifacts the run wrote, and the tokens it spent. The status is what tells a
-// reader whether the output is the answer or as far as the run got, and
-// errMessage, when there is one, is what tells them why it is the latter.
+// and interrupted — because they leave the same thing: the reply and the tokens
+// it spent. The status is what tells a reader whether the output is the answer
+// or as far as the run got, and errMessage, when there is one, is what tells
+// them why it is the latter.
+//
+// The reply is the run's one persisted output. Files a run means to keep are
+// published deliberately through UploadArtifact to the Artifact service; the
+// runtime no longer scans a directory for incidental output. See
+// docs/design/task-workspace-checkpoints.md §4.
 func reportRunOutcome(ctx context.Context, scope RunScope, result runResult, status coretask.RunStatus, errMessage string, runOutputStorage blob.RunOutputStorage, updater TaskRunUpdater) error {
 	if putErr := runOutputStorage.PutResult(ctx, blob.RunRef(scope), result.Output); putErr != nil {
 		componentLog().Error("failed to write result to artifact storage", "task_run_id", scope.TaskRunID, "err", putErr)
-	}
-	relativePaths := uploadRunArtifactsToStorage(ctx, result.RunArtifactsDir, scope, runOutputStorage)
-	if len(relativePaths) == 0 {
-		relativePaths = []string{"result.md"}
 	}
 	req := &workerclient.PatchTaskRunRequest{
 		Status:   string(status),
 		EndedAt:  &result.EndTime,
 		Output:   &result.OutputStr,
-		Artifact: &workerclient.ArtifactPayload{RelativePaths: relativePaths},
+		Artifact: &workerclient.ArtifactPayload{RelativePaths: []string{"result.md"}},
 	}
 	if result.PromptTokens != nil {
 		req.PromptTokens = result.PromptTokens
@@ -727,73 +712,6 @@ func reportRunOutcome(ctx context.Context, scope RunScope, result runResult, sta
 		req.ErrorMessage = &errMessage
 	}
 	return updater.UpdateRunStatus(ctx, scope.TaskRunID, req)
-}
-
-func walkAndUploadFiles(ctx context.Context, rootDir string, scope RunScope, openLogMsg string, upload func(context.Context, RunScope, string, *os.File) error, warn func(string, ...any), errorLog func(string, ...any)) []string {
-	var relativePaths []string
-	if err := filepath.Walk(rootDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if info.IsDir() || !info.Mode().IsRegular() {
-			return nil
-		}
-		relPath, err := filepath.Rel(rootDir, path)
-		if err != nil {
-			return err
-		}
-		relPath = filepath.ToSlash(relPath)
-		f, err := os.Open(path)
-		if err != nil {
-			warn(openLogMsg, "task_run_id", scope.TaskRunID, "rel_path", relPath, "err", err)
-			return nil
-		}
-		uploadErr := upload(ctx, scope, relPath, f)
-		_ = f.Close()
-		if uploadErr != nil {
-			warn("runtime: upload file failed", "task_run_id", scope.TaskRunID, "rel_path", relPath, "err", uploadErr)
-			return nil
-		}
-		relativePaths = append(relativePaths, relPath)
-		return nil
-	}); err != nil {
-		errorLog("runtime: walk upload source failed", "task_run_id", scope.TaskRunID, "root", rootDir, "err", err)
-	}
-	return relativePaths
-}
-
-// uploadTaskRunArtifacts uploads the run's artifacts dir to blob storage (same as global dir).
-func uploadTaskRunArtifacts(ctx context.Context, artifactsDir string, scope RunScope, persist blob.RunStorage) {
-	walkAndUploadFiles(
-		ctx,
-		artifactsDir,
-		scope,
-		"runtime: upload run artifacts open failed",
-		func(ctx context.Context, scope RunScope, relPath string, f *os.File) error {
-			return persist.PutRunArtifacts(ctx, blob.RunObjectRef{
-				SpaceID: scope.SpaceID, TaskID: scope.TaskID, TaskRunID: scope.TaskRunID, RelPath: relPath,
-			}, f)
-		},
-		slog.Warn,
-		slog.Error,
-	)
-}
-
-// uploadRunArtifactsToStorage scans runArtifactsDir and uploads each file to artifact blob storage. Returns relative paths (slash form) for each file.
-func uploadRunArtifactsToStorage(ctx context.Context, runArtifactsDir string, scope RunScope, runOutputStorage blob.RunOutputStorage) []string {
-	return walkAndUploadFiles(
-		ctx,
-		runArtifactsDir,
-		scope,
-		"runtime: artifact file open failed",
-		func(ctx context.Context, scope RunScope, relPath string, f *os.File) error {
-			return runOutputStorage.PutRunOutputFile(ctx, blob.RunObjectRef{
-				SpaceID: scope.SpaceID, TaskID: scope.TaskID, TaskRunID: scope.TaskRunID, RelPath: relPath,
-			}, f)
-		},
-		slog.Warn,
-		slog.Error,
-	)
 }
 
 // uploadTaskGlobal uploads the run's global dir (logs, sessions, settings) to blob storage for the run.

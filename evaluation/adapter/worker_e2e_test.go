@@ -99,15 +99,11 @@ func TestWorkerRunMaterializesAndProducesAGradableBundle(t *testing.T) {
 	}
 
 	// The space's file reaching the run at all means the worker materialized the
-	// persistent workspace into the run-scoped directory — the step this
-	// adapter exists to exercise. It lands under `home/` rather than at the
-	// workspace root, which is where a worker puts what a space supplied.
-	if _, err := os.Stat(filepath.Join(res.Workspace, "home", "notes.txt")); err != nil {
+	// persistent workspace into the run-scoped directory — the step this adapter
+	// exists to exercise. It lands at the workspace root, the same place the CLI
+	// surface puts it, so one path assertion reads on both surfaces.
+	if _, err := os.Stat(filepath.Join(res.Workspace, "notes.txt")); err != nil {
 		t.Errorf("the space's file did not reach the run workspace: %v", err)
-	}
-	if _, err := os.Stat(filepath.Join(res.Workspace, "notes.txt")); err == nil {
-		t.Error("the space's file is at the workspace root; a path assertion written for the CLI " +
-			"would then pass here for the wrong reason")
 	}
 	got, err := os.ReadFile(filepath.Join(res.Workspace, "report.md"))
 	if err != nil {
@@ -138,10 +134,9 @@ func TestWorkerRunMaterializesAndProducesAGradableBundle(t *testing.T) {
 	if res.Bundle.Usage.LLMCalls != 2 {
 		t.Errorf("model calls = %d, want 2", res.Bundle.Usage.LLMCalls)
 	}
-	// A worker's run output is an artifact, which is how a Portal user sees a
-	// result at all.
+	// The run's workspace is its output; the bundle records the files left there.
 	if len(res.Bundle.Artifacts) == 0 {
-		t.Error("the run produced no recorded artifact")
+		t.Error("the run left no recorded workspace files")
 	}
 }
 
