@@ -10,6 +10,9 @@ package architecture_test
 
 import (
 	"encoding/json"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -133,6 +136,44 @@ func TestToolNamesDocumented(t *testing.T) {
 	for _, name := range names {
 		if !strings.Contains(doc, "`"+name+"`") {
 			t.Errorf("tool %q is registered but not documented in docs/guide/tools.md", name)
+		}
+	}
+}
+
+// TestArchitectureToolInventoryCoversEveryToolNameConstant fails when the
+// contributor architecture inventory falls behind names.go. Unlike the
+// user-facing guide, this inventory accounts for surface-scoped tools that are
+// not registered in every runtime.
+func TestArchitectureToolInventoryCoversEveryToolNameConstant(t *testing.T) {
+	root := repoRoot(t)
+	path := filepath.Join(root, "docs", "contribute", "architecture", "tools.md")
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read tool architecture: %v", err)
+	}
+	doc := string(body)
+
+	namesPath := filepath.Join(root, "internal", "tool", "names.go")
+	file, err := parser.ParseFile(token.NewFileSet(), namesPath, nil, 0)
+	if err != nil {
+		t.Fatalf("parse tool names: %v", err)
+	}
+	for _, decl := range file.Decls {
+		gen, ok := decl.(*ast.GenDecl)
+		if !ok || gen.Tok != token.CONST {
+			continue
+		}
+		for _, spec := range gen.Specs {
+			values, ok := spec.(*ast.ValueSpec)
+			if !ok {
+				continue
+			}
+			for _, ident := range values.Names {
+				name, ok := strings.CutPrefix(ident.Name, "ToolName")
+				if ok && !strings.Contains(doc, "`"+name+"`") {
+					t.Errorf("tool %q is declared in internal/tool/names.go but not inventoried in docs/contribute/architecture/tools.md", name)
+				}
+			}
 		}
 	}
 }
