@@ -20,7 +20,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	archive "github.com/gougoujiang/buildmax/internal/infra/pluginarchive"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 	inspect "github.com/gougoujiang/buildmax/internal/service/plugininspect"
@@ -42,11 +42,11 @@ const digestPrefixLen = 12
 // Service publishes releases and manages catalog entries.
 type Service struct {
 	Catalog CatalogStore
-	// Activations and Teams carry the team half of distribution: which
-	// releases a team's background runs may use, and who fills that list.
+	// Activations and Spaces carry the space half of distribution: which
+	// releases a space's background runs may use, and who fills that list.
 	// They are nil in a deployment that only publishes and installs locally.
 	Activations ActivationStore
-	Teams       coreteam.Store
+	Spaces      corespace.Store
 	Packages    PackageStore
 	// KeyPrefix scopes package keys inside the object store.
 	KeyPrefix string

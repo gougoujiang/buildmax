@@ -36,7 +36,7 @@ func serviceWithQuota(admitter StorageAdmitter) (*Service, *mock.MockArtifactSto
 
 func upload(s *Service, body string) (*coreartifact.Artifact, error) {
 	return s.Create(context.Background(), CreateInput{
-		TeamID:        "t_1",
+		SpaceID:       "t_1",
 		Filename:      "report.md",
 		SourceType:    coreartifact.SourceUserUpload,
 		CreatedByType: coreartifact.CreatorUser,
@@ -47,7 +47,7 @@ func upload(s *Service, body string) (*coreartifact.Artifact, error) {
 
 // The size is not known until the body has gone by, so the exact check has to
 // happen after the stream. The cheap one in front of it is what stops a full
-// team from writing a file to disk on every attempt.
+// space from writing a file to disk on every attempt.
 func TestCreateAsksTheQuotaTwiceOnceItKnowsTheSize(t *testing.T) {
 	admitter := &fakeAdmitter{allow: true}
 	s, _, _ := serviceWithQuota(admitter)
@@ -95,14 +95,14 @@ func TestCreateLeavesNothingWhenTheQuotaRefuses(t *testing.T) {
 	}
 }
 
-// The probe refuses before anything is written, so a team that is already full
+// The probe refuses before anything is written, so a space that is already full
 // does not stream a file to disk on every attempt.
-func TestAFullTeamIsRefusedBeforeTheBodyIsRead(t *testing.T) {
+func TestAFullSpaceIsRefusedBeforeTheBodyIsRead(t *testing.T) {
 	admitter := &fakeAdmitter{allow: false}
 	s, _, storage := serviceWithQuota(admitter)
 
 	if _, err := upload(s, "hello"); err == nil {
-		t.Fatal("an upload to a full team succeeded")
+		t.Fatal("an upload to a full space succeeded")
 	}
 	if len(admitter.asked) != 1 {
 		t.Fatalf("asked = %v, want only the probe", admitter.asked)

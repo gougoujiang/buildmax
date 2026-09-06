@@ -108,7 +108,7 @@
 
 .sidebar--collapsed .sidebar__nav-item .sidebar__nav-item-text,
 .sidebar--collapsed .sidebar__user-name,
-.sidebar--collapsed .sidebar__team-switcher {
+.sidebar--collapsed .sidebar__space-switcher {
   display: none !important;
 }
 
@@ -139,21 +139,21 @@
   padding: 0.5rem 0.5rem 0;
 }
 
-.sidebar__team-switcher {
+.sidebar__space-switcher {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
   padding: 0.15rem 0.35rem 0.65rem;
 }
 
-.sidebar__team-head {
+.sidebar__space-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
 }
 
-.sidebar__team-label {
+.sidebar__space-label {
   font-size: 0.72rem;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -161,7 +161,7 @@
   color: var(--color-text-muted);
 }
 
-.sidebar__team-add {
+.sidebar__space-add {
   width: 1.5rem;
   height: 1.5rem;
   padding: 0;
@@ -178,16 +178,16 @@
   justify-content: center;
 }
 
-.sidebar__team-add svg {
+.sidebar__space-add svg {
   width: 0.9rem;
   height: 0.9rem;
 }
 
-.sidebar__team-add:hover {
+.sidebar__space-add:hover {
   background: var(--color-bg-hover);
 }
 
-.sidebar__team-select {
+.sidebar__space-select {
   width: 100%;
   min-height: 2.25rem;
   border: 1px solid var(--color-border);
@@ -198,7 +198,7 @@
   font: inherit;
 }
 
-.sidebar__team-display {
+.sidebar__space-display {
   width: 100%;
   min-height: 2.25rem;
   border: 1px solid var(--color-border);
@@ -211,12 +211,12 @@
   align-items: center;
 }
 
-.sidebar__team-select:focus {
+.sidebar__space-select:focus {
   outline: none;
   border-color: var(--color-primary);
 }
 
-.sidebar__team-badge {
+.sidebar__space-badge {
   width: 2.25rem;
   height: 2.25rem;
   margin: 0.25rem auto 0.75rem;
@@ -385,21 +385,21 @@
   background: var(--color-border);
 }
 
-.sidebar__user-menu-team {
+.sidebar__user-menu-space {
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
   padding: 0.4rem 0.85rem;
 }
 
-.sidebar__user-menu-team-label {
+.sidebar__user-menu-space-label {
   font-size: 0.72rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--color-text-muted);
 }
 
-.sidebar__user-menu-team-name {
+.sidebar__user-menu-space-name {
   font-size: 0.88rem;
   color: var(--color-text);
 }

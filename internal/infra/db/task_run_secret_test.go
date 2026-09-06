@@ -13,30 +13,30 @@ import (
 func TestRecordEnvGrant_Idempotent(t *testing.T) {
 	s, ctx := newTestStore(t)
 	userID := newTestUser(t, s, "grant-audit")
-	teamID := newTestTeam(t, s, userID)
+	spaceID := newTestSpace(t, s, userID)
 
-	agent, err := s.CreateAgentInTeam(ctx, agentdef.CreateInput{
-		TeamID: teamID, UserID: userID, Def: agentdef.Definition{Name: "deployer"},
+	agent, err := s.CreateAgentInSpace(ctx, agentdef.CreateInput{
+		SpaceID: spaceID, UserID: userID, Def: agentdef.Definition{Name: "deployer"},
 	})
 	if err != nil {
-		t.Fatalf("CreateAgentInTeam: %v", err)
+		t.Fatalf("CreateAgentInSpace: %v", err)
 	}
 	sec, err := s.CreateSecret(ctx, coresecret.CreateInput{
-		TeamID: teamID, Name: "gh", CreatedBy: userID, ItemNames: []string{"token"},
+		SpaceID: spaceID, Name: "gh", CreatedBy: userID, ItemNames: []string{"token"},
 		Sealed: coresecret.Sealed{Ciphertext: []byte("c"), Nonce: []byte("n"), WrappedDEK: []byte("w"), KeyID: "file:root:1"},
 	})
 	if err != nil {
 		t.Fatalf("CreateSecret: %v", err)
 	}
 	t.Cleanup(func() {
-		s.db.Where("team_id IN (SELECT id FROM team WHERE public_id = ?)", teamID).Delete(&secretRow{})
+		s.db.Where("space_id IN (SELECT id FROM space WHERE public_id = ?)", spaceID).Delete(&secretRow{})
 	})
 
-	conversation, err := s.CreateConversationInTeam(ctx, teamID, userID, "portal", userID)
+	conversation, err := s.CreateConversationInSpace(ctx, spaceID, userID, "portal", userID)
 	if err != nil {
-		t.Fatalf("CreateConversationInTeam: %v", err)
+		t.Fatalf("CreateConversationInSpace: %v", err)
 	}
-	task, err := s.CreateTask(ctx, &coretask.CreateInput{TeamID: teamID, ConversationID: conversation.ID, Input: "in", CreatedBy: userID})
+	task, err := s.CreateTask(ctx, &coretask.CreateInput{SpaceID: spaceID, ConversationID: conversation.ID, Input: "in", CreatedBy: userID})
 	if err != nil {
 		t.Fatalf("CreateTask: %v", err)
 	}

@@ -23,8 +23,8 @@ import (
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	coreschema "github.com/gougoujiang/buildmax/internal/core/schema"
 	coresecret "github.com/gougoujiang/buildmax/internal/core/secret"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
@@ -76,7 +76,7 @@ type StoresConfig struct {
 	LoginCodeStore      coreidentity.LoginCodeStore
 	PasswordStore       coreidentity.PasswordStore
 	RefreshTokenStore   coreidentity.RefreshTokenStore
-	TeamStore           coreteam.Store
+	SpaceStore          corespace.Store
 	WorkflowStore       coreworkflow.Store
 	AgentStore          agentdef.Store
 	IssueStore          coreissue.Store
@@ -96,7 +96,7 @@ type StoresConfig struct {
 	// ArtifactShareStore persists public share links. Nil leaves sharing off
 	// while artifacts otherwise work.
 	ArtifactShareStore coreartifact.ShareStore
-	// SecretStore is the Team Secret store. Nil disables the secret feature.
+	// SecretStore is the Space Secret store. Nil disables the secret feature.
 	SecretStore coresecret.Store
 }
 
@@ -107,7 +107,7 @@ type ServicesConfig struct {
 	// is a deployment with no Marketplace, which those routes report rather
 	// than serving an empty catalog.
 	Plugin *pluginsvc.Service
-	// Secret backs the Team Secret management routes. Nil when no KEK file is
+	// Secret backs the Space Secret management routes. Nil when no KEK file is
 	// configured; those routes then report the feature off.
 	Secret *secretsvc.Service
 }
@@ -313,7 +313,7 @@ func buildHandlersConfig(cfg Config, drain <-chan struct{}) handlers.Config {
 		LoginCodeStore:           cfg.Stores.LoginCodeStore,
 		PasswordStore:            cfg.Stores.PasswordStore,
 		RefreshTokenStore:        cfg.Stores.RefreshTokenStore,
-		TeamStore:                cfg.Stores.TeamStore,
+		SpaceStore:               cfg.Stores.SpaceStore,
 		WorkflowStore:            cfg.Stores.WorkflowStore,
 		AgentStore:               cfg.Stores.AgentStore,
 		IssueStore:               cfg.Stores.IssueStore,

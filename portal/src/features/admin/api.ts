@@ -8,8 +8,8 @@ import type {
   ApiAdminModelsResponse,
   ApiAdminSessionsRevoked,
   ApiAdminSystem,
-  ApiAdminTeamDetail,
-  ApiAdminTeamsResponse,
+  ApiAdminSpaceDetail,
+  ApiAdminSpacesResponse,
   ApiAdminUser,
   ApiAdminUserAfterDisable,
   ApiAdminUserDetail,
@@ -24,7 +24,7 @@ import type {
  *
  * Every call here 403s for anyone without a deployment-scoped grant, and that
  * is the expected answer rather than a bug — the same convention the
- * team-scoped audit client already documents. Hiding the navigation is
+ * space-scoped audit client already documents. Hiding the navigation is
  * presentation; the server refuses either way.
  */
 
@@ -143,21 +143,21 @@ export function setAdminPluginArchived(
   return send<void>("POST", `/plugins/${encodeURIComponent(name)}/${action}`, token)
 }
 
-export function listAdminTeams(
+export function listAdminSpaces(
   token: string,
   options?: { q?: string; limit?: number; offset?: number },
-): Promise<ApiAdminTeamsResponse> {
-  return get<ApiAdminTeamsResponse>("/teams", token, options)
+): Promise<ApiAdminSpacesResponse> {
+  return get<ApiAdminSpacesResponse>("/spaces", token, options)
 }
 
-export function getAdminTeam(token: string, teamId: string): Promise<ApiAdminTeamDetail> {
-  return get<ApiAdminTeamDetail>(`/teams/${encodeURIComponent(teamId)}`, token)
+export function getAdminSpace(token: string, spaceId: string): Promise<ApiAdminSpaceDetail> {
+  return get<ApiAdminSpaceDetail>(`/spaces/${encodeURIComponent(spaceId)}`, token)
 }
 
 export function searchAdminAuditEvents(
   token: string,
   options?: {
-    team_id?: string
+    space_id?: string
     actor_id?: string
     action?: string
     since?: number
@@ -180,7 +180,7 @@ export function searchAdminAuditEvents(
 export async function exportAdminAuditEvents(
   token: string,
   format: "csv" | "jsonl",
-  options?: { team_id?: string; actor_id?: string; action?: string; since?: number; until?: number },
+  options?: { space_id?: string; actor_id?: string; action?: string; since?: number; until?: number },
 ): Promise<void> {
   const url = adminUrl("/audit-events/export", { ...options, format })
   await downloadAuthenticated(url, token, `audit-deployment.${format}`)

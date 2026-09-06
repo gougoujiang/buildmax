@@ -9,8 +9,8 @@ import (
 	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 )
 
-// TestSearchAuditEvents covers the read the team-scoped method cannot do: an
-// event with no team. A login, a grant, and an account action are all in that
+// TestSearchAuditEvents covers the read the space-scoped method cannot do: an
+// event with no space. A login, a grant, and an account action are all in that
 // shape, so a search that could not reach them would leave the trail's most
 // sensitive half unreadable.
 func TestSearchAuditEvents(t *testing.T) {
@@ -25,13 +25,13 @@ func TestSearchAuditEvents(t *testing.T) {
 	}
 
 	actor := newTestUser(t, s, "audit")
-	teamID := newTestTeam(t, s, actor)
+	spaceID := newTestSpace(t, s, actor)
 	t.Cleanup(func() { _ = s.db.WithContext(ctx).Delete(&auditEventRow{}, "actor_id = ?", actor).Error })
 
 	for _, e := range []coreaudit.Event{
 		{ActorType: coreaudit.ActorUser, ActorID: actor, Action: coreaudit.UserLogin},
 		{ActorType: coreaudit.ActorSystem, ActorID: actor, Action: coreaudit.SystemAdminGranted, TargetType: "user", TargetID: actor},
-		{TeamID: teamID, ActorType: coreaudit.ActorUser, ActorID: actor, Action: coreaudit.TeamMemberAdded},
+		{SpaceID: spaceID, ActorType: coreaudit.ActorUser, ActorID: actor, Action: coreaudit.SpaceMemberAdded},
 	} {
 		if err := s.RecordAuditEvent(ctx, e); err != nil {
 			t.Fatalf("RecordAuditEvent: %v", err)
@@ -51,19 +51,19 @@ func TestSearchAuditEvents(t *testing.T) {
 		}
 	}
 
-	teamOnly, total, err := s.SearchAuditEvents(ctx, coreaudit.Filter{ActorID: actor, TeamID: teamID}, 50, 0)
-	if err != nil || total != 1 || teamOnly[0].Action != coreaudit.TeamMemberAdded {
-		t.Errorf("search by team = %+v, %d, %v", teamOnly, total, err)
+	spaceOnly, total, err := s.SearchAuditEvents(ctx, coreaudit.Filter{ActorID: actor, SpaceID: spaceID}, 50, 0)
+	if err != nil || total != 1 || spaceOnly[0].Action != coreaudit.SpaceMemberAdded {
+		t.Errorf("search by space = %+v, %d, %v", spaceOnly, total, err)
 	}
 
-	// The events a team-scoped reader can never see, asked for on purpose.
-	noTeam, total, err := s.SearchAuditEvents(ctx, coreaudit.Filter{ActorID: actor, WithoutTeam: true}, 50, 0)
+	// The events a space-scoped reader can never see, asked for on purpose.
+	noSpace, total, err := s.SearchAuditEvents(ctx, coreaudit.Filter{ActorID: actor, WithoutSpace: true}, 50, 0)
 	if err != nil || total != 2 {
 		t.Fatalf("deployment-scoped search = %d, %v", total, err)
 	}
-	for _, e := range noTeam {
-		if e.TeamID != "" {
-			t.Errorf("WithoutTeam returned a team-scoped event: %+v", e)
+	for _, e := range noSpace {
+		if e.SpaceID != "" {
+			t.Errorf("WithoutSpace returned a space-scoped event: %+v", e)
 		}
 	}
 
@@ -72,10 +72,10 @@ func TestSearchAuditEvents(t *testing.T) {
 		t.Errorf("search by action = %+v, %d, %v", byAction, total, err)
 	}
 
-	// The same actor, asked through the team-scoped method, sees only the one
-	// event that has a team.
-	teamScoped, total, err := s.ListAuditEvents(ctx, teamID, 50, 0)
-	if err != nil || total != 1 || len(teamScoped) != 1 {
-		t.Errorf("ListAuditEvents = %d of %d, %v", len(teamScoped), total, err)
+	// The same actor, asked through the space-scoped method, sees only the one
+	// event that has a space.
+	spaceScoped, total, err := s.ListAuditEvents(ctx, spaceID, 50, 0)
+	if err != nil || total != 1 || len(spaceScoped) != 1 {
+		t.Errorf("ListAuditEvents = %d of %d, %v", len(spaceScoped), total, err)
 	}
 }

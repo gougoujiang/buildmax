@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/gougoujiang/buildmax/internal/core/llm"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -23,18 +23,18 @@ import (
 const wsTestSecret = "ws-test-secret"
 
 func setupWSHandler() *Handler {
-	teamID := "tm_personal_u1"
+	spaceID := "tm_personal_u1"
 	return NewHandler(Config{
 		JWTSecret:         wsTestSecret,
 		CORSOrigin:        "*",
-		TeamStore:         &mock.MockTeamStore{Teams: []coreteam.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}}, Members: []coreteam.Member{{TeamID: teamID, UserID: "u1", Role: coreteam.RoleOwner}}},
+		SpaceStore:        &mock.MockSpaceStore{Spaces: []corespace.Space{{ID: spaceID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}}, Members: []corespace.Member{{SpaceID: spaceID, UserID: "u1", Role: corespace.RoleOwner}}},
 		ConversationStore: &mock.MockConversationStore{},
 	})
 }
 
 func dialWS(t *testing.T, server *httptest.Server, token string) *gws.Conn {
 	t.Helper()
-	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/api/teams/tm_personal_u1/ws?token=" + token
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/api/spaces/tm_personal_u1/ws?token=" + token
 	conn, resp, err := gws.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {
 		t.Fatalf("dial: %v (resp=%v)", err, resp)
@@ -74,7 +74,7 @@ func TestWSUpgradeRequiresToken(t *testing.T) {
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/api/teams/tm_personal_u1/ws"
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/api/spaces/tm_personal_u1/ws"
 	_, resp, err := gws.DefaultDialer.Dial(wsURL, nil)
 	if err == nil {
 		t.Fatal("expected error for missing token")
@@ -91,7 +91,7 @@ func TestWSUpgradeInvalidToken(t *testing.T) {
 	server := httptest.NewServer(mux)
 	defer server.Close()
 
-	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/api/teams/tm_personal_u1/ws?token=bad"
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/api/spaces/tm_personal_u1/ws?token=bad"
 	_, resp, err := gws.DefaultDialer.Dial(wsURL, nil)
 	if err == nil {
 		t.Fatal("expected error for invalid token")
@@ -199,12 +199,12 @@ func (c *gatedLLMClient) ContextWindow() int { return 0 }
 // A message sent while a turn is running is queued and then runs as its own turn.
 // It used to come back as conversation.error and be dropped.
 func TestWSConversationMessageQueuesWhileBusy(t *testing.T) {
-	teamID := "tm_personal_u1"
+	spaceID := "tm_personal_u1"
 	client := newGatedLLMClient()
 	h := NewHandler(Config{
 		JWTSecret:                wsTestSecret,
 		CORSOrigin:               "*",
-		TeamStore:                &mock.MockTeamStore{Teams: []coreteam.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}}, Members: []coreteam.Member{{TeamID: teamID, UserID: "u1", Role: coreteam.RoleOwner}}},
+		SpaceStore:               &mock.MockSpaceStore{Spaces: []corespace.Space{{ID: spaceID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}}, Members: []corespace.Member{{SpaceID: spaceID, UserID: "u1", Role: corespace.RoleOwner}}},
 		ConversationStore:        &mock.MockConversationStore{},
 		ConversationMessageStore: &mock.MockConversationMessageStore{},
 		ConversationLLMClient:    client,

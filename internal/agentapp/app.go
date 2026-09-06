@@ -73,14 +73,14 @@ type AppConfig struct {
 	// config.SandboxSharedPaths.
 	SandboxSharedPaths config.SandboxSharedPaths
 	// SecretEnvNames are the environment variable names this run declared as
-	// Team Secret grants. The sandbox admits them past its secret-shaped
+	// Space Secret grants. The sandbox admits them past its secret-shaped
 	// denylist, so a grant like GH_TOKEN reaches the agent's commands.
 	// BuildMax's own credentials are never admitted. Empty on every surface
-	// that consumes no Secret. See docs/design/team-secrets.md §13.1.
+	// that consumes no Secret. See docs/design/space-secrets.md §13.1.
 	SecretEnvNames []string
 	// SecretEnvValues are the corresponding grant values, registered with the
 	// run's trace redactor so they do not drift into a durable trace. Defense
-	// in depth, not a boundary. See docs/design/team-secrets.md §12.
+	// in depth, not a boundary. See docs/design/space-secrets.md §12.
 	SecretEnvValues []string
 	// MaxIterations caps this AgentApp's model calls per run, outranking
 	// settings.yaml. Zero takes the configured value. A surface exposes it for
@@ -101,7 +101,7 @@ type AppConfig struct {
 	ManagedHTTPClient *http.Client
 	// ManagedTaskRunID makes managed calls from this app run-scoped: they go to
 	// the worker route, carrying a run token instead of a login, and the server
-	// derives user and team from it. Empty means managed calls are team-scoped,
+	// derives user and space from it. Empty means managed calls are space-scoped,
 	// which is what CLI, TUI, and Desktop do.
 	ManagedTaskRunID string
 	// Surface labels managed calls for correlation, e.g. "cli" or "desktop".
@@ -120,10 +120,10 @@ type AppConfig struct {
 	// Empty keeps the generic additional_system_prompt name; Portal workers set
 	// agent_instructions because the text came from a stored Agent definition.
 	AdditionalSystemPromptLayer string
-	// TeamAgentInstructions are the Space-level instructions inherited by a
+	// SpaceAgentInstructions are the Space-level instructions inherited by a
 	// Portal background run. They form their own prompt layer before the
 	// selected Agent's AdditionalSystemPrompt. Local surfaces leave this empty.
-	TeamAgentInstructions string
+	SpaceAgentInstructions string
 	// ArtifactPublisher gives this surface the artifact capability. Nil means it
 	// has none — a session running straight against a model provider, with no
 	// BuildMax server — and no artifact tool is registered at all.
@@ -214,16 +214,16 @@ type AgentApp struct {
 	sandboxManager  *sandbox.Manager
 	sandboxResolved config.SandboxResolution
 	maxIterations   int
-	// secretEnvValues are this run's Team Secret grant values, registered with
+	// secretEnvValues are this run's Space Secret grant values, registered with
 	// each trace recorder so they are redacted from the durable trace.
 	secretEnvValues []string
 	// secretRedactor redacts those exact values from tool results before they
 	// enter the model context and from streamed output. Non-nil for every app;
-	// a no-op when the run has no grants. See docs/design/team-secrets.md §12.
+	// a no-op when the run has no grants. See docs/design/space-secrets.md §12.
 	secretRedactor              *secretscan.Redactor
 	additionalSystemPrompt      string
 	additionalSystemPromptLayer string
-	teamAgentInstructions       string
+	spaceAgentInstructions      string
 	artifactPublisher           tools.ArtifactPublisher
 	issueClient                 tools.IssueClient
 	grantsMu                    sync.Mutex
@@ -964,7 +964,7 @@ func (a *AgentApp) estimateRunUsage(sess *SessionContext, modelName string, cont
 	}
 	// This path does not go through RunLoop, so it renders the compaction block itself to
 	// estimate the real prompt size. It uses the same renderer RunLoop does.
-	systemPrompt, _ := buildSystemPromptWithLayers(a.workspace.Root(), modelName, a.teamAgentInstructions, a.effectiveAdditionalPrompt(sess), a.additionalSystemPromptLayer, a.promptCapabilities())
+	systemPrompt, _ := buildSystemPromptWithLayers(a.workspace.Root(), modelName, a.spaceAgentInstructions, a.effectiveAdditionalPrompt(sess), a.additionalSystemPromptLayer, a.promptCapabilities())
 	systemPrompt += agent.RenderCompactionBlock(sess.PriorSummary())
 	contextTokens := agent.EstimateMessageTokens(cllm.Message{Role: "system", Content: systemPrompt}) + agent.EstimateTokens(sess.HistoryMessages())
 	return RunUsage{
@@ -1082,7 +1082,7 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 	// Resolved before the trace opens, because the trace reports which prompt layers this run
 	// loaded and a run that ends early still has to be able to say.
 	extraPrompt := a.effectiveAdditionalPrompt(sess)
-	systemPrompt, promptLayers := buildSystemPromptWithLayers(a.workspace.Root(), modelName, a.teamAgentInstructions, extraPrompt, a.additionalSystemPromptLayer, a.promptCapabilities())
+	systemPrompt, promptLayers := buildSystemPromptWithLayers(a.workspace.Root(), modelName, a.spaceAgentInstructions, extraPrompt, a.additionalSystemPromptLayer, a.promptCapabilities())
 	// Durable state, so it commits rather than being assigned: a resumed
 	// session that lost the prompt it ran under would answer as a different
 	// agent than the one the conversation records.
@@ -1496,7 +1496,7 @@ func (a *AgentApp) buildToolRegistry(client cllm.LLMClient) (cllm.ToolRegistry, 
 	}
 	// After BuildAgentTypes like Task, so subagents never see the Issue tools:
 	// a subagent reports to its parent, and several of them writing into one
-	// team thread would make that thread's attribution unreadable.
+	// space thread would make that thread's attribution unreadable.
 	if a.issueClient != nil {
 		registry.AppendTools(tools.NewGetIssue(a.issueClient), tools.NewReportToIssue(a.issueClient))
 	}

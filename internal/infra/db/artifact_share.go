@@ -15,13 +15,13 @@ import (
 //
 // The token itself is never stored — only its SHA-256, the same as login codes
 // and webhook keys — so a leaked database row cannot be turned back into a
-// working link. artifact_id and team_id are the internal keys; the public
+// working link. artifact_id and space_id are the internal keys; the public
 // handles are joined on read, like the artifact table's own.
 type artifactShareRow struct {
 	ID              uint64     `gorm:"primaryKey;autoIncrement"`
 	PublicID        string     `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_artifact_share_public_id;not null"`
 	ArtifactID      uint64     `gorm:"column:artifact_id;not null;index:idx_artifact_share_artifact"`
-	TeamID          uint64     `gorm:"column:team_id;not null;index:idx_artifact_share_team_created,priority:1"`
+	SpaceID         uint64     `gorm:"column:space_id;not null;index:idx_artifact_share_space_created,priority:1"`
 	TokenSHA256     string     `gorm:"column:token_sha256;type:char(64) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_artifact_share_token;not null"`
 	CreatedByType   string     `gorm:"column:created_by_type;type:varchar(32);not null"`
 	CreatedByID     string     `gorm:"column:created_by_id;type:varchar(64)"`
@@ -29,16 +29,16 @@ type artifactShareRow struct {
 	RevokedAt       *time.Time `gorm:"column:revoked_at"`
 	RetrievalCount  int64      `gorm:"column:retrieval_count;not null"`
 	LastRetrievedAt *time.Time `gorm:"column:last_retrieved_at"`
-	CreatedAt       time.Time  `gorm:"autoCreateTime;index:idx_artifact_share_team_created,priority:2"`
+	CreatedAt       time.Time  `gorm:"autoCreateTime;index:idx_artifact_share_space_created,priority:2"`
 }
 
 func (artifactShareRow) TableName() string { return "artifact_share" }
 
-func toShare(row *artifactShareRow, artifactPublicID, teamPublicID string) coreartifact.ArtifactShare {
+func toShare(row *artifactShareRow, artifactPublicID, spacePublicID string) coreartifact.ArtifactShare {
 	return coreartifact.ArtifactShare{
 		ShareID:         row.PublicID,
 		ArtifactID:      artifactPublicID,
-		TeamID:          teamPublicID,
+		SpaceID:         spacePublicID,
 		CreatedByType:   row.CreatedByType,
 		CreatedByID:     row.CreatedByID,
 		ExpiresAt:       row.ExpiresAt,
@@ -55,13 +55,13 @@ func (s *Store) CreateArtifactShare(ctx context.Context, in coreartifact.CreateS
 	if err != nil {
 		return nil, err
 	}
-	teamKey, err := lookupKey(ctx, s.db, "team", in.TeamID)
+	spaceKey, err := lookupKey(ctx, s.db, "space", in.SpaceID)
 	if err != nil {
 		return nil, err
 	}
 	row := artifactShareRow{
 		ArtifactID:    artifactKey,
-		TeamID:        teamKey,
+		SpaceID:       spaceKey,
 		TokenSHA256:   in.TokenSHA256,
 		CreatedByType: in.CreatedByType,
 		CreatedByID:   in.CreatedByID,
@@ -71,7 +71,7 @@ func (s *Store) CreateArtifactShare(ctx context.Context, in coreartifact.CreateS
 		func(id string) { row.PublicID = id }, &row); err != nil {
 		return nil, err
 	}
-	share := toShare(&row, canonicalPublicID(in.ArtifactID), canonicalPublicID(in.TeamID))
+	share := toShare(&row, canonicalPublicID(in.ArtifactID), canonicalPublicID(in.SpaceID))
 	return &share, nil
 }
 
@@ -103,7 +103,7 @@ func (s *Store) GetArtifactShareByTokenHash(ctx context.Context, tokenHash strin
 		return nil, nil
 	}
 	return &coreartifact.ResolvedShare{
-		Share:    toShare(&row, artifactID, art.TeamID),
+		Share:    toShare(&row, artifactID, art.SpaceID),
 		Artifact: *art,
 	}, nil
 }
@@ -131,7 +131,7 @@ func (s *Store) ListArtifactShares(ctx context.Context, artifactID string) ([]co
 	}
 	out := make([]coreartifact.ArtifactShare, len(rows))
 	for i := range rows {
-		out[i] = toShare(&rows[i], art.ID, art.TeamID)
+		out[i] = toShare(&rows[i], art.ID, art.SpaceID)
 	}
 	return out, nil
 }

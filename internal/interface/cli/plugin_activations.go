@@ -21,28 +21,28 @@ import (
 func newPluginActivationsCommand() *cobra.Command {
 	c := &cobra.Command{
 		Use:   "activations",
-		Short: "List the plugins a team has activated for its background runs",
+		Short: "List the plugins a space has activated for its background runs",
 		Long: "Shows the exact release each activation is pinned to, whether it is\n" +
-			"suspended, and whether the team curates this list or opens the whole\n" +
+			"suspended, and whether the space curates this list or opens the whole\n" +
 			"catalog. Changing an activation is done in Portal.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			teamID, _ := cmd.Flags().GetString("team")
-			if teamID == "" {
-				return fmt.Errorf("--team is required: an activation belongs to a team")
+			spaceID, _ := cmd.Flags().GetString("space")
+			if spaceID == "" {
+				return fmt.Errorf("--space is required: an activation belongs to a space")
 			}
-			return runPluginActivations(cmd.Context(), cmd.OutOrStdout(), teamID)
+			return runPluginActivations(cmd.Context(), cmd.OutOrStdout(), spaceID)
 		},
 	}
-	c.Flags().String("team", "", "the team whose activations to list")
+	c.Flags().String("space", "", "the space whose activations to list")
 	return c
 }
 
-func runPluginActivations(ctx context.Context, w io.Writer, teamID string) error {
+func runPluginActivations(ctx context.Context, w io.Writer, spaceID string) error {
 	session, err := pluginmgr.Open()
 	if err != nil {
 		return err
 	}
-	got, err := session.ListActivations(ctx, teamID)
+	got, err := session.ListActivations(ctx, spaceID)
 	if err != nil {
 		return err
 	}

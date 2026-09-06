@@ -12,14 +12,14 @@ import {
   getWorkflows,
 } from "../../features/workflows"
 import { WorkflowModal } from "../../components/WorkflowModal"
-import { useTeam } from "../../contexts/TeamContext"
+import { useSpace } from "../../contexts/SpaceContext"
 
 interface WorkflowsProps {
   token: string | null
 }
 
 export function Workflows({ token }: WorkflowsProps) {
-  const { currentTeamId, currentUserRole } = useTeam()
+  const { currentSpaceId, currentUserRole } = useSpace()
   const [agents, setAgents] = useState<Agent[]>([])
   const [workflows, setWorkflows] = useState<Workflow[]>([])
   const [loading, setLoading] = useState(true)
@@ -29,7 +29,7 @@ export function Workflows({ token }: WorkflowsProps) {
   const canManageWorkflows = currentUserRole === "owner" || currentUserRole === "admin"
 
   const fetchWorkflows = useCallback(() => {
-    if (!token || !currentTeamId) {
+    if (!token || !currentSpaceId) {
       setAgents([])
       setWorkflows([])
       setLoading(false)
@@ -38,8 +38,8 @@ export function Workflows({ token }: WorkflowsProps) {
     setLoading(true)
     setError(null)
     return Promise.all([
-      getWorkflows(currentTeamId, token),
-      getAgents(currentTeamId, token),
+      getWorkflows(currentSpaceId, token),
+      getAgents(currentSpaceId, token),
     ])
       .then(([workflowRes, agentRes]) => {
         setWorkflows(workflowRes.workflows.map(apiWorkflowToWorkflow))
@@ -47,7 +47,7 @@ export function Workflows({ token }: WorkflowsProps) {
       })
       .catch((err) => setError(getErrorMessage(err, "Failed to load workflows")))
       .finally(() => setLoading(false))
-  }, [token, currentTeamId])
+  }, [token, currentSpaceId])
 
   useEffect(() => {
     void fetchWorkflows()
@@ -60,10 +60,10 @@ export function Workflows({ token }: WorkflowsProps) {
   }, [workflows.length])
 
   function handleCreate(values: { name: string; description: string; definition: string }) {
-    if (!token || !currentTeamId) return
+    if (!token || !currentSpaceId) return
     setSaving(true)
     setError(null)
-    createWorkflow(currentTeamId, values, token)
+    createWorkflow(currentSpaceId, values, token)
       .then((created) => {
         setCreateOpen(false)
         setWorkflows((prev) => [...prev, apiWorkflowToWorkflow(created)])
@@ -100,7 +100,7 @@ export function Workflows({ token }: WorkflowsProps) {
       {error ? <p className="page-activity__empty">{error}</p> : null}
       {!canManageWorkflows ? (
         <p className="page-activity__empty">
-          You can view workflows here, but only team owners and admins can create or edit them.
+          You can view workflows here, but only space owners and admins can create or edit them.
         </p>
       ) : null}
 
@@ -115,8 +115,8 @@ export function Workflows({ token }: WorkflowsProps) {
         ) : workflows.length === 0 ? (
           <p className="page-activity__empty">
             {canManageWorkflows
-              ? "No workflows yet. Create one to define a reusable execution plan for this team."
-              : "No workflows are available in this team yet. Team owners and admins can publish one when a shared process is ready."}
+              ? "No workflows yet. Create one to define a reusable execution plan for this space."
+              : "No workflows are available in this space yet. Space owners and admins can publish one when a shared process is ready."}
           </p>
         ) : (
           <ul className="issues-page__list">

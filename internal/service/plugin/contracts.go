@@ -22,11 +22,11 @@ type CatalogStore interface {
 }
 
 // ActivationStore is the persistence capability used to curate and resolve
-// the plugin releases available to a team.
+// the plugin releases available to a space.
 type ActivationStore interface {
 	ActivatePlugin(ctx context.Context, in coreplugin.ActivateInput) (*coreplugin.Activation, error)
-	GetPluginActivation(ctx context.Context, teamID, pluginName string) (*coreplugin.Activation, error)
-	ListPluginActivations(ctx context.Context, teamID string) ([]coreplugin.Activation, error)
+	GetPluginActivation(ctx context.Context, spaceID, pluginName string) (*coreplugin.Activation, error)
+	ListPluginActivations(ctx context.Context, spaceID string) ([]coreplugin.Activation, error)
 	MovePluginActivationPin(ctx context.Context, in coreplugin.MovePinInput) (*coreplugin.Activation, error)
-	SetPluginActivationEnabled(ctx context.Context, teamID, pluginName string, enabled bool, actorID string) (*coreplugin.Activation, error)
+	SetPluginActivationEnabled(ctx context.Context, spaceID, pluginName string, enabled bool, actorID string) (*coreplugin.Activation, error)
 }

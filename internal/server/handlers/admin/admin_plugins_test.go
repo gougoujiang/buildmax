@@ -35,7 +35,7 @@ func pluginMux(t *testing.T) (*http.ServeMux, *mock.MockPluginStore, *mock.MockP
 		JWTSecret: testSecret,
 		Grants:    grants,
 		Users:     users,
-		Teams:     &mock.MockTeamStore{},
+		Spaces:    &mock.MockSpaceStore{},
 		Audits:    audits,
 		Audit:     audit.NewRecorder(audits),
 		Plugins: &pluginsvc.Service{

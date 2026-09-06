@@ -31,10 +31,10 @@ func (m *MockAuditStore) RecordAuditEvent(_ context.Context, in coreaudit.Event)
 	return nil
 }
 
-func (m *MockAuditStore) ListAuditEvents(_ context.Context, teamID string, limit, offset int) ([]coreaudit.Event, int, error) {
+func (m *MockAuditStore) ListAuditEvents(_ context.Context, spaceID string, limit, offset int) ([]coreaudit.Event, int, error) {
 	var all []coreaudit.Event
 	for _, e := range m.Events {
-		if e.TeamID == teamID {
+		if e.SpaceID == spaceID {
 			all = append(all, e)
 		}
 	}
@@ -53,12 +53,12 @@ func (m *MockAuditStore) SearchAuditEvents(_ context.Context, filter coreaudit.F
 	return page, total, nil
 }
 
-// ExportTeamAuditEvents walks a team's events newest-first from after.
-func (m *MockAuditStore) ExportTeamAuditEvents(_ context.Context, teamID string, after coreaudit.Cursor, limit int) ([]coreaudit.Event, error) {
-	return m.exportPage(func(e coreaudit.Event) bool { return e.TeamID == teamID }, after, limit), nil
+// ExportSpaceAuditEvents walks a space's events newest-first from after.
+func (m *MockAuditStore) ExportSpaceAuditEvents(_ context.Context, spaceID string, after coreaudit.Cursor, limit int) ([]coreaudit.Event, error) {
+	return m.exportPage(func(e coreaudit.Event) bool { return e.SpaceID == spaceID }, after, limit), nil
 }
 
-// ExportAuditEvents walks every team's events newest-first from after.
+// ExportAuditEvents walks every space's events newest-first from after.
 func (m *MockAuditStore) ExportAuditEvents(_ context.Context, filter coreaudit.Filter, after coreaudit.Cursor, limit int) ([]coreaudit.Event, error) {
 	return m.exportPage(func(e coreaudit.Event) bool { return matchesAuditFilter(e, filter) }, after, limit), nil
 }
@@ -148,9 +148,9 @@ func (m *MockAuditStore) OldestAuditEventAt(_ context.Context) (time.Time, error
 
 func matchesAuditFilter(e coreaudit.Event, filter coreaudit.Filter) bool {
 	switch {
-	case filter.WithoutTeam && e.TeamID != "":
+	case filter.WithoutSpace && e.SpaceID != "":
 		return false
-	case !filter.WithoutTeam && filter.TeamID != "" && e.TeamID != filter.TeamID:
+	case !filter.WithoutSpace && filter.SpaceID != "" && e.SpaceID != filter.SpaceID:
 		return false
 	}
 	if filter.ActorID != "" && e.ActorID != filter.ActorID {

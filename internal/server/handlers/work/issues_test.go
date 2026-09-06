@@ -11,7 +11,7 @@ import (
 
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
@@ -22,15 +22,15 @@ const issueTestSecret = "issue-test-secret"
 
 func TestIssueHandlers(t *testing.T) {
 	agentID := "a_1"
-	personalTeamID := "tm_personal_u1"
-	otherTeamID := "tm_other"
+	personalSpaceID := "tm_personal_u1"
+	otherSpaceID := "tm_other"
 	workflowID := "w_1"
 	store := &mock.MockIssueStore{
 		Issues: []coreissue.Issue{
 			{
 				ID:           "i_1",
 				UserID:       "u1",
-				TeamID:       personalTeamID,
+				SpaceID:      personalSpaceID,
 				Title:        "Initial issue",
 				Description:  "Initial description",
 				Status:       coreissue.StatusTodo,
@@ -44,27 +44,27 @@ func TestIssueHandlers(t *testing.T) {
 		},
 	}
 	agents := &mock.MockAgentStore{
-		Agents: []agentdef.Agent{{ID: agentID, UserID: "u1", TeamID: personalTeamID, Name: "Agent 1"}},
+		Agents: []agentdef.Agent{{ID: agentID, UserID: "u1", SpaceID: personalSpaceID, Name: "Agent 1"}},
 	}
 	workflows := &mock.MockWorkflowStore{
-		Workflows: []coreworkflow.Workflow{{ID: workflowID, TeamID: personalTeamID, Name: "Workflow 1", Definition: `{"steps":[{"step_id":"s1","type":"agent_task","target_agent_id":"a_1","prompt":"do it"}]}`, Status: coreworkflow.StatusPublished}},
+		Workflows: []coreworkflow.Workflow{{ID: workflowID, SpaceID: personalSpaceID, Name: "Workflow 1", Definition: `{"steps":[{"step_id":"s1","type":"agent_task","target_agent_id":"a_1","prompt":"do it"}]}`, Status: coreworkflow.StatusPublished}},
 	}
 	tasks := &mock.MockTaskStore{}
-	teams := &mock.MockTeamStore{
-		Teams: []coreteam.Team{
-			{ID: personalTeamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"},
-			{ID: otherTeamID, Name: "Other", CreatedBy: "u2"},
+	spaces := &mock.MockSpaceStore{
+		Spaces: []corespace.Space{
+			{ID: personalSpaceID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"},
+			{ID: otherSpaceID, Name: "Other", CreatedBy: "u2"},
 		},
-		Members: []coreteam.Member{
-			{TeamID: personalTeamID, UserID: "u1", Role: coreteam.RoleOwner},
-			{TeamID: personalTeamID, UserID: "u2", Role: coreteam.RoleMember},
-			{TeamID: personalTeamID, UserID: "u3", Role: coreteam.RoleAdmin},
-			{TeamID: otherTeamID, UserID: "u2", Role: coreteam.RoleOwner},
+		Members: []corespace.Member{
+			{SpaceID: personalSpaceID, UserID: "u1", Role: corespace.RoleOwner},
+			{SpaceID: personalSpaceID, UserID: "u2", Role: corespace.RoleMember},
+			{SpaceID: personalSpaceID, UserID: "u3", Role: corespace.RoleAdmin},
+			{SpaceID: otherSpaceID, UserID: "u2", Role: corespace.RoleOwner},
 		},
 	}
 	h := New(Config{
 		JWTSecret:     issueTestSecret,
-		Teams:         teams,
+		Spaces:        spaces,
 		Issues:        store,
 		Agents:        agents,
 		Workflows:     workflows,
@@ -75,7 +75,7 @@ func TestIssueHandlers(t *testing.T) {
 	h.Register(mux)
 
 	t.Run("GET list issues", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/api/teams/"+personalTeamID+"/issues", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/spaces/"+personalSpaceID+"/issues", nil)
 		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", issueTestSecret))
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
@@ -92,7 +92,7 @@ func TestIssueHandlers(t *testing.T) {
 	})
 
 	t.Run("POST create issue", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/api/teams/"+personalTeamID+"/issues", strings.NewReader(`{"title":"New issue","description":"Desc"}`))
+		req := httptest.NewRequest(http.MethodPost, "/api/spaces/"+personalSpaceID+"/issues", strings.NewReader(`{"title":"New issue","description":"Desc"}`))
 		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", issueTestSecret))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
@@ -107,13 +107,13 @@ func TestIssueHandlers(t *testing.T) {
 		if out.Title != "New issue" || out.Status != coreissue.StatusTodo {
 			t.Fatalf("created = %+v", out)
 		}
-		if out.TeamID != personalTeamID {
-			t.Fatalf("created team_id = %q, want %q", out.TeamID, personalTeamID)
+		if out.SpaceID != personalSpaceID {
+			t.Fatalf("created space_id = %q, want %q", out.SpaceID, personalSpaceID)
 		}
 	})
 
 	t.Run("POST create issue missing title returns 400", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/api/teams/"+personalTeamID+"/issues", strings.NewReader(`{"title":"","description":"Desc"}`))
+		req := httptest.NewRequest(http.MethodPost, "/api/spaces/"+personalSpaceID+"/issues", strings.NewReader(`{"title":"","description":"Desc"}`))
 		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", issueTestSecret))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
@@ -124,7 +124,7 @@ func TestIssueHandlers(t *testing.T) {
 	})
 
 	t.Run("GET issue detail", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/api/teams/"+personalTeamID+"/issues/i_1", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/spaces/"+personalSpaceID+"/issues/i_1", nil)
 		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", issueTestSecret))
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
@@ -134,7 +134,7 @@ func TestIssueHandlers(t *testing.T) {
 	})
 
 	t.Run("PATCH issue assign to agent", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPatch, "/api/teams/"+personalTeamID+"/issues/i_1", strings.NewReader(`{"version":1,"status":"in_progress","assignee_kind":"agent","assignee_id":"a_1"}`))
+		req := httptest.NewRequest(http.MethodPatch, "/api/spaces/"+personalSpaceID+"/issues/i_1", strings.NewReader(`{"version":1,"status":"in_progress","assignee_kind":"agent","assignee_id":"a_1"}`))
 		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", issueTestSecret))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
@@ -152,7 +152,7 @@ func TestIssueHandlers(t *testing.T) {
 	})
 
 	t.Run("POST issue agent run", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/api/teams/"+personalTeamID+"/issues/i_1/agent-runs", nil)
+		req := httptest.NewRequest(http.MethodPost, "/api/spaces/"+personalSpaceID+"/issues/i_1/agent-runs", nil)
 		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", issueTestSecret))
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
@@ -170,13 +170,13 @@ func TestIssueHandlers(t *testing.T) {
 			t.Fatal("expected created task to be persisted")
 		}
 		created := tasks.List[len(tasks.List)-1]
-		if created.TeamID != personalTeamID {
-			t.Fatalf("created task team_id = %q, want %q", created.TeamID, personalTeamID)
+		if created.SpaceID != personalSpaceID {
+			t.Fatalf("created task space_id = %q, want %q", created.SpaceID, personalSpaceID)
 		}
 		if created.IssueID == nil || *created.IssueID != "i_1" {
 			t.Fatalf("created task issue_id = %v, want i_1", created.IssueID)
 		}
-		flowReq := httptest.NewRequest(http.MethodGet, "/api/teams/"+personalTeamID+"/issues/i_1/flow", nil)
+		flowReq := httptest.NewRequest(http.MethodGet, "/api/spaces/"+personalSpaceID+"/issues/i_1/flow", nil)
 		flowReq.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", issueTestSecret))
 		flowRec := httptest.NewRecorder()
 		mux.ServeHTTP(flowRec, flowReq)
@@ -193,7 +193,7 @@ func TestIssueHandlers(t *testing.T) {
 	})
 
 	t.Run("PATCH invalid status returns 400", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPatch, "/api/teams/"+personalTeamID+"/issues/i_1", strings.NewReader(`{"version":2,"status":"blocked"}`))
+		req := httptest.NewRequest(http.MethodPatch, "/api/spaces/"+personalSpaceID+"/issues/i_1", strings.NewReader(`{"version":2,"status":"blocked"}`))
 		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", issueTestSecret))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
@@ -204,7 +204,7 @@ func TestIssueHandlers(t *testing.T) {
 	})
 
 	t.Run("PATCH issue assign to workflow", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPatch, "/api/teams/"+personalTeamID+"/issues/i_1", strings.NewReader(`{"version":2,"assignee_kind":"workflow","assignee_id":"w_1"}`))
+		req := httptest.NewRequest(http.MethodPatch, "/api/spaces/"+personalSpaceID+"/issues/i_1", strings.NewReader(`{"version":2,"assignee_kind":"workflow","assignee_id":"w_1"}`))
 		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", issueTestSecret))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
@@ -222,7 +222,7 @@ func TestIssueHandlers(t *testing.T) {
 	})
 
 	t.Run("PATCH issue assign to workflow forbidden for member", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPatch, "/api/teams/"+personalTeamID+"/issues/i_1", strings.NewReader(`{"version":3,"assignee_kind":"workflow","assignee_id":"w_1"}`))
+		req := httptest.NewRequest(http.MethodPatch, "/api/spaces/"+personalSpaceID+"/issues/i_1", strings.NewReader(`{"version":3,"assignee_kind":"workflow","assignee_id":"w_1"}`))
 		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u2", issueTestSecret))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
@@ -234,7 +234,7 @@ func TestIssueHandlers(t *testing.T) {
 
 	// Version 3 is current by now: the two accepted PATCHes above each bumped it.
 	t.Run("PATCH with a stale version returns 409", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPatch, "/api/teams/"+personalTeamID+"/issues/i_1", strings.NewReader(`{"version":1,"title":"Written from a stale copy"}`))
+		req := httptest.NewRequest(http.MethodPatch, "/api/spaces/"+personalSpaceID+"/issues/i_1", strings.NewReader(`{"version":1,"title":"Written from a stale copy"}`))
 		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", issueTestSecret))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
@@ -248,7 +248,7 @@ func TestIssueHandlers(t *testing.T) {
 	})
 
 	t.Run("PATCH without a version returns 400", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPatch, "/api/teams/"+personalTeamID+"/issues/i_1", strings.NewReader(`{"title":"No precondition"}`))
+		req := httptest.NewRequest(http.MethodPatch, "/api/spaces/"+personalSpaceID+"/issues/i_1", strings.NewReader(`{"title":"No precondition"}`))
 		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", issueTestSecret))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
@@ -259,7 +259,7 @@ func TestIssueHandlers(t *testing.T) {
 	})
 
 	t.Run("GET issue unauthorized returns 401", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/api/teams/"+personalTeamID+"/issues/i_1", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/spaces/"+personalSpaceID+"/issues/i_1", nil)
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 		if rec.Code != http.StatusUnauthorized {
@@ -267,8 +267,8 @@ func TestIssueHandlers(t *testing.T) {
 		}
 	})
 
-	t.Run("GET issues forbidden for non-member explicit team", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/api/teams/"+otherTeamID+"/issues", nil)
+	t.Run("GET issues forbidden for non-member explicit space", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/spaces/"+otherSpaceID+"/issues", nil)
 		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", issueTestSecret))
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
@@ -281,25 +281,25 @@ func TestIssueHandlers(t *testing.T) {
 // The listing filters openapi.json has always described now exist. `assignee=me`
 // is the inbox; the explicit pair answers for anyone else.
 func TestListIssuesFilters(t *testing.T) {
-	const team = "tm_filter"
+	const space = "tm_filter"
 	person := coreissue.AssigneePerson
 	agent := coreissue.AssigneeAgent
 	mine, theirs, bot := "u1", "u2", "a_1"
 	store := &mock.MockIssueStore{
 		Issues: []coreissue.Issue{
-			{ID: "i_mine_open", TeamID: team, UserID: "u1", Title: "Mine, open", Status: coreissue.StatusTodo, AssigneeKind: &person, AssigneeID: &mine, Version: 1},
-			{ID: "i_mine_done", TeamID: team, UserID: "u1", Title: "Mine, done", Status: coreissue.StatusDone, AssigneeKind: &person, AssigneeID: &mine, Version: 1},
-			{ID: "i_theirs", TeamID: team, UserID: "u1", Title: "Someone else's", Status: coreissue.StatusTodo, AssigneeKind: &person, AssigneeID: &theirs, Version: 1},
-			{ID: "i_agent", TeamID: team, UserID: "u1", Title: "An agent's", Status: coreissue.StatusTodo, AssigneeKind: &agent, AssigneeID: &bot, Version: 1},
-			{ID: "i_unassigned", TeamID: team, UserID: "u1", Title: "Nobody's", Status: coreissue.StatusTodo, Version: 1},
+			{ID: "i_mine_open", SpaceID: space, UserID: "u1", Title: "Mine, open", Status: coreissue.StatusTodo, AssigneeKind: &person, AssigneeID: &mine, Version: 1},
+			{ID: "i_mine_done", SpaceID: space, UserID: "u1", Title: "Mine, done", Status: coreissue.StatusDone, AssigneeKind: &person, AssigneeID: &mine, Version: 1},
+			{ID: "i_theirs", SpaceID: space, UserID: "u1", Title: "Someone else's", Status: coreissue.StatusTodo, AssigneeKind: &person, AssigneeID: &theirs, Version: 1},
+			{ID: "i_agent", SpaceID: space, UserID: "u1", Title: "An agent's", Status: coreissue.StatusTodo, AssigneeKind: &agent, AssigneeID: &bot, Version: 1},
+			{ID: "i_unassigned", SpaceID: space, UserID: "u1", Title: "Nobody's", Status: coreissue.StatusTodo, Version: 1},
 		},
 	}
 	h := New(Config{
 		JWTSecret: issueTestSecret,
 		Issues:    store,
-		Teams: &mock.MockTeamStore{
-			Teams:   []coreteam.Team{{ID: team, Name: "Filters", CreatedBy: "u1"}},
-			Members: []coreteam.Member{{TeamID: team, UserID: "u1", Role: coreteam.RoleOwner}},
+		Spaces: &mock.MockSpaceStore{
+			Spaces:  []corespace.Space{{ID: space, Name: "Filters", CreatedBy: "u1"}},
+			Members: []corespace.Member{{SpaceID: space, UserID: "u1", Role: corespace.RoleOwner}},
 		},
 	})
 	mux := http.NewServeMux()
@@ -307,7 +307,7 @@ func TestListIssuesFilters(t *testing.T) {
 
 	list := func(t *testing.T, query string) []string {
 		t.Helper()
-		req := httptest.NewRequest(http.MethodGet, "/api/teams/"+team+"/issues?"+query, nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/spaces/"+space+"/issues?"+query, nil)
 		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", issueTestSecret))
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)

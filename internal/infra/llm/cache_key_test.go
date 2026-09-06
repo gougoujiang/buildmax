@@ -36,7 +36,7 @@ func TestCacheKeyIsStableForTheSameStaticInput(t *testing.T) {
 }
 
 // The acceptance criterion from docs/design/prompt-cache-control.md section 9,
-// phase 3: keys change across team and static-prefix boundaries.
+// phase 3: keys change across space and static-prefix boundaries.
 //
 // Each input here is one that has to match for the provider to hit. A key that
 // survived a change to any of them would ask the provider to look up a prefix
@@ -48,7 +48,7 @@ func TestCacheKeySeparatesEveryBucketBoundary(t *testing.T) {
 	tests := map[string]string{
 		"a different credential": deriveCacheKey("sk-xyz", "gpt-5", "tm_one", "be brief", toolset("read", "write")),
 		"a different model":      deriveCacheKey("sk-abc", "gpt-4", "tm_one", "be brief", toolset("read", "write")),
-		"a different team":       deriveCacheKey("sk-abc", "gpt-5", "tm_two", "be brief", toolset("read", "write")),
+		"a different space":      deriveCacheKey("sk-abc", "gpt-5", "tm_two", "be brief", toolset("read", "write")),
 		"a changed system prompt": deriveCacheKey("sk-abc", "gpt-5", "tm_one", "be thorough",
 			toolset("read", "write")),
 		"a tool added":   deriveCacheKey("sk-abc", "gpt-5", "tm_one", "be brief", toolset("read", "write", "bash")),

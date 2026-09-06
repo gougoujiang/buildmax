@@ -9,8 +9,8 @@ import (
 	"time"
 
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
@@ -20,19 +20,19 @@ import (
 func TestListTaskArtifactsHandler(t *testing.T) {
 	secret := "test-secret"
 	userID := "user-1"
-	teamID := "tm_personal_user1"
+	spaceID := "tm_personal_user1"
 	conversationID := "conv-1"
 	taskID := "task-1"
 	token := testsupport.SignJWT(userID, secret)
 
 	mockConversations := &mock.MockConversationStore{
 		Conversations: []coreconv.Conversation{
-			{ID: conversationID, UserID: userID, TeamID: teamID, Channel: "portal", CreatedBy: userID, CreatedAt: time.Unix(1, 0).UTC()},
+			{ID: conversationID, UserID: userID, SpaceID: spaceID, Channel: "portal", CreatedBy: userID, CreatedAt: time.Unix(1, 0).UTC()},
 		},
 	}
 	mockTasks := &mock.MockTaskStore{
 		List: []coretask.Task{
-			{ID: taskID, ConversationID: conversationID, TeamID: teamID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: time.Unix(1, 0).UTC()},
+			{ID: taskID, ConversationID: conversationID, SpaceID: spaceID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: time.Unix(1, 0).UTC()},
 		},
 	}
 	mockLister := &mock.MockRunOutputLister{
@@ -51,14 +51,14 @@ func TestListTaskArtifactsHandler(t *testing.T) {
 
 	h := New(Config{
 		JWTSecret:     secret,
-		Teams:         &mock.MockTeamStore{Teams: []coreteam.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr(userID), CreatedBy: userID}}, Members: []coreteam.Member{{TeamID: teamID, UserID: userID, Role: coreteam.RoleOwner}}},
+		Spaces:        &mock.MockSpaceStore{Spaces: []corespace.Space{{ID: spaceID, Name: "My Space", PersonalForUserID: util.Ptr(userID), CreatedBy: userID}}, Members: []corespace.Member{{SpaceID: spaceID, UserID: userID, Role: corespace.RoleOwner}}},
 		Tasks:         mockTasks,
 		Conversations: mockConversations,
 		RunOutputs:    mockLister,
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)
-	req := httptest.NewRequest(http.MethodGet, "/api/teams/"+teamID+"/tasks/"+taskID+"/artifacts", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/spaces/"+spaceID+"/tasks/"+taskID+"/artifacts", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
@@ -73,19 +73,19 @@ func TestListTaskArtifactsHandler(t *testing.T) {
 func TestListArtifactItemsHandler(t *testing.T) {
 	secret := "test-secret"
 	userID := "user-1"
-	teamID := "tm_personal_user1"
+	spaceID := "tm_personal_user1"
 	conversationID := "conv-1"
 	taskRunID := "run-1"
 	token := testsupport.SignJWT(userID, secret)
 
 	mockConversations := &mock.MockConversationStore{
 		Conversations: []coreconv.Conversation{
-			{ID: conversationID, UserID: userID, TeamID: teamID, Channel: "portal", CreatedBy: userID, CreatedAt: time.Unix(1, 0).UTC()},
+			{ID: conversationID, UserID: userID, SpaceID: spaceID, Channel: "portal", CreatedBy: userID, CreatedAt: time.Unix(1, 0).UTC()},
 		},
 	}
 	mockTaskRun := &mock.MockTaskRunStore{
 		Runs:     []coretask.Run{{ID: taskRunID, TaskID: "task-1", Status: "SUCCEEDED", CreatedAt: time.Unix(1, 0).UTC()}},
-		TaskList: []coretask.Task{{ID: "task-1", ConversationID: conversationID, TeamID: teamID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: time.Unix(1, 0).UTC()}},
+		TaskList: []coretask.Task{{ID: "task-1", ConversationID: conversationID, SpaceID: spaceID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: time.Unix(1, 0).UTC()}},
 	}
 	mockLister := &mock.MockRunOutputLister{
 		OutputFiles: map[string][]coretask.RunOutputFile{
@@ -95,14 +95,14 @@ func TestListArtifactItemsHandler(t *testing.T) {
 
 	h := New(Config{
 		JWTSecret:     secret,
-		Teams:         &mock.MockTeamStore{Teams: []coreteam.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr(userID), CreatedBy: userID}}, Members: []coreteam.Member{{TeamID: teamID, UserID: userID, Role: coreteam.RoleOwner}}},
+		Spaces:        &mock.MockSpaceStore{Spaces: []corespace.Space{{ID: spaceID, Name: "My Space", PersonalForUserID: util.Ptr(userID), CreatedBy: userID}}, Members: []corespace.Member{{SpaceID: spaceID, UserID: userID, Role: corespace.RoleOwner}}},
 		TaskRuns:      mockTaskRun,
 		RunOutputs:    mockLister,
 		Conversations: mockConversations,
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)
-	req := httptest.NewRequest(http.MethodGet, "/api/teams/"+teamID+"/task-runs/"+taskRunID+"/artifacts/items", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/spaces/"+spaceID+"/task-runs/"+taskRunID+"/artifacts/items", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
@@ -117,7 +117,7 @@ func TestListArtifactItemsHandler(t *testing.T) {
 func TestArtifactContentHandler(t *testing.T) {
 	secret := "test-secret"
 	userID := "user-1"
-	teamID := "tm_personal_user1"
+	spaceID := "tm_personal_user1"
 	conversationID := "conv-1"
 	taskRunID := "run-1"
 	taskID := "task-1"
@@ -125,12 +125,12 @@ func TestArtifactContentHandler(t *testing.T) {
 
 	mockConversations := &mock.MockConversationStore{
 		Conversations: []coreconv.Conversation{
-			{ID: conversationID, UserID: userID, TeamID: teamID, Channel: "portal", CreatedBy: userID, CreatedAt: time.Unix(1, 0).UTC()},
+			{ID: conversationID, UserID: userID, SpaceID: spaceID, Channel: "portal", CreatedBy: userID, CreatedAt: time.Unix(1, 0).UTC()},
 		},
 	}
 	mockTaskRun := &mock.MockTaskRunStore{
 		Runs:     []coretask.Run{{ID: taskRunID, TaskID: taskID, Status: "SUCCEEDED", CreatedAt: time.Unix(1, 0).UTC()}},
-		TaskList: []coretask.Task{{ID: taskID, ConversationID: conversationID, TeamID: teamID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: time.Unix(1, 0).UTC()}},
+		TaskList: []coretask.Task{{ID: taskID, ConversationID: conversationID, SpaceID: spaceID, Status: "SUCCEEDED", Input: "in", CreatedBy: userID, CreatedAt: time.Unix(1, 0).UTC()}},
 	}
 	mockLister := &mock.MockRunOutputLister{
 		OutputFiles: map[string][]coretask.RunOutputFile{
@@ -139,14 +139,14 @@ func TestArtifactContentHandler(t *testing.T) {
 	}
 	runOutputStorage := mock.NewMockRunOutputStorage()
 	if err := runOutputStorage.PutResult(context.Background(), blob.RunRef{
-		TeamID: teamID, TaskID: taskID, TaskRunID: taskRunID,
+		SpaceID: spaceID, TaskID: taskID, TaskRunID: taskRunID,
 	}, []byte("hello")); err != nil {
 		t.Fatal(err)
 	}
 
 	h := New(Config{
 		JWTSecret:        secret,
-		Teams:            &mock.MockTeamStore{Teams: []coreteam.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr(userID), CreatedBy: userID}}, Members: []coreteam.Member{{TeamID: teamID, UserID: userID, Role: coreteam.RoleOwner}}},
+		Spaces:           &mock.MockSpaceStore{Spaces: []corespace.Space{{ID: spaceID, Name: "My Space", PersonalForUserID: util.Ptr(userID), CreatedBy: userID}}, Members: []corespace.Member{{SpaceID: spaceID, UserID: userID, Role: corespace.RoleOwner}}},
 		TaskRuns:         mockTaskRun,
 		RunOutputs:       mockLister,
 		RunOutputStorage: runOutputStorage,
@@ -154,7 +154,7 @@ func TestArtifactContentHandler(t *testing.T) {
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)
-	req := httptest.NewRequest(http.MethodGet, "/api/teams/"+teamID+"/task-runs/"+taskRunID+"/artifacts/content", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/spaces/"+spaceID+"/task-runs/"+taskRunID+"/artifacts/content", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)

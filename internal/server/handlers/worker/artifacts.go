@@ -11,7 +11,7 @@ import (
 // postArtifact publishes a file a run's agent chose to keep.
 //
 // The run token names the run, the run names the task, and the task names the
-// team — a worker never says which team it is writing to, so a stolen run token
+// space — a worker never says which space it is writing to, so a stolen run token
 // cannot be pointed at another one. Provenance is `agent` rather than
 // `task_run`: the agent decided to publish this, which is a different fact from
 // the run having left files in its output directory.
@@ -41,12 +41,12 @@ func (h *Handler) postArtifact(w http.ResponseWriter, r *http.Request) {
 	if !requireRunning(w, run.Status) {
 		return
 	}
-	if task.TeamID == "" {
-		httputil.WriteJSONError(w, http.StatusConflict, "this run has no team to keep an artifact for")
+	if task.SpaceID == "" {
+		httputil.WriteJSONError(w, http.StatusConflict, "this run has no space to keep an artifact for")
 		return
 	}
 	artifactroutes.ReceiveUpload(w, r, h.cfg.Artifacts, artifactroutes.ReceiveInput{
-		TeamID:        task.TeamID,
+		SpaceID:       task.SpaceID,
 		SourceType:    coreartifact.SourceAgent,
 		SourceID:      taskRunID,
 		CreatedByType: coreartifact.CreatorAgent,

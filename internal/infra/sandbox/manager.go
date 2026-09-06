@@ -59,9 +59,9 @@ type Manager struct {
 	// when the backend is available or the sandbox was never enabled.
 	unavailableReason string
 	// allowedEnvNames are the environment variable names this run declared as
-	// Team Secret grants, which ScrubEnv admits even though they are
+	// Space Secret grants, which ScrubEnv admits even though they are
 	// secret-shaped. BuildMax's own credentials are never admitted. Empty on
-	// every surface that consumes no Secret. See docs/design/team-secrets.md.
+	// every surface that consumes no Secret. See docs/design/space-secrets.md.
 	allowedEnvNames map[string]bool
 }
 
@@ -271,7 +271,7 @@ func (m *Manager) ScrubEnv(env []string) []string {
 }
 
 // AllowEnvNames records the environment variable names this run declared as
-// Team Secret grants, so ScrubEnv admits them. Called once as the runtime is
+// Space Secret grants, so ScrubEnv admits them. Called once as the runtime is
 // assembled; BuildMax's own credentials are never admitted, whatever is passed.
 func (m *Manager) AllowEnvNames(names []string) {
 	if len(names) == 0 {

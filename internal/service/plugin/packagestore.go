@@ -13,9 +13,9 @@ import (
 // in-memory test double implement it.
 //
 // It is deliberately not artifact storage. A package belongs to the
-// deployment's catalog rather than to a team's run, so it must not inherit team
+// deployment's catalog rather than to a space's run, so it must not inherit space
 // artifact authorization or retention — a catalog entry that vanished with a
-// team's retention window could no longer explain an installation that is still
+// space's retention window could no longer explain an installation that is still
 // on somebody's machine.
 //
 // Every method streams. A package is bounded, but bounded at tens of megabytes,

@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// ErrDuplicateCall is returned when a team reuses a client call ID. The
+// ErrDuplicateCall is returned when a space reuses a client call ID. The
 // unique index is what actually decides it, so two concurrent requests with one
 // key cannot both open a record.
 var ErrDuplicateCall = errors.New("llm call already exists for this client call id")
@@ -49,8 +49,8 @@ type Call struct {
 
 	// Identity — derived from authentication, never from the request body.
 	//
-	// A call is attributed to a person. There is no team column: a foreground
-	// call belongs to no team, and a run's team is reached through TaskRunID.
+	// A call is attributed to a person. There is no space column: a foreground
+	// call belongs to no space, and a run's space is reached through TaskRunID.
 	// See docs/design/client-modes.md section 9.
 	UserID    *string `json:"user_id,omitempty"`
 	TaskRunID *string `json:"task_run_id,omitempty"`
@@ -92,7 +92,7 @@ type Call struct {
 	// Pricing is the rate snapshot taken when the call was accepted, in
 	// nano-currency-units per million tokens. It is a snapshot rather than a
 	// reference: a model's price changes, and recomputing an old call from the
-	// new rates would rewrite what a team already spent. An empty Currency
+	// new rates would rewrite what a space already spent. An empty Currency
 	// means the model was unpriced then, which is not the same fact as a call
 	// that cost nothing.
 	Currency              string `json:"currency,omitempty"`
@@ -144,7 +144,7 @@ type CallStore interface {
 	// ListLLMCallsByTaskRun returns a run's calls, oldest first, so a reader
 	// follows the run in the order it happened.
 	//
-	// A run belongs to exactly one team, so authorizing the run authorizes its
+	// A run belongs to exactly one space, so authorizing the run authorizes its
 	// ledger; the caller must have established that before asking.
 	ListLLMCallsByTaskRun(ctx context.Context, taskRunID string) ([]Call, error)
 }

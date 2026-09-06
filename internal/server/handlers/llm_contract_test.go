@@ -65,7 +65,7 @@ func managedGateway(t *testing.T, upstreamURL string) *llmremote.Client {
 
 	h := NewHandler(Config{
 		JWTSecret:  llmTestSecret,
-		TeamStore:  llmTestTeamStore(),
+		SpaceStore: llmTestSpaceStore(),
 		LLMGateway: svc,
 	})
 	mux := http.NewServeMux()

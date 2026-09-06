@@ -56,7 +56,7 @@ func TestIssueToolsArePresentWithAClient(t *testing.T) {
 
 // The Issue tools are appended after BuildAgentTypes, like Worktree and the Job
 // tools, which is what keeps them out of subagents and delegates: a subagent
-// reports to its parent, and several of them writing into one team thread would
+// reports to its parent, and several of them writing into one space thread would
 // make that thread's attribution unreadable. buildBaseTools is what every
 // delegate registry is built from, so their absence there is the guarantee.
 func TestIssueToolsAreNeverInTheBaseSet(t *testing.T) {

@@ -14,11 +14,11 @@ import (
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 )
 
-// SecretMaterializer decrypts a team's Secret for a runtime consumer. The
+// SecretMaterializer decrypts a space's Secret for a runtime consumer. The
 // secret service satisfies it; an interface so the worker API does not depend
 // on secret crypto or lifecycle.
 type SecretMaterializer interface {
-	Materialize(ctx context.Context, teamID, id string) (coresecret.Items, error)
+	Materialize(ctx context.Context, spaceID, id string) (coresecret.Items, error)
 }
 
 // SecretGrantRecorder records the non-secret audit of a materialized grant. The
@@ -68,7 +68,7 @@ func (h *Handler) getTaskRunSecrets(w http.ResponseWriter, r *http.Request) {
 	// The worker must have claimed the run before it can read a Secret. A run
 	// that is not RUNNING has either not been claimed or has finished, and a
 	// finished run reading a credential is exactly what a leaked token would do.
-	// See docs/design/team-secrets.md §7.
+	// See docs/design/space-secrets.md §7.
 	if !requireRunning(w, run.Status) {
 		return
 	}
@@ -79,7 +79,7 @@ func (h *Handler) getTaskRunSecrets(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	grants, err := resolveEnvGrants(r.Context(), h.cfg.Secrets, task.TeamID, cons)
+	grants, err := resolveEnvGrants(r.Context(), h.cfg.Secrets, task.SpaceID, cons)
 	if err != nil {
 		if httputil.WriteServiceError(w, err) {
 			return
@@ -126,11 +126,11 @@ func (h *Handler) recordGrants(ctx context.Context, taskRunID, agentID string, r
 // from the Agent revision pinned onto the TaskRun, not the agent's current
 // revision. Pinning at claim is what stops a consumption config edited mid-run
 // from widening what an in-flight run receives — the whole point of snapshotting
-// the authorization. See docs/design/team-secrets.md §6 and §7.
+// the authorization. See docs/design/space-secrets.md §6 and §7.
 //
-// The agent is still resolved once, to confirm it belongs to the run's team: a
-// revision carries no team of its own, and the run token names the team the
-// agent must be owned by. No agent, a team mismatch, or a run with no pinned
+// The agent is still resolved once, to confirm it belongs to the run's space: a
+// revision carries no space of its own, and the run token names the space the
+// agent must be owned by. No agent, a space mismatch, or a run with no pinned
 // revision yields ok=false, which the caller treats as no consumption rather
 // than falling back to the live config.
 func (h *Handler) pinnedConsumption(ctx context.Context, run *coretask.Run, task *coretask.Task) (agentID string, revision int, cons agentdef.SecretConsumption, ok bool) {
@@ -142,7 +142,7 @@ func (h *Handler) pinnedConsumption(ctx context.Context, run *coretask.Run, task
 		componentLog().Warn("worker handler: agent unavailable", "task_id", task.ID, "agent_id", *task.AgentID, "err", err)
 		return "", 0, agentdef.SecretConsumption{}, false
 	}
-	if agent == nil || agent.TeamID != task.TeamID {
+	if agent == nil || agent.SpaceID != task.SpaceID {
 		return "", 0, agentdef.SecretConsumption{}, false
 	}
 	rev, err := h.cfg.Agents.GetAgentRevision(ctx, *task.AgentID, *run.AgentRevision)
@@ -169,13 +169,13 @@ func writeEmptySecrets(w http.ResponseWriter) {
 }
 
 // resolveEnvGrants turns a consumption config into resolved grants. Each grant
-// materializes its Secret against the run's team. A required grant that fails is
+// materializes its Secret against the run's space. A required grant that fails is
 // returned as an error; an optional one is skipped. Names cannot collide -- the
 // agent service refused a config that would, when it was saved.
-func resolveEnvGrants(ctx context.Context, mat SecretMaterializer, teamID string, cons agentdef.SecretConsumption) ([]resolvedGrant, error) {
+func resolveEnvGrants(ctx context.Context, mat SecretMaterializer, spaceID string, cons agentdef.SecretConsumption) ([]resolvedGrant, error) {
 	var out []resolvedGrant
 	for _, g := range cons.Env {
-		items, err := mat.Materialize(ctx, teamID, g.Secret)
+		items, err := mat.Materialize(ctx, spaceID, g.Secret)
 		if err != nil {
 			if g.Optional && isSkippable(err) {
 				continue

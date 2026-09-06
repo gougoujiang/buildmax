@@ -7,30 +7,30 @@ import (
 
 	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 )
 
 const (
-	testTeam  = "tm_1"
+	testSpace = "tm_1"
 	testAdmin = "u_admin"
 	testDev   = "u_dev"
 )
 
-// newActivationService builds the team half of the service over in-memory
-// stores. The team starts in whichever curation mode the caller names, because
+// newActivationService builds the space half of the service over in-memory
+// stores. The space starts in whichever curation mode the caller names, because
 // that is the setting every path here branches on.
 func newActivationService(t *testing.T, curation coreplugin.Curation) (*Service, *mock.MockPluginStore, *mock.MockPluginActivationStore, *fakeAudit) {
 	t.Helper()
 	catalog := mock.NewMockPluginStore()
 	activations := mock.NewMockPluginActivationStore()
 	events := &fakeAudit{}
-	teams := &mock.MockTeamStore{Teams: []coreteam.Team{{ID: testTeam, Name: "Team", PluginCuration: curation}}}
+	spaces := &mock.MockSpaceStore{Spaces: []corespace.Space{{ID: testSpace, Name: "Space", PluginCuration: curation}}}
 	return &Service{
 		Catalog:     catalog,
 		Activations: activations,
-		Teams:       teams,
+		Spaces:      spaces,
 		Packages:    mock.NewMockPluginPackageStorage(),
 		KeyPrefix:   "bm",
 		Audit:       audit.NewRecorder(events),
@@ -78,7 +78,7 @@ func TestActivatePinsTheNewestRelease(t *testing.T) {
 	publishInto(t, catalog, "code-review", "1.0.0", skillOnly())
 	publishInto(t, catalog, "code-review", "1.2.0", skillOnly())
 
-	got, err := s.Activate(ctx, ActivateInput{TeamID: testTeam, PluginName: "code-review", ActorID: testAdmin})
+	got, err := s.Activate(ctx, ActivateInput{SpaceID: testSpace, PluginName: "code-review", ActorID: testAdmin})
 	if err != nil {
 		t.Fatalf("Activate: %v", err)
 	}
@@ -102,13 +102,13 @@ func TestAPublishAfterActivationDoesNotMoveThePin(t *testing.T) {
 	ctx := context.Background()
 	publishInto(t, catalog, "code-review", "1.0.0", skillOnly())
 
-	activated, err := s.Activate(ctx, ActivateInput{TeamID: testTeam, PluginName: "code-review", ActorID: testAdmin})
+	activated, err := s.Activate(ctx, ActivateInput{SpaceID: testSpace, PluginName: "code-review", ActorID: testAdmin})
 	if err != nil {
 		t.Fatalf("Activate: %v", err)
 	}
 	publishInto(t, catalog, "code-review", "2.0.0", skillOnly())
 
-	got, err := s.ListActivations(ctx, testTeam)
+	got, err := s.ListActivations(ctx, testSpace)
 	if err != nil {
 		t.Fatalf("ListActivations: %v", err)
 	}
@@ -122,7 +122,7 @@ func TestActivateRefusesExecutableContent(t *testing.T) {
 	ctx := context.Background()
 	publishInto(t, catalog, "guard", "1.0.0", withHook())
 
-	_, err := s.Activate(ctx, ActivateInput{TeamID: testTeam, PluginName: "guard", ActorID: testAdmin})
+	_, err := s.Activate(ctx, ActivateInput{SpaceID: testSpace, PluginName: "guard", ActorID: testAdmin})
 	if !errors.Is(err, ErrExecutableContent) {
 		t.Fatalf("err = %v, want ErrExecutableContent", err)
 	}
@@ -134,16 +134,16 @@ func TestMovePinRefusesAReleaseThatAddsExecutableContent(t *testing.T) {
 	s, catalog, _, _ := newActivationService(t, coreplugin.CurationCurated)
 	ctx := context.Background()
 	publishInto(t, catalog, "code-review", "1.0.0", skillOnly())
-	if _, err := s.Activate(ctx, ActivateInput{TeamID: testTeam, PluginName: "code-review", ActorID: testAdmin}); err != nil {
+	if _, err := s.Activate(ctx, ActivateInput{SpaceID: testSpace, PluginName: "code-review", ActorID: testAdmin}); err != nil {
 		t.Fatalf("Activate: %v", err)
 	}
 	publishInto(t, catalog, "code-review", "1.1.0", withHook())
 
-	_, err := s.MovePin(ctx, ActivateInput{TeamID: testTeam, PluginName: "code-review", Version: "1.1.0", ActorID: testAdmin})
+	_, err := s.MovePin(ctx, ActivateInput{SpaceID: testSpace, PluginName: "code-review", Version: "1.1.0", ActorID: testAdmin})
 	if !errors.Is(err, ErrExecutableContent) {
 		t.Fatalf("err = %v, want ErrExecutableContent", err)
 	}
-	got, err := s.Activations.GetPluginActivation(ctx, testTeam, "code-review")
+	got, err := s.Activations.GetPluginActivation(ctx, testSpace, "code-review")
 	if err != nil {
 		t.Fatalf("GetPluginActivation: %v", err)
 	}
@@ -162,7 +162,7 @@ func TestActivateSkipsYankedAndPrereleases(t *testing.T) {
 		t.Fatalf("YankPluginRelease: %v", err)
 	}
 
-	got, err := s.Activate(ctx, ActivateInput{TeamID: testTeam, PluginName: "code-review", ActorID: testAdmin})
+	got, err := s.Activate(ctx, ActivateInput{SpaceID: testSpace, PluginName: "code-review", ActorID: testAdmin})
 	if err != nil {
 		t.Fatalf("Activate: %v", err)
 	}
@@ -177,7 +177,7 @@ func TestOpenModeActivatesOnFirstNaming(t *testing.T) {
 	ctx := context.Background()
 	publishInto(t, catalog, "code-review", "1.2.0", skillOnly())
 
-	got, err := s.ResolveSelection(ctx, testTeam, []string{"code-review"}, testDev)
+	got, err := s.ResolveSelection(ctx, testSpace, []string{"code-review"}, testDev)
 	if err != nil {
 		t.Fatalf("ResolveSelection: %v", err)
 	}
@@ -204,19 +204,19 @@ func TestCuratedModeRefusesAnUnactivatedName(t *testing.T) {
 	ctx := context.Background()
 	publishInto(t, catalog, "code-review", "1.2.0", skillOnly())
 
-	_, err := s.ResolveSelection(ctx, testTeam, []string{"code-review"}, testDev)
+	_, err := s.ResolveSelection(ctx, testSpace, []string{"code-review"}, testDev)
 	if !errors.Is(err, ErrNotActivated) {
 		t.Fatalf("err = %v, want ErrNotActivated", err)
 	}
 }
 
-// Open mode relaxes the team's housekeeping, never the operator's gate.
+// Open mode relaxes the space's housekeeping, never the operator's gate.
 func TestOpenModeStillRefusesExecutableContent(t *testing.T) {
 	s, catalog, _, _ := newActivationService(t, coreplugin.CurationOpen)
 	ctx := context.Background()
 	publishInto(t, catalog, "guard", "1.0.0", withHook())
 
-	_, err := s.ResolveSelection(ctx, testTeam, []string{"guard"}, testDev)
+	_, err := s.ResolveSelection(ctx, testSpace, []string{"guard"}, testDev)
 	if !errors.Is(err, ErrExecutableContent) {
 		t.Fatalf("err = %v, want ErrExecutableContent", err)
 	}
@@ -227,12 +227,12 @@ func TestAnAutomaticPinDoesNotAdvance(t *testing.T) {
 	s, catalog, _, _ := newActivationService(t, coreplugin.CurationOpen)
 	ctx := context.Background()
 	publishInto(t, catalog, "code-review", "1.0.0", skillOnly())
-	if _, err := s.ResolveSelection(ctx, testTeam, []string{"code-review"}, testDev); err != nil {
+	if _, err := s.ResolveSelection(ctx, testSpace, []string{"code-review"}, testDev); err != nil {
 		t.Fatalf("ResolveSelection: %v", err)
 	}
 	publishInto(t, catalog, "code-review", "2.0.0", skillOnly())
 
-	got, err := s.ResolveSelection(ctx, testTeam, []string{"code-review"}, testDev)
+	got, err := s.ResolveSelection(ctx, testSpace, []string{"code-review"}, testDev)
 	if err != nil {
 		t.Fatalf("ResolveSelection: %v", err)
 	}
@@ -247,14 +247,14 @@ func TestResolveSelectionReturnsASuspendedActivation(t *testing.T) {
 	s, catalog, _, _ := newActivationService(t, coreplugin.CurationOpen)
 	ctx := context.Background()
 	publishInto(t, catalog, "code-review", "1.0.0", skillOnly())
-	if _, err := s.ResolveSelection(ctx, testTeam, []string{"code-review"}, testDev); err != nil {
+	if _, err := s.ResolveSelection(ctx, testSpace, []string{"code-review"}, testDev); err != nil {
 		t.Fatalf("ResolveSelection: %v", err)
 	}
-	if _, err := s.SetActivationEnabled(ctx, testTeam, "code-review", false, testAdmin); err != nil {
+	if _, err := s.SetActivationEnabled(ctx, testSpace, "code-review", false, testAdmin); err != nil {
 		t.Fatalf("SetActivationEnabled: %v", err)
 	}
 
-	got, err := s.ResolveSelection(ctx, testTeam, []string{"code-review"}, testDev)
+	got, err := s.ResolveSelection(ctx, testSpace, []string{"code-review"}, testDev)
 	if err != nil {
 		t.Fatalf("ResolveSelection: %v", err)
 	}
@@ -267,11 +267,11 @@ func TestSuspendKeepsThePinAndIsAudited(t *testing.T) {
 	s, catalog, _, events := newActivationService(t, coreplugin.CurationCurated)
 	ctx := context.Background()
 	publishInto(t, catalog, "code-review", "1.2.0", skillOnly())
-	if _, err := s.Activate(ctx, ActivateInput{TeamID: testTeam, PluginName: "code-review", ActorID: testAdmin}); err != nil {
+	if _, err := s.Activate(ctx, ActivateInput{SpaceID: testSpace, PluginName: "code-review", ActorID: testAdmin}); err != nil {
 		t.Fatalf("Activate: %v", err)
 	}
 
-	suspended, err := s.SetActivationEnabled(ctx, testTeam, "code-review", false, testAdmin)
+	suspended, err := s.SetActivationEnabled(ctx, testSpace, "code-review", false, testAdmin)
 	if err != nil {
 		t.Fatalf("SetActivationEnabled: %v", err)
 	}
@@ -282,10 +282,10 @@ func TestSuspendKeepsThePinAndIsAudited(t *testing.T) {
 		t.Errorf("suspension lost the pin: %+v", suspended)
 	}
 	if !events.has(coreaudit.PluginSuspended) {
-		t.Error("suspension stops a team's runs; it must be audited")
+		t.Error("suspension stops a space's runs; it must be audited")
 	}
 
-	resumed, err := s.SetActivationEnabled(ctx, testTeam, "code-review", true, testAdmin)
+	resumed, err := s.SetActivationEnabled(ctx, testSpace, "code-review", true, testAdmin)
 	if err != nil {
 		t.Fatalf("resume: %v", err)
 	}
@@ -298,10 +298,10 @@ func TestActivateTwiceIsRefused(t *testing.T) {
 	s, catalog, _, _ := newActivationService(t, coreplugin.CurationCurated)
 	ctx := context.Background()
 	publishInto(t, catalog, "code-review", "1.0.0", skillOnly())
-	if _, err := s.Activate(ctx, ActivateInput{TeamID: testTeam, PluginName: "code-review", ActorID: testAdmin}); err != nil {
+	if _, err := s.Activate(ctx, ActivateInput{SpaceID: testSpace, PluginName: "code-review", ActorID: testAdmin}); err != nil {
 		t.Fatalf("Activate: %v", err)
 	}
-	_, err := s.Activate(ctx, ActivateInput{TeamID: testTeam, PluginName: "code-review", ActorID: testAdmin})
+	_, err := s.Activate(ctx, ActivateInput{SpaceID: testSpace, PluginName: "code-review", ActorID: testAdmin})
 	if !errors.Is(err, coreplugin.ErrAlreadyActivated) {
 		t.Fatalf("err = %v, want ErrPluginAlreadyActivated: a second activation is a pin move", err)
 	}
@@ -311,26 +311,26 @@ func TestSetCurationValidatesAndAudits(t *testing.T) {
 	s, _, _, events := newActivationService(t, coreplugin.CurationOpen)
 	ctx := context.Background()
 
-	if err := s.SetCuration(ctx, testTeam, coreplugin.CurationCurated, testAdmin); err != nil {
+	if err := s.SetCuration(ctx, testSpace, coreplugin.CurationCurated, testAdmin); err != nil {
 		t.Fatalf("SetCuration: %v", err)
 	}
-	if !events.has(coreaudit.TeamPluginCuration) {
-		t.Error("the mode is a decision about a team's runs; it must be audited")
+	if !events.has(coreaudit.SpacePluginCuration) {
+		t.Error("the mode is a decision about a space's runs; it must be audited")
 	}
-	team, err := s.Teams.GetTeam(ctx, testTeam)
+	space, err := s.Spaces.GetSpace(ctx, testSpace)
 	if err != nil {
-		t.Fatalf("GetTeam: %v", err)
+		t.Fatalf("GetSpace: %v", err)
 	}
-	if team.PluginCuration != coreplugin.CurationCurated {
-		t.Errorf("mode = %q, want curated", team.PluginCuration)
+	if space.PluginCuration != coreplugin.CurationCurated {
+		t.Errorf("mode = %q, want curated", space.PluginCuration)
 	}
 
-	if err := s.SetCuration(ctx, testTeam, coreplugin.Curation("whatever"), testAdmin); !errors.Is(err, ErrInvalidCuration) {
+	if err := s.SetCuration(ctx, testSpace, coreplugin.Curation("whatever"), testAdmin); !errors.Is(err, ErrInvalidCuration) {
 		t.Fatalf("err = %v, want ErrInvalidCuration", err)
 	}
 }
 
-// An unset mode is open: a team that never chose has not asked to be restricted.
+// An unset mode is open: a space that never chose has not asked to be restricted.
 func TestAnUnsetCurationModeReadsAsOpen(t *testing.T) {
 	if got := coreplugin.NormalizeCuration(""); got != coreplugin.CurationOpen {
 		t.Errorf("empty mode = %q, want open", got)

@@ -22,10 +22,10 @@ func newService(t *testing.T) (*Service, *mock.MockArtifactStore, *mock.MockArti
 	return &Service{Artifacts: store, Storage: storage}, store, storage
 }
 
-func createFile(t *testing.T, s *Service, teamID, filename, body string) *coreartifact.Artifact {
+func createFile(t *testing.T, s *Service, spaceID, filename, body string) *coreartifact.Artifact {
 	t.Helper()
 	rec, err := s.Create(context.Background(), CreateInput{
-		TeamID:        teamID,
+		SpaceID:       spaceID,
 		Filename:      filename,
 		SourceType:    coreartifact.SourceUserUpload,
 		CreatedByType: coreartifact.CreatorUser,
@@ -75,7 +75,7 @@ func TestCreateReducesFilenameToOneElement(t *testing.T) {
 func TestCreateRejectsAnEmptyName(t *testing.T) {
 	svc, store, storage := newService(t)
 	_, err := svc.Create(context.Background(), CreateInput{
-		TeamID:   "tm_1",
+		SpaceID:  "tm_1",
 		Filename: "   ",
 		Content:  strings.NewReader("x"),
 	})
@@ -94,7 +94,7 @@ func TestCreateRefusesContentOverTheLimit(t *testing.T) {
 	svc.MaxFileBytes = 8
 
 	_, err := svc.Create(context.Background(), CreateInput{
-		TeamID:   "tm_1",
+		SpaceID:  "tm_1",
 		Filename: "big.bin",
 		Content:  strings.NewReader(strings.Repeat("a", 9)),
 	})
@@ -121,7 +121,7 @@ func TestCreateAcceptsContentExactlyAtTheLimit(t *testing.T) {
 func TestCreateRejectsEmptyContent(t *testing.T) {
 	svc, store, storage := newService(t)
 	_, err := svc.Create(context.Background(), CreateInput{
-		TeamID:   "tm_1",
+		SpaceID:  "tm_1",
 		Filename: "empty.txt",
 		Content:  strings.NewReader(""),
 	})
@@ -141,7 +141,7 @@ func TestCreateRemovesContentWhenTheRecordFails(t *testing.T) {
 	store.CreateErr = errors.New("database is down")
 
 	_, err := svc.Create(context.Background(), CreateInput{
-		TeamID:   "tm_1",
+		SpaceID:  "tm_1",
 		Filename: "report.md",
 		Content:  strings.NewReader("hello"),
 	})
@@ -158,7 +158,7 @@ func TestCreateReportsStorageFailureWithoutRecording(t *testing.T) {
 	storage.PutErr = errors.New("bucket is unreachable")
 
 	if _, err := svc.Create(context.Background(), CreateInput{
-		TeamID:   "tm_1",
+		SpaceID:  "tm_1",
 		Filename: "report.md",
 		Content:  strings.NewReader("hello"),
 	}); err == nil {

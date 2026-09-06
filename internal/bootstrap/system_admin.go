@@ -18,7 +18,7 @@ import (
 // The operator-side half of deployment administration.
 //
 // A System Administrator is a deployment-scoped authority, separate from every
-// Team role. The first one has to come from somewhere, and this is that
+// Space role. The first one has to come from somewhere, and this is that
 // somewhere: a command on the machine that already holds the database
 // credentials. There is deliberately no configuration value that grants the
 // role — a second source of authority would be one the audit trail cannot
@@ -44,8 +44,8 @@ Flags for list:
   --all            Include revoked grants, newest first
 
 A System Administrator can manage accounts, read deployment status, and search
-the audit trail across teams. The grant carries no access to any team's issues,
-conversations, artifacts, files, or run traces: those stay behind team
+the audit trail across spaces. The grant carries no access to any space's issues,
+conversations, artifacts, files, or run traces: those stay behind space
 membership.
 
 The account must exist first — granting does not create one:

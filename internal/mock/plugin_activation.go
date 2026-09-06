@@ -10,9 +10,9 @@ import (
 	coreplugin "github.com/gougoujiang/buildmax/internal/core/plugin"
 )
 
-// MockPluginActivationStore is an in-memory team activation store for tests.
+// MockPluginActivationStore is an in-memory space activation store for tests.
 type MockPluginActivationStore struct {
-	// rows is keyed by team and plugin, which is the pair the real unique
+	// rows is keyed by space and plugin, which is the pair the real unique
 	// index covers.
 	rows map[string]*coreplugin.Activation
 	next int
@@ -22,10 +22,10 @@ func NewMockPluginActivationStore() *MockPluginActivationStore {
 	return &MockPluginActivationStore{rows: map[string]*coreplugin.Activation{}}
 }
 
-func activationKey(teamID, pluginName string) string { return teamID + "\x00" + pluginName }
+func activationKey(spaceID, pluginName string) string { return spaceID + "\x00" + pluginName }
 
 func (m *MockPluginActivationStore) ActivatePlugin(_ context.Context, in coreplugin.ActivateInput) (*coreplugin.Activation, error) {
-	key := activationKey(in.TeamID, in.PluginName)
+	key := activationKey(in.SpaceID, in.PluginName)
 	if _, exists := m.rows[key]; exists {
 		return nil, coreplugin.ErrAlreadyActivated
 	}
@@ -33,7 +33,7 @@ func (m *MockPluginActivationStore) ActivatePlugin(_ context.Context, in coreplu
 	now := time.Now().UTC()
 	row := &coreplugin.Activation{
 		ID:          fmt.Sprintf("pa_%d", m.next),
-		TeamID:      in.TeamID,
+		SpaceID:     in.SpaceID,
 		PluginName:  in.PluginName,
 		Version:     in.Version,
 		Digest:      in.Digest,
@@ -49,8 +49,8 @@ func (m *MockPluginActivationStore) ActivatePlugin(_ context.Context, in coreplu
 	return &out, nil
 }
 
-func (m *MockPluginActivationStore) GetPluginActivation(_ context.Context, teamID, pluginName string) (*coreplugin.Activation, error) {
-	row, ok := m.rows[activationKey(teamID, pluginName)]
+func (m *MockPluginActivationStore) GetPluginActivation(_ context.Context, spaceID, pluginName string) (*coreplugin.Activation, error) {
+	row, ok := m.rows[activationKey(spaceID, pluginName)]
 	if !ok {
 		return nil, nil
 	}
@@ -58,10 +58,10 @@ func (m *MockPluginActivationStore) GetPluginActivation(_ context.Context, teamI
 	return &out, nil
 }
 
-func (m *MockPluginActivationStore) ListPluginActivations(_ context.Context, teamID string) ([]coreplugin.Activation, error) {
+func (m *MockPluginActivationStore) ListPluginActivations(_ context.Context, spaceID string) ([]coreplugin.Activation, error) {
 	out := make([]coreplugin.Activation, 0, len(m.rows))
 	for _, row := range m.rows {
-		if row.TeamID == teamID {
+		if row.SpaceID == spaceID {
 			out = append(out, *row)
 		}
 	}
@@ -70,7 +70,7 @@ func (m *MockPluginActivationStore) ListPluginActivations(_ context.Context, tea
 }
 
 func (m *MockPluginActivationStore) MovePluginActivationPin(_ context.Context, in coreplugin.MovePinInput) (*coreplugin.Activation, error) {
-	row, ok := m.rows[activationKey(in.TeamID, in.PluginName)]
+	row, ok := m.rows[activationKey(in.SpaceID, in.PluginName)]
 	if !ok {
 		return nil, apierr.ErrNotFound
 	}
@@ -82,8 +82,8 @@ func (m *MockPluginActivationStore) MovePluginActivationPin(_ context.Context, i
 	return &out, nil
 }
 
-func (m *MockPluginActivationStore) SetPluginActivationEnabled(_ context.Context, teamID, pluginName string, enabled bool, actorID string) (*coreplugin.Activation, error) {
-	row, ok := m.rows[activationKey(teamID, pluginName)]
+func (m *MockPluginActivationStore) SetPluginActivationEnabled(_ context.Context, spaceID, pluginName string, enabled bool, actorID string) (*coreplugin.Activation, error) {
+	row, ok := m.rows[activationKey(spaceID, pluginName)]
 	if !ok {
 		return nil, apierr.ErrNotFound
 	}

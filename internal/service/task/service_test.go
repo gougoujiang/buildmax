@@ -15,9 +15,9 @@ import (
 func TestCreateRun_PersistsProvenance(t *testing.T) {
 	taskStore := &mock.MockTaskStore{
 		List: []coretask.Task{{
-			ID:     "t_1",
-			TeamID: "tm_1",
-			Status: "SUCCEEDED",
+			ID:      "t_1",
+			SpaceID: "tm_1",
+			Status:  "SUCCEEDED",
 		}},
 	}
 	runStore := &mock.MockTaskRunStore{}
@@ -63,7 +63,7 @@ func TestCreateTaskRefusesADeletedAgent(t *testing.T) {
 	deletedAt := time.Now().UTC()
 	agentID := "a_deleted"
 	agents := &mock.MockAgentStore{Agents: []agentdef.Agent{{
-		ID: agentID, TeamID: "tm_1", Name: "gone", DeletedAt: &deletedAt,
+		ID: agentID, SpaceID: "tm_1", Name: "gone", DeletedAt: &deletedAt,
 	}}}
 	svc := &Service{
 		Tasks:  &mock.MockTaskStore{},
@@ -71,7 +71,7 @@ func TestCreateTaskRefusesADeletedAgent(t *testing.T) {
 	}
 
 	_, err := svc.CreateTask(context.Background(), CreateTaskCmd{
-		UserID: "u1", TeamID: "tm_1", Input: "do the thing", AgentID: &agentID,
+		UserID: "u1", SpaceID: "tm_1", Input: "do the thing", AgentID: &agentID,
 	})
 	if !errors.Is(err, ErrAgentNotFound) {
 		t.Fatalf("CreateTask err = %v, want %v", err, ErrAgentNotFound)
@@ -85,10 +85,10 @@ func TestCreateRunRefusesWhenTheTasksAgentWasDeleted(t *testing.T) {
 	deletedAt := time.Now().UTC()
 	agentID := "a_deleted"
 	agents := &mock.MockAgentStore{Agents: []agentdef.Agent{{
-		ID: agentID, TeamID: "tm_1", Name: "gone", DeletedAt: &deletedAt,
+		ID: agentID, SpaceID: "tm_1", Name: "gone", DeletedAt: &deletedAt,
 	}}}
 	taskStore := &mock.MockTaskStore{List: []coretask.Task{{
-		ID: "t_1", TeamID: "tm_1", Status: "SUCCEEDED", AgentID: &agentID,
+		ID: "t_1", SpaceID: "tm_1", Status: "SUCCEEDED", AgentID: &agentID,
 	}}}
 	svc := &Service{
 		Tasks:    taskStore,
@@ -118,8 +118,8 @@ func (q quotaStub) Check(context.Context, string, int, int) (bool, string, error
 }
 
 // A limit that cannot be read is not a limit that passed. Admitting the run
-// would spend a team's allowance without metering it, and the caller would see
-// no difference from a team that had room.
+// would spend a space's allowance without metering it, and the caller would see
+// no difference from a space that had room.
 func TestAdmitsRefusesWhenQuotaCannotBeRead(t *testing.T) {
 	boom := errors.New("quota store unreachable")
 	svc := &Service{QuotaChecker: quotaStub{err: boom}}
@@ -128,14 +128,14 @@ func TestAdmitsRefusesWhenQuotaCannotBeRead(t *testing.T) {
 	if !errors.Is(err, boom) {
 		t.Fatalf("Admits err = %v, want %v", err, boom)
 	}
-	// A read failure is a 500, not the 429 an over-quota team gets: the team
+	// A read failure is a 500, not the 429 an over-quota space gets: the space
 	// is not over anything, the deployment cannot see.
 	if kind, _ := apierr.KindOf(err); kind == apierr.KindQuotaExceeded {
 		t.Error("an unreadable quota was reported to the caller as an exceeded one")
 	}
 }
 
-func TestAdmitsRefusesAnOverQuotaTeamWithTheQuotaKind(t *testing.T) {
+func TestAdmitsRefusesAnOverQuotaSpaceWithTheQuotaKind(t *testing.T) {
 	svc := &Service{QuotaChecker: quotaStub{allowed: false, reason: "quota exceeded: run limit"}}
 
 	err := svc.Admits(context.Background(), "tm_1")

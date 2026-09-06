@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// Artifact is a durable file BuildMax holds on a team's behalf.
+// Artifact is a durable file BuildMax holds on a space's behalf.
 //
 // It is a first-class object rather than a by-product of whatever produced it:
 // an agent, a background run, or a person uploading a file all create the same
@@ -19,7 +19,7 @@ import (
 // something else.
 type Artifact struct {
 	ID        string `json:"id"`
-	TeamID    string `json:"team_id"`
+	SpaceID   string `json:"space_id"`
 	Filename  string `json:"filename"`
 	MediaType string `json:"media_type"`
 	SizeBytes int64  `json:"size_bytes"`
@@ -85,7 +85,7 @@ const (
 // CreateInput is everything the store needs to record one artifact.
 // The caller has already stored the content and measured it.
 type CreateInput struct {
-	TeamID        string
+	SpaceID       string
 	ArtifactID    string
 	Filename      string
 	MediaType     string
@@ -111,8 +111,8 @@ type Store interface {
 	// is none. A tombstoned artifact is returned, not hidden: the caller has to
 	// tell "never existed" from "deleted" to answer either one correctly.
 	GetArtifact(ctx context.Context, artifactID string) (*Artifact, error)
-	// ListArtifactsByTeam returns live artifacts newest first, with the total.
-	ListArtifactsByTeam(ctx context.Context, teamID string, limit, offset int) ([]Artifact, int, error)
+	// ListArtifactsBySpace returns live artifacts newest first, with the total.
+	ListArtifactsBySpace(ctx context.Context, spaceID string, limit, offset int) ([]Artifact, int, error)
 	// ListArtifactsBySource returns live artifacts produced by any of the given
 	// operations, newest first, keyed by source ID. It is how a work object
 	// finds what its runs published without owning them.
@@ -120,24 +120,24 @@ type Store interface {
 	// SoftDeleteArtifact tombstones the artifact and reports whether it changed
 	// anything, so a repeat delete is distinguishable from a first one.
 	SoftDeleteArtifact(ctx context.Context, artifactID string, deletedAt time.Time) (bool, error)
-	// TeamArtifactBytes sums what the team's live artifacts hold. Tombstoned
-	// ones are excluded whether or not their objects have gone yet: the team
+	// SpaceArtifactBytes sums what the space's live artifacts hold. Tombstoned
+	// ones are excluded whether or not their objects have gone yet: the space
 	// has given them up, and charging for storage the deployment has merely not
 	// swept would make a quota depend on sweep timing.
-	TeamArtifactBytes(ctx context.Context, teamID string) (int64, error)
+	SpaceArtifactBytes(ctx context.Context, spaceID string) (int64, error)
 }
 
 // Expired is an artifact the retention sweep tombstoned, named so the trail can
 // say which one went.
 type Expired struct {
 	ArtifactID string
-	TeamID     string
+	SpaceID    string
 }
 
 // Purgeable is a tombstoned artifact whose bytes are still held.
 type Purgeable struct {
 	ArtifactID string
-	TeamID     string
+	SpaceID    string
 	SizeBytes  int64
 }
 

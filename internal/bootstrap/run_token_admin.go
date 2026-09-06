@@ -78,7 +78,7 @@ func RunRunTokenCommand(ctx context.Context, args []string, out io.Writer) error
 
 	token, err := authtoken.MintRun(sc.JWTSecret, authtoken.RunClaims{
 		UserID:    task.CreatedBy,
-		TeamID:    task.TeamID,
+		SpaceID:   task.SpaceID,
 		TaskRunID: run.ID,
 		TaskID:    task.ID,
 	}, *ttl, time.Now())

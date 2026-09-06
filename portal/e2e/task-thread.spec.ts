@@ -33,7 +33,7 @@ async function waitForTaskSucceeded(page: Page, current: Session, taskId: string
   await expect
     .poll(
       async () => {
-        const task = await getJSON<TaskStatus>(page, `${current.team}/tasks/${encodeURIComponent(taskId)}`, current)
+        const task = await getJSON<TaskStatus>(page, `${current.space}/tasks/${encodeURIComponent(taskId)}`, current)
         return task.status === "FAILED" ? `FAILED: ${task.error_message ?? "no message"}` : task.status
       },
       { timeout: RUN_TIMEOUT_MS, intervals: [1000] }
@@ -48,12 +48,12 @@ test("running an Agent directly reaches a Task with no Conversation, and Continu
 
   const current = await session(page)
   const agentName = tagged("Task thread probe")
-  const agent = await postJSON<{ id: string }>(page, `${current.team}/agents`, current, {
+  const agent = await postJSON<{ id: string }>(page, `${current.space}/agents`, current, {
     name: agentName,
     description: "Created by the Portal browser tests.",
     instructions: `Reply with exactly: ${REPLY}`,
   })
-  reportLeftovers(current.teamId, [`agent ${agent.id}`])
+  reportLeftovers(current.spaceId, [`agent ${agent.id}`])
 
   await page.goto("/#/agents")
   await expect(page.getByRole("heading", { name: "Agents", exact: true })).toBeVisible()
@@ -72,11 +72,11 @@ test("running an Agent directly reaches a Task with no Conversation, and Continu
   await page.waitForURL(/#\/task\//, { timeout: 15_000 })
   const taskId = decodeURIComponent(page.url().split("/task/")[1] ?? "")
   expect(taskId).not.toBe("")
-  reportLeftovers(current.teamId, [`task ${taskId}`])
+  reportLeftovers(current.spaceId, [`task ${taskId}`])
 
   const task = await getJSON<{ conversation_id?: string; agent_id?: string }>(
     page,
-    `${current.team}/tasks/${encodeURIComponent(taskId)}`,
+    `${current.space}/tasks/${encodeURIComponent(taskId)}`,
     current
   )
   expect(task.conversation_id ?? "").toBe("")
@@ -96,7 +96,7 @@ test("running an Agent directly reaches a Task with no Conversation, and Continu
 
   const afterContinue = await getJSON<{ runs: { id: string; input: string; previous_task_run_id?: string | null }[] }>(
     page,
-    `${current.team}/tasks/${encodeURIComponent(taskId)}/runs`,
+    `${current.space}/tasks/${encodeURIComponent(taskId)}/runs`,
     current
   )
   expect(afterContinue.runs).toHaveLength(2)
@@ -114,7 +114,7 @@ test("running an Agent directly reaches a Task with no Conversation, and Continu
 
   const afterRetry = await getJSON<{ runs: { id: string; input: string; retry_of_task_run_id?: string | null }[] }>(
     page,
-    `${current.team}/tasks/${encodeURIComponent(taskId)}/runs`,
+    `${current.space}/tasks/${encodeURIComponent(taskId)}/runs`,
     current
   )
   expect(afterRetry.runs).toHaveLength(3)

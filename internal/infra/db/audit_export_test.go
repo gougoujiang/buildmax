@@ -9,7 +9,7 @@ import (
 )
 
 // seedAuditEvents writes n events for one actor at the given timestamps and
-// returns a cleanup-scoped team id.
+// returns a cleanup-scoped space id.
 //
 // The timestamps are set after the insert because RecordAuditEvent stamps
 // created_at itself — which is right for a governance record and inconvenient
@@ -18,11 +18,11 @@ import (
 // keep writing 100/200/300 and still be talking about times.
 func at(seconds int) time.Time { return time.Unix(1_700_000_000+int64(seconds), 0).UTC() }
 
-func seedAuditEvents(t *testing.T, s *Store, ctx context.Context, actor, teamID string, at []time.Time) {
+func seedAuditEvents(t *testing.T, s *Store, ctx context.Context, actor, spaceID string, at []time.Time) {
 	t.Helper()
 	for range at {
 		if err := s.RecordAuditEvent(ctx, coreaudit.Event{
-			TeamID:    teamID,
+			SpaceID:   spaceID,
 			ActorType: coreaudit.ActorUser,
 			ActorID:   actor,
 			Action:    coreaudit.UserLogin,
@@ -58,20 +58,20 @@ func seedAuditEvents(t *testing.T, s *Store, ctx context.Context, actor, teamID 
 // bulk import, a replayed batch, or any writer stamping one time across
 // several rows produces one, and an export that skipped a record then would
 // look complete.
-func TestExportTeamAuditEventsWalksEveryEventAcrossTies(t *testing.T) {
+func TestExportSpaceAuditEventsWalksEveryEventAcrossTies(t *testing.T) {
 	s, ctx := newTestStore(t)
 	actor := newTestUser(t, s, "audit")
-	teamID := newTestTeam(t, s, actor)
+	spaceID := newTestSpace(t, s, actor)
 	t.Cleanup(func() { _ = s.db.WithContext(ctx).Delete(&auditEventRow{}, "actor_id = ?", actor).Error })
 
-	seedAuditEvents(t, s, ctx, actor, teamID, []time.Time{at(500), at(500), at(500), at(400)})
+	seedAuditEvents(t, s, ctx, actor, spaceID, []time.Time{at(500), at(500), at(500), at(400)})
 
 	var seen []string
 	var cursor coreaudit.Cursor
 	for range 10 {
-		page, err := s.ExportTeamAuditEvents(ctx, teamID, cursor, 2)
+		page, err := s.ExportSpaceAuditEvents(ctx, spaceID, cursor, 2)
 		if err != nil {
-			t.Fatalf("ExportTeamAuditEvents: %v", err)
+			t.Fatalf("ExportSpaceAuditEvents: %v", err)
 		}
 		if len(page) == 0 {
 			break
@@ -101,10 +101,10 @@ func TestExportTeamAuditEventsWalksEveryEventAcrossTies(t *testing.T) {
 func TestExportAuditEventsHonoursTheFilter(t *testing.T) {
 	s, ctx := newTestStore(t)
 	actor := newTestUser(t, s, "audit")
-	teamID := newTestTeam(t, s, actor)
+	spaceID := newTestSpace(t, s, actor)
 	t.Cleanup(func() { _ = s.db.WithContext(ctx).Delete(&auditEventRow{}, "actor_id = ?", actor).Error })
 
-	seedAuditEvents(t, s, ctx, actor, teamID, []time.Time{at(100), at(200), at(300)})
+	seedAuditEvents(t, s, ctx, actor, spaceID, []time.Time{at(100), at(200), at(300)})
 
 	events, err := s.ExportAuditEvents(ctx, coreaudit.Filter{ActorID: actor, Since: at(200)}, coreaudit.Cursor{}, 100)
 	if err != nil {
@@ -126,7 +126,7 @@ func TestExportAuditEventsHonoursTheFilter(t *testing.T) {
 func TestPruneAuditEventsRemovesOnlyWhatExpired(t *testing.T) {
 	s, ctx := newTestStore(t)
 	actor := newTestUser(t, s, "audit")
-	teamID := newTestTeam(t, s, actor)
+	spaceID := newTestSpace(t, s, actor)
 	t.Cleanup(func() { _ = s.db.WithContext(ctx).Delete(&auditEventRow{}, "actor_id = ?", actor).Error })
 
 	// Truncated to what a DATETIME(6) column can hold. Every other test here
@@ -144,7 +144,7 @@ func TestPruneAuditEventsRemovesOnlyWhatExpired(t *testing.T) {
 	if err := s.db.WithContext(ctx).Where("created_at < ?", now.Add(-100*time.Second)).Delete(&auditEventRow{}).Error; err != nil {
 		t.Fatalf("clear events older than the cutoff: %v", err)
 	}
-	seedAuditEvents(t, s, ctx, actor, teamID, []time.Time{now.Add(-400 * time.Second), now.Add(-300 * time.Second), now.Add(-200 * time.Second), now.Add(-50 * time.Second)})
+	seedAuditEvents(t, s, ctx, actor, spaceID, []time.Time{now.Add(-400 * time.Second), now.Add(-300 * time.Second), now.Add(-200 * time.Second), now.Add(-50 * time.Second)})
 
 	oldest, err := s.OldestAuditEventAt(ctx)
 	if err != nil {
@@ -188,10 +188,10 @@ func TestPruneAuditEventsRemovesOnlyWhatExpired(t *testing.T) {
 func TestPruneAuditEventsIgnoresAZeroCutoff(t *testing.T) {
 	s, ctx := newTestStore(t)
 	actor := newTestUser(t, s, "audit")
-	teamID := newTestTeam(t, s, actor)
+	spaceID := newTestSpace(t, s, actor)
 	t.Cleanup(func() { _ = s.db.WithContext(ctx).Delete(&auditEventRow{}, "actor_id = ?", actor).Error })
 
-	seedAuditEvents(t, s, ctx, actor, teamID, []time.Time{at(100)})
+	seedAuditEvents(t, s, ctx, actor, spaceID, []time.Time{at(100)})
 
 	removed, err := s.PruneAuditEvents(ctx, time.Time{}, 100)
 	if err != nil {

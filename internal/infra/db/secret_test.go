@@ -14,10 +14,10 @@ import (
 // The db Store must satisfy the domain contract.
 var _ coresecret.Store = (*Store)(nil)
 
-// secretTestTeam creates a throwaway user and returns its id and personal team
-// id, registering cleanup of the user (and its team) plus any secret rows the
+// secretTestSpace creates a throwaway user and returns its id and personal space
+// id, registering cleanup of the user (and its space) plus any secret rows the
 // test leaves behind.
-func secretTestTeam(t *testing.T, s *Store, email string) (userID, teamID string) {
+func secretTestSpace(t *testing.T, s *Store, email string) (userID, spaceID string) {
 	t.Helper()
 	ctx := context.Background()
 	if existing, _ := s.UserByEmail(ctx, email); existing != nil {
@@ -27,15 +27,15 @@ func secretTestTeam(t *testing.T, s *Store, email string) (userID, teamID string
 	if err != nil {
 		t.Fatalf("CreateUser: %v", err)
 	}
-	team, err := s.GetPersonalTeamByUser(ctx, u.ID)
+	space, err := s.GetPersonalSpaceByUser(ctx, u.ID)
 	if err != nil {
-		t.Fatalf("GetPersonalTeamByUser: %v", err)
+		t.Fatalf("GetPersonalSpaceByUser: %v", err)
 	}
 	t.Cleanup(func() {
-		s.db.Where("team_id IN (SELECT id FROM team WHERE public_id = ?)", team.ID).Delete(&secretRow{})
+		s.db.Where("space_id IN (SELECT id FROM space WHERE public_id = ?)", space.ID).Delete(&secretRow{})
 		deleteTestUser(t, s, u.ID)
 	})
-	return u.ID, team.ID
+	return u.ID, space.ID
 }
 
 func sealedFixture(cipher, nonce, wrapped []byte, keyID string) coresecret.Sealed {
@@ -52,11 +52,11 @@ func TestSecretStore_CreateGetSealedRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	userID, teamID := secretTestTeam(t, s, "secret-roundtrip@example.com")
+	userID, spaceID := secretTestSpace(t, s, "secret-roundtrip@example.com")
 
 	sealed := sealedFixture([]byte("cipher-bytes"), []byte("nonce12bytes"), []byte("wrapped-dek"), "file:root:1")
 	created, err := s.CreateSecret(ctx, coresecret.CreateInput{
-		TeamID:      teamID,
+		SpaceID:     spaceID,
 		Name:        "aws-prod",
 		Description: "prod read-only",
 		CreatedBy:   userID,
@@ -66,7 +66,7 @@ func TestSecretStore_CreateGetSealedRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateSecret: %v", err)
 	}
-	if created.ID == "" || created.TeamID != teamID || created.CreatedBy != userID {
+	if created.ID == "" || created.SpaceID != spaceID || created.CreatedBy != userID {
 		t.Fatalf("created secret = %+v", created)
 	}
 	if created.Provider != coresecret.ProviderEmbedded || created.State != coresecret.StateActive {
@@ -106,10 +106,10 @@ func TestSecretStore_UpdateItemsRewritesWhole(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	userID, teamID := secretTestTeam(t, s, "secret-update@example.com")
+	userID, spaceID := secretTestSpace(t, s, "secret-update@example.com")
 
 	created, err := s.CreateSecret(ctx, coresecret.CreateInput{
-		TeamID: teamID, Name: "gh", CreatedBy: userID,
+		SpaceID: spaceID, Name: "gh", CreatedBy: userID,
 		ItemNames: []string{"token"},
 		Sealed:    sealedFixture([]byte("v1"), []byte("n1"), []byte("w1"), "file:root:1"),
 	})
@@ -144,10 +144,10 @@ func TestSecretStore_DestroyClearsMaterial(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	userID, teamID := secretTestTeam(t, s, "secret-destroy@example.com")
+	userID, spaceID := secretTestSpace(t, s, "secret-destroy@example.com")
 
 	created, err := s.CreateSecret(ctx, coresecret.CreateInput{
-		TeamID: teamID, Name: "temp", CreatedBy: userID,
+		SpaceID: spaceID, Name: "temp", CreatedBy: userID,
 		ItemNames: []string{"token"},
 		Sealed:    sealedFixture([]byte("v1"), []byte("n1"), []byte("w1"), "file:root:1"),
 	})
@@ -179,7 +179,7 @@ func TestSecretStore_DestroyClearsMaterial(t *testing.T) {
 	}
 }
 
-func TestSecretStore_TeamScopeAndUniqueness(t *testing.T) {
+func TestSecretStore_SpaceScopeAndUniqueness(t *testing.T) {
 	dsn := os.Getenv(config.EnvKeyBuildmaxTestDSN)
 	if dsn == "" {
 		t.Skip(config.EnvKeyBuildmaxTestDSN + " not set, skipping store integration test")
@@ -189,36 +189,36 @@ func TestSecretStore_TeamScopeAndUniqueness(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	userA, teamA := secretTestTeam(t, s, "secret-scope-a@example.com")
-	_, teamB := secretTestTeam(t, s, "secret-scope-b@example.com")
+	userA, spaceA := secretTestSpace(t, s, "secret-scope-a@example.com")
+	_, spaceB := secretTestSpace(t, s, "secret-scope-b@example.com")
 
-	mk := func(team, name string) error {
+	mk := func(space, name string) error {
 		_, err := s.CreateSecret(ctx, coresecret.CreateInput{
-			TeamID: team, Name: name, CreatedBy: userA,
+			SpaceID: space, Name: name, CreatedBy: userA,
 			ItemNames: []string{"k"},
 			Sealed:    sealedFixture([]byte("c"), []byte("n"), []byte("w"), "file:root:1"),
 		})
 		return err
 	}
-	if err := mk(teamA, "dup"); err != nil {
+	if err := mk(spaceA, "dup"); err != nil {
 		t.Fatalf("first create: %v", err)
 	}
-	if err := mk(teamA, "dup"); err == nil {
-		t.Fatal("second create with same (team,name) should fail")
+	if err := mk(spaceA, "dup"); err == nil {
+		t.Fatal("second create with same (space,name) should fail")
 	}
-	// Same name in another team is fine.
-	if err := mk(teamB, "dup"); err != nil {
-		t.Fatalf("same name in another team: %v", err)
+	// Same name in another space is fine.
+	if err := mk(spaceB, "dup"); err != nil {
+		t.Fatalf("same name in another space: %v", err)
 	}
 
-	// A listing is scoped to its team.
-	listA, err := s.ListSecretsByTeam(ctx, teamA)
+	// A listing is scoped to its space.
+	listA, err := s.ListSecretsBySpace(ctx, spaceA)
 	if err != nil {
-		t.Fatalf("ListSecretsByTeam A: %v", err)
+		t.Fatalf("ListSecretsBySpace A: %v", err)
 	}
 	for _, sec := range listA {
-		if sec.TeamID != teamA {
-			t.Fatalf("team A listing leaked %s from %s", sec.ID, sec.TeamID)
+		if sec.SpaceID != spaceA {
+			t.Fatalf("space A listing leaked %s from %s", sec.ID, sec.SpaceID)
 		}
 	}
 }

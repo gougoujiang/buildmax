@@ -20,7 +20,7 @@ import (
 func workerRunClaims() authtoken.RunClaims {
 	return authtoken.RunClaims{
 		UserID:    llmTestUser,
-		TeamID:    llmTestTeam,
+		SpaceID:   llmTestSpace,
 		TaskRunID: "r_1",
 		TaskID:    "t_1",
 	}
@@ -46,7 +46,7 @@ func workerLLMHandler(gateway *llmgateway.Service, runStatus string) http.Handle
 		Gateway:   gateway,
 		TaskRuns: &mock.MockTaskRunStore{
 			Runs:     []coretask.Run{{ID: "r_1", TaskID: "t_1", Status: runStatus, CreatedAt: time.Unix(1, 0).UTC()}},
-			TaskList: []coretask.Task{{ID: "t_1", ConversationID: "c_1", TeamID: llmTestTeam, Status: runStatus, Input: "in", CreatedBy: llmTestUser, CreatedAt: time.Unix(1, 0).UTC()}},
+			TaskList: []coretask.Task{{ID: "t_1", ConversationID: "c_1", SpaceID: llmTestSpace, Status: runStatus, Input: "in", CreatedBy: llmTestUser, CreatedAt: time.Unix(1, 0).UTC()}},
 		},
 	})
 	mux := http.NewServeMux()
@@ -83,7 +83,7 @@ func TestWorkerLLMCompletions(t *testing.T) {
 	})
 
 	// A run token proves which run is calling, but not that the run is still
-	// going. Without the status check a token would keep spending a team's quota
+	// going. Without the status check a token would keep spending a space's quota
 	// against work that finished, right up to its expiry.
 	t.Run("refuses a run that is not executing", func(t *testing.T) {
 		for _, status := range []coretask.RunStatus{
@@ -140,9 +140,9 @@ func TestWorkerLLMCompletions(t *testing.T) {
 
 	// Token and server state must agree. They can only diverge if a run changed
 	// hands after dispatch, and the safe reading of that is refusal.
-	t.Run("refuses a token whose team is not the run's", func(t *testing.T) {
+	t.Run("refuses a token whose space is not the run's", func(t *testing.T) {
 		claims := workerRunClaims()
-		claims.TeamID = "tm_other"
+		claims.SpaceID = "tm_other"
 		rec := workerLLMRequest(t, gateway, string(coretask.RunStatusRunning), workerLLMBody,
 			workerRunToken(t, claims, time.Hour, time.Now()))
 		if rec.Code != http.StatusForbidden {
@@ -151,8 +151,8 @@ func TestWorkerLLMCompletions(t *testing.T) {
 	})
 
 	// A task run belongs to whoever created it. A ledger that recorded only the
-	// team could not answer whose work spent the tokens.
-	t.Run("attributes the call to the run's user and team", func(t *testing.T) {
+	// space could not answer whose work spent the tokens.
+	t.Run("attributes the call to the run's user and space", func(t *testing.T) {
 		attributed := llmTestService(t, &llmStubClient{content: "answer"}, nil)
 		rec := workerLLMRequest(t, attributed, string(coretask.RunStatusRunning), workerLLMBody, validWorkerRunToken(t))
 		if rec.Code != http.StatusOK {
@@ -191,7 +191,7 @@ func TestWorkerLLMCompletions(t *testing.T) {
 	t.Run("rejects a body carrying fields it does not define", func(t *testing.T) {
 		rec := workerLLMRequest(t, gateway,
 			string(coretask.RunStatusRunning),
-			`{"model":"Fast","messages":[{"role":"user","content":"hi"}],"team_id":"tm_other"}`,
+			`{"model":"Fast","messages":[{"role":"user","content":"hi"}],"space_id":"tm_other"}`,
 			validWorkerRunToken(t))
 		if rec.Code != http.StatusBadRequest {
 			t.Errorf("status = %d, want 400 for an unknown field", rec.Code)
@@ -219,7 +219,7 @@ func TestWorkerLLMCompletions(t *testing.T) {
 	})
 }
 
-// workerDenyQuota refuses every team.
+// workerDenyQuota refuses every space.
 type workerDenyQuota struct{}
 
 func (workerDenyQuota) Check(context.Context, string, int, int) (bool, string, error) {
@@ -227,7 +227,7 @@ func (workerDenyQuota) Check(context.Context, string, int, int) (bool, string, e
 }
 
 // TestWorkerLLMCompletionRespectsQuota is where quota is enforced now that a
-// foreground call names no team: a run belongs to exactly one, taken from its
+// foreground call names no space: a run belongs to exactly one, taken from its
 // run token, so this is the route that can be metered against a limit.
 func TestWorkerLLMCompletionRespectsQuota(t *testing.T) {
 	gateway := llmTestService(t, &llmStubClient{content: "answer"}, workerDenyQuota{})

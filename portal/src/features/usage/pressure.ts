@@ -25,14 +25,14 @@ function shareOf(used: number, max?: number): number | null {
 }
 
 /**
- * How close a team is to its quota, or null when it is not close.
+ * How close a space is to its quota, or null when it is not close.
  *
  * A tier with no limits reports nothing rather than reporting comfort: an
  * unknown limit and a generous one look identical from here, and only one of
  * them means there is nothing to worry about.
  *
  * Runs and tokens are reported together when both are under pressure, because
- * a team that is at its run limit and its token limit has one problem, not two,
+ * a space that is at its run limit and its token limit has one problem, not two,
  * and reading two separate warnings invites fixing only the first.
  *
  * Storage is reported apart from them even when both are tight. It is a stock

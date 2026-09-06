@@ -15,23 +15,23 @@ var (
 	ErrNotAssignedToAgent = apierr.New(apierr.KindInvalid, "issue not assigned to agent")
 	// ErrNotAssignedToWorkflow means the Issue names no Workflow to start.
 	ErrNotAssignedToWorkflow = apierr.New(apierr.KindInvalid, "issue not assigned to workflow")
-	// ErrAssignedAgentGone means the Issue names an Agent the team no longer
+	// ErrAssignedAgentGone means the Issue names an Agent the space no longer
 	// has. An assignment outlives a deletion, so this is reachable.
 	ErrAssignedAgentGone = apierr.New(apierr.KindInvalid, "agent not found")
 )
 
-// Admitter reports whether a team may start one more background run.
+// Admitter reports whether a space may start one more background run.
 //
 // It is asked before anything is written. The task service checks the same
 // allowance when it creates the task; this early check keeps admission failures
 // ahead of persistence.
 type Admitter interface {
-	Admits(ctx context.Context, teamID string) error
+	Admits(ctx context.Context, spaceID string) error
 }
 
 // StartAssignedAgentCmd starts the Agent an Issue is assigned to.
 type StartAssignedAgentCmd struct {
-	TeamID  string
+	SpaceID string
 	IssueID string
 	UserID  string
 	// Input overrides what the Agent is asked. Empty means the Issue itself.
@@ -46,11 +46,11 @@ type StartAssignedAgentPlan struct {
 }
 
 // PlanAssignedAgentRun validates the Issue and its assignment, asks whether the
-// team may start a run, and only then opens the conversation.
+// space may start a run, and only then opens the conversation.
 //
 // The order is the point. Validating after the write leaves a bad request with
 // a conversation attached to it; opening the conversation before asking about
-// the allowance leaves one behind on every refusal, which a team at its run
+// the allowance leaves one behind on every refusal, which a space at its run
 // limit hits on every attempt.
 func (s *Service) PlanAssignedAgentRun(
 	ctx context.Context,
@@ -60,7 +60,7 @@ func (s *Service) PlanAssignedAgentRun(
 	if s.Issues == nil {
 		return nil, ErrIssuesNotConfigured
 	}
-	issue, err := s.GetIssue(ctx, cmd.TeamID, cmd.IssueID)
+	issue, err := s.GetIssue(ctx, cmd.SpaceID, cmd.IssueID)
 	if err != nil {
 		return nil, err
 	}
@@ -74,12 +74,12 @@ func (s *Service) PlanAssignedAgentRun(
 		if err != nil {
 			return nil, fmt.Errorf("read agent: %w", err)
 		}
-		if agent == nil || agent.TeamID != cmd.TeamID {
+		if agent == nil || agent.SpaceID != cmd.SpaceID {
 			return nil, ErrAssignedAgentGone
 		}
 	}
 	if admitter != nil {
-		if err := admitter.Admits(ctx, cmd.TeamID); err != nil {
+		if err := admitter.Admits(ctx, cmd.SpaceID); err != nil {
 			return nil, err
 		}
 	}
@@ -89,8 +89,8 @@ func (s *Service) PlanAssignedAgentRun(
 // AssignedWorkflowID validates that the Issue names a Workflow to start and
 // reports which, so the caller does not repeat the assignment rules the
 // workflow service would otherwise check a second time.
-func (s *Service) AssignedWorkflowID(ctx context.Context, teamID, issueID string) (*coreissue.Issue, string, error) {
-	issue, err := s.GetIssue(ctx, teamID, issueID)
+func (s *Service) AssignedWorkflowID(ctx context.Context, spaceID, issueID string) (*coreissue.Issue, string, error) {
+	issue, err := s.GetIssue(ctx, spaceID, issueID)
 	if err != nil {
 		return nil, "", err
 	}

@@ -13,10 +13,10 @@ import (
 
 // issueCommentRow is one statement about an issue.
 //
-// It carries no team_id: a comment's team is its issue's team, and every
+// It carries no space_id: a comment's space is its issue's space, and every
 // handler already loads the issue to authorize. Denormalizing the
 // authorization key would give it a second place to be wrong. This follows
-// conversation_message, which resolves its team through its conversation.
+// conversation_message, which resolves its space through its conversation.
 type issueCommentRow struct {
 	ID       uint64 `gorm:"primaryKey;autoIncrement"`
 	PublicID string `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_issue_comment_public_id;not null"`

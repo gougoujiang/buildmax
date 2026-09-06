@@ -7,7 +7,7 @@ import type { ApiTask } from "../../../lib/api/types"
 import { cancelTask, getTasks, retryTask } from "../../tasks/api"
 
 interface UseConversationTasksOptions {
-  teamId: string | null
+  spaceId: string | null
   conversationId: string
   token: string | null
 }
@@ -44,7 +44,7 @@ export interface ConversationTaskCards {
  * event rather than a card that never appears at all.
  */
 export function useConversationTasks({
-  teamId,
+  spaceId,
   conversationId,
   token,
 }: UseConversationTasksOptions): ConversationTaskCards {
@@ -53,8 +53,8 @@ export function useConversationTasks({
     data: tasks,
     error: tasksError,
     refetch,
-  } = useFetch(() => getTasks(teamId!, conversationId, token!), [teamId, conversationId, token], {
-    enabled: !!(token && teamId && conversationId),
+  } = useFetch(() => getTasks(spaceId!, conversationId, token!), [spaceId, conversationId, token], {
+    enabled: !!(token && spaceId && conversationId),
     errorMessage: (e) => getErrorMessage(e, "Failed to load tasks"),
   })
 
@@ -81,7 +81,7 @@ export function useConversationTasks({
       if (payload?.conversation_id !== conversationId) return
       reload()
     }
-    // The event names a task, not a conversation, so any of the team's tasks
+    // The event names a task, not a conversation, so any of the space's tasks
     // changing reloads this conversation's. The alternative is keeping a
     // task-to-conversation map on the client and trusting it to be complete.
     const onTaskStatus = () => reload()
@@ -97,18 +97,18 @@ export function useConversationTasks({
   }, [ws, conversationId])
 
   const runAction = useCallback(
-    (taskId: string, action: (teamId: string, taskId: string, token: string) => Promise<unknown>, failed: string) => {
-      if (!teamId || !token) return
+    (taskId: string, action: (spaceId: string, taskId: string, token: string) => Promise<unknown>, failed: string) => {
+      if (!spaceId || !token) return
       setBusyTaskId(taskId)
       setActionError(null)
-      action(teamId, taskId, token)
+      action(spaceId, taskId, token)
         .catch((err) => setActionError(getErrorMessage(err, failed)))
         .finally(() => {
           setBusyTaskId(null)
           refetchRef.current()
         })
     },
-    [teamId, token]
+    [spaceId, token]
   )
 
   const stop = useCallback(

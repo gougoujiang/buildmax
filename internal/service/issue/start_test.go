@@ -19,15 +19,15 @@ func (a refusingAdmitter) Admits(context.Context, string) error { return a.err }
 func assignedIssue(t *testing.T, kind, assigneeID string) (*issue.Service, string) {
 	t.Helper()
 	issues := &mock.MockIssueStore{}
-	created, err := issues.CreateIssueInTeam(context.Background(), "tm_1", "u_1",
+	created, err := issues.CreateIssueInSpace(context.Background(), "tm_1", "u_1",
 		coreissue.CreateInput{Title: "Do the thing"})
 	if err != nil {
-		t.Fatalf("CreateIssueInTeam: %v", err)
+		t.Fatalf("CreateIssueInSpace: %v", err)
 	}
-	if _, err := issues.UpdateIssueInTeam(context.Background(), created.ID, "tm_1", coreissue.UpdateInput{
+	if _, err := issues.UpdateIssueInSpace(context.Background(), created.ID, "tm_1", coreissue.UpdateInput{
 		AssigneeKind: util.Ptr(kind), AssigneeID: util.Ptr(assigneeID),
 	}); err != nil {
-		t.Fatalf("UpdateIssueInTeam: %v", err)
+		t.Fatalf("UpdateIssueInSpace: %v", err)
 	}
 	return &issue.Service{Issues: issues}, created.ID
 }
@@ -37,7 +37,7 @@ func TestARefusedRunReturnsTheAdmissionError(t *testing.T) {
 	quota := apierr.New(apierr.KindQuotaExceeded, "quota exceeded: run limit")
 
 	_, err := svc.PlanAssignedAgentRun(context.Background(),
-		issue.StartAssignedAgentCmd{TeamID: "tm_1", IssueID: issueID, UserID: "u_1"},
+		issue.StartAssignedAgentCmd{SpaceID: "tm_1", IssueID: issueID, UserID: "u_1"},
 		refusingAdmitter{err: quota})
 
 	if !errors.Is(err, quota) {
@@ -47,14 +47,14 @@ func TestARefusedRunReturnsTheAdmissionError(t *testing.T) {
 
 func TestAnUnassignedIssueIsRefused(t *testing.T) {
 	issues := &mock.MockIssueStore{}
-	created, err := issues.CreateIssueInTeam(context.Background(), "tm_1", "u_1",
+	created, err := issues.CreateIssueInSpace(context.Background(), "tm_1", "u_1",
 		coreissue.CreateInput{Title: "Nobody's job"})
 	if err != nil {
-		t.Fatalf("CreateIssueInTeam: %v", err)
+		t.Fatalf("CreateIssueInSpace: %v", err)
 	}
 	svc := &issue.Service{Issues: issues}
 	_, err = svc.PlanAssignedAgentRun(context.Background(),
-		issue.StartAssignedAgentCmd{TeamID: "tm_1", IssueID: created.ID, UserID: "u_1"}, nil)
+		issue.StartAssignedAgentCmd{SpaceID: "tm_1", IssueID: created.ID, UserID: "u_1"}, nil)
 
 	if !errors.Is(err, issue.ErrNotAssignedToAgent) {
 		t.Fatalf("err = %v, want ErrNotAssignedToAgent", err)
@@ -65,7 +65,7 @@ func TestAnAdmittedRunReturnsTheAssignedAgent(t *testing.T) {
 	svc, issueID := assignedIssue(t, coreissue.AssigneeAgent, "ag_1")
 
 	plan, err := svc.PlanAssignedAgentRun(context.Background(),
-		issue.StartAssignedAgentCmd{TeamID: "tm_1", IssueID: issueID, UserID: "u_1"},
+		issue.StartAssignedAgentCmd{SpaceID: "tm_1", IssueID: issueID, UserID: "u_1"},
 		refusingAdmitter{err: nil})
 	if err != nil {
 		t.Fatalf("an admitted run was refused: %v", err)

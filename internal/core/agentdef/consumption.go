@@ -5,23 +5,23 @@ import (
 	"sort"
 )
 
-// SecretConsumption is how an Agent revision consumes Team Secrets. It is part
+// SecretConsumption is how an Agent revision consumes Space Secrets. It is part
 // of the Agent definition and versioned with it, so a run's grants come from
 // immutable state while the Secret values behind them stay live. Env is the
-// only delivery today; file rendering (docs/design/team-secrets.md §6.3) is
+// only delivery today; file rendering (docs/design/space-secrets.md §6.3) is
 // added with its renderers. See §6.
 type SecretConsumption struct {
 	Env []SecretEnvGrant `json:"env,omitempty"`
 }
 
-// SecretEnvGrant delivers a Team Secret into a run's environment in one of two
+// SecretEnvGrant delivers a Space Secret into a run's environment in one of two
 // forms. A selected item sets Item and EnvName: that item arrives under that
 // variable name. The whole group leaves Item empty: every item arrives under
 // its own name, optionally with Prefix. Optional inverts the default: a grant
 // is required unless it says otherwise, and a required grant that cannot be
 // produced fails the run before the Agent starts.
 type SecretEnvGrant struct {
-	// Secret is the public id of a Secret in the Agent's own Team.
+	// Secret is the public id of a Secret in the Agent's own Space.
 	Secret string `json:"secret"`
 	// Item names one item of the group; empty means the whole group.
 	Item string `json:"item,omitempty"`
@@ -46,7 +46,7 @@ func IsEnvName(s string) bool { return envNamePattern.MatchString(s) }
 
 // Canonical returns the consumption in a stable order, so reordering grants is
 // not an edit that appends a revision. It does not validate; that is the
-// service's job against live Team Secrets.
+// service's job against live Space Secrets.
 func (c SecretConsumption) Canonical() SecretConsumption {
 	if len(c.Env) == 0 {
 		return SecretConsumption{}

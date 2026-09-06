@@ -40,9 +40,9 @@ type TaskRunUpdater interface {
 	UpdateRunStatus(ctx context.Context, taskRunID string, req *workerclient.PatchTaskRunRequest) error
 }
 
-// RunScope identifies a task run inside its owning team.
+// RunScope identifies a task run inside its owning space.
 type RunScope struct {
-	TeamID    string
+	SpaceID   string
 	TaskID    string
 	TaskRunID string
 }
@@ -69,11 +69,11 @@ type runDirs struct {
 	runArtifacts string
 	runGlobal    string
 	// runOSHome is the run's own operating-system HOME, empty at start and not
-	// uploaded. It is separate from runHome (the team's materialized persistent
+	// uploaded. It is separate from runHome (the space's materialized persistent
 	// files) and runGlobal (BUILDMAX_HOME): a run must not inherit the shared
 	// container HOME, or one run's tool state under ~/.config leaks into the
 	// next. It is also where rendered credential files will land -- see
-	// docs/design/team-secrets.md §8.
+	// docs/design/space-secrets.md §8.
 	runOSHome string
 }
 
@@ -137,7 +137,7 @@ type RunTaskInput struct {
 	// re-sent whole on every call, instead of riding in the task input where compaction
 	// eventually drops it.
 	AdditionalSystemPrompt string
-	TeamAgentInstructions  string
+	SpaceAgentInstructions string
 	Run                    *coretask.Run
 	SessionID              string
 	Paths                  RuntimePaths
@@ -167,11 +167,11 @@ type RunTaskInput struct {
 	// docs/design/agent-sandbox-policy.md.
 	SandboxNetworkTier    config.SandboxNetworkTier
 	SandboxFilesystemTier config.SandboxFilesystemTier
-	// SecretEnvGrants are this run's resolved Team Secret grants, variable name
+	// SecretEnvGrants are this run's resolved Space Secret grants, variable name
 	// to value, computed by the server from the agent's consumption config.
 	// They are set in the run's environment and their names are allow-listed
 	// past env scrubbing. Empty when the agent consumes no Secret. See
-	// docs/design/team-secrets.md §8.2.
+	// docs/design/space-secrets.md §8.2.
 	SecretEnvGrants map[string]string
 	// InterruptGrace is how long this run may spend reporting after its process
 	// is asked to stop. Zero uses interruptReportTimeout. A dispatcher that will
@@ -185,7 +185,7 @@ type RunTaskInput struct {
 //
 // A worker holds object-store credentials and could write the bytes itself.
 // Going through the server is the point: one code path creates artifacts, and a
-// worker is never told which team it is writing to — the run token names the
+// worker is never told which space it is writing to — the run token names the
 // run, and the server derives the rest.
 func artifactPublisher(cfg workerclient.WorkerAPIClientConfig, taskRunID string) tool.ArtifactPublisher {
 	if cfg.BaseURL == "" || cfg.Token == "" || taskRunID == "" {
@@ -230,7 +230,7 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 		return errors.New("runtime: paths, persist, runOutputStorage and updater must not be nil")
 	}
 	dirs := resolveRunDirs(input.Paths, task, run)
-	scope := RunScope{TeamID: task.TeamID, TaskID: task.ID, TaskRunID: run.ID}
+	scope := RunScope{SpaceID: task.SpaceID, TaskID: task.ID, TaskRunID: run.ID}
 
 	if err := prepareRunWorkspace(ctx, input, task, run, dirs); err != nil {
 		if stopped, stopErr := reportStoppedRun(ctx, scope, runResult{RunArtifactsDir: dirs.runArtifacts}, dirs, input); stopped {
@@ -356,12 +356,12 @@ func finishStoppedRun(ctx context.Context, scope RunScope, result runResult, dir
 }
 
 func resolveRunDirs(paths RuntimePaths, task *coretask.Task, run *coretask.Run) runDirs {
-	runDir := paths.RuntimeTaskRunDir(task.TeamID, task.ID, run.ID)
+	runDir := paths.RuntimeTaskRunDir(task.SpaceID, task.ID, run.ID)
 	return runDirs{
 		runDir:       runDir,
-		runHome:      paths.RuntimeTaskRunHomeDir(task.TeamID, task.ID, run.ID),
-		runArtifacts: paths.RuntimeTaskRunArtifactsDir(task.TeamID, task.ID, run.ID),
-		runGlobal:    paths.RuntimeTaskRunGlobalDir(task.TeamID, task.ID, run.ID),
+		runHome:      paths.RuntimeTaskRunHomeDir(task.SpaceID, task.ID, run.ID),
+		runArtifacts: paths.RuntimeTaskRunArtifactsDir(task.SpaceID, task.ID, run.ID),
+		runGlobal:    paths.RuntimeTaskRunGlobalDir(task.SpaceID, task.ID, run.ID),
 		// Derived here rather than through RuntimePaths: nothing outside this
 		// package needs to locate the run's OS HOME.
 		runOSHome: filepath.Join(runDir, "oshome"),
@@ -381,8 +381,8 @@ func prepareRunWorkspace(ctx context.Context, input RunTaskInput, task *coretask
 		return err
 	}
 	restoreSessionFromPreviousRun(ctx, task, run, dirs.runGlobal, persist)
-	if err := persist.MaterializeToDir(ctx, task.TeamID, dirs.runHome); err != nil {
-		componentLog().Error("failed to materialize team files", "task_run_id", run.ID, "team_id", task.TeamID, "err", err)
+	if err := persist.MaterializeToDir(ctx, task.SpaceID, dirs.runHome); err != nil {
+		componentLog().Error("failed to materialize space files", "task_run_id", run.ID, "space_id", task.SpaceID, "err", err)
 		return err
 	}
 	if err := WriteRunAgentsMd(dirs.runDir, dirs.runHome); err != nil {
@@ -397,7 +397,7 @@ func executeRunTask(ctx context.Context, input RunTaskInput, task *coretask.Task
 	if task.SessionID != nil {
 		effectiveSessionID = *task.SessionID
 	}
-	agentRun, err := runAgentTask(ctx, run, dirs.runDir, dirs.runGlobal, dirs.runOSHome, effectiveSessionID, input.StreamSender, input.Model, input.Managed, input.ManagedHTTPClient, input.TeamAgentInstructions, input.AdditionalSystemPrompt,
+	agentRun, err := runAgentTask(ctx, run, dirs.runDir, dirs.runGlobal, dirs.runOSHome, effectiveSessionID, input.StreamSender, input.Model, input.Managed, input.ManagedHTTPClient, input.SpaceAgentInstructions, input.AdditionalSystemPrompt,
 		artifactPublisher(input.WorkerAPI, run.ID), issueClient(input.WorkerAPI, task, run.ID),
 		input.SandboxNetworkTier, input.SandboxFilesystemTier, input.SecretEnvGrants)
 	result := runResult{
@@ -456,7 +456,7 @@ func restoreSessionFromPreviousRun(ctx context.Context, task *coretask.Task, run
 	bundleDir := filepath.Join(runGlobalDir, "sessions", *task.SessionID)
 	for _, name := range sessionBundleFiles {
 		data, err := persist.GetRunGlobal(ctx, blob.RunObjectRef{
-			TeamID: task.TeamID, TaskID: task.ID, TaskRunID: *run.PreviousTaskRunID,
+			SpaceID: task.SpaceID, TaskID: task.ID, TaskRunID: *run.PreviousTaskRunID,
 			RelPath: "sessions/" + *task.SessionID + "/" + name,
 		})
 		if err != nil {
@@ -507,7 +507,7 @@ func runtimeModelEntries(runtimeModel config.ModelEntry, managed ManagedInferenc
 	return []config.ModelEntry{runtimeModel}
 }
 
-func runAgentTask(ctx context.Context, run *coretask.Run, runDir, runGlobalDir, runOSHome, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry, managed ManagedInference, managedHTTPClient *http.Client, teamAgentInstructions, additionalSystemPrompt string, publisher tool.ArtifactPublisher, issues tool.IssueClient, sandboxNetworkTier config.SandboxNetworkTier, sandboxFilesystemTier config.SandboxFilesystemTier, secretGrants map[string]string) (agentRunOutput, error) {
+func runAgentTask(ctx context.Context, run *coretask.Run, runDir, runGlobalDir, runOSHome, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry, managed ManagedInference, managedHTTPClient *http.Client, spaceAgentInstructions, additionalSystemPrompt string, publisher tool.ArtifactPublisher, issues tool.IssueClient, sandboxNetworkTier config.SandboxNetworkTier, sandboxFilesystemTier config.SandboxFilesystemTier, secretGrants map[string]string) (agentRunOutput, error) {
 	var sink llm.StreamSink
 	if streamSender != nil {
 		sink = &streamSinkAdapter{ctx: ctx, streamSender: streamSender, taskRunID: run.ID,
@@ -528,7 +528,7 @@ func runAgentTask(ctx context.Context, run *coretask.Run, runDir, runGlobalDir, 
 			Surface:                     managedSurface,
 			AdditionalSystemPrompt:      additionalSystemPrompt,
 			AdditionalSystemPromptLayer: "agent_instructions",
-			TeamAgentInstructions:       teamAgentInstructions,
+			SpaceAgentInstructions:      spaceAgentInstructions,
 			ArtifactPublisher:           publisher,
 			IssueClient:                 issues,
 			// A worker executes model-chosen shell commands, so it resolves
@@ -614,7 +614,7 @@ type streamSinkAdapter struct {
 	taskRunID    string
 	// redactor removes this run's exact Secret values from a streamed delta
 	// before it reaches the watcher. Nil is a no-op. See
-	// docs/design/team-secrets.md §12.
+	// docs/design/space-secrets.md §12.
 	redactor *secretscan.Redactor
 }
 
@@ -629,7 +629,7 @@ func (s *streamSinkAdapter) OnDelta(delta string) {
 }
 
 // withRunEnv scopes BUILDMAX_HOME, the operating-system HOME, and this run's
-// Team Secret grants to the process for the duration of fn. A worker process
+// Space Secret grants to the process for the duration of fn. A worker process
 // runs one run, so setting the process environment is safe -- the same
 // assumption withBuildmaxHome already made for BUILDMAX_HOME alone. USERPROFILE
 // mirrors HOME so tools that read the Windows home variable land in the same
@@ -771,7 +771,7 @@ func uploadTaskRunArtifacts(ctx context.Context, artifactsDir string, scope RunS
 		"runtime: upload run artifacts open failed",
 		func(ctx context.Context, scope RunScope, relPath string, f *os.File) error {
 			return persist.PutRunArtifacts(ctx, blob.RunObjectRef{
-				TeamID: scope.TeamID, TaskID: scope.TaskID, TaskRunID: scope.TaskRunID, RelPath: relPath,
+				SpaceID: scope.SpaceID, TaskID: scope.TaskID, TaskRunID: scope.TaskRunID, RelPath: relPath,
 			}, f)
 		},
 		slog.Warn,
@@ -788,7 +788,7 @@ func uploadRunArtifactsToStorage(ctx context.Context, runArtifactsDir string, sc
 		"runtime: artifact file open failed",
 		func(ctx context.Context, scope RunScope, relPath string, f *os.File) error {
 			return runOutputStorage.PutRunOutputFile(ctx, blob.RunObjectRef{
-				TeamID: scope.TeamID, TaskID: scope.TaskID, TaskRunID: scope.TaskRunID, RelPath: relPath,
+				SpaceID: scope.SpaceID, TaskID: scope.TaskID, TaskRunID: scope.TaskRunID, RelPath: relPath,
 			}, f)
 		},
 		slog.Warn,
@@ -836,7 +836,7 @@ func uploadTaskGlobal(ctx context.Context, globalDir string, scope RunScope, per
 			continue
 		}
 		putErr := persist.PutRunGlobal(ctx, blob.RunObjectRef{
-			TeamID: scope.TeamID, TaskID: scope.TaskID, TaskRunID: scope.TaskRunID,
+			SpaceID: scope.SpaceID, TaskID: scope.TaskID, TaskRunID: scope.TaskRunID,
 			RelPath: filepath.ToSlash(relPath),
 		}, f)
 		_ = f.Close()

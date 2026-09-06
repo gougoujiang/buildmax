@@ -36,7 +36,7 @@ export function sourceLabel(artifact: ApiArtifact): string {
 }
 
 /**
- * mayDelete mirrors the server: an admin or owner may remove anything the team
+ * mayDelete mirrors the server: an admin or owner may remove anything the space
  * holds, and anyone else only what they uploaded themselves. It is duplicated
  * here to decide whether to offer the button, never to decide the outcome.
  */

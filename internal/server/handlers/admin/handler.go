@@ -1,10 +1,10 @@
 // Package admin serves the deployment-scoped routes.
 //
 // It is a package rather than a file group because its boundary is real: every
-// route here requires a system_admin grant and none is team-scoped. Keeping it
-// beside the team-scoped routes meant one Handler could reach every store, so
-// nothing but review stopped an admin route from growing a team's data or a
-// team route from consulting a grant. This Config names what administration
+// route here requires a system_admin grant and none is space-scoped. Keeping it
+// beside the space-scoped routes meant one Handler could reach every store, so
+// nothing but review stopped an admin route from growing a space's data or a
+// space route from consulting a grant. This Config names what administration
 // needs and nothing else.
 package admin
 
@@ -15,8 +15,8 @@ import (
 	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	coreschema "github.com/gougoujiang/buildmax/internal/core/schema"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/server/access"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 	pluginsvc "github.com/gougoujiang/buildmax/internal/service/plugin"
@@ -30,7 +30,7 @@ type Config struct {
 	Users         coreidentity.UserStore
 	LoginCodes    coreidentity.LoginCodeStore
 	RefreshTokens coreidentity.RefreshTokenStore
-	Teams         coreteam.Store
+	Spaces        corespace.Store
 	Grants        coreidentity.SystemGrantStore
 	Audits        coreaudit.Store
 	Models        coregw.ModelStore
@@ -62,7 +62,7 @@ func (h *Handler) guard() *access.Guard {
 	return &access.Guard{
 		JWTSecret: h.cfg.JWTSecret,
 		Users:     h.cfg.Users,
-		Teams:     h.cfg.Teams,
+		Spaces:    h.cfg.Spaces,
 		Grants:    h.cfg.Grants,
 		Audit:     h.cfg.Audit,
 	}
@@ -70,7 +70,7 @@ func (h *Handler) guard() *access.Guard {
 
 // Register adds the deployment-scoped routes.
 //
-// None takes a {team_id}: an admin route that looked team-scoped would invite
+// None takes a {space_id}: an admin route that looked space-scoped would invite
 // exactly the confusion the boundary exists to prevent. See
 // docs/design/system-administration.md.
 func (h *Handler) Register(mux *http.ServeMux) {
@@ -89,8 +89,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/admin/config", h.adminConfigHandler)
 	mux.HandleFunc("GET /api/admin/audit-events", h.listAdminAuditEventsHandler)
 	mux.HandleFunc("GET /api/admin/audit-events/export", h.exportAdminAuditEventsHandler)
-	mux.HandleFunc("GET /api/admin/teams", h.listAdminTeamsHandler)
-	mux.HandleFunc("GET /api/admin/teams/{team_id}", h.getAdminTeamHandler)
+	mux.HandleFunc("GET /api/admin/spaces", h.listAdminSpacesHandler)
+	mux.HandleFunc("GET /api/admin/spaces/{space_id}", h.getAdminSpaceHandler)
 	mux.HandleFunc("GET /api/admin/llm/models", h.listAdminModelsHandler)
 	mux.HandleFunc("POST /api/admin/llm/models/{model_id}/enable", h.setAdminModelEnabledHandler(true))
 	mux.HandleFunc("POST /api/admin/llm/models/{model_id}/disable", h.setAdminModelEnabledHandler(false))

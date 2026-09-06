@@ -358,13 +358,13 @@ func TestValidSandboxTier(t *testing.T) {
 // docs/design/agent-sandbox-policy.md §4.3.
 func TestSandboxResolution_AgentTierLayer(t *testing.T) {
 	res := ResolveSandboxForRun(
-		SandboxConfig{Enabled: true, Network: SandboxNetConfig{AllowedDomains: []string{"team.example"}}},
+		SandboxConfig{Enabled: true, Network: SandboxNetConfig{AllowedDomains: []string{"space.example"}}},
 		SandboxRunOverride{},
 		SandboxConfig{},
 		SandboxSurfaceWorker,
 		TierSandboxConfig(SandboxNetworkTierRegistries, SandboxFilesystemTierWorkspace, SandboxSharedPaths{}),
 	)
-	want := append([]string{"team.example"}, DefaultRegistryDomains()...)
+	want := append([]string{"space.example"}, DefaultRegistryDomains()...)
 	if !sliceEqual(res.Config.Network.AllowedDomains, want) {
 		t.Errorf("AllowedDomains = %v, want %v", res.Config.Network.AllowedDomains, want)
 	}

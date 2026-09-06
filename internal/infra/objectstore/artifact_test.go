@@ -13,13 +13,13 @@ import (
 )
 
 func TestArtifactObjectKeyIsDisjointFromTheOtherKeySpaces(t *testing.T) {
-	ref := coreartifact.Ref{TeamID: "tm_1", ArtifactID: "jsyt7at6cjfr33d73mta"}
+	ref := coreartifact.Ref{SpaceID: "tm_1", ArtifactID: "jsyt7at6cjfr33d73mta"}
 	got := ArtifactObjectKey("workspaces", ref)
-	if got != "workspaces/teams/tm_1/artifacts/jsyt7at6cjfr33d73mta/content" {
+	if got != "workspaces/spaces/tm_1/artifacts/jsyt7at6cjfr33d73mta/content" {
 		t.Fatalf("key = %q", got)
 	}
-	// Unified artifacts retain their own literal "teams" namespace while run
-	// output and home files live directly under the owning team's ID.
+	// Unified artifacts retain their own literal "spaces" namespace while run
+	// output and home files live directly under the owning space's ID.
 	runOutput, err := RunOutputFileKey("workspaces", "tm_1", "t_1", "r_1", "out.md")
 	if err != nil {
 		t.Fatal(err)
@@ -37,11 +37,11 @@ func TestArtifactObjectKeyIsDisjointFromTheOtherKeySpaces(t *testing.T) {
 
 func TestLocalFSArtifactRoundTrip(t *testing.T) {
 	root := t.TempDir()
-	s := NewLocalFSArtifactStorage(func(teamID, artifactID string) string {
-		return filepath.Join(root, teamID, artifactID)
+	s := NewLocalFSArtifactStorage(func(spaceID, artifactID string) string {
+		return filepath.Join(root, spaceID, artifactID)
 	})
 	ctx := context.Background()
-	ref := coreartifact.Ref{TeamID: "tm_1", ArtifactID: "jsyt7at6cjfr33d73mta"}
+	ref := coreartifact.Ref{SpaceID: "tm_1", ArtifactID: "jsyt7at6cjfr33d73mta"}
 
 	key, err := s.PutArtifact(ctx, ref, strings.NewReader("hello"))
 	if err != nil {
@@ -66,10 +66,10 @@ func TestLocalFSArtifactRoundTrip(t *testing.T) {
 
 func TestLocalFSArtifactMissingContentIsNotFound(t *testing.T) {
 	root := t.TempDir()
-	s := NewLocalFSArtifactStorage(func(teamID, artifactID string) string {
-		return filepath.Join(root, teamID, artifactID)
+	s := NewLocalFSArtifactStorage(func(spaceID, artifactID string) string {
+		return filepath.Join(root, spaceID, artifactID)
 	})
-	_, err := s.OpenArtifact(context.Background(), coreartifact.Ref{TeamID: "tm_1", ArtifactID: "ksyt7at6cjfr33d73mta"})
+	_, err := s.OpenArtifact(context.Background(), coreartifact.Ref{SpaceID: "tm_1", ArtifactID: "ksyt7at6cjfr33d73mta"})
 	if !errors.Is(err, apierr.ErrNotFound) {
 		t.Errorf("err = %v, want apierr.ErrNotFound", err)
 	}
@@ -79,11 +79,11 @@ func TestLocalFSArtifactMissingContentIsNotFound(t *testing.T) {
 // upload whose record never committed.
 func TestLocalFSArtifactRemoveIsRepeatable(t *testing.T) {
 	root := t.TempDir()
-	s := NewLocalFSArtifactStorage(func(teamID, artifactID string) string {
-		return filepath.Join(root, teamID, artifactID)
+	s := NewLocalFSArtifactStorage(func(spaceID, artifactID string) string {
+		return filepath.Join(root, spaceID, artifactID)
 	})
 	ctx := context.Background()
-	ref := coreartifact.Ref{TeamID: "tm_1", ArtifactID: "jsyt7at6cjfr33d73mta"}
+	ref := coreartifact.Ref{SpaceID: "tm_1", ArtifactID: "jsyt7at6cjfr33d73mta"}
 	if _, err := s.PutArtifact(ctx, ref, strings.NewReader("hello")); err != nil {
 		t.Fatal(err)
 	}

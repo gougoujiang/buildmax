@@ -78,18 +78,18 @@ type LLMCallCost struct {
 }
 
 // listTaskRunLLMCallsHandler serves
-// GET /api/teams/{team_id}/task-runs/{task_run_id}/llm-calls.
+// GET /api/spaces/{space_id}/task-runs/{task_run_id}/llm-calls.
 //
 // It answers what a run spent and on which approved model, which until now was
 // recorded and unreachable: the ledger had no route, so the only way to read it
 // was a database query. Diagnosing a run should not require the database
 // password.
 func (h *Handler) listTaskRunLLMCallsHandler(w http.ResponseWriter, r *http.Request) {
-	// Team membership is checked before the ledger, so an unauthenticated caller
+	// Space membership is checked before the ledger, so an unauthenticated caller
 	// learns nothing about whether this deployment records managed calls. Every
-	// other team-scoped route authenticates first, and an authorization matrix is
+	// other space-scoped route authenticates first, and an authorization matrix is
 	// only meaningful if they all agree.
-	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Teams, "teams not configured")
+	_, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.Spaces, "spaces not configured")
 	if !ok {
 		return
 	}
@@ -100,11 +100,11 @@ func (h *Handler) listTaskRunLLMCallsHandler(w http.ResponseWriter, r *http.Requ
 	if !ok {
 		return
 	}
-	// The run has to belong to this team's conversations before its ledger is
-	// read, so a member of one team cannot enumerate another's spending by
+	// The run has to belong to this space's conversations before its ledger is
+	// read, so a member of one space cannot enumerate another's spending by
 	// guessing run ids. This check is the whole authorization: ledger rows carry
-	// no team of their own, and a run belongs to exactly one.
-	if _, _, ok = h.getArtifactRunAndTaskForTeam(w, r, teamID, taskRunID); !ok {
+	// no space of their own, and a run belongs to exactly one.
+	if _, _, ok = h.getArtifactRunAndTaskForSpace(w, r, spaceID, taskRunID); !ok {
 		return
 	}
 
@@ -152,7 +152,7 @@ func toLLMCallSummary(call coregw.Call) LLMCallSummary {
 //
 // The rates come from the row rather than the catalog on purpose: a model's
 // price changes, and recomputing an old call from the new rates would restate
-// what a team already spent. A row written before the snapshot existed has no
+// what a space already spent. A row written before the snapshot existed has no
 // rates and reports no cost, which is the truthful answer — nobody recorded
 // what it was charged.
 func llmCallCost(call coregw.Call) (LLMCallCost, bool) {

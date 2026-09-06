@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
 )
@@ -16,36 +16,36 @@ import (
 const commentTestSecret = "comment-test-secret"
 
 const (
-	commentTeam      = "tm_comments"
-	commentOtherTeam = "tm_comments_other"
+	commentSpace      = "tm_comments"
+	commentOtherSpace = "tm_comments_other"
 )
 
-// commentMux wires an issue in commentTeam and one in commentOtherTeam, so
+// commentMux wires an issue in commentSpace and one in commentOtherSpace, so
 // every test can ask both "does this work" and "does it leak".
 func commentMux(t *testing.T) (*http.ServeMux, *mock.MockIssueStore, *mock.MockIssueCommentStore) {
 	t.Helper()
 	issues := &mock.MockIssueStore{
 		Issues: []coreissue.Issue{
-			{ID: "i_1", UserID: "u_owner", TeamID: commentTeam, Title: "Parent", Status: coreissue.StatusTodo},
-			{ID: "i_2", UserID: "u_owner", TeamID: commentTeam, Title: "Other issue", Status: coreissue.StatusTodo},
-			{ID: "i_far", UserID: "u_stranger", TeamID: commentOtherTeam, Title: "Theirs", Status: coreissue.StatusTodo},
+			{ID: "i_1", UserID: "u_owner", SpaceID: commentSpace, Title: "Parent", Status: coreissue.StatusTodo},
+			{ID: "i_2", UserID: "u_owner", SpaceID: commentSpace, Title: "Other issue", Status: coreissue.StatusTodo},
+			{ID: "i_far", UserID: "u_stranger", SpaceID: commentOtherSpace, Title: "Theirs", Status: coreissue.StatusTodo},
 		},
 	}
 	comments := &mock.MockIssueCommentStore{}
-	teams := &mock.MockTeamStore{
-		Teams: []coreteam.Team{
-			{ID: commentTeam, Name: "Comments", CreatedBy: "u_owner"},
-			{ID: commentOtherTeam, Name: "Other", CreatedBy: "u_stranger"},
+	spaces := &mock.MockSpaceStore{
+		Spaces: []corespace.Space{
+			{ID: commentSpace, Name: "Comments", CreatedBy: "u_owner"},
+			{ID: commentOtherSpace, Name: "Other", CreatedBy: "u_stranger"},
 		},
-		Members: []coreteam.Member{
-			{TeamID: commentTeam, UserID: "u_owner", Role: coreteam.RoleOwner},
-			{TeamID: commentTeam, UserID: "u_member", Role: coreteam.RoleMember},
-			{TeamID: commentOtherTeam, UserID: "u_stranger", Role: coreteam.RoleOwner},
+		Members: []corespace.Member{
+			{SpaceID: commentSpace, UserID: "u_owner", Role: corespace.RoleOwner},
+			{SpaceID: commentSpace, UserID: "u_member", Role: corespace.RoleMember},
+			{SpaceID: commentOtherSpace, UserID: "u_stranger", Role: corespace.RoleOwner},
 		},
 	}
 	h := New(Config{
 		JWTSecret:     commentTestSecret,
-		Teams:         teams,
+		Spaces:        spaces,
 		Issues:        issues,
 		IssueComments: comments,
 	})
@@ -72,7 +72,7 @@ func commentRequest(t *testing.T, mux *http.ServeMux, method, path, userID, body
 
 func TestIssueComments_CreateListEditDelete(t *testing.T) {
 	mux, _, store := commentMux(t)
-	base := "/api/teams/" + commentTeam + "/issues/i_1/comments"
+	base := "/api/spaces/" + commentSpace + "/issues/i_1/comments"
 
 	rec := commentRequest(t, mux, http.MethodPost, base, "u_member", `{"body":"blocked on the vendor"}`)
 	if rec.Code != http.StatusCreated {
@@ -121,7 +121,7 @@ func TestIssueComments_CreateListEditDelete(t *testing.T) {
 
 func TestIssueComments_BodyRequired(t *testing.T) {
 	mux, _, _ := commentMux(t)
-	rec := commentRequest(t, mux, http.MethodPost, "/api/teams/"+commentTeam+"/issues/i_1/comments", "u_member", `{"body":"  "}`)
+	rec := commentRequest(t, mux, http.MethodPost, "/api/spaces/"+commentSpace+"/issues/i_1/comments", "u_member", `{"body":"  "}`)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", rec.Code)
 	}
@@ -133,18 +133,18 @@ func TestIssueComments_TooLong(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
-	rec := commentRequest(t, mux, http.MethodPost, "/api/teams/"+commentTeam+"/issues/i_1/comments", "u_member", string(body))
+	rec := commentRequest(t, mux, http.MethodPost, "/api/spaces/"+commentSpace+"/issues/i_1/comments", "u_member", string(body))
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400, body=%s", rec.Code, rec.Body.String())
 	}
 }
 
-// The issue is what authorizes a comment request, so an issue in another team
-// is not found even though the comment routes never name a team resource of
+// The issue is what authorizes a comment request, so an issue in another space
+// is not found even though the comment routes never name a space resource of
 // their own.
-func TestIssueComments_IssueInAnotherTeam(t *testing.T) {
+func TestIssueComments_IssueInAnotherSpace(t *testing.T) {
 	mux, _, _ := commentMux(t)
-	rec := commentRequest(t, mux, http.MethodGet, "/api/teams/"+commentTeam+"/issues/i_far/comments", "u_owner", "")
+	rec := commentRequest(t, mux, http.MethodGet, "/api/spaces/"+commentSpace+"/issues/i_far/comments", "u_owner", "")
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("status = %d, want 404", rec.Code)
 	}
@@ -154,7 +154,7 @@ func TestIssueComments_IssueInAnotherTeam(t *testing.T) {
 // issue's path, or the issue check would authorize a write somewhere else.
 func TestIssueComments_CommentFromAnotherIssue(t *testing.T) {
 	mux, _, _ := commentMux(t)
-	rec := commentRequest(t, mux, http.MethodPost, "/api/teams/"+commentTeam+"/issues/i_2/comments", "u_member", `{"body":"on issue two"}`)
+	rec := commentRequest(t, mux, http.MethodPost, "/api/spaces/"+commentSpace+"/issues/i_2/comments", "u_member", `{"body":"on issue two"}`)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("setup create status = %d", rec.Code)
 	}
@@ -162,11 +162,11 @@ func TestIssueComments_CommentFromAnotherIssue(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	rec = commentRequest(t, mux, http.MethodPatch, "/api/teams/"+commentTeam+"/issues/i_1/comments/"+created.ID, "u_member", `{"body":"moved"}`)
+	rec = commentRequest(t, mux, http.MethodPatch, "/api/spaces/"+commentSpace+"/issues/i_1/comments/"+created.ID, "u_member", `{"body":"moved"}`)
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("cross-issue patch status = %d, want 404", rec.Code)
 	}
-	rec = commentRequest(t, mux, http.MethodDelete, "/api/teams/"+commentTeam+"/issues/i_1/comments/"+created.ID, "u_member", "")
+	rec = commentRequest(t, mux, http.MethodDelete, "/api/spaces/"+commentSpace+"/issues/i_1/comments/"+created.ID, "u_member", "")
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("cross-issue delete status = %d, want 404", rec.Code)
 	}
@@ -174,13 +174,13 @@ func TestIssueComments_CommentFromAnotherIssue(t *testing.T) {
 
 func TestIssueComments_EditingSomeoneElsesIsForbidden(t *testing.T) {
 	mux, _, _ := commentMux(t)
-	base := "/api/teams/" + commentTeam + "/issues/i_1/comments"
+	base := "/api/spaces/" + commentSpace + "/issues/i_1/comments"
 	rec := commentRequest(t, mux, http.MethodPost, base, "u_member", `{"body":"mine"}`)
 	var created issueCommentResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	// Even the team owner, who may delete this comment, may not rewrite it.
+	// Even the space owner, who may delete this comment, may not rewrite it.
 	rec = commentRequest(t, mux, http.MethodPatch, base+"/"+created.ID, "u_owner", `{"body":"not mine"}`)
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("owner patch status = %d, want 403", rec.Code)
@@ -189,7 +189,7 @@ func TestIssueComments_EditingSomeoneElsesIsForbidden(t *testing.T) {
 
 func TestIssueComments_DeleteAuthorization(t *testing.T) {
 	mux, _, store := commentMux(t)
-	base := "/api/teams/" + commentTeam + "/issues/i_1/comments"
+	base := "/api/spaces/" + commentSpace + "/issues/i_1/comments"
 	rec := commentRequest(t, mux, http.MethodPost, base, "u_member", `{"body":"mine"}`)
 	var created issueCommentResponse
 	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
@@ -219,23 +219,23 @@ func TestIssueComments_DeleteAuthorization(t *testing.T) {
 // Without a comment store the issue routes must keep working; comments answer
 // 503 rather than the deployment losing its issues.
 func TestIssueComments_NotConfigured(t *testing.T) {
-	teams := &mock.MockTeamStore{
-		Teams:   []coreteam.Team{{ID: commentTeam, Name: "Comments", CreatedBy: "u_owner"}},
-		Members: []coreteam.Member{{TeamID: commentTeam, UserID: "u_owner", Role: coreteam.RoleOwner}},
+	spaces := &mock.MockSpaceStore{
+		Spaces:  []corespace.Space{{ID: commentSpace, Name: "Comments", CreatedBy: "u_owner"}},
+		Members: []corespace.Member{{SpaceID: commentSpace, UserID: "u_owner", Role: corespace.RoleOwner}},
 	}
 	h := New(Config{
 		JWTSecret: commentTestSecret,
-		Teams:     teams,
-		Issues:    &mock.MockIssueStore{Issues: []coreissue.Issue{{ID: "i_1", TeamID: commentTeam}}},
+		Spaces:    spaces,
+		Issues:    &mock.MockIssueStore{Issues: []coreissue.Issue{{ID: "i_1", SpaceID: commentSpace}}},
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)
 
-	rec := commentRequest(t, mux, http.MethodGet, "/api/teams/"+commentTeam+"/issues/i_1/comments", "u_owner", "")
+	rec := commentRequest(t, mux, http.MethodGet, "/api/spaces/"+commentSpace+"/issues/i_1/comments", "u_owner", "")
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Fatalf("comments status = %d, want 503", rec.Code)
 	}
-	rec = commentRequest(t, mux, http.MethodGet, "/api/teams/"+commentTeam+"/issues/i_1", "u_owner", "")
+	rec = commentRequest(t, mux, http.MethodGet, "/api/spaces/"+commentSpace+"/issues/i_1", "u_owner", "")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("issue status = %d, want 200 — issues must survive without comments", rec.Code)
 	}
@@ -247,7 +247,7 @@ func TestIssueComments_NotConfigured(t *testing.T) {
 // recorded writes through a run token.
 func TestIssueComments_LocalAgentReport(t *testing.T) {
 	mux, _, comments := commentMux(t)
-	base := "/api/teams/" + commentTeam + "/issues/i_1/comments"
+	base := "/api/spaces/" + commentSpace + "/issues/i_1/comments"
 	rec := commentRequest(t, mux, http.MethodPost, base, "u_member",
 		`{"body":"Adapter written and tested.","author_kind":"local_agent"}`)
 	if rec.Code != http.StatusCreated {
@@ -278,7 +278,7 @@ func TestIssueComments_LocalAgentReport(t *testing.T) {
 // session would make the thread claim provenance nobody has.
 func TestIssueComments_RefusesBorrowedAuthorKinds(t *testing.T) {
 	mux, _, comments := commentMux(t)
-	base := "/api/teams/" + commentTeam + "/issues/i_1/comments"
+	base := "/api/spaces/" + commentSpace + "/issues/i_1/comments"
 	for _, kind := range []string{"agent", "system", "robot"} {
 		rec := commentRequest(t, mux, http.MethodPost, base, "u_member",
 			`{"body":"not mine to claim","author_kind":"`+kind+`"}`)
@@ -299,7 +299,7 @@ func TestIssueComments_RefusesBorrowedAuthorKinds(t *testing.T) {
 // person who relayed it cannot then edit it into something else.
 func TestIssueComments_LocalAgentReportIsNotEditable(t *testing.T) {
 	mux, _, _ := commentMux(t)
-	base := "/api/teams/" + commentTeam + "/issues/i_1/comments"
+	base := "/api/spaces/" + commentSpace + "/issues/i_1/comments"
 	rec := commentRequest(t, mux, http.MethodPost, base, "u_member",
 		`{"body":"Adapter written.","author_kind":"local_agent"}`)
 	if rec.Code != http.StatusCreated {

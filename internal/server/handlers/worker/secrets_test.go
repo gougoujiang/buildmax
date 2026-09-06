@@ -34,16 +34,16 @@ func (f fakeMaterializer) Materialize(_ context.Context, _, id string) (coresecr
 
 func secretsHandler(t *testing.T, cons agentdef.SecretConsumption, mat SecretMaterializer) (*http.ServeMux, string) {
 	t.Helper()
-	const taskRunID, taskID, teamID = "run-1", "task-1", "tm_1"
+	const taskRunID, taskID, spaceID = "run-1", "task-1", "tm_1"
 	agentID := "a_1"
 	// The consumption is read from the pinned revision, not the live agent. The
 	// run carries revision 1, and the agent's current definition consumes
 	// nothing — so a test that got its grants must have read the pinned one.
 	run := coretask.Run{ID: taskRunID, TaskID: taskID, Status: "RUNNING", AgentRevision: util.Ptr(1), CreatedAt: time.Unix(1, 0).UTC()}
-	task := coretask.Task{ID: taskID, ConversationID: "conv-1", TeamID: teamID, CreatedBy: "u1", AgentID: &agentID}
+	task := coretask.Task{ID: taskID, ConversationID: "conv-1", SpaceID: spaceID, CreatedBy: "u1", AgentID: &agentID}
 	runs := &mock.MockTaskRunStore{Runs: []coretask.Run{run}, TaskList: []coretask.Task{task}}
 	agents := &mock.MockAgentStore{
-		Agents:    []agentdef.Agent{{ID: agentID, TeamID: teamID, Name: "deployer", Revision: 2}},
+		Agents:    []agentdef.Agent{{ID: agentID, SpaceID: spaceID, Name: "deployer", Revision: 2}},
 		Revisions: []agentdef.Revision{{AgentID: agentID, Revision: 1, SecretConsumption: cons}},
 	}
 	h := New(Config{JWTSecret: workerTestSecret, TaskRuns: runs, Agents: agents, Secrets: mat})
@@ -101,15 +101,15 @@ func TestGetTaskRunSecrets_ResolvesGrants(t *testing.T) {
 // is pinned to revision 1, which consumes PINNED; the live agent is now on
 // revision 5 consuming LIVE. Only the pinned grant may come back.
 func TestGetTaskRunSecrets_UsesPinnedRevisionNotLiveAgent(t *testing.T) {
-	const taskRunID, taskID, teamID = "run-1", "task-1", "tm_1"
+	const taskRunID, taskID, spaceID = "run-1", "task-1", "tm_1"
 	agentID := "a_1"
 	run := coretask.Run{ID: taskRunID, TaskID: taskID, Status: "RUNNING", AgentRevision: util.Ptr(1), CreatedAt: time.Unix(1, 0).UTC()}
-	task := coretask.Task{ID: taskID, TeamID: teamID, CreatedBy: "u1", AgentID: &agentID}
+	task := coretask.Task{ID: taskID, SpaceID: spaceID, CreatedBy: "u1", AgentID: &agentID}
 	runs := &mock.MockTaskRunStore{Runs: []coretask.Run{run}, TaskList: []coretask.Task{task}}
 	pinned := agentdef.SecretConsumption{Env: []agentdef.SecretEnvGrant{{Secret: "sec_pinned", Item: "k", EnvName: "PINNED"}}}
 	live := agentdef.SecretConsumption{Env: []agentdef.SecretEnvGrant{{Secret: "sec_live", Item: "k", EnvName: "LIVE"}}}
 	agents := &mock.MockAgentStore{
-		Agents:    []agentdef.Agent{{ID: agentID, TeamID: teamID, Revision: 5, SecretConsumption: live}},
+		Agents:    []agentdef.Agent{{ID: agentID, SpaceID: spaceID, Revision: 5, SecretConsumption: live}},
 		Revisions: []agentdef.Revision{{AgentID: agentID, Revision: 1, SecretConsumption: pinned}},
 	}
 	mat := fakeMaterializer{items: map[string]coresecret.Items{
@@ -188,13 +188,13 @@ func TestGetTaskRunSecrets_OptionalMissingSkipped(t *testing.T) {
 func TestGetTaskRunSecrets_FeatureOffIsEmpty(t *testing.T) {
 	// No Secrets materializer: the route answers an empty grant set, not an error.
 	cons := agentdef.SecretConsumption{Env: []agentdef.SecretEnvGrant{{Secret: "s", Item: "i", EnvName: "X"}}}
-	const taskRunID, taskID, teamID = "run-1", "task-1", "tm_1"
+	const taskRunID, taskID, spaceID = "run-1", "task-1", "tm_1"
 	agentID := "a_1"
 	run := coretask.Run{ID: taskRunID, TaskID: taskID, Status: "RUNNING", AgentRevision: util.Ptr(1), CreatedAt: time.Unix(1, 0).UTC()}
-	task := coretask.Task{ID: taskID, TeamID: teamID, CreatedBy: "u1", AgentID: &agentID}
+	task := coretask.Task{ID: taskID, SpaceID: spaceID, CreatedBy: "u1", AgentID: &agentID}
 	runs := &mock.MockTaskRunStore{Runs: []coretask.Run{run}, TaskList: []coretask.Task{task}}
 	agents := &mock.MockAgentStore{
-		Agents:    []agentdef.Agent{{ID: agentID, TeamID: teamID, Revision: 1}},
+		Agents:    []agentdef.Agent{{ID: agentID, SpaceID: spaceID, Revision: 1}},
 		Revisions: []agentdef.Revision{{AgentID: agentID, Revision: 1, SecretConsumption: cons}},
 	}
 	h := New(Config{JWTSecret: workerTestSecret, TaskRuns: runs, Agents: agents}) // Secrets nil

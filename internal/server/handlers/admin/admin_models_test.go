@@ -42,7 +42,7 @@ func adminModelsMux(t *testing.T) (*http.ServeMux, *mock.MockLLMModelStore, *moc
 		JWTSecret:  testSecret,
 		Grants:     grants,
 		Users:      users,
-		Teams:      &mock.MockTeamStore{},
+		Spaces:     &mock.MockSpaceStore{},
 		Models:     models,
 		Audits:     audits,
 		Audit:      audit.NewRecorder(audits),
@@ -68,7 +68,7 @@ func TestAdminModelsNeverCarryACredential(t *testing.T) {
 }
 
 // TestAdminModelsReportWhichAreReachable: a model no alias points at cannot be
-// called by any team however enabled it is, and that is the most common reason
+// called by any space however enabled it is, and that is the most common reason
 // an operator's model "does not work".
 func TestAdminModelsReportWhichAreReachable(t *testing.T) {
 	mux, _, _ := adminModelsMux(t)
@@ -143,7 +143,7 @@ func TestAdminModelsWithoutACatalogIs503(t *testing.T) {
 		JWTSecret: testSecret,
 		Grants:    grants,
 		Users:     users,
-		Teams:     &mock.MockTeamStore{},
+		Spaces:    &mock.MockSpaceStore{},
 		Audits:    audits,
 		Audit:     audit.NewRecorder(audits),
 	})

@@ -204,7 +204,7 @@ func helpTopics() []helpTopic {
 				{"packages", "Package patterns, default ./..."},
 				{"go test flags", "Passed to `go test` verbatim: -run, -count, -v"},
 			},
-			examples: []string{"test", "test race", "test ./internal/tool -run TestNames", "test mysql", "test mysql -run TestCreateTeam"},
+			examples: []string{"test", "test race", "test ./internal/tool -run TestNames", "test mysql", "test mysql -run TestCreateSpace"},
 			see:      "docs/contribute/testing.md",
 		},
 		{
@@ -509,7 +509,7 @@ func helpTopics() []helpTopic {
 					"environment on the server and restarting it; the committed config is untouched.",
 				"`fixtures` fills the running deployment with business data — `seed` fills the\n" +
 					"model catalog; the two do not overlap. It creates a couple of accounts, each\n" +
-					"with its personal team, and for the first (alice@buildmax.local) an agent, a\n" +
+					"with its personal space, and for the first (alice@buildmax.local) an agent, a\n" +
 					"workflow that drives it, and issues across every status with a comment thread.\n" +
 					"It is idempotent: every entity is matched by title or name and skipped when\n" +
 					"present, so automated Portal testing can start from populated views. Sign in\n" +

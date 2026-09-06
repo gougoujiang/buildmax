@@ -31,7 +31,7 @@ const STABLE_CONNECTION_MS = 10000
 export class BuildMaxWebSocket {
   private ws: WebSocket | null = null
   private token: string | null = null
-  private teamId: string | null = null
+  private spaceId: string | null = null
   private handlers = new Map<string, Set<EventHandler>>()
   private intentionalClose = false
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
@@ -44,9 +44,9 @@ export class BuildMaxWebSocket {
   /** Lifecycle callback: called when the connection closes unexpectedly. */
   onClose: (() => void) | null = null
 
-  connect(token: string, teamId?: string | null): void {
+  connect(token: string, spaceId?: string | null): void {
     this.token = token
-    this.teamId = teamId ?? null
+    this.spaceId = spaceId ?? null
     this.intentionalClose = false
     this.openSocket()
   }
@@ -66,7 +66,7 @@ export class BuildMaxWebSocket {
    */
   private async openSocketWithFreshToken(): Promise<void> {
     if (!this.token) return
-    if (!this.teamId) return
+    if (!this.spaceId) return
 
     const token = (await ensureAccessToken()) ?? this.token
     // close() may have been called while the refresh was in flight.
@@ -76,7 +76,7 @@ export class BuildMaxWebSocket {
     const httpBase = getApiBase()
     const wsBase = httpBase.replace(/^http/, "ws")
     const params = new URLSearchParams({ token })
-    const url = `${wsBase}/api/teams/${encodeURIComponent(this.teamId)}/ws?${params.toString()}`
+    const url = `${wsBase}/api/spaces/${encodeURIComponent(this.spaceId)}/ws?${params.toString()}`
 
     console.log("[ws] connecting", wsBase)
     this.ws = new WebSocket(url)

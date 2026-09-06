@@ -18,7 +18,7 @@ import (
 
 type TaskResponse struct {
 	ID             string     `json:"id"`
-	TeamID         string     `json:"team_id"`
+	SpaceID        string     `json:"space_id"`
 	ConversationID string     `json:"conversation_id,omitempty"`
 	SessionID      *string    `json:"session_id,omitempty"`
 	Status         string     `json:"status"`
@@ -49,7 +49,7 @@ type createTaskRequest struct {
 func taskToResponse(task coretask.Task) TaskResponse {
 	return TaskResponse{
 		ID:             task.ID,
-		TeamID:         task.TeamID,
+		SpaceID:        task.SpaceID,
 		ConversationID: task.ConversationID,
 		SessionID:      task.SessionID,
 		Status:         task.Status,
@@ -67,8 +67,8 @@ func taskToResponse(task coretask.Task) TaskResponse {
 	}
 }
 
-func (h *Handler) createTeamTaskHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Tasks, "tasks not configured")
+func (h *Handler) createSpaceTaskHandler(w http.ResponseWriter, r *http.Request) {
+	userID, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.Tasks, "tasks not configured")
 	if !ok {
 		return
 	}
@@ -76,11 +76,11 @@ func (h *Handler) createTeamTaskHandler(w http.ResponseWriter, r *http.Request) 
 	if !httputil.DecodeJSONBody(w, r, &req) {
 		return
 	}
-	h.createDirectTask(w, r, userID, teamID, req)
+	h.createDirectTask(w, r, userID, spaceID, req)
 }
 
 func (h *Handler) createAgentTaskHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Tasks, "tasks not configured")
+	userID, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.Tasks, "tasks not configured")
 	if !ok {
 		return
 	}
@@ -93,12 +93,12 @@ func (h *Handler) createAgentTaskHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	req.AgentID = &agentID
-	h.createDirectTask(w, r, userID, teamID, req)
+	h.createDirectTask(w, r, userID, spaceID, req)
 }
 
-func (h *Handler) createDirectTask(w http.ResponseWriter, r *http.Request, userID, teamID string, req createTaskRequest) {
+func (h *Handler) createDirectTask(w http.ResponseWriter, r *http.Request, userID, spaceID string, req createTaskRequest) {
 	created, err := h.taskService().CreateTask(r.Context(), task.CreateTaskCmd{
-		UserID: userID, TeamID: teamID, Input: req.Input, AgentID: req.AgentID,
+		UserID: userID, SpaceID: spaceID, Input: req.Input, AgentID: req.AgentID,
 		CreatedByType: coretask.RunCreatedByTypeUser,
 		TriggerSource: coretask.RunTriggerSourcePortalTaskCreate,
 	})
@@ -106,14 +106,14 @@ func (h *Handler) createDirectTask(w http.ResponseWriter, r *http.Request, userI
 		if h.writeTaskServiceError(w, r, err, req.AgentID) {
 			return
 		}
-		httputil.WriteInternalError(w, err, "handler error", "handler", "create_direct_task", "team_id", teamID)
+		httputil.WriteInternalError(w, err, "handler error", "handler", "create_direct_task", "space_id", spaceID)
 		return
 	}
 	httputil.WriteJSON(w, http.StatusCreated, taskToResponse(*created))
 }
 
 func (h *Handler) listAgentTasksHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Tasks, "tasks not configured")
+	_, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.Tasks, "tasks not configured")
 	if !ok {
 		return
 	}
@@ -130,12 +130,12 @@ func (h *Handler) listAgentTasksHandler(w http.ResponseWriter, r *http.Request) 
 		httputil.WriteInternalError(w, err, "handler error", "handler", "list_agent_tasks", "agent_id", agentID)
 		return
 	}
-	if agent == nil || agent.TeamID != teamID {
+	if agent == nil || agent.SpaceID != spaceID {
 		httputil.WriteJSONError(w, http.StatusNotFound, "agent not found")
 		return
 	}
 	limit, offset := httputil.LimitOffset(r.URL.Query(), "limit", "offset", httputil.BulkPageDefault, httputil.BulkPageMax)
-	list, total, err := h.cfg.Tasks.ListTasksByAgent(r.Context(), teamID, agentID, limit, offset)
+	list, total, err := h.cfg.Tasks.ListTasksByAgent(r.Context(), spaceID, agentID, limit, offset)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "list_agent_tasks", "agent_id", agentID)
 		return
@@ -182,7 +182,7 @@ func (h *Handler) writeTaskServiceError(w http.ResponseWriter, r *http.Request, 
 	return httputil.WriteServiceError(w, err)
 }
 
-func (h *Handler) getTaskForTeam(w http.ResponseWriter, r *http.Request, teamID, taskID string) (*coretask.Task, *coreconv.Conversation, bool) {
+func (h *Handler) getTaskForSpace(w http.ResponseWriter, r *http.Request, spaceID, taskID string) (*coretask.Task, *coreconv.Conversation, bool) {
 	task, err := h.cfg.Tasks.GetTask(r.Context(), taskID)
 	if err != nil {
 		httputil.WriteInternalError(w, err, "handler error", "handler", "get_task", "task_id", taskID)
@@ -192,7 +192,7 @@ func (h *Handler) getTaskForTeam(w http.ResponseWriter, r *http.Request, teamID,
 		httputil.WriteJSONError(w, http.StatusNotFound, "task not found")
 		return nil, nil, false
 	}
-	if task.TeamID != teamID {
+	if task.SpaceID != spaceID {
 		httputil.WriteJSONError(w, http.StatusNotFound, "task not found")
 		return nil, nil, false
 	}
@@ -205,7 +205,7 @@ type tasksListResponse struct {
 }
 
 func (h *Handler) listConversationTasksHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Tasks, "tasks not configured")
+	_, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.Tasks, "tasks not configured")
 	if !ok {
 		return
 	}
@@ -213,7 +213,7 @@ func (h *Handler) listConversationTasksHandler(w http.ResponseWriter, r *http.Re
 	if !ok {
 		return
 	}
-	if _, ok = h.getConversationForTeam(w, r, teamID, conversationID); !ok {
+	if _, ok = h.getConversationForSpace(w, r, spaceID, conversationID); !ok {
 		return
 	}
 	q := r.URL.Query()
@@ -269,7 +269,7 @@ func (h *Handler) conversationTaskResponses(ctx context.Context, conversationID 
 }
 
 func (h *Handler) createConversationTaskHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Tasks, "tasks not configured")
+	userID, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.Tasks, "tasks not configured")
 	if !ok {
 		return
 	}
@@ -277,7 +277,7 @@ func (h *Handler) createConversationTaskHandler(w http.ResponseWriter, r *http.R
 	if !ok {
 		return
 	}
-	if _, ok = h.getConversationForTeam(w, r, teamID, conversationID); !ok {
+	if _, ok = h.getConversationForSpace(w, r, spaceID, conversationID); !ok {
 		return
 	}
 	var req createTaskRequest
@@ -287,7 +287,7 @@ func (h *Handler) createConversationTaskHandler(w http.ResponseWriter, r *http.R
 	createdTask, err := h.taskService().CreateTask(r.Context(), task.CreateTaskCmd{
 		ConversationID: conversationID,
 		UserID:         userID,
-		TeamID:         teamID,
+		SpaceID:        spaceID,
 		Input:          req.Input,
 		AgentID:        req.AgentID,
 		CreatedByType:  coretask.RunCreatedByTypeUser,
@@ -304,7 +304,7 @@ func (h *Handler) createConversationTaskHandler(w http.ResponseWriter, r *http.R
 }
 
 func (h *Handler) getTaskHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Tasks, "tasks not configured")
+	_, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.Tasks, "tasks not configured")
 	if !ok {
 		return
 	}
@@ -312,7 +312,7 @@ func (h *Handler) getTaskHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	target, _, ok := h.getTaskForTeam(w, r, teamID, taskID)
+	target, _, ok := h.getTaskForSpace(w, r, spaceID, taskID)
 	if !ok {
 		return
 	}
@@ -329,7 +329,7 @@ type createTaskRunRequest struct {
 }
 
 func (h *Handler) createTaskRunHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.TaskRuns, "task runs not configured")
+	userID, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.TaskRuns, "task runs not configured")
 	if !ok {
 		return
 	}
@@ -337,7 +337,7 @@ func (h *Handler) createTaskRunHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	target, _, ok := h.getTaskForTeam(w, r, teamID, taskID)
+	target, _, ok := h.getTaskForSpace(w, r, spaceID, taskID)
 	if !ok {
 		return
 	}
@@ -370,7 +370,7 @@ func (h *Handler) createTaskRunHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) listTaskRunsHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.TaskRuns, "task runs not configured")
+	_, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.TaskRuns, "task runs not configured")
 	if !ok {
 		return
 	}
@@ -378,7 +378,7 @@ func (h *Handler) listTaskRunsHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	target, _, ok := h.getTaskForTeam(w, r, teamID, taskID)
+	target, _, ok := h.getTaskForSpace(w, r, spaceID, taskID)
 	if !ok {
 		return
 	}
@@ -406,7 +406,7 @@ type retryTaskResponse struct {
 // with what the run was asked to do, and making someone retype the instructions
 // to recover from it invites them to retype them differently.
 func (h *Handler) retryTaskHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.TaskRuns, "task runs not configured")
+	userID, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.TaskRuns, "task runs not configured")
 	if !ok {
 		return
 	}
@@ -414,7 +414,7 @@ func (h *Handler) retryTaskHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	target, _, ok := h.getTaskForTeam(w, r, teamID, taskID)
+	target, _, ok := h.getTaskForSpace(w, r, spaceID, taskID)
 	if !ok {
 		return
 	}
@@ -464,7 +464,7 @@ type cancelTaskResponse struct {
 // loop, and pretending otherwise would leave the run's own record lying about
 // what it was doing. `StaleRunReaper` finishes the ones no worker answers for.
 func (h *Handler) cancelTaskHandler(w http.ResponseWriter, r *http.Request) {
-	userID, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.TaskRuns, "task runs not configured")
+	userID, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.TaskRuns, "task runs not configured")
 	if !ok {
 		return
 	}
@@ -472,7 +472,7 @@ func (h *Handler) cancelTaskHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	target, _, ok := h.getTaskForTeam(w, r, teamID, taskID)
+	target, _, ok := h.getTaskForSpace(w, r, spaceID, taskID)
 	if !ok {
 		return
 	}
@@ -573,7 +573,7 @@ type ConversationResponse struct {
 }
 
 func (h *Handler) getTaskConversationHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.Tasks, "tasks not configured")
+	_, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.Tasks, "tasks not configured")
 	if !ok {
 		return
 	}
@@ -582,7 +582,7 @@ func (h *Handler) getTaskConversationHandler(w http.ResponseWriter, r *http.Requ
 		httputil.WriteJSONError(w, http.StatusBadRequest, "task_id required")
 		return
 	}
-	task, _, ok := h.getTaskForTeam(w, r, teamID, taskID)
+	task, _, ok := h.getTaskForSpace(w, r, spaceID, taskID)
 	if !ok {
 		return
 	}

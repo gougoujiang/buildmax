@@ -11,8 +11,8 @@ import (
 	"time"
 
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
@@ -30,7 +30,7 @@ const testTraceBody = `{"ts":"t0","type":"run_start","run_id":"rt_abc","session_
 
 const (
 	traceTestUserID         = "user-1"
-	traceTestTeamID         = "tm_personal_user1"
+	traceTestSpaceID        = "tm_personal_user1"
 	traceTestConversationID = "conv-1"
 	traceTestTaskID         = "task-1"
 	traceTestTaskRunID      = "run-1"
@@ -45,7 +45,7 @@ func traceTestFixture(t *testing.T, tracePath *string, persist blob.PersistStora
 	const (
 		secret         = "test-secret"
 		userID         = traceTestUserID
-		teamID         = traceTestTeamID
+		spaceID        = traceTestSpaceID
 		conversationID = traceTestConversationID
 		taskID         = traceTestTaskID
 		taskRunID      = traceTestTaskRunID
@@ -55,29 +55,29 @@ func traceTestFixture(t *testing.T, tracePath *string, persist blob.PersistStora
 	h := New(Config{
 		JWTSecret:     secret,
 		WorkspacesDir: workspacesDir,
-		Teams: &mock.MockTeamStore{
-			Teams:   []coreteam.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr(userID), CreatedBy: userID}},
-			Members: []coreteam.Member{{TeamID: teamID, UserID: userID, Role: coreteam.RoleOwner}},
+		Spaces: &mock.MockSpaceStore{
+			Spaces:  []corespace.Space{{ID: spaceID, Name: "My Space", PersonalForUserID: util.Ptr(userID), CreatedBy: userID}},
+			Members: []corespace.Member{{SpaceID: spaceID, UserID: userID, Role: corespace.RoleOwner}},
 		},
 		TaskRuns: &mock.MockTaskRunStore{
 			Runs:     []coretask.Run{{ID: taskRunID, TaskID: taskID, Status: "FAILED", TracePath: tracePath, CreatedAt: time.Unix(1, 0).UTC()}},
-			TaskList: []coretask.Task{{ID: taskID, ConversationID: conversationID, TeamID: teamID, Status: "FAILED", Input: "in", CreatedBy: userID, CreatedAt: time.Unix(1, 0).UTC()}},
+			TaskList: []coretask.Task{{ID: taskID, ConversationID: conversationID, SpaceID: spaceID, Status: "FAILED", Input: "in", CreatedBy: userID, CreatedAt: time.Unix(1, 0).UTC()}},
 		},
 		Conversations: &mock.MockConversationStore{
-			Conversations: []coreconv.Conversation{{ID: conversationID, UserID: userID, TeamID: teamID, Channel: "portal", CreatedBy: userID, CreatedAt: time.Unix(1, 0).UTC()}},
+			Conversations: []coreconv.Conversation{{ID: conversationID, UserID: userID, SpaceID: spaceID, Channel: "portal", CreatedBy: userID, CreatedAt: time.Unix(1, 0).UTC()}},
 		},
 		PersistStorage: persist,
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)
-	return mux, token, teamID, taskRunID
+	return mux, token, spaceID, taskRunID
 }
 
 // tracePersist is an object backend that holds the trace, or does not.
 func tracePersist(tracePath *string, stored bool) blob.PersistStorage {
 	persist := mock.NewMockPersistStorage()
 	if stored && tracePath != nil {
-		key := traceTestTeamID + "/" + traceTestTaskID + "/" + traceTestTaskRunID + "/" + *tracePath
+		key := traceTestSpaceID + "/" + traceTestTaskID + "/" + traceTestTaskRunID + "/" + *tracePath
 		persist.RunGlobal[key] = []byte(testTraceBody)
 	}
 	return persist
@@ -88,7 +88,7 @@ func tracePersist(tracePath *string, stored bool) blob.PersistStorage {
 func writeRunGlobalOnDisk(t *testing.T, workspacesDir, relPath, body string) {
 	t.Helper()
 	full := filepath.Join(
-		workspacesDir, traceTestTeamID,
+		workspacesDir, traceTestSpaceID,
 		"tasks", traceTestTaskID,
 		traceTestTaskRunID, "global",
 		filepath.FromSlash(relPath),
@@ -103,9 +103,9 @@ func writeRunGlobalOnDisk(t *testing.T, workspacesDir, relPath, body string) {
 
 func TestGetTaskRunTraceHandler(t *testing.T) {
 	tracePath := util.Ptr("traces/c_s1/rt_abc.jsonl")
-	mux, token, teamID, taskRunID := traceTestFixture(t, tracePath, tracePersist(tracePath, true), "")
+	mux, token, spaceID, taskRunID := traceTestFixture(t, tracePath, tracePersist(tracePath, true), "")
 
-	req := httptest.NewRequest(http.MethodGet, "/api/teams/"+teamID+"/task-runs/"+taskRunID+"/trace", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/spaces/"+spaceID+"/task-runs/"+taskRunID+"/trace", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
@@ -165,8 +165,8 @@ func TestGetTaskRunTraceHandler_DistinguishesNeverWrittenFromLost(t *testing.T) 
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mux, token, teamID, taskRunID := traceTestFixture(t, tt.tracePath, tracePersist(tt.tracePath, tt.storeTrace), "")
-			req := httptest.NewRequest(http.MethodGet, "/api/teams/"+teamID+"/task-runs/"+taskRunID+"/trace", nil)
+			mux, token, spaceID, taskRunID := traceTestFixture(t, tt.tracePath, tracePersist(tt.tracePath, tt.storeTrace), "")
+			req := httptest.NewRequest(http.MethodGet, "/api/spaces/"+spaceID+"/task-runs/"+taskRunID+"/trace", nil)
 			req.Header.Set("Authorization", "Bearer "+token)
 			rec := httptest.NewRecorder()
 			mux.ServeHTTP(rec, req)
@@ -197,12 +197,12 @@ func TestGetTaskRunTraceHandler_ReadsLocalFSRunGlobal(t *testing.T) {
 
 	// The real backend, not a stand-in: what makes this case work is exactly
 	// that local_fs reports ErrNotFound and the handler looks further.
-	persist := blob.NewLocalFSPersistStorage(func(teamID string) string {
-		return filepath.Join(workspaces, teamID, "persist")
+	persist := blob.NewLocalFSPersistStorage(func(spaceID string) string {
+		return filepath.Join(workspaces, spaceID, "persist")
 	})
-	mux, token, teamID, taskRunID := traceTestFixture(t, tracePath, persist, workspaces)
+	mux, token, spaceID, taskRunID := traceTestFixture(t, tracePath, persist, workspaces)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/teams/"+teamID+"/task-runs/"+taskRunID+"/trace", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/spaces/"+spaceID+"/task-runs/"+taskRunID+"/trace", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
@@ -232,12 +232,12 @@ func TestGetTaskRunTraceHandler_RejectsEscapingTracePath(t *testing.T) {
 		t.Fatalf("seed: %v", err)
 	}
 	tracePath := util.Ptr("../../../../../../secret.txt")
-	persist := blob.NewLocalFSPersistStorage(func(teamID string) string {
-		return filepath.Join(workspaces, teamID, "persist")
+	persist := blob.NewLocalFSPersistStorage(func(spaceID string) string {
+		return filepath.Join(workspaces, spaceID, "persist")
 	})
-	mux, token, teamID, taskRunID := traceTestFixture(t, tracePath, persist, workspaces)
+	mux, token, spaceID, taskRunID := traceTestFixture(t, tracePath, persist, workspaces)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/teams/"+teamID+"/task-runs/"+taskRunID+"/trace", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/spaces/"+spaceID+"/task-runs/"+taskRunID+"/trace", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
@@ -250,20 +250,20 @@ func TestGetTaskRunTraceHandler_RejectsEscapingTracePath(t *testing.T) {
 	}
 }
 
-// TestGetTaskRunTraceHandler_DeniesOtherTeams asserts the trace sits behind the
-// same team boundary as the run's artifacts.
-func TestGetTaskRunTraceHandler_DeniesOtherTeams(t *testing.T) {
+// TestGetTaskRunTraceHandler_DeniesOtherSpaces asserts the trace sits behind the
+// same space boundary as the run's artifacts.
+func TestGetTaskRunTraceHandler_DeniesOtherSpaces(t *testing.T) {
 	tracePath := util.Ptr("traces/c_s1/rt_abc.jsonl")
-	mux, _, teamID, taskRunID := traceTestFixture(t, tracePath, tracePersist(tracePath, true), "")
+	mux, _, spaceID, taskRunID := traceTestFixture(t, tracePath, tracePersist(tracePath, true), "")
 	outsider := testsupport.SignJWT("user-2", "test-secret")
 
-	req := httptest.NewRequest(http.MethodGet, "/api/teams/"+teamID+"/task-runs/"+taskRunID+"/trace", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/spaces/"+spaceID+"/task-runs/"+taskRunID+"/trace", nil)
 	req.Header.Set("Authorization", "Bearer "+outsider)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 
 	if rec.Code == http.StatusOK {
-		t.Fatalf("a non-member read another team's trace: %s", rec.Body.String())
+		t.Fatalf("a non-member read another space's trace: %s", rec.Body.String())
 	}
 	if strings.Contains(rec.Body.String(), "rt_abc") {
 		t.Error("the refusal leaked trace content")

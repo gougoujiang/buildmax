@@ -12,8 +12,8 @@ import (
 
 	coreartifact "github.com/gougoujiang/buildmax/internal/core/artifact"
 	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/mock"
@@ -36,43 +36,43 @@ func (e *errRunOutputStorage) GetResult(ctx context.Context, ref blob.RunRef) ([
 }
 
 type outputsFixtures struct {
-	mux         *http.ServeMux
-	tasks       *mock.MockTaskStore
-	workflows   *mock.MockWorkflowStore
-	runLister   *mock.MockRunOutputLister
-	artifacts   *mock.MockRunOutputStorage
-	published   *mock.MockArtifactStore
-	taskRuns    *mock.MockTaskRunStore
-	personalID  string
-	otherTeamID string
+	mux          *http.ServeMux
+	tasks        *mock.MockTaskStore
+	workflows    *mock.MockWorkflowStore
+	runLister    *mock.MockRunOutputLister
+	artifacts    *mock.MockRunOutputStorage
+	published    *mock.MockArtifactStore
+	taskRuns     *mock.MockTaskRunStore
+	personalID   string
+	otherSpaceID string
 }
 
 func newOutputsFixtures(t *testing.T, runOutputStorage blob.RunOutputStorage) *outputsFixtures {
 	t.Helper()
-	personalTeamID := "tm_personal_u1"
-	otherTeamID := "tm_other"
+	personalSpaceID := "tm_personal_u1"
+	otherSpaceID := "tm_other"
 	issues := &mock.MockIssueStore{
 		Issues: []coreissue.Issue{
 			{
-				ID: "i_1", UserID: "u1", TeamID: personalTeamID,
+				ID: "i_1", UserID: "u1", SpaceID: personalSpaceID,
 				Title: "I", Status: coreissue.StatusInProgress,
 				CreatedBy: "u1", CreatedAt: time.Unix(100, 0).UTC(), UpdatedAt: time.Unix(100, 0).UTC(),
 			},
 			{
-				ID: "i_other", UserID: "u2", TeamID: otherTeamID,
+				ID: "i_other", UserID: "u2", SpaceID: otherSpaceID,
 				Title: "Other", Status: coreissue.StatusTodo,
 				CreatedBy: "u2", CreatedAt: time.Unix(50, 0).UTC(), UpdatedAt: time.Unix(50, 0).UTC(),
 			},
 		},
 	}
-	teams := &mock.MockTeamStore{
-		Teams: []coreteam.Team{
-			{ID: personalTeamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"},
-			{ID: otherTeamID, Name: "Other", CreatedBy: "u2"},
+	spaces := &mock.MockSpaceStore{
+		Spaces: []corespace.Space{
+			{ID: personalSpaceID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"},
+			{ID: otherSpaceID, Name: "Other", CreatedBy: "u2"},
 		},
-		Members: []coreteam.Member{
-			{TeamID: personalTeamID, UserID: "u1", Role: coreteam.RoleOwner},
-			{TeamID: otherTeamID, UserID: "u2", Role: coreteam.RoleOwner},
+		Members: []corespace.Member{
+			{SpaceID: personalSpaceID, UserID: "u1", Role: corespace.RoleOwner},
+			{SpaceID: otherSpaceID, UserID: "u2", Role: corespace.RoleOwner},
 		},
 	}
 	tasks := &mock.MockTaskStore{}
@@ -83,7 +83,7 @@ func newOutputsFixtures(t *testing.T, runOutputStorage blob.RunOutputStorage) *o
 
 	h := New(Config{
 		JWTSecret:        outputsTestSecret,
-		Teams:            teams,
+		Spaces:           spaces,
 		Issues:           issues,
 		Agents:           &mock.MockAgentStore{},
 		Workflows:        workflows,
@@ -102,21 +102,21 @@ func newOutputsFixtures(t *testing.T, runOutputStorage blob.RunOutputStorage) *o
 		ms = s
 	}
 	return &outputsFixtures{
-		mux:         mux,
-		tasks:       tasks,
-		workflows:   workflows,
-		runLister:   runLister,
-		artifacts:   ms,
-		published:   published,
-		taskRuns:    taskRuns,
-		personalID:  personalTeamID,
-		otherTeamID: otherTeamID,
+		mux:          mux,
+		tasks:        tasks,
+		workflows:    workflows,
+		runLister:    runLister,
+		artifacts:    ms,
+		published:    published,
+		taskRuns:     taskRuns,
+		personalID:   personalSpaceID,
+		otherSpaceID: otherSpaceID,
 	}
 }
 
-func fetchIssueFlow(t *testing.T, mux *http.ServeMux, teamID, issueID, userID string) (*httptest.ResponseRecorder, issueFlowResponse) {
+func fetchIssueFlow(t *testing.T, mux *http.ServeMux, spaceID, issueID, userID string) (*httptest.ResponseRecorder, issueFlowResponse) {
 	t.Helper()
-	req := httptest.NewRequest(http.MethodGet, "/api/teams/"+teamID+"/issues/"+issueID+"/flow", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/spaces/"+spaceID+"/issues/"+issueID+"/flow", nil)
 	req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT(userID, outputsTestSecret))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
@@ -137,7 +137,7 @@ func TestIssueFlowOutputs_AgentTaskResultMD(t *testing.T) {
 	fx.tasks.List = []coretask.Task{{
 		ID:             taskID,
 		ConversationID: "c_1",
-		TeamID:         fx.personalID,
+		SpaceID:        fx.personalID,
 		IssueID:        util.Ptr("i_1"),
 		Status:         "SUCCEEDED",
 		Input:          "do work",
@@ -149,7 +149,7 @@ func TestIssueFlowOutputs_AgentTaskResultMD(t *testing.T) {
 		{TaskRunID: runID, RelativePath: "result.md"},
 	}
 	if err := artifacts.PutResult(context.Background(), blob.RunRef{
-		TeamID: fx.personalID, TaskID: taskID, TaskRunID: runID,
+		SpaceID: fx.personalID, TaskID: taskID, TaskRunID: runID,
 	}, []byte("# Hello\n\nResult body.")); err != nil {
 		t.Fatalf("put result: %v", err)
 	}
@@ -194,7 +194,7 @@ func TestIssueFlowOutputs_WorkflowStepProvenance(t *testing.T) {
 	// Assign issue to workflow so the issue flow endpoint resolves the workflow.
 	wfID := "w_1"
 	fx.workflows.Workflows = []coreworkflow.Workflow{{
-		ID: wfID, TeamID: fx.personalID, Name: "WF",
+		ID: wfID, SpaceID: fx.personalID, Name: "WF",
 		Definition: `{"steps":[]}`, Status: coreworkflow.StatusPublished,
 	}}
 	// Patch the issue's assignee_kind/id via the underlying store directly.
@@ -220,7 +220,7 @@ func TestIssueFlowOutputs_WorkflowStepProvenance(t *testing.T) {
 	fx.tasks.List = []coretask.Task{{
 		ID:             taskID,
 		ConversationID: "c_1",
-		TeamID:         fx.personalID,
+		SpaceID:        fx.personalID,
 		IssueID:        util.Ptr("i_1"),
 		Status:         "SUCCEEDED",
 		CreatedBy:      "u1",
@@ -231,7 +231,7 @@ func TestIssueFlowOutputs_WorkflowStepProvenance(t *testing.T) {
 		{TaskRunID: runID, RelativePath: "result.md"},
 	}
 	_ = artifacts.PutResult(context.Background(), blob.RunRef{
-		TeamID: fx.personalID, TaskID: taskID, TaskRunID: runID,
+		SpaceID: fx.personalID, TaskID: taskID, TaskRunID: runID,
 	}, []byte("step body"))
 
 	rec, flow := fetchIssueFlow(t, fx.mux, fx.personalID, "i_1", "u1")
@@ -264,7 +264,7 @@ func TestIssueFlowOutputs_MissingArtifactContent(t *testing.T) {
 	taskID := "t_a"
 	runID := "r_a"
 	fx.tasks.List = []coretask.Task{{
-		ID: taskID, ConversationID: "c_1", TeamID: fx.personalID,
+		ID: taskID, ConversationID: "c_1", SpaceID: fx.personalID,
 		IssueID: util.Ptr("i_1"), Status: "SUCCEEDED",
 		CreatedBy: "u1", CreatedAt: time.Unix(200, 0).UTC(), LastRunID: &runID,
 	}}
@@ -284,14 +284,14 @@ func TestIssueFlowOutputs_MissingArtifactContent(t *testing.T) {
 	}
 }
 
-func TestIssueFlowOutputs_TeamScoped(t *testing.T) {
+func TestIssueFlowOutputs_SpaceScoped(t *testing.T) {
 	artifacts := mock.NewMockRunOutputStorage()
 	fx := newOutputsFixtures(t, artifacts)
-	// Create a task on the other team's issue.
+	// Create a task on the other space's issue.
 	taskID := "t_other"
 	runID := "r_other"
 	fx.tasks.List = []coretask.Task{{
-		ID: taskID, ConversationID: "c_other", TeamID: fx.otherTeamID,
+		ID: taskID, ConversationID: "c_other", SpaceID: fx.otherSpaceID,
 		IssueID: util.Ptr("i_other"), Status: "SUCCEEDED",
 		CreatedBy: "u2", CreatedAt: time.Unix(200, 0).UTC(), LastRunID: &runID,
 	}}
@@ -299,13 +299,13 @@ func TestIssueFlowOutputs_TeamScoped(t *testing.T) {
 		{TaskRunID: runID, RelativePath: "result.md"},
 	}
 	_ = artifacts.PutResult(context.Background(), blob.RunRef{
-		TeamID: fx.otherTeamID, TaskID: taskID, TaskRunID: runID,
+		SpaceID: fx.otherSpaceID, TaskID: taskID, TaskRunID: runID,
 	}, []byte("leak"))
 
-	// u1 reading another team's issue must be forbidden, regardless of outputs.
-	rec, _ := fetchIssueFlow(t, fx.mux, fx.otherTeamID, "i_other", "u1")
+	// u1 reading another space's issue must be forbidden, regardless of outputs.
+	rec, _ := fetchIssueFlow(t, fx.mux, fx.otherSpaceID, "i_other", "u1")
 	if rec.Code != http.StatusForbidden {
-		t.Fatalf("expected 403 cross-team, got %d", rec.Code)
+		t.Fatalf("expected 403 cross-space, got %d", rec.Code)
 	}
 }
 
@@ -333,13 +333,13 @@ func TestIssueFlowOutputs_ArtifactsPublishedByARun(t *testing.T) {
 	taskID := "t_pub"
 	runID := "r_pub"
 	fx.tasks.List = []coretask.Task{{
-		ID: taskID, ConversationID: "c_1", TeamID: fx.personalID,
+		ID: taskID, ConversationID: "c_1", SpaceID: fx.personalID,
 		IssueID: util.Ptr("i_1"), Status: "SUCCEEDED", Input: "do work",
 		CreatedBy: "u1", CreatedAt: time.Unix(200, 0).UTC(), LastRunID: &runID,
 	}}
 	fx.taskRuns.Runs = []coretask.Run{{ID: runID, TaskID: taskID, Status: "SUCCEEDED", CreatedAt: time.Unix(200, 0).UTC()}}
 	if _, err := fx.published.CreateArtifact(context.Background(), coreartifact.CreateInput{
-		TeamID: fx.personalID, ArtifactID: "tsyt7at6cjfr33d73mta", Filename: "report.pdf",
+		SpaceID: fx.personalID, ArtifactID: "tsyt7at6cjfr33d73mta", Filename: "report.pdf",
 		MediaType: "application/pdf", SizeBytes: 2048,
 		SourceType: coreartifact.SourceAgent, SourceID: runID,
 		CreatedByType: coreartifact.CreatorAgent, Title: "Quarterly report",
@@ -382,7 +382,7 @@ func TestIssueFlowOutputs_NoArtifactStore(t *testing.T) {
 	fx.published = nil
 	runID := "r_none"
 	fx.tasks.List = []coretask.Task{{
-		ID: "t_none", ConversationID: "c_1", TeamID: fx.personalID,
+		ID: "t_none", ConversationID: "c_1", SpaceID: fx.personalID,
 		IssueID: util.Ptr("i_1"), Status: "SUCCEEDED", Input: "do work",
 		CreatedBy: "u1", CreatedAt: time.Unix(200, 0).UTC(), LastRunID: &runID,
 	}}
@@ -406,7 +406,7 @@ func TestIssueFlowOutputs_ArtifactsSurviveARetry(t *testing.T) {
 	taskID := "t_retry"
 	firstRun, secondRun := "r_first", "r_second"
 	fx.tasks.List = []coretask.Task{{
-		ID: taskID, ConversationID: "c_1", TeamID: fx.personalID,
+		ID: taskID, ConversationID: "c_1", SpaceID: fx.personalID,
 		IssueID: util.Ptr("i_1"), Status: "SUCCEEDED", Input: "do work",
 		CreatedBy: "u1", CreatedAt: time.Unix(200, 0).UTC(), LastRunID: &secondRun,
 	}}
@@ -419,7 +419,7 @@ func TestIssueFlowOutputs_ArtifactsSurviveARetry(t *testing.T) {
 		{"vsyt7at6cjfr33d73mta", secondRun, "final.pdf"},
 	} {
 		if _, err := fx.published.CreateArtifact(context.Background(), coreartifact.CreateInput{
-			TeamID: fx.personalID, ArtifactID: c.id, Filename: c.name,
+			SpaceID: fx.personalID, ArtifactID: c.id, Filename: c.name,
 			SourceType: coreartifact.SourceAgent, SourceID: c.run,
 			CreatedByType: coreartifact.CreatorAgent,
 		}); err != nil {

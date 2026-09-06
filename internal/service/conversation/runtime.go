@@ -45,7 +45,7 @@ type turnRunInput struct {
 	Message        string
 	Channel        string
 	UserID         string
-	TeamID         string
+	SpaceID        string
 	TaskService    *task.Service
 	AgentSummaries []agentSummary
 	TitleGenerator llm.TitleGenerator
@@ -64,7 +64,7 @@ func buildConversationTools(in turnRunInput, sourceMessageID *string) []llm.Tool
 	svc := in.TaskService
 	tools := []llm.Tool{
 		newStartTaskTool(
-			newStartTaskServiceRunner(svc, in.ConversationID, in.TeamID, in.UserID, sourceMessageID),
+			newStartTaskServiceRunner(svc, in.ConversationID, in.SpaceID, in.UserID, sourceMessageID),
 			in.AgentSummaries,
 		),
 	}

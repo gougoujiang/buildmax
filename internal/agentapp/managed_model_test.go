@@ -193,7 +193,7 @@ func runScopedCacheFor(entries []config.ModelEntry, taskRunID string) *LLMClient
 
 // TestRunScopedManagedEntryCallsAsItsRun is the difference between a worker and
 // every other surface: a run authenticates with its run token on the worker
-// route, so it cannot list models and the server derives user, team, and task
+// route, so it cannot list models and the server derives user, space, and task
 // from the credential rather than from configuration.
 func TestRunScopedManagedEntryCallsAsItsRun(t *testing.T) {
 	client, err := runScopedCacheFor([]config.ModelEntry{managedEntry()}, "r_1").Get("Fast")

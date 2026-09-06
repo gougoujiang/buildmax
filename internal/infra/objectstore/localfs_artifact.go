@@ -13,18 +13,18 @@ const artifactContentFilename = "content"
 
 // LocalFSArtifactStorage implements ArtifactStorage on the local filesystem.
 type LocalFSArtifactStorage struct {
-	artifactDir func(teamID, artifactID string) string
+	artifactDir func(spaceID, artifactID string) string
 }
 
 // NewLocalFSArtifactStorage returns an ArtifactStorage rooted by the given
-// directory function, which maps a team and artifact ID to a directory holding
+// directory function, which maps a space and artifact ID to a directory holding
 // that artifact's content file.
-func NewLocalFSArtifactStorage(artifactDir func(teamID, artifactID string) string) *LocalFSArtifactStorage {
+func NewLocalFSArtifactStorage(artifactDir func(spaceID, artifactID string) string) *LocalFSArtifactStorage {
 	return &LocalFSArtifactStorage{artifactDir: artifactDir}
 }
 
 func (s *LocalFSArtifactStorage) path(ref coreartifact.Ref) string {
-	return filepath.Join(s.artifactDir(ref.TeamID, ref.ArtifactID), artifactContentFilename)
+	return filepath.Join(s.artifactDir(ref.SpaceID, ref.ArtifactID), artifactContentFilename)
 }
 
 func (s *LocalFSArtifactStorage) PutArtifact(_ context.Context, ref coreartifact.Ref, r io.Reader) (string, error) {
@@ -63,6 +63,6 @@ func (s *LocalFSArtifactStorage) RemoveArtifact(_ context.Context, ref coreartif
 	if err := os.Remove(s.path(ref)); err != nil && !os.IsNotExist(err) {
 		return err
 	}
-	_ = os.Remove(s.artifactDir(ref.TeamID, ref.ArtifactID))
+	_ = os.Remove(s.artifactDir(ref.SpaceID, ref.ArtifactID))
 	return nil
 }

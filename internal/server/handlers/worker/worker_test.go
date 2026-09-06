@@ -10,8 +10,8 @@ import (
 	"time"
 
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -20,7 +20,7 @@ import (
 func TestGetWorkerTaskRunHandler_RequiresWorkerAuth(t *testing.T) {
 	taskRunID := "run-1"
 	run := coretask.Run{ID: taskRunID, TaskID: "task-1", Input: "input", Status: "SCHEDULED", CreatedAt: time.Unix(1, 0).UTC()}
-	task := coretask.Task{ID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1"}
+	task := coretask.Task{ID: "task-1", ConversationID: "conv-1", SpaceID: "tm_1", CreatedBy: "u1"}
 	mockRun := &mock.MockTaskRunStore{Runs: []coretask.Run{run}, TaskList: []coretask.Task{task}}
 	cfg := Config{
 		JWTSecret: workerTestSecret,
@@ -51,8 +51,8 @@ func TestGetWorkerTaskRunHandler_RequiresWorkerAuth(t *testing.T) {
 	if body := w.Body.String(); body == "" || len(body) < 10 {
 		t.Errorf("with token: body too short: %q", body)
 	}
-	if body := w.Body.String(); !strings.Contains(body, `"team_id":"tm_1"`) {
-		t.Errorf("with token: body missing team_id: %q", body)
+	if body := w.Body.String(); !strings.Contains(body, `"space_id":"tm_1"`) {
+		t.Errorf("with token: body missing space_id: %q", body)
 	}
 }
 
@@ -66,7 +66,7 @@ func TestGetWorkerTaskRunHandler_ReportsACancelRequest(t *testing.T) {
 			ID: taskRunID, TaskID: "task-1", Input: "input",
 			Status: string(coretask.RunStatusRunning), CancelRequestedAt: &askedAt,
 		}},
-		TaskList: []coretask.Task{{ID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1"}},
+		TaskList: []coretask.Task{{ID: "task-1", ConversationID: "conv-1", SpaceID: "tm_1", CreatedBy: "u1"}},
 	}
 	h := New(Config{JWTSecret: workerTestSecret, TaskRuns: runs})
 	mux := http.NewServeMux()
@@ -99,7 +99,7 @@ func TestGetWorkerTaskRunHandler_ReportsSessionPredecessor(t *testing.T) {
 			Status: string(coretask.RunStatusScheduled), PreviousTaskRunID: &previousRunID,
 		}},
 		TaskList: []coretask.Task{{
-			ID: "task-1", TeamID: "tm_1", CreatedBy: "u1", LastRunID: &taskRunID,
+			ID: "task-1", SpaceID: "tm_1", CreatedBy: "u1", LastRunID: &taskRunID,
 		}},
 	}
 	h := New(Config{JWTSecret: workerTestSecret, TaskRuns: runs})
@@ -133,7 +133,7 @@ func TestPatchWorkerTaskRun_CanceledKeepsArtifactsAndSyncsTheTask(t *testing.T) 
 	taskRunID := "run-canceled"
 	runs := &mock.MockTaskRunStore{
 		Runs:     []coretask.Run{{ID: taskRunID, TaskID: "task-1", Status: string(coretask.RunStatusRunning)}},
-		TaskList: []coretask.Task{{ID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1", Status: string(coretask.RunStatusRunning)}},
+		TaskList: []coretask.Task{{ID: "task-1", ConversationID: "conv-1", SpaceID: "tm_1", CreatedBy: "u1", Status: string(coretask.RunStatusRunning)}},
 	}
 	h := New(Config{JWTSecret: workerTestSecret, TaskRuns: runs})
 	mux := http.NewServeMux()
@@ -176,7 +176,7 @@ func TestPatchWorkerTaskRun_InterruptedFailedKeepsArtifacts(t *testing.T) {
 	taskRunID := "run-interrupted"
 	runs := &mock.MockTaskRunStore{
 		Runs:     []coretask.Run{{ID: taskRunID, TaskID: "task-1", Status: string(coretask.RunStatusRunning)}},
-		TaskList: []coretask.Task{{ID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1", Status: string(coretask.RunStatusRunning)}},
+		TaskList: []coretask.Task{{ID: "task-1", ConversationID: "conv-1", SpaceID: "tm_1", CreatedBy: "u1", Status: string(coretask.RunStatusRunning)}},
 	}
 	h := New(Config{JWTSecret: workerTestSecret, TaskRuns: runs})
 	mux := http.NewServeMux()
@@ -219,7 +219,7 @@ func TestPatchWorkerTaskRun_PlainFailureRegistersNothing(t *testing.T) {
 	taskRunID := "run-failed"
 	runs := &mock.MockTaskRunStore{
 		Runs:     []coretask.Run{{ID: taskRunID, TaskID: "task-1", Status: string(coretask.RunStatusRunning)}},
-		TaskList: []coretask.Task{{ID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1", Status: string(coretask.RunStatusRunning)}},
+		TaskList: []coretask.Task{{ID: "task-1", ConversationID: "conv-1", SpaceID: "tm_1", CreatedBy: "u1", Status: string(coretask.RunStatusRunning)}},
 	}
 	h := New(Config{JWTSecret: workerTestSecret, TaskRuns: runs})
 	mux := http.NewServeMux()
@@ -336,7 +336,7 @@ func TestPatchWorkerTaskRun_RUNNING_WhenPending_Returns409(t *testing.T) {
 func TestGetWorkerTaskRunHandler_TellsTheRunHowToReachAModel(t *testing.T) {
 	store := &mock.MockTaskRunStore{
 		Runs:     []coretask.Run{{ID: "run-1", TaskID: "task-1", Input: "input", Status: "SCHEDULED", CreatedAt: time.Unix(1, 0).UTC()}},
-		TaskList: []coretask.Task{{ID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1"}},
+		TaskList: []coretask.Task{{ID: "task-1", ConversationID: "conv-1", SpaceID: "tm_1", CreatedBy: "u1"}},
 	}
 
 	get := func(t *testing.T, cfg Config) workerclient.GetTaskRunResponse {
@@ -395,9 +395,9 @@ func TestGetWorkerTaskRunHandler_AgentModelOverridesTheAlias(t *testing.T) {
 		t.Helper()
 		store := &mock.MockTaskRunStore{
 			Runs:     []coretask.Run{{ID: "run-1", TaskID: "task-1", Input: "input", Status: "SCHEDULED", CreatedAt: time.Unix(1, 0).UTC()}},
-			TaskList: []coretask.Task{{ID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1", AgentID: util.Ptr("a_1")}},
+			TaskList: []coretask.Task{{ID: "task-1", ConversationID: "conv-1", SpaceID: "tm_1", CreatedBy: "u1", AgentID: util.Ptr("a_1")}},
 		}
-		agents := &mock.MockAgentStore{Agents: []agentdef.Agent{{ID: "a_1", TeamID: "tm_1", Name: "picker", Model: agentModel}}}
+		agents := &mock.MockAgentStore{Agents: []agentdef.Agent{{ID: "a_1", SpaceID: "tm_1", Name: "picker", Model: agentModel}}}
 		mux := http.NewServeMux()
 		New(Config{
 			JWTSecret: workerTestSecret,
@@ -434,24 +434,24 @@ func TestGetWorkerTaskRunHandler_AgentModelOverridesTheAlias(t *testing.T) {
 	})
 }
 
-// An agent that declares neither tier inherits the team's default -- see
+// An agent that declares neither tier inherits the space's default -- see
 // docs/design/agent-sandbox-policy.md §9 M3. Once resolved, the tiers pin to
-// the run so a later change to the team's default cannot alter a run already
+// the run so a later change to the space's default cannot alter a run already
 // under way.
-func TestGetWorkerTaskRunHandler_FallsBackToTeamSandboxDefaults(t *testing.T) {
+func TestGetWorkerTaskRunHandler_FallsBackToSpaceSandboxDefaults(t *testing.T) {
 	runStore := &mock.MockTaskRunStore{
 		Runs: []coretask.Run{{ID: "run-1", TaskID: "task-1", Input: "input", Status: "SCHEDULED", CreatedAt: time.Unix(1, 0).UTC()}},
 		TaskList: []coretask.Task{
-			{ID: "task-1", ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1", AgentID: util.Ptr("a_1")},
+			{ID: "task-1", ConversationID: "conv-1", SpaceID: "tm_1", CreatedBy: "u1", AgentID: util.Ptr("a_1")},
 		},
 	}
 	agentStore := &mock.MockAgentStore{
-		Agents: []agentdef.Agent{{ID: "a_1", TeamID: "tm_1", Name: "no-tiers"}},
+		Agents: []agentdef.Agent{{ID: "a_1", SpaceID: "tm_1", Name: "no-tiers"}},
 	}
-	teamStore := &mock.MockTeamStore{
-		Teams: []coreteam.Team{{ID: "tm_1", DefaultSandboxNetworkTier: "registries", DefaultSandboxFilesystemTier: "workspace_plus_shared_read"}},
+	spaceStore := &mock.MockSpaceStore{
+		Spaces: []corespace.Space{{ID: "tm_1", DefaultSandboxNetworkTier: "registries", DefaultSandboxFilesystemTier: "workspace_plus_shared_read"}},
 	}
-	cfg := Config{JWTSecret: workerTestSecret, TaskRuns: runStore, Agents: agentStore, Teams: teamStore}
+	cfg := Config{JWTSecret: workerTestSecret, TaskRuns: runStore, Agents: agentStore, Spaces: spaceStore}
 
 	get := func(t *testing.T) workerclient.GetTaskRunResponse {
 		t.Helper()
@@ -473,14 +473,14 @@ func TestGetWorkerTaskRunHandler_FallsBackToTeamSandboxDefaults(t *testing.T) {
 
 	got := get(t)
 	if got.Sandbox == nil || got.Sandbox.NetworkTier != "registries" || got.Sandbox.FilesystemTier != "workspace_plus_shared_read" {
-		t.Fatalf("sandbox = %+v, want the team's defaults", got.Sandbox)
+		t.Fatalf("sandbox = %+v, want the space's defaults", got.Sandbox)
 	}
 
-	// The team raises its default after this run already resolved once; the
+	// The space raises its default after this run already resolved once; the
 	// pin already written must not move.
-	teamStore.Teams[0].DefaultSandboxNetworkTier = "open"
+	spaceStore.Spaces[0].DefaultSandboxNetworkTier = "open"
 	got = get(t)
 	if got.Sandbox.NetworkTier != "registries" {
-		t.Errorf("network tier = %q after the team default changed, want the pinned value registries", got.Sandbox.NetworkTier)
+		t.Errorf("network tier = %q after the space default changed, want the pinned value registries", got.Sandbox.NetworkTier)
 	}
 }

@@ -16,35 +16,35 @@ export interface GetIssuesOptions {
   parentId?: string
 }
 
-export async function getIssues(teamId: string, token: string, options?: GetIssuesOptions): Promise<ApiIssuesListResponse> {
+export async function getIssues(spaceId: string, token: string, options?: GetIssuesOptions): Promise<ApiIssuesListResponse> {
   const params = new URLSearchParams()
   if (options?.limit != null) params.set("limit", String(options.limit))
   if (options?.offset != null) params.set("offset", String(options.offset))
   if (options?.parentId) params.set("parent_id", options.parentId)
   const q = params.toString()
-  return requestJson<ApiIssuesListResponse>(`${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/issues${q ? `?${q}` : ""}`, {
+  return requestJson<ApiIssuesListResponse>(`${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/issues${q ? `?${q}` : ""}`, {
     headers: authHeaders(token),
   })
 }
 
-export async function getIssue(teamId: string, issueId: string, token: string): Promise<ApiIssue> {
-  return requestJson<ApiIssue>(`${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/issues/${encodeURIComponent(issueId)}`, {
+export async function getIssue(spaceId: string, issueId: string, token: string): Promise<ApiIssue> {
+  return requestJson<ApiIssue>(`${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/issues/${encodeURIComponent(issueId)}`, {
     headers: authHeaders(token),
   })
 }
 
-export async function getIssueFlow(teamId: string, issueId: string, token: string): Promise<ApiIssueFlowResponse> {
-  return requestJson<ApiIssueFlowResponse>(`${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/issues/${encodeURIComponent(issueId)}/flow`, {
+export async function getIssueFlow(spaceId: string, issueId: string, token: string): Promise<ApiIssueFlowResponse> {
+  return requestJson<ApiIssueFlowResponse>(`${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/issues/${encodeURIComponent(issueId)}/flow`, {
     headers: authHeaders(token),
   })
 }
 
 export async function createIssue(
-  teamId: string,
+  spaceId: string,
   body: { title: string; description?: string; parent_issue_id?: string },
   token: string,
 ): Promise<ApiIssue> {
-  return requestJson<ApiIssue>(`${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/issues`, {
+  return requestJson<ApiIssue>(`${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/issues`, {
     method: "POST",
     headers: { ...jsonHeaders, ...authHeaders(token) },
     body: JSON.stringify(body),
@@ -52,7 +52,7 @@ export async function createIssue(
 }
 
 export async function updateIssue(
-  teamId: string,
+  spaceId: string,
   issueId: string,
   body: {
     /**
@@ -71,7 +71,7 @@ export async function updateIssue(
   },
   token: string,
 ): Promise<ApiIssue> {
-  return requestJson<ApiIssue>(`${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/issues/${encodeURIComponent(issueId)}`, {
+  return requestJson<ApiIssue>(`${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/issues/${encodeURIComponent(issueId)}`, {
     method: "PATCH",
     headers: { ...jsonHeaders, ...authHeaders(token) },
     body: JSON.stringify(body),
@@ -79,12 +79,12 @@ export async function updateIssue(
 }
 
 export async function runIssueAgent(
-  teamId: string,
+  spaceId: string,
   issueId: string,
   token: string,
   input?: string,
 ): Promise<ApiTask> {
-  return requestJson<ApiTask>(`${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/issues/${encodeURIComponent(issueId)}/agent-runs`, {
+  return requestJson<ApiTask>(`${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/issues/${encodeURIComponent(issueId)}/agent-runs`, {
     method: "POST",
     headers: { ...jsonHeaders, ...authHeaders(token) },
     body: JSON.stringify(input ? { input } : {}),

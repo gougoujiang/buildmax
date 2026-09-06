@@ -33,7 +33,7 @@ func (f *fakeArtifactStore) ExpireArtifacts(_ context.Context, now time.Time, li
 		}
 		at := now
 		it.DeletedAt = &at
-		out = append(out, coreartifact.Expired{ArtifactID: it.ID, TeamID: it.TeamID})
+		out = append(out, coreartifact.Expired{ArtifactID: it.ID, SpaceID: it.SpaceID})
 	}
 	return out, nil
 }
@@ -47,7 +47,7 @@ func (f *fakeArtifactStore) PurgeableArtifacts(_ context.Context, before time.Ti
 		if len(out) >= limit || it.DeletedAt == nil || it.DeletedAt.After(before) || it.StorageKey == "" {
 			continue
 		}
-		out = append(out, coreartifact.Purgeable{ArtifactID: it.ID, TeamID: it.TeamID, SizeBytes: it.SizeBytes})
+		out = append(out, coreartifact.Purgeable{ArtifactID: it.ID, SpaceID: it.SpaceID, SizeBytes: it.SizeBytes})
 	}
 	return out, nil
 }
@@ -121,8 +121,8 @@ func retainerFor(store *fakeArtifactStore, remover *fakeRemover, writer *recordi
 func TestSweepReclaimsATombstonedArtifact(t *testing.T) {
 	now := time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
 	store := &fakeArtifactStore{items: []coreartifact.Artifact{
-		{ID: "nsyt7at6cjfr33d73mta", TeamID: "t_1", StorageKey: "k1", SizeBytes: 100, DeletedAt: ptr(now.Add(-time.Hour))},
-		{ID: "osyt7at6cjfr33d73mta", TeamID: "t_1", StorageKey: "k2", SizeBytes: 200},
+		{ID: "nsyt7at6cjfr33d73mta", SpaceID: "t_1", StorageKey: "k1", SizeBytes: 100, DeletedAt: ptr(now.Add(-time.Hour))},
+		{ID: "osyt7at6cjfr33d73mta", SpaceID: "t_1", StorageKey: "k2", SizeBytes: 200},
 	}}
 	remover := &fakeRemover{}
 	writer := &recordingWriter{}
@@ -157,7 +157,7 @@ func TestSweepReclaimsATombstonedArtifact(t *testing.T) {
 func TestSweepHoldsBytesUntilTheGracePeriodPasses(t *testing.T) {
 	now := time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
 	store := &fakeArtifactStore{items: []coreartifact.Artifact{
-		{ID: "psyt7at6cjfr33d73mta", TeamID: "t_1", StorageKey: "k1", DeletedAt: ptr(now.Add(-24 * time.Hour))},
+		{ID: "psyt7at6cjfr33d73mta", SpaceID: "t_1", StorageKey: "k1", DeletedAt: ptr(now.Add(-24 * time.Hour))},
 	}}
 	remover := &fakeRemover{}
 
@@ -179,9 +179,9 @@ func TestSweepHoldsBytesUntilTheGracePeriodPasses(t *testing.T) {
 func TestSweepTombstonesWhatExpiredAndNamesIt(t *testing.T) {
 	now := time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
 	store := &fakeArtifactStore{items: []coreartifact.Artifact{
-		{ID: "qsyt7at6cjfr33d73mta", TeamID: "t_1", StorageKey: "k1", ExpiresAt: ptr(now.Add(-time.Minute))},
-		{ID: "rsyt7at6cjfr33d73mta", TeamID: "t_1", StorageKey: "k2", ExpiresAt: ptr(now.Add(time.Hour))},
-		{ID: "ssyt7at6cjfr33d73mta", TeamID: "t_1", StorageKey: "k3"},
+		{ID: "qsyt7at6cjfr33d73mta", SpaceID: "t_1", StorageKey: "k1", ExpiresAt: ptr(now.Add(-time.Minute))},
+		{ID: "rsyt7at6cjfr33d73mta", SpaceID: "t_1", StorageKey: "k2", ExpiresAt: ptr(now.Add(time.Hour))},
+		{ID: "ssyt7at6cjfr33d73mta", SpaceID: "t_1", StorageKey: "k3"},
 	}}
 	writer := &recordingWriter{}
 
@@ -202,8 +202,8 @@ func TestSweepTombstonesWhatExpiredAndNamesIt(t *testing.T) {
 	if len(events) != 1 || events[0].TargetID != "qsyt7at6cjfr33d73mta" {
 		t.Fatalf("expiry events = %+v, want one naming qsyt7at6cjfr33d73mta", events)
 	}
-	if events[0].TeamID != "t_1" {
-		t.Fatalf("event team = %q, want t_1", events[0].TeamID)
+	if events[0].SpaceID != "t_1" {
+		t.Fatalf("event space = %q, want t_1", events[0].SpaceID)
 	}
 }
 
@@ -217,7 +217,7 @@ func TestExpiryIsReclaimedUnderTheSameGraceAsADelete(t *testing.T) {
 	expiredAt := ptr(now.Add(-time.Minute))
 
 	immediate := &fakeArtifactStore{items: []coreartifact.Artifact{
-		{ID: "qsyt7at6cjfr33d73mta", TeamID: "t_1", StorageKey: "k1", ExpiresAt: expiredAt},
+		{ID: "qsyt7at6cjfr33d73mta", SpaceID: "t_1", StorageKey: "k1", ExpiresAt: expiredAt},
 	}}
 	expired, purged := retainerFor(immediate, &fakeRemover{}, &recordingWriter{}, 0, now).sweep(context.Background())
 	if expired != 1 || purged != 1 {
@@ -227,7 +227,7 @@ func TestExpiryIsReclaimedUnderTheSameGraceAsADelete(t *testing.T) {
 	// With a grace the tombstone lands now and the bytes wait for it, exactly
 	// as they would for an artifact somebody deleted by hand.
 	held := &fakeArtifactStore{items: []coreartifact.Artifact{
-		{ID: "qsyt7at6cjfr33d73mta", TeamID: "t_1", StorageKey: "k1", ExpiresAt: expiredAt},
+		{ID: "qsyt7at6cjfr33d73mta", SpaceID: "t_1", StorageKey: "k1", ExpiresAt: expiredAt},
 	}}
 	remover := &fakeRemover{}
 	expired, purged = retainerFor(held, remover, &recordingWriter{}, 7, now).sweep(context.Background())
@@ -249,7 +249,7 @@ func TestExpiryIsReclaimedUnderTheSameGraceAsADelete(t *testing.T) {
 func TestAFailedRemovalLeavesTheArtifactPurgeable(t *testing.T) {
 	now := time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
 	store := &fakeArtifactStore{items: []coreartifact.Artifact{
-		{ID: "nsyt7at6cjfr33d73mta", TeamID: "t_1", StorageKey: "k1", DeletedAt: ptr(now.Add(-time.Hour))},
+		{ID: "nsyt7at6cjfr33d73mta", SpaceID: "t_1", StorageKey: "k1", DeletedAt: ptr(now.Add(-time.Hour))},
 	}}
 	writer := &recordingWriter{}
 
@@ -271,7 +271,7 @@ func TestAFailedRemovalLeavesTheArtifactPurgeable(t *testing.T) {
 func TestAnIdleSweepRecordsNothing(t *testing.T) {
 	now := time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
 	store := &fakeArtifactStore{items: []coreartifact.Artifact{
-		{ID: "osyt7at6cjfr33d73mta", TeamID: "t_1", StorageKey: "k1"},
+		{ID: "osyt7at6cjfr33d73mta", SpaceID: "t_1", StorageKey: "k1"},
 	}}
 	writer := &recordingWriter{}
 
@@ -290,7 +290,7 @@ func TestAnIdleSweepRecordsNothing(t *testing.T) {
 func TestReclaimingSurvivesAnUnwritableTrail(t *testing.T) {
 	now := time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
 	store := &fakeArtifactStore{items: []coreartifact.Artifact{
-		{ID: "nsyt7at6cjfr33d73mta", TeamID: "t_1", StorageKey: "k1", DeletedAt: ptr(now.Add(-time.Hour))},
+		{ID: "nsyt7at6cjfr33d73mta", SpaceID: "t_1", StorageKey: "k1", DeletedAt: ptr(now.Add(-time.Hour))},
 	}}
 	remover := &fakeRemover{}
 
@@ -331,7 +331,7 @@ func TestAZeroGraceStillBuildsARetainer(t *testing.T) {
 func TestStartAndStopRunASweep(t *testing.T) {
 	now := time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
 	store := &fakeArtifactStore{items: []coreartifact.Artifact{
-		{ID: "nsyt7at6cjfr33d73mta", TeamID: "t_1", StorageKey: "k1", DeletedAt: ptr(now.Add(-time.Hour))},
+		{ID: "nsyt7at6cjfr33d73mta", SpaceID: "t_1", StorageKey: "k1", DeletedAt: ptr(now.Add(-time.Hour))},
 	}}
 	remover := &fakeRemover{}
 	a := retainerFor(store, remover, &recordingWriter{}, 0, now)

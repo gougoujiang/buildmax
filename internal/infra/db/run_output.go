@@ -75,12 +75,12 @@ func (s *Store) ListRunOutputsByTask(ctx context.Context, taskID string) ([]core
 		return nil, nil
 	}
 	q := `SELECT r.public_id AS artifact_id, t.public_id AS task_id, r.public_id AS task_run_id,
-			c.public_id AS conversation_id, tm.public_id AS team_id, u.public_id AS user_id,
+			c.public_id AS conversation_id, tm.public_id AS space_id, u.public_id AS user_id,
 			r.created_at, LEFT(r.input, ?) AS task_input_snippet
 		FROM task_run_artifact o
 		JOIN task_run r ON o.task_run_id = r.id
 		JOIN task t ON r.task_id = t.id
-		JOIN team tm ON t.team_id = tm.id
+		JOIN space tm ON t.space_id = tm.id
 		JOIN ` + "`user`" + ` u ON u.id = t.created_by
 		LEFT JOIN conversation c ON t.conversation_id = c.id
 		WHERE t.public_id = ? AND r.status = 'SUCCEEDED'
@@ -95,7 +95,7 @@ func (s *Store) scanRunOutputListings(ctx context.Context, q string, args ...int
 		TaskID           string
 		TaskRunID        string
 		ConversationID   string
-		TeamID           string
+		SpaceID          string
 		UserID           string
 		CreatedAt        time.Time
 		TaskInputSnippet string
@@ -107,7 +107,7 @@ func (s *Store) scanRunOutputListings(ctx context.Context, q string, args ...int
 	for _, r := range rows {
 		out = append(out, coretask.RunOutputListing{
 			ArtifactID: r.ArtifactID, TaskID: r.TaskID, TaskRunID: r.TaskRunID,
-			ConversationID: r.ConversationID, TeamID: r.TeamID, UserID: r.UserID,
+			ConversationID: r.ConversationID, SpaceID: r.SpaceID, UserID: r.UserID,
 			CreatedAt: r.CreatedAt, TaskInputSnippet: r.TaskInputSnippet,
 		})
 	}

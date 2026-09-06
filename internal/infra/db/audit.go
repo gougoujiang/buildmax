@@ -23,11 +23,11 @@ type auditEventRow struct {
 	ID       uint64 `gorm:"primaryKey;autoIncrement"`
 	PublicID string `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_audit_event_public_id;not null"`
 
-	// TeamID is NULL for actions with no team, such as a login -- a pointer
+	// SpaceID is NULL for actions with no space, such as a login -- a pointer
 	// rather than a zero, because zero is a row key someone owns. The composite
-	// index leads with it because reading is always "this team, newest first".
-	TeamID    *uint64   `gorm:"column:team_id;index:idx_audit_team_time,priority:1"`
-	CreatedAt time.Time `gorm:"not null;index:idx_audit_team_time,priority:2"`
+	// index leads with it because reading is always "this space, newest first".
+	SpaceID   *uint64   `gorm:"column:space_id;index:idx_audit_space_time,priority:1"`
+	CreatedAt time.Time `gorm:"not null;index:idx_audit_space_time,priority:2"`
 
 	// The actor and the target stay opaque handles. Their type is in a column
 	// beside them and admits values that are not rows at all -- an operator, a
@@ -43,17 +43,17 @@ type auditEventRow struct {
 
 func (auditEventRow) TableName() string { return "audit_event" }
 
-// auditEventReadRow is the row plus its team's handle. A pointer field is one
+// auditEventReadRow is the row plus its space's handle. A pointer field is one
 // a LEFT JOIN may leave NULL.
 type auditEventReadRow struct {
-	Row          auditEventRow `gorm:"embedded"`
-	TeamPublicID *string       `gorm:"column:team_public_id"`
+	Row           auditEventRow `gorm:"embedded"`
+	SpacePublicID *string       `gorm:"column:space_public_id"`
 }
 
 func (s *Store) auditSelect(ctx context.Context) *gorm.DB {
 	return s.db.WithContext(ctx).Model(&auditEventRow{}).
-		Select("audit_event.*, t.public_id AS team_public_id").
-		Joins("LEFT JOIN team t ON t.id = audit_event.team_id")
+		Select("audit_event.*, t.public_id AS space_public_id").
+		Joins("LEFT JOIN space t ON t.id = audit_event.space_id")
 }
 
 func toAuditEvent(row *auditEventReadRow) *coreaudit.Event {
@@ -62,7 +62,7 @@ func toAuditEvent(row *auditEventReadRow) *coreaudit.Event {
 	}
 	return &coreaudit.Event{
 		ID:         row.Row.PublicID,
-		TeamID:     derefPublicID(row.TeamPublicID),
+		SpaceID:    derefPublicID(row.SpacePublicID),
 		ActorType:  row.Row.ActorType,
 		ActorID:    row.Row.ActorID,
 		Action:     row.Row.Action,
@@ -79,21 +79,21 @@ func (s *Store) RecordAuditEvent(ctx context.Context, in coreaudit.Event) error 
 	if err != nil {
 		return err
 	}
-	// An event with no team is a login or an account action; it is still
-	// evidence, so an unresolvable team is not a reason to lose the record.
-	var teamKey *uint64
-	if in.TeamID != "" {
-		key, err := lookupKey(ctx, s.db, "team", in.TeamID)
+	// An event with no space is a login or an account action; it is still
+	// evidence, so an unresolvable space is not a reason to lose the record.
+	var spaceKey *uint64
+	if in.SpaceID != "" {
+		key, err := lookupKey(ctx, s.db, "space", in.SpaceID)
 		if err != nil && !errors.Is(err, apierr.ErrNotFound) {
 			return err
 		}
 		if err == nil {
-			teamKey = &key
+			spaceKey = &key
 		}
 	}
 	row := auditEventRow{
 		PublicID:   publicID,
-		TeamID:     teamKey,
+		SpaceID:    spaceKey,
 		ActorType:  in.ActorType,
 		ActorID:    in.ActorID,
 		Action:     in.Action,
@@ -117,10 +117,10 @@ func truncateDetail(s string) string {
 	return s[:max]
 }
 
-// ListAuditEvents returns a team's events, newest first, with the total count.
-func (s *Store) ListAuditEvents(ctx context.Context, teamID string, limit, offset int) ([]coreaudit.Event, int, error) {
+// ListAuditEvents returns a space's events, newest first, with the total count.
+func (s *Store) ListAuditEvents(ctx context.Context, spaceID string, limit, offset int) ([]coreaudit.Event, int, error) {
 	limit, offset = clampPage(limit, offset)
-	teamKey, err := lookupKey(ctx, s.db, "team", teamID)
+	spaceKey, err := lookupKey(ctx, s.db, "space", spaceID)
 	if errors.Is(err, apierr.ErrNotFound) {
 		return nil, 0, nil
 	}
@@ -128,11 +128,11 @@ func (s *Store) ListAuditEvents(ctx context.Context, teamID string, limit, offse
 		return nil, 0, err
 	}
 	var total int64
-	if err := s.db.WithContext(ctx).Model(&auditEventRow{}).Where("team_id = ?", teamKey).Count(&total).Error; err != nil {
+	if err := s.db.WithContext(ctx).Model(&auditEventRow{}).Where("space_id = ?", spaceKey).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 	var rows []auditEventReadRow
-	if err := s.auditSelect(ctx).Where("audit_event.team_id = ?", teamKey).
+	if err := s.auditSelect(ctx).Where("audit_event.space_id = ?", spaceKey).
 		Order("audit_event.created_at DESC, audit_event.id DESC").Limit(limit).Offset(offset).Find(&rows).Error; err != nil {
 		return nil, 0, err
 	}
@@ -143,26 +143,26 @@ func (s *Store) ListAuditEvents(ctx context.Context, teamID string, limit, offse
 	return out, int(total), nil
 }
 
-// SearchAuditEvents returns events across every team, newest first.
+// SearchAuditEvents returns events across every space, newest first.
 //
-// The composite index leads with team_id, so a team-filtered search uses it and
+// The composite index leads with space_id, so a space-filtered search uses it and
 // an unfiltered one is an ordered scan of a table that only grows by
 // deliberate action. If that stops being true the answer is a second index on
 // created_at, not a smaller retention — losing evidence to make a query fast is
 // the wrong trade.
 func (s *Store) SearchAuditEvents(ctx context.Context, filter coreaudit.Filter, limit, offset int) ([]coreaudit.Event, int, error) {
 	limit, offset = clampPage(limit, offset)
-	teamKey, err := s.auditFilterTeamKey(ctx, filter)
+	spaceKey, err := s.auditFilterSpaceKey(ctx, filter)
 	if err != nil {
 		return nil, 0, err
 	}
 	var total int64
-	if err := applyAuditFilter(s.db.WithContext(ctx).Model(&auditEventRow{}), "", filter, teamKey).
+	if err := applyAuditFilter(s.db.WithContext(ctx).Model(&auditEventRow{}), "", filter, spaceKey).
 		Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 	var rows []auditEventReadRow
-	if err := applyAuditFilter(s.auditSelect(ctx), "audit_event.", filter, teamKey).
+	if err := applyAuditFilter(s.auditSelect(ctx), "audit_event.", filter, spaceKey).
 		Order("audit_event.created_at DESC, audit_event.id DESC").Limit(limit).Offset(offset).Find(&rows).Error; err != nil {
 		return nil, 0, err
 	}
@@ -173,14 +173,14 @@ func (s *Store) SearchAuditEvents(ctx context.Context, filter coreaudit.Filter, 
 	return out, int(total), nil
 }
 
-// auditFilterTeamKey resolves the filter's team once. A filter naming a team
+// auditFilterSpaceKey resolves the filter's space once. A filter naming a space
 // that does not exist matches nothing, which is reported as an empty page
 // rather than an error: a search is allowed to find nothing.
-func (s *Store) auditFilterTeamKey(ctx context.Context, filter coreaudit.Filter) (*uint64, error) {
-	if filter.WithoutTeam || filter.TeamID == "" {
+func (s *Store) auditFilterSpaceKey(ctx context.Context, filter coreaudit.Filter) (*uint64, error) {
+	if filter.WithoutSpace || filter.SpaceID == "" {
 		return nil, nil
 	}
-	key, err := lookupKey(ctx, s.db, "team", filter.TeamID)
+	key, err := lookupKey(ctx, s.db, "space", filter.SpaceID)
 	if errors.Is(err, apierr.ErrNotFound) {
 		return nil, nil
 	}
@@ -193,12 +193,12 @@ func (s *Store) auditFilterTeamKey(ctx context.Context, filter coreaudit.Filter)
 // applyAuditFilter narrows a query to the events a filter names. It is shared
 // by the paged search and the export so the two cannot drift into answering
 // different questions from the same parameters.
-func applyAuditFilter(q *gorm.DB, col string, filter coreaudit.Filter, teamKey *uint64) *gorm.DB {
+func applyAuditFilter(q *gorm.DB, col string, filter coreaudit.Filter, spaceKey *uint64) *gorm.DB {
 	switch {
-	case filter.WithoutTeam:
-		q = q.Where(col + "team_id IS NULL")
-	case teamKey != nil:
-		q = q.Where(col+"team_id = ?", *teamKey)
+	case filter.WithoutSpace:
+		q = q.Where(col + "space_id IS NULL")
+	case spaceKey != nil:
+		q = q.Where(col+"space_id = ?", *spaceKey)
 	}
 	if filter.ActorID != "" {
 		q = q.Where(col+"actor_id = ?", filter.ActorID)
@@ -257,17 +257,17 @@ func auditRowsToEvents(rows []auditEventReadRow) []coreaudit.Event {
 	return out
 }
 
-// ExportTeamAuditEvents returns one page of a team's events, newest first,
+// ExportSpaceAuditEvents returns one page of a space's events, newest first,
 // continuing from after.
-func (s *Store) ExportTeamAuditEvents(ctx context.Context, teamID string, after coreaudit.Cursor, limit int) ([]coreaudit.Event, error) {
-	teamKey, err := lookupKey(ctx, s.db, "team", teamID)
+func (s *Store) ExportSpaceAuditEvents(ctx context.Context, spaceID string, after coreaudit.Cursor, limit int) ([]coreaudit.Event, error) {
+	spaceKey, err := lookupKey(ctx, s.db, "space", spaceID)
 	if errors.Is(err, apierr.ErrNotFound) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	q := s.auditSelect(ctx).Where("audit_event.team_id = ?", teamKey)
+	q := s.auditSelect(ctx).Where("audit_event.space_id = ?", spaceKey)
 	q = s.applyAuditCursor(ctx, q, after)
 
 	var rows []auditEventReadRow
@@ -277,14 +277,14 @@ func (s *Store) ExportTeamAuditEvents(ctx context.Context, teamID string, after 
 	return auditRowsToEvents(rows), nil
 }
 
-// ExportAuditEvents returns one page of events across every team, newest first,
+// ExportAuditEvents returns one page of events across every space, newest first,
 // continuing from after.
 func (s *Store) ExportAuditEvents(ctx context.Context, filter coreaudit.Filter, after coreaudit.Cursor, limit int) ([]coreaudit.Event, error) {
-	teamKey, err := s.auditFilterTeamKey(ctx, filter)
+	spaceKey, err := s.auditFilterSpaceKey(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
-	q := applyAuditFilter(s.auditSelect(ctx), "audit_event.", filter, teamKey)
+	q := applyAuditFilter(s.auditSelect(ctx), "audit_event.", filter, spaceKey)
 	q = s.applyAuditCursor(ctx, q, after)
 
 	var rows []auditEventReadRow

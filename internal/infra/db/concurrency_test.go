@@ -72,13 +72,13 @@ func newRunForTest(t *testing.T, s *Store, label string) (task *coretask.Task, r
 	t.Helper()
 	ctx := t.Context()
 	userID := newTestUser(t, s, label)
-	teamID := newTestTeam(t, s, userID)
-	conversation, err := s.CreateConversationInTeam(ctx, teamID, userID, "portal", userID)
+	spaceID := newTestSpace(t, s, userID)
+	conversation, err := s.CreateConversationInSpace(ctx, spaceID, userID, "portal", userID)
 	if err != nil {
-		t.Fatalf("CreateConversationInTeam: %v", err)
+		t.Fatalf("CreateConversationInSpace: %v", err)
 	}
 	task, err = s.CreateTask(ctx, &coretask.CreateInput{
-		TeamID:         teamID,
+		SpaceID:        spaceID,
 		ConversationID: conversation.ID,
 		Input:          "input",
 		CreatedBy:      userID,

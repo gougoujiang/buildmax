@@ -13,12 +13,12 @@ import (
 // The deployment-wide worker token it replaced proved the caller was *a* worker
 // and nothing more, which is why every route behind it had to reconstruct who
 // the call was for from whatever run ID the caller named. A run token carries
-// the user, the team, and the run the server assigned at dispatch, so
+// the user, the space, and the run the server assigned at dispatch, so
 // authorization and attribution both come from the credential.
 //
 // taskRunID is the run named in the path, and it must match the token's. A
 // worker executes model-chosen code; without this check a compromised run could
-// spend another team's quota by presenting its own valid token against a
+// spend another space's quota by presenting its own valid token against a
 // different run's URL.
 //
 // Mirrors the design in docs/design/worker-run-token.md.

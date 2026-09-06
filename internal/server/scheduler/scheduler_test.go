@@ -46,7 +46,7 @@ func newSpyTaskRunStore(taskRunID string) *spyTaskRunStore {
 		},
 		task: &coretask.Task{
 			ID:        "t_test",
-			TeamID:    "tm_test",
+			SpaceID:   "tm_test",
 			CreatedBy: "u_test",
 		},
 	}
@@ -143,7 +143,7 @@ func (s *spyTaskRunStore) RecordTaskRunAgentRevision(_ context.Context, _ string
 	return nil
 }
 
-func (s *spyTaskRunStore) RecordTaskRunTeamAgentInstructionsRevision(_ context.Context, _ string, _ int) error {
+func (s *spyTaskRunStore) RecordTaskRunSpaceAgentInstructionsRevision(_ context.Context, _ string, _ int) error {
 	return nil
 }
 

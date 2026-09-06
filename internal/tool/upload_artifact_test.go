@@ -67,7 +67,7 @@ func TestUploadArtifactPublishesAndReportsTheReference(t *testing.T) {
 }
 
 // Containment is decided lexically, so a link inside the workspace can still
-// name a file outside it — and publishing sends the target's bytes to a team.
+// name a file outside it — and publishing sends the target's bytes to a space.
 func TestUploadArtifactRefusesASymlinkOutOfTheWorkspace(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("symlink creation needs elevation on Windows")

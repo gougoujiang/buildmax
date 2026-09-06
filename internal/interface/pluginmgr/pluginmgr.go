@@ -432,10 +432,10 @@ func recordInstalled(pluginsDir, name, serverURL string, release coreplugin.Rele
 	})
 }
 
-// ListActivations reads what a team has activated for its background runs.
+// ListActivations reads what a space has activated for its background runs.
 //
 // It sits here rather than in the CLI so Desktop can show the same thing: a
-// team's activations are a property of the deployment, not of this machine.
-func (s *Session) ListActivations(ctx context.Context, teamID string) (*pluginwire.ActivationsResponse, error) {
-	return s.client.ListTeamActivations(ctx, s.token, teamID)
+// space's activations are a property of the deployment, not of this machine.
+func (s *Session) ListActivations(ctx context.Context, spaceID string) (*pluginwire.ActivationsResponse, error) {
+	return s.client.ListSpaceActivations(ctx, s.token, spaceID)
 }

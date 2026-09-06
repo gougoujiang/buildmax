@@ -10,7 +10,7 @@ import { nameablePlugins } from "./nameablePlugins"
 function activation(name: string, over: Partial<ApiPluginActivation> = {}): ApiPluginActivation {
   return {
     id: `act_${name}`,
-    team_id: "tm_1",
+    space_id: "tm_1",
     plugin_name: name,
     version: "1.0.0",
     digest: "",

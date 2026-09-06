@@ -9,7 +9,7 @@ import {
 } from "react"
 import { BuildMaxWebSocket } from "../lib/api/ws"
 import { useAuth } from "./AuthContext"
-import { useTeam } from "./TeamContext"
+import { useSpace } from "./SpaceContext"
 
 interface WebSocketContextValue {
   ws: BuildMaxWebSocket
@@ -46,7 +46,7 @@ const WebSocketContext = createContext<WebSocketContextValue | null>(null)
 
 export function WebSocketProvider({ children }: { children: ReactNode }) {
   const { token } = useAuth()
-  const { currentTeamId } = useTeam()
+  const { currentSpaceId } = useSpace()
   const wsRef = useRef<BuildMaxWebSocket | null>(null)
 
   if (!wsRef.current) {
@@ -121,14 +121,14 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     const ws = wsRef.current!
     if (token) {
       ws.close()
-      ws.connect(token, currentTeamId)
+      ws.connect(token, currentSpaceId)
     } else {
       ws.close()
     }
     setBusyConversations(new Set())
     setQueuedMessages(new Map())
     return () => ws.close()
-  }, [token, currentTeamId])
+  }, [token, currentSpaceId])
 
   useEffect(() => {
     const ws = wsRef.current!

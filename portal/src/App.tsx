@@ -3,7 +3,7 @@ import { AuthProvider, useAuth } from "./contexts/AuthContext"
 import { ThemeProvider } from "@buildmax/gui"
 import { AppProvider, useApp } from "./contexts/AppContext"
 import { WebSocketProvider } from "./contexts/WebSocketContext"
-import { TeamProvider, useTeam } from "./contexts/TeamContext"
+import { SpaceProvider, useSpace } from "./contexts/SpaceContext"
 import { Layout } from "./layout/Layout"
 import { AppRouter } from "./components/AppRouter"
 import { useConversations } from "./hooks/useConversations"
@@ -13,12 +13,12 @@ import { navigate } from "./router"
 function AppContent() {
   const { token, user, logout } = useAuth()
   const { route, setPendingConversation } = useApp()
-  const { currentTeamId } = useTeam()
+  const { currentSpaceId } = useSpace()
   const {
     data: conversations,
     refetch: refetchConversations,
-  } = useConversations(token, currentTeamId)
-  const previousTeamIdRef = useRef<string | null>(currentTeamId)
+  } = useConversations(token, currentSpaceId)
+  const previousSpaceIdRef = useRef<string | null>(currentSpaceId)
 
   useEffect(() => {
     if (!token) return
@@ -27,9 +27,9 @@ function AppContent() {
   }, [token, route])
 
   useEffect(() => {
-    const previousTeamId = previousTeamIdRef.current
-    previousTeamIdRef.current = currentTeamId
-    if (!previousTeamId || previousTeamId === currentTeamId) return
+    const previousSpaceId = previousSpaceIdRef.current
+    previousSpaceIdRef.current = currentSpaceId
+    if (!previousSpaceId || previousSpaceId === currentSpaceId) return
 
     setPendingConversation(null)
     if (route.name === "conversation") {
@@ -48,12 +48,12 @@ function AppContent() {
       navigate({ name: "workflows" })
       return
     }
-    // An artifact belongs to one team, so the detail open before the switch is
+    // An artifact belongs to one space, so the detail open before the switch is
     // not readable after it -- leaving it would render the 404 page.
     if (route.name === "artifact") {
       navigate({ name: "artifacts" })
     }
-  }, [currentTeamId, route, setPendingConversation])
+  }, [currentSpaceId, route, setPendingConversation])
 
   if (!token) {
     return <Login />
@@ -79,13 +79,13 @@ function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <TeamProvider>
+        <SpaceProvider>
           <WebSocketProvider>
             <AppProvider>
               <AppContent />
             </AppProvider>
           </WebSocketProvider>
-        </TeamProvider>
+        </SpaceProvider>
       </AuthProvider>
     </ThemeProvider>
   )

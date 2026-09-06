@@ -66,19 +66,19 @@
   gap: 1rem;
 }
 
-.team-agent-instructions__textarea {
+.space-agent-instructions__textarea {
   width: 100%;
   resize: vertical;
 }
 
-.team-agent-instructions__footer {
+.space-agent-instructions__footer {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
   align-items: baseline;
 }
 
-.team-agent-instructions__count {
+.space-agent-instructions__count {
   flex: none;
   color: var(--color-text-muted);
   font-size: 0.75rem;

@@ -277,7 +277,7 @@ func TestResolveTier1TargetIDByName(t *testing.T) {
 }
 
 // TestBuildLLMRoutingServesEveryCatalogModel records that the catalog is the
-// grant: every model in it is callable, with no per-team policy in between.
+// grant: every model in it is callable, with no per-space policy in between.
 func TestBuildLLMRoutingServesEveryCatalogModel(t *testing.T) {
 	sc := config.ServerConfig{Conversation: config.ServerConvConfig{Model: conversationModel()}}
 

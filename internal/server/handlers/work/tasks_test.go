@@ -12,8 +12,8 @@ import (
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
 	corequota "github.com/gougoujiang/buildmax/internal/core/quota"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/quota"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
@@ -23,14 +23,14 @@ import (
 func TestListConversationTasksHandler(t *testing.T) {
 	secret := "test-tasks-secret"
 	conversationID := "conv1"
-	teamID := "tm_personal_u1"
+	spaceID := "tm_personal_u1"
 	mockConversations := &mock.MockConversationStore{
 		Conversations: []coreconv.Conversation{
-			{ID: conversationID, UserID: "u1", TeamID: teamID, Channel: "portal", CreatedBy: "u1", CreatedAt: time.Unix(123, 0).UTC()},
+			{ID: conversationID, UserID: "u1", SpaceID: spaceID, Channel: "portal", CreatedBy: "u1", CreatedAt: time.Unix(123, 0).UTC()},
 		},
 	}
-	task1 := coretask.Task{ID: "t1", ConversationID: conversationID, TeamID: teamID, Status: "PENDING", Input: "Do something", CreatedBy: "u1", CreatedAt: time.Unix(1000, 0).UTC()}
-	task2 := coretask.Task{ID: "t2", ConversationID: conversationID, TeamID: teamID, Status: "PENDING", Input: "Explore", CreatedBy: "u1", CreatedAt: time.Unix(1001, 0).UTC()}
+	task1 := coretask.Task{ID: "t1", ConversationID: conversationID, SpaceID: spaceID, Status: "PENDING", Input: "Do something", CreatedBy: "u1", CreatedAt: time.Unix(1000, 0).UTC()}
+	task2 := coretask.Task{ID: "t2", ConversationID: conversationID, SpaceID: spaceID, Status: "PENDING", Input: "Explore", CreatedBy: "u1", CreatedAt: time.Unix(1001, 0).UTC()}
 
 	tests := []struct {
 		name         string
@@ -45,7 +45,7 @@ func TestListConversationTasksHandler(t *testing.T) {
 			name:         "no auth returns 401",
 			taskStore:    &mock.MockTaskStore{},
 			authHeader:   "",
-			path:         "/api/teams/" + teamID + "/conversations/" + conversationID + "/tasks",
+			path:         "/api/spaces/" + spaceID + "/conversations/" + conversationID + "/tasks",
 			wantStatus:   http.StatusUnauthorized,
 			wantBodyHas:  "unauthorized",
 			wantArrayLen: -1,
@@ -54,7 +54,7 @@ func TestListConversationTasksHandler(t *testing.T) {
 			name:         "conversation not owned returns 404",
 			taskStore:    &mock.MockTaskStore{},
 			authHeader:   "Bearer " + testsupport.SignJWT("u1", secret),
-			path:         "/api/teams/" + teamID + "/conversations/conv-other/tasks",
+			path:         "/api/spaces/" + spaceID + "/conversations/conv-other/tasks",
 			wantStatus:   http.StatusNotFound,
 			wantBodyHas:  "conversation not found",
 			wantArrayLen: -1,
@@ -63,7 +63,7 @@ func TestListConversationTasksHandler(t *testing.T) {
 			name:         "owned conversation empty list returns 200",
 			taskStore:    &mock.MockTaskStore{List: []coretask.Task{}},
 			authHeader:   "Bearer " + testsupport.SignJWT("u1", secret),
-			path:         "/api/teams/" + teamID + "/conversations/" + conversationID + "/tasks",
+			path:         "/api/spaces/" + spaceID + "/conversations/" + conversationID + "/tasks",
 			wantStatus:   http.StatusOK,
 			wantBodyHas:  "[]",
 			wantArrayLen: 0,
@@ -72,7 +72,7 @@ func TestListConversationTasksHandler(t *testing.T) {
 			name:         "owned conversation with tasks returns 200",
 			taskStore:    &mock.MockTaskStore{List: []coretask.Task{task1, task2}},
 			authHeader:   "Bearer " + testsupport.SignJWT("u1", secret),
-			path:         "/api/teams/" + teamID + "/conversations/" + conversationID + "/tasks",
+			path:         "/api/spaces/" + spaceID + "/conversations/" + conversationID + "/tasks",
 			wantStatus:   http.StatusOK,
 			wantBodyHas:  "t1",
 			wantArrayLen: 2,
@@ -82,7 +82,7 @@ func TestListConversationTasksHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			h := New(Config{
 				JWTSecret:     secret,
-				Teams:         &mock.MockTeamStore{Teams: []coreteam.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}}, Members: []coreteam.Member{{TeamID: teamID, UserID: "u1", Role: coreteam.RoleOwner}}},
+				Spaces:        &mock.MockSpaceStore{Spaces: []corespace.Space{{ID: spaceID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}}, Members: []corespace.Member{{SpaceID: spaceID, UserID: "u1", Role: corespace.RoleOwner}}},
 				Tasks:         tt.taskStore,
 				Conversations: mockConversations,
 			})
@@ -117,10 +117,10 @@ func TestListConversationTasksHandler(t *testing.T) {
 func TestCreateConversationTaskHandler(t *testing.T) {
 	secret := "test-create-task-secret"
 	conversationID := "conv1"
-	teamID := "tm_personal_u1"
+	spaceID := "tm_personal_u1"
 	mockConversations := &mock.MockConversationStore{
 		Conversations: []coreconv.Conversation{
-			{ID: conversationID, UserID: "u1", TeamID: teamID, Channel: "portal", CreatedBy: "u1", CreatedAt: time.Unix(123, 0).UTC()},
+			{ID: conversationID, UserID: "u1", SpaceID: spaceID, Channel: "portal", CreatedBy: "u1", CreatedAt: time.Unix(123, 0).UTC()},
 		},
 	}
 
@@ -139,7 +139,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 			name:        "no auth returns 401",
 			taskStore:   &mock.MockTaskStore{},
 			authHeader:  "",
-			path:        "/api/teams/" + teamID + "/conversations/" + conversationID + "/tasks",
+			path:        "/api/spaces/" + spaceID + "/conversations/" + conversationID + "/tasks",
 			body:        `{"input":"Do X"}`,
 			wantStatus:  http.StatusUnauthorized,
 			wantBodyHas: "unauthorized",
@@ -148,7 +148,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 			name:        "conversation not owned returns 404",
 			taskStore:   &mock.MockTaskStore{},
 			authHeader:  "Bearer " + testsupport.SignJWT("u1", secret),
-			path:        "/api/teams/" + teamID + "/conversations/conv-other/tasks",
+			path:        "/api/spaces/" + spaceID + "/conversations/conv-other/tasks",
 			body:        `{"input":"Do X"}`,
 			wantStatus:  http.StatusNotFound,
 			wantBodyHas: "conversation not found",
@@ -157,7 +157,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 			name:        "missing input returns 400",
 			taskStore:   &mock.MockTaskStore{},
 			authHeader:  "Bearer " + testsupport.SignJWT("u1", secret),
-			path:        "/api/teams/" + teamID + "/conversations/" + conversationID + "/tasks",
+			path:        "/api/spaces/" + spaceID + "/conversations/" + conversationID + "/tasks",
 			body:        `{}`,
 			wantStatus:  http.StatusBadRequest,
 			wantBodyHas: "input",
@@ -166,12 +166,12 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 			name: "valid body returns 201",
 			taskStore: &mock.MockTaskStore{
 				Create: &coretask.Task{
-					ID: "new-task-id", ConversationID: conversationID, TeamID: teamID, Status: "PENDING",
+					ID: "new-task-id", ConversationID: conversationID, SpaceID: spaceID, Status: "PENDING",
 					Input: "Do X", CreatedBy: "u1", CreatedAt: time.Unix(99999, 0).UTC(),
 				},
 			},
 			authHeader:   "Bearer " + testsupport.SignJWT("u1", secret),
-			path:         "/api/teams/" + teamID + "/conversations/" + conversationID + "/tasks",
+			path:         "/api/spaces/" + spaceID + "/conversations/" + conversationID + "/tasks",
 			body:         `{"input":"Do X"}`,
 			wantStatus:   http.StatusCreated,
 			wantBodyHas:  "new-task-id",
@@ -182,11 +182,11 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 			taskStore: &mock.MockTaskStore{},
 			agentStore: &mock.MockAgentStore{
 				Agents: []agentdef.Agent{
-					{ID: "a_1", UserID: "u1", TeamID: teamID, Name: "TestAgent", Description: "A desc", Instructions: "Do things", CreatedAt: time.Unix(100, 0).UTC()},
+					{ID: "a_1", UserID: "u1", SpaceID: spaceID, Name: "TestAgent", Description: "A desc", Instructions: "Do things", CreatedAt: time.Unix(100, 0).UTC()},
 				},
 			},
 			authHeader:   "Bearer " + testsupport.SignJWT("u1", secret),
-			path:         "/api/teams/" + teamID + "/conversations/" + conversationID + "/tasks",
+			path:         "/api/spaces/" + spaceID + "/conversations/" + conversationID + "/tasks",
 			body:         `{"agent_id":"a_1"}`,
 			wantStatus:   http.StatusCreated,
 			wantBodyHas:  "TestAgent",
@@ -194,7 +194,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 		},
 	}
 	denyChecker := &quota.Service{
-		TeamStore:   &mock.DenyQuotaTeamStore{Team: &coreteam.Team{ID: teamID, QuotaTier: "free_trial"}},
+		SpaceStore:  &mock.DenyQuotaSpaceStore{Space: &corespace.Space{ID: spaceID, QuotaTier: "free_trial"}},
 		UsageReader: &mock.DenyQuotaUsageReader{RunCount: 10, TotalTokens: 0},
 		TierStore:   &mock.DenyQuotaTierStore{Tier: &corequota.Tier{TierName: "free_trial", MaxRunsPerPeriod: 10, MaxTokensPerPeriod: 100000, PeriodDays: 30}},
 		DefaultTier: "free_trial",
@@ -213,7 +213,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 		name:        "quota exceeded returns 429",
 		taskStore:   &mock.MockTaskStore{},
 		authHeader:  "Bearer " + testsupport.SignJWT("u1", secret),
-		path:        "/api/teams/" + teamID + "/conversations/" + conversationID + "/tasks",
+		path:        "/api/spaces/" + spaceID + "/conversations/" + conversationID + "/tasks",
 		body:        `{"input":"Do X"}`,
 		wantStatus:  http.StatusTooManyRequests,
 		wantBodyHas: "quota exceeded",
@@ -223,7 +223,7 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := Config{
 				JWTSecret:     secret,
-				Teams:         &mock.MockTeamStore{Teams: []coreteam.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}}, Members: []coreteam.Member{{TeamID: teamID, UserID: "u1", Role: coreteam.RoleOwner}}},
+				Spaces:        &mock.MockSpaceStore{Spaces: []corespace.Space{{ID: spaceID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}}, Members: []corespace.Member{{SpaceID: spaceID, UserID: "u1", Role: corespace.RoleOwner}}},
 				Tasks:         tt.taskStore,
 				Agents:        tt.agentStore,
 				Conversations: mockConversations,
@@ -268,16 +268,16 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 func TestListConversationTasksCarriesRunAndArtifacts(t *testing.T) {
 	secret := "test-task-cards-secret"
 	conversationID := "conv1"
-	teamID := "tm_personal_u1"
-	task1 := coretask.Task{ID: "t1", ConversationID: conversationID, TeamID: teamID, Status: "SUCCEEDED", Input: "Do something", CreatedBy: "u1", CreatedAt: time.Unix(1000, 0).UTC(), LastRunID: util.Ptr("tr_1")}
-	task2 := coretask.Task{ID: "t2", ConversationID: conversationID, TeamID: teamID, Status: "PENDING", Input: "Explore", CreatedBy: "u1", CreatedAt: time.Unix(1001, 0).UTC()}
+	spaceID := "tm_personal_u1"
+	task1 := coretask.Task{ID: "t1", ConversationID: conversationID, SpaceID: spaceID, Status: "SUCCEEDED", Input: "Do something", CreatedBy: "u1", CreatedAt: time.Unix(1000, 0).UTC(), LastRunID: util.Ptr("tr_1")}
+	task2 := coretask.Task{ID: "t2", ConversationID: conversationID, SpaceID: spaceID, Status: "PENDING", Input: "Explore", CreatedBy: "u1", CreatedAt: time.Unix(1001, 0).UTC()}
 
 	h := New(Config{
 		JWTSecret: secret,
-		Teams:     &mock.MockTeamStore{Teams: []coreteam.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}}, Members: []coreteam.Member{{TeamID: teamID, UserID: "u1", Role: coreteam.RoleOwner}}},
+		Spaces:    &mock.MockSpaceStore{Spaces: []corespace.Space{{ID: spaceID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}}, Members: []corespace.Member{{SpaceID: spaceID, UserID: "u1", Role: corespace.RoleOwner}}},
 		Tasks:     &mock.MockTaskStore{List: []coretask.Task{task1, task2}},
 		Conversations: &mock.MockConversationStore{
-			Conversations: []coreconv.Conversation{{ID: conversationID, UserID: "u1", TeamID: teamID, Channel: "portal", CreatedBy: "u1", CreatedAt: time.Unix(123, 0).UTC()}},
+			Conversations: []coreconv.Conversation{{ID: conversationID, UserID: "u1", SpaceID: spaceID, Channel: "portal", CreatedBy: "u1", CreatedAt: time.Unix(123, 0).UTC()}},
 		},
 		RunOutputs: &mock.MockRunOutputLister{List: []coretask.RunOutputListing{
 			{ArtifactID: "tr_1", TaskID: "t1", TaskRunID: "tr_1", ConversationID: conversationID},
@@ -286,7 +286,7 @@ func TestListConversationTasksCarriesRunAndArtifacts(t *testing.T) {
 	mux := http.NewServeMux()
 	h.Register(mux)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/teams/"+teamID+"/conversations/"+conversationID+"/tasks", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/spaces/"+spaceID+"/conversations/"+conversationID+"/tasks", nil)
 	req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", secret))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)

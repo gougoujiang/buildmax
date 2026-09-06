@@ -1,8 +1,8 @@
-// Package secret is the Team Secret lifecycle service: it validates a Secret's
+// Package secret is the Space Secret lifecycle service: it validates a Secret's
 // items, seals them through a Sealer, and stores metadata plus sealed bytes. It
 // never returns an item value -- there is no reveal path -- and it owns the
 // rule that an item name is an identifier. Authorization (owner-only) is the
-// handler's job; team ownership is checked here. See docs/design/team-secrets.md.
+// handler's job; space ownership is checked here. See docs/design/space-secrets.md.
 package secret
 
 import (
@@ -29,7 +29,7 @@ var (
 
 // Service owns Secret lifecycle. Store persists metadata and sealed bytes and
 // Sealer does the cryptography. The associated data binds each ciphertext to
-// its team; see coresecret.AAD.
+// its space; see coresecret.AAD.
 type Service struct {
 	Store  coresecret.Store
 	Sealer coresecret.Sealer
@@ -37,7 +37,7 @@ type Service struct {
 
 // CreateCmd creates a Secret with its first items.
 type CreateCmd struct {
-	TeamID      string
+	SpaceID     string
 	CreatedBy   string
 	Name        string
 	Description string
@@ -53,12 +53,12 @@ func (s *Service) Create(ctx context.Context, cmd CreateCmd) (*coresecret.Secret
 	if err != nil {
 		return nil, err
 	}
-	sealed, err := s.Sealer.Seal(coresecret.Items(cmd.Items), coresecret.AAD(cmd.TeamID))
+	sealed, err := s.Sealer.Seal(coresecret.Items(cmd.Items), coresecret.AAD(cmd.SpaceID))
 	if err != nil {
 		return nil, err
 	}
 	return s.Store.CreateSecret(ctx, coresecret.CreateInput{
-		TeamID:      cmd.TeamID,
+		SpaceID:     cmd.SpaceID,
 		Name:        cmd.Name,
 		Description: cmd.Description,
 		Provider:    coresecret.ProviderEmbedded,
@@ -68,15 +68,15 @@ func (s *Service) Create(ctx context.Context, cmd CreateCmd) (*coresecret.Secret
 	})
 }
 
-// List returns a team's Secrets, metadata only.
-func (s *Service) List(ctx context.Context, teamID string) ([]coresecret.Secret, error) {
-	return s.Store.ListSecretsByTeam(ctx, teamID)
+// List returns a space's Secrets, metadata only.
+func (s *Service) List(ctx context.Context, spaceID string) ([]coresecret.Secret, error) {
+	return s.Store.ListSecretsBySpace(ctx, spaceID)
 }
 
-// Get returns one Secret the team owns. A Secret in another team reads as
+// Get returns one Secret the space owns. A Secret in another space reads as
 // not-found, so the answer does not confirm one exists elsewhere.
-func (s *Service) Get(ctx context.Context, teamID, id string) (*coresecret.Secret, error) {
-	sec, err := s.scoped(ctx, teamID, id)
+func (s *Service) Get(ctx context.Context, spaceID, id string) (*coresecret.Secret, error) {
+	sec, err := s.scoped(ctx, spaceID, id)
 	if err != nil {
 		return nil, err
 	}
@@ -84,8 +84,8 @@ func (s *Service) Get(ctx context.Context, teamID, id string) (*coresecret.Secre
 }
 
 // ReplaceItems sets the whole item map, the shape a raw-JSON editor sends.
-func (s *Service) ReplaceItems(ctx context.Context, teamID, id string, items map[string]string) (*coresecret.Secret, error) {
-	sec, err := s.scoped(ctx, teamID, id)
+func (s *Service) ReplaceItems(ctx context.Context, spaceID, id string, items map[string]string) (*coresecret.Secret, error) {
+	sec, err := s.scoped(ctx, spaceID, id)
 	if err != nil {
 		return nil, err
 	}
@@ -96,22 +96,22 @@ func (s *Service) ReplaceItems(ctx context.Context, teamID, id string, items map
 	if err != nil {
 		return nil, err
 	}
-	return s.seal(ctx, teamID, id, items, names)
+	return s.seal(ctx, spaceID, id, items, names)
 }
 
 // PatchItems sets some item keys and removes others, the shape a row editor
 // sends. It decrypts the current items, applies the delta, and re-seals the
 // whole map -- one atomic row rewrite, so a rotation of several items is
 // consistent.
-func (s *Service) PatchItems(ctx context.Context, teamID, id string, set map[string]string, remove []string) (*coresecret.Secret, error) {
-	sec, sealed, err := s.scopedSealed(ctx, teamID, id)
+func (s *Service) PatchItems(ctx context.Context, spaceID, id string, set map[string]string, remove []string) (*coresecret.Secret, error) {
+	sec, sealed, err := s.scopedSealed(ctx, spaceID, id)
 	if err != nil {
 		return nil, err
 	}
 	if sec.State == coresecret.StateDestroyed {
 		return nil, ErrDestroyed
 	}
-	items, err := s.Sealer.Open(*sealed, coresecret.AAD(sec.TeamID))
+	items, err := s.Sealer.Open(*sealed, coresecret.AAD(sec.SpaceID))
 	if err != nil {
 		return nil, err
 	}
@@ -130,48 +130,48 @@ func (s *Service) PatchItems(ctx context.Context, teamID, id string, set map[str
 	if err != nil {
 		return nil, err
 	}
-	return s.seal(ctx, teamID, id, merged, names)
+	return s.seal(ctx, spaceID, id, merged, names)
 }
 
 // Materialize returns a Secret's decrypted items for an authorized runtime
 // consumer. It refuses a disabled or destroyed Secret: a run must not receive a
 // value the owner has withdrawn. The caller is responsible for the run
-// authorization; this only enforces team ownership and Secret state.
-func (s *Service) Materialize(ctx context.Context, teamID, id string) (coresecret.Items, error) {
-	sec, sealed, err := s.scopedSealed(ctx, teamID, id)
+// authorization; this only enforces space ownership and Secret state.
+func (s *Service) Materialize(ctx context.Context, spaceID, id string) (coresecret.Items, error) {
+	sec, sealed, err := s.scopedSealed(ctx, spaceID, id)
 	if err != nil {
 		return nil, err
 	}
 	if sec.State != coresecret.StateActive {
 		return nil, ErrDisabled
 	}
-	return s.Sealer.Open(*sealed, coresecret.AAD(teamID))
+	return s.Sealer.Open(*sealed, coresecret.AAD(spaceID))
 }
 
 // SetState disables, re-enables, or destroys a Secret.
-func (s *Service) SetState(ctx context.Context, teamID, id string, state coresecret.State) (*coresecret.Secret, error) {
+func (s *Service) SetState(ctx context.Context, spaceID, id string, state coresecret.State) (*coresecret.Secret, error) {
 	switch state {
 	case coresecret.StateActive, coresecret.StateDisabled, coresecret.StateDestroyed:
 	default:
 		return nil, ErrUnknownState
 	}
-	if _, err := s.scoped(ctx, teamID, id); err != nil {
+	if _, err := s.scoped(ctx, spaceID, id); err != nil {
 		return nil, err
 	}
 	return s.Store.SetState(ctx, id, state)
 }
 
 // seal re-seals items and stores them. Item names are pre-validated.
-func (s *Service) seal(ctx context.Context, teamID, id string, items map[string]string, names []string) (*coresecret.Secret, error) {
-	sealed, err := s.Sealer.Seal(coresecret.Items(items), coresecret.AAD(teamID))
+func (s *Service) seal(ctx context.Context, spaceID, id string, items map[string]string, names []string) (*coresecret.Secret, error) {
+	sealed, err := s.Sealer.Seal(coresecret.Items(items), coresecret.AAD(spaceID))
 	if err != nil {
 		return nil, err
 	}
 	return s.Store.UpdateItems(ctx, coresecret.UpdateItemsInput{ID: id, ItemNames: names, Sealed: sealed})
 }
 
-// scoped fetches a Secret and refuses one that is not the team's.
-func (s *Service) scoped(ctx context.Context, teamID, id string) (*coresecret.Secret, error) {
+// scoped fetches a Secret and refuses one that is not the space's.
+func (s *Service) scoped(ctx context.Context, spaceID, id string) (*coresecret.Secret, error) {
 	sec, err := s.Store.GetSecret(ctx, id)
 	if err != nil {
 		if errors.Is(err, apierr.ErrNotFound) {
@@ -179,13 +179,13 @@ func (s *Service) scoped(ctx context.Context, teamID, id string) (*coresecret.Se
 		}
 		return nil, err
 	}
-	if sec.TeamID != teamID {
+	if sec.SpaceID != spaceID {
 		return nil, ErrNotFound
 	}
 	return sec, nil
 }
 
-func (s *Service) scopedSealed(ctx context.Context, teamID, id string) (*coresecret.Secret, *coresecret.Sealed, error) {
+func (s *Service) scopedSealed(ctx context.Context, spaceID, id string) (*coresecret.Secret, *coresecret.Sealed, error) {
 	sec, sealed, err := s.Store.GetSealed(ctx, id)
 	if err != nil {
 		if errors.Is(err, apierr.ErrNotFound) {
@@ -193,7 +193,7 @@ func (s *Service) scopedSealed(ctx context.Context, teamID, id string) (*coresec
 		}
 		return nil, nil, err
 	}
-	if sec.TeamID != teamID {
+	if sec.SpaceID != spaceID {
 		return nil, nil, ErrNotFound
 	}
 	return sec, sealed, nil

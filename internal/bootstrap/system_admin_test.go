@@ -92,7 +92,7 @@ func TestAdminGrantAndRevoke(t *testing.T) {
 		event.ActorType != coreaudit.ActorSystem ||
 		event.ActorID != coreaudit.ActorOperator ||
 		event.TargetID != user.ID ||
-		event.TeamID != "" {
+		event.SpaceID != "" {
 		t.Errorf("grant event wrong: %+v", event)
 	}
 

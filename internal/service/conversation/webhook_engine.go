@@ -50,7 +50,7 @@ func (e *WebhookEngine) Process(ctx context.Context, conversationID, taskID stri
 		result, err := e.TaskService.StartBackgroundTask(ctx, task.CreateTaskCmd{
 			ConversationID: conversationID,
 			UserID:         userID,
-			TeamID:         conv.TeamID,
+			SpaceID:        conv.SpaceID,
 			Input:          turn.Message,
 			AgentID:        nil,
 			CreatedByType:  coretask.RunCreatedByTypeWebhook,

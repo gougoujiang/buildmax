@@ -21,30 +21,30 @@ export interface GetTasksPaginatedOptions {
   executedOnly?: boolean
 }
 
-export async function createAgentTask(teamId: string, agentId: string, input: string, token: string): Promise<ApiTask> {
+export async function createAgentTask(spaceId: string, agentId: string, input: string, token: string): Promise<ApiTask> {
   return requestJson<ApiTask>(
-    `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/agents/${encodeURIComponent(agentId)}/tasks`,
+    `${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/agents/${encodeURIComponent(agentId)}/tasks`,
     { method: "POST", headers: { ...jsonHeaders, ...authHeaders(token) }, body: JSON.stringify({ input }) }
   )
 }
 
-export async function listAgentTasks(teamId: string, agentId: string, token: string): Promise<ApiTasksListResponse> {
+export async function listAgentTasks(spaceId: string, agentId: string, token: string): Promise<ApiTasksListResponse> {
   return requestJson<ApiTasksListResponse>(
-    `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/agents/${encodeURIComponent(agentId)}/tasks`,
+    `${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/agents/${encodeURIComponent(agentId)}/tasks`,
     { headers: authHeaders(token) }
   )
 }
 
-export async function getTask(teamId: string, taskId: string, token: string): Promise<ApiTask> {
+export async function getTask(spaceId: string, taskId: string, token: string): Promise<ApiTask> {
   return requestJson<ApiTask>(
-    `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/tasks/${encodeURIComponent(taskId)}`,
+    `${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/tasks/${encodeURIComponent(taskId)}`,
     { headers: authHeaders(token) }
   )
 }
 
-export async function getTaskRuns(teamId: string, taskId: string, token: string): Promise<ApiTaskRun[]> {
+export async function getTaskRuns(spaceId: string, taskId: string, token: string): Promise<ApiTaskRun[]> {
   const response = await requestJson<ApiTaskRunsResponse>(
-    `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/tasks/${encodeURIComponent(taskId)}/runs`,
+    `${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/tasks/${encodeURIComponent(taskId)}/runs`,
     { headers: authHeaders(token) }
   )
   return response.runs
@@ -59,14 +59,14 @@ export async function getTaskRuns(teamId: string, taskId: string, token: string)
  * of its own is unaffected.
  */
 export async function continueTask(
-  teamId: string,
+  spaceId: string,
   taskId: string,
   input: string,
   token: string,
   idempotencyKey?: string
 ): Promise<ApiTaskRun> {
   return requestJson<ApiTaskRun>(
-    `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/tasks/${encodeURIComponent(taskId)}/runs`,
+    `${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/tasks/${encodeURIComponent(taskId)}/runs`,
     {
       method: "POST",
       headers: { ...jsonHeaders, ...authHeaders(token) },
@@ -76,18 +76,18 @@ export async function continueTask(
 }
 
 export async function getTasks(
-  teamId: string,
+  spaceId: string,
   conversationId: string,
   token: string
 ): Promise<ApiTask[]> {
   return requestJson<ApiTask[]>(
-    `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/conversations/${encodeURIComponent(conversationId)}/tasks`,
+    `${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/conversations/${encodeURIComponent(conversationId)}/tasks`,
     { headers: authHeaders(token) }
   )
 }
 
 export async function getTasksPaginated(
-  teamId: string,
+  spaceId: string,
   conversationId: string,
   token: string,
   options?: GetTasksPaginatedOptions
@@ -97,7 +97,7 @@ export async function getTasksPaginated(
   if (options?.offset != null) params.set("offset", String(options.offset))
   if (options?.executedOnly) params.set("executed_only", "true")
   const q = params.toString()
-  const url = `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/conversations/${encodeURIComponent(conversationId)}/tasks${q ? `?${q}` : ""}`
+  const url = `${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/conversations/${encodeURIComponent(conversationId)}/tasks${q ? `?${q}` : ""}`
   return requestJson<ApiTasksListResponse>(url, { headers: authHeaders(token) })
 }
 
@@ -109,12 +109,12 @@ export async function getTasksPaginated(
  * the caller resolves by reloading, not an error worth showing.
  */
 export async function cancelTask(
-  teamId: string,
+  spaceId: string,
   taskId: string,
   token: string
 ): Promise<CancelTaskResponse> {
   const res = await apiFetch(
-    `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/tasks/${encodeURIComponent(taskId)}/cancel`,
+    `${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/tasks/${encodeURIComponent(taskId)}/cancel`,
     { method: "POST", headers: { ...jsonHeaders, ...authHeaders(token) } }
   )
   if (res.status === 409) {
@@ -133,12 +133,12 @@ export async function cancelTask(
  * server's own reason is what the caller shows.
  */
 export async function retryTask(
-  teamId: string,
+  spaceId: string,
   taskId: string,
   token: string
 ): Promise<RetryTaskResponse> {
   const res = await apiFetch(
-    `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/tasks/${encodeURIComponent(taskId)}/retry`,
+    `${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/tasks/${encodeURIComponent(taskId)}/retry`,
     { method: "POST", headers: { ...jsonHeaders, ...authHeaders(token) } }
   )
   if (res.status === 409) {

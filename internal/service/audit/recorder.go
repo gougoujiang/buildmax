@@ -47,15 +47,15 @@ func (r *Recorder) Record(ctx context.Context, event coreaudit.Event) {
 			"action", event.Action,
 			"actor_type", event.ActorType,
 			"actor_id", event.ActorID,
-			"team_id", event.TeamID,
+			"space_id", event.SpaceID,
 		)
 	}
 }
 
-// UserAction records an action a signed-in user performed on a team resource.
-func (r *Recorder) UserAction(ctx context.Context, userID, teamID, action, targetType, targetID, detail string) {
+// UserAction records an action a signed-in user performed on a space resource.
+func (r *Recorder) UserAction(ctx context.Context, userID, spaceID, action, targetType, targetID, detail string) {
 	r.Record(ctx, coreaudit.Event{
-		TeamID:     teamID,
+		SpaceID:    spaceID,
 		ActorType:  coreaudit.ActorUser,
 		ActorID:    userID,
 		Action:     action,
@@ -65,13 +65,13 @@ func (r *Recorder) UserAction(ctx context.Context, userID, teamID, action, targe
 	})
 }
 
-// Denied records a refused team-scoped request.
+// Denied records a refused space-scoped request.
 //
 // The route is passed as the target rather than the full URL: a URL carries
 // query strings, and this table is not a place for values a caller chose.
-func (r *Recorder) Denied(ctx context.Context, userID, teamID, route string) {
+func (r *Recorder) Denied(ctx context.Context, userID, spaceID, route string) {
 	r.Record(ctx, coreaudit.Event{
-		TeamID:     teamID,
+		SpaceID:    spaceID,
 		ActorType:  coreaudit.ActorUser,
 		ActorID:    userID,
 		Action:     coreaudit.AccessDenied,

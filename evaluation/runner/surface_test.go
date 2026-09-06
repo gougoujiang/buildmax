@@ -71,7 +71,7 @@ func repoRootDir() (string, error) {
 
 // writeMixedSuite builds one CLI task and one worker task that state the same
 // goal. Their path assertions differ because their surfaces do: a worker's
-// team files arrive under home/. That is what section 11 means by parity being
+// space files arrive under home/. That is what section 11 means by parity being
 // two tasks rather than one task run twice.
 func writeMixedSuite(t *testing.T) string {
 	t.Helper()

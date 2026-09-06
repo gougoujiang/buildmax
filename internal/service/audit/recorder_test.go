@@ -45,7 +45,7 @@ func TestUserActionAndDenied(t *testing.T) {
 	store := &mock.MockAuditStore{}
 	r := NewRecorder(store)
 
-	r.UserAction(context.Background(), "u_1", "tm_1", coreaudit.TeamMemberAdded, "user", "u_2", "admin")
+	r.UserAction(context.Background(), "u_1", "tm_1", coreaudit.SpaceMemberAdded, "user", "u_2", "admin")
 	r.Denied(context.Background(), "u_3", "tm_1", "manage_agents")
 
 	if len(store.Events) != 2 {

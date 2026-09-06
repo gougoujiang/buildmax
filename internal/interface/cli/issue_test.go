@@ -8,14 +8,14 @@ import (
 	"github.com/gougoujiang/buildmax/internal/interface/auth"
 )
 
-// A session working a team issue says so before it does anything: which
-// server, which team, which issue, and where prompts go. A person who did not
-// mean to hand a team's issue to a personal model learns it here.
+// A session working a space issue says so before it does anything: which
+// server, which space, which issue, and where prompts go. A person who did not
+// mean to hand a space's issue to a personal model learns it here.
 func TestIssueSessionNoticeNamesTheBoundary(t *testing.T) {
 	session := &auth.IssueSession{
 		ServerURL: "https://buildmax.example",
-		TeamID:    "tm_1",
-		TeamName:  "Platform",
+		SpaceID:   "tm_1",
+		SpaceName: "Platform",
 		Issue:     coreissue.Issue{ID: "i_1", Title: "Ship the importer", Status: coreissue.StatusTodo},
 	}
 

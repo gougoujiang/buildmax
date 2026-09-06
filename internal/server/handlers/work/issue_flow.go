@@ -40,8 +40,8 @@ type issueFlowRun struct {
 
 // loadIssueFlow gathers the view. A failure names the query that failed,
 // because "the flow did not load" is not something an operator can act on.
-func (h *Handler) loadIssueFlow(ctx context.Context, teamID, issueID string, limit, offset int) (*issueFlow, error) {
-	issue, err := h.issueService().GetIssue(ctx, teamID, issueID)
+func (h *Handler) loadIssueFlow(ctx context.Context, spaceID, issueID string, limit, offset int) (*issueFlow, error) {
+	issue, err := h.issueService().GetIssue(ctx, spaceID, issueID)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +54,7 @@ func (h *Handler) loadIssueFlow(ctx context.Context, teamID, issueID string, lim
 		parent, err := h.cfg.Issues.GetIssue(ctx, *issue.ParentIssueID)
 		if err != nil {
 			slog.WarnContext(ctx, "issue parent not loaded", "err", err, "issue_id", issueID)
-		} else if parent != nil && parent.TeamID == teamID {
+		} else if parent != nil && parent.SpaceID == spaceID {
 			flow.Parent = parent
 		}
 	} else if children, err := h.cfg.Issues.ListIssueChildren(ctx, issue.ID); err != nil {
@@ -68,7 +68,7 @@ func (h *Handler) loadIssueFlow(ctx context.Context, teamID, issueID string, lim
 		if err != nil {
 			return nil, fmt.Errorf("load the issue's workflow: %w", err)
 		}
-		if workflow != nil && workflow.TeamID == teamID {
+		if workflow != nil && workflow.SpaceID == spaceID {
 			flow.Workflow = workflow
 		}
 	}

@@ -30,20 +30,20 @@ func (m *MockWorkflowStore) appendRevision(w *coreworkflow.Workflow, createdBy s
 	})
 }
 
-func (m *MockWorkflowStore) ListWorkflowsByTeam(_ context.Context, teamID string) ([]coreworkflow.Workflow, error) {
+func (m *MockWorkflowStore) ListWorkflowsBySpace(_ context.Context, spaceID string) ([]coreworkflow.Workflow, error) {
 	var out []coreworkflow.Workflow
 	for _, workflow := range m.Workflows {
-		if workflow.TeamID == teamID {
+		if workflow.SpaceID == spaceID {
 			out = append(out, workflow)
 		}
 	}
 	return out, nil
 }
 
-func (m *MockWorkflowStore) CreateWorkflow(_ context.Context, teamID, createdBy, name, description, definition string) (*coreworkflow.Workflow, error) {
+func (m *MockWorkflowStore) CreateWorkflow(_ context.Context, spaceID, createdBy, name, description, definition string) (*coreworkflow.Workflow, error) {
 	workflow := coreworkflow.Workflow{
 		ID:          fmt.Sprintf("w_mock_%d", len(m.Workflows)+1),
-		TeamID:      teamID,
+		SpaceID:     spaceID,
 		Name:        name,
 		Description: description,
 		Definition:  definition,
@@ -68,9 +68,9 @@ func (m *MockWorkflowStore) GetWorkflow(_ context.Context, workflowID string) (*
 	return nil, nil
 }
 
-func (m *MockWorkflowStore) UpdateWorkflow(_ context.Context, workflowID, teamID string, in coreworkflow.UpdateInput) (*coreworkflow.Workflow, error) {
+func (m *MockWorkflowStore) UpdateWorkflow(_ context.Context, workflowID, spaceID string, in coreworkflow.UpdateInput) (*coreworkflow.Workflow, error) {
 	for i := range m.Workflows {
-		if m.Workflows[i].ID != workflowID || m.Workflows[i].TeamID != teamID {
+		if m.Workflows[i].ID != workflowID || m.Workflows[i].SpaceID != spaceID {
 			continue
 		}
 		updated := m.Workflows[i]

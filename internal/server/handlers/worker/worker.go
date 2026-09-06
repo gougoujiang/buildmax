@@ -33,16 +33,16 @@ func (h *Handler) getTaskRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.recordSeen(r, run)
-	teamInstructions := ""
-	teamInstructionsRevision := 0
-	if h.cfg.Teams != nil {
-		team, terr := h.cfg.Teams.GetTeam(r.Context(), task.TeamID)
+	spaceInstructions := ""
+	spaceInstructionsRevision := 0
+	if h.cfg.Spaces != nil {
+		space, terr := h.cfg.Spaces.GetSpace(r.Context(), task.SpaceID)
 		if terr != nil {
-			componentLog().Warn("worker handler: team agent instructions unavailable", "task_run_id", taskRunID, "team_id", task.TeamID, "err", terr)
-		} else if team != nil {
-			teamInstructions = team.AgentInstructions
-			teamInstructionsRevision = team.AgentInstructionsRevision
-			h.recordTeamAgentInstructionsRevision(r, run, teamInstructionsRevision)
+			componentLog().Warn("worker handler: space agent instructions unavailable", "task_run_id", taskRunID, "space_id", task.SpaceID, "err", terr)
+		} else if space != nil {
+			spaceInstructions = space.AgentInstructions
+			spaceInstructionsRevision = space.AgentInstructionsRevision
+			h.recordSpaceAgentInstructionsRevision(r, run, spaceInstructionsRevision)
 		}
 	}
 	// The agent's instructions are appended to the run's system prompt. Resolving them here
@@ -56,15 +56,15 @@ func (h *Handler) getTaskRun(w http.ResponseWriter, r *http.Request) {
 			// A run missing its instructions is worse than a run that never had any, but
 			// refusing to dispatch it is worse still. Say so and continue.
 			componentLog().Warn("worker handler: agent instructions unavailable", "task_run_id", taskRunID, "agent_id", *task.AgentID, "err", aerr)
-		} else if a != nil && a.TeamID == task.TeamID {
+		} else if a != nil && a.SpaceID == task.SpaceID {
 			agentInstructions = a.Instructions
 			runAgent = a
 			h.recordAgentRevision(r, run, a.Revision)
 		}
 	}
 
-	// Resolved here, beside the agent revision, and against the run's team
-	// rather than the agent's: an agent that failed the team check above is
+	// Resolved here, beside the agent revision, and against the run's space
+	// rather than the agent's: an agent that failed the space check above is
 	// treated as no agent, plugins included.
 	pins, pluginRefusal := h.resolvePluginPins(r, run, task, runAgent)
 	h.recordPluginPins(r, run, pins)
@@ -85,19 +85,19 @@ func (h *Handler) getTaskRun(w http.ResponseWriter, r *http.Request) {
 			CreatedAt:       run.CreatedAt,
 		},
 		Task: workerclient.TaskRunTask{
-			ID:                            task.ID,
-			ConversationID:                task.ConversationID,
-			TeamID:                        task.TeamID,
-			UserID:                        task.CreatedBy,
-			SessionID:                     task.SessionID,
-			AgentInstructions:             agentInstructions,
-			TeamAgentInstructions:         teamInstructions,
-			TeamAgentInstructionsRevision: teamInstructionsRevision,
+			ID:                             task.ID,
+			ConversationID:                 task.ConversationID,
+			SpaceID:                        task.SpaceID,
+			UserID:                         task.CreatedBy,
+			SessionID:                      task.SessionID,
+			AgentInstructions:              agentInstructions,
+			SpaceAgentInstructions:         spaceInstructions,
+			SpaceAgentInstructionsRevision: spaceInstructionsRevision,
 		},
 		Plugins:     toWirePlugins(pins),
 		PluginError: pluginRefusal,
 		// Resolved alongside the agent revision and plugin pins, against the
-		// same runAgent: an agent that failed the team check above declares
+		// same runAgent: an agent that failed the space check above declares
 		// no tiers, the same way it names no plugins.
 		Sandbox: &workerclient.TaskRunSandbox{
 			NetworkTier:    networkTier,
@@ -288,11 +288,11 @@ func (h *Handler) recordSeen(r *http.Request, run *coretask.Run) {
 
 // resolveSandboxTiers returns this run's sandbox tiers: the pinned ones once
 // a worker has already claimed this run, or the agent's current declaration
-// resolved against the team's default on the first poll. Mirrors
+// resolved against the space's default on the first poll. Mirrors
 // resolvePluginPins's first-write-wins read — see
 // docs/design/agent-sandbox-policy.md §4.4 and §9 M3.
 //
-// A tier the agent leaves undeclared falls through to the team's default for
+// A tier the agent leaves undeclared falls through to the space's default for
 // that axis, and only then to the surface baseline an empty string resolves
 // to elsewhere. Each axis falls through independently, the same way
 // ResolveSandboxForRun's layers do.
@@ -307,16 +307,16 @@ func (h *Handler) resolveSandboxTiers(r *http.Request, run *coretask.Run, task *
 		return "", ""
 	}
 	networkTier, filesystemTier = a.SandboxNetworkTier, a.SandboxFilesystemTier
-	if (networkTier == "" || filesystemTier == "") && h.cfg.Teams != nil {
-		team, err := h.cfg.Teams.GetTeam(r.Context(), task.TeamID)
+	if (networkTier == "" || filesystemTier == "") && h.cfg.Spaces != nil {
+		space, err := h.cfg.Spaces.GetSpace(r.Context(), task.SpaceID)
 		if err != nil {
-			componentLog().Warn("worker handler: team sandbox defaults unavailable", "task_run_id", run.ID, "team_id", task.TeamID, "err", err)
-		} else if team != nil {
+			componentLog().Warn("worker handler: space sandbox defaults unavailable", "task_run_id", run.ID, "space_id", task.SpaceID, "err", err)
+		} else if space != nil {
 			if networkTier == "" {
-				networkTier = team.DefaultSandboxNetworkTier
+				networkTier = space.DefaultSandboxNetworkTier
 			}
 			if filesystemTier == "" {
-				filesystemTier = team.DefaultSandboxFilesystemTier
+				filesystemTier = space.DefaultSandboxFilesystemTier
 			}
 		}
 	}
@@ -329,7 +329,7 @@ func (h *Handler) resolveSandboxTiers(r *http.Request, run *coretask.Run, task *
 // run resolved to the strictest tier on both axes" — which is why the guard
 // below is run.SandboxNetworkTier == nil rather than "the tiers are
 // non-empty" the way recordPluginPins guards on. The resolved tiers are
-// recorded, not the agent's raw declaration, so a run the team's default
+// recorded, not the agent's raw declaration, so a run the space's default
 // tier upgraded shows that in the audit trail rather than the empty
 // declaration that started it. A failure to record is logged and dropped: a
 // worker waiting for its run must not be held up by bookkeeping.
@@ -357,11 +357,11 @@ func (h *Handler) recordAgentRevision(r *http.Request, run *coretask.Run, revisi
 	}
 }
 
-func (h *Handler) recordTeamAgentInstructionsRevision(r *http.Request, run *coretask.Run, revision int) {
-	if run.TeamAgentInstructionsRevision != nil || h.cfg.TaskRuns == nil {
+func (h *Handler) recordSpaceAgentInstructionsRevision(r *http.Request, run *coretask.Run, revision int) {
+	if run.SpaceAgentInstructionsRevision != nil || h.cfg.TaskRuns == nil {
 		return
 	}
-	if err := h.cfg.TaskRuns.RecordTaskRunTeamAgentInstructionsRevision(r.Context(), run.ID, revision); err != nil {
-		componentLog().Warn("worker handler: team agent instructions revision not recorded", "task_run_id", run.ID, "err", err)
+	if err := h.cfg.TaskRuns.RecordTaskRunSpaceAgentInstructionsRevision(r.Context(), run.ID, revision); err != nil {
+		componentLog().Warn("worker handler: space agent instructions revision not recorded", "task_run_id", run.ID, "err", err)
 	}
 }

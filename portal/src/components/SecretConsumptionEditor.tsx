@@ -1,13 +1,13 @@
 import type { ApiSecret, ApiSecretConsumption, ApiSecretEnvGrant } from "../lib/api/types"
 
 /**
- * Editor for an agent's Team Secret consumption: a list of environment grants,
+ * Editor for an agent's Space Secret consumption: a list of environment grants,
  * each delivering a selected item under a chosen variable name, or a whole
  * group under each item's own name with an optional prefix. Values are never
  * shown here -- only which secret and item a run receives. See
- * docs/design/team-secrets.md §6.
+ * docs/design/space-secrets.md §6.
  *
- * Consumption-health: each grant is checked against the team's live secrets and
+ * Consumption-health: each grant is checked against the space's live secrets and
  * an unresolvable one is flagged in place -- a secret that no longer exists, is
  * disabled or destroyed, or an item its secret no longer has. This is the
  * read-only health of §15, surfaced where it is fixed.
@@ -21,7 +21,7 @@ import type { ApiSecret, ApiSecretConsumption, ApiSecretEnvGrant } from "../lib/
 export function grantHealth(grant: ApiSecretEnvGrant, secrets: ApiSecret[]): string | null {
   if (!grant.secret) return null
   const secret = secrets.find((s) => s.id === grant.secret)
-  if (!secret) return "This secret no longer exists in the team."
+  if (!secret) return "This secret no longer exists in the space."
   if (secret.state === "destroyed") return `Secret "${secret.name}" has been destroyed.`
   if (secret.state === "disabled") return `Secret "${secret.name}" is disabled; the run will fail unless the grant is optional.`
   if (grant.item && !secret.item_names.includes(grant.item)) {
@@ -63,13 +63,13 @@ export function SecretConsumptionEditor({
     <div className="secret-consumption">
       <div className="modal__label">Secret consumption</div>
       <p className="modal__hint">
-        Team secrets this agent's runs receive as environment variables. An agent can
+        Space secrets this agent's runs receive as environment variables. An agent can
         read every secret you grant it.
       </p>
 
       {secrets.length === 0 ? (
         <p className="modal__hint">
-          This team has no active secrets to grant. Create one under Space settings →
+          This space has no active secrets to grant. Create one under Space settings →
           Secrets first.
         </p>
       ) : null}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import type { Agent, Issue, IssueFlow, IssueFlowRun, IssueOutput, Workflow } from "../../lib/types"
-import type { ApiIssueComment, ApiIssueFlowResponse, ApiTeamMember } from "../../lib/api/types"
+import type { ApiIssueComment, ApiIssueFlowResponse, ApiSpaceMember } from "../../lib/api/types"
 import { navigate } from "../../router"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { ApiRequestError } from "../../lib/api/client"
@@ -26,9 +26,9 @@ import {
   updateIssue,
 } from "../../features/issues"
 import { RunTraceModal } from "../../features/runs"
-import { getTeamMembers } from "../../features/teams/api"
+import { getSpaceMembers } from "../../features/spaces/api"
 import { getWorkflows, runIssueWorkflow } from "../../features/workflows"
-import { useTeam } from "../../contexts/TeamContext"
+import { useSpace } from "../../contexts/SpaceContext"
 
 interface IssueDetailProps {
   token: string | null
@@ -70,12 +70,12 @@ function latestRun(flow: IssueFlow | null): IssueFlowRun | null {
 }
 
 export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
-  const { currentTeamId, currentUserRole } = useTeam()
+  const { currentSpaceId, currentUserRole } = useSpace()
   const [flow, setFlow] = useState<IssueFlow | null>(null)
   const [traceRunId, setTraceRunId] = useState<string | null>(null)
   const [agents, setAgents] = useState<Agent[]>([])
   const [workflows, setWorkflows] = useState<Workflow[]>([])
-  const [members, setMembers] = useState<ApiTeamMember[]>([])
+  const [members, setMembers] = useState<ApiSpaceMember[]>([])
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
   const [status, setStatus] = useState<Issue["status"]>("todo")
@@ -96,7 +96,7 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
   const canAssignWorkflow = currentUserRole === "owner" || currentUserRole === "admin"
 
   const load = useCallback(async () => {
-    if (!token || !currentTeamId) {
+    if (!token || !currentSpaceId) {
       setFlow(null)
       setAgents([])
       setWorkflows([])
@@ -108,10 +108,10 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
     setError(null)
     try {
       const [flowApi, agentsApi, membersApi, workflowsApi] = await Promise.all([
-        getIssueFlow(currentTeamId, issueId, token),
-        getAgents(currentTeamId, token),
-        getTeamMembers(currentTeamId, token),
-        getWorkflows(currentTeamId, token),
+        getIssueFlow(currentSpaceId, issueId, token),
+        getAgents(currentSpaceId, token),
+        getSpaceMembers(currentSpaceId, token),
+        getWorkflows(currentSpaceId, token),
       ])
       const mapped = mapIssueFlow(flowApi)
       setFlow(mapped)
@@ -131,7 +131,7 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
     } finally {
       setLoading(false)
     }
-  }, [token, currentTeamId, issueId])
+  }, [token, currentSpaceId, issueId])
 
   useEffect(() => {
     void load()
@@ -238,7 +238,7 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
     }
   }
 
-  function memberLabel(member: ApiTeamMember): string {
+  function memberLabel(member: ApiSpaceMember): string {
     if (member.user_id === userId) return "Me"
     if (member.user_name && member.user_name.trim() !== "") return member.user_name
     if (member.user_email && member.user_email.trim() !== "") return member.user_email
@@ -246,16 +246,16 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
   }
 
   function handleSave() {
-    if (!token || !currentTeamId || !flow) return
+    if (!token || !currentSpaceId || !flow) return
     const [kind, id] = assigneeValue ? assigneeValue.split(":") : ["", ""]
     if (kind === "workflow" && !canAssignWorkflow) {
-      setError("Workflow assignment is limited to team owners and admins")
+      setError("Workflow assignment is limited to space owners and admins")
       return
     }
     setSaving(true)
     setError(null)
     updateIssue(
-      currentTeamId,
+      currentSpaceId,
       flow.issue.id,
       {
         version: flow.issue.version,
@@ -283,12 +283,12 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
   }
 
   function handleAddSubIssue() {
-    if (!token || !currentTeamId || !flow) return
+    if (!token || !currentSpaceId || !flow) return
     const trimmed = subIssueTitle.trim()
     if (!trimmed || addingSubIssue) return
     setAddingSubIssue(true)
     setError(null)
-    createIssue(currentTeamId, { title: trimmed, parent_issue_id: flow.issue.id }, token)
+    createIssue(currentSpaceId, { title: trimmed, parent_issue_id: flow.issue.id }, token)
       .then(() => {
         setSubIssueTitle("")
         return load()
@@ -298,10 +298,10 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
   }
 
   function handleRunWorkflow() {
-    if (!token || !currentTeamId || !flow) return
+    if (!token || !currentSpaceId || !flow) return
     setRunningWorkflow(true)
     setError(null)
-    runIssueWorkflow(currentTeamId, flow.issue.id, token)
+    runIssueWorkflow(currentSpaceId, flow.issue.id, token)
       .then((detail) => {
         void load()
         navigate({ name: "workflowRun", workflowRunId: detail.run.id })
@@ -311,30 +311,30 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
   }
 
   function handleCancelTask(taskId: string) {
-    if (!token || !currentTeamId || cancelingTaskId) return
+    if (!token || !currentSpaceId || cancelingTaskId) return
     setCancelingTaskId(taskId)
     setError(null)
-    cancelTask(currentTeamId, taskId, token)
+    cancelTask(currentSpaceId, taskId, token)
       .then(() => load())
       .catch((err) => setError(getErrorMessage(err, "Failed to stop this run")))
       .finally(() => setCancelingTaskId(null))
   }
 
   function handleRetryTask(taskId: string) {
-    if (!token || !currentTeamId || retryingTaskId) return
+    if (!token || !currentSpaceId || retryingTaskId) return
     setRetryingTaskId(taskId)
     setError(null)
-    retryTask(currentTeamId, taskId, token)
+    retryTask(currentSpaceId, taskId, token)
       .then(() => load())
       .catch((err) => setError(getErrorMessage(err, "Failed to retry this run")))
       .finally(() => setRetryingTaskId(null))
   }
 
   function handleRunAgent() {
-    if (!token || !currentTeamId || !flow) return
+    if (!token || !currentSpaceId || !flow) return
     setRunningAgent(true)
     setError(null)
-    runIssueAgent(currentTeamId, flow.issue.id, token)
+    runIssueAgent(currentSpaceId, flow.issue.id, token)
       .then(() => {
         void load()
       })
@@ -448,7 +448,7 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
                   <span className="issues-page__field-label">
                     {canAssignWorkflow
                       ? "Only `published` workflows are available for new assignment."
-                      : "You can still assign a person or agent here. Workflow assignment is limited to team owners and admins."}
+                      : "You can still assign a person or agent here. Workflow assignment is limited to space owners and admins."}
                   </span>
                 </label>
               </div>
@@ -550,7 +550,7 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
               </span>
             </div>
             <IssueDiscussion
-              teamId={currentTeamId}
+              spaceId={currentSpaceId}
               issueId={flow.issue.id}
               token={token}
               userId={userId ?? null}
@@ -796,14 +796,14 @@ export function IssueDetail({ token, issueId, userId }: IssueDetailProps) {
       )}
       <OutputViewerModal
         open={viewerOutput != null}
-        teamId={currentTeamId}
+        spaceId={currentSpaceId}
         token={token}
         output={viewerOutput}
         onClose={() => setViewerOutput(null)}
       />
       <RunTraceModal
         open={traceRunId != null}
-        teamId={currentTeamId}
+        spaceId={currentSpaceId}
         token={token}
         taskRunId={traceRunId}
         onClose={() => setTraceRunId(null)}

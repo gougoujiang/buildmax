@@ -407,7 +407,7 @@ func ResolveSandboxForRun(global SandboxConfig, run SandboxRunOverride, policy S
 		res.Config = mergeSandbox(res.Config, global, false)
 		res.Sources = append(res.Sources, "settings")
 	}
-	// The agent's declared tier sits above the team/user default but below
+	// The agent's declared tier sits above the space/user default but below
 	// everything that can already outrank settings.yaml today -- it is a
 	// workload's request, not an operator's or a caller's decision.
 	if !sandboxEmpty(agentTier) {

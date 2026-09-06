@@ -82,19 +82,19 @@ type YankReleaseRequest struct {
 	Reason string `json:"reason,omitempty"`
 }
 
-// Team activation paths. An activation belongs to a team, so these are
-// team-scoped where the catalog routes above are deployment-scoped.
+// Space activation paths. An activation belongs to a space, so these are
+// space-scoped where the catalog routes above are deployment-scoped.
 const (
-	// TeamActivationsPath lists a team's activations and creates one.
-	TeamActivationsPath = "/api/teams/%s/plugin-activations"
-	// TeamActivationPath changes one activation: its pin, or whether it is
+	// SpaceActivationsPath lists a space's activations and creates one.
+	SpaceActivationsPath = "/api/spaces/%s/plugin-activations"
+	// SpaceActivationPath changes one activation: its pin, or whether it is
 	// suspended.
-	TeamActivationPath = "/api/teams/%s/plugin-activations/%s"
-	// TeamPluginCurationPath sets who fills the team's activation list.
-	TeamPluginCurationPath = "/api/teams/%s/plugin-curation"
+	SpaceActivationPath = "/api/spaces/%s/plugin-activations/%s"
+	// SpacePluginCurationPath sets who fills the space's activation list.
+	SpacePluginCurationPath = "/api/spaces/%s/plugin-curation"
 )
 
-// ActivationsResponse is what a team has activated and who fills the list.
+// ActivationsResponse is what a space has activated and who fills the list.
 //
 // The curation mode travels with the activations because reading one without
 // the other misleads: an empty list means "nothing activated yet" in open mode
@@ -104,8 +104,8 @@ type ActivationsResponse struct {
 	Activations []coreplugin.Activation `json:"activations"`
 }
 
-// ActivateRequest pins a release for a team. An empty Version takes the newest
-// release the team could be pinned to.
+// ActivateRequest pins a release for a space. An empty Version takes the newest
+// release the space could be pinned to.
 type ActivateRequest struct {
 	PluginName string `json:"plugin_name"`
 	Version    string `json:"version,omitempty"`
@@ -119,7 +119,7 @@ type UpdateActivationRequest struct {
 	Enabled *bool   `json:"enabled,omitempty"`
 }
 
-// SetCurationRequest chooses who fills the team's activation list.
+// SetCurationRequest chooses who fills the space's activation list.
 type SetCurationRequest struct {
 	Curation coreplugin.Curation `json:"curation"`
 }

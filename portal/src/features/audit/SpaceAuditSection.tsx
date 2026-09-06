@@ -7,7 +7,7 @@ import { actorLabel, describeEvent, formatEventTime } from "./describe"
 const PAGE_SIZE = 50
 
 interface SpaceAuditSectionProps {
-  teamId: string | null
+  spaceId: string | null
   token: string | null
   currentUserIsOwner: boolean
   currentUserId?: string
@@ -30,13 +30,13 @@ function AuditRow({ event, currentUserId }: { event: ApiAuditEvent; currentUserI
 }
 
 /**
- * SpaceAuditSection lists a team's audit trail.
+ * SpaceAuditSection lists a space's audit trail.
  *
  * Owner only, matching the server. The trail names who was refused, which is
  * administrative rather than collaborative information.
  */
 export function SpaceAuditSection({
-  teamId,
+  spaceId,
   token,
   currentUserIsOwner,
   currentUserId,
@@ -49,10 +49,10 @@ export function SpaceAuditSection({
 
   const load = useCallback(
     (offset: number) => {
-      if (!teamId || !token) return
+      if (!spaceId || !token) return
       setLoading(true)
       setError(null)
-      getAuditEvents(teamId, token, { limit: PAGE_SIZE, offset })
+      getAuditEvents(spaceId, token, { limit: PAGE_SIZE, offset })
         .then((res) => {
           setEvents((prev) => (offset === 0 ? res.events : [...prev, ...res.events]))
           setTotal(res.total)
@@ -60,7 +60,7 @@ export function SpaceAuditSection({
         .catch((err) => setError(getErrorMessage(err, "Failed to load the audit trail")))
         .finally(() => setLoading(false))
     },
-    [teamId, token]
+    [spaceId, token]
   )
 
   useEffect(() => {
@@ -70,14 +70,14 @@ export function SpaceAuditSection({
 
   const exportTrail = useCallback(
     (format: "csv" | "jsonl") => {
-      if (!teamId || !token || exporting) return
+      if (!spaceId || !token || exporting) return
       setExporting(true)
       setError(null)
-      exportAuditEvents(teamId, token, format)
+      exportAuditEvents(spaceId, token, format)
         .catch((err) => setError(getErrorMessage(err, "Failed to export the audit trail")))
         .finally(() => setExporting(false))
     },
-    [teamId, token, exporting]
+    [spaceId, token, exporting]
   )
 
   if (!currentUserIsOwner) {
@@ -86,7 +86,7 @@ export function SpaceAuditSection({
         <h2 className="settings-section__title">Audit trail</h2>
         <p className="settings-section__hint">
           Only a space owner can read the audit trail. It records who was refused a request, which
-          is not something the rest of a team needs to see.
+          is not something the rest of a space needs to see.
         </p>
       </section>
     )

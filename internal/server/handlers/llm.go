@@ -81,8 +81,8 @@ func (h *Handler) llmCompletionsHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// No TeamID: a foreground call is somebody's own work and is metered against
-	// no team. See docs/design/client-modes.md section 9.
+	// No SpaceID: a foreground call is somebody's own work and is metered against
+	// no space. See docs/design/client-modes.md section 9.
 	cmd := llmgateway.CompleteRequest{
 		UserID:       &userID,
 		ClientCallID: req.CallID,

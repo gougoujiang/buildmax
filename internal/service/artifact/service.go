@@ -1,4 +1,4 @@
-// Package artifact keeps durable files on a team's behalf.
+// Package artifact keeps durable files on a space's behalf.
 //
 // It is the whole artifact capability, and it is deliberately ignorant of what
 // produced a file: an agent, a worker run, and a person uploading reach the
@@ -30,29 +30,29 @@ var (
 	ErrNotConfigured = apierr.New(apierr.KindNotConfigured, "artifacts are not configured")
 	ErrNotFound      = apierr.New(apierr.KindNotFound, "artifact not found")
 	ErrNoFilename    = apierr.New(apierr.KindInvalid, "a filename is required")
-	ErrNoTeam        = apierr.New(apierr.KindInvalid, "a team is required")
+	ErrNoSpace       = apierr.New(apierr.KindInvalid, "a space is required")
 	ErrEmptyContent  = apierr.New(apierr.KindInvalid, "the file is empty")
 	ErrTooLarge      = apierr.New(apierr.KindInvalid, "the file is larger than this deployment accepts")
-	// ErrStorageQuota is the team's allowance, not this file's size. It is a
+	// ErrStorageQuota is the space's allowance, not this file's size. It is a
 	// quota kind so it answers 429 like the run and token limits rather than
 	// 400 like a file this deployment would never accept at any allowance.
 	ErrStorageQuota = apierr.New(apierr.KindQuotaExceeded, "this space has no room for more artifacts")
 )
 
-// StorageAdmitter decides whether a team may hold more bytes.
+// StorageAdmitter decides whether a space may hold more bytes.
 //
 // Declared here rather than imported from the quota service so this package
 // depends on the one question it asks. A nil admitter admits everything, which
 // is what a deployment with no quota service has.
 type StorageAdmitter interface {
-	// CheckStorage reports whether the team may hold addBytes more, and why
+	// CheckStorage reports whether the space may hold addBytes more, and why
 	// not when it may not.
-	CheckStorage(ctx context.Context, teamID string, addBytes int64) (bool, string, error)
+	CheckStorage(ctx context.Context, spaceID string, addBytes int64) (bool, string, error)
 }
 
 // DefaultMaxFileBytes caps one artifact when a deployment sets no limit.
 //
-// It bounds one request. What a team may hold in total is the quota tier's
+// It bounds one request. What a space may hold in total is the quota tier's
 // max_storage_bytes, checked through StorageAdmitter: the two answer different
 // questions, and neither substitutes for the other — a thousand small files
 // pass this cap and can still exhaust an allowance.
@@ -68,12 +68,12 @@ const maxFilenameLen = 255
 type Service struct {
 	Artifacts coreartifact.Store
 	Storage   ContentStore
-	// Audit records that a file entered or left a team's keeping. Nil records
+	// Audit records that a file entered or left a space's keeping. Nil records
 	// nothing, which is what a deployment without a database has.
 	Audit *audit.Recorder
 	// MaxFileBytes caps one artifact. Zero means DefaultMaxFileBytes.
 	MaxFileBytes int64
-	// Quota decides whether the team may hold more. Nil admits everything.
+	// Quota decides whether the space may hold more. Nil admits everything.
 	Quota StorageAdmitter
 
 	// Shares persists public links. Nil means this deployment cannot create
@@ -117,7 +117,7 @@ func (s *Service) Available() bool {
 
 // CreateInput describes one file to keep and who produced it.
 type CreateInput struct {
-	TeamID string
+	SpaceID string
 	// Filename is the content's name. Any directory part is discarded: an
 	// artifact is one file, and a caller-supplied path is not a place the
 	// server should be persuaded to reason about.
@@ -149,18 +149,18 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*coreartifact.Art
 	if err != nil {
 		return nil, err
 	}
-	if in.TeamID == "" {
-		return nil, ErrNoTeam
+	if in.SpaceID == "" {
+		return nil, ErrNoSpace
 	}
 	if in.Content == nil {
 		return nil, ErrEmptyContent
 	}
 
-	// Asked before reading the body, so a team that is already full is refused
+	// Asked before reading the body, so a space that is already full is refused
 	// without first streaming a file to disk. It cannot be the only check: the
 	// size is not known until the bytes have gone by, so the exact one happens
 	// below and this is the cheap rejection in front of it.
-	if err := s.admitStorage(ctx, in.TeamID, 0); err != nil {
+	if err := s.admitStorage(ctx, in.SpaceID, 0); err != nil {
 		return nil, err
 	}
 
@@ -171,7 +171,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*coreartifact.Art
 	if err != nil {
 		return nil, err
 	}
-	ref := coreartifact.Ref{TeamID: in.TeamID, ArtifactID: artifactID}
+	ref := coreartifact.Ref{SpaceID: in.SpaceID, ArtifactID: artifactID}
 	limit := s.maxFileBytes()
 
 	// Read one byte past the limit so an oversized upload is detected rather
@@ -198,13 +198,13 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*coreartifact.Art
 	// The exact check, now that the size is known. It runs after the object is
 	// durable because that is the first moment the size exists; refusing here
 	// removes what was written, so an over-quota upload leaves nothing behind.
-	if err := s.admitStorage(ctx, in.TeamID, counter.n); err != nil {
+	if err := s.admitStorage(ctx, in.SpaceID, counter.n); err != nil {
 		s.discard(ctx, ref)
 		return nil, err
 	}
 
 	rec, err := s.Artifacts.CreateArtifact(ctx, coreartifact.CreateInput{
-		TeamID:        in.TeamID,
+		SpaceID:       in.SpaceID,
 		ArtifactID:    artifactID,
 		Filename:      filename,
 		MediaType:     mediaTypeFor(filename),
@@ -226,16 +226,16 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*coreartifact.Art
 	return rec, nil
 }
 
-// admitStorage asks whether the team may hold addBytes more.
+// admitStorage asks whether the space may hold addBytes more.
 //
 // A quota that cannot be read refuses, matching the run and token limits: the
 // alternative is that a deployment whose database is unreachable accepts
 // unmetered storage and has no record of having done so.
-func (s *Service) admitStorage(ctx context.Context, teamID string, addBytes int64) error {
+func (s *Service) admitStorage(ctx context.Context, spaceID string, addBytes int64) error {
 	if s.Quota == nil {
 		return nil
 	}
-	allowed, reason, err := s.Quota.CheckStorage(ctx, teamID, addBytes)
+	allowed, reason, err := s.Quota.CheckStorage(ctx, spaceID, addBytes)
 	if err != nil {
 		return err
 	}
@@ -282,7 +282,7 @@ func (s *Service) Open(ctx context.Context, rec *coreartifact.Artifact) (io.Read
 	if rec == nil {
 		return nil, ErrNotFound
 	}
-	body, err := s.Storage.OpenArtifact(ctx, coreartifact.Ref{TeamID: rec.TeamID, ArtifactID: rec.ID})
+	body, err := s.Storage.OpenArtifact(ctx, coreartifact.Ref{SpaceID: rec.SpaceID, ArtifactID: rec.ID})
 	if err != nil {
 		if errors.Is(err, apierr.ErrNotFound) {
 			return nil, ErrNotFound
@@ -292,12 +292,12 @@ func (s *Service) Open(ctx context.Context, rec *coreartifact.Artifact) (io.Read
 	return body, nil
 }
 
-// List returns a team's live artifacts, newest first, with the total.
-func (s *Service) List(ctx context.Context, teamID string, limit, offset int) ([]coreartifact.Artifact, int, error) {
+// List returns a space's live artifacts, newest first, with the total.
+func (s *Service) List(ctx context.Context, spaceID string, limit, offset int) ([]coreartifact.Artifact, int, error) {
 	if !s.Available() {
 		return nil, 0, ErrNotConfigured
 	}
-	return s.Artifacts.ListArtifactsByTeam(ctx, teamID, limit, offset)
+	return s.Artifacts.ListArtifactsBySpace(ctx, spaceID, limit, offset)
 }
 
 // ListBySource returns what the given operations published, keyed by source ID.
@@ -345,7 +345,7 @@ func (s *Service) audit(ctx context.Context, rec *coreartifact.Artifact, action,
 		return
 	}
 	s.Audit.Record(ctx, coreaudit.Event{
-		TeamID:     rec.TeamID,
+		SpaceID:    rec.SpaceID,
 		ActorType:  auditActorFor(rec.CreatedByType),
 		ActorID:    rec.CreatedByID,
 		Action:     action,

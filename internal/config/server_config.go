@@ -174,7 +174,7 @@ func (m ServerModelEntry) RuntimeModelEntry() ModelEntry {
 // itself lives in the llm_model table, edited with `buildmax-server model`,
 // because it holds provider credentials and changes while the server runs.
 //
-// Every catalog model is available to every user of the deployment: a team is a
+// Every catalog model is available to every user of the deployment: a space is a
 // collaboration boundary, not a model authorization boundary. See
 // docs/design/client-modes.md section 5.
 //
@@ -378,7 +378,7 @@ type ServerStorageConfig struct {
 	MinIO           ServerMinIOConfig `mapstructure:"minio"`
 	// MaxArtifactMB caps one artifact upload. Zero uses the built-in default.
 	//
-	// It is a per-file limit, not a team storage allowance. The allowance is a
+	// It is a per-file limit, not a space storage allowance. The allowance is a
 	// stock rather than a rate and lives in the quota tier as
 	// max_storage_bytes; this stays the cap on any one request.
 	MaxArtifactMB int `mapstructure:"max_artifact_mb"`
@@ -397,12 +397,12 @@ type ServerStorageConfig struct {
 	ArtifactShareTTLHours int `mapstructure:"artifact_share_ttl_hours"`
 }
 
-// ServerSecretConfig configures the Team Secret store. KEKFile is the path to
+// ServerSecretConfig configures the Space Secret store. KEKFile is the path to
 // the mounted key file that wraps every secret's data key; the key material
 // itself is never in server.yaml or the environment, only the path is. Empty
-// disables the Team Secret feature: an agent that consumes a Secret is refused,
+// disables the Space Secret feature: an agent that consumes a Secret is refused,
 // the same way naming a plugin is refused with no Marketplace. See
-// docs/design/team-secrets.md §9.1.
+// docs/design/space-secrets.md §9.1.
 type ServerSecretConfig struct {
 	KEKFile string `mapstructure:"kek_file"`
 }

@@ -85,7 +85,7 @@ func (s *Service) CreateShare(ctx context.Context, in CreateShareInput) (*Share,
 	expires := s.now().UTC().Add(clampTTL(in.TTL, s.shareTTL()))
 	rec, err := s.Shares.CreateArtifactShare(ctx, coreartifact.CreateShareInput{
 		ArtifactID:    art.ID,
-		TeamID:        art.TeamID,
+		SpaceID:       art.SpaceID,
 		TokenSHA256:   hash,
 		CreatedByType: in.CreatedByType,
 		CreatedByID:   in.CreatedByID,
@@ -94,7 +94,7 @@ func (s *Service) CreateShare(ctx context.Context, in CreateShareInput) (*Share,
 	if err != nil {
 		return nil, err
 	}
-	s.auditShare(ctx, art.TeamID, rec, in.CreatedByType, in.CreatedByID, coreaudit.ArtifactShareCreated)
+	s.auditShare(ctx, art.SpaceID, rec, in.CreatedByType, in.CreatedByID, coreaudit.ArtifactShareCreated)
 	return &Share{
 		Record:      *rec,
 		Token:       token,
@@ -156,7 +156,7 @@ func (s *Service) RevokeShare(ctx context.Context, rec *coreartifact.Artifact, s
 	}
 	if s.Audit != nil {
 		s.Audit.Record(ctx, coreaudit.Event{
-			TeamID:     rec.TeamID,
+			SpaceID:    rec.SpaceID,
 			ActorType:  auditActorFor(actorType),
 			ActorID:    actorID,
 			Action:     coreaudit.ArtifactShareRevoked,
@@ -178,12 +178,12 @@ func (s *Service) shareDownloadURL(token string) string {
 
 // auditShare records a share event on the artifact target, with the share ID as
 // detail. The token is deliberately absent.
-func (s *Service) auditShare(ctx context.Context, teamID string, rec *coreartifact.ArtifactShare, actorType, actorID, action string) {
+func (s *Service) auditShare(ctx context.Context, spaceID string, rec *coreartifact.ArtifactShare, actorType, actorID, action string) {
 	if s.Audit == nil || rec == nil {
 		return
 	}
 	s.Audit.Record(ctx, coreaudit.Event{
-		TeamID:     teamID,
+		SpaceID:    spaceID,
 		ActorType:  auditActorFor(actorType),
 		ActorID:    actorID,
 		Action:     action,

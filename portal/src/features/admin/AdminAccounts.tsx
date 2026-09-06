@@ -240,9 +240,9 @@ export function AdminAccounts({ token }: { token: string | null }) {
             <div className="admin-fact">
               <span className="admin-fact__label">Spaces</span>
               <span className="admin-fact__value">
-                {selected.teams.length === 0
+                {selected.spaces.length === 0
                   ? "none"
-                  : selected.teams.map((team) => `${team.name} (${team.role})`).join(", ")}
+                  : selected.spaces.map((space) => `${space.name} (${space.role})`).join(", ")}
               </span>
             </div>
           </div>

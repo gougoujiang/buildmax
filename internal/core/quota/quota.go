@@ -15,7 +15,7 @@ type Tier struct {
 	TierName           string `json:"tier_name"`
 	MaxRunsPerPeriod   int    `json:"max_runs_per_period"`
 	MaxTokensPerPeriod int    `json:"max_tokens_per_period"`
-	// MaxStorageBytes caps what the team's live artifacts may hold at once.
+	// MaxStorageBytes caps what the space's live artifacts may hold at once.
 	// PeriodDays does not apply to it.
 	MaxStorageBytes int64 `json:"max_storage_bytes"`
 	PeriodDays      int   `json:"period_days"`
@@ -27,19 +27,19 @@ type TierStore interface {
 	GetQuotaTier(ctx context.Context, tierName string) (*Tier, error)
 }
 
-// UsageInWindowReader provides usage aggregation for a team in a time window.
+// UsageInWindowReader provides usage aggregation for a space in a time window.
 type UsageInWindowReader interface {
-	// TeamUsageInWindow returns run count and total tokens for the team in [sinceUnix, untilUnix].
-	TeamUsageInWindow(ctx context.Context, teamID string, since, until time.Time) (runCount, totalTokens int, err error)
+	// SpaceUsageInWindow returns run count and total tokens for the space in [sinceUnix, untilUnix].
+	SpaceUsageInWindow(ctx context.Context, spaceID string, since, until time.Time) (runCount, totalTokens int, err error)
 }
 
-// StorageReader reports what a team currently holds.
+// StorageReader reports what a space currently holds.
 //
 // Separate from UsageInWindowReader because it takes no window: asking "how
 // many bytes in the last 30 days" would answer a question nobody has, and a
-// tier that limited it that way would let a team hold unbounded storage by
+// tier that limited it that way would let a space hold unbounded storage by
 // waiting.
 type StorageReader interface {
-	// TeamArtifactBytes returns the bytes the team's live artifacts hold.
-	TeamArtifactBytes(ctx context.Context, teamID string) (int64, error)
+	// SpaceArtifactBytes returns the bytes the space's live artifacts hold.
+	SpaceArtifactBytes(ctx context.Context, spaceID string) (int64, error)
 }

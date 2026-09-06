@@ -10,7 +10,7 @@ import (
 
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
@@ -20,11 +20,11 @@ import (
 const workflowTestSecret = "workflow-test-secret"
 
 func TestWorkflowHandlers(t *testing.T) {
-	teamID := "tm_personal_u1"
+	spaceID := "tm_personal_u1"
 	workflowStore := &mock.MockWorkflowStore{
 		Workflows: []coreworkflow.Workflow{{
 			ID:          "w_1",
-			TeamID:      teamID,
+			SpaceID:     spaceID,
 			Name:        "WF",
 			Description: "desc",
 			Definition:  `{"steps":[{"step_id":"s1","type":"agent_task","target_agent_id":"a_1","prompt":"do it"}]}`,
@@ -35,18 +35,18 @@ func TestWorkflowHandlers(t *testing.T) {
 		}},
 	}
 	agentStore := &mock.MockAgentStore{
-		Agents: []agentdef.Agent{{ID: "a_1", UserID: "u1", TeamID: teamID, Name: "Agent 1", Instructions: "Do things"}},
+		Agents: []agentdef.Agent{{ID: "a_1", UserID: "u1", SpaceID: spaceID, Name: "Agent 1", Instructions: "Do things"}},
 	}
-	teamStore := &mock.MockTeamStore{
-		Teams:   []coreteam.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}},
-		Members: []coreteam.Member{{TeamID: teamID, UserID: "u1", Role: coreteam.RoleOwner}, {TeamID: teamID, UserID: "u2", Role: coreteam.RoleMember}, {TeamID: teamID, UserID: "u3", Role: coreteam.RoleAdmin}},
+	spaceStore := &mock.MockSpaceStore{
+		Spaces:  []corespace.Space{{ID: spaceID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}},
+		Members: []corespace.Member{{SpaceID: spaceID, UserID: "u1", Role: corespace.RoleOwner}, {SpaceID: spaceID, UserID: "u2", Role: corespace.RoleMember}, {SpaceID: spaceID, UserID: "u3", Role: corespace.RoleAdmin}},
 	}
 	taskStore := &mock.MockTaskStore{}
 	issueStore := &mock.MockIssueStore{
 		Issues: []coreissue.Issue{{
 			ID:           "i_1",
 			UserID:       "u1",
-			TeamID:       teamID,
+			SpaceID:      spaceID,
 			Title:        "Issue",
 			Description:  "Desc",
 			Status:       coreissue.StatusTodo,
@@ -57,7 +57,7 @@ func TestWorkflowHandlers(t *testing.T) {
 	}
 	h := New(Config{
 		JWTSecret:     workflowTestSecret,
-		Teams:         teamStore,
+		Spaces:        spaceStore,
 		Workflows:     workflowStore,
 		Agents:        agentStore,
 		Tasks:         taskStore,
@@ -68,7 +68,7 @@ func TestWorkflowHandlers(t *testing.T) {
 	h.Register(mux)
 
 	t.Run("GET list workflows", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/api/teams/"+teamID+"/workflows", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/spaces/"+spaceID+"/workflows", nil)
 		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", workflowTestSecret))
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
@@ -85,7 +85,7 @@ func TestWorkflowHandlers(t *testing.T) {
 	})
 
 	t.Run("POST create workflow", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/api/teams/"+teamID+"/workflows", strings.NewReader(`{"name":"WF 2","description":"Desc","definition":"{\"steps\":[{\"step_id\":\"s1\",\"type\":\"agent_task\",\"target_agent_id\":\"a_1\",\"prompt\":\"do it\"}]}"}`))
+		req := httptest.NewRequest(http.MethodPost, "/api/spaces/"+spaceID+"/workflows", strings.NewReader(`{"name":"WF 2","description":"Desc","definition":"{\"steps\":[{\"step_id\":\"s1\",\"type\":\"agent_task\",\"target_agent_id\":\"a_1\",\"prompt\":\"do it\"}]}"}`))
 		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", workflowTestSecret))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
@@ -103,7 +103,7 @@ func TestWorkflowHandlers(t *testing.T) {
 	})
 
 	t.Run("POST direct workflow run", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/api/teams/"+teamID+"/workflows/w_1/runs", nil)
+		req := httptest.NewRequest(http.MethodPost, "/api/spaces/"+spaceID+"/workflows/w_1/runs", nil)
 		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", workflowTestSecret))
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
@@ -120,7 +120,7 @@ func TestWorkflowHandlers(t *testing.T) {
 	})
 
 	t.Run("POST create workflow forbidden for member", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/api/teams/"+teamID+"/workflows", strings.NewReader(`{"name":"WF 3","description":"Desc","definition":"{\"steps\":[{\"step_id\":\"s1\",\"type\":\"agent_task\",\"target_agent_id\":\"a_1\",\"prompt\":\"do it\"}]}"}`))
+		req := httptest.NewRequest(http.MethodPost, "/api/spaces/"+spaceID+"/workflows", strings.NewReader(`{"name":"WF 3","description":"Desc","definition":"{\"steps\":[{\"step_id\":\"s1\",\"type\":\"agent_task\",\"target_agent_id\":\"a_1\",\"prompt\":\"do it\"}]}"}`))
 		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u2", workflowTestSecret))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
@@ -131,7 +131,7 @@ func TestWorkflowHandlers(t *testing.T) {
 	})
 
 	t.Run("PATCH publish workflow by admin", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPatch, "/api/teams/"+teamID+"/workflows/w_1", strings.NewReader(`{"status":"published"}`))
+		req := httptest.NewRequest(http.MethodPatch, "/api/spaces/"+spaceID+"/workflows/w_1", strings.NewReader(`{"status":"published"}`))
 		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u3", workflowTestSecret))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()
@@ -142,7 +142,7 @@ func TestWorkflowHandlers(t *testing.T) {
 	})
 
 	t.Run("POST issue workflow run", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/api/teams/"+teamID+"/issues/i_1/workflow-runs", nil)
+		req := httptest.NewRequest(http.MethodPost, "/api/spaces/"+spaceID+"/issues/i_1/workflow-runs", nil)
 		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", workflowTestSecret))
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
@@ -152,7 +152,7 @@ func TestWorkflowHandlers(t *testing.T) {
 	})
 
 	t.Run("GET issue flow", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/api/teams/"+teamID+"/issues/i_1/flow", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/spaces/"+spaceID+"/issues/i_1/flow", nil)
 		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", workflowTestSecret))
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)

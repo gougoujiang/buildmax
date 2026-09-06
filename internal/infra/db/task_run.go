@@ -63,8 +63,8 @@ type taskRunRow struct {
 	// AgentRevision numbers the agent definition served to this run's worker.
 	// Not a reference to agent_revision.id: the pair (task.agent_id, this) is
 	// what addresses a revision, and the task already holds the agent.
-	AgentRevision                 *int `gorm:"column:agent_revision"`
-	TeamAgentInstructionsRevision *int `gorm:"column:team_agent_instructions_revision"`
+	AgentRevision                  *int `gorm:"column:agent_revision"`
+	SpaceAgentInstructionsRevision *int `gorm:"column:space_agent_instructions_revision"`
 	// PluginPins is a JSON array of the releases this run was given, written
 	// beside AgentRevision and at the same moment. A JSON column for the reason
 	// plugin_release.inspection is one: written once, read whole, and nothing
@@ -125,34 +125,34 @@ func toTaskRun(row *taskRunReadRow) *coretask.Run {
 		return nil
 	}
 	out := &coretask.Run{
-		ID:                            row.Row.PublicID,
-		TaskID:                        row.TaskPublicID,
-		PreviousTaskRunID:             optionalCanonicalPublicID(row.PreviousPublicID),
-		Input:                         row.Row.Input,
-		CreatedBy:                     row.Row.CreatedBy,
-		CreatedByType:                 row.Row.CreatedByType,
-		TriggerSource:                 row.Row.TriggerSource,
-		Status:                        row.Row.Status,
-		Output:                        row.Row.Output,
-		ErrorMessage:                  row.Row.ErrorMessage,
-		StartedAt:                     row.Row.StartedAt,
-		EndedAt:                       row.Row.EndedAt,
-		SessionID:                     row.Row.SessionID,
-		WorkerType:                    row.Row.WorkerType,
-		K8sJobName:                    row.Row.K8sJobName,
-		K8sJobCreatedAt:               row.Row.K8sJobCreatedAt,
-		PromptTokens:                  row.Row.PromptTokens,
-		CompletionTokens:              row.Row.CompletionTokens,
-		TracePath:                     row.Row.TracePath,
-		AgentRevision:                 row.Row.AgentRevision,
-		TeamAgentInstructionsRevision: row.Row.TeamAgentInstructionsRevision,
-		PluginPins:                    decodePluginPins(row.Row.PluginPins),
-		SandboxNetworkTier:            row.Row.SandboxNetworkTier,
-		SandboxFilesystemTier:         row.Row.SandboxFilesystemTier,
-		CancelRequestedAt:             row.Row.CancelRequestedAt,
-		LastSeenAt:                    row.Row.LastSeenAt,
-		CreatedAt:                     row.Row.CreatedAt,
-		IdempotencyKey:                row.Row.IdempotencyKey,
+		ID:                             row.Row.PublicID,
+		TaskID:                         row.TaskPublicID,
+		PreviousTaskRunID:              optionalCanonicalPublicID(row.PreviousPublicID),
+		Input:                          row.Row.Input,
+		CreatedBy:                      row.Row.CreatedBy,
+		CreatedByType:                  row.Row.CreatedByType,
+		TriggerSource:                  row.Row.TriggerSource,
+		Status:                         row.Row.Status,
+		Output:                         row.Row.Output,
+		ErrorMessage:                   row.Row.ErrorMessage,
+		StartedAt:                      row.Row.StartedAt,
+		EndedAt:                        row.Row.EndedAt,
+		SessionID:                      row.Row.SessionID,
+		WorkerType:                     row.Row.WorkerType,
+		K8sJobName:                     row.Row.K8sJobName,
+		K8sJobCreatedAt:                row.Row.K8sJobCreatedAt,
+		PromptTokens:                   row.Row.PromptTokens,
+		CompletionTokens:               row.Row.CompletionTokens,
+		TracePath:                      row.Row.TracePath,
+		AgentRevision:                  row.Row.AgentRevision,
+		SpaceAgentInstructionsRevision: row.Row.SpaceAgentInstructionsRevision,
+		PluginPins:                     decodePluginPins(row.Row.PluginPins),
+		SandboxNetworkTier:             row.Row.SandboxNetworkTier,
+		SandboxFilesystemTier:          row.Row.SandboxFilesystemTier,
+		CancelRequestedAt:              row.Row.CancelRequestedAt,
+		LastSeenAt:                     row.Row.LastSeenAt,
+		CreatedAt:                      row.Row.CreatedAt,
+		IdempotencyKey:                 row.Row.IdempotencyKey,
 	}
 	if row.Row.CancelRequestedBy != nil {
 		by := derefPublicID(row.CancelRequestedByPub)
@@ -382,20 +382,20 @@ func (s *Store) RecordTaskRunAgentRevision(ctx context.Context, taskRunID string
 		Update("agent_revision", revision).Error
 }
 
-func (s *Store) RecordTaskRunTeamAgentInstructionsRevision(ctx context.Context, taskRunID string, revision int) error {
+func (s *Store) RecordTaskRunSpaceAgentInstructionsRevision(ctx context.Context, taskRunID string, revision int) error {
 	id, ok := util.CanonicalPublicID(taskRunID)
 	if !ok {
 		return apierr.ErrNotFound
 	}
 	return s.db.WithContext(ctx).Model(&taskRunRow{}).
-		Where("public_id = ? AND team_agent_instructions_revision IS NULL", id).
-		Update("team_agent_instructions_revision", revision).Error
+		Where("public_id = ? AND space_agent_instructions_revision IS NULL", id).
+		Update("space_agent_instructions_revision", revision).Error
 }
 
 // RecordTaskRunPluginPins stores the releases a run was given.
 //
 // The `plugin_pins = ”` guard is what makes the first write win, for the same
-// reason the agent revision has one: a worker polls its run, and a team's
+// reason the agent revision has one: a worker polls its run, and a space's
 // activation edited mid-run must not rewrite the record of what actually ran.
 func (s *Store) RecordTaskRunPluginPins(ctx context.Context, taskRunID string, pins []coreplugin.Pin) error {
 	id, ok := util.CanonicalPublicID(taskRunID)

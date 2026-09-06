@@ -5,11 +5,11 @@ import { getErrorMessage } from "../../lib/errorMessage"
 import { apiAgentToAgent, apiIssueToIssue, apiWorkflowToWorkflow } from "../../lib/api/mappers"
 import { createIssue, getIssues, updateIssue } from "../../features/issues"
 import { getAgents } from "../../features/agents"
-import { getTeamMembers } from "../../features/teams/api"
+import { getSpaceMembers } from "../../features/spaces/api"
 import { getWorkflows } from "../../features/workflows"
 import { IssueModal } from "../../components/IssueModal"
-import { useTeam } from "../../contexts/TeamContext"
-import type { ApiTeamMember } from "../../lib/api/types"
+import { useSpace } from "../../contexts/SpaceContext"
+import type { ApiSpaceMember } from "../../lib/api/types"
 import type { Workflow } from "../../lib/types"
 
 const PAGE_SIZE = 10
@@ -20,12 +20,12 @@ interface IssuesProps {
 }
 
 export function Issues({ token, userId }: IssuesProps) {
-  const { currentTeamId, currentUserRole } = useTeam()
+  const { currentSpaceId, currentUserRole } = useSpace()
   const [issues, setIssues] = useState<Issue[]>([])
   const [total, setTotal] = useState(0)
   const [agents, setAgents] = useState<Agent[]>([])
   const [workflows, setWorkflows] = useState<Workflow[]>([])
-  const [members, setMembers] = useState<ApiTeamMember[]>([])
+  const [members, setMembers] = useState<ApiSpaceMember[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -40,7 +40,7 @@ export function Issues({ token, userId }: IssuesProps) {
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   const fetchIssues = useCallback(() => {
-    if (!token || !currentTeamId) {
+    if (!token || !currentSpaceId) {
       setIssues([])
       setAgents([])
       setWorkflows([])
@@ -54,10 +54,10 @@ export function Issues({ token, userId }: IssuesProps) {
     return Promise.all([
       // The board shows top-level issues; sub-issues appear under the parent
       // they were split out of, not as siblings in the same list.
-      getIssues(currentTeamId, token, { limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE, parentId: "none" }),
-      getAgents(currentTeamId, token),
-      getTeamMembers(currentTeamId, token),
-      getWorkflows(currentTeamId, token),
+      getIssues(currentSpaceId, token, { limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE, parentId: "none" }),
+      getAgents(currentSpaceId, token),
+      getSpaceMembers(currentSpaceId, token),
+      getWorkflows(currentSpaceId, token),
     ])
       .then(([issueRes, agentRes, memberRes, workflowRes]) => {
         setIssues(issueRes.issues.map(apiIssueToIssue))
@@ -68,7 +68,7 @@ export function Issues({ token, userId }: IssuesProps) {
       })
       .catch((err) => setError(getErrorMessage(err, "Failed to load issues")))
       .finally(() => setLoading(false))
-  }, [page, token, currentTeamId])
+  }, [page, token, currentSpaceId])
 
   useEffect(() => {
     void fetchIssues()
@@ -76,20 +76,20 @@ export function Issues({ token, userId }: IssuesProps) {
 
   useEffect(() => {
     setPage(1)
-  }, [currentTeamId])
+  }, [currentSpaceId])
 
   // A reload invalidates every cached breakdown: statuses may have moved, and a
   // stale child list is worse than a second fetch.
   useEffect(() => {
     setExpanded({})
     setChildren({})
-  }, [page, currentTeamId])
+  }, [page, currentSpaceId])
 
   function toggleChildren(issueId: string) {
     const nowOpen = !expanded[issueId]
     setExpanded((prev) => ({ ...prev, [issueId]: nowOpen }))
-    if (!nowOpen || !token || !currentTeamId || children[issueId] !== undefined) return
-    getIssues(currentTeamId, token, { limit: 100, parentId: issueId })
+    if (!nowOpen || !token || !currentSpaceId || children[issueId] !== undefined) return
+    getIssues(currentSpaceId, token, { limit: 100, parentId: issueId })
       .then((res) => setChildren((prev) => ({ ...prev, [issueId]: res.issues.map(apiIssueToIssue) })))
       .catch((err) => setError(getErrorMessage(err, "Failed to load sub-issues")))
   }
@@ -126,10 +126,10 @@ export function Issues({ token, userId }: IssuesProps) {
     assignee_kind: "person" | "agent" | "workflow" | ""
     assignee_id: string
   }) {
-    if (!token || !currentTeamId) return
+    if (!token || !currentSpaceId) return
     setSaving(true)
     setError(null)
-    createIssue(currentTeamId, { title: values.title, description: values.description }, token)
+    createIssue(currentSpaceId, { title: values.title, description: values.description }, token)
       .then(async (created) => {
         const needsPatch =
           values.status !== "todo" ||
@@ -137,7 +137,7 @@ export function Issues({ token, userId }: IssuesProps) {
           values.assignee_id !== ""
         if (needsPatch) {
           await updateIssue(
-            currentTeamId,
+            currentSpaceId,
             created.id,
             {
               version: created.version,
@@ -163,7 +163,7 @@ export function Issues({ token, userId }: IssuesProps) {
         <div>
           <h1 className="page-activity__title">Issues</h1>
           <p className="page-activity__subtitle">
-            Track team work items, ownership, and current progress.
+            Track space work items, ownership, and current progress.
           </p>
         </div>
         <div className="page-activity__actions">
@@ -183,7 +183,7 @@ export function Issues({ token, userId }: IssuesProps) {
       {error ? <p className="page-activity__empty">{error}</p> : null}
       {!canAssignWorkflow ? (
         <p className="page-activity__empty">
-          You can create issues and assign people or agents here. Workflow assignment is reserved for team owners and admins.
+          You can create issues and assign people or agents here. Workflow assignment is reserved for space owners and admins.
         </p>
       ) : null}
 
@@ -197,7 +197,7 @@ export function Issues({ token, userId }: IssuesProps) {
           <p className="page-activity__empty">Loading…</p>
         ) : issues.length === 0 ? (
           <p className="page-activity__empty">
-            No issues yet. Create one to track a work item, ownership, and progress for this team.
+            No issues yet. Create one to track a work item, ownership, and progress for this space.
           </p>
         ) : (
           <ul className="issues-page__list">

@@ -11,7 +11,7 @@ const DEFAULT_SERVER_URL = 'http://localhost:5678';
  *
  * This is an action, not a gate: the app already works without it, running the
  * agent here against the models in settings.yaml. Signing in switches to that
- * deployment's models and connects the account to a team's work, and signing
+ * deployment's models and connects the account to a space's work, and signing
  * out switches back. See docs/design/client-modes.md.
  *
  * Of the two ways in, a password is the everyday one. A login code is how a new

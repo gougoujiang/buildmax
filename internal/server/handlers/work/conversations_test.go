@@ -9,7 +9,7 @@ import (
 	"time"
 
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -18,7 +18,7 @@ import (
 func TestGetConversationMessagesHandler_HidesSystemMessages(t *testing.T) {
 	secret := "test-conversation-secret"
 	conversationID := "conv1"
-	teamID := "tm_personal_u1"
+	spaceID := "tm_personal_u1"
 	channel := "system"
 	messageStore := &mock.MockConversationMessageStore{
 		Messages: []coreconv.Message{
@@ -33,13 +33,13 @@ func TestGetConversationMessagesHandler_HidesSystemMessages(t *testing.T) {
 	}
 	h := New(Config{
 		JWTSecret: secret,
-		Teams: &mock.MockTeamStore{
-			Teams:   []coreteam.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}},
-			Members: []coreteam.Member{{TeamID: teamID, UserID: "u1", Role: coreteam.RoleOwner}},
+		Spaces: &mock.MockSpaceStore{
+			Spaces:  []corespace.Space{{ID: spaceID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}},
+			Members: []corespace.Member{{SpaceID: spaceID, UserID: "u1", Role: corespace.RoleOwner}},
 		},
 		Conversations: &mock.MockConversationStore{
 			Conversations: []coreconv.Conversation{
-				{ID: conversationID, UserID: "u1", TeamID: teamID, Channel: "portal", CreatedBy: "u1", CreatedAt: time.Unix(123, 0).UTC()},
+				{ID: conversationID, UserID: "u1", SpaceID: spaceID, Channel: "portal", CreatedBy: "u1", CreatedAt: time.Unix(123, 0).UTC()},
 			},
 		},
 		Messages: messageStore,
@@ -47,7 +47,7 @@ func TestGetConversationMessagesHandler_HidesSystemMessages(t *testing.T) {
 	mux := http.NewServeMux()
 	h.Register(mux)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/teams/"+teamID+"/conversations/"+conversationID+"/messages", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/spaces/"+spaceID+"/conversations/"+conversationID+"/messages", nil)
 	req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", secret))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
@@ -68,24 +68,24 @@ func TestGetConversationMessagesHandler_HidesSystemMessages(t *testing.T) {
 	}
 }
 
-func TestListConversationsReturnsTeamConversations(t *testing.T) {
+func TestListConversationsReturnsSpaceConversations(t *testing.T) {
 	secret := "test-conversation-list-secret"
-	teamID := "tm_personal_u1"
+	spaceID := "tm_personal_u1"
 	h := New(Config{
 		JWTSecret: secret,
-		Teams: &mock.MockTeamStore{
-			Teams:   []coreteam.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}},
-			Members: []coreteam.Member{{TeamID: teamID, UserID: "u1", Role: coreteam.RoleOwner}},
+		Spaces: &mock.MockSpaceStore{
+			Spaces:  []corespace.Space{{ID: spaceID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}},
+			Members: []corespace.Member{{SpaceID: spaceID, UserID: "u1", Role: corespace.RoleOwner}},
 		},
 		Conversations: &mock.MockConversationStore{Conversations: []coreconv.Conversation{
-			{ID: "conv_mine", UserID: "u1", TeamID: teamID, Channel: "portal", CreatedBy: "u1"},
-			{ID: "conv_hook", UserID: "u1", TeamID: teamID, Channel: "webhook", CreatedBy: "u1"},
+			{ID: "conv_mine", UserID: "u1", SpaceID: spaceID, Channel: "portal", CreatedBy: "u1"},
+			{ID: "conv_hook", UserID: "u1", SpaceID: spaceID, Channel: "webhook", CreatedBy: "u1"},
 		}},
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/teams/"+teamID+"/conversations", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/spaces/"+spaceID+"/conversations", nil)
 	req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", secret))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
@@ -98,7 +98,7 @@ func TestListConversationsReturnsTeamConversations(t *testing.T) {
 		t.Fatalf("decode body: %v", err)
 	}
 	if out.Total != 2 || len(out.Conversations) != 2 {
-		t.Fatalf("conversations = %+v, total = %d, want both team conversations", out.Conversations, out.Total)
+		t.Fatalf("conversations = %+v, total = %d, want both space conversations", out.Conversations, out.Total)
 	}
 }
 
@@ -107,12 +107,12 @@ func TestListConversationsReturnsTeamConversations(t *testing.T) {
 // that could name one would be creating a conversation it then cannot see.
 func TestCreateConversationRejectsAChannelTheCallerMayNotClaim(t *testing.T) {
 	secret := "test-conversation-secret"
-	teamID := "tm_personal_u1"
+	spaceID := "tm_personal_u1"
 	h := New(Config{
 		JWTSecret: secret,
-		Teams: &mock.MockTeamStore{
-			Teams:   []coreteam.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}},
-			Members: []coreteam.Member{{TeamID: teamID, UserID: "u1", Role: coreteam.RoleOwner}},
+		Spaces: &mock.MockSpaceStore{
+			Spaces:  []corespace.Space{{ID: spaceID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}},
+			Members: []corespace.Member{{SpaceID: spaceID, UserID: "u1", Role: corespace.RoleOwner}},
 		},
 		Conversations: &mock.MockConversationStore{},
 		Messages:      &mock.MockConversationMessageStore{},
@@ -121,7 +121,7 @@ func TestCreateConversationRejectsAChannelTheCallerMayNotClaim(t *testing.T) {
 	h.Register(mux)
 
 	for _, channel := range []string{"issue_agent", "workflow", "system", "slack"} {
-		req := httptest.NewRequest(http.MethodPost, "/api/teams/"+teamID+"/conversations",
+		req := httptest.NewRequest(http.MethodPost, "/api/spaces/"+spaceID+"/conversations",
 			strings.NewReader(`{"channel":"`+channel+`"}`))
 		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", secret))
 		req.Header.Set("Content-Type", "application/json")
@@ -136,13 +136,13 @@ func TestCreateConversationRejectsAChannelTheCallerMayNotClaim(t *testing.T) {
 // An absent channel is the Portal, and the transport channels stay accepted.
 func TestCreateConversationAcceptsTheTransportChannels(t *testing.T) {
 	secret := "test-conversation-secret"
-	teamID := "tm_personal_u1"
+	spaceID := "tm_personal_u1"
 	for _, body := range []string{`{}`, `{"channel":"portal"}`, `{"channel":"telegram"}`, `{"channel":"cron"}`, `{"channel":"webhook"}`} {
 		h := New(Config{
 			JWTSecret: secret,
-			Teams: &mock.MockTeamStore{
-				Teams:   []coreteam.Team{{ID: teamID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}},
-				Members: []coreteam.Member{{TeamID: teamID, UserID: "u1", Role: coreteam.RoleOwner}},
+			Spaces: &mock.MockSpaceStore{
+				Spaces:  []corespace.Space{{ID: spaceID, Name: "My Space", PersonalForUserID: util.Ptr("u1"), CreatedBy: "u1"}},
+				Members: []corespace.Member{{SpaceID: spaceID, UserID: "u1", Role: corespace.RoleOwner}},
 			},
 			Conversations: &mock.MockConversationStore{},
 			Messages:      &mock.MockConversationMessageStore{},
@@ -150,7 +150,7 @@ func TestCreateConversationAcceptsTheTransportChannels(t *testing.T) {
 		mux := http.NewServeMux()
 		h.Register(mux)
 
-		req := httptest.NewRequest(http.MethodPost, "/api/teams/"+teamID+"/conversations", strings.NewReader(body))
+		req := httptest.NewRequest(http.MethodPost, "/api/spaces/"+spaceID+"/conversations", strings.NewReader(body))
 		req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT("u1", secret))
 		req.Header.Set("Content-Type", "application/json")
 		rec := httptest.NewRecorder()

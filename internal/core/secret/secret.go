@@ -1,9 +1,9 @@
-// Package secret owns the Team Secret domain: a Team-owned group of named
+// Package secret owns the Space Secret domain: a Space-owned group of named
 // items, its lifecycle, and the store contract. It holds no cryptography and
 // no persistence -- a value crosses this package only as opaque sealed bytes
 // (Sealed) or, on the materialization path, as a decrypted item map the
 // caller obtained from internal/infra/secret. See
-// docs/design/team-secrets.md.
+// docs/design/space-secrets.md.
 package secret
 
 import (
@@ -15,7 +15,7 @@ import (
 
 // itemNamePattern is the identifier an item name must be, so a whole group can
 // be injected as environment variables without an item that cannot become a
-// variable. See docs/design/team-secrets.md §5.1.
+// variable. See docs/design/space-secrets.md §5.1.
 var itemNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
 // IsItemName reports whether name is a valid Secret item name.
@@ -45,7 +45,7 @@ const (
 // work without decrypting anything.
 type Secret struct {
 	ID          string
-	TeamID      string
+	SpaceID     string
 	Name        string
 	Description string
 	Provider    Provider
@@ -81,25 +81,25 @@ type Sealer interface {
 	Open(s Sealed, aad []byte) (Items, error)
 }
 
-// AAD builds the associated data that binds a sealed blob to its Team. A
-// ciphertext moved to another Team's row then fails to open, which is the
-// cross-Team isolation the threat model defends.
+// AAD builds the associated data that binds a sealed blob to its Space. A
+// ciphertext moved to another Space's row then fails to open, which is the
+// cross-Space isolation the threat model defends.
 //
 // It binds nothing else. Per-deployment isolation is already cryptographic --
 // another deployment has a different KEK, so unwrapping the DEK fails before
 // GCM is even reached -- and binding a deployment id here would instead break
 // a disaster-recovery replica that deliberately shares the KEK to read the same
 // rows. It binds no Secret public id either: that id is minted when the row is
-// inserted, after the value is sealed, and an intra-Team ciphertext swap needs
+// inserted, after the value is sealed, and an intra-Space ciphertext swap needs
 // database write access, which is the deployment operator the model trusts.
 // Kept here so seal and open cannot disagree on it.
-func AAD(teamPublicID string) []byte {
-	return fmt.Appendf(nil, "bmax-secret\x00%s", teamPublicID)
+func AAD(spacePublicID string) []byte {
+	return fmt.Appendf(nil, "bmax-secret\x00%s", spacePublicID)
 }
 
 // GrantRecord is the non-secret audit of one materialized env grant: which
 // item of which Secret a run received, under which variable name, authorized by
-// which Agent revision. It carries no value. See docs/design/team-secrets.md
+// which Agent revision. It carries no value. See docs/design/space-secrets.md
 // §5.2 and §11.
 type GrantRecord struct {
 	TaskRunID     string
@@ -113,7 +113,7 @@ type GrantRecord struct {
 // CreateInput carries one new Secret. ItemNames is the plaintext key set the
 // caller sealed, stored in the clear; Sealed is the encrypted map.
 type CreateInput struct {
-	TeamID      string
+	SpaceID     string
 	Name        string
 	Description string
 	Provider    Provider
@@ -140,7 +140,7 @@ type UpdateItemsInput struct {
 type Store interface {
 	CreateSecret(ctx context.Context, in CreateInput) (*Secret, error)
 	GetSecret(ctx context.Context, id string) (*Secret, error)
-	ListSecretsByTeam(ctx context.Context, teamID string) ([]Secret, error)
+	ListSecretsBySpace(ctx context.Context, spaceID string) ([]Secret, error)
 	// GetSealed returns metadata and the sealed items for materialization or
 	// rewrap. It refuses a destroyed Secret.
 	GetSealed(ctx context.Context, id string) (*Secret, *Sealed, error)

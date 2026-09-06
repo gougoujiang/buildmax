@@ -54,7 +54,7 @@ type DeleteCommentCmd struct {
 }
 
 // CreateComment appends a comment to an issue. The caller is responsible for
-// having authorized the issue's team.
+// having authorized the issue's space.
 func (s *Service) CreateComment(ctx context.Context, cmd CreateCommentCmd) (*coreissue.Comment, error) {
 	if s.Comments == nil {
 		return nil, ErrCommentsNotConfigured

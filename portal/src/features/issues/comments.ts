@@ -2,12 +2,12 @@ import { apiFetch, requestJson, throwIfNotOk, getApiBase } from "../../lib/api/c
 import { authHeaders, jsonHeaders } from "../../lib/api/common"
 import type { ApiIssueComment, ApiIssueCommentsResponse } from "../../lib/api/types"
 
-function commentsBase(teamId: string, issueId: string): string {
-  return `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/issues/${encodeURIComponent(issueId)}/comments`
+function commentsBase(spaceId: string, issueId: string): string {
+  return `${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/issues/${encodeURIComponent(issueId)}/comments`
 }
 
 export async function getIssueComments(
-  teamId: string,
+  spaceId: string,
   issueId: string,
   token: string,
   options?: { limit?: number; offset?: number },
@@ -16,18 +16,18 @@ export async function getIssueComments(
   if (options?.limit != null) params.set("limit", String(options.limit))
   if (options?.offset != null) params.set("offset", String(options.offset))
   const q = params.toString()
-  return requestJson<ApiIssueCommentsResponse>(`${commentsBase(teamId, issueId)}${q ? `?${q}` : ""}`, {
+  return requestJson<ApiIssueCommentsResponse>(`${commentsBase(spaceId, issueId)}${q ? `?${q}` : ""}`, {
     headers: authHeaders(token),
   })
 }
 
 export async function createIssueComment(
-  teamId: string,
+  spaceId: string,
   issueId: string,
   body: string,
   token: string,
 ): Promise<ApiIssueComment> {
-  return requestJson<ApiIssueComment>(commentsBase(teamId, issueId), {
+  return requestJson<ApiIssueComment>(commentsBase(spaceId, issueId), {
     method: "POST",
     headers: { ...jsonHeaders, ...authHeaders(token) },
     body: JSON.stringify({ body }),
@@ -35,13 +35,13 @@ export async function createIssueComment(
 }
 
 export async function updateIssueComment(
-  teamId: string,
+  spaceId: string,
   issueId: string,
   commentId: string,
   body: string,
   token: string,
 ): Promise<ApiIssueComment> {
-  return requestJson<ApiIssueComment>(`${commentsBase(teamId, issueId)}/${encodeURIComponent(commentId)}`, {
+  return requestJson<ApiIssueComment>(`${commentsBase(spaceId, issueId)}/${encodeURIComponent(commentId)}`, {
     method: "PATCH",
     headers: { ...jsonHeaders, ...authHeaders(token) },
     body: JSON.stringify({ body }),
@@ -49,12 +49,12 @@ export async function updateIssueComment(
 }
 
 export async function deleteIssueComment(
-  teamId: string,
+  spaceId: string,
   issueId: string,
   commentId: string,
   token: string,
 ): Promise<void> {
-  const res = await apiFetch(`${commentsBase(teamId, issueId)}/${encodeURIComponent(commentId)}`, {
+  const res = await apiFetch(`${commentsBase(spaceId, issueId)}/${encodeURIComponent(commentId)}`, {
     method: "DELETE",
     headers: authHeaders(token),
   })

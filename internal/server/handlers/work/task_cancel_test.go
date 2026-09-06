@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	coreconv "github.com/gougoujiang/buildmax/internal/core/conversation"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/testsupport"
 	"github.com/gougoujiang/buildmax/internal/util"
@@ -17,7 +17,7 @@ import (
 
 const (
 	cancelSecret  = "test-cancel-secret"
-	cancelTeam    = "tm_personal_u1"
+	cancelSpace   = "tm_personal_u1"
 	cancelConv    = "conv_cancel"
 	cancelUser    = "u1"
 	cancelTaskID  = "t_cancel"
@@ -32,21 +32,21 @@ func cancelFixture(t *testing.T, run coretask.Run) (*http.ServeMux, *mock.MockTa
 	task := coretask.Task{
 		ID:             cancelTaskID,
 		ConversationID: cancelConv,
-		TeamID:         cancelTeam,
+		SpaceID:        cancelSpace,
 		Status:         run.Status,
 		CreatedBy:      cancelUser,
 	}
 	runs := &mock.MockTaskRunStore{Runs: []coretask.Run{run}, TaskList: []coretask.Task{task}}
 	h := New(Config{
 		JWTSecret: cancelSecret,
-		Teams: &mock.MockTeamStore{
-			Teams:   []coreteam.Team{{ID: cancelTeam, Name: "My Space", PersonalForUserID: util.Ptr(cancelUser), CreatedBy: cancelUser}},
-			Members: []coreteam.Member{{TeamID: cancelTeam, UserID: cancelUser, Role: coreteam.RoleOwner}},
+		Spaces: &mock.MockSpaceStore{
+			Spaces:  []corespace.Space{{ID: cancelSpace, Name: "My Space", PersonalForUserID: util.Ptr(cancelUser), CreatedBy: cancelUser}},
+			Members: []corespace.Member{{SpaceID: cancelSpace, UserID: cancelUser, Role: corespace.RoleOwner}},
 		},
 		Tasks:    &mock.MockTaskStore{List: []coretask.Task{task}},
 		TaskRuns: runs,
 		Conversations: &mock.MockConversationStore{Conversations: []coreconv.Conversation{
-			{ID: cancelConv, UserID: cancelUser, TeamID: cancelTeam, Channel: "portal", CreatedBy: cancelUser},
+			{ID: cancelConv, UserID: cancelUser, SpaceID: cancelSpace, Channel: "portal", CreatedBy: cancelUser},
 		}},
 	})
 	mux := http.NewServeMux()
@@ -56,7 +56,7 @@ func cancelFixture(t *testing.T, run coretask.Run) (*http.ServeMux, *mock.MockTa
 
 func postCancel(t *testing.T, mux *http.ServeMux) *httptest.ResponseRecorder {
 	t.Helper()
-	req := httptest.NewRequest(http.MethodPost, "/api/teams/"+cancelTeam+"/tasks/"+cancelTaskID+"/cancel", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/spaces/"+cancelSpace+"/tasks/"+cancelTaskID+"/cancel", nil)
 	req.Header.Set("Authorization", "Bearer "+testsupport.SignJWT(cancelUser, cancelSecret))
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)

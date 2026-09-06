@@ -1,4 +1,4 @@
-// Package work serves the surface a team does its work on: issues and their
+// Package work serves the surface a space does its work on: issues and their
 // comments, workflows, tasks and the runs that execute them, the conversations
 // that start them, and the files and traces they leave behind.
 //
@@ -19,8 +19,8 @@ import (
 	coreissue "github.com/gougoujiang/buildmax/internal/core/issue"
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	blob "github.com/gougoujiang/buildmax/internal/infra/objectstore"
 	"github.com/gougoujiang/buildmax/internal/server/access"
@@ -49,7 +49,7 @@ type Config struct {
 	JWTSecret string
 
 	// Users is part of authentication, not work ownership: every user-facing
-	// route must reject a disabled account before it reads the team's work.
+	// route must reject a disabled account before it reads the space's work.
 	Users         coreidentity.UserStore
 	Issues        coreissue.Store
 	IssueComments coreissue.CommentStore
@@ -57,7 +57,7 @@ type Config struct {
 	Tasks         coretask.Store
 	TaskRuns      coretask.RunStore
 	Agents        agentdef.Store
-	Teams         coreteam.Store
+	Spaces        corespace.Store
 	Conversations coreconv.Store
 	Messages      coreconv.MessageStore
 	RunOutputs    RunOutputLister
@@ -133,66 +133,66 @@ func (h *Handler) guard() *access.Guard {
 	return &access.Guard{
 		JWTSecret: h.cfg.JWTSecret,
 		Users:     h.cfg.Users,
-		Teams:     h.cfg.Teams,
+		Spaces:    h.cfg.Spaces,
 		Audit:     h.cfg.Audit,
 	}
 }
 
 func (h *Handler) Register(mux *http.ServeMux) {
 	// Issues
-	mux.HandleFunc("GET /api/teams/{team_id}/issues", h.listIssuesHandler)
-	mux.HandleFunc("POST /api/teams/{team_id}/issues", h.createIssueHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/issues/{issue_id}", h.getIssueHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/issues/{issue_id}/flow", h.getIssueFlowHandler)
-	mux.HandleFunc("PATCH /api/teams/{team_id}/issues/{issue_id}", h.patchIssueHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/issues/{issue_id}/comments", h.listIssueCommentsHandler)
-	mux.HandleFunc("POST /api/teams/{team_id}/issues/{issue_id}/comments", h.createIssueCommentHandler)
-	mux.HandleFunc("PATCH /api/teams/{team_id}/issues/{issue_id}/comments/{comment_id}", h.patchIssueCommentHandler)
-	mux.HandleFunc("DELETE /api/teams/{team_id}/issues/{issue_id}/comments/{comment_id}", h.deleteIssueCommentHandler)
-	mux.HandleFunc("POST /api/teams/{team_id}/issues/{issue_id}/agent-runs", h.createIssueAgentRunHandler)
-	mux.HandleFunc("POST /api/teams/{team_id}/issues/{issue_id}/workflow-runs", h.createIssueWorkflowRunHandler)
+	mux.HandleFunc("GET /api/spaces/{space_id}/issues", h.listIssuesHandler)
+	mux.HandleFunc("POST /api/spaces/{space_id}/issues", h.createIssueHandler)
+	mux.HandleFunc("GET /api/spaces/{space_id}/issues/{issue_id}", h.getIssueHandler)
+	mux.HandleFunc("GET /api/spaces/{space_id}/issues/{issue_id}/flow", h.getIssueFlowHandler)
+	mux.HandleFunc("PATCH /api/spaces/{space_id}/issues/{issue_id}", h.patchIssueHandler)
+	mux.HandleFunc("GET /api/spaces/{space_id}/issues/{issue_id}/comments", h.listIssueCommentsHandler)
+	mux.HandleFunc("POST /api/spaces/{space_id}/issues/{issue_id}/comments", h.createIssueCommentHandler)
+	mux.HandleFunc("PATCH /api/spaces/{space_id}/issues/{issue_id}/comments/{comment_id}", h.patchIssueCommentHandler)
+	mux.HandleFunc("DELETE /api/spaces/{space_id}/issues/{issue_id}/comments/{comment_id}", h.deleteIssueCommentHandler)
+	mux.HandleFunc("POST /api/spaces/{space_id}/issues/{issue_id}/agent-runs", h.createIssueAgentRunHandler)
+	mux.HandleFunc("POST /api/spaces/{space_id}/issues/{issue_id}/workflow-runs", h.createIssueWorkflowRunHandler)
 
 	// Workflows
-	mux.HandleFunc("GET /api/teams/{team_id}/workflows", h.listWorkflowsHandler)
-	mux.HandleFunc("POST /api/teams/{team_id}/workflows", h.createWorkflowHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/workflows/{workflow_id}", h.getWorkflowHandler)
-	mux.HandleFunc("PATCH /api/teams/{team_id}/workflows/{workflow_id}", h.patchWorkflowHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/workflows/{workflow_id}/revisions", h.listWorkflowRevisionsHandler)
-	mux.HandleFunc("POST /api/teams/{team_id}/workflows/{workflow_id}/revisions/{revision}/restore", h.restoreWorkflowRevisionHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/workflows/{workflow_id}/runs", h.listWorkflowRunsHandler)
-	mux.HandleFunc("POST /api/teams/{team_id}/workflows/{workflow_id}/runs", h.createWorkflowRunHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/workflow-runs/{workflow_run_id}", h.getWorkflowRunHandler)
+	mux.HandleFunc("GET /api/spaces/{space_id}/workflows", h.listWorkflowsHandler)
+	mux.HandleFunc("POST /api/spaces/{space_id}/workflows", h.createWorkflowHandler)
+	mux.HandleFunc("GET /api/spaces/{space_id}/workflows/{workflow_id}", h.getWorkflowHandler)
+	mux.HandleFunc("PATCH /api/spaces/{space_id}/workflows/{workflow_id}", h.patchWorkflowHandler)
+	mux.HandleFunc("GET /api/spaces/{space_id}/workflows/{workflow_id}/revisions", h.listWorkflowRevisionsHandler)
+	mux.HandleFunc("POST /api/spaces/{space_id}/workflows/{workflow_id}/revisions/{revision}/restore", h.restoreWorkflowRevisionHandler)
+	mux.HandleFunc("GET /api/spaces/{space_id}/workflows/{workflow_id}/runs", h.listWorkflowRunsHandler)
+	mux.HandleFunc("POST /api/spaces/{space_id}/workflows/{workflow_id}/runs", h.createWorkflowRunHandler)
+	mux.HandleFunc("GET /api/spaces/{space_id}/workflow-runs/{workflow_run_id}", h.getWorkflowRunHandler)
 
 	// Files
-	mux.HandleFunc("POST /api/teams/{team_id}/upload", h.uploadHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/files", h.filesTreeHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/files/{path...}", h.fileContentHandler)
+	mux.HandleFunc("POST /api/spaces/{space_id}/upload", h.uploadHandler)
+	mux.HandleFunc("GET /api/spaces/{space_id}/files", h.filesTreeHandler)
+	mux.HandleFunc("GET /api/spaces/{space_id}/files/{path...}", h.fileContentHandler)
 
 	// Conversations
-	mux.HandleFunc("GET /api/teams/{team_id}/conversations", h.listConversationsHandler)
-	mux.HandleFunc("POST /api/teams/{team_id}/conversations", h.createConversationHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/conversations/{conversation_id}/messages", h.getConversationMessagesHandler)
-	mux.HandleFunc("POST /api/teams/{team_id}/conversations/{conversation_id}/messages", h.addConversationMessageHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/conversations/{conversation_id}/tasks", h.listConversationTasksHandler)
-	mux.HandleFunc("POST /api/teams/{team_id}/conversations/{conversation_id}/tasks", h.createConversationTaskHandler)
+	mux.HandleFunc("GET /api/spaces/{space_id}/conversations", h.listConversationsHandler)
+	mux.HandleFunc("POST /api/spaces/{space_id}/conversations", h.createConversationHandler)
+	mux.HandleFunc("GET /api/spaces/{space_id}/conversations/{conversation_id}/messages", h.getConversationMessagesHandler)
+	mux.HandleFunc("POST /api/spaces/{space_id}/conversations/{conversation_id}/messages", h.addConversationMessageHandler)
+	mux.HandleFunc("GET /api/spaces/{space_id}/conversations/{conversation_id}/tasks", h.listConversationTasksHandler)
+	mux.HandleFunc("POST /api/spaces/{space_id}/conversations/{conversation_id}/tasks", h.createConversationTaskHandler)
 
 	// Tasks and task runs
-	mux.HandleFunc("POST /api/teams/{team_id}/tasks", h.createTeamTaskHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/agents/{agent_id}/tasks", h.listAgentTasksHandler)
-	mux.HandleFunc("POST /api/teams/{team_id}/agents/{agent_id}/tasks", h.createAgentTaskHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/tasks/{task_id}", h.getTaskHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/tasks/{task_id}/runs", h.listTaskRunsHandler)
-	mux.HandleFunc("POST /api/teams/{team_id}/tasks/{task_id}/runs", h.createTaskRunHandler)
-	mux.HandleFunc("POST /api/teams/{team_id}/tasks/{task_id}/cancel", h.cancelTaskHandler)
-	mux.HandleFunc("POST /api/teams/{team_id}/tasks/{task_id}/retry", h.retryTaskHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/tasks/{task_id}/conversation", h.getTaskConversationHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/tasks/{task_id}/stream", h.getChatStreamHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/tasks/{task_id}/artifacts", h.listTaskArtifactsHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/task-runs/{task_run_id}", h.getTaskRunProvenanceHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/task-runs/{task_run_id}/artifacts/items", h.listArtifactItemsHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/task-runs/{task_run_id}/artifacts/content", h.artifactContentHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/task-runs/{task_run_id}/trace", h.getTaskRunTraceHandler)
-	mux.HandleFunc("GET /api/teams/{team_id}/task-runs/{task_run_id}/llm-calls", h.listTaskRunLLMCallsHandler)
+	mux.HandleFunc("POST /api/spaces/{space_id}/tasks", h.createSpaceTaskHandler)
+	mux.HandleFunc("GET /api/spaces/{space_id}/agents/{agent_id}/tasks", h.listAgentTasksHandler)
+	mux.HandleFunc("POST /api/spaces/{space_id}/agents/{agent_id}/tasks", h.createAgentTaskHandler)
+	mux.HandleFunc("GET /api/spaces/{space_id}/tasks/{task_id}", h.getTaskHandler)
+	mux.HandleFunc("GET /api/spaces/{space_id}/tasks/{task_id}/runs", h.listTaskRunsHandler)
+	mux.HandleFunc("POST /api/spaces/{space_id}/tasks/{task_id}/runs", h.createTaskRunHandler)
+	mux.HandleFunc("POST /api/spaces/{space_id}/tasks/{task_id}/cancel", h.cancelTaskHandler)
+	mux.HandleFunc("POST /api/spaces/{space_id}/tasks/{task_id}/retry", h.retryTaskHandler)
+	mux.HandleFunc("GET /api/spaces/{space_id}/tasks/{task_id}/conversation", h.getTaskConversationHandler)
+	mux.HandleFunc("GET /api/spaces/{space_id}/tasks/{task_id}/stream", h.getChatStreamHandler)
+	mux.HandleFunc("GET /api/spaces/{space_id}/tasks/{task_id}/artifacts", h.listTaskArtifactsHandler)
+	mux.HandleFunc("GET /api/spaces/{space_id}/task-runs/{task_run_id}", h.getTaskRunProvenanceHandler)
+	mux.HandleFunc("GET /api/spaces/{space_id}/task-runs/{task_run_id}/artifacts/items", h.listArtifactItemsHandler)
+	mux.HandleFunc("GET /api/spaces/{space_id}/task-runs/{task_run_id}/artifacts/content", h.artifactContentHandler)
+	mux.HandleFunc("GET /api/spaces/{space_id}/task-runs/{task_run_id}/trace", h.getTaskRunTraceHandler)
+	mux.HandleFunc("GET /api/spaces/{space_id}/task-runs/{task_run_id}/llm-calls", h.listTaskRunLLMCallsHandler)
 }
 
 // runAnnouncer closes out a run cancelled here, reaching the same listeners a

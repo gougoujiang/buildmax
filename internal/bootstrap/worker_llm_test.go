@@ -33,7 +33,7 @@ func TestEveryRunGetsAToken(t *testing.T) {
 	}
 
 	mint := runTokenMinter(managedServerConfig(), "secret")
-	claims := authtoken.RunClaims{UserID: "u_1", TeamID: "tm_1", TaskRunID: "r_1", TaskID: "t_1"}
+	claims := authtoken.RunClaims{UserID: "u_1", SpaceID: "tm_1", TaskRunID: "r_1", TaskID: "t_1"}
 	token, err := mint(claims)
 	if err != nil {
 		t.Fatalf("mint: %v", err)

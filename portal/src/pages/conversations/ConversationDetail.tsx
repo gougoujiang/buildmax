@@ -1,5 +1,5 @@
 import { useAuth } from "../../contexts/AuthContext"
-import { useTeam } from "../../contexts/TeamContext"
+import { useSpace } from "../../contexts/SpaceContext"
 import {
   ConversationDetailView,
   TaskFilesModal,
@@ -21,14 +21,14 @@ export function ConversationDetail({
   initialMessage,
 }: ConversationDetailProps) {
   const { token, user } = useAuth()
-  const { currentTeamId } = useTeam()
+  const { currentSpaceId } = useSpace()
   const taskCards = useConversationTasks({
-    teamId: currentTeamId,
+    spaceId: currentSpaceId,
     conversationId,
     token,
   })
   const conversationDetail = useConversationDetail({
-    teamId: currentTeamId,
+    spaceId: currentSpaceId,
     conversationId,
     token,
     initialMessage,
@@ -57,14 +57,14 @@ export function ConversationDetail({
       />
       <TaskFilesModal
         open={taskCards.filesRunId != null}
-        teamId={currentTeamId}
+        spaceId={currentSpaceId}
         token={token}
         taskRunId={taskCards.filesRunId}
         onClose={taskCards.closeFiles}
       />
       <RunTraceModal
         open={taskCards.traceRunId != null}
-        teamId={currentTeamId}
+        spaceId={currentSpaceId}
         token={token}
         taskRunId={taskCards.traceRunId}
         onClose={taskCards.closeTrace}

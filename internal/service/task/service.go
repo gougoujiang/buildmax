@@ -41,7 +41,7 @@ type WorkflowStepLookup interface {
 
 // QuotaChecker is the narrow quota surface needed by task workflows.
 type QuotaChecker interface {
-	Check(ctx context.Context, teamID string, runsToAdd, tokensToAdd int) (allowed bool, reason string, err error)
+	Check(ctx context.Context, spaceID string, runsToAdd, tokensToAdd int) (allowed bool, reason string, err error)
 }
 
 // Service owns task-related application workflows.
@@ -60,7 +60,7 @@ type Service struct {
 type CreateTaskCmd struct {
 	ConversationID string
 	UserID         string
-	TeamID         string
+	SpaceID        string
 	Input          string
 	AgentID        *string
 	IssueID        *string
@@ -110,18 +110,18 @@ func (s *Service) CreateTask(ctx context.Context, cmd CreateTaskCmd) (*coretask.
 	if s.Tasks == nil {
 		return nil, ErrTasksNotConfigured
 	}
-	input, agentID, selectedAgent, err := s.resolveInput(ctx, cmd.TeamID, cmd.UserID, cmd.Input, cmd.AgentID)
+	input, agentID, selectedAgent, err := s.resolveInput(ctx, cmd.SpaceID, cmd.UserID, cmd.Input, cmd.AgentID)
 	if err != nil {
 		return nil, err
 	}
 	createdByType, triggerSource := normalizeCreateTaskProvenance(cmd.CreatedByType, cmd.TriggerSource)
 	title, promptTokens, completionTokens := s.resolveTitle(ctx, input)
-	if err := s.checkQuota(ctx, cmd.TeamID, promptTokens+completionTokens); err != nil {
+	if err := s.checkQuota(ctx, cmd.SpaceID, promptTokens+completionTokens); err != nil {
 		return nil, err
 	}
 	create := &coretask.CreateInput{
 		ConversationID:            cmd.ConversationID,
-		TeamID:                    cmd.TeamID,
+		SpaceID:                   cmd.SpaceID,
 		Input:                     input,
 		Title:                     title,
 		CreatedBy:                 cmd.UserID,
@@ -163,7 +163,7 @@ func (s *Service) CreateRun(ctx context.Context, cmd CreateRunCmd) (*coretask.Ru
 	if target == nil {
 		return nil, ErrTaskNotFound
 	}
-	if err := s.checkQuota(ctx, target.TeamID, 0); err != nil {
+	if err := s.checkQuota(ctx, target.SpaceID, 0); err != nil {
 		return nil, err
 	}
 	var revision *int
@@ -176,7 +176,7 @@ func (s *Service) CreateRun(ctx context.Context, cmd CreateRunCmd) (*coretask.Ru
 		if err != nil {
 			return nil, err
 		}
-		if agent == nil || agent.TeamID != target.TeamID {
+		if agent == nil || agent.SpaceID != target.SpaceID {
 			return nil, ErrAgentNotFound
 		}
 		rev := agent.Revision
@@ -290,7 +290,7 @@ func (s *Service) StartBackgroundTask(ctx context.Context, cmd CreateTaskCmd) (*
 	}, nil
 }
 
-func (s *Service) resolveInput(ctx context.Context, teamID, userID, input string, agentID *string) (string, *string, *agentdef.Agent, error) {
+func (s *Service) resolveInput(ctx context.Context, spaceID, userID, input string, agentID *string) (string, *string, *agentdef.Agent, error) {
 	if agentID == nil || *agentID == "" {
 		if input == "" {
 			return "", nil, nil, ErrInputRequired
@@ -304,7 +304,7 @@ func (s *Service) resolveInput(ctx context.Context, teamID, userID, input string
 	if err != nil {
 		return "", nil, nil, err
 	}
-	if agent == nil || agent.TeamID != teamID {
+	if agent == nil || agent.SpaceID != spaceID {
 		return "", nil, nil, ErrAgentNotFound
 	}
 	if input != "" {
@@ -325,7 +325,7 @@ func (s *Service) resolveTitle(ctx context.Context, input string) (string, int, 
 	return genTitle, promptTokens, completionTokens
 }
 
-// Admits reports whether the team can start one more run right now, before a
+// Admits reports whether the space can start one more run right now, before a
 // caller writes anything a refusal would strand.
 //
 // CreateTask checks the same allowance, but only after resolving a title --
@@ -336,24 +336,24 @@ func (s *Service) resolveTitle(ctx context.Context, input string) (string, int, 
 //
 // It asks about the run allowance alone. The token half depends on the title
 // the model has not written yet, so CreateTask still checks it and can still
-// refuse; what this closes is the case a team hits routinely, which is running
+// refuse; what this closes is the case a space hits routinely, which is running
 // out of runs.
-func (s *Service) Admits(ctx context.Context, teamID string) error {
-	return s.checkQuota(ctx, teamID, 0)
+func (s *Service) Admits(ctx context.Context, spaceID string) error {
+	return s.checkQuota(ctx, spaceID, 0)
 }
 
-func (s *Service) checkQuota(ctx context.Context, teamID string, tokens int) error {
+func (s *Service) checkQuota(ctx context.Context, spaceID string, tokens int) error {
 	if s.QuotaChecker == nil {
 		return nil
 	}
-	if teamID == "" {
+	if spaceID == "" {
 		return nil
 	}
-	allowed, reason, err := s.QuotaChecker.Check(ctx, teamID, 1, tokens)
+	allowed, reason, err := s.QuotaChecker.Check(ctx, spaceID, 1, tokens)
 	if err != nil {
 		// A limit that could not be read is not a limit that passed. Admitting
-		// the run would spend a team's allowance without metering it.
-		return fmt.Errorf("check quota for team %s: %w", teamID, err)
+		// the run would spend a space's allowance without metering it.
+		return fmt.Errorf("check quota for space %s: %w", spaceID, err)
 	}
 	if allowed {
 		return nil

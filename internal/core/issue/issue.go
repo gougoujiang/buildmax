@@ -40,14 +40,14 @@ const (
 // Issue is the user-facing work-management object. It is intentionally separate
 // from low-level task/task_run execution records.
 //
-// ParentIssueID makes the issue a sub-issue of another issue in the same team.
+// ParentIssueID makes the issue a sub-issue of another issue in the same space.
 // The hierarchy is capped at two levels — a parent must itself have no parent —
 // which is enforced in internal/service/issue, not by the schema. See
 // docs/contribute/architecture/data-model.md.
 type Issue struct {
 	ID            string    `json:"id"`
 	UserID        string    `json:"user_id"`
-	TeamID        string    `json:"team_id,omitempty"`
+	SpaceID       string    `json:"space_id,omitempty"`
 	ParentIssueID *string   `json:"parent_issue_id,omitempty"`
 	Title         string    `json:"title"`
 	Description   string    `json:"description"`
@@ -85,8 +85,8 @@ type UpdateInput struct {
 	ParentIssueID *string
 }
 
-// ListFilter narrows a team issue listing. The zero value lists every
-// issue in the team, which is what callers predating sub-issues expect.
+// ListFilter narrows a space issue listing. The zero value lists every
+// issue in the space, which is what callers predating sub-issues expect.
 type ListFilter struct {
 	// TopLevelOnly restricts the listing to issues with no parent.
 	TopLevelOnly bool
@@ -118,9 +118,9 @@ var ErrVersionConflict = apierr.New(apierr.KindConflict, "issue changed since it
 // Store provides issue persistence. Issues are user-scoped.
 type Store interface {
 	CreateIssue(ctx context.Context, userID string, in CreateInput) (*Issue, error)
-	CreateIssueInTeam(ctx context.Context, teamID, createdBy string, in CreateInput) (*Issue, error)
+	CreateIssueInSpace(ctx context.Context, spaceID, createdBy string, in CreateInput) (*Issue, error)
 	ListIssuesByUser(ctx context.Context, userID string, limit, offset int) ([]Issue, int, error)
-	ListIssuesByTeam(ctx context.Context, teamID string, filter ListFilter, limit, offset int) ([]Issue, int, error)
+	ListIssuesBySpace(ctx context.Context, spaceID string, filter ListFilter, limit, offset int) ([]Issue, int, error)
 	ListIssueChildren(ctx context.Context, parentIssueID string) ([]Issue, error)
 	// ChildStatsForIssues returns sub-issue progress keyed by parent issue ID.
 	// Parents with no children are absent from the map rather than present with
@@ -128,7 +128,7 @@ type Store interface {
 	ChildStatsForIssues(ctx context.Context, issueIDs []string) (map[string]ChildStats, error)
 	GetIssue(ctx context.Context, issueID string) (*Issue, error)
 	UpdateIssue(ctx context.Context, issueID, userID string, in UpdateInput) (*Issue, error)
-	UpdateIssueInTeam(ctx context.Context, issueID, teamID string, in UpdateInput) (*Issue, error)
+	UpdateIssueInSpace(ctx context.Context, issueID, spaceID string, in UpdateInput) (*Issue, error)
 }
 
 // Comment is one statement about an issue, addressed to people.
@@ -160,8 +160,8 @@ type CreateCommentInput struct {
 	SourceTaskRunID *string
 }
 
-// CommentStore provides issue comment persistence. A comment's team is its
-// issue's team; the row carries no team_id of its own, so every caller
+// CommentStore provides issue comment persistence. A comment's space is its
+// issue's space; the row carries no space_id of its own, so every caller
 // authorizes through the issue.
 type CommentStore interface {
 	CreateIssueComment(ctx context.Context, in CreateCommentInput) (*Comment, error)

@@ -271,13 +271,13 @@ func (m *MockTaskRunStore) RecordTaskRunAgentRevision(_ context.Context, taskRun
 	return nil
 }
 
-func (m *MockTaskRunStore) RecordTaskRunTeamAgentInstructionsRevision(_ context.Context, taskRunID string, revision int) error {
+func (m *MockTaskRunStore) RecordTaskRunSpaceAgentInstructionsRevision(_ context.Context, taskRunID string, revision int) error {
 	for i := range m.Runs {
 		if m.Runs[i].ID != taskRunID {
 			continue
 		}
-		if m.Runs[i].TeamAgentInstructionsRevision == nil {
-			m.Runs[i].TeamAgentInstructionsRevision = &revision
+		if m.Runs[i].SpaceAgentInstructionsRevision == nil {
+			m.Runs[i].SpaceAgentInstructionsRevision = &revision
 		}
 		return nil
 	}

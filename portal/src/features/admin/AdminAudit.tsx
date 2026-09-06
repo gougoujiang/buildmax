@@ -8,23 +8,23 @@ const PAGE_SIZE = 50
 
 /** Filters the deployment-wide trail supports. Empty strings mean no bound. */
 interface AuditFilters {
-  teamId: string
+  spaceId: string
   actorId: string
   action: string
 }
 
 /**
- * AdminAudit searches the trail across every team.
+ * AdminAudit searches the trail across every space.
  *
- * It is the only place the events with no team can be read at all — logins,
- * administrator grants, account actions. The team-scoped trail could never
+ * It is the only place the events with no space can be read at all — logins,
+ * administrator grants, account actions. The space-scoped trail could never
  * return them, which is why "Deployment only" is a filter rather than an
- * absence of one: an empty team filter already means "any team".
+ * absence of one: an empty space filter already means "any space".
  */
 export function AdminAudit({ token, currentUserId }: { token: string | null; currentUserId?: string }) {
   const [events, setEvents] = useState<ApiAuditEvent[]>([])
   const [total, setTotal] = useState(0)
-  const [filters, setFilters] = useState<AuditFilters>({ teamId: "", actorId: "", action: "" })
+  const [filters, setFilters] = useState<AuditFilters>({ spaceId: "", actorId: "", action: "" })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
@@ -35,7 +35,7 @@ export function AdminAudit({ token, currentUserId }: { token: string | null; cur
       setLoading(true)
       setError(null)
       searchAdminAuditEvents(token, {
-        team_id: active.teamId || undefined,
+        space_id: active.spaceId || undefined,
         actor_id: active.actorId || undefined,
         action: active.action || undefined,
         limit: PAGE_SIZE,
@@ -52,7 +52,7 @@ export function AdminAudit({ token, currentUserId }: { token: string | null; cur
   )
 
   useEffect(() => {
-    load({ teamId: "", actorId: "", action: "" }, 0)
+    load({ spaceId: "", actorId: "", action: "" }, 0)
   }, [load])
 
   function apply(next: AuditFilters) {
@@ -68,7 +68,7 @@ export function AdminAudit({ token, currentUserId }: { token: string | null; cur
     setExporting(true)
     setError(null)
     exportAdminAuditEvents(token, format, {
-      team_id: filters.teamId || undefined,
+      space_id: filters.spaceId || undefined,
       actor_id: filters.actorId || undefined,
       action: filters.action || undefined,
     })
@@ -98,10 +98,10 @@ export function AdminAudit({ token, currentUserId }: { token: string | null; cur
         >
           <input
             className="admin-input"
-            value={filters.teamId}
+            value={filters.spaceId}
             placeholder="Space id"
             aria-label="Filter by space id"
-            onChange={(e) => setFilters({ ...filters, teamId: e.target.value })}
+            onChange={(e) => setFilters({ ...filters, spaceId: e.target.value })}
           />
           <input
             className="admin-input"
@@ -123,7 +123,7 @@ export function AdminAudit({ token, currentUserId }: { token: string | null; cur
           <button
             type="button"
             className="admin-button"
-            onClick={() => apply({ teamId: "none", actorId: filters.actorId, action: filters.action })}
+            onClick={() => apply({ spaceId: "none", actorId: filters.actorId, action: filters.action })}
             title="Logins, grants, and account actions — the events no space-scoped reader can see"
           >
             Deployment only
@@ -131,7 +131,7 @@ export function AdminAudit({ token, currentUserId }: { token: string | null; cur
           <button
             type="button"
             className="admin-button"
-            onClick={() => apply({ teamId: "", actorId: "", action: "" })}
+            onClick={() => apply({ spaceId: "", actorId: "", action: "" })}
           >
             Clear
           </button>
@@ -179,8 +179,8 @@ export function AdminAudit({ token, currentUserId }: { token: string | null; cur
                     <span className="audit-row__summary">{described.summary}</span>
                   </div>
                   <div className="audit-row__meta">
-                    {event.team_id ? (
-                      <span className="audit-row__target">{event.team_id}</span>
+                    {event.space_id ? (
+                      <span className="audit-row__target">{event.space_id}</span>
                     ) : (
                       <span className="admin-pill">deployment</span>
                     )}

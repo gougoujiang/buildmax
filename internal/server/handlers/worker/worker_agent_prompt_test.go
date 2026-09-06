@@ -8,8 +8,8 @@ import (
 	"time"
 
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 	"github.com/gougoujiang/buildmax/internal/mock"
 )
@@ -17,23 +17,23 @@ import (
 // getTaskRunHandler builds the worker route with an optional agent store and a task that may
 // name an agent.
 func getTaskRunHandler(agentID *string, agents *mock.MockAgentStore) http.Handler {
-	return getTaskRunHandlerWithTeam(agentID, agents, nil)
+	return getTaskRunHandlerWithSpace(agentID, agents, nil)
 }
 
-func getTaskRunHandlerWithTeam(agentID *string, agents *mock.MockAgentStore, teams *mock.MockTeamStore) http.Handler {
+func getTaskRunHandlerWithSpace(agentID *string, agents *mock.MockAgentStore, spaces *mock.MockSpaceStore) http.Handler {
 	cfg := Config{
 		JWTSecret: workerTestSecret,
 		TaskRuns: &mock.MockTaskRunStore{
 			Runs: []coretask.Run{{ID: "r_1", TaskID: "t_1", Status: string(coretask.RunStatusScheduled), CreatedAt: time.Unix(1, 0).UTC()}},
 			TaskList: []coretask.Task{{
-				ID: "t_1", ConversationID: "c_1", TeamID: llmTestTeam,
+				ID: "t_1", ConversationID: "c_1", SpaceID: llmTestSpace,
 				Status: string(coretask.RunStatusScheduled), Input: "in", CreatedBy: llmTestUser,
 				AgentID: agentID, CreatedAt: time.Unix(1, 0).UTC(),
 			}},
 		},
 	}
-	if teams != nil {
-		cfg.Teams = teams
+	if spaces != nil {
+		cfg.Spaces = spaces
 	}
 	if agents != nil {
 		cfg.Agents = agents
@@ -45,13 +45,13 @@ func getTaskRunHandlerWithTeam(agentID *string, agents *mock.MockAgentStore, tea
 }
 
 func TestGetTaskRunCarriesSpaceInstructionsWithoutAnAgent(t *testing.T) {
-	teams := &mock.MockTeamStore{Teams: []coreteam.Team{{
-		ID: llmTestTeam, AgentInstructions: "Use British English.", AgentInstructionsRevision: 2,
+	spaces := &mock.MockSpaceStore{Spaces: []corespace.Space{{
+		ID: llmTestSpace, AgentInstructions: "Use British English.", AgentInstructionsRevision: 2,
 	}}}
-	got := getTaskRun(t, getTaskRunHandlerWithTeam(nil, nil, teams))
-	if got.Task.TeamAgentInstructions != "Use British English." || got.Task.TeamAgentInstructionsRevision != 2 {
-		t.Fatalf("team instructions = %q at revision %d, want configured layer at revision 2",
-			got.Task.TeamAgentInstructions, got.Task.TeamAgentInstructionsRevision)
+	got := getTaskRun(t, getTaskRunHandlerWithSpace(nil, nil, spaces))
+	if got.Task.SpaceAgentInstructions != "Use British English." || got.Task.SpaceAgentInstructionsRevision != 2 {
+		t.Fatalf("space instructions = %q at revision %d, want configured layer at revision 2",
+			got.Task.SpaceAgentInstructions, got.Task.SpaceAgentInstructionsRevision)
 	}
 }
 
@@ -78,7 +78,7 @@ func TestGetTaskRun_CarriesAgentInstructions(t *testing.T) {
 	agentID := "ag_1"
 	agents := &mock.MockAgentStore{Agents: []agentdef.Agent{{
 		ID:           agentID,
-		TeamID:       llmTestTeam,
+		SpaceID:      llmTestSpace,
 		Name:         "law-consultant",
 		Instructions: "You are a law consultant.",
 	}}}
@@ -90,21 +90,21 @@ func TestGetTaskRun_CarriesAgentInstructions(t *testing.T) {
 	}
 }
 
-// TestGetTaskRun_ForeignAgentIsNotDisclosed asserts the team check holds on this route too: an
-// agent belonging to another team contributes nothing, rather than leaking its instructions
+// TestGetTaskRun_ForeignAgentIsNotDisclosed asserts the space check holds on this route too: an
+// agent belonging to another space contributes nothing, rather than leaking its instructions
 // into a run that has no claim on them.
 func TestGetTaskRun_ForeignAgentIsNotDisclosed(t *testing.T) {
 	agentID := "ag_other"
 	agents := &mock.MockAgentStore{Agents: []agentdef.Agent{{
 		ID:           agentID,
-		TeamID:       "team_somebody_else",
+		SpaceID:      "space_somebody_else",
 		Instructions: "secret instructions",
 	}}}
 
 	got := getTaskRun(t, getTaskRunHandler(&agentID, agents))
 
 	if got.Task.AgentInstructions != "" {
-		t.Errorf("agent_instructions = %q, want empty for another team's agent", got.Task.AgentInstructions)
+		t.Errorf("agent_instructions = %q, want empty for another space's agent", got.Task.AgentInstructions)
 	}
 }
 

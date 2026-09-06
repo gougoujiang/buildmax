@@ -162,7 +162,7 @@ func (h *Handler) artifactOutputs(
 	}
 	// Every run of every task, not each task's last one. A retried task has
 	// earlier runs, and an artifact one of them published is still a thing the
-	// team keeps — it does not stop being this issue's output because the task
+	// space keeps — it does not stop being this issue's output because the task
 	// was run again.
 	taskIDs := make([]string, 0, len(agentTasks))
 	tasksByID := make(map[string]coretask.Task, len(agentTasks))
@@ -257,7 +257,7 @@ func (h *Handler) readArtifactPreview(ctx context.Context, t coretask.Task, task
 		return "", false
 	}
 	data, err := h.cfg.RunOutputStorage.GetResult(ctx, blob.RunRef{
-		TeamID: t.TeamID, TaskID: t.ID, TaskRunID: taskRunID,
+		SpaceID: t.SpaceID, TaskID: t.ID, TaskRunID: taskRunID,
 	})
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) || errors.Is(err, apierr.ErrNotFound) {

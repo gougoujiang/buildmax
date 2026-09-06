@@ -53,7 +53,7 @@ type Config struct {
 	// lets the credential layer renew underneath.
 	TokenFunc func() (string, error)
 	// TaskRunID selects the worker route, where the credential is a run token
-	// rather than a user login and the server derives user, team, task, and run
+	// rather than a user login and the server derives user, space, task, and run
 	// from it. Empty means the signed-in user's own route.
 	TaskRunID string
 	// Model is the catalog model name to call. Empty uses the deployment
@@ -489,8 +489,8 @@ func toWireTools(in []cllm.ToolDef) []llmwire.Tool {
 
 // Models lists the models this client's deployment offers.
 //
-// Discovery is a team capability, so a worker-mode client refuses it. A task run
-// is told which model to use at dispatch; letting it browse the team's catalog
+// Discovery is a space capability, so a worker-mode client refuses it. A task run
+// is told which model to use at dispatch; letting it browse the space's catalog
 // would be a choice it has no business making.
 func (c *Client) Models(ctx context.Context) ([]llmwire.Model, error) {
 	if c == nil || c.cfg.ServerURL == "" {

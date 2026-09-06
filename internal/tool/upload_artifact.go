@@ -67,7 +67,7 @@ func (t *UploadArtifact) Name() string { return ToolNameUploadArtifact }
 
 // Description states the choosing rule, not just the mechanics.
 //
-// Without it the tool is used as a save button and the team's artifact list
+// Without it the tool is used as a save button and the space's artifact list
 // fills with intermediate files. What the model has to understand is that this
 // publishes, once, the file a person is meant to receive.
 func (t *UploadArtifact) Description() string {
@@ -105,7 +105,7 @@ func (t *UploadArtifact) Parameters() any {
 					"BuildMax login, and receive it in the result. Use it when the person should " +
 					"be able to open the file — a report to read, an HTML prototype to view — from " +
 					"a link you give them. The link is revocable and expires. Defaults to false: " +
-					"without it the artifact is reachable only by team members.",
+					"without it the artifact is reachable only by space members.",
 			},
 		},
 		"required": []string{"path"},
@@ -155,7 +155,7 @@ func (t *UploadArtifact) Execute(ctx context.Context, args map[string]any) (stri
 //
 // The symlink check is the one that matters here and is not the workspace
 // check: containment is decided lexically, so a link inside the workspace can
-// still name /etc/ssh/id_rsa, and publishing sends the target's bytes to a team.
+// still name /etc/ssh/id_rsa, and publishing sends the target's bytes to a space.
 func (t *UploadArtifact) resolvePublishablePath(path string) (string, error) {
 	resolved, err := t.resolveFilePath(path)
 	if err != nil {
@@ -208,7 +208,7 @@ func formatPublishedArtifact(a PublishedArtifact, purpose string) string {
 	switch {
 	case a.ShareURL != "":
 		// The public link is what a person opens, so it leads the closing
-		// instruction rather than the team-only reference.
+		// instruction rather than the space-only reference.
 		fmt.Fprintf(&b, "\nPublic link (opens without a login): %s", a.ShareURL)
 		if a.ShareDownloadURL != "" {
 			fmt.Fprintf(&b, "\nDownload: %s", a.ShareDownloadURL)

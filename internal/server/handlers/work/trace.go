@@ -27,9 +27,9 @@ type TraceResponse struct {
 }
 
 // getTaskRunTraceHandler serves GET
-// /api/teams/{team_id}/task-runs/{task_run_id}/trace.
+// /api/spaces/{space_id}/task-runs/{task_run_id}/trace.
 func (h *Handler) getTaskRunTraceHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.TaskRuns, "task runs not configured")
+	_, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.TaskRuns, "task runs not configured")
 	if !ok {
 		return
 	}
@@ -40,7 +40,7 @@ func (h *Handler) getTaskRunTraceHandler(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	run, task, ok := h.getArtifactRunAndTaskForTeam(w, r, teamID, taskRunID)
+	run, task, ok := h.getArtifactRunAndTaskForSpace(w, r, spaceID, taskRunID)
 	if !ok {
 		return
 	}

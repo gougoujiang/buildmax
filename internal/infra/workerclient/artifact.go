@@ -34,7 +34,7 @@ type artifactShare struct {
 // worker can already reach. That is deliberate: one code path creates
 // artifacts, so the size limit, the naming rules, and the write-once ordering
 // cannot come to differ between a worker and everyone else — and a worker never
-// has to be told which team it is writing to.
+// has to be told which space it is writing to.
 type artifactPublisher struct {
 	Cfg       WorkerAPIClientConfig
 	TaskRunID string

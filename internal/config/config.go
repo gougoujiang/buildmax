@@ -52,7 +52,7 @@ const (
 	// using the entry's own credential. It is the default.
 	TransportDirect = "direct"
 	// TransportBuildMax calls a BuildMax server's managed gateway, which holds
-	// the provider credential and decides which model the team may use.
+	// the provider credential and decides which model the space may use.
 	TransportBuildMax = "buildmax"
 )
 
@@ -263,7 +263,7 @@ func AgentDefsSearchPaths(workspace string) []string {
 // not coupled to a global env var.
 // ---------------------------------------------------------------------------
 
-// PersistentWorkspaceDir returns the persistent home directory for a team's workspace.
+// PersistentWorkspaceDir returns the persistent home directory for a space's workspace.
 func PersistentWorkspaceDir(workspacesDir, workspaceID string) string {
 	return filepath.Join(workspacesDir, workspaceID, "home")
 }

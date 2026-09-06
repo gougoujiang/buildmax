@@ -20,7 +20,7 @@ const (
 	// credential now opens every worker route.
 	workerTestSecret = "test-worker-secret"
 	llmTestUser      = "u_llm"
-	llmTestTeam      = "tm_llm"
+	llmTestSpace     = "tm_llm"
 )
 
 // runTokenFor mints what the scheduler would have handed the worker executing
@@ -30,7 +30,7 @@ func runTokenFor(t *testing.T, taskRunID, taskID string) string {
 	t.Helper()
 	token, err := authtoken.MintRun(workerTestSecret, authtoken.RunClaims{
 		UserID:    llmTestUser,
-		TeamID:    llmTestTeam,
+		SpaceID:   llmTestSpace,
 		TaskRunID: taskRunID,
 		TaskID:    taskID,
 	}, time.Hour, time.Now())

@@ -23,7 +23,7 @@ func TestGetWorkerTaskRunPreservesSessionPredecessor(t *testing.T) {
 				ID: "run-current", TaskID: "task-1", PreviousTaskRunID: &previousRunID,
 				Input: "continue", Status: "SCHEDULED", CreatedAt: time.Unix(1, 0).UTC(),
 			},
-			Task: TaskRunTask{ID: "task-1", TeamID: "team-1", UserID: "user-1"},
+			Task: TaskRunTask{ID: "task-1", SpaceID: "space-1", UserID: "user-1"},
 		}); err != nil {
 			t.Fatal(err)
 		}

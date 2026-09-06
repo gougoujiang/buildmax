@@ -222,7 +222,7 @@ func TestAgentsMDRoutesExist(t *testing.T) {
 	cited := regexp.MustCompile("`(?:[A-Z/]+ )?(/api/[^`,;]+)`").FindAllStringSubmatch(string(body), -1)
 	for _, m := range cited {
 		route := strings.TrimSpace(m[1])
-		// Prose forms like /api/worker/* and /api/teams/{team_id}/... name a
+		// Prose forms like /api/worker/* and /api/spaces/{space_id}/... name a
 		// group of routes rather than one, and have nothing to match against.
 		if strings.HasSuffix(route, "*") || strings.HasSuffix(route, "...") {
 			continue

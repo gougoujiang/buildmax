@@ -22,13 +22,13 @@ type fileNode struct {
 }
 
 func (h *Handler) filesTreeHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.PersistStorage, "persist storage not configured")
+	_, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.PersistStorage, "persist storage not configured")
 	if !ok {
 		return
 	}
-	relPaths, err := h.cfg.PersistStorage.ListFiles(r.Context(), teamID)
+	relPaths, err := h.cfg.PersistStorage.ListFiles(r.Context(), spaceID)
 	if err != nil {
-		httputil.WriteInternalError(w, err, "handler error", "handler", "files_tree", "team_id", teamID)
+		httputil.WriteInternalError(w, err, "handler error", "handler", "files_tree", "space_id", spaceID)
 		return
 	}
 	tree := buildTreeFromFileList(relPaths)
@@ -97,7 +97,7 @@ func sortFileNodes(n *fileNode) {
 }
 
 func (h *Handler) fileContentHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.PersistStorage, "persist storage not configured")
+	_, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.PersistStorage, "persist storage not configured")
 	if !ok {
 		return
 	}
@@ -111,7 +111,7 @@ func (h *Handler) fileContentHandler(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid path")
 		return
 	}
-	data, err := h.cfg.PersistStorage.Get(r.Context(), teamID, cleanPath)
+	data, err := h.cfg.PersistStorage.Get(r.Context(), spaceID, cleanPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) || errors.Is(err, apierr.ErrNotFound) {
 			httputil.WriteJSONError(w, http.StatusNotFound, "file not found")
@@ -133,7 +133,7 @@ type uploadResponse struct {
 }
 
 func (h *Handler) uploadHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.PersistStorage, "persist storage not configured")
+	_, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.PersistStorage, "persist storage not configured")
 	if !ok {
 		return
 	}
@@ -189,7 +189,7 @@ func (h *Handler) uploadHandler(w http.ResponseWriter, r *http.Request) {
 			httputil.WriteInternalError(w, err, "handler error", "handler", "upload", "name", relPath)
 			return
 		}
-		if err := h.cfg.PersistStorage.Put(ctx, teamID, cleanPath, src); err != nil {
+		if err := h.cfg.PersistStorage.Put(ctx, spaceID, cleanPath, src); err != nil {
 			src.Close()
 			httputil.WriteInternalError(w, err, "handler error", "handler", "upload", "path", cleanPath)
 			return

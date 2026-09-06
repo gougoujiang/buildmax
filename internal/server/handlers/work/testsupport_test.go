@@ -10,7 +10,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/mock"
 
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 )
 
 // llmStubLedger accepts every write and keeps the last one so a test can check
@@ -52,17 +52,17 @@ func (l *llmStubLedger) ListLLMCallsByTaskRun(_ context.Context, taskRunID strin
 
 const llmTestSecret = "test-llm-secret"
 
-func llmTestTeamStore() *mock.MockTeamStore {
-	return &mock.MockTeamStore{
-		Teams: []coreteam.Team{
-			{ID: llmTestTeam, Name: "LLM Team", CreatedBy: llmTestUser, CreatedAt: time.Now().UTC()},
+func llmTestSpaceStore() *mock.MockSpaceStore {
+	return &mock.MockSpaceStore{
+		Spaces: []corespace.Space{
+			{ID: llmTestSpace, Name: "LLM Space", CreatedBy: llmTestUser, CreatedAt: time.Now().UTC()},
 		},
-		Members: []coreteam.Member{
-			{TeamID: llmTestTeam, UserID: llmTestUser, Role: coreteam.RoleOwner, CreatedAt: time.Now().UTC()},
+		Members: []corespace.Member{
+			{SpaceID: llmTestSpace, UserID: llmTestUser, Role: corespace.RoleOwner, CreatedAt: time.Now().UTC()},
 		},
 	}
 }
 
 const llmTestUser = "u_llm"
 
-const llmTestTeam = "tm_llm"
+const llmTestSpace = "tm_llm"

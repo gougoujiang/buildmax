@@ -33,7 +33,7 @@ func artifactWithTaskToResponse(a coretask.RunOutputListing) runOutputResponse {
 }
 
 func (h *Handler) listTaskArtifactsHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.RunOutputs, "artifacts not configured")
+	_, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.RunOutputs, "artifacts not configured")
 	if !ok {
 		return
 	}
@@ -44,7 +44,7 @@ func (h *Handler) listTaskArtifactsHandler(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	task, _, ok := h.getTaskForTeam(w, r, teamID, taskID)
+	task, _, ok := h.getTaskForSpace(w, r, spaceID, taskID)
 	if !ok {
 		return
 	}
@@ -81,12 +81,12 @@ func (h *Handler) getArtifactRunAndTaskAny(w http.ResponseWriter, r *http.Reques
 	return run, task, true
 }
 
-func (h *Handler) getArtifactRunAndTaskForTeam(w http.ResponseWriter, r *http.Request, teamID, taskRunID string) (run *coretask.Run, task *coretask.Task, ok bool) {
+func (h *Handler) getArtifactRunAndTaskForSpace(w http.ResponseWriter, r *http.Request, spaceID, taskRunID string) (run *coretask.Run, task *coretask.Task, ok bool) {
 	run, task, ok = h.getArtifactRunAndTaskAny(w, r, taskRunID)
 	if !ok {
 		return nil, nil, false
 	}
-	if task.TeamID != teamID {
+	if task.SpaceID != spaceID {
 		httputil.WriteJSONError(w, http.StatusNotFound, "artifact not found")
 		return nil, nil, false
 	}
@@ -94,7 +94,7 @@ func (h *Handler) getArtifactRunAndTaskForTeam(w http.ResponseWriter, r *http.Re
 }
 
 func (h *Handler) listArtifactItemsHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.RunOutputs, "artifacts not configured")
+	_, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.RunOutputs, "artifacts not configured")
 	if !ok {
 		return
 	}
@@ -102,7 +102,7 @@ func (h *Handler) listArtifactItemsHandler(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	_, _, ok = h.getArtifactRunAndTaskForTeam(w, r, teamID, taskRunID)
+	_, _, ok = h.getArtifactRunAndTaskForSpace(w, r, spaceID, taskRunID)
 	if !ok {
 		return
 	}
@@ -153,7 +153,7 @@ func (h *Handler) resolveArtifactPath(w http.ResponseWriter, r *http.Request, ta
 }
 
 func (h *Handler) artifactContentHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.RunOutputs, "artifacts not configured")
+	_, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.RunOutputs, "artifacts not configured")
 	if !ok {
 		return
 	}
@@ -164,7 +164,7 @@ func (h *Handler) artifactContentHandler(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	_, task, ok := h.getArtifactRunAndTaskForTeam(w, r, teamID, taskRunID)
+	_, task, ok := h.getArtifactRunAndTaskForSpace(w, r, spaceID, taskRunID)
 	if !ok {
 		return
 	}
@@ -176,11 +176,11 @@ func (h *Handler) artifactContentHandler(w http.ResponseWriter, r *http.Request)
 	var err error
 	if pathParam == artifactResultFilename {
 		data, err = h.cfg.RunOutputStorage.GetResult(r.Context(), blob.RunRef{
-			TeamID: task.TeamID, TaskID: task.ID, TaskRunID: taskRunID,
+			SpaceID: task.SpaceID, TaskID: task.ID, TaskRunID: taskRunID,
 		})
 	} else {
 		data, err = h.cfg.RunOutputStorage.GetRunOutputFile(r.Context(), blob.RunObjectRef{
-			TeamID: task.TeamID, TaskID: task.ID, TaskRunID: taskRunID, RelPath: pathParam,
+			SpaceID: task.SpaceID, TaskID: task.ID, TaskRunID: taskRunID, RelPath: pathParam,
 		})
 	}
 	if err != nil {

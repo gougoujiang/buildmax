@@ -13,7 +13,7 @@ const testSecret = "test-signing-secret"
 func testClaims() RunClaims {
 	return RunClaims{
 		UserID:    "u_alice",
-		TeamID:    "tm_example",
+		SpaceID:   "tm_example",
 		TaskRunID: "r_example",
 		TaskID:    "t_example",
 	}
@@ -34,7 +34,7 @@ func TestRunTokenRoundTrip(t *testing.T) {
 }
 
 // TestRunTokenNeedsCompleteClaims records that an unusable token is never
-// signed: a token missing its team would authenticate and then fail
+// signed: a token missing its space would authenticate and then fail
 // authorization at the first inference call, which is a worse failure than
 // refusing to mint it.
 func TestRunTokenNeedsCompleteClaims(t *testing.T) {
@@ -43,7 +43,7 @@ func TestRunTokenNeedsCompleteClaims(t *testing.T) {
 		mutate func(*RunClaims)
 	}{
 		{"no user", func(c *RunClaims) { c.UserID = "" }},
-		{"no team", func(c *RunClaims) { c.TeamID = "" }},
+		{"no space", func(c *RunClaims) { c.SpaceID = "" }},
 		{"no run", func(c *RunClaims) { c.TaskRunID = "" }},
 	}
 	for _, tc := range tests {

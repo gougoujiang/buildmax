@@ -15,7 +15,7 @@ import (
 type workflowRow struct {
 	ID          uint64    `gorm:"primaryKey;autoIncrement"`
 	PublicID    string    `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_workflow_public_id;not null"`
-	TeamID      uint64    `gorm:"column:team_id;not null;index"`
+	SpaceID     uint64    `gorm:"column:space_id;not null;index"`
 	Name        string    `gorm:"type:varchar(255);not null"`
 	Description string    `gorm:"type:text;not null"`
 	Definition  string    `gorm:"type:longtext;not null"`
@@ -31,7 +31,7 @@ func (workflowRow) TableName() string { return "workflow" }
 // workflowReadRow is the row plus the handles its references resolve to.
 type workflowReadRow struct {
 	Row               workflowRow `gorm:"embedded"`
-	TeamPublicID      string      `gorm:"column:team_public_id"`
+	SpacePublicID     string      `gorm:"column:space_public_id"`
 	CreatedByPublicID string      `gorm:"column:created_by_public_id"`
 }
 
@@ -41,8 +41,8 @@ func (s *Store) workflowSelect(ctx context.Context) *gorm.DB {
 
 func workflowSelectTx(tx *gorm.DB) *gorm.DB {
 	return tx.Model(&workflowRow{}).
-		Select("workflow.*, t.public_id AS team_public_id, cb.public_id AS created_by_public_id").
-		Joins("INNER JOIN team t ON t.id = workflow.team_id").
+		Select("workflow.*, t.public_id AS space_public_id, cb.public_id AS created_by_public_id").
+		Joins("INNER JOIN space t ON t.id = workflow.space_id").
 		Joins("INNER JOIN `user` cb ON cb.id = workflow.created_by")
 }
 
@@ -168,7 +168,7 @@ func toWorkflow(row *workflowReadRow) *coreworkflow.Workflow {
 	}
 	return &coreworkflow.Workflow{
 		ID:          row.Row.PublicID,
-		TeamID:      row.TeamPublicID,
+		SpaceID:     row.SpacePublicID,
 		Name:        row.Row.Name,
 		Description: row.Row.Description,
 		Definition:  row.Row.Definition,
@@ -287,8 +287,8 @@ func toWorkflowStepRuns(rows []workflowStepRunReadRow) []coreworkflow.StepRun {
 	return out
 }
 
-func (s *Store) ListWorkflowsByTeam(ctx context.Context, teamID string) ([]coreworkflow.Workflow, error) {
-	id, ok := util.CanonicalPublicID(teamID)
+func (s *Store) ListWorkflowsBySpace(ctx context.Context, spaceID string) ([]coreworkflow.Workflow, error) {
+	id, ok := util.CanonicalPublicID(spaceID)
 	if !ok {
 		return nil, nil
 	}
@@ -297,10 +297,10 @@ func (s *Store) ListWorkflowsByTeam(ctx context.Context, teamID string) ([]corew
 	return toWorkflows(list), err
 }
 
-func (s *Store) CreateWorkflow(ctx context.Context, teamID, createdBy, name, description, definition string) (*coreworkflow.Workflow, error) {
+func (s *Store) CreateWorkflow(ctx context.Context, spaceID, createdBy, name, description, definition string) (*coreworkflow.Workflow, error) {
 	now := time.Now().UTC()
 	workflow := &coreworkflow.Workflow{
-		TeamID:      teamID,
+		SpaceID:     spaceID,
 		Name:        name,
 		Description: description,
 		Definition:  definition,
@@ -320,11 +320,11 @@ func (s *Store) CreateWorkflow(ctx context.Context, teamID, createdBy, name, des
 		UpdatedAt:   now,
 	}
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		teamKey, err := lookupKey(ctx, tx, "team", teamID)
+		spaceKey, err := lookupKey(ctx, tx, "space", spaceID)
 		if err != nil {
 			return err
 		}
-		row.TeamID = teamKey
+		row.SpaceID = spaceKey
 		creator, err := lookupKey(ctx, tx, "user", createdBy)
 		if err != nil {
 			return err
@@ -376,12 +376,12 @@ func (s *Store) GetWorkflow(ctx context.Context, workflowID string) (*coreworkfl
 	return toWorkflow(&workflow), nil
 }
 
-func (s *Store) UpdateWorkflow(ctx context.Context, workflowID, teamID string, in coreworkflow.UpdateInput) (*coreworkflow.Workflow, error) {
+func (s *Store) UpdateWorkflow(ctx context.Context, workflowID, spaceID string, in coreworkflow.UpdateInput) (*coreworkflow.Workflow, error) {
 	workflow, err := s.GetWorkflow(ctx, workflowID)
 	if err != nil || workflow == nil {
 		return nil, err
 	}
-	if workflow.TeamID != teamID {
+	if workflow.SpaceID != spaceID {
 		return nil, nil
 	}
 	updated := *workflow

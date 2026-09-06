@@ -24,7 +24,7 @@ describe("cancelTask", () => {
 
     expect(got.cancel_requested).toBe(true)
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
-    expect(url).toContain("/api/teams/tm%201/tasks/t1/cancel")
+    expect(url).toContain("/api/spaces/tm%201/tasks/t1/cancel")
     expect(init.method).toBe("POST")
     expect((init.headers as Record<string, string>).Authorization).toBe("Bearer token-123")
   })
@@ -62,7 +62,7 @@ describe("retryTask", () => {
     expect(got.retry_of_task_run_id).toBe("r1")
     expect(got.task_run_id).toBe("r2")
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
-    expect(url).toContain("/api/teams/tm%201/tasks/t1/retry")
+    expect(url).toContain("/api/spaces/tm%201/tasks/t1/retry")
     expect(init.method).toBe("POST")
     expect(init.body).toBeUndefined()
     expect((init.headers as Record<string, string>).Authorization).toBe("Bearer token-123")

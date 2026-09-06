@@ -26,20 +26,20 @@ import (
 func lifecycleMatrixConfig(status string) Config {
 	const runID, taskID, issueID = "r_1", "t_1", "iss_1"
 	agentID := "ag_1"
-	task := coretask.Task{ID: taskID, TeamID: llmTestTeam, CreatedBy: llmTestUser, AgentID: &agentID, IssueID: util.Ptr(issueID)}
+	task := coretask.Task{ID: taskID, SpaceID: llmTestSpace, CreatedBy: llmTestUser, AgentID: &agentID, IssueID: util.Ptr(issueID)}
 	run := coretask.Run{ID: runID, TaskID: taskID, Status: status, AgentRevision: util.Ptr(1), CreatedAt: time.Unix(1, 0).UTC()}
 	return Config{
 		JWTSecret: workerTestSecret,
 		TaskRuns:  &mock.MockTaskRunStore{Runs: []coretask.Run{run}, TaskList: []coretask.Task{task}},
 		Agents: &mock.MockAgentStore{
-			Agents:    []agentdef.Agent{{ID: agentID, TeamID: llmTestTeam, Revision: 1}},
+			Agents:    []agentdef.Agent{{ID: agentID, SpaceID: llmTestSpace, Revision: 1}},
 			Revisions: []agentdef.Revision{{AgentID: agentID, Revision: 1}},
 		},
 		Secrets:   fakeMaterializer{},
 		Hub:       streamhub.NewStreamHub(),
 		Artifacts: &artifactsvc.Service{Artifacts: &mock.MockArtifactStore{}, Storage: mock.NewMockArtifactStorage()},
 		Issues: &issuesvc.Service{
-			Issues:   &mock.MockIssueStore{Issues: []coreissue.Issue{{ID: issueID, TeamID: llmTestTeam}}},
+			Issues:   &mock.MockIssueStore{Issues: []coreissue.Issue{{ID: issueID, SpaceID: llmTestSpace}}},
 			Comments: &mock.MockIssueCommentStore{},
 		},
 		Plugins: &pluginsvc.Service{

@@ -6,7 +6,7 @@ import { downloadAuthenticated } from "../../lib/download"
 import { navigate } from "../../router"
 import { useAuth } from "../../contexts/AuthContext"
 import { useApp } from "../../contexts/AppContext"
-import { useTeam } from "../../contexts/TeamContext"
+import { useSpace } from "../../contexts/SpaceContext"
 import { CopyButton } from "../../components/CopyButton"
 import {
   ArtifactPreview,
@@ -37,7 +37,7 @@ interface ArtifactDetailProps {
 export function ArtifactDetail({ artifactId }: ArtifactDetailProps) {
   const { token, user } = useAuth()
   const { setEntityLabel } = useApp()
-  const { currentUserRole } = useTeam()
+  const { currentUserRole } = useSpace()
   const [artifact, setArtifact] = useState<ApiArtifact | null>(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
@@ -113,7 +113,7 @@ export function ArtifactDetail({ artifactId }: ArtifactDetailProps) {
 
   if (!artifact) {
     // The server answers 404 both for an artifact that never existed and for
-    // one in a team the reader is not in -- deliberately, so an id cannot be
+    // one in a space the reader is not in -- deliberately, so an id cannot be
     // used to probe. This page must not narrate a difference the API refuses
     // to make. A request that simply failed says so instead, and offers a
     // retry, because that one is worth trying again.

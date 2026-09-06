@@ -51,10 +51,10 @@ type AdminUsersResponse struct {
 }
 
 // AdminUserDetail adds what an operator needs when acting on one account: which
-// teams it can reach, and how many live sessions it has.
+// spaces it can reach, and how many live sessions it has.
 type AdminUserDetail struct {
 	AdminUser
-	Teams []AdminUserTeam `json:"teams"`
+	Spaces []AdminUserSpace `json:"spaces"`
 	// SessionCount counts live login chains, not tokens. It is what "signed in
 	// on two machines" means.
 	SessionCount int `json:"session_count"`
@@ -62,12 +62,12 @@ type AdminUserDetail struct {
 	SystemRoles []string `json:"system_roles"`
 }
 
-// AdminUserTeam names a team the account belongs to and its role there. It
-// carries no team content — see docs/design/system-administration.md section 7.
-type AdminUserTeam struct {
-	TeamID string `json:"team_id"`
-	Name   string `json:"name"`
-	Role   string `json:"role"`
+// AdminUserSpace names a space the account belongs to and its role there. It
+// carries no space content — see docs/design/system-administration.md section 7.
+type AdminUserSpace struct {
+	SpaceID string `json:"space_id"`
+	Name    string `json:"name"`
+	Role    string `json:"role"`
 }
 
 // AdminCreateUserRequest is the body for POST /api/admin/users.
@@ -116,21 +116,21 @@ func (h *Handler) getAdminUserHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	detail := AdminUserDetail{AdminUser: toAdminUser(*user), Teams: []AdminUserTeam{}, SystemRoles: []string{}}
+	detail := AdminUserDetail{AdminUser: toAdminUser(*user), Spaces: []AdminUserSpace{}, SystemRoles: []string{}}
 
-	// Team names and roles, not team contents. An administrator learns that the
-	// account can reach a team, never what is in it.
-	if h.cfg.Teams != nil {
-		teams, err := h.cfg.Teams.ListTeamsByUser(r.Context(), user.ID)
+	// Space names and roles, not space contents. An administrator learns that the
+	// account can reach a space, never what is in it.
+	if h.cfg.Spaces != nil {
+		spaces, err := h.cfg.Spaces.ListSpacesByUser(r.Context(), user.ID)
 		if err != nil {
 			httputil.WriteInternalError(w, err, "handler error", "handler", "admin_get_user", "user_id", user.ID)
 			return
 		}
-		for _, team := range teams {
+		for _, space := range spaces {
 			role := ""
-			members, err := h.cfg.Teams.ListTeamMembers(r.Context(), team.ID)
+			members, err := h.cfg.Spaces.ListSpaceMembers(r.Context(), space.ID)
 			if err != nil {
-				httputil.WriteInternalError(w, err, "handler error", "handler", "admin_get_user", "team_id", team.ID)
+				httputil.WriteInternalError(w, err, "handler error", "handler", "admin_get_user", "space_id", space.ID)
 				return
 			}
 			for _, m := range members {
@@ -139,7 +139,7 @@ func (h *Handler) getAdminUserHandler(w http.ResponseWriter, r *http.Request) {
 					break
 				}
 			}
-			detail.Teams = append(detail.Teams, AdminUserTeam{TeamID: team.ID, Name: team.Name, Role: role})
+			detail.Spaces = append(detail.Spaces, AdminUserSpace{SpaceID: space.ID, Name: space.Name, Role: role})
 		}
 	}
 	if h.cfg.RefreshTokens != nil {

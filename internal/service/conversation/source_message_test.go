@@ -49,12 +49,12 @@ func startTaskArgs(t *testing.T, input string) string {
 // texts differ here on purpose: that difference is the whole reason to store it.
 func TestStartTaskRecordsTheMessageThatAskedForIt(t *testing.T) {
 	const conversationID = "conv-1"
-	const teamID = "tm_1"
+	const spaceID = "tm_1"
 	tasks := &mock.MockTaskStore{}
 	messages := &mock.MockConversationMessageStore{}
 	svc := &Service{
 		TaskService:       &task.Service{Tasks: tasks, TaskRuns: &mock.MockTaskRunStore{}},
-		ConversationStore: &mock.MockConversationStore{Conversations: []coreconv.Conversation{{ID: conversationID, TeamID: teamID, Channel: convchannel.ChannelPortal}}},
+		ConversationStore: &mock.MockConversationStore{Conversations: []coreconv.Conversation{{ID: conversationID, SpaceID: spaceID, Channel: convchannel.ChannelPortal}}},
 		MessageStore:      messages,
 		LLMClient:         &toolThenReplyClient{toolName: "StartTask", args: startTaskArgs(t, "investigate the flaky test")},
 	}
@@ -94,9 +94,9 @@ func TestStartTaskRecordsTheMessageThatAskedForIt(t *testing.T) {
 // that asked for it, not at the one that created the task.
 func TestContinueTaskRecordsItsOwnMessage(t *testing.T) {
 	const conversationID = "conv-1"
-	const teamID = "tm_1"
+	const spaceID = "tm_1"
 	tasks := &mock.MockTaskStore{List: []coretask.Task{{
-		ID: "tk_1", ConversationID: conversationID, TeamID: teamID, Status: "SUCCEEDED", Input: "first",
+		ID: "tk_1", ConversationID: conversationID, SpaceID: spaceID, Status: "SUCCEEDED", Input: "first",
 	}}}
 	runs := &mock.MockTaskRunStore{}
 	messages := &mock.MockConversationMessageStore{}
@@ -106,7 +106,7 @@ func TestContinueTaskRecordsItsOwnMessage(t *testing.T) {
 	}
 	svc := &Service{
 		TaskService:       &task.Service{Tasks: tasks, TaskRuns: runs},
-		ConversationStore: &mock.MockConversationStore{Conversations: []coreconv.Conversation{{ID: conversationID, TeamID: teamID, Channel: convchannel.ChannelPortal}}},
+		ConversationStore: &mock.MockConversationStore{Conversations: []coreconv.Conversation{{ID: conversationID, SpaceID: spaceID, Channel: convchannel.ChannelPortal}}},
 		MessageStore:      messages,
 		LLMClient:         &toolThenReplyClient{toolName: "ContinueTask", args: string(args)},
 	}

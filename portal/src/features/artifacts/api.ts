@@ -9,10 +9,10 @@ import type {
 } from "../../lib/api/types"
 
 /**
- * The team route lists and receives; the id route reads one.
+ * The space route lists and receives; the id route reads one.
  *
  * An artifact's opaque id is its address, so everything after upload is reached
- * without naming a team — see docs/design/unified-artifacts.md section 6.1.
+ * without naming a space — see docs/design/unified-artifacts.md section 6.1.
  */
 export function artifactContentUrl(artifactId: string): string {
   return `${getApiBase()}/api/artifacts/${encodeURIComponent(artifactId)}/content`
@@ -21,7 +21,7 @@ export function artifactContentUrl(artifactId: string): string {
 /**
  * Read one artifact by id.
  *
- * A caller outside the owning team gets 404, exactly as a caller asking for an
+ * A caller outside the owning space gets 404, exactly as a caller asking for an
  * id that never existed does — the server refuses to be an existence oracle, so
  * this reports "not found" for both rather than inventing a distinction.
  */
@@ -31,7 +31,7 @@ export async function getArtifact(artifactId: string, token: string): Promise<Ap
 }
 
 export async function listArtifacts(
-  teamId: string,
+  spaceId: string,
   token: string,
   options?: { limit?: number; offset?: number }
 ): Promise<ApiArtifactList> {
@@ -39,12 +39,12 @@ export async function listArtifacts(
   if (options?.limit != null) params.set("limit", String(options.limit))
   if (options?.offset != null) params.set("offset", String(options.offset))
   const query = params.toString()
-  const url = `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/artifacts${query ? `?${query}` : ""}`
+  const url = `${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/artifacts${query ? `?${query}` : ""}`
   return requestJson<ApiArtifactList>(url, { headers: authHeaders(token) })
 }
 
 export async function uploadArtifact(
-  teamId: string,
+  spaceId: string,
   token: string,
   file: File,
   title?: string
@@ -54,7 +54,7 @@ export async function uploadArtifact(
   // The title travels in the query so it does not depend on field order: the
   // server streams the file part straight to storage and never reads past it.
   const query = title && title.trim() !== "" ? `?title=${encodeURIComponent(title.trim())}` : ""
-  const url = `${getApiBase()}/api/teams/${encodeURIComponent(teamId)}/artifacts${query}`
+  const url = `${getApiBase()}/api/spaces/${encodeURIComponent(spaceId)}/artifacts${query}`
   const res = await apiFetch(url, { method: "POST", headers: authHeaders(token), body: form })
   if (!res.ok) {
     throw new Error(await parseErrorResponse(res, "Upload failed"))

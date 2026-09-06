@@ -1,7 +1,7 @@
 // Package auditexport streams the audit trail as CSV.
 //
-// Shared because two routes present the same rows: a team exports its own
-// events and an administrator exports every team's. The columns, the row cap,
+// Shared because two routes present the same rows: a space exports its own
+// events and an administrator exports every space's. The columns, the row cap,
 // and what a truncated export tells the caller must be one answer, not two that
 // happen to agree.
 package auditexport
@@ -38,20 +38,20 @@ const auditExportMax = 200_000
 // auditExportHeader is the CSV header, and also fixes the field order both
 // formats use.
 var auditExportHeader = []string{
-	"audit_event_id", "created_at", "team_id", "actor_type", "actor_id",
+	"audit_event_id", "created_at", "space_id", "actor_type", "actor_id",
 	"action", "target_type", "target_id", "detail",
 }
 
 // auditPageFunc fetches one page of events after a cursor. It is what separates
-// the team-scoped export from the deployment-scoped one; everything below this
+// the space-scoped export from the deployment-scoped one; everything below this
 // line is identical for both.
 type PageFunc func(ctx context.Context, after coreaudit.Cursor, limit int) ([]coreaudit.Event, error)
 
 // exportAuditEventsHandler serves
-// GET /api/teams/{team_id}/audit-events/export.
+// GET /api/spaces/{space_id}/audit-events/export.
 //
 // Owner only, the same reader as the trail itself: an export is the trail, in a
-// file. It carries the whole of a team's trail rather than a filtered slice —
+// file. It carries the whole of a space's trail rather than a filtered slice —
 // the reason to export is to keep or examine the record elsewhere, and a filter
 // applied on the way out is a decision the file cannot show it made.
 // Stream writes the CSV response and reports what it wrote.
@@ -119,7 +119,7 @@ func exportRow(e coreaudit.Event) []string {
 	return []string{
 		e.ID,
 		e.CreatedAt.UTC().Format(time.RFC3339),
-		e.TeamID,
+		e.SpaceID,
 		e.ActorType,
 		e.ActorID,
 		e.Action,
@@ -142,18 +142,18 @@ func Detail(written int, truncated bool) string {
 // AdminFilter reads the deployment-scoped filters from a query.
 func AdminFilter(q url.Values) coreaudit.Filter {
 	filter := coreaudit.Filter{
-		TeamID:  q.Get("team_id"),
+		SpaceID: q.Get("space_id"),
 		ActorID: q.Get("actor_id"),
 		Action:  q.Get("action"),
 		Since:   parseTimeParam(q.Get("since")),
 		Until:   parseTimeParam(q.Get("until")),
 	}
-	// team_id=none asks for the events no team-scoped reader can ever see:
-	// logins, grants, account actions. An empty team_id already means "any
-	// team", so this needs a spelling of its own.
-	if filter.TeamID == "none" {
-		filter.TeamID = ""
-		filter.WithoutTeam = true
+	// space_id=none asks for the events no space-scoped reader can ever see:
+	// logins, grants, account actions. An empty space_id already means "any
+	// space", so this needs a spelling of its own.
+	if filter.SpaceID == "none" {
+		filter.SpaceID = ""
+		filter.WithoutSpace = true
 	}
 	return filter
 }

@@ -16,7 +16,7 @@ const (
 	// BrowsePageDefault paginates lists a person reads a screen at a time --
 	// revisions, workflow runs, an issue's flow.
 	BrowsePageDefault, BrowsePageMax = 20, 100
-	// ListPageDefault paginates a team's own working lists.
+	// ListPageDefault paginates a space's own working lists.
 	ListPageDefault, ListPageMax = 50, 100
 	// BulkPageDefault paginates lists an operator scans or exports.
 	BulkPageDefault, BulkPageMax = 50, 200

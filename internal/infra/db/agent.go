@@ -18,7 +18,7 @@ type agentRow struct {
 	ID           uint64 `gorm:"primaryKey;autoIncrement"`
 	PublicID     string `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_agent_public_id;not null"`
 	UserID       uint64 `gorm:"column:user_id;not null;index"`
-	TeamID       uint64 `gorm:"column:team_id;index"`
+	SpaceID      uint64 `gorm:"column:space_id;index"`
 	Name         string `gorm:"type:varchar(255);not null"`
 	Description  string `gorm:"type:text"`
 	Instructions string `gorm:"type:text"`
@@ -30,7 +30,7 @@ type agentRow struct {
 	// Plugins is a JSON array of catalog names. A JSON column rather than a
 	// join table because nothing queries inside it: the selection is written
 	// and read whole, and "which agents name this plugin" is a scan of a
-	// team's agents, which is a small set.
+	// space's agents, which is a small set.
 	Plugins string `gorm:"type:text"`
 	// SandboxNetworkTier and SandboxFilesystemTier hold config.SandboxNetworkTier
 	// / config.SandboxFilesystemTier values validated by internal/service/agent
@@ -38,7 +38,7 @@ type agentRow struct {
 	// JSON string: this row does not depend on the config package.
 	SandboxNetworkTier    string `gorm:"column:sandbox_network_tier;type:varchar(64)"`
 	SandboxFilesystemTier string `gorm:"column:sandbox_filesystem_tier;type:varchar(64)"`
-	// SecretConsumption is a JSON object describing which Team Secrets this
+	// SecretConsumption is a JSON object describing which Space Secrets this
 	// agent consumes and how, written and read whole like Plugins.
 	SecretConsumption string     `gorm:"column:secret_consumption;type:text"`
 	Revision          int        `gorm:"column:revision;not null;default:1"`
@@ -51,9 +51,9 @@ func (agentRow) TableName() string { return "agent" }
 // agentReadRow is the row plus the handles its references resolve to. A
 // pointer field is one a LEFT JOIN may leave NULL.
 type agentReadRow struct {
-	Row          agentRow `gorm:"embedded"`
-	UserPublicID string   `gorm:"column:user_public_id"`
-	TeamPublicID *string  `gorm:"column:team_public_id"`
+	Row           agentRow `gorm:"embedded"`
+	UserPublicID  string   `gorm:"column:user_public_id"`
+	SpacePublicID *string  `gorm:"column:space_public_id"`
 }
 
 func (s *Store) agentSelect(ctx context.Context) *gorm.DB {
@@ -62,9 +62,9 @@ func (s *Store) agentSelect(ctx context.Context) *gorm.DB {
 
 func agentSelectTx(tx *gorm.DB) *gorm.DB {
 	return tx.Model(&agentRow{}).
-		Select("agent.*, u.public_id AS user_public_id, t.public_id AS team_public_id").
+		Select("agent.*, u.public_id AS user_public_id, t.public_id AS space_public_id").
 		Joins("INNER JOIN `user` u ON u.id = agent.user_id").
-		Joins("LEFT JOIN team t ON t.id = agent.team_id")
+		Joins("LEFT JOIN space t ON t.id = agent.space_id")
 }
 
 // agentRevisionRow is one recorded version of an agent definition. Rows are
@@ -164,7 +164,7 @@ func toAgent(row *agentReadRow) *agentdef.Agent {
 	return &agentdef.Agent{
 		ID:                    row.Row.PublicID,
 		UserID:                row.UserPublicID,
-		TeamID:                derefPublicID(row.TeamPublicID),
+		SpaceID:               derefPublicID(row.SpacePublicID),
 		Name:                  row.Row.Name,
 		Description:           row.Row.Description,
 		Instructions:          row.Row.Instructions,
@@ -288,9 +288,9 @@ func (s *Store) ListAgentsByUser(ctx context.Context, userID string) ([]agentdef
 	return toAgents(list), err
 }
 
-// ListAgentsByTeam returns all agents for the given team_id, ordered by created_at ASC.
-func (s *Store) ListAgentsByTeam(ctx context.Context, teamID string) ([]agentdef.Agent, error) {
-	id, ok := util.CanonicalPublicID(teamID)
+// ListAgentsBySpace returns all agents for the given space_id, ordered by created_at ASC.
+func (s *Store) ListAgentsBySpace(ctx context.Context, spaceID string) ([]agentdef.Agent, error) {
+	id, ok := util.CanonicalPublicID(spaceID)
 	if !ok {
 		return nil, nil
 	}
@@ -300,22 +300,22 @@ func (s *Store) ListAgentsByTeam(ctx context.Context, teamID string) ([]agentdef
 	return toAgents(list), err
 }
 
-// CreateAgentInTeam inserts a new team-scoped agent and returns it.
+// CreateAgentInSpace inserts a new space-scoped agent and returns it.
 //
-// An empty TeamID puts the agent in the user's personal team, which is what a
-// non-team caller means by "my agent".
-func (s *Store) CreateAgentInTeam(ctx context.Context, in agentdef.CreateInput) (*agentdef.Agent, error) {
-	teamID := in.TeamID
-	if teamID == "" {
-		resolved, err := s.personalTeamIDForUser(ctx, in.UserID)
+// An empty SpaceID puts the agent in the user's personal space, which is what a
+// non-space caller means by "my agent".
+func (s *Store) CreateAgentInSpace(ctx context.Context, in agentdef.CreateInput) (*agentdef.Agent, error) {
+	spaceID := in.SpaceID
+	if spaceID == "" {
+		resolved, err := s.personalSpaceIDForUser(ctx, in.UserID)
 		if err != nil {
 			return nil, err
 		}
-		teamID = resolved
+		spaceID = resolved
 	}
 	a := &agentdef.Agent{
 		UserID:                in.UserID,
-		TeamID:                teamID,
+		SpaceID:               spaceID,
 		Name:                  in.Def.Name,
 		Description:           in.Def.Description,
 		Instructions:          in.Def.Instructions,
@@ -345,12 +345,12 @@ func (s *Store) CreateAgentInTeam(ctx context.Context, in agentdef.CreateInput) 
 			return err
 		}
 		row.UserID = userKey
-		if teamID != "" {
-			teamKey, err := lookupKey(ctx, tx, "team", teamID)
+		if spaceID != "" {
+			spaceKey, err := lookupKey(ctx, tx, "space", spaceID)
 			if err != nil {
 				return err
 			}
-			row.TeamID = teamKey
+			row.SpaceID = spaceKey
 		}
 		if err := createWithPublicID(ctx, tx, "uq_agent_public_id",
 			func(id string) { row.PublicID = id }, row); err != nil {
@@ -365,14 +365,14 @@ func (s *Store) CreateAgentInTeam(ctx context.Context, in agentdef.CreateInput) 
 	return a, nil
 }
 
-// UpdateAgentInTeam updates a team-scoped agent. Returns (nil, nil) if not
-// found or the team does not match.
-func (s *Store) UpdateAgentInTeam(ctx context.Context, in agentdef.UpdateInput) (*agentdef.Agent, error) {
+// UpdateAgentInSpace updates a space-scoped agent. Returns (nil, nil) if not
+// found or the space does not match.
+func (s *Store) UpdateAgentInSpace(ctx context.Context, in agentdef.UpdateInput) (*agentdef.Agent, error) {
 	a, err := s.GetAgent(ctx, in.AgentID)
 	if err != nil || a == nil {
 		return nil, err
 	}
-	if a.TeamID != in.TeamID {
+	if a.SpaceID != in.SpaceID {
 		return nil, nil
 	}
 	return s.updateAgent(ctx, a, in.UpdatedBy, in.Def)
@@ -479,13 +479,13 @@ func (s *Store) DeleteAgent(ctx context.Context, agentID, userID string) error {
 	return s.markAgentDeleted(ctx, a.ID)
 }
 
-// DeleteAgentInTeam marks the agent deleted if it exists and belongs to the team.
-func (s *Store) DeleteAgentInTeam(ctx context.Context, agentID, teamID string) error {
+// DeleteAgentInSpace marks the agent deleted if it exists and belongs to the space.
+func (s *Store) DeleteAgentInSpace(ctx context.Context, agentID, spaceID string) error {
 	a, err := s.GetAgent(ctx, agentID)
 	if err != nil {
 		return err
 	}
-	if a == nil || a.TeamID != teamID {
+	if a == nil || a.SpaceID != spaceID {
 		return apierr.ErrNotFound
 	}
 	return s.markAgentDeleted(ctx, a.ID)

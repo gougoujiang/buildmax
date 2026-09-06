@@ -16,7 +16,7 @@ import (
 type ArtifactShare struct {
 	ShareID       string `json:"share_id"`
 	ArtifactID    string `json:"artifact_id"`
-	TeamID        string `json:"team_id"`
+	SpaceID       string `json:"space_id"`
 	CreatedByType string `json:"created_by_type"`
 	CreatedByID   string `json:"created_by_id,omitempty"`
 	// ExpiresAt bounds the link; nil is a link with no expiry (still revocable).
@@ -46,7 +46,7 @@ func (s *ArtifactShare) Live(now time.Time) bool {
 // service has already generated the token and hashed it.
 type CreateShareInput struct {
 	ArtifactID    string
-	TeamID        string
+	SpaceID       string
 	TokenSHA256   string
 	CreatedByType string
 	CreatedByID   string

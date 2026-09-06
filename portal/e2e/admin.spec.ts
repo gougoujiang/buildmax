@@ -20,7 +20,7 @@ test("an administrator can open the deployment overview by URL", async ({ page }
 test("each administration section is linkable and survives a reload", async ({ page }) => {
   for (const [path, heading] of [
     ["/#/admin/accounts", "Accounts"],
-    ["/#/admin/teams", "Spaces"],
+    ["/#/admin/spaces", "Spaces"],
     ["/#/admin/models", "Models"],
     ["/#/admin/audit", "Audit trail"],
   ] as const) {
@@ -36,7 +36,7 @@ test("the audit search reaches the events that have no space", async ({ page }) 
   await page.goto("/#/admin/audit")
   await expect(page.getByRole("heading", { name: "Audit trail" })).toBeVisible()
 
-  // Logins and grants are recorded with no team, so the space-scoped trail can
+  // Logins and grants are recorded with no space, so the space-scoped trail can
   // never return them. This deployment has at least the test account's own
   // login and grant, so the filter must find something.
   await page.getByRole("button", { name: "Deployment only" }).click()

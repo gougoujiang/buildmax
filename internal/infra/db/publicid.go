@@ -39,7 +39,7 @@ const mysqlDuplicateEntry = 1062
 // A handle that is not canonical and one that names no row both return
 // ErrNotFound. They are the same fact to a caller with no right to the row, and
 // distinguishing them would make a well-formed identifier an existence oracle
-// for rows in other teams.
+// for rows in other spaces.
 func lookupKey(ctx context.Context, tx *gorm.DB, table, publicID string) (uint64, error) {
 	id, ok := util.CanonicalPublicID(publicID)
 	if !ok {

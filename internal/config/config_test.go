@@ -559,9 +559,9 @@ func TestLoadSettings_LocalEntryNeedsNoKey(t *testing.T) {
 // reading the same path and truncate result.md to nothing — the compose smoke's
 // "artifact content = \"\"" failure. Keep the two trees disjoint.
 func TestRunOutputDir_DisjointFromRuntimeArtifacts(t *testing.T) {
-	const ws, team, task, run = "/ws", "team1", "task1", "run1"
-	out := RunOutputDir(ws, team, task, run)
-	art := RuntimeTaskRunArtifactsDir(ws, team, task, run)
+	const ws, space, task, run = "/ws", "space1", "task1", "run1"
+	out := RunOutputDir(ws, space, task, run)
+	art := RuntimeTaskRunArtifactsDir(ws, space, task, run)
 	sep := string(filepath.Separator)
 	switch {
 	case out == art:

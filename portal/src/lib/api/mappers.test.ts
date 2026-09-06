@@ -7,7 +7,7 @@ describe("apiAgentToAgent", () => {
     const api: ApiAgent = {
       id: "a_1",
       user_id: "u_1",
-      team_id: "tm_1",
+      space_id: "tm_1",
       name: "Reviewer",
       description: "",
       instructions: "",
@@ -25,7 +25,7 @@ describe("apiAgentToAgent", () => {
     const api: ApiAgent = {
       id: "a_1",
       user_id: "u_1",
-      team_id: "tm_1",
+      space_id: "tm_1",
       name: "Reviewer",
       description: "",
       instructions: "",

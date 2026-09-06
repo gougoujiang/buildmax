@@ -87,7 +87,7 @@ type Task struct {
 	// ConversationID is an optional projection target for a task started from
 	// a foreground conversation. It is never the task's ownership boundary.
 	ConversationID        string     `json:"conversation_id,omitempty"`
-	TeamID                string     `json:"team_id"`
+	SpaceID               string     `json:"space_id"`
 	IssueID               *string    `json:"issue_id,omitempty"`
 	Status                string     `json:"status"`
 	Input                 string     `json:"input"`
@@ -138,8 +138,8 @@ type Run struct {
 	// started run is its own worker: the server states the intent, the worker
 	// honors it and reports CANCELED. Nil means nobody has asked.
 	CancelRequestedAt *time.Time `json:"cancel_requested_at,omitempty"`
-	// CancelRequestedBy is the user who asked. A team's runs can be stopped by
-	// anyone on the team, so "why did this stop" needs a name to answer.
+	// CancelRequestedBy is the user who asked. A space's runs can be stopped by
+	// anyone on the space, so "why did this stop" needs a name to answer.
 	CancelRequestedBy *string `json:"cancel_requested_by,omitempty"`
 	// RetryOfTaskRunID names the run this one repeats. Nil for every run that
 	// carries its own instructions. The lineage is one level deep by record but
@@ -155,11 +155,11 @@ type Run struct {
 	// record says which text produced this outcome. Nil for a run with no agent
 	// and for runs that predate the column.
 	AgentRevision *int `json:"agent_revision,omitempty"`
-	// TeamAgentInstructionsRevision numbers the Space-level instruction text
+	// SpaceAgentInstructionsRevision numbers the Space-level instruction text
 	// this run received. Revision 0 records that no Space instructions were
-	// configured; nil means the run predates this provenance or the team could
+	// configured; nil means the run predates this provenance or the space could
 	// not be resolved at dispatch.
-	TeamAgentInstructionsRevision *int `json:"team_agent_instructions_revision,omitempty"`
+	SpaceAgentInstructionsRevision *int `json:"space_agent_instructions_revision,omitempty"`
 	// PluginPins are the releases this run was given, resolved when its worker
 	// claimed it and fixed from that moment.
 	//
@@ -207,8 +207,8 @@ type RunTerminalInfo struct {
 	TaskRunID      string
 	TaskID         string
 	ConversationID string
-	// TeamID is the team that owns the task.
-	TeamID       string
+	// SpaceID is the space that owns the task.
+	SpaceID      string
 	UserID       string
 	Status       string
 	Output       *string
@@ -218,7 +218,7 @@ type RunTerminalInfo struct {
 // CreateInput is the input for CreateTask.
 type CreateInput struct {
 	ConversationID          string
-	TeamID                  string
+	SpaceID                 string
 	Input                   string
 	Title                   string
 	CreatedBy               string
@@ -277,7 +277,7 @@ type TransitionRunInput struct {
 	ArtifactRelativePaths []string
 }
 
-// Store provides task persistence. Tasks belong to a team and may optionally
+// Store provides task persistence. Tasks belong to a space and may optionally
 // retain the conversation that requested them.
 // CreateTask creates a task plus its first Run (both in one transaction).
 type Store interface {
@@ -286,7 +286,7 @@ type Store interface {
 	// ListTasksByConversationPaginated returns tasks with optional executed_only filter, ordered by created_at DESC. total is total matching count.
 	ListTasksByConversationPaginated(ctx context.Context, conversationID string, executedOnly bool, limit, offset int) ([]Task, int, error)
 	ListTasksByIssue(ctx context.Context, issueID string, limit, offset int) ([]Task, int, error)
-	ListTasksByAgent(ctx context.Context, teamID, agentID string, limit, offset int) ([]Task, int, error)
+	ListTasksByAgent(ctx context.Context, spaceID, agentID string, limit, offset int) ([]Task, int, error)
 	GetTask(ctx context.Context, taskID string) (*Task, error)
 	GetTaskBySessionID(ctx context.Context, sessionID string) (*Task, error)
 	// CreateTask creates a new task and its first Run (input, title, PENDING). Returns the task with last_run_id set.
@@ -323,7 +323,7 @@ type RunStore interface {
 	CreateTaskRun(ctx context.Context, in CreateRunInput) (*Run, error)
 	// CountTaskRunsByStatus returns how many runs are in each status. It is
 	// the one number that answers "is work flowing through this deployment",
-	// and it carries no team, input, or output — only counts.
+	// and it carries no space, input, or output — only counts.
 	CountTaskRunsByStatus(ctx context.Context) (map[string]int, error)
 	// GetNextPendingTaskRun returns the oldest run with status PENDING (by created_at), or (nil, nil) if none.
 	GetNextPendingTaskRun(ctx context.Context) (*Run, error)
@@ -360,12 +360,12 @@ type RunStore interface {
 	// The first write wins: a run executes under the instructions it was handed
 	// at dispatch, and a later edit does not retroactively change what ran.
 	RecordTaskRunAgentRevision(ctx context.Context, taskRunID string, revision int) error
-	// RecordTaskRunTeamAgentInstructionsRevision stores which Space-level
+	// RecordTaskRunSpaceAgentInstructionsRevision stores which Space-level
 	// instruction revision a run was given. The first write wins.
-	RecordTaskRunTeamAgentInstructionsRevision(ctx context.Context, taskRunID string, revision int) error
+	RecordTaskRunSpaceAgentInstructionsRevision(ctx context.Context, taskRunID string, revision int) error
 	// RecordTaskRunPluginPins stores the releases a run was given. Like the
 	// agent revision, the first write wins: a worker polls its run, and a
-	// team's activation edited mid-run must not rewrite what actually ran.
+	// space's activation edited mid-run must not rewrite what actually ran.
 	RecordTaskRunPluginPins(ctx context.Context, taskRunID string, pins []coreplugin.Pin) error
 	// RecordTaskRunSandboxTiers stores the agent-declared sandbox tiers a run
 	// was given. Like the agent revision, the first write wins, and it is

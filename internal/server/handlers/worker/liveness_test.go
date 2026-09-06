@@ -19,7 +19,7 @@ func livenessFixture(t *testing.T) (*mock.MockTaskRunStore, http.Handler, string
 	const taskRunID, taskID = "run-live", "task-live"
 	runs := &mock.MockTaskRunStore{
 		Runs:     []coretask.Run{{ID: taskRunID, TaskID: taskID, Input: "input", Status: string(coretask.RunStatusRunning)}},
-		TaskList: []coretask.Task{{ID: taskID, ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1"}},
+		TaskList: []coretask.Task{{ID: taskID, ConversationID: "conv-1", SpaceID: "tm_1", CreatedBy: "u1"}},
 	}
 	mux := http.NewServeMux()
 	New(Config{JWTSecret: workerTestSecret, TaskRuns: runs}).Register(mux)
@@ -72,7 +72,7 @@ func TestPollingSucceedsWhenLivenessCannotBeRecorded(t *testing.T) {
 	const taskRunID, taskID = "run-live", "task-live"
 	runs := &mock.MockTaskRunStore{
 		Runs:     []coretask.Run{{ID: taskRunID, TaskID: taskID, Input: "input", Status: string(coretask.RunStatusRunning)}},
-		TaskList: []coretask.Task{{ID: taskID, ConversationID: "conv-1", TeamID: "tm_1", CreatedBy: "u1"}},
+		TaskList: []coretask.Task{{ID: taskID, ConversationID: "conv-1", SpaceID: "tm_1", CreatedBy: "u1"}},
 	}
 	mux := http.NewServeMux()
 	New(Config{JWTSecret: workerTestSecret, TaskRuns: failingSeenStore{runs}}).Register(mux)

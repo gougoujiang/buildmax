@@ -66,9 +66,9 @@ type SourceMessageResponse struct {
 }
 
 // getTaskRunProvenanceHandler serves GET
-// /api/teams/{team_id}/task-runs/{task_run_id}.
+// /api/spaces/{space_id}/task-runs/{task_run_id}.
 func (h *Handler) getTaskRunProvenanceHandler(w http.ResponseWriter, r *http.Request) {
-	_, teamID, ok := h.guard().UserAndPathTeam(w, r, h.cfg.TaskRuns, "task runs not configured")
+	_, spaceID, ok := h.guard().UserAndPathSpace(w, r, h.cfg.TaskRuns, "task runs not configured")
 	if !ok {
 		return
 	}
@@ -76,7 +76,7 @@ func (h *Handler) getTaskRunProvenanceHandler(w http.ResponseWriter, r *http.Req
 	if !ok {
 		return
 	}
-	run, task, ok := h.getArtifactRunAndTaskForTeam(w, r, teamID, taskRunID)
+	run, task, ok := h.getArtifactRunAndTaskForSpace(w, r, spaceID, taskRunID)
 	if !ok {
 		return
 	}
@@ -98,16 +98,16 @@ func (h *Handler) getTaskRunProvenanceHandler(w http.ResponseWriter, r *http.Req
 }
 
 func (h *Handler) resolveRunSpaceInstructions(r *http.Request, task *coretask.Task, run *coretask.Run) *RunSpaceInstructionsResponse {
-	if run.TeamAgentInstructionsRevision == nil {
+	if run.SpaceAgentInstructionsRevision == nil {
 		return nil
 	}
-	out := &RunSpaceInstructionsResponse{Revision: *run.TeamAgentInstructionsRevision}
-	if h.cfg.Teams == nil {
+	out := &RunSpaceInstructionsResponse{Revision: *run.SpaceAgentInstructionsRevision}
+	if h.cfg.Spaces == nil {
 		return out
 	}
-	team, err := h.cfg.Teams.GetTeam(r.Context(), task.TeamID)
-	if err == nil && team != nil {
-		out.CurrentRevision = team.AgentInstructionsRevision
+	space, err := h.cfg.Spaces.GetSpace(r.Context(), task.SpaceID)
+	if err == nil && space != nil {
+		out.CurrentRevision = space.AgentInstructionsRevision
 	}
 	return out
 }
@@ -153,7 +153,7 @@ func (h *Handler) resolveRunAgent(r *http.Request, task *coretask.Task, run *cor
 		return out
 	}
 	agent, err := h.cfg.Agents.GetAgentIncludingDeleted(r.Context(), *task.AgentID)
-	if err != nil || agent == nil || agent.TeamID != task.TeamID {
+	if err != nil || agent == nil || agent.SpaceID != task.SpaceID {
 		return out
 	}
 	out.Name = agent.Name

@@ -70,7 +70,7 @@ func TestRunTokenClaimsComeFromTheTask(t *testing.T) {
 	}
 	want := authtoken.RunClaims{
 		UserID:    "u_test",
-		TeamID:    "tm_test",
+		SpaceID:   "tm_test",
 		TaskRunID: "r_token12345678901234",
 		TaskID:    "t_test",
 	}
@@ -111,7 +111,7 @@ func TestRunTokenFailureStopsDispatch(t *testing.T) {
 	}{
 		{
 			name:    "the minter refuses",
-			task:    &coretask.Task{ID: "t_test", TeamID: "tm_test", CreatedBy: "u_test"},
+			task:    &coretask.Task{ID: "t_test", SpaceID: "tm_test", CreatedBy: "u_test"},
 			mint:    func(authtoken.RunClaims) (string, error) { return "", mintFailed },
 			wantMsg: mintFailed.Error(),
 		},

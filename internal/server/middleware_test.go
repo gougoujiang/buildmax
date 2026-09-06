@@ -32,10 +32,10 @@ func TestRequestLogRecordsOutcome(t *testing.T) {
 		_, _ = w.Write([]byte("hello"))
 	})
 
-	serve(h, httptest.NewRequest(http.MethodPost, "/api/teams?limit=5", nil))
+	serve(h, httptest.NewRequest(http.MethodPost, "/api/spaces?limit=5", nil))
 
 	out := buf.String()
-	for _, want := range []string{"msg=request", "method=POST", "path=/api/teams", "status=201", "bytes=5", `query="limit=5"`, "duration_ms="} {
+	for _, want := range []string{"msg=request", "method=POST", "path=/api/spaces", "status=201", "bytes=5", `query="limit=5"`, "duration_ms="} {
 		if !strings.Contains(out, want) {
 			t.Errorf("want %q in %q", want, out)
 		}
@@ -47,10 +47,10 @@ func TestRequestLogRecordsOutcome(t *testing.T) {
 func TestRequestIDIsSharedByHeaderAndRecords(t *testing.T) {
 	buf := captureLog(t)
 	h := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
-		slog.ErrorContext(r.Context(), "handler error", "handler", "list_teams")
+		slog.ErrorContext(r.Context(), "handler error", "handler", "list_spaces")
 	})
 
-	w, _ := serve(h, httptest.NewRequest(http.MethodGet, "/api/teams", nil))
+	w, _ := serve(h, httptest.NewRequest(http.MethodGet, "/api/spaces", nil))
 
 	id := w.Header().Get(RequestIDHeader)
 	if !strings.HasPrefix(id, "rq_") {
@@ -74,7 +74,7 @@ func TestRequestLevelFollowsStatus(t *testing.T) {
 		buf := captureLog(t)
 		h := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(tc.status) })
 
-		serve(h, httptest.NewRequest(http.MethodGet, "/api/teams", nil))
+		serve(h, httptest.NewRequest(http.MethodGet, "/api/spaces", nil))
 
 		if out := buf.String(); !strings.Contains(out, tc.want) {
 			t.Errorf("status %d: want %s in %q", tc.status, tc.want, out)
@@ -87,7 +87,7 @@ func TestImplicitStatusIsOK(t *testing.T) {
 	buf := captureLog(t)
 	h := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("x")) })
 
-	serve(h, httptest.NewRequest(http.MethodGet, "/api/teams", nil))
+	serve(h, httptest.NewRequest(http.MethodGet, "/api/spaces", nil))
 
 	if out := buf.String(); !strings.Contains(out, "status=200") {
 		t.Errorf("want status=200 in %q", out)
@@ -110,7 +110,7 @@ func TestFlusherSurvivesTheWrapper(t *testing.T) {
 		flushed = true
 	})
 
-	serve(h, httptest.NewRequest(http.MethodGet, "/api/teams/tm_1/tasks/t_1/stream", nil))
+	serve(h, httptest.NewRequest(http.MethodGet, "/api/spaces/tm_1/tasks/t_1/stream", nil))
 
 	if !flushed {
 		t.Error("SSE handler did not complete")
@@ -131,5 +131,5 @@ func TestHijackerIsReachable(t *testing.T) {
 		}
 	})
 
-	serve(h, httptest.NewRequest(http.MethodGet, "/api/teams/tm_1/ws", nil))
+	serve(h, httptest.NewRequest(http.MethodGet, "/api/spaces/tm_1/ws", nil))
 }

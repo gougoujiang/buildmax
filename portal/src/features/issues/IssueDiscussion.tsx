@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import type { ApiIssueComment, ApiTeamMember } from "../../lib/api/types"
+import type { ApiIssueComment, ApiSpaceMember } from "../../lib/api/types"
 import { createIssueComment, deleteIssueComment, getIssueComments, updateIssueComment } from "./comments"
 import { getErrorMessage } from "../../lib/errorMessage"
 
@@ -15,13 +15,13 @@ const COUNTER_THRESHOLD = 15 * 1024
 const POLL_INTERVAL_MS = 20_000
 
 interface IssueDiscussionProps {
-  teamId: string | null
+  spaceId: string | null
   issueId: string | null
   token: string | null
   userId: string | null
   /** True when the caller may delete comments they did not write. */
   canModerate: boolean
-  members: ApiTeamMember[]
+  members: ApiSpaceMember[]
   agentNames: Record<string, string>
   onOpenTrace?: (taskRunId: string) => void
   /**
@@ -37,7 +37,7 @@ function formatTimestamp(rfc3339: string): string {
 }
 
 export function IssueDiscussion({
-  teamId,
+  spaceId,
   issueId,
   token,
   userId,
@@ -59,11 +59,11 @@ export function IssueDiscussion({
 
   const load = useCallback(
     async (showSpinner: boolean) => {
-      if (!teamId || !issueId || !token) return
+      if (!spaceId || !issueId || !token) return
       const seq = ++loadSeq.current
       if (showSpinner) setLoading(true)
       try {
-        const res = await getIssueComments(teamId, issueId, token, { limit: 200 })
+        const res = await getIssueComments(spaceId, issueId, token, { limit: 200 })
         if (seq === loadSeq.current) {
           setComments(res.comments ?? [])
           setError(null)
@@ -74,7 +74,7 @@ export function IssueDiscussion({
         if (seq === loadSeq.current && showSpinner) setLoading(false)
       }
     },
-    [teamId, issueId, token],
+    [spaceId, issueId, token],
   )
 
   useEffect(() => {
@@ -82,12 +82,12 @@ export function IssueDiscussion({
   }, [load])
 
   useEffect(() => {
-    if (!teamId || !issueId || !token) return
+    if (!spaceId || !issueId || !token) return
     const timer = window.setInterval(() => {
       void load(false)
     }, POLL_INTERVAL_MS)
     return () => window.clearInterval(timer)
-  }, [load, teamId, issueId, token])
+  }, [load, spaceId, issueId, token])
 
   useEffect(() => {
     onCommentsChanged?.(comments)
@@ -124,13 +124,13 @@ export function IssueDiscussion({
   }
 
   async function handleSubmit() {
-    if (!teamId || !issueId || !token) return
+    if (!spaceId || !issueId || !token) return
     const body = draft.trim()
     if (!body || submitting) return
     setSubmitting(true)
     setError(null)
     try {
-      const created = await createIssueComment(teamId, issueId, body, token)
+      const created = await createIssueComment(spaceId, issueId, body, token)
       setComments((prev) => [...prev, created])
       setDraft("")
     } catch (err) {
@@ -141,11 +141,11 @@ export function IssueDiscussion({
   }
 
   async function handleSaveEdit(commentId: string) {
-    if (!teamId || !issueId || !token) return
+    if (!spaceId || !issueId || !token) return
     const body = editDraft.trim()
     if (!body) return
     try {
-      const updated = await updateIssueComment(teamId, issueId, commentId, body, token)
+      const updated = await updateIssueComment(spaceId, issueId, commentId, body, token)
       setComments((prev) => prev.map((c) => (c.id === commentId ? updated : c)))
       setEditingId(null)
       setEditDraft("")
@@ -155,11 +155,11 @@ export function IssueDiscussion({
   }
 
   async function handleDelete(commentId: string) {
-    if (!teamId || !issueId || !token) return
+    if (!spaceId || !issueId || !token) return
     // Deletion is permanent — the row is removed, not tombstoned.
     if (!window.confirm("Delete this comment? This cannot be undone.")) return
     try {
-      await deleteIssueComment(teamId, issueId, commentId, token)
+      await deleteIssueComment(spaceId, issueId, commentId, token)
       setComments((prev) => prev.filter((c) => c.id !== commentId))
     } catch (err) {
       setError(getErrorMessage(err, "Failed to delete comment"))

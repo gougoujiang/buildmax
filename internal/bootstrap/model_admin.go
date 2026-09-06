@@ -60,7 +60,7 @@ Flags for add:
 Flags for enable and disable:
   --id string             Model ID (required)
 
-A model is not usable by a team until an alias in server.yaml points at its ID.
+A model is not usable by a space until an alias in server.yaml points at its ID.
 An ollama target's --api-url must be reachable from the server, which inside a
 container is not the host's localhost. See docs/design/llm-gateway.md.
 `

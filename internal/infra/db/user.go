@@ -6,7 +6,7 @@ import (
 	"time"
 
 	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 
 	"github.com/gougoujiang/buildmax/internal/util"
 	"gorm.io/gorm"
@@ -191,13 +191,13 @@ func (s *Store) CreateUser(ctx context.Context, email string, defaultQuotaTier s
 		u.QuotaTier = defaultQuotaTier
 	}
 	userDB := toUserRow(&u)
-	personalTeamDB := &teamRow{
-		Name:      coreteam.DefaultPersonalName,
+	personalSpaceDB := &spaceRow{
+		Name:      corespace.DefaultPersonalName,
 		QuotaTier: defaultQuotaTier,
 		CreatedAt: u.CreatedAt,
 		UpdatedAt: u.CreatedAt,
 	}
-	// The personal team and its membership are written inside the same
+	// The personal space and its membership are written inside the same
 	// transaction because they reference the user by the key the insert
 	// assigns: an account with no space of its own is not a state any caller
 	// can be handed.
@@ -206,16 +206,16 @@ func (s *Store) CreateUser(ctx context.Context, email string, defaultQuotaTier s
 			func(id string) { userDB.PublicID = id }, userDB); err != nil {
 			return err
 		}
-		personalTeamDB.PersonalForUserID = &userDB.ID
-		personalTeamDB.CreatedBy = userDB.ID
-		if err := createWithPublicID(ctx, tx, "uq_team_public_id",
-			func(id string) { personalTeamDB.PublicID = id }, personalTeamDB); err != nil {
+		personalSpaceDB.PersonalForUserID = &userDB.ID
+		personalSpaceDB.CreatedBy = userDB.ID
+		if err := createWithPublicID(ctx, tx, "uq_space_public_id",
+			func(id string) { personalSpaceDB.PublicID = id }, personalSpaceDB); err != nil {
 			return err
 		}
-		return tx.Create(&teamMemberRow{
-			TeamID:    personalTeamDB.ID,
+		return tx.Create(&spaceMemberRow{
+			SpaceID:   personalSpaceDB.ID,
 			UserID:    userDB.ID,
-			Role:      coreteam.RoleOwner,
+			Role:      corespace.RoleOwner,
 			CreatedAt: u.CreatedAt,
 		}).Error
 	}); err != nil {

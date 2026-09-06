@@ -8,7 +8,7 @@ import (
 
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
-	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
+	corespace "github.com/gougoujiang/buildmax/internal/core/space"
 	coreworkflow "github.com/gougoujiang/buildmax/internal/core/workflow"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/agent"
@@ -22,11 +22,11 @@ func newService(t *testing.T) (*agent.Service, *mock.MockAgentStore, context.Con
 
 func TestCreateAgentSharesSpaceInstructionBudget(t *testing.T) {
 	svc, store, ctx := newService(t)
-	svc.Teams = &mock.MockTeamStore{Teams: []coreteam.Team{{
+	svc.Spaces = &mock.MockSpaceStore{Spaces: []corespace.Space{{
 		ID: "tm_1", AgentInstructions: strings.Repeat("s", 4096),
 	}}}
 	_, err := svc.CreateAgent(ctx, agent.CreateCmd{
-		TeamID: "tm_1", UserID: "u_1", Name: "writer", Instructions: strings.Repeat("a", 4097),
+		SpaceID: "tm_1", UserID: "u_1", Name: "writer", Instructions: strings.Repeat("a", 4097),
 	})
 	if !errors.Is(err, agent.ErrInstructionsTooLong) {
 		t.Fatalf("err = %v, want ErrInstructionsTooLong", err)
@@ -36,10 +36,10 @@ func TestCreateAgentSharesSpaceInstructionBudget(t *testing.T) {
 	}
 }
 
-func create(t *testing.T, s *agent.Service, teamID string) *agentdef.Agent {
+func create(t *testing.T, s *agent.Service, spaceID string) *agentdef.Agent {
 	t.Helper()
 	a, err := s.CreateAgent(context.Background(), agent.CreateCmd{
-		TeamID: teamID, UserID: "u_1", Name: "reviewer", Description: "d", Instructions: "i",
+		SpaceID: spaceID, UserID: "u_1", Name: "reviewer", Description: "d", Instructions: "i",
 	})
 	if err != nil {
 		t.Fatalf("CreateAgent: %v", err)
@@ -50,7 +50,7 @@ func create(t *testing.T, s *agent.Service, teamID string) *agentdef.Agent {
 func TestCreateRequiresAName(t *testing.T) {
 	s, _, ctx := newService(t)
 
-	_, err := s.CreateAgent(ctx, agent.CreateCmd{TeamID: "tm_1", UserID: "u_1"})
+	_, err := s.CreateAgent(ctx, agent.CreateCmd{SpaceID: "tm_1", UserID: "u_1"})
 
 	if !errors.Is(err, agent.ErrNameRequired) {
 		t.Fatalf("err = %v, want ErrNameRequired", err)
@@ -67,7 +67,7 @@ func TestCreateRejectsUnknownSandboxTier(t *testing.T) {
 	s, _, ctx := newService(t)
 
 	_, err := s.CreateAgent(ctx, agent.CreateCmd{
-		TeamID: "tm_1", UserID: "u_1", Name: "reviewer",
+		SpaceID: "tm_1", UserID: "u_1", Name: "reviewer",
 		SandboxNetworkTier: "unlimited",
 	})
 
@@ -86,7 +86,7 @@ func TestCreateAndUpdateStoreSandboxTiers(t *testing.T) {
 	s, _, ctx := newService(t)
 
 	a, err := s.CreateAgent(ctx, agent.CreateCmd{
-		TeamID: "tm_1", UserID: "u_1", Name: "builder",
+		SpaceID: "tm_1", UserID: "u_1", Name: "builder",
 		SandboxNetworkTier: "registries", SandboxFilesystemTier: "workspace",
 	})
 	if err != nil {
@@ -97,7 +97,7 @@ func TestCreateAndUpdateStoreSandboxTiers(t *testing.T) {
 	}
 
 	updated, err := s.UpdateAgent(ctx, agent.UpdateCmd{
-		TeamID: "tm_1", UserID: "u_1", AgentID: a.ID, Name: "builder",
+		SpaceID: "tm_1", UserID: "u_1", AgentID: a.ID, Name: "builder",
 	})
 	if err != nil {
 		t.Fatalf("UpdateAgent: %v", err)
@@ -109,8 +109,8 @@ func TestCreateAndUpdateStoreSandboxTiers(t *testing.T) {
 
 // The ownership check was written out separately in four handlers. It belongs
 // in one place, and it has to answer not-found rather than forbidden so the
-// reply does not confirm that the id exists in another team.
-func TestAnotherTeamsAgentReadsAsNotFound(t *testing.T) {
+// reply does not confirm that the id exists in another space.
+func TestAnotherSpacesAgentReadsAsNotFound(t *testing.T) {
 	s, _, ctx := newService(t)
 	other := create(t, s, "tm_other")
 
@@ -124,16 +124,16 @@ func TestAnotherTeamsAgentReadsAsNotFound(t *testing.T) {
 	}
 }
 
-func TestRevisionsAndRestoreStayInsideTheTeam(t *testing.T) {
+func TestRevisionsAndRestoreStayInsideTheSpace(t *testing.T) {
 	s, _, ctx := newService(t)
 	other := create(t, s, "tm_other")
 
 	if _, _, err := s.ListRevisions(ctx, "tm_mine", other.ID, 10, 0); !errors.Is(err, agent.ErrAgentNotFound) {
-		t.Errorf("ListRevisions leaked another team's agent: %v", err)
+		t.Errorf("ListRevisions leaked another space's agent: %v", err)
 	}
-	_, err := s.RestoreRevision(ctx, agent.RestoreRevisionCmd{TeamID: "tm_mine", UserID: "u_1", AgentID: other.ID, Revision: 1})
+	_, err := s.RestoreRevision(ctx, agent.RestoreRevisionCmd{SpaceID: "tm_mine", UserID: "u_1", AgentID: other.ID, Revision: 1})
 	if !errors.Is(err, agent.ErrAgentNotFound) {
-		t.Errorf("RestoreRevision leaked another team's agent: %v", err)
+		t.Errorf("RestoreRevision leaked another space's agent: %v", err)
 	}
 }
 
@@ -142,13 +142,13 @@ func TestRestoreAppendsRatherThanRewinds(t *testing.T) {
 	s, _, ctx := newService(t)
 	a := create(t, s, "tm_1")
 	if _, err := s.UpdateAgent(ctx, agent.UpdateCmd{
-		TeamID: "tm_1", UserID: "u_1", AgentID: a.ID, Name: "renamed", Description: "d2", Instructions: "i2",
+		SpaceID: "tm_1", UserID: "u_1", AgentID: a.ID, Name: "renamed", Description: "d2", Instructions: "i2",
 	}); err != nil {
 		t.Fatalf("UpdateAgent: %v", err)
 	}
 
 	restored, err := s.RestoreRevision(ctx, agent.RestoreRevisionCmd{
-		TeamID: "tm_1", UserID: "u_1", AgentID: a.ID, Revision: 1,
+		SpaceID: "tm_1", UserID: "u_1", AgentID: a.ID, Revision: 1,
 	})
 	if err != nil {
 		t.Fatalf("RestoreRevision: %v", err)
@@ -171,7 +171,7 @@ func TestMissingRevisionIsReported(t *testing.T) {
 	a := create(t, s, "tm_1")
 
 	_, err := s.RestoreRevision(ctx, agent.RestoreRevisionCmd{
-		TeamID: "tm_1", UserID: "u_1", AgentID: a.ID, Revision: 999,
+		SpaceID: "tm_1", UserID: "u_1", AgentID: a.ID, Revision: 999,
 	})
 
 	if !errors.Is(err, agent.ErrRevisionNotFound) {
@@ -221,7 +221,7 @@ func TestDeleteProceedsWithoutAWorkflowSource(t *testing.T) {
 	}
 }
 
-func TestDeletingAnotherTeamsAgentIsNotFound(t *testing.T) {
+func TestDeletingAnotherSpacesAgentIsNotFound(t *testing.T) {
 	s, _, ctx := newService(t)
 	other := create(t, s, "tm_other")
 
@@ -239,11 +239,11 @@ func TestNoStoreIsReportedNotPanicked(t *testing.T) {
 	checks := []error{}
 	_, err := s.ListAgents(ctx, "tm_1")
 	checks = append(checks, err)
-	_, err = s.CreateAgent(ctx, agent.CreateCmd{TeamID: "tm_1", Name: "x"})
+	_, err = s.CreateAgent(ctx, agent.CreateCmd{SpaceID: "tm_1", Name: "x"})
 	checks = append(checks, err)
 	_, err = s.GetAgent(ctx, "tm_1", "a_1")
 	checks = append(checks, err)
-	_, err = s.UpdateAgent(ctx, agent.UpdateCmd{TeamID: "tm_1", AgentID: "a_1", Name: "x"})
+	_, err = s.UpdateAgent(ctx, agent.UpdateCmd{SpaceID: "tm_1", AgentID: "a_1", Name: "x"})
 	checks = append(checks, err)
 	checks = append(checks, s.DeleteAgent(ctx, "tm_1", "a_1"))
 
@@ -273,7 +273,7 @@ func TestCreateRejectsUnknownModel(t *testing.T) {
 	s.Models = fakeModelCatalog{names: []string{"Fast", "Deep"}}
 
 	_, err := s.CreateAgent(ctx, agent.CreateCmd{
-		TeamID: "tm_1", UserID: "u_1", Name: "reviewer", Model: "Nonesuch",
+		SpaceID: "tm_1", UserID: "u_1", Name: "reviewer", Model: "Nonesuch",
 	})
 
 	if !errors.Is(err, agent.ErrUnknownModel) {
@@ -290,7 +290,7 @@ func TestCreateAcceptsAKnownModel(t *testing.T) {
 	s.Models = fakeModelCatalog{names: []string{"Fast", "Deep"}}
 
 	a, err := s.CreateAgent(ctx, agent.CreateCmd{
-		TeamID: "tm_1", UserID: "u_1", Name: "reviewer", Model: "  Fast  ",
+		SpaceID: "tm_1", UserID: "u_1", Name: "reviewer", Model: "  Fast  ",
 	})
 	if err != nil {
 		t.Fatalf("CreateAgent: %v", err)
@@ -307,7 +307,7 @@ func TestCreateAcceptsAnEmptyModel(t *testing.T) {
 	s.Models = fakeModelCatalog{err: errors.New("catalog must not be consulted for an empty model")}
 
 	a, err := s.CreateAgent(ctx, agent.CreateCmd{
-		TeamID: "tm_1", UserID: "u_1", Name: "reviewer",
+		SpaceID: "tm_1", UserID: "u_1", Name: "reviewer",
 	})
 	if err != nil {
 		t.Fatalf("CreateAgent: %v", err)
@@ -324,7 +324,7 @@ func TestCreateStoresModelUncheckedWithoutACatalog(t *testing.T) {
 	s, _, ctx := newService(t)
 
 	a, err := s.CreateAgent(ctx, agent.CreateCmd{
-		TeamID: "tm_1", UserID: "u_1", Name: "reviewer", Model: "whatever",
+		SpaceID: "tm_1", UserID: "u_1", Name: "reviewer", Model: "whatever",
 	})
 	if err != nil {
 		t.Fatalf("CreateAgent: %v", err)

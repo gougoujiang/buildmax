@@ -329,8 +329,8 @@ deployment partner supplies evidence that changes the order.
   now covers the full lifecycle — invitation bounded to an existing account,
   role promotion and demotion, unilateral ownership transfer, and
   member-scoped login-code recovery — in
-  [`internal/service/team/service.go`](../internal/service/team/service.go),
-  [`internal/server/handlers/team/teams.go`](../internal/server/handlers/team/teams.go),
+  [`internal/service/space/service.go`](../internal/service/space/service.go),
+  [`internal/server/handlers/space/spaces.go`](../internal/server/handlers/space/spaces.go),
   and Portal's Space → Members and Account → Invitations surfaces. Bringing in
   someone who has never had a BuildMax account is still deliberately a
   `system_admin` operation, not a team-scoped one — see

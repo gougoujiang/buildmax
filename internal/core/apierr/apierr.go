@@ -35,7 +35,7 @@ const (
 	KindForbidden Kind = "forbidden"
 	// KindConflict means the current state refuses the change.
 	KindConflict Kind = "conflict"
-	// KindQuotaExceeded means the team is over an allowance.
+	// KindQuotaExceeded means the space is over an allowance.
 	KindQuotaExceeded Kind = "quota_exceeded"
 )
 

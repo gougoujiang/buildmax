@@ -26,8 +26,8 @@ const issueCommentWindow = 20
 // change an Issue's status, assignee, or hierarchy however the run's agent is
 // prompted. See docs/design/issue-agent-access.md section 6.
 type IssueAccess interface {
-	GetIssue(ctx context.Context, teamID, issueID string) (*coreissue.Issue, error)
-	ListChildren(ctx context.Context, teamID, issueID string) ([]coreissue.Issue, error)
+	GetIssue(ctx context.Context, spaceID, issueID string) (*coreissue.Issue, error)
+	ListChildren(ctx context.Context, spaceID, issueID string) ([]coreissue.Issue, error)
 	ListComments(ctx context.Context, issueID string, limit, offset int) ([]coreissue.Comment, int, error)
 	CreateComment(ctx context.Context, cmd issuesvc.CreateCommentCmd) (*coreissue.Comment, error)
 }
@@ -62,9 +62,9 @@ type postRunIssueCommentRequest struct {
 // alone.
 //
 // The run token names the run, the run names the task, and the task names both
-// the team and the Issue. A worker never says which Issue it wants, so a stolen
+// the space and the Issue. A worker never says which Issue it wants, so a stolen
 // run token cannot be pointed at another one — the same reason the artifact
-// route derives its team rather than accepting one.
+// route derives its space rather than accepting one.
 func (h *Handler) runIssue(w http.ResponseWriter, r *http.Request) (*coretask.Task, string, bool) {
 	taskRunID := r.PathValue("task_run_id")
 	if taskRunID == "" {
@@ -93,7 +93,7 @@ func (h *Handler) runIssue(w http.ResponseWriter, r *http.Request) (*coretask.Ta
 	if !requireRunning(w, run.Status) {
 		return nil, "", false
 	}
-	if task.IssueID == nil || *task.IssueID == "" || task.TeamID == "" {
+	if task.IssueID == nil || *task.IssueID == "" || task.SpaceID == "" {
 		httputil.WriteJSONError(w, http.StatusNotFound, "this run is not working an issue")
 		return nil, "", false
 	}
@@ -107,7 +107,7 @@ func (h *Handler) getRunIssue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	issue, err := h.cfg.Issues.GetIssue(ctx, task.TeamID, *task.IssueID)
+	issue, err := h.cfg.Issues.GetIssue(ctx, task.SpaceID, *task.IssueID)
 	if err != nil {
 		if httputil.WriteServiceError(w, err) {
 			return
@@ -128,7 +128,7 @@ func (h *Handler) getRunIssue(w http.ResponseWriter, r *http.Request) {
 	// Children and comments are context, not the answer. A failure to load
 	// either leaves the issue readable rather than failing the whole call: an
 	// agent that gets the description and no thread can still work.
-	if children, err := h.cfg.Issues.ListChildren(ctx, task.TeamID, *task.IssueID); err == nil {
+	if children, err := h.cfg.Issues.ListChildren(ctx, task.SpaceID, *task.IssueID); err == nil {
 		for _, child := range children {
 			out.Children = append(out.Children, runIssueChildResponse{Title: child.Title, Status: child.Status})
 		}
@@ -178,7 +178,7 @@ func (h *Handler) postRunIssueComment(w http.ResponseWriter, r *http.Request) {
 		httputil.WriteJSONError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
-	if _, err := h.cfg.Issues.GetIssue(r.Context(), task.TeamID, *task.IssueID); err != nil {
+	if _, err := h.cfg.Issues.GetIssue(r.Context(), task.SpaceID, *task.IssueID); err != nil {
 		if httputil.WriteServiceError(w, err) {
 			return
 		}

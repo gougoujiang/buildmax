@@ -7,7 +7,7 @@ import "errors"
 //
 // It lives here rather than with any one domain because every store speaks it
 // and no capability owns it: "the thing you asked for is not there" is a fact
-// about the persistence boundary, not about teams, tasks, or plugins. A store
+// about the persistence boundary, not about spaces, tasks, or plugins. A store
 // method whose only return is an error uses it; one that can return a nil value
 // keeps doing that instead.
 //

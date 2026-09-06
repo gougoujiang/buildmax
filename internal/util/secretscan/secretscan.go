@@ -56,7 +56,7 @@ const (
 	// minExactValue is the shortest exact value worth redacting. Below it, a
 	// value is as likely to be an ordinary word as a credential, and replacing
 	// every "abc" in output would mangle more than it protects. See
-	// docs/design/team-secrets.md §12.
+	// docs/design/space-secrets.md §12.
 	minExactValue = 6
 	// maxExactValue bounds a single exact value so one very large credential
 	// (a certificate, a key file) cannot make every redaction pass unbounded.
@@ -64,11 +64,11 @@ const (
 )
 
 // Redactor redacts both recognized secret shapes and a fixed set of exact
-// values. The exact set is a run's materialized Team Secret values, registered
+// values. The exact set is a run's materialized Space Secret values, registered
 // before the Agent starts so they do not drift into a durable trace, a log, or
 // a tool result. It is defense in depth, not a boundary: a value can be encoded
 // or transformed past it, which is why the primary control is withholding the
-// value from the general environment. See docs/design/team-secrets.md §12.
+// value from the general environment. See docs/design/space-secrets.md §12.
 type Redactor struct {
 	exact []string
 }

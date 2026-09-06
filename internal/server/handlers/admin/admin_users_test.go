@@ -124,8 +124,8 @@ func TestAdminAccountActionsAreRecorded(t *testing.T) {
 		if e.ActorType != coreaudit.ActorUser || e.ActorID != adminUser {
 			t.Errorf("event should name the administrator: %+v", e)
 		}
-		if e.TeamID != "" {
-			t.Errorf("an account action is not team-scoped: %+v", e)
+		if e.SpaceID != "" {
+			t.Errorf("an account action is not space-scoped: %+v", e)
 		}
 	}
 }
@@ -156,9 +156,9 @@ func TestAdminResponsesCarryNoSecrets(t *testing.T) {
 	}
 }
 
-// TestAdminUserDetailShowsTeamsWithoutContents: an administrator learns that an
-// account can reach a team, never what is in it.
-func TestAdminUserDetailShowsTeamsWithoutContents(t *testing.T) {
+// TestAdminUserDetailShowsSpacesWithoutContents: an administrator learns that an
+// account can reach a space, never what is in it.
+func TestAdminUserDetailShowsSpacesWithoutContents(t *testing.T) {
 	f := newDisableFixture(t)
 	rec := f.do(t, "GET", "/api/admin/users/"+f.target.ID, adminUser, "")
 	if rec.Code != http.StatusOK {
@@ -171,7 +171,7 @@ func TestAdminUserDetailShowsTeamsWithoutContents(t *testing.T) {
 	if detail.ID != f.target.ID {
 		t.Errorf("user_id = %q", detail.ID)
 	}
-	if detail.Teams == nil || detail.SystemRoles == nil {
+	if detail.Spaces == nil || detail.SystemRoles == nil {
 		t.Errorf("empty collections should serialize as [], not null: %+v", detail)
 	}
 }
@@ -214,7 +214,7 @@ func newDisableFixture(t *testing.T) *disableFixture {
 		JWTSecret:     testSecret,
 		Grants:        grants,
 		Users:         users,
-		Teams:         &mock.MockTeamStore{},
+		Spaces:        &mock.MockSpaceStore{},
 		LoginCodes:    f.codes,
 		RefreshTokens: f.sessions,
 		// Present so the webhook route reaches its credential check rather

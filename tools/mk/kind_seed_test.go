@@ -78,7 +78,7 @@ func TestKindReachableURL(t *testing.T) {
 func TestDirectSettingsModelsDropsManaged(t *testing.T) {
 	direct := directSettingsModels([]settingsModel{
 		{id: "openai/gpt-5.6-luna", name: "Luna"},
-		{id: "default", name: "Team Default", transport: "buildmax"},
+		{id: "default", name: "Space Default", transport: "buildmax"},
 	})
 	if len(direct) != 1 || direct[0].id != "openai/gpt-5.6-luna" {
 		t.Errorf("directSettingsModels() kept %+v", direct)
@@ -108,10 +108,10 @@ func TestParseSettingsModelsReadsEveryCatalogField(t *testing.T) {
       output_per_mtok: "15"
 
   - model: default
-    name: Team Default
+    name: Space Default
     transport: buildmax
     server_url: http://localhost:5678
-    team_id: tm_example
+    space_id: tm_example
 `
 	models := parseSettingsModels(text)
 	if len(models) != 2 {

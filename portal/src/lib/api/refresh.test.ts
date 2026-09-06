@@ -87,7 +87,7 @@ describe("token refresh", () => {
       .mockResolvedValueOnce(jsonResponse(200, { ok: true }))
     vi.stubGlobal("fetch", fetchMock)
 
-    const res = await apiFetch("https://api.test/api/teams", {
+    const res = await apiFetch("https://api.test/api/spaces", {
       headers: { Authorization: "Bearer access-1" },
     })
 
@@ -132,9 +132,9 @@ describe("token refresh", () => {
     vi.stubGlobal("fetch", fetchMock)
 
     await Promise.all([
-      apiFetch("https://api.test/api/teams", { headers: { Authorization: "Bearer access-1" } }),
-      apiFetch("https://api.test/api/teams", { headers: { Authorization: "Bearer access-1" } }),
-      apiFetch("https://api.test/api/teams", { headers: { Authorization: "Bearer access-1" } }),
+      apiFetch("https://api.test/api/spaces", { headers: { Authorization: "Bearer access-1" } }),
+      apiFetch("https://api.test/api/spaces", { headers: { Authorization: "Bearer access-1" } }),
+      apiFetch("https://api.test/api/spaces", { headers: { Authorization: "Bearer access-1" } }),
     ])
 
     const refreshCalls = fetchMock.mock.calls.filter((c) =>
@@ -150,7 +150,7 @@ describe("token refresh", () => {
       .mockResolvedValueOnce(jsonResponse(401, { error: "invalid refresh token" }))
     vi.stubGlobal("fetch", fetchMock)
 
-    const res = await apiFetch("https://api.test/api/teams", {
+    const res = await apiFetch("https://api.test/api/spaces", {
       headers: { Authorization: "Bearer access-1" },
     })
 
@@ -170,7 +170,7 @@ describe("token refresh", () => {
       .mockRejectedValueOnce(new TypeError("Failed to fetch"))
     vi.stubGlobal("fetch", fetchMock)
 
-    await apiFetch("https://api.test/api/teams", {
+    await apiFetch("https://api.test/api/spaces", {
       headers: { Authorization: "Bearer access-1" },
     })
 
