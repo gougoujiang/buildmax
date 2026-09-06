@@ -220,6 +220,34 @@ func TestSeedWorkspaceIfFirstRun_SkipsWhenBaseExists(t *testing.T) {
 	}
 }
 
+// TestSeedWorkspaceIfFirstRun_SkipsWhenServerHasNoCheckpointRoute pins that a
+// server that does not run the checkpoint contract (an evaluation control plane,
+// which answers 404) makes the run seed nothing rather than fail closed on a
+// missing route.
+func TestSeedWorkspaceIfFirstRun_SkipsWhenServerHasNoCheckpointRoute(t *testing.T) {
+	ctx := context.Background()
+	// A control plane that knows no checkpoint route: every path 404s.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+	store := &fakeCheckpointStore{}
+	input := RunTaskInput{
+		Checkpoints: store,
+		WorkerAPI:   workerclient.WorkerAPIClientConfig{BaseURL: srv.URL, Token: "t", Client: srv.Client()},
+	}
+	dirs := runDirs{runDir: t.TempDir(), runWorkspace: writeWorkspace(t)}
+	task := &coretask.Task{ID: "t1", SpaceID: "sp_1"}
+	run := &coretask.Run{ID: "rt_1"}
+
+	if err := seedWorkspaceIfFirstRun(ctx, input, task, run, dirs); err != nil {
+		t.Fatalf("a server with no checkpoint route should be a no-op, got %v", err)
+	}
+	if len(store.puts) != 0 {
+		t.Fatalf("must not seed against a server with no checkpoint route, uploaded %d", len(store.puts))
+	}
+}
+
 // TestSeedWorkspaceIfFirstRun_NoopWithoutCheckpointStore pins that a deployment
 // without checkpoint storage (a CLI or eval run) seeds nothing and does not fail.
 func TestSeedWorkspaceIfFirstRun_NoopWithoutCheckpointStore(t *testing.T) {

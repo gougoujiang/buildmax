@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -48,6 +49,13 @@ func seedWorkspaceIfFirstRun(ctx context.Context, input RunTaskInput, task *core
 		return nil
 	}
 	base, err := workerclient.GetWorkspaceBase(ctx, input.WorkerAPI, run.ID)
+	if errors.Is(err, workerclient.ErrWorkspaceCheckpointsUnsupported) {
+		// This deployment does not run the checkpoint contract — an evaluation
+		// control plane, or a server with checkpoints turned off. Seeding it
+		// would fail on a route that is not there; there is nothing to continue
+		// from here, so the run proceeds without a seed.
+		return nil
+	}
 	if err != nil {
 		return fmt.Errorf("read workspace base: %w", err)
 	}
