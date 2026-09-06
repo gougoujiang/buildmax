@@ -42,6 +42,7 @@ last column says so, and the paper's own delivery phases hold the detail.
 | [Assistant orchestration and the Workflow boundary](assistant-orchestration-and-workflow-boundary.md) | Does a bounded manager Agent create enough value over one strong Agent to become an Assistant product, and should Workflow narrow toward deterministic Automation? | Nothing; current Agents cannot admit durable child Team Agent Tasks |
 | [Local Issue work bridge](local-issue-work-bridge.md) | How should connected CLI/TUI and Desktop handle Team Issues locally without becoming Portal clones or weakening direct local use? | Most of phase 1: `buildmax issue list`, `show`, and `status`, `buildmax --issue`, and the two Issue tools of [issue agent access](../design/issue-agent-access.md). The durable Issue-to-Session link is not built, and phases 2 and 3 are untouched |
 | [Session tree, agent mailbox, and branched workspaces](session-tree-and-agent-mailbox.md) | Should interactive sessions fork isolated workspaces, return structured child reports, and resume their parent through a durable mailbox? | Nothing |
+| [Agent 原生协作底座](agent-native-collaboration-substrate.md) | 不同规模和不同专业背景的参与者，是否需要一套统一的意图、执行、提议、证据、决策、集成与知识生命周期？ | 尚未建设；当前 Issue、Task/TaskRun、Artifact、Space 与本地 workspace 是待验证的基础构件 |
 
 Thirteen papers have been retired. Nine were accepted into a design
 record. *Durable Workflow graphs* asked whether Workflow should remain a linear
