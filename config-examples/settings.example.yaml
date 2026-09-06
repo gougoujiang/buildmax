@@ -186,7 +186,7 @@ models:
 # An operator can override this block from <BUILDMAX_HOME>/policy.yaml, and
 # BUILDMAX_SANDBOX_ENABLED overrides both.
 #
-# Guide: docs/guide/sandbox.md. Design: docs/design/sandbox-boundaries.md.
+# Guide: help/sandbox.md. Design: docs/design/sandbox-boundaries.md.
 #
 # sandbox:
 #   enabled: true

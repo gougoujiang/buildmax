@@ -7,7 +7,7 @@
 Related: [roadmap](../ROADMAP.md) P0.5, P3, P4, and Desktop polish;
 [surface positioning](../design/surface-positioning.md),
 [session architecture](../contribute/architecture/session.md),
-[sessions and traces guide](../guide/sessions-and-traces.md),
+[sessions and traces guide](../../help/sessions-and-traces.md),
 [durable run trace](../design/durable-run-trace.md),
 [context durability](../design/context-durability.md),
 [space governance](../design/space-governance.md), and

@@ -67,7 +67,7 @@ Useful experience:
 Read the [CLI](architecture/cli.md), [TUI](architecture/tui.md), or
 [Desktop](architecture/desktop.md) architecture for the surface you want to
 change. Small usability fixes found while following the
-[local quickstart](../start/quickstart.md) make good first contributions.
+[local quickstart](../../help/quickstart.md) make good first contributions.
 
 ### Enterprise Platform
 

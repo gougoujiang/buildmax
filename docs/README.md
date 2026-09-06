@@ -2,32 +2,21 @@
 
 Organized by what you are trying to do.
 
-## Start Here
-
-| | |
-|---|---|
-| [start/install.md](start/install.md) | Get the binaries |
-| [start/quickstart.md](start/quickstart.md) | First agent run, in five minutes |
-| [start/support.md](start/support.md) | Supported platforms, surfaces, deployment paths, and non-goals |
-| [start/concepts.md](start/concepts.md) | Surfaces, the agent loop, spaces, and the two tiers |
-| [../sample-data/](../sample-data/README.md) | Fifteen throwaway datasets — upload them into a space workspace, or point the CLI at one |
-
 ## Use It
 
+The end-user manual lives in [`help/`](../help) — installation, the quickstart,
+core concepts, every CLI command, the built-in tools, skills and subagents, MCP,
+plugins, hooks, the sandbox, tool permissions, and the Portal walkthrough. It
+ships inside the Portal image and is served in-app under **Help**;
+[`help/manifest.json`](../help/manifest.json) is its table of contents.
+
 | | |
 |---|---|
-| [guide/models-and-modes.md](guide/models-and-modes.md) | Which models a session runs on, and switching between your own and a deployment's |
-| [guide/tools.md](guide/tools.md) | The built-in tools, their arguments, and the path boundary |
-| [guide/agents-md.md](guide/agents-md.md) | Give the agent project instructions on every run |
-| [guide/project-memory.md](guide/project-memory.md) | What the agent remembers about a project between sessions, and how to read, edit, or switch it off |
-| [guide/skills-and-subagents.md](guide/skills-and-subagents.md) | Reusable workflows, and delegating with a restricted tool set |
-| [guide/mcp.md](guide/mcp.md) | Connect MCP servers for tools BuildMax does not ship |
-| [guide/plugins.md](guide/plugins.md) | Share skills, subagents, MCP servers, and hooks as one installable directory |
-| [guide/tool-permissions.md](guide/tool-permissions.md) | Control which tool calls stop and ask before running |
-| [guide/hooks.md](guide/hooks.md) | Observe or block prompts, tool calls, and compaction |
-| [guide/sandbox.md](guide/sandbox.md) | Confine `Bash` by filesystem path and network domain |
-| [guide/sessions-and-traces.md](guide/sessions-and-traces.md) | Resume conversations; inspect what a run actually did |
-| [guide/troubleshooting.md](guide/troubleshooting.md) | When something does not work |
+| [Introduction](../help/introduction.md) | What BuildMax is, and the three surfaces |
+| [Install](../help/install.md) | Get the binaries |
+| [Quickstart](../help/quickstart.md) | First agent run, in five minutes |
+| [Support matrix](../help/support.md) | Supported platforms, surfaces, deployment paths, and non-goals |
+| [../sample-data/](../sample-data/README.md) | Fifteen throwaway datasets — upload them into a space workspace, or point the CLI at one |
 
 ## Run It For A Space
 
@@ -45,7 +34,7 @@ Organized by what you are trying to do.
 | | |
 |---|---|
 | [reference/configuration.md](reference/configuration.md) | Every config file field and environment variable |
-| [reference/cli.md](reference/cli.md) | Commands, flags, slash commands |
+| [CLI reference](../help/cli.md) | Commands, flags, slash commands (in the user manual) |
 | [reference/webhook.md](reference/webhook.md) | Triggering runs from external systems |
 
 The HTTP API describes itself: `GET /openapi.json`, browsable at `/swagger/`.

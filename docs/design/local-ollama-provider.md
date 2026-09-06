@@ -48,7 +48,7 @@
 
 A local model can already be reached today: `provider: openai_compatible` with
 `api_url: http://localhost:11434/v1` speaks to Ollama's compatibility endpoint,
-and simple chat works. [quickstart.md](../start/quickstart.md) and
+and simple chat works. [quickstart.md](../../help/quickstart.md) and
 [configuration.md](../reference/configuration.md) both say so.
 
 Four things break once that endpoint carries an *agent* run rather than a chat.

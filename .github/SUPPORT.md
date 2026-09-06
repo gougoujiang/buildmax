@@ -6,7 +6,7 @@ does not currently provide a guaranteed response or resolution time.
 ## Where to Ask
 
 - **Setup and usage:** check [docs/](../docs/README.md), especially the
-  [troubleshooting guide](../docs/guide/troubleshooting.md), then start a
+  [troubleshooting guide](../help/troubleshooting.md), then start a
   [GitHub Discussion](https://github.com/gougoujiang/buildmax/discussions) with
   the relevant environment and configuration details.
 - **Confirmed bugs:** use the bug report issue template and include the BuildMax

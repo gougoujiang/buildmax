@@ -2365,7 +2365,7 @@ its Portal image exists. This version replaces it.
 
 ### Changed
 
-- `docs/start/support.md` gains a compatibility section, and its stale rows are
+- The support matrix gains a compatibility section, and its stale rows are
   corrected. It now states what an upgrade may do to a deployment: the schema
   moves forward only with one release of binary rollback, the HTTP API carries
   no version and may change with a changelog note, configuration is additive

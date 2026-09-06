@@ -36,7 +36,7 @@ behavior change a user would notice. Delete this section if there is nothing.
       whichever scope the change touches)
 - [ ] Documentation updated: `docs/contribute/architecture/` for behavior or
       boundary changes, `docs/contribute/repo-layout.md` if a package moved,
-      `docs/design/` for direction changes, `docs/guide/` + `docs/reference/` +
+      `docs/design/` for direction changes, `help/` + `docs/reference/` +
       `config-examples/` for user-facing configuration
 - [ ] Changelog entry added as a new file under `docs/changelog/` if a user or
       operator would notice this change

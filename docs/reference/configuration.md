@@ -14,7 +14,7 @@ the environment, because they must be known before any file can be read.
 | `<workspace>/.buildmax/hooks.yaml` | CLI, Desktop | Per-workspace hook overlay, additive to global hooks |
 | `<BUILDMAX_HOME>/mcp.json` | CLI, Desktop, Worker | MCP servers, merged with the workspace file |
 | `<workspace>/.buildmax/mcp.json` | CLI, Desktop | Per-workspace MCP servers; wins on a duplicate server id |
-| `<BUILDMAX_HOME>/plugins/<name>/` | CLI, Desktop, Worker | An installed local plugin, or an exact Space-activated release materialized into a run-scoped worker home; see [guide/plugins.md](../guide/plugins.md) |
+| `<BUILDMAX_HOME>/plugins/<name>/` | CLI, Desktop, Worker | An installed local plugin, or an exact Space-activated release materialized into a run-scoped worker home; see [help/plugins.md](../../help/plugins.md) |
 | `<workspaces_dir>/.marketplace/` | Server | Published plugin packages, when the deployment has no object store |
 
 `BUILDMAX_HOME` defaults to `~/.buildmax`. Copy the starting points from
@@ -611,8 +611,8 @@ Prompts, tool schemas, and tool results pass through the server in managed mode.
 That is the point of it, and it is a real change in where your data goes — which
 is why `buildmax models`, the model pickers, and the TUI footer all name the
 mode.
-| `hooks` | empty | Lifecycle hooks. Reference: [guide/hooks.md](../guide/hooks.md). |
-| `sandbox` | disabled | Bash sandboxing. Reference: [guide/sandbox.md](../guide/sandbox.md). |
+| `hooks` | empty | Lifecycle hooks. Reference: [help/hooks.md](../../help/hooks.md). |
+| `sandbox` | disabled | Bash sandboxing. Reference: [help/sandbox.md](../../help/sandbox.md). |
 | `tools.permissions` | empty | Per-tool approval rules. See below. |
 | `agent.max_parallel_tools` | `4` | How many read-only tool calls from one model message may run at once. Range 1-16; 1 disables it. |
 | `agent.max_iterations` | `200` | How many times one prompt may call the model before the run stops. Range 1-5000. |

@@ -438,7 +438,7 @@ Acceptance:
 `deployment/production/` carries the manifest and the guide: images, config,
 secrets, storage, database, ingress/TLS, worker mode, backup boundaries, and
 upgrade steps, with what the reference deliberately does not cover stated
-rather than left to be discovered. `docs/start/support.md` carries the
+rather than left to be discovered. `help/support.md` carries the
 compatibility half — what an upgrade may and may not do to a schema, an API,
 a config key, and stored data. `internal/architecture` parses the manifest's
 ConfigMap the way the server parses its own config, so the two cannot drift.
@@ -545,7 +545,7 @@ exercises and their still-open evidence live in the
    needs the database and the bucket restored *together*, and nothing has proven
    that the pair comes back consistent.
 8. Has an upgrade and rollback been exercised across at least one schema change?
-   The N-1 promise in `docs/start/support.md` is a rule the code follows, not a
+   The N-1 promise in `help/support.md` is a rule the code follows, not a
    run anyone has performed.
 9. ~~Which metrics make a deployment supportable?~~ **Decided for the first
    Beta: a metrics endpoint is not a prerequisite.** The minimum diagnostic set
@@ -560,7 +560,7 @@ exercises and their still-open evidence live in the
     does to sessions, in-flight task runs, or a worker Job that already holds a
     run token.
 11. Which versions of Kubernetes, MySQL, and S3-compatible storage form the
-    supported matrix? `docs/start/support.md` grades surfaces and platforms but
+    supported matrix? `help/support.md` grades surfaces and platforms but
     names no dependency versions, and `deployment/production/README.md` states
     a behavioural contract instead.
 

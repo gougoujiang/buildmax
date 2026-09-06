@@ -737,13 +737,13 @@ When support ships:
   diagnostics without pretending BuildMax installs `runsc`;
 - [Worker seccomp profile](../../deployment/seccomp/README.md) separates the
   native and gVisor Pod profiles;
-- [Sandbox guide](../guide/sandbox.md) explains outer runtime isolation versus
+- [Sandbox guide](../../help/sandbox.md) explains outer runtime isolation versus
   inner command policy;
 - [Server architecture](../contribute/architecture/server.md) records runtime
   validation and Job failure observation;
 - [Current state](../current-state.md) reports the exact qualification evidence
   and measured limitations;
-- [Support matrix](../start/support.md) distinguishes native and qualified
+- [Support matrix](../../help/support.md) distinguishes native and qualified
   gVisor workers; and
 - [Trust harness](trust-harness.md) marks the Pod-to-host runtime slice closed
   while leaving destination egress and inner MCP policy accurately open.

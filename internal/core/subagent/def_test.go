@@ -34,7 +34,7 @@ func TestParseDefRejections(t *testing.T) {
 		{"no closing delimiter", "---\nname: test\ndescription: test\ntools: Read"},
 		{"missing name", "---\ndescription: test\ntools: Read\n---\n\nBody.\n"},
 		{"missing description", "---\nname: test\ntools: Read\n---\n\nBody.\n"},
-		// tools is required today; docs/guide/skills-and-subagents.md says so.
+		// tools is required today; help/skills-and-subagents.md says so.
 		{"missing tools", "---\nname: test\ndescription: test\n---\n\nBody.\n"},
 	}
 	for _, tc := range tests {
