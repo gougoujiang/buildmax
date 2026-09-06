@@ -3,3 +3,5 @@
   the same API the Portal uses, so routine administration no longer needs shell
   access to the server's database (which `buildmax-server admin` still holds for
   first-time and lockout recovery).
+
+  > **简体中文：** [阅读中文镜像](../../zh-CN/changelog/added/buildmax-admin-cli.md)

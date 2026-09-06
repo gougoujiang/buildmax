@@ -8,7 +8,7 @@
 > [plugin-space-distribution.md](./plugin-space-distribution.md)
 >
 > User documentation for what ships:
-> [help/plugins.md](../../help/plugins.md)
+> [manual/plugins.md](../../manual/plugins.md)
 
 ## Contents
 
@@ -224,7 +224,7 @@ plugin that provides MCP configuration and no skill.
 ### 3.2 `plugin.yaml`
 
 The field reference for authors is
-[help/plugins.md](../../help/plugins.md); what follows is why the format
+[manual/plugins.md](../../manual/plugins.md); what follows is why the format
 stops where it does.
 
 The manifest carries the identity a directory cannot derive for itself, the one
@@ -1090,9 +1090,9 @@ inventory because they share `agentapp`, which no test drives from both sides.
 
 ## Related Documents
 
-- [Skills and subagents](../../help/skills-and-subagents.md)
-- [MCP servers](../../help/mcp.md)
-- [Hooks](../../help/hooks.md)
+- [Skills and subagents](../../manual/skills-and-subagents.md)
+- [MCP servers](../../manual/mcp.md)
+- [Hooks](../../manual/hooks.md)
 - [Configuration reference](../reference/configuration.md)
 - [System administration](./system-administration.md)
 - [Space governance](./space-governance.md)

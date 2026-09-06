@@ -611,7 +611,7 @@ recycle bin.
 
 These are server-side agent records. They are distinct from the workspace
 subagents defined as Markdown files under `.buildmax/`; see
-[help/skills-and-subagents.md](../../../help/skills-and-subagents.md).
+[manual/skills-and-subagents.md](../../../manual/skills-and-subagents.md).
 
 ### `agent_revision`
 

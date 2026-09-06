@@ -257,7 +257,12 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 	}
 
 	reportPersistedRunState(ctx, input.Persist, scope, dirs, result)
-	if err := reportRunOutcome(ctx, scope, result, coretask.RunStatusSucceeded, "", input.Updater); err != nil {
+	// Capture the successful run's workspace as its result checkpoint and carry it
+	// on the terminal report, so the server commits it and advances the Task head
+	// as it accepts the outcome. Fail-open: a capture failure leaves the head
+	// where it was and the run still succeeds (§13).
+	resultCheckpoint := captureResultCheckpoint(ctx, input, task, dirs)
+	if err := reportRunOutcome(ctx, scope, result, coretask.RunStatusSucceeded, "", resultCheckpoint, input.Updater); err != nil {
 		return err
 	}
 	componentLog().Info("run succeeded", "task_run_id", run.ID)
@@ -355,7 +360,10 @@ func finishStoppedRun(ctx context.Context, scope RunScope, result runResult, dir
 		result.EndTime = time.Now().UTC()
 	}
 	reportPersistedRunState(reportCtx, input.Persist, scope, dirs, result)
-	return reportRunOutcome(reportCtx, scope, result, status, errMessage, input.Updater)
+	// A stopped run (cancel or interrupt) reports no result checkpoint here: its
+	// workspace is a partial, captured by a later slice, and a partial never
+	// advances the Task head.
+	return reportRunOutcome(reportCtx, scope, result, status, errMessage, nil, input.Updater)
 }
 
 func resolveRunDirs(paths RuntimePaths, task *coretask.Task, run *coretask.Run) runDirs {
@@ -697,7 +705,7 @@ func reportRunFailure(ctx context.Context, taskRunID string, err error, tracePat
 // the Artifact service; the runtime neither scans a directory for incidental
 // output nor stores a separate result file. See
 // docs/design/task-workspace-checkpoints.md §4.
-func reportRunOutcome(ctx context.Context, scope RunScope, result runResult, status coretask.RunStatus, errMessage string, updater TaskRunUpdater) error {
+func reportRunOutcome(ctx context.Context, scope RunScope, result runResult, status coretask.RunStatus, errMessage string, checkpoint *workerclient.WorkspaceCheckpointDescriptor, updater TaskRunUpdater) error {
 	req := &workerclient.PatchTaskRunRequest{
 		Status:  string(status),
 		EndedAt: &result.EndTime,
@@ -715,6 +723,7 @@ func reportRunOutcome(ctx context.Context, scope RunScope, result runResult, sta
 	if errMessage != "" {
 		req.ErrorMessage = &errMessage
 	}
+	req.WorkspaceCheckpoint = checkpoint
 	return updater.UpdateRunStatus(ctx, scope.TaskRunID, req)
 }
 

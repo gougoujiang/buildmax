@@ -119,7 +119,7 @@ reserves the file "for other operator-controlled subsystems in later phases"
 (`internal/config/sandbox.go:104`). Its purpose is a filesystem permission
 boundary, not a configuration layer — a separate file is the only way to say
 "the user may read these keys but not edit them", which is why
-`help/sandbox.md` frames it as *"use the policy file when the machine's
+`manual/sandbox.md` frames it as *"use the policy file when the machine's
 owner and the machine's user are different people."*
 
 That framing is exactly right, and it is why the file cannot serve this design.
@@ -598,7 +598,7 @@ Deny is the safe direction to be stuck on in the meantime.
 
 ### Phase 5 — documentation
 
-- `help/` — a task-oriented page on what prompts and how to stop it.
+- `manual/` — a task-oriented page on what prompts and how to stop it.
 - `docs/reference/configuration.md` — `tools.permissions`.
 - `docs/contribute/architecture/tools.md` — `Access`, and what a tool author
   declares.
@@ -628,7 +628,7 @@ Deny is the safe direction to be stuck on in the meantime.
   that `<BUILDMAX_HOME>/policy.yaml` is unreachable on a worker, and
   `LoadPolicySandbox` is subject to it too: the operator lock-out documented in
   [sandbox-boundaries.md](./sandbox-boundaries.md) §4.1 and
-  `help/sandbox.md` works only on local CLI, where owner and user are the
+  `manual/sandbox.md` works only on local CLI, where owner and user are the
   same person. That is a defect in shipped behavior, not in this design, and it
   wants its own fix — either provisioning the file into `runGlobal` or moving
   sandbox policy onto the same server-delivered channel as §7. Flagged here

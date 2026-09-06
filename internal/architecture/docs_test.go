@@ -1,6 +1,6 @@
 package architecture_test
 
-// Documentation constraints. These keep docs/ and the help/ manual honest about
+// Documentation constraints. These keep docs/ and the manual/ manual honest about
 // things the code is the source of truth for: every relative link must resolve,
 // every environment
 // variable must be documented, every LLM-facing tool name must appear in the
@@ -25,12 +25,12 @@ import (
 )
 
 // markdownFiles returns every documentation file whose links are checked.
-// help/ is the end-user manual and docs/ the contributor and design set; both
+// manual/ is the end-user manual and docs/ the contributor and design set; both
 // are held to the same link and path integrity.
 func markdownFiles(t *testing.T, root string) []string {
 	t.Helper()
 	var files []string
-	for _, dir := range []string{"docs", "help"} {
+	for _, dir := range []string{"docs", "manual"} {
 		err := filepath.WalkDir(filepath.Join(root, dir), func(path string, d os.DirEntry, err error) error {
 			if err != nil {
 				return err
@@ -124,7 +124,7 @@ func TestEnvVarsDocumented(t *testing.T) {
 // silently breaks working configuration.
 func TestToolNamesDocumented(t *testing.T) {
 	root := repoRoot(t)
-	path := filepath.Join(root, "help", "tools.md")
+	path := filepath.Join(root, "manual", "tools.md")
 	body, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read tool guide: %v", err)
@@ -139,7 +139,7 @@ func TestToolNamesDocumented(t *testing.T) {
 	}
 	for _, name := range names {
 		if !strings.Contains(doc, "`"+name+"`") {
-			t.Errorf("tool %q is registered but not documented in help/tools.md", name)
+			t.Errorf("tool %q is registered but not documented in manual/tools.md", name)
 		}
 	}
 }
@@ -183,7 +183,7 @@ func TestArchitectureToolInventoryCoversEveryToolNameConstant(t *testing.T) {
 }
 
 // agentsMDPathRe matches repository paths written in backticks, e.g. `internal/config`.
-var agentsMDPathRe = regexp.MustCompile("`((?:internal|cmd|docs|portal|gui|desktop|config-examples|deployment|eval|scripts|\\.github|\\.buildmax)/[A-Za-z0-9_./-]*)`")
+var agentsMDPathRe = regexp.MustCompile("`((?:internal|cmd|docs|manual|portal|gui|desktop|config-examples|deployment|eval|scripts|\\.github|\\.buildmax)/[A-Za-z0-9_./-]*)`")
 
 // generatedSegments name directories absent from a fresh checkout. Documentation
 // legitimately refers to them -- gui/dist, portal/dist, gui/node_modules after a
@@ -562,11 +562,11 @@ func isDesignRecord(path string) bool {
 var undocumentedCLICommands = map[string]string{}
 
 // TestCLIReferenceCoversEveryCommand fails when a command reaches the binary
-// without reaching help/cli.md. That page is where a user looks for the command
+// without reaching manual/cli.md. That page is where a user looks for the command
 // list, so a command missing from it is one nobody finds.
 func TestCLIReferenceCoversEveryCommand(t *testing.T) {
 	root := repoRoot(t)
-	const page = "help/cli.md"
+	const page = "manual/cli.md"
 	body, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(page)))
 	if err != nil {
 		t.Fatalf("read %s: %v", page, err)

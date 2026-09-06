@@ -4,13 +4,13 @@
 
 ## Organized By Reader, Not By Artifact
 
-The **end-user manual is [`help/`](../../help)** — a task-oriented directory, one
+The **end-user manual is [`manual/`](../../manual)** — a task-oriented directory, one
 page per capability, that ships inside the Portal image and is served in-app
 under **Help**. Everything a person needs to install, run, and drive BuildMax
 lives there, from the quickstart and core concepts to every CLI command;
-[`help/manifest.json`](../../help/manifest.json) is its table of contents.
+[`manual/manifest.json`](../../manual/manifest.json) is its table of contents.
 
-English is the source. [`help/zh/`](../../help/zh) mirrors it as a Simplified
+English is the source. [`manual/zh/`](../../manual/zh) mirrors it as a Simplified
 Chinese translation, one page per English page, with its own `manifest.json`; the
 Help page offers an EN / 中文 switch. Its files are named in Chinese (`沙箱.md`),
 so each manifest entry keeps the English `slug` as its stable URL key and adds a
@@ -77,7 +77,7 @@ comments and other documents can cite it without inheriting planning metadata:
   partly implemented subsystem is designed. These stay current.
 
 A design document is **rationale, not user documentation**. When a design ships
-a user-configurable feature, the user-facing half belongs in the `help/` manual
+a user-configurable feature, the user-facing half belongs in the `manual/` manual
 (or in `reference/` when it is a lookup table), and the design document links to
 it and keeps the trade-offs and open gaps.
 
@@ -136,7 +136,7 @@ git show <commit>^:docs/path/to/file.md
 ```
 
 If a retired document contains something still true and still needed, move that
-content to the `help/` manual or `reference/` first, verified against the code,
+content to the `manual/` manual or `reference/` first, verified against the code,
 then delete the original.
 
 ## Document Header
@@ -173,7 +173,7 @@ decision costs a scroll through the whole file, which is why the list is
 required here and not merely encouraged.
 
 The two `README.md` index files are exempt — they are already lists of links.
-The `help/` manual pages and `reference/` pages are exempt too: they are
+The `manual/` manual pages and `reference/` pages are exempt too: they are
 task-oriented, and a contents list competes with the task rather than serving
 it.
 
@@ -202,12 +202,12 @@ the build on the ways documentation rots silently:
 | `TestDocsLinksResolve` | A relative markdown link points at a file that does not exist |
 | `TestDesignTranslationsMirrorEnglish` | A Chinese design mirror is missing, orphaned, linked incorrectly, or older than its English source |
 | `TestEnvVarsDocumented` | `config.EnvVars()` gains a variable missing from [reference/configuration.md](../reference/configuration.md) |
-| `TestToolNamesDocumented` | A tool name constant is missing from [help/tools.md](../../help/tools.md) |
+| `TestToolNamesDocumented` | A tool name constant is missing from [manual/tools.md](../../manual/tools.md) |
 | `TestArchitectureToolInventoryCoversEveryToolNameConstant` | A tool declared in `internal/tool/names.go` is missing from the contributor [tool inventory](architecture/tools.md) |
 | `TestAgentsMDPathsExist` / `TestAgentsMDRoutesExist` | [AGENTS.md](../../AGENTS.md) cites a path or route that does not exist |
 | `TestDocumentedFilePathsExist` | Any document cites a repository file that does not exist |
 | `TestDocumentedMakeCommandsExist` | Any document names a `./make` command the task runner does not dispatch |
-| `TestCLIReferenceCoversEveryCommand` | A command reaches the binary without reaching [help/cli.md](../../help/cli.md) |
+| `TestCLIReferenceCoversEveryCommand` | A command reaches the binary without reaching [manual/cli.md](../../manual/cli.md) |
 
 The tool-name checks exist because those strings are user-visible contract —
 they appear in hook `matcher` regexes and subagent `tools:` fields, so renaming
@@ -228,7 +228,7 @@ Everything else is convention, upheld in review.
 | Change | Update |
 |---|---|
 | Package boundary or runtime contract | The matching document in [architecture/](architecture/README.md), same pull request |
-| User-visible behavior or configuration | The `help/` manual, `reference/`, and `config-examples/` |
+| User-visible behavior or configuration | The `manual/` manual, `reference/`, and `config-examples/` |
 | Direction | Add or update a semantic record in [../design/](../design/README.md) |
 | A package moves | [repo-layout.md](repo-layout.md) — and nowhere else |
 

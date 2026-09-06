@@ -179,55 +179,92 @@ func boundedRestoreError(err error) string {
 
 // captureAndFinalizeSeed archives workspaceDir, uploads the bytes, and records
 // the pointer, in that order — the commit protocol's bytes-before-pointer rule,
-// so a recorded checkpoint never points at bytes that are not there (§8). The
-// archive is staged outside workspaceDir so it is never part of what it captures
-// (§12.1).
+// so a recorded checkpoint never points at bytes that are not there (§8).
 func captureAndFinalizeSeed(ctx context.Context, store CheckpointPayloadStore, cfg workerclient.WorkerAPIClientConfig, stagingDir, workspaceDir, spaceID, taskRunID string) error {
-	if err := os.MkdirAll(stagingDir, 0o755); err != nil {
-		return fmt.Errorf("create checkpoint staging dir: %w", err)
-	}
-	tmp, err := os.CreateTemp(stagingDir, "seed-*.tar.zst")
+	desc, err := archiveWorkspace(ctx, store, stagingDir, workspaceDir, spaceID)
 	if err != nil {
-		return fmt.Errorf("create seed archive: %w", err)
+		return err
+	}
+	// The seed body and the result descriptor are the same five fields; a seed
+	// just finalizes through its own call instead of riding a terminal report.
+	if _, err := workerclient.FinalizeSeedCheckpoint(ctx, cfg, taskRunID, workerclient.SeedCheckpointRequest(desc)); err != nil {
+		return fmt.Errorf("finalize seed checkpoint: %w", err)
+	}
+	return nil
+}
+
+// captureResult archives workspaceDir after a run and uploads the bytes,
+// returning the descriptor the worker carries on the terminal report. Unlike the
+// seed, it does not finalize here: the server commits a result checkpoint as it
+// accepts the terminal outcome (§8). Bytes reach the store before the descriptor
+// is reported, keeping bytes-before-pointer.
+func captureResult(ctx context.Context, store CheckpointPayloadStore, stagingDir, workspaceDir, spaceID string) (workerclient.WorkspaceCheckpointDescriptor, error) {
+	return archiveWorkspace(ctx, store, stagingDir, workspaceDir, spaceID)
+}
+
+// archiveWorkspace archives workspaceDir to a bounded temporary file staged
+// outside workspaceDir (so it is never part of what it captures, §12.1), teeing
+// through a hash so the digest covers the exact stored bytes (§8), uploads the
+// bytes to their content-addressed key, and returns the payload descriptor.
+func archiveWorkspace(ctx context.Context, store CheckpointPayloadStore, stagingDir, workspaceDir, spaceID string) (workerclient.WorkspaceCheckpointDescriptor, error) {
+	var desc workerclient.WorkspaceCheckpointDescriptor
+	if err := os.MkdirAll(stagingDir, 0o755); err != nil {
+		return desc, fmt.Errorf("create checkpoint staging dir: %w", err)
+	}
+	tmp, err := os.CreateTemp(stagingDir, "ckpt-*.tar.zst")
+	if err != nil {
+		return desc, fmt.Errorf("create checkpoint archive: %w", err)
 	}
 	tmpName := tmp.Name()
 	defer func() { _ = os.Remove(tmpName) }()
 
-	// Tee the archive through a hash so the digest covers the exact stored bytes,
-	// as the commit protocol requires (§8) — wsarchive.Create does not digest.
 	hash := sha256.New()
 	res, createErr := wsarchive.Create(io.MultiWriter(tmp, hash), workspaceDir, checkpointLimits)
 	closeErr := tmp.Close()
 	if createErr != nil {
-		return fmt.Errorf("capture seed archive: %w", createErr)
+		return desc, fmt.Errorf("capture checkpoint archive: %w", createErr)
 	}
 	if closeErr != nil {
-		return fmt.Errorf("finish seed archive: %w", closeErr)
+		return desc, fmt.Errorf("finish checkpoint archive: %w", closeErr)
 	}
 	info, err := os.Stat(tmpName)
 	if err != nil {
-		return fmt.Errorf("stat seed archive: %w", err)
+		return desc, fmt.Errorf("stat checkpoint archive: %w", err)
 	}
 	sha := hex.EncodeToString(hash.Sum(nil))
 
 	f, err := os.Open(tmpName)
 	if err != nil {
-		return fmt.Errorf("open seed archive: %w", err)
+		return desc, fmt.Errorf("open checkpoint archive: %w", err)
 	}
 	_, putErr := store.Put(ctx, spaceID, sha, f)
 	_ = f.Close()
 	if putErr != nil {
-		return fmt.Errorf("upload seed payload: %w", putErr)
+		return desc, fmt.Errorf("upload checkpoint payload: %w", putErr)
 	}
-
-	if _, err := workerclient.FinalizeSeedCheckpoint(ctx, cfg, taskRunID, workerclient.SeedCheckpointRequest{
+	return workerclient.WorkspaceCheckpointDescriptor{
 		PayloadFormat:     wsarchive.PayloadFormat,
 		PayloadSHA256:     sha,
 		SizeBytes:         info.Size(),
 		UncompressedBytes: res.UncompressedBytes,
 		EntryCount:        res.EntryCount,
-	}); err != nil {
-		return fmt.Errorf("finalize seed checkpoint: %w", err)
+	}, nil
+}
+
+// captureResultCheckpoint captures the run's result checkpoint after execution,
+// fail-open: it returns nil when this deployment does not checkpoint or when
+// capture fails, because a run that already succeeded must not be turned into a
+// failure by a checkpoint it could not store (§13). A nil result simply leaves
+// the Task head where it was.
+func captureResultCheckpoint(ctx context.Context, input RunTaskInput, task *coretask.Task, dirs runDirs) *workerclient.WorkspaceCheckpointDescriptor {
+	if input.Checkpoints == nil || input.WorkerAPI.BaseURL == "" || input.WorkerAPI.Token == "" {
+		return nil
 	}
-	return nil
+	stagingDir := filepath.Join(dirs.runDir, "checkpoint-staging")
+	desc, err := captureResult(ctx, input.Checkpoints, stagingDir, dirs.runWorkspace, task.SpaceID)
+	if err != nil {
+		componentLog().Error("failed to capture the result checkpoint; run still succeeds", "space_id", task.SpaceID, "err", err)
+		return nil
+	}
+	return &desc
 }

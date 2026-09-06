@@ -523,6 +523,13 @@ Hard deletion remains outside this phase.
 
 ### Phase 3: Catalog Management Parity
 
+Status: the model line is delivered — provider credentials are encrypted at rest
+under the deployment key-encryption boundary, `POST /api/admin/llm/models`
+accepts a model over the admin API with a write-only credential, and Portal has
+a model-creation form. The plugin line (the plugin-entry and release-publication
+items below) is deferred by decision: plugin catalog management stays on the
+command line for now, so those items are not built.
+
 Scope:
 
 - encrypt managed-model provider credentials at rest using the deployment's

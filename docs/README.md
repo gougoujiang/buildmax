@@ -4,18 +4,18 @@ Organized by what you are trying to do.
 
 ## Use It
 
-The end-user manual lives in [`help/`](../help) — installation, the quickstart,
+The end-user manual lives in [`manual/`](../manual) — installation, the quickstart,
 core concepts, every CLI command, the built-in tools, skills and subagents, MCP,
 plugins, hooks, the sandbox, tool permissions, and the Portal walkthrough. It
 ships inside the Portal image and is served in-app under **Help**;
-[`help/manifest.json`](../help/manifest.json) is its table of contents.
+[`manual/manifest.json`](../manual/manifest.json) is its table of contents.
 
 | | |
 |---|---|
-| [Introduction](../help/introduction.md) | What BuildMax is, and the three surfaces |
-| [Install](../help/install.md) | Get the binaries |
-| [Quickstart](../help/quickstart.md) | First agent run, in five minutes |
-| [Support matrix](../help/support.md) | Supported platforms, surfaces, deployment paths, and non-goals |
+| [Introduction](../manual/introduction.md) | What BuildMax is, and the three surfaces |
+| [Install](../manual/install.md) | Get the binaries |
+| [Quickstart](../manual/quickstart.md) | First agent run, in five minutes |
+| [Support matrix](../manual/support.md) | Supported platforms, surfaces, deployment paths, and non-goals |
 | [../sample-data/](../sample-data/README.md) | Fifteen throwaway datasets — upload them into a space workspace, or point the CLI at one |
 
 ## Run It For A Space
@@ -34,7 +34,7 @@ ships inside the Portal image and is served in-app under **Help**;
 | | |
 |---|---|
 | [reference/configuration.md](reference/configuration.md) | Every config file field and environment variable |
-| [CLI reference](../help/cli.md) | Commands, flags, slash commands (in the user manual) |
+| [CLI reference](../manual/cli.md) | Commands, flags, slash commands (in the user manual) |
 | [reference/webhook.md](reference/webhook.md) | Triggering runs from external systems |
 
 The HTTP API describes itself: `GET /openapi.json`, browsable at `/swagger/`.
