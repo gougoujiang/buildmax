@@ -196,6 +196,18 @@ func TestAdminUserListFilters(t *testing.T) {
 	}
 }
 
+// A malformed last-login bound is answered with 400, not silently dropped:
+// dropping it would return a wider result than the operator's filter asked for.
+func TestAdminUserListRejectsMalformedLastLogin(t *testing.T) {
+	f := newDisableFixture(t)
+	for _, param := range []string{"last_login_after", "last_login_before"} {
+		rec := f.do(t, "GET", "/api/admin/users?"+param+"=yesterday", adminUser, "")
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("%s=yesterday got %d, want 400: %s", param, rec.Code, rec.Body.String())
+		}
+	}
+}
+
 // TestAdminAccountActionsAreRecorded: every privileged action names the person
 // who took it, not the binary — the caller proved who they are.
 func TestAdminAccountActionsAreRecorded(t *testing.T) {

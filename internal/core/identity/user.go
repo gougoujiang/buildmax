@@ -48,6 +48,11 @@ type UserFilter struct {
 	// Platform, when non-empty, keeps only accounts whose last login was on it.
 	// An account that never logged in is excluded.
 	Platform string
+	// LastLoginAfter and LastLoginBefore, when set, bound the last-login time to
+	// [after, before). An account that never logged in is excluded by either
+	// bound, since it has no time to compare.
+	LastLoginAfter  *time.Time
+	LastLoginBefore *time.Time
 }
 
 type UserStore interface {

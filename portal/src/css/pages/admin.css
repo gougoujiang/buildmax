@@ -78,6 +78,25 @@
   font-size: 0.9rem;
 }
 
+/* A labelled control in the toolbar. A bare date input reads as a blank box;
+   the caption says which end of the range it bounds. */
+.admin-field {
+  display: flex;
+  flex: 1 1 12rem;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.admin-field__label {
+  font-size: 0.72rem;
+  color: var(--color-text-muted, #6b7280);
+}
+
+.admin-field .admin-input {
+  flex: 1 1 auto;
+}
+
 .admin-button {
   padding: 0.45rem 0.85rem;
   border: 1px solid var(--border-color);

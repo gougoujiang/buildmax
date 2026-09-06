@@ -126,6 +126,22 @@ func TestListUsersFilters(t *testing.T) {
 	if got := ids(coreidentity.UserFilter{SystemRole: coreidentity.SystemRoleAdmin}); !got[admin] || got[plain] {
 		t.Errorf("SystemRole=system_admin: admin present=%v, plain present=%v; want true, false", got[admin], got[plain])
 	}
+
+	// onPortal logged in at now; plain never logged in, so a time bound in
+	// either direction excludes it along with anyone outside the window.
+	before, after := now.Add(-time.Minute), now.Add(time.Minute)
+	if got := ids(coreidentity.UserFilter{LastLoginAfter: &before}); !got[onPortal] || got[plain] {
+		t.Errorf("LastLoginAfter: onPortal present=%v, plain present=%v; want true, false", got[onPortal], got[plain])
+	}
+	if got := ids(coreidentity.UserFilter{LastLoginBefore: &after}); !got[onPortal] || got[plain] {
+		t.Errorf("LastLoginBefore: onPortal present=%v, plain present=%v; want true, false", got[onPortal], got[plain])
+	}
+	if got := ids(coreidentity.UserFilter{LastLoginAfter: &after}); got[onPortal] {
+		t.Errorf("LastLoginAfter beyond the login: onPortal present=%v; want false", got[onPortal])
+	}
+	if got := ids(coreidentity.UserFilter{LastLoginAfter: &before, LastLoginBefore: &after}); !got[onPortal] {
+		t.Errorf("last-login window around the login: onPortal present=%v; want true", got[onPortal])
+	}
 }
 
 func TestListUsers(t *testing.T) {

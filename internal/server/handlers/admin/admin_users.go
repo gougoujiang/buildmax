@@ -118,6 +118,21 @@ func triState(value, trueVal, falseVal string) *bool {
 	}
 }
 
+// parseTimeParam reads an optional RFC 3339 timestamp query param. An empty
+// value is allowed and yields (nil, true); a malformed value writes a 400 and
+// yields (nil, false) so the caller returns without querying.
+func parseTimeParam(w http.ResponseWriter, value, name string) (*time.Time, bool) {
+	if value == "" {
+		return nil, true
+	}
+	t, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		httputil.WriteJSONError(w, http.StatusBadRequest, name+" must be an RFC 3339 timestamp")
+		return nil, false
+	}
+	return &t, true
+}
+
 // listAdminUsersHandler serves GET /api/admin/users.
 func (h *Handler) listAdminUsersHandler(w http.ResponseWriter, r *http.Request) {
 	if _, ok := h.guard().SystemAdmin(w, r); !ok {
@@ -128,12 +143,22 @@ func (h *Handler) listAdminUsersHandler(w http.ResponseWriter, r *http.Request) 
 	}
 	query := r.URL.Query()
 	limit, offset := httputil.LimitOffset(query, "limit", "offset", httputil.BulkPageDefault, httputil.BulkPageMax)
+	after, ok := parseTimeParam(w, query.Get("last_login_after"), "last_login_after")
+	if !ok {
+		return
+	}
+	before, ok := parseTimeParam(w, query.Get("last_login_before"), "last_login_before")
+	if !ok {
+		return
+	}
 	filter := coreidentity.UserFilter{
-		Query:       strings.TrimSpace(query.Get("q")),
-		SystemRole:  query.Get("system_role"),
-		Platform:    query.Get("platform"),
-		Disabled:    triState(query.Get("status"), "disabled", "enabled"),
-		HasPassword: triState(query.Get("has_password"), "true", "false"),
+		Query:           strings.TrimSpace(query.Get("q")),
+		SystemRole:      query.Get("system_role"),
+		Platform:        query.Get("platform"),
+		Disabled:        triState(query.Get("status"), "disabled", "enabled"),
+		HasPassword:     triState(query.Get("has_password"), "true", "false"),
+		LastLoginAfter:  after,
+		LastLoginBefore: before,
 	}
 	users, total, err := h.cfg.Users.ListUsers(r.Context(), filter, limit, offset)
 	if err != nil {

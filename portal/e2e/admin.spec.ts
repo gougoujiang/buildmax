@@ -81,6 +81,31 @@ test("an open account detail is a linkable address that survives a reload", asyn
   await expect(page.getByRole("heading", { name: "Sessions" })).toBeVisible()
 })
 
+test("the last-login range filter narrows the account list", async ({ page }) => {
+  const email = process.env.BUILDMAX_E2E_EMAIL
+  test.skip(!email, "BUILDMAX_E2E_EMAIL not set")
+
+  await page.goto("/#/admin/accounts")
+  await expect(page.getByRole("button", { name: email! }).first()).toBeVisible()
+
+  const dayString = (offsetDays: number): string => {
+    const d = new Date()
+    d.setDate(d.getDate() + offsetDays)
+    return d.toISOString().slice(0, 10)
+  }
+
+  // Nobody can have signed in tomorrow, so the whole list must drop out. This is
+  // what proves the date input is converted to a real instant and sent.
+  await page.getByLabel("Signed in after").fill(dayString(1))
+  await expect(page.getByText("No accounts match")).toBeVisible()
+  await expect(page.getByRole("button", { name: email! })).toHaveCount(0)
+
+  // A bound well in the past keeps the operator, who just signed in.
+  await page.getByLabel("Signed in after").fill("2000-01-01")
+  await expect(page.getByRole("button", { name: email! }).first()).toBeVisible()
+  await expect(page.locator(".settings-section__error")).toHaveCount(0)
+})
+
 test("the audit search reaches the events that have no space", async ({ page }) => {
   await page.goto("/#/admin/audit")
   await expect(page.getByRole("heading", { name: "Audit trail" })).toBeVisible()

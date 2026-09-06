@@ -97,6 +97,14 @@ func (s *Store) ListUsers(ctx context.Context, filter coreidentity.UserFilter, l
 	if filter.Platform != "" {
 		q = q.Where("last_login_platform = ?", filter.Platform)
 	}
+	if filter.LastLoginAfter != nil {
+		// A NULL last_login_at (never signed in) fails the comparison, so a
+		// time bound also excludes accounts that never logged in.
+		q = q.Where("last_login_at >= ?", *filter.LastLoginAfter)
+	}
+	if filter.LastLoginBefore != nil {
+		q = q.Where("last_login_at < ?", *filter.LastLoginBefore)
+	}
 	if filter.SystemRole != "" {
 		// A subquery, not a join: a join would return one user row per grant and
 		// double-count anyone re-granted. The set of grant holders is small, so
