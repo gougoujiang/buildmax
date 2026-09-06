@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 
+	coretask "github.com/gougoujiang/buildmax/internal/core/task"
 	"github.com/gougoujiang/buildmax/internal/infra/trace"
 	"github.com/gougoujiang/buildmax/internal/server/httputil"
 	tools "github.com/gougoujiang/buildmax/internal/tool"
@@ -24,6 +25,20 @@ type TraceResponse struct {
 	// first-touch order. Derived from the tool calls rather than recorded
 	// separately, so it is only as complete as the trace.
 	FilesChanged []string `json:"files_changed,omitempty"`
+	// Workspace reports what happened to this run's workspace checkpoint: whether
+	// it restored a base and whether it committed a result. Read-only status the
+	// run already recorded; empty fields mean the step did not apply.
+	Workspace TraceWorkspace `json:"workspace"`
+}
+
+// TraceWorkspace is the run's workspace-checkpoint state for the run-details
+// view. Statuses are coretask.WorkspaceRestoreStatus / WorkspaceCheckpointStatus
+// values; errors are bounded operator text, present only on a failure.
+type TraceWorkspace struct {
+	RestoreStatus    string `json:"restore_status,omitempty"`
+	RestoreError     string `json:"restore_error,omitempty"`
+	CheckpointStatus string `json:"checkpoint_status,omitempty"`
+	CheckpointError  string `json:"checkpoint_error,omitempty"`
 }
 
 // getTaskRunTraceHandler serves GET
@@ -70,7 +85,25 @@ func (h *Handler) getTaskRunTraceHandler(w http.ResponseWriter, r *http.Request)
 		TaskRunID:    taskRunID,
 		Summary:      summary,
 		FilesChanged: filesChanged(summary),
+		Workspace:    workspaceState(run),
 	})
+}
+
+// workspaceState reads the run's recorded workspace-checkpoint status for the
+// read-only run-details view. It resolves the bounded error pointers to strings
+// so the response carries no nulls the client must special-case.
+func workspaceState(run *coretask.Run) TraceWorkspace {
+	ws := TraceWorkspace{
+		RestoreStatus:    run.WorkspaceRestoreStatus,
+		CheckpointStatus: run.WorkspaceCheckpointStatus,
+	}
+	if run.WorkspaceRestoreError != nil {
+		ws.RestoreError = *run.WorkspaceRestoreError
+	}
+	if run.WorkspaceCheckpointError != nil {
+		ws.CheckpointError = *run.WorkspaceCheckpointError
+	}
+	return ws
 }
 
 // filesChanged picks the mutating tool calls out of a summary. Which tools
