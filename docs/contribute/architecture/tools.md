@@ -123,6 +123,16 @@ LLM-facing names are the camelCase constants in `names.go` — `Read`, `Write`,
 source of truth; hook matchers and subagent `tools:` fields match against these
 exact strings.
 
+The remaining constants in `names.go` are **surface-scoped tools**: they are
+registered only where their runtime surface exists, and never inside subagents.
+
+- `UploadArtifact` — only where the surface provides an artifact service.
+- `Worktree` — only where a session may move its own workspace root (CLI, TUI).
+- `GetIssue`, `ReportToIssue` — only where the run is working one reachable
+  Issue; both are scoped to that Issue when built.
+- `JobList`, `JobOutput`, `JobStop`, `Monitor` — only where local background
+  jobs are enabled (TUI, Desktop).
+
 ## What A Tool Declares About Itself
 
 Beyond `llm.Tool`, four optional interfaces feed the permission layer. Full
