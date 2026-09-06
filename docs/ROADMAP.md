@@ -158,6 +158,12 @@ starts with reconciliation and typed dataflow before graph breadth. Do not let
 the existence of names, types, or partial adapters count as a shipped product
 surface.
 
+A provider-neutral structured-output contract in the shared Agent runtime is a
+named prerequisite within this step: Workflow's typed routes, planners, and
+evaluators, and any richer Task result envelope, depend on it, and today the
+runtime has no such contract and a Task result is free text. See
+[orchestration and continuity decisions](design/orchestration-and-continuity-decisions.md).
+
 ## Existing Capability Baseline
 
 The phase labels below describe capability already built and the acceptance

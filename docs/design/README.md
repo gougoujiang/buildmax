@@ -19,7 +19,7 @@ Durable product decisions that guide more than one roadmap phase.
 | [Product vision](product-vision.md) | Long-range product model, ownership boundaries, and rules for future bets |
 | [Surface positioning](surface-positioning.md) | How Agent Core, CLI, Desktop, and Portal relate |
 | [Agent execution and Task threads](agent-execution-and-task-threads.md) | Agent definitions execute directly through Team-owned Task/TaskRun threads; Conversation is an optional foreground origin, not an execution parent |
-| [Task workspace continuity](task-workspace-continuity.md) | Proposed: a Task carries one linear, forward-only workspace snapshot in the object store, restored atomically with the session; a three-way split keeps Team Home, Task workspace, and Artifacts distinct. Narrow continuity only — no workspace history, rollback, or Team Home write-back |
+| [Orchestration and continuity decisions](orchestration-and-continuity-decisions.md) | Decision record over the recent proposals: Task workspace checkpoints is the single continuity record, the ownership boundary is renamed to Space, structured output joins the roadmap, and the delegation/Assistant question is deferred |
 | [Task workspace checkpoints](task-workspace-checkpoints.md) | Planned Task continuity contract: `workspace/` is the sole Agent-writable checkpoint root, Space files seed a private Task fork, `buildmax-home/` is reconstructed from typed state and immutable Plugin environment revisions, and Pod storage remains scratch |
 
 ## Active Roadmap Plans
