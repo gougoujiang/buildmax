@@ -251,11 +251,11 @@ type llmCaller struct{ cache *LLMClientCache; defaultModel string }
 func (c *llmCaller) CompleteHookPrompt(ctx context.Context, model, prompt string) (string, error) { ... }
 ```
 
-## 8. Runtime流量
+## 8. 运行时流程
 
-这一节将详细介绍启动和某个活动的实际情况。
+本节说明启动和单个事件触发时实际发生的流程。它是参考说明；以上契约才是权威。
 
-### 8.1 创业  建立管理者
+### 8.1 启动：构建管理器
 
 ```
                   +---------------------------+
@@ -299,9 +299,9 @@ func (c *llmCaller) CompleteHookPrompt(ctx context.Context, model, prompt string
               Passed into every agent.RunLoopOpts.Hooks
 ```
 
-经理是运行时间剩下的一个对象，它被视为`agent.HookRunner`。
+对运行时其余部分而言，管理器就是一个实现 `agent.HookRunner` 的对象。
 
-### 8.2 发射一次事件 发射路径
+### 8.2 触发一次事件：分发路径
 
 ```
    agent.RunLoop / agentapp.RunPrompt / SubAgentRunner / SessionManager
@@ -343,13 +343,13 @@ func (c *llmCaller) CompleteHookPrompt(ctx context.Context, model, prompt string
               caller decides: gate vs advisory
 ```
 
-允许层已经允许调用后,`PreToolUse` 发射，因此只能看到通过的政策，批准和任何会议授权.它不能拒绝拒绝；这是最后的门，不是过关。 层:[工具许可.md](./tool-permissions.md)。
+`PreToolUse` 在权限层已经允许调用后触发，因此只会看到策略、审批和 Session 授权允许通过的调用。它不能把已经拒绝的调用重新拒绝；它是最后一道门，而不是覆盖层。分层关系见[工具权限](./tool-permissions.md)。
 
-工具调用开始重叠时，两个排序属性发生了变化 ([实现的平行工具.md](./parallel-tool-execution.md)).当一个批量仅阅读调用被组合时,`PreToolUse`在执行一个之前，为**每个**组成员打开了****调用之间的文件系统检查，在整个组之前看到状态，而不是每次调用之前.这是不可避免的：调用通过构建重叠.它被限制在一个被宣布仅阅读的工具上打电话，这项设计不会写.`PostToolUse`和相关标识符在组成员加入后，仍然在调用顺序中，因此一个排序的在组成员最慢的审计成本下没有改变。 `PostToolUseFailure`
+工具调用开始重叠后，顺序语义也发生了变化（见[并行工具执行](./parallel-tool-execution.md)）。当一批只读调用被分组时，`PreToolUse` 会在任何成员执行前为**每个**成员触发；检查调用之间文件系统的 Hook 看到的是整个批次执行前的状态，而不是每个调用前的状态。这是重叠执行的必然结果，并且只适用于声明为只读、不会写入的工具。`PostToolUse` 和 `PostToolUseFailure` 会在批次汇合后按调用顺序触发，因此审计 Hook 的顺序不变，但要等待批次中最慢的成员。
 
-关门事件 (`PreToolUse`,`PreCompact`,`UserPromptSubmit`) 检查`out.Blocked()`和短路。 咨询事件 (`PostToolUse`,`Notification`,`Stop`,`SessionStart`等) 抛弃决定并继续。
+门控事件（`PreToolUse`、`PreCompact`、`UserPromptSubmit`）检查 `out.Blocked()` 并短路。通知型事件（`PostToolUse`、`Notification`、`Stop`、`SessionStart` 等）丢弃该决策并继续。
 
-### 8.3 混凝土转什么燃烧，顺序
+### 8.3 一次具体运行：触发顺序
 
 用户运行`buildmax`，并提交*"请写出结果到 out.txt".* Hooks已配置；模型决定调用`writefile`。
 
@@ -391,40 +391,29 @@ func (c *llmCaller) CompleteHookPrompt(ctx context.Context, model, prompt string
        └─ HookManager.Run(SessionEnd{session_id, stats})               [advisory]
 ```
 
-变化相同的路径涵盖：
+同一条路径还覆盖以下情况：
 
-- ** 在PreToolUse中被阻止.** HTTPDriver 返回
-`{"decision":"block","reason":"forbidden path"}`。
-采用`applyPolicyAndExecute`短路
-发射的`error: tool call "writefile" denied by hook: forbidden path`
-由于 `EventToolDenied` (原因=`hook`)，而LLM得到了错误字符串。
-- **工具执行失败.** 同样的路径，但`tool.Execute`返回错误。
-发射的辅导是`PostToolUseFailure` (而不是`PostToolUse`)，
-车中,`tool_error`。
+- **在 `PreToolUse` 中被阻止。** HTTPDriver 返回 `{"decision":"block","reason":"forbidden path"}`。`applyPolicyAndExecute` 短路并发出 `error: tool call "writefile" denied by hook: forbidden path`，原因标记为 `EventToolDenied`（`hook`），模型收到该错误字符串。
+- **工具执行失败。** 路径相同，但 `tool.Execute` 返回错误；触发的是通知型 `PostToolUseFailure`，而不是 `PostToolUse`，并带有 `tool_error`。
 - **审批关卡。** 当策略解析为 `Ask` 时，管理器会在调用 `ApprovalHandler` **之前**触发 `Notification{kind="approval_required", tool, args}`。如果用户拒绝，则触发 `Notification{kind="permission_denied"}`。
-- **车***车跑者标签`IsSubagent=true`和
-随着所有事件的发生， `AgentType="<def-name>"`
-类型： 相关内容 `SubagentStart → ... → SubagentStop` `StopFailure` `Stop`
-- **紧缩.**`PreCompact` (门) 可以跳过紧缩轮；
-火的成功。 `PostCompact{summarized, kept, summary}`
+- **子代理运行。** `IsSubagent=true` 和 `AgentType="<def-name>"` 会写入所有事件；事件顺序为 `SubagentStart → ... → SubagentStop`，失败时为 `StopFailure`。
+- **压缩。** `PreCompact`（门控）可以跳过压缩轮；成功后触发 `PostCompact{summarized, kept, summary}`。
 
-### 8.4 故障模式 设计上故障开放
+### 8.4 故障模式：按设计失败开放
 
-| 什么是失败 | 结果 | 记录了吗？ |
+| 故障 | 结果 | 是否记录 |
 |---|---|---|
-| 失踪`entry.Type`的司机 | 进入被跳过 | 警告 |
-| 匹配的regex不有效 | 进口从来没有匹配 | 警告 |
-| 命令以状态 2 退出 | **阻止**，stderr 作为原因 | info |
-| 命令其他非零 | 允许 (未开放) | 警告 |
-| 命令时间 | 允许 (未开放) | 警告 |
-| 连接错误： HTTP | 允许 (未开放) | 警告 |
-| 服务器MCP无法访问 | 允许 (未开放) | 警告 |
-| 快速驱动器 LLM错误 | 允许 (未开放) | 警告 |
-| 快速驱动器返回非JSON | 允许 (没有决定) | 调试 |
+| `entry.Type` 没有对应驱动 | 跳过该条目 | 警告 |
+| matcher 正则无效 | 永远不会匹配 | 警告 |
+| command 以状态码 2 退出 | **阻止**，stderr 作为原因 | info |
+| command 以其他非零状态退出 | 允许（失败开放） | 警告 |
+| command 超时 | 允许（失败开放） | 警告 |
+| HTTP 连接错误 | 允许（失败开放） | 警告 |
+| MCP Server 不可访问 | 允许（失败开放） | 警告 |
+| prompt 驱动的 LLM 出错 | 允许（失败开放） | 警告 |
+| prompt 驱动返回非 JSON | 允许（不作决策） | 调试 |
 
-子代理
-
-## 9. 层
+## 9. 分层
 
 ```
 internal/core/hook/config.go            # Entry, Config, event and transport constants
