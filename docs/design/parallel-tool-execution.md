@@ -586,7 +586,7 @@ any concurrency limit.
 - `contribute/architecture/tools.md`: a Concurrency section stating the
   obligation `AccessReadOnly` carries, with `WebFetch` as the case that shows
   read-only and concurrency-safe are different properties.
-- `reference/configuration.md` and `help/tools.md`:
+- `reference/configuration.md` and `manual/tools.md`:
   `agent.max_parallel_tools`, and one paragraph for users on what overlaps.
 - `design/hook-system.md`: `PreToolUse` fires for a whole group before any
   member executes; post hooks fire at the join, still in call order.

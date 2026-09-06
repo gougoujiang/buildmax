@@ -5,7 +5,7 @@
 > **Audience:** contributors and security reviewers · **Status:** implemented
 >
 > Related: [session architecture](../contribute/architecture/session.md),
-> [sessions and traces](../../help/sessions-and-traces.md),
+> [sessions and traces](../../manual/sessions-and-traces.md),
 > [durable run trace](durable-run-trace.md),
 > [context durability](context-durability.md),
 > [durable Agent sessions](../proposals/durable-agent-sessions.md), and

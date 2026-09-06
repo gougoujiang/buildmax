@@ -3,7 +3,7 @@
 > **简体中文：** [阅读中文镜像](../../zh-CN/contribute/architecture/cli.md)
 > **Audience:** contributors · **Status:** current
 >
-> User-facing command and flag reference: [help/cli.md](../../../help/cli.md)
+> User-facing command and flag reference: [manual/cli.md](../../../manual/cli.md)
 
 ## Purpose
 
@@ -40,7 +40,7 @@ the TUI and for piped print-mode output.
 | `sandbox status\|deps\|mode\|enable\|disable` | `sandbox.go` |
 
 `NewRootCommand()` registers eleven flags on the root command; the user-facing
-table is in [help/cli.md](../../../help/cli.md).
+table is in [manual/cli.md](../../../manual/cli.md).
 
 ## Dispatch (`runRoot`)
 

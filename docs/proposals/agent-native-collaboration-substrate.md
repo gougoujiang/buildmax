@@ -485,7 +485,7 @@ Issue、TaskRun、Artifact、Trace 和 Space 边界吻合。
    Integration 与 Issue、Task、TaskRun、Artifact、Space 的准确关系。
 3. 来源适配、权限和失败行为应分别进入对应架构文档，不让一个抽象包揽
    Git、Wiki、Figma 和 API 的所有差异。
-4. 面向用户的操作说明只在真实功能交付后进入 `help/`。
+4. 面向用户的操作说明只在真实功能交付后进入 `manual/`。
 5. 本提案在方向被接受、拒绝或被更窄问题替代后删除；Git 历史保留讨论。
 
 在决定之前，本备忘录只记录一个待验证的产品判断：BuildMax 可能需要的

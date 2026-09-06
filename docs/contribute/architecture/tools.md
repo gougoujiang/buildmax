@@ -3,7 +3,7 @@
 > **简体中文：** [阅读中文镜像](../../zh-CN/contribute/architecture/tools.md)
 > **Audience:** contributors · **Status:** current
 >
-> User-facing tool guide: [help/tools.md](../../../help/tools.md)
+> User-facing tool guide: [manual/tools.md](../../../manual/tools.md)
 
 ## Purpose
 
@@ -239,4 +239,4 @@ until you do.
 - All tools enforce path security — file operations must be under the configured root directory.
 - Tool output is designed for LLM consumption: meaningful messages on both success and failure.
 - Error messages are prefixed with `error:` by the agent when sent to the LLM.
-- See also: [Agent Loop](agent-loop.md), [CLI](cli.md), [help/tool-permissions.md](../../../help/tool-permissions.md).
+- See also: [Agent Loop](agent-loop.md), [CLI](cli.md), [manual/tool-permissions.md](../../../manual/tool-permissions.md).

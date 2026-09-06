@@ -115,7 +115,7 @@ dirty tree, running jobs, and the cacheable prompt prefix.
 Three were retired because the work they proposed shipped. *Private production
 operations* asked for an operating contract for private deployment;
 `deployment/production/` and the compatibility section of
-[help/support.md](../../help/support.md) are that contract, and what it still
+[manual/support.md](../../manual/support.md) are that contract, and what it still
 lacks is operational evidence, now recorded as open questions in the
 [enterprise deployment design](../design/enterprise-deployment.md). *Audit and
 data governance* asked for the smallest useful evidence model; the append-only

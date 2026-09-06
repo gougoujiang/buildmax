@@ -128,6 +128,26 @@ type PatchTaskRunRequest struct {
 	// "traces/<session>/rt_….jsonl". Sent on both success and failure; omitted
 	// when no trace was written.
 	TracePath *string `json:"trace_path,omitempty"`
+	// WorkspaceCheckpoint is the result checkpoint the worker captured from
+	// workspace/ after execution and uploaded to the object store, carried on the
+	// terminal report so the server commits it as it accepts the outcome. Nil
+	// when the run captured none — it produced no checkpoint, or capture failed
+	// (which does not fail the run). See
+	// docs/design/task-workspace-checkpoints.md §8.
+	WorkspaceCheckpoint *WorkspaceCheckpointDescriptor `json:"workspace_checkpoint,omitempty"`
+}
+
+// WorkspaceCheckpointDescriptor is the format, digest, and counters of a
+// checkpoint payload the worker has already uploaded. The server derives space,
+// task, and run from the run token and the payload key from the digest; the
+// worker names no key. It is the terminal-report counterpart of the seed's
+// SeedCheckpointRequest.
+type WorkspaceCheckpointDescriptor struct {
+	PayloadFormat     string `json:"payload_format"`
+	PayloadSHA256     string `json:"payload_sha256"`
+	SizeBytes         int64  `json:"size_bytes"`
+	UncompressedBytes int64  `json:"uncompressed_bytes"`
+	EntryCount        int64  `json:"entry_count"`
 }
 
 // StreamDeltaRequest is the JSON body for POST /api/worker/task-runs/{task_run_id}/stream (snake_case).

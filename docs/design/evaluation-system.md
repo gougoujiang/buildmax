@@ -848,7 +848,7 @@ carries `TraceID` and `TracePath`, but the CLI envelope does not expose either, 
 caller cannot identify which trace file a run wrote — a session with repeated runs holds
 several. The slice adds `trace_id` and `trace_path` to the print-mode envelope. It is
 user-visible beyond evaluation, since it is also how a person finds the trace for a run they
-just made, so it carries a changelog entry and a `help/cli.md` update.
+just made, so it carries a changelog entry and a `manual/cli.md` update.
 
 The worker adapter followed the slice and is built. What was described as missing — a way to
 submit a trial and collect its bundle without a Portal user — turned out not to need one. A

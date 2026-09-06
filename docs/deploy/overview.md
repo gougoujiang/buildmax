@@ -6,7 +6,7 @@
 > **BuildMax is alpha.** Read [authentication.md](authentication.md) before
 > putting a server anywhere it can be reached by people you do not trust. The
 > current deployment support boundaries are in
-> [help/support.md](../../help/support.md).
+> [manual/support.md](../../manual/support.md).
 
 Deploying BuildMax for a space means running two Go binaries plus two backing
 services. There is nothing to install into the agent runtime itself — the
@@ -183,7 +183,7 @@ every deployment as an execution boundary:
 - give the server and workers dedicated, least-privilege credentials
 - keep `workspaces_dir` and blob storage off any host path that matters
 - decide the network policy for workers explicitly; the
-  [sandbox](../../help/sandbox.md) can restrict egress but is **off by default**
+  [sandbox](../../manual/sandbox.md) can restrict egress but is **off by default**
 - never commit credentials to `server.yaml` in version control
 - know which boundary you have: `local_process` runs workers as children of the
   server on one host, one trust domain, and narrowing what they inherit does not

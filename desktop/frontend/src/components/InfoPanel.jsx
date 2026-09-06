@@ -118,7 +118,7 @@ function SessionTab({ projectID, sessionID, app }) {
 // InfoPanel is the /info command: two tabs answering one question in two
 // directions — what this session has done, and what this project knows. They
 // share nothing else (one ends with the session, the other outlives it), so
-// they are tabs rather than one merged view. See help/cli.md.
+// they are tabs rather than one merged view. See manual/cli.md.
 export function InfoPanel({ projectID, sessionID, projectName, workspace, app }) {
   const [tab, setTab] = useState('session');
 

@@ -427,3 +427,61 @@ func TestRestoreWorkspaceBase_RecordsFailedThenFailsClosed(t *testing.T) {
 		t.Fatal("a failed restore must record a bounded error")
 	}
 }
+
+// TestCaptureResultCheckpoint_ReturnsDescriptorWithMatchingDigest pins that a
+// captured result uploads its bytes and returns a descriptor whose digest covers
+// them, ready to ride the terminal report.
+func TestCaptureResultCheckpoint_ReturnsDescriptorWithMatchingDigest(t *testing.T) {
+	ctx := context.Background()
+	store := &fakeCheckpointStore{}
+	srv := (&seedRecorder{}).server(t)
+	defer srv.Close()
+	input := RunTaskInput{
+		Checkpoints: store,
+		WorkerAPI:   workerclient.WorkerAPIClientConfig{BaseURL: srv.URL, Token: "t", Client: srv.Client()},
+	}
+	runDir := t.TempDir()
+	dirs := runDirs{runDir: runDir, runWorkspace: writeWorkspace(t)}
+	task := &coretask.Task{ID: "t1", SpaceID: "sp_1"}
+
+	desc := captureResultCheckpoint(ctx, input, task, dirs)
+	if desc == nil {
+		t.Fatal("expected a result descriptor")
+	}
+	if len(store.puts) != 1 {
+		t.Fatalf("expected one upload, got %d", len(store.puts))
+	}
+	sum := sha256.Sum256(store.puts[0].bytes)
+	if desc.PayloadSHA256 != hex.EncodeToString(sum[:]) {
+		t.Fatal("descriptor digest does not match uploaded bytes")
+	}
+	if desc.PayloadFormat != wsarchive.PayloadFormat || desc.EntryCount != 3 {
+		t.Fatalf("descriptor = %+v", desc)
+	}
+}
+
+// TestCaptureResultCheckpoint_FailOpen pins that result capture never fails the
+// run: a missing workspace, or no checkpoint store, yields a nil descriptor
+// rather than an error.
+func TestCaptureResultCheckpoint_FailOpen(t *testing.T) {
+	ctx := context.Background()
+	task := &coretask.Task{ID: "t1", SpaceID: "sp_1"}
+
+	// No store: nothing to capture to.
+	if desc := captureResultCheckpoint(ctx, RunTaskInput{}, task, runDirs{runDir: t.TempDir(), runWorkspace: t.TempDir()}); desc != nil {
+		t.Fatal("no checkpoint store should yield a nil descriptor")
+	}
+
+	// Store present, but the workspace directory does not exist: capture fails and
+	// is swallowed.
+	srv := (&seedRecorder{}).server(t)
+	defer srv.Close()
+	input := RunTaskInput{
+		Checkpoints: &fakeCheckpointStore{},
+		WorkerAPI:   workerclient.WorkerAPIClientConfig{BaseURL: srv.URL, Token: "t", Client: srv.Client()},
+	}
+	dirs := runDirs{runDir: t.TempDir(), runWorkspace: filepath.Join(t.TempDir(), "does-not-exist")}
+	if desc := captureResultCheckpoint(ctx, input, task, dirs); desc != nil {
+		t.Fatal("a failed capture should yield a nil descriptor, not fail the run")
+	}
+}
