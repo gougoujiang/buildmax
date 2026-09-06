@@ -1,5 +1,6 @@
 # CLI
 
+> **简体中文：** [阅读中文镜像](../../zh-CN/contribute/architecture/cli.md)
 > **Audience:** contributors · **Status:** current
 >
 > User-facing command and flag reference: [manual/cli.md](../../../manual/cli.md)

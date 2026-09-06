@@ -1,5 +1,6 @@
 # Architecture Reference
 
+> **简体中文：** [阅读中文镜像](../../zh-CN/contribute/architecture/README.md)
 > **Audience:** contributors · **Status:** current
 
 How BuildMax works today. Each document covers one package or subsystem and is

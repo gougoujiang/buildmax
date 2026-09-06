@@ -1,5 +1,6 @@
 # Contributor Documentation
 
+> **简体中文：** [阅读中文镜像](../zh-CN/contribute/README.md)
 > **Audience:** contributors · **Status:** current
 
 How the code is arranged and how to keep the documentation honest. For the

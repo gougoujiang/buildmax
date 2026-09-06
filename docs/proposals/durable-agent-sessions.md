@@ -1,5 +1,7 @@
 # Durable Agent Sessions
 
+> **简体中文：** [阅读中文镜像](../zh-CN/proposals/durable-agent-sessions.md)
+>
 > **Audience:** contributors, operators, security reviewers, and early adopters · **Status:** proposal — under discussion
 >
 > **Opened:** 2026-08-22

@@ -1,5 +1,7 @@
 # Single-Maintainer Agent Development Workflow
 
+> **简体中文：** [阅读中文镜像](../zh-CN/proposals/single-maintainer-agent-development.md)
+>
 > **Audience:** maintainers, contributors, and coding-Agent workflow authors · **Status:** proposal — under discussion
 >
 > **Opened:** 2026-09-06

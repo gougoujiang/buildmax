@@ -1,5 +1,7 @@
 # Agent 原生协作底座备忘录
 
+> **简体中文：** [阅读中文镜像](../zh-CN/proposals/agent-native-collaboration-substrate.md)
+>
 > **Audience:** 产品设计者、维护者与早期采用者 · **Status:** proposal — under discussion
 >
 > Opened: 2026-09-06

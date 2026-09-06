@@ -1,5 +1,6 @@
 # Compose Quickstart
 
+> **简体中文：** [阅读中文镜像](../zh-CN/deploy/compose.md)
 > **Audience:** operators · **Status:** current
 >
 > A space deployment on one machine, in about five minutes. For what the pieces

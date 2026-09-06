@@ -1,5 +1,6 @@
 # Code And Commit Conventions
 
+> **简体中文：** [阅读中文镜像](../zh-CN/contribute/conventions.md)
 > **Audience:** contributors · **Status:** current
 
 Project-wide rules that are not obvious from reading the code, and that review

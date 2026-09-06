@@ -1,5 +1,6 @@
 # Project Overview
 
+> **简体中文：** [阅读中文镜像](../../zh-CN/contribute/architecture/overview.md)
 > **Audience:** contributors · **Status:** current
 
 ## Purpose

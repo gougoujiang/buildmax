@@ -1,7 +1,7 @@
 # Webhook Reference
 
+> **简体中文：** [阅读中文镜像](../zh-CN/reference/webhook.md)
 > **Audience:** operators and integrators · **Status:** current
-
 An external system can start a BuildMax run by sending one HTTP POST. The
 request is mapped straight to a conversation turn and a background task run —
 no Tier 1 LLM call is spent deciding what to do with it.

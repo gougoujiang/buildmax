@@ -1,5 +1,7 @@
 # Proposals
 
+> **简体中文：** [阅读中文镜像](../zh-CN/proposals/README.md)
+>
 > **Audience:** contributors and early adopters · **Status:** current
 
 Proposals are short papers for cross-cutting directions that are worth

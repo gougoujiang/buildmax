@@ -1,5 +1,6 @@
 # Local Kubernetes Deployment
 
+> **简体中文：** [阅读中文镜像](../zh-CN/deploy/local-kind.md)
 > **Audience:** contributors and operators · **Status:** beta
 >
 > Use this path for Kubernetes worker Jobs, RBAC, Ingress, MinIO, manifests,

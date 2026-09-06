@@ -1,5 +1,6 @@
 # Repository Layout
 
+> **简体中文：** [阅读中文镜像](../zh-CN/contribute/repo-layout.md)
 > **Audience:** contributors · **Status:** current
 >
 > **This file is the single source of truth for the repository tree.** README,

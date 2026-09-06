@@ -1,5 +1,7 @@
 # Assistant Orchestration And The Workflow Boundary
 
+> **简体中文：** [阅读中文镜像](../zh-CN/proposals/assistant-orchestration-and-workflow-boundary.md)
+>
 > **Audience:** contributors and product reviewers · **Status:** proposal — under discussion
 > **Opened:** 2026-09-05
 

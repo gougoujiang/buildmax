@@ -1,5 +1,6 @@
 # Layering And Import Rules
 
+> **简体中文：** [阅读中文镜像](../../zh-CN/contribute/architecture/packages.md)
 > **Audience:** contributors · **Status:** current
 >
 > For what lives where, see [repo-layout.md](../repo-layout.md). This document

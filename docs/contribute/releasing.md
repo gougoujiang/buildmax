@@ -1,5 +1,6 @@
 # Releasing BuildMax
 
+> **简体中文：** [阅读中文镜像](../zh-CN/contribute/releasing.md)
 > **Audience:** maintainers · **Status:** current
 
 BuildMax releases are created from `main` by maintainers. Pushing a version tag

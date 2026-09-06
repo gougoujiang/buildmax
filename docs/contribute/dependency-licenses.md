@@ -1,5 +1,6 @@
 # Dependency Licenses
 
+> **简体中文：** [阅读中文镜像](../zh-CN/contribute/dependency-licenses.md)
 > **Audience:** contributors · **Status:** current
 
 BuildMax ships under [Apache-2.0](../../LICENSE). This page records what its

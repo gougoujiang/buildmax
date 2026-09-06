@@ -1,5 +1,6 @@
 # Util
 
+> **简体中文：** [阅读中文镜像](../../zh-CN/contribute/architecture/util.md)
 > **Audience:** contributors · **Status:** current
 
 ## Purpose

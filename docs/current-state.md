@@ -1,5 +1,7 @@
 # BuildMax Current State
 
+> **简体中文：** [阅读中文镜像](zh-CN/current-state.md)
+>
 > **Audience:** maintainers and contributors · **Status:** current as of 2026-09-02
 
 This document is a code-first assessment of BuildMax. Its full sweep was made

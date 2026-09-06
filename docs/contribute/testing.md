@@ -1,5 +1,6 @@
 # Testing
 
+> **简体中文：** [阅读中文镜像](../zh-CN/contribute/testing.md)
 > **Audience:** contributors and code-changing agents · **Status:** current
 
 What to run after a change, what it needs, and where to look when it fails.

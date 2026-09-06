@@ -1,5 +1,6 @@
 # Data Model
 
+> **简体中文：** [阅读中文镜像](../../zh-CN/contribute/architecture/data-model.md)
 > **Audience:** contributors · **Status:** current
 
 The full relational schema of the BuildMax server database: every table, every

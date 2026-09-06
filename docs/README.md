@@ -1,5 +1,7 @@
 # BuildMax Documentation
 
+> **简体中文：** [阅读中文镜像](zh-CN/README.md)
+
 Organized by what you are trying to do.
 
 ## Use It

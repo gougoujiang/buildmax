@@ -1,5 +1,6 @@
 # Deployment Overview
 
+> **简体中文：** [阅读中文镜像](../zh-CN/deploy/overview.md)
 > **Audience:** operators · **Status:** current
 >
 > **BuildMax is alpha.** Read [authentication.md](authentication.md) before

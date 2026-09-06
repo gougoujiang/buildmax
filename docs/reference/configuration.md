@@ -1,7 +1,7 @@
 # Configuration Reference
 
+> **简体中文：** [阅读中文镜像](../zh-CN/reference/configuration.md)
 > **Audience:** users and operators · **Status:** current
-
 BuildMax is configured by **YAML files inside the data directory**, not by a
 long list of environment variables. Only a handful of bootstrap values stay in
 the environment, because they must be known before any file can be read.

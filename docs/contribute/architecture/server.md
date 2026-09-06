@@ -1,5 +1,6 @@
 # Server
 
+> **简体中文：** [阅读中文镜像](../../zh-CN/contribute/architecture/server.md)
 > **Audience:** contributors · **Status:** current
 >
 > The live route list is the API's own `GET /openapi.json`, browsable at `/swagger/`.

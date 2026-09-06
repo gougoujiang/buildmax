@@ -1,5 +1,6 @@
 # Agent Loop
 
+> **简体中文：** [阅读中文镜像](../../zh-CN/contribute/architecture/agent-loop.md)
 > **Audience:** contributors · **Status:** current
 >
 > User-facing view of the same loop: [manual/concepts.md](../../../manual/concepts.md)

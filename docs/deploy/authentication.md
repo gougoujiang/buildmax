@@ -1,7 +1,7 @@
 # Authentication
 
+> **简体中文：** [阅读中文镜像](../zh-CN/deploy/authentication.md)
 > **Audience:** operators · **Status:** current
-
 People sign in with an email address and a password. BuildMax has no way to
 send email, and everything unusual below follows from that: accounts are created
 by an operator, and the one-time codes that claim an account or reset a

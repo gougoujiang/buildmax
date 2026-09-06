@@ -1,0 +1,163 @@
+# Readme
+
+> **翻译说明：** 本文是[英文原文](../../proposals/README.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `dee463fa7cca89199502c57f360b09d919543f6f18e17e8b4b72626370d81210`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+
+# Proposals
+
+> **Audience:** contributors and early adopters · **Status:** current
+
+Proposals are short papers for cross-cutting directions that are worth
+discussing before they become roadmap work. They are not commitments, product
+announcements, or user documentation.
+
+## How This Directory Works
+
+| Artifact | Purpose |
+|---|---|
+| [../ROADMAP.md](../ROADMAP.md) | Prioritized and accepted work |
+| [../design/](../../design/README.md) | Accepted rationale and active plans |
+| This directory | Open questions and options before a direction is accepted |
+| GitHub Discussions | Early community feedback and alternatives |
+| GitHub Issues | Implementable work with an owner and acceptance criteria |
+
+Every proposal opens with `Status: proposal — under discussion` and an
+`Opened: YYYY-MM-DD` date, identifies related current documents, and separates
+goals, non-goals, options, and open questions. It should be narrow enough that
+readers can agree, disagree, or offer evidence without first
+reverse-engineering the repository.
+
+When a decision is made, update [../ROADMAP.md](../ROADMAP.md), the matching
+design record, or a GitHub Issue. Then delete the proposal. Rejected and
+superseded proposals are also deleted rather than archived; git history keeps
+their context.
+
+## Open Proposals
+
+A paper stays open until its direction is accepted, which is not the same as
+nothing being built. Where an early slice shipped ahead of the decision, the
+last column says so, and the paper's own delivery phases hold the detail.
+
+| Proposal | Question | Built so far |
+|---|---|---|
+| [Single-maintainer Agent development workflow](single-maintainer-agent-development.md) | How can one maintainer use multiple coding Agents to increase accepted development throughput without becoming the task-preparation, review, conflict-resolution, and cleanup bottleneck? | The task runner, layered verification, implementation Issue template, `agent-ready` label, worktrees, CI, deployment smoke, and evaluation harness exist; readiness revalidation, leases, changed-scope verification, and independent acceptance are not one closed contribution loop |
+| [System administration operations](system-administration-operations.md) | How should the automation-friendly operator CLI and the human-facing Portal provide safe outcome parity for authority, accounts, sessions, catalogs, quotas, and runtime health? | The grant model, operator command, admin API, six-section Portal area, model and plugin catalog controls, and deployment-wide audit already exist; grant integrity hardening and full Portal parity do not |
+| [Client sessions and API credentials](client-sessions-and-api-credentials.md) | Should interactive login issue any long-lived credential beyond a rotating refresh token, and how should native managed clients and unattended callers authenticate? | None of its stages. The rotating two-token session it proposes to harden is in `internal/infra/db/user_refresh_token.go` |
+| [Enterprise identity and access](enterprise-identity-and-access.md) | How should a private deployment connect corporate identity to BuildMax spaces and roles? | Nothing |
+| [Durable Agent sessions](durable-agent-sessions.md) | Should authenticated local Agent sessions become revisioned Server resources for recovery, provenance, sharing, and cross-device continuation? | Nothing; no server route serves a session resource |
+| [Assistant orchestration and the Workflow boundary](assistant-orchestration-and-workflow-boundary.md) | Does a bounded manager Agent create enough value over one strong Agent to become an Assistant product, and should Workflow narrow toward deterministic Automation? | Nothing; current Agents cannot admit durable child Space Agent Tasks |
+| [Local Issue work bridge](local-issue-work-bridge.md) | How should connected CLI/TUI and Desktop handle Space Issues locally without becoming Portal clones or weakening direct local use? | Most of phase 1: `buildmax issue list`, `show`, `status`, and `start`, and the two Issue tools of [issue agent access](../../design/issue-agent-access.md). The durable Issue-to-Session link is not built, and phases 2 and 3 are untouched |
+| [Session tree, agent mailbox, and branched workspaces](session-tree-and-agent-mailbox.md) | Should interactive sessions fork isolated workspaces, return structured child reports, and resume their parent through a durable mailbox? | Nothing |
+| [Agent 原生协作底座](agent-native-collaboration-substrate.md) | 不同规模和不同专业背景的参与者，是否需要一套统一的意图、执行、提议、证据、决策、集成与知识生命周期？ | 尚未建设；当前 Issue、Task/TaskRun、Artifact、Space 与本地 workspace 是待验证的基础构件 |
+
+Thirteen papers have been retired. Nine were accepted into a design
+record. *Durable Workflow graphs* asked whether Workflow should remain a linear
+prompt sequencer, delegate control to one LLM, or become a durable graph over
+Task/TaskRun. The accepted [Workflow runtime design](../../design/workflow-runtime.md)
+chooses deterministic state and policy around Agent execution, then adds typed
+model decisions and bounded dynamic expansion on that substrate.
+
+*System administration* asked how a private
+deployment should authorize and audit System Administrators; the direction was
+accepted and is now the [system administration
+design](../../design/system-administration.md), which decides the grant model,
+the bootstrap and recovery path, the first API, and what stays out of it.
+*Entity identity and relational keys* asked whether opaque public IDs should be
+separated from compact relational keys before Beta; the direction was accepted
+and is now the [entity identity design](../../design/entity-identity.md), which
+decides the identifier format, the table-by-table split, the store boundary,
+and the Alpha cutover. *Local background work and monitors* asked whether TUI
+and Desktop should share a process-scoped job manager for detached commands,
+subagents, and event-driven monitors; the direction was accepted and is now the
+[local background jobs design](../../design/local-background-jobs.md), which
+commits the staged delivery and its prerequisites.
+
+*Portal interaction and execution model* asked how a full foreground Tier 1
+Agent should coordinate a potentially specialized Tier 2 execution Agent plane
+without owning durable state and delivery; the direction was accepted and is now
+the [Portal execution design](../../design/portal-execution-model.md), which
+separates the two Agent tiers from the substrate that carries them and from the
+projection derived off it, and records which of its phases shipped, which are
+evidence-gated, and which are deferred behind a storage migration.
+
+*Two-tier Agent architecture* reopened whether that hierarchy was the stable
+product boundary. Its synthesis is now the [Agent execution and Task threads
+design](../../design/agent-execution-and-task-threads.md): an Agent can execute
+directly through a Space-owned Task and TaskRun, Task is its durable interaction
+thread, and Conversation is an independent foreground caller and optional
+result surface rather than an execution parent.
+
+*Plugin scope for background runs* asked whether a space's plugin set is decided
+once for the space or per agent definition; the answer is both, and §5.3 of the
+[space and worker plugin distribution design](../../design/plugin-space-distribution.md)
+now decides it. A space's activation is the allow-list and the pin, an agent
+definition narrows it, and the two levels split by what an unwanted item costs:
+inert content is inherited when an agent names none, executable content is
+loaded only when an agent names it.
+
+*Run-scoped Secret Broker and workload identity* asked how a Space should
+authorize a stored or externally managed credential for a run without exposing
+it to the whole worker; the direction was accepted and is now the [Space Secrets
+design](../../design/space-secrets.md). It answers the delivery half against the
+paper's own first recommendation: a credential is delivered to the run, as an
+environment variable or a rendered credential file, not into one named plugin
+consumer, because an Agent invokes tools it selects at run time and per-tool
+adaptation cannot reach them. A Secret is a Space-owned group of key/values in
+one encrypted row, consumption is configured on the Agent, and the record states
+plainly that an Agent can read what its run was granted — moving the safety onto
+Space ownership, per-Agent consumption, short-lived credentials, and audit.
+
+*Agent-managed worktrees and a mutable workspace root* asked whether one
+interactive session should create a Git worktree and move its own workspace
+root into it; the direction was accepted and is now the [workspace root and
+worktrees design](../../design/workspace-root-and-worktrees.md), which settles
+where worktrees live, which of the root's dependents move with it, the
+permission asymmetry between creating and removing one, and what happens to a
+dirty tree, running jobs, and the cacheable prompt prefix.
+
+Three were retired because the work they proposed shipped. *Private production
+operations* asked for an operating contract for private deployment;
+`deployment/production/` and the compatibility section of
+[manual/support.md](../../../manual/support.md) are that contract, and what it still
+lacks is operational evidence, now recorded as open questions in the
+[enterprise deployment design](../../design/enterprise-deployment.md). *Audit and
+data governance* asked for the smallest useful evidence model; the append-only
+audit trail is it, and retention, export, and correlation remain open in the
+[space governance design](../../design/space-governance.md). *Trusted private
+execution loop* asked whether one constrained, managed, auditable private space
+task should be proven before broader expansion; managed inference in the worker
+and the run-scoped credential shipped, the Beta gate was restated so it no
+longer claims a bounded egress it does not have, and the reachability the paper
+called its remaining work is the
+`GET /api/spaces/{space_id}/task-runs/{task_run_id}/llm-calls` route.
+
+One was narrowed rather than answered. *Agent execution policy* asked who
+chooses a worker's execution boundary; what a run holds, runs inside, is bounded
+by, and records all became settled behaviour while it was open, leaving one
+question that belongs to an existing plan — it is now §3.9 of the [trust harness
+design](../../design/trust-harness.md), with the egress half it blocks.
+
+Git history holds all twelve papers.
+
+## Starting A Proposal
+
+Use a semantic filename. Start from the sections used by the existing papers:
+
+1. Problem and current context.
+2. Goals and non-goals.
+3. Options and trade-offs.
+4. Open questions and evidence needed for a decision.
+5. Likely destination if accepted.
+
+Add its row to [Open Proposals](#open-proposals), and keep the last column
+true as slices land. A reader who consults only the index and finds "Built so
+far" stale will conclude the wrong thing about the whole directory.
+
+When a question needs independently authored Agent positions, use a semantic
+directory with a `README.md` that owns the question and decision process, plus
+one explicitly attributed `<agent-name>-view.md` per contributor. Index only
+the directory's README here. Contributors do not edit one another's positions;
+a later synthesis preserves disagreements and moves accepted rationale into the
+normal design record.
+
+Do not create a proposal for a focused bug, a documentation correction, or an
+implementation task that already has acceptance criteria. Use an Issue instead.
