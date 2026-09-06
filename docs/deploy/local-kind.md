@@ -2,9 +2,11 @@
 
 > **Audience:** contributors and operators · **Status:** beta
 >
-> Use this path for Kubernetes worker Jobs, RBAC, Ingress, MinIO, and manifest
-> changes. For ordinary server and Portal work, the faster
-> [Compose smoke](compose.md) covers the same product flow.
+> Use this path for Kubernetes worker Jobs, RBAC, Ingress, MinIO, manifests,
+> and substantive Portal or server changes whose behavior crosses the browser,
+> API, ingress, backing services, or worker execution. The faster
+> [Compose smoke](compose.md) remains useful for the inner loop, but does not
+> prove those Kubernetes boundaries.
 
 ## Requirements
 
@@ -115,14 +117,17 @@ reading the much longer `kind logs` output.
 Use an isolated cluster name when another contributor or task owns the default:
 
 ```bash
-BUILDMAX_KIND_CLUSTER=buildmax-my-change ./make kind up
-BUILDMAX_KIND_CLUSTER=buildmax-my-change ./make kind down
+BUILDMAX_KIND_CLUSTER=buildmax-my-change \
+BUILDMAX_KIND_PORTAL_PORT=18080 \
+BUILDMAX_KIND_TLS_PORT=18443 \
+  ./make kind up
 ```
 
-The cluster uses host ports `8080` and `8443`, and neither can be moved without
-editing `deployment/kind/kind-config.yaml`. Free `8080` before creating the
-cluster. The Compose stack publishes the Portal there too, so to run both at
-once, move that one:
+The default cluster uses host ports `8080` and `8443`. Set
+`BUILDMAX_KIND_PORTAL_PORT` and `BUILDMAX_KIND_TLS_PORT` with the cluster name to
+move them; pass the same three values to every later `kind` or `e2e kind`
+command for that cluster. The Compose stack publishes Portal on `8080` by
+default too, so either move the kind ports as above or move Compose:
 
 ```bash
 BUILDMAX_PORTAL_PORT=8081 ./make compose up
@@ -262,8 +267,9 @@ contracts:
 
 | Path | Worker | Storage | Best for |
 |---|---|---|---|
-| Compose | local process in the server container | shared local filesystem | API, Portal, scheduler, and most backend changes |
-| kind | one Kubernetes Job per TaskRun | MinIO shared by server and workers | Jobs, RBAC, Ingress, object storage, and manifests |
+| Compose | local process in the server container | shared local filesystem | Fast Portal and API iteration when deployment boundaries are unchanged |
+| kind | one Kubernetes Job per TaskRun | MinIO shared by server and workers | Substantive Portal/server integration, Jobs, RBAC, Ingress, object storage, and manifests |
 
-Keeping both makes the common contributor loop quick while preserving a real
-deployment check for the distributed path.
+Keeping both makes the inner loop quick without mistaking it for complete
+deployment evidence. Finish in kind whenever the claim crosses the browser,
+API, ingress, backing services, or worker execution.
