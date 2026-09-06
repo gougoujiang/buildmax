@@ -10,6 +10,11 @@ under **Help**. Everything a person needs to install, run, and drive BuildMax
 lives there, from the quickstart and core concepts to every CLI command;
 [`help/manifest.json`](../../help/manifest.json) is its table of contents.
 
+English is the source. [`help/zh/`](../../help/zh) mirrors it as a Simplified
+Chinese translation with the same slugs and its own `manifest.json`; the Help
+page offers an EN / 中文 switch. Keep the two in step — when you change an
+English page, update its `zh/` counterpart in the same pull request.
+
 `docs/` holds everything else, split by the question someone is trying to answer:
 
 | Directory | Reader | Contains |

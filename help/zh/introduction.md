@@ -1,0 +1,54 @@
+# 简介
+
+BuildMax 是一个开源的 AI Agent 运行时。你把它指向一个目录，它就会读取、搜索
+并编辑真实文件，运行真实的 shell 命令来完成你交代的工作 —— 可以在你自己的
+机器上，也可以在私有的团队部署中。
+
+## BuildMax 做什么
+
+在核心层面，BuildMax 运行一个循环：
+
+```text
+your prompt → the model → tool calls → run the tools → results back to the model → … → a reply
+```
+
+这些工具就是对你的文件和系统进行的普通操作 —— 读写文件、搜索代码库、运行命令、
+抓取一个 URL。因为 Agent 作用于真实目录而非副本，所以它可以调查一个项目、做出
+修改、运行测试，然后向你汇报。
+
+你自带模型。BuildMax 可以对接任何 OpenAI 兼容端点、OpenAI、Anthropic，或本地
+Ollama 安装，因此你既可以让它对接托管提供商，也可以完全运行在自己的硬件上。
+
+## 一个运行时，三种界面
+
+同一个 Agent、同一套工具、同样的行为，通过三种方式暴露出来：
+
+| Surface | What it is | Best for |
+|---|---|---|
+| **CLI / TUI** | `buildmax` 命令 —— 一次性回答或交互式终端会话 | 在单个目录中的日常本地工作 |
+| **Desktop** | 一个界面更丰富的本地应用（从源码构建） | 用图形化工作台完成同样的本地工作 |
+| **Portal** | 一个由服务器和后台 worker 支撑的 Web 应用 | 面向团队：共享工作、后台运行与结果 |
+
+你可以只使用本地界面、只部署 Portal，或者两者都用。它们之间的差异来自环境和
+权限，而非各自独立的 Agent 实现。
+
+## 两种运行方式
+
+- **本地工作台。** CLI/TUI 或 Desktop 在一台机器的某个目录中运行 Agent。无需
+  其他任何东西 —— 安装二进制文件，指向一个提供商，即可开始。
+- **Space 平台。** 服务器、[Portal](portal-overview.md) 和 worker 为私有部署
+  增加了共享工作、后台执行、托管模型、已保存的结果以及治理能力。
+
+## 关于成熟度的说明
+
+BuildMax 处于 Alpha 阶段。本地 Agent 如今已广泛可用；团队平台在某些方面比其他
+方面更成熟。在你依赖某项能力之前，请查阅
+[支持的平台与状态](support.md)，它明确说明了哪些已支持、哪些处于 beta、哪些
+尚未构建。
+
+## 从哪里开始
+
+- 新手且想在本地试用：[安装 BuildMax](install.md)，然后是
+  [快速开始](quickstart.md)。
+- 想先建立心智模型：[核心概念](concepts.md)。
+- 通过浏览器使用团队部署：[Portal 概览](portal-overview.md)。

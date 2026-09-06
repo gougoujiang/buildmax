@@ -1,0 +1,148 @@
+# 工具
+
+工具是把一个语言模型变成 Agent 的东西。每次运行都得到同一套内置工具；
+MCP 服务器、技能和子 Agent 在此之上增补。
+
+工具名是你在钩子 `matcher` 中所写的东西，也是出现在 `/tools` 里的东西，
+所以值得准确知道它们。
+
+## 内置工具
+
+| 名称 | 作用 | 关键参数 |
+|---|---|---|
+| `Read` | 读取一个文件，带行号 | `file_path`、`offset`、`limit`（默认 1000 行） |
+| `Write` | 创建或覆盖一个文件，并创建父目录 | `file_path`、`content` |
+| `Edit` | 在一个文件中做精确字符串替换 | `file_path`、`old_string`、`new_string`、`replace_all` |
+| `Glob` | 列出匹配某模式的文件，最新的在前 | `pattern`、`path` |
+| `Grep` | 对文件内容做正则搜索 | `pattern`、`path`、`glob`、`type`、`output_mode`、`before_context`、`after_context`、`context`、`case_insensitive`、`line_numbers`、`multiline`、`head_limit`、`offset` |
+| `Bash` | 在工作区中运行一条 shell 命令 | `command`、`timeout`（毫秒；默认 120000，最大 600000）、`dangerously_disable_sandbox`、`run_in_background` 和 `deliver_result`（TUI 和 Desktop） |
+| `WebFetch` | 把一个 URL 抓取为 markdown，可选由模型概括 | `url`、`prompt` |
+| `TodoWrite` | 跟踪多步骤进度 | `todos[]`，形如 `{content, status, active_form}` |
+| `NoteWrite` | 保留能在压缩中存活的持久笔记 | `notes[]`，字符串数组 |
+| `Skill` | 加载一个技能的指令 | `skill`、`args` |
+| `Task` | 委派给一个子 Agent | `description`、`prompt`、`subagent_type`、`run_in_background` 和 `deliver_result`（TUI 和 Desktop）、`worktree`（TUI） |
+| `UploadArtifact` | 把一个已完成的文件发布为持久制品 | `path`、`title`、`purpose`、`share` |
+| `JobList` | 列出后台作业：ID、种类、状态、时长、命令 | — |
+| `JobOutput` | 增量读取一个后台作业的状态和输出 | `job_id`、`stream`、`cursor` |
+| `JobStop` | 停止一个后台作业（杀掉整个进程树） | `job_id` |
+| `Monitor` | 监视日志、文件或 CI：每一行 stdout 成为一个有界事件 | `command`、`description`、`timeout`、`persistent`、`react` |
+| `Worktree` | 创建、进入、离开、列出或移除一个 Git 工作树，并把会话移入其中 | `action`、`name`、`path`、`discard_changes` |
+| `LoadMcpTools` / `CallMcpTool` | 发现并调用 MCP 服务器工具 | 见 [MCP](mcp.md) |
+
+在 TUI 中运行 `/tools` 查看当前运行处于活动状态的那套工具——它随所配置的东西而变化。
+
+`UploadArtifact` 是唯一并非总是存在的内置工具。它需要一个 BuildMax 服务器来发布，
+所以当你已登入（`buildmax login`）以及当一个 worker 为某个 Space 运行任务时它才出现。
+一个直接对着模型提供商运行的本地会话没有制品存储，与其提供一个只会失败的工具，
+不如不把它给 Agent——它继续把文件写在它本来就在写的地方。
+
+`Job` 工具和 `Monitor` 遵循同样的规则。后台作业需要一个存活的交互式进程来拥有它们，
+所以 `Bash` 和 `Task` 上的 `run_in_background`、`Monitor`，以及三个 `Job` 工具只存在于
+TUI 和 Desktop 中——不在打印模式（`buildmax -p`）、评估或 worker 运行中，也绝不在子 Agent 内部。
+`Monitor` 在与 Bash 完全相同的风险、权限和沙箱规则下运行它的命令；它的输出行会被限速、被截断、
+并作为不可信的观察结果交付，被丢弃的行会被计数而不是被悄悄丢掉。
+后台运行改变的是一次调用何时返回，而不是它被允许做什么：权限检查在作业分离之前运行，
+一个会需要审批的后台子 Agent 会被拒绝，与一个前台子 Agent 完全一样。一个后台作业与对话共享工作区——
+避免委派会与你相竞争的编辑——退出应用程序会停止它启动的每一个作业。
+一个后台子 Agent 的最终回复在它完成时出现在 `JobOutput` 中。
+
+## 工作树
+
+在对话中要一个——“open a worktree and do the refactor there”——
+Agent 就会创建它、移入其中并在那里工作。之后什么都不需要路径前缀：
+`Read`、`Edit`、`Grep` 和 `Bash` 全都在工作树内部解析，`/diff` 显示那棵树，页脚显示你在哪一棵里。
+从中提交和推送就是普通的 Bash。
+
+工作树存放在 `.buildmax/worktrees/<name>`，在一个 `worktree/<name>` 分支上，从当前 `HEAD` 创建。
+该目录通过你克隆的 `.git/info/exclude` 被排除，所以它从不出现在 `git status` 里，你的 `.gitignore` 也被留在原处。
+未提交的改动不会一起过来——Agent 会列出留在后面的东西而不是把它挪过去，
+因为一个 stash 是与仓库中其他每个会话共享的。
+
+工作区决定的一切都随你移动：工作树自己的 `<workspace>/.buildmax/hooks.yaml`、
+它的技能和子 Agent 定义、它的 MCP 服务器，以及它的 `AGENTS.md` 都在会话进入时生效，
+而你来自的那棵树停止适用。
+
+有些东西是有意不自动的：
+
+- **创建和进入不提示**；移除会提示，而移除一个持有未提交文件或持有没有其他分支能到达的提交的工作树，
+  会被彻底拒绝，除非你说这些工作可以被丢弃。
+- **从不为你删除任何东西**——不在会话结束时，也不在之后为一个崩溃的会话留下的工作树而删。
+  用带 `action: "list"` 的 `Worktree` 查看存在哪些，并移除你不再想要的。
+- **两个会话不能共享一个工作树。** 一棵另一个存活会话正在其中工作的树会被拒绝，并指明谁持有它；
+  当那个进程退出时（无论它如何退出）锁就被释放，所以不会有东西因为一个已死的会话而一直被挡住。
+
+一个委派对象也可以有一个。把 `worktree` 传给 `Task`，子 Agent 就在一个那个名字的工作树中运行，
+其工具以那里为根，而你的会话留在原地。没有什么强制它——Agent 按每次委派自行决定，
+对于只读的探索，共享工作区是更廉价的答案，因为那棵树之后会像其他任何一棵一样被留在磁盘上。
+回复会说明委派对象的改动在哪里。
+
+和 `Job` 工具一样，`Worktree` 是一项 TUI 能力：打印模式、评估和 worker 运行都得不到它，
+子 Agent 也得不到，它们在其运行期间共享父 Agent 的根。`buildmax --workspace <dir>` 仍然能在你喜欢的任何地方启动一个会话，
+包括在一个你自己做的工作树中。
+
+当 Agent 一次请求多个工具时，只读的那些同时运行：`Read`、`Glob`、`Grep`、`Skill`、`WebFetch`，
+以及一个交给只读子 Agent（如 `explore`）的 `Task`。任何会改变某些东西的工具单独按顺序运行，
+所以一个批次无论如何调度都做同一件事。用 `agent.max_parallel_tools` 来调它。
+
+## 值得知道的行为
+
+**`Edit` 在有歧义时高声失败。** 如果 `old_string` 匹配多于一次而 `replace_all` 未设置，
+编辑会被拒绝而不是去猜。给它更多周围上下文。
+
+**`Grep` 有三种输出模式。** `content` 返回带上下文的匹配行，`files_with_matches` 只返回路径，
+`count` 返回计数。模型通常选得不错，但这些模式正是 grep 结果有时在不同运行之间看起来不同的原因。
+
+**`Bash` 输出在 30 000 个字符处被截断**，并合并 stdout 和 stderr。
+一条产生多于此的命令应被重定向到一个文件，Agent 随后分范围读取它。
+
+**`WebFetch` 缓存 15 分钟**，并把 HTML 转换为 markdown。在一次跨主机重定向时，
+它返回重定向 URL 而不是跟随它，所以由 Agent 决定是否抓取新主机。
+
+**`Read` 默认返回前 1000 行。** 大文件通过 `offset` 和 `limit` 分范围读取，而不是一次全部读入。
+
+**`NoteWrite` 和 `TodoWrite` 比对话历史活得更久。** 两者都是替换它们所存储的内容而不是往上添加，
+所以每次调用都携带完整列表。它们持有的东西在每个回合都展示给 Agent，且不属于消息历史，
+这意味着它在最终丢弃产生它的那些消息的压缩中存活下来。笔记被限制为 15 条、每条 200 个字符；
+更长的列表会被拒绝，并要求 Agent 合并它。一个从不写入其中任何一个的会话不携带任何额外的东西。
+
+**`UploadArtifact` 发布；它不保存。** 它把一个文件交给 Space，并返回一个不透明的引用，
+任何有访问权的人都能打开。内容是不可变的，所以一个更正后的版本是第二个制品，而不是对第一个的改动。
+Agent 选择文件：没有任何东西被自动上传，这正是让 `.env` 文件、缓存和中间输出不进入 Space 制品列表的原因。
+一个目标在工作区之外的符号链接会被拒绝，即便链接本身在工作区之内。
+运营者设置 `storage.max_artifact_mb`，即每文件上限。
+
+设 `share: true` 以同时创建一个公开链接，Agent 会收到它并能交给一个人：
+它无需 BuildMax 登入即可打开，并在 Portal 中渲染——一个 Markdown 文档作为带格式的文本，
+一个 HTML 文件作为一个实时页面。该链接可撤销并会过期。它需要部署设置了 `public_base_url`；
+没有它，文件仍会发布，而工具会报告无法创建链接。一个 Space 成员也能从制品的 Portal 页面创建或撤销一个链接。
+
+## 路径边界
+
+文件工具把每一个路径都相对于工作区根目录解析，并拒绝其外的任何东西。这个边界独立于沙箱——
+无论沙箱是否启用它都适用，并且它适用于 `Read`、`Write`、`Edit`、`Glob` 和 `Grep`。
+
+`UploadArtifact` 应用它两次：一次对你指定的路径，再一次对那个路径解析到的东西，
+所以一个在工作区内部的链接不能发布一个在其外部的文件。
+
+`Bash` 是例外：一条 shell 命令能到达进程所能到达的任何地方。这正是 [沙箱](sandbox.md) 的用途所在，
+也是为什么它只覆盖 `Bash`。
+
+## 失败即信息
+
+工具是为模型而写的，不是为终端。一次失败返回一条具体的消息——`path outside allowed root`、
+`file not found`、`old_string not found`——因为模型的下一步取决于是哪一条。
+当你看到 Agent 从一次糟糕的编辑中优雅地恢复时，原因就在于此。
+
+## 扩展这套工具
+
+| 机制 | 增补 | 指南 |
+|---|---|---|
+| MCP 服务器 | 来自任何 MCP 兼容服务的工具 | [MCP](mcp.md) |
+| 技能 | 指令，按需调用而非填满提示词 | [技能与子 Agent](skills-and-subagents.md) |
+| 子 Agent | 一个有自己工具子集和提示词的独立 Agent | [技能与子 Agent](skills-and-subagents.md) |
+
+## 相关
+
+- [工具权限](tool-permissions.md) — 这些工具中哪些在运行前会停下并询问
+- [钩子](hooks.md) — 用上面的名字按名门控工具调用
+- [沙箱](sandbox.md) — 约束 `Bash` 能到达什么
