@@ -1,5 +1,6 @@
 # TUI
 
+> **简体中文：** [阅读中文镜像](../../zh-CN/contribute/architecture/tui.md)
 > **Audience:** contributors · **Status:** current
 >
 > User-facing key and slash-command reference: [help/cli.md](../../../help/cli.md)

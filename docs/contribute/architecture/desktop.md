@@ -1,5 +1,6 @@
 # Desktop
 
+> **简体中文：** [阅读中文镜像](../../zh-CN/contribute/architecture/desktop.md)
 > **Audience:** contributors · **Status:** current
 >
 > Build and usage notes: [`cmd/buildmax-desktop/README.md`](../../../cmd/buildmax-desktop/README.md)

@@ -1,6 +1,7 @@
-# LLM Client
+# LLM 客户端
 
-> **简体中文：** [阅读中文镜像](../../zh-CN/contribute/architecture/llm-client.md)
+> **翻译说明：** 本文是[英文原文](../../../contribute/architecture/llm-client.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `a4b26b7e3794afde32f10ff93c4100e3c14dfb37ccc1a042f4d64d1befdd8f61`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **简体中文：** [阅读中文镜像](llm-client.md)
 > **Audience:** contributors · **Status:** current
 
 ## Purpose
@@ -33,8 +34,8 @@ classification — so four protocols cannot drift apart on them. An adapter
 performs one attempt and nothing else.
 
 Rationale and the phases beyond this one:
-[design/llm-provider-adapters.md](../../design/llm-provider-adapters.md) and
-[design/local-ollama-provider.md](../../design/local-ollama-provider.md).
+[design/llm-provider-adapters.md](../../../design/llm-provider-adapters.md) and
+[design/local-ollama-provider.md](../../../design/local-ollama-provider.md).
 
 ## The Contract It Implements
 

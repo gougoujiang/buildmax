@@ -1,6 +1,7 @@
 # Server
 
-> **简体中文：** [阅读中文镜像](../../zh-CN/contribute/architecture/server.md)
+> **翻译说明：** 本文是[英文原文](../../../contribute/architecture/server.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `7933c1935a8459c5581388cba5f6c07aa47c7e54fc40354b9e9bdba3ff27fc2f`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **简体中文：** [阅读中文镜像](server.md)
 > **Audience:** contributors · **Status:** current
 >
 > The live route list is the API's own `GET /openapi.json`, browsable at `/swagger/`.
@@ -33,7 +34,7 @@ is set the worker listener serves HTTPS (`ListenAndServeTLS`); the public
 listener never carries TLS because it terminates at the Ingress. The worker
 side builds one `workerclient` HTTP client from its configured trust and uses
 it for every call back, managed inference included. See
-[design/worker-api-network-boundary.md](../../design/worker-api-network-boundary.md).
+[design/worker-api-network-boundary.md](../../../design/worker-api-network-boundary.md).
 
 ## Key Areas
 
@@ -64,7 +65,7 @@ it for every call back, managed inference included. See
   — and `POST .../tasks/{task_id}/retry` — see "Retrying a run" — round out
   the set. `GET`/`POST .../agents/{agent_id}/tasks` are the Agent-nested
   convenience routes: same Task service, same resource. See
-  [agent execution and Task threads](../../design/agent-execution-and-task-threads.md)
+  [agent execution and Task threads](../../../design/agent-execution-and-task-threads.md)
 - Artifacts: `/api/artifacts/{artifact_id}` and `/content`, with
   `/api/spaces/{space_id}/artifacts` for the space's listing and upload, and
   `POST /api/artifacts` for a client that has a login but has not chosen a space
@@ -74,7 +75,7 @@ it for every call back, managed inference included. See
   they use `Guard.MemberOfResourceSpace` and answer a non-member with `404` — an
   artifact ID is an identifier, not a credential, and a `403` would make the route
   an oracle for which IDs exist. See
-  [../../design/unified-artifacts.md](../../design/unified-artifacts.md)
+  [../../design/unified-artifacts.md](../../../design/unified-artifacts.md)
 - Run outputs (the compatibility surface):
   `/api/spaces/{space_id}/task-runs/{task_run_id}/artifacts...`
 - Run trace: `/api/spaces/{space_id}/task-runs/{task_run_id}/trace`
@@ -85,7 +86,7 @@ it for every call back, managed inference included. See
 - Managed gateway (**not** space-scoped): `/api/llm/models` and
   `/api/llm/completions`. Every catalog model is available to every signed-in
   user, and a call is attributed to the person who made it. See
-  [../../design/client-modes.md](../../design/client-modes.md)
+  [../../design/client-modes.md](../../../design/client-modes.md)
 - Usage: `/api/usage`, `/api/spaces/{space_id}/usage`
 - Audit trail (owner only): `/api/spaces/{space_id}/audit-events`, and
   `/audit-events/export` for the whole trail as CSV or JSONL. The export is
@@ -119,7 +120,7 @@ conversation, and runs as its own turn afterwards. WebSocket clients see
 starts; `conversation.message.completed` carries `queued_remaining`. Past the cap
 the message is refused with `conversation.error` carrying `code: "queue_full"`
 (HTTP: `429`), which does not end the turn in flight. Queues are in memory. See
-[Queued messages](../../design/queued-messages.md).
+[Queued messages](../../../design/queued-messages.md).
 
 ## Where A Run Came From
 
@@ -152,7 +153,7 @@ Conversation to be readable — a direct Agent Task has no Conversation at all.
 An earlier design routed every finished run through a Tier 1 turn and a
 durable `task_result_delivery` retry queue so a Conversation always received a
 summary sentence; that forced path has been removed. See
-[agent execution and Task threads](../../design/agent-execution-and-task-threads.md).
+[agent execution and Task threads](../../../design/agent-execution-and-task-threads.md).
 
 ## Cancelling A Run
 
@@ -216,7 +217,7 @@ quota applies to it identically.
   than user JWT auth. The token carries the user, space, task, and run, and every
   route derives its resource scope from those claims. It is the only credential
   those routes accept: the old shared worker token has been removed — see
-  [design/worker-run-token.md](../../design/worker-run-token.md).
+  [design/worker-run-token.md](../../../design/worker-run-token.md).
 - Signing in returns two credentials. The access token is a signed JWT the
   server does not store; the refresh token is a `user_refresh_token` row, which
   is what makes a session revocable. `internal/service/identity` owns the
@@ -230,5 +231,5 @@ quota applies to it identically.
 - `POST /api/login` accepts a password or an operator-issued, single-use login
   code. The latter is the account-claim and recovery path because BuildMax has
   no mail channel — see
-  [deploy/authentication.md](../../deploy/authentication.md).
+  [deploy/authentication.md](../../../deploy/authentication.md).
 - See also: [Store](store.md), [Portal](portal.md), [Boundaries](packages.md).

@@ -1,5 +1,6 @@
 # Choose A Contribution Area
 
+> **简体中文：** [阅读中文镜像](../zh-CN/contribute/areas.md)
 > **Audience:** contributors · **Status:** current
 >
 > BuildMax is an open-source Agent runtime for both local work and private space

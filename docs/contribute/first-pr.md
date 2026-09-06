@@ -1,5 +1,6 @@
 # Your First Pull Request
 
+> **简体中文：** [阅读中文镜像](../zh-CN/contribute/first-pr.md)
 > **Audience:** new contributors · **Status:** current
 
 The shortest complete path from a clone to an open pull request. It needs Go and

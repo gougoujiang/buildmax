@@ -1,12 +1,13 @@
-# Session
+# 会话
 
-> **简体中文：** [阅读中文镜像](../../zh-CN/contribute/architecture/session.md)
+> **翻译说明：** 本文是[英文原文](../../../contribute/architecture/session.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `2b1d7847649334387aec9053c714c64532bff04c49aca0270b1357638bc56940`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **简体中文：** [阅读中文镜像](session.md)
 > **Audience:** contributors · **Status:** current
 >
-> User-facing view: [help/sessions-and-traces.md](../../../help/sessions-and-traces.md)
+> User-facing view: [help/sessions-and-traces.md](../../../../help/sessions-and-traces.md)
 >
 > Rationale and the full record contract:
-> [design/local-session-storage.md](../../design/local-session-storage.md)
+> [design/local-session-storage.md](../../../design/local-session-storage.md)
 
 ## Purpose
 
@@ -60,7 +61,7 @@ the format grow without older readers either mis-reducing a conversation or
 refusing every session containing something new.
 
 The type vocabulary and each payload are listed in
-[design §6.3](../../design/local-session-storage.md); the two that matter most
+[design §6.3](../../../design/local-session-storage.md); the two that matter most
 here are `tool_execution_started` and `tool_result`. The first is written — and
 synced — *before* a tool runs, which is the only way an interrupted run can tell
 a call that never started from one that may already have changed the world.

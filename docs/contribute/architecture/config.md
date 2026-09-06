@@ -1,5 +1,6 @@
 # Configuration
 
+> **简体中文：** [阅读中文镜像](../../zh-CN/contribute/architecture/config.md)
 > **Audience:** contributors · **Status:** current
 >
 > User-facing field reference:

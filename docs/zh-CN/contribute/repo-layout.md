@@ -1,6 +1,7 @@
-# Repository Layout
+# 仓库布局
 
-> **简体中文：** [阅读中文镜像](../zh-CN/contribute/repo-layout.md)
+> **翻译说明：** 本文是[英文原文](../../contribute/repo-layout.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `049b151aee8721f0f2d82f3c09aeb08441158632f617694ebbbcd26c9a1f2502`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **简体中文：** [阅读中文镜像](repo-layout.md)
 > **Audience:** contributors · **Status:** current
 >
 > **This file is the single source of truth for the repository tree.** README,
@@ -51,7 +52,7 @@ one binary:
 | Path | Contents |
 |---|---|
 | `deployment/docker/` | `Dockerfile.buildmax` (Go binaries from source), `Dockerfile.portal` (Portal via nginx), `Dockerfile.release` (packages GoReleaser's cross-compiled binaries). All three take the **repository root** as their build context. |
-| `deployment/compose/` | Single-machine Compose stack — a **real deployment path**, running published GHCR images; see [deploy/compose.md](../deploy/compose.md) |
+| `deployment/compose/` | Single-machine Compose stack — a **real deployment path**, running published GHCR images; see [deploy/compose.md](../../deploy/compose.md) |
 | `deployment/kind/` | Manifests that stand up the **local development** kind cluster — kind config, ingress-nginx, MySQL, MinIO. Never part of a real deployment; applied by `tools/mk/kind.go` behind `./make kind up`. |
 | `deployment/ocean/` | OpenTofu for the disposable DigitalOcean beta-qualification infrastructure. It reads the persistent Project, VPC, and Spaces bucket and owns only the temporary DOKS and MySQL resources behind `./make ocean`. |
 | `deployment/production/` | The private deployment reference: one plain-YAML manifest written to be read and adapted, plus the dependency contract it assumes. Deliberately not a chart or a kustomize base, so it converts to whatever a cluster is already managed with. Nothing applies it; `internal/architecture` parses it so it cannot rot |
@@ -60,7 +61,7 @@ one binary:
 
 `kind/` is still local test infrastructure, not a supported deployment path:
 the short name matches the `./make kind` command, while this table and
-[deploy/local-kind.md](../deploy/local-kind.md) define its scope. `compose/` is
+[deploy/local-kind.md](../../deploy/local-kind.md) define its scope. `compose/` is
 different because an operator is meant to run it — its audience is operators,
 `README.md` files it under "Running it for a space", and `compose.yaml` pulls
 `ghcr.io/gougoujiang/buildmax`. `smoke/` is test scaffolding shared by both
@@ -331,15 +332,15 @@ package, and not part of any `./make check` scope; the Go core and the CLI stay
 a single binary with no Python or Node. The Go files beside it pin the versions
 a result depends on and hold the Python to the trial-home shape
 `evaluation/adapter` writes. See
-[evaluation/harbor/README.md](../../evaluation/harbor/README.md).
+[evaluation/harbor/README.md](../../../evaluation/harbor/README.md).
 
 A trial bundle is a directory rather than a file: most of its evidence — the
 JSONL trace, workspace state, produced artifacts — is already files, and keeping
 one failure's evidence together is the reproduction path a failed trial owes a
 contributor. Bundles are written under `.artifacts/evaluation/` and are not
 committed. How to run either path, and what a task and a bundle hold, is in
-[evaluation/README.md](../../evaluation/README.md); the remaining ownership
-areas are in [design/evaluation-system.md](../design/evaluation-system.md).
+[evaluation/README.md](../../../evaluation/README.md); the remaining ownership
+areas are in [design/evaluation-system.md](../../design/evaluation-system.md).
 
 ## Dependency Direction
 
@@ -380,4 +381,4 @@ each app's own. Both run React 19.
 ## Related
 
 - [architecture/](architecture/README.md) — what each subsystem does
-- [CONTRIBUTING.md](../../CONTRIBUTING.md) — build, test, and run
+- [CONTRIBUTING.md](../../../CONTRIBUTING.md) — build, test, and run

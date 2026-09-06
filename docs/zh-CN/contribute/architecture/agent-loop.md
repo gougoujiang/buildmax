@@ -1,9 +1,10 @@
-# Agent Loop
+# Agent 循环
 
-> **简体中文：** [阅读中文镜像](../../zh-CN/contribute/architecture/agent-loop.md)
+> **翻译说明：** 本文是[英文原文](../../../contribute/architecture/agent-loop.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `a5b86f0332357f952945dbc8aeabf84e03f74d819f7ac02596243a7cef25ddbf`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **简体中文：** [阅读中文镜像](agent-loop.md)
 > **Audience:** contributors · **Status:** current
 >
-> User-facing view of the same loop: [help/concepts.md](../../../help/concepts.md)
+> User-facing view of the same loop: [help/concepts.md](../../../../help/concepts.md)
 
 ## Purpose
 
@@ -143,7 +144,7 @@ pairs it with `EventToolStart` by `ToolCallID`, never by arrival. Post hooks
 fire at the join in call order, because they are an audit surface and one that
 reorders under load is worse than one that arrives late.
 
-Design: [design/parallel-tool-execution.md](../../design/parallel-tool-execution.md).
+Design: [design/parallel-tool-execution.md](../../../design/parallel-tool-execution.md).
 
 ### Gates
 
@@ -165,7 +166,7 @@ must react to.
 ### Permission resolution
 
 `resolveAction` walks five layers, first decision wins. Rationale and the
-per-tool table: [design/tool-permissions.md](../../design/tool-permissions.md).
+per-tool table: [design/tool-permissions.md](../../../design/tool-permissions.md).
 
 | # | Layer | Source |
 |---|---|---|
@@ -203,7 +204,7 @@ When `EventSink` is set the loop emits structured events — `EventIterStart`,
 goroutine and must not block**. Nil sink means zero overhead.
 
 This is the single seam the TUI, `--output jsonl`, and the durable run trace all
-hang off. See the [durable run trace design](../../design/durable-run-trace.md).
+hang off. See the [durable run trace design](../../../design/durable-run-trace.md).
 
 ## Cancellation
 
@@ -224,4 +225,4 @@ Exceeding `MaxIter` is different — that returns an error.
 - [tools.md](tools.md) — the registry and the tool implementations
 - [llm-client.md](llm-client.md) — the client behind `llm.LLMClient`
 - [session.md](session.md) — the local `MessageHistory` implementation
-- [help/hooks.md](../../../help/hooks.md) — the hook contract from the outside
+- [help/hooks.md](../../../../help/hooks.md) — the hook contract from the outside
