@@ -6,7 +6,7 @@ import { AgentAvatar, UserAvatar } from "../../components/UserAvatar"
 import { useApp } from "../../contexts/AppContext"
 import { useAuth } from "../../contexts/AuthContext"
 import { useSpace } from "../../contexts/SpaceContext"
-import { cancelTask, continueTask, getTask, getTaskRuns, retryTask } from "../../features/tasks"
+import { cancelTask, continueTask, getTask, getTaskRuns, retryTask, streamTaskOutput } from "../../features/tasks"
 import { getAgent } from "../../features/agents"
 import { RunTraceModal } from "../../features/runs"
 import { TaskFilesModal } from "../../features/conversations"
@@ -67,6 +67,7 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [traceRunId, setTraceRunId] = useState<string | null>(null)
   const [filesRunId, setFilesRunId] = useState<string | null>(null)
+  const [streamingText, setStreamingText] = useState("")
 
   const load = useCallback(async () => {
     if (!token || !currentSpaceId) return
@@ -96,6 +97,36 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
     const timer = window.setInterval(() => void load(), 1500)
     return () => window.clearInterval(timer)
   }, [load, running])
+
+  // Live output for the in-flight run over SSE, layered on top of the poll,
+  // which owns run lifecycle and status. The stream carries only output deltas,
+  // a `done` sentinel, and a `draining` event; on any of those or an error the
+  // page reloads for the terminal record and the poll carries on. The stream is
+  // best-effort liveness, never the source of truth.
+  useEffect(() => {
+    if (!token || !currentSpaceId || !running) return
+    const ac = new AbortController()
+    setStreamingText("")
+    void streamTaskOutput(
+      currentSpaceId,
+      taskId,
+      token,
+      {
+        onDelta: (delta) => setStreamingText((text) => text + delta),
+        onDone: () => {
+          setStreamingText("")
+          void load()
+        },
+        onDraining: () => {
+          setStreamingText("")
+          void load()
+        },
+        onError: () => setStreamingText(""),
+      },
+      { signal: ac.signal }
+    )
+    return () => ac.abort()
+  }, [token, currentSpaceId, taskId, running, load])
 
   useEffect(() => {
     historyRef.current?.scrollTo({ top: historyRef.current.scrollHeight, behavior: "smooth" })
@@ -176,7 +207,13 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
               <Markdown remarkPlugins={[remarkGfm]}>{run.output}</Markdown>
             </div>
           ) : active ? (
-            <TypingDots />
+            streamingText ? (
+              <div className="page-chat__msg-content page-chat__markdown">
+                <Markdown remarkPlugins={[remarkGfm]}>{streamingText}</Markdown>
+              </div>
+            ) : (
+              <TypingDots />
+            )
           ) : run.error_message ? (
             <p className="bm-chat-thread__text bm-chat-thread__text--muted">{run.error_message}</p>
           ) : (
@@ -185,7 +222,7 @@ export function TaskDetail({ token, taskId }: TaskDetailProps) {
         },
       ]
     })
-  }, [runs, user])
+  }, [runs, user, streamingText])
 
   async function handleContinue() {
     const message = input.trim()

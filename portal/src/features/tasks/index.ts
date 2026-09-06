@@ -8,6 +8,7 @@ export {
   getTasks,
   getTasksPaginated,
   retryTask,
+  streamTaskOutput,
 } from "./api"
 export type {
   GetTasksPaginatedOptions,

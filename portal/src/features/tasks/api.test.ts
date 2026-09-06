@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { cancelTask, retryTask } from "./api"
+import { cancelTask, retryTask, streamTaskOutput } from "./api"
 import { taskIsRetryable, taskIsStoppable } from "../../lib/taskStatus"
 
 function jsonResponse(status: number, body: unknown): Response {
@@ -106,5 +106,72 @@ describe("taskIsStoppable", () => {
     expect(taskIsStoppable("success")).toBe(false)
     expect(taskIsStoppable("failed")).toBe(false)
     expect(taskIsStoppable("canceled")).toBe(false)
+  })
+})
+
+function sseResponse(frames: string[]): Response {
+  const encoder = new TextEncoder()
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const frame of frames) controller.enqueue(encoder.encode(frame))
+      controller.close()
+    },
+  })
+  return new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } })
+}
+
+describe("streamTaskOutput", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it("delivers output deltas then done from the task stream route", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      sseResponse(["data: hello\n\n", "data:  world\n\n", "data: done\n\n"]),
+    )
+    vi.stubGlobal("fetch", fetchMock)
+
+    const deltas: string[] = []
+    let done = false
+    await streamTaskOutput("tm 1", "t1", "token-123", {
+      onDelta: (delta) => deltas.push(delta),
+      onDone: () => {
+        done = true
+      },
+      onError: (err) => {
+        throw err
+      },
+    })
+
+    expect(deltas.join("")).toBe("hello world")
+    expect(done).toBe(true)
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toContain("/api/spaces/tm%201/tasks/t1/stream")
+    expect((init.headers as Record<string, string>).Authorization).toBe("Bearer token-123")
+  })
+
+  // A draining instance is stopping while the run keeps going elsewhere, so the
+  // reader stops and the caller reloads rather than treating it as finished.
+  it("stops on the draining event without consuming later frames", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        sseResponse(["data: partial\n\n", "event: draining\ndata: \n\n", "data: more\n\n"]),
+      ),
+    )
+
+    const deltas: string[] = []
+    let draining = false
+    await streamTaskOutput("tm1", "t1", "tok", {
+      onDelta: (delta) => deltas.push(delta),
+      onDone: () => {},
+      onError: () => {},
+      onDraining: () => {
+        draining = true
+      },
+    })
+
+    expect(draining).toBe(true)
+    expect(deltas).toEqual(["partial"])
   })
 })
