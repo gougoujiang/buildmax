@@ -77,24 +77,6 @@ func (s *S3PersistStorage) GetRunGlobal(ctx context.Context, ref RunObjectRef) (
 	return s.client.GetObject(ctx, s.bucket, key)
 }
 
-// PutRunArtifacts writes one file under the task run artifacts key space (prefix/.../tasks/taskID/taskRunID/artifacts/relPath).
-func (s *S3PersistStorage) PutRunArtifacts(ctx context.Context, ref RunObjectRef, r io.Reader) error {
-	key, err := RunArtifactsObjectKey(s.prefix, ref.SpaceID, ref.TaskID, ref.TaskRunID, ref.RelPath)
-	if err != nil {
-		return err
-	}
-	return s.client.PutObject(ctx, s.bucket, key, r)
-}
-
-// GetRunArtifacts reads one file from the task run artifacts key space. Returns apierr.ErrNotFound if the object does not exist.
-func (s *S3PersistStorage) GetRunArtifacts(ctx context.Context, ref RunObjectRef) ([]byte, error) {
-	key, err := RunArtifactsObjectKey(s.prefix, ref.SpaceID, ref.TaskID, ref.TaskRunID, ref.RelPath)
-	if err != nil {
-		return nil, err
-	}
-	return s.client.GetObject(ctx, s.bucket, key)
-}
-
 // MaterializeToDir downloads all persistent files into dstDir.
 func (s *S3PersistStorage) MaterializeToDir(ctx context.Context, spaceID string, dstDir string) error {
 	keys, err := s.ListFiles(ctx, spaceID)

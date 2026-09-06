@@ -62,7 +62,6 @@ export function ConversationDetailView({
             error={taskCards.busyTaskId === task.id ? taskCards.actionError : null}
             onStop={taskCards.stop}
             onRetry={taskCards.retry}
-            onOpenFiles={taskCards.openFiles}
             onOpenTrace={taskCards.openTrace}
             onOpenIssue={onOpenIssue}
           />

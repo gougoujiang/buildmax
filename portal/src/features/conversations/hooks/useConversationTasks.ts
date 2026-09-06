@@ -22,12 +22,9 @@ export interface ConversationTaskCards {
   /** The task whose stop or retry is in flight, if any. */
   busyTaskId: string | null
   actionError: string | null
-  filesRunId: string | null
   traceRunId: string | null
   stop: (taskId: string) => void
   retry: (taskId: string) => void
-  openFiles: (taskRunId: string) => void
-  closeFiles: () => void
   openTrace: (taskRunId: string) => void
   closeTrace: () => void
 }
@@ -60,7 +57,6 @@ export function useConversationTasks({
 
   const [busyTaskId, setBusyTaskId] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
-  const [filesRunId, setFilesRunId] = useState<string | null>(null)
   const [traceRunId, setTraceRunId] = useState<string | null>(null)
 
   const refetchRef = useRef(refetch)
@@ -69,7 +65,6 @@ export function useConversationTasks({
   useEffect(() => {
     setBusyTaskId(null)
     setActionError(null)
-    setFilesRunId(null)
     setTraceRunId(null)
   }, [conversationId])
 
@@ -125,12 +120,9 @@ export function useConversationTasks({
     tasksError,
     busyTaskId,
     actionError,
-    filesRunId,
     traceRunId,
     stop,
     retry,
-    openFiles: setFilesRunId,
-    closeFiles: () => setFilesRunId(null),
     openTrace: setTraceRunId,
     closeTrace: () => setTraceRunId(null),
   }

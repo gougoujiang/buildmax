@@ -40,7 +40,7 @@ func (h *Handler) getTaskRunTraceHandler(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	run, task, ok := h.getArtifactRunAndTaskForSpace(w, r, spaceID, taskRunID)
+	run, task, ok := h.runAndTaskForSpace(w, r, spaceID, taskRunID)
 	if !ok {
 		return
 	}

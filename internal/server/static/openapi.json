@@ -129,23 +129,6 @@
           "created_at": { "type": "string", "format": "date-time" }
         }
       },
-      "Artifact": {
-        "type": "object",
-        "properties": {
-          "task_run_id": { "type": "string" },
-          "task_id": { "type": "string" },
-          "conversation_id": { "type": "string" },
-          "user_id": { "type": "string" },
-          "created_at": { "type": "string", "format": "date-time" },
-          "task_input_snippet": { "type": "string" }
-        }
-      },
-      "ArtifactItem": {
-        "type": "object",
-        "properties": {
-          "relative_path": { "type": "string" }
-        }
-      },
       "FileNode": {
         "type": "object",
         "properties": {
@@ -562,8 +545,7 @@
                 "error_message": {"type": "string"},
                 "agent_id": {"type": "string"},
                 "issue_id": {"type": "string"},
-                "last_run_id": {"type": "string"},
-                "artifact_run_ids": {"type": "array", "items": {"type": "string"}}
+                "last_run_id": {"type": "string"}
               },
               "required": ["id", "conversation_id", "status", "input", "created_by", "created_at"]
             }
@@ -574,13 +556,10 @@
               "id": {"type": "string"},
               "title": {"type": "string"},
               "kind": {"type": "string"},
-              "relative_path": {"type": "string"},
               "artifact_id": {"type": "string"},
               "filename": {"type": "string"},
               "media_type": {"type": "string"},
               "size_bytes": {"type": "integer"},
-              "preview": {"type": "string"},
-              "preview_truncated": {"type": "boolean"},
               "source": {
                 "type": "object",
                 "properties": {
@@ -596,7 +575,7 @@
               },
               "created_at": {"type": "string", "format": "date-time"}
             },
-            "required": ["id", "title", "kind", "preview_truncated", "source", "created_at"]
+            "required": ["id", "title", "kind", "artifact_id", "source", "created_at"]
           },
           "outputs": {
             "type": "array",
@@ -606,13 +585,10 @@
                 "id": {"type": "string"},
                 "title": {"type": "string"},
                 "kind": {"type": "string"},
-                "relative_path": {"type": "string"},
                 "artifact_id": {"type": "string"},
                 "filename": {"type": "string"},
                 "media_type": {"type": "string"},
                 "size_bytes": {"type": "integer"},
-                "preview": {"type": "string"},
-                "preview_truncated": {"type": "boolean"},
                 "source": {
                   "type": "object",
                   "properties": {
@@ -628,7 +604,7 @@
                 },
                 "created_at": {"type": "string", "format": "date-time"}
               },
-              "required": ["id", "title", "kind", "preview_truncated", "source", "created_at"]
+              "required": ["id", "title", "kind", "artifact_id", "source", "created_at"]
             }
           },
           "total": {"type": "integer"}
@@ -1973,72 +1949,6 @@
         "security": [{ "bearerAuth": [] }],
         "parameters": [
           { "name": "task_id", "in": "path", "required": true, "schema": { "type": "string" } }
-        ],
-        "responses": {
-          "200": { "description": "OK" }
-        }
-      }
-    },
-    "/api/spaces/{space_id}/tasks/{task_id}/artifacts": {
-      "parameters": [
-        {"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}
-      ],
-      "get": {
-        "summary": "List artifacts for a task",
-        "security": [{ "bearerAuth": [] }],
-        "parameters": [
-          { "name": "task_id", "in": "path", "required": true, "schema": { "type": "string" } }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": { "$ref": "#/components/schemas/Artifact" }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/spaces/{space_id}/task-runs/{task_run_id}/artifacts/items": {
-      "parameters": [
-        {"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}
-      ],
-      "get": {
-        "summary": "List artifact files for a task run",
-        "security": [{ "bearerAuth": [] }],
-        "parameters": [
-          { "name": "task_run_id", "in": "path", "required": true, "schema": { "type": "string" } }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": { "$ref": "#/components/schemas/ArtifactItem" }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/spaces/{space_id}/task-runs/{task_run_id}/artifacts/content": {
-      "parameters": [
-        {"name": "space_id", "in": "path", "required": true, "schema": {"type": "string"}}
-      ],
-      "get": {
-        "summary": "Get artifact file content",
-        "security": [{ "bearerAuth": [] }],
-        "parameters": [
-          { "name": "task_run_id", "in": "path", "required": true, "schema": { "type": "string" } },
-          { "name": "path", "in": "query", "required": false, "schema": { "type": "string" } }
         ],
         "responses": {
           "200": { "description": "OK" }

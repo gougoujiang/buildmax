@@ -192,28 +192,18 @@ func (h *Handler) handlePatchRunning(w http.ResponseWriter, r *http.Request, tas
 }
 
 func (h *Handler) handlePatchTerminalStatus(w http.ResponseWriter, r *http.Request, taskRunID string, req *workerclient.PatchTaskRunRequest) bool {
-	relativePaths := []string(nil)
-	if req.Artifact != nil {
-		relativePaths = req.Artifact.RelativePaths
-		// An artifact field with no paths still means the run produced its
-		// result file; the worker names the others.
-		if len(relativePaths) == 0 {
-			relativePaths = []string{"result.md"}
-		}
-	}
 	updated, err := h.cfg.TaskRuns.TransitionTaskRun(r.Context(), coretask.TransitionRunInput{
-		TaskRunID:             taskRunID,
-		ExpectedStatus:        coretask.RunStatusRunning,
-		NewStatus:             coretask.RunStatus(req.Status),
-		StartedAt:             req.StartedAt,
-		EndedAt:               req.EndedAt,
-		Output:                req.Output,
-		ErrorMessage:          req.ErrorMessage,
-		SessionID:             req.SessionID,
-		PromptTokens:          req.PromptTokens,
-		CompletionTokens:      req.CompletionTokens,
-		TracePath:             req.TracePath,
-		ArtifactRelativePaths: relativePaths,
+		TaskRunID:        taskRunID,
+		ExpectedStatus:   coretask.RunStatusRunning,
+		NewStatus:        coretask.RunStatus(req.Status),
+		StartedAt:        req.StartedAt,
+		EndedAt:          req.EndedAt,
+		Output:           req.Output,
+		ErrorMessage:     req.ErrorMessage,
+		SessionID:        req.SessionID,
+		PromptTokens:     req.PromptTokens,
+		CompletionTokens: req.CompletionTokens,
+		TracePath:        req.TracePath,
 	})
 	if err != nil {
 		httputil.WriteInternalError(w, err, "worker handler error", "handler", "patch_worker_task_run", "task_run_id", taskRunID)

@@ -335,14 +335,13 @@ func openStore(ctx context.Context, db_ config.ServerDBConfig) (*db.Store, error
 
 // blobStorage is what one deployment stores and where.
 //
-// The four are separate key spaces rather than one bucket with four names: a
-// space's mutable home, the reproducible output a run leaves, the durable
-// artifacts the space keeps, and plugin packages.
+// The three are separate key spaces rather than one bucket with three names: a
+// space's mutable home, the durable artifacts the space keeps, and plugin
+// packages.
 type blobStorage struct {
-	persist   blob.PersistStorage
-	runOutput blob.RunOutputStorage
-	artifact  artifactsvc.ContentStore
-	packages  pluginsvc.PackageStore
+	persist  blob.PersistStorage
+	artifact artifactsvc.ContentStore
+	packages pluginsvc.PackageStore
 	// packageKeyPrefix scopes package keys inside whichever backend holds them.
 	packageKeyPrefix string
 }
@@ -360,15 +359,7 @@ func buildBlobStorage(ctx context.Context, sc config.ServerStorageConfig, worksp
 	if err != nil {
 		return blobStorage{}, fmt.Errorf("persist storage: %w", err)
 	}
-	runOutputRoot := func(spaceID, taskID, taskRunID string) string {
-		return config.RunOutputDir(workspacesDir, spaceID, taskID, taskRunID)
-	}
-	runOutputStorage, err := BuildRunOutputStorage(wsCfg, runOutputRoot, s3Client)
-	if err != nil {
-		return blobStorage{}, fmt.Errorf("run output storage: %w", err)
-	}
-	// Under "spaces" so it cannot collide with the run-output tree above or with
-	// a space's home directory.
+	// Under "spaces" so it cannot collide with a space's home directory.
 	artifactRoot := func(spaceID, artifactID string) string {
 		return filepath.Join(workspacesDir, "spaces", spaceID, "artifacts", artifactID)
 	}
@@ -379,7 +370,6 @@ func buildBlobStorage(ctx context.Context, sc config.ServerStorageConfig, worksp
 	packages, packagePrefix := BuildPluginPackageStorage(wsCfg, workspacesDir, s3Client)
 	return blobStorage{
 		persist:          persistStorage,
-		runOutput:        runOutputStorage,
 		artifact:         artifactStorage,
 		packages:         packages,
 		packageKeyPrefix: packagePrefix,
@@ -469,7 +459,6 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 			TaskStore:           st,
 			TaskRunStore:        st,
 			LLMCallStore:        st,
-			RunOutputLister:     st,
 			UserWebhookKeyStore: st,
 			AuditStore:          st,
 			SystemGrantStore:    st,
@@ -482,7 +471,6 @@ func buildHTTPServerConfig(port int, jwtSecret string, sc config.ServerConfig, w
 		Services: httpserver.ServicesConfig{Plugin: pluginService, Secret: secretService},
 		Storage: httpserver.StorageConfig{
 			PersistStorage:   storage.persist,
-			RunOutputStorage: storage.runOutput,
 			ArtifactStorage:  storage.artifact,
 			MaxArtifactBytes: int64(sc.Storage.MaxArtifactMB) << 20,
 			ArtifactShareTTL: time.Duration(sc.Storage.ArtifactShareTTLHours) * time.Hour,

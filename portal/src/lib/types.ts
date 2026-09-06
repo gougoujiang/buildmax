@@ -199,14 +199,11 @@ export interface IssueOutput {
   id: string
   title: string
   kind: string
-  relativePath?: string
-  /** Set when kind is "artifact": the whole address, no run needed. */
-  artifactId?: string
+  /** The artifact's whole address, no run needed. */
+  artifactId: string
   filename?: string
   mediaType?: string
   sizeBytes?: number
-  preview?: string
-  previewTruncated: boolean
   source: OutputSource
   createdAt: string
 }

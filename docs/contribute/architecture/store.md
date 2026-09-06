@@ -18,7 +18,7 @@ The active persistence model is space-scoped for shared work:
 - issue
 - agent / agent_revision
 - workflow / workflow_revision / workflow_run / workflow_step_run
-- task / task_run / task_run_artifact
+- task / task_run
 - artifact (durable space files; see data-model.md)
 - quota_tier
 - llm_model / llm_call
@@ -41,7 +41,7 @@ halves are answered from indexes without reading a row.
 | Shared contracts/entities | `internal/core/<domain>` | Shared structs and cross-service repository interfaces, one package per domain |
 | Consumer-owned ports | `internal/service/*` | Narrow persistence capabilities used by one orchestrator |
 | GORM implementation | `internal/infra/db` | MySQL-backed store implementing those interfaces |
-| Object storage | `internal/infra/objectstore` | Space home files, run output, and artifact content; local FS or S3/MinIO |
+| Object storage | `internal/infra/objectstore` | Space home files, run-scoped BUILDMAX_HOME state, and artifact content; local FS or S3/MinIO |
 
 ## The Translation Boundary
 

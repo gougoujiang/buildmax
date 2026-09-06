@@ -13,12 +13,6 @@ type RunObjectRef struct {
 	RelPath   string
 }
 
-type RunRef struct {
-	SpaceID   string
-	TaskID    string
-	TaskRunID string
-}
-
 // HomeStorage reads and writes persistent space home files (Put/Get/ListFiles/MaterializeToDir).
 // Key space: <prefix>/<spaceID>/home/<relPath>.
 type HomeStorage interface {
@@ -28,14 +22,12 @@ type HomeStorage interface {
 	MaterializeToDir(ctx context.Context, spaceID string, dstDir string) error
 }
 
-// RunStorage reads and writes run-scoped files: the task run global dir (BUILDMAX_HOME state)
-// and the task run artifacts dir. Key space: <spaceID>/tasks/<taskID>/<runID>/{global,artifacts}/.
+// RunStorage reads and writes the task run global dir (BUILDMAX_HOME state).
+// Key space: <spaceID>/tasks/<taskID>/<runID>/global/.
 // For local-FS deployments these files live on worker disk; all methods are no-ops or return apierr.ErrNotFound.
 type RunStorage interface {
 	PutRunGlobal(ctx context.Context, ref RunObjectRef, r io.Reader) error
 	GetRunGlobal(ctx context.Context, ref RunObjectRef) ([]byte, error)
-	PutRunArtifacts(ctx context.Context, ref RunObjectRef, r io.Reader) error
-	GetRunArtifacts(ctx context.Context, ref RunObjectRef) ([]byte, error)
 }
 
 // PersistStorage is the composite interface for components that need both home-file and
@@ -43,14 +35,4 @@ type RunStorage interface {
 type PersistStorage interface {
 	HomeStorage
 	RunStorage
-}
-
-// RunOutputStorage reads/writes run output files in the task run's space-owned
-// artifact namespace. One namespace exists per task run.
-// PutResult/GetResult are for result.md. PutRunOutputFile/GetRunOutputFile support multiple files per run.
-type RunOutputStorage interface {
-	PutResult(ctx context.Context, ref RunRef, data []byte) error
-	GetResult(ctx context.Context, ref RunRef) ([]byte, error)
-	PutRunOutputFile(ctx context.Context, ref RunObjectRef, r io.Reader) error
-	GetRunOutputFile(ctx context.Context, ref RunObjectRef) ([]byte, error)
 }

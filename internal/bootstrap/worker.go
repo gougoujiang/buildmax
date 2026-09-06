@@ -228,15 +228,6 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		slog.Error("failed to build persist storage", "err", err)
 		return fmt.Errorf("persist storage: %w", err)
 	}
-	runOutputRoot := func(spaceID, taskID, taskRunID string) string {
-		return config.RunOutputDir(workspacesDir, spaceID, taskID, taskRunID)
-	}
-	runOutputStorage, err := BuildRunOutputStorage(wsCfg, runOutputRoot, s3Client)
-	if err != nil {
-		slog.Error("failed to build run output storage", "err", err)
-		return fmt.Errorf("run output storage: %w", err)
-	}
-
 	paths := taskrun.NewRuntimePathsFromRoot(workspacesDir)
 	httpSender := &workerclient.WorkerHTTPStreamSender{BaseURL: serverURL, Token: runToken, Client: httpClient}
 	streamSender := &workerclient.DebouncedStreamSender{Inner: httpSender}
@@ -261,7 +252,6 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		SessionID:              sessionID,
 		Paths:                  paths,
 		Persist:                persistStorage,
-		RunOutputStorage:       runOutputStorage,
 		Updater:                updater,
 		StreamSender:           streamSender,
 		Model:                  runtimeModel,

@@ -292,21 +292,19 @@ type ClaimInput struct {
 }
 
 // TransitionRunInput atomically moves a run from ExpectedStatus to
-// NewStatus and projects the accepted state onto its task. Artifact paths, when
-// present, are registered in the same transaction as a terminal transition.
+// NewStatus and projects the accepted state onto its task.
 type TransitionRunInput struct {
-	TaskRunID             string
-	ExpectedStatus        RunStatus
-	NewStatus             RunStatus
-	StartedAt             *time.Time
-	EndedAt               *time.Time
-	Output                *string
-	ErrorMessage          *string
-	SessionID             *string
-	PromptTokens          *int
-	CompletionTokens      *int
-	TracePath             *string
-	ArtifactRelativePaths []string
+	TaskRunID        string
+	ExpectedStatus   RunStatus
+	NewStatus        RunStatus
+	StartedAt        *time.Time
+	EndedAt          *time.Time
+	Output           *string
+	ErrorMessage     *string
+	SessionID        *string
+	PromptTokens     *int
+	CompletionTokens *int
+	TracePath        *string
 }
 
 // Store provides task persistence. Tasks belong to a space and may optionally

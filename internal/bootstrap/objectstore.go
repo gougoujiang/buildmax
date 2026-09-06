@@ -95,20 +95,6 @@ func BuildArtifactStorage(cfg config.WorkspaceStorageConfig, artifactDir func(sp
 	}
 }
 
-// BuildRunOutputStorage returns the configured run-output storage implementation.
-// runOutputDir is (spaceID, taskID, taskRunID) -> path for run output files.
-func BuildRunOutputStorage(cfg config.WorkspaceStorageConfig, runOutputDir func(spaceID, taskID, taskRunID string) string, s3Client blob.S3Client) (blob.RunOutputStorage, error) {
-	switch cfg.ArtifactProvider {
-	case config.ProviderMinIO:
-		if s3Client == nil {
-			return nil, fmt.Errorf("artifact storage is minio but S3 client is nil")
-		}
-		return blob.NewS3RunOutputStorage(s3Client, cfg.Bucket, cfg.Prefix), nil
-	default:
-		return blob.NewLocalFSRunOutputStorage(runOutputDir), nil
-	}
-}
-
 // PluginPackagesDirName is where a deployment with no object store keeps
 // published packages. It is dot-prefixed so it cannot be mistaken for a space's
 // workspace directory, which is what every other entry under workspaces_dir is.

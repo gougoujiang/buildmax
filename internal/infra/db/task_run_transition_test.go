@@ -67,7 +67,6 @@ func TestTransitionTaskRunDoesNotOverwriteACommittedOutcome(t *testing.T) {
 	transition(coretask.RunStatusRunning, coretask.RunStatusSucceeded, func(in *coretask.TransitionRunInput) {
 		in.EndedAt = &endedAt
 		in.Output = &output
-		in.ArtifactRelativePaths = []string{"result.md"}
 	})
 
 	staleMessage := "stale reaper outcome"
@@ -98,12 +97,5 @@ func TestTransitionTaskRunDoesNotOverwriteACommittedOutcome(t *testing.T) {
 	}
 	if storedTask == nil || storedTask.Status != string(coretask.RunStatusSucceeded) || storedTask.Output == nil || *storedTask.Output != output {
 		t.Fatalf("stored task = %+v, want the same successful outcome", storedTask)
-	}
-	artifacts, err := s.GetTaskRunOutputFiles(ctx, runID)
-	if err != nil {
-		t.Fatalf("GetTaskRunOutputFiles: %v", err)
-	}
-	if len(artifacts) != 1 || artifacts[0].RelativePath != "result.md" {
-		t.Fatalf("artifacts = %+v, want result.md", artifacts)
 	}
 }

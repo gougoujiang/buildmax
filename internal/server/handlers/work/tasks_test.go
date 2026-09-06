@@ -264,8 +264,8 @@ func TestCreateConversationTaskHandler(t *testing.T) {
 }
 
 // A card in the conversation needs to reach what its task did without a second
-// round trip per task: the run behind the status, and the runs that left files.
-func TestListConversationTasksCarriesRunAndArtifacts(t *testing.T) {
+// round trip per task: the run behind the status.
+func TestListConversationTasksCarriesTheRunBehindEachStatus(t *testing.T) {
 	secret := "test-task-cards-secret"
 	conversationID := "conv1"
 	spaceID := "tm_personal_u1"
@@ -279,9 +279,6 @@ func TestListConversationTasksCarriesRunAndArtifacts(t *testing.T) {
 		Conversations: &mock.MockConversationStore{
 			Conversations: []coreconv.Conversation{{ID: conversationID, UserID: "u1", SpaceID: spaceID, Channel: "portal", CreatedBy: "u1", CreatedAt: time.Unix(123, 0).UTC()}},
 		},
-		RunOutputs: &mock.MockRunOutputLister{List: []coretask.RunOutputListing{
-			{ArtifactID: "tr_1", TaskID: "t1", TaskRunID: "tr_1", ConversationID: conversationID},
-		}},
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)
@@ -308,10 +305,7 @@ func TestListConversationTasksCarriesRunAndArtifacts(t *testing.T) {
 	if got := byID["t1"]; got.LastRunID == nil || *got.LastRunID != "tr_1" {
 		t.Errorf("last_run_id = %v, want tr_1", got.LastRunID)
 	}
-	if got := byID["t1"].ArtifactRunIDs; len(got) != 1 || got[0] != "tr_1" {
-		t.Errorf("artifact_run_ids = %v, want [tr_1]", got)
-	}
-	if got := byID["t2"].ArtifactRunIDs; len(got) != 0 {
-		t.Errorf("task with no artifacts got %v", got)
+	if got := byID["t2"]; got.LastRunID != nil {
+		t.Errorf("a task with no run has last_run_id = %v, want nil", got.LastRunID)
 	}
 }

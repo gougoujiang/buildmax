@@ -157,7 +157,6 @@ var spaceRoutes = []authzCase{
 	{"POST", "/api/spaces/{space_id}/tasks/{task_id}/cancel", corespace.RoleMember, false},
 	// Retry starts a run, so it sits at the same level as starting one.
 	{"POST", "/api/spaces/{space_id}/tasks/{task_id}/retry", corespace.RoleMember, false},
-	{"GET", "/api/spaces/{space_id}/tasks/{task_id}/artifacts", corespace.RoleMember, false},
 	// Unified artifacts. Any member may keep a file for the space and see what
 	// the space holds; removing one is decided per artifact rather than per
 	// role, so it is not on a space-scoped route -- see the artifact package.
@@ -167,8 +166,6 @@ var spaceRoutes = []authzCase{
 	{"GET", "/api/spaces/{space_id}/tasks/{task_id}/stream", corespace.RoleMember, false},
 
 	{"GET", "/api/spaces/{space_id}/task-runs/{task_run_id}", corespace.RoleMember, false},
-	{"GET", "/api/spaces/{space_id}/task-runs/{task_run_id}/artifacts/items", corespace.RoleMember, false},
-	{"GET", "/api/spaces/{space_id}/task-runs/{task_run_id}/artifacts/content", corespace.RoleMember, false},
 	{"GET", "/api/spaces/{space_id}/task-runs/{task_run_id}/trace", corespace.RoleMember, false},
 	// A member may read what their space's run spent, the same as its trace and
 	// artifacts. The ledger carries no prompts, and hiding a space's own usage
@@ -237,14 +234,12 @@ func matrixMuxWithGrants(t *testing.T, grants coreidentity.SystemGrantStore) *ht
 		WorkflowStore:            &mock.MockWorkflowStore{},
 		TaskStore:                &mock.MockTaskStore{},
 		TaskRunStore:             &mock.MockTaskRunStore{},
-		RunOutputLister:          &mock.MockRunOutputLister{},
 		ConversationStore:        conversations,
 		ConversationMessageStore: &mock.MockConversationMessageStore{},
 		AuditStore:               &mock.MockAuditStore{},
 		SystemGrantStore:         grants,
 		LoginCodeStore:           &mock.MockLoginCodeStore{},
 		PersistStorage:           mock.NewMockPersistStorage(),
-		RunOutputStorage:         mock.NewMockRunOutputStorage(),
 		ArtifactStore:            &mock.MockArtifactStore{},
 		ArtifactStorage:          mock.NewMockArtifactStorage(),
 		WorkspacesDir:            t.TempDir(),

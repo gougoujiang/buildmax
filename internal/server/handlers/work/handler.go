@@ -37,14 +37,6 @@ import (
 	"github.com/gougoujiang/buildmax/internal/service/workflow"
 )
 
-// RunOutputLister reads what a run produced. An interface because the store
-// that answers it is assembled above this package.
-type RunOutputLister interface {
-	ListRunOutputsByConversation(ctx context.Context, conversationID string, taskID *string) ([]coretask.RunOutputListing, error)
-	ListRunOutputsByTask(ctx context.Context, taskID string) ([]coretask.RunOutputListing, error)
-	GetTaskRunOutputFiles(ctx context.Context, taskRunID string) ([]coretask.RunOutputFile, error)
-}
-
 type Config struct {
 	JWTSecret string
 
@@ -60,15 +52,13 @@ type Config struct {
 	Spaces        corespace.Store
 	Conversations coreconv.Store
 	Messages      coreconv.MessageStore
-	RunOutputs    RunOutputLister
 	// LLMCalls reads the managed call ledger for one run. Nil leaves that
 	// route answering 503, which is what a deployment with no database has.
 	LLMCalls coregw.CallStore
 
-	PersistStorage   blob.PersistStorage
-	RunOutputStorage blob.RunOutputStorage
+	PersistStorage blob.PersistStorage
 	// Artifacts lets an issue show what its runs published. Nil means this
-	// deployment has no artifact store, and an issue reports only run output.
+	// deployment has no artifact store, and an issue reports no published files.
 	Artifacts     *artifactsvc.Service
 	WorkspacesDir string
 
@@ -187,10 +177,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/spaces/{space_id}/tasks/{task_id}/retry", h.retryTaskHandler)
 	mux.HandleFunc("GET /api/spaces/{space_id}/tasks/{task_id}/conversation", h.getTaskConversationHandler)
 	mux.HandleFunc("GET /api/spaces/{space_id}/tasks/{task_id}/stream", h.getChatStreamHandler)
-	mux.HandleFunc("GET /api/spaces/{space_id}/tasks/{task_id}/artifacts", h.listTaskArtifactsHandler)
 	mux.HandleFunc("GET /api/spaces/{space_id}/task-runs/{task_run_id}", h.getTaskRunProvenanceHandler)
-	mux.HandleFunc("GET /api/spaces/{space_id}/task-runs/{task_run_id}/artifacts/items", h.listArtifactItemsHandler)
-	mux.HandleFunc("GET /api/spaces/{space_id}/task-runs/{task_run_id}/artifacts/content", h.artifactContentHandler)
 	mux.HandleFunc("GET /api/spaces/{space_id}/task-runs/{task_run_id}/trace", h.getTaskRunTraceHandler)
 	mux.HandleFunc("GET /api/spaces/{space_id}/task-runs/{task_run_id}/llm-calls", h.listTaskRunLLMCallsHandler)
 }

@@ -9,7 +9,6 @@ interface TaskCardProps {
   busy: boolean
   onStop: (taskId: string) => void
   onRetry: (taskId: string) => void
-  onOpenFiles: (taskRunId: string) => void
   onOpenTrace: (taskRunId: string) => void
   onOpenIssue?: (issueId: string) => void
   error?: string | null
@@ -61,7 +60,6 @@ export function TaskCard({
   busy,
   onStop,
   onRetry,
-  onOpenFiles,
   onOpenTrace,
   onOpenIssue,
   error,
@@ -69,7 +67,6 @@ export function TaskCard({
   const tone = statusTone(task.status)
   const finished = taskRunFinished(task.status)
   const body = preview(task.output)
-  const artifactRunId = task.artifact_run_ids?.[0]
 
   return (
     <article className={`task-card task-card--${tone}`}>
@@ -103,15 +100,6 @@ export function TaskCard({
             {busy ? "Retrying…" : "Run again"}
           </button>
         )}
-        {artifactRunId ? (
-          <button
-            type="button"
-            className="page-activity__action-btn"
-            onClick={() => onOpenFiles(artifactRunId)}
-          >
-            Files
-          </button>
-        ) : null}
         {task.last_run_id ? (
           <button
             type="button"
