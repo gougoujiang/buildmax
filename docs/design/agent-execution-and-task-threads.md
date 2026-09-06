@@ -238,7 +238,8 @@ It retains:
 - Agent identity;
 - Task session lineage;
 - prior model-visible session history, subject to compaction;
-- relevant Team Home state materialized for the new run; and
+- the Task-owned workspace checkpoint initially seeded from Space files;
+- the Task's current immutable Plugin environment; and
 - links to prior run outputs and Artifacts.
 
 Continue does not require or create a Conversation. It is refused while the
@@ -259,15 +260,22 @@ influence the next run.
 
 ### 6.4 Continuity Contract
 
-The first implementation promises durable Agent-session continuity, not a
-permanently running process, a sticky worker, or a versioned workspace. Session
-restore failure must be recorded and visible once Continue is a user-facing
-contract; it cannot silently become a fresh session while the UI claims the
-thread continued.
+The shipped implementation promises durable Agent-session continuity, not a
+permanently running process or a sticky worker. Session restore failure must be
+recorded and visible once Continue is a user-facing contract; it cannot
+silently become a fresh session while the UI claims the thread continued.
 
-A broader mutable workspace lineage, browser profile retention, or workspace
-rollback requires its own accepted design. This record does not reintroduce the
-withdrawn versioned-workspace or timeline-restore product.
+[Task workspace checkpoints](task-workspace-checkpoints.md) plan the matching
+filesystem half of that contract: Continue restores one immutable Task-owned
+`workspace/` checkpoint, Retry returns to the repeated run's recorded base, and
+neither path falls back to current Space files silently. The same record makes
+an expanded `buildmax-home/plugins/` tree a rebuildable projection: Continue
+uses the Task Plugin environment head, Retry reconstructs the repeated run's
+base, and an autonomous install takes effect only across a new TaskRun boundary.
+That narrow recovery lineage does not reintroduce the withdrawn generic
+versioned-workspace or timeline-restore product. Browser profile retention,
+user-visible workspace history, change sets, rollback, and merging remain
+outside both records.
 
 ## 7. Conversation Is An Independent Foreground Surface
 
@@ -341,8 +349,8 @@ Each TaskRun records at least:
 - source message when one exists;
 - retry lineage when applicable;
 - the Agent revision actually used;
-- plugin, sandbox, model, and credential-grant evidence required to explain the
-  run;
+- the base and optional result Plugin environment revisions;
+- sandbox, model, and credential-grant evidence required to explain the run;
 - status, timestamps, usage, output, trace, and Artifacts; and
 - whether session restoration succeeded, degraded, or was not requested.
 

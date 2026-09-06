@@ -25,6 +25,7 @@
 - [13. Alternatives Rejected](#13-alternatives-rejected)
 - [14. Validation](#14-validation)
 - [15. Open Questions](#15-open-questions)
+- [16. Task-Scoped Autonomous Acquisition](#16-task-scoped-autonomous-acquisition)
 - [Related Documents](#related-documents)
 
 ## Status
@@ -36,7 +37,8 @@
   plugin section. What §10 still lacks is the agent's own plugin field: a
   selection can be set through the API but not yet in Portal's agent modal,
   whose form takes text fields only. D2, executable content, and D3, secrets,
-  are not started
+  are not started. §16's Task-scoped autonomous acquisition is an accepted
+  extension and is also not implemented
 - follows: [plugin-marketplace.md](./plugin-marketplace.md)
 - depends_on: nothing unbuilt. An earlier draft made the executable half wait
   on the worker sandbox surface being wired; §9 retires that, because the Bash
@@ -65,9 +67,11 @@ Activation is split by what the content can do rather than by who wrote it:
   It starts processes and opens connections on infrastructure the operator
   owns, and the operator is the only party who can weigh that across teams.
 
-Activation is a team decision about what may be used; an agent definition
-decides what is used. An agent loads exactly the plugins it names, and nothing
-reaches a run because a team activated it. See §5.3.
+Activation is a team decision about what may be used. Today an agent definition
+decides what is used; §16 adds a future Task-scoped environment which may name
+more of the already-permitted catalog without mutating the Agent or Space. A
+run loads exactly the immutable environment recorded for it, and nothing
+reaches one merely because a team activated it. See §5.3 and §16.
 
 Not every team wants to curate. A team chooses between two modes: **curated**,
 where an admin activates each plugin, and **open**, where the whole catalog may
@@ -278,6 +282,10 @@ where a run's behavior is declared, and a capability that arrives because
 somebody else edited a team setting is not declared anywhere a reader of the
 agent can see. Cheap is not the same as invisible.
 
+The Task-scoped additions in §16 do not reverse this rule. They are an explicit,
+audited Agent action recorded in a Plugin environment revision, not inheritance
+from the Space activation list.
+
 Two things follow, and both are improvements.
 
 **Activation is purely permissive.** Activating a release changes no existing
@@ -432,6 +440,11 @@ selection produced it — or that the run had no agent and therefore loaded no
 plugin (§5.3). Without it, an inventory explains what a run had and cannot
 explain what it did not have, which is the question a two-level model creates.
 
+When §16 is implemented, the TaskRun additionally records its immutable base
+Plugin environment revision and an optional result revision produced by an
+autonomous installation. The inventory remains the trace projection of the
+base actually loaded; it is not reconstructed from the current Task head.
+
 None of it carries package content, configuration values, or secrets, in keeping
 with §10 of the Marketplace design.
 
@@ -537,6 +550,9 @@ already are.
   what that agent named.
 - `internal/core/task` and `internal/infra/db` — the resolved pins on
   `TaskRun`, beside `AgentRevision` and written at the same moment (§7).
+- The same owners, with `internal/service/plugin`, will own §16's immutable
+  Task-scoped Plugin environment head and its base/result TaskRun references;
+  expanded package directories remain outside the data model.
 - `internal/server/handlers/team` — team-scoped activation routes, under the
   authority §5 names.
 - `internal/server/handlers/admin` — unattended eligibility on a release.
@@ -778,6 +794,64 @@ Implementation is not complete until tests prove:
    for it. The question is recorded so that answering it later does not read as
    reversing §5.3.
 
+## 16. Task-Scoped Autonomous Acquisition
+
+An Agent may eventually discover that its recorded selection lacks a capability
+needed for the current Task. BuildMax will support typed search, inspection, and
+installation without turning `BUILDMAX_HOME/plugins/` into durable state.
+
+The Space activation remains the ceiling, and a separate Space policy decides
+whether a running Agent may request autonomous acquisition at all; ordinary
+Task execution authority does not imply Plugin-management authority. In
+curated mode an allowed request may choose only an activated release. In open
+mode it may cause the same pinned auto-activation an authorized Agent edit
+causes today, attributed to the TaskRun and initiating principal. Operator
+eligibility, executable-content gates, permission resolution, and Secret grants
+still apply; installing a package never grants a Secret.
+
+The durable result is an immutable **Plugin environment revision**. It records
+the Agent revision's baseline selection plus Task-scoped additions as exact
+package references, versions, digests, installer provenance, and resolved
+permission revisions. The expanded directory under the run's
+`buildmax-home/plugins/` is a disposable projection of that record:
+
+```text
+Space activation ceiling + Agent revision + Task additions
+                             |
+                             v
+              immutable Plugin environment revision
+                             |
+                             | verify and materialize
+                             v
+          <task-run>/buildmax-home/plugins/<name>/
+```
+
+A package already in the catalog is referenced, not uploaded again. A private
+or Agent-produced package is normalized, inspected, digest-verified, and stored
+once in the Plugin Package Store before an environment may reference it.
+Downloads, extraction debris, caches, credentials, and undeclared mutable
+Plugin state are never captured by walking the expanded directory. A Plugin
+which genuinely needs durable mutable state must declare a separately governed
+run, Task, Agent, or Space state scope; that state is not package installation.
+
+One TaskRun never changes its loaded Plugin set. Tool schemas, prompt layers,
+MCP servers, hooks, sandbox rules, and Secret requirements are fixed when the
+runtime is assembled. A successful installation can affect only a later
+TaskRun. Continue uses the Task's Plugin environment head; Retry reconstructs
+the repeated run's base environment. An immediate capability handoff may create
+a successor TaskRun after session and workspace state are committed, but it may
+not hot-load the current process. The exact orchestration transition must be
+designed before that immediate handoff ships.
+
+Autonomous acquisition defaults to Task scope so one objective can improve its
+capability without silently changing every future use of the Agent. Promotion
+to the Agent definition or Space activation is a separate authorized and
+audited action.
+
+This section extends rather than describes the shipped D1 path. Its workspace,
+session, and materialization boundary is specified in
+[task-workspace-checkpoints.md](./task-workspace-checkpoints.md).
+
 ## Related Documents
 
 - [plugin-marketplace.md](./plugin-marketplace.md) — the catalog it builds on
@@ -785,4 +859,6 @@ Implementation is not complete until tests prove:
 - [sandbox-boundaries.md](./sandbox-boundaries.md) — the boundary §9 says is
   *not* this one, and where confining hook and MCP processes belongs
 - [worker-run-token.md](./worker-run-token.md) — the credential §7 uses
+- [task-workspace-checkpoints.md](./task-workspace-checkpoints.md) — the
+  Task-scoped environment and new-TaskRun capability boundary
 - [guide/plugins.md](../guide/plugins.md) — what ships today
