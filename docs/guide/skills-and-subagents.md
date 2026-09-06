@@ -20,7 +20,7 @@ Both are discovered from two layers, workspace first:
 | Workspace | `<workspace>/.buildmax/skills/` | `<workspace>/.buildmax/agents/` |
 | Global | `<BUILDMAX_HOME>/skills/` | `<BUILDMAX_HOME>/agents/` |
 
-Checking `.buildmax/skills/` into a repository is how a team ships a workflow to
+Checking `.buildmax/skills/` into a repository is how a space ships a workflow to
 everyone who runs the agent there.
 
 ## Skills

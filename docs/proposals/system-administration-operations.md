@@ -5,8 +5,8 @@
 > **Opened:** 2026-09-05
 
 Related: [system administration design](../design/system-administration.md),
-[team governance](../design/team-governance.md),
-[team membership lifecycle](../design/team-membership-lifecycle.md),
+[space governance](../design/space-governance.md),
+[space membership lifecycle](../design/space-membership-lifecycle.md),
 [enterprise identity and access](enterprise-identity-and-access.md), and the
 [roadmap](../ROADMAP.md).
 
@@ -55,7 +55,7 @@ discoverable operator journey:
   creation.
 - The deployment overview reports coarse status, not enough runtime metadata
   to distinguish an idle deployment from a blocked queue or a lost worker.
-- Audit search supports time bounds in the API, while Portal exposes raw Team,
+- Audit search supports time bounds in the API, while Portal exposes raw Space,
   actor, and action identifiers only.
 - Operator documentation still says the Portal administration area is being
   built, although it exists.
@@ -84,16 +84,16 @@ under `/api/admin/*`. The current routes cover:
 | Authority | Read the caller's grant; list, grant, and revoke system roles |
 | Accounts | Search, inspect, create, issue a login code, disable, enable, and revoke all sessions |
 | Deployment | Read health, build/version facts, schema migrations, redacted configuration, and TaskRun counts |
-| Teams | Search Team metadata; inspect members, roles, quota tier, and aggregate usage |
+| Spaces | Search Space metadata; inspect members, roles, quota tier, and aggregate usage |
 | Models | List catalog entries and enable or disable one |
 | Plugins | List and publish catalog entries, list and publish releases, archive, restore, and yank |
 | Audit | Search the deployment-wide trail and export CSV or JSONL |
 
 The system grant is checked by `access.Guard.SystemAdmin` on every request.
 Revocation therefore takes effect on the next request rather than at token
-expiry. The separate team authorization path does not consult a system grant,
-and the authorization matrix proves that an administrator without Team
-membership cannot read Team content.
+expiry. The separate space authorization path does not consult a system grant,
+and the authorization matrix proves that an administrator without Space
+membership cannot read Space content.
 
 The first grant and lockout recovery are intentionally command-line operations:
 
@@ -136,19 +136,19 @@ accepted implementation slice.
 
 This proposal preserves the central decision in the existing design:
 
-> A System Administrator operates the deployment. A Team membership authorizes
-> access to the Team's contents.
+> A System Administrator operates the deployment. A Space membership authorizes
+> access to the Space's contents.
 
 A system grant may authorize account lifecycle, deployment health, capacity,
 catalog state, and metadata-only operational actions. It must not authorize
 reading prompts, conversation messages, Issue text, generated output, files,
-artifacts, or run traces belonging to a Team whose member list does not contain
+artifacts, or run traces belonging to a Space whose member list does not contain
 the administrator.
 
 The System Administrator is not the top of a role hierarchy. It is a separate
-axis from Team `owner`, `admin`, and `member`. A person who holds both receives
+axis from Space `owner`, `admin`, and `member`. A person who holds both receives
 the union of two independently checked authorities; the system grant must never
-be passed into `TeamAction` or used as a fallback when Team authorization fails.
+be passed into `SpaceAction` or used as a fallback when Space authorization fails.
 
 ## 4. Goals
 
@@ -169,25 +169,25 @@ be passed into `TeamAction` or used as a fallback when Team authorization fails.
   whether work is progressing, without turning Portal into a cluster console.
 - Make every new authority edge safe under concurrent requests and prove that
   safety against MySQL.
-- Keep secrets and Team-authored or Agent-produced content out of every admin
+- Keep secrets and Space-authored or Agent-produced content out of every admin
   response.
 - Keep the API useful independently of Portal and keep handlers as adapters over
   authoritative services.
 
 ## 5. Non-Goals
 
-- A universal superuser that bypasses Team membership.
+- A universal superuser that bypasses Space membership.
 - Custom roles, arbitrary permissions, or per-resource ACLs in this slice.
 - OIDC, SAML, SCIM, MFA, and service accounts. The
   [enterprise identity proposal](enterprise-identity-and-access.md) owns those.
-- Account hard deletion or Team deletion. Both require data-ownership,
+- Account hard deletion or Space deletion. Both require data-ownership,
   retention, and audit decisions first.
 - Editing `server.yaml` from Portal. It is process-start configuration and has
   no shared multi-replica write target.
 - A raw log viewer. Logs can contain endpoints, prompts, and credentials and
   remain the deployment observability system's responsibility.
 - Kubernetes node, Pod, or infrastructure lifecycle management.
-- Cross-Team support access. If needed, it requires a separate design for Team
+- Cross-Space support access. If needed, it requires a separate design for Space
   consent, expiry, revocation, redaction, and audit.
 - Bulk destructive account or authority actions in the first delivery.
 - Pixel-for-pixel or flag-for-field duplication between CLI and Portal. The
@@ -303,9 +303,9 @@ availability reason prevents it.
 Advantages:
 
 - reuses the grant, audit, API package, and Portal area already shipped;
-- preserves the Team content boundary;
+- preserves the Space content boundary;
 - breaks into reviewable changes with independent acceptance criteria;
-- aligns with roadmap R3 account and Team operations and the wider operational
+- aligns with roadmap R3 account and Space operations and the wider operational
   trust milestone.
 
 Costs:
@@ -349,7 +349,7 @@ settings, with the following information architecture:
 | Overview | Is BuildMax healthy and is work moving? | Deployment status and operational metadata |
 | Administrators | Who can operate this deployment? | Active and historical system grants |
 | Accounts | Who can sign in and where are they signed in? | Account lifecycle and session metadata |
-| Spaces | Which Teams exist and what capacity do they have? | Membership, quota tier, and aggregate usage only |
+| Spaces | Which Spaces exist and what capacity do they have? | Membership, quota tier, and aggregate usage only |
 | Models | Which model upstreams may callers use? | Redacted catalog state and safe operational checks |
 | Plugins | What may this deployment publish and install? | Catalog and release metadata |
 | Audit | Who changed what and when? | Structured metadata events and exports |
@@ -359,7 +359,7 @@ destination rather than an item hidden inside the user menu. The server remains
 the authority: hiding or showing navigation is presentation only.
 
 The overview should show the caller's grant source and time so the user can
-distinguish Team ownership from deployment authority. Every Space-oriented page
+distinguish Space ownership from deployment authority. Every Space-oriented page
 must continue to state that it shows metadata, not contents.
 
 ### 8.1 Operator Surface Contract
@@ -535,13 +535,13 @@ working directory into that archive and publishing it in one command.
 Scope:
 
 - list quota tiers through the administration API;
-- assign an existing tier to a Team;
+- assign an existing tier to a Space;
 - paginate and filter Spaces by personal/shared kind, owner, tier, and quota
   pressure;
 - show runs, tokens, and storage against their respective limits;
-- record `team.quota_tier_changed` with actor, Team, old tier, and new tier;
+- record `space.quota_tier_changed` with actor, Space, old tier, and new tier;
 - remove the duplicate user-level quota tier if it has no remaining caller,
-  leaving the Team as the authoritative enforcement boundary.
+  leaving the Space as the authoritative enforcement boundary.
 
 Acceptance:
 
@@ -550,7 +550,7 @@ Acceptance:
 - the next quota check observes the newly assigned tier;
 - concurrent assignments have a deterministic final value and complete audit
   history;
-- the response contains no Team-authored or Agent-produced field.
+- the response contains no Space-authored or Agent-produced field.
 
 Portal should assign existing tiers in this phase. Creating and editing tier
 definitions is deferred until there is evidence that source-controlled or
@@ -572,7 +572,7 @@ Scope:
   metadata rather than an invented persistent worker entity;
 - report database, object storage, and model-gateway health through bounded,
   redacted probes;
-- report the number of Teams near or above each quota dimension;
+- report the number of Spaces near or above each quota dimension;
 - group failures by a safe error class, never by raw error text.
 
 Acceptance:
@@ -585,7 +585,7 @@ Acceptance:
 - no prompt, trace, tool output, artifact metadata supplied by a member, raw
   error, DSN, endpoint credential, or provider key is returned.
 
-Global dispatch pause, force-cancel, or cross-Team retry are not implicit parts
+Global dispatch pause, force-cancel, or cross-Space retry are not implicit parts
 of this phase. Each changes user work and requires an explicit authority and
 multi-instance consistency decision.
 
@@ -616,7 +616,7 @@ POST   /api/admin/grants
 DELETE /api/admin/grants/{user_id}
 ```
 
-The existing account, system, configuration, Team, model, plugin, and audit
+The existing account, system, configuration, Space, model, plugin, and audit
 routes remain the base of their corresponding pages.
 
 ### 10.2 Proposed Account Queries And Session APIs
@@ -640,11 +640,11 @@ inside `internal/infra/db`.
 
 ```text
 GET /api/admin/quota-tiers
-PUT /api/admin/teams/{team_id}/quota-tier
+PUT /api/admin/spaces/{space_id}/quota-tier
 ```
 
 `core/quota.TierStore` currently reads one tier only. It needs a list operation.
-The Team store needs a quota-tier assignment operation, while validation and
+The Space store needs a quota-tier assignment operation, while validation and
 audit ownership belong in `internal/service/quota`. The handler should not
 coordinate raw stores directly.
 
@@ -714,7 +714,7 @@ Every route registered by the admin package must appear in the system
 authorization matrix. For each route, tests drive:
 
 1. an effective System Administrator;
-2. a Team owner without a system grant;
+2. a Space owner without a system grant;
 3. an ordinary user;
 4. a user whose grant was revoked;
 5. a user whose account was disabled;
@@ -744,7 +744,7 @@ request path. Merely checking response field names is insufficient: a decoder,
 validator, logger, or error wrapper can leak the submitted value without naming
 the field `api_key`.
 
-Team names, account emails, membership roles, quotas, aggregate usage, run
+Space names, account emails, membership roles, quotas, aggregate usage, run
 statuses, timestamps, and opaque public identifiers remain acceptable
 administrative metadata.
 
@@ -756,14 +756,14 @@ introduced only with their callers:
 | Action | Target | Detail |
 |---|---|---|
 | `auth.session_revoked` | one session | platform or empty; never a token |
-| `team.quota_tier_changed` | Team | old and new tier names in a bounded structured form |
+| `space.quota_tier_changed` | Space | old and new tier names in a bounded structured form |
 
 The existing `user.sessions_revoked` continues to mean revoke-all. Runtime
 reads do not need one event per dashboard request. Bulk audit exports remain
 audited because they extract the evidence trail itself.
 
 If dispatch pause or force-cancel is accepted later, each needs a distinct
-action and must name whether its scope was deployment, Team, or run.
+action and must name whether its scope was deployment, Space, or run.
 
 ### 11.4 Sensitive Action Presentation
 
@@ -785,7 +785,7 @@ Portal must state the result before asking for confirmation:
 - service table tests for every successful and refused transition;
 - handler tests for parsing, status codes, pagination, and response shapes;
 - authorization-matrix coverage for every registered route;
-- secret and Team-content response assertions;
+- secret and Space-content response assertions;
 - pure Portal tests for filtering, status labels, quota pressure, and audit
   descriptions.
 
@@ -821,8 +821,8 @@ Browser coverage should prove complete journeys rather than page existence:
 
 ### 12.4 Boundary And Deployment Tests
 
-- A System Administrator without Team membership receives the same refusal as
-  any other non-member on every Team-content route.
+- A System Administrator without Space membership receives the same refusal as
+  any other non-member on every Space-content route.
 - A metadata-only runtime page works for local-process and Kubernetes Job
   worker modes.
 - Multi-instance runtime claims are tested only after the supported topology is
@@ -899,12 +899,12 @@ the discussion.
    This proposal recommends assigning existing tiers first and deferring tier
    editing.
 7. What runtime aggregates are actionable to an operator without revealing
-   Team content?
+   Space content?
 8. Does any known operator need read-only deployment status strongly enough to
    justify `system_observer`, or should one role remain until a caller exists?
 9. Should a System Administrator be allowed to stop a clearly runaway run
-   without Team membership? If yes, what metadata may they inspect first, how
-   is the Team informed, and how does it interact with worker confirmation?
+   without Space membership? If yes, what metadata may they inspect first, how
+   is the Space informed, and how does it interact with worker confirmation?
 10. Which destructive actions require recent re-authentication or MFA after the
     enterprise identity direction is chosen?
 
@@ -923,7 +923,7 @@ the discussion.
 - A model-creation leak test covering response bodies, logs, traces, audit
   events, DOM state, and browser storage.
 - A runtime incident or drill demonstrating which metadata would have shortened
-  diagnosis without requiring raw logs or Team content.
+  diagnosis without requiring raw logs or Space content.
 - A threat review of session metadata, transactional authority audit, and any
   proposed operational mutation.
 - A topology decision from roadmap R1 before accepting deployment-wide runtime
@@ -936,7 +936,7 @@ Acceptance should not create a parallel System Administration design. Instead:
 - add grant correctness and the chosen operator-surface decisions to
   `docs/design/system-administration.md`;
 - place the agreed sequencing in `docs/ROADMAP.md`, with the early phases
-  naturally supporting R3 account and Team operations;
+  naturally supporting R3 account and Space operations;
 - create focused implementation Issues or pull requests for each phase;
 - keep enterprise identity decisions in their own proposal and later design;
 - delete this proposal once its durable decisions have moved.

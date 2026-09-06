@@ -1,4 +1,4 @@
-# Team Secrets And Run Delivery
+# Space Secrets And Run Delivery
 
 ## Contents
 
@@ -27,10 +27,10 @@
 ## Status
 
 - roadmap_priority: [`R0`](../ROADMAP.md) for the credential debt in §13, and
-  [`R3`](../ROADMAP.md) for the team-facing surface. It answers Phase D3 of
-  [plugin-team-distribution.md](plugin-team-distribution.md), which deferred
+  [`R3`](../ROADMAP.md) for the space-facing surface. It answers Phase D3 of
+  [plugin-space-distribution.md](plugin-space-distribution.md), which deferred
   secret delivery to a follow-on record.
-- status: `Phase 1 complete` — a Team owner stores a Secret (encrypted,
+- status: `Phase 1 complete` — a Space owner stores a Secret (encrypted,
   no reveal), an Agent revision declares it, a run receives it in its
   environment through the worker route and the `env_scrub` allow-list, the
   materialization is recorded in `task_run_secret`, and the run's values are
@@ -45,22 +45,22 @@
   management page, the agent consumption editor, and its consumption-health.
 - supersedes: the `run-scoped-secret-broker` proposal, whose settled decisions
   are here and whose remaining uncertainty is §20.
-- model: a Secret is one Team-owned group of named items, stored as a single
+- model: a Secret is one Space-owned group of named items, stored as a single
   encrypted row; items are not versioned. Consumption is configured on the Agent
   revision, which pins it. §5 and §6 carry the reasoning; §17 records what a
   version table and a per-item flag would have added and why they are out.
 
 ## 1. Problem
 
-A worker executes model-chosen commands on behalf of a Team, and useful work
+A worker executes model-chosen commands on behalf of a Space, and useful work
 needs credentials: an Agent driving `git` and `gh` needs GitHub authority, one
 calling an internal service needs its credential, one deploying needs cloud
 authority.
 
-There is no Team-scoped Secret resource. A credential reaches a run only if the
-deployment put it in the worker's ambient environment, which gives every Team
+There is no Space-scoped Secret resource. A credential reaches a run only if the
+deployment put it in the worker's ambient environment, which gives every Space
 and every Agent the same values, has no rotation, no per-Agent choice, and no
-audit. [plugin-team-distribution.md](plugin-team-distribution.md) §5 stops at
+audit. [plugin-space-distribution.md](plugin-space-distribution.md) §5 stops at
 reporting the environment variable names a release reads; it does not decide
 who supplies them.
 
@@ -71,7 +71,7 @@ Two properties of the ambient path make it unusable rather than merely coarse:
   `_KEY`, `_SECRET`, or `_PASSWORD`. Because the sandbox defaults off on the
   CLI baseline and on for workers, the same configuration works locally and
   fails silently in a pod.
-- The worker still receives credentials that are not its Team's business at
+- The worker still receives credentials that are not its Space's business at
   all — the deployment's object-store key, and in direct mode a provider API
   key. §13 records what has to leave.
 
@@ -79,7 +79,7 @@ Two properties of the ambient path make it unusable rather than merely coarse:
 
 BuildMax gains a Server-side Secret Broker that:
 
-1. represents a Secret as a Team-owned, versioned resource, or as a reference
+1. represents a Secret as a Space-owned, versioned resource, or as a reference
    to an external secret manager;
 2. binds its use to an immutable Agent revision that declares which Secrets it
    needs and how each is delivered;
@@ -120,8 +120,8 @@ What remains, and what each part is worth:
 
 | Control | What it buys |
 |---|---|
-| Team ownership | One Team's values are unreachable from another Team's runs |
-| Agent-revision consumption config | A run receives only the items its Agent configured, not the Team's whole set |
+| Space ownership | One Space's values are unreachable from another Space's runs |
+| Agent-revision consumption config | A run receives only the items its Agent configured, not the Space's whole set |
 | TaskRun snapshot | The authorization is fixed when the run is claimed and cannot be widened from inside the run |
 | Short-lived credentials | A disclosed value expires; exchange at run start is the main exfiltration control |
 | Narrow provider scope | A repository-scoped token cannot act outside that repository, whoever holds it |
@@ -135,40 +135,40 @@ authority, for how long, on whose behalf**. It is not a boundary around the
 bytes of the value once a run is authorized to use it.
 
 Two consequences that Portal copy and user documentation must carry, because a
-Team that misreads them will grant a credential it should not have granted:
+Space that misreads them will grant a credential it should not have granted:
 
 - an Agent can read every Secret granted to its run; and
 - a member who can trigger a shared Agent can obtain the values that Agent
   holds, without ever gaining a binding or read permission of their own.
 
-A Team that cannot accept this should narrow the credential's provider-side
+A Space that cannot accept this should narrow the credential's provider-side
 scope, shorten its lifetime, or use a different Agent. Delivery mode is not the
 lever.
 
 ## 4. Scope And Ownership
 
-**Team is the only ownership scope.** A Secret belongs to exactly one Team,
+**Space is the only ownership scope.** A Secret belongs to exactly one Space,
 which is the same boundary that owns Agents, plugin activations, and audit. An
-Agent definition may consume only Secrets in its own Team; a consumption config
-naming another Team's Secret is refused when the revision is saved, not at run
+Agent definition may consume only Secrets in its own Space; a consumption config
+naming another Space's Secret is refused when the revision is saved, not at run
 time.
 
-There is deliberately no deployment-global, Team-independent Secret that Agents
-across Teams could name. The pressure to add one is real — an operator with one
+There is deliberately no deployment-global, Space-independent Secret that Agents
+across Spaces could name. The pressure to add one is real — an operator with one
 shared internal credential would rather write it once — and it is refused for
-now because a global value has no owner to attribute it to, no Team to revoke
-it from, and no answer to "which Teams' runs can read this". A Team that needs
-the same credential as another Team creates its own Secret with the same value;
+now because a global value has no owner to attribute it to, no Space to revoke
+it from, and no answer to "which Spaces' runs can read this". A Space that needs
+the same credential as another Space creates its own Secret with the same value;
 that duplication is the visible cost of an ownership model that stays
 answerable.
 
 This does not describe BuildMax's own credentials. The database password, JWT
 signing key, KEK, object-store administration credential, and managed provider
-keys are operator-owned deployment configuration, never Team Secrets, and never
+keys are operator-owned deployment configuration, never Space Secrets, and never
 delivered to a run as a grant. §5.3 keeps the classes apart.
 
 There is also no Server-side Project or deployment-environment entity
-introduced to scope Secrets. Team is the Server ownership boundary; the local
+introduced to scope Secrets. Space is the Server ownership boundary; the local
 `Project` of `internal/core/localproject` is a client concept and irrelevant
 here.
 
@@ -186,15 +186,15 @@ run consumed while the Secret's values stay live and rotatable.
 
 ### 5.1 `secret`
 
-One Team-owned Secret. A **Secret is a group**: one name holding several named
+One Space-owned Secret. A **Secret is a group**: one name holding several named
 **items** — `access_key_id` and `secret_access_key`, or `username` and
 `password`. A single-value credential is just a group with one item.
 
 | Field | Meaning |
 |---|---|
 | `id`, `public_id` | Numeric relational key and opaque public handle |
-| `team_id` | Ownership and authorization boundary; see §4 |
-| `name` | Team-unique, non-secret display name |
+| `space_id` | Ownership and authorization boundary; see §4 |
+| `name` | Space-unique, non-secret display name |
 | `description` | Optional bounded explanation; must not carry an item value |
 | `provider` | `embedded`, or an operator-configured external provider name |
 | `state` | `active`, `disabled`, or `destroyed` |
@@ -224,7 +224,7 @@ the Agent, where they stay readable. Placement expresses the classification, so
 no item carries a secret-or-config flag and creating a Secret is nothing but
 typing item names and values.
 
-`(team_id, name)` is unique. Renaming changes display metadata, not identity.
+`(space_id, name)` is unique. Renaming changes display metadata, not identity.
 Disabling refuses new run grants and new materializations. Destruction erases
 recoverable material once no active reference remains; it does not rewrite audit
 history.
@@ -270,16 +270,16 @@ is already different.
 
 | Class | Examples | Owner | Handling |
 |---|---|---|---|
-| Deployment bootstrap | database password, JWT signing key, Secret KEK | operator | deployment injection; never a Team Secret |
-| Server-managed upstream | model API key, object-store administration credential | operator | encrypted store or external reference; never delivered to a Team's run |
-| Team execution | GitHub token, Slack token, internal service credential | Team | this design |
-| Ephemeral run authority | run token, presigned URL, STS credential, Vault lease | Server or external issuer | minted or exchanged at run time; short TTL; not a reusable Team Secret |
+| Deployment bootstrap | database password, JWT signing key, Secret KEK | operator | deployment injection; never a Space Secret |
+| Server-managed upstream | model API key, object-store administration credential | operator | encrypted store or external reference; never delivered to a Space's run |
+| Space execution | GitHub token, Slack token, internal service credential | Space | this design |
+| Ephemeral run authority | run token, presigned URL, STS credential, Vault lease | Server or external issuer | minted or exchanged at run time; short TTL; not a reusable Space Secret |
 | User authentication | password verifier, refresh token, webhook key | account subsystem | existing hash, rotation, and revocation models |
 
 ## 6. Consumption Configuration
 
 How a run consumes Secrets is configured on the Agent, per the requirement that
-a Team sets this up where the Agent is defined. It is not a separate binding
+a Space sets this up where the Agent is defined. It is not a separate binding
 resource: it is a structured field on the Agent definition, carried into each
 append-only Agent revision, and validated by the Secret service on save and
 again when the worker claims the run.
@@ -292,7 +292,7 @@ live and rotatable.
 ### 6.1 What An Agent Declares
 
 An Agent's consumption config is a list of entries, each either an environment
-grant or a file grant. A grant may draw items from any Secret the Agent's Team
+grant or a file grant. A grant may draw items from any Secret the Agent's Space
 owns; one Agent commonly mixes several groups.
 
 Every grant carries `required` (default true). A required grant that cannot be
@@ -310,12 +310,12 @@ Two forms, and the choice is the Agent's:
   list of exactly what the Agent uses.
 - **The whole group.** Name a `secret` with no item, and every item arrives
   under its own name, optionally with a `prefix`. This is Kubernetes' `envFrom`
-  shape. It is supported as a convenience so a Team that has already grouped a
+  shape. It is supported as a convenience so a Space that has already grouped a
   credential need not restate every member, and §5.1's identifier constraint on
   item names is what makes it well-defined.
 
 The whole-group form hands the run items the Agent did not name individually,
-widening what §3 already concedes. It is a Team's call, not a default to reach
+widening what §3 already concedes. It is a Space's call, not a default to reach
 for, and Portal shows it as a whole-group grant rather than expanding it into a
 list that implies each item was chosen.
 
@@ -346,12 +346,12 @@ genuinely secret parameter is an item.
 The renderer, not free text, owns `target_path` and file `mode`, which is what
 keeps §8.3's write constraints enforceable: an Agent chooses a renderer and
 fills its parameters but never names an output path, so it cannot render into
-`.bashrc`. Built-in renderers cover the common families; a Team-defined template
+`.bashrc`. Built-in renderers cover the common families; a Space-defined template
 for a family BuildMax does not ship is a Phase 2 open question (§20), not part
 of the first shape.
 
 A file validates when every required parameter is satisfied, every referenced
-Secret belongs to the Agent's Team, and every referenced item appears in that
+Secret belongs to the Agent's Space, and every referenced item appears in that
 Secret's `item_names`.
 
 ### 6.4 Using An Item Twice
@@ -364,10 +364,10 @@ snapshot records each target separately.
 ## 7. Run Lifecycle
 
 ```text
-Team Owner                 Server                         Worker
+Space Owner                 Server                         Worker
     |                         |                              |
     |-- write/rotate Secret -->| re-encrypt the item map    |
-    |-- configure consumption->| validate same-Team ownership|
+    |-- configure consumption->| validate same-Space ownership|
     |                         |                              |
     |                    dispatch TaskRun                    |
     |                         |-- resolve Agent revision     |
@@ -390,7 +390,7 @@ The snapshot happens where the Agent revision and plugin pins are already
 resolved: while the worker claims the run. The items are decrypted once, at
 claim, so the run reads a self-consistent map even if a rotation lands a moment
 later. Resolution never uses values the worker supplied, and a worker cannot
-browse Team state.
+browse Space state.
 
 The worker-facing operation returns the bundle computed for one TaskRun. It
 accepts no Secret ID, name, or provider path. Its route is
@@ -415,7 +415,7 @@ Two modes. An Agent revision configures each independently; §6 says how.
 
 Neither mode is well-defined until the run owns its operating-system `HOME`.
 A worker already gets a run-scoped `BUILDMAX_HOME` (the run's global directory,
-`RuntimeTaskRunGlobalDir`) and a run-scoped directory of the team's persistent
+`RuntimeTaskRunGlobalDir`) and a run-scoped directory of the space's persistent
 files (`RuntimeTaskRunHomeDir`), but its OS `HOME` was whatever the container
 image set, shared across every run in that container.
 
@@ -423,7 +423,7 @@ This is now fixed. `taskrun` gives each run a dedicated, empty OS `HOME` —
 `<run-dir>/oshome`, distinct from both directories above — created `0700`,
 scoped over the agent run with `HOME` and `USERPROFILE`, and gone with the
 run's ephemeral tree. It is deliberately not `RuntimeTaskRunHomeDir`: that
-directory holds the team's materialized files and is the wrong place for a
+directory holds the space's materialized files and is the wrong place for a
 run's private tool state or a rendered credential, and it is deliberately not
 `BUILDMAX_HOME`, whose global directory is uploaded after the run — a rendered
 credential must not be. The two reasons it was needed: a rendered credential
@@ -494,14 +494,14 @@ wrapped data-encryption keys are stored in MySQL.
 
 Each Secret's item map is encrypted with AES-256-GCM or an equivalently
 reviewed AEAD under a fresh random DEK and nonce, rewritten whole on every edit.
-Associated data binds the ciphertext to the Team public ID, so a ciphertext
-moved to another Team's row fails authentication -- the cross-Team isolation
+Associated data binds the ciphertext to the Space public ID, so a ciphertext
+moved to another Space's row fails authentication -- the cross-Space isolation
 the threat model defends. It binds nothing else. Per-deployment isolation is
 already cryptographic: another deployment has a different KEK, so unwrapping the
 DEK fails before GCM is reached, and binding a deployment id in the associated
 data would instead break a disaster-recovery replica that deliberately shares
 the KEK to read the same rows. It binds no Secret public ID either: that ID is
-minted when the row is inserted, after the value is sealed, and an intra-Team
+minted when the row is inserted, after the value is sealed, and an intra-Space
 ciphertext swap needs database write access, which is the deployment operator
 the model already trusts.
 
@@ -561,9 +561,9 @@ mechanics are decided:
   `SELECT count(*) WHERE key_id = <old>`; removing a KEK a row still references
   would make that row permanently undecryptable, so the command will not.
 
-KEK rotation is a deployment maintenance action, not a Team action: it emits a
-server operational log, not a Team Secret audit event (§11), because no Team
-value changed and the audit trail is Team-scoped.
+KEK rotation is a deployment maintenance action, not a Space action: it emits a
+server operational log, not a Space Secret audit event (§11), because no Space
+value changed and the audit trail is Space-scoped.
 
 The Server fails startup when encrypted data exists and its KEK is missing or
 unusable. It must not generate a replacement key or treat values as empty.
@@ -580,10 +580,10 @@ workload identity, retrieves the value or a dynamic credential, records the
 exact provider version when available, and applies the same grant and delivery
 rules as embedded mode.
 
-Provider configuration is deployment-scoped and operator-managed. A Team cannot
+Provider configuration is deployment-scoped and operator-managed. A Space cannot
 submit an arbitrary Vault address or cloud endpoint that would send the Server's
 provider identity elsewhere: the operator defines named providers, TLS roots,
-regions, allowed path prefixes, and authentication methods, and a Team record
+regions, allowed path prefixes, and authentication methods, and a Space record
 selects only among them.
 
 Vault is the first external integration, because private deployment is a product
@@ -611,7 +611,7 @@ credential, and is the last phase rather than the first.
 ## 10. Authorization
 
 The roles are `owner`, `admin`, and `member`, per
-[team-governance.md](team-governance.md).
+[space-governance.md](space-governance.md).
 
 | Action | Owner | Admin | Member |
 |---|---:|---:|---:|
@@ -628,7 +628,7 @@ authorized it. That is necessary for shared automation, and under §3 it also
 means the member can read the value. Both facts belong in the Portal surface;
 neither may be implied away.
 
-Value authority stays with the owner until BuildMax has finer Team grants;
+Value authority stays with the owner until BuildMax has finer Space grants;
 consumption sits with `admin` because it edits an Agent, which `admin` already
 owns, and it grants no ability to read a value the owner did not place. If operator evidence shows owners cannot be the operational Secret
 managers, add an explicit `secret_manager` grant rather than quietly widening
@@ -644,7 +644,7 @@ Audit actions: `secret.created`, `secret.rotated`, `secret.disabled`,
 `secret.destroyed`, `secret.consumption_changed`, `secret.materialized`,
 `secret.revoked`, and `secret.access_denied`.
 
-An event names the actor, Team, Secret public ID, Agent revision or TaskRun,
+An event names the actor, Space, Secret public ID, Agent revision or TaskRun,
 action, and a bounded non-sensitive detail such as the delivery mode and target
 name. It
 never carries plaintext or ciphertext, a hash of plaintext, a provider token,
@@ -702,7 +702,7 @@ quarantine, is available later as its own measured decision.
 
 ## 13. Existing Credential Debt
 
-Adding Team Secrets without removing broader deployment credentials from workers
+Adding Space Secrets without removing broader deployment credentials from workers
 would produce a narrow new door beside an open old one. Under run-level delivery
 this matters more, not less: the run is now expected to hold its own grants, so
 everything else it holds should be there deliberately.
@@ -716,7 +716,7 @@ suffix rule matching `_TOKEN`, `_KEY`, `_SECRET`, `_PASSWORD`, `_PASSWD`, and
 worker baseline is always.
 
 It was the right instinct at the wrong altitude, and blocked this design
-outright: a Team's declared `GH_TOKEN` grant never reached the shell, and
+outright: a Space's declared `GH_TOKEN` grant never reached the shell, and
 because the sandbox defaults off on the CLI baseline and on for workers, the
 same Agent configuration worked locally and failed silently in a pod.
 
@@ -748,7 +748,7 @@ workload identity — respectively costing Server bandwidth, request
 orchestration, or portability on MinIO deployments. Artifact upload already goes
 through a run-scoped Server route; workspace and run-state transfer decide
 whether the remaining credential can be removed entirely. This is prerequisite
-work, not something the Team Secret feature absorbs.
+work, not something the Space Secret feature absorbs.
 
 ### 13.3 Direct Model Credentials
 
@@ -757,7 +757,7 @@ and upstream details stay on the Server. Direct mode may remain for trusted
 local execution, but a cloud worker should not receive a deployment-wide
 provider key by default. The plaintext `llm_model.api_key` migrates to the
 encrypted backend of §9.1 or an external operator reference. It stays
-deployment-scoped and Server-only; it does not become a Team Secret.
+deployment-scoped and Server-only; it does not become a Space Secret.
 
 ### 13.4 Run Token Delivery
 
@@ -791,7 +791,7 @@ items supports two request shapes over the same operation — a per-item patch
 (set or remove named keys) for a row-by-row editor, and a whole-map replace for
 a raw-JSON editor — because Portal offers both and they must not be two
 divergent code paths. An Agent revision's consumption config is written through
-the Agent API and validated against Team Secrets there; a read-only
+the Agent API and validated against Space Secrets there; a read-only
 consumption-health view reports an item a revision consumes that a Secret no
 longer has, and a renderer parameter nothing satisfies.
 
@@ -815,18 +815,18 @@ of a reveal operation.
 | Area | Responsibility |
 |---|---|
 | `internal/core/secret` | Secret metadata, item map and sealed-bytes types, consumption config, run grants, errors, and narrow store interfaces |
-| `internal/service/secret` | Secret lifecycle: item-name validation, sealing through a `Sealer`, item edits (patch and replace), state changes, team scoping; later renderer parameter resolution, materialization, exchange, and revocation |
-| `internal/service/agent` | Validates an Agent revision's consumption against the team's live Secrets when it is saved, through a narrow `SecretLookup`, the same way it validates a plugin selection |
+| `internal/service/secret` | Secret lifecycle: item-name validation, sealing through a `Sealer`, item edits (patch and replace), state changes, space scoping; later renderer parameter resolution, materialization, exchange, and revocation |
+| `internal/service/agent` | Validates an Agent revision's consumption against the space's live Secrets when it is saved, through a narrow `SecretLookup`, the same way it validates a plugin selection |
 | `internal/infra/secret` | AEAD/envelope implementation, external provider adapters, and credential-exchange clients |
 | `internal/bootstrap` | The `buildmax-server secret rewrap` KEK-rotation command, alongside the existing `run-token` admin command |
 | `internal/infra/db` | Row structs and metadata/ciphertext persistence; no provider calls |
-| `internal/server/handlers` | User and worker authentication, Team authorization, request/response shaping. Reading Secret metadata is owner-or-admin (`team.ActionReadSecrets`), managing values is owner-only (`team.ActionManageSecrets`); all routes are value-write-only and report 503 when no KEK file is configured |
+| `internal/server/handlers` | User and worker authentication, Space authorization, request/response shaping. Reading Secret metadata is owner-or-admin (`space.ActionReadSecrets`), managing values is owner-only (`space.ActionManageSecrets`); all routes are value-write-only and report 503 when no KEK file is configured |
 | `internal/agentapp/taskrun` | Consume an authorized in-memory grant set, place environment grants, run renderers into the run's `HOME` |
 | `internal/infra/sandbox` | Apply the §13.1 deny-by-default environment policy and admit exactly this run's declared names |
 
 `internal/core` imports no configuration, cryptography provider,
 infrastructure, GORM, Server code, or Agent application assembly. Configuration
-selects provider implementations during bootstrap; it does not resolve Team
+selects provider implementations during bootstrap; it does not resolve Space
 resources. The Secret service takes a small KEK/provider interface so embedded,
 Vault, and cloud implementations do not leak into handlers or the runtime.
 
@@ -893,7 +893,7 @@ Mark every item write-only or readable, so non-secret configuration could live
 beside the credential and still be visible — the split Kubernetes draws between
 Secret and ConfigMap, and GitHub Actions between secrets and variables.
 
-Rejected because it charges a per-item classification to every Team on every
+Rejected because it charges a per-item classification to every Space on every
 write to serve a case that placement already answers. A Secret holds what should
 be write-only; §6.3's renderer literals hold what a cluster shares and should be
 readable. Configuration is visible where it lives, and creating a Secret stays
@@ -918,14 +918,14 @@ point-in-time value recovery; nothing here forecloses it.
 ### Deployment Environment Variables Only
 
 Keep the current model and ask operators to put every credential in the worker
-environment. No new database, crypto, UI, or provider code — and no Team scope,
+environment. No new database, crypto, UI, or provider code — and no Space scope,
 no per-Agent account choice, no rotation, and no usable audit. Every run of
 every Agent gets every value.
 
 ### A Deployment-Global Secret Scope
 
-See §4. Refused because a global value has no owner to attribute it to, no Team
-to revoke it from, and no answer to which Teams' runs may read it.
+See §4. Refused because a global value has no owner to attribute it to, no Space
+to revoke it from, and no answer to which Spaces' runs may read it.
 
 ### External Secret Managers Only
 
@@ -940,7 +940,7 @@ carefully brokered. External backends belong under §9.2, not instead of it.
 ### Phase 0 — Unblock And Isolate The Run
 
 - **done** — give each run its own empty operating-system `HOME` (§8.1),
-  distinct from `BUILDMAX_HOME` and the team-files directory;
+  distinct from `BUILDMAX_HOME` and the space-files directory;
 - replace the `env_scrub` denylist with §13.1's deny-by-default,
   allow-declared policy, keeping BuildMax's own credentials denied. This lands
   with Phase 1's grant delivery, not alone: the allow-list is empty until a
@@ -955,19 +955,19 @@ The OS `HOME` and the `env_scrub` policy are prerequisites for any delivery at
 all; the `HOME` half is done. The rest must be explicit before BuildMax claims
 a worker holds only what its run needs.
 
-### Phase 1 — Embedded Team Secrets With Environment Delivery
+### Phase 1 — Embedded Space Secrets With Environment Delivery
 
 - **done** — the `secret` and `task_run_secret` rows, items as one encrypted
   map, with the store scope passing against MySQL;
 - **done** — envelope encryption with a portable mounted KEK;
 - **done** — environment consumption config on the Agent revision, validated
-  against the team's live Secrets when the revision is saved and versioned with
+  against the space's live Secrets when the revision is saved and versioned with
   it;
 - **done** — owner-only create, item edit (per-item patch and whole-map
   replace), disable, and destroy over HTTP, gated on a configured KEK file, with
   the agent request carrying the consumption config;
 - **done** — a run-token worker route resolves the run's agent consumption,
-  decrypts each grant against the run's team, and returns the env bundle over a
+  decrypts each grant against the run's space, and returns the env bundle over a
   `no-store` response; the worker fetches it, sets the grants in the run's
   environment, and the `env_scrub` allow-list admits the declared names while
   still denying BuildMax's own credentials. A required grant that is disabled,
@@ -984,13 +984,13 @@ a worker holds only what its run needs.
 - **done** — the Portal Secrets page (owner-only management of metadata and
   items, create with a row editor or raw JSON, per-item edit, disable, destroy,
   §3's consequences in a notice) and the agent-side consumption editor (an
-  owner or admin configures an Agent's env grants against the team's secrets in
+  owner or admin configures an Agent's env grants against the space's secrets in
   the create and edit modals). Consumption-health surfaces a grant whose Secret
   or item no longer resolves, in the editor and as a count on the agent card.
   Phase 1 is complete.
 
 Environment delivery is first because it is universal and needs no renderer.
-The core loop — a Team owner stores a Secret, an Agent declares it, a run
+The core loop — a Space owner stores a Secret, an Agent declares it, a run
 receives it in its environment, and the materialization is recorded — is
 closed; the Portal surface and per-run exact-value redaction are what remain.
 
@@ -1039,7 +1039,7 @@ Phase 1 does not ship until these hold:
 2. no user-facing operation reveals a value;
 3. a worker cannot obtain a Secret outside its stored TaskRun grants, and a run
    receives nothing its Agent revision did not configure;
-4. an Agent revision consuming another Team's Secret is refused when saved, as
+4. an Agent revision consuming another Space's Secret is refused when saved, as
    is one naming an item the Secret does not have;
 5. rotating a multi-item Secret is atomic: a run resolves every item from one
    decrypt, never one item from before a rotation and another from after;
@@ -1059,7 +1059,7 @@ safely without it; a KEK-rotation drill proving `rewrap` re-wraps every row with
 no downtime, is resumable after interruption, and that removing the old KEK is
 refused while any row still names it; a rendered-file test proving every write constraint,
 including refusal of a template targeting a shell-startup file or a path outside
-the run's `HOME`; cross-Team and cross-run authorization matrix tests;
+the run's `HOME`; cross-Space and cross-run authorization matrix tests;
 failure-injection for KMS and Vault timeouts, provider denial, lease expiry, and
 redaction paths; and latency measurement for Secret and object-storage
 brokerage so the boundary does not create an unexamined bottleneck.
@@ -1071,8 +1071,8 @@ them.
 ## 20. Open Questions
 
 1. **Decided** — reading Secret metadata (list and get, never a value) is
-   owner-or-admin via `team.ActionReadSecrets`; managing values stays owner-only
-   via `team.ActionManageSecrets`. An admin needs the list to configure an
+   owner-or-admin via `space.ActionReadSecrets`; managing values stays owner-only
+   via `space.ActionManageSecrets`. An admin needs the list to configure an
    Agent's consumption, and the metadata carries no value.
 2. Is an external-provider locator encrypted with the value, or is
    database-visible provider metadata necessary for operation and audit?
@@ -1086,7 +1086,7 @@ them.
    exposing mutable names?
 7. What artifact behavior is honest when a credential-bearing process writes the
    value, or a transformed form of it, into an output file?
-8. Do the built-in renderers suffice, or does a deployment need Team-defined file
+8. Do the built-in renderers suffice, or does a deployment need Space-defined file
    templates — and if so, how are `target_path` and `mode` constrained so a
    template cannot render into a shell-startup file?
 9. Does the run's environment baseline need an operator escape hatch for

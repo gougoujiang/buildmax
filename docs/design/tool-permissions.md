@@ -28,7 +28,7 @@
   front of every tool call. They meet in §5.7.
 - precedes: [parallel-tool-execution.md](./parallel-tool-execution.md), which
   consumes the `Access` classification defined here in §5.1;
-  [team-governance.md](./team-governance.md), which is where operator control
+  [space-governance.md](./space-governance.md), which is where operator control
   over autonomous surfaces has to land — §7
 - touches: `internal/core/llm`, `internal/core/agent`, `internal/tool`,
   `internal/infra/mcp`, `internal/config`, `internal/interface/cli`,
@@ -126,7 +126,7 @@ On a local CLI the owner and the user are the same person: they can edit
 worker — the surface where owner and user genuinely differ — `BUILDMAX_HOME`
 is `RuntimeTaskRunGlobalDir`, a directory `ensureRunDirs` creates fresh with
 `os.MkdirAll` on every run (`internal/agentapp/taskrun/runtime.go:222`, `:227`,
-`:324`). Nothing provisions a `policy.yaml` into it — team files are
+`:324`). Nothing provisions a `policy.yaml` into it — space files are
 materialized into `runHome`, not `runGlobal` — so `LoadPolicySandbox` always
 reads an empty config there.
 
@@ -205,7 +205,7 @@ shows a resolved sandbox.
 - **P6 — Overridable where the override can actually land.** `settings.yaml`
   for the user, and one command that prints the resolved table with its
   sources. Operator control over an autonomous surface is server-delivered and
-  team-scoped, which is P4 work, not a local file — §7.
+  space-scoped, which is P4 work, not a local file — §7.
 
 ## 5. In Scope
 
@@ -548,8 +548,8 @@ Deny is the safe direction to be stuck on in the meantime.
 - **Operator control over autonomous surfaces.** Deliberately not solved here,
   and not solved with a local file. A worker's `BUILDMAX_HOME` is created fresh
   per run (§2), so the only channel that reaches it is the one it already uses
-  for its model policy and run token: server delivery, scoped to the team. That
-  is [team-governance.md](./team-governance.md) P4 work, and this record's
+  for its model policy and run token: server delivery, scoped to the space. That
+  is [space-governance.md](./space-governance.md) P4 work, and this record's
   §5.1–§5.4 are its prerequisite — the server has to have something to deliver
   before it can deliver it. Until then, an autonomous surface runs the derived
   defaults in §6 and nothing overrides them.

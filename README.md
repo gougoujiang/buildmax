@@ -3,10 +3,10 @@
 [![CI](https://github.com/gougoujiang/buildmax/actions/workflows/ci.yml/badge.svg)](https://github.com/gougoujiang/buildmax/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-**An open-source Agent runtime for local work and private team deployment.**
+**An open-source Agent runtime for local work and private space deployment.**
 
 Run BuildMax locally through CLI/TUI or Desktop with your own model endpoint,
-or deploy it for a team with centrally managed models, background workers,
+or deploy it for a space with centrally managed models, background workers,
 shared results, and governance. Both use the same Go Agent Core, so moving from
 one user to an organization does not mean adopting a different agent.
 
@@ -14,7 +14,7 @@ one user to an organization does not mean adopting a different agent.
 
 - **[Try it locally](#try-buildmax-locally)** — one user, one directory, no
   BuildMax Server required
-- **[Run it for a team](#run-buildmax-for-a-team)** — private deployment,
+- **[Run it for a space](#run-buildmax-for-a-space)** — private deployment,
   shared work, managed models, and background execution
 - **[Help shape it](#help-shape-buildmax)** — contribute to the runtime, local
   experience, enterprise platform, or trust boundaries
@@ -30,8 +30,8 @@ one user to an organization does not mean adopting a different agent.
 
 - **Local without a control plane.** CLI/TUI and Desktop can call your own
   provider, compatible gateway, or local inference endpoint. A BuildMax Server,
-  account, and team are optional.
-- **Enterprise without a second agent.** A private deployment adds team
+  account, and space are optional.
+- **Enterprise without a second agent.** A private deployment adds space
   identity, centrally approved model aliases, workers, shared results, usage,
   and audit around the same runtime used locally.
 - **Portable by construction.** The core is Go, the CLI is a single binary,
@@ -44,7 +44,7 @@ The user-facing surfaces have distinct jobs:
 |---|---|
 | **CLI/TUI** | Fast local execution in a terminal, including sessions and scripting |
 | **Desktop** | A local personal workbench for workspaces, sessions, and results |
-| **Portal** | Team work, workflows, background runs, shared outputs, and governance |
+| **Portal** | Space work, workflows, background runs, shared outputs, and governance |
 
 ## Try BuildMax Locally
 
@@ -81,9 +81,9 @@ exist so you can point the agent at something and watch it work.
 
 Full walkthrough: **[docs/start/quickstart.md](docs/start/quickstart.md)**.
 
-## Run BuildMax For A Team
+## Run BuildMax For A Space
 
-A team deployment adds the Server, Portal, and workers around the same Agent
+A space deployment adds the Server, Portal, and workers around the same Agent
 Core. The fastest complete path is Docker Compose:
 
 ```bash
@@ -112,7 +112,7 @@ boundaries; do not expose a deployment before reading the
 |---|---|
 | [Install](docs/start/install.md) · [Quickstart](docs/start/quickstart.md) · [Support matrix](docs/start/support.md) · [Concepts](docs/start/concepts.md) | Getting started |
 | [Hooks](docs/guide/hooks.md) · [Sandbox](docs/guide/sandbox.md) | Controlling what the agent may do |
-| [Compose quickstart](docs/deploy/compose.md) · [Local kind](docs/deploy/local-kind.md) · [Deployment](docs/deploy/overview.md) · [Authentication](docs/deploy/authentication.md) | Running it for a team |
+| [Compose quickstart](docs/deploy/compose.md) · [Local kind](docs/deploy/local-kind.md) · [Deployment](docs/deploy/overview.md) · [Authentication](docs/deploy/authentication.md) | Running it for a space |
 | [Configuration](docs/reference/configuration.md) · [CLI](docs/reference/cli.md) · [Webhook](docs/reference/webhook.md) | Reference |
 | [docs/ROADMAP.md](docs/ROADMAP.md) · [Design records](docs/design/README.md) | Where it is going, and why |
 | [Contributing](CONTRIBUTING.md) · [Support](.github/SUPPORT.md) · [Changelog](CHANGELOG.md) | Project participation and releases |
@@ -133,7 +133,7 @@ Contributions are also welcome in four main areas:
   subagents, and traces
 - **Local Experience** — CLI/TUI, Desktop, workspaces, sessions, and results
 - **Enterprise Platform** — Portal, workers, managed models, deployment, and
-  team governance
+  space governance
 - **Trust And Security** — sandboxing, permissions, credentials, hooks, audit,
   and observable execution boundaries
 
@@ -173,7 +173,7 @@ key.
 
 Two directories in the tree are fixtures rather than product code:
 [`sample-data/`](sample-data/README.md) holds the datasets above — upload them
-into a team workspace to give a fresh Portal deployment something to work on, or
+into a space workspace to give a fresh Portal deployment something to work on, or
 point the CLI at one — and `evaluation/suite/` holds the evaluation tasks, each
 with the state a trial starts from and the graders it is judged by. Run the CLI
 tasks with `./make eval`; select worker tasks explicitly with

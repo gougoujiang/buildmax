@@ -50,7 +50,7 @@ happy path without reading code:
 1. start infrastructure
 2. start server and Portal
 3. log in
-4. create team work
+4. create space work
 5. run a worker task
 6. view the produced result
 
@@ -185,7 +185,7 @@ It must prove:
 - scheduler claims pending task runs
 - worker starts in the chosen mode
 - worker can call server worker API
-- worker can materialize team home
+- worker can materialize space home
 - worker can write `artifacts/result.md`
 - server can surface the result through artifact endpoints
 
@@ -254,12 +254,12 @@ Required checks:
 - Kubernetes job creator is available for `k8s_job`
 - `worker.llm.transport` names a model policy the deployment can actually serve
 
-### 5.5 Initial Admin / Team / Quota Story
+### 5.5 Initial Admin / Space / Quota Story
 
 The bootstrap story is implemented. Self-registration is closed by default. An
-operator creates an account and its personal Team with `buildmax-server user
+operator creates an account and its personal Space with `buildmax-server user
 create`, issues a single-use login code, and grants deployment authority
-separately with `buildmax-server admin grant`. The default quota tier and Team
+separately with `buildmax-server admin grant`. The default quota tier and Space
 owner membership are created without a database edit. See M5 and
 [deployment authentication](../deploy/authentication.md).
 
@@ -407,7 +407,7 @@ Acceptance, both met:
 `./make kind up` owns the current local Kubernetes path: it creates or reuses
 the pinned kind cluster, installs its backing MySQL/MinIO/ingress, builds and
 loads the images, applies the deployment and deterministic model configuration,
-then runs the smoke. The smoke signs in, proves a team boundary, creates and
+then runs the smoke. The smoke signs in, proves a space boundary, creates and
 runs work, reads its artifact, and proves that retry creates a second executed
 run. The managed variant also proves the run-scoped credential and call ledger.
 
@@ -451,13 +451,13 @@ managed database or object store.
 ### M5. Admin Bootstrap Story — DONE
 
 Private deployments close self-registration by default. An operator creates an
-account and its personal Team with `buildmax-server user create`, issues a
+account and its personal Space with `buildmax-server user create`, issues a
 single-use login code, and grants deployment authority separately with
 `buildmax-server admin grant`. The commands audit their actions; the Portal then
-handles ordinary Team administration. The exact procedure and its recovery
+handles ordinary Space administration. The exact procedure and its recovery
 semantics are in [deployment authentication](../deploy/authentication.md).
 
-Acceptance met: operators can create the first user, Team, role, quota tier,
+Acceptance met: operators can create the first user, Space, role, quota tier,
 and System Administrator without modifying the database.
 
 ## 10. Validation
@@ -485,7 +485,7 @@ Manual product validation:
 
 1. Open Portal.
 2. Log in.
-3. Create or select a team.
+3. Create or select a space.
 4. Create an issue or conversation task.
 5. Run work.
 6. Confirm the worker completes.
@@ -541,7 +541,7 @@ exercises and their still-open evidence live in the
 6. What availability and recovery targets are realistic for the first Beta? The
    deployment reference states a recovery *procedure* — restore from backup,
    redeploy the previous image tag — without stating an objective it meets.
-7. Has a restore actually been exercised? Recovering a team and a completed run
+7. Has a restore actually been exercised? Recovering a space and a completed run
    needs the database and the bucket restored *together*, and nothing has proven
    that the pair comes back consistent.
 8. Has an upgrade and rollback been exercised across at least one schema change?

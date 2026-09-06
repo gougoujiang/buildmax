@@ -1,9 +1,9 @@
 # Plugin Distribution And Private Marketplace
 
 > **Audience:** contributors and operators · **Status:** partly implemented —
-> Phases A, B, and C ship; team and worker distribution D1 also ships and its
+> Phases A, B, and C ship; space and worker distribution D1 also ships and its
 > remaining work is designed in
-> [plugin-team-distribution.md](./plugin-team-distribution.md)
+> [plugin-space-distribution.md](./plugin-space-distribution.md)
 >
 > User documentation for what ships:
 > [../guide/plugins.md](../guide/plugins.md)
@@ -37,14 +37,14 @@
   `${BUILDMAX_PLUGIN_ROOT}`, per-run provenance in traces, the local CLI
   commands, and the Marketplace itself — packaging, the catalog and its
   releases, package storage, publication, browse, download, and install, plus
-  the Portal and Desktop surfaces. Phase D, team and worker distribution, is
-  under way: D1 ships team activation, agent selection, Portal management,
+  the Portal and Desktop surfaces. Phase D, space and worker distribution, is
+  under way: D1 ships space activation, agent selection, Portal management,
   server-side pinning, and worker materialization for skills and subagents. The
   Agent modal still lacks its plugin field; executable hooks/MCP and secret
   delivery remain open. Its record is
-  [plugin-team-distribution.md](./plugin-team-distribution.md)
+  [plugin-space-distribution.md](./plugin-space-distribution.md)
 - follows: [enterprise-deployment.md](./enterprise-deployment.md),
-  [team-governance.md](./team-governance.md), and
+  [space-governance.md](./space-governance.md), and
   [system-administration.md](./system-administration.md)
 - relates_to: [hook-system.md](./hook-system.md),
   [tool-permissions.md](./tool-permissions.md), and
@@ -159,7 +159,7 @@ The question that actually decides the mode is **who else depends on this
 copy**. One person's plugin, maintained on their own machine and used only by
 them, is legitimately a clone forever — it is production for them, and pushing
 it through an administrator's release machinery would buy nobody anything. A
-plugin three teams run in their daily work needs a stable identity and a kill
+plugin three spaces run in their daily work needs a stable identity and a kill
 switch long before it stops changing every week.
 
 Two consequences follow, and neither is a defect to fix later:
@@ -172,7 +172,7 @@ Two consequences follow, and neither is a defect to fix later:
   the final one, not a staging area.
 - **A deployment that does have a Marketplace still cannot assume everything
   came from it.** Today only a System Administrator may publish (§7.1), so an
-  engineer whose plugin is genuinely useful to their team has no self-serve way
+  engineer whose plugin is genuinely useful to their space has no self-serve way
   to give it a stable identity. Some of them will keep a clone instead. A
   convention that is quietly violated at scale is worse than no convention,
   because it makes provenance look answered when it is not. §4.5 gives an
@@ -237,7 +237,7 @@ description: Company code review skills and agents.
 
 display_name: Code Review
 homepage: https://code.example.com/agents/code-review
-maintainer: Platform Team <platform@example.com>
+maintainer: Platform Space <platform@example.com>
 license: Apache-2.0
 
 min_buildmax_version: 0.9.0
@@ -498,7 +498,7 @@ direction: a `policy.yaml` block for tool permissions was specified and then
 dropped, because a worker's `BUILDMAX_HOME` is created fresh per run and an
 operator policy placed on a long-lived host would not automatically reach it.
 Plugin source policy therefore governs discovery in the home that actually
-contains it; team activations and immutable run pins, rather than a persistent
+contains it; space activations and immutable run pins, rather than a persistent
 worker plugin directory, govern which releases a background run receives.
 
 Source classification lives with discovery rather than with each surface that
@@ -581,7 +581,7 @@ rather than letting publication discard the first.
 
 ### 7.1 Scope And Roles
 
-The Marketplace belongs to the deployment, not a team:
+The Marketplace belongs to the deployment, not a space:
 
 | Action | Authority |
 |---|---|
@@ -592,13 +592,13 @@ The Marketplace belongs to the deployment, not a team:
 | Install or update locally | User controlling that `BUILDMAX_HOME` |
 
 This lets a System Administrator manage company capabilities without granting
-access to team prompts, files, artifacts, or traces. Per-team catalog visibility
+access to space prompts, files, artifacts, or traces. Per-space catalog visibility
 is deferred until there is evidence that a deployment-wide catalog is too broad.
 
 Publication authority is a separate question from catalog visibility, and the
 more pressing one. With administrator-only publication there is no self-serve
 path between "a clone on one machine" and "a company-wide release", so a plugin
-useful to one team has nowhere to acquire a stable identity. Open question 4
+useful to one space has nowhere to acquire a stable identity. Open question 4
 carries this; §2.3 explains why leaving it open has a cost.
 
 ### 7.2 Pack And Publish
@@ -701,7 +701,7 @@ The server needs only two deployment-scoped concepts:
 
 Package bytes sit behind a narrow plugin package storage interface with local
 filesystem and S3-compatible implementations. They are not task artifacts and
-do not inherit team artifact authorization or retention.
+do not inherit space artifact authorization or retention.
 
 Implementation uses singular database tables and new prefixed public IDs, and
 updates the data-model and ID references in the same change. The exact row and
@@ -872,13 +872,13 @@ subagent start, MCP calls, and hook events should carry plugin origin when the
 resolved definition came from one.
 
 Portal and worker distribution consume only immutable Marketplace releases.
-The server resolves an Agent's named plugins against the Team activation and
+The server resolves an Agent's named plugins against the Space activation and
 records exact release pins on the TaskRun; the worker downloads only those pins
 with its run token and materializes them before runtime assembly. It never
 clones a mutable repository, receives a developer's Git credential, or resolves
 “latest” while starting a run. D1 admits skills and subagents only. Executable
 hooks/MCP and secret delivery remain in the follow-on
-[team distribution design](plugin-team-distribution.md).
+[space distribution design](plugin-space-distribution.md).
 
 ## 11. Implementation Ownership
 
@@ -948,10 +948,10 @@ runs, a server cannot see that machine, and a button there would be lying about
 where it ran — so Portal offers a command and Desktop offers a button, each on
 the side of the boundary it can honour.
 
-### Phase D — Team And Worker Distribution, Under Way
+### Phase D — Space And Worker Distribution, Under Way
 
 The follow-on design this asked for is
-[plugin-team-distribution.md](./plugin-team-distribution.md). It decides team
+[plugin-space-distribution.md](./plugin-space-distribution.md). It decides space
 ownership, who may enable active hooks or stdio MCP, package materialization,
 version pinning, and what bounds executable content once it reaches a worker;
 it puts secret scope in a further record of its own.
@@ -1049,7 +1049,7 @@ Implementation is not complete until tests prove:
 - global, plugin, and workspace hooks run in documented order;
 - `${BUILDMAX_PLUGIN_ROOT}` is scoped to the originating plugin;
 - an in-flight runtime keeps its resolved snapshot across managed updates;
-- a non-admin cannot mutate the catalog and an admin gains no team-content
+- a non-admin cannot mutate the catalog and an admin gains no space-content
   access through catalog routes;
 - audit and trace records contain provenance but no configuration values or
   secrets;
@@ -1072,10 +1072,10 @@ inventory because they share `agentapp`, which no test drives from both sides.
 3. Should Portal expose raw archive downloads, or direct users to CLI/Desktop
    so installation state stays truthful?
 4. Should publication stay administrator-only, or should there be a self-serve
-   scope — a user- or team-owned catalog entry that an administrator can
-   promote — so that a plugin one team depends on can get a stable identity
+   scope — a user- or space-owned catalog entry that an administrator can
+   promote — so that a plugin one space depends on can get a stable identity
    without an administrator in the loop? This is the authority axis, separate
-   from the per-team *visibility* question §7.1 defers, and §2.3 argues it is
+   from the per-space *visibility* question §7.1 defers, and §2.3 argues it is
    the one creating pressure against the convention.
 5. What evidence would justify dependencies between plugins, or a declared
    namespace for contributed names, given that §5 makes a collision a hard
@@ -1093,6 +1093,6 @@ inventory because they share `agentapp`, which no test drives from both sides.
 - [Hooks](../guide/hooks.md)
 - [Configuration reference](../reference/configuration.md)
 - [System administration](./system-administration.md)
-- [Team governance](./team-governance.md)
+- [Space governance](./space-governance.md)
 - [Tool permissions](./tool-permissions.md)
 - [Trust harness](./trust-harness.md)

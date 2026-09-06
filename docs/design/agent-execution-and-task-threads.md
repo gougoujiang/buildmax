@@ -43,7 +43,7 @@ retired and are out of scope here.
 ## 1. Decision
 
 An Agent definition can be invoked directly. Direct invocation creates a
-Team-owned Task and its first TaskRun, then uses the existing scheduler, worker,
+Space-owned Task and its first TaskRun, then uses the existing scheduler, worker,
 and shared Agent runtime. It does not create a Conversation and does not ask a
 foreground Conversation model to select the Agent the user already selected.
 
@@ -121,7 +121,7 @@ The stable objects have separate reasons to exist:
 | Object | Owns | Does not own |
 |---|---|---|
 | Agent | Reusable identity, description, instructions, revision, and declared runtime policy | One user's history, one execution's state, or a mutable workspace |
-| Task | Team-owned objective, selected Agent identity, durable Agent session lineage, and user-visible thread lifecycle | One attempt's mutable execution state |
+| Task | Space-owned objective, selected Agent identity, durable Agent session lineage, and user-visible thread lifecycle | One attempt's mutable execution state |
 | TaskRun | One input, one execution attempt, the exact revision and policy used, status, usage, output, trace, and artifacts | Permanent Agent identity or cross-run ownership |
 | Conversation | Foreground messages, participants, short interactive turns, and optional Task projections | Worker lease, Task state, Agent session, or execution authorization |
 | Issue | Shared work and result context | Private Agent history or worker lifecycle |
@@ -132,9 +132,9 @@ process. One Agent can serve many users and many Tasks concurrently. Every
 invocation still receives an explicit Task and TaskRun envelope so cancellation,
 retry, quota, trace, artifacts, and audit retain one authoritative owner.
 
-Team is authoritative for every Portal execution resource. Conversation,
+Space is authoritative for every Portal execution resource. Conversation,
 Issue, Workflow step, webhook, and future schedule are typed origins or result
-destinations within that Team.
+destinations within that Space.
 
 ## 4. Supported Entry Paths
 
@@ -147,7 +147,7 @@ both the executor and objective. No semantic router is needed.
 User selects Agent + enters input
                  |
                  v
-Task application service validates Team, Agent, quota, and input
+Task application service validates Space, Agent, quota, and input
                  |
                  v
 Task + first TaskRun are committed atomically
@@ -184,7 +184,7 @@ interpret.
 
 ### 4.5 API, Webhook, And Future Schedule
 
-Non-conversational callers create Team-owned Tasks through the same service.
+Non-conversational callers create Space-owned Tasks through the same service.
 Each records a typed trigger source and the caller identity available at its
 boundary. None invents a Conversation for storage or authorization.
 
@@ -234,7 +234,7 @@ operations.
 Continue accepts new user input on an existing Task and creates a new TaskRun.
 It retains:
 
-- Task and Team ownership;
+- Task and Space ownership;
 - Agent identity;
 - Task session lineage;
 - prior model-visible session history, subject to compaction;
@@ -314,12 +314,12 @@ without a new authorized turn.
 
 ### 8.1 Task Ownership And Origins
 
-The target Task shape makes Team ownership explicit and Conversation optional:
+The target Task shape makes Space ownership explicit and Conversation optional:
 
 ```text
 Task
   id
-  team_id                  required, authoritative owner
+  space_id                  required, authoritative owner
   agent_id                 required for Agent-backed execution
   conversation_id          optional origin/presentation relation
   issue_id                 optional shared-work relation
@@ -335,7 +335,7 @@ origin and presentation relation, not parenthood. If later one Task can project
 to several Conversations, delivery receives its own relation without changing
 Task ownership.
 
-All supplied origin ids must resolve inside `team_id`. A missing origin is a
+All supplied origin ids must resolve inside `space_id`. A missing origin is a
 normal direct execution, not an error.
 
 ### 8.2 TaskRun Provenance
@@ -361,16 +361,16 @@ branching; that feature would need a distinct accepted design.
 
 ### 8.3 API Direction
 
-The authoritative creation surface should be Team-scoped rather than nested
+The authoritative creation surface should be Space-scoped rather than nested
 under Conversation. A likely shape is:
 
 ```text
-POST /api/teams/{team_id}/tasks
+POST /api/spaces/{space_id}/tasks
   { agent_id, input, optional origin fields }
 
-GET  /api/teams/{team_id}/tasks/{task_id}
-GET  /api/teams/{team_id}/tasks/{task_id}/runs
-POST /api/teams/{team_id}/tasks/{task_id}/runs
+GET  /api/spaces/{space_id}/tasks/{task_id}
+GET  /api/spaces/{space_id}/tasks/{task_id}/runs
+POST /api/spaces/{space_id}/tasks/{task_id}/runs
   { input }
 ```
 
@@ -391,7 +391,7 @@ Worker directories and object storage are addressed by durable ownership and
 execution identity:
 
 ```text
-teams/{team_id}/tasks/{task_id}/runs/{task_run_id}/...
+spaces/{space_id}/tasks/{task_id}/runs/{task_run_id}/...
 ```
 
 The exact prefix is an infrastructure decision, but neither creator id nor
@@ -410,7 +410,7 @@ revision and execution policy used for that turn.
 
 The target resolution sequence is:
 
-1. admission validates that the Agent belongs to the Team and is active;
+1. admission validates that the Agent belongs to the Space and is active;
 2. TaskRun creation snapshots the Agent revision and stable execution
    declarations needed to determine what should run;
 3. worker claim materializes dynamic values, credentials, and deployment
@@ -433,7 +433,7 @@ does not rewrite TaskRun history.
 
 ## 10. Authorization And Trust Boundaries
 
-Task access is authorized through `task.team_id` and current Team membership.
+Task access is authorized through `task.space_id` and current Space membership.
 Handlers do not fetch Conversation to prove Task ownership. The same rule
 applies to TaskRuns, Artifacts, traces, model-call ledgers, cancellation, retry,
 and Continue.
@@ -441,10 +441,10 @@ and Continue.
 An optional relation never grants authority. In particular:
 
 - a Conversation id does not grant access to its Task;
-- an Issue relation does not bypass Team membership;
-- a source message cannot select a different Team or Agent;
+- an Issue relation does not bypass Space membership;
+- a source message cannot select a different Space or Agent;
 - a worker run token remains scoped to one TaskRun; and
-- the Worker derives Team, Task, Agent, and origin data from Server state, not
+- the Worker derives Space, Task, Agent, and origin data from Server state, not
   from model-provided arguments.
 
 Task history distinguishes content by trust level. User input is an
@@ -486,7 +486,7 @@ The Task page shows:
 - an input at the bottom for Continue.
 
 The input is disabled while a run is active. After success, failure, or
-cancellation it accepts a new message subject to Agent availability, Team
+cancellation it accepts a new message subject to Agent availability, Space
 authorization, and quota. Sending creates a new TaskRun and leaves prior turns
 immutable.
 
@@ -498,14 +498,14 @@ Opening a card navigates to the Task page, where the complete TaskRun history
 and Continue input live.
 
 A direct Agent Task does not appear in an unrelated Conversation list. It is
-discoverable through the Agent's execution history and a Team task/history
+discoverable through the Agent's execution history and a Space task/history
 surface.
 
 ### 11.4 Agent Execution History
 
 The Agent detail surface lists Tasks for that Agent, newest first, with status,
 origin, creator, last activity, run count, and latest result summary. Selecting
-one opens its Task page. Listing is Team-scoped and paginated; it does not scan
+one opens its Task page. Listing is Space-scoped and paginated; it does not scan
 Conversation messages or traces.
 
 ## 12. Failure, Recovery, And Concurrency
@@ -540,7 +540,7 @@ design.
 
 ### 13.1 Ownership Cutover
 
-Make Task Team-owned and Conversation optional in one ownership change:
+Make Task Space-owned and Conversation optional in one ownership change:
 
 - domain Task and creation inputs;
 - `taskRow`, reads, joins, and store queries;
@@ -552,12 +552,12 @@ Make Task Team-owned and Conversation optional in one ownership change:
 - tests, OpenAPI, data-model, server architecture, and current-state docs.
 
 Do not retain a second Conversation-derived ownership rule or compatibility
-adapter. Existing Tasks receive their already known Team id; the project has no
+adapter. Existing Tasks receive their already known Space id; the project has no
 released persisted data requiring a dual representation.
 
 ### 13.2 Direct Task Admission
 
-Add the Team-scoped Task creation operation and make the Agent page call it.
+Add the Space-scoped Task creation operation and make the Agent page call it.
 Remove the Agent-preview prompt and the create-Conversation detour. Record Agent
 revision and execution declarations at TaskRun admission.
 
@@ -600,7 +600,7 @@ it rather than leaving the gap implicit.
    `conversation_id` absent — covered by the same spec and by the Task page's
    Stop/Retry actions. **Open:** streaming, and Artifacts/trace/usage evidence
    specific to a direct (Conversation-less) Task. A backend SSE endpoint
-   already exists (`GET /api/teams/{team_id}/tasks/{task_id}/stream`,
+   already exists (`GET /api/spaces/{space_id}/tasks/{task_id}/stream`,
    `internal/server/handlers/work/stream.go`, built for Conversation) but the
    Task page consumes it nowhere — it polls every 1.5s instead.
 4. **Done.** A refreshed Task page reconstructs every user input and Agent
@@ -636,7 +636,7 @@ it rather than leaving the gap implicit.
     `portal/e2e/conversation.spec.ts` still passes, but nothing added this
     round exercises it directly.
 12. **Done for the routes this design added or changed.**
-    `team_authz_matrix_test.go` covers cross-team refusal for
+    `space_authz_matrix_test.go` covers cross-space refusal for
     Task/TaskRun/Artifact/trace/llm-call/cancel/retry routes.
 13. **Open.** Worker loss, Server restart, and session-restore failure leaving
     an explainable state, verified specifically for a direct (Conversation-less)
@@ -646,7 +646,7 @@ it rather than leaving the gap implicit.
     open design question — see §16.
 14. **Done.** MySQL integration tests exercise the nullable relation
     (`TestCreateTaskDirectHasNoConversation`), direct creation, run concurrency
-    (§7 above), and Team authorization (the cross-team case in the same test)
+    (§7 above), and Space authorization (the cross-space case in the same test)
     using `./make test mysql`.
 15. **Partly done.** Portal browser coverage exercises direct Run, history
     reload, Continue, and Retry (`task-thread.spec.ts`, run twice against a
@@ -687,7 +687,7 @@ instruction.
 ### 15.5 Make One Mutable Session Belong To Agent
 
 An Agent is shared and can run concurrently. A mutable session on the Agent
-would leak context between users, Tasks, or Teams and would make revision and
+would leak context between users, Tasks, or Spaces and would make revision and
 concurrency semantics incoherent. Session lineage belongs to Task.
 
 ### 15.6 Make Task A Permanently Running Worker

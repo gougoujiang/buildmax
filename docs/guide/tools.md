@@ -36,7 +36,7 @@ with what is configured.
 
 `UploadArtifact` is the one built-in that is not always there. It needs a
 BuildMax server to publish to, so it appears when you are logged in
-(`buildmax login`) and when a worker runs a task for a team. A local session
+(`buildmax login`) and when a worker runs a task for a space. A local session
 running straight against a model provider has no artifact store, and rather
 than offering a tool that could only fail, the agent is not given one — it
 keeps writing files where it already does.
@@ -139,11 +139,11 @@ discards the messages that produced it. Notes are capped at 15 entries of 200
 characters; a longer list is rejected and the agent is asked to merge it. A
 session that never writes either one carries nothing extra.
 
-**`UploadArtifact` publishes; it does not save.** It hands one file to the team
+**`UploadArtifact` publishes; it does not save.** It hands one file to the space
 and returns an opaque reference anyone with access can open. Content is
 immutable, so a corrected version is a second artifact rather than a change to
 the first. The agent chooses the file: nothing is uploaded automatically, which
-is what keeps `.env` files, caches, and intermediate output out of the team's
+is what keeps `.env` files, caches, and intermediate output out of the space's
 artifact list. A symlink whose target is outside the workspace is refused even
 though the link itself is inside it. See
 [../reference/configuration.md](../reference/configuration.md) for
@@ -154,7 +154,7 @@ to a person: it opens without a BuildMax login and renders in the Portal — a
 Markdown document as formatted text, an HTML file as a live page. The link is
 revocable and expires. It needs the deployment to have `public_base_url` set;
 without it the file still publishes and the tool reports that no link could be
-made. A team member can also create or revoke a link from the artifact's Portal
+made. A space member can also create or revoke a link from the artifact's Portal
 page.
 
 ## The Path Boundary

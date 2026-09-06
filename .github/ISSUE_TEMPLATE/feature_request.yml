@@ -45,12 +45,12 @@ body:
     id: operating-profile
     attributes:
       label: Which operating profile needs it?
-      description: Local execution and model transport are separate; a local agent may still use a team's managed models.
+      description: Local execution and model transport are separate; a local agent may still use a space's managed models.
       multiple: true
       options:
         - Local workbench without a BuildMax Server
         - Local CLI / Desktop connected to a BuildMax deployment
-        - Team platform through Portal / workers
+        - Space platform through Portal / workers
         - Shared behavior across profiles
         - Not sure
     validations:

@@ -19,19 +19,19 @@
 >   `auth.json` exists. Transport is a property of the session, not of a model
 >   entry, and the two lists are never merged. `settings.yaml` describes only
 >   what a signed-out session runs on.
-> - Models are global to a deployment. Per-team model policy is **withdrawn**,
+> - Models are global to a deployment. Per-space model policy is **withdrawn**,
 >   not pending, and the alias layer is gone: a client names a model by
 >   `llm_model.name`, and `server.yaml` `llm.default_model` names the default.
 > - The gateway routes are `/api/llm/models` and `/api/llm/completions`. Being
 >   signed in is their whole authorization.
-> - The `llm_call` ledger is attributed to a user. A run's team is reached
->   through `task_run_id`; a foreground call belongs to no team and is metered
+> - The `llm_call` ledger is attributed to a user. A run's space is reached
+>   through `task_run_id`; a foreground call belongs to no space and is metered
 >   against none.
 >
 > Task runs reach the gateway under `worker.llm.transport: buildmax`. The worker
 > entry point `POST /api/worker/task-runs/{task_run_id}/llm/completions`
 > authenticates with a run token — see
-> [worker-run-token.md](worker-run-token.md) — so user, team, task, and run all
+> [worker-run-token.md](worker-run-token.md) — so user, space, task, and run all
 > come from the credential, and it accepts a call only while the run is
 > executing. Such a worker is handed no upstream provider key. The server states
 > the transport and model in the run's worker-API response; a run never chooses
@@ -43,7 +43,7 @@
 This is an active P3 design. It follows the deployment direction in
 [enterprise-deployment.md](enterprise-deployment.md), depends on worker trust
 work from [trust-harness.md](trust-harness.md), and supplies model governance
-data needed by [team-governance.md](team-governance.md).
+data needed by [space-governance.md](space-governance.md).
 
 ## Contents
 
@@ -74,7 +74,7 @@ BuildMax will support two explicit LLM connection modes:
 | Mode | LLM transport | Provider credential owner | Intended use |
 |---|---|---|---|
 | `direct` | CLI, Desktop, or worker calls an OpenAI-compatible endpoint | The machine running the Agent | Local-first, offline, BYOK, and deployments that already operate a gateway |
-| `managed` | A BuildMax remote LLM client calls the BuildMax Server | The BuildMax deployment | Central credentials, team model policy, usage, quota, and audit metadata |
+| `managed` | A BuildMax remote LLM client calls the BuildMax Server | The BuildMax deployment | Central credentials, space model policy, usage, quota, and audit metadata |
 
 Managed mode is optional. Direct mode remains a complete, first-class path and
 does not require a BuildMax Server. There is no automatic fallback between the
@@ -98,7 +98,7 @@ represent, not by a vendor having an API. See
 The reason to own this gateway is **BuildMax governance**, not provider count:
 
 - provider credentials do not need to be distributed to users or workers;
-- a team selects stable model aliases instead of provider model identifiers;
+- a space selects stable model aliases instead of provider model identifiers;
 - every managed call can be authorized, metered, limited, and correlated with
   a BuildMax run;
 - provider routing can change without rewriting client configuration.
@@ -106,13 +106,13 @@ The reason to own this gateway is **BuildMax governance**, not provider count:
 ## 2. Product Goal
 
 An operator of a private BuildMax deployment should be able to provide approved
-models to a team without distributing provider keys. The operator should know
-which team and user initiated a managed call, which approved model target was
+models to a space without distributing provider keys. The operator should know
+which space and user initiated a managed call, which approved model target was
 used, how many tokens were reported, and whether the call succeeded.
 
 A local user must still be able to run CLI or Desktop with only
 `settings.yaml` and a provider or local inference endpoint. Managed mode must
-not turn Server availability, authentication, or team membership into a
+not turn Server availability, authentication, or space membership into a
 requirement for local use.
 
 ## 3. Current Baseline
@@ -146,8 +146,8 @@ keep the access and refresh tokens in the OS credential store by default, or in
 `auth.json` itself on a machine with none — either way, a refresh flow now
 exists, so a login survives longer than one access token, and a session can be
 revoked. The access token itself still cannot be: there is no revocation list,
-so an issued one works until it expires. Team membership is checked
-server-side and can remove access to a team, but the access token must not be
+so an issued one works until it expires. Space membership is checked
+server-side and can remove access to a space, but the access token must not be
 described as an independently revocable gateway credential.
 
 ## 4. Why A BuildMax Gateway
@@ -159,19 +159,19 @@ That is appropriate for BYOK but unsuitable when an operator wants centrally
 rotated credentials or wants workers to run without general provider access.
 
 Managed mode replaces the upstream credential with a BuildMax credential whose
-authority is limited by Server authorization and team model policy. It does not
+authority is limited by Server authorization and space model policy. It does not
 make the client secretless.
 
-### 4.2 Team Model Policy
+### 4.2 Space Model Policy
 
 Local model entries currently choose the provider URL and provider model. A
 managed client instead chooses a stable alias such as `default`, `fast`, or
 `reasoning`. The Server maps that alias to an operator-defined target and
-rejects aliases not available to the team.
+rejects aliases not available to the space.
 
 Clients must never submit an upstream URL, provider credential, or unrestricted
 provider model identifier to the managed endpoint. This keeps model selection
-inside the team authorization boundary and prevents the gateway from becoming
+inside the space authorization boundary and prevents the gateway from becoming
 an authenticated SSRF proxy.
 
 ### 4.3 Usage And Quota
@@ -182,7 +182,7 @@ eventual cost reporting without storing prompt bodies.
 
 A simple pre-call quota check is not a strict spending guarantee: concurrent
 calls can all pass before their final usage is written, and the exact output
-size is unknown before inference. The first version may reject teams already
+size is unknown before inference. The first version may reject spaces already
 over quota and reconcile reported usage after the call. Strict enforcement
 requires reservations, per-call output limits, and concurrency control before
 the gateway can be described as multi-tenant-safe.
@@ -207,7 +207,7 @@ without changing CLI, Desktop, worker, or Agent Core transport code.
 | OpenAI-compatible transparent proxy | Existing clients can change only `api_url`; useful to third-party callers | Exposes an unnecessarily broad public contract, leaks upstream semantics, and makes BuildMax policy/error evolution difficult | Not the initial endpoint |
 | BuildMax managed inference protocol | Stable internal contract, explicit authorization, normalized errors, and room for provider capability evolution | Requires a remote client and protocol tests | Chosen |
 | Implement all native provider SDKs now | Maximum access to provider-specific features | Permanent compatibility surface with no current core requirement | Deferred |
-| Require LiteLLM and build no Server gateway | Outsources provider normalization | Does not integrate BuildMax identity, teams, runs, or quota | Supported deployment option, not the product decision |
+| Require LiteLLM and build no Server gateway | Outsources provider normalization | Does not integrate BuildMax identity, spaces, runs, or quota | Supported deployment option, not the product decision |
 
 An OpenAI-compatible public endpoint can be added later if BuildMax intends to
 serve third-party applications. That is a separate product and security
@@ -247,7 +247,7 @@ credential.
 | Local model assembly and remote-client selection | `internal/agentapp` |
 | OpenAI-compatible provider calls | `internal/infra/llm` |
 | Remote BuildMax protocol client | `internal/infra/llmremote` or equivalent infrastructure package |
-| Alias resolution, team policy, quota coordination, call ledger | new `internal/service/llmgateway` |
+| Alias resolution, space policy, quota coordination, call ledger | new `internal/service/llmgateway` |
 | User and worker HTTP adapters | `internal/server/handlers` |
 | Process wiring and provider credentials | `internal/bootstrap` and `internal/config` |
 
@@ -269,12 +269,12 @@ The Server needs an operator-owned model catalog separate from the single Tier
 - declared capabilities;
 - enabled state.
 
-Team policy maps one or more stable aliases to catalog entries and identifies a
+Space policy maps one or more stable aliases to catalog entries and identifies a
 default. Aliases are the only model identifiers accepted from managed clients.
 Resolution is therefore:
 
 ```text
-(team_id, alias) -> authorized catalog entry -> LLMClient
+(space_id, alias) -> authorized catalog entry -> LLMClient
 ```
 
 The catalog is the `llm_model` table, edited with `buildmax-server model`. It is
@@ -284,9 +284,9 @@ Credentials are stored in the row and read by one query, the one that builds a
 provider client, so an operator's backup policy — not a config file — is what
 governs them at rest.
 
-Team policy belongs in the database too, because Team is its ownership boundary.
+Space policy belongs in the database too, because Space is its ownership boundary.
 Until that exists, a deployment-wide alias map in `server.yaml` exposes a small
-operator-approved set to every team. `conversation.model` remains the server's
+operator-approved set to every space. `conversation.model` remains the server's
 own bootstrap model, so a deployment answers conversations before its catalog
 has a single row.
 
@@ -301,8 +301,8 @@ The exact route becomes authoritative only when it is registered in
 `internal/server/handlers/routes.go`. The proposed user entry points are:
 
 ```text
-GET  /api/teams/{team_id}/llm/models
-POST /api/teams/{team_id}/llm/completions
+GET  /api/spaces/{space_id}/llm/models
+POST /api/spaces/{space_id}/llm/completions
 ```
 
 The worker entry point is scoped to a task run:
@@ -312,8 +312,8 @@ POST /api/worker/task-runs/{task_run_id}/llm/completions
 ```
 
 Both HTTP adapters call the same service. The user route authenticates the
-current user and verifies team membership on every call. The worker route
-derives the team, task, and run from server state; it does not trust attribution
+current user and verifies space membership on every call. The worker route
+derives the space, task, and run from server state; it does not trust attribution
 fields supplied by the worker.
 
 ### 8.1 Request
@@ -356,7 +356,7 @@ and be charged for another. See
 [prompt-cache-control.md](prompt-cache-control.md).
 
 Metadata is correlation context, not authorization input. The Server derives
-user ID and team ID from authentication, and derives task-run identity on the
+user ID and space ID from authentication, and derives task-run identity on the
 worker route.
 
 ### 8.2 Non-Streaming Response
@@ -397,7 +397,7 @@ timeout.
 
 ### 8.4 Errors
 
-The Server returns stable BuildMax error codes for authentication, team access,
+The Server returns stable BuildMax error codes for authentication, space access,
 unknown alias, unsupported capability, quota, timeout, cancellation, rate
 limit, upstream authentication, upstream availability, and malformed upstream
 responses.
@@ -438,7 +438,7 @@ Every managed logical call records at least:
 
 | Field group | Data |
 |---|---|
-| Identity | call ID, team ID, authenticated user ID or task-run ID |
+| Identity | call ID, space ID, authenticated user ID or task-run ID |
 | Correlation | surface, session ID when supplied, task and run IDs when derived |
 | Model | requested alias, resolved catalog ID, provider type, upstream model identifier |
 | Timing | accepted, upstream started, first delta, completed timestamps |
@@ -461,7 +461,7 @@ Quota enforcement evolves in stages:
 | Visibility | Record actual reported usage after calls | Accounting only |
 | Soft enforcement | Reject when recorded usage is already over limit; cap request duration and output | Concurrent calls may overshoot |
 | Reserved enforcement | Reserve estimated budget before dispatch and reconcile after completion | Bounded overshoot |
-| Multi-tenant control | Add per-team and global concurrency/rate limits | Protects Server capacity and limits noisy neighbors |
+| Multi-tenant control | Add per-space and global concurrency/rate limits | Protects Server capacity and limits noisy neighbors |
 
 Until reserved enforcement and concurrency control exist, documentation must
 not claim that the Gateway provides a strict spending ceiling or is safe for an
@@ -479,7 +479,7 @@ tool schemas, and tool results pass through it. The threat model must include:
 
 - prompt and source-code exposure in logs, traces, crash reports, and metrics;
 - credential leakage through configuration, headers, or upstream errors;
-- cross-team model access;
+- cross-space model access;
 - unbounded request bodies, tool schemas, streams, and concurrency;
 - upstream endpoint SSRF caused by user-controlled routing;
 - a worker using its infrastructure credential outside its assigned run;
@@ -488,8 +488,8 @@ tool schemas, and tool results pass through it. The threat model must include:
 Required controls are:
 
 - TLS outside trusted local development;
-- authentication and team authorization on every user call;
-- server-derived task, run, team, and model policy on worker calls;
+- authentication and space authorization on every user call;
+- server-derived task, run, space, and model policy on worker calls;
 - operator-configured upstream endpoints only;
 - request, message, tool-schema, response, timeout, and concurrency bounds;
 - no prompt bodies in normal access logs or call-ledger records;
@@ -499,7 +499,7 @@ Required controls are:
 
 The shared worker token was not an adequate credential for a model gateway
 because it was not scoped to one run, so the worker route never accepted it. It
-takes a run token instead: a short-lived credential naming the user, team, and
+takes a run token instead: a short-lived credential naming the user, space, and
 run, minted when the run is dispatched. See
 [worker-run-token.md](worker-run-token.md). The shared token has since been
 removed from every worker route, so a run token is the only credential a worker
@@ -524,22 +524,22 @@ An illustrative shape is:
 
 ```yaml
 models:
-  - name: Team Fast
+  - name: Space Fast
     model: fast
     transport: buildmax
     server_url: https://buildmax.example.com
-    team_id: tm_example
+    space_id: tm_example
 ```
 
 The final fields become user documentation only when implemented. The remote
 client reads authentication from `auth.json`; the model entry does not copy the
 credential. `buildmax login` and the Desktop login flow establish the Server
 identity, while model discovery lists the aliases available to the selected
-team.
+space.
 
 Direct entries keep their existing provider URL and API key shape. If a direct
 and managed model have the same display name, the UI must also show transport
-and Server/team context so the user can tell where data will go.
+and Server/space context so the user can tell where data will go.
 
 Fallback from managed to direct is never implicit. An operator or user may
 configure two entries and choose between them, but a Server outage must not
@@ -560,7 +560,7 @@ the catalog. `llm.ProviderNeedsCredential` is where that exemption is
 stated, and it is deliberately one provider wide — a hosted target missing its
 key is a misconfiguration that must fail at selection rather than send an
 unauthenticated request. Everything else about such a target is unchanged: an
-operator adds it, a team reaches it only through an alias, and every call lands
+operator adds it, a space reaches it only through an alias, and every call lands
 in the ledger. See [local-ollama-provider.md](local-ollama-provider.md).
 
 The adapters are specified in
@@ -594,7 +594,7 @@ Deployment work must therefore cover:
 - reverse-proxy streaming and buffering configuration;
 - request, upstream, idle, and graceful-shutdown timeouts;
 - connection, goroutine, and memory sizing;
-- global and per-team concurrency limits;
+- global and per-space concurrency limits;
 - provider egress policy and secret injection;
 - health signals that distinguish Server, router, and upstream failures;
 - metrics for call rate, first-token latency, duration, usage availability,
@@ -620,7 +620,7 @@ must determine whether the supported deployment topology is acceptable.
 ### M2. Call Ledger And Non-Streaming Gateway
 
 - Add the call-ledger persistence contract and database implementation.
-- Register the proposed user route with JWT and team authorization.
+- Register the proposed user route with JWT and space authorization.
 - Implement non-streaming managed calls and stable errors.
 - Add a remote `LLMClient` and contract tests against the local implementation.
 - Record usage and add visibility before claiming quota enforcement.
@@ -635,7 +635,7 @@ must determine whether the supported deployment topology is acceptable.
 
 ### M4. Client Discovery And Explicit Managed Mode
 
-- Add team model discovery.
+- Add space model discovery.
 - Add explicit direct/managed configuration and selection to CLI and Desktop.
 - Read managed credentials from `auth.json`, not `settings.yaml`.
 - Document data flow, model precedence, token expiry, and failure behavior.
@@ -643,7 +643,7 @@ must determine whether the supported deployment topology is acceptable.
 ### M5. Worker Adoption And Governance
 
 Done: the run-scoped entry point and credential, and removing the provider
-credential from a managed worker. Team-run token counting stays separate from
+credential from a managed worker. Space-run token counting stays separate from
 the call ledger, so quota still aggregates `task_run` totals only — do not add
 the ledger to that sum without resolving the double count.
 
@@ -673,12 +673,12 @@ The implementation is not complete until the following behaviors are covered:
 
 - direct mode runs with no Server URL or login state;
 - evaluation runs under `evaluation/` use direct mode, so results are not
-  influenced by team model policy, alias resolution, quota state, or Server
+  influenced by space model policy, alias resolution, quota state, or Server
   availability — the CLI adapter refuses a managed subject outright rather than
   measuring a different transport than the manifest claims;
 - managed blocking and streaming calls produce the same core content, tool
   calls, and usage shape as a direct call to the same target;
-- a user cannot invoke an alias outside the selected team's policy;
+- a user cannot invoke an alias outside the selected space's policy;
 - the caller cannot choose an upstream URL or provider credential;
 - Server-owned Tier 1 inference does not make an HTTP self-call;
 - worker attribution is derived from the task run rather than request metadata;
@@ -688,7 +688,7 @@ The implementation is not complete until the following behaviors are covered:
 - slow consumers cannot grow memory without bound;
 - incomplete or unavailable provider usage is represented honestly;
 - one managed worker call is not counted twice;
-- access-token expiry and team-membership removal fail with a clear error;
+- access-token expiry and space-membership removal fail with a clear error;
 - direct and managed model entries are distinguishable in CLI, TUI, and Desktop.
 
 Use repository task-runner checks in proportion to each implementation change.
@@ -717,12 +717,12 @@ These choices need resolution before their milestone begins:
    carries an audience and scopes, and how an unattended caller authenticates at
    all — see
    [client sessions and API credentials](../proposals/client-sessions-and-api-credentials.md).
-2. What minimum database shape represents team aliases? The catalog is settled —
+2. What minimum database shape represents space aliases? The catalog is settled —
    `llm_model`, credential in the row — but aliases are still a deployment-wide
    map in `server.yaml`.
 3. Should the first quota milestone reserve an estimated maximum or explicitly
    ship as soft enforcement?
-4. How long should terminal call metadata be retained, and which team roles may
+4. How long should terminal call metadata be retained, and which space roles may
    inspect it?
 5. Which context identifiers may a local client attach for correlation without
    allowing it to impersonate a Server-owned task run?

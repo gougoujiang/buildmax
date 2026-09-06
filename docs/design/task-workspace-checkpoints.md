@@ -76,14 +76,14 @@ The worker already separates one run into four filesystem areas:
 
 | Area | Current role | Current durability |
 |---|---|---|
-| `home/` | Materialized copy of Team Home; the files the Agent works on | Not uploaded after the run |
+| `home/` | Materialized copy of Space Home; the files the Agent works on | Not uploaded after the run |
 | `artifacts/` | Run output, including `result.md` and deliberately produced files | Uploaded at terminal reporting |
 | `global/` | Run-scoped `BUILDMAX_HOME`: session, trace, logs, settings, plugins | Selected files uploaded at terminal reporting |
 | `oshome/` | Empty private operating-system home for tools and credential files | Never uploaded |
 
 `internal/agentapp/taskrun.prepareRunWorkspace` creates those directories,
 restores the previous Agent session when one exists, and materializes current
-Team Home into `home/`. `reportPersistedRunState` uploads `global/` and
+Space Home into `home/`. `reportPersistedRunState` uploads `global/` and
 `artifacts/`, but not `home/`.
 
 That layout is the baseline this design replaces, not the target layout. In
@@ -96,7 +96,7 @@ an access boundary. It also permits a valid top-level write which a future
 `home/`-only checkpoint would silently omit.
 
 Consequently, a continued Task can restore model-visible history which says a
-file was changed while receiving a fresh copy of Team Home in which that change
+file was changed while receiving a fresh copy of Space Home in which that change
 does not exist. The model and filesystem can disagree even though both restore
 paths individually report success.
 
@@ -162,7 +162,7 @@ The durable concepts remain separate:
 
 | Concept | Owner | Meaning |
 |---|---|---|
-| Space files (current Team Home) | Space | Mutable shared input files managed outside a Task |
+| Space files (current Space Home) | Space | Mutable shared input files managed outside a Task |
 | Task workspace | Task | Private continuing file state for one Agent objective |
 | Agent session | Task | Model-visible execution history and compacted continuity state |
 | Plugin environment | Task by default | Immutable set of Plugin package pins available to the Task |
@@ -184,7 +184,7 @@ It is a database pointer, never a mutable object-store key.
 Task owns the linear workspace lineage for the same reason it owns the Agent
 session lineage: Task is the durable thread. TaskRun owns the base it received,
 the result it attempted to publish, and the recovery facts for that execution.
-Team remains the authorization boundary for all of them.
+Space remains the authorization boundary for all of them.
 
 Artifacts are deliberately absent from this layout. `UploadArtifact` publishes
 a chosen regular file from `workspace/` through the Artifact service. The
@@ -447,18 +447,18 @@ untracked writer is active cannot provide a coherent boundary.
 ### 7.1 Payload Layout
 
 The first payload format is `tar.zst.v1`: one Zstandard-compressed tar archive
-per checkpoint. The storage key is content-addressed inside the owning Team:
+per checkpoint. The storage key is content-addressed inside the owning Space:
 
 ```text
-<prefix>/<team_id>/workspace/blobs/sha256/<64-lowercase-hex>
+<prefix>/<space_id>/workspace/blobs/sha256/<64-lowercase-hex>
 ```
 
 The digest covers the exact compressed bytes. A checkpoint row records the
 payload format, digest, stored size, uncompressed regular-file bytes, and entry
 count. The object-store adapter derives the key; no API or trace exposes it.
 
-Team-scoped content addressing permits safe reuse inside one authorization
-boundary without revealing whether another Team stored the same content. The
+Space-scoped content addressing permits safe reuse inside one authorization
+boundary without revealing whether another Space stored the same content. The
 first implementation may use `ObjectExists` to avoid a duplicate upload. It
 must still verify a fetched payload against the recorded digest.
 
@@ -528,7 +528,7 @@ therefore uses **immutable bytes first, authoritative pointer second**:
 4. send a seed descriptor through its preparation call, or carry a result or
    partial descriptor on the terminal TaskRun report, over the
    run-token-authenticated worker API;
-5. validate Team, Task, TaskRun, checkpoint kind, digest, format, and bounds;
+5. validate Space, Task, TaskRun, checkpoint kind, digest, format, and bounds;
 6. insert the checkpoint and update the TaskRun and optional Task head in one
    MySQL transaction; for a result or partial checkpoint this is the same
    transaction which accepts the terminal run outcome; and
@@ -572,7 +572,7 @@ Target row:
 |---|---|---:|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
 | `public_id` | `char(20) ascii_bin` | no | Unique public handle |
-| `team_id` | `bigint unsigned` | no | Authorization owner, indexed |
+| `space_id` | `bigint unsigned` | no | Authorization owner, indexed |
 | `task_id` | `bigint unsigned` | no | Workspace owner, indexed with creation order |
 | `source_task_run_id` | `bigint unsigned` | no | Run which captured it |
 | `base_checkpoint_id` | `bigint unsigned` | yes | Lineage predecessor |
@@ -651,7 +651,7 @@ answer from logs.
 - Continue uses the Task Plugin environment head while Retry reuses the named
   run's base environment;
 - partial checkpoints never become the workspace head implicitly; and
-- a checkpoint can only belong to the Team and Task of its source TaskRun.
+- a checkpoint can only belong to the Space and Task of its source TaskRun.
 
 The database store applies those transitions atomically but does not redefine
 them. Handlers, workers, and schedulers delegate to the same owner.
@@ -682,9 +682,9 @@ Suggested consumer-owned interfaces:
 
 ```go
 type CheckpointPayloadStore interface {
-    Put(ctx context.Context, teamID, sha256 string, src io.Reader) (storageKey string, err error)
+    Put(ctx context.Context, spaceID, sha256 string, src io.Reader) (storageKey string, err error)
     Open(ctx context.Context, storageKey string) (io.ReadCloser, int64, error)
-    Exists(ctx context.Context, teamID, sha256 string) (bool, error)
+    Exists(ctx context.Context, spaceID, sha256 string) (bool, error)
     Delete(ctx context.Context, storageKey string) error
 }
 
@@ -779,7 +779,7 @@ configuration permission and audit event. A shared file contributor must not
 gain prompt, hook, MCP, or Plugin authority merely by choosing a filename.
 
 Environment Secret grants can still be copied deliberately into `workspace/` by a
-model-chosen command. The Team already authorizes the Agent to read those
+model-chosen command. The Space already authorizes the Agent to read those
 values, so checkpointing does not create a new confidentiality boundary, but
 it lengthens retention. Before shipping, the threat model must decide whether
 exact granted-secret values found in regular workspace files cause a warning,
@@ -790,7 +790,7 @@ workspace and is not allowed.
 
 The Worker receives only the run token at the HTTP boundary, but the current
 production storage path may also give the Pod workload identity access to the
-bucket. Checkpoint keys stay inside the run's Team namespace and the Server
+bucket. Checkpoint keys stay inside the run's Space namespace and the Server
 derives or validates every storage reference before committing it.
 
 The long-term least-privilege improvement is a run-scoped upload/download lease
@@ -885,7 +885,7 @@ worker needs three typed operations:
 
 All require the run token. Base retrieval is allowed for `RUNNING` while the
 run is preparing. Finalization is allowed only for the same run and one legal
-checkpoint kind. The Server derives Team and Task from the token's TaskRun; the
+checkpoint kind. The Server derives Space and Task from the token's TaskRun; the
 worker never supplies authority-bearing owner IDs.
 
 Large payload bytes continue to flow directly to object storage. The Server
@@ -1021,7 +1021,7 @@ physical optimization wins.
   together;
 - two finalizers racing for one run produce one checkpoint and one head;
 - a late report cannot replace the head of a later run;
-- cross-Team and cross-Task checkpoint references are refused;
+- cross-Space and cross-Task checkpoint references are refused;
 - Continue admission cannot select a missing or foreign head; and
 - retention queries do not delete referenced payloads.
 
@@ -1068,10 +1068,10 @@ topology, attach latency, and CSI availability. It also does not provide
 cross-cluster recovery by itself. This is too deployment-specific for the
 portable default and remains a possible cache profile.
 
-### 17.2 One RWX Team Workspace
+### 17.2 One RWX Space Workspace
 
 Different Tasks would become concurrent writers to shared mutable state. The
-linear single-writer invariant is per Task, not per Team, and RWX does not
+linear single-writer invariant is per Task, not per Space, and RWX does not
 provide application-level conflict or provenance semantics. This option solves
 mounting while making ownership less correct.
 
@@ -1104,7 +1104,7 @@ not BuildMax's durability engine.
 
 ### 17.7 Upload Every File Individually
 
-The current Space-file (Team Home) adapter lists and downloads objects one file at a time.
+The current Space-file (Space Home) adapter lists and downloads objects one file at a time.
 Repeating that design for Task checkpoints makes request count proportional to
 file count and performs badly for source trees. A single versioned archive is a
 smaller first correctness surface. Incremental manifests remain evidence-gated.
@@ -1134,7 +1134,7 @@ These questions do not block the first complete-archive implementation:
    format or persistent cache profile?
 2. Should a user ever be allowed to Resume from a partial checkpoint, and what
    warning and authorization does that require?
-3. Should exact Team Secret values found in `workspace/` warn or fail checkpoint
+3. Should exact Space Secret values found in `workspace/` warn or fail checkpoint
    publication?
 4. Does the Space file service need its own atomic revision so the first Task
    seed represents one upload transaction rather than the exact materialized

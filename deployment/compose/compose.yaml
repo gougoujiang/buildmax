@@ -1,5 +1,5 @@
 # BuildMax on one machine: MySQL, the server (which spawns workers itself), and
-# the Portal. Enough to evaluate the team surface, and small enough to read.
+# the Portal. Enough to evaluate the space surface, and small enough to read.
 #
 #   cd deployment/compose
 #   ./generate-env.sh          # writes .env with two generated secrets

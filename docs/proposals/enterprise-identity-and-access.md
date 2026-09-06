@@ -4,7 +4,7 @@
 >
 > **Opened:** 2026-08-16
 
-Related: [../ROADMAP.md](../ROADMAP.md) P4, [team governance design](../design/team-governance.md), and [deployment authentication](../deploy/authentication.md).
+Related: [../ROADMAP.md](../ROADMAP.md) P4, [space governance design](../design/space-governance.md), and [deployment authentication](../deploy/authentication.md).
 
 ## Contents
 
@@ -21,14 +21,14 @@ Related: [../ROADMAP.md](../ROADMAP.md) P4, [team governance design](../design/t
 BuildMax currently uses operator-created accounts and single-use login codes.
 That is an explicit alpha bootstrap mechanism, suitable for trusted private
 use but not for an organization that needs central account lifecycle control.
-Team roles already form the resource boundary, so an enterprise identity path
+Space roles already form the resource boundary, so an enterprise identity path
 must map a verified corporate identity into those existing boundaries without
 turning local CLI and direct-model use into a Server requirement.
 
 ## Goals
 
 - Let an operator connect a private deployment to a corporate identity system.
-- Define how identities, teams, and existing `owner`, `admin`, and `member`
+- Define how identities, spaces, and existing `owner`, `admin`, and `member`
   roles relate.
 - Make login, access removal, and session invalidation observable and
   testable.
@@ -41,7 +41,7 @@ turning local CLI and direct-model use into a Server requirement.
 - A BuildMax-owned password system, email delivery service, or identity
   directory.
 - Custom per-resource ACLs in the first enterprise identity slice.
-- Replacing team membership as the authorization boundary.
+- Replacing space membership as the authorization boundary.
 
 ## Options To Evaluate
 
@@ -61,8 +61,8 @@ use.
 
 - Which claims are stable enough to identify a user: issuer plus subject,
   verified email, or both?
-- Is just-in-time account creation permitted, and how does it assign a team?
-- How are deprovisioning, role changes, and group-to-team mapping applied?
+- Is just-in-time account creation permitted, and how does it assign a space?
+- How are deprovisioning, role changes, and group-to-space mapping applied?
 - Which sessions must become invalid when membership changes or a user leaves?
 - What minimum service-account or API-token model is needed for automation?
 

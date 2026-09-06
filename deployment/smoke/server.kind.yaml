@@ -6,7 +6,7 @@ cors_origin: http://localhost:8080
 public_base_url: http://localhost:8080
 workspaces_dir: /buildmax/workspaces
 # The smoke deployment runs many agent runs and is meant to be kept: free_trial
-# caps a team at ten runs in thirty days, which turns a long-lived local stack
+# caps a space at ten runs in thirty days, which turns a long-lived local stack
 # into a broken one after a handful of smokes. Quota behaviour is not what these
 # suites verify.
 default_quota_tier: pro
@@ -56,7 +56,7 @@ worker_api:
     cert_file: /buildmax/tls/worker-api/tls.crt
     key_file: /buildmax/tls/worker-api/tls.key
 
-# Team Secret encryption key, mounted from the buildmax-kek Secret that
+# Space Secret encryption key, mounted from the buildmax-kek Secret that
 # `./make kind up` generates (tools/mk/kind.go). Present only in kind, so the
 # Secrets feature is on here and stays off in the committed baseline config.
 secret:

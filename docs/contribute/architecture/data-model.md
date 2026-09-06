@@ -9,7 +9,7 @@ under `internal/infra/db`.
 For the layering around persistence — which package owns contracts versus the
 implementation — see [store.md](store.md). For why the entities are shaped this
 way, see [../../design/product-vision.md](../../design/product-vision.md) and
-[../../design/team-governance.md](../../design/team-governance.md).
+[../../design/space-governance.md](../../design/space-governance.md).
 
 ## Where The Schema Lives
 
@@ -42,7 +42,7 @@ handle at all, is in
 storage form is its §17 amendment.
 
 **Not every row has a handle.** A join row, a revision, and a catalog record
-are addressed by something else: `team_member` by its pair, `agent_revision`
+are addressed by something else: `space_member` by its pair, `agent_revision`
 and `workflow_revision` by parent plus revision number, `plugin` by name, and
 `plugin_release` by name plus version. Those tables have no `public_id`.
 
@@ -103,11 +103,11 @@ The work graph — what a user actually creates and runs:
 
 ```mermaid
 erDiagram
-    team ||--o{ issue : scopes
-    team ||--o{ agent : scopes
-    team ||--o{ conversation : scopes
-    team ||--o{ workflow : owns
-    team ||--o{ task : scopes
+    space ||--o{ issue : scopes
+    space ||--o{ agent : scopes
+    space ||--o{ conversation : scopes
+    space ||--o{ workflow : owns
+    space ||--o{ task : scopes
 
     conversation ||--o{ conversation_message : contains
     conversation ||--o{ task : "spawns (tier 1 to tier 2)"
@@ -124,12 +124,12 @@ erDiagram
     workflow ||--o{ workflow_revision : "versioned by"
 
     plugin ||--o{ plugin_release : "published as"
-    team ||--o{ plugin_activation : activates
+    space ||--o{ plugin_activation : activates
 
     task ||--o{ task_run : "attempted as"
     task_run ||--o{ task_run_artifact : produces
 
-    team ||--o{ artifact : keeps
+    space ||--o{ artifact : keeps
 
     workflow ||--o{ workflow_run : "instantiated as"
     workflow_run ||--o{ workflow_step_run : "expands to"
@@ -140,13 +140,13 @@ Identity, authorization, and platform tables:
 
 ```mermaid
 erDiagram
-    user ||--o{ team_member : "joins via"
-    team ||--o{ team_member : "joins via"
-    user ||--o| team : "has personal"
-    team ||--o{ team_invitation : offers
-    user ||--o{ team_invitation : "is invited by"
+    user ||--o{ space_member : "joins via"
+    space ||--o{ space_member : "joins via"
+    user ||--o| space : "has personal"
+    space ||--o{ space_invitation : offers
+    user ||--o{ space_invitation : "is invited by"
     quota_tier ||--o{ user : rates
-    quota_tier ||--o{ team : rates
+    quota_tier ||--o{ space : rates
     user ||--o{ user_webhook_key : owns
     user ||--o{ login_code : "authenticates with"
     user ||--o{ user_refresh_token : "keeps sessions in"
@@ -155,8 +155,8 @@ erDiagram
     task_run ||--o{ llm_call : attributes
 ```
 
-Team is the authorization boundary: a request is allowed because the caller has
-a `team_member` row for the resource's `team_id`. Issue is the primary
+Space is the authorization boundary: a request is allowed because the caller has
+a `space_member` row for the resource's `space_id`. Issue is the primary
 user-facing work object. Conversation owns foreground chat and may create or
 project a Task. Task plus task_run is the durable Agent execution plane and its
 result is authoritative without a Conversation. The current non-null relation
@@ -205,7 +205,7 @@ rides along on a user object, so no handler can serialize it by accident.
 Nullable is also what leaves room for an account authenticated somewhere else:
 an identity provider, when there is one, needs no local password to exist.
 
-### `team`
+### `space`
 
 The ownership and authorization boundary for every Portal resource.
 
@@ -214,7 +214,7 @@ The ownership and authorization boundary for every Portal resource.
 | `id` | `bigint unsigned` | no | Internal primary key |
 | `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
 | `name` | `varchar(255)` | no | Display name |
-| `personal_for_user_id` | `bigint unsigned` | yes | Set on a user's personal team; unique, so a user has at most one |
+| `personal_for_user_id` | `bigint unsigned` | yes | Set on a user's personal space; unique, so a user has at most one |
 | `quota_tier` | `varchar(64)` | yes | References `quota_tier.tier_name` |
 | `plugin_curation` | `varchar(16)` | no | Default `'open'`; `open` or `curated`, see `plugin_activation` |
 | `agent_instructions` | `text` | yes | Space-level instructions appended to every background Agent run; empty means no layer |
@@ -227,88 +227,88 @@ The ownership and authorization boundary for every Portal resource.
 
 Indexes: PK `id`; unique `personal_for_user_id`; unique `public_id`.
 
-Every user gets a personal team named `My Space`
-(`team.DefaultPersonalName`). It is a real team row, not a special case in
+Every user gets a personal space named `My Space`
+(`space.DefaultPersonalName`). It is a real space row, not a special case in
 the authorization code, which is why quota and membership work identically for
 solo and shared use.
 
-That arrangement is deliberate and load-bearing. Before teams existed, issues,
+That arrangement is deliberate and load-bearing. Before spaces existed, issues,
 agents, and conversations hung off `user_id`, and a Portal request resolved as
-`JWT -> user_id -> store query -> ownership check`. Team replaced that in April
+`JWT -> user_id -> store query -> ownership check`. Space replaced that in April
 2026 — before the public history was squashed, so `git log` does not show the
-transition — with one rule: every working resource belongs to a team, and a
-solo user simply owns a team of one. The point was to make sharing a
+transition — with one rule: every working resource belongs to a space, and a
+solo user simply owns a space of one. The point was to make sharing a
 membership change rather than a data migration.
 
 Two consequences bind new code:
 
-- **Do not add a user-scoped path around a team-scoped resource.** A handler
-  that resolves ownership from `user_id` alone reintroduces the model Team
+- **Do not add a user-scoped path around a space-scoped resource.** A handler
+  that resolves ownership from `user_id` alone reintroduces the model Space
   replaced, and it will diverge from quota, membership, and every authorization
-  check that reads `team_member`.
-- **Solo users must never have to learn the concept.** The personal team is
-  created for them and named for them; surfacing team selection, invitations,
+  check that reads `space_member`.
+- **Solo users must never have to learn the concept.** The personal space is
+  created for them and named for them; surfacing space selection, invitations,
   or roles on a path a single user must walk is a regression, not a feature.
 
-### `team_member`
+### `space_member`
 
 The membership join table, and the row every authorization check looks for.
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
-| `team_id` | `bigint unsigned` | no | `team.id` |
+| `space_id` | `bigint unsigned` | no | `space.id` |
 | `user_id` | `bigint unsigned` | no | `user.id` |
 | `role` | `varchar(32)` | no | `owner`, `admin`, or `member` |
 | `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 
-Indexes: PK `id`; unique `uq_team_member_team_user` on (`team_id`, `user_id`).
+Indexes: PK `id`; unique `uq_space_member_space_user` on (`space_id`, `user_id`).
 
-Roles are `team.RoleOwner` / `RoleAdmin` / `RoleMember`. The column
-is `NOT NULL` but accepts the empty string, and `core/team.EffectiveRole` reads
-such a row as a member: the row is what says somebody belongs to the team, and
-member is the least the three roles can mean. Nothing writes one — the team
+Roles are `space.RoleOwner` / `RoleAdmin` / `RoleMember`. The column
+is `NOT NULL` but accepts the empty string, and `core/space.EffectiveRole` reads
+such a row as a member: the row is what says somebody belongs to the space, and
+member is the least the three roles can mean. Nothing writes one — the space
 service defaults an unset role before storing it — so that reading exists for
-rows a release before the default may have left behind. Team
+rows a release before the default may have left behind. Space
 approvals are planned but not implemented. The audit trail is implemented in
 `audit_event`; neither approval nor audit state belongs in this membership row.
 
-### `team_invitation`
+### `space_invitation`
 
-A pending offer of team membership against an account that already exists.
-See [team membership lifecycle](../../design/team-membership-lifecycle.md).
+A pending offer of space membership against an account that already exists.
+See [space membership lifecycle](../../design/space-membership-lifecycle.md).
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
 | `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
-| `team_id` | `bigint unsigned` | no | `team.id` |
+| `space_id` | `bigint unsigned` | no | `space.id` |
 | `user_id` | `bigint unsigned` | no | `user.id` of the invited account |
 | `role` | `varchar(32)` | no | `member` or `admin`; never `owner` — see `SetMemberRole` |
 | `invited_by` | `bigint unsigned` | no | `user.id` of the sender |
-| `expires_at` | `datetime(6)` | no | Three days from creation by default (`team.InvitationTTLDefault`) |
+| `expires_at` | `datetime(6)` | no | Three days from creation by default (`space.InvitationTTLDefault`) |
 | `accepted_at` | `datetime(6)` | yes | Non-`NULL` means claimed; mutually exclusive with `revoked_at` |
 | `revoked_at` | `datetime(6)` | yes | Non-`NULL` means withdrawn before acceptance |
 | `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 
-Indexes: PK `id`; unique `public_id`; index `team_id`; index `user_id`.
+Indexes: PK `id`; unique `public_id`; index `space_id`; index `user_id`.
 
 There is no `status` column. `accepted_at`, `revoked_at`, and `expires_at`
 are the whole state, the same shape `user.disabled_at` and
 `system_grant.revoked_at` already use for "off until proven otherwise".
-`coreteam.Invitation.Pending` reads all three together.
+`corespace.Invitation.Pending` reads all three together.
 
-The row never carries a code or a code hash: unlike `login_code`, a team
+The row never carries a code or a code hash: unlike `login_code`, a space
 invitation targets an account that can already authenticate on its own, so
 there is nothing to issue or deliver. Accepting one
-(`AcceptInvitation`) is atomic with creating the resulting `team_member`
+(`AcceptInvitation`) is atomic with creating the resulting `space_member`
 row — an invitation marked accepted with no membership to show for it would
 be evidence of a bug no caller could act on.
 
 ### `system_grant`
 
-One deployment-scoped authority held by one user, attached to no team. This is
-the only table in the schema that grants anything outside a Team, and it grants
+One deployment-scoped authority held by one user, attached to no space. This is
+the only table in the schema that grants anything outside a Space, and it grants
 operation of the deployment rather than access to its contents — see
 [../../design/system-administration.md](../../design/system-administration.md).
 
@@ -393,7 +393,7 @@ API keys for the inbound webhook surface documented in
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
 | `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
-| `user_id` | `bigint unsigned` | no | `user.id` — keys are user-scoped, not team-scoped |
+| `user_id` | `bigint unsigned` | no | `user.id` — keys are user-scoped, not space-scoped |
 | `key_hash` | `varchar(128)` | no | Unique; the secret is shown once at creation and never again |
 | `name` | `varchar(255)` | yes | Human label |
 | `created_at` | `datetime(6)` | yes | `autoCreateTime` |
@@ -402,7 +402,7 @@ Indexes: PK `id`; unique `key_hash`; index `user_id`; unique `public_id`.
 
 ### `quota_tier`
 
-Rate limits, referenced by name from `user.quota_tier` and `team.quota_tier`.
+Rate limits, referenced by name from `user.quota_tier` and `space.quota_tier`.
 This is the one table whose primary key is not `id`.
 
 | Column | Type | Null | Notes |
@@ -419,8 +419,8 @@ and `pro` (1,000 runs, 10,000,000 tokens, 30 days) at startup, but only when
 the table is empty — an operator who edits a tier will not have it overwritten
 on restart.
 
-There is deliberately **no usage table**. `TeamUsageInWindow` aggregates on
-read: it counts `task_run` rows joined to `task` by team, sums their
+There is deliberately **no usage table**. `SpaceUsageInWindow` aggregates on
+read: it counts `task_run` rows joined to `task` by space, sums their
 `prompt_tokens` and `completion_tokens`, and adds the title-generation tokens
 recorded on tasks created in the same window. Metering therefore has no second
 write path that can drift out of sync with the runs themselves.
@@ -435,16 +435,16 @@ record that can be edited is not evidence.
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
 | `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
-| `team_id` | `bigint unsigned` | yes | Empty for actions with no team, such as a login |
+| `space_id` | `bigint unsigned` | yes | Empty for actions with no space, such as a login |
 | `created_at` | `datetime(6)` | no |  |
 | `actor_type` | `varchar(16)` | no | `user`, `worker`, or `system` |
 | `actor_id` | `varchar(64)` | no | User ID, or a process name for `system` |
-| `action` | `varchar(64)` | no | `user.login`, `user.logout`, `user.password_set`, `auth.refresh_reuse`, `team.member_added`, `llm_model.created`, `access.denied`, … |
+| `action` | `varchar(64)` | no | `user.login`, `user.logout`, `user.password_set`, `auth.refresh_reuse`, `space.member_added`, `llm_model.created`, `access.denied`, … |
 | `target_type` / `target_id` | `varchar(32)` / `varchar(64)` | yes | What the action was performed on. Opaque: the type admits a permission name and a model name as well as a row |
 | `detail` | `varchar(255)` | yes | A short non-sensitive note — a role name, a model name |
 
-Indexes: PK `id`; index `action`; index `actor_id`; index `idx_audit_team_time`
-on (`team_id`, `created_at`); unique `public_id`.
+Indexes: PK `id`; index `action`; index `actor_id`; index `idx_audit_space_time`
+on (`space_id`, `created_at`); unique `public_id`.
 
 Action strings are persisted and therefore permanent: renaming one rewrites
 history for every reader that filters on it. They are declared in
@@ -492,7 +492,7 @@ The primary user-facing work object.
 | `id` | `bigint unsigned` | no | Internal primary key |
 | `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
 | `user_id` | `bigint unsigned` | no | Owning user |
-| `team_id` | `bigint unsigned` | yes | Owning team; the authorization key |
+| `space_id` | `bigint unsigned` | yes | Owning space; the authorization key |
 | `parent_issue_id` | `bigint unsigned` | yes | `issue.id` of the parent; `NULL` for a top-level issue |
 | `title` | `varchar(255)` | no | |
 | `description` | `text` | no | |
@@ -504,8 +504,8 @@ The primary user-facing work object.
 | `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 | `updated_at` | `datetime(6)` | yes | `autoUpdateTime` |
 
-Indexes: PK `id`; index `parent_issue_id`; index `idx_issue_team_updated` on
-(`team_id`, `updated_at`); index `user_id`; unique `public_id`.
+Indexes: PK `id`; index `parent_issue_id`; index `idx_issue_space_updated` on
+(`space_id`, `updated_at`); index `user_id`; unique `public_id`.
 
 `version` makes every update conditional. An update carries the version it was
 built from, the store writes with `WHERE public_id = ? AND version = ?` and sets
@@ -523,7 +523,7 @@ or constraint ties it to a specific table, so validation lives in
 `parent_issue_id` is a self-reference forming an adjacency list, and the
 hierarchy is capped at **two levels**: a parent must itself have
 `parent_issue_id IS NULL`. Nothing in the schema enforces that — the invariants
-live in `internal/service/issue`, which also rejects a parent in another team, a
+live in `internal/service/issue`, which also rejects a parent in another space, a
 self-parent, and giving a parent to an issue that already has children. Progress
 (`child_count`, `done_child_count`) is computed per response with a grouped
 query and never stored. See
@@ -552,14 +552,14 @@ Indexes: PK `id`; index `idx_issue_comment_issue_created` on (`issue_id`,
 Ordering is by `created_at`, then `id` — a thread reads oldest first, and a
 public handle is random rather than time-ordered.
 
-The row carries **no `team_id`**. A comment's team is its issue's team, and
+The row carries **no `space_id`**. A comment's space is its issue's space, and
 every handler already loads the issue to authorize; denormalizing the
 authorization key would give it a second place to be wrong. This follows
-`conversation_message`, which resolves its team through its conversation.
+`conversation_message`, which resolves its space through its conversation.
 
 Deletion is hard — there is no `deleted_at` and no tombstone. Editing is
 restricted to the person who wrote the comment; an agent or system comment is
-the record of what a run reported and is editable by nobody, though a team owner
+the record of what a run reported and is editable by nobody, though a space owner
 may delete one.
 
 ### `agent`
@@ -572,18 +572,18 @@ under.
 | `id` | `bigint unsigned` | no | Internal primary key |
 | `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
 | `user_id` | `bigint unsigned` | no | Owning user |
-| `team_id` | `bigint unsigned` | yes | Owning team |
+| `space_id` | `bigint unsigned` | yes | Owning space |
 | `name` | `varchar(255)` | no | |
 | `description` | `text` | yes | Shown in pickers |
 | `instructions` | `text` | yes | Appended to the system prompt for runs using this agent |
 | `plugins` | `text` | yes | JSON array of catalog plugin names this agent loads |
-| `sandbox_network_tier` | `varchar(64)` | yes | `none`, `registries`, or `open`; empty inherits the team default, then the surface baseline |
+| `sandbox_network_tier` | `varchar(64)` | yes | `none`, `registries`, or `open`; empty inherits the space default, then the surface baseline |
 | `sandbox_filesystem_tier` | `varchar(64)` | yes | `workspace`, `workspace_plus_shared_read`, or `workspace_plus_external_write`; same fallback as the network tier |
 | `revision` | `bigint` | no | Number of the `agent_revision` row holding this content; starts at 1 |
 | `deleted_at` | `datetime(6)` | yes | Set when the agent was deleted; the row stays |
 | `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 
-Indexes: PK `id`; index `deleted_at`; index `team_id`; index `user_id`; unique
+Indexes: PK `id`; index `deleted_at`; index `space_id`; index `user_id`; unique
 `public_id`.
 
 Deletion is a stamp on `deleted_at`, not a `DELETE`. Tasks, workflow step runs,
@@ -598,13 +598,13 @@ run rather than at the delete. Draft and archived workflows do not block it,
 because neither can start a run and publishing revalidates its agents.
 
 `plugins` names catalog plugins, never releases: the version and digest come
-from the team's `plugin_activation` row, so moving a plugin to a new release
-stays one edit in one place. Nothing is inherited from the team's activations —
+from the space's `plugin_activation` row, so moving a plugin to a new release
+stays one edit in one place. Nothing is inherited from the space's activations —
 an agent that names none loads none — and the list is stored trimmed,
 deduplicated, and sorted, so reordering the same set does not append a revision.
 It is a JSON column rather than a join table because nothing queries inside it:
 the selection is written and read whole, and "which agents name this plugin" is
-a scan of one team's agents.
+a scan of one space's agents.
 
 There is no undelete route. The row exists so references resolve, not as a
 recycle bin.
@@ -661,13 +661,13 @@ its messages, not the Tasks it may start or display.
 | `id` | `bigint unsigned` | no | Internal primary key |
 | `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
 | `user_id` | `bigint unsigned` | no | Owning user |
-| `team_id` | `bigint unsigned` | yes | Owning team |
+| `space_id` | `bigint unsigned` | yes | Owning space |
 | `channel` | `varchar(32)` | no | `portal`, `telegram`, `cron`, `webhook`, or a synthetic `workflow` / `issue_agent` |
 | `title` | `varchar(256)` | yes | Generated from the first turn |
 | `created_by` | `bigint unsigned` | no | `user.id` |
 | `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 
-Indexes: PK `id`; index `idx_conversation_team_created` on (`team_id`,
+Indexes: PK `id`; index `idx_conversation_space_created` on (`space_id`,
 `created_at`); index `idx_conversation_user_created` on (`user_id`,
 `created_at`); unique `public_id`.
 
@@ -676,7 +676,7 @@ Transport channel constants are in
 but is not in `ValidChannels`, so it cannot be supplied by a caller.
 
 A workflow step and an issue agent run each create a Task directly, with
-`task.team_id` as owner and no `conversation_id`; neither creates a
+`task.space_id` as owner and no `conversation_id`; neither creates a
 conversation for Task to hang on. See
 [agent execution and Task threads](../../design/agent-execution-and-task-threads.md).
 
@@ -727,7 +727,7 @@ The durable unit of background work. One task, many attempts.
 | `id` | `bigint unsigned` | no | Internal primary key |
 | `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
 | `conversation_id` | `bigint unsigned` | yes | Optional origin/projection relation; a direct Agent, Issue, or Workflow task has none |
-| `team_id` | `bigint unsigned` | no | Owning team, authoritative for every Task operation |
+| `space_id` | `bigint unsigned` | no | Owning space, authoritative for every Task operation |
 | `issue_id` | `bigint unsigned` | yes | The issue this task advances, if any |
 | `status` | `varchar(32)` | no | `PENDING`, `SCHEDULED`, `RUNNING`, `SUCCEEDED`, `FAILED`, `CANCELED` |
 | `input` | `text` | no | The prompt |
@@ -745,7 +745,7 @@ The durable unit of background work. One task, many attempts.
 | `agent_id` | `bigint unsigned` | yes | `agent.id` this task runs as |
 
 Indexes: PK `id`; index `agent_id`; index `conversation_id`; index `issue_id`;
-index `last_run_id`; index `idx_task_team_created` on (`team_id`,
+index `last_run_id`; index `idx_task_space_created` on (`space_id`,
 `created_at`); unique `public_id`.
 
 Status values are `task.RunStatus` — uppercase, and shared with `task_run`.
@@ -781,9 +781,9 @@ One execution attempt. This is the row quota and token accounting read.
 | `retry_of_task_run_id` | `bigint unsigned` | yes | The run this one repeats; `NULL` for a run that carries its own instructions |
 | `source_message_id` | `bigint unsigned` | yes | `conversation_message.id` this run was asked for in; `NULL` when no message asked for it |
 | `agent_revision` | `int` | yes | Which revision of `task.agent_id` this run was served; `NULL` for a run with no agent or one that never reached a worker |
-| `team_agent_instructions_revision` | `int` | yes | Which revision of the owning team's Space-level instructions this run was served; `0` records no configured text, `NULL` means no provenance |
+| `space_agent_instructions_revision` | `int` | yes | Which revision of the owning space's Space-level instructions this run was served; `0` records no configured text, `NULL` means no provenance |
 | `plugin_pins` | `text` | yes | JSON array of `{plugin_name, version, digest}`: the releases this run was given |
-| `sandbox_network_tier` | `varchar(64)` | yes | The tier resolved on the first poll -- agent declaration, then team default, then the surface baseline; `NULL` until a worker claims the run |
+| `sandbox_network_tier` | `varchar(64)` | yes | The tier resolved on the first poll -- agent declaration, then space default, then the surface baseline; `NULL` until a worker claims the run |
 | `sandbox_filesystem_tier` | `varchar(64)` | yes | The tier resolved on the first poll, same fallback as `sandbox_network_tier` |
 | `last_seen_at` | `datetime(6)` | yes | When this run's worker last polled its own route; `NULL` until a worker claims the run |
 | `idempotency_key` | `varchar(128)` | yes | Caller's dedup key for a Continue request; `NULL` for a run created without one — a retry, a workflow step, an issue agent run, or an older client |
@@ -809,13 +809,13 @@ is written when a worker asks for its run, and the first write wins — instruct
 are resolved per dispatch so an edit takes effect on the next run, and the record
 exists so an edit during a run cannot rewrite what that run was given.
 
-`team_agent_instructions_revision` follows the same first-write-wins rule. The
-worker receives the owning team's current Space instructions as a separate
+`space_agent_instructions_revision` follows the same first-write-wins rule. The
+worker receives the owning space's current Space instructions as a separate
 system-prompt layer before the selected Agent's instructions; editing the Space
 changes the next run, not one already executing.
 
 `plugin_pins` is written at that same moment and under the same rule, because it
-answers the same question about the same run. The server resolves the team's
+answers the same question about the same run. The server resolves the space's
 `plugin_activation` rows against the agent's selection and sends a finished list;
 a worker never reads activations itself. Resolving at claim time rather than at
 dispatch is safe because an activation names an exact version and digest — the
@@ -916,11 +916,11 @@ replaced the older `artifact` / `artifact_item` pair and the `task_run_output_fi
 table; both migrations are in `internal/infra/db/migration.go`.
 
 It is not `artifact`, below. This is a run's index of the files it left in its
-own output directory; that is a durable object a team keeps.
+own output directory; that is a durable object a space keeps.
 
 ### `artifact`
 
-One durable file the team owns, with one immutable content object. Content
+One durable file the space owns, with one immutable content object. Content
 lives in object storage under a key this table records and no API returns.
 
 The name is reused: the `artifact` table dropped by migration 0001 was a task
@@ -933,7 +933,7 @@ a legacy `task_run_id` column before touching either table. See
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
 | `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
-| `team_id` | `bigint unsigned` | no | Owning team; the authorization boundary |
+| `space_id` | `bigint unsigned` | no | Owning space; the authorization boundary |
 | `filename` | `varchar(512)` | no | One path element; directories are stripped |
 | `media_type` | `varchar(255)` | yes | Derived from the extension, never from the uploader |
 | `size_bytes` | `bigint` | no | Measured while streaming |
@@ -949,7 +949,7 @@ a legacy `task_run_id` column before touching either table. See
 | `created_at` | `datetime(6)` | yes |  |
 
 Indexes: PK `id`; index `deleted_at`; index `expires_at`; index `source_id`;
-index `idx_artifact_team_created` on (`team_id`, `created_at`); unique
+index `idx_artifact_space_created` on (`space_id`, `created_at`); unique
 `public_id`.
 
 There is deliberately no free-form metadata column. Durable metadata is where
@@ -962,7 +962,7 @@ job and may be slower than the request that asked for it.
 
 ## Workflows
 
-Workflows are team-scoped reusable linear plans. A run expands the stored
+Workflows are space-scoped reusable linear plans. A run expands the stored
 definition into one step run per step, and each agent step delegates to a task.
 
 ### `workflow`
@@ -971,7 +971,7 @@ definition into one step run per step, and each agent step delegates to a task.
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
 | `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
-| `team_id` | `bigint unsigned` | no | Owning team — required, unlike most tables |
+| `space_id` | `bigint unsigned` | no | Owning space — required, unlike most tables |
 | `name` | `varchar(255)` | no | |
 | `description` | `text` | no | |
 | `definition` | `longtext` | no | JSON step list; `longtext`, not `text`, because plans can be large |
@@ -981,7 +981,7 @@ definition into one step run per step, and each agent step delegates to a task.
 | `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 | `updated_at` | `datetime(6)` | yes | `autoUpdateTime` |
 
-Indexes: PK `id`; index `team_id`; unique `public_id`.
+Indexes: PK `id`; index `space_id`; unique `public_id`.
 
 `definition` is opaque to the database. Editing a published workflow does not
 retroactively change runs already expanded from it.
@@ -1010,7 +1010,7 @@ Indexes: PK `id`; unique `idx_workflow_revision` on (`workflow_id`, `revision`).
 record of who published which definition belongs in history. It is not restored:
 restoring an old revision writes back its name, description, and definition and
 leaves the current lifecycle state alone, so restoring the content of a draft
-revision cannot unpublish a workflow teams are running.
+revision cannot unpublish a workflow spaces are running.
 
 ### `workflow_run`
 
@@ -1032,7 +1032,7 @@ Indexes: PK `id`; index `issue_id`; index
 `idx_workflow_run_workflow_created` on (`workflow_id`, `created_at`); unique
 `public_id`.
 
-Each step run creates a Team-owned Task directly (`task.team_id`, no
+Each step run creates a Space-owned Task directly (`task.space_id`, no
 `conversation_id`); a run's progress is read from its steps' `task_id` /
 `task_run_id`, not from a Conversation.
 
@@ -1129,7 +1129,7 @@ credentials** and must be handled accordingly. See [../../../SECURITY.md](../../
 `capabilities` is a comma-separated list rather than a join table: the set is
 small, closed, and only ever read whole.
 
-Every enabled row is callable by every user of the deployment: a team is a
+Every enabled row is callable by every user of the deployment: a space is a
 collaboration boundary, not a model authorization boundary. A client names a
 model by its `name`, which is unique across the deployment; `server.yaml`
 `llm.default_model` names the one a caller that names none gets, and a name
@@ -1177,8 +1177,8 @@ Indexes: PK `id`; index `accepted_at`; unique `idx_llm_call_client` on
 (`user_id`, `client_call_id`); index `status`; index `task_id`; index
 `task_run_id`; unique `public_id`.
 
-A call is attributed to a person, not a team: a foreground CLI or Desktop call
-belongs to no team, and a run's team is reached through `task_run_id`. The
+A call is attributed to a person, not a space: a foreground CLI or Desktop call
+belongs to no space, and a run's space is reached through `task_run_id`. The
 composite unique index leads with `user_id`, which both scopes idempotency per
 caller and serves per-user lookups — so there is deliberately no second index on
 `user_id` alone. See
@@ -1212,9 +1212,9 @@ These two tables back the private Marketplace. Read
 [../../design/plugin-marketplace.md](../../design/plugin-marketplace.md) before
 changing either.
 
-The catalog belongs to the deployment, not to a team: neither table carries a
-`team_id`, which is what lets a System Administrator manage company
-capabilities without reaching into any team's prompts, files, or traces.
+The catalog belongs to the deployment, not to a space: neither table carries a
+`space_id`, which is what lets a System Administrator manage company
+capabilities without reaching into any space's prompts, files, or traces.
 
 ### `plugin`
 
@@ -1280,15 +1280,15 @@ storage interface, so a query that lists or inspects releases cannot carry one.
 
 ### `plugin_activation`
 
-One team's pinned use of one catalog plugin. The catalog belongs to the
-deployment; an activation belongs to a team, which is why this is a separate
+One space's pinned use of one catalog plugin. The catalog belongs to the
+deployment; an activation belongs to a space, which is why this is a separate
 table rather than a column on `plugin_release`.
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | `bigint unsigned` | no | Internal primary key |
 | `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
-| `team_id` | `bigint unsigned` | no | `team.id` |
+| `space_id` | `bigint unsigned` | no | `space.id` |
 | `plugin_name` | `varchar(128)` | no | Catalog identity, as on `plugin_release` |
 | `version` | `varchar(64)` | no | The pinned release |
 | `digest` | `varchar(128)` | no | The pinned release's digest |
@@ -1300,10 +1300,10 @@ table rather than a column on `plugin_release`.
 | `updated_at` | `datetime(6)` | yes | `autoUpdateTime` |
 
 Indexes: PK `id`; unique `uq_plugin_activation_public_id`; index
-`activated_at`; unique `ux_plugin_activation_team_plugin` on (`team_id`,
+`activated_at`; unique `ux_plugin_activation_space_plugin` on (`space_id`,
 `plugin_name`).
 
-The unique index over (`team_id`, `plugin_name`) is what makes an activation
+The unique index over (`space_id`, `plugin_name`) is what makes an activation
 one row per pair rather than a history, which is why suspension is the
 `enabled` flag: the pin survives it, and a suspended activation still explains
 why a run failed. Moving to another release updates `version` and `digest` in
@@ -1313,12 +1313,12 @@ place; the trail of who moved what lives in the audit events, not here.
 own. A release published after this row was written cannot change what a run
 loads until a person moves it.
 
-`origin` records which of the two ways the row appeared. `curated` is a team
+`origin` records which of the two ways the row appeared. `curated` is a space
 admin activating deliberately; `automatic` is the row created because an agent
-named the plugin in a team whose `team.plugin_curation` is `open`. Both are
+named the plugin in a space whose `space.plugin_curation` is `open`. Both are
 real pins with the same digest and the same audit event, and `activated_by`
 names a person either way. See
-[../../design/plugin-team-distribution.md](../../design/plugin-team-distribution.md)
+[../../design/plugin-space-distribution.md](../../design/plugin-space-distribution.md)
 §4.1.
 
 ## Changing The Schema

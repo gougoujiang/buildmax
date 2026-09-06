@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react"
 import { getErrorMessage } from "../../lib/errorMessage"
 import {
-  TEAM_SANDBOX_FILESYSTEM_TIER_OPTIONS,
-  TEAM_SANDBOX_NETWORK_TIER_OPTIONS,
+  SPACE_SANDBOX_FILESYSTEM_TIER_OPTIONS,
+  SPACE_SANDBOX_NETWORK_TIER_OPTIONS,
 } from "../../lib/sandboxTiers"
 import { getSandboxDefaults, setSandboxDefaults } from "./api"
 
@@ -100,14 +100,14 @@ export function SpaceSandboxDefaults({
               disabled={!canManage || saving}
               onChange={(e) => save({ networkTier: e.target.value, filesystemTier })}
             >
-              {TEAM_SANDBOX_NETWORK_TIER_OPTIONS.map((option) => (
+              {SPACE_SANDBOX_NETWORK_TIER_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
               ))}
             </select>
             <p className="modal__hint">
-              {TEAM_SANDBOX_NETWORK_TIER_OPTIONS.find((o) => o.value === networkTier)?.description}
+              {SPACE_SANDBOX_NETWORK_TIER_OPTIONS.find((o) => o.value === networkTier)?.description}
             </p>
           </div>
           <div>
@@ -121,7 +121,7 @@ export function SpaceSandboxDefaults({
               disabled={!canManage || saving}
               onChange={(e) => save({ networkTier, filesystemTier: e.target.value })}
             >
-              {TEAM_SANDBOX_FILESYSTEM_TIER_OPTIONS.map((option) => (
+              {SPACE_SANDBOX_FILESYSTEM_TIER_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
@@ -129,7 +129,7 @@ export function SpaceSandboxDefaults({
             </select>
             <p className="modal__hint">
               {
-                TEAM_SANDBOX_FILESYSTEM_TIER_OPTIONS.find((o) => o.value === filesystemTier)
+                SPACE_SANDBOX_FILESYSTEM_TIER_OPTIONS.find((o) => o.value === filesystemTier)
                   ?.description
               }
             </p>

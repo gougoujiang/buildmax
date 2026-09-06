@@ -61,7 +61,7 @@ one binary:
 the short name matches the `./make kind` command, while this table and
 [deploy/local-kind.md](../deploy/local-kind.md) define its scope. `compose/` is
 different because an operator is meant to run it — its audience is operators,
-`README.md` files it under "Running it for a team", and `compose.yaml` pulls
+`README.md` files it under "Running it for a space", and `compose.yaml` pulls
 `ghcr.io/gougoujiang/buildmax`. `smoke/` is test scaffolding shared by both
 smokes.
 
@@ -139,11 +139,11 @@ internal/
 │   ├── agent/          The tool-calling loop, events, hooks, sandbox contract
 │   ├── plugin/         Plugin manifest, version arithmetic, and the layer
 │   │                   vocabulary discovery, resolution, and publication share,
-│   │                   plus the catalog entry, its releases, and a team's
+│   │                   plus the catalog entry, its releases, and a space's
 │   │                   activations
 │   ├── subagent/       The subagent definition file shape and its frontmatter
-│   ├── space/           The Team, its members, its store, and the one
-│   │                   role/action decision the HTTP guard and the team
+│   ├── space/           The Space, its members, its store, and the one
+│   │                   role/action decision the HTTP guard and the space
 │   │                   service both enforce
 │   ├── artifact/       The Artifact: a file somebody chose to keep, its record,
 │   │                   its store, and how its content object is addressed
@@ -153,15 +153,15 @@ internal/
 │   │                   against
 │   ├── conversation/   The durable Conversation and its messages: what Tier 1
 │   │                   orchestrates and stores, distinct from a local session
-│   ├── workflow/       A team's reusable linear plan, its revisions, and the
+│   ├── workflow/       A space's reusable linear plan, its revisions, and the
 │   │                   run and step-run state its execution moves through
-│   ├── agentdef/       The Agent a team defined and its revisions -- what an
+│   ├── agentdef/       The Agent a space defined and its revisions -- what an
 │   │                   Agent is configured to be, not the loop that runs it
 │   ├── issue/          The Issue, its hierarchy and assignee vocabulary, and
 │   │                   the comments people and agents leave on it
 │   ├── audit/          The append-only trail: what an event is, the actions
 │   │                   worth recording, and how it is read and pruned
-│   ├── secret/         The Team Secret: a group of named items, its lifecycle,
+│   ├── secret/         The Space Secret: a group of named items, its lifecycle,
 │   │                   the sealed-bytes and store contracts — no crypto, no
 │   │                   persistence
 │   ├── task/           Tier 2 durable work: the Task, its runs and their one
@@ -186,7 +186,7 @@ internal/
 │   ├── conversation/   Portal foreground chat and optional Task orchestration
 │   │   └── channel/    Normalized turn types and channel adapters (webhook)
 │   ├── agent/          Agent definitions, their revisions, and the delete guard
-│   ├── artifact/       Durable files a team keeps; knows no producer
+│   ├── artifact/       Durable files a space keeps; knows no producer
 │   ├── llmcatalog/     What the model catalog accepts and what changing it
 │   │                   records; the shell and the admin route both call it
 │   ├── systemadmin/    Who holds a deployment-scoped role; the last-holder
@@ -200,10 +200,10 @@ internal/
 │   │                   not diagnostics — see the package doc)
 │   ├── plugin/         Marketplace publication and catalog lifecycle
 │   ├── plugininspect/  Sanitized inspection of what a plugin archive contributes
-│   ├── secret/         Team Secret lifecycle: validate items, seal them through
+│   ├── secret/         Space Secret lifecycle: validate items, seal them through
 │   │                   a Sealer, store metadata and sealed bytes; no reveal path
-│   ├── space/           Membership: who is in a team and who may change that
-│   ├── quota/          Team quota enforcement
+│   ├── space/           Membership: who is in a space and who may change that
+│   ├── quota/          Space quota enforcement
 │   └── llmgateway/     Model catalog, name resolution, routing, and managed calls
 │
 ├── tool/               Runtime agent tools: Read, Write, Edit, Bash, Glob, Grep,
@@ -214,7 +214,7 @@ internal/
 │
 ├── infra/              External-system implementations
 │   ├── db/             MySQL/GORM implementation of the core repositories
-│   ├── objectstore/    Local FS and S3/MinIO storage: team home, run output,
+│   ├── objectstore/    Local FS and S3/MinIO storage: space home, run output,
 │   │                   and artifact content — three key spaces, one backend
 │   ├── llm/            LLMClient over the wire protocols BuildMax speaks:
 │   │                   OpenAI Chat Completions, OpenAI Responses, Anthropic Messages
@@ -226,7 +226,7 @@ internal/
 │   ├── pluginarchive/  Packing and hardened extraction of plugin archives
 │   ├── proc/           Process supervision for local background jobs:
 │   │                   group spawn, bounded output rings, tree termination
-│   ├── secret/         Team Secret cryptography: envelope encryption of the
+│   ├── secret/         Space Secret cryptography: envelope encryption of the
 │   │                   item map, and the KEK providers that wrap the DEKs
 │   ├── sandbox/        Seatbelt/bwrap backends, egress proxy, violations
 │   ├── sessionstore/   Session journal file backend: JSONL codec, single-writer
@@ -253,16 +253,16 @@ internal/
 │
 ├── server/             HTTP API for Portal and worker callbacks
 │   ├── handlers/       Route handlers
-│   │   ├── admin/      Deployment-scoped routes; a Config that cannot reach a team
-│   │   ├── artifact/   Artifacts, addressed by opaque ID; team comes from the record
+│   │   ├── admin/      Deployment-scoped routes; a Config that cannot reach a space
+│   │   ├── artifact/   Artifacts, addressed by opaque ID; space comes from the record
 │   │   ├── auth/       Establishing a session: login, refresh, logout, password
-│   │   ├── auditexport/  CSV export shared by the team and admin audit routes
-│   │   ├── llmhttp/    Managed gateway over HTTP, shared by the team and worker routes
+│   │   ├── auditexport/  CSV export shared by the space and admin audit routes
+│   │   ├── llmhttp/    Managed gateway over HTTP, shared by the space and worker routes
 │   │   ├── runterminal/  Announces a finished run to whoever is watching
-│   │   ├── space/       What a team owns: members, agents, keys, usage, audit
+│   │   ├── space/       What a space owns: members, agents, keys, usage, audit
 │   │   ├── work/       Issues, workflows, tasks, conversations, and their runs
 │   │   └── worker/     Worker API; authenticates with a run token, not a session
-│   ├── access/         Who is calling, which team, and whether they may
+│   ├── access/         Who is calling, which space, and whether they may
 │   ├── authtoken/      Signs and verifies the run token a worker presents
 │   ├── httputil/       Shared request/response helpers
 │   ├── scheduler/      Claims pending task runs and spawns workers

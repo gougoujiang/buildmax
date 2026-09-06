@@ -43,9 +43,9 @@ and [managed LLM gateway](llm-gateway.md).
 BuildMax needs an evaluation system that measures its product promise, not a larger version of
 its current coding smoke test.
 
-The product is one shared Agent runtime exposed through a local workbench and a private Team
+The product is one shared Agent runtime exposed through a local workbench and a private Space
 Platform. Its useful output is not merely an assistant response: it is an intentional, bounded,
-explainable transformation of workspace or team state, with results a user can inspect and an
+explainable transformation of workspace or space state, with results a user can inspect and an
 operator can govern. Evaluation must therefore cover capability, reliability, trust, and the
 end-to-end product outcome across local and worker execution.
 
@@ -65,7 +65,7 @@ This design decides that BuildMax will:
 6. keep public benchmarks as external coordinates while product-owned suites determine BuildMax
    release and qualification decisions; and
 7. design first for maintainers and private-deployment operators, while leaving a deliberate path
-   to pre-publication evaluation of Team Agents and Workflows.
+   to pre-publication evaluation of Space Agents and Workflows.
 
 The accepted product and governance decisions, and the technical choices still
 delegated to evidence, are recorded in [section 15](#15-decisions).
@@ -137,7 +137,7 @@ That question produces four evaluation domains:
 | Capability | Can the Agent complete useful work? | Final state, tests, artifacts, rubric dimensions |
 | Reliability | Does it complete the work consistently and recover from ordinary failure? | Repeated trials, pass^k, failure taxonomy, variance |
 | Trust and control | Does it remain inside instructions, authorization, and execution boundaries? | Policy and trace assertions, adversarial scenarios, boundary records |
-| Product outcome | Does the whole local or Team Platform flow deliver the intended result? | Conversation, TaskRun, artifact, state, trace, ledger, and UI evidence |
+| Product outcome | Does the whole local or Space Platform flow deliver the intended result? | Conversation, TaskRun, artifact, state, trace, ledger, and UI evidence |
 
 These domains have separate scorecards and gates. Capability must not compensate for a trust
 violation, and a polished final response must not compensate for an incorrect final state.
@@ -163,9 +163,9 @@ An operator needs to qualify a model and deployment profile against representati
 The operator's dataset and traces must remain inside the deployment unless the operator explicitly
 exports them.
 
-### 4.3 Team Agent and Workflow authors
+### 4.3 Space Agent and Workflow authors
 
-A later product surface may let a Team author run private scenarios before publishing an Agent or
+A later product surface may let a Space author run private scenarios before publishing an Agent or
 Workflow. This design does not commit to that UI or data model. It does require that the task,
 subject, trial, and grader contracts do not assume evaluation is maintainer-only.
 
@@ -198,7 +198,7 @@ subject, trial, and grader contracts do not assume evaluation is maintainer-only
   default.
 - Requiring a Server, Python, Node, Docker, or an evaluation platform for normal CLI and Desktop
   use.
-- Productizing Team-facing evaluation before maintainer and operator workflows are credible.
+- Productizing Space-facing evaluation before maintainer and operator workflows are credible.
 - Claiming that an LLM judge is ground truth without calibration against human or deterministic
   labels.
 
@@ -410,7 +410,7 @@ The first product-owned suites should be:
 | Local workbench | Coding, files, structured data, research, sessions, local artifacts |
 | Worker and TaskRun | Materialization, managed/direct transport, artifacts, cancel, retry, timeout |
 | Conversation and Workflow | Intent handling, clarification, delegation, result delivery, multi-turn state |
-| Trust and control | Permissions, hooks, sandbox, injection, secrets, paths, network, team scope |
+| Trust and control | Permissions, hooks, sandbox, injection, secrets, paths, network, space scope |
 | Extensibility | MCP, skills, plugins, subagents, missing dependencies, provenance |
 | Cross-surface parity | The same abstract task across local and worker environments |
 
@@ -504,7 +504,7 @@ follow only when a demonstrated workflow needs them.
 | Thin BuildMax controller | Default controller | Own only the minimum orchestration missing from the contract; do not grow an LLMOps platform |
 | Harbor | First-choice container and public-benchmark adapter, beginning with Terminal-Bench 2.1 | An execution adapter, not the controller or product-result model |
 | Phoenix or Langfuse | Later, optional self-hosted trace, experiment, and annotation UI | Viewer/export target; never required or authoritative; select at most one after local reports prove insufficient |
-| Promptfoo | Optional adversarial prompt and red-team case generation | Generated cases return to BuildMax-owned tasks and graders; it is not in the main evaluation path |
+| Promptfoo | Optional adversarial prompt and red-space case generation | Generated cases return to BuildMax-owned tasks and graders; it is not in the main evaluation path |
 | Provider eval APIs | Optional semantic graders or comparison services | No provider becomes required for the core workflow |
 
 The spike tests the default rather than opening the question again. It must attempt at least a
@@ -618,12 +618,12 @@ product outcomes.
 
 | Decision | Accepted direction |
 |---|---|
-| Audience | Maintainer and operator qualification are both initial scope; Team authoring is later |
+| Audience | Maintainer and operator qualification are both initial scope; Space authoring is later |
 | Priority | The black-box vertical slice is near-term enabling work before substantial new Agent capability |
 | Private holdout | Qualification may use access-controlled or rotating data with a public schema, immutable version and digest, and a fully runnable public development suite |
 | Real-model gate | Scheduled and release qualification may consume provider credentials and a bounded budget; ordinary pull requests remain deterministic by default |
 | Trial privacy | Raw prompts, replies, traces, workspace snapshots, and grader bodies remain local/private by default and require explicit bounded export |
-| Future Team scope | Contracts support future pre-publication Agent and Workflow evaluation without committing a Team-facing UI or roadmap phase |
+| Future Space scope | Contracts support future pre-publication Agent and Workflow evaluation without committing a Space-facing UI or roadmap phase |
 
 ### 15.3 Experiment controller and implementation language
 
@@ -739,12 +739,12 @@ they depend on, in [section 18](#18-vertical-slice-implementation-plan).
 - Track task and grader defects separately from Agent defects.
 - Re-run promoted cases against candidate subjects before release.
 
-### Phase 4: Team-facing evaluation, if separately accepted
+### Phase 4: Space-facing evaluation, if separately accepted
 
-- Let a Team define private scenarios for an Agent or Workflow.
-- Run those scenarios with team authorization and quota.
+- Let a Space define private scenarios for an Agent or Workflow.
+- Run those scenarios with space authorization and quota.
 - Compare definition versions before publication.
-- Keep evaluation results, traces, and datasets team-scoped.
+- Keep evaluation results, traces, and datasets space-scoped.
 
 This phase requires a separate product and data-model decision. The earlier phases only preserve a
 contract path to it.
@@ -852,12 +852,12 @@ The worker adapter followed the slice and is built. What was described as missin
 submit a trial and collect its bundle without a Portal user — turned out not to need one. A
 worker reaches its server over HTTP and nothing else: it fetches the run, reports status,
 streams output, and polls for cancellation. So the adapter serves that API itself, on a
-loopback port, for exactly one run. No database, no team, no scheduler, and no Portal user is
+loopback port, for exactly one run. No database, no space, no scheduler, and no Portal user is
 involved, which is the same move `mockllm` makes for the model side.
 
 The dispatch is a scheduler's: a run id on the command line, a run token in the environment,
 and a `server.yaml` naming the control plane. What it exercises that the CLI cannot is the part
-of the product only a worker has — materializing the team's persistent workspace into a
+of the product only a worker has — materializing the space's persistent workspace into a
 run-scoped directory, executing with no interactive surface, and reporting an outcome over the
 API rather than to a terminal. The outcome is read from what the worker reported, not from its
 exit code: a worker that failed the run reports FAILED and exits non-zero, while one that was
@@ -923,7 +923,7 @@ trace or model grader: without one it asserts only that nothing happened, and a 
 never ran would satisfy it. This is a contract addition the slice earned, not one it assumed.
 
 And the two surfaces do not put a task's initial state in the same place. A CLI run is given
-the workspace directly; a worker materializes the team's files into a `home` subdirectory of
+the workspace directly; a worker materializes the space's files into a `home` subdirectory of
 the run directory it works in. A path assertion is therefore surface-specific, which section
 11's "parity is two tasks stating the same goal, not one task run twice" already implies but
 which is easy to violate by copying a task between surfaces. Preflight materializes into the

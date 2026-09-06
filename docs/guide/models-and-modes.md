@@ -55,7 +55,7 @@ Password (leave blank to use a login code): ********
 Logged in as you@example.com on https://buildmax.example.com
 ```
 
-Every model that deployment offers is available to you — a team is who you
+Every model that deployment offers is available to you — a space is who you
 collaborate with, not what gates a model. `buildmax models` lists them and says
 where prompts go:
 
@@ -110,5 +110,5 @@ Signed out, it reports local mode and then checks each entry in `settings.yaml`
 
 - [reference/configuration.md](../reference/configuration.md) — every
   `settings.yaml` field
-- [deploy/overview.md](../deploy/overview.md) — running a deployment for a team
+- [deploy/overview.md](../deploy/overview.md) — running a deployment for a space
 - [design/client-modes.md](../design/client-modes.md) — why it works this way

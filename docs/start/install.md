@@ -3,7 +3,7 @@
 > **Audience:** users · **Status:** current
 
 BuildMax ships three binaries. `buildmax` is the local CLI/TUI and is all you
-need to start; `buildmax-server` and `buildmax-worker` are for the team
+need to start; `buildmax-server` and `buildmax-worker` are for the space
 deployment described in [deploy/](../deploy/overview.md).
 
 Before choosing an install path, check the
@@ -69,7 +69,7 @@ deliberately do not move `latest`, so name the version you want. Running the
 Portal image takes one environment variable — see
 [deploy/overview.md](../deploy/overview.md#portal).
 
-To run the whole team stack rather than one image, use the
+To run the whole space stack rather than one image, use the
 [Compose quickstart](../deploy/compose.md), which builds from source until a
 release publishes these tags.
 

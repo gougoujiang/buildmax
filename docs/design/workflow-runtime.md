@@ -6,7 +6,7 @@ Related: [roadmap](../ROADMAP.md),
 [product vision](product-vision.md),
 [surface positioning](surface-positioning.md),
 [Agent execution and Task threads](agent-execution-and-task-threads.md),
-[team governance](team-governance.md),
+[space governance](space-governance.md),
 [unified artifacts](unified-artifacts.md),
 [data model](../contribute/architecture/data-model.md), and
 [verification program](verification-program.md).
@@ -38,7 +38,7 @@ Related: [roadmap](../ROADMAP.md),
 
 ## 1. Decision And Current Status
 
-BuildMax Workflow is a **Team-scoped, revision-pinned, durable adaptive graph
+BuildMax Workflow is a **Space-scoped, revision-pinned, durable adaptive graph
 over the existing Task and TaskRun execution plane**.
 
 The Workflow runtime is the authority for:
@@ -71,7 +71,7 @@ authority to mutate an in-flight graph invisibly.
 
 The current implementation has useful foundations:
 
-- Workflow and WorkflowRun are Team-owned;
+- Workflow and WorkflowRun are Space-owned;
 - definitions and revisions are recorded;
 - a run pins a Workflow revision;
 - each step delegates to the shared Task/TaskRun worker path;
@@ -201,7 +201,7 @@ not any framework's runtime or DSL.
 - Holding a worker while a run waits for a person or external event.
 - Making Conversation or Issue an execution parent. Both remain optional
   origins or result projections.
-- Moving Team Workflow authoring into CLI or Desktop. Portal remains its full
+- Moving Space Workflow authoring into CLI or Desktop. Portal remains its full
   management surface.
 - Requiring an external workflow runtime, Node, or Python in the Go core.
 - Preserving the current Alpha definition or database shape through a
@@ -224,7 +224,7 @@ flowchart TB
 
 | Object | Owns | Does not own |
 |---|---|---|
-| Workflow | Team-scoped identity, draft pointer, published pointer, archive state | Mutable run state |
+| Workflow | Space-scoped identity, draft pointer, published pointer, archive state | Mutable run state |
 | WorkflowRevision | Immutable canonical definition, schemas, bindings, node policies, Agent revision references | A run's input or outcome |
 | WorkflowRun | Revision pin, input, aggregate state, result, trigger provenance, cancellation intent, reconciliation schedule | Agent session internals |
 | WorkflowNodeRun | One materialized logical node, resolved input, accepted output, policy state, Task relation, attempt aggregate | Worker lease or Agent loop |
@@ -379,7 +379,7 @@ must be reachable and cannot be skipped on every valid first-version path.
 - Every referenced predecessor exists.
 - A binding may reference Workflow input or a transitive predecessor only.
 - A node becomes ready after every required predecessor succeeds.
-- Several ready nodes may execute concurrently within Workflow and Team limits.
+- Several ready nodes may execute concurrently within Workflow and Space limits.
 - Failure is fail-fast; there is no continue-on-error policy in the first graph
   slice.
 - There is one executor type, `agent_task`.
@@ -414,7 +414,7 @@ Publication validates and canonicalizes the entire contract:
 1. decode with unknown-field rejection and size limits;
 2. validate the supported input and optional output schema subset;
 3. validate node ids, types, graph acyclicity, references, and result reachability;
-4. resolve every Agent id and revision inside the Team, including deleted-agent
+4. resolve every Agent id and revision inside the Space, including deleted-agent
    policy for already recorded revisions;
 5. validate Issue requirements, retry, timeout, concurrency, and expansion
    bounds;
@@ -437,7 +437,7 @@ Agent success.
 
 `StartRun` performs these actions in one database transaction:
 
-1. resolve the Team-owned Workflow and current published revision;
+1. resolve the Space-owned Workflow and current published revision;
 2. authorize the caller and trigger;
 3. validate the supplied input and required Issue relation;
 4. insert one WorkflowRun with the exact revision, immutable input, trigger,
@@ -574,7 +574,7 @@ The Agent TaskRun is assembled in four distinct classes of input:
 3. resolved bindings rendered in a stable, labelled data envelope; and
 4. run capabilities and runtime materialization supplied out of band.
 
-Upstream output is untrusted even when another Team Agent produced it. The
+Upstream output is untrusted even when another Space Agent produced it. The
 renderer must delimit it and say that it is data, not instruction. It must not
 copy Agent instructions into user input, evaluate templates from upstream
 content, or promote model text into system policy.
@@ -655,7 +655,7 @@ workflow/<workflow_run_id>/node/<node_id>/attempt/<attempt_number>
 
 The Task application service accepts these keys and guarantees:
 
-- one Team and admission key resolves to one Task;
+- one Space and admission key resolves to one Task;
 - the first call atomically creates Task plus first TaskRun;
 - a repeated call returns the same Task and TaskRun;
 - a retry key resolves to one TaskRun under the existing Task; and
@@ -682,7 +682,7 @@ The store enforces at least:
 
 ```text
 UNIQUE(workflow_run_id, node_id)
-UNIQUE(team_id, task_admission_key)
+UNIQUE(space_id, task_admission_key)
 UNIQUE(task_id, task_run_admission_key)
 ```
 
@@ -723,7 +723,7 @@ For an enabled retry:
   failure; and
 - bounded backoff is represented by `retry_wait` and `next_attempt_at`.
 
-Secret values are not copied into Workflow state. Team Secrets are currently
+Secret values are not copied into Workflow state. Space Secrets are currently
 unversioned, so each attempt receives the current value for the already pinned
 secret names through normal run delivery and records the materialization. A
 credential rotation is intentionally visible behavior, not bit-for-bit replay.
@@ -853,7 +853,7 @@ Agent calls and not boolean columns on NodeRun.
 
 A WorkflowRequest owns:
 
-- Team, WorkflowRun, and NodeRun identity;
+- Space, WorkflowRun, and NodeRun identity;
 - request type and typed request payload;
 - allowed response schema;
 - requester and eligible responder roles or identities;
@@ -867,7 +867,7 @@ other work is active. It consumes no worker. A response transaction records the
 answer and wakes reconciliation. Repeated or unauthorized answers cannot resume
 two paths.
 
-This must integrate with the Team governance approval model when that model is
+This must integrate with the Space governance approval model when that model is
 designed. Workflow must not pre-empt delegation, role, expiry, escalation, and
 audit semantics with an isolated approval feature.
 
@@ -888,7 +888,7 @@ type Service interface {
 ```
 
 `PublishCmd` carries expected draft and published revisions. `StartRunCmd`
-carries Team, Workflow, optional explicit published revision, immutable input,
+carries Space, Workflow, optional explicit published revision, immutable input,
 optional Issue, trigger provenance, actor, and caller idempotency key.
 
 The Task port required by Workflow is narrow:
@@ -927,14 +927,14 @@ whose intermediate states violate the model.
 
 ### 15.3 HTTP Surface
 
-The target surface extends existing Team-scoped routes:
+The target surface extends existing Space-scoped routes:
 
 ```text
-POST /api/teams/{team_id}/workflows/{workflow_id}/revisions
-POST /api/teams/{team_id}/workflows/{workflow_id}/publish
-POST /api/teams/{team_id}/workflows/{workflow_id}/runs
-GET  /api/teams/{team_id}/workflow-runs/{workflow_run_id}
-POST /api/teams/{team_id}/workflow-runs/{workflow_run_id}/cancel
+POST /api/spaces/{space_id}/workflows/{workflow_id}/revisions
+POST /api/spaces/{space_id}/workflows/{workflow_id}/publish
+POST /api/spaces/{space_id}/workflows/{workflow_id}/runs
+GET  /api/spaces/{space_id}/workflow-runs/{workflow_run_id}
+POST /api/spaces/{space_id}/workflow-runs/{workflow_run_id}/cancel
 ```
 
 Run admission accepts:
@@ -961,7 +961,7 @@ and large Artifact content remain behind their owning APIs.
 Future request response uses:
 
 ```text
-POST /api/teams/{team_id}/workflow-requests/{request_id}/respond
+POST /api/spaces/{space_id}/workflow-requests/{request_id}/respond
 ```
 
 ## 16. Persistence Target
@@ -972,7 +972,7 @@ the data model reference changes only when implementation lands.
 
 ### 16.1 `workflow`
 
-Retains identity, Team, display fields, creator, and timestamps. Replace the
+Retains identity, Space, display fields, creator, and timestamps. Replace the
 single mutable definition/status/revision authority with:
 
 - `draft_revision`;
@@ -1010,7 +1010,7 @@ Add or retain:
 - reconciliation owner, lease expiry, and `next_reconcile_at`;
 - creator and lifecycle timestamps.
 
-Run admission has a unique caller key within its owning Team and trigger scope
+Run admission has a unique caller key within its owning Space and trigger scope
 so a retried HTTP request cannot create a second run.
 
 ### 16.4 `workflow_node_run`
@@ -1086,18 +1086,18 @@ These metrics describe coordinator health separately from model task quality.
 
 ## 18. Security, Quota, And Execution Policy
 
-Team remains the ownership and authorization boundary. Owners and admins manage
+Space remains the ownership and authorization boundary. Owners and admins manage
 definitions and publication; members may start published Workflows subject to
 the existing governance decision. Historical revision execution is not granted
 implicitly by read access.
 
 Publication and admission validate that every Agent revision belongs to the
-Team. Deleted Agent revisions remain readable for an already admitted run but
+Space. Deleted Agent revisions remain readable for an already admitted run but
 cannot be newly selected unless the existing Agent lifecycle explicitly permits
 it.
 
 The Workflow definition cannot grant tools, plugins, secrets, sandbox access,
-or Issue access beyond the selected Agent revision and Team policy. Dynamic
+or Issue access beyond the selected Agent revision and Space policy. Dynamic
 planner output narrows or instantiates a declared template; it cannot widen
 authority.
 
@@ -1108,7 +1108,7 @@ TaskRun trace remains bounded and redacted by its existing owner.
 Quota is checked at run admission and each TaskRun admission. The run aggregates
 actual TaskRun usage and cost for display and future policy, but TaskRun and the
 LLM call ledger remain accounting authority. Parallel dispatch respects the
-minimum of definition, Team, scheduler, and deployment concurrency limits.
+minimum of definition, Space, scheduler, and deployment concurrency limits.
 
 Retries, loops, and dynamic expansion declare hard ceilings. Reaching a ceiling
 is a typed Workflow policy failure, not an invitation for the model to negotiate
@@ -1175,7 +1175,7 @@ interpreters or preserve stale table shapes as a compatibility layer.
 
 ### Phase 5: Evidence-Gated Adaptation
 
-- Add durable external requests after Team governance owns them.
+- Add durable external requests after Space governance owns them.
 - Add bounded planner/map expansion.
 - Add bounded evaluator iteration.
 - Add nested Workflow templates only if reuse evidence requires them.
@@ -1251,7 +1251,7 @@ execution semantics and is rejected beyond the Phase 1 reliability repair.
 ### 21.2 Let One LLM Orchestrate The Whole Workflow
 
 A manager Agent is useful inside an open-ended Task and may create subagents.
-It is not a durable Team Workflow: its context is not a transaction log, its
+It is not a durable Space Workflow: its context is not a transaction log, its
 tool choice is probabilistic, and it cannot be sole authority for permissions,
 deadlines, approvals, cancellation, or replay. Pure LLM orchestration is
 rejected as the Workflow control plane.

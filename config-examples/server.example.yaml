@@ -88,7 +88,7 @@ conversation:
   # image can point Tier 1 at a seeded model without rewriting this file.
   # model_target: "Claude Sonnet 5"
 
-# Team model policy for the managed LLM gateway. The catalog itself lives in
+# Space model policy for the managed LLM gateway. The catalog itself lives in
 # the llm_model database table, not here, since it holds provider credentials
 # and changes at runtime:
 #
@@ -104,7 +104,7 @@ conversation:
 #       --api-url http://host.docker.internal:11434 \
 #       --model qwen3:8b --context-window 32000
 #
-# Every catalog model is available to every user of this deployment — team is
+# Every catalog model is available to every user of this deployment — space is
 # a collaboration boundary, not a model authorization boundary. A client
 # names a model by the --name it was added with.
 #
@@ -244,8 +244,8 @@ storage:
   persist_backend: local_fs   # or minio
   artifact_backend: local_fs  # or minio
   # Largest single artifact this deployment accepts, in MB (a per-file limit,
-  # not a team storage allowance). 0 uses the built-in default. The allowance
-  # is per team and lives in its quota tier, as max_storage_bytes.
+  # not a space storage allowance). 0 uses the built-in default. The allowance
+  # is per space and lives in its quota tier, as max_storage_bytes.
   max_artifact_mb: 0
   # How long a deleted artifact's bytes stay in the bucket after the delete.
   # 0, the default, reclaims them on the next hourly retention sweep — the
@@ -275,8 +275,8 @@ storage:
     # for a compatible store that uses virtual-host addressing.
     # path_style: true
 
-# Team Secrets: a Team-owned group of named items, sealed with envelope
-# encryption. See docs/design/team-secrets.md.
+# Space Secrets: a Space-owned group of named items, sealed with envelope
+# encryption. See docs/design/space-secrets.md.
 secret:
   # Path to the key file that wraps every secret's data key. The key material
   # is never in this file or the environment -- only this path is. The file

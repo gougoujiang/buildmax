@@ -20,28 +20,28 @@ harness](trust-harness.md), and [ROADMAP.md](../ROADMAP.md) P0.5 and P3.
 
 ## Problem
 
-A task run belongs to a user and a team. The worker executing it could prove
+A task run belongs to a user and a space. The worker executing it could prove
 neither. It authenticated with `worker.token`, a deployment-wide shared secret
 compared as a string, which establishes only that the caller is *a* worker — not
 which run it is executing, for whom, or on whose behalf.
 
 Every `/api/worker/*` route names a run in its path, so a shared secret meant any
-worker could name any run: read the prompt text of every team's tasks, `PATCH`
-another team's run to SUCCEEDED with arbitrary output, or push deltas into
+worker could name any run: read the prompt text of every space's tasks, `PATCH`
+another space's run to SUCCEEDED with arbitrary output, or push deltas into
 another run's live stream.
 
 Managed inference made it untenable rather than merely loose. At the time, the
-gateway policy and quota inputs were Team-scoped, so a credential that
-identified no Team forced the server to derive one from whatever run ID the
-caller supplied. [Client modes](client-modes.md) later removed per-Team model
+gateway policy and quota inputs were Space-scoped, so a credential that
+identified no Space forced the server to derive one from whatever run ID the
+caller supplied. [Client modes](client-modes.md) later removed per-Space model
 policy and made catalog availability deployment-wide, but the worker still
 needs a run-scoped identity for route authorization, attribution, and isolation
-between Teams and runs.
+between Spaces and runs.
 
 ## Decision
 
 The server mints a **run token** when it dispatches a run: a short-lived JWT
-that names the user, the team, and the run, and authorizes nothing else. Every
+that names the user, the space, and the run, and authorizes nothing else. Every
 `/api/worker/*` route requires it, and requires that the run it names is the run
 in the path.
 
@@ -59,7 +59,7 @@ that names no run.
 ### Why not reuse the user's access token
 
 A worker executes model-chosen shell commands. A user access token is a
-general-purpose credential: it opens every team the user belongs to, plus
+general-purpose credential: it opens every space the user belongs to, plus
 issues, conversations, files, and other tasks. Handing one to a worker converts
 "this run may spend inference" into "the model may act as this user
 everywhere" — a strictly larger blast radius than the shared secret it would
@@ -83,7 +83,7 @@ precedent for a stored credential exists. A run token does not follow it:
 |---|---|
 | `typ` | `run` |
 | `sub` | user ID that owns the task |
-| `tid` | team ID |
+| `tid` | space ID |
 | `rid` | task run ID |
 | `kid` | task ID |
 | `exp` | issue time plus `worker.run_token_ttl` |
@@ -105,7 +105,7 @@ involved: this is transport authorization, not domain code.
 ## Lifecycle
 
 1. **Mint at dispatch.** The scheduler claims a `PENDING` run, loads its task
-   for the team and owner, mints a token, and passes it to the `WorkerRunner`.
+   for the space and owner, mints a token, and passes it to the `WorkerRunner`.
 2. **Deliver by environment.** `BUILDMAX_RUN_TOKEN` reaches the worker process:
    appended to the child environment by `LocalRunner`, added to the pod
    environment by `K8sJobRunner`. Not a command-line argument — that would put
@@ -115,7 +115,7 @@ involved: this is transport authorization, not domain code.
    managed inference.
 4. **Verify against server state.** The middleware requires the token's run to
    be the path's run. The inference route additionally confirms with the store
-   that the run is executing and that its task's team matches the token's.
+   that the run is executing and that its task's space matches the token's.
    Attribution never comes from the request body.
 5. **Expire with the run.** A terminal run refuses further inference; the token
    expires on its own schedule regardless; and a run nobody ever closes is
@@ -153,7 +153,7 @@ this design.
   remaining half of "a run holds only the credentials it needs", and it is not
   designed.
 - **It does not pin the model.** A run token authorizes a run, not an alias. A
-  worker may still name any alias its team is granted. Pinning an approved alias
+  worker may still name any alias its space is granted. Pinning an approved alias
   to the run and rejecting others is a later step.
 
 ## Retiring The Shared Worker Token
@@ -177,8 +177,8 @@ POST   /api/worker/task-runs/{task_run_id}/llm/completions
 ```
 
 What that closes is larger than inference. A holder of the shared secret could
-read any run's input, which is the prompt text of every team's tasks; `PATCH`
-any run to SUCCEEDED with arbitrary output, which is forging results for a team
+read any run's input, which is the prompt text of every space's tasks; `PATCH`
+any run to SUCCEEDED with arbitrary output, which is forging results for a space
 it does not belong to; and push deltas into any run's live stream. Per-run scope
 reduces all of it to one run, until that run ends.
 
@@ -206,7 +206,7 @@ and each route answers it deliberately rather than by inheritance.
 | `PATCH` to `RUNNING` | `SCHEDULED` | The claim is what stops two workers from executing one run |
 | `PATCH` to a terminal status | any | A run that failed early must be able to report it, whatever state it reached |
 | `POST /stream` | any | Deltas are diagnostic; refusing them cannot help the run |
-| `POST /llm/completions` | `RUNNING` | Inference spends a team's quota, so it stops the moment the run does |
+| `POST /llm/completions` | `RUNNING` | Inference spends a space's quota, so it stops the moment the run does |
 
 ### The Fallback Is Removed
 
@@ -237,8 +237,8 @@ Covered by tests:
 - a token for one run cannot drive a call scoped to another;
 - an expired token, and one signed by another deployment, are refused;
 - a call against a run that is no longer executing is refused;
-- a token whose team disagrees with the run's is refused;
-- the call ledger records user, team, task, and run for a worker call;
+- a token whose space disagrees with the run's is refused;
+- the call ledger records user, space, task, and run for a worker call;
 - a managed worker's environment omits the provider credential, and a direct
   one still receives it;
 - every worker route refuses a token minted for a different run, and refuses a
@@ -250,7 +250,7 @@ Covered by tests:
 
 Covered end to end by `./make compose smoke managed` and
 `./make kind smoke managed`: a worker completes a real task against a
-deterministic mock upstream and leaves a call-ledger row naming its user, team,
+deterministic mock upstream and leaves a call-ledger row naming its user, space,
 run, and the alias the operator approved. A worker that had used a provider key
 would finish the same task and leave no such row, which is what makes the ledger
 the evidence rather than the task's own success.

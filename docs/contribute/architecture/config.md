@@ -66,9 +66,9 @@ the worker can compute them for any run:
 
 | Function | Returns |
 |---|---|
-| `PersistentWorkspaceDir(workspacesDir, workspaceID)` | The team's durable `home/` |
+| `PersistentWorkspaceDir(workspacesDir, workspaceID)` | The space's durable `home/` |
 | `RuntimeTaskRunDir(workspacesDir, workspaceID, taskID, taskRunID)` | The run directory |
-| `RuntimeTaskRunHomeDir(...)` | Materialized team home for that run |
+| `RuntimeTaskRunHomeDir(...)` | Materialized space home for that run |
 | `RuntimeTaskRunArtifactsDir(...)` | Where `result.md` and other outputs land |
 | `RuntimeTaskRunGlobalDir(...)` | `BUILDMAX_HOME` for that run |
 

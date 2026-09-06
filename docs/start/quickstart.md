@@ -137,7 +137,7 @@ applies it to local runs and to remote worker runs alike.
 
 | You want to | Read |
 |---|---|
-| Understand teams, issues, tasks, and runs | [concepts.md](concepts.md) |
+| Understand spaces, issues, tasks, and runs | [concepts.md](concepts.md) |
 | Know what the agent can actually do | [guide/tools.md](../guide/tools.md) |
 | See every flag and subcommand | [reference/cli.md](../reference/cli.md) |
 | Add tools from your own systems | [guide/mcp.md](../guide/mcp.md) |
@@ -145,4 +145,4 @@ applies it to local runs and to remote worker runs alike.
 | Gate or observe what the agent does | [guide/hooks.md](../guide/hooks.md) |
 | Confine shell commands | [guide/sandbox.md](../guide/sandbox.md) |
 | Fix something that is not working | [guide/troubleshooting.md](../guide/troubleshooting.md) |
-| Run BuildMax for a team | [deploy/overview.md](../deploy/overview.md) |
+| Run BuildMax for a space | [deploy/overview.md](../deploy/overview.md) |

@@ -41,7 +41,7 @@ beneath it each carry a capability: `core/agent`, `core/llm`, `core/session`.
 `internal/util` is the shape this rule forbids — a container name holding
 several unrelated capabilities. It predates the rule and is known debt, not a
 pattern to copy or add to. `internal/core/model` was the other example and has
-since been split into one package per domain: `core/task`, `core/team`,
+since been split into one package per domain: `core/task`, `core/space`,
 `core/issue`, `core/conversation`, and the rest.
 
 Never resolve an import cycle by moving unrelated code into a general package.
@@ -94,11 +94,11 @@ record that says why; none of them is cleanup waiting to happen.
 | Local Job | durable Task and TaskRun | [design/local-background-jobs.md](../design/local-background-jobs.md) |
 | Local Session | Portal Conversation | [design/surface-positioning.md](../design/surface-positioning.md) |
 | Configured model | catalog record, resolved target | [design/llm-gateway.md](../design/llm-gateway.md) |
-| Artifact | run output, team home file | [design/unified-artifacts.md](../design/unified-artifacts.md) |
+| Artifact | run output, space home file | [design/unified-artifacts.md](../design/unified-artifacts.md) |
 | Domain entity | `db` row, wire DTO | [design/entity-identity.md](../design/entity-identity.md) |
 | Task-run status | workflow-run and Issue status | three packages, three vocabularies |
 | User session | worker run token | [design/worker-run-token.md](../design/worker-run-token.md) |
-| Plugin package storage | team Artifact storage | [design/plugin-marketplace.md](../design/plugin-marketplace.md) |
+| Plugin package storage | space Artifact storage | [design/plugin-marketplace.md](../design/plugin-marketplace.md) |
 | Gateway protocol errors | `core/apierr` refusals | [design/llm-gateway.md](../design/llm-gateway.md) |
 
 A small package is not on this list because it is small. `llmwire`,
@@ -206,7 +206,7 @@ which references become numeric, and which stay opaque strings are decided in
 adding a table.
 
 In JSON, a resource names its own handle `id` and keeps semantic names for
-relationships — `{"id": ..., "team_id": ..., "conversation_id": ...}`. Order
+relationships — `{"id": ..., "space_id": ..., "conversation_id": ...}`. Order
 rows by `created_at` with the row key as tie-breaker, never by a public handle:
 microsecond timestamps narrow collisions but do not remove them, and a page
 boundary that compares only a timestamp can still skip or repeat a row.

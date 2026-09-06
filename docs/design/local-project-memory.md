@@ -5,7 +5,7 @@
 > command of §17, which is not built; phase 3 not started.
 >
 > Roadmap priority: P0.5 local follow-on. CLI/TUI and Desktop are in scope;
-> Portal, worker task runs, and team memory are not.
+> Portal, worker task runs, and space memory are not.
 >
 > One thing landed differently from §9.1. A memory file left unusable by a
 > direct edit is skipped and reported, but the write tool stays registered. The
@@ -146,7 +146,7 @@ BuildMax has two memory lifetimes after this design:
 | Working/session memory | Existing notes and todos | Keep current decisions, constraints, and work state across trimming and compaction inside one session |
 | Project memory | Planned per-Project memory files | Carry stable, project-specific knowledge across CLI/Desktop sessions and related Git worktrees |
 
-Global user memory, team memory, and reusable Agent memory remain separate
+Global user memory, space memory, and reusable Agent memory remain separate
 future scopes. A global mandatory preference can already be an instruction in
 `<BUILDMAX_HOME>/AGENTS.md`; that does not make it user Memory.
 
@@ -342,7 +342,7 @@ to one Git repository are grouped automatically.
 
 ### 5.2 Non-goals
 
-- Portal, worker, team, organization, or shared server Project memory.
+- Portal, worker, space, organization, or shared server Project memory.
 - Global user memory or automatic synchronization between machines (§20).
 - Arbitrary projects containing unrelated directories.
 - Treating two independent clones as one Project based on a remote URL.

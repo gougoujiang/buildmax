@@ -36,7 +36,7 @@ Related: [roadmap](../ROADMAP.md),
 ## Decision Question
 
 How should an authenticated CLI/TUI or Desktop client receive, execute,
-decompose, delegate, and report work from a Team Issue without becoming a local
+decompose, delegate, and report work from a Space Issue without becoming a local
 copy of Portal or making a BuildMax Server a requirement for local use?
 
 The likely direction is:
@@ -56,18 +56,18 @@ BuildMax already has two valuable operating profiles:
 
 - CLI/TUI and Desktop run the shared Agent Core against a local workspace and
   remain useful with no BuildMax Server;
-- Server, Portal, and workers add Team work, Issues, Workflows, durable
+- Server, Portal, and workers add Space work, Issues, Workflows, durable
   background execution, shared results, and governance.
 
 Keeping the local surfaces independent is the right execution boundary. Keeping
-them unaware of Team work is not. In a private deployment, that leaves a person
+them unaware of Space work is not. In a private deployment, that leaves a person
 copying an Issue description into a local prompt, recreating its decomposition
-in personal notes, and pasting the result back into Portal. The Team cannot see
+in personal notes, and pasting the result back into Portal. The Space cannot see
 which work is local, remote, delegated, blocked, or finished without asking the
 person to maintain a second manual trail.
 
 The opposite direction is also wrong. Rebuilding the Portal board, Workflow
-editor, Team administration, quota, audit, and cloud file management inside
+editor, Space administration, quota, audit, and cloud file management inside
 Desktop would create two management products and weaken the local workbench.
 Putting those features into the CLI would make a direct terminal executor feel
 like a remote administration client.
@@ -91,7 +91,7 @@ not become the same object merely because they contribute to the same outcome.
 
 Several required pieces already exist:
 
-- An Issue belongs to a Team, may be assigned to a person, Agent, or Workflow,
+- An Issue belongs to a Space, may be assigned to a person, Agent, or Workflow,
   and may have one level of child Issues.
 - Issue comments form a durable human- and Agent-readable work thread.
 - Tasks carry an optional Issue ID, so remote execution is already attributable
@@ -103,8 +103,8 @@ Several required pieces already exist:
 - An authenticated local Agent can publish a unified Artifact to the Server.
 - The current surface-positioning decision already permits an assigned-work
   inbox, starting a local Session from an Issue, and returning results.
-- `buildmax issue list` shows what a team assigned the signed-in person, across
-  every team they are in. The server-side listing filters it needs — by
+- `buildmax issue list` shows what a space assigned the signed-in person, across
+  every space they are in. The server-side listing filters it needs — by
   assignee and by status — now exist; `openapi.json` had described them for a
   while before anything implemented them.
 - `buildmax --issue <id>` scopes one local session to one Issue: the Agent can
@@ -112,14 +112,14 @@ Several required pieces already exist:
   relaying person is accountable for, never as the `agent` a worker run writes.
   It scopes one run and remembers nothing — the durable `IssueLink` below is
   still this proposal's to design.
-- Starting such a session prints the server, team, Issue, and where prompts go
+- Starting such a session prints the server, space, Issue, and where prompts go
   before the first model call, which is the visibility rule under
   [Model, Data, And Trust Boundary](#model-data-and-trust-boundary) in its
   cheapest form. The Session header that shows sync state as well is still
   unbuilt.
 - `buildmax issue show` reads one Issue, and `buildmax issue status` moves it.
   Status stays a person's action, per
-  [Status Is A Team Statement, Not Presence](#status-is-a-team-statement-not-presence),
+  [Status Is A Space Statement, Not Presence](#status-is-a-space-statement-not-presence),
   and the change carries the version it was read at.
 - How an Agent itself reads and reports on the Issue it is working is decided
   by [Issue agent access](../design/issue-agent-access.md): two runtime tools
@@ -136,7 +136,7 @@ policy, and conflicts.
 
 A connected local user should be able to:
 
-1. See work assigned to them without browsing the full Team board.
+1. See work assigned to them without browsing the full Space board.
 2. Open an Issue and choose the local workspace in which to handle it.
 3. Start a local Agent Session with an explicit, inspectable snapshot of the
    selected Issue context.
@@ -150,7 +150,7 @@ A connected local user should be able to:
 8. Continue ordinary local work when no Server exists or when no Issue is
    linked.
 
-A Team should be able to open the Issue in Portal and understand what was
+A Space should be able to open the Issue in Portal and understand what was
 assigned, what ran remotely, what a person handled locally, and what result was
 returned, without Portal claiming to control the person's machine.
 
@@ -161,21 +161,21 @@ returned, without Portal claiming to control the person's machine.
   their lifecycles.
 - Support contextual decomposition, assignment, delegation, tracking, and
   result return from CLI/TUI and Desktop.
-- Keep Portal the complete Team management and governance surface.
-- Preserve direct local use with no Server, account, Team, or network.
-- Make Server destination, Team, model transport, sync state, and data movement
+- Keep Portal the complete Space management and governance surface.
+- Preserve direct local use with no Server, account, Space, or network.
+- Make Server destination, Space, model transport, sync state, and data movement
   visible before work crosses a boundary.
 - Establish a small first slice that does not depend on full Session sync.
 
 ## Non-Goals
 
 - Rebuilding the Portal Issue board or administration navigation in Desktop.
-- Adding Workflow authoring, Team membership, role, quota, audit, or deployment
+- Adding Workflow authoring, Space membership, role, quota, audit, or deployment
   administration to CLI or Desktop.
 - Treating a local Agent Session as a Worker TaskRun.
 - Letting the Server claim it can stop, resume, or inspect a local process when
   the client has not implemented that contract.
-- Uploading a local workspace automatically or treating Team files and a local
+- Uploading a local workspace automatically or treating Space files and a local
   directory as synchronized copies.
 - Synchronizing complete local Session content in the first bridge slice.
 - Making connected mode mandatory for the open-source local product.
@@ -191,7 +191,7 @@ The bridge depends on one clear owner for each kind of fact:
 | Local workspace and path mapping | Local client | Choose, persist locally, and never imply Server possession |
 | Local Session messages, tool state, approvals, and live process | Local client | Execute and persist under the existing local contract |
 | Task and TaskRun lifecycle | Server and Worker | Trigger or observe; never impersonate a Worker |
-| Team Artifact metadata and content | Server | Publish explicitly selected output and retain the returned reference |
+| Space Artifact metadata and content | Server | Publish explicitly selected output and retain the returned reference |
 | Issue-to-local-Session relation | Open decision | Keep locally first or register bounded metadata on Server |
 | Issue work status | Server | Change only through an explicit authorized action |
 | Local execution presence | Local client | Do not derive Issue status from a process heartbeat |
@@ -214,17 +214,17 @@ Sharing the Issue object does not require interface parity:
 | Assign or delegate a child | Explicit, confirmed | Contextual flow | Full editing |
 | Observe related TaskRuns and results | Compact | Selected subset | Full drill-down |
 | Publish summary or Artifact | Yes | Yes | View and manage |
-| Browse and reorganize the whole Team board | No | No | Yes |
-| Author Workflows or administer Team policy | No | No | Yes |
+| Browse and reorganize the whole Space board | No | No | Yes |
+| Author Workflows or administer Space policy | No | No | Yes |
 
 The local product promise becomes:
 
-> Receive Team work, execute it locally, coordinate related work, and return a
+> Receive Space work, execute it locally, coordinate related work, and return a
 > result.
 
 It does not become:
 
-> Administer the Team operating system from every client.
+> Administer the Space operating system from every client.
 
 ## Options And Trade-Offs
 
@@ -233,7 +233,7 @@ It does not become:
 | Keep local sessions isolated; copy results manually | Smallest product and protocol | Breaks enterprise continuity, provenance, decomposition, and tracking |
 | Rebuild Portal Issue management in Desktop | Feature parity and one native UI | Duplicates product ownership and dilutes the local workbench |
 | Treat every local Session as a TaskRun | Reuses server execution records | Makes false claims about scheduling, process control, approvals, and availability |
-| Add a contextual Issue bridge around the local runtime | Preserves local execution while closing the Team work loop | Requires explicit relation, sync, policy, and conflict semantics |
+| Add a contextual Issue bridge around the local runtime | Preserves local execution while closing the Space work loop | Requires explicit relation, sync, policy, and conflict semantics |
 | Make the Server canonical for a live local event stream | Strong central visibility | Makes network and Server ingestion part of local correctness |
 
 The likely direction is the contextual Issue bridge. A live event stream may
@@ -244,7 +244,7 @@ meaning of connected local work.
 
 ### Issue Is The Shared Work Object
 
-An authenticated local surface consumes the same Issue IDs and Team
+An authenticated local surface consumes the same Issue IDs and Space
 authorization as Portal. It does not create a parallel local Issue database.
 Local caching is a view and an offline aid, never a second authority.
 
@@ -293,13 +293,13 @@ live synchronized prompt.
 ### Workspace Mapping Is Local
 
 The first launch from an Issue asks for a local directory. A mapping may be
-remembered by deployment, Team, and a future repository or workspace identity,
+remembered by deployment, Space, and a future repository or workspace identity,
 but the Server does not infer a local path and the client does not upload the
 directory as a side effect.
 
-### Status Is A Team Statement, Not Presence
+### Status Is A Space Statement, Not Presence
 
-`in_progress` means the Team says work is in progress. It does not mean a local
+`in_progress` means the Space says work is in progress. It does not mean a local
 process is alive. Starting a local Session may offer to set the status and
 assignee, but the user confirms the mutation. Losing the client connection does
 not move the Issue back or mark it failed.
@@ -324,7 +324,7 @@ A sidecar record keyed by local Session ID can hold a candidate `IssueLink`:
 
 ```text
 server_url
-team_id
+space_id
 issue_id
 linked_at
 issue_updated_at_at_link
@@ -358,7 +358,7 @@ object-store path into a comment.
 - CLI/TUI offers discoverable commands or panels without adding Issue chatter
   to print-mode answer output.
 - Starting local work creates a normal local Session and writes its Issue link.
-- The Session header shows Server, Team, Issue, model transport, and sync state.
+- The Session header shows Server, Space, Issue, model transport, and sync state.
 - Finishing work offers summary, Artifact, and status actions separately.
 - “Open in Portal” remains the escape hatch for full management.
 
@@ -390,16 +390,16 @@ can resolve.
 ## Model, Data, And Trust Boundary
 
 Connected local work creates a data-boundary decision that ordinary local work
-does not: Team Issue content may be sent to a personal direct model.
+does not: Space Issue content may be sent to a personal direct model.
 
 Before the first model call, the client must make visible:
 
-- the source Server and Team;
+- the source Server and Space;
 - which Issue context will be included;
 - whether the model is `direct` or `buildmax` managed; and
 - the destination the model entry names.
 
-A deployment may eventually require managed models for Team-linked work. The
+A deployment may eventually require managed models for Space-linked work. The
 current local policy mechanisms are not a strong enforcement boundary, so the
 product must not claim this restriction until client policy distribution and
 enforcement are designed and verified.
@@ -410,9 +410,9 @@ must not relabel them as system instructions.
 
 Other trust requirements:
 
-- Team authorization is checked on every Server operation, not only when the
+- Space authorization is checked on every Server operation, not only when the
   Issue is first linked.
-- Removing Team membership stops further remote reads and writes but cannot
+- Removing Space membership stops further remote reads and writes but cannot
   erase a local copy already downloaded.
 - Local result provenance is a client report unless a stronger append-time
   evidence mode is implemented.
@@ -451,7 +451,7 @@ a second local-execution record.
   (`ReportToIssue`) and status (`buildmax issue status`); an Artifact published
   from a runless Session still has nowhere to appear in the Issue's Results
   panel, which is open question 5; and
-- clear Server, Team, model destination, and sync state — **partly**: the first
+- clear Server, Space, model destination, and sync state — **partly**: the first
   three print before the first model call. There is no sync state to show yet,
   because nothing is synchronized.
 
@@ -468,7 +468,7 @@ a second local-execution record.
 - relation to a durable Server-side Agent Session;
 - checkpoint publication and cross-device view or fork;
 - optional or required enterprise capture policy;
-- managed-model and local-tool policy for Team-linked work; and
+- managed-model and local-tool policy for Space-linked work; and
 - Portal projection of bounded local execution metadata and provenance.
 
 Each phase must leave unconnected local execution complete and must avoid
@@ -493,12 +493,12 @@ claiming Server authority over behavior the Server cannot observe or control.
    without presenting unverifiable client claims as audit evidence? The comment
    thread already does, through the `local_agent` author kind; the Results
    panel and the run list do not.
-7. When may a deployment refuse direct models for Team-linked work, and what
+7. When may a deployment refuse direct models for Space-linked work, and what
    device-management or signed-policy mechanism makes that enforceable?
-8. Do teams actually decompose and delegate work from the local context, or is
+8. Do spaces actually decompose and delegate work from the local context, or is
    receive-and-return the dominant workflow?
 
-Evidence should come from a small number of real local-to-Team workflows:
+Evidence should come from a small number of real local-to-Space workflows:
 software change, data analysis, incident investigation, and document work. The
 decision should measure manual copying removed, result traceability, conflict
 frequency, and whether users still need the full Portal during execution.

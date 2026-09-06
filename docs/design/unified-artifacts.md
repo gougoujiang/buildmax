@@ -26,12 +26,12 @@
   a run's output directory is decided against — §12 question 6. Phase 3 external
   sharing, once decided against, is reopened and specified in
   [artifact-public-sharing-and-preview.md](./artifact-public-sharing-and-preview.md)
-  — §12 question 4. Retention and the team storage quota are
+  — §12 question 4. Retention and the space storage quota are
   implemented too: `ArtifactRetainer` applies `ExpiresAt` and reclaims
   tombstoned objects, and `max_storage_bytes` on the quota tier is a hard
   admission check — §8 and §12 question 2. Phase 4 follow-ons stay open)
 - follows: [surface-positioning.md](./surface-positioning.md) and
-  [team-governance.md](./team-governance.md)
+  [space-governance.md](./space-governance.md)
 - roadmap: [../ROADMAP.md](../ROADMAP.md)
 - created_at: `2026-08-22`
 
@@ -55,9 +55,9 @@ The artifact's identity is its opaque public ID. That ID is what the service
 returns, what a tool reports, and what a user cites. A URL is one surface's
 rendering of that ID, not the identity itself.
 
-Artifacts are a server capability. They live in a Team namespace, which is the
+Artifacts are a server capability. They live in a Space namespace, which is the
 existing authorization boundary; a user working alone is represented by their
-personal Team and need not see the Team concept in the UI. CLI and Desktop
+personal Space and need not see the Space concept in the UI. CLI and Desktop
 reach artifacts by being logged in to a BuildMax server — the private
 deployment case this product is built for. A local session running straight
 against a model provider, with no server, has no artifact capability at all,
@@ -74,14 +74,14 @@ not a bucket key and is not an object-store presigned URL.
 ## 2. Product Goal
 
 An agent, a user, or a background run should be able to make a useful file
-available to the team and give the recipient one durable reference. The
+available to the space and give the recipient one durable reference. The
 recipient should be able to:
 
-- preview or download it when they have team access;
+- preview or download it when they have space access;
 - attach it to an issue, conversation, or result without copying storage keys;
 - keep that reference in a document or message and have it still resolve; and
 - intentionally create a revocable external sharing link when access outside
-  the team is required.
+  the space is required.
 
 The product language is **artifact**, not bucket, object, result directory, or
 worker output path.
@@ -93,9 +93,9 @@ BuildMax already has most storage primitives, but not the product object:
 | Capability | Current behavior | Limit |
 |---|---|---|
 | Object storage | `internal/infra/objectstore` supports local filesystem and S3-compatible storage, including MinIO. | Keys are infrastructure details. |
-| Team files | Portal accepts uploads into a mutable team file tree. | A file has no durable identity, provenance, immutable version, or share model. |
+| Space files | Portal accepts uploads into a mutable space file tree. | A file has no durable identity, provenance, immutable version, or share model. |
 | Task-run artifacts | A worker archives `artifacts/` and records `task_run_artifact` paths. | A file is addressed through its task run and relative path; it cannot be independently referenced. |
-| Artifact viewing | Team members can retrieve run output through team-authenticated task-run routes. | It is text/Markdown-oriented and not a general file-preview or download contract. |
+| Artifact viewing | Space members can retrieve run output through space-authenticated task-run routes. | It is text/Markdown-oriented and not a general file-preview or download contract. |
 | IDs | `ar_` and `f_` prefixes were reserved in `internal/util/id.go`. | They named a resource that was removed; see below. Type prefixes are gone entirely now — see [entity-identity.md](entity-identity.md). |
 
 `task_run_artifact` is intentionally a set of paths, not a durable resource:
@@ -116,8 +116,8 @@ object for the reason section 1 gives.
 
 ### 4.1 In Scope
 
-- An Artifact in a Team namespace — a personal workspace being the user's
-  personal Team — with a stable opaque ID as its canonical reference.
+- An Artifact in a Space namespace — a personal workspace being the user's
+  personal Space — with a stable opaque ID as its canonical reference.
 - One immutable file per Artifact in the first slice.
 - Server-mediated upload, metadata lookup, preview, and download.
 - `UploadArtifact` as a normal shared Agent tool, registered only on a surface
@@ -127,7 +127,7 @@ object for the reason section 1 gives.
 - Portal artifact cards, list/detail view, and safe lightweight previews.
 - Migration of newly produced worker output files into the unified model while
   retaining the existing task-run artifact listing for compatibility.
-- Team authorization, deletion/tombstoning, retention hooks, quotas, and audit
+- Space authorization, deletion/tombstoning, retention hooks, quotas, and audit
   events at the artifact boundary.
 
 ### 4.2 Out Of Scope
@@ -136,7 +136,7 @@ object for the reason section 1 gives.
   Such a session keeps its normal local output behavior and has no artifact
   tool; see section 7.1.
 - A general editable drive or synchronized local folder.
-- Replacing the mutable team `home/` file space.
+- Replacing the mutable space `home/` file space.
 - A public-by-default file host.
 - Multi-file archives, folders, version history, deduplication, or client-side
   encryption in the first slice.
@@ -144,21 +144,21 @@ object for the reason section 1 gives.
   have proven adequate.
 - A full document editor, arbitrary file conversion service, or malware
   scanner implementation. The API must leave room for these controls.
-- Cross-team artifact ownership or copying artifacts between deployments.
+- Cross-space artifact ownership or copying artifacts between deployments.
 
 ## 5. Domain Model
 
 ### 5.1 Artifact
 
-The Artifact model has one immutable content object per artifact. `TeamID` is
-required because Team is the authorization namespace, including for a user
-working alone in their personal Team:
+The Artifact model has one immutable content object per artifact. `SpaceID` is
+required because Space is the authorization namespace, including for a user
+working alone in their personal Space:
 
 ```go
 type Artifact struct {
 	ID              uint   `json:"-"`
 	ArtifactID      string `json:"artifact_id"`
-	TeamID          string `json:"team_id"`
+	SpaceID          string `json:"space_id"`
 	Filename        string `json:"filename"`
 	MediaType       string `json:"media_type"`
 	SizeBytes       int64  `json:"size_bytes"`
@@ -176,14 +176,14 @@ type Artifact struct {
 ```
 
 There is one artifact store. A logged-in CLI or Desktop session creates the
-same Artifact, in the same Team namespace, through the same service Portal
+same Artifact, in the same Space namespace, through the same service Portal
 uses; the surfaces differ only in how they render the result. Should a
 local-only store ever be added, it must issue canonical public IDs from the start,
 so that the reference a tool returns means the same thing on every surface.
 
 `StorageKey` is private and generated by the storage adapter. No API, tool
 output, trace, or UI exposes it. `SHA256` is calculated while streaming the
-upload and proves what was stored; it is not a cross-team deduplication key.
+upload and proves what was stored; it is not a cross-space deduplication key.
 
 Initial source types are:
 
@@ -250,7 +250,7 @@ have one.
 
 The canonical reference is the artifact's public handle. It is unique on its
 own — 96 bits of crypto-random data — so locating an artifact needs nothing
-else. Team is an authorization fact the
+else. Space is an authorization fact the
 record carries, not part of the address.
 
 Two route shapes follow from that split:
@@ -258,13 +258,13 @@ Two route shapes follow from that split:
 ```text
 GET /api/artifacts/{artifact_id}          # detail
 GET /api/artifacts/{artifact_id}/content  # content
-GET /api/teams/{team_id}/artifacts        # the team's listing
+GET /api/spaces/{space_id}/artifacts        # the space's listing
 ```
 
-The ID-addressed routes resolve the artifact, read its `TeamID`, and require
-the caller to be a member of that team. This is a new authorization path. It
-cannot reuse `access.Guard.UserAndPathTeam`, which takes the team from the
-request path, so it needs its own guard method and its own entry in the team
+The ID-addressed routes resolve the artifact, read its `SpaceID`, and require
+the caller to be a member of that space. This is a new authorization path. It
+cannot reuse `access.Guard.UserAndPathSpace`, which takes the space from the
+request path, so it needs its own guard method and its own entry in the space
 authorization matrix test.
 
 A caller who is not a member gets `404`, never `403`. The opaque
@@ -272,13 +272,13 @@ A caller who is not a member gets `404`, never `403`. The opaque
 it into an existence oracle — that is what section 13's non-enumeration
 criterion means in practice.
 
-The team-scoped route is the listing and team-view surface. It is not a second
+The space-scoped route is the listing and space-view surface. It is not a second
 address for one artifact.
 
 The Portal provides a human-facing detail route in addition to these API
 routes: `#/artifact/{artifact_id}`, resolving the same Artifact through the
 same ID-addressed API and therefore under the same authorization. It carries no
-team in its address for the reason this section gives, and reports a refusal in
+space in its address for the reason this section gives, and reports a refusal in
 the words the API's 404 permits — not found, without saying whether it exists.
 The listing is `#/artifacts`, a top-level area rather than a space-settings
 tab, because an artifact is what work produced rather than a knob that
@@ -301,7 +301,7 @@ A share link identifies one artifact and has at least:
 - revoked time; and
 - optional download count for audit and future limits.
 
-MVP policy was **authenticated team access only**. Public sharing is now
+MVP policy was **authenticated space access only**. Public sharing is now
 specified and reopened in
 [artifact-public-sharing-and-preview.md](./artifact-public-sharing-and-preview.md):
 a revocable stored share token, an anonymous `/api/shared/...` route, and a
@@ -381,17 +381,17 @@ truth for its arguments and availability.
 
 ## 8. Authorization, Governance, And Limits
 
-Artifacts are team resources. Team membership is the baseline read boundary,
-and the user's personal Team is the private single-user case. An artifact never
+Artifacts are space resources. Space membership is the baseline read boundary,
+and the user's personal Space is the private single-user case. An artifact never
 derives authorization from a run URL alone. The detailed matrix
 is part of implementation, but the proposed first-slice policy is:
 
-| Action | Member | Admin | Owner | Outside team |
+| Action | Member | Admin | Owner | Outside space |
 |---|---:|---:|---:|---:|
-| Read/download team artifact | yes | yes | yes | no |
+| Read/download space artifact | yes | yes | yes | no |
 | Upload through an authorized agent/user flow | yes | yes | yes | no |
 | Delete own direct artifact | yes | yes | yes | no |
-| Delete any team artifact | no | yes | yes | no |
+| Delete any space artifact | no | yes | yes | no |
 | Create/revoke external share link | no initially | future | future | no |
 
 Deletion is a tombstone first: it immediately hides metadata and blocks
@@ -420,9 +420,9 @@ for them; this way a crash leaves a row saying the object is there, and the
 next sweep removes what is already absent — which §9's content-store contract
 makes a success.
 
-The service enforces per-file size and team storage quota before accepting a
+The service enforces per-file size and space storage quota before accepting a
 file, and counts the final stored bytes. The per-file cap is
-`storage.max_artifact_mb`; the team allowance is the quota tier's
+`storage.max_artifact_mb`; the space allowance is the quota tier's
 `max_storage_bytes`, checked through `artifact.StorageAdmitter` — see §12
 question 2 for why it is a hard admission check. Permitted MIME categories and
 virus-scanning integration remain operator policy decisions; the Artifact
@@ -443,12 +443,12 @@ bounded and reviewed.
 
 The storage key is private, generated by the adapter, and unrelated to any
 URL. A representative shape for a server deployment is
-`teams/{team_id}/artifacts/{artifact_id}/content`, which makes object ownership
+`spaces/{space_id}/artifacts/{artifact_id}/content`, which makes object ownership
 clear while letting bucket layout evolve behind the adapter. Its resemblance to
 an API route is a naming coincidence and not a contract: nothing outside the
 adapter may parse, construct, or depend on a key.
 
-Existing task-run outputs are keyed by the creating user rather than the team.
+Existing task-run outputs are keyed by the creating user rather than the space.
 `objectstore.RunOutputFileKey` produces
 `<prefix>/<created_by>/artifacts/<conversation>/<task>/<run>/<path>`. New runs
 write through the artifact service into its key space instead of that one.
@@ -493,7 +493,7 @@ storage-provider URL behavior, defines the product contract.
 ### Phase 1 — Foundations
 
 - Add core Artifact model, store, object-storage contract, and stable remote
-  Team-scoped read/download APIs; expose a personal Team as a personal
+  Space-scoped read/download APIs; expose a personal Space as a personal
   workspace in product UI.
 - Add migrations, identifier generation, authorization tests, quota checks,
   and redacted audit events.
@@ -554,9 +554,9 @@ where it already writes them, which is the behavior that fits it. Section 4.2
 records this as out of scope rather than deferred, and section 5.1 records the
 one condition a later local store would have to meet.
 
-### Reuse Mutable Team Files As Artifacts
+### Reuse Mutable Space Files As Artifacts
 
-Team files are workspace state. They can be overwritten or deleted and do not
+Space files are workspace state. They can be overwritten or deleted and do not
 identify a producing operation. Calling them artifacts would make a saved link
 change meaning as the workspace changes.
 
@@ -574,13 +574,13 @@ model and the user one legible publishing event.
 
 ## 12. Open Questions And Evidence Needed
 
-1. **Team selection for local surfaces:** ~~settled for the first slice~~.
-   `POST /api/artifacts` resolves the caller's personal Team when the request
-   names none and honours an explicit `?team_id=` that the caller is a member
-   of. A local client therefore publishes without ever being told about teams.
+1. **Space selection for local surfaces:** ~~settled for the first slice~~.
+   `POST /api/artifacts` resolves the caller's personal Space when the request
+   names none and honours an explicit `?space_id=` that the caller is a member
+   of. A local client therefore publishes without ever being told about spaces.
    What remains open is only whether a client should be able to *choose* and
-   remember a team, which is a settings question rather than an API one.
-2. **Team storage quota:** ~~decided: the quota tier, as a hard admission
+   remember a space, which is a settings question rather than an API one.
+2. **Space storage quota:** ~~decided: the quota tier, as a hard admission
    check~~. `max_storage_bytes` joins `quota_tier` beside the run and token
    limits, and `QuotaService.CheckStorage` refuses an upload that would cross
    it — a 429, like the other two, because the file is fine and the space is
@@ -631,7 +631,7 @@ The first usable increment is complete when:
 
 - a user or authorized agent can upload one explicit file to a personal or
   shared Artifact workspace;
-- the response carries a stable opaque ID that another authorized team member
+- the response carries a stable opaque ID that another authorized space member
   can resolve, preview when allowed, or download;
 - a CLI or Desktop session with no server login has no artifact tool in its
   tool list at all;

@@ -10,7 +10,7 @@
 |---|---|---|
 | `start/` | Someone who just installed it | Install, quickstart, concepts |
 | `guide/` | Someone using it | One document per capability, task-oriented |
-| `deploy/` | Someone running it for a team | Topology, authentication, local cluster |
+| `deploy/` | Someone running it for a space | Topology, authentication, local cluster |
 | `reference/` | Someone looking something up | Configuration, CLI, webhook — tables, not prose |
 | `contribute/` | Someone changing the code | Layout, architecture, these conventions |
 | `design/` | Someone asking "why is it like this" | Semantic design records indexed by lifecycle |

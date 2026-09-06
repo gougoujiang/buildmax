@@ -110,7 +110,7 @@ gVisor runsc
     model-selected command
 ```
 
-The runtime selection belongs to the deployment operator, not a Team, Agent,
+The runtime selection belongs to the deployment operator, not a Space, Agent,
 Task, or model. An Agent may request network and filesystem tiers inside the
 run; it cannot choose whether the Pod uses `runc`, `runsc`, Kata, or another
 cluster runtime.
@@ -159,10 +159,10 @@ gVisor](https://gvisor.dev/docs/tutorials/docker-in-gvisor/).
 | Concern | Owner after this design |
 |---|---|
 | Which Server route a worker may call | Internal worker listener, TLS, NetworkPolicy, and run token |
-| Which Team or TaskRun a request belongs to | Server-side run authorization |
+| Which Space or TaskRun a request belongs to | Server-side run authorization |
 | Which paths a model command may read or write | `bwrap` and BuildMax sandbox policy |
 | Which domains a model command may reach | BuildMax sandbox proxy and future cluster egress policy |
-| Which Secret a run may receive | Agent revision, Team ownership, and Secret materialization state |
+| Which Secret a run may receive | Agent revision, Space ownership, and Secret materialization state |
 | CPU and memory exhaustion | Kubernetes requests, limits, and host cgroups |
 | Hardware side channels | Host, hardware, and cloud platform controls |
 
@@ -655,7 +655,7 @@ production reference may make it recommended only after that support decision.
 | Filesystem sandbox | Workspace read/write succeeds; write and denied-read outside it fail |
 | Network sandbox | allowed domain succeeds; denied domain and direct bypass fail |
 | Managed inference | Worker uses internal API without receiving provider credentials |
-| Team Secrets | Declared grant reaches the command; BuildMax credentials do not |
+| Space Secrets | Declared grant reaches the command; BuildMax credentials do not |
 | Plugins | Pinned package downloads, verifies, and loads |
 | MCP | stdio child starts and remains inside the outer sandbox |
 | Artifacts and persistence | workspace state, trace, result, and selected artifact survive normally |
@@ -717,7 +717,7 @@ operator documentation rather than treated as arbitrary task failures.
 | Does gVisor close the MCP boundary gap? | It improves MCP-to-host isolation, but not MCP-to-worker files, Secrets, or policy; an inner MCP boundary remains useful |
 | Does gVisor replace NetworkPolicy? | No; netstack is isolation, not BuildMax destination authorization |
 | Does the Server need cluster-wide RBAC? | Get-only access to the configured RuntimeClass; no runtime mutation |
-| Can one Team choose a stronger runtime? | No initially; runtime is deployment policy and all workers use the same configured class |
+| Can one Space choose a stronger runtime? | No initially; runtime is deployment policy and all workers use the same configured class |
 | What if one Agent needs an unsupported kernel feature? | Fail explicitly or use a separately reviewed deployment profile; never silently widen the shared profile |
 | When should Kata be evaluated? | If gVisor cannot preserve `bwrap`, compatibility blocks representative work, or the threat model requires hardware virtualization |
 

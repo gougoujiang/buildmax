@@ -10,7 +10,7 @@ Related: [roadmap](../ROADMAP.md) P0.5, P3, P4, and Desktop polish;
 [sessions and traces guide](../guide/sessions-and-traces.md),
 [durable run trace](../design/durable-run-trace.md),
 [context durability](../design/context-durability.md),
-[team governance](../design/team-governance.md), and
+[space governance](../design/space-governance.md), and
 [data model](../contribute/architecture/data-model.md).
 
 ## Contents
@@ -73,7 +73,7 @@ roadmap commitment. It does not document a shipped Server session service.
 ## 2. Problem And Current Context
 
 BuildMax deliberately has one Agent runtime and distinct product surfaces:
-CLI/TUI and Desktop execute against a local workspace, Portal organizes team
+CLI/TUI and Desktop execute against a local workspace, Portal organizes space
 work, and Workers execute durable background TaskRuns. That split remains the
 right product boundary, but session durability stops at the machine boundary
 for local execution.
@@ -109,7 +109,7 @@ not silently synchronize the other.
 
 ### 2.2 What exists on the Server
 
-Portal Conversations are durable Team resources with normalized message rows.
+Portal Conversations are durable Space resources with normalized message rows.
 They are Tier 1 orchestration objects and the single user-facing voice for
 Portal turns. They can start and receive reports from durable Tasks and
 TaskRuns. Their ownership, concurrency, and lifecycle are not the same as a
@@ -131,7 +131,7 @@ not use the Server database for session persistence at all.
 
 CLI and Desktop can sign in to a BuildMax deployment. A connected local Agent
 still runs locally; sign-in supplies identity, managed models, and narrow
-bridges to team work. This is a useful foundation for session synchronization:
+bridges to space work. This is a useful foundation for session synchronization:
 the client has an authenticated user, a deployment URL, and a reason to send
 prompts through that deployment.
 
@@ -155,7 +155,7 @@ The consequences are practical:
 - a user changing devices must copy files and identify the session manually;
 - a lost machine loses local Agent history even when the model calls went
   through the company's Server;
-- a teammate cannot receive a view-only handoff without copying transcript
+- a spacemate cannot receive a view-only handoff without copying transcript
   text into another system;
 - support and security investigations cannot begin from one stable session
   URL; and
@@ -183,7 +183,7 @@ equal demand or equal implementation cost.
 | Treat local activity as compliance-grade evidence | Potentially high | Stronger capture and integrity than file upload provides |
 
 The strongest first hypothesis is not seamless multi-device execution. It is
-that a private team gets a stable, reviewable provenance record for important
+that a private space gets a stable, reviewable provenance record for important
 local Agent work. Cross-device continuation is a valuable follow-on whose
 success depends on workspace state that the session does not currently own.
 
@@ -210,7 +210,7 @@ direct local execution.
 - Make backup, download, and same-user cross-device continuation reliable.
 - Define explicit fork behavior instead of corrupting or automatically merging
   divergent histories.
-- Keep Team as the Server ownership and authorization boundary.
+- Keep Space as the Server ownership and authorization boundary.
 - Give deployments clear synchronization, visibility, retention, deletion,
   and content-inspection policies.
 - Distinguish client-reported history from Server-observed or Worker-produced
@@ -251,7 +251,7 @@ locally.
 
 ### 6.2 Durable Agent Session
 
-The Server resource that owns remote identity, Team scope, access policy,
+The Server resource that owns remote identity, Space scope, access policy,
 metadata, revisions, lifecycle, and relations for a synchronized Agent
 session. The product may call it a “Session”; code and schema should use an
 unambiguous name such as `agent_session` so it is not confused with an
@@ -328,7 +328,7 @@ download it. Do not create a rich Server entity or viewer.
 
 | Strength | Concern |
 |---|---|
-| Smallest recovery feature and closest to the existing Worker path | Cannot support stable relations, Team sharing, search, lifecycle policy, or useful review |
+| Smallest recovery feature and closest to the existing Worker path | Cannot support stable relations, Space sharing, search, lifecycle policy, or useful review |
 
 This may be a good implementation stepping stone. It is too narrow as the
 long-term product model because every later feature would have to reconstruct
@@ -353,11 +353,11 @@ Import each local session as a Portal Conversation and write its messages into
 
 | Strength | Concern |
 |---|---|
-| Reuses listing, message persistence, Team authorization, and some UI | Conflates Tier 1 orchestration with local runtime state; has no revisioned resume payload; creates ambiguous writers and lifecycle |
+| Reuses listing, message persistence, Space authorization, and some UI | Conflates Tier 1 orchestration with local runtime state; has no revisioned resume payload; creates ambiguous writers and lifecycle |
 
 The message shapes are similar because both feed the same Agent core. That is
 not enough to make their product semantics identical. Portal Conversations
-accept live Team turns, serialize them through a Server queue, and speak to the
+accept live Space turns, serialize them through a Server queue, and speak to the
 user. A local session may exist privately, run offline, carry resume-only
 state, and later publish a frozen checkpoint. Reusing one table would hide
 rather than remove these differences.
@@ -387,19 +387,19 @@ not each implement their own remote session format or call a separate Agent
 runtime. The local session remains usable when synchronization is disabled and,
 subject to deployment policy, when the Server is temporarily unavailable.
 
-### 8.2 Team remains the remote ownership boundary
+### 8.2 Space remains the remote ownership boundary
 
-Every Durable Agent Session belongs to exactly one Team. A session created
-without an explicit shared Team belongs to the user's personal Team. It also
-records an owner user. Visibility controls who in that Team can read content:
+Every Durable Agent Session belongs to exactly one Space. A session created
+without an explicit shared Space belongs to the user's personal Space. It also
+records an owner user. Visibility controls who in that Space can read content:
 
 | Visibility | Candidate readers |
 |---|---|
 | `private` | Owner; narrowly authorized break-glass paths if a deployment enables them |
-| `team` | Current Team members |
+| `space` | Current Space members |
 
 The first release should not support a single mutable session spanning several
-Teams. Publishing work to another Team either creates a frozen shared copy or
+Spaces. Publishing work to another Space either creates a frozen shared copy or
 requires an explicit ownership transfer whose history is audited. The simpler
 first choice is a shared copy.
 
@@ -484,7 +484,7 @@ continues the session for unrelated follow-up work.
 Downloading a session does not restore credentials, process environment,
 approval grants, or authoritative policy. Exact resume reconstructs
 conversation state, then resolves the current device's effective settings,
-Server policy, Team membership, model access, hooks, sandbox, tools, plugins,
+Server policy, Space membership, model access, hooks, sandbox, tools, plugins,
 and credentials.
 
 The checkpoint records what the prior run used for explanation. It does not
@@ -502,10 +502,10 @@ of truth remains the eventual row structs after implementation.
 | Field | Purpose |
 |---|---|
 | `session_id` | Existing offline-created UUID, unique |
-| `team_id` | Required ownership and authorization boundary |
+| `space_id` | Required ownership and authorization boundary |
 | `owner_user_id` | User who owns the private session and normal write authority |
 | `title` | User-visible mutable metadata |
-| `visibility` | `private` or `team` in the first slice |
+| `visibility` | `private` or `space` in the first slice |
 | `source_surface` | Initial source such as CLI, TUI, Desktop, Worker, or import |
 | `current_revision` | Monotonic accepted head |
 | `created_at`, `updated_at` | Lifecycle and ordering |
@@ -570,7 +570,7 @@ for what the deployment served.
 | `created_by`, `created_at` | Attribution |
 
 A polymorphic relation trades database-enforced strictness for extensibility.
-The service must validate Team ownership for BuildMax targets and repository
+The service must validate Space ownership for BuildMax targets and repository
 scope for provider targets. An alternative is one typed join per internal
 entity plus a separate external-link table. The first implementation should
 choose based on the queries Portal actually needs, not on a desire for a
@@ -638,7 +638,7 @@ Storage admission needs explicit limits for:
 - compressed and uncompressed revision bytes;
 - number and size of message parts;
 - trace bytes and record count;
-- total retained bytes per user and Team; and
+- total retained bytes per user and Space; and
 - import batch size.
 
 The Server must verify media types and reject malformed encodings. It should
@@ -652,16 +652,16 @@ authorized internal identity, not accept a client-provided relative path.
 
 Content-addressing may deduplicate identical blobs, but authorization remains
 attached to the revision record. A digest is not a credential and must not be a
-download route parameter that bypasses Team membership.
+download route parameter that bypasses Space membership.
 
 ## 11. Synchronization Protocol
 
 ### 11.1 Registration
 
-On the first eligible save, the client registers the local UUID with a Team,
+On the first eligible save, the client registers the local UUID with a Space,
 owner, title, source surface, and initial checkpoint. Registration is
 idempotent for the same user, deployment, and UUID. A UUID already owned by a
-different user or Team is a conflict, not an adoption path.
+different user or Space is a conflict, not an adoption path.
 
 Importing an existing local session creates revision 1 from its current state.
 The Server does not invent earlier revisions from individual messages or file
@@ -683,7 +683,7 @@ An upload contains at least:
 
 The candidate acceptance sequence is:
 
-1. Authenticate the user and authorize write access to the Team session.
+1. Authenticate the user and authorize write access to the Space session.
 2. Reject tombstoned, archived-for-write, over-limit, or incompatible input.
 3. Stream into a Server-owned temporary object while measuring and hashing.
 4. Validate the checkpoint envelope and session identity.
@@ -853,7 +853,7 @@ the existing LLM adapter contract. The viewer never decodes that state.
 
 A useful session page should not be a JSON dump. Candidate sections are:
 
-- overview: title, owner, Team, time, surface, sync/trust status;
+- overview: title, owner, Space, time, surface, sync/trust status;
 - conversation: user and assistant text with compact tool activity;
 - activity: one card per run with model, duration, token usage, outcome, and
   trace link;
@@ -873,14 +873,14 @@ stronger permission or explicit reveal action. Provider state is never shown.
 Candidate browser routes are illustrative, not registered API contracts:
 
 ```text
-/teams/{team_id}/sessions/{session_id}
-/teams/{team_id}/sessions/{session_id}/revisions/{revision}
+/spaces/{space_id}/sessions/{session_id}
+/spaces/{space_id}/sessions/{session_id}/revisions/{revision}
 ```
 
 The first may follow current head. The second is immutable and is the only
 candidate for a provenance relation. Both require authentication and current
-Team authorization. A non-member receives the same not-found behavior used by
-other ID-addressed Team resources. No bearer access is implied by knowing the
+Space authorization. A non-member receives the same not-found behavior used by
+other ID-addressed Space resources. No bearer access is implied by knowing the
 URL.
 
 ### 13.3 Pull request integration
@@ -927,11 +927,11 @@ whole API surface.
 The exact matrix needs product validation, but its dimensions should be
 explicit:
 
-| Action | Owner | Team member on team-visible session | Team admin/owner | System Administrator |
+| Action | Owner | Space member on space-visible session | Space admin/owner | System Administrator |
 |---|---:|---:|---:|---:|
 | List own metadata | Yes | — | Policy-dependent inventory | Deployment metadata only by default |
 | Read private content | Yes | No | No by default | No by default |
-| Read team-visible content | Yes | Yes | Yes | No by default unless also Team member |
+| Read space-visible content | Yes | Yes | Yes | No by default unless also Space member |
 | Append revision | Yes or delegated writer | No | No without explicit takeover | No |
 | Change visibility | Yes | No | Possible policy override | No |
 | Archive own session | Yes | No | Policy-dependent | No |
@@ -950,7 +950,7 @@ change authority or evidence lifecycle:
 
 - synchronization policy changed;
 - session visibility changed;
-- Team ownership transferred or a revision published across Teams;
+- Space ownership transferred or a revision published across Spaces;
 - break-glass content access requested and used;
 - retention class or legal hold changed;
 - remote content deleted or export performed; and
@@ -963,12 +963,12 @@ proves an audit duplicate adds evidence.
 ### 14.3 Membership changes
 
 Authorization is evaluated on every Server read and download. Removing a user
-from a Team removes access to team-visible sessions immediately; a previously
+from a Space removes access to space-visible sessions immediately; a previously
 downloaded local copy cannot be remotely erased and the product must not claim
 otherwise. Required enterprise deployments may use managed-device controls
 outside BuildMax for that stronger guarantee.
 
-If an owner leaves, the Team needs a retention and reassignment policy. The
+If an owner leaves, the Space needs a retention and reassignment policy. The
 Server must not silently transfer private content to the owner's manager. A
 candidate policy is to retain encrypted content for the configured window,
 make it unavailable to ordinary members, and require an audited retention or
@@ -1013,12 +1013,12 @@ unless the verification claim is precisely defined.
 ### 15.3 Share defaults
 
 Local sessions are private by default. A deployment may require capture, but
-capture does not imply Team-wide content sharing. Publishing a revision to a
-Team or relating it to a shared Issue/PR is an explicit action with a preview
+capture does not imply Space-wide content sharing. Publishing a revision to a
+Space or relating it to a shared Issue/PR is an explicit action with a preview
 of what recipients can read.
 
 The first release should not support unauthenticated public share tokens.
-Revocable signed links still escape ordinary Team membership semantics and are
+Revocable signed links still escape ordinary Space membership semantics and are
 easy to paste into external systems. Their demand should be proven separately.
 
 ### 15.4 Prompt injection and hostile content
@@ -1032,7 +1032,7 @@ recipient's environment.
 
 ### 15.5 Export and portability
 
-Users and authorized Teams need a documented export that includes the raw
+Users and authorized Spaces need a documented export that includes the raw
 checkpoint, a human-readable projection, metadata, digests, relations, and an
 optional trace bundle. Export is a read of sensitive content and may be audited.
 The format should be versioned and should not include credentials or remote
@@ -1078,7 +1078,7 @@ eventual retention.
 | Database row committed, object unavailable | Treat as integrity incident; revision not resumable until repaired | Same |
 | Download digest mismatch | Do not install; retain prior local copy | Same |
 | Unsupported schema | View metadata; require client upgrade | Same |
-| Team membership removed | Deny remote read/write | Deny; local copy cannot be clawed back |
+| Space membership removed | Deny remote read/write | Deny; local copy cannot be clawed back |
 | Remote tombstone encountered | Stop re-upload; offer local export | Stop re-upload; obey retention policy |
 | Client crashes mid-turn | Last complete checkpoint remains valid; trace may show incomplete run | Same |
 
@@ -1120,7 +1120,7 @@ forcing one storage model.
 
 ### 18.4 Local index
 
-The local `sessions.json` index needs remote state such as Server URL, Team,
+The local `sessions.json` index needs remote state such as Server URL, Space,
 remote revision, sync state, and possibly fork origin. Storing all of that in
 the existing shared index risks making ordinary session listing fragile. A
 candidate is a separate sync-state store keyed by session ID, leaving the
@@ -1133,7 +1133,7 @@ runtime session file and picker index backwards compatible.
 Candidate commands and displays, not committed syntax:
 
 - session list shows local-only, synced, pending, conflict, and remote-only;
-- a status command prints deployment, Team, local revision, remote revision,
+- a status command prints deployment, Space, local revision, remote revision,
   and last error;
 - sync/import/download accept explicit session IDs and support dry-run where
   an import is broad;
@@ -1151,13 +1151,13 @@ Desktop is the natural first rich client:
 
 - local and remote session filters;
 - sync-state badges and actionable conflicts;
-- private/team visibility control;
+- private/space visibility control;
 - remote download and workspace mapping;
 - session detail with linked outcomes;
 - copy immutable link and publish checkpoint; and
 - compatibility report before resume.
 
-This remains a local workbench. Team membership, retention, break-glass, and
+This remains a local workbench. Space membership, retention, break-glass, and
 deployment policy administration stay in Portal.
 
 ### 19.3 Portal
@@ -1165,7 +1165,7 @@ deployment policy administration stay in Portal.
 Portal owns:
 
 - authorized session inventory and detail;
-- Team visibility and relations;
+- Space visibility and relations;
 - review projection and linked trace/results;
 - retention and governance surfaces;
 - operator metadata views; and
@@ -1195,7 +1195,7 @@ must not fetch arbitrary external content on creation.
 | Store contracts | `internal/core/model` or a focused pure domain package |
 | Metadata rows and queries | `internal/infra/db` |
 | Checkpoint, trace, and projection blobs | Existing object-storage abstraction, extended deliberately |
-| Team authorization and HTTP endpoints | `internal/server/handlers` |
+| Space authorization and HTTP endpoints | `internal/server/handlers` |
 | Session viewer and governance UI | Portal |
 | Shared presentational transcript components | `gui/` where both Desktop and Portal need them |
 
@@ -1208,7 +1208,7 @@ config, Server clients, database, and object storage.
 
 ### Phase 0: Validate capture and policy
 
-- Interview or observe design-partner teams using local CLI/Desktop sessions
+- Interview or observe design-partner spaces using local CLI/Desktop sessions
   for work that reaches review.
 - Determine whether their first need is recovery, review provenance, handoff,
   or compliance capture.
@@ -1224,17 +1224,17 @@ record, and operators/users agree on who may read its content.
 
 - Add Durable Agent Session metadata and immutable revision storage.
 - Upload after completed local turns through a durable outbox.
-- Default to the user's personal Team and private visibility.
+- Default to the user's personal Space and private visibility.
 - List and view one's own synchronized sessions in Portal.
 - Download/export a raw checkpoint and human-readable projection.
 - Show source trust, digest, revision, sync status, and retention.
 - Import existing sessions as one `legacy_import` revision.
 
-No cross-device write, Team sharing, search, or PR automation is required.
+No cross-device write, Space sharing, search, or PR automation is required.
 
-### Phase 2: Provenance and Team sharing
+### Phase 2: Provenance and Space sharing
 
-- Publish a frozen revision to a Team with an explicit content preview.
+- Publish a frozen revision to a Space with an explicit content preview.
 - Add typed Issue, Task, TaskRun, Artifact, repository, commit, and PR
   relations.
 - Synchronize or link per-run traces and managed-call evidence.
@@ -1257,7 +1257,7 @@ BuildMax provides the service it would need, and no plan does either.
 
 ### Phase 4: Search, insights, and stronger capture
 
-- Index the deliberately safe display projection under user/Team scope.
+- Index the deliberately safe display projection under user/Space scope.
 - Add keyword and semantic search with retention-aware deletion.
 - Build standup, cost, repeated-failure, and instruction-improvement views only
   after users validate them.
@@ -1277,9 +1277,9 @@ The first implementation slice is credible when:
    revision is overwritten, and the losing branch can be saved as a fork.
 4. A URL naming revision N renders the same checkpoint after revisions N+1
    and N+2 exist.
-5. A user outside the owning Team cannot distinguish a missing session from an
+5. A user outside the owning Space cannot distinguish a missing session from an
    inaccessible one.
-6. Private captured content is not readable merely because someone is a Team
+6. Private captured content is not readable merely because someone is a Space
    admin or System Administrator, unless an accepted policy says otherwise.
 7. A downloaded checkpoint is installed only after digest and schema checks.
 8. A session with image parts, provider state, compaction, notes, todos, and
@@ -1319,11 +1319,11 @@ privacy support requests.
 
 - Is the desired governance outcome central retention, content inspection,
   usage inventory, incident investigation, or prevention of unrecorded work?
-- Must administrators read raw content, or is Team-controlled sharing enough?
+- Must administrators read raw content, or is Space-controlled sharing enough?
 - What retention and legal-hold rules apply to prompts, tool output, images,
   and traces?
 - Is bounded offline execution acceptable under required capture?
-- Which repositories and Teams need automatic relation creation?
+- Which repositories and Spaces need automatic relation creation?
 
 ### 23.3 Technical evidence
 
@@ -1341,13 +1341,13 @@ privacy support requests.
 
 ### Product and ownership
 
-- Is a synchronized local session private in a personal Team by default, or
-  should a managed repository map it directly to a shared Team?
-- Does publishing to a Team copy a frozen revision or transfer the whole
+- Is a synchronized local session private in a personal Space by default, or
+  should a managed repository map it directly to a shared Space?
+- Does publishing to a Space copy a frozen revision or transfer the whole
   session?
-- Can a Team member fork a team-visible session into a private personal
+- Can a Space member fork a space-visible session into a private personal
   session, and what provenance remains visible?
-- Is session continuity primarily a personal feature or a team work-object
+- Is session continuity primarily a personal feature or a space work-object
   feature?
 - Should the product use “Session” everywhere while code uses
   `agent_session`, or choose a different user-facing term such as “Agent run
@@ -1391,7 +1391,7 @@ privacy support requests.
 
 ### Viewer and relations
 
-- Which tool arguments and results are visible by default to a Team reviewer?
+- Which tool arguments and results are visible by default to a Space reviewer?
 - Should a PR relation use provider checks, comments, a PR body field, or only
   a manually copied link?
 - Can one revision relate to several commits or PRs, and how are superseded
@@ -1417,7 +1417,7 @@ would require:
 
 1. Add the accepted priority and phase to `docs/ROADMAP.md`, likely after the
    current Beta gates and within the bridge between Desktop session polish and
-   Team governance.
+   Space governance.
 2. Move stable rationale into a Durable Agent Session design record and split
    security/retention decisions into existing governance designs where they
    belong.
@@ -1435,7 +1435,7 @@ would require:
 8. Delete this proposal after the accepted decisions have a durable home.
 
 If evidence supports only backup and recovery, accept Phase 1 and reject the
-broader Team provenance/search scope. If reviewers only need outcome summaries,
+broader Space provenance/search scope. If reviewers only need outcome summaries,
 strengthen Artifact and TaskRun views rather than retaining every local
 session. If required capture is the dominant requirement, design the stronger
 append-time evidence mode before claiming local session history is an audit
@@ -1447,7 +1447,7 @@ to.
 ## 26. Candidate Conclusion
 
 > BuildMax should treat a synchronized local Agent session as a revisioned,
-> Team-owned Server resource whose execution remains local. Completed-turn
+> Space-owned Server resource whose execution remains local. Completed-turn
 > checkpoints provide private recovery first; immutable authorized URLs and
 > typed relations then make Agent work reviewable from PRs, Issues, Tasks, and
 > other systems. Cross-device continuation is explicit: view and context fork
@@ -1459,5 +1459,5 @@ to.
 
 This candidate is coherent with the current product boundaries and reuses
 working local and Worker session mechanisms. It is still contingent on real
-evidence that teams value the provenance record, accept its content-access
+evidence that spaces value the provenance record, accept its content-access
 model, and can operate its retention cost.

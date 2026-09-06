@@ -531,7 +531,7 @@ trimmed, so unbounded growth there is worse than losing a message.
 - **Cross-session memory.** Notes are session-scoped. `AGENTS.md` files are
   instructions, not memory. Shared CLI/Desktop Project identity and the first
   cross-session memory scope are designed separately in
-  [local-project-memory.md](local-project-memory.md); global user and team
+  [local-project-memory.md](local-project-memory.md); global user and space
   memory remain outside both records.
 - **Automatic drift detection.** The runtime could count iterations since the
   in-progress todo last changed and inject a stronger reminder past a

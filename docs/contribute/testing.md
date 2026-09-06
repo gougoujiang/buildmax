@@ -123,7 +123,7 @@ docker run --rm -d --name buildmax-test-mysql \
   -p 3306:3306 mysql:8.0
 export BUILDMAX_TEST_DSN='root:buildmax@tcp(127.0.0.1:3306)/buildmax'
 ./make test mysql
-./make test mysql -run TestCreateTeam    # `go test` flags pass through
+./make test mysql -run TestCreateSpace    # `go test` flags pass through
 ```
 
 The account needs `CREATE DATABASE`: the scope runs on a uniquely named

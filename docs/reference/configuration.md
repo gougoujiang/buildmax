@@ -14,7 +14,7 @@ the environment, because they must be known before any file can be read.
 | `<workspace>/.buildmax/hooks.yaml` | CLI, Desktop | Per-workspace hook overlay, additive to global hooks |
 | `<BUILDMAX_HOME>/mcp.json` | CLI, Desktop, Worker | MCP servers, merged with the workspace file |
 | `<workspace>/.buildmax/mcp.json` | CLI, Desktop | Per-workspace MCP servers; wins on a duplicate server id |
-| `<BUILDMAX_HOME>/plugins/<name>/` | CLI, Desktop, Worker | An installed local plugin, or an exact Team-activated release materialized into a run-scoped worker home; see [guide/plugins.md](../guide/plugins.md) |
+| `<BUILDMAX_HOME>/plugins/<name>/` | CLI, Desktop, Worker | An installed local plugin, or an exact Space-activated release materialized into a run-scoped worker home; see [guide/plugins.md](../guide/plugins.md) |
 | `<workspaces_dir>/.marketplace/` | Server | Published plugin packages, when the deployment has no object store |
 
 `BUILDMAX_HOME` defaults to `~/.buildmax`. Copy the starting points from
@@ -108,7 +108,7 @@ variables from a child process, but it is off by default, so a model-chosen
 withheld. A worker never reads them — it reaches the server over HTTP with its
 run token and never touches the database — and it executes model-chosen
 shell commands, so holding the signing secret would let one mint a token for
-any user, and holding the database password would give it every team's data.
+any user, and holding the database password would give it every space's data.
 An unrecognized `BUILDMAX_` variable is withheld too, so a variable added to
 the server without a decision about workers stays on the server.
 
@@ -122,7 +122,7 @@ seccomp profile (`deployment/seccomp/worker-bwrap.json`, distributed by a
 `DaemonSet`), an `Unconfined` AppArmor profile, a read-only root filesystem
 plus a writable `/tmp`, and every Linux capability dropped except `SYS_ADMIN`.
 None of that is configurable: a worker executes model-chosen shell commands,
-so it is treated as running untrusted code even when the team that submitted
+so it is treated as running untrusted code even when the space that submitted
 the task is trusted — the prompt, the repository content, and the tool
 output steering those commands are not. What confines those commands is
 `bwrap`'s own sandbox, built inside this pod using exactly the seccomp,
@@ -395,11 +395,11 @@ Asking for one where it is not documented is refused at startup rather than sent
 and ignored.
 
 The `prompt_cache_key` is derived, not configured. It is an opaque digest of the
-credential, the model, the team (managed calls only), and fingerprints of the
+credential, the model, the space (managed calls only), and fingerprints of the
 system prompt and tool definitions — the things that all have to match for the
 provider to hit. It carries none of them in readable form, changes when any of
 them changes, and is never written to the ledger, a trace, a log, or the CLI.
-Two teams granted the same model share a credential, and the team in the key is
+Two spaces granted the same model share a credential, and the space in the key is
 what keeps their prompts out of one another's bucket.
 
 `mode: force` is refused at startup on any provider that takes no cache
@@ -472,7 +472,7 @@ For a managed deployment the operator sets the same four rates per catalog
 model, with `--currency`, `--input-price`, `--cache-read-price`,
 `--cache-write-price`, and `--output-price` on `buildmax-server model add`. The
 rates in force are copied onto each `llm_call` row when the call is accepted, so
-repricing a model does not restate what a team already spent.
+repricing a model does not restate what a space already spent.
 
 A saving is reported only when caching actually saved. A run that wrote cache
 entries nothing read back paid more than it would have uncached, and that is
@@ -566,7 +566,7 @@ buildmax logout       # back to the models in settings.yaml
 There is nothing to configure for it. A deployment holds the provider
 credentials and its catalog is fetched on each start, so `settings.yaml`
 describes only the models a signed-out session runs on. Every model a deployment
-offers is available to every user of it — a team is a collaboration boundary,
+offers is available to every user of it — a space is a collaboration boundary,
 not a model authorization boundary.
 
 The credential is never written into `settings.yaml`. It comes from
@@ -793,7 +793,7 @@ worker_api:                          # the internal listener serving /api/worker
 #   retention_days: 365              # default 0 — keep every event forever
 
 storage:
-  persist_backend: local_fs          # or minio — team uploads
+  persist_backend: local_fs          # or minio — space uploads
   artifact_backend: local_fs         # or minio — run outputs and artifacts
   max_artifact_mb: 0                 # per-file upload cap; 0 uses the default
   artifact_share_ttl_hours: 0        # public share link lifetime bound; 0 uses the default (30 days)
@@ -883,8 +883,8 @@ at `buildmax-api`, so the worker API is never internet-reachable. See
 [design/worker-api-network-boundary.md](../design/worker-api-network-boundary.md).
 
 `storage.max_artifact_mb` caps one artifact upload. It defaults to **0**, which
-uses the built-in 100 MB limit. It is a per-file limit rather than a team
-storage allowance: the allowance is `max_storage_bytes` on the team's quota
+uses the built-in 100 MB limit. It is a per-file limit rather than a space
+storage allowance: the allowance is `max_storage_bytes` on the space's quota
 tier, and the two answer different questions — a thousand small files pass this
 cap and can still fill an allowance. A tier that leaves `max_storage_bytes` at
 **0**, which the seeded tiers do, imposes no allowance at all; set it to make
@@ -915,7 +915,7 @@ begins partway through says that policy shortened it rather than leaving a
 reader to wonder. Nothing else in BuildMax deletes an audit event, and there is
 no way to delete a particular one.
 
-A team owner can download their space's trail from space settings, and a System
+A space owner can download their space's trail from space settings, and a System
 Administrator can download the deployment-wide one, filtered, from `#/admin`.
 Both come as CSV or JSONL, and both are recorded in the trail as
 `audit.exported` — reading the whole record is itself an action on it.
@@ -1028,7 +1028,7 @@ the server, and inside a container `localhost` is the container.**
 Either place accepts it, and neither takes a credential:
 
 ```bash
-# a catalog target teams can be granted
+# a catalog target spaces can be granted
 buildmax-server model add --name "Local Qwen" --provider ollama     --api-url http://ollama.ollama.svc.cluster.local:11434     --model qwen3:8b --context-window 32000
 ```
 

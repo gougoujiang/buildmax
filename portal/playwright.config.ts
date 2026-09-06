@@ -4,7 +4,7 @@ import { defineConfig, devices } from "@playwright/test"
  * Browser tests for Portal.
  *
  * These deliberately do not re-test the backend flow. `./make kind smoke`
- * already drives login, team, upload, conversation, task, worker, and artifact
+ * already drives login, space, upload, conversation, task, worker, and artifact
  * through the API, and repeating that through a browser would be slower,
  * flakier, and no more informative. What only a browser can tell us is whether
  * the Portal bundle works against a real server: the runtime API base, routing,

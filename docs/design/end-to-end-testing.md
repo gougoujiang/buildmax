@@ -31,7 +31,7 @@
   [../contribute/testing.md](../contribute/testing.md). Step 4's browser half is
   done — agent execution and its trace, workflows and their execution, a
   conversation turn over the deployment's WebSocket, files, space settings, and
-  the role matrix — and its deployment half landed retry and the team boundary
+  the role matrix — and its deployment half landed retry and the space boundary
   in the smoke. Step 5 landed the Desktop bridge, including rewind and fork,
   and CI now packages the desktop app on macOS and Windows — the prerequisite
   the packaged-app smoke had and this record did not name. Open: the two
@@ -74,7 +74,7 @@ prove together:
 
 | Surface | Boundary an E2E test must prove |
 |---|---|
-| Portal | The published browser bundle, runtime API configuration, authentication, the socket a conversation turn rides in both directions, and the visible team workflow work against a real deployment. |
+| Portal | The published browser bundle, runtime API configuration, authentication, the socket a conversation turn rides in both directions, and the visible space workflow work against a real deployment. |
 | Server and worker | The deployed server, storage, scheduler, worker, artifact path, and managed-model transport cooperate. |
 | CLI and TUI | The released binary, terminal interaction, the approval gate, the local workspace, session persistence, policy, and trace behavior cooperate. |
 | Desktop | The React UI, Wails bindings and events, local runtime, approvals, and persistent project/session state cooperate. |
@@ -90,14 +90,14 @@ The repository already has useful deployment evidence, and one gap that is
 larger than it looks.
 
 - `./make compose smoke` and `./make kind up` exercise a real deployment with
-  a deterministic mock model. They cover login, a personal team, file storage,
+  a deterministic mock model. They cover login, a personal space, file storage,
   a conversation task, worker completion, and artifact retrieval. Managed-mode
   smoke additionally proves that a worker reaches the model through the
   gateway.
 - `./make e2e <cli|desktop|local|compose|kind|all>` selects a suite. The Portal ones run
   serial Chromium Playwright checks in `portal/e2e/`: login, session
   restoration, the Portal shell, runtime API configuration, audit and admin
-  routes, the run-trace view, team files, workflows, and what an ungranted
+  routes, the run-trace view, space files, workflows, and what an ungranted
   account is shown. `kind` and `compose` attach to a deployment that is already
   running, `local` owns a Compose stack for one run, and `cli` needs no
   deployment at all.
@@ -204,7 +204,7 @@ Every local E2E suite must meet these conditions.
 | Determinism | Use the model harness above and its committed scenarios. No provider API key, paid model, personal account, or external SaaS is required. A suite that cannot meet this is not a suite; it is a manual exercise and must be named as one. |
 | Isolation | Create a temporary `BUILDMAX_HOME`, workspace, and uniquely named test resources for each run. Never use a contributor's real home, sessions, credentials, or workspace. |
 | Policy is written, not hoped for | A suite that depends on an approval pins the tool with `tools.permissions` in its temporary `settings.yaml`. Reaching a prompt by guessing what the model will call, or what a builtin currently defaults to, makes the suite fail the day a default changes for a good reason. |
-| Test data | Fixture helpers create the minimum account, role, team, project, and content through public boundaries where practical. They clean up what they create, or report an exact safe cleanup target when a deployment must retain evidence. |
+| Test data | Fixture helpers create the minimum account, role, space, project, and content through public boundaries where practical. They clean up what they create, or report an exact safe cleanup target when a deployment must retain evidence. |
 | Lifecycle | A suite can either attach to a named running deployment for diagnosis or own its disposable local deployment lifecycle. The command must say which mode it chose. |
 | Diagnostics | On failure retain Playwright traces/screenshots, command output, redacted server/worker logs, the model scenario and the transcript it produced, and a short reproduction command under one predictable artifact directory. |
 | Portability | Add task-runner commands under `tools/mk`; do not create an OS-specific shell-script testing path. Platform-specific native Desktop smoke is an explicit exception and reports its unsupported platforms. |
@@ -236,7 +236,7 @@ then runs one worker over one shared session for the same reason.
 The two modes therefore take different rules rather than one compromise:
 
 - **Owned lifecycle.** The suite created the deployment, so every account,
-  team, and resource is unique per run and nothing needs cleaning up — the
+  space, and resource is unique per run and nothing needs cleaning up — the
   deployment is discarded whole.
 - **Attached.** The suite is a guest. It keeps the existing fixed diagnostic
   account, creates only uniquely named resources beneath it, cleans those up,
@@ -251,7 +251,7 @@ test.
 
 | Suite | Initial golden paths |
 |---|---|
-| Portal + Compose | Sign in; create and use team resources; start a run; read its output, trace, and artifact; verify the important role-specific views. Compose is the daily default because it is the fastest real deployment. |
+| Portal + Compose | Sign in; create and use space resources; start a run; read its output, trace, and artifact; verify the important role-specific views. Compose is the daily default because it is the fastest real deployment. |
 | Portal + kind | Prove the same published-bundle contract through ingress and the Kubernetes worker path. Run locally for deployment, ingress, storage, or worker changes. |
 | Server + worker | Preserve the existing direct and managed deployment smoke, then add the deployment-level half of cancellation, retry, authorization denial, and failure recovery — see §6.1. |
 | CLI + TUI | Start the built binary in an isolated workspace with the mock model; send a prompt; approve and deny a pinned tool call; verify an intended file change, session resume, trace, and a useful failure. Prove that a batched turn produces one canonical history and prompt order. |
@@ -308,7 +308,7 @@ deployment-level fact no handler test can reach:
   state matches what the deployment actually did.
 - **Retry** — a second run is really executed rather than recorded: a new run
   token is issued, a second worker runs, and the managed path leaves a second
-  ledger row attributed to the same user and team.
+  ledger row attributed to the same user and space.
 - **Authorization denial** — the denial holds at the deployment edge, through
   ingress and the published routes, not only in the handler under test.
 - **Failure recovery** — a worker that dies mid-run leaves the run in a

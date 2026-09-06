@@ -4,16 +4,16 @@ Web UI for BuildMax. Built with React, TypeScript, and Vite.
 
 ## Current Role
 
-The Portal is the main browser UI for the team-scoped BuildMax product.
+The Portal is the main browser UI for the space-scoped BuildMax product.
 
 It currently integrates with the Go backend for:
 
-- auth and team resolution
+- auth and space resolution
 - conversations and live chat turns
 - issues and issue flow visibility
 - workflows and workflow runs
-- agents and team settings
-- team-scoped file browsing and upload
+- agents and space settings
+- space-scoped file browsing and upload
 
 The Portal also depends on the shared `@buildmax/gui` package at the repo root for common theme and presentational widgets.
 

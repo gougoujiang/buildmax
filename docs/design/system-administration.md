@@ -26,11 +26,11 @@
 - roadmap_priority: `P4`
 - status: `implemented` — M1–M6 are shipped: the grant model, the operator
   command, admin route authorization, the account routes, account disablement,
-  the system status and redacted configuration routes, the cross-team audit
-  search and team metadata routes, the Portal administration area, and the
+  the system status and redacted configuration routes, the cross-space audit
+  search and space metadata routes, the Portal administration area, and the
   model catalog surface. What remains is in §17, and none of it is a gap in
   the first slice
-- follows: [team-governance.md](./team-governance.md) and
+- follows: [space-governance.md](./space-governance.md) and
   [enterprise-deployment.md](./enterprise-deployment.md)
 - relates to: [enterprise identity and access](../proposals/enterprise-identity-and-access.md)
   proposal, which owns OIDC/SCIM and must not be pre-empted here
@@ -41,17 +41,17 @@
 
 BuildMax gets one deployment-scoped principal, the **System Administrator**,
 persisted as a revocable grant on a user and never derived from membership in a
-Team.
+Space.
 
 The three alternatives were weighed and rejected:
 
 - **Leave operator work in the CLI, the database, and the cluster.** This is
   where it is today. It makes routine account management require the database
   password, and it produces no accountable record of who did what.
-- **Treat a Team owner as a global administrator.** This collapses the one
-  boundary the product actually has. Team is the ownership boundary for
+- **Treat a Space owner as a global administrator.** This collapses the one
+  boundary the product actually has. Space is the ownership boundary for
   issues, conversations, artifacts, and traces; an owner who can read across
-  teams makes that boundary advisory.
+  spaces makes that boundary advisory.
 - **Configure one static administrator email.** It bootstraps in one line and
   then fails at everything after the first day: no second admin, no
   revocation without a redeploy, and an audit trail that can only name a
@@ -62,10 +62,10 @@ revocation without a redeploy, and an audit record naming a real account.
 
 The grant is an **authority to operate the deployment, not a key to its
 contents**. A System Administrator can create and disable accounts, read
-system status, search the audit trail across teams, and see team and quota
-metadata. They cannot read a team's prompts, tool output, artifacts, files, or
-run traces without being a member of that team. That is enforced by the same
-team checks every other caller passes, and proved by a test, not by a promise
+system status, search the audit trail across spaces, and see space and quota
+metadata. They cannot read a space's prompts, tool output, artifacts, files, or
+run traces without being a member of that space. That is enforced by the same
+space checks every other caller passes, and proved by a test, not by a promise
 in this document.
 
 ## 2. Product Goal
@@ -77,27 +77,27 @@ database client, a `kubectl exec`, or the JWT secret:
 - Someone is leaving today — how do I stop their access now?
 - Someone forgot their password — how do I get them back in?
 - Is this deployment healthy, on which version, with which schema applied?
-- Who changed access, models, or configuration, in which team, and when?
-- Which teams exist, how large are they, and what are they using?
+- Who changed access, models, or configuration, in which space, and when?
+- Which spaces exist, how large are they, and what are they using?
 
-And they should be unable to answer, through this surface, "what is that team
+And they should be unable to answer, through this surface, "what is that space
 working on".
 
 ## 3. Current Baseline
 
 What exists today, with the anchors this design builds on:
 
-- Team roles and the team authorization helper:
-  `internal/core/team/team.go`, `internal/core/team/policy.go`.
+- Space roles and the space authorization helper:
+  `internal/core/space/space.go`, `internal/core/space/policy.go`.
 - The single funnel for user identity on every JWT route: `Guard.ActiveUser` in
   `internal/server/access`. Every authenticated handler reaches a user id
   through it.
 - Route ownership: each handler subpackage's `Register` method, with a coverage
-  test in `team_authz_matrix_test.go` that reads every one of them and fails
-  when a team-scoped route has no authorization row.
+  test in `space_authz_matrix_test.go` that reads every one of them and fails
+  when a space-scoped route has no authorization row.
 - The append-only audit trail: `internal/core/audit/audit.go`,
-  `internal/service/audit`, `internal/infra/db/audit.go`, and the team-scoped,
-  owner-only `GET /api/teams/{team_id}/audit-events`.
+  `internal/service/audit`, `internal/infra/db/audit.go`, and the space-scoped,
+  owner-only `GET /api/spaces/{space_id}/audit-events`.
 - Operator commands that already run with database credentials:
   `internal/bootstrap/user_admin.go` (`buildmax-server user create |
   set-password | login-code`) and `internal/bootstrap/model_admin.go`
@@ -122,7 +122,7 @@ Five gaps follow from that list, and they are what the first slice closes:
 4. Nothing lists or revokes a user's sessions. `docs/deploy/authentication.md`
    already says so: signing someone out today means deleting
    `user_refresh_token` rows by hand.
-5. A team's quota tier is set once, from `default_quota_tier`, at team
+5. A space's quota tier is set once, from `default_quota_tier`, at space
    creation. `internal/infra/db/quota_tier.go` has `GetQuotaTier` and
    `SeedDefaultQuotaTiers` and no way to assign a different tier afterwards.
 
@@ -133,19 +133,19 @@ to prevent is one principal quietly acquiring another's reach.
 
 | Principal | Authenticated by | May reach | May not reach |
 |---|---|---|---|
-| **User** | Access token from a password or login code | Resources of teams they belong to, at their role | Anything in a team they are not in |
-| **Team owner** | The same token, plus an `owner` membership row | Membership, shared automation, and the audit trail of *that* team | Any other team; any deployment-scoped surface |
-| **System Administrator** | The same token, plus an active grant row | Accounts, grants, system status, redacted configuration, cross-team **metadata** and audit, model catalog state | Prompts, messages, tool output, artifacts, files, and run traces of teams they are not in |
+| **User** | Access token from a password or login code | Resources of spaces they belong to, at their role | Anything in a space they are not in |
+| **Space owner** | The same token, plus an `owner` membership row | Membership, shared automation, and the audit trail of *that* space | Any other space; any deployment-scoped surface |
+| **System Administrator** | The same token, plus an active grant row | Accounts, grants, system status, redacted configuration, cross-space **metadata** and audit, model catalog state | Prompts, messages, tool output, artifacts, files, and run traces of spaces they are not in |
 | **Worker run** | A run token naming one run | The four `/api/worker/*` routes for that run | Every user route; every other run |
 | **Infrastructure operator** | Database, cluster, and secret access | Everything, by construction | — |
 
 Two consequences are worth stating rather than implying.
 
 **A System Administrator is not the top of a ladder.** They are a principal
-with a different axis of authority. A team owner has depth in one team; an
+with a different axis of authority. A space owner has depth in one space; an
 admin has breadth over the deployment's operation and no depth anywhere. The
 authority is not additive with membership: an admin who is also a member of a
-team gets exactly the member's reach in it.
+space gets exactly the member's reach in it.
 
 **The infrastructure operator is still more powerful than the System
 Administrator**, and this design does not change that. It reduces how often
@@ -159,9 +159,9 @@ Two attacks shape the specifics below:
   can return: metadata and status, never content. Every action it takes is in
   the audit trail with the actor's user id. The session can be ended by any
   other admin, or by the operator command, revoking that user's sessions.
-- **A cross-team read attempt.** An admin calling a team content route without
-  membership is refused by the existing team check, because the admin routes
-  are a separate tree and the grant is never consulted by `authorizeTeamAction`.
+- **A cross-space read attempt.** An admin calling a space content route without
+  membership is refused by the existing space check, because the admin routes
+  are a separate tree and the grant is never consulted by `authorizeSpaceAction`.
   §11 makes that a test rather than an assertion.
 
 ## 5. Authority Model
@@ -221,7 +221,7 @@ Three shape decisions, each of which was the other way at some point:
 
 ### 5.2 How It Is Checked
 
-A separate helper alongside the team one, never inside it:
+A separate helper alongside the space one, never inside it:
 
 ```go
 // internal/server/handlers/system_authz.go
@@ -229,10 +229,10 @@ func (h *Handler) requireSystemAdmin(w http.ResponseWriter, r *http.Request) (us
 ```
 
 It calls `requireAuth`, then `ActiveSystemRoles`, and on refusal records
-`access.denied` with an empty `team_id` before writing the response.
+`access.denied` with an empty `space_id` before writing the response.
 
-`authorizeTeamAction` is not modified, and must not be. A grant is not an
-argument to a team check; if it ever becomes one, the boundary in §4 stops
+`authorizeSpaceAction` is not modified, and must not be. A grant is not an
+argument to a space check; if it ever becomes one, the boundary in §4 stops
 being true and no test would notice.
 
 ### 5.3 Status Codes
@@ -288,7 +288,7 @@ it would only mean asking a colleague to do the same thing.
 ## 7. Server Administration API
 
 All routes are `/api/admin/*`, all require `system_admin`, and none takes a
-`team_id` path parameter — an admin route that looked team-scoped would invite
+`space_id` path parameter — an admin route that looked space-scoped would invite
 exactly the confusion §4 exists to prevent.
 
 ### 7.1 First Slice
@@ -300,17 +300,17 @@ exactly the confusion §4 exists to prevent.
 | `POST /api/admin/grants` | Grants `system_admin` to a user id | A grant to an account that does not exist |
 | `DELETE /api/admin/grants/{user_id}` | Revokes it | The last active grant (§6) |
 | `GET /api/admin/users` | Accounts, newest first, `?q=` on email, paged | Password hashes, login codes, token values |
-| `GET /api/admin/users/{user_id}` | One account: email, name, quota tier, last login and platform, `has_password`, `disabled_at`, team memberships with roles, active session count | Everything in the row above |
-| `POST /api/admin/users` | Creates an account and its personal team | — |
+| `GET /api/admin/users/{user_id}` | One account: email, name, quota tier, last login and platform, `has_password`, `disabled_at`, space memberships with roles, active session count | Everything in the row above |
+| `POST /api/admin/users` | Creates an account and its personal space | — |
 | `POST /api/admin/users/{user_id}/login-code` | Issues a single-use code, shown once | A code that can be read back later |
 | `POST /api/admin/users/{user_id}/disable` | Disables the account (§8) | — |
 | `POST /api/admin/users/{user_id}/enable` | Re-enables it | — |
 | `DELETE /api/admin/users/{user_id}/sessions` | Revokes every refresh session, returns the count | — |
 | `GET /api/admin/system` | Version, commit, schema migrations applied, readiness checks and their status, worker runner mode, signup and sandbox settings, run counts by status | Anything with a credential in it |
 | `GET /api/admin/config` | The effective configuration, redacted, plus computed warnings | Every secret — **presence only**. Not a length, not a prefix, not a hash: each of those narrows a search for someone who has the response and wants the secret |
-| `GET /api/admin/teams` | Teams with member count, quota tier, personal-team flag, created at | Team contents of any kind |
-| `GET /api/admin/teams/{team_id}` | The same, plus members and roles, plus usage against the tier | Issues, conversations, artifacts, files, traces |
-| `GET /api/admin/audit-events` | The trail across every team, filtered by `team_id`, `actor_id`, `action`, `since`, `until`, paged | Anything the event does not already hold |
+| `GET /api/admin/spaces` | Spaces with member count, quota tier, personal-space flag, created at | Space contents of any kind |
+| `GET /api/admin/spaces/{space_id}` | The same, plus members and roles, plus usage against the tier | Issues, conversations, artifacts, files, traces |
+| `GET /api/admin/audit-events` | The trail across every space, filtered by `space_id`, `actor_id`, `action`, `since`, `until`, paged | Anything the event does not already hold |
 | `GET /api/admin/llm/models` | The catalog: name, provider, model, capabilities, enabled | `api_key`, in any form |
 | `POST /api/admin/llm/models/{model_id}/enable` · `/disable` | Retires or restores a catalog model | — |
 
@@ -340,16 +340,16 @@ decisions, and the CLI already separates them for the same reason.
   cover the questions §2 lists without it. If evidence from a real incident
   shows a gap, that evidence names the specific field to add — which is a
   better input than a log viewer built on a guess.
-- **Cross-team content.** Nothing here reads a prompt, an artifact, a file, or
+- **Cross-space content.** Nothing here reads a prompt, an artifact, a file, or
   a trace. This answers proposal question 5 with "no, not in this slice". A
-  support path that reaches team content needs its own design covering
-  request, team consent, expiry, redaction, and a distinct audit action; it is
+  support path that reaches space content needs its own design covering
+  request, space consent, expiry, redaction, and a distinct audit action; it is
   not a parameter on a route in this table.
-- **Quota tier assignment.** `GET /api/admin/teams/{team_id}` shows the tier
+- **Quota tier assignment.** `GET /api/admin/spaces/{space_id}` shows the tier
   and the usage against it. Changing it needs a store method that does not
   exist (§3, gap 5), and it is the one item here that is a feature rather than
   an operator's window into existing state. It lands in M6 or later, after the
-  read surface has shown which teams actually need it.
+  read surface has shown which spaces actually need it.
 
 ## 8. Account Disablement Semantics
 
@@ -366,7 +366,7 @@ A `disabled_at *int64` column on `userRow`, nil for an ordinary account.
 | **Access token** | Refused on the next request | See below |
 | **Webhook keys** | Refused at `POST /api/webhook` | The route already resolves the key's owner; the check is one field on a row it has |
 | **Pending task runs** | Failed at dispatch, with the reason in `error_message` | Nothing has started, and leaving them queued means a disabled account's work starting after the disable. *Cancelled* was the original word here and turned out to name a status BuildMax does not have — see below |
-| **Running task runs** | Left to finish | Killing one loses work the *team* owns, and the run's credential is already scoped to that run and already expiring. The team, not the departing user, is the party harmed by a kill |
+| **Running task runs** | Left to finish | Killing one loses work the *space* owns, and the run's credential is already scoped to that run and already expiring. The space, not the departing user, is the party harmed by a kill |
 | **Run tokens already minted** | Not revocable | A signature, not a row. Bounded by scope and by `worker.run_token_ttl`, as [deploy/authentication.md](../deploy/authentication.md) already documents |
 
 The access token is the interesting one. It is a signed JWT the server does not
@@ -375,7 +375,7 @@ happen is where the identity is resolved: `requireAuth`. Adding the check there
 costs one primary-key read per authenticated request.
 
 That cost is affordable and it is worth being precise about why: every
-team-scoped route in the product already calls `ListTeamMembers` on every
+space-scoped route in the product already calls `ListSpaceMembers` on every
 request, which is a wider read than this one. A disabled check that lands in
 `requireAuth` is strictly cheaper than work the same request already does. If a
 profile ever says otherwise, the fix is a short-TTL cache in front of it — with
@@ -396,7 +396,7 @@ says why in `error_message`. Whether these should be distinguishable from a
 failure is open question 6.
 
 The guard fails open on a store error: a database blip must not turn into a
-team's work being refused. A run starting for an account disabled moments ago is
+space's work being refused. A run starting for an account disabled moments ago is
 the smaller harm, since that run's credential is scoped to it and expiring and
 the account's sessions are already gone.
 
@@ -417,10 +417,10 @@ AuditLoginCodeIssued    = "user.login_code_issued"
 AuditSessionsRevoked    = "user.sessions_revoked"
 AuditModelEnabled       // exists
 AuditModelDisabled      // exists
-AuditAccessDenied       // exists; reused for admin routes, with team_id empty
+AuditAccessDenied       // exists; reused for admin routes, with space_id empty
 ```
 
-All are written with `team_id` empty, because none of them is team-scoped. The
+All are written with `space_id` empty, because none of them is space-scoped. The
 `AuditEvent` shape already allows that — it was designed for `user.login` — so
 no schema change is needed.
 
@@ -435,23 +435,23 @@ operator action that leaves no record is worse than one that names the machine
 instead of a person, and naming the machine is the honest description of what
 happened.
 
-**The trail needs a reader that is not team-scoped.**
-`ListAuditEvents(teamID, ...)` cannot return a login or a grant, because those
-have no team. `GET /api/admin/audit-events` therefore needs a second store
+**The trail needs a reader that is not space-scoped.**
+`ListAuditEvents(spaceID, ...)` cannot return a login or a grant, because those
+have no space. `GET /api/admin/audit-events` therefore needs a second store
 method with optional filters:
 
 ```go
 SearchAuditEvents(ctx context.Context, f AuditFilter, limit, offset int) ([]AuditEvent, int, error)
 ```
 
-`AuditFilter` holds optional `TeamID`, `ActorID`, `Action`, `Since`, `Until`.
-The existing owner-only team route keeps its narrow method: a team owner asks a
+`AuditFilter` holds optional `SpaceID`, `ActorID`, `Action`, `Since`, `Until`.
+The existing owner-only space route keeps its narrow method: a space owner asks a
 narrower question and must not accidentally acquire the wider one.
 
 The failure policy does not change. A failed audit write is logged and dropped
 rather than failing the action, exactly as `internal/service/audit` documents
 today. That policy is decided rather than pending — see
-[team-governance.md](./team-governance.md) §12 question 2 — and this design
+[space-governance.md](./space-governance.md) §12 question 2 — and this design
 does not reopen it. What it does is sharpen the one part still open: the
 actions added here are where the argument for best-effort is weakest, because a
 grant that was made and not recorded is the case an investigation most needs.
@@ -460,14 +460,14 @@ residue, and this design makes it more urgent rather than answering it.
 
 ## 10. Portal Administration Surface
 
-A separate `/admin` area, not another tab in team settings. The separation is
-the product statement: this is not something a team owner has more of.
+A separate `/admin` area, not another tab in space settings. The separation is
+the product statement: this is not something a space owner has more of.
 
 - A new `admin` segment in `portal/src/router.ts`, with sections
-  `overview`, `accounts`, `teams`, `models`, and `audit`.
+  `overview`, `accounts`, `spaces`, `models`, and `audit`.
 - A new `portal/src/features/admin/` for the API client and the pages.
   It shares presentational components and shares nothing else with
-  `features/audit/`, whose team-scoped client stays as it is.
+  `features/audit/`, whose space-scoped client stays as it is.
 - Visibility comes from `GET /api/admin/me`. A 403 means no navigation entry
   and no route: a non-admin who types `#/admin` gets the home page, not a
   forbidden screen, because there is nothing there to tell them about.
@@ -480,21 +480,21 @@ Page order follows §2's questions rather than the resource list:
    counts. The first page because it answers "is this thing all right".
 2. **Accounts** — search, inspect, create, issue a code, disable, revoke
    sessions. The page an operator opens on a joiner or leaver day.
-3. **Teams** — teams, sizes, quota tiers, usage. Explicitly labelled as
-   metadata, with no link into team content, because a link that 403s reads as
+3. **Spaces** — spaces, sizes, quota tiers, usage. Explicitly labelled as
+   metadata, with no link into space content, because a link that 403s reads as
    a bug rather than as a boundary.
 4. **Models** — catalog state, enable and disable, with `add` documented as a
    command rather than hidden.
-5. **Audit** — the cross-team trail with filters, and a stable link from any
-   event to the account or team it names.
+5. **Audit** — the cross-space trail with filters, and a stable link from any
+   event to the account or space it names.
 
-Every page states its scope in one line. "This shows team metadata, not team
+Every page states its scope in one line. "This shows space metadata, not space
 content" is not decoration: an operator who assumes otherwise will eventually
 report a missing feature that is actually the design.
 
 ## 11. The Authorization Matrix
 
-The team route matrix in `team_authz_matrix_test.go` exists because the checks
+The space route matrix in `space_authz_matrix_test.go` exists because the checks
 live in handler helpers rather than in one middleware, so a route that forgets
 to call one is not a compile error. Admin routes have exactly that property, so
 they get exactly that treatment — a sibling `system_authz_matrix_test.go`:
@@ -504,18 +504,18 @@ they get exactly that treatment — a sibling `system_authz_matrix_test.go`:
    because a dead row reads as coverage. Shipped in M1, and verified by adding
    an unguarded route and watching it fail — a coverage test that has never
    fired is not known to work.
-2. **Four callers drive every route as real requests**: a system admin, a team
+2. **Four callers drive every route as real requests**: a system admin, a space
    owner with no grant, an ordinary user, and an anonymous caller. Expected:
    200-ish, 403, 403, 401.
 3. **A revoked grant is a non-admin.** The same user, after
    `RevokeSystemRole`, gets 403 on every row. This is what proves revocation is
    a live check rather than a startup read.
-4. **A grant is not a team key.** A system admin with no membership drives the
-   team-scoped content routes and gets 403 on every one. This is the test that
+4. **A grant is not a space key.** A system admin with no membership drives the
+   space-scoped content routes and gets 403 on every one. This is the test that
    makes §4's table true, and it is the one to look at first if anybody
-   proposes consulting the grant inside `authorizeTeamAction`. M4 restates it
+   proposes consulting the grant inside `authorizeSpaceAction`. M4 restates it
    at the surface that most looks like an exception: an administrator who can
-   read a team's name, size, and quota still cannot open its issues.
+   read a space's name, size, and quota still cannot open its issues.
 5. **No admin response contains a secret.** A response-body assertion over the
    account and config routes for `api_key`, `password`, `hash`, `secret`, and
    `token`. Crude, and it catches the realistic failure: someone returns a row
@@ -524,7 +524,7 @@ they get exactly that treatment — a sibling `system_authz_matrix_test.go`:
 
 Items 1–4 shipped in M1, along with two the sketch did not name: a grant store
 error denies rather than admits, and a refused admin request is recorded with an
-empty team while an unauthenticated one records nothing — there is no actor to
+empty space while an unauthenticated one records nothing — there is no actor to
 name, and an event keyed by an unauthenticated request would let anyone write
 rows.
 
@@ -544,9 +544,9 @@ without touching the database directly.
   IdP outage cannot lock a deployment out of its own administration.
 - A log viewer, a log search, or anything SIEM-shaped (§7.2).
 - Configuration writes (§7.2).
-- Cross-team content access of any kind (§7.2).
+- Cross-space content access of any kind (§7.2).
 - Audit export, retention policy, and deletion controls. They are open in
-  [team-governance.md](./team-governance.md) §12 and this design does not
+  [space-governance.md](./space-governance.md) §12 and this design does not
   change their answer.
 - Billing, and any claim of strict spending control. The `llm_call` ledger
   records what was spent after the fact; reservations do not exist.
@@ -641,23 +641,23 @@ outage they opened it for. A failed dependency is named and not explained,
 matching `/readyz` — connection errors carry DSNs, endpoints, and bucket names,
 and the reason belongs in the log where an operator already has to be.
 
-### M4. Cross-Team Audit And Team Metadata — DONE
+### M4. Cross-Space Audit And Space Metadata — DONE
 
 `SearchAuditEvents` with `AuditFilter`, `GET /api/admin/audit-events`, and the
-two team metadata routes. The existing team route is untouched, deliberately: a
-team owner asks a narrower question, and handing that reader the wider method is
-how a team-scoped route quietly acquires a deployment-scoped answer.
+two space metadata routes. The existing space route is untouched, deliberately: a
+space owner asks a narrower question, and handing that reader the wider method is
+how a space-scoped route quietly acquires a deployment-scoped answer.
 
 Acceptance met. Two details worth recording:
 
-- **`team_id=none` is a filter value.** An empty `team_id` already means "any
-  team", so the events no team-scoped reader can ever see — logins, grants,
+- **`space_id=none` is a filter value.** An empty `space_id` already means "any
+  space", so the events no space-scoped reader can ever see — logins, grants,
   account actions — needed a spelling of their own to ask for.
 - **`AuditFilter` has no free-text field, and should not grow one.** The trail
   holds who did what to which object; a text query would invite a `Detail LIKE`
   scan over a column whose whole purpose is to stay small and structured.
 
-`AdminTeam` carries no field a member wrote or an agent produced. The pressure
+`AdminSpace` carries no field a member wrote or an agent produced. The pressure
 on that boundary is real and will arrive as a reasonable-sounding request — an
 issue count, then a list, then titles — so the test asserts the response
 mentions no issue, conversation, artifact, task, workflow, or trace at all.
@@ -700,7 +700,7 @@ one except by actor — a command names the binary, the route names a person.
 One addition the sketch did not have: **the response says which model name is
 the deployment default**. Every enabled catalog entry is callable by every user
 of the deployment, and its unique name is the stable client-facing identifier;
-the alias layer and per-Team model policy were withdrawn by
+the alias layer and per-Space model policy were withdrawn by
 [client-modes.md](client-modes.md).
 
 Quota tier assignment, if it is wanted, comes after M6 with its own store
@@ -719,8 +719,8 @@ rather than a window onto existing state, and nothing has asked for it yet.
    disable and on session revocation that say what will happen to sessions and
    to pending runs. A login code is shown once, with that stated before it is
    generated rather than after.
-4. **Teams.** Metadata table with the scope line from §10.
-5. **Audit.** The cross-team trail reusing `features/audit/describe.ts`, which
+4. **Spaces.** Metadata table with the scope line from §10.
+5. **Audit.** The cross-space trail reusing `features/audit/describe.ts`, which
    already renders an unrecognised action verbatim — the property that keeps a
    Portal older than its server from hiding events.
 6. **Models.** Catalog table with enable/disable and the `add` command shown as
@@ -749,57 +749,57 @@ Full:
 Manual scenarios, each of which is a claim in this document:
 
 1. Grant, list, and revoke from the command line against an empty deployment.
-2. A granted user reaches `/admin`; a team owner without a grant does not.
-3. A system admin calling a team content route without membership is refused.
+2. A granted user reaches `/admin`; a space owner without a grant does not.
+3. A system admin calling a space content route without membership is refused.
 4. Revoking a grant ends the admin's access on the next request, not at
    token expiry.
 5. The API refuses to revoke the last grant; the command allows it and says so.
 6. Disabling an account: an in-flight request fails, refresh fails, the
    password login says `account_disabled`, a webhook key is refused, pending
    runs are cancelled, a running one finishes.
-7. Every step above appears in the cross-team audit trail with the right actor.
+7. Every step above appears in the cross-space audit trail with the right actor.
 8. `buildmax-server user create` now appears in the trail as a system actor.
 9. No admin response contains an API key, a hash, or a token.
 
 ## 16. Risks
 
 - **The grant becomes a shortcut.** The first time a handler is hard to
-  authorize, someone will reach for the grant inside a team check. §11 item 4
+  authorize, someone will reach for the grant inside a space check. §11 item 4
   is the test that fails, and it should keep the comment explaining why.
 - **The admin API grows into an infrastructure console.** The proposal's
   non-goal is right: BuildMax should report its own state, not become a
   replacement for `kubectl`. Every addition should be checkable against §2's
   question list.
 - **Metadata creep toward content.** "Just the issue titles" is metadata by one
-  reading and content by another. The rule: if a team member wrote it or an
+  reading and content by another. The rule: if a space member wrote it or an
   agent produced it, it is content.
 - **Bootstrapping through a config value.** It will be proposed again, because
   it is convenient in a Helm chart. §6 is the answer, and the cost is a second
   authority the trail cannot describe.
 - **A best-effort audit write on a grant.** The weakest point in this design
   (§9). It is inherited rather than introduced: the best-effort policy itself
-  is settled, and what should be raised again is the residue of team-governance
+  is settled, and what should be raised again is the residue of space-governance
   question 2 — whether a grant is the action that earns a transactional
   record.
 - **Disable is not delete.** Nothing here deletes an account or its data, and
   an operator who reads "disable" as "remove" will be wrong. Deletion belongs
-  with team-governance question 10, which has no answer today.
+  with space-governance question 10, which has no answer today.
 
 ## 17. Open Questions
 
 1. Does a `system_observer` role have a real caller? The column exists (§5.1);
    the role should not, until someone needs to give a person status and audit
    without account control.
-2. ~~Should `disabled_at` also block a personal team's existing task runs from
-   being retried by a *teammate*?~~ **Decided: no**, by the principle §8
-   already commits to for a running run — the team owns the work, and the
+2. ~~Should `disabled_at` also block a personal space's existing task runs from
+   being retried by a *spacemate*?~~ **Decided: no**, by the principle §8
+   already commits to for a running run — the space owns the work, and the
    departing user is not the party harmed by losing it. Disabling withdraws
    that account's ability to ask for work; it does not quarantine the backlog
-   of a team whose remaining members are in good standing. The scheduler guard
+   of a space whose remaining members are in good standing. The scheduler guard
    keys on the run's own `created_by`, so a rerun by someone else is a new run
    by a non-disabled actor and dispatches. What is genuinely unsettled sits a
-   level down and is a team-model question rather than an administration one:
-   nothing stops an owner adding members to a *personal* team, which is the
+   level down and is a space-model question rather than an administration one:
+   nothing stops an owner adding members to a *personal* space, which is the
    only reason this case is reachable.
 3. Does the admin API need rate limiting before it needs anything else? Login
    is unthrottled today ([deploy/authentication.md](../deploy/authentication.md)),

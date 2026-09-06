@@ -263,8 +263,8 @@ Not every SSE response is a watcher. The distinction is whether the connection
 
 | Stream | Kind | Rung |
 |---|---|---|
-| `GET /api/teams/{id}/tasks/{id}/stream` | watcher — a Portal tab following a run that lives in the database | 4, closed with a `draining` event |
-| `POST /api/teams/{id}/conversations?stream=1` and the message variant | work — a Tier 1 turn producing its answer | 5, drained normally |
+| `GET /api/spaces/{id}/tasks/{id}/stream` | watcher — a Portal tab following a run that lives in the database | 4, closed with a `draining` event |
+| `POST /api/spaces/{id}/conversations?stream=1` and the message variant | work — a Tier 1 turn producing its answer | 5, drained normally |
 | `POST /api/llm/completions` and the worker's own `POST /api/worker/task-runs/{id}/llm/completions` | work — an inference call in progress | 5, drained normally |
 
 Closing the two work streams at rung 4 would destroy exactly what draining is
@@ -284,7 +284,7 @@ explicitly justified list of work streams.
 The task SSE endpoint emits a named `draining` event before the server closes
 the connection. Clients that consume that API must treat it as a reconnect
 signal rather than run completion. Portal no longer consumes the endpoint; it
-uses team WebSocket events as invalidations and reloads task state.
+uses space WebSocket events as invalidations and reloads task state.
 
 ### 5.1 The bigger hole was not a stream at all
 

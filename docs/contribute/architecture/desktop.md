@@ -15,7 +15,7 @@ A `Project` is the local unit of work a session belongs to: one Git repository
 including every one of its worktrees, or one plain folder. Desktop owns no
 Project record of its own -- it resolves through the same
 `agentapp.ProjectManager` the CLI uses, so both surfaces opened on one
-repository are the same Project. It is not the server's team, issue, or project
+repository are the same Project. It is not the server's space, issue, or project
 domain model.
 
 ## Modes
@@ -25,7 +25,7 @@ Desktop runs in one of two modes, the same two the CLI has:
 | Mode | What it is |
 |---|---|
 | `local` | The agent runs here against the models in `settings.yaml`. No server. |
-| `server` | The same local agent, plus a signed-in BuildMax account — managed models, and the bridge to a team's work. |
+| `server` | The same local agent, plus a signed-in BuildMax account — managed models, and the bridge to a space's work. |
 
 Neither mode changes where the agent runs: chat is always executed locally by
 `agentapp`. A server adds identity and the models it manages, which is why

@@ -251,10 +251,10 @@ else.
 
 `Request.CacheScope` is the caller's bucket discriminator. It is empty for a
 direct call, where the credential is already the user's own account. For a
-managed call the gateway sets it from the authenticated team, because teams
+managed call the gateway sets it from the authenticated space, because spaces
 granted the same approved model share one credential and would otherwise share
 one bucket. It is never accepted from a client: a caller that could name its own
-scope could aim at another team's.
+scope could aim at another space's.
 
 ### Anthropic breakpoint placement
 
@@ -280,7 +280,7 @@ figures on `llm_start`/`llm_end`, the JSONL trace records them on `llm_end` and
 `run_end`, the session file keeps the per-session totals, and `agentapp.RunResult`
 and `RunUsage` hand them to the CLI, Desktop, and any other surface. A managed
 call carries the same counts over `llmwire.Usage` and onto the `llm_call` ledger
-row, which the team run-ledger route and Portal's run-spend view read back.
+row, which the space run-ledger route and Portal's run-spend view read back.
 
 Zero is not a miss. A provider that reports no cache counts is indistinguishable
 from one that missed, so surfaces show the breakdown only where a provider

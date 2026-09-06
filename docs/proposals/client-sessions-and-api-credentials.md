@@ -157,7 +157,7 @@ POST /api/llm/completions
 
 Both call `ActiveUser`. Being signed in is their whole authorization: every
 enabled catalog model is deployment-global, and foreground calls are
-attributed to the person rather than to a Team.
+attributed to the person rather than to a Space.
 
 ### Client Storage
 
@@ -174,12 +174,12 @@ and should not force the native storage design.
 
 Task-run workers already use the credential shape this proposal wants to
 preserve for machine execution: the scheduler mints a short-lived run token
-whose claims name one user, Team, task, and TaskRun. Every worker route checks
+whose claims name one user, Space, task, and TaskRun. Every worker route checks
 that the path names the run in the credential, and managed inference additionally
 requires the run to be executing.
 
 The run-token design explicitly rejects reusing a person's access token. A
-worker executes model-selected commands, while a user token opens every Team
+worker executes model-selected commands, while a user token opens every Space
 and resource that person may reach. Attribution does not require
 impersonation. The same least-privilege principle applies when designing PATs
 and service accounts.
@@ -194,7 +194,7 @@ The credential classes should remain distinct:
 | Access token | Authorize a bounded set of API calls | Minutes, not days | Direct replay until expiry; current session revocation does not stop it |
 | Refresh token | Continue one client session and mint new access tokens | Days of inactivity, with an absolute cap | Theft creates renewable authority; rotation detects only eventual reuse |
 | Personal access token | Let one person's unattended client perform explicitly selected actions | Explicit, expiring grant | Static replay, forgotten credentials, excessive scopes, person leaving |
-| Service-account credential | Authenticate a non-human principal owned by a Team or deployment | Policy-controlled or workload-bound | Orphaned ownership, broad shared secrets, weak attribution |
+| Service-account credential | Authenticate a non-human principal owned by a Space or deployment | Policy-controlled or workload-bound | Orphaned ownership, broad shared secrets, weak attribution |
 | Run token | Let one dispatched TaskRun use only its worker routes | One run | Leakage from process or Job state before run end or token expiry |
 
 A refresh token is already the long-lived half of a human session. It is safer
@@ -225,7 +225,7 @@ rotation today but not audience or scope restriction. See
 - Preserve the run-scoped worker credential and direct local mode.
 - Leave room for the OIDC direction being evaluated by the enterprise identity
   proposal without making OIDC a prerequisite for current private deployments.
-- Keep Team membership and System Administrator grants as server-derived
+- Keep Space membership and System Administrator grants as server-derived
   authorization, not claims a client may invent.
 
 ## Non-Goals
@@ -235,9 +235,9 @@ rotation today but not audience or scope restriction. See
 - Making public internet exposure supported before login throttling, SSO or a
   second factor, and the other limits in the support matrix are resolved.
 - Turning the managed gateway into a public OpenAI-compatible API.
-- Adding per-Team model policy or Team attribution to foreground managed calls;
+- Adding per-Space model policy or Space attribution to foreground managed calls;
   the client-modes design explicitly withdrew both.
-- Making access tokens carry complete Team membership or system-role state.
+- Making access tokens carry complete Space membership or system-role state.
   Those authorities can change and remain server-derived.
 - Treating secure local storage as protection from a fully compromised client
   process. A process that can use a secret may be able to abuse its broker; the
@@ -310,7 +310,7 @@ llm.models.read
 llm.completions.create
 ```
 
-Team membership, Team role, current account state, model enabled state, quota,
+Space membership, Space role, current account state, model enabled state, quota,
 and System Administrator grants remain server reads. A token scope says what
 kind of action this client grant may attempt; it does not assert that the
 subject owns a resource.
@@ -481,12 +481,12 @@ one table can preserve both products' semantics.
 
 ### Service Accounts
 
-A service account is appropriate when authority belongs to a Team or deployment
+A service account is appropriate when authority belongs to a Space or deployment
 rather than to the employment and session lifecycle of one person. It should be
 a distinct principal with:
 
 - an opaque public ID and display name;
-- a Team or deployment owner;
+- a Space or deployment owner;
 - explicit role and scopes;
 - enabled/disabled state;
 - created-by and governance audit records; and
@@ -498,7 +498,7 @@ credential is a fallback, shown once, hashed at rest, expiring, and individually
 revocable.
 
 A service account must not log in with a password, receive a human refresh
-session, own a personal Team implicitly, or inherit every Team membership of
+session, own a personal Space implicitly, or inherit every Space membership of
 the person who created it. Calls and audit events identify the service account
 as the actor and preserve `created_by` separately.
 
@@ -549,7 +549,7 @@ One row per user-created machine credential:
 
 ### `service_account` And Credential Rows
 
-These should be added only if Team- or deployment-owned automation is an
+These should be added only if Space- or deployment-owned automation is an
 accepted product need. Principal metadata and credentials should be separate so
 one service account can rotate credentials without changing identity or audit
 history.
@@ -629,7 +629,7 @@ system browser rather than embedding the identity-provider page.
 
 Account settings list sessions and PAT metadata, but never plaintext secrets
 after creation. System Administration retains revoke-all and account-disable
-recovery paths. Service-account administration belongs with its Team or system
+recovery paths. Service-account administration belongs with its Space or system
 owner, not in personal session settings.
 
 ## Options And Trade-Offs
@@ -642,8 +642,8 @@ owner, not in personal session settings.
 | Add on-demand gateway token exchange | Strong audience separation and short LLM credential | More protocol, caching, failure, and discovery behavior | Preferred hardening after the base session model |
 | Make every access token stateful | Immediate revocation | Database/cache check on every request and availability coupling | Partly favored: check explicit session state where a session store exists |
 | Sender-constrain native tokens with DPoP | Stolen token alone is less useful | Key lifecycle and cross-platform implementation complexity; same-process compromise can use the key | Later hardening if deployment evidence justifies it |
-| Add PATs only | Solves personal scripting with a small principal model | Encourages human-owned automation; does not solve Team-owned services | Useful when a real scripting use case exists |
-| Add service accounts first | Correct owner for shared automation | Larger authorization, provisioning, and UI surface | Wait for a Team-owned automation requirement |
+| Add PATs only | Solves personal scripting with a small principal model | Encourages human-owned automation; does not solve Space-owned services | Useful when a real scripting use case exists |
+| Add service accounts first | Correct owner for shared automation | Larger authorization, provisioning, and UI surface | Wait for a Space-owned automation requirement |
 | Browser PKCE for every native client | Standard SSO-capable flow | Awkward on remote/headless terminals | Use where a browser is available |
 | Device Authorization for every TUI | Works remotely | Polling, phishing/code UX, and more endpoints when a browser would be simpler | Fallback for browserless terminals |
 
@@ -660,9 +660,9 @@ made:
   that transport belongs to each model entry, and printed a `direct` footer tag
   the TUI does not render. Corrected: the tag is `local` or the deployment host,
   and it is a property of the app.
-- `internal/server/static/openapi.json` documented `/api/teams/{team_id}/llm/*`
+- `internal/server/static/openapi.json` documented `/api/spaces/{space_id}/llm/*`
   and a bare `/api/conversations`, none of which are registered. Corrected to
-  the deployment-global `/api/llm/*` and the team-scoped conversation route;
+  the deployment-global `/api/llm/*` and the space-scoped conversation route;
   every documented path now matches `routes.go`.
 - `docs/contribute/architecture/server.md` said the old shared worker token
   remained as an upgrade fallback. Corrected: it has been removed, and the run
@@ -704,7 +704,7 @@ BuildMax session from Stage 1.
 ### Stage 3: Explicit Machine Identity
 
 Add PATs when a supported personal scripting/API use case is named. Add service
-accounts only when Team- or deployment-owned unattended work has a concrete
+accounts only when Space- or deployment-owned unattended work has a concrete
 owner and authorization requirement. Do not widen worker authentication.
 
 ### Stage 4: Audience-Specific Or Sender-Constrained Tokens
@@ -728,7 +728,7 @@ deployment topology, or an external API product justifies their complexity.
    client?
 7. Which first PAT scopes correspond to an actual supported automation use
    case? Is managed inference one of them?
-8. Is unattended authority owned by a person, a Team, or the deployment, and
+8. Is unattended authority owned by a person, a Space, or the deployment, and
    therefore is a PAT sufficient or is a service account required?
 9. Should signing keys be separated by user and run token type, and where does
    a private deployment keep the verification key ring during rotation?
@@ -747,7 +747,7 @@ deployment topology, or an external API product justifies their complexity.
 - Concurrency tests for multiple CLI processes refreshing one session, including
   a lost refresh response and replay outside the grace window.
 - Route-matrix tests covering credential type, audience, scope, account disable,
-  session revoke, Team authorization, and System Administrator separation.
+  session revoke, Space authorization, and System Administrator separation.
 - A deployment exercise that rotates signing keys without interrupting refresh
   sessions or in-flight runs.
 - Product evidence for the first non-interactive caller before choosing PAT,
