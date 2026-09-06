@@ -49,10 +49,11 @@ run. The value of this file is what is *not* discoverable.
 
 ## Remote Runs
 
-For a Portal task run, the worker prepares an `AGENTS.md` in the run directory —
-the run layout plus any `AGENTS.md` from the space's materialized files — so the
-same convention applies when the shared runtime executes there. A project rule
-you write once applies to local runs and background runs alike.
+For a Portal task run, the worker materializes the space's files into the run's
+`workspace/` — the agent's working directory — so an `AGENTS.md` among those
+files is discovered there exactly as in a local run. The same convention applies
+when the shared runtime executes remotely: a project rule you write once applies
+to local runs and background runs alike.
 
 ## Related
 

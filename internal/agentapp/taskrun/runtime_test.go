@@ -229,8 +229,7 @@ func TestPrepareRunWorkspace_MaterializesSpaceFiles(t *testing.T) {
 
 	dirs := runDirs{
 		runDir:       t.TempDir(),
-		runHome:      filepath.Join(t.TempDir(), "home"),
-		runArtifacts: filepath.Join(t.TempDir(), "artifacts"),
+		runWorkspace: filepath.Join(t.TempDir(), "workspace"),
 		runGlobal:    filepath.Join(t.TempDir(), "global"),
 		runOSHome:    filepath.Join(t.TempDir(), "oshome"),
 	}
@@ -246,19 +245,19 @@ func TestPrepareRunWorkspace_MaterializesSpaceFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	spaceData, err := os.ReadFile(filepath.Join(dirs.runHome, "shared.txt"))
+	spaceData, err := os.ReadFile(filepath.Join(dirs.runWorkspace, "shared.txt"))
 	if err != nil {
 		t.Fatalf("read shared file: %v", err)
 	}
 	if string(spaceData) != "space" {
 		t.Fatalf("shared file = %q, want %q", spaceData, "space")
 	}
-	if _, err := os.Stat(filepath.Join(dirs.runHome, "private.txt")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(dirs.runWorkspace, "private.txt")); !os.IsNotExist(err) {
 		t.Fatalf("private creator file should not be materialized, stat err = %v", err)
 	}
 
 	// The run's OS HOME exists and is empty: it must not inherit space files
-	// (those go to runHome) or anything from a previous run.
+	// (those go to runWorkspace) or anything from a previous run.
 	entries, err := os.ReadDir(dirs.runOSHome)
 	if err != nil {
 		t.Fatalf("read run OS home: %v", err)
@@ -278,8 +277,8 @@ func TestResolveRunDirs_OSHomeIsRunPrivate(t *testing.T) {
 	run := &coretask.Run{ID: "r1"}
 	dirs := resolveRunDirs(paths, task, run)
 
-	if dirs.runOSHome == dirs.runHome || dirs.runOSHome == dirs.runGlobal || dirs.runOSHome == dirs.runDir {
-		t.Fatalf("OS home %q must differ from home/global/run dirs", dirs.runOSHome)
+	if dirs.runOSHome == dirs.runWorkspace || dirs.runOSHome == dirs.runGlobal || dirs.runOSHome == dirs.runDir {
+		t.Fatalf("OS home %q must differ from workspace/global/run dirs", dirs.runOSHome)
 	}
 	if filepath.Dir(dirs.runOSHome) != dirs.runDir {
 		t.Fatalf("OS home %q should live under the run dir %q", dirs.runOSHome, dirs.runDir)
@@ -426,12 +425,11 @@ func testRunDirs(t *testing.T) runDirs {
 	runDir := t.TempDir()
 	dirs := runDirs{
 		runDir:       runDir,
-		runHome:      filepath.Join(runDir, "home"),
-		runArtifacts: filepath.Join(runDir, "artifacts"),
+		runWorkspace: filepath.Join(runDir, "workspace"),
 		runGlobal:    filepath.Join(runDir, "global"),
 		runOSHome:    filepath.Join(runDir, "oshome"),
 	}
-	if err := ensureRunDirs(dirs.runHome, dirs.runArtifacts, dirs.runGlobal, dirs.runOSHome); err != nil {
+	if err := ensureRunDirs(dirs.runWorkspace, dirs.runGlobal, dirs.runOSHome); err != nil {
 		t.Fatalf("prepare run dirs: %v", err)
 	}
 	return dirs

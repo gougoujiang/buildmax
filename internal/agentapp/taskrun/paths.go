@@ -6,8 +6,7 @@ import "path/filepath"
 // It is injected for testability and to avoid hard dependency on internal/config.
 type RuntimePaths interface {
 	RuntimeTaskRunDir(spaceID, taskID, taskRunID string) string
-	RuntimeTaskRunHomeDir(spaceID, taskID, taskRunID string) string
-	RuntimeTaskRunArtifactsDir(spaceID, taskID, taskRunID string) string
+	RuntimeTaskRunWorkspaceDir(spaceID, taskID, taskRunID string) string
 	RuntimeTaskRunGlobalDir(spaceID, taskID, taskRunID string) string
 }
 
@@ -25,12 +24,12 @@ func (p *runtimePathsRoot) RuntimeTaskRunDir(spaceID, taskID, taskRunID string) 
 	return filepath.Join(p.root, spaceID, "tasks", taskID, taskRunID)
 }
 
-func (p *runtimePathsRoot) RuntimeTaskRunHomeDir(spaceID, taskID, taskRunID string) string {
-	return filepath.Join(p.RuntimeTaskRunDir(spaceID, taskID, taskRunID), "home")
-}
-
-func (p *runtimePathsRoot) RuntimeTaskRunArtifactsDir(spaceID, taskID, taskRunID string) string {
-	return filepath.Join(p.RuntimeTaskRunDir(spaceID, taskID, taskRunID), "artifacts")
+// RuntimeTaskRunWorkspaceDir is the run's workspace/: the Agent's cwd and the
+// single writable tool root, materialized from the Space's files and captured
+// as the workspace checkpoint. It replaces the former home/ (read copy) plus
+// artifacts/ (output) split; see docs/design/task-workspace-checkpoints.md §4.1.
+func (p *runtimePathsRoot) RuntimeTaskRunWorkspaceDir(spaceID, taskID, taskRunID string) string {
+	return filepath.Join(p.RuntimeTaskRunDir(spaceID, taskID, taskRunID), "workspace")
 }
 
 func (p *runtimePathsRoot) RuntimeTaskRunGlobalDir(spaceID, taskID, taskRunID string) string {

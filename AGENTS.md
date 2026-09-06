@@ -155,8 +155,9 @@ Architecture tests under `internal/architecture` enforce these boundaries.
   is fail-open.
 - Server authentication requires a JWT secret. Login codes are single-use and
   signup defaults off. Never reintroduce or document a fixed development OTP.
-- Worker runs materialize the space's persistent home, execute in a run-scoped
-  workspace, write artifacts, and use a run-scoped `BUILDMAX_HOME`.
+- Worker runs materialize the space's files into a run-scoped `workspace/` — the
+  Agent's cwd and single writable tool root — and use a run-scoped
+  `BUILDMAX_HOME` kept outside that root.
 - Portal and Desktop share presentation through `@buildmax/gui`, not data,
   authentication, or routing logic. Both use React 19.
 

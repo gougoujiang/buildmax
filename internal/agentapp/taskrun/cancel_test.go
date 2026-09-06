@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -84,27 +82,22 @@ func TestRunCanceledOnlyRecognisesACancelCause(t *testing.T) {
 	}
 }
 
-// A canceled run still has to report and still has to keep what it produced.
+// A canceled run still has to report and still has to keep its partial reply.
 // Its own context is dead by definition, so the reporting runs on a detached
 // one — without that, cancelling would also destroy the evidence of the work.
 func TestReportCanceledRunKeepsPartialWork(t *testing.T) {
-	artifactsDir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(artifactsDir, "notes.md"), []byte("half done"), 0644); err != nil {
-		t.Fatal(err)
-	}
 	storage := &fakeRunOutputStorage{}
 	updater := &fakeUpdater{}
 	scope := RunScope{SpaceID: "tm1", TaskID: "t1", TaskRunID: "r1"}
 	result := runResult{
-		EndTime:         time.Unix(1_800_000_000, 0).UTC(),
-		OutputStr:       "as far as I got",
-		Output:          []byte("as far as I got"),
-		RunArtifactsDir: artifactsDir,
+		EndTime:   time.Unix(1_800_000_000, 0).UTC(),
+		OutputStr: "as far as I got",
+		Output:    []byte("as far as I got"),
 	}
 
 	ctx, cancel := context.WithCancelCause(context.Background())
 	cancel(coretask.ErrRunCanceled)
-	err := reportCanceledRun(ctx, scope, result, runDirs{runGlobal: t.TempDir(), runArtifacts: artifactsDir}, RunTaskInput{
+	err := reportCanceledRun(ctx, scope, result, runDirs{runGlobal: t.TempDir()}, RunTaskInput{
 		Persist:          newFakePersistStorage(),
 		RunOutputStorage: storage,
 		Updater:          updater,
@@ -114,7 +107,7 @@ func TestReportCanceledRunKeepsPartialWork(t *testing.T) {
 		t.Fatalf("err = %v, want ErrRunCanceled", err)
 	}
 	if storage.err != nil {
-		t.Fatalf("the artifact upload ran on the canceled context: %v", storage.err)
+		t.Fatalf("the result upload ran on the canceled context: %v", storage.err)
 	}
 	if updater.req == nil {
 		t.Fatal("the run never reported an outcome")
@@ -128,11 +121,9 @@ func TestReportCanceledRunKeepsPartialWork(t *testing.T) {
 	if updater.req.EndedAt == nil || !updater.req.EndedAt.Equal(result.EndTime) {
 		t.Errorf("ended_at = %v, want %v", updater.req.EndedAt, result.EndTime)
 	}
-	if updater.req.Artifact == nil || len(updater.req.Artifact.RelativePaths) == 0 {
-		t.Fatalf("artifact = %v, want the files the run wrote before stopping", updater.req.Artifact)
-	}
-	if got := updater.req.Artifact.RelativePaths; got[0] != "notes.md" {
-		t.Errorf("artifact paths = %v, want notes.md", got)
+	// The reply is the run's one output; the runtime no longer scans a directory.
+	if updater.req.Artifact == nil || len(updater.req.Artifact.RelativePaths) != 1 || updater.req.Artifact.RelativePaths[0] != "result.md" {
+		t.Fatalf("artifact = %v, want [result.md]", updater.req.Artifact)
 	}
 	if string(storage.result) != "as far as I got" {
 		t.Errorf("stored result = %q, want the partial output", storage.result)

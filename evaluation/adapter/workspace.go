@@ -95,27 +95,16 @@ func copyFile(src, dst string, mode fs.FileMode) error {
 // MaterializedRoot returns where a surface places the task's initial state
 // inside the agent's workspace.
 //
-// The two surfaces differ, and the difference is the product's, not this
-// package's: a CLI run is given the workspace directly, while a worker
-// materializes the space's persistent files into a `home` subdirectory of the
-// run directory it works in. Anything that has to agree with a real run about
-// where a file will be — preflight above all — asks here rather than assuming
-// the CLI's layout.
-//
-// A task therefore writes its path assertions for the surface it names. Section
-// 11's cross-surface parity is two tasks stating the same goal, not one task
-// run twice, which is what makes that acceptable rather than a defect.
-func MaterializedRoot(workspace string, surface contract.Surface) string {
-	if surface == contract.SurfaceWorker {
-		return filepath.Join(workspace, workerStateDir)
-	}
+// Both surfaces place it at the workspace root: a CLI run is given the workspace
+// directly, and a worker materializes the space's persistent files into the
+// run's `workspace/`, which is what `Result.Workspace` points at. The surface
+// argument is retained because callers describe a run by its surface and a
+// future surface need not share this rule. Anything that has to agree with a
+// real run about where a file will be — preflight above all — asks here rather
+// than assuming a layout.
+func MaterializedRoot(workspace string, _ contract.Surface) string {
 	return workspace
 }
-
-// workerStateDir is the subdirectory of a run's workspace that a worker
-// materializes the space's persistent files into. It mirrors
-// taskrun.RuntimeTaskRunHomeDir.
-const workerStateDir = "home"
 
 // DigestDir returns a content identity for a directory tree: the SHA-256 over
 // every path, mode, and body, in sorted order.

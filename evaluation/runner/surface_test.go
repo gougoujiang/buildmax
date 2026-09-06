@@ -70,9 +70,9 @@ func repoRootDir() (string, error) {
 }
 
 // writeMixedSuite builds one CLI task and one worker task that state the same
-// goal. Their path assertions differ because their surfaces do: a worker's
-// space files arrive under home/. That is what section 11 means by parity being
-// two tasks rather than one task run twice.
+// goal with identical path assertions: both surfaces materialize the space's
+// files at the workspace root and run the agent there, so one grader config
+// reads on either. The tasks stay distinct because each names its surface.
 func writeMixedSuite(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
@@ -93,7 +93,7 @@ func writeMixedSuite(t *testing.T) string {
 	worker.Trials = 1
 	worker.Graders = []contract.GraderRef{{
 		Name: "files", Version: 1, Kind: contract.GraderDeterministic, Required: true,
-		Config: []byte(`{"exists":["report.md","home/notes.txt"]}`),
+		Config: []byte(`{"exists":["report.md","notes.txt"]}`),
 	}}
 	writeTaskInto(t, filepath.Join(root, worker.ID), worker, map[string]string{"state/notes.txt": "raw notes\n"})
 
