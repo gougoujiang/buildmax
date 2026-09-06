@@ -11,12 +11,21 @@ package flock
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 )
 
 // ErrHeld is returned by TryAcquire when another live process holds the lock.
 var ErrHeld = errors.New("lock is held by another process")
+
+// holderOffset is where the holder line begins. Byte 0 is reserved for the
+// lock so the line stays readable while the lock is held: Windows locks are
+// mandatory, and a lock over the holder bytes would deny the one read the line
+// exists for. The lock takes byte 0, the readable line follows it, and the file
+// is grown to cover byte 0 before locking because a Windows lock past
+// end-of-file is not enforced against other processes.
+const holderOffset = 1
 
 // Lock is a held advisory lock. Release, or let the process exit.
 type Lock struct {
@@ -38,14 +47,22 @@ func TryAcquire(path string, holder []byte) (*Lock, error) {
 	if err != nil {
 		return nil, fmt.Errorf("flock: open: %w", err)
 	}
+	// The lock byte must exist before it can be locked: a Windows lock past the
+	// end of file is not enforced against another process. Write the reserved
+	// byte 0 to cover it. This never shrinks the file, so a concurrent acquirer
+	// cannot cut a holder line the eventual winner is writing; on Windows the
+	// winner's mandatory lock simply denies this write, which is fine — the lock
+	// attempt just below reports the contention.
+	_, _ = f.WriteAt([]byte{0}, 0)
 	if err := tryLock(f); err != nil {
 		_ = f.Close()
 		return nil, err
 	}
-	// Truncate before writing: the previous holder's line is not ours to keep,
-	// and a shorter one would otherwise leave its tail behind.
-	if err := f.Truncate(0); err == nil {
-		_, _ = f.WriteAt(holder, 0)
+	// Write the holder line past the lock byte, then cut any longer line a
+	// previous holder left so its tail cannot be read back as ours. Only the
+	// lock holder writes here, so this needs no further guarding.
+	if _, err := f.WriteAt(holder, holderOffset); err == nil {
+		_ = f.Truncate(holderOffset + int64(len(holder)))
 		_ = f.Sync()
 	}
 	return &Lock{file: f}, nil
@@ -64,11 +81,22 @@ func (l *Lock) Release() error {
 }
 
 // Holder returns what the current holder wrote, or empty when the lock file
-// does not exist. Readable while the lock is held on every platform: see
-// tryLock's byte-range choice on Windows, whose locks are mandatory. It is for messages, never for deciding whether the lock is
+// does not exist. It is for messages, never for deciding whether the lock is
 // held: read a stale line and you are back to guessing.
+//
+// The read starts at holderOffset so it never touches the locked byte, which a
+// mandatory Windows lock would refuse to serve while the lock is held. That is
+// the whole reason the holder line is stored past that byte.
 func Holder(path string) []byte {
-	b, err := os.ReadFile(path)
+	f, err := os.Open(path)
+	if err != nil {
+		return nil
+	}
+	defer func() { _ = f.Close() }()
+	if _, err := f.Seek(holderOffset, io.SeekStart); err != nil {
+		return nil
+	}
+	b, err := io.ReadAll(f)
 	if err != nil {
 		return nil
 	}

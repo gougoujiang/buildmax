@@ -10,28 +10,18 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// lockByteOffset is the byte the lock is taken on, chosen far beyond any
-// holder line the file will ever hold.
-//
-// Windows file locks are mandatory: a lock over the bytes the holder line
-// occupies would stop anyone reading who is there, which is the one thing that
-// line exists for. Locking a byte nothing is written to leaves the content
-// readable and still lets exactly one holder win.
-const lockByteOffset uint64 = 1 << 40
-
-// tryLock takes an exclusive lock on one byte without blocking. Windows
-// releases it when the handle closes, process exit included, which is the
-// property this package is for.
+// tryLock takes an exclusive lock on the file's first byte without blocking.
+// Windows releases it when the handle closes, process exit included, which is
+// the property this package is for.
 //
 // One byte, not the whole file: Windows locks are mandatory, so locking the
 // bytes the holder line occupies would deny every reader — including the
-// refusal that wants to name who is there. See lockByteOffset.
+// refusal that wants to name who is there. The holder line is written past this
+// byte instead; see holderOffset. Byte 0 rather than a byte beyond the content:
+// a lock past end-of-file is not enforced against other processes, so it could
+// be granted twice. TryAcquire grows the file to cover byte 0 before locking.
 func tryLock(f *os.File) error {
-	const offset = lockByteOffset
-	overlapped := windows.Overlapped{
-		Offset:     uint32(offset & 0xFFFFFFFF),
-		OffsetHigh: uint32(offset >> 32),
-	}
+	var overlapped windows.Overlapped // byte 0
 	err := windows.LockFileEx(
 		windows.Handle(f.Fd()),
 		windows.LOCKFILE_EXCLUSIVE_LOCK|windows.LOCKFILE_FAIL_IMMEDIATELY,
