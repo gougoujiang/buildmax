@@ -3,7 +3,7 @@
 > **翻译说明：** 本文是[英文原文](../../design/parallel-tool-execution.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `07ec90cb9148b1b3e420a9dc5559532bb58b28e4821bee44310888a5d0b122a9`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
 
 
-## 内容
+## 目录
 
 - [状态](#状态)
 - [1.目的](#1目的)
@@ -35,7 +35,7 @@
 `internal/interface/cli`， `internal/interface/desktop`， `internal/config`
 - created_at： `2026-08-20`
 
-## 1.目的
+## 1. 目的
 
 机器已经进行了工具调用，运行时间并没有同时运行。
 
@@ -103,7 +103,7 @@
 
 - **D1  序列决定，同时执行.** 论点分析，循环
 警卫，政策解决，批准，以及`PreToolUse`门都运行在
-只有`tool.Execute`在一个工人上运行。
+只有`tool.Execute`在一个Worker上运行。
 - **D2——绝不重排。** 调用按模型给出的顺序运行。
 随着每次写作，每次写作都是障碍。
 - **D3  历史是独立于安排者.** 结果在调用中附加
@@ -436,12 +436,12 @@ assistant message: [Read a] [Read b] [Write c] [Grep d]
 ### 
 
 - 克 `RunLoop` `EventSink` `serializedSink` `RunLoopOpts`
-现在说一个洗手间可以从一个工人那里调用，必须对应工具事件
+现在说一个洗手间可以从一个Worker那里调用，必须对应工具事件
 通过`ToolCallID`而不是通过抵达。
 - 类型： 相关内容 `CallID` `toolStartMsg` `toolEndMsg` `toolDeniedMsg` TUI
 取代`currentToolArgs`的采用已订单的`[]activeTool`。
 图表，所以直播视图不会在框架之间重新排序；匹配回落到
-没有身份证，所以没有表面可以泄漏
+没有身份证，所以没有界面可以泄漏
 一个旋转器。
 - 批准取决于运行的背景，并在取消时返回 (§3.5)。
 调用**不**按键排队；参见第 3.5 节，了解为什么 Desktop 的 `pending`
@@ -468,9 +468,9 @@ assistant message: [Read a] [Read b] [Write c] [Grep d]
   panic 逃逸或使同组调用无法收尾。
 - 门随之移动。 门随之移动。 `applyPolicyAndExecute`
 批准提示，以及`PreToolUse`现在是`gateCall`的循环部分
-执行是`executeCall`在一个工人，和杆
+执行是`executeCall`在一个Worker，和杆
 虽然这不是3阶段的工作，但第5.4条要求
-没有加上戈鲁丁，就会给工人带来批准提示。
+没有加上戈鲁丁，就会给Worker带来批准提示。
 - `settings.yaml` 中的 `agent.max_parallel_tools` 通过 `config.ResolveMaxParallelTools` 解析，
 默认4号，附加在`[1, 16]`上。 `config.ResolveMaxParallelTools`
 错误的标签产生零，
@@ -527,7 +527,7 @@ assistant message: [Read a] [Read b] [Write c] [Grep d]
 
 首先是`tool-permissions.md`，而且不仅仅是因为它拥有`Access`。
 
-阶段1引入了表面概念，并触及了这个设计的同五个`RunLoopOpts`呼叫站点.将它们降落在另一种顺序中意味着将`Access`通过循环进行调节，然后重新推出对用户提示的意思，使用了选择后的许可模型来适应为 goroutines 构建的分类.用户可见的决定应该塑造分类；调节者应该按照给定的情况进行。
+阶段1引入了界面概念，并触及了这个设计的同五个`RunLoopOpts`呼叫站点.将它们降落在另一种顺序中意味着将`Access`通过循环进行调节，然后重新推出对用户提示的意思，使用了选择后的许可模型来适应为 goroutines 构建的分类.用户可见的决定应该塑造分类；调节者应该按照给定的情况进行。
 
 实际上，前提条件是狭窄：工具许可.md阶段1和3 `Access`在每个构建中，包括MCP路径上.其阶段2,4和5 (会议授权，配置，文档) 是独立的，可以与此工作并行。
 

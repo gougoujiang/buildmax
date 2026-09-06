@@ -3,7 +3,7 @@
 > **翻译说明：** 本文是[英文原文](../../design/enterprise-deployment.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `356fa705f17704e17c4ab8d5cc48430d3af5f13b366fa5733ca77b36f1683aba`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
 
 
-## 内容
+## 目录
 
 - [状态](#状态)
 - [1.决定](#1决策)
@@ -27,7 +27,7 @@
   路径）、M4（生产参考）和M5（操作员引导）已完成； M3
   （健康和准备状态）已基本完成。剩余工作正在运营中
   §4.3 和 §12 中指定的证据和配置检查。
-- 如下：P2 Portal 结果表面（完成；计划已退役）
+- 如下：P2 Portal 结果界面（完成；计划已退役）
 - 路线图：[../ROADMAP.md](../../ROADMAP.md)
 -created_at: `2026-05-17`
 
@@ -39,7 +39,7 @@ P2使Portal结果一流后，下一个平台移动是P3：
 BuildMax 已经拥有主要的运行时部分：
 
 - 服务器二进制文件
-- 工人二进制文件
+- Worker二进制文件
 - 调度程序
 - Portal 图像
 - MySQL 持久性
@@ -105,9 +105,9 @@ BuildMax 已经拥有主要的运行时部分：
 vars 不仅令人困惑，而且已经死了。没有读到`BUILDMAX_DB_*`，
 `BUILDMAX_MINIO_*` 或 `BUILDMAX_WORKSPACES_DIR` 不再存在，不再有 `server.yaml`
 提供给容器，并且部署的服务器回退到内置默认值
-并针对 `localhost` 上的 MySQL 进行崩溃循环。工人乔布斯也有同样的问题。
+并针对 `localhost` 上的 MySQL 进行崩溃循环。Worker乔布斯也有同样的问题。
 
-发货内容：
+已交付内容：
 
 - `deployment/buildmax-deploy.yaml` 带有 `buildmax-config` ConfigMap
   `server.yaml`，由 subPath 挂载，因此 `BUILDMAX_HOME` 的其余部分保持可写
@@ -118,7 +118,7 @@ vars 不仅令人困惑，而且已经死了。没有读到`BUILDMAX_DB_*`，
   `BUILDMAX_HOME` 设置为 `worker.k8s.home_dir`
 - 运行时配置保留在`docs/reference/configuration.md`中；根
   `.env.example` 仅列出存储库任务消耗的个人凭据
-  并且不复制运行时配置表面
+  并且不复制运行时配置界面
 - 如果清单和 `TestDeploymentConfigMapLoads` 则构建失败
   `internal/config/server_config.go` 再次偏离
 
@@ -157,7 +157,7 @@ plain-YAML 已运行自己的 MySQL 的集群清单，对象
 参考清单将就绪探针指向 `/readyz` 并离开
 `/healthz` 上的活跃度。
 
-已发送：
+已下发：
 
 - 数据库可访问
 - 对象存储可达
@@ -188,8 +188,8 @@ MinIO实例；调整后的生产清单由操作员进行验证。
 - 调度程序声明挂起的任务运行
 - 工作人员以所选模式启动
 - 工作人员可以调用服务器工作人员API
-- 工人可以实现太空家园
-- 工人可以写`artifacts/result.md`
+- Worker可以实现太空家园
+- Worker可以写`artifacts/result.md`
 - 服务器可以通过工件端点显示结果
 
 ## 5. 范围
@@ -491,7 +491,7 @@ ConfigMap 是服务器解析自己配置的方式，因此两者不能发生偏�
 3. 创建或选择一个空间。
 4. 创建问题或对话任务。
 5、Run工作。
-6. 确认工人完成。
+6. 确认Worker完成。
 7. 确认结果/工件可见。
 
 ## 11. 风险
@@ -555,7 +555,7 @@ ConfigMap 是服务器解析自己配置的方式，因此两者不能发生偏�
    是日志、`/readyz`、系统状态、TaskRun 和工件状态、运行跟踪、
    托管呼叫分类账和审计历史记录。资格训练必须
    证明该集合解释了每个所需的结果。仅稍后添加 `/metrics`
-   当练习命名现有表面无法命名的具体信号时
+   当练习命名现有界面无法命名的具体信号时
    提供。
 10. JWT 签名密钥、访问/刷新会话、每次运行令牌、数据库、
     存储和模型凭证**轮换**？注入已解决——env
@@ -563,7 +563,7 @@ ConfigMap 是服务器解析自己配置的方式，因此两者不能发生偏�
     对会话、正在进行的任务运行或已经拥有一个工作线程的作业执行
     运行令牌。
 11. Kubernetes、MySQL和S3兼容存储的哪些版本构成
-    支持矩阵？ `docs/start/support.md` 对表面和平台进行分级，但
+    支持矩阵？ `docs/start/support.md` 对界面和平台进行分级，但
     没有命名依赖版本，并且 `deployment/production/README.md` 状态
     相反，行为契约。
 

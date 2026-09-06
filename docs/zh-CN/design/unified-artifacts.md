@@ -3,7 +3,7 @@
 > **翻译说明：** 本文是[英文原文](../../design/unified-artifacts.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `b87b464136f9dba05dc9c6dc751260752b8d6a1b1096f439207c020d532ab84e`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
 
 
-## 内容
+## 目录
 
 - [状态](#状态)
 - [1. 决策](#1-决策)
@@ -34,7 +34,7 @@
 
 这就是将模型与迁移 `artifact`/`artifact_item`表区分开的.这些是任务运行的子结构：没有运行，没有Artifact，唯一的方法是命名的运行.这里描述的对象拥有其身份和寿命，并记录其生产者作为来源而不是作为父母。 `0001_artifact_tables_to_task_run_artifact`
 
-Artifact的身份是其不透明的公众身份证.该身份证是服务所返回的信息，工具所报告的信息，用户所引用的信息.URL是某个表面的身份证，而不是身份证本身。
+Artifact的身份是其不透明的公众身份证.该身份证是服务所返回的信息，工具所报告的信息，用户所引用的信息.URL是某个界面的身份证，而不是身份证本身。
 
 它们生活在一个Space名字空间中，这是现有的授权界限；一个单独工作的用户由自己的个人Space表示，不需要在UI中看到Space概念.CLI和Desktop通过登录到BuildMax服务器来访问Artifact.该产品为私人部署案例而构建.一个针对提供商模型的本地会议，没有服务器，根本没有任何功能，并且没有Artifact工具显示在其Artifact列表中。 Artifacts
 
@@ -52,7 +52,7 @@ Artifact的身份是其不透明的公众身份证.该身份证是服务所返�
 - 随着外部访问，故意创建可撤销的外部共享链接
 需要空间。
 
-产品语言是**artifact**，而不是桶，对象，结果目录或工人输出路径。
+产品语言是**artifact**，而不是桶，对象，结果目录或Worker输出路径。
 
 ## 3. 现行基准
 
@@ -62,13 +62,13 @@ BuildMax已经拥有大多数存储原始，但不是产品对象：
 |---|---|---|
 | 物体存储 | 支持本地文件系统和S3兼容的存储，包括MinIO。 `internal/infra/objectstore` | 关键是基础设施的细节。 |
 | 文件:Space | 接收到可变空间文件树的上传。 Portal | 文件没有持久的身份，来源，不可变的版本或共享模型。 |
-| 经营Task的Artifact | 一名工人档案中记录了`artifacts/`，并记录了`task_run_artifact`的路径。 | 文件通过其任务运行和相对路径进行处理；无法独立引用。 |
+| 经营Task的Artifact | 一名Worker档案中记录了`artifacts/`，并记录了`task_run_artifact`的路径。 | 文件通过其任务运行和相对路径进行处理；无法独立引用。 |
 | 查看Artifact | 通过空间认证任务运行路线,Space成员可以检索运行输出。 | 它是文本/标记式的，而不是一般的文件预览或下载合同。 |
 | 身份证 | 预写`ar_`和`f_`在`internal/util/id.go`中保留。 | 现在，类型前置已经完全消失了。 见[实体身份.md](entity-identity.md)。 |
 
 由于`task_run_artifact`是故意的路径集，而不是一个持久的资源：它没有公共的手柄或时间标签。 新型车型不能重新解释该表，就像它已经提供了所需的合同。
 
-在首次公布之前，还存在了`artifact`/`artifact_item`表组。 相关标识符在`internal/infra/db/migration.go`中移动.它将`artifact_item`复制成`task_run_artifact`，将两个表组都丢弃，并将`last_artifact_id`和`artifact_seq`从相关标识符和相关标识符中移除.这是一款儿童模型，这就是为什么它会使相关标识符 `0001_artifact_tables_to_task_run_artifact` `task` `chat`
+在首次公布之前，还存在了`artifact`/`artifact_item`表组。 相应标识符在`internal/infra/db/migration.go`中移动.它将`artifact_item`复制成`task_run_artifact`，将两个表组都丢弃，并将`last_artifact_id`和`artifact_seq`从相应标识符和相应标识符中移除.这是一款儿童模型，这就是为什么它会使相应标识符 `0001_artifact_tables_to_task_run_artifact` `task` `chat`
 
 ## 4. 范围
 
@@ -78,12 +78,12 @@ BuildMax已经拥有大多数存储原始，但不是产品对象：
 个人Space ，其标准参考是稳定的不透明的ID。
 - 在第一片中，每一个Artifact的一个不可变的文件。
 - 服务器介导的上传，检查，预览和下载。
-- 作为正常共享的Agent工具，仅在表面上注册 `UploadArtifact`
+- 作为正常共享的Agent工具，仅在界面上注册 `UploadArtifact`
 具有验证的Artifact服务。
 - 代理上传，任务运行输出和直接用户上传的来源。
 - 稳定认证URL和可撤销的外部共享链接。
 - 卡，列表/细节视图，安全轻量预览。 Portal
-- 移动新生产的工人输出文件到统一模型
+- 移动新生产的Worker输出文件到统一模型
 保持现有任务运行Artifact列表以确保兼容性。
 - 授权，删除/墓碑，保留，配额和审计 Space
 艺术品边界的事件。
@@ -131,7 +131,7 @@ type Artifact struct {
 }
 ```
 
-有一个Artifact商店.一个登录的CLI或Desktop会通过Space使用的相同服务创建相同的Artifact名字空间.表面只在表现结果方面不同.如果只添加本地商店，它必须从一开始发出公开身份证，以便参考工具返回每个表面的意思。 Portal
+有一个Artifact商店.一个登录的CLI或Desktop会通过Space使用的相同服务创建相同的Artifact名字空间.界面只在表现结果方面不同.如果只添加本地商店，它必须从一开始发出公开身份证，以便参考工具返回每个界面的意思。 Portal
 
 `StorageKey`是私有的，由存储适配器生成的.没有API，工具输出，跟踪或UI暴露它.`SHA256`是在播放上传时计算的，证明了存储的内容；它不是跨空间减倍密钥。
 
@@ -140,11 +140,11 @@ type Artifact struct {
 | 源类型 | 来源身份 | 意思 |
 |---|---|---|
 | `agent` | 提供时，代理运行或会议身份证 | 一个代理人呼唤了`UploadArtifact`。 |
-| `task_run` | 任务运行身份 | 工人把文件作为运行输出。 |
+| `task_run` | 任务运行身份 | Worker把文件作为运行输出。 |
 | `user_upload` | 选择性请求/审计相关性ID | 一个成员直接上传了一个文件。 |
 | `system` | 选择性操作身份证 | 没有代理的电话,BuildMax生成了文件。 |
 
-采用`created_by_type`来区分用户，代理，工人或系统参与者；它不发明用于自动化工作的用户ID。 这遵循现有审计模型的参与者规则。
+采用`created_by_type`来区分用户，代理，Worker或系统参与者；它不发明用于自动化工作的用户ID。 这遵循现有审计模型的参与者规则。
 
 一个Artifact不包含一个自由形式的元数据 JSON列.上面的字段是故意可查询和限制的.只需要产品行为时添加一个具体的字段；任意的JSON是内容，提示和凭证的容易泄漏到持久的元数据的地方。
 
@@ -154,7 +154,7 @@ type Artifact struct {
 
 运行是生成文件的操作，并且是区分一个尝试与另一个尝试的原因；任务，问题和对话都可从中获得.读者走向另一边 问题问其工作产生了什么 必须收集每个任务的每次运行，而不是每个任务的最后一个，或者一次重试任务隐藏了其之前的尝试发表的内容。 `source_id`
 
-这样就避免将上传的文件依赖于执行任务，仅仅因为第一位生产者是工人。
+这样就避免将上传的文件依赖于执行任务，仅仅因为第一位生产者是Worker。
 
 ### 5.3 Task-Run输出不是Artifacts
 
@@ -184,9 +184,9 @@ GET /api/spaces/{space_id}/artifacts        # the space's listing
 
 没有成员国的通话者得到`404`，从来没有得到`403`.不透明的`artifact_id`是标识符，而不是凭证，没有任何响应可以将其转化为存在的口语，这就是第13节的不编号标准实际上所指的。
 
-空间路线是列表和空间视图表面。 这不是一个Artifact的第二个地址。
+空间路线是列表和空间视图界面。 这不是一个Artifact的第二个地址。
 
-Portal除了API路线外，还提供了一个面向人类的详细路线:`#/artifact/{artifact_id}`，通过相同的ID地址Artifact解决相同的Artifact，因此在相同的授权下.由于本节所提供的原因，它在地址中没有空间，并报告拒绝在相关标识符的404许可证没有找到的单词中，不管它是否存在.列表是生成的相关标识符，而不是相关标识符 `#/artifacts`
+Portal除了API路线外，还提供了一个面向人类的详细路线:`#/artifact/{artifact_id}`，通过相同的ID地址Artifact解决相同的Artifact，因此在相同的授权下.由于本节所提供的原因，它在地址中没有空间，并报告拒绝在相应标识符的404许可证没有找到的单词中，不管它是否存在.列表是生成的相应标识符，而不是相应标识符 `#/artifacts`
 
 ### 6.2 外部股票链接
 
@@ -215,7 +215,7 @@ MVP政策是**仅获得身份验证的空间访问**.现在在[艺术品-公众�
 
 ### 7.1 可用性
 
-`UploadArtifact`是一个共享运行时间工具，在 `internal/agentapp` 和其他默认工具一起组装.它只注册在表面有一个认证的Artifact服务：服务器部署的自己的运行时间，或一个 CLI或 Desktop 登录到一个 BuildMax 服务器。 `internal/interface/auth`已经回答了本地表面的这个问题。 `IsLoggedIn` `CanAuthenticate(serverURL)`
+`UploadArtifact`是一个共享运行时间工具，在 `internal/agentapp` 和其他默认工具一起组装.它只注册在界面有一个认证的Artifact服务：服务器部署的自己的运行时间，或一个 CLI或 Desktop 登录到一个 BuildMax 服务器。 `internal/interface/auth`已经回答了本地界面的这个问题。 `IsLoggedIn` `CanAuthenticate(serverURL)`
 
 在没有这样的服务的情况下，工具在工具列表中**缺席**.它并非在每个通话都失败的状态下注册.只存在于"不可用"的工具只需要回车，并不会教模型任何东西，而没有的工具则是模型可以立即采取行动的事实。
 
@@ -255,7 +255,7 @@ Artifacts是空间资源。 Space会员是基线阅读界限，用户的个人 S
 
 删除是一个墓石：它立即隐藏了元数据，阻止了内容访问，记录了一个审计事件，然后在保留政策下安排了物理对象的删除.它不会重写任务运行历史.一个运行页面可以说其以前的输出已经被删除，而没有泄漏存储密钥。
 
-`ArtifactRetainer` 在 `internal/server/scheduler` 中是保留政策，也是除了上传回放路外的Artifact内容的唯一东西.它每小时在两个阶段扫描：过期墓石Artifact，其 `ExpiresAt`，然后清除恢复了在 `storage.artifact_purge_after_days`之前被埋藏的Artifact.该 grace 默认的 **0** 删除已经在授权边界发生，因此保留字节后的影响和暴露而不是安全性.设定日为一个使用工具提供无删除的使用费用； 相关标识符提供无删除。 BuildMax
+`ArtifactRetainer` 在 `internal/server/scheduler` 中是保留政策，也是除了上传回放路外的Artifact内容的唯一东西.它每小时在两个阶段扫描：过期墓石Artifact，其 `ExpiresAt`，然后清除恢复了在 `storage.artifact_purge_after_days`之前被埋藏的Artifact.该 grace 默认的 **0** 删除已经在授权边界发生，因此保留字节后的影响和暴露而不是安全性.设定日为一个使用工具提供无删除的使用费用； 相应标识符提供无删除。 BuildMax
 
 Artifact的`StorageKey`是记录其字节是否仍然保留.每一个Artifact在创建时都得到一个字节，因此一个墓石行上的空键意味着对象已经消失了.扫描清除了添加一个`purged_at`列："没有键"和"没有存储"是相同的事实，最后必须同意的两个列将有一天不会。
 
@@ -307,7 +307,7 @@ Artifact的`StorageKey`是记录其字节是否仍然保留.每一个Artifact在
 导游。
 - 启用它用于Portal任务运行以及登录的CLI和Desktop会议，
 并且在没有服务器的会议上留下未注册。
-- 在谈话中，请有意地展示发表的Artifact，并发送结果卡。
+- 在谈话中，请有意地展示发表的Artifact，并下发结果卡。
 运行输出目录未被注册 见第12节6问题。
 - 保持任务运行器件路线兼容性，并迁移Portal消费者。
 
@@ -332,7 +332,7 @@ Artifact的`StorageKey`是记录其字节是否仍然保留.每一个Artifact在
 
 ### 给服务器少的本地会议自己的Artifact商店
 
-根据表面，该工具将返回两种不同的东西，模型必须解释用户获得哪种东西.它还将重复元数据模型和存储适配器，并购买第二个同步问题，即任何人都想上升发布。 `UploadArtifact`
+根据界面，该工具将返回两种不同的东西，模型必须解释用户获得哪种东西.它还将重复元数据模型和存储适配器，并购买第二个同步问题，即任何人都想上升发布。 `UploadArtifact`
 
 没有服务器的会话中没有其他人.这样的会话会继续写文件，它已经写了它们，这是适合它的行为.4.2节记录了这一点，而不是推迟,5.1节记录了后来的本地商店必须满足的条件。 Artifacts
 
@@ -350,7 +350,7 @@ Artifact的`StorageKey`是记录其字节是否仍然保留.每一个Artifact在
 
 ## 12. 需要开放的问题和证据
 
-1. **Space选项用于本地表面：** ~~设置为第一个片~~。
+1. **Space选项用于本地界面：** ~~设置为第一个片~~。
 电话号码:`POST /api/artifacts` 解决电话号码的个人 Space
 没有任何名字，并尊重呼叫者是成员的明确`?space_id=`
 因此，一个本地客户在没有被告诉空间的情况下发布。
@@ -399,7 +399,7 @@ Artifact的`StorageKey`是记录其字节是否仍然保留.每一个Artifact在
 没有什么告诉读者，比 `SUCCEEDED`
 因此，依赖性故障与依赖性故障是不可区分的。
 选择在失败的运行，记录一个
-部分输出标记，或表面计数是开放的。
+部分输出标记，或界面计数是开放的。
 
 ## 13. 接受标准
 
@@ -414,7 +414,7 @@ Artifact的`StorageKey`是记录其字节是否仍然保留.每一个Artifact在
 - 非成员国不能使用该参考文献，也不能了解它是否存在；
 - 客体密钥，提供商凭证和共享令牌不出现在API中
 响应，工具输出，跟踪或审计事件；
-- 工人创造的结果出现为统一的Artifact，而不会失去其
+- Worker创造的结果出现为统一的Artifact，而不会失去其
 任务运行来源；
 - 传输失败从来没有报告成功的Artifact，并且可以恢复
 存储/数据库状态；以及

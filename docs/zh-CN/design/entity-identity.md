@@ -22,7 +22,7 @@ BuildMax 服务器实体的命名方式。两个标识符，每个标识符一�
 [Beta gateway](../../ROADMAP.md#beta-gate)，其版本迁移要求
 应该从这个模式开始，而不是保留 Alpha 模式。
 
-## 内容
+## 目录
 
 - [1.问题](#1-问题)
 - [2.进球与非进球](#2-目标和非目标)
@@ -199,7 +199,7 @@ func CanonicalPublicID(s string) (string, bool) // any-case text -> canonical te
 `NewPrefixedID` 本身也是如此。登录链、跟踪文件和 Desktop
 项目不是数据库行，但这从来不是前缀的参数 -
 这只是这个变化的边界。它们都不是由一个人或
-已发送，因此没有人保留。
+已下发，因此没有人保留。
 
 有一个。后台作业的 ID 作为工具内的裸字符串到达模型
 输出 — `job: jb_ivyoh5qcfu6ypfkhyedq` 在命令行和文件路径旁边 —
@@ -552,7 +552,7 @@ POST /api/worker/task-runs/{task_run_id}/llm/completions
 {
   "id": "ivyoh5qcfu6ypfkhyedq",
   "space_id": "lzmomgl6mzg2bve3bgka",
-  "conversation_id": "2l73h相关标识符6fcl7eecggda",
+  "conversation_id": "2l73h相应标识符6fcl7eecggda",
   "status": "SUCCEEDED"
 }
 ```
@@ -584,7 +584,7 @@ Agent 和工作流程修订响应丢失其 `id`：已识别修订
 无法成为跨空间的存在神谕。
 
 访问令牌 `sub` 和运行令牌 `sub`、`tid`、`rid`、`kid` 继续携带
-采用新格式的公共 ID。工人路线仍然比较规范的`rid`
+采用新格式的公共 ID。Worker路线仍然比较规范的`rid`
 路线为 `task_run_id`。 `/api/webhook` 仍通过
 webhook 秘密，永远不会使用密钥的公共 ID。
 
@@ -594,7 +594,7 @@ Portal 链接和书签。这就是没有双读的预期成本
 
 ## 11. 非 HTTP 边界
 
-|表面|改变|
+|界面|改变|
 |---|---|
 |对象存储 | `PersistObjectKey`、`RunOutputResultKey`、`RunOutputFileKey`、`TaskBuildmaxObjectKey`、`RunGlobalObjectKey`、`RunArtifactsObjectKey` 和`ArtifactObjectKey` 保留其形状和公共 ID 段。现有对象变得不可访问； §12 重置商店 |
 | Kubernetes | `util.WorkerJobNameForTaskRun` 保持其 DNS-1123 消毒剂不变，base32 ID 通过该消毒剂。测试断言该身份，因此未来的格式更改不能默默地重新引入崩溃 |

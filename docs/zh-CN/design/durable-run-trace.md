@@ -3,7 +3,7 @@
 > **翻译说明：** 本文是[英文原文](../../design/durable-run-trace.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `80e3b3278378abd4a73a03f0b9a0edf878aaa5a70b86731fa04fda94d2be275e`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
 
 
-## 内容
+## 目录
 
 - [状态](#状态)
 - [1.用途](#1-目的)
@@ -39,9 +39,9 @@ Agent运行：模型调用、工具调用、审批决策、hook执行、文件
 日志文件 - 两者都无法重建*Agent 做了什么以及为什么*。
 
 该文档定义了一个建立在
-现有事件流，附加在每个表面已使用的一个阻塞点
-（`agentapp.RunPrompt`），所以CLI/TUI，Desktop，代理评估，和工人全部
-生成没有每个表面代码的痕迹。
+现有事件流，附加在每个界面已使用的一个阻塞点
+（`agentapp.RunPrompt`），所以CLI/TUI，Desktop，代理评估，和Worker全部
+生成没有每个界面代码的痕迹。
 
 这是§3.4（活动视图）、§3.7（子代理）的先决条件
 可追溯性）、§3.8（工作人员诊断）和 Portal 运行诊断。
@@ -53,8 +53,8 @@ Agent运行：模型调用、工具调用、审批决策、hook执行、文件
   还不能表达某些东西（这个过程没有添加任何东西——它映射了现有的
   9 个 `EventKind` 加上合成的 `run_start`）。
 - **一个阻塞点。** `agentapp.RunPrompt` 是 CLI 的单一调用站点
-  （`print.go`、`tui_model.go`）、Desktop、评估和工人
-  （`agentapp/taskrun`）。记录仪的布线覆盖了每个表面。
+  （`print.go`、`tui_model.go`）、Desktop、评估和Worker
+  （`agentapp/taskrun`）。记录仪的布线覆盖了每个界面。
 - **始终打开失败。** 跟踪失败（磁盘已满、权限被拒绝、编码
   错误）绝不能中断或减慢运行速度。每个记录器错误都会在警告处记录
   并掉落。
@@ -298,7 +298,7 @@ agentapp.RunPrompt(ctx, sess, prompt, stream, approval, eventSink)
    （第 4 点）。他们驾驶着钩子阻挡的转弯，这是一条 `RunPrompt` 路径
    在没有现场 LLM 的情况下到达记录器。
 7.`./make test`。
-8. 文件：在发货记录中标记 `trust-harness.md` §3.3 进行中/完成
+8. 文件：在已交付记录中标记 `trust-harness.md` §3.3 进行中/完成
    设置；更新`AGENTS.md`和`design/README.md`。
 
 ### 子代理联动
@@ -318,7 +318,7 @@ links 产生根，并且未来的嵌套子代理以相同的方式组成。当�
 
 ## 9. 验收
 
-- 在任何表面上的任何 `RunPrompt` 之后，`<DataDir>/sessions/<session>/traces/<run>.jsonl`
+- 在任何界面上的任何 `RunPrompt` 之后，`<DataDir>/sessions/<session>/traces/<run>.jsonl`
   存在并包含 `run_start`、每次迭代 LLM/工具记录和
   终端 `run_end`。
 - 超过界限的工具参数/结果和模型内容被截断；

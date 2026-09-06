@@ -5,9 +5,9 @@
 
 > **观众：**贡献者，产品设计师和运营商 · **状态：**当前决定
 
-相关:[路线图](../../ROADMAP.md),[表面定位](surface-positioning.md),[数据模型](../../contribute/architecture/data-model.md)，以及[执行模型Portal](portal-execution-model.md)。
+相关:[路线图](../../ROADMAP.md),[界面定位](surface-positioning.md),[数据模型](../../contribute/architecture/data-model.md)，以及[执行模型Portal](portal-execution-model.md)。
 
-## 内容
+## 目录
 
 - [产品承诺](#产品承诺)
 - [产品模型](#产品模型)
@@ -24,22 +24,22 @@
 
 - 通过CLI/TUI和Desktop进行直接本地执行；
 - 通过服务器和Portal进行空间协作和治理；以及
-- 通过工人TaskRuns进行持久的背景执行。
+- 通过WorkerTaskRuns进行持久的背景执行。
 
 服务器是可选的，用于本地使用.连接本地客户端将身份，管理模型,Space工作和发布添加到私人部署中；它不会将本地执行转化为仅远程产品。
 
 ## 产品模型
 
-### 一个Agent核心，多个表面
+### 一个Agent核心，多个界面
 
 重要的是,Agent功能首先属于共享运行时间.CLI,Desktop,Portal对话，员工可以以不同的方式展示和授权该功能，但他们不得发展单独的工具调用循环或不兼容的执行语义。
 
-详细部门由[表面定位](surface-positioning.md)拥有：
+详细部门由[界面定位](surface-positioning.md)拥有：
 
-- CLI/TUI是最快的地方Agent表面；
+- CLI/TUI是最快的地方Agent界面；
 - Desktop是本地个人Agent工作台；
 - 企业运营层是Portal；以及
-- 工人在没有直接与用户交谈的情况下执行持久的背景运行。
+- Worker在没有直接与用户交谈的情况下执行持久的背景运行。
 
 ### 拥有共同资源的Space
 
@@ -49,15 +49,15 @@ Issue是面向用户的主要工作对象.它声明了工作，将其讨论和�
 
 ### 预先的互动和持续的执行保持着不同
 
-Conversation是一个独立的前景聊天和可选的管弦仪.它可以直接回答或创建一个支持Agent的相关标识符，当工作需要持久的执行时.它不是该Task的强制家长。
+Conversation是一个独立的前景聊天和可选的管弦仪.它可以直接回答或创建一个支持Agent的相应标识符，当工作需要持久的执行时.它不是该Task的强制家长。
 
 Task 加上 TaskRun 是持久的执行平面。可以通过它直接调用 Agent，并且 Task 在后续的 TaskRuns 中保留了 Agent 的会话。Conversation、Issue、Workflow、API 请求或 Webhook 可能是来源，但 Space 仍然是所有者，并且没有来源成为执行或授权的父级。完整的边界和延续模型在 [代理执行和任务线程.md](agent-execution-and-task-threads.md) 中。
 
 ### 结果是优秀的
 
-用户要求结果，而不是内部任务图.因此,BuildMax处理结果总结,Artifact，以及来源作为产品对象而不是日志碎片.Task，运行，步骤，跟踪和模型调用页面是结果背后的解释和钻探表面。
+用户要求结果，而不是内部任务图.因此,BuildMax处理结果总结,Artifact，以及来源作为产品对象而不是日志碎片.Task，运行，步骤，跟踪和模型调用页面是结果背后的解释和钻探界面。
 
-Artifacts是明确的持久出版物。 工人输出目录或本地文件不仅仅是因为它存在而成为Artifact；一个授权生产商故意发布文件。
+Artifacts是明确的持久出版物。 Worker输出目录或本地文件不仅仅是因为它存在而成为Artifact；一个授权生产商故意发布文件。
 
 ## Runtime 原则
 
@@ -122,4 +122,4 @@ Go核心和CLI/TUI仍然可以作为单个二进制器，而没有节点.Portal�
 
 拟议的功能适用于BuildMax，如果它不削弱共享运行时间或Space边界，并且可以清楚解释其权威，耐用性，故障行为和证据，则至少加强一个运行配置。
 
-偏好那些使Agent的结果更容易获得、值得信赖和重复使用的更改。拒绝那些创建了仅限于Portal的Agent的捷径，让本地客户端成为第二个管理表面，让Conversation成为强制的执行父级，让后台运行的进程冒充用户的消息，或将未实现的恢复或安全边界作为产品行为。
+偏好那些使Agent的结果更容易获得、值得信赖和重复使用的更改。拒绝那些创建了仅限于Portal的Agent的捷径，让本地客户端成为第二个管理界面，让Conversation成为强制的执行父级，让后台运行的进程冒充用户的消息，或将未实现的恢复或安全边界作为产品行为。

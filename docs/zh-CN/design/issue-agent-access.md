@@ -3,7 +3,7 @@
 > **翻译说明：** 本文是[英文原文](../../design/issue-agent-access.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `0cd81953c094414cdd50c4240a80b617270a9756ed1f3302564d229f9c18c1f8`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
 
 
-## 内容
+## 目录
 
 - [状态](#状态)
 - [1. 决策](#1-决策)
@@ -71,7 +71,7 @@ Description:
 - **已有两种工具模式。** 共享运行时工具位于 `internal/tool`，由 `internal/agentapp/assembly.go:buildBaseTools` 组装。Tier 1 的编排工具（`StartTask`、`ListTasks`、`GetTask`、`ContinueTask`）位于 `internal/service/conversation/tool_*.go`，并由 `buildConversationTools` 按轮构建。
 - **构造时限定作用域是既有模式。** `getTaskTool` 保存 `scopeID`，只接收 `task_id`；Conversation 的身份不由模型传入。
 - **按条件注册是既有模式。** 只有存在 `ArtifactPublisher` 时才注册 `UploadArtifact`，否则工具完全不存在，见 [unified-artifacts.md](./unified-artifacts.md) §7.1。`Worktree` 和 `Job` 工具也按界面条件注册，并且都不向子 Agent 暴露（`internal/tool/names.go`）。
-- **端口接口让 `internal/tool` 无需感知凭证。** `ArtifactPublisher` 的存在，使该包无需知道文件是通过用户会话还是运行令牌发送到服务器。
+- **端口接口让 `internal/tool` 无需感知凭证。** `ArtifactPublisher` 的存在，使该包无需知道文件是通过用户会话还是运行令牌下发到服务器。
 - **`Access` 已实施。** `llm.Access` 与 `AccessDeclarer`（`internal/core/llm/tool.go`）将调用分类为只读或写入；零值为 `AccessWrite`。见 [tool-permissions.md](./tool-permissions.md) §5.1。
 - **评论已经记录作者类型。** `internal/core/issue` 中存在 `CommentAuthorUser`、`CommentAuthorAgent` 和 `CommentAuthorSystem`。
 - **系统不会自动转换 Issue 状态。** 除 `internal/core/issue` 外，状态常量只出现在验证器 `internal/service/issue/service.go:168` 中。当前产品里的每一次状态转换都由用户发起。
@@ -95,7 +95,7 @@ type IssueClient interface {
 }
 ```
 
-上面的形状是说明性的。 决定的是，边界是`internal/tool`中的一个端口，实现在`internal/interface/client` (登录的本地表面)，员工客户端 (运行代币)，以及服务器自己的运行时间组件 (直接服务调用)。
+上面的形状是说明性的。 决定的是，边界是`internal/tool`中的一个端口，实现在`internal/interface/client` (登录的本地界面)，员工客户端 (运行代币)，以及服务器自己的运行时间组件 (直接服务调用)。
 
 ## 5. 两个工具
 
@@ -110,7 +110,7 @@ type IssueClient interface {
 - 已与Issue相关的Artifacts的引用，作为身份，从来没有作为
 它们的位置：
 
-Artifact引用是**不实现**。 Issue的唯一集成是`aggregateIssueOutputs`，这是Portal工作处理器的方法而不是服务，因此工人路线不能读取它，而不进口该处理器或移动集成一个不属于这个集成的所有权变化.工具无需它们，并没有说任何暗示它看到它们的东西.将集成移动到相关标识符是迁移到提出;11节保持问题。 `internal/service/issue`
+Artifact引用是**不实现**。 Issue的唯一集成是`aggregateIssueOutputs`，这是Portal工作处理器的方法而不是服务，因此Worker路线不能读取它，而不进口该处理器或移动集成一个不属于这个集成的所有权变化.工具无需它们，并没有说任何暗示它看到它们的东西.将集成移动到相应标识符是迁移到提出;11节保持问题。 `internal/service/issue`
 
 它声明`AccessReadOnly`，因此不需要批准，并且可能重叠其[实现的平行工具.md](./parallel-tool-execution.md)下的邻居。
 
@@ -148,7 +148,7 @@ Artifact引用是**不实现**。 Issue的唯一集成是`aggregateIssueOutputs`
 
 ### 据当地Agent的报道，
 
-工作者运行报告被存储为`agent`：写的运行代币是Agent的自己的凭证，任务和运行名称是部署的记录.本地会议没有这些.它举行了一个 *人* 会议，它运行在一个部署没有安排的机器上，没有承认任何配额，并没有记录任何痕迹。
+Worker运行报告被存储为`agent`：写的运行代币是Agent的自己的凭证，任务和运行名称是部署的记录.本地会议没有这些.它举行了一个 *人* 会议，它运行在一个部署没有安排的机器上，没有承认任何配额，并没有记录任何痕迹。
 
 存储两者都在`agent`下，会让Portal读者相信部署证明了他们从未见过的东西.所以一个本地报告被存储为`local_agent`，由传递者编写.服务器验证的唯一身份和负责人.它没有命名任务和没有运行，因为没有.Portal显示它如报道而不是说。
 
@@ -179,12 +179,12 @@ Artifact引用是**不实现**。 Issue的唯一集成是`aggregateIssueOutputs`
 
 服务功能无法服务的端口是零的，然后工具不在工具列表中， 没有在每个通话失败的状态登记。
 
-| 表面 | `GetIssue` | `ReportToIssue` | 为什么？ |
+| 界面 | `GetIssue` | `ReportToIssue` | 为什么？ |
 |---|---|---|---|
 | 采用Worker从Issue开始运行 | 没有 | 没有 | 任务带有Issue ID；运行令牌授权 |
 | 没有Worker运行，没有Issue | 缺席 | 缺席 | 没有任何范围 |
 | 地方CLI/TUI会议开始 `--issue` | 没有 | 没有 | 需要登录；报告为`local_agent`， §6.1 |
-| 会议时间： Desktop | 没有 | 没有 | 没有Desktop表面提供它 |
+| 会议时间： Desktop | 没有 | 没有 | 没有Desktop界面提供它 |
 | 没有连接的本地会议或未登录 | 缺席 | 缺席 | 地方工作不变 |
 | 级别1的对话 | 延迟 | 延迟 | §11 |
 | 子 | 缺席 | 缺席 | 下面见 |
@@ -197,12 +197,12 @@ Artifact引用是**不实现**。 Issue的唯一集成是`aggregateIssueOutputs`
 儿童创建，删除或存档。
 - 针对非被定范围的Issue，包括一个兄弟姐妹或
 儿童的父母。
-- 列出一个空间的Issues从工具。 分配工作收件箱是一个表面
+- 列出一个空间的Issues从工具。 分配工作收件箱是一个界面
 根据当地Issue桥梁提案决定的个人特征，而不是模型
 能否。
 - 暂停，第11条
 - 读或写Tasks和TaskRuns。
-工人不会自己组织。
+Worker不会自己组织。
 - 博的乐观货币合同。 Issue
 影响Portal的，它本身值得修复，并且已：更新
 现在携带了`version`它是从中建造的，并且被拒绝使用409
@@ -223,16 +223,16 @@ Artifact引用是**不实现**。 Issue的唯一集成是`aggregateIssueOutputs`
 子的工具，这是第8条所需要的。 `buildBaseTools`
 任何代表登记册都由此构建，因此放置在其中的工具将达到
 现在，一个。
-4. 工人客户端的工人飞机的端口，
+4. Worker客户端的Worker飞机的端口，
 运行任务IssueID，并将其注册在`internal/agentapp/taskrun`。
 5. 添加服务器侧读取和评论路线，
 现有空间Issue路线，可授权运行代币对
 他们。
 6. 实现登录本地中`internal/interface/client`的端口
-表面，并将一个会议范围扩展到Issue，并使用`buildmax --issue <id>`。
+界面，并将一个会议范围扩展到Issue，并使用`buildmax --issue <id>`。
 报告通过空间评论路线进行`local_agent` (6.1节)。
 
-步骤15是工人平面工作，站着独自；步骤6是当地的Issue桥的第一块， Desktop
+步骤15是Worker平面工作，站着独自；步骤6是当地的Issue桥的第一块， Desktop
 
 ## 11. 开放问题
 

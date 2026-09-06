@@ -7,7 +7,7 @@
 
 相关:[路线图](../../ROADMAP.md)步骤 5,[会议树，代理邮箱和分支的工作空间](../../proposals/session-tree-and-agent-mailbox.md) §9.1,[子系统](hook-system.md),[沙箱的边界](sandbox-boundaries.md),[工具权限](tool-permissions.md),[地方背景工作](local-background-jobs.md),[环境持久性](context-durability.md),[子代理 Agent](../../contribute/architecture/agent-loop.md),[会议架构](../../contribute/architecture/session.md),[建筑物:CLI](../../contribute/architecture/cli.md)。
 
-## 内容
+## 目录
 
 - [1。 这段记录决定了什么](#1-这段记录决定了什么)
 - [2。 为什么](#2-为什么)
@@ -41,7 +41,7 @@
 | 根是固定的，当运行时间组装，没有什么改变它之后 | 子代理 `internal/agentapp/app.go` `--workspace` `internal/interface/cli/root.go` |
 | 阅读，写，编辑,Glob和Grep拒绝任何路径 | 通过`ResolvePath`在`internal/util/workspace.go`中进行`internal/tool/base.go` |
 | 每次Bash电话前景和背景工作从根开始，所以`cd`永远不会生存 | `internal/tool/bash.go` |
-| 没有表面可转换;TUI没有命令 | `internal/interface/cli/chat.go` |
+| 没有界面可转换;TUI没有命令 | `internal/interface/cli/chat.go` |
 | 子和背景工作都通过建设分享父母的根源 | `internal/tool/task.go`， `internal/agentapp/job` |
 | 沙盒将工作空间绑定，只有工作空间，可编写 | `internal/infra/sandbox/manager.go` |
 
@@ -57,7 +57,7 @@
 
 ## 4. 根源不仅仅是道路
 
-随着 `internal/agentapp/app_builder.go` 组装，从根部解决工作空间,MCP 服务器，技能和子定义.沙盒管理器由此构建.每次转换,`BuildEffectiveSystemPrompt` 从此读取工作空间 `AGENTS.md`。 `/diff` 在 `App.WorkspaceRoot()` 上读取相关标识符 工作空间，而 TUI 则报告该路径为会议所在地。 Git
+随着 `internal/agentapp/app_builder.go` 组装，从根部解决工作空间,MCP 服务器，技能和子定义.沙盒管理器由此构建.每次转换,`BuildEffectiveSystemPrompt` 从此读取工作空间 `AGENTS.md`。 `/diff` 在 `App.WorkspaceRoot()` 上读取相应标识符 工作空间，而 TUI 则报告该路径为会议所在地。 Git
 
 每个人都需要一个答案，答案不同：
 
@@ -126,9 +126,9 @@
 
 代表可以得到自己的工作树.这是在提供，从来没有被强加的：没有什么强迫每一个工作树，每一个代表决定隔离是否值得.一个树中的两个作家是一个真正的危险。 [地方背景工作](local-background-jobs.md)
 
-### 8 相关标识符 和 TUI 得到全部功能； Desktop 仅显示根 CLI
+### 8 相应标识符 和 TUI 得到全部功能； Desktop 仅显示根 CLI
 
-命令是D5的可见性面向用户的一面：它列出每个工作树，哪个会议将其保留，以及它将其保留什么，它允许用户从同一视图中删除一个.从看到树后唯一的行动是没有其他收获.删除执行D4：当前树和另一个会议被拒绝，一个清洁树在确认时被删除，并且一个有工作的树只在确认后被删除，该问题将会被丢弃.这是用户的清洁，而不是D5拒绝的解释.相关标识符 `/worktree` `Project` TUI Desktop Project
+命令是D5的可见性面向用户的一面：它列出每个工作树，哪个会议将其保留，以及它将其保留什么，它允许用户从同一视图中删除一个.从看到树后唯一的行动是没有其他收获.删除执行D4：当前树和另一个会议被拒绝，一个清洁树在确认时被删除，并且一个有工作的树只在确认后被删除，该问题将会被丢弃.这是用户的清洁，而不是D5拒绝的解释.相应标识符 `/worktree` `Project` TUI Desktop Project
 
 ### D9.模型名称工作树及其分支
 
@@ -138,7 +138,7 @@
 
 ### D10。 占用是工作树的 Git管理目录中的一个建议锁
 
-链接的工作树的`.git`是一个指向`<repo>/.git/worktrees/<name>/`的文件，其中Git保存了该工作树的 `HEAD`,`index`和相关标识符.该目录是占用量标记的正确所在地：它位于工作树之外，因此从未出现在用户的相关标识符，以及相关标识符和相关标识符 `locked` `git status` `git worktree remove` `git worktree prune` `CLAUDE_BASE`
+链接的工作树的`.git`是一个指向`<repo>/.git/worktrees/<name>/`的文件，其中Git保存了该工作树的 `HEAD`,`index`和相应标识符.该目录是占用量标记的正确所在地：它位于工作树之外，因此从未出现在用户的相应标识符，以及相应标识符和相应标识符 `locked` `git status` `git worktree remove` `git worktree prune` `CLAUDE_BASE`
 
 标记是一个由会议过程保持开放的辅导文件锁，只要它在树里，而不是记录的过程ID.操作系统在进程出门时释放它，包括崩，因此"空"不需要停滞的论，也不需要对PID重复使用的防御.这使得D3的拒绝安全执行,D5的"用户声称它"更是真实的，而不是一个被一个死于会议永远锁定的树.标记 *包含*  会议ID，开始时间  存在以命名持有人在拒绝消息，而不是决定寿命。
 
@@ -181,7 +181,7 @@ agent > Left the worktree; it and its branch are kept at
 | 操作系统在出口时释放的占用锁 | `internal/infra/flock` |
 | 一个会议的生命周期：可以进入什么，谁占据它，以及移动 | `internal/agentapp/worktree` |
 | 作为移动的一部分，重新解决根决定的问题 | `internal/agentapp` (`sessionRoot`) |
-| 工具表面和其许可级别 Runtime | `internal/tool` (`Worktree`) |
+| 工具界面和其许可级别 Runtime | `internal/tool` (`Worktree`) |
 | 根后面的`/worktree`板，脚和`/diff` | `internal/interface/cli` |
 | 根据该指令，该指令的执行程序的执行程序将被执行。 | `internal/agentapp` (`agentTypeToolsAt`) |
 | 随根的沙盒可写结 | `internal/infra/sandbox` |
@@ -191,15 +191,15 @@ agent > Left the worktree; it and its branch are kept at
 
 ## 8. 按阶段交付
 
-** 阶段 1 根成为会话状态。 实现.** `util.Workspace`是合同， `agentapp.MovableRoot`是状态，文件工具,Bash， `Monitor`， `Task`，沙盒的可写结， TUI脚本，和 `/diff`都每次电话读取。 相关标识符服务于每一个移动的表面和测试。 没有工作树能力，而 相关标识符的行为都无法完全恢复，所以它在现有的阶段上运输之前，它完全无法恢复。 `util.FixedRoot` `--workspace`
+** 阶段 1 根成为会话状态。 实现.** `util.Workspace`是合同， `agentapp.MovableRoot`是状态，文件工具,Bash， `Monitor`， `Task`，沙盒的可写结， TUI脚本，和 `/diff`都每次电话读取。 相应标识符服务于每一个移动的界面和测试。 没有工作树能力，而 相应标识符的行为都无法完全恢复，所以它在现有的阶段上运输之前，它完全无法恢复。 `util.FixedRoot` `--workspace`
 
-**阶段2 工作树生命周期。 实施.** `internal/agentapp/worktree`拥有它， `internal/infra/git` Git 机械，和 `internal/infra/flock` 占用锁。 `Worktree` 工具和 TUI 的 相关标识符 面板是两个表面。 D3 的封闭， D4 的检查层， D5 的拒绝自行删除任何东西， D6 的脏报告， D9 的命名，和 D10 的锁都在生效。 `/worktree`
+**阶段2 工作树生命周期。 实施.** `internal/agentapp/worktree`拥有它， `internal/infra/git` Git 机械，和 `internal/infra/flock` 占用锁。 `Worktree` 工具和 TUI 的 相应标识符 面板是两个界面。 D3 的封闭， D4 的检查层， D5 的拒绝自行删除任何东西， D6 的脏报告， D9 的命名，和 D10 的锁都在生效。 `/worktree`
 
 **阶段3 衍生配置。 实现.** 移动根和重新解决它决定的东西是一个操作，在`sessionRoot.Set`：任何移动根的东西都会让会话运行一个树的和技能与另一个树的文件，从外面看来没有什么看起来错误.Hooks重组，技能和子定义重组解决，缓存工具注册表下降，并调整MCP。 `AGENTS.md`
 
 阶段2发布了一个版本之前的阶段3，这仅仅是因为同一仓库的工作树通常具有相同的工作空间配置，所以过时的快照通常是相同的快照.该参数不存活放松的D3，而且不再需要：阶段3已经降落。
 
-**4 阶段  其他表面。 实施.** `WorktreeCreate`， `WorktreeRemove`，和 `CwdChanged`从生命周期中火，所有建议：工具调用已经通过`PreToolUse`，所以第二门只能留下一个工作树半创建，一个失败的子永远不会撤销发生的移动。 Desktop没有代码。 [导航/工具.md](../../guide/tools.md) [导航/子.md](../../guide/hooks.md)
+**4 阶段  其他界面。 实施.** `WorktreeCreate`， `WorktreeRemove`，和 `CwdChanged`从生命周期中火，所有建议：工具调用已经通过`PreToolUse`，所以第二门只能留下一个工作树半创建，一个失败的子永远不会撤销发生的移动。 Desktop没有代码。 [导航/工具.md](../../guide/tools.md) [导航/子.md](../../guide/hooks.md)
 
 **第5阶段 代表工作树。 实施.** `Task`取了一个可选的`worktree`名称。 树被创建并保持其占用锁，只要代表运行，前景或背景，而父母的根不会移动：委托到树中不是转换到树上。 委托的工具是重建的，因为父母的实例保持父母的根，交给这些将打败孤立。 答案命名树，这在这里比其他任何地方都重要  没有什么会把它移除，所以代表的变化会在父母从未学习的地方。
 
