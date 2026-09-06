@@ -404,6 +404,14 @@ type ServerStorageConfig struct {
 	// default and the maximum a create request may ask for. Zero uses the
 	// built-in default (30 days).
 	ArtifactShareTTLHours int `mapstructure:"artifact_share_ttl_hours"`
+	// CheckpointOrphanGraceDays holds an uncommitted checkpoint payload this long
+	// before the orphan sweep reclaims it — bytes a worker uploaded whose pointer
+	// never committed. Zero, the default, reclaims on the next sweep once the
+	// payload is older than the sweep can observe an in-flight upload, which is
+	// safe because the commit protocol writes bytes before the pointer. A larger
+	// window lets an operator recover the payload from the bucket first; BuildMax
+	// offers no undelete of its own.
+	CheckpointOrphanGraceDays int `mapstructure:"checkpoint_orphan_grace_days"`
 }
 
 // ServerSecretConfig configures the Space Secret store. KEKFile is the path to

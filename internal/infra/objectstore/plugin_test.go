@@ -246,6 +246,16 @@ func (f *fakeS3) ListObjectKeys(_ context.Context, _, prefix string) ([]string, 
 	return keys, nil
 }
 
+func (f *fakeS3) ListObjects(_ context.Context, _, prefix string) ([]ObjectInfo, error) {
+	var out []ObjectInfo
+	for k := range f.objects {
+		if strings.HasPrefix(k, prefix) {
+			out = append(out, ObjectInfo{Key: k})
+		}
+	}
+	return out, nil
+}
+
 func (f *fakeS3) GetObjectStream(_ context.Context, _, key string) (io.ReadCloser, int64, error) {
 	data, ok := f.objects[key]
 	if !ok {

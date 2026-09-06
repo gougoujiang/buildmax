@@ -282,6 +282,25 @@ func (s *Store) RecordWorkspaceRestore(ctx context.Context, taskRunID string, st
 	return nil
 }
 
+// ReferencedCheckpointStorageKeys returns the set of every storage_key a
+// workspace_checkpoint row names. The orphan sweep lists the payload store and
+// deletes any blob this set does not contain: a payload with no row is an
+// orphan, never a checkpoint (§8, §12.4). It is a set because payload_sha256 is
+// intentionally non-unique — several rows may name the same immutable payload.
+func (s *Store) ReferencedCheckpointStorageKeys(ctx context.Context) (map[string]struct{}, error) {
+	var keys []string
+	if err := s.db.WithContext(ctx).Model(&workspaceCheckpointRow{}).
+		Distinct("storage_key").
+		Pluck("storage_key", &keys).Error; err != nil {
+		return nil, err
+	}
+	set := make(map[string]struct{}, len(keys))
+	for _, k := range keys {
+		set[k] = struct{}{}
+	}
+	return set, nil
+}
+
 func toWorkspaceCheckpoint(row *workspaceCheckpointRow, spaceID, taskID, runID string, baseID *string) *coretask.WorkspaceCheckpoint {
 	return &coretask.WorkspaceCheckpoint{
 		ID:                row.PublicID,

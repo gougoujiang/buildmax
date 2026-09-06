@@ -6,12 +6,21 @@ import (
 	"fmt"
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	"io"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
+
+// ObjectInfo is one listed object's key and last-modified time. The orphan sweep
+// needs the time to leave recently written blobs alone, so listing that dropped
+// it would force a HEAD per object.
+type ObjectInfo struct {
+	Key     string
+	ModTime time.Time
+}
 
 // S3Client is a minimal S3-compatible client used by persist and artifact storage.
 // Implementations can wrap AWS SDK v2 or MinIO; tests can provide a fake.
@@ -29,6 +38,10 @@ type S3Client interface {
 	// ListObjectKeys returns object keys under the given prefix (keys include the prefix).
 	// Prefix should end with "/" for directory-style listing.
 	ListObjectKeys(ctx context.Context, bucket, prefix string) ([]string, error)
+	// ListObjects returns each object under the prefix with its last-modified
+	// time, for callers that must reason about object age. Keys include the
+	// prefix; prefix should end with "/" for directory-style listing.
+	ListObjects(ctx context.Context, bucket, prefix string) ([]ObjectInfo, error)
 	// ObjectExists reports whether an object is present.
 	ObjectExists(ctx context.Context, bucket, key string) (bool, error)
 }
@@ -150,4 +163,29 @@ func (a *s3ClientAdapter) ListObjectKeys(ctx context.Context, bucket, prefix str
 		}
 	}
 	return keys, nil
+}
+
+func (a *s3ClientAdapter) ListObjects(ctx context.Context, bucket, prefix string) ([]ObjectInfo, error) {
+	var out []ObjectInfo
+	paginator := s3.NewListObjectsV2Paginator(a.client, &s3.ListObjectsV2Input{
+		Bucket: aws.String(bucket),
+		Prefix: aws.String(prefix),
+	})
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("list objects: %w", err)
+		}
+		for _, o := range page.Contents {
+			if o.Key == nil {
+				continue
+			}
+			var mod time.Time
+			if o.LastModified != nil {
+				mod = *o.LastModified
+			}
+			out = append(out, ObjectInfo{Key: *o.Key, ModTime: mod})
+		}
+	}
+	return out, nil
 }

@@ -175,3 +175,39 @@ func hex64(c byte) string {
 	}
 	return string(b)
 }
+
+// TestReferencedCheckpointStorageKeys pins that the orphan sweep's liveness read
+// returns every storage key a checkpoint row names, and only those.
+func TestReferencedCheckpointStorageKeys(t *testing.T) {
+	s, spaceID, taskID, runID := seedTaskForCheckpoint(t)
+	ctx := t.Context()
+
+	if _, err := s.FinalizeWorkspaceCheckpoint(ctx, coretask.FinalizeCheckpointInput{
+		SpaceID: spaceID, TaskID: taskID, SourceTaskRunID: runID,
+		Kind: coretask.CheckpointKindSeed, PayloadFormat: coretask.PayloadFormatTarZstV1,
+		PayloadSHA256: hex64('a'), StorageKey: "k/seed", SizeBytes: 10, UncompressedBytes: 20, EntryCount: 3,
+	}); err != nil {
+		t.Fatalf("finalize seed: %v", err)
+	}
+	if _, err := s.FinalizeWorkspaceCheckpoint(ctx, coretask.FinalizeCheckpointInput{
+		SpaceID: spaceID, TaskID: taskID, SourceTaskRunID: runID,
+		Kind: coretask.CheckpointKindSuccessful, PayloadFormat: coretask.PayloadFormatTarZstV1,
+		PayloadSHA256: hex64('c'), StorageKey: "k/result", SizeBytes: 12, UncompressedBytes: 22, EntryCount: 5,
+	}); err != nil {
+		t.Fatalf("finalize result: %v", err)
+	}
+
+	keys, err := s.ReferencedCheckpointStorageKeys(ctx)
+	if err != nil {
+		t.Fatalf("ReferencedCheckpointStorageKeys: %v", err)
+	}
+	if _, ok := keys["k/seed"]; !ok {
+		t.Error("seed storage key not reported as referenced")
+	}
+	if _, ok := keys["k/result"]; !ok {
+		t.Error("result storage key not reported as referenced")
+	}
+	if _, ok := keys["k/never-stored"]; ok {
+		t.Error("an unstored key must not be reported as referenced")
+	}
+}

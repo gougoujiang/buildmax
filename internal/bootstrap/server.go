@@ -162,6 +162,11 @@ func RunServer(ctx context.Context, portOverride int) error {
 	artifacts := scheduler.NewArtifactRetainer(store, storage.artifact, store, sc.Storage.ArtifactPurgeAfterDays, 0)
 	artifacts.Start()
 
+	// Reclaims checkpoint payloads a worker uploaded but never committed a
+	// pointer for. Nil-safe, so a deployment without checkpoint storage skips it.
+	checkpoints := scheduler.NewCheckpointOrphanSweeper(storage.checkpoint, store, sc.Storage.CheckpointOrphanGraceDays, 0)
+	checkpoints.Start()
+
 	s := httpserver.New(serverConfig)
 	s.StartBackground()
 	slog.Info("server starting",
@@ -181,7 +186,7 @@ func RunServer(ctx context.Context, portOverride int) error {
 	case err := <-serveErr:
 		// The listener failed before any signal — a taken port, a bad address.
 		// Nothing has started serving, so there is nothing to drain.
-		shutdownServer(context.Background(), targetsFor(s, sched, cleaner, reaper, retainer, artifacts), budget)
+		shutdownServer(context.Background(), targetsFor(s, sched, cleaner, reaper, retainer, artifacts, checkpoints), budget)
 		return err
 	case <-signalCtx.Done():
 	}
@@ -191,7 +196,7 @@ func RunServer(ctx context.Context, portOverride int) error {
 	// handler that is already running one.
 	stopSignals()
 	slog.Info("shutdown requested", "grace", sc.ShutdownGrace)
-	shutdownServer(ctx, targetsFor(s, sched, cleaner, reaper, retainer, artifacts), budget)
+	shutdownServer(ctx, targetsFor(s, sched, cleaner, reaper, retainer, artifacts, checkpoints), budget)
 
 	slog.Info("server stopped")
 	return <-serveErr
@@ -226,11 +231,12 @@ type shutdownTargets struct {
 }
 
 // targetsFor names what RunServer started in the order the ladder stops it.
-func targetsFor(s *httpserver.Server, sched *scheduler.Scheduler, cleaner *scheduler.CredentialCleaner, reaper *scheduler.StaleRunReaper, retainer *scheduler.AuditRetainer, artifacts *scheduler.ArtifactRetainer) shutdownTargets {
+func targetsFor(s *httpserver.Server, sched *scheduler.Scheduler, cleaner *scheduler.CredentialCleaner, reaper *scheduler.StaleRunReaper, retainer *scheduler.AuditRetainer, artifacts *scheduler.ArtifactRetainer, checkpoints *scheduler.CheckpointOrphanSweeper) shutdownTargets {
 	return shutdownTargets{
 		server:    s,
 		scheduler: namedStop{name: "scheduler", stop: func(ctx context.Context) { sched.Stop(ctx) }},
 		loops: []namedStop{
+			{name: "checkpoint orphan sweeper", stop: ignoringContext(checkpoints.Stop)},
 			{name: "audit retainer", stop: ignoringContext(retainer.Stop)},
 			{name: "artifact retainer", stop: ignoringContext(artifacts.Stop)},
 			{name: "stale run reaper", stop: ignoringContext(reaper.Stop)},
@@ -343,9 +349,10 @@ type blobStorage struct {
 	persist  blob.PersistStorage
 	artifact artifactsvc.ContentStore
 	packages pluginsvc.PackageStore
-	// checkpoint reads workspace checkpoint payloads: the finalizer verifies a
-	// worker's uploaded bytes and derives their canonical key through it.
-	checkpoint workspacesvc.PayloadStore
+	// checkpoint is the workspace checkpoint payload store: the finalizer reads it
+	// to verify a worker's uploaded bytes and derive their key, and the orphan
+	// sweep reads and prunes it. One store, two views.
+	checkpoint blob.CheckpointStore
 	// packageKeyPrefix scopes package keys inside whichever backend holds them.
 	packageKeyPrefix string
 }
@@ -374,7 +381,7 @@ func buildBlobStorage(ctx context.Context, sc config.ServerStorageConfig, worksp
 	// A single content-addressed tree for all spaces; the space id is inside the
 	// key. Under "checkpoints" so it cannot collide with a space's home or the
 	// artifacts tree.
-	checkpointStore, err := BuildCheckpointPayloadStore(wsCfg, filepath.Join(workspacesDir, "checkpoints"), s3Client)
+	checkpointStore, err := BuildCheckpointStore(wsCfg, filepath.Join(workspacesDir, "checkpoints"), s3Client)
 	if err != nil {
 		return blobStorage{}, fmt.Errorf("checkpoint storage: %w", err)
 	}
