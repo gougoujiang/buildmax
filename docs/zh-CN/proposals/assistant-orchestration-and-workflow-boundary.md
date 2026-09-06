@@ -1,16 +1,18 @@
-# Assistant Orchestration And The Workflow Boundary
+# Assistant Orchestration And Workflow Boundary
 
-> **简体中文：** [阅读中文镜像](../zh-CN/proposals/assistant-orchestration-and-workflow-boundary.md)
+> **翻译说明：** 本文是[英文原文](../../proposals/assistant-orchestration-and-workflow-boundary.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `4832c56ee673d8bce43649eec678de90fcbe2fd5644f23ff7916adce3fc6ea46`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+
+# Assistant Orchestration And The Workflow Boundary
 
 > **Audience:** contributors and product reviewers · **Status:** proposal — under discussion
 > **Opened:** 2026-09-05
 
 Related: [roadmap](../ROADMAP.md),
-[product vision](../design/product-vision.md),
-[Workflow runtime](../design/workflow-runtime.md),
-[Agent execution and Task threads](../design/agent-execution-and-task-threads.md),
-[Portal execution model](../design/portal-execution-model.md), and
-[skills and subagents](../../help/skills-and-subagents.md).
+[product vision](../../design/product-vision.md),
+[Workflow runtime](../../design/workflow-runtime.md),
+[Agent execution and Task threads](../../design/agent-execution-and-task-threads.md),
+[Portal execution model](../../design/portal-execution-model.md), and
+[skills and subagents](../../../help/skills-and-subagents.md).
 
 ## Contents
 
@@ -66,7 +68,7 @@ The resulting product principle would be:
 > TaskRun.
 
 This is a proposal, not a reversal of the accepted
-[Workflow runtime](../design/workflow-runtime.md). The durability, authority,
+[Workflow runtime](../../design/workflow-runtime.md). The durability, authority,
 idempotency, and recovery decisions in that record remain useful under every
 option. What is reopened here is the default authoring model, the amount of
 graph breadth worth shipping, and the Portal vocabulary.
@@ -892,11 +894,11 @@ paper:
 
 - Agent roster, revision pinning, parent-child Task ownership, and result
   propagation belong in
-  [Agent execution and Task threads](../design/agent-execution-and-task-threads.md).
+  [Agent execution and Task threads](../../design/agent-execution-and-task-threads.md).
 - The user-facing role of Assistant, AI Space, and Home belongs in
-  [product vision](../design/product-vision.md) and the relevant Portal design.
+  [product vision](../../design/product-vision.md) and the relevant Portal design.
 - The deterministic Automation boundary, Assistant node contract, and delivery
-  sequence belong in [Workflow runtime](../design/workflow-runtime.md).
+  sequence belong in [Workflow runtime](../../design/workflow-runtime.md).
 - Accepted priority belongs only in [the roadmap](../ROADMAP.md).
 
 If bounded delegation does not beat one strong Agent, retire this proposal and

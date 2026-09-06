@@ -1,14 +1,16 @@
 # System Administration Operations
 
-> **简体中文：** [阅读中文镜像](../zh-CN/proposals/system-administration-operations.md)
+> **翻译说明：** 本文是[英文原文](../../proposals/system-administration-operations.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `4fce28b28da61192103e2188c39a98ff0302700cc3e37ad2296814f9ee059246`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+
+# System Administration Operations
 
 > **Audience:** contributors, operators, and security reviewers · **Status:** proposal — under discussion
 >
 > **Opened:** 2026-09-05
 
-Related: [system administration design](../design/system-administration.md),
-[space governance](../design/space-governance.md),
-[space membership lifecycle](../design/space-membership-lifecycle.md),
+Related: [system administration design](../../design/system-administration.md),
+[space governance](../../design/space-governance.md),
+[space membership lifecycle](../../design/space-membership-lifecycle.md),
 [enterprise identity and access](enterprise-identity-and-access.md), and the
 [roadmap](../ROADMAP.md).
 
@@ -34,7 +36,7 @@ Related: [system administration design](../design/system-administration.md),
 ## 1. Problem
 
 BuildMax already has deployment-scoped system administration. The accepted
-[system administration design](../design/system-administration.md) is marked
+[system administration design](../../design/system-administration.md) is marked
 implemented, `internal/server/handlers/admin` registers the administration API,
 and Portal has an Administration area. The missing product is therefore not a
 new superuser or a second authorization system.

@@ -1,18 +1,20 @@
 # Local Issue Work Bridge
 
-> **简体中文：** [阅读中文镜像](../zh-CN/proposals/local-issue-work-bridge.md)
+> **翻译说明：** 本文是[英文原文](../../proposals/local-issue-work-bridge.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `090c9088eb7b2f27f52b827992282bc644314dde9455297043c128fc50c21c48`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+
+# Local Issue Work Bridge
 
 > **Audience:** contributors, product reviewers, operators, and early adopters · **Status:** proposal — under discussion
 >
 > **Opened:** 2026-08-22
 
 Related: [roadmap](../ROADMAP.md),
-[surface positioning](../design/surface-positioning.md),
-[data model](../contribute/architecture/data-model.md),
-[unified artifacts](../design/unified-artifacts.md),
-[Desktop architecture](../contribute/architecture/desktop.md),
-[CLI architecture](../contribute/architecture/cli.md),
-[Issue agent access](../design/issue-agent-access.md), and the
+[surface positioning](../../design/surface-positioning.md),
+[data model](../../contribute/architecture/data-model.md),
+[unified artifacts](../../design/unified-artifacts.md),
+[Desktop architecture](../../contribute/architecture/desktop.md),
+[CLI architecture](../../contribute/architecture/cli.md),
+[Issue agent access](../../design/issue-agent-access.md), and the
 [durable Agent sessions proposal](durable-agent-sessions.md).
 
 ## Contents
@@ -124,7 +126,7 @@ Several required pieces already exist:
   [Status Is A Space Statement, Not Presence](#status-is-a-space-statement-not-presence),
   and the change carries the version it was read at.
 - How an Agent itself reads and reports on the Issue it is working is decided
-  by [Issue agent access](../design/issue-agent-access.md): two runtime tools
+  by [Issue agent access](../../design/issue-agent-access.md): two runtime tools
   scoped by construction to one Issue, with status, assignment, and hierarchy
   never tool-writable. This proposal supplies the local implementation of that
   record's port; it does not redesign the boundary.
@@ -268,7 +270,7 @@ Portal. Remote mutations require an explicit user action or an ordinary Agent
 tool approval; merely opening or discussing an Issue changes nothing.
 
 Which of those the Agent may do at all is settled:
-[Issue agent access](../design/issue-agent-access.md) gives it a bounded comment
+[Issue agent access](../../design/issue-agent-access.md) gives it a bounded comment
 and nothing else. Status, assignment, hierarchy, and child creation are user
 actions in this proposal's surfaces, not tool calls.
 
@@ -488,7 +490,7 @@ claiming Server authority over behavior the Server cannot observe or control.
    mappings across Issues and devices?
 5. Should a local result create a specialized execution-summary record, a
    normal user comment with relations, or wait for Durable Agent Sessions?
-   [Issue agent access](../design/issue-agent-access.md) §11 asks the same
+   [Issue agent access](../../design/issue-agent-access.md) §11 asks the same
    question from the tool side: an Artifact a runless Session publishes has no
    task run to hang on, and the Issue's outputs aggregation reads runs.
 6. Which Portal view distinguishes “worked locally” from “ran in a Worker”
@@ -509,7 +511,7 @@ frequency, and whether users still need the full Portal during execution.
 
 If the direction is accepted:
 
-1. update [surface positioning](../design/surface-positioning.md) so contextual
+1. update [surface positioning](../../design/surface-positioning.md) so contextual
    Issue work is a committed CLI/Desktop bridge, not only an optional inbox;
 2. put the prioritized delivery phase in [ROADMAP.md](../ROADMAP.md);
 3. align with the durable Agent sessions decision on identity and relations;

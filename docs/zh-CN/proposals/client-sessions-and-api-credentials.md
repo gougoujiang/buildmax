@@ -1,6 +1,8 @@
-# Client Sessions And API Credentials
+# Client Sessions And Api Credentials
 
-> **简体中文：** [阅读中文镜像](../zh-CN/proposals/client-sessions-and-api-credentials.md)
+> **翻译说明：** 本文是[英文原文](../../proposals/client-sessions-and-api-credentials.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `8646bebdee7cd28e123ebe7706e97f90b993c1c68287759c30cf4aa85ad6e415`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+
+# Client Sessions And API Credentials
 
 > **Audience:** contributors, product reviewers, operators, and security reviewers · **Status:** proposal — under discussion
 >
@@ -8,10 +10,10 @@
 
 Related: [roadmap](../ROADMAP.md) P3 and P4,
 [deployment authentication](../deploy/authentication.md),
-[managed LLM gateway design](../design/llm-gateway.md),
-[client modes design](../design/client-modes.md),
-[worker run token design](../design/worker-run-token.md),
-[data model](../contribute/architecture/data-model.md), and the
+[managed LLM gateway design](../../design/llm-gateway.md),
+[client modes design](../../design/client-modes.md),
+[worker run token design](../../design/worker-run-token.md),
+[data model](../../contribute/architecture/data-model.md), and the
 [enterprise identity and access proposal](enterprise-identity-and-access.md).
 
 ## Contents

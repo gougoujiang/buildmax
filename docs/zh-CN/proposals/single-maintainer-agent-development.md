@@ -1,6 +1,8 @@
-# Single-Maintainer Agent Development Workflow
+# Single Maintainer Agent Development
 
-> **简体中文：** [阅读中文镜像](../zh-CN/proposals/single-maintainer-agent-development.md)
+> **翻译说明：** 本文是[英文原文](../../proposals/single-maintainer-agent-development.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `2687e6e51202d0af66b8b23b5c0df1c549299fc92b75ca151301149a152f0101`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+
+# Single-Maintainer Agent Development Workflow
 
 > **Audience:** maintainers, contributors, and coding-Agent workflow authors · **Status:** proposal — under discussion
 >
@@ -8,12 +10,12 @@
 
 Related: [roadmap](../ROADMAP.md),
 [current-state assessment](../current-state.md),
-[testing guide](../contribute/testing.md),
-[verification program](../design/verification-program.md),
-[evaluation system](../design/evaluation-system.md),
-[workspace root and worktrees](../design/workspace-root-and-worktrees.md),
-[repository Agent guide](../../AGENTS.md), and
-[this repository's BuildMax configuration](../../.buildmax/README.md).
+[testing guide](../../contribute/testing.md),
+[verification program](../../design/verification-program.md),
+[evaluation system](../../design/evaluation-system.md),
+[workspace root and worktrees](../../design/workspace-root-and-worktrees.md),
+[repository Agent guide](../../../AGENTS.md), and
+[this repository's BuildMax configuration](../../../.buildmax/README.md).
 
 ## Contents
 
@@ -64,7 +66,7 @@ development:
 
 - the repository task runner gives build, test, check, end-to-end, deployment,
   evaluation, and release work one cross-platform command surface;
-- the [testing guide](../contribute/testing.md) maps changes to proportional
+- the [testing guide](../../contribute/testing.md) maps changes to proportional
   unit, MySQL, browser, Compose, and kind evidence;
 - tests isolate `BUILDMAX_HOME`, and owned end-to-end environments avoid
   colliding with a maintainer's persistent state;
@@ -97,7 +99,7 @@ The remaining bottleneck is coordination and evidence closure:
   them into one accepted direction and deleted the losing proposal. The
   resolution was correct, but parallel production still created avoidable
   arbitration and cleanup work for the maintainer.
-- The [verification program](../design/verification-program.md) asks for a
+- The [verification program](../../design/verification-program.md) asks for a
   fresh acceptance pass and a structured behavior review block, but neither is
   yet a normal executable stage of every behavior-changing contribution.
 - The testing matrix is precise human-readable guidance. An Agent must still
@@ -345,7 +347,7 @@ This yields useful parallelism without making the maintainer the merge queue.
 
 ### Changed-Scope Verification
 
-The [testing guide](../contribute/testing.md) should remain the explanatory
+The [testing guide](../../contribute/testing.md) should remain the explanatory
 source. The task runner should encode its current path-to-evidence decisions so
 two Agents do not independently reinterpret the same matrix.
 
@@ -370,7 +372,7 @@ and produced evidence. It does not receive the implementer's private reasoning
 as its starting explanation.
 
 Its result follows the behavior block already selected by the
-[verification program](../design/verification-program.md):
+[verification program](../../design/verification-program.md):
 
 ```text
 Behavior:
@@ -625,9 +627,9 @@ acceptance does not reduce review time or escaped defects.
 ## 16. Likely Destination If Accepted
 
 The stable contributor workflow and command behavior would move into
-[contributor documentation](../contribute/README.md) and the task runner's own
+[contributor documentation](../../contribute/README.md) and the task runner's own
 help. Verification rationale and accepted evidence policy would update the
-[verification program](../design/verification-program.md). Agent-facing
+[verification program](../../design/verification-program.md). Agent-facing
 invariants would enter the root Agent guide only when they apply to every task;
 details would remain in executable commands and scoped documentation.
 

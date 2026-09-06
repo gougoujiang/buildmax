@@ -1,20 +1,22 @@
-# Session Trees, Agent Mailboxes, and Branched Workspaces
+# Session Tree And Agent Mailbox
 
-> **简体中文：** [阅读中文镜像](../zh-CN/proposals/session-tree-and-agent-mailbox.md)
+> **翻译说明：** 本文是[英文原文](../../proposals/session-tree-and-agent-mailbox.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `4f5f081f1f8ef3c63bd89a93d2ac1c392e924a6cf3321e560bbcf1ad55f2e54a`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+
+# Session Trees, Agent Mailboxes, and Branched Workspaces
 
 > **Audience:** contributors, product designers, and early adopters · **Status:** proposal — under discussion
 >
 > **Opened:** 2026-08-22
 
-Related: [roadmap](../ROADMAP.md) P0.5, [product vision](../design/product-vision.md),
-[surface positioning](../design/surface-positioning.md),
-[context durability](../design/context-durability.md),
-[queued messages](../design/queued-messages.md),
-[parallel tool execution](../design/parallel-tool-execution.md),
-[durable run trace](../design/durable-run-trace.md),
-[Session architecture](../contribute/architecture/session.md),
-[Agent Loop](../contribute/architecture/agent-loop.md), and the
-[data model](../contribute/architecture/data-model.md).
+Related: [roadmap](../ROADMAP.md) P0.5, [product vision](../../design/product-vision.md),
+[surface positioning](../../design/surface-positioning.md),
+[context durability](../../design/context-durability.md),
+[queued messages](../../design/queued-messages.md),
+[parallel tool execution](../../design/parallel-tool-execution.md),
+[durable run trace](../../design/durable-run-trace.md),
+[Session architecture](../../contribute/architecture/session.md),
+[Agent Loop](../../contribute/architecture/agent-loop.md), and the
+[data model](../../contribute/architecture/data-model.md).
 
 ## Contents
 
@@ -129,7 +131,7 @@ later, or return selected findings to the parent.
 When a Portal Tier 2 TaskRun completes, BuildMax sends a `[Task Result]` back to
 the Tier 1 Conversation that started it. The Conversation Agent then produces
 the user-facing reply. This is current implementation, not the accepted product
-boundary. [Agent execution and Task threads](../design/agent-execution-and-task-threads.md)
+boundary. [Agent execution and Task threads](../../design/agent-execution-and-task-threads.md)
 makes TaskRun result state authoritative, makes Conversation an optional origin
 and projection, and gives a Task its own user-visible continuation surface.
 
@@ -461,7 +463,7 @@ explicitly:
 
 Silently ignoring uncommitted changes is not acceptable: the conversation may
 describe code the child cannot see. For a single session moving its own root,
-[workspace root and worktrees](../design/workspace-root-and-worktrees.md) D6
+[workspace root and worktrees](../../design/workspace-root-and-worktrees.md) D6
 chose option 2 and rejected an automatic stash, because worktrees of one
 repository share a stash stack. A fork should not answer this differently
 without a reason that applies only to forks.
@@ -544,7 +546,7 @@ type SessionSignal struct {
 
 If this becomes a database entity, its table name, public handle, and ordinary
 relationships must follow the
-[entity identity design](../design/entity-identity.md): a `bigint` row key, a
+[entity identity design](../../design/entity-identity.md): a `bigint` row key, a
 `binary(12)` `public_id` where another process must name the row, and numeric
 references. There is no ID prefix to select — entity prefixes are gone.
 
@@ -950,7 +952,7 @@ If accepted, candidate ownership boundaries are:
 | Pure lineage, fork snapshot, and Signal types/interfaces | `internal/core/session` or a new pure core package |
 | Local Session fork, file persistence, and resume | `internal/agentapp` |
 | `ReportToParent` runtime tool | `internal/tool`, through an injected application service |
-| Local worktree creation and change inspection | Decided by the [workspace root and worktrees design](../design/workspace-root-and-worktrees.md) §7 |
+| Local worktree creation and change inspection | Decided by the [workspace root and worktrees design](../../design/workspace-root-and-worktrees.md) §7 |
 | Desktop and CLI supervision | Surface packages over shared application behavior |
 | Portal Conversation fork and synthesis | `internal/service/conversation` |
 | Durable mailbox store | `internal/core/model` contract plus `internal/infra/db` adapter |

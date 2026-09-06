@@ -1,19 +1,21 @@
 # Durable Agent Sessions
 
-> **简体中文：** [阅读中文镜像](../zh-CN/proposals/durable-agent-sessions.md)
+> **翻译说明：** 本文是[英文原文](../../proposals/durable-agent-sessions.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `d128169e55eb90e42c6d88dcd1b17696f4b460aa71ccb3bd8fee10902bc54154`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+
+# Durable Agent Sessions
 
 > **Audience:** contributors, operators, security reviewers, and early adopters · **Status:** proposal — under discussion
 >
 > **Opened:** 2026-08-22
 
 Related: [roadmap](../ROADMAP.md) P0.5, P3, P4, and Desktop polish;
-[surface positioning](../design/surface-positioning.md),
-[session architecture](../contribute/architecture/session.md),
-[sessions and traces guide](../../help/sessions-and-traces.md),
-[durable run trace](../design/durable-run-trace.md),
-[context durability](../design/context-durability.md),
-[space governance](../design/space-governance.md), and
-[data model](../contribute/architecture/data-model.md).
+[surface positioning](../../design/surface-positioning.md),
+[session architecture](../../contribute/architecture/session.md),
+[sessions and traces guide](../../../help/sessions-and-traces.md),
+[durable run trace](../../design/durable-run-trace.md),
+[context durability](../../design/context-durability.md),
+[space governance](../../design/space-governance.md), and
+[data model](../../contribute/architecture/data-model.md).
 
 ## Contents
 

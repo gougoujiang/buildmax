@@ -1,6 +1,10 @@
+# BuildMax 当前状态
+
+> **翻译说明：** 本文是[英文原文](../current-state.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `f6e00810963e7728ddb90ad155d1cef7053e6288821af898ff302624e9faa350`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+
 # BuildMax Current State
 
-> **简体中文：** [阅读中文镜像](zh-CN/current-state.md)
+> **简体中文：** [阅读中文镜像](current-state.md)
 
 > **Audience:** maintainers and contributors · **Status:** current as of 2026-09-02
 
@@ -98,7 +102,7 @@ artifact publication, heartbeats, cancellation, retry, stale-run recovery, and
 the current legacy result-presentation path into Conversations. TaskRun already
 holds the authoritative result; direct Agent execution and optional
 Conversation projection are planned in
-[design/agent-execution-and-task-threads.md](design/agent-execution-and-task-threads.md).
+[design/agent-execution-and-task-threads.md](../design/agent-execution-and-task-threads.md).
 
 Portal exposes the main collaboration and administration journeys. The
 production tree also includes Compose, kind, Kubernetes, release, SBOM,
@@ -118,9 +122,9 @@ that external path for one task only. There is no Terminal-Bench score.
 
 The worker task runtime now selects `config.SandboxSurfaceWorker` and applies
 an agent-declared network/filesystem tier in
-[`internal/agentapp/taskrun/runtime.go`](../internal/agentapp/taskrun/runtime.go),
+[`internal/agentapp/taskrun/runtime.go`](../../internal/agentapp/taskrun/runtime.go),
 resolved by the server at claim time and pinned onto the run for audit, per
-[`docs/design/agent-sandbox-policy.md`](design/agent-sandbox-policy.md).
+[`docs/design/agent-sandbox-policy.md`](../design/agent-sandbox-policy.md).
 
 Selecting it unconditionally was tried first and broke CI outright: a bare
 Linux host without `bwrap` installed, and every native-Windows worker (no
@@ -144,12 +148,12 @@ initial non-root `PodSecurityContext` in a real pod and running
 container's own default profile gates behind `CAP_SYS_ADMIN`, and an empty
 capability set drops the gated rule from the compiled filter entirely, not
 just the capability. `internal/infra/k8s/job.go` now requests a `Localhost`
-profile built for exactly this — [`deployment/seccomp/worker-bwrap.json`](../deployment/seccomp/worker-bwrap.json),
+profile built for exactly this — [`deployment/seccomp/worker-bwrap.json`](../../deployment/seccomp/worker-bwrap.json),
 Docker's own default profile with those seven syscalls made unconditional —
 distributed to every node by a `DaemonSet`
-([`deployment/buildmax-deploy.yaml`](../deployment/buildmax-deploy.yaml),
-[`deployment/production/buildmax.yaml`](../deployment/production/buildmax.yaml)).
-See [`deployment/seccomp/README.md`](../deployment/seccomp/README.md) for the
+([`deployment/buildmax-deploy.yaml`](../../deployment/buildmax-deploy.yaml),
+[`deployment/production/buildmax.yaml`](../../deployment/production/buildmax.yaml)).
+See [`deployment/seccomp/README.md`](../../deployment/seccomp/README.md) for the
 full root-cause chain.
 
 A second, independent failure surfaced once namespace creation worked:
@@ -157,7 +161,7 @@ mounting a fresh `/proc` inside `--unshare-pid` triggered the kernel's "mount
 too revealing" VFS protection (`SB_I_USERNS_VISIBLE`), reproducible even with
 seccomp fully disabled and real root — a genuine container-runtime mount
 namespace restriction, not a seccomp or capability gap.
-[`internal/infra/sandbox/bwrap_linux.go`](../internal/infra/sandbox/bwrap_linux.go)
+[`internal/infra/sandbox/bwrap_linux.go`](../../internal/infra/sandbox/bwrap_linux.go)
 now re-binds the parent's `/proc` read-only instead of mounting a fresh one;
 the accepted cost is a sandboxed process seeing the host container's process
 list under `/proc` rather than an isolated one.
@@ -181,9 +185,9 @@ model only, and now runs automatically every `./make kind up` or `./make
 compose smoke`, closing the gap that let the bwrap/seccomp break above ship
 unnoticed in the first place. The worker container images also now install
 `bubblewrap` and `socat` in
-[`deployment/docker/Dockerfile.buildmax`](../deployment/docker/Dockerfile.buildmax)
+[`deployment/docker/Dockerfile.buildmax`](../../deployment/docker/Dockerfile.buildmax)
 and
-[`deployment/docker/Dockerfile.release`](../deployment/docker/Dockerfile.release),
+[`deployment/docker/Dockerfile.release`](../../deployment/docker/Dockerfile.release),
 which the images lacked entirely before this pass and which the Linux
 sandbox backend requires regardless of the profile question.
 
@@ -200,7 +204,7 @@ Process resource limits (`sandbox.process.{max_cpu_seconds,max_memory_mb,
 max_processes,max_open_files}`) are also now implemented as `ulimit`
 statements prefixed onto the wrapped command, verified against real Alpine
 and macOS shells (`max_memory_mb` is a documented no-op on macOS, which has
-no `RLIMIT_AS`) — closing [`sandbox-boundaries.md`](design/sandbox-boundaries.md)
+no `RLIMIT_AS`) — closing [`sandbox-boundaries.md`](../design/sandbox-boundaries.md)
 §13.1 gap 2.
 
 The `command` and `http` hook transports now also consult `SandboxView`
@@ -222,11 +226,11 @@ inherits (`PUT /api/spaces/{space_id}/sandbox-defaults`,
 `internal/service/space.SetSandboxDefaults`, resolved into the worker's
 `GetTaskRun` response alongside the agent's own declaration). An agent's own
 declared tier still always overrides the space default. This closes both
-halves of [`agent-sandbox-policy.md`](design/agent-sandbox-policy.md) §9/§10
+halves of [`agent-sandbox-policy.md`](../design/agent-sandbox-policy.md) §9/§10
 that were previously not started.
 
 What remains open: the cluster-level `NetworkPolicy` question
-[`trust-harness.md`](design/trust-harness.md) §3.9 leaves open — a worker
+[`trust-harness.md`](../design/trust-harness.md) §3.9 leaves open — a worker
 pod reaches whatever the cluster's network allows, independent of the
 in-process sandbox this section covers — is untouched by this pass;
 `buildmax sandbox overrides` is still unimplemented; and neither plugin pins
@@ -254,13 +258,13 @@ needs) — see `deployment/compose/compose.yaml`.
 ### P0 — The Reference Replica Count Exceeds Coordination Semantics
 
 The production manifest configures two Server replicas in
-[`deployment/production/buildmax.yaml`](../deployment/production/buildmax.yaml),
+[`deployment/production/buildmax.yaml`](../../deployment/production/buildmax.yaml),
 but the live stream hub explicitly identifies itself as in-memory in
-[`internal/server/websocket/hub.go`](../internal/server/websocket/hub.go).
+[`internal/server/websocket/hub.go`](../../internal/server/websocket/hub.go).
 WebSocket connection registration and per-conversation turn serialization are
 also process-local in
-[`internal/server/websocket/registry.go`](../internal/server/websocket/registry.go)
-and [`internal/server/turnqueue/turnqueue.go`](../internal/server/turnqueue/turnqueue.go).
+[`internal/server/websocket/registry.go`](../../internal/server/websocket/registry.go)
+and [`internal/server/turnqueue/turnqueue.go`](../../internal/server/turnqueue/turnqueue.go).
 
 With multiple Server replicas, a worker update, browser connection, or
 conversation turn can land on different processes. Durable database state will
@@ -280,7 +284,7 @@ creates and drops a uniquely named database so it never writes to the one the
 DSN names, and fails when a test in the scope skips for the DSN's absence
 anyway — the property that keeps the gate from going green by testing nothing.
 A pinned `mysql:8.0` service container runs it on every pull request
-([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)), and `./make check
+([`.github/workflows/ci.yml`](../../.github/workflows/ci.yml)), and `./make check
 ci` runs it when a DSN is present and says it did not when one is absent.
 
 The gate justified itself on its first run. `CreateSpace` returned a `Space`
@@ -303,10 +307,10 @@ writing a status the row already held were counted as zero affected rows — a
 concurrency test nobody has watched fail proves nothing. A fourth method,
 `ClaimTaskResultDelivery`, made the same claim until the Tier 1 result-delivery
 mechanism it belonged to was removed; see
-[agent execution and Task threads](design/agent-execution-and-task-threads.md).
+[agent execution and Task threads](../design/agent-execution-and-task-threads.md).
 
 What remains is case breadth, not mechanism.
-[`design/verification-program.md`](design/verification-program.md) §4.2 still
+[`design/verification-program.md`](../design/verification-program.md) §4.2 still
 lists retry attempts, workflow revision advancement, delivery restart
 recovery, cross-space store lookups, and artifact tombstoning. The N-1 migration
 fixture is blocked rather than deferred: the explicit migration list is empty
@@ -325,26 +329,26 @@ deployment partner supplies evidence that changes the order.
 
 - Signup can create an account that still has neither a password nor a login
   code. The code states this directly in
-  [`internal/service/identity/account.go`](../internal/service/identity/account.go);
+  [`internal/service/identity/account.go`](../../internal/service/identity/account.go);
   an operator must finish access manually.
 - Space policy defines owner, admin, and member roles. The membership service
   now covers the full lifecycle — invitation bounded to an existing account,
   role promotion and demotion, unilateral ownership transfer, and
   member-scoped login-code recovery — in
-  [`internal/service/space/service.go`](../internal/service/space/service.go),
-  [`internal/server/handlers/space/spaces.go`](../internal/server/handlers/space/spaces.go),
+  [`internal/service/space/service.go`](../../internal/service/space/service.go),
+  [`internal/server/handlers/space/spaces.go`](../../internal/server/handlers/space/spaces.go),
   and Portal's Space → Members and Account → Invitations surfaces. Bringing in
   someone who has never had a BuildMax account is still deliberately a
   `system_admin` operation, not a space-scoped one — see
-  [`design/space-membership-lifecycle.md`](design/space-membership-lifecycle.md)
+  [`design/space-membership-lifecycle.md`](../design/space-membership-lifecycle.md)
   §1 for why account creation and space membership are kept as two different
   authorities.
 - System administration, quotas, role checks, and audit exist. Space-level
   approvals do not, and that is a decision rather than a backlog item:
-  [`design/space-governance.md`](design/space-governance.md) §6 lists approval
+  [`design/space-governance.md`](../design/space-governance.md) §6 lists approval
   workflows as out of scope and §11 gives the reason — avoid custom roles and
   approvals until basic traceability lands.
-  [`design/space-membership-lifecycle.md`](design/space-membership-lifecycle.md)
+  [`design/space-membership-lifecycle.md`](../design/space-membership-lifecycle.md)
   §6 declines to reopen it. Read a missing approval loop as unbuilt on
   purpose, pending a concrete space's need for one.
 
@@ -360,17 +364,17 @@ separately; correctness trials do not measure throughput or resource behavior.
 ### P2 — Workflow, Channels, And Plugins
 
 - Workflow definitions contain a linear list of `agent_task` steps in
-  [`internal/core/workflow/workflow.go`](../internal/core/workflow/workflow.go).
+  [`internal/core/workflow/workflow.go`](../../internal/core/workflow/workflow.go).
   Branching, parallelism, manual approval, loops, and explicit input/output
   mapping are absent.
 - Channel names include Portal, Telegram, cron, and webhook in
-  [`internal/service/conversation/channel/types.go`](../internal/service/conversation/channel/types.go),
+  [`internal/service/conversation/channel/types.go`](../../internal/service/conversation/channel/types.go),
   but only Portal and inbound webhook paths are assembled. Telegram and cron
   are vocabulary, not shipped adapters; the webhook callback sender is not
   assembled by the Server.
 - Space background runs can materialize activated skill and subagent content,
   but plugin releases containing hooks or MCP servers are rejected by
-  [`internal/service/plugin/activation.go`](../internal/service/plugin/activation.go),
+  [`internal/service/plugin/activation.go`](../../internal/service/plugin/activation.go),
   and Tier 1 conversations do not load space plugins.
 
 ### P2 — Surface And Throughput Evidence
@@ -384,7 +388,7 @@ throughput. None of these is a reason to block containment or correctness work.
 ## Rebased Priority Order
 
 1. Decide the cluster-level `NetworkPolicy` question
-   [`trust-harness.md`](design/trust-harness.md) §3.9 leaves open, and give
+   [`trust-harness.md`](../design/trust-harness.md) §3.9 leaves open, and give
    MCP stdio child processes a boundary. Everything else in the in-process
    sandbox is closed: the worker sandbox surface, its interaction with the
    pod's hardening, process resource limits, the command/http hook boundary,
@@ -398,7 +402,7 @@ throughput. None of these is a reason to block containment or correctness work.
 3. Widen the persistence gate's cases. The gate runs on every pull request and
    the contention cases are written; what is missing is retry, workflow
    revision, delivery restart recovery, and artifact tombstoning per
-   [`verification-program.md`](design/verification-program.md) §4.2.
+   [`verification-program.md`](../design/verification-program.md) §4.2.
 4. Close what remains of account and space operations. Less remains than this
    position suggests: space role lifecycle, ownership transfer, and
    member-scoped recovery are done, signup leaving an account without a
