@@ -21,9 +21,37 @@ interface AccountFilters {
   hasPassword: string
   systemRole: string
   platform: string
+  // Whole days in the operator's zone, as the date input yields them
+  // (YYYY-MM-DD). Converted to instants only when the request is built.
+  lastLoginAfter: string
+  lastLoginBefore: string
 }
 
-const emptyFilters: AccountFilters = { status: "", hasPassword: "", systemRole: "", platform: "" }
+const emptyFilters: AccountFilters = {
+  status: "",
+  hasPassword: "",
+  systemRole: "",
+  platform: "",
+  lastLoginAfter: "",
+  lastLoginBefore: "",
+}
+
+// The date inputs are whole days in the operator's zone. "after" is that day's
+// start; "before" is the start of the day after the chosen one, so the chosen
+// day falls inside the range rather than being excluded at its own midnight.
+function dayStartISO(date: string): string | undefined {
+  if (!date) return undefined
+  const d = new Date(`${date}T00:00:00`)
+  return Number.isNaN(d.getTime()) ? undefined : d.toISOString()
+}
+
+function nextDayStartISO(date: string): string | undefined {
+  if (!date) return undefined
+  const d = new Date(`${date}T00:00:00`)
+  if (Number.isNaN(d.getTime())) return undefined
+  d.setDate(d.getDate() + 1)
+  return d.toISOString()
+}
 
 function accountState(user: ApiAdminUser): { label: string; disabled: boolean } {
   if (user.disabled_at) return { label: "Disabled", disabled: true }
@@ -83,6 +111,8 @@ export function AdminAccounts({
         has_password: f.hasPassword || undefined,
         system_role: f.systemRole || undefined,
         platform: f.platform || undefined,
+        last_login_after: dayStartISO(f.lastLoginAfter),
+        last_login_before: nextDayStartISO(f.lastLoginBefore),
       })
         .then((res) => {
           setUsers(res.users)
@@ -234,6 +264,26 @@ export function AdminAccounts({
             <option value="cli">CLI</option>
             <option value="desktop">Desktop</option>
           </select>
+          <label className="admin-field">
+            <span className="admin-field__label">Signed in after</span>
+            <input
+              className="admin-input"
+              type="date"
+              value={filters.lastLoginAfter}
+              max={filters.lastLoginBefore || undefined}
+              onChange={(e) => applyFilter({ lastLoginAfter: e.target.value })}
+            />
+          </label>
+          <label className="admin-field">
+            <span className="admin-field__label">Signed in before</span>
+            <input
+              className="admin-input"
+              type="date"
+              value={filters.lastLoginBefore}
+              min={filters.lastLoginAfter || undefined}
+              onChange={(e) => applyFilter({ lastLoginBefore: e.target.value })}
+            />
+          </label>
         </div>
 
         {error ? (

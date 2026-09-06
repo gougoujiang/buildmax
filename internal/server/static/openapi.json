@@ -2070,6 +2070,20 @@
             "required": false,
             "schema": {"type": "string"},
             "description": "Keep only accounts whose last login was on this platform"
+          },
+          {
+            "name": "last_login_after",
+            "in": "query",
+            "required": false,
+            "schema": {"type": "string", "format": "date-time"},
+            "description": "Keep only accounts whose last login is at or after this time"
+          },
+          {
+            "name": "last_login_before",
+            "in": "query",
+            "required": false,
+            "schema": {"type": "string", "format": "date-time"},
+            "description": "Keep only accounts whose last login is before this time"
           }
         ],
         "responses": {

@@ -99,6 +99,8 @@ export function listAdminUsers(
     has_password?: string
     system_role?: string
     platform?: string
+    last_login_after?: string
+    last_login_before?: string
   },
 ): Promise<ApiAdminUsersResponse> {
   return get<ApiAdminUsersResponse>("/users", token, options)
