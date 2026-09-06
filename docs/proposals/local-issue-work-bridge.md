@@ -107,7 +107,7 @@ Several required pieces already exist:
   every space they are in. The server-side listing filters it needs — by
   assignee and by status — now exist; `openapi.json` had described them for a
   while before anything implemented them.
-- `buildmax --issue <id>` scopes one local session to one Issue: the Agent can
+- `buildmax issue start <id>` scopes one local session to one Issue: the Agent can
   read it and report back. The report is stored as `local_agent`, a claim the
   relaying person is accountable for, never as the `agent` a worker run writes.
   It scopes one run and remembers nothing — the durable `IssueLink` below is
@@ -444,8 +444,8 @@ a second local-execution record.
 - assigned Issue listing — **done**, `buildmax issue list`;
 - Issue detail and bounded context snapshot — **done**, `buildmax issue show`
   for a person and `GetIssue` for the Agent;
-- local Session link and workspace mapping — **not done**. `--issue` scopes one
-  run and remembers nothing, and the workspace is wherever the command ran.
+- local Session link and workspace mapping — **not done**. `buildmax issue start`
+  scopes one run and remembers nothing, and the workspace is wherever the command ran.
   Both wait on open questions 1 and 4;
 - explicit summary, Artifact, and status return — **done** for a summary
   (`ReportToIssue`) and status (`buildmax issue status`); an Artifact published

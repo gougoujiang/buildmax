@@ -54,27 +54,7 @@ func NewRootCommand() *cobra.Command {
 	// commands people can remember, so it stays out of the help listing.
 	root.CompletionOptions.HiddenDefaultCmd = true
 	root.Flags().BoolP("help", "h", false, "help for buildmax")
-	root.Flags().StringP("print", "p", "", "send QUERY to the LLM and print the response (no TUI)")
-	root.Flags().StringP("resume", "r", "", "session id to resume (TUI or print mode)")
-	root.Flags().BoolP("continue", "c", false, "resume this directory's most recent session (by creation time)")
-	root.Flags().Bool("project", false, "with --continue, widen the search to every directory of this project")
-	root.Flags().String("session-id", "", "use a specific session ID (load if exists, else create); must be a valid UUID")
-	root.Flags().String("model", "", "use model from settings by model id or name")
-	root.Flags().String("workspace", "", "workspace directory for the agent (default: current directory)")
-	root.Flags().Bool("no-project-memory", false, "do not read or write this project's memory for this run")
-	root.Flags().Bool("sandbox", false, "require the Bash sandbox for this run without changing settings")
-	root.Flags().String("sandbox-mode", "", "sandbox approval mode for this run: auto_allow or regular (requires --sandbox)")
-	root.Flags().Int("max-iterations", 0,
-		fmt.Sprintf("cap this run's model calls (%d-%d; default %d, or agent.max_iterations)",
-			config.MinMaxIterations, config.MaxMaxIterations, config.DefaultMaxIterations))
-	root.Flags().String("issue", "", "work on a space issue: the agent can read it and report back (requires login)")
-	root.Flags().String("agent", "", "append the body of a named definition from .buildmax/agents or ~/.buildmax/agents")
-	root.Flags().String("append-system-prompt", "", "text appended to this run's system prompt")
-	root.Flags().String("append-system-prompt-file", "", "file whose contents are appended to this run's system prompt")
-	root.Flags().String("output", "text", "output format for -p print mode: text, json, jsonl")
-	root.Flags().Bool("no-stream", false, "disable streaming of assistant reply to stdout in print mode")
-	root.Flags().BoolP("quiet", "q", false, "suppress the stats footer in print text mode")
-	root.Flags().Bool("include-deltas", false, "include llm_delta events in --output jsonl (verbose)")
+	addRunFlags(root)
 	root.Flags().BoolP("version", "v", false, "print version and exit")
 	root.AddCommand(newInitCommand())
 	root.AddCommand(newDoctorCommand())
@@ -93,11 +73,45 @@ func NewRootCommand() *cobra.Command {
 	return root
 }
 
+// addRunFlags declares the flags that configure one agent run. Both the root
+// command (plain `buildmax`) and `buildmax issue start` launch a run and read
+// the same set, so the flags and the launch have one definition each rather
+// than a copy per surface.
+func addRunFlags(cmd *cobra.Command) {
+	cmd.Flags().StringP("print", "p", "", "send QUERY to the LLM and print the response (no TUI)")
+	cmd.Flags().StringP("resume", "r", "", "session id to resume (TUI or print mode)")
+	cmd.Flags().BoolP("continue", "c", false, "resume this directory's most recent session (by creation time)")
+	cmd.Flags().Bool("project", false, "with --continue, widen the search to every directory of this project")
+	cmd.Flags().String("session-id", "", "use a specific session ID (load if exists, else create); must be a valid UUID")
+	cmd.Flags().String("model", "", "use model from settings by model id or name")
+	cmd.Flags().String("workspace", "", "workspace directory for the agent (default: current directory)")
+	cmd.Flags().Bool("no-project-memory", false, "do not read or write this project's memory for this run")
+	cmd.Flags().Bool("sandbox", false, "require the Bash sandbox for this run without changing settings")
+	cmd.Flags().String("sandbox-mode", "", "sandbox approval mode for this run: auto_allow or regular (requires --sandbox)")
+	cmd.Flags().Int("max-iterations", 0,
+		fmt.Sprintf("cap this run's model calls (%d-%d; default %d, or agent.max_iterations)",
+			config.MinMaxIterations, config.MaxMaxIterations, config.DefaultMaxIterations))
+	cmd.Flags().String("agent", "", "append the body of a named definition from .buildmax/agents or ~/.buildmax/agents")
+	cmd.Flags().String("append-system-prompt", "", "text appended to this run's system prompt")
+	cmd.Flags().String("append-system-prompt-file", "", "file whose contents are appended to this run's system prompt")
+	cmd.Flags().String("output", "text", "output format for -p print mode: text, json, jsonl")
+	cmd.Flags().Bool("no-stream", false, "disable streaming of assistant reply to stdout in print mode")
+	cmd.Flags().BoolP("quiet", "q", false, "suppress the stats footer in print text mode")
+	cmd.Flags().Bool("include-deltas", false, "include llm_delta events in --output jsonl (verbose)")
+}
+
 func runRoot(cmd *cobra.Command, _ []string) error {
 	if v, _ := cmd.Flags().GetBool("version"); v {
 		fmt.Fprintf(os.Stdout, "buildmax version %s\n", config.VersionString())
 		return nil
 	}
+	return runAgentSession(cmd, nil)
+}
+
+// runAgentSession launches one agent run (TUI or -p print mode) from the run
+// flags on cmd. issueSession scopes the run to a space Issue when `buildmax
+// issue start` supplied one, and is nil for a plain `buildmax` run.
+func runAgentSession(cmd *cobra.Command, issueSession *auth.IssueSession) error {
 	prompt, _ := cmd.Flags().GetString("print")
 	resumeID, _ := cmd.Flags().GetString("resume")
 	cont, _ := cmd.Flags().GetBool("continue")
@@ -134,15 +148,7 @@ func runRoot(cmd *cobra.Command, _ []string) error {
 		fmt.Fprintln(os.Stderr, err.Error())
 		return &ExitError{Code: ExitUsage, Err: err}
 	}
-	overrides := runOverrides{Sandbox: sandboxRun, MaxIterations: maxIterations, NoProjectMemory: noProjectMemory}
-	if issueID, _ := cmd.Flags().GetString("issue"); issueID != "" {
-		issueSession, err := auth.OpenIssueSession(cmd.Context(), issueID)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err.Error())
-			return &ExitError{Code: ExitUsage, Err: err}
-		}
-		overrides.Issue = issueSession
-	}
+	overrides := runOverrides{Sandbox: sandboxRun, MaxIterations: maxIterations, NoProjectMemory: noProjectMemory, Issue: issueSession}
 
 	if sessionID != "" {
 		if _, err := uuid.Parse(sessionID); err != nil {
@@ -205,8 +211,9 @@ func runRoot(cmd *cobra.Command, _ []string) error {
 type runOverrides struct {
 	Sandbox       config.SandboxRunOverride
 	MaxIterations int
-	// Issue scopes this run to one space Issue, or is nil when --issue was not
-	// given. It is resolved once here rather than per turn: the Issue a session
+	// Issue scopes this run to one space Issue, or is nil for a plain run not
+	// started by `buildmax issue start`. It is resolved once rather than per
+	// turn: the Issue a session
 	// works must not change under it, and the tools are registered from it when
 	// the runtime is assembled.
 	Issue *auth.IssueSession

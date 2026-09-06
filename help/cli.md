@@ -32,7 +32,7 @@ buildmax <command> [flags]
 | `buildmax issue list` | List the issues a space assigned you, across every space you are in; `--status`, `--limit` |
 | `buildmax issue show <id>` | Show one issue: what it asks for, its sub-issues, and recent discussion |
 | `buildmax issue status <id> <status>` | Move an issue to `todo`, `in_progress`, or `done` |
-| `buildmax --issue <id>` | Work a space issue in this session: the agent can read it and report back |
+| `buildmax issue start <id>` | Work a space issue in this session: the agent can read it and report back |
 | `buildmax admin list` | List deployment administrators; `--all` includes revoked grants (System Administrator only) |
 | `buildmax admin grant <email>` | Grant deployment-administrator authority to an existing account |
 | `buildmax admin revoke <email>` | Revoke an account's administrator authority (refuses the last one) |
@@ -200,8 +200,8 @@ buildmax issue show i_7Kq2...
 To work on one, start a session scoped to it:
 
 ```bash
-buildmax --issue i_7Kq2...            # TUI, working that issue
-buildmax --issue i_7Kq2... -p "..."   # one print-mode run
+buildmax issue start i_7Kq2...            # TUI, working that issue
+buildmax issue start i_7Kq2... -p "..."   # one print-mode run
 ```
 
 The agent gains two tools: `GetIssue` reads the issue, its sub-issues, and
@@ -212,7 +212,7 @@ sub-issues — the agent says what it believes should happen and a person decide
 A report from your machine is recorded as a **local agent report**, attributed
 to you, and Portal shows it as reported rather than said. It is not the same as
 a comment from a run the deployment scheduled: nothing here was queued, counted
-against quota, or traced. `--issue` scopes one run; it is not remembered.
+against quota, or traced. `issue start` scopes one run; it is not remembered.
 
 Before the first model call the session prints which server, space, and issue it
 is working, and where prompts go — space work crossing to a personal model
