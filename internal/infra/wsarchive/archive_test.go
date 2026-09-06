@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/klauspost/compress/zstd"
@@ -59,10 +60,13 @@ func TestCreateExtractRoundTrip(t *testing.T) {
 	if got := readTestFile(t, filepath.Join(dst, "sub", "b.sh")); got != "#!/bin/sh\n" {
 		t.Errorf("b.sh = %q", got)
 	}
-	if fi, err := os.Stat(filepath.Join(dst, "sub", "b.sh")); err != nil {
-		t.Fatalf("stat b.sh: %v", err)
-	} else if fi.Mode().Perm()&0o100 == 0 {
-		t.Errorf("b.sh lost its executable bit: %v", fi.Mode())
+	// Windows has no executable bit; only assert it where the filesystem carries one.
+	if runtime.GOOS != "windows" {
+		if fi, err := os.Stat(filepath.Join(dst, "sub", "b.sh")); err != nil {
+			t.Fatalf("stat b.sh: %v", err)
+		} else if fi.Mode().Perm()&0o100 == 0 {
+			t.Errorf("b.sh lost its executable bit: %v", fi.Mode())
+		}
 	}
 	if tgt, err := os.Readlink(filepath.Join(dst, "link")); err != nil || tgt != "a.txt" {
 		t.Errorf("link -> %q (err %v), want a.txt", tgt, err)
