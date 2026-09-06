@@ -19,10 +19,10 @@ Portal 是 BuildMax 的 Web 应用。它为团队提供一个共享的场所来�
 - 顶部的 **space 切换器**。你的个人 space 列在 *Personal* 下
   （在你重命名之前它叫 *My Space*）；共享 space 列在 *Spaces* 下。**+** 按钮可创建一个新 space。
 - **Home** —— 入口。在这里描述你想完成的工作来开始一段对话。见
-  [对话与 Issue](portal-issues.md)。
+  [对话与 Issue](对话与Issue.md)。
 - **Issues** —— 当前 space 中工作项的列表。
 - **Workflows** —— 可复用的分步计划。见
-  [Agent 与 Workflow](portal-agents-workflows.md)。
+  [Agent 与 Workflow](Agent与工作流.md)。
 - **Agents** —— 已保存、可复用的 Agent 定义。
 - **Artifacts** —— 运行产生的文件和输出。
 - **Administration** —— 部署级别的设置。仅当你持有系统管理员授权时才会出现。
@@ -57,7 +57,7 @@ Space 有三种角色：
   API key 或其他 secret，因为它会随每一次模型调用一起发送。
 - **Members** —— 邀请和管理人员及其角色。
 - **Sandbox defaults** —— 此 space 运行中 `Bash` 的默认约束。
-  见 [沙箱](sandbox.md)。
+  见 [沙箱](沙箱.md)。
 - **Secrets** —— 运行可以使用的值，由 owner 管理。
 - **Audit** —— 此 space 中所发生事件的记录。
 
@@ -66,10 +66,10 @@ Space 有三种角色：
 Portal 中的运行使用你的部署所管理的模型，因此你无需把 API key 粘贴到浏览器中。
 哪些模型可用、以及如何计费，由你的运维人员设置。关于直接发往提供商的模型调用
 与经过 BuildMax 部署的模型调用之间的区别，见
-[模型与模式](models-and-modes.md)。
+[模型与模式](模型与模式.md)。
 
 ## 下一步
 
-- 启动并跟踪工作：[对话与 Issue](portal-issues.md)。
-- 构建可复用的 Agent 和计划：[Agent 与 Workflow](portal-agents-workflows.md)。
-- 理解界面背后的对象：[核心概念](concepts.md)。
+- 启动并跟踪工作：[对话与 Issue](对话与Issue.md)。
+- 构建可复用的 Agent 和计划：[Agent 与 Workflow](Agent与工作流.md)。
+- 理解界面背后的对象：[核心概念](核心概念.md)。

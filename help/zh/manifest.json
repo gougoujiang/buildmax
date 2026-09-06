@@ -4,56 +4,56 @@
     {
       "title": "快速开始",
       "pages": [
-        { "slug": "introduction", "title": "简介" },
-        { "slug": "install", "title": "安装 BuildMax" },
-        { "slug": "quickstart", "title": "快速上手" },
-        { "slug": "concepts", "title": "核心概念" }
+        { "slug": "introduction", "file": "简介.md", "title": "简介" },
+        { "slug": "install", "file": "安装.md", "title": "安装 BuildMax" },
+        { "slug": "quickstart", "file": "快速上手.md", "title": "快速上手" },
+        { "slug": "concepts", "file": "核心概念.md", "title": "核心概念" }
       ]
     },
     {
       "title": "命令行",
       "pages": [
-        { "slug": "cli", "title": "CLI 与 TUI 参考" },
-        { "slug": "sessions-and-traces", "title": "会话与追踪记录" },
-        { "slug": "project-instructions", "title": "项目指令与记忆" }
+        { "slug": "cli", "file": "命令行.md", "title": "CLI 与 TUI 参考" },
+        { "slug": "sessions-and-traces", "file": "会话与追踪.md", "title": "会话与追踪记录" },
+        { "slug": "project-instructions", "file": "项目指令与记忆.md", "title": "项目指令与记忆" }
       ]
     },
     {
       "title": "模型与工具",
       "pages": [
-        { "slug": "models-and-modes", "title": "模型与模式" },
-        { "slug": "tools", "title": "工具" }
+        { "slug": "models-and-modes", "file": "模型与模式.md", "title": "模型与模式" },
+        { "slug": "tools", "file": "工具.md", "title": "工具" }
       ]
     },
     {
       "title": "扩展 Agent",
       "pages": [
-        { "slug": "skills-and-subagents", "title": "技能与子 Agent" },
-        { "slug": "mcp", "title": "MCP 服务器" },
-        { "slug": "plugins", "title": "插件" },
-        { "slug": "hooks", "title": "钩子" }
+        { "slug": "skills-and-subagents", "file": "技能与子代理.md", "title": "技能与子 Agent" },
+        { "slug": "mcp", "file": "MCP服务器.md", "title": "MCP 服务器" },
+        { "slug": "plugins", "file": "插件.md", "title": "插件" },
+        { "slug": "hooks", "file": "钩子.md", "title": "钩子" }
       ]
     },
     {
       "title": "安全",
       "pages": [
-        { "slug": "sandbox", "title": "沙箱" },
-        { "slug": "tool-permissions", "title": "工具权限" }
+        { "slug": "sandbox", "file": "沙箱.md", "title": "沙箱" },
+        { "slug": "tool-permissions", "file": "工具权限.md", "title": "工具权限" }
       ]
     },
     {
       "title": "Portal（网页端）",
       "pages": [
-        { "slug": "portal-overview", "title": "Portal 概览" },
-        { "slug": "portal-issues", "title": "对话与 Issue" },
-        { "slug": "portal-agents-workflows", "title": "Agent 与工作流" }
+        { "slug": "portal-overview", "file": "Portal概览.md", "title": "Portal 概览" },
+        { "slug": "portal-issues", "file": "对话与Issue.md", "title": "对话与 Issue" },
+        { "slug": "portal-agents-workflows", "file": "Agent与工作流.md", "title": "Agent 与工作流" }
       ]
     },
     {
       "title": "参考",
       "pages": [
-        { "slug": "troubleshooting", "title": "故障排查" },
-        { "slug": "support", "title": "支持的平台与状态" }
+        { "slug": "troubleshooting", "file": "故障排查.md", "title": "故障排查" },
+        { "slug": "support", "file": "支持与状态.md", "title": "支持的平台与状态" }
       ]
     }
   ]

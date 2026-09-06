@@ -13,12 +13,12 @@ Agent 和 Workflow 是你分派工作的可复用构建块。Agent 是关于*一
   （在一次后台运行中，来自 **Space → Overview** 的 space 共享 Agent instructions
   会先发送，然后才是这些。）
 - **Model** —— 它在部署的哪个模型上运行。
-- **Plugins** —— Agent 可以使用的可选 [插件](plugins.md)。
+- **Plugins** —— Agent 可以使用的可选 [插件](插件.md)。
 - **Sandbox tiers** —— 其 `Bash` 工具的文件系统和网络约束。
-  见 [沙箱](sandbox.md)。
+  见 [沙箱](沙箱.md)。
 
 保存定义使其可被分派。你从 Issue 的 **Assignee** 字段把一个 Agent 分派给
-Issue——见 [对话与 Issue](portal-issues.md)。
+Issue——见 [对话与 Issue](对话与Issue.md)。
 
 ### 版本
 
@@ -57,7 +57,7 @@ Agent，在该 Workflow 被修改或归档之前无法删除。
 Workflow 一经发布，就可用 **Run Workflow** 运行它。你会被带到运行的详情视图，
 每个步骤在执行时都会显示自己的状态。你也可以把 Workflow 分派给一个 Issue，
 使其作为该 Issue 的工作来运行——见
-[对话与 Issue](portal-issues.md)。
+[对话与 Issue](对话与Issue.md)。
 
 和 Agent 一样，Workflow 也保留一份带编号的历史，一次运行会记录它所展开的
 Workflow 版本，从而使过去运行的记录保持准确。
@@ -66,9 +66,9 @@ Workflow 版本，从而使过去运行的记录保持准确。
 
 顶部栏中的 **Marketplace** 图标列出此部署发布的插件——技能、子 Agent、
 MCP 服务器和钩子。它是一个浏览界面：安装发生在 Agent 实际运行的地方，
-因此目录交给你的是安装命令，而不是一个按钮。见 [插件](plugins.md)。
+因此目录交给你的是安装命令，而不是一个按钮。见 [插件](插件.md)。
 
 ## 下一步
 
-- 把这些分派到实际工作中：[对话与 Issue](portal-issues.md)。
-- 调整一个 Agent 能运行什么：[沙箱](sandbox.md) 和 [工具权限](tool-permissions.md)。
+- 把这些分派到实际工作中：[对话与 Issue](对话与Issue.md)。
+- 调整一个 Agent 能运行什么：[沙箱](沙箱.md) 和 [工具权限](工具权限.md)。
