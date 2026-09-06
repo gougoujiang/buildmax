@@ -630,6 +630,19 @@ export interface ApiAdminUsersResponse {
   total: number
 }
 
+/** One live login chain, safe metadata only — never a token or its hash. */
+export interface ApiAdminSession {
+  session_id: string
+  platform?: string
+  created_at: string
+  last_rotated_at: string
+  expires_at: string
+}
+
+export interface ApiAdminSessionsResponse {
+  sessions: ApiAdminSession[]
+}
+
 export interface ApiAdminUserSpace {
   space_id: string
   name: string
