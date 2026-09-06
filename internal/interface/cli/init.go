@@ -102,7 +102,7 @@ without --force.`, initDefaultModel),
 	cmd.Flags().String("model", initDefaultModel, "model id to configure as the default")
 	cmd.Flags().String("api-url", config.DefaultOpenRouterBaseURL, "OpenAI-compatible base URL for the model")
 	cmd.Flags().String("name", "", "display name for the model (default: the model id)")
-	cmd.Flags().Int("context-window", 0, "context window in tokens (default: provider-appropriate)")
+	cmd.Flags().Int("context-window", 0, "context window in tokens (0: provider-appropriate; must be non-negative)")
 	cmd.Flags().Bool("force", false, "overwrite an existing settings.yaml")
 	cmd.Flags().Bool("ollama", false, "configure a local Ollama model instead of a hosted provider")
 	return cmd
@@ -116,6 +116,9 @@ func runInit(cmd *cobra.Command, _ []string) error {
 	contextWindow, _ := cmd.Flags().GetInt("context-window")
 	force, _ := cmd.Flags().GetBool("force")
 	ollama, _ := cmd.Flags().GetBool("ollama")
+	if contextWindow < 0 {
+		return &ExitError{Code: ExitUsage, Err: errors.New("--context-window cannot be negative")}
+	}
 
 	provider := cllm.ProviderOpenAICompatible
 	var local llm.OllamaModel

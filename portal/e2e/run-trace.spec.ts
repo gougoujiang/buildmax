@@ -83,15 +83,13 @@ test("Portal states what confined a run, and what the run spent", async ({ page 
 
   await page.goto(`/#/issue/${issueId}`)
 
-  // The output card is what carries the run id, so its button is the way in —
-  // the same way an operator reaches it.
-  //
-  // Scoping to the card is load-bearing, not decorative. An agent run also
-  // posts a comment, and that comment carries its own "Run details" button
-  // (issue-discussion__actions), rendered earlier in the document. An unscoped
-  // role query would match both and resolve to the comment's.
+  // The agent run's comment carries the way in. An issue's outputs are its
+  // published artifacts now, and this run only replied, so it has no output
+  // card — but every agent run posts a comment, and that comment carries a
+  // "Run details" button (issue-discussion__actions). Scoping to the comment
+  // reaches the run the same way an operator does.
   await page
-    .locator(".issue-outputs__card-actions")
+    .locator(".issue-discussion__actions")
     .getByRole("button", { name: "Run details" })
     .first()
     .click()

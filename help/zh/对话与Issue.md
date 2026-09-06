@@ -36,8 +36,8 @@ Issue 上的 **Assignee** 才是把它转化为行动的东西。打开一个 Is
 
 - **Unassigned** —— 尚无人负责。
 - **A person**（包括 *Me*）—— 由某个人负责。
-- **An agent** —— 一个已保存的 [Agent](portal-agents-workflows.md) 在后台运行该 Issue。
-- **A workflow** —— 一个已发布的 [Workflow](portal-agents-workflows.md) 为该 Issue 运行其步骤。
+- **An agent** —— 一个已保存的 [Agent](Agent与工作流.md) 在后台运行该 Issue。
+- **A workflow** —— 一个已发布的 [Workflow](Agent与工作流.md) 为该 Issue 运行其步骤。
 
 分派给 Agent 或 Workflow 会在 worker 上安排一次后台运行：它会物化 space 的文件、
 运行 Agent、写入任何输出，并汇报结果——而不会占用你的浏览器。
@@ -54,10 +54,10 @@ Issue 上的 **Assignee** 才是把它转化为行动的东西。打开一个 Is
   一次重试会计入你 space 的配额，并保留原始运行的记录不变。
   作为 Workflow 步骤的运行是通过重新运行其 Workflow 来重试的，而不是从这里。
 - **Outputs** —— 一次运行产出的文件和结果会显示在 Issue 上，
-  包括最新结果和任何已保存的 [Artifact](portal-overview.md)。
+  包括最新结果和任何已保存的 [Artifact](Portal概览.md)。
   较大的输出会作为 Artifact 存储，你可以打开或下载。
 
 ## 下一步
 
-- 定义你在此处分派的 Agent 和计划：[Agent 与 Workflow](portal-agents-workflows.md)。
-- 熟悉应用的其余部分：[Portal 概览](portal-overview.md)。
+- 定义你在此处分派的 Agent 和计划：[Agent 与 Workflow](Agent与工作流.md)。
+- 熟悉应用的其余部分：[Portal 概览](Portal概览.md)。

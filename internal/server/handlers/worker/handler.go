@@ -21,6 +21,7 @@ import (
 	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
 	pluginsvc "github.com/gougoujiang/buildmax/internal/service/plugin"
+	workspacesvc "github.com/gougoujiang/buildmax/internal/service/workspace"
 )
 
 // SpaceSandboxDefaultsReader is the only space capability a run token receives
@@ -70,6 +71,14 @@ type Config struct {
 	// fail-open: a run that got its grant is not failed for a missing audit.
 	SecretAudit SecretGrantRecorder
 
+	// Checkpoints finalizes a seed a worker captured and uploaded. Nil disables
+	// the workspace-checkpoint route, which is what a deployment with no
+	// checkpoint storage has.
+	Checkpoints *workspacesvc.Service
+	// WorkspaceRuns reads a run's base checkpoint and records its restore
+	// outcome. Nil disables the base and restore routes.
+	WorkspaceRuns WorkspaceRunStore
+
 	// OnTerminal is fired once a run reaches a terminal status, after the hub
 	// has been told. The server supplies it; this package does not know who is
 	// listening.
@@ -106,6 +115,12 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.Handle("PATCH /api/worker/task-runs/{task_run_id}", h.runScopedWorkerMiddleware(http.HandlerFunc(h.patchTaskRun)))
 	mux.Handle("POST /api/worker/task-runs/{task_run_id}/stream", h.runScopedWorkerMiddleware(http.HandlerFunc(h.postStream)))
 	mux.Handle("POST /api/worker/task-runs/{task_run_id}/artifacts", h.runScopedWorkerMiddleware(http.HandlerFunc(h.postArtifact)))
+	// Workspace checkpoints: the base a run restores from, how that restore
+	// ended, and the seed it captures before executing. See
+	// docs/design/task-workspace-checkpoints.md §14.1.
+	mux.Handle("GET /api/worker/task-runs/{task_run_id}/workspace-base", h.runScopedWorkerMiddleware(http.HandlerFunc(h.getWorkspaceBase)))
+	mux.Handle("POST /api/worker/task-runs/{task_run_id}/workspace-restore", h.runScopedWorkerMiddleware(http.HandlerFunc(h.postWorkspaceRestore)))
+	mux.Handle("POST /api/worker/task-runs/{task_run_id}/workspace-checkpoints", h.runScopedWorkerMiddleware(http.HandlerFunc(h.postWorkspaceCheckpoint)))
 	// The Issue this run's task names, and one comment on it. There is no
 	// update route: what an agent may not say about its work is decided by the
 	// absence of the route, not by the tool that would have called it.

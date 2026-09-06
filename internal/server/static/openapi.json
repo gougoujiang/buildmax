@@ -4415,6 +4415,88 @@
         }
       }
     },
+    "/api/worker/task-runs/{task_run_id}/workspace-base": {
+      "get": {
+        "summary": "The checkpoint this run restores its workspace from",
+        "security": [{"runTokenAuth": []}],
+        "parameters": [{"name": "task_run_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {"application/json": {"schema": {
+              "type": "object",
+              "properties": {
+                "checkpoint_id": {"type": "string"},
+                "payload_format": {"type": "string"},
+                "payload_sha256": {"type": "string"},
+                "size_bytes": {"type": "integer"},
+                "uncompressed_bytes": {"type": "integer"},
+                "entry_count": {"type": "integer"}
+              },
+              "required": ["checkpoint_id", "payload_format", "payload_sha256"]
+            }}}
+          },
+          "204": {"description": "The run has no base; it seeds instead"}
+        }
+      }
+    },
+    "/api/worker/task-runs/{task_run_id}/workspace-restore": {
+      "post": {
+        "summary": "Record how the run's base restoration ended",
+        "security": [{"runTokenAuth": []}],
+        "parameters": [{"name": "task_run_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {
+            "type": "object",
+            "properties": {
+              "status": {"type": "string", "enum": ["restored", "failed"]},
+              "error": {"type": "string"}
+            },
+            "required": ["status"]
+          }}}
+        },
+        "responses": {
+          "204": {"description": "Recorded"},
+          "400": {"description": "Invalid status", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "404": {"description": "Run not found", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}}
+        }
+      }
+    },
+    "/api/worker/task-runs/{task_run_id}/workspace-checkpoints": {
+      "post": {
+        "summary": "Finalize a seed the run captured and uploaded",
+        "security": [{"runTokenAuth": []}],
+        "parameters": [{"name": "task_run_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "requestBody": {
+          "required": true,
+          "content": {"application/json": {"schema": {
+            "type": "object",
+            "properties": {
+              "payload_format": {"type": "string"},
+              "payload_sha256": {"type": "string"},
+              "size_bytes": {"type": "integer"},
+              "uncompressed_bytes": {"type": "integer"},
+              "entry_count": {"type": "integer"}
+            },
+            "required": ["payload_format", "payload_sha256", "size_bytes"]
+          }}}
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {"application/json": {"schema": {
+              "type": "object",
+              "properties": {"checkpoint_id": {"type": "string"}},
+              "required": ["checkpoint_id"]
+            }}}
+          },
+          "400": {"description": "Invalid descriptor", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "404": {"description": "Run not found", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}},
+          "409": {"description": "Payload not uploaded, or a conflicting checkpoint exists", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}}
+        }
+      }
+    },
     "/api/worker/task-runs/{task_run_id}/plugins/{plugin_name}/{version}/download": {
       "get": {
         "summary": "Download a release this run is pinned to",

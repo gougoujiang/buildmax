@@ -1,6 +1,16 @@
 package task
 
-import "time"
+import (
+	"errors"
+	"time"
+)
+
+// ErrCheckpointConflict is returned when a checkpoint already exists for a
+// (source_task_run_id, kind) pair with different bytes. Finalization is
+// idempotent for identical bytes and a conflict for different ones; it never
+// rewrites an accepted checkpoint. See
+// docs/design/task-workspace-checkpoints.md §8.
+var ErrCheckpointConflict = errors.New("workspace checkpoint conflict")
 
 // A workspace checkpoint is an immutable, complete representation of a Task's
 // workspace at one boundary. See docs/design/task-workspace-checkpoints.md.

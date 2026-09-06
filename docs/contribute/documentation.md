@@ -11,9 +11,11 @@ lives there, from the quickstart and core concepts to every CLI command;
 [`help/manifest.json`](../../help/manifest.json) is its table of contents.
 
 English is the source. [`help/zh/`](../../help/zh) mirrors it as a Simplified
-Chinese translation with the same slugs and its own `manifest.json`; the Help
-page offers an EN / 中文 switch. Keep the two in step — when you change an
-English page, update its `zh/` counterpart in the same pull request.
+Chinese translation, one page per English page, with its own `manifest.json`; the
+Help page offers an EN / 中文 switch. Its files are named in Chinese (`沙箱.md`),
+so each manifest entry keeps the English `slug` as its stable URL key and adds a
+`file` naming the page on disk. Keep the two languages in step — when you change
+an English page, update its `zh/` counterpart in the same pull request.
 
 `docs/` holds everything else, split by the question someone is trying to answer:
 

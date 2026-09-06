@@ -87,6 +87,14 @@ func (s *S3CheckpointStore) Put(ctx context.Context, spaceID, sha256hex string, 
 }
 
 // Open streams the payload at storageKey and reports its size.
+// Key returns the backend-relative storage key a payload with this digest has
+// or would have, without touching the store. It is the content-addressed key
+// Put writes to, so the server can record the pointer for bytes a worker
+// uploaded without the worker naming a key.
+func (s *S3CheckpointStore) Key(spaceID, sha256hex string) (string, error) {
+	return checkpointBlobKey(s.prefix, spaceID, sha256hex)
+}
+
 func (s *S3CheckpointStore) Open(ctx context.Context, storageKey string) (io.ReadCloser, int64, error) {
 	return s.client.GetObjectStream(ctx, s.bucket, storageKey)
 }
@@ -149,6 +157,12 @@ func (s *LocalFSCheckpointStore) Put(ctx context.Context, spaceID, sha256hex str
 		return "", err
 	}
 	return key, nil
+}
+
+// Key returns the backend-relative storage key a payload with this digest has
+// or would have, matching what Put returns, without touching the store.
+func (s *LocalFSCheckpointStore) Key(spaceID, sha256hex string) (string, error) {
+	return checkpointBlobKey("", spaceID, sha256hex)
 }
 
 // Open opens the payload at storageKey and reports its size. A missing blob is

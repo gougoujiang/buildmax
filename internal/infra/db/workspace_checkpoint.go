@@ -11,12 +11,11 @@ import (
 	"gorm.io/gorm"
 )
 
-// ErrCheckpointConflict is returned when a checkpoint already exists for a
-// (source_task_run_id, kind) pair with different bytes. Finalization is
-// idempotent for identical bytes and a conflict for different ones; it never
-// rewrites an accepted checkpoint. See
-// docs/design/task-workspace-checkpoints.md §8.
-var ErrCheckpointConflict = errors.New("workspace checkpoint conflict")
+// ErrCheckpointConflict is the domain conflict returned when a checkpoint
+// already exists for a (source_task_run_id, kind) pair with different bytes. It
+// aliases the core error so callers above infra classify it without importing
+// this package. See docs/design/task-workspace-checkpoints.md §8.
+var ErrCheckpointConflict = coretask.ErrCheckpointConflict
 
 // workspaceCheckpointRow is the workspace_checkpoint table. See
 // docs/design/task-workspace-checkpoints.md §9.1.
@@ -222,6 +221,65 @@ func (s *Store) GetWorkspaceCheckpoint(ctx context.Context, publicID string) (*c
 		return nil, err
 	}
 	return toWorkspaceCheckpoint(&r.Row, r.SpacePublicID, r.TaskPublicID, r.RunPublicID, r.BasePublicID), nil
+}
+
+// GetRunWorkspaceBase reads the checkpoint a run is authorized to restore from,
+// or (nil, nil) when the run has no base — the first run of a Task, which the
+// worker seeds instead. The worker addresses the payload from its own space and
+// the returned digest, so no storage key crosses this boundary.
+func (s *Store) GetRunWorkspaceBase(ctx context.Context, taskRunID string) (*coretask.WorkspaceCheckpoint, error) {
+	runKey, ok := util.CanonicalPublicID(taskRunID)
+	if !ok {
+		return nil, apierr.ErrNotFound
+	}
+	type readRow struct {
+		Row           workspaceCheckpointRow `gorm:"embedded"`
+		SpacePublicID string                 `gorm:"column:space_public_id"`
+		TaskPublicID  string                 `gorm:"column:task_public_id"`
+		RunPublicID   string                 `gorm:"column:run_public_id"`
+		BasePublicID  *string                `gorm:"column:base_public_id"`
+	}
+	var r readRow
+	err := s.db.WithContext(ctx).Model(&taskRunRow{}).
+		Select("c.*, s.public_id AS space_public_id, t.public_id AS task_public_id, tr.public_id AS run_public_id, b.public_id AS base_public_id").
+		Joins("INNER JOIN workspace_checkpoint c ON c.id = task_run.workspace_base_checkpoint_id").
+		Joins("INNER JOIN space s ON s.id = c.space_id").
+		Joins("INNER JOIN task t ON t.id = c.task_id").
+		Joins("INNER JOIN task_run tr ON tr.id = c.source_task_run_id").
+		Joins("LEFT JOIN workspace_checkpoint b ON b.id = c.base_checkpoint_id").
+		Where("task_run.public_id = ?", runKey).Take(&r).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		// Either the run does not exist or it has no base. The caller cannot act
+		// differently on the two, and the worker's own run token already proved
+		// the run exists, so a nil base is the honest answer.
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return toWorkspaceCheckpoint(&r.Row, r.SpacePublicID, r.TaskPublicID, r.RunPublicID, r.BasePublicID), nil
+}
+
+// RecordWorkspaceRestore records how a run's base restoration ended. errMessage
+// is bounded operator-facing text, stored only for a failure.
+func (s *Store) RecordWorkspaceRestore(ctx context.Context, taskRunID string, status coretask.WorkspaceRestoreStatus, errMessage *string) error {
+	runKey, ok := util.CanonicalPublicID(taskRunID)
+	if !ok {
+		return apierr.ErrNotFound
+	}
+	res := s.db.WithContext(ctx).Model(&taskRunRow{}).
+		Where("public_id = ?", runKey).
+		Updates(map[string]any{
+			"workspace_restore_status": string(status),
+			"workspace_restore_error":  errMessage,
+		})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return apierr.ErrNotFound
+	}
+	return nil
 }
 
 func toWorkspaceCheckpoint(row *workspaceCheckpointRow, spaceID, taskID, runID string, baseID *string) *coretask.WorkspaceCheckpoint {

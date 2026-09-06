@@ -110,6 +110,38 @@ func TestInitCustomProvider(t *testing.T) {
 	}
 }
 
+func TestInitContextWindowBounds(t *testing.T) {
+	t.Run("negative value is rejected before writing settings", func(t *testing.T) {
+		_, path, err := initInHome(t, "--context-window", "-5")
+		if err == nil {
+			t.Fatal("init accepted a negative context window")
+		}
+		if ExitCodeFor(err) != ExitUsage {
+			t.Errorf("exit code = %d, want %d", ExitCodeFor(err), ExitUsage)
+		}
+		if !strings.Contains(err.Error(), "--context-window cannot be negative") {
+			t.Errorf("error = %q, want a clear context-window diagnostic", err)
+		}
+		if _, statErr := os.Stat(path); !os.IsNotExist(statErr) {
+			t.Errorf("settings file exists after rejected input: stat error = %v", statErr)
+		}
+	})
+
+	t.Run("explicit zero uses the provider default", func(t *testing.T) {
+		_, _, err := initInHome(t, "--context-window", "0", "--api-key", "sk-test-key")
+		if err != nil {
+			t.Fatalf("init: %v", err)
+		}
+		settings, err := config.LoadSettings()
+		if err != nil {
+			t.Fatalf("load generated settings: %v", err)
+		}
+		if got := settings.Models[0].ContextWindow; got != initDefaultContextWindow {
+			t.Errorf("context_window = %d, want provider default %d", got, initDefaultContextWindow)
+		}
+	})
+}
+
 // A model id or key containing YAML-significant characters must survive the
 // round trip rather than corrupt the file.
 func TestInitQuotesAwkwardValues(t *testing.T) {
