@@ -444,7 +444,7 @@ func TestCaptureResultCheckpoint_ReturnsDescriptorWithMatchingDigest(t *testing.
 	dirs := runDirs{runDir: runDir, runWorkspace: writeWorkspace(t)}
 	task := &coretask.Task{ID: "t1", SpaceID: "sp_1"}
 
-	desc := captureResultCheckpoint(ctx, input, task, dirs)
+	desc := captureWorkspaceCheckpoint(ctx, input, task, dirs)
 	if desc == nil {
 		t.Fatal("expected a result descriptor")
 	}
@@ -468,7 +468,7 @@ func TestCaptureResultCheckpoint_FailOpen(t *testing.T) {
 	task := &coretask.Task{ID: "t1", SpaceID: "sp_1"}
 
 	// No store: nothing to capture to.
-	if desc := captureResultCheckpoint(ctx, RunTaskInput{}, task, runDirs{runDir: t.TempDir(), runWorkspace: t.TempDir()}); desc != nil {
+	if desc := captureWorkspaceCheckpoint(ctx, RunTaskInput{}, task, runDirs{runDir: t.TempDir(), runWorkspace: t.TempDir()}); desc != nil {
 		t.Fatal("no checkpoint store should yield a nil descriptor")
 	}
 
@@ -481,7 +481,23 @@ func TestCaptureResultCheckpoint_FailOpen(t *testing.T) {
 		WorkerAPI:   workerclient.WorkerAPIClientConfig{BaseURL: srv.URL, Token: "t", Client: srv.Client()},
 	}
 	dirs := runDirs{runDir: t.TempDir(), runWorkspace: filepath.Join(t.TempDir(), "does-not-exist")}
-	if desc := captureResultCheckpoint(ctx, input, task, dirs); desc != nil {
+	if desc := captureWorkspaceCheckpoint(ctx, input, task, dirs); desc != nil {
 		t.Fatal("a failed capture should yield a nil descriptor, not fail the run")
+	}
+}
+
+// TestReportRunFailure_CarriesPartialDescriptor pins that a failed run's terminal
+// report carries the partial checkpoint descriptor it captured.
+func TestReportRunFailure_CarriesPartialDescriptor(t *testing.T) {
+	up := &fakeUpdater{}
+	desc := &workerclient.WorkspaceCheckpointDescriptor{
+		PayloadFormat: wsarchive.PayloadFormat, PayloadSHA256: "abc", SizeBytes: 5,
+	}
+	reportRunFailure(context.Background(), "rt_1", context.DeadlineExceeded, "traces/x.jsonl", desc, up)
+	if up.req == nil || up.req.Status != "FAILED" {
+		t.Fatalf("failure not reported: %+v", up.req)
+	}
+	if up.req.WorkspaceCheckpoint != desc {
+		t.Fatalf("failure report did not carry the partial descriptor: %+v", up.req.WorkspaceCheckpoint)
 	}
 }

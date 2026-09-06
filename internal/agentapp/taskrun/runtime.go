@@ -239,7 +239,10 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 		if stopped, stopErr := reportStoppedRun(ctx, scope, runResult{}, dirs, input); stopped {
 			return stopErr
 		}
-		reportRunFailure(ctx, run.ID, err, "", input.Updater)
+		// No partial checkpoint here: preparation failed before execution, so
+		// there is no run-produced workspace to preserve — only the seed or the
+		// restored base, which are already durable.
+		reportRunFailure(ctx, run.ID, err, "", nil, input.Updater)
 		return err
 	}
 	result, err := executeRunTask(ctx, input, task, run, dirs)
@@ -252,7 +255,11 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 	if err != nil {
 		reportPersistedRunState(ctx, input.Persist, scope, dirs, result)
 		componentLog().Error("run failed", "task_run_id", run.ID, "err", err, "output_len", len(result.OutputStr))
-		reportRunFailure(ctx, run.ID, err, result.TracePath, input.Updater)
+		// Capture what the failed run produced as a partial checkpoint. It rides
+		// the terminal report like a result but never advances the head; it
+		// preserves the work for an operator to recover from. Fail-open.
+		partial := captureWorkspaceCheckpoint(ctx, input, task, dirs)
+		reportRunFailure(ctx, run.ID, err, result.TracePath, partial, input.Updater)
 		return err
 	}
 
@@ -261,7 +268,7 @@ func RunTask(ctx context.Context, input RunTaskInput) error {
 	// on the terminal report, so the server commits it and advances the Task head
 	// as it accepts the outcome. Fail-open: a capture failure leaves the head
 	// where it was and the run still succeeds (§13).
-	resultCheckpoint := captureResultCheckpoint(ctx, input, task, dirs)
+	resultCheckpoint := captureWorkspaceCheckpoint(ctx, input, task, dirs)
 	if err := reportRunOutcome(ctx, scope, result, coretask.RunStatusSucceeded, "", resultCheckpoint, input.Updater); err != nil {
 		return err
 	}
@@ -360,10 +367,13 @@ func finishStoppedRun(ctx context.Context, scope RunScope, result runResult, dir
 		result.EndTime = time.Now().UTC()
 	}
 	reportPersistedRunState(reportCtx, input.Persist, scope, dirs, result)
-	// A stopped run (cancel or interrupt) reports no result checkpoint here: its
-	// workspace is a partial, captured by a later slice, and a partial never
-	// advances the Task head.
-	return reportRunOutcome(reportCtx, scope, result, status, errMessage, nil, input.Updater)
+	// A stopped run's workspace is a partial checkpoint: capture it within the
+	// same bounded reporting budget as everything else this run still does, and
+	// carry it on the terminal report. A partial preserves the work but never
+	// advances the Task head. Fail-open — if it does not fit the budget, the run
+	// still reports its stop.
+	partial := captureWorkspaceCheckpoint(reportCtx, input, input.Task, dirs)
+	return reportRunOutcome(reportCtx, scope, result, status, errMessage, partial, input.Updater)
 }
 
 func resolveRunDirs(paths RuntimePaths, task *coretask.Task, run *coretask.Run) runDirs {
@@ -678,7 +688,7 @@ func mapValues(m map[string]string) []string {
 // reportRunFailure records the failure. tracePath may be empty — the run can
 // fail before an agent ever starts — but when a trace exists it is recorded
 // here too: diagnosing a failure is the trace's main job.
-func reportRunFailure(ctx context.Context, taskRunID string, err error, tracePath string, updater TaskRunUpdater) {
+func reportRunFailure(ctx context.Context, taskRunID string, err error, tracePath string, checkpoint *workerclient.WorkspaceCheckpointDescriptor, updater TaskRunUpdater) {
 	endTime := time.Now().UTC()
 	errMsg := fmt.Sprintf("%v", err)
 	req := &workerclient.PatchTaskRunRequest{
@@ -689,6 +699,7 @@ func reportRunFailure(ctx context.Context, taskRunID string, err error, tracePat
 	if tracePath != "" {
 		req.TracePath = &tracePath
 	}
+	req.WorkspaceCheckpoint = checkpoint
 	_ = updater.UpdateRunStatus(ctx, taskRunID, req)
 }
 

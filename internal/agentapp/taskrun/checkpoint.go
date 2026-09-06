@@ -193,15 +193,6 @@ func captureAndFinalizeSeed(ctx context.Context, store CheckpointPayloadStore, c
 	return nil
 }
 
-// captureResult archives workspaceDir after a run and uploads the bytes,
-// returning the descriptor the worker carries on the terminal report. Unlike the
-// seed, it does not finalize here: the server commits a result checkpoint as it
-// accepts the terminal outcome (§8). Bytes reach the store before the descriptor
-// is reported, keeping bytes-before-pointer.
-func captureResult(ctx context.Context, store CheckpointPayloadStore, stagingDir, workspaceDir, spaceID string) (workerclient.WorkspaceCheckpointDescriptor, error) {
-	return archiveWorkspace(ctx, store, stagingDir, workspaceDir, spaceID)
-}
-
 // archiveWorkspace archives workspaceDir to a bounded temporary file staged
 // outside workspaceDir (so it is never part of what it captures, §12.1), teeing
 // through a hash so the digest covers the exact stored bytes (§8), uploads the
@@ -251,19 +242,21 @@ func archiveWorkspace(ctx context.Context, store CheckpointPayloadStore, staging
 	}, nil
 }
 
-// captureResultCheckpoint captures the run's result checkpoint after execution,
-// fail-open: it returns nil when this deployment does not checkpoint or when
-// capture fails, because a run that already succeeded must not be turned into a
-// failure by a checkpoint it could not store (§13). A nil result simply leaves
-// the Task head where it was.
-func captureResultCheckpoint(ctx context.Context, input RunTaskInput, task *coretask.Task, dirs runDirs) *workerclient.WorkspaceCheckpointDescriptor {
+// captureWorkspaceCheckpoint archives the run's workspace and returns the
+// descriptor to carry on the terminal report, for either a successful result or
+// a failed run's partial — the server decides the kind from the run's terminal
+// status. It is fail-open: it returns nil when this deployment does not
+// checkpoint or when capture fails, because a checkpoint it could not store must
+// not change the run's outcome (§13). A nil descriptor simply commits no
+// checkpoint and leaves the Task head where it was.
+func captureWorkspaceCheckpoint(ctx context.Context, input RunTaskInput, task *coretask.Task, dirs runDirs) *workerclient.WorkspaceCheckpointDescriptor {
 	if input.Checkpoints == nil || input.WorkerAPI.BaseURL == "" || input.WorkerAPI.Token == "" {
 		return nil
 	}
 	stagingDir := filepath.Join(dirs.runDir, "checkpoint-staging")
-	desc, err := captureResult(ctx, input.Checkpoints, stagingDir, dirs.runWorkspace, task.SpaceID)
+	desc, err := archiveWorkspace(ctx, input.Checkpoints, stagingDir, dirs.runWorkspace, task.SpaceID)
 	if err != nil {
-		componentLog().Error("failed to capture the result checkpoint; run still succeeds", "space_id", task.SpaceID, "err", err)
+		componentLog().Error("failed to capture the workspace checkpoint; run outcome stands", "space_id", task.SpaceID, "err", err)
 		return nil
 	}
 	return &desc
