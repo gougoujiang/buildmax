@@ -1,68 +1,80 @@
 # BuildMax Agent Guide
 
-This file is loaded into agent sessions that work in this repository. It is a
-compact map of the project and its non-negotiable constraints, not a duplicate
-of the documentation. Follow links to the source of truth before changing a
-subsystem.
+This file is loaded into every Agent session in this repository. It contains
+the product principles, non-negotiable boundaries, and working rules that must
+always be in context. Follow its links for subsystem detail instead of treating
+this file as a duplicate of the documentation.
 
-## Product And Priorities
+## Product And Design Principles
 
 BuildMax is a general-purpose AI Agent runtime. It should be quick to run,
 portable, configurable across models and tools, and suitable for local or
 private deployment.
 
 The project is in Alpha, as [`README.md`](README.md) says. Nothing is released
-that has to stay compatible: no frozen API contract, no persisted data worth
-preserving, no deployment owed a migration path. Design for what the system
-should be when it is stable, not for what today's code happens to do. When a
-stored shape, a JSON field, a column type, or a command surface is wrong, fix
-it everywhere at once — row struct, model, interface, documentation, tests —
-instead of layering a compatible workaround over it. An existing implementation
-is evidence about cost, never a reason a design has to stay. This is licence
-about form; the boundaries and invariants below are still decisions to
-renegotiate in the open.
+that has to stay compatible: no frozen API contract, persisted data worth
+preserving, or deployment owed a migration path. Design for the stable system,
+not around today's accidental shape. When a stored shape, API, or command is
+wrong, fix it coherently across code, documentation, and tests instead of
+adding a compatibility layer.
 
-The active priority order is in [`docs/ROADMAP.md`](docs/ROADMAP.md). Current
-code plus the roadmap wins when an older design record disagrees. Design
-records under [`docs/design/`](docs/design/README.md) explain rationale;
-current behavior belongs in user or contributor documentation.
+Current code plus [`docs/ROADMAP.md`](docs/ROADMAP.md) wins when an older design
+record disagrees. Documentation describes the project; it does not bound it.
+When documentation disagrees with code, verify the behavior and fix the
+documentation. When it is silent, use judgment and state the assumption.
 
-Documentation describes this project; it does not bound it. When a document
-disagrees with the code, the code is the fact and the document is the bug —
-say so, and fix the document, rather than reproducing stale behavior. When a
-document is simply silent, or its reasoning no longer fits the case in front
-of you, use judgment and state the assumption you made.
+### First Principles Thinking
 
-This applies to descriptions. The architecture boundaries and runtime
-invariants below are decisions, not observations: a rule you believe has
-outlived its rationale is a proposal to make explicitly, not a constraint to
-quietly route around. Proposing one is welcome; this file exists to record
-which is which, not to close the question.
+Begin every feature or system design by stating the essential user outcome,
+the evidence that it matters, and the constraints that exist today. Do not
+begin with an existing schema, API, old design, or familiar pattern and make
+the problem fit it. Reason through the whole lifecycle — ownership, state,
+interfaces, authorization, failure, and operation — and derive the design from
+those facts. Precedent is evidence about trade-offs, not authority: recover its
+rationale and keep it only when that rationale still holds against current
+user needs and external conditions.
 
-The primary implementation language is Go. The CLI/TUI must remain usable as a
-single binary without Node. Portal and Desktop have React frontends; this is an
-intentional exception, not a reason to add another runtime to the Go core.
-`evaluation/harbor/src/` is the second and last exception: it is Python because
-Harbor's custom-Agent boundary is a Python class, and an external benchmark's
-interface is not ours to choose. It is evaluation tooling — not built, not
-shipped, not imported by any Go package, and in no `./make check` scope.
+### Occam's Razor
 
-## Find The Right Source Of Truth
+Entities should not be multiplied beyond necessity. Among designs that fully
+satisfy the demonstrated user outcome and current constraints, choose the one
+with the fewest independent concepts and the least state. For every field,
+abstraction, entity, or feature, name the concrete requirement that fails
+without it; if none does, leave it out. Do not build for hypothetical future
+requirements. Simplicity is measured across the whole system and lifecycle,
+not by the size of the immediate patch: removing a wrong concept everywhere is
+often simpler than preserving it behind another layer.
+
+Apply both principles within the architecture boundaries and runtime invariants
+below. If the right design requires changing one, propose that change
+explicitly and update its source of truth; never route around it.
+
+The primary implementation language is Go. The CLI/TUI must remain a single
+binary without Node. Portal and Desktop use React intentionally.
+`evaluation/harbor/src/` is the only other language exception: Python required
+by Harbor's custom-Agent interface. It is evaluation tooling, not shipped code,
+and nothing under `cmd/` or `internal/` may import it.
+
+## Sources Of Truth
 
 - Documentation index: [`docs/README.md`](docs/README.md)
-- Repository tree and package ownership:
+- Current shipped state: [`docs/current-state.md`](docs/current-state.md)
+- Active priorities: [`docs/ROADMAP.md`](docs/ROADMAP.md)
+- Architecture index: [`docs/contribute/architecture/`](docs/contribute/architecture/README.md)
+- Repository layout and dependency direction:
   [`docs/contribute/repo-layout.md`](docs/contribute/repo-layout.md)
-- Current architecture: [`docs/contribute/architecture/overview.md`](docs/contribute/architecture/overview.md)
-- Contribution process: [`CONTRIBUTING.md`](CONTRIBUTING.md)
-- Naming, IDs, tool output, commits, and changelog rules:
+- Code, naming, IDs, tool output, and commit conventions:
   [`docs/contribute/conventions.md`](docs/contribute/conventions.md)
+- Testing and verification: [`docs/contribute/testing.md`](docs/contribute/testing.md)
 - Configuration and environment variables:
   [`docs/reference/configuration.md`](docs/reference/configuration.md)
-- This workspace's optional skills, subagents, and MCP configuration:
+- Design rationale: [`docs/design/`](docs/design/README.md)
+- Workspace skills, subagents, and MCP configuration:
   [`.buildmax/README.md`](.buildmax/README.md)
 
-Do not restate the repository tree outside `docs/contribute/repo-layout.md`.
-When a package moves, update that file and the relevant architecture document.
+Do not restate the repository tree outside `repo-layout.md`. Read the relevant
+architecture document before a cross-package change. Design records explain
+rationale; current behavior belongs in user or contributor documentation.
 
 ## Architecture Boundaries
 
@@ -72,275 +84,154 @@ The dependency direction is:
 bootstrap --> interface / server / service / agentapp / infra --> core
 ```
 
-`internal/core` is pure domain code. It must not import config, infra, service,
-server, agentapp, or interface packages. `internal/config` loads files and
-environment only; it does not assemble infrastructure. These boundaries are
-enforced by tests under `internal/architecture`.
-
-`cmd/` holds the entry points of the binaries that ship. Everything that only
-builds or tests the repository — the task runner, the evaluation runner, the
-test MCP server — lives in `tools/`, which nothing under `cmd/` or `internal/`
-may import. A tool may reach the other way into `internal/`.
-
-Within that direction, a package is an ownership boundary: it owns a business
-capability or one precise infrastructure concern, and every state transition,
-validation rule, and authorization decision has exactly one authoritative
-implementation that handlers, commands, and workers delegate to. Package
-naming, the duplication classification, and the rule that an ownership change
-moves every caller in one commit are in
-[`docs/contribute/conventions.md`](docs/contribute/conventions.md). Finding an
-ownership problem is not permission to restructure inside an unrelated change:
-record it and propose the migration separately.
+- `internal/core` is pure domain code. It must not import config, infra,
+  service, server, agentapp, or interface packages.
+- `internal/config` loads files and environment; it does not assemble
+  infrastructure.
+- `cmd/` contains thin entry points for shipped binaries. Build and test tools
+  live in `tools/`, which nothing under `cmd/` or `internal/` may import.
+- A package owns one business capability or one precise infrastructure concern.
+  Each state transition, validation rule, authorization decision, and default
+  has one authoritative implementation; handlers, commands, and workers
+  delegate to it. Do not restructure ownership incidentally to unrelated work.
 
 Important ownership boundaries:
 
 - `internal/core/agent` owns the shared LLM/tool-calling loop.
-- `internal/agentapp` assembles the runtime used by CLI, Desktop, eval, and
-  workers: models, tools, MCP, hooks, sandbox, traces, skills, sessions, and
-  workspace resolution.
+- `internal/agentapp` assembles the runtime used by CLI, Desktop, evaluation,
+  and workers: models, tools, MCP, hooks, sandbox, traces, skills, sessions,
+  and workspace resolution.
 - `internal/service/conversation` owns Portal foreground chat and optional
   semantic orchestration. A Conversation may create a Task, but is not its
   execution, authorization, or storage parent.
-- Task plus TaskRun is the durable Agent execution plane. An Agent can be
-  invoked directly through it; Task owns the continuing execution thread and
-  TaskRun owns one turn or attempt. Results are authoritative on TaskRun and
-  may be projected into a related Conversation, Issue, or Workflow without any
-  of them becoming a mandatory return path. See
+- Task plus TaskRun is the durable Agent execution plane. Task owns the
+  continuing thread; TaskRun owns one turn or attempt and its authoritative
+  result. See
   [`docs/design/agent-execution-and-task-threads.md`](docs/design/agent-execution-and-task-threads.md).
-- `internal/tool/names.go` is the source of truth for LLM-facing runtime tool
-  names. Hook matchers and subagent `tools:` entries use those exact strings.
-- HTTP routes are registered by each handler subpackage's `Register` method and
-  composed in `internal/server/handlers/routes.go` and `internal/server/server.go`.
-  Those registrations are the source of truth; `internal/server/static/openapi.json`
-  describes them, and a test holds it to an exact match in both directions.
-- `internal/config/env_spec.go` is the source of truth for bootstrap environment
-  variables.
-- The `xxxRow` structs in `internal/infra/db` are the source of truth for the
-  database schema; `AutoMigrate` in `store.go` applies them. The full table
-  reference and the rules for changing them are in
-  [`docs/contribute/architecture/data-model.md`](docs/contribute/architecture/data-model.md).
-  GORM stays inside that package: above it, "no such row" is `apierr.ErrNotFound`.
-- `internal/mock` and `internal/testsupport` are test-only. Production code must
-  not import either; a test enforces it.
+- Team is the ownership and authorization boundary for Portal resources. Issue
+  is the primary user-facing work object; Workflows are team-scoped reusable
+  linear plans.
+- Local `Project` is owned by `internal/core/localproject`: one Git repository,
+  including its worktrees, or one directory. It is not a server entity.
 
-Team is the ownership and authorization boundary for Portal resources. Issue is
-the primary user-facing work object. Workflows are team-scoped reusable linear
-plans. Conversations orchestrate foreground turns and background tasks. Local
-`Project` is a shared CLI/TUI/Desktop runtime concept owned by
-`internal/core/localproject` -- one Git repository including its worktrees, or
-one directory -- and is not a server domain entity.
+These files are authoritative within their concerns:
 
-Read the relevant architecture document before making a cross-package change:
+- LLM-facing runtime tool names: `internal/tool/names.go`.
+- HTTP routes: each handler subpackage's `Register` method, composed in
+  `internal/server/handlers/routes.go` and `internal/server/server.go`.
+  `internal/server/static/openapi.json` must match them exactly.
+- Bootstrap environment variables: `internal/config/env_spec.go`.
+- Database schema: the `xxxRow` structs in `internal/infra/db`, applied by
+  `AutoMigrate` in `store.go`. GORM stays in that package; above it, a missing
+  row is `apierr.ErrNotFound`.
+- Test-only code: `internal/mock` and `internal/testsupport`; production code
+  must not import either.
 
-- Agent loop, tools, sessions, CLI, TUI, Desktop, server, store, Portal, config,
-  logging, and utilities are indexed in
-  [`docs/contribute/architecture/`](docs/contribute/architecture/README.md).
-- Durable specifications for hooks, sandbox boundaries, and traces are indexed
-  in [`docs/design/README.md`](docs/design/README.md).
-- Portal product intent and surface positioning live in
-  [`docs/design/product-vision.md`](docs/design/product-vision.md) and
-  [`docs/design/surface-positioning.md`](docs/design/surface-positioning.md).
+Architecture tests under `internal/architecture` enforce these boundaries.
 
 ## Runtime Invariants
 
-- CLI commands and the Bubble Tea TUI live in `internal/interface/cli`; binary
-  entry points under `cmd/` stay thin.
-- Settings use `<BUILDMAX_HOME>/settings.yaml`; server/worker settings use
-  `<BUILDMAX_HOME>/server.yaml`. The default data directory is `~/.buildmax`.
-  A contributor's own repository configuration is separate and lives in one
-  gitignored `.local/` directory, created by `./make setup local` from the
-  committed templates; `tools/mk/local.go` is the source of truth for what is in
-  it. `deployment/compose/.env` is the one local file outside it, because
-  Compose reads it from the compose file's own directory.
-- The system prompt is four additive layers: the runtime prompt, an optional
-  `<BUILDMAX_HOME>/AGENTS.md`, an optional workspace-root `AGENTS.md`, then this
-  run's additional system prompt. All four are stable for a session, so together
-  they are the cacheable prefix; the compaction summary is appended after them
-  by `RunLoop` and never belongs in a layer.
-- Runtime hooks merge global settings with `<workspace>/.buildmax/hooks.yaml`.
-  Hook failures fail open; gating contracts are documented in
-  [`docs/design/hook-system.md`](docs/design/hook-system.md).
-- The Bash sandbox is available on macOS and Linux. It defaults off on the CLI
-  baseline and on for the stricter `SandboxSurfaceWorker` one, which also fails
-  closed when no backend is available. `internal/agentapp/taskrun` passes
-  `config.WorkerSandboxSurface()`, and that returns the worker baseline only
-  when `BUILDMAX_SANDBOX_BACKEND_INSTALLED` is set — a Dockerfile `ENV`, so it
-  is present in every container built from the official images and absent on a
-  bare host, in CI, and on native Windows, which keep the CLI baseline. A
-  `Manager` also probes its backend with a real confined command before
-  trusting it, so a backend that is installed but cannot enforce anything fails
-  closed rather than passing commands through. Both the `k8s_job` and
-  `local_process` paths are verified organically by the deployment smoke's own
-  sandbox probe. The worker Job pod runs root with `SYS_ADMIN`, not non-root:
-  a capability added to a non-root pod never reaches its effective set, so
-  `bwrap` could not run at all. See
+- CLI commands and the Bubble Tea TUI live in `internal/interface/cli`.
+- Runtime settings use `<BUILDMAX_HOME>/settings.yaml`; server settings use
+  `<BUILDMAX_HOME>/server.yaml`. Contributor-local repository configuration
+  belongs in the single gitignored `.local/` directory created by
+  `./make setup local`; `tools/mk/local.go` owns its contents.
+- The system prompt has four additive, session-stable layers: runtime,
+  `<BUILDMAX_HOME>/AGENTS.md`, workspace-root `AGENTS.md`, and this run's
+  additional prompt. Compaction summaries are appended by `RunLoop`, never
+  inserted into a layer.
+- Runtime hooks merge global settings with `<workspace>/.buildmax/hooks.yaml`
+  and fail open. See [`docs/design/hook-system.md`](docs/design/hook-system.md).
+- The Bash sandbox defaults off for CLI and on with fail-closed enforcement for
+  official workers. A worker must never silently run unsandboxed because its
+  backend is unavailable. See
   [`docs/design/agent-sandbox-policy.md`](docs/design/agent-sandbox-policy.md)
   and [`deployment/seccomp/README.md`](deployment/seccomp/README.md).
-- Plugins load from `<BUILDMAX_HOME>/plugins/<name>/`, contributing skills,
-  subagents, MCP servers, and hooks beneath the global and workspace layers.
-  `agentapp` resolves them once per runtime and keeps that snapshot, so an
-  install cannot change a run in flight. A worker's `BUILDMAX_HOME` is
-  run-scoped and starts empty; what fills it is a team activation, resolved by
-  the server when the worker claims its run and materialized before the runtime
-  is assembled. A team either curates its activation list or opens the whole
-  catalog, and an agent loads only the plugins it names — nothing is inherited.
-  Releases contributing hooks or MCP servers cannot be activated yet, and Tier 1
-  conversations still load no plugins. See
+- Plugins are resolved once per runtime. Workers receive only the team's
+  explicit, server-resolved activation in a run-scoped `BUILDMAX_HOME`; agents
+  inherit no plugins implicitly. See
   [`docs/design/plugin-team-distribution.md`](docs/design/plugin-team-distribution.md).
-- Every run records a bounded, redacted JSONL trace by default. Trace failure is
-  fail-open and must not break an agent run.
-- Server authentication requires a JWT secret. Login codes are single-use;
-  signup is disabled by default, and enabling it causes a startup warning. The
-  `dev_login_otp` bypass is gone — do not reintroduce a fixed code, and do not
-  describe one as still available.
-- Worker runs materialize the team's persistent `home`, execute in a run-scoped
-  directory, write artifacts, and use a run-scoped `BUILDMAX_HOME`.
-- Portal and Desktop share presentational components from `@buildmax/gui`, not
-  data/auth/routing logic. Both use React 19.
+- Every run records a bounded, redacted JSONL trace by default. Trace failure
+  is fail-open.
+- Server authentication requires a JWT secret. Login codes are single-use and
+  signup defaults off. Never reintroduce or document a fixed development OTP.
+- Worker runs materialize the team's persistent home, execute in a run-scoped
+  workspace, write artifacts, and use a run-scoped `BUILDMAX_HOME`.
+- Portal and Desktop share presentation through `@buildmax/gui`, not data,
+  authentication, or routing logic. Both use React 19.
 
-The planned but not implemented areas include team approvals and complete CI
-coverage for Kubernetes and native Windows. Do not document them as shipped. `evaluation/harbor` is a separate case: the oracle smoke and a
-one-task canary have run through it, so the path is verified for one task and no
-further. There is no Terminal-Bench score; do not present one as existing. Versioned workspace and timeline restore are not
-planned at all: the design record was withdrawn, so do not describe them as
-upcoming either.
+Do not infer shipped or planned behavior from an old design record. Verify it
+against code, [`docs/current-state.md`](docs/current-state.md), and the roadmap;
+never describe an unverified capability or evaluation score as existing.
 
-## Build, Test, And Check
+## Build, Test, And Verification
 
-Use the cross-platform task runner from the repository root:
+Use the cross-platform task runner from the repository root. `./make help` and
+[`docs/contribute/testing.md`](docs/contribute/testing.md) are the command and
+verification references.
 
 ```bash
-./make doctor          # read-only contributor environment diagnosis
-./make doctor harbor   # the same, for the external Terminal-Bench toolchain
-./make setup local     # create .local/ from the templates, in a fresh clone
-./make setup harbor    # install what that scope reports missing
-./make build           # strict full build: Go binaries, gui, Portal, Desktop
-./make build cli       # fast CLI-only build
-./make test            # Go tests with an isolated BUILDMAX_HOME
-./make test race       # the same suite with the race detector
-./make test mysql      # the store scope against a real MySQL; every PR runs it
-./make test ./internal/tool -run TestX   # narrow it; packages first, then flags
-./make fmt             # gofmt every tracked Go file
-./make lint            # pinned golangci-lint and govulncheck
-./make check <scope>   # go, gui, portal, desktop, docs, all, or ci
-./make check ci        # required PR suite plus conditional release/Windows checks
-./make e2e <suite>     # one end-to-end suite: cli, desktop, local, compose, kind, all
-./make help            # every command, grouped, with the contributor path
-./make help <command>  # one command's arguments, examples, and caveats
+./make doctor
+./make build cli
+./make test
+./make test mysql
+./make lint
+./make check <go|gui|portal|desktop|docs|all|ci>
+./make e2e <cli|desktop|local|compose|kind|all>
 ```
 
-End-to-end suites are a local feedback loop, not a pull-request gate. `cli` and
-`desktop` need nothing but Go and run in seconds, so `./make test` includes
-them; `local` owns a Compose stack for one run; the `compose` and `kind` suites
-attach to a deployment someone else started. None needs a provider API key —
-every suite answers the model from a committed scenario. Pick a suite, read the
-artifacts it leaves in `.artifacts/e2e/`, and see
-[`docs/contribute/testing.md`](docs/contribute/testing.md) for which suite
-covers what and what each one needs.
-
-When a change is Portal-, worker-, or deployment-shaped and a unit test cannot
-show it working, gather the end-to-end evidence yourself rather than handing the
-verification back: the `kind` command family stands up and drives the whole
-stack without a second person. `./make kind up` builds the images, creates the
-cluster, and runs a real worker Job; `./make kind fixtures` seeds representative
-Portal business data (idempotently), while `kind seed`/`kind use-model` manage
-the model catalog; and `./make kind login` plus the `drive-portal` skill sign a
-headless browser into Portal to assert against populated views. This needs
-Docker and changes the machine, so it stays a deliberate step chosen in
-proportion to the change, not a default for every task — but the evidence is now
-yours to produce. See [`docs/deploy/local-kind.md`](docs/deploy/local-kind.md).
-
-`./make agent-smoke` is not a test: it drives the agent's tools with a real
-model, needs an API key, and reports a table the model wrote about itself.
-`./make eval` is not a gate either: it builds the CLI and measures CLI tasks as
-a black box against `evaluation/suite/`; `--surface worker` selects the worker
-tasks, and `--surface all` selects both. Evaluation needs a model API key and
-spends tokens. It answers how reliably a model drives a behavior, not whether
-the behavior is wired; run it deliberately, never as part of a handoff check.
-`./make eval harbor run` starts a Terminal-Bench run: it assembles the Harbor
-command from `evaluation/harbor/pins.json`, launches it, and imports the job.
-`./make eval harbor --job <dir>` is the import alone, for a job someone else
-ran; it builds nothing and calls no model. See
-[`evaluation/README.md`](evaluation/README.md) for how to run either path and
-what a task and a bundle hold,
-[`docs/design/evaluation-system.md`](docs/design/evaluation-system.md) for why,
-and [`evaluation/harbor/README.md`](evaluation/harbor/README.md) for the
-external target.
-
-On Windows use `make.bat`. Add or change commands under `tools/mk`; the `make`
-and `make.bat` files remain one-line shims. Do not introduce a parallel shell
-script workflow.
-
-Go, Node, npm, and Wails versions are pinned by `go.mod`, `.node-version`, the
-frontend `packageManager` fields, and the Wails module dependency. Use `npm ci`
-for reproducible installs. Normal CLI development has no Node dependency.
-
-Narrow a test run with `./make test`, never a bare `go test`: only the task
-runner sets `BUILDMAX_HOME`, and `config.DataDir` panics rather than fall back
-to a contributor's real `~/.buildmax` under test.
-
-A change to `internal/infra/db` needs `./make test mysql`. Every test there
-skips itself without `BUILDMAX_TEST_DSN`, so a green `./make test` says nothing
-about schema, query, or transaction behavior; that scope requires the DSN,
-runs on a database it creates and drops, and refuses to pass on a skip. It
-needs a MySQL you already run — it will not start one for you.
-
-Run checks in proportion to the change, and prefer the narrow scope while
-iterating. Before handoff, run every relevant scope. A full check requires no
-model API key. Tests must not write to a contributor's real `~/.buildmax`.
-
-Safe, local defaults include `doctor`, `build cli`, `test`, `lint`, and scoped
-`check`. Commands such as `install`, `release`, `compose`, `kind`, and
-publication workflows change the machine, repository, or external systems;
-inspect their help and use them only when the task authorizes that effect.
+- Narrow tests through `./make test`, never bare `go test`; only the task runner
+  isolates `BUILDMAX_HOME` from a contributor's real `~/.buildmax`.
+- Run checks in proportion to the change, starting narrow and finishing with
+  every relevant scope. `git diff --check` is always part of handoff.
+- Any `internal/infra/db` change requires `./make test mysql` against a real
+  MySQL. The ordinary suite skips that scope and is not evidence for it.
+- When a Portal, worker, or deployment behavior cannot be proved by a unit
+  test, produce end-to-end evidence yourself. The deterministic E2E suites need
+  no provider API key.
+- `./make agent-smoke` and `./make eval` use real models, spend tokens, and
+  measure model-driven behavior; they are not tests or default handoff checks.
+- On Windows use `make.bat`. Add or change commands under `tools/mk`; do not
+  create a parallel shell-script workflow.
+- Go, Node, npm, and Wails versions are repository-pinned. Use `npm ci` for
+  reproducible frontend installs. Normal CLI development has no Node dependency.
+- `doctor`, `build cli`, `test`, `lint`, and scoped `check` are safe local
+  defaults. Before commands that install, release, start Compose or kind, or
+  publish externally, inspect their help and ensure the task authorizes their
+  machine, repository, or external effects.
 
 ## Change Rules
 
-- Preserve unrelated work in a dirty worktree. Never reset or overwrite another
-  contributor's changes to make checks pass.
-- A design record read at the start of a task can move under you. Before opening
-  a pull request, `git fetch origin` and check whether `main` has changed the
-  records the work implements — `git log origin/main -- <record>` answers it.
-  Rebase onto what you find before opening, and check again before merging. A
-  branch cut from a record that was superseded an hour later still builds,
-  still passes its own tests, and implements a design the repository has
-  rejected; nothing in the checks can catch that, so it has to be looked at.
+- Preserve unrelated work in a dirty worktree. Never reset or overwrite it to
+  make checks pass.
+- Before opening a pull request based on a design record, fetch `origin` and
+  check whether `main` changed that record. Rebase and recheck before merging.
 - Persisted JSON uses explicit `snake_case` tags. Database table names are
-  singular. A server entity's public identifier uses `NewPublicID` from
-  `internal/util`; see [`docs/design/entity-identity.md`](docs/design/entity-identity.md).
+  singular. Server entities use `NewPublicID` from `internal/util`; see
+  [`docs/design/entity-identity.md`](docs/design/entity-identity.md).
 - Tool output is written for the LLM and must be meaningful on success and
   failure.
-- Keep code comments short. Comment the background and the decision — why this
-  approach, what was rejected, what breaks if it changes — not what the code
-  already says. A comment that restates its own function is noise to maintain;
-  delete it rather than update it. Longer rationale belongs in a design record.
-- Keep user documentation task-oriented. Keep contributor architecture factual.
-  Keep rationale in design records. Follow
+- Comments explain background and decisions, not what the code already says.
+  Longer rationale belongs in a design record.
+- User documentation is task-oriented, contributor architecture is factual,
+  and rationale belongs in design records. Follow
   [`docs/contribute/documentation.md`](docs/contribute/documentation.md).
-- A document under `docs/proposals/` or `docs/design/` opens with a
-  `## Contents` list of its top-level sections, so a reader sees the whole
-  shape before reading any of it. Keep the list correct when sections change.
-- Add a changelog entry for user-visible changes with
-  `./make changelog new <added|changed|fixed|security> <slug>`, which writes
-  `docs/changelog/<category>/<slug>.md` holding the one list item it will
-  become. One file per entry so parallel branches never conflict; the release
-  step folds them into `CHANGELOG.md`.
-- Commit subjects are one imperative line. A pull request title carries a
-  Conventional Commits type prefix in front of that line — `feat: Add the
-  black-box worker trial adapter`, `docs: …`, `fix(server)!: …` — because the
-  title becomes the merge commit subject. Do not add assistant attribution,
-  session links, generated-with footers, or tooling trailers to commits or pull
-  requests.
-- Do not commit local `.vibe/` notes. They are scratch state, not project
-  documentation.
-
-When adding or changing dependencies, update lockfiles and run the repository's
-license checks. Security-sensitive changes should also be assessed against
-[`SECURITY.md`](SECURITY.md) and the sandbox/hook trust boundaries.
+- Documents under `docs/proposals/` and `docs/design/` open with an accurate
+  `## Contents` list of their top-level sections.
+- Add a changelog file for user-visible changes with
+  `./make changelog new <added|changed|fixed|security> <slug>`.
+- Commit subjects are imperative lines. Pull request titles carry the
+  Conventional Commits prefix. Do not add assistant attribution, generated-by
+  footers, session links, or tooling trailers. The full rules are in
+  [`docs/contribute/conventions.md`](docs/contribute/conventions.md).
+- Dependency changes include lockfiles and license checks. Assess
+  security-sensitive changes against [`SECURITY.md`](SECURITY.md) and the
+  sandbox and hook trust boundaries.
+- Do not commit `.vibe/`; it is local scratch state.
 
 ## Definition Of Done
 
 A contribution is ready when the requested behavior is implemented, relevant
 tests and scoped checks pass, documentation and examples match the code,
-generated or lock files are intentional, and `git diff --check` is clean. Report
-checks that were not possible rather than silently treating them as passed.
+generated and lock files are intentional, and `git diff --check` is clean.
+Report checks that were not possible rather than treating them as passed.
