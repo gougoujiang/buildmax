@@ -70,6 +70,34 @@ func TestOneLineFlattensAndTruncates(t *testing.T) {
 	}
 }
 
+// `issue start` launches a run, so it exposes the same run flags as `buildmax`
+// itself and takes exactly one issue id. Pinning that keeps a future flag added
+// to the root run from silently missing this surface.
+func TestIssueStartSharesRunFlagsAndTakesOneArg(t *testing.T) {
+	root := NewRootCommand()
+	start, _, err := root.Find([]string{"issue", "start"})
+	if err != nil {
+		t.Fatalf("find issue start: %v", err)
+	}
+	if start.Name() != "start" {
+		t.Fatalf("resolved %q, want the start command", start.CommandPath())
+	}
+	// A representative spread across the run surface: a print/session flag, the
+	// model and workspace, the sandbox, and one of the niche flags — enough to
+	// catch `issue start` drifting off the shared set.
+	for _, name := range []string{"print", "resume", "model", "workspace", "sandbox", "max-iterations", "append-system-prompt"} {
+		if start.Flags().Lookup(name) == nil {
+			t.Errorf("issue start is missing the run flag --%s", name)
+		}
+	}
+	if err := start.Args(start, nil); err == nil {
+		t.Error("issue start accepted zero args, want exactly one issue id")
+	}
+	if err := start.Args(start, []string{"a", "b"}); err == nil {
+		t.Error("issue start accepted two args, want exactly one issue id")
+	}
+}
+
 func TestIsKnownIssueStatus(t *testing.T) {
 	for _, ok := range []string{coreissue.StatusTodo, coreissue.StatusInProgress, coreissue.StatusDone} {
 		if !isKnownIssueStatus(ok) {
