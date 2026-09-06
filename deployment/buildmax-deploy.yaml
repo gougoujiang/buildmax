@@ -331,10 +331,12 @@ spec:
             - name: worker-api-tls
               mountPath: /buildmax/tls/worker-api
               readOnly: true
-            # Space Secret key-encryption key. optional so a deployment that does
-            # not use Space Secrets starts without the Secret present; the feature
+            # Deployment key-encryption key. It protects Space Secrets and
+            # managed-model provider credentials at rest. Optional so a deployment
+            # that uses neither starts without the Secret present; the feature
             # turns on only when secret.kek_file also points here (kind does; the
-            # baseline config above does not). See docs/design/space-secrets.md.
+            # baseline config above does not). Without it, adding a model that
+            # carries a credential is refused. See docs/design/space-secrets.md.
             - name: buildmax-kek
               mountPath: /buildmax/kek
               readOnly: true

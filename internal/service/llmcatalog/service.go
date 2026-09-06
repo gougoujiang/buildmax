@@ -38,6 +38,12 @@ const auditTarget = "llm_model"
 // ErrNameTaken is returned when a create names a model the catalog already has.
 var ErrNameTaken = apierr.New(apierr.KindConflict, "a model with this name already exists")
 
+// ErrEncryptionUnavailable is returned when a create carries a provider
+// credential but the deployment configured no encryption key to protect it at
+// rest. The credential is refused rather than stored in the clear; configure a
+// KEK (see docs/design/space-secrets.md §9.1) and retry.
+var ErrEncryptionUnavailable = apierr.New(apierr.KindNotConfigured, "no deployment encryption key is configured, so a model credential cannot be stored")
+
 // Validate rejects a row that could never serve a call, so a caller hears about
 // it here rather than at somebody's first prompt.
 func Validate(in coregw.CreateModelInput) error {
@@ -93,6 +99,9 @@ func (s *Service) Create(ctx context.Context, in coregw.CreateModelInput, actor 
 	if err != nil {
 		if errors.Is(err, coregw.ErrModelNameTaken) {
 			return nil, ErrNameTaken
+		}
+		if errors.Is(err, coregw.ErrCredentialEncryptionUnavailable) {
+			return nil, ErrEncryptionUnavailable
 		}
 		return nil, fmt.Errorf("create model: %w", err)
 	}

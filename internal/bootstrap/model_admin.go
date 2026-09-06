@@ -14,6 +14,7 @@ import (
 	"github.com/gougoujiang/buildmax/internal/core/llm"
 	coregw "github.com/gougoujiang/buildmax/internal/core/llmgateway"
 	"github.com/gougoujiang/buildmax/internal/infra/db"
+	infrasecret "github.com/gougoujiang/buildmax/internal/infra/secret"
 	"github.com/gougoujiang/buildmax/internal/service/audit"
 	"github.com/gougoujiang/buildmax/internal/service/llmcatalog"
 	"github.com/gougoujiang/buildmax/internal/service/llmgateway"
@@ -256,7 +257,22 @@ func openStoreFromConfig(ctx context.Context) (*db.Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("server config: %w", err)
 	}
-	return openStore(ctx, sc.Database)
+	store, err := openStore(ctx, sc.Database)
+	if err != nil {
+		return nil, err
+	}
+	// `model add` stores a provider credential, so it needs the same encryption
+	// the server uses. A configured KEK that will not load fails here rather than
+	// letting the command write a plaintext key; no KEK means a credentialed add
+	// is refused by the catalog with a clear message.
+	if sc.Secret.KEKFile != "" {
+		kek, err := infrasecret.LoadKEKFile(sc.Secret.KEKFile)
+		if err != nil {
+			return nil, fmt.Errorf("model credential encryption: %w", err)
+		}
+		store.SetCredentialCipher(infrasecret.NewCipher(kek))
+	}
+	return store, nil
 }
 
 // recordModelAudit writes a catalog change to the audit trail.

@@ -15,7 +15,27 @@ import (
 // Store implements the backend store interfaces with a MySQL backend.
 type Store struct {
 	db *gorm.DB
+	// credentialCipher encrypts managed-model provider credentials at rest. Nil
+	// when the deployment configures no encryption key, in which case storing a
+	// credential is refused rather than written in the clear. Injected at
+	// bootstrap; see SetCredentialCipher.
+	credentialCipher CredentialCipher
 }
+
+// CredentialCipher seals and opens a managed-model provider credential. It is
+// an interface so this package does not import the crypto implementation; the
+// concrete cipher (internal/infra/secret, the deployment's KEK-backed envelope
+// encryption) is injected at bootstrap. The blob SealValue returns is opaque
+// and stored as one column.
+type CredentialCipher interface {
+	SealValue(plaintext string, aad []byte) ([]byte, error)
+	OpenValue(blob []byte, aad []byte) (string, error)
+}
+
+// SetCredentialCipher attaches the credential encryptor the model catalog uses.
+// Called at bootstrap only when a deployment encryption key is configured; left
+// unset, storing a model credential is refused.
+func (s *Store) SetCredentialCipher(c CredentialCipher) { s.credentialCipher = c }
 
 // New opens a MySQL connection with the given DSN and brings the schema up to
 // date. When the DSN names a database the server does not have, it is created

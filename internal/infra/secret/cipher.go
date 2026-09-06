@@ -1,7 +1,10 @@
-// Package secret implements the cryptography behind Space Secrets: envelope
-// encryption of a Secret's item map, and the key-encryption-key providers that
-// wrap the per-write data keys. It is the only place that touches plaintext
-// item bytes and key material. See docs/design/space-secrets.md §9.
+// Package secret implements the deployment's envelope encryption: a fresh
+// per-write data key under AES-256-GCM, wrapped by a key-encryption key. It is
+// the deployment's one key-management boundary, shared by two callers — Space
+// Secrets (an item map, via Seal/Open) and managed-model provider credentials
+// (a single value, via SealValue/OpenValue) — so a deployment configures and
+// rotates one KEK, not two. It is the only place that touches plaintext bytes
+// and key material. See docs/design/space-secrets.md §9.
 package secret
 
 import (
@@ -52,25 +55,9 @@ func (c *Cipher) Seal(items coresecret.Items, aad []byte) (coresecret.Sealed, er
 	if err != nil {
 		return coresecret.Sealed{}, fmt.Errorf("secret: marshal items: %w", err)
 	}
-
-	dek := make([]byte, dekSize)
-	if _, err := io.ReadFull(rand.Reader, dek); err != nil {
-		return coresecret.Sealed{}, fmt.Errorf("secret: generate dek: %w", err)
-	}
-
-	gcm, err := newGCM(dek)
+	ciphertext, nonce, wrapped, keyID, err := c.sealBytes(plaintext, aad)
 	if err != nil {
 		return coresecret.Sealed{}, err
-	}
-	nonce := make([]byte, gcm.NonceSize())
-	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		return coresecret.Sealed{}, fmt.Errorf("secret: generate nonce: %w", err)
-	}
-	ciphertext := gcm.Seal(nil, nonce, plaintext, aad)
-
-	wrapped, keyID, err := c.kek.Wrap(dek)
-	if err != nil {
-		return coresecret.Sealed{}, fmt.Errorf("secret: wrap dek: %w", err)
 	}
 	return coresecret.Sealed{
 		Ciphertext: ciphertext,
@@ -84,7 +71,83 @@ func (c *Cipher) Seal(items coresecret.Items, aad []byte) (coresecret.Sealed, er
 // given, or authentication fails. A failure here means tampering, a wrong KEK,
 // or a mismatched associated data -- never a partial result.
 func (c *Cipher) Open(s coresecret.Sealed, aad []byte) (coresecret.Items, error) {
-	dek, err := c.kek.Unwrap(s.WrappedDEK, s.KeyID)
+	plaintext, err := c.openBytes(s.Ciphertext, s.Nonce, s.WrappedDEK, s.KeyID, aad)
+	if err != nil {
+		return nil, err
+	}
+	var items map[string]string
+	if err := json.Unmarshal(plaintext, &items); err != nil {
+		return nil, fmt.Errorf("secret: unmarshal items: %w", err)
+	}
+	return items, nil
+}
+
+// sealedValue is the framed on-disk form of a single value SealValue produced:
+// the envelope fields serialized together so a caller stores one column instead
+// of four. It is private -- callers treat the blob as opaque.
+type sealedValue struct {
+	Ciphertext []byte `json:"c"`
+	Nonce      []byte `json:"n"`
+	WrappedDEK []byte `json:"w"`
+	KeyID      string `json:"k"`
+}
+
+// SealValue encrypts a single secret string into one self-describing blob,
+// using the same envelope as Seal. aad domain-separates it: a model-credential
+// blob (see the caller's tag) cannot be opened as a Space Secret blob or the
+// reverse, even under the one shared KEK.
+func (c *Cipher) SealValue(plaintext string, aad []byte) ([]byte, error) {
+	ct, nonce, wrapped, keyID, err := c.sealBytes([]byte(plaintext), aad)
+	if err != nil {
+		return nil, err
+	}
+	blob, err := json.Marshal(sealedValue{Ciphertext: ct, Nonce: nonce, WrappedDEK: wrapped, KeyID: keyID})
+	if err != nil {
+		return nil, fmt.Errorf("secret: marshal sealed value: %w", err)
+	}
+	return blob, nil
+}
+
+// OpenValue reverses SealValue. A failure means tampering, a wrong KEK, or a
+// mismatched aad -- never a partial result.
+func (c *Cipher) OpenValue(blob []byte, aad []byte) (string, error) {
+	var v sealedValue
+	if err := json.Unmarshal(blob, &v); err != nil {
+		return "", fmt.Errorf("secret: unmarshal sealed value: %w", err)
+	}
+	plaintext, err := c.openBytes(v.Ciphertext, v.Nonce, v.WrappedDEK, v.KeyID, aad)
+	if err != nil {
+		return "", err
+	}
+	return string(plaintext), nil
+}
+
+// sealBytes envelope-encrypts plaintext: a fresh random DEK under AES-256-GCM,
+// the DEK wrapped by the KEK. aad is bound into the ciphertext.
+func (c *Cipher) sealBytes(plaintext, aad []byte) (ciphertext, nonce, wrapped []byte, keyID string, err error) {
+	dek := make([]byte, dekSize)
+	if _, err = io.ReadFull(rand.Reader, dek); err != nil {
+		return nil, nil, nil, "", fmt.Errorf("secret: generate dek: %w", err)
+	}
+	gcm, err := newGCM(dek)
+	if err != nil {
+		return nil, nil, nil, "", err
+	}
+	nonce = make([]byte, gcm.NonceSize())
+	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
+		return nil, nil, nil, "", fmt.Errorf("secret: generate nonce: %w", err)
+	}
+	ciphertext = gcm.Seal(nil, nonce, plaintext, aad)
+	wrapped, keyID, err = c.kek.Wrap(dek)
+	if err != nil {
+		return nil, nil, nil, "", fmt.Errorf("secret: wrap dek: %w", err)
+	}
+	return ciphertext, nonce, wrapped, keyID, nil
+}
+
+// openBytes reverses sealBytes.
+func (c *Cipher) openBytes(ciphertext, nonce, wrapped []byte, keyID string, aad []byte) ([]byte, error) {
+	dek, err := c.kek.Unwrap(wrapped, keyID)
 	if err != nil {
 		return nil, fmt.Errorf("secret: unwrap dek: %w", err)
 	}
@@ -92,18 +155,14 @@ func (c *Cipher) Open(s coresecret.Sealed, aad []byte) (coresecret.Items, error)
 	if err != nil {
 		return nil, err
 	}
-	if len(s.Nonce) != gcm.NonceSize() {
-		return nil, fmt.Errorf("secret: nonce is %d bytes, want %d", len(s.Nonce), gcm.NonceSize())
+	if len(nonce) != gcm.NonceSize() {
+		return nil, fmt.Errorf("secret: nonce is %d bytes, want %d", len(nonce), gcm.NonceSize())
 	}
-	plaintext, err := gcm.Open(nil, s.Nonce, s.Ciphertext, aad)
+	plaintext, err := gcm.Open(nil, nonce, ciphertext, aad)
 	if err != nil {
 		return nil, fmt.Errorf("secret: open ciphertext: %w", err)
 	}
-	var items map[string]string
-	if err := json.Unmarshal(plaintext, &items); err != nil {
-		return nil, fmt.Errorf("secret: unmarshal items: %w", err)
-	}
-	return items, nil
+	return plaintext, nil
 }
 
 // newGCM builds an AES-256-GCM AEAD from a 32-byte key.

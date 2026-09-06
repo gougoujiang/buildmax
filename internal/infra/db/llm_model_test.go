@@ -54,14 +54,38 @@ func TestCapabilityListRoundTrip(t *testing.T) {
 // general-purpose read names its columns, and the credential is not among them.
 func TestLLMModelReadsExcludeTheCredential(t *testing.T) {
 	for _, column := range llmModelColumns {
-		if column == "api_key" {
-			t.Fatal("api_key is in the general read column list")
+		if column == "api_key" || column == "api_key_sealed" {
+			t.Fatalf("%s is in the general read column list", column)
 		}
 	}
 	// The entity itself has no field to put it in either.
 	if strings.Contains(fmt.Sprintf("%+v", coregw.Model{}), "APIKey") {
 		t.Error("coregw.Model has an APIKey field")
 	}
+}
+
+// fakeCredentialCipher is a reversible stand-in for the deployment cipher so the
+// store tests exercise encrypt-before-store and decrypt-on-read without a KEK.
+// The real envelope encryption is tested in internal/infra/secret; here the only
+// property that matters is that the transform is reversible and hides the
+// plaintext, so "the column is not the key" is a real assertion. XOR with a
+// non-zero byte changes every byte, so no plaintext substring survives.
+type fakeCredentialCipher struct{}
+
+func (fakeCredentialCipher) SealValue(plaintext string, _ []byte) ([]byte, error) {
+	out := make([]byte, len(plaintext))
+	for i := range plaintext {
+		out[i] = plaintext[i] ^ 0x5a
+	}
+	return out, nil
+}
+
+func (fakeCredentialCipher) OpenValue(blob []byte, _ []byte) (string, error) {
+	out := make([]byte, len(blob))
+	for i := range blob {
+		out[i] = blob[i] ^ 0x5a
+	}
+	return string(out), nil
 }
 
 func newCatalogStore(t *testing.T) (*Store, context.Context) {
@@ -75,6 +99,7 @@ func newCatalogStore(t *testing.T) (*Store, context.Context) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
+	s.SetCredentialCipher(fakeCredentialCipher{})
 	return s, ctx
 }
 
@@ -197,6 +222,64 @@ func TestGetLLMModelMissing(t *testing.T) {
 	}
 }
 
+// TestLLMModelCredentialIsEncryptedAtRest is the whole point of the change: the
+// stored column is ciphertext, not the key, and only LLMModelCredential turns it
+// back. Reading the column directly is how "at rest" is checked rather than
+// trusted.
+func TestLLMModelCredentialIsEncryptedAtRest(t *testing.T) {
+	s, ctx := newCatalogStore(t)
+
+	created, err := s.CreateLLMModel(ctx, sampleModelInput("Catalog "+testPublicID(t)))
+	if err != nil {
+		t.Fatalf("CreateLLMModel: %v", err)
+	}
+	defer func() {
+		_ = s.db.WithContext(ctx).Delete(&llmModelRow{}, "public_id = ?", canonicalPublicID(created.ID))
+	}()
+
+	var raw llmModelRow
+	if err := s.db.WithContext(ctx).Select("api_key_sealed").
+		Where("public_id = ?", canonicalPublicID(created.ID)).First(&raw).Error; err != nil {
+		t.Fatalf("read sealed column: %v", err)
+	}
+	if len(raw.APIKeySealed) == 0 {
+		t.Fatal("no credential was stored")
+	}
+	if strings.Contains(string(raw.APIKeySealed), catalogSecret) {
+		t.Error("the stored column contains the plaintext key")
+	}
+
+	key, err := s.LLMModelCredential(ctx, created.ID)
+	if err != nil || key != catalogSecret {
+		t.Fatalf("LLMModelCredential round trip = %q, %v; want the original key", key, err)
+	}
+}
+
+// TestLLMModelCredentialWithoutCipher is the fail-closed rule: with no
+// deployment encryption key, a credentialed model is refused rather than stored
+// in the clear, while a credential-free model is unaffected.
+func TestLLMModelCredentialWithoutCipher(t *testing.T) {
+	s, ctx := newCatalogStore(t)
+	s.SetCredentialCipher(nil) // a deployment with no KEK configured
+
+	if _, err := s.CreateLLMModel(ctx, sampleModelInput("Catalog "+testPublicID(t))); !errors.Is(err, coregw.ErrCredentialEncryptionUnavailable) {
+		t.Fatalf("credentialed create without a cipher = %v, want ErrCredentialEncryptionUnavailable", err)
+	}
+
+	free := sampleModelInput("Catalog " + testPublicID(t))
+	free.APIKey = ""
+	created, err := s.CreateLLMModel(ctx, free)
+	if err != nil {
+		t.Fatalf("credential-free create without a cipher: %v", err)
+	}
+	defer func() {
+		_ = s.db.WithContext(ctx).Delete(&llmModelRow{}, "public_id = ?", canonicalPublicID(created.ID))
+	}()
+	if key, err := s.LLMModelCredential(ctx, created.ID); err != nil || key != "" {
+		t.Fatalf("credential-free model's credential = %q, %v; want empty", key, err)
+	}
+}
+
 // TestLLMModelColumnsCoversTheRow is the guard the comment on llmModelColumns
 // asked for and could not enforce.
 //
@@ -217,7 +300,7 @@ func TestLLMModelColumnsCoversTheRow(t *testing.T) {
 	}
 	// The credential is excluded on purpose; naming it here is the whole point
 	// of the list.
-	skip := map[string]bool{"api_key": true}
+	skip := map[string]bool{"api_key_sealed": true}
 
 	rowType := reflect.TypeOf(llmModelRow{})
 	for i := range rowType.NumField() {

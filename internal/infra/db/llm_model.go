@@ -13,16 +13,18 @@ import (
 
 // llmModelRow is the managed model catalog.
 //
-// APIKey is the one column that must never be selected by a general read. The
-// store exposes it through LLMModelCredential alone, so a query that forgets to
-// exclude it cannot exist.
+// APIKeySealed is the one column that must never be selected by a general read.
+// It holds the provider credential encrypted at rest (envelope encryption under
+// the deployment KEK); the store exposes it through LLMModelCredential alone,
+// which decrypts it, so a query that forgets to exclude it cannot exist and a
+// plaintext key is never written.
 type llmModelRow struct {
 	ID            uint64 `gorm:"primaryKey;autoIncrement"`
 	PublicID      string `gorm:"column:public_id;type:char(20) CHARACTER SET ascii COLLATE ascii_bin;uniqueIndex:uq_llm_model_public_id;not null"`
 	Name          string `gorm:"type:varchar(128);uniqueIndex;not null"`
 	ProviderType  string `gorm:"type:varchar(32);not null"`
 	APIURL        string `gorm:"type:varchar(512);not null"`
-	APIKey        string `gorm:"type:varchar(512);not null"`
+	APIKeySealed  []byte `gorm:"column:api_key_sealed;type:blob"`
 	Model         string `gorm:"type:varchar(128);not null"`
 	ContextWindow int    `gorm:"not null;default:0"`
 	CallTimeout   int    `gorm:"not null;default:0"`
@@ -122,15 +124,39 @@ var llmModelColumns = []string{
 	"created_at", "updated_at",
 }
 
+// llmCredentialAAD domain-separates a model-credential blob from every other
+// thing sealed under the same deployment KEK (Space Secrets bind their own AAD),
+// so a blob authenticated as a credential cannot be opened as anything else. It
+// binds no model id: like a Space Secret's AAD, the public id is minted after
+// the value is sealed, and per-deployment isolation already comes from the KEK.
+var llmCredentialAAD = []byte("bmax-llm-credential\x00")
+
+// sealCredential encrypts a provider credential for storage. An empty
+// credential (a provider that needs none) seals to nothing. A non-empty
+// credential with no cipher configured is refused rather than stored plaintext.
+func (s *Store) sealCredential(plaintext string) ([]byte, error) {
+	if plaintext == "" {
+		return nil, nil
+	}
+	if s.credentialCipher == nil {
+		return nil, coregw.ErrCredentialEncryptionUnavailable
+	}
+	return s.credentialCipher.SealValue(plaintext, llmCredentialAAD)
+}
+
 // CreateLLMModel stores a new model. The name is unique so an operator cannot
 // end up with two catalog entries that look identical in a listing.
 func (s *Store) CreateLLMModel(ctx context.Context, in coregw.CreateModelInput) (*coregw.Model, error) {
+	sealed, err := s.sealCredential(in.APIKey)
+	if err != nil {
+		return nil, err
+	}
 	now := time.Now().UTC()
 	row := &llmModelRow{
 		Name:              in.Name,
 		ProviderType:      in.ProviderType,
 		APIURL:            in.APIURL,
-		APIKey:            in.APIKey,
+		APIKeySealed:      sealed,
 		Model:             in.Model,
 		ContextWindow:     in.ContextWindow,
 		CallTimeout:       in.CallTimeout,
@@ -235,7 +261,7 @@ func (s *Store) LLMModelCredential(ctx context.Context, llmModelID string) (stri
 		return "", errors.New("model id is required")
 	}
 	var row llmModelRow
-	err := s.db.WithContext(ctx).Select("api_key").
+	err := s.db.WithContext(ctx).Select("api_key_sealed").
 		Where("public_id = ?", canonicalPublicID(llmModelID)).First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return "", errors.New("model not found")
@@ -243,5 +269,13 @@ func (s *Store) LLMModelCredential(ctx context.Context, llmModelID string) (stri
 	if err != nil {
 		return "", err
 	}
-	return row.APIKey, nil
+	if len(row.APIKeySealed) == 0 {
+		// A provider that needs no credential, or a row from before encryption
+		// was configured. Either way there is no key to hand back.
+		return "", nil
+	}
+	if s.credentialCipher == nil {
+		return "", coregw.ErrCredentialEncryptionUnavailable
+	}
+	return s.credentialCipher.OpenValue(row.APIKeySealed, llmCredentialAAD)
 }
