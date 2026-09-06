@@ -6,10 +6,12 @@
 // a signed-in System Administrator. Which one acted belongs in the trail; what
 // the catalog will take does not depend on it.
 //
-// Adding a model stays shell-only, and that is a property of the routes rather
-// than of this service: a create carries a provider credential, and doing it
-// over HTTP puts one in a request body, a proxy log, and whatever the browser
-// did with the form.
+// Adding a model is reachable from both edges. A create carries a provider
+// credential, which is why it was once shell-only; it is safe over HTTP now that
+// the store encrypts the credential at rest and refuses a credentialed model
+// when no encryption key is configured (see internal/infra/secret and
+// internal/infra/db). The key travels in the request body alone, never a query
+// or path, and no read returns it.
 package llmcatalog
 
 import (
@@ -90,8 +92,64 @@ func knownCapability(name string) bool {
 		Has(llmgateway.Capability(name))
 }
 
+// Pricing is a catalog row's resolved per-million-token rates, in nano-units of
+// its currency. It is what ResolvePricing turns an edge's string prices into,
+// so a caller that cannot import internal/config still reaches the one price
+// parser.
+type Pricing struct {
+	Currency          string
+	InputPerMTok      int64
+	CacheReadPerMTok  int64
+	CacheWritePerMTok int64
+	OutputPerMTok     int64
+}
+
+// ResolvePricing parses the string prices an edge collects into stored rates,
+// through the same config parser the shell command uses. It lives here so the
+// admin handler, which may not import internal/config, still resolves prices the
+// one way. Empty strings mean an unpriced model.
+func ResolvePricing(currency, input, cacheRead, cacheWrite, output string) (Pricing, error) {
+	p, err := config.ResolvePricing(&config.ModelPricing{
+		Currency:          strings.TrimSpace(currency),
+		InputPerMTok:      strings.TrimSpace(input),
+		CacheReadPerMTok:  strings.TrimSpace(cacheRead),
+		CacheWritePerMTok: strings.TrimSpace(cacheWrite),
+		OutputPerMTok:     strings.TrimSpace(output),
+	})
+	if err != nil {
+		return Pricing{}, err
+	}
+	return Pricing{
+		Currency:          p.Currency,
+		InputPerMTok:      p.InputPerMTok,
+		CacheReadPerMTok:  p.CacheReadPerMTok,
+		CacheWritePerMTok: p.CacheWritePerMTok,
+		OutputPerMTok:     p.OutputPerMTok,
+	}, nil
+}
+
+// withDefaults fills the catalog's defaults for fields a caller may omit, so a
+// model added through any edge -- the shell or the admin API -- lands as the
+// same row. The protocol defaults to OpenAI-compatible, and capabilities to the
+// baseline set an OpenAI-compatible client already guarantees. Both defaults
+// live here rather than at each edge so the two cannot drift.
+func withDefaults(in coregw.CreateModelInput) coregw.CreateModelInput {
+	if in.ProviderType == "" {
+		in.ProviderType = llm.ProviderOpenAICompatible
+	}
+	if len(in.Capabilities) == 0 {
+		caps := llmgateway.BaselineCapabilities()
+		in.Capabilities = make([]string, 0, len(caps))
+		for _, c := range caps {
+			in.Capabilities = append(in.Capabilities, string(c))
+		}
+	}
+	return in
+}
+
 // Create validates and adds a catalog entry.
 func (s *Service) Create(ctx context.Context, in coregw.CreateModelInput, actor coreaudit.Actor) (*coregw.Model, error) {
+	in = withDefaults(in)
 	if err := Validate(in); err != nil {
 		return nil, err
 	}

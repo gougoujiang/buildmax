@@ -94,6 +94,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/admin/spaces", h.listAdminSpacesHandler)
 	mux.HandleFunc("GET /api/admin/spaces/{space_id}", h.getAdminSpaceHandler)
 	mux.HandleFunc("GET /api/admin/llm/models", h.listAdminModelsHandler)
+	mux.HandleFunc("POST /api/admin/llm/models", h.createAdminModelHandler)
 	mux.HandleFunc("POST /api/admin/llm/models/{model_id}/enable", h.setAdminModelEnabledHandler(true))
 	mux.HandleFunc("POST /api/admin/llm/models/{model_id}/disable", h.setAdminModelEnabledHandler(false))
 	mux.HandleFunc("GET /api/admin/plugins", h.listAdminPluginsHandler)

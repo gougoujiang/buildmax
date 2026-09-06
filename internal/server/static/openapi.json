@@ -2533,6 +2533,60 @@
             }
           }
         }
+      },
+      "post": {
+        "summary": "Add a catalog model",
+        "description": "api_key is write-only: it is accepted here, stored encrypted at rest, and returned by no read. Adding a model that carries a credential requires a configured encryption key.",
+        "security": [{"bearerAuth": []}],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name", "api_url", "model"],
+                "properties": {
+                  "name": {"type": "string"},
+                  "provider_type": {"type": "string", "description": "Defaults to openai_compatible"},
+                  "api_url": {"type": "string"},
+                  "api_key": {"type": "string", "description": "Write-only; never returned by a read"},
+                  "model": {"type": "string"},
+                  "context_window": {"type": "integer"},
+                  "call_timeout": {"type": "integer"},
+                  "max_tokens": {"type": "integer"},
+                  "reasoning": {"type": "string"},
+                  "cache_mode": {"type": "string"},
+                  "cache_ttl": {"type": "string"},
+                  "currency": {"type": "string"},
+                  "input_price": {"type": "string"},
+                  "cache_read_price": {"type": "string"},
+                  "cache_write_price": {"type": "string"},
+                  "output_price": {"type": "string"},
+                  "vision": {"type": "boolean"},
+                  "capabilities": {"type": "array", "items": {"type": "string"}}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AdminModel"}}}
+          },
+          "400": {
+            "description": "Invalid model input",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "409": {
+            "description": "A model with this name already exists",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          },
+          "503": {
+            "description": "No encryption key is configured for the credential",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}
+          }
+        }
       }
     },
     "/api/admin/llm/models/{model_id}/enable": {
