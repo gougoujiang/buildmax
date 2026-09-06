@@ -1,37 +1,34 @@
-# 系统的使用率 Hook
+# Hook 系统
 
 > **翻译说明：** 本文是[英文原文](../../design/hook-system.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `ef02f6f7263f1b24ef9cf86028c2791671d5836752825eefd92a475a64aa52fe`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
 
 
-## 内容
+## 目录
 
 - [状态](#状态)
-- [1.目的](#1目的)
-- [2.方向](#2方向)
-- [3。 建筑形状](#3-建筑形状)
-- [4。 配置](#4-配置)
-- [5。 Hook类型 (驾驶员)](#5-hook类型-驾驶员)
-- [6。 事件覆盖范围](#6-事件覆盖范围)
-- [7。 子管理员](#7-子管理员)
-- [8。 Runtime流量](#8-runtime流量)
-- [9。 层](#9-层)
-- [10。 实施步骤](#10-实施步骤)
-- [11。 风险和外出](#11-风险和外出)
-- [12。 接受](#12-接受)
-- [13。 建议的船订单](#13-建议的船订单)
+- [1. 目的](#1-目的)
+- [2. 方向](#2-方向)
+- [3. 架构形态](#3-架构形态)
+- [4. 配置](#4-配置)
+- [5. Hook 类型（驱动）](#5-hook-类型驱动)
+- [6. 事件覆盖范围](#6-事件覆盖范围)
+- [7. HookManager](#7-hookmanager)
+- [8. 运行时流程](#8-运行时流程)
+- [9. 分层](#9-分层)
+- [10. 实施步骤](#10-实施步骤)
+- [11. 风险与取舍](#11-风险与取舍)
+- [12. 验收](#12-验收)
+- [13. 建议的交付顺序](#13-建议的交付顺序)
 
 ## 状态
 
 - roadmap_priority:`P0.5`
-- 状态:`implemented` 16场事件，四个运输都出货；
-任选检查员和前置物集成仍然延迟
-- 后者:[信用.md](./trust-harness.md)
-- 路线图:[其他地方的路线图](../../ROADMAP.md)
+- 状态：`implemented`——16 个事件和四种传输方式均已交付；可选的检查器和 frontmatter 集成仍待后续实现
+- 后续依据：[trust-harness.md](./trust-harness.md)
+- 路线图：[ROADMAP.md](../../ROADMAP.md)
 - created_at:`2026-05-23`
 
-## 1.目的
-
-之前的子系统 (与信托子设计的3.1节一起出货) 涵盖了五次事件，其中包括一个子运输和一个全球配置位置。
+## 1. 目的
 
 前身 Hook 系统与信任护栏设计 §3.1 一同交付，只覆盖五个事件、一个 shell 传输方式和一个全局配置位置。本设计扩展 Hook，使其接近 Claude Code 文档描述的设计：
 
@@ -40,17 +37,17 @@
 - 在 BuildMax 实际拥有的节点上提供更高保真的事件集（提交提示、Session 生命周期、工具结果成功/失败、批准通知、子代理启动/停止、主运行停止/失败和压缩）；
 - 提供与现有 `MCPManager` 模式一致的中央 `HookManager`：负责合并配置、持有驱动注册表、暴露 `Status`、`Refresh` 和 `Close`，并实现 `agent.HookRunner`，因此其余运行时无需改变。
 
-目标是让用户和运营者只需定义一次策略、格式化、审计和外部批准流程，就能一致地应用到 CLI、Desktop、Worker 和子代理运行。
+目标是让用户和运营人员只需定义一次策略、格式化、审计和外部审批流程，就能一致地应用于 CLI、Desktop、Worker 和子代理运行。
 
-## 2.方向
+## 2. 方向
 
-P0.5 §3.1 将 Hook 引入为基础。v2 让这个基础可以支持真实自动化场景，同时不承担 Claude Code 已记录产品的全部范围。具体来说：
+P0.5 §3.1 将 Hook 引入为基础。v2 让这个基础能够支持真实自动化场景，同时不承担 Claude Code 文档化产品的全部范围。具体来说：
 
-- 工作区 Hook 是必需的：项目范围的策略目前无法交付；
+- 工作区 Hook 是必需的：目前无法交付项目范围的策略；
 - 多种传输方式让每项工作都能使用成本最低且正确的工具（格式化器 → command，中央策略 → http，LLM 判断 → prompt，现有 MCP 工具 → mcp_tool）；
 - 更宽的事件集可以支持当前单个 `RunEnd` 事件无法表达的审计和批准流程。
 
-任何进入 UX 使用面的内容（`/hooks` 检查器、异步 Hook、修改工具参数的 Hook 输出）都推迟到 P0.5 §3.4 活动视图交付之后。
+任何进入 UX 界面的内容（`/hooks` 检查器、异步 Hook、修改工具参数的 Hook 输出）都推迟到 P0.5 §3.4 活动视图交付之后。
 
 ## 3. 架构形态
 
@@ -76,11 +73,11 @@ v2 复用了仓库中现有的 **MCP** 布局，使各子系统的模式保持�
 | Skill frontmatter | Skill YAML frontmatter 中的 `hooks:` | YAML（延期，见 §10） |
 | Subagent frontmatter | Agent 定义中的 `hooks:` | YAML（延期，见 §10） |
 
-**合并规则。** 每个事件按 `(global, workspace)` 顺序串联条目。两层都会针对同一事件运行。第一个返回阻止决策的 Hook 赢得门控结果，但所有匹配的 Hook 仍会执行，以便观察和审计 Hook 看到每次调用。
+**合并规则。** 每个事件按 `(global, workspace)` 顺序串联条目。两层都会针对同一事件运行。第一个返回阻止决策的 Hook 决定门控结果，但所有匹配的 Hook 仍会执行，以便观察和审计 Hook 看到每次调用。
 
-这与插件/用户/项目合并的Claude Code文件的添加行为相匹配。
+这与 Claude Code 文档描述的 Plugin/用户/项目合并的追加行为一致。
 
-### 多态 `HookEntry`
+### 4.2 多态 `HookEntry`
 
 `config.HookEntry` 变成带 `type` 判别字段、并按类型携带字段的 tagged union。未知类型会记录警告，并在加载时跳过。
 
@@ -113,37 +110,34 @@ hooks:
         Reply with JSON {"decision":"allow"|"block","reason":"..."}.
 ```
 
-每条条目共享密钥:`type`,`matcher`,`timeout`。
+每条条目共享字段：`type`、`matcher`、`timeout`。
 
 按类型的键：
 
 - `command`：`command`、`args`、`shell`（默认为 `bash`）。
 - `http`：`url`、`headers`、`allowed_env`（允许在 header 和 URL 中插值 `$VAR`）。
 - `mcp_tool`：`server`、`tool`、`input`（从 `HookInput` 做 `${field}` 替换）。
-- `prompt`：`model`、`prompt`，其中 `$ARGUMENTS` 会被替换。
+- `prompt`：`prompt`（用 `$ARGUMENTS` 占位符表示序列化后的 `HookInput`）和可选的 `model` 覆盖值。
 
-### 4.3 装载
+### 4.3 加载
 
 - `config.LoadSettings()` 继续加载全局 `hooks:` 块。
-- 其他产品： `config.LoadWorkspaceHooks(workspace string) (HooksConfig, error)`
-读取`<workspace>/.buildmax/hooks.yaml`； 丢失文件返回
-`(HooksConfig{}, nil)`。
-- 新的`config.MergeHooks(global, workspace HooksConfig) HooksConfig`性能
-在4.1节所述的每次事件合约。
+- `config.LoadWorkspaceHooks(workspace string) (HooksConfig, error)` 读取 `<workspace>/.buildmax/hooks.yaml`；文件不存在时返回 `(HooksConfig{}, nil)`。
+- 新的 `config.MergeHooks(global, workspace HooksConfig) HooksConfig` 按 §4.1 所述规则拼接每个事件的条目。
 
-## 5. Hook类型 (驾驶员)
+## 5. Hook 类型（驱动）
 
-| 类型 | 司机 | 子 | 状态 |
+| 类型 | 驱动 | 依赖 | 状态 |
 |---|---|---|---|
-| `command` | 子代理 `infra/hook/command.go` | 没有 | 其他 |
-| `http` | `infra/hook/http.go` | `net/http` | 其他 |
-| `mcp_tool` | `infra/hook/mcp.go` | 相关标识符 (在代理应用包装中实现MCPManager) `HookMCPCaller` | 其他 |
-| `prompt` | `infra/hook/prompt.go` | 相关组件 `HookLLMCaller` | 其他 |
-| `agent` | 延迟 (CC标志实验) | 车车 | 未来 |
+| `command` | `infra/hook/command.go`（重构现有 `shell.go`） | 无 | v2 |
+| `http` | `infra/hook/http.go` | `net/http` | v2 |
+| `mcp_tool` | `infra/hook/mcp.go` | `HookMCPCaller`（由 agentapp 包装 MCPManager 实现） | v2 |
+| `prompt` | `infra/hook/prompt.go` | `HookLLMCaller`（由 agentapp 包装 LLMClientCache 实现） | v2 |
+| `agent` | 延后（Claude Code 标记为实验性） | 子代理运行器 | future |
 
-### 5.1 驾驶员合同
+### 5.1 驱动契约
 
-驾驶员完全处于`infra/hook`的状态，因此核心保持纯净.`Driver`接口和配置镜子`Entry`结构在`infra/hook/driver.go`中定义;`core/agent`不导入配置。
+驱动完全位于 `infra/hook` 下，以保持 core 纯净。`Driver` 接口和镜像配置的 `Entry` 结构定义在 `infra/hook/driver.go` 中；`core/agent` 不导入 config。
 
 ```go
 // infra/hook/driver.go
@@ -163,56 +157,54 @@ type LLMCaller interface {
 }
 ```
 
-### 5.2 输出方案
+### 5.2 输出 schema
 
-所有司机都将正常化到`agent.HookOutput{Decision, Reason}`。
+所有驱动目前都会归一化为 `agent.HookOutput{Decision, Reason}`。
 
 - `command`：退出码 0 表示允许，退出码 2 表示阻止（stderr 作为原因），其他退出码表示失败开放；默认决策为允许。
 - `http`：2xx 表示允许，4xx/5xx 表示失败开放；响应体可以是 `{"decision":"block","reason":"..."}`。没有响应体时，专用的 422 状态视为阻止。
 - `mcp_tool`：工具文本结果若像 JSON，则解析为 Hook 输出；否则按允许处理。
 - `prompt`：将 LLM 响应解析为 JSON；解析失败则失败开放。
 
-克劳德代码的更广泛输出方案 (`continue`,`stopReason`,`suppressOutput`,`systemMessage`,`hookSpecificOutput.additionalContext`,`modifiedToolInput`) 是故意没有在v2实现的.其中每个方案都暗示一个尚未存在的UI/控制表面.该方案是添加式。
+Claude Code 更广泛的输出 schema（`continue`、`stopReason`、`suppressOutput`、`systemMessage`、`hookSpecificOutput.additionalContext`、`modifiedToolInput`）有意不在 v2 中实现。每一项都意味着尚不存在的 UI 或控制界面。该 schema 采用追加式设计，未来可以加入而不破坏现有 Hook。
 
 ## 6. 事件覆盖范围
 
-果事件名称与克劳德代码相匹配;YAML键仍然是每个CLAUDE.md §6.1。
+v2 将事件集从 5 个扩展到 13 个，工作树生命周期又增加了最后 3 个，共 16 个。事件名称采用与 Claude Code 相同的 camelCase；YAML 键仍按 CLAUDE.md §6.1 使用 snake_case。
 
 | 事件 | 点 | 门？ | 改变 |
 |---|---|---|---|
 | `SessionStart` | `agentapp.OpenSession` | 没有 | 新的 |
-| `SessionEnd` | 子代理 `SessionManager.Finalize` | 没有 | 新的 |
-| `UserPromptSubmit` | 子代理 `agentapp.RunPrompt` | 块转转 | 新的 |
-| `PreToolUse` | 现有 | 没有 | 保持 |
-| `PostToolUse` | `applyPolicyAndExecute`的成功路径 | 没有 | 保持 (缩小到成功) |
-| `PostToolUseFailure` | 错误路径的`applyPolicyAndExecute` | 没有 | 新的 |
-| `Notification` | 动作=要求，以及许可被拒绝 `applyPolicyAndExecute` | 没有 | 新的 |
-| `PreCompact` | 现有 | 没有 | 保持 |
-| `PostCompact` | 现有 | 没有 | 保持 |
-| `SubagentStart` | 标记： 标记： `subagent_runner.RunSubAgent` | 没有 | 新的 |
-| `SubagentStop` | `subagent_runner.RunSubAgent` 退出（成功） | 否 | 新增 |
-| `Stop` | 门 `RunLoop` (成功，主要只) | 没有 | 新 (取代了`RunEnd`快乐路径) |
-| `StopFailure` | 道 (道，主或子) `RunLoop` | 没有 | 新 (取代`RunEnd`错误路径) |
-| `WorktreeCreate` | 树建后的`worktree.Manager` | 没有 | 新的 |
-| `WorktreeRemove` | 树被摘除后的`worktree.Manager` | 没有 | 新的 |
-| `CwdChanged` | 会议工作空间的根移动，包括进入工作树 | 没有 | 新的 |
+| `SessionEnd` | `SessionManager.Finalize`/close | 否 | 新增 |
+| `UserPromptSubmit` | `agentapp.RunPrompt`，在 `sess.Append` 之前 | **是**——阻止会中止本轮运行 | 新增 |
+| `PreToolUse` | 现有节点 | 是 | 保留 |
+| `PostToolUse` | `applyPolicyAndExecute` 的成功路径 | 否 | 保留（收窄为成功） |
+| `PostToolUseFailure` | `applyPolicyAndExecute` 的错误路径 | 否 | 新增 |
+| `Notification` | `applyPolicyAndExecute` 中 action=Ask，或发生 PermissionDenied 时 | 否 | 新增 |
+| `PreCompact` | 现有节点 | 是 | 保留 |
+| `PostCompact` | 现有节点 | 否 | 保留 |
+| `SubagentStart` | 进入 `subagent_runner.RunSubAgent` | 否 | 新增 |
+| `SubagentStop` | `subagent_runner.RunSubAgent` 成功退出 | 否 | 新增 |
+| `Stop` | `RunLoop` 成功退出（仅主运行） | 否 | 新增（取代 `RunEnd` 成功路径） |
+| `StopFailure` | `RunLoop` 错误退出（主运行或子代理） | 否 | 新增（取代 `RunEnd` 错误路径） |
+| `WorktreeCreate` | `worktree.Manager` 创建工作树后 | 否 | 新增 |
+| `WorktreeRemove` | `worktree.Manager` 移除工作树后 | 否 | 新增 |
+| `CwdChanged` | Session 工作区根目录移动时，包括进入工作树 | 否 | 新增 |
 
-`RunEnd`
+`RunEnd` 被移除而不是别名替换；它与信任护栏一起交付，且没有外部消费者。
 
 `HookInput` 新增：
 
-- 为`Prompt string` 被填充为`UserPromptSubmit`。
-- 为`SubagentStart/Stop`填充的`AgentType string`；也盖章
-任何事件都在一个子弹中运行，
-- 区分 `Stop`与 `SubagentStop` `IsSubagent bool`
-`AgentType`。
-- `NotificationKind string` — `approval_required` | `permission_denied`。
+- `Prompt string`——在 `UserPromptSubmit` 时填充。
+- `AgentType string`——在 `SubagentStart/Stop` 时填充；在子代理中运行时也会写入每个事件，供审计 Hook 归因。
+- `IsSubagent bool`——无需解析 `AgentType` 即可区分 `Stop` 与 `SubagentStop`。
+- `NotificationKind string`——`approval_required` 或 `permission_denied`。
 
-根据相关标识符没有的功能,相关标识符,相关标识符，和`CwdChanged`被推迟了；现在它已经拥有了，并且所有三个船只都具有[工作空间根和工作树](workspace-root-and-worktrees.md)中的工作树生命周期.所有三个都是建议的.要求工作树的工具调用已经通过`PreToolUse`，因此在同一决定上只能留下一个半创建的门，而失败的子从未改变了已经发生的动作.相关标识符是一个接到一个接到两个接到的"现在的两个工作树"的选择。 `WorktreeCreate` `WorktreeRemove` BuildMax
+`WorktreeCreate`、`WorktreeRemove` 和 `CwdChanged` 过去因依赖 BuildMax 尚不存在的能力而延期；现在三者都随[工作区根与工作树](workspace-root-and-worktrees.md)中的工作树生命周期交付。三者都是通知型事件。请求创建工作树的工具调用已经通过 `PreToolUse`，再增加同一决策的第二个门只会留下一个半创建状态；而 Hook 失败也无法撤销已经完成的移动。想知道“当前 Session 在哪里工作”应订阅 `CwdChanged`；另外两个事件说明工作树本身发生了什么。
 
-仍延期 (与克劳德代码相比的差距分析相匹配):`Setup`,`UserPromptExpansion`,`SpacemateIdle`,`TaskCreated`,`TaskCompleted`,`FileChanged`,`Elicitation`,相关标识符,相关标识符,相关标识符,相关标识符,相关标识符 `ElicitationResult` `ConfigChange` `PostToolBatch` `InstructionsLoaded` `PermissionRequest` BuildMax
+仍然延期（与 Claude Code 的差距分析一致）：`Setup`、`UserPromptExpansion`、`SpacemateIdle`、`TaskCreated`、`TaskCompleted`、`FileChanged`、`Elicitation`、`ElicitationResult`、`ConfigChange`、`PostToolBatch`、`InstructionsLoaded`、`PermissionRequest`。它们要么在我们的模型中已由其他事件覆盖，要么依赖 BuildMax 尚未具备的功能。
 
-## 7. 子管理员
+## 7. HookManager
 
 ```
 internal/agentapp/hook_manager.go
@@ -240,16 +232,13 @@ func (m *HookManager) Status() HookStatus
 func (m *HookManager) Close() error
 ```
 
-在`Run`内发送流量：
+`Run` 内的分发流程：
 
-1. 合并列表，按声明顺序。 `entries := m.cfg.Entries(in.Event)`
-2. 按匹配器进行过 (在`in.ToolName`上进行过；空匹配器可以匹配任何东西；
-其他工具事件， 跳过输入， 没有空格匹配器。
-3. 对于每条条目，查看`m.drivers[entry.Type]`；失踪驾驶员 → log +
-跳过。
-4. 电话给`driver.Run(ctx, entry, in)`。
-5. 总结：首先,`HookDecisionBlock`成为管理者的输出；
-其他条目仍在执行 (审计友好)。
+1. `entries := m.cfg.Entries(in.Event)`，取得按声明顺序合并的条目。
+2. 按 matcher 过滤（对 `in.ToolName` 执行正则匹配；空 matcher 匹配所有内容；非工具事件跳过带非空 matcher 的条目）。
+3. 对每条条目查找 `m.drivers[entry.Type]`；缺少驱动时记录日志并跳过。
+4. 调用 `driver.Run(ctx, entry, in)`。
+5. 聚合结果：第一个 `HookDecisionBlock` 成为管理器输出；其余条目仍继续执行，以便审计。
 
 采用`MCPCaller`和`LLMCaller`适配器，在`agentapp/hook_callers.go`中使用，因此`infra/hook`不受代理应用进口：
 

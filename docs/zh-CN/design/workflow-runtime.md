@@ -3,24 +3,24 @@
 > **翻译说明：** 本文是[英文原文](../../design/workflow-runtime.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `5ee71ca1ddc51c0051cc9d8061dd013151a91bfd44a1e8772c0800480fdc46c3`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
 
 
-> **观众：**贡献者，产品评审者和运营商 · **状态：**计划 方向被接受；目前的实施仍然是线性，回调驱动的前
+> **受众：**贡献者、产品评审者和运营人员 · **状态：**计划中——方向已确定；当前实现仍是线性的、由回调驱动的前身
 
-相关:[路线图](../../ROADMAP.md),[产品视觉](product-vision.md),[表面定位](surface-positioning.md),[执行 Agent 和 Task 线程](agent-execution-and-task-threads.md),[空间治理](space-governance.md),[统一的Artifact](unified-artifacts.md),[数据模型](../../contribute/architecture/data-model.md)，和[验证计划](verification-program.md)。
+相关文档：[路线图](../../ROADMAP.md)、[产品愿景](product-vision.md)、[表面定位](surface-positioning.md)、[Agent 执行与 Task 线程](agent-execution-and-task-threads.md)、[Space 治理](space-governance.md)、[统一 Artifact](unified-artifacts.md)、[数据模型](../../contribute/architecture/data-model.md)和[验证计划](verification-program.md)。
 
-## 内容
+## 目录
 
-- [1。 决定和当前状况](#1-决定和当前状况)
-- [2。 问题和设计原则](#2-问题和设计原则)
-- [3.目标](#3目标)
-- [4.非目标](#4非目标)
-- [5。 域名模式和所有权](#5-域名模式和所有权)
-- [6。 Workflow 定义合同](#6-workflow-定义合同)
-- [7。 验证和出版](#7-验证和出版)
-- [8.Run 和节点状态机](#8-run-和节点状态机)
-- [9。 输入，输出，信任的限制](#9-输入输出信任的限制)
-- [10。 调和](#10-调和)
-- [11。 发送和无能](#11-发送和无能)
-- [12。 失败，再试，休息，取消](#12-失败再试休息取消)
+- [1. 决策与当前状态](#1-决策与当前状态)
+- [2. 问题与设计原则](#2-问题与设计原则)
+- [3. 目标](#3-目标)
+- [4. 非目标](#4-非目标)
+- [5. 领域模型与所有权](#5-领域模型与所有权)
+- [6. Workflow 定义契约](#6-workflow-定义契约)
+- [7. 校验与发布](#7-校验与发布)
+- [8. 运行与节点状态机](#8-运行与节点状态机)
+- [9. 输入、输出与信任边界](#9-输入输出与信任边界)
+- [10. 协调](#10-协调)
+- [11. 调度与幂等性](#11-调度与幂等性)
+- [12. 失败、重试、超时与取消](#12-失败重试超时与取消)
 - [13。 适应性和模式决定的控制](#13-适应性和模式决定的控制)
 - [14。 人类的持久要求](#14-人类的持久要求)
 - [15.服务,API，以及商店合同](#15服务api以及商店合同)
@@ -32,127 +32,112 @@
 - [21。 考虑其他方法](#21-考虑其他方法)
 - [22。 基于证据的追踪](#22-基于证据的追踪)
 
-## 1. 决定和当前状况
+## 1. 决策与当前状态
 
-BuildMax Workflow 是一个由 Space 管理、固定修订版本、持久化且可自适应的图，建立在现有 Task 和 TaskRun 执行平面之上。
+BuildMax Workflow 是构建在现有 Task 和 TaskRun 执行平面之上的、由 Space 管理、固定修订版本、可持久化且可自适应的图。
 
 Workflow 运行时负责：
 
-- 已声明的依赖和路由；
+- 已声明的依赖关系和路由；
 - 不可变的运行输入和解析后的节点输入；
 - 节点就绪、重试、超时、等待、取消和完成；
-- 持久化分发与重启恢复；
+- 持久化调度与重启恢复；
 - 每个逻辑节点被接受的输出；以及
 - 一个权威的 WorkflowRun 结果。
 
-`agent_task` 节点将开放式工作委托给 Task 和 TaskRun。它不实现另一套模型循环、工具系统、Session 格式、沙箱、插件加载器、追踪或 Artifact 存储。Agent 可以在自己的 TaskRun 中规划、搜索、调用工具、创建子代理或调整方案；这些属于 Agent 执行。模型只有通过返回已发布定义允许、且经 Workflow 运行时验证并记录的值，才能影响 Workflow 控制。
+`agent_task` 节点将开放式工作委托给 Task 和 TaskRun。它不会另行实现模型循环、工具系统、Session 格式、沙箱、Plugin 加载器、trace 或 Artifact 存储。Agent 可以在自己的 TaskRun 中规划、搜索、调用工具、创建子代理或调整方案；这些都属于 Agent 执行。模型只有返回一个已发布定义允许、并由 Workflow 运行时验证和记录的值时，才能影响 Workflow 控制。
 
 边界可以简述为：
 
 > 模型可以提出决定；Workflow 运行时负责验证、提交并记录该决定。
 
-目标是支持自适应，而不只是静态图。第一版交付的图仍是无环的声明式图；后续的规划器、路由器、评估器和 map 模式可以根据声明式模板生成有界的运行时节点。任何模型都不能隐式修改正在运行的图。
+目标是支持自适应，而不只是静态图。首个交付版本仍是无环的声明式图；后续的规划器、路由器、评估器和 map 模式可以根据声明式模板生成数量受限的运行时节点。任何模型都不能隐式修改正在运行的图。
 
-### 1.1 存在的东西
+### 1.1 当前已有内容
 
-目前的实施有有用的基础：
+当前实现已经具备一些有用的基础：
 
 - Workflow 和 WorkflowRun 归 Space 所有；
 - 定义和修订版本会被记录；
 - 每次运行固定一个 Workflow 修订版本；
 - 每个步骤都委托给共享的 Task/TaskRun Worker 路径；
 - 步骤行会复制 Agent 内容以保留来源；
-- 手动运行和 Issue 发起的运行已经存在；以及
+- 手动运行和由 Issue 发起的运行已经存在；以及
 - Portal 可以编写线性定义并查看其运行。
 
-但这还不是本文设计的运行时。当前定义是带静态提示的有序 `steps` 数组；运行没有输入或结果契约，步骤无法绑定前一步的输出，只保留 500 个字符的摘要，下一步通过进程内的 best-effort 终端回调分发。运行创建、步骤创建、Task admission 和步骤关联是分开的写操作；并发或重复推进可能造成重复工作，服务器崩溃也可能让已完成 TaskRun 的运行悬挂。
+但这还不是本文设计的运行时。当前定义是带静态提示的有序 `steps` 数组；运行没有输入或结果契约，步骤无法绑定前一步的输出，只保留 500 个字符的摘要，下一步通过进程内尽力而为的终态回调调度。运行创建、步骤创建、Task 准入和步骤关联是分开的写操作；并发或重复推进可能造成重复工作，服务器崩溃也可能让已完成 TaskRun 的运行悬挂。
 
-当前 Agent 快照也不是执行权威。Workflow 会将旧 Agent 指令复制到 Task 用户输入中；Task admission 时，Worker 可以再次解析现场 Agent 系统指令。因此编辑器可以把旧指令作为不可信用户内容，与新指令作为可信系统策略结合。目标设计会把这一点纳入共享运行时。
+当前 Agent 快照也不是执行权威。Workflow 会将旧 Agent 指令复制到 Task 用户输入中；Task 准入时，Worker 还可能重新解析最新的 Agent 系统指令。因此一次编辑可能把旧指令作为不可信用户内容，与新指令作为可信系统策略组合起来。目标设计会固定一个 Agent 修订版本，并通过共享运行时使用它。
 
-### 1.2 路线图的立场
+### 1.2 路线图定位
 
-稳定图表执行是R5能力，在R0-R4操作和资格证据后选择，或者在一个具体的部署提供证据和优先级时才会更早.动态扩展，人等待，时间表和进来的事件仍然是后面的片段。 Workflow
+静态图执行是 R5 能力，应在 R0–R4 的运行与资格验证证据之后再选择；只有具体部署提供了证据和优先级时，才会提前。动态扩展、人工等待、计划任务和入站事件仍属于后续阶段。
 
-## 2. 问题和设计原则
+## 2. 问题与设计原则
 
-Agent时代的工作流程结合了两种不同的计算：
+Agent 时代的工作流结合了两类不同的计算：
 
-1. **语义计算**，在哪里正确的下一步行动取决于意义，
-信息，搜索和判断不完整；以及
-2. **国家协调**，系统必须保留授权，
-失败时的无效率，重试限制，截止日期，结果和恢复。
+1. **语义计算**：正确的下一步取决于含义、不完整的信息、搜索和判断；以及
+2. **有状态协调**：系统必须跨故障保留授权、幂等性、重试限制、截止时间、结果和恢复信息。
 
-测量图是对第二个数据进行的.一个测量图是对第二个数据进行的，不能通过一个开放式任务列出每一个路径.把它们视为竞争引擎，可以产生一个脆弱的提示链或一个无法进行审计的自主过程。 LLM
+LLM 适合第一类工作，却不能独自成为第二类工作的权威；确定性图适合第二类工作，却无法枚举开放式任务的全部路径。把二者当作竞争引擎，最终只会得到脆弱的提示链或无法审计的自主过程。
 
 设计遵循以下原则：
 
-### 2.1 确定性权力，代理执行
+### 2.1 确定性权威，Agent 执行
 
-据悉,Workflow拥有事实和政策.Agent节点拥有语义工作.模型输出是数据，直到确定性过渡验证它与公布的合同。
+Workflow 负责事实和策略；Agent 节点负责语义工作。模型输出在确定性状态转换根据已发布契约验证之前，只是数据。
 
-### 2.2 持久的事实，而不是过程记忆
+### 2.2 持久化事实，而不是进程记忆
 
-一个Goroutine,HTTP请求，回调，插座或一个服务器进程可能会减少延迟，但从来没有决定运行是否可以完成.存储的Workflow和TaskRun事实后的调整必须达到相同的状态，每个都丢失了。
+Goroutine、HTTP 请求、回调、套接字或某个 Server 进程可以降低延迟，但绝不能决定运行是否完成。即使这些进程内状态全部丢失，基于已存储的 Workflow 和 TaskRun 事实进行的协调也必须得到相同结果。
 
-### 2.3 类型的边界，而不是即时的结
+### 2.3 类型化边界，而不是提示词拼接
 
-Workflow输入，节点结合，节点输出，路线和人类响应有方案或小标准封.上游模型输出仍然明确标记为不值得信赖的背景；它并非连接到Agent系统政策中。
+Workflow 输入、节点绑定、节点输出、路由和人工响应都应具有 schema 或小型标准封装。上游模型输出必须明确标记为不可信上下文，不能拼接进 Agent 系统策略。
 
-### 2.4 静态政策包装，有限动态工作
+### 2.4 静态策略边界，受限的动态工作
 
-发布的修订声明Agent修订，节点模板，路线，预算和扩展限制是可能的.一个规划者可以选择在封面内的工作.它可能不会在运行时引入新的Agent，工具补贴，秘密，沙盒层或无限图。
+已发布的修订版本声明允许使用的 Agent 修订、节点模板、路由、预算和扩展上限。规划器可以在这个边界内选择工作，但不能在运行时引入新的 Agent、工具授权、Secret、沙箱级别或无界图。
 
-### 2.5 一个执行计划
+### 2.5 一个执行平面
 
-Task加上TaskRun仍然是唯一持久的Agent执行机.Workflow不复制Agent循环，也不与TaskRun竞争于结果，追踪，使用,Artifact，工人或取消所有权。
+Task 加 TaskRun 仍是唯一持久化的 Agent 执行平面。Workflow 不复制 Agent 循环，也不与 TaskRun 争夺结果、trace、用量、Artifact、Worker 或取消的所有权。
 
-### 2.6 具体目的，而不是一般目的
+### 2.6 专用优先于通用
 
-BuildMax不是BPM，集成,ETL或任意代码执行产品。 一个`agent_task`执行器足够，直到一个具体的使用情况证明确定性第二个执行器比Agent工具调用更安全和清晰。
+BuildMax 不是 BPM、集成、ETL 或任意代码执行产品。在具体用例证明一个确定性的第二执行器比 Agent 工具调用更安全、更清晰之前，一个 `agent_task` 执行器就足够了。
 
-这些原则符合[类型： 子代理， OpenAI Agents](https://openai.github.io/openai-agents-python/multi_agent/)中代码决定和模型决定的编排系统区别,Workflow-vs-Agent区别在[子代理 Anthropic](https://www.anthropic.com/engineering/building-effective-agents)和[长度图](https://docs.langchain.com/oss/python/langgraph/workflows-agents)中，以及[时间](https://docs.temporal.io/workflows)中的确定历史/外部活动边界.相关标识符采用分离，而不是任何框架的运行时间或DSL。 BuildMax
+这些原则与 [OpenAI Agents SDK](https://openai.github.io/openai-agents-python/multi_agent/) 对代码决策与模型决策编排的区分、[Anthropic](https://www.anthropic.com/engineering/building-effective-agents) 和 [LangGraph](https://docs.langchain.com/oss/python/langgraph/workflows-agents) 对 Workflow 与 Agent 的区分，以及 [Temporal](https://docs.temporal.io/workflows) 对确定性历史与外部活动边界的做法一致。BuildMax 采用这种分离思路，而不采用任何框架的运行时或 DSL。
 
-## 3.目标
+## 3. 目标
 
-- 通过结点之间完整的可检查数据和Artifact引用。
-- 允许一个具有验证的不可变输入的WorkflowRun，并产生一个持久的输入
-结果。
-- 恢复已接受的运行后回调损失，服务器重启，员工损失，
-同时调和。
+- 在节点之间传递完整、可检查的数据和 Artifact 引用。
+- 使用经过验证的不可变输入接纳 WorkflowRun，并产生一个持久化结果。
+- 在回调丢失、Server 重启、Worker 丢失和并发协调后恢复已接纳的运行。
 - 保持Task加上TaskRun作为Agent执行和尝试模型。
-- 关键所有执行敏感定义，需要稳定重试语义。
-- 快速序列，静态风扇，和风扇在一个DAG模型。
-- 添加模型路由和无需系统转移的边界图扩展
-模型的权威。
-- 试图，绑定，路线，等待，跳，失败，取消
-可见于用户和运营商。
-- 保持Go运行时间便携式，不需要新的服务
-部署。
-- 让Portal在考虑大型帆布之前编写最简单的有用形式。
+- 固定稳定重试语义所需的每一项执行敏感定义。
+- 在一个 DAG 模型中表达顺序、静态扇出和扇入。
+- 增加模型路由和有界图扩展，但不把系统权威交给模型。
+- 让用户和运营人员看见尝试、绑定、路由、等待、跳过、失败和取消。
+- 保持 Go 运行时可移植，普通私有部署无需新增服务。
+- 先让 Portal 编写最简单且有用的形式，再考虑大型画布。
 
-## 4.非目标
+## 4. 非目标
 
-- 取代时间，空气流,n8n,Zapier或一般业务过程
-发动机。
-- 添加任意的 shell,SQL,JavaScript或HTTP节点到Workflow。
-- 代表每一个工具调用，配套，交换或模型转换作为Workflow
-结点。
-- 提供一个完全单次的外观副作用的语义
-相关标识符。 BuildMax保证无权的内部接入；所谓的系统 Agent
-它们有自己的副作用语义。
-- 创建一个自由可变的全球状态词典，
-- 让模型发射和执行任意图,Agent id，工具集，
-证书或政策。
-- 抓住工人，当跑步等待人或外部事件时。
-- 让Conversation或Issue成为执行母。
-产生的或结果的预测。
-- 转移到 Space Workflow 编写成 CLI 或 Desktop。 Portal 仍然是完整的
-管理表面。
-- 要求在 Go核心中设置外部工作流运行时间，节点或 Python。
-- 通过一个
-互动性解释器。
+- 取代 Temporal、Airflow、n8n、Zapier 或通用业务流程引擎。
+- 向 Workflow 添加任意 Shell、SQL、JavaScript 或 HTTP 节点。
+- 把每次工具调用、配套操作、交换或模型转换都表示为 Workflow 节点。
+- 提供所有外部副作用都严格执行一次的语义。BuildMax 只保证内部接入的幂等性；各个系统 Agent 必须自行定义副作用语义。
+- 创建一个可自由变更的全局状态字典。
+- 让模型生成并执行任意图、Agent ID、工具集、凭证或策略。
+- 在运行等待人工或外部事件时占用 Worker。
+- 让 Conversation 或 Issue 成为执行父级。
+- 把 Workflow 编写迁移到 Space、CLI 或 Desktop；Portal 仍是完整的管理界面。
+- 要求 Go 核心依赖外部工作流运行时、节点或 Python。
+- 通过交互式解释器实现工作流运行时。
 
-## 5. 域名模式和所有权
+## 5. 领域模型与所有权
 
 ```mermaid
 flowchart TB
@@ -167,37 +152,30 @@ flowchart TB
     T2 --> TR21[TaskRun attempt 1]
 ```
 
-| 标题 | 拥有者 | 没有拥有 |
+| 对象 | 负责内容 | 不负责内容 |
 |---|---|---|
-| Workflow | Space 范围内的标识、草稿指针、已发布版本指针和归档状态 | 可变的运行状态 |
-| 工作流程修订 | 无变的法规定义，方案，结合，节点政策,Agent修订引用 | 运行的输入或结果 |
-| WorkflowRun | 修订，输入，总值状态，结果，触发源，取消意图，调整时间表 | 类型： 子代理， Agent |
-| 工作流程NodeRun | 一个实现的逻辑节点，解决输入，接受输出，政策状态,Task关系，尝试总数 | 租合约或Agent循环 Worker |
-| Task | 一个Agent节点的持久目标和会议身份 | 图表准备或路线决定 |
-| TaskRun | 一次尝试，输出,Artifacts，追踪，使用，运行时间的物质化和失败 | 士相关标识符成功政策 Workflow |
-| 工作流程请求 | 未来的持久申请批准或输入信息 | 封锁工人或普通Agent完成 |
-| Conversation | 选择性前景来源和结果卡 | Workflow状态或授权 |
-| Issue | 共同工作和结果背景 | 相关标识符协调状态 Workflow |
+| Workflow | Space 范围内的身份、草稿指针、已发布指针和归档状态 | 可变的运行状态 |
+| WorkflowRevision | 不可变的规范定义、schema、绑定、节点策略和 Agent 修订引用 | 某次运行的输入或结果 |
+| WorkflowRun | 修订版本固定、输入、聚合状态、结果、触发来源、取消意图和协调计划 | Agent Session 内部状态 |
+| WorkflowNodeRun | 一个物化的逻辑节点、解析后的输入、已接受输出、策略状态、Task 关系和尝试聚合 | Worker 租约或 Agent 循环 |
+| Task | 一个 Agent 节点的持久目标和 Session 身份 | 图就绪状态或路由决策 |
+| TaskRun | 一次尝试、输出、Artifact、trace、用量、运行时物化状态和失败信息 | Workflow 成功策略 |
+| WorkflowRequest | 未来需要审批或类型化信息的持久请求 | 被阻塞的 Worker 或普通 Agent 完成 |
+| Conversation | 可选的前台来源和结果卡片 | Workflow 状态或授权 |
+| Issue | 共享的工作与结果上下文 | Workflow 协调状态 |
 
-包装所有权遵循存储库依赖方向：
+包所有权遵循仓库的依赖方向：
 
-- 克斯相关标识符拥有定义解析，法典验证，纯粹 `internal/core/workflow`
-准备度计算和法律运行/节点过渡；
-- 相关标识符拥有出版，录取，调解和 `internal/service/workflow`
-协调Workflow,Task,Agent,Issue，配额和未来的要求
-港口；
-- 克 `internal/infra/db`
-转型，独有的免费权密钥，租和适当运行查询；
-- 克德相关标识符拥有原子 Task加上第一次 TaskRun录取，重新试验， `internal/service/task`
-取消；
-- 继续组装和执行固定的Agent `internal/agentapp/taskrun`
-运行时间；以及
-- 处理器和Portal在边界翻译，从来没有重新实现图表
-决策。
+- `internal/core/workflow` 负责定义解析、规范化验证、纯粹的就绪计算以及合法的运行/节点状态转换；
+- `internal/service/workflow` 负责发布、准入、协调，以及 Workflow、Task、Agent、Issue、配额和未来请求端口之间的协调；
+- `internal/infra/db` 负责行结构、原子准入、CAS 状态转换、唯一幂等键、租约和到期运行查询；
+- `internal/service/task` 负责 Task 与首个 TaskRun 的原子准入、重试和取消；
+- `internal/agentapp/taskrun` 继续组装并执行已固定的 Agent 运行时；以及
+- handler 和 Portal 只在边界处做翻译，绝不重新实现图决策。
 
-一个逻辑的`WorkflowNodeRun`拥有一个Task。 复试创建了额外的TaskRuns在Task下，并记录了`retry_of_task_run_id`。 这保留了一个目标和一个Agent会议流程，同时保持每一次尝试的独立计划，计量，追踪和终端.用户可以检查Workflow所有的相关标识符，但不能继续或复试；这些操作直接属于协调员。
+一个逻辑 `WorkflowNodeRun` 拥有一个 Task。Retry 会在该 Task 下创建额外的 TaskRun，并记录 `retry_of_task_run_id`。这样既保留一个目标和一条 Agent Session 谱系，又让每次尝试都能独立调度、计量、追踪并进入终态。用户可以查看 Workflow 所拥有的 Task，但不能直接 Continue 或 Retry；这些操作属于协调器。
 
-## 6. Workflow 定义合同
+## 6. Workflow 定义契约
 
 首个版本定义是`schema_version: 1`.未变化的当前`steps`格式是Alpha前，并且被取代，并不是被视为方案版本0。
 
@@ -272,29 +250,29 @@ flowchart TB
 }
 ```
 
-### 6.1 定义领域
+### 6.1 定义 schema
 
-支持的子集是JSON方案子集，用于运行入口并生成Portal输入形式.支持的子集在实现时被记录在API上；未支持的关键字未能发布。 `input_schema`
+`input_schema` 是用于运行入口校验和生成 Portal 输入表单的 JSON Schema 子集。实现会在 API 中记录支持的子集；包含不支持关键字的定义无法发布。
 
-虽然相关标识符表示它是一个阵列，但在执行语义中是一个无序集合。 节点位置不是控制流量。 节点仅由`id`识别，并且从`needs`和未来的路线激活中成为准备的。 `nodes` JSON
+虽然 `nodes` 在 JSON 中表示为数组，但在执行语义中是无序集合。节点位置不是控制流；节点由 `id` 标识，并根据 `needs` 以及未来的路由激活条件变为就绪。
 
-编辑方便性为 `agent.id` 和 `agent.revision` 都在常规出版的修订中都需要。 Portal 可能会让一个草案在last为编辑便利，但出版会将其解决成现有的不可变的Agent修订并存储数字.启动运行永远不会解决last。
+为了保证可复现性，正式发布的修订必须同时提供 `agent.id` 和 `agent.revision`。Portal 可以允许草稿使用 `latest` 以便编辑，但发布时必须解析为现有的不可变 Agent 修订并保存其编号；启动运行时绝不会解析 `latest`。
 
-结点的任务指令是`input.instruction`.`input.bindings`命名为Task的可用值.一个结合源是`workflow.input`或`node.<node_id>.output`。
+节点的 Task 指令位于 `input.instruction`。`input.bindings` 为 Task 指定可用值；绑定源可以是 `workflow.input` 或 `node.<node_id>.output`。
 
-`pointer`是一个RFC 6901 JSON指针.一个空串选择了整个值。 BuildMax不在本合同中实现JSONPath过器，函数，表达式或文本模板评估。
+`pointer` 是 RFC 6901 JSON Pointer；空字符串选择整个值。BuildMax 不在本契约中实现 JSONPath 过滤器、函数、表达式或文本模板求值。
 
-子代理 `issue_access`
+`issue_access` 控制节点是否可以访问 Issue：
 
-- 相关标识符:Task没有接收Issue关系或Issue范围的运行时间访问； `none`
-- 运行时，它会获得运行的Issue；或 `if_bound`
-- 相关标识符：除非WorkflowRun具有Issue，否则没有被录取。 `required`
+- `none`：Task 不获得 Issue 关系或 Issue 范围的运行时访问；
+- `if_bound`：仅当运行绑定了 Issue 时，Task 才获得该运行的 Issue；
+- `required`：除非 WorkflowRun 具有 Issue，否则无法准入。
 
 这使得Issue的功能明确，而不是意外地向每个节点授予它或默默地将其从每个节点中保留。
 
-默认的`max_attempts`是一个.自动重试是选择的，因为Agent可能在失败之前产生了外部副作用.定义界限和部署最大值在发布和录取时得到验证。
+`max_attempts` 默认为 1。自动重试是显式选择的，因为 Agent 可能在失败前产生外部副作用。定义上限和部署上限都会在发布与准入时校验。
 
-采用一个节点输出,`result`选择WorkflowRun结果.所选节点必须可访问，不能在每个有效的第一版本路径上跳过。
+`result` 通过一个节点输出选择 WorkflowRun 结果。所选节点必须可达，并且不能在任何有效的首版路径上被跳过。
 
 ### 6.2 第一个版本图表规则
 
