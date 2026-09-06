@@ -31,16 +31,24 @@ func TestMigrationsAreWellFormed(t *testing.T) {
 	}
 }
 
-// TestMigrationsRestartedAtTheIdentityCutover pins that the list is empty.
+// TestMigrationsArePermanent is the append-only guard.
 //
-// It replaces an append-only guard that named the three entries every deployed
-// database had recorded. The identity cutover reset all of them, so those IDs
-// are no longer permanent facts about anything and the guard had nothing left
-// to protect. The first entry appended after this is permanent again, and this
-// test is what a contributor edits when they add it.
-func TestMigrationsRestartedAtTheIdentityCutover(t *testing.T) {
-	if len(migrations) != 0 {
-		t.Fatalf("migrations = %d entries; add the new IDs to this test so they become permanent", len(migrations))
+// Every ID here has been recorded in deployed databases, so editing, removing,
+// or reordering one changes what an upgraded database gets relative to a fresh
+// one — the divergence the list exists to prevent. A contributor who appends a
+// migration adds its ID to the end of want. The list restarted empty at the
+// identity cutover; system_grant_live_marker is the first entry appended after.
+func TestMigrationsArePermanent(t *testing.T) {
+	want := []string{
+		"system_grant_live_marker",
+	}
+	if len(migrations) != len(want) {
+		t.Fatalf("migrations = %d entries, permanent list has %d; append the new ID to want", len(migrations), len(want))
+	}
+	for i := range want {
+		if migrations[i].ID != want[i] {
+			t.Errorf("migration %d ID = %q, want %q", i, migrations[i].ID, want[i])
+		}
 	}
 }
 

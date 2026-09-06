@@ -26,6 +26,13 @@ var ErrSystemRoleUnknown = errors.New("unknown system role")
 // for the role.
 var ErrSystemGrantExists = errors.New("user already holds this system role")
 
+// ErrSystemGrantLastHolder is returned by RevokeSystemRole when keepLastHolder
+// is set and the grant is the deployment's last effective holder of the role.
+// Removing it would lock every signed-in caller out of the admin area with no
+// way back through the same door, so only the operator shell — which reaches the
+// database directly and can undo the lockout — may do it.
+var ErrSystemGrantLastHolder = errors.New("cannot revoke the last effective holder of this system role")
+
 // ValidSystemRole reports whether role is one this build authorizes.
 func ValidSystemRole(role string) bool {
 	return role == SystemRoleAdmin
@@ -69,12 +76,19 @@ type SystemGrantStore interface {
 	// when an active grant is already there, so a caller can report "already
 	// an admin" rather than silently creating a second row.
 	GrantSystemRole(ctx context.Context, userID, role, grantedBy string, now time.Time) (*SystemGrant, error)
-	// RevokeSystemRole revokes the active grant and reports whether one was
-	// found. Revoking an absent grant is not an error: the end state is what
-	// was asked for.
-	RevokeSystemRole(ctx context.Context, userID, role string, now time.Time) (bool, error)
-	// CountActiveSystemGrants counts live grants for role. It is what the API
-	// checks before revoking the last one — see
-	// docs/design/system-administration.md section 6.
+	// RevokeSystemRole revokes userID's active grant for role and reports
+	// whether one was found. Revoking an absent grant is not an error: the end
+	// state is what was asked for.
+	//
+	// When keepLastHolder is true it refuses with ErrSystemGrantLastHolder
+	// rather than remove the deployment's last effective holder, and it decides
+	// and revokes in one atomic step so two concurrent revokes cannot both pass
+	// the check and leave the role with nobody. When false — the operator shell,
+	// which can undo a lockout — it revokes unconditionally.
+	RevokeSystemRole(ctx context.Context, userID, role string, now time.Time, keepLastHolder bool) (bool, error)
+	// CountActiveSystemGrants counts the effective holders of role: an active
+	// grant on an account that is not disabled. A disabled account cannot
+	// authorize a request, so it cannot be the holder that keeps the deployment
+	// reachable — see docs/design/system-administration.md section 6.
 	CountActiveSystemGrants(ctx context.Context, role string) (int, error)
 }

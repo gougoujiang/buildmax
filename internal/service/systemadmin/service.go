@@ -82,17 +82,17 @@ func (s *Service) Revoke(ctx context.Context, userID, role string, actor coreaud
 	if !coreidentity.ValidSystemRole(role) {
 		return ErrUnknownRole
 	}
-	if actor.Type != coreaudit.ActorSystem {
-		remaining, err := s.Grants.CountActiveSystemGrants(ctx, role)
-		if err != nil {
-			return fmt.Errorf("count %s holders: %w", role, err)
-		}
-		if remaining <= 1 {
+	// The shell (a system actor) may empty the role because it is the way back
+	// from an empty role; a signed-in caller may not. The store makes that
+	// decision atomically with the revoke, so two concurrent callers cannot both
+	// read one holder each and both proceed — the old count-then-revoke here
+	// could.
+	keepLastHolder := actor.Type != coreaudit.ActorSystem
+	revoked, err := s.Grants.RevokeSystemRole(ctx, userID, role, time.Now().UTC(), keepLastHolder)
+	if err != nil {
+		if errors.Is(err, coreidentity.ErrSystemGrantLastHolder) {
 			return ErrLastHolder
 		}
-	}
-	revoked, err := s.Grants.RevokeSystemRole(ctx, userID, role, time.Now().UTC())
-	if err != nil {
 		return fmt.Errorf("revoke %s: %w", role, err)
 	}
 	if !revoked {
