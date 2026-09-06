@@ -1,0 +1,82 @@
+# Portal overview
+
+The Portal is BuildMax's web app. It gives a team a shared place to start work,
+run agents in the background, and collect the results — all backed by the same
+agent runtime the command line uses. This page orients you to the interface; the
+two pages after it walk through the day-to-day tasks.
+
+## Signing in
+
+Open the Portal URL your deployment gives you and sign in. BuildMax issues a
+single-use login code rather than a permanent password; your operator's setup
+decides whether new sign-ups are allowed. If you can't get in, that is an operator
+question, not something you can change from the browser.
+
+Once you are in, everything you see belongs to a **space** (below), and the app
+remembers where you were.
+
+## The layout
+
+**Left sidebar** — your main navigation:
+
+- **Space switcher** at the top. Your personal space is listed under *Personal*
+  (it is called *My Space* until you rename it); shared spaces are listed under
+  *Spaces*. The **+** button creates a new space.
+- **Home** — the front door. Start a conversation here by describing what you
+  want done. See [Conversations & issues](portal-issues.md).
+- **Issues** — the list of work items in the current space.
+- **Workflows** — reusable, step-by-step plans. See
+  [Agents & workflows](portal-agents-workflows.md).
+- **Agents** — saved, reusable agent definitions.
+- **Artifacts** — files and outputs produced by runs.
+- **Administration** — deployment-wide settings. This appears only if you hold a
+  system-administrator grant.
+
+**Top bar** — on the right you'll find a **Help** icon (this manual), a
+**Marketplace** icon (plugins this deployment publishes), and a light/dark theme
+toggle.
+
+**User menu** — the button at the bottom of the sidebar opens **Account**,
+**Space** settings, **Help**, and **Sign Out**.
+
+## Spaces and roles
+
+A **space** is the ownership boundary: issues, conversations, agents, workflows,
+uploaded files, and run results all belong to one space and are never visible from
+another. Switching spaces in the sidebar changes everything you see.
+
+Spaces have three roles:
+
+- **Owner** — full control, including secrets.
+- **Admin** — manage members and space settings.
+- **Member** — do work in the space.
+
+Your personal *My Space* is a single-member space that is always yours.
+
+## Space settings
+
+Open **Space** from the user menu (owners and admins can change these):
+
+- **Overview** — the space's basic details and its shared **Agent instructions**.
+  Text you put here is sent to *every* background agent run in the space, before
+  the selected agent's own instructions. Keep it short, and never put passwords,
+  API keys, or other secrets in it, because it is sent with every model call.
+- **Members** — invite and manage people and their roles.
+- **Sandbox defaults** — the default confinement for `Bash` in this space's runs.
+  See [Sandbox](sandbox.md).
+- **Secrets** — values runs can use, managed by the owner.
+- **Audit** — a record of what happened in the space.
+
+## How models are chosen
+
+Runs in the Portal use models your deployment manages, so you don't paste API keys
+into the browser. Which models are available, and how they're accounted, is set by
+your operator. For the difference between a model call that goes straight to a
+provider and one that goes through a BuildMax deployment, see
+[Models & modes](models-and-modes.md).
+
+## Next
+
+- Start and track work: [Conversations & issues](portal-issues.md).
+- Build reusable agents and plans: [Agents & workflows](portal-agents-workflows.md).
+- Understand the objects behind the screens: [Core concepts](concepts.md).

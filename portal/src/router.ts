@@ -24,6 +24,7 @@ export const SEGMENT = {
   artifacts: "artifacts",
   artifact: "artifact",
   marketplace: "marketplace",
+  help: "help",
 } as const
 
 /**
@@ -101,6 +102,10 @@ export function parseHash(hash: string): Route {
   }
   if (parts[0] === SEGMENT.marketplace) {
     return { name: "marketplace" }
+  }
+  // #/help opens the manual's first page; #/help/<slug> opens one page.
+  if (parts[0] === SEGMENT.help) {
+    return { name: "help", slug: parts[1] }
   }
   // An artifact's address is its id alone -- no space in the path, matching the
   // API. See docs/design/unified-artifacts.md section 6.1.
@@ -201,6 +206,8 @@ export function buildHash(route: Route): string {
       return `#/${SEGMENT.artifact}/${route.artifactId}`
     case "marketplace":
       return `#/${SEGMENT.marketplace}`
+    case "help":
+      return route.slug ? `#/${SEGMENT.help}/${route.slug}` : `#/${SEGMENT.help}`
   }
 }
 

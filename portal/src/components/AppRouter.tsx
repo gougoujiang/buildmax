@@ -16,6 +16,7 @@ import { WorkflowDetail } from "../pages/workflows/WorkflowDetail"
 import { WorkflowRunDetail } from "../pages/workflows/WorkflowRunDetail"
 import { AccountSettings } from "../pages/settings/AccountSettings"
 import { Marketplace } from "../pages/marketplace/Marketplace"
+import { Help } from "../pages/help/Help"
 import { SpaceSettings } from "../pages/settings/SpaceSettings"
 import { AdminSettings } from "../pages/admin/AdminSettings"
 
@@ -99,6 +100,10 @@ export function AppRouter({
 
   if (route.name === "marketplace") {
     return <Marketplace token={token ?? null} />
+  }
+
+  if (route.name === "help") {
+    return <Help slug={route.slug} />
   }
 
   if (route.name === "artifact") {
