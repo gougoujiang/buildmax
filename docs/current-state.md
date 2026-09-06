@@ -353,8 +353,14 @@ deployment partner supplies evidence that changes the order.
   key-encryption key
   ([`internal/infra/secret`](../internal/infra/secret/cipher.go)), so a model may
   be added over HTTP; a deployment with no encryption key configured refuses a
-  credentialed model rather than storing the key in the clear. Plugin catalog
-  management stays on the command line by decision.
+  credentialed model rather than storing the key in the clear. `buildmax admin
+  model` reaches the same catalog from the command line as the signed-in
+  administrator. `buildmax-server model` is kept as the database-side bootstrap
+  primitive — how a fresh deployment's catalog is seeded before a client can sign
+  in, the same role `buildmax-server user create` plays for the first account —
+  while `set-password` and `admin list` were dropped from `buildmax-server` in
+  favour of `buildmax admin`. Plugin catalog management stays on the command line
+  by decision.
 
 ### P1 — Qualification Breadth
 

@@ -447,6 +447,18 @@ moves every routine `user`, `model`, and `admin` operation onto the authenticate
 Admin API reached by `buildmax admin`. Because the repository is Alpha, this
 replaces the old command placement rather than aliasing it.
 
+Status: `buildmax admin` gained the `user` and `model` verbs, and the trim
+removed `buildmax-server user set-password` (a login code replaces it) and
+`buildmax-server admin list` (read it with `buildmax admin list` or the Portal).
+Two account primitives are kept on `buildmax-server` beyond the pure break-glass
+set, for one reason: they seed a deployment from the database side before it can
+authenticate a client. `user create` bootstraps the first account, and — decided
+while implementing this — `model add` (with `list`, `enable`, `disable`) is kept
+the same way: it is how a fresh deployment's model catalog is populated with no
+running server to sign in to, which the local `kind` tooling relies on. Model
+management is no longer command-line-only — it is on `buildmax admin` and Portal
+too — so this keeps a bootstrap primitive, not a routine surface.
+
 ### Phase 0: Grant Integrity And Recovery
 
 Scope:
