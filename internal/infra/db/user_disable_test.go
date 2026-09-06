@@ -79,11 +79,60 @@ func TestSetUserDisabled(t *testing.T) {
 	}
 }
 
+// TestListUsersFilters exercises each field of UserFilter against real SQL,
+// including the system-role subquery a mock cannot stand in for. It asserts
+// membership rather than counts: the store's database is shared, so other
+// tests' accounts may also match.
+func TestListUsersFilters(t *testing.T) {
+	s, ctx := openUserAdminStore(t)
+	now := time.Now().UTC()
+	plain := createTestUser(t, s, ctx).ID
+	disabled := createTestUser(t, s, ctx).ID
+	onPortal := createTestUser(t, s, ctx).ID
+	admin := createTestUser(t, s, ctx).ID
+
+	if err := s.SetUserDisabled(ctx, disabled, &now); err != nil {
+		t.Fatalf("SetUserDisabled: %v", err)
+	}
+	if err := s.UpdateLoginMeta(ctx, onPortal, now, "portal"); err != nil {
+		t.Fatalf("UpdateLoginMeta: %v", err)
+	}
+	if _, err := s.GrantSystemRole(ctx, admin, coreidentity.SystemRoleAdmin, "u_admin", now); err != nil {
+		t.Fatalf("GrantSystemRole: %v", err)
+	}
+
+	ids := func(f coreidentity.UserFilter) map[string]bool {
+		rows, _, err := s.ListUsers(ctx, f, 10_000, 0)
+		if err != nil {
+			t.Fatalf("ListUsers(%+v): %v", f, err)
+		}
+		out := map[string]bool{}
+		for _, u := range rows {
+			out[u.ID] = true
+		}
+		return out
+	}
+	tru, fls := true, false
+
+	if got := ids(coreidentity.UserFilter{Disabled: &tru}); !got[disabled] || got[plain] {
+		t.Errorf("Disabled=true: disabled present=%v, plain present=%v; want true, false", got[disabled], got[plain])
+	}
+	if got := ids(coreidentity.UserFilter{Disabled: &fls}); got[disabled] || !got[plain] {
+		t.Errorf("Disabled=false: disabled present=%v, plain present=%v; want false, true", got[disabled], got[plain])
+	}
+	if got := ids(coreidentity.UserFilter{Platform: "portal"}); !got[onPortal] || got[plain] {
+		t.Errorf("Platform=portal: onPortal present=%v, plain present=%v; want true, false", got[onPortal], got[plain])
+	}
+	if got := ids(coreidentity.UserFilter{SystemRole: coreidentity.SystemRoleAdmin}); !got[admin] || got[plain] {
+		t.Errorf("SystemRole=system_admin: admin present=%v, plain present=%v; want true, false", got[admin], got[plain])
+	}
+}
+
 func TestListUsers(t *testing.T) {
 	s, ctx := openUserAdminStore(t)
 	user := createTestUser(t, s, ctx)
 
-	users, total, err := s.ListUsers(ctx, user.Email, 50, 0)
+	users, total, err := s.ListUsers(ctx, coreidentity.UserFilter{Query: user.Email}, 50, 0)
 	if err != nil {
 		t.Fatalf("ListUsers: %v", err)
 	}
@@ -93,16 +142,16 @@ func TestListUsers(t *testing.T) {
 
 	// A substring of the local part finds it too — searching by the part
 	// before the @ is the common case, and a prefix-only match would miss it.
-	if _, total, err := s.ListUsers(ctx, user.Email[3:9], 50, 0); err != nil || total == 0 {
+	if _, total, err := s.ListUsers(ctx, coreidentity.UserFilter{Query: user.Email[3:9]}, 50, 0); err != nil || total == 0 {
 		t.Errorf("substring search found nothing: %d, %v", total, err)
 	}
 
-	if _, total, err := s.ListUsers(ctx, "no-such-address-anywhere", 50, 0); err != nil || total != 0 {
+	if _, total, err := s.ListUsers(ctx, coreidentity.UserFilter{Query: "no-such-address-anywhere"}, 50, 0); err != nil || total != 0 {
 		t.Errorf("a search matching nothing returned %d, %v", total, err)
 	}
 
 	// An unfiltered page is bounded whatever the caller asks for.
-	got, _, err := s.ListUsers(ctx, "", 10_000, 0)
+	got, _, err := s.ListUsers(ctx, coreidentity.UserFilter{}, 10_000, 0)
 	if err != nil {
 		t.Fatalf("ListUsers unbounded: %v", err)
 	}

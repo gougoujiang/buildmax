@@ -84,12 +84,24 @@ func (m *MockUserStore) UpdateLoginMeta(_ context.Context, userID string, loginA
 	return nil
 }
 
-func (m *MockUserStore) ListUsers(_ context.Context, query string, limit, offset int) ([]coreidentity.User, int, error) {
+func (m *MockUserStore) ListUsers(_ context.Context, filter coreidentity.UserFilter, limit, offset int) ([]coreidentity.User, int, error) {
 	var all []coreidentity.User
 	for _, u := range m.ByID {
-		if query == "" || strings.Contains(u.Email, query) {
-			all = append(all, *u)
+		if filter.Query != "" && !strings.Contains(u.Email, filter.Query) {
+			continue
 		}
+		if filter.Disabled != nil && (u.DisabledAt != nil) != *filter.Disabled {
+			continue
+		}
+		if filter.HasPassword != nil && u.HasPassword != *filter.HasPassword {
+			continue
+		}
+		if filter.Platform != "" && (u.LastLoginPlatform == nil || *u.LastLoginPlatform != filter.Platform) {
+			continue
+		}
+		// SystemRole is a grant-store concern this double does not model; a test
+		// that filters by it uses the real store.
+		all = append(all, *u)
 	}
 	// Map iteration is random, and a list endpoint's paging assertions are not
 	// worth making flaky. Newest first matches the store, with the id as the

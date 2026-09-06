@@ -161,6 +161,41 @@ func TestAdminSessionsListAndSingleRevoke(t *testing.T) {
 	}
 }
 
+// TestAdminUserListFilters: the account list narrows by state, so an operator
+// working a specific set does not page through everyone.
+func TestAdminUserListFilters(t *testing.T) {
+	f := newDisableFixture(t)
+	f.users.DisableForTest(f.target.ID, time.Unix(1, 0).UTC())
+	f.users.ByID[adminUser].HasPassword = true
+
+	decode := func(path string) AdminUsersResponse {
+		rec := f.do(t, "GET", path, adminUser, "")
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s got %d: %s", path, rec.Code, rec.Body.String())
+		}
+		var resp AdminUsersResponse
+		if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("decode %s: %v", path, err)
+		}
+		return resp
+	}
+
+	disabled := decode("/api/admin/users?status=disabled")
+	if len(disabled.Users) != 1 || disabled.Users[0].ID != f.target.ID {
+		t.Errorf("status=disabled returned %+v, want only the disabled account", disabled.Users)
+	}
+	for _, u := range decode("/api/admin/users?status=enabled").Users {
+		if u.ID == f.target.ID {
+			t.Errorf("status=enabled leaked the disabled account")
+		}
+	}
+	for _, u := range decode("/api/admin/users?has_password=false").Users {
+		if u.ID == adminUser {
+			t.Errorf("has_password=false leaked an account that has a password")
+		}
+	}
+}
+
 // TestAdminAccountActionsAreRecorded: every privileged action names the person
 // who took it, not the binary — the caller proved who they are.
 func TestAdminAccountActionsAreRecorded(t *testing.T) {

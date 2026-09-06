@@ -74,11 +74,37 @@ func toUserRow(m *coreidentity.User) *userRow {
 // meant to be: an operator searching for a colleague on a deployment with a few
 // thousand accounts is not a hot path, and a prefix-only match would fail the
 // common case of searching by the part before the @.
-func (s *Store) ListUsers(ctx context.Context, query string, limit, offset int) ([]coreidentity.User, int, error) {
+func (s *Store) ListUsers(ctx context.Context, filter coreidentity.UserFilter, limit, offset int) ([]coreidentity.User, int, error) {
 	limit, offset = clampPage(limit, offset)
 	q := s.db.WithContext(ctx).Model(&userRow{})
-	if query != "" {
-		q = q.Where("email LIKE ?", "%"+query+"%")
+	if filter.Query != "" {
+		q = q.Where("email LIKE ?", "%"+filter.Query+"%")
+	}
+	if filter.Disabled != nil {
+		if *filter.Disabled {
+			q = q.Where("disabled_at IS NOT NULL")
+		} else {
+			q = q.Where("disabled_at IS NULL")
+		}
+	}
+	if filter.HasPassword != nil {
+		if *filter.HasPassword {
+			q = q.Where("password_hash IS NOT NULL")
+		} else {
+			q = q.Where("password_hash IS NULL")
+		}
+	}
+	if filter.Platform != "" {
+		q = q.Where("last_login_platform = ?", filter.Platform)
+	}
+	if filter.SystemRole != "" {
+		// A subquery, not a join: a join would return one user row per grant and
+		// double-count anyone re-granted. The set of grant holders is small, so
+		// the IN list stays cheap.
+		holders := s.db.WithContext(ctx).Model(&systemGrantRow{}).
+			Select("user_id").
+			Where("role = ? AND revoked_at IS NULL", filter.SystemRole)
+		q = q.Where("id IN (?)", holders)
 	}
 	var total int64
 	if err := q.Count(&total).Error; err != nil {

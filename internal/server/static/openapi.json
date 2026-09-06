@@ -2134,6 +2134,32 @@
             "required": false,
             "schema": {"type": "string"},
             "description": "Substring match on email or name"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {"type": "string", "enum": ["enabled", "disabled"]}
+          },
+          {
+            "name": "has_password",
+            "in": "query",
+            "required": false,
+            "schema": {"type": "string", "enum": ["true", "false"]}
+          },
+          {
+            "name": "system_role",
+            "in": "query",
+            "required": false,
+            "schema": {"type": "string"},
+            "description": "Keep only holders of this active system role"
+          },
+          {
+            "name": "platform",
+            "in": "query",
+            "required": false,
+            "schema": {"type": "string"},
+            "description": "Keep only accounts whose last login was on this platform"
           }
         ],
         "responses": {
