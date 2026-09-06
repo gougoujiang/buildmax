@@ -137,6 +137,7 @@ type RunTaskInput struct {
 	// re-sent whole on every call, instead of riding in the task input where compaction
 	// eventually drops it.
 	AdditionalSystemPrompt string
+	TeamAgentInstructions  string
 	Run                    *coretask.Run
 	SessionID              string
 	Paths                  RuntimePaths
@@ -396,7 +397,7 @@ func executeRunTask(ctx context.Context, input RunTaskInput, task *coretask.Task
 	if task.SessionID != nil {
 		effectiveSessionID = *task.SessionID
 	}
-	agentRun, err := runAgentTask(ctx, run, dirs.runDir, dirs.runGlobal, dirs.runOSHome, effectiveSessionID, input.StreamSender, input.Model, input.Managed, input.ManagedHTTPClient, input.AdditionalSystemPrompt,
+	agentRun, err := runAgentTask(ctx, run, dirs.runDir, dirs.runGlobal, dirs.runOSHome, effectiveSessionID, input.StreamSender, input.Model, input.Managed, input.ManagedHTTPClient, input.TeamAgentInstructions, input.AdditionalSystemPrompt,
 		artifactPublisher(input.WorkerAPI, run.ID), issueClient(input.WorkerAPI, task, run.ID),
 		input.SandboxNetworkTier, input.SandboxFilesystemTier, input.SecretEnvGrants)
 	result := runResult{
@@ -506,7 +507,7 @@ func runtimeModelEntries(runtimeModel config.ModelEntry, managed ManagedInferenc
 	return []config.ModelEntry{runtimeModel}
 }
 
-func runAgentTask(ctx context.Context, run *coretask.Run, runDir, runGlobalDir, runOSHome, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry, managed ManagedInference, managedHTTPClient *http.Client, additionalSystemPrompt string, publisher tool.ArtifactPublisher, issues tool.IssueClient, sandboxNetworkTier config.SandboxNetworkTier, sandboxFilesystemTier config.SandboxFilesystemTier, secretGrants map[string]string) (agentRunOutput, error) {
+func runAgentTask(ctx context.Context, run *coretask.Run, runDir, runGlobalDir, runOSHome, sessionID string, streamSender workerclient.StreamSender, runtimeModel config.ModelEntry, managed ManagedInference, managedHTTPClient *http.Client, teamAgentInstructions, additionalSystemPrompt string, publisher tool.ArtifactPublisher, issues tool.IssueClient, sandboxNetworkTier config.SandboxNetworkTier, sandboxFilesystemTier config.SandboxFilesystemTier, secretGrants map[string]string) (agentRunOutput, error) {
 	var sink llm.StreamSink
 	if streamSender != nil {
 		sink = &streamSinkAdapter{ctx: ctx, streamSender: streamSender, taskRunID: run.ID,
@@ -516,18 +517,20 @@ func runAgentTask(ctx context.Context, run *coretask.Run, runDir, runGlobalDir, 
 	var out agentapp.RunResult
 	err := withRunEnv(runOSHome, runGlobalDir, secretGrants, func() error {
 		app, err := agentapp.NewAgentApp(agentapp.AppConfig{
-			WorkspaceDir:           runDir,
-			EnableMCP:              true,
-			Policy:                 agent.AllowAllPolicy(),
-			ModelEntries:           runtimeModelEntries(runtimeModel, managed),
-			ManagedServerURL:       managed.ServerURL,
-			ManagedToken:           managed.tokenFunc(),
-			ManagedHTTPClient:      managedHTTPClient,
-			ManagedTaskRunID:       managedRunScope(managed, run.ID),
-			Surface:                managedSurface,
-			AdditionalSystemPrompt: additionalSystemPrompt,
-			ArtifactPublisher:      publisher,
-			IssueClient:            issues,
+			WorkspaceDir:                runDir,
+			EnableMCP:                   true,
+			Policy:                      agent.AllowAllPolicy(),
+			ModelEntries:                runtimeModelEntries(runtimeModel, managed),
+			ManagedServerURL:            managed.ServerURL,
+			ManagedToken:                managed.tokenFunc(),
+			ManagedHTTPClient:           managedHTTPClient,
+			ManagedTaskRunID:            managedRunScope(managed, run.ID),
+			Surface:                     managedSurface,
+			AdditionalSystemPrompt:      additionalSystemPrompt,
+			AdditionalSystemPromptLayer: "agent_instructions",
+			TeamAgentInstructions:       teamAgentInstructions,
+			ArtifactPublisher:           publisher,
+			IssueClient:                 issues,
 			// A worker executes model-chosen shell commands, so it resolves
 			// the stricter worker sandbox baseline whenever it is running
 			// from an image that actually installs the OS backend -- see

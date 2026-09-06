@@ -3,14 +3,29 @@ package team_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
+	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
 	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/mock"
 	"github.com/gougoujiang/buildmax/internal/service/team"
 )
+
+func TestSpaceInstructionsShareTheAgentPromptBudget(t *testing.T) {
+	s, teamID, ownerID, _ := newTeam(t)
+	s.Agents = &mock.MockAgentStore{Agents: []agentdef.Agent{{
+		ID: "ag_1", TeamID: teamID, Name: "writer", Instructions: strings.Repeat("a", 4097),
+	}}}
+	err := s.SetAgentInstructions(context.Background(), team.SetAgentInstructionsCmd{
+		TeamID: teamID, ActorID: ownerID, Instructions: strings.Repeat("s", 4096),
+	})
+	if !errors.Is(err, team.ErrAgentInstructionsTooLong) {
+		t.Fatalf("err = %v, want ErrAgentInstructionsTooLong", err)
+	}
+}
 
 // owner plus one member, which is the shape every rule here is about.
 func newTeam(t *testing.T) (*team.Service, string, string, string) {

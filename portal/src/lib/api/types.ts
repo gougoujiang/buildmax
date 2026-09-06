@@ -294,6 +294,7 @@ export interface ApiTaskRun {
   started_at?: string | null
   ended_at?: string | null
   agent_revision?: number | null
+  team_agent_instructions_revision?: number | null
   retry_of_task_run_id?: string | null
 }
 
@@ -315,6 +316,15 @@ export interface ApiRunProvenance {
   created_at: string
   source_message?: ApiRunSourceMessage | null
   agent?: ApiRunAgent | null
+  space_instructions?: ApiRunSpaceInstructions | null
+}
+
+/** The Space-wide instruction layer a run received. */
+export interface ApiRunSpaceInstructions {
+  /** The revision handed to the worker; 0 means no instructions were configured. */
+  revision: number
+  /** The Space's current revision, for detecting edits after the run. */
+  current_revision?: number
 }
 
 /** The agent definition a run executed under. */
@@ -881,6 +891,11 @@ export interface ApiTeam {
   name: string
   personal_for_user_id?: string | null
   created_at?: string
+}
+
+export interface ApiTeamAgentInstructions {
+  instructions: string
+  revision: number
 }
 
 /**

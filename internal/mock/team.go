@@ -173,6 +173,19 @@ func (m *MockTeamStore) SetTeamSandboxDefaults(_ context.Context, teamID, networ
 	return apierr.ErrNotFound
 }
 
+func (m *MockTeamStore) SetTeamAgentInstructions(_ context.Context, teamID, instructions string) error {
+	for i := range m.Teams {
+		if m.Teams[i].ID == teamID {
+			if m.Teams[i].AgentInstructions != instructions {
+				m.Teams[i].AgentInstructions = instructions
+				m.Teams[i].AgentInstructionsRevision++
+			}
+			return nil
+		}
+	}
+	return apierr.ErrNotFound
+}
+
 func (m *MockTeamStore) CreateInvitation(_ context.Context, teamID, userID, role, invitedBy string, expiresAt time.Time) (*coreteam.Invitation, error) {
 	m.invitationSeq++
 	inv := coreteam.Invitation{

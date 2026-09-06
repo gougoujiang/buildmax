@@ -106,3 +106,40 @@ export function describeAgent(provenance: ApiRunProvenance): AgentDescription | 
   }
   return { text: `Ran under ${name}, revision ${ran}.${suffix}`, driftedSinceRun: false }
 }
+
+/** How the Space-wide instruction layer behind a run should read. */
+export interface SpaceInstructionsDescription {
+  text: string
+  driftedSinceRun: boolean
+}
+
+export function describeSpaceInstructions(
+  provenance: ApiRunProvenance
+): SpaceInstructionsDescription | null {
+  const instructions = provenance.space_instructions
+  if (!instructions) return null
+  const ran = instructions.revision
+  const current = instructions.current_revision ?? 0
+  if (ran === 0) {
+    if (current > 0) {
+      return {
+        text: `This run used no Space instructions. They are now revision ${current}.`,
+        driftedSinceRun: true,
+      }
+    }
+    return {
+      text: "No Space instructions were configured for this run.",
+      driftedSinceRun: false,
+    }
+  }
+  if (current > ran) {
+    return {
+      text: `Used Space instructions revision ${ran}. They have since been edited and are now revision ${current}.`,
+      driftedSinceRun: true,
+    }
+  }
+  return {
+    text: `Used Space instructions revision ${ran}.`,
+    driftedSinceRun: false,
+  }
+}

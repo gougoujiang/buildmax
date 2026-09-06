@@ -269,6 +269,7 @@ func RunWorker(ctx context.Context, taskRunID string) error {
 		ManagedHTTPClient:      httpClient,
 		WorkerAPI:              apiCfg,
 		AdditionalSystemPrompt: fetched.AgentInstructions,
+		TeamAgentInstructions:  fetched.TeamAgentInstructions,
 		Plugins:                fetched.Plugins,
 		SandboxNetworkTier:     config.SandboxNetworkTier(fetched.SandboxNetworkTier),
 		SandboxFilesystemTier:  config.SandboxFilesystemTier(fetched.SandboxFilesystemTier),

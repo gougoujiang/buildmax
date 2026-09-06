@@ -25,14 +25,20 @@ type RunProvenanceResponse struct {
 	TaskID    string `json:"task_id"`
 	Status    string `json:"status"`
 	// Input is what the worker was given. Compare it with SourceMessage.
-	Input            string                 `json:"input"`
-	CreatedBy        string                 `json:"created_by,omitempty"`
-	CreatedByType    string                 `json:"created_by_type,omitempty"`
-	TriggerSource    string                 `json:"trigger_source,omitempty"`
-	RetryOfTaskRunID *string                `json:"retry_of_task_run_id,omitempty"`
-	CreatedAt        time.Time              `json:"created_at"`
-	SourceMessage    *SourceMessageResponse `json:"source_message,omitempty"`
-	Agent            *RunAgentResponse      `json:"agent,omitempty"`
+	Input             string                        `json:"input"`
+	CreatedBy         string                        `json:"created_by,omitempty"`
+	CreatedByType     string                        `json:"created_by_type,omitempty"`
+	TriggerSource     string                        `json:"trigger_source,omitempty"`
+	RetryOfTaskRunID  *string                       `json:"retry_of_task_run_id,omitempty"`
+	CreatedAt         time.Time                     `json:"created_at"`
+	SourceMessage     *SourceMessageResponse        `json:"source_message,omitempty"`
+	Agent             *RunAgentResponse             `json:"agent,omitempty"`
+	SpaceInstructions *RunSpaceInstructionsResponse `json:"space_instructions,omitempty"`
+}
+
+type RunSpaceInstructionsResponse struct {
+	Revision        int `json:"revision"`
+	CurrentRevision int `json:"current_revision,omitempty"`
 }
 
 // RunAgentResponse names the agent definition a run executed under.
@@ -75,19 +81,35 @@ func (h *Handler) getTaskRunProvenanceHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 	out := RunProvenanceResponse{
-		TaskRunID:        run.ID,
-		TaskID:           task.ID,
-		Status:           run.Status,
-		Input:            run.Input,
-		CreatedBy:        run.CreatedBy,
-		CreatedByType:    run.CreatedByType,
-		TriggerSource:    run.TriggerSource,
-		RetryOfTaskRunID: run.RetryOfTaskRunID,
-		CreatedAt:        run.CreatedAt,
-		SourceMessage:    h.resolveSourceMessage(r, task, run.SourceMessageID),
-		Agent:            h.resolveRunAgent(r, task, run),
+		TaskRunID:         run.ID,
+		TaskID:            task.ID,
+		Status:            run.Status,
+		Input:             run.Input,
+		CreatedBy:         run.CreatedBy,
+		CreatedByType:     run.CreatedByType,
+		TriggerSource:     run.TriggerSource,
+		RetryOfTaskRunID:  run.RetryOfTaskRunID,
+		CreatedAt:         run.CreatedAt,
+		SourceMessage:     h.resolveSourceMessage(r, task, run.SourceMessageID),
+		Agent:             h.resolveRunAgent(r, task, run),
+		SpaceInstructions: h.resolveRunSpaceInstructions(r, task, run),
 	}
 	httputil.WriteJSON(w, http.StatusOK, out)
+}
+
+func (h *Handler) resolveRunSpaceInstructions(r *http.Request, task *coretask.Task, run *coretask.Run) *RunSpaceInstructionsResponse {
+	if run.TeamAgentInstructionsRevision == nil {
+		return nil
+	}
+	out := &RunSpaceInstructionsResponse{Revision: *run.TeamAgentInstructionsRevision}
+	if h.cfg.Teams == nil {
+		return out
+	}
+	team, err := h.cfg.Teams.GetTeam(r.Context(), task.TeamID)
+	if err == nil && team != nil {
+		out.CurrentRevision = team.AgentInstructionsRevision
+	}
+	return out
 }
 
 // resolveSourceMessage reads the message a run was asked for in.

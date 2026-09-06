@@ -94,9 +94,10 @@ results are sent back to the model as tool-role messages.
 - **Behavior**: Creates or replaces exactly one memory, at most 20 per project with a 100-character description and a 2,000-character body. Empty `content` deletes it. Creating a name that does not exist is always accepted; replacing one requires that this run read it — an unread replacement and a stale one are refused with different messages, because one needs a read and the other a merge. No version token appears in the schema: the comparison stays inside the runtime.
 - **Registration**: both are registered only on a local primary run whose session belongs to a project and whose user did not pass `--no-project-memory`. They are appended after the agent types are built, so no subagent definition can name them, and a delegate carries no index either. See [design/local-project-memory.md](../../design/local-project-memory.md) §9.
 
-An additional system prompt, when the run has one, contributes a fourth layer to
-the system prompt and its `## Invariants` section is restated in the same block
-these tools render into. See [design/context-durability.md](../../design/context-durability.md).
+Portal background runs may add a Space instruction layer before the selected
+Agent's additional system prompt. Both are stable for that run; the additional
+prompt's `## Invariants` section is restated in the same block these tools render
+into. See [design/context-durability.md](../../design/context-durability.md).
 
 Both write durable session state rather than returning a formatted string and
 nothing else. The state lives on `session.Session`, is reached through the

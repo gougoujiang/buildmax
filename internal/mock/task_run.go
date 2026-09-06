@@ -270,3 +270,16 @@ func (m *MockTaskRunStore) RecordTaskRunAgentRevision(_ context.Context, taskRun
 	}
 	return nil
 }
+
+func (m *MockTaskRunStore) RecordTaskRunTeamAgentInstructionsRevision(_ context.Context, taskRunID string, revision int) error {
+	for i := range m.Runs {
+		if m.Runs[i].ID != taskRunID {
+			continue
+		}
+		if m.Runs[i].TeamAgentInstructionsRevision == nil {
+			m.Runs[i].TeamAgentInstructionsRevision = &revision
+		}
+		return nil
+	}
+	return nil
+}

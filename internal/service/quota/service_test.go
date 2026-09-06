@@ -165,6 +165,10 @@ func (m *mockTeamStore) SetTeamSandboxDefaults(_ context.Context, _, _, _ string
 	return nil
 }
 
+func (m *mockTeamStore) SetTeamAgentInstructions(_ context.Context, _, _ string) error {
+	return nil
+}
+
 func (m *mockTeamStore) CreateInvitation(_ context.Context, _, _, _, _ string, _ time.Time) (*coreteam.Invitation, error) {
 	return nil, nil
 }

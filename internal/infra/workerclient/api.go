@@ -78,7 +78,8 @@ type WorkerTaskRun struct {
 	// server from the agent the task names. Empty when the task names none. It is not on
 	// coretask.Task because it is not a property of the task: it is resolved per run, so an
 	// edited definition applies to the next one.
-	AgentInstructions string
+	AgentInstructions     string
+	TeamAgentInstructions string
 	// CancelRequested is true when the run was already asked to stop before
 	// this worker picked it up — a cancel that landed between dispatch and
 	// start. Such a run is finished without executing anything.
@@ -133,6 +134,7 @@ func GetWorkerTaskRun(ctx context.Context, cfg WorkerAPIClientConfig, taskRunID 
 		},
 		LLM:                   got.LLM,
 		AgentInstructions:     got.Task.AgentInstructions,
+		TeamAgentInstructions: got.Task.TeamAgentInstructions,
 		CancelRequested:       got.Run.CancelRequested,
 		Plugins:               toPluginPins(got.Plugins),
 		PluginError:           got.PluginError,

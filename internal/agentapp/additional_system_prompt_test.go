@@ -80,6 +80,25 @@ func TestValidateAdditionalSystemPrompt(t *testing.T) {
 	}
 }
 
+func TestSpaceInstructionsPrecedeAgentInstructionsAndHaveOwnTraceLayer(t *testing.T) {
+	prompt, layers := buildSystemPromptWithLayers(t.TempDir(), "m", "Shared policy.", "Agent identity.", "agent_instructions", PromptCapabilities{})
+	spaceAt := strings.Index(prompt, "# Space instructions\nShared policy.")
+	agentAt := strings.Index(prompt, "# Agent instructions\nAgent identity.")
+	if spaceAt < 0 || agentAt < 0 || spaceAt >= agentAt {
+		t.Fatalf("prompt layer order is wrong:\n%s", prompt)
+	}
+	if layers[len(layers)-2].Name != "space_instructions" || layers[len(layers)-1].Name != "agent_instructions" {
+		t.Fatalf("layers = %+v, want separate Space and Agent layers", layers)
+	}
+}
+
+func TestValidateInstructionLayersSharesOneBudget(t *testing.T) {
+	err := ValidateInstructionLayers(strings.Repeat("s", 4096), strings.Repeat("a", 4097))
+	if err == nil {
+		t.Fatal("combined over-limit instructions were accepted")
+	}
+}
+
 // TestEffectiveAdditionalPrompt covers the resolution rule: a configured value wins, which is
 // what makes an edited Portal agent definition take effect on the next run; with none
 // configured, a resumed session keeps the identity it already ran under instead of silently

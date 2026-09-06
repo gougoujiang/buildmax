@@ -276,8 +276,9 @@ Two consequences, both binding:
 
 - **They arrive as tool results.** They are never merged into a system prompt
   layer. This is a security rule and a caching rule at once: `AGENTS.md` fixes
-  the system prompt at four additive layers that are stable for a session, so
-  they can be the cacheable prefix. A mutable Issue snapshot in a layer would
+  the system prompt from bounded instruction layers that are stable for a run,
+  including optional Space instructions on Portal workers, so they can be the
+  cacheable prefix. A mutable Issue snapshot in a layer would
   break that prefix on every edit as surely as it would launder a comment into
   an instruction.
 - **`GetIssue` labels every comment with its author kind.** The kinds already

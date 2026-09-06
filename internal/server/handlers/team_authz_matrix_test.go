@@ -64,6 +64,10 @@ var teamRoutes = []authzCase{
 	{"DELETE", "/api/teams/{team_id}/agents/{agent_id}", coreteam.RoleAdmin, false},
 	{"GET", "/api/teams/{team_id}/agents/{agent_id}/revisions", coreteam.RoleMember, false},
 	{"POST", "/api/teams/{team_id}/agents/{agent_id}/revisions/{revision}/restore", coreteam.RoleAdmin, false},
+	// Every member may inspect the context their background runs inherit;
+	// changing that shared behavior uses the same authority as managing agents.
+	{"GET", "/api/teams/{team_id}/agent-instructions", coreteam.RoleMember, false},
+	{"PUT", "/api/teams/{team_id}/agent-instructions", coreteam.RoleAdmin, false},
 
 	// Reading what a team activated answers "why did this run have this
 	// plugin", which is any member's question. Changing an activation is the

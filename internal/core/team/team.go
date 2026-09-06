@@ -27,6 +27,11 @@ type Team struct {
 	// PluginCuration is who fills this team's plugin activation list; empty
 	// reads as plugin.CurationOpen. See core/plugin/activation.go.
 	PluginCuration coreplugin.Curation `json:"plugin_curation,omitempty"`
+	// AgentInstructions are shared guidance appended to every background agent
+	// run in this team. Revision changes whenever the text changes so a TaskRun
+	// can record exactly which team-level instructions it received.
+	AgentInstructions         string `json:"agent_instructions,omitempty"`
+	AgentInstructionsRevision int    `json:"agent_instructions_revision,omitempty"`
 	// DefaultSandboxNetworkTier and DefaultSandboxFilesystemTier are the
 	// config.SandboxNetworkTier / config.SandboxFilesystemTier values an agent
 	// that declares neither tier inherits. Empty means the surface baseline
@@ -115,6 +120,10 @@ type Store interface {
 	// inherits, or returns ErrNotFound. The values are validated above this
 	// layer, the same way SetTeamPluginCuration's mode is.
 	SetTeamSandboxDefaults(ctx context.Context, teamID, networkTier, filesystemTier string) error
+	// SetTeamAgentInstructions replaces the shared instructions for future
+	// background agent runs. An identical value is a no-op; a change advances
+	// AgentInstructionsRevision atomically.
+	SetTeamAgentInstructions(ctx context.Context, teamID, instructions string) error
 
 	// CreateInvitation creates a pending invitation for userID to join teamID
 	// at role, sent by invitedBy, acceptable until expiresAt.

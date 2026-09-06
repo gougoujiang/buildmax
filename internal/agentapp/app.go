@@ -116,6 +116,14 @@ type AppConfig struct {
 	// agent record a task run names — and the last writer wins. It is bounded because it
 	// lives in the system prompt, which is re-sent in full on every call and never trimmed.
 	AdditionalSystemPrompt string
+	// AdditionalSystemPromptLayer names this configured text in run provenance.
+	// Empty keeps the generic additional_system_prompt name; Portal workers set
+	// agent_instructions because the text came from a stored Agent definition.
+	AdditionalSystemPromptLayer string
+	// TeamAgentInstructions are the Space-level instructions inherited by a
+	// Portal background run. They form their own prompt layer before the
+	// selected Agent's AdditionalSystemPrompt. Local surfaces leave this empty.
+	TeamAgentInstructions string
 	// ArtifactPublisher gives this surface the artifact capability. Nil means it
 	// has none — a session running straight against a model provider, with no
 	// BuildMax server — and no artifact tool is registered at all.
@@ -212,14 +220,16 @@ type AgentApp struct {
 	// secretRedactor redacts those exact values from tool results before they
 	// enter the model context and from streamed output. Non-nil for every app;
 	// a no-op when the run has no grants. See docs/design/team-secrets.md §12.
-	secretRedactor         *secretscan.Redactor
-	additionalSystemPrompt string
-	artifactPublisher      tools.ArtifactPublisher
-	issueClient            tools.IssueClient
-	grantsMu               sync.Mutex
-	grants                 map[string]*agent.SessionGrants
-	turns                  turnCoordinator
-	jobs                   *job.Manager
+	secretRedactor              *secretscan.Redactor
+	additionalSystemPrompt      string
+	additionalSystemPromptLayer string
+	teamAgentInstructions       string
+	artifactPublisher           tools.ArtifactPublisher
+	issueClient                 tools.IssueClient
+	grantsMu                    sync.Mutex
+	grants                      map[string]*agent.SessionGrants
+	turns                       turnCoordinator
+	jobs                        *job.Manager
 	// jobTraceDone closes once the job trace subscriber has drained the last
 	// event. Close waits on it so no record is written after shutdown.
 	jobTraceDone chan struct{}
@@ -954,7 +964,8 @@ func (a *AgentApp) estimateRunUsage(sess *SessionContext, modelName string, cont
 	}
 	// This path does not go through RunLoop, so it renders the compaction block itself to
 	// estimate the real prompt size. It uses the same renderer RunLoop does.
-	systemPrompt := BuildEffectiveSystemPrompt(a.workspace.Root(), modelName, a.effectiveAdditionalPrompt(sess), a.promptCapabilities()) + agent.RenderCompactionBlock(sess.PriorSummary())
+	systemPrompt, _ := buildSystemPromptWithLayers(a.workspace.Root(), modelName, a.teamAgentInstructions, a.effectiveAdditionalPrompt(sess), a.additionalSystemPromptLayer, a.promptCapabilities())
+	systemPrompt += agent.RenderCompactionBlock(sess.PriorSummary())
 	contextTokens := agent.EstimateMessageTokens(cllm.Message{Role: "system", Content: systemPrompt}) + agent.EstimateTokens(sess.HistoryMessages())
 	return RunUsage{
 		ContextTokens:         contextTokens,
@@ -1071,7 +1082,7 @@ func (a *AgentApp) runTurn(ctx context.Context, sess *SessionContext, prompt str
 	// Resolved before the trace opens, because the trace reports which prompt layers this run
 	// loaded and a run that ends early still has to be able to say.
 	extraPrompt := a.effectiveAdditionalPrompt(sess)
-	systemPrompt, promptLayers := BuildSystemPromptWithLayers(a.workspace.Root(), modelName, extraPrompt, a.promptCapabilities())
+	systemPrompt, promptLayers := buildSystemPromptWithLayers(a.workspace.Root(), modelName, a.teamAgentInstructions, extraPrompt, a.additionalSystemPromptLayer, a.promptCapabilities())
 	// Durable state, so it commits rather than being assigned: a resumed
 	// session that lost the prompt it ran under would answer as a different
 	// agent than the one the conversation records.

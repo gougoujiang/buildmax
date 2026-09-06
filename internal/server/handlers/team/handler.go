@@ -142,6 +142,10 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/teams/{team_id}/sandbox-defaults", h.getSandboxDefaultsHandler)
 	mux.HandleFunc("PUT /api/teams/{team_id}/sandbox-defaults", h.setSandboxDefaultsHandler)
 
+	// Space-wide guidance inherited by background Agent runs.
+	mux.HandleFunc("GET /api/teams/{team_id}/agent-instructions", h.getAgentInstructionsHandler)
+	mux.HandleFunc("PUT /api/teams/{team_id}/agent-instructions", h.setAgentInstructionsHandler)
+
 	// Team Secrets. Owner-only; values are write-only, with no reveal route.
 	// See docs/design/team-secrets.md.
 	mux.HandleFunc("GET /api/teams/{team_id}/secrets", h.listSecretsHandler)

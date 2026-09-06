@@ -136,6 +136,14 @@ export function describeEvent(event: ApiAuditEvent): AuditEventDescription {
         denied: true,
         target: null,
       }
+    case "team.agent_instructions_set":
+      return {
+        summary: event.detail
+          ? `Updated Space agent instructions — ${event.detail}`
+          : "Updated Space agent instructions",
+        denied: false,
+        target,
+      }
     case "access.denied":
       return {
         summary: event.target_id ? `Was refused: ${event.target_id}` : "Was refused a request",

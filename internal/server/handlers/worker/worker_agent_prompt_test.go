@@ -9,6 +9,7 @@ import (
 
 	agentdef "github.com/gougoujiang/buildmax/internal/core/agentdef"
 	coretask "github.com/gougoujiang/buildmax/internal/core/task"
+	coreteam "github.com/gougoujiang/buildmax/internal/core/team"
 	"github.com/gougoujiang/buildmax/internal/infra/workerclient"
 	"github.com/gougoujiang/buildmax/internal/mock"
 )
@@ -16,6 +17,10 @@ import (
 // getTaskRunHandler builds the worker route with an optional agent store and a task that may
 // name an agent.
 func getTaskRunHandler(agentID *string, agents *mock.MockAgentStore) http.Handler {
+	return getTaskRunHandlerWithTeam(agentID, agents, nil)
+}
+
+func getTaskRunHandlerWithTeam(agentID *string, agents *mock.MockAgentStore, teams *mock.MockTeamStore) http.Handler {
 	cfg := Config{
 		JWTSecret: workerTestSecret,
 		TaskRuns: &mock.MockTaskRunStore{
@@ -27,6 +32,9 @@ func getTaskRunHandler(agentID *string, agents *mock.MockAgentStore) http.Handle
 			}},
 		},
 	}
+	if teams != nil {
+		cfg.Teams = teams
+	}
 	if agents != nil {
 		cfg.Agents = agents
 	}
@@ -34,6 +42,17 @@ func getTaskRunHandler(agentID *string, agents *mock.MockAgentStore) http.Handle
 	mux := http.NewServeMux()
 	h.Register(mux)
 	return mux
+}
+
+func TestGetTaskRunCarriesSpaceInstructionsWithoutAnAgent(t *testing.T) {
+	teams := &mock.MockTeamStore{Teams: []coreteam.Team{{
+		ID: llmTestTeam, AgentInstructions: "Use British English.", AgentInstructionsRevision: 2,
+	}}}
+	got := getTaskRun(t, getTaskRunHandlerWithTeam(nil, nil, teams))
+	if got.Task.TeamAgentInstructions != "Use British English." || got.Task.TeamAgentInstructionsRevision != 2 {
+		t.Fatalf("team instructions = %q at revision %d, want configured layer at revision 2",
+			got.Task.TeamAgentInstructions, got.Task.TeamAgentInstructionsRevision)
+	}
 }
 
 func getTaskRun(t *testing.T, handler http.Handler) workerclient.GetTaskRunResponse {

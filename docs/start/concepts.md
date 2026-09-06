@@ -92,6 +92,12 @@ The Portal adds a shared model on top of the same runtime:
 Team roles are `owner`, `admin`, and `member`. Uploaded files, issues,
 workflows, conversations, and tasks are all team-scoped.
 
+Owners and admins can set shared Agent instructions under **Space → Overview**.
+They are sent to every background Agent run in that Space, before the selected
+Agent's own instructions, and do not change the foreground Conversation
+coordinator. Because the text is sent with every model call, keep it concise and
+never put passwords, API keys, or other secrets in it.
+
 Deleting an agent removes it from the team but keeps the record behind it, so
 runs and history that already name it stay readable, and a workflow run in
 flight finishes. An agent a published workflow still uses cannot be deleted
