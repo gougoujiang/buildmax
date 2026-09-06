@@ -36,13 +36,16 @@ func (f *fakePayloads) Exists(_ context.Context, _, _ string) (bool, error) {
 	return f.exists, f.err
 }
 
+func (f *fakePayloads) Key(spaceID, sha256hex string) (string, error) {
+	return spaceID + "/workspace/blobs/sha256/" + sha256hex, nil
+}
+
 const goodDigest = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
 func goodDescriptor() PayloadDescriptor {
 	return PayloadDescriptor{
 		Format:            coretask.PayloadFormatTarZstV1,
 		SHA256:            goodDigest,
-		StorageKey:        "space/workspace/blobs/sha256/" + goodDigest,
 		SizeBytes:         512,
 		UncompressedBytes: 2048,
 		EntryCount:        7,
@@ -155,7 +158,6 @@ func TestFinalizeRejectsBadDescriptors(t *testing.T) {
 		{"bad format", func(d *PayloadDescriptor) { d.Format = "zip" }, [3]string{}},
 		{"short digest", func(d *PayloadDescriptor) { d.SHA256 = "abc" }, [3]string{}},
 		{"upper digest", func(d *PayloadDescriptor) { d.SHA256 = strings.ToUpper(goodDigest) }, [3]string{}},
-		{"empty key", func(d *PayloadDescriptor) { d.StorageKey = "" }, [3]string{}},
 		{"zero size", func(d *PayloadDescriptor) { d.SizeBytes = 0 }, [3]string{}},
 		{"negative entries", func(d *PayloadDescriptor) { d.EntryCount = -1 }, [3]string{}},
 		{"missing space", nil, [3]string{"", "tk1", "rn1"}},

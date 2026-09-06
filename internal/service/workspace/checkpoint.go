@@ -23,10 +23,13 @@ type MetadataStore interface {
 }
 
 // PayloadStore holds the immutable checkpoint bytes, content-addressed by the
-// Space and the payload's SHA-256. The service only reads it here — Exists is
-// the pre-commit check that the bytes the descriptor points at are durable.
+// Space and the payload's SHA-256. The service reads it here: Exists is the
+// pre-commit check that the bytes are durable, and Key derives the storage key
+// the pointer records — the worker uploads content-addressed bytes and never
+// names a key, so the server derives the one canonical key for them.
 type PayloadStore interface {
 	Exists(ctx context.Context, spaceID, sha256hex string) (bool, error)
+	Key(spaceID, sha256hex string) (string, error)
 }
 
 // ErrPayloadMissing is returned when a descriptor is finalized before its bytes
@@ -36,19 +39,17 @@ type PayloadStore interface {
 var ErrPayloadMissing = errors.New("workspace: checkpoint payload bytes are not in the store")
 
 // ErrInvalidDescriptor is a structurally invalid payload descriptor — an
-// unsupported format, a malformed digest, an empty storage key, or a
-// non-positive size. It is a programming error at the call site, not a
-// user-facing condition.
+// unsupported format, a malformed digest, or a non-positive size. It is a
+// programming error at the call site, not a user-facing condition.
 var ErrInvalidDescriptor = errors.New("workspace: invalid checkpoint descriptor")
 
 // PayloadDescriptor is what a capture produced: the format and content digest
-// of the bytes, where they live, and the counters the archive reported. The
-// service trusts these numbers for the metadata record; it does not re-read the
-// object to recount.
+// of the bytes, and the counters the archive reported. The service trusts these
+// numbers for the metadata record; it does not re-read the object to recount.
+// It carries no storage key — the store derives that from the digest.
 type PayloadDescriptor struct {
 	Format            string
 	SHA256            string
-	StorageKey        string
 	SizeBytes         int64
 	UncompressedBytes int64
 	EntryCount        int64
@@ -99,7 +100,6 @@ func (s *Service) RecordBase(ctx context.Context, in RecordBaseInput) (*coretask
 		Kind:              coretask.CheckpointKindSeed,
 		PayloadFormat:     in.Payload.Format,
 		PayloadSHA256:     in.Payload.SHA256,
-		StorageKey:        in.Payload.StorageKey,
 		SizeBytes:         in.Payload.SizeBytes,
 		UncompressedBytes: in.Payload.UncompressedBytes,
 		EntryCount:        in.Payload.EntryCount,
@@ -122,7 +122,6 @@ func (s *Service) FinalizeResult(ctx context.Context, in FinalizeResultInput) (*
 		Kind:              kind,
 		PayloadFormat:     in.Payload.Format,
 		PayloadSHA256:     in.Payload.SHA256,
-		StorageKey:        in.Payload.StorageKey,
 		SizeBytes:         in.Payload.SizeBytes,
 		UncompressedBytes: in.Payload.UncompressedBytes,
 		EntryCount:        in.Payload.EntryCount,
@@ -133,6 +132,13 @@ func (s *Service) finalize(ctx context.Context, in coretask.FinalizeCheckpointIn
 	if err := validateDescriptor(in); err != nil {
 		return nil, err
 	}
+	// The pointer records the one canonical, content-addressed key for these
+	// bytes; the worker uploaded them there without naming it.
+	key, err := s.payloads.Key(in.SpaceID, in.PayloadSHA256)
+	if err != nil {
+		return nil, fmt.Errorf("workspace: derive payload key: %w", err)
+	}
+	in.StorageKey = key
 	// Bytes before pointer: refuse to record a checkpoint whose payload is not
 	// already durable, so the metadata never points at nothing.
 	ok, err := s.payloads.Exists(ctx, in.SpaceID, in.PayloadSHA256)
@@ -153,8 +159,6 @@ func validateDescriptor(in coretask.FinalizeCheckpointInput) error {
 		return fmt.Errorf("%w: unsupported payload format %q", ErrInvalidDescriptor, in.PayloadFormat)
 	case !isSHA256Hex(in.PayloadSHA256):
 		return fmt.Errorf("%w: payload digest is not 64 lowercase hex characters", ErrInvalidDescriptor)
-	case in.StorageKey == "":
-		return fmt.Errorf("%w: empty storage key", ErrInvalidDescriptor)
 	case in.SizeBytes <= 0:
 		return fmt.Errorf("%w: non-positive size", ErrInvalidDescriptor)
 	case in.UncompressedBytes < 0 || in.EntryCount < 0:

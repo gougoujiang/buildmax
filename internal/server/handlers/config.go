@@ -36,6 +36,7 @@ import (
 	pluginsvc "github.com/gougoujiang/buildmax/internal/service/plugin"
 	"github.com/gougoujiang/buildmax/internal/service/quota"
 	secretsvc "github.com/gougoujiang/buildmax/internal/service/secret"
+	workspacesvc "github.com/gougoujiang/buildmax/internal/service/workspace"
 )
 
 // Config holds all dependencies for the unified handler (auth, user API, worker API, inbound webhook).
@@ -111,6 +112,12 @@ type Config struct {
 	// a deployment with no database has: no way to know whether anyone is an
 	// administrator, and therefore no basis for letting one in.
 	SystemGrantStore coreidentity.SystemGrantStore
+
+	// WorkspaceCheckpoints finalizes a seed a worker captured; nil disables the
+	// worker checkpoint route. WorkspaceCheckpointStore reads a run's base and
+	// records its restore outcome; nil disables the base and restore routes.
+	WorkspaceCheckpoints     *workspacesvc.Service
+	WorkspaceCheckpointStore worker.WorkspaceRunStore
 
 	// Storage
 	PersistStorage   blob.PersistStorage

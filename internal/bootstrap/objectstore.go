@@ -6,6 +6,7 @@ import (
 	"fmt"
 	artifactsvc "github.com/gougoujiang/buildmax/internal/service/artifact"
 	"github.com/gougoujiang/buildmax/internal/service/plugin"
+	workspacesvc "github.com/gougoujiang/buildmax/internal/service/workspace"
 	"path/filepath"
 
 	"github.com/gougoujiang/buildmax/internal/config"
@@ -92,6 +93,23 @@ func BuildArtifactStorage(cfg config.WorkspaceStorageConfig, artifactDir func(sp
 		return blob.NewS3ArtifactStorage(s3Client, cfg.Bucket, cfg.Prefix), nil
 	default:
 		return blob.NewLocalFSArtifactStorage(artifactDir), nil
+	}
+}
+
+// BuildCheckpointPayloadStore returns the store the checkpoint finalizer reads
+// to verify a worker's uploaded bytes and to derive their canonical key. It
+// uses the same backend as artifacts: object storage when one is configured,
+// otherwise the local filesystem under checkpointRoot. The worker's own store
+// (which writes the bytes) must address the same backend and prefix.
+func BuildCheckpointPayloadStore(cfg config.WorkspaceStorageConfig, checkpointRoot string, s3Client blob.S3Client) (workspacesvc.PayloadStore, error) {
+	switch cfg.ArtifactProvider {
+	case config.ProviderMinIO:
+		if s3Client == nil {
+			return nil, fmt.Errorf("checkpoint storage is minio but S3 client is nil")
+		}
+		return blob.NewS3CheckpointStore(s3Client, cfg.Bucket, cfg.Prefix), nil
+	default:
+		return blob.NewLocalFSCheckpointStore(checkpointRoot), nil
 	}
 }
 
