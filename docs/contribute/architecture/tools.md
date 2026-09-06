@@ -33,6 +33,12 @@ results are sent back to the model as tool-role messages.
 | **MemoryWrite** | struct | Creates, replaces, or deletes one project memory |
 | **SkillTool** | struct | Loads a discovered skill's instructions (`Skill`) |
 | **TaskTool** | struct | Runs a subagent of a named type (`Task`) |
+| **UploadArtifact** | struct | Publishes a finished workspace file as an immutable artifact |
+| **Worktree** | struct | Manages the primary run's Git worktrees and current root |
+| **GetIssue** | struct | Reads the Issue attached to an Issue-scoped run |
+| **ReportToIssue** | struct | Posts a bounded progress report to that Issue |
+| **JobList**, **JobOutput**, **JobStop** | structs | Inspect and stop local background jobs |
+| **Monitor** | struct | Starts a watched command as a local background job |
 | MCP gateway | structs | `LoadMcpTools` and `CallMcpTool` |
 
 ## Tool Inventory
@@ -94,6 +100,23 @@ results are sent back to the model as tool-role messages.
 - **Behavior**: Creates or replaces exactly one memory, at most 20 per project with a 100-character description and a 2,000-character body. Empty `content` deletes it. Creating a name that does not exist is always accepted; replacing one requires that this run read it — an unread replacement and a stale one are refused with different messages, because one needs a read and the other a merge. No version token appears in the schema: the comparison stays inside the runtime.
 - **Registration**: both are registered only on a local primary run whose session belongs to a project and whose user did not pass `--no-project-memory`. They are appended after the agent types are built, so no subagent definition can name them, and a delegate carries no index either. See [design/local-project-memory.md](../../design/local-project-memory.md) §9.
 
+### Surface-scoped tools
+
+These tools are registered only when the current surface provides the service
+they need. A missing tool means that capability is unavailable in that run; it
+is not a permission denial.
+
+| Tool | Registered when | Parameters | Behavior |
+|---|---|---|---|
+| `UploadArtifact` | The surface has an artifact publisher | `path` (required); `title`, `purpose`, `share` (optional) | Publishes one finished, readable regular file inside the workspace as an immutable artifact. |
+| `Worktree` | CLI or TUI primary run; never a subagent | `action` (required); `name`, `path`, `discard_changes` as required by the action | Creates, enters, leaves, lists, or removes Git worktrees and moves the session root with them. |
+| `GetIssue` | The primary run is scoped to one Issue and has an Issue client | None | Returns the attached Issue snapshot and discussion. It cannot select a different Issue. |
+| `ReportToIssue` | The primary run is scoped to one Issue and has an Issue client | `summary` (required); `artifact_ids` (optional) | Posts a bounded progress report to the attached Issue. A run may post at most three reports. |
+| `JobList` | Local background jobs are enabled (TUI or Desktop) | None | Lists jobs started by the runtime. |
+| `JobOutput` | Local background jobs are enabled (TUI or Desktop) | `job_id` (required); `stream`, `cursor` (optional) | Reads a bounded, incremental slice of a job's standard output or error stream. |
+| `JobStop` | Local background jobs are enabled (TUI or Desktop) | `job_id` (required) | Stops one background job started by the runtime. |
+| `Monitor` | Local background jobs are enabled (TUI or Desktop); never a subagent | `command` (required); `description`, `timeout`, `persistent`, `react` (optional) | Runs a watched command under the Bash risk and sandbox rules. Its output and lifecycle are handled by the job tools. |
+
 Portal background runs may add a Space instruction layer before the selected
 Agent's additional system prompt. Both are stable for that run; the additional
 prompt's `## Invariants` section is restated in the same block these tools render
@@ -116,12 +139,10 @@ to generation. Only the index is resident; bodies arrive as ordinary tool
 results. A subagent inherits neither — its context has the store removed by
 `agent.CtxWithoutMemoryStore`.
 
-LLM-facing names are the camelCase constants in `names.go` — `Read`, `Write`,
-`Edit`, `Glob`, `Grep`, `Bash`, `WebFetch`, `TodoWrite`, `NoteWrite`,
-`MemoryRead`, `MemoryWrite`, `Skill`, `Task` — plus
-`LoadMcpTools` and `CallMcpTool` from `mcp_gateway.go`. `names.go` is the single
-source of truth; hook matchers and subagent `tools:` fields match against these
-exact strings.
+LLM-facing names are the camelCase constants in `names.go`; the inventory above
+accounts for every one. `LoadMcpTools` and `CallMcpTool` are declared separately
+in `mcp_gateway.go`. These constants are the source of truth because hook
+matchers and subagent `tools:` fields match against their exact strings.
 
 ## What A Tool Declares About Itself
 

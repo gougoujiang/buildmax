@@ -147,14 +147,17 @@ the build on the ways documentation rots silently:
 | `TestDocsLinksResolve` | A relative markdown link points at a file that does not exist |
 | `TestEnvVarsDocumented` | `config.EnvVars()` gains a variable missing from [reference/configuration.md](../reference/configuration.md) |
 | `TestToolNamesDocumented` | A tool name constant is missing from [guide/tools.md](../guide/tools.md) |
+| `TestArchitectureToolInventoryCoversEveryToolNameConstant` | A tool declared in `internal/tool/names.go` is missing from the contributor [tool inventory](architecture/tools.md) |
 | `TestAgentsMDPathsExist` / `TestAgentsMDRoutesExist` | [AGENTS.md](../../AGENTS.md) cites a path or route that does not exist |
 | `TestDocumentedFilePathsExist` | Any document cites a repository file that does not exist |
 | `TestDocumentedMakeCommandsExist` | Any document names a `./make` command the task runner does not dispatch |
 | `TestCLIReferenceCoversEveryCommand` | A command reaches the binary without reaching [reference/cli.md](../reference/cli.md) |
 
-The tool-name check exists because those strings are user-visible contract —
+The tool-name checks exist because those strings are user-visible contract —
 they appear in hook `matcher` regexes and subagent `tools:` fields, so renaming
-a tool without updating the docs breaks working configuration silently.
+a tool without updating the docs breaks working configuration silently. The
+architecture check reads the declarations from `names.go` so a newly added
+surface-scoped tool cannot be omitted by a hand-maintained test list.
 
 The last three carry a short list of the drift they find today, each keyed to an
 open issue. Fixing one means deleting its entry, and an entry nothing reports
