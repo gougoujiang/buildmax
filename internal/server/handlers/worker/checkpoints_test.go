@@ -179,3 +179,61 @@ func TestPostWorkspaceCheckpoint_MissingBytesConflicts(t *testing.T) {
 		t.Fatalf("status = %d, want 409 for un-uploaded bytes; body = %s", rec.Code, rec.Body.String())
 	}
 }
+
+// TestPatchTerminal_CommitsSuccessfulResultCheckpoint pins that a successful
+// terminal report carrying a result descriptor commits a successful checkpoint,
+// with space, task, kind, and the run's base all derived by the server.
+func TestPatchTerminal_CommitsSuccessfulResultCheckpoint(t *testing.T) {
+	taskRunID := "run-result"
+	meta := &seedMetadata{out: &coretask.WorkspaceCheckpoint{ID: "cp_result", Kind: coretask.CheckpointKindSuccessful}}
+	svc := workspacesvc.New(meta, &seedPayloads{exists: true})
+	runs := runningRunAndTask(taskRunID, "t1", "tm_1")
+	base := "cp_base"
+	runs.Runs[0].WorkspaceBaseCheckpointID = &base
+	h := New(Config{JWTSecret: workerTestSecret, TaskRuns: runs, Checkpoints: svc})
+	mux := http.NewServeMux()
+	h.Register(mux)
+
+	body := `{"status":"SUCCEEDED","output":"ok","workspace_checkpoint":{"payload_format":"tar.zst.v1","payload_sha256":"` + seedDigest + `","size_bytes":10,"uncompressed_bytes":20,"entry_count":3}}`
+	req := httptest.NewRequest(http.MethodPatch, "/api/worker/task-runs/"+taskRunID, strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+runTokenFor(t, taskRunID, "t1"))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+	}
+	if meta.got.Kind != coretask.CheckpointKindSuccessful {
+		t.Errorf("checkpoint kind = %q, want successful", meta.got.Kind)
+	}
+	if meta.got.SpaceID != "tm_1" || meta.got.TaskID != "t1" {
+		t.Errorf("finalize input = %+v; server did not derive owners", meta.got)
+	}
+	if meta.got.BaseCheckpointID == nil || *meta.got.BaseCheckpointID != "cp_base" {
+		t.Errorf("base checkpoint = %v, want cp_base", meta.got.BaseCheckpointID)
+	}
+	if meta.got.StorageKey == "" {
+		t.Error("the server did not derive a storage key")
+	}
+}
+
+// TestPatchTerminal_ResultCheckpointFailureIsFailOpen pins that a result
+// checkpoint the server cannot commit (its bytes never reached the store) does
+// not fail the run: the terminal outcome is already accepted.
+func TestPatchTerminal_ResultCheckpointFailureIsFailOpen(t *testing.T) {
+	taskRunID := "run-result-missing"
+	svc := workspacesvc.New(&seedMetadata{}, &seedPayloads{exists: false})
+	h := New(Config{JWTSecret: workerTestSecret, TaskRuns: runningRunAndTask(taskRunID, "t1", "tm_1"), Checkpoints: svc})
+	mux := http.NewServeMux()
+	h.Register(mux)
+
+	body := `{"status":"SUCCEEDED","output":"ok","workspace_checkpoint":{"payload_format":"tar.zst.v1","payload_sha256":"` + seedDigest + `","size_bytes":10}}`
+	req := httptest.NewRequest(http.MethodPatch, "/api/worker/task-runs/"+taskRunID, strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+runTokenFor(t, taskRunID, "t1"))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("a checkpoint that cannot commit must not fail the run, got %d; body = %s", rec.Code, rec.Body.String())
+	}
+}
