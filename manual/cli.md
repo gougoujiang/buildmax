@@ -36,6 +36,9 @@ buildmax <command> [flags]
 | `buildmax admin list` | List deployment administrators; `--all` includes revoked grants (System Administrator only) |
 | `buildmax admin grant <email>` | Grant deployment-administrator authority to an existing account |
 | `buildmax admin revoke <email>` | Revoke an account's administrator authority (refuses the last one) |
+| `buildmax admin model list` | List catalog models, enabled or not, and which is the default |
+| `buildmax admin model add` | Add a model to the catalog; `--api-key` is stored encrypted and never read back |
+| `buildmax admin model enable` / `disable <model_id>` | Enable or retire a catalog model |
 | `buildmax plugin list` | List installed plugins, where each came from, and whether it loads |
 | `buildmax plugin status [name]` | Show what a plugin contributes, its checkout or release, and what shadowed it |
 | `buildmax plugin validate [path]` | Parse a plugin directory and report every problem; non-zero if any would stop it loading |
@@ -252,6 +255,21 @@ on the machine that runs the server. Creating the first administrator and
 recovering a deployment that has lost every administrator likewise stay in
 `buildmax-server admin`, which reaches the database directly; `buildmax admin`
 is the routine, authenticated peer, not the break-glass path.
+
+`buildmax admin model` manages the model catalog over the same API:
+
+```bash
+buildmax admin model list                              # every catalog model
+buildmax admin model add --name "Sonnet" --api-url https://api.example.com/v1 \
+  --model vendor/sonnet --api-key sk-… --context-window 200000
+buildmax admin model disable lm_7Kq2                   # retire one, by id
+buildmax admin model enable  lm_7Kq2                   # bring it back
+```
+
+The `--api-key` travels in the request body and is stored encrypted at rest; no
+read returns it, and a deployment with no encryption key configured refuses a
+model that carries one. `add` takes the same fields as `buildmax-server model
+add`; run `buildmax admin model add --help` for the full set.
 
 ### `buildmax doctor`
 
