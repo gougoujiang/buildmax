@@ -1,12 +1,13 @@
-# Configuration Reference
+# 配置参考
 
-> **简体中文：** [阅读中文镜像](../zh-CN/reference/configuration.md)
-> **Audience:** users and operators · **Status:** current
+> **翻译说明：** 本文是[英文原文](../../reference/configuration.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `f129ed4f4e3bdefbb2de40235b8a0976366401f40cf7fbe581054b3616d04a50`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
+> **受众：** 用户和运维人员 · **状态：** 当前
+
 BuildMax is configured by **YAML files inside the data directory**, not by a
 long list of environment variables. Only a handful of bootstrap values stay in
 the environment, because they must be known before any file can be read.
 
-| File | Read by | Purpose |
+| File | Read by | 用途 |
 |---|---|---|
 | `<BUILDMAX_HOME>/settings.yaml` | CLI, Desktop | Models, hooks, sandbox, log level |
 | `<BUILDMAX_HOME>/server.yaml` | Server, Worker | Port, auth, database, storage, worker, Tier 1 model |
@@ -14,11 +15,11 @@ the environment, because they must be known before any file can be read.
 | `<workspace>/.buildmax/hooks.yaml` | CLI, Desktop | Per-workspace hook overlay, additive to global hooks |
 | `<BUILDMAX_HOME>/mcp.json` | CLI, Desktop, Worker | MCP servers, merged with the workspace file |
 | `<workspace>/.buildmax/mcp.json` | CLI, Desktop | Per-workspace MCP servers; wins on a duplicate server id |
-| `<BUILDMAX_HOME>/plugins/<name>/` | CLI, Desktop, Worker | An installed local plugin, or an exact Space-activated release materialized into a run-scoped worker home; see [help/plugins.md](../../help/plugins.md) |
+| `<BUILDMAX_HOME>/plugins/<name>/` | CLI, Desktop, Worker | An installed local plugin, or an exact Space-activated release materialized into a run-scoped worker home; see [help/plugins.md](../../../help/plugins.md) |
 | `<workspaces_dir>/.marketplace/` | Server | Published plugin packages, when the deployment has no object store |
 
 `BUILDMAX_HOME` defaults to `~/.buildmax`. Copy the starting points from
-[`config-examples/`](../../config-examples/):
+[`config-examples/`](../../../config-examples/):
 
 ```bash
 mkdir -p ~/.buildmax
@@ -31,12 +32,12 @@ cp config-examples/mcp.example.json      ~/.buildmax/mcp.json      # MCP servers
 `mcp.example.json` carries a `_comment` key holding its own documentation; drop
 that key before use.
 
-## Environment Variables
+## 环境变量
 
 This is the complete list. `internal/config/env_spec.go` is the source of truth;
 anything not listed here is not read by BuildMax.
 
-| Variable | Default | Purpose |
+| 变量 | 默认值 | 用途 |
 |---|---|---|
 | `BUILDMAX_HOME` | `~/.buildmax` | Data directory; locates `settings.yaml` and `server.yaml`. Must be an env var — nothing else can be found until it is known. |
 | `BUILDMAX_SERVER_URL` | — | Address this process uses to reach `buildmax-server`. Overrides `settings.yaml` `server_url` for CLI/Desktop and `server.yaml` `worker.server_url` for workers. |
@@ -59,14 +60,14 @@ anything not listed here is not read by BuildMax.
 | `BUILDMAX_CACHE_QUALIFY_BASE_URL` | — | Endpoint override for that suite. |
 | `BUILDMAX_CACHE_QUALIFY_SLOW` | — | Include the qualification scenarios that wait out a retention window. Truthy values only; they take minutes of wall clock. |
 
-### Credential Overrides
+### 凭证覆盖
 
 Every field below overrides the matching `server.yaml` entry. They exist so a
 deployment can inject credentials from a Kubernetes Secret, a Docker secret, or
 a CI variable instead of writing them to disk. An unset variable leaves the file
 value alone.
 
-| Variable | Overrides |
+| 变量 | Overrides |
 |---|---|
 | `BUILDMAX_DATABASE_PASSWORD` | `database.password` |
 | `BUILDMAX_STORAGE_MINIO_ACCESS_KEY` | `storage.minio.access_key` |
@@ -78,12 +79,12 @@ environment carries credentials.** That is exactly how
 `deployment/buildmax-deploy.yaml` is arranged — a ConfigMap for the file, a
 Secret for these variables.
 
-### What A Worker Receives
+### Worker 接收的内容
 
 A task-run worker is given only the variables it reads, whether it runs as a
 local process or a Kubernetes Job:
 
-| Variable | Why a worker needs it |
+| 变量 | Worker 需要它的原因 |
 |---|---|
 | `BUILDMAX_HOME` | Run-scoped data directory |
 | `BUILDMAX_SERVER_URL` | Reaches the server that owns the task run |
@@ -97,7 +98,7 @@ up — and is added to the process or pod at dispatch, naming the one run it
 authorizes. It is what a worker presents on every `/api/worker/*` route, and the
 only credential those routes accept, so a run can only read and write its own
 record. A run dispatched without one fails at startup; see
-[design/worker-run-token.md](../design/worker-run-token.md).
+[design/worker-run-token.md](../../design/worker-run-token.md).
 
 A worker clears `BUILDMAX_RUN_TOKEN` from its own environment once it has read
 it, keeping the value in memory only. The sandbox would strip secret-shaped
@@ -115,7 +116,7 @@ the server without a decision about workers stays on the server.
 `WorkerNeeds` in `internal/config/env_spec.go` is the source of truth. Marking a
 variable there is what sends it to workers.
 
-### How A Worker Pod Is Confined
+### Worker Pod 如何受到隔离
 
 Every worker Job pod is created with no service-account token, a `Localhost`
 seccomp profile (`deployment/seccomp/worker-bwrap.json`, distributed by a
@@ -127,7 +128,7 @@ the task is trusted — the prompt, the repository content, and the tool
 output steering those commands are not. What confines those commands is
 `bwrap`'s own sandbox, built inside this pod using exactly the seccomp,
 AppArmor, and capability grants above; see
-[`deployment/seccomp/README.md`](../../deployment/seccomp/README.md) for why
+[`deployment/seccomp/README.md`](../../../deployment/seccomp/README.md) for why
 each one is there — each was found by isolating one `Operation not
 permitted` failure at a time against a real cluster.
 
@@ -143,7 +144,7 @@ not the pod's own uid.
 
 One setting under `worker.k8s` remains an operator's:
 
-| Setting | Default | Purpose |
+| 设置 | 默认值 | 用途 |
 |---|---|---|
 | `resources.cpu_request` / `cpu_limit` / `memory_request` / `memory_limit` | none — required | Kubernetes quantity strings such as `500m`, `2`, `512Mi`, or `4Gi`. All four are required under `k8s_job`; BuildMax chooses no numbers for you, because the right ones depend on the work a deployment runs. |
 
@@ -174,11 +175,11 @@ now `WorkerNeeds` so a `local_process` worker's filtered environment carries
 it too) — a Compose deployment's server container needs the same seccomp
 override as the worker Job pod for `bwrap` to actually build that sandbox;
 see `deployment/compose/compose.yaml`'s `security_opt` and
-[`deployment/seccomp/README.md`](../../deployment/seccomp/README.md). What
+[`deployment/seccomp/README.md`](../../../deployment/seccomp/README.md). What
 `local_process` does not get, and `k8s_job` does, is the worker running as a
 *different process* than the server at all.
 
-### Contributor-local files: `.local/`
+### 贡献者本地文件：`.local/`
 
 Everything a contributor configures for their own machine lives in one
 gitignored directory at the repository root. `./make setup local` creates it and
@@ -189,9 +190,9 @@ where a reader standing in the directory will find it.
 
 | File | Read by | Template |
 |---|---|---|
-| `.local/env` | `./make` and `make.bat`, before running any task | [`.env.example`](../../.env.example) |
-| `.local/settings.yaml` | `./make models`, `./make kind seed` | [`config-examples/settings.example.yaml`](../../config-examples/settings.example.yaml) |
-| `.local/buildmax-secret.yaml` | nothing automatic; you `kubectl apply -f` it for a Kubernetes deployment of your own | [`deployment/buildmax-secret.example.yaml`](../../deployment/buildmax-secret.example.yaml) |
+| `.local/env` | `./make` and `make.bat`, before running any task | [`.env.example`](../../../.env.example) |
+| `.local/settings.yaml` | `./make models`, `./make kind seed` | [`config-examples/settings.example.yaml`](../../../config-examples/settings.example.yaml) |
+| `.local/buildmax-secret.yaml` | nothing automatic; you `kubectl apply -f` it for a Kubernetes deployment of your own | [`deployment/buildmax-secret.example.yaml`](../../../deployment/buildmax-secret.example.yaml) |
 
 One local file deliberately stays outside. `deployment/compose/.env` sits beside
 its `compose.yaml` because Compose reads it from that directory and the
@@ -203,7 +204,7 @@ this section.
 This is a **development convenience only** — a released binary never reads it;
 it reads the environment it is given.
 
-The committed [`.env.example`](../../.env.example) lists the optional personal
+The committed [`.env.example`](../../../.env.example) lists the optional personal
 credentials consumed by developer and operator tasks; fill only the entries you
 use. It does not duplicate the supported BuildMax configuration surface in
 `settings.yaml` and `server.yaml`. Put in `.local/env` only what genuinely
@@ -223,7 +224,7 @@ BUILDMAX_DATABASE_PASSWORD=...
 
 Two variables are read by the task runner itself rather than by BuildMax:
 
-| Variable | Default | Purpose |
+| 变量 | 默认值 | 用途 |
 |---|---|---|
 | `BUILDMAX_KIND_CLUSTER` | `buildmaxdev` | Which kind cluster `./make kind …` creates and addresses. Every `kubectl` call uses that cluster's explicit context. |
 | `BUILDMAX_IMAGE_PLATFORM` | host platform | Target platform for `./make kind reload` — for example `linux/amd64` on Apple Silicon. |
@@ -232,7 +233,7 @@ The DigitalOcean qualification command reads these task-runner variables. Its
 full lifecycle and credential scope are in
 [deploy/digitalocean.md](../deploy/digitalocean.md):
 
-| Variable | Default | Purpose |
+| 变量 | 默认值 | 用途 |
 |---|---|---|
 | `DIGITALOCEAN_TOKEN` | — | Manages the disposable DOKS and MySQL resources and reads the persistent Project and VPC. |
 | `SPACES_ACCESS_KEY_ID` | — | Reads the persistent Spaces bucket and later authenticates BuildMax to it. |
@@ -268,7 +269,7 @@ ports are self-contained — `compose.yaml` derives the Portal's API base and th
 server's `BUILDMAX_CORS_ORIGIN` from them. See
 [deploy/compose.md](../deploy/compose.md).
 
-## `settings.yaml` — CLI and Desktop
+## `settings.yaml`——CLI 和 Desktop
 
 ```yaml
 log_level: info                      # debug | info | warn | error | off
@@ -298,7 +299,7 @@ hooks: {}                            # see guide/hooks.md
 sandbox: {}                          # see guide/sandbox.md
 ```
 
-| Key | Default | Notes |
+| Key | 默认值 | 说明 |
 |---|---|---|
 | `log_level` | `info` | Logs go to `<BUILDMAX_HOME>/logs/buildmax.log` only, never to the terminal, so the TUI stays clean. |
 | `server_url` | — | Only used as the prompt default for `buildmax login`; `BUILDMAX_SERVER_URL` overrides it. |
@@ -611,8 +612,8 @@ Prompts, tool schemas, and tool results pass through the server in managed mode.
 That is the point of it, and it is a real change in where your data goes — which
 is why `buildmax models`, the model pickers, and the TUI footer all name the
 mode.
-| `hooks` | empty | Lifecycle hooks. Reference: [help/hooks.md](../../help/hooks.md). |
-| `sandbox` | disabled | Bash sandboxing. Reference: [help/sandbox.md](../../help/sandbox.md). |
+| `hooks` | empty | Lifecycle hooks. Reference: [help/hooks.md](../../../help/hooks.md). |
+| `sandbox` | disabled | Bash sandboxing. Reference: [help/sandbox.md](../../../help/sandbox.md). |
 | `tools.permissions` | empty | Per-tool approval rules. See below. |
 | `agent.max_parallel_tools` | `4` | How many read-only tool calls from one model message may run at once. Range 1-16; 1 disables it. |
 | `agent.max_iterations` | `200` | How many times one prompt may call the model before the run stops. Range 1-5000. |
@@ -663,7 +664,7 @@ process exits.
 
 Run `buildmax tools status` to see every tool's classification, its resolved
 action, and which layer decided it. Design:
-[design/tool-permissions.md](../design/tool-permissions.md).
+[design/tool-permissions.md](../../design/tool-permissions.md).
 
 ### `agent.max_parallel_tools`
 
@@ -687,7 +688,7 @@ its own reads rather than running them one at a time.
 
 Raise it for read-heavy work over slow storage or many `WebFetch` calls. Lower
 it to 1 to make a run reproduce exactly one call at a time. Design:
-[design/parallel-tool-execution.md](../design/parallel-tool-execution.md).
+[design/parallel-tool-execution.md](../../design/parallel-tool-execution.md).
 
 ### `agent.max_iterations`
 
@@ -737,7 +738,7 @@ asking you anything gets no suggestion. What it does spend counts towards the
 session's usage — `/info` in the TUI, the status bar in Desktop. Set either key to `false` to switch that half off, or both
 to make the turn end with no extra call at all.
 
-## `server.yaml` — Server and Worker
+## `server.yaml`——服务器和 Worker
 
 ```yaml
 log_level: info
@@ -840,8 +841,8 @@ configured one by one.
 Keep it below whatever kills the process if the stop takes too long —
 `terminationGracePeriodSeconds` on Kubernetes, `TimeoutStopSec` under systemd —
 including any `preStop` hook. The reference manifests in
-[`deployment/`](../../deployment/) set both together. Design:
-[design/graceful-shutdown.md](../design/graceful-shutdown.md).
+[`deployment/`](../../../deployment/) set both together. Design:
+[design/graceful-shutdown.md](../../design/graceful-shutdown.md).
 
 People sign in with an email address and a password. `allow_signup` defaults to
 **false**, so nobody registers themselves; create accounts from the server and
@@ -880,7 +881,7 @@ insecure-skip mode, so a wrong hostname or a certificate outside that CA is
 rejected. Plain HTTP stays available for `local_process`, Compose, and kind
 development; a `k8s_job` whose `server_url` is `http://` is refused at startup
 unless `worker.allow_insecure_http` is set, because `.cluster.local` and
-loopback are routing facts, not evidence a network is confidential. Setting
+loopback are routing facts, not evidence a network is confidential. 设置
 `worker_api.tls.client_ca_file` (and the worker's `client_cert_file` /
 `client_key_file`) turns on optional native mTLS in addition to the run token.
 
@@ -891,7 +892,7 @@ labelled `app.kubernetes.io/name: buildmax-worker` to the worker port. The
 worker-api CA is delivered to worker pods by `worker.k8s.ca_config_map`, a
 ConfigMap mounted read-only at `worker.server_ca_file`. The Ingress points only
 at `buildmax-api`, so the worker API is never internet-reachable. See
-[design/worker-api-network-boundary.md](../design/worker-api-network-boundary.md).
+[design/worker-api-network-boundary.md](../../design/worker-api-network-boundary.md).
 
 `storage.max_artifact_mb` caps one artifact upload. It defaults to **0**, which
 uses the built-in 100 MB limit. It is a per-file limit rather than a space
@@ -919,7 +920,7 @@ except the rollback of an upload that failed.
 
 `audit.retention_days` expires events in the governance trail. It defaults to
 **0**, which keeps everything: a deployment that has not chosen a retention
-policy has not decided to discard evidence. Setting it starts an hourly sweep
+policy has not decided to discard evidence. 设置 it starts an hourly sweep
 that removes events older than the window, and each sweep that removed anything
 writes an `audit.pruned` event naming the range and the count — so a trail that
 begins partway through says that policy shortened it rather than leaving a
@@ -964,7 +965,7 @@ them for a store that has no such mechanism, such as MinIO.
 ### Managed models — the `llm_model` table and `llm` policy
 
 The managed LLM gateway designed in
-[design/llm-gateway.md](../design/llm-gateway.md) has two halves, kept apart on
+[design/llm-gateway.md](../../design/llm-gateway.md) has two halves, kept apart on
 purpose:
 
 - **The catalog** is the `llm_model` database table: which models exist, where
@@ -1088,8 +1089,8 @@ instead, and the worker stops needing an upstream key:
 | `worker.llm.transport` | `direct` (default) or `buildmax`. Under `buildmax`, `BUILDMAX_CONVERSATION_MODEL_API_KEY` is withheld from the worker. `BUILDMAX_WORKER_LLM_TRANSPORT` overrides it, so one image flips between the two without rewriting the mounted file. |
 | `worker.llm.model` | Which catalog model a run calls, by `--name`. Empty uses `llm.default_model`. |
 | `worker.llm.context_window`, `worker.llm.call_timeout` | Describe the model to the run; the protocol does not report them per call. |
-| `worker.run_token_ttl` | How long a run's credential stays valid. Defaults to 24h. Every run gets one, managed or not. |
-| `worker.run_timeout` | How long a run may stay `SCHEDULED` or `RUNNING` before the server records it as abandoned. Defaults to 6h. It is the backstop, not the usual detection path: a `RUNNING` run whose worker stops reporting is failed within minutes, and a worker that is asked to stop reports its own outcome. What is left for this timeout is a run that never reached `RUNNING`, or one that never reported at all. |
+| `worker.run_token_ttl` | How long a run's credential stays valid. 默认值s to 24h. Every run gets one, managed or not. |
+| `worker.run_timeout` | How long a run may stay `SCHEDULED` or `RUNNING` before the server records it as abandoned. 默认值s to 6h. It is the backstop, not the usual detection path: a `RUNNING` run whose worker stops reporting is failed within minutes, and a worker that is asked to stop reports its own outcome. What is left for this timeout is a run that never reached `RUNNING`, or one that never reported at all. |
 
 The server states the transport and model; a worker never chooses its own model,
 and is told nothing else about it — endpoint, upstream identifier, and

@@ -1,7 +1,7 @@
 # Beta Readiness Record
 
+> **简体中文：** [阅读中文镜像](../zh-CN/deploy/beta-readiness.md)
 > **Audience:** operators and release managers · **Status:** current — not qualified
-
 BuildMax has **not passed the Beta gate**. This document is both the procedure
 and the evidence record for the first private-deployment Beta. Automated tests
 show that the candidate is ready to exercise; only results produced with the
