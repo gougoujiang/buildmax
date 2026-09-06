@@ -3,13 +3,11 @@
 > **翻译说明：** 本文是[英文原文](../../design/plugin-marketplace.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `bbe709378cfa9c22202ec67082b48a031ab8eee5f91da350b34905d6d38935fb`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
 
 
-> **观众：**贡献者和运营商 · **状态：**部分实施
-> 航天和工人分布 D1 航天和工人分配
-> 其他工作是设计的
-> [插件空间分布.md](./plugin-space-distribution.md)
+> **读者：** 贡献者和运营人员 · **状态：** 部分实施——A、B、C 阶段已交付；
+> Space 与 Worker 分发的 D1 也已交付，剩余工作已在
+> [Space 与 Worker 的插件分发](./plugin-space-distribution.md)中设计。
 >
-> 对于哪些船舶的用户文件：
-> [其他类型的设备](../../guide/plugins.md)
+> 已交付功能的用户文档见[插件指南](../../guide/plugins.md)。
 
 ## 内容
 
@@ -33,33 +31,28 @@
 
 ## 状态
 
-- roadmap_priority:`post-Beta, P4 follow-on`
-- A,B和C阶段出货： `partially_implemented`
-目录格式和表格，发现，解决和合并技能，
-子,MCP，子，碰撞和影视报告，
-随着运行的后续运行,`${BUILDMAX_PLUGIN_ROOT}`，本地CLI
-包装，目录和其内容
-发布，包存，出版，浏览，下载和安装，加上
-面积的Portal和Desktop。 阶段D，空间和工人分布，是
-正在进行:D1船舶空间激活，代理选择,Portal管理，
-服务器侧，工人实物化技能和子部件。
-Agent 模拟仍然缺乏插件领域；可执行的子/MCP 和秘密
-交付仍开放。
-[插件空间分布.md](./plugin-space-distribution.md)
-- 接下来:[企业部署.md](./enterprise-deployment.md)，
-果 [空间管理.md](./space-governance.md)
-[系统管理.md](./system-administration.md)
-- 涉及:[子系统.md](./hook-system.md)，
-鱼类的鱼类的鱼类 [工具许可.md](./tool-permissions.md)
-[信用.md](./trust-harness.md)
-- 路线图:[其他地方的路线图](../../ROADMAP.md)
-- created_at： `2026-08-22`
+- roadmap_priority: `post-Beta, P4 follow-on`
+- status: `partially_implemented`——A、B、C 阶段已交付：目录格式和清单、发现、
+  技能/子 Agent/MCP/Hook 的解析与合并、冲突和遮蔽报告、
+  `${BUILDMAX_PLUGIN_ROOT}`、追踪中的逐运行来源、本地 CLI 命令，以及市场本身
+  （打包、目录、发布版本、包存储、发布、浏览、下载和安装），Portal 与 Desktop
+  界面也已交付。D 阶段（Space 与 Worker 分发）正在进行：D1 已交付 Space 激活、
+  Agent 选择、Portal 管理、服务器固定版本，以及技能和子 Agent 的 Worker 物化。
+  Agent 对话框仍缺插件字段；可执行 Hook/MCP 和密钥交付仍未完成。详见
+  [Space 与 Worker 的插件分发](./plugin-space-distribution.md)。
+- follows: [企业部署](./enterprise-deployment.md)、[Space 治理](./space-governance.md)
+  和[系统管理](./system-administration.md)
+- relates_to: [Hook 系统](./hook-system.md)、[工具权限](./tool-permissions.md)和
+  [信任验证框架](./trust-harness.md)
+- roadmap: [路线图](../../ROADMAP.md)
+- created_at: `2026-08-22`
 
 ## 1. 决策
 
-插件将作为包含已在`.buildmax/`下运行的功能的可重复使用目录处理.插件增加了分布和生命周期；它不会增加另一个运行时间或扩展API。 BuildMax
+BuildMax 将插件视为一个可复用目录，其中直接包含已经能在 `.buildmax/` 下运行的
+能力。插件增加分发和生命周期管理，不增加另一套运行时或扩展 API。
 
-插件目录直接包含支持的内容.它不****包含另一个`.buildmax/`目录：
+插件目录直接包含受支持的内容，**不会再嵌套另一个 `.buildmax/` 目录**：
 
 ```text
 code-review/
@@ -78,50 +71,52 @@ code-review/
 <BUILDMAX_HOME>/plugins/<plugin-name>/
 ```
 
-默认的字符是`~/.buildmax/plugins/<plugin-name>/`。 尊重`BUILDMAX_HOME`使测试，工人和隔离装置远离贡献者的实际家园。
+默认路径是 `~/.buildmax/plugins/<plugin-name>/`。遵守 `BUILDMAX_HOME` 可以让
+测试、Worker 和隔离安装远离贡献者真实的主目录。
 
-支持BuildMax在同一目录格式上提供两个分布模式：
+BuildMax 在同一目录格式上支持两种分发模式：
 
-1. 一个直接被克隆到插件目录中的Git存储库；
-2. 发布在部署的私人插件中发布的不可变的版本
-市场，并被用户直接下载。
+1. 直接克隆到插件目录的 Git 仓库；
+2. 发布到部署私有插件市场、由用户显式下载的不可变版本。
 
-这些模式共享验证，发现，运行时间分辨率和诊断.它们故意保持不同的更新和信任语义：仓库是一个由开发人员控制的工作树；市场发布是一个由管理员发布的Artifact，由版本和消化识别。
+两种模式共享验证、发现、运行时解析和诊断，但更新和信任语义有意不同：仓库是
+开发者控制的工作树；市场发布是管理员发布的 Artifact，以版本和摘要标识。
 
-## 2. 为什么有两种分配方式
+## 2. 为什么需要两种分发模式
 
-两个模式服务于一个生命周期的不同部分，而不是竞争成为唯一的安装器。
+两种模式服务于同一生命周期的不同阶段，而不是竞争谁成为唯一安装器。
 
-| 关注 | 存储库克隆 | 个人市场 |
+| 维度 | 仓库克隆 | 私有插件市场 |
 |---|---|---|
-| 适合当 | 你是唯一依赖这份副本的人。 | 其他依赖于本文 |
-| 设置 | 插件目录中加入`git clone` | 浏览，点击/运行安装 |
-| 代 | 编辑和测试现场 | 发布一个新的不可变版本 |
-| 更新 | 显而易见的Git操作 | 显而易见的市场更新 |
-| 身份 | 插件名称加上存储器URL | 产品目录 ID 加上插件名称 |
-| 复制性 | 承诺加上污秽状态 | 发布版本加上SHA-256消化 |
-| 治理 | 存储库访问和审查 | 稳定身份后面命名，加上拉克开关 |
-| 证书 | 使用者Git/SSH凭证 | 现有BuildMax登录 |
-| 需要一个BuildMax服务器 | 没有 | 是的，要发布和安装 |
-| 运行时间的服务器依赖性 | 没有一个克隆后 | 下载后没有 |
-| 未来的工人使用 | 适合不为可变源 | 适合作为固的Artifact |
+| 适用场景 | 只有你依赖这份副本 | 其他人也依赖这份副本 |
+| 设置 | 在插件目录执行 `git clone` | 浏览并点击/运行安装 |
+| 迭代 | 就地编辑和测试 | 发布新的不可变版本 |
+| 更新 | 显式 Git 操作 | 显式市场更新 |
+| 身份 | 插件名加仓库 URL | 目录 ID 加插件名 |
+| 可复现性 | 提交加工作树状态 | 发布版本加 SHA-256 摘要 |
+| 治理 | 仓库访问和代码审查 | 稳定身份及撤回开关 |
+| 凭证 | 用户 Git/SSH 凭证 | 现有 BuildMax 登录 |
+| 是否需要 BuildMax Server | 否 | 发布和安装时需要 |
+| 运行时 Server 依赖 | 克隆后没有 | 下载后没有 |
+| 未来 Worker 使用 | 不适合作为可变源 | 适合作为固定 Artifact |
 
-### 2.1 储存器克隆值得支持的原因
+### 2.1 为什么支持仓库克隆
 
-要求作者每次编辑后包装，上传，发布和下载会使插件的开发不必要地缓慢。
+要求作者每次编辑后都打包、上传、发布再下载，会让插件开发不必要地缓慢。
 
 ```bash
 git clone git@code.example.com:agents/code-review.git \
   ~/.buildmax/plugins/code-review
 ```
 
-存储库可能在分支，在一个独立的提交，或本地污秽.这种变化在开发中是有用的，并且必须是可见的，而不是禁止的。 BuildMax
+仓库可能处于某个分支、游离提交或本地脏状态。这些变化对开发有用，应该显式
+可见，而不是被禁止。BuildMax
 
 BuildMax不会自动拉出存储库。 Git已经拥有分支，凭证，合并冲突和脏的工作树；在更新器内复制这些规则将是脆弱的.后来的 `buildmax plugin clone`命令可能提供便利包装，但直接的 `git clone`仍然是一个支持的路径，不需要一个 BuildMax生成的锁记录。
 
-### 2.2 为什么市场仍然提供字节
+### 2.2 为什么市场仍然保存打包字节
 
-市场不应该通过克隆出版商的库存，安装在每个成员的机器上。
+市场不应把发布者的仓库克隆到每个成员的机器上。否则会：
 
 - 要求每个消费者都拥有Git主机凭证；
 - 根据消费者的角度，使分支或标签变化；
@@ -129,7 +124,9 @@ BuildMax不会自动拉出存储库。 Git已经拥有分支，凭证，合并�
 - 管理员检查的字节后难以识别；
 - 让，审计和确定性反弹模糊。
 
-因此，市场存储一个由同一插件根制成的档案.发布的版本是不可变的，并被`(plugin, version, digest)`识别.用户执行了明确的下载/安装操作；仅仅发布永远不会改变本地功能。
+因此，市场存储由同一插件根目录制成的归档。发布版本不可变，并由
+`(plugin, version, digest)` 标识。用户必须显式执行下载/安装；单纯发布永远不会
+改变本地能力。
 
 ### 2.3 复印件属于哪种模式
 
