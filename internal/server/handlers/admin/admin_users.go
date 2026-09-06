@@ -260,6 +260,11 @@ func (h *Handler) setAdminUserDisabledHandler(disable bool) http.HandlerFunc {
 				httputil.WriteJSONError(w, http.StatusNotFound, "account not found")
 				return
 			}
+			if errors.Is(err, coreidentity.ErrSystemGrantLastHolder) {
+				httputil.WriteJSONError(w, http.StatusConflict,
+					"this account is the deployment's last system administrator; grant another before disabling it")
+				return
+			}
 			httputil.WriteInternalError(w, err, "handler error", "handler", "admin_set_user_disabled", "user_id", user.ID)
 			return
 		}

@@ -307,3 +307,98 @@ func TestSystemGrantEffectiveExcludesDisabled(t *testing.T) {
 		t.Fatalf("shell revoke = %v, %v; want true, nil", found, err)
 	}
 }
+
+// TestDisablingTheLastEffectiveHolderIsRefused is the other half of proposal
+// section 6.3: disabling an account revokes every credential, so disabling the
+// last effective administrator would lock the deployment out just as revoking
+// the grant would. The store refuses and the account stays enabled.
+func TestDisablingTheLastEffectiveHolderIsRefused(t *testing.T) {
+	s, ctx := openGrantStore(t)
+	resetAdmins(t, s, ctx)
+	only := newTestUser(t, s, "grant")
+	if _, err := s.GrantSystemRole(ctx, only, coreidentity.SystemRoleAdmin, "u_admin", time.Now().UTC()); err != nil {
+		t.Fatalf("GrantSystemRole: %v", err)
+	}
+
+	disabledAt := time.Now().UTC()
+	if err := s.SetUserDisabled(ctx, only, &disabledAt); !errors.Is(err, coreidentity.ErrSystemGrantLastHolder) {
+		t.Fatalf("SetUserDisabled err = %v, want ErrSystemGrantLastHolder", err)
+	}
+	user, err := s.GetUser(ctx, only)
+	if err != nil || user == nil {
+		t.Fatalf("GetUser: %v", err)
+	}
+	if user.Disabled() {
+		t.Errorf("the account was disabled despite the refusal")
+	}
+}
+
+// TestDisablingWhenAnotherHolderRemainsSucceeds pins that the refusal is about
+// the last one, not about disabling an administrator at all.
+func TestDisablingWhenAnotherHolderRemainsSucceeds(t *testing.T) {
+	s, ctx := openGrantStore(t)
+	resetAdmins(t, s, ctx)
+	u1 := newTestUser(t, s, "grant")
+	u2 := newTestUser(t, s, "grant")
+	for _, u := range []string{u1, u2} {
+		if _, err := s.GrantSystemRole(ctx, u, coreidentity.SystemRoleAdmin, "u_admin", time.Now().UTC()); err != nil {
+			t.Fatalf("GrantSystemRole(%s): %v", u, err)
+		}
+	}
+
+	disabledAt := time.Now().UTC()
+	if err := s.SetUserDisabled(ctx, u1, &disabledAt); err != nil {
+		t.Fatalf("SetUserDisabled: %v", err)
+	}
+	if n, err := s.CountActiveSystemGrants(ctx, coreidentity.SystemRoleAdmin); err != nil || n != 1 {
+		t.Errorf("effective holders after disabling one of two = %d, %v; want 1", n, err)
+	}
+}
+
+// TestConcurrentRevokeAndDisableKeepOneHolder is proposal section 6.3 under
+// contention: a revoke of one holder and a disable of the other race, and the
+// deployment must not end with nobody effective. Both take the same lock on the
+// role's live grants, so one wins and the other is refused.
+func TestConcurrentRevokeAndDisableKeepOneHolder(t *testing.T) {
+	s, ctx := openGrantStore(t)
+	resetAdmins(t, s, ctx)
+	revokeTarget := newTestUser(t, s, "grant")
+	disableTarget := newTestUser(t, s, "grant")
+	for _, u := range []string{revokeTarget, disableTarget} {
+		if _, err := s.GrantSystemRole(ctx, u, coreidentity.SystemRoleAdmin, "u_admin", time.Now().UTC()); err != nil {
+			t.Fatalf("GrantSystemRole(%s): %v", u, err)
+		}
+	}
+
+	var wg sync.WaitGroup
+	var revokeErr, disableErr error
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		_, revokeErr = s.RevokeSystemRole(ctx, revokeTarget, coreidentity.SystemRoleAdmin, time.Now().UTC(), true)
+	}()
+	go func() {
+		defer wg.Done()
+		at := time.Now().UTC()
+		disableErr = s.SetUserDisabled(ctx, disableTarget, &at)
+	}()
+	wg.Wait()
+
+	refused := 0
+	if errors.Is(revokeErr, coreidentity.ErrSystemGrantLastHolder) {
+		refused++
+	} else if revokeErr != nil {
+		t.Fatalf("unexpected revoke error: %v", revokeErr)
+	}
+	if errors.Is(disableErr, coreidentity.ErrSystemGrantLastHolder) {
+		refused++
+	} else if disableErr != nil {
+		t.Fatalf("unexpected disable error: %v", disableErr)
+	}
+	if refused != 1 {
+		t.Errorf("revokeErr=%v disableErr=%v; want exactly one last-holder refusal", revokeErr, disableErr)
+	}
+	if n, err := s.CountActiveSystemGrants(ctx, coreidentity.SystemRoleAdmin); err != nil || n != 1 {
+		t.Errorf("effective holders after the race = %d, %v; want 1", n, err)
+	}
+}

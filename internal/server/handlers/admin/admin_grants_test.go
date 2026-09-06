@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 )
@@ -113,5 +114,16 @@ func TestRevokingARoleNobodyHoldsIs404(t *testing.T) {
 	f := newDisableFixture(t)
 	if got := f.do(t, "DELETE", "/api/admin/grants/u_nobody", adminUser, "").Code; got != http.StatusNotFound {
 		t.Errorf("got %d, want 404", got)
+	}
+}
+
+// TestGrantingToADisabledAccountIsRefused: authority a disabled account could
+// not use is refused with a 409, not minted as a grant nothing will consult.
+func TestGrantingToADisabledAccountIsRefused(t *testing.T) {
+	f := newDisableFixture(t)
+	f.users.DisableForTest(f.target.ID, time.Unix(1, 0).UTC())
+
+	if got := f.do(t, "POST", "/api/admin/grants", adminUser, `{"user_id":"`+f.target.ID+`"}`).Code; got != http.StatusConflict {
+		t.Errorf("got %d, want 409", got)
 	}
 }

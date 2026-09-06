@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
@@ -95,5 +96,24 @@ func TestGrantingARoleNobodyImplements(t *testing.T) {
 	_, err := svc.Grant(context.Background(), userID, "root", coreaudit.OperatorActor())
 	if !errors.Is(err, ErrUnknownRole) {
 		t.Fatalf("err = %v, want ErrUnknownRole", err)
+	}
+}
+
+// TestGrantingToADisabledAccountIsRefused refuses rather than mint authority a
+// disabled account could not use: the guard turns it away before its grant is
+// ever consulted, so the grant would be dormant and invisible. The operator
+// enables the account first.
+func TestGrantingToADisabledAccountIsRefused(t *testing.T) {
+	users := &mock.MockUserStore{}
+	user, err := users.CreateUser(context.Background(), "disabled@example.test", "free")
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
+	}
+	users.DisableForTest(user.ID, time.Now().UTC())
+	svc := &Service{Grants: &mock.MockSystemGrantStore{}, Users: users}
+
+	_, err = svc.Grant(context.Background(), user.ID, coreidentity.SystemRoleAdmin, coreaudit.OperatorActor())
+	if !errors.Is(err, ErrAccountDisabled) {
+		t.Fatalf("err = %v, want ErrAccountDisabled", err)
 	}
 }

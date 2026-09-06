@@ -231,6 +231,52 @@ func (s *Store) CountActiveSystemGrants(ctx context.Context, role string) (int, 
 	return countEffectiveSystemGrants(ctx, s.db.WithContext(ctx), role)
 }
 
+// ensureNotLastSystemHolder refuses, with ErrSystemGrantLastHolder, to remove
+// the account from the effective holders of a system role it holds when that
+// would leave the role with none. It is called inside the disable transaction,
+// before the account is disabled.
+//
+// For each role the account holds it locks that role's live grants FOR UPDATE,
+// the same rows RevokeSystemRole locks, so a disable and a concurrent revoke
+// serialize on one lock and cannot each read the other's holder as still
+// effective and both proceed.
+func ensureNotLastSystemHolder(ctx context.Context, tx *gorm.DB, userPublicID string) error {
+	userKey, err := lookupKey(ctx, tx, "user", userPublicID)
+	if errors.Is(err, apierr.ErrNotFound) {
+		// No such account; the caller's update reports it.
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	var roles []string
+	if err := tx.WithContext(ctx).Model(&systemGrantRow{}).
+		Where("user_id = ? AND revoked_at IS NULL", userKey).
+		Pluck("role", &roles).Error; err != nil {
+		return err
+	}
+	for _, role := range roles {
+		var lockedIDs []uint64
+		if err := tx.WithContext(ctx).Model(&systemGrantRow{}).
+			Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("role = ? AND revoked_at IS NULL", role).
+			Pluck("id", &lockedIDs).Error; err != nil {
+			return err
+		}
+		var others int64
+		if err := tx.WithContext(ctx).Model(&systemGrantRow{}).
+			Joins("INNER JOIN `user` u ON u.id = system_grant.user_id").
+			Where("system_grant.role = ? AND system_grant.revoked_at IS NULL AND u.disabled_at IS NULL AND system_grant.user_id <> ?", role, userKey).
+			Count(&others).Error; err != nil {
+			return err
+		}
+		if others == 0 {
+			return coreidentity.ErrSystemGrantLastHolder
+		}
+	}
+	return nil
+}
+
 // countEffectiveSystemGrants counts live grants for role held by accounts that
 // are not disabled. A disabled account is refused before its grant is consulted,
 // so it cannot be the holder that keeps the deployment reachable — counting it

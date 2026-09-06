@@ -49,6 +49,12 @@ type UserStore interface {
 	// SetUserDisabled disables the account at the given time, or enables it
 	// when disabledAt is nil. Returns ErrUserNotFound when there is no such
 	// account.
+	//
+	// Disabling refuses with ErrSystemGrantLastHolder when the account is the
+	// last effective holder of a system role: a disabled account cannot
+	// authorize a request, so disabling the last one would leave the deployment
+	// with nobody able to operate it. The check and the disable are one atomic
+	// step so a concurrent grant revoke cannot slip between them.
 	SetUserDisabled(ctx context.Context, userID string, disabledAt *time.Time) error
 }
 
