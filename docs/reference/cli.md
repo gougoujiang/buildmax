@@ -18,7 +18,7 @@ buildmax <command> [flags]
 | `buildmax login` | Log in to a BuildMax server and store credentials |
 | `buildmax logout` | Clear stored credentials |
 | `buildmax whoami` | Show current login status |
-| `buildmax models` | List the models the current mode uses and their prompt destination; `--local` also lists what a local Ollama daemon holds |
+| `buildmax models` | List the models the current mode uses and their prompt destination; `--local` also lists what a local Ollama daemon holds; `--ollama-url URL` points at the local daemon (default `http://localhost:11434`) |
 | `buildmax tools status` | Inspect the tools currently available to the agent |
 | `buildmax info [session-id]` | Show what a session spent and did, and what its project remembers; `--json` for the full record |
 | `buildmax project list` | List the local projects and mark the ones whose locator no longer resolves |

@@ -248,6 +248,17 @@ full lifecycle and credential scope are in
 | `BUILDMAX_OCEAN_IMAGE` | pinned `v0.2.0-alpha.4` digest | Immutable server and worker image override. Mutable tags are rejected. |
 | `BUILDMAX_OCEAN_PORTAL_IMAGE` | pinned `v0.2.0-alpha.4` digest | Immutable Portal image override. Mutable tags are rejected. |
 | `BUILDMAX_OCEAN_EDGE_IMAGE` | pinned Caddy 2.10.2 digest | Immutable HTTPS edge image override. Mutable tags are rejected. |
+| `BUILDMAX_OCEAN_MODEL_NAME` | `GPT-5.6 Luna` | Display name of the model the qualification configures. |
+| `BUILDMAX_OCEAN_MODEL_PROVIDER` | `openai` | Provider label stored on the model entry. |
+| `BUILDMAX_OCEAN_MODEL_API_URL` | `https://openrouter.ai/api/v1` | OpenAI-compatible base URL the model calls. |
+| `BUILDMAX_OCEAN_MODEL_ID` | `openai/gpt-5.6-luna` | Model id sent to the provider. |
+| `BUILDMAX_OCEAN_MODEL_CONTEXT_WINDOW` | `1050000` | Context window in tokens; must be a positive integer. |
+| `BUILDMAX_OCEAN_MODEL_CURRENCY` | `USD` | Currency the prices below are quoted in. |
+| `BUILDMAX_OCEAN_MODEL_INPUT_PRICE` | `0.2` | Input price per million tokens. |
+| `BUILDMAX_OCEAN_MODEL_CACHE_READ_PRICE` | `0.02` | Cache-read price per million tokens. |
+| `BUILDMAX_OCEAN_MODEL_CACHE_WRITE_PRICE` | `0.25` | Cache-write price per million tokens. |
+| `BUILDMAX_OCEAN_MODEL_OUTPUT_PRICE` | `1.2` | Output price per million tokens. |
+| `BUILDMAX_OCEAN_DATABASE_LOCAL_PORT` | `13306` | Local port the tunneled database connection listens on. |
 
 The Compose stack is separate and does not read `.local/env`. It uses
 `deployment/compose/.env`, which `deployment/compose/generate-env.sh` creates
