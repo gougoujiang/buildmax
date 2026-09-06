@@ -160,6 +160,13 @@
   color: var(--color-text-muted);
 }
 
+.admin-list__id {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  overflow-wrap: anywhere;
+}
+
 .admin-empty {
   color: var(--color-text-muted);
   font-size: 0.9rem;

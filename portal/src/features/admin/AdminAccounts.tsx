@@ -271,9 +271,13 @@ export function AdminAccounts({ token }: { token: string | null }) {
             <ul className="admin-list">
               {sessions.map((session) => (
                 <li key={session.session_id} className="admin-list__row">
-                  <span className="admin-list__main">{session.platform || "unknown platform"}</span>
+                  <span className="admin-list__main">
+                    {session.platform || "unknown platform"}
+                    <span className="admin-list__id"> · {session.session_id}</span>
+                  </span>
                   <span className="admin-list__meta">
-                    signed in {whenever(session.created_at)} · expires {whenever(session.expires_at)}
+                    signed in {whenever(session.created_at)} · last active{" "}
+                    {whenever(session.last_rotated_at)} · expires {whenever(session.expires_at)}
                   </span>
                   <button
                     type="button"
