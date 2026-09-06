@@ -189,8 +189,10 @@ func TestBridgeApprovesAToolCallAndFinishesTheRun(t *testing.T) {
 	app.RespondApproval(projectID, "once")
 
 	done, ok := events.waitFor(t, eventStreamDone).(*ReplyPayload)
-	if !ok || done.Reply != "wrote notes.txt" {
-		t.Fatalf("stream-done = %+v, want the model's closing text", done)
+	// The reply keeps the narration before the tool call as well as the text
+	// after it: the run output is the whole assistant turn, not only its close.
+	if !ok || done.Reply != "writing it now\n\nwrote notes.txt" {
+		t.Fatalf("stream-done = %+v, want the model's full narration", done)
 	}
 	written, err := os.ReadFile(filepath.Join(workspace, "notes.txt"))
 	if err != nil {

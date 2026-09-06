@@ -271,7 +271,14 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 	if ch, ok := opts.History.(CompactionHistory); ok {
 		compactionSummary = ch.PriorSummary()
 	}
-	lastContent := "" // last non-empty assistant content; returned on cancellation
+	// Every non-empty assistant turn, in order. The reply is their join, not just
+	// the last: an Agent's TaskRun is the one surface that shows a run's detail,
+	// so text the model wrote before a tool call (its narration of what it is
+	// about to do) must survive into the run output, not only the final answer.
+	// Orchestrators above the Agent — a Conversation, a future Assistant — show
+	// their own history and drill into this for the detail; the Agent itself has
+	// nothing lower to defer to, so it keeps everything.
+	var assistantTexts []string
 
 	for i := 0; i < opts.MaxIter; i++ {
 		slog.Debug("agent run loop iteration", "iter", i+1, "max", opts.MaxIter)
@@ -315,10 +322,10 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 		content, toolCalls := completion.Content, completion.ToolCalls
 		if err != nil {
 			if ctx.Err() != nil {
-				slog.Warn("agent run interrupted by context cancellation", "iter", i+1, "last_content_len", len(lastContent))
+				slog.Warn("agent run interrupted by context cancellation", "iter", i+1, "turns", len(assistantTexts))
 				emit(opts.EventSink, Event{Kind: EventRunEnd, Stats: s})
 				fireRunEndHook(ctx, opts, s, nil)
-				return lastContent, s, nil
+				return strings.Join(assistantTexts, "\n\n"), s, nil
 			}
 			slog.Error("LLM call failed", "err", err)
 			runErr := fmt.Errorf("llm call: %w", err)
@@ -329,7 +336,14 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 		callCost := s.addCall(completion.Usage, opts.Pricing)
 
 		if content != "" {
-			lastContent = content
+			assistantTexts = append(assistantTexts, content)
+			// Mirror the join separator into the live stream, so a run that
+			// narrates before a tool call and reports after it reads as two
+			// blocks while streaming, matching the persisted output rather than
+			// running the two together.
+			if len(toolCalls) > 0 && opts.StreamSink != nil {
+				opts.StreamSink.OnDelta("\n\n")
+			}
 		}
 
 		emit(opts.EventSink, Event{
@@ -352,7 +366,7 @@ func RunLoop(ctx context.Context, opts RunLoopOpts) (reply string, stats RunStat
 			}
 			emit(opts.EventSink, Event{Kind: EventRunEnd, Stats: s})
 			fireRunEndHook(ctx, opts, s, nil)
-			return content, s, nil
+			return strings.Join(assistantTexts, "\n\n"), s, nil
 		}
 
 		slog.Debug("tool calls", "n", len(toolCalls), "content", content, "calls", toolCallsSummary(toolCalls))
