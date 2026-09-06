@@ -1,5 +1,7 @@
 # Space And Worker Plugin Distribution
 
+> **简体中文：** [阅读中文镜像](../zh-CN/design/Space插件分发.md)
+
 > **Audience:** contributors and operators · **Status:** partly implemented —
 > D1 works end to end and Portal manages a space's activations; the agent
 > definition's plugin field is not in Portal yet. D2 and D3 are not started

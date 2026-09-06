@@ -1,5 +1,7 @@
 # Worker API Network Boundary
 
+> **简体中文：** [阅读中文镜像](../zh-CN/design/Worker API网络边界.md)
+
 > **Audience:** contributors and operators · **Status:** shipped
 
 Related: [Worker run token](worker-run-token.md), [Agent Core trust

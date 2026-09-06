@@ -1,5 +1,7 @@
 # Local Projects And Project Memory
 
+> **简体中文：** [阅读中文镜像](../zh-CN/design/本地项目记忆.md)
+
 > **Audience:** contributors and security reviewers · **Status:** phase 1
 > implemented; phase 2 implemented except the user-invoked session review
 > command of §17, which is not built; phase 3 not started.

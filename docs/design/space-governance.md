@@ -1,5 +1,7 @@
 # Space Governance Foundation
 
+> **简体中文：** [阅读中文镜像](../zh-CN/design/Space治理.md)
+
 ## Contents
 
 - [Status](#status)

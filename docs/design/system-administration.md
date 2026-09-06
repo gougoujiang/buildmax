@@ -1,5 +1,7 @@
 # System Administration
 
+> **简体中文：** [阅读中文镜像](../zh-CN/design/系统管理.md)
+
 ## Contents
 
 - [Status](#status)

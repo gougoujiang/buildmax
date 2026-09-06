@@ -1,5 +1,7 @@
 # Worker Run Token
 
+> **简体中文：** [阅读中文镜像](../zh-CN/design/Worker运行令牌.md)
+
 > **Audience:** contributors · **Status:** implemented on every `/api/worker/*`
 > route, and the only credential they take. The deployment-wide worker token has
 > been removed.

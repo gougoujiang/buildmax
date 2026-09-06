@@ -62,7 +62,7 @@ The HTTP API describes itself: `GET /openapi.json`, browsable at `/swagger/`.
 |---|---|
 | [current-state.md](current-state.md) | Code-based implementation and readiness assessment |
 | [ROADMAP.md](ROADMAP.md) | Active priorities and sequencing |
-| [design/](design/README.md) | Product direction, active plans, and subsystem specifications |
+| [design/](design/README.md) · [简体中文](zh-CN/design/设计文档索引.md) | Product direction, active plans, and subsystem specifications |
 | [../SECURITY.md](../SECURITY.md) | Vulnerability disclosure and operator responsibilities |
 
 ## Explore Future Directions

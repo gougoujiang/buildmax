@@ -1,5 +1,7 @@
 # Plugin Distribution And Private Marketplace
 
+> **简体中文：** [阅读中文镜像](../zh-CN/design/插件市场.md)
+
 > **Audience:** contributors and operators · **Status:** partly implemented —
 > Phases A, B, and C ship; space and worker distribution D1 also ships and its
 > remaining work is designed in

@@ -1,5 +1,7 @@
 # Queued Messages
 
+> **简体中文：** [阅读中文镜像](../zh-CN/design/排队消息.md)
+
 > **Audience:** contributors · **Status:** implemented. Turn-boundary queueing on
 > CLI/TUI, Desktop, and Portal; mid-run injection on CLI/TUI and Desktop.
 > Persistence and Portal injection are decided against.

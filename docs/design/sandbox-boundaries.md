@@ -1,5 +1,7 @@
 # Sandbox And Execution Boundaries
 
+> **简体中文：** [阅读中文镜像](../zh-CN/design/沙箱边界.md)
+
 ## Contents
 
 - [Status](#status)

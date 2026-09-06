@@ -1,5 +1,7 @@
 # Entity Identity And Relational Keys
 
+> **简体中文：** [阅读中文镜像](../zh-CN/design/实体身份.md)
+
 > **Audience:** contributors and database reviewers · **Status:** implemented,
 > amended — §17 moves storage from `BINARY(12)` to the canonical text form
 

@@ -1,5 +1,7 @@
 # Agent Core / CLI / Desktop / Portal Product Positioning
 
+> **简体中文：** [阅读中文镜像](../zh-CN/design/界面定位.md)
+
 ## Contents
 
 - [Status](#status)

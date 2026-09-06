@@ -44,6 +44,11 @@
     // would fail `check docs` on a file nobody can fix in the repository.
     ".local/**",
     "docs/design/**",
+    // The Chinese design mirror is checked for completeness, links, and
+    // synchronization by the architecture tests. English Markdown style
+    // rules (list numbering, punctuation, and emphasis spacing) do not map
+    // reliably to translated Chinese prose.
+    "docs/zh-CN/design/**",
     "testing-sandbox/**",
     "AGENTS.md",
     "CLAUDE.md"

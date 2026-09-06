@@ -1,5 +1,7 @@
 # Enterprise Deployment Loop
 
+> **简体中文：** [阅读中文镜像](../zh-CN/design/企业部署.md)
+
 ## Contents
 
 - [Status](#status)

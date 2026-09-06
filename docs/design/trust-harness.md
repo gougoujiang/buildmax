@@ -1,5 +1,7 @@
 # Agent Core P0.5 Trust Harness
 
+> **简体中文：** [阅读中文镜像](../zh-CN/design/信任保障.md)
+
 ## Contents
 
 - [Status](#status)

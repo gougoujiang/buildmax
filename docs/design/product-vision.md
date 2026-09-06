@@ -1,5 +1,7 @@
 # BuildMax Product Vision
 
+> **简体中文：** [阅读中文镜像](../zh-CN/design/产品愿景.md)
+
 > **Audience:** contributors, product designers, and operators · **Status:** current decision
 
 Related: [roadmap](../ROADMAP.md),

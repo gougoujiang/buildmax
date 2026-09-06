@@ -1,5 +1,7 @@
 # Task Workspace Checkpoints
 
+> **简体中文：** [阅读中文镜像](../zh-CN/design/Task工作区检查点.md)
+
 > **Audience:** contributors, product designers, and operators · **Status:** planned — direction accepted, implementation not started
 
 Related: [product vision](product-vision.md),

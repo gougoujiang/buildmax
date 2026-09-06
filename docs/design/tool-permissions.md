@@ -1,5 +1,7 @@
 # Tool Permissions
 
+> **简体中文：** [阅读中文镜像](../zh-CN/design/工具权限.md)
+
 ## Contents
 
 - [Status](#status)
