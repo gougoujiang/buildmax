@@ -88,9 +88,10 @@ so inside a container they need no extra configuration.
 
 What the grant carries today is `/api/admin`: listing and inspecting accounts,
 creating one, issuing a login code, disabling and enabling access, revoking
-sessions, and granting or revoking the role itself. The Portal area that will
-use those is still being built. What the grant will never carry is access to a
-space's issues, conversations, artifacts, files, or run traces. Those stay behind
+sessions, and granting or revoking the role itself. Portal's Administration area
+exposes the account, catalog, and audit routes; granting and revoking the role
+itself is done from the command line today. What the grant will never carry is
+access to a space's issues, conversations, artifacts, files, or run traces. Those stay behind
 space membership, and an administrator who is not in your space cannot read them.
 
 Disabling an account refuses every credential it holds: password, login code,
@@ -230,9 +231,13 @@ A run token cannot be revoked before it expires either, for the same reason: it
 is a signature, not a row. What bounds it instead is scope — one run — and run
 status, since the inference route refuses a run that is no longer executing.
 
-There is no operator command to revoke sessions yet. Signing a specific person
-out today means deleting their `user_refresh_token` rows in the database and
-waiting out any access token they already hold.
+A System Administrator can revoke an account's sessions through
+`DELETE /api/admin/users/{user_id}/sessions`, and from Portal's Administration
+area, which retires every refresh token the account holds at once. Neither
+revokes a single device, and neither retires an access token already issued —
+the account check on the next request is what stops that, which is why disabling
+an account takes effect immediately. Signing one specific person out no longer
+needs direct database access.
 
 ## Reporting Problems
 
