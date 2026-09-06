@@ -3,21 +3,21 @@
 > **翻译说明：** 本文是[英文原文](../../design/agent-sandbox-policy.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `39dd6101b9cd0e450f21b6bb2cda0915826ee52779e53702698eebea1e5f47a7`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
 
 
-## 内容
+## 目录
 
 - [状态](#状态)
-- [1.问题](#1问题)
+- [1. 问题](#1-问题)
 - [2.决定](#2-决策)
-- [3.当前基线](#3当前基线)
-- [4.设计](#4设计)
-- [5. Portal表面](#5-portal-表面)
-- [6.超出范围](#6-超出范围)
-- [7.风险](#7-风险)
-- [8.开放问题](#8-开放问题)
-- [9.后端方案](#9-后端计划)
-- [10.前端方案](#10前端计划)
+- [3. 当前基线](#3-当前基线)
+- [4. 设计](#4-设计)
+- [5. Portal 界面](#5-portal-界面)
+- [6. 范围外](#6-范围外)
+- [7. 风险](#7-风险)
+- [8. 开放问题](#8-开放问题)
+- [9. 后端计划](#9-后端计划)
+- [10. 前端计划](#10-前端计划)
 - [11.验证](#11-验证)
-- [12.推荐第一个 PR](#12-推荐的第一个-pr)
+- [12. 推荐的第一个 PR](#12-推荐的第一个-pr)
 
 ## 状态
 
@@ -61,7 +61,7 @@
 - 路线图：[../ROADMAP.md](../../ROADMAP.md)
 -created_at：`2026-08-30`
 
-## 1.问题
+## 1. 问题
 
 [`current-state.md`](../../current-state.md) P0 状态工作任务运行时
 从不选择 `SandboxSurfaceWorker`：`agentapp/taskrun/runtime.go` 构建其
@@ -78,13 +78,7 @@
 在 `policy.yaml` 中 — 只有操作员才能编辑的文档，根据 §10 的“锁定，通过
 policy.yaml 随工作容器镜像一起提供。”
 
-为后台工作定义 `agentdef.Agent` 的人是不同的人
-来自发送工作容器镜像的人，并要求前者
-要么让后者编辑集群范围的文件，要么理解
-`sandbox.filesystem`/`sandbox.network` 语法足够好，可以得到
-拉取请求合并，不是大多数代理作者应该支付的成本
-常见情况：代理安装依赖项并在自己的文件中编辑文件
-工作区，没有别的。
+定义后台 Agent 的人，通常不是发布 Worker 容器镜像的人。若要求前者编辑集群级文件，或充分理解 `sandbox.filesystem`/`sandbox.network` 语法才能提交 PR，就把不应由大多数 Agent 作者承担的运维成本推给了常见场景：Agent 只需安装依赖，并在自己的工作区编辑文件。
 
 ## 2. 决策
 
@@ -95,24 +89,12 @@ trust-harness.md §3.9 考虑了“一个部署范围的配置文件
 本文档回答的问题是：“每个空间的边界是真正的要求吗？
 ...直到出现一个全部署范围的立场。”
 
-本文档提供的证据是第 1 节中的可用性成本：a
-部署范围内的默认拒绝配置文件构建成本低廉，但运行成本昂贵
-下，因为它迫使每个希望工人做任何过去的事情的操作员
-将文件就地编辑为每个代理的手动创作 `policy.yaml` 条目
-需要注册表或开放网络。这个成本恰恰落在了人们身上
-[current-state.md](../../current-state.md) 的 P1 帐户/空间部分显示
-BuildMax 不应给部署范围的文件带来负担：空间所有者定义
-代理，而不是系统操作员。
+第 1 节给出了可用性成本的证据：部署级默认拒绝配置文件很容易构建，却会让运行变得昂贵，因为每个想让 Worker 继续完成既有工作的运维人员都必须手写 `policy.yaml` 条目，逐一允许注册表或开放网络。这个成本落在了 [current-state.md](../../current-state.md) P1 所描述的账户/Space 用户身上；BuildMax 不应把它强加给部署运维人员，因为 Space 所有者才是 Agent 的定义者。
 
 该文档提出了比“分层每空间配置文件”更窄的重新开放
 一般情况：
 
-- **粒度从部署范围转移到代理修订范围**，对于
-  仅限 `config.SandboxConfig` 的网络和文件系统轴。每隔一个轴
-  工人沙箱的 - `enabled`，`fail_if_unavailable`，
-  `allow_unsandboxed_commands`，过程限制一旦存在 — 保持不变
-  部署范围内，由工作人员的 `SandboxSurfaceWorker` 基线设置一次，并且
-  `policy.yaml`，和今天一模一样。
+- **粒度从部署范围转移到 Agent 修订范围**，但只针对 `config.SandboxConfig` 的网络和文件系统轴。Worker 沙箱的 `enabled`、`fail_if_unavailable`、`allow_unsandboxed_commands` 和进程限制仍由部署范围的 `SandboxSurfaceWorker` 基线与 `policy.yaml` 决定，保持现有行为。
 - **操作员天花板不动。** `policy.yaml` 的
   `allow_managed_domains_only` / `allow_managed_read_paths_only` 仍为最终版本
   并且可以将任何空间或代理锁定到部署范围的列表中，与之前相同
@@ -120,11 +102,7 @@ BuildMax 不应给部署范围的文件带来负担：空间所有者定义
   谁想要 trust-harness.md 的原始部署范围行为就可以得到它
   设置这两个标志；本文档中没有任何内容强制部署
   采用代理范围的政策。
-- **工作负载声明的是粗略层，而不是域列表。** §4.1
-  认为实际消除可用性成本的粒度很大
-  比每个代理域/路径编辑器更粗糙，所以这不是“分层的”
-  一般意义上的配置文件 §3.9 下降了——它是一个固定的、小的、
-  工作负载从中选择的版本化层集。
+- **工作负载声明粗粒度层，而不是域名列表。** §4.1 的层级比逐个 Agent 编辑域名/路径粗得多，因此它不是 §3.9 所说的通用分层配置文件，而是一个固定、精简、可版本化的层级集合。
 - **§3.9 表中的集群出口问题未受影响。** 是否
   生产拓扑还需要从并集生成的 `NetworkPolicy`
   已解决 `allowed_domains` 跨空间的活跃代理仍然开放并且
@@ -171,12 +149,7 @@ BuildMax 不应给部署范围的文件带来负担：空间所有者定义
 
 ### 4.1 两个独立的能力层，而不是角色
 
-考虑了一个名为“代理角色”预设（`builder`、`researcher`，...）
-并被拒绝：任务形状划分不清晰，主要是编辑的代理
-文件有时可能需要一次网络获取，并且角色系统要么会增长一个
-名称的组合数量或迫使做出尴尬的选择。相反，两个
-独立、小型、单调排序的层——代理作者回答两个
-问题，不是一种分类：
+我们考虑过“Agent 角色”预设（`builder`、`researcher` 等），但予以拒绝：任务边界并不清晰，一个主要编辑文件的 Agent 偶尔也可能需要网络访问。角色系统要么产生组合爆炸，要么迫使作者做出尴尬选择。相反，使用两个独立、小型、单调排序的层，让 Agent 作者回答两个具体问题，而不是选择一个角色：
 
 **网络层**
 
@@ -194,13 +167,7 @@ BuildMax 不应给部署范围的文件带来负担：空间所有者定义
 | `workspace_plus_shared_read` |为部署配置的共享缓存路径添加`allow_read`； `allow_write` 不变。 |
 | `workspace_plus_external_write` |添加一个显式枚举的外部写入路径（工件/输出目录），而不是无限制的授予。 |
 
-每层都是固定翻译为具体的 `SandboxConfig.Network` /
-`SandboxConfig.Filesystem` 值 — 代理作者选择 `registries` /
-`workspace`，从不键入域或路径。等级是严格排序的
-在自己的轴上设置超集，以便操作员可以在某一层限制自助服务
-（§4.5）无需推理任意组合。需要经过 `open` 或
-`workspace_plus_external_write` 不是一个层 - 它是 `policy.yaml`
-例外，和今天一样。
+每一层都固定映射为具体的 `SandboxConfig.Network` / `SandboxConfig.Filesystem` 值。Agent 作者只选择 `registries` / `workspace`，不直接填写域名或路径。层级在各自轴上严格递增，运维人员可以在某一层限制自助服务（§4.5），无需推理任意组合。`open` 或 `workspace_plus_external_write` 不属于普通层级，而是和今天一样的 `policy.yaml` 例外。
 
 ### 4.2 声明所在的位置
 
@@ -223,9 +190,7 @@ SandboxFilesystemTier string `json:"sandbox_filesystem_tier,omitempty"`
 
 ### 4.3 解析顺序
 
-插入代理声明的层，转换为 `SandboxConfig`，作为另一个
-`ResolveSandboxForRun` 中的图层，位于空间默认值和表面之间
-基线：
+Agent 声明先转换为 `SandboxConfig`，作为 `ResolveSandboxForRun` 的一层，位于 Space 默认值和界面基线之间：
 
 ```text
 policy.yaml (operator, final, can lock via managed-only)
