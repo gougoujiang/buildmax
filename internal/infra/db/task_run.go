@@ -162,6 +162,10 @@ func toTaskRun(row *taskRunReadRow) *coretask.Run {
 		LastSeenAt:                     row.Row.LastSeenAt,
 		CreatedAt:                      row.Row.CreatedAt,
 		IdempotencyKey:                 row.Row.IdempotencyKey,
+		WorkspaceRestoreStatus:         row.Row.WorkspaceRestoreStatus,
+		WorkspaceRestoreError:          row.Row.WorkspaceRestoreError,
+		WorkspaceCheckpointStatus:      row.Row.WorkspaceCheckpointStatus,
+		WorkspaceCheckpointError:       row.Row.WorkspaceCheckpointError,
 	}
 	if row.Row.CancelRequestedBy != nil {
 		by := derefPublicID(row.CancelRequestedByPub)

@@ -136,4 +136,12 @@ test("Portal states what confined a run, and what the run spent", async ({ page 
   const spend = dialog.locator(".run-trace__section").filter({ hasText: "Managed model calls" })
   await expect(spend).toBeVisible()
   await expect(spend.locator(".run-trace__spend-note, .run-trace__calls").first()).toBeVisible()
+
+  // The workspace section states what became of the run's checkpoint. This is a
+  // first, successful agent run, so it restored nothing and its result committed
+  // — the section must say so rather than leave the reader guessing.
+  const workspace = dialog.locator(".run-trace__section").filter({ hasText: "Workspace" })
+  await expect(workspace).toBeVisible()
+  await expect(statValue(page, "Checkpoint")).toHaveText("Committed")
+  await expect(statValue(page, "Restore")).not.toHaveText("—")
 })

@@ -60,7 +60,11 @@ func traceTestFixture(t *testing.T, tracePath *string, persist blob.PersistStora
 			Members: []corespace.Member{{SpaceID: spaceID, UserID: userID, Role: corespace.RoleOwner}},
 		},
 		TaskRuns: &mock.MockTaskRunStore{
-			Runs:     []coretask.Run{{ID: taskRunID, TaskID: taskID, Status: "FAILED", TracePath: tracePath, CreatedAt: time.Unix(1, 0).UTC()}},
+			Runs: []coretask.Run{{
+				ID: taskRunID, TaskID: taskID, Status: "FAILED", TracePath: tracePath, CreatedAt: time.Unix(1, 0).UTC(),
+				WorkspaceRestoreStatus: "restored", WorkspaceCheckpointStatus: "failed",
+				WorkspaceCheckpointError: util.Ptr("object store unavailable"),
+			}},
 			TaskList: []coretask.Task{{ID: taskID, ConversationID: conversationID, SpaceID: spaceID, Status: "FAILED", Input: "in", CreatedBy: userID, CreatedAt: time.Unix(1, 0).UTC()}},
 		},
 		Conversations: &mock.MockConversationStore{
@@ -126,6 +130,13 @@ func TestGetTaskRunTraceHandler(t *testing.T) {
 	}
 	if !strings.Contains(got.Error, "context deadline exceeded") {
 		t.Errorf("failure cause missing: %q", got.Error)
+	}
+	// The run's recorded workspace state rides the trace response, errors and all.
+	if got.Workspace.RestoreStatus != "restored" || got.Workspace.CheckpointStatus != "failed" {
+		t.Errorf("workspace status wrong: %+v", got.Workspace)
+	}
+	if got.Workspace.CheckpointError != "object store unavailable" {
+		t.Errorf("workspace checkpoint error = %q", got.Workspace.CheckpointError)
 	}
 	// The whole point of the boundary record: a run nothing confined says so.
 	if got.Boundary == nil || got.Boundary.Sandboxed {

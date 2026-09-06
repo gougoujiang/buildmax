@@ -6,6 +6,7 @@ import type {
   ApiTaskRunTrace,
   ApiTraceBoundary,
   ApiTraceToolCall,
+  ApiTraceWorkspace,
 } from "../../lib/api/types"
 import { getErrorMessage } from "../../lib/errorMessage"
 import { getTaskRunProvenance, getTaskRunTrace, listTaskRunLLMCalls } from "./api"
@@ -143,6 +144,72 @@ function TraceBody({ trace }: { trace: ApiTaskRunTrace }) {
         </section>
       ) : null}
     </>
+  )
+}
+
+// workspaceRestoreLabel and workspaceCheckpointLabel turn the run's recorded
+// status codes into a phrase a reader understands. An empty status is the common
+// case, not an error: a first run restores nothing, and a reply-only run
+// captures nothing.
+function workspaceRestoreLabel(status?: string): string {
+  switch (status) {
+    case "restored":
+      return "Restored from checkpoint"
+    case "failed":
+      return "Restore failed"
+    case "pending":
+      return "Restoring…"
+    default:
+      return "Not required"
+  }
+}
+
+function workspaceCheckpointLabel(status?: string): string {
+  switch (status) {
+    case "committed":
+      return "Committed"
+    case "failed":
+      return "Capture failed"
+    case "pending":
+      return "Capturing…"
+    default:
+      return "Not captured"
+  }
+}
+
+/**
+ * What happened to this run's workspace: whether it restored the base it was
+ * given, and whether it committed a checkpoint of what it produced. Read-only —
+ * the run recorded these as it ran. A failure carries the bounded reason.
+ */
+function WorkspaceSection({ workspace }: { workspace?: ApiTraceWorkspace }) {
+  const ws = workspace ?? {}
+  return (
+    <section className="run-trace__section">
+      <h3 className="run-trace__heading">Workspace</h3>
+      <dl className="run-trace__stats">
+        <div>
+          <dt>Restore</dt>
+          <dd>{workspaceRestoreLabel(ws.restore_status)}</dd>
+        </div>
+        <div>
+          <dt>Checkpoint</dt>
+          <dd>{workspaceCheckpointLabel(ws.checkpoint_status)}</dd>
+        </div>
+      </dl>
+      {ws.restore_error ? (
+        <div className="run-trace__error" role="alert">
+          <span className="run-trace__label">Restore error</span>
+          <pre className="run-trace__error-text">{ws.restore_error}</pre>
+        </div>
+      ) : null}
+      {ws.checkpoint_error ? (
+        <div className="run-trace__error" role="alert">
+          <span className="run-trace__label">Checkpoint error</span>
+          <pre className="run-trace__error-text">{ws.checkpoint_error}</pre>
+        </div>
+      ) : null}
+    </section>
   )
 }
 
@@ -508,6 +575,10 @@ export function RunTraceModal({ open, spaceId, token, taskRunId, onClose }: RunT
             ) : trace ? (
               <TraceBody trace={trace} />
             ) : null}
+            {/* What became of the run's workspace — restore and checkpoint — which
+                the run records separately from its trace, so it shows whenever the
+                trace does. */}
+            {trace ? <WorkspaceSection workspace={trace.workspace} /> : null}
             {/* Shown even when the trace could not be read: what a run spent is
                 accounted server-side and survives a trace that did not. */}
             <SpendSection calls={calls} error={callsError} trace={trace} />

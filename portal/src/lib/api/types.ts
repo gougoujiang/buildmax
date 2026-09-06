@@ -477,10 +477,27 @@ export interface ApiTaskRunTrace {
   /** The tools list was bounded; tool_calls still counts them all. */
   tools_truncated?: boolean
   files_changed?: string[]
+  /** What happened to this run's workspace checkpoint. */
+  workspace?: ApiTraceWorkspace
   /** Terminal error; empty when the run succeeded. */
   error?: string
   /** False means the run wrote no terminal record. Do not read it as success. */
   complete: boolean
+}
+
+/**
+ * A run's workspace-checkpoint state: whether it restored a base and whether it
+ * committed a result. Read-only status the run recorded; a field is empty when
+ * the step did not apply (a first run restores nothing, a reply-only run
+ * captures nothing).
+ */
+export interface ApiTraceWorkspace {
+  /** "restored", "failed", or empty when no base was restored. */
+  restore_status?: string
+  restore_error?: string
+  /** "committed", "failed", or empty when none was captured. */
+  checkpoint_status?: string
+  checkpoint_error?: string
 }
 
 /**

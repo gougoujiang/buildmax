@@ -202,6 +202,16 @@
           },
           "tools_truncated": { "type": "boolean", "description": "The tools list was bounded; tool_calls still counts them all" },
           "files_changed": { "type": "array", "items": { "type": "string" } },
+          "workspace": {
+            "type": "object",
+            "description": "What happened to this run's workspace checkpoint: whether it restored a base and whether it committed a result.",
+            "properties": {
+              "restore_status": { "type": "string", "description": "restored, failed, or empty when no base was restored" },
+              "restore_error": { "type": "string" },
+              "checkpoint_status": { "type": "string", "description": "committed, failed, or empty when none was captured" },
+              "checkpoint_error": { "type": "string" }
+            }
+          },
           "error": { "type": "string", "description": "Terminal error; empty when the run succeeded" },
           "complete": { "type": "boolean", "description": "False means the run wrote no terminal record — do not read as success" }
         }
