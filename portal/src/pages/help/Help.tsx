@@ -7,10 +7,56 @@ import { navigate } from "../../router"
 /**
  * Help renders the end-user manual that ships inside the portal image. The pages
  * are plain markdown files under /help, mirrored from the repository-root help/
- * directory at build time (portal/scripts/sync-help.mjs). This page fetches
- * /help/manifest.json for the table of contents and /help/<slug>.md for a page,
- * so adding documentation never touches the portal bundle — only the markdown.
+ * directory at build time (portal/scripts/sync-help.mjs). English is the source
+ * and lives at /help; the Chinese translation lives at /help/zh. This page
+ * fetches <base>/manifest.json for the table of contents and <base>/<slug>.md
+ * for a page, so adding documentation never touches the portal bundle — only the
+ * markdown. The chosen language is the reader's own preference, remembered per
+ * browser; the slug set is identical across languages, so switching keeps the
+ * current page.
  */
+
+type Lang = "en" | "zh"
+
+const LANG_KEY = "buildmax-help-lang"
+
+/** English is served from /help, every other language from /help/<lang>. */
+function basePath(lang: Lang): string {
+  return lang === "en" ? "/help" : `/help/${lang}`
+}
+
+/** The reader's remembered choice, else the browser's language, else English. */
+function initialLang(): Lang {
+  try {
+    const saved = localStorage.getItem(LANG_KEY)
+    if (saved === "en" || saved === "zh") return saved
+  } catch {
+    // Private mode or blocked storage: fall through to locale detection.
+  }
+  if (typeof navigator !== "undefined" && navigator.language?.toLowerCase().startsWith("zh")) {
+    return "zh"
+  }
+  return "en"
+}
+
+const UI: Record<Lang, { manifestError: string; pageError: string; notFound: string; back: string; help: string; langLabel: string }> = {
+  en: {
+    manifestError: "The help manual could not be loaded.",
+    pageError: "This help page could not be loaded.",
+    notFound: "Page not found",
+    back: "Back to the start of the manual",
+    help: "Help",
+    langLabel: "Language",
+  },
+  zh: {
+    manifestError: "无法加载帮助手册。",
+    pageError: "无法加载此帮助页面。",
+    notFound: "未找到页面",
+    back: "返回手册首页",
+    help: "帮助",
+    langLabel: "语言",
+  },
+}
 
 interface HelpPage {
   slug: string
@@ -36,12 +82,27 @@ function internalSlug(href: string): string | null {
 }
 
 export function Help({ slug }: { slug?: string }) {
+  const [lang, setLang] = useState<Lang>(initialLang)
+  const ui = UI[lang]
+  const base = basePath(lang)
+
+  const chooseLang = (next: Lang) => {
+    setLang(next)
+    try {
+      localStorage.setItem(LANG_KEY, next)
+    } catch {
+      // Storage unavailable: the choice still applies for this view.
+    }
+  }
+
   const [manifest, setManifest] = useState<HelpManifest | null>(null)
   const [manifestError, setManifestError] = useState(false)
 
   useEffect(() => {
     let alive = true
-    fetch("/help/manifest.json")
+    setManifest(null)
+    setManifestError(false)
+    fetch(`${base}/manifest.json`)
       .then((r) => {
         if (!r.ok) throw new Error(`manifest ${r.status}`)
         return r.json()
@@ -51,7 +112,7 @@ export function Help({ slug }: { slug?: string }) {
     return () => {
       alive = false
     }
-  }, [])
+  }, [base])
 
   const pages = useMemo(
     () => manifest?.sections.flatMap((s) => s.pages) ?? [],
@@ -73,7 +134,7 @@ export function Help({ slug }: { slug?: string }) {
     setLoading(true)
     setNotFound(false)
     setContent(null)
-    fetch(`/help/${activeSlug}.md`)
+    fetch(`${base}/${activeSlug}.md`)
       .then((r) => {
         if (!r.ok) throw new Error(String(r.status))
         return r.text()
@@ -84,7 +145,7 @@ export function Help({ slug }: { slug?: string }) {
     return () => {
       alive = false
     }
-  }, [activeSlug, known])
+  }, [base, activeSlug, known])
 
   // A new page starts at its top, not wherever the previous one was scrolled.
   useEffect(() => {
@@ -125,12 +186,41 @@ export function Help({ slug }: { slug?: string }) {
     [],
   )
 
+  const langToggle = (
+    <div className="help__lang" role="group" aria-label={ui.langLabel}>
+      <button
+        type="button"
+        className={`help__lang-btn ${lang === "en" ? "help__lang-btn--active" : ""}`}
+        aria-pressed={lang === "en"}
+        onClick={() => chooseLang("en")}
+      >
+        EN
+      </button>
+      <button
+        type="button"
+        className={`help__lang-btn ${lang === "zh" ? "help__lang-btn--active" : ""}`}
+        aria-pressed={lang === "zh"}
+        onClick={() => chooseLang("zh")}
+      >
+        中文
+      </button>
+    </div>
+  )
+
   if (manifestError) {
     return (
       <div className="help">
-        <p className="help__error" role="alert">
-          The help manual could not be loaded.
-        </p>
+        <nav className="help__nav" aria-label="Help contents">
+          <div className="help__nav-head">
+            <p className="help__nav-title">{ui.help}</p>
+            {langToggle}
+          </div>
+        </nav>
+        <div className="help__content">
+          <p className="help__error" role="alert">
+            {ui.manifestError}
+          </p>
+        </div>
       </div>
     )
   }
@@ -138,7 +228,10 @@ export function Help({ slug }: { slug?: string }) {
   return (
     <div className="help">
       <nav className="help__nav" aria-label="Help contents">
-        <p className="help__nav-title">{manifest?.title ?? "Help"}</p>
+        <div className="help__nav-head">
+          <p className="help__nav-title">{manifest?.title ?? ui.help}</p>
+          {langToggle}
+        </div>
         {manifest?.sections.map((section) => (
           <div key={section.title} className="help__nav-section">
             <p className="help__nav-heading">{section.title}</p>
@@ -165,18 +258,18 @@ export function Help({ slug }: { slug?: string }) {
       <div className="help__content" ref={contentRef}>
         {!known ? (
           <div className="help__empty">
-            <p className="help__empty-title">Page not found</p>
+            <p className="help__empty-title">{ui.notFound}</p>
             <button
               type="button"
               className="help__empty-link"
               onClick={() => navigate({ name: "help" })}
             >
-              Back to the start of the manual
+              {ui.back}
             </button>
           </div>
         ) : notFound ? (
           <p className="help__error" role="alert">
-            This help page could not be loaded.
+            {ui.pageError}
           </p>
         ) : loading || content === null ? (
           <div className="help__skeleton" aria-hidden>

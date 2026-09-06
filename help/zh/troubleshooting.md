@@ -1,0 +1,80 @@
+# 故障排查
+
+运行 BuildMax 时的常见问题，以及如何弄清一次运行究竟做了什么。先从 `doctor` 开始，然后把你的症状对应到下面的某个小节。
+
+## 从 doctor 开始
+
+```bash
+buildmax doctor
+```
+
+`doctor` 在不联系模型提供商的情况下检查本地设置。它会指出 BuildMax 正在读取的配置文件，捕获占位的 API key，在工作区不在某个 git 分支上时发出警告，并在启用沙箱时指向沙箱依赖检查。
+
+## `No model configured. Add a model to …`
+
+`settings.yaml` 中没有 `models:` 条目。BuildMax **不会**从环境中读取 API key——早期版本会，一些较旧的文档仍然这么说。按 [快速开始](quickstart.md) 中所示创建该文件。
+
+该消息会打印它所查看的确切路径；如果那个路径不是你预期的，说明 `BUILDMAX_HOME` 在某处被设置了。
+
+## 运行成批地以 HTTP 429 失败
+
+免费的 OpenRouter 模型会激进地限流。这表现为：单独运行时正常，但当你连续运行多个、或某个 Agent 进行许多次工具调用往返时就失败。在 `settings.yaml` 中切换到付费模型，或者放慢速度。
+
+## `POST /api/login` 返回 503
+
+Server 无法访问用户、密码或登录码存储，或者它没有 JWT secret。检查启动日志和 `server.yaml`，然后创建一个账户并签发它的第一个登录码。BuildMax 没有邮件投递通道：由运维人员通过其他渠道把这个一次性登录码传给用户。
+
+## 任务一直是 `PENDING` 而从不运行
+
+调度器认领了这次运行但无法启动 worker。请按顺序检查：
+
+1. `buildmax-worker` 在 `PATH` 上或在 server 二进制文件旁边，并与 `server.yaml` 中的 `worker.binary` 相匹配
+2. `worker.server_url` **从 worker 处**可达，这不总是 server 所绑定的同一个地址
+3. 调度器可以铸造一个运行令牌——`jwt_secret` 为其签名，而它是 worker 访问 `/api/worker/*` 的唯一凭据
+4. `workspaces_dir` 存在，且两个进程都可写入
+5. `storage:` 块从 worker 处可达，worker 直接与 blob 存储通信，而不是通过 server
+
+server 日志会指出失败的那一步。
+
+## Webhook 返回 400
+
+无法从请求体中提取提示词。`server.yaml` 中的 `webhook.message_path` 必须与你负载的形状匹配——默认是 `message`，嵌套字段写作 `body.text`。
+
+## 沙箱无法开启
+
+```bash
+buildmax sandbox deps      # bwrap / sandbox-exec / socat 是否存在？
+buildmax sandbox status    # 实际解析出的是什么，来自哪一层
+```
+
+沙箱在 macOS 上需要 Seatbelt，在 Linux/WSL2 上需要 `bwrap`。它在**原生 Windows 上不可用**。如果 `status` 显示了一个你没有设置的值，检查 `<BUILDMAX_HOME>/policy.yaml` 和 `BUILDMAX_SANDBOX_ENABLED`——两者都会覆盖 `settings.yaml`。见 [沙箱](sandbox.md)。
+
+## 某个钩子从不触发
+
+几乎总是 `matcher` 的问题。它是针对**工具名称**的正则表达式，而这些名称是首字母大写的：`Bash`、`Write`、`Edit`、`Read`、`Grep`——而不是 `bash` 或 `writefile`。用 `/tools` 或在 [工具](tools.md) 中查看当前名称。
+
+另外：`matcher` 只适用于 `pre_tool_use`、`post_tool_use` 和 `post_tool_use_failure`。在其他事件上它会被忽略。
+
+记住钩子会**失败即放行**——超时或出错的钩子会允许该操作。沉默可能意味着"运行并失败了"，而不是"没有运行"。
+
+## desktop 应用拒绝启动
+
+它是在没有 `desktop` 构建标签的情况下构建的，因此没有嵌入前端 bundle。二进制文件会告诉你这一点，而不是打开一个空白窗口。用 `./make build` 构建，它会构建前端并传入该标签。
+
+## `go test ./...` 的行为与 `./make test` 不同
+
+`./make test` 会设置 `BUILDMAX_HOME=./testing-sandbox`，使测试永不触及你真实的数据目录。运行它而不是裸的 `go test`——有些测试假定了这种隔离。
+
+## Bash 工具在 Windows 上表现异常
+
+原生 Windows 没有沙箱，bash 工具会回退到 `cmd /c`。CI 会在 Windows 上构建、vet 并运行测试套件，但依赖 shell 的测试在那里会被跳过。对于任何涉及 shell、`./make kind up` 或部署的工作，WSL2 是受支持的路径。
+
+## 其他情况
+
+追踪记录会告诉你一次运行究竟做了什么——每一次 LLM 调用、每一次工具调用、什么被拒绝了、以及它是如何结束的：
+
+```bash
+ls -t ~/.buildmax/sessions/<session-id>/traces/ | head -1
+```
+
+见 [会话与追踪记录](sessions-and-traces.md)。日志只写文件，位于 `<BUILDMAX_HOME>/logs/buildmax.log`；用 `settings.yaml` 中的 `log_level: debug` 提高详细程度。

@@ -1,0 +1,392 @@
+# CLI 与 TUI 参考
+
+`buildmax` 二进制文件的完整命令面：子命令、标志、交互式 TUI、用于脚本化的输出
+模式，以及退出码约定。
+
+```text
+buildmax [flags]              open the TUI, or run one prompt with -p
+buildmax <command> [flags]
+```
+
+## 命令
+
+| Command | Purpose |
+|---|---|
+| `buildmax` | 打开终端 UI（默认） |
+| `buildmax init` | 在 `BUILDMAX_HOME` 下写入一个起始的 `settings.yaml` |
+| `buildmax doctor` | 在第一次运行前检查本地设置 |
+| `buildmax version` | 打印版本 |
+| `buildmax login` | 登录到 BuildMax 服务器并存储凭据 |
+| `buildmax logout` | 清除已存储的凭据 |
+| `buildmax whoami` | 显示当前登录状态 |
+| `buildmax models` | 列出当前模式使用的模型及其提示词去向；`--local` 还会列出本地 Ollama 守护进程持有的模型 |
+| `buildmax tools status` | 检查当前对 Agent 可用的工具 |
+| `buildmax info [session-id]` | 显示某个会话花费了什么、做了什么，以及其项目记住了什么；`--json` 输出完整记录 |
+| `buildmax project list` | 列出本地项目，并标记那些定位器已无法解析的项目 |
+| `buildmax project relink <project-id>` | 把一个已有项目，以及其上的记忆和会话，指向当前目录 |
+| `buildmax project forget <name>` / `--all` | 删除本项目的某一条记忆，或全部记忆；会话不受影响 |
+| `buildmax sandbox status` | 打印解析后的沙箱配置，以及每个值由哪一层设置 |
+| `buildmax sandbox deps` | 检查主机侧的沙箱依赖（`bwrap`、`sandbox-exec`、`socat`） |
+| `buildmax sandbox enable` / `disable` | 在 `settings.yaml` 中设置 `sandbox.enabled` |
+| `buildmax sandbox mode <auto_allow\|regular>` | 设置 `sandbox.auto_allow_bash_if_sandboxed` |
+| `buildmax issue list` | 列出各个 space 分配给你的 issues，横跨你所在的每个 space；`--status`、`--limit` |
+| `buildmax issue show <id>` | 显示一个 issue：它请求什么、它的子 issue，以及最近的讨论 |
+| `buildmax issue status <id> <status>` | 把一个 issue 移到 `todo`、`in_progress` 或 `done` |
+| `buildmax --issue <id>` | 在本会话中处理一个 space issue：Agent 可以读取它并汇报 |
+| `buildmax admin list` | 列出部署管理员；`--all` 包括已撤销的授予（仅 System Administrator） |
+| `buildmax admin grant <email>` | 向一个已有账户授予部署管理员权限 |
+| `buildmax admin revoke <email>` | 撤销一个账户的管理员权限（拒绝撤销最后一个） |
+| `buildmax plugin list` | 列出已安装的插件、各自来自哪里，以及是否加载 |
+| `buildmax plugin status [name]` | 显示一个插件贡献了什么、它的检出或发布版本，以及是什么遮蔽了它 |
+| `buildmax plugin validate [path]` | 解析一个插件目录并报告每个问题；若有任何问题会阻止其加载则返回非零 |
+| `buildmax plugin enable` / `disable <name>` | 允许一个插件加载，或在不移除的情况下阻止它加载 |
+| `buildmax plugin install <name>` | 从部署的 Marketplace 下载一个发布版本并安装 |
+| `buildmax plugin update <name>` | 用更新的发布版本替换一个已安装的 Marketplace 插件 |
+| `buildmax plugin uninstall <name>` | 移除一个已安装的插件 |
+| `buildmax plugin publish <path>` | 打包一个目录并发布它（仅 System Administrator） |
+| `buildmax plugin activations --space <space-id>` | 列出一个 Space 已为后台运行激活的确切插件发布版本 |
+
+## 标志
+
+| Flag | Default | Purpose |
+|---|---|---|
+| `-p`, `--print QUERY` | — | 运行一个提示词并打印回复；无 TUI |
+| `-r`, `--resume ID` | — | 按 id 恢复一个会话（TUI 或 print 模式） |
+| `-c`, `--continue` | — | 恢复本目录最近的会话 |
+| `--project` | off | 与 `--continue` 配合，将搜索范围扩大到本项目的每个目录，并在该会话所记录的那个目录中运行 |
+| `--session-id UUID` | — | 使用指定的会话 id；若存在则加载它，否则创建它 |
+| `--model ID\|NAME` | `settings.yaml` 中的第一个条目 | 从 `models:` 中挑选一个模型 |
+| `--workspace DIR` | 当前目录 | Agent 操作所在的目录 |
+| `--no-project-memory` | off | 本次运行既不读取也不写入本项目的记忆 |
+| `--sandbox` | off | 在不更改设置的情况下要求本次运行使用 Bash 沙箱；若其后端不可用则失败 |
+| `--sandbox-mode auto_allow\|regular` | 已配置的模式 | 为本次运行选择审批模式；需要 `--sandbox` |
+| `--max-iterations N` | `agent.max_iterations`，否则 200 | 限制本次运行的模型调用次数；范围 1-5000 |
+| `--append-system-prompt TEXT` | — | 追加到本次运行系统提示词的文本 |
+| `--append-system-prompt-file PATH` | — | 同上，从文件读取 |
+| `--agent NAME` | — | 追加来自 `.buildmax/agents/` 或 `~/.buildmax/agents/` 的一个定义的正文 |
+| `--output text\|json\|jsonl` | `text` | `-p` 的输出格式 |
+| `--no-stream` | off | 在 print 模式下不把回复流式输出到 stdout |
+| `-q`, `--quiet` | off | 在 print text 模式下抑制统计页脚 |
+| `--include-deltas` | off | 在 `--output jsonl` 中包含 `llm_delta` 事件（冗长） |
+| `-v`, `--version` | — | 打印版本并退出 |
+| `-h`, `--help` | — | 帮助 |
+
+`--output json` 和 `--output jsonl` 使 print 模式可被机器读取，这正是你从脚本或
+其他程序调用 BuildMax 时所需要的。
+
+`--sandbox` 同时适用于 TUI 和 print 模式。它可以为一次运行启用限制，但不能禁用
+限制；operator 的 `policy.yaml` 对两个标志始终具有最终裁量权。见[沙箱](sandbox.md)。
+
+`--max-iterations` 也同时适用于两者，并且优先级高于 `settings.yaml` 中的
+`agent.max_iterations`。它是一个提示词在运行停止前可以调用模型多少次的上限；
+达到该上限的运行会以 `7` 退出并报告 `agent: max iterations exceeded`。为长时间
+无人值守的任务调高它，为一个提示词能花费多少设一个硬上限而调低它。无论哪种方式，
+子 Agent 都保有它们自己的、更小的上限。
+
+两者都携带 `trace_id` 和 `trace_path`，指明该次运行写入的持久追踪记录。请使用
+它们，而不要去寻找 `<BUILDMAX_HOME>/sessions/<session_id>/traces/` 下最新的
+文件：一个会话每次运行持有一份追踪记录，因此最新文件是与同一会话中任何其他运行
+的竞争。追踪关闭时两者都为空。见[会话与追踪记录](sessions-and-traces.md)。
+
+### 向系统提示词追加内容
+
+下面三个标志填充同一个槽位：追加到系统提示词的自由文本，位于运行时提示词和两个
+`AGENTS.md` 层之后。它是追加式的 —— 它绝不会替换运行时提示词 —— 并且会随每次
+模型调用一起发送，因此与你在对话中输入的任何东西不同，它不会随着上下文被填满
+而逐渐淡出。用它来描述 Agent 是什么，以及它绝不能做什么。
+
+```bash
+buildmax --append-system-prompt "You are a release engineer. Never push to main."
+buildmax --append-system-prompt-file ./roles/release-engineer.md
+buildmax --agent law-consultant
+```
+
+`--append-system-prompt` 和 `--append-system-prompt-file` 是互斥的。当文本较长、
+多行或私密时，优先使用文件：命令行上的参数可被机器上的每个进程读取。
+
+`--agent NAME` 是相对于该文本的便捷方式 —— 它加载一个定义文件的正文，也就是
+`Task` 工具委派所用的那些文件，来自 `<workspace>/.buildmax/agents/`，然后是
+`~/.buildmax/agents/`。只使用正文：它提供提示词文本，并**不**像同一个定义对
+子 Agent 那样切换模型或限制工具集。将它与 `--append-system-prompt` 组合，会把
+临时文本追加在定义之后。
+
+该文本上限为 8192 个字符；超出部分会被拒绝而非截断，因为这一层会在每次调用时
+被整体发送，无法降级处理。如果它包含一个 `## Invariants` 小节，该小节还会在每个
+请求的末尾被重申，靠近模型生成的位置 —— 位于系统提示词中的指令在上下文被工具
+输出填满后仍会失去分量。
+
+恢复一个会话时若不带这些标志之一，会保留该会话此前运行时所用的文本。传入一个则
+会从那次运行起替换它。
+
+### `buildmax init` 标志
+
+| Flag | Default | Purpose |
+|---|---|---|
+| `--api-key KEY` | 一个待编辑的占位符 | 已配置模型的 API key |
+| `--model ID` | `openai/gpt-4o-mini` | 要配置为默认的模型 id |
+| `--api-url URL` | `https://openrouter.ai/api/v1` | OpenAI 兼容的基础 URL |
+| `--name NAME` | 模型 id | 在 TUI 和 `--model` 中显示的名称 |
+| `--context-window N` | 与提供商相适应 | 以 token 计的上下文窗口 |
+| `--ollama` | off | 配置一个本地 Ollama 模型而非托管提供商 |
+| `--force` | off | 替换已有的 `settings.yaml` |
+
+该文件以 `600` 模式写入，因为它保存了一个 API key。不带 `--force` 时，已有文件
+会保持不变，命令以 `2` 退出。
+
+`--ollama` 写入一个完全没有 `api_key` 的条目，指向 `http://localhost:11434`。
+当守护进程运行时，它会配置一个已经拉取的模型并读取该模型的上下文窗口；当守护
+进程未运行时，文件仍会写入，输出会指明该启动什么、该拉取什么。见
+[模型与模式](models-and-modes.md)。
+
+### `buildmax plugin`
+
+一个插件是 `<BUILDMAX_HOME>/plugins` 下的一个目录，包含 `skills/`、`agents/`、
+`mcp.json` 和 `hooks.yaml` —— 与工作区 `.buildmax/` 目录所支持的内容相同。把
+一个克隆到那里，它会在下次运行时加载。见[插件](plugins.md)。
+
+`plugin status` 接受 `--workspace` 和 `--fetch`。不带 `--fetch` 时这里的任何操作
+都不触及网络，而一个检出相对其上游的漂移只与上次 fetch 一样新；`--fetch` 会联系
+远端以刷新它。
+
+`disable` 记录一个标志而不移动任何东西，因此绝不触动 Git 工作树。已经在进行中的
+运行会保留它开始时所用的插件。
+
+`install` 和 `update` 接受 `--version` 以指定确切的发布版本，以及 `--allow-yanked`
+以指定一个已被撤回的版本。不带 `--version` 时，它们取最新的、非预发布、未被撤回、
+且不高于本构建所支持的发布版本。两者都拒绝替换一个 Git 检出，而 `uninstall` 拒绝
+在不带 `--force` 的情况下删除一个 Git 检出：一个工作树可能保存着别处不存在的工作。
+
+`publish` 从目录自身的 `plugin.yaml` 中取版本，并需要你所登录的服务器上的
+System Administrator 授予。
+
+`activations` 是只读的，并需要登录。它报告该 Space 的策展模式和每个已激活的发布
+版本；激活的更改保留在 Portal 中，在那里它们与该 Space 的其他共享自动化和审计
+历史一同可见。
+
+### `buildmax issue`
+
+`buildmax issue list` 是 space 工作的接收端：它显示 BuildMax 服务器分配给你的
+内容，让你可以在这里开始处理，而不必在浏览器中查看一个看板。请先用
+`buildmax login` 登录。
+
+```bash
+buildmax issue list                    # 分配给你的一切
+buildmax issue list --status todo      # 仅尚未开始的部分
+```
+
+每个 issue 一行，附带它所属的 space。一个无法读取的 space 会被报告为警告，而
+收件箱的其余部分仍会打印。
+
+管理这些工作 —— 创建 issue、分配它们、更改状态、拆分它们 —— 都留在 Portal 中。
+这个命令只读。
+
+在开始之前先读一个：
+
+```bash
+buildmax issue show i_7Kq2...
+```
+
+要处理其中一个，启动一个以它为范围的会话：
+
+```bash
+buildmax --issue i_7Kq2...            # TUI，处理该 issue
+buildmax --issue i_7Kq2... -p "..."   # 一次 print 模式运行
+```
+
+Agent 会获得两个工具：`GetIssue` 读取该 issue、它的子 issue 和最近的讨论；
+`ReportToIssue` 在线程上发布一份简短报告，一次运行最多三次。两者都不能更改该
+issue 的状态、指派人或子 issue —— Agent 说出它认为应当发生的事，由人来决定。
+
+来自你机器的报告被记录为一份**本地 Agent 报告**，归属于你，Portal 将其显示为
+「已报告（reported）」而非「已说（said）」。它与来自部署所调度的运行的评论不同：
+这里的任何东西都没有被排队、计入配额或追踪。`--issue` 只限定一次运行；它不会被
+记住。
+
+在第一次模型调用之前，会话会打印它正在处理哪个服务器、space 和 issue，以及提示词
+去向 —— space 工作跨越到个人模型上，应当在跨越之前可见，而不是事后推断。
+
+当你完成时，说明这一点：
+
+```bash
+buildmax issue status i_7Kq2... done
+```
+
+那是你来运行的，不是 Agent 来运行的。状态是 space 据以规划的依据，`done` 意味着
+一个人接受了这项工作，所以 Agent 可以说它相信工作已完成，而由你决定。该更改携带
+读取该 issue 时的版本；如果其间别人移动了它，这会拒绝而不是覆盖他们。见
+[Portal issues](portal-issues.md)。
+
+### `buildmax admin`
+
+`buildmax admin` 以登录管理员的身份，通过 Portal 管理区域所使用的同一个 API，
+管理谁可以操作一个部署。请先用 `buildmax login` 登录；一个没有系统授予的调用者
+会被服务器拒绝。
+
+```bash
+buildmax admin list                 # 活跃的管理员
+buildmax admin list --all           # 包括已撤销的授予
+buildmax admin grant alex@corp.com  # 给一个已有账户管理员权限
+buildmax admin revoke alex@corp.com # 收回它
+```
+
+账户以 email 命名；`grant` 和 `revoke` 把地址解析到一个账户，并拒绝一个含糊或
+未知的地址，而不是基于猜测行事。撤销部署的最后一个管理员在这里会被拒绝 ——
+那是一个刻意的、由数据库授权的行为，在运行服务器的机器上用
+`buildmax-server admin revoke` 完成。创建第一个管理员，以及恢复一个已经失去
+所有管理员的部署，同样留在 `buildmax-server admin` 中，它直接触及数据库；
+`buildmax admin` 是常规的、已鉴权的对等命令，而非应急（break-glass）路径。
+
+### `buildmax doctor`
+
+`doctor` 在不联系 LLM 提供商的情况下检查本地设置：
+
+- `BUILDMAX_HOME` 和 `settings.yaml`
+- 已配置的模型和占位符 API key
+- 当前工作区和 git 是否可用
+- 当 `sandbox.enabled` 被设置时的沙箱依赖
+
+当一个必需的首次运行前置条件缺失时，它以 `2` 退出。警告 —— 例如运行在 git 分支
+之外，或让本地沙箱保持禁用 —— 会被报告，但不会使命令失败。见
+[故障排查](troubleshooting.md)。
+
+### `buildmax project`
+
+一个项目是会话所属的本地工作单元：一个 Git 仓库（包括其每一个 worktree），或
+一个普通文件夹。它是 `--continue`、会话选择器和
+[项目记忆](project-instructions.md)所限定的范围。
+
+一个项目通过定位器再次被找到 —— 一个仓库的公共 Git 目录，或一个文件夹的路径。
+移动一个仓库会使旧项目无法到达，而那里的下一次运行会注册一个新的、空的项目；
+那次运行会说明这一点，并指出不再解析的项目名称，否则重复项看起来就像这个功能
+在正常工作。
+
+```bash
+buildmax project list                    # (missing) 标记一个无法解析的定位器
+buildmax project relink <project-id>     # 把它指向当前目录
+buildmax project relink <id> --workspace ../moved
+
+buildmax project forget rejected-sse-transport
+buildmax project forget --all             # 会话不受影响
+```
+
+Relink 会显式命名项目。另一种选择是启发式，而一个把两个记忆域合并的启发式做法
+不会留下任何做过此事的痕迹。
+
+### `buildmax info`
+
+`info` 报告一个会话及其所属的项目：该会话花费了什么、做了什么、它的上下文去了
+哪里，以及该项目记住了什么。不带参数时，它读取按创建时间最近的会话。
+
+两半有不同的所有者和不同的生命周期。统计数据属于会话，并随会话终结；记忆属于
+项目，且该项目的每个会话都能看到它们。一个不属于任何项目的会话 —— 一个在项目
+存在之前写下的，或由 worker 写下的 —— 会不打印记忆小节，而非打印一个空的。
+
+它读取两份记录，并说明哪个是哪个，因为它们回答不同的问题：
+
+- **会话文件**保存 token 和成本。它们逐轮累积，按当时各自生效的费率，因此读取
+  时不会重新计算任何东西。它也是每个工具输出字节数的来源 —— 也就是指出哪个工具
+  正在填满上下文窗口的那个数字。
+- **运行追踪记录**保存一切与时间相关的内容：运行次数、墙钟时间、模型与工具的
+  拆分、每个工具的时长、拒绝、无法完成的工具调用，以及一次委派占了运行的多少。
+
+在追踪记录缺失的地方 —— 追踪 fail open，或运行在写入结束记录之前被杀死 ——
+受影响的那些行会如此说明，而不是报告零，底部的一个警告会指出总计未覆盖什么。
+同样适用于金钱：一个没有任何模型定价的会话会说 `not priced` 而非 `0.000000`，
+而节省只在缓存确实节省的地方被报告。
+
+记忆那一半列出每条记忆的名称、类型和描述 —— 这正是一次运行在每次模型调用时所
+携带的 —— 并给出索引大小相对其预算的对照，因为这一对才是你据以裁剪的依据，而
+非数量。它不打印正文：二十条正文不是一个列表。目录会被打印出来，以便你打开
+其中一条，而无法解析的文件会被指名，因为这样一条记忆在被修复之前会静默地缺席
+每一次运行。
+
+`--json` 在 `stats` 和 `project_memory` 下发出整份记录，包括表格截断掉的工具。
+正文出于与它们不出现在表格中相同的原因而被排除在外。
+
+在 TUI 中，`/info` 以标签页显示两半 —— `tab` 和 `←`/`→` 切换，在记忆标签页上
+`enter` 打开一个正文。统计标签页折叠的是**实时**会话而非文件 —— 一个会话在每次
+助手回复后被持久化，因此把它读回来会回答你正在看的这一轮之前那一轮的情况 ——
+并且两半都是面板打开时拍下的快照，而非实时计数器。
+
+## TUI 斜杠命令
+
+输入到输入行：
+
+| Command | What it does |
+|---|---|
+| `/model` | 打开模型选择器（来自 `settings.yaml`） |
+| `/compact` | 总结迄今为止的对话并从总结继续 |
+| `/rewind` | 取回你的某个提示词以编辑并再次发送 |
+| `/fork` | 从一条较早的消息分叉一个新会话 |
+| `/sessions` | 打开会话选择器 |
+| `/tools` | 列出本次运行可用的工具 |
+| `/skills` | 列出发现的技能 |
+| `/mcp` | 列出已连接的 MCP 服务器及其状态 |
+| `/diff` | 显示工作区的工作树 diff |
+| `/info` | 两个标签页：本会话的花费、上下文使用和最重的工具；以及本项目记住了什么，用 `enter` 阅读一条记忆 |
+| `/tasks` | 列出后台作业：状态、时长、命令；`s` 停止选中的一个 |
+| `/worktree` | 列出本仓库的 worktree、每个中是哪个会话、以及每个持有什么未提交的内容；`d` 在确认后移除选中的一个 |
+| `/agents` | 列出 `Task` 工具可以委派到的 agent 类型 |
+| `/plugins` | 列出已安装的插件、它们的状态，以及每个贡献了什么 |
+
+Agent 运行时斜杠命令不可用。
+
+## 在 Agent 工作时输入
+
+输入框在运行期间保持打开。`Enter` 会把你输入的内容排队；转录中将其显示为
+`⏸ queued #n`，页脚会计数正在等待的内容。Agent 会在它的下一步取用它 ——
+通常是它正在运行的工具一完成就取用，而不必等整个运行结束 —— 随后转录会将其
+显示为一条已发送的消息。最多可以等待十条消息。`Esc` 清空输入，或在输入已为空时
+取回最后一条排队的消息。
+
+## 示例
+
+```bash
+# 首次运行：用一个可用的密钥写入 ~/.buildmax/settings.yaml
+buildmax init --api-key sk-your-key-here
+buildmax doctor
+
+# 或对接一个本地模型，无密钥、无网络
+buildmax init --ollama
+buildmax models --local
+
+# 一次性问题，安静模式，在另一个目录中
+buildmax -p "list the exported symbols" --workspace ../lib -q
+
+# 供脚本使用的机器可读运行
+buildmax -p "run the tests and summarize failures" --output json
+
+# 在本目录接着上次继续
+buildmax --continue
+
+# 为一次运行挑选一个更大的模型
+buildmax --model gpt-4o -p "review this diff for race conditions"
+```
+
+## 退出码
+
+当运行失败时，print 模式返回一个非零退出码，因此它能与 shell 脚本和 CI 步骤
+组合。这些码是一个稳定的约定：
+
+| Code | Meaning |
+|---|---|
+| `0` | 运行完成 |
+| `1` | 一个没有更具体码的错误 |
+| `2` | 错误的标志，或缺失的配置 —— 例如未配置模型 |
+| `3` | 一个工具被已配置的策略阻止 |
+| `4` | 模型或 Agent 运行失败：无法到达的提供商、被拒绝的凭据、无法继续的运行 |
+| `5` | 为工具错误保留；目前尚无返回它 |
+| `6` | 已取消 —— `Ctrl+C`，或上下文结束 |
+| `7` | 运行达到其迭代上限 —— 见 `--max-iterations` |
+
+`--output json` 和 `--output jsonl` 把同样的事实作为一个 `error` 对象携带，带一个
+`kind`（`usage`、`policy_denied`、`model_error`、`tool_error`、`cancelled`、
+`iteration_cap` 或 `error`）和一条消息，这样调用者不必把数字映射回去。
+
+`7` 刻意不设为 `4`。一个模型错误是值得重试的故障；一个耗尽的迭代预算是一个答案，
+而重试它会为同样的上限再付一次费。运行在停止前写下的任何东西仍在磁盘上。
+
+## 相关
+
+- [会话与追踪记录](sessions-and-traces.md) —— 恢复、回退和运行追踪记录
+- [快速开始](quickstart.md) —— 第一次运行

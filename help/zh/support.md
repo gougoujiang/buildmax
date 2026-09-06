@@ -1,0 +1,137 @@
+# 支持的平台与状态
+
+BuildMax 处于 alpha 阶段。本页定义了项目目前尝试支持什么、什么是尽力而为的、以及什么是当前有意排除在范围之外的。
+
+下面某个界面上的 **Beta** 标签描述的是该组件的成熟度；它并不意味着产品已经通过了发布级别的 Beta 门槛。
+
+## 成熟度级别
+
+| 级别 | 含义 |
+|---|---|
+| **Supported** | 意在为早期用户可用；由常规的本地或 CI 检查覆盖。 |
+| **Beta** | 可用，但接口或部署形态仍可能改变。 |
+| **Experimental** | 实现程度足以尝试，但不是稳定性承诺。 |
+| **Best effort** | 可能可用，但目前不是发布阻塞路径。 |
+| **Not supported** | 已知的缺口或明确的非目标。 |
+
+## 产品界面
+
+| 界面 | 状态 | 预期 |
+|---|---|---|
+| CLI 打印模式，`buildmax -p` | **Supported** | 主要的本地入口点。在单个工作区中读取、编辑、grep 并运行命令。 |
+| TUI，`buildmax` | **Supported** | 主要的交互式本地体验：会话、斜杠面板、流式输出、模型/工作区可见性。 |
+| `buildmax init` 和 `buildmax doctor` | **Supported** | 首次运行配置和本地设置检查。 |
+| 本地会话和运行追踪记录 | **Supported** | 会话持久化以及 `BUILDMAX_HOME` 下有界的 JSONL 追踪记录。 |
+| Desktop 应用 | **Beta** | 使用共享运行时的本地聊天/会话体验。从源码构建；未签名；不作为面向最终用户的安装程序分发。 |
+| Portal 前端 | **Beta** | 用于对话、Issue、Workflow、Agent、文件、用量和 Artifact 的 space UI。密码和登录码流程可用；更大范围的公开暴露仍不支持。 |
+| Server + 本地进程 worker | **Beta** | 适用于受信任的私有部署和开发。Compose 路径由一个完整的 TaskRun 和 Artifact 冒烟测试覆盖。 |
+| Kubernetes worker 模式 | **Beta** | 本地 kind 路径端到端地演练 MySQL、MinIO、Ingress、一个 worker Job 和 Artifact 检索。worker 控制 API 通过 HTTPS 在一个单独的内部监听器上提供服务，同一个冒烟测试证明了这一边界：一个带标签的 worker pod 能够到达它，一个不带标签的 pod 被 NetworkPolicy 拒绝，而在公开 Service 上 `/api/worker` 为 `404`。部署 API 仍可能改变。 |
+| 入站 webhook | **Beta** | 由每个用户的 webhook key 认证；负载提取是可配置的。 |
+
+## 操作系统
+
+| 平台 | CLI/TUI | Server/worker | Desktop | 沙箱 | 备注 |
+|---|---|---|---|---|---|
+| macOS arm64 | **Supported** | **Supported** | **Beta** | **Supported**，使用 Seatbelt | 主要的本地开发平台。 |
+| macOS amd64 | **Supported** | **Supported** | **Beta** | **Supported**，使用 Seatbelt | 发布归档目标。 |
+| Linux amd64 | **Supported** | **Supported** | Not supported | **Supported**，使用 `bwrap` | 主要的部署目标。 |
+| Linux arm64 | **Supported** | **Supported** | Not supported | **Supported**，使用 `bwrap` | 发布归档和容器目标。 |
+| Windows amd64 | **Beta** | **Beta** | **Beta** | Not supported | CI 在 Windows 上构建并测试。shell 行为与 Unix 不同；请使用 WSL2 进行设置/部署工作流。 |
+| WSL2 | **Best effort** | **Best effort** | Not supported | **Supported**，使用 `bwrap` | 推荐的 Windows 下 Unix shell 工作流路径。 |
+
+## 分发
+
+| 制品 | 状态 | 备注 |
+|---|---|---|
+| CLI/server/worker 的发布归档 | **Supported** | Linux amd64/arm64、macOS amd64/arm64、Windows amd64。 |
+| `go install github.com/gougoujiang/buildmax/cmd/buildmax@latest` | **Supported** | 仅 CLI。使用模块版本，不带发布归档来源元数据。 |
+| `ghcr.io/gougoujiang/buildmax` | **Beta** | 包含 CLI、server 和 worker 二进制文件。 |
+| `ghcr.io/gougoujiang/buildmax-portal` | **Beta** | 静态 Portal 镜像；API 基础 URL 在容器启动时配置。 |
+| Desktop 二进制发布 | Not supported | 从源码构建。已发布、已签名的安装程序不是 alpha 发布路径的一部分。 |
+| `@buildmax/gui` 的 npm 包 | Not supported | 共享的 GUI 包通过本地 `file:` 依赖被本仓库使用。 |
+
+## 运行时与模型提供商
+
+| 领域 | 状态 | 备注 |
+|---|---|---|
+| OpenAI 兼容的 chat completions | **Supported** | 通过 `settings.yaml` 或 `server.yaml` 中的 `models:` 条目配置。 |
+| OpenRouter | **Supported** | 默认的快速开始路径。 |
+| OpenAI 兼容的本地网关 | **Beta** | 当端点实现了兼容的 chat completion 行为时可用。 |
+| OpenAI Responses API | **Supported** | 设置 `provider: openai`；文本、工具、流式输出、推理状态、prompt-cache 用量和图像输入都使用共享的 LLM 契约。 |
+| Anthropic Messages API | **Supported** | 设置 `provider: anthropic`；原生适配器支持同一份共享契约，包括推理状态和 prompt 缓存。 |
+| 内置模型托管 | Not supported | 自带提供商、网关或本地推理服务器。 |
+| 多模态生成、语音或浏览器自动化 | Not supported | 当前运行时工具为文本、文件、shell、MCP、钩子、技能和子 Agent。 |
+
+## 部署与安全
+
+| 能力 | 状态 | 备注 |
+|---|---|---|
+| 本地单用户 CLI/TUI | **Supported** | 在一个你可以 diff 和回退的 git 工作树中启动。 |
+| 受信任的私有 server 部署 | **Beta** | 在阅读部署文档后，适用于本地实验室或受信任的网络。 |
+| Docker Compose 快速开始 | **Beta** | 快速的贡献者和单机路径。使用本地进程 worker 和本地文件系统存储。 |
+| 本地 kind 部署 | **Beta** | Kubernetes 贡献路径，带有自己的 MySQL 和 MinIO。是一个开发环境，而非部署模板。 |
+| 针对你自己的依赖进行私有 Kubernetes 部署 | **Beta** | `deployment/production/` 是一份纯 YAML 参考，加上每个依赖必须满足的契约。它是为阅读和改编而写的；不是照原样应用，也尚未针对真实的云账户演练过。 |
+| 公网 server 暴露 | Not supported | 密码和运维人员签发的登录码流程存在，但登录没有限流，也没有 SSO 或第二因素。在更大范围暴露之前，请在前面放置一个身份感知且限流的边界。 |
+| 运维人员签发的登录码 | **Beta** | 一次性的账户认领和恢复凭据，通过其他渠道投递，因为 BuildMax 没有邮件通道。 |
+| JWT 用户 API 和 space 成员授权 | **Beta** | 用户 API 使用 JWT；space 成员身份是资源边界。 |
+| 运行令牌 worker 认证 | **Beta** | 每个被分派的 worker 都会收到一个作用域限于单次任务运行的凭据，它是 worker 路由所接受的唯一凭据。旧的共享 worker 令牌已被移除。每个 worker 路由还强制执行运行的生命周期：除状态轮询外的一切都会被拒绝，除非运行处于 RUNNING，因此一个已泄露但尚未过期的令牌无法在认领之前或运行终止之后采取行动。 |
+| Worker API 网络边界 | **Beta** | worker 控制 API（`/api/worker/*`）通过 TLS 在一个单独的内部监听器上提供服务，位于公开 HTTP 表面之外。在 Kubernetes 上，它由 `buildmax-worker-api` Service 和一个只准许带标签 worker pod 的 NetworkPolicy 作为前端；公开 Ingress 不携带任何 worker 路由。kind 冒烟测试演练 HTTPS 通道并证明跨 pod 的拒绝。 |
+| Bash 沙箱 | **Beta** | 在每个界面上默认关闭。覆盖 `Bash` 子进程，而非主机上的每个工具或进程。 |
+| Worker pod 隔离 | **Beta** | Worker Job 运行时没有 service-account 令牌、根文件系统只读、除 `SYS_ADMIN`（`bwrap` 自己的沙箱运行所必需）之外丢弃了每一项 Linux 能力——但不是以非 root 身份运行，因为容器运行时为非 root pod 添加的能力在 exec 时不会落入该 pod 的有效集合中。Kubernetes 部署所依赖的边界是 `bwrap` 自己对 worker 的 Bash 调用进行的工作区作用域沙箱化，而不是 pod 自己的 uid。worker 仍会收到对象存储凭据。 |
+| 运行时钩子 | **Beta** | 可以观察或阻止选定的生命周期/工具事件。钩子失败即放行。 |
+| 持久运行追踪记录 | **Supported** | 默认开启，有界且已脱敏；失败不会中断运行。 |
+| 审计日志 | **Beta** | 记录登录、成员变更、模型目录变更和被拒绝的请求。仅 owner 可见，在 API 和 Portal 中都是。写入失败会被记录并丢弃，因此它记录的是数据库可达期间发生的事情，而不是保证每个操作都被记录。 |
+| 审批工作流 | Not supported | 已规划；今天不存在任何门槛。 |
+
+## 兼容性
+
+一次升级可以和不可以对一个部署做什么。凡是承诺尚不存在的地方，这里会明说，而不是暗示存在一个。
+
+### 数据库 schema —— 仅向前，默认可回退一个发布版本
+
+schema **仅向前**移动。没有向下迁移，`Migration` 类型也没有 `Down` 字段可供编写。那一半是结构性的，不会失效。
+
+你通常可以做的是把**二进制文件**回退一个发布版本：schema 版本 N 继续为来自发布版本 N-1 的代码提供服务，这就是为什么一次出错的升级可以通过重新部署上一个镜像 tag 来恢复。保持这一点开放需要付出一条规则的代价——在停止使用某项东西的那个发布版本中不移除它，因此一次移除需要两个发布版本——而 BuildMax 默认遵循它。
+
+这是一种纪律，而非机制，而且 **alpha 可以花掉它**。当一个存储形状是错的时，一次 alpha 发布可以一步纠正它，而不是再多背负它一个发布版本。这么做的发布会在其发布说明中说明。在一次你打算能够撤销的升级之前，请阅读发布说明。
+
+把**数据库**回退在任何情况下都不受支持。从一次糟糕的 schema 变更中恢复要靠从备份还原，因此在一次跨越携带迁移的发布版本的升级之前，请先做一次备份。一个遇到来自更晚发布版本的迁移的二进制文件会记录一条警告并继续运行；一个落后好几个发布版本的二进制文件没有这样的承诺，而那条日志是运维人员得到的唯一信号，表明他们正处于那种境地。
+
+### HTTP API —— 没有版本，所以要预期变化
+
+没有 `/v1` 前缀，也没有协商的版本。`openapi.json` 在 `/openapi.json` 提供服务，描述 server 注册的每一条路由，并在两个方向上针对它们进行测试——但描述一条路由并不等于承诺在 Beta 期间保留它。
+
+预期新增都是增量且安全的。不要假定某条路由、某个字段或某个状态码会在一次发布中存活下来，除非你阅读了变更日志。破坏性变更会在那里被指出；它不会被阻止。
+
+唯一的例外是受管推理的传输契约，它携带一个明确的版本（`llmwire.Version`），正是因为 CLI、Desktop 和 worker 构建独立于 server 移动。对其形状的变更需要一个新版本，而不是一次悄无声息的编辑。
+
+### 配置 —— 增量式，移除会被公告
+
+新键在添加时带有保留现有行为的默认值，`config-examples/server.example.yaml` 携带 server 读取的每一个键——当它没有时，会有一个测试失败。
+
+移除和重命名会在变更日志中指出。没有弃用期，也没有兼容垫片，因此你所依赖的一个键可能在一个发布版本中带着一条说明消失，而不是在两个发布版本中带着一条警告。
+
+凭据永远不会获得默认值。一个决定部署*连接到哪里*或*以谁的身份*连接的设置会被保持未设置，而不是指向某个貌似合理的地方。
+
+### 存储的数据
+
+运行 Artifact、运行状态和持久追踪记录以有文档记录的键布局写入对象存储，且不会被升级重写。BuildMax 从不删除它们；保留策略由运维人员配置。
+
+审计轨迹是唯一的例外，而且仅在被要求时：在 `server.yaml` 中设置 `audit.retention_days` 会使早于该窗口的事件过期，每次清扫都会把它移除的内容记录为一个 `audit.pruned` 事件。默认是保留一切。轨迹可以下载为 CSV 或 JSONL——一个 space owner 得到自己的，一个 System Administrator 得到整个部署的——而下载本身也会被记录。
+
+没有针对一个部署数据整体的导出或导入命令，因此迁移一个部署意味着把它的数据库和它的 bucket 一起迁移。
+
+## alpha 阶段的非目标
+
+- 生产级身份管理。真正的 OIDC/OAuth/SAML 登录、邀请流程和免密 OTP 投递不是当前 server 的一部分。
+- 多租户公有 SaaS 托管。BuildMax 面向本地使用和私有部署，而非运行一个不受信任的公共共享服务。
+- 保证模型选择的代码是安全的。将每一次运行都视为在用你的凭据和网络访问执行不受信任的命令。
+- 对每一项操作的完全沙箱化。沙箱针对的是 `Bash`；文件工具、MCP 工具、钩子和提供商调用有各自独立的边界。
+- 一个稳定的公共插件市场或托管集成目录。今天请使用 MCP、本地技能、钩子和配置进行扩展。
+- 一个 Airflow、Temporal、GitHub Actions 或 CI 的工作流引擎替代品。Workflow 是轻量的可复用 Agent 计划，而非通用编排器。
+- 一个 Git 托管或 IDE 替代品。Git 用于可见性和恢复；BuildMax 不替代评审、合并或仓库管理工作流。
+- 原生移动应用、浏览器扩展或已发布的 desktop 安装程序。
+
+## 如何阅读本页
+
+当一条路径是 **Supported** 时，对早期采用者来说尝试它并针对它报告 bug 应当是合理的。当一条路径是 **Beta** 或 **Experimental** 时，欢迎报告 bug，但修复可能包含接口变更。当一条路径被列为 **Not supported** 时，提交 issue 作为信号仍然有用，但在路线图另有说明之前，项目不会把该缺口当作发布阻塞项来对待。

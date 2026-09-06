@@ -1,0 +1,159 @@
+# 核心概念
+
+BuildMax 是一个 Go 编写的 Agent 运行时，通过三种界面暴露。理解你身处哪种界面，
+以及那里存在哪些对象，就能解释这个产品的大部分内容。
+
+## 一个运行时，三种界面
+
+| Surface | Binary / directory | What it is for |
+|---|---|---|
+| **CLI / TUI** | `buildmax` | 一个用户、一个本地目录、一个终端 |
+| **Desktop** | Wails 应用，从源码构建 | 同样的本地能力，配以更丰富的 UI |
+| **Portal** | `buildmax-server` + `portal/` | 一个 space：共享工作、后台执行、结果 |
+
+三者都运行**同一个 Agent 循环、同一套工具，以及同样的 MCP、技能和子 Agent
+行为**。它们之间的差异来自环境和权限，而非各自独立的 Agent 实现。你可以只使用
+本地界面、只部署 Portal，或者两者都用。
+
+## 两种运行画像，两种模型传输方式
+
+BuildMax 有两种产品运行画像：
+
+- **本地工作台（Local Workbench）：** CLI/TUI 或 Desktop 在一台机器的某个目录中
+  运行 Agent。无需 BuildMax Server。
+- **Space 平台（Space Platform）：** 服务器、Portal 和 worker 为私有部署增加了
+  共享工作、后台执行、托管模型、结果以及治理能力。
+
+这些画像与一次模型调用的传输方式是分开的。本地 CLI 或 Desktop 可以直接调用某个
+提供商，也可以使用某个 BuildMax 部署所批准的模型：
+
+| Agent execution | Model transport | Typical use |
+|---|---|---|
+| 本地 CLI/Desktop | `direct` | 个人端点、BYOK，或本地推理 |
+| 本地 CLI/Desktop | `buildmax` | 本地文件与工具，配企业托管的模型 |
+| Worker | `buildmax` | 集中授权并计入账目的后台执行 |
+| Worker | `direct` | 一个已经分发或注入提供商访问的部署 |
+
+传输方式始终是显式的。BuildMax 绝不会从托管模型回退到直连条目，因为那会悄悄
+改变提示词、源代码和工具结果的去向。
+
+## Agent 循环
+
+每一次运行，在每种界面上，都是同一个循环：
+
+```text
+prompt → LLM → tool calls → execute tools → results back to LLM → … → reply
+```
+
+这些工具是普通的本地操作：`Read`、`Write`、`Edit`、`Bash`、`Glob`、`Grep`、
+`WebFetch`、`TodoWrite`，外加技能、子 Agent，以及任何由已连接的 MCP 服务器
+暴露的工具 —— 见[工具](tools.md)。
+
+有两个机制环绕在这个循环周围，值得尽早了解：
+
+- **钩子**可以观察或*阻止*事件 —— 一个提示词、一次工具调用、一次压缩
+  （compaction）。见[钩子](hooks.md)。
+- **沙箱**按文件系统路径和网络域限制 `Bash` 子进程。见[沙箱](sandbox.md)。
+
+每一次运行还会写入一份**持久的追踪记录** —— 一份经脱敏的 JSONL 记录，记录 LLM
+调用和工具调用 —— 位于其会话文件夹内，路径为
+`<BUILDMAX_HOME>/sessions/<session_id>/traces/`。见
+[会话与追踪记录](sessions-and-traces.md)。
+
+## 本地对象
+
+| Object | Meaning |
+|---|---|
+| **Workspace** | Agent 操作所在的目录。默认为当前目录；用 `--workspace` 设置。 |
+| **Session** | 一次带消息历史的多轮对话，保存在 `<BUILDMAX_HOME>/sessions/` 下。用 `--continue` 或 `--resume <id>` 恢复。 |
+| **Project** | 会话所属的本地工作单元：一个 Git 仓库（包括其所有 worktree），或一个普通文件夹。它是 `--continue` 和会话选择器所限定的范围，也是项目记忆所归属的对象。 |
+| **`AGENTS.md`** | 位于工作区根目录的可选文件，追加到系统提示词，使 Agent 采纳项目约定。见[项目指令](project-instructions.md)。 |
+
+## Space 对象（Portal）
+
+Portal 在同一个运行时之上增加了一个共享模型。若要更深入地使用 Portal，见
+[Portal 概览](portal-overview.md)。
+
+| Object | Meaning |
+|---|---|
+| **Space** | 所有权边界。下面的一切都归属于某个 space。个人使用是一个名为 `My Space` 的单成员 space。 |
+| **Conversation** | 用户与系统交谈的方式。这是入口。 |
+| **Issue** | 面向用户的工作单元 —— 某人实际想要完成的事情。 |
+| **Agent** | 一个 space 可以复用的、已保存的 Agent 定义。 |
+| **Workflow** | 一个可复用的执行计划；当前是一个线性的步骤序列。生命周期：`draft`、`published`、`archived`。 |
+| **Task / TaskRun** | 底层的执行记录。一个 task 可以有多个 run。用户很少直接看到它们。 |
+
+Space 角色为 `owner`、`admin` 和 `member`。上传的文件、issues、workflows、
+conversations 和 tasks 都是 space 范围内的。
+
+Owner 和 admin 可以在 **Space → Overview** 下设置共享的 Agent 指令。这些指令
+会在选定的 Agent 自身指令之前，被发送给该 Space 中的每一次后台 Agent 运行，
+且不会改变前台的 Conversation 协调者。由于这段文本会随每次模型调用一起发送，
+请保持简洁，绝不要在其中放入密码、API key 或其他机密。
+
+删除一个 agent 会把它从 space 中移除，但保留其背后的记录，因此已经引用它的
+运行和历史仍可读，而正在进行的 workflow 运行会完成。一个仍被已发布 workflow
+使用的 agent 无法被删除，直到该 workflow 被更改或归档。
+
+Agent 和 workflow 保留带编号的历史。每次编辑都会记录它产生的定义，以及是谁编写
+的，并且可以恢复较早的版本 —— 这会记录一个新版本，而不是抹去此后的那些版本。
+一次 workflow 运行会记下它展开时所用的 workflow 版本，以及每个步骤运行时所用的
+agent 版本，因此在定义继续演进之后，过去的运行仍然可读。
+
+## 两个层级
+
+Portal 将前台聊天与持久的 Agent 执行分开：
+
+```text
+conversation ──may create──▶ task ──contains──▶ task_run
+                                  └───────────▶ result / artifacts
+
+agent / issue / workflow / API ──may create──▶ task
+```
+
+- **Conversation** 是前台聊天。它可以直接回答，也可以在需要协调时启动后台工作。
+- **Task** 是一个持久的 Agent 执行线程。一个 Task 也可以在没有 Conversation 的
+  情况下，直接由一个 Agent、Issue、Workflow 或 API 启动。
+- **TaskRun** 是一次执行轮次或尝试。一个 worker 会物化 space 的文件，运行共享的
+  Agent 运行时，写入 artifacts，并把结果记录在 TaskRun 上。
+
+一个启动了 Task 的 Conversation 可能会以卡片或链接的形式展示其结果。那种投影是
+可选的：TaskRun 结果本身仍然是完整且可检查的。直接 Agent 执行和 Task 线程的
+Continue 界面是已认可的方向，但尚未实现。
+
+## 工作实际如何执行
+
+```text
+Portal ──▶ server ──▶ task_run (PENDING)
+                          │
+                     scheduler claims it
+                          │
+                          ▼
+                  buildmax-worker process
+                     ├─ materialize space files → run home/
+                     ├─ prepare AGENTS.md
+                     ├─ run the shared agent runtime
+                     └─ write artifacts/ → report back
+```
+
+调度器在服务器进程内部运行。worker 直接与 blob 存储通信，而不是通过服务器代理
+文件，并通过一个基于 token 鉴权的 worker API 汇报状态。
+
+正在进行的运行可以被停止：当一个 task 处于 pending 或 running 时，Issue Detail
+提供 **Stop Run**。无人接手的运行会立即结束。正在被 worker 执行的运行会被要求
+停止，并在该 worker 停下后以 `canceled` 结束 —— 通常在几秒内。无论哪种方式，
+运行都会保留它到那时为止已产出的内容，所以提前停止让你损失的是剩下的工作，而
+不是已完成的部分。
+
+已完成的运行可以被重复：一旦一次运行结束，Issue Detail 就提供 **Retry Run**。
+重试运行的是上次运行所用的相同指令，因此从死掉的 worker 或超时的模型中恢复
+并不意味着重新输入它们。它像任何其他运行一样计入你 space 的配额，并且不触动它
+所重复的那次运行 —— 记录出错原因的那份记录仍然可读。一个作为 workflow 步骤的
+task 无法以这种方式重试：workflow 拥有该步骤的结果，重新运行 workflow 才是
+重复它的方式。
+
+## 下一步
+
+- 在本地运行一些东西：[快速开始](quickstart.md)
+- 在 Portal 中处理 issues：[Portal issues](portal-issues.md)
+- Portal 中的 agents 和 workflows：[Portal agents and workflows](portal-agents-workflows.md)

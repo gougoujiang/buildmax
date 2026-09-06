@@ -247,7 +247,7 @@ func (s *Store) CreateTaskRun(ctx context.Context, in coretask.CreateRunInput) (
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var taskLock taskRow
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Select("id", "last_run_id").Where("public_id = ?", canonicalTaskID).Take(&taskLock).Error; err != nil {
+			Select("id", "last_run_id", "workspace_head_checkpoint_id").Where("public_id = ?", canonicalTaskID).Take(&taskLock).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return apierr.ErrNotFound
 			}
@@ -295,25 +295,42 @@ func (s *Store) CreateTaskRun(ctx context.Context, in coretask.CreateRunInput) (
 		}
 
 		row = &taskRunRow{
-			TaskID:                taskKey,
-			PreviousTaskRunID:     taskLock.LastRunID,
-			Input:                 in.Input,
-			CreatedBy:             in.CreatedBy,
-			CreatedByType:         defaultString(in.CreatedByType, coretask.RunCreatedByTypeUser),
-			TriggerSource:         defaultString(in.TriggerSource, coretask.RunTriggerSourceTaskRerun),
-			Status:                "PENDING",
-			CreatedAt:             time.Now().UTC(),
-			AgentRevision:         in.AgentRevision,
-			SandboxNetworkTier:    in.SandboxNetworkTier,
-			SandboxFilesystemTier: in.SandboxFilesystemTier,
-			IdempotencyKey:        in.IdempotencyKey,
+			TaskID:            taskKey,
+			PreviousTaskRunID: taskLock.LastRunID,
+			Input:             in.Input,
+			CreatedBy:         in.CreatedBy,
+			CreatedByType:     defaultString(in.CreatedByType, coretask.RunCreatedByTypeUser),
+			TriggerSource:     defaultString(in.TriggerSource, coretask.RunTriggerSourceTaskRerun),
+			Status:            "PENDING",
+			CreatedAt:         time.Now().UTC(),
+			AgentRevision:     in.AgentRevision,
+			// A run continuing the Task starts from the Task's committed workspace
+			// head. A first run has none, so the base stays null and the worker
+			// establishes the seed. Retry overrides this below. See
+			// docs/design/task-workspace-checkpoints.md §5.2.
+			WorkspaceBaseCheckpointID: taskLock.WorkspaceHeadCheckpointID,
+			SandboxNetworkTier:        in.SandboxNetworkTier,
+			SandboxFilesystemTier:     in.SandboxFilesystemTier,
+			IdempotencyKey:            in.IdempotencyKey,
 		}
 		if in.RetryOfTaskRunID != nil && *in.RetryOfTaskRunID != "" {
-			key, err := lookupKey(ctx, tx, "task_run", *in.RetryOfTaskRunID)
-			if err != nil {
+			canonicalRetryOf, ok := util.CanonicalPublicID(*in.RetryOfTaskRunID)
+			if !ok {
+				return apierr.ErrNotFound
+			}
+			var retryOfRow taskRunRow
+			if err := tx.Select("id", "workspace_base_checkpoint_id").
+				Where("public_id = ?", canonicalRetryOf).
+				Take(&retryOfRow).Error; err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return apierr.ErrNotFound
+				}
 				return err
 			}
-			row.RetryOfTaskRunID = &key
+			row.RetryOfTaskRunID = &retryOfRow.ID
+			// Retry repeats an attempt, so it receives the exact base the repeated
+			// run received — never that run's partial or result. See §5.3.
+			row.WorkspaceBaseCheckpointID = retryOfRow.WorkspaceBaseCheckpointID
 			retryOf = optionalCanonicalPublicID(in.RetryOfTaskRunID)
 		}
 		// A message that cannot be resolved leaves the run unattributed rather

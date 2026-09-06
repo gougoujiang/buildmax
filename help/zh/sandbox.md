@@ -1,0 +1,111 @@
+# 沙箱
+
+沙箱限制由 `Bash` 工具启动的子进程：它们可以读写哪些路径，以及可以访问哪些网络目的地。它是 BuildMax 围绕模型选择的 shell 命令所提供的最强边界。
+
+在你依赖它之前，有两点要说清楚：
+
+- **它只覆盖 `Bash`。** 其他工具（`Read`、`Write`、`Edit`、`Glob`、`Grep`）保留它们自己的路径检查——工作区根边界——并且不受这些设置的影响。
+- **它默认禁用，** 包括在 worker 上。开启它是一个刻意的动作。
+
+## 可用性
+
+| 平台 | 后端 | 状态 |
+|---|---|---|
+| macOS | Seatbelt（`sandbox-exec`） | 支持 |
+| Linux、WSL2 | `bwrap`（bubblewrap） | 支持 |
+| 原生 Windows | — | 不可用 |
+
+在配置任何东西之前先检查你的主机：
+
+```bash
+buildmax sandbox deps      # bwrap / sandbox-exec / socat 是否存在？
+buildmax sandbox status    # 解析后的配置，以及每个值由哪一层设定
+```
+
+## 开启它
+
+对一次 TUI 或 print 模式运行，无需改动 `settings.yaml`：
+
+```bash
+buildmax --sandbox
+buildmax --sandbox --sandbox-mode regular
+```
+
+`--sandbox-mode` 接受 `auto_allow` 或 `regular`，并需要 `--sandbox`。一个显式的 `--sandbox` 在缺少 OS 后端时会让运行在启动时失败；它绝不会悄悄回退到无沙箱的 Bash。这里刻意没有 `--no-sandbox` 标志：一次单次运行的便利不该削弱由配置或运维策略所要求的边界。
+
+要把沙箱设为用户默认：
+
+```bash
+buildmax sandbox enable
+buildmax sandbox mode auto_allow
+```
+
+或者直接编辑 `<BUILDMAX_HOME>/settings.yaml` 中的 `sandbox:` 块。当沙箱生效时，TUI 页脚会显示模式。
+
+### 模式
+
+| 模式 | 行为 |
+|---|---|
+| `auto_allow` | 一条在沙箱中运行的命令会跳过审批提示——边界是那层限制，而不是你的注意力 |
+| `regular` | 即使在沙箱中也保留正常的审批行为 |
+
+`auto_allow` 才是真正改变 Agent 使用手感的模式：你不再审批每一条命令，因为影响范围已经被限定住了。
+
+## 边界
+
+```yaml
+# <BUILDMAX_HOME>/settings.yaml
+sandbox:
+  enabled: true
+  fail_if_unavailable: false          # true = 拒绝在无沙箱下运行 bash
+  auto_allow_bash_if_sandboxed: true
+  allow_unsandboxed_commands: false   # 针对逐次调用逃生舱的开关
+  excluded_commands: []               # 从不进入沙箱的命令
+
+  filesystem:
+    allow_write: ["."]
+    deny_write:  ["~/.ssh", "~/.aws"]
+    allow_read:  ["."]
+    deny_read:   ["~/.ssh"]
+
+  network:
+    allowed_domains: ["api.github.com", "proxy.golang.org"]
+    denied_domains:  []
+    allow_local_binding: false
+    allow_all_unix_sockets: false
+
+  process:
+    max_cpu_seconds: 0    # 0 = 该层不设限制
+    max_memory_mb: 0
+    max_processes: 0
+    max_open_files: 0
+```
+
+网络控制的实现方式是把出站流量路由经过一个 Go 侧的 HTTP/SOCKS 代理，因此域名规则无需逐个工具支持就能应用于沙箱内的普通工具。看起来像密钥的环境变量（`*_TOKEN`、`*_KEY`、`*_SECRET`，以及 BuildMax 自己的凭据）会从子进程环境中被清除，除非你显式地列出它们。
+
+`sandbox.process` 限定一条沙箱化命令自身的资源使用——CPU 时间、内存、进程数和打开的文件描述符。`max_memory_mb` 在 macOS 上无效：Darwin 不像 Linux 那样支持限制进程的虚拟内存，因此该设置在那里悄然成为一个空操作。
+
+## 运维策略
+
+`<BUILDMAX_HOME>/policy.yaml` 持有一个形态相同的 sandbox 块，并且是最终权威。沙箱的优先级是 `policy.yaml` > 逐次运行的 CLI > `BUILDMAX_SANDBOX_ENABLED` > `settings.yaml` > 场合默认值。特别地，一个环境变量无法关闭策略所要求的沙箱。当机器的所有者和机器的使用者不是同一人时，使用策略文件。
+
+有两个键让策略层成为权威而不仅仅是叠加：`allow_managed_read_paths_only` 和 `allow_managed_domains_only` 会使下层的 `allow_read` 和 `allowed_domains` 条目被忽略。
+
+## 逃生舱
+
+单次调用可以请求 `dangerously_disable_sandbox`。它**仅**在 `allow_unsandboxed_commands: true` 时被采纳。保持它为 false，该标志就是惰性的——这正是让它由配置门控而非成为一个运行时决定的意义所在。
+
+## 已知空缺
+
+沙箱如今确实有用，但它尚未完成：
+
+- `buildmax sandbox overrides <strict|permissive>` 尚未实现；`allow_unsandboxed_commands` 只能手动编辑
+
+一个 `command` 或 `http` 钩子如今会经过与一次沙箱化的 `Bash`/`WebFetch` 调用相同的限制——一个钩子无法触及沙箱存在的意义所要限制的东西——但钩子不带 `dangerously_disable_sandbox` 的等价物：它们是由配置书写的自动化，而不是一次你逐轮盯着看的、由 LLM 选择的调用，因此没有让它逐次调用地选择退出的理由。
+
+不要把沙箱当作审查一个部署被允许触及什么的替代品。
+
+## 相关
+
+- [钩子](hooks.md) —— 阻止一条命令，而非限制它
+- [工具权限](tool-permissions.md) —— 控制一个工具是否运行，而非它能触及什么

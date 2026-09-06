@@ -1,0 +1,121 @@
+# 钩子
+
+钩子让你能观察——对某些事件还能**阻止**——Agent 所做的事。它们是"绝不让它运行 `rm -rf`""每次编辑后格式化""把工具失败发送到我们的审计服务"以及"拒绝含有客户数据的提示词"背后的机制。
+
+## 它们放在哪里
+
+| 层 | 文件 | 作用于 |
+|---|---|---|
+| 全局 | `<BUILDMAX_HOME>/settings.yaml`，`hooks:` 块 | 本机上的每次运行 |
+| 工作区 | `<workspace>/.buildmax/hooks.yaml` | 该工作区中的运行 |
+
+这两层是**叠加式**的：全局钩子先运行，然后是工作区钩子。工作区无法移除一个全局钩子——这正是全局层可用作运维控制手段的原因。
+
+## 事件
+
+如今附带十六个事件。其中三个能阻止；其余为告知性的。
+
+| 事件 | 门控 | 触发时机 |
+|---|---|---|
+| `session_start` / `session_end` | — | 一个会话打开或关闭 |
+| `user_prompt_submit` | **是** | 一条用户提示词即将进入 Agent |
+| `pre_tool_use` | **是** | 一个工具执行之前 |
+| `post_tool_use` | — | 一个工具成功了 |
+| `post_tool_use_failure` | — | 一个工具返回了错误 |
+| `notification` | — | 需要审批，或权限被拒 |
+| `pre_compact` | **是** | 上下文压缩之前 |
+| `post_compact` | — | 上下文压缩之后 |
+| `subagent_start` / `subagent_stop` | — | 子 Agent 生命周期 |
+| `stop` / `stop_failure` | — | 主 Agent 完成了 |
+| `worktree_create` / `worktree_remove` | — | 一个工作树被创建，或连同其分支被移除 |
+| `cwd_changed` | — | 会话的工作区根发生了移动，包括移入一个新的工作树 |
+
+子 Agent 继承父级的钩子，且每个事件都会被打上 `is_subagent` 和 `agent_type` 的标记，好让钩子能区分。
+
+## 传输方式
+
+每条钩子条目都选择一个 `type`。省略它意味着 `command`。
+
+| `type` | 行为 |
+|---|---|
+| `command` | 运行一条 shell 命令；事件 JSON 通过 stdin 传入 |
+| `http` | 把事件 JSON POST 到一个 URL |
+| `mcp_tool` | 在一台已连接的 MCP 服务器上调用一个工具 |
+| `prompt` | 一次单轮 LLM 调用；`$ARGUMENTS` 展开为事件 JSON |
+
+## 阻止契约
+
+一个门控钩子通过以下任一方式拒绝该动作：
+
+- `command` —— 退出码 **2**（stderr 成为展示给模型的原因）
+- `http` —— 状态码 **422**（响应体成为原因）
+- 任意传输方式 —— 一个 JSON 响应 `{"decision":"block","reason":"..."}`
+
+**其他任何情况都会 fail open。** 一个超时、崩溃或返回垃圾内容的钩子会放行该动作。这是刻意的：一个坏掉的钩子绝不能让 Agent 变砖。如果你需要硬性拒绝，就把失败模式做成显式的，而不是依赖钩子可达。
+
+## 匹配与超时
+
+`matcher` 是对工具名称的一个正则表达式，作用于 `pre_tool_use`、`post_tool_use` 和 `post_tool_use_failure`。空匹配器匹配每一次调用。`timeout` 以秒为单位，默认为 30。
+
+## 示例
+
+用一个中心策略服务阻止有风险的工具调用，并在编辑后格式化：
+
+```yaml
+# <BUILDMAX_HOME>/settings.yaml
+hooks:
+  pre_tool_use:
+    - type: http
+      matcher: "Bash|Write|Edit"
+      url: "https://policy.internal/check"
+      headers:
+        Authorization: "Bearer $POLICY_TOKEN"
+      allowed_env: [POLICY_TOKEN]     # 只有列出的环境变量会被插值
+      timeout: 5
+
+  post_tool_use:
+    - type: command
+      matcher: "Write|Edit"
+      command: "gofmt -w ."
+
+  post_tool_use_failure:
+    - type: mcp_tool
+      server: "audit"
+      tool: "record_failure"
+      input:
+        tool: "${tool_name}"
+        error: "${tool_error}"
+        path: "${tool_args.path}"
+```
+
+在模型看到提示词之前扫描它们：
+
+```yaml
+hooks:
+  user_prompt_submit:
+    - type: command
+      command: "./.buildmax/hooks/redact.sh"    # 退出码 2 会阻止该提示词
+      timeout: 5
+```
+
+用一个 LLM 作为 shell 命令的裁判——挑一个便宜的模型，因为这会在每次匹配的调用上触发：
+
+```yaml
+hooks:
+  pre_tool_use:
+    - type: prompt
+      matcher: "Bash"
+      model: ""            # 空 = settings.yaml 中的默认模型
+      prompt: |
+        You are reviewing a tool call. Reply with one JSON object:
+        {"decision":"allow"|"block","reason":"..."}
+        Call:
+        $ARGUMENTS
+```
+
+只有在 `allowed_env` 中列出的环境变量才会被插值进钩子定义，因此一个钩子配置无法悄悄外泄整个环境。
+
+## 相关
+
+- [沙箱](sandbox.md) —— 限制 `Bash` 而非对它进行门控
+- [工具](tools.md) —— 一个 `matcher` 必须匹配的确切工具名称

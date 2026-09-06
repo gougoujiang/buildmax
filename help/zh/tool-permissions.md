@@ -1,0 +1,106 @@
+# 工具权限
+
+BuildMax 会在一个改变某些东西的工具调用之前询问，且只在有人可询问的场合询问。读操作无声地运行；写操作会停下来等待。本页讲的是改变这一点：让一个你不需要的提示安静下来，加上一个你需要的提示，以及查明一次调用为何被拒。
+
+## 开箱即用时什么会提示
+
+运行这条命令来查看你机器上的答案，而不是在这里读它：
+
+```bash
+buildmax tools status
+```
+
+```text
+TOOL       ACCESS     ACTION  SOURCE
+Read       read-only  allow   derived
+Write      write      ask     derived
+Edit       write      ask     derived
+Bash       write      allow   derived
+Task       write      ask     derived
+TodoWrite  write      allow   derived
+```
+
+有三列值得仔细读：
+
+- **ACCESS** 是工具所声称此次调用做的事。只读工具从不提示。
+- **ACTION** 是有人在场时按类别给出的答案。会检视自身参数的工具仍可能逐次调用有所不同——见下面两个例外。
+- **SOURCE** 在 BuildMax 自行推断时为 `derived`，在你配置过它时为 `settings`。
+
+那张表里有两个条目并不是它们看起来的样子：
+
+- **`Bash` 显示 `allow`** 是因为它逐条评判命令而不是按类别。一条普通的 `ls` 会运行；一条有风险的命令会询问；一条灾难性的命令会被直接拒绝。否则它会对每一条 `git status` 都提示。
+- **`TodoWrite` 和 `NoteWrite` 显示 `allow`**，尽管它们是写操作。它们写的是 Agent 自己的临时状态，而不是你的文件。
+
+## 回应一个提示
+
+```text
+Tool: Write
+  file_path: internal/server/routes.go
+
+Allow once(y)  Allow session(a)  Deny(n)    ←→ select  enter: confirm
+```
+
+`a` 是最该用的那个。它会在本次会话余下时间里停止对该工具的询问，并在 BuildMax 退出时被遗忘——没有任何东西写入磁盘。对于一次 MCP 调用，它只覆盖那一台服务器的那一个工具，而不是你配置过的每一个 MCP 工具。
+
+## 让它永久生效
+
+当一个授予是你会给每次会话的，就把它放进 `<BUILDMAX_HOME>/settings.yaml`：
+
+```yaml
+tools:
+  permissions:
+    Write: allow                        # 文件写入之前不再询问
+    Edit: allow
+    Bash: deny                          # 完全不允许 shell
+    "CallMcpTool:github/*": allow       # 信任某一台服务器的工具
+    "CallMcpTool:jira/delete_issue": deny
+```
+
+键是工具名称，或一个工具加上它所分派到的目标，可带一个可选的尾随 `*`。大小写无关紧要。最具体的规则胜出：先是精确目标，然后是最长的匹配模式，然后才是裸工具名。
+
+`buildmax tools status` 届时会在 SOURCE 列显示 `settings`，并会列出它不得不忽略的任何规则。
+
+### `allow` 让提示安静，而非让安全检查安静
+
+`Read: allow` 意思是"别再就读操作问我"。它**不**意味着"不告诉我就打开 `~/.ssh/id_rsa`"——一个敏感路径仍会提示，一条有风险的 shell 命令也会。只有 `deny` 才凌驾于那些检查之上。
+
+如果你想让一个工具彻底消失，`deny` 才是那个设置。它会拒绝该调用并告诉模型原因，这通常比让工具悄悄地不存在更有用。
+
+## MCP 调用
+
+一台 MCP 服务器会描述它的每个工具，并可将其中一个标记为只读。BuildMax 用这一点：被服务器标注为只读的工具会无需提示直接运行，其他任何工具都会询问。
+
+由于这是服务器自己的声明，可推出两点：
+
+- **省略该标注的服务器会被当作写操作处理。** 协议无法区分"非只读"和"未说明"，因此两者都会提示。一台行为良好、只是忘了标注的只读服务器每次都会询问——在本次会话中允许它，或写一条规则。
+- **该声明决定的是你是否被询问，绝不决定该调用是否受信任。** 你写的一条规则才是唯一能授予任何东西的东西。
+
+## 无人值守的运行
+
+Print 模式（`buildmax -p`）、worker 上的任务运行，以及 Portal 会话都没有人可询问。它们完全不会引发按类别的提示：`Write` 和 `Edit` 的行为与一贯完全一致。
+
+那里有两点确实会改变：
+
+- **你设置中的 `ask` 意味着必须有人来看**，因此在没有人的地方该调用会被拒绝而不是运行。如果你的本意是"让它在无人值守下通过"，就用 `allow`。
+- **一次服务器未标注为只读的 MCP 调用会被拒绝。** 这是无人值守行为收紧的唯一一处。目前没有办法为一个 worker 覆盖它。
+
+有风险的 shell 命令在这些场合本就已被拒绝，如今依然如此。
+
+## 当一次调用被拒时
+
+模型会在工具结果中被告知原因，且该原因会点名是哪一层：
+
+| 消息 | 含义 |
+|---|---|
+| `denied by policy` | 一条 `deny` 规则，或 `ask` 却没有人可询问 |
+| `denied by user` | 你按了 `n` |
+| `denied by hook` | 一个 `PreToolUse` 钩子阻止了它——见[钩子](hooks.md) |
+| `blocked — repeated identical call` | 循环保护，而非权限 |
+
+`buildmax tools status` 会显示哪条规则在生效；TUI 中的 `/tools` 会标出任何不会径直运行的工具。
+
+## 相关
+
+- [工具](tools.md) —— 每个内置工具做什么
+- [钩子](hooks.md) —— 在权限通过之后，用你自己的逻辑阻止调用
+- [沙箱](sandbox.md) —— 限制 `Bash` 能触及什么，而非它是否运行

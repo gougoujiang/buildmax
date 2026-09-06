@@ -26,6 +26,54 @@
   color: var(--color-text-subtle);
 }
 
+/* Title and language toggle share the top row of the nav. */
+.help__nav-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.help__nav-head .help__nav-title {
+  margin: 0;
+}
+
+.help__lang {
+  display: inline-flex;
+  flex-shrink: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.help__lang-btn {
+  border: none;
+  background: transparent;
+  color: var(--color-text-subtle);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 4px 8px;
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s;
+}
+
+.help__lang-btn + .help__lang-btn {
+  border-left: 1px solid var(--color-border);
+}
+
+.help__lang-btn:hover {
+  color: var(--color-text);
+  background: var(--color-bg-hover);
+}
+
+.help__lang-btn--active {
+  color: var(--color-text);
+  background: var(--color-bg-hover);
+}
+
 .help__nav-section {
   margin-bottom: 18px;
 }
