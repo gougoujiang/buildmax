@@ -4277,7 +4277,21 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "properties": {"status": {"type": "string"}, "error_message": {"type": "string"}}
+                "properties": {
+                  "status": {"type": "string"},
+                  "error_message": {"type": "string"},
+                  "workspace_checkpoint": {
+                    "type": "object",
+                    "description": "Result checkpoint captured from workspace/ after a successful run; committed as the terminal outcome is accepted.",
+                    "properties": {
+                      "payload_format": {"type": "string"},
+                      "payload_sha256": {"type": "string"},
+                      "size_bytes": {"type": "integer"},
+                      "uncompressed_bytes": {"type": "integer"},
+                      "entry_count": {"type": "integer"}
+                    }
+                  }
+                }
               }
             }
           }
