@@ -172,6 +172,32 @@ export function AdminAccounts({
     }
   }
 
+  // The joiner flow: create and issue-a-code stay separate calls with separate
+  // audit events, but the operator is walked from one to the next. Creating an
+  // account lands on its detail — where the login-code button is — with the
+  // reason it still cannot sign in stated, rather than leaving the operator to
+  // find the account again for step two.
+  async function createJoiner(email: string): Promise<void> {
+    if (!token) return
+    setBusy(true)
+    setError(null)
+    setNotice(null)
+    try {
+      const user = await createAdminUser(token, email)
+      setNewEmail("")
+      load(query, 0, filters)
+      navigate({ name: "admin", section: "accounts", userId: user.id })
+      setNotice(
+        `Created ${user.email}. It cannot sign in yet — issue a login code below ` +
+          "and deliver it over a channel you trust.",
+      )
+    } catch (err) {
+      setError(getErrorMessage(err, "The account was not created"))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   // A filter change always returns to the first page: the offset it was on may
   // not exist in the narrower result.
   function applyFilter(patch: Partial<AccountFilters>) {
@@ -372,10 +398,7 @@ export function AdminAccounts({
             e.preventDefault()
             const email = newEmail.trim()
             if (!email) return
-            act(
-              () => createAdminUser(token!, email),
-              (user) => `Created ${user.email}. It has no password yet.`,
-            ).then(() => setNewEmail(""))
+            createJoiner(email)
           }}
         >
           <input

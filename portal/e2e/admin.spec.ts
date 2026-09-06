@@ -106,6 +106,24 @@ test("the last-login range filter narrows the account list", async ({ page }) =>
   await expect(page.locator(".settings-section__error")).toHaveCount(0)
 })
 
+test("creating an account walks the operator into issuing its login code", async ({ page }) => {
+  await page.goto("/#/admin/accounts")
+  await expect(page.getByRole("heading", { name: "Accounts" })).toBeVisible()
+
+  const email = `joiner-${Date.now()}@example.com`
+  await page.getByLabel("Email for the new account").fill(email)
+  await page.getByRole("button", { name: "Create", exact: true }).click()
+
+  // Creating lands on the new account's detail — where the credential is issued
+  // — rather than leaving the operator to find it again. The account exists but
+  // still cannot sign in, and the page says so.
+  await expect(page).toHaveURL(/#\/admin\/accounts\/.+/)
+  await expect(page.getByRole("heading", { name: email })).toBeVisible()
+  await expect(page.getByText("cannot sign in yet")).toBeVisible()
+  await expect(page.getByRole("button", { name: "Issue a login code" })).toBeVisible()
+  await expect(page.locator(".settings-section__error")).toHaveCount(0)
+})
+
 test("the audit search reaches the events that have no space", async ({ page }) => {
   await page.goto("/#/admin/audit")
   await expect(page.getByRole("heading", { name: "Audit trail" })).toBeVisible()
