@@ -31,6 +31,7 @@ func newAdminCommand() *cobra.Command {
 	cmd.AddCommand(newAdminListCommand())
 	cmd.AddCommand(newAdminGrantCommand())
 	cmd.AddCommand(newAdminRevokeCommand())
+	cmd.AddCommand(newAdminUserCommand())
 	cmd.AddCommand(newAdminModelCommand())
 	return cmd
 }

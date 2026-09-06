@@ -36,6 +36,10 @@ buildmax <command> [flags]
 | `buildmax admin list` | List deployment administrators; `--all` includes revoked grants (System Administrator only) |
 | `buildmax admin grant <email>` | Grant deployment-administrator authority to an existing account |
 | `buildmax admin revoke <email>` | Revoke an account's administrator authority (refuses the last one) |
+| `buildmax admin user list` | List accounts; `--search` filters by email substring |
+| `buildmax admin user create <email>` | Create an account (grants no way in; issue a login code next) |
+| `buildmax admin user login-code <email>` | Issue a single-use login code, printed once |
+| `buildmax admin user disable` / `enable <email>` | Disable an account (revoking its sessions) or re-enable it |
 | `buildmax admin model list` | List catalog models, enabled or not, and which is the default |
 | `buildmax admin model add` | Add a model to the catalog; `--api-key` is stored encrypted and never read back |
 | `buildmax admin model enable` / `disable <model_id>` | Enable or retire a catalog model |
@@ -255,6 +259,23 @@ on the machine that runs the server. Creating the first administrator and
 recovering a deployment that has lost every administrator likewise stay in
 `buildmax-server admin`, which reaches the database directly; `buildmax admin`
 is the routine, authenticated peer, not the break-glass path.
+
+`buildmax admin user` manages accounts over the same API — the authenticated
+peer of `buildmax-server user`, which reaches the database directly for bootstrap
+and recovery:
+
+```bash
+buildmax admin user list --search corp.com          # accounts, filtered by email
+buildmax admin user create alex@corp.com            # no way in yet
+buildmax admin user login-code alex@corp.com        # printed once
+buildmax admin user disable alex@corp.com           # also revokes their sessions
+buildmax admin user enable  alex@corp.com
+```
+
+Creating an account and issuing a login code are separate steps on purpose: a
+new account cannot sign in until a code is issued, and the code is shown once
+and recoverable nowhere. There is no `set-password` here; issuing a login code
+lets the person choose their own password and is the safer equivalent.
 
 `buildmax admin model` manages the model catalog over the same API:
 
