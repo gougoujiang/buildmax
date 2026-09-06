@@ -26,27 +26,64 @@ type storedBlob struct {
 	bytes   []byte
 }
 
-// fakeCheckpointStore records what a capture uploaded and recomputes the digest
-// of the exact bytes it received, so a test can prove the reported digest covers
-// the stored bytes.
+// fakeCheckpointStore records what a capture uploaded and serves it back by the
+// content-addressed key, so a test can prove the reported digest covers the
+// stored bytes and that a restore reads the same bytes back.
 type fakeCheckpointStore struct {
-	puts []storedBlob
+	puts   []storedBlob
+	blobs  map[string][]byte // key -> bytes
+	putErr error
+}
+
+func fakeCheckpointKey(spaceID, sha256hex string) string {
+	return spaceID + "/workspace/blobs/sha256/" + sha256hex
 }
 
 func (f *fakeCheckpointStore) Put(_ context.Context, spaceID, sha256hex string, src io.Reader) (string, error) {
+	if f.putErr != nil {
+		return "", f.putErr
+	}
 	raw, err := io.ReadAll(src)
 	if err != nil {
 		return "", err
 	}
 	f.puts = append(f.puts, storedBlob{spaceID: spaceID, sha: sha256hex, bytes: raw})
-	return "key/" + sha256hex, nil
+	key := fakeCheckpointKey(spaceID, sha256hex)
+	if f.blobs == nil {
+		f.blobs = map[string][]byte{}
+	}
+	f.blobs[key] = raw
+	return key, nil
 }
 
-// seedRecorder is a worker API stand-in that records the seed finalize request
-// and, optionally, answers the base lookup with an existing base.
+func (f *fakeCheckpointStore) Key(spaceID, sha256hex string) (string, error) {
+	return fakeCheckpointKey(spaceID, sha256hex), nil
+}
+
+func (f *fakeCheckpointStore) Open(_ context.Context, storageKey string) (io.ReadCloser, int64, error) {
+	raw, ok := f.blobs[storageKey]
+	if !ok {
+		return nil, 0, os.ErrNotExist
+	}
+	return io.NopCloser(bytes.NewReader(raw)), int64(len(raw)), nil
+}
+
+// putBlob stores raw bytes under the key for (spaceID, sha) so a restore test can
+// stage a base payload the store will serve.
+func (f *fakeCheckpointStore) putBlob(spaceID, sha string, raw []byte) {
+	if f.blobs == nil {
+		f.blobs = map[string][]byte{}
+	}
+	f.blobs[fakeCheckpointKey(spaceID, sha)] = raw
+}
+
+// seedRecorder is a worker API stand-in: it answers the base lookup (with a
+// configured base, or 204 when there is none) and records the seed-finalize and
+// restore-outcome calls a run makes.
 type seedRecorder struct {
-	hasBase  bool
+	base     *workerclient.WorkspaceBaseResponse
 	finalize *workerclient.SeedCheckpointRequest
+	restore  *workerclient.WorkspaceRestoreRequest
 }
 
 func (s *seedRecorder) server(t *testing.T) *httptest.Server {
@@ -54,14 +91,11 @@ func (s *seedRecorder) server(t *testing.T) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case strings.HasSuffix(r.URL.Path, "/workspace-base") && r.Method == http.MethodGet:
-			if !s.hasBase {
+			if s.base == nil {
 				w.WriteHeader(http.StatusNoContent)
 				return
 			}
-			_ = json.NewEncoder(w).Encode(workerclient.WorkspaceBaseResponse{
-				CheckpointID: "wc_existing", PayloadFormat: wsarchive.PayloadFormat,
-				PayloadSHA256: strings.Repeat("a", 64), SizeBytes: 1,
-			})
+			_ = json.NewEncoder(w).Encode(*s.base)
 		case strings.HasSuffix(r.URL.Path, "/workspace-checkpoints") && r.Method == http.MethodPost:
 			var req workerclient.SeedCheckpointRequest
 			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -70,10 +104,41 @@ func (s *seedRecorder) server(t *testing.T) *httptest.Server {
 			}
 			s.finalize = &req
 			_ = json.NewEncoder(w).Encode(workerclient.SeedCheckpointResponse{CheckpointID: "wc_seed"})
+		case strings.HasSuffix(r.URL.Path, "/workspace-restore") && r.Method == http.MethodPost:
+			var req workerclient.WorkspaceRestoreRequest
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			s.restore = &req
+			w.WriteHeader(http.StatusNoContent)
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
 	}))
+}
+
+// seedBase archives srcDir with the checkpoint codec, stages the payload in
+// store, and returns the base descriptor a run would restore from — the
+// server's answer to the base lookup for a continuing run.
+func seedBase(t *testing.T, store *fakeCheckpointStore, spaceID, srcDir string) *workerclient.WorkspaceBaseResponse {
+	t.Helper()
+	var buf bytes.Buffer
+	hash := sha256.New()
+	res, err := wsarchive.Create(io.MultiWriter(&buf, hash), srcDir, checkpointLimits)
+	if err != nil {
+		t.Fatalf("build base archive: %v", err)
+	}
+	sha := hex.EncodeToString(hash.Sum(nil))
+	store.putBlob(spaceID, sha, buf.Bytes())
+	return &workerclient.WorkspaceBaseResponse{
+		CheckpointID:      "wc_base",
+		PayloadFormat:     wsarchive.PayloadFormat,
+		PayloadSHA256:     sha,
+		SizeBytes:         int64(buf.Len()),
+		UncompressedBytes: res.UncompressedBytes,
+		EntryCount:        res.EntryCount,
+	}
 }
 
 func writeWorkspace(t *testing.T) string {
@@ -190,74 +255,175 @@ func TestCaptureAndFinalizeSeed_StagesArchiveOutsideWorkspace(t *testing.T) {
 	}
 }
 
-// TestSeedWorkspaceIfFirstRun_SkipsWhenBaseExists pins that a run with a base
-// does not seed — seeding is the first run's job, and a continuing run restores
-// instead.
-func TestSeedWorkspaceIfFirstRun_SkipsWhenBaseExists(t *testing.T) {
-	ctx := context.Background()
-	ws := writeWorkspace(t)
+// prepareInput builds a RunTaskInput wired to a store and worker API for the
+// prepareWorkspaceFilesystem tests, with a fresh persist that holds one space
+// file so a test can tell "materialized" from "restored".
+func prepareInput(t *testing.T, store CheckpointPayloadStore, srv *httptest.Server) (RunTaskInput, runDirs, *coretask.Task, *coretask.Run) {
+	t.Helper()
+	persist := newFakePersistStorage()
+	if err := persist.Put(context.Background(), "sp_1", "space.txt", bytes.NewReader([]byte("space"))); err != nil {
+		t.Fatal(err)
+	}
+	runDir := t.TempDir()
+	dirs := runDirs{runDir: runDir, runWorkspace: filepath.Join(runDir, "workspace")}
+	input := RunTaskInput{Persist: persist}
+	if store != nil {
+		input.Checkpoints = store
+	}
+	if srv != nil {
+		input.WorkerAPI = workerclient.WorkerAPIClientConfig{BaseURL: srv.URL, Token: "t", Client: srv.Client()}
+	}
+	return input, dirs, &coretask.Task{ID: "t1", SpaceID: "sp_1"}, &coretask.Run{ID: "rt_1"}
+}
 
-	rec := &seedRecorder{hasBase: true}
+// TestPrepareWorkspaceFilesystem_RestoresBaseInsteadOfMaterializing pins that a
+// run with a base gets the checkpoint's tree, not the space snapshot, and that
+// the restore outcome is recorded.
+func TestPrepareWorkspaceFilesystem_RestoresBaseInsteadOfMaterializing(t *testing.T) {
+	ctx := context.Background()
+	store := &fakeCheckpointStore{}
+	// The base holds a file the space snapshot does not, so its presence proves
+	// the restore, and the absence of the space file proves materialize was
+	// skipped.
+	baseSrc := filepath.Join(t.TempDir(), "base")
+	if err := os.MkdirAll(baseSrc, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(baseSrc, "from_base.txt"), []byte("base work"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	rec := &seedRecorder{base: seedBase(t, store, "sp_1", baseSrc)}
 	srv := rec.server(t)
 	defer srv.Close()
-	store := &fakeCheckpointStore{}
-	dirs := runDirs{runDir: t.TempDir(), runWorkspace: ws}
-	input := RunTaskInput{
-		Checkpoints: store,
-		WorkerAPI:   workerclient.WorkerAPIClientConfig{BaseURL: srv.URL, Token: "t", Client: srv.Client()},
-	}
-	task := &coretask.Task{ID: "t1", SpaceID: "sp_1"}
-	run := &coretask.Run{ID: "rt_1"}
+	input, dirs, task, run := prepareInput(t, store, srv)
 
-	if err := seedWorkspaceIfFirstRun(ctx, input, task, run, dirs); err != nil {
-		t.Fatalf("seedWorkspaceIfFirstRun: %v", err)
+	if err := prepareWorkspaceFilesystem(ctx, input, task, run, dirs); err != nil {
+		t.Fatalf("prepareWorkspaceFilesystem: %v", err)
+	}
+	if got, err := os.ReadFile(filepath.Join(dirs.runWorkspace, "from_base.txt")); err != nil || string(got) != "base work" {
+		t.Fatalf("restored base file = %q, err %v", got, err)
+	}
+	if _, err := os.Stat(filepath.Join(dirs.runWorkspace, "space.txt")); !os.IsNotExist(err) {
+		t.Fatalf("space snapshot must not be materialized over a restored base, stat err = %v", err)
 	}
 	if len(store.puts) != 0 {
-		t.Fatalf("a run with a base must not seed, but uploaded %d payloads", len(store.puts))
+		t.Fatalf("a restoring run must not seed, uploaded %d payloads", len(store.puts))
 	}
-	if rec.finalize != nil {
-		t.Fatal("a run with a base must not finalize a seed")
+	if rec.restore == nil || rec.restore.Status != string(coretask.WorkspaceRestoreRestored) {
+		t.Fatalf("restore outcome = %+v, want status restored", rec.restore)
 	}
 }
 
-// TestSeedWorkspaceIfFirstRun_SkipsWhenServerHasNoCheckpointRoute pins that a
-// server that does not run the checkpoint contract (an evaluation control plane,
-// which answers 404) makes the run seed nothing rather than fail closed on a
-// missing route.
-func TestSeedWorkspaceIfFirstRun_SkipsWhenServerHasNoCheckpointRoute(t *testing.T) {
+// TestPrepareWorkspaceFilesystem_SeedsFirstRunFromMaterializedFiles pins that a
+// run with no base materializes the space snapshot and seeds it, and records no
+// restore.
+func TestPrepareWorkspaceFilesystem_SeedsFirstRunFromMaterializedFiles(t *testing.T) {
 	ctx := context.Background()
-	// A control plane that knows no checkpoint route: every path 404s.
+	store := &fakeCheckpointStore{}
+	rec := &seedRecorder{} // no base -> 204
+	srv := rec.server(t)
+	defer srv.Close()
+	input, dirs, task, run := prepareInput(t, store, srv)
+
+	if err := prepareWorkspaceFilesystem(ctx, input, task, run, dirs); err != nil {
+		t.Fatalf("prepareWorkspaceFilesystem: %v", err)
+	}
+	if got, err := os.ReadFile(filepath.Join(dirs.runWorkspace, "space.txt")); err != nil || string(got) != "space" {
+		t.Fatalf("first run should materialize the space file, got %q err %v", got, err)
+	}
+	if rec.finalize == nil {
+		t.Fatal("first run should finalize a seed")
+	}
+	if rec.restore != nil {
+		t.Fatal("first run has no base to restore, so must record no restore")
+	}
+}
+
+// TestPrepareWorkspaceFilesystem_MaterializesOnlyWhenUnsupported pins that a
+// server with no checkpoint route (an evaluation control plane) makes the run
+// materialize and neither seed nor restore.
+func TestPrepareWorkspaceFilesystem_MaterializesOnlyWhenUnsupported(t *testing.T) {
+	ctx := context.Background()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 	}))
 	defer srv.Close()
 	store := &fakeCheckpointStore{}
-	input := RunTaskInput{
-		Checkpoints: store,
-		WorkerAPI:   workerclient.WorkerAPIClientConfig{BaseURL: srv.URL, Token: "t", Client: srv.Client()},
-	}
-	dirs := runDirs{runDir: t.TempDir(), runWorkspace: writeWorkspace(t)}
-	task := &coretask.Task{ID: "t1", SpaceID: "sp_1"}
-	run := &coretask.Run{ID: "rt_1"}
+	input, dirs, task, run := prepareInput(t, store, srv)
 
-	if err := seedWorkspaceIfFirstRun(ctx, input, task, run, dirs); err != nil {
-		t.Fatalf("a server with no checkpoint route should be a no-op, got %v", err)
+	if err := prepareWorkspaceFilesystem(ctx, input, task, run, dirs); err != nil {
+		t.Fatalf("prepareWorkspaceFilesystem: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dirs.runWorkspace, "space.txt")); err != nil {
+		t.Fatalf("unsupported deployment should still materialize space files: %v", err)
 	}
 	if len(store.puts) != 0 {
 		t.Fatalf("must not seed against a server with no checkpoint route, uploaded %d", len(store.puts))
 	}
 }
 
-// TestSeedWorkspaceIfFirstRun_NoopWithoutCheckpointStore pins that a deployment
-// without checkpoint storage (a CLI or eval run) seeds nothing and does not fail.
-func TestSeedWorkspaceIfFirstRun_NoopWithoutCheckpointStore(t *testing.T) {
+// TestPrepareWorkspaceFilesystem_NoopStoreMaterializesOnly pins that a run
+// without a checkpoint store (a CLI or eval run) materializes and does not fail.
+func TestPrepareWorkspaceFilesystem_NoopStoreMaterializesOnly(t *testing.T) {
 	ctx := context.Background()
-	dirs := runDirs{runDir: t.TempDir(), runWorkspace: writeWorkspace(t)}
-	input := RunTaskInput{} // no Checkpoints, no WorkerAPI
-	task := &coretask.Task{ID: "t1", SpaceID: "sp_1"}
-	run := &coretask.Run{ID: "rt_1"}
+	input, dirs, task, run := prepareInput(t, nil, nil)
 
-	if err := seedWorkspaceIfFirstRun(ctx, input, task, run, dirs); err != nil {
-		t.Fatalf("seedWorkspaceIfFirstRun without a store should be a no-op, got %v", err)
+	if err := prepareWorkspaceFilesystem(ctx, input, task, run, dirs); err != nil {
+		t.Fatalf("prepareWorkspaceFilesystem without a store should materialize and succeed, got %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dirs.runWorkspace, "space.txt")); err != nil {
+		t.Fatalf("space file should be materialized: %v", err)
+	}
+}
+
+// TestExtractBaseIntoWorkspace_FailsOnDigestMismatch pins that a payload whose
+// bytes do not match the base digest fails the restore visibly (§13) rather than
+// populating the workspace with corrupt content.
+func TestExtractBaseIntoWorkspace_FailsOnDigestMismatch(t *testing.T) {
+	ctx := context.Background()
+	store := &fakeCheckpointStore{}
+	baseSrc := filepath.Join(t.TempDir(), "base")
+	if err := os.MkdirAll(baseSrc, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(baseSrc, "f.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	base := seedBase(t, store, "sp_1", baseSrc)
+	// Corrupt the descriptor's digest so it no longer matches the stored bytes.
+	wrong := strings.Repeat("b", 64)
+	store.putBlob("sp_1", wrong, store.blobs[fakeCheckpointKey("sp_1", base.PayloadSHA256)])
+	base.PayloadSHA256 = wrong
+
+	dirs := runDirs{runDir: t.TempDir(), runWorkspace: filepath.Join(t.TempDir(), "workspace")}
+	err := extractBaseIntoWorkspace(ctx, store, dirs, "sp_1", base)
+	if err == nil || !strings.Contains(err.Error(), "digest mismatch") {
+		t.Fatalf("expected a digest mismatch error, got %v", err)
+	}
+}
+
+// TestRestoreWorkspaceBase_RecordsFailedThenFailsClosed pins that a restore that
+// cannot read its payload records a failed outcome and fails the run closed.
+func TestRestoreWorkspaceBase_RecordsFailedThenFailsClosed(t *testing.T) {
+	ctx := context.Background()
+	store := &fakeCheckpointStore{} // empty: Open will not find the blob
+	rec := &seedRecorder{}
+	srv := rec.server(t)
+	defer srv.Close()
+	input, dirs, task, _ := prepareInput(t, store, srv)
+	base := &workerclient.WorkspaceBaseResponse{
+		CheckpointID: "wc_base", PayloadFormat: wsarchive.PayloadFormat,
+		PayloadSHA256: strings.Repeat("c", 64), SizeBytes: 1,
+	}
+
+	err := restoreWorkspaceBase(ctx, input, "rt_1", dirs, task.SpaceID, base)
+	if err == nil {
+		t.Fatal("a restore that cannot read its payload must fail the run closed")
+	}
+	if rec.restore == nil || rec.restore.Status != string(coretask.WorkspaceRestoreFailed) {
+		t.Fatalf("restore outcome = %+v, want status failed", rec.restore)
+	}
+	if rec.restore.Error == "" {
+		t.Fatal("a failed restore must record a bounded error")
 	}
 }
