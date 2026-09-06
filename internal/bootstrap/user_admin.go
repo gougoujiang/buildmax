@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 	"time"
 
@@ -35,20 +34,19 @@ const UserCommandUsage = `Usage: buildmax-server user <command> [flags]
 
 Commands:
   create <email>         Create an account and its personal space
-  set-password <email>   Set an account's password, read from stdin
   login-code <email>     Issue a single-use login code for an existing account
 
 Flags for login-code:
   --ttl duration         How long the code stays valid (default 1h)
 
-set-password reads the password from stdin so it does not land in shell
-history:
-
-  echo -n 'correct horse battery staple' | buildmax-server user set-password alice@example.com
+These two are the break-glass account operations: bootstrap the first account
+before any administrator exists, and recover one that is locked out. Routine
+account work — including disabling and re-enabling — is done with
+` + "`buildmax admin user`" + ` against a running server, or in the Portal.
 
 A login code is printed once and cannot be recovered. Deliver it to the person
 yourself; BuildMax has no mail channel. It is also how someone who forgot their
-password gets back in: sign in with the code, then set a new one.
+password gets back in: sign in with the code, then choose a new password.
 See docs/deploy/authentication.md.
 `
 
@@ -60,20 +58,16 @@ func RunUserCommand(ctx context.Context, args []string, out io.Writer) error {
 		return errors.New("user: a command is required")
 	}
 	switch args[0] {
-	case "create", "set-password", "login-code":
+	case "create", "login-code":
 		store, closeStore, err := openUserStore(ctx)
 		if err != nil {
 			return err
 		}
 		defer closeStore()
-		switch args[0] {
-		case "create":
+		if args[0] == "create" {
 			return runUserCreate(ctx, args[1:], out, store)
-		case "set-password":
-			return runUserSetPassword(ctx, args[1:], out, os.Stdin, store)
-		default:
-			return runUserLoginCode(ctx, args[1:], out, store)
 		}
+		return runUserLoginCode(ctx, args[1:], out, store)
 	case "help", "-h", "--help":
 		fmt.Fprint(out, UserCommandUsage)
 		return nil
@@ -101,51 +95,7 @@ func runUserCreate(ctx context.Context, args []string, out io.Writer, store user
 	}
 	recordOperatorUserAudit(ctx, store, coreaudit.UserCreated, user.ID)
 	fmt.Fprintf(out, "Created %s (%s) with a personal space. It has no password yet.\n\n", user.Email, user.ID)
-	fmt.Fprintf(out, "Let them set their own:\n  buildmax-server user login-code %s\n\n", email)
-	fmt.Fprintf(out, "Or set one now:\n  printf '%%s' '<password>' | buildmax-server user set-password %s\n", email)
-	return nil
-}
-
-// runUserSetPassword sets an account's password, reading it from in.
-//
-// From stdin rather than a flag: a password on the command line is recorded in
-// shell history and visible in the process list to everyone on the machine.
-func runUserSetPassword(ctx context.Context, args []string, out io.Writer, in io.Reader, store userAdminStore) error {
-	email, err := emailArg("user set-password", args, out)
-	if err != nil {
-		return err
-	}
-	raw, err := io.ReadAll(io.LimitReader(in, coreidentity.PasswordMaxLength+1))
-	if err != nil {
-		return fmt.Errorf("read password: %w", err)
-	}
-	// A trailing newline is what a pipe or a here-string adds, not part of what
-	// anyone meant to type.
-	password := strings.TrimRight(string(raw), "\r\n")
-	if password == "" {
-		return errors.New("no password on stdin; pipe one in, e.g. printf '%s' '<password>' | buildmax-server user set-password <email>")
-	}
-	if err := coreidentity.ValidatePassword(password); err != nil {
-		return err
-	}
-	hash, err := coreidentity.HashPassword(password)
-	if err != nil {
-		return err
-	}
-
-	user, err := lookupUser(ctx, store, email)
-	if err != nil {
-		return err
-	}
-	if user == nil {
-		return fmt.Errorf("no account for %s; create one with: buildmax-server user create %s", email, email)
-	}
-	if err := store.SetPassword(ctx, user.ID, hash, time.Now().UTC()); err != nil {
-		return fmt.Errorf("set password: %w", err)
-	}
-	recordOperatorUserAudit(ctx, store, coreaudit.PasswordSet, user.ID)
-	fmt.Fprintf(out, "Password set for %s.\n", user.Email)
-	fmt.Fprintf(out, "Existing sessions are unaffected; revoke them separately if that is the intent.\n")
+	fmt.Fprintf(out, "Issue a login code so they can sign in and choose a password:\n  buildmax-server user login-code %s\n", email)
 	return nil
 }
 

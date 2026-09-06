@@ -3,11 +3,8 @@ package bootstrap
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
-	"text/tabwriter"
-	"time"
 
 	coreaudit "github.com/gougoujiang/buildmax/internal/core/audit"
 	coreidentity "github.com/gougoujiang/buildmax/internal/core/identity"
@@ -38,10 +35,11 @@ const AdminCommandUsage = `Usage: buildmax-server admin <command> [flags]
 Commands:
   grant <email>    Grant system_admin to an existing account
   revoke <email>   Revoke system_admin from an account
-  list             Show who holds system_admin
 
-Flags for list:
-  --all            Include revoked grants, newest first
+These are the break-glass grant operations: create the first administrator
+before any exists, and revoke the last one to recover a deployment. Listing who
+holds the grant, and routine grants and revocations, are done with
+` + "`buildmax admin`" + ` against a running server, or in the Portal.
 
 A System Administrator can manage accounts, read deployment status, and search
 the audit trail across spaces. The grant carries no access to any space's issues,
@@ -91,8 +89,6 @@ func RunAdminCommand(ctx context.Context, args []string, out io.Writer) error {
 		return runAdminGrant(ctx, args[1:], out, store)
 	case "revoke":
 		return runAdminRevoke(ctx, args[1:], out, store)
-	case "list":
-		return runAdminList(ctx, args[1:], out, store)
 	default:
 		fmt.Fprint(out, AdminCommandUsage)
 		return fmt.Errorf("admin: unknown command %q", args[0])
@@ -173,52 +169,4 @@ func runAdminRevoke(ctx context.Context, args []string, out io.Writer, store adm
 		fmt.Fprint(out, "for everyone until you run:\n  buildmax-server admin grant <email>\n")
 	}
 	return nil
-}
-
-func runAdminList(ctx context.Context, args []string, out io.Writer, store adminStore) error {
-	fs := flag.NewFlagSet("admin list", flag.ContinueOnError)
-	fs.SetOutput(out)
-	all := fs.Bool("all", false, "include revoked grants")
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
-	grants, err := store.ListSystemGrants(ctx, *all)
-	if err != nil {
-		return fmt.Errorf("list grants: %w", err)
-	}
-	if len(grants) == 0 {
-		if *all {
-			fmt.Fprintln(out, "No system grants have ever been made.")
-		} else {
-			fmt.Fprintln(out, "No account holds a system role.")
-		}
-		fmt.Fprintln(out, "Grant one with: buildmax-server admin grant <email>")
-		return nil
-	}
-
-	w := tabwriter.NewWriter(out, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(w, "EMAIL\tUSER ID\tROLE\tGRANTED\tBY\tSTATUS")
-	for _, g := range grants {
-		status := "active"
-		if !g.Active() {
-			status = "revoked " + formatGrantTime(*g.RevokedAt)
-		}
-		// A grant outliving the account it names is not expected, but a list
-		// command is the wrong place to fail on it: showing the user id is
-		// more useful than refusing to print the table.
-		email := "(unknown account)"
-		if user, err := store.GetUser(ctx, g.UserID); err == nil && user != nil {
-			email = user.Email
-		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
-			email, g.UserID, g.Role, formatGrantTime(g.GrantedAt), g.GrantedBy, status)
-	}
-	return w.Flush()
-}
-
-func formatGrantTime(t time.Time) string {
-	if t.IsZero() {
-		return "-"
-	}
-	return t.Local().Format(time.RFC3339)
 }

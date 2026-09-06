@@ -102,7 +102,7 @@ What exists today, with the anchors this design builds on:
   owner-only `GET /api/spaces/{space_id}/audit-events`.
 - Operator commands that already run with database credentials:
   `internal/bootstrap/user_admin.go` (`buildmax-server user create |
-  set-password | login-code`) and `internal/bootstrap/model_admin.go`
+  login-code`) and `internal/bootstrap/model_admin.go`
   (`buildmax-server model add | list | enable | disable`).
 - Sessions: `model.RefreshTokenStore` can revoke one session
   (`RevokeSession`), and the access token is a signed JWT the server never
@@ -256,7 +256,6 @@ The first grant comes from an operator command, not from configuration:
 ```text
 buildmax-server admin grant <email>     # grant system_admin
 buildmax-server admin revoke <email>    # revoke it
-buildmax-server admin list              # who holds one, and who used to
 ```
 
 It joins `user` and `model` under the same rule those two already follow: it
@@ -428,9 +427,9 @@ no schema change is needed.
 
 Two things fall out of adding these:
 
-**The operator commands record.** `buildmax-server user create`,
-`set-password`, and `login-code` write the same actions as their API
-equivalents, with `actor_type: system` and `actor_id: "buildmax-server"` —
+**The operator commands record.** `buildmax-server user create` and
+`login-code` write the same actions as their API equivalents, with
+`actor_type: system` and `actor_id: "buildmax-server"` —
 the actor id `model_admin.go` already writes, so one act does not acquire two
 names. This closed gap 2 of §3 in M1. `model_admin.go` already does this; `user_admin.go` will match it. An
 operator action that leaves no record is worse than one that names the machine
@@ -558,7 +557,7 @@ without touching the database directly.
 ### M1. Grant Model, Command, And Authorization — DONE
 
 `identity.SystemGrant` and `SystemGrantStore`, `systemGrantRow` on `system_grant`,
-the `sg_` prefix, `buildmax-server admin grant | revoke | list`,
+the `sg_` prefix, `buildmax-server admin grant | revoke`,
 `requireSystemAdmin`, the audit actions, and the first route —
 `GET /api/admin/me` — so that the matrix test had something to cover from the
 start.
