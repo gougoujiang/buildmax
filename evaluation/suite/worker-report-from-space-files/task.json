@@ -1,14 +1,14 @@
 {
   "contract_version": 1,
-  "id": "worker-report-from-team-files",
+  "id": "worker-report-from-space-files",
   "version": 1,
   "suite": "worker-and-taskrun",
-  "title": "Produce a report from the team's files in a worker run",
+  "title": "Produce a report from the space's files in a worker run",
   "tags": ["worker", "materialization", "artifacts"],
   "domain": "product_outcome",
   "surface": "worker",
   "turns": [
-    "The team's files are in the home directory. Read home/backlog.md and write summary.md in your working directory, listing how many items are open and naming the one marked urgent."
+    "The space's files are in the home directory. Read home/backlog.md and write summary.md in your working directory, listing how many items are open and naming the one marked urgent."
   ],
   "limits": {
     "wall_seconds": 240,
