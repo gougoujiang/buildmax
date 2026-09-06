@@ -227,6 +227,39 @@ func TestProcessWithSession_WithToolCall(t *testing.T) {
 	}
 }
 
+// TestRunLoop_JoinsNarrationAcrossAToolCall asserts the reply keeps the text the
+// model wrote before a tool call, joined with what it wrote after, not only the
+// final answer. The Agent's TaskRun is the one surface that shows a run's detail,
+// so its pre-tool narration must survive into the output.
+func TestRunLoop_JoinsNarrationAcrossAToolCall(t *testing.T) {
+	ctx := context.Background()
+	mock := &mockLLMClient{
+		responses: []mockResponse{
+			{
+				content: "I will check the weather.",
+				toolCalls: []llm.ToolCall{
+					{ID: "call-1", Name: "get_weather", Arguments: `{"location":"Boston"}`},
+				},
+			},
+			{content: "The weather in Boston is nice.", toolCalls: nil},
+		},
+	}
+	mockTool := &mockTool{
+		name:        "get_weather",
+		description: "Get weather for a location",
+		params:      map[string]any{"type": "object", "properties": map[string]any{"location": map[string]any{"type": "string"}}},
+		result:      "the tool result",
+	}
+	reply, _, err := runLoopWithUserMsg(ctx, mock, newTestToolRegistry(mockTool), newTestBuffer(), "What is the weather in Boston?")
+	if err != nil {
+		t.Fatalf("RunLoop: %v", err)
+	}
+	want := "I will check the weather.\n\nThe weather in Boston is nice."
+	if reply != want {
+		t.Errorf("reply = %q, want %q", reply, want)
+	}
+}
+
 // TestProcessWithSession_AccumulatesUsage asserts that RunStats accumulates prompt and completion tokens across LLM calls.
 func TestProcessWithSession_AccumulatesUsage(t *testing.T) {
 	ctx := context.Background()

@@ -94,8 +94,10 @@ func TestAPinnedWriteRunsAndReportsBack(t *testing.T) {
 	if string(written) != "scripted content\n" {
 		t.Fatalf("file content = %q, want the scripted content", written)
 	}
-	if reply := result.field("result", "reply"); reply != "wrote notes.txt" {
-		t.Fatalf("reply = %q, want the model's closing text", reply)
+	// The reply keeps what the model said before the tool call as well as after:
+	// the run output is the whole assistant turn, not only its closing text.
+	if reply := result.field("result", "reply"); reply != "writing it now\n\nwrote notes.txt" {
+		t.Fatalf("reply = %q, want the model's full narration", reply)
 	}
 	if ended := result.events("tool_end"); len(ended) != 1 || ended[0]["tool"] != "Write" {
 		t.Fatalf("tool_end events = %v, want one Write", ended)
