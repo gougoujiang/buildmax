@@ -97,3 +97,24 @@ const (
 	PluginEnvironmentCommitted PluginEnvironmentStatus = "committed"
 	PluginEnvironmentFailed    PluginEnvironmentStatus = "failed"
 )
+
+// FinalizeCheckpointInput is the descriptor of one captured checkpoint payload:
+// what it is, which run produced it, and where its immutable bytes already
+// live. The bytes are written to the payload store first; this records the
+// authoritative metadata pointer for them. Its authoritative implementation is
+// the db Store's FinalizeWorkspaceCheckpoint; the workspace service validates
+// this before delegating. See docs/design/task-workspace-checkpoints.md §8.
+type FinalizeCheckpointInput struct {
+	SpaceID          string
+	TaskID           string
+	SourceTaskRunID  string
+	BaseCheckpointID *string
+	Kind             CheckpointKind
+
+	PayloadFormat     string
+	PayloadSHA256     string
+	StorageKey        string
+	SizeBytes         int64
+	UncompressedBytes int64
+	EntryCount        int64
+}

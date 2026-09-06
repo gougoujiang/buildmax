@@ -195,6 +195,9 @@ internal/
 │   │                   opening the session it earns
 │   ├── issue/          Issue service
 │   ├── task/           Task and task_run service
+│   ├── workspace/      Cross-storage commit of Task workspace checkpoints:
+│   │                   validate a payload descriptor, confirm its bytes are
+│   │                   durable, then record the authoritative pointer
 │   ├── workflow/       Workflow and workflow-run orchestration
 │   ├── audit/          Records that a sensitive action happened (governance,
 │   │                   not diagnostics — see the package doc)

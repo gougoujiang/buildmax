@@ -43,7 +43,7 @@ func TestFinalizeSeedCheckpointEstablishesTheTaskHead(t *testing.T) {
 	s, spaceID, taskID, runID := seedTaskForCheckpoint(t)
 	ctx := t.Context()
 
-	seed, err := s.FinalizeWorkspaceCheckpoint(ctx, FinalizeCheckpointInput{
+	seed, err := s.FinalizeWorkspaceCheckpoint(ctx, coretask.FinalizeCheckpointInput{
 		SpaceID: spaceID, TaskID: taskID, SourceTaskRunID: runID,
 		Kind: coretask.CheckpointKindSeed, PayloadFormat: coretask.PayloadFormatTarZstV1,
 		PayloadSHA256: hex64('a'), StorageKey: "k/seed", SizeBytes: 10, UncompressedBytes: 20, EntryCount: 3,
@@ -65,7 +65,7 @@ func TestFinalizeSeedCheckpointEstablishesTheTaskHead(t *testing.T) {
 	}
 
 	// Idempotent: the same run, kind, and bytes return the same checkpoint.
-	again, err := s.FinalizeWorkspaceCheckpoint(ctx, FinalizeCheckpointInput{
+	again, err := s.FinalizeWorkspaceCheckpoint(ctx, coretask.FinalizeCheckpointInput{
 		SpaceID: spaceID, TaskID: taskID, SourceTaskRunID: runID,
 		Kind: coretask.CheckpointKindSeed, PayloadFormat: coretask.PayloadFormatTarZstV1,
 		PayloadSHA256: hex64('a'), StorageKey: "k/seed", SizeBytes: 10, UncompressedBytes: 20, EntryCount: 3,
@@ -78,7 +78,7 @@ func TestFinalizeSeedCheckpointEstablishesTheTaskHead(t *testing.T) {
 	}
 
 	// Conflict: the same run and kind with different bytes never rewrites.
-	if _, err := s.FinalizeWorkspaceCheckpoint(ctx, FinalizeCheckpointInput{
+	if _, err := s.FinalizeWorkspaceCheckpoint(ctx, coretask.FinalizeCheckpointInput{
 		SpaceID: spaceID, TaskID: taskID, SourceTaskRunID: runID,
 		Kind: coretask.CheckpointKindSeed, PayloadFormat: coretask.PayloadFormatTarZstV1,
 		PayloadSHA256: hex64('b'), StorageKey: "k/seed2", SizeBytes: 11, UncompressedBytes: 21, EntryCount: 4,
@@ -91,7 +91,7 @@ func TestFinalizeSuccessfulAdvancesHeadAndPartialDoesNot(t *testing.T) {
 	s, spaceID, taskID, run1 := seedTaskForCheckpoint(t)
 	ctx := t.Context()
 
-	seed, err := s.FinalizeWorkspaceCheckpoint(ctx, FinalizeCheckpointInput{
+	seed, err := s.FinalizeWorkspaceCheckpoint(ctx, coretask.FinalizeCheckpointInput{
 		SpaceID: spaceID, TaskID: taskID, SourceTaskRunID: run1,
 		Kind: coretask.CheckpointKindSeed, PayloadFormat: coretask.PayloadFormatTarZstV1,
 		PayloadSHA256: hex64('a'), StorageKey: "k/seed", SizeBytes: 10, UncompressedBytes: 20, EntryCount: 3,
@@ -116,7 +116,7 @@ func TestFinalizeSuccessfulAdvancesHeadAndPartialDoesNot(t *testing.T) {
 		t.Fatalf("set run2 base: %v", err)
 	}
 
-	result, err := s.FinalizeWorkspaceCheckpoint(ctx, FinalizeCheckpointInput{
+	result, err := s.FinalizeWorkspaceCheckpoint(ctx, coretask.FinalizeCheckpointInput{
 		SpaceID: spaceID, TaskID: taskID, SourceTaskRunID: run2.ID, BaseCheckpointID: &seed.ID,
 		Kind: coretask.CheckpointKindSuccessful, PayloadFormat: coretask.PayloadFormatTarZstV1,
 		PayloadSHA256: hex64('c'), StorageKey: "k/result", SizeBytes: 12, UncompressedBytes: 22, EntryCount: 5,
@@ -139,7 +139,7 @@ func TestFinalizeSuccessfulAdvancesHeadAndPartialDoesNot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateTaskRun: %v", err)
 	}
-	if _, err := s.FinalizeWorkspaceCheckpoint(ctx, FinalizeCheckpointInput{
+	if _, err := s.FinalizeWorkspaceCheckpoint(ctx, coretask.FinalizeCheckpointInput{
 		SpaceID: spaceID, TaskID: taskID, SourceTaskRunID: run3.ID, BaseCheckpointID: &result.ID,
 		Kind: coretask.CheckpointKindPartial, PayloadFormat: coretask.PayloadFormatTarZstV1,
 		PayloadSHA256: hex64('d'), StorageKey: "k/partial", SizeBytes: 9, UncompressedBytes: 15, EntryCount: 2,
