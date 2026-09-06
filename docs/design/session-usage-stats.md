@@ -21,8 +21,8 @@
 > [context durability](context-durability.md),
 > [Session architecture](../contribute/architecture/session.md),
 > [Agent Loop](../contribute/architecture/agent-loop.md),
-> [sessions and traces](../../help/sessions-and-traces.md), and
-> [help/cli.md](../../help/cli.md).
+> [sessions and traces](../../manual/sessions-and-traces.md), and
+> [manual/cli.md](../../manual/cli.md).
 
 ## Contents
 

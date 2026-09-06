@@ -10,9 +10,9 @@
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
-    "predev": "npm --prefix ../gui run build && node scripts/sync-help.mjs",
+    "predev": "npm --prefix ../gui run build && node scripts/sync-manual.mjs",
     "dev": "vite",
-    "prebuild": "npm --prefix ../gui run build && node scripts/sync-help.mjs",
+    "prebuild": "npm --prefix ../gui run build && node scripts/sync-manual.mjs",
     "build": "tsc -b && vite build",
     "test": "vitest run",
     "preview": "vite preview",

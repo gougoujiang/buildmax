@@ -8,7 +8,7 @@ by an operator, and the one-time codes that claim an account or reset a
 forgotten password are delivered by hand.
 
 For the broader alpha support boundaries, see the
-[support matrix](../../help/support.md).
+[support matrix](../../manual/support.md).
 
 ## Creating An Account
 

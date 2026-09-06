@@ -2,7 +2,7 @@
 
 > **Audience:** contributors · **Status:** current
 >
-> User-facing view: [help/sessions-and-traces.md](../../../help/sessions-and-traces.md)
+> User-facing view: [manual/sessions-and-traces.md](../../../manual/sessions-and-traces.md)
 >
 > Rationale and the full record contract:
 > [design/local-session-storage.md](../../design/local-session-storage.md)

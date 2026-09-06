@@ -67,7 +67,7 @@ In order of how easy they are to get merged:
 - A missing test for behavior that already works.
 - A CLI or TUI rough edge you hit while trying the quickstart.
 
-Before starting anything larger, read [help/support.md](../../help/support.md).
+Before starting anything larger, read [manual/support.md](../../manual/support.md).
 It says which surfaces and deployment paths the project supports today and which
 things are deliberately out of scope for the alpha, so your work does not land
 outside what maintainers can accept.
@@ -93,7 +93,7 @@ Match the surrounding code. The rules that are not visible in the diff —
 LLM-facing tool output — are in [conventions.md](conventions.md).
 
 Documentation is part of the change, not a follow-up: if you changed behavior or
-configuration, update `help/`, `docs/reference/`, and `config-examples/`
+configuration, update `manual/`, `docs/reference/`, and `config-examples/`
 in the same pull request. [documentation.md](documentation.md) says what to
 update when.
 
@@ -141,7 +141,7 @@ Windows machine.
 
 ## If You Get Stuck
 
-- [help/troubleshooting.md](../../help/troubleshooting.md) for runtime problems
+- [manual/troubleshooting.md](../../manual/troubleshooting.md) for runtime problems
 - [GitHub Discussions](https://github.com/gougoujiang/buildmax/discussions) for
   questions — an unfinished pull request with a question in it is also fine
 - [../../.github/SUPPORT.md](../../.github/SUPPORT.md) for which channel to use
