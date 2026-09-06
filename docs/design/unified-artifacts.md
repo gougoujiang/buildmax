@@ -1,6 +1,6 @@
 # Unified Artifacts
 
-> **简体中文：** [阅读中文镜像](../zh-CN/design/unified-artifacts.md)
+> **简体中文：** [阅读中文镜像](../zh-CN/design/统一工件.md)
 
 ## Contents
 

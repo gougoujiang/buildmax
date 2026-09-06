@@ -1,6 +1,6 @@
 # Artifact Public Sharing And Preview
 
-> **简体中文：** [阅读中文镜像](../zh-CN/design/artifact-public-sharing-and-preview.md)
+> **简体中文：** [阅读中文镜像](../zh-CN/design/工件公开分享与预览.md)
 
 ## Contents
 

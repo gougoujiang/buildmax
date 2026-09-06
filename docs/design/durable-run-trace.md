@@ -1,6 +1,6 @@
 # Durable Run Trace
 
-> **简体中文：** [阅读中文镜像](../zh-CN/design/durable-run-trace.md)
+> **简体中文：** [阅读中文镜像](../zh-CN/design/持久化运行轨迹.md)
 
 ## Contents
 

@@ -1,6 +1,6 @@
 # Issue Agent Access: The Agent's Own Work Order
 
-> **简体中文：** [阅读中文镜像](../zh-CN/design/issue-agent-access.md)
+> **简体中文：** [阅读中文镜像](../zh-CN/design/Issue Agent访问.md)
 
 ## Contents
 

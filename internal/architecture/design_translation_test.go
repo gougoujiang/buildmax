@@ -53,7 +53,7 @@ func TestDesignTranslationDriftDetection(t *testing.T) {
 			name: "stale mirror",
 			edit: func(t *testing.T, en, zh string) {
 				writeTranslationPair(t, en, zh, "record.md", "# Decision\n\nCurrent source.\n")
-				writeFile(t, filepath.Join(en, "record.md"), "# Decision\n\nChanged source.\n")
+				writeFile(t, filepath.Join(en, "record.md"), "# Decision\n\n> **简体中文：** [阅读中文镜像](../zh-CN/design/record.md)\n\nChanged source.\n")
 			},
 			want: "missing current synchronization notice",
 		},
@@ -81,17 +81,31 @@ func designTranslationProblems(t *testing.T, englishDir, chineseDir string) []st
 	english := markdownTree(t, englishDir)
 	chinese := markdownTree(t, chineseDir)
 	var problems []string
+	matchedChinese := map[string]bool{}
 
 	for rel, englishPath := range english {
-		chinesePath, ok := chinese[rel]
-		if !ok {
-			problems = append(problems, fmt.Sprintf("docs/design/%s: missing Chinese mirror docs/zh-CN/design/%s", rel, rel))
-			continue
-		}
 		body, err := os.ReadFile(englishPath)
 		if err != nil {
 			t.Fatalf("read %s: %v", englishPath, err)
 		}
+		mirrorLink, ok := chineseMirrorLink(string(body))
+		if !ok {
+			problems = append(problems, fmt.Sprintf("docs/design/%s: missing Chinese mirror", rel))
+			continue
+		}
+		chinesePath := filepath.Clean(filepath.Join(filepath.Dir(englishPath), filepath.FromSlash(mirrorLink)))
+		chineseRel, err := filepath.Rel(chineseDir, chinesePath)
+		if err != nil || strings.HasPrefix(filepath.ToSlash(chineseRel), "../") {
+			problems = append(problems, fmt.Sprintf("docs/design/%s: invalid Chinese mirror link %q", rel, mirrorLink))
+			continue
+		}
+		chineseRel = filepath.ToSlash(chineseRel)
+		chinesePath, ok = chinese[chineseRel]
+		if !ok {
+			problems = append(problems, fmt.Sprintf("docs/design/%s: missing Chinese mirror docs/zh-CN/design/%s", rel, chineseRel))
+			continue
+		}
+		matchedChinese[chinesePath] = true
 		chineseBody, err := os.ReadFile(chinesePath)
 		if err != nil {
 			t.Fatalf("read %s: %v", chinesePath, err)
@@ -113,13 +127,28 @@ func designTranslationProblems(t *testing.T, englishDir, chineseDir string) []st
 			problems = append(problems, fmt.Sprintf("docs/zh-CN/design/%s: missing current synchronization notice; retranslate docs/design/%s and update its source digest", rel, rel))
 		}
 	}
-	for rel := range chinese {
-		if _, ok := english[rel]; !ok {
-			problems = append(problems, fmt.Sprintf("docs/zh-CN/design/%s has no English source; remove it or restore docs/design/%s", rel, rel))
+	for rel, chinesePath := range chinese {
+		if !matchedChinese[chinesePath] {
+			problems = append(problems, fmt.Sprintf("docs/zh-CN/design/%s has no English source", rel))
 		}
 	}
 	sort.Strings(problems)
 	return problems
+}
+
+const chineseNavigationPrefix = "> **简体中文：** [阅读中文镜像]("
+
+func chineseMirrorLink(body string) (string, bool) {
+	for _, line := range strings.Split(body, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, chineseNavigationPrefix) && strings.HasSuffix(line, ")") {
+			link := strings.TrimSuffix(strings.TrimPrefix(line, chineseNavigationPrefix), ")")
+			if link != "" {
+				return link, true
+			}
+		}
+	}
+	return "", false
 }
 
 func markdownTree(t *testing.T, root string) map[string]string {

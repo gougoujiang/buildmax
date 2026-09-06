@@ -1,6 +1,6 @@
 # Space Secrets And Run Delivery
 
-> **简体中文：** [阅读中文镜像](../zh-CN/design/space-secrets.md)
+> **简体中文：** [阅读中文镜像](../zh-CN/design/Space密钥.md)
 
 ## Contents
 

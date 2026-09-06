@@ -1,6 +1,6 @@
 # Workspace Root And Worktrees
 
-> **简体中文：** [阅读中文镜像](../zh-CN/design/workspace-root-and-worktrees.md)
+> **简体中文：** [阅读中文镜像](../zh-CN/design/工作区根与工作树.md)
 
 > **Audience:** contributors · **Status:** implemented, phases 1-5
 

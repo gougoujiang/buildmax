@@ -1,6 +1,6 @@
 # Graceful Shutdown
 
-> **简体中文：** [阅读中文镜像](../zh-CN/design/graceful-shutdown.md)
+> **简体中文：** [阅读中文镜像](../zh-CN/design/优雅关闭.md)
 
 > **Audience:** contributors · **Status:** implemented. The ladder, the draining
 > state, watcher-stream drain, turn quiescing, the managed terminal callbacks,

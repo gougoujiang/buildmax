@@ -1,6 +1,6 @@
 # Workflow Runtime
 
-> **简体中文：** [阅读中文镜像](../zh-CN/design/workflow-runtime.md)
+> **简体中文：** [阅读中文镜像](../zh-CN/design/Workflow运行时.md)
 
 > **Audience:** contributors, product reviewers, and operators · **Status:** planned — the direction is accepted; the current implementation remains a linear, callback-driven precursor
 

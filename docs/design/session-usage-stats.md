@@ -1,6 +1,6 @@
 # Session Usage Stats
 
-> **简体中文：** [阅读中文镜像](../zh-CN/design/session-usage-stats.md)
+> **简体中文：** [阅读中文镜像](../zh-CN/design/会话用量统计.md)
 
 > **Audience:** contributors · **Status:** partly implemented — per-session
 > statistics on the CLI and in the TUI, and the metering fixes they required,

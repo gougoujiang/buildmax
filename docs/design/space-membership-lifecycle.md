@@ -1,6 +1,6 @@
 # Space Membership Lifecycle
 
-> **简体中文：** [阅读中文镜像](../zh-CN/design/space-membership-lifecycle.md)
+> **简体中文：** [阅读中文镜像](../zh-CN/design/Space成员生命周期.md)
 
 ## Contents
 

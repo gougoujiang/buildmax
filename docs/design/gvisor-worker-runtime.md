@@ -1,6 +1,6 @@
 # gVisor Worker Runtime
 
-> **简体中文：** [阅读中文镜像](../zh-CN/design/gvisor-worker-runtime.md)
+> **简体中文：** [阅读中文镜像](../zh-CN/design/gVisor Worker运行时.md)
 
 > **Audience:** contributors and operators · **Status:** planned — qualification required before support
 

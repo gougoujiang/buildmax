@@ -1,6 +1,6 @@
 # Managed LLM Gateway
 
-> **简体中文：** [阅读中文镜像](../zh-CN/design/llm-gateway.md)
+> **简体中文：** [阅读中文镜像](../zh-CN/design/LLM网关.md)
 
 > **Audience:** contributors · **Status:** shipped for every surface; strict
 > quota remains open

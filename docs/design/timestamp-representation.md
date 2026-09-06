@@ -1,6 +1,6 @@
 # Timestamp Representation
 
-> **简体中文：** [阅读中文镜像](../zh-CN/design/timestamp-representation.md)
+> **简体中文：** [阅读中文镜像](../zh-CN/design/时间戳表示.md)
 
 > **Audience:** contributors and database reviewers · **Status:** implemented
 

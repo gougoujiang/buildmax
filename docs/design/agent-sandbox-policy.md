@@ -1,6 +1,6 @@
 # Agent-Scoped Sandbox Policy
 
-> **简体中文：** [阅读中文镜像](../zh-CN/design/agent-sandbox-policy.md)
+> **简体中文：** [阅读中文镜像](../zh-CN/design/Agent沙箱策略.md)
 
 ## Contents
 

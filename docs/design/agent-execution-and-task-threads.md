@@ -1,6 +1,6 @@
 # Agent Execution And Task Threads
 
-> **简体中文：** [阅读中文镜像](../zh-CN/design/agent-execution-and-task-threads.md)
+> **简体中文：** [阅读中文镜像](../zh-CN/design/Agent执行与Task线程.md)
 
 > **Audience:** contributors, product designers, and operators · **Status:** in progress — the ownership cutover (§13.1), direct Agent admission (§13.2), the Task thread backend and Portal Task page (§13.3), and synthetic-Conversation removal (§13.4) have shipped, each with MySQL contention or browser evidence. §14 tracks exactly what is verified and what remains open, item by item; do not duplicate that list here.
 

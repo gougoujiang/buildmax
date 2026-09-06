@@ -1,6 +1,6 @@
 # Parallel Tool Execution
 
-> **简体中文：** [阅读中文镜像](../zh-CN/design/parallel-tool-execution.md)
+> **简体中文：** [阅读中文镜像](../zh-CN/design/并行工具执行.md)
 
 ## Contents
 

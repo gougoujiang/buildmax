@@ -1,6 +1,6 @@
 # Verification Program
 
-> **简体中文：** [阅读中文镜像](../zh-CN/design/verification-program.md)
+> **简体中文：** [阅读中文镜像](../zh-CN/design/验证计划.md)
 
 > **Audience:** maintainers and contributors · **Status:** planned — implementation backlog
 

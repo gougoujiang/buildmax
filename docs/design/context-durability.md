@@ -1,6 +1,6 @@
 # Context Durability
 
-> **简体中文：** [阅读中文镜像](../zh-CN/design/context-durability.md)
+> **简体中文：** [阅读中文镜像](../zh-CN/design/上下文持久性.md)
 
 ## Contents
 

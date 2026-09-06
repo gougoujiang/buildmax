@@ -1,6 +1,6 @@
 # Client Modes: Local And Managed
 
-> **简体中文：** [阅读中文镜像](../zh-CN/design/client-modes.md)
+> **简体中文：** [阅读中文镜像](../zh-CN/design/客户端模式.md)
 
 > **Audience:** contributors · **Status:** implemented
 >

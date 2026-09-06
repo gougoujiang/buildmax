@@ -1,6 +1,6 @@
 # Worker API Network Boundary
 
-> **简体中文：** [阅读中文镜像](../zh-CN/design/worker-api-network-boundary.md)
+> **简体中文：** [阅读中文镜像](../zh-CN/design/Worker API网络边界.md)
 
 > **Audience:** contributors and operators · **Status:** shipped
 

@@ -1,6 +1,6 @@
 # Local Background Jobs
 
-> **简体中文：** [阅读中文镜像](../zh-CN/design/local-background-jobs.md)
+> **简体中文：** [阅读中文镜像](../zh-CN/design/本地后台任务.md)
 
 > **Audience:** contributors · **Status:** stages 1–3 implemented — background
 > `Bash` and `Task` jobs, the `Monitor` tool with line events and

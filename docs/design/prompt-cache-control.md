@@ -1,6 +1,6 @@
 # Prompt Cache Control
 
-> **简体中文：** [阅读中文镜像](../zh-CN/design/prompt-cache-control.md)
+> **简体中文：** [阅读中文镜像](../zh-CN/design/提示缓存控制.md)
 
 > **Audience:** contributors · **Status:** in progress — phases 1 to 3 shipped
 > and phase 4's mechanism with them: cache counts reach every surface, caching
