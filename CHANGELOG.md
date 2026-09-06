@@ -14,6 +14,220 @@ Unreleased entries live one per file under
 touch the same line. `./make changelog` prints what they currently say, and
 release preparation folds them into a dated section here.
 
+## [0.2.0-alpha.8] - 2026-09-06
+
+### Added
+
+- The Portal agent dialog now has a Plugins group for choosing which catalog
+  plugins an agent loads on its background runs, offering only the plugins the
+  space can name and keeping any already-named plugin visible even if it is no
+  longer available.
+
+- The Portal artifact page now renders Markdown artifacts as formatted text and
+  shows HTML artifacts as a live page in a sandboxed frame, instead of offering
+  only a download for them.
+
+- Artifacts can now be given a revocable public link that opens without a
+  BuildMax login and renders in the Portal (Markdown formatted, HTML in a
+  sandbox); `UploadArtifact(share=true)` returns one, and the server builds it
+  from the new `public_base_url` / `BUILDMAX_PUBLIC_BASE_URL` setting.
+
+- Desktop's file browser and changes panel now syntax-highlight file and diff
+  content, the file browser adds a Source/Preview toggle for Markdown files,
+  and the changes panel adds a List/Tree toggle that groups changed files by
+  directory.
+
+- Desktop now has a docked inspector column on the right for browsing workspace
+  files, reviewing changes, and reading session info, replacing the slide-over
+  drawers: switch views from the header, drag to resize it, expand it to fill
+  the chat area for review, and collapse the left sidebar to give the
+  conversation the full width.
+
+- Add `./make e2e desktop-ui`, which drives desktop/frontend's React app and
+  its bound Go methods through `wails dev`'s browser dev server against a
+  fresh, discarded `BUILDMAX_HOME`; `./make run desktop-dev` starts that same
+  dev server for ad hoc use, and `.buildmax/skills/drive-desktop/` is a
+  Playwright REPL for poking at it by hand.
+
+- `./make kind fixtures` seeds a running local Kubernetes deployment with an
+  idempotent set of business data — two accounts with personal spaces, an agent,
+  a workflow, and issues across every status — so automated Portal testing can
+  start from populated views instead of an empty deployment.
+
+- A running deployment can now flip its own conversations and task runs
+  between a seeded catalog model and the free mock by environment alone —
+  `BUILDMAX_WORKER_LLM_TRANSPORT`, `BUILDMAX_LLM_DEFAULT_MODEL`, and
+  `BUILDMAX_CONVERSATION_MODEL_TARGET` override the matching `server.yaml`
+  fields, `conversation.model_target` accepts a model name as well as an ID, and
+  `./make kind use-model <name>` / `./make kind mock` switch a kind cluster.
+
+- Portal agents can now choose which model their background runs call, so
+  different agents can run on different models. The agent editor offers the
+  deployment's catalog models plus a "Deployment default"; an unknown model is
+  refused on save, and the choice takes effect on the managed worker transport.
+
+- Portal now has a global Marketplace page, reached from a storefront button in
+  the header beside the theme toggle, that lists the plugins this deployment
+  publishes and how to install them.
+
+- Space owners and admins can set shared Agent instructions that every
+  background run inherits before its selected Agent's own instructions.
+
+- The local kind deployment now runs the worker control channel over HTTPS with
+  a generated certificate, and `./make kind` verifies the worker API boundary in
+  the same smoke: a labelled worker pod reaches the internal listener, an
+  unlabelled pod is denied it by the NetworkPolicy, and `/api/worker` answers
+  `404` on the public Service.
+
+- The reference Kubernetes manifests now separate the worker control API from
+  the public API: a `buildmax-api` Service behind the Ingress, an internal
+  `buildmax-worker-api` ClusterIP on port 5679, a `NetworkPolicy` that admits
+  only labelled worker pods to that port, and the worker-api CA mounted
+  read-only into each worker Job.
+
+- The `/worktree` panel now marks each tree as clean or with its uncommitted and
+  unmerged counts, and can remove a stale one in place with `d` — a confirm that
+  names what would be discarded before a tree holding work is deleted.
+
+### Changed
+
+- The agent Configuration tab now uses a left sidebar of sections (Basics,
+  Sandbox access, Plugins, Secrets) showing one section at a time, instead of a
+  tall stack of cards, so every configuration group is visible at a glance.
+
+- The Portal create agent dialog now organises configuration into tabs down a
+  left sidebar (Basics, Sandbox access, Plugins, Secrets), so the dialog's
+  height stays bounded instead of growing into one long scroll.
+
+- The Portal Agents section now opens each agent on its own page — Overview,
+  Configuration, Runs (execution history), and Revisions — instead of an edit
+  dialog, and the Agents home adds an overview with space-wide run counts, a
+  success rate, and a recent-activity feed across agents.
+
+- The chat composer's Send and Stop buttons are now compact icons, in both
+  Desktop and Portal; the action's word stays as the button's accessible label.
+
+- Desktop shows context-window usage as a donut gauge after the git branch in
+  the status bar, filling amber then red as the window fills; clicking it opens
+  the exact used, free, and window token counts.
+
+- Desktop now triggers panels through TUI-style slash commands typed in the
+  chat input — `/info`, `/diff`, `/mcp`, `/tools`, `/worktree`, `/compact`, and
+  the rest — replacing the row of buttons below the composer. `/agents` and
+  `/plugins` are now slash commands in the terminal UI too.
+
+- Portal no longer shows internal entity IDs on the artifacts list, artifact
+  detail, and agent detail pages, leaving only the information a user acts on.
+
+- `./make kind reload` replaces `./make kind images`: it still builds and loads
+  the local images, and now also restarts the `buildmax-server` and
+  `buildmax-portal` deployments so a code change takes effect without a full
+  `./make kind up`.
+
+- The local `kind` stack now generates an ephemeral Space Secret key-encryption
+  key and mounts it, so the Secrets feature can be exercised end to end there
+  instead of answering "secrets not configured"; the deployment baseline mounts
+  the key from an optional Secret so other deployments are unaffected.
+
+- The ownership and authorization boundary is renamed from **Team** to
+  **Space** across the product: API routes move from `/api/teams/{team_id}`
+  to `/api/spaces/{space_id}`, the `team_id` JSON field becomes `space_id`,
+  and Portal, the CLI, and stored data use Space throughout. This is a
+  breaking API change with no compatibility shim, as the Alpha allows.
+
+- A Space's Secrets page was redesigned into per-secret cards with an
+  at-a-glance state, item-name chips, a clearer create form, and a security
+  caution restyled from an alarm into a readable note.
+
+- A Space's sandbox defaults moved out of the Plugins tab into their own
+  Security tab, and the Plugins tab was redesigned into scannable per-plugin
+  cards with an at-a-glance activation status.
+
+- The Task page now streams the in-flight run's output live over server-sent
+  events instead of only polling: tokens appear as the agent produces them,
+  and the poll continues to own run lifecycle and status so a dropped or
+  draining stream falls back cleanly.
+
+- The Portal task page leads with the conversation; a Details button in the
+  header (beside Open agent) opens a dialog with the task's agent, timing,
+  origin, and trace/files entry points, instead of foregrounding backend run
+  numbers, repeating controls under every message, or crowding the transcript.
+
+- While an agent run is in flight, the Portal task conversation now shows an
+  animated working indicator instead of the raw "Run pending / scheduled /
+  running" status text, which the reader does not need to see.
+
+- Trim the status footer to just the context share on both the CLI TUI and the
+  Desktop status bar; the CLI's per-run token and cache breakdowns stay
+  available under `/info`.
+
+- The worker control API (`/api/worker/*`) is now served on a separate internal
+  listener, off the public HTTP surface. It binds `127.0.0.1:5679` by default,
+  so set `worker.server_url` to that listener (via `worker_api.listen`) rather
+  than the public port; the public listener answers `404` for worker routes.
+
+### Fixed
+
+- Fixed artifact uploads failing with an internal error on deployments whose
+  artifact storage is an S3-compatible store reached over plain HTTP, such as
+  the bundled MinIO: the streamed upload is now sent through the S3 transfer
+  manager instead of a single request the SDK cannot sign.
+
+- Desktop: the model picker now marks the model you switched to as active when
+  reopened, instead of always checking the first entry.
+
+- Desktop now sends prompts with the model you switch to: switching a
+  conversation's model records it on that conversation, so its next turn uses
+  it instead of falling back to the default.
+
+- Fixed a regression on deployments using the local-filesystem artifact backend
+  (including the default Docker Compose stack) where a finished task run's stored
+  result was truncated to empty and its artifact content came back blank.
+
+- Portal buttons written against the shared `btn` class (Secrets, webhook keys,
+  several modals) rendered as unstyled browser defaults because the class had no
+  CSS; they now have a proper button style.
+
+- The Portal task page's "Retry last run" button is back in the header. A
+  recent redesign dropped it by mistake, leaving Retry reachable only through
+  the API.
+
+- A run's output now keeps everything the agent said during the turn, not only
+  its closing message: text the model wrote before a tool call — its narration
+  of what it is about to do — is joined with the text it wrote after, so an
+  Agent's TaskRun shows the whole turn rather than dropping the earlier part.
+  This also removes the flicker where streamed narration appeared and then
+  vanished when the run finished.
+
+- Continue a Task with the prior Agent session instead of starting the next
+  TaskRun with empty conversation history.
+
+- The Portal task page now shows a breadcrumb back to where the task belongs —
+  its agent, issue, or conversation — instead of only "Home".
+
+- Continuing or retrying a Task no longer leaves its status, output, and
+  timing showing the previous run's outcome until the scheduler next polls;
+  the new run is reflected immediately.
+
+### Security
+
+- The Portal container now uses the slim Nginx Alpine image, removing unused
+  util-linux libraries with known high-severity vulnerabilities from the
+  runtime image.
+
+- The worker control listener now supports TLS, and a worker reaches the server
+  through one HTTP client that verifies the server certificate against a
+  configured CA (`worker.server_ca_file`) with no insecure fallback. A
+  `k8s_job` whose `worker.server_url` is `http://` is refused at startup unless
+  `worker.allow_insecure_http` is set.
+
+- Worker API routes now enforce the run's lifecycle: a run must be claimed
+  (RUNNING) before it can stream, publish an artifact, read a Space Secret, add
+  an Issue comment, download a plugin, or make a managed model call, and a
+  terminal run is refused — so a leaked but unexpired run token cannot act once
+  the run is over. Secret materialization also reads its consumption from the
+  Agent revision pinned onto the run, not the agent's current revision.
+
 ## [0.2.0-alpha.7] - 2026-09-02
 
 ### Added
@@ -2248,7 +2462,8 @@ its Portal image exists. This version replaces it.
 - Linux, macOS, and Windows archives with checksums and third-party notices.
 - Multi-architecture Linux container image published to GHCR.
 
-[Unreleased]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.7...HEAD
+[Unreleased]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.8...HEAD
+[0.2.0-alpha.8]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.7...v0.2.0-alpha.8
 [0.2.0-alpha.7]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.6...v0.2.0-alpha.7
 [0.2.0-alpha.6]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.4...v0.2.0-alpha.6
 [0.2.0-alpha.4]: https://github.com/gougoujiang/buildmax/compare/v0.2.0-alpha.3...v0.2.0-alpha.4
