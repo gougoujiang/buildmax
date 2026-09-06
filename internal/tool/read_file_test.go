@@ -79,6 +79,27 @@ func TestReadFile_Execute_success(t *testing.T) {
 	}
 }
 
+func TestReadFile_Execute_emptyFileReturnsSuccessSentinel(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "empty.txt"), nil, 0644); err != nil {
+		t.Fatal(err)
+	}
+	read := NewReadFile(util.FixedRoot(testWorkspace(t, dir)))
+
+	for _, args := range []map[string]any{
+		{"file_path": "empty.txt"},
+		{"file_path": "empty.txt", "offset": float64(10), "limit": float64(1)},
+	} {
+		result, err := read.Execute(context.Background(), args)
+		if err != nil {
+			t.Fatalf("Execute(%v): %v", args, err)
+		}
+		if result != "(file is empty)" {
+			t.Errorf("Execute(%v) = %q, want empty-file sentinel", args, result)
+		}
+	}
+}
+
 func TestReadFile_Execute_withOffsetLimit(t *testing.T) {
 	dir := t.TempDir()
 	// 5 lines
