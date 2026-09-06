@@ -1,9 +1,9 @@
-# 时间标签表示
+# 时间戳表示
 
 > **翻译说明：** 本文是[英文原文](../../design/timestamp-representation.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `b033177560b73edd657253865b0640396a286ecb88db6e3e8839b0bfc358c5ed`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
 
 
-> **观众：**贡献者和数据库审查者 · **实施状态：**
+> **受众：**贡献者和数据库审查者 · **实施状态：**已决定，迁移按统一方案进行。
 
 如何拼写BuildMax"这在时间中的某个时刻发生了".一个规则跨越三个层:`time.Time`在Go,`DATETIME(6)`在MySQL,RFC 3339在JSON。
 
@@ -11,9 +11,9 @@
 
 相关:[数据模型](../../contribute/architecture/data-model.md),[商店](../../contribute/architecture/store.md),[会议](../../contribute/conventions.md),[实体身份](entity-identity.md) 为DSN数据库单一连贯的阿尔法方案变更的先例和[配置](../../reference/configuration.md)。
 
-## 内容
+## 目录
 
-- [1.问题](#1问题)
+- [1. 问题](#1-问题)
 - [2.目标和非目标](#2目标和非目标)
 - [3。 决策](#3-决策)
 - [4。 为什么`DATETIME(6)`](#4-为什么datetime6)
@@ -21,9 +21,9 @@
 - [6.现有数据库](#6现有数据库)
 - [7。 情况和开放的问题](#7-情况和开放的问题)
 
-## 1.问题
+## 1. 问题
 
-服务器中的每一个持续的瞬间都是自那个时代以来的`int64`秒数.该规则是故意的和记录的；同时，该方案变得足够大，可以手动查询并被两个前端消耗。
+服务器中每个持久化时刻目前都表示为 Unix 秒 `int64`。这条规则是有意设计并记录的，但系统规模已经足够大，运维人员需要直接查询数据库，两个前端也需要消费这些字段。
 
 现在，这个域名是 `internal/core/model`，它已经分为每个域名的一个包，所以下面的计算是改变所触及的快照，而不是今天的树图：
 
@@ -38,13 +38,13 @@
 
 五项费用来自代表，而不是来自任何一个呼叫站点。
 
-**原始查询是不可读的.** `SELECT created_at FROM task_run ORDER BY created_at DESC LIMIT 5`用五个十位数整数回答.每一个专用诊断都将列包裹在 `FROM_UNIXTIME`，每一个手写的预言都将其边框包裹在 `UNIX_TIMESTAMP`，一个包裹的列不能使用其索引.那些最有可能运行这些查询的人是编码服务的运营商。
+**原始查询不可读。** `SELECT created_at FROM task_run ORDER BY created_at DESC LIMIT 5` 返回五个十位数整数。每次诊断都要用 `FROM_UNIXTIME` 包装列，手写查询又要用 `UNIX_TIMESTAMP` 包装参数；包装列还可能无法使用索引。最常运行这类查询的正是维护服务的运维人员。
 
-**第二分辨率碰撞.** `conversation_message`或 `workflow_step_run`的爆发在一秒内降落，并变得无法随时间而分辨.稳定排序是个独立的解决方案 (§3,D6)，但编码保证了碰撞而不是仅仅允许它。
+**秒级精度会碰撞。** `conversation_message` 或 `workflow_step_run` 可能在一秒内产生多条记录，无法仅凭时间区分。稳定排序是独立问题（§3、D6），但当前类型保证了碰撞，而不只是允许碰撞。
 
-**类型没有含义.** `int64`也是一种持续时间，代币计数，重试尝试和毫秒时刻。 包装边界没有什么区分 `EndedAt`与 `TimeoutSeconds`；毫秒而不是秒钟错误的类型检查，存储和回读为57,000年。
+**类型没有语义。** `int64` 既可能是时刻，也可能是持续时间、令牌计数、重试次数或毫秒值。类型系统无法区分 `EndedAt` 和 `TimeoutSeconds`；把毫秒误当秒写入后，读回的日期甚至可能落在数万年之后。
 
-**缺席是两种方式拼写的.**大多数零的时间标签是`*int64`，缺席意味着`NULL`。 但`plugin.archived_at`和相关标识符是`not null;default:0`，其中`0`意味着"未存档"是一个正确的哨手，在已经有零的语法可用的方案中。 `plugin_release.yanked_at`
+**缺失有两种表示。** 大多数可选时间戳使用 `*int64`，缺失表示 `NULL`；但 `plugin.archived_at` 和 `plugin_release.yanked_at` 是 `not null;default:0`，其中 `0` 表示“未归档/未撤回”。同一含义不应继续保留两套语法。
 
 **存储库已经运行第二个会议.** 会议文件包含`CreatedAt time.Time`和RFC 3339字符串 (`internal/core/session/session.go`)； 痕迹和工作日志写RFC 3339纳米`ts` (`internal/infra/trace/record.go`).所以文件层已经选择了该记录为数据库提供的表示，并且它们之间的每个边界都转换.转换也不均:`trace/joblog.go`邮票在当地时间中标记相关标识符，而`trace/record.go`s[阅读中文镜像](timestamp-representation.md)。 `time.Now()` `time.Now().UTC()`
 

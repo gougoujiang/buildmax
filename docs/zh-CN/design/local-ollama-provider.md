@@ -2,11 +2,11 @@
 
 > **翻译说明：** 本文是[英文原文](../../design/local-ollama-provider.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `fba1e50570524094099f7aefb1f11b7fb7616dbf3e0ba0fb2fd9854274b82c62`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
 
-**受众：**贡献者 · **状态：**第 1、2 阶段已交付。适配器、始终发送的 `num_ctx`、生成的工具调用标识符、本地模型清单、`buildmax init --ollama`、`buildmax models --local`、`doctor` 分支、凭证豁免和 `keep_alive` 都已实现。第 3 阶段添加了托管目标：目录项或 `conversation.model` 可以指定此提供商且不携带凭证（§12）。
+**受众：**贡献者 · **状态：**第 1、2 阶段已交付。适配器、始终发送的 `num_ctx`、生成的工具调用标识符、本地模型清单、`buildmax init --ollama`、`buildmax models --local`、`doctor` 分支、凭证豁免和 `keep_alive` 均已实现。第 3 阶段增加托管目标：目录项或 `conversation.model` 可以指定该提供商且无需凭证（§12）。
 
 实现确定了以下计划中留下的空白。`think` 是开关而不是连续刻度，因此高于 `off` 的每个级别都表示开启——这会记录在配置参考中，而不是像不支持的级别那样导致调用失败。思考文本也会**被丢弃**而不会暴露：该协议既不签名也不重放思考内容，因此 Anthropic 适配器的 `display: omitted` 才是应匹配的行为，而不是生成一份推理记录。
 
-它扩展了 [llm-provider-adapters.md](llm-provider-adapters.md)，后者负责 `provider` 维度以及 `core/llm.Message` 这一规范格式。本文添加了第四种线协议——Ollama 的原生 `/api/chat`——以及围绕它的本地优先使用面：模型清单、守护进程就绪检查和一个不需要凭证的配置项。
+本文扩展了 [llm-provider-adapters.md](llm-provider-adapters.md)；后者负责 `provider` 维度和规范化的 `core/llm.Message` 格式。本文增加第四种线协议——Ollama 原生 `/api/chat`——以及围绕它的本地优先界面：模型清单、守护进程就绪检查和无需凭证的配置项。
 
 它没有改变 `internal/core/llm` 中的任何内容。所有差异都包含在适配器内部，与适配器设计中做出的第 §1 条承诺相同。
 
@@ -83,7 +83,7 @@
 
 | | Chat Completions | Ollama `/api/chat` |
 |---|---|---|
-| System prompt | `role: "system"` message | same |
+| System prompt | `role: "system"` message | 相同 |
 | History unit | messages | messages |
 | Tool call | `tool_calls[]` with an `id` | `message.tool_calls[]` with **no id**, arguments as a JSON **object** |
 | Tool result | `role: "tool"` keyed by `tool_call_id` | `role: "tool"` with `tool_name`, matched by position |
@@ -96,7 +96,7 @@
 | Model lifetime | none | `keep_alive` 每次请求 |
 | Model absent | authentication-shaped error | 404 命名模型 |
 
-两行没有清晰的翻译，并驱动了 §6：工具调用没有标识符，并且参数是以解析形式而不是字符串到达的。
+其中两项差异直接驱动 §6：工具调用没有标识符，参数以已解析对象而不是 JSON 字符串到达。
 
 ## 5. 架构
 
@@ -129,7 +129,7 @@ internal/infra/llm/
 
 **合成工具调用标识符。** 协议中没有，但规范要求它们。adapter 通过对话中的位置给它们编号——既考虑请求已经携带的调用数量，也考虑其中最高的 `call_<n>`，因为截断会缩短历史记录，而计数本身可能重复一次——并且它不记住任何信息：在返回时，一个 `role: "tool"` 消息的 `ToolCallID` 会与前一个助手消息的工具调用进行比对，传输到线上的就是该调用的名称在 `tool_name` 中的。因此，标识符在一次回合内是稳定的，并且永远不会传向上游，这正是使会话可移植的原因——这是 adapter 设计中承诺的 §6 的属性，并且重放测试会锁定它。
 
-**序列化参数。** `ToolCall.Arguments` 是一个 JSON 字符串；协议发送和接收一个对象。adapter 在进入时进行打包，在离开时进行解包，而一个发出不可解包内容的模型会产生一个带有原始文本作为参数的工具调用，而不是一个被丢弃的回合——agent 循环已经将参数错误报告回模型，这是一个可恢复的状态，与丢失的调用不同。
+**序列化参数。** `ToolCall.Arguments` 是 JSON 字符串，而协议发送和接收的是对象。适配器在发送前解析字符串、接收后重新编码；如果模型返回无法解析的内容，适配器会保留原始文本作为工具参数，让 Agent 循环把参数错误报告回模型，而不是静默丢弃整个回合。
 
 **在每次调用时发送 `num_ctx`。** §7。
 

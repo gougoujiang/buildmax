@@ -17,7 +17,7 @@
 > [会话与追踪](../../guide/sessions-and-traces.md)和
 > [CLI 参考](../../reference/cli.md)。
 
-## 内容
+## 目录
 
 - [1. 问题](#1-问题)
 - [2. 决策](#2-决策)
