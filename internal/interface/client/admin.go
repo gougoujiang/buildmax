@@ -36,10 +36,14 @@ type adminGrantsResponse struct {
 // the CLI needs — to resolve an email to an id and show whether the account is
 // disabled — are kept.
 type AdminAccount struct {
-	ID         string     `json:"id"`
-	Email      string     `json:"email"`
-	DisabledAt *time.Time `json:"disabled_at,omitempty"`
+	ID          string     `json:"id"`
+	Email       string     `json:"email"`
+	DisabledAt  *time.Time `json:"disabled_at,omitempty"`
+	HasPassword bool       `json:"has_password"`
 }
+
+// Disabled reports whether the account is currently refused.
+func (a AdminAccount) Disabled() bool { return a.DisabledAt != nil }
 
 type adminUsersResponse struct {
 	Users []AdminAccount `json:"users"`
