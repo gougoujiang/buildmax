@@ -383,21 +383,14 @@ func prepareRunWorkspace(ctx context.Context, input RunTaskInput, task *coretask
 		return err
 	}
 	restoreSessionFromPreviousRun(ctx, task, run, dirs.runGlobal, persist)
-	// Space files land directly in workspace/, the Agent's cwd and single tool
-	// root. Its AGENTS.md is discovered there by the runtime's normal
-	// workspace-root prompt layer; the run writes no synthesized AGENTS.md above
-	// it. See docs/design/task-workspace-checkpoints.md §4.1.
-	if err := persist.MaterializeToDir(ctx, task.SpaceID, dirs.runWorkspace); err != nil {
-		componentLog().Error("failed to materialize space files", "task_run_id", run.ID, "space_id", task.SpaceID, "err", err)
-		return err
-	}
-	// The materialized tree is the Task's starting point. On its first run it is
-	// captured as the seed checkpoint, before any model or tool call, so a later
-	// run has a base to continue from. A run that already has a base restores it
-	// instead (a later slice); this fails closed, because a run whose seed did
-	// not commit leaves the Task with no recoverable workspace (§13).
-	if err := seedWorkspaceIfFirstRun(ctx, input, task, run, dirs); err != nil {
-		componentLog().Error("failed to seed the task workspace", "task_run_id", run.ID, "space_id", task.SpaceID, "err", err)
+	// Fill workspace/ — the Agent's cwd and single tool root — either by
+	// restoring the Task's base checkpoint or by materializing the space files
+	// and seeding them, before any model or tool call. A workspace AGENTS.md is
+	// discovered there by the runtime's normal workspace-root prompt layer; the
+	// run writes no synthesized AGENTS.md above it. See
+	// docs/design/task-workspace-checkpoints.md §4.1 and §6.
+	if err := prepareWorkspaceFilesystem(ctx, input, task, run, dirs); err != nil {
+		componentLog().Error("failed to prepare the task workspace", "task_run_id", run.ID, "space_id", task.SpaceID, "err", err)
 		return err
 	}
 	return nil
