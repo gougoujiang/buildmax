@@ -1,5 +1,6 @@
 # DigitalOcean Qualification Infrastructure
 
+> **简体中文：** [阅读中文镜像](../zh-CN/deploy/digitalocean.md)
 > **Audience:** operators · **Status:** current
 >
 > This is the lowest-cost external infrastructure prepared for the BuildMax
