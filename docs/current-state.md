@@ -345,6 +345,14 @@ deployment partner supplies evidence that changes the order.
   [`design/space-membership-lifecycle.md`](design/space-membership-lifecycle.md)
   §6 declines to reopen it. Read a missing approval loop as unbuilt on
   purpose, pending a concrete space's need for one.
+- Deployment administrators manage the model catalog from Portal and the admin
+  API, not only the server command line: listing, enabling or disabling, and
+  adding a model. Provider credentials are encrypted at rest under the deployment
+  key-encryption key
+  ([`internal/infra/secret`](../internal/infra/secret/cipher.go)), so a model may
+  be added over HTTP; a deployment with no encryption key configured refuses a
+  credentialed model rather than storing the key in the clear. Plugin catalog
+  management stays on the command line by decision.
 
 ### P1 — Qualification Breadth
 
