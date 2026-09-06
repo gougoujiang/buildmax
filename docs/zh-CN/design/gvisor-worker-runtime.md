@@ -9,7 +9,7 @@
 
 外部参考：[gVisor 概览](https://gvisor.dev/docs/)、[安全模型](https://gvisor.dev/docs/architecture_guide/security/)、[Kubernetes 集成](https://gvisor.dev/docs/user_guide/quick_start/kubernetes/)和[应用兼容性](https://gvisor.dev/docs/user_guide/compatibility/)。
 
-## 内容
+## 目录
 
 - [1. 状态](#1-状态)
 - [2. 问题](#2-问题)
@@ -91,61 +91,56 @@ gVisor runsc
 
 运行时选择权属于部署运维人员，而不是 Space、Agent、Task 或模型。Agent 可以在运行中请求网络和文件系统层级，但不能选择 Pod 使用 `runc`、`runsc`、Kata 或其他集群运行时。
 
-配置名称是BuildMax运行时间类型和Kubernetes运行时间类型，并将该类带入每个工作者Pod中.当运行时间类型是`gvisor`：
+配置同时记录 BuildMax 运行时类型和 Kubernetes RuntimeClass，并将该 RuntimeClass 传递给每个 Worker Pod。当运行时类型为 `gvisor` 时：
 
-- BuildMax 永远不会在集群默认情况下删除或重新尝试工作；
-- 缺失或不可用的运行时段未关闭；
-- 要求的值应记录在TaskRun的工人来源上；以及
-- 产品支持要求仅适用于运行时间类BuildMax
-具有自己的工人测试矩阵的资格。
+- BuildMax 绝不会删除该设置，也不会在集群默认运行时下重试 Job；
+- 运行时缺失或不可用时必须失败关闭；
+- 请求的值会记录在 TaskRun 的 Worker 来源信息中；以及
+- 产品支持声明只适用于 BuildMax 已用自己的 Worker 测试矩阵完成资格验证的 RuntimeClass。
 
-随着空值继续选择集群的默认OCI运行时间.这是可移植的基线，而不是强大的外部边界的隐含要求.生产参考可能建议合格的gVisor运行阶级，但它不能制造一个：安装和补丁节点运行时间属于集群操作员。
+空值继续选择集群默认 OCI 运行时。这是可移植基线，不代表隐含拥有更强的外层边界。生产参考部署可以建议已验证的 gVisor RuntimeClass，但不能替运维人员创建它：节点运行时的安装和修补属于集群运维范围。
 
 ## 4. 边界模型
 
-### 4.1 gVisor 增加了什么
+### 4.1 gVisor 带来的能力
 
-gVisor的传递器是一个用户空间应用内核.工作负载系统调用在那里而不是直接传递到主机内核.传递器本身运行一个限制的主机系统调用表面，而文件系统访问通过Gofer，网络通常使用gVisor的自己的网盘。 [建筑](https://gvisor.dev/docs/) [安全模式](https://gvisor.dev/docs/architecture_guide/security/)
+gVisor 的 Sentry 是一个用户空间应用内核。工作负载的系统调用由它实现，而不是直接传递给宿主机内核。Sentry 自身只使用受限的宿主机系统调用；文件系统访问由 Gofer 中介，网络通常使用 gVisor 自带的 netstack。详见上游的[架构](https://gvisor.dev/docs/)和[安全模型](https://gvisor.dev/docs/architecture_guide/security/)。
 
-对于BuildMax，这使得整个工作者Pod成为一个外部沙箱.一个未包装的MCP过程仍然对运行数据和凭证危险，但它不再与节点有正常的本土容器系统关系。
+对 BuildMax 而言，这使整个 Worker Pod 成为外层沙箱。未被包裹的 MCP 进程仍可能危及运行数据和凭证，但它不再与节点保持普通原生容器的系统调用关系。
 
-电源规格要求的功能是gVisor沙盒内功能，而不是主机Linux功能.上游显示嵌套的容器工作负载接收`SYS_ADMIN`而没有向主机授予这种功能.这使得`bwrap`的许可可能仍然比`runc`的相同领域更不危险；它不会使许可不相关或消除减少它的必要性.见相关标识符。 [子代理 Docker gVisor](https://gvisor.dev/docs/tutorials/docker-in-gvisor/)
+Pod spec 中请求的 capabilities 是 gVisor 沙箱内的能力，而不是宿主机 Linux 能力。上游示例显示，嵌套容器工作负载可以获得 `SYS_ADMIN`，而不把该能力授予宿主机。因此，`bwrap` 仍可能需要的权限，在 gVisor 下比 `runc` 中的同一字段危险性低得多；但这不代表权限无关紧要，也不免除最小化权限的要求。参见 [Docker in gVisor](https://gvisor.dev/docs/tutorials/docker-in-gvisor/)。
 
 ### 4.2 gVisor所不添加的内容
 
-| 关注 | 经过这个设计，拥有者 |
+| 关注点 | 本设计下的负责方 |
 |---|---|
-| 工人可以调用哪个服务器路线 | 内部工作者听器,TLS，网络政策，运行代币 |
-| 申请属于哪个Space或TaskRun | 服务器端运行权限 |
-| 模型选择的命令可以读写哪些路径 | BuildMax `bwrap` 沙箱 |
-| 模型命令可能达到哪些域 | 克斯相关标识符沙箱代理和未来集群退出政策 BuildMax |
-| 跑步可能会得到什么秘密 | 子代理 Agent Space |
-| 处理器和内存耗尽 | 要求，限制和主机组 Kubernetes |
-| 硬件侧通道 | 托管器，硬件和云平台控制 |
+| Worker 可以调用哪条 Server 路由 | Worker 内部监听器、TLS、NetworkPolicy 和运行令牌 |
+| 请求属于哪个 Space 或 TaskRun | Server 端运行授权 |
+| 模型命令可以读写哪些路径 | `bwrap` 和 BuildMax 沙箱策略 |
+| 模型命令可以访问哪些域名 | BuildMax 沙箱代理和未来的集群出口策略 |
+| 运行可以获得哪些 Secret | Agent 修订版本、Space 所有权和 Secret 物化状态 |
+| CPU 和内存耗尽 | Kubernetes requests、limits 和宿主机 cgroup |
+| 硬件侧信道 | 宿主机、硬件和云平台控制 |
 
-gVisor不是目的地防火墙.其网盘隔离实现，但仍然发送由Pod网络允许的包.上游明确要求控制目的地的容器级网络政策.它也不是一个资源限制机制； Kubernetes cgroups仍然权威。
+gVisor 不是目的地防火墙。它隔离网络实现，但仍会发送 Pod 网络允许的报文。上游明确要求使用容器级网络策略控制目的地。它也不是资源限制机制；Kubernetes cgroup 仍是权威。
 
 ### 4.3 值得信赖的组件
 
-节点运行时间,gVisor发布，主机内核,Kubernetes控制平面,CNI，安装文件，以及BuildMax服务器仍然值得信赖.gVisor缩小了工作者和主机之间的界面；它不会从可信的计算基地中移除主机或平台。
+节点运行时、gVisor 版本、宿主机内核、Kubernetes 控制平面、CNI、挂载文件和 BuildMax Server 仍属于受信任组件。gVisor 缩小了 Worker 与宿主机之间的接口，但不会把宿主机或平台从可信计算基中移除。
 
-编程系统的管理器可以检查或修改Pod， RuntimeClass，运行代币交付和安装内容。 Kubernetes
+Kubernetes 或节点管理员可以检查或修改 Pod、RuntimeClass、运行令牌交付和挂载内容。本设计不对这些管理员提供防护承诺。
 
 ## 5. 为什么选择 gVisor
 
-工人形状有利于gVisor的交易：
+Worker 的形态适合 gVisor 的取舍：
 
-- 一个短暂的工作已经创造了一个自然的沙箱单位；
-- 工人运行任意语言运行时间和命令行工具，而不是一个
-固定系统调用最小服务；
-- 像过程一样的启动和弹性资源使用比保留一个更好
-每次运行的完整VM；
-- 工作负载对安全性敏感，以证明更多的隔离
-产品集装箱；
-- 由于`runsc`执行了OCI运行时间合同，因此Kubernetes通过
-没有`RuntimeClass`，没有BuildMax拥有集装箱发射机。
+- 每个短生命周期 Job 自然就是一个沙箱单元；
+- Worker 运行任意语言运行时和命令行工具，而不是固定的最小系统调用服务；
+- 类进程的启动方式和弹性资源使用，比每次运行预留一台完整 VM 更合适；
+- 工作负载足够敏感，值得比原生容器更强的隔离；以及
+- `runsc` 实现 OCI 运行时契约，Kubernetes 可通过 `RuntimeClass` 选择它，而 BuildMax 无需拥有容器启动器。
 
-安全优势是多样性以及减少.主机Linuxexploit不会直接接收攻击者控制的工作负载系统调控参数；逃生通常必须跨越独立实现的传送系统边界，然后其限制的主机边界.gVisor将此描述为深度防御，而不是硬件VM的等效。
+安全收益既来自减少暴露面，也来自实现多样性。宿主机 Linux 漏洞不会直接接收攻击者控制的工作负载系统调用参数；逃逸通常必须跨越独立实现的 Sentry 边界及其受限的宿主机边界。gVisor 将此称为纵深防御，而不是等同于硬件 VM。
 
 ## 6. 与 Bubblewrap 组合
 
