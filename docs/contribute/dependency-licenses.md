@@ -1,5 +1,7 @@
 # Dependency Licenses
 
+> **Audience:** contributors · **Status:** current
+
 BuildMax ships under [Apache-2.0](../../LICENSE). This page records what its
 dependencies are licensed under, and how to re-check.
 

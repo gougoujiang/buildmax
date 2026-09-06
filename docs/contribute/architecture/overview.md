@@ -1,5 +1,7 @@
 # Project Overview
 
+> **Audience:** contributors · **Status:** current
+
 ## Purpose
 
 BuildMax is an out-of-the-box, privately deployable enterprise Agent platform
