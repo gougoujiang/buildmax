@@ -82,6 +82,23 @@ type taskRunRow struct {
 	// and it selects on this column.
 	LastSeenAt *time.Time `gorm:"column:last_seen_at;index"`
 	CreatedAt  time.Time  `gorm:"autoCreateTime;index:idx_task_run_task_created,priority:2"`
+
+	// Workspace checkpoint provenance. See
+	// docs/design/task-workspace-checkpoints.md §9.3. Numeric references to
+	// workspace_checkpoint.id; the status columns exist because a missing
+	// pointer alone cannot tell "not requested" from "attempted and failed".
+	// Errors are bounded operator-facing text, never raw provider responses.
+	WorkspaceBaseCheckpointID    *uint64 `gorm:"column:workspace_base_checkpoint_id;index"`
+	WorkspaceResultCheckpointID  *uint64 `gorm:"column:workspace_result_checkpoint_id;index"`
+	WorkspacePartialCheckpointID *uint64 `gorm:"column:workspace_partial_checkpoint_id;index"`
+	WorkspaceRestoreStatus       string  `gorm:"column:workspace_restore_status;type:varchar(32)"`
+	WorkspaceRestoreError        *string `gorm:"column:workspace_restore_error;type:text"`
+	WorkspaceCheckpointStatus    string  `gorm:"column:workspace_checkpoint_status;type:varchar(32)"`
+	WorkspaceCheckpointError     *string `gorm:"column:workspace_checkpoint_error;type:text"`
+	PluginEnvironmentBaseID      *uint64 `gorm:"column:plugin_environment_base_id;index"`
+	PluginEnvironmentResultID    *uint64 `gorm:"column:plugin_environment_result_id;index"`
+	PluginEnvironmentStatus      string  `gorm:"column:plugin_environment_status;type:varchar(32)"`
+	PluginEnvironmentError       *string `gorm:"column:plugin_environment_error;type:text"`
 }
 
 func (taskRunRow) TableName() string { return "task_run" }

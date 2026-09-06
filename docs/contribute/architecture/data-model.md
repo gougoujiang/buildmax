@@ -743,9 +743,12 @@ The durable unit of background work. One task, many attempts.
 | `session_id` | `varchar(36)` | yes | UUID of the agent session file, not a table reference |
 | `last_run_id` | `bigint unsigned` | yes | `task_run.id` of the most recent attempt |
 | `agent_id` | `bigint unsigned` | yes | `agent.id` this task runs as |
+| `workspace_head_checkpoint_id` | `bigint unsigned` | yes | `workspace_checkpoint.id` accepted as the Task's recoverable workspace; its seed, then each successful result. Null until the first run commits one |
+| `plugin_environment_head_id` | `bigint unsigned` | yes | Immutable Plugin environment the next Continue uses; null for a Task that installs nothing autonomously |
 
 Indexes: PK `id`; index `agent_id`; index `conversation_id`; index `issue_id`;
-index `last_run_id`; index `idx_task_space_created` on (`space_id`,
+index `last_run_id`; index `workspace_head_checkpoint_id`; index
+`plugin_environment_head_id`; index `idx_task_space_created` on (`space_id`,
 `created_at`); unique `public_id`.
 
 Status values are `task.RunStatus` — uppercase, and shared with `task_run`.
@@ -787,6 +790,17 @@ One execution attempt. This is the row quota and token accounting read.
 | `sandbox_filesystem_tier` | `varchar(64)` | yes | The tier resolved on the first poll, same fallback as `sandbox_network_tier` |
 | `last_seen_at` | `datetime(6)` | yes | When this run's worker last polled its own route; `NULL` until a worker claims the run |
 | `idempotency_key` | `varchar(128)` | yes | Caller's dedup key for a Continue request; `NULL` for a run created without one — a retry, a workflow step, an issue agent run, or an older client |
+| `workspace_base_checkpoint_id` | `bigint unsigned` | yes | `workspace_checkpoint.id` this run was authorized to read and modify, fixed before execution |
+| `workspace_result_checkpoint_id` | `bigint unsigned` | yes | Successful result checkpoint this run committed |
+| `workspace_partial_checkpoint_id` | `bigint unsigned` | yes | Partial checkpoint captured after failure, cancellation, or interruption; never the Task head |
+| `workspace_restore_status` | `varchar(32)` | yes | `not_requested`, `pending`, `restored`, or `failed` |
+| `workspace_restore_error` | `text` | yes | Bounded operator-facing reason a restore failed |
+| `workspace_checkpoint_status` | `varchar(32)` | yes | `not_requested`, `pending`, `committed`, or `failed` |
+| `workspace_checkpoint_error` | `text` | yes | Bounded operator-facing reason a capture or commit failed |
+| `plugin_environment_base_id` | `bigint unsigned` | yes | Immutable Plugin set materialized for this run |
+| `plugin_environment_result_id` | `bigint unsigned` | yes | New Plugin set a committed autonomous install requested; takes effect on the next TaskRun boundary |
+| `plugin_environment_status` | `varchar(32)` | yes | `unchanged`, `pending`, `committed`, or `failed` |
+| `plugin_environment_error` | `text` | yes | Bounded installation or materialization reason |
 | `created_at` | `datetime(6)` | yes | `autoCreateTime` |
 
 Indexes: PK `id`; index `cancel_requested_at`; index `created_by`; index
@@ -917,6 +931,40 @@ table; both migrations are in `internal/infra/db/migration.go`.
 
 It is not `artifact`, below. This is a run's index of the files it left in its
 own output directory; that is a durable object a space keeps.
+
+### `workspace_checkpoint`
+
+An immutable, complete representation of a Task's `workspace/` at one boundary —
+its seed, a successful result, or a partial. See
+[task workspace checkpoints](../../design/task-workspace-checkpoints.md) §9.1.
+The payload lives in object storage; this row is its metadata.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | `bigint unsigned` | no | Internal primary key |
+| `public_id` | `char(20) ascii_bin` | no | Public handle, unique |
+| `space_id` | `bigint unsigned` | no | Authorization owner |
+| `task_id` | `bigint unsigned` | no | Workspace owner |
+| `source_task_run_id` | `bigint unsigned` | no | The run that captured it |
+| `kind` | `varchar(32)` | no | `seed`, `successful`, or `partial` |
+| `base_checkpoint_id` | `bigint unsigned` | yes | Lineage predecessor |
+| `payload_format` | `varchar(32)` | no | Initially `tar.zst.v1` |
+| `payload_sha256` | `char(64) ascii_bin` | no | Digest of the stored bytes |
+| `storage_key` | `varchar(1024)` | no | Backend-relative key; never serialized to domain JSON, a worker response, a log, or a trace |
+| `size_bytes` | `bigint` | no | Stored payload bytes |
+| `uncompressed_bytes` | `bigint` | no | Sum of regular-file sizes |
+| `entry_count` | `bigint` | no | Regular files, directories, and symlinks |
+| `created_at` | `datetime(6)` | no | UTC commit time |
+
+Uniqueness is `(source_task_run_id, kind)`: a run has at most one seed, one
+successful, and one partial. `payload_sha256` is not unique — separate rows can
+name the same immutable payload with separate provenance. `storage_key` follows
+the `artifact` rule: it is infrastructure data absent from every serialized
+surface.
+
+Indexes: PK `id`; unique `public_id`; unique `(source_task_run_id, kind)`;
+index `space_id`; index `base_checkpoint_id`; index
+`idx_workspace_checkpoint_task_created` on (`task_id`, `created_at`).
 
 ### `artifact`
 

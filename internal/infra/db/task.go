@@ -36,6 +36,15 @@ type taskRow struct {
 	SessionID             *string    `gorm:"type:varchar(36)"`
 	LastRunID             *uint64    `gorm:"column:last_run_id;index"`
 	AgentID               *uint64    `gorm:"column:agent_id;index"`
+	// WorkspaceHeadCheckpointID points at the latest checkpoint accepted as this
+	// Task's recoverable workspace (its seed, then each successful result). A
+	// projection maintained in the same transaction as checkpoint finalization;
+	// nil until the first run commits one. See
+	// docs/design/task-workspace-checkpoints.md §9.2.
+	WorkspaceHeadCheckpointID *uint64 `gorm:"column:workspace_head_checkpoint_id;index"`
+	// PluginEnvironmentHeadID points at the immutable Plugin environment the
+	// next Continue uses; nil for a Task that installs nothing autonomously.
+	PluginEnvironmentHeadID *uint64 `gorm:"column:plugin_environment_head_id;index"`
 }
 
 func (taskRow) TableName() string { return "task" }

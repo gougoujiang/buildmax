@@ -103,6 +103,17 @@ type Task struct {
 	SessionID             *string    `json:"session_id,omitempty"`
 	LastRunID             *string    `json:"last_run_id,omitempty"`
 	AgentID               *string    `json:"agent_id,omitempty"`
+	// WorkspaceHeadCheckpointID points at the latest checkpoint accepted as this
+	// Task's recoverable workspace: its initial seed, then each successful
+	// result. It is a database pointer among immutable checkpoints, never a
+	// mutable object-store key, and nil until the first run commits a seed or
+	// result. See docs/design/task-workspace-checkpoints.md §9.2.
+	WorkspaceHeadCheckpointID *string `json:"workspace_head_checkpoint_id,omitempty"`
+	// PluginEnvironmentHeadID points at the immutable Plugin environment
+	// revision the next Continue uses. Nil for a Task that derives its
+	// environment from the Agent revision and Space activation with no
+	// autonomous install.
+	PluginEnvironmentHeadID *string `json:"plugin_environment_head_id,omitempty"`
 }
 
 // Run is one execution (initial or follow-up) of a task.
@@ -199,6 +210,27 @@ type Run struct {
 	// this same run rather than a second one. Nil for a run created without a
 	// key — a retry, a workflow step, an issue agent run, or an older client.
 	IdempotencyKey *string `json:"idempotency_key,omitempty"`
+
+	// Workspace checkpoint provenance. See
+	// docs/design/task-workspace-checkpoints.md §9.3. The base is the immutable
+	// workspace this run was authorized to read and modify, fixed before
+	// execution; the result and partial are what it captured. The status fields
+	// exist because a missing pointer alone cannot tell "not requested" from
+	// "attempted and failed". Errors are bounded operator-facing text.
+	WorkspaceBaseCheckpointID    *string `json:"workspace_base_checkpoint_id,omitempty"`
+	WorkspaceResultCheckpointID  *string `json:"workspace_result_checkpoint_id,omitempty"`
+	WorkspacePartialCheckpointID *string `json:"workspace_partial_checkpoint_id,omitempty"`
+	WorkspaceRestoreStatus       string  `json:"workspace_restore_status,omitempty"`
+	WorkspaceRestoreError        *string `json:"workspace_restore_error,omitempty"`
+	WorkspaceCheckpointStatus    string  `json:"workspace_checkpoint_status,omitempty"`
+	WorkspaceCheckpointError     *string `json:"workspace_checkpoint_error,omitempty"`
+	// Plugin environment provenance. The base is the immutable Plugin set this
+	// run materialized; the result is a new set a committed autonomous install
+	// requested, which takes effect on the next TaskRun boundary.
+	PluginEnvironmentBaseID   *string `json:"plugin_environment_base_id,omitempty"`
+	PluginEnvironmentResultID *string `json:"plugin_environment_result_id,omitempty"`
+	PluginEnvironmentStatus   string  `json:"plugin_environment_status,omitempty"`
+	PluginEnvironmentError    *string `json:"plugin_environment_error,omitempty"`
 }
 
 // RunTerminalInfo describes a task run that reached a terminal state.
