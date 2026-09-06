@@ -1,4 +1,4 @@
-# Team backlog
+# Space backlog
 
 - [ ] Rotate the staging credentials
 - [x] Publish the incident write-up

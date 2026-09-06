@@ -2,7 +2,7 @@
 # The reference solution, run from the run's workspace.
 #
 # It reads from home/ and writes at the root, which is the split a worker run
-# has: the team's persistent files come in under home/, and what the run
+# has: the space's persistent files come in under home/, and what the run
 # produces belongs to the run.
 
 open_count=$(grep -c '^- \[ \]' home/backlog.md)
