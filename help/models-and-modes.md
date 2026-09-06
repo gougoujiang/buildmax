@@ -47,7 +47,7 @@ Sign in and the models become the deployment's:
 buildmax login
 ```
 
-```
+```text
 Server URL [http://localhost:5678]: https://buildmax.example.com
 Email: you@example.com
 Password (leave blank to use a login code): ********
@@ -58,7 +58,7 @@ Every model that deployment offers is available to you — a space is who you
 collaborate with, not what gates a model. `buildmax models` lists them and says
 where prompts go:
 
-```
+```text
 Signed in to https://buildmax.example.com. Prompts, tool schemas, and tool
 results go there.
 
@@ -96,7 +96,7 @@ decision about where your prompts go.
 `buildmax doctor` reports the mode as a check of its own, along with whether the
 models behind it actually work:
 
-```
+```text
 ✓ mode         signed in to https://buildmax.example.com: its models serve every prompt
 ```
 
