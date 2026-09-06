@@ -124,6 +124,47 @@ test("creating an account walks the operator into issuing its login code", async
   await expect(page.locator(".settings-section__error")).toHaveCount(0)
 })
 
+test("an administrator can add a model through the Portal", async ({ page }) => {
+  await page.goto("/#/admin/models")
+  await expect(page.getByRole("heading", { name: "Add a model" })).toBeVisible()
+
+  // A credential-free target (ollama needs no key), so this works whether or not
+  // the deployment has an encryption key configured — the catalog row is what is
+  // under test, not a live upstream.
+  const name = `Portal Model ${Date.now()}`
+  await page.getByLabel("Name", { exact: true }).fill(name)
+  await page.getByLabel("Provider", { exact: true }).fill("ollama")
+  await page.getByLabel("API URL").fill("http://ollama.test:11434/v1")
+  await page.getByLabel("Provider model ID").fill("llama3")
+  await page.getByRole("button", { name: "Add model" }).click()
+
+  await expect(page.getByText(`Added ${name}`)).toBeVisible()
+  await expect(page.locator(".settings-section__error")).toHaveCount(0)
+
+  // It is really in the catalog, not just an optimistic message.
+  await page.reload()
+  await expect(page.locator(".admin-list__main").filter({ hasText: name })).toBeVisible()
+})
+
+test("a model's API key never appears on the page", async ({ page }) => {
+  await page.goto("/#/admin/models")
+
+  const secret = `sk-portal-leak-${Date.now()}`
+  await page.getByLabel("Name", { exact: true }).fill(`Keyed Model ${Date.now()}`)
+  await page.getByLabel("Provider", { exact: true }).fill("openai_compatible")
+  await page.getByLabel("API URL").fill("https://api.example.test/v1")
+  await page.getByLabel("Provider model ID").fill("vendor/model")
+  await page.getByLabel("API key").fill(secret)
+  await page.getByRole("button", { name: "Add model" }).click()
+
+  // Whether the deployment accepted the model (it has an encryption key) or
+  // refused it (it does not), the outcome is shown and the key is rendered
+  // nowhere: on success the form is cleared, and a refusal names the missing key
+  // config, never the credential.
+  await expect(page.locator(".admin-notice, .settings-section__error")).toBeVisible()
+  await expect(page.locator("body")).not.toContainText(secret)
+})
+
 test("the audit search reaches the events that have no space", async ({ page }) => {
   await page.goto("/#/admin/audit")
   await expect(page.getByRole("heading", { name: "Audit trail" })).toBeVisible()

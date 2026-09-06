@@ -97,6 +97,43 @@
   flex: 1 1 auto;
 }
 
+/* A checkbox field reads left-to-right, unlike the stacked text fields. */
+.admin-field--checkbox {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.admin-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* The create form's inputs wrap into as many columns as fit, so the form stays
+   compact on a wide panel and stacks on a narrow one. */
+.admin-form__grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.admin-advanced {
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+}
+
+.admin-advanced > summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--color-text-muted, #6b7280);
+}
+
+.admin-advanced > summary + .admin-form__grid {
+  margin-top: 0.75rem;
+}
+
 .admin-button {
   padding: 0.45rem 0.85rem;
   border: 1px solid var(--border-color);

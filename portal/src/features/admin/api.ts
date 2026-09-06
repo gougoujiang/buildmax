@@ -244,14 +244,7 @@ export function listAdminModels(token: string): Promise<ApiAdminModelsResponse> 
   return get<ApiAdminModelsResponse>("/llm/models", token)
 }
 
-/**
- * Retires or restores a catalog model.
- *
- * There is no create here on purpose: adding a model means handing over a
- * provider key, and `buildmax-server model add` keeps that on the machine that
- * already holds the database credentials rather than putting it in a request
- * body, a proxy log, and whatever the browser did with the form.
- */
+/** Retires or restores a catalog model. */
 export function setAdminModelEnabled(
   token: string,
   modelId: string,
@@ -259,4 +252,41 @@ export function setAdminModelEnabled(
 ): Promise<ApiAdminModel> {
   const action = enabled ? "enable" : "disable"
   return send<ApiAdminModel>("POST", `/llm/models/${encodeURIComponent(modelId)}/${action}`, token)
+}
+
+/**
+ * The fields a new catalog model is created with, mirroring
+ * `buildmax-server model add`. Prices are strings in the model's currency.
+ *
+ * api_key is write-only: it is sent here and never read back. Only send fields
+ * an operator filled; the server applies the same defaults the shell does.
+ */
+export interface AdminCreateModelInput {
+  name: string
+  provider_type?: string
+  api_url: string
+  api_key?: string
+  model: string
+  context_window?: number
+  call_timeout?: number
+  max_tokens?: number
+  reasoning?: string
+  cache_mode?: string
+  cache_ttl?: string
+  currency?: string
+  input_price?: string
+  cache_read_price?: string
+  cache_write_price?: string
+  output_price?: string
+  vision?: boolean
+  capabilities?: string[]
+}
+
+/**
+ * Adds a catalog model. The provider key travels in the request body only and
+ * is stored encrypted at rest; no read returns it. A deployment with no
+ * encryption key configured refuses a model that carries one.
+ */
+export function createAdminModel(token: string, input: AdminCreateModelInput): Promise<ApiAdminModel> {
+  return send<ApiAdminModel>("POST", "/llm/models", token, input)
 }
