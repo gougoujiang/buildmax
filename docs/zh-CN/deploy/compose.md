@@ -94,7 +94,7 @@ sample-data/orders/      e-commerce orders, with a README describing the columns
 
 - **端口发布到宿主机。** 只要能访问该机器，就可能访问 `5678` 和 `8080`。
 - **没有 TLS。** 两个服务都使用明文 HTTP。请在前方放置反向代理，并将 Portal 的 `BUILDMAX_API_BASE` 设为 `/`，让其调用同源地址，同时消除下文的 CORS 配对要求。
-- **Agent 会执行 shell 命令。** Worker 在服务器容器内执行模型要求的命令，沙箱[默认关闭](../../../help/sandbox.md)。
+- **Agent 会执行 shell 命令。** Worker 在服务器容器内执行模型要求的命令，沙箱[默认关闭](../../../manual/sandbox.md)。
 - **数据存储在 Docker 卷中。** `docker compose down -v` 会删除其中所有工作区、Artifact 和账户。
 
 ## 更改宿主机端口
