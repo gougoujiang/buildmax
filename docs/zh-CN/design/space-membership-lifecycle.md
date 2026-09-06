@@ -3,13 +3,13 @@
 > **翻译说明：** 本文是[英文原文](../../design/space-membership-lifecycle.md)的简体中文派生翻译。**同步依据：** 英文原文 SHA-256 `1036ba4296c6f2efe339634a71238570fe53d33fcc2c6b91c4f3956ede860881`。**同步状态：** 与该版本一致。若中英文存在语义冲突，以英文原文为准。
 
 
-## 内容
+## 目录
 
 - [状态](#状态)
 - [1. 决策](#1-决策)
-- [2.产品目标](#2产品目标)
-- [3。 现行基准](#3-现行基准)
-- [4。 主要缺口](#4-主要缺口)
+- [2. 产品目标](#2-产品目标)
+- [3. 当前基线](#3-当前基线)
+- [4. 主要缺口](#4-主要缺口)
 - [5。 范围](#5-范围)
 - [6. 范围外事项](#6-范围外事项)
 - [7。 允许矩阵的添加](#7-允许矩阵的添加)
@@ -22,182 +22,116 @@
 
 ## 状态
 
-- roadmap_priority:`P4` (路线图R3，"密切账户和Space运营")
+- roadmap_priority：`P4`（路线图 R3，“关闭账户与 Space 操作”）
 - 状态：`implemented`。§5.1（邀请）、§5.2（角色变更）、§5.3（所有权转让）
   和 §5.4（Space 范围内的访问恢复）均已端到端实现，涉及
   `internal/core/space`、`internal/service/space`、
   `internal/server/handlers/space`、`internal/infra/db`，以及 §9 的 Portal
   页面（Space → Members：邀请、待处理列表、角色选择器、转让确认和登录代码；
   Account → Invitations：列表和接受）。§12 的四个未决问题均已确定。
-- 接下来:[空间管理.md](./space-governance.md)，
-[系统管理.md](./system-administration.md)
-- 路线图:[其他地方的路线图](../../ROADMAP.md)
+- 后续依据：[space-governance.md](./space-governance.md)、[system-administration.md](./system-administration.md)
+- 路线图：[ROADMAP.md](../../ROADMAP.md)
 - created_at： `2026-08-30`
 
 ## 1. 决策
 
-**BuildMax不支持自助服务注册.**`allow_signup`仍然是一个小或可靠的部署的选择逃离口，代码已经说明了为什么它必须默认关闭：没有什么证实谁输入了地址控制它，所以开放的注册在可访问服务器是如何有人声称同事的地址 (`internal/service/identity/account.go`,`ErrSignupClosed`)。 `internal/core/identity/login_code.go`
+**BuildMax 不支持自助注册。**`allow_signup` 仍是小型或受信部署的可选逃生口，且默认必须关闭：系统无法验证输入地址的人是否控制该地址，因此可访问服务器上的开放注册会让任何人冒领同事的地址（`internal/service/identity/account.go`、`ErrSignupClosed`）。BuildMax 没有出站邮件通道，这是有意设计（`internal/core/identity/login_code.go`）。
 
-**账户存在和空间成员是两个不同的权威，而本文则保持它们的存在，而不是把它们化成一个邀请流。
+**账户是否存在与 Space 成员关系属于两个不同的权威，本设计保持二者分离，不把它们混成一条邀请流程。**
 
-- **创建一个帐户是`system_admin`的工作.**它已经有一个
-权威路径  `POST /api/admin/users` /
-子代理 `buildmax-server user create`
-相关标识符 和本文 [系统管理.md](./system-administration.md)
-空间范围调用，也可能会产生一个
-两个地方决定谁能在部署中存在，
-最新的两者最终会偏离老人的规则
-任何重复的方法
+- **创建账户是 `system_admin` 的职责。**唯一权威路径已经存在：`POST /api/admin/users` / `buildmax-server user create`（见 [system-administration.md](./system-administration.md)）。本设计不新增第二条路径；否则部署中会有两个地方决定谁可以拥有账户，配额默认值、禁用和审计规则最终会漂移，这正是 [AGENTS.md](../../../AGENTS.md) 所禁止的重复权威。
+- **把已有账户加入 Space 是 Space 所有者（或管理员）的职责。**本文所说的“邀请”均指：所有者或管理员按电子邮件邀请某人；只有该地址已有账户时，对方才能在接受后加入 Space。
 
-为了防止这种情况,[代理人](../../../AGENTS.md)的所有权限制规则存在。
-- **现有账户被引入空间的权限是空间所有者 (或管理者)
-工作*** 在本文的其他部分中"，邀请"是什么意思：
-想要有人在他们的空间，的业主或管理者通过电子邮件询问他们，
-另一个人被添加到 等待接受，而不是今天
-如果电子邮件已经有账户。
+结论很明确：**Space 所有者不能独自邀请从未使用过 BuildMax 的人。**他们必须先请 `system_admin` 创建账户（小型部署的引导者通常自己拥有该权限），然后再邀请该地址。本设计把这视为正确的形状，而不是未完成的工作；见 §4.1 和 §6。
 
-结果很清楚： **一个想带来从未使用过BuildMax的人，不能独自做。 ** 他们要求`system_admin`首先创建帐户 (或持有该授权，就像一个小部署的启动人员通常这样做)，然后邀请结果地址。
+因为 Space 范围的邀请永远不会创建账户，它也不需要决定向账户持有人发放什么凭证。首版设计原本需要防止 Space 所有者为陌生账户铸造登录凭证；将账户创建交给另一权威后，这层机制完全不需要。少一步人工操作不值得增加错误面。
 
-由于一个空间扩展的邀请永远无法创建一个帐户，它也永远不需要决定谁持有一个账户的凭证 该文档的第一份草案的机制是为了防止一个空间所有者为陌生人的帐户登录的必要，一旦创建帐户是别人的工作，根本不需要.更简单和更难误入比一个手动步骤少。
+这也为未来的 SSO 留出了正确形状。SSO 已明确延期（`docs/ROADMAP.md`、[enterprise-deployment.md](./enterprise-deployment.md) §6），但它将成为另一条由 IdP 驱动的账户创建路径，与 `system_admin` 的人工路径并存，而不是取代它。§5.1 只询问“该地址是否已有账户”，不关心“由谁、如何创建”，因此 SSO 账户一旦存在即可被邀请，无需修改本设计。
 
-现在，它也恰恰是未来BuildMax不构建的正确形状.SSO被明确推迟 (`docs/ROADMAP.md`,[企业部署.md](./enterprise-deployment.md) §6)，但当它到来时，它将是这样的：第二个，基于IDP的方式创建帐户，在第一次断言时，站在`system_admin`的手册旁边，而不是取代它.因为5.1只会问"这个电子邮件是否已经有帐户"而不是"谁创建它"或"如何，那一天不需要改变。
+在这个分离模型下，仍有三项问题：
 
-考虑到分歧，三件事仍然是破碎的：
+- **“添加”已有用户是即时且未经确认的。**`AddMember` 只有在电子邮件无法解析时才拒绝（`internal/service/space/service.go:111`、`ErrUserDoesNotExist`）；否则对方立即加入，没有待处理状态、接受动作或拒绝机会。所有者输错地址就可能悄悄授予陌生账户访问权限。
+- 成员角色不能直接变更，只能通过移除再添加，这会丢失 `created_at`，并生成看似离开与重新加入的 `space.member_removed` / `space.member_added` 事件，而不是一次晋升；
+- 所有权不能转移给其他成员，因此 Space 永久绑定创建者；被锁定的成员只能依赖部署中某个 `system_admin`，即使其 Space 所有者才是最自然的帮助者。
 
-- **"添加"现有用户是即时的，未经确认的.** `AddMember`
-拒绝只有当电子邮件不解决时
-任何其他类型的设备，包括： `internal/service/space/service.go:111` `ErrUserDoesNotExist`
-没有，人即时加入，没有待定状态，没有
-没有机会拒绝.一个错误输入地址的老板
-默默地允许一个陌生人访问账户空间。
-- 成员的角色不能改变，而不删除和重新添加它们，
-输出`created_at`，并产生`space.member_removed` /
-作为出发和返回，而不是作为出发和返回的`space.member_added`对
-提升。
-- 任何一个空间都不能转移到另一个成员，因此一个空间是永久地被绑定到
-任何创造者，一个被锁定的成员都依赖于一个`system_admin`
-尽管他们拥有自己的空间，但他们仍然在部署中存在的资金。
-显然，他是帮助的。
+本文将这三条路径——邀请（仅限已有账户）、角色变更、所有权转让——以及成员范围的访问恢复，设计为 `internal/core/space` 中小而直接、各有唯一实现的扩展，而不是新子系统。Space 级审批工作流仍按 [space-governance.md](./space-governance.md) §6 排除在外。
 
-本文将这些三次旅行 邀请 (仅限于现有账户)，角色转换，所有权转让 加成员工范围的访问恢复，作为`internal/core/space`的小型，无聊，单次实施扩展，而不是新子系统。 Space [空间管理.md](./space-governance.md)
+## 2. 产品目标
 
-## 2.产品目标
+Space 所有者应能日常管理成员，而不必依赖 `system_admin`，唯一例外是邀请真正从未使用过 BuildMax 的人：
 
-空间所有者应该能够每天运行自己的空间成员，而不需要依赖`system_admin`， BuildMax
+- 邀请已有账户加入 Space，让对方能看到邀请并接受或拒绝；
+- 在不抹去历史的情况下修改角色；
+- 离开时把 Space 交给其他人；
+- 解锁自己 Space 中被锁定的成员。
 
-- 邀请现有账户进入空间，让人能够看到它
-现在，我来了，拒绝了。
-- 修改一个角色，而不删除历史
-- 当他们离开时，把空间交给别人。
-- 解锁一个被锁定的成员的自己的空间
+这四项操作都必须像现有成员添加和移除一样写入审计轨迹，不能出现有些成员变更被记录、有些没有记录的不一致。
 
-任何新可见的不一致性，其中一些会员变化被记录，而其他不。
+## 3. 当前基线
 
-## 3. 现行基准
-
-后端：
+后端锚点：
 
 - 角色和`internal/core/space/space.go`的会员商店合同
 - 在`internal/core/space/policy.go`中的角色/行动决定
-- 在`internal/service/space/service.go`中使用成员指令：
-仅仅为成员角色，目标必须已经拥有账户，补充 `AddMember`
-马上),`RemoveMember` (所有者不能自动移动)
+- `internal/service/space/service.go` 中的成员命令：`AddMember`（仅允许 member 角色，目标必须已有账户且立即生效）和 `RemoveMember`（所有者不能移除自己）；
 - 空间HTTP路线在`internal/server/handlers/space/spaces.go`
-- 创建账户和发行凭证，完全以`system_admin`范围：
-`POST /api/admin/users`， `POST /api/admin/users/{user_id}/login-code`
-单次使用的代码 (`internal/server/handlers/admin/admin_users.go`)
-后者是原始的，
-`internal/core/identity/login_code.go`
-- 账户禁用和锁定恢复设计
-克斯 ([系统管理.md](./system-administration.md)) §6和 §8
-这份文件没有复制 这是`system_admin`的答案
-部署范围内的行动，而不是在自己的空间内行动的空间所有者
-- 审计轨迹及其行动词汇在`internal/core/audit/audit.go`中
+- 账户创建和凭证发放完全属于 `system_admin` 范围：`POST /api/admin/users`、`POST /api/admin/users/{user_id}/login-code`（`internal/server/handlers/admin/admin_users.go`），后者使用 `internal/core/identity/login_code.go` 中的单次登录码原语；
+- [system-administration.md](./system-administration.md) §6 和 §8 中的账户禁用与锁定恢复设计；本设计不重复它，因为那是 `system_admin` 在部署范围内操作的方案，而不是 Space 所有者在自己的 Space 内操作的方案；
+- `internal/core/audit/audit.go` 中的审计轨迹和操作词汇（`SpaceMemberAdded`、`SpaceMemberRemoved` 及其命名模式）。
 (`SpaceMemberAdded`,`SpaceMemberRemoved`，以及它们所设的命名模式)
 
 现行行动模式 (`internal/core/space/policy.go`)：
 
-- 仅仅拥有者。 封面现在加上和删除； `ActionManageSpaceMembers`
-没有`Action`尚未转换职位或转让所有权。
+- `ActionManageSpaceMembers`——仅限所有者，当前涵盖添加和移除；尚无角色变更或所有权转让的独立 `Action`。
 - 没有任何操作来发出登录代码，因为功能本身
 没有在部署范围以下存在。
 
-**用户可以同时属于多个空间，这是常见的情况，而不是边缘情况.**`space_member`在`(space_id, user_id)`上具有独特的索引，只有在`user_id`上没有任何一个索引，只属于`internal/infra/db/space.go:53-54`.`CreateUser`给每个帐户一个个人空间 ([阅读中文镜像](space-membership-lifecycle.md)是带有独特索引的列,相关标识符 `personal_for_user_id` `internal/infra/db/user.go:194-216` `ListSpacesByUser` `SpaceContext` `portal/src/contexts/SpaceContext.tsx` Portal
+**用户可以同时属于多个 Space，这很常见，并非边缘情况。**`space_member` 只有 `(space_id, user_id)` 唯一索引，没有单独的 `user_id` 唯一索引（`internal/infra/db/space.go:53-54`）。`CreateUser` 为每个账户创建一个个人 Space（`personal_for_user_id` 列在 `internal/infra/db/user.go:194-216` 上有唯一索引），用户还可以拥有或加入任意数量的普通 Space。`ListSpacesByUser` 会返回全部 Space，Portal 的 `SpaceContext`（`portal/src/contexts/SpaceContext.tsx`）是真实的 Space 切换器，而不是占位实现。
+
+因此，接受邀请只会新增一条 `space_member` 记录，不会与其他 Space 冲突；始终每个用户恰好一个的只有个人 Space，而本文没有任何路径创建、删除或转移个人 Space。一个账户也可以同时拥有来自不同 Space 的多个待处理邀请，每个邀请都可独立接受或拒绝。
 
 ## 4. 主要缺口
 
 ### 4.1 没有账户的人没有邀请路径
 
-空间所有者不能搭载一个尚未由`system_admin`创建的人.这是一个部署中真正的摩擦，只有少数`system_admin`补贴， §1解释了为什么该文件接受它而不是关闭它见 §6关闭它会花多少钱。 `AddMember` `s.Users.UserByEmail` `internal/service/space/service.go:107-113`
+`AddMember` 要求 `s.Users.UserByEmail` 能解析到已有账户（`internal/service/space/service.go:107-113`）。因此 Space 所有者不能邀请尚未由 `system_admin` 创建的人。这在 `system_admin` 权限很少的部署中确实造成摩擦；§1 说明了本设计为何接受这一点，§6 说明彻底关闭该缺口的代价。
 
 ### 4.2 增加现有用户是立即的，而不是邀请
 
-称之为`AddMember`是正确的：它添加.没有待定状态，没有接受，没有方式让被添加的人看到它来或拒绝它.一个审计报名存在事实后 (`SpaceMemberAdded`)，但没有什么事先.这是5.1的空白关闭。
+称为 `AddMember` 是准确的：它会立即添加成员。没有待处理状态、接受动作或拒绝方式；只有事后才有 `SpaceMemberAdded` 审计记录，缺少事前记录。这正是 §5.1 要解决的缺口。
 
 ### 4.3 没有改变角色
 
-区分`Allows` (`internal/core/space/policy.go`) 区分`owner`,`admin`和`member`，但`internal/service/space`中没有任何东西可以在它们之间移动成员。 唯一的途径是删除然后再添加，这就是：
+`Allows`（`internal/core/space/policy.go`）区分 `owner`、`admin` 和 `member`，但 `internal/service/space` 没有让成员在这些角色之间变更的操作。唯一途径是先移除再重新添加，这会：
 
-- 要求目标仍然有账户，并且仍然愿意
-邀请回来
-- 是两个审计事件，读取为出发和新加入，而不是一个
-提升
-- 简短地离开了这个空间，没有任何记录的人。
+- 要求目标仍有账户，并愿意再次被邀请；
+- 产生两条看似离开与重新加入的审计事件，而不是一次晋升；
+- 在短时间内让该成员完全不在 Space 记录中。
 
 ### 4.4 没有转让所有权
 
-现在唯一的改变空间所有者是直接访问数据库，这正是相关标识符 §6的操作类型，使账户补贴不必要，并尚未覆盖空间所有权。 `RemoveMember` `ErrCannotRemoveSelf` [系统管理.md](./system-administration.md)
+`RemoveMember` 拒绝所有者移除自己（`ErrCannotRemoveSelf`），这条保护本身是正确的；但当前没有让其他成员接任的路径。改变 Space 所有者只能直接访问数据库，正是 [system-administration.md](./system-administration.md) §6 希望消除、但尚未覆盖 Space 所有权的那类操作。
 
 ### 4.5 访问恢复仅针对部署
 
-仅通过`POST /api/admin/users/{user_id}/login-code`才能达到`POST /api/admin/users/{user_id}/login-code`，这需要`system_admin` (`internal/server/handlers/admin/admin_users.go:200`).一个观察一个锁定的空间同伴的空间所有者没有自己的路径。 `LoginCodeStore.CreateLoginCode`
+`LoginCodeStore.CreateLoginCode` 目前只能通过需要 `system_admin` 的 `POST /api/admin/users/{user_id}/login-code` 使用（`internal/server/handlers/admin/admin_users.go:200`）。因此，看到 Space 成员被锁定的所有者没有自己的恢复路径，只能寻找 `system_admin`。
 
 ## 5. 范围
 
-### 5.1 Space-扩展的邀请
+### 5.1 Space 范围的邀请
 
-添加`POST /api/spaces/{space_id}/invitations`，取电子邮件和可选角色 (成员或管理员 永远没有所有者；参见5.2节为什么所有权通过单独的明确行动移动).它 **取代**`POST /api/spaces/{space_id}/members`，目前的即时添加路线，而不是住在旁边  per [代理人](../../../AGENTS.md),Alpha意味着在任何地方都一次地修复错误的形状，两个路线都添加一个成员将是正确的重复权威 §1反对，仅一个层下。
+新增 `POST /api/spaces/{space_id}/invitations`，接收电子邮件和可选角色（member 或 admin，不能是 owner；所有权通过 §5.2 的独立明确动作转移）。它**取代**当前立即添加成员的 `POST /api/spaces/{space_id}/members`，而不是与之并存；Alpha 阶段应在一个地方修正错误形状，保留两条都能添加成员的路径会违反 §1 的唯一权威原则。
 
-授权是新的`ActionInviteSpaceMember`，而不是重复使用`ActionManageSpaceMembers`，因为两个调用者不同： **所有者可以在`member`或`admin`上邀请；管理员只能在`member`上邀请.** 邀请另一个管理员可以与同行员工一起工作，其中一个成员管理者仍然保留了  角色更改和所有权转让留在`ActionManageSpaceMembers` / 相关标识符，这两个仍然是所有者，所以这不会让那些管理员建立一个路径。 `ActionChangeMemberRole`
+授权使用新的 `ActionInviteSpaceMember`，而不是复用 `ActionManageSpaceMembers`，因为调用者不同：**所有者可以邀请 member 或 admin，管理员只能邀请 member。**邀请另一位管理员支持同级协作；角色变更和所有权转让仍由 `ActionChangeMemberRole` / `ActionManageSpaceMembers` 负责，且二者仍只授予所有者。
 
 行为：
 
-- 电子邮件必须被解决到现有帐户
-根据`AddMember`的要求， `coreidentity.UserStore.UserByEmail`
-现在，如果没有，那么，
-问一个问题， `ErrInviteeAccountRequired`
-创建账户的`system_admin` (`POST /api/admin/users` /
-接下来请请收到的地址。 `buildmax-server user create`
-收录而不是关闭，见第1.节。
-- 电话号码是什么？
-创建一个**悬挂** `space_invitation`行，没有其他任何东西没有
-没有会话，没有账户级别的副作用。
-预计：本节的早期草案中，有任何邀请
-建立一个帐户，并为此打造一个登录凭证，
-空间所有者获得了用于部署的任何地址的工作登录
-只有"邀请"它，现有账户或不。
-已存在的账户 在 §1  决定的消除了这一风险
-建筑而不是本节规则
-继续执行。
-- 悬而未决的行在`InvitationTTLDefault = 72 * time.Hour`之后过期，如果
-没有人接受它.这是报价的属性，而不是任何证书
-没有什么在这个流量问题一个三个天而不是一个更短的窗口
-因为每次接收者下一次，就会发出邀请，
-开放Portal，不是发送的相同交易所。
-- 发现完全是应用程序中的:`GET /api/invitations` (认证，没有
-空间参数 它回答"什么是等待的 *我*") 列出了什么是
-电话给客户可以接受，使用他们自己到达的任何会议
-他们的密码，或者一个有 standing 的人已经给了他们一个登录代码。
-没有邮件通道，而且这个流量不需要任何通道： BuildMax
-作为一个客人，我们必须让他们离开乐队，因为邀请者已经有了进入的途径。
-想让人早点注意到，仍然可以说，不管空间
-产品不依赖于它。
-- 相关标识符激活一个.它不需要代码 `POST /api/invitations/{id}/accept`
-接受会话已经确定了，所以接受是
-通过"这是我自己的悬而未决行"，而不是通过证明任何一个
-这是第二次。
-- 撤销未发行邀请 (`DELETE /api/spaces/{space_id}/invitations/{id}`)
-任何能发送的都可以撤回。 `ActionInviteSpaceMember`
+- 电子邮件必须解析到已有账户，这是 `AddMember` 对 `coreidentity.UserStore.UserByEmail` 的要求；否则返回 `ErrInviteeAccountRequired`，由 `system_admin` 通过 `POST /api/admin/users` / `buildmax-server user create` 创建账户（见 §1）。
+- 解析成功后，只创建一条**待处理**的 `space_invitation` 记录，不创建 Session，不产生账户级副作用。首版草案曾让邀请创建账户并发放登录凭证，这会让 Space 所有者为任意地址获得可用登录；§1 的账户分离原则已经消除了该风险。
+- 待处理记录在 `InvitationTTLDefault = 72 * time.Hour` 后过期，除非有人接受。TTL 属于邀请本身，而不是凭证；接收者下次打开 Portal 时即可看到邀请，流程不依赖邮件通道。
+- 发现完全在应用内完成：认证的 `GET /api/invitations`（无 Space 参数，回答“有哪些邀请在等我？”）返回调用者可以接受的邀请。调用者可以用自己的凭证登录，也可以使用已有管理员发放的登录码。BuildMax 没有邮件通道，这个流程也不依赖邮件；其他产品仍可额外通知用户，但不属于本契约。
+- 接受邀请使用 `POST /api/invitations/{id}/accept`。无需额外代码，因为 Session 已完成身份认证；接受动作只需证明待处理记录属于当前调用者。
+- 未接受的邀请可通过 `DELETE /api/spaces/{space_id}/invitations/{id}` 撤回；任何拥有 `ActionInviteSpaceMember` 的调用者都可以撤回。
 
 这就结束了4.2条，没有重新开放已经解决的账户创建问题 §1 问题，并且没有让一个空间的邀请成为一个进入账户的途径，另一个空间，或者没有空间，已经有权利。
 
