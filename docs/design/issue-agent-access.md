@@ -23,7 +23,7 @@
   that the implemented Issue model deliberately left separate; it is not
   placed in [../ROADMAP.md](../ROADMAP.md)
 - status: `implemented` — §10 is shipped on both planes: a worker run started
-  from an Issue, and a local CLI session started with `--issue`. Artifact
+  from an Issue, and a local CLI session started with `buildmax issue start`. Artifact
   references in `GetIssue` are deferred; §5.1 says why
 - follows: [tool-permissions.md](./tool-permissions.md),
   [unified-artifacts.md](./unified-artifacts.md)
@@ -300,7 +300,7 @@ absent from the tool list — not registered in a state where every call fails.
 |---|---|---|---|
 | Worker run started from an Issue | yes | yes | The task carries an Issue ID; the run token authorizes |
 | Worker run with no Issue | absent | absent | No scope exists |
-| Local CLI/TUI session started with `--issue` | yes | yes | Requires login; reports as `local_agent`, §6.1 |
+| Local CLI/TUI session started with `buildmax issue start` | yes | yes | Requires login; reports as `local_agent`, §6.1 |
 | Desktop session | not yet | not yet | The capability exists; no Desktop surface offers it |
 | Local session not linked, or not logged in | absent | absent | Ordinary local work is unchanged |
 | Tier 1 conversation | deferred | deferred | §11 |
@@ -350,7 +350,7 @@ already read.
    existing space Issue routes where the run token can be authorized against
    them.
 6. Implement the port in `internal/interface/client` for logged-in local
-   surfaces, and scope a session to an Issue with `buildmax --issue <id>`.
+   surfaces, and scope a session to an Issue with `buildmax issue start <id>`.
    Reports go through the space comment route as `local_agent` (§6.1).
 
 All six are done. Steps 1–5 are worker-plane work and stood alone; step 6 is
@@ -383,6 +383,6 @@ the link, offer an inbox in Desktop, return status — is still that proposal's.
    report is a claim the relaying person is accountable for; making it evidence
    would need the local session to hold a credential of its own, which is the
    durable-Agent-sessions question, not this one.
-7. **How does a local session pick its Issue durably?** `--issue` scopes one
+7. **How does a local session pick its Issue durably?** `buildmax issue start` scopes one
    run and remembers nothing. The bridge's `IssueLink` sidecar is the durable
    form, and it is that proposal's to design.

@@ -19,14 +19,41 @@ func newIssueCommand() *cobra.Command {
 		Long: "Receive space work from the BuildMax server you are signed in to,\n" +
 			"do it here, and say where it got to.\n\n" +
 			"That is the whole scope: list what you were given, read one, work it\n" +
-			"with `buildmax --issue`, and move its status when you are done. The\n" +
+			"with `buildmax issue start`, and move its status when you are done. The\n" +
 			"board, the workflow editor, and everything about who owns what stay in\n" +
 			"Portal. Sign in with `buildmax login` first.",
 	}
 	cmd.AddCommand(newIssueListCommand())
 	cmd.AddCommand(newIssueShowCommand())
+	cmd.AddCommand(newIssueStartCommand())
 	cmd.AddCommand(newIssueStatusCommand())
 	return cmd
+}
+
+func newIssueStartCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "start <issue-id>",
+		Short: "Work an issue in this session: the agent can read it and report back",
+		Long: "Scopes one local session to one issue and launches it, in the TUI or,\n" +
+			"with -p, one print-mode run. The agent can read that issue and post a\n" +
+			"report on it; its status, assignee, and sub-issues stay yours to change.\n\n" +
+			"This takes the same run flags as `buildmax` itself (-p, -r, --model,\n" +
+			"--workspace, and so on). Requires login. The scope lasts for this\n" +
+			"session only; it is not remembered.",
+		Args: cobra.ExactArgs(1),
+		RunE: runIssueStart,
+	}
+	addRunFlags(cmd)
+	return cmd
+}
+
+func runIssueStart(cmd *cobra.Command, args []string) error {
+	session, err := auth.OpenIssueSession(cmd.Context(), args[0])
+	if err != nil {
+		fmt.Fprintln(cmd.ErrOrStderr(), err.Error())
+		return &ExitError{Code: ExitUsage, Err: err}
+	}
+	return runAgentSession(cmd, session)
 }
 
 func newIssueListCommand() *cobra.Command {
@@ -216,7 +243,7 @@ func runIssueShow(cmd *cobra.Command, args []string) error {
 			fmt.Fprintf(out, "    %s\n", line)
 		}
 	}
-	fmt.Fprintf(out, "\nWork on it here: buildmax --issue %s\n", issue.ID)
+	fmt.Fprintf(out, "\nWork on it here: buildmax issue start %s\n", issue.ID)
 	return nil
 }
 
