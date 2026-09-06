@@ -1,5 +1,7 @@
 # Changelog Entries
 
+> **简体中文：** [阅读中文镜像](../zh-CN/changelog/README.md)
+>
 > **Audience:** contributors · **Status:** current
 
 One unreleased entry per file. A release folds them into a dated section in
