@@ -32,6 +32,9 @@ buildmax <command> [flags]
 | `buildmax issue show <id>` | Show one issue: what it asks for, its sub-issues, and recent discussion |
 | `buildmax issue status <id> <status>` | Move an issue to `todo`, `in_progress`, or `done` |
 | `buildmax --issue <id>` | Work a space issue in this session: the agent can read it and report back |
+| `buildmax admin list` | List deployment administrators; `--all` includes revoked grants (System Administrator only) |
+| `buildmax admin grant <email>` | Grant deployment-administrator authority to an existing account |
+| `buildmax admin revoke <email>` | Revoke an account's administrator authority (refuses the last one) |
 | `buildmax plugin list` | List installed plugins, where each came from, and whether it loads |
 | `buildmax plugin status [name]` | Show what a plugin contributes, its checkout or release, and what shadowed it |
 | `buildmax plugin validate [path]` | Parse a plugin directory and report every problem; non-zero if any would stop it loading |
@@ -224,6 +227,29 @@ That is yours to run, not the agent's. Status is what the space plans around and
 work is finished and you decide. The change carries the version the issue was
 read at; if someone else moved it meanwhile, this refuses instead of
 overwriting them.
+
+### `buildmax admin`
+
+`buildmax admin` manages who can operate a deployment, as the signed-in
+administrator, over the same API the Portal administration area uses. Sign in
+with `buildmax login` first; a caller without a system grant is refused by the
+server.
+
+```bash
+buildmax admin list                 # active administrators
+buildmax admin list --all           # include revoked grants
+buildmax admin grant alex@corp.com  # give an existing account admin authority
+buildmax admin revoke alex@corp.com # take it away
+```
+
+Accounts are named by email; `grant` and `revoke` resolve the address to one
+account and refuse an ambiguous or unknown one rather than act on a guess.
+Revoking the deployment's last administrator is refused here — that is a
+deliberate, database-authorized act, done with `buildmax-server admin revoke`
+on the machine that runs the server. Creating the first administrator and
+recovering a deployment that has lost every administrator likewise stay in
+`buildmax-server admin`, which reaches the database directly; `buildmax admin`
+is the routine, authenticated peer, not the break-glass path.
 
 ### `buildmax doctor`
 
