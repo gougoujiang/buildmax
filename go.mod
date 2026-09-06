@@ -20,6 +20,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
 	github.com/k3a/html2text v1.4.0
+	github.com/klauspost/compress v1.20.0
 	github.com/modelcontextprotocol/go-sdk v1.7.0
 	github.com/muesli/termenv v0.16.0
 	github.com/sashabaranov/go-openai v1.42.0
