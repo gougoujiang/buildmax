@@ -46,24 +46,6 @@ type workspaceCheckpointRow struct {
 
 func (workspaceCheckpointRow) TableName() string { return "workspace_checkpoint" }
 
-// FinalizeCheckpointInput is a captured payload the worker has already uploaded
-// and verified, plus the run it came from. Public IDs are handles; the store
-// resolves them to numeric keys inside the transaction.
-type FinalizeCheckpointInput struct {
-	SpaceID          string
-	TaskID           string
-	SourceTaskRunID  string
-	BaseCheckpointID *string
-	Kind             coretask.CheckpointKind
-
-	PayloadFormat     string
-	PayloadSHA256     string
-	StorageKey        string
-	SizeBytes         int64
-	UncompressedBytes int64
-	EntryCount        int64
-}
-
 // FinalizeWorkspaceCheckpoint records a checkpoint and updates its source run
 // and, for a head-advancing kind, its Task — atomically. It is the store side
 // of the commit protocol's authoritative-pointer step (§8): the payload is
@@ -75,7 +57,7 @@ type FinalizeCheckpointInput struct {
 // the Task head when it has none; a successful result advances an existing head
 // only when it still points at the run's base (a linear advance); a partial
 // never moves the head.
-func (s *Store) FinalizeWorkspaceCheckpoint(ctx context.Context, in FinalizeCheckpointInput) (*coretask.WorkspaceCheckpoint, error) {
+func (s *Store) FinalizeWorkspaceCheckpoint(ctx context.Context, in coretask.FinalizeCheckpointInput) (*coretask.WorkspaceCheckpoint, error) {
 	if !coretask.ValidCheckpointKind(in.Kind) {
 		return nil, apierr.ErrNotFound
 	}
