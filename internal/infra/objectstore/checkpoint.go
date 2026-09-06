@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 
 	"github.com/gougoujiang/buildmax/internal/core/apierr"
 )
@@ -25,6 +26,20 @@ import (
 // space id that is not a safe key segment.
 var ErrInvalidCheckpointDigest = errors.New("objectstore: invalid checkpoint digest or space id")
 
+// CheckpointStore is the full checkpoint payload store surface, implemented by
+// both backends. Callers depend on the subset they use: the finalizer reads
+// Exists and Key, the worker transfers with Put and Open, and the orphan sweep
+// maintains with ListBlobs and Delete. Keeping one type means the server builds
+// one store and hands each caller the view it needs.
+type CheckpointStore interface {
+	Put(ctx context.Context, spaceID, sha256hex string, src io.Reader) (string, error)
+	Open(ctx context.Context, storageKey string) (io.ReadCloser, int64, error)
+	Key(spaceID, sha256hex string) (string, error)
+	Exists(ctx context.Context, spaceID, sha256hex string) (bool, error)
+	Delete(ctx context.Context, storageKey string) error
+	ListBlobs(ctx context.Context) ([]ObjectInfo, error)
+}
+
 // checkpointBlobKey derives the content-addressed key for one payload:
 // <prefix>/<spaceID>/workspace/blobs/sha256/<64-lowercase-hex>. prefix is empty
 // for the local filesystem, where the key is relative to the store root.
@@ -33,6 +48,23 @@ func checkpointBlobKey(prefix, spaceID, sha256hex string) (string, error) {
 		return "", ErrInvalidCheckpointDigest
 	}
 	return path.Join(prefix, spaceID, "workspace", "blobs", "sha256", sha256hex), nil
+}
+
+// checkpointBlobInfix is the fixed middle of every content-addressed key:
+// <prefix>/<spaceID>/workspace/blobs/sha256/<hex>. It distinguishes checkpoint
+// payloads from the artifacts and space files that may share a bucket.
+const checkpointBlobInfix = "/workspace/blobs/sha256/"
+
+// isCheckpointBlobKey reports whether a listed key is a committed checkpoint
+// payload — the infix followed by a 64-hex digest and nothing else. It rejects a
+// staging temp file left in the sha256 directory and any unrelated object under
+// the same prefix, so the sweep only ever considers real payloads.
+func isCheckpointBlobKey(key string) bool {
+	i := strings.LastIndex(key, checkpointBlobInfix)
+	if i < 0 {
+		return false
+	}
+	return isSHA256Hex(key[i+len(checkpointBlobInfix):])
 }
 
 func isSHA256Hex(s string) bool {
@@ -111,6 +143,24 @@ func (s *S3CheckpointStore) Exists(ctx context.Context, spaceID, sha256hex strin
 // Delete removes one payload. A key that is not there is not an error.
 func (s *S3CheckpointStore) Delete(ctx context.Context, storageKey string) error {
 	return s.client.DeleteObject(ctx, s.bucket, storageKey)
+}
+
+// ListBlobs returns every committed checkpoint payload under this store, with
+// its last-modified time, for the orphan sweep. It lists the store's prefix and
+// keeps only content-addressed blob keys, so artifacts or space files sharing
+// the bucket are never returned.
+func (s *S3CheckpointStore) ListBlobs(ctx context.Context) ([]ObjectInfo, error) {
+	objs, err := s.client.ListObjects(ctx, s.bucket, s.prefix)
+	if err != nil {
+		return nil, err
+	}
+	var out []ObjectInfo
+	for _, o := range objs {
+		if isCheckpointBlobKey(o.Key) {
+			out = append(out, o)
+		}
+	}
+	return out, nil
 }
 
 // LocalFSCheckpointStore stores checkpoint payloads under a root directory, the
@@ -204,6 +254,40 @@ func (s *LocalFSCheckpointStore) Exists(ctx context.Context, spaceID, sha256hex 
 	default:
 		return false, statErr
 	}
+}
+
+// ListBlobs walks the store root and returns every committed checkpoint payload
+// with its modification time, for the orphan sweep. Keys are backend-relative,
+// matching what Put returns and what a checkpoint row records, so the sweep can
+// compare them against the database directly. A missing root is an empty list,
+// not an error — a deployment that has captured nothing yet.
+func (s *LocalFSCheckpointStore) ListBlobs(ctx context.Context) ([]ObjectInfo, error) {
+	var out []ObjectInfo
+	err := filepath.Walk(s.root, func(p string, info os.FileInfo, err error) error {
+		if err != nil {
+			if os.IsNotExist(err) {
+				return nil
+			}
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		rel, err := filepath.Rel(s.root, p)
+		if err != nil {
+			return err
+		}
+		key := filepath.ToSlash(rel)
+		if !isCheckpointBlobKey("/" + key) {
+			return nil
+		}
+		out = append(out, ObjectInfo{Key: key, ModTime: info.ModTime()})
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // Delete removes one payload. A key that is not there is not an error, matching

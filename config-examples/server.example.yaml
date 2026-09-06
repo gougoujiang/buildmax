@@ -259,6 +259,12 @@ storage:
   # create request may ask for less, never more. 0 uses the built-in default
   # (30 days). Requires public_base_url to be set for sharing to work at all.
   artifact_share_ttl_hours: 0
+  # How long an uncommitted checkpoint payload stays in the store before the
+  # orphan sweep reclaims it — bytes a worker uploaded whose pointer never
+  # committed. 0, the default, reclaims on the next hourly sweep once the payload
+  # is older than the cutoff, which is safe because bytes are written before the
+  # pointer. Set a number of days to give an operator a recovery window first.
+  checkpoint_orphan_grace_days: 0
   minio:
     # Set endpoint for an S3-compatible store you run (MinIO, Ceph, a
     # vendor's service). Leave empty for AWS S3 to let the SDK resolve the
